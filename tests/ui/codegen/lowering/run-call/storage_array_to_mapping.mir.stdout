@@ -288,7 +288,7 @@ fn @constructor() [constructor] {
     v318 = or v315, v317
     sstore v308, v318 !metadata(storage=symbolic(v308))
     sstore 2, v305 !metadata(storage=slot(2))
-    stop
+    ret
   bb60:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

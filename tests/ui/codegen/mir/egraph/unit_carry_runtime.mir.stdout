@@ -1,0 +1,50 @@
+// === ROOT/tests/ui/codegen/mir/egraph/unit_carry_runtime.sol:UnitCarry ===
+@module UnitCarry
+fn @carries(arg0: u256) -> (u256, u256) [selector=0xe64b0efb, pure, abi_params=[u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = lt v0, arg0
+    v2 = sub arg0, 1
+    v3 = gt v2, arg0
+    ret v1, v3
+}
+
+fn @increment(arg0: u256) -> u256 [selector=0x7cf5dab0, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @decrement(arg0: u256) -> u256 [selector=0x3a9ebefd, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = sub arg0, 1
+    v1 = lt arg0, 1
+    jumpi v1, bb1, bb2
+  bb2:
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @narrow(arg0: u8) -> u8 [selector=0x3fca863c, pure, abi_params=[u8], abi_returns=[word<u8>]] {
+  bb0:
+    v0 = and arg0, 255
+    v1 = add v0, 1
+    v2 = gt v1, 255
+    jumpi v2, bb1, bb2
+  bb2:
+    ret v1
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

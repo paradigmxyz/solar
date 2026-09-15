@@ -1,0 +1,29 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=lower-abi-encode
+//@[gas] filecheck: --check-prefix=GAS
+//@[size] compile-flags: -Osize -Zmir-pipeline=lower-abi-encode
+//@[size] filecheck: --check-prefix=SIZE
+@module BytePadding
+
+// GAS-LABEL: {{^[ +].*}}fn @encode
+// GAS: + [[LEN:v[0-9]+]] = slice_len arg0
+// GAS: + [[PAD:v[0-9]+]] = and
+// GAS: + [[LAST:v[0-9]+]] = add {{v[0-9]+}}, [[PAD]]
+// GAS-NEXT: + mstore [[LAST]], 0
+// GAS-NEXT: + mstore {{v[0-9]+}}, [[LEN]]
+// GAS-NOT: jumpi
+// GAS: + calldatacopy
+// Size mode keeps the guarded store, which can share machine-level encoder tails.
+// SIZE-LABEL: {{^[ +].*}}fn @encode
+// SIZE: + [[LEN:v[0-9]+]] = slice_len arg0
+// SIZE-NEXT: + mstore {{v[0-9]+}}, [[LEN]]
+// SIZE: + {{v[0-9]+}} = and
+// SIZE: + {{v[0-9]+}} = iszero
+// SIZE-NEXT: + jumpi
+// SIZE: + mstore {{v[0-9]+}}, 0
+// SIZE: + calldatacopy
+fn @encode(arg0: calldataslice) -> memoryslice {
+  bb0:
+    v0 = abi_encode [calldata_bytes], args arg0
+    ret v0
+}

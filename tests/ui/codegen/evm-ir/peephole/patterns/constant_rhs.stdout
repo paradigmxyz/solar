@@ -32,10 +32,9 @@
 -   sar
     stop
   bb6:
-    push 2
--   push 0
+-   push 2
+    push 0
 -   eq
-+   iszero
     stop
   bb7:
 -   push 2

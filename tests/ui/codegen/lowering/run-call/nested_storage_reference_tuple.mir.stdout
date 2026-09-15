@@ -187,7 +187,7 @@ fn @initialize() {
   bb3:
     v5 = add 0, 1
     sstore v5, 20 !metadata(storage=slot(1))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

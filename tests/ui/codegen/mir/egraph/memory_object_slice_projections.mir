@@ -1,0 +1,43 @@
+//@ revisions: baseline optimized
+//@[baseline] compile-flags: -Zmir-pipeline=lower-memory-objects,lower-slices
+//@[optimized] compile-flags: -Zmir-pipeline=egraph,lower-memory-objects,lower-slices
+//@ filecheck:
+
+@module MemoryObjectSliceProjections
+@phase dispatch
+
+// CHECK-LABEL: fn @fixed_payload(arg0: memptr
+// CHECK: ret arg0
+fn @fixed_payload(arg0: memoryslice) -> memptr {
+  bb0:
+    v1 = memory_object_data memorystruct, arg0
+    ret v1
+}
+
+// CHECK-LABEL: fn @dynamic_payload(arg0: memptr
+// CHECK: ret arg0
+fn @dynamic_payload(arg0: memoryslice) -> memptr {
+  bb0:
+    v1 = memory_object_data memorybytes, arg0
+    ret v1
+}
+
+// CHECK-LABEL: fn @memory_field(arg0: memptr
+// CHECK: [[MEM:v[0-9]+]] = mload arg0
+// CHECK: ret [[MEM]]
+fn @memory_field(arg0: memoryslice) -> u256 {
+  bb0:
+    v1 = memory_object_field_addr memorystruct<2>, arg0, 0
+    v2 = mload v1
+    ret v2
+}
+
+// CHECK-LABEL: fn @calldata_field(arg0: calldataptr
+// CHECK: [[CALLDATA:v[0-9]+]] = calldataload arg0
+// CHECK: ret [[CALLDATA]]
+fn @calldata_field(arg0: calldataslice) -> u256 {
+  bb0:
+    v1 = memory_object_field_addr memorystruct<2>, arg0, 0
+    v2 = mload v1
+    ret v2
+}

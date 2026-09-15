@@ -12,7 +12,7 @@ fn @approve(arg0: address, arg1: u256) [selector=0x095ea7b3, payable, abi_params
     v1 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v0, v1, arg1
     sstore 0, arg1 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/payable_void_call.sol:Caller ===

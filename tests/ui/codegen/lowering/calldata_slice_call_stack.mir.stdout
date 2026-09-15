@@ -101,7 +101,7 @@ fn @execute(arg0: address, arg1: address, arg2: u256, arg3: calldataslice) [sele
   bb18:
     jump bb19
   bb19:
-    stop
+    ret
   bb17:
     revert 0, 0
   bb12:

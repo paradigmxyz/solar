@@ -1,0 +1,29 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (before lower-mapping-slots) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (after lower-mapping-slots) ===
+  @module LowerEvmShapedLegality
+  @phase memory-lowered
+  fn @entry() [entry] {
+    bb0:
+-     v0 = storage_array_data_slot 7
+-     v1 = sload v0
++     mstore 0, 7 !metadata(memory=scratch)
++     v2 = keccak256 0, 32 !metadata(memory=scratch)
++     v1 = sload v2
+      mstore 128, v1
+      returndata 128, 32
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (before lower-evm-shaped) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (after lower-evm-shaped) ===
+  @module LowerEvmShapedLegality
+- @phase memory-lowered
++ @phase evm-shaped
+  fn @entry() [entry] {
+    bb0:
+      mstore 0, 7 !metadata(memory=scratch)
+      v2 = keccak256 0, 32 !metadata(memory=scratch)
+      v1 = sload v2
+      mstore 128, v1
+      returndata 128, 32
+  }
+  

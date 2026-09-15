@@ -2,21 +2,21 @@
 @module EvaluationOrderA
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_constructor_evaluation_order.sol:EvaluationOrderB ===
 @module EvaluationOrderB
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_constructor_evaluation_order.sol:EvaluationOrderC ===
 @module EvaluationOrderC
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_constructor_evaluation_order.sol:D ===
@@ -44,7 +44,7 @@ fn @constructor() [constructor] {
   bb5:
     jump bb4
   bb4:
-    stop
+    ret
 }
 
 fn @query() -> memoryarray [selector=0x2c46b205, view, abi_params=[], abi_returns=[memory_array<word>]] {

@@ -8,7 +8,7 @@ fn @constructor(arg0: bool) [constructor, abi_params=[bool]] {
     v3 = iszero v2
     jumpi v3, bb1, bb2
   bb2:
-    stop
+    ret
   bb1:
     icall @revert_error, 0, 1, 0x7800000000000000000000000000000000000000000000000000000000000000
     invalid

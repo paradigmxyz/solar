@@ -173,7 +173,7 @@
 -     v6 = slice_ptr arg0
 -     calldatacopy v5, v6, v3 !metadata(memory=heap)
 -     v7 = add v5, v3
-+     calldatacopy v5, arg0, arg1 !metadata(memory=heap)
++     calldatacopy v5, arg0, arg1
 +     v7 = add v5, arg1
       mstore v7, 11
       v8 = keccak256 v5, v4

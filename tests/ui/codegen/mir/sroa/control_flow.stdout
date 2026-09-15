@@ -1,0 +1,168 @@
+- // === ROOT/tests/ui/codegen/mir/sroa/control_flow.mir (before sroa) ===
++ // === ROOT/tests/ui/codegen/mir/sroa/control_flow.mir (after sroa) ===
+  @module SroaControlFlow
+  fn @diamond(arg0: bool, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+      v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+-     v1 = memory_object_field_addr memorystruct<1>, v0, 0
+      jumpi arg0, bb1, bb2
+    bb2:
+-     mstore v1, arg2
+      jump bb3
+    bb1:
+-     mstore v1, arg1
+      jump bb3
+    bb3:
+-     v2 = mload v1
+-     ret v2
++     v3 = phi [bb1: arg1], [bb2: arg2]
++     ret v3
+  }
+  
+  fn @loop(arg0: u256) -> u256 {
+    bb0:
+      v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+-     memory_zero v0, 32
+-     v1 = memory_object_field_addr memorystruct<1>, v0, 0
+      jump bb1
+    bb1:
+-     v2 = mload v1
+-     v3 = lt v2, arg0
++     v5 = phi [bb0: 0], [bb2: v4]
++     v3 = lt v5, arg0
+      jumpi v3, bb2, bb3
+    bb3:
+-     ret v2
++     ret v5
+    bb2:
+-     v4 = add v2, 1
+-     mstore v1, v4
++     v4 = add v5, 1
+      jump bb1
+  }
+  
+  fn @missing_definition(arg0: bool) -> u256 {
+    bb0:
+      v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+      v1 = memory_object_field_addr memorystruct<1>, v0, 0
+      jumpi arg0, bb1, bb2
+    bb1:
+      mstore v1, 7
+      jump bb2
+    bb2:
+      v2 = mload v1
+      ret v2
+  }
+  
+  fn @cross_field_phi(arg0: bool, arg1: u256) -> u256 {
+    bb0:
+      v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+-     memory_zero v0, 64
+-     v1 = memory_object_field_addr memorystruct<2>, v0, 0
+-     v2 = memory_object_field_addr memorystruct<2>, v0, 1
+      jumpi arg0, bb1, bb2
+    bb1:
+-     mstore v1, arg1
+-     v3 = mload v1
+-     mstore v2, v3
+      jump bb2
+    bb2:
+-     v4 = mload v2
+-     ret v4
++     v5 = phi [bb0: 0], [bb1: arg1]
++     ret v5
+  }
+  
+  fn @observe_size() -> u256 {
+    bb0:
+      v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+      memory_zero v0, 32
+      v1 = memory_object_field_addr memorystruct<1>, v0, 0
+      mstore v1, 7
+      v2 = msize
+      ret v2
+  }
+  
+  fn @outside_object() -> u256 {
+    bb0:
+      v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+      memory_zero v0, 32
+      v1 = memory_object_element_addr memoryfixedarray<1, 1>, v0, 1
+      v2 = mload v1
+      ret v2
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/sroa/control_flow.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/sroa/control_flow.mir (after dce) ===
+  @module SroaControlFlow
+  fn @diamond(arg0: bool, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+      v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+      jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      jump bb3
+    bb3:
+      v3 = phi [bb1: arg1], [bb2: arg2]
+      ret v3
+  }
+  
+  fn @loop(arg0: u256) -> u256 {
+    bb0:
+      v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+      jump bb1
+    bb1:
+      v5 = phi [bb0: 0], [bb2: v4]
+      v3 = lt v5, arg0
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v5
+    bb2:
+      v4 = add v5, 1
+      jump bb1
+  }
+  
+  fn @missing_definition(arg0: bool) -> u256 {
+    bb0:
+      v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+      v1 = memory_object_field_addr memorystruct<1>, v0, 0
+      jumpi arg0, bb1, bb2
+    bb1:
+      mstore v1, 7
+      jump bb2
+    bb2:
+      v2 = mload v1
+      ret v2
+  }
+  
+  fn @cross_field_phi(arg0: bool, arg1: u256) -> u256 {
+    bb0:
+      v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+      jumpi arg0, bb1, bb2
+    bb1:
+      jump bb2
+    bb2:
+      v5 = phi [bb0: 0], [bb1: arg1]
+      ret v5
+  }
+  
+  fn @observe_size() -> u256 {
+    bb0:
+      v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+      memory_zero v0, 32
+      v1 = memory_object_field_addr memorystruct<1>, v0, 0
+      mstore v1, 7
+      v2 = msize
+      ret v2
+  }
+  
+  fn @outside_object() -> u256 {
+    bb0:
+      v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+      memory_zero v0, 32
+      v1 = memory_object_element_addr memoryfixedarray<1, 1>, v0, 1
+      v2 = mload v1
+      ret v2
+  }
+  

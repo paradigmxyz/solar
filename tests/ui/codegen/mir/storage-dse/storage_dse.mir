@@ -72,3 +72,61 @@ fn @keep_across_call(arg0: u256, arg1: address) {
     sstore 0, 7
     stop
 }
+
+// Remaining gas observes the first store even though the second overwrites it.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_store_observed_by_gas{{[( ]}}
+// CHECK: + sstore 0, 1
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = gas
+// CHECK: + sstore 0, 2
+fn @keep_store_observed_by_gas() -> u256 {
+  bb0:
+    v0 = gas
+    sstore 0, 1
+    v1 = gas
+    sstore 0, 2
+    v2 = sub v0, v1
+    ret v2
+}
+
+// A gas observation in the successor also blocks all-path overwrite facts.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_cross_block_store_observed_by_gas{{[( ]}}
+// CHECK: + sstore 0, 1
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = gas
+// CHECK: + sstore 0, 2
+fn @keep_cross_block_store_observed_by_gas() -> u256 {
+  bb0:
+    v0 = gas
+    sstore 0, 1
+    jump bb1
+  bb1:
+    v1 = gas
+    sstore 0, 2
+    v2 = sub v0, v1
+    ret v2
+}
+
+// A transitive gas read observes the first store even when its call summary
+// reports no reads or writes to storage.
+// CHECK-LABEL: fn @keep_store_observed_by_callee
+// CHECK: {{^[ +].*}}sstore 0, 1
+// CHECK: icall @observe_indirect
+// CHECK: {{^[ +].*}}sstore 0, 2
+fn @keep_store_observed_by_callee() -> u256 {
+  bb0:
+    sstore 0, 1
+    v0 = icall @observe_indirect, 1
+    sstore 0, 2
+    ret v0
+}
+
+fn @observe_indirect() -> u256 {
+  bb0:
+    v0 = icall @observe_gas, 1
+    ret v0
+}
+
+fn @observe_gas() -> u256 {
+  bb0:
+    v0 = gas
+    ret v0
+}

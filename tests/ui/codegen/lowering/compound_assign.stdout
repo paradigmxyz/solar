@@ -14,7 +14,7 @@ fn @add_to_value(arg0: u256) [selector=0x7ca7a078, abi_params=[u256], abi_return
     jumpi v2, bb1, bb2
   bb2:
     sstore 0, v1 !metadata(storage=slot(0))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -29,7 +29,7 @@ fn @sub_from_value(arg0: u256) [selector=0x9cf8179d, abi_params=[u256], abi_retu
     jumpi v2, bb1, bb2
   bb2:
     sstore 0, v1 !metadata(storage=slot(0))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -48,7 +48,7 @@ fn @mul_value(arg0: u256) [selector=0xb91f0c8b, abi_params=[u256], abi_returns=[
     jumpi v6, bb1, bb2
   bb2:
     sstore 0, v1 !metadata(storage=slot(0))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

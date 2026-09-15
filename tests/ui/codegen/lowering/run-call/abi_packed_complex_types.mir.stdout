@@ -348,7 +348,7 @@ fn @hashNestedAbi() -> bytes32 [selector=0x821258ba, pure, abi_params=[], abi_re
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v3, 64
     memory_object_store_element memoryarray<1>, v0, v1, v3
     v4 = add v1, 1
@@ -357,9 +357,9 @@ fn @hashNestedAbi() -> bytes32 [selector=0x821258ba, pure, abi_params=[], abi_re
 
 fn @hashStructAbi() -> bytes32 [selector=0x46dfc0fe, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
-    v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v1, 64
     memory_object_store_field memorystruct<2>, v0, 1, v1
     v2 = sub 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1

@@ -536,7 +536,7 @@ fn @compare(arg0: memorybytes, arg1: memorybytes) [pure] {
   bb7:
     jump bb4
   bb4:
-    stop
+    ret
   bb6:
     v9 = memory_object_len memorybytes, v6
     v10 = lt v5, v9
@@ -619,7 +619,7 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
   bb9:
     jump bb6
   bb6:
-    stop
+    ret
   bb8:
     jump bb11
   bb11:
@@ -788,7 +788,7 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[]] {
   bb9:
     jump bb6
   bb6:
-    stop
+    ret
   bb8:
     jump bb11
   bb11:

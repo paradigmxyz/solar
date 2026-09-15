@@ -9,10 +9,10 @@
 // CHECK: {{^[ +].*}}push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef1
 // CHECK: + swap 1
 // CHECK: + jump
-// CHECK: + [[RET1:bb[0-9]+]]:
+// CHECK: + [[RET1:bb[0-9]+]] [continuation]:
 // CHECK: {{^[ +].*}}pop
 // CHECK: {{^[ +].*}}stop
-// CHECK: + [[RET0]]:
+// CHECK: + [[RET0]] [continuation]:
 // CHECK: + push [[RET1]]
 // CHECK: + jump [[OUTLINE]]
 bb0:

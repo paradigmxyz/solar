@@ -9,12 +9,18 @@
       jump bb3
     bb1:
       sstore arg1, 7
-      jumpi arg0, bb3, bb4
+-     jumpi arg0, bb3, bb4
++     jumpi arg0, bb5, bb4
     bb4:
       ret v0
++   bb5:
++     v2 = sload 5
++     jump bb3
     bb3:
-      v1 = sload 5
-      ret v1
+-     v1 = sload 5
+-     ret v1
++     v3 = phi [bb2: v0], [bb5: v2]
++     ret v3
   }
   
   fn @call_kills_storage(arg0: bool, arg1: address) -> u256 {
@@ -25,12 +31,18 @@
       jump bb3
     bb1:
       v1 = call 0x186a0, arg1, 0, 0, 0, 0, 0
-      jumpi arg0, bb3, bb4
+-     jumpi arg0, bb3, bb4
++     jumpi arg0, bb5, bb4
     bb4:
       ret v0
++   bb5:
++     v3 = sload 5
++     jump bb3
     bb3:
-      v2 = sload 5
-      ret v2
+-     v2 = sload 5
+-     ret v2
++     v4 = phi [bb2: v0], [bb5: v3]
++     ret v4
   }
   
   fn @staticcall_preserves_storage(arg0: bool, arg1: address) -> u256 {

@@ -34,7 +34,7 @@ fn @nonEmptyCode() -> bool [selector=0x73c60a6b, pure, abi_params=[], abi_return
 @module ConstructorOnly
 fn @constructor() [constructor] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:InternalLibrary ===

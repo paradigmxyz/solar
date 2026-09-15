@@ -1,0 +1,27 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=inline-tiny-leaves,cfg-simplify,dce
+//@[size] compile-flags: -Osize -Zmir-pipeline=inline-tiny-leaves,cfg-simplify,dce
+@module ReturnWords
+fn @entry(arg0: u256, arg1: u256) -> u256 [selector=1] {
+  bb0:
+    v0 = icall @swap, 2, arg0, arg1
+    v1 = frame_load multi_return, word, 0
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = sub v0, v3
+    ret v4
+}
+fn @swap(arg0: u256, arg1: u256) -> (u256, u256) {
+  bb0:
+    ret arg1, arg0
+}
+// A memory write prevents forwarding a subsequent buffer read.
+fn @barrier(arg0: u256, arg1: u256) -> u256 [selector=2] {
+  bb0:
+    v0 = icall @swap, 2, arg0, arg1
+    v1 = frame_load multi_return, word, 0
+    v2 = add v1, 32
+    mstore v2, 99
+    v3 = mload v2
+    ret v3
+}

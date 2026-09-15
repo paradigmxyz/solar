@@ -8,7 +8,7 @@ fn @makeFixedArray() -> memoryfixedarray {
     jumpi v2, bb1, bb2
   bb2:
     sstore 0, v1 !metadata(storage=slot(0))
-    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v3, 64
     ret v3
   bb1:
@@ -410,7 +410,7 @@ fn @constructor(arg0: memoryfixedarray, arg1: i256) [constructor, abi_params=[ar
     jumpi v10, bb6, bb7
   bb7:
     sstore 0, v9 !metadata(storage=slot(0))
-    stop
+    ret
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -443,7 +443,7 @@ fn @constructor(arg0: memoryarray, arg1: memorybytes) [constructor, abi_params=[
     jumpi v6, bb3, bb4
   bb4:
     sstore 0, v5 !metadata(storage=slot(0))
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -471,7 +471,7 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, u256>]] {
   bb2:
     v3 = memory_object_load_element memoryarray<1>, arg0, 1
     sstore 0, v3 !metadata(storage=slot(0))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -490,7 +490,7 @@ fn @constructor(arg0: memorybytes) [constructor, abi_params=[bytes]] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     sstore 0, v0 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiStruct ===
@@ -511,7 +511,7 @@ fn @constructor(arg0: memorystruct) [constructor, abi_params=[tuple<u256, bytes>
     jumpi v4, bb1, bb2
   bb2:
     sstore 0, v3 !metadata(storage=slot(0))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

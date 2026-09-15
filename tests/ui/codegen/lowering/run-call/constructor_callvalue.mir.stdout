@@ -2,7 +2,7 @@
 @module ExplicitNonpayable
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ImplicitNonpayable ===
@@ -13,14 +13,14 @@ fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:PayableBase ===
 @module PayableBase
 fn @constructor() [constructor, payable] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:InheritedNonpayable ===
@@ -29,14 +29,14 @@ fn @constructor() [constructor] {
   bb0:
     jump bb1
   bb1:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ExplicitPayable ===
 @module ExplicitPayable
 fn @constructor() [constructor, payable] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ConstructorCallvalue ===

@@ -24,7 +24,7 @@ contract SF {
     // allocating entry alone initializes its reachable frame floor.
     // CHECK-NOT: push 64
     // CHECK: [[TOP:bb[0-9]+]]:
-    // CHECK-NEXT: push 832
+    // CHECK-NEXT: push 480
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // Runtime static frames omit the unused dynamic-frame header.
@@ -35,9 +35,9 @@ contract SF {
     // CHECK: push [[OVERFLOW:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push [[CHAIN_RET:bb[0-9]+]]
-    // CHECK: push 416
+    // CHECK: push 320
     // CHECK-NEXT: mstore
-    // CHECK: [[CHAIN_RET]]:
+    // CHECK: [[CHAIN_RET]] [continuation]:
     // CHECK-NEXT: dup 1
     // CHECK-NEXT: push 256
     // CHECK-NEXT: mstore
@@ -45,11 +45,14 @@ contract SF {
     // CHECK-NEXT: push 4
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: mod
-    // CHECK: push bb80
+    // CHECK: push [[REC_ALLOC:bb[0-9]+]]
     // CHECK-NEXT: jump [[REC_DISPATCH:bb[0-9]+]]
     // CHECK: [[REC_DISPATCH]]:
+    // CHECK-NEXT: push 64
+    // CHECK-NEXT: mload
     // CHECK-NEXT: push 160
     // CHECK-NEXT: mload
+    // CHECK: [[REC_ALLOC]] [continuation]:
     // CHECK: push 288
     // CHECK-NEXT: add
     // CHECK-NEXT: push 64

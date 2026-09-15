@@ -1,0 +1,22 @@
+// === ROOT/tests/ui/codegen/mir/inline/stack_budget.sol:StackBudget ===
+@module StackBudget
+fn @choose(arg0: bool, arg1: u256) -> u256 [selector=0xced8609d, pure, abi_params=[bool, u256], abi_returns=[word]] {
+  bb0:
+    v0 = icall @branch, 1, arg0, arg1
+    v1 = add v0, arg1
+    ret v1
+}
+
+fn @branch(arg0: bool, arg1: u256) -> u256 [pure] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    v1 = xor arg1, 23
+    jump bb3
+  bb1:
+    v0 = add arg1, 7
+    jump bb3
+  bb3:
+    v2 = phi [bb1: v0], [bb2: v1]
+    ret v2
+}

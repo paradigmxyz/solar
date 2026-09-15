@@ -7,7 +7,7 @@ fn @value() -> u256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word
 
 fn @pair() -> memoryfixedarray [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[array<2, word>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v0, 64
     v1 = lt 0, 2
     v2 = iszero v1
@@ -172,7 +172,7 @@ fn @directNoReturn() [selector=0xda4f8e3a, abi_params=[], abi_returns=[]] {
   bb3:
     revert_returndata
   bb4:
-    stop
+    ret
   bb1:
     revert 0, 0
 }
@@ -196,7 +196,7 @@ fn @pointerNoReturn() [selector=0xcf820bfc, abi_params=[], abi_returns=[]] {
   bb3:
     revert_returndata
   bb4:
-    stop
+    ret
   bb1:
     revert 0, 0
 }

@@ -53,7 +53,7 @@ fn @customFailure() [selector=0x8fca80a3, abi_params=[], abi_returns=[]] {
     v1 = iszero 0
     jumpi v1, bb1, bb2
   bb2:
-    stop
+    ret
   bb1:
     v2 = abi_encode [word], selector 0x2ff06700000000000000000000000000000000000000000000000000000000, args v0
     v3 = slice_ptr v2
@@ -68,7 +68,7 @@ fn @stringFailure() [selector=0x6bf37af5, abi_params=[], abi_returns=[]] {
     v1 = iszero 0
     jumpi v1, bb1, bb2
   bb2:
-    stop
+    ret
   bb1:
     v2 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args v0
     v3 = slice_ptr v2

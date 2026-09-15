@@ -96,7 +96,7 @@ fn @writeStructs() -> u256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v3, 0, 0
     memory_object_store_element memoryarray<1>, v0, v1, v3
     v4 = add v1, 1

@@ -1,0 +1,201 @@
+// === ROOT/tests/ui/codegen/lowering/stack_expression_selection.sol:StackExpressionSelection (runtime) ===
+@module StackExpressionSelection_runtime
+bb0:
+  callvalue
+  push bb24
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  push 4
+  calldataload
+  push 224
+  mstore
+  push 36
+  calldataload
+  push 256
+  mstore
+  dup 1
+  push 288
+  mstore
+  dup 1
+  push 2
+  shr
+  push 15
+  and
+  indexed_jump bb2, bb3, bb4, bb24, bb24, bb24, bb24, bb5, bb24, bb24, bb24, bb6, bb24, bb7, bb24, bb8
+bb24 [cold]:
+  push 0
+  push 0
+  revert
+bb2:
+  dup 1
+  push 0x8552b9c1
+  sub
+  push bb24
+  jumpi
+  pop
+  push 68
+  calldatasize
+  lt
+  push bb24
+  jumpi
+  push 224
+  mload
+  push 256
+  jump bb29
+bb29:
+  mload
+  sub
+  jump bb28
+bb28:
+  push 1
+  dup 2
+  add
+  dup 2
+  iszero
+  swap 2
+  push 128
+  mstore
+  push 160
+  mstore
+  push 192
+  mstore
+  push 96
+  push 128
+  return
+bb3:
+  dup 1
+  push 0x10fe2b84
+  sub
+  push bb24
+  jumpi
+  pop
+  push 68
+  calldatasize
+  lt
+  push bb24
+  jumpi
+  push 256
+  mload
+  push 224
+  jump bb29
+bb4:
+  dup 1
+  push 0x30ca6808
+  sub
+  push bb24
+  jumpi
+  pop
+  push 68
+  calldatasize
+  lt
+  push bb24
+  jumpi
+  push 256
+  mload
+  push 224
+  mload
+  dup 2
+  dup 2
+  eq
+  swap 2
+  xor
+  jump bb30
+bb30:
+  push 128
+  mstore
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+bb5:
+  dup 1
+  push 0x1a49b55c
+  sub
+  push bb24
+  jumpi
+  pop
+  push 68
+  calldatasize
+  lt
+  push bb24
+  jumpi
+  push 256
+  mload
+  push 224
+  mload
+  xor
+  jump bb28
+bb6:
+  dup 1
+  push 0xb7d796e
+  sub
+  push bb24
+  jumpi
+  pop
+  push 36
+  calldatasize
+  lt
+  push bb24
+  jumpi
+  push 0
+  jump bb25
+bb27:
+  push 1
+  add
+  jump bb25
+bb25:
+  push 224
+  mload
+  dup 2
+  lt
+  push bb27
+  jumpi
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb7:
+  dup 1
+  push 0xa95cb7f7
+  sub
+  push bb24
+  jumpi
+  pop
+  push 68
+  calldatasize
+  lt
+  push bb24
+  jumpi
+  push 224
+  mload
+  push 256
+  jump bb31
+bb31:
+  mload
+  dup 2
+  dup 2
+  eq
+  swap 2
+  sub
+  jump bb30
+bb8:
+  dup 1
+  push 0x132a45fc
+  sub
+  push bb24
+  jumpi
+  pop
+  push 68
+  calldatasize
+  lt
+  push bb24
+  jumpi
+  push 256
+  mload
+  push 224
+  jump bb31

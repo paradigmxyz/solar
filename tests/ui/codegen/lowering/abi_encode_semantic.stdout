@@ -15,7 +15,7 @@ fn @forward(arg0: address, arg1: u256, arg2: calldataslice) [selector=0xd7f31eb9
   bb3:
     revert_returndata
   bb4:
-    stop
+    ret
   bb1:
     revert 0, 0
 }
@@ -35,7 +35,7 @@ fn @forwardNarrow(arg0: address, arg1: calldataslice) [selector=0x251c2c33, abi_
   bb3:
     revert_returndata
   bb4:
-    stop
+    ret
   bb1:
     revert 0, 0
 }

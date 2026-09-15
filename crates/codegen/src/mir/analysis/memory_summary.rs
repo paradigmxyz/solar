@@ -1,4 +1,4 @@
-//! Interprocedural memory and pointer-capture summaries.
+//! Interprocedural memory, gas-observation, and pointer-capture summaries.
 //!
 //! Summaries are computed to a fixpoint over internal-call edges. Missing
 //! bodies stay fully conservative; recursive groups converge because every
@@ -19,6 +19,8 @@ pub(crate) struct FunctionMemorySummary {
     reads: u8,
     /// Written address spaces as a bit per [`space_index`].
     writes: u8,
+    /// A bounded leaf with deterministic word reads and fully restored writes.
+    restores_memory: bool,
     may_reset_fmp: bool,
     /// Whether the function may move the free-memory pointer below its current value.
     may_recycle_fmp: bool,
@@ -26,6 +28,8 @@ pub(crate) struct FunctionMemorySummary {
     may_observe_fmp: bool,
     /// Whether the function may read `msize`.
     may_observe_msize: bool,
+    /// Whether this function or a transitive callee may observe remaining gas.
+    may_observe_gas: bool,
     /// Parameters whose pointer value may escape the call.
     captures: DenseBitSet<ArgIdx>,
     /// Parameters whose pointer value the function may relate to the heap: a value derived
@@ -39,10 +43,12 @@ impl FunctionMemorySummary {
         Self {
             reads: 0,
             writes: 0,
+            restores_memory: false,
             may_reset_fmp: false,
             may_recycle_fmp: false,
             may_observe_fmp: false,
             may_observe_msize: false,
+            may_observe_gas: false,
             captures: DenseBitSet::new_empty(params),
             observes: DenseBitSet::new_empty(params),
         }
@@ -52,10 +58,12 @@ impl FunctionMemorySummary {
         Self {
             reads: 0b1111,
             writes: 0b1111,
+            restores_memory: false,
             may_reset_fmp: true,
             may_recycle_fmp: true,
             may_observe_fmp: true,
             may_observe_msize: true,
+            may_observe_gas: true,
             captures: DenseBitSet::new_filled(params),
             observes: DenseBitSet::new_filled(params),
         }
@@ -71,6 +79,11 @@ impl FunctionMemorySummary {
     #[must_use]
     pub(crate) const fn writes(&self, space: AddressSpace) -> bool {
         self.writes & (1 << space_index(space)) != 0
+    }
+
+    /// Whether repeated calls with unchanged arguments and memory return the same value.
+    pub(crate) const fn restores_memory(&self) -> bool {
+        self.restores_memory
     }
 
     /// Returns whether the function may recycle or arbitrarily replace the FMP.
@@ -101,6 +114,12 @@ impl FunctionMemorySummary {
         self.may_observe_msize
     }
 
+    /// Returns whether this function or a transitive callee may read remaining gas.
+    #[must_use]
+    pub(crate) const fn may_observe_gas(&self) -> bool {
+        self.may_observe_gas
+    }
+
     /// Returns whether the function may relate a parameter's pointer value to the heap.
     ///
     /// Dereferencing the pointer, or comparing it with values derived from itself, is
@@ -124,6 +143,7 @@ impl FunctionMemorySummary {
         self.may_recycle_fmp |= other.may_recycle_fmp;
         self.may_observe_fmp |= other.may_observe_fmp;
         self.may_observe_msize |= other.may_observe_msize;
+        self.may_observe_gas |= other.may_observe_gas;
     }
 }
 
@@ -299,6 +319,7 @@ fn local_summary(
             summary.may_recycle_fmp |= instruction_may_recycle_fmp(func, inst_id);
             summary.may_observe_fmp |= instruction_observes_fmp(func, inst_id);
             summary.may_observe_msize |= matches!(kind, InstKind::MSize);
+            summary.may_observe_gas |= matches!(kind, InstKind::Gas);
             // An instruction that consumes both a pointer-derived value and a heap-derived one
             // can relate the object to the heap, whatever the positions: comparisons, pointer
             // arithmetic against the free-memory pointer, or storing one through the other.
@@ -350,6 +371,13 @@ fn local_summary(
                 }
             }
         }
+    }
+    // saved = mload p; mstore p, temporary; ...; mstore p, saved; ret
+    // => no net memory write on a returning path
+    if summary.writes(AddressSpace::Memory) && super::memory_restoration::restores_memory(func, &aa)
+    {
+        summary.writes &= !(1 << space_index(AddressSpace::Memory));
+        summary.restores_memory = true;
     }
     summary
 }

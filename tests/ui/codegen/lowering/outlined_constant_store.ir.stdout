@@ -1,0 +1,79 @@
+// === ROOT/tests/ui/codegen/lowering/outlined_constant_store.sol:OutlinedConstantStore (runtime) ===
+@module OutlinedConstantStore_runtime
+bb0:
+  push 36
+  calldatasize
+  lt
+  callvalue
+  or
+  push bb2
+  jumpi
+  jump bb1
+bb1:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0xb3f62f5
+  eq
+  push bb3
+  jumpi
+  dup 1
+  push 0x7896dfe3
+  eq
+  push bb4
+  jumpi
+  jump bb2
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb3:
+  jump bb5
+bb4:
+  jump bb6
+bb5:
+  push bb8
+  jump bb7
+bb6:
+  push bb9
+  jump bb7
+bb7:
+  push 160
+  push 64
+  mstore
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  push 128
+  mstore
+  jump
+bb8 [continuation]:
+  push 128
+  push 4
+  calldataload
+  and
+  push 7
+  swap 1
+  mstore
+  push 128
+  mload
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb9 [continuation]:
+  push 160
+  push 4
+  calldataload
+  and
+  push 9
+  swap 1
+  mstore
+  push 128
+  mload
+  push 128
+  mstore
+  push 32
+  push 128
+  return

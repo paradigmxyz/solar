@@ -811,6 +811,7 @@ fn equivalent_functions(
                 || lhs_inst.metadata.effect() != rhs_inst.metadata.effect()
                 || lhs_inst.metadata.unchecked() != rhs_inst.metadata.unchecked()
                 || lhs_inst.metadata.deferred_alloc() != rhs_inst.metadata.deferred_alloc()
+                || lhs_inst.metadata.preserves_fmp() != rhs_inst.metadata.preserves_fmp()
                 || !equivalent_storage_aliases(
                     &lhs_values,
                     lhs_inst.metadata.storage_alias(),

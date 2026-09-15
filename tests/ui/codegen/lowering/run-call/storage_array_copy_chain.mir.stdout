@@ -67,7 +67,7 @@ fn @constructor() [constructor] {
     v38 = storage_array_data_slot 0
     v39 = add v38, v37
     sstore v39, 0 !metadata(storage=symbolic(v39))
-    stop
+    ret
   bb14:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 49 !metadata(memory=scratch)

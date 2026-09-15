@@ -1,0 +1,1382 @@
+// === ROOT/tests/ui/codegen/mir/check-elim/long_relation_paths.sol:RelationPaths ===
+@module RelationPaths
+fn @ordered(arg0: calldataslice) -> u256 [selector=0xd16c130b, pure, abi_params=[array<66, u256>], abi_returns=[word]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt 0, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = slice_ptr arg0
+    v4 = add v3, 0
+    v5 = calldataload v4
+    v6 = slice_len arg0
+    v7 = lt 1, v6
+    v8 = iszero v7
+    jumpi v8, bb1, bb3
+  bb3:
+    v9 = slice_ptr arg0
+    v10 = add v9, 32
+    v11 = calldataload v10
+    v12 = lt v5, v11
+    v13 = iszero v12
+    jumpi v13, bb4, bb5
+  bb5:
+    v14 = slice_len arg0
+    v15 = lt 1, v14
+    v16 = iszero v15
+    jumpi v16, bb1, bb6
+  bb6:
+    v17 = slice_ptr arg0
+    v18 = add v17, 32
+    v19 = calldataload v18
+    v20 = slice_len arg0
+    v21 = lt 2, v20
+    v22 = iszero v21
+    jumpi v22, bb1, bb7
+  bb7:
+    v23 = slice_ptr arg0
+    v24 = add v23, 64
+    v25 = calldataload v24
+    v26 = lt v19, v25
+    v27 = iszero v26
+    jumpi v27, bb4, bb8
+  bb8:
+    v28 = slice_len arg0
+    v29 = lt 2, v28
+    v30 = iszero v29
+    jumpi v30, bb1, bb9
+  bb9:
+    v31 = slice_ptr arg0
+    v32 = add v31, 64
+    v33 = calldataload v32
+    v34 = slice_len arg0
+    v35 = lt 3, v34
+    v36 = iszero v35
+    jumpi v36, bb1, bb10
+  bb10:
+    v37 = slice_ptr arg0
+    v38 = add v37, 96
+    v39 = calldataload v38
+    v40 = lt v33, v39
+    v41 = iszero v40
+    jumpi v41, bb4, bb11
+  bb11:
+    v42 = slice_len arg0
+    v43 = lt 3, v42
+    v44 = iszero v43
+    jumpi v44, bb1, bb12
+  bb12:
+    v45 = slice_ptr arg0
+    v46 = add v45, 96
+    v47 = calldataload v46
+    v48 = slice_len arg0
+    v49 = lt 4, v48
+    v50 = iszero v49
+    jumpi v50, bb1, bb13
+  bb13:
+    v51 = slice_ptr arg0
+    v52 = add v51, 128
+    v53 = calldataload v52
+    v54 = lt v47, v53
+    v55 = iszero v54
+    jumpi v55, bb4, bb14
+  bb14:
+    v56 = slice_len arg0
+    v57 = lt 4, v56
+    v58 = iszero v57
+    jumpi v58, bb1, bb15
+  bb15:
+    v59 = slice_ptr arg0
+    v60 = add v59, 128
+    v61 = calldataload v60
+    v62 = slice_len arg0
+    v63 = lt 5, v62
+    v64 = iszero v63
+    jumpi v64, bb1, bb16
+  bb16:
+    v65 = slice_ptr arg0
+    v66 = add v65, 160
+    v67 = calldataload v66
+    v68 = lt v61, v67
+    v69 = iszero v68
+    jumpi v69, bb4, bb17
+  bb17:
+    v70 = slice_len arg0
+    v71 = lt 5, v70
+    v72 = iszero v71
+    jumpi v72, bb1, bb18
+  bb18:
+    v73 = slice_ptr arg0
+    v74 = add v73, 160
+    v75 = calldataload v74
+    v76 = slice_len arg0
+    v77 = lt 6, v76
+    v78 = iszero v77
+    jumpi v78, bb1, bb19
+  bb19:
+    v79 = slice_ptr arg0
+    v80 = add v79, 192
+    v81 = calldataload v80
+    v82 = lt v75, v81
+    v83 = iszero v82
+    jumpi v83, bb4, bb20
+  bb20:
+    v84 = slice_len arg0
+    v85 = lt 6, v84
+    v86 = iszero v85
+    jumpi v86, bb1, bb21
+  bb21:
+    v87 = slice_ptr arg0
+    v88 = add v87, 192
+    v89 = calldataload v88
+    v90 = slice_len arg0
+    v91 = lt 7, v90
+    v92 = iszero v91
+    jumpi v92, bb1, bb22
+  bb22:
+    v93 = slice_ptr arg0
+    v94 = add v93, 224
+    v95 = calldataload v94
+    v96 = lt v89, v95
+    v97 = iszero v96
+    jumpi v97, bb4, bb23
+  bb23:
+    v98 = slice_len arg0
+    v99 = lt 7, v98
+    v100 = iszero v99
+    jumpi v100, bb1, bb24
+  bb24:
+    v101 = slice_ptr arg0
+    v102 = add v101, 224
+    v103 = calldataload v102
+    v104 = slice_len arg0
+    v105 = lt 8, v104
+    v106 = iszero v105
+    jumpi v106, bb1, bb25
+  bb25:
+    v107 = slice_ptr arg0
+    v108 = add v107, 256
+    v109 = calldataload v108
+    v110 = lt v103, v109
+    v111 = iszero v110
+    jumpi v111, bb4, bb26
+  bb26:
+    v112 = slice_len arg0
+    v113 = lt 8, v112
+    v114 = iszero v113
+    jumpi v114, bb1, bb27
+  bb27:
+    v115 = slice_ptr arg0
+    v116 = add v115, 256
+    v117 = calldataload v116
+    v118 = slice_len arg0
+    v119 = lt 9, v118
+    v120 = iszero v119
+    jumpi v120, bb1, bb28
+  bb28:
+    v121 = slice_ptr arg0
+    v122 = add v121, 288
+    v123 = calldataload v122
+    v124 = lt v117, v123
+    v125 = iszero v124
+    jumpi v125, bb4, bb29
+  bb29:
+    v126 = slice_len arg0
+    v127 = lt 9, v126
+    v128 = iszero v127
+    jumpi v128, bb1, bb30
+  bb30:
+    v129 = slice_ptr arg0
+    v130 = add v129, 288
+    v131 = calldataload v130
+    v132 = slice_len arg0
+    v133 = lt 10, v132
+    v134 = iszero v133
+    jumpi v134, bb1, bb31
+  bb31:
+    v135 = slice_ptr arg0
+    v136 = add v135, 320
+    v137 = calldataload v136
+    v138 = lt v131, v137
+    v139 = iszero v138
+    jumpi v139, bb4, bb32
+  bb32:
+    v140 = slice_len arg0
+    v141 = lt 10, v140
+    v142 = iszero v141
+    jumpi v142, bb1, bb33
+  bb33:
+    v143 = slice_ptr arg0
+    v144 = add v143, 320
+    v145 = calldataload v144
+    v146 = slice_len arg0
+    v147 = lt 11, v146
+    v148 = iszero v147
+    jumpi v148, bb1, bb34
+  bb34:
+    v149 = slice_ptr arg0
+    v150 = add v149, 352
+    v151 = calldataload v150
+    v152 = lt v145, v151
+    v153 = iszero v152
+    jumpi v153, bb4, bb35
+  bb35:
+    v154 = slice_len arg0
+    v155 = lt 11, v154
+    v156 = iszero v155
+    jumpi v156, bb1, bb36
+  bb36:
+    v157 = slice_ptr arg0
+    v158 = add v157, 352
+    v159 = calldataload v158
+    v160 = slice_len arg0
+    v161 = lt 12, v160
+    v162 = iszero v161
+    jumpi v162, bb1, bb37
+  bb37:
+    v163 = slice_ptr arg0
+    v164 = add v163, 384
+    v165 = calldataload v164
+    v166 = lt v159, v165
+    v167 = iszero v166
+    jumpi v167, bb4, bb38
+  bb38:
+    v168 = slice_len arg0
+    v169 = lt 12, v168
+    v170 = iszero v169
+    jumpi v170, bb1, bb39
+  bb39:
+    v171 = slice_ptr arg0
+    v172 = add v171, 384
+    v173 = calldataload v172
+    v174 = slice_len arg0
+    v175 = lt 13, v174
+    v176 = iszero v175
+    jumpi v176, bb1, bb40
+  bb40:
+    v177 = slice_ptr arg0
+    v178 = add v177, 416
+    v179 = calldataload v178
+    v180 = lt v173, v179
+    v181 = iszero v180
+    jumpi v181, bb4, bb41
+  bb41:
+    v182 = slice_len arg0
+    v183 = lt 13, v182
+    v184 = iszero v183
+    jumpi v184, bb1, bb42
+  bb42:
+    v185 = slice_ptr arg0
+    v186 = add v185, 416
+    v187 = calldataload v186
+    v188 = slice_len arg0
+    v189 = lt 14, v188
+    v190 = iszero v189
+    jumpi v190, bb1, bb43
+  bb43:
+    v191 = slice_ptr arg0
+    v192 = add v191, 448
+    v193 = calldataload v192
+    v194 = lt v187, v193
+    v195 = iszero v194
+    jumpi v195, bb4, bb44
+  bb44:
+    v196 = slice_len arg0
+    v197 = lt 14, v196
+    v198 = iszero v197
+    jumpi v198, bb1, bb45
+  bb45:
+    v199 = slice_ptr arg0
+    v200 = add v199, 448
+    v201 = calldataload v200
+    v202 = slice_len arg0
+    v203 = lt 15, v202
+    v204 = iszero v203
+    jumpi v204, bb1, bb46
+  bb46:
+    v205 = slice_ptr arg0
+    v206 = add v205, 480
+    v207 = calldataload v206
+    v208 = lt v201, v207
+    v209 = iszero v208
+    jumpi v209, bb4, bb47
+  bb47:
+    v210 = slice_len arg0
+    v211 = lt 15, v210
+    v212 = iszero v211
+    jumpi v212, bb1, bb48
+  bb48:
+    v213 = slice_ptr arg0
+    v214 = add v213, 480
+    v215 = calldataload v214
+    v216 = slice_len arg0
+    v217 = lt 16, v216
+    v218 = iszero v217
+    jumpi v218, bb1, bb49
+  bb49:
+    v219 = slice_ptr arg0
+    v220 = add v219, 512
+    v221 = calldataload v220
+    v222 = lt v215, v221
+    v223 = iszero v222
+    jumpi v223, bb4, bb50
+  bb50:
+    v224 = slice_len arg0
+    v225 = lt 16, v224
+    v226 = iszero v225
+    jumpi v226, bb1, bb51
+  bb51:
+    v227 = slice_ptr arg0
+    v228 = add v227, 512
+    v229 = calldataload v228
+    v230 = slice_len arg0
+    v231 = lt 17, v230
+    v232 = iszero v231
+    jumpi v232, bb1, bb52
+  bb52:
+    v233 = slice_ptr arg0
+    v234 = add v233, 544
+    v235 = calldataload v234
+    v236 = lt v229, v235
+    v237 = iszero v236
+    jumpi v237, bb4, bb53
+  bb53:
+    v238 = slice_len arg0
+    v239 = lt 17, v238
+    v240 = iszero v239
+    jumpi v240, bb1, bb54
+  bb54:
+    v241 = slice_ptr arg0
+    v242 = add v241, 544
+    v243 = calldataload v242
+    v244 = slice_len arg0
+    v245 = lt 18, v244
+    v246 = iszero v245
+    jumpi v246, bb1, bb55
+  bb55:
+    v247 = slice_ptr arg0
+    v248 = add v247, 576
+    v249 = calldataload v248
+    v250 = lt v243, v249
+    v251 = iszero v250
+    jumpi v251, bb4, bb56
+  bb56:
+    v252 = slice_len arg0
+    v253 = lt 18, v252
+    v254 = iszero v253
+    jumpi v254, bb1, bb57
+  bb57:
+    v255 = slice_ptr arg0
+    v256 = add v255, 576
+    v257 = calldataload v256
+    v258 = slice_len arg0
+    v259 = lt 19, v258
+    v260 = iszero v259
+    jumpi v260, bb1, bb58
+  bb58:
+    v261 = slice_ptr arg0
+    v262 = add v261, 608
+    v263 = calldataload v262
+    v264 = lt v257, v263
+    v265 = iszero v264
+    jumpi v265, bb4, bb59
+  bb59:
+    v266 = slice_len arg0
+    v267 = lt 19, v266
+    v268 = iszero v267
+    jumpi v268, bb1, bb60
+  bb60:
+    v269 = slice_ptr arg0
+    v270 = add v269, 608
+    v271 = calldataload v270
+    v272 = slice_len arg0
+    v273 = lt 20, v272
+    v274 = iszero v273
+    jumpi v274, bb1, bb61
+  bb61:
+    v275 = slice_ptr arg0
+    v276 = add v275, 640
+    v277 = calldataload v276
+    v278 = lt v271, v277
+    v279 = iszero v278
+    jumpi v279, bb4, bb62
+  bb62:
+    v280 = slice_len arg0
+    v281 = lt 20, v280
+    v282 = iszero v281
+    jumpi v282, bb1, bb63
+  bb63:
+    v283 = slice_ptr arg0
+    v284 = add v283, 640
+    v285 = calldataload v284
+    v286 = slice_len arg0
+    v287 = lt 21, v286
+    v288 = iszero v287
+    jumpi v288, bb1, bb64
+  bb64:
+    v289 = slice_ptr arg0
+    v290 = add v289, 672
+    v291 = calldataload v290
+    v292 = lt v285, v291
+    v293 = iszero v292
+    jumpi v293, bb4, bb65
+  bb65:
+    v294 = slice_len arg0
+    v295 = lt 21, v294
+    v296 = iszero v295
+    jumpi v296, bb1, bb66
+  bb66:
+    v297 = slice_ptr arg0
+    v298 = add v297, 672
+    v299 = calldataload v298
+    v300 = slice_len arg0
+    v301 = lt 22, v300
+    v302 = iszero v301
+    jumpi v302, bb1, bb67
+  bb67:
+    v303 = slice_ptr arg0
+    v304 = add v303, 704
+    v305 = calldataload v304
+    v306 = lt v299, v305
+    v307 = iszero v306
+    jumpi v307, bb4, bb68
+  bb68:
+    v308 = slice_len arg0
+    v309 = lt 22, v308
+    v310 = iszero v309
+    jumpi v310, bb1, bb69
+  bb69:
+    v311 = slice_ptr arg0
+    v312 = add v311, 704
+    v313 = calldataload v312
+    v314 = slice_len arg0
+    v315 = lt 23, v314
+    v316 = iszero v315
+    jumpi v316, bb1, bb70
+  bb70:
+    v317 = slice_ptr arg0
+    v318 = add v317, 736
+    v319 = calldataload v318
+    v320 = lt v313, v319
+    v321 = iszero v320
+    jumpi v321, bb4, bb71
+  bb71:
+    v322 = slice_len arg0
+    v323 = lt 23, v322
+    v324 = iszero v323
+    jumpi v324, bb1, bb72
+  bb72:
+    v325 = slice_ptr arg0
+    v326 = add v325, 736
+    v327 = calldataload v326
+    v328 = slice_len arg0
+    v329 = lt 24, v328
+    v330 = iszero v329
+    jumpi v330, bb1, bb73
+  bb73:
+    v331 = slice_ptr arg0
+    v332 = add v331, 768
+    v333 = calldataload v332
+    v334 = lt v327, v333
+    v335 = iszero v334
+    jumpi v335, bb4, bb74
+  bb74:
+    v336 = slice_len arg0
+    v337 = lt 24, v336
+    v338 = iszero v337
+    jumpi v338, bb1, bb75
+  bb75:
+    v339 = slice_ptr arg0
+    v340 = add v339, 768
+    v341 = calldataload v340
+    v342 = slice_len arg0
+    v343 = lt 25, v342
+    v344 = iszero v343
+    jumpi v344, bb1, bb76
+  bb76:
+    v345 = slice_ptr arg0
+    v346 = add v345, 800
+    v347 = calldataload v346
+    v348 = lt v341, v347
+    v349 = iszero v348
+    jumpi v349, bb4, bb77
+  bb77:
+    v350 = slice_len arg0
+    v351 = lt 25, v350
+    v352 = iszero v351
+    jumpi v352, bb1, bb78
+  bb78:
+    v353 = slice_ptr arg0
+    v354 = add v353, 800
+    v355 = calldataload v354
+    v356 = slice_len arg0
+    v357 = lt 26, v356
+    v358 = iszero v357
+    jumpi v358, bb1, bb79
+  bb79:
+    v359 = slice_ptr arg0
+    v360 = add v359, 832
+    v361 = calldataload v360
+    v362 = lt v355, v361
+    v363 = iszero v362
+    jumpi v363, bb4, bb80
+  bb80:
+    v364 = slice_len arg0
+    v365 = lt 26, v364
+    v366 = iszero v365
+    jumpi v366, bb1, bb81
+  bb81:
+    v367 = slice_ptr arg0
+    v368 = add v367, 832
+    v369 = calldataload v368
+    v370 = slice_len arg0
+    v371 = lt 27, v370
+    v372 = iszero v371
+    jumpi v372, bb1, bb82
+  bb82:
+    v373 = slice_ptr arg0
+    v374 = add v373, 864
+    v375 = calldataload v374
+    v376 = lt v369, v375
+    v377 = iszero v376
+    jumpi v377, bb4, bb83
+  bb83:
+    v378 = slice_len arg0
+    v379 = lt 27, v378
+    v380 = iszero v379
+    jumpi v380, bb1, bb84
+  bb84:
+    v381 = slice_ptr arg0
+    v382 = add v381, 864
+    v383 = calldataload v382
+    v384 = slice_len arg0
+    v385 = lt 28, v384
+    v386 = iszero v385
+    jumpi v386, bb1, bb85
+  bb85:
+    v387 = slice_ptr arg0
+    v388 = add v387, 896
+    v389 = calldataload v388
+    v390 = lt v383, v389
+    v391 = iszero v390
+    jumpi v391, bb4, bb86
+  bb86:
+    v392 = slice_len arg0
+    v393 = lt 28, v392
+    v394 = iszero v393
+    jumpi v394, bb1, bb87
+  bb87:
+    v395 = slice_ptr arg0
+    v396 = add v395, 896
+    v397 = calldataload v396
+    v398 = slice_len arg0
+    v399 = lt 29, v398
+    v400 = iszero v399
+    jumpi v400, bb1, bb88
+  bb88:
+    v401 = slice_ptr arg0
+    v402 = add v401, 928
+    v403 = calldataload v402
+    v404 = lt v397, v403
+    v405 = iszero v404
+    jumpi v405, bb4, bb89
+  bb89:
+    v406 = slice_len arg0
+    v407 = lt 29, v406
+    v408 = iszero v407
+    jumpi v408, bb1, bb90
+  bb90:
+    v409 = slice_ptr arg0
+    v410 = add v409, 928
+    v411 = calldataload v410
+    v412 = slice_len arg0
+    v413 = lt 30, v412
+    v414 = iszero v413
+    jumpi v414, bb1, bb91
+  bb91:
+    v415 = slice_ptr arg0
+    v416 = add v415, 960
+    v417 = calldataload v416
+    v418 = lt v411, v417
+    v419 = iszero v418
+    jumpi v419, bb4, bb92
+  bb92:
+    v420 = slice_len arg0
+    v421 = lt 30, v420
+    v422 = iszero v421
+    jumpi v422, bb1, bb93
+  bb93:
+    v423 = slice_ptr arg0
+    v424 = add v423, 960
+    v425 = calldataload v424
+    v426 = slice_len arg0
+    v427 = lt 31, v426
+    v428 = iszero v427
+    jumpi v428, bb1, bb94
+  bb94:
+    v429 = slice_ptr arg0
+    v430 = add v429, 992
+    v431 = calldataload v430
+    v432 = lt v425, v431
+    v433 = iszero v432
+    jumpi v433, bb4, bb95
+  bb95:
+    v434 = slice_len arg0
+    v435 = lt 31, v434
+    v436 = iszero v435
+    jumpi v436, bb1, bb96
+  bb96:
+    v437 = slice_ptr arg0
+    v438 = add v437, 992
+    v439 = calldataload v438
+    v440 = slice_len arg0
+    v441 = lt 32, v440
+    v442 = iszero v441
+    jumpi v442, bb1, bb97
+  bb97:
+    v443 = slice_ptr arg0
+    v444 = add v443, 0x400
+    v445 = calldataload v444
+    v446 = lt v439, v445
+    v447 = iszero v446
+    jumpi v447, bb4, bb98
+  bb98:
+    v448 = slice_len arg0
+    v449 = lt 32, v448
+    v450 = iszero v449
+    jumpi v450, bb1, bb99
+  bb99:
+    v451 = slice_ptr arg0
+    v452 = add v451, 0x400
+    v453 = calldataload v452
+    v454 = slice_len arg0
+    v455 = lt 33, v454
+    v456 = iszero v455
+    jumpi v456, bb1, bb100
+  bb100:
+    v457 = slice_ptr arg0
+    v458 = add v457, 0x420
+    v459 = calldataload v458
+    v460 = lt v453, v459
+    v461 = iszero v460
+    jumpi v461, bb4, bb101
+  bb101:
+    v462 = slice_len arg0
+    v463 = lt 33, v462
+    v464 = iszero v463
+    jumpi v464, bb1, bb102
+  bb102:
+    v465 = slice_ptr arg0
+    v466 = add v465, 0x420
+    v467 = calldataload v466
+    v468 = slice_len arg0
+    v469 = lt 34, v468
+    v470 = iszero v469
+    jumpi v470, bb1, bb103
+  bb103:
+    v471 = slice_ptr arg0
+    v472 = add v471, 0x440
+    v473 = calldataload v472
+    v474 = lt v467, v473
+    v475 = iszero v474
+    jumpi v475, bb4, bb104
+  bb104:
+    v476 = slice_len arg0
+    v477 = lt 34, v476
+    v478 = iszero v477
+    jumpi v478, bb1, bb105
+  bb105:
+    v479 = slice_ptr arg0
+    v480 = add v479, 0x440
+    v481 = calldataload v480
+    v482 = slice_len arg0
+    v483 = lt 35, v482
+    v484 = iszero v483
+    jumpi v484, bb1, bb106
+  bb106:
+    v485 = slice_ptr arg0
+    v486 = add v485, 0x460
+    v487 = calldataload v486
+    v488 = lt v481, v487
+    v489 = iszero v488
+    jumpi v489, bb4, bb107
+  bb107:
+    v490 = slice_len arg0
+    v491 = lt 35, v490
+    v492 = iszero v491
+    jumpi v492, bb1, bb108
+  bb108:
+    v493 = slice_ptr arg0
+    v494 = add v493, 0x460
+    v495 = calldataload v494
+    v496 = slice_len arg0
+    v497 = lt 36, v496
+    v498 = iszero v497
+    jumpi v498, bb1, bb109
+  bb109:
+    v499 = slice_ptr arg0
+    v500 = add v499, 0x480
+    v501 = calldataload v500
+    v502 = lt v495, v501
+    v503 = iszero v502
+    jumpi v503, bb4, bb110
+  bb110:
+    v504 = slice_len arg0
+    v505 = lt 36, v504
+    v506 = iszero v505
+    jumpi v506, bb1, bb111
+  bb111:
+    v507 = slice_ptr arg0
+    v508 = add v507, 0x480
+    v509 = calldataload v508
+    v510 = slice_len arg0
+    v511 = lt 37, v510
+    v512 = iszero v511
+    jumpi v512, bb1, bb112
+  bb112:
+    v513 = slice_ptr arg0
+    v514 = add v513, 0x4a0
+    v515 = calldataload v514
+    v516 = lt v509, v515
+    v517 = iszero v516
+    jumpi v517, bb4, bb113
+  bb113:
+    v518 = slice_len arg0
+    v519 = lt 37, v518
+    v520 = iszero v519
+    jumpi v520, bb1, bb114
+  bb114:
+    v521 = slice_ptr arg0
+    v522 = add v521, 0x4a0
+    v523 = calldataload v522
+    v524 = slice_len arg0
+    v525 = lt 38, v524
+    v526 = iszero v525
+    jumpi v526, bb1, bb115
+  bb115:
+    v527 = slice_ptr arg0
+    v528 = add v527, 0x4c0
+    v529 = calldataload v528
+    v530 = lt v523, v529
+    v531 = iszero v530
+    jumpi v531, bb4, bb116
+  bb116:
+    v532 = slice_len arg0
+    v533 = lt 38, v532
+    v534 = iszero v533
+    jumpi v534, bb1, bb117
+  bb117:
+    v535 = slice_ptr arg0
+    v536 = add v535, 0x4c0
+    v537 = calldataload v536
+    v538 = slice_len arg0
+    v539 = lt 39, v538
+    v540 = iszero v539
+    jumpi v540, bb1, bb118
+  bb118:
+    v541 = slice_ptr arg0
+    v542 = add v541, 0x4e0
+    v543 = calldataload v542
+    v544 = lt v537, v543
+    v545 = iszero v544
+    jumpi v545, bb4, bb119
+  bb119:
+    v546 = slice_len arg0
+    v547 = lt 39, v546
+    v548 = iszero v547
+    jumpi v548, bb1, bb120
+  bb120:
+    v549 = slice_ptr arg0
+    v550 = add v549, 0x4e0
+    v551 = calldataload v550
+    v552 = slice_len arg0
+    v553 = lt 40, v552
+    v554 = iszero v553
+    jumpi v554, bb1, bb121
+  bb121:
+    v555 = slice_ptr arg0
+    v556 = add v555, 0x500
+    v557 = calldataload v556
+    v558 = lt v551, v557
+    v559 = iszero v558
+    jumpi v559, bb4, bb122
+  bb122:
+    v560 = slice_len arg0
+    v561 = lt 40, v560
+    v562 = iszero v561
+    jumpi v562, bb1, bb123
+  bb123:
+    v563 = slice_ptr arg0
+    v564 = add v563, 0x500
+    v565 = calldataload v564
+    v566 = slice_len arg0
+    v567 = lt 41, v566
+    v568 = iszero v567
+    jumpi v568, bb1, bb124
+  bb124:
+    v569 = slice_ptr arg0
+    v570 = add v569, 0x520
+    v571 = calldataload v570
+    v572 = lt v565, v571
+    v573 = iszero v572
+    jumpi v573, bb4, bb125
+  bb125:
+    v574 = slice_len arg0
+    v575 = lt 41, v574
+    v576 = iszero v575
+    jumpi v576, bb1, bb126
+  bb126:
+    v577 = slice_ptr arg0
+    v578 = add v577, 0x520
+    v579 = calldataload v578
+    v580 = slice_len arg0
+    v581 = lt 42, v580
+    v582 = iszero v581
+    jumpi v582, bb1, bb127
+  bb127:
+    v583 = slice_ptr arg0
+    v584 = add v583, 0x540
+    v585 = calldataload v584
+    v586 = lt v579, v585
+    v587 = iszero v586
+    jumpi v587, bb4, bb128
+  bb128:
+    v588 = slice_len arg0
+    v589 = lt 42, v588
+    v590 = iszero v589
+    jumpi v590, bb1, bb129
+  bb129:
+    v591 = slice_ptr arg0
+    v592 = add v591, 0x540
+    v593 = calldataload v592
+    v594 = slice_len arg0
+    v595 = lt 43, v594
+    v596 = iszero v595
+    jumpi v596, bb1, bb130
+  bb130:
+    v597 = slice_ptr arg0
+    v598 = add v597, 0x560
+    v599 = calldataload v598
+    v600 = lt v593, v599
+    v601 = iszero v600
+    jumpi v601, bb4, bb131
+  bb131:
+    v602 = slice_len arg0
+    v603 = lt 43, v602
+    v604 = iszero v603
+    jumpi v604, bb1, bb132
+  bb132:
+    v605 = slice_ptr arg0
+    v606 = add v605, 0x560
+    v607 = calldataload v606
+    v608 = slice_len arg0
+    v609 = lt 44, v608
+    v610 = iszero v609
+    jumpi v610, bb1, bb133
+  bb133:
+    v611 = slice_ptr arg0
+    v612 = add v611, 0x580
+    v613 = calldataload v612
+    v614 = lt v607, v613
+    v615 = iszero v614
+    jumpi v615, bb4, bb134
+  bb134:
+    v616 = slice_len arg0
+    v617 = lt 44, v616
+    v618 = iszero v617
+    jumpi v618, bb1, bb135
+  bb135:
+    v619 = slice_ptr arg0
+    v620 = add v619, 0x580
+    v621 = calldataload v620
+    v622 = slice_len arg0
+    v623 = lt 45, v622
+    v624 = iszero v623
+    jumpi v624, bb1, bb136
+  bb136:
+    v625 = slice_ptr arg0
+    v626 = add v625, 0x5a0
+    v627 = calldataload v626
+    v628 = lt v621, v627
+    v629 = iszero v628
+    jumpi v629, bb4, bb137
+  bb137:
+    v630 = slice_len arg0
+    v631 = lt 45, v630
+    v632 = iszero v631
+    jumpi v632, bb1, bb138
+  bb138:
+    v633 = slice_ptr arg0
+    v634 = add v633, 0x5a0
+    v635 = calldataload v634
+    v636 = slice_len arg0
+    v637 = lt 46, v636
+    v638 = iszero v637
+    jumpi v638, bb1, bb139
+  bb139:
+    v639 = slice_ptr arg0
+    v640 = add v639, 0x5c0
+    v641 = calldataload v640
+    v642 = lt v635, v641
+    v643 = iszero v642
+    jumpi v643, bb4, bb140
+  bb140:
+    v644 = slice_len arg0
+    v645 = lt 46, v644
+    v646 = iszero v645
+    jumpi v646, bb1, bb141
+  bb141:
+    v647 = slice_ptr arg0
+    v648 = add v647, 0x5c0
+    v649 = calldataload v648
+    v650 = slice_len arg0
+    v651 = lt 47, v650
+    v652 = iszero v651
+    jumpi v652, bb1, bb142
+  bb142:
+    v653 = slice_ptr arg0
+    v654 = add v653, 0x5e0
+    v655 = calldataload v654
+    v656 = lt v649, v655
+    v657 = iszero v656
+    jumpi v657, bb4, bb143
+  bb143:
+    v658 = slice_len arg0
+    v659 = lt 47, v658
+    v660 = iszero v659
+    jumpi v660, bb1, bb144
+  bb144:
+    v661 = slice_ptr arg0
+    v662 = add v661, 0x5e0
+    v663 = calldataload v662
+    v664 = slice_len arg0
+    v665 = lt 48, v664
+    v666 = iszero v665
+    jumpi v666, bb1, bb145
+  bb145:
+    v667 = slice_ptr arg0
+    v668 = add v667, 0x600
+    v669 = calldataload v668
+    v670 = lt v663, v669
+    v671 = iszero v670
+    jumpi v671, bb4, bb146
+  bb146:
+    v672 = slice_len arg0
+    v673 = lt 48, v672
+    v674 = iszero v673
+    jumpi v674, bb1, bb147
+  bb147:
+    v675 = slice_ptr arg0
+    v676 = add v675, 0x600
+    v677 = calldataload v676
+    v678 = slice_len arg0
+    v679 = lt 49, v678
+    v680 = iszero v679
+    jumpi v680, bb1, bb148
+  bb148:
+    v681 = slice_ptr arg0
+    v682 = add v681, 0x620
+    v683 = calldataload v682
+    v684 = lt v677, v683
+    v685 = iszero v684
+    jumpi v685, bb4, bb149
+  bb149:
+    v686 = slice_len arg0
+    v687 = lt 49, v686
+    v688 = iszero v687
+    jumpi v688, bb1, bb150
+  bb150:
+    v689 = slice_ptr arg0
+    v690 = add v689, 0x620
+    v691 = calldataload v690
+    v692 = slice_len arg0
+    v693 = lt 50, v692
+    v694 = iszero v693
+    jumpi v694, bb1, bb151
+  bb151:
+    v695 = slice_ptr arg0
+    v696 = add v695, 0x640
+    v697 = calldataload v696
+    v698 = lt v691, v697
+    v699 = iszero v698
+    jumpi v699, bb4, bb152
+  bb152:
+    v700 = slice_len arg0
+    v701 = lt 50, v700
+    v702 = iszero v701
+    jumpi v702, bb1, bb153
+  bb153:
+    v703 = slice_ptr arg0
+    v704 = add v703, 0x640
+    v705 = calldataload v704
+    v706 = slice_len arg0
+    v707 = lt 51, v706
+    v708 = iszero v707
+    jumpi v708, bb1, bb154
+  bb154:
+    v709 = slice_ptr arg0
+    v710 = add v709, 0x660
+    v711 = calldataload v710
+    v712 = lt v705, v711
+    v713 = iszero v712
+    jumpi v713, bb4, bb155
+  bb155:
+    v714 = slice_len arg0
+    v715 = lt 51, v714
+    v716 = iszero v715
+    jumpi v716, bb1, bb156
+  bb156:
+    v717 = slice_ptr arg0
+    v718 = add v717, 0x660
+    v719 = calldataload v718
+    v720 = slice_len arg0
+    v721 = lt 52, v720
+    v722 = iszero v721
+    jumpi v722, bb1, bb157
+  bb157:
+    v723 = slice_ptr arg0
+    v724 = add v723, 0x680
+    v725 = calldataload v724
+    v726 = lt v719, v725
+    v727 = iszero v726
+    jumpi v727, bb4, bb158
+  bb158:
+    v728 = slice_len arg0
+    v729 = lt 52, v728
+    v730 = iszero v729
+    jumpi v730, bb1, bb159
+  bb159:
+    v731 = slice_ptr arg0
+    v732 = add v731, 0x680
+    v733 = calldataload v732
+    v734 = slice_len arg0
+    v735 = lt 53, v734
+    v736 = iszero v735
+    jumpi v736, bb1, bb160
+  bb160:
+    v737 = slice_ptr arg0
+    v738 = add v737, 0x6a0
+    v739 = calldataload v738
+    v740 = lt v733, v739
+    v741 = iszero v740
+    jumpi v741, bb4, bb161
+  bb161:
+    v742 = slice_len arg0
+    v743 = lt 53, v742
+    v744 = iszero v743
+    jumpi v744, bb1, bb162
+  bb162:
+    v745 = slice_ptr arg0
+    v746 = add v745, 0x6a0
+    v747 = calldataload v746
+    v748 = slice_len arg0
+    v749 = lt 54, v748
+    v750 = iszero v749
+    jumpi v750, bb1, bb163
+  bb163:
+    v751 = slice_ptr arg0
+    v752 = add v751, 0x6c0
+    v753 = calldataload v752
+    v754 = lt v747, v753
+    v755 = iszero v754
+    jumpi v755, bb4, bb164
+  bb164:
+    v756 = slice_len arg0
+    v757 = lt 54, v756
+    v758 = iszero v757
+    jumpi v758, bb1, bb165
+  bb165:
+    v759 = slice_ptr arg0
+    v760 = add v759, 0x6c0
+    v761 = calldataload v760
+    v762 = slice_len arg0
+    v763 = lt 55, v762
+    v764 = iszero v763
+    jumpi v764, bb1, bb166
+  bb166:
+    v765 = slice_ptr arg0
+    v766 = add v765, 0x6e0
+    v767 = calldataload v766
+    v768 = lt v761, v767
+    v769 = iszero v768
+    jumpi v769, bb4, bb167
+  bb167:
+    v770 = slice_len arg0
+    v771 = lt 55, v770
+    v772 = iszero v771
+    jumpi v772, bb1, bb168
+  bb168:
+    v773 = slice_ptr arg0
+    v774 = add v773, 0x6e0
+    v775 = calldataload v774
+    v776 = slice_len arg0
+    v777 = lt 56, v776
+    v778 = iszero v777
+    jumpi v778, bb1, bb169
+  bb169:
+    v779 = slice_ptr arg0
+    v780 = add v779, 0x700
+    v781 = calldataload v780
+    v782 = lt v775, v781
+    v783 = iszero v782
+    jumpi v783, bb4, bb170
+  bb170:
+    v784 = slice_len arg0
+    v785 = lt 56, v784
+    v786 = iszero v785
+    jumpi v786, bb1, bb171
+  bb171:
+    v787 = slice_ptr arg0
+    v788 = add v787, 0x700
+    v789 = calldataload v788
+    v790 = slice_len arg0
+    v791 = lt 57, v790
+    v792 = iszero v791
+    jumpi v792, bb1, bb172
+  bb172:
+    v793 = slice_ptr arg0
+    v794 = add v793, 0x720
+    v795 = calldataload v794
+    v796 = lt v789, v795
+    v797 = iszero v796
+    jumpi v797, bb4, bb173
+  bb173:
+    v798 = slice_len arg0
+    v799 = lt 57, v798
+    v800 = iszero v799
+    jumpi v800, bb1, bb174
+  bb174:
+    v801 = slice_ptr arg0
+    v802 = add v801, 0x720
+    v803 = calldataload v802
+    v804 = slice_len arg0
+    v805 = lt 58, v804
+    v806 = iszero v805
+    jumpi v806, bb1, bb175
+  bb175:
+    v807 = slice_ptr arg0
+    v808 = add v807, 0x740
+    v809 = calldataload v808
+    v810 = lt v803, v809
+    v811 = iszero v810
+    jumpi v811, bb4, bb176
+  bb176:
+    v812 = slice_len arg0
+    v813 = lt 58, v812
+    v814 = iszero v813
+    jumpi v814, bb1, bb177
+  bb177:
+    v815 = slice_ptr arg0
+    v816 = add v815, 0x740
+    v817 = calldataload v816
+    v818 = slice_len arg0
+    v819 = lt 59, v818
+    v820 = iszero v819
+    jumpi v820, bb1, bb178
+  bb178:
+    v821 = slice_ptr arg0
+    v822 = add v821, 0x760
+    v823 = calldataload v822
+    v824 = lt v817, v823
+    v825 = iszero v824
+    jumpi v825, bb4, bb179
+  bb179:
+    v826 = slice_len arg0
+    v827 = lt 59, v826
+    v828 = iszero v827
+    jumpi v828, bb1, bb180
+  bb180:
+    v829 = slice_ptr arg0
+    v830 = add v829, 0x760
+    v831 = calldataload v830
+    v832 = slice_len arg0
+    v833 = lt 60, v832
+    v834 = iszero v833
+    jumpi v834, bb1, bb181
+  bb181:
+    v835 = slice_ptr arg0
+    v836 = add v835, 0x780
+    v837 = calldataload v836
+    v838 = lt v831, v837
+    v839 = iszero v838
+    jumpi v839, bb4, bb182
+  bb182:
+    v840 = slice_len arg0
+    v841 = lt 60, v840
+    v842 = iszero v841
+    jumpi v842, bb1, bb183
+  bb183:
+    v843 = slice_ptr arg0
+    v844 = add v843, 0x780
+    v845 = calldataload v844
+    v846 = slice_len arg0
+    v847 = lt 61, v846
+    v848 = iszero v847
+    jumpi v848, bb1, bb184
+  bb184:
+    v849 = slice_ptr arg0
+    v850 = add v849, 0x7a0
+    v851 = calldataload v850
+    v852 = lt v845, v851
+    v853 = iszero v852
+    jumpi v853, bb4, bb185
+  bb185:
+    v854 = slice_len arg0
+    v855 = lt 61, v854
+    v856 = iszero v855
+    jumpi v856, bb1, bb186
+  bb186:
+    v857 = slice_ptr arg0
+    v858 = add v857, 0x7a0
+    v859 = calldataload v858
+    v860 = slice_len arg0
+    v861 = lt 62, v860
+    v862 = iszero v861
+    jumpi v862, bb1, bb187
+  bb187:
+    v863 = slice_ptr arg0
+    v864 = add v863, 0x7c0
+    v865 = calldataload v864
+    v866 = lt v859, v865
+    v867 = iszero v866
+    jumpi v867, bb4, bb188
+  bb188:
+    v868 = slice_len arg0
+    v869 = lt 62, v868
+    v870 = iszero v869
+    jumpi v870, bb1, bb189
+  bb189:
+    v871 = slice_ptr arg0
+    v872 = add v871, 0x7c0
+    v873 = calldataload v872
+    v874 = slice_len arg0
+    v875 = lt 63, v874
+    v876 = iszero v875
+    jumpi v876, bb1, bb190
+  bb190:
+    v877 = slice_ptr arg0
+    v878 = add v877, 0x7e0
+    v879 = calldataload v878
+    v880 = lt v873, v879
+    v881 = iszero v880
+    jumpi v881, bb4, bb191
+  bb191:
+    v882 = slice_len arg0
+    v883 = lt 63, v882
+    v884 = iszero v883
+    jumpi v884, bb1, bb192
+  bb192:
+    v885 = slice_ptr arg0
+    v886 = add v885, 0x7e0
+    v887 = calldataload v886
+    v888 = slice_len arg0
+    v889 = lt 64, v888
+    v890 = iszero v889
+    jumpi v890, bb1, bb193
+  bb193:
+    v891 = slice_ptr arg0
+    v892 = add v891, 0x800
+    v893 = calldataload v892
+    v894 = lt v887, v893
+    v895 = iszero v894
+    jumpi v895, bb4, bb194
+  bb194:
+    v896 = slice_len arg0
+    v897 = lt 64, v896
+    v898 = iszero v897
+    jumpi v898, bb1, bb195
+  bb195:
+    v899 = slice_ptr arg0
+    v900 = add v899, 0x800
+    v901 = calldataload v900
+    v902 = slice_len arg0
+    v903 = lt 65, v902
+    v904 = iszero v903
+    jumpi v904, bb1, bb196
+  bb196:
+    v905 = slice_ptr arg0
+    v906 = add v905, 0x820
+    v907 = calldataload v906
+    v908 = lt v901, v907
+    v909 = iszero v908
+    jumpi v909, bb4, bb197
+  bb197:
+    v910 = slice_len arg0
+    v911 = lt 0, v910
+    v912 = iszero v911
+    jumpi v912, bb1, bb198
+  bb198:
+    v913 = slice_ptr arg0
+    v914 = add v913, 0
+    v915 = calldataload v914
+    v916 = slice_len arg0
+    v917 = lt 65, v916
+    v918 = iszero v917
+    jumpi v918, bb1, bb199
+  bb199:
+    v919 = slice_ptr arg0
+    v920 = add v919, 0x820
+    v921 = calldataload v920
+    v922 = lt v915, v921
+    v923 = iszero v922
+    jumpi v923, bb4, bb200
+  bb200:
+    ret 1
+  bb4:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @sibling(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> u256 [selector=0x9446c675, pure, abi_params=[bool, u256, u256, u256], abi_returns=[word]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    v6 = lt arg1, arg3
+    v7 = iszero v6
+    jumpi v7, bb9, bb8
+  bb8:
+    v8 = lt arg2, arg3
+    v9 = iszero v8
+    jump bb10
+  bb9:
+    jump bb10
+  bb10:
+    v10 = phi [bb8: v9], [bb9: 1]
+    jumpi v10, bb11, bb12
+  bb12:
+    jump bb13
+  bb13:
+    jump bb3
+  bb11:
+    ret 0
+  bb1:
+    v0 = lt arg1, arg2
+    v1 = iszero v0
+    jumpi v1, bb4, bb5
+  bb5:
+    v2 = lt arg2, arg3
+    v3 = iszero v2
+    jumpi v3, bb4, bb6
+  bb6:
+    v4 = lt arg1, arg3
+    v5 = iszero v4
+    jumpi v5, bb4, bb7
+  bb7:
+    jump bb3
+  bb3:
+    v11 = lt arg1, arg2
+    jumpi v11, bb14, bb15
+  bb15:
+    jump bb16
+  bb14:
+    jump bb16
+  bb16:
+    v12 = phi [bb14: 1], [bb15: 0]
+    ret v12
+  bb4:
+    revert 0, 0
+}

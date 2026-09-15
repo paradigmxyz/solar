@@ -15,7 +15,7 @@ fn @forward(arg0: calldataslice, arg1: address) [selector=0x2fc1914a, abi_params
   bb3:
     revert_returndata
   bb4:
-    stop
+    ret
   bb1:
     revert 0, 0
 }
@@ -70,7 +70,7 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
   bb20:
     revert_returndata
   bb21:
-    stop
+    ret
   bb8:
     v23 = mul v21, 32
     v24 = iszero 32

@@ -2,7 +2,7 @@
 @module AbiEncodeCallConsistent
 fn @fExternal(arg0: u256, arg1: memorybytes) [selector=0x33d85810, abi_params=[u256, bytes], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @getExternalFunctionPointer() -> function [selector=0x0d5de1f2, abi_params=[], abi_returns=[function]] {

@@ -2,7 +2,7 @@
 @module MemoryArrayLiteralCalldata
 fn @collect(arg0: calldataslice, arg1: calldataslice) -> memoryfixedarray [selector=0xcc62604c, pure, abi_params=[bytes, bytes], abi_returns=[array<2, memory_bytes>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v3]

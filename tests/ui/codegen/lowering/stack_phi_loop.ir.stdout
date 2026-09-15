@@ -46,16 +46,28 @@ bb7:
   iszero
   push bb6
   jumpi
-  push 7
   push 36
   calldataload
   iszero
   push bb10
   jumpi
+  push 7
   jump bb11
 bb11:
   push 0
   push 0
+  jump bb12
+bb14:
+  push 1
+  push 192
+  mload
+  add
+  push 224
+  mload
+  push 160
+  mload
+  swap 2
+  swap 1
   jump bb12
 bb12:
   push 4
@@ -72,21 +84,8 @@ bb57:
   push 128
   return
 bb10:
-  pop
   push 11
   jump bb11
-bb14:
-  push 1
-  push 192
-  mload
-  add
-  push 224
-  mload
-  push 160
-  mload
-  swap 2
-  swap 1
-  jump bb12
 bb15:
   dup 2
   push 192
@@ -169,15 +168,6 @@ bb24:
   pop
   push 0
   jump bb26
-bb26:
-  push 36
-  calldataload
-  dup 2
-  lt
-  push bb29
-  jumpi
-  dup 2
-  jump bb57
 bb28:
   push 1
   push 160
@@ -187,13 +177,22 @@ bb28:
   mload
   swap 1
   jump bb26
+bb26:
+  push 36
+  calldataload
+  dup 2
+  lt
+  push bb29
+  jumpi
+  swap 1
+  jump bb57
 bb29:
   dup 1
   push 160
   mstore
   dup 1
-  push 1
-  shl
+  dup 1
+  add
   dup 1
   push 1
   shr
@@ -247,7 +246,7 @@ bb38:
   push 0
   push 160
   mstore
-  push 224
+  push 256
   mstore
   jump bb39
 bb39:
@@ -259,7 +258,7 @@ bb39:
   push bb41
   jumpi
   push 1
-  push 224
+  push 256
   mload
   add
   push 192
@@ -273,7 +272,7 @@ bb40:
   dup 1
   push 160
   mstore
-  push 256
+  push 224
   mload
   push 192
   mstore
@@ -281,7 +280,7 @@ bb40:
   mstore
   jump bb39
 bb41:
-  push 224
+  push 256
   mload
   push 160
   mload
@@ -293,22 +292,23 @@ bb41:
   push bb55
   jumpi
   push 1
-  dup 2
   add
-  swap 1
-  dup 2
-  lt
+  dup 1
+  push 224
+  mstore
+  iszero
   push bb55
   jumpi
   push 192
   mload
+  push 224
+  mload
+  dup 2
   add
   dup 1
-  push 256
+  push 224
   mstore
-  push 192
-  mload
-  gt
+  lt
   swap 1
   pop
   iszero
@@ -325,16 +325,6 @@ bb46:
   push 4
   calldataload
   jump bb48
-bb48:
-  push 68
-  calldataload
-  dup 3
-  lt
-  push bb50
-  jumpi
-  push 0
-  sstore
-  stop
 bb50:
   push 36
   calldataload
@@ -377,3 +367,13 @@ bb50:
   add
   swap 1
   jump bb48
+bb48:
+  push 68
+  calldataload
+  dup 3
+  lt
+  push bb50
+  jumpi
+  push 0
+  sstore
+  stop

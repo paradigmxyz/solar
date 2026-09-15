@@ -1,0 +1,116 @@
+// === ROOT/tests/ui/codegen/lowering/nested_copy_stack.sol:NestedCopyStack ===
+@module NestedCopyStack
+fn @copyGroups(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [selector=0x03aba4f0, pure, abi_params=[u256, u256, u256], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = gt arg0, 4
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v2 = gt arg1, 4
+    v3 = iszero v2
+    jump bb3
+  bb3:
+    v4 = phi [bb1: v3], [bb2: 0]
+    v5 = iszero v4
+    jumpi v5, bb4, bb5
+  bb5:
+    v6 = mload 64 !metadata(memory=scratch)
+    v7 = mul arg0, arg1
+    v8 = shl 5, v7
+    v9 = add v6, 32
+    mstore v6, v8
+    jump bb6
+  bb6:
+    v10 = phi [bb5: v6], [bb8: v48]
+    v11 = phi [bb5: v9], [bb8: v45]
+    v12 = phi [bb5: arg0], [bb8: v49]
+    v13 = phi [bb5: arg2], [bb8: v46]
+    v14 = phi [bb5: v8], [bb8: v50]
+    v15 = phi [bb5: 0], [bb8: v52]
+    v16 = phi [bb5: arg1], [bb8: v51]
+    v17 = lt v15, v12
+    v18 = eq v17, 0
+    v19 = iszero v18
+    jumpi v19, bb9, bb10
+  bb10:
+    jump bb7
+  bb7:
+    v53 = add v11, v14
+    mstore v53, 0
+    v54 = add v11, v14
+    v55 = add v54, 32
+    mstore 64, v55 !metadata(memory=scratch)
+    ret v10
+  bb9:
+    v20 = eq v16, 0
+    v21 = iszero v20
+    jumpi v21, bb12, bb13
+  bb13:
+    jump bb14
+  bb12:
+    v22 = mul v15, v16
+    v23 = shl 5, v22
+    jump bb15
+  bb15:
+    v24 = phi [bb12: v11], [bb19: v24]
+    v25 = phi [bb12: v13], [bb19: v25]
+    v26 = phi [bb12: v15], [bb19: v26]
+    v27 = phi [bb12: v10], [bb19: v27]
+    v28 = phi [bb12: v23], [bb19: v28]
+    v29 = phi [bb12: v12], [bb19: v29]
+    v30 = phi [bb12: v14], [bb19: v30]
+    v31 = phi [bb12: 0], [bb19: v39]
+    v32 = phi [bb12: v16], [bb19: v32]
+    v33 = eq 1, 0
+    v34 = iszero v33
+    jumpi v34, bb17, bb18
+  bb18:
+    jump bb16
+  bb17:
+    v35 = shl 5, v31
+    v36 = add v28, v35
+    v37 = xor v25, v36
+    v38 = add v24, v36
+    mstore v38, v37
+    v39 = add v31, 1
+    v40 = lt v39, v32
+    v41 = iszero v40
+    v42 = eq v41, 0
+    v43 = iszero v42
+    jumpi v43, bb20, bb21
+  bb21:
+    jump bb22
+  bb22:
+    jump bb19
+  bb19:
+    jump bb15
+  bb20:
+    jump bb16
+  bb16:
+    v44 = phi [bb20: v39], [bb18: v31]
+    jump bb14
+  bb14:
+    v45 = phi [bb16: v24], [bb13: v11]
+    v46 = phi [bb16: v25], [bb13: v13]
+    v47 = phi [bb16: v26], [bb13: v15]
+    v48 = phi [bb16: v27], [bb13: v10]
+    v49 = phi [bb16: v29], [bb13: v12]
+    v50 = phi [bb16: v30], [bb13: v14]
+    v51 = phi [bb16: v32], [bb13: v16]
+    jump bb11
+  bb11:
+    jump bb8
+  bb8:
+    v52 = add v47, 1
+    jump bb6
+  bb4:
+    revert 0, 0
+}
+
+fn @probe(arg0: u256) -> memorybytes [selector=0xdb082440, pure, abi_params=[u256], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = icall @copyGroups, 1, 2, 2, arg0
+    ret v0
+}

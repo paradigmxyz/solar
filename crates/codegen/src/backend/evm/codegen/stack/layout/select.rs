@@ -1,4 +1,15 @@
 //! Selection of profitable cross-block stack layouts under spill hazards.
+//!
+//! Gas mode also retains a calldata loop bound beneath three or four stack-resident phis when
+//! the loop has one pure, straight-line latch of at most sixteen instructions. The resident
+//! argument planner proves incoming layouts and liveness, including explicit calldata loads
+//! introduced by dispatcher inlining; the phi planner proves that its
+//! changing words fit above the invariant. Calls and uncomposable layouts keep reloads.
+//! This replaces repeated calldata loads with DUPs, trading a small setup and bytecode cost
+//! for cheaper iterations. It assumes repeated traversal for profitability, not correctness:
+//! zero-iteration calls can cost more. Size mode retains rematerialization. This decision
+//! stays at the scheduling boundary and neither changes the MIR recurrence nor moves loads
+//! across external calls.
 
 use super::super::super::{
     BlockId, CanonicalArgValues, CfgInfo, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function,
@@ -6,9 +17,53 @@ use super::super::super::{
     Liveness, LoopAnalyzer, Module, OnceCell, OperandCostModel, OptimizationMode,
     ResidentSearchContext, ScheduleCost, StackOp, StackPhiPlan, Terminator, Value, ValueId,
 };
+use crate::target::Target;
 use std::rc::Rc;
 
 impl<'gcx> EvmCodegen<'gcx> {
+    /// Carries a calldata loop bound beneath a small pure loop's changing words.
+    pub(in crate::backend::evm::codegen) fn compute_loop_bound_stack_layout(
+        &self,
+        func: &Function,
+        liveness: &Liveness,
+        phi_plan: &StackPhiPlan,
+    ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
+        if !self.gcx.sess.opts.optimization.is_gas()
+            || self.in_internal_function
+            || self.in_constructor
+        {
+            return None;
+        }
+        for (header, block) in func.blocks.iter_enumerated() {
+            if let Some(Terminator::Branch { condition, then_block: body, .. }) = &block.terminator
+                && let Value::Inst(cond) = func.value(*condition)
+                && let InstKind::Lt(index, bound) = func.inst(*cond).kind
+                && (matches!(func.value(bound), Value::Arg(_))
+                    || matches!(func.value(bound), Value::Inst(inst)
+                        if matches!(func.inst(*inst).kind, InstKind::CalldataLoad(offset)
+                            if matches!(func.value(offset), Value::Immediate(_)))))
+                && let Some(layout) = phi_plan.entries.get(&header)
+                && (3..=4).contains(&layout.len())
+                && layout.contains(&index)
+                && func.blocks[*body].predecessors.as_slice() == [header]
+                && matches!(func.blocks[*body].terminator, Some(Terminator::Jump(to)) if to == header)
+                && func.blocks[*body].instructions.len() <= 16
+                && func.blocks[*body]
+                    .instructions
+                    .iter()
+                    .all(|&inst| func.inst(inst).kind.effect_kind() == crate::mir::EffectKind::Pure)
+            {
+                // preheader: carry(bound, initial phis...)
+                // header: compare(index, bound)
+                // latch: carry(bound, next phis...)
+                let values = vec![bound];
+                let plan = GlobalStackPlan::analyze_resident_args(func, liveness, &values, false)?;
+                return Some((values, plan));
+            }
+        }
+        None
+    }
+
     /// Returns the stack-phi plan for a function, computing it on first use.
     pub(in crate::backend::evm::codegen) fn stack_phi_plan(
         &mut self,
@@ -17,11 +72,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         liveness: &Liveness,
     ) -> Rc<StackPhiPlan> {
         let cold_functions = &self.cold_functions;
-        Rc::clone(
-            self.stack_phi_plans
-                .entry(func_id)
-                .or_insert_with(|| Rc::new(StackPhiPlan::analyze(func, liveness, cold_functions))),
-        )
+        Rc::clone(self.stack_phi_plans.entry(func_id).or_insert_with(|| {
+            Rc::new(StackPhiPlan::analyze(func, liveness, cold_functions, Target::new(self.gcx)))
+        }))
     }
 
     /// Collects the canonical identity of each used static-callee argument once for the stack
@@ -114,12 +167,16 @@ impl<'gcx> EvmCodegen<'gcx> {
             // established layout until the planner has execution-frequency-aware costing and
             // the loop composition is fixed; acyclic join edges compose without that
             // multiplier.
-            let carries_planned_backedge = phi_plan.edges.keys().any(|&pred| {
-                let Some(Terminator::Jump(target)) = func.blocks[pred].terminator.as_ref() else {
-                    return false;
-                };
-                plan.entry(*target).is_some() && context.cfg.dominators().dominates(*target, pred)
-            });
+            let carries_planned_backedge =
+                phi_plan.edges.keys().chain(phi_plan.branch_edges.keys()).any(|&pred| {
+                    func.blocks[pred].terminator.as_ref().is_some_and(|term| {
+                        term.successors().into_iter().any(|target| {
+                            (matches!(term, Terminator::Jump(_)) || target != pred)
+                                && plan.entry(target).is_some()
+                                && context.cfg.dominators().dominates(target, pred)
+                        })
+                    })
+                });
             if carries_planned_backedge {
                 return None;
             }
@@ -241,8 +298,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let baseline = values
             .iter()
             .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
-        let optimization = self.gcx.sess.opts.optimization;
-        let expected_executions = self.gcx.sess.opts.optimizer_runs.unwrap_or(200);
+        let target = Target::new(self.gcx);
         let context = self.resident_search_context(func, values, phi_plan);
         let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
         for bits in 1usize..(1usize << values.len()) {
@@ -274,11 +330,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                     memory_cost(value)
                 });
             }
-            if !candidate.cmp_lifetime_for(baseline, optimization, expected_executions).is_lt() {
+            if !candidate.cmp_lifetime_for(baseline, target).is_lt() {
                 continue;
             }
             if best.as_ref().is_none_or(|(best_cost, best_values, _)| {
-                candidate.cmp_lifetime_for(*best_cost, optimization, expected_executions).is_lt()
+                candidate.cmp_lifetime_for(*best_cost, target).is_lt()
                     || (candidate == *best_cost && subset.len() > best_values.len())
             }) {
                 best = Some((candidate, subset, plan));
@@ -533,8 +589,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let baseline = values
             .iter()
             .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
-        let optimization = self.gcx.sess.opts.optimization;
-        let expected_executions = self.gcx.sess.opts.optimizer_runs.unwrap_or(200);
+        let target = Target::new(self.gcx);
         let context = self.resident_search_context(func, values, phi_plan);
         let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
         for bits in 1usize..(1usize << values.len()) {
@@ -572,11 +627,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                     memory_cost(value)
                 });
             }
-            if !candidate.cmp_lifetime_for(baseline, optimization, expected_executions).is_lt() {
+            if !candidate.cmp_lifetime_for(baseline, target).is_lt() {
                 continue;
             }
             if best.as_ref().is_none_or(|(best_cost, best_values, _)| {
-                candidate.cmp_lifetime_for(*best_cost, optimization, expected_executions).is_lt()
+                candidate.cmp_lifetime_for(*best_cost, target).is_lt()
                     || (candidate == *best_cost && subset.len() > best_values.len())
             }) {
                 best = Some((candidate, subset, plan));

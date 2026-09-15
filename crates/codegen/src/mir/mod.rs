@@ -33,9 +33,12 @@ pub(crate) use value::{Immediate, Value};
 mod inst;
 pub(crate) use inst::{
     AbiEncodeMode, AllocationAlignment, AllocationFailure, AllocationInitialization,
-    AllocationKind, AllocationSemantics, EffectKind, InstKind, Instruction, InstructionMetadata,
+    AllocationKind, AllocationSemantics, EffectKind, Instruction, InstructionMetadata,
     MemoryRegion, StorageAlias,
 };
+
+mod op_schema;
+pub(crate) use op_schema::{InstKind, Op, OpTraits, ResultKind};
 
 mod block;
 pub(crate) use block::{BasicBlock, Terminator};
@@ -51,7 +54,7 @@ pub(crate) use module::LibraryLink;
 pub use module::{MirPhase, Module};
 
 mod builder;
-pub(crate) use builder::{ERROR_SELECTOR, FunctionBuilder, PanicCode, RevertReason, ToUint};
+pub(crate) use builder::{ERROR_SELECTOR, FunctionBuilder, PanicCode, RevertReason};
 
 mod display;
 

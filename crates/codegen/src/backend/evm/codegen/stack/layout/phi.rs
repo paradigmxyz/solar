@@ -1,9 +1,40 @@
 //! Stack-resident phi planning for loops, branches, and live joins.
+//!
+//! Loop headers and joins receive explicit physical layouts whose source words are renamed to
+//! the successor's phi results. Conditional backedges can carry that layout when their other arm
+//! aborts; they need not spill every iteration merely to support an overflow check. The abort arm
+//! receives an empty layout and retains ordinary spill handling for any values its diagnostic
+//! needs. Existing plans, nonterminal exits with live phis, unsupported loop bodies, and layouts
+//! beyond DUP/SWAP reach keep their established fallback. Planning stays at the MIR-to-EVM
+//! boundary and changes neither the MIR CFG nor the semantics of its checks.
+//!
+//! A non-header join with one phi also considers interleaving that result with carried words in
+//! an incoming stack's order. Both layouts are priced with the actual target stack shuffler over
+//! every predecessor; unknown residency or an unrealizable shuffle retains the existing layout.
+//! Small loop headers with no carried words instead order their phi results by final use in the
+//! pure latch, keeping soon-consumed words near the top. This heuristic is limited to three or
+//! four phis and a single-predecessor latch with at most sixteen instructions. Both incoming edges
+//! use the same permutation, so initial values and backedge values retain their result identities.
+//! It changes physical layouts only; instruction order and the MIR recurrence stay intact.
+//! In gas mode, conditional arms do not carry immediate phi inputs belonging to the sibling
+//! join edge. Those values can be materialized on their own edge, rather than
+//! being shuffled through an arm that does not consume them.
+//! Two-word load/store recurrences order the phi consumed by the store before
+//! the pointer updated afterward. Both entries and latches use this order,
+//! avoiding a store-operand exchange and a second exchange on the backedge.
+//! Only gas-mode loops with a direct or empty latch and a small header qualify;
+//! carried invariants retain their order below the two phi words.
 
 use super::super::super::{
     BlockId, DenseBitSet, Function, FunctionId, FxHashMap, FxHashSet, GlobalStackPlan, IndexVec,
     InstId, InstKind, Liveness, Loop, LoopAnalyzer, MAX_STACK_ACCESS, STACK_PHI_LAYOUT_LIMIT,
-    SmallVec, Terminator, ValueId, index_vec, rematerializable_nullary_opcode,
+    SmallVec, StackModel, TargetSlot, Terminator, ValueId, index_vec, lowered_stack_cost,
+    rematerializable_nullary_opcode,
+};
+
+use crate::{
+    backend::evm::codegen::stack::shuffler::StackShuffler,
+    target::{Cost, Target},
 };
 
 #[derive(Clone, Default)]
@@ -67,8 +98,9 @@ impl StackPhiPlan {
         func: &Function,
         liveness: &Liveness,
         cold_functions: &DenseBitSet<FunctionId>,
+        target: Target,
     ) -> Self {
-        StackPhiPlanner::new(func, cold_functions).plan(liveness)
+        StackPhiPlanner::new(func, cold_functions, target).plan(liveness)
     }
 
     pub(in crate::backend::evm::codegen) fn edge_fits(
@@ -187,6 +219,7 @@ impl StackPhiPlan {
 }
 
 struct StackPhiPlanner<'a> {
+    target: Target,
     func: &'a Function,
     loops: Vec<Loop>,
     header_results: FxHashMap<BlockId, Vec<ValueId>>,
@@ -258,7 +291,11 @@ impl LiveJoinState {
 }
 
 impl<'a> StackPhiPlanner<'a> {
-    fn new(func: &'a Function, cold_functions: &'a DenseBitSet<FunctionId>) -> Self {
+    fn new(
+        func: &'a Function,
+        cold_functions: &'a DenseBitSet<FunctionId>,
+        target: Target,
+    ) -> Self {
         let mut loop_analyzer = LoopAnalyzer::new();
         let loop_info = loop_analyzer.analyze(func);
         let loops = loop_info.all_loops().cloned().collect();
@@ -271,8 +308,14 @@ impl<'a> StackPhiPlanner<'a> {
                 }
             }
         }
-        let mut planner =
-            Self { func, loops, header_results: FxHashMap::default(), definitions, cold_functions };
+        let mut planner = Self {
+            target,
+            func,
+            loops,
+            header_results: FxHashMap::default(),
+            definitions,
+            cold_functions,
+        };
         planner.collect_header_results();
         planner
     }
@@ -324,9 +367,20 @@ impl<'a> StackPhiPlanner<'a> {
                     }
             });
             let phis = self.phi_insts(block);
+            // A literal can initialize a self-loop phi and also occur after the loop without
+            // needing a second resident identity: each use can materialize it. Treating that
+            // literal as a carried source excludes zero-initialized copy loops and prevents
+            // enclosing-loop invariants from crossing them. Keep other join shapes unchanged.
             let phi_source_is_live_in = block.predecessors.iter().any(|&pred| {
                 self.phi_sources_for_pred(&phis, pred).is_some_and(|sources| {
-                    sources.iter().any(|&source| liveness.live_in(block_id).contains(source))
+                    sources.iter().any(|&source| {
+                        liveness.live_in(block_id).contains(source)
+                            && !(block.predecessors.contains(&block_id)
+                                && matches!(
+                                    self.func.value(source),
+                                    crate::mir::Value::Immediate(_)
+                                ))
+                    })
                 })
             });
             if preds_ok
@@ -649,6 +703,29 @@ impl<'a> StackPhiPlanner<'a> {
         }
     }
 
+    /// Prices all incoming shuffles from the currently predicted resident stacks. Unknown
+    /// residency keeps the established order; both alternatives must be physically realizable.
+    fn join_shuffle_cost(
+        &self,
+        join: BlockId,
+        layout: &[ValueId],
+        state: &LiveJoinState,
+    ) -> Option<Cost> {
+        let mut cost = Cost::ZERO;
+        for &pred in &self.func.blocks[join].predecessors {
+            let resident = state.resident_out.get(&pred)?;
+            let sources = self.layout_sources(join, layout, pred)?;
+            let stack = StackModel::from_top_to_bottom(resident.iter().copied().map(Some));
+            let goal = sources.into_iter().map(TargetSlot::Value).collect::<Vec<_>>();
+            let shuffle = StackShuffler::for_evm_version(&stack, &goal, self.target.evm_version())
+                .with_wide_permutation_search(self.target.optimization().is_gas())
+                .shuffle()?;
+            let (_, gas, bytes) = lowered_stack_cost(&shuffle.ops, self.target.evm_version());
+            cost += Cost::new(gas as u32, bytes as u32);
+        }
+        Some(cost)
+    }
+
     /// Refreshes the layout of a planned join or sibling arm from the newest residency and
     /// wants; returns whether it changed.
     fn refresh_live_join_layout(
@@ -696,8 +773,62 @@ impl<'a> StackPhiPlanner<'a> {
                 .collect::<Vec<_>>();
             // Phi sources are the newest words of a predecessor, so the results ride on top.
             let mut phis = facts.join_phis[&join].clone();
+            if self.target.optimization().is_gas()
+                && phis.len() == 2
+                && !latches.is_empty()
+                && block.instructions.len() <= 16
+                && latches.iter().all(|&latch| latch == join || func.blocks[latch].instructions.is_empty())
+                && block.instructions.iter().any(|&inst| {
+                    matches!(func.inst(inst).kind, InstKind::MStore(_, value) if phis.contains(&value))
+                })
+            {
+                // header: [stored_word, pointer, invariants...]
+                // latch: [next_stored_word, next_pointer, invariants...]
+                phis.sort_by_key(|value| {
+                    block.instructions.iter().rposition(|&inst| {
+                        !matches!(func.inst(inst).kind, InstKind::Phi(_))
+                            && func.inst(inst).operands().contains(value)
+                    })
+                });
+            }
             carried.truncate(LIVE_JOIN_LAYOUT_LIMIT - phis.len());
             phis.extend(carried);
+            if let [latch] = latches
+                && (3..=4).contains(&phis.len())
+                && facts.join_phis[&join].len() == phis.len()
+                && func.blocks[*latch].predecessors.as_slice() == [join]
+                && func.blocks[*latch].instructions.len() <= 16
+                && func.blocks[*latch]
+                    .instructions
+                    .iter()
+                    .all(|&inst| func.inst(inst).kind.effect_kind() == crate::mir::EffectKind::Pure)
+            {
+                // phi layout -> order of final body use, earliest nearest the top
+                phis.sort_by_key(|value| {
+                    func.blocks[*latch]
+                        .instructions
+                        .iter()
+                        .rposition(|&inst| func.inst(inst).kind.operands().contains(value))
+                });
+            }
+            if latches.is_empty()
+                && facts.join_phis[&join].len() == 1
+                && let Some(resident) = state.resident_out.get(&first)
+                && let Some(sources) = self.layout_sources(join, &phis, first)
+                && sources.iter().all(|source| resident.contains(source))
+            {
+                let mut slots = phis.iter().copied().zip(sources).collect::<Vec<_>>();
+                slots.sort_by_key(|(_, source)| resident.iter().position(|value| value == source));
+                let ordered = slots.into_iter().map(|(result, _)| result).collect::<Vec<_>>();
+                if ordered != phis
+                    && let Some(before) = self.join_shuffle_cost(join, &phis, state)
+                    && let Some(after) = self.join_shuffle_cost(join, &ordered, state)
+                    && self.target.cmp(after, before).is_le()
+                {
+                    // [phi, carried...] -> incoming physical order, with phi sources renamed
+                    phis = ordered;
+                }
+            }
             phis
         } else if let Some(&(pred, join)) = facts.arms.get(&block_id) {
             let arm = block_id;
@@ -710,7 +841,13 @@ impl<'a> StackPhiPlanner<'a> {
                 .layouts
                 .get(&join)
                 .and_then(|layout| self.layout_sources(join, layout, pred))
-                .unwrap_or_default();
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|&value| {
+                    !self.target.optimization().is_gas()
+                        || self.func.value(value).as_immediate().is_none()
+                })
+                .collect::<Vec<_>>();
             let live_in = liveness.live_in(arm);
             let resident = state.resident_out.get(&pred).map(Vec::as_slice).unwrap_or_default();
             let wanted = &state.wanted[arm];
@@ -1140,13 +1277,35 @@ impl<'a> StackPhiPlanner<'a> {
         {
             return;
         }
-        if loop_info.back_edges.iter().any(|&latch| {
-            !matches!(self.func.blocks[latch].terminator, Some(Terminator::Jump(target)) if target == loop_info.header)
-        }) {
-            return;
+        let mut conditional_latches = FxHashMap::default();
+        for &latch in &loop_info.back_edges {
+            match self.func.blocks[latch].terminator {
+                Some(Terminator::Jump(target)) if target == loop_info.header => {}
+                Some(Terminator::Branch { then_block, else_block, .. }) => {
+                    let (backedge_is_then, exit) = if then_block == loop_info.header {
+                        (true, else_block)
+                    } else if else_block == loop_info.header {
+                        (false, then_block)
+                    } else {
+                        return;
+                    };
+                    if loop_info.blocks.contains(exit)
+                        || !self.is_noreturn_block(exit)
+                        || !self.phi_insts(&self.func.blocks[exit]).is_empty()
+                        || plan.entries.contains_key(&exit)
+                    {
+                        return;
+                    }
+                    conditional_latches.insert(latch, backedge_is_then);
+                }
+                _ => return,
+            }
         }
         if plan.edges.contains_key(&preheader)
-            || loop_info.back_edges.iter().any(|latch| plan.edges.contains_key(latch))
+            || plan.branch_edges.contains_key(&preheader)
+            || loop_info.back_edges.iter().any(|latch| {
+                plan.edges.contains_key(latch) || plan.branch_edges.contains_key(latch)
+            })
         {
             return;
         }
@@ -1210,9 +1369,20 @@ impl<'a> StackPhiPlanner<'a> {
             edges.push((pred, sources));
         }
 
+        // header(phi_results := initial_sources)
+        // latch: jumpi condition, header(phi_results := backedge_sources), abort()
         plan.entries.insert(loop_info.header, entry.clone());
         for (pred, sources) in edges {
-            plan.edges.insert(pred, StackPhiEdge { sources, results: entry.clone() });
+            let edge = StackPhiEdge { sources, results: entry.clone() };
+            if let Some(&backedge_is_then) = conditional_latches.get(&pred) {
+                let union = edge.sources.clone();
+                let exit = StackPhiEdge { sources: Vec::new(), results: Vec::new() };
+                let (then_edge, else_edge) =
+                    if backedge_is_then { (edge, exit) } else { (exit, edge) };
+                plan.branch_edges.insert(pred, StackPhiBranch { then_edge, else_edge, union });
+            } else {
+                plan.edges.insert(pred, edge);
+            }
         }
     }
 
@@ -1285,11 +1455,22 @@ impl<'a> StackPhiPlanner<'a> {
             return false;
         }
 
-        let exit_values = entry
+        let mut exit_values = entry
             .iter()
             .copied()
             .filter(|value| liveness.live_in(exit).contains(*value))
             .collect::<Vec<_>>();
+        if self.target.optimization().is_gas() {
+            // header: [next_phi_sources, invariants...]
+            // exit: [live_next_phi_sources, live_invariants...]
+            // A phi update is already carried on the backedge. Its exit use can
+            // consume that same word, avoiding a store on every iteration.
+            for &value in &backedge_sources {
+                if liveness.live_in(exit).contains(value) && !exit_values.contains(&value) {
+                    exit_values.push(value);
+                }
+            }
+        }
         let backedge = StackPhiEdge { sources: backedge_sources, results: entry.clone() };
         let exit_edge = StackPhiEdge { sources: exit_values.clone(), results: exit_values.clone() };
         let (then_edge, else_edge) =

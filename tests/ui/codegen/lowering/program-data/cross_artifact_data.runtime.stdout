@@ -13,12 +13,9 @@ bb0:
   sub
   push bb3
   jumpi
-  push 320
+  push 128
   dup 1
   push 64
-  mstore
-  dup 1
-  push 288
   mstore
   push 192
   dup 2
@@ -31,105 +28,42 @@ bb0:
   push 32
   dup 2
   add
-  dup 1
-  push 160
-  mstore
   push 160
   push_data literal_0
   dup 3
   codecopy
-  push 64
-  mload
-  dup 1
-  push 256
-  mstore
-  push 32
   dup 2
-  add
-  dup 2
-  dup 2
-  sub
-  dup 3
-  mstore
-  dup 4
   iszero
   iszero
-  swap 4
-  mload
-  swap 1
-  swap 4
-  mul
-  dup 1
-  push 128
-  mstore
-  dup 4
-  mstore
-  swap 2
-  pop
-  push 31
-  push 128
-  mload
-  add
-  push 31
-  not
-  and
-  dup 1
-  push 192
-  mstore
-  push 64
-  dup 4
-  add
-  push 224
-  mstore
-  swap 2
-  pop
-  pop
-  iszero
-  push bb6
-  jumpi
-  push 0
-  push 32
-  push 192
-  mload
-  sub
-  push 224
-  mload
-  add
-  mstore
-  jump bb6
-bb6:
-  push 224
-  mload
-  push 192
-  mload
-  dup 2
-  add
-  push 128
-  mload
   push 160
-  mload
-  dup 4
-  mcopy
-  swap 1
-  pop
-  push 256
-  mload
-  swap 1
-  sub
+  mul
   push 31
   dup 2
   add
   push 31
   not
   and
-  push 64
-  mload
-  swap 1
-  dup 2
+  dup 1
+  dup 4
   add
-  push 64
+  push 0
+  swap 1
   mstore
-  dup 2
+  push 32
+  dup 4
+  add
+  dup 3
+  dup 5
+  dup 3
+  mcopy
+  pop
+  push 32
+  dup 5
+  mstore
+  swap 2
+  mstore
+  push 64
+  add
   dup 2
   return
 bb3 [cold]:

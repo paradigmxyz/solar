@@ -140,7 +140,7 @@ fn @inner(arg0: u256) {
     v6 = icall @rec, 1, 19
     jump bb1
   bb1:
-    stop
+    ret
 }
 
 fn @orderFull(arg0: u256) -> u256 [selector=0xcd96f9ce, abi_params=[u256], abi_returns=[word]] {
@@ -348,7 +348,7 @@ fn @repeatedInner() {
     sstore 0, v36 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    stop
+    ret
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -417,7 +417,7 @@ fn @guardedV() -> u256 [selector=0x099f200a, abi_params=[], abi_returns=[word]] 
 
 fn @constructor() [constructor] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifiers.sol:CtorMod ===
@@ -447,7 +447,7 @@ fn @constructor() [constructor] {
     sstore 0, v4 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

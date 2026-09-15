@@ -2,7 +2,7 @@
 @module TryCallOptionsTarget
 fn @ping() [selector=0x5c36b186, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_call_options.sol:TryCallOptions ===
@@ -31,7 +31,7 @@ fn @constructor() [constructor] {
     v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
     v11 = or v9, v10
     sstore 0, v11 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @highLevelGas() -> bool [selector=0x480be654, abi_params=[], abi_returns=[word<bool>]] {

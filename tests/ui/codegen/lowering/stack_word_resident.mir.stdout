@@ -1,0 +1,9 @@
+// === ROOT/tests/ui/codegen/lowering/stack_word_resident.sol:ResidentWords ===
+@module ResidentWords
+fn @masked(arg0: u256, arg1: u256) -> (u256, u256, u256) [selector=0x966953d1, pure, abi_params=[u256, u256], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = or arg0, arg1
+    v1 = xor arg0, arg1
+    v2 = and arg0, arg1
+    ret v0, v1, v2
+}

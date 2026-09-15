@@ -1,0 +1,213 @@
+//@ compile-flags: -Zmir-pipeline=cse
+//@ filecheck:
+@module RestoredCalls
+
+// The call remains; only the load after its completed restoration disappears.
+// CHECK-LABEL: fn @reuse
+// CHECK: icall @restore
+// CHECK: - {{v[0-9]+}} = mload arg0
+fn @reuse(arg0: memptr, arg1: u256) -> u256 {
+  bb0:
+    v0 = mload arg0
+    v1 = icall @restore, 1, arg0, arg1
+    v2 = mload arg0
+    v3 = add v0, v2
+    v4 = add v3, v1
+    ret v4
+}
+fn @restore(arg0: memptr, arg1: u256) -> u256 {
+  bb0:
+    v0 = mload arg0
+    mstore arg0, 17
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = lt v1, arg1
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add v1, 1
+    jump bb1
+  bb3:
+    v4 = mload arg0
+    mstore arg0, v0
+    ret v4
+}
+
+// One restoring arm must not hide a dirty return from its sibling.
+// CHECK-LABEL: fn @dirty_sibling
+// CHECK: {{^ +}}v0 = mload arg0
+// CHECK: {{^ +}}v1 = mload arg0
+fn @dirty_sibling(arg0: memptr, arg1: bool) -> u256 {
+  bb0:
+    v0 = mload arg0
+    icall @conditional, 0, arg0, arg1
+    v1 = mload arg0
+    v2 = add v0, v1
+    ret v2
+}
+fn @conditional(arg0: memptr, arg1: bool) {
+  bb0:
+    v0 = mload arg0
+    mstore arg0, 17
+    jumpi arg1, bb1, bb2
+  bb1:
+    mstore arg0, v0
+    jump bb2
+  bb2:
+    ret
+}
+
+// Saving inside the cycle can save a previous iteration's temporary value.
+// CHECK-LABEL: fn @loop_save
+// CHECK: {{^ +}}v0 = mload arg0
+// CHECK: {{^ +}}v1 = mload arg0
+fn @loop_save(arg0: memptr, arg1: u256) -> u256 {
+  bb0:
+    v0 = mload arg0
+    icall @cyclic_save, 0, arg0, arg1
+    v1 = mload arg0
+    v2 = add v0, v1
+    ret v2
+}
+fn @cyclic_save(arg0: memptr, arg1: u256) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb1: v2]
+    v1 = mload arg0
+    mstore arg0, 17
+    v2 = add v0, 1
+    v3 = lt v2, arg1
+    jumpi v3, bb1, bb2
+  bb2:
+    mstore arg0, v1
+    ret
+}
+
+// The distinct address may overlap the saved word, so the call stays a clobber.
+// CHECK-LABEL: fn @other_write
+// CHECK: {{^ +}}v0 = mload arg0
+// CHECK: {{^ +}}v1 = mload arg0
+fn @other_write(arg0: memptr, arg1: memptr) -> u256 {
+  bb0:
+    v0 = mload arg0
+    icall @overlap, 0, arg0, arg1
+    v1 = mload arg0
+    v2 = add v0, v1
+    ret v2
+}
+fn @overlap(arg0: memptr, arg1: memptr) {
+  bb0:
+    v0 = mload arg0
+    mstore arg0, 17
+    mstore arg1, 19
+    mstore arg0, v0
+    ret
+}
+
+// A full-word restore also undoes a temporary byte write.
+// CHECK-LABEL: fn @partial_write
+// CHECK: {{^ +}}v0 = mload arg0
+// CHECK: - {{ *}}v1 = mload arg0
+fn @partial_write(arg0: memptr) -> u256 {
+  bb0:
+    v0 = mload arg0
+    icall @partial, 0, arg0
+    v1 = mload arg0
+    v2 = add v0, v1
+    ret v2
+}
+fn @partial(arg0: memptr) {
+  bb0:
+    v0 = mload arg0
+    mstore arg0, 17
+    mstore8 arg0, 19
+    mstore arg0, v0
+    ret
+}
+
+// Equal restoring calls reuse their result while memory is unchanged.
+// CHECK-LABEL: fn @repeated
+// CHECK: {{^ +}}v0 = icall @restore
+// CHECK: - {{v[0-9]+}} = icall @restore
+fn @repeated(arg0: memptr, arg1: u256) -> u256 {
+  bb0:
+    v0 = icall @restore, 1, arg0, arg1
+    v1 = icall @restore, 1, arg0, arg1
+    v2 = add v0, v1
+    ret v2
+}
+
+// Any intervening write invalidates a cached call, including a partial write.
+// CHECK-LABEL: fn @intervening_write
+// CHECK: {{^ +}}v0 = icall @restore
+// CHECK: {{^ +}}v1 = icall @restore
+fn @intervening_write(arg0: memptr, arg1: u256) -> u256 {
+  bb0:
+    v0 = icall @restore, 1, arg0, arg1
+    mstore8 arg0, 1
+    v1 = icall @restore, 1, arg0, arg1
+    v2 = add v0, v1
+    ret v2
+}
+
+// A save after the first write cannot recover the original word.
+// CHECK-LABEL: fn @late_save
+// CHECK: {{^ +}}v0 = mload arg0
+// CHECK: {{^ +}}v1 = mload arg0
+fn @late_save(arg0: memptr) -> u256 {
+  bb0:
+    v0 = mload arg0
+    icall @save_after_write, 0, arg0
+    v1 = mload arg0
+    v2 = add v0, v1
+    ret v2
+}
+fn @save_after_write(arg0: memptr) {
+  bb0:
+    mstore arg0, 17
+    v0 = mload arg0
+    mstore arg0, 19
+    mstore arg0, v0
+    ret
+}
+
+// Restoring memory does not make gas observations repeatable.
+// CHECK-LABEL: fn @gas_observation
+// CHECK: {{^ +}}v0 = icall @reads_gas
+// CHECK: {{^ +}}v1 = icall @reads_gas
+fn @gas_observation(arg0: memptr) -> u256 {
+  bb0:
+    v0 = icall @reads_gas, 1, arg0
+    v1 = icall @reads_gas, 1, arg0
+    v2 = sub v0, v1
+    ret v2
+}
+fn @reads_gas(arg0: memptr) -> u256 {
+  bb0:
+    v0 = mload arg0
+    mstore arg0, 17
+    v1 = gas
+    mstore arg0, v0
+    ret v1
+}
+
+// Restoring bytes does not restore the memory size before expansion.
+// CHECK-LABEL: fn @size_observation
+// CHECK: {{^ +}}v0 = icall @reads_size
+// CHECK: {{^ +}}v1 = icall @reads_size
+fn @size_observation(arg0: memptr) -> u256 {
+  bb0:
+    v0 = icall @reads_size, 1, arg0
+    v1 = icall @reads_size, 1, arg0
+    v2 = sub v0, v1
+    ret v2
+}
+fn @reads_size(arg0: memptr) -> u256 {
+  bb0:
+    v1 = msize
+    v0 = mload arg0
+    mstore arg0, 17
+    mstore arg0, v0
+    ret v1
+}

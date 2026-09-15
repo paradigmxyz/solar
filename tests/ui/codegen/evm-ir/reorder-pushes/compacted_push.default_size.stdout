@@ -7,9 +7,6 @@ bb0:
   callf !metadata(stack=0->255)
   push 0
   push 0
-  push bb1
-  jump
-bb1:
   push 1
   push 128
   shl

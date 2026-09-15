@@ -8,7 +8,7 @@ fn @constructor() [constructor] {
     v3 = and 2, 0xffffffffffffffff
     v4 = or v2, v3
     sstore 0, v4 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @read(arg0: calldataslice) -> bytes1 [pure] {

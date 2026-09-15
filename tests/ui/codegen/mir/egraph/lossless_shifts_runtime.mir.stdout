@@ -1,0 +1,115 @@
+// === ROOT/tests/ui/codegen/mir/egraph/lossless_shifts_runtime.sol:LosslessShifts ===
+@module LosslessShifts
+fn @narrow(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) [selector=0x6945dd4d, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word]] {
+  bb0:
+    v0 = byte 31, arg0
+    v1 = shl 248, v0
+    v2 = byte 31, arg1
+    v3 = shl 248, v2
+    v4 = shr 248, v1
+    v5 = eq v1, v3
+    v6 = lt v1, v3
+    v7 = gt v1, v3
+    ret v4, v5, v6, v7
+}
+
+fn @aligned(arg0: u256) -> (u256, u256, u256, u256, u256, u256) [selector=0x86ae3e38, pure, abi_params=[u256], abi_returns=[word, word, word, word, word, word]] {
+  bb0:
+    v0 = byte 31, arg0
+    v1 = shl 248, v0
+    v2 = shl 248, 7
+    v3 = eq v1, v2
+    v4 = lt v1, v2
+    v5 = gt v1, v2
+    v6 = eq v2, v1
+    v7 = lt v2, v1
+    v8 = gt v2, v1
+    ret v3, v4, v5, v6, v7, v8
+}
+
+fn @unaligned(arg0: u256) -> (u256, u256, u256) [selector=0x6035a068, pure, abi_params=[u256], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = byte 31, arg0
+    v1 = shl 248, v0
+    v2 = shl 248, 7
+    v3 = add v2, 1
+    v4 = eq v1, v3
+    v5 = lt v1, v3
+    v6 = gt v1, v3
+    ret v4, v5, v6
+}
+
+fn @truncating(arg0: u256) -> u256 [selector=0xdbd8726b, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = shl 248, arg0
+    v1 = shr 248, v0
+    ret v1
+}
+
+fn @signedCompare(arg0: u256, arg1: u256) -> (u256, u256) [selector=0xd094ad81, pure, abi_params=[u256, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = byte 31, arg0
+    v1 = shl 248, v0
+    v2 = byte 31, arg1
+    v3 = shl 248, v2
+    v4 = slt v1, v3
+    v5 = sgt v1, v3
+    ret v4, v5
+}
+
+fn @equal(arg0: u256, arg1: u256) -> bool [selector=0x30191626, pure, abi_params=[u256, u256], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = byte 31, arg1
+    v1 = shl 248, v0
+    v2 = byte 31, arg0
+    v3 = shl 248, v2
+    v4 = eq v3, v1
+    ret v4
+}
+
+fn @isSeven(arg0: u256) -> bool [selector=0xf14f88c5, pure, abi_params=[u256], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = shl 248, 7
+    v1 = byte 31, arg0
+    v2 = shl 248, v1
+    v3 = eq v2, v0
+    ret v3
+}
+
+fn @less(arg0: u256, arg1: u256) -> bool [selector=0x2d738965, pure, abi_params=[u256, u256], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = byte 31, arg1
+    v1 = shl 248, v0
+    v2 = byte 31, arg0
+    v3 = shl 248, v2
+    v4 = lt v3, v1
+    ret v4
+}
+
+fn @belowSeven(arg0: u256) -> bool [selector=0x5c9802fa, pure, abi_params=[u256], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = shl 248, 7
+    v1 = byte 31, arg0
+    v2 = shl 248, v1
+    v3 = lt v2, v0
+    ret v3
+}
+
+fn @greater(arg0: u256, arg1: u256) -> bool [selector=0x71343515, pure, abi_params=[u256, u256], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = byte 31, arg1
+    v1 = shl 248, v0
+    v2 = byte 31, arg0
+    v3 = shl 248, v2
+    v4 = gt v3, v1
+    ret v4
+}
+
+fn @aboveSeven(arg0: u256) -> bool [selector=0x0a8d6615, pure, abi_params=[u256], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = shl 248, 7
+    v1 = byte 31, arg0
+    v2 = shl 248, v1
+    v3 = gt v2, v0
+    ret v3
+}

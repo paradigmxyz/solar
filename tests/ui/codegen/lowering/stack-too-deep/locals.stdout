@@ -40,10 +40,8 @@ bb4:
   push 4
   calldataload
   add
-  push 4
-  calldataload
-  dup 2
-  lt
+  dup 1
+  iszero
   push bb48
   jumpi
   push 2

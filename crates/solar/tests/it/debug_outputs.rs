@@ -130,6 +130,25 @@ fn debug_outputs_match_standard_json() {
 }
 
 #[test]
+fn inlined_dispatch_debug_outputs_are_bytecode_neutral() {
+    let source = "../../codegen/lowering/run-call/scalar_dispatch.sol";
+    for mode in ["gas", "size"] {
+        let baseline = compile_json(&[source, "-O", mode, "--emit=bin,bin-runtime"]);
+        let debug = compile_json(&[
+            source,
+            "-O",
+            mode,
+            "--emit=bin,bin-runtime,ethdebug,ethdebug-runtime,srcmap,srcmap-runtime",
+        ]);
+        for (name, contract) in baseline["contracts"].as_object().unwrap() {
+            for field in ["bin", "bin-runtime"] {
+                assert_eq!(contract[field], debug["contracts"][name][field], "{mode}: {field}");
+            }
+        }
+    }
+}
+
+#[test]
 fn debug_output_directory_and_resources_only() {
     let dir = tempfile::tempdir().unwrap();
     let args = [SOURCE, "--emit=ethdebug-runtime,srcmap-runtime", "--pretty-json"];

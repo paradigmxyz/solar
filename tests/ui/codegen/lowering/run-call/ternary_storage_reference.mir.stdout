@@ -20,7 +20,7 @@ fn @constructor() [constructor] {
     v9 = add v8, v5
     sstore v9, 22 !metadata(storage=symbolic(v9))
     sstore 3, v7 !metadata(storage=slot(3))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

@@ -1,6 +1,6 @@
 //! Shared MIR utility helpers.
 
-use crate::mir::{BasicBlock, BlockId, Function, InstKind, Terminator, ValueId};
+use crate::mir::{BasicBlock, BlockId, Function, InstKind, Instruction, Terminator, ValueId};
 use alloy_primitives::U256;
 use smallvec::smallvec;
 use solar_data_structures::{
@@ -218,20 +218,20 @@ pub(crate) fn resolve_replacement(
 
 /// Replaces instruction operands according to a one-step replacement map.
 pub(crate) fn replace_inst_uses(
-    kind: &mut InstKind,
+    inst: &mut Instruction,
     replacements: &FxHashMap<ValueId, ValueId>,
 ) -> usize {
-    replace_inst_operands(kind, replacements, |value, replacements| {
+    replace_inst_operands(inst, replacements, |value, replacements| {
         replacements.get(&value).copied().unwrap_or(value)
     })
 }
 
 /// Replaces instruction operands according to a canonicalized replacement map.
 pub(crate) fn replace_inst_uses_canonicalized(
-    kind: &mut InstKind,
+    inst: &mut Instruction,
     replacements: &FxHashMap<ValueId, ValueId>,
 ) -> usize {
-    replace_inst_operands(kind, replacements, resolve_replacement)
+    replace_inst_operands(inst, replacements, resolve_replacement)
 }
 
 /// Replaces terminator operands according to a one-step replacement map.
@@ -277,12 +277,12 @@ pub(crate) fn is_memory_inst(kind: &InstKind) -> bool {
 }
 
 fn replace_inst_operands(
-    kind: &mut InstKind,
+    inst: &mut Instruction,
     replacements: &FxHashMap<ValueId, ValueId>,
     replacement: impl Fn(ValueId, &FxHashMap<ValueId, ValueId>) -> ValueId,
 ) -> usize {
     let mut replaced = 0;
-    kind.visit_operands_mut(|value| {
+    inst.rewrite_operands(|value| {
         let new_value = replacement(*value, replacements);
         if new_value != *value {
             *value = new_value;

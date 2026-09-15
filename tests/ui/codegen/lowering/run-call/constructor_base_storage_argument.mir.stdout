@@ -9,7 +9,7 @@ fn @constructor() [constructor] {
   bb1:
     jump bb2
   bb2:
-    stop
+    ret
 }
 
 fn @getM(arg0: u256, arg1: u256) -> u256 [selector=0x1136c6ce, view, abi_params=[u256, u256], abi_returns=[word]] {
@@ -62,7 +62,7 @@ fn @constructor() [constructor] {
   bb1:
     jump bb6
   bb6:
-    stop
+    ret
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -113,7 +113,7 @@ fn @constructor() [constructor] {
   bb1:
     jump bb5
   bb5:
-    stop
+    ret
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -254,7 +254,7 @@ fn @constructor() [constructor] {
   bb1:
     jump bb18
   bb18:
-    stop
+    ret
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -346,7 +346,7 @@ fn @constructor() [constructor] {
   bb2:
     jump bb4
   bb4:
-    stop
+    ret
 }
 
 fn @getM(arg0: u256, arg1: u256) -> u256 [selector=0x1136c6ce, view, abi_params=[u256, u256], abi_returns=[word]] {
@@ -376,7 +376,7 @@ fn @constructor(arg0: bool) [constructor, abi_params=[bool]] {
   bb4:
     jump bb5
   bb5:
-    stop
+    ret
 }
 
 fn @getM(arg0: u256, arg1: u256) -> u256 [selector=0x1136c6ce, view, abi_params=[u256, u256], abi_returns=[word]] {
