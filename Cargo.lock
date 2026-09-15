@@ -4625,7 +4625,6 @@ dependencies = [
  "normalize-path",
  "once_map",
  "rayon",
- "scoped-tls",
  "semver 1.0.28",
  "serde",
  "serde_json",

@@ -1,7 +1,17 @@
 use crate::SourceMap;
-use std::sync::Arc;
+use std::{cell::RefCell, sync::Arc};
 
-scoped_tls::scoped_thread_local!(static SESSION_GLOBALS: SessionGlobals);
+thread_local! {
+    static SESSION_GLOBALS: RefCell<Option<Arc<SessionGlobals>>> = const { RefCell::new(None) };
+}
+
+struct RestoreGlobals(Option<Arc<SessionGlobals>>);
+
+impl Drop for RestoreGlobals {
+    fn drop(&mut self) {
+        SessionGlobals::replace(self.0.take());
+    }
+}
 
 /// Per-session global variables.
 ///
@@ -29,9 +39,14 @@ impl SessionGlobals {
     }
 
     /// Sets this instance as the global instance for the duration of the closure.
-    pub(crate) fn set<R>(&self, f: impl FnOnce() -> R) -> R {
+    pub(crate) fn set<R>(self: &Arc<Self>, f: impl FnOnce() -> R) -> R {
         self.check_overwrite();
-        SESSION_GLOBALS.set(self, f)
+        let _restore = RestoreGlobals(Self::replace(Some(self.clone())));
+        f()
+    }
+
+    pub(crate) fn replace(globals: Option<Arc<Self>>) -> Option<Arc<Self>> {
+        SESSION_GLOBALS.replace(globals)
     }
 
     fn check_overwrite(&self) {
@@ -44,7 +59,7 @@ impl SessionGlobals {
         });
     }
 
-    /// Calls the given closure with the current session globals.
+    /// Calls the given closure with the current session globals. The closure must not replace them.
     ///
     /// # Panics
     ///
@@ -52,12 +67,9 @@ impl SessionGlobals {
     #[inline]
     #[track_caller]
     pub(crate) fn with<R>(f: impl FnOnce(&Self) -> R) -> R {
-        debug_assert!(
-            SESSION_GLOBALS.is_set(),
-            "cannot access a scoped thread local variable without calling `set` first; \
-             did you forget to call `Session::enter`?"
-        );
-        SESSION_GLOBALS.with(f)
+        SESSION_GLOBALS.with_borrow(|globals| {
+            f(globals.as_deref().expect("session globals not set; call Session::enter first"))
+        })
     }
 
     /// Calls the given closure with the current session globals if they have been set, otherwise
@@ -65,17 +77,17 @@ impl SessionGlobals {
     #[inline]
     #[track_caller]
     pub(crate) fn with_or_default<R>(f: impl FnOnce(&Self) -> R) -> R {
-        if Self::is_set() { Self::with(f) } else { Self::default().set(|| Self::with(f)) }
-    }
-
-    /// Returns `true` if the session globals have been set.
-    #[inline]
-    pub(crate) fn is_set() -> bool {
-        SESSION_GLOBALS.is_set()
+        if let Some(globals) = SESSION_GLOBALS.with_borrow(Clone::clone) {
+            f(&globals)
+        } else {
+            let globals = Arc::<Self>::default();
+            globals.set(|| f(&globals))
+        }
     }
 
     pub(crate) fn try_with<R>(f: impl FnOnce(Option<&Self>) -> R) -> R {
-        if SESSION_GLOBALS.is_set() { SESSION_GLOBALS.with(|g| f(Some(g))) } else { f(None) }
+        let globals = SESSION_GLOBALS.with_borrow(Clone::clone);
+        f(globals.as_deref())
     }
 
     pub(crate) fn maybe_eq(&self, other: &Self) -> bool {

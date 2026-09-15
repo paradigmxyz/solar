@@ -32,7 +32,7 @@ use lsp_types::{
 use normalize_path::NormalizePath;
 use solar_config::CompileOpts;
 use solar_interface::{
-    Session,
+    Session, SessionBuilder,
     data_structures::{
         map::{FxHashMap, FxHashSet},
         sync::{Mutex, RwLock},
@@ -447,6 +447,7 @@ pub(crate) struct GlobalState {
     analysis_commit: Arc<Mutex<AnalysisCommitState>>,
     analysis_progress: ProgressCoordinator,
     analysis_scheduler: Arc<AnalysisScheduler>,
+    analysis_session: Arc<Mutex<SessionBuilder>>,
     watched_file_registration: Arc<WatchedFileRegistrationCoordinator>,
     background_discovery: bool,
     protocol_trace: ProtocolTrace,
@@ -495,6 +496,7 @@ impl GlobalState {
             analysis_commit: Arc::new(Default::default()),
             analysis_progress,
             analysis_scheduler: Arc::new(Default::default()),
+            analysis_session: Arc::new(Default::default()),
             watched_file_registration: Arc::new(Default::default()),
             background_discovery: false,
             protocol_trace,
@@ -1681,6 +1683,7 @@ impl GlobalState {
             analysis_version: self.analysis_version.clone(),
             published_analysis_version: self.published_analysis_version.clone(),
             analysis_commit: self.analysis_commit.clone(),
+            analysis_session: self.analysis_session.clone(),
             watched_file_registration: self.watched_file_registration.clone(),
             flycheck_versions: self.flycheck_versions.clone(),
             symbol_tables: self.symbol_tables.clone(),
@@ -1908,9 +1911,12 @@ fn run_analysis(
             result
         } else {
             let dependencies = cache_batches.then(DependencySnapshot::default);
-            let Some(result) =
-                analyze_recording_dependencies(batch, cancellation, dependencies.clone())
-            else {
+            let Some(result) = analyze_recording_dependencies(
+                batch,
+                cancellation,
+                dependencies.clone(),
+                &snapshot.analysis_session,
+            ) else {
                 return AnalysisTaskOutcome::Superseded;
             };
             // Root text alone cannot establish freshness: replay all disk reads and path probes.
@@ -2413,6 +2419,7 @@ pub(crate) struct GlobalStateSnapshot {
     analysis_version: Arc<AtomicUsize>,
     published_analysis_version: watch::Sender<usize>,
     analysis_commit: Arc<Mutex<AnalysisCommitState>>,
+    analysis_session: Arc<Mutex<SessionBuilder>>,
     watched_file_registration: Arc<WatchedFileRegistrationCoordinator>,
     flycheck_versions: Arc<RwLock<FxHashMap<DiagnosticOwner, usize>>>,
     symbol_tables: Arc<ArcSwap<SymbolTables>>,
@@ -2917,6 +2924,36 @@ mod analysis_batch_tests {
     use crate::{config::negotiate_capabilities, test_support::TestProject};
 
     #[test]
+    fn recycled_analysis_preserves_earlier_snapshots() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Dependency.sol
+            contract Dependency {}
+            "#,
+        );
+        let session = Mutex::new(Session::builder());
+        let analyze_revision = |name| {
+            let batch = AnalysisBatch::from_files(
+                CompileOpts { threads: 4.into(), ..Default::default() },
+                [(
+                    project.path("/Main.sol"),
+                    format!("import './Dependency.sol'; contract {name} is Dependency {{}}"),
+                )],
+            );
+            analyze_recording_dependencies(batch, &IndexingCancellation::default(), None, &session)
+                .unwrap()
+                .result
+        };
+        let first = analyze_revision("First");
+        let second = analyze_revision("Second");
+        assert_eq!(first.symbol_tables.workspace_symbols("First").len(), 1);
+        assert!(first.symbol_tables.workspace_symbols("Second").is_empty());
+        assert_eq!(second.symbol_tables.workspace_symbols("Second").len(), 1);
+        assert!(second.symbol_tables.workspace_symbols("First").is_empty());
+        assert_eq!(second.symbol_tables.workspace_symbols("Dependency").len(), 1);
+    }
+
+    #[test]
     fn from_files_tracks_unique_sorted_paths() {
         let a = PathBuf::from("a.sol");
         let b = PathBuf::from("b.sol");
@@ -3067,6 +3104,14 @@ mod analysis_batch_tests {
 }
 
 #[cfg(any(test, feature = "bench"))]
+fn analysis_test_session() -> Arc<Mutex<SessionBuilder>> {
+    thread_local! {
+        static SESSION: Arc<Mutex<SessionBuilder>> = Arc::default();
+    }
+    SESSION.with(Arc::clone)
+}
+
+#[cfg(any(test, feature = "bench"))]
 fn analyze(batch: AnalysisBatch) -> AnalysisResult {
     analyze_cancellable(batch, &IndexingCancellation::default())
         .expect("fresh analysis cancellation cannot be cancelled")
@@ -3080,6 +3125,7 @@ fn analyze_with_source_map(batch: AnalysisBatch, source_map: Arc<SourceMap>) -> 
         source_map,
         ImportPathTracker::default(),
         &IndexingCancellation::default(),
+        &analysis_test_session(),
     )
     .expect("fresh analysis cancellation cannot be cancelled")
     .result
@@ -3090,18 +3136,19 @@ fn analyze_cancellable(
     batch: AnalysisBatch,
     cancellation: &IndexingCancellation,
 ) -> Option<AnalysisOutput> {
-    analyze_recording_dependencies(batch, cancellation, None)
+    analyze_recording_dependencies(batch, cancellation, None, &analysis_test_session())
 }
 
 fn analyze_recording_dependencies(
     batch: AnalysisBatch,
     cancellation: &IndexingCancellation,
     dependencies: Option<DependencySnapshot>,
+    session: &Mutex<SessionBuilder>,
 ) -> Option<AnalysisOutput> {
     let tracker = ImportPathTracker::default();
     let source_map = Arc::new(SourceMap::empty());
     source_map.set_file_loader(TrackingFileLoader { tracker: tracker.clone(), dependencies });
-    analyze_cancellable_with_source_map(batch, source_map, tracker, cancellation)
+    analyze_cancellable_with_source_map(batch, source_map, tracker, cancellation, session)
 }
 
 fn analyze_cancellable_with_source_map(
@@ -3109,6 +3156,7 @@ fn analyze_cancellable_with_source_map(
     source_map: Arc<SourceMap>,
     import_paths: ImportPathTracker,
     cancellation: &IndexingCancellation,
+    session: &Mutex<SessionBuilder>,
 ) -> Option<AnalysisOutput> {
     if cancellation.is_cancelled() {
         return None;
@@ -3125,7 +3173,12 @@ fn analyze_cancellable_with_source_map(
     debug_assert_eq!(files.len(), document_link_sources.len());
     debug_assert!(files.iter().all(|(path, _)| document_link_sources.contains(path)));
     opts.unstable.recover_incomplete_input = true;
-    let sess = Session::builder()
+    let mut session = session.lock();
+    if cancellation.is_cancelled() {
+        return None;
+    }
+    let sess = std::mem::take(&mut *session)
+        .reusable()
         .opts(opts)
         .source_map(source_map)
         .dcx(DiagCtxt::new(Box::new(emitter)))
@@ -3135,7 +3188,7 @@ fn analyze_cancellable_with_source_map(
     import_paths.clear();
 
     let mut compiler = Compiler::new(sess);
-    compiler.enter_mut(move |compiler| {
+    let result = compiler.enter_mut(move |compiler| {
         let sources_loaded = {
             let mut parsing_context = compiler.parse();
             for (path, contents) in preloaded_files {
@@ -3242,7 +3295,9 @@ fn analyze_cancellable_with_source_map(
             result: AnalysisResult { analyzed_documents, diagnostics, symbol_tables },
             analysis_paths,
         })
-    })
+    });
+    *session = compiler.into_session().into_builder();
+    result
 }
 
 /// Access to prepared, fully analyzed in-memory projects for benchmarks and tests.

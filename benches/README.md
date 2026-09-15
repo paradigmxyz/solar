@@ -17,6 +17,11 @@ This takes around 24 minutes to complete: `sources (12) * benchmark cases (8) * 
 This crate is excluded from the main workspace to avoid compiling it (and its dependencies) when
 invoking other commands such as `cargo test`.
 
+Session microbenchmarks use two workers and initialize them before measuring entry. CodSpeed
+skips non-reentrant session entry because it measures OS scheduling; wall-time runs retain it.
+Cold LSP analysis benchmarks clear compiler data between samples and reuse an initialized pool,
+matching subsequent analysis in a running server.
+
 ## Results
 
 You can view the Solar-only results on [codspeed.io](https://codspeed.io/paradigmxyz/solar).
