@@ -15,7 +15,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
     v8 = iszero v7
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
   bb1:
@@ -72,7 +72,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v46 = and v45, v44
     v47 = lt v46, 0x10000000000000000
     v48 = iszero v47
-    panic_if v48, 0x41
+    icall panic_if<0x41>, v48
     v49 = gt v46, 31
     jumpi v49, bb7, bb6
   bb6:
@@ -136,7 +136,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v92 = shr 1, v87
     v93 = and v92, v91
     v94 = eq v93, 0
-    panic_if v94, 0x31
+    icall panic_if<0x31>, v94
     v95 = eq v93, 32
     jumpi v95, bb14, bb11
   bb11:
@@ -197,7 +197,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v136 = shr 1, v131
     v137 = and v136, v135
     v138 = eq v137, 0
-    panic_if v138, 0x31
+    icall panic_if<0x31>, v138
     v139 = eq v137, 32
     jumpi v139, bb19, bb16
   bb16:
@@ -259,7 +259,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v181 = and v180, v179
     v182 = lt v181, 0x10000000000000000
     v183 = iszero v182
-    panic_if v183, 0x41
+    icall panic_if<0x41>, v183
     v184 = gt v181, 31
     jumpi v184, bb22, bb21
   bb21:

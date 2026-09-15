@@ -23,21 +23,21 @@ fn @roundTrip(arg0: u256, arg1: calldataslice) -> u256 [selector=0x00746047, pur
     v6 = eq v5, v1
     v7 = or v4, v6
     v8 = iszero v7
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = calldatasize
     v10 = sub v9, v2
     v11 = slt v10, v3
-    revert_if v11, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v11
     v12 = mul v1, 32
     v13 = iszero 32
     v14 = div v12, 32
     v15 = eq v14, v1
     v16 = or v13, v15
     v17 = iszero v16
-    panic_if v17, 0x41
+    icall panic_if<0x41>, v17
     v18 = add 32, v12
     v19 = lt v18, 32
-    panic_if v19, 0x41
+    icall panic_if<0x41>, v19
     v20 = alloc memoryarray<1>, exact, uninitialized, infallible, v18
     set_memory_object_len memoryarray, v20, v1
     jump bb1
@@ -55,7 +55,7 @@ fn @roundTrip(arg0: u256, arg1: calldataslice) -> u256 [selector=0x00746047, pur
     v58 = memory_object_len memoryarray, v57
     v59 = lt 0, v58
     v60 = iszero v59
-    panic_if v60, 0x32
+    icall panic_if<0x32>, v60
     v61 = memory_object_load_element memoryarray<1>, v57, 0
     v62 = memory_object_from_ptr memoryarray, v61
     v63 = eq v62, 0
@@ -70,14 +70,14 @@ fn @roundTrip(arg0: u256, arg1: calldataslice) -> u256 [selector=0x00746047, pur
     v66 = memory_object_len memoryarray, v65
     v67 = lt 0, v66
     v68 = iszero v67
-    panic_if v68, 0x32
+    icall panic_if<0x32>, v68
     v69 = memory_object_load_element memoryarray<1>, v65, 0
     v70 = checked_add u256, v56, v69
     v71 = memory_object_load_field memorystruct<2>, v55, 1, memoryarray
     v72 = memory_object_len memoryarray, v71
     v73 = lt 1, v72
     v74 = iszero v73
-    panic_if v74, 0x32
+    icall panic_if<0x32>, v74
     v75 = memory_object_load_element memoryarray<1>, v71, 1
     v76 = memory_object_from_ptr memoryarray, v75
     v77 = eq v76, 0
@@ -92,7 +92,7 @@ fn @roundTrip(arg0: u256, arg1: calldataslice) -> u256 [selector=0x00746047, pur
     v80 = memory_object_len memoryarray, v79
     v81 = lt 0, v80
     v82 = iszero v81
-    panic_if v82, 0x32
+    icall panic_if<0x32>, v82
     v83 = memory_object_load_element memoryarray<1>, v79, 0
     v84 = checked_add u256, v70, v83
     ret v84
@@ -102,7 +102,7 @@ fn @roundTrip(arg0: u256, arg1: calldataslice) -> u256 [selector=0x00746047, pur
     v25 = calldatasize
     v26 = sub v25, v24
     v27 = slt v26, 32
-    revert_if v27, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v27
     v28 = calldataload v24
     v29 = add v2, v28
     v30 = calldatasize
@@ -110,16 +110,16 @@ fn @roundTrip(arg0: u256, arg1: calldataslice) -> u256 [selector=0x00746047, pur
     v32 = sub v31, 31
     v33 = slt v28, v32
     v34 = iszero v33
-    revert_if v34, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v34
     v35 = calldataload v29
     v36 = gt v35, 0xffffffffffffffff
-    revert_if v36, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v36
     v37 = mul v35, 32
     v38 = add v29, 32
     v39 = calldatasize
     v40 = sub v39, v37
     v41 = sgt v38, v40
-    revert_if v41, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v41
     v42 = add v29, 32
     v43 = mul v35, 32
     v44 = iszero 32
@@ -127,10 +127,10 @@ fn @roundTrip(arg0: u256, arg1: calldataslice) -> u256 [selector=0x00746047, pur
     v46 = eq v45, v35
     v47 = or v44, v46
     v48 = iszero v47
-    panic_if v48, 0x41
+    icall panic_if<0x41>, v48
     v49 = add 32, v43
     v50 = lt v49, 32
-    panic_if v50, 0x41
+    icall panic_if<0x41>, v50
     v51 = alloc memoryarray<1>, exact, uninitialized, infallible, v49
     set_memory_object_len memoryarray, v51, v35
     v52 = make_calldata_slice v42, v43

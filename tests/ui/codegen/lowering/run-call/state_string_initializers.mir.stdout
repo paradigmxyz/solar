@@ -105,7 +105,7 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
   bb3:
     revert_returndata
   bb4:
-    v12 = returndata_bytes
+    v12 = icall returndata_bytes<>
     v13 = abi_decode [bytes], v12
     v14 = gas
     v15 = abi_encode [], selector 0x95d89b4100000000000000000000000000000000000000000000000000000000
@@ -116,7 +116,7 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
   bb5:
     revert_returndata
   bb6:
-    v19 = returndata_bytes
+    v19 = icall returndata_bytes<>
     v20 = abi_decode [bytes], v19
     v21 = gas
     v22 = abi_encode [], selector 0x313ce56700000000000000000000000000000000000000000000000000000000
@@ -129,13 +129,13 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
   bb8:
     v26 = returndatasize
     v27 = lt v26, 32
-    revert_if v27, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v27
     v28 = add 0, 0
     v29 = mload v28
     v30 = and v29, 255
     v31 = eq v29, v30
     v32 = iszero v31
-    revert_if v32, empty
+    icall revert_if<empty>, v32
     v33 = add 0, 0
     v34 = mload v33
     v35 = insert_value struct0, undef struct0, 0, v13

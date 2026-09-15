@@ -35,7 +35,7 @@ fn @constructor() [constructor] {
     v75 = sload 1 !metadata(storage=slot(1))
     v76 = lt 0, v75
     v77 = iszero v76
-    panic_if v77, 0x32
+    icall panic_if<0x32>, v77
     v78 = storage_array_data_slot 1
     v79 = add v78, 0
     v80 = memory_object_len memoryarray, v74
@@ -76,13 +76,13 @@ fn @constructor() [constructor] {
     v126 = sload 1 !metadata(storage=slot(1))
     v127 = lt 0, v126
     v128 = iszero v127
-    panic_if v128, 0x32
+    icall panic_if<0x32>, v128
     v129 = storage_array_data_slot 1
     v130 = add v129, 0
     v131 = sload v130 !metadata(storage=symbolic(v129))
     v132 = lt 0, v131
     v133 = iszero v132
-    panic_if v133, 0x32
+    icall panic_if<0x32>, v133
     v134 = storage_array_data_slot v130
     v135 = div 0, 32
     v136 = add v134, v135
@@ -100,13 +100,13 @@ fn @constructor() [constructor] {
     v147 = sload 1 !metadata(storage=slot(1))
     v148 = lt 0, v147
     v149 = iszero v148
-    panic_if v149, 0x32
+    icall panic_if<0x32>, v149
     v150 = storage_array_data_slot 1
     v151 = add v150, 0
     v152 = sload v151 !metadata(storage=symbolic(v150))
     v153 = lt 1, v152
     v154 = iszero v153
-    panic_if v154, 0x32
+    icall panic_if<0x32>, v154
     v155 = storage_array_data_slot v151
     v156 = div 1, 32
     v157 = add v155, v156
@@ -126,7 +126,7 @@ fn @constructor() [constructor] {
     v169 = sload 1 !metadata(storage=slot(1))
     v170 = lt 1, v169
     v171 = iszero v170
-    panic_if v171, 0x32
+    icall panic_if<0x32>, v171
     v172 = storage_array_data_slot 1
     v173 = add v172, 1
     v174 = memory_object_len memoryarray, v168
@@ -167,13 +167,13 @@ fn @constructor() [constructor] {
     v220 = sload 1 !metadata(storage=slot(1))
     v221 = lt 1, v220
     v222 = iszero v221
-    panic_if v222, 0x32
+    icall panic_if<0x32>, v222
     v223 = storage_array_data_slot 1
     v224 = add v223, 1
     v225 = sload v224 !metadata(storage=offset(v223, 1))
     v226 = lt 0, v225
     v227 = iszero v226
-    panic_if v227, 0x32
+    icall panic_if<0x32>, v227
     v228 = storage_array_data_slot v224
     v229 = div 0, 32
     v230 = add v228, v229
@@ -191,13 +191,13 @@ fn @constructor() [constructor] {
     v241 = sload 1 !metadata(storage=slot(1))
     v242 = lt 1, v241
     v243 = iszero v242
-    panic_if v243, 0x32
+    icall panic_if<0x32>, v243
     v244 = storage_array_data_slot 1
     v245 = add v244, 1
     v246 = sload v245 !metadata(storage=offset(v244, 1))
     v247 = lt 1, v246
     v248 = iszero v247
-    panic_if v248, 0x32
+    icall panic_if<0x32>, v248
     v249 = storage_array_data_slot v245
     v250 = div 1, 32
     v251 = add v249, v250
@@ -215,13 +215,13 @@ fn @constructor() [constructor] {
     v262 = sload 1 !metadata(storage=slot(1))
     v263 = lt 1, v262
     v264 = iszero v263
-    panic_if v264, 0x32
+    icall panic_if<0x32>, v264
     v265 = storage_array_data_slot 1
     v266 = add v265, 1
     v267 = sload v266 !metadata(storage=offset(v265, 1))
     v268 = lt 2, v267
     v269 = iszero v268
-    panic_if v269, 0x32
+    icall panic_if<0x32>, v269
     v270 = storage_array_data_slot v266
     v271 = div 2, 32
     v272 = add v270, v271
@@ -238,7 +238,7 @@ fn @constructor() [constructor] {
     sstore v272, v282 !metadata(storage=symbolic(v272))
     v283 = sload 2 !metadata(storage=slot(2))
     v284 = gt v283, 0xffffffffffffffff
-    panic_if v284, 0x41
+    icall panic_if<0x41>, v284
     v285 = add v283, 1
     v286 = storage_array_data_slot 2
     v287 = div v283, 1
@@ -257,7 +257,7 @@ fn @constructor() [constructor] {
     sstore 2, v285 !metadata(storage=slot(2))
     v299 = sload 2 !metadata(storage=slot(2))
     v300 = gt v299, 0xffffffffffffffff
-    panic_if v300, 0x41
+    icall panic_if<0x41>, v300
     v301 = add v299, 1
     v302 = storage_array_data_slot 2
     v303 = div v299, 1
@@ -459,17 +459,17 @@ fn @from_storage() -> memoryarray [selector=0x904f60db, abi_params=[], abi_retur
     v4 = eq v3, v0
     v5 = or v2, v4
     v6 = iszero v5
-    panic_if v6, 0x41
+    icall panic_if<0x41>, v6
     v7 = add v1, 1
     v8 = lt v7, v1
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = mul v7, 32
     v10 = iszero 32
     v11 = div v9, 32
     v12 = eq v11, v7
     v13 = or v10, v12
     v14 = iszero v13
-    panic_if v14, 0x41
+    icall panic_if<0x41>, v14
     v15 = alloc memoryarray<1>, exact, uninitialized, panic, v9
     set_memory_object_len memoryarray, v15, v0
     jump bb1
@@ -507,17 +507,17 @@ fn @from_storage() -> memoryarray [selector=0x904f60db, abi_params=[], abi_retur
     v98 = eq v97, v94
     v99 = or v96, v98
     v100 = iszero v99
-    panic_if v100, 0x41
+    icall panic_if<0x41>, v100
     v101 = add v95, 1
     v102 = lt v101, v95
-    panic_if v102, 0x41
+    icall panic_if<0x41>, v102
     v103 = mul v101, 32
     v104 = iszero 32
     v105 = div v103, 32
     v106 = eq v105, v101
     v107 = or v104, v106
     v108 = iszero v107
-    panic_if v108, 0x41
+    icall panic_if<0x41>, v108
     v109 = alloc memoryarray<1>, exact, uninitialized, panic, v103
     set_memory_object_len memoryarray, v109, v94
     jump bb24
@@ -651,17 +651,17 @@ fn @from_storage_ptr() -> memoryarray [selector=0x764eb525, abi_params=[], abi_r
     v4 = eq v3, v0
     v5 = or v2, v4
     v6 = iszero v5
-    panic_if v6, 0x41
+    icall panic_if<0x41>, v6
     v7 = add v1, 1
     v8 = lt v7, v1
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = mul v7, 32
     v10 = iszero 32
     v11 = div v9, 32
     v12 = eq v11, v7
     v13 = or v10, v12
     v14 = iszero v13
-    panic_if v14, 0x41
+    icall panic_if<0x41>, v14
     v15 = alloc memoryarray<1>, exact, uninitialized, panic, v9
     set_memory_object_len memoryarray, v15, v0
     jump bb1
@@ -699,17 +699,17 @@ fn @from_storage_ptr() -> memoryarray [selector=0x764eb525, abi_params=[], abi_r
     v98 = eq v97, v94
     v99 = or v96, v98
     v100 = iszero v99
-    panic_if v100, 0x41
+    icall panic_if<0x41>, v100
     v101 = add v95, 1
     v102 = lt v101, v95
-    panic_if v102, 0x41
+    icall panic_if<0x41>, v102
     v103 = mul v101, 32
     v104 = iszero 32
     v105 = div v103, 32
     v106 = eq v105, v101
     v107 = or v104, v106
     v108 = iszero v107
-    panic_if v108, 0x41
+    icall panic_if<0x41>, v108
     v109 = alloc memoryarray<1>, exact, uninitialized, panic, v103
     set_memory_object_len memoryarray, v109, v94
     jump bb24
@@ -843,17 +843,17 @@ fn @from_memory() -> memoryarray [selector=0x841ae8f5, abi_params=[], abi_return
     v4 = eq v3, v0
     v5 = or v2, v4
     v6 = iszero v5
-    panic_if v6, 0x41
+    icall panic_if<0x41>, v6
     v7 = add v1, 1
     v8 = lt v7, v1
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = mul v7, 32
     v10 = iszero 32
     v11 = div v9, 32
     v12 = eq v11, v7
     v13 = or v10, v12
     v14 = iszero v13
-    panic_if v14, 0x41
+    icall panic_if<0x41>, v14
     v15 = alloc memoryarray<1>, exact, uninitialized, panic, v9
     set_memory_object_len memoryarray, v15, v0
     jump bb1
@@ -891,17 +891,17 @@ fn @from_memory() -> memoryarray [selector=0x841ae8f5, abi_params=[], abi_return
     v98 = eq v97, v94
     v99 = or v96, v98
     v100 = iszero v99
-    panic_if v100, 0x41
+    icall panic_if<0x41>, v100
     v101 = add v95, 1
     v102 = lt v101, v95
-    panic_if v102, 0x41
+    icall panic_if<0x41>, v102
     v103 = mul v101, 32
     v104 = iszero 32
     v105 = div v103, 32
     v106 = eq v105, v101
     v107 = or v104, v106
     v108 = iszero v107
-    panic_if v108, 0x41
+    icall panic_if<0x41>, v108
     v109 = alloc memoryarray<1>, exact, uninitialized, panic, v103
     set_memory_object_len memoryarray, v109, v94
     jump bb24
@@ -1036,21 +1036,21 @@ fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_
     v5 = eq v4, v0
     v6 = or v3, v5
     v7 = iszero v6
-    panic_if v7, 0x41
+    icall panic_if<0x41>, v7
     v8 = calldatasize
     v9 = sub v8, v1
     v10 = slt v9, v2
-    revert_if v10, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v10
     v11 = mul v0, 32
     v12 = iszero 32
     v13 = div v11, 32
     v14 = eq v13, v0
     v15 = or v12, v14
     v16 = iszero v15
-    panic_if v16, 0x41
+    icall panic_if<0x41>, v16
     v17 = add 32, v11
     v18 = lt v17, 32
-    panic_if v18, 0x41
+    icall panic_if<0x41>, v18
     v19 = alloc memoryarray<1>, exact, uninitialized, infallible, v17
     set_memory_object_len memoryarray, v19, v0
     jump bb1
@@ -1088,17 +1088,17 @@ fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_
     v138 = eq v137, v134
     v139 = or v136, v138
     v140 = iszero v139
-    panic_if v140, 0x41
+    icall panic_if<0x41>, v140
     v141 = add v135, 1
     v142 = lt v141, v135
-    panic_if v142, 0x41
+    icall panic_if<0x41>, v142
     v143 = mul v141, 32
     v144 = iszero 32
     v145 = div v143, 32
     v146 = eq v145, v141
     v147 = or v144, v146
     v148 = iszero v147
-    panic_if v148, 0x41
+    icall panic_if<0x41>, v148
     v149 = alloc memoryarray<1>, exact, uninitialized, panic, v143
     set_memory_object_len memoryarray, v149, v134
     jump bb27
@@ -1220,7 +1220,7 @@ fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_
     v24 = calldatasize
     v25 = sub v24, v23
     v26 = slt v25, 32
-    revert_if v26, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v26
     v27 = calldataload v23
     v28 = add v1, v27
     v29 = calldatasize
@@ -1228,16 +1228,16 @@ fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_
     v31 = sub v30, 31
     v32 = slt v27, v31
     v33 = iszero v32
-    revert_if v33, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v33
     v34 = calldataload v28
     v35 = gt v34, 0xffffffffffffffff
-    revert_if v35, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v35
     v36 = mul v34, 32
     v37 = add v28, 32
     v38 = calldatasize
     v39 = sub v38, v36
     v40 = sgt v37, v39
-    revert_if v40, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v40
     v41 = add v28, 32
     v42 = mul v34, 32
     v43 = iszero 32
@@ -1245,10 +1245,10 @@ fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_
     v45 = eq v44, v34
     v46 = or v43, v45
     v47 = iszero v46
-    panic_if v47, 0x41
+    icall panic_if<0x41>, v47
     v48 = add 32, v42
     v49 = lt v48, 32
-    panic_if v49, 0x41
+    icall panic_if<0x41>, v49
     v50 = alloc memoryarray<1>, exact, uninitialized, infallible, v48
     set_memory_object_len memoryarray, v50, v34
     jump bb4
@@ -1267,7 +1267,7 @@ fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_
     v56 = and v55, 255
     v57 = eq v55, v56
     v58 = iszero v57
-    revert_if v58, empty
+    icall revert_if<empty>, v58
     v59 = and v55, 255
     memory_object_store_element memoryarray<1>, v50, v51, v59
     v60 = add v51, 1

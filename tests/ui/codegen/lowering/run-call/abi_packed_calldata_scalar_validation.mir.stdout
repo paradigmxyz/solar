@@ -10,21 +10,21 @@ fn @encode(arg0: calldataslice) -> memorybytes [selector=0x1597ee44, pure, abi_p
     v5 = eq v4, v0
     v6 = or v3, v5
     v7 = iszero v6
-    panic_if v7, 0x41
+    icall panic_if<0x41>, v7
     v8 = calldatasize
     v9 = sub v8, v1
     v10 = slt v9, v2
-    revert_if v10, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v10
     v11 = mul v0, 32
     v12 = iszero 32
     v13 = div v11, 32
     v14 = eq v13, v0
     v15 = or v12, v14
     v16 = iszero v15
-    panic_if v16, 0x41
+    icall panic_if<0x41>, v16
     v17 = add 32, v11
     v18 = lt v17, 32
-    panic_if v18, 0x41
+    icall panic_if<0x41>, v18
     v19 = alloc memoryarray<1>, exact, uninitialized, infallible, v17
     set_memory_object_len memoryarray, v19, v0
     jump bb1
@@ -42,7 +42,7 @@ fn @encode(arg0: calldataslice) -> memorybytes [selector=0x1597ee44, pure, abi_p
     v25 = and v24, 255
     v26 = eq v24, v25
     v27 = iszero v26
-    revert_if v27, empty
+    icall revert_if<empty>, v27
     v28 = and v24, 255
     memory_object_store_element memoryarray<1>, v19, v20, v28
     v29 = add v20, 1

@@ -64,7 +64,7 @@ fn @len() -> u256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word]]
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = iszero v4
-    revert_if v5, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
     jumpi v6, bb2, bb1
   bb1:
@@ -86,7 +86,7 @@ fn @bytesLen() -> u256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = iszero v4
-    revert_if v5, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
     jumpi v6, bb2, bb1
   bb1:
@@ -115,7 +115,7 @@ fn @member() -> u256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[wor
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = iszero v4
-    revert_if v5, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
     jumpi v6, bb2, bb1
   bb1:
@@ -137,7 +137,7 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = iszero v4
-    revert_if v5, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 64
     jumpi v6, bb2, bb1
   bb1:
@@ -169,7 +169,7 @@ fn @fixedLast() -> u256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = iszero v4
-    revert_if v5, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
     jumpi v6, bb2, bb1
   bb1:
@@ -181,7 +181,7 @@ fn @fixedLast() -> u256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
     v10 = mload v9
     v11 = lt 2, 3
     v12 = iszero v11
-    panic_if v12, 0x32
+    icall panic_if<0x32>, v12
     v13 = add v10, 2
     v14 = sload v13 !metadata(storage=offset(v10, 2))
     ret v14
@@ -195,7 +195,7 @@ fn @mapValue(arg0: u256) -> u256 [selector=0x152381f4, view, abi_params=[u256], 
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = iszero v4
-    revert_if v5, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
     jumpi v6, bb2, bb1
   bb1:
@@ -221,7 +221,7 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     v5 = gas
     v6 = extcodesize 0x1111111111111111111111111111111111111111
     v7 = iszero v6
-    revert_if v7, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v7
     v8 = delegatecall v5, 0x1111111111111111111111111111111111111111, v3, v4, v3, 96
     jumpi v8, bb2, bb1
   bb1:
@@ -238,7 +238,7 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     v16 = sload v14 !metadata(storage=symbolic(v14))
     v17 = lt 1, 2
     v18 = iszero v17
-    panic_if v18, 0x32
+    icall panic_if<0x32>, v18
     v19 = memory_object_load_element memoryfixedarray<2, 1>, v15, 1
     v20 = insert_value struct0, undef struct0, 0, v16
     v21 = insert_value struct0, v20, 1, v19
@@ -253,7 +253,7 @@ fn @attached() -> u256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = iszero v4
-    revert_if v5, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
     jumpi v6, bb2, bb1
   bb1:

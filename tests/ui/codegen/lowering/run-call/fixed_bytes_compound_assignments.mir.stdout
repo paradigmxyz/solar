@@ -60,7 +60,7 @@ fn @storageBoundary() -> bytes1 [selector=0x90f7c243, abi_params=[], abi_returns
     v10 = and v9, v8
     v11 = lt 31, v10
     v12 = iszero v11
-    panic_if v12, 0x32
+    icall panic_if<0x32>, v12
     jumpi v6, bb1, bb2
   bb2:
     jump bb3
@@ -93,7 +93,7 @@ fn @storageBoundary() -> bytes1 [selector=0x90f7c243, abi_params=[], abi_returns
     v34 = and v33, v32
     v35 = lt 31, v34
     v36 = iszero v35
-    panic_if v36, 0x32
+    icall panic_if<0x32>, v36
     jumpi v30, bb4, bb5
   bb5:
     jump bb6
@@ -133,7 +133,7 @@ fn @storageBoundary() -> bytes1 [selector=0x90f7c243, abi_params=[], abi_returns
     v65 = and v64, v63
     v66 = lt 31, v65
     v67 = iszero v66
-    panic_if v67, 0x32
+    icall panic_if<0x32>, v67
     jumpi v61, bb7, bb8
   bb8:
     jump bb9

@@ -42,7 +42,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v47 = sload 0 !metadata(storage=slot(0))
     v48 = lt 9, v47
     v49 = iszero v48
-    panic_if v49, 0x32
+    icall panic_if<0x32>, v49
     v50 = storage_array_data_slot 0
     v51 = div 9, 4
     v52 = add v50, v51
@@ -96,7 +96,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v110 = sload 1 !metadata(storage=slot(1))
     v111 = lt 9, v110
     v112 = iszero v111
-    panic_if v112, 0x32
+    icall panic_if<0x32>, v112
     v113 = storage_array_data_slot 1
     v114 = div 9, 4
     v115 = add v113, v114
@@ -196,7 +196,7 @@ fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2
   bb2:
-    panic_if true, 0x51
+    icall panic_if<0x51>, true
     invalid
   bb1:
     v1 = icall @a

@@ -4,42 +4,42 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = lt 0, 2
     v1 = iszero v0
-    panic_if v1, 0x32
+    icall panic_if<0x32>, v1
     v2 = mul 0, 2
     v3 = add 0, v2
     v4 = lt 0, 2
     v5 = iszero v4
-    panic_if v5, 0x32
+    icall panic_if<0x32>, v5
     v6 = add v3, 0
     sstore v6, 1 !metadata(storage=symbolic(v2))
     v7 = lt 0, 2
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     v9 = mul 0, 2
     v10 = add 0, v9
     v11 = lt 1, 2
     v12 = iszero v11
-    panic_if v12, 0x32
+    icall panic_if<0x32>, v12
     v13 = add v10, 1
     sstore v13, 2 !metadata(storage=offset(v9, 1))
     v14 = lt 1, 2
     v15 = iszero v14
-    panic_if v15, 0x32
+    icall panic_if<0x32>, v15
     v16 = mul 1, 2
     v17 = add 0, v16
     v18 = lt 0, 2
     v19 = iszero v18
-    panic_if v19, 0x32
+    icall panic_if<0x32>, v19
     v20 = add v17, 0
     sstore v20, 3 !metadata(storage=symbolic(v16))
     v21 = lt 1, 2
     v22 = iszero v21
-    panic_if v22, 0x32
+    icall panic_if<0x32>, v22
     v23 = mul 1, 2
     v24 = add 0, v23
     v25 = lt 1, 2
     v26 = iszero v25
-    panic_if v26, 0x32
+    icall panic_if<0x32>, v26
     v27 = add v24, 1
     sstore v27, 4 !metadata(storage=offset(v23, 1))
     v28 = alloc memoryfixedarray<2, 1>, exact, uninitialized, panic, 64
@@ -51,7 +51,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb3:
     v40 = lt 0, 2
     v41 = iszero v40
-    panic_if v41, 0x32
+    icall panic_if<0x32>, v41
     v42 = memory_object_load_element memoryfixedarray<2, 1>, v28, 0
     v43 = memory_object_from_ptr memoryfixedarray, v42
     v44 = eq v43, 0
@@ -65,7 +65,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v46 = phi [bb3: v43], [bb7: v45]
     v47 = lt 1, 2
     v48 = iszero v47
-    panic_if v48, 0x32
+    icall panic_if<0x32>, v48
     v49 = memory_object_load_element memoryfixedarray<2, 1>, v46, 1
     v50 = eq v49, 2
     jumpi v50, bb9, bb10
@@ -74,7 +74,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb9:
     v51 = lt 1, 2
     v52 = iszero v51
-    panic_if v52, 0x32
+    icall panic_if<0x32>, v52
     v53 = memory_object_load_element memoryfixedarray<2, 1>, v28, 1
     v54 = memory_object_from_ptr memoryfixedarray, v53
     v55 = eq v54, 0
@@ -88,16 +88,16 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v57 = phi [bb9: v54], [bb12: v56]
     v58 = lt 0, 2
     v59 = iszero v58
-    panic_if v59, 0x32
+    icall panic_if<0x32>, v59
     v60 = memory_object_load_element memoryfixedarray<2, 1>, v57, 0
     v61 = eq v60, 3
     jump bb11
   bb11:
     v62 = phi [bb13: v61], [bb10: false]
-    icall require short_string, v62, 11, 0x6e657374656420636f7079000000000000000000000000000000000000000000
+    icall require<short_string>, v62, 11, 0x6e657374656420636f7079000000000000000000000000000000000000000000
     v63 = sload 4 !metadata(storage=slot(4))
     v64 = gt v63, 0xffffffffffffffff
-    panic_if v64, 0x41
+    icall panic_if<0x41>, v64
     v65 = add v63, 1
     v66 = storage_array_data_slot 4
     v67 = mul v63, 2
@@ -106,7 +106,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v69 = sload 4 !metadata(storage=slot(4))
     v70 = lt 0, v69
     v71 = iszero v70
-    panic_if v71, 0x32
+    icall panic_if<0x32>, v71
     v72 = storage_array_data_slot 4
     v73 = mul 0, 2
     v74 = add v72, v73
@@ -116,7 +116,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v76 = sload 4 !metadata(storage=slot(4))
     v77 = lt 0, v76
     v78 = iszero v77
-    panic_if v78, 0x32
+    icall panic_if<0x32>, v78
     v79 = storage_array_data_slot 4
     v80 = mul 0, 2
     v81 = add v79, v80
@@ -129,7 +129,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v84 = sload 4 !metadata(storage=slot(4))
     v85 = lt 0, v84
     v86 = iszero v85
-    panic_if v86, 0x32
+    icall panic_if<0x32>, v86
     v87 = storage_array_data_slot 4
     v88 = mul 0, 2
     v89 = add v87, v88
@@ -139,10 +139,10 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     jump bb16
   bb16:
     v93 = phi [bb14: v92], [bb15: false]
-    icall require short_string, v93, 13, 0x7374727563742061737369676e00000000000000000000000000000000000000
+    icall require<short_string>, v93, 13, 0x7374727563742061737369676e00000000000000000000000000000000000000
     v94 = sload 5 !metadata(storage=slot(5))
     v95 = gt v94, 0xffffffffffffffff
-    panic_if v95, 0x41
+    icall panic_if<0x41>, v95
     v96 = add v94, 1
     v97 = storage_array_data_slot 5
     v98 = mul v94, 2
@@ -154,7 +154,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v101 = sload 5 !metadata(storage=slot(5))
     v102 = lt 0, v101
     v103 = iszero v102
-    panic_if v103, 0x32
+    icall panic_if<0x32>, v103
     v104 = storage_array_data_slot 5
     v105 = mul 0, 2
     v106 = add v104, v105
@@ -167,13 +167,13 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v113 = sload 5 !metadata(storage=slot(5))
     v114 = lt 0, v113
     v115 = iszero v114
-    panic_if v115, 0x32
+    icall panic_if<0x32>, v115
     v116 = storage_array_data_slot 5
     v117 = mul 0, 2
     v118 = add v116, v117
     v119 = lt 0, 2
     v120 = iszero v119
-    panic_if v120, 0x32
+    icall panic_if<0x32>, v120
     v121 = add v118, 0
     v122 = sload v121 !metadata(storage=symbolic(v118))
     v123 = eq v122, 31
@@ -184,23 +184,23 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v124 = sload 5 !metadata(storage=slot(5))
     v125 = lt 0, v124
     v126 = iszero v125
-    panic_if v126, 0x32
+    icall panic_if<0x32>, v126
     v127 = storage_array_data_slot 5
     v128 = mul 0, 2
     v129 = add v127, v128
     v130 = lt 1, 2
     v131 = iszero v130
-    panic_if v131, 0x32
+    icall panic_if<0x32>, v131
     v132 = add v129, 1
     v133 = sload v132 !metadata(storage=offset(v129, 1))
     v134 = eq v133, 32
     jump bb25
   bb25:
     v135 = phi [bb23: v134], [bb24: false]
-    icall require short_string, v135, 12, 0x66697865642061737369676e0000000000000000000000000000000000000000
+    icall require<short_string>, v135, 12, 0x66697865642061737369676e0000000000000000000000000000000000000000
     v136 = sload 6 !metadata(storage=slot(6))
     v137 = gt v136, 0xffffffffffffffff
-    panic_if v137, 0x41
+    icall panic_if<0x41>, v137
     v138 = add v136, 1
     v139 = storage_array_data_slot 6
     v140 = add v139, v136
@@ -210,17 +210,17 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v142 = memory_object_len memoryarray, v141
     v143 = lt 0, v142
     v144 = iszero v143
-    panic_if v144, 0x32
+    icall panic_if<0x32>, v144
     memory_object_store_element memoryarray<1>, v141, 0, 41
     v145 = memory_object_len memoryarray, v141
     v146 = lt 1, v145
     v147 = iszero v146
-    panic_if v147, 0x32
+    icall panic_if<0x32>, v147
     memory_object_store_element memoryarray<1>, v141, 1, 42
     v148 = sload 6 !metadata(storage=slot(6))
     v149 = lt 0, v148
     v150 = iszero v149
-    panic_if v150, 0x32
+    icall panic_if<0x32>, v150
     v151 = storage_array_data_slot 6
     v152 = add v151, 0
     v153 = memory_object_len memoryarray, v141
@@ -246,7 +246,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v167 = sload 6 !metadata(storage=slot(6))
     v168 = lt 0, v167
     v169 = iszero v168
-    panic_if v169, 0x32
+    icall panic_if<0x32>, v169
     v170 = storage_array_data_slot 6
     v171 = add v170, 0
     v172 = sload v171 !metadata(storage=symbolic(v170))
@@ -258,13 +258,13 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v174 = sload 6 !metadata(storage=slot(6))
     v175 = lt 0, v174
     v176 = iszero v175
-    panic_if v176, 0x32
+    icall panic_if<0x32>, v176
     v177 = storage_array_data_slot 6
     v178 = add v177, 0
     v179 = sload v178 !metadata(storage=symbolic(v177))
     v180 = lt 1, v179
     v181 = iszero v180
-    panic_if v181, 0x32
+    icall panic_if<0x32>, v181
     v182 = storage_array_data_slot v178
     v183 = add v182, 1
     v184 = sload v183 !metadata(storage=offset(v182, 1))
@@ -272,10 +272,10 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     jump bb36
   bb36:
     v186 = phi [bb34: v185], [bb35: false]
-    icall require short_string, v186, 14, 0x64796e616d69632061737369676e000000000000000000000000000000000000
+    icall require<short_string>, v186, 14, 0x64796e616d69632061737369676e000000000000000000000000000000000000
     v187 = sload 7 !metadata(storage=slot(7))
     v188 = gt v187, 0xffffffffffffffff
-    panic_if v188, 0x41
+    icall panic_if<0x41>, v188
     v189 = add v187, 1
     v190 = storage_array_data_slot 7
     v191 = add v190, v187
@@ -283,14 +283,14 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v192 = sload 7 !metadata(storage=slot(7))
     v193 = lt 0, v192
     v194 = iszero v193
-    panic_if v194, 0x32
+    icall panic_if<0x32>, v194
     v195 = storage_array_data_slot 7
     v196 = add v195, 0
     store_storage_bytes_literal v196, hex"aabbcc"
     v197 = sload 7 !metadata(storage=slot(7))
     v198 = lt 0, v197
     v199 = iszero v198
-    panic_if v199, 0x32
+    icall panic_if<0x32>, v199
     v200 = storage_array_data_slot 7
     v201 = add v200, 0
     v202 = sload v201 !metadata(storage=symbolic(v200))
@@ -309,7 +309,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v210 = sload 7 !metadata(storage=slot(7))
     v211 = lt 0, v210
     v212 = iszero v211
-    panic_if v212, 0x32
+    icall panic_if<0x32>, v212
     v213 = storage_array_data_slot 7
     v214 = add v213, 0
     v215 = sload v214 !metadata(storage=symbolic(v213))
@@ -322,7 +322,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v221 = and v220, v219
     v222 = lt 1, v221
     v223 = iszero v222
-    panic_if v223, 0x32
+    icall panic_if<0x32>, v223
     jumpi v217, bb40, bb41
   bb41:
     jump bb42
@@ -345,10 +345,10 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     jump bb39
   bb39:
     v237 = phi [bb42: v236], [bb38: false]
-    icall require short_string, v237, 12, 0x62797465732061737369676e0000000000000000000000000000000000000000
+    icall require<short_string>, v237, 12, 0x62797465732061737369676e0000000000000000000000000000000000000000
     v238 = sload 8 !metadata(storage=slot(8))
     v239 = gt v238, 0xffffffffffffffff
-    panic_if v239, 0x41
+    icall panic_if<0x41>, v239
     v240 = add v238, 1
     v241 = storage_array_data_slot 8
     v242 = div v238, 10
@@ -367,7 +367,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     sstore 8, v240 !metadata(storage=slot(8))
     v254 = sload 8 !metadata(storage=slot(8))
     v255 = gt v254, 0xffffffffffffffff
-    panic_if v255, 0x41
+    icall panic_if<0x41>, v255
     v256 = add v254, 1
     v257 = storage_array_data_slot 8
     v258 = div v254, 10
@@ -386,7 +386,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     sstore 8, v256 !metadata(storage=slot(8))
     v270 = sload 9 !metadata(storage=slot(9))
     v271 = gt v270, 0xffffffffffffffff
-    panic_if v271, 0x41
+    icall panic_if<0x41>, v271
     v272 = add v270, 1
     v273 = storage_array_data_slot 9
     v274 = add v273, v270
@@ -394,7 +394,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     sstore 9, v272 !metadata(storage=slot(9))
     v275 = sload 9 !metadata(storage=slot(9))
     v276 = gt v275, 0xffffffffffffffff
-    panic_if v276, 0x41
+    icall panic_if<0x41>, v276
     v277 = add v275, 1
     v278 = storage_array_data_slot 9
     v279 = add v278, v275
@@ -402,7 +402,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     sstore 9, v277 !metadata(storage=slot(9))
     v280 = sload 10 !metadata(storage=slot(10))
     v281 = gt v280, 0xffffffffffffffff
-    panic_if v281, 0x41
+    icall panic_if<0x41>, v281
     v282 = add v280, 1
     v283 = storage_array_data_slot 10
     v284 = add v283, v280
@@ -410,12 +410,12 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v285 = sload 10 !metadata(storage=slot(10))
     v286 = lt 0, v285
     v287 = iszero v286
-    panic_if v287, 0x32
+    icall panic_if<0x32>, v287
     v288 = storage_array_data_slot 10
     v289 = add v288, 0
     v290 = sload v289 !metadata(storage=symbolic(v288))
     v291 = gt v290, 0xffffffffffffffff
-    panic_if v291, 0x41
+    icall panic_if<0x41>, v291
     v292 = add v290, 1
     v293 = storage_array_data_slot v289
     v294 = add v293, v290
@@ -478,7 +478,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v353 = sload 4 !metadata(storage=slot(4))
     v354 = lt 0, v353
     v355 = iszero v354
-    panic_if v355, 0x32
+    icall panic_if<0x32>, v355
     v356 = storage_array_data_slot 4
     v357 = mul 0, 2
     v358 = add v356, v357
@@ -491,7 +491,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v361 = sload 4 !metadata(storage=slot(4))
     v362 = lt 0, v361
     v363 = iszero v362
-    panic_if v363, 0x32
+    icall panic_if<0x32>, v363
     v364 = storage_array_data_slot 4
     v365 = mul 0, 2
     v366 = add v364, v365
@@ -501,17 +501,17 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     jump bb68
   bb68:
     v370 = phi [bb66: v369], [bb67: false]
-    icall require short_string, v370, 13, 0x7374727563742064656c65746500000000000000000000000000000000000000
+    icall require<short_string>, v370, 13, 0x7374727563742064656c65746500000000000000000000000000000000000000
     v371 = sload 5 !metadata(storage=slot(5))
     v372 = lt 0, v371
     v373 = iszero v372
-    panic_if v373, 0x32
+    icall panic_if<0x32>, v373
     v374 = storage_array_data_slot 5
     v375 = mul 0, 2
     v376 = add v374, v375
     v377 = lt 0, 2
     v378 = iszero v377
-    panic_if v378, 0x32
+    icall panic_if<0x32>, v378
     v379 = add v376, 0
     v380 = sload v379 !metadata(storage=symbolic(v376))
     v381 = eq v380, 0
@@ -522,24 +522,24 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v382 = sload 5 !metadata(storage=slot(5))
     v383 = lt 0, v382
     v384 = iszero v383
-    panic_if v384, 0x32
+    icall panic_if<0x32>, v384
     v385 = storage_array_data_slot 5
     v386 = mul 0, 2
     v387 = add v385, v386
     v388 = lt 1, 2
     v389 = iszero v388
-    panic_if v389, 0x32
+    icall panic_if<0x32>, v389
     v390 = add v387, 1
     v391 = sload v390 !metadata(storage=offset(v387, 1))
     v392 = eq v391, 0
     jump bb71
   bb71:
     v393 = phi [bb69: v392], [bb70: false]
-    icall require short_string, v393, 12, 0x66697865642064656c6574650000000000000000000000000000000000000000
+    icall require<short_string>, v393, 12, 0x66697865642064656c6574650000000000000000000000000000000000000000
     v394 = sload 7 !metadata(storage=slot(7))
     v395 = lt 0, v394
     v396 = iszero v395
-    panic_if v396, 0x32
+    icall panic_if<0x32>, v396
     v397 = storage_array_data_slot 7
     v398 = add v397, 0
     v399 = sload v398 !metadata(storage=symbolic(v397))
@@ -551,11 +551,11 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v404 = shr 1, v399
     v405 = and v404, v403
     v406 = eq v405, 0
-    icall require short_string, v406, 12, 0x62797465732064656c6574650000000000000000000000000000000000000000
+    icall require<short_string>, v406, 12, 0x62797465732064656c6574650000000000000000000000000000000000000000
     v407 = sload 8 !metadata(storage=slot(8))
     v408 = lt 0, v407
     v409 = iszero v408
-    panic_if v409, 0x32
+    icall panic_if<0x32>, v409
     v410 = storage_array_data_slot 8
     v411 = div 0, 10
     v412 = add v410, v411
@@ -573,7 +573,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v420 = sload 8 !metadata(storage=slot(8))
     v421 = lt 1, v420
     v422 = iszero v421
-    panic_if v422, 0x32
+    icall panic_if<0x32>, v422
     v423 = storage_array_data_slot 8
     v424 = div 1, 10
     v425 = add v423, v424
@@ -587,11 +587,11 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     jump bb74
   bb74:
     v433 = phi [bb72: v432], [bb73: false]
-    icall require short_string, v433, 13, 0x7061636b65642064656c65746500000000000000000000000000000000000000
+    icall require<short_string>, v433, 13, 0x7061636b65642064656c65746500000000000000000000000000000000000000
     v434 = sload 9 !metadata(storage=slot(9))
     v435 = lt 0, v434
     v436 = iszero v435
-    panic_if v436, 0x32
+    icall panic_if<0x32>, v436
     v437 = storage_array_data_slot 9
     v438 = add v437, 0
     v439 = sload v438 !metadata(storage=symbolic(v437))
@@ -603,7 +603,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v441 = sload 9 !metadata(storage=slot(9))
     v442 = lt 1, v441
     v443 = iszero v442
-    panic_if v443, 0x32
+    icall panic_if<0x32>, v443
     v444 = storage_array_data_slot 9
     v445 = add v444, 1
     v446 = sload v445 !metadata(storage=offset(v444, 1))
@@ -611,16 +611,16 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     jump bb77
   bb77:
     v448 = phi [bb75: v447], [bb76: false]
-    icall require short_string, v448, 11, 0x776f72642064656c657465000000000000000000000000000000000000000000
+    icall require<short_string>, v448, 11, 0x776f72642064656c657465000000000000000000000000000000000000000000
     v449 = sload 10 !metadata(storage=slot(10))
     v450 = lt 0, v449
     v451 = iszero v450
-    panic_if v451, 0x32
+    icall panic_if<0x32>, v451
     v452 = storage_array_data_slot 10
     v453 = add v452, 0
     v454 = sload v453 !metadata(storage=symbolic(v452))
     v455 = eq v454, 0
-    icall require short_string, v455, 13, 0x6e65737465642064656c65746500000000000000000000000000000000000000
+    icall require<short_string>, v455, 13, 0x6e65737465642064656c65746500000000000000000000000000000000000000
     ret 1
   bb61:
     v344 = storage_array_data_slot 10

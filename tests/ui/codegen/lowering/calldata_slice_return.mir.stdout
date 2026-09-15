@@ -14,7 +14,7 @@ fn @tail(arg0: calldataslice) -> calldataslice [selector=0xba5a0763, pure, abi_p
     v3 = gt v2, v2
     v4 = lt v2, 4
     v5 = or v3, v4
-    revert_if v5, empty
+    icall revert_if<empty>, v5
     v6 = sub v2, 4
     v7 = add v1, 4
     v8 = make_calldata_slice v7, v6

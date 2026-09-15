@@ -10,21 +10,21 @@ fn @pushArray(arg0: calldataslice) -> u120 [selector=0xac513f44, abi_params=[arr
     v5 = eq v4, v0
     v6 = or v3, v5
     v7 = iszero v6
-    panic_if v7, 0x41
+    icall panic_if<0x41>, v7
     v8 = calldatasize
     v9 = sub v8, v1
     v10 = slt v9, v2
-    revert_if v10, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v10
     v11 = mul v0, 32
     v12 = iszero 32
     v13 = div v11, 32
     v14 = eq v13, v0
     v15 = or v12, v14
     v16 = iszero v15
-    panic_if v16, 0x41
+    icall panic_if<0x41>, v16
     v17 = add 32, v11
     v18 = lt v17, 32
-    panic_if v18, 0x41
+    icall panic_if<0x41>, v18
     v19 = alloc memoryarray<1>, exact, uninitialized, infallible, v17
     set_memory_object_len memoryarray, v19, v0
     jump bb1
@@ -35,7 +35,7 @@ fn @pushArray(arg0: calldataslice) -> u120 [selector=0xac513f44, abi_params=[arr
   bb3:
     v30 = sload 0 !metadata(storage=slot(0))
     v31 = gt v30, 0xffffffffffffffff
-    panic_if v31, 0x41
+    icall panic_if<0x41>, v31
     v32 = add v30, 1
     v33 = storage_array_data_slot 0
     v34 = add v33, v30
@@ -78,13 +78,13 @@ fn @pushArray(arg0: calldataslice) -> u120 [selector=0xac513f44, abi_params=[arr
     v81 = sload 0 !metadata(storage=slot(0))
     v82 = lt 0, v81
     v83 = iszero v82
-    panic_if v83, 0x32
+    icall panic_if<0x32>, v83
     v84 = storage_array_data_slot 0
     v85 = add v84, 0
     v86 = sload v85 !metadata(storage=symbolic(v84))
     v87 = lt 0, v86
     v88 = iszero v87
-    panic_if v88, 0x32
+    icall panic_if<0x32>, v88
     v89 = storage_array_data_slot v85
     v90 = div 0, 2
     v91 = add v89, v90
@@ -137,7 +137,7 @@ fn @pushArray(arg0: calldataslice) -> u120 [selector=0xac513f44, abi_params=[arr
     v25 = and v24, 0xffffffffffffffffffffffffffffff
     v26 = eq v24, v25
     v27 = iszero v26
-    revert_if v27, empty
+    icall revert_if<empty>, v27
     v28 = and v24, 0xffffffffffffffffffffffffffffff
     memory_object_store_element memoryarray<1>, v19, v20, v28
     v29 = add v20, 1
@@ -151,31 +151,31 @@ fn @pushStruct(arg0: calldataslice) -> u256 [selector=0x1696eca8, abi_params=[tu
     v2 = calldatasize
     v3 = sub v2, v0
     v4 = slt v3, 32
-    revert_if v4, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v4
     v5 = calldataload v0
     v6 = and v5, 0xffff
     v7 = eq v5, v6
     v8 = iszero v7
-    revert_if v8, empty
+    icall revert_if<empty>, v8
     v9 = and v5, 0xffff
     memory_object_store_field memorystruct<4>, v1, 0, v9
     v10 = add v0, 32
     v11 = calldatasize
     v12 = sub v11, v10
     v13 = slt v12, 32
-    revert_if v13, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v13
     v14 = calldataload v10
     v15 = and v14, 0xffff
     v16 = eq v14, v15
     v17 = iszero v16
-    revert_if v17, empty
+    icall revert_if<empty>, v17
     v18 = and v14, 0xffff
     memory_object_store_field memorystruct<4>, v1, 1, v18
     v19 = add v0, 64
     v20 = calldatasize
     v21 = sub v20, v19
     v22 = slt v21, 96
-    revert_if v22, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v22
     v23 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     jump bb1
   bb1:
@@ -190,7 +190,7 @@ fn @pushStruct(arg0: calldataslice) -> u256 [selector=0x1696eca8, abi_params=[tu
     v35 = calldatasize
     v36 = sub v35, v34
     v37 = slt v36, 32
-    revert_if v37, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v37
     v38 = calldataload v34
     v39 = add v0, v38
     v40 = calldatasize
@@ -198,16 +198,16 @@ fn @pushStruct(arg0: calldataslice) -> u256 [selector=0x1696eca8, abi_params=[tu
     v42 = sub v41, 31
     v43 = slt v38, v42
     v44 = iszero v43
-    revert_if v44, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v44
     v45 = calldataload v39
     v46 = gt v45, 0xffffffffffffffff
-    revert_if v46, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v46
     v47 = mul v45, 32
     v48 = add v39, 32
     v49 = calldatasize
     v50 = sub v49, v47
     v51 = sgt v48, v50
-    revert_if v51, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v51
     v52 = add v39, 32
     v53 = mul v45, 32
     v54 = iszero 32
@@ -215,10 +215,10 @@ fn @pushStruct(arg0: calldataslice) -> u256 [selector=0x1696eca8, abi_params=[tu
     v56 = eq v55, v45
     v57 = or v54, v56
     v58 = iszero v57
-    panic_if v58, 0x41
+    icall panic_if<0x41>, v58
     v59 = add 32, v53
     v60 = lt v59, 32
-    panic_if v60, 0x41
+    icall panic_if<0x41>, v60
     v61 = alloc memoryarray<1>, exact, uninitialized, infallible, v59
     set_memory_object_len memoryarray, v61, v45
     jump bb4
@@ -230,7 +230,7 @@ fn @pushStruct(arg0: calldataslice) -> u256 [selector=0x1696eca8, abi_params=[tu
     memory_object_store_field memorystruct<4>, v1, 3, v61
     v72 = sload 1 !metadata(storage=slot(1))
     v73 = gt v72, 0xffffffffffffffff
-    panic_if v73, 0x41
+    icall panic_if<0x41>, v73
     v74 = add v72, 1
     v75 = storage_array_data_slot 1
     v76 = mul v72, 3
@@ -300,7 +300,7 @@ fn @pushStruct(arg0: calldataslice) -> u256 [selector=0x1696eca8, abi_params=[tu
     v167 = sload 1 !metadata(storage=slot(1))
     v168 = lt 0, v167
     v169 = iszero v168
-    panic_if v169, 0x32
+    icall panic_if<0x32>, v169
     v170 = storage_array_data_slot 1
     v171 = mul 0, 3
     v172 = add v170, v171
@@ -310,7 +310,7 @@ fn @pushStruct(arg0: calldataslice) -> u256 [selector=0x1696eca8, abi_params=[tu
     v176 = sload 1 !metadata(storage=slot(1))
     v177 = lt 0, v176
     v178 = iszero v177
-    panic_if v178, 0x32
+    icall panic_if<0x32>, v178
     v179 = storage_array_data_slot 1
     v180 = mul 0, 3
     v181 = add v179, v180
@@ -322,14 +322,14 @@ fn @pushStruct(arg0: calldataslice) -> u256 [selector=0x1696eca8, abi_params=[tu
     v187 = sload 1 !metadata(storage=slot(1))
     v188 = lt 0, v187
     v189 = iszero v188
-    panic_if v189, 0x32
+    icall panic_if<0x32>, v189
     v190 = storage_array_data_slot 1
     v191 = mul 0, 3
     v192 = add v190, v191
     v193 = add v192, 1
     v194 = lt 2, 3
     v195 = iszero v194
-    panic_if v195, 0x32
+    icall panic_if<0x32>, v195
     v196 = div 2, 16
     v197 = add v193, v196
     v198 = mod 2, 16
@@ -343,7 +343,7 @@ fn @pushStruct(arg0: calldataslice) -> u256 [selector=0x1696eca8, abi_params=[tu
     v206 = sload 1 !metadata(storage=slot(1))
     v207 = lt 0, v206
     v208 = iszero v207
-    panic_if v208, 0x32
+    icall panic_if<0x32>, v208
     v209 = storage_array_data_slot 1
     v210 = mul 0, 3
     v211 = add v209, v210
@@ -351,7 +351,7 @@ fn @pushStruct(arg0: calldataslice) -> u256 [selector=0x1696eca8, abi_params=[tu
     v213 = sload v212 !metadata(storage=offset(v211, 2))
     v214 = lt 2, v213
     v215 = iszero v214
-    panic_if v215, 0x32
+    icall panic_if<0x32>, v215
     v216 = storage_array_data_slot v212
     v217 = div 2, 16
     v218 = add v216, v217
@@ -438,7 +438,7 @@ fn @pushStruct(arg0: calldataslice) -> u256 [selector=0x1696eca8, abi_params=[tu
     v67 = and v66, 0xffff
     v68 = eq v66, v67
     v69 = iszero v68
-    revert_if v69, empty
+    icall revert_if<empty>, v69
     v70 = and v66, 0xffff
     memory_object_store_element memoryarray<1>, v61, v62, v70
     v71 = add v62, 1
@@ -450,7 +450,7 @@ fn @pushStruct(arg0: calldataslice) -> u256 [selector=0x1696eca8, abi_params=[tu
     v29 = and v28, 0xffff
     v30 = eq v28, v29
     v31 = iszero v30
-    revert_if v31, empty
+    icall revert_if<empty>, v31
     v32 = add v24, 1
     jump bb1
 }

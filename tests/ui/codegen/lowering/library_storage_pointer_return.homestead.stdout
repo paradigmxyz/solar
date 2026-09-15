@@ -66,7 +66,7 @@ fn @len() -> u256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word]]
     v4 = slice_len v2
     v5 = extcodesize 0x1111111111111111111111111111111111111111
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = gas
     v8 = sub v7, 50
     v9 = delegatecall v8, 0x1111111111111111111111111111111111111111, v3, v4, v3, 32
@@ -92,7 +92,7 @@ fn @bytesLen() -> u256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
     v4 = slice_len v2
     v5 = extcodesize 0x1111111111111111111111111111111111111111
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = gas
     v8 = sub v7, 50
     v9 = delegatecall v8, 0x1111111111111111111111111111111111111111, v3, v4, v3, 32
@@ -125,7 +125,7 @@ fn @member() -> u256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[wor
     v4 = slice_len v2
     v5 = extcodesize 0x1111111111111111111111111111111111111111
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = gas
     v8 = sub v7, 50
     v9 = delegatecall v8, 0x1111111111111111111111111111111111111111, v3, v4, v3, 32
@@ -151,7 +151,7 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
     v4 = slice_len v2
     v5 = extcodesize 0x1111111111111111111111111111111111111111
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = gas
     v8 = sub v7, 50
     v9 = delegatecall v8, 0x1111111111111111111111111111111111111111, v3, v4, v3, 64
@@ -187,7 +187,7 @@ fn @fixedLast() -> u256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
     v4 = slice_len v2
     v5 = extcodesize 0x1111111111111111111111111111111111111111
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = gas
     v8 = sub v7, 50
     v9 = delegatecall v8, 0x1111111111111111111111111111111111111111, v3, v4, v3, 32
@@ -201,7 +201,7 @@ fn @fixedLast() -> u256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
     v13 = mload v12
     v14 = lt 2, 3
     v15 = iszero v14
-    panic_if v15, 0x32
+    icall panic_if<0x32>, v15
     v16 = add v13, 2
     v17 = sload v16 !metadata(storage=offset(v13, 2))
     ret v17
@@ -217,7 +217,7 @@ fn @mapValue(arg0: u256) -> u256 [selector=0x152381f4, view, abi_params=[u256], 
     v4 = slice_len v2
     v5 = extcodesize 0x1111111111111111111111111111111111111111
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = gas
     v8 = sub v7, 50
     v9 = delegatecall v8, 0x1111111111111111111111111111111111111111, v3, v4, v3, 32
@@ -247,7 +247,7 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     v6 = slice_len v4
     v7 = extcodesize 0x1111111111111111111111111111111111111111
     v8 = iszero v7
-    revert_if v8, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v8
     v9 = gas
     v10 = sub v9, 50
     v11 = delegatecall v10, 0x1111111111111111111111111111111111111111, v5, v6, v5, 96
@@ -266,7 +266,7 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     v19 = sload v17 !metadata(storage=symbolic(v17))
     v20 = lt 1, 2
     v21 = iszero v20
-    panic_if v21, 0x32
+    icall panic_if<0x32>, v21
     v22 = memory_object_load_element memoryfixedarray<2, 1>, v18, 1
     v23 = insert_value struct0, undef struct0, 0, v19
     v24 = insert_value struct0, v23, 1, v22
@@ -283,7 +283,7 @@ fn @attached() -> u256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     v4 = slice_len v2
     v5 = extcodesize 0x1111111111111111111111111111111111111111
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = gas
     v8 = sub v7, 50
     v9 = delegatecall v8, 0x1111111111111111111111111111111111111111, v3, v4, v3, 32

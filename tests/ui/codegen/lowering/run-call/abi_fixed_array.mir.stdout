@@ -27,7 +27,7 @@ fn @read(arg0: calldataslice, arg1: u256) -> u256 [selector=0x8f65cc66, pure, ab
     v0 = slice_len arg0
     v1 = lt arg1, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = mul arg1, 32
     v5 = iszero 32
@@ -35,7 +35,7 @@ fn @read(arg0: calldataslice, arg1: u256) -> u256 [selector=0x8f65cc66, pure, ab
     v7 = eq v6, arg1
     v8 = or v5, v7
     v9 = iszero v8
-    panic_if v9, 0x41
+    icall panic_if<0x41>, v9
     v10 = add v3, v4
     v11 = calldataload v10
     ret v11
@@ -46,7 +46,7 @@ fn @readDynamic(arg0: memoryarray, arg1: u256) -> u256 [selector=0xcd97b1f2, pur
     v0 = memory_object_len memoryarray, arg0
     v1 = lt arg1, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryarray<1>, arg0, arg1
     ret v3
 }
@@ -56,7 +56,7 @@ fn @readDynamicCalldata(arg0: calldataslice, arg1: u256) -> u256 [selector=0x55c
     v0 = slice_len arg0
     v1 = lt arg1, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = mul arg1, 32
     v5 = iszero 32
@@ -64,7 +64,7 @@ fn @readDynamicCalldata(arg0: calldataslice, arg1: u256) -> u256 [selector=0x55c
     v7 = eq v6, arg1
     v8 = or v5, v7
     v9 = iszero v8
-    panic_if v9, 0x41
+    icall panic_if<0x41>, v9
     v10 = add v3, v4
     v11 = calldataload v10
     ret v11
@@ -75,7 +75,7 @@ fn @readBytes(arg0: memorybytes) -> bytes1 [selector=0x8b33268b, pure, abi_param
     v0 = memory_object_len memorybytes, arg0
     v1 = lt 1, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = memory_object_load_byte memorybytes, arg0, 1
     v4 = shl 248, v3
     ret v4
@@ -86,7 +86,7 @@ fn @readBytesCalldata(arg0: calldataslice) -> bytes1 [selector=0x4bc2c5d5, pure,
     v0 = slice_len arg0
     v1 = lt 1, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = calldata_slice_load_word calldata, arg0, 1
     v5 = byte 0, v4
@@ -136,7 +136,7 @@ fn @readNestedList(arg0: memorystruct) -> u256 [selector=0x2fc71376, pure, abi_p
     v3 = memory_object_len memoryarray, v2
     v4 = lt 0, v3
     v5 = iszero v4
-    panic_if v5, 0x32
+    icall panic_if<0x32>, v5
     v6 = memory_object_load_element memoryarray<1>, v2, 0
     v7 = memory_object_from_ptr memoryarray, v6
     v8 = eq v7, 0
@@ -158,7 +158,7 @@ fn @readEnumPair(arg0: memorystruct) -> u256 [selector=0xaea50307, pure, abi_par
     v0 = memory_object_load_field memorystruct<2>, arg0, 0
     v1 = lt v0, 2
     v2 = iszero v1
-    panic_if v2, 0x21
+    icall panic_if<0x21>, v2
     v3 = memory_object_load_field memorystruct<2>, arg0, 1
     v4 = checked_add u256, v0, v3
     ret v4
@@ -168,11 +168,11 @@ fn @readEnumArray(arg0: memoryfixedarray) -> u256 [selector=0xf8507bf5, pure, ab
   bb0:
     v0 = lt 0, 2
     v1 = iszero v0
-    panic_if v1, 0x32
+    icall panic_if<0x32>, v1
     v2 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 0
     v3 = lt v2, 2
     v4 = iszero v3
-    panic_if v4, 0x21
+    icall panic_if<0x21>, v4
     ret v2
 }
 
@@ -180,7 +180,7 @@ fn @readMode(arg0: u8) -> u256 [selector=0x1bcfbcf9, pure, abi_params=[enum<2, u
   bb0:
     v0 = lt arg0, 2
     v1 = iszero v0
-    panic_if v1, 0x21
+    icall panic_if<0x21>, v1
     ret arg0
 }
 
@@ -189,7 +189,7 @@ fn @readNestedArray(arg0: memorystruct) -> u256 [selector=0x8a855eb4, pure, abi_
     v0 = memory_object_load_field memorystruct<2>, arg0, 0, memoryfixedarray
     v1 = lt 1, 2
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v4 = memory_object_load_field memorystruct<2>, arg0, 1
     v5 = and v4, 255
@@ -202,7 +202,7 @@ fn @readNestedBytes(arg0: memorystruct) -> u256 [selector=0x8516eaf9, pure, abi_
     v0 = memory_object_load_field memorystruct<1>, arg0, 0, memoryfixedarray
     v1 = lt 0, 2
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v4 = memory_object_from_ptr memorybytes, v3
     v5 = eq v4, 0
@@ -218,7 +218,7 @@ fn @readNestedBytes(arg0: memorystruct) -> u256 [selector=0x8516eaf9, pure, abi_
     v9 = memory_object_load_field memorystruct<1>, arg0, 0, memoryfixedarray
     v10 = lt 1, 2
     v11 = iszero v10
-    panic_if v11, 0x32
+    icall panic_if<0x32>, v11
     v12 = memory_object_load_element memoryfixedarray<2, 1>, v9, 1
     v13 = memory_object_from_ptr memorybytes, v12
     v14 = eq v13, 0
@@ -239,7 +239,7 @@ fn @readMixed(arg0: u8, arg1: memorybytes) -> u256 [selector=0xa114c21b, pure, a
   bb0:
     v0 = lt arg0, 2
     v1 = iszero v0
-    panic_if v1, 0x21
+    icall panic_if<0x21>, v1
     v2 = memory_object_len memorybytes, arg1
     v3 = checked_add u256, arg0, v2
     ret v3
@@ -257,7 +257,7 @@ fn @constructor(arg0: memoryfixedarray, arg1: i256) [constructor, abi_params=[ar
   bb0:
     v0 = lt 1, 2
     v1 = iszero v0
-    panic_if v1, 0x32
+    icall panic_if<0x32>, v1
     v2 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 1
     v3 = memory_object_from_ptr memoryfixedarray, v2
     v4 = eq v3, 0
@@ -271,7 +271,7 @@ fn @constructor(arg0: memoryfixedarray, arg1: i256) [constructor, abi_params=[ar
     v6 = phi [bb0: v3], [bb1: v5]
     v7 = lt 0, 2
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     v9 = memory_object_load_element memoryfixedarray<2, 1>, v6, 0
     v10 = checked_add u256, v9, arg1
     sstore 0, v10 !metadata(storage=slot(0))
@@ -291,7 +291,7 @@ fn @constructor(arg0: memoryarray, arg1: memorybytes) [constructor, abi_params=[
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 1, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryarray<1>, arg0, 1
     v4 = memory_object_len memorybytes, arg1
     v5 = checked_add u256, v3, v4
@@ -312,7 +312,7 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, u256>]] {
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 1, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryarray<1>, arg0, 1
     sstore 0, v3 !metadata(storage=slot(0))
     ret

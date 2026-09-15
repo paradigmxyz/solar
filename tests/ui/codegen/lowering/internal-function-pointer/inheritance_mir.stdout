@@ -39,7 +39,7 @@ fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_
     v2 = eq arg0, 3
     jumpi v2, bb3, bb4
   bb4:
-    panic_if true, 0x51
+    icall panic_if<0x51>, true
     invalid
   bb3:
     v3 = icall @target.0

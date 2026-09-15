@@ -7,7 +7,7 @@ fn @bytesChain(arg0: calldataslice) -> memorybytes [selector=0x2007c472, pure, a
     v2 = gt v1, v1
     v3 = lt v1, 1
     v4 = or v2, v3
-    revert_if v4, empty
+    icall revert_if<empty>, v4
     v5 = sub v1, 1
     v6 = add v0, 1
     v7 = make_calldata_slice v6, v5
@@ -16,22 +16,22 @@ fn @bytesChain(arg0: calldataslice) -> memorybytes [selector=0x2007c472, pure, a
     v10 = gt v9, v9
     v11 = lt v9, 1
     v12 = or v10, v11
-    revert_if v12, empty
+    icall revert_if<empty>, v12
     v13 = sub v9, 1
     v14 = add v8, 1
     v15 = make_calldata_slice v14, v13
     v16 = slice_ptr v15
     v17 = slice_len v15
     v18 = gt v17, 0xffffffffffffffff
-    revert_if v18, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v18
     v19 = calldatasize
     v20 = sub v19, v17
     v21 = sgt v16, v20
-    revert_if v21, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v21
     v22 = slice_len v15
     v23 = add v22, 63
     v24 = lt v23, v22
-    panic_if v24, 0x41
+    icall panic_if<0x41>, v24
     v25 = not 31
     v26 = and v23, v25
     v27 = alloc memorybytes, exact, uninitialized, infallible, v26
@@ -47,7 +47,7 @@ fn @arrChain(arg0: calldataslice) -> u256 [selector=0x65df4193, pure, abi_params
     v2 = gt v1, v1
     v3 = lt v1, 1
     v4 = or v2, v3
-    revert_if v4, empty
+    icall revert_if<empty>, v4
     v5 = sub v1, 1
     v6 = add v0, 32
     v7 = make_calldata_slice v6, v5
@@ -56,14 +56,14 @@ fn @arrChain(arg0: calldataslice) -> u256 [selector=0x65df4193, pure, abi_params
     v10 = gt v9, v9
     v11 = lt v9, 1
     v12 = or v10, v11
-    revert_if v12, empty
+    icall revert_if<empty>, v12
     v13 = sub v9, 1
     v14 = add v8, 32
     v15 = make_calldata_slice v14, v13
     v16 = slice_len v15
     v17 = lt 0, v16
     v18 = iszero v17
-    panic_if v18, 0x32
+    icall panic_if<0x32>, v18
     v19 = slice_ptr v15
     v20 = add v19, 0
     v21 = calldataload v20

@@ -223,57 +223,57 @@ fn @wrapping_signed_division() -> u256 {
 }
 
 // CHECK-LABEL: fn @constant_checks
-// CHECK: - panic_if false, 0x1
-// CHECK: - panic_if_zero true, 0x12
-// CHECK: - revert_if 0, empty
-// CHECK: - revert_if_zero 7, tuple_data_too_short
-// CHECK: panic_if true, 0x11
-// CHECK: revert_if_zero arg0, empty
+// CHECK: - icall panic_if<0x1>, false
+// CHECK: - icall panic_if_zero<0x12>, true
+// CHECK: - icall revert_if<empty>, 0
+// CHECK: - icall revert_if_zero<tuple_data_too_short>, 7
+// CHECK: icall panic_if<0x11>, true
+// CHECK: icall revert_if_zero<empty>, arg0
 fn @constant_checks(arg0: u256) {
   bb0:
-    panic_if false, 0x1
-    panic_if_zero true, 0x12
-    revert_if 0, empty
-    revert_if_zero 7, tuple_data_too_short
-    panic_if true, 0x11
-    revert_if_zero arg0, empty
+    icall panic_if<0x1>, false
+    icall panic_if_zero<0x12>, true
+    icall revert_if<empty>, 0
+    icall revert_if_zero<tuple_data_too_short>, 7
+    icall panic_if<0x11>, true
+    icall revert_if_zero<empty>, arg0
     ret
 }
 
 // CHECK-LABEL: fn @constant_require
-// CHECK: - icall require error_string, true, arg0
-// CHECK: icall require empty_string, false
+// CHECK: - icall require<error_string>, true, arg0
+// CHECK: icall require<empty_string>, false
 fn @constant_require(arg0: memorybytes) {
   bb0:
-    icall require error_string, true, arg0
-    icall require empty_string, false
+    icall require<error_string>, true, arg0
+    icall require<empty_string>, false
     ret
 }
 
 fn @checked_modular() -> u256 {
   bb0:
-    v0 = checked_addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 3
-    v1 = checked_mulmod 5, 5, 7
+    v0 = icall checked_addmod<>, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 3
+    v1 = icall checked_mulmod<>, 5, 5, 7
     v2 = add v0, v1
     ret v2
 }
 
 fn @checked_modular_zero(arg0: u256) {
   bb0:
-    v0 = checked_addmod arg0, 0, 0
-    v1 = checked_mulmod 0, arg0, 0
+    v0 = icall checked_addmod<>, arg0, 0, 0
+    v1 = icall checked_mulmod<>, 0, arg0, 0
     ret
 }
 
 // CHECK-LABEL: fn @check_polarity
-// CHECK: + panic_if_zero arg0, 0x1
-// CHECK: + panic_if arg0, 0x11
-// CHECK: + revert_if_zero arg0, tuple_data_too_short
+// CHECK: + icall panic_if_zero<0x1>, arg0
+// CHECK: + icall panic_if<0x11>, arg0
+// CHECK: + icall revert_if_zero<tuple_data_too_short>, arg0
 fn @check_polarity(arg0: u256) {
   bb0:
     v0 = iszero arg0
-    panic_if v0, 0x1
-    panic_if_zero v0, 0x11
-    revert_if v0, tuple_data_too_short
+    icall panic_if<0x1>, v0
+    icall panic_if_zero<0x11>, v0
+    icall revert_if<tuple_data_too_short>, v0
     ret
 }

@@ -43,13 +43,13 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb4:
     v17 = returndatasize
     v18 = lt v17, 32
-    revert_if v18, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v18
     v19 = add 0, 0
     v20 = mload v19
     v21 = add 0, 0
     v22 = mload v21
     v23 = eq v22, 7
-    icall require short_string, v23, 5, 0x70726f7879000000000000000000000000000000000000000000000000000000
+    icall require<short_string>, v23, 5, 0x70726f7879000000000000000000000000000000000000000000000000000000
     ret 1
 }
 

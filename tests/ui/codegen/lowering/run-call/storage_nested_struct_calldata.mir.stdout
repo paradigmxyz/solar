@@ -10,21 +10,21 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xc58b68ae, abi_params=[array<_,
     v5 = eq v4, v0
     v6 = or v3, v5
     v7 = iszero v6
-    panic_if v7, 0x41
+    icall panic_if<0x41>, v7
     v8 = calldatasize
     v9 = sub v8, v1
     v10 = slt v9, v2
-    revert_if v10, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v10
     v11 = mul v0, 32
     v12 = iszero 32
     v13 = div v11, 32
     v14 = eq v13, v0
     v15 = or v12, v14
     v16 = iszero v15
-    panic_if v16, 0x41
+    icall panic_if<0x41>, v16
     v17 = add 32, v11
     v18 = lt v17, 32
-    panic_if v18, 0x41
+    icall panic_if<0x41>, v18
     v19 = alloc memoryarray<1>, exact, uninitialized, infallible, v17
     set_memory_object_len memoryarray, v19, v0
     jump bb1
@@ -56,20 +56,20 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xc58b68ae, abi_params=[array<_,
     v263 = sload 0 !metadata(storage=slot(0))
     v264 = lt 0, v263
     v265 = iszero v264
-    panic_if v265, 0x32
+    icall panic_if<0x32>, v265
     v266 = storage_array_data_slot 0
     v267 = add v266, 0
     v268 = sload v267 !metadata(storage=symbolic(v266))
     v269 = lt 1, v268
     v270 = iszero v269
-    panic_if v270, 0x32
+    icall panic_if<0x32>, v270
     v271 = storage_array_data_slot v267
     v272 = mul 1, 2
     v273 = add v271, v272
     v274 = sload v273 !metadata(storage=symbolic(v273))
     v275 = lt 1, v274
     v276 = iszero v275
-    panic_if v276, 0x32
+    icall panic_if<0x32>, v276
     v277 = storage_array_data_slot v273
     v278 = div 1, 32
     v279 = add v277, v278
@@ -82,20 +82,20 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xc58b68ae, abi_params=[array<_,
     v286 = sload 0 !metadata(storage=slot(0))
     v287 = lt 0, v286
     v288 = iszero v287
-    panic_if v288, 0x32
+    icall panic_if<0x32>, v288
     v289 = storage_array_data_slot 0
     v290 = add v289, 0
     v291 = sload v290 !metadata(storage=symbolic(v289))
     v292 = lt 0, v291
     v293 = iszero v292
-    panic_if v293, 0x32
+    icall panic_if<0x32>, v293
     v294 = storage_array_data_slot v290
     v295 = mul 0, 2
     v296 = add v294, v295
     v297 = add v296, 1
     v298 = lt 0, 2
     v299 = iszero v298
-    panic_if v299, 0x32
+    icall panic_if<0x32>, v299
     v300 = div 0, 32
     v301 = add v297, v300
     v302 = mod 0, 32
@@ -108,20 +108,20 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xc58b68ae, abi_params=[array<_,
     v309 = sload 0 !metadata(storage=slot(0))
     v310 = lt 0, v309
     v311 = iszero v310
-    panic_if v311, 0x32
+    icall panic_if<0x32>, v311
     v312 = storage_array_data_slot 0
     v313 = add v312, 0
     v314 = sload v313 !metadata(storage=symbolic(v312))
     v315 = lt 1, v314
     v316 = iszero v315
-    panic_if v316, 0x32
+    icall panic_if<0x32>, v316
     v317 = storage_array_data_slot v313
     v318 = mul 1, 2
     v319 = add v317, v318
     v320 = add v319, 1
     v321 = lt 1, 2
     v322 = iszero v321
-    panic_if v322, 0x32
+    icall panic_if<0x32>, v322
     v323 = div 1, 32
     v324 = add v320, v323
     v325 = mod 1, 32
@@ -373,7 +373,7 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xc58b68ae, abi_params=[array<_,
     v24 = calldatasize
     v25 = sub v24, v23
     v26 = slt v25, 32
-    revert_if v26, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v26
     v27 = calldataload v23
     v28 = add v1, v27
     v29 = calldatasize
@@ -381,16 +381,16 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xc58b68ae, abi_params=[array<_,
     v31 = sub v30, 31
     v32 = slt v27, v31
     v33 = iszero v32
-    revert_if v33, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v33
     v34 = calldataload v28
     v35 = gt v34, 0xffffffffffffffff
-    revert_if v35, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v35
     v36 = mul v34, 32
     v37 = add v28, 32
     v38 = calldatasize
     v39 = sub v38, v36
     v40 = sgt v37, v39
-    revert_if v40, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v40
     v41 = add v28, 32
     v42 = mul v34, 32
     v43 = iszero 32
@@ -398,10 +398,10 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xc58b68ae, abi_params=[array<_,
     v45 = eq v44, v34
     v46 = or v43, v45
     v47 = iszero v46
-    panic_if v47, 0x41
+    icall panic_if<0x41>, v47
     v48 = add 32, v42
     v49 = lt v48, 32
-    panic_if v49, 0x41
+    icall panic_if<0x41>, v49
     v50 = alloc memoryarray<1>, exact, uninitialized, infallible, v48
     set_memory_object_len memoryarray, v50, v34
     jump bb4
@@ -419,7 +419,7 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xc58b68ae, abi_params=[array<_,
     v55 = calldatasize
     v56 = sub v55, v54
     v57 = slt v56, 32
-    revert_if v57, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v57
     v58 = calldataload v54
     v59 = add v41, v58
     v60 = calldatasize
@@ -427,12 +427,12 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xc58b68ae, abi_params=[array<_,
     v62 = sub v61, 95
     v63 = slt v58, v62
     v64 = iszero v63
-    revert_if v64, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v64
     v65 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v66 = calldatasize
     v67 = sub v66, v59
     v68 = slt v67, 32
-    revert_if v68, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v68
     v69 = calldataload v59
     v70 = add v59, v69
     v71 = calldatasize
@@ -440,16 +440,16 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xc58b68ae, abi_params=[array<_,
     v73 = sub v72, 31
     v74 = slt v69, v73
     v75 = iszero v74
-    revert_if v75, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v75
     v76 = calldataload v70
     v77 = gt v76, 0xffffffffffffffff
-    revert_if v77, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v77
     v78 = mul v76, 32
     v79 = add v70, 32
     v80 = calldatasize
     v81 = sub v80, v78
     v82 = sgt v79, v81
-    revert_if v82, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v82
     v83 = add v70, 32
     v84 = mul v76, 32
     v85 = iszero 32
@@ -457,10 +457,10 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xc58b68ae, abi_params=[array<_,
     v87 = eq v86, v76
     v88 = or v85, v87
     v89 = iszero v88
-    panic_if v89, 0x41
+    icall panic_if<0x41>, v89
     v90 = add 32, v84
     v91 = lt v90, 32
-    panic_if v91, 0x41
+    icall panic_if<0x41>, v91
     v92 = alloc memoryarray<1>, exact, uninitialized, infallible, v90
     set_memory_object_len memoryarray, v92, v76
     jump bb7
@@ -474,7 +474,7 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xc58b68ae, abi_params=[array<_,
     v104 = calldatasize
     v105 = sub v104, v103
     v106 = slt v105, 64
-    revert_if v106, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v106
     v107 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     jump bb10
   bb10:
@@ -495,7 +495,7 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xc58b68ae, abi_params=[array<_,
     v113 = and v112, 255
     v114 = eq v112, v113
     v115 = iszero v114
-    revert_if v115, empty
+    icall revert_if<empty>, v115
     v116 = add v108, 1
     jump bb10
   bb8:
@@ -505,7 +505,7 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xc58b68ae, abi_params=[array<_,
     v98 = and v97, 255
     v99 = eq v97, v98
     v100 = iszero v99
-    revert_if v100, empty
+    icall revert_if<empty>, v100
     v101 = and v97, 255
     memory_object_store_element memoryarray<1>, v92, v93, v101
     v102 = add v93, 1
@@ -518,7 +518,7 @@ fn @copyFixed(arg0: calldataslice) -> u256 [selector=0x39bd9a66, abi_params=[arr
     v1 = calldatasize
     v2 = sub v1, v0
     v3 = slt v2, 32
-    revert_if v3, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v3
     v4 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     jump bb1
   bb1:
@@ -534,19 +534,19 @@ fn @copyFixed(arg0: calldataslice) -> u256 [selector=0x39bd9a66, abi_params=[arr
   bb15:
     v326 = lt 0, 1
     v327 = iszero v326
-    panic_if v327, 0x32
+    icall panic_if<0x32>, v327
     v328 = add 1, 0
     v329 = sload v328 !metadata(storage=slot(1))
     v330 = lt 1, v329
     v331 = iszero v330
-    panic_if v331, 0x32
+    icall panic_if<0x32>, v331
     v332 = storage_array_data_slot v328
     v333 = mul 1, 2
     v334 = add v332, v333
     v335 = sload v334 !metadata(storage=symbolic(v334))
     v336 = lt 1, v335
     v337 = iszero v336
-    panic_if v337, 0x32
+    icall panic_if<0x32>, v337
     v338 = storage_array_data_slot v334
     v339 = div 1, 32
     v340 = add v338, v339
@@ -558,19 +558,19 @@ fn @copyFixed(arg0: calldataslice) -> u256 [selector=0x39bd9a66, abi_params=[arr
     v346 = and v345, 255
     v347 = lt 0, 1
     v348 = iszero v347
-    panic_if v348, 0x32
+    icall panic_if<0x32>, v348
     v349 = add 1, 0
     v350 = sload v349 !metadata(storage=slot(1))
     v351 = lt 0, v350
     v352 = iszero v351
-    panic_if v352, 0x32
+    icall panic_if<0x32>, v352
     v353 = storage_array_data_slot v349
     v354 = mul 0, 2
     v355 = add v353, v354
     v356 = add v355, 1
     v357 = lt 0, 2
     v358 = iszero v357
-    panic_if v358, 0x32
+    icall panic_if<0x32>, v358
     v359 = div 0, 32
     v360 = add v356, v359
     v361 = mod 0, 32
@@ -582,19 +582,19 @@ fn @copyFixed(arg0: calldataslice) -> u256 [selector=0x39bd9a66, abi_params=[arr
     v367 = checked_add u8, v346, v366
     v368 = lt 0, 1
     v369 = iszero v368
-    panic_if v369, 0x32
+    icall panic_if<0x32>, v369
     v370 = add 1, 0
     v371 = sload v370 !metadata(storage=slot(1))
     v372 = lt 1, v371
     v373 = iszero v372
-    panic_if v373, 0x32
+    icall panic_if<0x32>, v373
     v374 = storage_array_data_slot v370
     v375 = mul 1, 2
     v376 = add v374, v375
     v377 = add v376, 1
     v378 = lt 1, 2
     v379 = iszero v378
-    panic_if v379, 0x32
+    icall panic_if<0x32>, v379
     v380 = div 1, 32
     v381 = add v377, v380
     v382 = mod 1, 32
@@ -985,7 +985,7 @@ fn @copyFixed(arg0: calldataslice) -> u256 [selector=0x39bd9a66, abi_params=[arr
     v9 = calldatasize
     v10 = sub v9, v8
     v11 = slt v10, 32
-    revert_if v11, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v11
     v12 = calldataload v8
     v13 = add v0, v12
     v14 = calldatasize
@@ -993,16 +993,16 @@ fn @copyFixed(arg0: calldataslice) -> u256 [selector=0x39bd9a66, abi_params=[arr
     v16 = sub v15, 31
     v17 = slt v12, v16
     v18 = iszero v17
-    revert_if v18, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v18
     v19 = calldataload v13
     v20 = gt v19, 0xffffffffffffffff
-    revert_if v20, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v20
     v21 = mul v19, 32
     v22 = add v13, 32
     v23 = calldatasize
     v24 = sub v23, v21
     v25 = sgt v22, v24
-    revert_if v25, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v25
     v26 = add v13, 32
     v27 = mul v19, 32
     v28 = iszero 32
@@ -1010,10 +1010,10 @@ fn @copyFixed(arg0: calldataslice) -> u256 [selector=0x39bd9a66, abi_params=[arr
     v30 = eq v29, v19
     v31 = or v28, v30
     v32 = iszero v31
-    panic_if v32, 0x41
+    icall panic_if<0x41>, v32
     v33 = add 32, v27
     v34 = lt v33, 32
-    panic_if v34, 0x41
+    icall panic_if<0x41>, v34
     v35 = alloc memoryarray<1>, exact, uninitialized, infallible, v33
     set_memory_object_len memoryarray, v35, v19
     jump bb4
@@ -1031,7 +1031,7 @@ fn @copyFixed(arg0: calldataslice) -> u256 [selector=0x39bd9a66, abi_params=[arr
     v40 = calldatasize
     v41 = sub v40, v39
     v42 = slt v41, 32
-    revert_if v42, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v42
     v43 = calldataload v39
     v44 = add v26, v43
     v45 = calldatasize
@@ -1039,12 +1039,12 @@ fn @copyFixed(arg0: calldataslice) -> u256 [selector=0x39bd9a66, abi_params=[arr
     v47 = sub v46, 95
     v48 = slt v43, v47
     v49 = iszero v48
-    revert_if v49, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v49
     v50 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v51 = calldatasize
     v52 = sub v51, v44
     v53 = slt v52, 32
-    revert_if v53, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v53
     v54 = calldataload v44
     v55 = add v44, v54
     v56 = calldatasize
@@ -1052,16 +1052,16 @@ fn @copyFixed(arg0: calldataslice) -> u256 [selector=0x39bd9a66, abi_params=[arr
     v58 = sub v57, 31
     v59 = slt v54, v58
     v60 = iszero v59
-    revert_if v60, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v60
     v61 = calldataload v55
     v62 = gt v61, 0xffffffffffffffff
-    revert_if v62, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v62
     v63 = mul v61, 32
     v64 = add v55, 32
     v65 = calldatasize
     v66 = sub v65, v63
     v67 = sgt v64, v66
-    revert_if v67, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v67
     v68 = add v55, 32
     v69 = mul v61, 32
     v70 = iszero 32
@@ -1069,10 +1069,10 @@ fn @copyFixed(arg0: calldataslice) -> u256 [selector=0x39bd9a66, abi_params=[arr
     v72 = eq v71, v61
     v73 = or v70, v72
     v74 = iszero v73
-    panic_if v74, 0x41
+    icall panic_if<0x41>, v74
     v75 = add 32, v69
     v76 = lt v75, 32
-    panic_if v76, 0x41
+    icall panic_if<0x41>, v76
     v77 = alloc memoryarray<1>, exact, uninitialized, infallible, v75
     set_memory_object_len memoryarray, v77, v61
     jump bb7
@@ -1086,7 +1086,7 @@ fn @copyFixed(arg0: calldataslice) -> u256 [selector=0x39bd9a66, abi_params=[arr
     v89 = calldatasize
     v90 = sub v89, v88
     v91 = slt v90, 64
-    revert_if v91, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v91
     v92 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     jump bb10
   bb10:
@@ -1107,7 +1107,7 @@ fn @copyFixed(arg0: calldataslice) -> u256 [selector=0x39bd9a66, abi_params=[arr
     v98 = and v97, 255
     v99 = eq v97, v98
     v100 = iszero v99
-    revert_if v100, empty
+    icall revert_if<empty>, v100
     v101 = add v93, 1
     jump bb10
   bb8:
@@ -1117,7 +1117,7 @@ fn @copyFixed(arg0: calldataslice) -> u256 [selector=0x39bd9a66, abi_params=[arr
     v83 = and v82, 255
     v84 = eq v82, v83
     v85 = iszero v84
-    revert_if v85, empty
+    icall revert_if<empty>, v85
     v86 = and v82, 255
     memory_object_store_element memoryarray<1>, v77, v78, v86
     v87 = add v78, 1
@@ -1134,21 +1134,21 @@ fn @copyDynamicFixed(arg0: calldataslice) -> u256 [selector=0x62d70355, abi_para
     v5 = eq v4, v0
     v6 = or v3, v5
     v7 = iszero v6
-    panic_if v7, 0x41
+    icall panic_if<0x41>, v7
     v8 = calldatasize
     v9 = sub v8, v1
     v10 = slt v9, v2
-    revert_if v10, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v10
     v11 = mul v0, 32
     v12 = iszero 32
     v13 = div v11, 32
     v14 = eq v13, v0
     v15 = or v12, v14
     v16 = iszero v15
-    panic_if v16, 0x41
+    icall panic_if<0x41>, v16
     v17 = add 32, v11
     v18 = lt v17, 32
-    panic_if v18, 0x41
+    icall panic_if<0x41>, v18
     v19 = alloc memoryarray<1>, exact, uninitialized, infallible, v17
     set_memory_object_len memoryarray, v19, v0
     jump bb1
@@ -1180,19 +1180,19 @@ fn @copyDynamicFixed(arg0: calldataslice) -> u256 [selector=0x62d70355, abi_para
     v307 = sload 2 !metadata(storage=slot(2))
     v308 = lt 1, v307
     v309 = iszero v308
-    panic_if v309, 0x32
+    icall panic_if<0x32>, v309
     v310 = storage_array_data_slot 2
     v311 = mul 1, 2
     v312 = add v310, v311
     v313 = lt 0, 1
     v314 = iszero v313
-    panic_if v314, 0x32
+    icall panic_if<0x32>, v314
     v315 = mul 0, 2
     v316 = add v312, v315
     v317 = sload v316 !metadata(storage=symbolic(v316))
     v318 = lt 1, v317
     v319 = iszero v318
-    panic_if v319, 0x32
+    icall panic_if<0x32>, v319
     v320 = storage_array_data_slot v316
     v321 = div 1, 32
     v322 = add v320, v321
@@ -1205,19 +1205,19 @@ fn @copyDynamicFixed(arg0: calldataslice) -> u256 [selector=0x62d70355, abi_para
     v329 = sload 2 !metadata(storage=slot(2))
     v330 = lt 0, v329
     v331 = iszero v330
-    panic_if v331, 0x32
+    icall panic_if<0x32>, v331
     v332 = storage_array_data_slot 2
     v333 = mul 0, 2
     v334 = add v332, v333
     v335 = lt 0, 1
     v336 = iszero v335
-    panic_if v336, 0x32
+    icall panic_if<0x32>, v336
     v337 = mul 0, 2
     v338 = add v334, v337
     v339 = add v338, 1
     v340 = lt 0, 2
     v341 = iszero v340
-    panic_if v341, 0x32
+    icall panic_if<0x32>, v341
     v342 = div 0, 32
     v343 = add v339, v342
     v344 = mod 0, 32
@@ -1230,19 +1230,19 @@ fn @copyDynamicFixed(arg0: calldataslice) -> u256 [selector=0x62d70355, abi_para
     v351 = sload 2 !metadata(storage=slot(2))
     v352 = lt 1, v351
     v353 = iszero v352
-    panic_if v353, 0x32
+    icall panic_if<0x32>, v353
     v354 = storage_array_data_slot 2
     v355 = mul 1, 2
     v356 = add v354, v355
     v357 = lt 0, 1
     v358 = iszero v357
-    panic_if v358, 0x32
+    icall panic_if<0x32>, v358
     v359 = mul 0, 2
     v360 = add v356, v359
     v361 = add v360, 1
     v362 = lt 1, 2
     v363 = iszero v362
-    panic_if v363, 0x32
+    icall panic_if<0x32>, v363
     v364 = div 1, 32
     v365 = add v361, v364
     v366 = mod 1, 32
@@ -1579,7 +1579,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> u256 [selector=0x62d70355, abi_para
     v24 = calldatasize
     v25 = sub v24, v23
     v26 = slt v25, 32
-    revert_if v26, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v26
     v27 = calldataload v23
     v28 = add v1, v27
     v29 = calldatasize
@@ -1587,11 +1587,11 @@ fn @copyDynamicFixed(arg0: calldataslice) -> u256 [selector=0x62d70355, abi_para
     v31 = sub v30, 31
     v32 = slt v27, v31
     v33 = iszero v32
-    revert_if v33, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v33
     v34 = calldatasize
     v35 = sub v34, v28
     v36 = slt v35, 32
-    revert_if v36, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v36
     v37 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     jump bb4
   bb4:
@@ -1608,7 +1608,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> u256 [selector=0x62d70355, abi_para
     v42 = calldatasize
     v43 = sub v42, v41
     v44 = slt v43, 32
-    revert_if v44, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v44
     v45 = calldataload v41
     v46 = add v28, v45
     v47 = calldatasize
@@ -1616,12 +1616,12 @@ fn @copyDynamicFixed(arg0: calldataslice) -> u256 [selector=0x62d70355, abi_para
     v49 = sub v48, 95
     v50 = slt v45, v49
     v51 = iszero v50
-    revert_if v51, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v51
     v52 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v53 = calldatasize
     v54 = sub v53, v46
     v55 = slt v54, 32
-    revert_if v55, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v55
     v56 = calldataload v46
     v57 = add v46, v56
     v58 = calldatasize
@@ -1629,16 +1629,16 @@ fn @copyDynamicFixed(arg0: calldataslice) -> u256 [selector=0x62d70355, abi_para
     v60 = sub v59, 31
     v61 = slt v56, v60
     v62 = iszero v61
-    revert_if v62, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v62
     v63 = calldataload v57
     v64 = gt v63, 0xffffffffffffffff
-    revert_if v64, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v64
     v65 = mul v63, 32
     v66 = add v57, 32
     v67 = calldatasize
     v68 = sub v67, v65
     v69 = sgt v66, v68
-    revert_if v69, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v69
     v70 = add v57, 32
     v71 = mul v63, 32
     v72 = iszero 32
@@ -1646,10 +1646,10 @@ fn @copyDynamicFixed(arg0: calldataslice) -> u256 [selector=0x62d70355, abi_para
     v74 = eq v73, v63
     v75 = or v72, v74
     v76 = iszero v75
-    panic_if v76, 0x41
+    icall panic_if<0x41>, v76
     v77 = add 32, v71
     v78 = lt v77, 32
-    panic_if v78, 0x41
+    icall panic_if<0x41>, v78
     v79 = alloc memoryarray<1>, exact, uninitialized, infallible, v77
     set_memory_object_len memoryarray, v79, v63
     jump bb7
@@ -1663,7 +1663,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> u256 [selector=0x62d70355, abi_para
     v91 = calldatasize
     v92 = sub v91, v90
     v93 = slt v92, 64
-    revert_if v93, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v93
     v94 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     jump bb10
   bb10:
@@ -1684,7 +1684,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> u256 [selector=0x62d70355, abi_para
     v100 = and v99, 255
     v101 = eq v99, v100
     v102 = iszero v101
-    revert_if v102, empty
+    icall revert_if<empty>, v102
     v103 = add v95, 1
     jump bb10
   bb8:
@@ -1694,7 +1694,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> u256 [selector=0x62d70355, abi_para
     v85 = and v84, 255
     v86 = eq v84, v85
     v87 = iszero v86
-    revert_if v87, empty
+    icall revert_if<empty>, v87
     v88 = and v84, 255
     memory_object_store_element memoryarray<1>, v79, v80, v88
     v89 = add v80, 1

@@ -72,8 +72,11 @@ HIR lowering should evaluate operands, resolve types and layouts, and emit a
 semantic operation for each runtime builtin. Builtins can stay opaque to
 passes that do not understand their internals while still exposing signatures,
 effects, and constant-folding rules. `ICall` targets distinguish function definitions
-from typed builtins. Concat and require pass evaluated values in the ordinary
-argument list; the builtin identity carries only static type information.
+from typed builtins. Concat, require, conditional checks, hashing precompiles,
+checked modular arithmetic, ERC-7201, send/transfer, and returndata capture pass
+evaluated values in the ordinary argument list. The builtin identity carries
+only static specialization data; runtime values never live in the callee.
+Specializations print in angle brackets, including empty `<>` for fixed targets.
 Return signatures come from the callee. Expansion adds no runtime call overhead.
 
 ABI encoding/decoding, aggregate copies, memory-object accesses, abstract

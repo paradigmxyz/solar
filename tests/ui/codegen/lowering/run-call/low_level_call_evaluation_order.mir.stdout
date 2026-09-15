@@ -59,7 +59,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     v4 = icall @data
     v5 = address_call v0, v4, gas v2, value v3
     v6 = iszero v5
-    revert_if v6, empty
+    icall revert_if<empty>, v6
     v7 = sload 0 !metadata(storage=slot(0))
     ret v7
 }
@@ -97,7 +97,7 @@ fn @captureAcrossCalls() -> struct0 [selector=0x23d1e290, abi_params=[], abi_ret
     mstore v3, 0x102030000000000000000000000000000000000000000000000000000000000
     v4 = abi_encode [memory_bytes], object, selector 0x624fbfdc00000000000000000000000000000000000000000000000000000000, args v2
     v5 = address_call v0, v4, gas v1
-    v6 = returndata_bytes
+    v6 = icall returndata_bytes<>
     v7 = address
     v8 = gas
     v9 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -106,7 +106,7 @@ fn @captureAcrossCalls() -> struct0 [selector=0x23d1e290, abi_params=[], abi_ret
     mstore v10, 0xab00000000000000000000000000000000000000000000000000000000000000
     v11 = abi_encode [memory_bytes], object, selector 0x624fbfdc00000000000000000000000000000000000000000000000000000000, args v9
     v12 = address_call v7, v11, gas v8
-    v13 = returndata_bytes
+    v13 = icall returndata_bytes<>
     jumpi v5, bb1, bb2
   bb2:
     jump bb3
@@ -115,7 +115,7 @@ fn @captureAcrossCalls() -> struct0 [selector=0x23d1e290, abi_params=[], abi_ret
   bb3:
     v14 = phi [bb1: v12], [bb2: false]
     v15 = iszero v14
-    revert_if v15, empty
+    icall revert_if<empty>, v15
     v16 = abi_decode [bytes], v6
     v17 = abi_decode [bytes], v13
     v18 = insert_value struct0, undef struct0, 0, v16
@@ -129,7 +129,7 @@ fn @staticRead() -> struct1 [selector=0xf511364b, view, abi_params=[], abi_retur
     v1 = gas
     v2 = abi_encode [], object, selector 0x8381f58a00000000000000000000000000000000000000000000000000000000
     v3 = address_staticcall v0, v2, gas v1
-    v4 = returndata_bytes
+    v4 = icall returndata_bytes<>
     v5 = insert_value struct1, undef struct1, 0, v3
     v6 = insert_value struct1, v5, 1, v4
     ret v6
@@ -143,7 +143,7 @@ fn @delegateWrite() -> u256 [selector=0xeedb6db6, abi_params=[], abi_returns=[wo
     v2 = abi_encode [], object, selector 0xbcb4ab0e00000000000000000000000000000000000000000000000000000000
     v3 = address_delegatecall v0, v2, gas v1
     v4 = iszero v3
-    revert_if v4, empty
+    icall revert_if<empty>, v4
     v5 = sload 0 !metadata(storage=slot(0))
     ret v5
 }
@@ -158,14 +158,14 @@ fn @preserveInput() -> struct0 [selector=0xd24f7044, abi_params=[], abi_returns=
     v3 = gas
     v4 = abi_encode [memory_bytes], object, selector 0x624fbfdc00000000000000000000000000000000000000000000000000000000, args v0
     v5 = address_call v2, v4, gas v3
-    v6 = returndata_bytes
+    v6 = icall returndata_bytes<>
     v7 = iszero v5
-    revert_if v7, empty
+    icall revert_if<empty>, v7
     v8 = shl 248, 153
     v9 = memory_object_len memorybytes, v0
     v10 = lt 0, v9
     v11 = iszero v10
-    panic_if v11, 0x32
+    icall panic_if<0x32>, v11
     v12 = byte 0, v8
     memory_object_store_byte memorybytes, v0, 0, v12
     v13 = abi_decode [bytes], v6
@@ -180,7 +180,7 @@ fn @failedCapture() -> struct1 [selector=0x5ee5463d, abi_params=[], abi_returns=
     v1 = gas
     v2 = abi_encode [], object, selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
     v3 = address_call v0, v2, gas v1
-    v4 = returndata_bytes
+    v4 = icall returndata_bytes<>
     v5 = insert_value struct1, undef struct1, 0, v3
     v6 = insert_value struct1, v5, 1, v4
     ret v6

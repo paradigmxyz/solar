@@ -7,12 +7,12 @@
       v1 = selfbalance
       v2 = sload 0
       v3 = tload 0
-      v4 = send arg0, 1
+      v4 = icall send<>, arg0, 1
       v5 = balance arg0
       v6 = selfbalance
       v7 = sload 0
       v8 = tload 0
-      transfer arg0, 1
+      icall transfer<>, arg0, 1
       v9 = balance arg0
       v10 = selfbalance
       v11 = sload 0
@@ -40,12 +40,12 @@
       v1 = selfbalance
       v2 = sload 0
       v3 = tload 0
-      v4 = send arg0, 1
+      v4 = icall send<>, arg0, 1
       v5 = balance arg0
       v6 = selfbalance
       v7 = sload 0
       v8 = tload 0
-      transfer arg0, 1
+      icall transfer<>, arg0, 1
       v9 = balance arg0
       v10 = selfbalance
       v11 = sload 0

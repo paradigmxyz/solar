@@ -5,7 +5,7 @@ fn @f(arg0: memoryarray) -> memoryfixedarray [selector=0x2ed7fe6a, abi_params=[a
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 0, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryarray<1>, arg0, 0
     v4 = shr 64, v3
     v5 = and v4, 0xffffffff
@@ -20,19 +20,19 @@ fn @f(arg0: memoryarray) -> memoryfixedarray [selector=0x2ed7fe6a, abi_params=[a
   bb1:
     revert_returndata
   bb2:
-    v13 = returndata_bytes
+    v13 = icall returndata_bytes<>
     v14 = abi_decode [function], v13
     v15 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_zero v15, 96
     v16 = lt 0, 3
     v17 = iszero v16
-    panic_if v17, 0x32
+    icall panic_if<0x32>, v17
     v18 = shl 64, v14
     memory_object_store_element memoryfixedarray<3, 1>, v15, 0, v18
     v19 = memory_object_len memoryarray, arg0
     v20 = lt 1, v19
     v21 = iszero v20
-    panic_if v21, 0x32
+    icall panic_if<0x32>, v21
     v22 = memory_object_load_element memoryarray<1>, arg0, 1
     v23 = shr 64, v22
     v24 = and v23, 0xffffffff
@@ -47,17 +47,17 @@ fn @f(arg0: memoryarray) -> memoryfixedarray [selector=0x2ed7fe6a, abi_params=[a
   bb3:
     revert_returndata
   bb4:
-    v32 = returndata_bytes
+    v32 = icall returndata_bytes<>
     v33 = abi_decode [function], v32
     v34 = lt 1, 3
     v35 = iszero v34
-    panic_if v35, 0x32
+    icall panic_if<0x32>, v35
     v36 = shl 64, v33
     memory_object_store_element memoryfixedarray<3, 1>, v15, 1, v36
     v37 = memory_object_len memoryarray, arg0
     v38 = lt 2, v37
     v39 = iszero v38
-    panic_if v39, 0x32
+    icall panic_if<0x32>, v39
     v40 = memory_object_load_element memoryarray<1>, arg0, 2
     v41 = shr 64, v40
     v42 = and v41, 0xffffffff
@@ -72,11 +72,11 @@ fn @f(arg0: memoryarray) -> memoryfixedarray [selector=0x2ed7fe6a, abi_params=[a
   bb5:
     revert_returndata
   bb6:
-    v50 = returndata_bytes
+    v50 = icall returndata_bytes<>
     v51 = abi_decode [function], v50
     v52 = lt 2, 3
     v53 = iszero v52
-    panic_if v53, 0x32
+    icall panic_if<0x32>, v53
     v54 = shl 64, v51
     memory_object_store_element memoryfixedarray<3, 1>, v15, 2, v54
     ret v15
@@ -113,7 +113,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v19 = memory_object_len memoryarray, v3
     v20 = lt 0, v19
     v21 = iszero v20
-    panic_if v21, 0x32
+    icall panic_if<0x32>, v21
     v22 = shl 64, v18
     memory_object_store_element memoryarray<1>, v3, 0, v22
     v23 = abi_encode []
@@ -141,11 +141,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb10:
     v36 = returndatasize
     v37 = lt v36, 96
-    revert_if v37, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v37
     v38 = abi_decode [array<3, function>], v34
     v39 = lt 0, 3
     v40 = iszero v39
-    panic_if v40, 0x32
+    icall panic_if<0x32>, v40
     v41 = memory_object_load_element memoryfixedarray<3, 1>, v38, 0
     v42 = shr 64, v41
     v43 = and v42, 0xffffffff
@@ -162,14 +162,14 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb12:
     v51 = returndatasize
     v52 = lt v51, 32
-    revert_if v52, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v52
     v53 = add 0, 0
     v54 = mload v53
     v55 = add 0, 0
     v56 = mload v55
     v57 = lt 1, 3
     v58 = iszero v57
-    panic_if v58, 0x32
+    icall panic_if<0x32>, v58
     v59 = memory_object_load_element memoryfixedarray<3, 1>, v38, 1
     v60 = shr 64, v59
     v61 = and v60, 0xffffffff
@@ -186,14 +186,14 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb14:
     v69 = returndatasize
     v70 = lt v69, 32
-    revert_if v70, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v70
     v71 = add 0, 0
     v72 = mload v71
     v73 = add 0, 0
     v74 = mload v73
     v75 = lt 2, 3
     v76 = iszero v75
-    panic_if v76, 0x32
+    icall panic_if<0x32>, v76
     v77 = memory_object_load_element memoryfixedarray<3, 1>, v38, 2
     v78 = shr 64, v77
     v79 = and v78, 0xffffffff
@@ -210,7 +210,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb16:
     v87 = returndatasize
     v88 = lt v87, 32
-    revert_if v88, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v88
     v89 = add 0, 0
     v90 = mload v89
     v91 = add 0, 0
@@ -226,7 +226,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v11 = memory_object_len memoryarray, v3
     v12 = lt v1, v11
     v13 = iszero v12
-    panic_if v13, 0x32
+    icall panic_if<0x32>, v13
     v14 = shl 64, v10
     memory_object_store_element memoryarray<1>, v3, v1, v14
     jump bb6

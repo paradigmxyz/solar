@@ -26,7 +26,7 @@ fn @trim(arg0: calldataslice) -> calldataslice [pure] {
     v5 = gt v4, v4
     v6 = lt v4, 4
     v7 = or v5, v6
-    revert_if v7, empty
+    icall revert_if<empty>, v7
     v8 = sub v4, 4
     v9 = add v3, 4
     v10 = make_calldata_slice v9, v8

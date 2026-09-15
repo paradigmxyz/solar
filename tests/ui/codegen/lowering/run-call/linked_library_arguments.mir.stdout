@@ -33,12 +33,12 @@ fn @test_multi() -> struct0 [selector=0x255f2946, pure, abi_params=[], abi_retur
     v1 = memory_object_len memoryarray, v0
     v2 = lt 0, v1
     v3 = iszero v2
-    panic_if v3, 0x32
+    icall panic_if<0x32>, v3
     memory_object_store_element memoryarray<1>, v0, 0, 7
     v4 = memory_object_len memoryarray, v0
     v5 = lt 1, v4
     v6 = iszero v5
-    panic_if v6, 0x32
+    icall panic_if<0x32>, v6
     memory_object_store_element memoryarray<1>, v0, 1, 8
     v7 = icall @pick, v0
     v8 = extract_value struct0, v7, 0
@@ -61,12 +61,12 @@ fn @test_using() -> u256 [selector=0xd6c053d5, pure, abi_params=[], abi_returns=
     v1 = memory_object_len memoryarray, v0
     v2 = lt 0, v1
     v3 = iszero v2
-    panic_if v3, 0x32
+    icall panic_if<0x32>, v3
     memory_object_store_element memoryarray<1>, v0, 0, 7
     v4 = memory_object_len memoryarray, v0
     v5 = lt 1, v4
     v6 = iszero v5
-    panic_if v6, 0x32
+    icall panic_if<0x32>, v6
     memory_object_store_element memoryarray<1>, v0, 1, 8
     v7 = icall @pick, v0
     v8 = extract_value struct0, v7, 0
@@ -100,12 +100,12 @@ fn @pick(arg0: memoryarray) -> struct0 [pure] {
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 0, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryarray<1>, arg0, 0
     v4 = memory_object_len memoryarray, arg0
     v5 = lt 1, v4
     v6 = iszero v5
-    panic_if v6, 0x32
+    icall panic_if<0x32>, v6
     v7 = memory_object_load_element memoryarray<1>, arg0, 1
     v8 = insert_value struct0, undef struct0, 0, v3
     v9 = insert_value struct0, v8, 1, v7
@@ -117,7 +117,7 @@ fn @first(arg0: calldataslice) -> u256 [pure] {
     v0 = slice_len arg0
     v1 = lt 0, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 0
     v5 = calldataload v4

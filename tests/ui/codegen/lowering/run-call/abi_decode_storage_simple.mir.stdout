@@ -15,7 +15,7 @@ fn @decode(arg0: memorybytes) -> struct0 [selector=0xe5c5e9a3, abi_params=[bytes
     v5 = memory_object_len memorybytes, v3
     v6 = lt 0, v5
     v7 = iszero v6
-    panic_if v7, 0x32
+    icall panic_if<0x32>, v7
     v8 = memory_object_load_byte memorybytes, v3, 0
     v9 = shl 248, v8
     v10 = insert_value struct0, undef struct0, 0, v2

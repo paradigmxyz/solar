@@ -24,7 +24,7 @@ fn @internal_dispatcher_p_none_r_none(arg0: function) [function_pointer_dispatch
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb2:
-    panic_if true, 0x51
+    icall panic_if<0x51>, true
     invalid
   bb1:
     icall @setFlag

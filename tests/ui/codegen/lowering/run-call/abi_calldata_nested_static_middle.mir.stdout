@@ -10,13 +10,13 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x664ffb2b, pure, abi_params=[array
     v0 = slice_len arg0
     v1 = lt 0, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 0
     v5 = calldatasize
     v6 = sub v5, v4
     v7 = slt v6, 32
-    revert_if v7, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v7
     v8 = calldataload v4
     v9 = add v3, v8
     v10 = calldatasize
@@ -24,7 +24,7 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x664ffb2b, pure, abi_params=[array
     v12 = sub v11, 31
     v13 = slt v8, v12
     v14 = iszero v13
-    revert_if v14, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = make_calldata_slice v9, 1
     ret 42
 }
@@ -34,13 +34,13 @@ fn @h(arg0: calldataslice) -> u256 [selector=0xc2e687d8, pure, abi_params=[array
     v0 = slice_len arg0
     v1 = lt 0, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 0
     v5 = calldatasize
     v6 = sub v5, v4
     v7 = slt v6, 32
-    revert_if v7, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v7
     v8 = calldataload v4
     v9 = add v3, v8
     v10 = calldatasize
@@ -48,18 +48,18 @@ fn @h(arg0: calldataslice) -> u256 [selector=0xc2e687d8, pure, abi_params=[array
     v12 = sub v11, 31
     v13 = slt v8, v12
     v14 = iszero v13
-    revert_if v14, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = make_calldata_slice v9, 1
     v16 = slice_len v15
     v17 = lt 0, v16
     v18 = iszero v17
-    panic_if v18, 0x32
+    icall panic_if<0x32>, v18
     v19 = slice_ptr v15
     v20 = add v19, 0
     v21 = calldatasize
     v22 = sub v21, v20
     v23 = slt v22, 32
-    revert_if v23, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v23
     v24 = calldataload v20
     v25 = add v19, v24
     v26 = calldatasize
@@ -67,16 +67,16 @@ fn @h(arg0: calldataslice) -> u256 [selector=0xc2e687d8, pure, abi_params=[array
     v28 = sub v27, 31
     v29 = slt v24, v28
     v30 = iszero v29
-    revert_if v30, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v30
     v31 = calldataload v25
     v32 = gt v31, 0xffffffffffffffff
-    revert_if v32, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v32
     v33 = mul v31, 32
     v34 = add v25, 32
     v35 = calldatasize
     v36 = sub v35, v33
     v37 = sgt v34, v36
-    revert_if v37, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v37
     v38 = add v25, 32
     v39 = make_calldata_slice v38, v31
     ret 42
@@ -87,13 +87,13 @@ fn @materialize(arg0: calldataslice) -> u256 [selector=0xaff36081, pure, abi_par
     v0 = slice_len arg0
     v1 = lt 0, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 0
     v5 = calldatasize
     v6 = sub v5, v4
     v7 = slt v6, 32
-    revert_if v7, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v7
     v8 = calldataload v4
     v9 = add v3, v8
     v10 = calldatasize
@@ -101,13 +101,13 @@ fn @materialize(arg0: calldataslice) -> u256 [selector=0xaff36081, pure, abi_par
     v12 = sub v11, 31
     v13 = slt v8, v12
     v14 = iszero v13
-    revert_if v14, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = make_calldata_slice v9, 1
     v16 = slice_ptr v15
     v17 = calldatasize
     v18 = sub v17, v16
     v19 = slt v18, 32
-    revert_if v19, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v19
     v20 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     jump bb1
   bb1:
@@ -117,7 +117,7 @@ fn @materialize(arg0: calldataslice) -> u256 [selector=0xaff36081, pure, abi_par
   bb3:
     v54 = lt 0, 1
     v55 = iszero v54
-    panic_if v55, 0x32
+    icall panic_if<0x32>, v55
     v56 = memory_object_load_element memoryfixedarray<1, 1>, v20, 0
     v57 = memory_object_from_ptr memoryarray, v56
     v58 = eq v57, 0
@@ -137,7 +137,7 @@ fn @materialize(arg0: calldataslice) -> u256 [selector=0xaff36081, pure, abi_par
     v25 = calldatasize
     v26 = sub v25, v24
     v27 = slt v26, 32
-    revert_if v27, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v27
     v28 = calldataload v24
     v29 = add v16, v28
     v30 = calldatasize
@@ -145,16 +145,16 @@ fn @materialize(arg0: calldataslice) -> u256 [selector=0xaff36081, pure, abi_par
     v32 = sub v31, 31
     v33 = slt v28, v32
     v34 = iszero v33
-    revert_if v34, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v34
     v35 = calldataload v29
     v36 = gt v35, 0xffffffffffffffff
-    revert_if v36, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v36
     v37 = mul v35, 32
     v38 = add v29, 32
     v39 = calldatasize
     v40 = sub v39, v37
     v41 = sgt v38, v40
-    revert_if v41, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v41
     v42 = add v29, 32
     v43 = mul v35, 32
     v44 = iszero 32
@@ -162,10 +162,10 @@ fn @materialize(arg0: calldataslice) -> u256 [selector=0xaff36081, pure, abi_par
     v46 = eq v45, v35
     v47 = or v44, v46
     v48 = iszero v47
-    panic_if v48, 0x41
+    icall panic_if<0x41>, v48
     v49 = add 32, v43
     v50 = lt v49, 32
-    panic_if v50, 0x41
+    icall panic_if<0x41>, v50
     v51 = alloc memoryarray<1>, exact, uninitialized, infallible, v49
     set_memory_object_len memoryarray, v51, v35
     v52 = make_calldata_slice v42, v43
@@ -180,13 +180,13 @@ fn @forward(arg0: calldataslice) -> u256 [selector=0x51efa653, pure, abi_params=
     v0 = slice_len arg0
     v1 = lt 0, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 0
     v5 = calldatasize
     v6 = sub v5, v4
     v7 = slt v6, 32
-    revert_if v7, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v7
     v8 = calldataload v4
     v9 = add v3, v8
     v10 = calldatasize
@@ -194,13 +194,13 @@ fn @forward(arg0: calldataslice) -> u256 [selector=0x51efa653, pure, abi_params=
     v12 = sub v11, 31
     v13 = slt v8, v12
     v14 = iszero v13
-    revert_if v14, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = make_calldata_slice v9, 1
     v16 = slice_ptr v15
     v17 = calldatasize
     v18 = sub v17, v16
     v19 = slt v18, 32
-    revert_if v19, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v19
     v20 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     jump bb1
   bb1:
@@ -216,7 +216,7 @@ fn @forward(arg0: calldataslice) -> u256 [selector=0x51efa653, pure, abi_params=
     v25 = calldatasize
     v26 = sub v25, v24
     v27 = slt v26, 32
-    revert_if v27, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v27
     v28 = calldataload v24
     v29 = add v16, v28
     v30 = calldatasize
@@ -224,16 +224,16 @@ fn @forward(arg0: calldataslice) -> u256 [selector=0x51efa653, pure, abi_params=
     v32 = sub v31, 31
     v33 = slt v28, v32
     v34 = iszero v33
-    revert_if v34, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v34
     v35 = calldataload v29
     v36 = gt v35, 0xffffffffffffffff
-    revert_if v36, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v36
     v37 = mul v35, 32
     v38 = add v29, 32
     v39 = calldatasize
     v40 = sub v39, v37
     v41 = sgt v38, v40
-    revert_if v41, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v41
     v42 = add v29, 32
     v43 = mul v35, 32
     v44 = iszero 32
@@ -241,10 +241,10 @@ fn @forward(arg0: calldataslice) -> u256 [selector=0x51efa653, pure, abi_params=
     v46 = eq v45, v35
     v47 = or v44, v46
     v48 = iszero v47
-    panic_if v48, 0x41
+    icall panic_if<0x41>, v48
     v49 = add 32, v43
     v50 = lt v49, 32
-    panic_if v50, 0x41
+    icall panic_if<0x41>, v50
     v51 = alloc memoryarray<1>, exact, uninitialized, infallible, v49
     set_memory_object_len memoryarray, v51, v35
     v52 = make_calldata_slice v42, v43
@@ -258,7 +258,7 @@ fn @readFixed(arg0: memoryfixedarray) -> u256 [pure] {
   bb0:
     v0 = lt 0, 1
     v1 = iszero v0
-    panic_if v1, 0x32
+    icall panic_if<0x32>, v1
     v2 = memory_object_load_element memoryfixedarray<1, 1>, arg0, 0
     v3 = memory_object_from_ptr memoryarray, v2
     v4 = eq v3, 0

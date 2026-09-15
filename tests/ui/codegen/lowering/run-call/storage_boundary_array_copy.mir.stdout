@@ -28,7 +28,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     memory_object_store_element memoryfixedarray<10, 1>, v2, 9, 10
     v3 = lt 0, 1
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     v5 = mul 0, 10
     v6 = add v0, v5
     jump bb1
@@ -39,7 +39,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
   bb3:
     v13 = lt 0, 1
     v14 = iszero v13
-    panic_if v14, 0x32
+    icall panic_if<0x32>, v14
     v15 = mul 0, 10
     v16 = add v0, v15
     v17 = alloc memoryfixedarray<10, 1>, exact, uninitialized, panic, 320
@@ -51,7 +51,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
   bb9:
     v23 = lt 0, 1
     v24 = iszero v23
-    panic_if v24, 0x32
+    icall panic_if<0x32>, v24
     v25 = mul 0, 10
     v26 = add v1, v25
     jump bb10
@@ -68,7 +68,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v36 = phi [bb12: v1], [bb18: v36]
     v37 = lt 0, 1
     v38 = iszero v37
-    panic_if v38, 0x32
+    icall panic_if<0x32>, v38
     v39 = mul 0, 10
     v40 = add v36, v39
     v41 = lt v34, 10
@@ -80,12 +80,12 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
   bb19:
     v42 = lt 0, 1
     v43 = iszero v42
-    panic_if v43, 0x32
+    icall panic_if<0x32>, v43
     v44 = mul 0, 10
     v45 = add v36, v44
     v46 = lt v34, 10
     v47 = iszero v46
-    panic_if v47, 0x32
+    icall panic_if<0x32>, v47
     v48 = add v45, v34
     v49 = sload v48 !metadata(storage=symbolic(v48))
     v50 = checked_add u256, v33, v49

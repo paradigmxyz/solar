@@ -44,7 +44,7 @@ fn @deployCreationCode() -> u256 [selector=0x5986dddb, abi_params=[], abi_return
   bb2:
     v11 = returndatasize
     v12 = lt v11, 32
-    revert_if v12, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v12
     v13 = add 0, 0
     v14 = mload v13
     v15 = add 0, 0

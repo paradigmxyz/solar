@@ -35,7 +35,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     v50 = sload 0 !metadata(storage=slot(0))
     v51 = lt v49, v50
     v52 = iszero v51
-    panic_if v52, 0x32
+    icall panic_if<0x32>, v52
     v53 = storage_array_data_slot 0
     v54 = div v49, 16
     v55 = add v53, v54
@@ -64,7 +64,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     v89 = sload 0 !metadata(storage=slot(0))
     v90 = lt v88, v89
     v91 = iszero v90
-    panic_if v91, 0x32
+    icall panic_if<0x32>, v91
     v92 = storage_array_data_slot 0
     v93 = div v88, 16
     v94 = add v92, v93
@@ -94,7 +94,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     v129 = sload 0 !metadata(storage=slot(0))
     v130 = lt v128, v129
     v131 = iszero v130
-    panic_if v131, 0x32
+    icall panic_if<0x32>, v131
     v132 = storage_array_data_slot 0
     v133 = div v128, 16
     v134 = add v132, v133
@@ -127,7 +127,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
   bb28:
     v151 = sload 0 !metadata(storage=slot(0))
     v152 = eq v151, 0
-    panic_if v152, 0x31
+    icall panic_if<0x31>, v152
     v153 = sub v151, 1
     sstore 0, v153 !metadata(storage=slot(0))
     v154 = storage_array_data_slot 0
@@ -153,7 +153,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
   bb22:
     v110 = sload 0 !metadata(storage=slot(0))
     v111 = eq v110, 0
-    panic_if v111, 0x31
+    icall panic_if<0x31>, v111
     v112 = sub v110, 1
     sstore 0, v112 !metadata(storage=slot(0))
     v113 = storage_array_data_slot 0
@@ -179,7 +179,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
   bb16:
     v70 = sload 0 !metadata(storage=slot(0))
     v71 = eq v70, 0
-    panic_if v71, 0x31
+    icall panic_if<0x31>, v71
     v72 = sub v70, 1
     sstore 0, v72 !metadata(storage=slot(0))
     v73 = storage_array_data_slot 0
@@ -205,7 +205,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
   bb10:
     v31 = sload 0 !metadata(storage=slot(0))
     v32 = eq v31, 0
-    panic_if v32, 0x31
+    icall panic_if<0x31>, v32
     v33 = sub v31, 1
     sstore 0, v33 !metadata(storage=slot(0))
     v34 = storage_array_data_slot 0
@@ -232,7 +232,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     v6 = and v1, 0xffff
     v7 = sload 0 !metadata(storage=slot(0))
     v8 = gt v7, 0xffffffffffffffff
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = add v7, 1
     v10 = storage_array_data_slot 0
     v11 = div v7, 16

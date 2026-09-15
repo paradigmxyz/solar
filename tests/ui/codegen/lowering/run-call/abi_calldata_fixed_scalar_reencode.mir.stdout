@@ -13,7 +13,7 @@ fn @g(arg0: calldataslice, arg1: u256) -> memorybytes [selector=0x1fd55338, view
     v2 = slice_len arg0
     v3 = lt arg1, v2
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     v5 = slice_ptr arg0
     v6 = mul arg1, 96
     v7 = iszero 96
@@ -21,7 +21,7 @@ fn @g(arg0: calldataslice, arg1: u256) -> memorybytes [selector=0x1fd55338, view
     v9 = eq v8, arg1
     v10 = or v7, v9
     v11 = iszero v10
-    panic_if v11, 0x41
+    icall panic_if<0x41>, v11
     v12 = add v5, v6
     v13 = make_calldata_slice v12, 3
     v14 = abi_encode [array<3, word>], selector 0x5dc1289100000000000000000000000000000000000000000000000000000000, args v13
@@ -32,7 +32,7 @@ fn @g(arg0: calldataslice, arg1: u256) -> memorybytes [selector=0x1fd55338, view
   bb1:
     revert_returndata
   bb2:
-    v18 = returndata_bytes
+    v18 = icall returndata_bytes<>
     v19 = abi_decode [bytes], v18
     ret v19
 }
@@ -43,7 +43,7 @@ fn @h(arg0: calldataslice) -> memorybytes [selector=0x94e17704, pure, abi_params
     v1 = calldatasize
     v2 = sub v1, v0
     v3 = slt v2, 96
-    revert_if v3, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v3
     v4 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     jump bb1
   bb1:
@@ -62,7 +62,7 @@ fn @h(arg0: calldataslice) -> memorybytes [selector=0x94e17704, pure, abi_params
     v10 = and v9, 255
     v11 = eq v9, v10
     v12 = iszero v11
-    revert_if v12, empty
+    icall revert_if<empty>, v12
     v13 = add v5, 1
     jump bb1
 }
@@ -74,7 +74,7 @@ fn @i(arg0: calldataslice, arg1: u256) -> memorybytes [selector=0x18e849a4, view
     v2 = slice_len arg0
     v3 = lt arg1, v2
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     v5 = slice_ptr arg0
     v6 = mul arg1, 96
     v7 = iszero 96
@@ -82,14 +82,14 @@ fn @i(arg0: calldataslice, arg1: u256) -> memorybytes [selector=0x18e849a4, view
     v9 = eq v8, arg1
     v10 = or v7, v9
     v11 = iszero v10
-    panic_if v11, 0x41
+    icall panic_if<0x41>, v11
     v12 = add v5, v6
     v13 = make_calldata_slice v12, 3
     v14 = slice_ptr v13
     v15 = calldatasize
     v16 = sub v15, v14
     v17 = slt v16, 96
-    revert_if v17, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v17
     jump bb1
   bb1:
     v18 = phi [bb0: 0], [bb2: v26]
@@ -104,7 +104,7 @@ fn @i(arg0: calldataslice, arg1: u256) -> memorybytes [selector=0x18e849a4, view
   bb4:
     revert_returndata
   bb5:
-    v31 = returndata_bytes
+    v31 = icall returndata_bytes<>
     v32 = abi_decode [bytes], v31
     ret v32
   bb2:
@@ -114,7 +114,7 @@ fn @i(arg0: calldataslice, arg1: u256) -> memorybytes [selector=0x18e849a4, view
     v23 = and v22, 255
     v24 = eq v22, v23
     v25 = iszero v24
-    revert_if v25, empty
+    icall revert_if<empty>, v25
     v26 = add v18, 1
     jump bb1
 }

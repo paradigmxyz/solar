@@ -16,7 +16,7 @@ fn @constructor() [constructor] {
     v20 = shl 192, 2
     v21 = lt 8, 10
     v22 = iszero v21
-    panic_if v22, 0x32
+    icall panic_if<0x32>, v22
     v23 = div 8, 1
     v24 = add 3, v23
     v25 = mod 8, 1
@@ -34,7 +34,7 @@ fn @constructor() [constructor] {
     v36 = shl 192, 2
     v37 = lt 9, 10
     v38 = iszero v37
-    panic_if v38, 0x32
+    icall panic_if<0x32>, v38
     v39 = div 9, 1
     v40 = add 3, v39
     v41 = mod 9, 1
@@ -55,7 +55,7 @@ fn @constructor() [constructor] {
     v3 = shl 192, v2
     v4 = lt v0, 9
     v5 = iszero v4
-    panic_if v5, 0x32
+    icall panic_if<0x32>, v5
     v6 = div v0, 4
     v7 = add 0, v6
     v8 = mod v0, 4
@@ -120,7 +120,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb19:
     v64 = lt v62, 10
     v65 = iszero v64
-    panic_if v65, 0x32
+    icall panic_if<0x32>, v65
     v66 = div v62, 1
     v67 = add 3, v66
     v68 = mod v62, 1
@@ -142,7 +142,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb13:
     v45 = lt v42, 9
     v46 = iszero v45
-    panic_if v46, 0x32
+    icall panic_if<0x32>, v46
     v47 = div v42, 4
     v48 = add 0, v47
     v49 = mod v42, 4

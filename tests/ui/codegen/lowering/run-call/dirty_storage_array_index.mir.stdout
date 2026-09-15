@@ -9,7 +9,7 @@ fn @storageIndex(arg0: u256) -> u256 [selector=0xe1f98cd0, abi_params=[u256], ab
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
-    panic_if v1, 0x41
+    icall panic_if<0x41>, v1
     v2 = add v0, 1
     v3 = storage_array_data_slot 0
     v4 = add v3, v0
@@ -17,7 +17,7 @@ fn @storageIndex(arg0: u256) -> u256 [selector=0xe1f98cd0, abi_params=[u256], ab
     sstore 0, v2 !metadata(storage=slot(0))
     v5 = sload 0 !metadata(storage=slot(0))
     v6 = gt v5, 0xffffffffffffffff
-    panic_if v6, 0x41
+    icall panic_if<0x41>, v6
     v7 = add v5, 1
     v8 = storage_array_data_slot 0
     v9 = add v8, v5
@@ -25,7 +25,7 @@ fn @storageIndex(arg0: u256) -> u256 [selector=0xe1f98cd0, abi_params=[u256], ab
     sstore 0, v7 !metadata(storage=slot(0))
     v10 = sload 0 !metadata(storage=slot(0))
     v11 = gt v10, 0xffffffffffffffff
-    panic_if v11, 0x41
+    icall panic_if<0x41>, v11
     v12 = add v10, 1
     v13 = storage_array_data_slot 0
     v14 = add v13, v10
@@ -35,7 +35,7 @@ fn @storageIndex(arg0: u256) -> u256 [selector=0xe1f98cd0, abi_params=[u256], ab
     v16 = sload 0 !metadata(storage=slot(0))
     v17 = lt v15, v16
     v18 = iszero v17
-    panic_if v18, 0x32
+    icall panic_if<0x32>, v18
     v19 = storage_array_data_slot 0
     v20 = add v19, v15
     v21 = sload v20 !metadata(storage=symbolic(v20))

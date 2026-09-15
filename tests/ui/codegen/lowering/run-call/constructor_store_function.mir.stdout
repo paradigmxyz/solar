@@ -38,7 +38,7 @@ fn @internal_dispatcher_p_u256_r_u256(arg0: function, arg1: u256) -> u256 [funct
     v0 = eq arg0, 3
     jumpi v0, bb1, bb2
   bb2:
-    panic_if true, 0x51
+    icall panic_if<0x51>, true
     invalid
   bb1:
     v1 = icall @double, arg1

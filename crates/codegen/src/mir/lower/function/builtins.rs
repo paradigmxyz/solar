@@ -688,9 +688,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let [a, b, modulus] = self.lower_builtin_args(builtin, &args)?;
                 // result = checked_addmod/checked_mulmod(a, b, modulus)
                 let kind = if builtin == Builtin::AddMod {
-                    InstKind::CheckedAddMod(a, b, modulus)
+                    InstKind::builtin(crate::mir::Builtin::CheckedAddMod, [a, b, modulus])
                 } else {
-                    InstKind::CheckedMulMod(a, b, modulus)
+                    InstKind::builtin(crate::mir::Builtin::CheckedMulMod, [a, b, modulus])
                 };
                 Some(self.builder.emit_inst(kind, Some(MirType::uint256())))
             }
@@ -757,7 +757,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let value = self.lower_typed_expr(argument, memory_ty)?;
         let value = self.materialize_memory_argument(memory_ty, value, argument.span)?;
         // slot = erc7201(value)
-        Some(self.builder.emit_inst(InstKind::Erc7201(value), Some(MirType::uint256())))
+        Some(self.builder.emit_inst(
+            InstKind::builtin(crate::mir::Builtin::Erc7201, [value]),
+            Some(MirType::uint256()),
+        ))
     }
 
     fn lower_concat_builtin_call(

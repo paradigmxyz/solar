@@ -42,12 +42,12 @@ fn @memoryLoop() -> u256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
     v1 = memory_object_len memoryarray, v0
     v2 = lt 0, v1
     v3 = iszero v2
-    panic_if v3, 0x32
+    icall panic_if<0x32>, v3
     memory_object_store_element memoryarray<1>, v0, 0, 42
     v4 = memory_object_len memoryarray, v0
     v5 = lt 1, v4
     v6 = iszero v5
-    panic_if v6, 0x32
+    icall panic_if<0x32>, v6
     memory_object_store_element memoryarray<1>, v0, 1, 99
     jump bb1
   bb1:
@@ -66,9 +66,9 @@ fn @memoryLoop() -> u256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
     v13 = address
     v14 = gas
     v15 = address_call v13, v12, gas v14
-    v16 = returndata_bytes
+    v16 = icall returndata_bytes<>
     v17 = iszero v15
-    revert_if v17, empty
+    icall revert_if<empty>, v17
     v18 = abi_decode [bytes32], v16
     v19 = abi_encode [memory_bytes, memory_array<word>], scratch, args v8, v10
     v20 = slice_ptr v19
@@ -76,7 +76,7 @@ fn @memoryLoop() -> u256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
     v22 = keccak256 v20, v21
     v23 = eq v18, v22
     v24 = iszero v23
-    revert_if v24, empty
+    icall revert_if<empty>, v24
     v25 = address
     v26 = gas
     v27 = abi_encode [], selector 0x4c8fe52600000000000000000000000000000000000000000000000000000000
@@ -87,14 +87,14 @@ fn @memoryLoop() -> u256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
   bb7:
     revert_returndata
   bb8:
-    v31 = returndata_bytes
+    v31 = icall returndata_bytes<>
     v32 = abi_decode [bytes], v31
     v33 = alloc memoryarray<1>, exact, zeroed, panic, 128
     set_memory_object_len memoryarray, v33, 3
     v34 = memory_object_len memoryarray, v33
     v35 = lt 2, v34
     v36 = iszero v35
-    panic_if v36, 0x32
+    icall panic_if<0x32>, v36
     memory_object_store_element memoryarray<1>, v33, 2, 123
     jump bb6
   bb6:
@@ -113,7 +113,7 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v3 = or v2, 0xa7a0d537
     v4 = lt 0, 2
     v5 = iszero v4
-    panic_if v5, 0x32
+    icall panic_if<0x32>, v5
     v6 = shl 64, v3
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v6
     v7 = abi_encode []
@@ -133,17 +133,17 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v15 = or v14, 0xa7a0d537
     v16 = lt 1, 2
     v17 = iszero v16
-    panic_if v17, 0x32
+    icall panic_if<0x32>, v17
     v18 = shl 64, v15
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v18
     v19 = lt 1, 2
     v20 = iszero v19
-    panic_if v20, 0x32
+    icall panic_if<0x32>, v20
     v21 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v22 = shr 64, v21
     v23 = lt 0, 2
     v24 = iszero v23
-    panic_if v24, 0x32
+    icall panic_if<0x32>, v24
     v25 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v26 = shr 64, v25
     v27 = and v26, 0xffffffff
@@ -151,7 +151,7 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v29 = abi_encode [], object, selector v28
     v30 = lt 1, 2
     v31 = iszero v30
-    panic_if v31, 0x32
+    icall panic_if<0x32>, v31
     v32 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v33 = shr 64, v32
     v34 = and v33, 0xffffffff
@@ -181,7 +181,7 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
   bb8:
     v47 = phi [bb6: v46], [bb7: false]
     v48 = iszero v47
-    panic_if v48, 0x1
+    icall panic_if<0x1>, v48
     v49 = memory_object_load_element memorybytes, v29, 0
     v50 = memory_object_len memorybytes, v29
     v51 = lt v50, 4
@@ -200,7 +200,7 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v64 = and v57, v63
     v65 = eq v56, v64
     v66 = iszero v65
-    panic_if v66, 0x1
+    icall panic_if<0x1>, v66
     v67 = memory_object_load_element memorybytes, v29, 0
     v68 = memory_object_len memorybytes, v29
     v69 = lt v68, 4
@@ -219,7 +219,7 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v82 = and v75, v81
     v83 = eq v74, v82
     v84 = iszero v83
-    panic_if v84, 0x1
+    icall panic_if<0x1>, v84
     v85 = memory_object_load_element memorybytes, v29, 0
     v86 = memory_object_len memorybytes, v29
     v87 = lt v86, 4
@@ -232,7 +232,7 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v94 = shl 224, v93
     v95 = eq v92, v94
     v96 = iszero v95
-    panic_if v96, 0x1
+    icall panic_if<0x1>, v96
     v97 = memory_object_load_element memorybytes, v29, 0
     v98 = memory_object_len memorybytes, v29
     v99 = lt v98, 4

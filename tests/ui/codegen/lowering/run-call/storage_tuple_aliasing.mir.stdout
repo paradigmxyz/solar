@@ -10,12 +10,12 @@ fn @storageAliases() -> struct0 [selector=0x985e71ce, abi_params=[], abi_returns
   bb0:
     v0 = lt 0, 3
     v1 = iszero v0
-    panic_if v1, 0x32
+    icall panic_if<0x32>, v1
     v2 = add 0, 0
     sstore v2, 10 !metadata(storage=slot(0))
     v3 = lt 1, 3
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     v5 = add 0, 1
     sstore v5, 20 !metadata(storage=slot(1))
     sstore 3, 0 !metadata(storage=slot(3))
@@ -23,22 +23,22 @@ fn @storageAliases() -> struct0 [selector=0x985e71ce, abi_params=[], abi_returns
     v6 = icall @nextRhs
     v7 = lt v6, 3
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     v9 = add 0, v6
     v10 = icall @nextRhs
     v11 = lt v10, 3
     v12 = iszero v11
-    panic_if v12, 0x32
+    icall panic_if<0x32>, v12
     v13 = add 0, v10
     v14 = icall @nextLhs
     v15 = lt v14, 3
     v16 = iszero v15
-    panic_if v16, 0x32
+    icall panic_if<0x32>, v16
     v17 = add 0, v14
     v18 = icall @nextLhs
     v19 = lt v18, 3
     v20 = iszero v19
-    panic_if v20, 0x32
+    icall panic_if<0x32>, v20
     v21 = add 0, v18
     v22 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     v23 = sload v13 !metadata(storage=symbolic(v10))
@@ -52,12 +52,12 @@ fn @storageAliases() -> struct0 [selector=0x985e71ce, abi_params=[], abi_returns
     sstore v17, v27 !metadata(storage=symbolic(v14))
     v28 = lt 0, 3
     v29 = iszero v28
-    panic_if v29, 0x32
+    icall panic_if<0x32>, v29
     v30 = add 0, 0
     v31 = sload v30 !metadata(storage=slot(0))
     v32 = lt 1, 3
     v33 = iszero v32
-    panic_if v33, 0x32
+    icall panic_if<0x32>, v33
     v34 = add 0, 1
     v35 = sload v34 !metadata(storage=slot(1))
     v36 = sload 3 !metadata(storage=slot(3))
@@ -73,30 +73,30 @@ fn @lhsMutation() -> struct1 [selector=0x8bbab81c, abi_params=[], abi_returns=[w
   bb0:
     v0 = lt 0, 3
     v1 = iszero v0
-    panic_if v1, 0x32
+    icall panic_if<0x32>, v1
     v2 = add 0, 0
     sstore v2, 10 !metadata(storage=slot(0))
     v3 = lt 1, 3
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     v5 = add 0, 1
     sstore v5, 20 !metadata(storage=slot(1))
     v6 = lt 0, 3
     v7 = iszero v6
-    panic_if v7, 0x32
+    icall panic_if<0x32>, v7
     v8 = add 0, 0
     v9 = lt 1, 3
     v10 = iszero v9
-    panic_if v10, 0x32
+    icall panic_if<0x32>, v10
     v11 = add 0, 1
     v12 = icall @mutateSource
     v13 = lt v12, 3
     v14 = iszero v13
-    panic_if v14, 0x32
+    icall panic_if<0x32>, v14
     v15 = add 0, v12
     v16 = lt 1, 3
     v17 = iszero v16
-    panic_if v17, 0x32
+    icall panic_if<0x32>, v17
     v18 = add 0, 1
     v19 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     v20 = sload v11 !metadata(storage=slot(1))
@@ -110,12 +110,12 @@ fn @lhsMutation() -> struct1 [selector=0x8bbab81c, abi_params=[], abi_returns=[w
     sstore v15, v24 !metadata(storage=symbolic(v12))
     v25 = lt 0, 3
     v26 = iszero v25
-    panic_if v26, 0x32
+    icall panic_if<0x32>, v26
     v27 = add 0, 0
     v28 = sload v27 !metadata(storage=slot(0))
     v29 = lt 1, 3
     v30 = iszero v29
-    panic_if v30, 0x32
+    icall panic_if<0x32>, v30
     v31 = add 0, 1
     v32 = sload v31 !metadata(storage=slot(1))
     v33 = insert_value struct1, undef struct1, 0, v28
@@ -127,7 +127,7 @@ fn @memorySnapshot() -> struct1 [selector=0xaa7868c1, abi_params=[], abi_returns
   bb0:
     v0 = lt 0, 3
     v1 = iszero v0
-    panic_if v1, 0x32
+    icall panic_if<0x32>, v1
     v2 = add 0, 0
     sstore v2, 10 !metadata(storage=slot(0))
     v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
@@ -136,12 +136,12 @@ fn @memorySnapshot() -> struct1 [selector=0xaa7868c1, abi_params=[], abi_returns
     memory_zero v4, 32
     v5 = lt 0, 3
     v6 = iszero v5
-    panic_if v6, 0x32
+    icall panic_if<0x32>, v6
     v7 = add 0, 0
     v8 = icall @mutateSource
     v9 = lt v8, 1
     v10 = iszero v9
-    panic_if v10, 0x32
+    icall panic_if<0x32>, v10
     memory_object_store_element memoryfixedarray<1, 1>, v4, v8, 1
     v11 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     v12 = sload v7 !metadata(storage=slot(0))
@@ -149,7 +149,7 @@ fn @memorySnapshot() -> struct1 [selector=0xaa7868c1, abi_params=[], abi_returns
     v13 = memory_object_load_field memorystruct<1>, v11, 0
     v14 = lt 0, 3
     v15 = iszero v14
-    panic_if v15, 0x32
+    icall panic_if<0x32>, v15
     v16 = add 0, 0
     v17 = sload v16 !metadata(storage=slot(0))
     v18 = insert_value struct1, undef struct1, 0, v13
@@ -161,12 +161,12 @@ fn @returnedReferences() -> struct1 [selector=0x29826554, abi_params=[], abi_ret
   bb0:
     v0 = lt 0, 3
     v1 = iszero v0
-    panic_if v1, 0x32
+    icall panic_if<0x32>, v1
     v2 = add 0, 0
     sstore v2, 10 !metadata(storage=slot(0))
     v3 = lt 1, 3
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     v5 = add 0, 1
     sstore v5, 20 !metadata(storage=slot(1))
     v6 = icall @pair
@@ -174,11 +174,11 @@ fn @returnedReferences() -> struct1 [selector=0x29826554, abi_params=[], abi_ret
     v8 = extract_value struct1, v6, 1
     v9 = lt 0, 3
     v10 = iszero v9
-    panic_if v10, 0x32
+    icall panic_if<0x32>, v10
     v11 = add 0, 0
     v12 = lt 1, 3
     v13 = iszero v12
-    panic_if v13, 0x32
+    icall panic_if<0x32>, v13
     v14 = add 0, 1
     v15 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     v16 = sload v8 !metadata(storage=symbolic(v8))
@@ -192,12 +192,12 @@ fn @returnedReferences() -> struct1 [selector=0x29826554, abi_params=[], abi_ret
     sstore v11, v20 !metadata(storage=slot(0))
     v21 = lt 0, 3
     v22 = iszero v21
-    panic_if v22, 0x32
+    icall panic_if<0x32>, v22
     v23 = add 0, 0
     v24 = sload v23 !metadata(storage=slot(0))
     v25 = lt 1, 3
     v26 = iszero v25
-    panic_if v26, 0x32
+    icall panic_if<0x32>, v26
     v27 = add 0, 1
     v28 = sload v27 !metadata(storage=slot(1))
     v29 = insert_value struct1, undef struct1, 0, v24
@@ -209,12 +209,12 @@ fn @nestedReturnedReferences() -> struct2 [selector=0xccf01a6c, abi_params=[], a
   bb0:
     v0 = lt 0, 3
     v1 = iszero v0
-    panic_if v1, 0x32
+    icall panic_if<0x32>, v1
     v2 = add 0, 0
     sstore v2, 10 !metadata(storage=slot(0))
     v3 = lt 1, 3
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     v5 = add 0, 1
     sstore v5, 20 !metadata(storage=slot(1))
     v6 = icall @pair
@@ -222,19 +222,19 @@ fn @nestedReturnedReferences() -> struct2 [selector=0xccf01a6c, abi_params=[], a
     v8 = extract_value struct1, v6, 1
     v9 = lt 1, 3
     v10 = iszero v9
-    panic_if v10, 0x32
+    icall panic_if<0x32>, v10
     v11 = add 0, 1
     v12 = lt 0, 3
     v13 = iszero v12
-    panic_if v13, 0x32
+    icall panic_if<0x32>, v13
     v14 = add 0, 0
     v15 = lt 1, 3
     v16 = iszero v15
-    panic_if v16, 0x32
+    icall panic_if<0x32>, v16
     v17 = add 0, 1
     v18 = lt 2, 3
     v19 = iszero v18
-    panic_if v19, 0x32
+    icall panic_if<0x32>, v19
     v20 = add 0, 2
     v21 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     v22 = sload v11 !metadata(storage=slot(1))
@@ -253,17 +253,17 @@ fn @nestedReturnedReferences() -> struct2 [selector=0xccf01a6c, abi_params=[], a
     sstore v14, v29 !metadata(storage=slot(0))
     v30 = lt 0, 3
     v31 = iszero v30
-    panic_if v31, 0x32
+    icall panic_if<0x32>, v31
     v32 = add 0, 0
     v33 = sload v32 !metadata(storage=slot(0))
     v34 = lt 1, 3
     v35 = iszero v34
-    panic_if v35, 0x32
+    icall panic_if<0x32>, v35
     v36 = add 0, 1
     v37 = sload v36 !metadata(storage=slot(1))
     v38 = lt 2, 3
     v39 = iszero v38
-    panic_if v39, 0x32
+    icall panic_if<0x32>, v39
     v40 = add 0, 2
     v41 = sload v40 !metadata(storage=slot(2))
     v42 = insert_value struct2, undef struct2, 0, v33
@@ -292,7 +292,7 @@ fn @dynamicArrays() -> struct0 [selector=0x586e696e, abi_params=[], abi_returns=
   bb6:
     v12 = sload 5 !metadata(storage=slot(5))
     v13 = gt v12, 0xffffffffffffffff
-    panic_if v13, 0x41
+    icall panic_if<0x41>, v13
     v14 = add v12, 1
     v15 = storage_array_data_slot 5
     v16 = add v15, v12
@@ -300,7 +300,7 @@ fn @dynamicArrays() -> struct0 [selector=0x586e696e, abi_params=[], abi_returns=
     sstore 5, v14 !metadata(storage=slot(5))
     v17 = sload 6 !metadata(storage=slot(6))
     v18 = gt v17, 0xffffffffffffffff
-    panic_if v18, 0x41
+    icall panic_if<0x41>, v18
     v19 = add v17, 1
     v20 = storage_array_data_slot 6
     v21 = add v20, v17
@@ -308,7 +308,7 @@ fn @dynamicArrays() -> struct0 [selector=0x586e696e, abi_params=[], abi_returns=
     sstore 6, v19 !metadata(storage=slot(6))
     v22 = sload 6 !metadata(storage=slot(6))
     v23 = gt v22, 0xffffffffffffffff
-    panic_if v23, 0x41
+    icall panic_if<0x41>, v23
     v24 = add v22, 1
     v25 = storage_array_data_slot 6
     v26 = add v25, v22
@@ -360,7 +360,7 @@ fn @dynamicArrays() -> struct0 [selector=0x586e696e, abi_params=[], abi_returns=
     v58 = sload 5 !metadata(storage=slot(5))
     v59 = lt 0, v58
     v60 = iszero v59
-    panic_if v60, 0x32
+    icall panic_if<0x32>, v60
     v61 = storage_array_data_slot 5
     v62 = add v61, 0
     v63 = sload v62 !metadata(storage=symbolic(v61))
@@ -368,7 +368,7 @@ fn @dynamicArrays() -> struct0 [selector=0x586e696e, abi_params=[], abi_returns=
     v65 = sload 6 !metadata(storage=slot(6))
     v66 = lt 0, v65
     v67 = iszero v66
-    panic_if v67, 0x32
+    icall panic_if<0x32>, v67
     v68 = storage_array_data_slot 6
     v69 = add v68, 0
     v70 = sload v69 !metadata(storage=symbolic(v68))
@@ -453,7 +453,7 @@ fn @mutateSource() -> u256 {
   bb0:
     v0 = lt 0, 3
     v1 = iszero v0
-    panic_if v1, 0x32
+    icall panic_if<0x32>, v1
     v2 = add 0, 0
     sstore v2, 99 !metadata(storage=slot(0))
     ret 0
@@ -463,11 +463,11 @@ fn @pair() -> struct1 [view] {
   bb0:
     v0 = lt 1, 3
     v1 = iszero v0
-    panic_if v1, 0x32
+    icall panic_if<0x32>, v1
     v2 = add 0, 1
     v3 = lt 0, 3
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     v5 = add 0, 0
     v6 = insert_value struct1, undef struct1, 0, v2
     v7 = insert_value struct1, v6, 1, v5

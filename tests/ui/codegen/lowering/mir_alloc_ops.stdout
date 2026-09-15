@@ -9,11 +9,11 @@ fn @fixedArray(arg0: u256) -> u256 [selector=0x9a5009ac, pure, abi_params=[u256]
     memory_zero v0, 64
     v1 = lt 0, 2
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, arg0
     v3 = lt 0, 2
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     v5 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     ret v5
 }
@@ -23,15 +23,15 @@ fn @dynamic(arg0: calldataslice) -> memorybytes [selector=0xd543852a, pure, abi_
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt v1, 0xffffffffffffffff
-    revert_if v2, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v2
     v3 = calldatasize
     v4 = sub v3, v1
     v5 = sgt v0, v4
-    revert_if v5, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v5
     v6 = slice_len arg0
     v7 = add v6, 63
     v8 = lt v7, v6
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = not 31
     v10 = and v7, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10

@@ -114,7 +114,7 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v33 = slice_len v28
     v34 = lt v27, v33
     v35 = iszero v34
-    panic_if v35, 0x32
+    icall panic_if<0x32>, v35
     v36 = slice_ptr v28
     v37 = mul v27, 32
     v38 = iszero 32
@@ -122,17 +122,17 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v40 = eq v39, v27
     v41 = or v38, v40
     v42 = iszero v41
-    panic_if v42, 0x41
+    icall panic_if<0x41>, v42
     v43 = add v36, v37
     v44 = calldataload v43
     v45 = and v44, 0xffffffffffffffffffffffffffffffffffffffff
     v46 = eq v44, v45
     v47 = iszero v46
-    revert_if v47, empty
+    icall revert_if<empty>, v47
     v48 = slice_len v30
     v49 = lt v27, v48
     v50 = iszero v49
-    panic_if v50, 0x32
+    icall panic_if<0x32>, v50
     v51 = slice_ptr v30
     v52 = mul v27, 32
     v53 = iszero 32
@@ -140,13 +140,13 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v55 = eq v54, v27
     v56 = or v53, v55
     v57 = iszero v56
-    panic_if v57, 0x41
+    icall panic_if<0x41>, v57
     v58 = add v51, v52
     v59 = calldataload v58
     v60 = slice_len v24
     v61 = lt v27, v60
     v62 = iszero v61
-    panic_if v62, 0x32
+    icall panic_if<0x32>, v62
     v63 = slice_ptr v24
     v64 = mul v27, 32
     v65 = iszero 32
@@ -154,12 +154,12 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v67 = eq v66, v27
     v68 = or v65, v67
     v69 = iszero v68
-    panic_if v69, 0x41
+    icall panic_if<0x41>, v69
     v70 = add v63, v64
     v71 = calldatasize
     v72 = sub v71, v70
     v73 = slt v72, 32
-    revert_if v73, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v73
     v74 = calldataload v70
     v75 = add v63, v74
     v76 = calldatasize
@@ -167,26 +167,26 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v78 = sub v77, 31
     v79 = slt v74, v78
     v80 = iszero v79
-    revert_if v80, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v80
     v81 = calldataload v75
     v82 = gt v81, 0xffffffffffffffff
-    revert_if v82, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v82
     v83 = mul v81, 1
     v84 = add v75, 32
     v85 = calldatasize
     v86 = sub v85, v83
     v87 = sgt v84, v86
-    revert_if v87, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v87
     v88 = add v75, 32
     v89 = make_calldata_slice v88, v81
     v90 = slice_ptr v89
     v91 = slice_len v89
     v92 = gt v91, 0xffffffffffffffff
-    revert_if v92, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v92
     v93 = calldatasize
     v94 = sub v93, v91
     v95 = sgt v90, v94
-    revert_if v95, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v95
     v96 = abi_encode [word<u160>, word, calldata_bytes, word, word], args v44, v59, v89, v26, v22
     v97 = slice_ptr v96
     v98 = slice_len v96
@@ -201,12 +201,12 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v18 = slice_len arg0
     v19 = slice_len arg2
     v20 = slice_len arg1
-    icall require custom_error [word, word, word], false, 0x679057600000000000000000000000000000000000000000000000000000000, v18, v19, v20
+    icall require<custom_error [word, word, word]>, false, 0x679057600000000000000000000000000000000000000000000000000000000, v18, v19, v20
     invalid
   bb2:
     v7 = caller
     v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    icall require custom_error [word<u160>, word], false, 0x161a64a00000000000000000000000000000000000000000000000000000000, v8, 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
+    icall require<custom_error [word<u160>, word]>, false, 0x161a64a00000000000000000000000000000000000000000000000000000000, v8, 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
     invalid
 }
 
@@ -229,10 +229,10 @@ fn @_schedule(arg0: bytes32, arg1: u256) {
     sstore v6, v5 !metadata(storage=symbolic(v6))
     ret
   bb4:
-    icall require custom_error [word, word], false, 0x48b6d3db00000000000000000000000000000000000000000000000000000000, arg1, v2
+    icall require<custom_error [word, word]>, false, 0x48b6d3db00000000000000000000000000000000000000000000000000000000, arg1, v2
     invalid
   bb1:
     v1 = shl 0, 1
-    icall require custom_error [word, word], false, 0xd8dce7eb00000000000000000000000000000000000000000000000000000000, arg0, v1
+    icall require<custom_error [word, word]>, false, 0xd8dce7eb00000000000000000000000000000000000000000000000000000000, arg0, v1
     invalid
 }

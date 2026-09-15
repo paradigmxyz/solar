@@ -5,7 +5,7 @@ fn @nested(arg0: memoryarray) -> u256 [selector=0x798068af, pure, abi_params=[ar
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 0, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryarray<1>, arg0, 0
     v4 = memory_object_from_ptr memorybytes, v3
     v5 = eq v4, 0

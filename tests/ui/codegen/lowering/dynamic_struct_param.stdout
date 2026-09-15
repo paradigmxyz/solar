@@ -8,7 +8,7 @@ fn @init(arg0: calldataslice, arg1: address) -> u256 [selector=0x5c58abd8, pure,
     v3 = and v2, 255
     v4 = eq v2, v3
     v5 = iszero v4
-    revert_if v5, empty
+    icall revert_if<empty>, v5
     v6 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
     v8 = add v2, v6
     v9 = gt v8, 0xffffffffffffffffffffffffffffffffffffffff
@@ -36,7 +36,7 @@ fn @words(arg0: calldataslice) -> u256 [selector=0x6d5f7443, pure, abi_params=[t
     v2 = calldatasize
     v3 = sub v2, v1
     v4 = slt v3, 32
-    revert_if v4, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v4
     v5 = calldataload v1
     v6 = add v0, v5
     v7 = calldatasize
@@ -44,16 +44,16 @@ fn @words(arg0: calldataslice) -> u256 [selector=0x6d5f7443, pure, abi_params=[t
     v9 = sub v8, 31
     v10 = slt v5, v9
     v11 = iszero v10
-    revert_if v11, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v11
     v12 = calldataload v6
     v13 = gt v12, 0xffffffffffffffff
-    revert_if v13, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 32
     v15 = add v6, 32
     v16 = calldatasize
     v17 = sub v16, v14
     v18 = sgt v15, v17
-    revert_if v18, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v18
     v19 = add v6, 32
     v20 = make_calldata_slice v19, v12
     v21 = slice_len v20
@@ -78,7 +78,7 @@ fn @signedWords(arg0: calldataslice) -> u256 [selector=0x69491962, pure, abi_par
     v2 = calldatasize
     v3 = sub v2, v1
     v4 = slt v3, 32
-    revert_if v4, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v4
     v5 = calldataload v1
     v6 = add v0, v5
     v7 = calldatasize
@@ -86,16 +86,16 @@ fn @signedWords(arg0: calldataslice) -> u256 [selector=0x69491962, pure, abi_par
     v9 = sub v8, 31
     v10 = slt v5, v9
     v11 = iszero v10
-    revert_if v11, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v11
     v12 = calldataload v6
     v13 = gt v12, 0xffffffffffffffff
-    revert_if v13, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 32
     v15 = add v6, 32
     v16 = calldatasize
     v17 = sub v16, v14
     v18 = sgt v15, v17
-    revert_if v18, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v18
     v19 = add v6, 32
     v20 = make_calldata_slice v19, v12
     v21 = slice_len v20
@@ -120,7 +120,7 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
     v2 = calldatasize
     v3 = sub v2, v1
     v4 = slt v3, 32
-    revert_if v4, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v4
     v5 = calldataload v1
     v6 = add v0, v5
     v7 = calldatasize
@@ -128,16 +128,16 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
     v9 = sub v8, 31
     v10 = slt v5, v9
     v11 = iszero v10
-    revert_if v11, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v11
     v12 = calldataload v6
     v13 = gt v12, 0xffffffffffffffff
-    revert_if v13, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 32
     v15 = add v6, 32
     v16 = calldatasize
     v17 = sub v16, v14
     v18 = sgt v15, v17
-    revert_if v18, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v18
     v19 = add v6, 32
     v20 = make_calldata_slice v19, v12
     v21 = slice_len v20
@@ -146,7 +146,7 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
     v24 = calldatasize
     v25 = sub v24, v23
     v26 = slt v25, 32
-    revert_if v26, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v26
     v27 = calldataload v23
     v28 = add v22, v27
     v29 = calldatasize
@@ -154,28 +154,28 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
     v31 = sub v30, 31
     v32 = slt v27, v31
     v33 = iszero v32
-    revert_if v33, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v33
     v34 = calldataload v28
     v35 = gt v34, 0xffffffffffffffff
-    revert_if v35, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v35
     v36 = mul v34, 32
     v37 = add v28, 32
     v38 = calldatasize
     v39 = sub v38, v36
     v40 = sgt v37, v39
-    revert_if v40, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v40
     v41 = add v28, 32
     v42 = make_calldata_slice v41, v34
     v43 = slice_len v42
     v44 = lt 0, v43
     v45 = iszero v44
-    panic_if v45, 0x32
+    icall panic_if<0x32>, v45
     v46 = slice_ptr v42
     v47 = add v46, 0
     v48 = calldatasize
     v49 = sub v48, v47
     v50 = slt v49, 32
-    revert_if v50, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v50
     v51 = calldataload v47
     v52 = add v46, v51
     v53 = calldatasize
@@ -183,16 +183,16 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
     v55 = sub v54, 31
     v56 = slt v51, v55
     v57 = iszero v56
-    revert_if v57, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v57
     v58 = calldataload v52
     v59 = gt v58, 0xffffffffffffffff
-    revert_if v59, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v59
     v60 = mul v58, 32
     v61 = add v52, 32
     v62 = calldatasize
     v63 = sub v62, v60
     v64 = sgt v61, v63
-    revert_if v64, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v64
     v65 = add v52, 32
     v66 = make_calldata_slice v65, v58
     v67 = slice_len v66

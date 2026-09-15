@@ -231,9 +231,15 @@ impl InstSimplifier {
 
         match kind {
             // check iszero(condition), polarity -> check condition, !polarity
-            InstKind::Check { condition, is_zero, failure } => {
-                let condition = Self::iszero_operand(func, resolve(*condition))?;
-                Some(InstKind::Check { condition, is_zero: !is_zero, failure: *failure })
+            InstKind::ICall {
+                function: Callee::Builtin(Builtin::Check { is_zero, failure }),
+                args,
+            } => {
+                let condition = Self::iszero_operand(func, resolve(args[0]))?;
+                Some(InstKind::builtin(
+                    Builtin::Check { is_zero: !is_zero, failure: *failure },
+                    [condition],
+                ))
             }
             InstKind::Add(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
@@ -808,9 +814,10 @@ impl InstSimplifier {
                 func.value_u256(resolve(args[0])).is_some_and(|condition| !condition.is_zero())
             }
             // check a known passing condition -> nothing
-            InstKind::Check { condition, is_zero, .. } => func
-                .value_u256(resolve(*condition))
-                .is_some_and(|condition| condition.is_zero() != *is_zero),
+            InstKind::ICall { function: Callee::Builtin(Builtin::Check { is_zero, .. }), args } => {
+                func.value_u256(resolve(args[0]))
+                    .is_some_and(|condition| condition.is_zero() != *is_zero)
+            }
             InstKind::MCopy(_, _, size)
             | InstKind::CalldataCopy(_, _, size)
             | InstKind::DataCopy(_, _, size)

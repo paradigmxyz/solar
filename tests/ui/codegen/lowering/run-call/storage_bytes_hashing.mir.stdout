@@ -167,8 +167,8 @@ fn @mappingStringErc7201(arg0: bytes32, arg1: bytes1) -> bool [selector=0x55edb0
     icall @store_storage_bytes, v2, v1
     v3 = mapping_slot 1, 2
     v4 = icall @load_storage_bytes, v3
-    v5 = erc7201 v4
-    v6 = erc7201 v1
+    v5 = icall erc7201<>, v4
+    v6 = icall erc7201<>, v1
     v7 = eq v5, v6
     ret v7
 }

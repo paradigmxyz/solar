@@ -14,13 +14,13 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[ar
     v2 = slice_len arg0
     v3 = lt 0, v2
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     v5 = slice_ptr arg0
     v6 = add v5, 0
     v7 = calldatasize
     v8 = sub v7, v6
     v9 = slt v8, 32
-    revert_if v9, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v9
     v10 = calldataload v6
     v11 = add v5, v10
     v12 = calldatasize
@@ -28,16 +28,16 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[ar
     v14 = sub v13, 31
     v15 = slt v10, v14
     v16 = iszero v15
-    revert_if v16, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v16
     v17 = calldataload v11
     v18 = gt v17, 0xffffffffffffffff
-    revert_if v18, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v18
     v19 = mul v17, 32
     v20 = add v11, 32
     v21 = calldatasize
     v22 = sub v21, v19
     v23 = sgt v20, v22
-    revert_if v23, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v23
     v24 = add v11, 32
     v25 = make_calldata_slice v24, v17
     v26 = slice_len v25
@@ -52,13 +52,13 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[ar
     v29 = slice_len arg0
     v30 = lt 1, v29
     v31 = iszero v30
-    panic_if v31, 0x32
+    icall panic_if<0x32>, v31
     v32 = slice_ptr arg0
     v33 = add v32, 32
     v34 = calldatasize
     v35 = sub v34, v33
     v36 = slt v35, 32
-    revert_if v36, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v36
     v37 = calldataload v33
     v38 = add v32, v37
     v39 = calldatasize
@@ -66,16 +66,16 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[ar
     v41 = sub v40, 31
     v42 = slt v37, v41
     v43 = iszero v42
-    revert_if v43, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v43
     v44 = calldataload v38
     v45 = gt v44, 0xffffffffffffffff
-    revert_if v45, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v45
     v46 = mul v44, 32
     v47 = add v38, 32
     v48 = calldatasize
     v49 = sub v48, v46
     v50 = sgt v47, v49
-    revert_if v50, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v50
     v51 = add v38, 32
     v52 = make_calldata_slice v51, v44
     v53 = slice_len v52

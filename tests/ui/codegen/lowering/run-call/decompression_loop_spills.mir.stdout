@@ -142,8 +142,8 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v9 = memory_object_data memorybytes, v8
     mstore v9, 0xff80ff8000000000000000000000000000000000000000000000000000000000
     v10 = address_call v6, v8, gas v7
-    v11 = returndata_bytes
-    icall require short_string, v10, 4, 0x63616c6c00000000000000000000000000000000000000000000000000000000
+    v11 = icall returndata_bytes<>
+    icall require<short_string>, v10, 4, 0x63616c6c00000000000000000000000000000000000000000000000000000000
     v12 = abi_decode [bytes32], v11
     v13 = not 31
     v14 = and 319, v13
@@ -151,6 +151,6 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     set_memory_object_len memorybytes, v15, 256
     v16 = keccak256_bytes v15
     v17 = eq v12, v16
-    icall require short_string, v17, 6, 0x6f75747075740000000000000000000000000000000000000000000000000000
+    icall require<short_string>, v17, 6, 0x6f75747075740000000000000000000000000000000000000000000000000000
     ret 1
 }

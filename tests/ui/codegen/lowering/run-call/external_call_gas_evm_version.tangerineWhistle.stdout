@@ -45,11 +45,11 @@ fn @agg() -> memoryfixedarray [selector=0xf5e34bfa, pure, abi_params=[], abi_ret
     memory_zero v0, 64
     v1 = lt 0, 2
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 11
     v3 = lt 1, 2
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 22
     ret v0
 }
@@ -89,7 +89,7 @@ fn @noReturn() -> u256 [selector=0x31794254, abi_params=[], abi_returns=[word]] 
     v10 = slice_len v8
     v11 = extcodesize v6
     v12 = iszero v11
-    revert_if v12, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v12
     v13 = call v7, v6, 0, v9, v10, v9, 0
     jumpi v13, bb4, bb3
   bb3:
@@ -119,7 +119,7 @@ fn @withReturn() -> u256 [selector=0x2149184b, abi_params=[], abi_returns=[word]
     v10 = slice_len v8
     v11 = extcodesize v6
     v12 = iszero v11
-    revert_if v12, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v12
     v13 = call v7, v6, 0, v9, v10, v9, 32
     jumpi v13, bb4, bb3
   bb3:
@@ -153,7 +153,7 @@ fn @withValue() -> u256 [selector=0xd6b69802, abi_params=[], abi_returns=[word]]
     v10 = slice_len v8
     v11 = extcodesize v6
     v12 = iszero v11
-    revert_if v12, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v12
     v13 = call v7, v6, 0, v9, v10, v9, 32
     jumpi v13, bb4, bb3
   bb3:
@@ -187,7 +187,7 @@ fn @twoReturns() -> u256 [selector=0xf7f4979a, abi_params=[], abi_returns=[word]
     v10 = slice_len v8
     v11 = extcodesize v6
     v12 = iszero v11
-    revert_if v12, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v12
     v13 = call v7, v6, 0, v9, v10, v9, 64
     jumpi v13, bb4, bb3
   bb3:
@@ -230,7 +230,7 @@ fn @eightReturns() -> u256 [selector=0x67b0b213, abi_params=[], abi_returns=[wor
     v10 = slice_len v8
     v11 = extcodesize v6
     v12 = iszero v11
-    revert_if v12, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v12
     v13 = call v7, v6, 0, v9, v10, v9, 256
     jumpi v13, bb4, bb3
   bb3:
@@ -318,7 +318,7 @@ fn @aggregate() -> u256 [selector=0xaf36778b, abi_params=[], abi_returns=[word]]
     v12 = slice_len v10
     v13 = extcodesize v6
     v14 = iszero v13
-    revert_if v14, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v14
     v15 = call v7, v6, 0, v11, v12, v11, 64
     jumpi v15, bb4, bb3
   bb3:
@@ -328,11 +328,11 @@ fn @aggregate() -> u256 [selector=0xaf36778b, abi_params=[], abi_returns=[word]]
     v16 = abi_decode [array<2, u256>], v8
     v17 = lt 0, 2
     v18 = iszero v17
-    panic_if v18, 0x32
+    icall panic_if<0x32>, v18
     v19 = memory_object_load_element memoryfixedarray<2, 1>, v16, 0
     v20 = lt 1, 2
     v21 = iszero v20
-    panic_if v21, 0x32
+    icall panic_if<0x32>, v21
     v22 = memory_object_load_element memoryfixedarray<2, 1>, v16, 1
     v23 = checked_add u256, v19, v22
     ret v23
@@ -381,7 +381,7 @@ fn @sendZero() -> u256 [selector=0xe857d88b, abi_params=[], abi_returns=[word]] 
   bb1:
     revert_returndata
   bb2:
-    v7 = send v6, 0
+    v7 = icall send<>, v6, 0
     jumpi v7, bb3, bb4
   bb4:
     jump bb5

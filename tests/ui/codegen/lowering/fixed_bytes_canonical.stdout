@@ -17,7 +17,7 @@ fn @compareElement(arg0: memorybytes) -> bool [selector=0x6c07068b, pure, abi_pa
     v0 = memory_object_len memorybytes, arg0
     v1 = lt 0, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = memory_object_load_byte memorybytes, arg0, 0
     v4 = shl 248, v3
     v5 = shl 248, 1

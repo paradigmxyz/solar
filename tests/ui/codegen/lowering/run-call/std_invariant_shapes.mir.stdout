@@ -8,7 +8,7 @@ fn @targetContract(arg0: address) {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
-    panic_if v1, 0x41
+    icall panic_if<0x41>, v1
     v2 = add v0, 1
     v3 = storage_array_data_slot 0
     v4 = div v0, 1
@@ -33,7 +33,7 @@ fn @targetSelector(arg0: memorystruct) {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
-    panic_if v1, 0x41
+    icall panic_if<0x41>, v1
     v2 = add v0, 1
     v3 = storage_array_data_slot 1
     v4 = mul v0, 2
@@ -150,13 +150,13 @@ fn @pushAndReadContracts() -> struct0 [selector=0x4a1b3b99, abi_params=[], abi_r
   bb1:
     revert_returndata
   bb2:
-    v7 = returndata_bytes
+    v7 = icall returndata_bytes<>
     v8 = abi_decode [array<_, address>], v7
     v9 = memory_object_len memoryarray, v8
     v10 = memory_object_len memoryarray, v8
     v11 = lt 0, v10
     v12 = iszero v11
-    panic_if v12, 0x32
+    icall panic_if<0x32>, v12
     v13 = memory_object_load_element memoryarray<1>, v8, 0
     v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
     v15 = insert_value struct0, undef struct0, 0, v9
@@ -172,14 +172,14 @@ fn @pushAndReadSelectors() -> struct1 [selector=0x5c0d845c, abi_params=[], abi_r
     v2 = memory_object_len memoryarray, v0
     v3 = lt 0, v2
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     v5 = and v1, 0xffffffff00000000000000000000000000000000000000000000000000000000
     memory_object_store_element memoryarray<1>, v0, 0, v5
     v6 = shl 224, 0xabcdef01
     v7 = memory_object_len memoryarray, v0
     v8 = lt 1, v7
     v9 = iszero v8
-    panic_if v9, 0x32
+    icall panic_if<0x32>, v9
     v10 = and v6, 0xffffffff00000000000000000000000000000000000000000000000000000000
     memory_object_store_element memoryarray<1>, v0, 1, v10
     v11 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
@@ -198,13 +198,13 @@ fn @pushAndReadSelectors() -> struct1 [selector=0x5c0d845c, abi_params=[], abi_r
   bb1:
     revert_returndata
   bb2:
-    v20 = returndata_bytes
+    v20 = icall returndata_bytes<>
     v21 = abi_decode [array<_, tuple<address, array<_, bytes4>>>], v20
     v22 = memory_object_len memoryarray, v21
     v23 = memory_object_len memoryarray, v21
     v24 = lt 0, v23
     v25 = iszero v24
-    panic_if v25, 0x32
+    icall panic_if<0x32>, v25
     v26 = memory_object_load_element memoryarray<1>, v21, 0
     v27 = memory_object_from_ptr memorystruct, v26
     v28 = eq v27, 0
@@ -224,7 +224,7 @@ fn @pushAndReadSelectors() -> struct1 [selector=0x5c0d845c, abi_params=[], abi_r
     v34 = memory_object_len memoryarray, v21
     v35 = lt 0, v34
     v36 = iszero v35
-    panic_if v36, 0x32
+    icall panic_if<0x32>, v36
     v37 = memory_object_load_element memoryarray<1>, v21, 0
     v38 = memory_object_from_ptr memorystruct, v37
     v39 = eq v38, 0
@@ -243,7 +243,7 @@ fn @pushAndReadSelectors() -> struct1 [selector=0x5c0d845c, abi_params=[], abi_r
     v44 = memory_object_len memoryarray, v43
     v45 = lt 0, v44
     v46 = iszero v45
-    panic_if v46, 0x32
+    icall panic_if<0x32>, v46
     v47 = memory_object_load_element memoryarray<1>, v43, 0
     v48 = and v47, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v49 = insert_value struct1, undef struct1, 0, v22
@@ -263,14 +263,14 @@ fn @load_storage_struct_array_0(arg0: u256) -> memoryarray {
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add v0, 1
     v2 = lt v1, v0
-    panic_if v2, 0x41
+    icall panic_if<0x41>, v2
     v3 = mul v1, 32
     v4 = iszero 32
     v5 = div v3, 32
     v6 = eq v5, v1
     v7 = or v4, v6
     v8 = iszero v7
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = alloc memoryarray<1>, exact, uninitialized, panic, v3
     set_memory_object_len memoryarray, v9, v0
     v10 = storage_array_data_slot arg0

@@ -1,6 +1,6 @@
 //@ filecheck:
 // CHECK: @module
-// CHECK-NOT: returndata_bytes
+// CHECK-NOT: icall returndata_bytes<>
 //@ codegen-matrix: standard
 //@ run-call: highLevelGas => true
 //@ run-call: BareCatchReturndata::read => 42

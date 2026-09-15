@@ -32,7 +32,7 @@ fn @_push(arg0: u256) {
     v12 = and v11, v10
     v13 = lt v12, 0x10000000000000000
     v14 = iszero v13
-    panic_if v14, 0x41
+    icall panic_if<0x41>, v14
     v15 = gt v12, 31
     jumpi v15, bb8, bb7
   bb7:
@@ -99,7 +99,7 @@ fn @pushOne(arg0: bytes1) [selector=0x5da02415, abi_params=[bytes1], abi_returns
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
     v8 = iszero v7
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
   bb1:
@@ -162,7 +162,7 @@ fn @popOne() [selector=0x53b8a6c6, abi_params=[], abi_returns=[]] {
     v5 = shr 1, v0
     v6 = and v5, v4
     v7 = eq v6, 0
-    panic_if v7, 0x31
+    icall panic_if<0x31>, v7
     v8 = eq v6, 32
     jumpi v8, bb4, bb1
   bb1:
@@ -260,7 +260,7 @@ fn @pushZero(arg0: u256) -> struct0 [selector=0xb0e28d5e, abi_params=[u256], abi
     v11 = and v10, v9
     v12 = add v11, 1
     v13 = gt v12, 0x10000000000000000
-    panic_if v13, 0x41
+    icall panic_if<0x41>, v13
     v14 = gt v11, 31
     jumpi v14, bb8, bb7
   bb7:
@@ -339,7 +339,7 @@ fn @pushAssign(arg0: u256) -> memorybytes [selector=0xbcb447d8, abi_params=[u256
     v13 = and v12, v11
     v14 = add v13, 1
     v15 = gt v14, 0x10000000000000000
-    panic_if v15, 0x41
+    icall panic_if<0x41>, v15
     v16 = gt v13, 31
     jumpi v16, bb8, bb7
   bb7:
@@ -432,7 +432,7 @@ fn @popTo(arg0: u256, arg1: u256) -> struct0 [selector=0x6203376f, abi_params=[u
     v11 = shr 1, v6
     v12 = and v11, v10
     v13 = eq v12, 0
-    panic_if v13, 0x31
+    icall panic_if<0x31>, v13
     v14 = eq v12, 32
     jumpi v14, bb10, bb7
   bb7:
@@ -528,7 +528,7 @@ fn @slots(arg0: u256, arg1: u256) -> struct1 [selector=0xec823b6d, abi_params=[u
     v12 = shr 1, v7
     v13 = and v12, v11
     v14 = eq v13, 0
-    panic_if v14, 0x31
+    icall panic_if<0x31>, v14
     v15 = eq v13, 32
     jumpi v15, bb10, bb7
   bb7:
@@ -621,7 +621,7 @@ fn @interleaved(arg0: u256) -> struct2 [selector=0x8a27da89, abi_params=[u256], 
     v98 = and v97, v96
     v99 = lt 0, v98
     v100 = iszero v99
-    panic_if v100, 0x32
+    icall panic_if<0x32>, v100
     jumpi v94, bb15, bb16
   bb16:
     jump bb17
@@ -651,7 +651,7 @@ fn @interleaved(arg0: u256) -> struct2 [selector=0x8a27da89, abi_params=[u256], 
     v120 = and v119, v118
     v121 = lt v113, v120
     v122 = iszero v121
-    panic_if v122, 0x32
+    icall panic_if<0x32>, v122
     jumpi v116, bb18, bb19
   bb19:
     jump bb20
@@ -681,7 +681,7 @@ fn @interleaved(arg0: u256) -> struct2 [selector=0x8a27da89, abi_params=[u256], 
     v142 = and v141, v140
     v143 = lt v135, v142
     v144 = iszero v143
-    panic_if v144, 0x32
+    icall panic_if<0x32>, v144
     jumpi v138, bb21, bb22
   bb22:
     jump bb23
@@ -719,7 +719,7 @@ fn @interleaved(arg0: u256) -> struct2 [selector=0x8a27da89, abi_params=[u256], 
     v16 = and v15, v14
     v17 = lt v16, 0x10000000000000000
     v18 = iszero v17
-    panic_if v18, 0x41
+    icall panic_if<0x41>, v18
     v19 = gt v16, 31
     jumpi v19, bb8, bb7
   bb7:
@@ -777,7 +777,7 @@ fn @interleaved(arg0: u256) -> struct2 [selector=0x8a27da89, abi_params=[u256], 
     v57 = checked_add u256, v5, 1
     v58 = eq v56, v57
     v59 = iszero v58
-    revert_if v59, empty
+    icall revert_if<empty>, v59
     v60 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v60
     v61 = and v60, 1
@@ -788,7 +788,7 @@ fn @interleaved(arg0: u256) -> struct2 [selector=0x8a27da89, abi_params=[u256], 
     v66 = and v65, v64
     v67 = lt v5, v66
     v68 = iszero v67
-    panic_if v68, 0x32
+    icall panic_if<0x32>, v68
     jumpi v62, bb12, bb13
   bb13:
     jump bb14
@@ -810,7 +810,7 @@ fn @interleaved(arg0: u256) -> struct2 [selector=0x8a27da89, abi_params=[u256], 
     v81 = checked_add u256, v5, 1
     v82 = eq v80, v81
     v83 = iszero v82
-    revert_if v83, empty
+    icall revert_if<empty>, v83
     jump bb6
   bb6:
     jump bb3
@@ -841,7 +841,7 @@ fn @popEmptyAfter(arg0: u256) [selector=0x7b110cfa, abi_params=[u256], abi_retur
     v54 = and v53, v52
     v55 = eq v54, 0
     v56 = iszero v55
-    revert_if v56, empty
+    icall revert_if<empty>, v56
     v57 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v57
     v58 = and v57, 1
@@ -851,7 +851,7 @@ fn @popEmptyAfter(arg0: u256) [selector=0x7b110cfa, abi_params=[u256], abi_retur
     v62 = shr 1, v57
     v63 = and v62, v61
     v64 = eq v63, 0
-    panic_if v64, 0x31
+    icall panic_if<0x31>, v64
     v65 = eq v63, 32
     jumpi v65, bb15, bb12
   bb12:
@@ -914,7 +914,7 @@ fn @popEmptyAfter(arg0: u256) [selector=0x7b110cfa, abi_params=[u256], abi_retur
     v8 = shr 1, v3
     v9 = and v8, v7
     v10 = eq v9, 0
-    panic_if v10, 0x31
+    icall panic_if<0x31>, v10
     v11 = eq v9, 32
     jumpi v11, bb10, bb7
   bb7:
@@ -985,7 +985,7 @@ fn @popUntouched() [selector=0xbf1e345b, abi_params=[], abi_returns=[]] {
     v5 = shr 1, v0
     v6 = and v5, v4
     v7 = eq v6, 0
-    panic_if v7, 0x31
+    icall panic_if<0x31>, v7
     v8 = eq v6, 32
     jumpi v8, bb4, bb1
   bb1:
@@ -1064,7 +1064,7 @@ fn @structPushPop(arg0: u256) -> struct0 [selector=0x9c0e8d6f, abi_params=[u256]
     v56 = shr 1, v51
     v57 = and v56, v55
     v58 = eq v57, 0
-    panic_if v58, 0x31
+    icall panic_if<0x31>, v58
     v59 = eq v57, 32
     jumpi v59, bb15, bb12
   bb12:
@@ -1137,7 +1137,7 @@ fn @structPushPop(arg0: u256) -> struct0 [selector=0x9c0e8d6f, abi_params=[u256]
     v15 = and v14, v13
     v16 = lt v15, 0x10000000000000000
     v17 = iszero v16
-    panic_if v17, 0x41
+    icall panic_if<0x41>, v17
     v18 = gt v15, 31
     jumpi v18, bb8, bb7
   bb7:
@@ -1214,7 +1214,7 @@ fn @mappingPushPop(arg0: u256) -> memorybytes [selector=0x9881887b, abi_params=[
     v55 = shr 1, v50
     v56 = and v55, v54
     v57 = eq v56, 0
-    panic_if v57, 0x31
+    icall panic_if<0x31>, v57
     v58 = eq v56, 32
     jumpi v58, bb15, bb12
   bb12:
@@ -1284,7 +1284,7 @@ fn @mappingPushPop(arg0: u256) -> memorybytes [selector=0x9881887b, abi_params=[
     v14 = and v13, v12
     v15 = lt v14, 0x10000000000000000
     v16 = iszero v15
-    panic_if v16, 0x41
+    icall panic_if<0x41>, v16
     v17 = gt v14, 31
     jumpi v17, bb8, bb7
   bb7:
@@ -1367,7 +1367,7 @@ fn @_pushPop(arg0: storageptr, arg1: u256) -> memorybytes {
     v54 = shr 1, v49
     v55 = and v54, v53
     v56 = eq v55, 0
-    panic_if v56, 0x31
+    icall panic_if<0x31>, v56
     v57 = eq v55, 32
     jumpi v57, bb15, bb12
   bb12:
@@ -1435,7 +1435,7 @@ fn @_pushPop(arg0: storageptr, arg1: u256) -> memorybytes {
     v14 = and v13, v12
     v15 = lt v14, 0x10000000000000000
     v16 = iszero v15
-    panic_if v16, 0x41
+    icall panic_if<0x41>, v16
     v17 = gt v14, 31
     jumpi v17, bb8, bb7
   bb7:
@@ -1507,7 +1507,7 @@ fn @pushZeroRead(arg0: u256) -> struct3 [selector=0x421e4f69, abi_params=[u256],
     v10 = and v9, v8
     v11 = add v10, 1
     v12 = gt v11, 0x10000000000000000
-    panic_if v12, 0x41
+    icall panic_if<0x41>, v12
     v13 = gt v10, 31
     jumpi v13, bb2, bb1
   bb1:
@@ -1583,7 +1583,7 @@ fn @pushZeroReadLong(arg0: u256) -> struct1 [selector=0x18e52e09, abi_params=[u2
     v16 = and v15, v14
     v17 = add v16, 1
     v18 = gt v17, 0x10000000000000000
-    panic_if v18, 0x41
+    icall panic_if<0x41>, v18
     v19 = gt v16, 31
     jumpi v19, bb2, bb1
   bb1:
@@ -1652,7 +1652,7 @@ fn @pushPopWords(arg0: u256) -> struct3 [selector=0x068eaf65, abi_params=[u256],
   bb2:
     v24 = sload 4 !metadata(storage=slot(4))
     v25 = eq v24, 0
-    panic_if v25, 0x31
+    icall panic_if<0x31>, v25
     v26 = sub v24, 1
     sstore 4, v26 !metadata(storage=slot(4))
     v27 = storage_array_data_slot 4
@@ -1675,7 +1675,7 @@ fn @pushPopWords(arg0: u256) -> struct3 [selector=0x068eaf65, abi_params=[u256],
     v43 = sload 4 !metadata(storage=slot(4))
     v44 = lt v42, v43
     v45 = iszero v44
-    panic_if v45, 0x32
+    icall panic_if<0x32>, v45
     v46 = storage_array_data_slot 4
     v47 = div v42, 32
     v48 = add v46, v47
@@ -1693,7 +1693,7 @@ fn @pushPopWords(arg0: u256) -> struct3 [selector=0x068eaf65, abi_params=[u256],
     v6 = and v5, 255
     v7 = sload 4 !metadata(storage=slot(4))
     v8 = gt v7, 0xffffffffffffffff
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = add v7, 1
     v10 = storage_array_data_slot 4
     v11 = div v7, 32

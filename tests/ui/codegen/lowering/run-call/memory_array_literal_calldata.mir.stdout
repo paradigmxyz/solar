@@ -13,15 +13,15 @@ fn @collect(arg0: calldataslice, arg1: calldataslice) -> memoryfixedarray [selec
     v5 = slice_ptr arg0
     v6 = slice_len arg0
     v7 = gt v6, 0xffffffffffffffff
-    revert_if v7, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v7
     v8 = calldatasize
     v9 = sub v8, v6
     v10 = sgt v5, v9
-    revert_if v10, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v10
     v11 = slice_len arg0
     v12 = add v11, 63
     v13 = lt v12, v11
-    panic_if v13, 0x41
+    icall panic_if<0x41>, v13
     v14 = not 31
     v15 = and v12, v14
     v16 = alloc memorybytes, exact, uninitialized, infallible, v15
@@ -31,15 +31,15 @@ fn @collect(arg0: calldataslice, arg1: calldataslice) -> memoryfixedarray [selec
     v17 = slice_ptr arg1
     v18 = slice_len arg1
     v19 = gt v18, 0xffffffffffffffff
-    revert_if v19, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v19
     v20 = calldatasize
     v21 = sub v20, v18
     v22 = sgt v17, v21
-    revert_if v22, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v22
     v23 = slice_len arg1
     v24 = add v23, 63
     v25 = lt v24, v23
-    panic_if v25, 0x41
+    icall panic_if<0x41>, v25
     v26 = not 31
     v27 = and v24, v26
     v28 = alloc memorybytes, exact, uninitialized, infallible, v27

@@ -83,7 +83,7 @@ fn @internal_dispatcher_p_none_r_none(arg0: function) [function_pointer_dispatch
     v2 = eq arg0, 4
     jumpi v2, bb5, bb6
   bb6:
-    panic_if true, 0x51
+    icall panic_if<0x51>, true
     invalid
   bb5:
     icall @stage2

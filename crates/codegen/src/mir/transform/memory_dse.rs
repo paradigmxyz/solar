@@ -7,7 +7,7 @@
 //! no intervening operation can mutate memory.
 
 use crate::mir::{
-    BlockId, Function, Immediate, InstId, InstKind, MemoryObjectKind, MemoryRegion, Module,
+    BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryObjectKind, MemoryRegion, Module,
     Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, MemoryAddress,
@@ -1600,7 +1600,10 @@ impl MemoryStoreEliminator {
             let effects = self.alias().instruction_mod_ref(func, inst_id);
             effects.observes_gas()
                 || effects.observes_memory_size()
-                || matches!(func.inst(inst_id).kind, InstKind::ICall { .. })
+                || matches!(
+                    func.inst(inst_id).kind,
+                    InstKind::ICall { function: Callee::Function(_), .. }
+                )
         })
     }
 

@@ -12,7 +12,7 @@ fn @f(arg0: u256) -> memoryfixedarray [selector=0xb3de648b, pure, abi_params=[u2
   bb2:
     v3 = lt 2, 5
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     memory_object_store_element memoryfixedarray<5, 1>, v0, 2, 3
     jump bb5
   bb5:

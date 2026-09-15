@@ -7,13 +7,13 @@ fn @setS(arg0: u256, arg1: u256, arg2: u256) [selector=0x200618df, abi_params=[u
   bb0:
     v0 = lt arg0, 3
     v1 = iszero v0
-    panic_if v1, 0x32
+    icall panic_if<0x32>, v1
     v2 = mul arg0, 2
     v3 = add 0, v2
     sstore v3, arg1 !metadata(storage=symbolic(v2))
     v4 = lt arg0, 3
     v5 = iszero v4
-    panic_if v5, 0x32
+    icall panic_if<0x32>, v5
     v6 = mul arg0, 2
     v7 = add 0, v6
     v8 = add v7, 1
@@ -25,13 +25,13 @@ fn @getS(arg0: u256) -> struct0 [selector=0xd40d7b60, view, abi_params=[u256], a
   bb0:
     v0 = lt arg0, 3
     v1 = iszero v0
-    panic_if v1, 0x32
+    icall panic_if<0x32>, v1
     v2 = mul arg0, 2
     v3 = add 0, v2
     v4 = sload v3 !metadata(storage=symbolic(v2))
     v5 = lt arg0, 3
     v6 = iszero v5
-    panic_if v6, 0x32
+    icall panic_if<0x32>, v6
     v7 = mul arg0, 2
     v8 = add 0, v7
     v9 = add v8, 1

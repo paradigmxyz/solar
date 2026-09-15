@@ -51,10 +51,10 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
     v4 = slice_len v3
     v5 = add 0x892, v4
     v6 = lt v5, 0x892
-    panic_if v6, 0x41
+    icall panic_if<0x41>, v6
     v7 = add v5, 31
     v8 = lt v7, v5
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = not 31
     v10 = and v7, v9
     v11 = alloc raw, exact, uninitialized, infallible, v10
@@ -76,7 +76,7 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
   bb3:
     revert_returndata
   bb4:
-    v20 = returndata_bytes
+    v20 = icall returndata_bytes<>
     v21 = abi_decode [bytes], v20
     v22 = memory_object_len memorybytes, v21
     v23 = gas
@@ -90,13 +90,13 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
   bb6:
     v28 = returndatasize
     v29 = lt v28, 32
-    revert_if v29, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v29
     v30 = add 0, 0
     v31 = mload v30
     v32 = and v31, 255
     v33 = eq v31, v32
     v34 = iszero v33
-    revert_if v34, empty
+    icall revert_if<empty>, v34
     v35 = add 0, 0
     v36 = mload v35
     v37 = insert_value struct0, undef struct0, 0, v22

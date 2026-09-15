@@ -8,7 +8,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     mstore v1, 0x6162630000000000000000000000000000000000000000000000000000000000
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = gt v2, 0xffffffffffffffff
-    panic_if v3, 0x41
+    icall panic_if<0x41>, v3
     v4 = add v2, 1
     v5 = storage_array_data_slot 0
     v6 = add v5, v2
@@ -33,12 +33,12 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v20 = memory_object_len memorybytes, v9
     v21 = lt 39, v20
     v22 = iszero v21
-    panic_if v22, 0x32
+    icall panic_if<0x32>, v22
     v23 = byte 0, v19
     memory_object_store_byte memorybytes, v9, 39, v23
     v24 = sload 0 !metadata(storage=slot(0))
     v25 = gt v24, 0xffffffffffffffff
-    panic_if v25, 0x41
+    icall panic_if<0x41>, v25
     v26 = add v24, 1
     v27 = storage_array_data_slot 0
     v28 = add v27, v24
@@ -48,7 +48,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v30 = memory_object_len memoryarray, v29
     v31 = lt 0, v30
     v32 = iszero v31
-    panic_if v32, 0x32
+    icall panic_if<0x32>, v32
     v33 = memory_object_load_element memoryarray<1>, v29, 0
     v34 = memory_object_from_ptr memorybytes, v33
     v35 = eq v34, 0
@@ -64,7 +64,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v39 = memory_object_len memoryarray, v29
     v40 = lt 1, v39
     v41 = iszero v40
-    panic_if v41, 0x32
+    icall panic_if<0x32>, v41
     v42 = memory_object_load_element memoryarray<1>, v29, 1
     v43 = memory_object_from_ptr memorybytes, v42
     v44 = eq v43, 0
@@ -81,7 +81,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v49 = memory_object_len memoryarray, v29
     v50 = lt 0, v49
     v51 = iszero v50
-    panic_if v51, 0x32
+    icall panic_if<0x32>, v51
     v52 = memory_object_load_element memoryarray<1>, v29, 0
     v53 = memory_object_from_ptr memorybytes, v52
     v54 = eq v53, 0
@@ -96,7 +96,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v57 = memory_object_len memorybytes, v56
     v58 = lt 1, v57
     v59 = iszero v58
-    panic_if v59, 0x32
+    icall panic_if<0x32>, v59
     v60 = memory_object_load_byte memorybytes, v56, 1
     v61 = shl 248, v60
     v62 = shr 248, v61
@@ -104,7 +104,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v64 = memory_object_len memoryarray, v29
     v65 = lt 1, v64
     v66 = iszero v65
-    panic_if v66, 0x32
+    icall panic_if<0x32>, v66
     v67 = memory_object_load_element memoryarray<1>, v29, 1
     v68 = memory_object_from_ptr memorybytes, v67
     v69 = eq v68, 0
@@ -119,7 +119,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v72 = memory_object_len memorybytes, v71
     v73 = lt 39, v72
     v74 = iszero v73
-    panic_if v74, 0x32
+    icall panic_if<0x32>, v74
     v75 = memory_object_load_byte memorybytes, v71, 39
     v76 = shl 248, v75
     v77 = shr 248, v76

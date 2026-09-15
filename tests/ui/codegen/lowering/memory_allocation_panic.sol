@@ -8,7 +8,7 @@ contract MemoryAllocationPanic {
     // CHECK-LABEL: fn @makeBytes{{[( ]}}
     // CHECK: [[PADDED:v[0-9]+]] = add arg0, 63
     // CHECK: [[PADDED_OVERFLOW:v[0-9]+]] = lt [[PADDED]], arg0
-    // CHECK: panic_if [[PADDED_OVERFLOW]], 0x41
+    // CHECK: icall panic_if<0x41>, [[PADDED_OVERFLOW]]
     // CHECK: [[MASK:v[0-9]+]] = not 31
     // CHECK: [[BYTES:v[0-9]+]] = and [[PADDED]], [[MASK]]
     // CHECK: alloc memorybytes, exact, zeroed, panic, [[BYTES]]
@@ -21,7 +21,7 @@ contract MemoryAllocationPanic {
     // CHECK: [[ELEMENTS:v[0-9]+]] = mul arg0, 1
     // CHECK: [[TOTAL:v[0-9]+]] = add [[ELEMENTS]], 1
     // CHECK: [[BYTES:v[0-9]+]] = mul [[TOTAL]], 32
-    // CHECK: panic_if {{v[0-9]+}}, 0x41
+    // CHECK: icall panic_if<0x41>, {{v[0-9]+}}
     // CHECK: alloc memoryarray<1>, exact, zeroed, panic, [[BYTES]]
     function makeArray(uint256 n) external pure returns (uint256) {
         uint256[] memory a = new uint256[](n);

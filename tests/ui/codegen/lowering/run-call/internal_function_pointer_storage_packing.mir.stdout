@@ -18,7 +18,7 @@ fn @constructor() [constructor] {
     sstore 0, v11 !metadata(storage=slot(0))
     v12 = lt 0, 4
     v13 = iszero v12
-    panic_if v13, 0x32
+    icall panic_if<0x32>, v13
     v14 = div 0, 4
     v15 = add 1, v14
     v16 = mod 0, 4
@@ -34,7 +34,7 @@ fn @constructor() [constructor] {
     sstore v15, v25 !metadata(storage=offset(v14, 1))
     v26 = lt 1, 4
     v27 = iszero v26
-    panic_if v27, 0x32
+    icall panic_if<0x32>, v27
     v28 = div 1, 4
     v29 = add 1, v28
     v30 = mod 1, 4
@@ -50,7 +50,7 @@ fn @constructor() [constructor] {
     sstore v29, v39 !metadata(storage=offset(v28, 1))
     v40 = lt 2, 4
     v41 = iszero v40
-    panic_if v41, 0x32
+    icall panic_if<0x32>, v41
     v42 = div 2, 4
     v43 = add 1, v42
     v44 = mod 2, 4
@@ -66,7 +66,7 @@ fn @constructor() [constructor] {
     sstore v43, v53 !metadata(storage=offset(v42, 1))
     v54 = lt 3, 4
     v55 = iszero v54
-    panic_if v55, 0x32
+    icall panic_if<0x32>, v55
     v56 = div 3, 4
     v57 = add 1, v56
     v58 = mod 3, 4

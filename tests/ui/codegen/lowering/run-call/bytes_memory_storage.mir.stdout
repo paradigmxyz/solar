@@ -25,7 +25,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v15 = and v14, v13
     v16 = lt 0, v15
     v17 = iszero v16
-    panic_if v17, 0x32
+    icall panic_if<0x32>, v17
     jumpi v11, bb1, bb2
   bb2:
     jump bb3
@@ -76,7 +76,7 @@ fn @dirty() -> u256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word]] {
     v18 = and v17, v16
     v19 = lt 0, v18
     v20 = iszero v19
-    panic_if v20, 0x32
+    icall panic_if<0x32>, v20
     jumpi v14, bb1, bb2
   bb2:
     jump bb3
@@ -106,7 +106,7 @@ fn @dirty() -> u256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word]] {
     v40 = and v39, v38
     v41 = lt 2, v40
     v42 = iszero v41
-    panic_if v42, 0x32
+    icall panic_if<0x32>, v42
     jumpi v36, bb4, bb5
   bb5:
     jump bb6

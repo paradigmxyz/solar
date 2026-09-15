@@ -18,12 +18,12 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v5 = memory_object_len memoryarray, v0
     v6 = lt 0, v5
     v7 = iszero v6
-    panic_if v7, 0x32
+    icall panic_if<0x32>, v7
     memory_object_store_element memoryarray<1>, v0, 0, v4
     v8 = memory_object_len memoryarray, v0
     v9 = lt 0, v8
     v10 = iszero v9
-    panic_if v10, 0x32
+    icall panic_if<0x32>, v10
     v11 = memory_object_load_element memoryarray<1>, v0, 0
     v12 = memory_object_from_ptr memoryarray, v11
     v13 = eq v12, 0
@@ -38,13 +38,13 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v16 = memory_object_len memoryarray, v15
     v17 = lt 0, v16
     v18 = iszero v17
-    panic_if v18, 0x32
+    icall panic_if<0x32>, v18
     v19 = and 1, 255
     memory_object_store_element memoryarray<1>, v15, 0, v19
     v20 = memory_object_len memoryarray, v0
     v21 = lt 0, v20
     v22 = iszero v21
-    panic_if v22, 0x32
+    icall panic_if<0x32>, v22
     v23 = memory_object_load_element memoryarray<1>, v0, 0
     v24 = memory_object_from_ptr memoryarray, v23
     v25 = eq v24, 0
@@ -59,7 +59,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v28 = memory_object_len memoryarray, v27
     v29 = lt 1, v28
     v30 = iszero v29
-    panic_if v30, 0x32
+    icall panic_if<0x32>, v30
     v31 = and 2, 255
     memory_object_store_element memoryarray<1>, v27, 1, v31
     v32 = alloc memoryarray<1>, exact, zeroed, panic, 32
@@ -67,7 +67,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v33 = memory_object_len memoryarray, v0
     v34 = lt 1, v33
     v35 = iszero v34
-    panic_if v35, 0x32
+    icall panic_if<0x32>, v35
     memory_object_store_element memoryarray<1>, v0, 1, v32
     v36 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v36, 5
@@ -87,10 +87,10 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v61 = eq v60, v40
     v62 = or v59, v61
     v63 = iszero v62
-    panic_if v63, 0x41
+    icall panic_if<0x41>, v63
     v64 = add 32, v58
     v65 = lt v64, 32
-    panic_if v65, 0x41
+    icall panic_if<0x41>, v65
     v66 = alloc memorybytes, exact, uninitialized, infallible, v64
     set_memory_object_len memorybytes, v66, v58
     v67 = memory_object_len memoryarray, v0
@@ -134,7 +134,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     memory_object_store_word memorybytes, v66, v77, v81
     v82 = add v77, 32
     v83 = lt v82, v77
-    panic_if v83, 0x41
+    icall panic_if<0x41>, v83
     v84 = add v76, 1
     jump bb17
   bb9:
@@ -152,7 +152,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
   bb13:
     v55 = add v40, v48
     v56 = lt v55, v40
-    panic_if v56, 0x41
+    icall panic_if<0x41>, v56
     v57 = add v39, 1
     jump bb8
   bb12:
@@ -160,7 +160,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v51 = mul v50, v44
     v52 = add v48, 1
     v53 = lt v52, v48
-    panic_if v53, 0x41
+    icall panic_if<0x41>, v53
     v54 = add v47, 1
     jump bb11
   bb2:
@@ -186,7 +186,7 @@ fn @test_strings() -> memorybytes [selector=0xcdb50c38, abi_params=[], abi_retur
     v6 = memory_object_len memoryarray, v0
     v7 = lt 0, v6
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     memory_object_store_element memoryarray<1>, v0, 0, v4
     v9 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v9, 5
@@ -207,10 +207,10 @@ fn @test_strings() -> memorybytes [selector=0xcdb50c38, abi_params=[], abi_retur
     v32 = eq v31, v14
     v33 = or v30, v32
     v34 = iszero v33
-    panic_if v34, 0x41
+    icall panic_if<0x41>, v34
     v35 = add 32, v29
     v36 = lt v35, 32
-    panic_if v36, 0x41
+    icall panic_if<0x41>, v36
     v37 = alloc memorybytes, exact, uninitialized, infallible, v35
     set_memory_object_len memorybytes, v37, v29
     v38 = memory_object_len memoryarray, v0
@@ -236,7 +236,7 @@ fn @test_strings() -> memorybytes [selector=0xcdb50c38, abi_params=[], abi_retur
     v46 = mul v43, v45
     v47 = add v46, 31
     v48 = lt v47, v46
-    panic_if v48, 0x41
+    icall panic_if<0x41>, v48
     v49 = not 31
     v50 = and v47, v49
     v51 = iszero v50
@@ -261,13 +261,13 @@ fn @test_strings() -> memorybytes [selector=0xcdb50c38, abi_params=[], abi_retur
     v20 = mul v17, v19
     v21 = add v20, 31
     v22 = lt v21, v20
-    panic_if v22, 0x41
+    icall panic_if<0x41>, v22
     v23 = not 31
     v24 = and v21, v23
     v25 = div v24, 32
     v26 = add v14, v25
     v27 = lt v26, v14
-    panic_if v27, 0x41
+    icall panic_if<0x41>, v27
     v28 = add v13, 1
     jump bb4
   bb2:

@@ -17,13 +17,13 @@ contract AbiPackedFunctionPointerArray {
     }
 
     // SEMANTIC-LABEL: fn @encode(
-    // SEMANTIC: panic_if {{v[0-9]+}}, 0x41
+    // SEMANTIC: icall panic_if<0x41>, {{v[0-9]+}}
     // SEMANTIC: alloc memoryarray<1>
     // SEMANTIC: [[OFFSET:v[0-9]+]] = mul {{v[0-9]+}}, 32
     // SEMANTIC-NEXT: [[HEAD:v[0-9]+]] = add {{v[0-9]+}}, [[OFFSET]]
     // SEMANTIC-NEXT: [[VALUE:v[0-9]+]] = calldataload [[HEAD]]
     // SEMANTIC: and [[VALUE]], 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    // SEMANTIC: revert_if {{v[0-9]+}}, empty
+    // SEMANTIC: icall revert_if<empty>, {{v[0-9]+}}
     function encode(function() external returns (uint256)[] calldata pointers)
         external
         pure

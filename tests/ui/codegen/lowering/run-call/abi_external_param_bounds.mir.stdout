@@ -44,7 +44,7 @@ fn @staticStructs(arg0: memoryarray) -> u256 [selector=0xb2bb789c, pure, abi_par
     v1 = memory_object_len memoryarray, arg0
     v2 = lt 0, v1
     v3 = iszero v2
-    panic_if v3, 0x32
+    icall panic_if<0x32>, v3
     v4 = memory_object_load_element memoryarray<1>, arg0, 0
     v5 = memory_object_from_ptr memorystruct, v4
     v6 = eq v5, 0
@@ -62,7 +62,7 @@ fn @staticStructs(arg0: memoryarray) -> u256 [selector=0xb2bb789c, pure, abi_par
     v11 = memory_object_len memoryarray, arg0
     v12 = lt 1, v11
     v13 = iszero v12
-    panic_if v13, 0x32
+    icall panic_if<0x32>, v13
     v14 = memory_object_load_element memoryarray<1>, arg0, 1
     v15 = memory_object_from_ptr memorystruct, v14
     v16 = eq v15, 0

@@ -36,7 +36,7 @@ fn @recordFirst(arg0: address) {
     v6 = slice_len v4
     v7 = extcodesize arg0
     v8 = iszero v7
-    revert_if v8, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v8
     v9 = call v0, arg0, 0, v5, v6, 0, 0
     jumpi v9, bb2, bb1
   bb1:
@@ -58,7 +58,7 @@ fn @recordSecond(arg0: address) {
     v6 = slice_len v4
     v7 = extcodesize arg0
     v8 = iszero v7
-    revert_if v8, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v8
     v9 = call v0, arg0, 0, v5, v6, 0, 0
     jumpi v9, bb2, bb1
   bb1:
@@ -113,7 +113,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb6:
     v20 = returndatasize
     v21 = lt v20, 32
-    revert_if v21, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v21
     v22 = add 0, 0
     v23 = mload v22
     v24 = add 0, 0

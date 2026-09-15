@@ -30,7 +30,7 @@ fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[
     v4 = memory_object_len memorybytes, v2
     v5 = lt 0, v4
     v6 = iszero v5
-    panic_if v6, 0x32
+    icall panic_if<0x32>, v6
     v7 = memory_object_load_byte memorybytes, v2, 0
     v8 = shl 248, v7
     v9 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -47,7 +47,7 @@ fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[
     v18 = and v11, v17
     v19 = eq v8, v18
     v20 = iszero v19
-    revert_if v20, empty
+    icall revert_if<empty>, v20
     v21 = icall @literal_bytes_word, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
     v22 = memory_object_load_element memorybytes, v21, 0
     v23 = memory_object_len memorybytes, v21
@@ -60,13 +60,13 @@ fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[
     v30 = memory_object_len memorybytes, v2
     v31 = lt 0, v30
     v32 = iszero v31
-    panic_if v32, 0x32
+    icall panic_if<0x32>, v32
     v33 = byte 0, v29
     memory_object_store_byte memorybytes, v2, 0, v33
     v34 = memory_object_len memorybytes, v2
     v35 = lt 0, v34
     v36 = iszero v35
-    panic_if v36, 0x32
+    icall panic_if<0x32>, v36
     v37 = memory_object_load_byte memorybytes, v2, 0
     v38 = shl 248, v37
     v39 = icall @literal_bytes_word, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
@@ -80,7 +80,7 @@ fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[
     v47 = and v40, v46
     v48 = eq v38, v47
     v49 = iszero v48
-    revert_if v49, empty
+    icall revert_if<empty>, v49
     ret v1
 }
 
@@ -91,7 +91,7 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     v1 = add 0, 1
     v2 = sload v1 !metadata(storage=slot(1))
     v3 = gt v2, 0xffffffffffffffff
-    panic_if v3, 0x41
+    icall panic_if<0x41>, v3
     v4 = add v2, 1
     v5 = storage_array_data_slot v1
     v6 = add v5, v2
@@ -100,7 +100,7 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     v7 = add 0, 1
     v8 = sload v7 !metadata(storage=slot(1))
     v9 = gt v8, 0xffffffffffffffff
-    panic_if v9, 0x41
+    icall panic_if<0x41>, v9
     v10 = add v8, 1
     v11 = storage_array_data_slot v7
     v12 = add v11, v8
@@ -120,7 +120,7 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     v20 = memory_object_len memorybytes, v18
     v21 = lt 0, v20
     v22 = iszero v21
-    panic_if v22, 0x32
+    icall panic_if<0x32>, v22
     v23 = memory_object_load_byte memorybytes, v18, 0
     v24 = shl 248, v23
     v25 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -137,7 +137,7 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     v34 = and v27, v33
     v35 = eq v24, v34
     v36 = iszero v35
-    revert_if v36, empty
+    icall revert_if<empty>, v36
     v37 = icall @literal_bytes_word, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
     v38 = memory_object_load_element memorybytes, v37, 0
     v39 = memory_object_len memorybytes, v37
@@ -150,13 +150,13 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     v46 = memory_object_len memorybytes, v18
     v47 = lt 0, v46
     v48 = iszero v47
-    panic_if v48, 0x32
+    icall panic_if<0x32>, v48
     v49 = byte 0, v45
     memory_object_store_byte memorybytes, v18, 0, v49
     v50 = memory_object_len memorybytes, v18
     v51 = lt 0, v50
     v52 = iszero v51
-    panic_if v52, 0x32
+    icall panic_if<0x32>, v52
     v53 = memory_object_load_byte memorybytes, v18, 0
     v54 = shl 248, v53
     v55 = icall @literal_bytes_word, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
@@ -170,7 +170,7 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     v63 = and v56, v62
     v64 = eq v54, v63
     v65 = iszero v64
-    revert_if v65, empty
+    icall revert_if<empty>, v65
     ret v17
 }
 

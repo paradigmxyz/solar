@@ -12,12 +12,12 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v3 = memory_object_len memoryarray, v0
     v4 = lt 0, v3
     v5 = iszero v4
-    panic_if v5, 0x32
+    icall panic_if<0x32>, v5
     v6 = and v2, 0xffffffffffffffffffffffffffffff
     memory_object_store_element memoryarray<1>, v0, 0, v6
     v7 = lt 0, 3
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     v9 = div 0, 2
     v10 = add 0, v9
     v11 = mod 0, 2
@@ -36,12 +36,12 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v23 = memory_object_len memoryarray, v0
     v24 = lt 1, v23
     v25 = iszero v24
-    panic_if v25, 0x32
+    icall panic_if<0x32>, v25
     v26 = and v22, 0xffffffffffffffffffffffffffffff
     memory_object_store_element memoryarray<1>, v0, 1, v26
     v27 = lt 1, 3
     v28 = iszero v27
-    panic_if v28, 0x32
+    icall panic_if<0x32>, v28
     v29 = div 1, 2
     v30 = add 0, v29
     v31 = mod 1, 2
@@ -60,12 +60,12 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v43 = memory_object_len memoryarray, v0
     v44 = lt 2, v43
     v45 = iszero v44
-    panic_if v45, 0x32
+    icall panic_if<0x32>, v45
     v46 = and v42, 0xffffffffffffffffffffffffffffff
     memory_object_store_element memoryarray<1>, v0, 2, v46
     v47 = lt 2, 3
     v48 = iszero v47
-    panic_if v48, 0x32
+    icall panic_if<0x32>, v48
     v49 = div 2, 2
     v50 = add 0, v49
     v51 = mod 2, 2
@@ -120,7 +120,7 @@ fn @hashAbi() -> bytes32 [selector=0x7f75b06e, pure, abi_params=[], abi_returns=
     v3 = memory_object_len memoryarray, v0
     v4 = lt 0, v3
     v5 = iszero v4
-    panic_if v5, 0x32
+    icall panic_if<0x32>, v5
     v6 = and v2, 0xffffffffffffffffffffffffffffff
     memory_object_store_element memoryarray<1>, v0, 0, v6
     v7 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
@@ -128,7 +128,7 @@ fn @hashAbi() -> bytes32 [selector=0x7f75b06e, pure, abi_params=[], abi_returns=
     v9 = memory_object_len memoryarray, v0
     v10 = lt 1, v9
     v11 = iszero v10
-    panic_if v11, 0x32
+    icall panic_if<0x32>, v11
     v12 = and v8, 0xffffffffffffffffffffffffffffff
     memory_object_store_element memoryarray<1>, v0, 1, v12
     v13 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3
@@ -136,7 +136,7 @@ fn @hashAbi() -> bytes32 [selector=0x7f75b06e, pure, abi_params=[], abi_returns=
     v15 = memory_object_len memoryarray, v0
     v16 = lt 2, v15
     v17 = iszero v16
-    panic_if v17, 0x32
+    icall panic_if<0x32>, v17
     v18 = and v14, 0xffffffffffffffffffffffffffffff
     memory_object_store_element memoryarray<1>, v0, 2, v18
     v19 = abi_encode [memory_array<word<u120>>], scratch, args v0
@@ -161,7 +161,7 @@ fn @hashNestedAbi() -> bytes32 [selector=0x821258ba, pure, abi_params=[], abi_re
     v7 = memory_object_len memoryarray, v0
     v8 = lt 0, v7
     v9 = iszero v8
-    panic_if v9, 0x32
+    icall panic_if<0x32>, v9
     v10 = memory_object_load_element memoryarray<1>, v0, 0
     v11 = memory_object_from_ptr memoryfixedarray, v10
     v12 = eq v11, 0
@@ -175,7 +175,7 @@ fn @hashNestedAbi() -> bytes32 [selector=0x821258ba, pure, abi_params=[], abi_re
     v14 = phi [bb3: v11], [bb4: v13]
     v15 = lt 0, 2
     v16 = iszero v15
-    panic_if v16, 0x32
+    icall panic_if<0x32>, v16
     v17 = and v6, 0xffffffffffffffffffffffffffffff
     memory_object_store_element memoryfixedarray<2, 1>, v14, 0, v17
     v18 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
@@ -183,7 +183,7 @@ fn @hashNestedAbi() -> bytes32 [selector=0x821258ba, pure, abi_params=[], abi_re
     v20 = memory_object_len memoryarray, v0
     v21 = lt 0, v20
     v22 = iszero v21
-    panic_if v22, 0x32
+    icall panic_if<0x32>, v22
     v23 = memory_object_load_element memoryarray<1>, v0, 0
     v24 = memory_object_from_ptr memoryfixedarray, v23
     v25 = eq v24, 0
@@ -197,7 +197,7 @@ fn @hashNestedAbi() -> bytes32 [selector=0x821258ba, pure, abi_params=[], abi_re
     v27 = phi [bb5: v24], [bb6: v26]
     v28 = lt 1, 2
     v29 = iszero v28
-    panic_if v29, 0x32
+    icall panic_if<0x32>, v29
     v30 = and v19, 0xffffffffffffffffffffffffffffff
     memory_object_store_element memoryfixedarray<2, 1>, v27, 1, v30
     v31 = abi_encode [memory_array<array<2, word<u120>>>], scratch, args v0
@@ -229,7 +229,7 @@ fn @hashStructAbi() -> bytes32 [selector=0x46dfc0fe, pure, abi_params=[], abi_re
     v7 = memory_object_load_field memorystruct<2>, v0, 1, memoryfixedarray
     v8 = lt 0, 2
     v9 = iszero v8
-    panic_if v9, 0x32
+    icall panic_if<0x32>, v9
     v10 = and v6, 0xffffffffffffffffffffffffffffff
     memory_object_store_element memoryfixedarray<2, 1>, v7, 0, v10
     v11 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3
@@ -237,7 +237,7 @@ fn @hashStructAbi() -> bytes32 [selector=0x46dfc0fe, pure, abi_params=[], abi_re
     v13 = memory_object_load_field memorystruct<2>, v0, 1, memoryfixedarray
     v14 = lt 1, 2
     v15 = iszero v14
-    panic_if v15, 0x32
+    icall panic_if<0x32>, v15
     v16 = and v12, 0xffffffffffffffffffffffffffffff
     memory_object_store_element memoryfixedarray<2, 1>, v13, 1, v16
     v17 = abi_encode [tuple<word<u120>, array<2, word<u120>>>], scratch, args v0
@@ -272,7 +272,7 @@ fn @scalarCall() -> u256 [selector=0x6c091940, view, abi_params=[], abi_returns=
   bb2:
     v7 = returndatasize
     v8 = lt v7, 32
-    revert_if v8, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v8
     v9 = add 0, 0
     v10 = mload v9
     v11 = add 0, 0

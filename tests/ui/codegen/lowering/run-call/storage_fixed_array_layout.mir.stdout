@@ -20,7 +20,7 @@ fn @preserveNeighbors() -> struct0 [selector=0xf110cb82, abi_params=[], abi_retu
     v0 = shl 184, 6
     v1 = lt 6, 7
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = div 6, 3
     v4 = add 0, v3
     v5 = mod 6, 3
@@ -39,7 +39,7 @@ fn @preserveNeighbors() -> struct0 [selector=0xf110cb82, abi_params=[], abi_retu
     v16 = shl 120, 3
     v17 = lt 2, 3
     v18 = iszero v17
-    panic_if v18, 0x32
+    icall panic_if<0x32>, v18
     v19 = div 2, 1
     v20 = add 4, v19
     v21 = mod 2, 1
@@ -57,7 +57,7 @@ fn @preserveNeighbors() -> struct0 [selector=0xf110cb82, abi_params=[], abi_retu
     sstore 7, 12 !metadata(storage=slot(7))
     v32 = lt 2, 3
     v33 = iszero v32
-    panic_if v33, 0x32
+    icall panic_if<0x32>, v33
     v34 = div 2, 2
     v35 = add 8, v34
     v36 = mod 2, 2
@@ -74,7 +74,7 @@ fn @preserveNeighbors() -> struct0 [selector=0xf110cb82, abi_params=[], abi_retu
     sstore 10, 13 !metadata(storage=slot(10))
     v46 = lt 6, 7
     v47 = iszero v46
-    panic_if v47, 0x32
+    icall panic_if<0x32>, v47
     v48 = div 6, 3
     v49 = add 0, v48
     v50 = mod 6, 3
@@ -87,7 +87,7 @@ fn @preserveNeighbors() -> struct0 [selector=0xf110cb82, abi_params=[], abi_retu
     v57 = sload 3 !metadata(storage=slot(3))
     v58 = lt 2, 3
     v59 = iszero v58
-    panic_if v59, 0x32
+    icall panic_if<0x32>, v59
     v60 = div 2, 1
     v61 = add 4, v60
     v62 = mod 2, 1
@@ -100,7 +100,7 @@ fn @preserveNeighbors() -> struct0 [selector=0xf110cb82, abi_params=[], abi_retu
     v69 = sload 7 !metadata(storage=slot(7))
     v70 = lt 2, 3
     v71 = iszero v70
-    panic_if v71, 0x32
+    icall panic_if<0x32>, v71
     v72 = div 2, 2
     v73 = add 8, v72
     v74 = mod 2, 2
@@ -136,12 +136,12 @@ fn @copyDoesNotOverlapSource() -> struct1 [selector=0x8b005e62, abi_params=[], a
     v24 = shl 192, 2
     v25 = lt 9, 10
     v26 = iszero v25
-    panic_if v26, 0x32
+    icall panic_if<0x32>, v26
     v27 = add 11, 9
     sstore v27, v24 !metadata(storage=slot(20))
     v28 = lt 8, 10
     v29 = iszero v28
-    panic_if v29, 0x32
+    icall panic_if<0x32>, v29
     v30 = add 11, 8
     sstore v30, v24 !metadata(storage=slot(19))
     v31 = alloc memoryfixedarray<7, 1>, exact, uninitialized, panic, 224
@@ -159,7 +159,7 @@ fn @copyDoesNotOverlapSource() -> struct1 [selector=0x8b005e62, abi_params=[], a
   bb12:
     v51 = lt 6, 7
     v52 = iszero v51
-    panic_if v52, 0x32
+    icall panic_if<0x32>, v52
     v53 = div 6, 3
     v54 = add 0, v53
     v55 = mod 6, 3
@@ -172,21 +172,21 @@ fn @copyDoesNotOverlapSource() -> struct1 [selector=0x8b005e62, abi_params=[], a
     v62 = shr 184, v61
     v63 = lt 1, 10
     v64 = iszero v63
-    panic_if v64, 0x32
+    icall panic_if<0x32>, v64
     v65 = add 11, 1
     v66 = sload v65 !metadata(storage=slot(12))
     v67 = and v66, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
     v68 = shr 184, v67
     v69 = lt 6, 10
     v70 = iszero v69
-    panic_if v70, 0x32
+    icall panic_if<0x32>, v70
     v71 = add 11, 6
     v72 = sload v71 !metadata(storage=slot(17))
     v73 = and v72, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
     v74 = shr 184, v73
     v75 = lt 9, 10
     v76 = iszero v75
-    panic_if v76, 0x32
+    icall panic_if<0x32>, v76
     v77 = add 11, 9
     v78 = sload v77 !metadata(storage=slot(20))
     v79 = insert_value struct1, undef struct1, 0, v62
@@ -227,7 +227,7 @@ fn @copyDoesNotOverlapSource() -> struct1 [selector=0x8b005e62, abi_params=[], a
     v7 = shl 184, v6
     v8 = lt v1, 7
     v9 = iszero v8
-    panic_if v9, 0x32
+    icall panic_if<0x32>, v9
     v10 = div v1, 3
     v11 = add 0, v10
     v12 = mod v1, 3

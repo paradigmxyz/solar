@@ -70,9 +70,12 @@ impl InstKind {
         matches!(
             self,
             Self::Gas
-                | Self::Sha256(..)
-                | Self::Ripemd160(..)
-                | Self::EcRecover(..)
+                | Self::ICall {
+                    function: Callee::Builtin(
+                        Builtin::Sha256 | Builtin::Ripemd160 | Builtin::EcRecover
+                    ),
+                    ..
+                }
                 | Self::AddressCall { gas: None, .. }
         )
     }
@@ -80,31 +83,41 @@ impl InstKind {
     /// Returns context-free effects; use alias and call summaries for resource footprints.
     pub(crate) const fn effects(&self) -> InstructionEffects {
         let control = match self {
-            Self::ReturndataBytes
-            | Self::Transfer(..)
+            Self::ICall {
+                function: Callee::Builtin(Builtin::ReturndataBytes | Builtin::Transfer),
+                ..
+            }
             | Self::ValidateStorageBytes(..)
             | Self::StorageBytesLoad(..)
             | Self::StorageArrayLoad { .. }
             | Self::StorageBytesStore(..)
             | Self::StorageBytesStoreLiteral { .. }
             | Self::ValidateAbi(..)
-            | Self::CheckedAddMod(..)
-            | Self::CheckedMulMod(..)
-            | Self::CheckedBinary { .. }
-            | Self::Check { .. }
-            | Self::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => {
-                ControlEffects { may_revert: true, ..ControlEffects::NONE }
+            | Self::ICall {
+                function: Callee::Builtin(Builtin::CheckedAddMod | Builtin::CheckedMulMod),
+                ..
             }
+            | Self::CheckedBinary { .. }
+            | Self::ICall {
+                function: Callee::Builtin(Builtin::Check { .. } | Builtin::Require(_)),
+                ..
+            } => ControlEffects { may_revert: true, ..ControlEffects::NONE },
             Self::ICall { function: Callee::Function(_), .. } => ControlEffects::UNKNOWN,
             Self::Alloc { semantics, .. } => ControlEffects {
                 may_revert: matches!(semantics.failure, super::AllocationFailure::Panic),
                 ..ControlEffects::NONE
             },
-            Self::Erc7201(..)
-            | Self::ICall { function: Callee::Builtin(Builtin::Concat(_)), .. }
-            | Self::Sha256(..)
-            | Self::Ripemd160(..)
-            | Self::EcRecover(..) => ControlEffects { may_revert: true, ..ControlEffects::NONE },
+            Self::ICall {
+                function:
+                    Callee::Builtin(
+                        Builtin::Erc7201
+                        | Builtin::Concat(_)
+                        | Builtin::Sha256
+                        | Builtin::Ripemd160
+                        | Builtin::EcRecover,
+                    ),
+                ..
+            } => ControlEffects { may_revert: true, ..ControlEffects::NONE },
             Self::AbiEncode { .. } | Self::AbiEncodePacked { .. } => {
                 ControlEffects { may_revert: true, ..ControlEffects::NONE }
             }
@@ -218,7 +231,7 @@ impl InstKind {
             | Self::StorageArrayDataSlot(..)
             | Self::StorageClearWords(..)
             | Self::StorageArrayElementSlot { .. }
-            | Self::Send(..)
+            | Self::ICall { function: Callee::Builtin(Builtin::Send), .. }
             | Self::AddressCall { .. }
             | Self::Call { .. }
             | Self::CallCode { .. }
@@ -281,8 +294,10 @@ impl InstKind {
                     | Self::StorageToMemory { .. }
                     | Self::StorageBytesLoad(..)
                     | Self::StorageArrayLoad { .. }
-                    | Self::ICall { function: Callee::Builtin(Builtin::Concat(_)), .. }
-                    | Self::ReturndataBytes
+                    | Self::ICall {
+                        function: Callee::Builtin(Builtin::Concat(_) | Builtin::ReturndataBytes),
+                        ..
+                    }
             ),
         }
     }

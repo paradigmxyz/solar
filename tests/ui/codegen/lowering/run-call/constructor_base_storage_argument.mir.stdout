@@ -27,7 +27,7 @@ fn @m(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x2def5e24, view, ab
     v0 = mapping_slot arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
     v2 = lt arg1, v1
-    revert_if_zero v2, empty
+    icall revert_if_zero<empty>, v2
     v3 = storage_array_data_slot v0
     v4 = add v3, arg1
     v5 = mapping_slot arg2, v4
@@ -40,7 +40,7 @@ fn @constructor() [constructor] {
     v0 = mapping_slot 1, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
     v2 = gt v1, 0xffffffffffffffff
-    panic_if v2, 0x41
+    icall panic_if<0x41>, v2
     v3 = add v1, 1
     v4 = storage_array_data_slot v0
     v5 = add v4, v1
@@ -48,7 +48,7 @@ fn @constructor() [constructor] {
     v6 = sload v0 !metadata(storage=symbolic(v0))
     v7 = lt 0, v6
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     v9 = storage_array_data_slot v0
     v10 = add v9, 0
     v11 = mapping_slot 1, v10
@@ -66,7 +66,7 @@ fn @values(arg0: u256) -> u256 [selector=0x5e383d21, view, abi_params=[u256], ab
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = lt arg0, v0
-    revert_if_zero v1, empty
+    icall revert_if_zero<empty>, v1
     v2 = storage_array_data_slot 0
     v3 = add v2, arg0
     v4 = sload v3 !metadata(storage=symbolic(v3))
@@ -77,7 +77,7 @@ fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
-    panic_if v1, 0x41
+    icall panic_if<0x41>, v1
     v2 = add v0, 1
     v3 = storage_array_data_slot 0
     v4 = add v3, v0
@@ -85,7 +85,7 @@ fn @constructor() [constructor] {
     sstore 0, v2 !metadata(storage=slot(0))
     v5 = sload 0 !metadata(storage=slot(0))
     v6 = gt v5, 0xffffffffffffffff
-    panic_if v6, 0x41
+    icall panic_if<0x41>, v6
     v7 = add v5, 1
     v8 = storage_array_data_slot 0
     v9 = add v8, v5
@@ -118,7 +118,7 @@ fn @constructor() [constructor] {
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
     v8 = iszero v7
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb3, bb2
   bb2:
@@ -175,7 +175,7 @@ fn @constructor() [constructor] {
     v46 = and v45, v44
     v47 = lt v46, 0x10000000000000000
     v48 = iszero v47
-    panic_if v48, 0x41
+    icall panic_if<0x41>, v48
     v49 = gt v46, 31
     jumpi v49, bb8, bb7
   bb7:
@@ -254,7 +254,7 @@ fn @at(arg0: u256) -> u8 [selector=0xe0886f90, view, abi_params=[u256], abi_retu
     v6 = and v5, v4
     v7 = lt arg0, v6
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
     jump bb3

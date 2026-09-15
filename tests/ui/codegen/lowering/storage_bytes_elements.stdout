@@ -25,7 +25,7 @@ fn @poke() [selector=0x18178358, abi_params=[], abi_returns=[]] {
     v7 = and v6, v5
     v8 = lt 5, v7
     v9 = iszero v8
-    panic_if v9, 0x32
+    icall panic_if<0x32>, v9
     jumpi v3, bb1, bb2
   bb2:
     jump bb3

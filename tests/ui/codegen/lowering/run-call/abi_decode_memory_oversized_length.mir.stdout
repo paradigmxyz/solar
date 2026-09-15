@@ -55,7 +55,7 @@ fn @oversized(arg0: bytes4) -> bool {
     v2 = address
     v3 = gas
     v4 = address_call v2, v1, gas v3
-    v5 = returndata_bytes
+    v5 = icall returndata_bytes<>
     v6 = iszero v4
     jumpi v6, bb1, bb2
   bb2:

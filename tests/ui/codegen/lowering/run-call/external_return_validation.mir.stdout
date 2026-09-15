@@ -17,7 +17,7 @@ fn @short() -> u256 [selector=0x38bea4cb, view, abi_params=[], abi_returns=[word
   bb2:
     v6 = returndatasize
     v7 = lt v6, 32
-    revert_if v7, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v7
     v8 = add 0, 0
     v9 = mload v8
     v10 = add 0, 0
@@ -44,13 +44,13 @@ fn @dirty() -> u8 [selector=0x7dce0fd0, view, abi_params=[], abi_returns=[word<u
   bb2:
     v6 = returndatasize
     v7 = lt v6, 32
-    revert_if v7, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v7
     v8 = add 0, 0
     v9 = mload v8
     v10 = and v9, 255
     v11 = eq v9, v10
     v12 = iszero v11
-    revert_if v12, empty
+    icall revert_if<empty>, v12
     v13 = add 0, 0
     v14 = mload v13
     ret v14
@@ -98,7 +98,7 @@ fn @dirtyUnusedStructField() -> u8 [selector=0xc1226a60, view, abi_params=[], ab
   bb2:
     v7 = returndatasize
     v8 = lt v7, 64
-    revert_if v8, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v8
     v9 = abi_decode [tuple<u8, bool>], v5
     v10 = memory_object_load_field memorystruct<2>, v9, 0
     v11 = and v10, 255
@@ -174,7 +174,7 @@ fn @distinctDynamicReturns() -> u256 [selector=0x56c7de2c, abi_params=[], abi_re
   bb1:
     revert_returndata
   bb2:
-    v6 = returndata_bytes
+    v6 = icall returndata_bytes<>
     v7 = abi_decode [tuple<array<_, u256>>, tuple<array<_, u256>>], v6
     v8 = extract_value struct0, v7, 0
     v9 = extract_value struct0, v7, 1
@@ -186,13 +186,13 @@ fn @distinctDynamicReturns() -> u256 [selector=0x56c7de2c, abi_params=[], abi_re
     v15 = memory_object_len memoryarray, v14
     v16 = lt 0, v15
     v17 = iszero v16
-    panic_if v17, 0x32
+    icall panic_if<0x32>, v17
     memory_object_store_element memoryarray<1>, v14, 0, 9
     v18 = memory_object_load_field memorystruct<1>, v13, 0, memoryarray
     v19 = memory_object_len memoryarray, v18
     v20 = lt 0, v19
     v21 = iszero v20
-    panic_if v21, 0x32
+    icall panic_if<0x32>, v21
     v22 = memory_object_load_element memoryarray<1>, v18, 0
     ret v22
 }
@@ -226,7 +226,7 @@ fn @dirtyMemoryFixedArray() -> bool [selector=0x627cd2cc, pure, abi_params=[], a
     mstore v0, 257
     v1 = lt 0, 1
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
     v4 = and v3, 255
     v5 = and v4, 255
@@ -251,7 +251,7 @@ fn @dirtyMemoryDynamicArray() -> bool [selector=0x85ecd2fd, pure, abi_params=[],
     v2 = memory_object_len memoryarray, v0
     v3 = lt 0, v2
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     v5 = memory_object_load_element memoryarray<1>, v0, 0
     v6 = and v5, 255
     v7 = and v6, 255
@@ -294,7 +294,7 @@ fn @dirtyMemoryLvalue() -> bool [selector=0x91f3b994, pure, abi_params=[], abi_r
     mstore v0, 257
     v1 = lt 0, 1
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
     v4 = and v3, 255
     v5 = checked_add u8, v4, 1
@@ -302,7 +302,7 @@ fn @dirtyMemoryLvalue() -> bool [selector=0x91f3b994, pure, abi_params=[], abi_r
     memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v6
     v7 = lt 0, 1
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     v9 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
     v10 = and v9, 255
     v11 = eq v10, 2
@@ -318,7 +318,7 @@ fn @dirtyEnumStorage() -> u256 [selector=0x7f3d1a0c, abi_params=[], abi_returns=
   bb0:
     v0 = lt 2, 2
     v1 = iszero v0
-    panic_if v1, 0x21
+    icall panic_if<0x21>, v1
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = not 255
     v4 = and v2, v3
@@ -335,7 +335,7 @@ fn @dirtyEnumStorageRead() -> u256 [selector=0xb2fb782c, abi_params=[], abi_retu
     v1 = and v0, 255
     v2 = lt v1, 2
     v3 = iszero v2
-    panic_if v3, 0x21
+    icall panic_if<0x21>, v3
     ret v1
 }
 
@@ -345,7 +345,7 @@ fn @dirtyEnumExternalArg() -> u256 [selector=0x0ca35a15, view, abi_params=[], ab
     v1 = gas
     v2 = lt 2, 2
     v3 = iszero v2
-    panic_if v3, 0x21
+    icall panic_if<0x21>, v3
     v4 = abi_encode [word<enum 2>], selector 0x5688f44300000000000000000000000000000000000000000000000000000000, args 2
     v5 = slice_ptr v4
     v6 = slice_len v4
@@ -356,7 +356,7 @@ fn @dirtyEnumExternalArg() -> u256 [selector=0x0ca35a15, view, abi_params=[], ab
   bb2:
     v8 = returndatasize
     v9 = lt v8, 32
-    revert_if v9, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
     v11 = mload v10
     v12 = add 0, 0
@@ -386,7 +386,7 @@ fn @dirtyEnumStructExternalArg() -> u256 [selector=0x06fd3c7e, view, abi_params=
   bb2:
     v7 = returndatasize
     v8 = lt v7, 32
-    revert_if v8, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v8
     v9 = add 0, 0
     v10 = mload v9
     v11 = add 0, 0
@@ -417,7 +417,7 @@ fn @dirtyEnumArrayExternalArg() -> u256 [selector=0xa5e959d5, view, abi_params=[
   bb2:
     v8 = returndatasize
     v9 = lt v8, 32
-    revert_if v9, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
     v11 = mload v10
     v12 = add 0, 0
@@ -434,7 +434,7 @@ fn @dirtyEnumPacked() -> memorybytes [selector=0x1193687a, pure, abi_params=[], 
   bb0:
     v0 = lt 2, 2
     v1 = iszero v0
-    panic_if v1, 0x21
+    icall panic_if<0x21>, v1
     v2 = abi_encode_packed (u8 2)
     ret v2
 }
@@ -489,7 +489,7 @@ fn @dynamicShort(arg0: u256) -> bool [selector=0x73932459, view, abi_params=[u25
   bb1:
     revert_returndata
   bb2:
-    v6 = returndata_bytes
+    v6 = icall returndata_bytes<>
     v7 = abi_decode [bytes], v6
     ret true
 }
@@ -513,7 +513,7 @@ fn @dynamicLengthOverflow() -> u256 [selector=0x5e963174, view, abi_params=[], a
   bb1:
     revert_returndata
   bb2:
-    v6 = returndata_bytes
+    v6 = icall returndata_bytes<>
     v7 = abi_decode [bytes], v6
     v8 = memory_object_len memorybytes, v7
     ret v8
@@ -538,7 +538,7 @@ fn @dynamicArrayLengthOverflow() -> u256 [selector=0xbd5e58ee, view, abi_params=
   bb1:
     revert_returndata
   bb2:
-    v6 = returndata_bytes
+    v6 = icall returndata_bytes<>
     v7 = abi_decode [array<_, u256>], v6
     v8 = memory_object_len memoryarray, v7
     ret v8

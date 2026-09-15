@@ -6,7 +6,7 @@
 
 contract AddmodMulmod {
     // SEM-LABEL: fn @am
-    // SEM: checked_addmod arg0, arg1, arg2
+    // SEM: icall checked_addmod<>, arg0, arg1, arg2
     // CHECK-LABEL: fn @am{{[( ]}}
     // CHECK: jumpi arg2,
     // CHECK: mstore 32, 18
@@ -16,7 +16,7 @@ contract AddmodMulmod {
     }
 
     // SEM-LABEL: fn @mm
-    // SEM: checked_mulmod arg0, arg1, arg2
+    // SEM: icall checked_mulmod<>, arg0, arg1, arg2
     // CHECK-LABEL: fn @mm{{[( ]}}
     // CHECK: jumpi arg2,
     // CHECK: mstore 32, 18

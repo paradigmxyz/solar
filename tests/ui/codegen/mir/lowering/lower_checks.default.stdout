@@ -5,14 +5,14 @@
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
--     panic_if_zero arg1, 0x1
+-     icall panic_if_zero<0x1>, arg1
 +     jumpi arg1, bb8, bb4
 +   bb8:
       v1 = mul arg1, 2
       jump bb3
     bb1:
       mstore 64, arg1
--     panic_if_zero arg1, 0x1
+-     icall panic_if_zero<0x1>, arg1
 +     jumpi arg1, bb5, bb4
 +   bb4:
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -20,7 +20,7 @@
 +     revert 28, 36
 +   bb5:
       v0 = add arg1, 1
--     revert_if_zero v0, tuple_data_too_short
+-     icall revert_if_zero<tuple_data_too_short>, v0
 +     jumpi v0, bb7, bb6
 +   bb6:
 +     revert 0, 0
@@ -35,10 +35,10 @@
   
   fn @payloads(arg0: bool, arg1: memorybytes, arg2: u256) {
     bb0:
--     icall require short_string, arg0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
--     icall require empty_string, arg0
--     icall require error_string, arg0, arg1
--     icall require custom_error [word, memory_bytes], arg0, 0, arg2, arg1
+-     icall require<short_string>, arg0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
+-     icall require<empty_string>, arg0
+-     icall require<error_string>, arg0, arg1
+-     icall require<custom_error [word, memory_bytes]>, arg0, 0, arg2, arg1
 +     jumpi arg0, bb2, bb1
 +   bb1:
 +     icall @revert_error, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
@@ -71,7 +71,7 @@
   fn @constant_failure_with_writes() -> u256 {
     bb0:
       memory_zero 128, 32
--     panic_if_zero 0, 0x32
+-     icall panic_if_zero<0x32>, 0
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 50 !metadata(memory=scratch)
 +     revert 28, 36
@@ -82,7 +82,7 @@
   
   fn @constant_failure_without_writes() {
     bb0:
--     panic_if 1, 0x32
+-     icall panic_if<0x32>, 1
 +     jumpi 1, bb1, bb2
 +   bb2:
       ret

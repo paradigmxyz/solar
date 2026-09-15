@@ -29,28 +29,28 @@ fn @staticArray(arg0: calldataslice) -> struct0 [selector=0xaa2fa031, pure, abi_
     v2 = slice_len v1
     v3 = lt 0, v2
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     v5 = slice_ptr v1
     v6 = add v5, 0
     v7 = make_calldata_slice v6, 2
     v8 = slice_len v7
     v9 = lt 0, v8
     v10 = iszero v9
-    panic_if v10, 0x32
+    icall panic_if<0x32>, v10
     v11 = slice_ptr v7
     v12 = add v11, 0
     v13 = calldataload v12
     v14 = slice_len v1
     v15 = lt 1, v14
     v16 = iszero v15
-    panic_if v16, 0x32
+    icall panic_if<0x32>, v16
     v17 = slice_ptr v1
     v18 = add v17, 64
     v19 = make_calldata_slice v18, 2
     v20 = slice_len v19
     v21 = lt 1, v20
     v22 = iszero v21
-    panic_if v22, 0x32
+    icall panic_if<0x32>, v22
     v23 = slice_ptr v19
     v24 = add v23, 32
     v25 = calldataload v24
@@ -71,28 +71,28 @@ fn @dynamicArray(arg0: calldataslice) -> struct1 [selector=0xb8731349, pure, abi
     v7 = slice_len v5
     v8 = lt 0, v7
     v9 = iszero v8
-    panic_if v9, 0x32
+    icall panic_if<0x32>, v9
     v10 = slice_ptr v5
     v11 = add v10, 0
     v12 = make_calldata_slice v11, 2
     v13 = slice_len v12
     v14 = lt 0, v13
     v15 = iszero v14
-    panic_if v15, 0x32
+    icall panic_if<0x32>, v15
     v16 = slice_ptr v12
     v17 = add v16, 0
     v18 = calldataload v17
     v19 = slice_len v5
     v20 = lt 1, v19
     v21 = iszero v20
-    panic_if v21, 0x32
+    icall panic_if<0x32>, v21
     v22 = slice_ptr v5
     v23 = add v22, 64
     v24 = make_calldata_slice v23, 2
     v25 = slice_len v24
     v26 = lt 1, v25
     v27 = iszero v26
-    panic_if v27, 0x32
+    icall panic_if<0x32>, v27
     v28 = slice_ptr v24
     v29 = add v28, 32
     v30 = calldataload v29
@@ -118,21 +118,21 @@ fn @dynamicWords(arg0: calldataslice) -> memoryarray [selector=0x148d46ad, pure,
     v11 = eq v10, v6
     v12 = or v9, v11
     v13 = iszero v12
-    panic_if v13, 0x41
+    icall panic_if<0x41>, v13
     v14 = calldatasize
     v15 = sub v14, v7
     v16 = slt v15, v8
-    revert_if v16, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v16
     v17 = mul v6, 32
     v18 = iszero 32
     v19 = div v17, 32
     v20 = eq v19, v6
     v21 = or v18, v20
     v22 = iszero v21
-    panic_if v22, 0x41
+    icall panic_if<0x41>, v22
     v23 = add 32, v17
     v24 = lt v23, 32
-    panic_if v24, 0x41
+    icall panic_if<0x41>, v24
     v25 = alloc memoryarray<1>, exact, uninitialized, infallible, v23
     set_memory_object_len memoryarray, v25, v6
     v26 = make_calldata_slice v7, v17
@@ -156,21 +156,21 @@ fn @dynamicFixed(arg0: calldataslice) -> memoryarray [selector=0x71cafd78, pure,
     v11 = eq v10, v6
     v12 = or v9, v11
     v13 = iszero v12
-    panic_if v13, 0x41
+    icall panic_if<0x41>, v13
     v14 = calldatasize
     v15 = sub v14, v7
     v16 = slt v15, v8
-    revert_if v16, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v16
     v17 = mul v6, 32
     v18 = iszero 32
     v19 = div v17, 32
     v20 = eq v19, v6
     v21 = or v18, v20
     v22 = iszero v21
-    panic_if v22, 0x41
+    icall panic_if<0x41>, v22
     v23 = add 32, v17
     v24 = lt v23, 32
-    panic_if v24, 0x41
+    icall panic_if<0x41>, v24
     v25 = alloc memoryarray<1>, exact, uninitialized, infallible, v23
     set_memory_object_len memoryarray, v25, v6
     jump bb1
@@ -187,7 +187,7 @@ fn @dynamicFixed(arg0: calldataslice) -> memoryarray [selector=0x71cafd78, pure,
     v31 = eq v30, v26
     v32 = or v29, v31
     v33 = iszero v32
-    panic_if v33, 0x41
+    icall panic_if<0x41>, v33
     v34 = add v7, v28
     v35 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v36 = make_calldata_slice v34, 64
@@ -213,21 +213,21 @@ fn @dynamicNarrow(arg0: calldataslice) -> memoryarray [selector=0x320b552a, pure
     v11 = eq v10, v6
     v12 = or v9, v11
     v13 = iszero v12
-    panic_if v13, 0x41
+    icall panic_if<0x41>, v13
     v14 = calldatasize
     v15 = sub v14, v7
     v16 = slt v15, v8
-    revert_if v16, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v16
     v17 = mul v6, 32
     v18 = iszero 32
     v19 = div v17, 32
     v20 = eq v19, v6
     v21 = or v18, v20
     v22 = iszero v21
-    panic_if v22, 0x41
+    icall panic_if<0x41>, v22
     v23 = add 32, v17
     v24 = lt v23, 32
-    panic_if v24, 0x41
+    icall panic_if<0x41>, v24
     v25 = alloc memoryarray<1>, exact, uninitialized, infallible, v23
     set_memory_object_len memoryarray, v25, v6
     jump bb1
@@ -244,7 +244,7 @@ fn @dynamicNarrow(arg0: calldataslice) -> memoryarray [selector=0x320b552a, pure
     v31 = and v30, 255
     v32 = eq v30, v31
     v33 = iszero v32
-    revert_if v33, empty
+    icall revert_if<empty>, v33
     v34 = and v30, 255
     memory_object_store_element memoryarray<1>, v25, v26, v34
     v35 = add v26, 1
@@ -267,21 +267,21 @@ fn @dynamicNested(arg0: calldataslice) -> memoryarray [selector=0x24abb2f5, pure
     v11 = eq v10, v6
     v12 = or v9, v11
     v13 = iszero v12
-    panic_if v13, 0x41
+    icall panic_if<0x41>, v13
     v14 = calldatasize
     v15 = sub v14, v7
     v16 = slt v15, v8
-    revert_if v16, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v16
     v17 = mul v6, 32
     v18 = iszero 32
     v19 = div v17, 32
     v20 = eq v19, v6
     v21 = or v18, v20
     v22 = iszero v21
-    panic_if v22, 0x41
+    icall panic_if<0x41>, v22
     v23 = add 32, v17
     v24 = lt v23, 32
-    panic_if v24, 0x41
+    icall panic_if<0x41>, v24
     v25 = alloc memoryarray<1>, exact, uninitialized, infallible, v23
     set_memory_object_len memoryarray, v25, v6
     jump bb1
@@ -297,7 +297,7 @@ fn @dynamicNested(arg0: calldataslice) -> memoryarray [selector=0x24abb2f5, pure
     v30 = calldatasize
     v31 = sub v30, v29
     v32 = slt v31, 32
-    revert_if v32, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v32
     v33 = calldataload v29
     v34 = add v7, v33
     v35 = calldatasize
@@ -305,16 +305,16 @@ fn @dynamicNested(arg0: calldataslice) -> memoryarray [selector=0x24abb2f5, pure
     v37 = sub v36, 31
     v38 = slt v33, v37
     v39 = iszero v38
-    revert_if v39, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v39
     v40 = calldataload v34
     v41 = gt v40, 0xffffffffffffffff
-    revert_if v41, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v41
     v42 = mul v40, 32
     v43 = add v34, 32
     v44 = calldatasize
     v45 = sub v44, v42
     v46 = sgt v43, v45
-    revert_if v46, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v46
     v47 = add v34, 32
     v48 = mul v40, 32
     v49 = iszero 32
@@ -322,10 +322,10 @@ fn @dynamicNested(arg0: calldataslice) -> memoryarray [selector=0x24abb2f5, pure
     v51 = eq v50, v40
     v52 = or v49, v51
     v53 = iszero v52
-    panic_if v53, 0x41
+    icall panic_if<0x41>, v53
     v54 = add 32, v48
     v55 = lt v54, 32
-    panic_if v55, 0x41
+    icall panic_if<0x41>, v55
     v56 = alloc memoryarray<1>, exact, uninitialized, infallible, v54
     set_memory_object_len memoryarray, v56, v40
     v57 = make_calldata_slice v47, v48
@@ -352,21 +352,21 @@ fn @dynamicOverflow(arg0: calldataslice) -> memoryarray [selector=0x51072adf, pu
     v12 = eq v11, v7
     v13 = or v10, v12
     v14 = iszero v13
-    panic_if v14, 0x41
+    icall panic_if<0x41>, v14
     v15 = calldatasize
     v16 = sub v15, v8
     v17 = slt v16, v9
-    revert_if v17, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v17
     v18 = mul v7, 32
     v19 = iszero 32
     v20 = div v18, 32
     v21 = eq v20, v7
     v22 = or v19, v21
     v23 = iszero v22
-    panic_if v23, 0x41
+    icall panic_if<0x41>, v23
     v24 = add 32, v18
     v25 = lt v24, 32
-    panic_if v25, 0x41
+    icall panic_if<0x41>, v25
     v26 = alloc memoryarray<1>, exact, uninitialized, infallible, v24
     set_memory_object_len memoryarray, v26, v7
     v27 = make_calldata_slice v8, v18
@@ -391,21 +391,21 @@ fn @dynamicEmptyAtEnd(arg0: calldataslice) -> memoryarray [selector=0x93d2ba08, 
     v12 = eq v11, v7
     v13 = or v10, v12
     v14 = iszero v13
-    panic_if v14, 0x41
+    icall panic_if<0x41>, v14
     v15 = calldatasize
     v16 = sub v15, v8
     v17 = slt v16, v9
-    revert_if v17, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v17
     v18 = mul v7, 32
     v19 = iszero 32
     v20 = div v18, 32
     v21 = eq v20, v7
     v22 = or v19, v21
     v23 = iszero v22
-    panic_if v23, 0x41
+    icall panic_if<0x41>, v23
     v24 = add 32, v18
     v25 = lt v24, 32
-    panic_if v25, 0x41
+    icall panic_if<0x41>, v25
     v26 = alloc memoryarray<1>, exact, uninitialized, infallible, v24
     set_memory_object_len memoryarray, v26, v7
     v27 = make_calldata_slice v8, v18
@@ -431,21 +431,21 @@ fn @dynamicEmptyPastEnd(arg0: calldataslice) -> memoryarray [selector=0x77beb5ce
     v13 = eq v12, v8
     v14 = or v11, v13
     v15 = iszero v14
-    panic_if v15, 0x41
+    icall panic_if<0x41>, v15
     v16 = calldatasize
     v17 = sub v16, v9
     v18 = slt v17, v10
-    revert_if v18, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v18
     v19 = mul v8, 32
     v20 = iszero 32
     v21 = div v19, 32
     v22 = eq v21, v8
     v23 = or v20, v22
     v24 = iszero v23
-    panic_if v24, 0x41
+    icall panic_if<0x41>, v24
     v25 = add 32, v19
     v26 = lt v25, 32
-    panic_if v26, 0x41
+    icall panic_if<0x41>, v26
     v27 = alloc memoryarray<1>, exact, uninitialized, infallible, v25
     set_memory_object_len memoryarray, v27, v8
     v28 = make_calldata_slice v9, v19
@@ -470,21 +470,21 @@ fn @dynamicWrappingEnd(arg0: calldataslice) -> memoryarray [selector=0x4c797599,
     v12 = eq v11, v7
     v13 = or v10, v12
     v14 = iszero v13
-    panic_if v14, 0x41
+    icall panic_if<0x41>, v14
     v15 = calldatasize
     v16 = sub v15, v8
     v17 = slt v16, v9
-    revert_if v17, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v17
     v18 = mul v7, 32
     v19 = iszero 32
     v20 = div v18, 32
     v21 = eq v20, v7
     v22 = or v19, v21
     v23 = iszero v22
-    panic_if v23, 0x41
+    icall panic_if<0x41>, v23
     v24 = add 32, v18
     v25 = lt v24, 32
-    panic_if v25, 0x41
+    icall panic_if<0x41>, v25
     v26 = alloc memoryarray<1>, exact, uninitialized, infallible, v24
     set_memory_object_len memoryarray, v26, v7
     v27 = make_calldata_slice v8, v18

@@ -7,7 +7,7 @@ fn @pack(arg0: calldataslice) -> memorybytes [selector=0xc917a597, pure, abi_par
     v2 = calldatasize
     v3 = sub v2, v1
     v4 = slt v3, 32
-    revert_if v4, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v4
     v5 = calldataload v1
     v6 = add v0, v5
     v7 = calldatasize
@@ -15,33 +15,33 @@ fn @pack(arg0: calldataslice) -> memorybytes [selector=0xc917a597, pure, abi_par
     v9 = sub v8, 31
     v10 = slt v5, v9
     v11 = iszero v10
-    revert_if v11, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v11
     v12 = calldataload v6
     v13 = gt v12, 0xffffffffffffffff
-    revert_if v13, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 1
     v15 = add v6, 32
     v16 = calldatasize
     v17 = sub v16, v14
     v18 = sgt v15, v17
-    revert_if v18, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v18
     v19 = add v6, 32
     v20 = make_calldata_slice v19, v12
     v21 = slice_ptr v20
     v22 = slice_len v20
     v23 = gt v22, 0xffffffffffffffff
-    revert_if v23, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v23
     v24 = calldatasize
     v25 = sub v24, v22
     v26 = sgt v21, v25
-    revert_if v26, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v26
     v27 = slice_ptr arg0
     v28 = add v27, 0
     v29 = calldataload v28
     v30 = and v29, 0xffffffffffffffffffffffffffffffffffffffff
     v31 = eq v29, v30
     v32 = iszero v31
-    revert_if v32, empty
+    icall revert_if<empty>, v32
     v33 = and v29, 0xffffffffffffffffffffffffffffffffffffffff
     v34 = abi_encode_packed (bytes v20, u160 v33)
     ret v34
@@ -54,7 +54,7 @@ fn @packHash(arg0: calldataslice) -> bytes32 [selector=0x26915e91, pure, abi_par
     v2 = calldatasize
     v3 = sub v2, v1
     v4 = slt v3, 32
-    revert_if v4, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v4
     v5 = calldataload v1
     v6 = add v0, v5
     v7 = calldatasize
@@ -62,33 +62,33 @@ fn @packHash(arg0: calldataslice) -> bytes32 [selector=0x26915e91, pure, abi_par
     v9 = sub v8, 31
     v10 = slt v5, v9
     v11 = iszero v10
-    revert_if v11, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v11
     v12 = calldataload v6
     v13 = gt v12, 0xffffffffffffffff
-    revert_if v13, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 1
     v15 = add v6, 32
     v16 = calldatasize
     v17 = sub v16, v14
     v18 = sgt v15, v17
-    revert_if v18, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v18
     v19 = add v6, 32
     v20 = make_calldata_slice v19, v12
     v21 = slice_ptr v20
     v22 = slice_len v20
     v23 = gt v22, 0xffffffffffffffff
-    revert_if v23, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v23
     v24 = calldatasize
     v25 = sub v24, v22
     v26 = sgt v21, v25
-    revert_if v26, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v26
     v27 = slice_ptr arg0
     v28 = add v27, 0
     v29 = calldataload v28
     v30 = and v29, 0xffffffffffffffffffffffffffffffffffffffff
     v31 = eq v29, v30
     v32 = iszero v31
-    revert_if v32, empty
+    icall revert_if<empty>, v32
     v33 = and v29, 0xffffffffffffffffffffffffffffffffffffffff
     v34 = keccak256_packed (bytes v20, u160 v33)
     ret v34
