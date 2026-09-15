@@ -21,8 +21,10 @@
 //! grows code.
 
 use crate::mir::{
-    BlockId, Function, FunctionBuilder, InstId, InstKind, Module, Terminator, Value, ValueId,
-    pass::{MirPass, ModuleAnalyses, run_function_pass},
+    BlockId, Function, FunctionBuilder, InstId, InstKind, MirType, Module, Terminator, Value,
+    ValueId,
+    analysis::{AliasAnalysis, LocationSize, MemoryAddress, MemoryBase, MemoryLocation},
+    pass::{MirPass, ModuleAnalyses, run_function_pass_with_alias},
     utils::repair_reachability_phis,
 };
 use alloy_primitives::U256;
@@ -37,7 +39,9 @@ impl MirPass for LoopIdioms {
     }
 
     fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-        run_function_pass(module, analyses, |func, _| run_function(func))
+        run_function_pass_with_alias(module, analyses, |func, analyses| {
+            run_function(func, analyses.alias())
+        })
     }
 }
 
@@ -190,7 +194,7 @@ fn emit_return(builder: &mut FunctionBuilder<'_>, exit: ReturnShape, value: Valu
     }
 }
 
-fn run_function(func: &mut Function) -> bool {
+fn run_function(func: &mut Function, alias: &AliasAnalysis) -> bool {
     let mut changed = false;
     loop {
         if let Some(candidate) =
@@ -205,6 +209,10 @@ fn run_function(func: &mut Function) -> bool {
             func.blocks.indices().find_map(|header| match_calldata_zero_count_loop(func, header))
         {
             rewrite_zero_count_loop(func, candidate);
+        } else if let Some(candidate) =
+            func.blocks.indices().find_map(|header| match_copy_loop(func, alias, header))
+        {
+            rewrite_copy_loop(func, candidate);
         } else {
             break;
         }
@@ -912,4 +920,300 @@ fn emit_ascii_result(builder: &mut FunctionBuilder<'_>, aggregate: ValueId) -> V
     let high_bits = builder.imm(U256::from_be_bytes([0x80; 32]));
     let non_ascii = builder.and(aggregate, high_bits);
     builder.iszero(non_ascii)
+}
+
+/// A loop that moves one byte per iteration from one memory range to another.
+struct CopyLoop {
+    header: BlockId,
+    body: BlockId,
+    preheader: BlockId,
+    exit: BlockId,
+    /// Bytes copied: the loop's invariant bound.
+    length: ValueId,
+    /// Non-constant addends of the source address at index zero.
+    source: Vec<ValueId>,
+    source_offset: u64,
+    /// Non-constant addends of the destination address at index zero.
+    dest: Vec<ValueId>,
+    dest_offset: u64,
+}
+
+/// Splits an address into its non-constant addends and their constant sum.
+fn address_addends(func: &Function, address: ValueId) -> Option<(Vec<ValueId>, u64)> {
+    let mut addends = Vec::new();
+    let mut offset = 0u64;
+    let mut pending = vec![address];
+    while let Some(value) = pending.pop() {
+        if let Some(constant) = func.value_u64(value) {
+            offset = offset.checked_add(constant)?;
+            continue;
+        }
+        if let Value::Inst(inst) = *func.value(value)
+            && let InstKind::Add(first, second) = func.inst(inst).kind
+        {
+            if pending.len() >= 8 {
+                return None;
+            }
+            pending.push(first);
+            pending.push(second);
+            continue;
+        }
+        if addends.len() >= 8 {
+            return None;
+        }
+        addends.push(value);
+    }
+    Some((addends, offset))
+}
+
+/// Whether a value is defined outside the loop's header and body.
+fn defined_outside(func: &Function, header: BlockId, body: BlockId, value: ValueId) -> bool {
+    let Value::Inst(inst) = *func.value(value) else { return true };
+    !func.blocks[header].instructions.contains(&inst)
+        && !func.blocks[body].instructions.contains(&inst)
+}
+
+/// Whether a value is a memory pointer the caller passed in.
+///
+/// Such an object was allocated before this function ran, so it lies below the
+/// free-memory pointer the function reads. This is the same ordering the alias
+/// analysis records for a memory-object parameter, which memory lowering has
+/// already turned into a plain pointer by the time this pass runs.
+fn is_caller_memory(func: &Function, value: ValueId) -> bool {
+    let Value::Arg(index) = *func.value(value) else { return false };
+    matches!(func.arg_ty(index), MirType::MemPtr | MirType::MemoryObject(_))
+}
+
+/// Whether a value is the free-memory pointer this function read, which every
+/// allocation it makes starts from.
+///
+/// Allocation lowering runs before this pass, so a freshly allocated buffer is
+/// no longer an `alloc` the alias analysis can place: it is a read of the
+/// pointer plus an offset.
+fn reads_allocation_frontier(func: &Function, value: ValueId) -> bool {
+    let Value::Inst(inst) = *func.value(value) else { return false };
+    match func.inst(inst).kind {
+        InstKind::MLoad(address) => func.value_u64(address) == Some(64),
+        InstKind::Fmp => true,
+        _ => false,
+    }
+}
+
+/// The abstract address of the one addend that carries memory provenance.
+///
+/// A copied range is `object + constant + index`; the object is the addend the
+/// alias analysis can place, while the index and any invariant scalar cannot be.
+fn provenance(
+    func: &Function,
+    alias: &AliasAnalysis,
+    addends: &[ValueId],
+) -> Option<MemoryAddress> {
+    let mut found = None;
+    for &addend in addends {
+        let Some(address) = alias.memory_address(func, addend) else { continue };
+        if matches!(address.base, MemoryBase::Value(_)) {
+            continue;
+        }
+        if found.is_some() {
+            return None;
+        }
+        found = Some(address);
+    }
+    found
+}
+
+/// Whether any value other than the loop itself reads the counter.
+fn counter_escapes(func: &Function, header: BlockId, body: BlockId, index: ValueId) -> bool {
+    for (block, contents) in func.blocks.iter_enumerated() {
+        if block == header || block == body {
+            continue;
+        }
+        if contents
+            .instructions
+            .iter()
+            .any(|&inst| func.inst(inst).kind.operands().contains(&index))
+        {
+            return true;
+        }
+        if let Some(term) = &contents.terminator {
+            let mut found = false;
+            term.for_each_operand(|operand| found |= operand == index);
+            if found {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Recognizes a loop whose whole body copies one byte from one range to another.
+///
+/// The header counts from zero to an invariant bound and the body reads one
+/// byte, writes it, and steps the counter; every other instruction in it builds
+/// the two addresses. Both addresses must be the counter plus loop-invariant
+/// terms, so each range starts where its address stands at index zero and runs
+/// for the bound.
+fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> Option<CopyLoop> {
+    // A discarded read raises the memory high-water mark, and the copy this
+    // builds touches less of it than the reads it replaces.
+    if func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize)) {
+        return None;
+    }
+    // header: index = phi [preheader: 0], [body: next]; jumpi lt(index, bound), body, exit
+    let [phi_inst, less_inst] = func.blocks[header].instructions.as_slice() else { return None };
+    let InstKind::Phi(incoming) = &func.inst(*phi_inst).kind else { return None };
+    let index = func.inst_result_value(*phi_inst)?;
+    let [(preheader, initial), (latch, next)] = incoming.as_slice() else { return None };
+    if func.value_u64(*initial) != Some(0) {
+        return None;
+    }
+    let InstKind::Lt(counter, bound) = func.inst(*less_inst).kind else { return None };
+    let condition = func.inst_result_value(*less_inst)?;
+    if counter != index {
+        return None;
+    }
+    let Some(Terminator::Branch { condition: branch, then_block, else_block }) =
+        &func.blocks[header].terminator
+    else {
+        return None;
+    };
+    let (body, exit) = (*then_block, *else_block);
+    if *branch != condition || body != *latch || body == header {
+        return None;
+    }
+    if !matches!(func.blocks[body].terminator, Some(Terminator::Jump(target)) if target == header) {
+        return None;
+    }
+    if !defined_outside(func, header, body, bound) || counter_escapes(func, header, body, index) {
+        return None;
+    }
+
+    // body: the read, the write, the step, and the address arithmetic they use
+    let mut load: Option<(ValueId, ValueId)> = None;
+    let mut extract = None;
+    let mut store = None;
+    let mut step = false;
+    for &inst in &func.blocks[body].instructions {
+        match func.inst(inst).kind {
+            InstKind::MLoad(address) if load.is_none() => {
+                load = Some((address, func.inst_result_value(inst)?));
+            }
+            InstKind::Byte(position, word)
+                if extract.is_none()
+                    && func.value_u64(position) == Some(0)
+                    && load.is_some_and(|(_, result)| result == word) =>
+            {
+                extract = func.inst_result_value(inst);
+            }
+            InstKind::MStore8(address, value) if store.is_none() && Some(value) == extract => {
+                store = Some(address);
+            }
+            InstKind::Add(first, second)
+                if !step
+                    && func.inst_result_value(inst) == Some(*next)
+                    && ((first == index && func.value_u64(second) == Some(1))
+                        || (second == index && func.value_u64(first) == Some(1))) =>
+            {
+                step = true;
+            }
+            // Anything else must be pure arithmetic building the addresses.
+            InstKind::Add(..) | InstKind::Sub(..) => {}
+            _ => return None,
+        }
+    }
+    let ((source_address, _), byte, dest_address) = (load?, extract?, store?);
+    if !step {
+        return None;
+    }
+    // The byte read must feed only the write.
+    let byte_uses =
+        func.instructions().filter(|&inst| func.inst(inst).kind.operands().contains(&byte)).count();
+    if byte_uses != 1 {
+        return None;
+    }
+
+    let (source, source_offset) = address_addends(func, source_address)?;
+    let (dest, dest_offset) = address_addends(func, dest_address)?;
+    let strip = |addends: Vec<ValueId>| -> Option<Vec<ValueId>> {
+        let position = addends.iter().position(|&value| value == index)?;
+        let mut rest = addends;
+        rest.remove(position);
+        rest.iter().all(|&value| defined_outside(func, header, body, value)).then_some(rest)
+    };
+    let source = strip(source)?;
+    let dest = strip(dest)?;
+
+    // `mcopy` moves as if through a buffer while the loop copies upwards, so
+    // the two differ exactly when the ranges overlap. Require them disjoint.
+    let disjoint = match (provenance(func, alias, &source), provenance(func, alias, &dest)) {
+        (Some(source_place), Some(dest_place)) => !AliasAnalysis::memory_alias_locations(
+            MemoryLocation::new(source_place, LocationSize::Unknown),
+            MemoryLocation::new(dest_place, LocationSize::Unknown),
+        )
+        .may_alias(),
+        // An object the caller passed in was allocated before this function
+        // ran, so it lies below the frontier every allocation here starts
+        // from. That is the same reasoning the alias analysis applies to an
+        // allocation it can still see.
+        (Some(place), None) => {
+            matches!(place.base, MemoryBase::Param(_))
+                && dest.iter().any(|&value| reads_allocation_frontier(func, value))
+        }
+        (None, Some(place)) => {
+            matches!(place.base, MemoryBase::Param(_))
+                && source.iter().any(|&value| reads_allocation_frontier(func, value))
+        }
+        // Memory lowering leaves a caller's object as a plain pointer argument
+        // and a fresh buffer as an offset from the frontier, and the first is
+        // always below the second.
+        (None, None) => {
+            (source.iter().any(|&value| is_caller_memory(func, value))
+                && dest.iter().any(|&value| reads_allocation_frontier(func, value)))
+                || (dest.iter().any(|&value| is_caller_memory(func, value))
+                    && source.iter().any(|&value| reads_allocation_frontier(func, value)))
+        }
+    };
+    if !disjoint {
+        return None;
+    }
+
+    Some(CopyLoop {
+        header,
+        body,
+        preheader: *preheader,
+        exit,
+        length: bound,
+        source,
+        source_offset,
+        dest,
+        dest_offset,
+    })
+}
+
+/// Replaces a recognized byte-copy loop with one `mcopy` in its preheader.
+fn rewrite_copy_loop(func: &mut Function, candidate: CopyLoop) {
+    {
+        let mut builder = FunctionBuilder::new(func);
+        builder.switch_to_block(candidate.preheader);
+        let base = |builder: &mut FunctionBuilder<'_>, addends: Vec<ValueId>, offset: u64| {
+            let mut total: Option<ValueId> = None;
+            for addend in addends {
+                total = Some(match total {
+                    Some(sum) => builder.add(sum, addend),
+                    None => addend,
+                });
+            }
+            let start = total.unwrap_or_else(|| builder.imm(0));
+            if offset == 0 { start } else { builder.add_u64_offset(start, offset) }
+        };
+        // mcopy(dest, source, length)
+        let source = base(&mut builder, candidate.source, candidate.source_offset);
+        let dest = base(&mut builder, candidate.dest, candidate.dest_offset);
+        builder.mcopy(dest, source, candidate.length);
+    }
+    // The copy is complete before the loop would start, so the header leaves at
+    // once and later cleanup removes the unreachable body.
+    func.blocks[candidate.header].terminator = Some(Terminator::Jump(candidate.exit));
+    func.blocks[candidate.body].instructions.clear();
+    func.blocks[candidate.body].terminator = Some(Terminator::Jump(candidate.header));
 }
