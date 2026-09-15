@@ -218,7 +218,7 @@ fn at_most(func: &Function, value: ValueId, bound: U256) -> bool {
 /// Solidity's `bool` type does not prove that the EVM word is canonical:
 /// inline assembly can assign dirty words to variables, arguments, and return
 /// values. Only values whose definition bounds them to one bit qualify.
-fn is_bool_value(func: &Function, value: ValueId) -> bool {
+pub(in crate::mir::transform) fn is_bool_value(func: &Function, value: ValueId) -> bool {
     max_bits(func, value, MAX_BITS_DEPTH) <= 1
 }
 

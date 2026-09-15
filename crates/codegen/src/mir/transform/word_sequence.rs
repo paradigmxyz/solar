@@ -14,6 +14,8 @@
 //! effects, block edges or gas observations. Recipe and producer-cone sizes are
 //! bounded independently of function size. This is a local tree estimate, not
 //! a proof of scheduled cost; gas and size corpus measurements remain required.
+//! Scalar selects can also be roots: their arithmetic recipes preserve zero/nonzero
+//! conditions, while pointer and aggregate selects retain their provenance.
 
 use crate::{
     backend::evm::{op, select},
@@ -73,10 +75,29 @@ fn legal(op: &Op, target: Target) -> bool {
         })
 }
 
-fn removable(inst: &Instruction, target: Target) -> bool {
+fn removable(func: &Function, inst: &Instruction, target: Target) -> bool {
+    let scalar_select = match inst.kind.op() {
+        Op::Select { true_val, false_val, .. } => {
+            [inst.result_ty, func.value_ty(true_val), func.value_ty(false_val)].into_iter().all(
+                |ty| {
+                    matches!(
+                        ty,
+                        Some(
+                            MirType::UInt(_)
+                                | MirType::Int(_)
+                                | MirType::Bool
+                                | MirType::Address
+                                | MirType::FixedBytes(_)
+                        )
+                    )
+                },
+            )
+        }
+        _ => false,
+    };
     !inst.metadata.abi_validation()
         && inst.metadata.effect().is_none_or(|effect| effect == EffectKind::Pure)
-        && legal(&inst.kind.op(), target)
+        && (legal(&inst.kind.op(), target) || scalar_select)
 }
 
 fn operation_cost(
@@ -90,7 +111,11 @@ fn operation_cost(
         Some(Temporary::Operation(_)) => None,
         None => func.value_u256(value),
     };
-    let mut cost = target.op(op, immediate);
+    let mut cost = if let Op::Select { cond, .. } = op {
+        target.select(!super::egraph::is_bool_value(func, *cond))
+    } else {
+        target.op(op, immediate)
+    };
     let _ = op.map_values(|value| {
         cost += immediate(value).map_or_else(|| target.dup(), |value| target.push(value));
         value
@@ -197,14 +222,14 @@ fn run(func: &mut Function, target: Target) -> bool {
         let mut seen = FxHashSet::default();
         let mut deleted = FxHashSet::default();
         for inst in original {
-            if !removable(func.inst(inst), target) {
+            if !removable(func, func.inst(inst), target) {
                 seen.clear();
                 ordered.push(inst);
                 continue;
             }
             let op = func.inst(inst).kind.op();
             let mut best = None;
-            for recipe in isle::alternatives(func, &seen, &op) {
+            for recipe in isle::alternatives(func, &seen, &op, target) {
                 if let Some((after, leaves)) = recipe.cost_and_leaves(func, target) {
                     let mut dead = FxHashSet::default();
                     collect_dead(func, &op, &uses, &seen, &leaves, target, &mut dead);
@@ -272,7 +297,7 @@ fn collect_dead(
             && uses.get(value) == Some(&1)
             && let Value::Inst(inst) = func.value(value)
             && seen.contains(inst)
-            && removable(func.inst(*inst), target)
+            && removable(func, func.inst(*inst), target)
             && dead.insert(*inst)
         {
             collect_dead(func, &func.inst(*inst).kind.op(), uses, seen, leaves, target, dead);
