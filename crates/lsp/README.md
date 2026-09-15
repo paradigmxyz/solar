@@ -89,3 +89,11 @@ The benchmark groups intentionally keep separate timing boundaries:
 - `signature-help-first-request` and `signature-help-first-after-edit` measure an early or late
   request with fresh document caches. The edited case appends whitespace while retaining analysis,
   exercising signature help before reanalysis. Preparing and destroying snapshots is untimed.
+- `single-workspace-reverted-edit` measures applying and undoing an edit followed by a complete
+  production analysis epoch, including dependency validation and publication. `single-workspace-open-indexed`
+  opens a disk-identical root after initial indexing; setup and destruction are untimed.
+  Both cover 256 generated callers with a disk import and the tracked Unifap router's import
+  closure copied beneath an excluded `lib/` directory. `single-workspace-cold`,
+  `single-workspace-changed`, and `single-workspace-unchanged` provide first-analysis, changed-text,
+  and unchanged-epoch controls. These include synchronous filesystem validation and compiler work;
+  they exclude protocol transport, debounce, and blocking-pool scheduling.

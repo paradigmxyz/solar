@@ -1312,6 +1312,120 @@ fn repeated_analysis(c: &mut Criterion) {
     cached.finish();
 }
 
+fn single_workspace_index_reuse(c: &mut Criterion) {
+    let temp = tempfile::tempdir().expect("single workspace benchmark directory");
+    let root = temp.path().to_path_buf();
+    fs::create_dir(root.join("lib")).unwrap();
+    let mut generated = String::from(
+        "import \"./lib/Dependency.sol\";\ncontract Main is Dependency {\nfunction target() internal {}\n",
+    );
+    for index in 0..256 {
+        writeln!(generated, "function caller{index}() public {{ target(); }}").unwrap();
+    }
+    generated.push_str("}\n");
+    fs::write(root.join("lib/Dependency.sol"), "contract Dependency {}\n").unwrap();
+
+    let real_root =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/foundry/unifap-v2/src");
+    fn copy_sources(source: &std::path::Path, destination: &std::path::Path) {
+        fs::create_dir_all(destination).unwrap();
+        for entry in fs::read_dir(source).unwrap() {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            let destination = destination.join(entry.file_name());
+            if path.is_dir() {
+                copy_sources(&path, &destination);
+            } else if path.extension().is_some_and(|extension| extension == "sol") {
+                fs::copy(path, destination).unwrap();
+            }
+        }
+    }
+    copy_sources(&real_root, &root.join("lib/unifap"));
+    let imported = "import \"./lib/unifap/UnifapV2Router.sol\";\n";
+    let main = root.join("Main.sol");
+    let uri = Url::from_file_path(&main).unwrap();
+    for (name, source) in [("256-callers", generated.as_str()), ("unifap-v2-import", imported)] {
+        fs::write(&main, source).unwrap();
+        let prepare =
+            || BenchmarkRepeatedAnalysis::from_workspaces(std::slice::from_ref(&root), source);
+        let mut analysis = prepare();
+        assert!(analysis.run_epoch());
+        analysis.assert_no_diagnostics();
+        if name == "256-callers" {
+            assert_eq!(
+                analysis.prepare_call_hierarchy(&uri, Position::new(3, 9)).unwrap().len(),
+                1
+            );
+        } else {
+            let router = Url::from_file_path(root.join("lib/unifap/UnifapV2Router.sol")).unwrap();
+            let (_, mut position) = unifap_project()
+                .unique_anchor(UNIFAP_ROUTER, "function _safeTransferFrom(")
+                .unwrap();
+            position.character += "function ".len() as u32;
+            assert_eq!(
+                analysis.prepare_call_hierarchy(&router, position).unwrap()[0].name,
+                "_safeTransferFrom"
+            );
+        }
+        c.benchmark_group("lsp/single-workspace-unchanged").bench_function(
+            BenchmarkId::from_parameter(name),
+            |b| {
+                b.iter(|| black_box(analysis.run_epoch()));
+            },
+        );
+        c.benchmark_group("lsp/single-workspace-cold").bench_function(
+            BenchmarkId::from_parameter(name),
+            |b| {
+                b.iter_batched_ref(
+                    prepare,
+                    |analysis| black_box(analysis.run_epoch()),
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+        c.benchmark_group("lsp/single-workspace-reverted-edit").bench_function(
+            BenchmarkId::from_parameter(name),
+            |b| {
+                b.iter(|| {
+                    analysis.edit_and_revert();
+                    black_box(analysis.run_epoch())
+                });
+            },
+        );
+        c.benchmark_group("lsp/single-workspace-open-indexed").bench_function(
+            BenchmarkId::from_parameter(name),
+            |b| {
+                b.iter_batched_ref(
+                    || {
+                        let mut analysis = prepare();
+                        analysis.clear_open_documents();
+                        assert!(analysis.run_epoch());
+                        analysis.assert_no_diagnostics();
+                        analysis
+                    },
+                    |analysis| {
+                        analysis.replace_source(&main, source);
+                        black_box(analysis.run_epoch())
+                    },
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+        let mut edited = false;
+        let edited_source = format!("{source} ");
+        c.benchmark_group("lsp/single-workspace-changed").bench_function(
+            BenchmarkId::from_parameter(name),
+            |b| {
+                b.iter(|| {
+                    edited = !edited;
+                    analysis.replace_source(&main, if edited { &edited_source } else { source });
+                    black_box(analysis.run_epoch())
+                });
+            },
+        );
+    }
+}
+
 fn workspace_index_reuse(c: &mut Criterion) {
     let workspace_count = 4;
     let caller_count = 256;
@@ -1673,6 +1787,7 @@ criterion_group!(
     open_document_analysis_batches,
     repeated_analysis,
     workspace_index_reuse,
+    single_workspace_index_reuse,
     workspace_path_queries,
     optimism_requests,
     unifap_benches
