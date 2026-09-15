@@ -67,6 +67,23 @@ impl HierarchyItem {
         ])
     }
 
+    /// Compare echoed fields without allocating another serialized key.
+    fn matches_data(&self, data: &serde_json::Value) -> bool {
+        let Some([version, uri, start_line, start_column, end_line, end_column]) =
+            data.as_array().map(Vec::as_slice)
+        else {
+            return false;
+        };
+        let range = self.key.selection_range;
+        // Check the raw URI spelling and integer representation, preserving exact JSON equality.
+        version.as_u64() == Some(u64::from(DATA_VERSION))
+            && uri.as_str() == Some(self.key.uri.as_str())
+            && start_line.as_u64() == Some(u64::from(range.start.line))
+            && start_column.as_u64() == Some(u64::from(range.start.character))
+            && end_line.as_u64() == Some(u64::from(range.end.line))
+            && end_column.as_u64() == Some(u64::from(range.end.character))
+    }
+
     pub(crate) fn matches_type_item(&self, item: &TypeHierarchyItem) -> bool {
         self.name == item.name
             && self.kind == item.kind
@@ -75,7 +92,7 @@ impl HierarchyItem {
             && *self.key.uri == item.uri
             && self.range == item.range
             && self.key.selection_range == item.selection_range
-            && item.data.as_ref().is_some_and(|data| *data == self.data())
+            && item.data.as_ref().is_some_and(|data| self.matches_data(data))
     }
 
     pub(crate) fn to_type_item(&self) -> TypeHierarchyItem {

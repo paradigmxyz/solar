@@ -240,7 +240,10 @@ impl TypeHierarchyIndex {
     }
 
     fn resolve_item(&self, item: &TypeHierarchyItem) -> Option<SymbolId> {
-        let key = NodeKey::from_data(item.data.as_ref()?)?;
+        // The request already contains a parsed URI and selection range. Use those for lookup;
+        // the full comparison below still requires the exact canonical item and opaque data.
+        let key =
+            NodeKey { uri: Arc::new(item.uri.clone()), selection_range: item.selection_range };
         let symbol_id = self.canonical_symbol_by_key.get(&key)?;
         let canonical_item = self.items_by_symbol.get(symbol_id)?;
         (canonical_item.matches_type_item(item)).then_some(*symbol_id)
