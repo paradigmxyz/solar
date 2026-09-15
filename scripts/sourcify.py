@@ -38,14 +38,18 @@ The DuckDB database tracks imports and attempts. Successful jobs are skipped;
 cached failures still stop the run unless --continue-on-failure is set. Use
 --retry-failures to retry them. A changed executable, command, input, timeout, or
 --tag creates new jobs. Use --tag when a wrapper's dependencies or environment
-change without changing the wrapper itself. --limit bounds new attempts, not corpus size or cached failures. Any failure makes the run exit 1, including in continue mode.
+change without changing the wrapper itself. Stricter output-validation revisions
+also start new jobs; older attempt directories are retained. --limit bounds new attempts, not corpus size or cached failures. Any failure makes the run exit 1, including in continue mode.
 
 Every attempt has a directory containing the complete input (inline source texts,
 never extracted to untrusted source paths), original compilation record, compiler
 path/hash/version, invocation, timing, return code, stdout, stderr, and replay.sh.
 Run `sh /path/to/attempt/replay.sh` to replay with the recorded executable.
 Failures live under failures/; successes under runs/. Interrupted attempts remain
-available and are retried next time. Environment variables are inherited but are
+available and are retried next time. If a compiler executable changes during a
+batch, the run stops even with --continue-on-failure; any affected attempt is
+marked interrupted so it cannot be reused as a success or failure. Restart the
+run after rebuilding the compiler. Environment variables are inherited but are
 not dumped, to avoid saving credentials. Compiler processes and temporary files
 run inside the attempt directory. Timeouts terminate the whole process group.
 The script requires POSIX; DuckDB locks out concurrent writers to the same corpus.
@@ -89,6 +93,8 @@ import duckdb
 
 EXPORT = "https://export.sourcify.dev"
 DEFAULT_VERSION = "0.8.36"
+# Bump when stricter output checks invalidate cached results.
+VALIDATION_VERSION = 1
 OUTPUTS = {"*": {"*": ["abi", "evm.bytecode.object", "evm.deployedBytecode.object"]}}
 
 
@@ -332,13 +338,29 @@ def execute(command, directory, timeout, input_path=None):
     return result
 
 
+def executable_state(command):
+    path = shutil.which(command)
+    if path is None:
+        return None
+    try:
+        stat = Path(path).stat()
+    except OSError:
+        return None
+    return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+
+
 def compiler_info(spec, root):
     name, separator, command = spec.partition("=")
     argv = shlex.split(command)
     if not separator or not name or not argv:
         raise ValueError("--compiler requires NAME='COMMAND ARGS'")
     executable = shutil.which(argv[0])
-    info = {"name": name, "command": argv, "sha256": None}
+    info = {
+        "name": name,
+        "command": argv,
+        "sha256": None,
+        "file_state": executable_state(argv[0]),
+    }
     if executable:
         argv[0] = str(Path(executable).resolve())
         with Path(argv[0]).open("rb") as file:
@@ -350,6 +372,8 @@ def compiler_info(spec, root):
             raise KeyboardInterrupt
         info["version_stdout"] = (directory / "stdout.txt").read_text(errors="replace")
         info["version_stderr"] = (directory / "stderr.txt").read_text(errors="replace")
+    if executable_state(argv[0]) != info["file_state"]:
+        raise RuntimeError(f"compiler {name} changed while identifying it; restart run")
     return info
 
 
@@ -380,6 +404,10 @@ def output_error(directory, result, target=None):
             if not isinstance(contracts_in_file, dict) or not contracts_in_file:
                 return "malformed contract outputs"
             for contract in contracts_in_file.values():
+                if not isinstance(contract, dict) or not isinstance(
+                    contract.get("abi"), list
+                ):
+                    return "missing or malformed ABI output"
                 for field in ("bytecode", "deployedBytecode"):
                     if not isinstance(contract["evm"][field]["object"], str):
                         return "malformed bytecode output"
@@ -411,6 +439,10 @@ def run(db, root, args):
             request, record = make_input(db, compilation_id)
             request_text = None
             for compiler in compilers:
+                if executable_state(compiler["command"][0]) != compiler["file_state"]:
+                    raise RuntimeError(
+                        f"compiler {compiler['name']} changed; restart run"
+                    )
                 identity = {
                     key: compiler[key]
                     for key in (
@@ -422,7 +454,14 @@ def run(db, root, args):
                     )
                 }
                 job = digest(
-                    [compilation_id, request, identity, args.timeout, args.tag]
+                    [
+                        VALIDATION_VERSION,
+                        compilation_id,
+                        request,
+                        identity,
+                        args.timeout,
+                        args.tag,
+                    ]
                 )
                 previous = db.execute(
                     "SELECT status, directory FROM attempts WHERE job = ? ORDER BY started DESC LIMIT 1",
@@ -470,6 +509,12 @@ def run(db, root, args):
                     args.timeout,
                     directory / "input.json",
                 )
+                if (
+                    result["error"] != "KeyboardInterrupt"
+                    and executable_state(compiler["command"][0])
+                    != compiler["file_state"]
+                ):
+                    result["error"] = "CompilerChanged"
                 reason = output_error(directory, result, record["fully_qualified_name"])
                 result.update(
                     {
@@ -480,6 +525,7 @@ def run(db, root, args):
                         "job": job,
                         "tag": args.tag,
                         "script_sha256": script_hash,
+                        "validation_version": VALIDATION_VERSION,
                         "export": EXPORT,
                     }
                 )
@@ -488,7 +534,7 @@ def run(db, root, args):
                 if reason:
                     outcome = (
                         "interrupted"
-                        if result["error"] == "KeyboardInterrupt"
+                        if result["error"] in ("KeyboardInterrupt", "CompilerChanged")
                         else "failure"
                     )
                     failures += 1
@@ -506,6 +552,8 @@ def run(db, root, args):
                 )
                 if result["error"] == "KeyboardInterrupt":
                     return 130
+                if result["error"] == "CompilerChanged":
+                    return 1
                 if reason and not args.continue_on_failure:
                     return 1
     finally:
@@ -626,7 +674,7 @@ class Tests(unittest.TestCase):
         )
         good = self.fake(
             "good",
-            'print(\'{"contracts":{"../C.sol":{"C":{"evm":{"bytecode":{"object":""},"deployedBytecode":{"object":""}}}}}}\')',
+            'print(\'{"contracts":{"../C.sol":{"C":{"abi":[],"evm":{"bytecode":{"object":""},"deployedBytecode":{"object":""}}}}}}\')',
         )
         args = self.arguments(bad, good)
         self.assertEqual(run(self.db, self.root, args), 1)
@@ -675,6 +723,97 @@ class Tests(unittest.TestCase):
         directory.mkdir()
         result = execute([str(self.root / "no-compiler")], directory, 1)
         self.assertIsNotNone(output_error(directory, result))
+
+    def test_abi_output_required(self):
+        contract = {
+            "evm": {"bytecode": {"object": ""}, "deployedBytecode": {"object": ""}}
+        }
+        output = {"contracts": {"../C.sol": {"C": contract}}}
+        for abi in (None, {}, []):
+            with self.subTest(abi=abi):
+                if abi is not None:
+                    contract["abi"] = abi
+                write_json(self.root / "stdout.txt", output)
+                result = output_error(
+                    self.root, {"error": None, "returncode": 0}, "../C.sol:C"
+                )
+                self.assertEqual(
+                    result, None if abi == [] else "missing or malformed ABI output"
+                )
+
+    def mutable_compiler(self):
+        path = self.root / "compiler"
+        output = {
+            "contracts": {
+                "../C.sol": {
+                    "C": {
+                        "abi": [],
+                        "evm": {
+                            "bytecode": {"object": ""},
+                            "deployedBytecode": {"object": ""},
+                        },
+                    }
+                }
+            }
+        }
+        path.write_text(
+            "#!/bin/sh\nprintf '%s\\n' " + shlex.quote(json.dumps(output)) + "\n"
+        )
+        path.chmod(0o755)
+        return path
+
+    def test_compiler_rebuild_does_not_cache(self):
+        self.seed()
+        compiler = self.mutable_compiler()
+        original = compiler.read_text()
+        args = self.arguments(f"mutable={shlex.quote(str(compiler))}")
+        args.continue_on_failure = True
+        original_execute = execute
+
+        def rebuilding(*arguments):
+            result = original_execute(*arguments)
+            if len(arguments) == 4:
+                compiler.write_text(original + "# rebuilt\n")
+            return result
+
+        with patch(__name__ + ".execute", side_effect=rebuilding):
+            self.assertEqual(run(self.db, self.root, args), 1)
+        self.assertEqual(
+            self.db.execute("SELECT status FROM attempts").fetchall(),
+            [("interrupted",)],
+        )
+        self.assertEqual(run(self.db, self.root, args), 0)
+        compiler.write_text(original)
+        self.assertEqual(run(self.db, self.root, args), 0)
+        self.assertEqual(
+            self.db.execute(
+                "SELECT status, count(*) FROM attempts GROUP BY status ORDER BY status"
+            ).fetchall(),
+            [("interrupted", 1), ("success", 2)],
+        )
+
+    def test_compiler_changed_before_attempt(self):
+        self.seed()
+        compiler = self.mutable_compiler()
+        original_info = compiler_info
+
+        def rebuilding(*arguments):
+            info = original_info(*arguments)
+            compiler.write_text(compiler.read_text() + "# rebuilt\n")
+            return info
+
+        with (
+            patch(__name__ + ".compiler_info", side_effect=rebuilding),
+            self.assertRaisesRegex(RuntimeError, "changed; restart run"),
+        ):
+            run(
+                self.db,
+                self.root,
+                self.arguments(f"mutable={shlex.quote(str(compiler))}"),
+            )
+        self.assertEqual(
+            self.db.execute("SELECT count(*) FROM attempts").fetchone(), (0,)
+        )
 
     def test_exit_during_interrupt(self):
         for interrupted in (
@@ -832,7 +971,7 @@ class Tests(unittest.TestCase):
         self.seed()
         good = self.fake(
             "good",
-            'print(\'{"contracts":{"../C.sol":{"C":{"evm":{"bytecode":{"object":""},"deployedBytecode":{"object":""}}}}}}\')',
+            'print(\'{"contracts":{"../C.sol":{"C":{"abi":[],"evm":{"bytecode":{"object":""},"deployedBytecode":{"object":""}}}}}}\')',
         )
         args = self.arguments(good)
         self.assertEqual(run(self.db, self.root, args), 0)
