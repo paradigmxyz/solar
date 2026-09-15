@@ -112,3 +112,48 @@ fn @_creationStart(arg0: memorybytes) -> u256 [pure] {
     v0 = sub arg0, 76
     ret v0
 }
+
+// === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:HeapPrefixTuple ===
+@module HeapPrefixTuple
+types:
+  struct0: {u256, u256}
+
+fn @check(arg0: u256) -> u256 [selector=0x5f72f450, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = icall @pair.2
+    v2 = extract_value struct0, v1, 0
+    v3 = extract_value struct0, v1, 1
+    mstore v2, 999
+    v4 = add v0, v3
+    ret v4
+}
+
+fn @checkSecond(arg0: u256) -> u256 [selector=0x509876d9, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = icall @pair.3
+    v2 = extract_value struct0, v1, 0
+    v3 = extract_value struct0, v1, 1
+    mstore v3, 999
+    v4 = add v0, v2
+    ret v4
+}
+
+fn @pair.2() -> struct0 {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = sub v0, 160
+    v2 = insert_value struct0, undef struct0, 0, v1
+    v3 = insert_value struct0, v2, 1, 7
+    ret v3
+}
+
+fn @pair.3() -> struct0 {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = sub v0, 128
+    v2 = insert_value struct0, undef struct0, 0, 7
+    v3 = insert_value struct0, v2, 1, v1
+    ret v3
+}
