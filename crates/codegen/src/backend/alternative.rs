@@ -30,7 +30,7 @@ pub(crate) fn compile(gcx: Gcx<'_>, module: &mut Module) -> EvmArtifact {
         match gcx.sess.opts.codegen_backend {
             #[cfg(feature = "codegen-yul")]
             CodegenBackend::Yul => super::yul::lower(module).and_then(|text| {
-                super::external::yul(gcx, &text).map(|mut artifact| {
+                super::external::yul(gcx, module, &text).map(|mut artifact| {
                     artifact.backend_ir = Some(text);
                     artifact
                 })
@@ -82,6 +82,92 @@ pub(crate) fn compile(gcx: Gcx<'_>, module: &mut Module) -> EvmArtifact {
                 .span(module.name.span)
                 .emit();
             EvmArtifact::default()
+        }
+    }
+}
+
+/// Reserves the shared return area above MIR's fixed locals and immutable staging.
+#[cfg(any(
+    feature = "codegen-yul",
+    feature = "codegen-sonatina",
+    feature = "codegen-sir",
+    feature = "codegen-llvm"
+))]
+pub(super) fn memory_layout(module: &Module) -> (u64, u64) {
+    let fixed_end = module
+        .functions
+        .iter()
+        .map(|f| 128 + f.internal_frame_size.max(f.external_static_return_size))
+        .max()
+        .unwrap_or(128);
+    let staging_end = crate::mir::immutable::immutable_staging_end(
+        crate::mir::immutable::immutable_staging_base(module),
+        module.immutable_count(),
+    );
+    let returns = module.functions.iter().map(|f| f.returns.len()).max().unwrap_or(0);
+    let return_base = fixed_end.max(staging_end);
+    (return_base, return_base + if returns > 1 { returns as u64 * 32 } else { 0 })
+}
+
+/// Returns the activation size when a function still uses explicit internal-frame addresses.
+#[cfg(any(
+    feature = "codegen-yul",
+    feature = "codegen-sonatina",
+    feature = "codegen-sir",
+    feature = "codegen-llvm"
+))]
+pub(super) fn frame_size(f: &crate::mir::Function) -> u64 {
+    if f.instructions()
+        .any(|i| matches!(f.inst(i).kind, crate::mir::InstKind::InternalFrameAddr(_)))
+    {
+        64 + (f.params.len() + f.returns.len()) as u64 * 32 + f.internal_frame_size
+    } else {
+        0
+    }
+}
+
+/// Appends fixed-width immutable placeholders after native runtime code.
+#[cfg(any(feature = "codegen-sir", feature = "codegen-sonatina"))]
+pub(super) fn append_immutable_data(
+    module: &Module,
+    runtime: &mut Vec<u8>,
+) -> Vec<super::assembler::ImmutableRef> {
+    let mut references = Vec::new();
+    // PUSH32 0: the operand is patched during deployment and read with CODECOPY.
+    for (id, _) in module.iter_immutables() {
+        references.push(super::assembler::ImmutableRef {
+            id,
+            code_offset: runtime.len(),
+            type_size: crate::mir::TypeSize::new_int_bits(256),
+        });
+        runtime.push(0x7f);
+        runtime.resize(runtime.len() + 32, 0);
+    }
+    append_runtime_tail(module, runtime);
+    references
+}
+
+/// Returns the size of opaque data that must remain at the runtime's end.
+#[cfg(any(feature = "codegen-sonatina", feature = "codegen-sir"))]
+pub(super) fn runtime_tail_size(module: &Module) -> usize {
+    module
+        .iter_data()
+        .filter(|(id, _)| module.data_is_emitted_in_runtime(*id))
+        .map(|(_, bytes)| bytes.len())
+        .sum()
+}
+
+/// Preserves the caller's opaque runtime suffix after native code and immutable data.
+#[cfg(any(
+    feature = "codegen-yul",
+    feature = "codegen-sonatina",
+    feature = "codegen-sir",
+    feature = "codegen-llvm"
+))]
+pub(super) fn append_runtime_tail(module: &Module, runtime: &mut Vec<u8>) {
+    for (id, bytes) in module.iter_data() {
+        if module.data_is_emitted_in_runtime(id) {
+            runtime.extend_from_slice(bytes);
         }
     }
 }

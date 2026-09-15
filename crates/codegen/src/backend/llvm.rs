@@ -5,25 +5,36 @@
 //! heap, calldata, code, and persistent storage separate. LLVM keeps SSA phis
 //! and CFG edges until its own optimizer and EVM stack scheduler run.
 //! Native emission runs in a child of the statically linked CLI so fatal LLVM
-//! failures become diagnostics. Relocations, frames, and spills need more support.
+//! failures become diagnostics. Native object relocations resolve constructor
+//! sizes and immutable offsets. Activation frames use the heap; native spills
+//! remain unsupported because they do not have an isolated memory region.
 
-use super::evm::EvmArtifact;
-use crate::mir::{Function, InstKind, Module, Terminator, Value, ValueId};
+use super::{assembler::ImmutableRef, evm::EvmArtifact};
+use crate::mir::{
+    Function, ImmutableId, InstKind, Module, Terminator, TypeSize, Value, ValueId,
+    analysis::CallGraphInfo, immutable::immutable_staging_base,
+};
 use inkwell::{
     OptimizationLevel,
-    memory_buffer::MemoryBuffer,
+    memory_buffer::{CodeSegment, MemoryBuffer},
     passes::PassBuilderOptions,
     targets::{CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple},
 };
 use solar_config::OptimizationMode;
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fmt::Write,
     io::{Read, Write as IoWrite},
     path::PathBuf,
     process::{Command, ExitCode, Stdio},
     sync::OnceLock,
 };
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct NativeArtifact {
+    bytes: Vec<u8>,
+    immutables: BTreeMap<String, BTreeSet<u64>>,
+}
 
 static WORKER: OnceLock<PathBuf> = OnceLock::new();
 const WORKER_ARG: &str = "--internal-llvm-codegen-worker";
@@ -48,10 +59,15 @@ pub fn initialize_cli_worker() -> Option<ExitCode> {
             Some("gas") => OptimizationMode::Gas,
             _ => return Err("invalid LLVM worker optimization".into()),
         };
+        let constructor = match args.next().as_deref().and_then(|a| a.to_str()) {
+            Some("init") => true,
+            Some("runtime") => false,
+            _ => return Err("invalid LLVM worker section".into()),
+        };
         let mut text = String::new();
         std::io::stdin().read_to_string(&mut text).map_err(|e| e.to_string())?;
-        let bytes = assemble_native(&text, optimization)?;
-        std::io::stdout().write_all(&bytes).map_err(|e| e.to_string())
+        let artifact = assemble_native(&text, optimization, constructor)?;
+        serde_json::to_writer(std::io::stdout(), &artifact).map_err(|e| e.to_string())
     })();
     Some(match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -71,45 +87,152 @@ pub(super) fn compile(
     module: &Module,
     optimization: OptimizationMode,
 ) -> Result<EvmArtifact, String> {
-    if module.immutable_count() != 0 || module.data_count() != 0 || module.is_library {
-        return Err(
-            "LLVM lowering does not yet support immutable, data, or library relocations".into()
-        );
-    }
     let entry = module.dispatch_entry().ok_or("missing runtime entry")?;
+    let staging = immutable_staging_base(module);
+    let (_, args_base) = super::alternative::memory_layout(module);
+    let graph = CallGraphInfo::new(module);
     let mut declarations = BTreeSet::from(["declare void @llvm.evm.stop()".into()]);
     let mut functions = String::new();
-    for (id, f) in module.functions.iter_enumerated() {
-        function(f, id.index(), &mut functions, &mut declarations)?;
+    let mut reachable = graph.reachable_callees_from([entry]);
+    reachable.insert(entry);
+    for id in reachable.iter() {
+        function(
+            module,
+            &module.functions[id],
+            id.index(),
+            false,
+            &mut functions,
+            &mut declarations,
+        )?;
     }
-    // __entry: mstore(64, 128); call dispatch; stop
-    let runtime = assemble(
-        &format!(
-            "{}\ndefine void @__entry() noreturn \"evm-entry-function\" #0 {{\nentry:\nstore i256 128, ptr addrspace(1) inttoptr (i256 64 to ptr addrspace(1)), align 1\ncall void @f{}()\ncall void @llvm.evm.stop()\nunreachable\n}}\n{functions}\n{}\nattributes #0 = {{ null_pointer_is_valid \"target-features\"=\"+osaka\" }}\n",
-            header(),
-            entry.index(),
-            declarations.iter().cloned().collect::<Vec<_>>().join("\n")
-        ),
-        optimization,
-    )?;
-    let mut init = format!(
-        "{}\n@runtime = private addrspace(4) constant [{} x i8] c\"{}\"\ndefine void @__entry() noreturn \"evm-entry-function\" #0 {{\nentry:\nstore i256 128, ptr addrspace(1) inttoptr (i256 64 to ptr addrspace(1)), align 1\n",
+    let mut globals = String::new();
+    // @dN = private addrspace(4) constant [N x i8] c"bytes"
+    for (id, bytes) in module.iter_data() {
+        writeln!(
+            globals,
+            "@d{} = private addrspace(4) constant [{} x i8] c\"{}\"",
+            id.index(),
+            bytes.len(),
+            bytes.iter().map(|b| format!("\\{b:02X}")).collect::<String>()
+        )
+        .unwrap();
+    }
+    // __entry: initialize heap; call dispatch; stop
+    let runtime_text = format!(
+        "{}\n{globals}\ndefine void @__entry() noreturn \"evm-entry-function\" #0 {{\nentry:\nstore i256 {args_base}, ptr addrspace(1) inttoptr (i256 64 to ptr addrspace(1)), align 1\ncall void @f{}()\ncall void @llvm.evm.stop()\nunreachable\n}}\n{functions}\n{}\n{}",
         header(),
-        runtime.len(),
-        runtime.iter().map(|b| format!("\\{b:02X}")).collect::<String>()
+        entry.index(),
+        declarations.iter().cloned().collect::<Vec<_>>().join("\n"),
+        attributes()
     );
-    // __entry: constructor(); memcpy(heap:0, code:runtime, size); return(heap:0, size)
-    if let Some((id, _)) =
-        module.functions.iter_enumerated().find(|(_, f)| f.attributes.is_constructor)
-    {
-        writeln!(init, "call void @f{}()", id.index()).unwrap();
-    } else {
+    let mut runtime = assemble(&runtime_text, optimization, false)?;
+    super::alternative::append_runtime_tail(module, &mut runtime.bytes);
+    declarations.clear();
+    functions.clear();
+    let constructor = module
+        .functions
+        .iter_enumerated()
+        .find(|(_, f)| f.attributes.is_constructor)
+        .map(|(id, _)| id);
+    let mut reachable = graph.reachable_callees_from(constructor);
+    if let Some(id) = constructor {
+        reachable.insert(id);
+    }
+    for id in reachable.iter() {
+        function(
+            module,
+            &module.functions[id],
+            id.index(),
+            true,
+            &mut functions,
+            &mut declarations,
+        )?;
+    }
+    let mut init = format!(
+        "{}\n{globals}\n@runtime = private addrspace(4) constant [{} x i8] c\"{}\"\ndefine void @__entry() noreturn \"evm-entry-function\" #0 {{\nentry:\nstore i256 {args_base}, ptr addrspace(1) inttoptr (i256 64 to ptr addrspace(1)), align 1\n",
+        header(),
+        runtime.bytes.len(),
+        runtime.bytes.iter().map(|b| format!("\\{b:02X}")).collect::<String>()
+    );
+    if let Some(id) = module.library_deploy_address() {
+        // deploy_address = address; mstore(staging[id], deploy_address)
+        call("address", Some("%address".into()), vec![], &mut init, &mut declarations);
+        writeln!(
+            init,
+            "store i256 %address, ptr addrspace(1) inttoptr (i256 {} to ptr addrspace(1)), align 1",
+            staging + id.index() as u64 * 32
+        )
+        .unwrap();
+    }
+    if let Some(id) = constructor {
+        // end = datasize(Contract); size = codesize - end; codecopy(args_base, end, size)
+        call(
+            "datasize",
+            Some("%end".into()),
+            vec![("metadata".into(), "!0".into())],
+            &mut init,
+            &mut declarations,
+        );
+        call("codesize", Some("%total".into()), vec![], &mut init, &mut declarations);
+        writeln!(init, "%size = sub i256 %total, %end").unwrap();
+        copy_memory(
+            4,
+            false,
+            &args_base.to_string(),
+            "%end",
+            "%size",
+            &mut init,
+            &mut declarations,
+        );
+        writeln!(init, "%rounded = add i256 %size, {}\n%free = and i256 %rounded, -32\nstore i256 %free, ptr addrspace(1) inttoptr (i256 64 to ptr addrspace(1)), align 1", args_base + 31).unwrap();
+        for i in 0..module.functions[id].params.len() {
+            writeln!(init, "%arg{i} = load i256, ptr addrspace(1) inttoptr (i256 {} to ptr addrspace(1)), align 1", args_base + i as u64 * 32).unwrap();
+        }
+        writeln!(
+            init,
+            "call void @f{}({})",
+            id.index(),
+            (0..module.functions[id].params.len())
+                .map(|i| format!("i256 %arg{i}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+        .unwrap();
+    } else if !module.is_library {
         // callvalue != 0 -> revert; otherwise continue deployment.
         declarations.insert("declare i256 @llvm.evm.callvalue()".into());
         declarations.insert("declare void @llvm.evm.revert(ptr addrspace(1), i256)".into());
-        init.push_str("%value = call i256 @llvm.evm.callvalue()\n%payable = icmp eq i256 %value, 0\nbr i1 %payable, label %deploy, label %reject\nreject:\ncall void @llvm.evm.revert(ptr addrspace(1) null, i256 0)\nunreachable\ndeploy:\n");
+        init.push_str("%value = call i256 @llvm.evm.callvalue()\n%payable = icmp eq i256 %value, 0\nbr i1 %payable, label %postlude, label %reject\nreject:\ncall void @llvm.evm.revert(ptr addrspace(1) null, i256 0)\nunreachable\npostlude:\n");
     }
-    writeln!(init,"call void @llvm.memcpy.p1.p4.i256(ptr addrspace(1) null, ptr addrspace(4) @runtime, i256 {}, i1 false)\ncall void @llvm.evm.return(ptr addrspace(1) null, i256 {})\nunreachable\n}}\n{functions}",runtime.len(),runtime.len()).unwrap();
+    // deploy = mload(64); codecopy(deploy, runtime, size); patch immutables; return(deploy, size)
+    init.push_str("%deploy = load i256, ptr addrspace(1) inttoptr (i256 64 to ptr addrspace(1)), align 1\n%deployptr = inttoptr i256 %deploy to ptr addrspace(1)\n");
+    writeln!(init, "call void @llvm.memcpy.p1.p4.i256(ptr addrspace(1) %deployptr, ptr addrspace(4) @runtime, i256 {}, i1 false)", runtime.bytes.len()).unwrap();
+    let mut immutable_references = Vec::new();
+    for (name, offsets) in &runtime.immutables {
+        let id = name
+            .strip_prefix('i')
+            .and_then(|s| s.parse::<usize>().ok())
+            .ok_or("invalid LLVM immutable identifier")?;
+        if id >= module.immutable_count() {
+            return Err("invalid LLVM immutable identifier".into());
+        }
+        writeln!(init, "%imm{id} = load i256, ptr addrspace(1) inttoptr (i256 {} to ptr addrspace(1)), align 1", staging + id as u64 * 32).unwrap();
+        for &offset in offsets {
+            if offset == 0
+                || offset.checked_add(32).is_none_or(|end| end > runtime.bytes.len() as u64)
+                || runtime.bytes.get(offset as usize - 1) != Some(&0x7f)
+            {
+                return Err("invalid LLVM immutable offset".into());
+            }
+            writeln!(init, "%patch{offset} = add i256 %deploy, {offset}\n%patchptr{offset} = inttoptr i256 %patch{offset} to ptr addrspace(1)\nstore i256 %imm{id}, ptr addrspace(1) %patchptr{offset}, align 1").unwrap();
+            immutable_references.push(ImmutableRef {
+                id: ImmutableId::from_usize(id),
+                code_offset: offset as usize - 1,
+                type_size: TypeSize::new_int_bits(256),
+            });
+        }
+    }
+    writeln!(init, "call void @llvm.evm.return(ptr addrspace(1) %deployptr, i256 {})\nunreachable\n}}\n{functions}", runtime.bytes.len()).unwrap();
     declarations.insert(
         "declare void @llvm.memcpy.p1.p4.i256(ptr addrspace(1), ptr addrspace(4), i256, i1 immarg)"
             .into(),
@@ -117,23 +240,33 @@ pub(super) fn compile(
     declarations.insert("declare void @llvm.evm.return(ptr addrspace(1), i256)".into());
     writeln!(
         init,
-        "{}\nattributes #0 = {{ null_pointer_is_valid \"target-features\"=\"+osaka\" }}",
-        declarations.iter().cloned().collect::<Vec<_>>().join("\n")
+        "{}\n{}",
+        declarations.iter().cloned().collect::<Vec<_>>().join("\n"),
+        attributes()
     )
     .unwrap();
     Ok(EvmArtifact {
-        deployment: assemble(&init, optimization)?,
-        runtime,
-        backend_ir: Some(init),
+        deployment: assemble(&init, optimization, true)?.bytes,
+        runtime: runtime.bytes,
+        immutable_references,
+        backend_ir: Some(format!("; Runtime\n{runtime_text}\n; Deployment\n{init}")),
         ..Default::default()
     })
+}
+
+fn attributes() -> &'static str {
+    "attributes #0 = { null_pointer_is_valid \"target-features\"=\"+osaka\" }\n!0 = !{!\"Contract\"}\n"
 }
 
 fn header() -> &'static str {
     "target datalayout = \"E-p:256:256-i256:256:256-S256-a:256:256\"\ntarget triple = \"evm-unknown-unknown\""
 }
 
-fn assemble(text: &str, optimization: OptimizationMode) -> Result<Vec<u8>, String> {
+fn assemble(
+    text: &str,
+    optimization: OptimizationMode,
+    constructor: bool,
+) -> Result<NativeArtifact, String> {
     let executable =
         WORKER.get().ok_or("LLVM requires initialize_cli_worker at process startup")?;
     let mut child = Command::new(executable)
@@ -145,6 +278,7 @@ fn assemble(text: &str, optimization: OptimizationMode) -> Result<Vec<u8>, Strin
         } else {
             "gas"
         })
+        .arg(if constructor { "init" } else { "runtime" })
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -163,11 +297,16 @@ fn assemble(text: &str, optimization: OptimizationMode) -> Result<Vec<u8>, Strin
             ));
         }
         written.map_err(|e| e.to_string())?;
-        Ok(output.stdout)
+        serde_json::from_slice(&output.stdout)
+            .map_err(|e| format!("invalid LLVM worker response: {e}"))
     })
 }
 
-fn assemble_native(text: &str, optimization: OptimizationMode) -> Result<Vec<u8>, String> {
+fn assemble_native(
+    text: &str,
+    optimization: OptimizationMode,
+    constructor: bool,
+) -> Result<NativeArtifact, String> {
     Target::initialize_evm(&InitializationConfig::default());
     inkwell::support::error_handling::install_stack_error_handler(stack_error);
     let llvm = inkwell::context::Context::create();
@@ -205,19 +344,26 @@ fn assemble_native(text: &str, optimization: OptimizationMode) -> Result<Vec<u8>
         .map_err(|e| e.to_string())?;
     let object =
         target.write_to_memory_buffer(&module, FileType::Object).map_err(|e| e.to_string())?;
+    let immutables = object.get_immutables_evm();
+    let object = MemoryBuffer::assemble_evm(
+        &[&object],
+        &["Contract"],
+        if constructor { CodeSegment::Deploy } else { CodeSegment::Runtime },
+    )
+    .map_err(|e| e.to_string())?;
     let bytecode = object.link_evm(&Default::default()).map_err(|e| e.to_string())?;
-    Ok(bytecode.as_slice().to_vec())
+    Ok(NativeArtifact { bytes: bytecode.as_slice().to_vec(), immutables })
 }
 
 fn function(
+    module: &Module,
     f: &Function,
     id: usize,
+    constructor: bool,
     out: &mut String,
     declarations: &mut BTreeSet<String>,
 ) -> Result<(), String> {
-    if f.returns.len() > 1 {
-        return Err(format!("unsupported LLVM frame or return tuple in `{}`", f.name));
-    }
+    let (return_base, args_base) = super::alternative::memory_layout(module);
     let ret = if f.returns.is_empty() { "void" } else { "i256" };
     // define fN(i256 a0, ...) { block0: instructions; terminator }
     writeln!(
@@ -228,6 +374,10 @@ fn function(
     .unwrap();
     for (bid, block) in f.blocks.iter_enumerated() {
         writeln!(out, "b{}:", bid.index()).unwrap();
+        if bid.index() == 0 && super::alternative::frame_size(f) != 0 {
+            // frame = mload(64); mstore(64, frame + activation_size)
+            writeln!(out, "%frame = load i256, ptr addrspace(1) inttoptr (i256 64 to ptr addrspace(1)), align 1\n%frame_end = add i256 %frame, {}\nstore i256 %frame_end, ptr addrspace(1) inttoptr (i256 64 to ptr addrspace(1)), align 1", super::alternative::frame_size(f)).unwrap();
+        }
         if bid.index() == 0 && f.params.is_empty() {
             // aN = call llvm.evm.calldataload (4 + 32 * argument_index)
             for arg in f.arg_indices() {
@@ -257,7 +407,43 @@ fn function(
             }
             let args =
                 inst.operands().iter().map(|&v| value(f, v)).collect::<Result<Vec<_>, _>>()?;
-            instruction(&inst.kind, result, args, out, declarations)?;
+            match &inst.kind {
+                InstKind::ConstructorArgsBase if constructor => {
+                    writeln!(
+                        out,
+                        "{} = add i256 {args_base}, 0",
+                        result.ok_or("boundary without result")?
+                    )
+                    .unwrap();
+                }
+                InstKind::ConstructorArgsEnd if constructor => {
+                    // end = args_base + codesize - datasize(Contract)
+                    let result = result.ok_or("boundary without result")?;
+                    call(
+                        "datasize",
+                        Some(format!("{result}end")),
+                        vec![("metadata".into(), "!0".into())],
+                        out,
+                        declarations,
+                    );
+                    call("codesize", Some(format!("{result}total")), vec![], out, declarations);
+                    writeln!(out, "{result}size = sub i256 {result}total, {result}end\n{result} = add i256 {args_base}, {result}size").unwrap();
+                }
+                InstKind::LoadImmutable(id) if constructor => {
+                    // result = mload(staging[id])
+                    writeln!(out, "{} = load i256, ptr addrspace(1) inttoptr (i256 {} to ptr addrspace(1)), align 1", result.ok_or("immutable without result")?, immutable_staging_base(module) + id.index() as u64 * 32).unwrap();
+                }
+                InstKind::LoadImmutable(id) => {
+                    call(
+                        "loadimmutable",
+                        result,
+                        vec![("metadata".into(), format!("!{{!\"i{}\"}}", id.index()))],
+                        out,
+                        declarations,
+                    );
+                }
+                _ => instruction(module, &inst.kind, result, args, out, declarations)?,
+            }
         }
         // LLVM branches retain MIR edges; external exits use noreturn EVM intrinsics.
         match block.terminator.as_ref().ok_or("missing terminator")? {
@@ -281,6 +467,13 @@ fn function(
                 out.push_str("]\n");
             }
             Terminator::Return { values } => {
+                if values.len() > 1 {
+                    // mstore(return_base + 32 * i, result_i); mstore(32, return_base)
+                    for (i, &v) in values.iter().enumerate() {
+                        writeln!(out, "store i256 {}, ptr addrspace(1) inttoptr (i256 {} to ptr addrspace(1)), align 1", value(f, v)?, return_base + i as u64 * 32).unwrap();
+                    }
+                    writeln!(out, "store i256 {return_base}, ptr addrspace(1) inttoptr (i256 32 to ptr addrspace(1)), align 1").unwrap();
+                }
                 if let Some(&v) = values.first() {
                     writeln!(out, "ret i256 {}", value(f, v)?).unwrap();
                 } else {
@@ -289,7 +482,8 @@ fn function(
             }
             Terminator::TailCall { function, args } => writeln!(
                 out,
-                "call void @f{}({})\ncall void @llvm.evm.stop()\nunreachable",
+                "call {} @f{}({})\ncall void @llvm.evm.stop()\nunreachable",
+                if module.functions[*function].returns.is_empty() { "void" } else { "i256" },
                 function.index(),
                 args.iter()
                     .map(|&v| Ok(format!("i256 {}", value(f, v)?)))
@@ -327,7 +521,30 @@ fn function(
                 call("invalid", None, vec![], out, declarations);
                 out.push_str("unreachable\n");
             }
-            other => return Err(format!("unsupported LLVM terminator: {other:?}")),
+            Terminator::SelfDestruct { recipient } => {
+                call(
+                    "selfdestruct",
+                    None,
+                    vec![("i256".into(), value(f, *recipient)?)],
+                    out,
+                    declarations,
+                );
+                out.push_str("unreachable\n");
+            }
+            Terminator::RevertReturndata => {
+                // size = returndatasize; memcpy(heap:0, returndata:0, size); revert(heap:0, size)
+                let size = format!("%returndata{}", bid.index());
+                call("returndatasize", Some(size.clone()), vec![], out, declarations);
+                copy_memory(3, false, "0", "0", &size, out, declarations);
+                call(
+                    "revert",
+                    None,
+                    vec![("ptr addrspace(1)".into(), "null".into()), ("i256".into(), size)],
+                    out,
+                    declarations,
+                );
+                out.push_str("unreachable\n");
+            }
         }
     }
     out.push_str("}\n");
@@ -335,6 +552,7 @@ fn function(
 }
 
 fn instruction(
+    module: &Module,
     inst: &InstKind,
     result: Option<String>,
     mut args: Vec<String>,
@@ -343,6 +561,85 @@ fn instruction(
 ) -> Result<(), String> {
     // result = arithmetic lhs rhs, or call an EVM intrinsic with typed operands.
     match inst {
+        InstKind::InternalFrameAddr(offset) => {
+            writeln!(
+                out,
+                "{} = add i256 %frame, {offset}",
+                result.ok_or("frame address without result")?
+            )
+            .unwrap();
+        }
+        InstKind::DataCopy(data, ..) => {
+            // offset = ptrtoint(getelementptr @dN, data.offset); memcpy(heap:dest, code:offset, size)
+            let offset = format!("%data{}", out.len());
+            writeln!(out, "{offset} = ptrtoint ptr addrspace(4) getelementptr (i8, ptr addrspace(4) @d{}, i256 {}) to i256", data.id.index(), data.offset).unwrap();
+            copy_memory(4, false, &args[0], &offset, &args[1], out, declarations);
+        }
+        InstKind::CalldataCopy(..)
+        | InstKind::CodeCopy(..)
+        | InstKind::ReturnDataCopy(..)
+        | InstKind::MCopy(..) => {
+            let space = match inst {
+                InstKind::CalldataCopy(..) => 2,
+                InstKind::CodeCopy(..) => 4,
+                InstKind::ReturnDataCopy(..) => 3,
+                _ => 1,
+            };
+            copy_memory(space, space == 1, &args[0], &args[1], &args[2], out, declarations);
+        }
+        InstKind::Select(..) => {
+            // c = icmp ne condition, 0; result = select c, yes, no
+            let result = result.ok_or("select without result")?;
+            writeln!(
+                out,
+                "{result}c = icmp ne i256 {}, 0\n{result} = select i1 {result}c, i256 {}, i256 {}",
+                args[0], args[1], args[2]
+            )
+            .unwrap();
+        }
+        InstKind::Clz(..) => {
+            declarations.insert("declare i256 @llvm.ctlz.i256(i256, i1 immarg)".into());
+            writeln!(
+                out,
+                "{} = call i256 @llvm.ctlz.i256(i256 {}, i1 false)",
+                result.ok_or("clz without result")?,
+                args[0]
+            )
+            .unwrap();
+        }
+        InstKind::Log0(..)
+        | InstKind::Log1(..)
+        | InstKind::Log2(..)
+        | InstKind::Log3(..)
+        | InstKind::Log4(..)
+        | InstKind::Create(..)
+        | InstKind::Create2(..)
+        | InstKind::Call { .. }
+        | InstKind::CallCode { .. }
+        | InstKind::StaticCall { .. }
+        | InstKind::DelegateCall { .. }
+        | InstKind::ExtCodeCopy(..) => {
+            // Convert each memory/code offset to its intrinsic address space before calling the EVM operation.
+            let pointers: &[(usize, u32)] = match inst {
+                InstKind::Call { .. } | InstKind::CallCode { .. } => &[(3, 1), (5, 1)],
+                InstKind::StaticCall { .. } | InstKind::DelegateCall { .. } => &[(2, 1), (4, 1)],
+                InstKind::Create(..) | InstKind::Create2(..) => &[(1, 1)],
+                InstKind::ExtCodeCopy(..) => &[(1, 1), (2, 4)],
+                _ => &[(0, 1)],
+            };
+            let mut typed = args.into_iter().map(|a| ("i256".into(), a)).collect::<Vec<_>>();
+            for &(index, space) in pointers {
+                let pointer = format!("%ptr{}", out.len());
+                writeln!(
+                    out,
+                    "{pointer} = inttoptr i256 {} to ptr addrspace({space})",
+                    typed[index].1
+                )
+                .unwrap();
+                typed[index] = (format!("ptr addrspace({space})"), pointer);
+            }
+            call(inst.mnemonic(), result, typed, out, declarations);
+        }
         InstKind::Add(..)
         | InstKind::Sub(..)
         | InstKind::Mul(..)
@@ -422,14 +719,14 @@ fn instruction(
                 declarations,
             );
         }
-        InstKind::ICall { function, returns, .. } if *returns <= 1 => {
+        InstKind::ICall { function, .. } => {
             if let Some(result) = &result {
                 write!(out, "{result} = ").unwrap();
             }
             writeln!(
                 out,
                 "call {} @f{}({})",
-                if *returns == 0 { "void" } else { "i256" },
+                if module.functions[*function].returns.is_empty() { "void" } else { "i256" },
                 function.index(),
                 args.iter().map(|v| format!("i256 {v}")).collect::<Vec<_>>().join(", ")
             )
@@ -450,6 +747,25 @@ fn instruction(
         | InstKind::CalldataSize
         | InstKind::Caller
         | InstKind::CallValue
+        | InstKind::CodeSize
+        | InstKind::ExtCodeSize(..)
+        | InstKind::ExtCodeHash(..)
+        | InstKind::ReturnDataSize
+        | InstKind::Origin
+        | InstKind::GasPrice
+        | InstKind::BlockHash(..)
+        | InstKind::Coinbase
+        | InstKind::Timestamp
+        | InstKind::BlockNumber
+        | InstKind::GasLimit
+        | InstKind::ChainId
+        | InstKind::Balance(..)
+        | InstKind::SelfBalance
+        | InstKind::Gas
+        | InstKind::BaseFee
+        | InstKind::BlobBaseFee
+        | InstKind::BlobHash(..)
+        | InstKind::MSize
         | InstKind::Address => {
             call(
                 inst.mnemonic(),
@@ -459,6 +775,7 @@ fn instruction(
                 declarations,
             );
         }
+        InstKind::PrevRandao => call("difficulty", result, vec![], out, declarations),
         other => return Err(format!("unsupported LLVM instruction `{}`", other.mnemonic())),
     }
     Ok(())
@@ -497,4 +814,20 @@ fn value(f: &Function, id: ValueId) -> Result<String, String> {
         }
         _ => return Err("undefined value in LLVM lowering".into()),
     })
+}
+
+fn copy_memory(
+    space: u32,
+    overlapping: bool,
+    dest: &str,
+    source: &str,
+    size: &str,
+    out: &mut String,
+    declarations: &mut BTreeSet<String>,
+) {
+    let name = if overlapping { "memmove" } else { "memcpy" };
+    let tmp = out.len();
+    // dest = inttoptr heap_offset; source = inttoptr source_offset; memcpy(dest, source, size)
+    writeln!(out, "%dest{tmp} = inttoptr i256 {dest} to ptr addrspace(1)\n%source{tmp} = inttoptr i256 {source} to ptr addrspace({space})\ncall void @llvm.{name}.p1.p{space}.i256(ptr addrspace(1) %dest{tmp}, ptr addrspace({space}) %source{tmp}, i256 {size}, i1 false)").unwrap();
+    declarations.insert(format!("declare void @llvm.{name}.p1.p{space}.i256(ptr addrspace(1), ptr addrspace({space}), i256, i1 immarg)"));
 }

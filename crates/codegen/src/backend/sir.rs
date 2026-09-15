@@ -4,10 +4,15 @@
 //! parallel phi copies; the SIR SSA transform computes values carried between
 //! blocks and splits critical edges before stack scheduling. Runtime code is
 //! compiled first, then embedded as a data segment in the constructor program.
-//! Frames, recursive calls, and relocations require further lowering support.
+//! Activation frames use the heap and tuple results use a reserved return area.
+//! Immutable words follow native runtime code and are patched during deployment.
+//! The upstream compiler still rejects recursion and unisolated native spills.
 
 use super::evm::EvmArtifact;
-use crate::mir::{BlockId, Function, InstKind, Module, Terminator, Value, ValueId};
+use crate::mir::{
+    BlockId, Function, InstKind, Module, Terminator, Value, ValueId, analysis::CallGraphInfo,
+    immutable::immutable_staging_base,
+};
 use alloy_primitives::hex;
 use sir_stack_scheduling::{ScheduleConfig, stack::StackOps};
 use solar_config::OptimizationMode;
@@ -17,41 +22,114 @@ pub(super) fn compile(
     module: &Module,
     optimization: OptimizationMode,
 ) -> Result<EvmArtifact, String> {
-    if module.immutable_count() != 0 || module.data_count() != 0 || module.is_library {
-        return Err(
-            "SIR lowering does not yet support immutable, data, or library relocations".into()
-        );
-    }
+    let (return_base, heap) = super::alternative::memory_layout(module);
     let entry = module.dispatch_entry().ok_or("missing runtime entry")?;
-    let mut functions = String::new();
-    for (id, f) in module.functions.iter_enumerated() {
-        function(f, id.index(), &mut functions)?;
+    let mut functions = functions(module, false, return_base, heap)?;
+    // runtime: mstore(64, heap); call dispatch; stop
+    let runtime_text = format!(
+        "fn init:\nentry {{\nmstore256 64 {heap}\nicall @f{}\nstop\n}}\n{functions}",
+        entry.index()
+    );
+    let mut runtime = assemble(&runtime_text, optimization)?;
+    let immutable_references = super::alternative::append_immutable_data(module, &mut runtime);
+    functions = self::functions(module, true, return_base, heap)?;
+    // init: constructor(); codecopy(deploy, runtime_data, runtime_length); return(deploy, runtime_length)
+    let mut init = format!("fn init:\nentry {{\nmstore256 64 {heap}\n");
+    if let Some(id) = module.library_deploy_address() {
+        // address = address; mstore staging[id] address
+        writeln!(
+            init,
+            "address = address\nmstore256 {} address",
+            immutable_staging_base(module) + id.index() as u64 * 32
+        )
+        .unwrap();
     }
-    // runtime: mstore(64, 128); call dispatch; stop
-    let runtime = assemble(
-        &format!(
-            "fn init:\nentry {{\nmstore256 64 128\nicall @f{}\nstop\n}}\n{functions}",
-            entry.index()
-        ),
-        optimization,
-    )?;
-    // init: constructor(); codecopy(0, runtime_data, runtime_length); return(0, runtime_length)
-    let mut init = String::from("fn init:\nentry {\nmstore256 64 128\n");
     if let Some((id, _)) =
         module.functions.iter_enumerated().find(|(_, f)| f.attributes.is_constructor)
     {
-        writeln!(init, "icall @f{}", id.index()).unwrap();
-    } else {
+        // end = init_end_offset; size = codesize - end; codecopy ARGS_BASE end size; mstore 64 ceil32(ARGS_BASE + size)
+        init.push_str("end = init_end_offset\ntotal = codesize\nsize = sub total end\ncodecopy ARGS_BASE end size\nrounded = add size ARGS_ROUND\nfree = and rounded 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0\nmstore256 64 free\n");
+        for i in 0..module.functions[id].params.len() {
+            writeln!(init, "arg{i} = mload256 {}", heap + i as u64 * 32).unwrap();
+        }
+        writeln!(
+            init,
+            "icall @f{} {}",
+            id.index(),
+            (0..module.functions[id].params.len())
+                .map(|i| format!("arg{i}"))
+                .collect::<Vec<_>>()
+                .join(" ")
+        )
+        .unwrap();
+    } else if !module.is_library {
         // callvalue != 0 -> revert; otherwise continue deployment.
         init.push_str("value = callvalue\n=> value ? @reject : @deploy\n}\nreject {\nrevert 0 0\n}\ndeploy {\n");
     }
-    writeln!(init,"offset = data_offset .runtime\ncodecopy 0 offset {}\nreturn 0 {}\n}}\n{functions}\ndata runtime 0x{}",runtime.len(),runtime.len(),hex::encode(&runtime)).unwrap();
+    // deploy = mload256 64; codecopy deploy runtime size; patch each immutable word
+    writeln!(
+        init,
+        "deploy = mload256 64\noffset = data_offset .runtime\ncodecopy deploy offset {}",
+        runtime.len()
+    )
+    .unwrap();
+    for reference in &immutable_references {
+        let id = reference.id.index();
+        writeln!(
+            init,
+            "imm{id} = mload256 {}\npatch{id} = add deploy {}\nmstore256 patch{id} imm{id}",
+            immutable_staging_base(module) + id as u64 * 32,
+            reference.code_offset + 1
+        )
+        .unwrap();
+    }
+    writeln!(
+        init,
+        "return deploy {}\n}}\n{functions}data runtime 0x{}",
+        runtime.len(),
+        hex::encode(&runtime)
+    )
+    .unwrap();
+    let init = init
+        .replace("ARGS_BASE", &heap.to_string())
+        .replace("ARGS_ROUND", &(heap + 31).to_string());
     Ok(EvmArtifact {
         deployment: assemble(&init, optimization)?,
         runtime,
-        backend_ir: Some(init),
+        immutable_references,
+        backend_ir: Some(format!("// Runtime\n{runtime_text}\n// Deployment\n{init}")),
         ..Default::default()
     })
+}
+
+fn functions(
+    module: &Module,
+    constructor: bool,
+    return_base: u64,
+    heap: u64,
+) -> Result<String, String> {
+    let root = if constructor {
+        module
+            .functions
+            .iter_enumerated()
+            .find(|(_, f)| f.attributes.is_constructor)
+            .map(|(id, _)| id)
+    } else {
+        module.dispatch_entry()
+    };
+    let mut reachable = CallGraphInfo::new(module).reachable_callees_from(root);
+    if let Some(id) = root {
+        reachable.insert(id);
+    }
+    let mut text = String::new();
+    for id in reachable.iter() {
+        function(module, &module.functions[id], id.index(), constructor, return_base, &mut text)?;
+    }
+    // data dN 0xbytes
+    for (id, bytes) in module.iter_data() {
+        writeln!(text, "data d{} 0x{}", id.index(), hex::encode(bytes)).unwrap();
+    }
+    Ok(text.replace("ARGS_BASE", &heap.to_string()))
 }
 
 fn assemble(text: &str, optimization: OptimizationMode) -> Result<Vec<u8>, String> {
@@ -84,7 +162,14 @@ fn assemble(text: &str, optimization: OptimizationMode) -> Result<Vec<u8>, Strin
     Ok(bytes)
 }
 
-fn function(f: &Function, id: usize, out: &mut String) -> Result<(), String> {
+fn function(
+    module: &Module,
+    f: &Function,
+    id: usize,
+    constructor: bool,
+    return_base: u64,
+    out: &mut String,
+) -> Result<(), String> {
     let mut lazy = String::new();
     if f.params.is_empty() {
         // aN = calldataload (4 + 32 * argument_index)
@@ -94,6 +179,15 @@ fn function(f: &Function, id: usize, out: &mut String) -> Result<(), String> {
             }
             writeln!(lazy, "a{} = calldataload {}", arg.index(), 4 + arg.index() * 32).unwrap();
         }
+    }
+    let frame_size = super::alternative::frame_size(f);
+    if frame_size != 0 {
+        // frame = mload256 64; free = add frame activation_size; mstore256 64 free
+        writeln!(
+            lazy,
+            "frame = mload256 64\nframe_end = add frame {frame_size}\nmstore256 64 frame_end"
+        )
+        .unwrap();
     }
     // fn fN: entry a0 ... { materialize lazy arguments; jump b0 }; bN { instructions; terminator }
     writeln!(
@@ -110,7 +204,7 @@ fn function(f: &Function, id: usize, out: &mut String) -> Result<(), String> {
             write!(
                 out,
                 " -> {}",
-                (0..values.len())
+                (0..values.len().min(1))
                     .map(|i| format!("r{}_{}", bid.index(), i))
                     .collect::<Vec<_>>()
                     .join(" ")
@@ -125,9 +219,62 @@ fn function(f: &Function, id: usize, out: &mut String) -> Result<(), String> {
             }
             let mut args =
                 inst.operands().iter().map(|&v| value(f, v)).collect::<Result<Vec<_>, _>>()?;
+            if let InstKind::LoadImmutable(id) = inst.kind {
+                let result = f.inst_result_value(iid).ok_or("immutable without result")?.index();
+                if constructor {
+                    // result = mload256 staging[id]
+                    writeln!(
+                        out,
+                        "v{result} = mload256 {}",
+                        immutable_staging_base(module) + id.index() as u64 * 32
+                    )
+                    .unwrap();
+                } else {
+                    // saved = mload256 0; codecopy 0 (codesize - tail_offset) 32; result = mload256 0; mstore256 0 saved
+                    writeln!(out, "saved{result} = mload256 0\ntotal{result} = codesize\noffset{result} = sub total{result} {}\ncodecopy 0 offset{result} 32\nv{result} = mload256 0\nmstore256 0 saved{result}", (module.immutable_count() - id.index()) * 33 - 1 + super::alternative::runtime_tail_size(module)).unwrap();
+                }
+                continue;
+            }
+            if matches!(inst.kind, InstKind::Select(..)) {
+                // zero = iszero condition; mask = sub zero 1; delta = xor yes no; result = xor no (and delta mask)
+                writeln!(out, "zero{} = iszero {}\nmask{} = sub zero{} 1\ndelta{} = xor {} {}\nmasked{} = and delta{} mask{}\nv{} = xor {} masked{}", iid.index(), args[0], iid.index(), iid.index(), iid.index(), args[1], args[2], iid.index(), iid.index(), iid.index(), f.inst_result_value(iid).ok_or("select without result")?.index(), args[2], iid.index()).unwrap();
+                continue;
+            }
+            if matches!(inst.kind, InstKind::ConstructorArgsEnd) {
+                // end = init_end_offset; size = codesize - end; result = 128 + size
+                writeln!(out, "end{} = init_end_offset\ntotal{} = codesize\nsize{} = sub total{} end{}\nv{} = add ARGS_BASE size{}", iid.index(), iid.index(), iid.index(), iid.index(), iid.index(), f.inst_result_value(iid).ok_or("constructor boundary without result")?.index(), iid.index()).unwrap();
+                continue;
+            }
+            if let InstKind::DataCopy(data, ..) = &inst.kind {
+                // base = data_offset .dN; offset = add base data.offset; codecopy dest offset size
+                writeln!(
+                    out,
+                    "data{} = data_offset .d{}\noffset{} = add data{} {}\ncodecopy {} offset{} {}",
+                    iid.index(),
+                    data.id.index(),
+                    iid.index(),
+                    iid.index(),
+                    data.offset,
+                    args[0],
+                    iid.index(),
+                    args[1]
+                )
+                .unwrap();
+                continue;
+            }
             let name = match &inst.kind {
                 InstKind::Shl(..) | InstKind::Shr(..) | InstKind::Sar(..) => {
                     inst.kind.mnemonic().to_owned()
+                }
+                InstKind::InternalFrameAddr(offset) => {
+                    args.extend(["frame".into(), offset.to_string()]);
+                    "add".into()
+                }
+                InstKind::PrevRandao => "difficulty".into(),
+                InstKind::Clz(..) => "clz".into(),
+                InstKind::ConstructorArgsBase => {
+                    args.push("ARGS_BASE".into());
+                    "copy".into()
                 }
                 InstKind::MLoad(..) => "mload256".into(),
                 InstKind::MStore(..) => "mstore256".into(),
@@ -139,7 +286,7 @@ fn function(f: &Function, id: usize, out: &mut String) -> Result<(), String> {
                     args.insert(0, "64".into());
                     "mstore256".into()
                 }
-                InstKind::ICall { function, returns, .. } if *returns <= 1 => {
+                InstKind::ICall { function, .. } => {
                     args.insert(0, format!("@f{}", function.index()));
                     "icall".into()
                 }
@@ -177,11 +324,56 @@ fn function(f: &Function, id: usize, out: &mut String) -> Result<(), String> {
                 | InstKind::Caller
                 | InstKind::CallValue
                 | InstKind::Address
+                | InstKind::CodeSize
+                | InstKind::CodeCopy(..)
+                | InstKind::ExtCodeSize(..)
+                | InstKind::ExtCodeCopy(..)
+                | InstKind::ExtCodeHash(..)
+                | InstKind::ReturnDataSize
+                | InstKind::ReturnDataCopy(..)
+                | InstKind::Origin
+                | InstKind::GasPrice
+                | InstKind::BlockHash(..)
+                | InstKind::Coinbase
+                | InstKind::Timestamp
+                | InstKind::BlockNumber
+                | InstKind::GasLimit
+                | InstKind::ChainId
+                | InstKind::Balance(..)
+                | InstKind::SelfBalance
+                | InstKind::Gas
+                | InstKind::BaseFee
+                | InstKind::BlobBaseFee
+                | InstKind::BlobHash(..)
+                | InstKind::Create(..)
+                | InstKind::Create2(..)
+                | InstKind::Call { .. }
+                | InstKind::CallCode { .. }
+                | InstKind::DelegateCall { .. }
+                | InstKind::StaticCall { .. }
+                | InstKind::Log0(..)
+                | InstKind::Log1(..)
+                | InstKind::Log2(..)
+                | InstKind::Log3(..)
+                | InstKind::Log4(..)
                 | InstKind::Keccak256(..) => inst.kind.mnemonic().to_owned(),
                 other => return Err(format!("unsupported SIR instruction `{}`", other.mnemonic())),
             };
             if let Some(result) = f.inst_result_value(iid) {
-                write!(out, "v{} = ", result.index()).unwrap();
+                if let InstKind::ICall { function, .. } = inst.kind
+                    && !has_return_value(&module.functions[function])
+                {
+                    // dead_result = 0; icall nonreturning_callee
+                    // SIR infers zero returns from the callee's terminating blocks.
+                    writeln!(out, "v{} = copy 0", result.index()).unwrap();
+                } else {
+                    write!(out, "v{} = ", result.index()).unwrap();
+                }
+            } else if let InstKind::ICall { function, .. } = inst.kind
+                && has_return_value(&module.functions[function])
+            {
+                // discarded = icall callee(args)
+                write!(out, "discarded{} = ", iid.index()).unwrap();
             }
             writeln!(out, "{name} {}", args.join(" ")).unwrap();
         }
@@ -222,18 +414,32 @@ fn function(f: &Function, id: usize, out: &mut String) -> Result<(), String> {
                 writeln!(out, "=> @e{}_{}", bid.index(), default.index()).unwrap();
             }
             Terminator::Return { values } => {
-                for (i, &v) in values.iter().enumerate() {
+                if values.len() > 1 {
+                    // mstore256(return_base + 32 * i, result_i); mstore256(32, return_base)
+                    for (i, &v) in values.iter().enumerate() {
+                        writeln!(out, "mstore256 {} {}", return_base + i as u64 * 32, value(f, v)?)
+                            .unwrap();
+                    }
+                    writeln!(out, "mstore256 32 {return_base}").unwrap();
+                }
+                for (i, &v) in values.iter().take(1).enumerate() {
                     writeln!(out, "r{}_{} = copy {}", bid.index(), i, value(f, v)?).unwrap();
                 }
                 out.push_str("iret\n");
             }
-            Terminator::TailCall { function, args } => writeln!(
-                out,
-                "icall @f{} {}\nstop",
-                function.index(),
-                args.iter().map(|&v| value(f, v)).collect::<Result<Vec<_>, _>>()?.join(" ")
-            )
-            .unwrap(),
+            Terminator::TailCall { function, args } => {
+                // discarded = icall callee(args); stop
+                if has_return_value(&module.functions[*function]) {
+                    write!(out, "tail{} = ", bid.index()).unwrap();
+                }
+                writeln!(
+                    out,
+                    "icall @f{} {}\nstop",
+                    function.index(),
+                    args.iter().map(|&v| value(f, v)).collect::<Result<Vec<_>, _>>()?.join(" ")
+                )
+                .unwrap();
+            }
             Terminator::ReturnData { offset, size } => {
                 writeln!(out, "return {} {}", value(f, *offset)?, value(f, *size)?).unwrap()
             }
@@ -242,7 +448,13 @@ fn function(f: &Function, id: usize, out: &mut String) -> Result<(), String> {
             }
             Terminator::Stop => out.push_str("iret\n"),
             Terminator::Invalid => out.push_str("invalid\n"),
-            other => return Err(format!("unsupported SIR terminator: {other:?}")),
+            Terminator::SelfDestruct { recipient } => {
+                writeln!(out, "selfdestruct {}", value(f, *recipient)?).unwrap()
+            }
+            // size = returndatasize; returndatacopy 0 0 size; revert 0 size
+            Terminator::RevertReturndata => out.push_str(
+                "returndata = returndatasize\nreturndatacopy 0 0 returndata\nrevert 0 returndata\n",
+            ),
         }
         out.push_str("}\n");
         let mut successors = Vec::new();
@@ -276,6 +488,10 @@ fn edge(f: &Function, from: BlockId, to: BlockId, out: &mut String) -> Result<()
     }
     writeln!(out, "=> @b{}\n}}", to.index()).unwrap();
     Ok(())
+}
+
+fn has_return_value(f: &Function) -> bool {
+    f.blocks.iter().any(|block| matches!(&block.terminator, Some(Terminator::Return { values }) if !values.is_empty()))
 }
 
 fn value(f: &Function, id: ValueId) -> Result<String, String> {

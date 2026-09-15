@@ -62,19 +62,34 @@ export LLVM_SYS_211_PREFIX="$PWD/target/llvm-evm"
 cargo build -p solar-compiler --bin solar
 ```
 
-Sonatina, SIR, and LLVM currently require Osaka. These initial adapters support
-word operations and CFGs, including lazy ABI arguments, phis, and internal calls.
-They reject unsupported operations and relocations instead of switching backends.
-Live compiler frames, embedded MIR data, immutable references, and library
-relocations still need adapters. Multi-value calls are also incomplete. Use `-Zdump=backend-ir` to inspect the generated target IR. Source
-maps and EVM IR dumps are available only from the built-in backend.
+Sonatina, SIR, and LLVM currently require Osaka. All four adapters lower data
+sections, child-contract creation, constructor arguments, typed immutables,
+internal frames, multi-value calls, memory copies, external calls, logs, and
+ordinary environment operations. Opaque metadata stays at the runtime's end.
+Yul and LLVM use native immutable relocations; Sonatina and SIR use trailing
+immutable words patched during deployment and loaded with `CODECOPY`.
+
+Use `-Zdump=backend-ir` to inspect the converted IR. Sonatina, SIR, and LLVM dumps
+include separate runtime and deployment modules. SIR embeds the compiled runtime
+as a deployment data segment. The built-in backend alone provides source maps
+and EVM IR dumps. Unsupported operations produce diagnostics without switching
+backends.
+
+These adapters are still experimental. SIR's upstream compiler rejects recursive
+calls and does not expose `MSIZE`. Yul can exceed solc's stack limit; arbitrary
+Solidity memory access prevents us from adding a blanket `memoryguard` promise.
+Internal activation frames use the free-memory pointer and remain allocated so
+escaping references stay valid. This can cost more memory and gas than the
+built-in backend's frame planning. Native stack scheduling can still reject
+larger contracts.
 
 Yul uses solc's process interface; it does not link C++ libsolc into the CLI.
 Sonatina and SIR use their own native optimization and stack-scheduling pipelines.
 SIR uses the same upstream O2 pipeline for gas and size because it has no distinct
-size preset. SIR rejects native stack spills until it can reserve memory without
-clobbering Solidity memory. LLVM uses the EVM LLVM target and linker in a child
-of the same statically linked CLI; fatal native failures become diagnostics.
+size preset. Sonatina and SIR reject native stack spills until they can reserve
+memory without clobbering Solidity memory. LLVM uses the EVM LLVM target and
+linker in a child of the same statically linked CLI; fatal native failures become
+diagnostics.
 Library hosts using LLVM must call `backend::llvm::initialize_cli_worker` at
 startup and return its optional exit code. LLVM stack spills also remain
 unsupported. The musl release explicitly omits LLVM because its native libraries

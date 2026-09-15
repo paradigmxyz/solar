@@ -1,9 +1,11 @@
-//@compile-flags: -Zdump=evm-ir-runtime --pretty-json
-//@ filecheck:
+//@ revisions: default sonatina
+//@[default] compile-flags: -Zdump=evm-ir-runtime --pretty-json
+//@[default] filecheck:
+//@[sonatina] compile-flags: --codegen-backend sonatina --emit=bin
 // solc 0.8.30 without --via-ir reports `Stack too deep` for this contract.
 pragma solidity ^0.8.0;
 
-contract StackTooDeepLocals {
+contract StackTooDeepLocals { //~[sonatina] ERROR: Sonatina native stack spills require a separate memory layout
     // CHECK-LABEL: @module StackTooDeepLocals_runtime
     // CHECK: push 0x188b85b4
     // CHECK: eq

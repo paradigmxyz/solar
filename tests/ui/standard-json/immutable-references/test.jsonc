@@ -1,9 +1,20 @@
-//@ filecheck:
+//@ revisions: default yul sonatina sir llvm
+//@[yul] compile-flags: --codegen-backend yul
+//@[sonatina] compile-flags: --codegen-backend sonatina
+//@[sir] compile-flags: --codegen-backend sir
+//@[llvm] compile-flags: --codegen-backend llvm
+//@[default] filecheck: --check-prefixes=CHECK,EVM
+//@[yul] filecheck: --check-prefixes=CHECK,NATIVE
+//@[sonatina] filecheck: --check-prefixes=CHECK,NATIVE
+//@[sir] filecheck: --check-prefixes=CHECK,NATIVE
+//@[llvm] filecheck: --check-prefixes=CHECK,NATIVE
 // CHECK-LABEL: "Widths": {
 // CHECK: "deployedBytecode": {
 // CHECK-NEXT: "immutableReferences": {
-// CHECK: "length": 1
-// CHECK: "length": 20
+// EVM: "length": 1
+// NATIVE: "length": 32
+// EVM: "length": 20
+// NATIVE: "length": 32
 // CHECK-NOT: "object":
 // CHECK-LABEL: "A": {
 // CHECK: "deployedBytecode": {
