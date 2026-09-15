@@ -1486,34 +1486,7 @@ impl SymbolTables {
             );
         }
         let mapping_bindings = self.rename.build_mapping_names(gcx, locations);
-        for item_id in gcx.hir.item_ids() {
-            let item = gcx.hir.item(item_id);
-            if item.doc().is_empty() {
-                continue;
-            }
-            for (span, resolutions) in gcx.natspec_references(item_id) {
-                let targets = resolutions
-                    .iter()
-                    .filter_map(|res| {
-                        if let Res::Item(id) = res { item_symbols.get(id).copied() } else { None }
-                    })
-                    .collect::<SmallVec<_>>();
-                self.rename.push_symbol_reference(
-                    gcx,
-                    locations,
-                    RenameReferenceContext {
-                        bindings: &bindings,
-                        source: item.source(),
-                        contract: item.contract(),
-                        item_symbols,
-                        declarations: &self.declarations,
-                    },
-                    span,
-                    &targets,
-                );
-                self.push_reference_entry(locations, span, targets, DocumentHighlightKind::READ);
-            }
-        }
+        self.rename.build_natspec(gcx, locations, &bindings, item_symbols, &self.declarations);
         self.rename.build_overrides(
             gcx,
             locations,

@@ -21,37 +21,6 @@ impl<'gcx> ResolvedNatSpec<'gcx> {
     }
 }
 
-pub(crate) fn references<'gcx>(
-    gcx: Gcx<'gcx>,
-    item: hir::ItemId,
-) -> impl Iterator<Item = (Span, SmallVec<[hir::Res; 1]>)> + 'gcx {
-    let resolved = gcx.natspec_resolution(item);
-    let variables = Resolver::new(gcx).callable_variables(item);
-    resolved.items[..resolved.local_len].iter().filter_map(move |tag| {
-        let (name, parameters, returns) = match tag.kind {
-            hir::NatSpecKind::Param { name } => (name, variables.parameters, variables.returns),
-            hir::NatSpecKind::Return { name: Some(name) } => (name, &[][..], variables.returns),
-            hir::NatSpecKind::Inheritdoc { contract } => {
-                let target = gcx.natspec_contract(contract.name, gcx.hir.item(item).source())?;
-                return Some((contract.span, SmallVec::from_iter([hir::Res::Item(target.into())])));
-            }
-            _ => return None,
-        };
-        let targets = parameters
-            .iter()
-            .chain(returns)
-            .filter_map(|&id| {
-                gcx.hir
-                    .variable(id)
-                    .name
-                    .filter(|variable| variable.name == name.name)
-                    .map(|_| hir::Res::Item(id.into()))
-            })
-            .collect::<SmallVec<_>>();
-        (!targets.is_empty()).then_some((name.span, targets))
-    })
-}
-
 /// Validated and resolved NatSpec for an HIR item.
 ///
 /// [`Self::items`] preserves the existing flat resolved representation, including the names used

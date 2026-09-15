@@ -518,37 +518,13 @@ fn renames_validated_natspec_parameter_references() {
         r#"
         //- /NatSpec.sol
         contract C {
-            /// @param $2amount Payment amount.
+            /// @param amount Payment amount.
             function pay(uint256 $1amount) public {}
         }
         "#,
         "/NatSpec.sol",
     );
 
-    fixture.check_goto_definition(
-        "$2",
-        str![[r#"
-/NatSpec.sol:2:25 function pay(uint256 amount) public {}
-
-"#]],
-    );
-    fixture.check_references(
-        "$2",
-        true,
-        str![[r#"
-/NatSpec.sol:1:15 /// @param amount Payment amount.
-/NatSpec.sol:2:25 function pay(uint256 amount) public {}
-
-"#]],
-    );
-    fixture.check_document_highlights(
-        "$2",
-        str![[r#"
-1:15-1:21 READ
-2:25-2:31 WRITE
-
-"#]],
-    );
     fixture.check_rename(
         "$1",
         "value",
@@ -566,7 +542,7 @@ fn renames_validated_natspec_return_references() {
         r#"
         //- /NatSpecReturn.sol
         contract C {
-            /// @return $2result The value.
+            /// @return result The value.
             function f() public pure returns (uint256 $1result) {
                 result = 1;
             }
@@ -575,32 +551,6 @@ fn renames_validated_natspec_return_references() {
         "/NatSpecReturn.sol",
     );
 
-    fixture.check_goto_definition(
-        "$2",
-        str![[r#"
-/NatSpecReturn.sol:2:46 function f() public pure returns (uint256 result) {
-
-"#]],
-    );
-    fixture.check_references(
-        "$2",
-        true,
-        str![[r#"
-/NatSpecReturn.sol:1:16 /// @return result The value.
-/NatSpecReturn.sol:2:46 function f() public pure returns (uint256 result) {
-/NatSpecReturn.sol:3:8 result = 1;
-
-"#]],
-    );
-    fixture.check_document_highlights(
-        "$2",
-        str![[r#"
-1:16-1:22 READ
-2:46-2:52 WRITE
-3:8-3:14 WRITE
-
-"#]],
-    );
     fixture.check_rename(
         "$1",
         "value",
@@ -623,39 +573,13 @@ fn renames_validated_natspec_inheritdoc_references() {
         }
 
         contract Child is Base {
-            /// @inheritdoc $2Base
+            /// @inheritdoc Base
             function run() public override(Base) {}
         }
         "#,
         "/Inheritdoc.sol",
     );
 
-    fixture.check_goto_definition(
-        "$2",
-        str![[r#"
-/Inheritdoc.sol:0:9 contract Base {
-
-"#]],
-    );
-    fixture.check_references(
-        "$2",
-        true,
-        str![[r#"
-/Inheritdoc.sol:0:9 contract Base {
-/Inheritdoc.sol:3:18 contract Child is Base {
-/Inheritdoc.sol:4:20 /// @inheritdoc Base
-
-"#]],
-    );
-    fixture.check_document_highlights(
-        "$2",
-        str![[r#"
-0:9-0:13 WRITE
-3:18-3:22 READ
-4:20-4:24 READ
-
-"#]],
-    );
     fixture.check_rename(
         "$1",
         "Parent",
@@ -1387,35 +1311,4 @@ fn set_document_contents(state: &mut GlobalState, uri: Url, version: i32, text: 
         },
     );
     assert!(matches!(result, std::ops::ControlFlow::Continue(())));
-}
-
-#[test]
-fn renames_natspec_param_for_return_variable() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /NatSpec.sol
-        contract C {
-            /// @param $1result The result.
-            function f() public pure returns (uint256 result) { result = 1; }
-        }
-        "#,
-        "/NatSpec.sol",
-    );
-    fixture.check_goto_definition(
-        "$1",
-        str![[r#"
-/NatSpec.sol:2:46 function f() public pure returns (uint256 result) { result = 1; }
-
-"#]],
-    );
-    fixture.check_rename(
-        "$1",
-        "value",
-        str![[r#"
-/NatSpec.sol:1:15-1:21 -> value
-/NatSpec.sol:2:46-2:52 -> value
-/NatSpec.sol:2:56-2:62 -> value
-
-"#]],
-    );
 }

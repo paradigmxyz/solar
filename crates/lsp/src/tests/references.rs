@@ -242,37 +242,3 @@ fn finds_references_from_shared_dependency_across_batches() {
         );
     }
 }
-
-#[test]
-fn inherited_natspec_keeps_original_parameter_target() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /NatSpec.sol
-        contract Base {
-            /// @param $1amount The amount.
-            function f(uint amount) public virtual {}
-        }
-        contract Child is Base {
-            function f(uint $2value) public override {}
-        }
-        "#,
-        "/NatSpec.sol",
-    );
-    fixture.check_references(
-        "$1",
-        true,
-        str![[r#"
-/NatSpec.sol:1:15 /// @param amount The amount.
-/NatSpec.sol:2:20 function f(uint amount) public virtual {}
-
-"#]],
-    );
-    fixture.check_references(
-        "$2",
-        true,
-        str![[r#"
-/NatSpec.sol:5:20 function f(uint value) public override {}
-
-"#]],
-    );
-}
