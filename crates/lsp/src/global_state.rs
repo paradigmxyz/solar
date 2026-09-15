@@ -24,8 +24,8 @@ use async_lsp::{ClientSocket, LanguageClient, ResponseError};
 use lsp_types::{
     Diagnostic, DidChangeWatchedFilesRegistrationOptions, FileChangeType, FileSystemWatcher,
     GlobPattern, InitializeParams, InitializedParams, LogMessageParams, MessageType, OneOf,
-    PreviousResultId, PublishDiagnosticsParams, Registration, RegistrationParams, RelativePattern,
-    SetTraceParams, Unregistration, UnregistrationParams, Url, WatchKind,
+    PreviousResultId, PublishDiagnosticsParams, Range, Registration, RegistrationParams,
+    RelativePattern, SetTraceParams, Unregistration, UnregistrationParams, Url, WatchKind,
     WorkDoneProgressCancelParams,
     notification::{DidChangeWatchedFiles, Notification},
 };
@@ -1477,6 +1477,7 @@ impl GlobalState {
     pub(crate) fn code_action_diagnostics(
         &self,
         uri: Url,
+        range: Range,
     ) -> impl Future<Output = Result<Vec<Diagnostic>, ResponseError>> + use<> {
         let (uri, latest_analysis) = match uri.to_file_path() {
             Ok(path) => (Url::from_file_path(path).unwrap_or(uri), Some(self.latest_analysis())),
@@ -1487,11 +1488,7 @@ impl GlobalState {
             if let Some(latest_analysis) = latest_analysis {
                 latest_analysis.await?;
             }
-            let PullReport::Full { diagnostics, .. } = diagnostics.read().pull_report(&uri, None)
-            else {
-                unreachable!("a report without a result ID is full")
-            };
-            Ok(diagnostics)
+            Ok(diagnostics.read().code_action_diagnostics(&uri, range))
         }
     }
 

@@ -1,6 +1,8 @@
 use crate::proto;
 use crop::Rope;
-use lsp_types::{CodeActionKind, CodeActionParams, Diagnostic, NumberOrString, TextEdit, Url};
+use lsp_types::{
+    CodeActionKind, CodeActionParams, Diagnostic, NumberOrString, Range, TextEdit, Url,
+};
 use serde::{Deserialize, Serialize};
 use solar_config::CompileOpts;
 use solar_interface::{
@@ -121,9 +123,9 @@ pub(crate) fn plans(
     if !quick_fixes_requested(params) {
         return Vec::new();
     }
-    let Some(request_range) = exact_byte_range(index, params.range) else {
+    if exact_byte_range(index, params.range).is_none() {
         return Vec::new();
-    };
+    }
     let uri = &params.text_document.uri;
     let mut plans = Vec::new();
     let arena = ast::Arena::new();
@@ -138,8 +140,8 @@ pub(crate) fn plans(
         .iter()
         .filter_map(|diagnostic| {
             if !matches!(diagnostic.source.as_deref(), Some("solar" | "flycheck" | "forge-lint"))
-                || !exact_byte_range(index, diagnostic.range)
-                    .is_some_and(|range| code_action_ranges_intersect(&request_range, &range))
+                || !code_action_ranges_intersect(params.range, diagnostic.range)
+                || exact_byte_range(index, diagnostic.range).is_none()
             {
                 return None;
             }
@@ -240,13 +242,17 @@ fn exact_byte_range(
     .then_some(bytes)
 }
 
-fn code_action_ranges_intersect(
-    request: &std::ops::Range<usize>,
-    diagnostic: &std::ops::Range<usize>,
-) -> bool {
-    if request.is_empty() {
+/// Tests quick-fix overlap in LSP coordinates, including point ranges at either boundary.
+///
+/// Valid LSP positions have the same order as their byte offsets, so unrelated diagnostics can
+/// be rejected without consulting the document. Callers must still validate retained positions.
+pub(crate) fn code_action_ranges_intersect(request: Range, diagnostic: Range) -> bool {
+    if request.start > request.end || diagnostic.start > diagnostic.end {
+        return false;
+    }
+    if request.start == request.end {
         diagnostic.start <= request.start && request.start <= diagnostic.end
-    } else if diagnostic.is_empty() {
+    } else if diagnostic.start == diagnostic.end {
         request.start <= diagnostic.start && diagnostic.start <= request.end
     } else {
         request.start < diagnostic.end && diagnostic.start < request.end

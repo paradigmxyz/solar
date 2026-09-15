@@ -984,12 +984,127 @@ fn accepts_cursor_and_selection_ranges_intersecting_the_diagnostic() {
     let (_, _, diagnostic, mut params) = native_request(&project);
     let mut state = state(&project, false);
     let start = diagnostic.range.start.character;
-
-    params.range = Range::new(Position::new(0, start + 1), Position::new(0, start + 1));
-    assert_eq!(authorized_code_actions(&mut state, params.clone()).len(), 1);
+    for cursor in [diagnostic.range.start, Position::new(0, start + 1), diagnostic.range.end] {
+        params.range = Range::new(cursor, cursor);
+        assert_eq!(authorized_code_actions(&mut state, params.clone()).len(), 1, "{cursor:?}");
+    }
 
     params.range = Range::new(Position::new(0, start - 1), Position::new(0, start + 1));
     assert_eq!(authorized_code_actions(&mut state, params).len(), 1);
+}
+
+#[test]
+fn range_filtering_preserves_server_order_empty_ranges_and_data_disambiguation() {
+    for eol in ["\n", "\r\n", "\r"] {
+        let mut project =
+            TestProject::from_fixture("//- /Test.sol open\ncontract Placeholder {}\n");
+        let contents = [
+            "contract Test {",
+            "string constant face = unicode\"😀\"; uint256 bad_name;",
+            "uint256 other_name;",
+            "}",
+            "",
+        ]
+        .join(eol);
+        project.write_file("/Test.sol", &contents);
+        project.open_file("/Test.sol", &contents);
+        let start = contents.find("bad_name").unwrap();
+        let range = lsp_range(&contents, start, start + "bad_name".len());
+        let (uri, diagnostic, mut params) =
+            fallback_request(&project, range, "solar", Some("naming"), "rename declaration");
+        let make_diagnostic = |range: Range, title: &str| {
+            let mut diagnostic = diagnostic.clone();
+            diagnostic.range = range;
+            diagnostic.data.as_mut().unwrap()["suggestions"] = serde_json::json!([{
+                "title": title,
+                "applicability": "MachineApplicable",
+                "alternatives": [[TextEdit::new(range, title.into())]]
+            }]);
+            diagnostic
+        };
+        let diagnostics = vec![
+            make_diagnostic(Range::new(range.end, range.end), "end insertion"),
+            make_diagnostic(lsp_range(&contents, 0, "contract".len()), "before selection"),
+            make_diagnostic(range, "alternate name"),
+            make_diagnostic(range, "preferred name"),
+            make_diagnostic(Range::new(range.start, range.start), "start insertion"),
+            make_diagnostic(
+                lsp_range(&contents, start + "bad_name".len(), start + "bad_name;".len()),
+                "touching selection end",
+            ),
+            make_diagnostic(lsp_range(&contents, start - 1, start), "touching selection start"),
+            make_diagnostic(
+                lsp_range(&contents, 0, contents.find("other_name").unwrap()),
+                "spanning selection",
+            ),
+        ];
+        let mut state = state(&project, false);
+        replace_diagnostics(&state, uri.clone(), diagnostics.clone());
+        let selected = block_on(state.code_action_diagnostics(uri.clone(), range)).unwrap();
+        assert_eq!(selected, [0, 2, 3, 4, 7].map(|index| diagnostics[index].clone()), "{eol:?}");
+
+        for (context, expected) in
+            [(Vec::new(), vec![0, 2, 3, 4, 7]), (vec![diagnostics[3].clone()], vec![0, 3, 4, 7])]
+        {
+            params.context.diagnostics = context;
+            let response = block_on(crate::handlers::code_actions(&mut state, params.clone()))
+                .unwrap()
+                .unwrap();
+            assert_eq!(response.len(), expected.len(), "{eol:?}");
+            for (action, index) in response.iter().zip(expected) {
+                let CodeActionOrCommand::CodeAction(action) = action else {
+                    panic!("expected a literal action")
+                };
+                assert_eq!(
+                    action.diagnostics.as_deref(),
+                    Some(std::slice::from_ref(&diagnostics[index])),
+                    "{eol:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn range_filtering_keeps_exact_position_validation() {
+    let mut project = TestProject::from_fixture("//- /Test.sol open\ncontract Placeholder {}\n");
+    let contents = "contract Test {\r\nstring constant face = unicode\"😀\";\r\n}\r\n";
+    project.write_file("/Test.sol", contents);
+    project.open_file("/Test.sol", contents);
+    let emoji = contents.find('😀').unwrap();
+    let range = lsp_range(contents, emoji, emoji + '😀'.len_utf8());
+    let (uri, mut diagnostic, mut params) =
+        fallback_request(&project, range, "solar", Some("naming"), "replace emoji");
+    diagnostic.data.as_mut().unwrap()["suggestions"] = serde_json::json!([{
+        "title": "Replace emoji",
+        "applicability": "MachineApplicable",
+        "alternatives": [[TextEdit::new(range, "name".into())]]
+    }]);
+    let mut state = state(&project, false);
+    replace_diagnostics(&state, uri.clone(), vec![diagnostic.clone()]);
+    params.context.diagnostics.clear();
+    let response =
+        block_on(crate::handlers::code_actions(&mut state, params.clone())).unwrap().unwrap();
+    assert_eq!(response.len(), 1);
+
+    let split_surrogate = Position::new(range.start.line, range.start.character + 1);
+    for range in [
+        Range::new(split_surrogate, split_surrogate),
+        Range::new(range.start, Position::new(range.end.line, u32::MAX)),
+        Range::new(range.start, Position::new(u32::MAX, 0)),
+        Range::new(range.end, range.start),
+    ] {
+        params.range = range;
+        let response =
+            block_on(crate::handlers::code_actions(&mut state, params.clone())).unwrap().unwrap();
+        assert!(response.is_empty(), "{range:?}");
+    }
+
+    diagnostic.range.start = split_surrogate;
+    replace_diagnostics(&state, uri, vec![diagnostic]);
+    params.range = range;
+    let response = block_on(crate::handlers::code_actions(&mut state, params)).unwrap().unwrap();
+    assert!(response.is_empty());
 }
 
 #[test]
