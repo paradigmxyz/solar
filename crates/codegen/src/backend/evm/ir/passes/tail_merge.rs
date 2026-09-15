@@ -111,13 +111,6 @@ impl RunState {
             // from a non-loop path to preserve common loop entries.
             let matched = self.longest_common_tail(block);
             let in_gas_loop = gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop;
-            if in_gas_loop
-                && !matched.is_some_and(|(representative, _)| {
-                    !module.blocks[representative].metadata.in_loop
-                })
-            {
-                continue;
-            }
 
             // A hot shared tail adds a runtime jump, so require one extra byte in gas mode.
             if let Some((representative, common)) = matched
