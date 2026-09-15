@@ -140,6 +140,7 @@ fn @encode.4(arg0: memptr, arg1: bool, arg2: bool) -> memptr [pure] {
   bb26:
     v120 = phi [bb90: 0], [bb32: v164]
     v121 = phi [bb90: 0], [bb32: v165]
+    v326 = phi [bb90: v313], [bb32: v327]
     v172 = add v121, 2
     v173 = lt v172, v0
     jumpi v173, bb27, bb8
@@ -370,8 +371,7 @@ fn @encode.4(arg0: memptr, arg1: bool, arg2: bool) -> memptr [pure] {
     jumpi v140, bb28, bb11
   bb28:
     v145 = byte 0, v241
-    v314 = add v313, v120
-    mstore8 v314, v145
+    mstore8 v326, v145
     v146 = shr 12, v144
     v147 = and v146, 63
     jumpi arg1, bb70, bb72
@@ -409,7 +409,7 @@ fn @encode.4(arg0: memptr, arg1: bool, arg2: bool) -> memptr [pure] {
     revert 0, 36
   bb29:
     v152 = byte 0, v254
-    v316 = add v313, v149
+    v316 = add v326, 1
     mstore8 v316, v152
     v153 = add v120, 2
     v154 = lt v153, v18
@@ -444,7 +444,7 @@ fn @encode.4(arg0: memptr, arg1: bool, arg2: bool) -> memptr [pure] {
   bb76:
     v267 = phi [bb78: v259], [bb82: v266]
     v163 = byte 0, v267
-    v318 = add v313, v153
+    v318 = add v326, 2
     mstore8 v318, v163
     jump bb30
   bb30:
@@ -480,12 +480,13 @@ fn @encode.4(arg0: memptr, arg1: bool, arg2: bool) -> memptr [pure] {
   bb83:
     v280 = phi [bb85: v272], [bb89: v279]
     v171 = byte 0, v280
-    v320 = add v313, v155
+    v320 = add v326, 3
     mstore8 v320, v171
     jump bb32
   bb32:
     v164 = add v120, 4
     v165 = add v121, 3
+    v327 = add v326, 4
     jump bb26
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -565,10 +566,12 @@ fn @decode.8(arg0: memptr) -> memptr [pure] {
     v345 = calldatasize
     calldatacopy v46, v345, v45
     mstore v46, v41
+    v346 = add arg0, 32
     jump bb27
   bb27:
     v139 = phi [bb61: 0], [bb34: v178]
     v140 = phi [bb61: 0], [bb34: v177]
+    v347 = phi [bb61: v346], [bb34: v348]
     v179 = add v139, 3
     v180 = lt v179, v0
     jumpi v180, bb28, bb12
@@ -721,9 +724,7 @@ fn @decode.8(arg0: memptr) -> memptr [pure] {
     v137 = add v48, 4
     jump bb12
   bb28:
-    v315 = add arg0, 32
-    v316 = add v315, v139
-    v317 = mload v316
+    v317 = mload v347
     v318 = byte 0, v317
     v234 = lt v318, 32
     jumpi v234, bb47, bb48
@@ -743,8 +744,7 @@ fn @decode.8(arg0: memptr) -> memptr [pure] {
   bb47:
     v245 = phi [bb28: 0], [bb48: 0], [bb49: v244]
     v145 = shl 18, v245
-    v146 = add v139, 1
-    v326 = add v315, v146
+    v326 = add v347, 1
     v327 = mload v326
     v328 = byte 0, v327
     v247 = lt v328, 32
@@ -766,8 +766,7 @@ fn @decode.8(arg0: memptr) -> memptr [pure] {
     v258 = phi [bb47: 0], [bb51: 0], [bb52: v257]
     v154 = shl 12, v258
     v155 = or v145, v154
-    v149 = add v139, 2
-    v330 = add v315, v149
+    v330 = add v347, 2
     v331 = mload v330
     v332 = byte 0, v331
     v260 = lt v332, 32
@@ -789,7 +788,7 @@ fn @decode.8(arg0: memptr) -> memptr [pure] {
     v271 = phi [bb50: 0], [bb54: 0], [bb55: v270]
     v162 = shl 6, v271
     v163 = or v155, v162
-    v334 = add v315, v179
+    v334 = add v347, 3
     v335 = mload v334
     v336 = byte 0, v335
     v273 = lt v336, 32
@@ -841,6 +840,7 @@ fn @decode.8(arg0: memptr) -> memptr [pure] {
   bb34:
     v177 = add v140, 3
     v178 = add v139, 4
+    v348 = add v347, 4
     jump bb27
   bb60:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

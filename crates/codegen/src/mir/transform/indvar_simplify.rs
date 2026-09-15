@@ -52,7 +52,10 @@
 use crate::mir::{
     BlockId, Function, Immediate, InstId, InstKind, Instruction, MemoryRegion, MirType, Module,
     Terminator, Value, ValueId,
-    analysis::{AffineTerm, AliasAnalysis, Loop, LoopAnalyzer, MemoryBase, ScalarEvolution},
+    analysis::{
+        AffineTerm, AliasAnalysis, InductionVariable, Loop, LoopAnalyzer, MemoryBase,
+        ScalarEvolution,
+    },
     pass::{MirPass, run_function_pass_with_alias},
     utils as mir_utils,
 };
@@ -174,12 +177,39 @@ impl IndVarSimplifier {
     fn run_loop(&mut self, func: &mut Function, loop_data: &Loop) {
         let Some(preheader) = loop_data.preheader else { return };
         let [latch] = loop_data.back_edges.as_slice() else { return };
-        let [iv] = loop_data.induction_vars.as_slice() else { return };
-        if iv.descending {
+        let latch = *latch;
+        // A loop may step more than one counter, each walking its own addresses:
+        // a codec reading an input and writing an output steps both, and taking
+        // only the single-counter case left every such loop rebuilding both
+        // address families from scratch every iteration. Reduce them one at a
+        // time. A reduction only retypes instructions, adds one header phi with
+        // its latch update, and deletes arithmetic it just made dead, so the
+        // blocks, preheader and back edge analyzed here stay valid for the next.
+        for iv in loop_data.induction_vars.clone() {
+            self.reduce_induction_variable(func, loop_data, preheader, latch, iv);
+        }
+    }
+
+    /// Replaces one counter's loop address expressions with carried pointers.
+    fn reduce_induction_variable(
+        &mut self,
+        func: &mut Function,
+        loop_data: &Loop,
+        preheader: BlockId,
+        latch: BlockId,
+        iv: InductionVariable,
+    ) {
+        // Reducing an earlier counter can delete this one's update as dead
+        // address arithmetic, leaving the recorded instruction outside the loop.
+        if iv.update_inst.is_some_and(|inst| {
+            !loop_data.blocks.iter().any(|block| func.blocks[block].instructions.contains(&inst))
+        }) {
             return;
         }
-        let Some(step) = self.value_i128(func, iv.step) else { return };
-        let must_keep_update = func.inst(iv.update_inst).kind.effects().must_execute(false);
+        let Some(step) = self.additive_step(func, iv.value, iv.update_inst) else {
+            return;
+        }
+        let must_keep_update = iv.update_inst.is_some_and(|inst| func.inst(inst).kind.effects().must_execute(false));
 
         let scev = ScalarEvolution::analyze(func, loop_data);
         let carried = Self::carried_words(func, loop_data);
@@ -299,7 +329,7 @@ impl IndVarSimplifier {
                 continue;
             }
             let Some(pointer) =
-                self.materialize_pointer_phi(func, loop_data, preheader, *latch, primary)
+                self.materialize_pointer_phi(func, loop_data, preheader, latch, primary)
             else {
                 tracing::trace!(
                     function = %func.name,
