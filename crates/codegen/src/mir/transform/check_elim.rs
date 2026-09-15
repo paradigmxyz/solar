@@ -318,6 +318,10 @@ impl Range {
     }
 }
 
+/// Differences indexed under their subtrahend, each entry a minuend and the
+/// value holding their difference.
+type DifferenceIndex = FxHashMap<ValueId, SmallVec<[(ValueId, ValueId); 2]>>;
+
 /// A relational predicate between two SSA values.
 ///
 /// `Lt(a, b)` means `a < b` and `Le(a, b)` means `a <= b`, both unsigned.
@@ -399,6 +403,10 @@ struct CheckEliminator<'a> {
     universal_relations: FxHashSet<Relation>,
     /// Relations indexed under their right operand, for lower-bound searches.
     reverse_index: Option<FxHashMap<ValueId, SmallVec<[Relation; 2]>>>,
+    /// Differences indexed under their subtrahend: `b` maps to every `(a, a - b)`.
+    difference_index: Option<DifferenceIndex>,
+    /// Depth of the sum-bound lemma, which asks relational questions of its own.
+    sum_depth: usize,
     /// Counting header phis with constant start and step, bounded by the
     /// distance any affordable number of iterations can travel.
     trip_bounds: FxHashMap<ValueId, Range>,
@@ -900,8 +908,54 @@ impl<'a> CheckEliminator<'a> {
                 }
             }
         }
+        let mut differences = FxHashMap::<_, SmallVec<[(ValueId, ValueId); 2]>>::default();
+        for inst_id in func.instructions() {
+            let Some(value) = func.inst_result_value(inst_id) else { continue };
+            if let InstKind::Sub(minuend, subtrahend) = func.inst(inst_id).kind {
+                let entry = differences.entry(subtrahend).or_default();
+                if !entry.contains(&(minuend, value)) {
+                    entry.push((minuend, value));
+                }
+            }
+        }
         self.relation_index = Some(index);
         self.reverse_index = Some(reverse);
+        self.difference_index = Some(differences);
+    }
+
+    /// Whether `base + offset` stays below some value the scope relates to
+    /// `limit`, which also proves the sum cannot wrap.
+    ///
+    /// A checked slice bounds its index by a difference: `k < end - start`
+    /// with `start <= end` puts `start + k` below `end`, because the scope
+    /// computing `end - start` without wrapping makes the difference exact.
+    /// The sum stays below `end`, so it cannot wrap either. Passing `None` for
+    /// `limit` asks only for wrap freedom.
+    fn sum_stays_below(&mut self, func: &Function, sum: ValueId, limit: Option<ValueId>) -> bool {
+        const MAX_SUM_DEPTH: usize = 2;
+        if self.sum_depth >= MAX_SUM_DEPTH {
+            return false;
+        }
+        let Some(&InstKind::Add(first, second)) = inst_kind(func, sum) else { return false };
+        self.ensure_relation_index(func);
+        self.sum_depth += 1;
+        let found = [(first, second), (second, first)].into_iter().any(|(base, offset)| {
+            let candidates = self
+                .difference_index
+                .as_ref()
+                .and_then(|index| index.get(&base))
+                .cloned()
+                .unwrap_or_default();
+            candidates.into_iter().any(|(minuend, difference)| {
+                self.has_relation(func, Relation::Lt(offset, difference))
+                    && self.has_relation(func, Relation::Le(base, minuend))
+                    && limit.is_none_or(|limit| {
+                        minuend == limit || self.has_relation(func, Relation::Le(minuend, limit))
+                    })
+            })
+        });
+        self.sum_depth -= 1;
+        found
     }
 
     /// Whether `base + amount < bound` holds in the current scope for a
@@ -1038,7 +1092,18 @@ impl<'a> CheckEliminator<'a> {
                 }
             }
         }
-        false
+        // A sum bounded by a difference is below that difference's minuend,
+        // which the edges above could not express because the difference
+        // relates the offset rather than the sum.
+        match relation {
+            Relation::Lt(sum, limit) => self.sum_stays_below(func, sum, Some(limit)),
+            // `a <= a + b` needs only that the sum cannot wrap.
+            Relation::Le(base, sum) => {
+                matches!(inst_kind(func, sum), Some(&InstKind::Add(x, y)) if x == base || y == base)
+                    && self.sum_stays_below(func, sum, None)
+            }
+            Relation::Eq(..) | Relation::Ne(..) => false,
+        }
     }
 
     // === Evaluation ===
@@ -1498,10 +1563,42 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
                 relations.insert(Relation::Le(value, x));
                 relations.insert(Relation::Le(value, y));
             }
+            // If conversion rewrites `if (x > limit) x = limit` to
+            // `x + (x > limit) * (limit - x)`, which is `limit` when the test
+            // holds and `x` otherwise, so it never exceeds `limit`.
+            InstKind::Add(x, adjustment) => {
+                for (x, adjustment) in [(x, adjustment), (adjustment, x)] {
+                    if let Some(limit) = clamp_limit(func, x, adjustment) {
+                        relations.insert(Relation::Le(value, limit));
+                    }
+                }
+            }
             _ => {}
         }
     }
     relations
+}
+
+/// The upper limit of a clamp written as `x + (x > limit) * (limit - x)`.
+///
+/// The product is zero when the test fails, leaving `x`, and `limit - x` when
+/// it holds, leaving exactly `limit` under wrapping addition. Either way the
+/// sum is at most `limit`.
+fn clamp_limit(func: &Function, x: ValueId, adjustment: ValueId) -> Option<ValueId> {
+    let &InstKind::Mul(first, second) = inst_kind(func, adjustment)? else { return None };
+    for (condition, difference) in [(first, second), (second, first)] {
+        let Some(&InstKind::Gt(tested, limit)) = inst_kind(func, condition) else { continue };
+        if tested != x {
+            continue;
+        }
+        if let Some(&InstKind::Sub(minuend, subtrahend)) = inst_kind(func, difference)
+            && minuend == limit
+            && subtrahend == x
+        {
+            return Some(limit);
+        }
+    }
+    None
 }
 
 fn relation_candidates(func: &Function) -> FxHashMap<ValueId, SmallVec<[Relation; 2]>> {
