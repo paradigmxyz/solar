@@ -46,9 +46,7 @@ fn @gapped() [selector=0x63cfbce4, pure] {
     v25 = mload v23
     v26 = byte 0, v25
     v8 = shl 8, v26
-    v28 = add v23, 2
-    v29 = mload v28
-    v30 = byte 0, v29
+    v30 = byte 2, v25
     v15 = or v8, v30
     mstore 128, v15
     returndata 128, 32
@@ -74,9 +72,7 @@ fn @stored() [selector=0xab0edd4e, pure] {
     v44 = byte 0, v43
     v19 = shl 8, v44
     v20 = or v8, v19
-    v46 = add v35, 2
-    v47 = mload v46
-    v48 = byte 0, v47
+    v48 = byte 1, v43
     v27 = or v20, v48
     mstore 128, v27
     returndata 128, 32

@@ -38,6 +38,16 @@
 //! the run, so the rewrite is unconditionally fewer instructions and smaller
 //! code. It is not gated on the optimization objective.
 //!
+//! # Sharing a read between neighbours
+//!
+//! A run that is not packed into one value still reads the same word many
+//! times: a decoder taking four bytes through a lookup table each iteration
+//! loads four words to use four bytes of the first one. After the packing
+//! rewrite above, every remaining group of byte extractions over one base
+//! whose offsets fit in a word is pointed at the group's lowest read, and each
+//! extraction takes the byte its offset names. The lowest read must come first
+//! in the block, so the value it produces is available where the others stood.
+//!
 //! # Limitations
 //!
 //! A run must lie in one basic block. Reads whose bounds checks were not
@@ -109,6 +119,7 @@ fn run_function(func: &mut Function) -> bool {
             window.insert(inst);
         }
     }
+    changed |= share_reads(func);
     if changed {
         sweep_dead(func);
     }
@@ -259,6 +270,74 @@ fn address_key(func: &Function, address: ValueId) -> Option<(Vec<ValueId>, u64)>
     }
     base.sort_unstable();
     Some((base, offset))
+}
+
+/// Points every group of neighbouring byte extractions at one word read.
+fn share_reads(func: &mut Function) -> bool {
+    let mut changed = false;
+    for block in func.blocks.indices().collect::<Vec<_>>() {
+        let mut groups: Vec<Vec<(u64, InstId, ValueId)>> = Vec::new();
+        let mut bases: Vec<Vec<ValueId>> = Vec::new();
+        let mut start = 0;
+        let instructions = func.blocks[block].instructions.clone();
+        for (position, &inst) in instructions.iter().enumerate() {
+            // A store may change what a later read sees, so a group cannot
+            // span one.
+            if func.inst(inst).kind.has_side_effects() {
+                changed |= rewrite_groups(func, &groups);
+                groups.clear();
+                bases.clear();
+                start = position + 1;
+                continue;
+            }
+            let _ = start;
+            let Some((base, offset, word)) = byte_read(func, inst) else { continue };
+            match bases.iter().position(|other| *other == base) {
+                Some(index) => groups[index].push((offset, inst, word)),
+                None => {
+                    bases.push(base);
+                    groups.push(vec![(offset, inst, word)]);
+                }
+            }
+        }
+        changed |= rewrite_groups(func, &groups);
+    }
+    changed
+}
+
+/// Rewrites each group whose first read is also its lowest and whose offsets
+/// fit one word.
+fn rewrite_groups(func: &mut Function, groups: &[Vec<(u64, InstId, ValueId)>]) -> bool {
+    let mut changed = false;
+    for group in groups {
+        let [(first_offset, _, first_word), rest @ ..] = group.as_slice() else { continue };
+        if rest.is_empty() {
+            continue;
+        }
+        for &(offset, inst, _) in rest {
+            let Some(index) = offset.checked_sub(*first_offset) else { continue };
+            if index >= MAX_RUN as u64 || index == 0 {
+                continue;
+            }
+            // %byte = byte(offset - first, %first_word)
+            let index = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(index))));
+            func.inst_mut(inst).replace_kind(InstKind::Byte(index, *first_word));
+            changed = true;
+        }
+    }
+    changed
+}
+
+/// Recognizes `byte(0, mload(base + constant))` as a single byte of memory.
+fn byte_read(func: &Function, inst: InstId) -> Option<(Vec<ValueId>, u64, ValueId)> {
+    let InstKind::Byte(index, word) = func.inst(inst).kind else { return None };
+    if func.value_u64(index) != Some(0) {
+        return None;
+    }
+    let Value::Inst(load) = *func.value(word) else { return None };
+    let InstKind::MLoad(address) = func.inst(load).kind else { return None };
+    let (base, offset) = address_key(func, address)?;
+    Some((base, offset, word))
 }
 
 /// Removes instructions left without users by the rewrites above.
