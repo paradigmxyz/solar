@@ -3,7 +3,7 @@ use crate::{
     symbols::{SymbolTables, SymbolTablesAggregator},
     test_support::MarkedProject,
 };
-use lsp_types::{Position, Range, Url};
+use lsp_types::{CallHierarchyIncomingCall, CallHierarchyOutgoingCall, Position, Range, Url};
 use solar_config::CompileOpts;
 
 #[test]
@@ -676,7 +676,102 @@ fn merges_identical_analysis_contexts_without_duplicate_edges() {
 }
 
 #[test]
-fn stable_items_follow_body_only_reanalysis() {
+fn orders_call_neighbors_by_uri_and_range_after_merging() {
+    let marked = MarkedProject::from_fixture(
+        r#"
+        //- /Z.sol
+        import {Target} from "./Target.sol";
+        library Z {
+            function $1z() internal { Target.$2target(); }
+            function $3a() internal { Target.$4target(); }
+        }
+        //- /A.sol
+        import {Target} from "./Target.sol";
+        library A {
+            function $5z() internal { Target.$6target(); Target.$7target(); }
+            function $8a() internal { Target.$9target(); }
+        }
+        //- /Target.sol
+        library Target {
+            function $10target() internal {}
+        }
+        //- /Caller.sol
+        import {Z} from "./Z.sol";
+        import {A} from "./A.sol";
+        contract Caller {
+            function $11caller() external {
+                Z.$12a();
+                A.$13a();
+                Z.$14z();
+                A.$15z(); A.$16z();
+            }
+        }
+        //- /RootA.sol
+        import "./Caller.sol";
+        //- /RootB.sol
+        import "./A.sol";
+        import "./Caller.sol";
+        "#,
+    );
+    let project = marked.project();
+    let mut tables = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(project.path("/RootA.sol"), project.read_file("/RootA.sol"))],
+    ))
+    .symbol_tables;
+    let item = |file: &str, marker: &str| {
+        let uri = Url::from_file_path(project.path(file)).unwrap();
+        tables
+            .prepare_call_hierarchy(&uri, marked.marker(marker).position())
+            .unwrap()
+            .pop()
+            .unwrap()
+    };
+    let caller = item("/Caller.sol", "$11");
+    let target = item("/Target.sol", "$10");
+    // URI order takes precedence over analysis order; source position takes precedence over name.
+    let neighbors =
+        [item("/A.sol", "$5"), item("/A.sol", "$8"), item("/Z.sol", "$1"), item("/Z.sol", "$3")];
+    let outgoing_ranges = [
+        vec![marker_range(&marked, "$15", 1), marker_range(&marked, "$16", 1)],
+        vec![marker_range(&marked, "$13", 1)],
+        vec![marker_range(&marked, "$14", 1)],
+        vec![marker_range(&marked, "$12", 1)],
+    ];
+    let expected_outgoing = neighbors
+        .iter()
+        .cloned()
+        .zip(outgoing_ranges)
+        .map(|(to, from_ranges)| CallHierarchyOutgoingCall { to, from_ranges })
+        .collect::<Vec<_>>();
+    let incoming_ranges = [
+        vec![marker_range(&marked, "$6", 6), marker_range(&marked, "$7", 6)],
+        vec![marker_range(&marked, "$9", 6)],
+        vec![marker_range(&marked, "$2", 6)],
+        vec![marker_range(&marked, "$4", 6)],
+    ];
+    let expected_incoming = neighbors
+        .into_iter()
+        .zip(incoming_ranges)
+        .map(|(from, from_ranges)| CallHierarchyIncomingCall { from, from_ranges })
+        .collect::<Vec<_>>();
+    assert_eq!(tables.call_hierarchy_outgoing(&caller), Some(expected_outgoing.clone()));
+    assert_eq!(tables.call_hierarchy_incoming(&target), Some(expected_incoming.clone()));
+
+    let overlapping = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(project.path("/RootB.sol"), project.read_file("/RootB.sol"))],
+    ))
+    .symbol_tables;
+    tables = merge_symbol_tables(tables, overlapping);
+
+    // Reusing items from before the merge must retain the complete, deduplicated response.
+    assert_eq!(tables.call_hierarchy_outgoing(&caller), Some(expected_outgoing));
+    assert_eq!(tables.call_hierarchy_incoming(&target), Some(expected_incoming));
+}
+
+#[test]
+fn stable_items_follow_body_and_detail_reanalysis() {
     let marked = MarkedProject::from_fixture(
         r#"
         //- /Fresh.sol
@@ -703,8 +798,14 @@ fn stable_items_follow_body_only_reanalysis() {
         .unwrap()
         .pop()
         .unwrap();
+    let old_callee = old_tables
+        .prepare_call_hierarchy(&uri, marked.marker("$2").position())
+        .unwrap()
+        .pop()
+        .unwrap();
 
     let new_contents = old_contents
+        .replace("contract C", "contract D")
         .replace("        calleeA();", "        uint256 value = 1;\n        calleeB();");
     let new_tables =
         analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path, new_contents)]))
@@ -722,9 +823,14 @@ fn stable_items_follow_body_only_reanalysis() {
 
     assert_eq!(old_caller.selection_range, new_caller.selection_range);
     assert_ne!(old_caller.range, new_caller.range);
+    assert_eq!(old_caller.detail.as_deref(), Some("C"));
+    assert_eq!(new_caller.detail.as_deref(), Some("D"));
     let outgoing = new_tables.call_hierarchy_outgoing(&old_caller).unwrap();
     assert_eq!(outgoing.len(), 1);
     assert_eq!(outgoing[0].to, new_callee);
+    let incoming = new_tables.call_hierarchy_incoming(&old_callee).unwrap();
+    assert_eq!(incoming.len(), 1);
+    assert_eq!(incoming[0].from, new_caller);
 }
 
 #[test]
