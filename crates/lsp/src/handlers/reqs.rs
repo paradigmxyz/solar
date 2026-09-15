@@ -962,7 +962,7 @@ pub(crate) fn signature_help(
     params: SignatureHelpParams,
 ) -> impl Future<Output = Result<Option<SignatureHelp>, ResponseError>> + use<> {
     let params = params.text_document_position_params;
-    let response = crate::proto::vfs_path(&params.text_document.uri).and_then(|path| {
+    let response = state.cached_vfs_path(&params.text_document.uri).and_then(|path| {
         let source = state.vfs.read().get_file_source(&path)?;
         let cursor = source
             .positions()
@@ -988,7 +988,8 @@ pub(crate) fn completion(
     let trigger_character =
         params.context.as_ref().and_then(|context| context.trigger_character.as_deref());
     let params = params.text_document_position;
-    let source = crate::proto::vfs_path(&params.text_document.uri)
+    let source = state
+        .cached_vfs_path(&params.text_document.uri)
         .and_then(|path| state.vfs.read().get_file_source(&path));
     if let Some(source) = source {
         let contents = source.contents();
