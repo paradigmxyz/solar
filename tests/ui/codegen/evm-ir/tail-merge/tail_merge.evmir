@@ -175,6 +175,55 @@ bb12:
   push0
   stop
 
+// Keep the original address-taken body instead of adding a shared block and two stubs.
+// CHECK-LABEL: {{^[ +].*}}bb20:
+// CHECK: {{^[ +].*}}push bb21
+// CHECK: {{^[ +].*}}push bb22
+bb20:
+  push bb21
+  push bb22
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb21:
+// CHECK: {{^[ +].*}}push 0x4d2
+// CHECK-NEXT: {{^[ +].*}}push 0x162e
+// CHECK-NEXT: {{^[ +].*}}return
+bb21:
+  push 1234
+  push 5678
+  return
+
+// CHECK-LABEL: {{^[ +].*}}bb22:
+// CHECK: + jump bb21
+bb22:
+  push 1234
+  push 5678
+  return
+
+// Nested tails keep their separate blocks so an earlier entry cannot take a fallthrough path.
+// CHECK-LABEL: {{^[ +].*}}bb30:
+// CHECK: + jump [[LONG:bb[0-9]+]]
+bb30:
+  push 30000
+  push 10000
+  push 20000
+  return
+
+// CHECK-LABEL: {{^[ +].*}}bb31:
+// CHECK: + jump [[LONG]]
+bb31:
+  push 30000
+  push 10000
+  push 20000
+  return
+
+// CHECK-LABEL: {{^[ +].*}}bb32:
+// CHECK: + jump [[SHORT:bb[0-9]+]]
+bb32:
+  push 10000
+  push 20000
+  return
+
 // CHECK: + [[TAIL_B]]:
 // CHECK: {{^[ +].*}}push 33
 // CHECK: {{^[ +].*}}revert

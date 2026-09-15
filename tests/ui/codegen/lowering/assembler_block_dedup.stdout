@@ -50,9 +50,8 @@ bb16:
   jumpi
   push 4
   calldataload
-  push 2
-  gt
-  iszero
+  push 1
+  lt
   push bb6
   jumpi
   push 4
