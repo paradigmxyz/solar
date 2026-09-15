@@ -21,7 +21,7 @@ use solar_sema::{
     Gcx,
     hir::{self, ItemId, VariableId},
 };
-use std::{path::PathBuf, sync::Arc};
+use std::{borrow::Cow, path::PathBuf, sync::Arc};
 
 newtype_index! {
     /// A file-local import alias in the rename index.
@@ -74,6 +74,7 @@ pub(crate) struct RenameIndex {
     analyzed_contents: FxHashMap<Url, Arc<String>>,
     conflicting_contents: FxHashSet<Url>,
     symbol_targets: FxHashSet<SymbolId>,
+    family_targets: FxHashMap<SymbolId, Vec<RenameTarget>>,
     yul_symbol_targets: FxHashSet<SymbolId>,
     occurrences: Vec<RenameOccurrence>,
     file_occurrences: FxHashMap<Url, OccurrenceIndex>,
@@ -550,25 +551,29 @@ impl RenameIndex {
         let targets = match target {
             RenameTarget::Symbol(symbol_id) => {
                 let family = override_families.family(symbol_id)?;
-                self.symbol_targets
-                    .iter()
-                    .copied()
-                    .filter(|candidate| override_families.family(*candidate) == Some(family))
-                    .map(RenameTarget::Symbol)
-                    .collect::<Vec<_>>()
+                Cow::Borrowed(
+                    self.family_targets
+                        .get(&family)
+                        .map(Vec::as_slice)
+                        .unwrap_or_else(|| std::slice::from_ref(&target)),
+                )
             }
-            RenameTarget::ImportAlias(alias_id) => self
-                .aliases
-                .indices()
-                .filter(|&candidate| self.aliases[alias_id] == self.aliases[candidate])
-                .map(RenameTarget::ImportAlias)
-                .collect(),
-            RenameTarget::MappingName(name_id) => self
-                .mapping_names
-                .indices()
-                .filter(|&candidate| self.mapping_names[name_id] == self.mapping_names[candidate])
-                .map(RenameTarget::MappingName)
-                .collect(),
+            RenameTarget::ImportAlias(alias_id) => Cow::Owned(
+                self.aliases
+                    .indices()
+                    .filter(|&candidate| self.aliases[alias_id] == self.aliases[candidate])
+                    .map(RenameTarget::ImportAlias)
+                    .collect(),
+            ),
+            RenameTarget::MappingName(name_id) => Cow::Owned(
+                self.mapping_names
+                    .indices()
+                    .filter(|&candidate| {
+                        self.mapping_names[name_id] == self.mapping_names[candidate]
+                    })
+                    .map(RenameTarget::MappingName)
+                    .collect(),
+            ),
         };
         if !self.conflicting_contents.contains(uri)
             && targets.iter().any(|target| self.ambiguous_targets.contains(target))
@@ -584,7 +589,7 @@ impl RenameIndex {
         // Occurrences are unique and URI/range-sorted by `normalize_occurrences`. Each target's
         // index list already follows that order; only combining targets requires normalization.
         let mut indices = Vec::new();
-        let indices = if let [target] = targets.as_slice() {
+        let indices = if let [target] = targets.as_ref() {
             self.target_occurrences.get(target).map(Vec::as_slice).unwrap_or_default()
         } else {
             indices.extend(
@@ -623,6 +628,7 @@ impl RenameIndex {
     }
 
     pub(crate) fn extend(&mut self, mut other: Self, symbol_offset: usize) {
+        self.family_targets.clear();
         let alias_offset = self.aliases.len();
         let mapping_name_offset = self.mapping_names.len();
         self.symbol_targets.extend(
@@ -674,6 +680,26 @@ impl RenameIndex {
         self.file_occurrences.clear();
         self.target_occurrences.clear();
         self.ambiguous_targets.clear();
+        self.family_targets.clear();
+
+        // Families are finalized before this rebuild, including shared declarations across batches.
+        // Store only families with a nonrepresentative renamable member; singleton queries borrow
+        // their target directly without allocating a vector or scanning unrelated declarations.
+        for &symbol_id in &self.symbol_targets {
+            if let Some(family) = override_families.family(symbol_id)
+                && family != symbol_id
+            {
+                self.family_targets
+                    .entry(family)
+                    .or_default()
+                    .push(RenameTarget::Symbol(symbol_id));
+            }
+        }
+        for (&family, targets) in &mut self.family_targets {
+            if self.symbol_targets.contains(&family) {
+                targets.push(RenameTarget::Symbol(family));
+            }
+        }
 
         for (index, occurrence) in self.occurrences.iter().enumerate() {
             self.file_occurrences
