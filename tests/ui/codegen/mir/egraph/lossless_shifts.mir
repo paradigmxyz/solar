@@ -3,6 +3,11 @@
 //@[size] compile-flags: -Osize -Zmir-pipeline=egraph,dce
 @module LosslessShifts
 
+types:
+  struct0: {u256, u256}
+  struct1: {u256, u256, u256}
+  struct2: {u256, u256, u256, u256, u256, u256}
+
 fn @roundtrip_byte(arg0: u256) -> u256 {
   bb0:
     v0 = byte 0, arg0
@@ -19,7 +24,7 @@ fn @roundtrip_bool(arg0: u256, arg1: u256) -> u256 {
     ret v2
 }
 
-fn @shared_shift(arg0: u256) -> (u256, u256) {
+fn @shared_shift(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
   bb0:
     v0 = byte 31, arg0
     v1 = shl 248, v0
@@ -42,7 +47,7 @@ fn @overshift(arg0: u256) -> u256 {
     ret v2
 }
 
-fn @shifted_compare(arg0: u256, arg1: u256) -> (u256, u256, u256) {
+fn @shifted_compare(arg0: u256, arg1: u256) -> struct1 [return_abi=[u256, u256, u256]] {
   bb0:
     v0 = byte 0, arg0
     v1 = byte 31, arg1
@@ -67,7 +72,7 @@ fn @across_blocks(arg0: u256, arg1: u256) -> u256 {
     ret v3
 }
 
-fn @aligned_constants(arg0: u256) -> (u256, u256, u256, u256, u256, u256) {
+fn @aligned_constants(arg0: u256) -> struct2 [return_abi=[u256, u256, u256, u256, u256, u256]] {
   bb0:
     v0 = byte 31, arg0
     v1 = shl 248, v0
@@ -80,7 +85,7 @@ fn @aligned_constants(arg0: u256) -> (u256, u256, u256, u256, u256, u256) {
     ret v2, v3, v4, v5, v6, v7
 }
 
-fn @unaligned_constants(arg0: u256) -> (u256, u256, u256) {
+fn @unaligned_constants(arg0: u256) -> struct1 [return_abi=[u256, u256, u256]] {
   bb0:
     v0 = byte 31, arg0
     v1 = shl 248, v0
@@ -90,7 +95,7 @@ fn @unaligned_constants(arg0: u256) -> (u256, u256, u256) {
     ret v2, v3, v4
 }
 
-fn @truncating_compare(arg0: u256, arg1: u256) -> (u256, u256, u256) {
+fn @truncating_compare(arg0: u256, arg1: u256) -> struct1 [return_abi=[u256, u256, u256]] {
   bb0:
     v0 = shl 248, arg0
     v1 = shl 248, arg1
@@ -100,7 +105,7 @@ fn @truncating_compare(arg0: u256, arg1: u256) -> (u256, u256, u256) {
     ret v2, v3, v4
 }
 
-fn @signed_compare(arg0: u256, arg1: u256) -> (u256, u256) {
+fn @signed_compare(arg0: u256, arg1: u256) -> struct0 [return_abi=[u256, u256]] {
   bb0:
     v0 = byte 31, arg0
     v1 = byte 31, arg1

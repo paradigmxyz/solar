@@ -3,10 +3,10 @@
   @module VoidForwarder
   fn @caller(arg0: u256, arg1: u256) -> u256 {
     bb0:
--     icall @forward_void, 0, arg0, arg1, 7
+-     icall @forward_void, arg0, arg1, 7
 +     jump bb2
 +   bb2:
-+     icall @sink, 0, arg1, arg0, 7
++     icall @sink, arg1, arg0, 7
 +     jump bb1
 +   bb1:
       v0 = sload 0
@@ -15,10 +15,10 @@
   
   fn @other(arg0: u256, arg1: u256) -> u256 {
     bb0:
--     icall @forward_void, 0, arg1, arg0, 9
+-     icall @forward_void, arg1, arg0, 9
 +     jump bb2
 +   bb2:
-+     icall @sink, 0, arg0, arg1, 9
++     icall @sink, arg0, arg1, 9
 +     jump bb1
 +   bb1:
       v0 = sload 0
@@ -27,16 +27,16 @@
   
   fn @forward_void(arg0: u256, arg1: u256, arg2: u256) {
     bb0:
-      icall @sink, 0, arg1, arg0, arg2
+      icall @sink, arg1, arg0, arg2
       ret
   }
   
   fn @explicit_return(arg0: u256, arg1: u256) {
     bb0:
--     icall @forward_return, 0, arg0, arg1
+-     icall @forward_return, arg0, arg1
 +     jump bb2
 +   bb2:
-+     icall @sink, 0, arg0, arg1, 9
++     icall @sink, arg0, arg1, 9
 +     jump bb1
 +   bb1:
       ret
@@ -44,7 +44,7 @@
   
   fn @forward_return(arg0: u256, arg1: u256) {
     bb0:
-      icall @sink, 0, arg0, arg1, 9
+      icall @sink, arg0, arg1, 9
       ret
   }
   
@@ -61,13 +61,13 @@
   
   fn @discard_caller(arg0: u256) {
     bb0:
-      icall @discard, 0, arg0
+      icall @discard, arg0
       ret
   }
   
   fn @discard(arg0: u256) {
     bb0:
-      v0 = icall @value_sink, 1, arg0
+      v0 = icall @value_sink, arg0
       ret
   }
   
@@ -83,27 +83,27 @@
   
   fn @effect_caller(arg0: u256, arg1: u256) {
     bb0:
-      icall @effect, 0, arg0, arg1
+      icall @effect, arg0, arg1
       ret
   }
   
   fn @effect(arg0: u256, arg1: u256) {
     bb0:
-      icall @sink, 0, arg0, arg1, 11
+      icall @sink, arg0, arg1, 11
       sstore 2, arg0
       ret
   }
   
   fn @shared_extra_caller(arg0: u256, arg1: u256) {
     bb0:
-      icall @shared_extra, 0, arg0, arg1
-      icall @shared_extra, 0, arg1, arg0
+      icall @shared_extra, arg0, arg1
+      icall @shared_extra, arg1, arg0
       ret
   }
   
   fn @shared_extra(arg0: u256, arg1: u256) {
     bb0:
-      icall @sink, 0, arg0, arg1, 13
+      icall @sink, arg0, arg1, 13
       ret
   }
   
@@ -114,7 +114,7 @@
     bb0:
 -     jump bb2
 -   bb2:
-      icall @sink, 0, arg1, arg0, 7
+      icall @sink, arg1, arg0, 7
 -     jump bb1
 -   bb1:
       v0 = sload 0
@@ -125,7 +125,7 @@
     bb0:
 -     jump bb2
 -   bb2:
-      icall @sink, 0, arg0, arg1, 9
+      icall @sink, arg0, arg1, 9
 -     jump bb1
 -   bb1:
       v0 = sload 0
@@ -134,7 +134,7 @@
   
   fn @forward_void(arg0: u256, arg1: u256, arg2: u256) {
     bb0:
-      icall @sink, 0, arg1, arg0, arg2
+      icall @sink, arg1, arg0, arg2
       ret
   }
   
@@ -142,7 +142,7 @@
     bb0:
 -     jump bb2
 -   bb2:
-      icall @sink, 0, arg0, arg1, 9
+      icall @sink, arg0, arg1, 9
 -     jump bb1
 -   bb1:
       ret
@@ -150,7 +150,7 @@
   
   fn @forward_return(arg0: u256, arg1: u256) {
     bb0:
-      icall @sink, 0, arg0, arg1, 9
+      icall @sink, arg0, arg1, 9
       ret
   }
   
@@ -167,13 +167,13 @@
   
   fn @discard_caller(arg0: u256) {
     bb0:
-      icall @discard, 0, arg0
+      icall @discard, arg0
       ret
   }
   
   fn @discard(arg0: u256) {
     bb0:
-      v0 = icall @value_sink, 1, arg0
+      v0 = icall @value_sink, arg0
       ret
   }
   
@@ -189,27 +189,27 @@
   
   fn @effect_caller(arg0: u256, arg1: u256) {
     bb0:
-      icall @effect, 0, arg0, arg1
+      icall @effect, arg0, arg1
       ret
   }
   
   fn @effect(arg0: u256, arg1: u256) {
     bb0:
-      icall @sink, 0, arg0, arg1, 11
+      icall @sink, arg0, arg1, 11
       sstore 2, arg0
       ret
   }
   
   fn @shared_extra_caller(arg0: u256, arg1: u256) {
     bb0:
-      icall @shared_extra, 0, arg0, arg1
-      icall @shared_extra, 0, arg1, arg0
+      icall @shared_extra, arg0, arg1
+      icall @shared_extra, arg1, arg0
       ret
   }
   
   fn @shared_extra(arg0: u256, arg1: u256) {
     bb0:
-      icall @sink, 0, arg0, arg1, 13
+      icall @sink, arg0, arg1, 13
       ret
   }
   

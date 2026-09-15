@@ -1,7 +1,6 @@
 - // === ROOT/tests/ui/codegen/mir/inline-dispatch/scalar.mir (before inline-dispatch) ===
 + // === ROOT/tests/ui/codegen/mir/inline-dispatch/scalar.mir (after inline-dispatch) ===
   @module ScalarDispatcher
-  @phase memory-lowered
   fn @add() [selector=0x00000001, pure] {
     bb0:
       v0 = add arg0, arg1

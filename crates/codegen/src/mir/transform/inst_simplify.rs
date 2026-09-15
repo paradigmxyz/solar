@@ -77,6 +77,17 @@ impl MirPass for ConstFold {
     }
 }
 
+/// Applies local canonicalization before bounded word-expression extraction.
+///
+/// Retain the upstream semantic, masked-shift, and offset folds alongside
+/// ISLE's wider search. Other word identities stay under target cost selection.
+/// Control flow stays unchanged so the caller can retain its CFG.
+pub(super) fn simplify_before_egraph(func: &mut Function, evm_version: EvmVersion) -> usize {
+    let mut simplifier = InstSimplifier::new(evm_version);
+    simplifier.preserve_cfg = true;
+    simplifier.run_to_fixpoint(func)
+}
+
 /// Local MIR instruction simplification pass.
 #[derive(Debug)]
 struct InstSimplifier {
@@ -84,6 +95,7 @@ struct InstSimplifier {
     simplified_count: usize,
     evm_version: EvmVersion,
     constants_only: bool,
+    preserve_cfg: bool,
 }
 
 struct RunState {
@@ -100,7 +112,7 @@ impl RunState {
 impl InstSimplifier {
     /// Creates a new instruction simplifier.
     fn new(evm_version: EvmVersion) -> Self {
-        Self { simplified_count: 0, evm_version, constants_only: false }
+        Self { simplified_count: 0, evm_version, constants_only: false, preserve_cfg: false }
     }
 
     fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
@@ -116,6 +128,24 @@ impl InstSimplifier {
                 let inst_id = func.blocks[block_id].instructions[index];
                 loop {
                     let kind = func.inst(inst_id).kind.clone();
+                    if self.preserve_cfg
+                        && !matches!(
+                            kind,
+                            InstKind::InsertValue { .. }
+                                | InstKind::ExtractValue { .. }
+                                | InstKind::MemoryObjectFromPtr { .. }
+                                | InstKind::WordCast { .. }
+                                | InstKind::CheckedBinary { .. }
+                                | InstKind::Check { .. }
+                                | InstKind::ValidateAbi { .. }
+                                | InstKind::And(..)
+                                | InstKind::Shr(..)
+                                | InstKind::Sub(..)
+                                | InstKind::ICall { function: Callee::Builtin(_), .. }
+                        )
+                    {
+                        break;
+                    }
 
                     if self.is_dead_noop_inst(func, &kind, &state.replacements) {
                         tracing::trace!(
@@ -141,7 +171,7 @@ impl InstSimplifier {
                             output = %new_kind,
                             "mir_inst_simplify"
                         );
-                        func.inst_mut(inst_id).kind = new_kind;
+                        func.inst_mut(inst_id).replace_kind(new_kind);
                         self.simplified_count += 1;
                         continue;
                     }
@@ -193,7 +223,7 @@ impl InstSimplifier {
                 block.instructions.retain(|&id| !state.dead.contains(id));
             }
         }
-        if !self.constants_only {
+        if !self.constants_only && !self.preserve_cfg {
             self.simplified_count += self.rewrite_terminators(func, &state.replacements);
         }
 

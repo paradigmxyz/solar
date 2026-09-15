@@ -128,13 +128,21 @@ impl MirPass for Egraph {
             module,
             analyses,
             &flat,
-            |func, _| Builder::new(func, target, None).run() != 0,
+            |func, _| {
+                let semantic =
+                    super::inst_simplify::simplify_before_egraph(func, gcx.sess.opts.evm_version);
+                Builder::new(func, target, None).run() + semantic != 0
+            },
         );
         changed |= run_selected_function_pass_cached::<CfgEgraph>(
             module,
             analyses,
             &with_cfg,
-            |func, analyses| Builder::new(func, target, Some(Rc::clone(analyses.cfg()))).run() != 0,
+            |func, analyses| {
+                let semantic =
+                    super::inst_simplify::simplify_before_egraph(func, gcx.sess.opts.evm_version);
+                Builder::new(func, target, Some(Rc::clone(analyses.cfg()))).run() + semantic != 0
+            },
         );
         changed
     }

@@ -45,9 +45,18 @@ contract LoopStateChainSpillHome {
 
     // CHECK-LABEL: @module LoopStateChainSpillHome_runtime
     // CHECK: push 0xcb11e62b
-    // CHECK-NEXT: eq
+    // CHECK-NEXT: sub
+    // CHECK-NEXT: push {{bb[0-9]+}}
+    // CHECK-NEXT: jumpi
+    // CHECK: jump [[HEADER:bb[0-9]+]]
+    // CHECK-NEXT: [[HEADER]] [loop]:
+    // CHECK: lt
     // CHECK-NEXT: push [[BODY:bb[0-9]+]]
-    // CHECK: [[BODY]]:
+    // CHECK-NEXT: jumpi
+    // CHECK: [[BODY]] [loop]:
+    // CHECK: push [[DECISION:bb[0-9]+]]
+    // CHECK-NEXT: jumpi
+    // CHECK: [[DECISION]] [loop]:
     // CHECK: push 2{{$}}
     // CHECK-NEXT: push [[STATE:[0-9]+]]
     // CHECK-NEXT: mload

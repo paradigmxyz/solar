@@ -11,9 +11,16 @@
 // caller created that EVM IR block before generating the function body.
 // Reduced from Solady v0.1.26 LibString.toHexStringNoPrefix (MIT).
 //
-// CHECK: push 64
+// CHECK: [[RETURN:bb[0-9]+]] [continuation]:
+// CHECK-NEXT: push {{bb[0-9]+}}
+// CHECK-NEXT: swap 1
+// CHECK-NEXT: jump [[HELPER:bb[0-9]+]]
+// CHECK-NEXT: [[HELPER]]:
+// CHECK-NEXT: dup 1
 // CHECK-NEXT: mload
-// CHECK-NEXT: push 2
+// CHECK-NEXT: push 64
+// CHECK-NEXT: mload
+// CHECK: push 2
 // CHECK-NEXT: add
 // CHECK-NEXT: dup 2
 // CHECK-NEXT: dup 1

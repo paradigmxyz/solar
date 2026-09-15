@@ -4,7 +4,6 @@
 //@ filecheck:
 
 @module MemoryObjectSliceProjections
-@phase dispatch
 
 // CHECK-LABEL: fn @fixed_payload(arg0: memptr
 // CHECK: ret arg0

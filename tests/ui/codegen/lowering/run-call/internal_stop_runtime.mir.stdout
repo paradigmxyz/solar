@@ -2,8 +2,9 @@
 @module InternalStopRuntime
 fn @haltThenRevert() [selector=0xf0f4d9f7, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    icall @halt, 0
-    revert 0, 0
+    icall @halt
+    revert_if true, empty
+    invalid
 }
 
 fn @halt() [pure] {

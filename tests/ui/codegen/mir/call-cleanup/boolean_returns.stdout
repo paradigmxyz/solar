@@ -21,13 +21,13 @@
   
   fn @recursive(arg0: u256) -> bool {
     bb0:
-      v0 = icall @recursive, 1, arg0
+      v0 = icall @recursive, arg0
       ret v0
   }
   
   fn @compare(arg0: u256) -> bool {
     bb0:
-      v0 = icall @clean, 1, arg0
+      v0 = icall @clean, arg0
       v1 = iszero v0
 -     v2 = iszero v1
 -     ret v2
@@ -36,7 +36,7 @@
   
   fn @keep_dirty(arg0: u256) -> bool {
     bb0:
-      v0 = icall @dirty, 1, arg0
+      v0 = icall @dirty, arg0
       v1 = iszero v0
       v2 = iszero v1
       ret v2
@@ -44,7 +44,7 @@
   
   fn @keep_recursive(arg0: u256) -> bool {
     bb0:
-      v0 = icall @recursive, 1, arg0
+      v0 = icall @recursive, arg0
       v1 = iszero v0
       v2 = iszero v1
       ret v2
@@ -62,7 +62,7 @@
   
   fn @keep_mixed(arg0: u256) -> bool {
     bb0:
-      v0 = icall @mixed, 1, arg0
+      v0 = icall @mixed, arg0
       v1 = iszero v0
       v2 = iszero v1
       ret v2
@@ -91,20 +91,20 @@
   
   fn @recursive(arg0: u256) -> bool {
     bb0:
-      v0 = icall @recursive, 1, arg0
+      v0 = icall @recursive, arg0
       ret v0
   }
   
   fn @compare(arg0: u256) -> bool {
     bb0:
-      v0 = icall @clean, 1, arg0
+      v0 = icall @clean, arg0
 -     v1 = iszero v0
       ret v0
   }
   
   fn @keep_dirty(arg0: u256) -> bool {
     bb0:
-      v0 = icall @dirty, 1, arg0
+      v0 = icall @dirty, arg0
       v1 = iszero v0
       v2 = iszero v1
       ret v2
@@ -112,7 +112,7 @@
   
   fn @keep_recursive(arg0: u256) -> bool {
     bb0:
-      v0 = icall @recursive, 1, arg0
+      v0 = icall @recursive, arg0
       v1 = iszero v0
       v2 = iszero v1
       ret v2
@@ -130,7 +130,7 @@
   
   fn @keep_mixed(arg0: u256) -> bool {
     bb0:
-      v0 = icall @mixed, 1, arg0
+      v0 = icall @mixed, arg0
       v1 = iszero v0
       v2 = iszero v1
       ret v2

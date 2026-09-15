@@ -25,7 +25,7 @@
 -     v12 = lt 256, v0
 -     v13 = gt 257, v0
 -     ret v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13
-+     ret v1, v1, v3, v4, 0, v4, v4, v8, v8, 1, 0, 0, 1
++     ret v1, v1, v3, v4, false, v4, v4, v8, v8, true, false, false, true
   }
   
   fn @simplify_clz_range_ops(arg0: u256) -> struct2 [return_abi=[u256, u256, u256, u256, i256, u256, u256, u256, u256, u256, u256]] {

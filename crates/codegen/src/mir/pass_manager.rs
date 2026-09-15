@@ -110,6 +110,13 @@ pub trait MirPass: Sync {
         false
     }
 
+    /// Cache only stateless optional passes, keyed by concrete type and pipeline name.
+    /// Configured or required passes must run unless they provide their own safe cache.
+    fn cache_key(&self) -> Option<(&'static str, &'static str)> {
+        (!self.is_required() && std::mem::size_of_val(self) == 0)
+            .then_some((std::any::type_name::<Self>(), self.name()))
+    }
+
     /// Runs the pass and returns whether the module changed.
     ///
     /// Report an emitted error with [`ModuleAnalyses::fail`] to stop this pipeline.
@@ -150,7 +157,7 @@ pub(crate) fn run_passes_inner(
     let explicit = name.is_some();
     let mut changed = false;
     let mut analyses = ModuleAnalyses::default();
-    let mut unchanged = Vec::<&dyn MirPass>::new();
+    let mut unchanged = Vec::new();
     for pass in passes {
         let pass_name = pass.name();
         let before =
@@ -163,7 +170,8 @@ pub(crate) fn run_passes_inner(
         if enabled {
             assert_debug_info_handled(module, pass_name, "before");
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
-            let cached = unchanged.iter().any(|&previous| std::ptr::eq(previous, *pass));
+            let key = pass.cache_key();
+            let cached = key.is_some_and(|key| unchanged.contains(&key));
             let pass_changed = if cached {
                 false
             } else {
@@ -174,8 +182,8 @@ pub(crate) fn run_passes_inner(
             };
             if pass_changed {
                 unchanged.clear();
-            } else if !cached {
-                unchanged.push(*pass);
+            } else if !cached && let Some(key) = key {
+                unchanged.push(key);
             }
             timer.finish("MIR", module.name, pass_name, pass_changed);
             changed |= pass_changed;

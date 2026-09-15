@@ -1,6 +1,10 @@
 // === ROOT/tests/ui/codegen/mir/egraph/packed_word_slices_runtime.sol:BitSlices ===
 @module BitSlices
-fn @discardMasks(arg0: u256) -> (u256, u256, u256) [selector=0x5ca9b896, pure, abi_params=[u256], abi_returns=[word, word, word]] {
+types:
+  struct0: {u256, u256, u256}
+  struct1: {u256, u256, u256, u256}
+
+fn @discardMasks(arg0: u256) -> struct0 [selector=0x5ca9b896, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = and arg0, 255
     v1 = shl 248, v0
@@ -9,10 +13,13 @@ fn @discardMasks(arg0: u256) -> (u256, u256, u256) [selector=0x5ca9b896, pure, a
     v4 = shr 248, v3
     v5 = and 255, arg0
     v6 = byte 31, v5
-    ret v1, v4, v6
+    v7 = insert_value struct0, undef struct0, 0, v1
+    v8 = insert_value struct0, v7, 1, v4
+    v9 = insert_value struct0, v8, 2, v6
+    ret v9
 }
 
-fn @adjustBytes(arg0: u256) -> (u256, u256, u256) [selector=0x00154503, pure, abi_params=[u256], abi_returns=[word, word, word]] {
+fn @adjustBytes(arg0: u256) -> struct0 [selector=0x00154503, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = shl 248, arg0
     v1 = byte 0, v0
@@ -20,10 +27,13 @@ fn @adjustBytes(arg0: u256) -> (u256, u256, u256) [selector=0x00154503, pure, ab
     v3 = byte 31, v2
     v4 = shr 8, arg0
     v5 = byte 0, v4
-    ret v1, v3, v5
+    v6 = insert_value struct0, undef struct0, 0, v1
+    v7 = insert_value struct0, v6, 1, v3
+    v8 = insert_value struct0, v7, 2, v5
+    ret v8
 }
 
-fn @preserveBits(arg0: u256) -> (u256, u256, u256, u256) [selector=0xc75ef748, pure, abi_params=[u256], abi_returns=[word, word, word, word]] {
+fn @preserveBits(arg0: u256) -> struct1 [selector=0xc75ef748, pure, abi_params=[u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = and arg0, 127
     v1 = shl 248, v0
@@ -34,5 +44,9 @@ fn @preserveBits(arg0: u256) -> (u256, u256, u256, u256) [selector=0xc75ef748, p
     v6 = shl 8, arg0
     v7 = not 0
     v8 = byte v7, v6
-    ret v1, v3, v5, v8
+    v9 = insert_value struct1, undef struct1, 0, v1
+    v10 = insert_value struct1, v9, 1, v3
+    v11 = insert_value struct1, v10, 2, v5
+    v12 = insert_value struct1, v11, 3, v8
+    ret v12
 }

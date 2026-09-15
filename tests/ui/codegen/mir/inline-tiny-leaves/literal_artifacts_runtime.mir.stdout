@@ -5,7 +5,7 @@ immutables:
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = icall @version, 1
+    v0 = icall @version
     v1 = keccak256_bytes v0
     storeimmutable initial, v1
     ret
@@ -33,23 +33,9 @@ fn @constructorAndRuntime() -> bool [selector=0x6b57fb7b, view, abi_params=[], a
   bb1:
     revert_returndata
   bb2:
-    v7 = returndatasize
-    v8 = add v7, 63
-    v9 = lt v8, v7
-    jumpi v9, bb3, bb4
-  bb4:
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    set_memory_object_len memorybytes, v12, v7
-    v13 = make_returndata_slice 0, v7
-    memory_object_copy_from_slice memorybytes, v12, v13
-    v14 = abi_decode [bytes], v12
-    v15 = keccak256_bytes v14
-    v16 = eq v0, v15
-    ret v16
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    v7 = returndata_bytes
+    v8 = abi_decode [bytes], v7
+    v9 = keccak256_bytes v8
+    v10 = eq v0, v9
+    ret v10
 }

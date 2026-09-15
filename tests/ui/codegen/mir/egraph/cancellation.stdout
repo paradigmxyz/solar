@@ -1,7 +1,13 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/cancellation.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/cancellation.mir (after egraph) ===
   @module Cancellation
-  fn @arithmetic(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) {
+  types:
+    struct0: {u256, u256, u256, u256}
+    struct1: {bool, bool}
+    struct2: {u256, bool}
+    struct3: {u256, u256}
+  
+  fn @arithmetic(arg0: u256, arg1: u256) -> struct0 [return_abi=[u256, u256, u256, u256]] {
     bb0:
       v0 = sub arg0, arg1
 -     v1 = add v0, arg1
@@ -13,7 +19,7 @@
 +     ret arg0, arg0, arg0, arg1
   }
   
-  fn @equality(arg0: u256, arg1: u256) -> (bool, bool) {
+  fn @equality(arg0: u256, arg1: u256) -> struct1 [return_abi=[bool, bool]] {
     bb0:
       v0 = sub arg0, arg1
 -     v1 = iszero v0
@@ -24,14 +30,14 @@
 +     ret v1, v1
   }
   
-  fn @shared_difference(arg0: u256, arg1: u256) -> (u256, bool) {
+  fn @shared_difference(arg0: u256, arg1: u256) -> struct2 [return_abi=[u256, bool]] {
     bb0:
       v0 = sub arg0, arg1
       v1 = iszero v0
       ret v0, v1
   }
   
-  fn @absorption(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) {
+  fn @absorption(arg0: u256, arg1: u256) -> struct0 [return_abi=[u256, u256, u256, u256]] {
     bb0:
       v0 = or arg0, arg1
 -     v1 = and arg0, v0
@@ -43,7 +49,7 @@
 +     ret arg0, arg1, arg0, arg1
   }
   
-  fn @xor_cancel(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) {
+  fn @xor_cancel(arg0: u256, arg1: u256) -> struct0 [return_abi=[u256, u256, u256, u256]] {
     bb0:
       v0 = xor arg0, arg1
 -     v1 = xor arg0, v0
@@ -54,7 +60,7 @@
 +     ret arg1, arg0, arg1, arg0
   }
   
-  fn @distinct_operands(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256) {
+  fn @distinct_operands(arg0: u256, arg1: u256, arg2: u256) -> struct3 [return_abi=[u256, u256]] {
     bb0:
       v0 = sub arg0, arg1
       v1 = add v0, arg2
@@ -66,14 +72,20 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/cancellation.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/cancellation.mir (after dce) ===
   @module Cancellation
-  fn @arithmetic(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) {
+  types:
+    struct0: {u256, u256, u256, u256}
+    struct1: {bool, bool}
+    struct2: {u256, bool}
+    struct3: {u256, u256}
+  
+  fn @arithmetic(arg0: u256, arg1: u256) -> struct0 [return_abi=[u256, u256, u256, u256]] {
     bb0:
 -     v0 = sub arg0, arg1
 -     v3 = add arg0, arg1
       ret arg0, arg0, arg0, arg1
   }
   
-  fn @equality(arg0: u256, arg1: u256) -> (bool, bool) {
+  fn @equality(arg0: u256, arg1: u256) -> struct1 [return_abi=[bool, bool]] {
     bb0:
 -     v0 = sub arg0, arg1
       v1 = eq arg0, arg1
@@ -81,27 +93,27 @@
       ret v1, v1
   }
   
-  fn @shared_difference(arg0: u256, arg1: u256) -> (u256, bool) {
+  fn @shared_difference(arg0: u256, arg1: u256) -> struct2 [return_abi=[u256, bool]] {
     bb0:
       v0 = sub arg0, arg1
       v1 = iszero v0
       ret v0, v1
   }
   
-  fn @absorption(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) {
+  fn @absorption(arg0: u256, arg1: u256) -> struct0 [return_abi=[u256, u256, u256, u256]] {
     bb0:
 -     v0 = or arg0, arg1
 -     v3 = and arg0, arg1
       ret arg0, arg1, arg0, arg1
   }
   
-  fn @xor_cancel(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) {
+  fn @xor_cancel(arg0: u256, arg1: u256) -> struct0 [return_abi=[u256, u256, u256, u256]] {
     bb0:
 -     v0 = xor arg0, arg1
       ret arg1, arg0, arg1, arg0
   }
   
-  fn @distinct_operands(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256) {
+  fn @distinct_operands(arg0: u256, arg1: u256, arg2: u256) -> struct3 [return_abi=[u256, u256]] {
     bb0:
       v0 = sub arg0, arg1
       v1 = add v0, arg2

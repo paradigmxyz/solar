@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.sol:MinedWords ===
 @module MinedWords
+types:
+  struct0: {u256, u256}
+
 fn @odd(arg0: u256) -> u256 [selector=0x0602c36a, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = shl 1, arg0
@@ -14,9 +17,11 @@ fn @doublePlus(arg0: u256, arg1: u256) -> u256 [selector=0x3b0f99ab, pure, abi_p
     ret v1
 }
 
-fn @shared(arg0: u256, arg1: u256) -> (u256, u256) [selector=0xa03ce1ed, pure, abi_params=[u256, u256], abi_returns=[word, word]] {
+fn @shared(arg0: u256, arg1: u256) -> struct0 [selector=0xa03ce1ed, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = shl 1, arg0
     v1 = add v0, arg1
-    ret v0, v1
+    v2 = insert_value struct0, undef struct0, 0, v0
+    v3 = insert_value struct0, v2, 1, v1
+    ret v3
 }

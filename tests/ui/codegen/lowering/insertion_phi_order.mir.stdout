@@ -13,7 +13,7 @@ fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_param
     v5 = phi [bb0: arg0], [bb5: v27], [bb9: v5]
     v6 = phi [bb0: v0], [bb5: v23], [bb9: v6]
     v7 = phi [bb0: v3], [bb5: v28], [bb9: v11]
-    v8 = phi [bb0: 96], [bb5: v29], [bb9: v8]
+    v8 = phi [bb0: memoryarray 96], [bb5: v29], [bb9: v8]
     v9 = eq 1, 0
     v10 = iszero v9
     jumpi v10, bb3, bb4

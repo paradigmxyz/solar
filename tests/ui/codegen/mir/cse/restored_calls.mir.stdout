@@ -1,44 +1,15 @@
 // === ROOT/tests/ui/codegen/mir/cse/restored_calls.sol:RestoredCalls ===
 @module RestoredCalls
-fn @same(arg0: u256, arg1: u256) -> (u256, u256) [selector=0xc32c70b1, pure, abi_params=[u256, u256], abi_returns=[word, word]] {
-  bb0:
-    v0 = gt arg1, 8
-    v1 = iszero v0
-    v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = not 31
-    v4 = and 127, v3
-    v5 = alloc memorybytes, exact, zeroed, panic, v4
-    set_memory_object_len memorybytes, v5, 64
-    v6 = add v5, 32
-    mstore v6, arg0
-    v7 = add v5, 64
-    mstore v7, 1
-    v8 = icall @scan, 1, v5, arg1
-    v9 = icall @scan, 1, v5, arg1
-    v10 = add v8, v9
-    v11 = lt v10, v8
-    jumpi v11, bb3, bb4
-  bb4:
-    v12 = add v5, 32
-    v13 = mload v12
-    ret v10, v13
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb1:
-    revert 0, 0
-}
+types:
+  struct0: {u256, u256}
+  struct1: {u256, u256, u256}
 
-fn @repeated(arg0: u256, arg1: u256, arg2: bool) -> (u256, u256, u256) [selector=0xd6d01539, pure, abi_params=[u256, u256, bool], abi_returns=[word, word, word]] {
+fn @same(arg0: u256, arg1: u256) -> struct0 [selector=0xc32c70b1, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = gt arg1, 8
     v1 = iszero v0
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    revert_if v2, empty
     v3 = not 31
     v4 = and 127, v3
     v5 = alloc memorybytes, exact, zeroed, panic, v4
@@ -47,21 +18,46 @@ fn @repeated(arg0: u256, arg1: u256, arg2: bool) -> (u256, u256, u256) [selector
     mstore v6, arg0
     v7 = add v5, 64
     mstore v7, 1
-    v8 = icall @scan, 1, v5, arg1
-    jumpi arg2, bb3, bb4
-  bb4:
-    jump bb5
-  bb3:
-    v9 = add v5, 95
-    mstore8 v9, 0
-    jump bb5
-  bb5:
-    v10 = icall @scan, 1, v5, arg1
+    v8 = icall @scan, v5, arg1
+    v9 = icall @scan, v5, arg1
+    v10 = checked_add u256, v8, v9
     v11 = add v5, 32
     v12 = mload v11
-    ret v8, v10, v12
+    v13 = insert_value struct0, undef struct0, 0, v10
+    v14 = insert_value struct0, v13, 1, v12
+    ret v14
+}
+
+fn @repeated(arg0: u256, arg1: u256, arg2: bool) -> struct1 [selector=0xd6d01539, pure, abi_params=[u256, u256, bool], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+  bb0:
+    v0 = gt arg1, 8
+    v1 = iszero v0
+    v2 = iszero v1
+    revert_if v2, empty
+    v3 = not 31
+    v4 = and 127, v3
+    v5 = alloc memorybytes, exact, zeroed, panic, v4
+    set_memory_object_len memorybytes, v5, 64
+    v6 = add v5, 32
+    mstore v6, arg0
+    v7 = add v5, 64
+    mstore v7, 1
+    v8 = icall @scan, v5, arg1
+    jumpi arg2, bb1, bb2
+  bb2:
+    jump bb3
   bb1:
-    revert 0, 0
+    v9 = add v5, 95
+    mstore8 v9, 0
+    jump bb3
+  bb3:
+    v10 = icall @scan, v5, arg1
+    v11 = add v5, 32
+    v12 = mload v11
+    v13 = insert_value struct1, undef struct1, 0, v8
+    v14 = insert_value struct1, v13, 1, v10
+    v15 = insert_value struct1, v14, 2, v12
+    ret v15
 }
 
 fn @scan(arg0: memorybytes, arg1: u256) -> u256 [pure] {
@@ -98,25 +94,24 @@ fn @scan(arg0: memorybytes, arg1: u256) -> u256 [pure] {
     jump bb1
 }
 
-fn @restored(arg0: u256, arg1: u256) -> (u256, u256) [selector=0x70ef4778, pure, abi_params=[u256, u256], abi_returns=[word, word]] {
+fn @restored(arg0: u256, arg1: u256) -> struct0 [selector=0x70ef4778, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = gt arg1, 8
     v1 = iszero v0
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    revert_if v2, empty
     v3 = not 31
     v4 = and 95, v3
     v5 = alloc memorybytes, exact, zeroed, panic, v4
     set_memory_object_len memorybytes, v5, 32
     v6 = add v5, 32
     mstore v6, arg0
-    v7 = icall @temporary, 1, v5, arg1
+    v7 = icall @temporary, v5, arg1
     v8 = add v5, 32
     v9 = mload v8
-    ret v7, v9
-  bb1:
-    revert 0, 0
+    v10 = insert_value struct0, undef struct0, 0, v7
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @temporary(arg0: memorybytes, arg1: u256) -> u256 [pure] {
@@ -160,7 +155,7 @@ fn @dirty(arg0: u256, arg1: bool) -> u256 [selector=0xd5f2e1b7, pure, abi_params
     set_memory_object_len memorybytes, v2, 32
     v3 = add v2, 32
     mstore v3, arg0
-    icall @conditional, 0, v2, arg1
+    icall @conditional, v2, arg1
     v4 = add v2, 32
     v5 = mload v4
     ret v5

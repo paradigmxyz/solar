@@ -88,7 +88,8 @@
 +   push bb14
     jumpi
     stop
-  bb14:
+- bb14:
++ bb14 [continuation]:
     push 9
     pop
     stop

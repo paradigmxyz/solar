@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/duplicate_edge_words.sol:DuplicateEdgeWords ===
 @module DuplicateEdgeWords
-fn @choose(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u256) [selector=0x3017409e, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word, word, word]] {
+types:
+  struct0: {u256, u256, u256}
+
+fn @choose(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> struct0 [selector=0x3017409e, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     jump bb1
   bb1:
@@ -17,7 +20,10 @@ fn @choose(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u256)
   bb4:
     jump bb2
   bb2:
-    ret v2, v6, v3
+    v16 = insert_value struct0, undef struct0, 0, v2
+    v17 = insert_value struct0, v16, 1, v6
+    v18 = insert_value struct0, v17, 2, v3
+    ret v18
   bb3:
     v9 = and v2, 1
     v10 = eq v9, 0

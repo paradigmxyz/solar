@@ -9,8 +9,8 @@
 //@ run-call: hashBranch false, 1, 2 => 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6
 //@ run-call: hashBranch true, 1, 2 => 0xe90b7bceb6e7df5418fb78d8ee546e97c83a08bbccc01a0644d599ccd2a7c2e0
 
-// Gas and unoptimized lowering reserve one block-local free-memory-pointer spill slot;
-// size lowering reserves two stable slots. EVM cleanup removes unused optimized stores.
+// Unoptimized lowering reserves block-local free-memory-pointer spill slots.
+// Optimized lowering removes those stores and reduces the reachable frame floor.
 // NONE-LABEL: @module FmpBlockLocalSpills_runtime
 // NONE: push 288
 // NONE-NEXT: push 64
@@ -29,7 +29,7 @@
 // NONE-NEXT: mstore
 //
 // GAS-LABEL: @module FmpBlockLocalSpills_runtime
-// GAS: push 288
+// GAS: push 160
 // GAS-NEXT: push 64
 // GAS-NEXT: mstore
 // GAS: mload
@@ -38,7 +38,7 @@
 // GAS-NEXT: push 64
 //
 // SIZE-LABEL: @module FmpBlockLocalSpills_runtime
-// SIZE: push 320
+// SIZE: push 160
 // SIZE-NEXT: push 64
 // SIZE-NEXT: mstore
 // SIZE: mload

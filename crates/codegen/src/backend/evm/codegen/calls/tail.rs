@@ -38,13 +38,14 @@ impl EvmCodegen<'_> {
     ) -> Option<&'a [ValueId]> {
         if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
             || !self.in_internal_function
-            || !func.returns.is_empty()
+            || !func.return_components().is_empty()
             || self.stack_arg_mask(caller).is_some()
         {
             return None;
         }
         let inst = func.inst(*func.blocks[block].instructions.last()?);
-        if let InstKind::ICall { function, args, returns: 0 } = &inst.kind
+        if let InstKind::ICall { function: crate::mir::Callee::Function(function), args } =
+            &inst.kind
             && *function == caller
             && args.len() == func.params.len()
             && args.len() <= self.gcx.sess.opts.evm_version.reachable_stack_depth()
@@ -107,7 +108,7 @@ impl EvmCodegen<'_> {
     ) -> Option<(FunctionId, &'a [ValueId])> {
         if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
             || !self.in_internal_function
-            || !func.returns.is_empty()
+            || !func.return_components().is_empty()
             || !self.static_frame_functions.contains(caller)
             || self.recursive_frame_functions.contains(caller)
             || self.recursive_stack_functions.contains(caller)
@@ -119,7 +120,8 @@ impl EvmCodegen<'_> {
             return None;
         }
         let inst = func.inst(*block.instructions.last()?);
-        if let InstKind::ICall { function, args, returns: 0 } = &inst.kind
+        if let InstKind::ICall { function: crate::mir::Callee::Function(function), args } =
+            &inst.kind
             && self.static_frame_functions.contains(*function)
             && !self.recursive_frame_functions.contains(*function)
             && !self.recursive_stack_functions.contains(*function)

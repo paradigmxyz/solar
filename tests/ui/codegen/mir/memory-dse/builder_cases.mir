@@ -256,7 +256,7 @@ fn @callee() {
 fn @icall_msize_barrier() -> u256 {
   bb0:
     mstore 4096, 42
-    v0 = icall @observe_msize, 1
+    v0 = icall @observe_msize
     mstore 4096, 0
     ret v0
 }

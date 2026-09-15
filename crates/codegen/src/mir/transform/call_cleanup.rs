@@ -31,8 +31,8 @@
 
 use super::egraph::max_bits_with_args;
 use crate::mir::{
-    AbiWordValidator, ArgIdx, Function, FunctionId, InstId, InstKind, MirPhase, Module, Terminator,
-    Value, ValueId,
+    AbiWordValidator, ArgIdx, Function, FunctionId, InstId, InstKind, Module, Terminator, Value,
+    ValueId,
     analysis::Liveness,
     pass::{MirPass, ModuleAnalyses},
     utils,
@@ -66,10 +66,9 @@ impl MirPass for CallCleanup {
     ) -> bool {
         let facts = infer_arguments(module);
         let boolean_returns = infer_boolean_returns(module);
-        let abi_lowered = module.phase >= MirPhase::Abi;
         let mut changed = false;
         for (id, func) in module.functions.iter_mut_enumerated() {
-            let argument_bits = |index| argument_bits(func, id, index, &facts, abi_lowered);
+            let argument_bits = |index| argument_bits(func, id, index, &facts);
             let mut replacements = FxHashMap::default();
             let mut dead = DenseBitSet::<InstId>::new_empty(func.num_insts());
             for inst in func.instructions() {
@@ -138,7 +137,7 @@ fn infer_boolean_returns(module: &Module) -> DenseBitSet<FunctionId> {
     for _ in 0..MAX_ROUNDS {
         let mut changed = false;
         for (id, func) in module.functions.iter_enumerated() {
-            if known.contains(id) || func.returns.len() != 1 {
+            if known.contains(id) || func.return_components().len() != 1 {
                 continue;
             }
             let mut has_return = false;
@@ -188,7 +187,9 @@ fn is_boolean(
         | InstKind::SLt(..)
         | InstKind::SGt(..)
         | InstKind::IsZero(..) => true,
-        InstKind::ICall { function, returns: 1, .. } => returns.contains(*function),
+        InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
+            returns.contains(*function)
+        }
         InstKind::Phi(incoming) => {
             !incoming.is_empty() && incoming.iter().all(|&(_, value)| clean(value))
         }
@@ -220,7 +221,10 @@ fn infer_arguments(module: &Module) -> ArgumentBits {
     let mut calls = Vec::new();
     for (caller, func) in module.functions.iter_enumerated() {
         for inst in func.instructions() {
-            if let InstKind::ICall { function, args, .. } = &func.inst(inst).kind {
+            if let InstKind::ICall {
+                function: crate::mir::Callee::Function(function), args, ..
+            } = &func.inst(inst).kind
+            {
                 calls.push(CallSite { caller, callee: *function, args });
             }
         }
@@ -246,9 +250,7 @@ fn infer_arguments(module: &Module) -> ArgumentBits {
         for call in &calls {
             let first = seen.insert(call.callee);
             let caller = &module.functions[call.caller];
-            let bounds = |index| {
-                argument_bits(caller, call.caller, index, &facts, module.phase >= MirPhase::Abi)
-            };
+            let bounds = |index| argument_bits(caller, call.caller, index, &facts);
             for (index, &arg) in call.args.iter().enumerate() {
                 let key = (call.callee, ArgIdx::new(index));
                 if first || next.contains_key(&key) {
@@ -270,14 +272,8 @@ fn infer_arguments(module: &Module) -> ArgumentBits {
     facts
 }
 
-fn argument_bits(
-    func: &Function,
-    id: FunctionId,
-    index: ArgIdx,
-    facts: &ArgumentBits,
-    abi_lowered: bool,
-) -> u32 {
-    if abi_lowered && func.selector.is_some() && func.params.is_empty() {
+fn argument_bits(func: &Function, id: FunctionId, index: ArgIdx, facts: &ArgumentBits) -> u32 {
+    if func.attributes.is_abi_wrapper && func.selector.is_some() && func.params.is_empty() {
         // ABI validation establishes this bound on the lazy argument. Raw
         // calldata loads used by the validation itself do not enter this arm.
         return match AbiWordValidator::from_mir_type(func.arg_ty(index)) {

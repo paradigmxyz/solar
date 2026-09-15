@@ -1,6 +1,12 @@
 // === ROOT/tests/ui/codegen/mir/egraph/lossless_shifts_runtime.sol:LosslessShifts ===
 @module LosslessShifts
-fn @narrow(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) [selector=0x6945dd4d, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word]] {
+types:
+  struct0: {u256, u256, u256, u256}
+  struct1: {u256, u256, u256, u256, u256, u256}
+  struct2: {u256, u256, u256}
+  struct3: {u256, u256}
+
+fn @narrow(arg0: u256, arg1: u256) -> struct0 [selector=0x6945dd4d, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = byte 31, arg0
     v1 = shl 248, v0
@@ -10,10 +16,14 @@ fn @narrow(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) [selector=0x6945d
     v5 = eq v1, v3
     v6 = lt v1, v3
     v7 = gt v1, v3
-    ret v4, v5, v6, v7
+    v8 = insert_value struct0, undef struct0, 0, v4
+    v9 = insert_value struct0, v8, 1, v5
+    v10 = insert_value struct0, v9, 2, v6
+    v11 = insert_value struct0, v10, 3, v7
+    ret v11
 }
 
-fn @aligned(arg0: u256) -> (u256, u256, u256, u256, u256, u256) [selector=0x86ae3e38, pure, abi_params=[u256], abi_returns=[word, word, word, word, word, word]] {
+fn @aligned(arg0: u256) -> struct1 [selector=0x86ae3e38, pure, abi_params=[u256], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
     v0 = byte 31, arg0
     v1 = shl 248, v0
@@ -24,10 +34,16 @@ fn @aligned(arg0: u256) -> (u256, u256, u256, u256, u256, u256) [selector=0x86ae
     v6 = eq v2, v1
     v7 = lt v2, v1
     v8 = gt v2, v1
-    ret v3, v4, v5, v6, v7, v8
+    v9 = insert_value struct1, undef struct1, 0, v3
+    v10 = insert_value struct1, v9, 1, v4
+    v11 = insert_value struct1, v10, 2, v5
+    v12 = insert_value struct1, v11, 3, v6
+    v13 = insert_value struct1, v12, 4, v7
+    v14 = insert_value struct1, v13, 5, v8
+    ret v14
 }
 
-fn @unaligned(arg0: u256) -> (u256, u256, u256) [selector=0x6035a068, pure, abi_params=[u256], abi_returns=[word, word, word]] {
+fn @unaligned(arg0: u256) -> struct2 [selector=0x6035a068, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = byte 31, arg0
     v1 = shl 248, v0
@@ -36,7 +52,10 @@ fn @unaligned(arg0: u256) -> (u256, u256, u256) [selector=0x6035a068, pure, abi_
     v4 = eq v1, v3
     v5 = lt v1, v3
     v6 = gt v1, v3
-    ret v4, v5, v6
+    v7 = insert_value struct2, undef struct2, 0, v4
+    v8 = insert_value struct2, v7, 1, v5
+    v9 = insert_value struct2, v8, 2, v6
+    ret v9
 }
 
 fn @truncating(arg0: u256) -> u256 [selector=0xdbd8726b, pure, abi_params=[u256], abi_returns=[word]] {
@@ -46,7 +65,7 @@ fn @truncating(arg0: u256) -> u256 [selector=0xdbd8726b, pure, abi_params=[u256]
     ret v1
 }
 
-fn @signedCompare(arg0: u256, arg1: u256) -> (u256, u256) [selector=0xd094ad81, pure, abi_params=[u256, u256], abi_returns=[word, word]] {
+fn @signedCompare(arg0: u256, arg1: u256) -> struct3 [selector=0xd094ad81, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = byte 31, arg0
     v1 = shl 248, v0
@@ -54,7 +73,9 @@ fn @signedCompare(arg0: u256, arg1: u256) -> (u256, u256) [selector=0xd094ad81, 
     v3 = shl 248, v2
     v4 = slt v1, v3
     v5 = sgt v1, v3
-    ret v4, v5
+    v6 = insert_value struct3, undef struct3, 0, v4
+    v7 = insert_value struct3, v6, 1, v5
+    ret v7
 }
 
 fn @equal(arg0: u256, arg1: u256) -> bool [selector=0x30191626, pure, abi_params=[u256, u256], abi_returns=[word<bool>]] {

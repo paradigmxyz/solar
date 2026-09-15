@@ -20,11 +20,13 @@
 //! fixpoint, without waiting for another CFG cleanup pass. Targets with phis and cyclic phi
 //! inputs stay unchanged.
 
-use crate::target::GasTier;
-use crate::mir::{
-    BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
-    pass::{MirPass, run_function_pass},
-    utils::replace_terminator,
+use crate::{
+    mir::{
+        BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
+        pass::{MirPass, run_function_pass},
+        utils::replace_terminator,
+    },
+    target::GasTier,
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 

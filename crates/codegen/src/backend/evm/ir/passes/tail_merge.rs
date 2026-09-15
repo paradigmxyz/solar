@@ -48,7 +48,6 @@ use crate::backend::evm::{
     ir::{Block, BlockId, Hotness, Instruction, Metadata, Module, Terminator, TerminatorKind},
     op::{self, StackOp, push_len},
 };
-use smallvec::SmallVec;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::Gcx;
 
@@ -128,7 +127,8 @@ impl RunState {
             }
             // Do not use loop bodies to seed sharing groups. They may reuse a tail
             // from a non-loop path to preserve common loop entries.
-            let keep_branches = gcx.sess.opts.optimization.is_gas() && has_short_word_backedge(module, block_id);
+            let keep_branches =
+                gcx.sess.opts.optimization.is_gas() && has_short_word_backedge(module, block_id);
             let matched = self.longest_common_tail(block, keep_branches);
             let in_gas_loop = gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop;
             if in_gas_loop
@@ -174,7 +174,9 @@ impl RunState {
         let mut matched = None;
         let len = block.instructions.len();
         for (common, inst) in block.instructions.iter().rev().enumerate() {
-            if keep_branches && inst.as_evm_opcode() == Some(op::JUMPI) { break; }
+            if keep_branches && inst.as_evm_opcode() == Some(op::JUMPI) {
+                break;
+            }
             let Some(&child) = self.tail_edges.get(&(node, MachineInstKey::new(inst))) else {
                 break;
             };
