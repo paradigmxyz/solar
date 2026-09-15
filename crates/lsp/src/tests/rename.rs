@@ -1176,6 +1176,47 @@ fn unifies_shared_declarations_across_analysis_batches() {
 }
 
 #[test]
+fn unifies_override_families_across_analysis_batches() {
+    let source = r#"
+        //- /Base.sol
+        contract Base {
+            function $1run() public virtual {}
+        }
+        //- /Left.sol
+        import "./Base.sol";
+        contract Left is Base {
+            function $2run() public override {}
+            function call() public { run(); }
+        }
+        //- /Right.sol
+        import "./Base.sol";
+        contract Right is Base {
+            function $3run() public override {}
+            function call() public { run(); }
+        }
+    "#;
+    for paths in [["/Left.sol", "/Right.sol"], ["/Right.sol", "/Left.sol"]] {
+        let fixture = RequestFixture::new_in_batches(source, &paths);
+        for (marker, range) in [("$1", "1:13-1:16\n"), ("$2", "2:13-2:16\n"), ("$3", "2:13-2:16\n")]
+        {
+            fixture.check_prepare_rename(marker, range);
+            fixture.check_rename(
+                marker,
+                "renamed",
+                str![[r#"
+/Base.sol:1:13-1:16 -> renamed
+/Left.sol:2:13-2:16 -> renamed
+/Left.sol:3:29-3:32 -> renamed
+/Right.sol:2:13-2:16 -> renamed
+/Right.sol:3:29-3:32 -> renamed
+
+"#]],
+            );
+        }
+    }
+}
+
+#[test]
 fn rejects_conflicting_source_snapshots_across_analysis_batches() {
     let source = r#"
         //- /Shared.sol open

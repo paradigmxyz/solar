@@ -1,7 +1,7 @@
 //! Signature help data collected from compiler analysis.
 
 use crate::{config::SignatureHelpClientOptions, proto};
-use crop::Rope;
+use crop::{Rope, RopeSlice};
 use lsp_types::{
     Documentation, Location, MarkupContent, MarkupKind, ParameterInformation, ParameterLabel,
     Position, Range, SignatureHelp, SignatureInformation, Url,
@@ -144,7 +144,7 @@ impl SignatureHelpIndex {
                         .map(String::as_str)
                         .filter(|token| is_identifier(token))
                         == context.callee_name
-                    && call.matches_current_callee(positions)
+                    && call.matches_current_callee(positions, source)
             })
         });
         let (mut signatures, fallback): (Vec<&CallSignature>, _) = if let Some(call) = call {
@@ -298,31 +298,49 @@ impl SignatureHelpIndex {
 }
 
 impl CallSite {
-    fn matches_current_callee(&self, positions: &proto::LspPositionIndex<Rope>) -> bool {
+    fn matches_current_callee(
+        &self,
+        positions: &proto::LspPositionIndex<Rope>,
+        source: &str,
+    ) -> bool {
         let contents = positions.rope();
-        if !valid_text_position(contents, self.callee_range.start)
-            || !valid_text_position(contents, self.callee_range.end)
-        {
+        if !valid_text_range(contents, self.callee_range) {
             return false;
         }
         let range = positions.text_range(self.callee_range);
         if range.start > range.end {
             return false;
         }
-        let current = contents.byte_slice(range).to_string();
-        significant_token_slices(&current).eq(self.callee_tokens.iter().map(String::as_str))
+        // The source and position index belong to the same immutable document snapshot.
+        source.get(range).is_some_and(|current| {
+            significant_token_slices(current).eq(self.callee_tokens.iter().map(String::as_str))
+        })
     }
 }
 
-fn valid_text_position(rope: &Rope, position: Position) -> bool {
-    let line = position.line as usize;
-    if line >= rope.line_len() {
+fn valid_text_range(rope: &Rope, range: Range) -> bool {
+    let start_line = range.start.line as usize;
+    let end_line = range.end.line as usize;
+    if start_line >= rope.line_len() || end_line >= rope.line_len() {
         return false;
     }
-    let line = rope.line(line);
-    let character = position.character as usize;
+    let line = rope.line(start_line);
+    valid_text_column(&line, range.start.character)
+        && if start_line == end_line {
+            valid_text_column(&line, range.end.character)
+        } else {
+            valid_text_column(&rope.line(end_line), range.end.character)
+        }
+}
+
+fn valid_text_column(line: &RopeSlice<'_>, character: u32) -> bool {
+    let character = character as usize;
     if character > line.utf16_len() {
         return false;
+    }
+    // Every byte on an ASCII line is a complete UTF-16 code unit.
+    if line.byte_len() == line.utf16_len() {
+        return true;
     }
     let byte = line.byte_of_utf16_code_unit(character);
     line.utf16_code_unit_of_byte(byte) == character
@@ -801,6 +819,9 @@ fn convert_documentation_to_markdown(documentation: &mut Option<Documentation>) 
 }
 
 fn deduplicate_signatures(signatures: &mut Vec<&CallSignature>) {
+    if signatures.len() < 2 {
+        return;
+    }
     let mut unique = Vec::with_capacity(signatures.len());
     for signature in signatures.drain(..) {
         if !unique.contains(&signature) {
@@ -831,6 +852,9 @@ fn use_simple_parameter_labels(signature: &mut SignatureInformation) {
 }
 
 fn utf16_slice(value: &str, start: u32, end: u32) -> Option<&str> {
+    if value.is_ascii() {
+        return value.get(start as usize..end as usize);
+    }
     let mut utf16 = 0u32;
     let mut start_byte = None;
     let mut end_byte = None;
@@ -985,7 +1009,8 @@ fn call_context_with_boundary(
         if callee_name.is_some() && is_declaration_head(text, &significant, head_index) {
             continue;
         }
-        let arguments = text.get(frame.open + 1..)?;
+        // The opening parenthesis follows the callee head in the significant token stream.
+        let arguments = &significant[head_index + 2..];
         return Some(CallContext {
             open: frame.open,
             callee_name,
@@ -994,24 +1019,20 @@ fn call_context_with_boundary(
                 .checked_sub(1)
                 .and_then(|index| significant.get(index))
                 .is_some_and(|&(start, end)| &text[start..end] == "."),
-            active_argument: scan_active_argument(arguments),
+            active_argument: scan_active_argument(text, arguments),
         });
     }
     None
 }
 
-fn scan_active_argument(text: &str) -> ActiveArgument<'_> {
+fn scan_active_argument<'a>(text: &'a str, tokens: &[(usize, usize)]) -> ActiveArgument<'a> {
     let mut commas = 0;
     let mut frames = Vec::<char>::new();
     let mut first_significant = None;
     let mut named = false;
     let mut segment_start = 0;
-    for (start, token) in Cursor::new(text).with_position() {
-        let end = start + token.len as usize;
+    for (index, &(start, end)) in tokens.iter().enumerate() {
         let lexeme = &text[start..end];
-        if token.kind.is_trivial() {
-            continue;
-        }
         if first_significant.is_none() {
             first_significant = Some(lexeme);
             named = lexeme == "{";
@@ -1031,20 +1052,17 @@ fn scan_active_argument(text: &str) -> ActiveArgument<'_> {
             }
             "," if frames.is_empty() || named && frames.as_slice() == ['{'] => {
                 commas += 1;
-                segment_start = end;
+                segment_start = index + 1;
             }
             _ => {}
         }
     }
-    let name = named.then(|| named_argument_name(text.get(segment_start..)?)).flatten();
+    let name = named.then(|| named_argument_name(text, &tokens[segment_start..])).flatten();
     ActiveArgument { ordinal: commas, name }
 }
 
-fn named_argument_name(text: &str) -> Option<&str> {
-    let mut tokens = Cursor::new(text)
-        .with_position()
-        .filter(|(_, token)| !token.kind.is_trivial())
-        .map(|(start, token)| &text[start..start + token.len as usize]);
+fn named_argument_name<'a>(text: &'a str, tokens: &[(usize, usize)]) -> Option<&'a str> {
+    let mut tokens = tokens.iter().map(|&(start, end)| &text[start..end]);
     let mut name = tokens.next()?;
     if name == "{" {
         name = tokens.next()?;
@@ -1275,6 +1293,52 @@ mod tests {
     }
 
     #[test]
+    fn callee_positions_reject_invalid_utf16_columns() {
+        for source in ["", "abc", "abc\n", "abc\r\ndef", "abc\rdef", "é😀x\nabc"] {
+            let rope = Rope::from(source);
+            for line_index in 0..=rope.line_len() {
+                let valid_columns = if line_index < rope.line_len() {
+                    let mut columns = vec![0];
+                    let mut utf16 = 0;
+                    for ch in rope.line(line_index).chars() {
+                        utf16 += ch.len_utf16();
+                        columns.push(utf16 as u32);
+                    }
+                    columns
+                } else {
+                    Vec::new()
+                };
+                for column in 0..=source.len() as u32 + 1 {
+                    let position = Position::new(line_index as u32, column);
+                    assert_eq!(
+                        valid_text_range(&rope, Range::new(position, position)),
+                        valid_columns.contains(&column),
+                        "{source:?} at {position:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn parameter_label_slices_preserve_utf16_boundaries() {
+        for (source, start, end, expected) in [
+            ("uint256 amount", 0, 7, Some("uint256")),
+            ("uint256 amount", 8, 14, Some("amount")),
+            ("uint256 amount", 14, 14, Some("")),
+            ("uint256 amount", 8, 15, None),
+            ("uint256 amount", 7, 0, None),
+            ("", 0, 0, Some("")),
+            ("é😀value", 1, 3, Some("😀")),
+            ("é😀value", 3, 8, Some("value")),
+            ("é😀value", 2, 3, None),
+            ("é😀value", 1, 2, None),
+        ] {
+            assert_eq!(utf16_slice(source, start, end), expected);
+        }
+    }
+
+    #[test]
     fn stale_callee_range_splitting_a_surrogate_pair_is_rejected() {
         let call = CallSite {
             range: Range::default(),
@@ -1285,7 +1349,10 @@ mod tests {
         };
 
         assert!(
-            !call.matches_current_callee(&proto::LspPositionIndex::from_rope(Rope::from("😀f")))
+            !call.matches_current_callee(
+                &proto::LspPositionIndex::from_rope(Rope::from("😀f")),
+                "😀f"
+            )
         );
     }
 
@@ -1299,6 +1366,8 @@ mod tests {
             signatures: Vec::new(),
         };
 
-        assert!(!call.matches_current_callee(&proto::LspPositionIndex::from_rope(Rope::from("f"))));
+        assert!(
+            !call.matches_current_callee(&proto::LspPositionIndex::from_rope(Rope::from("f")), "f")
+        );
     }
 }

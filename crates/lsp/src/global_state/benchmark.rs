@@ -18,15 +18,16 @@ use crate::{
         workspace_idx_containing_path,
     },
 };
-use async_lsp::ClientSocket;
+use async_lsp::{ClientSocket, ResponseError};
 use crop::Rope;
 use lsp_types::{
-    CallHierarchyIncomingCall, CallHierarchyItem, CodeLens, CompletionItem, Diagnostic,
-    DidChangeTextDocumentParams, DocumentSymbol, GotoDefinitionResponse, Hover, HoverContents,
-    Location, Position, PreviousResultId, Range, RenameParams, SignatureHelp, SignatureHelpParams,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
-    TypeHierarchyItem, Url, VersionedTextDocumentIdentifier, WorkspaceEdit, WorkspaceFolder,
-    WorkspaceSymbol,
+    CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
+    CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
+    CodeLens, CompletionItem, Diagnostic, DidChangeTextDocumentParams, DocumentSymbol,
+    GotoDefinitionResponse, Hover, HoverContents, Location, Position, PreviousResultId, Range,
+    RenameParams, SignatureHelp, SignatureHelpParams, TextDocumentContentChangeEvent,
+    TextDocumentIdentifier, TextDocumentPositionParams, TypeHierarchyItem, Url,
+    VersionedTextDocumentIdentifier, WorkspaceEdit, WorkspaceFolder, WorkspaceSymbol,
 };
 use normalize_path::NormalizePath;
 use solar_config::{CompileOpts, Threads};
@@ -708,6 +709,78 @@ pub struct BenchmarkFoldingRangeRequests {
 pub struct BenchmarkSignatureHelpRequests {
     state: super::GlobalState,
     params: SignatureHelpParams,
+}
+
+/// Prepared call-hierarchy requests using the production handlers and a completed analysis.
+#[doc(hidden)]
+pub struct BenchmarkCallHierarchyRequests {
+    state: super::GlobalState,
+}
+
+impl BenchmarkCallHierarchyRequests {
+    /// Publish an analyzed project without initializing the lazy call-hierarchy query index.
+    pub fn new(analysis: BenchmarkAnalysis) -> Self {
+        let state = super::GlobalState::new(ClientSocket::new_closed());
+        state.symbol_tables.store(Arc::new(analysis.symbol_tables));
+        Self { state }
+    }
+
+    /// Clone semantic facts into a fresh snapshot outside the first-request timing.
+    pub fn before_first_request(&self) -> Self {
+        let state = super::GlobalState::new(ClientSocket::new_closed());
+        state.symbol_tables.store(Arc::new(self.state.symbol_tables.load().as_ref().clone()));
+        Self { state }
+    }
+
+    /// Prepare a callable through the production handler, including analysis snapshot lookup.
+    #[inline(never)]
+    pub fn prepare(&mut self, uri: &Url, position: Position) -> Option<Vec<CallHierarchyItem>> {
+        Self::complete(handlers::prepare_call_hierarchy(
+            &mut self.state,
+            CallHierarchyPrepareParams {
+                text_document_position_params: TextDocumentPositionParams {
+                    text_document: TextDocumentIdentifier { uri: uri.clone() },
+                    position,
+                },
+                work_done_progress_params: Default::default(),
+            },
+        ))
+    }
+
+    /// Expand one incoming-call item through the production handler.
+    #[inline(never)]
+    pub fn incoming(&mut self, item: &CallHierarchyItem) -> Option<Vec<CallHierarchyIncomingCall>> {
+        Self::complete(handlers::call_hierarchy_incoming(
+            &mut self.state,
+            CallHierarchyIncomingCallsParams {
+                item: item.clone(),
+                work_done_progress_params: Default::default(),
+                partial_result_params: Default::default(),
+            },
+        ))
+    }
+
+    /// Expand one outgoing-call item through the production handler.
+    #[inline(never)]
+    pub fn outgoing(&mut self, item: &CallHierarchyItem) -> Option<Vec<CallHierarchyOutgoingCall>> {
+        Self::complete(handlers::call_hierarchy_outgoing(
+            &mut self.state,
+            CallHierarchyOutgoingCallsParams {
+                item: item.clone(),
+                work_done_progress_params: Default::default(),
+                partial_result_params: Default::default(),
+            },
+        ))
+    }
+
+    fn complete<T>(request: impl Future<Output = Result<T, ResponseError>>) -> T {
+        let mut request = std::pin::pin!(request);
+        let mut context = Context::from_waker(Waker::noop());
+        let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
+            panic!("call-hierarchy benchmark request should complete immediately");
+        };
+        response.expect("call-hierarchy benchmark request should succeed")
+    }
 }
 
 /// A prepared quick-fix request using diagnostics from a real compiler analysis.

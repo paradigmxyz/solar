@@ -275,7 +275,7 @@ fn validates_the_full_echoed_item_and_opaque_data() {
         r#"
         //- /Validation.sol
         contract $1Base {}
-        contract Child is Base {}
+        contract $2Child is Base {}
         "#,
         "/Validation.sol",
     );
@@ -294,6 +294,9 @@ fn validates_the_full_echoed_item_and_opaque_data() {
     );
 
     let mut tampered = Vec::new();
+    let mut changed = prepared(&fixture, "$2");
+    changed.data = item.data.clone();
+    tampered.push(changed);
     let mut changed = item.clone();
     changed.name.push_str("Changed");
     tampered.push(changed);
@@ -315,6 +318,24 @@ fn validates_the_full_echoed_item_and_opaque_data() {
     let mut changed = item.clone();
     changed.selection_range.end.character += 1;
     tampered.push(changed);
+
+    // URL parsing normalizes the scheme, but echoed data must keep the exact serialized spelling.
+    let normalized_uri = item.uri.as_str().replacen("file:", "FILE:", 1);
+    assert_eq!(Url::parse(&normalized_uri).unwrap(), item.uri);
+    let mut changed = item.clone();
+    changed.data.as_mut().unwrap()[1] = json!(normalized_uri);
+    tampered.push(changed);
+    for index in [0, 2, 3, 4, 5] {
+        // JSON floats and strings must not be accepted as integer version or position fields.
+        for value in [
+            json!(item.data.as_ref().unwrap()[index].as_u64().unwrap() as f64),
+            json!(item.data.as_ref().unwrap()[index].to_string()),
+        ] {
+            let mut changed = item.clone();
+            changed.data.as_mut().unwrap()[index] = value;
+            tampered.push(changed);
+        }
+    }
 
     for data in [
         None,
