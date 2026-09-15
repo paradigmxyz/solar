@@ -93,6 +93,10 @@ pub(crate) fn may_complete_import_string(source: &Rope, cursor: usize) -> bool {
 }
 
 /// Rejects code lines that cannot contain a completable import string.
+///
+/// This is only a conservative prefilter: quotes and possible line continuations still go through
+/// `Cursor` in `plain_string_at`. `Cursor` requires contiguous text and scans tokens forwards;
+/// scanning chunks backwards here avoids copying and lexing the source for ordinary completions.
 fn may_complete_string<'a>(
     chunks: impl DoubleEndedIterator<Item = &'a str>,
     cursor_byte: Option<u8>,

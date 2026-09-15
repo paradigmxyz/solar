@@ -1805,3 +1805,512 @@ needleValue Variable
 "#]],
     );
 }
+
+#[test]
+fn completes_library_names_and_members() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Completion.sol open
+        library Math {
+            function twice(uint256 value) internal pure returns (uint256) { return value * 2; }
+            function hidden(uint256 value) private pure returns (uint256) { return value; }
+        }
+        contract C {
+            using Ma$1th for uint256;
+            function f() public pure {
+                Math.$2;
+                Math.tw$3;
+            }
+        }
+        "#,
+        "/Completion.sol",
+    );
+    fixture.check_completion(
+        "$1",
+        str![[r#"
+Math Module
+
+"#]],
+    );
+    for marker in ["$2", "$3"] {
+        fixture.check_completion(
+            marker,
+            str![[r#"
+twice Method
+
+"#]],
+        );
+    }
+}
+
+#[test]
+fn completes_using_for_members() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Completion.sol open
+        library Math {
+            function twice(uint256 value) internal pure returns (uint256) { return value * 2; }
+            function wrong(address value) internal pure returns (address) { return value; }
+            function hidden(uint256 value) private pure returns (uint256) { return value; }
+        }
+        function triple(uint256 value) pure returns (uint256) { return value * 3; }
+        contract C {
+            using Math for uint256;
+            using {triple} for uint256;
+            function f(uint256 value) public pure {
+                value.$1;
+                value.tw$2;
+                (value + 1).$3;
+            }
+        }
+        "#,
+        "/Completion.sol",
+    );
+    for marker in ["$1", "$3"] {
+        fixture.check_completion(
+            marker,
+            str![[r#"
+triple Function
+twice Method
+
+"#]],
+        );
+    }
+    fixture.check_completion(
+        "$2",
+        str![[r#"
+twice Method
+
+"#]],
+    );
+}
+
+#[test]
+fn dot_completions_never_fall_back_to_globals() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Completion.sol open
+        contract C {
+            function f(uint256 value) public pure {
+                value.$1;
+                (value + 1).$2;
+                missing.$3;
+                unknown().$4;
+                value . $5;
+            }
+        }
+        "#,
+        "/Completion.sol",
+    );
+    for marker in ["$1", "$2", "$3", "$4", "$5"] {
+        fixture.check_completion(marker, str![""]);
+    }
+}
+
+#[test]
+fn completes_library_members_before_analysis_finishes() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Math.sol
+        library Math {
+            function twice(uint256 value) internal pure returns (uint256) { return value * 2; }
+            function hidden(uint256 value) private pure returns (uint256) { return value; }
+        }
+        //- /Completion.sol open
+        import {Math as Numbers} from "./Math.sol";
+        contract C {
+            using Nu$3mbers for uint256;
+            function f(uint256 value) public pure {
+                uint x = 1;
+                Numbers;$1
+                value;$2
+                x;$4
+            }
+        }
+        "#,
+        "/Completion.sol",
+    );
+    fixture.check_completion(
+        "$3",
+        str![[r#"
+Numbers Module
+
+"#]],
+    );
+    let changed = fixture
+        .project_contents("/Completion.sol")
+        .replace("Numbers;", "Numbers.")
+        .replace("value;", "value.")
+        .replace("x;", "x.");
+    for marker in ["$1", "$2", "$4"] {
+        fixture.check_completion_details_after_change(
+            marker,
+            "/Completion.sol",
+            &changed,
+            str![[r#"
+label=twice
+kind=Method
+detail=Math
+sort_text=<none>
+text_edit=<none>
+insert_text_format=<none>
+new_text:
+<none>
+
+"#]],
+        );
+    }
+}
+
+#[test]
+fn completes_members_with_incomplete_syntax() {
+    for expression in
+        ["x.$1", "x.tw$1", "(x + 1).$1", "Math.$1", "uint broken = ;\nx.$1", "missing();\nx.$1"]
+    {
+        for ending in ["\n}\n}", ""] {
+            let fixture = RequestFixture::new_allowing_diagnostics(
+                &format!(
+                    r#"
+                    //- /Completion.sol open
+                    library Math {{
+                        function twice(uint256 value) internal pure returns (uint256) {{
+                            return value * 2;
+                        }}
+                    }}
+                    contract C {{
+                        using Math for uint256;
+                        function f() public pure {{
+                            uint x;
+                            {expression}{ending}
+                    "#,
+                ),
+                "/Completion.sol",
+            );
+            fixture.check_completion(
+                "$1",
+                str![[r#"
+twice Method
+
+"#]],
+            );
+        }
+    }
+}
+
+#[test]
+fn incomplete_uint_members_do_not_complete_globals() {
+    for ending in ["\n}\n}", ""] {
+        let fixture = RequestFixture::new_allowing_diagnostics(
+            &format!(
+                r#"
+                //- /Completion.sol open
+                contract C {{
+                    function f() public pure {{
+                        uint x;
+                        x.$1{ending}
+                "#,
+            ),
+            "/Completion.sol",
+        );
+        fixture.check_completion("$1", str![""]);
+    }
+}
+
+#[test]
+fn pending_members_respect_shadowing_and_chained_receivers() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Completion.sol open
+        contract C {
+            struct Data { uint field; }
+            function f() public pure {
+                Data memory msg;
+                Data memory field;
+                msg;$1
+                msg.field;$2
+            }
+        }
+        "#,
+        "/Completion.sol",
+    );
+    let changed = fixture
+        .project_contents("/Completion.sol")
+        .replace("msg;", "msg.")
+        .replace("msg.field;", "msg.field.");
+    fixture.check_completion_details_after_change(
+        "$1",
+        "/Completion.sol",
+        &changed,
+        str![[r#"
+label=field
+kind=Property
+detail=Data
+sort_text=<none>
+text_edit=<none>
+insert_text_format=<none>
+new_text:
+<none>
+
+"#]],
+    );
+    fixture.check_completion_details_after_change("$2", "/Completion.sol", &changed, str![""]);
+}
+
+#[test]
+fn completes_all_declaration_receivers_before_analysis() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Completion.sol open
+        enum Status { Pending, Done }
+        struct Record { uint value; }
+        type Price is uint256;
+        event Changed(uint value);
+        error Failed(uint value);
+        function helper(uint value) pure returns (uint) { return value; }
+        contract Base {
+            uint public total;
+            function inherited() internal pure {}
+            function hidden() private pure {}
+            function externalCall() public pure {}
+        }
+        contract C is Base {
+            using {helper} for uint256;
+            function f() public pure {
+                Status;$1
+                Record;$2
+                Price;$3
+                Changed;$4
+                Failed;$5
+                helper;$6
+                Base;$7
+            }
+        }
+        contract Other {
+            function f() public pure { Base;$8 }
+        }
+        "#,
+        "/Completion.sol",
+    );
+    let changed = fixture
+        .project_contents("/Completion.sol")
+        .replace("Status;", "Status.")
+        .replace("Record;", "Record.")
+        .replace("Price;", "Price.")
+        .replace("Changed;", "Changed.")
+        .replace("Failed;", "Failed.")
+        .replace("helper;", "helper.")
+        .replace("Base;", "Base.");
+    fixture.check_completion_after_change(
+        "$1",
+        "/Completion.sol",
+        &changed,
+        str![[r#"
+Done EnumMember
+Pending EnumMember
+
+"#]],
+    );
+    fixture.check_completion_after_change("$2", "/Completion.sol", &changed, str![""]);
+    fixture.check_completion_after_change(
+        "$3",
+        "/Completion.sol",
+        &changed,
+        str![[r#"
+unwrap Method
+wrap Method
+
+"#]],
+    );
+    for marker in ["$4", "$5"] {
+        fixture.check_completion_after_change(
+            marker,
+            "/Completion.sol",
+            &changed,
+            str![[r#"
+selector Method
+
+"#]],
+        );
+    }
+    fixture.check_completion_after_change("$6", "/Completion.sol", &changed, str![""]);
+    fixture.check_completion_after_change(
+        "$7",
+        "/Completion.sol",
+        &changed,
+        str![[r#"
+externalCall Method
+inherited Method
+total Property
+
+"#]],
+    );
+    fixture.check_completion_after_change(
+        "$8",
+        "/Completion.sol",
+        &changed,
+        str![[r#"
+externalCall Method
+total Method
+
+"#]],
+    );
+}
+
+#[test]
+fn completes_namespace_receivers_before_analysis() {
+    let fixture = RequestFixture::new_in_batches(
+        r#"
+        //- /Definitions.sol
+        enum Status { Pending, Done }
+        library Math { function twice(uint x) internal pure returns (uint) { return x * 2; } }
+        //- /Exports.sol
+        import {Math as Numbers} from "./Definitions.sol";
+        //- /Completion.sol open
+        import * as Definitions from "./Definitions.sol";
+        import "./Exports.sol" as Exports;
+        contract C {
+            function f() public pure {
+                Def$1initions;$2
+                Exports;$3
+            }
+        }
+        "#,
+        &["/Definitions.sol", "/Completion.sol"],
+    );
+    fixture.check_completion(
+        "$1",
+        str![[r#"
+Definitions Module
+
+"#]],
+    );
+    let changed = fixture
+        .project_contents("/Completion.sol")
+        .replace("Definitions;", "Definitions.")
+        .replace("Exports;", "Exports.");
+    fixture.check_completion_after_change(
+        "$2",
+        "/Completion.sol",
+        &changed,
+        str![[r#"
+Math Module
+Status Enum
+
+"#]],
+    );
+    fixture.check_completion_after_change(
+        "$3",
+        "/Completion.sol",
+        &changed,
+        str![[r#"
+Numbers Module
+
+"#]],
+    );
+}
+
+#[test]
+fn pending_receivers_use_the_callers_contract_scope() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Base.sol
+        contract Base {
+            uint internal amount;
+            uint private secret;
+            function externalCall() public pure {}
+            function inherited() internal pure {}
+        }
+        //- /Completion.sol open
+        import {Base} from "./Base.sol";
+        function twice(uint x) pure returns (uint) { return x * 2; }
+        contract C is Base {
+            using {twice} for uint256;
+            function f() public pure {
+                amount;$1
+                this;$2
+                super;$3
+                externalCall;$4
+                secret;$5
+            }
+        }
+        contract Other is Base {
+            function f() public pure { amount;$6 }
+        }
+        "#,
+        "/Completion.sol",
+    );
+    let changed = fixture
+        .project_contents("/Completion.sol")
+        .replace("amount;", "amount.")
+        .replace("this;", "this.")
+        .replace("super;", "super.")
+        .replace("externalCall;", "externalCall.")
+        .replace("secret;", "secret.");
+    fixture.check_completion_after_change(
+        "$1",
+        "/Completion.sol",
+        &changed,
+        str![[r#"
+twice Function
+
+"#]],
+    );
+    fixture.check_completion_after_change(
+        "$2",
+        "/Completion.sol",
+        &changed,
+        str![[r#"
+externalCall Method
+f Method
+
+"#]],
+    );
+    fixture.check_completion_after_change(
+        "$3",
+        "/Completion.sol",
+        &changed,
+        str![[r#"
+externalCall Method
+inherited Method
+
+"#]],
+    );
+    fixture.check_completion_after_change(
+        "$4",
+        "/Completion.sol",
+        &changed,
+        str![[r#"
+selector Method
+
+"#]],
+    );
+    for marker in ["$5", "$6"] {
+        fixture.check_completion_after_change(marker, "/Completion.sol", &changed, str![""]);
+    }
+}
+
+#[test]
+fn completes_function_value_members_before_analysis() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Completion.sol open
+        contract C {
+            function f(function() external callback) public pure {
+                callback;$1
+            }
+        }
+        "#,
+        "/Completion.sol",
+    );
+    let changed = fixture.project_contents("/Completion.sol").replace("callback;", "callback.");
+    fixture.check_completion_after_change(
+        "$1",
+        "/Completion.sol",
+        &changed,
+        str![[r#"
+address Method
+selector Method
+
+"#]],
+    );
+}
