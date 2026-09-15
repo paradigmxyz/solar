@@ -334,6 +334,11 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // rewrites from reaching for values the scheduler would have to keep alive.
     &egraph::Egraph,
     &word_sequence::WordSequence,
+    // Packing consecutive bytes out of one buffer reads each byte with its own
+    // word read. The simplification above canonicalizes each read to one byte
+    // extraction; fuse the run into the one read it is a field of, before the
+    // loop passes below hoist and step addresses the run no longer uses.
+    &byte_run::ByteRunLoads,
     // Memory lowering materializes each element access as `add base, 32`
     // plus an index term inside the loop that reads it. Hoist the invariant
     // base once the physical form is final, so a hot loop carries one word
