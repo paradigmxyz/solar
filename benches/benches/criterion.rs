@@ -13,16 +13,23 @@ fn micro_benches(c: &mut Criterion) {
     let mut g = make_group(c, "micro");
 
     g.bench_function("session/new", |b| {
-        b.iter(|| solar::parse::interface::Session::builder().with_stderr_emitter().build());
+        b.iter(|| {
+            solar::parse::interface::Session::builder().with_stderr_emitter().threads(2).build()
+        });
     });
 
     {
-        let sess =
-            &black_box(solar::parse::interface::Session::builder().with_stderr_emitter().build());
+        let sess = &black_box(
+            solar::parse::interface::Session::builder().with_stderr_emitter().threads(2).build(),
+        );
 
-        g.bench_function("session/enter", |b| {
-            b.iter(|| black_box(sess).enter(|| black_box(sess)));
-        });
+        sess.enter(|| {});
+        // Dispatch measures OS scheduling, which is not stable under instruction simulation.
+        if !IS_CODSPEED {
+            g.bench_function("session/enter", |b| {
+                b.iter(|| black_box(sess).enter(|| black_box(sess)));
+            });
+        }
         g.bench_function("session/enter_sequential", |b| {
             let n: usize = black_box(10_000);
             b.iter(|| {

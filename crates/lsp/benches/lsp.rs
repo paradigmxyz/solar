@@ -1286,6 +1286,8 @@ fn open_document_analysis_batches(c: &mut Criterion) {
 
 fn repeated_analysis(c: &mut Criterion) {
     let fixture = benchmark_source(256);
+    // Keep worker startup outside the cold-analysis samples.
+    assert!(BenchmarkRepeatedAnalysis::new(fixture.source.clone()).run());
 
     let mut cold = c.benchmark_group("lsp/incremental-analysis");
     cold.bench_function(BenchmarkId::from_parameter("cold"), |b| {
@@ -1342,6 +1344,8 @@ fn workspace_index_reuse(c: &mut Criterion) {
         format!("function caller{}() public {{ ", caller_count - 1).len() as u32,
     );
 
+    // Each cold analysis starts with empty compiler data and an existing worker pool.
+    assert!(BenchmarkRepeatedAnalysis::from_workspaces(&roots, &source).run_epoch());
     let mut group = c.benchmark_group("lsp/workspace-index-reuse");
     group.bench_function("4x256-callers-cold", |b| {
         b.iter_batched_ref(

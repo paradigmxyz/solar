@@ -179,6 +179,7 @@ fn snapshot_with_config(config: Config, vfs: Vfs) -> GlobalStateSnapshot {
         analysis_version: Arc::new(AtomicUsize::new(1)),
         published_analysis_version,
         analysis_commit: Arc::new(Default::default()),
+        analysis_session: Arc::new(Default::default()),
         watched_file_registration: Arc::new(Default::default()),
         flycheck_versions: Arc::new(Default::default()),
         symbol_tables: Arc::new(Default::default()),

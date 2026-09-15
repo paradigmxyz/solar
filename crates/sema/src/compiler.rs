@@ -41,7 +41,7 @@ impl fmt::Debug for Compiler {
 }
 
 struct CompilerInner<'a> {
-    sess: Session,
+    sess: Option<Session>,
     gcx: GlobalCtxt<'a>,
     /// Lifetimes in this struct are self-referential.
     _pinned: PhantomPinned,
@@ -71,10 +71,16 @@ impl Compiler {
         Self(ManuallyDrop::new(unsafe { std::mem::transmute(inner) }))
     }
 
+    /// Drops the compiler state and returns its session for recycling.
+    pub fn into_session(mut self) -> Session {
+        // Only destruction follows; compiler drop paths do not access the session.
+        self.as_mut().inner.sess.take().unwrap()
+    }
+
     /// Returns a reference to the compiler session.
     #[inline]
     pub fn sess(&self) -> &Session {
-        &self.0.sess
+        self.0.sess.as_ref().unwrap()
     }
 
     /// Returns a mutable reference to the compiler session.
@@ -99,7 +105,7 @@ impl Compiler {
     ///
     /// See [`Session::enter`](Session::enter) for more details.
     pub fn enter<T: Send>(&self, f: impl FnOnce(&CompilerRef<'_>) -> T + Send) -> T {
-        self.0.sess.enter(|| f(CompilerRef::new(&self.0)))
+        self.sess().enter(|| f(CompilerRef::new(&self.0)))
     }
 
     /// Enters the compiler context with mutable access.
@@ -110,7 +116,7 @@ impl Compiler {
     /// See [`Session::enter`](Session::enter) for more details.
     pub fn enter_mut<T: Send>(&mut self, f: impl FnOnce(&mut CompilerRef<'_>) -> T + Send) -> T {
         // SAFETY: `CompilerRef` does not allow mutable access to the session.
-        let sess = unsafe { trustme::decouple_lt(&self.0.sess) };
+        let sess = unsafe { trustme::decouple_lt(self.sess()) };
         sess.enter(|| f(self.as_mut()))
     }
 
@@ -122,7 +128,7 @@ impl Compiler {
     ///
     /// See [`enter`](Self::enter) for more details.
     pub fn enter_sequential<T>(&self, f: impl FnOnce(&CompilerRef<'_>) -> T) -> T {
-        self.0.sess.enter_sequential(|| f(CompilerRef::new(&self.0)))
+        self.sess().enter_sequential(|| f(CompilerRef::new(&self.0)))
     }
 
     /// Enters the compiler context with mutable access.
@@ -134,7 +140,7 @@ impl Compiler {
     /// See [`enter_mut`](Self::enter_mut) for more details.
     pub fn enter_sequential_mut<T>(&mut self, f: impl FnOnce(&mut CompilerRef<'_>) -> T) -> T {
         // SAFETY: `CompilerRef` does not allow mutable access to the session.
-        let sess = unsafe { trustme::decouple_lt(&self.0.sess) };
+        let sess = unsafe { trustme::decouple_lt(self.sess()) };
         sess.enter_sequential(|| f(self.as_mut()))
     }
 
@@ -154,9 +160,9 @@ impl CompilerInner<'_> {
     unsafe fn init(this: *mut Self, sess: Session) {
         unsafe {
             let sess_p = project_ptr!(this->sess);
-            sess_p.write(sess);
+            sess_p.write(Some(sess));
 
-            let sess = &*sess_p;
+            let sess = (&*sess_p).as_ref().unwrap();
             project_ptr!(this->gcx).write(GlobalCtxt::new(sess));
         }
     }
@@ -214,7 +220,7 @@ impl<'c> CompilerRef<'c> {
     /// Returns a mutable reference to the compiler session.
     #[inline]
     fn sess_mut(&mut self) -> &mut Session {
-        &mut self.inner.sess
+        self.inner.sess.as_mut().unwrap()
     }
 
     /// Returns a reference to the diagnostics context.

@@ -545,7 +545,8 @@ pub struct BenchmarkRepeatedAnalysis {
 impl BenchmarkRepeatedAnalysis {
     /// Prepare one open document and reserve a stable analysis epoch.
     pub fn new(source: String) -> Self {
-        let (state, _) = open_benchmark_document(&source, "repeated-analysis.sol", 1);
+        let (mut state, _) = open_benchmark_document(&source, "repeated-analysis.sol", 1);
+        state.analysis_session = super::analysis_test_session();
         let version = 1;
         state.analysis_version.store(version, std::sync::atomic::Ordering::Release);
         state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
@@ -578,6 +579,7 @@ impl BenchmarkRepeatedAnalysis {
         }));
         let mut state = super::GlobalState::new(ClientSocket::new_closed());
         state.config = Arc::new(config);
+        state.analysis_session = super::analysis_test_session();
         for root in roots {
             state.vfs.write().set_file_contents_with_version(
                 VfsPath::from(root.join("Main.sol")),
