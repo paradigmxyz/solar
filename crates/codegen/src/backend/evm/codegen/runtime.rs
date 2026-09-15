@@ -93,6 +93,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.runtime_immutable_refs = result.immutable_refs;
             return GeneratedCode {
                 bytecode: result.bytecode,
+                library_offsets: result.library_offsets,
                 evm_ir: result.evm_ir,
                 debug_info: result.debug_info,
             };

@@ -5,10 +5,23 @@ use super::{calls::ExternalReturnMode, *};
 /// A `try` statement target resolved to the callee shape needed for lowering.
 #[derive(Clone, Copy)]
 enum TryCallee<'a> {
-    Creation { ty: &'a hir::Type<'a>, contract_id: hir::ContractId },
-    Member { receiver: &'a hir::Expr<'a>, selector: [u8; 4] },
-    LinkedLibrary { address: U256, function: hir::FunctionId, receiver: Option<&'a hir::Expr<'a>> },
-    FunctionPointer { address: ValueId, selector: ValueId },
+    Creation {
+        ty: &'a hir::Type<'a>,
+        contract_id: hir::ContractId,
+    },
+    Member {
+        receiver: &'a hir::Expr<'a>,
+        selector: [u8; 4],
+    },
+    LinkedLibrary {
+        address: ValueId,
+        function: hir::FunctionId,
+        receiver: Option<&'a hir::Expr<'a>>,
+    },
+    FunctionPointer {
+        address: ValueId,
+        selector: ValueId,
+    },
 }
 
 /// The failed call's return data, which the catch clauses match on and bind.
@@ -371,7 +384,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             let address = match target.callee {
                 TryCallee::Member { receiver, .. } => self.lower_expr(receiver)?,
-                TryCallee::LinkedLibrary { address, .. } => self.builder.imm(address),
+                TryCallee::LinkedLibrary { address, .. } => address,
                 TryCallee::FunctionPointer { address, .. } => address,
                 TryCallee::Creation { .. } => unreachable!(),
             };

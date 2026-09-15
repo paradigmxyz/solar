@@ -125,3 +125,19 @@ fn @keep_distinct_memory_fields(arg0: u256, arg1: u256, arg2: memorystruct) {
   bb4:
     stop
 }
+
+// Library addresses carry distinct relocation identities.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_libraries{{[( ]}}
+// CHECK: {{^[ +].*}}jumpi arg0, bb1, bb2
+// CHECK: library_address 730750818665451459101842416358141509827966271489
+// CHECK: library_address 730750818665451459101842416358141509827966271488
+fn @keep_distinct_libraries(arg0: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = library_address 730750818665451459101842416358141509827966271488
+    ret v0
+  bb2:
+    v1 = library_address 730750818665451459101842416358141509827966271489
+    ret v1
+}

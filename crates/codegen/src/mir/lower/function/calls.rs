@@ -128,6 +128,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(arg) = args.exprs().next() else {
                 return self.cx.report_unsupported(expr.span, "type conversion");
             };
+            if let Some(hir::Res::Item(hir::ItemId::Contract(id))) = self.cx.gcx.resolved_expr(arg)
+                && self.cx.gcx.hir.contract(id).kind == hir::ContractKind::Library
+            {
+                // address(L) => library_address(L)
+                let address = self.library_contract_address(id);
+                return Some(address);
+            }
             let source_ty = self.cx.gcx.type_of_expr(arg.id)?;
             let target_ty = self.cx.gcx.type_of_expr(expr.id).or_else(|| {
                 self.cx.gcx.resolved_expr(callee).and_then(|res| match res {
@@ -351,6 +358,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             bytecode,
             bytecode.len(),
             Some(super::super::data::contract_bytecode_data_name(self.cx.gcx, contract_id, true)),
+            &self.cx.child_bytecodes[&contract_id].deployment_library_offsets,
         );
         let encoded_ptr = self.builder.slice_ptr(encoded);
         let copy_dest = self.builder.add(data, bytecode_len_value);
@@ -1028,14 +1036,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some((values, types))
     }
 
-    fn linked_library_address(&self, function_id: hir::FunctionId) -> Option<U256> {
-        let contract_id = self
-            .cx
-            .gcx
-            .hir
-            .function(function_id)
-            .contract
-            .expect("library function must have a contract");
+    fn linked_library_address(&self, contract_id: hir::ContractId) -> Option<U256> {
         let contract = self.cx.gcx.hir.contract(contract_id);
         assert_eq!(contract.kind, hir::ContractKind::Library);
         let source = self.cx.gcx.hir.source(contract.source).file.name.display().to_string();
@@ -1050,11 +1051,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|library| U256::from_be_slice(library.address.as_slice()))
     }
 
-    pub(super) fn library_address(&mut self, function_id: hir::FunctionId) -> U256 {
-        if let Some(address) = self.linked_library_address(function_id) {
-            return address;
-        }
-
+    pub(super) fn library_address(&mut self, function_id: hir::FunctionId) -> ValueId {
         let contract_id = self
             .cx
             .gcx
@@ -1062,6 +1059,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .function(function_id)
             .contract
             .expect("library function must have a contract");
+        self.library_contract_address(contract_id)
+    }
+
+    pub(super) fn library_contract_address(&mut self, contract_id: hir::ContractId) -> ValueId {
+        if let Some(address) = self.linked_library_address(contract_id) {
+            return self.builder.imm(address);
+        }
         let contract = self.cx.gcx.hir.contract(contract_id);
         let source = self.cx.gcx.hir.source(contract.source).file.name.display().to_string();
 
@@ -1080,7 +1084,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut placeholder = <[u8; 20]>::try_from(&hash[..20]).unwrap();
         placeholder[0] |= 0x80;
         self.cx.module.add_library_link(LibraryLink { source, name, placeholder });
-        U256::from_be_slice(&placeholder)
+        // result = library_address placeholder
+        self.builder.library_address(U256::from_be_slice(&placeholder))
     }
 
     pub(super) fn lower_library_call(
@@ -1089,7 +1094,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         function_id: hir::FunctionId,
         receiver: Option<&hir::Expr<'_>>,
         args: hir::CallArgs<'_>,
-        address: U256,
+        address: ValueId,
     ) -> Option<ValueId> {
         let function = self.cx.gcx.hir.function(function_id);
         let receiver_count = usize::from(receiver.is_some());
@@ -1144,7 +1149,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input = self.builder.slice_ptr(encoded);
         let input_size = self.builder.slice_len(encoded);
         let zero = self.builder.imm(U256::ZERO);
-        let address = self.builder.imm(address);
         let gas = evm_version.can_overcharge_gas_for_call().then(|| self.builder.gas());
         // From Byzantium on the return values come out of the return data; before it the
         // delegatecall writes them into an output area overlaying its input and the success path

@@ -127,7 +127,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 .error(format!("expected program data ID {}, found {id}", module.data.len())));
         }
         let bytes = self.parser.parse_data_bytes()?;
-        module.data.push(Data { bytes, name, emit_in_runtime: false });
+        let library_offsets = self.parser.parse_data_library_offsets(&bytes)?;
+        module.data.push(Data { bytes, name, emit_in_runtime: false, library_offsets });
         Ok(())
     }
 
@@ -256,8 +257,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::push => match self.parse_push_value(module)? {
                 PushValue::Immediate(value) => Instruction::push_value(value),
                 PushValue::Block(block) => Instruction::push_block(block),
-                PushValue::Data(_) => unreachable!("ordinary push parser does not produce data"),
+                PushValue::Data(_) | PushValue::Library(_) => {
+                    unreachable!("ordinary push parser only produces immediates and blocks")
+                }
             },
+            sym::push_library => Instruction::push_library(self.parser.parse_uint()?),
             sym::push_data => {
                 let span = self.parser.token().span;
                 let (id, offset, _) = self.parser.parse_data_ref()?;

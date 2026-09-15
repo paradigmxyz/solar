@@ -41,6 +41,7 @@ struct Data {
     bytes: Bytes,
     name: Option<Symbol>,
     emit_in_runtime: bool,
+    library_offsets: Vec<usize>,
 }
 
 /// The lowering phase a [`Module`] is in.
@@ -134,6 +135,8 @@ pub struct Module {
     data_index: FxHashMap<Bytes, DataId>,
     /// Unresolved external library addresses used by this module.
     library_links: Vec<LibraryLink>,
+    /// Linked data has a separate identity from literal bytes with the same contents.
+    linked_data_index: FxHashMap<(Bytes, Vec<usize>), DataId>,
     /// Whether this is an interface (no bytecode generation).
     pub(crate) is_interface: bool,
     /// Whether this module was lowered from a library.
@@ -171,6 +174,7 @@ impl Module {
             data: IndexVec::new(),
             data_index: FxHashMap::default(),
             library_links: Vec::new(),
+            linked_data_index: FxHashMap::default(),
             is_interface: false,
             is_library: false,
             phase: MirPhase::Built,
@@ -352,6 +356,44 @@ impl Module {
         self.immutables.iter_enumerated()
     }
 
+    /// Returns library relocation offsets in a data blob.
+    pub(crate) fn data_library_offsets(&self, id: DataId) -> &[usize] {
+        &self.data[id].library_offsets
+    }
+
+    /// Adds a declaration with library relocations without interning it as literal data.
+    pub(crate) fn add_linked_data(
+        &mut self,
+        bytes: Bytes,
+        name: Option<Symbol>,
+        offsets: Vec<usize>,
+    ) -> DataId {
+        if offsets.is_empty() {
+            return self.add_data(bytes, name);
+        }
+        self.data.push(Data { bytes, name, emit_in_runtime: false, library_offsets: offsets })
+    }
+
+    /// Interns embedded bytecode without sharing its relocations with literal data.
+    pub(crate) fn intern_linked_data(
+        &mut self,
+        bytes: Bytes,
+        name: Option<Symbol>,
+        offsets: Vec<usize>,
+    ) -> DataRef {
+        if offsets.is_empty() {
+            return self.intern_data(Cow::Borrowed(&bytes), name);
+        }
+        let key = (bytes.clone(), offsets.clone());
+        if let Some(&id) = self.linked_data_index.get(&key) {
+            return DataRef::new(id, 0);
+        }
+        let id =
+            self.data.push(Data { bytes, name, emit_in_runtime: false, library_offsets: offsets });
+        self.linked_data_index.insert(key, id);
+        DataRef::new(id, 0)
+    }
+
     /// Interns constant data and returns its stable identifier.
     pub(crate) fn intern_data(&mut self, data: Cow<'_, [u8]>, name: Option<Symbol>) -> DataRef {
         let name = name.unwrap_or(sym::literal);
@@ -375,7 +417,12 @@ impl Module {
     }
 
     fn push_data(&mut self, data: Bytes, name: Option<Symbol>, emit_in_runtime: bool) -> DataId {
-        let id = self.data.push(Data { bytes: data.clone(), name, emit_in_runtime });
+        let id = self.data.push(Data {
+            bytes: data.clone(),
+            name,
+            emit_in_runtime,
+            library_offsets: Vec::new(),
+        });
         self.data_index.entry(data).or_insert(id);
         id
     }
@@ -432,7 +479,12 @@ impl Module {
                     for byte in data {
                         write!(f, "{byte:02x}")?;
                     }
-                    writeln!(f, "\"")?;
+                    write!(f, "\"")?;
+                    let offsets = self.data_library_offsets(id);
+                    if !offsets.is_empty() {
+                        write!(f, " library_offsets [{}]", offsets.iter().format(", "))?;
+                    }
+                    writeln!(f)?;
                 }
                 writeln!(f)?;
             }

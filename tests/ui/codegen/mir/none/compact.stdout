@@ -1,9 +1,18 @@
 - // === ROOT/tests/ui/codegen/mir/none/compact.mir (before none) ===
 + // === ROOT/tests/ui/codegen/mir/none/compact.mir (after none) ===
   @module Compact
+  data:
+    linked_0: hex"8000000000000000000000000000000000000000" library_offsets [0]
+  
   fn @compact() -> u256 {
     bb0:
       v0 = add 1, 2
+      ret v0
+  }
+  
+  fn @library() -> u256 {
+    bb0:
+      v0 = library_address 730750818665451459101842416358141509827966271488
       ret v0
   }
   

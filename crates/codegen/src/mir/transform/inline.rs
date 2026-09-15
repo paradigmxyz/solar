@@ -887,6 +887,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         InstKind::ConstructorArgsEnd => (9, 8),
         InstKind::InternalFrameAddr(_) => (6, 3),
         // Typed PUSH<N> placeholder patched at deploy time.
+        InstKind::LibraryAddress(_) => (3, 21),
         InstKind::LoadImmutable(id) => {
             let ty = module.immutable_type(*id);
             let encoding = ty.immutable_encoding().expect("validated immutable declaration");

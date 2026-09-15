@@ -247,7 +247,16 @@ impl<'a> Verifier<'a> {
                 self.error_in_block(block_id, "encoded push must use the `PUSH32` opcode");
             }
             match inst.encoding {
-                Instruction::ENCODED_PUSH => {}
+                Instruction::ENCODED_PUSH => {
+                    if let PushValue::Library(value) = value
+                        && !(153..=160).contains(&value.bit_len())
+                    {
+                        self.error_in_block(
+                            block_id,
+                            "library placeholder must occupy exactly 20 bytes",
+                        );
+                    }
+                }
                 encoding if encoding == Instruction::ENCODED_PUSH | Instruction::DEFERRED => {
                     self.verify_assembly_id(block_id, inst, value, "deferred constant");
                 }

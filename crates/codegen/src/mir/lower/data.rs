@@ -38,6 +38,8 @@ pub struct ContractBytecodes {
     deployment: Option<Bytes>,
     /// Deployed runtime bytecode.
     runtime: Option<Bytes>,
+    pub(crate) deployment_library_offsets: Vec<usize>,
+    pub(crate) runtime_library_offsets: Vec<usize>,
 }
 
 impl ContractBytecodes {
@@ -46,6 +48,7 @@ impl ContractBytecodes {
         Self {
             deployment: (!deployment.is_empty()).then_some(deployment),
             runtime: (!runtime.is_empty()).then_some(runtime),
+            ..Self::default()
         }
     }
 
@@ -61,6 +64,7 @@ impl ContractBytecodes {
 }
 
 /// Copies constant data and clears its padding through `padded_size`.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn copy_data_to_memory(
     gcx: Gcx<'_>,
     module: &mut Module,
@@ -69,9 +73,24 @@ pub(super) fn copy_data_to_memory(
     data: &[u8],
     padded_size: usize,
     name: Option<Symbol>,
+    library_offsets: &[usize],
 ) {
     debug_assert!(padded_size >= data.len());
     if padded_size == 0 {
+        return;
+    }
+    if !library_offsets.is_empty() {
+        // memory_zero dest + floor(size / 32) * 32, padded_size - floor(size / 32) * 32
+        // data_copy linked_bytecode, dest, size
+        if padded_size > data.len() {
+            let tail = builder.add_u64_offset(dest, (data.len() / WORD_BYTES * WORD_BYTES) as u64);
+            let size = builder.imm((padded_size - data.len() / WORD_BYTES * WORD_BYTES) as u64);
+            builder.memory_zero(tail, size);
+        }
+        let size = builder.imm(data.len() as u64);
+        let data =
+            module.intern_linked_data(Bytes::copy_from_slice(data), name, library_offsets.to_vec());
+        builder.data_copy(data, dest, size);
         return;
     }
     if !data.is_empty() && padded_size <= EvmMemoryLayout::WORD_SIZE as usize {
