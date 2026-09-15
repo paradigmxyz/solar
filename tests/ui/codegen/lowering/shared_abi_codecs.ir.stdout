@@ -248,8 +248,7 @@ fn @roundTrip() [selector=0x00746047, pure] {
     v75 = lt v74, v61
     jumpi v75, bb20, bb21
   bb21:
-    v77 = mload v121
-    v78 = lt 1, v77
+    v78 = lt 1, v63
     jumpi v78, bb22, bb15
   bb22:
     v192 = add v121, 64

@@ -1640,8 +1640,18 @@ impl AliasAnalysis {
                 if a != b {
                     return AliasResult::NoAlias;
                 }
+                // One allocation site that runs more than once gives each
+                // instance its own region, so two accesses to different
+                // instances never overlap and two accesses to one instance
+                // overlap exactly when their offsets do. Disjoint offsets are
+                // therefore disjoint either way, which the comparison below
+                // establishes; an overlap only means they *may* alias, because
+                // the accesses may belong to different instances.
                 if a_dynamic || b_dynamic {
-                    return AliasResult::MayAlias;
+                    return match Self::compare_offsets(first, second) {
+                        AliasResult::NoAlias => AliasResult::NoAlias,
+                        _ => AliasResult::MayAlias,
+                    };
                 }
                 // Same unique static allocation: compare offsets below.
             }
@@ -1657,6 +1667,11 @@ impl AliasAnalysis {
         if first.address.base != second.address.base {
             return AliasResult::MayAlias;
         }
+        Self::compare_offsets(first, second)
+    }
+
+    /// Compares two ranges that share a base, by offset and width.
+    fn compare_offsets(first: MemoryLocation, second: MemoryLocation) -> AliasResult {
         match (first.size, second.size) {
             (LocationSize::Const(first_size), LocationSize::Const(second_size)) => {
                 let Some(first_end) = first.address.offset.checked_add(first_size) else {

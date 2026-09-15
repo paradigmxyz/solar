@@ -52,10 +52,11 @@ contract C {
         return m.length;
     }
 
+    // Both fields are materialized by their own copy. The lengths the result
+    // reads back are known once the copies store them, so no reload follows.
     // CHECK: [[STRUCT_BODY]]:
     // CHECK: calldatacopy
     // CHECK: calldatacopy
-    // CHECK: mload
     function viaStructLiteral(uint256 base, uint256[] calldata xs, bytes calldata tag)
         external
         pure

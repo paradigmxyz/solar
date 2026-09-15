@@ -216,8 +216,7 @@ fn @tailHash.4(arg0: calldataptr, arg1: u256) -> bytes32 [pure] {
     mstore v63, v49
     v66 = add v63, 32
     calldatacopy v66, v50, v49
-    v69 = mload v63
-    v64 = keccak256 v66, v69
+    v64 = keccak256 v66, v49
     jump bb7
   bb7:
     v65 = phi [bb5: 0], [bb12: v64]

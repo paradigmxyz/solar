@@ -376,37 +376,37 @@ bb31:
   add
   push 64
   mstore
-  swap 5
   dup 6
+  dup 2
   mstore
   push 32
-  dup 6
-  add
   dup 2
-  dup 8
+  add
+  dup 3
+  dup 9
   dup 3
   calldatacopy
   pop
+  swap 6
   pop
-  swap 4
   pop
   push 0
   not
   push 192
   shr
-  dup 2
+  dup 3
   gt
   push bb6
   jumpi
-  dup 1
+  dup 2
   calldatasize
   sub
-  dup 3
+  dup 4
   sgt
   push bb6
   jumpi
   push 63
-  dup 2
+  dup 3
   add
   push 31
   not
@@ -418,39 +418,32 @@ bb31:
   add
   push 64
   mstore
-  dup 2
+  dup 3
   dup 2
   mstore
   push 32
   dup 2
   add
-  dup 3
-  dup 5
+  dup 4
+  dup 6
   dup 3
   calldatacopy
   pop
-  swap 2
+  swap 3
   pop
   push 4
   calldataload
-  dup 5
+  dup 2
   mstore
   push 32
-  dup 5
+  dup 2
   add
+  exchange 1, 5
+  mstore
   swap 3
-  dup 4
-  mstore
   push 64
-  dup 5
   add
-  exchange 1, 2
   mstore
-  swap 2
-  mload
-  swap 1
-  mload
-  mload
   push 10
   dup 2
   mul
@@ -462,9 +455,11 @@ bb31:
   sub
   push bb49
   jumpi
-  dup 2
+  push 4
+  calldataload
   add
-  swap 1
+  push 4
+  calldataload
   dup 2
   lt
   push bb49

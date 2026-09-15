@@ -52,8 +52,7 @@ fn @words() [selector=0x5a7641c8, pure] {
     mcopy v49, v9, v24
     v41 = iszero v23
     v42 = iszero v41
-    v40 = mload v23
-    v43 = mul v40, v42
+    v43 = mul v13, v42
     v45 = shl 5, v43
     v46 = add v49, 32
     mcopy v46, v49, v45
@@ -124,22 +123,17 @@ fn @bools() [selector=0xcfb203c5, pure] {
     v35 = phi [bb8: 0], [bb12: v41]
     jumpi v33, bb10, bb11
   bb11:
-    v45 = mload v23
-    v46 = add v45, 1
-    jumpi v46, bb13, bb4
+    jumpi v15, bb13, bb4
   bb13:
-    v48 = shl 5, v46
-    v50 = shr 5, v48
-    v51 = eq v50, v46
-    jumpi v51, bb14, bb4
+    jumpi v20, bb14, bb4
   bb14:
-    v54 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v105 = add v54, v48
+    v54 = mload 64 !metadata(memory=scratch)
+    v105 = add v54, v17
     mstore 64, v105 !metadata(memory=scratch)
-    mstore v54, v45
+    mstore v54, v13
     v95 = add v23, 32
     v98 = add v54, 32
-    v111 = shl 5, v45
+    v111 = shl 5, v13
     v112 = add v95, v111
     jump bb15
   bb15:
