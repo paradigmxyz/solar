@@ -1367,47 +1367,62 @@ fn single_workspace_index_reuse(c: &mut Criterion) {
                 "_safeTransferFrom"
             );
         }
-        c.benchmark_group("lsp/single-workspace-unchanged").bench_function(name, |b| {
-            b.iter(|| black_box(analysis.run_epoch()));
-        });
-        c.benchmark_group("lsp/single-workspace-cold").bench_function(name, |b| {
-            b.iter_batched_ref(
-                prepare,
-                |analysis| black_box(analysis.run_epoch()),
-                BatchSize::PerIteration,
-            );
-        });
-        c.benchmark_group("lsp/single-workspace-reverted-edit").bench_function(name, |b| {
-            b.iter(|| {
-                analysis.edit_and_revert();
-                black_box(analysis.run_epoch())
-            });
-        });
-        c.benchmark_group("lsp/single-workspace-open-indexed").bench_function(name, |b| {
-            b.iter_batched_ref(
-                || {
-                    let mut analysis = prepare();
-                    analysis.clear_open_documents();
-                    assert!(analysis.run_epoch());
-                    analysis.assert_no_diagnostics();
-                    analysis
-                },
-                |analysis| {
-                    analysis.replace_source(&main, source);
+        c.benchmark_group("lsp/single-workspace-unchanged").bench_function(
+            BenchmarkId::from_parameter(name),
+            |b| {
+                b.iter(|| black_box(analysis.run_epoch()));
+            },
+        );
+        c.benchmark_group("lsp/single-workspace-cold").bench_function(
+            BenchmarkId::from_parameter(name),
+            |b| {
+                b.iter_batched_ref(
+                    prepare,
+                    |analysis| black_box(analysis.run_epoch()),
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+        c.benchmark_group("lsp/single-workspace-reverted-edit").bench_function(
+            BenchmarkId::from_parameter(name),
+            |b| {
+                b.iter(|| {
+                    analysis.edit_and_revert();
                     black_box(analysis.run_epoch())
-                },
-                BatchSize::PerIteration,
-            );
-        });
+                });
+            },
+        );
+        c.benchmark_group("lsp/single-workspace-open-indexed").bench_function(
+            BenchmarkId::from_parameter(name),
+            |b| {
+                b.iter_batched_ref(
+                    || {
+                        let mut analysis = prepare();
+                        analysis.clear_open_documents();
+                        assert!(analysis.run_epoch());
+                        analysis.assert_no_diagnostics();
+                        analysis
+                    },
+                    |analysis| {
+                        analysis.replace_source(&main, source);
+                        black_box(analysis.run_epoch())
+                    },
+                    BatchSize::PerIteration,
+                );
+            },
+        );
         let mut edited = false;
         let edited_source = format!("{source} ");
-        c.benchmark_group("lsp/single-workspace-changed").bench_function(name, |b| {
-            b.iter(|| {
-                edited = !edited;
-                analysis.replace_source(&main, if edited { &edited_source } else { source });
-                black_box(analysis.run_epoch())
-            });
-        });
+        c.benchmark_group("lsp/single-workspace-changed").bench_function(
+            BenchmarkId::from_parameter(name),
+            |b| {
+                b.iter(|| {
+                    edited = !edited;
+                    analysis.replace_source(&main, if edited { &edited_source } else { source });
+                    black_box(analysis.run_epoch())
+                });
+            },
+        );
     }
 }
 
