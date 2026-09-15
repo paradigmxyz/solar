@@ -23,3 +23,12 @@
 (extern constructor u256_from_limbs u256_from_limbs)
 (decl pure u256_same (U256 U256) bool)
 (extern constructor u256_same u256_same)
+
+(decl bool_value () Value)
+(extern extractor bool_value bool_value)
+(decl pure u256_ge (U256 U256) bool)
+(extern constructor u256_ge u256_ge)
+(decl pure u256_sub (U256 U256) U256)
+(extern constructor u256_sub u256_sub)
+(decl pure optimize_for_size () bool)
+(extern constructor optimize_for_size optimize_for_size)

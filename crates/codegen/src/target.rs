@@ -460,6 +460,16 @@ impl Target {
         Cost::new(static_gas.saturating_add(dynamic), 1)
     }
 
+    /// Cost of the generic Select emitter, excluding initial operand placement.
+    pub(crate) fn select(self, normalize_condition: bool) -> Cost {
+        // dup false; dup true; sub; mul; swap1; pop; add
+        let sequence = [op::DUP1, op::DUP1, op::SUB, op::MUL, op::SWAP1, op::POP, op::ADD]
+            .into_iter()
+            .map(|opcode| self.opcode(opcode))
+            .sum::<Cost>();
+        if normalize_condition { sequence + self.opcode(op::ISZERO).times(2) } else { sequence }
+    }
+
     /// Gas of copying one more word with a copy opcode.
     pub(crate) fn copy_word_gas(self) -> u32 {
         GasTier::Copy.dynamic_gas(self.evm_version)
@@ -667,6 +677,13 @@ mod tests {
         let load = InstKind::SLoad(slot).op();
         assert_eq!(target.op_at(&load, |_| None, Warmth::Warm), Cost::new(100, 1));
         assert_eq!(target.op(&load, |_| None), Cost::new(2100, 1));
+    }
+
+    #[test]
+    fn select_prices_the_emitted_sequence() {
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        assert_eq!(target.select(false), Cost::new(22, 7));
+        assert_eq!(target.select(true), Cost::new(28, 9));
     }
 
     #[test]
