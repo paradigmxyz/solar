@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/inline-dispatch/signatures.sol:Signatures ===
 @module Signatures
-@phase evm-shaped
+@phase lowered
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
@@ -43,9 +43,9 @@ fn @entry() [entry] {
     mstore 128, v7
     returndata 128, 32
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
-    mstore 4, 17
-    revert 0, 36
+    mstore 0, 0x4e487b71
+    mstore 32, 17
+    revert 28, 36
   bb2:
     stop
   bb5:

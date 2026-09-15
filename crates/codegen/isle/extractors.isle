@@ -6,6 +6,78 @@
 (decl inst (Op) Value)
 (extern extractor inst inst_data)
 
+(decl insertvalue (StructId Value u32 Value) Value)
+(extractor (insertvalue ty aggregate index value) (inst (Op.InsertValue ty aggregate index value)))
+
+(decl extractvalue (StructId Value u32) Value)
+(extractor (extractvalue ty aggregate index) (inst (Op.ExtractValue ty aggregate index)))
+
+(decl memoryobjectfromptr (Value MemoryObjectKind) Value)
+(extractor (memoryobjectfromptr ptr kind) (inst (Op.MemoryObjectFromPtr ptr kind)))
+
+(decl wordcast (Value) Value)
+(extractor (wordcast operand0) (inst (Op.WordCast operand0)))
+
+(decl checkedbinary (CheckedOp ArithmeticKind Value Value) Value)
+(extractor (checkedbinary op arithmetic lhs rhs) (inst (Op.CheckedBinary op arithmetic lhs rhs)))
+
+(decl validatestoragebytes (Value) Value)
+(extractor (validatestoragebytes operand0) (inst (Op.ValidateStorageBytes operand0)))
+
+(decl storagebytesload (Value) Value)
+(extractor (storagebytesload operand0) (inst (Op.StorageBytesLoad operand0)))
+
+(decl storagearrayload (Value MirType OptionU64) Value)
+(extractor (storagearrayload slot element enum_variants) (inst (Op.StorageArrayLoad slot element enum_variants)))
+
+(decl storagebytesstore (Value Value) Value)
+(extractor (storagebytesstore operand0 operand1) (inst (Op.StorageBytesStore operand0 operand1)))
+
+(decl storagebytesstoreliteral (Value Unit) Value)
+(extractor (storagebytesstoreliteral slot bytes) (inst (Op.StorageBytesStoreLiteral slot bytes)))
+
+(decl storageclearwords (Value Value Value) Value)
+(extractor (storageclearwords operand0 operand1 operand2) (inst (Op.StorageClearWords operand0 operand1 operand2)))
+
+(decl validateabi (Value) Value)
+(extractor (validateabi operand0) (inst (Op.ValidateAbi operand0)))
+
+(decl check (Value bool Unit) Value)
+(extractor (check condition is_zero failure) (inst (Op.Check condition is_zero failure)))
+
+(decl sha256 (Value) Value)
+(extractor (sha256 operand0) (inst (Op.Sha256 operand0)))
+
+(decl erc7201 (Value) Value)
+(extractor (erc7201 operand0) (inst (Op.Erc7201 operand0)))
+
+(decl checkedaddmod (Value Value Value) Value)
+(extractor (checkedaddmod operand0 operand1 operand2) (inst (Op.CheckedAddMod operand0 operand1 operand2)))
+
+(decl checkedmulmod (Value Value Value) Value)
+(extractor (checkedmulmod operand0 operand1 operand2) (inst (Op.CheckedMulMod operand0 operand1 operand2)))
+
+(decl abiencodepacked (Unit bool) Value)
+(extractor (abiencodepacked parts hash) (inst (Op.AbiEncodePacked parts hash)))
+
+(decl ripemd160 (Value) Value)
+(extractor (ripemd160 operand0) (inst (Op.Ripemd160 operand0)))
+
+(decl addresscall (AddressCallKind Value Value OptionValue OptionValue) Value)
+(extractor (addresscall kind address input gas value) (inst (Op.AddressCall kind address input gas value)))
+
+(decl returndatabytes () Value)
+(extractor (returndatabytes) (inst (Op.ReturndataBytes)))
+
+(decl send (Value Value) Value)
+(extractor (send operand0 operand1) (inst (Op.Send operand0 operand1)))
+
+(decl transfer (Value Value) Value)
+(extractor (transfer operand0 operand1) (inst (Op.Transfer operand0 operand1)))
+
+(decl ecrecover (Value Value Value Value) Value)
+(extractor (ecrecover operand0 operand1 operand2 operand3) (inst (Op.EcRecover operand0 operand1 operand2 operand3)))
+
 (decl add (Value Value) Value)
 (extractor (add a b) (inst (Op.Add a b)))
 
@@ -348,8 +420,8 @@
 (decl extstaticcall (Value Value Value) Value)
 (extractor (extstaticcall addr args_offset args_size) (inst (Op.ExtStaticCall addr args_offset args_size)))
 
-(decl icall (FunctionId Unit u32) Value)
-(extractor (icall function args returns) (inst (Op.ICall function args returns)))
+(decl icall (Unit Unit) Value)
+(extractor (icall function args) (inst (Op.ICall function args)))
 
 (decl create (Value Value Value) Value)
 (extractor (create value offset size) (inst (Op.Create value offset size)))

@@ -7,8 +7,8 @@
 
 use super::super::{
     BlockId, EvmCodegen, Function, FxHashMap, GLOBAL_STACK_LAYOUT_LIMIT, GlobalStackPlan,
-    MAX_STACK_ACCESS, OptimizationMode, StackModel, StackPhiBranch, StackPhiEdge, TargetSlot,
-    Terminator, ValueId, op,
+    MAX_STACK_ACCESS, StackModel, StackPhiBranch, StackPhiEdge, TargetSlot, Terminator, ValueId,
+    op,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {

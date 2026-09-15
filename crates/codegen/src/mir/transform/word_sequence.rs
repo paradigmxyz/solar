@@ -74,8 +74,7 @@ fn legal(op: &Op, target: Target) -> bool {
 }
 
 fn removable(inst: &Instruction, target: Target) -> bool {
-    !inst.metadata.abi_validation()
-        && inst.metadata.effect().is_none_or(|effect| effect == EffectKind::Pure)
+    inst.metadata.effect().is_none_or(|effect| effect == EffectKind::Pure)
         && legal(&inst.kind.op(), target)
 }
 

@@ -26,11 +26,11 @@
 use alloy_primitives::Bytes;
 
 use super::{
-    AddressCallKind, Callee, StructId,
-    AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AllocationKind, AllocationSemantics, BlockId,
-    DataRef, EffectKind, FrameMode, FrameSlotKind, FunctionId, ImmutableId, InstructionMetadata,
-    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, SliceLocation, StorageLayoutRef,
-    ValueId,
+    AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AddressCallKind, AllocationKind,
+    AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, EffectKind,
+    FrameMode, FrameSlotKind, FunctionId, ImmutableId, InstructionMetadata, MemoryObjectKind,
+    MemoryObjectLayout, MirPhase, MirType, PackedPart, RevertKind, SliceLocation, StorageLayoutRef,
+    StructId, ValueId,
 };
 use smallvec::{Array, SmallVec};
 #[cfg(test)]
@@ -41,19 +41,15 @@ use std::fmt::Write as _;
 pub(crate) struct PhaseSet(u8);
 
 const _: () = assert!(
-    (MirPhase::EvmShaped as u32 + 1) < u8::BITS,
+    (MirPhase::Lowered as u32 + 1) < u8::BITS,
     "PhaseSet storage must be widened before adding another MIR phase"
 );
 
 impl PhaseSet {
+    /// Semantic representation, before the lowered word-only boundary.
     pub(crate) const SEMANTIC: Self = Self::through(MirPhase::Semantic);
     /// All phases currently defined by MIR.
     pub(crate) const ALL: Self = Self::through(MirPhase::Lowered);
-    /// Phases before semantic memory lowering has completed.
-    pub(crate) const THROUGH_DISPATCH: Self = Self::through(MirPhase::Semantic);
-    /// Phases before the physical EVM shape boundary.
-    pub(crate) const THROUGH_MEMORY_LOWERED: Self = Self::through(MirPhase::Semantic);
-
     /// Creates a set containing every phase up to and including `phase`.
     const fn through(phase: MirPhase) -> Self {
         Self((1u8 << (phase as u8 + 1)) - 1)
@@ -326,21 +322,25 @@ impl Operands for Vec<(BlockId, ValueId)> {
     }
 }
 
-impl Operands for Box<[super::PackedPart]> {
+impl Operands for Box<[PackedPart]> {
     type View = ();
     #[cfg(test)]
     const ISLE_TYPE: &'static str = "Unit";
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
-        out.extend(self.iter().filter_map(super::PackedPart::value));
+        out.extend(self.iter().filter_map(PackedPart::value));
     }
     fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId)) {
-        self.iter_mut().filter_map(super::PackedPart::value_mut).for_each(f);
+        self.iter_mut().filter_map(PackedPart::value_mut).for_each(f);
     }
     fn view(&self) {}
     fn map_view((): (), _: &mut impl FnMut(ValueId) -> ValueId) {}
-    fn from_view((): ()) -> Option<Self> { None }
+    fn from_view((): ()) -> Option<Self> {
+        None
+    }
     const IS_OPERAND: bool = false;
-    fn from_operand(_: ValueId) -> Self { unreachable!("packed parts need their types") }
+    fn from_operand(_: ValueId) -> Self {
+        unreachable!("packed parts need their types")
+    }
 }
 
 /// Declares field types that never hold value operands.
@@ -473,8 +473,10 @@ fn isle_op_name(variant: &str) -> String {
     }
 }
 
+type OptionU64 = Option<u64>;
+
 attributes! {
-    bool, StructId, MirType, AddressCallKind, super::CheckedOp, super::ArithmeticKind, Option<u64>,
+    bool, StructId, MirType, AddressCallKind, CheckedOp, ArithmeticKind, OptionU64,
     u32,
     u64,
     AbiEncodeMode,
@@ -491,7 +493,7 @@ attributes! {
 }
 
 opaque_attributes! {
-    Bytes, Callee, super::RevertKind,
+    Bytes, Callee, RevertKind,
     AbiLayoutRef,
     AbiParamLayoutRef,
     StorageLayoutRef,
@@ -538,7 +540,7 @@ macro_rules! define_mir_ops {
         }
     ) => {
         /// The kind of a MIR instruction.
-        #[derive(Clone, Debug, PartialEq)]
+        #[derive(Clone, Debug, PartialEq, Eq, Hash)]
         pub(crate) enum $inst_name {
             $(
                 $(#[doc = $doc])*
@@ -667,7 +669,7 @@ macro_rules! define_mir_ops {
                     return definition.phase_category;
                 }
                 if matches!(self, Self::Alloc { kind: AllocationKind::Object(_), .. })
-                    && phase >= MirPhase::Semantic
+                    && phase >= MirPhase::Lowered
                 {
                     return Some("memory-object");
                 }
@@ -892,8 +894,8 @@ define_mir_ops! {
     #[mir_op(mnemonic = "checked_binary", result = Word, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
     CheckedBinary {
-        op: super::CheckedOp,
-        arithmetic: super::ArithmeticKind,
+        op: CheckedOp,
+        arithmetic: ArithmeticKind,
         lhs: ValueId,
         rhs: ValueId,
     },
@@ -920,7 +922,7 @@ define_mir_ops! {
     ValidateAbi(operand0: ValueId),
     #[mir_op(mnemonic = "check", result = None, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
-    Check { condition: ValueId, is_zero: bool, failure: super::RevertKind },
+    Check { condition: ValueId, is_zero: bool, failure: RevertKind },
     #[mir_op(mnemonic = "sha256", result = Word, phases = PhaseSet::SEMANTIC,
         effect = ExternalCall, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
     Sha256(operand0: ValueId),
@@ -935,7 +937,7 @@ define_mir_ops! {
     CheckedMulMod(operand0: ValueId, operand1: ValueId, operand2: ValueId),
     #[mir_op(mnemonic = "abi_encode_packed", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
-    AbiEncodePacked { parts: Box<[super::PackedPart]>, hash: bool },
+    AbiEncodePacked { parts: Box<[PackedPart]>, hash: bool },
     #[mir_op(mnemonic = "ripemd160", result = Word, phases = PhaseSet::SEMANTIC,
         effect = ExternalCall, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
     Ripemd160(operand0: ValueId),
@@ -1316,7 +1318,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "memory_zero",
         result = None,
-        phases = PhaseSet::THROUGH_MEMORY_LOWERED,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = true,
@@ -1340,7 +1342,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "fmp",
         result = MemPtr,
-        phases = PhaseSet::THROUGH_MEMORY_LOWERED,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::NONE,
         side_effects = false,
@@ -1352,7 +1354,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "set_fmp",
         result = None,
-        phases = PhaseSet::THROUGH_MEMORY_LOWERED,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = true,
@@ -1381,7 +1383,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "memory_object_len",
         result = Word,
-        phases = PhaseSet::THROUGH_DISPATCH,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = false,
@@ -1392,7 +1394,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "set_memory_object_len",
         result = None,
-        phases = PhaseSet::THROUGH_DISPATCH,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = true,
@@ -1403,7 +1405,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "memory_object_data",
         result = MemPtr,
-        phases = PhaseSet::THROUGH_DISPATCH,
+        phases = PhaseSet::SEMANTIC,
         effect = Pure,
         traits = OpTraits::MEMORY_OBJECT.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
@@ -1414,7 +1416,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "memory_object_field_addr",
         result = MemPtr,
-        phases = PhaseSet::THROUGH_DISPATCH,
+        phases = PhaseSet::SEMANTIC,
         effect = Pure,
         traits = OpTraits::MEMORY_OBJECT.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
@@ -1432,7 +1434,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "memory_object_element_addr",
         result = MemPtr,
-        phases = PhaseSet::THROUGH_DISPATCH,
+        phases = PhaseSet::SEMANTIC,
         effect = Pure,
         traits = OpTraits::MEMORY_OBJECT.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
@@ -1450,7 +1452,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "memory_object_load_field",
         result = Word,
-        phases = PhaseSet::THROUGH_DISPATCH,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = false,
@@ -1468,7 +1470,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "memory_object_store_field",
         result = None,
-        phases = PhaseSet::THROUGH_DISPATCH,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = true,
@@ -1488,7 +1490,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "memory_object_load_element",
         result = Word,
-        phases = PhaseSet::THROUGH_DISPATCH,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = false,
@@ -1506,7 +1508,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "memory_object_load_byte",
         result = Word,
-        phases = PhaseSet::THROUGH_DISPATCH,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = false,
@@ -1522,7 +1524,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "memory_object_store_element",
         result = None,
-        phases = PhaseSet::THROUGH_DISPATCH,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = true,
@@ -1542,7 +1544,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "memory_object_store_byte",
         result = None,
-        phases = PhaseSet::THROUGH_DISPATCH,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = true,
@@ -1561,7 +1563,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "memory_object_store_word",
         result = None,
-        phases = PhaseSet::THROUGH_DISPATCH,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = true,
@@ -1580,7 +1582,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "memory_slice_load_word",
         result = Word,
-        phases = PhaseSet::THROUGH_DISPATCH,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = false,
@@ -1597,7 +1599,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "calldata_slice_load_word",
         result = Word,
-        phases = PhaseSet::THROUGH_DISPATCH,
+        phases = PhaseSet::SEMANTIC,
         effect = EnvironmentRead,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = false,
@@ -1613,7 +1615,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "memory_object_copy_from_slice",
         result = None,
-        phases = PhaseSet::THROUGH_DISPATCH,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = true,
@@ -1631,7 +1633,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "memory_object_copy_from_slice_at",
         result = None,
-        phases = PhaseSet::THROUGH_DISPATCH,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = true,
@@ -1651,7 +1653,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "memory_object_copy",
         result = None,
-        phases = PhaseSet::THROUGH_DISPATCH,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = true,
@@ -1673,7 +1675,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "abi_encode",
         result = Custom,
-        phases = PhaseSet::THROUGH_MEMORY_LOWERED,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = true,
@@ -1696,7 +1698,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "abi_decode",
         result = Custom,
-        phases = PhaseSet::THROUGH_MEMORY_LOWERED,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = true,
@@ -1712,7 +1714,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "storage_to_memory",
         result = None,
-        phases = PhaseSet::THROUGH_MEMORY_LOWERED,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = true,
@@ -1730,7 +1732,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "memory_to_storage",
         result = None,
-        phases = PhaseSet::THROUGH_MEMORY_LOWERED,
+        phases = PhaseSet::SEMANTIC,
         effect = StorageWrite,
         traits = OpTraits::NONE,
         side_effects = true,
@@ -1748,7 +1750,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "clear_storage",
         result = None,
-        phases = PhaseSet::THROUGH_MEMORY_LOWERED,
+        phases = PhaseSet::SEMANTIC,
         effect = StorageWrite,
         traits = OpTraits::NONE,
         side_effects = true,
@@ -1864,7 +1866,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "make_memory_slice",
         result = Custom,
-        phases = PhaseSet::THROUGH_MEMORY_LOWERED,
+        phases = PhaseSet::SEMANTIC,
         effect = Pure,
         traits = OpTraits::NONE,
         side_effects = false,
@@ -1884,7 +1886,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "slice_ptr",
         result = Word,
-        phases = PhaseSet::THROUGH_MEMORY_LOWERED,
+        phases = PhaseSet::SEMANTIC,
         effect = Pure,
         traits = OpTraits::NONE,
         side_effects = false,
@@ -1896,7 +1898,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "slice_len",
         result = Word,
-        phases = PhaseSet::THROUGH_MEMORY_LOWERED,
+        phases = PhaseSet::SEMANTIC,
         effect = Pure,
         traits = OpTraits::NONE,
         side_effects = false,
@@ -1923,7 +1925,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "frame_load",
         result = Custom,
-        phases = PhaseSet::THROUGH_DISPATCH,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::NONE,
         side_effects = false,
@@ -1941,7 +1943,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "frame_store",
         result = None,
-        phases = PhaseSet::THROUGH_DISPATCH,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = true,
@@ -2058,7 +2060,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "storeimmutable",
         result = None,
-        phases = PhaseSet::THROUGH_MEMORY_LOWERED,
+        phases = PhaseSet::SEMANTIC,
         effect = ImmutableWrite,
         traits = OpTraits::NONE,
         side_effects = true,
@@ -2361,7 +2363,7 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "keccak256_bytes",
         result = Bytes32,
-        phases = PhaseSet::THROUGH_DISPATCH,
+        phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = false,
@@ -2371,13 +2373,12 @@ define_mir_ops! {
     Keccak256Bytes(object: ValueId),
     /// Hash a fixed-width mapping key and its parent slot.
     ///
-    /// The temporary scratch memory used by its late lowering is not an
-    /// observable part of this instruction's MIR semantics.
+    /// Late lowering writes scratch memory; effect analysis tracks that footprint.
     #[mir_op(
         mnemonic = "mapping_slot",
         result = Bytes32,
-        phases = PhaseSet::THROUGH_MEMORY_LOWERED,
-        effect = MemoryRead,
+        phases = PhaseSet::SEMANTIC,
+        effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = false,
         category = Some("storage slot")
@@ -2388,8 +2389,8 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "mapping_slot_memory",
         result = Bytes32,
-        phases = PhaseSet::THROUGH_MEMORY_LOWERED,
-        effect = MemoryRead,
+        phases = PhaseSet::SEMANTIC,
+        effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = false,
         category = Some("storage slot")
@@ -2398,13 +2399,12 @@ define_mir_ops! {
     MappingSlotMemory(key: ValueId, slot: ValueId),
     /// Hash a dynamically-sized calldata value and its parent mapping slot.
     ///
-    /// The temporary scratch memory used by its late lowering is not an
-    /// observable part of this instruction's MIR semantics.
+    /// Late lowering writes scratch memory; effect analysis tracks that footprint.
     #[mir_op(
         mnemonic = "mapping_slot_calldata",
         result = Bytes32,
-        phases = PhaseSet::THROUGH_MEMORY_LOWERED,
-        effect = EnvironmentRead,
+        phases = PhaseSet::SEMANTIC,
+        effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = false,
         category = Some("storage slot")
@@ -2413,13 +2413,12 @@ define_mir_ops! {
     MappingSlotCalldata(key: ValueId, slot: ValueId),
     /// Hash the slot of a dynamically-sized storage array to find its data.
     ///
-    /// The temporary scratch memory used by its late lowering is not an
-    /// observable part of this instruction's MIR semantics.
+    /// Late lowering writes scratch memory; effect analysis tracks that footprint.
     #[mir_op(
         mnemonic = "storage_array_data_slot",
         result = Bytes32,
-        phases = PhaseSet::THROUGH_MEMORY_LOWERED,
-        effect = Pure,
+        phases = PhaseSet::SEMANTIC,
+        effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = false,
         category = Some("storage slot")
@@ -2434,8 +2433,8 @@ define_mir_ops! {
     #[mir_op(
         mnemonic = "storage_array_element_slot",
         result = Bytes32,
-        phases = PhaseSet::THROUGH_MEMORY_LOWERED,
-        effect = Pure,
+        phases = PhaseSet::SEMANTIC,
+        effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = false,
         category = Some("storage slot")
@@ -2755,15 +2754,12 @@ mod tests {
     fn descriptors_enforce_phase_boundaries() {
         let metadata = InstructionMetadata::EMPTY;
         let fmp = InstKind::Fmp;
-        assert_eq!(
-            fmp.phase_violation(MirPhase::Lowered, &metadata),
-            Some("abstract allocation")
-        );
+        assert_eq!(fmp.phase_violation(MirPhase::Lowered, &metadata), Some("abstract allocation"));
 
         let object_load =
             InstKind::MemoryObjectLoadByte { object: ValueId::new(0), index: ValueId::new(1) };
         assert_eq!(
-            object_load.phase_violation(MirPhase::Semantic, &metadata),
+            object_load.phase_violation(MirPhase::Lowered, &metadata),
             Some("memory-object")
         );
 

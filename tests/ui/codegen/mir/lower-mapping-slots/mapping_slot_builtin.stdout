@@ -238,7 +238,7 @@
 -     v12 = slice_ptr arg0
 -     calldatacopy v11, v12, v9 !metadata(memory=heap)
 -     v13 = add v11, v9
-+     calldatacopy v11, arg0, arg1 !metadata(memory=heap)
++     calldatacopy v11, arg0, arg1
 +     v13 = add v11, arg1
       mstore v13, 11
       v14 = keccak256 v11, v10

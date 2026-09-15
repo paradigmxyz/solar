@@ -26,10 +26,10 @@
 //! carried invariants retain their order below the two phi words.
 
 use super::super::super::{
-    GrowableBitSet, OptimizationMode, BlockId, DenseBitSet, Function, FunctionId, FxHashMap, FxHashSet, GlobalStackPlan, IndexVec,
-    InstId, InstKind, Liveness, Loop, LoopAnalyzer, MAX_STACK_ACCESS, STACK_PHI_LAYOUT_LIMIT,
-    SmallVec, StackModel, TargetSlot, Terminator, ValueId, index_vec, lowered_stack_cost,
-    rematerializable_nullary_opcode,
+    BlockId, DenseBitSet, Function, FunctionId, FxHashMap, FxHashSet, GlobalStackPlan,
+    GrowableBitSet, IndexVec, InstId, InstKind, Liveness, Loop, LoopAnalyzer, MAX_STACK_ACCESS,
+    STACK_PHI_LAYOUT_LIMIT, SmallVec, StackModel, TargetSlot, Terminator, ValueId, index_vec,
+    lowered_stack_cost, rematerializable_nullary_opcode,
 };
 
 use crate::{

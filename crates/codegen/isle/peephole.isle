@@ -42,6 +42,7 @@
   (OverwriteOne (opcode u8))
   (OverwriteTwo (opcode u8))
   (MergeSwapPop (depth u8))
+  (InvertComparison (value U256) (opcode u8))
   (ReloadStoredValue)
   (DropDoubleIszero)
   (EqIszeroJumpi)
@@ -284,3 +285,10 @@
 (extern constructor protected_count protected_count)
 (decl pure protected_mask_profitable () bool)
 (extern constructor protected_mask_profitable protected_mask_profitable)
+
+;; PUSH c; [DUPn]; GT/LT; ISZERO => PUSH c±1; [DUPn]; LT/GT.
+;; Reject wrapping bounds, protected windows, and larger materializations.
+(decl invert_comparison (u8 U256 u8) Window)
+(extern extractor invert_comparison invert_comparison)
+(rule 225 (peep_nonpush (invert_comparison count value opcode))
+  (rewrite count (Edit.InvertComparison value opcode)))

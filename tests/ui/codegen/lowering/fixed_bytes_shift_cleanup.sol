@@ -9,6 +9,10 @@
 contract FixedBytesShiftCleanup {
     // CHECK: push 240
     // CHECK-NEXT: shl
+    // CHECK: and
+    // CHECK: return
+    // CHECK: push 240
+    // CHECK-NEXT: shl
     // CHECK-NOT: and
     // CHECK: return
     function aligned(uint256 dirty) external pure returns (bytes1 a, bytes2 b, bytes4 c) {
@@ -19,10 +23,6 @@ contract FixedBytesShiftCleanup {
         }
     }
 
-    // CHECK: push 240
-    // CHECK-NEXT: shl
-    // CHECK: and
-    // CHECK: return
     function narrower(uint256 dirty) external pure returns (bytes1 result) {
         assembly { result := shl(240, dirty) }
     }

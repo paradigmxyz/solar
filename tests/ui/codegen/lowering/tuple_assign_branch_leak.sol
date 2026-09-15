@@ -15,7 +15,7 @@ contract TupleAssignBranchLeak {
 
     // CHECK-LABEL: @module TupleAssignBranchLeak_runtime
     // CHECK: push 0x2143aa9
-    // CHECK-NEXT: eq
+    // CHECK-NEXT: sub
     // CHECK: push 1{{$}}
     // CHECK-NEXT: lt
     // CHECK-NEXT: push {{bb[0-9]+}}
@@ -37,6 +37,8 @@ contract TupleAssignBranchLeak {
     // CHECK: lt
     // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK-NEXT: jumpi
+    // CHECK-NEXT: push [[RESULT_SLOT:[0-9]+]]
+    // CHECK-NEXT: mload
     // CHECK-NEXT: swap 2
     // CHECK-NEXT: jump
     // The else arm rebuilds `off` from calldata, not from the then arm's result.

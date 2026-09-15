@@ -4,7 +4,6 @@
 //@[size] compile-flags: -Osize -Zmir-pipeline=lower-memory-objects,cse,late-check-elim
 
 @module LateMemoryConditions
-@phase dispatch
 
 // Memory lowering makes both lengths the same load. The second check is redundant.
 fn @same_length(arg0: memptr, arg1: u256) -> u256 {

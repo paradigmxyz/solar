@@ -42,10 +42,20 @@ bb2 [cold]:
   push 0
   push 0
   revert
+bb26 [cold]:
+  push 0x4e487b71
+  push 0
+  mstore
+  push 17
+  push 32
+  mstore
+  push 36
+  push 28
+  revert
 bb8:
-  push bb9
-  jump bb41
-bb41:
+  push bb39
+  jump bb40
+bb40:
   push 4
   calldataload
   push 1
@@ -58,58 +68,46 @@ bb34:
   push 0
   push 0
   jump bb35
-bb37:
-  push 1
-  push 224
+bb37 [loop]:
+  push 192
   mload
+  dup 3
   add
-  push 256
-  mload
-  swap 1
+  swap 2
+  dup 3
+  lt
+  push bb26
+  jumpi
+  push 1
+  add
   jump bb35
-bb35:
+bb35 [loop]:
   push 160
   mload
   dup 2
   lt
-  push bb38
+  push bb37
   jumpi
   pop
   swap 1
   jump
-bb9 [continuation]:
-  push 5
-  jump bb43
-bb43:
-  dup 2
-  add
-  swap 1
-  dup 2
-  lt
-  push bb40
-  jumpi
-  push 128
-  mstore
-  push 32
-  push 128
-  return
 bb12:
-  push bb9
-  jump bb42
-bb42:
+  push bb39
+  jump bb41
+bb41:
   push 4
   calldataload
   push 2
   jump bb34
 bb16:
-  push bb9
+  push bb39
   push 4
   calldataload
   push 3
   jump bb34
 bb20:
   push bb21
-  jump bb41
+  jump bb40
 bb21 [continuation]:
   push 4
   calldataload
@@ -118,10 +116,10 @@ bb21 [continuation]:
   calldataload
   dup 2
   lt
-  push bb40
+  push bb26
   jumpi
-  push bb44
-  jump bb42
+  push bb42
+  jump bb41
 bb27:
   push 3
   push 4
@@ -137,7 +135,7 @@ bb28 [continuation]:
   dup 2
   dup 2
   lt
-  push bb40
+  push bb26
   jumpi
   push bb30
   dup 3
@@ -147,47 +145,30 @@ bb30 [continuation]:
   swap 2
   pop
   swap 1
-  jump bb44
-bb44 [continuation]:
+  jump bb42
+bb42 [continuation]:
   dup 2
   add
   swap 1
   dup 2
   lt
-  push bb40
+  push bb26
   jumpi
   push 7
-  jump bb43
+  jump bb38
 bb38:
-  push 192
-  mload
-  dup 3
-  add
-  dup 1
-  push 256
-  mstore
-  swap 2
-  dup 3
-  lt
   dup 2
-  push 224
-  mstore
-  swap 2
-  pop
-  pop
-  iszero
-  push bb37
+  add
+  swap 1
+  dup 2
+  lt
+  push bb26
   jumpi
-  jump bb40
-bb40 [cold]:
-  push 0x4e487b71
-  push 224
-  shl
-  push 0
+  push 128
   mstore
-  push 17
-  push 4
-  mstore
-  push 36
-  push 0
-  revert
+  push 32
+  push 128
+  return
+bb39 [continuation]:
+  push 5
+  jump bb38

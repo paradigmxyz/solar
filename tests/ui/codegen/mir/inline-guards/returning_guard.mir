@@ -23,12 +23,12 @@ fn @loop(arg0: u256) {
     v1 = lt v0, 8
     jumpi v1, bb2, bb3
   bb2:
-    icall @check, 0, v0, arg0
-    icall @check, 0, v0, v0
+    icall @check, v0, arg0
+    icall @check, v0, v0
     v2 = add v0, 1
     jump bb1
   bb3:
-    icall @check, 0, 42, arg0
+    icall @check, 42, arg0
     ret
 }
 
@@ -49,7 +49,7 @@ fn @keep_read(arg0: u256) {
   bb0:
     jump bb1
   bb1:
-    icall @reading, 0, arg0
+    icall @reading, arg0
     jumpi arg0, bb1, bb2
   bb2:
     ret
@@ -73,7 +73,7 @@ fn @dirty(arg0: bool, arg1: bool) {
   bb0:
     jump bb1
   bb1:
-    icall @normalize, 0, arg0, arg1
+    icall @normalize, arg0, arg1
     jumpi arg0, bb1, bb2
   bb2:
     ret
@@ -95,7 +95,7 @@ fn @false_edge(arg0: u256) {
   bb0:
     jump bb1
   bb1:
-    icall @inverted, 0, arg0
+    icall @inverted, arg0
     jumpi arg0, bb1, bb2
   bb2:
     ret
@@ -117,7 +117,7 @@ fn @keep_opaque(arg0: u256) {
   bb0:
     jump bb1
   bb1:
-    icall @opaque, 0, arg0
+    icall @opaque, arg0
     jumpi arg0, bb1, bb2
   bb2:
     ret

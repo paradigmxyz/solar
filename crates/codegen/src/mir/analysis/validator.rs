@@ -40,9 +40,9 @@
 //! ```
 
 use crate::mir::{
-    ResultKind, AddressCallKind, BlockId, Builtin, Callee, Function, FunctionId, InstId, InstKind,
-    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, RequireKind, SliceLocation,
-    StructId, TypeSize, Value, ValueId, analysis::CfgInfo,
+    AddressCallKind, BlockId, Builtin, Callee, Function, FunctionId, InstId, InstKind,
+    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, RequireKind, ResultKind,
+    SliceLocation, StructId, TypeSize, Value, ValueId, analysis::CfgInfo,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -1555,7 +1555,10 @@ impl<'a> Validator<'a> {
                             inst_id,
                         );
                     }
-                    let semantic_op = func.inst(inst_id).unlowered_reason();
+                    let semantic_op = func
+                        .inst(inst_id)
+                        .unlowered_reason()
+                        .or_else(|| kind.phase_violation(phase, &func.inst(inst_id).metadata));
                     if let Some(semantic_op) = semantic_op {
                         self.emit_at_inst(
                             format_args!(

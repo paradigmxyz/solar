@@ -1,6 +1,11 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/lossless_shifts.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/lossless_shifts.mir (after egraph) ===
   @module LosslessShifts
+  types:
+    struct0: {u256, u256}
+    struct1: {u256, u256, u256}
+    struct2: {u256, u256, u256, u256, u256, u256}
+  
   fn @roundtrip_byte(arg0: u256) -> u256 {
     bb0:
       v0 = byte 0, arg0
@@ -19,7 +24,7 @@
 +     ret v0
   }
   
-  fn @shared_shift(arg0: u256) -> (u256, u256) {
+  fn @shared_shift(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
     bb0:
       v0 = byte 31, arg0
       v1 = shl 248, v0
@@ -43,7 +48,7 @@
 +     ret 0
   }
   
-  fn @shifted_compare(arg0: u256, arg1: u256) -> (u256, u256, u256) {
+  fn @shifted_compare(arg0: u256, arg1: u256) -> struct1 [return_abi=[u256, u256, u256]] {
     bb0:
       v0 = byte 0, arg0
       v1 = byte 31, arg1
@@ -70,7 +75,7 @@
       ret v2
   }
   
-  fn @aligned_constants(arg0: u256) -> (u256, u256, u256, u256, u256, u256) {
+  fn @aligned_constants(arg0: u256) -> struct2 [return_abi=[u256, u256, u256, u256, u256, u256]] {
     bb0:
       v0 = byte 31, arg0
       v1 = shl 248, v0
@@ -87,7 +92,7 @@
 +     ret v2, v3, v4, v2, v4, v3
   }
   
-  fn @unaligned_constants(arg0: u256) -> (u256, u256, u256) {
+  fn @unaligned_constants(arg0: u256) -> struct1 [return_abi=[u256, u256, u256]] {
     bb0:
       v0 = byte 31, arg0
       v1 = shl 248, v0
@@ -97,7 +102,7 @@
       ret v2, v3, v4
   }
   
-  fn @truncating_compare(arg0: u256, arg1: u256) -> (u256, u256, u256) {
+  fn @truncating_compare(arg0: u256, arg1: u256) -> struct1 [return_abi=[u256, u256, u256]] {
     bb0:
       v0 = shl 248, arg0
       v1 = shl 248, arg1
@@ -107,7 +112,7 @@
       ret v2, v3, v4
   }
   
-  fn @signed_compare(arg0: u256, arg1: u256) -> (u256, u256) {
+  fn @signed_compare(arg0: u256, arg1: u256) -> struct0 [return_abi=[u256, u256]] {
     bb0:
       v0 = byte 31, arg0
       v1 = byte 31, arg1
@@ -220,6 +225,11 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/lossless_shifts.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/lossless_shifts.mir (after dce) ===
   @module LosslessShifts
+  types:
+    struct0: {u256, u256}
+    struct1: {u256, u256, u256}
+    struct2: {u256, u256, u256, u256, u256, u256}
+  
   fn @roundtrip_byte(arg0: u256) -> u256 {
     bb0:
       v0 = byte 0, arg0
@@ -234,7 +244,7 @@
       ret v0
   }
   
-  fn @shared_shift(arg0: u256) -> (u256, u256) {
+  fn @shared_shift(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
     bb0:
       v0 = byte 31, arg0
       v1 = shl 248, v0
@@ -255,7 +265,7 @@
       ret 0
   }
   
-  fn @shifted_compare(arg0: u256, arg1: u256) -> (u256, u256, u256) {
+  fn @shifted_compare(arg0: u256, arg1: u256) -> struct1 [return_abi=[u256, u256, u256]] {
     bb0:
       v0 = byte 0, arg0
       v1 = byte 31, arg1
@@ -280,7 +290,7 @@
       ret v2
   }
   
-  fn @aligned_constants(arg0: u256) -> (u256, u256, u256, u256, u256, u256) {
+  fn @aligned_constants(arg0: u256) -> struct2 [return_abi=[u256, u256, u256, u256, u256, u256]] {
     bb0:
       v0 = byte 31, arg0
 -     v1 = shl 248, v0
@@ -290,7 +300,7 @@
       ret v2, v3, v4, v2, v4, v3
   }
   
-  fn @unaligned_constants(arg0: u256) -> (u256, u256, u256) {
+  fn @unaligned_constants(arg0: u256) -> struct1 [return_abi=[u256, u256, u256]] {
     bb0:
       v0 = byte 31, arg0
       v1 = shl 248, v0
@@ -300,7 +310,7 @@
       ret v2, v3, v4
   }
   
-  fn @truncating_compare(arg0: u256, arg1: u256) -> (u256, u256, u256) {
+  fn @truncating_compare(arg0: u256, arg1: u256) -> struct1 [return_abi=[u256, u256, u256]] {
     bb0:
       v0 = shl 248, arg0
       v1 = shl 248, arg1
@@ -310,7 +320,7 @@
       ret v2, v3, v4
   }
   
-  fn @signed_compare(arg0: u256, arg1: u256) -> (u256, u256) {
+  fn @signed_compare(arg0: u256, arg1: u256) -> struct0 [return_abi=[u256, u256]] {
     bb0:
       v0 = byte 31, arg0
       v1 = byte 31, arg1

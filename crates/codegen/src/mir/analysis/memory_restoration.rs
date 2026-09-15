@@ -25,7 +25,7 @@ use std::collections::VecDeque;
 pub(super) fn restores_memory(func: &Function, aa: &AliasAnalysis) -> bool {
     if func.blocks.is_empty()
         || func.blocks.len() > 32
-        || func.returns.len() > 1
+        || func.return_components().len() > 1
         || func.instructions().take(129).count() > 128
     {
         return false;

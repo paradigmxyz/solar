@@ -3,6 +3,9 @@
 //@[size] compile-flags: -Osize -Zmir-pipeline=egraph,dce
 @module BitSlices
 
+types:
+  struct0: {u256, u256}
+
 fn @shl_discard_mask_0(arg0: u256) -> u256 {
   bb0:
     v0 = and arg0, 255
@@ -174,7 +177,7 @@ fn @byte_shl_max(arg0: u256) -> u256 {
 }
 
 // A full-width shift always returns zero, regardless of the mask.
-fn @shift_mask_out_of_range(arg0: u256) -> (u256, u256) {
+fn @shift_mask_out_of_range(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
   bb0:
     v0 = and arg0, 127
     v1 = shl 256, v0

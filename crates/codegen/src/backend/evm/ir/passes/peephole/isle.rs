@@ -102,17 +102,61 @@ fn is_noop_stack_sequence(instructions: &[Instruction]) -> bool {
 pub(super) struct PeepContext<'a> {
     instructions: &'a [Instruction],
     evm_version: EvmVersion,
+    final_cleanup: bool,
 }
 
 impl<'a> PeepContext<'a> {
     pub(super) fn new(instructions: &'a [Instruction], evm_version: EvmVersion) -> Self {
-        Self { instructions, evm_version }
+        Self { instructions, evm_version, final_cleanup: false }
+    }
+
+    pub(super) fn with_final_cleanup(mut self, final_cleanup: bool) -> Self {
+        self.final_cleanup = final_cleanup;
+        self
+    }
+
+    /// Target-only cleanup deferred until structural sharing has finished.
+    fn final_rewrite(&self) -> Option<Rewrite> {
+        if !self.final_cleanup {
+            return None;
+        }
+        // PUSH slot; SSTORE/TSTORE; PUSH slot; SLOAD/TLOAD
+        // => DUP1; PUSH slot; SSTORE/TSTORE
+        if let [.., address, store, loaded, load] = self.instructions
+            && [address, store, loaded, load]
+                .iter()
+                .all(|inst| inst.has_canonical_stack_effect() && !inst.metadata.keep_with_next)
+            && matches!(
+                (store.as_evm_opcode(), load.as_evm_opcode()),
+                (Some(SSTORE), Some(SLOAD)) | (Some(TSTORE), Some(TLOAD))
+            )
+            && let Some(slot) = address.concrete_immediate()
+            && loaded.concrete_immediate() == Some(slot)
+        {
+            return Some(Rewrite { skip: 4, edit: Edit::ReloadStoredValue });
+        }
+        // DUPn; PUSH address; MSTORE; SWAP(n-1); POP
+        // => SWAP(n-1); PUSH address; MSTORE
+        if let [.., dup, address, store, swap, pop] = self.instructions
+            && let Some(StackOp::Dup(depth)) = dup.as_stack_op()
+            && depth > 1
+            && address.is_encoded_push()
+            && store.as_evm_opcode() == Some(MSTORE)
+            && swap.as_stack_op() == Some(StackOp::Swap(depth - 1))
+            && pop.as_evm_opcode() == Some(POP)
+            && [dup, address, store, swap, pop]
+                .iter()
+                .all(|inst| inst.has_canonical_stack_effect() && !inst.metadata.keep_with_next)
+        {
+            return Some(Rewrite { skip: 5, edit: Edit::ConsumeStoredValue { depth: depth - 1 } });
+        }
+        None
     }
 
     /// Returns the edit to apply to the tail of the block, when a rule matches.
     pub(super) fn select<const LATE: bool>(&mut self) -> Option<Rewrite> {
         if !LATE {
-            return generated::constructor_peep(self, Window);
+            return self.final_rewrite().or_else(|| generated::constructor_peep(self, Window));
         }
         if self.instructions.len() < 5 || raw_opcode(self.instructions.last()?) != Some(SUB) {
             return None;
@@ -613,6 +657,36 @@ impl generated::Context for PeepContext<'_> {
 
     fn u256_is_one(&mut self, value: U256) -> bool {
         value == U256::ONE
+    }
+
+    fn invert_comparison(&mut self, _: Window) -> Option<(u8, U256, u8)> {
+        if self.instructions.last()?.as_evm_opcode() != Some(ISZERO) {
+            return None;
+        }
+        let (pushed, comparison, duplicated, count) = match self.instructions {
+            [.., pushed, dup, comparison, _] if matches!(dup.as_stack_op(), Some(StackOp::Dup(depth)) if depth >= 2) => {
+                (pushed, comparison, true, 4)
+            }
+            [.., pushed, comparison, _] => (pushed, comparison, false, 3),
+            _ => return None,
+        };
+        let value = pushed.concrete_immediate()?;
+        let opcode = comparison.as_evm_opcode()?;
+        if !matches!(opcode, GT | LT)
+            || !self.instructions[self.instructions.len() - count..]
+                .iter()
+                .all(|inst| inst.has_canonical_stack_effect() && !inst.metadata.keep_with_next)
+        {
+            return None;
+        }
+        let bound = if (opcode == GT) == duplicated {
+            value.checked_add(U256::ONE)?
+        } else {
+            value.checked_sub(U256::ONE)?
+        };
+        (op::push_len(self.evm_version, bound)
+            <= super::immediate_materialization_cost(self.evm_version, value).0 + 1)
+            .then_some((count as u8, bound, if opcode == GT { LT } else { GT }))
     }
 
     fn rewrite(&mut self, skip: u8, edit: &Edit) -> Rewrite {

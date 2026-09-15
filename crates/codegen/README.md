@@ -45,7 +45,7 @@ spellings use `#[mnemonic(pattern => name)]` alongside the declaration.
 `#[commutative(a, b)]` generates both the commutativity trait and canonical operand
 ordering, including modular arithmetic where the modulus must stay in place.
 Structural result checks and operation phase legality consume the schema,
-including the gate that advances MIR to `evm-shaped`. The scheduler consumes the
+including the gate that advances MIR from `semantic` to `lowered`. The scheduler consumes the
 schema's rematerialization trait; constant folding uses the shared opcode selector.
 
 Equivalent local rewrites use `Instruction::replace_kind` or

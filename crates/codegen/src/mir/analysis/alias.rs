@@ -1428,7 +1428,7 @@ impl AliasAnalysis {
             }
             _ => {}
         }
-        effects.observes_gas = kind.observes_gas();
+        effects.observes_gas |= kind.observes_gas();
         effects
     }
 
@@ -2050,7 +2050,7 @@ enum SizeOperand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{FunctionBuilder, Instruction, Module, MirType, TypeSize};
+    use crate::mir::{FunctionBuilder, Instruction, MirType, Module, TypeSize};
     use alloy_primitives::U256;
     use solar_interface::Ident;
     use std::sync::Arc;
@@ -2444,7 +2444,7 @@ mod tests {
             let size = builder.msize();
             builder.ret([size]);
         }
-        observer.returns.push(MirType::uint256());
+        observer.set_return_type(MirType::uint256());
         let observer = module.add_function(observer);
 
         let mut caller = function();
@@ -2456,7 +2456,7 @@ mod tests {
             let destination = builder.imm(0x1000);
             let value = builder.imm(1);
             builder.mstore(destination, value);
-            let _ = builder.icall(observer, vec![], MirType::uint256(), 1);
+            let _ = builder.icall(observer, vec![], MirType::uint256());
             builder.ret([]);
             *builder.func().blocks[builder.current_block()].instructions.last().unwrap()
         };

@@ -15,8 +15,8 @@
   
   fn @entry() [selector=0x01020304] {
     bb0:
-      v0 = icall @movable, 1
-      v1 = icall @reserved, 1
+      v0 = icall @movable
+      v1 = icall @reserved
       mstore v0, 42
       mstore v1, 7
       returndata v1, 32

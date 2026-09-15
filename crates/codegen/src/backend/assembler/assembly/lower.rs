@@ -2,7 +2,7 @@
 
 use super::{AsmInst, AsmInstKind, Program, indexed_jump};
 use crate::backend::{
-    assembler::{Assembler, Label, PreparedAssembly},
+    assembler::{ArtifactKind, Assembler, Label, PreparedAssembly},
     evm::{
         ir::{self, BlockId},
         op,
@@ -427,7 +427,12 @@ fn lower_terminator(
             indexed_jump::lower(assembler, program, targets, module, labels, indexed_jump);
         }
         ir::TerminatorKind::Op(opcode) => {
-            if *opcode != op::STOP || module.next_block(block_id).is_some() {
+            // A creation prefix is followed by runtime code and constructor arguments.
+            // Its final STOP must halt before those bytes instead of falling into them.
+            if *opcode != op::STOP
+                || module.next_block(block_id).is_some()
+                || assembler.artifact_kind == ArtifactKind::Constructor
+            {
                 program.push_op(*opcode);
             }
         }

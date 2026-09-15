@@ -12,7 +12,7 @@
 // CHECK: {{^ +}}v0 = icall @helper
 fn @cold(arg0: u256) -> u256 {
   bb0:
-    v0 = icall fn3, 1, arg0
+    v0 = icall fn3, arg0
     ret v0
 }
 // CHECK-LABEL: fn @hot
@@ -25,7 +25,7 @@ fn @hot(arg0: u256) -> u256 {
     v1 = lt v0, 1000
     jumpi v1, bb2, bb3
   bb2:
-    v2 = icall fn3, 1, arg0
+    v2 = icall fn3, arg0
     mstore 128, v2
     v3 = add v0, 1
     jump bb1
@@ -45,7 +45,7 @@ fn @conditional(arg0: u256, arg1: bool) -> u256 {
   bb2:
     jumpi arg1, bb3, bb4
   bb3:
-    v2 = icall fn3, 1, arg0
+    v2 = icall fn3, arg0
     mstore 128, v2
     jump bb4
   bb4:

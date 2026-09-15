@@ -9,9 +9,8 @@ use super::{
     OnceCell, OptimizationMode, PhiEliminator, STACK_PHI_LAYOUT_LIMIT, StackModel, StackOp,
     StackPhiPlan, Terminator, Value, ValueId, cross_block_values, planned_entry_carries,
 };
-use crate::mir::Callee;
+use crate::{mir::Callee, target::Target};
 use either::Either;
-use crate::target::Target;
 use std::rc::Rc;
 
 impl<'gcx> EvmCodegen<'gcx> {

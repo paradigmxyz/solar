@@ -51,7 +51,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let func = &module.functions[func_id];
             if !self.recursive_frame_functions.contains(func_id)
                 && func.internal_frame_size == 0
-                && func.returns.len() <= 1
+                && func.return_components().len() <= 1
                 && !func
                     .instructions()
                     .any(|inst| matches!(func.inst(inst).kind, InstKind::InternalFrameAddr(_)))
@@ -654,25 +654,27 @@ impl<'gcx> EvmCodegen<'gcx> {
             })
             .collect();
         let gcx = self.gcx;
-        let free_memory_floor =
-            |entry: FunctionId, entry_ends: &FxHashMap<FunctionId, u64>, region_start: u64| {
-                let mut floor = entry_ends.get(&entry).copied().unwrap_or(low_memory_end);
-                if let Some(&span) = reachable_static_spans.get(&entry)
-                    && span != 0
-                {
-                    floor = floor.max(region_start.checked_add(span).expect("runtime static frame overflow"));
-                }
-                if let Some(&guard) = reachable_heap_prefix_guards.get(&entry) {
-                    floor = floor.checked_add(guard).unwrap_or_else(|| {
-                        gcx.dcx()
-                            .err("runtime heap prefix exceeds the addressable memory range")
-                            .span(module.functions[entry].name_span)
-                            .emit();
-                        floor
-                    });
-                }
-                floor.max(low_memory_end)
-            };
+        let free_memory_floor = |entry: FunctionId,
+                                 entry_ends: &FxHashMap<FunctionId, u64>,
+                                 region_start: u64| {
+            let mut floor = entry_ends.get(&entry).copied().unwrap_or(low_memory_end);
+            if let Some(&span) = reachable_static_spans.get(&entry)
+                && span != 0
+            {
+                floor = floor
+                    .max(region_start.checked_add(span).expect("runtime static frame overflow"));
+            }
+            if let Some(&guard) = reachable_heap_prefix_guards.get(&entry) {
+                floor = floor.checked_add(guard).unwrap_or_else(|| {
+                    gcx.dcx()
+                        .err("runtime heap prefix exceeds the addressable memory range")
+                        .span(module.functions[entry].name_span)
+                        .emit();
+                    floor
+                });
+            }
+            floor.max(low_memory_end)
+        };
 
         // Keep shared frames fixed so one entry's local allocations cannot raise another
         // entry's heap floor. Place locals before spills if that preserves their PUSH widths,
@@ -699,7 +701,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .checked_add(size)
                     .expect("runtime static allocation size overflow");
                 let current_end = entry_ends[&func_id];
-                let proposed_end = current_end.checked_add(size).expect("runtime static allocation overflow");
+                let proposed_end =
+                    current_end.checked_add(size).expect("runtime static allocation overflow");
                 let prefix_fits = !heap_alloc_ends.contains_key(&func_id)
                     && (placed.is_empty() || proposed_end <= region_start);
                 let spills_width_neutral =
@@ -883,7 +886,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .max(static_end)
                     .checked_add(reachable_heap_prefix_guards.get(&entry).copied().unwrap_or(0))
                     .expect("runtime heap prefix overflow");
-                (entry, floor.max(low_memory_end).max(heap_alloc_ends.get(&entry).copied().unwrap_or(0)))
+                (
+                    entry,
+                    floor
+                        .max(low_memory_end)
+                        .max(heap_alloc_ends.get(&entry).copied().unwrap_or(0)),
+                )
             })
             .collect();
         for (entry, id) in self.runtime_free_memory_consts.drain() {

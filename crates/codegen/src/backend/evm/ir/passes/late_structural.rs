@@ -29,7 +29,7 @@ impl EvmPass for LateStructural {
         }
 
         // terminal_dedup; cfg_simplify; tail_merge
-        let _ = CfgSimplify.run_pass(gcx, module);
+        let _ = CfgSimplify::FINAL.run_pass(gcx, module);
         let _ = TailMerge.run_pass(gcx, module);
         true
     }

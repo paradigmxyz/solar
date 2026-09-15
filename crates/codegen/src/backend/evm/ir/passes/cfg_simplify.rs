@@ -41,7 +41,9 @@
 use super::{
     EvmPass,
     block_layout::triangle_arm,
-    utils::{FreshLabels, instruction_size_lower_bound, is_split_point, remap_block_order, retain_blocks},
+    utils::{
+        FreshLabels, instruction_size_lower_bound, is_split_point, remap_block_order, retain_blocks,
+    },
 };
 use crate::backend::evm::{
     ir::{Block, BlockId, Metadata, Module, PushValue, Terminator, TerminatorKind},
@@ -64,38 +66,12 @@ impl EvmPass for CfgSimplify {
         "cfg-simplify"
     }
 
+    fn cache_config(&self) -> u64 {
+        u64::from(self.thread_shared_jumps)
+    }
+
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         simplify_cfg(gcx, module, self.thread_shared_jumps)
-    }
-}
-
-/// Runs CFG cleanup only when the wrapped transform changes the module.
-pub(super) struct Cleanup<T>(pub(super) T);
-
-impl<T: EvmPass> EvmPass for Cleanup<T> {
-    fn name(&self) -> &'static str {
-        self.0.name()
-    }
-
-    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
-        self.0.is_enabled(gcx, module)
-    }
-
-    fn is_required(&self) -> bool {
-        self.0.is_required()
-    }
-
-    fn cache_config(&self) -> u64 {
-        self.0.cache_config()
-    }
-
-    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let changed = self.0.run_pass(gcx, module);
-        if changed {
-            // changed CFG; simplify CFG
-            let _ = CfgSimplify::EARLY.run_pass(gcx, module);
-        }
-        changed
     }
 }
 
@@ -130,9 +106,22 @@ fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) ->
         );
         let coalesced =
             coalesce_blocks(module, &mut state.references, &mut state.retained, &mut state.order);
-        changed |=
-            truncated || direct || degenerate || redirected || inlined || branches || swept || coalesced;
-        if !truncated && !direct && !degenerate && !redirected && !inlined && !branches && !swept && !coalesced
+        changed |= truncated
+            || direct
+            || degenerate
+            || redirected
+            || inlined
+            || branches
+            || swept
+            || coalesced;
+        if !truncated
+            && !direct
+            && !degenerate
+            && !redirected
+            && !inlined
+            && !branches
+            && !swept
+            && !coalesced
         {
             if thread_shared_jumps {
                 changed |= normalize_triangle_branches(module);
@@ -492,7 +481,7 @@ fn redirect_jump_thunks(
     for block in &module.blocks {
         for (at, inst) in block.instructions.iter().enumerate() {
             if let Some(PushValue::Block(target)) = &inst.value
-                && !is_direct_jump_label(block, at, jump_heads)
+                && !is_direct_jump_label_through_head(block, at, jump_heads)
                 && !module.blocks[*target].metadata.is_continuation
             {
                 addressed.insert(*target);
@@ -537,7 +526,8 @@ fn redirect_jump_thunks(
     for block in &mut module.blocks {
         for at in 0..block.instructions.len() {
             if let Some(PushValue::Block(target)) = block.instructions[at].value
-                && (is_direct_jump_label(block, at, jump_heads) || thunks.contains_key(&target))
+                && (is_direct_jump_label_through_head(block, at, jump_heads)
+                    || thunks.contains_key(&target))
             {
                 if is_direct_jump_label(block, at)
                     && let Some(metadata) = thunk_metadata.get(&target)
@@ -585,8 +575,22 @@ fn redirect_jump_thunks(
     changed
 }
 
+/// Recognizes a label consumed directly by the following jump.
+pub(super) fn is_direct_jump_label(block: &Block, at: usize) -> bool {
+    block.instructions.get(at + 1).is_some_and(|inst| matches!(inst.opcode, op::JUMP | op::JUMPI))
+        || (at + 1 == block.instructions.len()
+            && block
+                .terminator
+                .as_ref()
+                .is_some_and(|term| matches!(term.kind, TerminatorKind::Op(op::JUMP | op::JUMPI))))
+}
+
 // PUSH target; jump head; head: JUMPI -> a direct use of target
-pub(super) fn is_direct_jump_label(block: &Block, at: usize, jump_heads: &DenseBitSet<BlockId>) -> bool {
+fn is_direct_jump_label_through_head(
+    block: &Block,
+    at: usize,
+    jump_heads: &DenseBitSet<BlockId>,
+) -> bool {
     block.instructions.get(at + 1).is_some_and(|inst| matches!(inst.opcode, op::JUMP | op::JUMPI))
         || (at + 1 == block.instructions.len()
             && block.terminator.as_ref().is_some_and(|term| match term.kind {

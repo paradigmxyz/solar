@@ -2,7 +2,7 @@
 @module StackBudget
 fn @choose(arg0: bool, arg1: u256) -> u256 [selector=0xced8609d, pure, abi_params=[bool, u256], abi_returns=[word]] {
   bb0:
-    v0 = icall @branch, 1, arg0, arg1
+    v0 = icall @branch, arg0, arg1
     v1 = add v0, arg1
     ret v1
 }

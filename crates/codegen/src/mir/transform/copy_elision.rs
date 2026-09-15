@@ -18,7 +18,7 @@
 
 use crate::mir::{
     BlockId, Function, InstId, InstKind, Module, Terminator, Value, ValueId,
-    analysis::{Access, AddressSpace, AliasAnalysis, Location, LocationSize, MemoryLocation},
+    analysis::{Access, AddressSpace, AliasAnalysis, Location, MemoryLocation},
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     pass::{MirPass, run_function_pass_with_alias},
 };

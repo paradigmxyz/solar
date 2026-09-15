@@ -61,15 +61,15 @@
 //! Internal calls carry the callee's transitive gas-observation summary.
 
 use crate::mir::{
-    Callee, FunctionId, AddressCallKind, BlockId, EffectKind, Function, Immediate, ImmutableId, InstId, InstKind,
-    Instruction, MemoryObjectKind, MemoryObjectLayout, MirType, Module, SliceLocation,
-    StorageAlias, Value, ValueId,
+    AddressCallKind, BlockId, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId,
+    InstId, InstKind, Instruction, MemoryObjectKind, MemoryObjectLayout, MirType, Module,
+    SliceLocation, StorageAlias, Value, ValueId,
     analysis::{
-        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness, Location,
-        LocationSize, MemoryAddress, MemoryCallSummaries, MemoryLocation,
+        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
+        Location, LocationSize, MemoryAddress, MemoryCallSummaries, MemoryLocation,
     },
     memory::EvmMemoryLayout,
-    pass::{MirPass, run_function_pass_with_cfg},
+    pass::{MirPass, run_function_pass, run_function_pass_with_cfg},
     utils as mir_utils,
 };
 use alloy_primitives::U256;
@@ -100,6 +100,12 @@ impl MirPass for Cse {
                 .filter(|&inst_id| func.inst(inst_id).result_ty.is_some())
                 .nth(1)
                 .is_none()
+                && !func.instructions().any(|inst| {
+                    matches!(
+                        func.inst(inst).kind,
+                        InstKind::MStore(..) | InstKind::SetMemoryObjectLen(..)
+                    )
+                })
             {
                 return false;
             }
@@ -774,7 +780,7 @@ impl CommonSubexprEliminator {
             let candidate = self
                 .make_expr_key(func, inst_id, kind, &replacements)
                 .filter(|key| !gas_observed || !Self::is_path_sensitive_expr(key))
-                    .zip(func.inst_result_value(inst_id));
+                .zip(func.inst_result_value(inst_id));
             if let Some((key, result)) = &candidate
                 && let Some(&cached_value) = expr_cache.get(key)
             {
@@ -811,7 +817,7 @@ impl CommonSubexprEliminator {
         kind: &InstKind,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> Option<ExprKey> {
-        if !kind.effects().can_common() {
+        if !kind.effects().can_common() && !self.is_restoring_call(kind) {
             return None;
         }
         // Helper to get canonical operands after in-block replacements.
@@ -819,9 +825,14 @@ impl CommonSubexprEliminator {
         let value = |v: ValueId| mir_utils::resolve_replacement(v, replacements);
 
         match kind {
-            InstKind::ICall { function, args, .. } if self.is_restoring_call(kind) => Some(
-                ExprKey::RestoringCall(*function, args.iter().map(|&arg| operand(arg)).collect()),
-            ),
+            InstKind::ICall { function: Callee::Function(function), args }
+                if self.is_restoring_call(kind) =>
+            {
+                Some(ExprKey::RestoringCall(
+                    *function,
+                    args.iter().map(|&arg| operand(arg)).collect(),
+                ))
+            }
             // Commutative operations - normalize operand order
             InstKind::Add(a, b) => {
                 if let Some((base, offset)) = Self::offset_expr_for_add(func, *a, *b, replacements)

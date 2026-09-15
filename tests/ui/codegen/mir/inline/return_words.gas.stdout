@@ -1,9 +1,12 @@
 - // === ROOT/tests/ui/codegen/mir/inline/return_words.mir (before inline-tiny-leaves) ===
 + // === ROOT/tests/ui/codegen/mir/inline/return_words.mir (after inline-tiny-leaves) ===
   @module ReturnWords
+  types:
+    struct0: {u256, u256}
+  
   fn @entry(arg0: u256, arg1: u256) -> u256 [selector=0x00000001] {
     bb0:
--     v0 = icall @swap, 2, arg0, arg1
+-     v0 = icall @swap, arg0, arg1
 +     jump bb2
 +   bb2:
 +     jump bb1
@@ -20,14 +23,14 @@
       ret v4
   }
   
-  fn @swap(arg0: u256, arg1: u256) -> (u256, u256) {
+  fn @swap(arg0: u256, arg1: u256) -> struct0 [return_abi=[u256, u256]] {
     bb0:
       ret arg1, arg0
   }
   
   fn @barrier(arg0: u256, arg1: u256) -> u256 [selector=0x00000002] {
     bb0:
--     v0 = icall @swap, 2, arg0, arg1
+-     v0 = icall @swap, arg0, arg1
 +     jump bb2
 +   bb2:
 +     jump bb1
@@ -46,6 +49,9 @@
 - // === ROOT/tests/ui/codegen/mir/inline/return_words.mir (before cfg-simplify) ===
 + // === ROOT/tests/ui/codegen/mir/inline/return_words.mir (after cfg-simplify) ===
   @module ReturnWords
+  types:
+    struct0: {u256, u256}
+  
   fn @entry(arg0: u256, arg1: u256) -> u256 [selector=0x00000001] {
     bb0:
 -     jump bb2
@@ -64,7 +70,7 @@
       ret v4
   }
   
-  fn @swap(arg0: u256, arg1: u256) -> (u256, u256) {
+  fn @swap(arg0: u256, arg1: u256) -> struct0 [return_abi=[u256, u256]] {
     bb0:
       ret arg1, arg0
   }
@@ -90,6 +96,9 @@
 - // === ROOT/tests/ui/codegen/mir/inline/return_words.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/inline/return_words.mir (after dce) ===
   @module ReturnWords
+  types:
+    struct0: {u256, u256}
+  
   fn @entry(arg0: u256, arg1: u256) -> u256 [selector=0x00000001] {
     bb0:
       mstore 160, arg0
@@ -100,7 +109,7 @@
       ret v4
   }
   
-  fn @swap(arg0: u256, arg1: u256) -> (u256, u256) {
+  fn @swap(arg0: u256, arg1: u256) -> struct0 [return_abi=[u256, u256]] {
     bb0:
       ret arg1, arg0
   }

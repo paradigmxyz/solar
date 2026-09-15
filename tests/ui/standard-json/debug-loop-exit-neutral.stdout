@@ -21,11 +21,11 @@
       "A": {
         "evm": {
           "bytecode": {
-            "object": "60c06040523460125760428060165f395ff35b5f5ffd34603e575f3560e01c80633c311f3c03603e5760243610603e576004356024565b60a0515b600190038060a052602057600160a0510160805260206080f35b5f5ffd",
+            "object": "60c06040523460125760408060165f395ff35b5f5ffd34603c575f3560e01c80633c311f3c03603c5760243610603c576004356024565b60a0515b600190038060a052602057600160a051015f5260205ff35b5f5ffd",
             "sourceMap": ":::-:0;;;;;;;;;;;;;;;;"
           },
           "deployedBytecode": {
-            "object": "34603e575f3560e01c80633c311f3c03603e5760243610603e576004356024565b60a0515b600190038060a052602057600160a0510160805260206080f35b5f5ffd",
+            "object": "34603c575f3560e01c80633c311f3c03603c5760243610603c576004356024565b60a0515b600190038060a052602057600160a051015f5260205ff35b5f5ffd",
             "sourceMap": ":::-:0;;;;;;;;;;;;;;;;;;;;;;;;;180:9:0;;;;;;206:22;;-1:-1:-1;;;;20:238:0;;;;;-1:-1:-1;;;"
           }
         }
@@ -33,7 +33,7 @@
       "B": {
         "evm": {
           "bytecode": {
-            "object": "60c06040523460125760428060165f395ff35b5f5ffd34603e575f3560e01c80633c311f3c03603e5760243610603e576004356024565b60a0515b600190038060a052602057600160a0510160805260206080f35b5f5ffd",
+            "object": "60c06040523460125760408060165f395ff35b5f5ffd34603c575f3560e01c80633c311f3c03603c5760243610603c576004356024565b60a0515b600190038060a052602057600160a051015f5260205ff35b5f5ffd",
             "ethdebug": {
               "compilation": {
                 "id": "solar-COMPILATION_ID"
@@ -102,7 +102,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x42"
+                      "0x40"
                     ]
                   }
                 },
@@ -173,7 +173,7 @@
             }
           },
           "deployedBytecode": {
-            "object": "34603e575f3560e01c80633c311f3c03603e5760243610603e576004356024565b60a0515b600190038060a052602057600160a0510160805260206080f35b5f5ffd",
+            "object": "34603c575f3560e01c80633c311f3c03603c5760243610603c576004356024565b60a0515b600190038060a052602057600160a051015f5260205ff35b5f5ffd",
             "ethdebug": {
               "compilation": {
                 "id": "solar-COMPILATION_ID"
@@ -203,7 +203,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x3e"
+                      "0x3c"
                     ]
                   }
                 },
@@ -266,7 +266,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x3e"
+                      "0x3c"
                     ]
                   }
                 },
@@ -302,7 +302,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x3e"
+                      "0x3c"
                     ]
                   }
                 },
@@ -547,10 +547,7 @@
                 {
                   "offset": 54,
                   "operation": {
-                    "mnemonic": "PUSH1",
-                    "arguments": [
-                      "0x80"
-                    ]
+                    "mnemonic": "PUSH0"
                   },
                   "context": {
                     "code": {
@@ -565,7 +562,7 @@
                   }
                 },
                 {
-                  "offset": 56,
+                  "offset": 55,
                   "operation": {
                     "mnemonic": "MSTORE"
                   },
@@ -582,7 +579,7 @@
                   }
                 },
                 {
-                  "offset": 57,
+                  "offset": 56,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -602,12 +599,9 @@
                   }
                 },
                 {
-                  "offset": 59,
+                  "offset": 58,
                   "operation": {
-                    "mnemonic": "PUSH1",
-                    "arguments": [
-                      "0x80"
-                    ]
+                    "mnemonic": "PUSH0"
                   },
                   "context": {
                     "code": {
@@ -622,7 +616,7 @@
                   }
                 },
                 {
-                  "offset": 61,
+                  "offset": 59,
                   "operation": {
                     "mnemonic": "RETURN"
                   },
@@ -640,27 +634,30 @@
                   }
                 },
                 {
-                  "offset": 62,
+                  "offset": 60,
                   "operation": {
                     "mnemonic": "JUMPDEST"
                   }
                 },
                 {
+                  "offset": 61,
+                  "operation": {
+                    "mnemonic": "PUSH0"
+                  }
+                },
+                {
+                  "offset": 62,
+                  "operation": {
+                    "mnemonic": "PUSH0"
+                  }
+                },
+                {
                   "offset": 63,
                   "operation": {
-                    "mnemonic": "PUSH0"
-                  }
-                },
-                {
-                  "offset": 64,
-                  "operation": {
-                    "mnemonic": "PUSH0"
-                  }
-                },
-                {
-                  "offset": 65,
-                  "operation": {
                     "mnemonic": "REVERT"
+                  },
+                  "context": {
+                    "revert": {}
                   }
                 }
               ]
@@ -671,10 +668,10 @@
       "C": {
         "evm": {
           "bytecode": {
-            "object": "60c06040523460125760428060165f395ff35b5f5ffd34603e575f3560e01c80633c311f3c03603e5760243610603e576004356024565b60a0515b600190038060a052602057600160a0510160805260206080f35b5f5ffd"
+            "object": "60c06040523460125760408060165f395ff35b5f5ffd34603c575f3560e01c80633c311f3c03603c5760243610603c576004356024565b60a0515b600190038060a052602057600160a051015f5260205ff35b5f5ffd"
           },
           "deployedBytecode": {
-            "object": "34603e575f3560e01c80633c311f3c03603e5760243610603e576004356024565b60a0515b600190038060a052602057600160a0510160805260206080f35b5f5ffd"
+            "object": "34603c575f3560e01c80633c311f3c03603c5760243610603c576004356024565b60a0515b600190038060a052602057600160a051015f5260205ff35b5f5ffd"
           }
         }
       }

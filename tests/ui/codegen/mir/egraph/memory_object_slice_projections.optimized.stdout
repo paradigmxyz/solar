@@ -1,7 +1,6 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (after egraph) ===
   @module MemoryObjectSliceProjections
-  @phase dispatch
   fn @fixed_payload(arg0: memoryslice) -> memptr {
     bb0:
 -     v0 = memory_object_data memorystruct, arg0
@@ -34,8 +33,6 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (before lower-memory-objects) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (after lower-memory-objects) ===
   @module MemoryObjectSliceProjections
-- @phase dispatch
-+ @phase memory-lowered
   fn @fixed_payload(arg0: memoryslice) -> memptr {
     bb0:
       ret arg0
@@ -68,7 +65,6 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (before lower-slices) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (after lower-slices) ===
   @module MemoryObjectSliceProjections
-  @phase memory-lowered
 - fn @fixed_payload(arg0: memoryslice) -> memptr {
 + fn @fixed_payload(arg0: memptr, arg1: u256) -> memptr {
     bb0:

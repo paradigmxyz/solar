@@ -185,7 +185,7 @@
       v0 = shl 32, arg0
       v1 = or v0, 0x12345678
 -     v2 = and v1, 0xffffffff
-      v3 = or 0x12345678, v0
+-     v3 = or 0x12345678, v0
 -     v4 = and 255, v3
 -     ret v2, v4
 +     ret 0x12345678, 120
@@ -202,7 +202,8 @@
   
   fn @masked_constant_covers_bits(arg0: u256) -> u256 {
     bb0:
-      v0 = shl 1, arg0
+-     v0 = shl 1, arg0
++     v0 = add arg0, arg0
       v1 = or v0, 2
 -     v2 = and v1, 2
 -     ret v2
@@ -270,8 +271,9 @@
       v7 = shl 32, v0
       v8 = or v7, 0x100000000
       v9 = shr 32, v8
-      v10 = shl 32, v0
-      v11 = or v10, 7
+-     v10 = shl 32, v0
+-     v11 = or v10, 7
++     v11 = or v7, 7
       v12 = shr 31, v11
       ret v3, v6, v9, v12
   }

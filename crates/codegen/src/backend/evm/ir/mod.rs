@@ -821,20 +821,6 @@ impl Metadata {
         self.debug_info_handled |= other.debug_info_handled;
     }
 
-    /// Merges origins for a shared machine operation while retaining only function events that
-    /// agree on every incoming path. Once an event is ambiguous, further merges cannot recover it.
-    pub(crate) fn merge_shared_debug_info(&mut self, other: &Self) {
-        self.merge_source_spans(other);
-        // NOTE: One shared instruction cannot represent different function transitions. Drop
-        // those path-specific events instead of attributing another caller's transition to it.
-        if self.function_invoke != other.function_invoke {
-            self.function_invoke = None;
-        }
-        if self.function_exit != other.function_exit {
-            self.function_exit = None;
-        }
-    }
-
     /// Merges source origins and function events across equivalent operations.
     pub(crate) fn merge_equivalent_debug_info<'a>(
         &mut self,

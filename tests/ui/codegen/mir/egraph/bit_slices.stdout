@@ -1,7 +1,11 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (after egraph) ===
   @module BitSlices
-  fn @shift_chains(arg0: u256) -> (u256, u256, u256) {
+  types:
+    struct0: {u256, u256, u256}
+    struct1: {u256, u256}
+  
+  fn @shift_chains(arg0: u256) -> struct0 [return_abi=[u256, u256, u256]] {
     bb0:
       v0 = shl 8, arg0
 -     v1 = shl 16, v0
@@ -15,7 +19,7 @@
       ret v1, v3, v5
   }
   
-  fn @shift_overflow(arg0: u256) -> (u256, u256, u256) {
+  fn @shift_overflow(arg0: u256) -> struct0 [return_abi=[u256, u256, u256]] {
     bb0:
 -     v0 = shl 1, arg0
 -     v1 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v0
@@ -58,7 +62,7 @@
       ret v1
   }
   
-  fn @nested_sign_extension(arg0: u256) -> (u256, u256) {
+  fn @nested_sign_extension(arg0: u256) -> struct1 [return_abi=[u256, u256]] {
     bb0:
       v0 = signextend 0, arg0
 -     v1 = signextend 2, v0
@@ -102,7 +106,11 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (after dce) ===
   @module BitSlices
-  fn @shift_chains(arg0: u256) -> (u256, u256, u256) {
+  types:
+    struct0: {u256, u256, u256}
+    struct1: {u256, u256}
+  
+  fn @shift_chains(arg0: u256) -> struct0 [return_abi=[u256, u256, u256]] {
     bb0:
 -     v0 = shl 8, arg0
       v1 = shl 24, arg0
@@ -113,7 +121,7 @@
       ret v1, v3, v5
   }
   
-  fn @shift_overflow(arg0: u256) -> (u256, u256, u256) {
+  fn @shift_overflow(arg0: u256) -> struct0 [return_abi=[u256, u256, u256]] {
     bb0:
 -     v0 = add arg0, arg0
 -     v2 = shr 255, arg0
@@ -150,7 +158,7 @@
       ret v1
   }
   
-  fn @nested_sign_extension(arg0: u256) -> (u256, u256) {
+  fn @nested_sign_extension(arg0: u256) -> struct1 [return_abi=[u256, u256]] {
     bb0:
       v0 = signextend 0, arg0
 -     v2 = signextend 2, arg0

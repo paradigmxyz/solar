@@ -35,7 +35,7 @@ impl GasObservations {
                 let observation = match func.inst(inst).kind {
                     InstKind::Gas => !forwarded.contains(inst),
                     InstKind::ICall { .. } => alias.instruction_mod_ref(func, inst).observes_gas(),
-                    _ => false,
+                    _ => func.inst(inst).kind.observes_gas(),
                 };
                 if observation {
                     instructions.insert(inst);

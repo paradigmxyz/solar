@@ -1,8 +1,6 @@
 - // === ROOT/tests/ui/codegen/mir/late-check-elim/conditions.mir (before lower-memory-objects) ===
 + // === ROOT/tests/ui/codegen/mir/late-check-elim/conditions.mir (after lower-memory-objects) ===
   @module LateMemoryConditions
-- @phase dispatch
-+ @phase memory-lowered
   fn @same_length(arg0: memptr, arg1: u256) -> u256 {
     bb0:
 -     v0 = memory_object_len memorybytes, arg0
@@ -110,7 +108,6 @@
 - // === ROOT/tests/ui/codegen/mir/late-check-elim/conditions.mir (before cse) ===
 + // === ROOT/tests/ui/codegen/mir/late-check-elim/conditions.mir (after cse) ===
   @module LateMemoryConditions
-  @phase memory-lowered
   fn @same_length(arg0: memptr, arg1: u256) -> u256 {
     bb0:
       v0 = mload arg0
@@ -217,7 +214,6 @@
 - // === ROOT/tests/ui/codegen/mir/late-check-elim/conditions.mir (before late-check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/late-check-elim/conditions.mir (after late-check-elim) ===
   @module LateMemoryConditions
-  @phase memory-lowered
   fn @same_length(arg0: memptr, arg1: u256) -> u256 {
     bb0:
       v0 = mload arg0

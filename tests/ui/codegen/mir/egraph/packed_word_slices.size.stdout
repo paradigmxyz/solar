@@ -1,6 +1,9 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/packed_word_slices.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/packed_word_slices.mir (after egraph) ===
   @module BitSlices
+  types:
+    struct0: {u256, u256}
+  
   fn @shl_discard_mask_0(arg0: u256) -> u256 {
     bb0:
       v0 = and arg0, 255
@@ -195,7 +198,7 @@
 +     ret 0
   }
   
-  fn @shift_mask_out_of_range(arg0: u256) -> (u256, u256) {
+  fn @shift_mask_out_of_range(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
     bb0:
       v0 = and arg0, 127
 -     v1 = shl 256, v0
@@ -219,6 +222,9 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/packed_word_slices.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/packed_word_slices.mir (after dce) ===
   @module BitSlices
+  types:
+    struct0: {u256, u256}
+  
   fn @shl_discard_mask_0(arg0: u256) -> u256 {
     bb0:
 -     v0 = and arg0, 255
@@ -380,7 +386,7 @@
       ret 0
   }
   
-  fn @shift_mask_out_of_range(arg0: u256) -> (u256, u256) {
+  fn @shift_mask_out_of_range(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
     bb0:
 -     v0 = and arg0, 127
       ret 0, 0

@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/mir/loop-exit-remat/induction_runtime.sol:Test ===
 @module Test
+types:
+  struct0: {u256, u256, u256, u256}
+
 fn @previous(arg0: u256) -> u256 [selector=0x3c311f3c, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     jump bb1
@@ -62,7 +65,7 @@ fn @wrapping(arg0: u256) -> u256 [selector=0x45d1ad99, pure, abi_params=[u256], 
     ret v9
 }
 
-fn @descending() -> (u256, u256, u256, u256) [selector=0x94c06a58, pure, abi_params=[], abi_returns=[word, word, word, word]] {
+fn @descending() -> struct0 [selector=0x94c06a58, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
     memory_object_store_element memoryfixedarray<4, 1>, v0, 0, 4
@@ -90,29 +93,25 @@ fn @descending() -> (u256, u256, u256, u256) [selector=0x94c06a58, pure, abi_par
   bb2:
     v34 = lt 0, 4
     v35 = iszero v34
-    jumpi v35, bb15, bb16
-  bb16:
+    panic_if v35, 0x32
     v36 = memory_object_load_element memoryfixedarray<4, 1>, v9, 0
     v37 = lt 1, 4
     v38 = iszero v37
-    jumpi v38, bb15, bb17
-  bb17:
+    panic_if v38, 0x32
     v39 = memory_object_load_element memoryfixedarray<4, 1>, v9, 1
     v40 = lt 2, 4
     v41 = iszero v40
-    jumpi v41, bb15, bb18
-  bb18:
+    panic_if v41, 0x32
     v42 = memory_object_load_element memoryfixedarray<4, 1>, v9, 2
     v43 = lt 3, 4
     v44 = iszero v43
-    jumpi v44, bb15, bb19
-  bb19:
+    panic_if v44, 0x32
     v45 = memory_object_load_element memoryfixedarray<4, 1>, v9, 3
-    ret v36, v39, v42, v45
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    v46 = insert_value struct0, undef struct0, 0, v36
+    v47 = insert_value struct0, v46, 1, v39
+    v48 = insert_value struct0, v47, 2, v42
+    v49 = insert_value struct0, v48, 3, v45
+    ret v49
   bb4:
     v14 = mload v8
     jump bb7

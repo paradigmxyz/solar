@@ -2165,7 +2165,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 )
             }
             sym::returndata_bytes => {
-                unit!(ReturndataBytes => MirType::MemoryObject(MemoryObjectKind::Bytes))
+                (InstKind::ReturndataBytes, Some(MirType::MemoryObject(MemoryObjectKind::Bytes)))
             }
             sym::send => inst!(Send(a, b) => MirType::uint256()),
             sym::transfer => inst!(Transfer(a, b)),

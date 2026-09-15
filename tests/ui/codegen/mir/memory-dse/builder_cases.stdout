@@ -169,7 +169,7 @@
   fn @icall_msize_barrier() -> u256 {
     bb0:
       mstore 0x1000, 42
-      v0 = icall @observe_msize, 1
+      v0 = icall @observe_msize
       mstore 0x1000, 0
       ret v0
   }

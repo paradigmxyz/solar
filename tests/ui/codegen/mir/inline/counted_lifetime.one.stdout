@@ -3,7 +3,7 @@
   @module CountedLifetime
   fn @cold(arg0: u256) -> u256 {
     bb0:
-      v0 = icall @helper, 1, arg0
+      v0 = icall @helper, arg0
       ret v0
   }
   
@@ -19,7 +19,7 @@
       v4 = mload 128
       ret v4
     bb2:
--     v2 = icall @helper, 1, arg0
+-     v2 = icall @helper, arg0
 -     mstore 128, v2
 +     jump bb5
 +   bb5:
@@ -84,7 +84,7 @@
     bb2:
       jumpi arg1, bb3, bb4
     bb3:
-      v2 = icall @helper, 1, arg0
+      v2 = icall @helper, arg0
       mstore 128, v2
       jump bb4
     bb4:

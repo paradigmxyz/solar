@@ -1,6 +1,10 @@
 - // === ROOT/tests/ui/codegen/mir/word-sequence/mined_masks.mir (before word-sequence) ===
 + // === ROOT/tests/ui/codegen/mir/word-sequence/mined_masks.mir (after word-sequence) ===
   @module MinedMasks
+  types:
+    struct0: {u256, u256}
+    struct1: {u256, u256, bool}
+  
   fn @low_mask(arg0: u256) -> u256 {
     bb0:
       v0 = shl arg0, 1
@@ -8,7 +12,7 @@
       ret v1
   }
   
-  fn @shared_shift(arg0: u256) -> (u256, u256) {
+  fn @shared_shift(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
     bb0:
       v0 = shl arg0, 1
       v1 = sub v0, 1
@@ -59,7 +63,7 @@
       ret v2
   }
   
-  fn @shared_masked_values(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256, bool) {
+  fn @shared_masked_values(arg0: u256, arg1: u256, arg2: u256) -> struct1 [return_abi=[u256, u256, bool]] {
     bb0:
       v0 = and arg0, arg2
       v1 = and arg1, arg2
@@ -87,6 +91,10 @@
 - // === ROOT/tests/ui/codegen/mir/word-sequence/mined_masks.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/word-sequence/mined_masks.mir (after dce) ===
   @module MinedMasks
+  types:
+    struct0: {u256, u256}
+    struct1: {u256, u256, bool}
+  
   fn @low_mask(arg0: u256) -> u256 {
     bb0:
       v0 = shl arg0, 1
@@ -94,7 +102,7 @@
       ret v1
   }
   
-  fn @shared_shift(arg0: u256) -> (u256, u256) {
+  fn @shared_shift(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
     bb0:
       v0 = shl arg0, 1
       v1 = sub v0, 1
@@ -133,7 +141,7 @@
       ret v2
   }
   
-  fn @shared_masked_values(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256, bool) {
+  fn @shared_masked_values(arg0: u256, arg1: u256, arg2: u256) -> struct1 [return_abi=[u256, u256, bool]] {
     bb0:
       v0 = and arg0, arg2
       v1 = and arg1, arg2

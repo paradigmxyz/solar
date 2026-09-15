@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_success_postlude.sol:ConstructorSuccessPostlude (creation) ===
 @module ConstructorSuccessPostlude_deployment
 bb0:
-  push 76
+  push 72
   codesize
   sub
   dup 1
-  push 76
+  push 72
   push 224
   codecopy
   push 224
@@ -22,10 +22,7 @@ bb0:
   jumpi
   push 224
   dup 1
-  push 192
-  mstore
-  dup 1
-  push 76
+  push 72
   codesize
   sub
   add
@@ -46,7 +43,7 @@ bb0:
   jumpi
   push 3
   dup 1
-  push 73
+  push 69
   push 0
   codecopy
   push 0
