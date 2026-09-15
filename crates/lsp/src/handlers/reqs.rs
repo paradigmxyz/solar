@@ -6,7 +6,7 @@ use crate::{
     global_state::{AnalysisRevision, GlobalState},
     import_resolution::{
         ImportCandidateKind, ImportResolver, decode_import_path, import_path_at,
-        import_path_at_for_completion,
+        import_path_at_for_completion, may_complete_import_string,
     },
     natspec_completion::{self, NatSpecCompletionResult},
     progress::send_progress,
@@ -992,10 +992,7 @@ pub(crate) fn completion(
         .and_then(|path| state.vfs.read().get_file_source(&path));
     if let Some(source) = source {
         let contents = source.contents();
-        let cursor = source
-            .positions()
-            .checked_text_range(lsp_types::Range::new(params.position, params.position))
-            .map(|range| range.start);
+        let cursor = source.completion_cursor(params.position);
         match natspec_completion::target(contents, cursor) {
             NatSpecCompletionResult::Claimed(target) => {
                 let items = target.map_or_else(Vec::new, |target| {
@@ -1020,6 +1017,7 @@ pub(crate) fn completion(
             NatSpecCompletionResult::NotApplicable => {}
         }
         if let Some(cursor) = cursor
+            && may_complete_import_string(contents, cursor)
             && let Some(response) = import_completion(
                 state,
                 &params.text_document.uri,

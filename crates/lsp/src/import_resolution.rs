@@ -2,6 +2,7 @@ use crate::{
     document_links::import_path_from_bytes,
     workspace::{Workspace, WorkspacePathIndex},
 };
+use crop::Rope;
 use normalize_path::NormalizePath;
 use solar_config::CompileOpts;
 use solar_interface::{
@@ -42,7 +43,10 @@ pub(crate) fn import_path_at(source: &str, cursor: usize) -> Option<ImportPathAt
     // Most navigation requests are issued from ordinary code. Avoid lexing the complete prefix
     // when the cursor's line cannot contain a string (the lexer remains the source of truth when
     // a quote or an escaped line continuation is present).
-    if !may_complete_string(source, cursor) {
+    if !may_complete_string(
+        std::iter::once(&source[..cursor]),
+        source.as_bytes().get(cursor).copied(),
+    ) {
         return None;
     }
 
@@ -56,7 +60,10 @@ pub(crate) fn import_path_at_for_completion(source: &str, cursor: usize) -> Opti
     if cursor > source.len() || !source.is_char_boundary(cursor) {
         return None;
     }
-    if !may_complete_string(source, cursor) {
+    if !may_complete_string(
+        std::iter::once(&source[..cursor]),
+        source.as_bytes().get(cursor).copied(),
+    ) {
         return None;
     }
 
@@ -74,23 +81,52 @@ pub(crate) fn import_path_at_for_completion(source: &str, cursor: usize) -> Opti
     recover_unterminated_import_path(source, cursor, string)
 }
 
+/// Rejects ordinary code before import completion materializes the complete source text.
+pub(crate) fn may_complete_import_string(source: &Rope, cursor: usize) -> bool {
+    if cursor > source.byte_len() || !source.is_char_boundary(cursor) {
+        return false;
+    }
+    may_complete_string(
+        source.byte_slice(..cursor).chunks(),
+        (cursor < source.byte_len()).then(|| source.byte(cursor)),
+    )
+}
+
 /// Rejects code lines that cannot contain a completable import string.
-fn may_complete_string(source: &str, cursor: usize) -> bool {
-    let prefix = &source.as_bytes()[..cursor];
-    let line_break = memchr::memrchr2(b'\r', b'\n', prefix);
-    let line_start = line_break.map_or(0, |offset| offset + 1);
-    if matches!(source.as_bytes().get(cursor), Some(b'\'' | b'"'))
-        || memchr::memchr2(b'\'', b'"', &prefix[line_start..]).is_some()
-    {
+fn may_complete_string<'a>(
+    chunks: impl DoubleEndedIterator<Item = &'a str>,
+    cursor_byte: Option<u8>,
+) -> bool {
+    if matches!(cursor_byte, Some(b'\'' | b'"')) {
         return true;
     }
-    let Some(mut line_break) = line_break else { return false };
-    if prefix[line_break] == b'\n' && line_break > 0 && prefix[line_break - 1] == b'\r' {
-        line_break -= 1;
+
+    let mut chunks = chunks.rev();
+    while let Some(chunk) = chunks.next() {
+        let bytes = chunk.as_bytes();
+        let line_break = memchr::memrchr2(b'\r', b'\n', bytes);
+        let line_start = line_break.map_or(0, |offset| offset + 1);
+        if memchr::memchr2(b'\'', b'"', &bytes[line_start..]).is_some() {
+            return true;
+        }
+        if let Some(line_break) = line_break {
+            // A string from an earlier line must cross this line break. Inspect the preceding
+            // bytes across chunks, including CRLF, before leaving possible continuations to
+            // the full lexer and parser.
+            let mut preceding = bytes[..line_break]
+                .iter()
+                .rev()
+                .copied()
+                .chain(chunks.flat_map(|chunk| chunk.bytes().rev()));
+            let previous = preceding.next();
+            return if bytes[line_break] == b'\n' && previous == Some(b'\r') {
+                preceding.next() == Some(b'\\')
+            } else {
+                previous == Some(b'\\')
+            };
+        }
     }
-    // A string from an earlier line must cross this line break. Completion already rejects
-    // unescaped line breaks; possible continuations still use the full lexer and parser.
-    line_break > 0 && prefix[line_break - 1] == b'\\'
+    false
 }
 
 fn parse_import_path(source: &str, cursor: usize) -> Option<ImportPathAt> {

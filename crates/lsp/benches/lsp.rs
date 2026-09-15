@@ -5,18 +5,18 @@
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use crop::Rope;
 use lsp_types::{
-    GotoDefinitionResponse, HoverContents, OneOf, Position, Range, TextDocumentContentChangeEvent,
-    Url,
+    CompletionResponse, GotoDefinitionResponse, HoverContents, OneOf, Position, Range,
+    TextDocumentContentChangeEvent, Url,
 };
 use solar_config::CompileOpts;
 use solar_lsp::{
-    BenchmarkAnalysis, BenchmarkCallHierarchyRequests, BenchmarkDocumentChange,
-    BenchmarkDocumentUpdate, BenchmarkFoldingRangeRequests, BenchmarkOpenDocuments,
-    BenchmarkProject, BenchmarkRenameRequests, BenchmarkRepeatedAnalysis, BenchmarkRequest,
-    BenchmarkResponse, BenchmarkSelectionRangeRequests, BenchmarkSignatureHelpRequests,
-    BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
-    benchmark_folding_ranges, benchmark_folding_ranges_from_rope, benchmark_import_path_at,
-    benchmark_selection_ranges,
+    BenchmarkAnalysis, BenchmarkCallHierarchyRequests, BenchmarkCompletionRequests,
+    BenchmarkDocumentChange, BenchmarkDocumentUpdate, BenchmarkFoldingRangeRequests,
+    BenchmarkOpenDocuments, BenchmarkProject, BenchmarkRenameRequests, BenchmarkRepeatedAnalysis,
+    BenchmarkRequest, BenchmarkResponse, BenchmarkSelectionRangeRequests,
+    BenchmarkSignatureHelpRequests, BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries,
+    BenchmarkWorkspaceReports, benchmark_folding_ranges, benchmark_folding_ranges_from_rope,
+    benchmark_import_path_at, benchmark_selection_ranges,
 };
 use solar_parse::{Cursor, lexer::token::RawTokenKind};
 use std::{fmt::Write as _, fs, hint::black_box, path::PathBuf};
@@ -579,6 +579,69 @@ fn member_completion_queries(c: &mut Criterion) {
         });
     }
     group.finish();
+}
+
+fn completion_requests(c: &mut Criterion) {
+    let mut workloads = Vec::new();
+    for access_count in [64, 8_192] {
+        let mut source = String::from(
+            "contract Benchmark {\nstruct Value { uint256 field; }\nfunction exercise(Value memory value) public pure returns (uint256 result) {\n",
+        );
+        for index in 0..access_count {
+            writeln!(source, "    result += value.field; // {index}").unwrap();
+        }
+        source.push_str("}\n}\n");
+        let project = BenchmarkProject::from_source(source);
+        let anchor = format!("value.field; // {}", access_count - 1);
+        let (uri, mut position) = project.unique_anchor("benchmark.sol", &anchor).unwrap();
+        position.character += "value.field".len() as u32;
+        assert_clean(&project.clone().analyze());
+        workloads.push((
+            format!("{access_count}-accesses"),
+            BenchmarkCompletionRequests::new(project, uri, position),
+            "field",
+        ));
+    }
+
+    let project = unifap_project();
+    let (uri, mut position) =
+        project.unique_anchor(UNIFAP_ROUTER, "_safeTransferFrom(tokenA, msg.sender").unwrap();
+    position.character += "_safeTransferFrom(tokenA, msg.sender".len() as u32;
+    assert_clean(&project.clone().analyze());
+    workloads.push((
+        "unifap-v2-router".into(),
+        BenchmarkCompletionRequests::new(project, uri, position),
+        "sender",
+    ));
+
+    for (_, requests, label) in &mut workloads {
+        let response = requests.run().expect("completion benchmark should produce a response");
+        let CompletionResponse::Array(items) = &response else {
+            panic!("code completion should return an item array");
+        };
+        assert_eq!(items.iter().map(|item| item.label.as_str()).collect::<Vec<_>>(), [*label]);
+        assert_eq!(requests.after_edit().run(), Some(response));
+    }
+
+    let mut warm = c.benchmark_group("lsp/completion-handler");
+    for (name, requests, _) in &mut workloads {
+        warm.bench_function(BenchmarkId::from_parameter(name), |b| {
+            b.iter(|| black_box(requests.run()));
+        });
+    }
+    warm.finish();
+
+    let mut edited = c.benchmark_group("lsp/completion-handler-first-after-edit");
+    for (name, requests, _) in &workloads {
+        edited.bench_function(BenchmarkId::from_parameter(name), |b| {
+            b.iter_batched_ref(
+                || requests.after_edit(),
+                |requests| black_box(requests.run()),
+                BatchSize::PerIteration,
+            );
+        });
+    }
+    edited.finish();
 }
 
 fn signature_help_requests(c: &mut Criterion) {
@@ -1654,6 +1717,7 @@ criterion_group!(
     rename_requests,
     completion_queries,
     member_completion_queries,
+    completion_requests,
     signature_help_requests,
     signature_help_moving_cursors,
     code_lens_queries,

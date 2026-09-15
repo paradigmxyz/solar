@@ -354,8 +354,8 @@ mod workspace;
 #[doc(hidden)]
 pub use global_state::benchmark::{
     BenchmarkAnalysis, BenchmarkCallHierarchyRequests, BenchmarkCodeActionRequests,
-    BenchmarkDocumentChange, BenchmarkDocumentUpdate, BenchmarkEdit, BenchmarkError,
-    BenchmarkFoldingRangeRequests, BenchmarkOpenDocuments, BenchmarkProject,
+    BenchmarkCompletionRequests, BenchmarkDocumentChange, BenchmarkDocumentUpdate, BenchmarkEdit,
+    BenchmarkError, BenchmarkFoldingRangeRequests, BenchmarkOpenDocuments, BenchmarkProject,
     BenchmarkRenameRequests, BenchmarkRepeatedAnalysis, BenchmarkRequest, BenchmarkResponse,
     BenchmarkSelectionRangeRequests, BenchmarkSignatureHelpRequests, BenchmarkWorkspaceDiscovery,
     BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,

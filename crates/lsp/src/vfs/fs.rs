@@ -80,7 +80,19 @@ impl DocumentSource {
     }
 
     pub(crate) fn positions(&self) -> &LspPositionIndex<Rope> {
-        self.0.positions.get_or_init(|| LspPositionIndex::from_rope(self.0.contents.clone()))
+        let positions =
+            self.0.positions.get_or_init(|| LspPositionIndex::from_rope(self.0.contents.clone()));
+        positions.index_lines();
+        positions
+    }
+
+    /// Resolve one completion cursor without constructing a document-wide line index.
+    pub(crate) fn completion_cursor(&self, position: Position) -> Option<usize> {
+        self.0
+            .positions
+            .get_or_init(|| LspPositionIndex::from_rope_for_cursor(self.0.contents.clone()))
+            .checked_text_range(lsp_types::Range::new(position, position))
+            .map(|range| range.start)
     }
 
     pub(crate) fn source(&self) -> Arc<String> {
@@ -473,6 +485,26 @@ mod tests {
         assert_eq!(at(&renamed, 1, 2), Some(6..6));
         vfs.set_file_contents(moved, None);
         assert_eq!(renamed.source().as_str(), "x\n😀z\n");
+    }
+
+    #[test]
+    fn completion_cursors_share_positions_without_materializing_source() {
+        let mut vfs = Vfs::default();
+        let file = path("/workspace/Test.sol");
+        insert(&mut vfs, "/workspace/Test.sol", "a😀\r\nnext\n", 1);
+        let source = vfs.get_file_source(&file).unwrap();
+        let position = Position::new(1, 2);
+        assert_eq!(source.completion_cursor(position), Some(9));
+        assert!(source.0.analysis_source.get().is_none());
+        let cursor_index = source.0.positions.get().unwrap();
+        assert!(std::ptr::eq(cursor_index, source.positions()));
+        assert_eq!(source.completion_cursor(position), Some(9));
+
+        insert(&mut vfs, "/workspace/Test.sol", "prefix\na😀\r\nnext\n", 2);
+        let edited = vfs.get_file_source(&file).unwrap();
+        assert_eq!(edited.completion_cursor(Position::new(2, 2)), Some(16));
+        assert_eq!(source.completion_cursor(position), Some(9));
+        assert!(edited.0.analysis_source.get().is_none());
     }
 
     #[test]

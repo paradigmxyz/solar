@@ -23,11 +23,12 @@ use crop::Rope;
 use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
     CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
-    CodeLens, CompletionItem, Diagnostic, DidChangeTextDocumentParams, DocumentSymbol,
-    GotoDefinitionResponse, Hover, HoverContents, Location, Position, PreviousResultId, Range,
-    RenameParams, SignatureHelp, SignatureHelpParams, TextDocumentContentChangeEvent,
-    TextDocumentIdentifier, TextDocumentPositionParams, TypeHierarchyItem, Url,
-    VersionedTextDocumentIdentifier, WorkspaceEdit, WorkspaceFolder, WorkspaceSymbol,
+    CodeLens, CompletionItem, CompletionParams, CompletionResponse, Diagnostic,
+    DidChangeTextDocumentParams, DocumentSymbol, GotoDefinitionResponse, Hover, HoverContents,
+    Location, Position, PreviousResultId, Range, RenameParams, SignatureHelp, SignatureHelpParams,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
+    TypeHierarchyItem, Url, VersionedTextDocumentIdentifier, WorkspaceEdit, WorkspaceFolder,
+    WorkspaceSymbol,
 };
 use normalize_path::NormalizePath;
 use solar_config::{CompileOpts, Threads};
@@ -783,6 +784,13 @@ impl BenchmarkCallHierarchyRequests {
     }
 }
 
+/// A prepared open-document completion request using production analysis and its handler.
+#[doc(hidden)]
+pub struct BenchmarkCompletionRequests {
+    state: super::GlobalState,
+    params: CompletionParams,
+}
+
 /// A prepared quick-fix request using diagnostics from a real compiler analysis.
 #[doc(hidden)]
 pub struct BenchmarkCodeActionRequests {
@@ -965,6 +973,62 @@ impl BenchmarkSignatureHelpRequests {
             panic!("signature-help benchmark request should complete immediately");
         };
         response.expect("signature-help benchmark request should succeed")
+    }
+}
+
+impl BenchmarkCompletionRequests {
+    /// Analyze a project and open the requested document with an editable trailing comment.
+    pub fn new(project: BenchmarkProject, uri: Url, position: Position) -> Self {
+        let path = uri.to_file_path().expect("completion benchmark URI should be a file");
+        let (_, contents) = project
+            .files
+            .iter()
+            .find(|(source_path, _)| *source_path == path)
+            .expect("completion benchmark document should belong to the project");
+        let mut contents = Rope::from(contents.as_str());
+        contents.insert(contents.byte_len(), "\n// completion benchmark revision 0\n");
+        let state = super::GlobalState::new(ClientSocket::new_closed());
+        state.vfs.write().set_file_contents_with_version(
+            VfsPath::from(path),
+            Some(contents),
+            Some(1),
+        );
+        state.symbol_tables.store(Arc::new(project.analyze().symbol_tables));
+        let params = CompletionParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+            context: None,
+        };
+        Self { state, params }
+    }
+
+    /// Prepare a same-length comment edit with unchanged analysis, outside the request timing.
+    pub fn after_edit(&self) -> Self {
+        let path = crate::proto::vfs_path(&self.params.text_document_position.text_document.uri)
+            .expect("completion benchmark URI should be a file");
+        let mut contents = self.state.vfs.read().get_file_contents(&path).unwrap().clone();
+        let revision_digit = contents.byte_len() - 2;
+        contents.replace(revision_digit..revision_digit + 1, "1");
+        let state = super::GlobalState::new(ClientSocket::new_closed());
+        state.vfs.write().set_file_contents_with_version(path, Some(contents), Some(2));
+        state.symbol_tables.store(self.state.symbol_tables.load_full());
+        Self { state, params: self.params.clone() }
+    }
+
+    /// Execute the synchronous production completion handler, including source preprocessing.
+    #[inline(never)]
+    pub fn run(&mut self) -> Option<CompletionResponse> {
+        let request = handlers::completion(&mut self.state, self.params.clone());
+        let mut request = std::pin::pin!(request);
+        let mut context = Context::from_waker(Waker::noop());
+        let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
+            panic!("completion benchmark request should complete immediately");
+        };
+        response.expect("completion benchmark request should succeed")
     }
 }
 

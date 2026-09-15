@@ -14,7 +14,10 @@ use solar_interface::{
     diagnostics::{Diag, Level},
     source_map::SourceFile,
 };
-use std::{borrow::Borrow, sync::Arc};
+use std::{
+    borrow::Borrow,
+    sync::{Arc, OnceLock},
+};
 
 #[derive(Debug)]
 pub(crate) enum Initialize {}
@@ -160,23 +163,40 @@ pub(crate) fn text_range(rope: &Rope, range: lsp_types::Range) -> std::ops::Rang
 /// Maps between byte offsets and LSP UTF-16 positions for one document.
 pub(crate) struct LspPositionIndex<R> {
     rope: R,
-    line_starts: Vec<usize>,
+    // Rope already indexes LF and CRLF. Standalone CR needs an explicit LSP line index.
+    line_starts: OnceLock<Vec<usize>>,
 }
 
 impl<'a> LspPositionIndex<&'a Rope> {
     pub(crate) fn new(rope: &'a Rope) -> Self {
-        Self { rope, line_starts: collect_line_starts(rope) }
+        Self { rope, line_starts: OnceLock::from(collect_line_starts(rope)) }
     }
 }
 
 impl LspPositionIndex<Rope> {
     pub(crate) fn from_rope(rope: Rope) -> Self {
-        let line_starts = collect_line_starts(&rope);
+        let line_starts = OnceLock::from(collect_line_starts(&rope));
+        Self { rope, line_starts }
+    }
+
+    pub(crate) fn from_rope_for_cursor(rope: Rope) -> Self {
+        // A fresh document snapshot often serves just one cursor request before the next edit.
+        // Reuse the rope's line tree instead of rebuilding every line's byte offset each time.
+        let line_starts = if has_standalone_cr(&rope) {
+            OnceLock::from(collect_line_starts(&rope))
+        } else {
+            OnceLock::new()
+        };
         Self { rope, line_starts }
     }
 }
 
 impl<R: Borrow<Rope>> LspPositionIndex<R> {
+    /// Prepare direct line lookup for requests that perform many position conversions.
+    pub(crate) fn index_lines(&self) {
+        self.line_starts.get_or_init(|| collect_line_starts(self.rope()));
+    }
+
     pub(crate) fn rope(&self) -> &Rope {
         self.rope.borrow()
     }
@@ -186,7 +206,7 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
         range: lsp_types::Range,
     ) -> Option<std::ops::Range<usize>> {
         let line = usize::try_from(range.start.line).ok()?;
-        let line_start = *self.line_starts.get(line)?;
+        let line_start = self.line_start(line)?;
         // Most source ranges stay on one line; reuse its slice for both UTF-16 endpoints.
         let contents = self.rope().byte_slice(line_start..self.line_end(line));
         let start = line_start + byte_column(&contents, range.start.character)?;
@@ -209,7 +229,7 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
     fn byte_position_clamped(&self, position: lsp_types::Position) -> usize {
         let rope = self.rope();
         let line = usize::try_from(position.line).unwrap_or(usize::MAX);
-        let start = self.line_starts.get(line).copied().unwrap_or_else(|| {
+        let start = self.line_start(line).unwrap_or_else(|| {
             if position.line > rope.line_len() as u32 { 0 } else { rope.byte_of_line(line) }
         });
         let start_utf16 = rope.utf16_code_unit_of_byte(start);
@@ -219,7 +239,7 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
     fn byte_position(&self, position: lsp_types::Position) -> Option<usize> {
         let rope = self.rope();
         let line = usize::try_from(position.line).ok()?;
-        let start = *self.line_starts.get(line)?;
+        let start = self.line_start(line)?;
         let end = self.line_end(line);
         let contents = rope.byte_slice(start..end);
         Some(start + byte_column(&contents, position.character)?)
@@ -228,7 +248,7 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
     pub(crate) fn position_at_byte(&self, byte: usize) -> Option<lsp_types::Position> {
         let rope = self.rope();
         let line = self.line_at_byte(byte)?;
-        let start = self.line_starts[line];
+        let start = self.line_start(line)?;
         let character = rope.byte_slice(start..byte).utf16_len();
         Some(lsp_types::Position::new(u32::try_from(line).ok()?, u32::try_from(character).ok()?))
     }
@@ -238,7 +258,11 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
         if byte > rope.byte_len() || !rope.is_char_boundary(byte) {
             return None;
         }
-        let line = self.line_starts.partition_point(|&start| start <= byte).checked_sub(1)?;
+        let line = if let Some(starts) = self.line_starts.get() {
+            starts.partition_point(|&start| start <= byte).checked_sub(1)?
+        } else {
+            rope.line_of_byte(byte)
+        };
         (byte <= self.line_end(line)).then_some(line)
     }
 
@@ -246,9 +270,18 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
         self.rope().byte_len()
     }
 
+    fn line_start(&self, line: usize) -> Option<usize> {
+        if let Some(starts) = self.line_starts.get() {
+            starts.get(line).copied()
+        } else {
+            let rope = self.rope();
+            (line <= rope.line_of_byte(rope.byte_len())).then(|| rope.byte_of_line(line))
+        }
+    }
+
     fn line_end(&self, line: usize) -> usize {
         let rope = self.rope();
-        let Some(&next_start) = self.line_starts.get(line + 1) else {
+        let Some(next_start) = self.line_start(line + 1) else {
             return rope.byte_len();
         };
         if rope.byte(next_start - 1) == b'\n'
@@ -260,6 +293,22 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
             next_start - 1
         }
     }
+}
+
+fn has_standalone_cr(rope: &Rope) -> bool {
+    let mut chunks = rope.chunks().peekable();
+    while let Some(chunk) = chunks.next() {
+        for offset in memchr::memchr_iter(b'\r', chunk.as_bytes()) {
+            let next = chunk
+                .as_bytes()
+                .get(offset + 1)
+                .or_else(|| chunks.peek().and_then(|next| next.as_bytes().first()));
+            if next != Some(&b'\n') {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn byte_column(contents: &RopeSlice<'_>, character: u32) -> Option<usize> {
@@ -541,6 +590,74 @@ mod tests {
         BytePos, SourceMap, Span,
         diagnostics::{Applicability, Diag, DiagMsg, Level},
     };
+
+    #[test]
+    fn owned_positions_match_explicit_line_index() {
+        for source in
+            ["", "plain", "a😀b\ncafé\n", "a😀b\r\ncafé\r\n", "a😀b\rcafé\r", "\n\r\n\r\nlast\r"]
+        {
+            let rope = Rope::from(source);
+            let expected = super::LspPositionIndex::new(&rope);
+            let actual = super::LspPositionIndex::from_rope_for_cursor(rope.clone());
+            for byte in 0..=source.len() + 1 {
+                assert_eq!(actual.line_at_byte(byte), expected.line_at_byte(byte));
+                assert_eq!(actual.position_at_byte(byte), expected.position_at_byte(byte));
+            }
+            let positions = (0..=5)
+                .flat_map(|line| (0..=8).map(move |column| Position::new(line, column)))
+                .chain([Position::new(u32::MAX, 0), Position::new(0, u32::MAX)])
+                .collect::<Vec<_>>();
+            for &start in &positions {
+                for &end in &positions {
+                    let range = Range::new(start, end);
+                    assert_eq!(
+                        actual.checked_text_range(range),
+                        expected.checked_text_range(range),
+                        "{source:?}, {range:?}",
+                    );
+                }
+            }
+            actual.index_lines();
+            for byte in 0..=source.len() + 1 {
+                assert_eq!(actual.position_at_byte(byte), expected.position_at_byte(byte));
+            }
+        }
+    }
+
+    #[test]
+    fn owned_positions_handle_crlf_across_rope_chunks() {
+        let mut covered_split = false;
+        for padding in 0..2048 {
+            let source = format!("{}{}", "a".repeat(padding), "😀\r\nA\n\r\n".repeat(200));
+            let mut rope = Rope::from(source.as_str());
+            let split = rope
+                .chunks()
+                .scan(0, |end, chunk| {
+                    *end += chunk.len();
+                    Some((*end, chunk.ends_with('\r')))
+                })
+                .find_map(|(end, cr)| cr.then_some(end));
+            let Some(split) = split else { continue };
+            assert!(!super::has_standalone_cr(&rope));
+            let actual = super::LspPositionIndex::from_rope_for_cursor(rope.clone());
+            let expected = super::LspPositionIndex::new(&rope);
+            for byte in split - 1..=split + 1 {
+                assert_eq!(actual.position_at_byte(byte), expected.position_at_byte(byte));
+            }
+
+            // Deleting LF leaves a standalone CR at the original chunk boundary.
+            rope.replace(split..split + 1, "");
+            assert!(super::has_standalone_cr(&rope));
+            let actual = super::LspPositionIndex::from_rope_for_cursor(rope.clone());
+            let expected = super::LspPositionIndex::new(&rope);
+            for byte in split - 1..=split + 1 {
+                assert_eq!(actual.position_at_byte(byte), expected.position_at_byte(byte));
+            }
+            covered_split = true;
+            break;
+        }
+        assert!(covered_split, "fixture must split CRLF across rope chunks");
+    }
 
     fn diagnostic_refresh_support(workspace: serde_json::Value) -> Option<bool> {
         let params: <super::Initialize as Request>::Params =

@@ -1,4 +1,57 @@
-use super::super::{import_path_at, import_path_at_for_completion, parse_import_path};
+use super::super::{
+    import_path_at, import_path_at_for_completion, may_complete_import_string, may_complete_string,
+    parse_import_path,
+};
+use crop::Rope;
+
+#[test]
+fn import_string_guard_handles_quotes_and_line_breaks_across_chunks() {
+    for (prefix, cursor_byte, expected) in [
+        ("", None, false),
+        ("", Some(b'"'), true),
+        ("import ", Some(b'\''), true),
+        ("contract C { value", None, false),
+        ("\"earlier\"\ncontract C", None, false),
+        ("\"earlier\"\r\ncontract C", None, false),
+        ("\"earlier\"\rcontract C", None, false),
+        ("import \"./", None, true),
+        ("import './", None, true),
+        ("/* 😀 */ import \"./", None, true),
+        ("import \"./\\\nDep", None, true),
+        ("import \"./\\\r\nDep", None, true),
+        ("import \"./\\\rDep", None, true),
+        ("import \"./\\\nDep\nordinary", None, false),
+        // Backslash parity and lexical context remain the parser's responsibility.
+        ("import \"./\\\\\nDep", None, true),
+    ] {
+        for first in (0..=prefix.len()).filter(|&offset| prefix.is_char_boundary(offset)) {
+            for second in (first..=prefix.len()).filter(|&offset| prefix.is_char_boundary(offset)) {
+                let chunks = [&prefix[..first], &prefix[first..second], &prefix[second..]];
+                assert_eq!(
+                    may_complete_string(chunks.into_iter(), cursor_byte),
+                    expected,
+                    "prefix {prefix:?}, splits {first}/{second}, cursor byte {cursor_byte:?}",
+                );
+            }
+        }
+
+        let mut source = format!("// {}\n{prefix}", "padding".repeat(1024));
+        let cursor = source.len();
+        if let Some(byte) = cursor_byte {
+            source.push(char::from(byte));
+        }
+        let rope = Rope::from(source.as_str());
+        assert!(rope.chunks().count() > 1);
+        assert_eq!(may_complete_import_string(&rope, cursor), expected, "prefix {prefix:?}");
+    }
+}
+
+#[test]
+fn import_string_guard_rejects_invalid_byte_cursors() {
+    let source = Rope::from("import \"./😀");
+    assert!(!may_complete_import_string(&source, source.byte_len() + 1));
+    assert!(!may_complete_import_string(&source, source.byte_len() - 1));
+}
 
 #[test]
 fn completion_recovers_an_unterminated_import_before_an_unrelated_string() {
