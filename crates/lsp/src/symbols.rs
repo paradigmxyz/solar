@@ -2907,7 +2907,11 @@ fn completion_filter_prefix(prefix: &str) -> Option<String> {
 
 fn fuzzy_completion_match(prefix: &str, label: &str) -> bool {
     // Match ASCII names byte by byte, retaining Unicode case folding for other labels.
-    if prefix.is_ascii() && label.is_ascii() {
+    if label.is_ascii() {
+        // Equal-length subsequences must match every byte; longer prefixes cannot match.
+        if prefix.len() >= label.len() {
+            return prefix.eq_ignore_ascii_case(label);
+        }
         let mut label = label.bytes();
         return prefix.bytes().all(|prefix_byte| {
             label.by_ref().any(|label_byte| label_byte.eq_ignore_ascii_case(&prefix_byte))
@@ -3037,6 +3041,15 @@ mod tests {
         assert!(fuzzy_completion_match("fnn", "FunctionName"));
         assert!(!fuzzy_completion_match("fz", "FunctionName"));
         assert!(fuzzy_completion_match("é", "Éclair"));
+        assert!(!fuzzy_completion_match("é", "Eclair"));
+        assert!(fuzzy_completion_match("functionname", "FunctionName"));
+        assert!(!fuzzy_completion_match("functionnamo", "FunctionName"));
+        assert!(!fuzzy_completion_match("functionnames", "FunctionName"));
+        assert!(fuzzy_completion_match("", ""));
+        assert!(!fuzzy_completion_match("f", ""));
+        // Unicode lowercase expansion can match a prefix with more bytes than the label.
+        assert!(fuzzy_completion_match("i\u{307}", "İ"));
+        assert!(fuzzy_completion_match("kk", "KK"));
     }
 
     #[test]
