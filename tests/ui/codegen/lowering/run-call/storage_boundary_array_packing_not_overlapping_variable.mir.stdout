@@ -42,7 +42,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     memory_object_store_element memoryfixedarray<10, 1>, v2, 9, v12
     v13 = lt 0, 1
     v14 = iszero v13
-    panic_if v14, 0x32
+    icall panic_if<0x32>, v14
     v15 = mul 0, 3
     v16 = add v1, v15
     jump bb1
@@ -64,7 +64,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     memory_object_store_element memoryfixedarray<5, 1>, v42, 4, v47
     v48 = lt 0, 1
     v49 = iszero v48
-    panic_if v49, 0x32
+    icall panic_if<0x32>, v49
     v50 = mul 0, 3
     v51 = add v1, v50
     jump bb7
@@ -82,7 +82,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v81 = phi [bb9: v1], [bb15: v81]
     v82 = lt 0, 1
     v83 = iszero v82
-    panic_if v83, 0x32
+    icall panic_if<0x32>, v83
     v84 = mul 0, 3
     v85 = add v81, v84
     v86 = lt v78, 10
@@ -97,12 +97,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb16:
     v87 = lt 0, 1
     v88 = iszero v87
-    panic_if v88, 0x32
+    icall panic_if<0x32>, v88
     v89 = mul 0, 3
     v90 = add v81, v89
     v91 = lt v78, 10
     v92 = iszero v91
-    panic_if v92, 0x32
+    icall panic_if<0x32>, v92
     v93 = div v78, 4
     v94 = add v90, v93
     v95 = mod v78, 4

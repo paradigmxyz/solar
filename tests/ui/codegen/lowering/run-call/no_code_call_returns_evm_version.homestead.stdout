@@ -11,11 +11,11 @@ fn @pair() -> memoryfixedarray [selector=0xa8aa1b31, pure, abi_params=[], abi_re
     memory_zero v0, 64
     v1 = lt 0, 2
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 1
     v3 = lt 1, 2
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 2
     ret v0
 }
@@ -38,7 +38,7 @@ fn @direct() -> u256 [selector=0x222b1407, abi_params=[], abi_returns=[word]] {
     v4 = slice_len v2
     v5 = extcodesize 0
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = gas
     v8 = sub v7, 50
     v9 = call v8, 0, 0, v3, v4, v3, 32
@@ -63,7 +63,7 @@ fn @viewCall() -> u256 [selector=0x33fd44fa, view, abi_params=[], abi_returns=[w
     v4 = slice_len v2
     v5 = extcodesize 0
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = gas
     v8 = sub v7, 50
     v9 = call v8, 0, 0, v3, v4, v3, 32
@@ -91,7 +91,7 @@ fn @pointer() -> u256 [selector=0x2f5f3b3c, abi_params=[], abi_returns=[word]] {
     v7 = slice_len v5
     v8 = extcodesize v2
     v9 = iszero v8
-    revert_if v9, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v9
     v10 = gas
     v11 = sub v10, 50
     v12 = call v11, v2, 0, v6, v7, v6, 32
@@ -119,7 +119,7 @@ fn @aggregate() -> u256 [selector=0xaf36778b, abi_params=[], abi_returns=[word]]
     v6 = slice_len v4
     v7 = extcodesize 0
     v8 = iszero v7
-    revert_if v8, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v8
     v9 = gas
     v10 = sub v9, 50
     v11 = call v10, 0, 0, v5, v6, v5, 64
@@ -131,7 +131,7 @@ fn @aggregate() -> u256 [selector=0xaf36778b, abi_params=[], abi_returns=[word]]
     v12 = abi_decode [array<2, u256>], v0
     v13 = lt 0, 2
     v14 = iszero v13
-    panic_if v14, 0x32
+    icall panic_if<0x32>, v14
     v15 = memory_object_load_element memoryfixedarray<2, 1>, v12, 0
     ret v15
 }
@@ -143,7 +143,7 @@ fn @directNoReturn() [selector=0xda4f8e3a, abi_params=[], abi_returns=[]] {
     v2 = slice_len v0
     v3 = extcodesize 0
     v4 = iszero v3
-    revert_if v4, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v4
     v5 = gas
     v6 = sub v5, 50
     v7 = call v6, 0, 0, v1, v2, v1, 0
@@ -164,7 +164,7 @@ fn @pointerNoReturn() [selector=0xcf820bfc, abi_params=[], abi_returns=[]] {
     v5 = slice_len v3
     v6 = extcodesize v2
     v7 = iszero v6
-    revert_if v7, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v7
     v8 = gas
     v9 = sub v8, 50
     v10 = call v9, v2, 0, v4, v5, v4, 0
@@ -198,7 +198,7 @@ fn @live() -> u256 [selector=0x957aa58c, abi_params=[], abi_returns=[word]] {
     v11 = slice_len v9
     v12 = extcodesize v6
     v13 = iszero v12
-    revert_if v13, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v13
     v14 = gas
     v15 = sub v14, 50
     v16 = call v15, v6, 0, v10, v11, v10, 32
@@ -239,7 +239,7 @@ fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=
     v13 = slice_len v11
     v14 = extcodesize v6
     v15 = iszero v14
-    revert_if v15, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v15
     v16 = gas
     v17 = sub v16, 50
     v18 = call v17, v6, 0, v12, v13, v12, 64
@@ -251,11 +251,11 @@ fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=
     v19 = abi_decode [array<2, u256>], v7
     v20 = lt 0, 2
     v21 = iszero v20
-    panic_if v21, 0x32
+    icall panic_if<0x32>, v21
     v22 = memory_object_load_element memoryfixedarray<2, 1>, v19, 0
     v23 = lt 1, 2
     v24 = iszero v23
-    panic_if v24, 0x32
+    icall panic_if<0x32>, v24
     v25 = memory_object_load_element memoryfixedarray<2, 1>, v19, 1
     v26 = insert_value struct0, undef struct0, 0, v22
     v27 = insert_value struct0, v26, 1, v25

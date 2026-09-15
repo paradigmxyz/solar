@@ -5,7 +5,7 @@ fn @f() -> u256 [selector=0x26121ff0, payable, abi_params=[], abi_returns=[word]
     v0 = callvalue
     v1 = gt v0, 0
     v2 = iszero v1
-    panic_if v2, 0x1
+    icall panic_if<0x1>, v2
     ret 1
 }
 
@@ -14,7 +14,7 @@ fn @g() -> u256 [selector=0xe2179b8e, payable, abi_params=[], abi_returns=[word]
     v0 = callvalue
     v1 = gt v0, 0
     v2 = iszero v1
-    panic_if v2, 0x1
+    icall panic_if<0x1>, v2
     ret 2
 }
 
@@ -33,7 +33,7 @@ fn @h() -> u256 [selector=0xb8c9d365, payable, abi_params=[], abi_returns=[word]
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v8
     v9 = lt 0, 2
     v10 = iszero v9
-    panic_if v10, 0x32
+    icall panic_if<0x32>, v10
     v11 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v12 = shr 64, v11
     v13 = and v12, 0xffffffff
@@ -50,7 +50,7 @@ fn @h() -> u256 [selector=0xb8c9d365, payable, abi_params=[], abi_returns=[word]
   bb2:
     v21 = returndatasize
     v22 = lt v21, 32
-    revert_if v22, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v22
     v23 = add 0, 0
     v24 = mload v23
     v25 = add 0, 0

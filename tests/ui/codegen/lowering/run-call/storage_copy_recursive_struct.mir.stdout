@@ -16,7 +16,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v6 = add 0, 2
     v7 = sload v6 !metadata(storage=slot(2))
     v8 = gt v7, 0xffffffffffffffff
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = add v7, 1
     v10 = storage_array_data_slot v6
     v11 = mul v7, 3
@@ -26,7 +26,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v14 = sload v13 !metadata(storage=slot(2))
     v15 = lt 0, v14
     v16 = iszero v15
-    panic_if v16, 0x32
+    icall panic_if<0x32>, v16
     v17 = storage_array_data_slot v13
     v18 = mul 0, 3
     v19 = add v17, v18
@@ -40,14 +40,14 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v26 = sload v25 !metadata(storage=slot(2))
     v27 = lt 0, v26
     v28 = iszero v27
-    panic_if v28, 0x32
+    icall panic_if<0x32>, v28
     v29 = storage_array_data_slot v25
     v30 = mul 0, 3
     v31 = add v29, v30
     v32 = add v31, 2
     v33 = sload v32 !metadata(storage=offset(v31, 2))
     v34 = gt v33, 0xffffffffffffffff
-    panic_if v34, 0x41
+    icall panic_if<0x41>, v34
     v35 = add v33, 1
     v36 = storage_array_data_slot v32
     v37 = mul v33, 3
@@ -57,7 +57,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v40 = sload v39 !metadata(storage=slot(2))
     v41 = lt 0, v40
     v42 = iszero v41
-    panic_if v42, 0x32
+    icall panic_if<0x32>, v42
     v43 = storage_array_data_slot v39
     v44 = mul 0, 3
     v45 = add v43, v44
@@ -65,7 +65,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v47 = sload v46 !metadata(storage=offset(v45, 2))
     v48 = lt 0, v47
     v49 = iszero v48
-    panic_if v49, 0x32
+    icall panic_if<0x32>, v49
     v50 = storage_array_data_slot v46
     v51 = mul 0, 3
     v52 = add v50, v51
@@ -78,7 +78,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v58 = add 0, 2
     v59 = sload v58 !metadata(storage=slot(2))
     v60 = gt v59, 0xffffffffffffffff
-    panic_if v60, 0x41
+    icall panic_if<0x41>, v60
     v61 = add v59, 1
     v62 = storage_array_data_slot v58
     v63 = mul v59, 3
@@ -88,7 +88,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v66 = sload v65 !metadata(storage=slot(2))
     v67 = lt 1, v66
     v68 = iszero v67
-    panic_if v68, 0x32
+    icall panic_if<0x32>, v68
     v69 = storage_array_data_slot v65
     v70 = mul 1, 3
     v71 = add v69, v70
@@ -111,7 +111,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     memory_object_store_field memorystruct<3>, v77, 2, v84
     v85 = sload 6 !metadata(storage=slot(6))
     v86 = gt v85, 0xffffffffffffffff
-    panic_if v86, 0x41
+    icall panic_if<0x41>, v86
     v87 = add v85, 1
     v88 = storage_array_data_slot 6
     v89 = mul v85, 3
@@ -127,7 +127,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v96 = add 0, 2
     v97 = sload v96 !metadata(storage=slot(2))
     v98 = eq v97, 0
-    panic_if v98, 0x31
+    icall panic_if<0x31>, v98
     v99 = sub v97, 1
     sstore v96, v99 !metadata(storage=slot(2))
     v100 = storage_array_data_slot v96
@@ -138,7 +138,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v104 = sload v103 !metadata(storage=slot(2))
     v105 = lt 0, v104
     v106 = iszero v105
-    panic_if v106, 0x32
+    icall panic_if<0x32>, v106
     v107 = storage_array_data_slot v103
     v108 = mul 0, 3
     v109 = add v107, v108
@@ -161,7 +161,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     memory_object_store_field memorystruct<3>, v115, 2, v122
     v123 = sload 6 !metadata(storage=slot(6))
     v124 = gt v123, 0xffffffffffffffff
-    panic_if v124, 0x41
+    icall panic_if<0x41>, v124
     v125 = add v123, 1
     v126 = storage_array_data_slot 6
     v127 = mul v123, 3
@@ -172,7 +172,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v130 = sload v129 !metadata(storage=slot(2))
     v131 = lt 0, v130
     v132 = iszero v131
-    panic_if v132, 0x32
+    icall panic_if<0x32>, v132
     v133 = storage_array_data_slot v129
     v134 = mul 0, 3
     v135 = add v133, v134
@@ -196,7 +196,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v149 = sload 6 !metadata(storage=slot(6))
     v150 = lt 0, v149
     v151 = iszero v150
-    panic_if v151, 0x32
+    icall panic_if<0x32>, v151
     v152 = storage_array_data_slot 6
     v153 = mul 0, 3
     v154 = add v152, v153
@@ -214,7 +214,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     memory_object_store_field memorystruct<3>, v155, 2, v162
     v163 = sload 6 !metadata(storage=slot(6))
     v164 = gt v163, 0xffffffffffffffff
-    panic_if v164, 0x41
+    icall panic_if<0x41>, v164
     v165 = add v163, 1
     v166 = storage_array_data_slot 6
     v167 = mul v163, 3
@@ -225,7 +225,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v170 = sload 6 !metadata(storage=slot(6))
     v171 = lt 0, v170
     v172 = iszero v171
-    panic_if v172, 0x32
+    icall panic_if<0x32>, v172
     v173 = storage_array_data_slot 6
     v174 = mul 0, 3
     v175 = add v173, v174
@@ -234,7 +234,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v178 = sload 6 !metadata(storage=slot(6))
     v179 = lt 0, v178
     v180 = iszero v179
-    panic_if v180, 0x32
+    icall panic_if<0x32>, v180
     v181 = storage_array_data_slot 6
     v182 = mul 0, 3
     v183 = add v181, v182
@@ -243,7 +243,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v186 = sload 6 !metadata(storage=slot(6))
     v187 = lt 0, v186
     v188 = iszero v187
-    panic_if v188, 0x32
+    icall panic_if<0x32>, v188
     v189 = storage_array_data_slot 6
     v190 = mul 0, 3
     v191 = add v189, v190
@@ -251,7 +251,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v193 = sload v192 !metadata(storage=offset(v191, 2))
     v194 = lt 0, v193
     v195 = iszero v194
-    panic_if v195, 0x32
+    icall panic_if<0x32>, v195
     v196 = storage_array_data_slot v192
     v197 = mul 0, 3
     v198 = add v196, v197
@@ -260,7 +260,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v201 = sload 6 !metadata(storage=slot(6))
     v202 = lt 0, v201
     v203 = iszero v202
-    panic_if v203, 0x32
+    icall panic_if<0x32>, v203
     v204 = storage_array_data_slot 6
     v205 = mul 0, 3
     v206 = add v204, v205
@@ -268,7 +268,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v208 = sload v207 !metadata(storage=offset(v206, 2))
     v209 = lt 0, v208
     v210 = iszero v209
-    panic_if v210, 0x32
+    icall panic_if<0x32>, v210
     v211 = storage_array_data_slot v207
     v212 = mul 0, 3
     v213 = add v211, v212
@@ -277,7 +277,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v216 = sload 6 !metadata(storage=slot(6))
     v217 = lt 0, v216
     v218 = iszero v217
-    panic_if v218, 0x32
+    icall panic_if<0x32>, v218
     v219 = storage_array_data_slot 6
     v220 = mul 0, 3
     v221 = add v219, v220
@@ -285,7 +285,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v223 = sload v222 !metadata(storage=offset(v221, 2))
     v224 = lt 0, v223
     v225 = iszero v224
-    panic_if v225, 0x32
+    icall panic_if<0x32>, v225
     v226 = storage_array_data_slot v222
     v227 = mul 0, 3
     v228 = add v226, v227
@@ -293,7 +293,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v230 = sload v229 !metadata(storage=offset(v228, 2))
     v231 = lt 0, v230
     v232 = iszero v231
-    panic_if v232, 0x32
+    icall panic_if<0x32>, v232
     v233 = storage_array_data_slot v229
     v234 = mul 0, 3
     v235 = add v233, v234
@@ -302,7 +302,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v238 = sload 6 !metadata(storage=slot(6))
     v239 = lt 0, v238
     v240 = iszero v239
-    panic_if v240, 0x32
+    icall panic_if<0x32>, v240
     v241 = storage_array_data_slot 6
     v242 = mul 0, 3
     v243 = add v241, v242
@@ -318,7 +318,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v252 = sload 6 !metadata(storage=slot(6))
     v253 = lt 1, v252
     v254 = iszero v253
-    panic_if v254, 0x32
+    icall panic_if<0x32>, v254
     v255 = storage_array_data_slot 6
     v256 = mul 1, 3
     v257 = add v255, v256
@@ -326,7 +326,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v259 = sload v258 !metadata(storage=offset(v257, 2))
     v260 = lt 0, v259
     v261 = iszero v260
-    panic_if v261, 0x32
+    icall panic_if<0x32>, v261
     v262 = storage_array_data_slot v258
     v263 = mul 0, 3
     v264 = add v262, v263
@@ -335,7 +335,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v267 = sload 6 !metadata(storage=slot(6))
     v268 = lt 2, v267
     v269 = iszero v268
-    panic_if v269, 0x32
+    icall panic_if<0x32>, v269
     v270 = storage_array_data_slot 6
     v271 = mul 2, 3
     v272 = add v270, v271
@@ -344,7 +344,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v275 = sload 6 !metadata(storage=slot(6))
     v276 = lt 1, v275
     v277 = iszero v276
-    panic_if v277, 0x32
+    icall panic_if<0x32>, v277
     v278 = storage_array_data_slot 6
     v279 = mul 1, 3
     v280 = add v278, v279
@@ -381,14 +381,14 @@ fn @load_storage_struct_array_0(arg0: u256) -> memoryarray {
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add v0, 1
     v2 = lt v1, v0
-    panic_if v2, 0x41
+    icall panic_if<0x41>, v2
     v3 = mul v1, 32
     v4 = iszero 32
     v5 = div v3, 32
     v6 = eq v5, v1
     v7 = or v4, v6
     v8 = iszero v7
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = alloc memoryarray<1>, exact, uninitialized, panic, v3
     set_memory_object_len memoryarray, v9, v0
     v10 = storage_array_data_slot arg0

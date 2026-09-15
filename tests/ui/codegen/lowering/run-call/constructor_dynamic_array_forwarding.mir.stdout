@@ -72,7 +72,7 @@ fn @entry(arg0: u256) -> address [selector=0xe2095c07, view, abi_params=[u256], 
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = lt arg0, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = storage_array_data_slot 1
     v4 = div arg0, 1
     v5 = add v3, v4
@@ -169,7 +169,7 @@ fn @entry(arg0: u256) -> address [selector=0xe2095c07, view, abi_params=[u256], 
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = lt arg0, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = storage_array_data_slot 1
     v4 = div arg0, 1
     v5 = add v3, v4
@@ -196,10 +196,10 @@ fn @f(arg0: u256, arg1: memoryarray) -> struct0 [selector=0x1b2902dd, abi_params
     v1 = slice_len v0
     v2 = add 0x51c, v1
     v3 = lt v2, 0x51c
-    panic_if v3, 0x41
+    icall panic_if<0x41>, v3
     v4 = add v2, 31
     v5 = lt v4, v2
-    panic_if v5, 0x41
+    icall panic_if<0x41>, v5
     v6 = not 31
     v7 = and v4, v6
     v8 = alloc raw, exact, uninitialized, infallible, v7
@@ -223,7 +223,7 @@ fn @f(arg0: u256, arg1: memoryarray) -> struct0 [selector=0x1b2902dd, abi_params
   bb4:
     v17 = returndatasize
     v18 = lt v17, 32
-    revert_if v18, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v18
     v19 = add 0, 0
     v20 = mload v19
     v21 = add 0, 0
@@ -239,13 +239,13 @@ fn @f(arg0: u256, arg1: memoryarray) -> struct0 [selector=0x1b2902dd, abi_params
   bb6:
     v28 = returndatasize
     v29 = lt v28, 32
-    revert_if v29, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v29
     v30 = add 0, 0
     v31 = mload v30
     v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffff
     v33 = eq v31, v32
     v34 = iszero v33
-    revert_if v34, empty
+    icall revert_if<empty>, v34
     v35 = add 0, 0
     v36 = mload v35
     v37 = insert_value struct0, undef struct0, 0, v22

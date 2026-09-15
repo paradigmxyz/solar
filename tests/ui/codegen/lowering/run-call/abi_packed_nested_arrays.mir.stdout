@@ -32,7 +32,7 @@ fn @encodeFixedIndex(arg0: memoryfixedarray) -> bytes32 [selector=0x4e9c2229, pu
   bb0:
     v0 = lt 0, 2
     v1 = iszero v0
-    panic_if v1, 0x32
+    icall panic_if<0x32>, v1
     v2 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 0
     v3 = memory_object_from_ptr memoryfixedarray, v2
     v4 = eq v3, 0
@@ -54,7 +54,7 @@ fn @encodeDynamicIndex(arg0: memoryarray) -> bytes32 [selector=0x7d5331fb, pure,
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 0, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryarray<1>, arg0, 0
     v4 = memory_object_from_ptr memoryfixedarray, v3
     v5 = eq v4, 0
@@ -84,7 +84,7 @@ fn @encodeCalldataIndex(arg0: calldataslice) -> bytes32 [selector=0x2e694aed, pu
     v0 = slice_len arg0
     v1 = lt 0, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 0
     v5 = make_calldata_slice v4, 2

@@ -95,7 +95,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v126 = sload 1 !metadata(storage=slot(1))
     v127 = lt 1, v126
     v128 = iszero v127
-    panic_if v128, 0x32
+    icall panic_if<0x32>, v128
     v129 = storage_array_data_slot 1
     v130 = div 1, 3
     v131 = add v129, v130
@@ -109,7 +109,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v139 = sload 1 !metadata(storage=slot(1))
     v140 = lt 2, v139
     v141 = iszero v140
-    panic_if v141, 0x32
+    icall panic_if<0x32>, v141
     v142 = storage_array_data_slot 1
     v143 = div 2, 3
     v144 = add v142, v143
@@ -123,7 +123,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v152 = sload 1 !metadata(storage=slot(1))
     v153 = lt 3, v152
     v154 = iszero v153
-    panic_if v154, 0x32
+    icall panic_if<0x32>, v154
     v155 = storage_array_data_slot 1
     v156 = div 3, 3
     v157 = add v155, v156
@@ -137,7 +137,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v165 = sload 1 !metadata(storage=slot(1))
     v166 = lt 4, v165
     v167 = iszero v166
-    panic_if v167, 0x32
+    icall panic_if<0x32>, v167
     v168 = storage_array_data_slot 1
     v169 = div 4, 3
     v170 = add v168, v169
@@ -151,7 +151,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v178 = sload 1 !metadata(storage=slot(1))
     v179 = lt 5, v178
     v180 = iszero v179
-    panic_if v180, 0x32
+    icall panic_if<0x32>, v180
     v181 = storage_array_data_slot 1
     v182 = div 5, 3
     v183 = add v181, v182
@@ -211,7 +211,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v59 = sload 0 !metadata(storage=slot(0))
     v60 = lt v50, v59
     v61 = iszero v60
-    panic_if v61, 0x32
+    icall panic_if<0x32>, v61
     v62 = storage_array_data_slot 0
     v63 = div v50, 4
     v64 = add v62, v63

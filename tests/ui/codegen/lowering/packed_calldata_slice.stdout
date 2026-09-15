@@ -7,7 +7,7 @@ fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    revert_if v4, empty
+    icall revert_if<empty>, v4
     v5 = sub arg2, arg1
     v6 = add v0, arg1
     v7 = make_calldata_slice v6, v5
@@ -22,11 +22,11 @@ fn @all() -> memorybytes [selector=0x10c4e8b0, pure, abi_params=[], abi_returns=
     v2 = slice_ptr v1
     v3 = slice_len v1
     v4 = gt v3, 0xffffffffffffffff
-    revert_if v4, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v4
     v5 = calldatasize
     v6 = sub v5, v3
     v7 = sgt v2, v6
-    revert_if v7, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v7
     v8 = abi_encode_packed (bytes v1)
     ret v8
 }

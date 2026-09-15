@@ -39,7 +39,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
   bb2:
     v15 = returndatasize
     v16 = lt v15, 32
-    revert_if v16, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v16
     v17 = add 0, 0
     v18 = mload v17
     v19 = add 0, 0
@@ -54,7 +54,7 @@ fn @internal_dispatcher_p_function_function_r_function(arg0: function, arg1: fun
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb2:
-    panic_if true, 0x51
+    icall panic_if<0x51>, true
     invalid
   bb1:
     v1 = icall @m, arg1, arg2
@@ -66,7 +66,7 @@ fn @internal_dispatcher_p_u256_u256_r_u256(arg0: function, arg1: u256, arg2: u25
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2
   bb2:
-    panic_if true, 0x51
+    icall panic_if<0x51>, true
     invalid
   bb1:
     v1 = icall @s, arg1, arg2

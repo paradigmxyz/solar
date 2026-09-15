@@ -20,7 +20,7 @@ fn @value(arg0: bool) -> struct0 [selector=0xc4d47ed1, pure, abi_params=[bool], 
     v6 = insert_value struct0, v5, 1, v3
     ret v6
   bb1:
-    icall require short_string, false, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
+    icall require<short_string>, false, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -71,12 +71,12 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
   bb2:
     jumpi true, bb4, bb5
   bb5:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb4:
     ret 0
   bb1:
-    v9 = returndata_bytes
+    v9 = icall returndata_bytes<>
     v10 = abi_decode [u256, bytes], v9
     v11 = extract_value struct0, v10, 0
     v12 = extract_value struct0, v10, 1
@@ -102,12 +102,12 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
   bb2:
     jumpi true, bb4, bb5
   bb5:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb4:
     ret 9
   bb1:
-    v9 = returndata_bytes
+    v9 = icall returndata_bytes<>
     v10 = abi_decode [u256, bytes], v9
     v11 = extract_value struct0, v10, 0
     v12 = extract_value struct0, v10, 1

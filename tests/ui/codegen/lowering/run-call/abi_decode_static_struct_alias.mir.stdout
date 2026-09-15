@@ -7,7 +7,7 @@ fn @mutateFirst(arg0: memorybytes) -> u256 [selector=0x781f0687, pure, abi_param
     v2 = memory_object_len memorybytes, arg0
     v3 = lt 31, v2
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     v5 = byte 0, v1
     memory_object_store_byte memorybytes, arg0, 31, v5
     v6 = memory_object_load_field memorystruct<1>, v0, 0
@@ -21,7 +21,7 @@ fn @mutateSecond(arg0: memorybytes) -> u256 [selector=0xe7eeece1, pure, abi_para
     v2 = memory_object_len memorybytes, arg0
     v3 = lt 31, v2
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     v5 = byte 0, v1
     memory_object_store_byte memorybytes, arg0, 31, v5
     v6 = memory_object_load_field memorystruct<1>, v0, 0
@@ -47,7 +47,7 @@ fn @mutateAliasInner(arg0: memorybytes, arg1: memorybytes) -> u256 [pure] {
     v4 = memory_object_len memorybytes, arg1
     v5 = lt 31, v4
     v6 = iszero v5
-    panic_if v6, 0x32
+    icall panic_if<0x32>, v6
     v7 = byte 0, v3
     memory_object_store_byte memorybytes, arg1, 31, v7
     v8 = memory_object_load_field memorystruct<1>, v0, 0

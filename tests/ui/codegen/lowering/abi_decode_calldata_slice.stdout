@@ -7,22 +7,22 @@ fn @decode(arg0: calldataslice) -> u256 [selector=0xe5c5e9a3, pure, abi_params=[
     v2 = gt v1, v1
     v3 = lt v1, 4
     v4 = or v2, v3
-    revert_if v4, empty
+    icall revert_if<empty>, v4
     v5 = sub v1, 4
     v6 = add v0, 4
     v7 = make_calldata_slice v6, v5
     v8 = slice_ptr v7
     v9 = slice_len v7
     v10 = gt v9, 0xffffffffffffffff
-    revert_if v10, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v10
     v11 = calldatasize
     v12 = sub v11, v9
     v13 = sgt v8, v12
-    revert_if v13, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v13
     v14 = slice_len v7
     v15 = add v14, 63
     v16 = lt v15, v14
-    panic_if v16, 0x41
+    icall panic_if<0x41>, v16
     v17 = not 31
     v18 = and v15, v17
     v19 = alloc memorybytes, exact, uninitialized, infallible, v18

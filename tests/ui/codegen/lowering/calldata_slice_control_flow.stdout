@@ -86,7 +86,7 @@ fn @_explicitTrim(arg0: calldataslice) -> calldataslice [pure] {
     v5 = gt v4, v4
     v6 = lt v4, 4
     v7 = or v5, v6
-    revert_if v7, empty
+    icall revert_if<empty>, v7
     v8 = sub v4, 4
     v9 = add v3, 4
     v10 = make_calldata_slice v9, v8
@@ -113,7 +113,7 @@ fn @_split(arg0: calldataslice) -> struct1 [pure] {
     v3 = gt v1, v1
     v4 = lt v1, v2
     v5 = or v3, v4
-    revert_if v5, empty
+    icall revert_if<empty>, v5
     v6 = sub v1, v2
     v7 = add v0, v2
     v8 = make_calldata_slice v7, v6

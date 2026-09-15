@@ -58,7 +58,7 @@ fn @plain() -> u256 [selector=0x59748c98, abi_params=[], abi_returns=[word]] {
   bb4:
     v12 = returndatasize
     v13 = lt v12, 32
-    revert_if v13, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v13
     v14 = add 0, 0
     v15 = mload v14
     v16 = add 0, 0
@@ -93,7 +93,7 @@ fn @salted() -> u256 [selector=0x1f981516, abi_params=[], abi_returns=[word]] {
   bb4:
     v13 = returndatasize
     v14 = lt v13, 32
-    revert_if v14, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v14
     v15 = add 0, 0
     v16 = mload v15
     v17 = add 0, 0
@@ -140,7 +140,7 @@ fn @pair() -> u256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word]] {
   bb6:
     v19 = returndatasize
     v20 = lt v19, 32
-    revert_if v20, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v20
     v21 = add 0, 0
     v22 = mload v21
     v23 = add 0, 0
@@ -156,7 +156,7 @@ fn @pair() -> u256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word]] {
   bb8:
     v30 = returndatasize
     v31 = lt v30, 32
-    revert_if v31, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v31
     v32 = add 0, 0
     v33 = mload v32
     v34 = add 0, 0

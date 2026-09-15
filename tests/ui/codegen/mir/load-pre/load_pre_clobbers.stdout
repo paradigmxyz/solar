@@ -110,7 +110,7 @@
       v0 = sload 5
       jump bb3
     bb3:
-      v1 = checked_addmod 1, 2, arg1
+      v1 = icall checked_addmod<>, 1, 2, arg1
       v2 = sload 5
       v3 = add v1, v2
       ret v3
@@ -125,7 +125,7 @@
       v0 = keccak256 128, 32
       jump bb3
     bb3:
-      panic_if arg1, 0x1
+      icall panic_if<0x1>, arg1
       v1 = keccak256 128, 32
       ret v1
   }
@@ -141,7 +141,7 @@
       jump bb3
     bb3:
 +     v3 = phi [bb1: v0], [bb2: v1]
-      panic_if arg1, 0x1
+      icall panic_if<0x1>, arg1
 -     v2 = sload 5
 -     ret v2
 +     ret v3

@@ -17,7 +17,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v2 = extract_value struct0, v0, 1
     v3 = sload v1 !metadata(storage=symbolic(v1))
     v4 = gt v3, 0xffffffffffffffff
-    panic_if v4, 0x41
+    icall panic_if<0x41>, v4
     v5 = add v3, 1
     v6 = storage_array_data_slot v1
     v7 = add v6, v3
@@ -25,7 +25,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     sstore v1, v5 !metadata(storage=symbolic(v1))
     v8 = sload v2 !metadata(storage=symbolic(v2))
     v9 = gt v8, 0xffffffffffffffff
-    panic_if v9, 0x41
+    icall panic_if<0x41>, v9
     v10 = add v8, 1
     v11 = storage_array_data_slot v2
     v12 = add v11, v8
@@ -33,12 +33,12 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v13 = sload v2 !metadata(storage=symbolic(v2))
     v14 = lt 0, v13
     v15 = iszero v14
-    panic_if v15, 0x32
+    icall panic_if<0x32>, v15
     v16 = storage_array_data_slot v2
     v17 = add v16, 0
     v18 = sload v17 !metadata(storage=symbolic(v16))
     v19 = gt v18, 0xffffffffffffffff
-    panic_if v19, 0x41
+    icall panic_if<0x41>, v19
     v20 = add v18, 1
     v21 = storage_array_data_slot v17
     v22 = add v21, v18
@@ -50,7 +50,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v26 = sload v2 !metadata(storage=symbolic(v2))
     v27 = lt 0, v26
     v28 = iszero v27
-    panic_if v28, 0x32
+    icall panic_if<0x32>, v28
     v29 = storage_array_data_slot v2
     v30 = add v29, 0
     v31 = sload v30 !metadata(storage=symbolic(v29))

@@ -1287,7 +1287,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         // Otherwise — instruction.
         let (kind, mut result_ty) = self.parse_inst_kind(mnemonic, mnemonic_span, builder)?;
-        if matches!(kind, InstKind::ICall { .. }) && result_label.is_none() {
+        if matches!(kind, InstKind::ICall { function: super::Callee::Function(_), .. })
+            && result_label.is_none()
+        {
             result_ty = None;
         }
 
@@ -1951,26 +1953,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     Some(mode.result_type()),
                 )
             }
-            sym::panic_if | sym::panic_if_zero | sym::revert_if | sym::revert_if_zero => {
-                let condition = self.parse_value(builder)?;
-                self.parser.expect(TokenKind::Comma)?;
-                let failure = if matches!(mnemonic, sym::panic_if | sym::panic_if_zero) {
-                    let value = self.parser.parse_uint()?;
-                    let code = value
-                        .try_into()
-                        .ok()
-                        .and_then(super::PanicCode::from_u64)
-                        .ok_or_else(|| self.parser.error("invalid panic code"))?;
-                    super::RevertKind::Panic(code)
-                } else {
-                    let name = self.parser.parse_ident()?;
-                    let reason = super::RevertReason::from_name(name)
-                        .ok_or_else(|| self.parser.error("invalid revert reason"))?;
-                    super::RevertKind::Reason(reason)
-                };
-                let is_zero = matches!(mnemonic, sym::panic_if_zero | sym::revert_if_zero);
-                (InstKind::Check { condition, is_zero, failure }, None)
-            }
             sym::validate_abi => inst!(ValidateAbi(value)),
             sym::abi_decode => {
                 let layout = self.parse_abi_param_layout()?;
@@ -1980,7 +1962,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let pending_call = matches!(
                     builder.func().value(data),
                     Value::Inst(inst)
-                        if matches!(builder.func().inst(*inst).kind, InstKind::ICall { .. })
+                        if matches!(builder.func().inst(*inst).kind, InstKind::ICall { function: super::Callee::Function(_), .. })
                 );
                 if !matches!(data_ty, Some(MirType::MemoryObject(MemoryObjectKind::Bytes)))
                     && !(data_ty == Some(MirType::MemPtr)
@@ -2222,12 +2204,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::load_storage_bytes => {
                 inst!(StorageBytesLoad(a) => MirType::MemoryObject(MemoryObjectKind::Bytes))
             }
-            sym::erc7201 => inst!(Erc7201(a) => MirType::uint256()),
-            sym::checked_addmod => inst!(CheckedAddMod(a, b, c) => MirType::uint256()),
-            sym::checked_mulmod => inst!(CheckedMulMod(a, b, c) => MirType::uint256()),
-            sym::sha256 => inst!(Sha256(a) => MirType::uint256()),
-            sym::ripemd160 => inst!(Ripemd160(a) => MirType::uint256()),
-            sym::ecrecover => inst!(EcRecover(a, b, c, d) => MirType::uint256()),
             sym::address_call | sym::address_staticcall | sym::address_delegatecall => {
                 operands!(address, input);
                 let kind = match mnemonic {
@@ -2255,11 +2231,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     Some(MirType::uint256()),
                 )
             }
-            sym::returndata_bytes => {
-                unit!(ReturndataBytes => MirType::MemoryObject(MemoryObjectKind::Bytes))
-            }
-            sym::send => inst!(Send(a, b) => MirType::uint256()),
-            sym::transfer => inst!(Transfer(a, b)),
             sym::keccak256_bytes => inst!(Keccak256Bytes(a) => MirType::bytes32()),
             sym::mapping_slot => inst!(MappingSlot(key, slot) => MirType::bytes32()),
             sym::mapping_slot_memory => {
@@ -2318,7 +2289,32 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         }
                     }
                     super::Callee::Builtin(super::Builtin::Concat(types.into()))
+                } else if self.parser.check_keyword(sym::panic_if)
+                    || self.parser.check_keyword(sym::panic_if_zero)
+                    || self.parser.check_keyword(sym::revert_if)
+                    || self.parser.check_keyword(sym::revert_if_zero)
+                {
+                    let name = self.parser.parse_ident()?;
+                    self.parser.expect(TokenKind::Lt)?;
+                    let failure = if matches!(name, sym::panic_if | sym::panic_if_zero) {
+                        let value = self.parser.parse_uint()?;
+                        let code = value
+                            .try_into()
+                            .ok()
+                            .and_then(super::PanicCode::from_u64)
+                            .ok_or_else(|| self.parser.error("invalid panic code"))?;
+                        super::RevertKind::Panic(code)
+                    } else {
+                        let name = self.parser.parse_ident()?;
+                        let reason = super::RevertReason::from_name(name)
+                            .ok_or_else(|| self.parser.error("invalid revert reason"))?;
+                        super::RevertKind::Reason(reason)
+                    };
+                    self.parser.expect(TokenKind::Gt)?;
+                    let is_zero = matches!(name, sym::panic_if_zero | sym::revert_if_zero);
+                    super::Callee::Builtin(super::Builtin::Check { is_zero, failure })
                 } else if self.parser.eat_keyword(sym::require) {
+                    self.parser.expect(TokenKind::Lt)?;
                     let kind = match self.parser.parse_ident()? {
                         sym::short_string => super::RequireKind::ShortString,
                         sym::empty_string => super::RequireKind::EmptyString,
@@ -2328,15 +2324,49 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         }
                         _ => return Err(self.parser.error("invalid require payload type")),
                     };
+                    self.parser.expect(TokenKind::Gt)?;
                     super::Callee::Builtin(super::Builtin::Require(kind))
+                } else if let Some(builtin) = self.parser.token().ident().and_then(|ident| {
+                    Some(match ident.name {
+                        sym::sha256 => super::Builtin::Sha256,
+                        sym::ripemd160 => super::Builtin::Ripemd160,
+                        sym::ecrecover => super::Builtin::EcRecover,
+                        sym::erc7201 => super::Builtin::Erc7201,
+                        sym::checked_addmod => super::Builtin::CheckedAddMod,
+                        sym::checked_mulmod => super::Builtin::CheckedMulMod,
+                        sym::send => super::Builtin::Send,
+                        sym::transfer => super::Builtin::Transfer,
+                        sym::returndata_bytes => super::Builtin::ReturndataBytes,
+                        _ => return None,
+                    })
+                }) {
+                    self.parser.bump();
+                    self.parser.expect(TokenKind::Lt)?;
+                    self.parser.expect(TokenKind::Gt)?;
+                    super::Callee::Builtin(builtin)
                 } else {
                     super::Callee::Function(self.parse_function_id()?)
                 };
                 let result_ty = match &function {
-                    super::Callee::Builtin(super::Builtin::Require(_)) => None,
+                    super::Callee::Builtin(
+                        super::Builtin::Require(_) | super::Builtin::Check { .. },
+                    ) => None,
                     super::Callee::Builtin(super::Builtin::Concat(_)) => {
                         Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
                     }
+                    super::Callee::Builtin(super::Builtin::Transfer) => None,
+                    super::Callee::Builtin(super::Builtin::ReturndataBytes) => {
+                        Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+                    }
+                    super::Callee::Builtin(
+                        super::Builtin::Sha256
+                        | super::Builtin::Ripemd160
+                        | super::Builtin::EcRecover
+                        | super::Builtin::Erc7201
+                        | super::Builtin::CheckedAddMod
+                        | super::Builtin::CheckedMulMod
+                        | super::Builtin::Send,
+                    ) => Some(MirType::uint256()),
                     super::Callee::Function(_) => Some(MirType::uint256()),
                 };
                 let mut args = Vec::new();

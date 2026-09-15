@@ -5,7 +5,7 @@ fn @constructor() [constructor] {
     v0 = icall @value
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = gt v1, 0xffffffffffffffff
-    panic_if v2, 0x41
+    icall panic_if<0x41>, v2
     v3 = add v1, 1
     v4 = storage_array_data_slot 0
     v5 = add v4, v1
@@ -39,7 +39,7 @@ fn @result() -> struct0 [selector=0x65372147, view, abi_params=[], abi_returns=[
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = lt 0, v1
     v3 = iszero v2
-    panic_if v3, 0x32
+    icall panic_if<0x32>, v3
     v4 = storage_array_data_slot 0
     v5 = add v4, 0
     v6 = sload v5 !metadata(storage=symbolic(v4))
@@ -53,7 +53,7 @@ fn @constructor() [constructor] {
     v0 = icall @value
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = gt v1, 0xffffffffffffffff
-    panic_if v2, 0x41
+    icall panic_if<0x41>, v2
     v3 = add v1, 1
     v4 = storage_array_data_slot 0
     v5 = add v4, v1

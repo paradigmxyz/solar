@@ -6,7 +6,7 @@ fn @mappingShort() [selector=0x9b5bf7ac, abi_params=[], abi_returns=[]] {
     store_storage_bytes_literal v0, hex"78"
     v1 = mapping_slot 0, 0
     v2 = icall @load_storage_bytes, v1
-    icall require error_string, false, v2
+    icall require<error_string>, false, v2
     invalid
 }
 
@@ -16,7 +16,7 @@ fn @mappingLong() [selector=0xaf8ee9a6, abi_params=[], abi_returns=[]] {
     store_storage_bytes_literal v0, hex"6162636465666768696a6b6c6d6e6f707172737475767778797a30313233343536"
     v1 = mapping_slot 1, 0
     v2 = icall @load_storage_bytes, v1
-    icall require error_string, false, v2
+    icall require<error_string>, false, v2
     invalid
 }
 
@@ -26,7 +26,7 @@ fn @mappingReference() [selector=0x49b1855e, abi_params=[], abi_returns=[]] {
     store_storage_bytes_literal v0, hex"78"
     v1 = mapping_slot 2, 0
     v2 = icall @load_storage_bytes, v1
-    icall require error_string, false, v2
+    icall require<error_string>, false, v2
     invalid
 }
 
@@ -38,7 +38,7 @@ fn @nestedMapping() [selector=0x041c73d0, abi_params=[], abi_returns=[]] {
     v2 = mapping_slot 0, 1
     v3 = mapping_slot 1, v2
     v4 = icall @load_storage_bytes, v3
-    icall require error_string, false, v4
+    icall require<error_string>, false, v4
     invalid
 }
 
@@ -46,7 +46,7 @@ fn @structRequire() [selector=0x8bb9ced2, abi_params=[], abi_returns=[]] {
   bb0:
     store_storage_bytes_literal 2, hex"78"
     v0 = icall @load_storage_bytes, 2
-    icall require error_string, false, v0
+    icall require<error_string>, false, v0
     ret
 }
 
@@ -55,21 +55,21 @@ fn @calldataReason(arg0: calldataslice) [selector=0x3f2c0e1e, pure, abi_params=[
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt v1, 0xffffffffffffffff
-    revert_if v2, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v2
     v3 = calldatasize
     v4 = sub v3, v1
     v5 = sgt v0, v4
-    revert_if v5, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v5
     v6 = slice_len arg0
     v7 = add v6, 63
     v8 = lt v7, v6
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = not 31
     v10 = and v7, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
     set_memory_object_len memorybytes, v11, v6
     memory_object_copy_from_slice memorybytes, v11, arg0
-    icall require error_string, false, v11
+    icall require<error_string>, false, v11
     invalid
 }
 

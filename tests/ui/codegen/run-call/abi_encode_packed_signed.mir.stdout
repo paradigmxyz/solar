@@ -8,7 +8,7 @@ fn @firstByteInt8(arg0: u8, arg1: i8) -> bytes1 [selector=0xdf400c36, pure, abi_
     v3 = memory_object_len memorybytes, v2
     v4 = lt 0, v3
     v5 = iszero v4
-    panic_if v5, 0x32
+    icall panic_if<0x32>, v5
     v6 = memory_object_load_byte memorybytes, v2, 0
     v7 = shl 248, v6
     ret v7
@@ -22,7 +22,7 @@ fn @firstByteInt16(arg0: u8, arg1: i16) -> bytes1 [selector=0x3ed4619b, pure, ab
     v3 = memory_object_len memorybytes, v2
     v4 = lt 0, v3
     v5 = iszero v4
-    panic_if v5, 0x32
+    icall panic_if<0x32>, v5
     v6 = memory_object_load_byte memorybytes, v2, 0
     v7 = shl 248, v6
     ret v7
@@ -36,7 +36,7 @@ fn @firstByteInt32(arg0: u8, arg1: i32) -> bytes1 [selector=0x538ea5fe, pure, ab
     v3 = memory_object_len memorybytes, v2
     v4 = lt 0, v3
     v5 = iszero v4
-    panic_if v5, 0x32
+    icall panic_if<0x32>, v5
     v6 = memory_object_load_byte memorybytes, v2, 0
     v7 = shl 248, v6
     ret v7
@@ -51,7 +51,7 @@ fn @firstByteSigned16() -> bytes1 [selector=0x951569ca, pure, abi_params=[], abi
     v4 = memory_object_len memorybytes, v3
     v5 = lt 0, v4
     v6 = iszero v5
-    panic_if v6, 0x32
+    icall panic_if<0x32>, v6
     v7 = memory_object_load_byte memorybytes, v3, 0
     v8 = shl 248, v7
     ret v8
@@ -90,7 +90,7 @@ fn @packedDynamicHashModified(arg0: bytes32, arg1: calldataslice) -> bytes32 [se
     v2 = mload 64 !metadata(memory=scratch)
     v3 = gt v2, 128
     v4 = iszero v3
-    revert_if v4, empty
+    icall revert_if<empty>, v4
     jump bb1
   bb1:
     ret v1

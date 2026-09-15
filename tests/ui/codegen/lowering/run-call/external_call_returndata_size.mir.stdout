@@ -6,11 +6,11 @@ fn @f() -> memoryfixedarray [selector=0x26121ff0, pure, abi_params=[], abi_retur
     memory_zero v0, 640
     v1 = lt 0, 20
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     memory_object_store_element memoryfixedarray<20, 1>, v0, 0, 42
     v3 = lt 1, 20
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     memory_object_store_element memoryfixedarray<20, 1>, v0, 1, 43
     ret v0
 }
@@ -59,7 +59,7 @@ fn @directOne() -> struct0 [selector=0x6aec8241, abi_params=[], abi_returns=[wor
   bb4:
     v13 = returndatasize
     v14 = lt v13, 32
-    revert_if v14, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v14
     v15 = add 0, 0
     v16 = mload v15
     v17 = add 0, 0
@@ -103,7 +103,7 @@ fn @pointerOne() -> struct0 [selector=0xc114b656, abi_params=[], abi_returns=[wo
   bb4:
     v18 = returndatasize
     v19 = lt v18, 32
-    revert_if v19, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v19
     v20 = add 0, 0
     v21 = mload v20
     v22 = add 0, 0
@@ -142,7 +142,7 @@ fn @directTwo() -> struct1 [selector=0x5ffbc6a1, abi_params=[], abi_returns=[wor
   bb4:
     v13 = returndatasize
     v14 = lt v13, 64
-    revert_if v14, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v14
     v15 = add v10, 0
     v16 = mload v15
     v17 = add v10, 32
@@ -195,7 +195,7 @@ fn @pointerTwo() -> struct1 [selector=0x48c1a795, abi_params=[], abi_returns=[wo
   bb4:
     v18 = returndatasize
     v19 = lt v18, 64
-    revert_if v19, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v19
     v20 = add v15, 0
     v21 = mload v20
     v22 = add v15, 32
@@ -238,7 +238,7 @@ fn @directShort() -> struct0 [selector=0x4a8b977e, abi_params=[], abi_returns=[w
   bb4:
     v12 = returndatasize
     v13 = lt v12, 64
-    revert_if v13, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v13
     v14 = add v9, 0
     v15 = mload v14
     v16 = add v9, 32
@@ -287,7 +287,7 @@ fn @pointerShort() -> struct0 [selector=0xc6a7045a, abi_params=[], abi_returns=[
   bb4:
     v17 = returndatasize
     v18 = lt v17, 64
-    revert_if v18, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v18
     v19 = add v14, 0
     v20 = mload v19
     v21 = add v14, 32
@@ -327,14 +327,14 @@ fn @directInvalidBool() -> bool [selector=0x78cd2593, abi_params=[], abi_returns
   bb4:
     v12 = returndatasize
     v13 = lt v12, 32
-    revert_if v13, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v13
     v14 = add 0, 0
     v15 = mload v14
     v16 = iszero v15
     v17 = iszero v16
     v18 = eq v15, v17
     v19 = iszero v18
-    revert_if v19, empty
+    icall revert_if<empty>, v19
     v20 = add 0, 0
     v21 = mload v20
     ret v21
@@ -371,14 +371,14 @@ fn @pointerInvalidBool() -> bool [selector=0xa0f03ea6, abi_params=[], abi_return
   bb4:
     v17 = returndatasize
     v18 = lt v17, 32
-    revert_if v18, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v18
     v19 = add 0, 0
     v20 = mload v19
     v21 = iszero v20
     v22 = iszero v21
     v23 = eq v20, v22
     v24 = iszero v23
-    revert_if v24, empty
+    icall revert_if<empty>, v24
     v25 = add 0, 0
     v26 = mload v25
     ret v26

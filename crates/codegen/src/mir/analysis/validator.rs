@@ -855,6 +855,99 @@ impl<'a> Validator<'a> {
     fn validate_memory_object_types(&mut self, func: &Function) {
         for (block, body) in func.blocks.iter_enumerated() {
             for &id in &body.instructions {
+                if let InstKind::ICall { function: Callee::Builtin(builtin), args } =
+                    &func.inst(id).kind
+                    && let Some(arity) = builtin.fixed_arity()
+                {
+                    if args.len() != arity {
+                        self.emit_at_inst("builtin call has an invalid argument count", block, id);
+                        continue;
+                    }
+                    match builtin {
+                        Builtin::CheckedAddMod | Builtin::CheckedMulMod => {
+                            if args.iter().any(|value| {
+                                func.value_ty(*value).is_none_or(|ty| {
+                                    !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                                })
+                            }) {
+                                self.emit_at_inst(
+                                    "checked modular arithmetic requires word operands",
+                                    block,
+                                    id,
+                                );
+                            }
+                            if func.inst(id).result_ty != Some(MirType::uint256()) {
+                                self.emit_at_inst(
+                                    "checked modular arithmetic requires a u256 result",
+                                    block,
+                                    id,
+                                );
+                            }
+                        }
+                        Builtin::Erc7201 | Builtin::Sha256 | Builtin::Ripemd160 => {
+                            if !matches!(
+                                func.value_ty(args[0]),
+                                Some(
+                                    MirType::MemoryObject(MemoryObjectKind::Bytes)
+                                        | MirType::MemPtr
+                                        | MirType::UInt(_)
+                                )
+                            ) {
+                                self.emit_at_inst(
+                                    "hash builtin requires a memorybytes operand",
+                                    block,
+                                    id,
+                                );
+                            }
+                            if func.inst(id).result_ty != Some(MirType::uint256()) {
+                                self.emit_at_inst("hash builtin requires a u256 result", block, id);
+                            }
+                        }
+                        Builtin::ReturndataBytes => {
+                            if func.inst(id).result_ty
+                                != Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+                            {
+                                self.emit_at_inst(
+                                    "returndata_bytes requires a bytes object result",
+                                    block,
+                                    id,
+                                );
+                            }
+                        }
+                        Builtin::Send | Builtin::Transfer => {
+                            if args.iter().any(|value| {
+                                func.value_ty(*value).is_none_or(|ty| {
+                                    !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                                })
+                            }) {
+                                self.emit_at_inst("payable call requires word operands", block, id);
+                            }
+                            let expected =
+                                matches!(builtin, Builtin::Send).then_some(MirType::uint256());
+                            if func.inst(id).result_ty != expected {
+                                self.emit_at_inst(
+                                    "payable call has an invalid result type",
+                                    block,
+                                    id,
+                                );
+                            }
+                        }
+                        Builtin::EcRecover => {
+                            if args.iter().any(|v| {
+                                func.value_ty(*v).is_none_or(|ty| {
+                                    !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                                })
+                            }) {
+                                self.emit_at_inst("ecrecover requires word operands", block, id);
+                            }
+                            if func.inst(id).result_ty != Some(MirType::uint256()) {
+                                self.emit_at_inst("ecrecover requires a u256 result", block, id);
+                            }
+                        }
+                        _ => unreachable!("fixed-signature builtin checked above"),
+                    }
+                    continue;
+                }
                 if let InstKind::ICall { function: Callee::Builtin(Builtin::Require(kind)), args } =
                     &func.inst(id).kind
                 {
@@ -1010,6 +1103,22 @@ impl<'a> Validator<'a> {
                         self.emit_at_inst("concat requires a memorybytes result", block, id);
                     }
                 }
+                if let InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), args } =
+                    &func.inst(id).kind
+                    && (args.len() != 1
+                        || func.inst(id).result_ty.is_some()
+                        || args.first().is_none_or(|&condition| {
+                            func.value_ty(condition).is_none_or(|ty| {
+                                !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                            })
+                        }))
+                {
+                    self.emit_at_inst(
+                        "conditional check requires one word condition and no result",
+                        block,
+                        id,
+                    );
+                }
                 let mut check = |object, expected| {
                     if let Some(MirType::MemoryObject(actual)) = func.value_ty(object)
                         && actual != expected
@@ -1024,46 +1133,12 @@ impl<'a> Validator<'a> {
                     }
                 };
                 match func.inst(id).kind {
-                    InstKind::Check { condition, .. } => {
-                        if func.inst(id).result_ty.is_some()
-                            || func.value_ty(condition).is_none_or(|ty| {
-                                !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
-                            })
-                        {
-                            self.emit_at_inst(
-                                "conditional check requires a word condition and no result",
-                                block,
-                                id,
-                            );
-                        }
-                    }
                     InstKind::ValidateAbi(value) => {
                         if func.inst(id).result_ty.is_some()
                             || func.value_ty(value).is_none_or(|ty| !ty.is_word())
                         {
                             self.emit_at_inst(
                                 "ABI validation requires one word operand and no result",
-                                block,
-                                id,
-                            );
-                        }
-                    }
-                    InstKind::CheckedAddMod(a, b, modulus)
-                    | InstKind::CheckedMulMod(a, b, modulus) => {
-                        if [a, b, modulus].iter().any(|value| {
-                            func.value_ty(*value).is_none_or(|ty| {
-                                !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
-                            })
-                        }) {
-                            self.emit_at_inst(
-                                "checked modular arithmetic requires word operands",
-                                block,
-                                id,
-                            );
-                        }
-                        if func.inst(id).result_ty != Some(MirType::uint256()) {
-                            self.emit_at_inst(
-                                "checked modular arithmetic requires a u256 result",
                                 block,
                                 id,
                             );
@@ -1190,27 +1265,6 @@ impl<'a> Validator<'a> {
                             );
                         }
                     }
-                    InstKind::Erc7201(object)
-                    | InstKind::Sha256(object)
-                    | InstKind::Ripemd160(object) => {
-                        if !matches!(
-                            func.value_ty(object),
-                            Some(
-                                MirType::MemoryObject(MemoryObjectKind::Bytes)
-                                    | MirType::MemPtr
-                                    | MirType::UInt(_)
-                            )
-                        ) {
-                            self.emit_at_inst(
-                                "hash builtin requires a memorybytes operand",
-                                block,
-                                id,
-                            );
-                        }
-                        if func.inst(id).result_ty != Some(MirType::uint256()) {
-                            self.emit_at_inst("hash builtin requires a u256 result", block, id);
-                        }
-                    }
                     InstKind::AddressCall { kind, address, input, gas, value } => {
                         check(input, MemoryObjectKind::Bytes);
                         if std::iter::once(address).chain(gas).chain(value).any(|operand| {
@@ -1233,43 +1287,6 @@ impl<'a> Validator<'a> {
                         }
                         if func.inst(id).result_ty != Some(MirType::uint256()) {
                             self.emit_at_inst("address call requires a u256 result", block, id);
-                        }
-                    }
-                    InstKind::ReturndataBytes => {
-                        if func.inst(id).result_ty
-                            != Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
-                        {
-                            self.emit_at_inst(
-                                "returndata_bytes requires a bytes object result",
-                                block,
-                                id,
-                            );
-                        }
-                    }
-                    InstKind::Send(address, amount) | InstKind::Transfer(address, amount) => {
-                        if [address, amount].iter().any(|value| {
-                            func.value_ty(*value).is_none_or(|ty| {
-                                !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
-                            })
-                        }) {
-                            self.emit_at_inst("payable call requires word operands", block, id);
-                        }
-                        let expected = matches!(func.inst(id).kind, InstKind::Send(..))
-                            .then_some(MirType::uint256());
-                        if func.inst(id).result_ty != expected {
-                            self.emit_at_inst("payable call has an invalid result type", block, id);
-                        }
-                    }
-                    InstKind::EcRecover(a, b, c, d) => {
-                        if [a, b, c, d].iter().any(|v| {
-                            func.value_ty(*v).is_none_or(|ty| {
-                                !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
-                            })
-                        }) {
-                            self.emit_at_inst("ecrecover requires word operands", block, id);
-                        }
-                        if func.inst(id).result_ty != Some(MirType::uint256()) {
-                            self.emit_at_inst("ecrecover requires a u256 result", block, id);
                         }
                     }
                     InstKind::MemoryObjectLen(object, kind)

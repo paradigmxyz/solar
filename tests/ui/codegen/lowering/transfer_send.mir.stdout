@@ -77,7 +77,7 @@ fn @sendValue() -> bool [selector=0x27c845dc, payable, abi_params=[], abi_return
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = send v1, 1
+    v2 = icall send<>, v1, 1
     ret v2
 }
 
@@ -85,19 +85,19 @@ fn @transferValue() [selector=0x2d9ed8d5, payable, abi_params=[], abi_returns=[]
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    transfer v1, 1
+    icall transfer<>, v1, 1
     ret
 }
 
 fn @sendZero() -> bool [selector=0xe857d88b, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = send 0xbeef, 0
+    v0 = icall send<>, 0xbeef, 0
     ret v0
 }
 
 fn @sendInsufficient() -> bool [selector=0x244c33f1, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = send 0xbeef, 1
+    v0 = icall send<>, 0xbeef, 1
     ret v0
 }
 
@@ -105,12 +105,12 @@ fn @balances() -> struct0 [selector=0x7bb98a68, payable, abi_params=[], abi_retu
   bb0:
     v0 = address
     v1 = balance v0
-    v2 = send 0xbeef, 1
+    v2 = icall send<>, 0xbeef, 1
     v3 = iszero v2
-    revert_if v3, empty
+    icall revert_if<empty>, v3
     v4 = address
     v5 = balance v4
-    transfer 0xbeef, 1
+    icall transfer<>, 0xbeef, 1
     v6 = address
     v7 = balance v6
     v8 = insert_value struct0, undef struct0, 0, v1
@@ -123,7 +123,7 @@ fn @sendRevertData() -> bytes4 [selector=0x2acce81c, abi_params=[], abi_returns=
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = send v1, 0
+    v2 = icall send<>, v1, 0
     returndatacopy 0, 0, 4 !metadata(memory=scratch)
     v3 = mload 0 !metadata(memory=scratch)
     ret v3
@@ -133,12 +133,12 @@ fn @transferOutOfGas() [selector=0xb3a4387c, payable, abi_params=[], abi_returns
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    transfer v1, 1
+    icall transfer<>, v1, 1
     ret
 }
 
 fn @transferInsufficient() [selector=0x44d19381, abi_params=[], abi_returns=[]] {
   bb0:
-    transfer 0xbeef, 1
+    icall transfer<>, 0xbeef, 1
     ret
 }

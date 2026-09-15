@@ -28,14 +28,14 @@ fn @main() -> bool [selector=0xdffeadd0, abi_params=[], abi_returns=[word<bool>]
   bb2:
     v13 = returndatasize
     v14 = lt v13, 32
-    revert_if v14, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v14
     v15 = add 0, 0
     v16 = mload v15
     v17 = iszero v16
     v18 = iszero v17
     v19 = eq v16, v18
     v20 = iszero v19
-    revert_if v20, empty
+    icall revert_if<empty>, v20
     v21 = add 0, 0
     v22 = mload v21
     ret v22

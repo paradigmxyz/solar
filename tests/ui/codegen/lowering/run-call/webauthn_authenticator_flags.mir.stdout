@@ -28,7 +28,7 @@ fn @testTypedConstant() -> bool [selector=0x62655512, pure, abi_params=[], abi_r
     v2 = memory_object_len memorybytes, v1
     v3 = lt 32, v2
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     v5 = memory_object_load_byte memorybytes, v1, 32
     v6 = shl 248, v5
     v7 = and v6, 0x100000000000000000000000000000000000000000000000000000000000000

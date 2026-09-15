@@ -682,7 +682,9 @@ fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
         let Some(result) = func.inst_result_value(inst_id) else { continue };
         let kind = &func.inst(inst_id).kind;
         let root = match kind {
-            InstKind::Fmp | InstKind::MSize | InstKind::ICall { .. } => true,
+            InstKind::Fmp
+            | InstKind::MSize
+            | InstKind::ICall { function: Callee::Function(_), .. } => true,
             InstKind::MLoad(address) => func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT),
             _ => false,
         };

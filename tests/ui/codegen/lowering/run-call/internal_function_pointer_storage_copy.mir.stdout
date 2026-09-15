@@ -57,7 +57,7 @@ fn @two() -> u256 [selector=0x5fdf05d7, abi_params=[], abi_returns=[word]] {
     sstore 5, 1 !metadata(storage=slot(5))
     v2 = lt 0, 20
     v3 = iszero v2
-    panic_if v3, 0x32
+    icall panic_if<0x32>, v3
     v4 = div 0, 4
     v5 = add 0, v4
     v6 = mod 0, 4
@@ -74,6 +74,6 @@ fn @two() -> u256 [selector=0x5fdf05d7, abi_params=[], abi_returns=[word]] {
 
 fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_dispatcher] {
   bb0:
-    panic_if true, 0x51
+    icall panic_if<0x51>, true
     invalid
 }

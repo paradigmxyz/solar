@@ -606,13 +606,6 @@ fn display_inst_kind<'a>(
         InstKind::MemoryObjectData(object, kind) => {
             write!(f, "memory_object_data {kind}, {}", display_val(*object, func))
         }
-        InstKind::Check { condition, failure, .. } => {
-            write!(f, "{} {}, ", kind.mnemonic(), display_val(*condition, func))?;
-            match failure {
-                super::RevertKind::Panic(code) => write!(f, "0x{:x}", code.as_u64()),
-                super::RevertKind::Reason(reason) => write!(f, "{}", reason.name()),
-            }
-        }
         InstKind::CheckedBinary { op, arithmetic, lhs, rhs } => write!(
             f,
             "{} {}, {}, {}",
@@ -652,15 +645,37 @@ fn display_inst_kind<'a>(
         InstKind::ICall { function: Callee::Builtin(builtin), args } => {
             write!(f, "icall ")?;
             match builtin {
+                Builtin::Sha256 => write!(f, "sha256<>")?,
+                Builtin::Ripemd160 => write!(f, "ripemd160<>")?,
+                Builtin::EcRecover => write!(f, "ecrecover<>")?,
+                Builtin::Erc7201 => write!(f, "erc7201<>")?,
+                Builtin::CheckedAddMod => write!(f, "checked_addmod<>")?,
+                Builtin::CheckedMulMod => write!(f, "checked_mulmod<>")?,
+                Builtin::Send => write!(f, "send<>")?,
+                Builtin::Transfer => write!(f, "transfer<>")?,
+                Builtin::ReturndataBytes => write!(f, "returndata_bytes<>")?,
                 Builtin::Concat(types) => write!(f, "concat<{}>", types.iter().format(", "))?,
+                Builtin::Check { is_zero, failure } => {
+                    let name = match failure {
+                        super::RevertKind::Panic(_) => "panic_if",
+                        super::RevertKind::Reason(_) => "revert_if",
+                    };
+                    write!(f, "{name}{}<", if *is_zero { "_zero" } else { "" })?;
+                    match failure {
+                        super::RevertKind::Panic(code) => write!(f, "0x{:x}", code.as_u64())?,
+                        super::RevertKind::Reason(reason) => write!(f, "{}", reason.name())?,
+                    }
+                    write!(f, ">")?;
+                }
                 Builtin::Require(kind) => {
-                    write!(f, "require ")?;
+                    write!(f, "require<")?;
                     match kind {
                         RequireKind::ShortString => write!(f, "short_string")?,
                         RequireKind::EmptyString => write!(f, "empty_string")?,
                         RequireKind::ErrorString => write!(f, "error_string")?,
                         RequireKind::CustomError(layout) => write!(f, "custom_error {layout}")?,
                     }
+                    write!(f, ">")?;
                 }
             }
             for &arg in args {

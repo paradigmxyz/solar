@@ -59,7 +59,7 @@ fn @internal_dispatcher_p_bytes6_r_none(arg0: function, arg1: bytes6) [function_
     v0 = eq arg0, 3
     jumpi v0, bb1, bb2
   bb2:
-    panic_if true, 0x51
+    icall panic_if<0x51>, true
     invalid
   bb1:
     icall @setName, arg1
@@ -71,7 +71,7 @@ fn @internal_dispatcher_p_bytes6_u256_r_bytes6(arg0: function, arg1: bytes6, arg
     v0 = eq arg0, 4
     jumpi v0, bb1, bb2
   bb2:
-    panic_if true, 0x51
+    icall panic_if<0x51>, true
     invalid
   bb1:
     v1 = icall @leftByteShift, arg1, arg2

@@ -13,7 +13,7 @@ fn @default_call(arg0: address, arg1: memorybytes) -> u256 {
 fn @explicit_zero(arg0: address, arg1: memorybytes, arg2: u256) -> memorybytes {
   bb0:
     v0 = address_call arg0, arg1, gas arg2, value 0
-    v1 = returndata_bytes !metadata(span=30..40, modifier_depth=3)
+    v1 = icall returndata_bytes<> !metadata(span=30..40, modifier_depth=3)
     ret v1
 }
 

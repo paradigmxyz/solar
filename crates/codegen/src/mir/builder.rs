@@ -344,12 +344,11 @@ impl<'a> FunctionBuilder<'a> {
         kind: RevertKind,
     ) -> BlockId {
         if self.semantic {
-            // check condition, failure
-            self.emit_void_inst(InstKind::Check {
-                condition,
-                is_zero: condition_is_zero,
-                failure: kind,
-            });
+            // icall check<polarity, failure>, condition
+            self.emit_void_inst(InstKind::builtin(
+                super::Builtin::Check { is_zero: condition_is_zero, failure: kind },
+                [condition],
+            ));
             return self.current_block();
         }
         // branch condition, failure, continuation
@@ -1585,7 +1584,7 @@ impl<'a> FunctionBuilder<'a> {
     pub(crate) fn returndata_bytes(&mut self) -> ValueId {
         // object = returndata_bytes
         self.emit_inst(
-            InstKind::ReturndataBytes,
+            InstKind::builtin(crate::mir::Builtin::ReturndataBytes, []),
             Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
         )
     }
@@ -1593,13 +1592,16 @@ impl<'a> FunctionBuilder<'a> {
     /// Sends value with the Solidity stipend, returning success.
     pub(crate) fn send(&mut self, address: ValueId, amount: ValueId) -> ValueId {
         // success = send address, amount
-        self.emit_inst(InstKind::Send(address, amount), Some(MirType::uint256()))
+        self.emit_inst(
+            InstKind::builtin(crate::mir::Builtin::Send, [address, amount]),
+            Some(MirType::uint256()),
+        )
     }
 
     /// Transfers value with the Solidity stipend and propagates failure returndata.
     pub(crate) fn transfer(&mut self, address: ValueId, amount: ValueId) {
         // transfer address, amount
-        self.emit_void_inst(InstKind::Transfer(address, amount));
+        self.emit_void_inst(InstKind::builtin(crate::mir::Builtin::Transfer, [address, amount]));
     }
 
     /// Emits a call instruction (external call).

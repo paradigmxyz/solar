@@ -25,13 +25,13 @@ fn @vAddress(arg0: address) -> address [selector=0x23347413, view, abi_params=[a
   bb2:
     v7 = returndatasize
     v8 = lt v7, 32
-    revert_if v8, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v8
     v9 = add 0, 0
     v10 = mload v9
     v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
     v12 = eq v10, v11
     v13 = iszero v12
-    revert_if v13, empty
+    icall revert_if<empty>, v13
     v14 = add 0, 0
     v15 = mload v14
     ret v15
@@ -57,7 +57,7 @@ fn @dirtyBytes1(arg0: bytes32) -> bytes32 [selector=0x92fef914, view, abi_params
   bb2:
     v7 = returndatasize
     v8 = lt v7, 32
-    revert_if v8, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v8
     v9 = add 0, 0
     v10 = mload v9
     v11 = add 0, 0
@@ -77,7 +77,7 @@ fn @dirtyEnumArg(arg0: u256) -> u256 [selector=0xc3e104d2, view, abi_params=[u25
     v1 = gas
     v2 = lt arg0, 2
     v3 = iszero v2
-    panic_if v3, 0x21
+    icall panic_if<0x21>, v3
     v4 = abi_encode [word<enum 2>], selector 0x5688f44300000000000000000000000000000000000000000000000000000000, args arg0
     v5 = slice_ptr v4
     v6 = slice_len v4
@@ -88,7 +88,7 @@ fn @dirtyEnumArg(arg0: u256) -> u256 [selector=0xc3e104d2, view, abi_params=[u25
   bb2:
     v8 = returndatasize
     v9 = lt v8, 32
-    revert_if v9, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
     v11 = mload v10
     v12 = add 0, 0
@@ -100,6 +100,6 @@ fn @enumTarget(arg0: u8) -> u256 [selector=0x5688f443, pure, abi_params=[enum<2,
   bb0:
     v0 = lt arg0, 2
     v1 = iszero v0
-    panic_if v1, 0x21
+    icall panic_if<0x21>, v1
     ret arg0
 }

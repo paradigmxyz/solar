@@ -11,7 +11,7 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     v3 = gt 1, v2
     v4 = lt 1, 0
     v5 = or v3, v4
-    revert_if v5, empty
+    icall revert_if<empty>, v5
     v6 = sub 1, 0
     v7 = add v1, 0
     v8 = make_calldata_slice v7, v6
@@ -23,21 +23,21 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     v14 = eq v13, v9
     v15 = or v12, v14
     v16 = iszero v15
-    panic_if v16, 0x41
+    icall panic_if<0x41>, v16
     v17 = calldatasize
     v18 = sub v17, v10
     v19 = slt v18, v11
-    revert_if v19, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v19
     v20 = mul v9, 32
     v21 = iszero 32
     v22 = div v20, 32
     v23 = eq v22, v9
     v24 = or v21, v23
     v25 = iszero v24
-    panic_if v25, 0x41
+    icall panic_if<0x41>, v25
     v26 = add 32, v20
     v27 = lt v26, 32
-    panic_if v27, 0x41
+    icall panic_if<0x41>, v27
     v28 = alloc memoryarray<1>, exact, uninitialized, infallible, v26
     set_memory_object_len memoryarray, v28, v9
     v29 = make_calldata_slice v10, v20
@@ -48,7 +48,7 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     v32 = gt 3, v31
     v33 = lt 3, 1
     v34 = or v32, v33
-    revert_if v34, empty
+    icall revert_if<empty>, v34
     v35 = sub 3, 1
     v36 = add v30, 32
     v37 = make_calldata_slice v36, v35
@@ -60,21 +60,21 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     v43 = eq v42, v38
     v44 = or v41, v43
     v45 = iszero v44
-    panic_if v45, 0x41
+    icall panic_if<0x41>, v45
     v46 = calldatasize
     v47 = sub v46, v39
     v48 = slt v47, v40
-    revert_if v48, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v48
     v49 = mul v38, 32
     v50 = iszero 32
     v51 = div v49, 32
     v52 = eq v51, v38
     v53 = or v50, v52
     v54 = iszero v53
-    panic_if v54, 0x41
+    icall panic_if<0x41>, v54
     v55 = add 32, v49
     v56 = lt v55, 32
-    panic_if v56, 0x41
+    icall panic_if<0x41>, v56
     v57 = alloc memoryarray<1>, exact, uninitialized, infallible, v55
     set_memory_object_len memoryarray, v57, v38
     v58 = make_calldata_slice v39, v49
@@ -88,33 +88,33 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
   bb3:
     v94 = lt 0, 2
     v95 = iszero v94
-    panic_if v95, 0x32
+    icall panic_if<0x32>, v95
     v96 = add 0, 0
     v97 = sload v96 !metadata(storage=slot(0))
     v98 = lt 0, 2
     v99 = iszero v98
-    panic_if v99, 0x32
+    icall panic_if<0x32>, v99
     v100 = add 0, 0
     v101 = sload v100 !metadata(storage=slot(0))
     v102 = lt 0, v101
     v103 = iszero v102
-    panic_if v103, 0x32
+    icall panic_if<0x32>, v103
     v104 = storage_array_data_slot v100
     v105 = add v104, 0
     v106 = sload v105 !metadata(storage=symbolic(v104))
     v107 = lt 1, 2
     v108 = iszero v107
-    panic_if v108, 0x32
+    icall panic_if<0x32>, v108
     v109 = add 0, 1
     v110 = sload v109 !metadata(storage=slot(1))
     v111 = lt 1, 2
     v112 = iszero v111
-    panic_if v112, 0x32
+    icall panic_if<0x32>, v112
     v113 = add 0, 1
     v114 = sload v113 !metadata(storage=slot(1))
     v115 = lt 1, v114
     v116 = iszero v115
-    panic_if v116, 0x32
+    icall panic_if<0x32>, v116
     v117 = storage_array_data_slot v113
     v118 = add v117, 1
     v119 = sload v118 !metadata(storage=offset(v117, 1))

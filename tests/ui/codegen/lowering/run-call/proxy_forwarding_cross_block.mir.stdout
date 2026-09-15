@@ -173,7 +173,7 @@ fn @fixedRange() -> u256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     v30 = slice_len v28
     v31 = extcodesize v23
     v32 = iszero v31
-    revert_if v32, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v32
     v33 = call v24, v23, 0, v29, v30, 0, 0
     jumpi v33, bb6, bb5
   bb5:
@@ -190,13 +190,13 @@ fn @fixedRange() -> u256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
   bb8:
     v39 = returndatasize
     v40 = lt v39, 32
-    revert_if v40, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v40
     v41 = add 0, 0
     v42 = mload v41
     v43 = add 0, 0
     v44 = mload v43
     v45 = eq v44, 166
-    icall require short_string, v45, 5, 0x6669786564000000000000000000000000000000000000000000000000000000
+    icall require<short_string>, v45, 5, 0x6669786564000000000000000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -257,7 +257,7 @@ fn @crossBlock() -> u256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     v30 = slice_len v28
     v31 = extcodesize v23
     v32 = iszero v31
-    revert_if v32, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v32
     v33 = call v24, v23, 0, v29, v30, 0, 0
     jumpi v33, bb6, bb5
   bb5:
@@ -274,13 +274,13 @@ fn @crossBlock() -> u256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
   bb8:
     v39 = returndatasize
     v40 = lt v39, 32
-    revert_if v40, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v40
     v41 = add 0, 0
     v42 = mload v41
     v43 = add 0, 0
     v44 = mload v43
     v45 = eq v44, 175
-    icall require short_string, v45, 11, 0x63726f737320626c6f636b000000000000000000000000000000000000000000
+    icall require<short_string>, v45, 11, 0x63726f737320626c6f636b000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -316,17 +316,17 @@ fn @dynamicRevert() -> u256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     v15 = gas
     v16 = abi_encode [], object, selector 0x4ce637d600000000000000000000000000000000000000000000000000000000
     v17 = address_call v14, v16, gas v15
-    v18 = returndata_bytes
+    v18 = icall returndata_bytes<>
     v19 = iszero v17
-    icall require short_string, v19, 7, 0x7375636365737300000000000000000000000000000000000000000000000000
+    icall require<short_string>, v19, 7, 0x7375636365737300000000000000000000000000000000000000000000000000
     v20 = memory_object_len memorybytes, v18
     v21 = eq v20, 228
-    icall require short_string, v21, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
+    icall require<short_string>, v21, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
     v22 = add v18, 32
     v23 = mload v22
     v24 = shl 0, 0x1234
     v25 = eq v23, v24
-    icall require short_string, v25, 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
+    icall require<short_string>, v25, 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -361,7 +361,7 @@ fn @bubble() -> memorybytes [selector=0x4ce637d6, view, abi_params=[], abi_retur
   bb1:
     revert_returndata
   bb2:
-    v6 = returndata_bytes
+    v6 = icall returndata_bytes<>
     v7 = abi_decode [bytes], v6
     ret v7
 }

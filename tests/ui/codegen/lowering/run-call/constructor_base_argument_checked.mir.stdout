@@ -200,7 +200,7 @@ fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
     v0 = icall @table
     v1 = lt arg0, 2
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, arg0
     sstore 0, v3 !metadata(storage=slot(0))
     jump bb1
@@ -216,11 +216,11 @@ fn @table() -> memoryfixedarray [pure] {
     memory_zero v0, 64
     v1 = lt 0, 2
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 5
     v3 = lt 1, 2
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 6
     ret v0
 }
@@ -273,7 +273,7 @@ fn @deployAdd(arg0: u256) -> u256 [selector=0xec1495a8, abi_params=[u256], abi_r
   bb4:
     v12 = returndatasize
     v13 = lt v12, 32
-    revert_if v13, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v13
     v14 = add 0, 0
     v15 = mload v14
     v16 = add 0, 0
@@ -307,7 +307,7 @@ fn @deployMul(arg0: u256) -> u256 [selector=0xcb7face2, abi_params=[u256], abi_r
   bb4:
     v12 = returndatasize
     v13 = lt v12, 32
-    revert_if v13, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v13
     v14 = add 0, 0
     v15 = mload v14
     v16 = add 0, 0
@@ -341,7 +341,7 @@ fn @deployNegate(arg0: i256) -> i256 [selector=0x8ee51801, abi_params=[i256], ab
   bb4:
     v12 = returndatasize
     v13 = lt v12, 32
-    revert_if v13, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v13
     v14 = add 0, 0
     v15 = mload v14
     v16 = add 0, 0
@@ -375,7 +375,7 @@ fn @deployElement(arg0: u256) -> u256 [selector=0x178d3c81, abi_params=[u256], a
   bb4:
     v12 = returndatasize
     v13 = lt v12, 32
-    revert_if v13, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v13
     v14 = add 0, 0
     v15 = mload v14
     v16 = add 0, 0
@@ -409,7 +409,7 @@ fn @deploySub(arg0: u256) -> u256 [selector=0xd5c4b324, abi_params=[u256], abi_r
   bb4:
     v12 = returndatasize
     v13 = lt v12, 32
-    revert_if v13, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v13
     v14 = add 0, 0
     v15 = mload v14
     v16 = add 0, 0
@@ -443,7 +443,7 @@ fn @deployExp(arg0: u256) -> u256 [selector=0x2744a5b3, abi_params=[u256], abi_r
   bb4:
     v12 = returndatasize
     v13 = lt v12, 32
-    revert_if v13, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v13
     v14 = add 0, 0
     v15 = mload v14
     v16 = add 0, 0
@@ -477,7 +477,7 @@ fn @deployShift(arg0: u256) -> u256 [selector=0xca2ccfdb, abi_params=[u256], abi
   bb4:
     v12 = returndatasize
     v13 = lt v12, 32
-    revert_if v13, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v13
     v14 = add 0, 0
     v15 = mload v14
     v16 = add 0, 0

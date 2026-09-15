@@ -225,13 +225,14 @@ impl CheckEliminator {
                     }
 
                     for &id in &func.blocks[block].instructions {
-                        let fact = match func.inst(id).kind {
-                            InstKind::Check { condition, is_zero, .. } => {
-                                Some((condition, is_zero))
-                            }
+                        let fact = match &func.inst(id).kind {
+                            InstKind::ICall {
+                                function: Callee::Builtin(Builtin::Check { is_zero, .. }),
+                                args,
+                            } => Some((args[0], *is_zero)),
                             InstKind::ICall {
                                 function: Callee::Builtin(Builtin::Require(_)),
-                                ref args,
+                                args,
                             } => Some((args[0], true)),
                             _ => None,
                         };

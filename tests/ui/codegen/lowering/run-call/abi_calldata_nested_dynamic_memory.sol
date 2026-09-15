@@ -28,7 +28,7 @@ contract AbiCalldataNestedDynamicMemory {
     // SEMANTIC-NEXT: [[FITS:v[0-9]+]] = eq [[QUOTIENT]], [[ELEMENT]]
     // SEMANTIC-NEXT: [[VALID:v[0-9]+]] = or [[ZERO]], [[FITS]]
     // SEMANTIC-NEXT: [[OVERFLOW:v[0-9]+]] = iszero [[VALID]]
-    // SEMANTIC-NEXT: panic_if [[OVERFLOW]], 0x41
+    // SEMANTIC-NEXT: icall panic_if<0x41>, [[OVERFLOW]]
     function h(uint256[2][][] calldata values)
         external
         pure

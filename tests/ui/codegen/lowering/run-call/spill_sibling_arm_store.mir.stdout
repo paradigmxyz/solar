@@ -93,7 +93,7 @@ fn @run(arg0: i128) -> u256 [selector=0x96c07422, abi_params=[i128], abi_returns
   bb8:
     v33 = returndatasize
     v34 = lt v33, 32
-    revert_if v34, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v34
     v35 = add 0, 0
     v36 = mload v35
     v37 = add 0, 0
@@ -127,7 +127,7 @@ fn @_settleOrTake(arg0: address, arg1: i128) {
     v16 = slice_len v14
     v17 = extcodesize v12
     v18 = iszero v17
-    revert_if v18, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v18
     v19 = call v13, v12, v8, v15, v16, 0, 0
     jumpi v19, bb8, bb7
   bb7:
@@ -161,7 +161,7 @@ fn @settle(arg0: address, arg1: address, arg2: address, arg3: u256, arg4: bool) 
     v4 = slice_len v2
     v5 = extcodesize arg1
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = call v0, arg1, 0, v3, v4, 0, 0
     jumpi v7, bb5, bb4
   bb4:
@@ -189,14 +189,14 @@ fn @settle(arg0: address, arg1: address, arg2: address, arg3: u256, arg4: bool) 
   bb10:
     v20 = returndatasize
     v21 = lt v20, 32
-    revert_if v21, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v21
     v22 = add 0, 0
     v23 = mload v22
     v24 = iszero v23
     v25 = iszero v24
     v26 = eq v23, v25
     v27 = iszero v26
-    revert_if v27, empty
+    icall revert_if<empty>, v27
     v28 = add 0, 0
     v29 = mload v28
     v30 = gas
@@ -205,7 +205,7 @@ fn @settle(arg0: address, arg1: address, arg2: address, arg3: u256, arg4: bool) 
     v33 = slice_len v31
     v34 = extcodesize arg1
     v35 = iszero v34
-    revert_if v35, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v35
     v36 = call v30, arg1, 0, v32, v33, 0, 0
     jumpi v36, bb12, bb11
   bb11:
@@ -232,7 +232,7 @@ fn @take(arg0: address, arg1: address, arg2: address, arg3: u256, arg4: bool) {
     v5 = slice_len v3
     v6 = extcodesize arg1
     v7 = iszero v6
-    revert_if v7, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v7
     v8 = call v0, arg1, 0, v4, v5, 0, 0
     jumpi v8, bb5, bb4
   bb4:

@@ -12,21 +12,21 @@ fn @forward(arg0: calldataslice) -> bool [selector=0xf848716a, view, abi_params=
     v7 = eq v6, v2
     v8 = or v5, v7
     v9 = iszero v8
-    panic_if v9, 0x41
+    icall panic_if<0x41>, v9
     v10 = calldatasize
     v11 = sub v10, v3
     v12 = slt v11, v4
-    revert_if v12, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v12
     v13 = mul v2, 32
     v14 = iszero 32
     v15 = div v13, 32
     v16 = eq v15, v2
     v17 = or v14, v16
     v18 = iszero v17
-    panic_if v18, 0x41
+    icall panic_if<0x41>, v18
     v19 = add 32, v13
     v20 = lt v19, 32
-    panic_if v20, 0x41
+    icall panic_if<0x41>, v20
     v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
     set_memory_object_len memoryarray, v21, v2
     jump bb1
@@ -45,14 +45,14 @@ fn @forward(arg0: calldataslice) -> bool [selector=0xf848716a, view, abi_params=
   bb5:
     v37 = returndatasize
     v38 = lt v37, 32
-    revert_if v38, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v38
     v39 = add 0, 0
     v40 = mload v39
     v41 = iszero v40
     v42 = iszero v41
     v43 = eq v40, v42
     v44 = iszero v43
-    revert_if v44, empty
+    icall revert_if<empty>, v44
     v45 = add 0, 0
     v46 = mload v45
     ret v46
@@ -63,7 +63,7 @@ fn @forward(arg0: calldataslice) -> bool [selector=0xf848716a, view, abi_params=
     v27 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
     v28 = eq v26, v27
     v29 = iszero v28
-    revert_if v29, empty
+    icall revert_if<empty>, v29
     v30 = shr 64, v26
     v31 = shl 64, v30
     memory_object_store_element memoryarray<1>, v21, v22, v31

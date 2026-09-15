@@ -15,7 +15,7 @@ fn @init() [selector=0xe1c7392a, abi_params=[], abi_returns=[]] {
     v4 = slice_len v2
     v5 = extcodesize v0
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = call v1, v0, 0, v3, v4, 0, 0
     jumpi v7, bb2, bb1
   bb1:
@@ -43,7 +43,7 @@ fn @constructor(arg0: address) [constructor, abi_params=[address]] {
     v0 = gas
     v1 = abi_encode [], object, selector 0xe1c7392a00000000000000000000000000000000000000000000000000000000
     v2 = address_delegatecall arg0, v1, gas v0
-    icall require short_string, v2, 11, 0x696e6974206661696c6564000000000000000000000000000000000000000000
+    icall require<short_string>, v2, 11, 0x696e6974206661696c6564000000000000000000000000000000000000000000
     ret
 }
 
@@ -93,7 +93,7 @@ fn @deployProxy() -> u256 [selector=0x44882b95, abi_params=[], abi_returns=[word
   bb6:
     v20 = returndatasize
     v21 = lt v20, 32
-    revert_if v21, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v21
     v22 = add 0, 0
     v23 = mload v22
     v24 = add 0, 0
@@ -122,7 +122,7 @@ fn @callImplDirectly() -> u256 [selector=0x0bba4d4b, abi_params=[], abi_returns=
     v10 = slice_len v8
     v11 = extcodesize v6
     v12 = iszero v11
-    revert_if v12, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v12
     v13 = call v7, v6, 0, v9, v10, 0, 0
     jumpi v13, bb4, bb3
   bb3:
@@ -139,7 +139,7 @@ fn @callImplDirectly() -> u256 [selector=0x0bba4d4b, abi_params=[], abi_returns=
   bb6:
     v19 = returndatasize
     v20 = lt v19, 32
-    revert_if v20, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v20
     v21 = add 0, 0
     v22 = mload v21
     v23 = add 0, 0

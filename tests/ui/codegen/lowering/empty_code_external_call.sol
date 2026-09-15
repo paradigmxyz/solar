@@ -29,7 +29,7 @@ contract EmptyCodeCalls {
     // CHECK-NOT: extcodesize
     // CHECK: abi_encode []
     // CHECK: extcodesize
-    // CHECK: revert_if {{.*}}, target_contract_has_no_code
+    // CHECK: icall revert_if<target_contract_has_no_code>, {{.*}}
     function direct() external {
         EmptyCodeTarget(address(0)).noop();
     }
@@ -38,7 +38,7 @@ contract EmptyCodeCalls {
     // CHECK-NOT: extcodesize
     // CHECK: abi_encode []
     // CHECK: extcodesize
-    // CHECK: revert_if {{.*}}, target_contract_has_no_code
+    // CHECK: icall revert_if<target_contract_has_no_code>, {{.*}}
     function pointer() external {
         function() external target = EmptyCodeTarget(address(0)).noop;
         target();
@@ -48,7 +48,7 @@ contract EmptyCodeCalls {
     // CHECK-NOT: extcodesize
     // CHECK: abi_encode []
     // CHECK: extcodesize
-    // CHECK: revert_if {{.*}}, target_contract_has_no_code
+    // CHECK: icall revert_if<target_contract_has_no_code>, {{.*}}
     function libraryCall() external {
         EmptyCodeLibrary.noop();
     }
@@ -57,7 +57,7 @@ contract EmptyCodeCalls {
     // CHECK-NOT: extcodesize
     // CHECK: abi_encode []
     // CHECK: extcodesize
-    // CHECK: revert_if {{.*}}, target_contract_has_no_code
+    // CHECK: icall revert_if<target_contract_has_no_code>, {{.*}}
     function tryDirect() external {
         try EmptyCodeTarget(address(0)).noop() {} catch {}
     }
@@ -66,7 +66,7 @@ contract EmptyCodeCalls {
     // CHECK-NOT: extcodesize
     // CHECK: abi_encode []
     // CHECK: extcodesize
-    // CHECK: revert_if {{.*}}, target_contract_has_no_code
+    // CHECK: icall revert_if<target_contract_has_no_code>, {{.*}}
     function tryPointer() external {
         function() external target = EmptyCodeTarget(address(0)).noop;
         try target() {} catch {}
@@ -76,7 +76,7 @@ contract EmptyCodeCalls {
     // CHECK-NOT: extcodesize
     // CHECK: abi_encode []
     // CHECK: extcodesize
-    // CHECK: revert_if {{.*}}, target_contract_has_no_code
+    // CHECK: icall revert_if<target_contract_has_no_code>, {{.*}}
     function tryStatic() external view {
         try EmptyCodeViewTarget(address(0)).noop() {} catch {}
     }
@@ -85,7 +85,7 @@ contract EmptyCodeCalls {
     // CHECK-NOT: extcodesize
     // CHECK: abi_encode []
     // CHECK: extcodesize
-    // CHECK: revert_if {{.*}}, target_contract_has_no_code
+    // CHECK: icall revert_if<target_contract_has_no_code>, {{.*}}
     function trySelf() external returns (bool) {
         try this.noop() {
             return true;
@@ -102,7 +102,7 @@ contract EmptyCodeCalls {
     // CHECK-NOT: extcodesize
     // CHECK: abi_encode []
     // CHECK: extcodesize
-    // CHECK: revert_if {{.*}}, target_contract_has_no_code
+    // CHECK: icall revert_if<target_contract_has_no_code>, {{.*}}
     function selfCall() external returns (bool) {
         this.noop();
         return true;
@@ -123,7 +123,7 @@ contract EmptyCodeTryConstructor {
     // CHECK-NOT: extcodesize
     // CHECK: abi_encode []
     // CHECK: extcodesize
-    // CHECK: revert_if {{.*}}, target_contract_has_no_code
+    // CHECK: icall revert_if<target_contract_has_no_code>, {{.*}}
     constructor() {
         try this.noop() {} catch {}
     }

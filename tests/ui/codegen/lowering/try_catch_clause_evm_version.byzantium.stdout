@@ -11,12 +11,12 @@ fn @bare(arg0: address) -> u256 [selector=0x590eaf9b, abi_params=[address], abi_
   bb2:
     jumpi true, bb4, bb5
   bb5:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb4:
     jump bb3
   bb1:
-    v5 = returndata_bytes
+    v5 = icall returndata_bytes<>
     v6 = abi_decode [u256], v5
     jump bb3
   bb3:
@@ -33,7 +33,7 @@ fn @typed(arg0: address) -> u256 [selector=0x18d9eb38, abi_params=[address], abi
     v4 = call v0, arg0, 0, v2, v3, 0, 0
     jumpi v4, bb1, bb2
   bb2:
-    v7 = returndata_bytes
+    v7 = icall returndata_bytes<>
     v8 = memory_object_data memorybytes, v7
     v9 = memory_object_len memorybytes, v7
     v10 = make_memory_slice v8, v9
@@ -76,7 +76,7 @@ fn @typed(arg0: address) -> u256 [selector=0x18d9eb38, abi_params=[address], abi
     v21 = slice_len v20
     v22 = add v21, 63
     v23 = lt v22, v21
-    panic_if v23, 0x41
+    icall panic_if<0x41>, v23
     v24 = not 31
     v25 = and v22, v24
     v26 = alloc memorybytes, exact, uninitialized, infallible, v25
@@ -85,7 +85,7 @@ fn @typed(arg0: address) -> u256 [selector=0x18d9eb38, abi_params=[address], abi
     v27 = abi_decode [bytes], v26
     jump bb3
   bb1:
-    v5 = returndata_bytes
+    v5 = icall returndata_bytes<>
     v6 = abi_decode [u256], v5
     jump bb3
   bb3:

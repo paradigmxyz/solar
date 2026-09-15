@@ -174,10 +174,10 @@ contract CallGasCalls {
     // `send` and `transfer` pass a fixed stipend at every version, so they need no reserve.
     // HOMESTEAD-LABEL: fn @sendZero
     // HOMESTEAD-NOT: = gas
-    // HOMESTEAD: send {{v[0-9]+}}, 0
+    // HOMESTEAD: icall send<>, {{v[0-9]+}}, 0
     // TANGERINE-LABEL: fn @sendZero
     // TANGERINE-NOT: = gas
-    // TANGERINE: send {{v[0-9]+}}, 0
+    // TANGERINE: icall send<>, {{v[0-9]+}}, 0
     function sendZero() external returns (uint256) {
         return payable(address(new CallGasCallee())).send(0) ? 1 : 0;
     }

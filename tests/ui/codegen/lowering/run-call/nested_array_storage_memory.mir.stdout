@@ -36,7 +36,7 @@ fn @constructor() [constructor] {
     v43 = sload 0 !metadata(storage=slot(0))
     v44 = lt 0, v43
     v45 = iszero v44
-    panic_if v45, 0x32
+    icall panic_if<0x32>, v45
     v46 = storage_array_data_slot 0
     v47 = add v46, 0
     v48 = sload v47 !metadata(storage=symbolic(v46))
@@ -65,7 +65,7 @@ fn @constructor() [constructor] {
     v62 = sload 0 !metadata(storage=slot(0))
     v63 = lt 1, v62
     v64 = iszero v63
-    panic_if v64, 0x32
+    icall panic_if<0x32>, v64
     v65 = storage_array_data_slot 0
     v66 = add v65, 1
     v67 = sload v66 !metadata(storage=offset(v65, 1))
@@ -93,7 +93,7 @@ fn @constructor() [constructor] {
     memory_object_store_element memoryfixedarray<3, 1>, v80, 2, 8
     v81 = lt 0, 2
     v82 = iszero v81
-    panic_if v82, 0x32
+    icall panic_if<0x32>, v82
     v83 = add 1, 0
     v84 = sload v83 !metadata(storage=slot(1))
     v85 = gt v84, 3
@@ -118,7 +118,7 @@ fn @constructor() [constructor] {
     memory_object_store_element memoryfixedarray<1, 1>, v97, 0, 9
     v98 = lt 1, 2
     v99 = iszero v98
-    panic_if v99, 0x32
+    icall panic_if<0x32>, v99
     v100 = add 1, 1
     v101 = sload v100 !metadata(storage=slot(2))
     v102 = gt v101, 1
@@ -146,7 +146,7 @@ fn @constructor() [constructor] {
     memory_object_store_element memoryfixedarray<2, 1>, v114, 1, v116
     v117 = sload 3 !metadata(storage=slot(3))
     v118 = gt v117, 0xffffffffffffffff
-    panic_if v118, 0x41
+    icall panic_if<0x41>, v118
     v119 = add v117, 1
     v120 = storage_array_data_slot 3
     v121 = mul v117, 2
@@ -165,7 +165,7 @@ fn @constructor() [constructor] {
     memory_object_store_element memoryfixedarray<2, 1>, v129, 1, v131
     v132 = sload 3 !metadata(storage=slot(3))
     v133 = gt v132, 0xffffffffffffffff
-    panic_if v133, 0x41
+    icall panic_if<0x41>, v133
     v134 = add v132, 1
     v135 = storage_array_data_slot 3
     v136 = mul v132, 2
@@ -184,7 +184,7 @@ fn @constructor() [constructor] {
     memory_object_store_element memoryfixedarray<2, 1>, v144, 1, v146
     v147 = sload 3 !metadata(storage=slot(3))
     v148 = gt v147, 0xffffffffffffffff
-    panic_if v148, 0x41
+    icall panic_if<0x41>, v148
     v149 = add v147, 1
     v150 = storage_array_data_slot 3
     v151 = mul v147, 2
@@ -444,17 +444,17 @@ fn @test1() -> memoryarray [selector=0x6b59084d, view, abi_params=[], abi_return
     v4 = eq v3, v0
     v5 = or v2, v4
     v6 = iszero v5
-    panic_if v6, 0x41
+    icall panic_if<0x41>, v6
     v7 = add v1, 1
     v8 = lt v7, v1
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = mul v7, 32
     v10 = iszero 32
     v11 = div v9, 32
     v12 = eq v11, v7
     v13 = or v10, v12
     v14 = iszero v13
-    panic_if v14, 0x41
+    icall panic_if<0x41>, v14
     v15 = alloc memoryarray<1>, exact, uninitialized, panic, v9
     set_memory_object_len memoryarray, v15, v0
     jump bb1
@@ -511,17 +511,17 @@ fn @test3() -> memoryarray [selector=0x0a8e8e01, view, abi_params=[], abi_return
     v4 = eq v3, v0
     v5 = or v2, v4
     v6 = iszero v5
-    panic_if v6, 0x41
+    icall panic_if<0x41>, v6
     v7 = add v1, 1
     v8 = lt v7, v1
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = mul v7, 32
     v10 = iszero 32
     v11 = div v9, 32
     v12 = eq v11, v7
     v13 = or v10, v12
     v14 = iszero v13
-    panic_if v14, 0x41
+    icall panic_if<0x41>, v14
     v15 = alloc memoryarray<1>, exact, uninitialized, panic, v9
     set_memory_object_len memoryarray, v15, v0
     jump bb1

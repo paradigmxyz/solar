@@ -15,12 +15,12 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v5 = memory_object_len memoryarray, v0
     v6 = lt 0, v5
     v7 = iszero v6
-    panic_if v7, 0x32
+    icall panic_if<0x32>, v7
     memory_object_store_element memoryarray<1>, v0, 0, v4
     v8 = memory_object_len memoryarray, v0
     v9 = lt 0, v8
     v10 = iszero v9
-    panic_if v10, 0x32
+    icall panic_if<0x32>, v10
     v11 = memory_object_load_element memoryarray<1>, v0, 0
     v12 = memory_object_from_ptr memoryarray, v11
     v13 = eq v12, 0
@@ -35,12 +35,12 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v16 = memory_object_len memoryarray, v15
     v17 = lt 0, v16
     v18 = iszero v17
-    panic_if v18, 0x32
+    icall panic_if<0x32>, v18
     memory_object_store_element memoryarray<1>, v15, 0, 7
     v19 = memory_object_len memoryarray, v0
     v20 = lt 0, v19
     v21 = iszero v20
-    panic_if v21, 0x32
+    icall panic_if<0x32>, v21
     v22 = memory_object_load_element memoryarray<1>, v0, 0
     v23 = memory_object_from_ptr memoryarray, v22
     v24 = eq v23, 0
@@ -55,12 +55,12 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v27 = memory_object_len memoryarray, v26
     v28 = lt 1, v27
     v29 = iszero v28
-    panic_if v29, 0x32
+    icall panic_if<0x32>, v29
     memory_object_store_element memoryarray<1>, v26, 1, 8
     v30 = memory_object_len memoryarray, v0
     v31 = lt 0, v30
     v32 = iszero v31
-    panic_if v32, 0x32
+    icall panic_if<0x32>, v32
     v33 = memory_object_load_element memoryarray<1>, v0, 0
     v34 = memory_object_from_ptr memoryarray, v33
     v35 = eq v34, 0
@@ -75,19 +75,19 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v38 = memory_object_len memoryarray, v37
     v39 = lt 2, v38
     v40 = iszero v39
-    panic_if v40, 0x32
+    icall panic_if<0x32>, v40
     memory_object_store_element memoryarray<1>, v37, 2, 9
     v41 = alloc memoryarray<1>, exact, zeroed, panic, 160
     set_memory_object_len memoryarray, v41, 4
     v42 = memory_object_len memoryarray, v0
     v43 = lt 1, v42
     v44 = iszero v43
-    panic_if v44, 0x32
+    icall panic_if<0x32>, v44
     memory_object_store_element memoryarray<1>, v0, 1, v41
     v45 = memory_object_len memoryarray, v0
     v46 = lt 1, v45
     v47 = iszero v46
-    panic_if v47, 0x32
+    icall panic_if<0x32>, v47
     v48 = memory_object_load_element memoryarray<1>, v0, 1
     v49 = memory_object_from_ptr memoryarray, v48
     v50 = eq v49, 0
@@ -102,12 +102,12 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v53 = memory_object_len memoryarray, v52
     v54 = lt 1, v53
     v55 = iszero v54
-    panic_if v55, 0x32
+    icall panic_if<0x32>, v55
     memory_object_store_element memoryarray<1>, v52, 1, 7
     v56 = memory_object_len memoryarray, v0
     v57 = lt 1, v56
     v58 = iszero v57
-    panic_if v58, 0x32
+    icall panic_if<0x32>, v58
     v59 = memory_object_load_element memoryarray<1>, v0, 1
     v60 = memory_object_from_ptr memoryarray, v59
     v61 = eq v60, 0
@@ -122,12 +122,12 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v64 = memory_object_len memoryarray, v63
     v65 = lt 2, v64
     v66 = iszero v65
-    panic_if v66, 0x32
+    icall panic_if<0x32>, v66
     memory_object_store_element memoryarray<1>, v63, 2, 8
     v67 = memory_object_len memoryarray, v0
     v68 = lt 1, v67
     v69 = iszero v68
-    panic_if v69, 0x32
+    icall panic_if<0x32>, v69
     v70 = memory_object_load_element memoryarray<1>, v0, 1
     v71 = memory_object_from_ptr memoryarray, v70
     v72 = eq v71, 0
@@ -142,7 +142,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v75 = memory_object_len memoryarray, v74
     v76 = lt 3, v75
     v77 = iszero v76
-    panic_if v77, 0x32
+    icall panic_if<0x32>, v77
     memory_object_store_element memoryarray<1>, v74, 3, 9
     v78 = memory_object_len memoryarray, v0
     v79 = sload 0 !metadata(storage=slot(0))
@@ -167,26 +167,26 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v116 = sload 0 !metadata(storage=slot(0))
     v117 = lt 0, v116
     v118 = iszero v117
-    panic_if v118, 0x32
+    icall panic_if<0x32>, v118
     v119 = storage_array_data_slot 0
     v120 = add v119, 0
     v121 = sload v120 !metadata(storage=symbolic(v119))
     v122 = lt 0, v121
     v123 = iszero v122
-    panic_if v123, 0x32
+    icall panic_if<0x32>, v123
     v124 = storage_array_data_slot v120
     v125 = add v124, 0
     v126 = sload v125 !metadata(storage=symbolic(v124))
     v127 = sload 0 !metadata(storage=slot(0))
     v128 = lt 0, v127
     v129 = iszero v128
-    panic_if v129, 0x32
+    icall panic_if<0x32>, v129
     v130 = storage_array_data_slot 0
     v131 = add v130, 0
     v132 = sload v131 !metadata(storage=symbolic(v130))
     v133 = lt 1, v132
     v134 = iszero v133
-    panic_if v134, 0x32
+    icall panic_if<0x32>, v134
     v135 = storage_array_data_slot v131
     v136 = add v135, 1
     v137 = sload v136 !metadata(storage=offset(v135, 1))
@@ -194,13 +194,13 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v139 = sload 0 !metadata(storage=slot(0))
     v140 = lt 1, v139
     v141 = iszero v140
-    panic_if v141, 0x32
+    icall panic_if<0x32>, v141
     v142 = storage_array_data_slot 0
     v143 = add v142, 1
     v144 = sload v143 !metadata(storage=offset(v142, 1))
     v145 = lt 3, v144
     v146 = iszero v145
-    panic_if v146, 0x32
+    icall panic_if<0x32>, v146
     v147 = storage_array_data_slot v143
     v148 = add v147, 3
     v149 = sload v148 !metadata(storage=offset(v147, 3))
@@ -293,7 +293,7 @@ fn @test1() -> u256 [selector=0x6b59084d, abi_params=[], abi_returns=[word]] {
     v5 = memory_object_len memoryarray, v0
     v6 = lt 0, v5
     v7 = iszero v6
-    panic_if v7, 0x32
+    icall panic_if<0x32>, v7
     v8 = memory_object_load_element memoryarray<1>, v0, 0
     v9 = memory_object_from_ptr memoryfixedarray, v8
     v10 = eq v9, 0
@@ -307,12 +307,12 @@ fn @test1() -> u256 [selector=0x6b59084d, abi_params=[], abi_returns=[word]] {
     v12 = phi [bb3: v9], [bb4: v11]
     v13 = lt 0, 2
     v14 = iszero v13
-    panic_if v14, 0x32
+    icall panic_if<0x32>, v14
     memory_object_store_element memoryfixedarray<2, 1>, v12, 0, 1
     v15 = memory_object_len memoryarray, v0
     v16 = lt 0, v15
     v17 = iszero v16
-    panic_if v17, 0x32
+    icall panic_if<0x32>, v17
     v18 = memory_object_load_element memoryarray<1>, v0, 0
     v19 = memory_object_from_ptr memoryfixedarray, v18
     v20 = eq v19, 0
@@ -326,7 +326,7 @@ fn @test1() -> u256 [selector=0x6b59084d, abi_params=[], abi_returns=[word]] {
     v22 = phi [bb5: v19], [bb6: v21]
     v23 = lt 1, 2
     v24 = iszero v23
-    panic_if v24, 0x32
+    icall panic_if<0x32>, v24
     memory_object_store_element memoryfixedarray<2, 1>, v22, 1, 2
     v25 = memory_object_len memoryarray, v0
     v26 = sload 1 !metadata(storage=slot(1))
@@ -351,25 +351,25 @@ fn @test1() -> u256 [selector=0x6b59084d, abi_params=[], abi_returns=[word]] {
     v55 = sload 1 !metadata(storage=slot(1))
     v56 = lt 0, v55
     v57 = iszero v56
-    panic_if v57, 0x32
+    icall panic_if<0x32>, v57
     v58 = storage_array_data_slot 1
     v59 = mul 0, 4
     v60 = add v58, v59
     v61 = lt 0, 4
     v62 = iszero v61
-    panic_if v62, 0x32
+    icall panic_if<0x32>, v62
     v63 = add v60, 0
     v64 = sload v63 !metadata(storage=symbolic(v60))
     v65 = sload 1 !metadata(storage=slot(1))
     v66 = lt 0, v65
     v67 = iszero v66
-    panic_if v67, 0x32
+    icall panic_if<0x32>, v67
     v68 = storage_array_data_slot 1
     v69 = mul 0, 4
     v70 = add v68, v69
     v71 = lt 1, 4
     v72 = iszero v71
-    panic_if v72, 0x32
+    icall panic_if<0x32>, v72
     v73 = add v70, 1
     v74 = sload v73 !metadata(storage=offset(v70, 1))
     v75 = checked_add u256, v64, v74
@@ -447,7 +447,7 @@ fn @test2() -> u256 [selector=0x66e41cb7, abi_params=[], abi_returns=[word]] {
   bb3:
     v5 = lt 0, 2
     v6 = iszero v5
-    panic_if v6, 0x32
+    icall panic_if<0x32>, v6
     v7 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v8 = memory_object_from_ptr memoryfixedarray, v7
     v9 = eq v8, 0
@@ -461,11 +461,11 @@ fn @test2() -> u256 [selector=0x66e41cb7, abi_params=[], abi_returns=[word]] {
     v11 = phi [bb3: v8], [bb4: v10]
     v12 = lt 0, 2
     v13 = iszero v12
-    panic_if v13, 0x32
+    icall panic_if<0x32>, v13
     memory_object_store_element memoryfixedarray<2, 1>, v11, 0, 1
     v14 = lt 1, 2
     v15 = iszero v14
-    panic_if v15, 0x32
+    icall panic_if<0x32>, v15
     v16 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v17 = memory_object_from_ptr memoryfixedarray, v16
     v18 = eq v17, 0
@@ -479,11 +479,11 @@ fn @test2() -> u256 [selector=0x66e41cb7, abi_params=[], abi_returns=[word]] {
     v20 = phi [bb5: v17], [bb6: v19]
     v21 = lt 1, 2
     v22 = iszero v21
-    panic_if v22, 0x32
+    icall panic_if<0x32>, v22
     memory_object_store_element memoryfixedarray<2, 1>, v20, 1, 2
     v23 = lt 0, 2
     v24 = iszero v23
-    panic_if v24, 0x32
+    icall panic_if<0x32>, v24
     v25 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v26 = memory_object_from_ptr memoryfixedarray, v25
     v27 = eq v26, 0
@@ -497,7 +497,7 @@ fn @test2() -> u256 [selector=0x66e41cb7, abi_params=[], abi_returns=[word]] {
     v29 = phi [bb7: v26], [bb8: v28]
     v30 = lt 1, 2
     v31 = iszero v30
-    panic_if v31, 0x32
+    icall panic_if<0x32>, v31
     memory_object_store_element memoryfixedarray<2, 1>, v29, 1, 3
     jump bb10
   bb10:
@@ -507,33 +507,33 @@ fn @test2() -> u256 [selector=0x66e41cb7, abi_params=[], abi_returns=[word]] {
   bb12:
     v52 = lt 0, 3
     v53 = iszero v52
-    panic_if v53, 0x32
+    icall panic_if<0x32>, v53
     v54 = mul 0, 2
     v55 = add 2, v54
     v56 = lt 0, 2
     v57 = iszero v56
-    panic_if v57, 0x32
+    icall panic_if<0x32>, v57
     v58 = add v55, 0
     v59 = sload v58 !metadata(storage=offset(v54, 2))
     v60 = lt 1, 3
     v61 = iszero v60
-    panic_if v61, 0x32
+    icall panic_if<0x32>, v61
     v62 = mul 1, 2
     v63 = add 2, v62
     v64 = lt 1, 2
     v65 = iszero v64
-    panic_if v65, 0x32
+    icall panic_if<0x32>, v65
     v66 = add v63, 1
     v67 = sload v66 !metadata(storage=offset(v62, 3))
     v68 = checked_add u256, v59, v67
     v69 = lt 0, 3
     v70 = iszero v69
-    panic_if v70, 0x32
+    icall panic_if<0x32>, v70
     v71 = mul 0, 2
     v72 = add 2, v71
     v73 = lt 1, 2
     v74 = iszero v73
-    panic_if v74, 0x32
+    icall panic_if<0x32>, v74
     v75 = add v72, 1
     v76 = sload v75 !metadata(storage=offset(v71, 3))
     v77 = checked_add u256, v68, v76
@@ -612,7 +612,7 @@ fn @test3() -> u256 [selector=0x0a8e8e01, abi_params=[], abi_returns=[word]] {
   bb3:
     v5 = lt 0, 3
     v6 = iszero v5
-    panic_if v6, 0x32
+    icall panic_if<0x32>, v6
     v7 = memory_object_load_element memoryfixedarray<3, 1>, v0, 0
     v8 = memory_object_from_ptr memoryfixedarray, v7
     v9 = eq v8, 0
@@ -626,11 +626,11 @@ fn @test3() -> u256 [selector=0x0a8e8e01, abi_params=[], abi_returns=[word]] {
     v11 = phi [bb3: v8], [bb4: v10]
     v12 = lt 0, 2
     v13 = iszero v12
-    panic_if v13, 0x32
+    icall panic_if<0x32>, v13
     memory_object_store_element memoryfixedarray<2, 1>, v11, 0, 7
     v14 = lt 1, 3
     v15 = iszero v14
-    panic_if v15, 0x32
+    icall panic_if<0x32>, v15
     v16 = memory_object_load_element memoryfixedarray<3, 1>, v0, 1
     v17 = memory_object_from_ptr memoryfixedarray, v16
     v18 = eq v17, 0
@@ -644,11 +644,11 @@ fn @test3() -> u256 [selector=0x0a8e8e01, abi_params=[], abi_returns=[word]] {
     v20 = phi [bb5: v17], [bb6: v19]
     v21 = lt 0, 2
     v22 = iszero v21
-    panic_if v22, 0x32
+    icall panic_if<0x32>, v22
     memory_object_store_element memoryfixedarray<2, 1>, v20, 0, 8
     v23 = lt 2, 3
     v24 = iszero v23
-    panic_if v24, 0x32
+    icall panic_if<0x32>, v24
     v25 = memory_object_load_element memoryfixedarray<3, 1>, v0, 2
     v26 = memory_object_from_ptr memoryfixedarray, v25
     v27 = eq v26, 0
@@ -662,11 +662,11 @@ fn @test3() -> u256 [selector=0x0a8e8e01, abi_params=[], abi_returns=[word]] {
     v29 = phi [bb7: v26], [bb8: v28]
     v30 = lt 0, 2
     v31 = iszero v30
-    panic_if v31, 0x32
+    icall panic_if<0x32>, v31
     memory_object_store_element memoryfixedarray<2, 1>, v29, 0, 9
     v32 = lt 0, 3
     v33 = iszero v32
-    panic_if v33, 0x32
+    icall panic_if<0x32>, v33
     v34 = memory_object_load_element memoryfixedarray<3, 1>, v0, 0
     v35 = memory_object_from_ptr memoryfixedarray, v34
     v36 = eq v35, 0
@@ -680,11 +680,11 @@ fn @test3() -> u256 [selector=0x0a8e8e01, abi_params=[], abi_returns=[word]] {
     v38 = phi [bb9: v35], [bb10: v37]
     v39 = lt 1, 2
     v40 = iszero v39
-    panic_if v40, 0x32
+    icall panic_if<0x32>, v40
     memory_object_store_element memoryfixedarray<2, 1>, v38, 1, 7
     v41 = lt 1, 3
     v42 = iszero v41
-    panic_if v42, 0x32
+    icall panic_if<0x32>, v42
     v43 = memory_object_load_element memoryfixedarray<3, 1>, v0, 1
     v44 = memory_object_from_ptr memoryfixedarray, v43
     v45 = eq v44, 0
@@ -698,11 +698,11 @@ fn @test3() -> u256 [selector=0x0a8e8e01, abi_params=[], abi_returns=[word]] {
     v47 = phi [bb11: v44], [bb12: v46]
     v48 = lt 1, 2
     v49 = iszero v48
-    panic_if v49, 0x32
+    icall panic_if<0x32>, v49
     memory_object_store_element memoryfixedarray<2, 1>, v47, 1, 8
     v50 = lt 2, 3
     v51 = iszero v50
-    panic_if v51, 0x32
+    icall panic_if<0x32>, v51
     v52 = memory_object_load_element memoryfixedarray<3, 1>, v0, 2
     v53 = memory_object_from_ptr memoryfixedarray, v52
     v54 = eq v53, 0
@@ -716,7 +716,7 @@ fn @test3() -> u256 [selector=0x0a8e8e01, abi_params=[], abi_returns=[word]] {
     v56 = phi [bb13: v53], [bb14: v55]
     v57 = lt 1, 2
     v58 = iszero v57
-    panic_if v58, 0x32
+    icall panic_if<0x32>, v58
     memory_object_store_element memoryfixedarray<2, 1>, v56, 1, 9
     v59 = sload 0 !metadata(storage=slot(0))
     v60 = gt v59, 3
@@ -740,26 +740,26 @@ fn @test3() -> u256 [selector=0x0a8e8e01, abi_params=[], abi_returns=[word]] {
     v95 = sload 0 !metadata(storage=slot(0))
     v96 = lt 0, v95
     v97 = iszero v96
-    panic_if v97, 0x32
+    icall panic_if<0x32>, v97
     v98 = storage_array_data_slot 0
     v99 = add v98, 0
     v100 = sload v99 !metadata(storage=symbolic(v98))
     v101 = lt 0, v100
     v102 = iszero v101
-    panic_if v102, 0x32
+    icall panic_if<0x32>, v102
     v103 = storage_array_data_slot v99
     v104 = add v103, 0
     v105 = sload v104 !metadata(storage=symbolic(v103))
     v106 = sload 0 !metadata(storage=slot(0))
     v107 = lt 1, v106
     v108 = iszero v107
-    panic_if v108, 0x32
+    icall panic_if<0x32>, v108
     v109 = storage_array_data_slot 0
     v110 = add v109, 1
     v111 = sload v110 !metadata(storage=offset(v109, 1))
     v112 = lt 0, v111
     v113 = iszero v112
-    panic_if v113, 0x32
+    icall panic_if<0x32>, v113
     v114 = storage_array_data_slot v110
     v115 = add v114, 0
     v116 = sload v115 !metadata(storage=symbolic(v114))
@@ -767,13 +767,13 @@ fn @test3() -> u256 [selector=0x0a8e8e01, abi_params=[], abi_returns=[word]] {
     v118 = sload 0 !metadata(storage=slot(0))
     v119 = lt 2, v118
     v120 = iszero v119
-    panic_if v120, 0x32
+    icall panic_if<0x32>, v120
     v121 = storage_array_data_slot 0
     v122 = add v121, 2
     v123 = sload v122 !metadata(storage=offset(v121, 2))
     v124 = lt 1, v123
     v125 = iszero v124
-    panic_if v125, 0x32
+    icall panic_if<0x32>, v125
     v126 = storage_array_data_slot v122
     v127 = add v126, 1
     v128 = sload v127 !metadata(storage=offset(v126, 1))

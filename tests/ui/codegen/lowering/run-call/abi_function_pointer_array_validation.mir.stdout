@@ -15,14 +15,14 @@ fn @h(arg0: calldataslice) -> u256 [selector=0xdae6c3bf, pure, abi_params=[array
     v0 = slice_len arg0
     v1 = lt 0, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 0
     v5 = calldataload v4
     v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
     v7 = eq v5, v6
     v8 = iszero v7
-    revert_if v8, empty
+    icall revert_if<empty>, v8
     v9 = shr 64, v5
     ret 3
 }
@@ -60,7 +60,7 @@ fn @invoke(arg0: bytes4, arg1: bool, arg2: u256) -> u256 [view] {
     v4 = memory_object_len memoryarray, v0
     v5 = lt 0, v4
     v6 = iszero v5
-    panic_if v6, 0x32
+    icall panic_if<0x32>, v6
     v7 = shl 64, v3
     memory_object_store_element memoryarray<1>, v0, 0, v7
     v8 = abi_encode [memory_array<function>], object, selector arg0, args v0
@@ -76,12 +76,12 @@ fn @invoke(arg0: bytes4, arg1: bool, arg2: u256) -> u256 [view] {
     v11 = address
     v12 = gas
     v13 = address_staticcall v11, v8, gas v12
-    v14 = returndata_bytes
+    v14 = icall returndata_bytes<>
     v15 = iszero v13
-    revert_if v15, empty
+    icall revert_if<empty>, v15
     v16 = abi_decode [u256], v14
     v17 = eq v16, arg2
     v18 = iszero v17
-    revert_if v18, empty
+    icall revert_if<empty>, v18
     ret v16
 }

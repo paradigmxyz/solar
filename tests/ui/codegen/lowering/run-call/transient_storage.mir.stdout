@@ -100,7 +100,7 @@ fn @getter() -> u256 [selector=0x993a04b7, abi_params=[], abi_returns=[word]] {
   bb2:
     v6 = returndatasize
     v7 = lt v6, 32
-    revert_if v7, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v7
     v8 = add 0, 0
     v9 = mload v8
     v10 = add 0, 0

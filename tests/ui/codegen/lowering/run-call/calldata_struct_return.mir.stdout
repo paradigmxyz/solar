@@ -56,7 +56,7 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
   bb1:
     revert_returndata
   bb2:
-    v13 = returndata_bytes
+    v13 = icall returndata_bytes<>
     v14 = abi_decode [bool, tuple<bytes32, bytes32, u256, u256, bytes, bytes>], v13
     v15 = extract_value struct3, v14, 0
     v16 = extract_value struct3, v14, 1

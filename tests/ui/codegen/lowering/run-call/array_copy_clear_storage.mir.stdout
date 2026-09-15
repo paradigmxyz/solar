@@ -4,7 +4,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
-    panic_if v1, 0x41
+    icall panic_if<0x41>, v1
     v2 = add v0, 1
     v3 = storage_array_data_slot 0
     v4 = add v3, v0
@@ -12,7 +12,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     sstore 0, v2 !metadata(storage=slot(0))
     v5 = sload 0 !metadata(storage=slot(0))
     v6 = gt v5, 0xffffffffffffffff
-    panic_if v6, 0x41
+    icall panic_if<0x41>, v6
     v7 = add v5, 1
     v8 = storage_array_data_slot 0
     v9 = add v8, v5
@@ -20,7 +20,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     sstore 0, v7 !metadata(storage=slot(0))
     v10 = sload 0 !metadata(storage=slot(0))
     v11 = gt v10, 0xffffffffffffffff
-    panic_if v11, 0x41
+    icall panic_if<0x41>, v11
     v12 = add v10, 1
     v13 = storage_array_data_slot 0
     v14 = add v13, v10
@@ -28,7 +28,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     sstore 0, v12 !metadata(storage=slot(0))
     v15 = sload 0 !metadata(storage=slot(0))
     v16 = gt v15, 0xffffffffffffffff
-    panic_if v16, 0x41
+    icall panic_if<0x41>, v16
     v17 = add v15, 1
     v18 = storage_array_data_slot 0
     v19 = add v18, v15
@@ -39,7 +39,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     v21 = memory_object_len memoryarray, v20
     v22 = lt 0, v21
     v23 = iszero v22
-    panic_if v23, 0x32
+    icall panic_if<0x32>, v23
     memory_object_store_element memoryarray<1>, v20, 0, 23
     v24 = memory_object_len memoryarray, v20
     v25 = sload 0 !metadata(storage=slot(0))
@@ -65,27 +65,27 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     v38 = sload 0 !metadata(storage=slot(0))
     v39 = lt 1, v38
     v40 = iszero v39
-    panic_if v40, 0x32
+    icall panic_if<0x32>, v40
     v41 = storage_array_data_slot 0
     v42 = add v41, 1
     v43 = sload v42 !metadata(storage=offset(v41, 1))
     v44 = eq v43, 0
     v45 = iszero v44
-    panic_if v45, 0x1
+    icall panic_if<0x1>, v45
     v46 = sload 0 !metadata(storage=slot(0))
     v47 = lt 2, v46
     v48 = iszero v47
-    panic_if v48, 0x32
+    icall panic_if<0x32>, v48
     v49 = storage_array_data_slot 0
     v50 = add v49, 2
     v51 = sload v50 !metadata(storage=offset(v49, 2))
     v52 = eq v51, 0
     v53 = iszero v52
-    panic_if v53, 0x1
+    icall panic_if<0x1>, v53
     v54 = sload 0 !metadata(storage=slot(0))
     v55 = lt 3, v54
     v56 = iszero v55
-    panic_if v56, 0x32
+    icall panic_if<0x32>, v56
     v57 = storage_array_data_slot 0
     v58 = add v57, 3
     v59 = sload v58 !metadata(storage=offset(v57, 3))

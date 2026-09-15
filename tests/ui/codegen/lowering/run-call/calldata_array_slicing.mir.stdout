@@ -7,7 +7,7 @@ fn @sliceLength(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    revert_if v4, empty
+    icall revert_if<empty>, v4
     v5 = sub arg2, arg1
     v6 = mul arg1, 32
     v7 = iszero 32
@@ -15,7 +15,7 @@ fn @sliceLength(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0
     v9 = eq v8, arg1
     v10 = or v7, v9
     v11 = iszero v10
-    panic_if v11, 0x41
+    icall panic_if<0x41>, v11
     v12 = add v0, v6
     v13 = make_calldata_slice v12, v5
     v14 = slice_len v13
@@ -29,7 +29,7 @@ fn @sliceIndex(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256) -> u256 
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    revert_if v4, empty
+    icall revert_if<empty>, v4
     v5 = sub arg2, arg1
     v6 = mul arg1, 32
     v7 = iszero 32
@@ -37,13 +37,13 @@ fn @sliceIndex(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256) -> u256 
     v9 = eq v8, arg1
     v10 = or v7, v9
     v11 = iszero v10
-    panic_if v11, 0x41
+    icall panic_if<0x41>, v11
     v12 = add v0, v6
     v13 = make_calldata_slice v12, v5
     v14 = slice_len v13
     v15 = lt arg3, v14
     v16 = iszero v15
-    panic_if v16, 0x32
+    icall panic_if<0x32>, v16
     v17 = slice_ptr v13
     v18 = mul arg3, 32
     v19 = iszero 32
@@ -51,7 +51,7 @@ fn @sliceIndex(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256) -> u256 
     v21 = eq v20, arg3
     v22 = or v19, v21
     v23 = iszero v22
-    panic_if v23, 0x41
+    icall panic_if<0x41>, v23
     v24 = add v17, v18
     v25 = calldataload v24
     ret v25
@@ -64,7 +64,7 @@ fn @chainedIndex(arg0: calldataslice) -> u256 [selector=0xb5f9dbd8, pure, abi_pa
     v2 = gt v1, v1
     v3 = lt v1, 1
     v4 = or v2, v3
-    revert_if v4, empty
+    icall revert_if<empty>, v4
     v5 = sub v1, 1
     v6 = add v0, 32
     v7 = make_calldata_slice v6, v5
@@ -73,14 +73,14 @@ fn @chainedIndex(arg0: calldataslice) -> u256 [selector=0xb5f9dbd8, pure, abi_pa
     v10 = gt v9, v9
     v11 = lt v9, 1
     v12 = or v10, v11
-    revert_if v12, empty
+    icall revert_if<empty>, v12
     v13 = sub v9, 1
     v14 = add v8, 32
     v15 = make_calldata_slice v14, v13
     v16 = slice_len v15
     v17 = lt 0, v16
     v18 = iszero v17
-    panic_if v18, 0x32
+    icall panic_if<0x32>, v18
     v19 = slice_ptr v15
     v20 = add v19, 0
     v21 = calldataload v20
@@ -94,7 +94,7 @@ fn @nestedSliceLength(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256, a
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    revert_if v4, empty
+    icall revert_if<empty>, v4
     v5 = sub arg2, arg1
     v6 = mul arg1, 32
     v7 = iszero 32
@@ -102,7 +102,7 @@ fn @nestedSliceLength(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256, a
     v9 = eq v8, arg1
     v10 = or v7, v9
     v11 = iszero v10
-    panic_if v11, 0x41
+    icall panic_if<0x41>, v11
     v12 = add v0, v6
     v13 = make_calldata_slice v12, v5
     v14 = slice_ptr v13
@@ -110,7 +110,7 @@ fn @nestedSliceLength(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256, a
     v16 = gt arg4, v15
     v17 = lt arg4, arg3
     v18 = or v16, v17
-    revert_if v18, empty
+    icall revert_if<empty>, v18
     v19 = sub arg4, arg3
     v20 = mul arg3, 32
     v21 = iszero 32
@@ -118,7 +118,7 @@ fn @nestedSliceLength(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256, a
     v23 = eq v22, arg3
     v24 = or v21, v23
     v25 = iszero v24
-    panic_if v25, 0x41
+    icall panic_if<0x41>, v25
     v26 = add v14, v20
     v27 = make_calldata_slice v26, v19
     v28 = slice_len v27
@@ -132,7 +132,7 @@ fn @startSliceLength(arg0: calldataslice, arg1: u256) -> u256 [selector=0xaedb6e
     v2 = gt v1, v1
     v3 = lt v1, arg1
     v4 = or v2, v3
-    revert_if v4, empty
+    icall revert_if<empty>, v4
     v5 = sub v1, arg1
     v6 = mul arg1, 32
     v7 = iszero 32
@@ -140,7 +140,7 @@ fn @startSliceLength(arg0: calldataslice, arg1: u256) -> u256 [selector=0xaedb6e
     v9 = eq v8, arg1
     v10 = or v7, v9
     v11 = iszero v10
-    panic_if v11, 0x41
+    icall panic_if<0x41>, v11
     v12 = add v0, v6
     v13 = make_calldata_slice v12, v5
     v14 = slice_len v13
@@ -154,7 +154,7 @@ fn @endSliceLength(arg0: calldataslice, arg1: u256) -> u256 [selector=0x478be0ed
     v2 = gt arg1, v1
     v3 = lt arg1, 0
     v4 = or v2, v3
-    revert_if v4, empty
+    icall revert_if<empty>, v4
     v5 = sub arg1, 0
     v6 = add v0, 0
     v7 = make_calldata_slice v6, v5
@@ -169,7 +169,7 @@ fn @startSliceIndex(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [select
     v2 = gt v1, v1
     v3 = lt v1, arg1
     v4 = or v2, v3
-    revert_if v4, empty
+    icall revert_if<empty>, v4
     v5 = sub v1, arg1
     v6 = mul arg1, 32
     v7 = iszero 32
@@ -177,13 +177,13 @@ fn @startSliceIndex(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [select
     v9 = eq v8, arg1
     v10 = or v7, v9
     v11 = iszero v10
-    panic_if v11, 0x41
+    icall panic_if<0x41>, v11
     v12 = add v0, v6
     v13 = make_calldata_slice v12, v5
     v14 = slice_len v13
     v15 = lt arg2, v14
     v16 = iszero v15
-    panic_if v16, 0x32
+    icall panic_if<0x32>, v16
     v17 = slice_ptr v13
     v18 = mul arg2, 32
     v19 = iszero 32
@@ -191,7 +191,7 @@ fn @startSliceIndex(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [select
     v21 = eq v20, arg2
     v22 = or v19, v21
     v23 = iszero v22
-    panic_if v23, 0x41
+    icall panic_if<0x41>, v23
     v24 = add v17, v18
     v25 = calldataload v24
     ret v25
@@ -204,14 +204,14 @@ fn @endSliceIndex(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector
     v2 = gt arg1, v1
     v3 = lt arg1, 0
     v4 = or v2, v3
-    revert_if v4, empty
+    icall revert_if<empty>, v4
     v5 = sub arg1, 0
     v6 = add v0, 0
     v7 = make_calldata_slice v6, v5
     v8 = slice_len v7
     v9 = lt arg2, v8
     v10 = iszero v9
-    panic_if v10, 0x32
+    icall panic_if<0x32>, v10
     v11 = slice_ptr v7
     v12 = mul arg2, 32
     v13 = iszero 32
@@ -219,7 +219,7 @@ fn @endSliceIndex(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector
     v15 = eq v14, arg2
     v16 = or v13, v15
     v17 = iszero v16
-    panic_if v17, 0x41
+    icall panic_if<0x41>, v17
     v18 = add v11, v12
     v19 = calldataload v18
     ret v19
@@ -232,22 +232,22 @@ fn @bytesSlice(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [sele
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    revert_if v4, empty
+    icall revert_if<empty>, v4
     v5 = sub arg2, arg1
     v6 = add v0, arg1
     v7 = make_calldata_slice v6, v5
     v8 = slice_ptr v7
     v9 = slice_len v7
     v10 = gt v9, 0xffffffffffffffff
-    revert_if v10, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v10
     v11 = calldatasize
     v12 = sub v11, v9
     v13 = sgt v8, v12
-    revert_if v13, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v13
     v14 = slice_len v7
     v15 = add v14, 63
     v16 = lt v15, v14
-    panic_if v16, 0x41
+    icall panic_if<0x41>, v16
     v17 = not 31
     v18 = and v15, v17
     v19 = alloc memorybytes, exact, uninitialized, infallible, v18
@@ -263,7 +263,7 @@ fn @chainedBytesIndex(arg0: calldataslice) -> bytes1 [selector=0x96fa77f1, pure,
     v2 = gt v1, v1
     v3 = lt v1, 1
     v4 = or v2, v3
-    revert_if v4, empty
+    icall revert_if<empty>, v4
     v5 = sub v1, 1
     v6 = add v0, 1
     v7 = make_calldata_slice v6, v5
@@ -272,14 +272,14 @@ fn @chainedBytesIndex(arg0: calldataslice) -> bytes1 [selector=0x96fa77f1, pure,
     v10 = gt v9, v9
     v11 = lt v9, 1
     v12 = or v10, v11
-    revert_if v12, empty
+    icall revert_if<empty>, v12
     v13 = sub v9, 1
     v14 = add v8, 1
     v15 = make_calldata_slice v14, v13
     v16 = slice_len v15
     v17 = lt 0, v16
     v18 = iszero v17
-    panic_if v18, 0x32
+    icall panic_if<0x32>, v18
     v19 = slice_ptr v15
     v20 = calldata_slice_load_word calldata, v15, 0
     v21 = byte 0, v20

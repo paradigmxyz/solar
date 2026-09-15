@@ -90,7 +90,7 @@ fn @one(arg0: u256) -> u256 [selector=0xef56f928, pure, abi_params=[u256], abi_r
     v4 = slice_len v2
     v5 = extcodesize 0x1111111111111111111111111111111111111111
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = gas
     v8 = sub v7, 50
     v9 = delegatecall v8, 0x1111111111111111111111111111111111111111, v3, v4, v3, 32
@@ -115,7 +115,7 @@ fn @two(arg0: u256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[u256], ab
     v4 = slice_len v2
     v5 = extcodesize 0x1111111111111111111111111111111111111111
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = gas
     v8 = sub v7, 50
     v9 = delegatecall v8, 0x1111111111111111111111111111111111111111, v3, v4, v3, 64
@@ -155,7 +155,7 @@ fn @aggregate(arg0: u256) -> memoryfixedarray [selector=0x407b7269, pure, abi_pa
     v7 = slice_len v5
     v8 = extcodesize 0x1111111111111111111111111111111111111111
     v9 = iszero v8
-    revert_if v9, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v9
     v10 = gas
     v11 = sub v10, 50
     v12 = delegatecall v11, 0x1111111111111111111111111111111111111111, v6, v7, v6, 64
@@ -178,7 +178,7 @@ fn @boolean(arg0: u256) -> bool [selector=0xbc586ed6, pure, abi_params=[u256], a
     v4 = slice_len v2
     v5 = extcodesize 0x1111111111111111111111111111111111111111
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = gas
     v8 = sub v7, 50
     v9 = delegatecall v8, 0x1111111111111111111111111111111111111111, v3, v4, v3, 32
@@ -192,7 +192,7 @@ fn @boolean(arg0: u256) -> bool [selector=0xbc586ed6, pure, abi_params=[u256], a
     v13 = iszero v12
     v14 = eq v11, v13
     v15 = iszero v14
-    revert_if v15, empty
+    icall revert_if<empty>, v15
     v16 = add v3, 0
     v17 = mload v16
     ret v17
@@ -214,7 +214,7 @@ fn @structBool(arg0: u256) -> memorystruct [selector=0x199436a8, pure, abi_param
     v7 = slice_len v5
     v8 = extcodesize 0x1111111111111111111111111111111111111111
     v9 = iszero v8
-    revert_if v9, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v9
     v10 = gas
     v11 = sub v10, 50
     v12 = delegatecall v11, 0x1111111111111111111111111111111111111111, v6, v7, v6, 64
@@ -237,7 +237,7 @@ fn @attached() -> u256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     v4 = slice_len v2
     v5 = extcodesize 0x1111111111111111111111111111111111111111
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = gas
     v8 = sub v7, 50
     v9 = delegatecall v8, 0x1111111111111111111111111111111111111111, v3, v4, v3, 32
@@ -262,7 +262,7 @@ fn @dynamicArgument(arg0: memorybytes) -> struct0 [selector=0x11b8efbf, pure, ab
     v4 = slice_len v2
     v5 = extcodesize 0x1111111111111111111111111111111111111111
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = gas
     v8 = sub v7, 50
     v9 = delegatecall v8, 0x1111111111111111111111111111111111111111, v3, v4, v3, 192
@@ -318,7 +318,7 @@ fn @none(arg0: u256) [selector=0x2758da14, pure, abi_params=[u256], abi_returns=
     v2 = slice_len v0
     v3 = extcodesize 0x1111111111111111111111111111111111111111
     v4 = iszero v3
-    revert_if v4, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v4
     v5 = gas
     v6 = sub v5, 50
     v7 = delegatecall v6, 0x1111111111111111111111111111111111111111, v1, v2, v1, 0

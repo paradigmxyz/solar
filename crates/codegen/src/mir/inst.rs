@@ -700,23 +700,22 @@ impl Instruction {
             | InstKind::StorageBytesStore(..)
             | InstKind::StorageBytesStoreLiteral { .. }
             | InstKind::StorageClearWords(..)
-            | InstKind::Erc7201(..)
-            | InstKind::CheckedAddMod(..)
-            | InstKind::CheckedMulMod(..)
             | InstKind::AbiEncodePacked { .. }
-            | InstKind::ICall { function: Callee::Builtin(Builtin::Concat(_)), .. }
-            | InstKind::Sha256(..)
-            | InstKind::Ripemd160(..)
-            | InstKind::EcRecover(..)
-            | InstKind::Send(..)
-            | InstKind::Transfer(..)
-            | InstKind::AddressCall { .. }
-            | InstKind::ReturndataBytes => Some("builtin"),
+            | InstKind::AddressCall { .. } => Some("builtin"),
             InstKind::ValidateAbi(..) => Some("ABI validation"),
-            InstKind::Check { .. }
-            | InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => {
-                Some("conditional check")
-            }
+            InstKind::ICall { function: Callee::Builtin(builtin), .. } => Some(match builtin {
+                Builtin::Check { .. } | Builtin::Require(_) => "conditional check",
+                Builtin::Concat(_)
+                | Builtin::Erc7201
+                | Builtin::CheckedAddMod
+                | Builtin::CheckedMulMod
+                | Builtin::Sha256
+                | Builtin::Ripemd160
+                | Builtin::EcRecover
+                | Builtin::Send
+                | Builtin::Transfer
+                | Builtin::ReturndataBytes => "builtin",
+            }),
             InstKind::AbiEncode { .. } => Some("ABI encoding"),
             InstKind::AbiDecode { .. } => Some("ABI decoding"),
             InstKind::StorageToMemory { .. }
@@ -829,7 +828,7 @@ impl Instruction {
             | InstKind::ExtCall { .. }
             | InstKind::ExtDelegateCall { .. }
             | InstKind::ExtStaticCall { .. }
-            | InstKind::ICall { .. }
+            | InstKind::ICall { function: Callee::Function(_), .. }
             | InstKind::Create(..)
             | InstKind::Create2(..)
             | InstKind::Log0(..)
@@ -1332,20 +1331,8 @@ pub(crate) enum InstKind {
     /// Require materialization and ABI validation of this source value even when unused.
     /// Entry decoding or an internal typed-body boundary discharges this obligation.
     ValidateAbi(ValueId),
-    /// Revert with a typed failure if the condition has the selected truth value.
-    Check { condition: ValueId, is_zero: bool, failure: super::RevertKind },
-    /// SHA-256 of a bytes object, including precompile output allocation and returndata effects.
-    Sha256(ValueId),
-    /// ERC-7201 namespace slot derived from a bytes object.
-    Erc7201(ValueId),
-    /// Solidity modular addition, which panics for a zero modulus.
-    CheckedAddMod(ValueId, ValueId, ValueId),
-    /// Solidity modular multiplication, which panics for a zero modulus.
-    CheckedMulMod(ValueId, ValueId, ValueId),
     /// Encode packed arguments, optionally hashing the temporary result.
     AbiEncodePacked { parts: Box<[super::PackedPart]>, hash: bool },
-    /// Left-aligned RIPEMD-160 of a bytes object, with the same effects as `sha256`.
-    Ripemd160(ValueId),
     /// Low-level address call over a bytes object, returning success.
     ///
     /// A missing gas operand computes the target's default gas at conversion. A present value
@@ -1357,14 +1344,6 @@ pub(crate) enum InstKind {
         gas: Option<ValueId>,
         value: Option<ValueId>,
     },
-    /// Copy the current returndata into a fresh bytes object (empty before Byzantium).
-    ReturndataBytes,
-    /// Send value to an address with a 2300 gas stipend, returning success.
-    Send(ValueId, ValueId),
-    /// Transfer value with a 2300 gas stipend, reverting with returndata on failure.
-    Transfer(ValueId, ValueId),
-    /// Recover an address from hash, recovery ID, and signature words.
-    EcRecover(ValueId, ValueId, ValueId, ValueId),
     /// Hash a fixed-width mapping key and its parent slot.
     ///
     /// Its lowering writes both words of reserved scratch memory.
@@ -1529,8 +1508,6 @@ impl InstKind {
             | Self::MemoryZero(a, b)
             | Self::SStore(a, b)
             | Self::StorageBytesStore(a, b)
-            | Self::Send(a, b)
-            | Self::Transfer(a, b)
             | Self::TStore(a, b)
             | Self::Keccak256(a, b)
             | Self::MappingSlot(a, b)
@@ -1611,7 +1588,6 @@ impl InstKind {
             | Self::MemoryObjectFromPtr { ptr: a, .. }
             | Self::WordCast(a)
             | Self::ValidateAbi(a)
-            | Self::Check { condition: a, .. }
             | Self::Not(a)
             | Self::Clz(a)
             | Self::IsZero(a)
@@ -1631,9 +1607,6 @@ impl InstKind {
             | Self::BlobHash(a)
             | Self::StoreImmutable(_, a)
             | Self::Keccak256Bytes(a)
-            | Self::Erc7201(a)
-            | Self::Sha256(a)
-            | Self::Ripemd160(a)
             | Self::StorageArrayDataSlot(a)
             | Self::MemoryObjectLen(a, _)
             | Self::MemoryObjectData(a, _)
@@ -1653,8 +1626,6 @@ impl InstKind {
             | Self::CalldataCopy(a, b, c)
             | Self::CodeCopy(a, b, c)
             | Self::ReturnDataCopy(a, b, c)
-            | Self::CheckedAddMod(a, b, c)
-            | Self::CheckedMulMod(a, b, c)
             | Self::AddMod(a, b, c)
             | Self::MulMod(a, b, c)
             | Self::StorageClearWords(a, b, c)
@@ -1665,10 +1636,7 @@ impl InstKind {
             }
 
             // 4-operand operations
-            Self::EcRecover(a, b, c, d)
-            | Self::ExtCodeCopy(a, b, c, d)
-            | Self::Create2(a, b, c, d)
-            | Self::Log2(a, b, c, d) => {
+            Self::ExtCodeCopy(a, b, c, d) | Self::Create2(a, b, c, d) | Self::Log2(a, b, c, d) => {
                 out.extend_from_slice(&[*a, *b, *c, *d]);
             }
 
@@ -1748,7 +1716,6 @@ impl InstKind {
             | Self::CodeSize
             | Self::LoadImmutable(_)
             | Self::ReturnDataSize
-            | Self::ReturndataBytes
             | Self::Caller
             | Self::CallValue
             | Self::Origin
@@ -1807,8 +1774,6 @@ impl InstKind {
             | Self::MemoryZero(a, b)
             | Self::SStore(a, b)
             | Self::StorageBytesStore(a, b)
-            | Self::Send(a, b)
-            | Self::Transfer(a, b)
             | Self::TStore(a, b)
             | Self::Keccak256(a, b)
             | Self::MappingSlot(a, b)
@@ -1913,7 +1878,6 @@ impl InstKind {
             | Self::MemoryObjectFromPtr { ptr: a, .. }
             | Self::WordCast(a)
             | Self::ValidateAbi(a)
-            | Self::Check { condition: a, .. }
             | Self::Not(a)
             | Self::Clz(a)
             | Self::IsZero(a)
@@ -1934,9 +1898,6 @@ impl InstKind {
             | Self::StoreImmutable(_, a)
             | Self::SlicePtr(a)
             | Self::Keccak256Bytes(a)
-            | Self::Erc7201(a)
-            | Self::Sha256(a)
-            | Self::Ripemd160(a)
             | Self::StorageArrayDataSlot(a)
             | Self::SliceLen(a)
             | Self::MemoryObjectLen(a, _)
@@ -1952,8 +1913,6 @@ impl InstKind {
             | Self::CalldataCopy(a, b, c)
             | Self::CodeCopy(a, b, c)
             | Self::ReturnDataCopy(a, b, c)
-            | Self::CheckedAddMod(a, b, c)
-            | Self::CheckedMulMod(a, b, c)
             | Self::AddMod(a, b, c)
             | Self::MulMod(a, b, c)
             | Self::StorageClearWords(a, b, c)
@@ -1965,10 +1924,7 @@ impl InstKind {
                 f(c);
             }
 
-            Self::EcRecover(a, b, c, d)
-            | Self::ExtCodeCopy(a, b, c, d)
-            | Self::Create2(a, b, c, d)
-            | Self::Log2(a, b, c, d) => {
+            Self::ExtCodeCopy(a, b, c, d) | Self::Create2(a, b, c, d) | Self::Log2(a, b, c, d) => {
                 f(a);
                 f(b);
                 f(c);
@@ -2052,7 +2008,6 @@ impl InstKind {
             | Self::CodeSize
             | Self::LoadImmutable(_)
             | Self::ReturnDataSize
-            | Self::ReturndataBytes
             | Self::Caller
             | Self::CallValue
             | Self::Origin
@@ -2088,9 +2043,6 @@ impl InstKind {
             Self::Mod(_, _) => "mod",
             Self::SMod(_, _) => "smod",
             Self::Exp(_, _) => "exp",
-            Self::Erc7201(_) => "erc7201",
-            Self::CheckedAddMod(..) => "checked_addmod",
-            Self::CheckedMulMod(..) => "checked_mulmod",
             Self::AddMod(_, _, _) => "addmod",
             Self::MulMod(_, _, _) => "mulmod",
             Self::And(_, _) => "and",
@@ -2195,12 +2147,6 @@ impl InstKind {
             Self::Keccak256Bytes(_) => "keccak256_bytes",
             Self::CheckedBinary { op, .. } => op.name(),
             Self::ValidateAbi(_) => "validate_abi",
-            Self::Check { is_zero, failure, .. } => match (failure, is_zero) {
-                (super::RevertKind::Panic(_), false) => "panic_if",
-                (super::RevertKind::Panic(_), true) => "panic_if_zero",
-                (super::RevertKind::Reason(_), false) => "revert_if",
-                (super::RevertKind::Reason(_), true) => "revert_if_zero",
-            },
             Self::AbiEncodePacked { hash, .. } => {
                 if *hash {
                     "keccak256_packed"
@@ -2208,15 +2154,9 @@ impl InstKind {
                     "abi_encode_packed"
                 }
             }
-            Self::Sha256(_) => "sha256",
-            Self::Ripemd160(_) => "ripemd160",
-            Self::EcRecover(..) => "ecrecover",
             Self::AddressCall { kind: AddressCallKind::Call, .. } => "address_call",
             Self::AddressCall { kind: AddressCallKind::Static, .. } => "address_staticcall",
             Self::AddressCall { kind: AddressCallKind::Delegate, .. } => "address_delegatecall",
-            Self::ReturndataBytes => "returndata_bytes",
-            Self::Send(..) => "send",
-            Self::Transfer(..) => "transfer",
             Self::MappingSlot(_, _) => "mapping_slot",
             Self::MappingSlotMemory(_, _) => "mapping_slot_memory",
             Self::MappingSlotCalldata(_, _) => "mapping_slot_calldata",
@@ -2283,10 +2223,12 @@ impl InstKind {
     pub(crate) const fn effect_kind(&self) -> EffectKind {
         match self {
             Self::ValidateStorageBytes(..)
-            | Self::CheckedAddMod(..)
-            | Self::CheckedMulMod(..)
+            | Self::ICall {
+                function: Callee::Builtin(Builtin::CheckedAddMod | Builtin::CheckedMulMod),
+                ..
+            }
             | Self::ValidateAbi(..)
-            | Self::Check { .. }
+            | Self::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. }
             | Self::CheckedBinary { .. }
             | Self::InsertValue { .. }
             | Self::ExtractValue { .. }
@@ -2294,15 +2236,17 @@ impl InstKind {
             | Self::WordCast(_) => EffectKind::Pure,
             Self::StorageBytesLoad(..)
             | Self::StorageArrayLoad { .. }
-            | Self::Erc7201(..)
+            | Self::ICall { function: Callee::Builtin(Builtin::Erc7201), .. }
             | Self::MappingSlot(..)
             | Self::MappingSlotMemory(..)
             | Self::MappingSlotCalldata(..)
             | Self::StorageArrayDataSlot(..)
             | Self::StorageArrayElementSlot { .. }
             | Self::AbiEncodePacked { .. }
-            | Self::ICall { function: Callee::Builtin(Builtin::Concat(_)), .. }
-            | Self::ReturndataBytes
+            | Self::ICall {
+                function: Callee::Builtin(Builtin::Concat(_) | Builtin::ReturndataBytes),
+                ..
+            }
             | Self::MStore(_, _)
             | Self::MStore8(_, _)
             | Self::MemoryZero(_, _)
@@ -2348,12 +2292,14 @@ impl InstKind {
             | Self::StorageBytesStoreLiteral { .. } => EffectKind::StorageWrite,
             Self::TLoad(_) => EffectKind::TransientRead,
             Self::TStore(_, _) => EffectKind::TransientWrite,
-            Self::Sha256(..)
-            | Self::Ripemd160(..)
-            | Self::EcRecover(..)
+            Self::ICall {
+                function: Callee::Builtin(Builtin::Sha256 | Builtin::Ripemd160 | Builtin::EcRecover),
+                ..
+            }
             | Self::AddressCall { .. }
-            | Self::Send(..)
-            | Self::Transfer(..)
+            | Self::ICall {
+                function: Callee::Builtin(Builtin::Send | Builtin::Transfer), ..
+            }
             | Self::Call { .. }
             | Self::CallCode { .. }
             | Self::StaticCall { .. }

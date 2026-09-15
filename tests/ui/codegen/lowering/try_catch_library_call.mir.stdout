@@ -9,7 +9,7 @@ fn @direct(arg0: u256, arg1: bool) -> u256 [selector=0x52db6885, pure, abi_param
     v0 = eq arg1, 0
     v1 = iszero v0
     v2 = iszero v1
-    icall require short_string, v2, 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    icall require<short_string>, v2, 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
     ret arg0
 }
 
@@ -18,7 +18,7 @@ fn @attached(arg0: storageptr, arg1: u256, arg2: bool) -> u256 [selector=0x280ac
     v0 = eq arg2, 0
     v1 = iszero v0
     v2 = iszero v1
-    icall require short_string, v2, 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    icall require<short_string>, v2, 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
     sstore arg0, arg1 !metadata(storage=symbolic(arg0))
     v3 = sload arg0 !metadata(storage=symbolic(arg0))
     ret v3
@@ -29,7 +29,7 @@ fn @add(arg0: u256, arg1: u256, arg2: bool) -> u256 [selector=0x07f6a6c2, pure, 
     v0 = eq arg2, 0
     v1 = iszero v0
     v2 = iszero v1
-    icall require short_string, v2, 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    icall require<short_string>, v2, 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
     v3 = checked_add u256, arg0, arg1
     ret v3
 }
@@ -59,7 +59,7 @@ fn @direct(arg0: bool) -> u256 [selector=0xa8f96c85, pure, abi_params=[bool], ab
     v6 = delegatecall v0, 0x1111111111111111111111111111111111111111, v4, v5, 0, 0
     jumpi v6, bb1, bb2
   bb2:
-    v9 = returndata_bytes
+    v9 = icall returndata_bytes<>
     v10 = memory_object_data memorybytes, v9
     v11 = memory_object_len memorybytes, v9
     v12 = make_memory_slice v10, v11
@@ -86,7 +86,7 @@ fn @direct(arg0: bool) -> u256 [selector=0xa8f96c85, pure, abi_params=[bool], ab
     v23 = slice_len v22
     v24 = add v23, 63
     v25 = lt v24, v23
-    panic_if v25, 0x41
+    icall panic_if<0x41>, v25
     v26 = not 31
     v27 = and v24, v26
     v28 = alloc memorybytes, exact, uninitialized, infallible, v27
@@ -95,7 +95,7 @@ fn @direct(arg0: bool) -> u256 [selector=0xa8f96c85, pure, abi_params=[bool], ab
     v29 = abi_decode [bytes], v28
     ret 18
   bb1:
-    v7 = returndata_bytes
+    v7 = icall returndata_bytes<>
     v8 = abi_decode [u256], v7
     ret v8
   bb3:
@@ -113,7 +113,7 @@ fn @attached(arg0: bool) -> u256 [selector=0x42425916, abi_params=[bool], abi_re
     v6 = delegatecall v0, 0x1111111111111111111111111111111111111111, v4, v5, 0, 0
     jumpi v6, bb1, bb2
   bb2:
-    v9 = returndata_bytes
+    v9 = icall returndata_bytes<>
     v10 = memory_object_data memorybytes, v9
     v11 = memory_object_len memorybytes, v9
     v12 = make_memory_slice v10, v11
@@ -140,7 +140,7 @@ fn @attached(arg0: bool) -> u256 [selector=0x42425916, abi_params=[bool], abi_re
     v23 = slice_len v22
     v24 = add v23, 63
     v25 = lt v24, v23
-    panic_if v25, 0x41
+    icall panic_if<0x41>, v25
     v26 = not 31
     v27 = and v24, v26
     v28 = alloc memorybytes, exact, uninitialized, infallible, v27
@@ -149,7 +149,7 @@ fn @attached(arg0: bool) -> u256 [selector=0x42425916, abi_params=[bool], abi_re
     v29 = abi_decode [bytes], v28
     ret 19
   bb1:
-    v7 = returndata_bytes
+    v7 = icall returndata_bytes<>
     v8 = abi_decode [u256], v7
     ret v8
   bb3:
@@ -167,7 +167,7 @@ fn @attachedValue(arg0: u256, arg1: bool) -> u256 [selector=0xcece4c7f, pure, ab
     v6 = delegatecall v0, 0x1111111111111111111111111111111111111111, v4, v5, 0, 0
     jumpi v6, bb1, bb2
   bb2:
-    v9 = returndata_bytes
+    v9 = icall returndata_bytes<>
     v10 = memory_object_data memorybytes, v9
     v11 = memory_object_len memorybytes, v9
     v12 = make_memory_slice v10, v11
@@ -194,7 +194,7 @@ fn @attachedValue(arg0: u256, arg1: bool) -> u256 [selector=0xcece4c7f, pure, ab
     v23 = slice_len v22
     v24 = add v23, 63
     v25 = lt v24, v23
-    panic_if v25, 0x41
+    icall panic_if<0x41>, v25
     v26 = not 31
     v27 = and v24, v26
     v28 = alloc memorybytes, exact, uninitialized, infallible, v27
@@ -203,7 +203,7 @@ fn @attachedValue(arg0: u256, arg1: bool) -> u256 [selector=0xcece4c7f, pure, ab
     v29 = abi_decode [bytes], v28
     ret 20
   bb1:
-    v7 = returndata_bytes
+    v7 = icall returndata_bytes<>
     v8 = abi_decode [u256], v7
     ret v8
   bb3:
@@ -218,16 +218,16 @@ fn @emptyCode() [selector=0xddb3636e, pure, abi_params=[], abi_returns=[]] {
     v3 = slice_len v1
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = iszero v4
-    revert_if v5, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v5
     v6 = delegatecall v0, 0x1111111111111111111111111111111111111111, v2, v3, 0, 0
     jumpi v6, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb4:
-    icall require short_string, false, 6, 0x6361756768740000000000000000000000000000000000000000000000000000
+    icall require<short_string>, false, 6, 0x6361756768740000000000000000000000000000000000000000000000000000
     invalid
   bb1:
     jump bb3

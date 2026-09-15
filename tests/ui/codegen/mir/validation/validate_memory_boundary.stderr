@@ -40,31 +40,31 @@ error: [fn8] [bb0, inst0] abstract allocation instruction `alloc` survives the `
 
 error: [fn9] [bb0, inst0] deferred allocation requires a constant size
 
-error: [fn10] [bb0, inst0] builtin instruction `ecrecover` survives the `lowered` phase boundary
+error: [fn10] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
 
 error: [fn11] [bb0, inst0] checked arithmetic instruction `checked_add` survives the `lowered` phase boundary
 
 error: [fn12] [bb0, inst0] ABI validation instruction `validate_abi` survives the `lowered` phase boundary
 
-error: [fn13] [bb0, inst0] conditional check instruction `panic_if_zero` survives the `lowered` phase boundary
+error: [fn13] [bb0, inst0] conditional check instruction `icall` survives the `lowered` phase boundary
 
 error: [fn14] [bb0, inst0] conditional check instruction `icall` survives the `lowered` phase boundary
 
 error: [fn15] [bb0, inst0] builtin instruction `keccak256_packed` survives the `lowered` phase boundary
 
-error: [fn16] [bb0, inst0] builtin instruction `checked_addmod` survives the `lowered` phase boundary
+error: [fn16] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
 
-error: [fn17] [bb0, inst0] builtin instruction `erc7201` survives the `lowered` phase boundary
+error: [fn17] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
 
 error: [fn18] [bb0, inst0] builtin instruction `validate_storage_bytes` survives the `lowered` phase boundary
 
-error: [fn19] [bb0, inst0] builtin instruction `send` survives the `lowered` phase boundary
+error: [fn19] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
 
-error: [fn19] [bb0, inst1] builtin instruction `transfer` survives the `lowered` phase boundary
+error: [fn19] [bb0, inst1] builtin instruction `icall` survives the `lowered` phase boundary
 
 error: [fn20] non-word type `memorybytes` survives the `lowered` phase boundary
 
-error: [fn20] [bb0, inst0] builtin instruction `returndata_bytes` survives the `lowered` phase boundary
+error: [fn20] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
 
 error: [fn20] [bb0, inst1] builtin instruction `address_call` survives the `lowered` phase boundary
 

@@ -30,7 +30,7 @@ fn @constructor(arg0: memoryarray, arg1: address, arg2: u96) [constructor, abi_p
     v6 = memory_object_len memoryarray, v1
     v7 = lt v0, v6
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     v9 = memory_object_load_element memoryarray<1>, v1, v0
     v10 = and v9, 0xffffffffffffffffffffffff
     v11 = icall @mint, v3, v10
@@ -74,7 +74,7 @@ fn @push(arg0: storageptr, arg1: u96, arg2: u160) {
     v8 = gt v6, v7
     v9 = iszero v8
     v10 = iszero v9
-    revert_if v10, empty
+    icall revert_if<empty>, v10
     jump bb3
   bb3:
     v11 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
@@ -84,7 +84,7 @@ fn @push(arg0: storageptr, arg1: u96, arg2: u160) {
     memory_object_store_field memorystruct<2>, v11, 1, v13
     v14 = sload arg0 !metadata(storage=symbolic(arg0))
     v15 = gt v14, 0xffffffffffffffff
-    panic_if v15, 0x41
+    icall panic_if<0x41>, v15
     v16 = add v14, 1
     v17 = storage_array_data_slot arg0
     v18 = add v17, v14
@@ -191,13 +191,13 @@ fn @deploy() -> u96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>]
     v1 = memory_object_len memoryarray, v0
     v2 = lt 0, v1
     v3 = iszero v2
-    panic_if v3, 0x32
+    icall panic_if<0x32>, v3
     v4 = and 0xf52, 0xffffffffffffffffffffffff
     memory_object_store_element memoryarray<1>, v0, 0, v4
     v5 = memory_object_len memoryarray, v0
     v6 = lt 1, v5
     v7 = iszero v6
-    panic_if v7, 0x32
+    icall panic_if<0x32>, v7
     v8 = and 6, 0xffffffffffffffffffffffff
     memory_object_store_element memoryarray<1>, v0, 1, v8
     v9 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
@@ -206,10 +206,10 @@ fn @deploy() -> u96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>]
     v12 = slice_len v11
     v13 = add 0xcac, v12
     v14 = lt v13, 0xcac
-    panic_if v14, 0x41
+    icall panic_if<0x41>, v14
     v15 = add v13, 31
     v16 = lt v15, v13
-    panic_if v16, 0x41
+    icall panic_if<0x41>, v16
     v17 = not 31
     v18 = and v15, v17
     v19 = alloc raw, exact, uninitialized, infallible, v18
@@ -233,13 +233,13 @@ fn @deploy() -> u96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>]
   bb4:
     v28 = returndatasize
     v29 = lt v28, 32
-    revert_if v29, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v29
     v30 = add 0, 0
     v31 = mload v30
     v32 = and v31, 0xffffffffffffffffffffffff
     v33 = eq v31, v32
     v34 = iszero v33
-    revert_if v34, empty
+    icall revert_if<empty>, v34
     v35 = add 0, 0
     v36 = mload v35
     ret v36
@@ -271,13 +271,13 @@ fn @multiReturn() -> u8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u
   bb4:
     v12 = returndatasize
     v13 = lt v12, 32
-    revert_if v13, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v13
     v14 = add 0, 0
     v15 = mload v14
     v16 = and v15, 255
     v17 = eq v15, v16
     v18 = iszero v17
-    revert_if v18, empty
+    icall revert_if<empty>, v18
     v19 = add 0, 0
     v20 = mload v19
     ret v20

@@ -637,11 +637,15 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                 | InstKind::StorageBytesStore(..)
                 | InstKind::StorageBytesStoreLiteral { .. }
                 | InstKind::StorageClearWords(..)
-                | InstKind::CheckedAddMod(..)
-                | InstKind::CheckedMulMod(..)
+                | InstKind::ICall {
+                    function: Callee::Builtin(Builtin::CheckedAddMod | Builtin::CheckedMulMod),
+                    ..
+                }
                 | InstKind::CheckedBinary { .. }
-                | InstKind::Check { .. }
-                | InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => {
+                | InstKind::ICall {
+                    function: Callee::Builtin(Builtin::Check { .. } | Builtin::Require(_)),
+                    ..
+                } => {
                     summary.has_control_flow = true;
                 }
                 InstKind::AbiEncodePacked { parts, hash: false }
@@ -657,12 +661,12 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                 InstKind::AbiEncode { layout, .. } if abi_layout_has_loops(layout) => {
                     summary.has_control_flow = true;
                 }
-                InstKind::Transfer(..) => {
+                InstKind::ICall { function: Callee::Builtin(Builtin::Transfer), .. } => {
                     summary.has_control_flow = true;
                     summary.has_external_call = true;
                 }
                 InstKind::AddressCall { .. }
-                | InstKind::Send(..)
+                | InstKind::ICall { function: Callee::Builtin(Builtin::Send), .. }
                 | InstKind::Call { .. }
                 | InstKind::CallCode { .. }
                 | InstKind::StaticCall { .. }
@@ -960,11 +964,16 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         InstKind::StorageBytesStore(..) => (500, 180),
         InstKind::StorageBytesStoreLiteral { bytes, .. } => (500, 180 + bytes.len()),
         InstKind::StorageClearWords(..) => (120, 32),
-        InstKind::Erc7201(_) => (90, 30),
-        InstKind::CheckedAddMod(..) | InstKind::CheckedMulMod(..) => (32, 9),
-        InstKind::Sha256(_) | InstKind::Ripemd160(_) => (800, 64),
-        InstKind::EcRecover(..) => (900, 100),
-        InstKind::Check { .. } => (24, 8),
+        InstKind::ICall { function: Callee::Builtin(Builtin::Erc7201), .. } => (90, 30),
+        InstKind::ICall {
+            function: Callee::Builtin(Builtin::CheckedAddMod | Builtin::CheckedMulMod),
+            ..
+        } => (32, 9),
+        InstKind::ICall {
+            function: Callee::Builtin(Builtin::Sha256 | Builtin::Ripemd160), ..
+        } => (800, 64),
+        InstKind::ICall { function: Callee::Builtin(Builtin::EcRecover), .. } => (900, 100),
+        InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. } => (24, 8),
         InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => (40, 24),
         InstKind::ValidateAbi(_) => (0, 0),
         InstKind::CheckedBinary { op: crate::mir::CheckedOp::Pow, .. } => (300, 128),
@@ -983,9 +992,9 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
             (36 + u64::from(*element_slots > 1) * 5, 4)
         }
         InstKind::AddressCall { .. } => (720, 12),
-        InstKind::ReturndataBytes => (60, 24),
-        InstKind::Send(..) => (720, 12),
-        InstKind::Transfer(..) => (740, 20),
+        InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. } => (60, 24),
+        InstKind::ICall { function: Callee::Builtin(Builtin::Send), .. } => (720, 12),
+        InstKind::ICall { function: Callee::Builtin(Builtin::Transfer), .. } => (740, 20),
         InstKind::Call { .. }
         | InstKind::CallCode { .. }
         | InstKind::StaticCall { .. }

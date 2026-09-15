@@ -39,7 +39,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v59 = icall @getDest
     v60 = lt 0, 1
     v61 = iszero v60
-    panic_if v61, 0x32
+    icall panic_if<0x32>, v61
     v62 = mul 0, 40
     v63 = add v5, v62
     v64 = alloc memoryfixedarray<10, 1>, exact, uninitialized, panic, 320
@@ -51,7 +51,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb9:
     v88 = lt 0, 1
     v89 = iszero v88
-    panic_if v89, 0x32
+    icall panic_if<0x32>, v89
     v90 = mul 0, 40
     v91 = add v59, v90
     jump bb10
@@ -62,7 +62,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb12:
     v152 = lt 0, 1
     v153 = iszero v152
-    panic_if v153, 0x32
+    icall panic_if<0x32>, v153
     v154 = mul 0, 40
     v155 = add v5, v154
     jump bb16
@@ -79,12 +79,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb19:
     v167 = lt 0, 1
     v168 = iszero v167
-    panic_if v168, 0x32
+    icall panic_if<0x32>, v168
     v169 = mul 0, 40
     v170 = add v5, v169
     v171 = lt 9, 10
     v172 = iszero v171
-    panic_if v172, 0x32
+    icall panic_if<0x32>, v172
     v173 = mul 9, 4
     v174 = add v170, v173
     v175 = add v174, 2
@@ -113,24 +113,24 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb25:
     v187 = lt 0, 1
     v188 = iszero v187
-    panic_if v188, 0x32
+    icall panic_if<0x32>, v188
     v189 = mul 0, 40
     v190 = add v183, v189
     v191 = lt v181, 10
     v192 = iszero v191
-    panic_if v192, 0x32
+    icall panic_if<0x32>, v192
     v193 = mul v181, 4
     v194 = add v190, v193
     v195 = sload v194 !metadata(storage=symbolic(v194))
     v196 = checked_add u256, v179, v195
     v197 = lt 0, 1
     v198 = iszero v197
-    panic_if v198, 0x32
+    icall panic_if<0x32>, v198
     v199 = mul 0, 40
     v200 = add v183, v199
     v201 = lt v181, 10
     v202 = iszero v201
-    panic_if v202, 0x32
+    icall panic_if<0x32>, v202
     v203 = mul v181, 4
     v204 = add v200, v203
     v205 = add v204, 1
@@ -139,12 +139,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v208 = checked_add u256, v196, v207
     v209 = lt 0, 1
     v210 = iszero v209
-    panic_if v210, 0x32
+    icall panic_if<0x32>, v210
     v211 = mul 0, 40
     v212 = add v183, v211
     v213 = lt v181, 10
     v214 = iszero v213
-    panic_if v214, 0x32
+    icall panic_if<0x32>, v214
     v215 = mul v181, 4
     v216 = add v212, v215
     v217 = add v216, 1
@@ -154,12 +154,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v221 = checked_add u256, v208, v220
     v222 = lt 0, 1
     v223 = iszero v222
-    panic_if v223, 0x32
+    icall panic_if<0x32>, v223
     v224 = mul 0, 40
     v225 = add v183, v224
     v226 = lt v181, 10
     v227 = iszero v226
-    panic_if v227, 0x32
+    icall panic_if<0x32>, v227
     v228 = mul v181, 4
     v229 = add v225, v228
     v230 = add v229, 2
@@ -171,12 +171,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb28:
     v233 = lt 0, 1
     v234 = iszero v233
-    panic_if v234, 0x32
+    icall panic_if<0x32>, v234
     v235 = mul 0, 40
     v236 = add v183, v235
     v237 = lt v181, 10
     v238 = iszero v237
-    panic_if v238, 0x32
+    icall panic_if<0x32>, v238
     v239 = mul v181, 4
     v240 = add v236, v239
     v241 = add v240, 3
@@ -338,12 +338,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     memory_object_store_field memorystruct<5>, v8, 4, v23
     v24 = lt 0, 1
     v25 = iszero v24
-    panic_if v25, 0x32
+    icall panic_if<0x32>, v25
     v26 = mul 0, 40
     v27 = add v5, v26
     v28 = lt v4, 10
     v29 = iszero v28
-    panic_if v29, 0x32
+    icall panic_if<0x32>, v29
     v30 = mul v4, 4
     v31 = add v27, v30
     v32 = memory_object_load_field memorystruct<5>, v8, 0

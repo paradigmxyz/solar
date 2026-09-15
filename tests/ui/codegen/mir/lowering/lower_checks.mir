@@ -15,13 +15,13 @@ fn @branch_checks(arg0: bool, arg1: u256) -> u256 {
     jumpi arg0, bb1, bb2
   bb1:
     mstore 64, arg1
-    panic_if_zero arg1, 0x1
+    icall panic_if_zero<0x1>, arg1
     v0 = add arg1, 1
-    revert_if_zero v0, tuple_data_too_short
+    icall revert_if_zero<tuple_data_too_short>, v0
     mstore 96, v0
     jump bb3
   bb2:
-    panic_if_zero arg1, 0x1
+    icall panic_if_zero<0x1>, arg1
     v1 = mul arg1, 2
     jump bb3
   bb3:
@@ -31,10 +31,10 @@ fn @branch_checks(arg0: bool, arg1: u256) -> u256 {
 
 fn @payloads(arg0: bool, arg1: memorybytes, arg2: u256) {
   bb0:
-    icall require short_string, arg0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
-    icall require empty_string, arg0
-    icall require error_string, arg0, arg1
-    icall require custom_error [word, memory_bytes], arg0, 0, arg2, arg1
+    icall require<short_string>, arg0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
+    icall require<empty_string>, arg0
+    icall require<error_string>, arg0, arg1
+    icall require<custom_error [word, memory_bytes]>, arg0, 0, arg2, arg1
     ret
 }
 
@@ -46,7 +46,7 @@ fn @payloads(arg0: bool, arg1: memorybytes, arg2: u256) {
 fn @constant_failure_with_writes() -> u256 {
   bb0:
     memory_zero 128, 32
-    panic_if_zero 0, 0x32
+    icall panic_if_zero<0x32>, 0
     v0 = add 1, 2
     ret v0
 }
@@ -55,6 +55,6 @@ fn @constant_failure_with_writes() -> u256 {
 // CHECK: + jumpi 1,
 fn @constant_failure_without_writes() {
   bb0:
-    panic_if 1, 0x32
+    icall panic_if<0x32>, 1
     ret
 }
