@@ -18,6 +18,12 @@
 //@ run-call: reverseSignature 2 => 0xe2179b8e
 //@ run-call: reverseSignature 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0xe2179b8e
 
+//@ run-call: dirtyTernary 0, 19 => 7
+//@ run-call: dirtyTernary 2, 19 => 19
+//@ run-call: dirtyTernary 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 19 => 19
+//@ run-call: yulBranch 0, 19 => 7
+//@ run-call: yulBranch 2, 19 => 19
+
 contract ConstantSelect {
     bytes saved;
 
@@ -59,5 +65,19 @@ contract ConstantSelect {
         bool condition;
         assembly { condition := raw }
         return abi.encodeWithSignature(condition ? "g()" : "f()");
+    }
+    // CHECK-LABEL: fn @dirtyTernary(
+    function dirtyTernary(uint256 raw, uint256 x) external pure returns (uint256) {
+        bool condition;
+        assembly { condition := raw }
+        return condition ? x : 7;
+    }
+
+    // CHECK-LABEL: fn @yulBranch(
+    function yulBranch(uint256 raw, uint256 x) external pure returns (uint256 result) {
+        assembly {
+            result := 7
+            if raw { result := x }
+        }
     }
 }

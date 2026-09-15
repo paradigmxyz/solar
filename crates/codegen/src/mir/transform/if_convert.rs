@@ -38,7 +38,7 @@
 //! reach it, and before hot-leaf inlining, so cloned lookup helpers arrive
 //! already branch-free.
 
-use super::cfg_simplify::simplify_function;
+use super::{cfg_simplify::simplify_function, egraph::is_bool_value};
 use crate::{
     backend::evm::op,
     mir::{
@@ -497,33 +497,12 @@ fn convert(func: &mut Function, site: &Site) {
 /// A zero-or-one form of the branch condition, appended to `block` when the
 /// condition is not already boolean.
 fn boolean_condition(func: &mut Function, block: BlockId, condition: ValueId) -> ValueId {
-    if is_boolean(func, condition) {
+    if is_bool_value(func, condition) {
         return condition;
     }
     // cond01 = iszero(iszero(cond))
     let zero = append(func, block, InstKind::IsZero(condition), Some(MirType::Bool));
     append(func, block, InstKind::IsZero(zero), Some(MirType::Bool))
-}
-
-fn is_boolean(func: &Function, value: ValueId) -> bool {
-    if func.value_ty(value) == Some(MirType::Bool) {
-        return true;
-    }
-    match func.value(value) {
-        Value::Immediate(immediate) => {
-            immediate.as_u256().is_some_and(|value| value <= U256::from(1))
-        }
-        Value::Inst(inst) => matches!(
-            func.inst(*inst).kind,
-            InstKind::Lt(..)
-                | InstKind::Gt(..)
-                | InstKind::SLt(..)
-                | InstKind::SGt(..)
-                | InstKind::Eq(..)
-                | InstKind::IsZero(..)
-        ),
-        _ => false,
-    }
 }
 
 /// Builds `cond ? then_value : else_value` at the end of `block` in the
