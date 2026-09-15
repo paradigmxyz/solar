@@ -15,7 +15,7 @@ mod transform;
 mod types;
 pub(crate) use types::{
     FrameMode, FrameSlotKind, ImmutableEncoding, MemoryObjectKind, MemoryObjectLayout, MirType,
-    SliceLocation, TypeSize,
+    SliceLocation, StructType, TypeSize,
 };
 
 mod abi;
@@ -23,6 +23,9 @@ pub(crate) use abi::{
     AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
     AbiType, AbiWordValidator,
 };
+
+mod packed;
+pub(crate) use packed::{PackedArraySource, PackedPart, packed_element_bytes};
 
 mod storage;
 pub use storage::{StorageField, StorageLayout, StorageLayoutRef};
@@ -32,10 +35,19 @@ pub(crate) use value::{Immediate, Value};
 
 mod inst;
 pub(crate) use inst::{
-    AbiEncodeMode, AllocationAlignment, AllocationFailure, AllocationInitialization,
-    AllocationKind, AllocationSemantics, EffectKind, InstKind, Instruction, InstructionMetadata,
-    MemoryRegion, StorageAlias,
+    AbiEncodeMode, AddressCallKind, AllocationAlignment, AllocationFailure,
+    AllocationInitialization, AllocationKind, AllocationSemantics, ConcatPart, EffectKind,
+    InstKind, Instruction, InstructionMetadata, MemoryRegion, StorageAlias,
 };
+
+mod arithmetic;
+pub(crate) use arithmetic::{ArithmeticKind, CheckedOp};
+
+mod checks;
+pub(crate) use checks::{PanicCode, RevertKind, RevertPayload, RevertReason};
+
+mod effects;
+pub(crate) use effects::ControlEffects;
 
 mod block;
 pub(crate) use block::{BasicBlock, Terminator};
@@ -47,11 +59,14 @@ mod function;
 pub(crate) use function::{Function, FunctionAttributes};
 
 mod module;
-pub(crate) use module::LibraryLink;
+pub(crate) use module::{LibraryLink, LoweredModule};
 pub use module::{MirPhase, Module};
 
+mod builtin;
+pub(crate) use builtin::{Builtin, Callee, RequireKind};
+
 mod builder;
-pub(crate) use builder::{ERROR_SELECTOR, FunctionBuilder, PanicCode, RevertReason, ToUint};
+pub(crate) use builder::{ERROR_SELECTOR, FunctionBuilder, ToUint};
 
 mod display;
 
@@ -76,6 +91,9 @@ newtype_index! {
 
     /// A unique identifier for a basic block in the MIR.
     pub(crate) struct BlockId;
+
+    /// A fixed aggregate type declared in a MIR module.
+    pub(crate) struct StructId;
 
     /// A unique identifier for a function in the MIR.
     pub(crate) struct FunctionId;
@@ -364,6 +382,10 @@ mod round_trip {
                     return;
                 }
             };
+            if let Err(error) = check_signatures(&parsed1, &parsed2) {
+                result = Err(error);
+                return;
+            }
             let print2 = parsed2.to_text().to_string();
             let parsed3 = match parse_module(&sess, &print2) {
                 Ok(m) => m,
@@ -384,6 +406,24 @@ mod round_trip {
         result
     }
 
+    fn check_signatures(original: &Module, parsed: &Module) -> Result<(), String> {
+        if original.struct_types != parsed.struct_types {
+            return Err("struct declarations changed during round-trip".into());
+        }
+        if original.functions.len() != parsed.functions.len() {
+            return Err("function count changed during round-trip".into());
+        }
+        for (before, after) in original.functions.iter().zip(&parsed.functions) {
+            if before.selector.is_none()
+                && (before.return_type() != after.return_type()
+                    || before.return_abi() != after.return_abi())
+            {
+                return Err(format!("return types of `{}` changed during round-trip", before.name));
+            }
+        }
+        Ok(())
+    }
+
     /// Common idempotency check: print → parse → print → parse → print, last two
     /// must match. Caller must already be inside an active `Session::enter`.
     fn check_round_trip_module(sess: &Session, module: &Module) -> Result<(), String> {
@@ -394,6 +434,7 @@ mod round_trip {
                 sess.emitted_diagnostics().unwrap()
             )
         })?;
+        check_signatures(module, &parsed1)?;
         let print2 = parsed1.to_text().to_string();
         let parsed2 = parse_module(sess, &print2).map_err(|_| {
             format!(

@@ -13,11 +13,11 @@
 //! - preserve SSA values across control flow with explicit phi insertion
 
 use crate::mir::{
-    BlockId, Function, InstId, InstKind, Instruction, MirType, Module, Terminator, ValueId,
+    BlockId, Callee, Function, InstId, InstKind, Instruction, MirType, Module, Terminator, ValueId,
     analysis::{AliasAnalysis, CfgInfo, LocationSize, MemoryAddress, MemoryLocation},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
-    utils::{self as mir_utils, repair_reachability_phis},
+    utils as mir_utils,
 };
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -40,9 +40,7 @@ impl MirPass for FrameSlotPromotion {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
-            let changed = FrameSlotPromoter::new().run(func).total() != 0;
-            let repaired = repair_reachability_phis(func);
-            changed || repaired
+            FrameSlotPromoter::new().run(func).total() != 0
         })
     }
 }
@@ -598,7 +596,7 @@ impl FrameSlotPromoter {
             // Internal callees address their own frame through the frame
             // pointer and stage data in scratch or heap memory; they never
             // reference a caller's compiler-owned absolute local slots.
-            InstKind::ICall { .. } => false,
+            InstKind::ICall { function: Callee::Function(_), .. } => false,
             InstKind::MappingSlotMemory(_, _)
             | InstKind::AbiEncode { .. }
             | InstKind::AbiDecode { .. }

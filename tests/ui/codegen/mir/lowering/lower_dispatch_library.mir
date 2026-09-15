@@ -5,7 +5,7 @@
 // deployment address staged by the creation code against `address()` in its
 // own case, so nothing is live across the switch for view routes to observe.
 @module DispatchLibrary
-@phase abi
+@phase semantic
 @library
 immutables:
   library_deploy_address: address
@@ -26,11 +26,11 @@ immutables:
 // CHECK-NEXT: + revert 0, 0
 // CHECK: + [[VIEW]]:
 // CHECK-NEXT: + tail_call @view
-fn @view() [selector=0x00000001, view] {
+fn @view() [selector=0x00000001, view, abi_wrapper] {
   bb0:
     stop
 }
-fn @write() [selector=0x00000002] {
+fn @write() [selector=0x00000002, abi_wrapper] {
   bb0:
     stop
 }

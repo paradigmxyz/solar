@@ -5,6 +5,9 @@
 //! supplied by the lowering plan. Literal objects are kept until their projections
 //! can be folded. Generated stores inherit the encoding operation's source context;
 //! any block split moves the original terminator and its metadata together.
+//! Bytes results keep their allocation point because source code can observe the FMP bump.
+//! Dynamic encoding writes at the free-memory pointer before reserving its final extent. That
+//! reservation must stay at the same address even if later folding makes its size constant.
 //! Constructor-reachable encoders stay inline because their output is not reserved
 //! until encoding finishes, and a dynamic call frame would overlap that output.
 
@@ -151,7 +154,7 @@ fn synthesize_array_helpers(module: &mut Module, revert_strings: RevertStrings) 
             // provenance analysis see that the returned tail stays in the heap.
             let dest = builder.add_param(MirType::MemPtr);
             let tail = encode_memory_array(&mut builder, &key.element, value, dest, &helpers);
-            builder.add_return(MirType::uint256());
+            builder.set_return_type(MirType::uint256());
             builder.ret([tail]);
         }
         let helper = module.add_function(function);
@@ -272,8 +275,7 @@ fn lower_function(
     fold_slice_projections(func, &mut replacements);
     func.replace_uses_canonicalized(&replacements);
     remove_literal_objects(func, &literal_objects.into_iter().collect::<Vec<_>>());
-    let repaired = crate::mir::utils::repair_reachability_phis(func);
-    !replacements.is_empty() || repaired
+    !replacements.is_empty()
 }
 
 fn fold_slice_projections(func: &Function, replacements: &mut FxHashMap<ValueId, ValueId>) {
@@ -321,12 +323,16 @@ fn lower_encode(
         let total_size = selector_size + layout.head_size();
         let aligned_size = total_size.next_multiple_of(32);
         if mode == AbiEncodeMode::Bytes {
+            // object = alloc bytes(aligned_size + 32) !preserves_fmp
             let allocation_size = builder.imm(aligned_size.saturating_add(32));
             let object = builder.alloc_object(
                 allocation_size,
                 MemoryObjectLayout::Bytes,
                 crate::mir::AllocationSemantics::INTERNAL,
             );
+            if let Value::Inst(alloc) = *builder.func().value(object) {
+                builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
+            }
             let total = builder.imm(total_size);
             builder.set_memory_object_len(object, total, MemoryObjectKind::Bytes);
             let buffer = builder.memory_object_data(object, MemoryObjectKind::Bytes);
@@ -390,6 +396,10 @@ fn lower_encode(
             MemoryObjectLayout::Bytes,
             crate::mir::AllocationSemantics::INTERNAL,
         );
+        // alloc at the already-written FMP; object.length = total
+        if let Value::Inst(alloc) = *builder.func().value(object) {
+            builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
+        }
         builder.set_memory_object_len(object, total, MemoryObjectKind::Bytes);
         return object;
     }
@@ -400,7 +410,11 @@ fn lower_encode(
     let rounded = builder.add(total, thirty_one);
     let mask = builder.not(thirty_one);
     let aligned = builder.and(rounded, mask);
+    // alloc at the already-written FMP; make_slice allocated, total
     let allocated = builder.alloc_raw(aligned, crate::mir::AllocationSemantics::INTERNAL);
+    if let Value::Inst(alloc) = *builder.func().value(allocated) {
+        builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
+    }
     builder.make_slice(allocated, total, SliceLocation::Memory)
 }
 
@@ -717,7 +731,7 @@ fn encode_dynamic_body(
             let location = effective_slice_location(builder.func(), value, *location);
             if location == SliceLocation::Memory {
                 if let Some(helper) = array_helper(builder.func(), helpers, element, value) {
-                    return builder.icall(helper, vec![value, dest], MirType::uint256(), 1);
+                    return builder.icall(helper, vec![value, dest], MirType::uint256());
                 }
                 return encode_memory_array(builder, element, value, dest, helpers);
             }

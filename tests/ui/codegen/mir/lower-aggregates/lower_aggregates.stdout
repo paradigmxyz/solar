@@ -80,3 +80,28 @@
 +     jump bb1
   }
   
+  fn @phi_successor(arg0: bool, arg1: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+-     clear_storage array<2, word>, arg1 !metadata(span=10..20, modifier_depth=2)
++     jump bb4 !metadata(span=10..20, modifier_depth=2)
++   bb4:
++     v1 = phi [bb1: 0], [bb5: v4] !metadata(span=10..20, modifier_depth=2)
++     v2 = lt v1, 2 !metadata(span=10..20, modifier_depth=2)
++     jumpi v2, bb5, bb6 !metadata(span=10..20, modifier_depth=2)
++   bb6:
+      jump bb3 !metadata(span=30..40, modifier_depth=1)
+    bb3:
+-     v0 = phi [bb1: 7], [bb2: 9]
++     v0 = phi [bb6: 7], [bb2: 9]
+      ret v0
++   bb5:
++     v3 = add arg1, v1 !metadata(span=10..20, modifier_depth=2)
++     sstore v3, 0 !metadata(storage=symbolic(v3), span=10..20, modifier_depth=2)
++     v4 = add v1, 1 !metadata(span=10..20, modifier_depth=2)
++     jump bb4 !metadata(span=10..20, modifier_depth=2)
+  }
+  

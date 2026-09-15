@@ -127,10 +127,11 @@ bb17:
   jumpi
   jump bb18
 bb18:
-  push 0x7a65726f00000000000000000000000000000000000000000000000000000000
-  push 4
-  swap 1
-  jump bb24
+  push 0
+  iszero
+  push bb24
+  jumpi
+  jump bb25
 bb19:
   push 1
   push 160
@@ -141,10 +142,11 @@ bb19:
   jumpi
   jump bb20
 bb20:
-  push 0x6f6e650000000000000000000000000000000000000000000000000000000000
-  push 3
-  swap 1
-  jump bb24
+  push 0
+  iszero
+  push bb26
+  jumpi
+  jump bb27
 bb21:
   push 2
   push 160
@@ -155,16 +157,46 @@ bb21:
   jumpi
   jump bb22
 bb22:
+  push 0
+  iszero
+  push bb28
+  jumpi
+  jump bb29
+bb23:
+  push 0
+  iszero
+  push bb30
+  jumpi
+  jump bb31
+bb24:
+  push 0x7a65726f00000000000000000000000000000000000000000000000000000000
+  push 4
+  swap 1
+  jump bb32
+bb25 [cold]:
+  invalid
+bb26:
+  push 0x6f6e650000000000000000000000000000000000000000000000000000000000
+  push 3
+  swap 1
+  jump bb32
+bb27 [cold]:
+  invalid
+bb28:
   push 0x74776f0000000000000000000000000000000000000000000000000000000000
   push 3
   swap 1
-  jump bb24
-bb23:
+  jump bb32
+bb29 [cold]:
+  invalid
+bb30:
   push 0x6f74686572000000000000000000000000000000000000000000000000000000
   push 5
   swap 1
-  jump bb24
-bb24:
+  jump bb32
+bb31 [cold]:
+  invalid
+bb32:
   push 224
   mstore
   push 192

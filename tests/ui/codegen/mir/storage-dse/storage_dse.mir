@@ -72,3 +72,28 @@ fn @keep_across_call(arg0: u256, arg1: address) {
     sstore 0, 7
     stop
 }
+
+// CHECK-LABEL: fn @header_observes_store
+// CHECK: {{^[ +].*}}sstore arg0, 64
+// CHECK: {{^[ +].*}}validate_storage_bytes {{v[0-9]+}}
+// CHECK: {{^[ +].*}}sstore arg0, 0
+fn @header_observes_store(arg0: u256) {
+  bb0:
+    sstore arg0, 64
+    v0 = sload arg0
+    validate_storage_bytes v0
+    sstore arg0, 0
+    ret
+}
+
+// CHECK-LABEL: fn @copy_observes_store
+// CHECK: {{^[ +].*}}sstore arg0, 7
+// CHECK: {{^[ +].*}}load_storage_bytes arg1
+// CHECK: {{^[ +].*}}sstore arg0, 0
+fn @copy_observes_store(arg0: u256, arg1: u256) -> memorybytes {
+  bb0:
+    sstore arg0, 7
+    v0 = load_storage_bytes arg1
+    sstore arg0, 0
+    ret v0
+}

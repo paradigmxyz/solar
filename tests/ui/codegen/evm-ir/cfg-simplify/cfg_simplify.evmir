@@ -6,6 +6,8 @@
 // CHECK: - push bb1
 // CHECK: + push bb2
 bb0:
+  push bb11
+  pop
   push bb1
   jump
 
@@ -77,4 +79,15 @@ bb9:
   jumpi
   jump bb10
 bb10:
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb11 [loop]:
+// CHECK: {{^[ +].*}}push 7
+// CHECK: {{^[ +].*}}push 8
+// CHECK: {{^[ +].*}}stop
+bb11:
+  push 7
+  jump bb12
+bb12 [loop]:
+  push 8
   stop

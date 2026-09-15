@@ -4,7 +4,7 @@
 
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: + push [[RET0:bb[0-9]+]]
-// CHECK: + jump [[OUTLINE:bb[0-9]+]] !metadata(invoke=first@1..15)
+// CHECK: + jump [[OUTLINE:bb[0-9]+]]{{$}}
 // CHECK: {{^[ +].*}}bb1:
 // CHECK: + push [[RET1:bb[0-9]+]]
 // CHECK: + jump [[OUTLINE]] !metadata(invoke=second@21..35)
@@ -13,7 +13,7 @@
 // CHECK: + jump
 bb0:
   push 1 !metadata(span=1..5, invoke=first@1..15)
-  pop !metadata(span=6..10)
+  pop !metadata(span=6..10, invoke=nested@6..15)
   push 1 !metadata(span=1..5)
   pop !metadata(span=6..10)
   push 1 !metadata(span=1..5)

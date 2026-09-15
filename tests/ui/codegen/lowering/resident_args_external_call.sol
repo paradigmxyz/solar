@@ -20,13 +20,27 @@ contract ResidentArgsExternalCall {
         return callAndSum(address(4), gasleft(), a, b, c, d, e, f);
     }
 
-    // Keep each source argument and its derived value live across CALL. This
-    // leaves the stack-only target and gas operands close to the DUP16 limit
-    // before the six CALL operands are materialized.
-    // CHECK: dup 14
-    // CHECK-NEXT: dup 14
-    // CHECK-COUNT-5: push 0
-    // CHECK: call
+    // Keep each argument and its derived value live while the shared helper reloads CALL's
+    // saved target and gas. Both entrypoints must preserve these values through the call.
+    // CHECK-LABEL: @module ResidentArgsExternalCall_runtime
+    // CHECK: gas
+    // CHECK-NEXT: push 4
+    // CHECK-NEXT: push [[TARGET:[0-9]+]]
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: dup 1
+    // CHECK-NEXT: push [[GAS:[0-9]+]]
+    // CHECK-NEXT: mstore
+    // CHECK-COUNT-6: {{^  add$}}
+    // CHECK-NEXT: push 0
+    // CHECK-NEXT: push 0
+    // CHECK-NEXT: push 0
+    // CHECK-NEXT: push 0
+    // CHECK-NEXT: push 0
+    // CHECK-NEXT: push [[TARGET]]
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push [[GAS]]
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: call
     function callAndSum(
         address target,
         uint256 gasAmount,

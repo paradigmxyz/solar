@@ -1,6 +1,6 @@
 //! Module-level call graph facts for MIR.
 
-use crate::mir::{Function, FunctionId, InstKind, Module, Terminator};
+use crate::mir::{Callee, Function, FunctionId, InstKind, Module, Terminator};
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use std::collections::VecDeque;
 
@@ -96,7 +96,9 @@ impl CallGraphInfo {
     fn collect_internal_callees(func: &Function, function_count: usize) -> DenseBitSet<FunctionId> {
         let mut callees = DenseBitSet::new_empty(function_count);
         for inst_id in func.instructions() {
-            if let InstKind::ICall { function, .. } = func.inst(inst_id).kind {
+            if let InstKind::ICall { function: Callee::Function(function), .. } =
+                func.inst(inst_id).kind
+            {
                 callees.insert(function);
             }
         }

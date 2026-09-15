@@ -33,15 +33,8 @@ fn @uncheckedI256(arg0: i256) -> i256 [selector=0xed955fd9, pure, abi_params=[i2
 fn @checkedI8(arg0: i8) -> i8 [selector=0x0a504be5, pure, abi_params=[i8], abi_returns=[word<i8>]] {
   bb0:
     v0 = signextend 0, arg0
-    v1 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    jumpi v1, bb1, bb2
-  bb2:
-    v2 = sub 0, v0
-    ret v2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v1 = checked_sub i8, 0, v0
+    ret v1
 }
 
 fn @upcastI8(arg0: i8) -> i256 [selector=0xaf286510, pure, abi_params=[i8], abi_returns=[word]] {
@@ -54,7 +47,7 @@ fn @upcastI8(arg0: i8) -> i256 [selector=0xaf286510, pure, abi_params=[i8], abi_
 
 fn @internalI8(arg0: i8) -> i8 [selector=0x836b8250, pure, abi_params=[i8], abi_returns=[word<i8>]] {
   bb0:
-    v0 = icall @negateI8, 1, arg0
+    v0 = icall @negateI8, arg0
     ret v0
 }
 

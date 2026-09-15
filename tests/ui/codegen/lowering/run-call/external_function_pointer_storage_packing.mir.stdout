@@ -19,12 +19,12 @@ fn @constructor() [constructor] {
     v13 = shl 192, v12
     v14 = or v11, v13
     sstore 0, v14 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @target() [selector=0xd4b83992, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @high() -> u64 [selector=0x713658f3, view, abi_params=[], abi_returns=[word<u64>]] {

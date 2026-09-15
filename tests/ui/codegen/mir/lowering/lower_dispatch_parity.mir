@@ -5,7 +5,7 @@
 // per-case callvalue check because a payable entry exists, so the check cannot
 // be hoisted. Receive is payable and needs no check.
 @module DispatchParity
-@phase abi
+@phase semantic
 // CHECK-LABEL: {{^[ +].*}}after lower-dispatch
 // CHECK: + fn @entry{{[( ]}}
 // CHECK: + tail_call @recv
@@ -13,19 +13,19 @@
 // CHECK: + tail_call @nopay
 // CHECK: + tail_call @pay
 // CHECK: + tail_call @fb
-fn @pay() [selector=0x00000001, payable] {
+fn @pay() [selector=0x00000001, payable, abi_wrapper] {
   bb0:
     stop
 }
-fn @nopay() [selector=0x00000002] {
+fn @nopay() [selector=0x00000002, abi_wrapper] {
   bb0:
     stop
 }
-fn @recv() [receive, payable] {
+fn @recv() [receive, payable, abi_wrapper] {
   bb0:
     stop
 }
-fn @fb() [fallback, payable] {
+fn @fb() [fallback, payable, abi_wrapper] {
   bb0:
     stop
 }

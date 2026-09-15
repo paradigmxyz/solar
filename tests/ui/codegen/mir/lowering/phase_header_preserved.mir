@@ -3,10 +3,10 @@
 // Re-running the default pipeline on optimized input completes the progressive
 // lowering pipeline instead of rejecting the transition.
 // CHECK: @module PhaseHeaderPreserved
-// CHECK-NEXT: @phase evm-shaped
+// CHECK-NEXT: @phase lowered
 /// Module docs.
 @module PhaseHeaderPreserved
-@phase optimized
+@phase semantic
 fn @f() {
   bb0:
     stop

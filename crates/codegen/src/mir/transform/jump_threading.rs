@@ -13,11 +13,17 @@
 //!
 //! 3. **Empty block elimination**: Blocks containing only a JUMPDEST and JUMP are eliminated by
 //!    updating all references to point to the final target.
+//!
+//! Threading can leave a phi-only branch block with one predecessor. When that predecessor
+//! jumps unconditionally and no phi result escapes, move the branch onto the predecessor and
+//! substitute the selected inputs. This exposes nested short-circuit checks within the same
+//! fixpoint, without waiting for another CFG cleanup pass. Targets with phis and cyclic phi
+//! inputs stay unchanged.
 
 use crate::mir::{
     BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
     pass::{MirPass, run_function_pass},
-    utils::repair_reachability_phis,
+    utils::replace_terminator,
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
@@ -95,14 +101,11 @@ impl JumpThreader {
         }
 
         changed += self.thread_phi_constant_edges(func);
+        changed += self.fold_single_predecessor_phi_branches(func);
 
         if changed == 0 {
             return 0;
         }
-
-        // Update predecessor/successor information
-        self.update_cfg_edges(func);
-        changed += usize::from(repair_reachability_phis(func));
 
         changed
     }
@@ -196,7 +199,8 @@ impl JumpThreader {
                 continue;
             };
             self.thread_terminator(func, &mut term, final_targets);
-            func.blocks[block_id].terminator = Some(term);
+            // jump/branch/switch through forwarders -> their final targets
+            replace_terminator(func, block_id, term);
         }
     }
 
@@ -357,6 +361,62 @@ impl JumpThreader {
         threaded
     }
 
+    fn fold_single_predecessor_phi_branches(&mut self, func: &mut Function) -> usize {
+        let mut folded = 0;
+        for block in func.blocks.indices() {
+            if !func.block_has_phi(block) || !func.block_has_only_phis(block) {
+                continue;
+            }
+            let [pred] = func.blocks[block].predecessors.as_slice() else { continue };
+            let pred = *pred;
+            if pred == block
+                || !matches!(func.blocks[pred].terminator, Some(Terminator::Jump(target)) if target == block)
+            {
+                continue;
+            }
+            let Some(mut term @ Terminator::Branch { .. }) = func.blocks[block].terminator.clone()
+            else {
+                continue;
+            };
+            if term.successors().iter().any(|&target| func.block_has_phi(target))
+                || Self::block_phi_results_have_external_uses(func, block)
+            {
+                continue;
+            }
+            let mut replacements = FxHashMap::default();
+            for &id in &func.blocks[block].instructions {
+                let InstKind::Phi(incoming) = &func.inst(id).kind else { unreachable!() };
+                if let [(incoming_pred, value)] = incoming.as_slice()
+                    && *incoming_pred == pred
+                    && let Some(result) = func.inst_result_value(id)
+                {
+                    replacements.insert(result, *value);
+                }
+            }
+            if replacements.len() != func.blocks[block].instructions.len()
+                || replacements.values().any(|value| replacements.contains_key(value))
+            {
+                continue;
+            }
+            // pred: jump block -> branch selected_phi_input, then, else
+            // block: phi inputs; branch -> invalid
+            let Terminator::Branch { condition, .. } = &mut term else { unreachable!() };
+            if let Some(&replacement) = replacements.get(condition) {
+                *condition = replacement;
+            }
+            let context = func.blocks[block].terminator_metadata.debug_context();
+            func.replace_uses(&replacements);
+            func.blocks[block].instructions.clear();
+            replace_terminator(func, block, Terminator::Invalid);
+            replace_terminator(func, pred, term);
+            func.blocks[pred].terminator_metadata.merge_debug_context(&context);
+            folded += 1;
+        }
+        self.stats.branches_threaded += folded;
+        self.stats.gas_saved += folded * 8;
+        folded
+    }
+
     fn phi_constant_target_for_pred(
         &self,
         func: &Function,
@@ -418,10 +478,10 @@ impl JumpThreader {
         old_target: BlockId,
         new_target: BlockId,
     ) -> bool {
-        let Some(term) = &mut func.blocks[pred].terminator else {
+        let Some(mut term) = func.blocks[pred].terminator.clone() else {
             return false;
         };
-        match term {
+        let changed = match &mut term {
             Terminator::Jump(target) => {
                 if *target == old_target {
                     *target = new_target;
@@ -464,25 +524,11 @@ impl JumpThreader {
             | Terminator::SelfDestruct { .. }
             | Terminator::TailCall { .. }
             | Terminator::Invalid => false,
+        };
+        if changed {
+            // pred -> old_target -> new_target => pred -> new_target
+            replace_terminator(func, pred, term);
         }
-    }
-
-    /// Updates CFG edges after threading.
-    fn update_cfg_edges(&self, func: &mut Function) {
-        for block_id in func.blocks.indices() {
-            func.blocks[block_id].predecessors.clear();
-        }
-
-        for block_id in func.blocks.indices() {
-            let successors = func.blocks[block_id]
-                .terminator
-                .as_ref()
-                .map(|t| t.successors())
-                .unwrap_or_default();
-
-            for succ in successors {
-                func.blocks[succ].predecessors.push(block_id);
-            }
-        }
+        changed
     }
 }

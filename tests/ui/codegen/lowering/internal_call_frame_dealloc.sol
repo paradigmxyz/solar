@@ -34,7 +34,13 @@ contract ICallFrameDealloc {
     // CHECK: [[RECURSE_RET]]:
     // CHECK-NEXT: push 160
     // CHECK-NEXT: mload
-    // CHECK: jump bb22
+    // CHECK-NEXT: push 96
+    // CHECK-NEXT: add
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 64
+    // CHECK-NEXT: mstore
     // CHECK: push 1{{$}}
     // CHECK: push 224
     // CHECK-NEXT: mstore

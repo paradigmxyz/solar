@@ -37,3 +37,54 @@ fn @reset(arg0: u256, arg1: u256) -> u256 {
     v9 = add v4, v8
     ret v9
 }
+
+// CHECK-LABEL: @unbounded_heap_copy_keeps_reserved_load
+// CHECK: {{^ +}}[[FIRST:v[0-9]+]] = mload 96
+// CHECK: {{^ +}}mcopy
+// CHECK: {{^ +}}[[SECOND:v[0-9]+]] = mload 96
+// CHECK: {{^ +}}{{v[0-9]+}} = add [[FIRST]], [[SECOND]]
+fn @unbounded_heap_copy_keeps_reserved_load(arg0: u256) -> u256 {
+  bb0:
+    v1 = alloc raw, exact, uninitialized, infallible, 32
+    v2 = mload 96
+    mcopy v1, 0, arg0
+    v3 = mload 96
+    v4 = add v2, v3
+    ret v4
+}
+
+// CHECK-LABEL: @unbounded_heap_copy_can_reach_other_allocation
+// CHECK: {{^ +}}[[FIRST:v[0-9]+]] = mload [[OTHER:v[0-9]+]]
+// CHECK: {{^ +}}mcopy
+// CHECK: {{^ +}}[[SECOND:v[0-9]+]] = mload [[OTHER]]
+// CHECK: {{^ +}}{{v[0-9]+}} = add [[FIRST]], [[SECOND]]
+fn @unbounded_heap_copy_can_reach_other_allocation(arg0: u256) -> u256 {
+  bb0:
+    v1 = alloc raw, exact, uninitialized, infallible, 32
+    v2 = alloc raw, exact, uninitialized, infallible, 32
+    v3 = mload v2
+    mcopy v1, 0, arg0
+    v4 = mload v2
+    v5 = add v3, v4
+    ret v5
+}
+
+// CHECK-LABEL: @loop_allocation_after_fmp_reset
+// CHECK: {{^ +}}[[BEFORE:v[0-9]+]] = mload 96
+// CHECK: {{^ +}}mcopy
+// CHECK: {{^ +}}[[AFTER:v[0-9]+]] = mload 96
+// CHECK: {{^ +}}{{v[0-9]+}} = add [[BEFORE]], [[AFTER]]
+fn @loop_allocation_after_fmp_reset(arg0: bool) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    set_fmp 0
+    v1 = alloc raw, exact, uninitialized, infallible, 32
+    v2 = mload 96
+    mcopy v1, 128, 128
+    v3 = mload 96
+    v4 = add v2, v3
+    jumpi arg0, bb1, bb2
+  bb2:
+    ret v4
+}

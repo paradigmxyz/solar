@@ -4,6 +4,7 @@ use super::{
     BlockId, EvmCodegen, Function, FunctionId, InstId, InstKind, Liveness, SmallVec, StackEffect,
     StackOp, StackPush, Terminator, ValueId, op,
 };
+use crate::mir::Callee;
 
 impl<'gcx> EvmCodegen<'gcx> {
     // ==================== Stack-Aware Emitter API ====================
@@ -321,14 +322,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 );
             }
 
-            InstKind::ICall { function, args, returns } => {
+            InstKind::ICall { function: Callee::Function(function), args } => {
                 self.preserve_stack_only_operands(args, liveness, block, inst_idx);
                 self.emit_icall(
                     func_id,
                     func,
                     *function,
                     args,
-                    *returns as usize,
+                    self.function_return_counts[*function],
                     result_value,
                     liveness,
                     block,
@@ -853,9 +854,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.instruction_executed(operands.len(), None);
     }
 
-    /// Emits a store operation with liveness awareness.
-    /// If the value operand is still live after this instruction, we spill it after emitting
-    /// to preserve it for later use.
+    /// Emits a store while preserving operands used later on the stack or in spill slots.
     #[allow(clippy::too_many_arguments)]
     fn emit_store_op_live_aware(
         &mut self,
@@ -867,6 +866,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         block: BlockId,
         inst_idx: usize,
     ) {
+        // [..., val, addr] -> [...]
+        if (self.is_stack_phi_source(block, val) || self.is_stack_phi_source(block, addr))
+            && let Some(plan) = self.plan_operands(func, &[val, addr], liveness, block, inst_idx)
+        {
+            self.emit_operand_plan(func, plan);
+            self.asm.emit_op(opcode);
+            self.scheduler.instruction_executed(2, None);
+            return;
+        }
         self.preserve_stack_only_operands(&[addr, val], liveness, block, inst_idx);
 
         // Check if addr is still live after this instruction.

@@ -1,0 +1,65 @@
+//@ compile-flags: -Zmir-pipeline=none
+@module InvalidStorageBytes
+
+//~? ERROR: [fn0] [bb0, inst0] storage bytes operation requires a word operand
+fn @header(arg0: memorybytes) -> u256 {
+  bb0:
+    validate_storage_bytes arg0
+    ret 0
+}
+
+//~? ERROR: [fn1] [bb0, inst0] storage bytes operation requires a word operand
+fn @load(arg0: memoryarray) -> memorybytes {
+  bb0:
+    v0 = load_storage_bytes arg0
+    ret v0
+}
+
+//~? ERROR: [fn2] [bb0, inst0] storage clear requires word operands
+fn @clear(arg0: memorybytes) {
+  bb0:
+    clear_storage_words 0, arg0, 1
+    ret
+}
+
+//~? ERROR: [fn3] [bb0, inst0] storage bytes store requires a word slot
+fn @store_slot(arg0: memorybytes) {
+  bb0:
+    store_storage_bytes arg0, arg0
+    ret
+}
+
+//~? ERROR: [fn4] [bb0, inst0] storage bytes store requires a bytes object
+fn @store_object(arg0: memoryarray) {
+  bb0:
+    store_storage_bytes 0, arg0
+    ret
+}
+
+//~? ERROR: [fn5] [bb0, inst0] invalid storage array element type
+fn @array_element(arg0: u256) -> memoryarray {
+  bb0:
+    v0 = load_storage_array memoryarray, arg0
+    ret v0
+}
+
+//~? ERROR: [fn6] [bb0, inst0] invalid storage array enum type
+fn @array_enum(arg0: u256) -> memoryarray {
+  bb0:
+    v0 = load_storage_array enum<0>, arg0
+    ret v0
+}
+
+//~? ERROR: [fn7] [bb0, inst0] storage array load requires a word slot
+fn @array_slot(arg0: memorybytes) -> memoryarray {
+  bb0:
+    v0 = load_storage_array u256, arg0
+    ret v0
+}
+
+//~? ERROR: [fn8] [bb0, inst0] storage bytes operation requires a word operand
+fn @literal_slot(arg0: memorybytes) {
+  bb0:
+    store_storage_bytes_literal arg0, hex"61"
+    ret
+}

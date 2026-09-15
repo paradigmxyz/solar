@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/pipeline/check_elim_pipeline_loop.mir (after pipeline-default) ===
 @module CheckElimPipelineLoop
-@phase evm-shaped
+@phase lowered
 fn @sum(arg0: u256) {
   bb0:
     mstore 128, 0

@@ -1,7 +1,6 @@
 //@compile-flags: -Zmir-pipeline=lower-abi
 //@filecheck:
 
-// CHECK: + @phase abi
 // CHECK: + fn @read()
 // CHECK: + v{{[0-9]+}} = calldatasize
 @module LowerAbiParams

@@ -1,5 +1,14 @@
-//@ filecheck:
+//@[mir] filecheck:
 // CHECK: @module
+//@[gas] compile-flags: -Zdump=disasm-runtime
+//@[gas] filecheck: --check-prefix=TABLE
+// TABLE-LABEL: ExternalFunctionPointerMemoryCleanup (runtime)
+// TABLE: MOD
+// TABLE: ADD
+// TABLE-NEXT: PUSH16
+// TABLE-NEXT: SWAP1
+// TABLE-NEXT: BYTE
+// TABLE-NEXT: JUMP
 //@ codegen-matrix: standard
 //@ run-call: memoryLayout => true
 //@ run-call: cleanup 1 => 0, 0

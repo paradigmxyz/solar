@@ -5,6 +5,7 @@ use super::super::{
     IndexVec, InstKind, LazyStackArgPlan, MAX_STACK_ACCESS, Module, OptimizationMode,
     StackReturnPlan, StaticCallAbi, StaticCallEntry, Terminator, ValueId, index_vec,
 };
+use crate::mir::Callee;
 
 impl<'gcx> EvmCodegen<'gcx> {
     pub(in crate::backend::evm::codegen) fn static_call_abi_mut(
@@ -116,16 +117,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         for (func_id, func) in module.functions.iter_enumerated() {
-            let arity = func.returns.len();
+            let arity = func.return_components().len();
             let mut has_return = false;
             let has_consistent_returns = func.blocks.iter().all(|block| match &block.terminator {
                 Some(Terminator::Return { values }) => {
                     has_return = true;
                     values.len() == arity
                 }
-                // The backend treats `stop` in an internal function as a void return, which is
-                // incompatible with a non-empty stack-return convention.
-                Some(Terminator::Stop) => false,
                 _ => true,
             });
             if self.static_frame_functions.contains(func_id)
@@ -144,16 +142,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         for (caller, func) in module.functions.iter_enumerated() {
-            for inst_id in func.instructions() {
-                if let InstKind::ICall { function, returns, .. } = &func.inst(inst_id).kind
-                    && self
-                        .stack_return_plan(*function)
-                        .is_some_and(|plan| *returns as usize != plan.arity)
-                    && let Some(abi) = self.static_call_abis.get_mut(function)
-                {
-                    abi.returns = None;
-                }
-            }
             for block in &func.blocks {
                 if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
                     if !self.cold_functions.contains(*function)
@@ -195,7 +183,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 has_candidate_call |= block.instructions.iter().any(|&inst_id| {
                     matches!(
                         &func.inst(inst_id).kind,
-                        InstKind::ICall { function, .. }
+                        InstKind::ICall { function: Callee::Function(function), .. }
                             if self.static_frame_functions.contains(*function)
                     )
                 });
@@ -231,7 +219,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             for (block_idx, block) in func.blocks.iter().enumerate() {
                 for &inst_id in &block.instructions {
-                    let InstKind::ICall { function, args, .. } = &func.inst(inst_id).kind else {
+                    let InstKind::ICall { function: Callee::Function(function), args, .. } =
+                        &func.inst(inst_id).kind
+                    else {
                         continue;
                     };
                     if !self.static_frame_functions.contains(*function) {

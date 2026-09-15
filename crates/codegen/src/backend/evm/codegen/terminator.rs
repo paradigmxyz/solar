@@ -390,11 +390,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             Terminator::Stop => {
-                if self.in_internal_function {
-                    self.emit_internal_return(func, &[]);
-                } else {
-                    self.emit_external_stop(func);
-                }
+                // STOP
+                self.asm.emit_op(op::STOP);
+                self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             }
 
             Terminator::SelfDestruct { recipient } => {

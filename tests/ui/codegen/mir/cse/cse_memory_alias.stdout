@@ -63,3 +63,58 @@
       ret v4
   }
   
+  fn @forward_constant_word(arg0: u256) -> u256 {
+    bb0:
+      mstore arg0, 2
+-     v0 = mload arg0
+-     ret v0
++     ret 2
+  }
+  
+  fn @forward_constant_after_disjoint_write(arg0: u256) -> u256 {
+    bb0:
+      mstore 128, 2
+      mstore 160, arg0
+-     v0 = mload 128
+-     ret v0
++     ret 2
+  }
+  
+  fn @keep_constant_after_byte_write(arg0: u256) -> u256 {
+    bb0:
+      mstore 128, 2
+      mstore8 159, arg0
+      v0 = mload 128
+      ret v0
+  }
+  
+  fn @keep_constant_after_unknown_write(arg0: u256) -> u256 {
+    bb0:
+      mstore 128, 2
+      mstore arg0, 3
+      v0 = mload 128
+      ret v0
+  }
+  
+  fn @keep_constant_after_call_return(arg0: address) -> u256 {
+    bb0:
+      mstore 128, 2
+      v0 = call 0x186a0, arg0, 0, 0, 0, 128, 32
+      v1 = mload 128
+      ret v1
+  }
+  
+  fn @keep_constant_after_diamond_write(arg0: bool) -> u256 {
+    bb0:
+      mstore 128, 2
+      jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      mstore 128, 3
+      jump bb3
+    bb3:
+      v0 = mload 128
+      ret v0
+  }
+  

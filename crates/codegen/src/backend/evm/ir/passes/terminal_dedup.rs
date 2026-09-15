@@ -5,6 +5,9 @@
 //! keeps the first body and redirects later copies to it. CFG simplification
 //! then redirects references and removes the temporary jump thunks. Block hotness does not affect
 //! equivalence; a hot redirect promotes the shared body so later layout keeps it on the hot path.
+//! The shared body inherits loop membership from every copy. Debug origins merge across the
+//! whole group, preserving known function events only when no copy conflicts. Debug metadata
+//! never participates in the body key or changes the redirects.
 //!
 //! The body key includes each instruction's `keep_with_next` flag, so the surviving copy cannot
 //! drop a constraint one of the redirected copies carried. A shared body is entered at its own
@@ -49,37 +52,40 @@ fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     }
 
     let changed = !state.redirects.is_empty();
-    for (block, target) in state.redirects.drain(..) {
-        merge_debug_origins(module, block, target);
-        if !module.blocks[block].metadata.hotness.is_cold() {
-            module.blocks[target].metadata.hotness = Hotness::Hot;
+    state.redirects.sort_unstable_by_key(|&(block, target)| (target, block));
+    for group in state.redirects.chunk_by(|a, b| a.1 == b.1) {
+        merge_debug_origins(module, group);
+        for &(block, target) in group {
+            if !module.blocks[block].metadata.hotness.is_cold() {
+                module.blocks[target].metadata.hotness = Hotness::Hot;
+            }
+            module.blocks[target].metadata.in_loop |= module.blocks[block].metadata.in_loop;
+            // duplicate terminal body -> jump canonical body
+            module.blocks[block].instructions.clear();
+            let mut terminator = Terminator::new(TerminatorKind::Jump(target));
+            terminator.metadata.mark_debug_info_dropped();
+            module.blocks[block].terminator = Some(terminator);
         }
-        module.blocks[block].instructions.clear();
-        let mut terminator = Terminator::new(TerminatorKind::Jump(target));
-        terminator.metadata.mark_debug_info_dropped();
-        module.blocks[block].terminator = Some(terminator);
     }
     changed
 }
 
-fn merge_debug_origins(module: &mut Module, block: BlockId, target: BlockId) {
-    let instruction_metadata = module.blocks[block]
-        .instructions
-        .iter()
-        .map(|inst| inst.metadata.clone())
-        .collect::<Vec<_>>();
-    let terminator_metadata =
-        module.blocks[block].terminator.as_ref().map(|terminator| terminator.metadata.clone());
-    let target = &mut module.blocks[target];
-    debug_assert_eq!(target.instructions.len(), instruction_metadata.len());
-    for (instruction, metadata) in target.instructions.iter_mut().zip(&instruction_metadata) {
-        instruction.metadata.merge_equivalent_debug_info(metadata);
+fn merge_debug_origins(module: &mut Module, redirects: &[(BlockId, BlockId)]) {
+    let target = redirects[0].1;
+    for index in 0..module.blocks[target].instructions.len() {
+        let mut metadata = module.blocks[target].instructions[index].metadata.clone();
+        metadata.merge_equivalent_debug_info(
+            redirects.iter().map(|&(block, _)| &module.blocks[block].instructions[index].metadata),
+        );
+        module.blocks[target].instructions[index].metadata = metadata;
     }
-    if let Some(metadata) = &terminator_metadata
-        && let Some(terminator) = &mut target.terminator
-    {
-        terminator.metadata.merge_equivalent_debug_info(metadata);
-    }
+    let mut metadata = module.blocks[target].terminator.as_ref().unwrap().metadata.clone();
+    metadata.merge_equivalent_debug_info(
+        redirects
+            .iter()
+            .map(|&(block, _)| &module.blocks[block].terminator.as_ref().unwrap().metadata),
+    );
+    module.blocks[target].terminator.as_mut().unwrap().metadata = metadata;
 }
 
 fn terminal_block_key(block: &Block) -> Option<TerminalBlockKey> {

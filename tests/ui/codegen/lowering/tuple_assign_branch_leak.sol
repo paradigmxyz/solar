@@ -13,46 +13,45 @@ contract TupleAssignBranchLeak {
         return (x + 1, x + 2);
     }
 
+    // CHECK-LABEL: @module TupleAssignBranchLeak_runtime
     // CHECK: push 0x2143aa9
-    // CHECK: eq
-    // The else arm computes `pair(off + 7)` from the pre-branch `off`.
-    // CHECK: push 160
-    // CHECK-NEXT: mstore
-    // CHECK-NEXT: push 36
-    // CHECK-NEXT: calldataload
-    // CHECK-NEXT: push 192
-    // CHECK-NEXT: mstore
+    // CHECK-NEXT: eq
+    // CHECK: push 2{{$}}
+    // CHECK-NEXT: gt
+    // CHECK-NEXT: iszero
+    // CHECK-NEXT: push {{bb[0-9]+}}
+    // CHECK-NEXT: jumpi
     // CHECK-NEXT: push 4
     // CHECK-NEXT: calldataload
-    // CHECK-NEXT: push [[THEN:bb[0-9]+]]
+    // CHECK-NEXT: iszero
+    // CHECK-NEXT: push [[ELSE:bb[0-9]+]]
     // CHECK-NEXT: jumpi
-    // CHECK-NEXT: push 192
-    // CHECK-NEXT: mload
-    // CHECK: push 7
-    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: push [[THEN_RET:bb[0-9]+]]
+    // CHECK-NEXT: push 36
+    // CHECK-NEXT: calldataload
+    // CHECK-NEXT: jump [[PAIR:bb[0-9]+]]
+    // CHECK-NEXT: [[PAIR]]:
+    // CHECK: push 1
     // CHECK: add
+    // CHECK: push 2
+    // CHECK: add
+    // CHECK: lt
+    // CHECK-NEXT: push {{bb[0-9]+}}
+    // CHECK-NEXT: jumpi
+    // CHECK-NEXT: swap 2
+    // CHECK-NEXT: jump
+    // The else arm rebuilds `off` from calldata, not from the then arm's result.
+    // CHECK: [[ELSE]]:
+    // CHECK-NEXT: push 7
+    // CHECK-NEXT: push 36
+    // CHECK-NEXT: calldataload
+    // CHECK-NEXT: add
     // CHECK: lt
     // CHECK-NEXT: push [[OVERFLOW:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push [[ELSE_RET:bb[0-9]+]]
-    // CHECK-NEXT: push 224
-    // CHECK-NEXT: mload
-    // CHECK-NEXT: jump [[PAIR:bb[0-9]+]]
-    // CHECK: [[PAIR]]:
-    // CHECK: push 1
-    // CHECK: add
-    // The then arm calls the same helper with `seed`.
-    // CHECK: [[THEN]]:
-    // CHECK-NEXT: push [[THEN_RET:bb[0-9]+]]
-    // CHECK-NEXT: push 36
-    // CHECK-NEXT: calldataload
+    // CHECK-NEXT: swap 1
     // CHECK-NEXT: jump [[PAIR]]
-    // The two-word return rotates the hidden return label over both results.
-    // CHECK: push 2
-    // CHECK: add
-    // CHECK: swap 1
-    // CHECK-NEXT: swap 2
-    // CHECK-NEXT: jump
     function run(bool takeFirst, uint256 seed) external pure returns (uint256 out) {
         uint256 a = seed;
         uint256 off = seed;

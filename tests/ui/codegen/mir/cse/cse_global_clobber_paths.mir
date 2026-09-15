@@ -93,7 +93,7 @@ fn @loop_sload_clean_body(arg0: u256) -> u256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @diamond_mload_clobbered_arm{{[( ]}}
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 0
+// CHECK: - {{v[0-9]+}} = mload 0
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 0
 fn @diamond_mload_clobbered_arm(arg0: bool) -> u256 {
   bb0:
@@ -131,4 +131,23 @@ fn @diamond_call_clobbers_account_reads(arg0: bool, arg1: address) -> u256 {
     v7 = add v2, v5
     v8 = add v6, v7
     ret v8
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @loop_header_refreshes_load{{[( ]}}
+// CHECK: - {{v[0-9]+}} = mload 0
+// CHECK: + {{v[0-9]+}} = add [[FRESH:v[0-9]+]], [[FRESH]]
+fn @loop_header_refreshes_load(arg0: u256) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = mload 0
+    v2 = lt v1, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = mload 0
+    v4 = add v1, v3
+    mstore 0, v4
+    jump bb1
+  bb3:
+    ret v1
 }

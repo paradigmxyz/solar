@@ -86,7 +86,7 @@ pub(crate) enum Terminator {
     },
     /// Return from function.
     Return {
-        /// The return values.
+        /// One logical value, or the components selected by the function's internal ABI.
         values: SmallVec<[ValueId; 2]>,
     },
     /// Revert execution.
@@ -109,7 +109,7 @@ pub(crate) enum Terminator {
         /// Size of the return data in bytes.
         size: ValueId,
     },
-    /// Stop execution.
+    /// Stop EVM execution, including from an internal function or constructor.
     Stop,
     /// Self-destruct the contract.
     SelfDestruct {

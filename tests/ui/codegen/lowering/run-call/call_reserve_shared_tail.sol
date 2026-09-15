@@ -1,9 +1,9 @@
 //@ revisions: homestead homesteadGas homesteadSize tangerineWhistleGas
 //@[homestead] compile-flags: -O none --evm-version homestead
 //@[homesteadGas] compile-flags: -O gas --evm-version homestead -Zdump=evm-ir-runtime
-//@[homesteadGas] filecheck: --check-prefix=RESERVE --implicit-check-not={{^[ ]+gas}}
+//@[homesteadGas] filecheck: --check-prefix=RESERVE --implicit-check-not={{^[[:space:]]+gas}}
 //@[homesteadSize] compile-flags: -O size --evm-version homestead -Zdump=evm-ir-runtime
-//@[homesteadSize] filecheck: --check-prefix=RESERVE --implicit-check-not={{^[ ]+gas}}
+//@[homesteadSize] filecheck: --check-prefix=RESERVE --implicit-check-not={{^[[:space:]]+gas}}
 //@[tangerineWhistleGas] compile-flags: -O gas --evm-version tangerineWhistle
 //@ run-call: ReserveCalls::fixedGas => 42
 //@ run-call: ReserveCalls::two => 3

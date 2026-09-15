@@ -7,7 +7,7 @@ fn @onERC1155Received(arg0: address, arg1: address, arg2: u256, arg3: u256, arg4
 
 fn @constructor() [constructor] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/selector_on_bare_overload_set.sol:SelectorOnBareOverloadSet ===
@@ -24,5 +24,5 @@ fn @onERC1155Received(arg0: address, arg1: address, arg2: u256, arg3: u256, arg4
 
 fn @constructor() [constructor] {
   bb0:
-    stop
+    ret
 }

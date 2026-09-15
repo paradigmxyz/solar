@@ -6,7 +6,7 @@
 //! only after those optimizations have finished.
 
 use crate::mir::{
-    EffectKind, FunctionId, Immediate, InstKind, MemoryRegion, Module, Terminator, Value,
+    Callee, EffectKind, FunctionId, Immediate, InstKind, MemoryRegion, Module, Terminator, Value,
     immutable::{immutable_staging_addr, immutable_staging_base},
     pass::MirPass,
 };
@@ -80,7 +80,8 @@ fn runtime_reachable_functions(module: &Module) -> DenseBitSet<FunctionId> {
     while let Some(func_id) = worklist.pop_front() {
         let func = module.function(func_id);
         for inst_id in func.instructions() {
-            if let InstKind::ICall { function, .. } = func.inst(inst_id).kind
+            if let InstKind::ICall { function: Callee::Function(function), .. } =
+                func.inst(inst_id).kind
                 && reachable.insert(function)
             {
                 worklist.push_back(function);

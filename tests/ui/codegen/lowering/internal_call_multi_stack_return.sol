@@ -19,7 +19,7 @@ contract ICallMultiStackReturn {
     // CHECK: push [[PAIR_RETURN:bb[0-9]+]]
     // CHECK: jump [[PAIR_HELPER:bb[0-9]+]]
     // CHECK: [[PAIR_HELPER]]:
-    // CHECK: swap2
+    // CHECK: swap 2
     // CHECK-NEXT: jump
     function pair(uint256 x) external pure returns (uint256, uint256) {
         return pairHelper(x);
@@ -53,7 +53,7 @@ contract ICallMultiStackReturn {
     // CHECK: push [[TRIPLE_RETURN:bb[0-9]+]]
     // CHECK: jump [[TRIPLE_HELPER:bb[0-9]+]]
     // CHECK: [[TRIPLE_HELPER]]:
-    // CHECK: swap3
+    // CHECK: swap 3
     // CHECK-NEXT: jump
     function triple(uint256 x) external pure returns (uint256, uint256, uint256) {
         return tripleHelper(x);
@@ -99,11 +99,9 @@ contract ICallMultiStackReturn {
     // CHECK: push [[SIX_RETURN:bb[0-9]+]]
     // CHECK: jump [[SIX_HELPER:bb[0-9]+]]
     // CHECK: [[SIX_HELPER]]:
-    // CHECK: swap2
-    // CHECK-NEXT: swap3
-    // CHECK-NEXT: swap4
-    // CHECK-NEXT: swap5
-    // CHECK-NEXT: swap6
+    // CHECK: swap 6
+    // CHECK-NEXT: exchange 1, 4
+    // CHECK-NEXT: exchange 2, 3
     // CHECK-NEXT: jump
     function six(uint256 x)
         external

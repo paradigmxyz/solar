@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/nested_static_struct_param.sol:NestedStaticStructParam ===
 @module NestedStaticStructParam
-fn @take(arg0: calldataslice) -> (u256, u256) [selector=0xd1a79489, pure, abi_params=[tuple<u256, tuple<u256, u256>, u256>], abi_returns=[word, word]] {
+types:
+  struct0: {u256, u256}
+
+fn @take(arg0: calldataslice) -> struct0 [selector=0xd1a79489, pure, abi_params=[tuple<u256, tuple<u256, u256>, u256>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 32
@@ -11,5 +14,7 @@ fn @take(arg0: calldataslice) -> (u256, u256) [selector=0xd1a79489, pure, abi_pa
     v6 = slice_ptr arg0
     v7 = add v6, 96
     v8 = calldataload v7
-    ret v5, v8
+    v9 = insert_value struct0, undef struct0, 0, v5
+    v10 = insert_value struct0, v9, 1, v8
+    ret v10
 }

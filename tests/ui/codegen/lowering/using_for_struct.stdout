@@ -12,7 +12,7 @@ fn @viaMethod(arg0: bytes32, arg1: bytes32) -> bytes32 [selector=0x36245213, pur
     memory_object_store_field memorystruct<4>, v0, 1, v1
     memory_object_store_field memorystruct<4>, v0, 2, 0
     memory_object_store_field memorystruct<4>, v0, 3, arg1
-    v2 = icall @hashLib, 1, v0
+    v2 = icall @hashLib, v0
     ret v2
 }
 
@@ -24,17 +24,6 @@ fn @hashLib(arg0: memorystruct) -> bytes32 [pure] {
     v3 = and v2, 0xffffffff
     v4 = memory_object_load_field memorystruct<4>, arg0, 2
     v5 = memory_object_load_field memorystruct<4>, arg0, 3
-    v6 = fmp
-    mstore v6, 0x7800000000000000000000000000000000000000000000000000000000000000
-    v7 = add v6, 1
-    mstore v7, v0
-    v8 = shl 224, v3
-    v9 = add v6, 33
-    mstore v9, v8
-    v10 = add v6, 37
-    mstore v10, v4
-    v11 = add v6, 69
-    mstore v11, v5
-    v12 = keccak256 v6, 101
-    ret v12
+    v6 = keccak256_packed (data hex"78", bytes32 v0, u32 v3, u256 v4, bytes32 v5)
+    ret v6
 }

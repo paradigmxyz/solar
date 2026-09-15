@@ -18,6 +18,8 @@
 //! - require canonical loops with a preheader and a single latch
 //! - rewrite only affine address expressions derived from the recognized induction variable
 //! - preserve the original address value when it is still used outside the loop
+//! - recognize checked unsigned word updates while retaining their failure checks.
+//! - add only one scaled address counter when the original update must stay live.
 
 use crate::mir::{
     BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, Value, ValueId,
@@ -105,9 +107,11 @@ impl IndVarSimplifier {
         let Some(preheader) = loop_data.preheader else { return };
         let [latch] = loop_data.back_edges.as_slice() else { return };
         let [iv] = loop_data.induction_vars.as_slice() else { return };
-        let Some(step) = self.additive_step(func, iv.value, iv.update_inst) else {
+        if iv.descending {
             return;
-        };
+        }
+        let Some(step) = self.value_i128(func, iv.step) else { return };
+        let must_keep_update = func.inst(iv.update_inst).kind.effects().must_execute(false);
 
         let scev = ScalarEvolution::analyze(func, loop_data);
         let mut candidates: FxHashMap<AddressKey, Vec<ValueId>> = FxHashMap::default();
@@ -121,6 +125,10 @@ impl IndVarSimplifier {
                 let Some(key) = self.address_key(&scev, value, iv.value) else {
                     continue;
                 };
+                // A checked update must remain live, so a second plain-add counter saves no work.
+                if must_keep_update && key.scale == 1 {
+                    continue;
+                }
                 let Some(delta) = key.scale.checked_mul(step) else { continue };
                 if delta <= 0 || !self.has_non_address_loop_use(func, loop_data, value) {
                     continue;
@@ -129,7 +137,9 @@ impl IndVarSimplifier {
             }
         }
 
-        if candidates.is_empty() {
+        // Checked updates cannot die when their address uses disappear. Limit the additional
+        // loop-carried state instead of creating a counter for every field address.
+        if candidates.is_empty() || (must_keep_update && candidates.len() != 1) {
             return;
         }
 
@@ -150,26 +160,6 @@ impl IndVarSimplifier {
         }
 
         self.stats.address_uses_replaced += self.replace_loop_uses(func, loop_data, &replacements);
-    }
-
-    fn additive_step(
-        &self,
-        func: &Function,
-        iv_value: ValueId,
-        update_inst: Option<InstId>,
-    ) -> Option<i128> {
-        let update_inst = update_inst?;
-        let InstKind::Add(a, b) = func.inst(update_inst).kind else {
-            return None;
-        };
-        let step = if a == iv_value {
-            b
-        } else if b == iv_value {
-            a
-        } else {
-            return None;
-        };
-        self.value_i128(func, step)
     }
 
     fn address_key(
@@ -201,7 +191,7 @@ impl IndVarSimplifier {
         let iv = loop_data.induction_vars.iter().find(|iv| iv.value == key.iv)?;
         let init = self.value_i128(func, iv.init)?;
         let init_offset = init.checked_mul(key.scale)?.checked_add(key.constant)?;
-        let delta = self.additive_step(func, key.iv, iv.update_inst)?.checked_mul(key.scale)?;
+        let delta = self.value_i128(func, iv.step)?.checked_mul(key.scale)?;
         if delta <= 0 {
             return None;
         }
