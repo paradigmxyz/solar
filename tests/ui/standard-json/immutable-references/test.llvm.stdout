@@ -1,0 +1,57 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    }
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "Widths": {
+        "evm": {
+          "deployedBytecode": {
+            "immutableReferences": {
+              "5": [
+                {
+                  "start": 16,
+                  "length": 32
+                }
+              ],
+              "6": [
+                {
+                  "start": 52,
+                  "length": 32
+                }
+              ]
+            }
+          }
+        }
+      },
+      "A": {
+        "evm": {
+          "deployedBytecode": {
+            "immutableReferences": {
+              "7": [
+                {
+                  "start": 15,
+                  "length": 32
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

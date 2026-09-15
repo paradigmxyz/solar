@@ -245,6 +245,7 @@ class CompilerSpec:
     label: str
     path: Path
     kind: str
+    backend: str = "evm"
 
 
 def standard_json_input(test_case: TestCase) -> str:
@@ -335,7 +336,7 @@ def artifact_compiler_input(input_text: str, test_case: TestCase, kind: str) -> 
 
 
 def split_solar_artifact_output(
-    stdout: str, contract_path: str
+    stdout: str, contract_path: str, backend: str = "evm"
 ) -> tuple[dict[str, str], str]:
     marker = "\n{"
     json_start = stdout.rfind(marker)
@@ -349,7 +350,7 @@ def split_solar_artifact_output(
     escaped = re.escape(contract_path)
     headings = list(
         re.finditer(
-            rf"^// === {escaped}(?: \((creation|runtime|deployment)\))? ===$",
+            rf"^// === {escaped}(?: \((creation|runtime|deployment|backend)\))? ===$",
             dump,
             re.MULTILINE,
         )
@@ -361,6 +362,8 @@ def split_solar_artifact_output(
         "creation.disasm",
         "runtime.disasm",
     )
+    if backend != "evm":
+        names = ("mir.mir", "backend.ir", "creation.disasm", "runtime.disasm")
     if len(headings) != len(names):
         raise ValueError(
             f"expected {len(names)} Solar artifact sections, found {len(headings)}"
@@ -398,10 +401,16 @@ def write_artifacts(
     (output_dir / "input.json").write_text(input_text + "\n")
 
     cmd = [str(spec.path), "--standard-json"]
+    if spec.kind == "solar" and spec.backend != "evm":
+        cmd.extend(["--codegen-backend", spec.backend])
     source = test_case.source_name or test_case.source or f"{test_case.test_id}.sol"
     contract_path = f"{source}:{test_case.contract_name}"
     if spec.kind == "solar":
-        kinds = ",".join(ARTIFACT_DUMP_KINDS)
+        kinds = ",".join(
+            ARTIFACT_DUMP_KINDS if spec.backend == "evm" else (
+                "mir", "backend-ir", "disasm-deploy", "disasm-runtime",
+            )
+        )
         cmd.extend(["--color", "never", f"-Zdump={kinds}={contract_path}"])
     proc = run(cmd, input_text=input_text, timeout=timeout)
     if proc.returncode != 0:
@@ -411,7 +420,9 @@ def write_artifacts(
     raw_output = proc.stdout
     if spec.kind == "solar":
         try:
-            extra, raw_output = split_solar_artifact_output(proc.stdout, contract_path)
+            extra, raw_output = split_solar_artifact_output(
+                proc.stdout, contract_path, spec.backend
+            )
         except ValueError as error:
             return str(error)
     (output_dir / "output.json").write_text(raw_output.rstrip() + "\n")
@@ -523,7 +534,11 @@ def compile_case(
     input_text, timeout, input_fingerprint = prepared_input
 
     result["input_fingerprint"] = input_fingerprint
+    if spec.kind == "solar":
+        result["codegen_backend"] = spec.backend
     cmd = [str(spec.path), "--standard-json"]
+    if spec.kind == "solar" and spec.backend != "evm":
+        cmd.extend(["--codegen-backend", spec.backend])
     samples = []
     reference_output = None
     output_fingerprint = None
@@ -1804,6 +1819,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         description="Benchmark solc vs Solar codegen on inline and repository contracts"
     )
     parser.add_argument(
+        "--codegen-backend", choices=("evm", "yul", "sonatina", "sir", "llvm"),
+        default="evm", help="Backend used for all Solar compilation and artifact samples",
+    )
+    parser.add_argument(
         "--solc",
         help="Path to solc binary; enables solc comparison unless --solar-only is set",
     )
@@ -1990,7 +2009,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         if solx_error:
             parser.error(f"solx --version failed: {solx_error}")
         specs.append(CompilerSpec("solx", f"solx {solx_version}", solx, "solx"))
-    specs.append(CompilerSpec("solar", f"solar {solar_version}", solar, "solar"))
+    backend_label = "" if args.codegen_backend == "evm" else f" ({args.codegen_backend})"
+    specs.append(CompilerSpec(
+        "solar", f"solar {solar_version}{backend_label}", solar, "solar", args.codegen_backend
+    ))
     reference_specs = (
         [CompilerSpec(name, name, Path(name), name) for name in ("solc", "solx")]
         if args.reference_results

@@ -84,10 +84,13 @@ impl MirPass for DeferAlloc {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut ModuleAnalyses,
     ) -> bool {
+        if gcx.sess.opts.codegen_backend != solar_config::CodegenBackend::Evm {
+            return false;
+        }
         let calls = CallGraphInfo::new(module);
         let summaries = analyses.call_summaries(module);
         let mut candidates = Vec::new();

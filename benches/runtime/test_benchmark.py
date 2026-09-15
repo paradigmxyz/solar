@@ -485,6 +485,28 @@ class RuntimeComparisonTests(unittest.TestCase):
 
 
 class ArtifactTests(unittest.TestCase):
+    def test_backend_applies_to_timed_and_artifact_compilation(self) -> None:
+        test_case = benchmark.TEST_CASES[0]
+        prepared = benchmark.compiler_input(test_case, None)
+        for backend in ("evm", "yul", "sonatina", "sir", "llvm"):
+            with self.subTest(backend=backend), tempfile.TemporaryDirectory() as directory:
+                spec = benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar", backend)
+                failed = mock.Mock(returncode=1, stdout="", stderr="compile failed", peak_rss_bytes=None)
+                with mock.patch.object(benchmark, "run", return_value=failed) as run:
+                    result = benchmark.compile_case(spec, test_case, prepared)
+                    expected = ["solar", "--standard-json"]
+                    if backend != "evm":
+                        expected.extend(["--codegen-backend", backend])
+                    self.assertEqual(run.call_args.args[0], expected)
+                    self.assertEqual(result["codegen_backend"], backend)
+                    benchmark.write_artifacts(Path(directory), spec, test_case, prepared)
+                    command = run.call_args.args[0]
+                    self.assertEqual(command[:len(expected)], expected)
+                    dump = command[-1]
+                    self.assertEqual("evm-ir" in dump, backend == "evm")
+                    self.assertIn("disasm-runtime", dump)
+                    self.assertEqual("backend-ir" in dump, backend != "evm")
+
     def test_artifact_input_requests_portable_outputs(self) -> None:
         test_case = benchmark.TEST_CASES[0]
         input_text, _, _ = benchmark.compiler_input(test_case, None)
@@ -521,6 +543,26 @@ class ArtifactTests(unittest.TestCase):
             benchmark.disassemble_evm(bytes.fromhex("6003565b00")),
             "PUSH1 0x03 ; bb0\nJUMP\n; bb0\nJUMPDEST\nSTOP\n",
         )
+
+    def test_backend_dump_is_split_from_standard_json(self) -> None:
+        stdout = """// === A.sol:A ===
+@module A
+// === A.sol:A (backend) ===
+object "Contract" {}
+// === A.sol:A (deployment) ===
+STOP
+// === A.sol:A (runtime) ===
+STOP
+{"contracts": {}}
+"""
+        artifacts, output = benchmark.split_solar_artifact_output(stdout, "A.sol:A", "yul")
+        self.assertEqual(artifacts, {
+            "mir.mir": "@module A\n",
+            "backend.ir": 'object "Contract" {}\n',
+            "creation.disasm": "STOP\n",
+            "runtime.disasm": "STOP\n",
+        })
+        self.assertEqual(json.loads(output), {"contracts": {}})
 
     def test_solar_dump_is_split_from_standard_json(self) -> None:
         contract = "A.sol:A"

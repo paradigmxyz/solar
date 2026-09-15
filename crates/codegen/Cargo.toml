@@ -31,11 +31,35 @@ memchr.workspace = true
 smallvec.workspace = true
 tracing.workspace = true
 
+# codegen-yul
+serde_json = { workspace = true, optional = true }
+
+# codegen-sonatina
+sonatina-ir = { git = "https://github.com/fe-lang/sonatina", rev = "8e6c99f67cf3f20b9672cab61d8655c2ff33a6a7", optional = true }
+sonatina-codegen = { git = "https://github.com/fe-lang/sonatina", rev = "8e6c99f67cf3f20b9672cab61d8655c2ff33a6a7", optional = true }
+sonatina-parser = { git = "https://github.com/fe-lang/sonatina", rev = "8e6c99f67cf3f20b9672cab61d8655c2ff33a6a7", optional = true }
+
+# codegen-sir
+sir-parser = { git = "https://github.com/plankevm/plank-monorepo", rev = "fb3c5d7c6eb99e3b88d034aba0655ab81a6273ed", optional = true }
+sir-passes = { git = "https://github.com/plankevm/plank-monorepo", rev = "fb3c5d7c6eb99e3b88d034aba0655ab81a6273ed", optional = true }
+sir-static-memory-allocator = { git = "https://github.com/plankevm/plank-monorepo", rev = "fb3c5d7c6eb99e3b88d034aba0655ab81a6273ed", optional = true }
+sir-stack-scheduling = { git = "https://github.com/plankevm/plank-monorepo", rev = "fb3c5d7c6eb99e3b88d034aba0655ab81a6273ed", optional = true }
+sir-release-backend = { git = "https://github.com/plankevm/plank-monorepo", rev = "fb3c5d7c6eb99e3b88d034aba0655ab81a6273ed", optional = true }
+bumpalo = { workspace = true, optional = true }
+
+# codegen-llvm
+serde = { workspace = true, optional = true }
+inkwell = { git = "https://github.com/NomicFoundation/inkwell", rev = "0081bb29a84921447fb1c9773350c52813a7fe31", default-features = false, features = ["llvm21-1-prefer-static", "target-evm", "no-libffi-linking"], optional = true }
+
 [dev-dependencies]
 snapbox.workspace = true
 tempfile.workspace = true
 
 [features]
+codegen-yul = ["dep:serde_json"]
+codegen-sonatina = ["dep:sonatina-codegen", "dep:sonatina-parser", "dep:sonatina-ir"]
+codegen-sir = ["dep:sir-parser", "dep:sir-passes", "dep:sir-release-backend", "dep:sir-stack-scheduling", "dep:sir-static-memory-allocator", "dep:bumpalo"]
+codegen-llvm = ["dep:inkwell", "dep:serde", "dep:serde_json"]
 nightly = [
     "solar-ast/nightly",
     "solar-data-structures/nightly",

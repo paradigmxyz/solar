@@ -17,6 +17,12 @@ on:
           - all
           - codegen-runtime
           - codspeed
+      codegen_backend:
+        description: Candidate codegen backend
+        required: true
+        default: evm
+        type: choice
+        options: [evm, yul, sonatina, sir, llvm]
       solc_version:
         description: solc release used by the codegen runtime benchmark
         required: true
@@ -37,7 +43,7 @@ jobs:
       inputs.benchmark == 'all' ||
       inputs.benchmark == 'codegen-runtime'
     runs-on: depot-ubuntu-latest-8
-    timeout-minutes: 45
+    timeout-minutes: 90
     permissions:
       actions: read
       contents: read
@@ -97,6 +103,8 @@ jobs:
           echo "2f6b8feb6a28ac6297a2c0c5afa936e4c013e7175ca88a9bf8e435e61fa1a226  $RUNNER_TEMP/solx/solx" | sha256sum --check
           chmod +x "$RUNNER_TEMP/solx/solx"
           "$RUNNER_TEMP/solx/solx" --version
+
+      - uses: ./.github/actions/setup-evm-llvm
 
       - name: Build Solar
         run: |
@@ -224,6 +232,7 @@ jobs:
             --verbose
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}"
             --solar target/release/solar-head
+            --codegen-backend "${{ inputs.codegen_backend || 'evm' }}"
             --mode runtime compile-time
             --suite all
             --compile-repeats 5
@@ -244,6 +253,7 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/main" ]]; then
             args+=(--solx "$RUNNER_TEMP/solx/solx")
           fi
+          export SOLAR_SOLC="$RUNNER_TEMP/solc/solc-${SOLC_VERSION}"
           if ! python3 benches/runtime/benchmark.py "${args[@]}"; then
             echo "::warning::Codegen benchmark failed to complete"
           fi

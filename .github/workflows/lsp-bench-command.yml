@@ -542,7 +542,7 @@ jobs:
           set -euo pipefail
           cd "$GITHUB_WORKSPACE/lsp-bench/base"
           CARGO_TARGET_DIR="$RUNNER_TEMP/lsp-bench-target/base" \
-            cargo build --locked --release -p solar-compiler --bin solar
+            cargo build --locked --release -p solar-compiler --bin solar --no-default-features --features cli,mimalloc,tracing
           mkdir -p "$RUNNER_TEMP/lsp-bench-bin"
           install -m 0755 \
             "$RUNNER_TEMP/lsp-bench-target/base/release/solar" \
@@ -589,7 +589,7 @@ jobs:
           set -euo pipefail
           cd "$GITHUB_WORKSPACE/lsp-bench/candidate"
           CARGO_TARGET_DIR="$RUNNER_TEMP/lsp-bench-target/candidate" \
-            cargo build --locked --release -p solar-compiler --bin solar
+            cargo build --locked --release -p solar-compiler --bin solar --no-default-features --features cli,mimalloc,tracing
           mkdir -p "$RUNNER_TEMP/lsp-bench-bin"
           install -m 0755 \
             "$RUNNER_TEMP/lsp-bench-target/candidate/release/solar" \

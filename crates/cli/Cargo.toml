@@ -58,7 +58,11 @@ libc.workspace = true
 tikv-jemallocator = { version = "0.7", optional = true }
 
 [features]
-default = ["mimalloc", "tracing"]
+codegen-yul = ["solar-codegen/codegen-yul"]
+codegen-sonatina = ["solar-codegen/codegen-sonatina"]
+codegen-sir = ["solar-codegen/codegen-sir"]
+codegen-llvm = ["solar-codegen/codegen-llvm"]
+default = ["mimalloc", "tracing", "codegen-yul", "codegen-sonatina", "codegen-sir", "codegen-llvm"]
 lsp = ["dep:solar-lsp", "dep:tokio"]
 # Nightly-only features for faster/smaller builds.
 nightly = [
