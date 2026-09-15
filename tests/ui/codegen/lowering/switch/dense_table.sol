@@ -14,7 +14,7 @@
 // TABLE-NEXT: push 255
 // TABLE-NEXT: push 0
 // TABLE-NEXT: sstore
-// TABLE-NEXT: jump
+// TABLE-NEXT: stop
 // TABLE: indexed_jump
 contract SwitchDenseTable {
     uint256 value;

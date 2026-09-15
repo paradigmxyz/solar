@@ -39,6 +39,13 @@ pub(crate) fn import_path_at(source: &str, cursor: usize) -> Option<ImportPathAt
         return None;
     }
 
+    // Most navigation requests are issued from ordinary code. Avoid lexing the complete prefix
+    // when the cursor's line cannot contain a string (the lexer remains the source of truth when
+    // a quote or an escaped line continuation is present).
+    if !may_complete_string(source, cursor) {
+        return None;
+    }
+
     // Import paths are plain strings; code navigation does not need a full-file parse.
     plain_string_at(source, cursor)?;
     parse_import_path(source, cursor)

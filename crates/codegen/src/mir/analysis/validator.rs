@@ -41,8 +41,8 @@
 
 use crate::mir::{
     AddressCallKind, BlockId, Builtin, Callee, Function, FunctionId, InstId, InstKind,
-    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, RequireKind, SliceLocation,
-    StructId, TypeSize, Value, ValueId, analysis::CfgInfo,
+    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, RequireKind, ResultKind,
+    SliceLocation, StructId, TypeSize, Value, ValueId, analysis::CfgInfo,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -244,6 +244,40 @@ impl<'a> Validator<'a> {
                     continue;
                 }
                 let inst = func.inst(inst_id);
+
+                let result_kind = inst.kind.op_def().result;
+                if result_kind != ResultKind::Custom
+                    && result_kind.produces_value() != inst.result_ty.is_some()
+                {
+                    self.emit_at_inst(
+                        format_args!(
+                            "`{}` {} a value but {} a result type",
+                            inst.kind.mnemonic(),
+                            if result_kind.produces_value() {
+                                "produces"
+                            } else {
+                                "does not produce"
+                            },
+                            if inst.result_ty.is_some() { "has" } else { "has no" },
+                        ),
+                        block_id,
+                        inst_id,
+                    );
+                }
+
+                if let Some(ty) = inst.result_ty
+                    && !result_kind.admits_type(ty)
+                {
+                    self.emit_at_inst(
+                        format_args!(
+                            "`{}` produces {:?} but its result type is `{ty}`",
+                            inst.kind.mnemonic(),
+                            result_kind,
+                        ),
+                        block_id,
+                        inst_id,
+                    );
+                }
 
                 match (inst.result_ty, func.inst_result_value(inst_id)) {
                     (Some(_), Some(result)) if result.index() >= num_values => {
@@ -1521,7 +1555,10 @@ impl<'a> Validator<'a> {
                             inst_id,
                         );
                     }
-                    let semantic_op = func.inst(inst_id).unlowered_reason();
+                    let semantic_op = func
+                        .inst(inst_id)
+                        .unlowered_reason()
+                        .or_else(|| kind.phase_violation(phase, &func.inst(inst_id).metadata));
                     if let Some(semantic_op) = semantic_op {
                         self.emit_at_inst(
                             format_args!(

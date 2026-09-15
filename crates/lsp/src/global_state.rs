@@ -380,6 +380,7 @@ struct AnalysisTasks {
     coordinator: Option<(AnalysisTaskKey, AbortHandle)>,
     worker: Option<(AnalysisTaskKey, AbortHandle)>,
     cancellation: Option<IndexingCancellation>,
+    debounce: Option<(AnalysisTaskKey, oneshot::Sender<()>)>,
 }
 
 /// Reuses import completion results within one analysis/configuration epoch.
@@ -409,6 +410,7 @@ enum AnalysisTaskStage {
 
 impl AnalysisTasks {
     fn cancel(&mut self) {
+        self.debounce = None;
         if let Some(cancellation) = self.cancellation.take() {
             cancellation.cancel();
         }
@@ -1211,9 +1213,24 @@ impl GlobalState {
             tasks.cancel();
         }
         tasks.cancellation = Some(cancellation.clone());
+        let debounce = if delay.is_zero() {
+            None
+        } else {
+            let (wake, debounce) = oneshot::channel();
+            tasks.debounce = Some((task_key, wake));
+            Some(debounce)
+        };
         let coordinator = tokio::spawn(async move {
-            if !delay.is_zero() {
-                tokio::time::sleep(delay).await;
+            if let Some(debounce) = debounce {
+                // Navigation needs the current snapshot now; background changes still coalesce.
+                tokio::select! {
+                    _ = tokio::time::sleep(delay) => {}
+                    _ = debounce => {}
+                }
+                let mut tasks = task_scheduler.tasks.lock();
+                if tasks.debounce.as_ref().is_some_and(|(key, _)| *key == task_key) {
+                    tasks.debounce = None;
+                }
             }
 
             let Ok(permit) = task_scheduler.gate.clone().acquire_owned().await else {
@@ -1385,6 +1402,23 @@ impl GlobalState {
         }
         commit.natspec_pending_source_changes.extend(changed_paths);
         self.analysis_version.store(version, Ordering::Release);
+    }
+
+    /// Wake delayed analysis when an interactive request needs a fresh semantic snapshot.
+    ///
+    /// This only ends the current debounce. The single-worker gate, cancellation checks and
+    /// publication epoch still apply; a subsequent edit starts a new debounce window.
+    pub(crate) fn prioritize_pending_analysis(&self) {
+        let version = self.analysis_version.load(Ordering::Acquire);
+        if *self.published_analysis_version.borrow() == version {
+            return;
+        }
+        let mut tasks = self.analysis_scheduler.tasks.lock();
+        if tasks.debounce.as_ref().is_some_and(|(key, _)| key.version == version)
+            && let Some((_, wake)) = tasks.debounce.take()
+        {
+            let _ = wake.send(());
+        }
     }
 
     /// Waits for analysis results at least as new as the latest version requested before this call.
@@ -1784,6 +1818,63 @@ fn run_analysis(
     } else {
         None
     };
+    let mut next_cached_batches =
+        if cache_batches { vec![None; batches.len()] } else { Vec::new() };
+    if let Some((inputs, outputs)) = cached_batches {
+        // Validate once before cloning or merging any symbol tables. If every batch matches,
+        // retain the aggregate and its initialized lazy query indexes across analysis epochs.
+        let mut all_reused = true;
+        for (idx, batch) in batches.iter().enumerate() {
+            if cancellation.is_cancelled() || !snapshot.is_current(version) {
+                return AnalysisTaskOutcome::Superseded;
+            }
+            let inputs = &inputs[idx];
+            let inputs_match =
+                inputs.files == batch.files && inputs.preloaded_files == batch.preloaded_files;
+            if inputs_match && !batch.files.is_empty() {
+                next_cached_batches[idx] = outputs[idx]
+                    .clone()
+                    .filter(|cached| cached.dependencies.unchanged(cancellation));
+            }
+            // Empty batches participate in the key: a previously populated batch may disappear.
+            all_reused &=
+                inputs_match && (batch.files.is_empty() || next_cached_batches[idx].is_some());
+        }
+        if all_reused {
+            let cached = {
+                let mut commit = snapshot.analysis_commit.lock();
+                if snapshot.is_current(version)
+                    && !cancellation.is_cancelled()
+                    && !commit.cache_invalidated
+                    && let Some(cached) = &mut commit.cached_output
+                    && Arc::ptr_eq(&cached.config, &config)
+                {
+                    cached.vfs_content_revision = vfs_content_revision;
+                    Some(cached.output.clone())
+                } else {
+                    None
+                }
+            };
+            if let Some(mut output) = cached {
+                // Opening or closing an overlay can change versions without changing its text.
+                // Match batch aggregation's maximum version, clearing versions no longer open.
+                for (uri, version) in &mut output.result.analyzed_documents {
+                    *version = batches
+                        .iter()
+                        .filter(|batch| !batch.files.is_empty())
+                        .filter_map(|batch| batch.open_file_versions.get(uri))
+                        .copied()
+                        .max();
+                }
+                progress.report("Reusing workspace index");
+                return if snapshot.publish_analysis_output(version, output) {
+                    AnalysisTaskOutcome::Published
+                } else {
+                    AnalysisTaskOutcome::Superseded
+                };
+            }
+        }
+    }
     let inputs = if has_disk_paths {
         Vec::new()
     } else {
@@ -1796,8 +1887,6 @@ fn run_analysis(
             .collect::<Vec<_>>()
     };
     let mut results = AnalysisOutputAccumulator::default();
-    let mut next_cached_batches =
-        if cache_batches { vec![None; batches.len()] } else { Vec::new() };
 
     for (idx, batch) in batches.into_iter().enumerate() {
         if batch.files.is_empty() {
@@ -1808,13 +1897,7 @@ fn run_analysis(
             return AnalysisTaskOutcome::Superseded;
         }
 
-        let cached = cached_batches.as_ref().and_then(|(inputs, outputs)| {
-            let inputs = &inputs[idx];
-            (inputs.files == batch.files && inputs.preloaded_files == batch.preloaded_files)
-                .then(|| outputs[idx].clone())
-                .flatten()
-                .filter(|cached| cached.dependencies.unchanged(cancellation))
-        });
+        let cached = next_cached_batches.get_mut(idx).and_then(Option::take);
         let result = if let Some(cached) = cached {
             let mut result = cached.output.clone();
             // Exact source contents permit reuse, but document versions belong to this epoch.

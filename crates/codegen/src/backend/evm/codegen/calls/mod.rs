@@ -9,6 +9,7 @@ use super::{
 
 mod abi;
 mod arguments;
+mod tail;
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Returns the first internal-call result only when it is consumed. The call itself remains
@@ -170,7 +171,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_push_label(callee_label);
         self.asm.emit_op(op::JUMP);
 
-        self.asm.define_label(return_label);
+        self.asm.define_continuation_label(return_label);
         if let Some(caller_stack) = caller_stack {
             self.scheduler.stack = caller_stack;
         } else {
@@ -799,7 +800,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_push_label(callee_label);
         self.asm.emit_op(op::JUMP);
 
-        self.asm.define_label(return_label);
+        self.asm.define_continuation_label(return_label);
         if let Some(caller_stack) = caller_stack {
             self.scheduler.stack = caller_stack;
         } else {

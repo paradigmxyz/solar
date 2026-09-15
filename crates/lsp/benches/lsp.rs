@@ -4,16 +4,20 @@
 
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use crop::Rope;
-use lsp_types::{GotoDefinitionResponse, HoverContents, OneOf, Position, Url};
+use lsp_types::{
+    GotoDefinitionResponse, HoverContents, OneOf, Position, Range, TextDocumentContentChangeEvent,
+    Url,
+};
 use solar_config::CompileOpts;
 use solar_lsp::{
-    BenchmarkAnalysis, BenchmarkDocumentUpdate, BenchmarkFoldingRangeRequests,
-    BenchmarkOpenDocuments, BenchmarkProject, BenchmarkRepeatedAnalysis, BenchmarkRequest,
-    BenchmarkResponse, BenchmarkSelectionRangeRequests, BenchmarkSignatureHelpRequests,
-    BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
-    benchmark_folding_ranges, benchmark_folding_ranges_from_rope, benchmark_import_path_at,
-    benchmark_selection_ranges,
+    BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkDocumentUpdate,
+    BenchmarkFoldingRangeRequests, BenchmarkOpenDocuments, BenchmarkProject,
+    BenchmarkRenameRequests, BenchmarkRepeatedAnalysis, BenchmarkRequest, BenchmarkResponse,
+    BenchmarkSelectionRangeRequests, BenchmarkSignatureHelpRequests, BenchmarkWorkspaceDiscovery,
+    BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports, benchmark_folding_ranges,
+    benchmark_folding_ranges_from_rope, benchmark_import_path_at, benchmark_selection_ranges,
 };
+use solar_parse::{Cursor, lexer::token::RawTokenKind};
 use std::{fmt::Write as _, fs, hint::black_box, path::PathBuf};
 
 const ANALYSIS_FUNCTION_COUNTS: [usize; 2] = [64, 256];
@@ -203,7 +207,7 @@ fn rename_candidate_queries(c: &mut Criterion) {
         eof_anchor.line,
         eof_anchor.character + "function caller2047() public { ".len() as u32,
     );
-    let analysis = project.clone().analyze();
+    let analysis = project.analyze();
     assert_clean(&analysis);
     let Some((range, edit_count)) = analysis.rename_candidate(&uri, hit_position) else {
         panic!("rename candidate should resolve at the final call site");
@@ -219,6 +223,42 @@ fn rename_candidate_queries(c: &mut Criterion) {
     });
     group.bench_function(BenchmarkId::from_parameter("2048-callers-miss-near-eof"), |b| {
         b.iter(|| black_box(analysis.rename_candidate(black_box(&uri), black_box(miss_position))))
+    });
+    group.finish();
+}
+
+fn rename_requests(c: &mut Criterion) {
+    let mut group = c.benchmark_group("lsp/rename");
+    for reference_count in [0, 64, 2_048] {
+        let mut source = String::from("contract Root { function target() internal pure {}\n");
+        for index in 0..reference_count {
+            writeln!(source, "function caller{index}() public pure {{ target(); }}").unwrap();
+        }
+        source.push_str("}\n");
+        let project = BenchmarkProject::from_source(source);
+        let (uri, position) = project.unique_anchor("benchmark.sol", "target() internal").unwrap();
+        let mut requests = BenchmarkRenameRequests::new(project, uri.clone(), position);
+        let response = requests.run().expect("the target should be renameable");
+        let edits = &response.changes.as_ref().unwrap()[&uri];
+        assert_eq!(edits.len(), reference_count + 1);
+        assert!(edits.iter().all(|edit| edit.new_text == "renamed"));
+        group.bench_function(
+            BenchmarkId::from_parameter(format!("{reference_count}-references")),
+            |b| {
+                b.iter(|| black_box(requests.run()));
+            },
+        );
+    }
+
+    let project = unifap_project();
+    let (uri, position) = project.unique_anchor(UNIFAP_ROUTER, "_safeTransferFrom(\n").unwrap();
+    let mut requests = BenchmarkRenameRequests::new(project, uri, position);
+    let response = requests.run().expect("the router helper should be renameable");
+    let edits = response.changes.unwrap();
+    assert_eq!(edits.len(), 1);
+    assert_eq!(edits.values().next().unwrap().len(), 4);
+    group.bench_function(BenchmarkId::from_parameter("unifap-v2-router"), |b| {
+        b.iter(|| black_box(requests.run()));
     });
     group.finish();
 }
@@ -862,6 +902,98 @@ fn workspace_diagnostic_hot_paths(c: &mut Criterion) {
     reports.finish();
 }
 
+fn incoming_document_changes(c: &mut Criterion) {
+    let mut group = c.benchmark_group("lsp/incoming-document-changes");
+    for (name, source, identifier, occurrence_count, edit_counts) in [
+        ("optimism-predeploys", OPTIMISM_SOURCE, "Predeploys", 377, &[1, 8, 64, 377][..]),
+        (
+            "uniswap-tickmath",
+            include_str!("../../../testdata/UniswapV3.sol"),
+            "TickMath",
+            20,
+            &[1, 20][..],
+        ),
+        (
+            "counter",
+            "contract Counter {\n    uint256 count;\n    function increment() public { count++; }\n    function value() public view returns (uint256) { return count; }\n}\n",
+            "count",
+            3,
+            &[1, 3][..],
+        ),
+    ] {
+        let occurrences = Cursor::new(source)
+            .with_position()
+            .filter_map(|(start, token)| {
+                let end = start + token.len as usize;
+                (token.kind == RawTokenKind::Ident && &source[start..end] == identifier)
+                    .then_some(start..end)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(occurrences.len(), occurrence_count);
+        let position_at = |offset| {
+            let prefix = &source[..offset];
+            Position::new(
+                prefix.bytes().filter(|&byte| byte == b'\n').count() as u32,
+                prefix.rsplit('\n').next().unwrap().encode_utf16().count() as u32,
+            )
+        };
+        let contents = Rope::from(source);
+        for &edit_count in edit_counts {
+            let replacement = format!("{identifier}Renamed");
+            let mut expected = source.to_owned();
+            let mut changes = Vec::with_capacity(edit_count);
+            // Clients apply independent replacements from the end to preserve earlier positions.
+            for range in occurrences.iter().rev().take(edit_count) {
+                changes.push(TextDocumentContentChangeEvent {
+                    range: Some(Range::new(position_at(range.start), position_at(range.end))),
+                    range_length: None,
+                    text: replacement.clone(),
+                });
+                expected.replace_range(range.clone(), &replacement);
+            }
+            let change = BenchmarkDocumentChange::from_changes(contents.clone(), changes);
+            assert_eq!(change.clone().apply().contents().to_string(), expected);
+            group.throughput(Throughput::Elements(edit_count as u64));
+            group.bench_function(
+                BenchmarkId::from_parameter(format!("{name}-{edit_count}")),
+                |b| {
+                    b.iter_batched(
+                        || change.clone(),
+                        |change| black_box(change.apply()),
+                        BatchSize::PerIteration,
+                    );
+                },
+            );
+        }
+    }
+
+    // Overlapping ranges must retain the sequential LSP behavior and exercise the fallback path.
+    let source = Rope::from("abcdef\nghijkl\n");
+    let changes = vec![
+        TextDocumentContentChangeEvent {
+            range: Some(Range::new(Position::new(0, 2), Position::new(0, 4))),
+            range_length: None,
+            text: "X".into(),
+        },
+        TextDocumentContentChangeEvent {
+            range: Some(Range::new(Position::new(0, 1), Position::new(0, 3))),
+            range_length: None,
+            text: "Y".into(),
+        },
+    ];
+    let change = BenchmarkDocumentChange::from_changes(source, changes);
+    assert_eq!(change.clone().apply().contents().to_string(), "aYef\nghijkl\n");
+    group.throughput(Throughput::Elements(2));
+    group.bench_function("sequential-overlap-fallback", |b| {
+        b.iter_batched(
+            || change.clone(),
+            |change| black_box(change.apply()),
+            BatchSize::PerIteration,
+        );
+    });
+    group.finish();
+}
+
 fn open_document_analysis_batches(c: &mut Criterion) {
     let documents = BenchmarkOpenDocuments::new(OPEN_DOCUMENT_COUNT, OPEN_DOCUMENT_BYTES);
     // Prime the initial snapshot so timing measures reuse across later analysis epochs.
@@ -902,6 +1034,94 @@ fn repeated_analysis(c: &mut Criterion) {
         });
     });
     cached.finish();
+}
+
+fn workspace_index_reuse(c: &mut Criterion) {
+    let workspace_count = 4;
+    let caller_count = 256;
+    let temp = tempfile::tempdir().expect("workspace index benchmark directory");
+    let mut source = String::from(
+        "import \"./lib/Dependency.sol\";\ncontract Main is Dependency {\nfunction target() internal {}\n",
+    );
+    for index in 0..caller_count {
+        writeln!(source, "function caller{index}() public {{ target(); }}").unwrap();
+    }
+    source.push_str("uint marker0;\n}\n");
+    let edited_source = source.replace("marker0", "marker1");
+    let roots = (0..workspace_count)
+        .map(|index| {
+            let root = temp.path().join(format!("workspace-{index}"));
+            fs::create_dir(&root).expect("benchmark workspace root");
+            fs::create_dir(root.join("lib")).expect("benchmark dependency directory");
+            fs::write(root.join("Main.sol"), &source).expect("benchmark source");
+            fs::write(root.join("lib/Dependency.sol"), "contract Dependency {}\n")
+                .expect("benchmark dependency");
+            root
+        })
+        .collect::<Vec<_>>();
+    let path = roots[0].join("Main.sol");
+    let uri = Url::from_file_path(&path).unwrap();
+    let position = Position::new(
+        caller_count as u32 + 2,
+        format!("function caller{}() public {{ ", caller_count - 1).len() as u32,
+    );
+
+    let mut group = c.benchmark_group("lsp/workspace-index-reuse");
+    group.bench_function("4x256-callers-cold", |b| {
+        b.iter_batched_ref(
+            || BenchmarkRepeatedAnalysis::from_workspaces(&roots, &source),
+            |analysis| black_box(analysis.run_epoch()),
+            BatchSize::PerIteration,
+        );
+    });
+    group.bench_function("4x256-callers-open-indexed-document-first-prepare", |b| {
+        b.iter_batched_ref(
+            || {
+                let mut analysis = BenchmarkRepeatedAnalysis::from_workspaces(&roots, &source);
+                analysis.clear_open_documents();
+                assert!(analysis.run_epoch());
+                assert_eq!(analysis.prepare_call_hierarchy(&uri, position).unwrap().len(), 1);
+                analysis
+            },
+            |analysis| {
+                analysis.replace_source(&path, &source);
+                black_box(analysis.run_epoch());
+                black_box(analysis.prepare_call_hierarchy(&uri, position))
+            },
+            BatchSize::PerIteration,
+        );
+    });
+
+    let mut analysis = BenchmarkRepeatedAnalysis::from_workspaces(&roots, &source);
+    assert!(analysis.run_epoch());
+    assert_eq!(analysis.prepare_call_hierarchy(&uri, position).unwrap().len(), 1);
+    // Initialization and the first lazy query happen once, outside every incremental sample.
+    group.bench_function("4x256-callers-unchanged", |b| {
+        b.iter(|| black_box(analysis.run_epoch()));
+    });
+    group.bench_function("4x256-callers-unchanged-first-prepare", |b| {
+        b.iter(|| {
+            black_box(analysis.run_epoch());
+            black_box(analysis.prepare_call_hierarchy(&uri, position))
+        });
+    });
+    group.bench_function("4x256-callers-reverted-edit-first-prepare", |b| {
+        b.iter(|| {
+            analysis.edit_and_revert();
+            black_box(analysis.run_epoch());
+            black_box(analysis.prepare_call_hierarchy(&uri, position))
+        });
+    });
+    let mut edited = false;
+    group.bench_function("4x256-callers-one-workspace-edit-first-prepare", |b| {
+        b.iter(|| {
+            edited = !edited;
+            analysis.replace_source(&path, if edited { &edited_source } else { &source });
+            black_box(analysis.run_epoch());
+            black_box(analysis.prepare_call_hierarchy(&uri, position))
+        });
+    });
+    group.finish();
 }
 
 fn workspace_path_queries(c: &mut Criterion) {
@@ -1122,6 +1342,7 @@ criterion_group!(
     benches,
     analysis_build,
     rename_candidate_queries,
+    rename_requests,
     completion_queries,
     member_completion_queries,
     signature_help_requests,
@@ -1137,8 +1358,10 @@ criterion_group!(
     selection_range,
     open_document_selection_range,
     workspace_diagnostic_hot_paths,
+    incoming_document_changes,
     open_document_analysis_batches,
     repeated_analysis,
+    workspace_index_reuse,
     workspace_path_queries,
     unifap_benches
 );

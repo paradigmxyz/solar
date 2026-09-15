@@ -45,6 +45,7 @@ struct VfsFile {
     positions: OnceLock<LspPositionIndex<Rope>>,
     selection_range_index: OnceLock<SelectionRangeIndex>,
     folding_ranges: OnceLock<Vec<lsp_types::FoldingRange>>,
+    statement_boundary: OnceLock<(usize, usize)>,
 }
 
 impl VfsFile {
@@ -55,6 +56,7 @@ impl VfsFile {
             positions: OnceLock::new(),
             selection_range_index: OnceLock::new(),
             folding_ranges: OnceLock::new(),
+            statement_boundary: OnceLock::new(),
         }
     }
 
@@ -80,6 +82,19 @@ impl DocumentSource {
 
     pub(crate) fn source(&self) -> Arc<String> {
         self.0.analysis_source()
+    }
+
+    /// Returns the last statement boundary before a cursor, reusing the previous exact cursor.
+    pub(crate) fn statement_boundary(&self, cursor: usize) -> usize {
+        if let Some(&(cached_cursor, boundary)) = self.0.statement_boundary.get()
+            && cached_cursor == cursor
+        {
+            return boundary;
+        }
+        let source = self.source();
+        let boundary = crate::signature_help::last_statement_boundary(&source[..cursor]);
+        let _ = self.0.statement_boundary.set((cursor, boundary));
+        boundary
     }
 }
 

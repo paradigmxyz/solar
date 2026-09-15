@@ -8,9 +8,5 @@ fn @fold_phi_after_promotion(arg0: bool) -> u256 {
 
 fn @entry() [entry] {
   bb0:
-    jump bb1
-  bb1:
-    jump bb2
-  bb2:
     revert 0, 0
 }

@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/none/terminator_metadata.mir (before inst-simplify) ===
-+ // === ROOT/tests/ui/codegen/mir/none/terminator_metadata.mir (after inst-simplify) ===
+- // === ROOT/tests/ui/codegen/mir/none/terminator_metadata.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/none/terminator_metadata.mir (after egraph) ===
   @module TerminatorMetadata
   fn @checked(arg0: u256) -> u256 {
     bb0:

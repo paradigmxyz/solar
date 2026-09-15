@@ -1,0 +1,60 @@
+- // === ROOT/tests/ui/codegen/mir/word-sequence/constraints.mir (before word-sequence) ===
++ // === ROOT/tests/ui/codegen/mir/word-sequence/constraints.mir (after word-sequence) ===
+  @module RecipeConstraints
+  fn @shared_producers(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = not arg0
+      v1 = not arg1
+      v2 = and v0, v1
+      v3 = add v0, v1
+      v4 = xor v2, v3
+      ret v4
+  }
+  
+  fn @effect_barrier(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = not arg0
+      v1 = not arg1
+      mstore 0, arg0
+      v2 = and v0, v1
+      ret v2
+  }
+  
+  fn @gas_barrier(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = not arg0
+      v1 = not arg1
+      v2 = gas
+      v3 = and v0, v1
+      v4 = xor v3, v2
+      ret v4
+  }
+  
+  fn @fork_availability(arg0: u256) -> u256 {
+    bb0:
+-     v0 = lt arg0, 0x10000000000000000000000000000000000000000
++     v1 = shr 160, arg0
++     v0 = iszero v1
+      ret v0
+  }
+  
+  fn @cross_block(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = not arg0
+      v1 = not arg1
+      jump bb1
+    bb1:
+      v2 = and v0, v1
+      ret v2
+  }
+  
+  fn @recipe_metadata(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = not arg0
+-     v1 = not arg1
+-     v2 = and v0, v1 !metadata(span=10..20, modifier_depth=1)
++     v3 = or arg0, arg1 !metadata(span=10..20, modifier_depth=1)
++     v2 = not v3 !metadata(span=10..20, modifier_depth=1)
+      ret v2
+  }
+  

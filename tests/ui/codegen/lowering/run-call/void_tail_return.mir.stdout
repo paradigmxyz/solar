@@ -1,0 +1,219 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/void_tail_return.sol:VoidTailReturn ===
+@module VoidTailReturn
+types:
+  struct0: {u256, u256, u256}
+  struct1: {u256, u256}
+
+fn @tuple(arg0: u256, arg1: u256) -> struct0 [selector=0x420f3440, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+  bb0:
+    icall @forwardTuple, arg0, arg1
+    icall @forwardTuple, arg1, arg0
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = sload 1 !metadata(storage=slot(1))
+    v2 = sload 2 !metadata(storage=slot(2))
+    v3 = insert_value struct0, undef struct0, 0, v0
+    v4 = insert_value struct0, v3, 1, v1
+    v5 = insert_value struct0, v4, 2, v2
+    ret v5
+}
+
+fn @forwardTuple(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    v2 = iszero v1
+    revert_if v2, empty
+    icall @tupleSink, arg1, arg0, arg0
+    ret
+}
+
+fn @tupleSink(arg0: u256, arg1: u256, arg2: u256) {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    v2 = iszero v1
+    revert_if v2, empty
+    sstore 0, arg0 !metadata(storage=slot(0))
+    sstore 1, arg1 !metadata(storage=slot(1))
+    sstore 2, arg2 !metadata(storage=slot(2))
+    ret
+}
+
+fn @once(arg0: u256, arg1: u256) -> u256 [selector=0x4c579d9d, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    icall @forward, arg0, arg1
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @twice(arg0: u256, arg1: u256) -> u256 [selector=0x09d3ef31, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    icall @forward, arg0, arg1
+    icall @forward, arg1, arg0
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @forward(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    v2 = iszero v1
+    revert_if v2, empty
+    icall @sink, arg1, arg0, arg0
+    ret
+}
+
+fn @sink(arg0: u256, arg1: u256, arg2: u256) {
+  bb0:
+    v0 = lt arg0, 10
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v1 = lt arg1, 10
+    jump bb3
+  bb3:
+    v2 = phi [bb1: v1], [bb2: false]
+    jumpi v2, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v3 = lt arg2, 10
+    jump bb6
+  bb6:
+    v4 = phi [bb4: v3], [bb5: false]
+    v5 = iszero v4
+    revert_if v5, empty
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = checked_mul u256, v6, 0x3e8
+    v8 = checked_mul u256, arg0, 100
+    v9 = checked_add u256, v7, v8
+    v10 = checked_mul u256, arg1, 10
+    v11 = checked_add u256, v9, v10
+    v12 = checked_add u256, v11, arg2
+    sstore 0, v12 !metadata(storage=slot(0))
+    ret
+}
+
+fn @zero(arg0: u256) -> u256 [selector=0xe0353e59, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    icall @zeroForward, arg0
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @zeroForward(arg0: u256) {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    v2 = iszero v1
+    revert_if v2, empty
+    sstore 0, arg0 !metadata(storage=slot(0))
+    icall @finish
+    ret
+}
+
+fn @finish() {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v5]
+    v1 = lt v0, 4
+    jumpi v1, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = checked_add u256, v6, 6
+    sstore 0, v7 !metadata(storage=slot(0))
+    ret
+  bb4:
+    v2 = checked_add u256, v0, 1
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = checked_add u256, v3, v2
+    sstore 0, v4 !metadata(storage=slot(0))
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v5 = checked_add u256, v0, 1
+    jump bb1
+}
+
+fn @recurse(arg0: u256) -> u256 [selector=0xb2041d21, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    icall @recursive, arg0
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @recursive(arg0: u256) {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = checked_add u256, v0, arg0
+    sstore 0, v1 !metadata(storage=slot(0))
+    v2 = eq arg0, 0
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v4 = checked_sub u256, arg0, 1
+    icall @recursive, v4
+    jump bb3
+  bb3:
+    ret
+}
+
+fn @recursePair(arg0: u256, arg1: u256, arg2: u256) -> struct1 [selector=0x6920ce60, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    icall @recursivePair, arg0, arg1, arg2
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = sload 1 !metadata(storage=slot(1))
+    v2 = insert_value struct1, undef struct1, 0, v0
+    v3 = insert_value struct1, v2, 1, v1
+    ret v3
+}
+
+fn @recursivePair(arg0: u256, arg1: u256, arg2: u256) {
+  bb0:
+    v0 = eq arg2, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    v1 = checked_add u256, arg0, 1
+    v2 = checked_sub u256, arg2, 1
+    icall @recursivePair, arg1, v1, v2
+    jump bb3
+  bb1:
+    sstore 0, arg0 !metadata(storage=slot(0))
+    sstore 1, arg1 !metadata(storage=slot(1))
+    jump bb3
+  bb3:
+    ret
+}
+
+fn @recurseYul(arg0: u256) -> u256 [selector=0xdcf2147e, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    icall @recursiveYul, arg0
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @recursiveYul(arg0: u256) {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = add v2, arg0
+    sstore 0, v3 !metadata(storage=slot(0))
+    v4 = sub arg0, 1
+    icall @recursiveYul, v4
+    jump bb3
+  bb3:
+    ret
+}

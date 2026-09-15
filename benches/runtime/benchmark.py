@@ -22,6 +22,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import cache, lru_cache
 from pathlib import Path
+from urllib.parse import quote
 
 from cases import (
     DEFAULT_FOURTH,
@@ -294,10 +295,28 @@ def with_evm_version(input_text: str, evm_version: str | None) -> str:
     return json.dumps(payload)
 
 
+def with_optimizer_runs(input_text: str, optimizer_runs: int | None) -> str:
+    """Replaces the optimizer run count of a Standard JSON input.
+
+    Solar selects its objective from the run count: fewer than 200 runs optimize for size,
+    200 or more for gas. Pinning every case to one count benchmarks the corpus under one
+    objective for both compilers.
+    """
+    if optimizer_runs is None:
+        return input_text
+    payload = json.loads(input_text)
+    optimizer = payload.setdefault("settings", {}).setdefault("optimizer", {})
+    optimizer["enabled"] = True
+    optimizer["runs"] = optimizer_runs
+    return json.dumps(payload)
+
+
 def compiler_input(
-    test_case: TestCase, evm_version: str | None
+    test_case: TestCase,
+    evm_version: str | None,
+    optimizer_runs: int | None = None,
 ) -> tuple[str, int, str]:
-    if test_case.project_file is not None:
+    if test_case.project is not None:
         if test_case.whole_project:
             input_text = project_full_standard_json_input(test_case.project_file)
             timeout = 900
@@ -314,6 +333,7 @@ def compiler_input(
         input_text = standard_json_input(test_case)
         timeout = 120
     input_text = with_evm_version(input_text, evm_version)
+    input_text = with_optimizer_runs(input_text, optimizer_runs)
     return input_text, timeout, hashlib.sha256(input_text.encode()).hexdigest()
 
 
@@ -511,8 +531,8 @@ def compile_case(
         "peak_rss_bytes": None,
         "error": "",
     }
-    if test_case.project_file is not None:
-        result.update(source=test_case.source, project=test_case.project)
+    if test_case.project is not None:
+        result.update(source=test_case.source, project=test_case.project.name)
         if not test_case.project_path.exists():
             result["status"] = "failed"
             result["error"] = f"vendored project not found: {test_case.project_file}"
@@ -1535,6 +1555,40 @@ def merge_reference_compiler(
     return True
 
 
+@cache
+def source_revision() -> str:
+    return subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=REPOSITORY_ROOT, text=True
+    ).strip()
+
+
+def source_links(test_case: TestCase) -> list[dict[str, str]]:
+    paths = []
+    if test_case.project is not None:
+        paths.append(str(test_case.project_path.relative_to(REPOSITORY_ROOT)))
+    if test_case.source_path:
+        paths.append(test_case.source_path)
+    if not paths:
+        paths.append("benches/runtime/cases.py")
+    links = [
+        {
+            "label": path,
+            "url": f"https://github.com/paradigmxyz/solar/blob/{source_revision()}/{quote(path)}",
+        }
+        for path in paths
+    ]
+    links.extend(
+        {
+            "label": source.repo,
+            "url": f"https://github.com/{source.repo}/tree/{source.commit}",
+        }
+        for source in (
+            test_case.project.sources if test_case.project is not None else ()
+        )
+    )
+    return links
+
+
 def failed_test_result(
     test_case: TestCase,
     specs: Sequence[CompilerSpec],
@@ -1548,13 +1602,14 @@ def failed_test_result(
         "contract_name": test_case.contract_name,
         "suite": test_case.suite,
         "gas_profile": gas_profile,
+        "source_links": source_links(test_case),
         "benchmark_error": message,
         "compilers": {
             spec.compiler_id: {"status": "failed", "error": message} for spec in specs
         },
     }
-    if test_case.project_file is not None:
-        entry["project"] = test_case.project
+    if test_case.project is not None:
+        entry["project"] = test_case.project.name
         entry["source"] = test_case.source
     return entry
 
@@ -1572,6 +1627,7 @@ def run_test_case(
     reference_solc_path: Path | None = None,
     repeat_long_compiles: bool = False,
     artifact_root: Path | None = None,
+    optimizer_runs: int | None = None,
 ) -> dict[str, object]:
     entry: dict[str, object] = {
         "test_id": test_case.test_id,
@@ -1579,10 +1635,11 @@ def run_test_case(
         "contract_name": test_case.contract_name,
         "suite": test_case.suite,
         "gas_profile": gas_profile,
+        "source_links": source_links(test_case),
         "compilers": {},
     }
-    if test_case.project_file is not None:
-        entry["project"] = test_case.project
+    if test_case.project is not None:
+        entry["project"] = test_case.project.name
         entry["source"] = test_case.source
     reference_solc = next(
         (spec.path for spec in specs if spec.kind == "solc"), reference_solc_path
@@ -1590,7 +1647,7 @@ def run_test_case(
     prepared_input = (
         None
         if test_case.project_file is not None and not test_case.project_path.exists()
-        else compiler_input(test_case, evm_version)
+        else compiler_input(test_case, evm_version, optimizer_runs)
     )
     for spec in specs:
         verbose_log(verbose, f"[{test_case.test_id}] compiling with {spec.compiler_id}")
@@ -1807,6 +1864,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Override Standard JSON `evmVersion` for every benchmark case",
     )
     parser.add_argument(
+        "--optimizer-runs",
+        type=int,
+        help="Override Standard JSON `optimizer.runs` for every benchmark case; below 200 Solar optimizes for size",
+    )
+    parser.add_argument(
         "--solar-only",
         action="store_true",
         help="Skip reference compiler compilation even when --solc or --solx is supplied",
@@ -1884,14 +1946,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.projects:
         project_set = set(args.projects)
-        suite_tests = [test for test in suite_tests if test.project in project_set]
+        suite_tests = [
+            test
+            for test in suite_tests
+            if test.project is not None and test.project.name in project_set
+        ]
 
     test_map = {test.test_id: test for test in suite_tests}
     if args.list_tests:
         for test in suite_tests:
-            if test.project_file is not None:
+            if test.project is not None:
                 print(
-                    f"{test.test_id}	{test.project}	{test.source}	{test.contract_name}"
+                    f"{test.test_id}	{test.project.name}	{test.source}	{test.contract_name}"
                 )
             else:
                 print(
@@ -2031,6 +2097,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     if args.evm_version:
         print(f"Forcing EVM version {args.evm_version}")
+    if args.optimizer_runs is not None:
+        objective = "size" if args.optimizer_runs < 200 else "gas"
+        print(f"Forcing optimizer runs {args.optimizer_runs} ({objective} objective for Solar)")
     print(f"Running {len(tests)} tests")
 
     results = []
@@ -2075,6 +2144,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     solc,
                     args.repeat_long_compiles,
                     args.artifacts,
+                    args.optimizer_runs,
                 )
             except Exception as exc:
                 print(
@@ -2161,6 +2231,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     document = {
         "format_version": 1,
         "evm_version_override": args.evm_version,
+        "optimizer_runs_override": args.optimizer_runs,
         "timings": timings,
         "results": results,
     }

@@ -1,6 +1,6 @@
 //@ revisions: roundtrip simplify pipeline
 //@[roundtrip] compile-flags: -Zmir-pipeline=none
-//@[simplify] compile-flags: -Zmir-pipeline=inst-simplify,dce
+//@[simplify] compile-flags: -Zmir-pipeline=egraph,dce
 //@[pipeline] compile-flags: -Zmir-pipeline=default
 //@ filecheck:
 @module TerminatorMetadata

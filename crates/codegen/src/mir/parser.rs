@@ -121,6 +121,12 @@ struct BlockLabel {
     reference_span: Option<Span>,
 }
 
+/// Pairs an operation with the result type its schema entry declares.
+fn schema_typed(kind: InstKind) -> (InstKind, Option<MirType>) {
+    let ty = kind.op_def().result.default_type();
+    (kind, ty)
+}
+
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn new(sess: &'sess Session, arena: &'ast Arena, source: &SourceFile) -> Self {
         Self {
@@ -184,8 +190,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.parser.bump();
         Ok(MangledSymbol::disambiguated(symbol, disambiguator))
     }
-
-    // ----- module / function parsing -----
 
     fn parse_module(&mut self) -> PResult<'sess, Module> {
         let mut phase = super::MirPhase::default();
@@ -741,7 +745,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             return Ok(builder.imm_bool(false));
         }
         if ident == sym::err {
-            // Reconstructing an already-reported error state from text: there
             // is no live diagnostic to propagate here.
             let guar = solar_interface::diagnostics::ErrorGuaranteed::new_unchecked();
             return Ok(builder.error_value(guar));
@@ -1569,13 +1572,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         builder: &mut FunctionBuilder<'_>,
     ) -> PResult<'sess, (InstKind, Option<MirType>)> {
         macro_rules! operands {
-            () => {};
             ($first:ident $(, $rest:ident)*) => {
                 let $first = self.parse_value(builder)?;
-                $(
-                    self.parser.expect(TokenKind::Comma)?;
-                    let $rest = self.parse_value(builder)?;
-                )*
+                $(self.parser.expect(TokenKind::Comma)?;
+                  let $rest = self.parse_value(builder)?;)*
             };
         }
         macro_rules! inst {
@@ -1585,67 +1585,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }};
             ($kind:ident($($operand:ident),*)) => {{
                 operands!($($operand),*);
-                (InstKind::$kind($($operand),*), None)
+                let kind = InstKind::$kind($($operand),*);
+                let ty = kind.op_def().result.default_type();
+                (kind, ty)
             }};
         }
-        macro_rules! unit {
-            ($kind:ident => $ty:expr) => {
-                (InstKind::$kind, Some($ty))
-            };
-        }
-        macro_rules! struct_inst {
-            ($kind:ident { $($operand:ident),* } => $ty:expr) => {{
-                operands!($($operand),*);
-                (InstKind::$kind { $($operand),* }, Some($ty))
-            }};
-        }
-
         let parsed = match mnemonic {
-            // Arithmetic and bitwise operations.
-            kw::Add => inst!(Add(a, b) => MirType::uint256()),
-            kw::Sub => inst!(Sub(a, b) => MirType::uint256()),
-            kw::Mul => inst!(Mul(a, b) => MirType::uint256()),
-            kw::Div => inst!(Div(a, b) => MirType::uint256()),
-            kw::Sdiv => inst!(SDiv(a, b) => MirType::int256()),
-            kw::Mod => inst!(Mod(a, b) => MirType::uint256()),
-            kw::Smod => inst!(SMod(a, b) => MirType::int256()),
-            kw::Exp => inst!(Exp(a, b) => MirType::uint256()),
-            kw::Addmod => inst!(AddMod(a, b, c) => MirType::uint256()),
-            kw::Mulmod => inst!(MulMod(a, b, c) => MirType::uint256()),
-            kw::And => inst!(And(a, b) => MirType::uint256()),
-            kw::Or => inst!(Or(a, b) => MirType::uint256()),
-            kw::Xor => inst!(Xor(a, b) => MirType::uint256()),
-            kw::Not => inst!(Not(a) => MirType::uint256()),
-            kw::Clz => inst!(Clz(a) => MirType::uint256()),
-            kw::Shl => inst!(Shl(a, b) => MirType::uint256()),
-            kw::Shr => inst!(Shr(a, b) => MirType::uint256()),
-            kw::Sar => inst!(Sar(a, b) => MirType::int256()),
-            kw::Byte => inst!(Byte(a, b) => MirType::uint256()),
-            kw::Signextend => inst!(SignExtend(a, b) => MirType::int256()),
-
-            // Comparisons.
-            kw::Lt => inst!(Lt(a, b) => MirType::Bool),
-            kw::Gt => inst!(Gt(a, b) => MirType::Bool),
-            kw::Slt => inst!(SLt(a, b) => MirType::Bool),
-            kw::Sgt => inst!(SGt(a, b) => MirType::Bool),
-            kw::Eq => inst!(Eq(a, b) => MirType::Bool),
-            kw::Iszero => inst!(IsZero(a) => MirType::Bool),
-
-            // Memory and storage.
-            kw::Mload => inst!(MLoad(a) => MirType::uint256()),
-            kw::Mstore => inst!(MStore(a, b)),
-            kw::Mstore8 => inst!(MStore8(a, b)),
-            sym::memory_zero => inst!(MemoryZero(a, b)),
-            kw::Msize => unit!(MSize => MirType::uint256()),
-            kw::Mcopy => inst!(MCopy(a, b, c)),
-            kw::Sload => inst!(SLoad(a) => MirType::uint256()),
-            kw::Sstore => inst!(SStore(a, b)),
-            kw::Tload => inst!(TLoad(a) => MirType::uint256()),
-            kw::Tstore => inst!(TStore(a, b)),
-
             // Free-memory pointer and allocation.
-            sym::fmp => unit!(Fmp => MirType::MemPtr),
-            sym::set_fmp => inst!(SetFmp(a)),
             sym::alloc => {
                 let name = self.parser.parse_ident()?;
                 let kind = match name {
@@ -2036,11 +1982,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::ClearStorage { storage, layout }, None)
             }
 
-            // Calldata, code, and return data.
-            kw::Calldataload => inst!(CalldataLoad(a) => MirType::uint256()),
-            kw::Calldatasize => unit!(CalldataSize => MirType::uint256()),
-            kw::Calldatacopy => inst!(CalldataCopy(a, b, c)),
-
             // Slices.
             sym::make_memory_slice | sym::make_calldata_slice | sym::make_returndata_slice => {
                 let ptr = self.parse_value(builder)?;
@@ -2055,10 +1996,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 };
                 (InstKind::MakeSlice { ptr, len, location }, Some(MirType::Slice(location)))
             }
-            sym::slice_ptr => inst!(SlicePtr(a) => MirType::uint256()),
-            sym::slice_len => inst!(SliceLen(a) => MirType::uint256()),
-            sym::constructor_args_base => unit!(ConstructorArgsBase => MirType::uint256()),
-            sym::constructor_args_end => unit!(ConstructorArgsEnd => MirType::uint256()),
 
             sym::data_copy => {
                 let data = self.parse_data_ref()?;
@@ -2068,8 +2005,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let size = self.parse_value(builder)?;
                 (InstKind::DataCopy(data, dest, size), None)
             }
-            kw::Codesize => unit!(CodeSize => MirType::uint256()),
-            kw::Codecopy => inst!(CodeCopy(a, b, c)),
             sym::storeimmutable => {
                 let (id, _) = self.parse_immutable_ref()?;
                 self.parser.expect(TokenKind::Comma)?;
@@ -2080,32 +2015,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let (id, ty) = self.parse_immutable_ref()?;
                 (InstKind::LoadImmutable(id), Some(ty))
             }
-            kw::Extcodesize => inst!(ExtCodeSize(a) => MirType::uint256()),
-            kw::Extcodecopy => inst!(ExtCodeCopy(a, b, c, d)),
-            kw::Extcodehash => inst!(ExtCodeHash(a) => MirType::uint256()),
-            kw::Returndatasize => unit!(ReturnDataSize => MirType::uint256()),
-            kw::Returndatacopy => inst!(ReturnDataCopy(a, b, c)),
-
-            // Environment.
-            kw::Caller => unit!(Caller => MirType::Address),
-            kw::Callvalue => unit!(CallValue => MirType::uint256()),
-            kw::Origin => unit!(Origin => MirType::Address),
-            kw::Gasprice => unit!(GasPrice => MirType::uint256()),
-            kw::Coinbase => unit!(Coinbase => MirType::Address),
-            kw::Timestamp => unit!(Timestamp => MirType::uint256()),
-            kw::Number => unit!(BlockNumber => MirType::uint256()),
-            kw::Prevrandao => unit!(PrevRandao => MirType::uint256()),
-            kw::Gaslimit => unit!(GasLimit => MirType::uint256()),
-            kw::Slotnum => unit!(SlotNum => MirType::uint256()),
-            kw::Chainid => unit!(ChainId => MirType::uint256()),
-            kw::Address => unit!(Address => MirType::Address),
-            kw::Selfbalance => unit!(SelfBalance => MirType::uint256()),
-            kw::Gas => unit!(Gas => MirType::uint256()),
-            kw::Basefee => unit!(BaseFee => MirType::uint256()),
-            kw::Blobbasefee => unit!(BlobBaseFee => MirType::uint256()),
-            kw::Blockhash => inst!(BlockHash(a) => MirType::bytes32()),
-            kw::Balance => inst!(Balance(a) => MirType::uint256()),
-            kw::Blobhash => inst!(BlobHash(a) => MirType::bytes32()),
 
             // Hashing.
             kw::Keccak256 => inst!(Keccak256(a, b) => MirType::bytes32()),
@@ -2256,20 +2165,20 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 )
             }
             sym::returndata_bytes => {
-                unit!(ReturndataBytes => MirType::MemoryObject(MemoryObjectKind::Bytes))
+                (InstKind::ReturndataBytes, Some(MirType::MemoryObject(MemoryObjectKind::Bytes)))
             }
             sym::send => inst!(Send(a, b) => MirType::uint256()),
             sym::transfer => inst!(Transfer(a, b)),
             sym::keccak256_bytes => inst!(Keccak256Bytes(a) => MirType::bytes32()),
             sym::mapping_slot => inst!(MappingSlot(key, slot) => MirType::bytes32()),
             sym::mapping_slot_memory => {
-                inst!(MappingSlotMemory(key, slot) => MirType::bytes32())
+                inst!(MappingSlotMemory(key, slot))
             }
             sym::mapping_slot_calldata => {
-                inst!(MappingSlotCalldata(key, slot) => MirType::bytes32())
+                inst!(MappingSlotCalldata(key, slot))
             }
             sym::storage_array_data_slot => {
-                inst!(StorageArrayDataSlot(slot) => MirType::bytes32())
+                inst!(StorageArrayDataSlot(slot))
             }
             sym::storage_array_element_slot => {
                 let slot = self.parse_value(builder)?;
@@ -2286,24 +2195,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
 
             // Calls and creation.
-            kw::Call => struct_inst!(Call {
-                gas, addr, value, args_offset, args_size, ret_offset, ret_size
-            } => MirType::uint256()),
-            kw::Callcode => struct_inst!(CallCode {
-                gas, addr, value, args_offset, args_size, ret_offset, ret_size
-            } => MirType::uint256()),
-            kw::Staticcall => struct_inst!(StaticCall {
-                gas, addr, args_offset, args_size, ret_offset, ret_size
-            } => MirType::uint256()),
-            kw::Delegatecall => struct_inst!(DelegateCall {
-                gas, addr, args_offset, args_size, ret_offset, ret_size
-            } => MirType::uint256()),
-            kw::Extcall => struct_inst!(ExtCall { addr, args_offset, args_size, value }
-                => MirType::uint256()),
-            kw::Extdelegatecall => struct_inst!(ExtDelegateCall { addr, args_offset, args_size }
-                => MirType::uint256()),
-            kw::Extstaticcall => struct_inst!(ExtStaticCall { addr, args_offset, args_size }
-                => MirType::uint256()),
             sym::icall => {
                 let function = if self.parser.eat_keyword(sym::concat) {
                     self.parser.expect(TokenKind::Lt)?;
@@ -2367,8 +2258,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let value = self.parse_value(builder)?;
                 (InstKind::FrameStore { offset, mode, kind, value }, None)
             }
-            kw::Create => inst!(Create(a, b, c) => MirType::Address),
-            kw::Create2 => inst!(Create2(a, b, c, d) => MirType::Address),
 
             // Logs and SSA operations.
             kw::Log0 => inst!(Log0(a, b)),
@@ -2460,11 +2349,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::Phi(incoming), Some(declared.unwrap_or(ty)))
             }
 
-            _ => {
-                return Err(self
-                    .parser
-                    .error_at(mnemonic_span, format!("unknown instruction `{mnemonic}`")));
-            }
+            // Operations built from value operands alone come from the schema.
+            _ => match InstKind::operand_only(mnemonic.as_str()) {
+                Some((arity, build)) => {
+                    let mut operands = SmallVec::<[ValueId; 8]>::new();
+                    for index in 0..arity {
+                        if index > 0 {
+                            self.parser.expect(TokenKind::Comma)?;
+                        }
+                        operands.push(self.parse_value(builder)?);
+                    }
+                    schema_typed(build(&operands))
+                }
+                None => {
+                    return Err(self
+                        .parser
+                        .error_at(mnemonic_span, format!("unknown instruction `{mnemonic}`")));
+                }
+            },
         };
         Ok(parsed)
     }

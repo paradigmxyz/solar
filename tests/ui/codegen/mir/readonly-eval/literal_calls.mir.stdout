@@ -1,0 +1,138 @@
+// === ROOT/tests/ui/codegen/mir/readonly-eval/literal_calls.sol:LiteralCalls ===
+@module LiteralCalls
+types:
+  struct0: {u256, u256}
+
+immutables:
+  answer: u256
+  shortWord: bytes32
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = not 31
+    v1 = and 95, v0
+    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    set_memory_object_len memorybytes, v2, 32
+    v3 = add v2, 32
+    mstore v3, 41
+    v4 = icall @readWord, v2
+    v5 = checked_add u256, v4, 1
+    storeimmutable answer, v5
+    v6 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v6, 1
+    v7 = memory_object_data memorybytes, v6
+    mstore v7, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v8 = icall @toShort, v6
+    storeimmutable shortWord, v8
+    ret
+}
+
+fn @words() -> struct0 [selector=0xf2c31bd9, view, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, bytes32]] {
+  bb0:
+    v0 = loadimmutable answer
+    v1 = loadimmutable shortWord
+    v2 = insert_value struct0, undef struct0, 0, v0
+    v3 = insert_value struct0, v2, 1, v1
+    ret v3
+}
+
+fn @dynamicWord(arg0: u256) -> u256 [selector=0x0c872375, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = not 31
+    v1 = and 95, v0
+    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    set_memory_object_len memorybytes, v2, 32
+    v3 = add v2, 32
+    mstore v3, arg0
+    v4 = icall @readWord, v2
+    ret v4
+}
+
+fn @sideEffects(arg0: bool) -> struct0 [selector=0x4335d2b9, abi_params=[bool], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    v0 = not 31
+    v1 = and 95, v0
+    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    set_memory_object_len memorybytes, v2, 32
+    v3 = add v2, 32
+    mstore v3, 42
+    v4 = icall @choose, v2, arg0
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = insert_value struct0, undef struct0, 0, v4
+    v7 = insert_value struct0, v6, 1, v5
+    ret v7
+}
+
+fn @modified(arg0: u256) -> u256 [selector=0xd492dffb, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = not 31
+    v1 = and 95, v0
+    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    set_memory_object_len memorybytes, v2, 32
+    v3 = add v2, 32
+    mstore v3, 42
+    icall @overwrite, v2, arg0
+    v4 = icall @readWord, v2
+    ret v4
+}
+
+fn @fails() -> u256 [selector=0xce869a64, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v0, 0
+    v1 = memory_object_data memorybytes, v0
+    v2 = icall @readWord, v0
+    ret v2
+}
+
+fn @readWord(arg0: memorybytes) -> u256 [pure] {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    v1 = eq v0, 32
+    v2 = iszero v1
+    revert_if v2, empty
+    v3 = add arg0, 32
+    v4 = mload v3
+    ret v4
+}
+
+fn @toShort(arg0: memorybytes) -> bytes32 [pure] {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    v1 = lt v0, 32
+    v2 = iszero v1
+    revert_if v2, empty
+    v3 = not 0
+    v4 = mload arg0
+    v5 = sub 32, v4
+    v6 = mul v5, 8
+    v7 = shl v6, v3
+    v8 = mload arg0
+    v9 = add arg0, 32
+    v10 = mload v9
+    v11 = and v10, v7
+    v12 = or v11, v8
+    ret v12
+}
+
+fn @choose(arg0: memorybytes, arg1: bool) -> u256 {
+  bb0:
+    jumpi arg1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = checked_add u256, v1, 1
+    sstore 0, v2 !metadata(storage=slot(0))
+    ret 7
+  bb1:
+    v0 = icall @readWord, arg0
+    ret v0
+}
+
+fn @overwrite(arg0: memorybytes, arg1: u256) [pure] {
+  bb0:
+    v0 = add arg0, 32
+    mstore v0, arg1
+    ret
+}

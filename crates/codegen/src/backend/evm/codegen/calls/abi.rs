@@ -124,6 +124,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     has_return = true;
                     values.len() == arity
                 }
+                // `stop` halts the message call, so it cannot satisfy an internal stack-return
+                // convention.
+                Some(Terminator::Stop) => false,
                 _ => true,
             });
             if self.static_frame_functions.contains(func_id)

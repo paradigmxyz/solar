@@ -133,8 +133,8 @@
 +   push 1
 +   pop
 +   jump
-+ bb3:
++ bb3 [continuation]:
 +   jump bb1
-+ bb4:
++ bb4 [continuation]:
     stop
   

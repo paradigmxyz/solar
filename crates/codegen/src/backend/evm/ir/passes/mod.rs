@@ -3,16 +3,23 @@
 //! This module owns the pass list and canonical backend pipeline. Individual
 //! transforms live in their own modules so their implementation and invariants
 //! remain local, matching the organization of the MIR transforms.
+//! Within a pipeline run, a pass that reported no change need not repeat until
+//! another pass changes the module. The cache uses the pass type, name, and an
+//! explicit configuration key so differently configured adapters stay distinct.
+//! A changing pass clears the cache; no pass is assumed to reach a fixed point.
 
 mod block_cse;
 mod block_layout;
 mod cfg_simplify;
 mod coalesce_copies;
-pub(in crate::backend) mod compact_pushes;
+pub(crate) mod compact_pushes;
 mod constant_data;
 pub(super) mod data;
 mod dce;
+mod inline_returns;
+mod late_structural;
 mod legalize_shifts;
+mod loop_layout;
 mod outline;
 mod peephole;
 mod reorder_pushes;
@@ -20,6 +27,7 @@ mod share_reverts;
 mod stack_normalize;
 mod tail_merge;
 mod terminal_dedup;
+mod terminal_layout;
 pub(super) mod utils;
 
 pub(in crate::backend) use legalize_shifts::legalize_shifts;
@@ -31,14 +39,15 @@ use crate::{
     },
     timing::PassTimer,
 };
-use solar_config::{EvmVersion, OptimizationMode};
+use solar_config::OptimizationMode;
 use solar_interface::diagnostics::DiagCtxt;
 use solar_sema::Gcx;
+use std::any::{Any, TypeId};
 
 pub use crate::mir::pass_manager::pipeline_label;
 
 /// A streamlined trait for an EVM IR transformation pass.
-pub trait EvmPass: Sync {
+pub trait EvmPass: Any + Sync {
     /// Command-line and pipeline name.
     fn name(&self) -> &'static str;
 
@@ -52,17 +61,38 @@ pub trait EvmPass: Sync {
         false
     }
 
+    /// Stable discriminator for configured instances of the same pass type and name.
+    fn cache_config(&self) -> u64 {
+        0
+    }
+
     /// Runs the pass and returns whether it changed EVM IR.
     #[must_use]
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool;
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+struct PassCacheKey {
+    type_id: TypeId,
+    name: &'static str,
+    config: u64,
+}
+
+impl PassCacheKey {
+    fn new(pass: &dyn EvmPass) -> Self {
+        Self { type_id: pass.type_id(), name: pass.name(), config: pass.cache_config() }
+    }
 }
 
 /// All EVM IR passes exposed by `-Zevm-ir-pipeline`.
 pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &block_cse::BlockCse,
     &peephole::Peephole::FINAL,
+    &peephole::LateWord,
     &dce::Dce,
+    &inline_returns::InlineReturns,
     &reorder_pushes::REORDER_PUSHES,
+    &reorder_pushes::REORDER_EXPRESSIONS,
     &share_reverts::ShareReverts,
     &stack_normalize::StackDedup,
     &stack_normalize::StackNormalize,
@@ -76,6 +106,8 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &terminal_dedup::TerminalDedup,
     &tail_merge::TailMerge,
     &block_layout::BlockLayout,
+    &loop_layout::LoopLayout,
+    &terminal_layout::TerminalLayout,
 ];
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
@@ -116,8 +148,8 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &cfg_simplify::CfgSimplify::EARLY,
     &block_layout::BlockLayout,
     // Block CSE and final placement can expose new equal tails whose addresses or predecessors
-    // differed during the first structural sweep. Repeat the structural half to a fixed point at
-    // pass granularity; each pass remains internally profitability-gated.
+    // differed during the first structural sweep. Run a bounded second structural sweep;
+    // each pass remains internally profitability-gated.
     &terminal_dedup::TerminalDedup,
     &cfg_simplify::CfgSimplify::EARLY,
     &tail_merge::TailMerge,
@@ -134,7 +166,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &share_reverts::ShareReverts,
     &cfg_simplify::CfgSimplify::FINAL,
     &block_layout::BlockLayout,
-    // Materialize constants and finalize the referenced data pool after all code transforms.
+    // Materialize constants and pack the referenced data pool before final sharing and cleanup.
     &constant_data::ConstantData,
     &data::PackData,
     // Data packing can add compactable immediates and local stack shuffles.
@@ -142,6 +174,14 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Peephole::FINAL,
     &stack_normalize::StackDedup,
     &peephole::Cleanup(dce::Dce),
+    &late_structural::LateStructural,
+    &peephole::Peephole::FINAL,
+    &inline_returns::InlineReturns,
+    &cfg_simplify::CfgSimplify::FINAL,
+    &loop_layout::LoopLayout,
+    &terminal_layout::TerminalLayout,
+    &reorder_pushes::REORDER_EXPRESSIONS,
+    &peephole::LateWord,
 ];
 
 /// Finds an EVM IR pass by command-line name.
@@ -178,6 +218,7 @@ fn run_passes_inner(
         name.map(ToOwned::to_owned).unwrap_or_else(|| pipeline_output_name(gcx, module.name()));
     let explicit = name.is_some();
     let mut changed = false;
+    let mut unchanged = Vec::<PassCacheKey>::new();
     for pass in passes {
         let pass_name = pass.name();
         let before =
@@ -191,14 +232,24 @@ fn run_passes_inner(
             assert_debug_info_handled(module, pass_name, "before");
             let errors_before = gcx.dcx().err_count();
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
-            let pass_changed = pass.run_pass(gcx, module);
+            let cache_key = PassCacheKey::new(*pass);
+            let cached = unchanged.contains(&cache_key);
+            debug_assert!(unchanged.iter().filter(|entry| **entry == cache_key).count() <= 1);
+            let target_support_before = (!cached && validate_each && should_validate_ir(gcx))
+                .then(|| super::verify::Verifier::new(gcx).target_support_snapshot(module));
+            let pass_changed = !cached && pass.run_pass(gcx, module);
+            if pass_changed {
+                unchanged.clear();
+            } else if !cached {
+                unchanged.push(cache_key);
+            }
             timer.finish("EVM IR", module.name(), pass_name, pass_changed);
             changed |= pass_changed;
             if gcx.dcx().err_count() != errors_before {
                 return changed;
             }
-            if pass_changed && validate_each && should_validate_ir(gcx) {
-                validate_module_after_pass(module, pass_name);
+            if pass_changed && let Some(target_support_before) = target_support_before {
+                validate_module_after_pass(gcx, module, pass_name, &target_support_before);
             }
             assert_debug_info_handled(module, pass_name, "after");
         }
@@ -213,9 +264,15 @@ fn run_passes_inner(
     changed
 }
 
-fn validate_module_after_pass(module: &Module, pass_name: &str) {
+fn validate_module_after_pass(
+    gcx: Gcx<'_>,
+    module: &Module,
+    pass_name: &str,
+    target_support_before: &super::verify::TargetSupportSnapshot,
+) {
     let dcx = DiagCtxt::new_early();
-    super::verify::Verifier::for_evm_version(&dcx, EvmVersion::Osaka).verify_module_shape(module);
+    super::verify::Verifier::for_evm_version(&dcx, gcx.sess.opts.evm_version)
+        .verify_between_passes(module, target_support_before);
     if dcx.has_errors().is_err() {
         panic!("EVM IR validation failed after `{pass_name}`");
     }
@@ -282,4 +339,24 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
         }
     }
     changed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pass_cache_keys_include_configuration() {
+        let ordinary = PassCacheKey::new(&reorder_pushes::REORDER_PUSHES);
+        let final_pushes = PassCacheKey::new(&reorder_pushes::FINAL_REORDER_PUSHES);
+        let expressions = PassCacheKey::new(&reorder_pushes::REORDER_EXPRESSIONS);
+
+        assert_ne!(ordinary, final_pushes);
+        assert_ne!(final_pushes, expressions);
+        assert_ne!(ordinary, expressions);
+        assert_eq!(ordinary, PassCacheKey::new(&reorder_pushes::REORDER_PUSHES));
+
+        let dce_with_cleanup = peephole::Cleanup(dce::Dce);
+        assert_ne!(PassCacheKey::new(&dce::Dce), PassCacheKey::new(&dce_with_cleanup));
+    }
 }

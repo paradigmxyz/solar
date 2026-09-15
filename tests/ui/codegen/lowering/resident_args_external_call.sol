@@ -27,7 +27,6 @@ contract ResidentArgsExternalCall {
     // CHECK-NEXT: push 4
     // CHECK-NEXT: push [[TARGET:[0-9]+]]
     // CHECK-NEXT: mstore
-    // CHECK-NEXT: dup 1
     // CHECK-NEXT: push [[GAS:[0-9]+]]
     // CHECK-NEXT: mstore
     // CHECK-COUNT-6: {{^  add$}}

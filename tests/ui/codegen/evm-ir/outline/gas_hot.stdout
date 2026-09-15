@@ -85,8 +85,8 @@
     push 1
     pop
 +   jump
-+ bb4:
++ bb4 [continuation]:
 +   jump bb1
-+ bb5:
++ bb5 [continuation]:
     stop
   

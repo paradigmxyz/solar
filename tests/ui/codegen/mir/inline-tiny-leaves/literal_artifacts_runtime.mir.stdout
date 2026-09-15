@@ -1,0 +1,41 @@
+// === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/literal_artifacts_runtime.sol:LiteralArtifacts ===
+@module LiteralArtifacts
+immutables:
+  initial: bytes32
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @version
+    v1 = keccak256_bytes v0
+    storeimmutable initial, v1
+    ret
+}
+
+fn @version() -> memorybytes [selector=0x54fd4d50, pure, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 1
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @constructorAndRuntime() -> bool [selector=0x6b57fb7b, view, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = loadimmutable initial
+    v1 = address
+    v2 = gas
+    v3 = abi_encode [], selector 0x54fd4d5000000000000000000000000000000000000000000000000000000000
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = staticcall v2, v1, v4, v5, 0, 0
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = returndata_bytes
+    v8 = abi_decode [bytes], v7
+    v9 = keccak256_bytes v8
+    v10 = eq v0, v9
+    ret v10
+}

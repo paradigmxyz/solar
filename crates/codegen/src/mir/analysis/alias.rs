@@ -294,6 +294,12 @@ impl ModRef {
         self.writes.contains(&Access::Any(space))
     }
 
+    /// Returns whether this operation may read `location`.
+    #[must_use]
+    pub(crate) fn may_read(&self, aa: &AliasAnalysis, location: Location) -> bool {
+        self.reads.iter().any(|&access| aa.access_may_alias(access, location))
+    }
+
     /// Returns whether this operation may write `location`.
     #[must_use]
     pub(crate) fn may_write(&self, aa: &AliasAnalysis, location: Location) -> bool {
@@ -1384,10 +1390,14 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
+                    effects.observes_memory_size = summary.may_observe_msize();
+                    effects.observes_gas = summary.may_observe_gas();
                     let args =
                         kind.operands().into_iter().map(resolve).collect::<SmallVec<[_; 8]>>();
                     effects.merge_call_summary(summary, func, self, &args);
                 } else {
+                    effects.observes_memory_size = true;
+                    effects.observes_gas = true;
                     effects.read_any(AddressSpace::Memory);
                     effects.write_any(AddressSpace::Memory);
                     effects.read_any(AddressSpace::Storage);
@@ -1418,7 +1428,7 @@ impl AliasAnalysis {
             }
             _ => {}
         }
-        effects.observes_gas = kind.observes_gas();
+        effects.observes_gas |= kind.observes_gas();
         effects
     }
 
@@ -1440,8 +1450,12 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
+                    effects.observes_memory_size = summary.may_observe_msize();
+                    effects.observes_gas = summary.may_observe_gas();
                     effects.merge_call_summary(summary, func, self, &terminator.operands());
                 } else {
+                    effects.observes_memory_size = true;
+                    effects.observes_gas = true;
                     effects.read_any(AddressSpace::Memory);
                     effects.write_any(AddressSpace::Memory);
                     effects.read_any(AddressSpace::Storage);
@@ -2036,9 +2050,10 @@ enum SizeOperand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{FunctionBuilder, Instruction, MirType, TypeSize};
+    use crate::mir::{FunctionBuilder, Instruction, MirType, Module, TypeSize};
     use alloy_primitives::U256;
     use solar_interface::Ident;
+    use std::sync::Arc;
 
     fn function() -> Function {
         Function::new(Ident::DUMMY)
@@ -2415,5 +2430,62 @@ mod tests {
         assert!(effects.writes_space(AddressSpace::Transient));
         assert!(effects.reads_space(AddressSpace::Memory));
         assert!(effects.writes_space(AddressSpace::Memory));
+    }
+
+    #[test]
+    fn internal_calls_propagate_memory_size_observations() {
+        let mut module = Module::new(Ident::DUMMY);
+
+        let mut observer = function();
+        {
+            let mut builder = FunctionBuilder::new(&mut observer);
+            // size = msize
+            // return size
+            let size = builder.msize();
+            builder.ret([size]);
+        }
+        observer.set_return_type(MirType::uint256());
+        let observer = module.add_function(observer);
+
+        let mut caller = function();
+        let call = {
+            let mut builder = FunctionBuilder::new(&mut caller);
+            // mstore 0x1000, 1
+            // value = icall @observer
+            // return
+            let destination = builder.imm(0x1000);
+            let value = builder.imm(1);
+            builder.mstore(destination, value);
+            let _ = builder.icall(observer, vec![], MirType::uint256());
+            builder.ret([]);
+            *builder.func().blocks[builder.current_block()].instructions.last().unwrap()
+        };
+        let caller = module.add_function(caller);
+
+        let mut tail_caller = function();
+        // tail_call @observer
+        FunctionBuilder::new(&mut tail_caller).tail_call(observer, vec![]);
+        let tail_caller = module.add_function(tail_caller);
+
+        let summaries = Arc::new(MemoryCallSummaries::new(&module));
+        let caller = &module.functions[caller];
+        let conservative = AliasAnalysis::new(caller).instruction_mod_ref(caller, call);
+        assert!(conservative.observes_memory_size());
+        assert!(conservative.observes_gas());
+
+        let effects = AliasAnalysis::with_call_summaries(caller, Arc::clone(&summaries))
+            .instruction_mod_ref(caller, call);
+        assert!(effects.observes_memory_size());
+
+        let tail_caller = &module.functions[tail_caller];
+        let terminator = tail_caller.blocks[BlockId::ENTRY].terminator.as_ref().unwrap();
+        let conservative =
+            AliasAnalysis::new(tail_caller).terminator_mod_ref(tail_caller, terminator);
+        assert!(conservative.observes_memory_size());
+        assert!(conservative.observes_gas());
+
+        let effects = AliasAnalysis::with_call_summaries(tail_caller, summaries)
+            .terminator_mod_ref(tail_caller, terminator);
+        assert!(effects.observes_memory_size());
     }
 }

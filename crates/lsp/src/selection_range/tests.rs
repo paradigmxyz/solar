@@ -66,3 +66,39 @@ fn disjoint_groups_and_crossing_ranges_match_linear_queries() {
     ranges.reverse();
     check_queries(ranges, 0..=3300);
 }
+
+#[test]
+fn broad_outer_ranges_preserve_distant_inner_ranges() {
+    let count = CandidateRanges::BLOCK_SIZE * 65;
+    let end = count * 4;
+    let mut ranges = vec![0..end, 0..end / 2, end / 4..end];
+    ranges.extend((0..count).map(|index| index * 4..index * 4 + 2));
+    let cursors = [
+        0,
+        1,
+        2,
+        end / 4,
+        end / 2 - 1,
+        end / 2,
+        end / 2 + 1,
+        end - 4,
+        end - 3,
+        end - 2,
+        end - 1,
+        end,
+        usize::MAX,
+    ];
+    check_queries(ranges.clone(), cursors);
+    ranges.reverse();
+    check_queries(ranges, cursors);
+}
+
+#[test]
+fn equal_block_starts_preserve_all_matching_ranges() {
+    let mut ranges =
+        (0..CandidateRanges::BLOCK_SIZE * 9).map(|index| 5..5 + index % 17).collect::<Vec<_>>();
+    ranges.extend([0..0, 8..8, 3..25]);
+    check_queries(ranges.clone(), 0..=26);
+    ranges.reverse();
+    check_queries(ranges, 0..=26);
+}

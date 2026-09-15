@@ -40,20 +40,23 @@ library ERC4337Utils {
 contract CalldataStructFieldSlice {
     // CDSFS-LABEL: fn @factory{{[.][0-9]+}}
     // CDSFS: icall @factory
-    // CDSFS-LABEL: fn @factory{{[.][0-9]+}}
-    // CDSFS: calldataload
     function factory(PackedUserOperation calldata op) external pure returns (address) {
         return ERC4337Utils.factory(op);
     }
 
     // CDSFS-LABEL: fn @tailHash{{[.][0-9]+}}
-    // CDSFS: keccak256
+    // CDSFS: icall @tailHash
     function tailHash(PackedUserOperation calldata op) external pure returns (bytes32) {
         return ERC4337Utils.tailHash(op);
     }
 
     // CDSFS-LABEL: fn @midWord{{[.][0-9]+}}
     // CDSFS: calldataload
+    // The single-use scalar accessor is inlined; the branching helpers remain below it.
+    // CDSFS-LABEL: fn @factory{{[.][0-9]+}}
+    // CDSFS: calldataload
+    // CDSFS-LABEL: fn @tailHash{{[.][0-9]+}}
+    // CDSFS: keccak256
     function midWord(PackedUserOperation calldata op) external pure returns (bytes32) {
         return ERC4337Utils.midWord(op);
     }

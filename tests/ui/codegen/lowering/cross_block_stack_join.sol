@@ -15,12 +15,15 @@ contract CrossBlockStackJoin {
     // CHECK: div
     // CHECK-NEXT: push 1
     // CHECK-NOT: mstore
-    // CHECK: jump [[JOIN:bb[0-9]+]]
+    // CHECK: sub
+    // CHECK-NEXT: swap 1
+    // CHECK-NEXT: swap 2
+    // CHECK-NEXT: push [[JOIN:bb[0-9]+]]
+    // CHECK: jump [[JOIN]]
     // CHECK-NEXT: [[JOIN]]:
     // CHECK-NEXT: dup 2
     // CHECK-NEXT: dup 1
     // CHECK-NEXT: add
-    // CHECK: jump [[JOIN]]
     function carry(uint256 x) external pure returns (uint256 result) {
         uint256 kept;
         assembly {

@@ -1,0 +1,45 @@
+- // === ROOT/tests/ui/codegen/evm-ir/tail-merge/branch_continuations.evmir (before tail-merge) ===
++ // === ROOT/tests/ui/codegen/evm-ir/tail-merge/branch_continuations.evmir (after tail-merge) ===
+  @module BranchContinuations
+  bb0:
+    push bb3
+    push 0
+    mstore
+    push 0
+    calldataload
+    dup 1
+    jumpi bb1, bb2
+  bb1:
+    push bb3
+-   jumpi
+-   push 1
+-   push 2
+-   add
+-   push 32
+-   mstore
+-   stop
++   jump bb6
+  bb2:
+    push bb4
++   jump bb6
++ bb3:
++   jump bb5
++ bb4 [continuation]:
++   jump bb5
++ bb5:
++   stop
++ bb6:
+    jumpi
+    push 1
+    push 2
+    add
+    push 32
+    mstore
+-   stop
+- bb3:
+-   jump bb5
+- bb4:
+-   jump bb5
+- bb5:
+    stop
+  

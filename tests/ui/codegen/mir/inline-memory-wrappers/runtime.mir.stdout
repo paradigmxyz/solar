@@ -1,0 +1,73 @@
+// === ROOT/tests/ui/codegen/mir/inline-memory-wrappers/runtime.sol:SharedMemoryWrapper ===
+@module SharedMemoryWrapper
+types:
+  struct0: {memorybytes, memorybytes, memorybytes}
+
+fn @once(arg0: memorybytes) -> memorybytes [selector=0x356f1140, pure, abi_params=[bytes], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = icall @wrap, arg0
+    ret v0
+}
+
+fn @twice(arg0: memorybytes) -> struct0 [selector=0xff491092, pure, abi_params=[bytes], abi_returns=[memory_bytes, memory_bytes, memory_bytes], abi_return_params=[bytes, bytes, bytes]] {
+  bb0:
+    v0 = icall @wrap, arg0
+    v1 = icall @wrap, arg0
+    v2 = insert_value struct0, undef struct0, 0, v0
+    v3 = insert_value struct0, v2, 1, v1
+    v4 = insert_value struct0, v3, 2, arg0
+    ret v4
+}
+
+fn @wrap(arg0: memorybytes) -> memorybytes [pure] {
+  bb0:
+    v0 = icall @copy, arg0
+    v1 = add v0, 32
+    v2 = mload v1
+    v3 = add v2, 1
+    mstore v1, v3
+    ret v0
+}
+
+fn @copy(arg0: memorybytes) -> memorybytes [pure] {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    v1 = add v0, 63
+    v2 = lt v1, v0
+    panic_if v2, 0x41
+    v3 = not 31
+    v4 = and v1, v3
+    v5 = alloc memorybytes, exact, zeroed, panic, v4
+    set_memory_object_len memorybytes, v5, v0
+    jump bb1
+  bb1:
+    v6 = phi [bb0: v5], [bb3: v6]
+    v7 = phi [bb0: 0], [bb3: v20]
+    v8 = phi [bb0: arg0], [bb3: v8]
+    v9 = memory_object_len memorybytes, v8
+    v10 = lt v7, v9
+    jumpi v10, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v6
+  bb4:
+    v11 = memory_object_len memorybytes, v8
+    v12 = lt v7, v11
+    v13 = iszero v12
+    panic_if v13, 0x32
+    v14 = memory_object_load_byte memorybytes, v8, v7
+    v15 = shl 248, v14
+    v16 = memory_object_len memorybytes, v6
+    v17 = lt v7, v16
+    v18 = iszero v17
+    panic_if v18, 0x32
+    v19 = byte 0, v15
+    memory_object_store_byte memorybytes, v6, v7, v19
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v20 = checked_add u256, v7, 1
+    jump bb1
+}
