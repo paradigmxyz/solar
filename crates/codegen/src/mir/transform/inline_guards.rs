@@ -55,7 +55,10 @@ impl MirPass for InlineGuards {
             let mut sites = Vec::new();
             for (block, body) in func.blocks.iter_enumerated() {
                 for (index, &inst) in body.instructions.iter().enumerate() {
-                    if let InstKind::ICall { function, args, returns: 0 } = &func.inst(inst).kind
+                    if let InstKind::ICall {
+                        function: crate::mir::Callee::Function(function),
+                        args,
+                    } = &func.inst(inst).kind
                         && *function != caller
                         && let Some(guard) = guards.get(function)
                         && args.len() == guard.function.params.len()
@@ -87,7 +90,7 @@ impl MirPass for InlineGuards {
 
 fn returning_guard(func: &Function) -> Option<Guard> {
     if func.blocks.is_empty()
-        || !func.returns.is_empty()
+        || !func.return_components().is_empty()
         || func.params.len() > 4
         || func.params.iter().any(|ty| matches!(ty, MirType::Slice(_) | MirType::Void))
         || func.internal_frame_size != 0

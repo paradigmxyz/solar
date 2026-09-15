@@ -122,7 +122,7 @@ fn find_calls(module: &Module, id: FunctionId) -> Vec<(InstId, EvaluatedReturn)>
     let has_allocation =
         func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::Alloc { .. }));
     if !func.instructions().any(|inst| {
-        matches!(&func.inst(inst).kind, InstKind::ICall { args, returns: 0..=1, .. }
+        matches!(&func.inst(inst).kind, InstKind::ICall { args, .. }
             if has_allocation || args.iter().all(|&arg| func.value(arg).as_immediate().is_some()))
     }) {
         return Vec::new();
@@ -147,7 +147,8 @@ fn find_calls(module: &Module, id: FunctionId) -> Vec<(InstId, EvaluatedReturn)>
                         .then_some(Datum::Pointer(address))
                 })
             };
-            if let InstKind::ICall { function, args, returns: 0..=1 } = &instruction.kind
+            if let InstKind::ICall { function: crate::mir::Callee::Function(function), args } =
+                &instruction.kind
                 && let Some(args) = args.iter().map(|&arg| get(arg)).collect::<Option<Arguments>>()
                 && let Some(result) = evaluate(module, *function, &args, &memory, &mut fuel, 0)
             {
@@ -247,8 +248,8 @@ fn evaluate(
     let func = module.function(id);
     if depth >= MAX_DEPTH
         || args.len() != func.params.len()
-        || func.returns.len() > 1
-        || func.returns.first().is_some_and(|ty| {
+        || func.return_components().len() > 1
+        || func.return_components().first().is_some_and(|ty| {
             !matches!(
                 ty,
                 MirType::UInt(_)
@@ -287,15 +288,18 @@ fn evaluate(
                 continue;
             }
             let get = |value| operand(func, &env, Some(args), value);
-            let result = if let InstKind::ICall { function, args, returns: 0..=1 } = kind {
-                let args = args.iter().map(|&arg| get(arg)).collect::<Option<Arguments>>()?;
-                match evaluate(module, *function, &args, memory, fuel, depth + 1)? {
-                    EvaluatedReturn::Void => continue,
-                    EvaluatedReturn::Word(word) => Datum::Word(word),
-                }
-            } else {
-                scalar(kind, get, memory)?
-            };
+            let result =
+                if let InstKind::ICall { function: crate::mir::Callee::Function(function), args } =
+                    kind
+                {
+                    let args = args.iter().map(|&arg| get(arg)).collect::<Option<Arguments>>()?;
+                    match evaluate(module, *function, &args, memory, fuel, depth + 1)? {
+                        EvaluatedReturn::Void => continue,
+                        EvaluatedReturn::Word(word) => Datum::Word(word),
+                    }
+                } else {
+                    scalar(kind, get, memory)?
+                };
             env.insert(func.inst_result_value(inst)?, result);
         }
         let next = match block.terminator.as_ref()? {
@@ -307,7 +311,7 @@ fn evaluate(
                     *then_block
                 }
             }
-            Terminator::Return { values } if values.len() == func.returns.len() => {
+            Terminator::Return { values } if values.len() == func.return_components().len() => {
                 return match values.as_slice() {
                     [] => Some(EvaluatedReturn::Void),
                     [value] => {

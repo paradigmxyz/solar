@@ -6,8 +6,8 @@
       v0 = sload 0
       v1 = balance arg0
       v2 = address_staticcall arg0, arg1
--     v3 = sload 0
--     v4 = balance arg0
+      v3 = sload 0
+      v4 = balance arg0
       v5 = address_call arg0, arg1
       v6 = sload 0
       v7 = balance arg0
@@ -15,11 +15,10 @@
       v9 = sload 0
       v10 = balance arg0
       v11 = add v0, v1
--     v12 = add v3, v4
+      v12 = add v3, v4
       v13 = add v6, v7
       v14 = add v9, v10
--     v15 = add v11, v12
-+     v15 = add v11, v11
+      v15 = add v11, v12
       v16 = add v13, v14
       v17 = add v15, v16
       ret v17
@@ -45,6 +44,8 @@
       v0 = sload 0
       v1 = balance arg0
       v2 = address_staticcall arg0, arg1
+      v3 = sload 0
+      v4 = balance arg0
       v5 = address_call arg0, arg1
       v6 = sload 0
       v7 = balance arg0
@@ -52,9 +53,10 @@
       v9 = sload 0
       v10 = balance arg0
       v11 = add v0, v1
+      v12 = add v3, v4
       v13 = add v6, v7
       v14 = add v9, v10
-      v15 = add v11, v11
+      v15 = add v11, v12
       v16 = add v13, v14
       v17 = add v15, v16
       ret v17

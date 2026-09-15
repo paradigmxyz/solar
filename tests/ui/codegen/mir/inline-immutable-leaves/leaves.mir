@@ -9,10 +9,10 @@ immutables:
 
 fn @entry() -> u256 [selector=1] {
   bb0:
-    v0 = icall @end, 1
-    v1 = icall @memory, 1
-    v2 = icall @ordinary, 1
-    v3 = icall @argument, 1, v0
+    v0 = icall @end
+    v1 = icall @memory
+    v2 = icall @ordinary
+    v3 = icall @argument, v0
     v4 = add v0, v1
     v5 = add v2, v3
     v6 = add v4, v5
@@ -24,7 +24,7 @@ fn @constructor(arg0: u64, arg1: u64) [constructor] {
   bb0:
     storeimmutable start, arg0
     storeimmutable duration, arg1
-    v0 = icall @end, 1
+    v0 = icall @end
     storeimmutable initial, v0
     stop
 }

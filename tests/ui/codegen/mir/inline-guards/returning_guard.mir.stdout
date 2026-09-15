@@ -8,20 +8,13 @@ fn @check(arg0: u256, arg1: u256) {
     jump bb3
   bb3:
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb4, bb5
-  bb5:
+    v2 = checked_add u256, v1, 1
     sstore 0, v2 !metadata(storage=slot(0))
-    v4 = abi_encode [word, word], args arg0, arg1
-    v5 = slice_ptr v4
-    v6 = slice_len v4
-    log1 v5, v6, 0xb8ead7a4312aee6b04435df614582e3bfceaa60789e94048bd5ec0c5f0ddbecc
+    v3 = abi_encode [word, word], args arg0, arg1
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    log1 v4, v5, 0xb8ead7a4312aee6b04435df614582e3bfceaa60789e94048bd5ec0c5f0ddbecc
     ret
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     ret
 }
@@ -30,32 +23,25 @@ fn @run(arg0: u256) -> u256 [selector=0xa444f5e9, abi_params=[u256], abi_returns
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb8: v0]
-    v1 = phi [bb0: 0], [bb8: v4]
-    v2 = phi [bb0: 0], [bb8: v2]
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v4]
+    v2 = phi [bb0: 0], [bb3: v2]
     v3 = lt v1, 8
     jumpi v3, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v6 = sload 0 !metadata(storage=slot(0))
-    ret v6
+    v5 = sload 0 !metadata(storage=slot(0))
+    ret v5
   bb4:
-    icall @check, 0, v1, v0
-    icall @check, 0, v1, v1
+    icall @check, v1, v0
+    icall @check, v1, v1
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v4 = add v1, 1
-    v5 = lt v4, v1
-    jumpi v5, bb7, bb8
-  bb8:
+    v4 = checked_add u256, v1, 1
     jump bb1
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @requireEqual(arg0: u256, arg1: u256) [pure] {
@@ -65,7 +51,8 @@ fn @requireEqual(arg0: u256, arg1: u256) [pure] {
   bb2:
     jump bb3
   bb3:
-    revert 0, 0
+    revert_if true, empty
+    invalid
   bb1:
     ret
 }
@@ -74,7 +61,7 @@ fn @failing() [selector=0x1118b879, pure, abi_params=[], abi_returns=[]] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb8: v2]
+    v0 = phi [bb0: 0], [bb3: v2]
     v1 = lt v0, 8
     jumpi v1, bb4, bb5
   bb5:
@@ -82,18 +69,11 @@ fn @failing() [selector=0x1118b879, pure, abi_params=[], abi_returns=[]] {
   bb2:
     ret
   bb4:
-    icall @requireEqual, 0, v0, 0
+    icall @requireEqual, v0, 0
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v2 = add v0, 1
-    v3 = lt v2, v0
-    jumpi v3, bb7, bb8
-  bb8:
+    v2 = checked_add u256, v0, 1
     jump bb1
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }

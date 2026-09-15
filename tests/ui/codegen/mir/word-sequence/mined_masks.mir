@@ -3,6 +3,10 @@
 //@[size] compile-flags: -Osize -Zmir-pipeline=word-sequence,dce
 @module MinedMasks
 
+types:
+  struct0: {u256, u256}
+  struct1: {u256, u256, bool}
+
 fn @low_mask(arg0: u256) -> u256 {
   bb0:
     v0 = shl arg0, 1
@@ -10,7 +14,7 @@ fn @low_mask(arg0: u256) -> u256 {
     ret v1
 }
 
-fn @shared_shift(arg0: u256) -> (u256, u256) {
+fn @shared_shift(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
   bb0:
     v0 = shl arg0, 1
     v1 = sub v0, 1
@@ -49,7 +53,7 @@ fn @masked_eq_3(arg0: u256, arg1: u256, arg2: u256) -> bool {
     ret v2
 }
 
-fn @shared_masked_values(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256, bool) {
+fn @shared_masked_values(arg0: u256, arg1: u256, arg2: u256) -> struct1 [return_abi=[u256, u256, bool]] {
   bb0:
     v0 = and arg0, arg2
     v1 = and arg1, arg2

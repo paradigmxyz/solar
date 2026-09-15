@@ -71,11 +71,11 @@
 
 use super::cfg_simplify::simplify_function;
 use crate::mir::{
-    Builtin, Callee, InstId, BlockId, Function, FunctionId, ImmutableEncoding, ImmutableId, InstKind, Module, Terminator,
-    Value, ValueId,
+    BlockId, Builtin, Callee, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
+    InstKind, Module, Terminator, Value, ValueId,
     analysis::{CallGraphInfo, CfgInfo},
     immutable::immutable_push_type_size,
-    pass::{MirPass, run_function_pass, run_selected_function_pass, run_function_pass_with_cfg},
+    pass::{MirPass, run_function_pass, run_function_pass_with_cfg, run_selected_function_pass},
     utils::fold_terminator_to_jump,
 };
 use alloy_primitives::U256;
@@ -142,7 +142,6 @@ impl MirPass for LateCheckElim {
             if changed {
                 // branch proven_condition, checked, panic => jump checked
                 // Remove unreachable panic blocks and merge the successful continuation.
-                let _ = repair_reachability_phis(func);
                 let _ = simplify_function(func);
             }
             changed
@@ -211,9 +210,7 @@ impl MirPass for ImmutableCheckElim {
         run_selected_function_pass(module, analyses, &runtime_only, |func, analyses| {
             let mut eliminator = CheckEliminator::new(Some(&bounds));
             eliminator.cfg = Some(Rc::clone(analyses.cfg()));
-            let changed = eliminator.run(func) != 0;
-            let repaired = repair_reachability_phis(func);
-            changed || repaired
+            eliminator.run(func) != 0
         })
     }
 }
@@ -364,7 +361,10 @@ impl<'a> CheckEliminator<'a> {
             matches!(
                 block.terminator,
                 Some(Terminator::Branch { then_block, else_block, .. }) if then_block != else_block
-            )
+            ) || block
+                .instructions
+                .iter()
+                .any(|&inst| matches!(func.inst(inst).kind, InstKind::Check { .. }))
         }) {
             return 0;
         }
@@ -1133,6 +1133,13 @@ fn branch_inputs(func: &Function, cfg: &CfgInfo) -> DenseBitSet<ValueId> {
             _ => None,
         })
         .collect::<Vec<_>>();
+    for &block in cfg.rpo() {
+        for &inst in &func.blocks[block].instructions {
+            if let InstKind::Check { condition, .. } = func.inst(inst).kind {
+                pending.push(condition);
+            }
+        }
+    }
     while let Some(value) = pending.pop() {
         if relevant.insert(value)
             && let Value::Inst(inst) = func.value(value)

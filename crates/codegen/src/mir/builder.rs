@@ -1231,13 +1231,6 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::SlotNum, Some(MirType::uint256()))
     }
 
-
-
-
-
-
-
-
     /// Emits a low-level address call over a bytes object.
     pub(crate) fn address_call(
         &mut self,

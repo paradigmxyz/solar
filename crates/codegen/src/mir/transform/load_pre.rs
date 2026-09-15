@@ -94,17 +94,16 @@
 use crate::{
     backend::evm::op,
     mir::{
-        EffectKind, BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryObjectKind,
-        MemoryRegion, MirType, Module, StorageAlias, Terminator, Value, ValueId,
+        BlockId, EffectKind, Function, InstId, InstKind, Instruction, InstructionMetadata,
+        MemoryObjectKind, MirType, Module, StorageAlias, Terminator, Value, ValueId,
         analysis::{
-            Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness, Location, LocationSize,
-            MemoryAddress, MemoryLocation, ModRef,
+            Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
+            Location, LocationSize, MemoryAddress, MemoryLocation, ModRef,
         },
         pass::{MirPass, run_function_pass_with_alias_and_cfg},
         utils as mir_utils,
     },
-    pass::{MirPass, run_function_pass},
-    utils as mir_utils,
+    target::{GasTier, Target, Warmth},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -474,7 +473,14 @@ struct CandidateCx<'a> {
 impl LoadRedundancyEliminator {
     /// Creates a new load PRE pass pricing reads on `target`.
     fn new(target: Target) -> Self {
-        Self { cfg: None, stats: LoadPreStats::default(), alias: None, target }
+        Self {
+            cfg: None,
+            stats: LoadPreStats::default(),
+            alias: None,
+            target,
+            storage_only: false,
+            liveness: OnceCell::new(),
+        }
     }
 
     /// Runs load PRE to a fixed point under the rewrite budget.

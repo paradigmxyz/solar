@@ -13,8 +13,16 @@
   bb3:
     push 1
     jumpi bb4, bb5
-+ bb1:
-+   stop
+- bb4:
+-   jump bb6
+  bb5:
+    push 1
+    push 2
+    push 3
+    push 4
+    jump bb6
+  bb6:
+    stop
 + bb8:
 +   push bb9
 +   pop
@@ -32,18 +40,10 @@
 +   push 0
 +   push 0
 +   revert
-  bb4:
-    jump bb6
-+ bb6:
++ bb1:
 +   stop
-  bb5:
-    push 1
-    push 2
-    push 3
-    push 4
-    jump bb6
-- bb6:
--   stop
++ bb4:
++   jump bb6
   bb7:
     push 0x1234567890abcdef112233445566778899aabbccddeeff001122334455667788
     pop

@@ -1,7 +1,6 @@
 - // === ROOT/tests/ui/codegen/mir/inline-dispatch/scalar.mir (before inline-dispatch) ===
 + // === ROOT/tests/ui/codegen/mir/inline-dispatch/scalar.mir (after inline-dispatch) ===
   @module ScalarDispatcher
-  @phase memory-lowered
 - fn @add() [selector=0x00000001, pure] {
 -   bb0:
 -     v0 = add arg0, arg1
@@ -44,7 +43,6 @@
 - // === ROOT/tests/ui/codegen/mir/inline-dispatch/scalar.mir (before cfg-simplify) ===
 + // === ROOT/tests/ui/codegen/mir/inline-dispatch/scalar.mir (after cfg-simplify) ===
   @module ScalarDispatcher
-  @phase memory-lowered
   fn @entry() [entry] {
     bb0:
       v0 = calldataload 0
@@ -71,7 +69,6 @@
 - // === ROOT/tests/ui/codegen/mir/inline-dispatch/scalar.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/inline-dispatch/scalar.mir (after dce) ===
   @module ScalarDispatcher
-  @phase memory-lowered
   fn @entry() [entry] {
     bb0:
       v0 = calldataload 0

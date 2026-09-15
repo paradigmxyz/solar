@@ -3,6 +3,9 @@
 //@[size] compile-flags: -Osize -Zmir-pipeline=egraph,dce
 @module UnitCarry
 
+types:
+  struct0: {u256, bool}
+
 fn @increment_lt(arg0: u256) -> bool {
   bb0:
     v0 = add arg0, 1
@@ -73,7 +76,7 @@ fn @decrement_add_lt_commuted(arg0: u256) -> bool {
     ret v1
 }
 
-fn @shared_increment(arg0: u256) -> (u256, bool) {
+fn @shared_increment(arg0: u256) -> struct0 [return_abi=[u256, bool]] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0

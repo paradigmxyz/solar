@@ -272,7 +272,9 @@ fn fresh_value_base(
     let Value::Inst(inst) = func.value(value) else { return None };
     match func.inst(*inst).kind {
         InstKind::Alloc { .. } => Some(*inst),
-        InstKind::ICall { function, returns: 1, .. } if fresh_returns.contains(function) => {
+        InstKind::ICall { function: crate::mir::Callee::Function(function), .. }
+            if fresh_returns.contains(function) =>
+        {
             Some(*inst)
         }
         InstKind::Add(first, second) => {
@@ -302,8 +304,10 @@ fn fresh_value_base(
 fn call_copy_helper(func: &mut Function, inst: InstId, helper: FunctionId) {
     let InstKind::MCopy(dest, src, len) = func.inst(inst).kind else { unreachable!() };
     // icall @mcopy_words, 0, dest, src, len
-    func.inst_mut(inst).kind =
-        InstKind::ICall { function: helper, args: vec![dest, src, len].into(), returns: 0 };
+    func.inst_mut(inst).kind = InstKind::ICall {
+        function: crate::mir::Callee::Function(helper),
+        args: vec![dest, src, len].into(),
+    };
 }
 
 fn lower_mcopy(

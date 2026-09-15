@@ -143,11 +143,11 @@ bb6:
   jumpi
   push 0
   jump bb25
-bb27:
+bb27 [loop]:
   push 1
   add
   jump bb25
-bb25:
+bb25 [loop]:
   push 224
   mload
   dup 2

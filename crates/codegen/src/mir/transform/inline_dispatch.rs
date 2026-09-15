@@ -25,7 +25,7 @@
 use crate::{
     backend::evm::select::opcode_lowering,
     mir::{
-        EffectKind, Function, FunctionBuilder, InstKind, MirPhase, MirType, Module, Terminator,
+        EffectKind, Function, FunctionBuilder, InstKind, MirType, Module, Terminator,
         analysis::CallGraphInfo,
         memory::EvmMemoryLayout,
         pass::{MirPass, ModuleAnalyses},
@@ -43,9 +43,8 @@ impl MirPass for InlineDispatch {
         "inline-dispatch"
     }
 
-    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
+    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
         gcx.sess.opts.optimization != solar_config::OptimizationMode::None
-            && module.phase == MirPhase::MemoryLowered
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
@@ -154,7 +153,7 @@ fn eligible(func: &Function) -> bool {
         && func.attributes.state_mutability == StateMutability::Pure
         && func.internal_frame_size == 0
         && func.params.is_empty()
-        && func.returns.is_empty()
+        && func.return_components().is_empty()
         && func.arg_indices().count() <= 8
         && func.arg_indices().all(|index| func.arg_ty(index) == MirType::uint256())
         && func.instructions().all(|id| {

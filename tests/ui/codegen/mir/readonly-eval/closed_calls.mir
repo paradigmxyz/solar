@@ -9,14 +9,14 @@
 // CHECK: + ret 42
 fn @closed() -> u256 {
   bb0:
-    v0 = icall @validated, 1, 42
-    icall @guard, 0, v0
+    v0 = icall @validated, 42
+    icall @guard, v0
     ret v0
 }
 
 fn @validated(arg0: u256) -> u256 {
   bb0:
-    icall @guard, 0, arg0
+    icall @guard, arg0
     ret arg0
 }
 
@@ -33,32 +33,32 @@ fn @guard(arg0: u256) {
 
 // Evaluating a failure must preserve its original call and revert behavior.
 // CHECK-LABEL: fn @failure
-// CHECK: {{^ +}}icall @guard, 0, 41
+// CHECK: {{^ +}}icall @guard, 41
 fn @failure() {
   bb0:
-    icall @guard, 0, 41
+    icall @guard, 41
     ret
 }
 
 // Unknown caller arguments do not satisfy the concrete guard.
 // CHECK-LABEL: fn @unknown
-// CHECK: {{^ +}}icall @guard, 0, arg0
+// CHECK: {{^ +}}icall @guard, arg0
 fn @unknown(arg0: u256) {
   bb0:
-    icall @guard, 0, arg0
+    icall @guard, arg0
     ret
 }
 
 // Executed writes, environment reads, and unknown memory reads remain calls.
 // CHECK-LABEL: fn @effects
-// CHECK: {{^ +}}icall @write, 0, 42
-// CHECK: {{^ +}}icall @gas_reader, 0
-// CHECK: {{^ +}}icall @memory_reader, 0
+// CHECK: {{^ +}}icall @write, 42
+// CHECK: {{^ +}}icall @gas_reader
+// CHECK: {{^ +}}icall @memory_reader
 fn @effects() {
   bb0:
-    icall @write, 0, 42
-    icall @gas_reader, 0
-    icall @memory_reader, 0
+    icall @write, 42
+    icall @gas_reader
+    icall @memory_reader
     ret
 }
 
@@ -82,15 +82,15 @@ fn @memory_reader() {
 
 // The recursive path cannot return within the existing shared fuel/depth limits.
 // CHECK-LABEL: fn @recursive_caller
-// CHECK: {{^ +}}icall @recursive, 0, 42
+// CHECK: {{^ +}}icall @recursive, 42
 fn @recursive_caller() {
   bb0:
-    icall @recursive, 0, 42
+    icall @recursive, 42
     ret
 }
 fn @recursive(arg0: u256) {
   bb0:
-    icall @recursive, 0, arg0
+    icall @recursive, arg0
     ret
 }
 
@@ -103,8 +103,8 @@ fn @known_memory() -> u256 {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     mstore v0, 19
-    icall @guard, 0, 42
-    v1 = icall @read, 1, v0
+    icall @guard, 42
+    v1 = icall @read, v0
     ret v1
 }
 fn @read(arg0: memptr) -> u256 {
@@ -115,10 +115,10 @@ fn @read(arg0: memptr) -> u256 {
 
 // Constant references remain calls to avoid disrupting pointer induction.
 // CHECK-LABEL: fn @reference_caller
-// CHECK: {{^ +}}v0 = icall @reference, 1
+// CHECK: {{^ +}}v0 = icall @reference
 fn @reference_caller() -> storageptr {
   bb0:
-    v0 = icall @reference, 1
+    v0 = icall @reference
     ret v0
 }
 fn @reference() -> storageptr {

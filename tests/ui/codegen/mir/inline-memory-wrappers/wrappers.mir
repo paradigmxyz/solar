@@ -6,16 +6,16 @@
 // Clone the nested call and both potentially aliasing accesses in their original order.
 fn @entry(arg0: memptr) -> memptr [selector=1] {
   bb0:
-    v0 = icall @wrap, 1, arg0
-    v1 = icall @wrap, 1, v0
-    v2 = icall @single, 1, v1
-    v3 = icall @effects, 1, v2
+    v0 = icall @wrap, arg0
+    v1 = icall @wrap, v0
+    v2 = icall @single, v1
+    v3 = icall @effects, v2
     ret v3
 }
 
 fn @wrap(arg0: memptr) -> memptr {
   bb0:
-    v0 = icall @base, 1, arg0
+    v0 = icall @base, arg0
     v1 = mload v0
     v2 = add v1, 2
     mstore v0, v2
@@ -25,7 +25,7 @@ fn @wrap(arg0: memptr) -> memptr {
 // A single-use adapter also expands when its call and stack costs permit it.
 fn @single(arg0: memptr) -> memptr {
   bb0:
-    v0 = icall @base, 1, arg0
+    v0 = icall @base, arg0
     v1 = mload v0
     mstore v0, v1
     ret v0
@@ -34,7 +34,7 @@ fn @single(arg0: memptr) -> memptr {
 // Storage effects are outside this bounded adapter.
 fn @effects(arg0: memptr) -> memptr {
   bb0:
-    v0 = icall @base, 1, arg0
+    v0 = icall @base, arg0
     mstore v0, 5
     sstore 0, 5
     ret v0
@@ -48,7 +48,7 @@ fn @base(arg0: memptr) -> memptr {
 // Keep the wrapper call when expansion would overlap too many caller words.
 fn @pressure(arg0: memptr, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: u256, arg8: u256, arg9: u256, arg10: u256, arg11: u256, arg12: u256) -> u256 [selector=2] {
   bb0:
-    v0 = icall @wrap, 1, arg0
+    v0 = icall @wrap, arg0
     v1 = add arg1, arg2
     v2 = add arg3, arg4
     v3 = add arg5, arg6

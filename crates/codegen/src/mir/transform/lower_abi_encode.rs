@@ -223,7 +223,7 @@ fn synthesize_tuple_helpers(
             let layout = AbiLayout::new(key.types.clone());
             let encoded = lower_encode(&mut builder, &layout, selector, &args, key.mode, helpers);
             let result_ty = builder.func().value_ty(encoded).unwrap_or_else(MirType::uint256);
-            builder.add_return(result_ty);
+            builder.set_return_type(result_ty);
             builder.ret([encoded]);
         }
         let params = function.params.len();
@@ -456,7 +456,7 @@ fn lower_function(
                         let result_ty =
                             builder.func().value_ty(result).unwrap_or_else(MirType::uint256);
                         let call_args = args.iter().copied().chain(selector).collect();
-                        builder.icall(helper, call_args, result_ty, 1)
+                        builder.icall(helper, call_args, result_ty)
                     }
                     None => lower_encode(&mut builder, &layout, selector, &args, mode, helpers),
                 }
@@ -613,7 +613,9 @@ fn return_values_are_fresh(
         {
             true
         }
-        InstKind::ICall { function, returns: 1, .. } => fresh.contains(function),
+        InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
+            fresh.contains(function)
+        }
         _ => false,
     }
 }
@@ -693,7 +695,9 @@ fn fresh_memory_object(
     let Value::Inst(inst) = func.value(value) else { return false };
     match func.inst(*inst).kind {
         InstKind::Alloc { kind: AllocationKind::Object(_), .. } => true,
-        InstKind::ICall { function, returns: 1, .. } => fresh_object_returns.contains(function),
+        InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
+            fresh_object_returns.contains(function)
+        }
         _ => false,
     }
 }

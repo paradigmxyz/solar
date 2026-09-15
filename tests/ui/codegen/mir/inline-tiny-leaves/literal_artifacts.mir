@@ -6,10 +6,10 @@
 // One creation call and one runtime call do not share an emitted helper.
 fn @constructor() [constructor] {
   bb0:
-    v0 = icall @literal, 1
+    v0 = icall @literal
     v1 = memory_object_len memorybytes, v0
     sstore 0, v1
-    v2 = icall @indirect, 1
+    v2 = icall @indirect
     v3 = memory_object_len memorybytes, v2
     sstore 3, v3
     stop
@@ -17,7 +17,7 @@ fn @constructor() [constructor] {
 
 fn @entry() -> memorybytes [selector=0x01020304] {
   bb0:
-    v0 = icall @literal, 1
+    v0 = icall @literal
     ret v0
 }
 
@@ -33,8 +33,8 @@ fn @literal() -> memorybytes {
 // Two runtime sites must retain their shared initializer.
 fn @shared() -> memorybytes [selector=0x01020305] {
   bb0:
-    v0 = icall @shared_literal, 1
-    v1 = icall @shared_literal, 1
+    v0 = icall @shared_literal
+    v1 = icall @shared_literal
     memory_object_store_byte memorybytes, v0, 0, 65
     ret v1
 }
@@ -55,7 +55,7 @@ fn @tail_entry() -> memorybytes [selector=0x01020306] {
 
 fn @call_entry() -> memorybytes [selector=0x01020307] {
   bb0:
-    v0 = icall @tail_literal, 1
+    v0 = icall @tail_literal
     ret v0
 }
 
@@ -70,7 +70,7 @@ fn @tail_literal() -> memorybytes {
 // Extra effects keep a reference-returning function outside this recognizer.
 fn @effect_entry() -> memorybytes [selector=0x01020308] {
   bb0:
-    v0 = icall @effect_literal, 1
+    v0 = icall @effect_literal
     ret v0
 }
 
@@ -86,20 +86,20 @@ fn @effect_literal() -> memorybytes {
 // An unrooted caller conservatively makes its callees reachable in both artifacts.
 fn @unknown() -> memorybytes {
   bb0:
-    v0 = icall @indirect, 1
+    v0 = icall @indirect
     ret v0
 }
 
 fn @indirect() -> memorybytes {
   bb0:
-    v0 = icall @unknown_literal, 1
+    v0 = icall @unknown_literal
     sstore 2, 1
     ret v0
 }
 
 fn @unknown_entry() -> memorybytes [selector=0x01020309] {
   bb0:
-    v0 = icall @unknown_literal, 1
+    v0 = icall @unknown_literal
     ret v0
 }
 
@@ -114,7 +114,7 @@ fn @unknown_literal() -> memorybytes {
 // An observable allocation obligation must survive even a single call site.
 fn @preserved_entry() -> memorybytes [selector=0x0102030a] {
   bb0:
-    v0 = icall @preserved_literal, 1
+    v0 = icall @preserved_literal
     ret v0
 }
 

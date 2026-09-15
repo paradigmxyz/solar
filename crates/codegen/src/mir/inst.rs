@@ -1,13 +1,12 @@
 //! MIR instructions.
 
 use super::{
-    InstKind, AbiLayoutRef, AbiParamLayoutRef, BlockId, DataRef, FrameMode, FrameSlotKind, Function,
-    ImmutableId, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation, StorageLayoutRef,
-    StructId, Value, ValueId,
+    Function, InstKind, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation, Value,
+    ValueId,
 };
 use crate::mir::{Builtin, Callee};
-use alloy_primitives::{Bytes, U256};
-use smallvec::{Array, SmallVec};
+use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_interface::Span;
 use solar_sema::hir;
 use std::fmt;
@@ -927,7 +926,6 @@ pub(crate) enum AddressCallKind {
     Delegate,
 }
 
-
 impl InstKind {
     /// Clones the instruction with zeroed value operands to compare its remaining fields.
     pub(crate) fn clone_without_operands(&self) -> Self {
@@ -973,120 +971,6 @@ impl InstKind {
     #[must_use]
     pub(crate) const fn mnemonic(&self) -> &'static str {
         match self {
-            Self::InsertValue { .. } => "insert_value",
-            Self::ExtractValue { .. } => "extract_value",
-            Self::MemoryObjectFromPtr { .. } => "memory_object_from_ptr",
-            Self::WordCast(_) => "word_cast",
-            Self::Add(_, _) => "add",
-            Self::Sub(_, _) => "sub",
-            Self::Mul(_, _) => "mul",
-            Self::Div(_, _) => "div",
-            Self::SDiv(_, _) => "sdiv",
-            Self::Mod(_, _) => "mod",
-            Self::SMod(_, _) => "smod",
-            Self::Exp(_, _) => "exp",
-            Self::AddMod(_, _, _) => "addmod",
-            Self::MulMod(_, _, _) => "mulmod",
-            Self::And(_, _) => "and",
-            Self::Or(_, _) => "or",
-            Self::Xor(_, _) => "xor",
-            Self::Not(_) => "not",
-            Self::Clz(_) => "clz",
-            Self::Shl(_, _) => "shl",
-            Self::Shr(_, _) => "shr",
-            Self::Sar(_, _) => "sar",
-            Self::Byte(_, _) => "byte",
-            Self::Lt(_, _) => "lt",
-            Self::Gt(_, _) => "gt",
-            Self::SLt(_, _) => "slt",
-            Self::SGt(_, _) => "sgt",
-            Self::Eq(_, _) => "eq",
-            Self::IsZero(_) => "iszero",
-            Self::MLoad(_) => "mload",
-            Self::MStore(_, _) => "mstore",
-            Self::MStore8(_, _) => "mstore8",
-            Self::MemoryZero(_, _) => "memory_zero",
-            Self::MSize => "msize",
-            Self::Fmp => "fmp",
-            Self::SetFmp(_) => "set_fmp",
-            Self::Alloc { .. } => "alloc",
-            Self::MemoryObjectLen(_, _) => "memory_object_len",
-            Self::SetMemoryObjectLen(_, _, _) => "set_memory_object_len",
-            Self::MemoryObjectData(_, _) => "memory_object_data",
-            Self::MemoryObjectFieldAddr { .. } => "memory_object_field_addr",
-            Self::MemoryObjectElementAddr { .. } => "memory_object_element_addr",
-            Self::MemoryObjectLoadField { .. } => "memory_object_load_field",
-            Self::MemoryObjectStoreField { .. } => "memory_object_store_field",
-            Self::MemoryObjectLoadElement { .. } => "memory_object_load_element",
-            Self::MemoryObjectLoadByte { .. } => "memory_object_load_byte",
-            Self::MemoryObjectStoreElement { .. } => "memory_object_store_element",
-            Self::MemoryObjectStoreByte { .. } => "memory_object_store_byte",
-            Self::MemoryObjectStoreWord { .. } => "memory_object_store_word",
-            Self::MemorySliceLoadWord { .. } => "memory_slice_load_word",
-            Self::CalldataSliceLoadWord { .. } => "calldata_slice_load_word",
-            Self::MemoryObjectCopyFromSlice { .. } => "memory_object_copy_from_slice",
-            Self::MemoryObjectCopyFromSliceAt { .. } => "memory_object_copy_from_slice_at",
-            Self::MemoryObjectCopy { .. } => "memory_object_copy",
-            Self::AbiEncode { .. } => "abi_encode",
-            Self::AbiDecode { .. } => "abi_decode",
-            Self::StorageToMemory { .. } => "storage_to_memory",
-            Self::MemoryToStorage { .. } => "memory_to_storage",
-            Self::ClearStorage { .. } => "clear_storage",
-            Self::MCopy(_, _, _) => "mcopy",
-            Self::ValidateStorageBytes(_) => "validate_storage_bytes",
-            Self::StorageBytesLoad(_) => "load_storage_bytes",
-            Self::StorageArrayLoad { .. } => "load_storage_array",
-            Self::StorageBytesStore(..) => "store_storage_bytes",
-            Self::StorageBytesStoreLiteral { .. } => "store_storage_bytes_literal",
-            Self::StorageClearWords(..) => "clear_storage_words",
-            Self::SLoad(_) => "sload",
-            Self::SStore(_, _) => "sstore",
-            Self::TLoad(_) => "tload",
-            Self::TStore(_, _) => "tstore",
-            Self::CalldataLoad(_) => "calldataload",
-            Self::CalldataCopy(_, _, _) => "calldatacopy",
-            Self::CalldataSize => "calldatasize",
-            Self::MakeSlice { location: SliceLocation::Memory, .. } => "make_memory_slice",
-            Self::MakeSlice { location: SliceLocation::Calldata, .. } => "make_calldata_slice",
-            Self::MakeSlice { location: SliceLocation::Returndata, .. } => "make_returndata_slice",
-            Self::SlicePtr(_) => "slice_ptr",
-            Self::SliceLen(_) => "slice_len",
-            Self::ConstructorArgsBase => "constructor_args_base",
-            Self::ConstructorArgsEnd => "constructor_args_end",
-            Self::DataCopy(..) => "data_copy",
-            Self::CodeSize => "codesize",
-            Self::CodeCopy(_, _, _) => "codecopy",
-            Self::StoreImmutable(..) => "storeimmutable",
-            Self::LoadImmutable(_) => "loadimmutable",
-            Self::ExtCodeSize(_) => "extcodesize",
-            Self::ExtCodeCopy(_, _, _, _) => "extcodecopy",
-            Self::ExtCodeHash(_) => "extcodehash",
-            Self::ReturnDataSize => "returndatasize",
-            Self::ReturnDataCopy(_, _, _) => "returndatacopy",
-            Self::InternalFrameAddr(_) => "internal_frame_addr",
-            Self::FrameLoad { .. } => "frame_load",
-            Self::FrameStore { .. } => "frame_store",
-            Self::Caller => "caller",
-            Self::CallValue => "callvalue",
-            Self::Origin => "origin",
-            Self::GasPrice => "gasprice",
-            Self::BlockHash(_) => "blockhash",
-            Self::Coinbase => "coinbase",
-            Self::Timestamp => "timestamp",
-            Self::BlockNumber => "number",
-            Self::PrevRandao => "prevrandao",
-            Self::GasLimit => "gaslimit",
-            Self::SlotNum => "slotnum",
-            Self::ChainId => "chainid",
-            Self::Address => "address",
-            Self::Balance(_) => "balance",
-            Self::SelfBalance => "selfbalance",
-            Self::Gas => "gas",
-            Self::BaseFee => "basefee",
-            Self::BlobBaseFee => "blobbasefee",
-            Self::BlobHash(_) => "blobhash",
-            Self::Keccak256(_, _) => "keccak256",
-            Self::Keccak256Bytes(_) => "keccak256_bytes",
             Self::CheckedBinary { op, .. } => op.name(),
             Self::ValidateAbi(_) => "validate_abi",
             Self::AbiEncodePacked { hash, .. } => {
@@ -1099,29 +983,7 @@ impl InstKind {
             Self::AddressCall { kind: AddressCallKind::Call, .. } => "address_call",
             Self::AddressCall { kind: AddressCallKind::Static, .. } => "address_staticcall",
             Self::AddressCall { kind: AddressCallKind::Delegate, .. } => "address_delegatecall",
-            Self::MappingSlot(_, _) => "mapping_slot",
-            Self::MappingSlotMemory(_, _) => "mapping_slot_memory",
-            Self::MappingSlotCalldata(_, _) => "mapping_slot_calldata",
-            Self::StorageArrayDataSlot(_) => "storage_array_data_slot",
-            Self::StorageArrayElementSlot { .. } => "storage_array_element_slot",
-            Self::Call { .. } => "call",
-            Self::CallCode { .. } => "callcode",
-            Self::StaticCall { .. } => "staticcall",
-            Self::DelegateCall { .. } => "delegatecall",
-            Self::ExtCall { .. } => "extcall",
-            Self::ExtDelegateCall { .. } => "extdelegatecall",
-            Self::ExtStaticCall { .. } => "extstaticcall",
-            Self::ICall { .. } => "icall",
-            Self::Create(_, _, _) => "create",
-            Self::Create2(_, _, _, _) => "create2",
-            Self::Log0(_, _) => "log0",
-            Self::Log1(_, _, _) => "log1",
-            Self::Log2(_, _, _, _) => "log2",
-            Self::Log3(_, _, _, _, _) => "log3",
-            Self::Log4(_, _, _, _, _, _) => "log4",
-            Self::Phi(_) => "phi",
-            Self::Select(_, _, _) => "select",
-            Self::SignExtend(_, _) => "signextend",
+            _ => self.op_def().mnemonic,
         }
     }
 
@@ -1164,162 +1026,13 @@ impl InstKind {
     #[must_use]
     pub(crate) const fn effect_kind(&self) -> EffectKind {
         match self {
-            Self::ValidateStorageBytes(..)
-            | Self::ICall {
-                function: Callee::Builtin(Builtin::CheckedAddMod | Builtin::CheckedMulMod),
-                ..
-            }
-            | Self::ValidateAbi(..)
-            | Self::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. }
-            | Self::CheckedBinary { .. }
-            | Self::InsertValue { .. }
-            | Self::ExtractValue { .. }
-            | Self::MemoryObjectFromPtr { .. }
-            | Self::WordCast(_) => EffectKind::Pure,
-            Self::StorageBytesLoad(..)
-            | Self::StorageArrayLoad { .. }
-            | Self::ICall { function: Callee::Builtin(Builtin::Erc7201), .. }
-            | Self::MappingSlot(..)
-            | Self::MappingSlotMemory(..)
-            | Self::MappingSlotCalldata(..)
-            | Self::StorageArrayDataSlot(..)
-            | Self::StorageArrayElementSlot { .. }
-            | Self::AbiEncodePacked { .. }
-            | Self::ICall {
-                function: Callee::Builtin(Builtin::Concat(_) | Builtin::ReturndataBytes),
-                ..
-            }
-            | Self::MStore(_, _)
-            | Self::MStore8(_, _)
-            | Self::MemoryZero(_, _)
-            | Self::SetFmp(_)
-            | Self::Alloc { .. }
-            | Self::SetMemoryObjectLen(_, _, _)
-            | Self::FrameStore { .. }
-            | Self::MemoryObjectStoreField { .. }
-            | Self::MemoryObjectStoreElement { .. }
-            | Self::MemoryObjectStoreByte { .. }
-            | Self::MemoryObjectStoreWord { .. }
-            | Self::MemoryObjectCopyFromSlice { .. }
-            | Self::MemoryObjectCopyFromSliceAt { .. }
-            | Self::MemoryObjectCopy { .. }
-            | Self::AbiEncode { .. }
-            | Self::AbiDecode { .. }
-            | Self::StorageToMemory { .. }
-            | Self::MCopy(_, _, _)
-            | Self::CalldataCopy(_, _, _)
-            | Self::DataCopy(_, _, _)
-            | Self::CodeCopy(_, _, _)
-            | Self::ExtCodeCopy(_, _, _, _)
-            | Self::ReturnDataCopy(_, _, _) => EffectKind::MemoryWrite,
-            Self::StoreImmutable(..) => EffectKind::ImmutableWrite,
-            Self::ICall { function: Callee::Builtin(Builtin::Require(_)), .. }
-            | Self::MLoad(_)
-            | Self::MemorySliceLoadWord { .. }
-            | Self::FrameLoad { .. }
-            | Self::MemoryObjectLen(_, _)
-            | Self::MemoryObjectLoadField { .. }
-            | Self::MemoryObjectLoadElement { .. }
-            | Self::MemoryObjectLoadByte { .. }
-            | Self::Fmp
-            | Self::MSize
-            | Self::Keccak256(_, _)
-            | Self::Keccak256Bytes(_) => EffectKind::MemoryRead,
-            Self::SLoad(_) => EffectKind::StorageRead,
-            Self::SStore(_, _)
-            | Self::MemoryToStorage { .. }
-            | Self::ClearStorage { .. }
-            | Self::StorageClearWords(..)
-            | Self::StorageBytesStore(..)
-            | Self::StorageBytesStoreLiteral { .. } => EffectKind::StorageWrite,
-            Self::TLoad(_) => EffectKind::TransientRead,
-            Self::TStore(_, _) => EffectKind::TransientWrite,
-            Self::ICall {
-                function: Callee::Builtin(Builtin::Sha256 | Builtin::Ripemd160 | Builtin::EcRecover),
-                ..
-            }
-            | Self::AddressCall { .. }
-            | Self::ICall {
-                function: Callee::Builtin(Builtin::Send | Builtin::Transfer), ..
-            }
-            | Self::Call { .. }
-            | Self::CallCode { .. }
-            | Self::StaticCall { .. }
-            | Self::DelegateCall { .. }
-            | Self::ExtCall { .. }
-            | Self::ExtDelegateCall { .. }
-            | Self::ExtStaticCall { .. } => EffectKind::ExternalCall,
-            Self::ICall { .. } => EffectKind::ICall,
-            Self::Create(_, _, _) | Self::Create2(_, _, _, _) => EffectKind::Create,
-            Self::Log0(_, _)
-            | Self::Log1(_, _, _)
-            | Self::Log2(_, _, _, _)
-            | Self::Log3(_, _, _, _, _)
-            | Self::Log4(_, _, _, _, _, _) => EffectKind::Log,
-            Self::CalldataLoad(_)
-            | Self::CalldataSliceLoadWord { .. }
-            | Self::CalldataSize
-            | Self::ConstructorArgsBase
-            | Self::ConstructorArgsEnd
-            | Self::CodeSize
-            | Self::ExtCodeSize(_)
-            | Self::ExtCodeHash(_)
-            | Self::ReturnDataSize
-            | Self::Caller
-            | Self::CallValue
-            | Self::Origin
-            | Self::GasPrice
-            | Self::BlockHash(_)
-            | Self::Coinbase
-            | Self::Timestamp
-            | Self::BlockNumber
-            | Self::PrevRandao
-            | Self::GasLimit
-            | Self::SlotNum
-            | Self::ChainId
-            | Self::Address
-            | Self::Balance(_)
-            | Self::SelfBalance
-            | Self::Gas
-            | Self::BaseFee
-            | Self::BlobBaseFee
-            | Self::BlobHash(_) => EffectKind::EnvironmentRead,
-            Self::LoadImmutable(_) => EffectKind::ImmutableRead,
-            Self::Add(_, _)
-            | Self::Sub(_, _)
-            | Self::Mul(_, _)
-            | Self::Div(_, _)
-            | Self::SDiv(_, _)
-            | Self::Mod(_, _)
-            | Self::SMod(_, _)
-            | Self::Exp(_, _)
-            | Self::AddMod(_, _, _)
-            | Self::MulMod(_, _, _)
-            | Self::And(_, _)
-            | Self::Or(_, _)
-            | Self::Xor(_, _)
-            | Self::Not(_)
-            | Self::Clz(_)
-            | Self::Shl(_, _)
-            | Self::Shr(_, _)
-            | Self::Sar(_, _)
-            | Self::Byte(_, _)
-            | Self::Lt(_, _)
-            | Self::Gt(_, _)
-            | Self::SLt(_, _)
-            | Self::SGt(_, _)
-            | Self::Eq(_, _)
-            | Self::IsZero(_)
-            | Self::MakeSlice { .. }
-            | Self::SlicePtr(_)
-            | Self::SliceLen(_)
-            | Self::MemoryObjectData(_, _)
-            | Self::MemoryObjectFieldAddr { .. }
-            | Self::MemoryObjectElementAddr { .. }
-            | Self::InternalFrameAddr(_)
-            | Self::Phi(_)
-            | Self::Select(_, _, _)
-            | Self::SignExtend(_, _) => EffectKind::Pure,
+            Self::ICall { function: Callee::Builtin(builtin), .. } => match builtin {
+                Builtin::CheckedAddMod | Builtin::CheckedMulMod | Builtin::Check { .. } => EffectKind::Pure,
+                Builtin::Erc7201 | Builtin::Concat(_) | Builtin::ReturndataBytes => EffectKind::MemoryWrite,
+                Builtin::Require(_) => EffectKind::MemoryRead,
+                Builtin::Sha256 | Builtin::Ripemd160 | Builtin::EcRecover | Builtin::Send | Builtin::Transfer => EffectKind::ExternalCall,
+            },
+            _ => self.op_def().effect,
         }
     }
 }
@@ -1346,8 +1059,6 @@ mod tests {
         inst.metadata.set_memory_region(Some(MemoryRegion::Scratch));
         inst.metadata.set_effect(Some(EffectKind::MemoryRead));
         inst.metadata.set_modifier_depth(3);
-        inst.metadata.set_abi_validation(true);
-        inst.metadata.set_unchecked(true);
         inst.metadata.loop_depth = 2;
         let mut expected = inst.metadata.clone();
         expected.set_storage_alias(None);

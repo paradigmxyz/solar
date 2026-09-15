@@ -7,7 +7,7 @@
       mstore v0, 1
       v1 = add v0, 32
       mstore v1, 41
--     v2 = icall @choose, 1, v0
+-     v2 = icall @choose, v0
 -     ret v2
 +     ret 42
   }
@@ -21,7 +21,7 @@
       ret 7
     bb1:
       v1 = add arg0, 32
-      v2 = icall @read, 1, v1
+      v2 = icall @read, v1
       v3 = add v2, 1
       ret v3
   }
@@ -36,7 +36,7 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64
       mstore v0, 0
-      v1 = icall @choose, 1, v0
+      v1 = icall @choose, v0
       ret v1
   }
   
@@ -46,7 +46,7 @@
       mstore v0, 42
       v1 = add v0, 1
       mstore8 v1, arg0
-      v2 = icall @read, 1, v0
+      v2 = icall @read, v0
       ret v2
   }
   
@@ -54,8 +54,8 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 42
-      icall @overwrite, 0, v0, arg0
-      v1 = icall @read, 1, v0
+      icall @overwrite, v0, arg0
+      v1 = icall @read, v0
       ret v1
   }
   
@@ -69,7 +69,7 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64
       mstore v0, 1
-      v1 = icall @choose, 1, v0
+      v1 = icall @choose, v0
       ret v1
   }
   
@@ -78,7 +78,7 @@
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 1
       mstore 0, 42
-      v1 = icall @read, 1, 0
+      v1 = icall @read, 0
       ret v1
   }
   
@@ -86,7 +86,7 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 1
--     v1 = icall @phi_callee, 1, v0
+-     v1 = icall @phi_callee, v0
 -     ret v1
 +     ret 42
   }
@@ -108,13 +108,13 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 1
-      v1 = icall @recursive, 1, v0
+      v1 = icall @recursive, v0
       ret v1
   }
   
   fn @recursive(arg0: memptr) -> u256 {
     bb0:
-      v0 = icall @recursive, 1, arg0
+      v0 = icall @recursive, arg0
       ret v0
   }
   
@@ -122,7 +122,7 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 42
-      v1 = icall @gas_reader, 1, v0
+      v1 = icall @gas_reader, v0
       ret v1
   }
   
@@ -140,7 +140,7 @@
     bb1:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 42
-      v1 = icall @read, 1, v0
+      v1 = icall @read, v0
       jumpi arg0, bb1, bb2
     bb2:
       ret v1
@@ -151,7 +151,7 @@
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 42
       mstore arg0, 7
-      v1 = icall @read, 1, v0
+      v1 = icall @read, v0
       ret v1
   }
   
@@ -160,7 +160,7 @@
       set_fmp arg0
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 42
-      v1 = icall @read, 1, v0
+      v1 = icall @read, v0
       ret v1
   }
   
@@ -168,7 +168,7 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 1
-      v1 = icall @loop_callee, 1, v0
+      v1 = icall @loop_callee, v0
       ret v1
   }
   

@@ -3,22 +3,16 @@
 @phase lowered
 fn @lastWord() [selector=0x3955f902, abi_wrapper, pure] {
   bb0:
-    jump bb2
-  bb2:
     v3 = icall @decode_calldata_slice, 4
     v4 = calldataload v3
     v5 = add v3, 32
     v0 = icall @_last, v5, v4
     mstore 128, v0
     returndata 128, 32
-  bb1:
-    invalid
 }
 
 fn @lastWord2() [selector=0x97f495a8, abi_wrapper, pure] {
   bb0:
-    jump bb3
-  bb3:
     v13 = icall @decode_calldata_slice, 4
     v14 = calldataload v13
     v15 = add v13, 32

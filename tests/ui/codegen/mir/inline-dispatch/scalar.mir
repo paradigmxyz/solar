@@ -3,7 +3,6 @@
 //@[disabled] compile-flags: -Onone -Zmir-pipeline=inline-dispatch
 //@[inline] filecheck:
 @module ScalarDispatcher
-@phase memory-lowered
 
 // CHECK-LABEL: {{^[ +].*}}fn @entry
 // CHECK: [[LEFT:v[0-9]+]] = calldataload 4

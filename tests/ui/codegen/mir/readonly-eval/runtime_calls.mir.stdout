@@ -8,7 +8,7 @@ fn @constantWord() -> u256 [selector=0xf7bfd103, pure, abi_params=[], abi_return
     set_memory_object_len memorybytes, v2, 32
     v3 = add v2, 32
     mstore v3, 42
-    v4 = icall @read, 1, v2
+    v4 = icall @read, v2
     ret v4
 }
 
@@ -20,7 +20,7 @@ fn @dynamicWord(arg0: u256) -> u256 [selector=0x0c872375, pure, abi_params=[u256
     set_memory_object_len memorybytes, v2, 32
     v3 = add v2, 32
     mstore v3, arg0
-    v4 = icall @read, 1, v2
+    v4 = icall @read, v2
     ret v4
 }
 
@@ -32,8 +32,8 @@ fn @afterOverwrite(arg0: u256) -> u256 [selector=0xb7519bca, pure, abi_params=[u
     set_memory_object_len memorybytes, v2, 32
     v3 = add v2, 32
     mstore v3, 42
-    icall @overwrite, 0, v2, arg0
-    v4 = icall @read, 1, v2
+    icall @overwrite, v2, arg0
+    v4 = icall @read, v2
     ret v4
 }
 
@@ -43,13 +43,13 @@ fn @constantShort() -> bytes32 [selector=0xe64f6587, pure, abi_params=[], abi_re
     set_memory_object_len memorybytes, v0, 1
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
-    v2 = icall @short, 1, v0
+    v2 = icall @short, v0
     ret v2
 }
 
 fn @dynamicShort(arg0: memorybytes) -> bytes32 [selector=0x5def3fed, pure, abi_params=[bytes], abi_returns=[word]] {
   bb0:
-    v0 = icall @short, 1, arg0
+    v0 = icall @short, arg0
     ret v0
 }
 
@@ -58,13 +58,10 @@ fn @read(arg0: memorybytes) -> u256 [pure] {
     v0 = memory_object_len memorybytes, arg0
     v1 = eq v0, 32
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    revert_if v2, empty
     v3 = add arg0, 32
     v4 = mload v3
     ret v4
-  bb1:
-    revert 0, 0
 }
 
 fn @short(arg0: memorybytes) -> bytes32 [pure] {
@@ -72,8 +69,7 @@ fn @short(arg0: memorybytes) -> bytes32 [pure] {
     v0 = memory_object_len memorybytes, arg0
     v1 = lt v0, 32
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    revert_if v2, empty
     v3 = mload arg0
     v4 = not 0
     v5 = mload arg0
@@ -85,8 +81,6 @@ fn @short(arg0: memorybytes) -> bytes32 [pure] {
     v11 = and v10, v8
     v12 = or v11, v3
     ret v12
-  bb1:
-    revert 0, 0
 }
 
 fn @overwrite(arg0: memorybytes, arg1: u256) [pure] {

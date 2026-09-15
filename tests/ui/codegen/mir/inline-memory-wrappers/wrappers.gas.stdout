@@ -3,13 +3,13 @@
   @module MemoryWrappers
   fn @entry(arg0: memptr) -> memptr [selector=0x00000001] {
     bb0:
--     v0 = icall @wrap, 1, arg0
--     v1 = icall @wrap, 1, v0
--     v2 = icall @single, 1, v1
--     v3 = icall @effects, 1, v2
+-     v0 = icall @wrap, arg0
+-     v1 = icall @wrap, v0
+-     v2 = icall @single, v1
+-     v3 = icall @effects, v2
 +     jump bb2
 +   bb2:
-+     v4 = icall @base, 1, arg0
++     v4 = icall @base, arg0
 +     v5 = mload v4
 +     v6 = add v5, 2
 +     mstore v4, v6
@@ -18,7 +18,7 @@
 +     v7 = phi [bb2: v4]
 +     jump bb4
 +   bb4:
-+     v8 = icall @base, 1, v7
++     v8 = icall @base, v7
 +     v9 = mload v8
 +     v10 = add v9, 2
 +     mstore v8, v10
@@ -27,19 +27,19 @@
 +     v11 = phi [bb4: v8]
 +     jump bb6
 +   bb6:
-+     v12 = icall @base, 1, v11
++     v12 = icall @base, v11
 +     v13 = mload v12
 +     mstore v12, v13
 +     jump bb5
 +   bb5:
 +     v14 = phi [bb6: v12]
-+     v3 = icall @effects, 1, v14
++     v3 = icall @effects, v14
       ret v3
   }
   
   fn @wrap(arg0: memptr) -> memptr {
     bb0:
-      v0 = icall @base, 1, arg0
+      v0 = icall @base, arg0
       v1 = mload v0
       v2 = add v1, 2
       mstore v0, v2
@@ -48,7 +48,7 @@
   
   fn @single(arg0: memptr) -> memptr {
     bb0:
-      v0 = icall @base, 1, arg0
+      v0 = icall @base, arg0
       v1 = mload v0
       mstore v0, v1
       ret v0
@@ -56,7 +56,7 @@
   
   fn @effects(arg0: memptr) -> memptr {
     bb0:
-      v0 = icall @base, 1, arg0
+      v0 = icall @base, arg0
       mstore v0, 5
       sstore 0, 5
       ret v0
@@ -69,7 +69,7 @@
   
   fn @pressure(arg0: memptr, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: u256, arg8: u256, arg9: u256, arg10: u256, arg11: u256, arg12: u256) -> u256 [selector=0x00000002] {
     bb0:
-      v0 = icall @wrap, 1, arg0
+      v0 = icall @wrap, arg0
       v1 = add arg1, arg2
       v2 = add arg3, arg4
       v3 = add arg5, arg6
@@ -92,7 +92,7 @@
     bb0:
 -     jump bb2
 -   bb2:
-      v4 = icall @base, 1, arg0
+      v4 = icall @base, arg0
       v5 = mload v4
       v6 = add v5, 2
       mstore v4, v6
@@ -101,8 +101,8 @@
 -     v7 = phi [bb2: v4]
 -     jump bb4
 -   bb4:
--     v8 = icall @base, 1, v7
-+     v8 = icall @base, 1, v4
+-     v8 = icall @base, v7
++     v8 = icall @base, v4
       v9 = mload v8
       v10 = add v9, 2
       mstore v8, v10
@@ -111,21 +111,21 @@
 -     v11 = phi [bb4: v8]
 -     jump bb6
 -   bb6:
--     v12 = icall @base, 1, v11
-+     v12 = icall @base, 1, v8
+-     v12 = icall @base, v11
++     v12 = icall @base, v8
       v13 = mload v12
       mstore v12, v13
 -     jump bb5
 -   bb5:
 -     v14 = phi [bb6: v12]
--     v3 = icall @effects, 1, v14
-+     v3 = icall @effects, 1, v12
+-     v3 = icall @effects, v14
++     v3 = icall @effects, v12
       ret v3
   }
   
   fn @wrap(arg0: memptr) -> memptr {
     bb0:
-      v0 = icall @base, 1, arg0
+      v0 = icall @base, arg0
       v1 = mload v0
       v2 = add v1, 2
       mstore v0, v2
@@ -134,7 +134,7 @@
   
   fn @single(arg0: memptr) -> memptr {
     bb0:
-      v0 = icall @base, 1, arg0
+      v0 = icall @base, arg0
       v1 = mload v0
       mstore v0, v1
       ret v0
@@ -142,7 +142,7 @@
   
   fn @effects(arg0: memptr) -> memptr {
     bb0:
-      v0 = icall @base, 1, arg0
+      v0 = icall @base, arg0
       mstore v0, 5
       sstore 0, 5
       ret v0
@@ -155,7 +155,7 @@
   
   fn @pressure(arg0: memptr, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: u256, arg8: u256, arg9: u256, arg10: u256, arg11: u256, arg12: u256) -> u256 [selector=0x00000002] {
     bb0:
-      v0 = icall @wrap, 1, arg0
+      v0 = icall @wrap, arg0
       v1 = add arg1, arg2
       v2 = add arg3, arg4
       v3 = add arg5, arg6
@@ -176,24 +176,24 @@
   @module MemoryWrappers
   fn @entry(arg0: memptr) -> memptr [selector=0x00000001] {
     bb0:
-      v4 = icall @base, 1, arg0
+      v4 = icall @base, arg0
       v5 = mload v4
       v6 = add v5, 2
       mstore v4, v6
-      v8 = icall @base, 1, v4
+      v8 = icall @base, v4
       v9 = mload v8
       v10 = add v9, 2
       mstore v8, v10
-      v12 = icall @base, 1, v8
+      v12 = icall @base, v8
       v13 = mload v12
       mstore v12, v13
-      v3 = icall @effects, 1, v12
+      v3 = icall @effects, v12
       ret v3
   }
   
   fn @wrap(arg0: memptr) -> memptr {
     bb0:
-      v0 = icall @base, 1, arg0
+      v0 = icall @base, arg0
       v1 = mload v0
       v2 = add v1, 2
       mstore v0, v2
@@ -202,7 +202,7 @@
   
   fn @single(arg0: memptr) -> memptr {
     bb0:
-      v0 = icall @base, 1, arg0
+      v0 = icall @base, arg0
       v1 = mload v0
       mstore v0, v1
       ret v0
@@ -210,7 +210,7 @@
   
   fn @effects(arg0: memptr) -> memptr {
     bb0:
-      v0 = icall @base, 1, arg0
+      v0 = icall @base, arg0
       mstore v0, 5
       sstore 0, 5
       ret v0
@@ -223,7 +223,7 @@
   
   fn @pressure(arg0: memptr, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: u256, arg8: u256, arg9: u256, arg10: u256, arg11: u256, arg12: u256) -> u256 [selector=0x00000002] {
     bb0:
-      v0 = icall @wrap, 1, arg0
+      v0 = icall @wrap, arg0
       v1 = add arg1, arg2
       v2 = add arg3, arg4
       v3 = add arg5, arg6

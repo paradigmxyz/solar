@@ -139,14 +139,14 @@ fn @keep_cross_block_store_observed_by_gas() -> u256 {
 fn @keep_store_observed_by_callee() -> u256 {
   bb0:
     sstore 0, 1
-    v0 = icall @observe_indirect, 1
+    v0 = icall @observe_indirect
     sstore 0, 2
     ret v0
 }
 
 fn @observe_indirect() -> u256 {
   bb0:
-    v0 = icall @observe_gas, 1
+    v0 = icall @observe_gas
     ret v0
 }
 

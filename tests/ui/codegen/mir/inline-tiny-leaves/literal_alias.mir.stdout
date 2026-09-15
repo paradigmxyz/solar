@@ -2,7 +2,7 @@
 @module LiteralAlias
 fn @overwritten(arg0: bytes32) -> memorybytes [selector=0x55dcfb46, pure, abi_params=[bytes32], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = icall @literal, 1
+    v0 = icall @literal
     v1 = mload 64 !metadata(memory=scratch)
     v2 = sub v1, 32
     mstore v2, arg0

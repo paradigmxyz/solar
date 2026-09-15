@@ -32,7 +32,7 @@ use super::{
     compact_pushes::{immediate_materialization_cost, materialize_immediate},
 };
 use crate::backend::evm::{
-    ir::{Instruction, Module, PushValue},
+    ir::{Instruction, Module, PushValue, TerminatorKind},
     op,
 };
 use alloy_primitives::U256;
@@ -43,15 +43,26 @@ use tracing::trace;
 
 mod isle;
 
-pub(super) struct Peephole;
+pub(super) struct Peephole {
+    final_cleanup: bool,
+}
+
+impl Peephole {
+    pub(super) const EARLY: Self = Self { final_cleanup: false };
+    pub(super) const FINAL: Self = Self { final_cleanup: true };
+}
 
 impl EvmPass for Peephole {
     fn name(&self) -> &'static str {
         "peephole"
     }
 
+    fn cache_config(&self) -> u64 {
+        u64::from(self.final_cleanup)
+    }
+
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        optimize_module::<false>(gcx, module)
+        optimize_module::<false>(gcx, module, self.final_cleanup)
     }
 }
 
@@ -64,7 +75,7 @@ impl EvmPass for LateWord {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        optimize_module::<true>(gcx, module)
+        optimize_module::<true>(gcx, module, false)
     }
 }
 
@@ -91,7 +102,7 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let changed = self.0.run_pass(gcx, module);
         if changed {
-            let _ = Peephole.run_pass(gcx, module);
+            let _ = Peephole::EARLY.run_pass(gcx, module);
         }
         changed
     }
@@ -99,16 +110,56 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 
-fn optimize_module<const LATE: bool>(gcx: Gcx<'_>, module: &mut Module) -> bool {
+fn optimize_module<const LATE: bool>(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    final_cleanup: bool,
+) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
     let mut changed = false;
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
         // Dead stack traffic before a terminator that cannot observe it is dead-code
         // elimination's to remove; this pass only rewrites what it can see locally.
-        let rewrites =
-            optimize::<LATE>(evm_version, &mut block.instructions, &mut scratch, block.label);
+        let rewrites = optimize::<LATE>(
+            evm_version,
+            &mut block.instructions,
+            &mut scratch,
+            block.label,
+            final_cleanup,
+        );
         changed |= rewrites != 0;
+        // mstore(offset, value); return(offset, 32)
+        // -> mstore(0, value); return(0, 32)
+        if final_cleanup
+            && matches!(
+                block.terminator.as_ref().map(|term| &term.kind),
+                Some(TerminatorKind::Op(op::RETURN))
+            )
+            && let [prefix @ .., offset, store, size, returned] = block.instructions.as_mut_slice()
+            && [&*offset, &*store, &*size, &*returned]
+                .iter()
+                .all(|inst| inst.has_canonical_stack_effect())
+            && store.as_evm_opcode() == Some(op::MSTORE)
+            && size.concrete_immediate() == Some(U256::from(32))
+            && let Some(address) = offset.concrete_immediate()
+            && !address.is_zero()
+            && returned.concrete_immediate() == Some(address)
+            && prefix
+                .windows(2)
+                .rev()
+                .take_while(|pair| pair[1].as_evm_opcode() != Some(op::JUMPDEST))
+                .any(|pair| {
+                    pair[0].has_canonical_stack_effect()
+                        && pair[1].has_canonical_stack_effect()
+                        && pair[1].as_evm_opcode() == Some(op::MSTORE)
+                        && pair[0].concrete_immediate().is_some_and(|previous| previous >= address)
+                })
+        {
+            offset.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
+            returned.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
+            changed = true;
+        }
     }
     changed
 }
@@ -118,11 +169,13 @@ fn optimize<const LATE: bool>(
     instructions: &mut Vec<Instruction>,
     scratch: &mut Vec<Instruction>,
     block: u32,
+    final_cleanup: bool,
 ) -> usize {
     // Inspect the original prefix without copying instructions. Until the first
     // rewrite, this is exactly the optimized prefix the streaming matcher sees.
     let first = (1..=instructions.len()).find_map(|end| {
         isle::PeepContext::new(&instructions[..end], evm_version)
+            .with_final_cleanup(final_cleanup)
             .select::<LATE>()
             .map(|rewrite| (end, rewrite))
     });
@@ -134,12 +187,12 @@ fn optimize<const LATE: bool>(
     scratch.extend(instructions.drain(end..));
     rewrite(evm_version, instructions, usize::from(skip), edit, block);
     let mut rewrites = 1;
-    while try_peephole::<LATE>(evm_version, instructions, block) {
+    while try_peephole::<LATE>(evm_version, instructions, block, final_cleanup) {
         rewrites += 1;
     }
     for inst in scratch.drain(..) {
         instructions.push(inst);
-        while try_peephole::<LATE>(evm_version, instructions, block) {
+        while try_peephole::<LATE>(evm_version, instructions, block, final_cleanup) {
             rewrites += 1;
         }
     }
@@ -150,9 +203,11 @@ fn try_peephole<const LATE: bool>(
     evm_version: EvmVersion,
     instructions: &mut Vec<Instruction>,
     block: u32,
+    final_cleanup: bool,
 ) -> bool {
-    let Some(isle::Rewrite { skip, edit }) =
-        isle::PeepContext::new(instructions, evm_version).select::<LATE>()
+    let Some(isle::Rewrite { skip, edit }) = isle::PeepContext::new(instructions, evm_version)
+        .with_final_cleanup(final_cleanup)
+        .select::<LATE>()
     else {
         return false;
     };
@@ -221,7 +276,14 @@ enum Edit {
     FoldConstants {
         value: U256,
     },
+    InvertComparison {
+        value: U256,
+        opcode: u8,
+    },
     ReloadStoredValue,
+    ConsumeStoredValue {
+        depth: u8,
+    },
     DropDoubleIszero,
     EqIszeroJumpi,
     StackOp {
@@ -297,6 +359,23 @@ impl Edit {
                 overwrite_stack_op(&mut instructions[start], op::StackOp::Swap(depth));
                 overwrite_raw(&mut instructions[end - 2], op::POP);
                 instructions.truncate(end - 1);
+            }
+            Self::ConsumeStoredValue { depth } => {
+                // SWAP(n-1); PUSH address; MSTORE
+                overwrite_stack_op(&mut instructions[start], op::StackOp::Swap(depth));
+                let (retained, removed) = instructions[start..].split_at_mut(3);
+                for inst in removed {
+                    retained[2].metadata.absorb_debug_info(&inst.metadata);
+                }
+                instructions.truncate(start + 3);
+            }
+            Self::InvertComparison { value, opcode } => {
+                // PUSH c; [DUPn]; compare; ISZERO => PUSH adjusted; [DUPn]; opposite compare
+                instructions[start].replace_preserving_metadata(Instruction::push_value(value));
+                let iszero = instructions.pop().expect("matched ISZERO");
+                let comparison = instructions.last_mut().expect("matched comparison");
+                overwrite_raw(comparison, opcode);
+                comparison.metadata.absorb_debug_info(&iszero.metadata);
             }
             Self::ReloadStoredValue => {
                 instructions.swap(start, start + 3);

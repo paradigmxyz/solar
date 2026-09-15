@@ -3,13 +3,13 @@
   @module SharedSpecialization
   fn @first(arg0: u256) -> u256 [selector=0x00000001] {
     bb0:
-      v0 = icall @helper, 1, 0, arg0
+      v0 = icall @helper, 0, arg0
       ret v0
   }
   
   fn @second(arg0: u256) -> u256 [selector=0x00000002] {
     bb0:
-      v0 = icall @helper, 1, 0, arg0
+      v0 = icall @helper, 0, arg0
       ret v0
   }
   
@@ -27,22 +27,22 @@
   
   fn @specialized_a(arg0: u256) -> u256 {
     bb0:
--     v0 = icall @mixed_helper, 1, 0, arg0
-+     v0 = icall @mixed_helper.7, 1, 0, arg0
+-     v0 = icall @mixed_helper, 0, arg0
++     v0 = icall @mixed_helper.7, 0, arg0
       ret v0
   }
   
   fn @specialized_b(arg0: u256) -> u256 {
     bb0:
--     v0 = icall @mixed_helper, 1, 0, arg0
-+     v0 = icall @mixed_helper.7, 1, 0, arg0
+-     v0 = icall @mixed_helper, 0, arg0
++     v0 = icall @mixed_helper.7, 0, arg0
       ret v0
   }
   
   fn @generic(arg0: u256, arg1: u256) -> u256 {
     bb0:
--     v0 = icall @mixed_helper, 1, arg0, arg1
-+     v0 = icall @mixed_helper.6, 1, arg0, arg1
+-     v0 = icall @mixed_helper, arg0, arg1
++     v0 = icall @mixed_helper.6, arg0, arg1
       ret v0
   }
   
@@ -70,15 +70,15 @@
   @module SharedSpecialization
   fn @first(arg0: u256) -> u256 [selector=0x00000001] {
     bb0:
--     v0 = icall @helper, 1, 0, arg0
-+     v0 = icall @helper, 1, arg0
+-     v0 = icall @helper, 0, arg0
++     v0 = icall @helper, arg0
       ret v0
   }
   
   fn @second(arg0: u256) -> u256 [selector=0x00000002] {
     bb0:
--     v0 = icall @helper, 1, 0, arg0
-+     v0 = icall @helper, 1, arg0
+-     v0 = icall @helper, 0, arg0
++     v0 = icall @helper, arg0
       ret v0
   }
   
@@ -92,21 +92,21 @@
   
   fn @specialized_a(arg0: u256) -> u256 {
     bb0:
--     v0 = icall @mixed_helper.7, 1, 0, arg0
-+     v0 = icall @mixed_helper.7, 1, arg0
+-     v0 = icall @mixed_helper.7, 0, arg0
++     v0 = icall @mixed_helper.7, arg0
       ret v0
   }
   
   fn @specialized_b(arg0: u256) -> u256 {
     bb0:
--     v0 = icall @mixed_helper.7, 1, 0, arg0
-+     v0 = icall @mixed_helper.7, 1, arg0
+-     v0 = icall @mixed_helper.7, 0, arg0
++     v0 = icall @mixed_helper.7, arg0
       ret v0
   }
   
   fn @generic(arg0: u256, arg1: u256) -> u256 {
     bb0:
-      v0 = icall @mixed_helper.6, 1, arg0, arg1
+      v0 = icall @mixed_helper.6, arg0, arg1
       ret v0
   }
   

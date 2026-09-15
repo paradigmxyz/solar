@@ -41,5 +41,6 @@ fn @decimal(arg0: u256) -> memorybytes [selector=0xf371efa4, pure, abi_params=[u
     v17 = sub v3, v15
     v18 = sub v15, 32
     mstore v18, v17
-    ret v18
+    v19 = memory_object_from_ptr memorybytes, v18
+    ret v19
 }

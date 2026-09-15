@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/loop_phi_order.sol:LoopPhiOrder ===
 @module LoopPhiOrder
+types:
+  struct0: {u256, u256, u256}
+
 fn @packed(arg0: u256, arg1: u256) -> u256 [selector=0xaf080e88, pure, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     jump bb1
@@ -58,7 +61,7 @@ fn @complement(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x82829e9f,
     jump bb1
 }
 
-fn @rotate(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u256) [selector=0x5423941f, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word, word, word]] {
+fn @rotate(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> struct0 [selector=0x5423941f, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     jump bb1
   bb1:
@@ -77,7 +80,10 @@ fn @rotate(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u256)
   bb5:
     jump bb2
   bb2:
-    ret v1, v3, v5
+    v15 = insert_value struct0, undef struct0, 0, v1
+    v16 = insert_value struct0, v15, 1, v3
+    v17 = insert_value struct0, v16, 2, v5
+    ret v17
   bb4:
     v11 = xor v1, v3
     v12 = add v3, v5

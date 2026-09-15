@@ -6,7 +6,7 @@
 // Slice constructors and projections preserve the address space and the component words.
 fn @caller(arg0: calldataptr, arg1: u256) -> calldataslice {
   bb0:
-    v0 = icall @construct, 1, arg0, arg1
+    v0 = icall @construct, arg0, arg1
     ret v0
 }
 
@@ -20,7 +20,7 @@ fn @construct(arg0: calldataptr, arg1: u256) -> calldataslice {
 
 fn @memory_caller(arg0: memptr, arg1: u256) -> memoryslice {
   bb0:
-    v0 = icall @memory_construct, 1, arg0, arg1
+    v0 = icall @memory_construct, arg0, arg1
     ret v0
 }
 
@@ -32,7 +32,7 @@ fn @memory_construct(arg0: memptr, arg1: u256) -> memoryslice {
 
 fn @returndata_caller(arg0: u256, arg1: u256) -> returndataslice {
   bb0:
-    v0 = icall @returndata_construct, 1, arg0, arg1
+    v0 = icall @returndata_construct, arg0, arg1
     ret v0
 }
 
@@ -45,7 +45,7 @@ fn @returndata_construct(arg0: u256, arg1: u256) -> returndataslice {
 // A payload read is not a transparent slice operation.
 fn @load_caller(arg0: memptr) -> memoryslice {
   bb0:
-    v0 = icall @load, 1, arg0
+    v0 = icall @load, arg0
     ret v0
 }
 
