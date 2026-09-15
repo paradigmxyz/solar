@@ -408,11 +408,15 @@ impl MemoryCallSummaries {
             .iter()
             .map(|id| (id, parameter_sources(&module.functions[id])))
             .collect::<FxHashMap<_, _>>();
+        let aliases = targets
+            .iter()
+            .map(|id| (id, AliasAnalysis::new(&module.functions[id])))
+            .collect::<FxHashMap<_, _>>();
         let calls = CallGraphInfo::new(module);
         let mut local = FxHashMap::default();
         for func_id in &targets {
             let func = &module.functions[func_id];
-            let mut summary = local_summary(module, func, &sources[&func_id]);
+            let mut summary = local_summary(module, func, &sources[&func_id], &aliases[&func_id]);
             summary.has_multiple_returns = func.return_components().len() > 1;
             summary.control.may_diverge |= calls.is_recursive(func_id);
             local.insert(func_id, summary);
@@ -458,6 +462,7 @@ impl MemoryCallSummaries {
                             summaries.get(&function),
                             args,
                             &sources[&func_id],
+                            &aliases[&func_id],
                         );
                     }
                 }
@@ -468,6 +473,7 @@ impl MemoryCallSummaries {
                         summaries.get(function),
                         args,
                         &sources[&func_id],
+                        &aliases[&func_id],
                     );
                 }
             }
@@ -498,6 +504,7 @@ fn merge_call(
     callee: Option<&FunctionMemorySummary>,
     args: &[ValueId],
     sources: &IndexVec<ValueId, DenseBitSet<ArgIdx>>,
+    aa: &AliasAnalysis,
 ) {
     let conservative;
     let callee = if let Some(callee) = callee {
@@ -507,9 +514,8 @@ fn merge_call(
         &conservative
     };
     summary.merge_effects(callee);
-    let aa = AliasAnalysis::new(func);
     for write in [false, true] {
-        for access in callee.memory_accesses(func, &aa, args, write) {
+        for access in callee.memory_accesses(func, aa, args, write) {
             summary.record_access(func, access, write);
         }
     }
@@ -544,13 +550,13 @@ fn local_summary(
     module: &Module,
     func: &Function,
     sources: &IndexVec<ValueId, DenseBitSet<ArgIdx>>,
+    aa: &AliasAnalysis,
 ) -> FunctionMemorySummary {
     if func.blocks.is_empty() {
         return FunctionMemorySummary::conservative(func.params.len());
     }
 
     let mut summary = FunctionMemorySummary::empty(func.params.len());
-    let aa = AliasAnalysis::new(func);
     let heap_derived = heap_derived_values(func);
     for (block_id, block) in func.blocks.iter_enumerated() {
         for &inst_id in &block.instructions {

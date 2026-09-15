@@ -1168,6 +1168,40 @@ impl<'a> FunctionBuilder<'a> {
         (is_long, length)
     }
 
+    /// Keeps only the first `length` bytes of a storage `bytes` header word, like
+    /// solc's `mask_bytes_dynamic`.
+    pub(crate) fn mask_storage_bytes_data(&mut self, data: ValueId, length: ValueId) -> ValueId {
+        // mask = not((1 << (8 * (32 - length))) - 1)
+        // masked = data & mask
+        let word_size = self.imm(32);
+        let unused_bytes = self.sub(word_size, length);
+        let bits = self.imm(8);
+        let shift = self.mul(unused_bytes, bits);
+        let one = self.imm(1);
+        let high_bit = self.shl(shift, one);
+        let low_mask = self.sub(high_bit, one);
+        let data_mask = self.not(low_mask);
+        self.and(data, data_mask)
+    }
+
+    /// Builds the header word of a short storage `bytes` value of `length` bytes,
+    /// like solc's `extract_used_part_and_set_length_of_short_byte_array`.
+    pub(crate) fn short_storage_bytes_header(&mut self, data: ValueId, length: ValueId) -> ValueId {
+        // header = mask(data, length) | length * 2
+        let masked = self.mask_storage_bytes_data(data, length);
+        let two = self.imm(2);
+        let tag = self.mul(length, two);
+        self.or(masked, tag)
+    }
+
+    /// Builds the header word of a long storage `bytes` value of `length` bytes.
+    pub(crate) fn long_storage_bytes_header(&mut self, length: ValueId) -> ValueId {
+        // header = length << 1 | 1
+        let one = self.imm(1);
+        let shifted = self.shl(one, length);
+        self.or(shifted, one)
+    }
+
     /// Gives raw pointer bits an object type without checking the object.
     pub(crate) fn memory_object_from_ptr(
         &mut self,

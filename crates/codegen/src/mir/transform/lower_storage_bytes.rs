@@ -223,26 +223,14 @@ pub(super) fn store(
     // sstore(slot, header)
     builder.switch_to_block(short_block);
     let data_word = builder.memory_slice_load_word(data, zero);
-    let unused_bytes = builder.sub(word_size, length);
-    let bits = builder.imm(8);
-    let shift = builder.mul(unused_bytes, bits);
-    let one = builder.imm(1);
-    let high_bit = builder.shl(shift, one);
-    let low_mask = builder.sub(high_bit, one);
-    let data_mask = builder.not(low_mask);
-    let data_word = builder.and(data_word, data_mask);
-    let two = builder.imm(2);
-    let tag = builder.mul(length, two);
-    let header = builder.or(data_word, tag);
+    let header = builder.short_storage_bytes_header(data_word, length);
     builder.sstore(slot, header);
     builder.jump(merge_block);
 
     // sstore(slot, length << 1 | 1)
     // data_slot = storage_array_data_slot(slot)
     builder.switch_to_block(long_block);
-    let one = builder.imm(1);
-    let shifted = builder.shl(one, length);
-    let tag = builder.or(shifted, one);
+    let tag = builder.long_storage_bytes_header(length);
     builder.sstore(slot, tag);
     let data_slot = builder.storage_array_data_slot(slot);
 
@@ -269,13 +257,7 @@ pub(super) fn store(
     builder.switch_to_block(partial_block);
     let partial_offset = builder.mul(full_words, word_size);
     let partial_word = builder.memory_slice_load_word(data, partial_offset);
-    let unused_bytes = builder.sub(word_size, remainder);
-    let bits = builder.imm(8);
-    let shift = builder.mul(unused_bytes, bits);
-    let high_bit = builder.shl(shift, one);
-    let low_mask = builder.sub(high_bit, one);
-    let data_mask = builder.not(low_mask);
-    let partial_word = builder.and(partial_word, data_mask);
+    let partial_word = builder.mask_storage_bytes_data(partial_word, remainder);
     let partial_slot = builder.add(data_slot, full_words);
     builder.sstore(partial_slot, partial_word);
     builder.jump(merge_block);

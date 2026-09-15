@@ -431,7 +431,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         //     word_slot = storage_array_data_slot(slot) + old_length / 32
         // }
         self.builder.switch_to_block(long_block);
-        let header = long_storage_bytes_header(&mut self.builder, new_length);
+        let header = self.builder.long_storage_bytes_header(new_length);
         self.builder.sstore(slot, header);
         let long_slot = long_storage_bytes_byte_slot(&mut self.builder, slot, old_length);
         self.builder.jump(merge_block);
@@ -451,13 +451,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let keep_mask = self.builder.not(byte_mask);
         let moved = self.builder.and(data, keep_mask);
         self.builder.sstore(data_slot, moved);
-        let header = long_storage_bytes_header(&mut self.builder, new_length);
+        let header = self.builder.long_storage_bytes_header(new_length);
         self.builder.sstore(slot, header);
         self.builder.jump(merge_block);
 
         // if old_length < 31 { sstore(slot, mask(data, new_length) | new_length * 2) }
         self.builder.switch_to_block(packed_block);
-        let header = short_storage_bytes_header(&mut self.builder, data, new_length);
+        let header = self.builder.short_storage_bytes_header(data, new_length);
         self.builder.sstore(slot, header);
         self.builder.jump(merge_block);
 
@@ -747,7 +747,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let data_slot = self.builder.storage_array_data_slot(slot);
         let word = self.builder.sload(data_slot);
         let last_byte = self.builder.imm(31);
-        let header = short_storage_bytes_header(&mut self.builder, word, last_byte);
+        let header = self.builder.short_storage_bytes_header(word, last_byte);
         self.builder.sstore(slot, header);
         self.builder.sstore(data_slot, zero);
         self.builder.jump(merge_block);
@@ -760,7 +760,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         // if old_length < 32 { sstore(slot, mask(data, new_length) | new_length * 2) }
         self.builder.switch_to_block(packed_block);
-        let header = short_storage_bytes_header(&mut self.builder, data, new_length);
+        let header = self.builder.short_storage_bytes_header(data, new_length);
         self.builder.sstore(slot, header);
         self.builder.jump(merge_block);
 
@@ -1723,48 +1723,6 @@ fn decode_storage_bytes_header(
     builder.validate_storage_bytes(header);
     let (is_long, length) = builder.storage_bytes_header_parts(header);
     (header, is_long, length)
-}
-
-/// Keeps only the first `length` bytes of a storage `bytes` header word, like
-/// solc's `mask_bytes_dynamic`.
-fn mask_storage_bytes_data(
-    builder: &mut FunctionBuilder<'_>,
-    data: ValueId,
-    length: ValueId,
-) -> ValueId {
-    // mask = not((1 << (8 * (32 - length))) - 1)
-    // masked = data & mask
-    let word_size = builder.imm(32);
-    let unused_bytes = builder.sub(word_size, length);
-    let bits = builder.imm(8);
-    let shift = builder.mul(unused_bytes, bits);
-    let one = builder.imm(1);
-    let high_bit = builder.shl(shift, one);
-    let low_mask = builder.sub(high_bit, one);
-    let data_mask = builder.not(low_mask);
-    builder.and(data, data_mask)
-}
-
-/// Builds the header word of a short storage `bytes` value of `length` bytes,
-/// like solc's `extract_used_part_and_set_length_of_short_byte_array`.
-fn short_storage_bytes_header(
-    builder: &mut FunctionBuilder<'_>,
-    data: ValueId,
-    length: ValueId,
-) -> ValueId {
-    // header = mask(data, length) | length * 2
-    let masked = mask_storage_bytes_data(builder, data, length);
-    let two = builder.imm(2);
-    let tag = builder.mul(length, two);
-    builder.or(masked, tag)
-}
-
-/// Builds the header word of a long storage `bytes` value of `length` bytes.
-fn long_storage_bytes_header(builder: &mut FunctionBuilder<'_>, length: ValueId) -> ValueId {
-    // header = length << 1 | 1
-    let one = builder.imm(1);
-    let shifted = builder.shl(one, length);
-    builder.or(shifted, one)
 }
 
 /// The data-area slot holding byte `index` of a long storage `bytes` value,
