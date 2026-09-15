@@ -383,7 +383,7 @@ pub(crate) fn code_actions(
     let literals = state.config.supports_code_action_literals();
     let is_preferred = state.config.supports_code_action_is_preferred();
     let diagnostic_data = state.config.supports_code_action_diagnostic_data();
-    let diagnostics = state.code_action_diagnostics(params.text_document.uri.clone());
+    let diagnostics = state.code_action_diagnostics(params.text_document.uri.clone(), params.range);
     async move {
         if !literals {
             return Ok(Some(Vec::new()));
