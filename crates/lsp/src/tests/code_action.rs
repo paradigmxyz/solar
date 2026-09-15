@@ -1040,7 +1040,7 @@ fn range_filtering_preserves_server_order_empty_ranges_and_data_disambiguation()
         ];
         let mut state = state(&project, false);
         replace_diagnostics(&state, uri.clone(), diagnostics.clone());
-        let selected = block_on(state.code_action_diagnostics(uri.clone(), range)).unwrap();
+        let selected = block_on(state.code_action_diagnostics(uri, range)).unwrap();
         assert_eq!(selected, [0, 2, 3, 4, 7].map(|index| diagnostics[index].clone()), "{eol:?}");
 
         for (context, expected) in
