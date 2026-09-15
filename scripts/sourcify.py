@@ -5,16 +5,18 @@
 # ///
 """Maintain a local Sourcify corpus and resumable standard-JSON compiler runs.
 
-Usage (all generated data stays under --dir, default /tmp/solar-sourcify):
+Usage (data stays under --dir/--version, default /tmp/solar-sourcify/0.8.36):
     uv run scripts/sourcify.py sync
+    uv run scripts/sourcify.py --version 0.8.34 sync
     uv run scripts/sourcify.py run
     uv run scripts/sourcify.py run --continue-on-failure
     uv run scripts/sourcify.py run --retry-failures --compiler 'solar=/path/to/solar --standard-json'
     uv run scripts/sourcify.py --dir /data/sourcify status
     uv run scripts/sourcify.py self-test
 
-`sync` selects every Solidity 0.8.34 compilation in the daily public v2 export,
-across all chains, deduplicated by Sourcify compilation ID rather than deployment.
+`sync` selects every compilation for --version (default 0.8.36) in the daily
+public v2 export, across all chains, deduplicated by Sourcify compilation ID
+rather than deployment.
 It reads remote Parquet columns with DuckDB, retaining only matching records and
 sources locally. The first scan can take a long time and transfer substantial data.
 Each shard commits separately; unchanged shards are skipped on resume. New selected
@@ -24,8 +26,8 @@ an atomic snapshot: sync again to pick up data published during the previous sca
 See https://docs.sourcify.dev/docs/repository/download-dataset/.
 
 `run` is offline and requires a complete sync. It defaults to `solc` and `solar`
-on PATH; install solc 0.8.34 and build the desired solar revision first. Repeat
---compiler NAME='COMMAND ARGS' to replace these defaults with any compilers that
+on PATH; install solc matching --version and build the desired compiler revision
+first. Repeat --compiler NAME='COMMAND ARGS' to replace these defaults with any compilers that
 accept standard JSON on stdin and return standard JSON on stdout, or wrappers
 with that interface. Commands run without a shell. Use absolute paths for wrapper
 arguments. Original compiler settings are preserved except outputSelection, which
@@ -47,6 +49,10 @@ available and are retried next time. Environment variables are inherited but are
 not dumped, to avoid saving credentials. Compiler processes and temporary files
 run inside the attempt directory. Timeouts terminate the whole process group.
 The script requires POSIX; DuckDB locks out concurrent writers to the same corpus.
+Each version has its own database, checkpoints, sources and run directories.
+Pass the same --version before sync, run and status. Sources are deduplicated
+within each version; separate versions do not share source storage. Existing
+unversioned corpora are left untouched.
 Copy --dir for a backup; /tmp is disposable. No compiler binaries are downloaded.
 
 Only httpfs (installed under --dir), database/spill files, logs and attempt data
@@ -62,6 +68,7 @@ import io
 import json
 import os
 import platform
+import re
 import shlex
 import shutil
 import signal
@@ -81,7 +88,7 @@ from unittest.mock import patch
 import duckdb
 
 EXPORT = "https://export.sourcify.dev"
-VERSION = "0.8.34"
+DEFAULT_VERSION = "0.8.36"
 OUTPUTS = {"*": {"*": ["abi", "evm.bytecode.object", "evm.deployedBytecode.object"]}}
 
 
@@ -196,7 +203,7 @@ def import_shard(db, table, location, key, etag, selection):
     }
     parameters = [location]
     if table == "compiled_contracts":
-        parameters.extend([VERSION, VERSION + "+"])
+        parameters.extend([selection, selection + "+"])
     db.execute("BEGIN")
     try:
         db.execute(queries[table], parameters)
@@ -210,12 +217,12 @@ def import_shard(db, table, location, key, etag, selection):
     return True
 
 
-def sync(db, root):
+def sync(db, root, version):
     db.execute("INSERT OR REPLACE INTO state VALUES ('sync_complete', 'false')")
     db.execute("SET extension_directory = ?", [str(root / "extensions")])
     db.execute("INSTALL httpfs; LOAD httpfs")
     for table in ("compiled_contracts", "compiled_contracts_sources", "sources"):
-        selection = VERSION
+        selection = version
         if table == "compiled_contracts_sources":
             selection = selection_hash(db, "SELECT id FROM compilations ORDER BY id")
         elif table == "sources":
@@ -515,14 +522,19 @@ def status(db):
         print(f"{compiler}: {outcome}: {count} attempts")
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--dir", type=Path, default=Path("/tmp/solar-sourcify"))
+    parser.add_argument(
+        "--version",
+        default=DEFAULT_VERSION,
+        help="Solidity release to select (default: %(default)s)",
+    )
     subparsers = parser.add_subparsers(dest="action", required=True)
     subparsers.add_parser(
-        "sync", help="Import/resume all 0.8.34 compilations and sources"
+        "sync", help="Import/resume compilations and sources for --version"
     )
     subparsers.add_parser("status", help="Show local corpus and attempt counts")
     runner = subparsers.add_parser("run", help="Run compilers against the local corpus")
@@ -537,7 +549,9 @@ def main():
         help="Distinguish wrapper dependencies, environment, or experiments",
     )
     subparsers.add_parser("self-test", help="Run embedded offline regression tests")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", args.version):
+        parser.error("--version must be a release number such as 0.8.36")
     if args.action == "self-test":
         return (
             0
@@ -551,11 +565,11 @@ def main():
         or (args.limit is not None and args.limit < 1)
     ):
         parser.error("--timeout and --limit must be positive and finite")
-    root = args.dir.expanduser().resolve()
+    root = args.dir.expanduser().resolve() / args.version
     db = connect(root)
     try:
         if args.action == "sync":
-            sync(db, root)
+            sync(db, root, args.version)
         elif args.action == "status":
             status(db)
         else:
@@ -578,7 +592,7 @@ class Tests(unittest.TestCase):
     def seed(self):
         self.db.execute(
             "INSERT INTO compilations VALUES ('one', ?, 'C', '../C.sol:C', '{}', 'null', ?)",
-            [VERSION, json_text({"../C.sol": {"id": 0}})],
+            [DEFAULT_VERSION, json_text({"../C.sol": {"id": 0}})],
         )
         self.db.execute("INSERT INTO links VALUES ('one', '../C.sol', 'abc')")
         self.db.execute("INSERT INTO sources VALUES ('abc', 'contract C {}')")
@@ -667,7 +681,7 @@ class Tests(unittest.TestCase):
                 UNION ALL SELECT 'two', 'solc', 'solidity', '0.8.340', 'C', 'C.sol:C', '{}', 'null', '{}')
             TO $path (FORMAT PARQUET)
         """,
-            {"version": VERSION + "+commit.abc", "path": str(fixture)},
+            {"version": "0.8.34+commit.abc", "path": str(fixture)},
         )
         arguments = (
             self.db,
@@ -675,14 +689,44 @@ class Tests(unittest.TestCase):
             str(fixture),
             "test",
             "etag",
-            VERSION,
+            "0.8.34",
         )
         self.assertTrue(import_shard(*arguments))
         self.assertFalse(import_shard(*arguments))
         self.assertEqual(
             self.db.execute("SELECT id FROM compilations").fetchall(), [("one",)]
         )
-        self.assertTrue(import_shard(*arguments[:-1], "new-selection"))
+        other = connect(self.root / "0.8.340")
+        self.addCleanup(other.close)
+        self.assertTrue(import_shard(other, *arguments[1:-1], "0.8.340"))
+        self.assertEqual(
+            other.execute("SELECT id FROM compilations").fetchall(), [("two",)]
+        )
+        self.assertTrue(import_shard(*arguments[:-2], "new-etag", "0.8.34"))
+
+    def test_cli_version_isolation(self):
+        base = self.root / "corpora"
+        with patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(main(["--dir", str(base), "status"]), 0)
+            self.assertEqual(
+                main(["--dir", str(base), "--version", "0.8.34", "status"]), 0
+            )
+        self.assertTrue((base / "0.8.36" / "corpus.duckdb").is_file())
+        self.assertTrue((base / "0.8.34" / "corpus.duckdb").is_file())
+        self.assertFalse((base / "corpus.duckdb").exists())
+        with patch("sys.stderr", new=io.StringIO()):
+            for version in ("../escape", "0.8", "0.8.36+commit.abc", "/tmp/escape"):
+                with (
+                    self.subTest(version=version),
+                    self.assertRaises(SystemExit) as error,
+                ):
+                    main(["--dir", str(base), "--version", version, "status"])
+                self.assertEqual(error.exception.code, 2)
+        with patch(__name__ + ".sync") as importer:
+            self.assertEqual(
+                main(["--dir", str(base), "--version", "0.8.34", "sync"]), 0
+            )
+            self.assertEqual(importer.call_args.args[1:], (base / "0.8.34", "0.8.34"))
 
     def test_source_import_and_completeness(self):
         self.seed()
