@@ -9,7 +9,7 @@ fn @_fill(arg0: u256) {
   bb0:
     v0 = add arg0, 63
     v1 = lt v0, arg0
-    panic_if v1, 0x41
+    icall panic_if<0x41>, v1
     v2 = not 31
     v3 = and v0, v2
     v4 = alloc memorybytes, exact, zeroed, panic, v3
@@ -33,7 +33,7 @@ fn @_fill(arg0: u256) {
     v12 = memory_object_len memorybytes, v6
     v13 = lt v7, v12
     v14 = iszero v13
-    panic_if v14, 0x32
+    icall panic_if<0x32>, v14
     v15 = byte 0, v11
     memory_object_store_byte memorybytes, v6, v7, v15
     jump bb6
@@ -56,7 +56,7 @@ fn @at(arg0: u256) -> bytes1 [selector=0xe0886f90, view, abi_params=[u256], abi_
     v6 = and v5, v4
     v7 = lt arg0, v6
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
@@ -90,7 +90,7 @@ fn @readSingle() -> struct0 [selector=0xf6f3185a, abi_params=[], abi_returns=[wo
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
@@ -135,7 +135,7 @@ fn @readEdges(arg0: u256) -> struct1 [selector=0x0ecdc808, abi_params=[u256], ab
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
@@ -164,7 +164,7 @@ fn @readEdges(arg0: u256) -> struct1 [selector=0x0ecdc808, abi_params=[u256], ab
     v27 = and v26, v25
     v28 = lt 1, v27
     v29 = iszero v28
-    panic_if v29, 0x32
+    icall panic_if<0x32>, v29
     jumpi v23, bb4, bb5
   bb5:
     jump bb6
@@ -194,7 +194,7 @@ fn @readEdges(arg0: u256) -> struct1 [selector=0x0ecdc808, abi_params=[u256], ab
     v49 = and v48, v47
     v50 = lt v42, v49
     v51 = iszero v50
-    panic_if v51, 0x32
+    icall panic_if<0x32>, v51
     jumpi v45, bb7, bb8
   bb8:
     jump bb9
@@ -224,7 +224,7 @@ fn @readEdges(arg0: u256) -> struct1 [selector=0x0ecdc808, abi_params=[u256], ab
     v71 = and v70, v69
     v72 = lt v64, v71
     v73 = iszero v72
-    panic_if v73, 0x32
+    icall panic_if<0x32>, v73
     jumpi v67, bb10, bb11
   bb11:
     jump bb12
@@ -273,7 +273,7 @@ fn @writeEdges(arg0: u256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     v7 = and v6, v5
     v8 = lt 0, v7
     v9 = iszero v8
-    panic_if v9, 0x32
+    icall panic_if<0x32>, v9
     jumpi v3, bb1, bb2
   bb2:
     jump bb3
@@ -308,7 +308,7 @@ fn @writeEdges(arg0: u256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     v33 = and v32, v31
     v34 = lt v26, v33
     v35 = iszero v34
-    panic_if v35, 0x32
+    icall panic_if<0x32>, v35
     jumpi v29, bb4, bb5
   bb5:
     jump bb6
@@ -341,7 +341,7 @@ fn @writeEdges(arg0: u256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     v57 = and v56, v55
     v58 = lt 0, v57
     v59 = iszero v58
-    panic_if v59, 0x32
+    icall panic_if<0x32>, v59
     jumpi v53, bb7, bb8
   bb8:
     jump bb9
@@ -370,7 +370,7 @@ fn @writeEdges(arg0: u256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     v78 = and v77, v76
     v79 = lt 1, v78
     v80 = iszero v79
-    panic_if v80, 0x32
+    icall panic_if<0x32>, v80
     jumpi v74, bb10, bb11
   bb11:
     jump bb12
@@ -400,7 +400,7 @@ fn @writeEdges(arg0: u256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     v100 = and v99, v98
     v101 = lt v93, v100
     v102 = iszero v101
-    panic_if v102, 0x32
+    icall panic_if<0x32>, v102
     jumpi v96, bb13, bb14
   bb14:
     jump bb15
@@ -430,7 +430,7 @@ fn @writeEdges(arg0: u256) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     v122 = and v121, v120
     v123 = lt v115, v122
     v124 = iszero v123
-    panic_if v124, 0x32
+    icall panic_if<0x32>, v124
     jumpi v118, bb16, bb17
   bb17:
     jump bb18
@@ -529,7 +529,7 @@ fn @bumpAll(arg0: u256) -> struct0 [selector=0x583a2887, abi_params=[u256], abi_
     v79 = and v78, v77
     v80 = lt v60, v79
     v81 = iszero v80
-    panic_if v81, 0x32
+    icall panic_if<0x32>, v81
     jumpi v75, bb19, bb20
   bb20:
     jump bb21
@@ -566,7 +566,7 @@ fn @bumpAll(arg0: u256) -> struct0 [selector=0x583a2887, abi_params=[u256], abi_
     v18 = and v17, v16
     v19 = lt v1, v18
     v20 = iszero v19
-    panic_if v20, 0x32
+    icall panic_if<0x32>, v20
     jumpi v14, bb7, bb8
   bb8:
     jump bb9
@@ -597,7 +597,7 @@ fn @bumpAll(arg0: u256) -> struct0 [selector=0x583a2887, abi_params=[u256], abi_
     v41 = and v40, v39
     v42 = lt v1, v41
     v43 = iszero v42
-    panic_if v43, 0x32
+    icall panic_if<0x32>, v43
     jumpi v37, bb10, bb11
   bb11:
     jump bb12
@@ -641,7 +641,7 @@ fn @compoundEdges(arg0: u256) -> struct2 [selector=0xd8df6f4c, abi_params=[u256]
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
@@ -682,7 +682,7 @@ fn @compoundEdges(arg0: u256) -> struct2 [selector=0xd8df6f4c, abi_params=[u256]
     v38 = and v37, v36
     v39 = lt v31, v38
     v40 = iszero v39
-    panic_if v40, 0x32
+    icall panic_if<0x32>, v40
     jumpi v34, bb4, bb5
   bb5:
     jump bb6
@@ -722,7 +722,7 @@ fn @compoundEdges(arg0: u256) -> struct2 [selector=0xd8df6f4c, abi_params=[u256]
     v69 = and v68, v67
     v70 = lt 0, v69
     v71 = iszero v70
-    panic_if v71, 0x32
+    icall panic_if<0x32>, v71
     jumpi v65, bb7, bb8
   bb8:
     jump bb9
@@ -752,7 +752,7 @@ fn @compoundEdges(arg0: u256) -> struct2 [selector=0xd8df6f4c, abi_params=[u256]
     v91 = and v90, v89
     v92 = lt v84, v91
     v93 = iszero v92
-    panic_if v93, 0x32
+    icall panic_if<0x32>, v93
     jumpi v87, bb10, bb11
   bb11:
     jump bb12
@@ -799,7 +799,7 @@ fn @deleteLast(arg0: u256) -> struct2 [selector=0x32a309a7, abi_params=[u256], a
     v7 = and v6, v5
     v8 = lt v0, v7
     v9 = iszero v8
-    panic_if v9, 0x32
+    icall panic_if<0x32>, v9
     jumpi v3, bb1, bb2
   bb2:
     jump bb3
@@ -833,7 +833,7 @@ fn @deleteLast(arg0: u256) -> struct2 [selector=0x32a309a7, abi_params=[u256], a
     v32 = and v31, v30
     v33 = lt v25, v32
     v34 = iszero v33
-    panic_if v34, 0x32
+    icall panic_if<0x32>, v34
     jumpi v28, bb4, bb5
   bb5:
     jump bb6
@@ -863,7 +863,7 @@ fn @deleteLast(arg0: u256) -> struct2 [selector=0x32a309a7, abi_params=[u256], a
     v54 = and v53, v52
     v55 = lt v47, v54
     v56 = iszero v55
-    panic_if v56, 0x32
+    icall panic_if<0x32>, v56
     jumpi v50, bb7, bb8
   bb8:
     jump bb9
@@ -910,7 +910,7 @@ fn @rawByte(arg0: u256) -> u256 [selector=0xa88f9005, abi_params=[u256], abi_ret
     v7 = and v6, v5
     v8 = lt v0, v7
     v9 = iszero v8
-    panic_if v9, 0x32
+    icall panic_if<0x32>, v9
     jumpi v3, bb1, bb2
   bb2:
     jump bb3
@@ -944,7 +944,7 @@ fn @shortString() -> struct2 [selector=0x2f9c7ab1, abi_params=[], abi_returns=[w
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
@@ -973,7 +973,7 @@ fn @shortString() -> struct2 [selector=0x2f9c7ab1, abi_params=[], abi_returns=[w
     v27 = and v26, v25
     v28 = lt 4, v27
     v29 = iszero v28
-    panic_if v29, 0x32
+    icall panic_if<0x32>, v29
     jumpi v23, bb4, bb5
   bb5:
     jump bb6
@@ -1019,7 +1019,7 @@ fn @longString() -> struct2 [selector=0x68a55dc0, abi_params=[], abi_returns=[wo
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
@@ -1048,7 +1048,7 @@ fn @longString() -> struct2 [selector=0x68a55dc0, abi_params=[], abi_returns=[wo
     v27 = and v26, v25
     v28 = lt 32, v27
     v29 = iszero v28
-    panic_if v29, 0x32
+    icall panic_if<0x32>, v29
     jumpi v23, bb4, bb5
   bb5:
     jump bb6
@@ -1106,7 +1106,7 @@ fn @writeShortString() -> struct2 [selector=0x9aa67864, abi_params=[], abi_retur
     v16 = and v15, v14
     v17 = lt 0, v16
     v18 = iszero v17
-    panic_if v18, 0x32
+    icall panic_if<0x32>, v18
     jumpi v12, bb1, bb2
   bb2:
     jump bb3
@@ -1139,7 +1139,7 @@ fn @writeShortString() -> struct2 [selector=0x9aa67864, abi_params=[], abi_retur
     v40 = and v39, v38
     v41 = lt 0, v40
     v42 = iszero v41
-    panic_if v42, 0x32
+    icall panic_if<0x32>, v42
     jumpi v36, bb4, bb5
   bb5:
     jump bb6
@@ -1168,7 +1168,7 @@ fn @writeShortString() -> struct2 [selector=0x9aa67864, abi_params=[], abi_retur
     v61 = and v60, v59
     v62 = lt 4, v61
     v63 = iszero v62
-    panic_if v63, 0x32
+    icall panic_if<0x32>, v63
     jumpi v57, bb7, bb8
   bb8:
     jump bb9
@@ -1226,7 +1226,7 @@ fn @writeLongString() -> struct2 [selector=0x233b60b4, abi_params=[], abi_return
     v16 = and v15, v14
     v17 = lt 0, v16
     v18 = iszero v17
-    panic_if v18, 0x32
+    icall panic_if<0x32>, v18
     jumpi v12, bb1, bb2
   bb2:
     jump bb3
@@ -1259,7 +1259,7 @@ fn @writeLongString() -> struct2 [selector=0x233b60b4, abi_params=[], abi_return
     v40 = and v39, v38
     v41 = lt 0, v40
     v42 = iszero v41
-    panic_if v42, 0x32
+    icall panic_if<0x32>, v42
     jumpi v36, bb4, bb5
   bb5:
     jump bb6
@@ -1288,7 +1288,7 @@ fn @writeLongString() -> struct2 [selector=0x233b60b4, abi_params=[], abi_return
     v61 = and v60, v59
     v62 = lt 32, v61
     v63 = iszero v62
-    panic_if v63, 0x32
+    icall panic_if<0x32>, v63
     jumpi v57, bb7, bb8
   bb8:
     jump bb9
@@ -1334,7 +1334,7 @@ fn @readOob(arg0: u256) -> u8 [selector=0x4043349b, abi_params=[u256], abi_retur
     v6 = and v5, v4
     v7 = lt arg0, v6
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
@@ -1370,7 +1370,7 @@ fn @writeOob(arg0: u256) [selector=0x4621e8f8, abi_params=[u256], abi_returns=[]
     v7 = and v6, v5
     v8 = lt arg0, v7
     v9 = iszero v8
-    panic_if v9, 0x32
+    icall panic_if<0x32>, v9
     jumpi v3, bb1, bb2
   bb2:
     jump bb3
@@ -1409,7 +1409,7 @@ fn @deleteOob(arg0: u256) [selector=0xfb2fda33, abi_params=[u256], abi_returns=[
     v6 = and v5, v4
     v7 = lt arg0, v6
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
     jump bb3

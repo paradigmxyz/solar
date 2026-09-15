@@ -74,7 +74,7 @@ fn @internal_dispatcher_p_none_r_none(arg0: function) [function_pointer_dispatch
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2
   bb2:
-    panic_if true, 0x51
+    icall panic_if<0x51>, true
     invalid
   bb1:
     icall @setFlag
@@ -86,7 +86,7 @@ fn @internal_dispatcher_p_u256_r_u256_u256(arg0: function, arg1: u256) -> struct
     v0 = eq arg0, 5
     jumpi v0, bb1, bb2
   bb2:
-    panic_if true, 0x51
+    icall panic_if<0x51>, true
     invalid
   bb1:
     v1 = icall @pair, arg1
@@ -98,7 +98,7 @@ fn @internal_dispatcher_p_u256_u256_r_u256(arg0: function, arg1: u256, arg2: u25
     v0 = eq arg0, 7
     jumpi v0, bb1, bb2
   bb2:
-    panic_if true, 0x51
+    icall panic_if<0x51>, true
     invalid
   bb1:
     v1 = icall @sum, arg1, arg2

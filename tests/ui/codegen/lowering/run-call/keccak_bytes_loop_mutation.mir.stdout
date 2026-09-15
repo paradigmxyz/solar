@@ -25,7 +25,7 @@ fn @hashTracksWrites() -> bool [selector=0xfa4d6080, pure, abi_params=[], abi_re
     v10 = memory_object_len memorybytes, v6
     v11 = lt 0, v10
     v12 = iszero v11
-    panic_if v12, 0x32
+    icall panic_if<0x32>, v12
     v13 = byte 0, v9
     memory_object_store_byte memorybytes, v6, 0, v13
     v14 = keccak256_bytes v6

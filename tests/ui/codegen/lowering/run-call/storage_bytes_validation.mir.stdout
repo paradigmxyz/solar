@@ -120,7 +120,7 @@ fn @invalidShortIndex() -> bytes1 [selector=0x94523747, abi_params=[], abi_retur
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
@@ -154,7 +154,7 @@ fn @invalidLongIndex() -> bytes1 [selector=0xb45f5bca, abi_params=[], abi_return
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
@@ -189,7 +189,7 @@ fn @invalidShortIndexWrite() [selector=0x9cb6505e, abi_params=[], abi_returns=[]
     v7 = and v6, v5
     v8 = lt 0, v7
     v9 = iszero v8
-    panic_if v9, 0x32
+    icall panic_if<0x32>, v9
     jumpi v3, bb1, bb2
   bb2:
     jump bb3
@@ -229,7 +229,7 @@ fn @invalidLongIndexWrite() [selector=0x31e8b582, abi_params=[], abi_returns=[]]
     v7 = and v6, v5
     v8 = lt 0, v7
     v9 = iszero v8
-    panic_if v9, 0x32
+    icall panic_if<0x32>, v9
     jumpi v3, bb1, bb2
   bb2:
     jump bb3
@@ -268,7 +268,7 @@ fn @invalidShortIndexDelete() [selector=0x5a79d84c, abi_params=[], abi_returns=[
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
@@ -307,7 +307,7 @@ fn @invalidLongIndexDelete() [selector=0x3cb34688, abi_params=[], abi_returns=[]
     v6 = and v5, v4
     v7 = lt 0, v6
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
@@ -346,7 +346,7 @@ fn @encodingCheckedBeforeBounds() -> bytes1 [selector=0x4f384528, abi_params=[],
     v6 = and v5, v4
     v7 = lt 100, v6
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
@@ -381,7 +381,7 @@ fn @encodingCheckedBeforeBoundsWrite() [selector=0xc6da2038, abi_params=[], abi_
     v7 = and v6, v5
     v8 = lt 100, v7
     v9 = iszero v8
-    panic_if v9, 0x32
+    icall panic_if<0x32>, v9
     jumpi v3, bb1, bb2
   bb2:
     jump bb3
@@ -420,7 +420,7 @@ fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[]] {
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
     v8 = iszero v7
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
   bb1:
@@ -483,7 +483,7 @@ fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[]] {
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
     v8 = iszero v7
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
   bb1:
@@ -546,7 +546,7 @@ fn @invalidShortPushZero() [selector=0xcba0ded0, abi_params=[], abi_returns=[]] 
     v6 = and v5, v4
     v7 = add v6, 1
     v8 = gt v7, 0x10000000000000000
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
   bb1:
@@ -605,7 +605,7 @@ fn @invalidLongPushZero() [selector=0xe8ec99d3, abi_params=[], abi_returns=[]] {
     v6 = and v5, v4
     v7 = add v6, 1
     v8 = gt v7, 0x10000000000000000
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
   bb1:
@@ -665,7 +665,7 @@ fn @invalidShortPushAssign() [selector=0xa1663e71, abi_params=[], abi_returns=[]
     v7 = and v6, v5
     v8 = add v7, 1
     v9 = gt v8, 0x10000000000000000
-    panic_if v9, 0x41
+    icall panic_if<0x41>, v9
     v10 = gt v7, 31
     jumpi v10, bb2, bb1
   bb1:
@@ -730,7 +730,7 @@ fn @invalidLongPushAssign() [selector=0x666fac34, abi_params=[], abi_returns=[]]
     v7 = and v6, v5
     v8 = add v7, 1
     v9 = gt v8, 0x10000000000000000
-    panic_if v9, 0x41
+    icall panic_if<0x41>, v9
     v10 = gt v7, 31
     jumpi v10, bb2, bb1
   bb1:
@@ -793,7 +793,7 @@ fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[]] {
     v5 = shr 1, v0
     v6 = and v5, v4
     v7 = eq v6, 0
-    panic_if v7, 0x31
+    icall panic_if<0x31>, v7
     v8 = eq v6, 32
     jumpi v8, bb4, bb1
   bb1:
@@ -860,7 +860,7 @@ fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[]] {
     v5 = shr 1, v0
     v6 = and v5, v4
     v7 = eq v6, 0
-    panic_if v7, 0x31
+    icall panic_if<0x31>, v7
     v8 = eq v6, 32
     jumpi v8, bb4, bb1
   bb1:
@@ -932,7 +932,7 @@ fn @pushAtMaxLength() -> u256 [selector=0x35078c3f, abi_params=[], abi_returns=[
     v10 = and v9, v8
     v11 = lt v10, 0x10000000000000000
     v12 = iszero v11
-    panic_if v12, 0x41
+    icall panic_if<0x41>, v12
     v13 = gt v10, 31
     jumpi v13, bb2, bb1
   bb1:
@@ -999,7 +999,7 @@ fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[]] {
     v9 = and v8, v7
     v10 = lt v9, 0x10000000000000000
     v11 = iszero v10
-    panic_if v11, 0x41
+    icall panic_if<0x41>, v11
     v12 = gt v9, 31
     jumpi v12, bb2, bb1
   bb1:
@@ -1065,7 +1065,7 @@ fn @pushZeroPastMaxLength() [selector=0x65c6159f, abi_params=[], abi_returns=[]]
     v9 = and v8, v7
     v10 = add v9, 1
     v11 = gt v10, 0x10000000000000000
-    panic_if v11, 0x41
+    icall panic_if<0x41>, v11
     v12 = gt v9, 31
     jumpi v12, bb2, bb1
   bb1:

@@ -13,21 +13,21 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memorybytes [selector=0x199f835c
     v5 = eq v4, v0
     v6 = or v3, v5
     v7 = iszero v6
-    panic_if v7, 0x41
+    icall panic_if<0x41>, v7
     v8 = calldatasize
     v9 = sub v8, v1
     v10 = slt v9, v2
-    revert_if v10, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v10
     v11 = mul v0, 32
     v12 = iszero 32
     v13 = div v11, 32
     v14 = eq v13, v0
     v15 = or v12, v14
     v16 = iszero v15
-    panic_if v16, 0x41
+    icall panic_if<0x41>, v16
     v17 = add 32, v11
     v18 = lt v17, 32
-    panic_if v18, 0x41
+    icall panic_if<0x41>, v18
     v19 = alloc memoryarray<1>, exact, uninitialized, infallible, v17
     set_memory_object_len memoryarray, v19, v0
     jump bb1
@@ -63,17 +63,17 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memorybytes [selector=0x199f835c
     v66 = eq v65, v62
     v67 = or v64, v66
     v68 = iszero v67
-    panic_if v68, 0x41
+    icall panic_if<0x41>, v68
     v69 = add v63, 1
     v70 = lt v69, v63
-    panic_if v70, 0x41
+    icall panic_if<0x41>, v70
     v71 = mul v69, 32
     v72 = iszero 32
     v73 = div v71, 32
     v74 = eq v73, v69
     v75 = or v72, v74
     v76 = iszero v75
-    panic_if v76, 0x41
+    icall panic_if<0x41>, v76
     v77 = alloc memoryarray<1>, exact, uninitialized, panic, v71
     set_memory_object_len memoryarray, v77, v62
     jump bb23
@@ -165,7 +165,7 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memorybytes [selector=0x199f835c
     v25 = eq v24, v20
     v26 = or v23, v25
     v27 = iszero v26
-    panic_if v27, 0x41
+    icall panic_if<0x41>, v27
     v28 = add v1, v22
     v29 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v30 = make_calldata_slice v28, 64
@@ -185,21 +185,21 @@ fn @readDynamicStorage(arg0: calldataslice) -> struct0 [selector=0x26153afa, abi
     v5 = eq v4, v0
     v6 = or v3, v5
     v7 = iszero v6
-    panic_if v7, 0x41
+    icall panic_if<0x41>, v7
     v8 = calldatasize
     v9 = sub v8, v1
     v10 = slt v9, v2
-    revert_if v10, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v10
     v11 = mul v0, 32
     v12 = iszero 32
     v13 = div v11, 32
     v14 = eq v13, v0
     v15 = or v12, v14
     v16 = iszero v15
-    panic_if v16, 0x41
+    icall panic_if<0x41>, v16
     v17 = add 32, v11
     v18 = lt v17, 32
-    panic_if v18, 0x41
+    icall panic_if<0x41>, v18
     v19 = alloc memoryarray<1>, exact, uninitialized, infallible, v17
     set_memory_object_len memoryarray, v19, v0
     jump bb1
@@ -231,73 +231,73 @@ fn @readDynamicStorage(arg0: calldataslice) -> struct0 [selector=0x26153afa, abi
     v62 = sload 0 !metadata(storage=slot(0))
     v63 = lt 0, v62
     v64 = iszero v63
-    panic_if v64, 0x32
+    icall panic_if<0x32>, v64
     v65 = storage_array_data_slot 0
     v66 = mul 0, 2
     v67 = add v65, v66
     v68 = lt 0, 2
     v69 = iszero v68
-    panic_if v69, 0x32
+    icall panic_if<0x32>, v69
     v70 = add v67, 0
     v71 = sload v70 !metadata(storage=symbolic(v67))
     v72 = sload 0 !metadata(storage=slot(0))
     v73 = lt 0, v72
     v74 = iszero v73
-    panic_if v74, 0x32
+    icall panic_if<0x32>, v74
     v75 = storage_array_data_slot 0
     v76 = mul 0, 2
     v77 = add v75, v76
     v78 = lt 1, 2
     v79 = iszero v78
-    panic_if v79, 0x32
+    icall panic_if<0x32>, v79
     v80 = add v77, 1
     v81 = sload v80 !metadata(storage=offset(v77, 1))
     v82 = sload 0 !metadata(storage=slot(0))
     v83 = lt 1, v82
     v84 = iszero v83
-    panic_if v84, 0x32
+    icall panic_if<0x32>, v84
     v85 = storage_array_data_slot 0
     v86 = mul 1, 2
     v87 = add v85, v86
     v88 = lt 0, 2
     v89 = iszero v88
-    panic_if v89, 0x32
+    icall panic_if<0x32>, v89
     v90 = add v87, 0
     v91 = sload v90 !metadata(storage=symbolic(v87))
     v92 = sload 0 !metadata(storage=slot(0))
     v93 = lt 1, v92
     v94 = iszero v93
-    panic_if v94, 0x32
+    icall panic_if<0x32>, v94
     v95 = storage_array_data_slot 0
     v96 = mul 1, 2
     v97 = add v95, v96
     v98 = lt 1, 2
     v99 = iszero v98
-    panic_if v99, 0x32
+    icall panic_if<0x32>, v99
     v100 = add v97, 1
     v101 = sload v100 !metadata(storage=offset(v97, 1))
     v102 = sload 0 !metadata(storage=slot(0))
     v103 = lt 2, v102
     v104 = iszero v103
-    panic_if v104, 0x32
+    icall panic_if<0x32>, v104
     v105 = storage_array_data_slot 0
     v106 = mul 2, 2
     v107 = add v105, v106
     v108 = lt 0, 2
     v109 = iszero v108
-    panic_if v109, 0x32
+    icall panic_if<0x32>, v109
     v110 = add v107, 0
     v111 = sload v110 !metadata(storage=symbolic(v107))
     v112 = sload 0 !metadata(storage=slot(0))
     v113 = lt 2, v112
     v114 = iszero v113
-    panic_if v114, 0x32
+    icall panic_if<0x32>, v114
     v115 = storage_array_data_slot 0
     v116 = mul 2, 2
     v117 = add v115, v116
     v118 = lt 1, 2
     v119 = iszero v118
-    panic_if v119, 0x32
+    icall panic_if<0x32>, v119
     v120 = add v117, 1
     v121 = sload v120 !metadata(storage=offset(v117, 1))
     v122 = insert_value struct0, undef struct0, 0, v71
@@ -368,7 +368,7 @@ fn @readDynamicStorage(arg0: calldataslice) -> struct0 [selector=0x26153afa, abi
     v25 = eq v24, v20
     v26 = or v23, v25
     v27 = iszero v26
-    panic_if v27, 0x41
+    icall panic_if<0x41>, v27
     v28 = add v1, v22
     v29 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v30 = make_calldata_slice v28, 64
@@ -384,7 +384,7 @@ fn @encodeStaticStatic(arg0: calldataslice) -> memorybytes [selector=0x60e1923b,
     v1 = calldatasize
     v2 = sub v1, v0
     v3 = slt v2, 128
-    revert_if v3, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v3
     v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     jump bb1
   bb1:

@@ -14,7 +14,7 @@ fn @constructor() [constructor] {
   bb3:
     v7 = sload 0 !metadata(storage=slot(0))
     v8 = gt v7, 0xffffffffffffffff
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = add v7, 1
     v10 = storage_array_data_slot 0
     v11 = add v10, v7
@@ -22,7 +22,7 @@ fn @constructor() [constructor] {
     sstore 0, v9 !metadata(storage=slot(0))
     v12 = sload 0 !metadata(storage=slot(0))
     v13 = gt v12, 0xffffffffffffffff
-    panic_if v13, 0x41
+    icall panic_if<0x41>, v13
     v14 = add v12, 1
     v15 = storage_array_data_slot 0
     v16 = add v15, v12
@@ -34,7 +34,7 @@ fn @constructor() [constructor] {
     mstore v18, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     v19 = sload 4 !metadata(storage=slot(4))
     v20 = gt v19, 0xffffffffffffffff
-    panic_if v20, 0x41
+    icall panic_if<0x41>, v20
     v21 = add v19, 1
     v22 = storage_array_data_slot 4
     v23 = add v22, v19
@@ -45,21 +45,21 @@ fn @constructor() [constructor] {
     v25 = memory_object_len memoryarray, v24
     v26 = lt 0, v25
     v27 = iszero v26
-    panic_if v27, 0x32
+    icall panic_if<0x32>, v27
     memory_object_store_element memoryarray<1>, v24, 0, 7
     v28 = memory_object_len memoryarray, v24
     v29 = lt 1, v28
     v30 = iszero v29
-    panic_if v30, 0x32
+    icall panic_if<0x32>, v30
     memory_object_store_element memoryarray<1>, v24, 1, 8
     v31 = memory_object_len memoryarray, v24
     v32 = lt 2, v31
     v33 = iszero v32
-    panic_if v33, 0x32
+    icall panic_if<0x32>, v33
     memory_object_store_element memoryarray<1>, v24, 2, 9
     v34 = sload 5 !metadata(storage=slot(5))
     v35 = gt v34, 0xffffffffffffffff
-    panic_if v35, 0x41
+    icall panic_if<0x41>, v35
     v36 = add v34, 1
     v37 = storage_array_data_slot 5
     v38 = add v37, v34
@@ -163,7 +163,7 @@ fn @getName() -> memorybytes [selector=0x17d7de7c, view, abi_params=[], abi_retu
     v0 = sload 4 !metadata(storage=slot(4))
     v1 = lt 0, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = storage_array_data_slot 4
     v4 = add v3, 0
     v5 = load_storage_bytes v4
@@ -179,17 +179,17 @@ fn @getNested() -> memoryarray [selector=0x2ec68451, view, abi_params=[], abi_re
     v4 = eq v3, v0
     v5 = or v2, v4
     v6 = iszero v5
-    panic_if v6, 0x41
+    icall panic_if<0x41>, v6
     v7 = add v1, 1
     v8 = lt v7, v1
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = mul v7, 32
     v10 = iszero 32
     v11 = div v9, 32
     v12 = eq v11, v7
     v13 = or v10, v12
     v14 = iszero v13
-    panic_if v14, 0x41
+    icall panic_if<0x41>, v14
     v15 = alloc memoryarray<1>, exact, uninitialized, panic, v9
     set_memory_object_len memoryarray, v15, v0
     jump bb1
@@ -252,7 +252,7 @@ fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[
   bb3:
     revert_returndata
   bb4:
-    v12 = returndata_bytes
+    v12 = icall returndata_bytes<>
     v13 = abi_decode [array<_, u256>], v12
     v14 = memory_object_len memoryarray, v13
     jump bb5
@@ -274,7 +274,7 @@ fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[
     v21 = memory_object_len memoryarray, v17
     v22 = lt v15, v21
     v23 = iszero v22
-    panic_if v23, 0x32
+    icall panic_if<0x32>, v23
     v24 = memory_object_load_element memoryarray<1>, v17, v15
     v25 = checked_add u256, v18, v24
     jump bb10
@@ -317,12 +317,12 @@ fn @strFirstAndLen() -> struct0 [selector=0x2b10ead6, abi_params=[], abi_returns
   bb3:
     revert_returndata
   bb4:
-    v12 = returndata_bytes
+    v12 = icall returndata_bytes<>
     v13 = abi_decode [bytes], v12
     v14 = memory_object_len memorybytes, v13
     v15 = lt 0, v14
     v16 = iszero v15
-    panic_if v16, 0x32
+    icall panic_if<0x32>, v16
     v17 = memory_object_load_byte memorybytes, v13, 0
     v18 = shl 248, v17
     v19 = memory_object_len memorybytes, v13
@@ -360,7 +360,7 @@ fn @bytesRoundTrip() -> u256 [selector=0x9700a482, abi_params=[], abi_returns=[w
   bb3:
     revert_returndata
   bb4:
-    v12 = returndata_bytes
+    v12 = icall returndata_bytes<>
     v13 = abi_decode [bytes], v12
     v14 = memory_object_len memorybytes, v13
     ret v14
@@ -398,20 +398,20 @@ fn @fixedSum() -> u256 [selector=0x1f080ca7, abi_params=[], abi_returns=[word]] 
   bb4:
     v13 = returndatasize
     v14 = lt v13, 96
-    revert_if v14, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v14
     v15 = abi_decode [array<3, u256>], v11
     v16 = lt 0, 3
     v17 = iszero v16
-    panic_if v17, 0x32
+    icall panic_if<0x32>, v17
     v18 = memory_object_load_element memoryfixedarray<3, 1>, v15, 0
     v19 = lt 1, 3
     v20 = iszero v19
-    panic_if v20, 0x32
+    icall panic_if<0x32>, v20
     v21 = memory_object_load_element memoryfixedarray<3, 1>, v15, 1
     v22 = checked_add u256, v18, v21
     v23 = lt 2, 3
     v24 = iszero v23
-    panic_if v24, 0x32
+    icall panic_if<0x32>, v24
     v25 = memory_object_load_element memoryfixedarray<3, 1>, v15, 2
     v26 = checked_add u256, v22, v25
     ret v26
@@ -446,7 +446,7 @@ fn @stringElem() -> u256 [selector=0x8eb2047c, abi_params=[], abi_returns=[word]
   bb3:
     revert_returndata
   bb4:
-    v12 = returndata_bytes
+    v12 = icall returndata_bytes<>
     v13 = abi_decode [bytes], v12
     v14 = memory_object_len memorybytes, v13
     ret v14
@@ -481,12 +481,12 @@ fn @nestedSum() -> u256 [selector=0x002c8096, abi_params=[], abi_returns=[word]]
   bb3:
     revert_returndata
   bb4:
-    v12 = returndata_bytes
+    v12 = icall returndata_bytes<>
     v13 = abi_decode [array<_, array<_, u256>>], v12
     v14 = memory_object_len memoryarray, v13
     v15 = lt 0, v14
     v16 = iszero v15
-    panic_if v16, 0x32
+    icall panic_if<0x32>, v16
     v17 = memory_object_load_element memoryarray<1>, v13, 0
     v18 = memory_object_from_ptr memoryarray, v17
     v19 = eq v18, 0
@@ -501,7 +501,7 @@ fn @nestedSum() -> u256 [selector=0x002c8096, abi_params=[], abi_returns=[word]]
     v22 = memory_object_len memoryarray, v21
     v23 = lt 0, v22
     v24 = iszero v23
-    panic_if v24, 0x32
+    icall panic_if<0x32>, v24
     v25 = memory_object_load_element memoryarray<1>, v21, 0
     ret v25
 }

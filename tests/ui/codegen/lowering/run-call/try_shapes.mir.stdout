@@ -56,7 +56,7 @@ fn @ok() -> u256 [selector=0xd909b403, pure, abi_params=[], abi_returns=[word]] 
 
 fn @bad() [selector=0x9c3674fc, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    icall require short_string, false, 4, 0x626f6f6d00000000000000000000000000000000000000000000000000000000
+    icall require<short_string>, false, 4, 0x626f6f6d00000000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -70,7 +70,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v5 = staticcall v1, v0, v3, v4, 0, 0
     jumpi v5, bb1, bb2
   bb2:
-    v8 = returndata_bytes
+    v8 = icall returndata_bytes<>
     v9 = memory_object_data memorybytes, v8
     v10 = memory_object_len memorybytes, v8
     v11 = make_memory_slice v9, v10
@@ -97,7 +97,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v22 = slice_len v21
     v23 = add v22, 63
     v24 = lt v23, v22
-    panic_if v24, 0x41
+    icall panic_if<0x41>, v24
     v25 = not 31
     v26 = and v23, v25
     v27 = alloc memorybytes, exact, uninitialized, infallible, v26
@@ -106,7 +106,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v28 = abi_decode [bytes], v27
     jump bb3
   bb1:
-    v6 = returndata_bytes
+    v6 = icall returndata_bytes<>
     v7 = abi_decode [u256], v6
     jump bb3
   bb3:
@@ -119,7 +119,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v35 = staticcall v31, v30, v33, v34, 0, 0
     jumpi v35, bb9, bb10
   bb10:
-    v39 = returndata_bytes
+    v39 = icall returndata_bytes<>
     v40 = memory_object_data memorybytes, v39
     v41 = memory_object_len memorybytes, v39
     v42 = make_memory_slice v40, v41
@@ -151,7 +151,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v53 = slice_len v52
     v54 = add v53, 63
     v55 = lt v54, v53
-    panic_if v55, 0x41
+    icall panic_if<0x41>, v55
     v56 = not 31
     v57 = and v54, v56
     v58 = alloc memorybytes, exact, uninitialized, infallible, v57
@@ -163,7 +163,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v62 = checked_add u256, v29, v61
     jump bb11
   bb9:
-    v36 = returndata_bytes
+    v36 = icall returndata_bytes<>
     v37 = abi_decode [u256], v36
     v38 = checked_add u256, v29, v37
     jump bb11
@@ -178,7 +178,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v71 = staticcall v67, v66, v69, v70, 0, 0
     jumpi v71, bb19, bb20
   bb20:
-    v75 = returndata_bytes
+    v75 = icall returndata_bytes<>
     v76 = memory_object_data memorybytes, v75
     v77 = memory_object_len memorybytes, v75
     v78 = make_memory_slice v76, v77
@@ -204,7 +204,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v89 = checked_add u256, v64, 400
     jump bb21
   bb19:
-    v72 = returndata_bytes
+    v72 = icall returndata_bytes<>
     v73 = abi_decode [u256], v72
     v74 = checked_add u256, v64, v73
     jump bb21
@@ -221,13 +221,13 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
   bb27:
     jumpi true, bb29, bb30
   bb30:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb29:
     v105 = checked_add u256, v91, 600
     jump bb28
   bb26:
-    v99 = returndata_bytes
+    v99 = icall returndata_bytes<>
     v100 = abi_decode [u256, u256], v99
     v101 = extract_value struct0, v100, 0
     v102 = extract_value struct0, v100, 1
@@ -247,13 +247,13 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
   bb32:
     jumpi true, bb34, bb35
   bb35:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb34:
     v117 = checked_add u256, v106, 700
     jump bb33
   bb31:
-    v114 = returndata_bytes
+    v114 = icall returndata_bytes<>
     v115 = abi_decode [u256], v114
     v116 = checked_add u256, v106, v115
     jump bb33
@@ -274,7 +274,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
   bb37:
     jumpi true, bb39, bb40
   bb40:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb39:
     v129 = checked_add u256, v118, 900
@@ -300,13 +300,13 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
   bb42:
     jumpi true, bb44, bb45
   bb45:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb44:
     v146 = checked_add u256, v130, 0x3e8
     jump bb43
   bb41:
-    v143 = returndata_bytes
+    v143 = icall returndata_bytes<>
     v144 = abi_decode [u256], v143
     v145 = checked_add u256, v130, v144
     jump bb43

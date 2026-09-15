@@ -7,7 +7,7 @@ fn @grow() -> struct0 [selector=0x5298948e, abi_params=[], abi_returns=[word, wo
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
-    panic_if v1, 0x41
+    icall panic_if<0x41>, v1
     v2 = add v0, 1
     v3 = storage_array_data_slot 1
     v4 = add v3, v0
@@ -15,7 +15,7 @@ fn @grow() -> struct0 [selector=0x5298948e, abi_params=[], abi_returns=[word, wo
     sstore 1, v2 !metadata(storage=slot(1))
     v5 = sload 1 !metadata(storage=slot(1))
     v6 = gt v5, 0xffffffffffffffff
-    panic_if v6, 0x41
+    icall panic_if<0x41>, v6
     v7 = add v5, 1
     v8 = storage_array_data_slot 1
     v9 = add v8, v5
@@ -24,14 +24,14 @@ fn @grow() -> struct0 [selector=0x5298948e, abi_params=[], abi_returns=[word, wo
     v10 = sload 1 !metadata(storage=slot(1))
     v11 = lt 0, v10
     v12 = iszero v11
-    panic_if v12, 0x32
+    icall panic_if<0x32>, v12
     v13 = storage_array_data_slot 1
     v14 = add v13, 0
     v15 = sload v14 !metadata(storage=symbolic(v13))
     v16 = sload 1 !metadata(storage=slot(1))
     v17 = lt 1, v16
     v18 = iszero v17
-    panic_if v18, 0x32
+    icall panic_if<0x32>, v18
     v19 = storage_array_data_slot 1
     v20 = add v19, 1
     v21 = sload v20 !metadata(storage=offset(v19, 1))
@@ -47,7 +47,7 @@ fn @wrapOntoOwner() -> u256 [selector=0x428ae2e7, abi_params=[], abi_returns=[wo
     sstore 1, 0x4ef1d2ad89edf8c4d91132028e8195cdf30bb4b5053d4f8cd260341d4805f30a !metadata(storage=slot(1))
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
-    panic_if v1, 0x41
+    icall panic_if<0x41>, v1
     v2 = add v0, 1
     v3 = storage_array_data_slot 1
     v4 = add v3, v0
@@ -62,7 +62,7 @@ fn @atCap() [selector=0xdb9a763c, abi_params=[], abi_returns=[]] {
     sstore 1, 0x10000000000000000 !metadata(storage=slot(1))
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
-    panic_if v1, 0x41
+    icall panic_if<0x41>, v1
     v2 = add v0, 1
     v3 = storage_array_data_slot 1
     v4 = add v3, v0

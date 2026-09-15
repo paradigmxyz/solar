@@ -33,7 +33,7 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     v53 = shr 1, v48
     v54 = and v53, v52
     v55 = eq v54, 0
-    panic_if v55, 0x31
+    icall panic_if<0x31>, v55
     v56 = eq v54, 32
     jumpi v56, bb21, bb18
   bb18:
@@ -102,7 +102,7 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     v9 = and v8, v7
     v10 = lt v9, 0x10000000000000000
     v11 = iszero v10
-    panic_if v11, 0x41
+    icall panic_if<0x41>, v11
     v12 = gt v9, 31
     jumpi v12, bb8, bb7
   bb7:
@@ -181,7 +181,7 @@ fn @testNoPop() -> memorybytes [selector=0xa43e8948, abi_params=[], abi_returns=
     v9 = and v8, v7
     v10 = lt v9, 0x10000000000000000
     v11 = iszero v10
-    panic_if v11, 0x41
+    icall panic_if<0x41>, v11
     v12 = gt v9, 31
     jumpi v12, bb8, bb7
   bb7:
@@ -256,7 +256,7 @@ fn @testOnePop() -> u8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
     v49 = shr 1, v44
     v50 = and v49, v48
     v51 = eq v50, 0
-    panic_if v51, 0x31
+    icall panic_if<0x31>, v51
     v52 = eq v50, 32
     jumpi v52, bb15, bb12
   bb12:
@@ -318,7 +318,7 @@ fn @testOnePop() -> u8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
     v94 = and v93, v92
     v95 = lt 0, v94
     v96 = iszero v95
-    panic_if v96, 0x32
+    icall panic_if<0x32>, v96
     jumpi v90, bb17, bb18
   bb18:
     jump bb19
@@ -349,7 +349,7 @@ fn @testOnePop() -> u8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
     v9 = and v8, v7
     v10 = lt v9, 0x10000000000000000
     v11 = iszero v10
-    panic_if v11, 0x41
+    icall panic_if<0x41>, v11
     v12 = gt v9, 31
     jumpi v12, bb8, bb7
   bb7:

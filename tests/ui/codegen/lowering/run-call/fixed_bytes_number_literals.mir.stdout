@@ -55,7 +55,7 @@ fn @viaExternal() -> u256 [selector=0x09338c08, abi_params=[], abi_returns=[word
   bb4:
     v13 = returndatasize
     v14 = lt v13, 32
-    revert_if v14, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v14
     v15 = add 0, 0
     v16 = mload v15
     v17 = add 0, 0
@@ -169,7 +169,7 @@ fn @takeSlice(arg0: calldataslice) -> bytes32 [selector=0x4f4c8d8b, pure, abi_pa
     v2 = gt 5, v1
     v3 = lt 5, 0
     v4 = or v2, v3
-    revert_if v4, empty
+    icall revert_if<empty>, v4
     v5 = sub 5, 0
     v6 = add v0, 0
     v7 = make_calldata_slice v6, v5
@@ -202,7 +202,7 @@ fn @calldataSliceCast() -> bytes32 [selector=0x93f40587, view, abi_params=[], ab
   bb2:
     v8 = returndatasize
     v9 = lt v8, 32
-    revert_if v9, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
     v11 = mload v10
     v12 = add 0, 0

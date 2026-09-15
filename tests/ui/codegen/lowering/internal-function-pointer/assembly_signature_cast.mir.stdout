@@ -49,7 +49,7 @@ fn @internal_dispatcher_p_u256_u256_r_bool(arg0: function, arg1: u256, arg2: u25
     v6 = eq arg0, 6
     jumpi v6, bb5, bb6
   bb6:
-    panic_if true, 0x51
+    icall panic_if<0x51>, true
     invalid
   bb5:
     v7 = icall @_int256Less, arg1, arg2

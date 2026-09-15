@@ -33,7 +33,7 @@ fn @sameShortLiteralSalt() -> bool [selector=0xae55518d, abi_params=[], abi_retu
   bb4:
     jumpi true, bb6, bb7
   bb7:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb6:
     ret true
@@ -73,7 +73,7 @@ fn @sameEmptyLiteralSalt() -> bool [selector=0x01dd6ed9, abi_params=[], abi_retu
   bb4:
     jumpi true, bb6, bb7
   bb7:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb6:
     ret true
@@ -113,7 +113,7 @@ fn @sameFullLiteralSalt() -> bool [selector=0xaf96a2f0, abi_params=[], abi_retur
   bb4:
     jumpi true, bb6, bb7
   bb7:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb6:
     ret true

@@ -22,7 +22,7 @@ fn @validate(arg0: calldataslice) -> u256 [selector=0xadfc46c0, pure, abi_params
     v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
     v4 = eq v2, v3
     v5 = iszero v4
-    revert_if v5, empty
+    icall revert_if<empty>, v5
     v6 = shr 64, v2
     v7 = calldataload 4
     ret v7
@@ -33,14 +33,14 @@ fn @validateArray(arg0: calldataslice) -> u256 [selector=0xc124fd97, pure, abi_p
     v0 = slice_len arg0
     v1 = lt 0, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 0
     v5 = calldataload v4
     v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
     v7 = eq v5, v6
     v8 = iszero v7
-    revert_if v8, empty
+    icall revert_if<empty>, v8
     v9 = shr 64, v5
     v10 = calldataload 68
     ret v10
@@ -87,7 +87,7 @@ fn @cleanup(arg0: u256) -> struct0 [selector=0x0aa40018, view, abi_params=[u256]
   bb2:
     v13 = returndatasize
     v14 = lt v13, 32
-    revert_if v14, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v14
     v15 = add 0, 0
     v16 = mload v15
     v17 = add 0, 0
@@ -104,7 +104,7 @@ fn @cleanup(arg0: u256) -> struct0 [selector=0x0aa40018, view, abi_params=[u256]
   bb4:
     v25 = returndatasize
     v26 = lt v25, 32
-    revert_if v26, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v26
     v27 = add 0, 0
     v28 = mload v27
     v29 = add 0, 0
@@ -144,7 +144,7 @@ fn @cleanupArray(arg0: u256) -> u256 [selector=0x7e130ca5, view, abi_params=[u25
   bb2:
     v8 = returndatasize
     v9 = lt v8, 32
-    revert_if v9, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
     v11 = mload v10
     v12 = add 0, 0
@@ -193,7 +193,7 @@ fn @memoryStructToStorage(arg0: u256) -> u256 [selector=0xb4caea8f, abi_params=[
   bb2:
     v20 = returndatasize
     v21 = lt v20, 32
-    revert_if v21, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v21
     v22 = add 0, 0
     v23 = mload v22
     v24 = add 0, 0
@@ -263,7 +263,7 @@ fn @memoryArrayToStorage(arg0: u256) -> u256 [selector=0xe3183809, abi_params=[u
     v41 = sload 1 !metadata(storage=slot(1))
     v42 = lt 0, v41
     v43 = iszero v42
-    panic_if v43, 0x32
+    icall panic_if<0x32>, v43
     v44 = storage_array_data_slot 1
     v45 = div 0, 1
     v46 = add v44, v45
@@ -283,7 +283,7 @@ fn @memoryArrayToStorage(arg0: u256) -> u256 [selector=0xe3183809, abi_params=[u
   bb10:
     v57 = returndatasize
     v58 = lt v57, 32
-    revert_if v58, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v58
     v59 = add 0, 0
     v60 = mload v59
     v61 = add 0, 0
@@ -334,7 +334,7 @@ fn @storageArrayToMemory() -> bool [selector=0xc4550e60, abi_params=[], abi_retu
     v2 = or v1, 0x32e43a11
     v3 = sload 1 !metadata(storage=slot(1))
     v4 = gt v3, 0xffffffffffffffff
-    panic_if v4, 0x41
+    icall panic_if<0x41>, v4
     v5 = add v3, 1
     v6 = storage_array_data_slot 1
     v7 = div v3, 1
@@ -358,17 +358,17 @@ fn @storageArrayToMemory() -> bool [selector=0xc4550e60, abi_params=[], abi_retu
     v23 = eq v22, v19
     v24 = or v21, v23
     v25 = iszero v24
-    panic_if v25, 0x41
+    icall panic_if<0x41>, v25
     v26 = add v20, 1
     v27 = lt v26, v20
-    panic_if v27, 0x41
+    icall panic_if<0x41>, v27
     v28 = mul v26, 32
     v29 = iszero 32
     v30 = div v28, 32
     v31 = eq v30, v26
     v32 = or v29, v31
     v33 = iszero v32
-    panic_if v33, 0x41
+    icall panic_if<0x41>, v33
     v34 = alloc memoryarray<1>, exact, uninitialized, panic, v28
     set_memory_object_len memoryarray, v34, v19
     jump bb1

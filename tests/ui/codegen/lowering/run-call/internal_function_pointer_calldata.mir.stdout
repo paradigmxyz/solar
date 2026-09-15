@@ -16,7 +16,7 @@ fn @read(arg0: calldataslice) -> bytes1 [pure] {
     v0 = slice_len arg0
     v1 = lt 2, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = calldata_slice_load_word calldata, arg0, 2
     v5 = byte 0, v4
@@ -42,7 +42,7 @@ fn @run() -> u8 [selector=0xc0406226, abi_params=[], abi_returns=[word<u8>]] {
     v4 = memory_object_len memorybytes, v2
     v5 = lt 2, v4
     v6 = iszero v5
-    panic_if v6, 0x32
+    icall panic_if<0x32>, v6
     v7 = byte 0, v3
     memory_object_store_byte memorybytes, v2, 2, v7
     v8 = address
@@ -57,13 +57,13 @@ fn @run() -> u8 [selector=0xc0406226, abi_params=[], abi_returns=[word<u8>]] {
   bb2:
     v14 = returndatasize
     v15 = lt v14, 32
-    revert_if v15, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v15
     v16 = add 0, 0
     v17 = mload v16
     v18 = and v17, 0xff00000000000000000000000000000000000000000000000000000000000000
     v19 = eq v17, v18
     v20 = iszero v19
-    revert_if v20, empty
+    icall revert_if<empty>, v20
     v21 = add 0, 0
     v22 = mload v21
     v23 = shr 248, v22
@@ -75,7 +75,7 @@ fn @internal_dispatcher_p_calldataslice_r_bytes1(arg0: function, arg1: calldatas
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2
   bb2:
-    panic_if true, 0x51
+    icall panic_if<0x51>, true
     invalid
   bb1:
     v1 = icall @read, arg1

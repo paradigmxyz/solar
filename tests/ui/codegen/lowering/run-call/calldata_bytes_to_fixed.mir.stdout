@@ -46,7 +46,7 @@ fn @sliced(arg0: calldataslice, arg1: u256, arg2: u256) -> bytes16 [selector=0x1
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    revert_if v4, empty
+    icall revert_if<empty>, v4
     v5 = sub arg2, arg1
     v6 = add v0, arg1
     v7 = make_calldata_slice v6, v5

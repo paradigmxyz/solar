@@ -28,9 +28,9 @@
   fn @capture(arg0: address, arg1: memorybytes) -> u256 {
     bb0:
       v0 = address_call arg0, arg1
-      v1 = returndata_bytes
+      v1 = icall returndata_bytes<>
       v2 = address_call arg0, arg1
-      v3 = returndata_bytes
+      v3 = icall returndata_bytes<>
       v4 = memory_object_len memorybytes, v1
       v5 = memory_object_len memorybytes, v3
       v6 = add v4, v5
@@ -63,9 +63,9 @@
   fn @capture(arg0: address, arg1: memorybytes) -> u256 {
     bb0:
       v0 = address_call arg0, arg1
-      v1 = returndata_bytes
+      v1 = icall returndata_bytes<>
       v2 = address_call arg0, arg1
-      v3 = returndata_bytes
+      v3 = icall returndata_bytes<>
       v4 = memory_object_len memorybytes, v1
       v5 = memory_object_len memorybytes, v3
       v6 = add v4, v5

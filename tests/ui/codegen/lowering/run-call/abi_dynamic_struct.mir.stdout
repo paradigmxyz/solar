@@ -13,7 +13,7 @@ fn @init(arg0: calldataslice, arg1: address) -> u256 [selector=0x5c58abd8, pure,
     v3 = and v2, 255
     v4 = eq v2, v3
     v5 = iszero v4
-    revert_if v5, empty
+    icall revert_if<empty>, v5
     v6 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
     v7 = checked_add u160, v2, v6
     ret v7
@@ -26,7 +26,7 @@ fn @tail(arg0: calldataslice) -> memorybytes [selector=0x39663a7e, pure, abi_par
     v2 = calldatasize
     v3 = sub v2, v1
     v4 = slt v3, 32
-    revert_if v4, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v4
     v5 = calldataload v1
     v6 = add v0, v5
     v7 = calldatasize
@@ -34,16 +34,16 @@ fn @tail(arg0: calldataslice) -> memorybytes [selector=0x39663a7e, pure, abi_par
     v9 = sub v8, 31
     v10 = slt v5, v9
     v11 = iszero v10
-    revert_if v11, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v11
     v12 = calldataload v6
     v13 = gt v12, 0xffffffffffffffff
-    revert_if v13, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 1
     v15 = add v6, 32
     v16 = calldatasize
     v17 = sub v16, v14
     v18 = sgt v15, v17
-    revert_if v18, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v18
     v19 = add v6, 32
     v20 = make_calldata_slice v19, v12
     v21 = slice_ptr v20
@@ -51,22 +51,22 @@ fn @tail(arg0: calldataslice) -> memorybytes [selector=0x39663a7e, pure, abi_par
     v23 = gt v22, v22
     v24 = lt v22, 1
     v25 = or v23, v24
-    revert_if v25, empty
+    icall revert_if<empty>, v25
     v26 = sub v22, 1
     v27 = add v21, 1
     v28 = make_calldata_slice v27, v26
     v29 = slice_ptr v28
     v30 = slice_len v28
     v31 = gt v30, 0xffffffffffffffff
-    revert_if v31, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v31
     v32 = calldatasize
     v33 = sub v32, v30
     v34 = sgt v29, v33
-    revert_if v34, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v34
     v35 = slice_len v28
     v36 = add v35, 63
     v37 = lt v36, v35
-    panic_if v37, 0x41
+    icall panic_if<0x41>, v37
     v38 = not 31
     v39 = and v36, v38
     v40 = alloc memorybytes, exact, uninitialized, infallible, v39
@@ -88,7 +88,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v5 = memory_object_len memoryarray, v0
     v6 = lt 0, v5
     v7 = iszero v6
-    panic_if v7, 0x32
+    icall panic_if<0x32>, v7
     v8 = memory_object_load_element memoryarray<1>, v0, 0
     v9 = memory_object_from_ptr memorystruct, v8
     v10 = eq v9, 0
@@ -114,7 +114,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v17 = memory_object_len memoryarray, v0
     v18 = lt 0, v17
     v19 = iszero v18
-    panic_if v19, 0x32
+    icall panic_if<0x32>, v19
     v20 = memory_object_load_element memoryarray<1>, v0, 0
     v21 = memory_object_from_ptr memorystruct, v20
     v22 = eq v21, 0
@@ -138,7 +138,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v28 = memory_object_len memoryarray, v0
     v29 = lt 0, v28
     v30 = iszero v29
-    panic_if v30, 0x32
+    icall panic_if<0x32>, v30
     v31 = memory_object_load_element memoryarray<1>, v0, 0
     v32 = memory_object_from_ptr memorystruct, v31
     v33 = eq v32, 0
@@ -160,7 +160,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v38 = memory_object_len memoryarray, v0
     v39 = lt 0, v38
     v40 = iszero v39
-    panic_if v40, 0x32
+    icall panic_if<0x32>, v40
     v41 = memory_object_load_element memoryarray<1>, v0, 0
     v42 = memory_object_from_ptr memorystruct, v41
     v43 = eq v42, 0
@@ -182,12 +182,12 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v49 = memory_object_len memoryarray, v48
     v50 = lt 0, v49
     v51 = iszero v50
-    panic_if v51, 0x32
+    icall panic_if<0x32>, v51
     memory_object_store_element memoryarray<1>, v48, 0, 3
     v52 = memory_object_len memoryarray, v0
     v53 = lt 0, v52
     v54 = iszero v53
-    panic_if v54, 0x32
+    icall panic_if<0x32>, v54
     v55 = memory_object_load_element memoryarray<1>, v0, 0
     v56 = memory_object_from_ptr memorystruct, v55
     v57 = eq v56, 0
@@ -209,12 +209,12 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v63 = memory_object_len memoryarray, v62
     v64 = lt 1, v63
     v65 = iszero v64
-    panic_if v65, 0x32
+    icall panic_if<0x32>, v65
     memory_object_store_element memoryarray<1>, v62, 1, 4
     v66 = memory_object_len memoryarray, v0
     v67 = lt 1, v66
     v68 = iszero v67
-    panic_if v68, 0x32
+    icall panic_if<0x32>, v68
     v69 = memory_object_load_element memoryarray<1>, v0, 1
     v70 = memory_object_from_ptr memorystruct, v69
     v71 = eq v70, 0
@@ -240,7 +240,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v78 = memory_object_len memoryarray, v0
     v79 = lt 1, v78
     v80 = iszero v79
-    panic_if v80, 0x32
+    icall panic_if<0x32>, v80
     v81 = memory_object_load_element memoryarray<1>, v0, 1
     v82 = memory_object_from_ptr memorystruct, v81
     v83 = eq v82, 0
@@ -264,7 +264,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v89 = memory_object_len memoryarray, v0
     v90 = lt 1, v89
     v91 = iszero v90
-    panic_if v91, 0x32
+    icall panic_if<0x32>, v91
     v92 = memory_object_load_element memoryarray<1>, v0, 1
     v93 = memory_object_from_ptr memorystruct, v92
     v94 = eq v93, 0
@@ -286,7 +286,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v99 = memory_object_len memoryarray, v0
     v100 = lt 1, v99
     v101 = iszero v100
-    panic_if v101, 0x32
+    icall panic_if<0x32>, v101
     v102 = memory_object_load_element memoryarray<1>, v0, 1
     v103 = memory_object_from_ptr memorystruct, v102
     v104 = eq v103, 0
@@ -308,13 +308,13 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v110 = memory_object_len memoryarray, v109
     v111 = lt 0, v110
     v112 = iszero v111
-    panic_if v112, 0x32
+    icall panic_if<0x32>, v112
     memory_object_store_element memoryarray<1>, v109, 0, 8
     v113 = memory_object_len memoryarray, v0
     v114 = memory_object_len memoryarray, v0
     v115 = lt 0, v114
     v116 = iszero v115
-    panic_if v116, 0x32
+    icall panic_if<0x32>, v116
     v117 = memory_object_load_element memoryarray<1>, v0, 0
     v118 = memory_object_from_ptr memorystruct, v117
     v119 = eq v118, 0
@@ -336,7 +336,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v125 = memory_object_len memoryarray, v0
     v126 = lt 1, v125
     v127 = iszero v126
-    panic_if v127, 0x32
+    icall panic_if<0x32>, v127
     v128 = memory_object_load_element memoryarray<1>, v0, 1
     v129 = memory_object_from_ptr memorystruct, v128
     v130 = eq v129, 0
@@ -359,7 +359,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v137 = memory_object_len memoryarray, v0
     v138 = lt 0, v137
     v139 = iszero v138
-    panic_if v139, 0x32
+    icall panic_if<0x32>, v139
     v140 = memory_object_load_element memoryarray<1>, v0, 0
     v141 = memory_object_from_ptr memorystruct, v140
     v142 = eq v141, 0
@@ -382,7 +382,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v149 = memory_object_len memoryarray, v0
     v150 = lt 1, v149
     v151 = iszero v150
-    panic_if v151, 0x32
+    icall panic_if<0x32>, v151
     v152 = memory_object_load_element memoryarray<1>, v0, 1
     v153 = memory_object_from_ptr memorystruct, v152
     v154 = eq v153, 0
@@ -406,7 +406,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v162 = memory_object_len memoryarray, v0
     v163 = lt 0, v162
     v164 = iszero v163
-    panic_if v164, 0x32
+    icall panic_if<0x32>, v164
     v165 = memory_object_load_element memoryarray<1>, v0, 0
     v166 = memory_object_from_ptr memorystruct, v165
     v167 = eq v166, 0
@@ -429,7 +429,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v174 = memory_object_len memoryarray, v0
     v175 = lt 1, v174
     v176 = iszero v175
-    panic_if v176, 0x32
+    icall panic_if<0x32>, v176
     v177 = memory_object_load_element memoryarray<1>, v0, 1
     v178 = memory_object_from_ptr memorystruct, v177
     v179 = eq v178, 0
@@ -451,7 +451,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v185 = memory_object_len memoryarray, v184
     v186 = lt 0, v185
     v187 = iszero v186
-    panic_if v187, 0x32
+    icall panic_if<0x32>, v187
     v188 = memory_object_load_element memoryarray<1>, v184, 0
     v189 = insert_value struct0, undef struct0, 0, v113
     v190 = insert_value struct0, v189, 1, v136
@@ -480,7 +480,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
   bb3:
     v5 = lt 0, 2
     v6 = iszero v5
-    panic_if v6, 0x32
+    icall panic_if<0x32>, v6
     v7 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v8 = memory_object_from_ptr memorystruct, v7
     v9 = eq v8, 0
@@ -505,7 +505,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     mstore v15, 0x102000000000000000000000000000000000000000000000000000000000000
     v16 = lt 0, 2
     v17 = iszero v16
-    panic_if v17, 0x32
+    icall panic_if<0x32>, v17
     v18 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v19 = memory_object_from_ptr memorystruct, v18
     v20 = eq v19, 0
@@ -528,7 +528,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     set_memory_object_len memoryarray, v25, 1
     v26 = lt 0, 2
     v27 = iszero v26
-    panic_if v27, 0x32
+    icall panic_if<0x32>, v27
     v28 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v29 = memory_object_from_ptr memorystruct, v28
     v30 = eq v29, 0
@@ -549,7 +549,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     memory_object_store_field memorystruct<3>, v34, 2, v25
     v35 = lt 0, 2
     v36 = iszero v35
-    panic_if v36, 0x32
+    icall panic_if<0x32>, v36
     v37 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v38 = memory_object_from_ptr memorystruct, v37
     v39 = eq v38, 0
@@ -571,11 +571,11 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v45 = memory_object_len memoryarray, v44
     v46 = lt 0, v45
     v47 = iszero v46
-    panic_if v47, 0x32
+    icall panic_if<0x32>, v47
     memory_object_store_element memoryarray<1>, v44, 0, 6
     v48 = lt 1, 2
     v49 = iszero v48
-    panic_if v49, 0x32
+    icall panic_if<0x32>, v49
     v50 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v51 = memory_object_from_ptr memorystruct, v50
     v52 = eq v51, 0
@@ -600,7 +600,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     mstore v58, 0x304050000000000000000000000000000000000000000000000000000000000
     v59 = lt 1, 2
     v60 = iszero v59
-    panic_if v60, 0x32
+    icall panic_if<0x32>, v60
     v61 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v62 = memory_object_from_ptr memorystruct, v61
     v63 = eq v62, 0
@@ -623,7 +623,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     set_memory_object_len memoryarray, v68, 2
     v69 = lt 1, 2
     v70 = iszero v69
-    panic_if v70, 0x32
+    icall panic_if<0x32>, v70
     v71 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v72 = memory_object_from_ptr memorystruct, v71
     v73 = eq v72, 0
@@ -644,7 +644,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     memory_object_store_field memorystruct<3>, v77, 2, v68
     v78 = lt 1, 2
     v79 = iszero v78
-    panic_if v79, 0x32
+    icall panic_if<0x32>, v79
     v80 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v81 = memory_object_from_ptr memorystruct, v80
     v82 = eq v81, 0
@@ -666,11 +666,11 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v88 = memory_object_len memoryarray, v87
     v89 = lt 0, v88
     v90 = iszero v89
-    panic_if v90, 0x32
+    icall panic_if<0x32>, v90
     memory_object_store_element memoryarray<1>, v87, 0, 8
     v91 = lt 1, 2
     v92 = iszero v91
-    panic_if v92, 0x32
+    icall panic_if<0x32>, v92
     v93 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v94 = memory_object_from_ptr memorystruct, v93
     v95 = eq v94, 0
@@ -692,11 +692,11 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v101 = memory_object_len memoryarray, v100
     v102 = lt 1, v101
     v103 = iszero v102
-    panic_if v103, 0x32
+    icall panic_if<0x32>, v103
     memory_object_store_element memoryarray<1>, v100, 1, 9
     v104 = lt 0, 2
     v105 = iszero v104
-    panic_if v105, 0x32
+    icall panic_if<0x32>, v105
     v106 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v107 = memory_object_from_ptr memorystruct, v106
     v108 = eq v107, 0
@@ -717,7 +717,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v113 = memory_object_load_field memorystruct<3>, v112, 0
     v114 = lt 1, 2
     v115 = iszero v114
-    panic_if v115, 0x32
+    icall panic_if<0x32>, v115
     v116 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v117 = memory_object_from_ptr memorystruct, v116
     v118 = eq v117, 0
@@ -739,7 +739,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v124 = checked_add u256, v113, v123
     v125 = lt 0, 2
     v126 = iszero v125
-    panic_if v126, 0x32
+    icall panic_if<0x32>, v126
     v127 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v128 = memory_object_from_ptr memorystruct, v127
     v129 = eq v128, 0
@@ -761,7 +761,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v135 = memory_object_len memorybytes, v134
     v136 = lt 1, 2
     v137 = iszero v136
-    panic_if v137, 0x32
+    icall panic_if<0x32>, v137
     v138 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v139 = memory_object_from_ptr memorystruct, v138
     v140 = eq v139, 0
@@ -784,7 +784,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v147 = checked_add u256, v135, v146
     v148 = lt 1, 2
     v149 = iszero v148
-    panic_if v149, 0x32
+    icall panic_if<0x32>, v149
     v150 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v151 = memory_object_from_ptr memorystruct, v150
     v152 = eq v151, 0
@@ -806,7 +806,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v158 = memory_object_len memoryarray, v157
     v159 = lt 1, 2
     v160 = iszero v159
-    panic_if v160, 0x32
+    icall panic_if<0x32>, v160
     v161 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v162 = memory_object_from_ptr memorystruct, v161
     v163 = eq v162, 0
@@ -828,7 +828,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v169 = memory_object_len memoryarray, v168
     v170 = lt 1, v169
     v171 = iszero v170
-    panic_if v171, 0x32
+    icall panic_if<0x32>, v171
     v172 = memory_object_load_element memoryarray<1>, v168, 1
     v173 = insert_value struct0, undef struct0, 0, 2
     v174 = insert_value struct0, v173, 1, v124
@@ -860,7 +860,7 @@ fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=
     v6 = memory_object_len memoryarray, v0
     v7 = lt 0, v6
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     v9 = memory_object_load_element memoryarray<1>, v0, 0
     v10 = memory_object_from_ptr memorystruct, v9
     v11 = eq v10, 0
@@ -882,7 +882,7 @@ fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=
     v17 = memory_object_len memoryarray, v0
     v18 = lt 1, v17
     v19 = iszero v18
-    panic_if v19, 0x32
+    icall panic_if<0x32>, v19
     v20 = memory_object_load_element memoryarray<1>, v0, 1
     v21 = memory_object_from_ptr memorystruct, v20
     v22 = eq v21, 0
@@ -905,7 +905,7 @@ fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=
     v29 = memory_object_len memoryarray, v0
     v30 = lt 0, v29
     v31 = iszero v30
-    panic_if v31, 0x32
+    icall panic_if<0x32>, v31
     v32 = memory_object_load_element memoryarray<1>, v0, 0
     v33 = memory_object_from_ptr memorystruct, v32
     v34 = eq v33, 0
@@ -928,7 +928,7 @@ fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=
     v41 = memory_object_len memoryarray, v0
     v42 = lt 1, v41
     v43 = iszero v42
-    panic_if v43, 0x32
+    icall panic_if<0x32>, v43
     v44 = memory_object_load_element memoryarray<1>, v0, 1
     v45 = memory_object_from_ptr memorystruct, v44
     v46 = eq v45, 0
@@ -952,7 +952,7 @@ fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=
     v54 = memory_object_len memoryarray, v0
     v55 = lt 0, v54
     v56 = iszero v55
-    panic_if v56, 0x32
+    icall panic_if<0x32>, v56
     v57 = memory_object_load_element memoryarray<1>, v0, 0
     v58 = memory_object_from_ptr memorystruct, v57
     v59 = eq v58, 0
@@ -975,7 +975,7 @@ fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=
     v66 = memory_object_len memoryarray, v0
     v67 = lt 1, v66
     v68 = iszero v67
-    panic_if v68, 0x32
+    icall panic_if<0x32>, v68
     v69 = memory_object_load_element memoryarray<1>, v0, 1
     v70 = memory_object_from_ptr memorystruct, v69
     v71 = eq v70, 0
@@ -1033,7 +1033,7 @@ fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[]
     v9 = memory_object_len memoryarray, v0
     v10 = lt 0, v9
     v11 = iszero v10
-    panic_if v11, 0x32
+    icall panic_if<0x32>, v11
     v12 = memory_object_load_element memoryarray<1>, v0, 0
     v13 = memory_object_from_ptr memorybytes, v12
     v14 = eq v13, 0
@@ -1049,7 +1049,7 @@ fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[]
     v18 = memory_object_len memoryarray, v0
     v19 = lt 1, v18
     v20 = iszero v19
-    panic_if v20, 0x32
+    icall panic_if<0x32>, v20
     v21 = memory_object_load_element memoryarray<1>, v0, 1
     v22 = memory_object_from_ptr memorybytes, v21
     v23 = eq v22, 0
@@ -1067,7 +1067,7 @@ fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[]
     v29 = memory_object_len memoryarray, v4
     v30 = lt 0, v29
     v31 = iszero v30
-    panic_if v31, 0x32
+    icall panic_if<0x32>, v31
     v32 = memory_object_load_element memoryarray<1>, v4, 0
     v33 = memory_object_from_ptr memoryarray, v32
     v34 = eq v33, 0
@@ -1083,7 +1083,7 @@ fn @zeroDynamicAggregates() -> struct1 [selector=0x962f75a4, pure, abi_params=[]
     v38 = memory_object_len memoryarray, v4
     v39 = lt 1, v38
     v40 = iszero v39
-    panic_if v40, 0x32
+    icall panic_if<0x32>, v40
     v41 = memory_object_load_element memoryarray<1>, v4, 1
     v42 = memory_object_from_ptr memoryarray, v41
     v43 = eq v42, 0
@@ -1126,7 +1126,7 @@ fn @zeroDynamicAggregatesAfterScratch() -> struct2 [selector=0x7d3c2623, pure, a
     v4 = memory_object_len memoryarray, v0
     v5 = lt 0, v4
     v6 = iszero v5
-    panic_if v6, 0x32
+    icall panic_if<0x32>, v6
     v7 = memory_object_load_element memoryarray<1>, v0, 0
     v8 = memory_object_from_ptr memorybytes, v7
     v9 = eq v8, 0
@@ -1163,7 +1163,7 @@ fn @zeroNestedDynamicAggregateAfterScratch() -> u256 [selector=0x84af5c73, pure,
     v5 = memory_object_len memoryarray, v0
     v6 = lt 0, v5
     v7 = iszero v6
-    panic_if v7, 0x32
+    icall panic_if<0x32>, v7
     v8 = memory_object_load_element memoryarray<1>, v0, 0
     v9 = memory_object_from_ptr memorystruct, v8
     v10 = eq v9, 0

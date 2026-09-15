@@ -35,7 +35,7 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v59 = and v58, v57
     v60 = lt v49, v59
     v61 = iszero v60
-    panic_if v61, 0x32
+    icall panic_if<0x32>, v61
     jumpi v55, bb18, bb19
   bb19:
     jump bb20
@@ -58,7 +58,7 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v75 = shl 248, v74
     v76 = eq v72, v75
     v77 = iszero v76
-    revert_if v77, empty
+    icall revert_if<empty>, v77
     v78 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v78
     v79 = and v78, 1
@@ -70,7 +70,7 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v85 = checked_add i256, v49, 1
     v86 = eq v84, v85
     v87 = iszero v86
-    revert_if v87, empty
+    icall revert_if<empty>, v87
     v88 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v88
     v89 = and v88, 1
@@ -80,7 +80,7 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v93 = shr 1, v88
     v94 = and v93, v92
     v95 = eq v94, 0
-    panic_if v95, 0x31
+    icall panic_if<0x31>, v95
     v96 = eq v94, 32
     jumpi v96, bb24, bb21
   bb21:
@@ -152,7 +152,7 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v13 = and v12, v11
     v14 = lt v13, 0x10000000000000000
     v15 = iszero v14
-    panic_if v15, 0x41
+    icall panic_if<0x41>, v15
     v16 = gt v13, 31
     jumpi v16, bb8, bb7
   bb7:

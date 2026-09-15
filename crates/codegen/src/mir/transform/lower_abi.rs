@@ -2581,7 +2581,7 @@ impl LowerAbiCx {
         }
         for inst_id in func.instructions() {
             let inst = func.inst(inst_id);
-            if matches!(inst.kind, InstKind::ICall { .. }) {
+            if matches!(inst.kind, InstKind::ICall { function: Callee::Function(_), .. }) {
                 return false;
             }
             let tainted_operand = inst.operands().iter().any(|value| tainted.contains(*value));
@@ -2683,7 +2683,8 @@ impl LowerAbiCx {
                 {
                     (true, false)
                 }
-                InstKind::ICall { .. } => (false, false),
+                InstKind::ICall { function: Callee::Function(_), .. } => (false, false),
+                InstKind::ICall { function: Callee::Builtin(_), .. } => (true, false),
                 // A bytes memory value is commonly used as a raw pointer in inline assembly
                 // (`add(data, 0x20)`). Do not replace that pointer with a calldata slice. Keep
                 // the older propagation rule for other aggregate operations.

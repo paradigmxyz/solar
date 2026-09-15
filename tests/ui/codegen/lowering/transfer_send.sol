@@ -44,13 +44,13 @@ contract TransferSend {
     }
 
     // CHECK-LABEL: fn @sendValue
-    // CHECK: = send
+    // CHECK: = icall send<>
     function sendValue() external payable returns (bool) {
         return payable(address(gasReceiver)).send(1);
     }
 
     // CHECK-LABEL: fn @transferValue
-    // CHECK: transfer
+    // CHECK: icall transfer<>
     function transferValue() external payable {
         payable(address(revertReceiver)).transfer(1);
     }

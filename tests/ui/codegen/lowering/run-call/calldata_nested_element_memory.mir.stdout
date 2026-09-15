@@ -5,13 +5,13 @@ fn @test1(arg0: calldataslice) -> u256 [selector=0x82dda4b9, pure, abi_params=[a
     v0 = slice_len arg0
     v1 = lt 1, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 32
     v5 = calldatasize
     v6 = sub v5, v4
     v7 = slt v6, 32
-    revert_if v7, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v7
     v8 = calldataload v4
     v9 = add v3, v8
     v10 = calldatasize
@@ -19,16 +19,16 @@ fn @test1(arg0: calldataslice) -> u256 [selector=0x82dda4b9, pure, abi_params=[a
     v12 = sub v11, 31
     v13 = slt v8, v12
     v14 = iszero v13
-    revert_if v14, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = calldataload v9
     v16 = gt v15, 0xffffffffffffffff
-    revert_if v16, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v16
     v17 = mul v15, 32
     v18 = add v9, 32
     v19 = calldatasize
     v20 = sub v19, v17
     v21 = sgt v18, v20
-    revert_if v21, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v21
     v22 = add v9, 32
     v23 = make_calldata_slice v22, v15
     v24 = slice_len v23
@@ -39,21 +39,21 @@ fn @test1(arg0: calldataslice) -> u256 [selector=0x82dda4b9, pure, abi_params=[a
     v29 = eq v28, v24
     v30 = or v27, v29
     v31 = iszero v30
-    panic_if v31, 0x41
+    icall panic_if<0x41>, v31
     v32 = calldatasize
     v33 = sub v32, v25
     v34 = slt v33, v26
-    revert_if v34, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v34
     v35 = mul v24, 32
     v36 = iszero 32
     v37 = div v35, 32
     v38 = eq v37, v24
     v39 = or v36, v38
     v40 = iszero v39
-    panic_if v40, 0x41
+    icall panic_if<0x41>, v40
     v41 = add 32, v35
     v42 = lt v41, 32
-    panic_if v42, 0x41
+    icall panic_if<0x41>, v42
     v43 = alloc memoryarray<1>, exact, uninitialized, infallible, v41
     set_memory_object_len memoryarray, v43, v24
     jump bb1
@@ -65,7 +65,7 @@ fn @test1(arg0: calldataslice) -> u256 [selector=0x82dda4b9, pure, abi_params=[a
     v86 = memory_object_len memoryarray, v43
     v87 = lt 0, v86
     v88 = iszero v87
-    panic_if v88, 0x32
+    icall panic_if<0x32>, v88
     v89 = memory_object_load_element memoryarray<1>, v43, 0
     v90 = memory_object_from_ptr memoryarray, v89
     v91 = eq v90, 0
@@ -80,13 +80,13 @@ fn @test1(arg0: calldataslice) -> u256 [selector=0x82dda4b9, pure, abi_params=[a
     v94 = memory_object_len memoryarray, v93
     v95 = lt 0, v94
     v96 = iszero v95
-    panic_if v96, 0x32
+    icall panic_if<0x32>, v96
     v97 = memory_object_load_element memoryarray<1>, v93, 0
     v98 = and v97, 255
     v99 = memory_object_len memoryarray, v43
     v100 = lt 0, v99
     v101 = iszero v100
-    panic_if v101, 0x32
+    icall panic_if<0x32>, v101
     v102 = memory_object_load_element memoryarray<1>, v43, 0
     v103 = memory_object_from_ptr memoryarray, v102
     v104 = eq v103, 0
@@ -101,14 +101,14 @@ fn @test1(arg0: calldataslice) -> u256 [selector=0x82dda4b9, pure, abi_params=[a
     v107 = memory_object_len memoryarray, v106
     v108 = lt 1, v107
     v109 = iszero v108
-    panic_if v109, 0x32
+    icall panic_if<0x32>, v109
     v110 = memory_object_load_element memoryarray<1>, v106, 1
     v111 = and v110, 255
     v112 = checked_add u8, v98, v111
     v113 = memory_object_len memoryarray, v43
     v114 = lt 1, v113
     v115 = iszero v114
-    panic_if v115, 0x32
+    icall panic_if<0x32>, v115
     v116 = memory_object_load_element memoryarray<1>, v43, 1
     v117 = memory_object_from_ptr memoryarray, v116
     v118 = eq v117, 0
@@ -123,7 +123,7 @@ fn @test1(arg0: calldataslice) -> u256 [selector=0x82dda4b9, pure, abi_params=[a
     v121 = memory_object_len memoryarray, v120
     v122 = lt 0, v121
     v123 = iszero v122
-    panic_if v123, 0x32
+    icall panic_if<0x32>, v123
     v124 = memory_object_load_element memoryarray<1>, v120, 0
     v125 = and v124, 255
     v126 = checked_add u8, v112, v125
@@ -134,7 +134,7 @@ fn @test1(arg0: calldataslice) -> u256 [selector=0x82dda4b9, pure, abi_params=[a
     v48 = calldatasize
     v49 = sub v48, v47
     v50 = slt v49, 32
-    revert_if v50, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v50
     v51 = calldataload v47
     v52 = add v25, v51
     v53 = calldatasize
@@ -142,16 +142,16 @@ fn @test1(arg0: calldataslice) -> u256 [selector=0x82dda4b9, pure, abi_params=[a
     v55 = sub v54, 31
     v56 = slt v51, v55
     v57 = iszero v56
-    revert_if v57, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v57
     v58 = calldataload v52
     v59 = gt v58, 0xffffffffffffffff
-    revert_if v59, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v59
     v60 = mul v58, 32
     v61 = add v52, 32
     v62 = calldatasize
     v63 = sub v62, v60
     v64 = sgt v61, v63
-    revert_if v64, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v64
     v65 = add v52, 32
     v66 = mul v58, 32
     v67 = iszero 32
@@ -159,10 +159,10 @@ fn @test1(arg0: calldataslice) -> u256 [selector=0x82dda4b9, pure, abi_params=[a
     v69 = eq v68, v58
     v70 = or v67, v69
     v71 = iszero v70
-    panic_if v71, 0x41
+    icall panic_if<0x41>, v71
     v72 = add 32, v66
     v73 = lt v72, 32
-    panic_if v73, 0x41
+    icall panic_if<0x41>, v73
     v74 = alloc memoryarray<1>, exact, uninitialized, infallible, v72
     set_memory_object_len memoryarray, v74, v58
     jump bb4
@@ -181,7 +181,7 @@ fn @test1(arg0: calldataslice) -> u256 [selector=0x82dda4b9, pure, abi_params=[a
     v80 = and v79, 255
     v81 = eq v79, v80
     v82 = iszero v81
-    revert_if v82, empty
+    icall revert_if<empty>, v82
     v83 = and v79, 255
     memory_object_store_element memoryarray<1>, v74, v75, v83
     v84 = add v75, 1
@@ -193,13 +193,13 @@ fn @test2(arg0: calldataslice) -> u256 [selector=0x710442c6, pure, abi_params=[a
     v0 = slice_len arg0
     v1 = lt 1, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 32
     v5 = calldatasize
     v6 = sub v5, v4
     v7 = slt v6, 32
-    revert_if v7, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v7
     v8 = calldataload v4
     v9 = add v3, v8
     v10 = calldatasize
@@ -207,13 +207,13 @@ fn @test2(arg0: calldataslice) -> u256 [selector=0x710442c6, pure, abi_params=[a
     v12 = sub v11, 63
     v13 = slt v8, v12
     v14 = iszero v13
-    revert_if v14, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = make_calldata_slice v9, 2
     v16 = slice_ptr v15
     v17 = calldatasize
     v18 = sub v17, v16
     v19 = slt v18, 64
-    revert_if v19, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v19
     v20 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     jump bb1
   bb1:
@@ -223,7 +223,7 @@ fn @test2(arg0: calldataslice) -> u256 [selector=0x710442c6, pure, abi_params=[a
   bb3:
     v63 = lt 0, 2
     v64 = iszero v63
-    panic_if v64, 0x32
+    icall panic_if<0x32>, v64
     v65 = memory_object_load_element memoryfixedarray<2, 1>, v20, 0
     v66 = memory_object_from_ptr memoryarray, v65
     v67 = eq v66, 0
@@ -238,12 +238,12 @@ fn @test2(arg0: calldataslice) -> u256 [selector=0x710442c6, pure, abi_params=[a
     v70 = memory_object_len memoryarray, v69
     v71 = lt 0, v70
     v72 = iszero v71
-    panic_if v72, 0x32
+    icall panic_if<0x32>, v72
     v73 = memory_object_load_element memoryarray<1>, v69, 0
     v74 = and v73, 255
     v75 = lt 0, 2
     v76 = iszero v75
-    panic_if v76, 0x32
+    icall panic_if<0x32>, v76
     v77 = memory_object_load_element memoryfixedarray<2, 1>, v20, 0
     v78 = memory_object_from_ptr memoryarray, v77
     v79 = eq v78, 0
@@ -258,13 +258,13 @@ fn @test2(arg0: calldataslice) -> u256 [selector=0x710442c6, pure, abi_params=[a
     v82 = memory_object_len memoryarray, v81
     v83 = lt 1, v82
     v84 = iszero v83
-    panic_if v84, 0x32
+    icall panic_if<0x32>, v84
     v85 = memory_object_load_element memoryarray<1>, v81, 1
     v86 = and v85, 255
     v87 = checked_add u8, v74, v86
     v88 = lt 1, 2
     v89 = iszero v88
-    panic_if v89, 0x32
+    icall panic_if<0x32>, v89
     v90 = memory_object_load_element memoryfixedarray<2, 1>, v20, 1
     v91 = memory_object_from_ptr memoryarray, v90
     v92 = eq v91, 0
@@ -279,7 +279,7 @@ fn @test2(arg0: calldataslice) -> u256 [selector=0x710442c6, pure, abi_params=[a
     v95 = memory_object_len memoryarray, v94
     v96 = lt 0, v95
     v97 = iszero v96
-    panic_if v97, 0x32
+    icall panic_if<0x32>, v97
     v98 = memory_object_load_element memoryarray<1>, v94, 0
     v99 = and v98, 255
     v100 = checked_add u8, v87, v99
@@ -290,7 +290,7 @@ fn @test2(arg0: calldataslice) -> u256 [selector=0x710442c6, pure, abi_params=[a
     v25 = calldatasize
     v26 = sub v25, v24
     v27 = slt v26, 32
-    revert_if v27, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v27
     v28 = calldataload v24
     v29 = add v16, v28
     v30 = calldatasize
@@ -298,16 +298,16 @@ fn @test2(arg0: calldataslice) -> u256 [selector=0x710442c6, pure, abi_params=[a
     v32 = sub v31, 31
     v33 = slt v28, v32
     v34 = iszero v33
-    revert_if v34, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v34
     v35 = calldataload v29
     v36 = gt v35, 0xffffffffffffffff
-    revert_if v36, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v36
     v37 = mul v35, 32
     v38 = add v29, 32
     v39 = calldatasize
     v40 = sub v39, v37
     v41 = sgt v38, v40
-    revert_if v41, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v41
     v42 = add v29, 32
     v43 = mul v35, 32
     v44 = iszero 32
@@ -315,10 +315,10 @@ fn @test2(arg0: calldataslice) -> u256 [selector=0x710442c6, pure, abi_params=[a
     v46 = eq v45, v35
     v47 = or v44, v46
     v48 = iszero v47
-    panic_if v48, 0x41
+    icall panic_if<0x41>, v48
     v49 = add 32, v43
     v50 = lt v49, 32
-    panic_if v50, 0x41
+    icall panic_if<0x41>, v50
     v51 = alloc memoryarray<1>, exact, uninitialized, infallible, v49
     set_memory_object_len memoryarray, v51, v35
     jump bb4
@@ -337,7 +337,7 @@ fn @test2(arg0: calldataslice) -> u256 [selector=0x710442c6, pure, abi_params=[a
     v57 = and v56, 255
     v58 = eq v56, v57
     v59 = iszero v58
-    revert_if v59, empty
+    icall revert_if<empty>, v59
     v60 = and v56, 255
     memory_object_store_element memoryarray<1>, v51, v52, v60
     v61 = add v52, 1
@@ -349,13 +349,13 @@ fn @test3(arg0: calldataslice) -> u256 [selector=0x6e607577, pure, abi_params=[a
     v0 = slice_len arg0
     v1 = lt 0, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 0
     v5 = calldatasize
     v6 = sub v5, v4
     v7 = slt v6, 32
-    revert_if v7, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v7
     v8 = calldataload v4
     v9 = add v3, v8
     v10 = calldatasize
@@ -363,16 +363,16 @@ fn @test3(arg0: calldataslice) -> u256 [selector=0x6e607577, pure, abi_params=[a
     v12 = sub v11, 31
     v13 = slt v8, v12
     v14 = iszero v13
-    revert_if v14, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = calldataload v9
     v16 = gt v15, 0xffffffffffffffff
-    revert_if v16, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v16
     v17 = mul v15, 64
     v18 = add v9, 32
     v19 = calldatasize
     v20 = sub v19, v17
     v21 = sgt v18, v20
-    revert_if v21, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v21
     v22 = add v9, 32
     v23 = make_calldata_slice v22, v15
     v24 = slice_len v23
@@ -383,21 +383,21 @@ fn @test3(arg0: calldataslice) -> u256 [selector=0x6e607577, pure, abi_params=[a
     v29 = eq v28, v24
     v30 = or v27, v29
     v31 = iszero v30
-    panic_if v31, 0x41
+    icall panic_if<0x41>, v31
     v32 = calldatasize
     v33 = sub v32, v25
     v34 = slt v33, v26
-    revert_if v34, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v34
     v35 = mul v24, 32
     v36 = iszero 32
     v37 = div v35, 32
     v38 = eq v37, v24
     v39 = or v36, v38
     v40 = iszero v39
-    panic_if v40, 0x41
+    icall panic_if<0x41>, v40
     v41 = add 32, v35
     v42 = lt v41, 32
-    panic_if v42, 0x41
+    icall panic_if<0x41>, v42
     v43 = alloc memoryarray<1>, exact, uninitialized, infallible, v41
     set_memory_object_len memoryarray, v43, v24
     jump bb1
@@ -409,7 +409,7 @@ fn @test3(arg0: calldataslice) -> u256 [selector=0x6e607577, pure, abi_params=[a
     v65 = memory_object_len memoryarray, v43
     v66 = lt 0, v65
     v67 = iszero v66
-    panic_if v67, 0x32
+    icall panic_if<0x32>, v67
     v68 = memory_object_load_element memoryarray<1>, v43, 0
     v69 = memory_object_from_ptr memoryfixedarray, v68
     v70 = eq v69, 0
@@ -423,13 +423,13 @@ fn @test3(arg0: calldataslice) -> u256 [selector=0x6e607577, pure, abi_params=[a
     v72 = phi [bb3: v69], [bb7: v71]
     v73 = lt 0, 2
     v74 = iszero v73
-    panic_if v74, 0x32
+    icall panic_if<0x32>, v74
     v75 = memory_object_load_element memoryfixedarray<2, 1>, v72, 0
     v76 = and v75, 255
     v77 = memory_object_len memoryarray, v43
     v78 = lt 0, v77
     v79 = iszero v78
-    panic_if v79, 0x32
+    icall panic_if<0x32>, v79
     v80 = memory_object_load_element memoryarray<1>, v43, 0
     v81 = memory_object_from_ptr memoryfixedarray, v80
     v82 = eq v81, 0
@@ -443,14 +443,14 @@ fn @test3(arg0: calldataslice) -> u256 [selector=0x6e607577, pure, abi_params=[a
     v84 = phi [bb8: v81], [bb9: v83]
     v85 = lt 1, 2
     v86 = iszero v85
-    panic_if v86, 0x32
+    icall panic_if<0x32>, v86
     v87 = memory_object_load_element memoryfixedarray<2, 1>, v84, 1
     v88 = and v87, 255
     v89 = checked_add u8, v76, v88
     v90 = memory_object_len memoryarray, v43
     v91 = lt 1, v90
     v92 = iszero v91
-    panic_if v92, 0x32
+    icall panic_if<0x32>, v92
     v93 = memory_object_load_element memoryarray<1>, v43, 1
     v94 = memory_object_from_ptr memoryfixedarray, v93
     v95 = eq v94, 0
@@ -464,14 +464,14 @@ fn @test3(arg0: calldataslice) -> u256 [selector=0x6e607577, pure, abi_params=[a
     v97 = phi [bb10: v94], [bb11: v96]
     v98 = lt 0, 2
     v99 = iszero v98
-    panic_if v99, 0x32
+    icall panic_if<0x32>, v99
     v100 = memory_object_load_element memoryfixedarray<2, 1>, v97, 0
     v101 = and v100, 255
     v102 = checked_add u8, v89, v101
     v103 = memory_object_len memoryarray, v43
     v104 = lt 1, v103
     v105 = iszero v104
-    panic_if v105, 0x32
+    icall panic_if<0x32>, v105
     v106 = memory_object_load_element memoryarray<1>, v43, 1
     v107 = memory_object_from_ptr memoryfixedarray, v106
     v108 = eq v107, 0
@@ -485,7 +485,7 @@ fn @test3(arg0: calldataslice) -> u256 [selector=0x6e607577, pure, abi_params=[a
     v110 = phi [bb12: v107], [bb13: v109]
     v111 = lt 1, 2
     v112 = iszero v111
-    panic_if v112, 0x32
+    icall panic_if<0x32>, v112
     v113 = memory_object_load_element memoryfixedarray<2, 1>, v110, 1
     v114 = and v113, 255
     v115 = checked_add u8, v102, v114
@@ -497,7 +497,7 @@ fn @test3(arg0: calldataslice) -> u256 [selector=0x6e607577, pure, abi_params=[a
     v49 = eq v48, v44
     v50 = or v47, v49
     v51 = iszero v50
-    panic_if v51, 0x41
+    icall panic_if<0x41>, v51
     v52 = add v25, v46
     v53 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     jump bb4
@@ -518,7 +518,7 @@ fn @test3(arg0: calldataslice) -> u256 [selector=0x6e607577, pure, abi_params=[a
     v59 = and v58, 255
     v60 = eq v58, v59
     v61 = iszero v60
-    revert_if v61, empty
+    icall revert_if<empty>, v61
     v62 = add v54, 1
     jump bb4
 }

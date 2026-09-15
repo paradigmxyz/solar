@@ -7,7 +7,7 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xd1ee4a1a, pure, abi_params=[tu
     v2 = calldatasize
     v3 = sub v2, v0
     v4 = slt v3, 32
-    revert_if v4, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v4
     v5 = calldataload v0
     v6 = add v0, v5
     v7 = calldatasize
@@ -15,22 +15,22 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xd1ee4a1a, pure, abi_params=[tu
     v9 = sub v8, 31
     v10 = slt v5, v9
     v11 = iszero v10
-    revert_if v11, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v11
     v12 = calldataload v6
     v13 = gt v12, 0xffffffffffffffff
-    revert_if v13, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 1
     v15 = add v6, 32
     v16 = calldatasize
     v17 = sub v16, v14
     v18 = sgt v15, v17
-    revert_if v18, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v18
     v19 = add v6, 32
     v20 = make_calldata_slice v19, v12
     v21 = slice_len v20
     v22 = add v21, 63
     v23 = lt v22, v21
-    panic_if v23, 0x41
+    icall panic_if<0x41>, v23
     v24 = not 31
     v25 = and v22, v24
     v26 = alloc memorybytes, exact, uninitialized, infallible, v25
@@ -41,7 +41,7 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xd1ee4a1a, pure, abi_params=[tu
     v28 = calldatasize
     v29 = sub v28, v27
     v30 = slt v29, 32
-    revert_if v30, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v30
     v31 = calldataload v27
     memory_object_store_field memorystruct<2>, v1, 1, v31
     v32 = memory_object_load_field memorystruct<2>, v1, 0, memorybytes
@@ -58,7 +58,7 @@ fn @encodeField(arg0: calldataslice) -> u256 [selector=0xbd1dd83b, pure, abi_par
     v2 = calldatasize
     v3 = sub v2, v1
     v4 = slt v3, 32
-    revert_if v4, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v4
     v5 = calldataload v1
     v6 = add v0, v5
     v7 = calldatasize
@@ -66,31 +66,31 @@ fn @encodeField(arg0: calldataslice) -> u256 [selector=0xbd1dd83b, pure, abi_par
     v9 = sub v8, 31
     v10 = slt v5, v9
     v11 = iszero v10
-    revert_if v11, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v11
     v12 = calldataload v6
     v13 = gt v12, 0xffffffffffffffff
-    revert_if v13, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 1
     v15 = add v6, 32
     v16 = calldatasize
     v17 = sub v16, v14
     v18 = sgt v15, v17
-    revert_if v18, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v18
     v19 = add v6, 32
     v20 = make_calldata_slice v19, v12
     v21 = slice_ptr v20
     v22 = slice_len v20
     v23 = gt v22, 0xffffffffffffffff
-    revert_if v23, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v23
     v24 = calldatasize
     v25 = sub v24, v22
     v26 = sgt v21, v25
-    revert_if v26, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v26
     v27 = abi_encode [calldata_bytes], object, args v20
     v28 = memory_object_len memorybytes, v27
     v29 = lt 64, v28
     v30 = iszero v29
-    panic_if v30, 0x32
+    icall panic_if<0x32>, v30
     v31 = memory_object_load_byte memorybytes, v27, 64
     v32 = shl 248, v31
     v33 = shr 248, v32
@@ -104,7 +104,7 @@ fn @encodePackedField(arg0: calldataslice) -> u256 [selector=0xed098724, pure, a
     v2 = calldatasize
     v3 = sub v2, v1
     v4 = slt v3, 32
-    revert_if v4, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v4
     v5 = calldataload v1
     v6 = add v0, v5
     v7 = calldatasize
@@ -112,31 +112,31 @@ fn @encodePackedField(arg0: calldataslice) -> u256 [selector=0xed098724, pure, a
     v9 = sub v8, 31
     v10 = slt v5, v9
     v11 = iszero v10
-    revert_if v11, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v11
     v12 = calldataload v6
     v13 = gt v12, 0xffffffffffffffff
-    revert_if v13, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 1
     v15 = add v6, 32
     v16 = calldatasize
     v17 = sub v16, v14
     v18 = sgt v15, v17
-    revert_if v18, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v18
     v19 = add v6, 32
     v20 = make_calldata_slice v19, v12
     v21 = slice_ptr v20
     v22 = slice_len v20
     v23 = gt v22, 0xffffffffffffffff
-    revert_if v23, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v23
     v24 = calldatasize
     v25 = sub v24, v22
     v26 = sgt v21, v25
-    revert_if v26, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v26
     v27 = abi_encode_packed (bytes v20)
     v28 = memory_object_len memorybytes, v27
     v29 = lt 0, v28
     v30 = iszero v29
-    panic_if v30, 0x32
+    icall panic_if<0x32>, v30
     v31 = memory_object_load_byte memorybytes, v27, 0
     v32 = shl 248, v31
     v33 = shr 248, v32
@@ -150,7 +150,7 @@ fn @hashField(arg0: calldataslice) -> bytes32 [selector=0xdd0f255f, pure, abi_pa
     v2 = calldatasize
     v3 = sub v2, v1
     v4 = slt v3, 32
-    revert_if v4, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v4
     v5 = calldataload v1
     v6 = add v0, v5
     v7 = calldatasize
@@ -158,30 +158,30 @@ fn @hashField(arg0: calldataslice) -> bytes32 [selector=0xdd0f255f, pure, abi_pa
     v9 = sub v8, 31
     v10 = slt v5, v9
     v11 = iszero v10
-    revert_if v11, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v11
     v12 = calldataload v6
     v13 = gt v12, 0xffffffffffffffff
-    revert_if v13, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 1
     v15 = add v6, 32
     v16 = calldatasize
     v17 = sub v16, v14
     v18 = sgt v15, v17
-    revert_if v18, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v18
     v19 = add v6, 32
     v20 = make_calldata_slice v19, v12
     v21 = slice_ptr v20
     v22 = slice_len v20
     v23 = gt v22, 0xffffffffffffffff
-    revert_if v23, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v23
     v24 = calldatasize
     v25 = sub v24, v22
     v26 = sgt v21, v25
-    revert_if v26, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v26
     v27 = slice_len v20
     v28 = add v27, 63
     v29 = lt v28, v27
-    panic_if v29, 0x41
+    icall panic_if<0x41>, v29
     v30 = not 31
     v31 = and v28, v30
     v32 = alloc memorybytes, exact, uninitialized, infallible, v31
@@ -198,7 +198,7 @@ fn @indexField(arg0: calldataslice) -> u256 [selector=0xec2824a8, pure, abi_para
     v2 = calldatasize
     v3 = sub v2, v1
     v4 = slt v3, 32
-    revert_if v4, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v4
     v5 = calldataload v1
     v6 = add v0, v5
     v7 = calldatasize
@@ -206,22 +206,22 @@ fn @indexField(arg0: calldataslice) -> u256 [selector=0xec2824a8, pure, abi_para
     v9 = sub v8, 31
     v10 = slt v5, v9
     v11 = iszero v10
-    revert_if v11, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v11
     v12 = calldataload v6
     v13 = gt v12, 0xffffffffffffffff
-    revert_if v13, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 1
     v15 = add v6, 32
     v16 = calldatasize
     v17 = sub v16, v14
     v18 = sgt v15, v17
-    revert_if v18, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v18
     v19 = add v6, 32
     v20 = make_calldata_slice v19, v12
     v21 = slice_len v20
     v22 = lt 0, v21
     v23 = iszero v22
-    panic_if v23, 0x32
+    icall panic_if<0x32>, v23
     v24 = slice_ptr v20
     v25 = calldata_slice_load_word calldata, v20, 0
     v26 = byte 0, v25
@@ -237,7 +237,7 @@ fn @fixedField(arg0: calldataslice) -> u256 [selector=0x4d20e66c, pure, abi_para
     v2 = calldatasize
     v3 = sub v2, v1
     v4 = slt v3, 32
-    revert_if v4, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v4
     v5 = calldataload v1
     v6 = add v0, v5
     v7 = calldatasize
@@ -245,16 +245,16 @@ fn @fixedField(arg0: calldataslice) -> u256 [selector=0x4d20e66c, pure, abi_para
     v9 = sub v8, 31
     v10 = slt v5, v9
     v11 = iszero v10
-    revert_if v11, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v11
     v12 = calldataload v6
     v13 = gt v12, 0xffffffffffffffff
-    revert_if v13, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 1
     v15 = add v6, 32
     v16 = calldatasize
     v17 = sub v16, v14
     v18 = sgt v15, v17
-    revert_if v18, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v18
     v19 = add v6, 32
     v20 = make_calldata_slice v19, v12
     v21 = calldata_slice_load_word calldata, v20, 0
@@ -276,7 +276,7 @@ fn @copyField(arg0: calldataslice) -> u256 [selector=0xda205eee, pure, abi_param
     v2 = calldatasize
     v3 = sub v2, v1
     v4 = slt v3, 32
-    revert_if v4, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v4
     v5 = calldataload v1
     v6 = add v0, v5
     v7 = calldatasize
@@ -284,30 +284,30 @@ fn @copyField(arg0: calldataslice) -> u256 [selector=0xda205eee, pure, abi_param
     v9 = sub v8, 31
     v10 = slt v5, v9
     v11 = iszero v10
-    revert_if v11, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v11
     v12 = calldataload v6
     v13 = gt v12, 0xffffffffffffffff
-    revert_if v13, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v13
     v14 = mul v12, 1
     v15 = add v6, 32
     v16 = calldatasize
     v17 = sub v16, v14
     v18 = sgt v15, v17
-    revert_if v18, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v18
     v19 = add v6, 32
     v20 = make_calldata_slice v19, v12
     v21 = slice_ptr v20
     v22 = slice_len v20
     v23 = gt v22, 0xffffffffffffffff
-    revert_if v23, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v23
     v24 = calldatasize
     v25 = sub v24, v22
     v26 = sgt v21, v25
-    revert_if v26, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v26
     v27 = slice_len v20
     v28 = add v27, 63
     v29 = lt v28, v27
-    panic_if v29, 0x41
+    icall panic_if<0x41>, v29
     v30 = not 31
     v31 = and v28, v30
     v32 = alloc memorybytes, exact, uninitialized, infallible, v31
@@ -327,21 +327,21 @@ fn @copyWords(arg0: calldataslice) -> u256 [selector=0x7ce58428, pure, abi_param
     v5 = eq v4, v0
     v6 = or v3, v5
     v7 = iszero v6
-    panic_if v7, 0x41
+    icall panic_if<0x41>, v7
     v8 = calldatasize
     v9 = sub v8, v1
     v10 = slt v9, v2
-    revert_if v10, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v10
     v11 = mul v0, 32
     v12 = iszero 32
     v13 = div v11, 32
     v14 = eq v13, v0
     v15 = or v12, v14
     v16 = iszero v15
-    panic_if v16, 0x41
+    icall panic_if<0x41>, v16
     v17 = add 32, v11
     v18 = lt v17, 32
-    panic_if v18, 0x41
+    icall panic_if<0x41>, v18
     v19 = alloc memoryarray<1>, exact, uninitialized, infallible, v17
     set_memory_object_len memoryarray, v19, v0
     v20 = make_calldata_slice v1, v11
@@ -350,7 +350,7 @@ fn @copyWords(arg0: calldataslice) -> u256 [selector=0x7ce58428, pure, abi_param
     v22 = memory_object_len memoryarray, v19
     v23 = lt 0, v22
     v24 = iszero v23
-    panic_if v24, 0x32
+    icall panic_if<0x32>, v24
     v25 = memory_object_load_element memoryarray<1>, v19, 0
     v26 = checked_add u256, v21, v25
     ret v26
@@ -361,7 +361,7 @@ fn @emitBytes(arg0: calldataslice) -> u256 [selector=0xc76f0635, abi_params=[byt
     v0 = slice_len arg0
     v1 = add v0, 63
     v2 = lt v1, v0
-    panic_if v2, 0x41
+    icall panic_if<0x41>, v2
     v3 = not 31
     v4 = and v1, v3
     v5 = alloc memorybytes, exact, uninitialized, infallible, v4
@@ -383,21 +383,21 @@ fn @copyArray(arg0: calldataslice) -> u256 [selector=0x58bdfbf3, pure, abi_param
     v5 = eq v4, v0
     v6 = or v3, v5
     v7 = iszero v6
-    panic_if v7, 0x41
+    icall panic_if<0x41>, v7
     v8 = calldatasize
     v9 = sub v8, v1
     v10 = slt v9, v2
-    revert_if v10, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v10
     v11 = mul v0, 32
     v12 = iszero 32
     v13 = div v11, 32
     v14 = eq v13, v0
     v15 = or v12, v14
     v16 = iszero v15
-    panic_if v16, 0x41
+    icall panic_if<0x41>, v16
     v17 = add 32, v11
     v18 = lt v17, 32
-    panic_if v18, 0x41
+    icall panic_if<0x41>, v18
     v19 = alloc memoryarray<1>, exact, uninitialized, infallible, v17
     set_memory_object_len memoryarray, v19, v0
     jump bb1
@@ -409,7 +409,7 @@ fn @copyArray(arg0: calldataslice) -> u256 [selector=0x58bdfbf3, pure, abi_param
     v50 = memory_object_len memoryarray, v19
     v51 = lt 0, v50
     v52 = iszero v51
-    panic_if v52, 0x32
+    icall panic_if<0x32>, v52
     v53 = memory_object_load_element memoryarray<1>, v19, 0
     v54 = memory_object_from_ptr memorybytes, v53
     v55 = eq v54, 0
@@ -429,7 +429,7 @@ fn @copyArray(arg0: calldataslice) -> u256 [selector=0x58bdfbf3, pure, abi_param
     v24 = calldatasize
     v25 = sub v24, v23
     v26 = slt v25, 32
-    revert_if v26, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v26
     v27 = calldataload v23
     v28 = add v1, v27
     v29 = calldatasize
@@ -437,22 +437,22 @@ fn @copyArray(arg0: calldataslice) -> u256 [selector=0x58bdfbf3, pure, abi_param
     v31 = sub v30, 31
     v32 = slt v27, v31
     v33 = iszero v32
-    revert_if v33, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v33
     v34 = calldataload v28
     v35 = gt v34, 0xffffffffffffffff
-    revert_if v35, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v35
     v36 = mul v34, 1
     v37 = add v28, 32
     v38 = calldatasize
     v39 = sub v38, v36
     v40 = sgt v37, v39
-    revert_if v40, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v40
     v41 = add v28, 32
     v42 = make_calldata_slice v41, v34
     v43 = slice_len v42
     v44 = add v43, 63
     v45 = lt v44, v43
-    panic_if v45, 0x41
+    icall panic_if<0x41>, v45
     v46 = not 31
     v47 = and v44, v46
     v48 = alloc memorybytes, exact, uninitialized, infallible, v47

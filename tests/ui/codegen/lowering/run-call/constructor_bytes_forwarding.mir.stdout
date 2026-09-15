@@ -25,7 +25,7 @@ fn @byteAt(arg0: u256) -> bytes1 [selector=0x710422c6, view, abi_params=[u256], 
     v6 = and v5, v4
     v7 = lt arg0, v6
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
@@ -89,7 +89,7 @@ fn @byteAt(arg0: u256) -> bytes1 [selector=0x710422c6, view, abi_params=[u256], 
     v6 = and v5, v4
     v7 = lt arg0, v6
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
@@ -130,10 +130,10 @@ fn @f(arg0: u256, arg1: memorybytes) -> struct0 [selector=0xcdc9dc79, abi_params
     v1 = slice_len v0
     v2 = add 0x733, v1
     v3 = lt v2, 0x733
-    panic_if v3, 0x41
+    icall panic_if<0x41>, v3
     v4 = add v2, 31
     v5 = lt v4, v2
-    panic_if v5, 0x41
+    icall panic_if<0x41>, v5
     v6 = not 31
     v7 = and v4, v6
     v8 = alloc raw, exact, uninitialized, infallible, v7
@@ -157,7 +157,7 @@ fn @f(arg0: u256, arg1: memorybytes) -> struct0 [selector=0xcdc9dc79, abi_params
   bb4:
     v17 = returndatasize
     v18 = lt v17, 32
-    revert_if v18, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v18
     v19 = add 0, 0
     v20 = mload v19
     v21 = add 0, 0
@@ -173,13 +173,13 @@ fn @f(arg0: u256, arg1: memorybytes) -> struct0 [selector=0xcdc9dc79, abi_params
   bb6:
     v28 = returndatasize
     v29 = lt v28, 32
-    revert_if v29, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v29
     v30 = add 0, 0
     v31 = mload v30
     v32 = and v31, 0xff00000000000000000000000000000000000000000000000000000000000000
     v33 = eq v31, v32
     v34 = iszero v33
-    revert_if v34, empty
+    icall revert_if<empty>, v34
     v35 = add 0, 0
     v36 = mload v35
     v37 = insert_value struct0, undef struct0, 0, v22

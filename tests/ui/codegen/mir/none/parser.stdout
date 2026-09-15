@@ -96,9 +96,9 @@
   
   fn @precompiles(arg0: memorybytes) -> u256 {
     bb0:
-      v0 = sha256 arg0
-      v1 = ripemd160 arg0
-      v2 = ecrecover 0, 0, 0, 0
+      v0 = icall sha256<>, arg0
+      v1 = icall ripemd160<>, arg0
+      v2 = icall ecrecover<>, 0, 0, 0, 0
       ret v2
   }
   

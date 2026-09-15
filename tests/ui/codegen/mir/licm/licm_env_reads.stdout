@@ -102,7 +102,7 @@
     bb2:
       v1 = returndatasize
       v2 = mul v1, 3
-      v3 = sha256 arg0
+      v3 = icall sha256<>, arg0
       jump bb1
   }
   
@@ -117,7 +117,7 @@
     bb2:
       v1 = returndatasize
       v2 = mul v1, 3
-      v3 = ripemd160 arg0
+      v3 = icall ripemd160<>, arg0
       jump bb1
   }
   
@@ -132,7 +132,7 @@
     bb2:
       v1 = returndatasize
       v2 = mul v1, 3
-      v3 = ecrecover 1, 28, 2, 3
+      v3 = icall ecrecover<>, 1, 28, 2, 3
       jump bb1
   }
   
@@ -146,7 +146,7 @@
       ret v0
     bb2:
       v1 = mul arg0, 3
-      v2 = ecrecover 1, 28, 2, 3
+      v2 = icall ecrecover<>, 1, 28, 2, 3
       jump bb1
   }
   

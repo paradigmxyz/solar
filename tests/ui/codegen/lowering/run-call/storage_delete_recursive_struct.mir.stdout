@@ -8,7 +8,7 @@ fn @clearNested() [selector=0xdcbc9943, abi_params=[], abi_returns=[word, word, 
     v0 = add 0, 1
     v1 = sload v0 !metadata(storage=slot(1))
     v2 = gt v1, 0xffffffffffffffff
-    panic_if v2, 0x41
+    icall panic_if<0x41>, v2
     v3 = add v1, 1
     v4 = storage_array_data_slot v0
     v5 = mul v1, 2
@@ -18,14 +18,14 @@ fn @clearNested() [selector=0xdcbc9943, abi_params=[], abi_returns=[word, word, 
     v8 = sload v7 !metadata(storage=slot(1))
     v9 = lt 0, v8
     v10 = iszero v9
-    panic_if v10, 0x32
+    icall panic_if<0x32>, v10
     v11 = storage_array_data_slot v7
     v12 = mul 0, 2
     v13 = add v11, v12
     v14 = add v13, 1
     v15 = sload v14 !metadata(storage=offset(v13, 1))
     v16 = gt v15, 0xffffffffffffffff
-    panic_if v16, 0x41
+    icall panic_if<0x41>, v16
     v17 = add v15, 1
     v18 = storage_array_data_slot v14
     v19 = mul v15, 2
@@ -35,7 +35,7 @@ fn @clearNested() [selector=0xdcbc9943, abi_params=[], abi_returns=[word, word, 
     v22 = sload v21 !metadata(storage=offset(v13, 1))
     v23 = lt 0, v22
     v24 = iszero v23
-    panic_if v24, 0x32
+    icall panic_if<0x32>, v24
     v25 = storage_array_data_slot v21
     v26 = mul 0, 2
     v27 = add v25, v26
@@ -87,7 +87,7 @@ fn @clearMutual() [selector=0x5baf460d, abi_params=[], abi_returns=[word, word, 
     v0 = add 2, 1
     v1 = sload v0 !metadata(storage=slot(3))
     v2 = gt v1, 0xffffffffffffffff
-    panic_if v2, 0x41
+    icall panic_if<0x41>, v2
     v3 = add v1, 1
     v4 = storage_array_data_slot v0
     v5 = mul v1, 2
@@ -96,7 +96,7 @@ fn @clearMutual() [selector=0x5baf460d, abi_params=[], abi_returns=[word, word, 
     v7 = add v6, 1
     v8 = sload v7 !metadata(storage=offset(v6, 1))
     v9 = gt v8, 0xffffffffffffffff
-    panic_if v9, 0x41
+    icall panic_if<0x41>, v9
     v10 = add v8, 1
     v11 = storage_array_data_slot v7
     v12 = mul v8, 2

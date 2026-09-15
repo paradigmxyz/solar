@@ -60,7 +60,7 @@ fn @dDynArr(arg0: memorybytes) -> struct3 [selector=0xaca542ca, pure, abi_params
     v2 = memory_object_len memoryarray, v0
     v3 = lt 0, v2
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     v5 = memory_object_load_element memoryarray<1>, v0, 0
     v6 = memory_object_from_ptr memorystruct, v5
     v7 = eq v6, 0
@@ -82,7 +82,7 @@ fn @dDynArr(arg0: memorybytes) -> struct3 [selector=0xaca542ca, pure, abi_params
     v13 = memory_object_len memoryarray, v0
     v14 = lt 1, v13
     v15 = iszero v14
-    panic_if v15, 0x32
+    icall panic_if<0x32>, v15
     v16 = memory_object_load_element memoryarray<1>, v0, 1
     v17 = memory_object_from_ptr memorystruct, v16
     v18 = eq v17, 0
@@ -104,7 +104,7 @@ fn @dDynArr(arg0: memorybytes) -> struct3 [selector=0xaca542ca, pure, abi_params
     v24 = memory_object_len memoryarray, v0
     v25 = lt 0, v24
     v26 = iszero v25
-    panic_if v26, 0x32
+    icall panic_if<0x32>, v26
     v27 = memory_object_load_element memoryarray<1>, v0, 0
     v28 = memory_object_from_ptr memorystruct, v27
     v29 = eq v28, 0
@@ -136,7 +136,7 @@ fn @dFixedDyn(arg0: memorybytes) -> struct4 [selector=0x94edd832, pure, abi_para
     v0 = abi_decode [array<2, bytes>], arg0
     v1 = lt 0, 2
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v4 = memory_object_from_ptr memorybytes, v3
     v5 = eq v4, 0
@@ -151,7 +151,7 @@ fn @dFixedDyn(arg0: memorybytes) -> struct4 [selector=0x94edd832, pure, abi_para
     v8 = memory_object_len memorybytes, v7
     v9 = lt 1, 2
     v10 = iszero v9
-    panic_if v10, 0x32
+    icall panic_if<0x32>, v10
     v11 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v12 = memory_object_from_ptr memorybytes, v11
     v13 = eq v12, 0
@@ -175,13 +175,13 @@ fn @typedDynArray(arg0: calldataslice) -> struct0 [selector=0xa00a84db, pure, ab
     v1 = slice_len arg0
     v2 = lt 0, v1
     v3 = iszero v2
-    panic_if v3, 0x32
+    icall panic_if<0x32>, v3
     v4 = slice_ptr arg0
     v5 = add v4, 0
     v6 = calldatasize
     v7 = sub v6, v5
     v8 = slt v7, 32
-    revert_if v8, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v8
     v9 = calldataload v5
     v10 = add v4, v9
     v11 = calldatasize
@@ -189,7 +189,7 @@ fn @typedDynArray(arg0: calldataslice) -> struct0 [selector=0xa00a84db, pure, ab
     v13 = sub v12, 95
     v14 = slt v9, v13
     v15 = iszero v14
-    revert_if v15, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v15
     v16 = make_calldata_slice v10, 32
     v17 = slice_ptr v16
     v18 = add v17, 0
@@ -197,13 +197,13 @@ fn @typedDynArray(arg0: calldataslice) -> struct0 [selector=0xa00a84db, pure, ab
     v20 = slice_len arg0
     v21 = lt 1, v20
     v22 = iszero v21
-    panic_if v22, 0x32
+    icall panic_if<0x32>, v22
     v23 = slice_ptr arg0
     v24 = add v23, 32
     v25 = calldatasize
     v26 = sub v25, v24
     v27 = slt v26, 32
-    revert_if v27, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v27
     v28 = calldataload v24
     v29 = add v23, v28
     v30 = calldatasize
@@ -211,7 +211,7 @@ fn @typedDynArray(arg0: calldataslice) -> struct0 [selector=0xa00a84db, pure, ab
     v32 = sub v31, 95
     v33 = slt v28, v32
     v34 = iszero v33
-    revert_if v34, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v34
     v35 = make_calldata_slice v29, 32
     v36 = slice_ptr v35
     v37 = add v36, 0
@@ -261,14 +261,14 @@ fn @nestedRoundtrip() -> struct1 [selector=0x07f0bc21, pure, abi_params=[], abi_
     v15 = memory_object_len memoryarray, v14
     v16 = lt 0, v15
     v17 = iszero v16
-    panic_if v17, 0x32
+    icall panic_if<0x32>, v17
     memory_object_store_element memoryarray<1>, v14, 0, 4
     v18 = memory_object_load_field memorystruct<3>, v0, 1, memorystruct
     v19 = memory_object_load_field memorystruct<3>, v18, 2, memoryarray
     v20 = memory_object_len memoryarray, v19
     v21 = lt 1, v20
     v22 = iszero v21
-    panic_if v22, 0x32
+    icall panic_if<0x32>, v22
     memory_object_store_element memoryarray<1>, v19, 1, 5
     v23 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v23, 3
@@ -313,13 +313,13 @@ fn @dynamicArrayRoundtrip() -> struct3 [selector=0x533c608a, pure, abi_params=[]
     v10 = memory_object_len memoryarray, v9
     v11 = lt 0, v10
     v12 = iszero v11
-    panic_if v12, 0x32
+    icall panic_if<0x32>, v12
     memory_object_store_element memoryarray<1>, v9, 0, 4
     v13 = memory_object_load_field memorystruct<3>, v5, 2, memoryarray
     v14 = memory_object_len memoryarray, v13
     v15 = lt 1, v14
     v16 = iszero v15
-    panic_if v16, 0x32
+    icall panic_if<0x32>, v16
     memory_object_store_element memoryarray<1>, v13, 1, 5
     v17 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v17, 0, 0
@@ -338,17 +338,17 @@ fn @dynamicArrayRoundtrip() -> struct3 [selector=0x533c608a, pure, abi_params=[]
     v22 = memory_object_len memoryarray, v21
     v23 = lt 0, v22
     v24 = iszero v23
-    panic_if v24, 0x32
+    icall panic_if<0x32>, v24
     memory_object_store_element memoryarray<1>, v21, 0, 6
     v25 = memory_object_len memoryarray, v0
     v26 = lt 0, v25
     v27 = iszero v26
-    panic_if v27, 0x32
+    icall panic_if<0x32>, v27
     memory_object_store_element memoryarray<1>, v0, 0, v5
     v28 = memory_object_len memoryarray, v0
     v29 = lt 1, v28
     v30 = iszero v29
-    panic_if v30, 0x32
+    icall panic_if<0x32>, v30
     memory_object_store_element memoryarray<1>, v0, 1, v17
     v31 = abi_encode [memory_array<tuple<word, memory_bytes, memory_array<word>>>], object, args v0
     v32 = icall @dDynArr, v31
@@ -386,7 +386,7 @@ fn @fixedDynamicRoundtrip() -> struct4 [selector=0x273ceef0, pure, abi_params=[]
     mstore v5, 0x100000000000000000000000000000000000000000000000000000000000000
     v6 = lt 0, 2
     v7 = iszero v6
-    panic_if v7, 0x32
+    icall panic_if<0x32>, v7
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v4
     v8 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v8, 2
@@ -394,13 +394,13 @@ fn @fixedDynamicRoundtrip() -> struct4 [selector=0x273ceef0, pure, abi_params=[]
     mstore v9, 0x203000000000000000000000000000000000000000000000000000000000000
     v10 = lt 1, 2
     v11 = iszero v10
-    panic_if v11, 0x32
+    icall panic_if<0x32>, v11
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v8
     v12 = abi_encode [array<2, memory_bytes>], object, args v0
     v13 = abi_decode [array<2, bytes>], v12
     v14 = lt 0, 2
     v15 = iszero v14
-    panic_if v15, 0x32
+    icall panic_if<0x32>, v15
     v16 = memory_object_load_element memoryfixedarray<2, 1>, v13, 0
     v17 = memory_object_from_ptr memorybytes, v16
     v18 = eq v17, 0
@@ -415,7 +415,7 @@ fn @fixedDynamicRoundtrip() -> struct4 [selector=0x273ceef0, pure, abi_params=[]
     v21 = memory_object_len memorybytes, v20
     v22 = lt 1, 2
     v23 = iszero v22
-    panic_if v23, 0x32
+    icall panic_if<0x32>, v23
     v24 = memory_object_load_element memoryfixedarray<2, 1>, v13, 1
     v25 = memory_object_from_ptr memorybytes, v24
     v26 = eq v25, 0
@@ -442,15 +442,15 @@ fn @dStaticNested(arg0: calldataslice) -> struct5 [selector=0xf634a16d, pure, ab
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt v1, 0xffffffffffffffff
-    revert_if v2, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v2
     v3 = calldatasize
     v4 = sub v3, v1
     v5 = sgt v0, v4
-    revert_if v5, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v5
     v6 = slice_len arg0
     v7 = add v6, 63
     v8 = lt v7, v6
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = not 31
     v10 = and v7, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
@@ -459,7 +459,7 @@ fn @dStaticNested(arg0: calldataslice) -> struct5 [selector=0xf634a16d, pure, ab
     v12 = abi_decode [array<3, array<2, u256>>], v11
     v13 = lt 0, 3
     v14 = iszero v13
-    panic_if v14, 0x32
+    icall panic_if<0x32>, v14
     v15 = memory_object_load_element memoryfixedarray<3, 1>, v12, 0
     v16 = memory_object_from_ptr memoryfixedarray, v15
     v17 = eq v16, 0
@@ -473,11 +473,11 @@ fn @dStaticNested(arg0: calldataslice) -> struct5 [selector=0xf634a16d, pure, ab
     v19 = phi [bb0: v16], [bb1: v18]
     v20 = lt 0, 2
     v21 = iszero v20
-    panic_if v21, 0x32
+    icall panic_if<0x32>, v21
     v22 = memory_object_load_element memoryfixedarray<2, 1>, v19, 0
     v23 = lt 0, 3
     v24 = iszero v23
-    panic_if v24, 0x32
+    icall panic_if<0x32>, v24
     v25 = memory_object_load_element memoryfixedarray<3, 1>, v12, 0
     v26 = memory_object_from_ptr memoryfixedarray, v25
     v27 = eq v26, 0
@@ -491,11 +491,11 @@ fn @dStaticNested(arg0: calldataslice) -> struct5 [selector=0xf634a16d, pure, ab
     v29 = phi [bb2: v26], [bb3: v28]
     v30 = lt 1, 2
     v31 = iszero v30
-    panic_if v31, 0x32
+    icall panic_if<0x32>, v31
     v32 = memory_object_load_element memoryfixedarray<2, 1>, v29, 1
     v33 = lt 1, 3
     v34 = iszero v33
-    panic_if v34, 0x32
+    icall panic_if<0x32>, v34
     v35 = memory_object_load_element memoryfixedarray<3, 1>, v12, 1
     v36 = memory_object_from_ptr memoryfixedarray, v35
     v37 = eq v36, 0
@@ -509,11 +509,11 @@ fn @dStaticNested(arg0: calldataslice) -> struct5 [selector=0xf634a16d, pure, ab
     v39 = phi [bb4: v36], [bb5: v38]
     v40 = lt 0, 2
     v41 = iszero v40
-    panic_if v41, 0x32
+    icall panic_if<0x32>, v41
     v42 = memory_object_load_element memoryfixedarray<2, 1>, v39, 0
     v43 = lt 1, 3
     v44 = iszero v43
-    panic_if v44, 0x32
+    icall panic_if<0x32>, v44
     v45 = memory_object_load_element memoryfixedarray<3, 1>, v12, 1
     v46 = memory_object_from_ptr memoryfixedarray, v45
     v47 = eq v46, 0
@@ -527,11 +527,11 @@ fn @dStaticNested(arg0: calldataslice) -> struct5 [selector=0xf634a16d, pure, ab
     v49 = phi [bb6: v46], [bb7: v48]
     v50 = lt 1, 2
     v51 = iszero v50
-    panic_if v51, 0x32
+    icall panic_if<0x32>, v51
     v52 = memory_object_load_element memoryfixedarray<2, 1>, v49, 1
     v53 = lt 2, 3
     v54 = iszero v53
-    panic_if v54, 0x32
+    icall panic_if<0x32>, v54
     v55 = memory_object_load_element memoryfixedarray<3, 1>, v12, 2
     v56 = memory_object_from_ptr memoryfixedarray, v55
     v57 = eq v56, 0
@@ -545,11 +545,11 @@ fn @dStaticNested(arg0: calldataslice) -> struct5 [selector=0xf634a16d, pure, ab
     v59 = phi [bb8: v56], [bb9: v58]
     v60 = lt 0, 2
     v61 = iszero v60
-    panic_if v61, 0x32
+    icall panic_if<0x32>, v61
     v62 = memory_object_load_element memoryfixedarray<2, 1>, v59, 0
     v63 = lt 2, 3
     v64 = iszero v63
-    panic_if v64, 0x32
+    icall panic_if<0x32>, v64
     v65 = memory_object_load_element memoryfixedarray<3, 1>, v12, 2
     v66 = memory_object_from_ptr memoryfixedarray, v65
     v67 = eq v66, 0
@@ -563,7 +563,7 @@ fn @dStaticNested(arg0: calldataslice) -> struct5 [selector=0xf634a16d, pure, ab
     v69 = phi [bb10: v66], [bb11: v68]
     v70 = lt 1, 2
     v71 = iszero v70
-    panic_if v71, 0x32
+    icall panic_if<0x32>, v71
     v72 = memory_object_load_element memoryfixedarray<2, 1>, v69, 1
     v73 = insert_value struct5, undef struct5, 0, v22
     v74 = insert_value struct5, v73, 1, v32
@@ -581,7 +581,7 @@ fn @dNestedArrays(arg0: memorybytes) -> struct3 [selector=0xa8c86b4a, pure, abi_
     v2 = memory_object_len memoryarray, v0
     v3 = lt 0, v2
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     v5 = memory_object_load_element memoryarray<1>, v0, 0
     v6 = memory_object_from_ptr memoryarray, v5
     v7 = eq v6, 0
@@ -597,7 +597,7 @@ fn @dNestedArrays(arg0: memorybytes) -> struct3 [selector=0xa8c86b4a, pure, abi_
     v11 = memory_object_len memoryarray, v0
     v12 = lt 0, v11
     v13 = iszero v12
-    panic_if v13, 0x32
+    icall panic_if<0x32>, v13
     v14 = memory_object_load_element memoryarray<1>, v0, 0
     v15 = memory_object_from_ptr memoryarray, v14
     v16 = eq v15, 0
@@ -612,12 +612,12 @@ fn @dNestedArrays(arg0: memorybytes) -> struct3 [selector=0xa8c86b4a, pure, abi_
     v19 = memory_object_len memoryarray, v18
     v20 = lt 0, v19
     v21 = iszero v20
-    panic_if v21, 0x32
+    icall panic_if<0x32>, v21
     v22 = memory_object_load_element memoryarray<1>, v18, 0
     v23 = memory_object_len memoryarray, v0
     v24 = lt 1, v23
     v25 = iszero v24
-    panic_if v25, 0x32
+    icall panic_if<0x32>, v25
     v26 = memory_object_load_element memoryarray<1>, v0, 1
     v27 = memory_object_from_ptr memoryarray, v26
     v28 = eq v27, 0
@@ -632,7 +632,7 @@ fn @dNestedArrays(arg0: memorybytes) -> struct3 [selector=0xa8c86b4a, pure, abi_
     v31 = memory_object_len memoryarray, v30
     v32 = lt 0, v31
     v33 = iszero v32
-    panic_if v33, 0x32
+    icall panic_if<0x32>, v33
     v34 = memory_object_load_element memoryarray<1>, v30, 0
     v35 = insert_value struct3, undef struct3, 0, v1
     v36 = insert_value struct3, v35, 1, v10
@@ -648,7 +648,7 @@ fn @dArrayFixed(arg0: memorybytes) -> struct6 [selector=0x11d9968b, pure, abi_pa
     v2 = memory_object_len memoryarray, v0
     v3 = lt 0, v2
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     v5 = memory_object_load_element memoryarray<1>, v0, 0
     v6 = memory_object_from_ptr memoryfixedarray, v5
     v7 = eq v6, 0
@@ -662,12 +662,12 @@ fn @dArrayFixed(arg0: memorybytes) -> struct6 [selector=0x11d9968b, pure, abi_pa
     v9 = phi [bb0: v6], [bb1: v8]
     v10 = lt 0, 2
     v11 = iszero v10
-    panic_if v11, 0x32
+    icall panic_if<0x32>, v11
     v12 = memory_object_load_element memoryfixedarray<2, 1>, v9, 0
     v13 = memory_object_len memoryarray, v0
     v14 = lt 0, v13
     v15 = iszero v14
-    panic_if v15, 0x32
+    icall panic_if<0x32>, v15
     v16 = memory_object_load_element memoryarray<1>, v0, 0
     v17 = memory_object_from_ptr memoryfixedarray, v16
     v18 = eq v17, 0
@@ -681,12 +681,12 @@ fn @dArrayFixed(arg0: memorybytes) -> struct6 [selector=0x11d9968b, pure, abi_pa
     v20 = phi [bb2: v17], [bb3: v19]
     v21 = lt 1, 2
     v22 = iszero v21
-    panic_if v22, 0x32
+    icall panic_if<0x32>, v22
     v23 = memory_object_load_element memoryfixedarray<2, 1>, v20, 1
     v24 = memory_object_len memoryarray, v0
     v25 = lt 1, v24
     v26 = iszero v25
-    panic_if v26, 0x32
+    icall panic_if<0x32>, v26
     v27 = memory_object_load_element memoryarray<1>, v0, 1
     v28 = memory_object_from_ptr memoryfixedarray, v27
     v29 = eq v28, 0
@@ -700,12 +700,12 @@ fn @dArrayFixed(arg0: memorybytes) -> struct6 [selector=0x11d9968b, pure, abi_pa
     v31 = phi [bb4: v28], [bb5: v30]
     v32 = lt 0, 2
     v33 = iszero v32
-    panic_if v33, 0x32
+    icall panic_if<0x32>, v33
     v34 = memory_object_load_element memoryfixedarray<2, 1>, v31, 0
     v35 = memory_object_len memoryarray, v0
     v36 = lt 1, v35
     v37 = iszero v36
-    panic_if v37, 0x32
+    icall panic_if<0x32>, v37
     v38 = memory_object_load_element memoryarray<1>, v0, 1
     v39 = memory_object_from_ptr memoryfixedarray, v38
     v40 = eq v39, 0
@@ -719,7 +719,7 @@ fn @dArrayFixed(arg0: memorybytes) -> struct6 [selector=0x11d9968b, pure, abi_pa
     v42 = phi [bb6: v39], [bb7: v41]
     v43 = lt 1, 2
     v44 = iszero v43
-    panic_if v44, 0x32
+    icall panic_if<0x32>, v44
     v45 = memory_object_load_element memoryfixedarray<2, 1>, v42, 1
     v46 = insert_value struct6, undef struct6, 0, v1
     v47 = insert_value struct6, v46, 1, v12
@@ -734,7 +734,7 @@ fn @dFixedNestedDyn(arg0: memorybytes) -> struct6 [selector=0xf648fcec, pure, ab
     v0 = abi_decode [array<2, array<_, u256>>], arg0
     v1 = lt 0, 2
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v4 = memory_object_from_ptr memoryarray, v3
     v5 = eq v4, 0
@@ -749,7 +749,7 @@ fn @dFixedNestedDyn(arg0: memorybytes) -> struct6 [selector=0xf648fcec, pure, ab
     v8 = memory_object_len memoryarray, v7
     v9 = lt 0, 2
     v10 = iszero v9
-    panic_if v10, 0x32
+    icall panic_if<0x32>, v10
     v11 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v12 = memory_object_from_ptr memoryarray, v11
     v13 = eq v12, 0
@@ -764,11 +764,11 @@ fn @dFixedNestedDyn(arg0: memorybytes) -> struct6 [selector=0xf648fcec, pure, ab
     v16 = memory_object_len memoryarray, v15
     v17 = lt 0, v16
     v18 = iszero v17
-    panic_if v18, 0x32
+    icall panic_if<0x32>, v18
     v19 = memory_object_load_element memoryarray<1>, v15, 0
     v20 = lt 0, 2
     v21 = iszero v20
-    panic_if v21, 0x32
+    icall panic_if<0x32>, v21
     v22 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v23 = memory_object_from_ptr memoryarray, v22
     v24 = eq v23, 0
@@ -783,11 +783,11 @@ fn @dFixedNestedDyn(arg0: memorybytes) -> struct6 [selector=0xf648fcec, pure, ab
     v27 = memory_object_len memoryarray, v26
     v28 = lt 1, v27
     v29 = iszero v28
-    panic_if v29, 0x32
+    icall panic_if<0x32>, v29
     v30 = memory_object_load_element memoryarray<1>, v26, 1
     v31 = lt 1, 2
     v32 = iszero v31
-    panic_if v32, 0x32
+    icall panic_if<0x32>, v32
     v33 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v34 = memory_object_from_ptr memoryarray, v33
     v35 = eq v34, 0
@@ -802,7 +802,7 @@ fn @dFixedNestedDyn(arg0: memorybytes) -> struct6 [selector=0xf648fcec, pure, ab
     v38 = memory_object_len memoryarray, v37
     v39 = lt 1, 2
     v40 = iszero v39
-    panic_if v40, 0x32
+    icall panic_if<0x32>, v40
     v41 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v42 = memory_object_from_ptr memoryarray, v41
     v43 = eq v42, 0
@@ -817,7 +817,7 @@ fn @dFixedNestedDyn(arg0: memorybytes) -> struct6 [selector=0xf648fcec, pure, ab
     v46 = memory_object_len memoryarray, v45
     v47 = lt 0, v46
     v48 = iszero v47
-    panic_if v48, 0x32
+    icall panic_if<0x32>, v48
     v49 = memory_object_load_element memoryarray<1>, v45, 0
     v50 = insert_value struct6, undef struct6, 0, v8
     v51 = insert_value struct6, v50, 1, v19
@@ -832,15 +832,15 @@ fn @dCalldataDyn(arg0: calldataslice) -> struct0 [selector=0xe931c6df, pure, abi
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt v1, 0xffffffffffffffff
-    revert_if v2, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v2
     v3 = calldatasize
     v4 = sub v3, v1
     v5 = sgt v0, v4
-    revert_if v5, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v5
     v6 = slice_len arg0
     v7 = add v6, 63
     v8 = lt v7, v6
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = not 31
     v10 = and v7, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
@@ -851,12 +851,12 @@ fn @dCalldataDyn(arg0: calldataslice) -> struct0 [selector=0xe931c6df, pure, abi
     v14 = memory_object_len memoryarray, v12
     v15 = lt 0, v14
     v16 = iszero v15
-    panic_if v16, 0x32
+    icall panic_if<0x32>, v16
     v17 = memory_object_load_element memoryarray<1>, v12, 0
     v18 = memory_object_len memoryarray, v12
     v19 = lt 1, v18
     v20 = iszero v19
-    panic_if v20, 0x32
+    icall panic_if<0x32>, v20
     v21 = memory_object_load_element memoryarray<1>, v12, 1
     v22 = insert_value struct0, undef struct0, 0, v13
     v23 = insert_value struct0, v22, 1, v17

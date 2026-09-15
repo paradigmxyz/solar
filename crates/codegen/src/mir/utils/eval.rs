@@ -6,7 +6,7 @@
 
 use crate::{
     backend::evm::op,
-    mir::{ArithmeticKind, CheckedOp, InstKind, ValueId},
+    mir::{ArithmeticKind, Builtin, Callee, CheckedOp, InstKind, ValueId},
 };
 use alloy_primitives::{I256, U256};
 use std::cmp::Ordering;
@@ -24,13 +24,18 @@ pub(crate) fn eval_inst<E>(
     if let InstKind::CheckedBinary { op, arithmetic, lhs, rhs } = *kind {
         return Ok(eval_checked(op, arithmetic, get(lhs)?, get(rhs)?));
     }
-    if let InstKind::CheckedAddMod(a, b, modulus) | InstKind::CheckedMulMod(a, b, modulus) = *kind {
+    if let InstKind::ICall {
+        function: Callee::Builtin(builtin @ (Builtin::CheckedAddMod | Builtin::CheckedMulMod)),
+        args,
+    } = kind
+        && let &[a, b, modulus] = args.as_ref()
+    {
         let modulus = get(modulus)?;
         if modulus.is_zero() {
             return Ok(None);
         }
         let opcode =
-            if matches!(kind, InstKind::CheckedAddMod(..)) { op::ADDMOD } else { op::MULMOD };
+            if matches!(builtin, Builtin::CheckedAddMod) { op::ADDMOD } else { op::MULMOD };
         return Ok(eval_opcode(opcode, &[get(a)?, get(b)?, modulus]));
     }
     let Some(opcode) = kind.evm_opcode() else { return Ok(None) };

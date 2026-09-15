@@ -8,7 +8,7 @@ fn @forward(arg0: calldataslice, arg1: address) [selector=0x2fc1914a, abi_params
     v3 = slice_len v1
     v4 = extcodesize arg1
     v5 = iszero v4
-    revert_if v5, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v5
     v6 = call v0, arg1, 0, v2, v3, 0, 0
     jumpi v6, bb2, bb1
   bb1:
@@ -28,21 +28,21 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     v6 = eq v5, v1
     v7 = or v4, v6
     v8 = iszero v7
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = calldatasize
     v10 = sub v9, v2
     v11 = slt v10, v3
-    revert_if v11, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v11
     v12 = mul v1, 32
     v13 = iszero 32
     v14 = div v12, 32
     v15 = eq v14, v1
     v16 = or v13, v15
     v17 = iszero v16
-    panic_if v17, 0x41
+    icall panic_if<0x41>, v17
     v18 = add 32, v12
     v19 = lt v18, 32
-    panic_if v19, 0x41
+    icall panic_if<0x41>, v19
     v20 = alloc memoryarray<1>, exact, uninitialized, infallible, v18
     set_memory_object_len memoryarray, v20, v1
     jump bb1
@@ -56,7 +56,7 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     v69 = slice_len v67
     v70 = extcodesize arg1
     v71 = iszero v70
-    revert_if v71, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v71
     v72 = call v0, arg1, 0, v68, v69, 0, 0
     jumpi v72, bb5, bb4
   bb4:
@@ -69,7 +69,7 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     v25 = calldatasize
     v26 = sub v25, v24
     v27 = slt v26, 32
-    revert_if v27, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v27
     v28 = calldataload v24
     v29 = add v2, v28
     v30 = calldatasize
@@ -77,19 +77,19 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     v32 = sub v31, 63
     v33 = slt v28, v32
     v34 = iszero v33
-    revert_if v34, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v34
     v35 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v36 = calldatasize
     v37 = sub v36, v29
     v38 = slt v37, 32
-    revert_if v38, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v38
     v39 = calldataload v29
     memory_object_store_field memorystruct<2>, v35, 0, v39
     v40 = add v29, 32
     v41 = calldatasize
     v42 = sub v41, v40
     v43 = slt v42, 32
-    revert_if v43, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v43
     v44 = calldataload v40
     v45 = add v29, v44
     v46 = calldatasize
@@ -97,22 +97,22 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
     v48 = sub v47, 31
     v49 = slt v44, v48
     v50 = iszero v49
-    revert_if v50, invalid_calldata_tail_offset
+    icall revert_if<invalid_calldata_tail_offset>, v50
     v51 = calldataload v45
     v52 = gt v51, 0xffffffffffffffff
-    revert_if v52, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v52
     v53 = mul v51, 1
     v54 = add v45, 32
     v55 = calldatasize
     v56 = sub v55, v53
     v57 = sgt v54, v56
-    revert_if v57, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v57
     v58 = add v45, 32
     v59 = make_calldata_slice v58, v51
     v60 = slice_len v59
     v61 = add v60, 63
     v62 = lt v61, v60
-    panic_if v62, 0x41
+    icall panic_if<0x41>, v62
     v63 = not 31
     v64 = and v61, v63
     v65 = alloc memorybytes, exact, uninitialized, infallible, v64

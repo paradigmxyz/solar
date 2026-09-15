@@ -13,22 +13,22 @@ fn @f(arg0: u256, arg1: u256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v4 = gt v3, v3
     v5 = lt v3, 4
     v6 = or v4, v5
-    revert_if v6, empty
+    icall revert_if<empty>, v6
     v7 = sub v3, 4
     v8 = add v2, 4
     v9 = make_calldata_slice v8, v7
     v10 = slice_ptr v9
     v11 = slice_len v9
     v12 = gt v11, 0xffffffffffffffff
-    revert_if v12, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v12
     v13 = calldatasize
     v14 = sub v13, v11
     v15 = sgt v10, v14
-    revert_if v15, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v15
     v16 = slice_len v9
     v17 = add v16, 63
     v18 = lt v17, v16
-    panic_if v18, 0x41
+    icall panic_if<0x41>, v18
     v19 = not 31
     v20 = and v17, v19
     v21 = alloc memorybytes, exact, uninitialized, infallible, v20
@@ -45,22 +45,22 @@ fn @f(arg0: u256, arg1: u256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v30 = gt v29, v28
     v31 = lt v29, 4
     v32 = or v30, v31
-    revert_if v32, empty
+    icall revert_if<empty>, v32
     v33 = sub v29, 4
     v34 = add v27, 4
     v35 = make_calldata_slice v34, v33
     v36 = slice_ptr v35
     v37 = slice_len v35
     v38 = gt v37, 0xffffffffffffffff
-    revert_if v38, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v38
     v39 = calldatasize
     v40 = sub v39, v37
     v41 = sgt v36, v40
-    revert_if v41, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v41
     v42 = slice_len v35
     v43 = add v42, 63
     v44 = lt v43, v42
-    panic_if v44, 0x41
+    icall panic_if<0x41>, v44
     v45 = not 31
     v46 = and v43, v45
     v47 = alloc memorybytes, exact, uninitialized, infallible, v46
@@ -77,22 +77,22 @@ fn @f(arg0: u256, arg1: u256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v56 = gt v55, v52
     v57 = lt v55, v53
     v58 = or v56, v57
-    revert_if v58, empty
+    icall revert_if<empty>, v58
     v59 = sub v55, v53
     v60 = add v51, v53
     v61 = make_calldata_slice v60, v59
     v62 = slice_ptr v61
     v63 = slice_len v61
     v64 = gt v63, 0xffffffffffffffff
-    revert_if v64, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v64
     v65 = calldatasize
     v66 = sub v65, v63
     v67 = sgt v62, v66
-    revert_if v67, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v67
     v68 = slice_len v61
     v69 = add v68, 63
     v70 = lt v69, v68
-    panic_if v70, 0x41
+    icall panic_if<0x41>, v70
     v71 = not 31
     v72 = and v69, v71
     v73 = alloc memorybytes, exact, uninitialized, infallible, v72

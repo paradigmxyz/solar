@@ -27,7 +27,7 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[wo
   bb1:
     revert_returndata
   bb2:
-    v5 = returndata_bytes
+    v5 = icall returndata_bytes<>
     v6 = abi_decode [u256, u256], v5
     v7 = extract_value struct0, v6, 0
     v8 = extract_value struct0, v6, 1

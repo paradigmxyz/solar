@@ -69,7 +69,7 @@ fn @externalReceiver() -> u256 [selector=0x7b42c356, abi_params=[], abi_returns=
     v5 = slice_len v3
     v6 = extcodesize v0
     v7 = iszero v6
-    revert_if v7, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v7
     v8 = call v1, v0, 0, v4, v5, 0, 0
     jumpi v8, bb2, bb1
   bb1:
@@ -91,7 +91,7 @@ fn @callOptions() -> u256 [selector=0xec5f47fe, abi_params=[], abi_returns=[word
     v7 = slice_len v5
     v8 = extcodesize v0
     v9 = iszero v8
-    revert_if v9, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v9
     v10 = call v2, v0, v3, v6, v7, 0, 0
     jumpi v10, bb2, bb1
   bb1:
@@ -121,7 +121,7 @@ fn @dirtySend() -> bool [selector=0x82ec93de, payable, abi_params=[], abi_return
   bb0:
     v0 = icall @dirtyUint8, 256
     v1 = and v0, 255
-    v2 = send 0xbeef, v1
+    v2 = icall send<>, 0xbeef, v1
     ret v2
 }
 
@@ -131,17 +131,17 @@ fn @dirtyIndex() -> u256 [selector=0xe98f4d7c, pure, abi_params=[], abi_returns=
     memory_zero v0, 0x2020
     v1 = lt 0, 257
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     memory_object_store_element memoryfixedarray<257, 1>, v0, 0, 7
     v3 = lt 256, 257
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     memory_object_store_element memoryfixedarray<257, 1>, v0, 256, 9
     v5 = icall @dirtyUint8, 256
     v6 = and v5, 255
     v7 = lt v6, 257
     v8 = iszero v7
-    panic_if v8, 0x32
+    icall panic_if<0x32>, v8
     v9 = memory_object_load_element memoryfixedarray<257, 1>, v0, v6
     ret v9
 }
@@ -167,7 +167,7 @@ fn @staticReceiverMutability() -> u256 [selector=0xde2015ae, abi_params=[], abi_
   bb2:
     v6 = returndatasize
     v7 = lt v6, 32
-    revert_if v7, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v7
     v8 = add 0, 0
     v9 = mload v8
     v10 = add 0, 0

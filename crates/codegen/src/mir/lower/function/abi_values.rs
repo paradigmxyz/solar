@@ -959,9 +959,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input = self.materialize_memory_argument(memory_ty, input, span)?;
         // result = sha256(input) / ripemd160(input)
         let kind = if builtin == Builtin::Sha256 {
-            InstKind::Sha256(input)
+            InstKind::builtin(crate::mir::Builtin::Sha256, [input])
         } else {
-            InstKind::Ripemd160(input)
+            InstKind::builtin(crate::mir::Builtin::Ripemd160, [input])
         };
         Some(self.builder.emit_inst(kind, Some(MirType::uint256())))
     }
@@ -978,6 +978,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let s = self.lower_expr(s)?;
 
         // result = ecrecover(hash, v, r, s)
-        Some(self.builder.emit_inst(InstKind::EcRecover(hash, v, r, s), Some(MirType::uint256())))
+        Some(self.builder.emit_inst(
+            InstKind::builtin(crate::mir::Builtin::EcRecover, [hash, v, r, s]),
+            Some(MirType::uint256()),
+        ))
     }
 }

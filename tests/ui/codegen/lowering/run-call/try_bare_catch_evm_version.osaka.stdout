@@ -21,11 +21,11 @@ fn @agg() -> memoryfixedarray [selector=0xf5e34bfa, pure, abi_params=[], abi_ret
     memory_zero v0, 64
     v1 = lt 0, 2
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 11
     v3 = lt 1, 2
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 22
     ret v0
 }
@@ -37,7 +37,7 @@ fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
 
 fn @fail() [selector=0xa9cc4718, payable, abi_params=[], abi_returns=[word]] {
   bb0:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
 }
 
@@ -73,12 +73,12 @@ fn @live() -> u256 [selector=0x957aa58c, abi_params=[], abi_returns=[word]] {
   bb4:
     jumpi true, bb6, bb7
   bb7:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb6:
     jump bb5
   bb3:
-    v12 = returndata_bytes
+    v12 = icall returndata_bytes<>
     v13 = abi_decode [u256], v12
     jump bb5
   bb5:
@@ -110,12 +110,12 @@ fn @liveTwo() -> u256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word]] {
   bb4:
     jumpi true, bb6, bb7
   bb7:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb6:
     jump bb5
   bb3:
-    v12 = returndata_bytes
+    v12 = icall returndata_bytes<>
     v13 = abi_decode [u256, u256], v12
     v14 = extract_value struct0, v13, 0
     v15 = extract_value struct0, v13, 1
@@ -150,20 +150,20 @@ fn @liveAggregate() -> u256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
   bb4:
     jumpi true, bb6, bb7
   bb7:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb6:
     jump bb5
   bb3:
-    v12 = returndata_bytes
+    v12 = icall returndata_bytes<>
     v13 = abi_decode [array<2, u256>], v12
     v14 = lt 0, 2
     v15 = iszero v14
-    panic_if v15, 0x32
+    icall panic_if<0x32>, v15
     v16 = memory_object_load_element memoryfixedarray<2, 1>, v13, 0
     v17 = lt 1, 2
     v18 = iszero v17
-    panic_if v18, 0x32
+    icall panic_if<0x32>, v18
     v19 = memory_object_load_element memoryfixedarray<2, 1>, v13, 1
     v20 = checked_add u256, v16, v19
     jump bb5
@@ -193,13 +193,13 @@ fn @liveNoReturn() -> u256 [selector=0x0f81fb69, abi_params=[], abi_returns=[wor
     v10 = slice_len v8
     v11 = extcodesize v6
     v12 = iszero v11
-    revert_if v12, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v12
     v13 = call v7, v6, 0, v9, v10, 0, 0
     jumpi v13, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb6:
     jump bb5
@@ -234,12 +234,12 @@ fn @liveCatch() -> u256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word]]
   bb4:
     jumpi true, bb6, bb7
   bb7:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb6:
     jump bb5
   bb3:
-    v12 = returndata_bytes
+    v12 = icall returndata_bytes<>
     v13 = abi_decode [u256], v12
     jump bb5
   bb5:
@@ -276,12 +276,12 @@ fn @livePointer() -> u256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
   bb4:
     jumpi true, bb6, bb7
   bb7:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb6:
     jump bb5
   bb3:
-    v17 = returndata_bytes
+    v17 = icall returndata_bytes<>
     v18 = abi_decode [u256], v17
     jump bb5
   bb5:
@@ -306,7 +306,7 @@ fn @liveCreation() -> u256 [selector=0xb217934d, abi_params=[], abi_returns=[wor
   bb2:
     jumpi true, bb4, bb5
   bb5:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb4:
     jump bb3
@@ -328,12 +328,12 @@ fn @noCode() -> u256 [selector=0x96c56dce, abi_params=[], abi_returns=[word]] {
   bb2:
     jumpi true, bb4, bb5
   bb5:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb4:
     jump bb3
   bb1:
-    v5 = returndata_bytes
+    v5 = icall returndata_bytes<>
     v6 = abi_decode [u256], v5
     jump bb3
   bb3:
@@ -349,13 +349,13 @@ fn @noCodeNoReturn() -> u256 [selector=0xac1b26c4, abi_params=[], abi_returns=[w
     v3 = slice_len v1
     v4 = extcodesize 0
     v5 = iszero v4
-    revert_if v5, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v5
     v6 = call v0, 0, 0, v2, v3, 0, 0
     jumpi v6, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb4:
     jump bb3

@@ -7,7 +7,7 @@ fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word<u8>
   bb0:
     v0 = lt 32, 33
     v1 = iszero v0
-    panic_if v1, 0x32
+    icall panic_if<0x32>, v1
     v2 = div 32, 32
     v3 = add 0, v2
     v4 = mod 32, 32
@@ -23,7 +23,7 @@ fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word<u8>
     sstore v3, v13 !metadata(storage=symbolic(v2))
     v14 = lt 31, 33
     v15 = iszero v14
-    panic_if v15, 0x32
+    icall panic_if<0x32>, v15
     v16 = div 31, 32
     v17 = add 0, v16
     v18 = mod 31, 32
@@ -39,7 +39,7 @@ fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word<u8>
     sstore v17, v27 !metadata(storage=symbolic(v16))
     v28 = lt 30, 33
     v29 = iszero v28
-    panic_if v29, 0x32
+    icall panic_if<0x32>, v29
     v30 = div 30, 32
     v31 = add 0, v30
     v32 = mod 30, 32
@@ -55,7 +55,7 @@ fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word<u8>
     sstore v31, v41 !metadata(storage=symbolic(v30))
     v42 = lt 0, 9
     v43 = iszero v42
-    panic_if v43, 0x32
+    icall panic_if<0x32>, v43
     v44 = div 0, 8
     v45 = add 2, v44
     v46 = mod 0, 8
@@ -71,7 +71,7 @@ fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word<u8>
     sstore v45, v55 !metadata(storage=offset(v44, 2))
     v56 = lt 1, 9
     v57 = iszero v56
-    panic_if v57, 0x32
+    icall panic_if<0x32>, v57
     v58 = div 1, 8
     v59 = add 2, v58
     v60 = mod 1, 8
@@ -87,7 +87,7 @@ fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word<u8>
     sstore v59, v69 !metadata(storage=offset(v58, 2))
     v70 = lt 2, 9
     v71 = iszero v70
-    panic_if v71, 0x32
+    icall panic_if<0x32>, v71
     v72 = div 2, 8
     v73 = add 2, v72
     v74 = mod 2, 8
@@ -103,7 +103,7 @@ fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word<u8>
     sstore v73, v83 !metadata(storage=offset(v72, 2))
     v84 = lt 2, 3
     v85 = iszero v84
-    panic_if v85, 0x32
+    icall panic_if<0x32>, v85
     v86 = div 2, 2
     v87 = add 4, v86
     v88 = mod 2, 2
@@ -119,7 +119,7 @@ fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word<u8>
     sstore v87, v97 !metadata(storage=offset(v86, 4))
     v98 = lt 1, 3
     v99 = iszero v98
-    panic_if v99, 0x32
+    icall panic_if<0x32>, v99
     v100 = div 1, 2
     v101 = add 4, v100
     v102 = mod 1, 2
@@ -135,7 +135,7 @@ fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word<u8>
     sstore v101, v111 !metadata(storage=offset(v100, 4))
     v112 = lt 32, 33
     v113 = iszero v112
-    panic_if v113, 0x32
+    icall panic_if<0x32>, v113
     v114 = div 32, 32
     v115 = add 0, v114
     v116 = mod 32, 32
@@ -146,7 +146,7 @@ fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word<u8>
     v121 = and v120, 255
     v122 = lt 1, 9
     v123 = iszero v122
-    panic_if v123, 0x32
+    icall panic_if<0x32>, v123
     v124 = div 1, 8
     v125 = add 2, v124
     v126 = mod 1, 8
@@ -157,7 +157,7 @@ fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word<u8>
     v131 = and v130, 0xffffffff
     v132 = lt 2, 3
     v133 = iszero v132
-    panic_if v133, 0x32
+    icall panic_if<0x32>, v133
     v134 = div 2, 2
     v135 = add 4, v134
     v136 = mod 2, 2

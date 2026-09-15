@@ -7,7 +7,7 @@ fn @copy(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x65750e
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    revert_if v4, empty
+    icall revert_if<empty>, v4
     v5 = sub arg2, arg1
     v6 = mul arg1, 32
     v7 = iszero 32
@@ -15,7 +15,7 @@ fn @copy(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x65750e
     v9 = eq v8, arg1
     v10 = or v7, v9
     v11 = iszero v10
-    panic_if v11, 0x41
+    icall panic_if<0x41>, v11
     v12 = add v0, v6
     v13 = make_calldata_slice v12, v5
     v14 = slice_len v13
@@ -26,21 +26,21 @@ fn @copy(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x65750e
     v19 = eq v18, v14
     v20 = or v17, v19
     v21 = iszero v20
-    panic_if v21, 0x41
+    icall panic_if<0x41>, v21
     v22 = calldatasize
     v23 = sub v22, v15
     v24 = slt v23, v16
-    revert_if v24, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v24
     v25 = mul v14, 32
     v26 = iszero 32
     v27 = div v25, 32
     v28 = eq v27, v14
     v29 = or v26, v28
     v30 = iszero v29
-    panic_if v30, 0x41
+    icall panic_if<0x41>, v30
     v31 = add 32, v25
     v32 = lt v31, 32
-    panic_if v32, 0x41
+    icall panic_if<0x41>, v32
     v33 = alloc memoryarray<1>, exact, uninitialized, infallible, v31
     set_memory_object_len memoryarray, v33, v14
     v34 = make_calldata_slice v15, v25
@@ -48,7 +48,7 @@ fn @copy(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x65750e
     v35 = memory_object_len memoryarray, v33
     v36 = lt 0, v35
     v37 = iszero v36
-    panic_if v37, 0x32
+    icall panic_if<0x32>, v37
     v38 = memory_object_load_element memoryarray<1>, v33, 0
     ret v38
 }
@@ -58,7 +58,7 @@ fn @first(arg0: memoryarray) -> u256 [pure] {
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 0, v0
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryarray<1>, arg0, 0
     ret v3
 }
@@ -70,7 +70,7 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x4b1
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    revert_if v4, empty
+    icall revert_if<empty>, v4
     v5 = sub arg2, arg1
     v6 = mul arg1, 32
     v7 = iszero 32
@@ -78,7 +78,7 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x4b1
     v9 = eq v8, arg1
     v10 = or v7, v9
     v11 = iszero v10
-    panic_if v11, 0x41
+    icall panic_if<0x41>, v11
     v12 = add v0, v6
     v13 = make_calldata_slice v12, v5
     v14 = slice_len v13
@@ -89,21 +89,21 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x4b1
     v19 = eq v18, v14
     v20 = or v17, v19
     v21 = iszero v20
-    panic_if v21, 0x41
+    icall panic_if<0x41>, v21
     v22 = calldatasize
     v23 = sub v22, v15
     v24 = slt v23, v16
-    revert_if v24, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v24
     v25 = mul v14, 32
     v26 = iszero 32
     v27 = div v25, 32
     v28 = eq v27, v14
     v29 = or v26, v28
     v30 = iszero v29
-    panic_if v30, 0x41
+    icall panic_if<0x41>, v30
     v31 = add 32, v25
     v32 = lt v31, 32
-    panic_if v32, 0x41
+    icall panic_if<0x41>, v32
     v33 = alloc memoryarray<1>, exact, uninitialized, infallible, v31
     set_memory_object_len memoryarray, v33, v14
     v34 = make_calldata_slice v15, v25
@@ -120,7 +120,7 @@ fn @literal(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x75a
     v3 = gt arg2, v2
     v4 = lt arg2, arg1
     v5 = or v3, v4
-    revert_if v5, empty
+    icall revert_if<empty>, v5
     v6 = sub arg2, arg1
     v7 = mul arg1, 32
     v8 = iszero 32
@@ -128,7 +128,7 @@ fn @literal(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x75a
     v10 = eq v9, arg1
     v11 = or v8, v10
     v12 = iszero v11
-    panic_if v12, 0x41
+    icall panic_if<0x41>, v12
     v13 = add v1, v7
     v14 = make_calldata_slice v13, v6
     v15 = slice_len v14
@@ -139,21 +139,21 @@ fn @literal(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x75a
     v20 = eq v19, v15
     v21 = or v18, v20
     v22 = iszero v21
-    panic_if v22, 0x41
+    icall panic_if<0x41>, v22
     v23 = calldatasize
     v24 = sub v23, v16
     v25 = slt v24, v17
-    revert_if v25, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v25
     v26 = mul v15, 32
     v27 = iszero 32
     v28 = div v26, 32
     v29 = eq v28, v15
     v30 = or v27, v29
     v31 = iszero v30
-    panic_if v31, 0x41
+    icall panic_if<0x41>, v31
     v32 = add 32, v26
     v33 = lt v32, 32
-    panic_if v33, 0x41
+    icall panic_if<0x41>, v33
     v34 = alloc memoryarray<1>, exact, uninitialized, infallible, v32
     set_memory_object_len memoryarray, v34, v15
     v35 = make_calldata_slice v16, v26
@@ -161,7 +161,7 @@ fn @literal(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x75a
     memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v34
     v36 = lt 0, 1
     v37 = iszero v36
-    panic_if v37, 0x32
+    icall panic_if<0x32>, v37
     v38 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
     v39 = memory_object_from_ptr memoryarray, v38
     v40 = eq v39, 0
@@ -176,7 +176,7 @@ fn @literal(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x75a
     v43 = memory_object_len memoryarray, v42
     v44 = lt 0, v43
     v45 = iszero v44
-    panic_if v45, 0x32
+    icall panic_if<0x32>, v45
     v46 = memory_object_load_element memoryarray<1>, v42, 0
     ret v46
 }

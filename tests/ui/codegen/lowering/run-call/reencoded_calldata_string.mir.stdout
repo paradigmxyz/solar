@@ -20,11 +20,11 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, abi_params=[byte
     v11 = slice_ptr v2
     v12 = slice_len v2
     v13 = gt v12, 0xffffffffffffffff
-    revert_if v13, invalid_calldata_tail_length
+    icall revert_if<invalid_calldata_tail_length>, v13
     v14 = calldatasize
     v15 = sub v14, v12
     v16 = sgt v11, v15
-    revert_if v16, calldata_tail_too_short
+    icall revert_if<calldata_tail_too_short>, v16
     v17 = abi_encode [calldata_bytes], object, args v2
     v18 = eq v3, v17
     v19 = iszero v18
@@ -64,7 +64,7 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
   bb1:
     revert_returndata
   bb2:
-    v8 = returndata_bytes
+    v8 = icall returndata_bytes<>
     v9 = abi_decode [bytes], v8
     ret v9
 }

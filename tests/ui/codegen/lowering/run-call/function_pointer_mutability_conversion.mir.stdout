@@ -52,7 +52,7 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
   bb9:
     v57 = lt 0, 1
     v58 = iszero v57
-    panic_if v58, 0x32
+    icall panic_if<0x32>, v58
     v59 = div 0, 1
     v60 = add 0, v59
     v61 = mod 0, 1
@@ -75,14 +75,14 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
   bb14:
     v75 = returndatasize
     v76 = lt v75, 32
-    revert_if v76, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v76
     v77 = add 0, 0
     v78 = mload v77
     v79 = add 0, 0
     v80 = mload v79
     v81 = lt 0, 1
     v82 = iszero v81
-    panic_if v82, 0x32
+    icall panic_if<0x32>, v82
     v83 = div 0, 4
     v84 = add 3, v83
     v85 = mod 0, 4
@@ -188,7 +188,7 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
   bb9:
     v57 = lt 0, 1
     v58 = iszero v57
-    panic_if v58, 0x32
+    icall panic_if<0x32>, v58
     v59 = div 0, 1
     v60 = add 0, v59
     v61 = mod 0, 1
@@ -211,14 +211,14 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
   bb14:
     v75 = returndatasize
     v76 = lt v75, 32
-    revert_if v76, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v76
     v77 = add 0, 0
     v78 = mload v77
     v79 = add 0, 0
     v80 = mload v79
     v81 = lt 0, 1
     v82 = iszero v81
-    panic_if v82, 0x32
+    icall panic_if<0x32>, v82
     v83 = div 0, 4
     v84 = add 3, v83
     v85 = mod 0, 4
@@ -324,7 +324,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
   bb9:
     v57 = lt 0, 1
     v58 = iszero v57
-    panic_if v58, 0x32
+    icall panic_if<0x32>, v58
     v59 = div 0, 1
     v60 = add 1, v59
     v61 = mod 0, 1
@@ -347,14 +347,14 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
   bb14:
     v75 = returndatasize
     v76 = lt v75, 32
-    revert_if v76, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v76
     v77 = add 0, 0
     v78 = mload v77
     v79 = add 0, 0
     v80 = mload v79
     v81 = lt 0, 1
     v82 = iszero v81
-    panic_if v82, 0x32
+    icall panic_if<0x32>, v82
     v83 = div 0, 4
     v84 = add 4, v83
     v85 = mod 0, 4
@@ -444,7 +444,7 @@ fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_
     v2 = eq arg0, 6
     jumpi v2, bb3, bb4
   bb4:
-    panic_if true, 0x51
+    icall panic_if<0x51>, true
     invalid
   bb3:
     v3 = icall @internalPureTarget

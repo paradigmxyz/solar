@@ -47,7 +47,7 @@ fn @returnVoidCall(arg0: u256) [selector=0x6659499b, abi_params=[u256], abi_retu
 
 fn @returnRevert() [selector=0xdcdb78bc, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
 }
 

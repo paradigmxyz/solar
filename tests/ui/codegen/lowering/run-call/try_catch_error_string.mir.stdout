@@ -2,7 +2,7 @@
 @module TryErrorTarget
 fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    icall require short_string, false, 5, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    icall require<short_string>, false, 5, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -50,11 +50,11 @@ fn @reasonLength() -> u256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
     v5 = slice_len v3
     v6 = extcodesize v1
     v7 = iszero v6
-    revert_if v7, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v7
     v8 = staticcall v2, v1, v4, v5, 0, 0
     jumpi v8, bb1, bb2
   bb2:
-    v9 = returndata_bytes
+    v9 = icall returndata_bytes<>
     v10 = memory_object_data memorybytes, v9
     v11 = memory_object_len memorybytes, v9
     v12 = make_memory_slice v10, v11
@@ -85,7 +85,7 @@ fn @reasonLength() -> u256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
     v23 = slice_len v22
     v24 = add v23, 63
     v25 = lt v24, v23
-    panic_if v25, 0x41
+    icall panic_if<0x41>, v25
     v26 = not 31
     v27 = and v24, v26
     v28 = alloc memorybytes, exact, uninitialized, infallible, v27

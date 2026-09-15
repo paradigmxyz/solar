@@ -14,11 +14,11 @@ fn @invoke(arg0: function, arg1: memorystruct) {
     v6 = slice_len v4
     v7 = extcodesize v2
     v8 = iszero v7
-    revert_if v8, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v8
     v9 = call v3, v2, 0, v5, v6, 0, 0
     jumpi v9, bb1, bb2
   bb2:
-    v10 = returndata_bytes
+    v10 = icall returndata_bytes<>
     v11 = memory_object_data memorybytes, v10
     v12 = memory_object_len memorybytes, v10
     v13 = make_memory_slice v11, v12
@@ -46,7 +46,7 @@ fn @succeed(arg0: memorystruct) [selector=0x93edcd0d, abi_params=[tuple<u256>], 
 
 fn @fail(arg0: memorystruct) [selector=0xe8be0a6f, pure, abi_params=[tuple<u256>], abi_returns=[]] {
   bb0:
-    icall require short_string, false, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
+    icall require<short_string>, false, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -76,7 +76,7 @@ fn @invokePair(arg0: function, arg1: memorystruct) -> struct0 {
   bb2:
     jumpi true, bb4, bb5
   bb5:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb4:
     v14 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -87,7 +87,7 @@ fn @invokePair(arg0: function, arg1: memorystruct) -> struct0 {
     v17 = insert_value struct0, v16, 1, v14
     ret v17
   bb1:
-    v8 = returndata_bytes
+    v8 = icall returndata_bytes<>
     v9 = abi_decode [u256, bytes], v8
     v10 = extract_value struct0, v9, 0
     v11 = extract_value struct0, v9, 1

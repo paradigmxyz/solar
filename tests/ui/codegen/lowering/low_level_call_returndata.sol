@@ -9,7 +9,7 @@ contract LowLevelCallReturndata {
     // CHECK-LABEL: fn @safeTransfer{{[( ]}}
     // CHECK: {{v[0-9]+}} = abi_encode [word<u160>, word], object, selector 0xa9059cbb
     // CHECK: {{v[0-9]+}} = address_call arg0,
-    // CHECK: {{v[0-9]+}} = returndata_bytes
+    // CHECK: {{v[0-9]+}} = icall returndata_bytes<>
     // CHECK: abi_decode [bool]
     function safeTransfer(address token, address to, uint256 value) public {
         (bool success, bytes memory data) =
@@ -20,7 +20,7 @@ contract LowLevelCallReturndata {
     // CHECK-LABEL: fn @balanceOf{{[( ]}}
     // CHECK: abi_encode [word<u160>], object, selector 0x70a08231
     // CHECK: {{v[0-9]+}} = address_staticcall arg0,
-    // CHECK: {{v[0-9]+}} = returndata_bytes
+    // CHECK: {{v[0-9]+}} = icall returndata_bytes<>
     // CHECK: {{v[0-9]+}} = abi_decode [u256]
     function balanceOf(address token) public view returns (uint256) {
         (bool success, bytes memory data) =
@@ -31,7 +31,7 @@ contract LowLevelCallReturndata {
 
     // CHECK-LABEL: fn @forward{{[( ]}}
     // CHECK: {{v[0-9]+}} = address_call arg0,
-    // CHECK: {{v[0-9]+}} = returndata_bytes
+    // CHECK: {{v[0-9]+}} = icall returndata_bytes<>
     // CHECK: ret {{v[0-9]+}}
     function forward(address target, bytes memory payload) public returns (bytes memory) {
         (bool success, bytes memory result) = target.call(payload);

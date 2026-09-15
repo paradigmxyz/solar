@@ -5,13 +5,13 @@ fn @structField() -> u8 [selector=0x3442156e, pure, abi_params=[], abi_returns=[
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = lt 0, 2
     v2 = iszero v1
-    panic_if v2, 0x21
+    icall panic_if<0x21>, v2
     memory_object_store_field memorystruct<1>, v0, 0, 0
     mstore v0, 2
     v3 = memory_object_load_field memorystruct<1>, v0, 0
     v4 = lt v3, 2
     v5 = iszero v4
-    panic_if v5, 0x21
+    icall panic_if<0x21>, v5
     ret v3
 }
 
@@ -22,11 +22,11 @@ fn @fixedArrayElement() -> u8 [selector=0x43876e90, pure, abi_params=[], abi_ret
     mstore v0, 2
     v1 = lt 0, 1
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
     v4 = lt v3, 2
     v5 = iszero v4
-    panic_if v5, 0x21
+    icall panic_if<0x21>, v5
     ret v3
 }
 
@@ -39,10 +39,10 @@ fn @dynamicArrayElement() -> u8 [selector=0xff96177b, pure, abi_params=[], abi_r
     v2 = memory_object_len memoryarray, v0
     v3 = lt 0, v2
     v4 = iszero v3
-    panic_if v4, 0x32
+    icall panic_if<0x32>, v4
     v5 = memory_object_load_element memoryarray<1>, v0, 0
     v6 = lt v5, 2
     v7 = iszero v6
-    panic_if v7, 0x21
+    icall panic_if<0x21>, v7
     ret v5
 }

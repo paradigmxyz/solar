@@ -23,7 +23,7 @@ fn @execute(arg0: address, arg1: address, arg2: u256, arg3: calldataslice) [sele
   bb2:
     v7 = returndatasize
     v8 = lt v7, 32
-    revert_if v8, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v8
     v9 = add 0, 0
     v10 = mload v9
     v11 = add 0, 0
@@ -45,14 +45,14 @@ fn @execute(arg0: address, arg1: address, arg2: u256, arg3: calldataslice) [sele
   bb4:
     v22 = returndatasize
     v23 = lt v22, 32
-    revert_if v23, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v23
     v24 = add 0, 0
     v25 = mload v24
     v26 = iszero v25
     v27 = iszero v26
     v28 = eq v25, v27
     v29 = iszero v28
-    revert_if v29, empty
+    icall revert_if<empty>, v29
     v30 = add 0, 0
     v31 = mload v30
     v32 = gas
@@ -62,7 +62,7 @@ fn @execute(arg0: address, arg1: address, arg2: u256, arg3: calldataslice) [sele
     v36 = slice_len v34
     v37 = extcodesize arg0
     v38 = iszero v37
-    revert_if v38, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v38
     v39 = call v32, arg0, 0, v35, v36, 0, 0
     jumpi v39, bb6, bb5
   bb5:
@@ -83,7 +83,7 @@ fn @execute(arg0: address, arg1: address, arg2: u256, arg3: calldataslice) [sele
   bb8:
     v49 = returndatasize
     v50 = lt v49, 32
-    revert_if v50, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v50
     v51 = add 0, 0
     v52 = mload v51
     v53 = add 0, 0
@@ -95,7 +95,7 @@ fn @execute(arg0: address, arg1: address, arg2: u256, arg3: calldataslice) [sele
   bb11:
     ret
   bb9:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
 }
 

@@ -100,7 +100,11 @@ fn lower_function(
             let inst = builder.func().inst(id).clone();
             builder.set_debug_context(&inst.metadata);
             match inst.kind {
-                InstKind::Check { condition, is_zero, failure } => {
+                InstKind::ICall {
+                    function: Callee::Builtin(Builtin::Check { is_zero, failure }),
+                    args,
+                } => {
+                    let condition = args[0];
                     if optimize
                         && builder
                             .func()
@@ -156,7 +160,7 @@ fn lower_function(
 fn is_check(kind: &InstKind) -> bool {
     matches!(
         kind,
-        InstKind::Check { .. }
+        InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. }
             | InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. }
     )
 }

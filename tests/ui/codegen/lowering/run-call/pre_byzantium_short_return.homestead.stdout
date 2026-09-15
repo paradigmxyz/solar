@@ -45,7 +45,7 @@ fn @emptySingle() -> u256 [selector=0x52635aa1, abi_params=[], abi_returns=[word
     v5 = slice_len v3
     v6 = extcodesize v0
     v7 = iszero v6
-    revert_if v7, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v7
     v8 = gas
     v9 = sub v8, 50
     v10 = call v9, v0, 0, v4, v5, v4, 32
@@ -71,7 +71,7 @@ fn @emptySingleArg() -> u256 [selector=0x44cc61d5, abi_params=[], abi_returns=[w
     v5 = slice_len v3
     v6 = extcodesize v0
     v7 = iszero v6
-    revert_if v7, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v7
     v8 = gas
     v9 = sub v8, 50
     v10 = call v9, v0, 0, v4, v5, v4, 32
@@ -99,7 +99,7 @@ fn @emptyPair() -> struct0 [selector=0xa086baae, abi_params=[], abi_returns=[wor
     v5 = slice_len v3
     v6 = extcodesize v0
     v7 = iszero v6
-    revert_if v7, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v7
     v8 = gas
     v9 = sub v8, 50
     v10 = call v9, v0, 0, v4, v5, v4, 64
@@ -135,7 +135,7 @@ fn @emptyFour() -> struct1 [selector=0x7bcee116, abi_params=[], abi_returns=[wor
     v5 = slice_len v3
     v6 = extcodesize v0
     v7 = iszero v6
-    revert_if v7, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v7
     v8 = gas
     v9 = sub v8, 50
     v10 = call v9, v0, 0, v4, v5, v4, 128
@@ -190,7 +190,7 @@ fn @emptyAgg() -> memoryfixedarray [selector=0x06df237b, abi_params=[], abi_retu
     v8 = slice_len v6
     v9 = extcodesize v1
     v10 = iszero v9
-    revert_if v10, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v10
     v11 = gas
     v12 = sub v11, 50
     v13 = call v12, v1, 0, v7, v8, v7, 64
@@ -219,7 +219,7 @@ fn @emptyAggArg() -> memoryfixedarray [selector=0x3dd9064d, abi_params=[], abi_r
     v8 = slice_len v6
     v9 = extcodesize v1
     v10 = iszero v9
-    revert_if v10, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v10
     v11 = gas
     v12 = sub v11, 50
     v13 = call v12, v1, 0, v7, v8, v7, 64
@@ -243,7 +243,7 @@ fn @partialSingle() -> u256 [selector=0xe1e2fed5, abi_params=[], abi_returns=[wo
     v5 = slice_len v3
     v6 = extcodesize v0
     v7 = iszero v6
-    revert_if v7, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v7
     v8 = gas
     v9 = sub v8, 50
     v10 = call v9, v0, 0, v4, v5, v4, 32
@@ -269,7 +269,7 @@ fn @partialPair() -> struct0 [selector=0x94ae8541, abi_params=[], abi_returns=[w
     v5 = slice_len v3
     v6 = extcodesize v0
     v7 = iszero v6
-    revert_if v7, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v7
     v8 = gas
     v9 = sub v8, 50
     v10 = call v9, v0, 0, v4, v5, v4, 64
@@ -310,7 +310,7 @@ fn @partialAgg() -> memoryfixedarray [selector=0xbf0809fa, abi_params=[], abi_re
     v8 = slice_len v6
     v9 = extcodesize v1
     v10 = iszero v9
-    revert_if v10, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v10
     v11 = gas
     v12 = sub v11, 50
     v13 = call v12, v1, 0, v7, v8, v7, 64
@@ -342,7 +342,7 @@ fn @dirtyFour() -> struct1 [selector=0x42fc804f, abi_params=[], abi_returns=[wor
     v10 = slice_len v8
     v11 = extcodesize v5
     v12 = iszero v11
-    revert_if v12, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v12
     v13 = gas
     v14 = sub v13, 50
     v15 = call v14, v5, 0, v9, v10, v9, 128

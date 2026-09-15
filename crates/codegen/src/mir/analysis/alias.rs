@@ -1184,13 +1184,19 @@ impl AliasAnalysis {
                 effects.read_any(AddressSpace::Memory);
                 effects.write_any(AddressSpace::Memory);
             }
-            InstKind::Erc7201(..)
+            InstKind::ICall { function: Callee::Builtin(Builtin::Erc7201), .. }
             | InstKind::AbiEncodePacked { .. }
-            | InstKind::ICall { function: Callee::Builtin(Builtin::Concat(_)), .. }
-            | InstKind::Sha256(..)
-            | InstKind::Ripemd160(..)
-            | InstKind::EcRecover(..)
-            | InstKind::ReturndataBytes => {
+            | InstKind::ICall {
+                function:
+                    Callee::Builtin(
+                        Builtin::Concat(_)
+                        | Builtin::Sha256
+                        | Builtin::Ripemd160
+                        | Builtin::EcRecover
+                        | Builtin::ReturndataBytes,
+                    ),
+                ..
+            } => {
                 effects.read_any(AddressSpace::Memory);
                 effects.write_any(AddressSpace::Memory);
             }
@@ -1336,7 +1342,10 @@ impl AliasAnalysis {
                     effects.write_any(AddressSpace::Transient);
                 }
             }
-            InstKind::Send(..) | InstKind::Transfer(..) => {
+            InstKind::ICall {
+                function: Callee::Builtin(Builtin::Send | Builtin::Transfer),
+                ..
+            } => {
                 effects.read_any(AddressSpace::Storage);
                 effects.write_any(AddressSpace::Storage);
                 effects.read_any(AddressSpace::Transient);

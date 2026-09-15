@@ -5,7 +5,7 @@ fn @constructor(arg0: bool) [constructor, abi_params=[bool]] {
     v0 = eq arg0, 0
     v1 = iszero v0
     v2 = iszero v1
-    icall require short_string, v2, 1, 0x7800000000000000000000000000000000000000000000000000000000000000
+    icall require<short_string>, v2, 1, 0x7800000000000000000000000000000000000000000000000000000000000000
     ret
 }
 
@@ -48,7 +48,7 @@ fn @f(arg0: bool) -> bool [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[
   bb2:
     jumpi true, bb4, bb5
   bb5:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb4:
     ret false

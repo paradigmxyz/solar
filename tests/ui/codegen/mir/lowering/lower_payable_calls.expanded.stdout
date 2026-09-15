@@ -3,7 +3,7 @@
   @module PayableCalls
   fn @send_value(arg0: address, arg1: u256) -> u256 {
     bb0:
--     v0 = send arg0, arg1 !metadata(span=10..20, modifier_depth=2)
+-     v0 = icall send<>, arg0, arg1 !metadata(span=10..20, modifier_depth=2)
 -     ret v0
 +     v1 = iszero arg1 !metadata(span=10..20, modifier_depth=2)
 +     v2 = select v1, 0x8fc, 0 !metadata(span=10..20, modifier_depth=2)
@@ -17,9 +17,9 @@
     bb2:
       jump bb3
     bb1:
--     transfer arg1, arg2 !metadata(span=30..40, modifier_depth=3)
--     v0 = send arg1, 0
--     transfer arg1, 1
+-     icall transfer<>, arg1, arg2 !metadata(span=30..40, modifier_depth=3)
+-     v0 = icall send<>, arg1, 0
+-     icall transfer<>, arg1, 1
 +     v2 = iszero arg2 !metadata(span=30..40, modifier_depth=3)
 +     v3 = select v2, 0x8fc, 0 !metadata(span=30..40, modifier_depth=3)
 +     v4 = call v3, arg1, arg2, 0, 0, 0, 0 !metadata(span=30..40, modifier_depth=3)

@@ -22,7 +22,7 @@ fn @constructor(arg0: function) [constructor, abi_params=[function]] {
   bb2:
     v8 = returndatasize
     v9 = lt v8, 32
-    revert_if v9, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
     v11 = mload v10
     v12 = add 0, 0
@@ -81,7 +81,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb4:
     v15 = returndatasize
     v16 = lt v15, 32
-    revert_if v16, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v16
     v17 = add 0, 0
     v18 = mload v17
     v19 = add 0, 0
@@ -98,7 +98,7 @@ fn @fArray() -> bool [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool
     v3 = or v2, 0x990227f1
     v4 = lt 0, 1
     v5 = iszero v4
-    panic_if v5, 0x32
+    icall panic_if<0x32>, v5
     v6 = shl 64, v3
     memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v6
     v7 = abi_encode [array<1, function>], args v0
@@ -130,7 +130,7 @@ fn @fArray() -> bool [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool
   bb4:
     v24 = returndatasize
     v25 = lt v24, 32
-    revert_if v25, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v25
     v26 = add 0, 0
     v27 = mload v26
     v28 = add 0, 0

@@ -13,7 +13,7 @@
 //! - preserve SSA values across control flow with explicit phi insertion
 
 use crate::mir::{
-    BlockId, Function, InstId, InstKind, Instruction, MirType, Module, Terminator, ValueId,
+    BlockId, Callee, Function, InstId, InstKind, Instruction, MirType, Module, Terminator, ValueId,
     analysis::{AliasAnalysis, CfgInfo, LocationSize, MemoryAddress, MemoryLocation},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
@@ -596,7 +596,7 @@ impl FrameSlotPromoter {
             // Internal callees address their own frame through the frame
             // pointer and stage data in scratch or heap memory; they never
             // reference a caller's compiler-owned absolute local slots.
-            InstKind::ICall { .. } => false,
+            InstKind::ICall { function: Callee::Function(_), .. } => false,
             InstKind::MappingSlotMemory(_, _)
             | InstKind::AbiEncode { .. }
             | InstKind::AbiDecode { .. }

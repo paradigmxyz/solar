@@ -19,13 +19,13 @@ fn @boom(arg0: u256) -> u256 [selector=0xb443a085, pure, abi_params=[u256], abi_
   bb9:
     ret 42
   bb7:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb4:
     v2 = checked_div u256, 1, 0
     ret v2
   bb1:
-    icall require short_string, false, 4, 0x6e6f706500000000000000000000000000000000000000000000000000000000
+    icall require<short_string>, false, 4, 0x6e6f706500000000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -39,7 +39,7 @@ fn @lowLevelFirst(arg0: u256) -> u256 [selector=0x7bb76e97, view, abi_params=[u2
     v5 = staticcall v1, v0, v3, v4, 0, 0
     jumpi v5, bb1, bb2
   bb2:
-    v8 = returndata_bytes
+    v8 = icall returndata_bytes<>
     v9 = memory_object_data memorybytes, v8
     v10 = memory_object_len memorybytes, v8
     v11 = make_memory_slice v9, v10
@@ -82,7 +82,7 @@ fn @lowLevelFirst(arg0: u256) -> u256 [selector=0x7bb76e97, view, abi_params=[u2
     v22 = slice_len v21
     v23 = add v22, 63
     v24 = lt v23, v22
-    panic_if v24, 0x41
+    icall panic_if<0x41>, v24
     v25 = not 31
     v26 = and v23, v25
     v27 = alloc memorybytes, exact, uninitialized, infallible, v26
@@ -91,7 +91,7 @@ fn @lowLevelFirst(arg0: u256) -> u256 [selector=0x7bb76e97, view, abi_params=[u2
     v28 = abi_decode [bytes], v27
     ret 200
   bb1:
-    v6 = returndata_bytes
+    v6 = icall returndata_bytes<>
     v7 = abi_decode [u256], v6
     ret v7
   bb3:
@@ -108,7 +108,7 @@ fn @typedFirst(arg0: u256) -> u256 [selector=0x90ba0c06, view, abi_params=[u256]
     v5 = staticcall v1, v0, v3, v4, 0, 0
     jumpi v5, bb1, bb2
   bb2:
-    v8 = returndata_bytes
+    v8 = icall returndata_bytes<>
     v9 = memory_object_data memorybytes, v8
     v10 = memory_object_len memorybytes, v8
     v11 = make_memory_slice v9, v10
@@ -151,7 +151,7 @@ fn @typedFirst(arg0: u256) -> u256 [selector=0x90ba0c06, view, abi_params=[u256]
     v22 = slice_len v21
     v23 = add v22, 63
     v24 = lt v23, v22
-    panic_if v24, 0x41
+    icall panic_if<0x41>, v24
     v25 = not 31
     v26 = and v23, v25
     v27 = alloc memorybytes, exact, uninitialized, infallible, v26
@@ -160,7 +160,7 @@ fn @typedFirst(arg0: u256) -> u256 [selector=0x90ba0c06, view, abi_params=[u256]
     v28 = abi_decode [bytes], v27
     ret 200
   bb1:
-    v6 = returndata_bytes
+    v6 = icall returndata_bytes<>
     v7 = abi_decode [u256], v6
     ret v7
   bb3:
@@ -177,7 +177,7 @@ fn @bareFirst(arg0: u256) -> u256 [selector=0x2f2a2d09, view, abi_params=[u256],
     v5 = staticcall v1, v0, v3, v4, 0, 0
     jumpi v5, bb1, bb2
   bb2:
-    v8 = returndata_bytes
+    v8 = icall returndata_bytes<>
     v9 = memory_object_data memorybytes, v8
     v10 = memory_object_len memorybytes, v8
     v11 = make_memory_slice v9, v10
@@ -201,7 +201,7 @@ fn @bareFirst(arg0: u256) -> u256 [selector=0x2f2a2d09, view, abi_params=[u256],
     v21 = memory_slice_load_word memory, v20, 0
     ret 300
   bb1:
-    v6 = returndata_bytes
+    v6 = icall returndata_bytes<>
     v7 = abi_decode [u256], v6
     ret v7
   bb3:

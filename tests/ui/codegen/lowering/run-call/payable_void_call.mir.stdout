@@ -44,7 +44,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v12 = slice_len v10
     v13 = extcodesize v6
     v14 = iszero v13
-    revert_if v14, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v14
     v15 = call v8, v6, 0, v11, v12, 0, 0
     jumpi v15, bb4, bb3
   bb3:
@@ -61,7 +61,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb6:
     v21 = returndatasize
     v22 = lt v21, 32
-    revert_if v22, tuple_data_too_short
+    icall revert_if<tuple_data_too_short>, v22
     v23 = add 0, 0
     v24 = mload v23
     v25 = add 0, 0

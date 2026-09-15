@@ -21,7 +21,7 @@ fn @helper() {
     v4 = slice_len v2
     v5 = extcodesize v0
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = call v1, v0, 0, v3, v4, 0, 0
     jumpi v7, bb2, bb1
   bb1:
@@ -55,7 +55,7 @@ fn @constructor() [constructor] {
     v4 = slice_len v2
     v5 = extcodesize v0
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = call v1, v0, 0, v3, v4, 0, 0
     jumpi v7, bb2, bb1
   bb1:
@@ -89,7 +89,7 @@ fn @constructor() [constructor] {
     v4 = slice_len v2
     v5 = extcodesize v0
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = call v1, v0, 0, v3, v4, 0, 0
     jumpi v7, bb3, bb2
   bb2:
@@ -127,7 +127,7 @@ fn @constructor() [constructor] {
     v4 = slice_len v2
     v5 = extcodesize v0
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = call v1, v0, 0, v3, v4, 0, 0
     jumpi v7, bb2, bb1
   bb1:
@@ -155,7 +155,7 @@ fn @constructor() [constructor] {
     v4 = slice_len v2
     v5 = extcodesize v0
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = call v1, v0, 0, v3, v4, 0, 0
     jumpi v7, bb3, bb2
   bb2:
@@ -205,7 +205,7 @@ fn @init() -> u256 {
     v4 = slice_len v2
     v5 = extcodesize v0
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = call v1, v0, 0, v3, v4, 0, 0
     jumpi v7, bb2, bb1
   bb1:
@@ -246,13 +246,13 @@ fn @constructor() [constructor] {
     v4 = slice_len v2
     v5 = extcodesize v0
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = call v1, v0, 0, v3, v4, 0, 0
     jumpi v7, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb4:
     jump bb3
@@ -287,7 +287,7 @@ fn @helper() {
     v4 = slice_len v2
     v5 = extcodesize v0
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = call v1, v0, 0, v3, v4, 0, 0
     jumpi v7, bb2, bb1
   bb1:
@@ -340,7 +340,7 @@ fn @helper() {
     v4 = slice_len v2
     v5 = extcodesize v0
     v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
+    icall revert_if<target_contract_has_no_code>, v6
     v7 = call v1, v0, 0, v3, v4, 0, 0
     jumpi v7, bb2, bb1
   bb1:

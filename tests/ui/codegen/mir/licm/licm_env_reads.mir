@@ -129,7 +129,7 @@ fn @keep_returndatasize_with_sha256(arg0: memorybytes) -> u256 {
   bb2:
     v0 = returndatasize
     v1 = mul v0, 3
-    v2 = sha256 arg0
+    v2 = icall sha256<>, arg0
     jump bb1
   bb3:
     ret v3
@@ -148,7 +148,7 @@ fn @keep_returndatasize_with_ripemd160(arg0: memorybytes) -> u256 {
   bb2:
     v0 = returndatasize
     v1 = mul v0, 3
-    v2 = ripemd160 arg0
+    v2 = icall ripemd160<>, arg0
     jump bb1
   bb3:
     ret v3
@@ -167,7 +167,7 @@ fn @keep_returndatasize_with_ecrecover() -> u256 {
   bb2:
     v0 = returndatasize
     v1 = mul v0, 3
-    v2 = ecrecover 1, 28, 2, 3
+    v2 = icall ecrecover<>, 1, 28, 2, 3
     jump bb1
   bb3:
     ret v3
@@ -185,7 +185,7 @@ fn @gas_precompile(arg0: u256, arg1: memorybytes) -> u256 {
     jumpi true, bb2, bb3
   bb2:
     v1 = mul arg0, 3
-    v2 = ecrecover 1, 28, 2, 3
+    v2 = icall ecrecover<>, 1, 28, 2, 3
     jump bb1
   bb3:
     ret v3

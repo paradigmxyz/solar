@@ -17,8 +17,8 @@
 //! - leave loop-variant mapping/array slots in storage
 
 use crate::mir::{
-    BlockId, EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType, Module,
-    StorageAlias, Terminator, Value, ValueId,
+    BlockId, Callee, EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType,
+    Module, StorageAlias, Terminator, Value, ValueId,
     analysis::{AddressSpace, AliasAnalysis, Loop, LoopAnalyzer},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
@@ -346,7 +346,7 @@ impl StorageScalarPromoter {
                     | InstKind::ExtCall { .. }
                     | InstKind::ExtDelegateCall { .. }
                     | InstKind::ExtStaticCall { .. }
-                    | InstKind::ICall { .. }
+                    | InstKind::ICall { function: Callee::Function(_), .. }
                     | InstKind::Create(_, _, _)
                     | InstKind::Create2(_, _, _, _) => return false,
                     _ => {

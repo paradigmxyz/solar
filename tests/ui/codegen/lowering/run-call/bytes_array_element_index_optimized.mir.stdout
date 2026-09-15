@@ -15,7 +15,7 @@ fn @build() -> memoryfixedarray [pure] {
   bb3:
     v6 = lt 0, 2
     v7 = iszero v6
-    panic_if v7, 0x32
+    icall panic_if<0x32>, v7
     memory_object_store_element memoryfixedarray<2, 1>, v2, 0, v0
     v8 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v8, 2
@@ -23,7 +23,7 @@ fn @build() -> memoryfixedarray [pure] {
     mstore v9, 0x6162000000000000000000000000000000000000000000000000000000000000
     v10 = lt 1, 2
     v11 = iszero v10
-    panic_if v11, 0x32
+    icall panic_if<0x32>, v11
     memory_object_store_element memoryfixedarray<2, 1>, v2, 1, v8
     ret v2
   bb2:
@@ -43,7 +43,7 @@ fn @sumElement1(arg0: memoryfixedarray) -> u256 [pure] {
   bb0:
     v0 = lt 1, 2
     v1 = iszero v0
-    panic_if v1, 0x32
+    icall panic_if<0x32>, v1
     v2 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 1
     v3 = memory_object_from_ptr memorybytes, v2
     v4 = eq v3, 0
@@ -58,13 +58,13 @@ fn @sumElement1(arg0: memoryfixedarray) -> u256 [pure] {
     v7 = memory_object_len memorybytes, v6
     v8 = lt 0, v7
     v9 = iszero v8
-    panic_if v9, 0x32
+    icall panic_if<0x32>, v9
     v10 = memory_object_load_byte memorybytes, v6, 0
     v11 = shl 248, v10
     v12 = shr 248, v11
     v13 = lt 1, 2
     v14 = iszero v13
-    panic_if v14, 0x32
+    icall panic_if<0x32>, v14
     v15 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 1
     v16 = memory_object_from_ptr memorybytes, v15
     v17 = eq v16, 0
@@ -79,7 +79,7 @@ fn @sumElement1(arg0: memoryfixedarray) -> u256 [pure] {
     v20 = memory_object_len memorybytes, v19
     v21 = lt 1, v20
     v22 = iszero v21
-    panic_if v22, 0x32
+    icall panic_if<0x32>, v22
     v23 = memory_object_load_byte memorybytes, v19, 1
     v24 = shl 248, v23
     v25 = shr 248, v24
@@ -92,7 +92,7 @@ fn @twoAsserts() -> u256 [selector=0xb2d66aee, pure, abi_params=[], abi_returns=
     v0 = icall @build
     v1 = lt 0, 2
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v4 = memory_object_from_ptr memorybytes, v3
     v5 = eq v4, 0
@@ -107,12 +107,12 @@ fn @twoAsserts() -> u256 [selector=0xb2d66aee, pure, abi_params=[], abi_returns=
     v8 = memory_object_len memorybytes, v7
     v9 = lt 0, v8
     v10 = iszero v9
-    panic_if v10, 0x32
+    icall panic_if<0x32>, v10
     v11 = memory_object_load_byte memorybytes, v7, 0
     v12 = shl 248, v11
     v13 = lt 1, 2
     v14 = iszero v13
-    panic_if v14, 0x32
+    icall panic_if<0x32>, v14
     v15 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v16 = memory_object_from_ptr memorybytes, v15
     v17 = eq v16, 0
@@ -127,15 +127,15 @@ fn @twoAsserts() -> u256 [selector=0xb2d66aee, pure, abi_params=[], abi_returns=
     v20 = memory_object_len memorybytes, v19
     v21 = lt 0, v20
     v22 = iszero v21
-    panic_if v22, 0x32
+    icall panic_if<0x32>, v22
     v23 = memory_object_load_byte memorybytes, v19, 0
     v24 = shl 248, v23
     v25 = eq v12, v24
     v26 = iszero v25
-    panic_if v26, 0x1
+    icall panic_if<0x1>, v26
     v27 = lt 0, 2
     v28 = iszero v27
-    panic_if v28, 0x32
+    icall panic_if<0x32>, v28
     v29 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v30 = memory_object_from_ptr memorybytes, v29
     v31 = eq v30, 0
@@ -150,12 +150,12 @@ fn @twoAsserts() -> u256 [selector=0xb2d66aee, pure, abi_params=[], abi_returns=
     v34 = memory_object_len memorybytes, v33
     v35 = lt 1, v34
     v36 = iszero v35
-    panic_if v36, 0x32
+    icall panic_if<0x32>, v36
     v37 = memory_object_load_byte memorybytes, v33, 1
     v38 = shl 248, v37
     v39 = lt 1, 2
     v40 = iszero v39
-    panic_if v40, 0x32
+    icall panic_if<0x32>, v40
     v41 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v42 = memory_object_from_ptr memorybytes, v41
     v43 = eq v42, 0
@@ -170,11 +170,11 @@ fn @twoAsserts() -> u256 [selector=0xb2d66aee, pure, abi_params=[], abi_returns=
     v46 = memory_object_len memorybytes, v45
     v47 = lt 1, v46
     v48 = iszero v47
-    panic_if v48, 0x32
+    icall panic_if<0x32>, v48
     v49 = memory_object_load_byte memorybytes, v45, 1
     v50 = shl 248, v49
     v51 = eq v38, v50
     v52 = iszero v51
-    panic_if v52, 0x1
+    icall panic_if<0x1>, v52
     ret 1
 }

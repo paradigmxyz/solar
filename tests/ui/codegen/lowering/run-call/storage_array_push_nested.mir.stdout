@@ -7,7 +7,7 @@ fn @pushEmpty() -> u256 [selector=0x19d30117, abi_params=[], abi_returns=[word]]
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
-    panic_if v1, 0x41
+    icall panic_if<0x41>, v1
     v2 = add v0, 1
     v3 = storage_array_data_slot 0
     v4 = add v3, v0
@@ -15,12 +15,12 @@ fn @pushEmpty() -> u256 [selector=0x19d30117, abi_params=[], abi_returns=[word]]
     v5 = sload 0 !metadata(storage=slot(0))
     v6 = lt 0, v5
     v7 = iszero v6
-    panic_if v7, 0x32
+    icall panic_if<0x32>, v7
     v8 = storage_array_data_slot 0
     v9 = add v8, 0
     v10 = sload v9 !metadata(storage=symbolic(v8))
     v11 = gt v10, 0xffffffffffffffff
-    panic_if v11, 0x41
+    icall panic_if<0x41>, v11
     v12 = add v10, 1
     v13 = storage_array_data_slot v9
     v14 = div v10, 2
@@ -31,13 +31,13 @@ fn @pushEmpty() -> u256 [selector=0x19d30117, abi_params=[], abi_returns=[word]]
     v18 = sload 0 !metadata(storage=slot(0))
     v19 = lt 0, v18
     v20 = iszero v19
-    panic_if v20, 0x32
+    icall panic_if<0x32>, v20
     v21 = storage_array_data_slot 0
     v22 = add v21, 0
     v23 = sload v22 !metadata(storage=symbolic(v21))
     v24 = lt 0, v23
     v25 = iszero v24
-    panic_if v25, 0x32
+    icall panic_if<0x32>, v25
     v26 = storage_array_data_slot v22
     v27 = div 0, 2
     v28 = add v26, v27
@@ -57,12 +57,12 @@ fn @pushMemory() -> u256 [selector=0x4d735002, abi_params=[], abi_returns=[word]
     v1 = memory_object_len memoryarray, v0
     v2 = lt 0, v1
     v3 = iszero v2
-    panic_if v3, 0x32
+    icall panic_if<0x32>, v3
     v4 = and 1, 0xffffffffffffffffffffffffffffff
     memory_object_store_element memoryarray<1>, v0, 0, v4
     v5 = sload 0 !metadata(storage=slot(0))
     v6 = gt v5, 0xffffffffffffffff
-    panic_if v6, 0x41
+    icall panic_if<0x41>, v6
     v7 = add v5, 1
     v8 = storage_array_data_slot 0
     v9 = add v8, v5
@@ -105,13 +105,13 @@ fn @pushMemory() -> u256 [selector=0x4d735002, abi_params=[], abi_returns=[word]
     v56 = sload 0 !metadata(storage=slot(0))
     v57 = lt 0, v56
     v58 = iszero v57
-    panic_if v58, 0x32
+    icall panic_if<0x32>, v58
     v59 = storage_array_data_slot 0
     v60 = add v59, 0
     v61 = sload v60 !metadata(storage=symbolic(v59))
     v62 = lt 0, v61
     v63 = iszero v62
-    panic_if v63, 0x32
+    icall panic_if<0x32>, v63
     v64 = storage_array_data_slot v60
     v65 = div 0, 2
     v66 = add v64, v65
@@ -174,7 +174,7 @@ fn @pushStruct() -> u256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]
     v4 = memory_object_load_field memorystruct<4>, v0, 2, memoryfixedarray
     v5 = lt 2, 3
     v6 = iszero v5
-    panic_if v6, 0x32
+    icall panic_if<0x32>, v6
     v7 = and 4, 0xffff
     memory_object_store_element memoryfixedarray<3, 1>, v4, 2, v7
     v8 = alloc memoryarray<1>, exact, zeroed, panic, 160
@@ -184,12 +184,12 @@ fn @pushStruct() -> u256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]
     v10 = memory_object_len memoryarray, v9
     v11 = lt 2, v10
     v12 = iszero v11
-    panic_if v12, 0x32
+    icall panic_if<0x32>, v12
     v13 = and 5, 0xffff
     memory_object_store_element memoryarray<1>, v9, 2, v13
     v14 = sload 1 !metadata(storage=slot(1))
     v15 = gt v14, 0xffffffffffffffff
-    panic_if v15, 0x41
+    icall panic_if<0x41>, v15
     v16 = add v14, 1
     v17 = storage_array_data_slot 1
     v18 = mul v14, 3
@@ -259,7 +259,7 @@ fn @pushStruct() -> u256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]
     v109 = sload 1 !metadata(storage=slot(1))
     v110 = lt 0, v109
     v111 = iszero v110
-    panic_if v111, 0x32
+    icall panic_if<0x32>, v111
     v112 = storage_array_data_slot 1
     v113 = mul 0, 3
     v114 = add v112, v113
@@ -269,7 +269,7 @@ fn @pushStruct() -> u256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]
     v118 = sload 1 !metadata(storage=slot(1))
     v119 = lt 0, v118
     v120 = iszero v119
-    panic_if v120, 0x32
+    icall panic_if<0x32>, v120
     v121 = storage_array_data_slot 1
     v122 = mul 0, 3
     v123 = add v121, v122
@@ -281,14 +281,14 @@ fn @pushStruct() -> u256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]
     v129 = sload 1 !metadata(storage=slot(1))
     v130 = lt 0, v129
     v131 = iszero v130
-    panic_if v131, 0x32
+    icall panic_if<0x32>, v131
     v132 = storage_array_data_slot 1
     v133 = mul 0, 3
     v134 = add v132, v133
     v135 = add v134, 1
     v136 = lt 2, 3
     v137 = iszero v136
-    panic_if v137, 0x32
+    icall panic_if<0x32>, v137
     v138 = div 2, 16
     v139 = add v135, v138
     v140 = mod 2, 16
@@ -302,7 +302,7 @@ fn @pushStruct() -> u256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]
     v148 = sload 1 !metadata(storage=slot(1))
     v149 = lt 0, v148
     v150 = iszero v149
-    panic_if v150, 0x32
+    icall panic_if<0x32>, v150
     v151 = storage_array_data_slot 1
     v152 = mul 0, 3
     v153 = add v151, v152
@@ -310,7 +310,7 @@ fn @pushStruct() -> u256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]
     v155 = sload v154 !metadata(storage=offset(v153, 2))
     v156 = lt 2, v155
     v157 = iszero v156
-    panic_if v157, 0x32
+    icall panic_if<0x32>, v157
     v158 = storage_array_data_slot v154
     v159 = div 2, 16
     v160 = add v158, v159
@@ -400,7 +400,7 @@ fn @pushBytes() -> u256 [selector=0x7a248eac, abi_params=[], abi_returns=[word]]
     mstore v1, 0x6162630000000000000000000000000000000000000000000000000000000000
     v2 = sload 2 !metadata(storage=slot(2))
     v3 = gt v2, 0xffffffffffffffff
-    panic_if v3, 0x41
+    icall panic_if<0x41>, v3
     v4 = add v2, 1
     v5 = storage_array_data_slot 2
     v6 = add v5, v2
@@ -412,7 +412,7 @@ fn @pushBytes() -> u256 [selector=0x7a248eac, abi_params=[], abi_returns=[word]]
     mstore v8, 0x6162636465666768616263646566676861626364656667686162636465666768
     v9 = sload 2 !metadata(storage=slot(2))
     v10 = gt v9, 0xffffffffffffffff
-    panic_if v10, 0x41
+    icall panic_if<0x41>, v10
     v11 = add v9, 1
     v12 = storage_array_data_slot 2
     v13 = add v12, v9
@@ -424,7 +424,7 @@ fn @pushBytes() -> u256 [selector=0x7a248eac, abi_params=[], abi_returns=[word]]
     data_copy literal_0, v15, 64
     v16 = sload 2 !metadata(storage=slot(2))
     v17 = gt v16, 0xffffffffffffffff
-    panic_if v17, 0x41
+    icall panic_if<0x41>, v17
     v18 = add v16, 1
     v19 = storage_array_data_slot 2
     v20 = add v19, v16
@@ -433,7 +433,7 @@ fn @pushBytes() -> u256 [selector=0x7a248eac, abi_params=[], abi_returns=[word]]
     v21 = sload 2 !metadata(storage=slot(2))
     v22 = lt 0, v21
     v23 = iszero v22
-    panic_if v23, 0x32
+    icall panic_if<0x32>, v23
     v24 = storage_array_data_slot 2
     v25 = add v24, 0
     v26 = sload v25 !metadata(storage=symbolic(v24))
@@ -446,7 +446,7 @@ fn @pushBytes() -> u256 [selector=0x7a248eac, abi_params=[], abi_returns=[word]]
     v32 = and v31, v30
     v33 = lt 0, v32
     v34 = iszero v33
-    panic_if v34, 0x32
+    icall panic_if<0x32>, v34
     jumpi v28, bb1, bb2
   bb2:
     jump bb3

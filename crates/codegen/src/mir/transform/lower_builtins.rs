@@ -106,7 +106,10 @@ impl MirPass for LowerBuiltins {
                     let inst = builder.func().inst(id).clone();
                     builder.set_debug_context(&inst.metadata);
                     match inst.kind {
-                        InstKind::Transfer(address, amount) => {
+                        InstKind::ICall { function: Callee::Builtin(Builtin::Transfer), args } => {
+                            let [address, amount] = *args.as_ref() else {
+                                unreachable!("validated builtin arguments")
+                            };
                             // success = send(address, amount)
                             // if !success { revert_returndata }
                             let success = lower_send(&mut builder, address, amount);
@@ -166,12 +169,20 @@ impl MirPass for LowerBuiltins {
                         InstKind::AbiEncodePacked { parts, hash } => {
                             super::lower_packed::lower_packed(&mut builder, parts, hash)
                         }
-                        InstKind::CheckedAddMod(a, b, modulus)
-                        | InstKind::CheckedMulMod(a, b, modulus) => {
+                        InstKind::ICall {
+                            function:
+                                Callee::Builtin(
+                                    builtin @ (Builtin::CheckedAddMod | Builtin::CheckedMulMod),
+                                ),
+                            args,
+                        } => {
+                            let [a, b, modulus] = *args.as_ref() else {
+                                unreachable!("validated builtin arguments")
+                            };
                             // panic_if_zero modulus, division_by_zero
                             // result = addmod/mulmod(a, b, modulus)
                             builder.panic_if_zero(modulus, PanicCode::DivisionByZero);
-                            if matches!(inst.kind, InstKind::CheckedAddMod(..)) {
+                            if matches!(builtin, Builtin::CheckedAddMod) {
                                 builder.addmod(a, b, modulus)
                             } else {
                                 builder.mulmod(a, b, modulus)
@@ -202,13 +213,22 @@ impl MirPass for LowerBuiltins {
                                 value,
                             )
                         }
-                        InstKind::ReturndataBytes => {
-                            lower_returndata(&mut builder, gcx.sess.opts.evm_version)
-                        }
-                        InstKind::Send(address, amount) => {
+                        InstKind::ICall {
+                            function: Callee::Builtin(Builtin::ReturndataBytes),
+                            ..
+                        } => lower_returndata(&mut builder, gcx.sess.opts.evm_version),
+                        InstKind::ICall { function: Callee::Builtin(Builtin::Send), args } => {
+                            let [address, amount] = *args.as_ref() else {
+                                unreachable!("validated builtin arguments")
+                            };
                             lower_send(&mut builder, address, amount)
                         }
-                        InstKind::Erc7201(input) => lower_erc7201(&mut builder, input),
+                        InstKind::ICall { function: Callee::Builtin(Builtin::Erc7201), args } => {
+                            let [input] = *args.as_ref() else {
+                                unreachable!("validated builtin arguments")
+                            };
+                            lower_erc7201(&mut builder, input)
+                        }
                         InstKind::ICall {
                             function: Callee::Builtin(Builtin::Concat(types)),
                             args,
@@ -223,13 +243,22 @@ impl MirPass for LowerBuiltins {
                                 })
                                 .collect(),
                         ),
-                        InstKind::Sha256(input) => {
+                        InstKind::ICall { function: Callee::Builtin(Builtin::Sha256), args } => {
+                            let [input] = *args.as_ref() else {
+                                unreachable!("validated builtin arguments")
+                            };
                             lower_hash(&mut builder, gcx.sess.opts.evm_version, input, false)
                         }
-                        InstKind::Ripemd160(input) => {
+                        InstKind::ICall { function: Callee::Builtin(Builtin::Ripemd160), args } => {
+                            let [input] = *args.as_ref() else {
+                                unreachable!("validated builtin arguments")
+                            };
                             lower_hash(&mut builder, gcx.sess.opts.evm_version, input, true)
                         }
-                        InstKind::EcRecover(hash, v, r, s) => {
+                        InstKind::ICall { function: Callee::Builtin(Builtin::EcRecover), args } => {
+                            let [hash, v, r, s] = *args.as_ref() else {
+                                unreachable!("validated builtin arguments")
+                            };
                             lower_ecrecover(&mut builder, gcx.sess.opts.evm_version, hash, v, r, s)
                         }
                         _ => unreachable!("builtin checked above"),
@@ -262,18 +291,26 @@ fn is_builtin(kind: &InstKind) -> bool {
             | InstKind::StorageBytesStore(..)
             | InstKind::StorageBytesStoreLiteral { .. }
             | InstKind::StorageClearWords(..)
-            | InstKind::Erc7201(..)
-            | InstKind::CheckedAddMod(..)
-            | InstKind::CheckedMulMod(..)
+            | InstKind::ICall {
+                function: Callee::Builtin(
+                    Builtin::Erc7201 | Builtin::CheckedAddMod | Builtin::CheckedMulMod
+                ),
+                ..
+            }
             | InstKind::AbiEncodePacked { .. }
-            | InstKind::ICall { function: Callee::Builtin(Builtin::Concat(_)), .. }
-            | InstKind::Sha256(..)
-            | InstKind::Ripemd160(..)
-            | InstKind::EcRecover(..)
-            | InstKind::Send(..)
-            | InstKind::Transfer(..)
+            | InstKind::ICall {
+                function: Callee::Builtin(
+                    Builtin::Concat(_)
+                        | Builtin::Sha256
+                        | Builtin::Ripemd160
+                        | Builtin::EcRecover
+                        | Builtin::Send
+                        | Builtin::Transfer
+                ),
+                ..
+            }
             | InstKind::AddressCall { .. }
-            | InstKind::ReturndataBytes
+            | InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. }
     )
 }
 

@@ -15,8 +15,8 @@
 //! therefore constrain the guarantee even when a constant loop bound is known.
 
 use crate::mir::{
-    BlockId, EffectKind, Function, ImmutableId, InstId, InstKind, Module, StorageAlias, Terminator,
-    Value, ValueId,
+    BlockId, Callee, EffectKind, Function, ImmutableId, InstId, InstKind, Module, StorageAlias,
+    Terminator, Value, ValueId,
     analysis::{
         AddressSpace, AffineExpr, AliasAnalysis, AliasResult, Location, LocationSize, Loop,
         LoopAnalyzer, ScalarEvolution,
@@ -608,7 +608,10 @@ impl LoopOptimizer {
                 matches!(
                     func.inst(inst_id).kind,
                     InstKind::StoreImmutable(id, _) if id == load_id
-                ) || matches!(func.inst(inst_id).kind, InstKind::ICall { .. })
+                ) || matches!(
+                    func.inst(inst_id).kind,
+                    InstKind::ICall { function: Callee::Function(_), .. }
+                )
             })
         })
     }
