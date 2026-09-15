@@ -659,6 +659,16 @@ impl<'gcx> Gcx<'gcx> {
         self.symbol_resolver.source_path_resolutions(segments, source, contract)
     }
 
+    /// Iterates declarations in an existing contract scope.
+    pub fn contract_scope_declarations(
+        self,
+        contract: hir::ContractId,
+    ) -> impl Iterator<Item = hir::Res> + 'gcx {
+        self.symbol_resolver.contract_scopes[contract]
+            .iter()
+            .flat_map(|(_, declarations)| declarations.iter().map(|declaration| declaration.res))
+    }
+
     /// Returns symbol references in validated local NatSpec tags.
     pub fn natspec_references(
         self,

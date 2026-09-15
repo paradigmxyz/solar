@@ -70,7 +70,9 @@ pub(crate) struct SymbolTables {
     scopes: IndexVec<ScopeId, Scope>,
     global_completions: Vec<CompletionItem>,
     builtin_member_completions: FxHashMap<String, Vec<CompletionItem>>,
-    receiver_member_completions: FxHashMap<SymbolId, Arc<[CompletionItem]>>,
+    receiver_member_completions: FxHashMap<(ScopeId, SymbolId), Arc<[CompletionItem]>>,
+    contract_member_completions: FxHashMap<(ScopeId, Builtin), Arc<[CompletionItem]>>,
+    namespace_completions: FxHashMap<ScopeId, FxHashMap<String, Arc<[CompletionItem]>>>,
     member_completions: Vec<MemberCompletionScope>,
     file_member_completions: FxHashMap<Url, PositionIndex<usize>>,
     file_scopes: FxHashMap<Url, Vec<ScopeId>>,
@@ -197,14 +199,17 @@ enum SymbolKey {
 #[derive(Clone, Debug)]
 struct Scope {
     parent: Option<ScopeId>,
+    /// The source or contract scope that determines member visibility and attachments.
+    member_scope: ScopeId,
     uri: Url,
     range: Range,
     declarations: Vec<ScopedDeclaration>,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 struct ScopedDeclaration {
     symbol_id: SymbolId,
+    name: Option<String>,
     available_from: Option<Position>,
 }
 
@@ -218,6 +223,7 @@ struct MemberCompletionScope {
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct CompletionContext<'a> {
     pub(crate) prefix: &'a str,
+    /// Present after a dot, with an empty receiver for non-identifier expressions.
     pub(crate) member_receiver: Option<&'a str>,
 }
 
@@ -399,9 +405,9 @@ impl SymbolTables {
             }
         }
         tables.type_hierarchy = TypeHierarchyIndex::build(gcx, &item_symbols, &tables.declarations);
-        tables.build_scopes(gcx, &locations);
         let mut member_completions = FxHashMap::default();
-        tables.build_receiver_member_completions(gcx, &mut member_completions);
+        let contexts = tables.build_scopes(gcx, &locations, &mut member_completions);
+        tables.build_receiver_member_completions(gcx, &contexts, &mut member_completions);
         tables.build_member_completions(gcx, &locations, &mut member_completions);
         drop(member_completions);
         tables.build_references(gcx, &locations, &item_symbols);
@@ -462,6 +468,7 @@ impl SymbolTables {
         }
         for scope in &mut other.scopes {
             scope.parent = scope.parent.map(|parent| remap_scope_id(parent, scope_offset));
+            scope.member_scope = remap_scope_id(scope.member_scope, scope_offset);
             for declaration in &mut scope.declarations {
                 declaration.symbol_id = declaration.symbol_id.offset_by(symbol_offset);
             }
@@ -480,11 +487,22 @@ impl SymbolTables {
         }
         self.declarations.extend(other.declarations);
         self.scopes.extend(other.scopes);
-        self.receiver_member_completions.extend(
+        self.receiver_member_completions.extend(other.receiver_member_completions.into_iter().map(
+            |((scope_id, symbol_id), items)| {
+                (
+                    (remap_scope_id(scope_id, scope_offset), symbol_id.offset_by(symbol_offset)),
+                    items,
+                )
+            },
+        ));
+        self.contract_member_completions.extend(other.contract_member_completions.into_iter().map(
+            |((scope, builtin), items)| ((remap_scope_id(scope, scope_offset), builtin), items),
+        ));
+        self.namespace_completions.extend(
             other
-                .receiver_member_completions
+                .namespace_completions
                 .into_iter()
-                .map(|(symbol_id, items)| (symbol_id.offset_by(symbol_offset), items)),
+                .map(|(scope, namespaces)| (remap_scope_id(scope, scope_offset), namespaces)),
         );
         self.member_completions.extend(other.member_completions);
         self.references.extend(other.references);
@@ -1095,13 +1113,17 @@ impl SymbolTables {
         {
             return filtered_completion_items(items, context.prefix);
         }
-        if let Some(items) = self.builtin_member_completion_items(context.member_receiver) {
-            return filtered_completion_items(items, context.prefix);
-        }
         if let Some(items) =
             self.receiver_member_completion_items(uri, position, context.member_receiver)
         {
             return filtered_completion_items(items, context.prefix);
+        }
+        if let Some(items) = self.builtin_member_completion_items(context.member_receiver) {
+            return filtered_completion_items(items, context.prefix);
+        }
+
+        if context.member_receiver.is_some() {
+            return Vec::new();
         }
 
         let Some(scope_id) = self.scope_at_position(uri, position) else {
@@ -1111,7 +1133,21 @@ impl SymbolTables {
         let prefix = completion_filter_prefix(context.prefix);
         let matches_prefix =
             |name: &str| prefix.as_ref().is_none_or(|prefix| fuzzy_completion_match(prefix, name));
-        let mut seen = FxHashMap::<&str, SymbolId>::default();
+        enum Candidate<'a> {
+            Symbol(&'a str, SymbolId),
+            Namespace(&'a str),
+            Global(&'a CompletionItem),
+        }
+        impl<'a> Candidate<'a> {
+            fn label(&self) -> &'a str {
+                match self {
+                    Self::Symbol(label, _) | Self::Namespace(label) => label,
+                    Self::Global(item) => item.label.as_str(),
+                }
+            }
+        }
+
+        let mut seen = FxHashMap::default();
         let mut scope = Some(scope_id);
         while let Some(scope_id) = scope {
             let current = &self.scopes[scope_id];
@@ -1123,30 +1159,22 @@ impl SymbolTables {
                     continue;
                 }
                 let symbol = &self.declarations[declaration.symbol_id];
-                if matches_prefix(&symbol.name) {
-                    seen.entry(symbol.name.as_str()).or_insert(declaration.symbol_id);
+                let name = declaration.name.as_deref().unwrap_or(&symbol.name);
+                if matches_prefix(name) {
+                    seen.entry(name).or_insert(Candidate::Symbol(name, declaration.symbol_id));
+                }
+            }
+            if let Some(namespaces) = self.namespace_completions.get(&scope_id) {
+                for name in namespaces.keys() {
+                    if matches_prefix(name) {
+                        seen.entry(name.as_str()).or_insert(Candidate::Namespace(name));
+                    }
                 }
             }
             scope = current.parent;
         }
 
-        enum Candidate<'a> {
-            Symbol(&'a str, SymbolId),
-            Global(&'a CompletionItem),
-        }
-        impl<'a> Candidate<'a> {
-            fn label(&self) -> &'a str {
-                match self {
-                    Self::Symbol(label, _) => label,
-                    Self::Global(item) => item.label.as_str(),
-                }
-            }
-        }
-
-        let mut candidates = seen
-            .into_values()
-            .map(|symbol_id| Candidate::Symbol(&self.declarations[symbol_id].name, symbol_id))
-            .collect::<Vec<_>>();
+        let mut candidates = seen.into_values().collect::<Vec<_>>();
         candidates.extend(
             self.global_completions
                 .iter()
@@ -1160,7 +1188,12 @@ impl SymbolTables {
         candidates
             .into_iter()
             .map(|candidate| match candidate {
-                Candidate::Symbol(_, symbol_id) => self.completion_item(symbol_id),
+                Candidate::Symbol(name, symbol_id) => self.completion_item(symbol_id, name),
+                Candidate::Namespace(name) => CompletionItem {
+                    label: name.to_string(),
+                    kind: Some(CompletionItemKind::MODULE),
+                    ..Default::default()
+                },
                 Candidate::Global(item) => item.clone(),
             })
             .collect()
@@ -1205,10 +1238,17 @@ impl SymbolTables {
             .filter(|symbol| symbol.name_range == data.selection_range);
         let Some(symbol) = candidates.next() else { return };
         let Some(kind) = item.kind else { return };
-        if item.label != symbol.name || !symbol_supports_completion_kind(symbol, kind) {
+        let Some(documentation) = symbol.documentation.as_ref() else { return };
+        let matches_name = item.label == symbol.name
+            || self.scopes.iter().any(|scope| {
+                scope.declarations.iter().any(|declaration| {
+                    declaration.name.as_deref() == Some(&item.label)
+                        && self.declarations[declaration.symbol_id].location == symbol.location
+                })
+            });
+        if !matches_name || !symbol_supports_completion_kind(symbol, kind) {
             return;
         }
-        let Some(documentation) = symbol.documentation.as_ref() else { return };
         if candidates.any(|candidate| {
             candidate.name != symbol.name
                 || !symbol_supports_completion_kind(candidate, kind)
@@ -1238,25 +1278,43 @@ impl SymbolTables {
     fn build_receiver_member_completions<'gcx>(
         &mut self,
         gcx: Gcx<'gcx>,
+        contexts: &FxHashMap<ScopeId, (hir::SourceId, Option<hir::ContractId>)>,
         cache: &mut MemberCompletionCache<'gcx>,
     ) {
-        for variable_id in gcx.hir.variable_ids() {
-            let Some(&symbol_id) =
-                self.symbols_by_key.get(&SymbolKey::Item(ItemId::Variable(variable_id)))
-            else {
-                continue;
-            };
-            let variable = gcx.hir.variable(variable_id);
-            let ty = gcx.type_of_item(ItemId::Variable(variable_id));
-            let items = self.member_completion_items_for_ty(
-                gcx,
-                ty,
-                variable.source,
-                variable.contract,
-                cache,
-            );
-            if !items.is_empty() {
-                self.receiver_member_completions.insert(symbol_id, items);
+        let mut types = IndexVec::from_vec(vec![None; self.declarations.len()]);
+        for (&SymbolKey::Item(item), &symbol) in &self.symbols_by_key {
+            types[symbol] = Some(gcx.type_of_res(Res::Item(item)));
+        }
+        let mut members = FxHashMap::default();
+        for (scope_id, scope) in self.scopes.iter_enumerated() {
+            let member_scope = scope.member_scope;
+            let (source, contract) = contexts[&member_scope];
+            let mut visible_scope = Some(scope_id);
+            while let Some(id) = visible_scope {
+                for declaration in &self.scopes[id].declarations {
+                    let key = (member_scope, declaration.symbol_id);
+                    if let Some(ty) = types[declaration.symbol_id] {
+                        members.entry(key).or_insert_with(|| {
+                            self.member_completion_items_for_ty(gcx, ty, source, contract, cache)
+                        });
+                    }
+                }
+                visible_scope =
+                    if scope_id == member_scope { self.scopes[id].parent } else { None };
+            }
+        }
+        members.retain(|_, items| !items.is_empty());
+        self.receiver_member_completions = members;
+        for (&scope, &(source, contract)) in contexts {
+            if let Some(contract) = contract {
+                for (builtin, ty) in [
+                    (Builtin::This, gcx.type_of_item(contract.into())),
+                    (Builtin::Super, gcx.mk_ty(TyKind::Type(gcx.mk_ty(TyKind::Super(contract))))),
+                ] {
+                    let items =
+                        self.member_completion_items_for_ty(gcx, ty, source, Some(contract), cache);
+                    self.contract_member_completions.insert((scope, builtin), items);
+                }
             }
         }
     }
@@ -1314,11 +1372,24 @@ impl SymbolTables {
         id
     }
 
-    fn build_scopes(&mut self, gcx: Gcx<'_>, locations: &proto::LocationConverter) {
-        let mut builder = ScopeBuilder { tables: self, locations, gcx, scope: None };
+    fn build_scopes<'gcx>(
+        &mut self,
+        gcx: Gcx<'gcx>,
+        locations: &proto::LocationConverter,
+        cache: &mut MemberCompletionCache<'gcx>,
+    ) -> FxHashMap<ScopeId, (hir::SourceId, Option<hir::ContractId>)> {
+        let mut builder = ScopeBuilder {
+            tables: self,
+            locations,
+            gcx,
+            cache,
+            scope: None,
+            contexts: FxHashMap::default(),
+        };
         for source_id in gcx.hir.source_ids() {
             builder.visit_source_scope(source_id);
         }
+        builder.contexts
     }
 
     fn build_member_completions<'gcx>(
@@ -1354,7 +1425,9 @@ impl SymbolTables {
     }
 
     fn push_scope(&mut self, uri: Url, range: Range, parent: Option<ScopeId>) -> ScopeId {
-        self.scopes.push(Scope { parent, uri, range, declarations: Vec::new() })
+        let member_scope =
+            parent.map_or(self.scopes.next_idx(), |parent| self.scopes[parent].member_scope);
+        self.scopes.push(Scope { parent, member_scope, uri, range, declarations: Vec::new() })
     }
 
     fn add_scope_declaration(&mut self, scope: ScopeId, item_id: ItemId) {
@@ -1376,7 +1449,11 @@ impl SymbolTables {
     }
 
     fn add_symbol_to_scope(&mut self, scope: ScopeId, symbol_id: SymbolId) {
-        self.scopes[scope].declarations.push(ScopedDeclaration { symbol_id, available_from: None });
+        self.scopes[scope].declarations.push(ScopedDeclaration {
+            symbol_id,
+            name: None,
+            available_from: None,
+        });
     }
 
     fn add_local_symbol_to_scope(
@@ -1390,9 +1467,11 @@ impl SymbolTables {
             .location(span)
             .map(|location| location.range.end)
             .unwrap_or(self.declarations[symbol_id].location.range.end);
-        self.scopes[scope]
-            .declarations
-            .push(ScopedDeclaration { symbol_id, available_from: Some(available_from) });
+        self.scopes[scope].declarations.push(ScopedDeclaration {
+            symbol_id,
+            name: None,
+            available_from: Some(available_from),
+        });
     }
 
     fn build_references(
@@ -1771,7 +1850,19 @@ impl SymbolTables {
         receiver: Option<&str>,
     ) -> Option<&[CompletionItem]> {
         let receiver = receiver?;
-        let mut scope = Some(self.scope_at_position(uri, position)?);
+        let scope_id = self.scope_at_position(uri, position)?;
+        let member_scope = self.scopes[scope_id].member_scope;
+        if let Some(builtin) = match receiver {
+            "this" => Some(Builtin::This),
+            "super" => Some(Builtin::Super),
+            _ => None,
+        } {
+            return self
+                .contract_member_completions
+                .get(&(member_scope, builtin))
+                .map(AsRef::as_ref);
+        }
+        let mut scope = Some(scope_id);
         while let Some(scope_id) = scope {
             let current = &self.scopes[scope_id];
             for declaration in &current.declarations {
@@ -1782,23 +1873,30 @@ impl SymbolTables {
                     continue;
                 }
                 let symbol_id = declaration.symbol_id;
-                if self.declarations[symbol_id].name == receiver {
+                if declaration.name.as_deref().unwrap_or(&self.declarations[symbol_id].name)
+                    == receiver
+                {
                     return self
                         .receiver_member_completions
-                        .get(&symbol_id)
+                        .get(&(member_scope, symbol_id))
                         .map(AsRef::as_ref)
                         .or(Some(&[]));
                 }
+            }
+            if let Some(namespaces) = self.namespace_completions.get(&scope_id)
+                && let Some(items) = namespaces.get(receiver)
+            {
+                return Some(items);
             }
             scope = current.parent;
         }
         None
     }
 
-    fn completion_item(&self, symbol_id: SymbolId) -> CompletionItem {
+    fn completion_item(&self, symbol_id: SymbolId, name: &str) -> CompletionItem {
         let symbol = &self.declarations[symbol_id];
         CompletionItem {
-            label: symbol.name.clone(),
+            label: name.to_string(),
             kind: Some(completion_item_kind(symbol.kind)),
             detail: self.container_name(symbol),
             data: Some(self.completion_item_data(symbol_id)),
@@ -1808,7 +1906,7 @@ impl SymbolTables {
 
     fn completion_item_for_member(&self, gcx: Gcx<'_>, member: Member<'_>) -> CompletionItem {
         if let Some(symbol_id) = self.symbol_id_for_member_completion(member) {
-            return self.completion_item(symbol_id);
+            return self.completion_item(symbol_id, member.name.as_str());
         }
 
         CompletionItem {
@@ -2000,6 +2098,8 @@ struct ScopeBuilder<'a, 'gcx> {
     locations: &'a proto::LocationConverter,
     gcx: Gcx<'gcx>,
     scope: Option<ScopeId>,
+    cache: &'a mut MemberCompletionCache<'gcx>,
+    contexts: FxHashMap<ScopeId, (hir::SourceId, Option<hir::ContractId>)>,
 }
 
 impl<'gcx> ScopeBuilder<'_, 'gcx> {
@@ -2013,9 +2113,29 @@ impl<'gcx> ScopeBuilder<'_, 'gcx> {
         };
 
         let root = self.tables.push_scope(location.uri, location.range, None);
+        self.contexts.insert(root, (source_id, None));
         self.with_scope(root, |this| {
+            let ty = this.gcx.mk_ty(TyKind::Module(source_id));
+            for member in this.gcx.members_of(ty, source_id, None) {
+                if let Some(symbol_id) = this.tables.symbol_id_for_member_completion(member) {
+                    this.tables.scopes[root].declarations.push(ScopedDeclaration {
+                        symbol_id,
+                        name: (member.name.as_str() != this.tables.declarations[symbol_id].name)
+                            .then(|| member.name.to_string()),
+                        available_from: None,
+                    });
+                } else if matches!(member.res, Some(Res::Namespace(_))) {
+                    let items = this.tables.member_completion_items_for_ty(
+                        this.gcx, member.ty, source_id, None, this.cache,
+                    );
+                    this.tables
+                        .namespace_completions
+                        .entry(root)
+                        .or_default()
+                        .insert(member.name.to_string(), items);
+                }
+            }
             for &item_id in source.items {
-                this.tables.add_scope_declaration(root, item_id);
                 let _ = this.visit_nested_item(item_id);
             }
         });
@@ -2080,9 +2200,15 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
         let Some(scope) = self.push_child_scope(contract.span) else {
             return ControlFlow::Continue(());
         };
+        self.tables.scopes[scope].member_scope = scope;
+        self.contexts.insert(scope, (contract.source, Some(id)));
         self.with_scope(scope, |this| {
+            for res in this.gcx.contract_scope_declarations(id) {
+                if let Res::Item(item) = res {
+                    this.tables.add_scope_declaration(scope, item);
+                }
+            }
             for &item_id in contract.items {
-                this.tables.add_scope_declaration(scope, item_id);
                 let _ = this.visit_nested_item(item_id);
             }
         });
@@ -2243,6 +2369,9 @@ impl<'gcx> MemberCompletionCollector<'_, 'gcx> {
         let Some(receiver_ty) = self.gcx.type_of_expr(receiver.id) else {
             return;
         };
+        if receiver_ty.references_error() {
+            return;
+        }
         let Some(location) = self.locations.location(member.span) else {
             return;
         };
@@ -2254,10 +2383,6 @@ impl<'gcx> MemberCompletionCollector<'_, 'gcx> {
             self.contract,
             self.cache,
         );
-        if items.is_empty() {
-            return;
-        }
-
         self.tables.member_completions.push(MemberCompletionScope {
             uri: location.uri,
             range: location.range,
