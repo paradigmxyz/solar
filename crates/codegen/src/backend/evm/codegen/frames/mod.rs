@@ -17,6 +17,13 @@ const SPILL_HAZARD_BOUND: u64 = 0x2000;
 
 mod hazards;
 
+#[derive(Default)]
+struct HeapPrefixOffsets {
+    arguments: FxHashMap<FunctionId, FxHashMap<ArgIdx, u64>>,
+    returns: FxHashMap<(FunctionId, usize), u64>,
+    projections: FxHashMap<FunctionId, FxHashMap<ValueId, (FunctionId, usize)>>,
+}
+
 impl<'gcx> EvmCodegen<'gcx> {
     /// Records the exact spill area size of the function body that just emitted.
     pub(in crate::backend::evm::codegen) fn record_function_spill_size(
@@ -526,7 +533,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 (entry, span)
             })
             .collect();
-        let (heap_prefix_arguments, heap_prefix_returns) = Self::heap_prefix_offsets(module);
+        let heap_prefix = Self::heap_prefix_offsets(module);
         let reachable_heap_prefix_guards: FxHashMap<FunctionId, u64> = self
             .runtime_entry_reachability
             .iter()
@@ -536,8 +543,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .map(|func_id| {
                         Self::heap_prefix_guard(
                             &module.functions[func_id],
-                            heap_prefix_arguments.get(&func_id),
-                            &heap_prefix_returns,
+                            heap_prefix.arguments.get(&func_id),
+                            &heap_prefix.returns,
+                            heap_prefix.projections.get(&func_id),
                         )
                     })
                     .max()
@@ -701,7 +709,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn heap_prefix_guard(
         func: &Function,
         argument_offsets: Option<&FxHashMap<ArgIdx, u64>>,
-        returned_offsets: &FxHashMap<FunctionId, u64>,
+        returned_offsets: &FxHashMap<(FunctionId, usize), u64>,
+        projections: Option<&FxHashMap<ValueId, (FunctionId, usize)>>,
     ) -> u64 {
         let mut guard = 0;
         Self::for_each_memory_range(func, |offset, size| {
@@ -715,6 +724,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 offset,
                 argument_offsets,
                 returned_offsets,
+                projections,
                 &mut visiting,
                 &mut memo,
             ) {
@@ -728,11 +738,33 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Propagates known heap offsets through actual arguments and helper returns.
     /// Scalar parameters acquire heap provenance only from a caller. Forward and
     /// backward propagation each need at most one round per nonrecursive call edge.
-    fn heap_prefix_offsets(
-        module: &Module,
-    ) -> (FxHashMap<FunctionId, FxHashMap<ArgIdx, u64>>, FxHashMap<FunctionId, u64>) {
-        let mut arguments = FxHashMap::<FunctionId, FxHashMap<ArgIdx, u64>>::default();
-        let mut returns = FxHashMap::default();
+    fn heap_prefix_offsets(module: &Module) -> HeapPrefixOffsets {
+        let mut offsets = HeapPrefixOffsets::default();
+        for (func_id, func) in module.functions.iter_enumerated() {
+            for (block_id, block) in func.blocks.iter_enumerated() {
+                for (index, &inst_id) in block.instructions.iter().enumerate() {
+                    if let InstKind::ICall { function: Callee::Function(callee), .. } =
+                        func.inst(inst_id).kind
+                        && module.functions[callee].return_components().len() > 1
+                    {
+                        Self::visit_call_result_projections(
+                            func,
+                            block_id,
+                            index,
+                            module.functions[callee].return_components().len(),
+                            |component, value| {
+                                offsets
+                                    .projections
+                                    .entry(func_id)
+                                    .or_default()
+                                    .insert(value, (callee, component));
+                            },
+                        );
+                    }
+                }
+            }
+        }
+        let HeapPrefixOffsets { arguments, returns, projections } = &mut offsets;
         for _ in 0..=module.functions.len() * 2 {
             let mut changed = false;
             for (func_id, func) in module.functions.iter_enumerated() {
@@ -745,7 +777,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                         func,
                         value,
                         arguments.get(&func_id),
-                        &returns,
+                        returns,
+                        projections.get(&func_id),
                         &mut visiting,
                         &mut memo,
                     )
@@ -776,14 +809,24 @@ impl<'gcx> EvmCodegen<'gcx> {
                         }
                     }
                 }
-                let mut returned = None;
-                if func.return_components().len() == 1 {
-                    for block in &func.blocks {
-                        if let Some(Terminator::Return { values }) = &block.terminator {
-                            for &value in values {
-                                returned = returned.max(derive(value));
+                let mut returned = Vec::new();
+                for block in &func.blocks {
+                    match &block.terminator {
+                        Some(Terminator::Return { values }) => {
+                            for (component, &value) in values.iter().enumerate() {
+                                if let Some(offset) = derive(value) {
+                                    returned.push((component, offset));
+                                }
                             }
                         }
+                        Some(Terminator::TailCall { function, .. }) => {
+                            for component in 0..func.return_components().len() {
+                                if let Some(&offset) = returns.get(&(*function, component)) {
+                                    returned.push((component, offset));
+                                }
+                            }
+                        }
+                        _ => {}
                     }
                 }
                 for (callee, index, offset) in incoming {
@@ -797,8 +840,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                         changed = true;
                     }
                 }
-                if let Some(offset) = returned {
-                    let stored = returns.entry(func_id).or_insert_with(|| {
+                for (component, offset) in returned {
+                    let stored = returns.entry((func_id, component)).or_insert_with(|| {
                         changed = true;
                         offset
                     });
@@ -812,7 +855,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 break;
             }
         }
-        (arguments, returns)
+        offsets
     }
 
     /// Evaluates short constant expressions even when optimization is disabled.
@@ -867,11 +910,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         value: ValueId,
         argument_offsets: Option<&FxHashMap<ArgIdx, u64>>,
-        returned_offsets: &FxHashMap<FunctionId, u64>,
+        returned_offsets: &FxHashMap<(FunctionId, usize), u64>,
+        projections: Option<&FxHashMap<ValueId, (FunctionId, usize)>>,
         visiting: &mut DenseBitSet<ValueId>,
         memo: &mut FxHashMap<ValueId, u64>,
     ) -> Option<u64> {
         if let Some(&offset) = memo.get(&value) {
+            return Some(offset);
+        }
+        if let Some(component) = projections.and_then(|values| values.get(&value))
+            && let Some(&offset) = returned_offsets.get(component)
+        {
             return Some(offset);
         }
         if !visiting.insert(value) {
@@ -883,6 +932,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 value,
                 argument_offsets,
                 returned_offsets,
+                projections,
                 visiting,
                 memo,
             )
@@ -919,7 +969,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     Some(0)
                 }
                 InstKind::ICall { function: Callee::Function(function), .. } => {
-                    returned_offsets.get(function).copied()
+                    returned_offsets.get(&(*function, 0)).copied()
                 }
                 InstKind::Add(first, second) => {
                     if let Some(amount) = Self::heap_prefix_constant(func, *second, 0) {
@@ -1279,6 +1329,7 @@ mod tests {
                     value,
                     None,
                     &FxHashMap::default(),
+                    None,
                     &mut visiting,
                     &mut memo,
                 ),
@@ -1293,6 +1344,7 @@ mod tests {
                     value,
                     None,
                     &FxHashMap::default(),
+                    None,
                     &mut visiting,
                     &mut memo
                 ),
@@ -1312,15 +1364,15 @@ mod tests {
         let word = builder.imm(32);
         let prefix = builder.sub(base, word);
         let adjacent = builder.add(base, word);
-        assert_eq!(EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default()), 0);
+        assert_eq!(EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default(), None), 0);
 
         // hash(adjacent, 32)
         FunctionBuilder::new(&mut function).keccak256(adjacent, word);
-        assert_eq!(EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default()), 0);
+        assert_eq!(EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default(), None), 0);
 
         // hash(prefix, 32)
         FunctionBuilder::new(&mut function).keccak256(prefix, word);
-        assert_eq!(EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default()), 32);
+        assert_eq!(EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default(), None), 32);
 
         // oversized = base - u64::MAX - 32
         // mload oversized
@@ -1329,7 +1381,10 @@ mod tests {
         let oversized = builder.sub(base, maximum);
         let oversized = builder.sub(oversized, word);
         builder.mload(oversized);
-        assert_eq!(EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default()), u64::MAX);
+        assert_eq!(
+            EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default(), None),
+            u64::MAX
+        );
     }
 
     #[test]
@@ -1410,7 +1465,7 @@ mod tests {
                 // consumer(..., prefix, size, ...)
                 FunctionBuilder::new(&mut consumer).append_instruction(Instruction::new(kind, ty));
                 assert_eq!(
-                    EvmCodegen::heap_prefix_guard(&consumer, None, &FxHashMap::default()),
+                    EvmCodegen::heap_prefix_guard(&consumer, None, &FxHashMap::default(), None),
                     if size == zero { 0 } else { 32 },
                     "{name}",
                 );
@@ -1423,7 +1478,7 @@ mod tests {
                 // return_data/revert prefix, size
                 consumer.blocks[BlockId::ENTRY].terminator = Some(terminator);
                 assert_eq!(
-                    EvmCodegen::heap_prefix_guard(&consumer, None, &FxHashMap::default()),
+                    EvmCodegen::heap_prefix_guard(&consumer, None, &FxHashMap::default(), None),
                     if size == zero { 0 } else { 32 },
                 );
             }
@@ -1436,7 +1491,10 @@ mod tests {
             let mut consumer = function.clone();
             // mload/mstore/mstore8 prefix, ...
             FunctionBuilder::new(&mut consumer).append_instruction(Instruction::new(kind, ty));
-            assert_eq!(EvmCodegen::heap_prefix_guard(&consumer, None, &FxHashMap::default()), 32);
+            assert_eq!(
+                EvmCodegen::heap_prefix_guard(&consumer, None, &FxHashMap::default(), None),
+                32
+            );
         }
     }
 
@@ -1463,6 +1521,7 @@ mod tests {
                     value,
                     None,
                     &FxHashMap::default(),
+                    None,
                     &mut visiting,
                     &mut memo,
                 ),
@@ -1497,9 +1556,9 @@ mod tests {
         builder.ret([prefix]);
         let caller = module.add_function(caller);
 
-        let (_, offsets) = EvmCodegen::heap_prefix_offsets(&module);
-        assert!(!offsets.contains_key(&helper));
-        assert!(!offsets.contains_key(&caller));
+        let offsets = EvmCodegen::heap_prefix_offsets(&module);
+        assert!(!offsets.returns.contains_key(&(helper, 0)));
+        assert!(!offsets.returns.contains_key(&(caller, 0)));
 
         let mut root = Function::new(Ident::DUMMY);
         let mut builder = FunctionBuilder::new(&mut root);
@@ -1525,13 +1584,64 @@ mod tests {
             MirType::uint256(),
         );
 
-        let (arguments, offsets) = EvmCodegen::heap_prefix_offsets(&module);
-        assert_eq!(arguments[&caller][&ArgIdx::new(0)], 0);
-        assert_eq!(arguments[&helper][&ArgIdx::new(0)], 16);
-        assert_eq!(offsets[&helper], 48);
-        assert_eq!(offsets[&caller], 64);
-        assert_eq!(offsets[&root], 64);
-        assert_eq!(arguments[&scalar][&ArgIdx::new(0)], 0);
-        assert!(!offsets.contains_key(&scalar));
+        let offsets = EvmCodegen::heap_prefix_offsets(&module);
+        assert_eq!(offsets.arguments[&caller][&ArgIdx::new(0)], 0);
+        assert_eq!(offsets.arguments[&helper][&ArgIdx::new(0)], 16);
+        assert_eq!(offsets.returns[&(helper, 0)], 48);
+        assert_eq!(offsets.returns[&(caller, 0)], 64);
+        assert_eq!(offsets.returns[&(root, 0)], 64);
+        assert_eq!(offsets.arguments[&scalar][&ArgIdx::new(0)], 0);
+        assert!(!offsets.returns.contains_key(&(scalar, 0)));
+    }
+
+    #[test]
+    fn heap_prefix_partial_tuple_returns() {
+        let mut module = Module::new(Ident::DUMMY);
+        let fields = [MirType::uint256(); 3];
+        let tuple = module.intern_struct(fields);
+        let mut helper = Function::new(Ident::DUMMY);
+        helper.set_return_type(tuple);
+        helper.set_return_abi(fields);
+        let mut builder = FunctionBuilder::new(&mut helper);
+        // helper(): return 7, fmp - 32, fmp - 96
+        let base = builder.fmp();
+        let first_offset = builder.imm(32);
+        let last_offset = builder.imm(96);
+        let first = builder.sub(base, first_offset);
+        let last = builder.sub(base, last_offset);
+        let scalar = builder.imm(7);
+        builder.ret([scalar, first, last]);
+        let helper = module.add_function(helper);
+
+        let mut forward = Function::new(Ident::DUMMY);
+        forward.set_return_type(tuple);
+        forward.set_return_abi(fields);
+        // forward(): tail_call helper()
+        FunctionBuilder::new(&mut forward).tail_call(helper, Vec::new());
+        let forward = module.add_function(forward);
+
+        let mut caller = Function::new(Ident::DUMMY);
+        let mut builder = FunctionBuilder::new(&mut caller);
+        builder.set_return_type(MirType::uint256());
+        // icall forward()
+        // buffer = mload(MULTI_RETURN_BUFFER_PTR_SLOT)
+        // result = mload(buffer + 64)
+        // return result
+        builder.icall(forward, Vec::new(), MirType::uint256());
+        let slot = builder.imm(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
+        let buffer = builder.mload(slot);
+        let address = builder.add_u64_offset(buffer, 64);
+        let result = builder.mload(address);
+        builder.ret([result]);
+        let caller = module.add_function(caller);
+
+        let offsets = EvmCodegen::heap_prefix_offsets(&module);
+        for function in [helper, forward] {
+            assert!(!offsets.returns.contains_key(&(function, 0)));
+            assert_eq!(offsets.returns[&(function, 1)], 32);
+            assert_eq!(offsets.returns[&(function, 2)], 96);
+        }
+        assert_eq!(offsets.projections[&caller][&result], (forward, 2));
+        assert_eq!(offsets.returns[&(caller, 0)], 96);
     }
 }
