@@ -4,7 +4,11 @@ use crate::proto;
 use crop::Rope;
 use lsp_types::{Position, Range, SelectionRange};
 use solar_config::CompileOpts;
-use solar_interface::{Session, SourceMap, Span, data_structures::Never, source_map::FileName};
+use solar_interface::{
+    Session, Span,
+    data_structures::Never,
+    source_map::{FileName, SourceFile},
+};
 use solar_parse::{
     Parser,
     ast::{self, visit::Visit},
@@ -29,7 +33,7 @@ pub(crate) fn selection_ranges(
     if cursors.is_empty() {
         return Some(Vec::new());
     }
-    let candidates = collect_ranges(SourceCode::Owned(source), &rope);
+    let candidates = collect_ranges(SourceCode::Owned(source));
     selection_ranges_for_cursors(&index, &candidates, cursors)
 }
 
@@ -53,10 +57,7 @@ impl SelectionRangeIndex {
         }
 
         let candidates = self.candidates.get_or_init(|| {
-            CandidateRanges::new(collect_ranges(
-                SourceCode::Shared(self.source.clone()),
-                index.rope(),
-            ))
+            CandidateRanges::new(collect_ranges(SourceCode::Shared(self.source.clone())))
         });
         cursors
             .into_iter()
@@ -162,7 +163,7 @@ enum SourceCode {
     Shared(Arc<String>),
 }
 
-fn collect_ranges(source: SourceCode, rope: &Rope) -> Vec<ByteRange<usize>> {
+fn collect_ranges(source: SourceCode) -> Vec<ByteRange<usize>> {
     let mut opts = CompileOpts::default();
     opts.unstable.recover_incomplete_input = true;
     let sess = Session::builder().opts(opts).with_silent_emitter(None).single_threaded().build();
@@ -189,7 +190,7 @@ fn collect_ranges(source: SourceCode, rope: &Rope) -> Vec<ByteRange<usize>> {
         };
         drop(parser);
 
-        let mut collector = RangeCollector::new(sess.source_map(), rope);
+        let mut collector = RangeCollector::new(&source_file);
         let _ = collector.visit_source_unit(&source_unit);
         collector.ranges
     })
@@ -271,25 +272,28 @@ fn strictly_contains(outer: &ByteRange<usize>, inner: &ByteRange<usize>) -> bool
 }
 
 struct RangeCollector<'a> {
-    source_map: &'a SourceMap,
-    rope: &'a Rope,
+    file: &'a SourceFile,
     ranges: Vec<ByteRange<usize>>,
 }
 
 impl<'a> RangeCollector<'a> {
-    fn new(source_map: &'a SourceMap, rope: &'a Rope) -> Self {
-        Self { source_map, rope, ranges: Vec::new() }
+    fn new(file: &'a SourceFile) -> Self {
+        Self { file, ranges: Vec::new() }
     }
 
     fn push(&mut self, span: Span) {
-        if span.is_dummy() {
+        // All syntax comes from this parsed file. Validate directly against its source to avoid
+        // source-map lookups and rope traversals for every AST node, including duplicate spans.
+        if span.is_dummy()
+            || span.lo() >= span.hi()
+            || !self.file.contains(span.lo())
+            || !self.file.contains(span.hi())
+        {
             return;
         }
-        let Ok(range) = self.source_map.span_to_range(span) else { return };
-        if !range.is_empty()
-            && range.end <= self.rope.byte_len()
-            && self.rope.is_char_boundary(range.start)
-            && self.rope.is_char_boundary(range.end)
+        let range = self.file.relative_position(span.lo()).to_usize()
+            ..self.file.relative_position(span.hi()).to_usize();
+        if self.file.src.is_char_boundary(range.start) && self.file.src.is_char_boundary(range.end)
         {
             self.ranges.push(range);
         }

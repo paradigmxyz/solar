@@ -212,3 +212,11 @@ the pinned project corpus and do not establish general superiority over solc.
 The Benchmark workflow also accepts a `codegen_backend` input for the candidate.
 LSP benchmark builds disable the optional backends because they only exercise
 the frontend.
+
+The local `minimal-proxy` micro benchmark uses `../../testdata/MinimalProxy.sol`.
+Its payable high-level fallback delegates to an immutable implementation deployed
+by its constructor, using assembly only to forward revert data. Both gas profiles
+measure storage writes, reads, and empty, short, and 1 KiB byte echoes through the
+proxy. Runtime checks compare the stored value and returned bytes across compilers.
+Runtime size measures the proxy alone;
+creation size and deployment gas include the helper implementation.
