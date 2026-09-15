@@ -1,0 +1,174 @@
+//@ revisions: gas size shape
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=word-sequence
+//@[size] compile-flags: -Osize -Zmir-pipeline=word-sequence
+//@[shape] compile-flags: -Zmir-pipeline=lower-evm-shaped
+@module ConstantSelectRecipes
+@phase memory-lowered
+
+fn @zero_right_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v1 = select arg0, arg1, 0
+    ret v1
+}
+
+fn @zero_left_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v1 = select arg0, 0, arg1
+    ret v1
+}
+
+fn @max_right_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v1 = select arg0, arg1, 115792089237316195423570985008687907853269984665640564039457584007913129639935
+    ret v1
+}
+
+fn @max_left_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v1 = select arg0, 115792089237316195423570985008687907853269984665640564039457584007913129639935, arg1
+    ret v1
+}
+
+fn @one_right_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v1 = select arg0, arg1, 1
+    ret v1
+}
+
+fn @one_left_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v1 = select arg0, 1, arg1
+    ret v1
+}
+
+fn @constant_right_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v1 = select arg0, arg1, 42
+    ret v1
+}
+
+fn @constant_left_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v1 = select arg0, 42, arg1
+    ret v1
+}
+
+fn @ascending_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v1 = select arg0, 42, 7
+    ret v1
+}
+
+fn @descending_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v1 = select arg0, 7, 42
+    ret v1
+}
+
+fn @wide_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v1 = select arg0, 57896044618658097711785492504343953926634992332820282019728792003956564819968, 7
+    ret v1
+}
+
+fn @variable_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v1 = select arg0, arg1, arg2
+    ret v1
+}
+
+fn @zero_right_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = iszero arg0
+    v1 = select v0, arg1, 0
+    ret v1
+}
+
+fn @zero_left_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = iszero arg0
+    v1 = select v0, 0, arg1
+    ret v1
+}
+
+fn @max_right_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = iszero arg0
+    v1 = select v0, arg1, 115792089237316195423570985008687907853269984665640564039457584007913129639935
+    ret v1
+}
+
+fn @max_left_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = iszero arg0
+    v1 = select v0, 115792089237316195423570985008687907853269984665640564039457584007913129639935, arg1
+    ret v1
+}
+
+fn @one_right_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = iszero arg0
+    v1 = select v0, arg1, 1
+    ret v1
+}
+
+fn @one_left_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = iszero arg0
+    v1 = select v0, 1, arg1
+    ret v1
+}
+
+fn @constant_right_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = iszero arg0
+    v1 = select v0, arg1, 42
+    ret v1
+}
+
+fn @constant_left_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = iszero arg0
+    v1 = select v0, 42, arg1
+    ret v1
+}
+
+fn @ascending_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = iszero arg0
+    v1 = select v0, 42, 7
+    ret v1
+}
+
+fn @descending_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = iszero arg0
+    v1 = select v0, 7, 42
+    ret v1
+}
+
+fn @wide_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = iszero arg0
+    v1 = select v0, 57896044618658097711785492504343953926634992332820282019728792003956564819968, 7
+    ret v1
+}
+
+fn @variable_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = iszero arg0
+    v1 = select v0, arg1, arg2
+    ret v1
+}
+
+fn @dirty_bool(arg0: bool, arg1: u256) -> u256 {
+  bb0:
+    v0 = select arg0, arg1, 0
+    ret v0
+}
+
+fn @pointer_arm(arg0: bool, arg1: memptr) -> u256 {
+  bb0:
+    v0 = select arg0, arg1, 0
+    ret v0
+}
