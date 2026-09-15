@@ -1,8 +1,0 @@
-error: sonatina backend: Sonatina native stack spills require a separate memory layout (scratch_spill v8 slot=0 addr=0x0)
-   ╭▸ ROOT/tests/ui/codegen/lowering/stack-too-deep/locals.sol:LL:CC
-   │
-LL │ contract StackTooDeepLocals {
-   ╰╴         ━━━━━━━━━━━━━━━━━━
-
-error: aborting due to 1 previous error
-

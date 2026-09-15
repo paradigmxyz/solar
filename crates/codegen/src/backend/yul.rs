@@ -6,40 +6,51 @@
 //! ABI, dispatch, and semantic memory lowering run before this backend. Data uses
 //! object sections; constructor values patch native Yul immutable relocations.
 //! Activation frames use the heap; multi-value returns publish a reserved buffer.
+//! Memory operands use the boundary returned by memoryguard, keeping native spills
+//! separate from contract memory without changing Solidity pointer values.
 
+use super::evm::EvmArtifact;
 use crate::mir::{
     BlockId, Function, InstKind, Module, Terminator, Value, ValueId, analysis::CallGraphInfo,
 };
 use alloy_primitives::hex;
+use solar_sema::Gcx;
 use std::fmt::Write;
 
-pub(super) fn lower(module: &Module) -> Result<String, String> {
+pub(super) fn compile(gcx: Gcx<'_>, module: &Module) -> Result<EvmArtifact, String> {
+    let text = lower(module)?;
+    let mut artifact = super::external::yul(gcx, module, &text)?;
+    artifact.backend_ir = Some(text);
+    Ok(artifact)
+}
+
+fn lower(module: &Module) -> Result<String, String> {
     let entry = module.dispatch_entry().ok_or("missing runtime entry")?;
     let staging = crate::mir::immutable::immutable_staging_base(module);
     let (return_base, args_base) = super::alternative::memory_layout(module);
     // codecopy(args_base, datasize(Contract), codesize() - datasize(Contract))
-    // mstore(64, ceil32(args_base + argument_size)); constructor()
-    let mut out = format!("object \"Contract\" {{ code {{\nmstore(64, {args_base})\n");
+    // mstore(physical(64), ceil32(args_base + argument_size)); constructor()
+    let mut out = format!("object \"Contract\" {{ code {{\nmstore(physical(64), {args_base})\n");
     let constructor = module
         .functions
         .iter_enumerated()
         .find(|(_, f)| f.attributes.is_constructor)
         .map(|(id, _)| id);
     if let Some(id) = module.library_deploy_address() {
-        writeln!(out, "mstore({}, address())", staging + id.index() as u64 * 32).unwrap();
+        writeln!(out, "mstore(physical({}), address())", staging + id.index() as u64 * 32).unwrap();
     }
     if let Some(id) = constructor {
-        writeln!(out, "let argsize := sub(codesize(), datasize(\"Contract\"))\ncodecopy({args_base}, datasize(\"Contract\"), argsize)\nmstore(64, and(add(add({args_base}, argsize), 31), not(31)))\nf{}({})", id.index(), (0..module.functions[id].params.len()).map(|i| format!("mload({})", args_base + i as u64 * 32)).collect::<Vec<_>>().join(", ")).unwrap();
+        writeln!(out, "let argsize := sub(codesize(), datasize(\"Contract\"))\ncodecopy(physical({args_base}), datasize(\"Contract\"), argsize)\nmstore(physical(64), and(add(add({args_base}, argsize), 31), not(31)))\nf{}({})", id.index(), (0..module.functions[id].params.len()).map(|i| format!("mload(physical({}))", args_base + i as u64 * 32)).collect::<Vec<_>>().join(", ")).unwrap();
     } else if !module.is_library {
         out.push_str("if callvalue() { revert(0, 0) }\n");
     }
     // datacopy(deploy, Runtime, sizeof(Runtime)); setimmutable(deploy, id, staged_value)
     // return(deploy, sizeof(Runtime))
-    out.push_str("let deploy := mload(64)\ndatacopy(deploy, dataoffset(\"Runtime\"), datasize(\"Runtime\"))\n");
+    out.push_str("let deploy := physical(mload(physical(64)))\ndatacopy(deploy, dataoffset(\"Runtime\"), datasize(\"Runtime\"))\n");
     for (id, _) in module.iter_immutables() {
         writeln!(
             out,
-            "setimmutable(deploy, \"i{}\", mload({}))",
+            "setimmutable(deploy, \"i{}\", mload(physical({})))",
             id.index(),
             staging + id.index() as u64 * 32
         )
@@ -59,7 +70,7 @@ pub(super) fn lower(module: &Module) -> Result<String, String> {
     data(module, &mut out);
     writeln!(
         out,
-        "object \"Runtime\" {{ code {{ mstore(64, {args_base}) f{}() stop()",
+        "object \"Runtime\" {{ code {{ mstore(physical(64), {args_base}) f{}() stop()",
         entry.index()
     )
     .unwrap();
@@ -98,6 +109,9 @@ fn functions(
     if let Some(root) = root {
         reachable.insert(root);
     }
+    // base = memoryguard(0); address = saturating_add(logical, base)
+    // size = max(msize - base, 0)
+    out.push_str("function physical(p) -> a { a := add(p, memoryguard(0)) if lt(a, p) { a := not(0) } }\nfunction memory_size() -> r { let base := memoryguard(0) let size := msize() if gt(size, base) { r := sub(size, base) } }\n");
     // select(cond, yes, no) -> switch cond { case 0: no; default: yes }
     out.push_str("function choose(c, a, b) -> r { r := b if c { r := a } }\n");
     for id in reachable.iter() {
@@ -121,15 +135,19 @@ fn functions(
         out.push_str(" {\n");
         let frame_size = super::alternative::frame_size(f);
         if frame_size != 0 {
-            // frame := mload(64); mstore(64, frame + activation_size)
-            writeln!(out, "let frame := mload(64) mstore(64, add(frame, {frame_size}))").unwrap();
+            // frame := mload(physical(64)); mstore(physical(64), frame + activation_size)
+            writeln!(
+                out,
+                "let frame := mload(physical(64)) mstore(physical(64), add(frame, {frame_size}))"
+            )
+            .unwrap();
         }
         if constructor && f.params.is_empty() && f.attributes.is_constructor {
             // aN := mload(args_base + 32 * argument_index)
             for arg in f.arg_indices() {
                 writeln!(
                     out,
-                    "let a{} := mload({})",
+                    "let a{} := mload(physical({}))",
                     arg.index(),
                     args_base + arg.index() as u64 * 32
                 )
@@ -189,13 +207,13 @@ fn functions(
                         for (i, &v) in values.iter().enumerate() {
                             writeln!(
                                 out,
-                                "mstore({}, {})",
+                                "mstore(physical({}), {})",
                                 return_base + i as u64 * 32,
                                 value(f, v)?
                             )
                             .unwrap();
                         }
-                        writeln!(out, "mstore(32, {return_base})").unwrap();
+                        writeln!(out, "mstore(physical(32), {return_base})").unwrap();
                     }
                     for (i, &v) in values.iter().take(1).enumerate() {
                         writeln!(out, "r{i} := {}", value(f, v)?).unwrap();
@@ -220,13 +238,13 @@ fn functions(
                     out.push_str("stop()\n");
                 }
                 Terminator::ReturnData { offset, size } => {
-                    writeln!(out, "return({}, {})", value(f, *offset)?, value(f, *size)?).unwrap()
+                    writeln!(out, "return(physical({}), {})", value(f, *offset)?, value(f, *size)?).unwrap()
                 }
                 Terminator::Revert { offset, size } => {
-                    writeln!(out, "revert({}, {})", value(f, *offset)?, value(f, *size)?).unwrap()
+                    writeln!(out, "revert(physical({}), {})", value(f, *offset)?, value(f, *size)?).unwrap()
                 }
                 Terminator::RevertReturndata => out.push_str(
-                    "returndatacopy(0, 0, returndatasize()) revert(0, returndatasize())\n",
+                    "returndatacopy(physical(0), 0, returndatasize()) revert(physical(0), returndatasize())\n",
                 ),
                 Terminator::Stop => out.push_str("leave\n"),
                 Terminator::Invalid => out.push_str("invalid()\n"),
@@ -285,7 +303,31 @@ fn expression(
     args_base: u64,
 ) -> Result<String, String> {
     // result := opcode(operands).
-    let args = inst.operands().iter().map(|&v| value(f, v)).collect::<Result<Vec<_>, _>>()?;
+    let mut args = inst.operands().iter().map(|&v| value(f, v)).collect::<Result<Vec<_>, _>>()?;
+    let addresses: &[usize] = match inst {
+        InstKind::MLoad(..)
+        | InstKind::MStore(..)
+        | InstKind::MStore8(..)
+        | InstKind::CalldataCopy(..)
+        | InstKind::CodeCopy(..)
+        | InstKind::ReturnDataCopy(..)
+        | InstKind::DataCopy(..)
+        | InstKind::Keccak256(..)
+        | InstKind::Log0(..)
+        | InstKind::Log1(..)
+        | InstKind::Log2(..)
+        | InstKind::Log3(..)
+        | InstKind::Log4(..) => &[0],
+        InstKind::MCopy(..) => &[0, 1],
+        InstKind::Create(..) | InstKind::Create2(..) | InstKind::ExtCodeCopy(..) => &[1],
+        InstKind::Call { .. } | InstKind::CallCode { .. } => &[3, 5],
+        InstKind::StaticCall { .. } | InstKind::DelegateCall { .. } => &[2, 4],
+        _ => &[],
+    };
+    // memory_op(logical_address, ...) -> memory_op(physical(logical_address), ...)
+    for &index in addresses {
+        args[index] = format!("physical({})", args[index]);
+    }
     let name = match inst {
         InstKind::DataCopy(data, ..) => {
             return Ok(format!(
@@ -301,20 +343,25 @@ fn expression(
             return Ok(format!("add({args_base}, sub(codesize(), datasize(\"Contract\")))"));
         }
         InstKind::StoreImmutable(id, _) if constructor => {
-            return Ok(format!("mstore({}, {})", staging + id.index() as u64 * 32, args[0]));
+            return Ok(format!(
+                "mstore(physical({}), {})",
+                staging + id.index() as u64 * 32,
+                args[0]
+            ));
         }
         InstKind::LoadImmutable(id) => {
             return Ok(if constructor {
-                format!("mload({})", staging + id.index() as u64 * 32)
+                format!("mload(physical({}))", staging + id.index() as u64 * 32)
             } else {
                 format!("loadimmutable(\"i{}\")", id.index())
             });
         }
         InstKind::InternalFrameAddr(offset) => return Ok(format!("add(frame, {offset})")),
         InstKind::Select(..) => "choose",
+        InstKind::MSize => return Ok("memory_size()".into()),
         InstKind::Shl(..) | InstKind::Shr(..) | InstKind::Sar(..) => inst.mnemonic(),
-        InstKind::Fmp => return Ok("mload(64)".into()),
-        InstKind::SetFmp(_) => return Ok(format!("mstore(64, {})", args[0])),
+        InstKind::Fmp => return Ok("mload(physical(64))".into()),
+        InstKind::SetFmp(_) => return Ok(format!("mstore(physical(64), {})", args[0])),
         InstKind::ICall { function, .. } => {
             return Ok(format!("f{}({})", function.index(), args.join(", ")));
         }
@@ -343,7 +390,6 @@ fn expression(
         | InstKind::MLoad(..)
         | InstKind::MStore(..)
         | InstKind::MStore8(..)
-        | InstKind::MSize
         | InstKind::MCopy(..)
         | InstKind::SLoad(..)
         | InstKind::SStore(..)

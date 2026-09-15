@@ -33,3 +33,6 @@ mod sir;
 
 #[cfg(feature = "codegen-llvm")]
 pub mod llvm;
+
+#[cfg(any(feature = "codegen-sonatina", feature = "codegen-sir", feature = "codegen-llvm"))]
+mod memory;

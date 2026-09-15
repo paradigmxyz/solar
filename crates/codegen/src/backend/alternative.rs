@@ -29,12 +29,7 @@ pub(crate) fn compile(gcx: Gcx<'_>, module: &mut Module) -> EvmArtifact {
     } else {
         match gcx.sess.opts.codegen_backend {
             #[cfg(feature = "codegen-yul")]
-            CodegenBackend::Yul => super::yul::lower(module).and_then(|text| {
-                super::external::yul(gcx, module, &text).map(|mut artifact| {
-                    artifact.backend_ir = Some(text);
-                    artifact
-                })
-            }),
+            CodegenBackend::Yul => super::yul::compile(gcx, module),
             #[cfg(feature = "codegen-sonatina")]
             CodegenBackend::Sonatina
                 if gcx.sess.opts.evm_version == solar_config::EvmVersion::Osaka =>

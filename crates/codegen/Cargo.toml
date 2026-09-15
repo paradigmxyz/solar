@@ -42,6 +42,7 @@ sonatina-parser = { git = "https://github.com/fe-lang/sonatina", rev = "8e6c99f6
 # codegen-sir
 sir-parser = { git = "https://github.com/plankevm/plank-monorepo", rev = "fb3c5d7c6eb99e3b88d034aba0655ab81a6273ed", optional = true }
 sir-passes = { git = "https://github.com/plankevm/plank-monorepo", rev = "fb3c5d7c6eb99e3b88d034aba0655ab81a6273ed", optional = true }
+sir-static-memory-allocator = { git = "https://github.com/plankevm/plank-monorepo", rev = "fb3c5d7c6eb99e3b88d034aba0655ab81a6273ed", optional = true }
 sir-stack-scheduling = { git = "https://github.com/plankevm/plank-monorepo", rev = "fb3c5d7c6eb99e3b88d034aba0655ab81a6273ed", optional = true }
 sir-release-backend = { git = "https://github.com/plankevm/plank-monorepo", rev = "fb3c5d7c6eb99e3b88d034aba0655ab81a6273ed", optional = true }
 bumpalo = { workspace = true, optional = true }
@@ -57,7 +58,7 @@ tempfile.workspace = true
 [features]
 codegen-yul = ["dep:serde_json"]
 codegen-sonatina = ["dep:sonatina-codegen", "dep:sonatina-parser", "dep:sonatina-ir"]
-codegen-sir = ["dep:sir-parser", "dep:sir-passes", "dep:sir-release-backend", "dep:sir-stack-scheduling", "dep:bumpalo"]
+codegen-sir = ["dep:sir-parser", "dep:sir-passes", "dep:sir-release-backend", "dep:sir-stack-scheduling", "dep:sir-static-memory-allocator", "dep:bumpalo"]
 codegen-llvm = ["dep:inkwell", "dep:serde", "dep:serde_json"]
 nightly = [
     "solar-ast/nightly",

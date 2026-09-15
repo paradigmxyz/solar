@@ -49,11 +49,11 @@
               "A.sol": {
                 "Lib": [
                   {
-                    "start": 284,
+                    "start": 476,
                     "length": 20
                   },
                   {
-                    "start": 728,
+                    "start": 1139,
                     "length": 20
                   }
                 ]
@@ -65,7 +65,7 @@
               "A.sol": {
                 "Lib": [
                   {
-                    "start": 297,
+                    "start": 473,
                     "length": 20
                   }
                 ]

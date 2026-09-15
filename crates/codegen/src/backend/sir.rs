@@ -6,7 +6,8 @@
 //! compiled first, then embedded as a data segment in the constructor program.
 //! Activation frames use the heap and tuple results use a reserved return area.
 //! Immutable words follow native runtime code and are patched during deployment.
-//! The upstream compiler still rejects recursion and unisolated native spills.
+//! Native spills occupy a measured prefix below translated contract memory.
+//! The upstream compiler still rejects recursion.
 
 use super::evm::EvmArtifact;
 use crate::mir::{
@@ -14,7 +15,8 @@ use crate::mir::{
     immutable::immutable_staging_base,
 };
 use alloy_primitives::hex;
-use sir_stack_scheduling::{ScheduleConfig, stack::StackOps};
+use sir_stack_scheduling::ScheduleConfig;
+use sir_static_memory_allocator::BumpAllocateAll;
 use solar_config::OptimizationMode;
 use std::fmt::Write;
 
@@ -22,35 +24,58 @@ pub(super) fn compile(
     module: &Module,
     optimization: OptimizationMode,
 ) -> Result<EvmArtifact, String> {
+    let mut base = 0;
+    for _ in 0..16 {
+        let translated = super::memory::translate(module, base);
+        let mut required = base;
+        let artifact = compile_with_memory(&translated, optimization, base, &mut required)?;
+        if required <= base {
+            return Ok(artifact);
+        }
+        base = required;
+    }
+    Err("SIR spill layout did not stabilize".into())
+}
+
+fn compile_with_memory(
+    module: &Module,
+    optimization: OptimizationMode,
+    base: u64,
+    required: &mut u64,
+) -> Result<EvmArtifact, String> {
+    let fmp = base + 64;
     let (return_base, heap) = super::alternative::memory_layout(module);
     let entry = module.dispatch_entry().ok_or("missing runtime entry")?;
-    let mut functions = functions(module, false, return_base, heap)?;
+    let mut functions = functions(module, false, return_base, heap, base)?;
     // runtime: mstore(64, heap); call dispatch; stop
     let runtime_text = format!(
-        "fn init:\nentry {{\nmstore256 64 {heap}\nicall @f{}\nstop\n}}\n{functions}",
+        "fn init:\nentry {{\nmstore256 {fmp} {heap}\nicall @f{}\nstop\n}}\n{functions}",
         entry.index()
     );
-    let mut runtime = assemble(&runtime_text, optimization)?;
+    let mut runtime = assemble(&runtime_text, optimization, base, required)?;
+    if *required > base {
+        return Ok(EvmArtifact::default());
+    }
     let immutable_references = super::alternative::append_immutable_data(module, &mut runtime);
-    functions = self::functions(module, true, return_base, heap)?;
+    functions = self::functions(module, true, return_base, heap, base)?;
     // init: constructor(); codecopy(deploy, runtime_data, runtime_length); return(deploy, runtime_length)
-    let mut init = format!("fn init:\nentry {{\nmstore256 64 {heap}\n");
+    let mut init = format!("fn init:\nentry {{\nmstore256 {fmp} {heap}\n");
     if let Some(id) = module.library_deploy_address() {
         // address = address; mstore staging[id] address
         writeln!(
             init,
             "address = address\nmstore256 {} address",
-            immutable_staging_base(module) + id.index() as u64 * 32
+            base + immutable_staging_base(module) + id.index() as u64 * 32
         )
         .unwrap();
     }
     if let Some((id, _)) =
         module.functions.iter_enumerated().find(|(_, f)| f.attributes.is_constructor)
     {
-        // end = init_end_offset; size = codesize - end; codecopy ARGS_BASE end size; mstore 64 ceil32(ARGS_BASE + size)
-        init.push_str("end = init_end_offset\ntotal = codesize\nsize = sub total end\ncodecopy ARGS_BASE end size\nrounded = add size ARGS_ROUND\nfree = and rounded 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0\nmstore256 64 free\n");
+        // end = init_end_offset; size = codesize - end; codecopy ARGS_PHYSICAL end size; mstore 64 ceil32(ARGS_BASE + size)
+        init.push_str("end = init_end_offset\ntotal = codesize\nsize = sub total end\ncodecopy ARGS_PHYSICAL end size\nrounded = add size ARGS_ROUND\nfree = and rounded 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0\nmstore256 FMP_SLOT free\n");
         for i in 0..module.functions[id].params.len() {
-            writeln!(init, "arg{i} = mload256 {}", heap + i as u64 * 32).unwrap();
+            writeln!(init, "arg{i} = mload256 {}", base + heap + i as u64 * 32).unwrap();
         }
         writeln!(
             init,
@@ -67,18 +92,20 @@ pub(super) fn compile(
         init.push_str("value = callvalue\n=> value ? @reject : @deploy\n}\nreject {\nrevert 0 0\n}\ndeploy {\n");
     }
     // deploy = mload256 64; codecopy deploy runtime size; patch each immutable word
-    writeln!(
-        init,
-        "deploy = mload256 64\noffset = data_offset .runtime\ncodecopy deploy offset {}",
-        runtime.len()
-    )
-    .unwrap();
+    if base == 0 {
+        init.push_str("deploy = mload256 64\n");
+    } else {
+        // deploy = logical + base; overflow -> invalid; otherwise copy runtime
+        writeln!(init, "logical_deploy = mload256 {fmp}\ndeploy = add logical_deploy {base}\noverflow = lt deploy logical_deploy\n=> overflow ? @overflow : @copy_runtime\n}}\noverflow {{\ninvalid\n}}\ncopy_runtime {{").unwrap();
+    }
+    writeln!(init, "offset = data_offset .runtime\ncodecopy deploy offset {}", runtime.len())
+        .unwrap();
     for reference in &immutable_references {
         let id = reference.id.index();
         writeln!(
             init,
             "imm{id} = mload256 {}\npatch{id} = add deploy {}\nmstore256 patch{id} imm{id}",
-            immutable_staging_base(module) + id as u64 * 32,
+            base + immutable_staging_base(module) + id as u64 * 32,
             reference.code_offset + 1
         )
         .unwrap();
@@ -92,9 +119,11 @@ pub(super) fn compile(
     .unwrap();
     let init = init
         .replace("ARGS_BASE", &heap.to_string())
+        .replace("ARGS_PHYSICAL", &(base + heap).to_string())
+        .replace("FMP_SLOT", &fmp.to_string())
         .replace("ARGS_ROUND", &(heap + 31).to_string());
     Ok(EvmArtifact {
-        deployment: assemble(&init, optimization)?,
+        deployment: assemble(&init, optimization, base, required)?,
         runtime,
         immutable_references,
         backend_ir: Some(format!("// Runtime\n{runtime_text}\n// Deployment\n{init}")),
@@ -107,6 +136,7 @@ fn functions(
     constructor: bool,
     return_base: u64,
     heap: u64,
+    base: u64,
 ) -> Result<String, String> {
     let root = if constructor {
         module
@@ -123,7 +153,15 @@ fn functions(
     }
     let mut text = String::new();
     for id in reachable.iter() {
-        function(module, &module.functions[id], id.index(), constructor, return_base, &mut text)?;
+        function(
+            module,
+            &module.functions[id],
+            id.index(),
+            constructor,
+            return_base,
+            base,
+            &mut text,
+        )?;
     }
     // data dN 0xbytes
     for (id, bytes) in module.iter_data() {
@@ -132,7 +170,12 @@ fn functions(
     Ok(text.replace("ARGS_BASE", &heap.to_string()))
 }
 
-fn assemble(text: &str, optimization: OptimizationMode) -> Result<Vec<u8>, String> {
+fn assemble(
+    text: &str,
+    optimization: OptimizationMode,
+    base: u64,
+    required: &mut u64,
+) -> Result<Vec<u8>, String> {
     let arena = bumpalo::Bump::new();
     let ast =
         sir_parser::parse(text, &arena).map_err(|e| format!("invalid generated SIR: {e:?}"))?;
@@ -147,15 +190,33 @@ fn assemble(text: &str, optimization: OptimizationMode) -> Result<Vec<u8>, Strin
     }
     passes.run_legalize().map_err(|e| format!("illegal generated SIR: {e}"))?;
     let analyses = passes.into_store();
-    // NOTE: The upstream allocator starts at address zero. Reject spills rather
-    // than overwrite Solidity memory; switch lowering below also avoids scratch.
-    let (ops, _, _) =
+    if program.next_static_alloc_id.const_get() != 0 {
+        return Err("unexpected native allocation in SIR".into());
+    }
+    // All source allocations have become raw memory operations. Native static
+    // allocations are word-sized spills; the layout also accounts for any
+    // switch scratch introduced by native legalization.
+    let (ops, _, last_alloc) =
         sir_stack_scheduling::schedule(&program, &analyses, ScheduleConfig::PRE_AMSTERDAM);
-    if ops
-        .enumerate_idx()
-        .any(|(_, ops)| ops.iter().any(|op| matches!(op, StackOps::Store(_) | StackOps::Load(_))))
-    {
-        return Err("SIR stack spills require a separate memory layout".into());
+    let layout = BumpAllocateAll::generate(
+        &program,
+        program.init_entry,
+        &ops,
+        last_alloc.const_get() as usize,
+    );
+    if layout.dyn_free_pointer.is_some() {
+        return Err("unexpected native dynamic allocation in SIR".into());
+    }
+    let end = layout
+        .alloc_start
+        .values()
+        .map(|addr| u64::from(addr.get()) + 32)
+        .chain(layout.switch_store.map(|addr| u64::from(addr.get()) + 32))
+        .max()
+        .unwrap_or(0);
+    *required = (*required).max(end);
+    if *required > base {
+        return Ok(Vec::new());
     }
     let mut bytes = Vec::new();
     sir_release_backend::ir_to_bytecode(&program, &analyses, &mut bytes);
@@ -168,8 +229,11 @@ fn function(
     id: usize,
     constructor: bool,
     return_base: u64,
+    base: u64,
     out: &mut String,
 ) -> Result<(), String> {
+    let fmp = base + 64;
+    let return_slot = base + 32;
     let mut lazy = String::new();
     if f.params.is_empty() {
         // aN = calldataload (4 + 32 * argument_index)
@@ -182,10 +246,10 @@ fn function(
     }
     let frame_size = super::alternative::frame_size(f);
     if frame_size != 0 {
-        // frame = mload256 64; free = add frame activation_size; mstore256 64 free
+        // frame = mload256 {fmp}; free = add frame activation_size; mstore256 FMP_SLOT free
         writeln!(
             lazy,
-            "frame = mload256 64\nframe_end = add frame {frame_size}\nmstore256 64 frame_end"
+            "frame = mload256 {fmp}\nframe_end = add frame {frame_size}\nmstore256 {fmp} frame_end"
         )
         .unwrap();
     }
@@ -226,12 +290,12 @@ fn function(
                     writeln!(
                         out,
                         "v{result} = mload256 {}",
-                        immutable_staging_base(module) + id.index() as u64 * 32
+                        base + immutable_staging_base(module) + id.index() as u64 * 32
                     )
                     .unwrap();
                 } else {
                     // saved = mload256 0; codecopy 0 (codesize - tail_offset) 32; result = mload256 0; mstore256 0 saved
-                    writeln!(out, "saved{result} = mload256 0\ntotal{result} = codesize\noffset{result} = sub total{result} {}\ncodecopy 0 offset{result} 32\nv{result} = mload256 0\nmstore256 0 saved{result}", (module.immutable_count() - id.index()) * 33 - 1 + super::alternative::runtime_tail_size(module)).unwrap();
+                    writeln!(out, "saved{result} = mload256 {base}\ntotal{result} = codesize\noffset{result} = sub total{result} {}\ncodecopy {base} offset{result} 32\nv{result} = mload256 {base}\nmstore256 {base} saved{result}", (module.immutable_count() - id.index()) * 33 - 1 + super::alternative::runtime_tail_size(module)).unwrap();
                 }
                 continue;
             }
@@ -279,11 +343,11 @@ fn function(
                 InstKind::MLoad(..) => "mload256".into(),
                 InstKind::MStore(..) => "mstore256".into(),
                 InstKind::Fmp => {
-                    args.push("64".into());
+                    args.push(fmp.to_string());
                     "mload256".into()
                 }
                 InstKind::SetFmp(..) => {
-                    args.insert(0, "64".into());
+                    args.insert(0, fmp.to_string());
                     "mstore256".into()
                 }
                 InstKind::ICall { function, .. } => {
@@ -417,10 +481,10 @@ fn function(
                 if values.len() > 1 {
                     // mstore256(return_base + 32 * i, result_i); mstore256(32, return_base)
                     for (i, &v) in values.iter().enumerate() {
-                        writeln!(out, "mstore256 {} {}", return_base + i as u64 * 32, value(f, v)?)
+                        writeln!(out, "mstore256 {} {}", base + return_base + i as u64 * 32, value(f, v)?)
                             .unwrap();
                     }
-                    writeln!(out, "mstore256 32 {return_base}").unwrap();
+                    writeln!(out, "mstore256 {return_slot} {return_base}").unwrap();
                 }
                 for (i, &v) in values.iter().take(1).enumerate() {
                     writeln!(out, "r{}_{} = copy {}", bid.index(), i, value(f, v)?).unwrap();
@@ -452,9 +516,9 @@ fn function(
                 writeln!(out, "selfdestruct {}", value(f, *recipient)?).unwrap()
             }
             // size = returndatasize; returndatacopy 0 0 size; revert 0 size
-            Terminator::RevertReturndata => out.push_str(
-                "returndata = returndatasize\nreturndatacopy 0 0 returndata\nrevert 0 returndata\n",
-            ),
+            Terminator::RevertReturndata => writeln!(out,
+                "returndata = returndatasize\nreturndatacopy {base} 0 returndata\nrevert {base} returndata"
+            ).unwrap(),
         }
         out.push_str("}\n");
         let mut successors = Vec::new();

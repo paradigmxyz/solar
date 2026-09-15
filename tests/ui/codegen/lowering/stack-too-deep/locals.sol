@@ -1,11 +1,74 @@
-//@ revisions: default sonatina
+//@ revisions: default yul yul_gas yul_size sonatina sir llvm sonatina_gas sir_gas llvm_gas sonatina_size sir_size llvm_size
 //@[default] compile-flags: -Zdump=evm-ir-runtime --pretty-json
 //@[default] filecheck:
-//@[sonatina] compile-flags: --codegen-backend sonatina --emit=bin
+//@[yul] compile-flags: --codegen-backend yul -Onone
+//@[yul_gas] compile-flags: --codegen-backend yul -Ogas
+//@[yul_size] compile-flags: --codegen-backend yul -Osize
+//@[sonatina] compile-flags: --codegen-backend sonatina -Onone
+//@[sir] compile-flags: --codegen-backend sir -Onone
+//@[llvm] compile-flags: --codegen-backend llvm -Onone
+//@[sonatina_gas] compile-flags: --codegen-backend sonatina -Ogas
+//@[sir_gas] compile-flags: --codegen-backend sir -Ogas
+//@[llvm_gas] compile-flags: --codegen-backend llvm -Ogas
+//@[sonatina_size] compile-flags: --codegen-backend sonatina -Osize
+//@[sir_size] compile-flags: --codegen-backend sir -Osize
+//@[llvm_size] compile-flags: --codegen-backend llvm -Osize
+//@ run-call: sum 1; constructor=[42] => 253
+//@ run-call: sum 7; constructor=[42] => 385
+//@ run-call: memoryProbe 0; constructor=[42] => 42
+//@ run-call: memoryProbe 32; constructor=[42] => 42
+//@ run-call: memoryProbe 224; constructor=[42] => 42
+//@ run-call: memoryProbe 65536; constructor=[42] => 42
+//@ run-call-fail: memoryProbe 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff; constructor=[42]
+//@ run-call: zeroCopy 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0; constructor=[42] => 42
+//@ run-call: dataByte 0; constructor=[42] => 171
+//@ run-call: dataByte 300; constructor=[42] => 42
+//@ run-call: echo 123; constructor=[42] => 123
+//@ run-call: virgin 0; constructor=[42] => 0
+//@ run-call: virgin 32; constructor=[42] => 0
 // solc 0.8.30 without --via-ir reports `Stack too deep` for this contract.
 pragma solidity ^0.8.0;
 
-contract StackTooDeepLocals { //~[sonatina] ERROR: Sonatina native stack spills require a separate memory layout
+contract StackTooDeepLocals {
+    uint256 immutable marker;
+
+    constructor(uint256 n) { marker = n; }
+
+    function virgin(uint256 offset) external pure returns (uint256 result) {
+        assembly { result := mload(offset) }
+    }
+
+    function memoryProbe(uint256 offset) external view returns (uint256 result) {
+        uint256 expected = marker;
+        assembly {
+            mstore(offset, expected)
+            result := mload(offset)
+        }
+    }
+
+    function zeroCopy(uint256 offset, uint256 size) external view returns (uint256) {
+        assembly {
+            calldatacopy(offset, 0, size)
+            returndatacopy(offset, 0, size)
+            mcopy(offset, offset, size)
+        }
+        return marker;
+    }
+
+    function dataByte(uint256 index) external pure returns (uint8) {
+        bytes memory data = hex"abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab2a";
+        return uint8(data[index]);
+    }
+
+    function echo(uint256 value) external view returns (uint256 result) {
+        assembly {
+            let p := mload(0x40)
+            mstore(p, value)
+            if iszero(staticcall(gas(), 4, p, 32, p, 32)) { revert(0, 0) }
+            result := mload(p)
+        }
+    }
+
     // CHECK-LABEL: @module StackTooDeepLocals_runtime
     // CHECK: push 0x188b85b4
     // CHECK: eq

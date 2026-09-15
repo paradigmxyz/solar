@@ -6,7 +6,8 @@
 //! currently requires Osaka. Native data symbols address embedded contracts;
 //! immutable words follow runtime code and are patched during deployment.
 //! Activation frames use the heap and tuple results use a reserved return area.
-//! Native spills are rejected because their memory can overlap Solidity allocations.
+//! Native spill storage occupies a measured prefix below translated contract memory.
+//! Recursive native frames still need a dynamic allocation protocol.
 
 use super::evm::EvmArtifact;
 use crate::mir::{
@@ -19,26 +20,56 @@ use sonatina_codegen::{
     machinst::lower::SectionWorkModule,
     stackalloc::StackifySearchProfile,
 };
+use sonatina_ir::{
+    AccessLoc, Type,
+    inst::{
+        Inst,
+        arith::Add,
+        data::{SymAddr, SymbolRef},
+    },
+    ir_writer::ModuleWriter,
+    isa::evm::space::MEMORY,
+};
 use std::fmt::Write;
 
 pub(super) fn compile(
     module: &Module,
     optimization: OptimizationMode,
 ) -> Result<EvmArtifact, String> {
-    let runtime_text = lower(module, None)?;
-    let mut runtime = assemble(&runtime_text, optimization)?;
-    let immutable_references = super::alternative::append_immutable_data(module, &mut runtime);
-    let text = lower(module, Some(&runtime))?;
-    Ok(EvmArtifact {
-        deployment: assemble(&text, optimization)?,
-        runtime,
-        immutable_references,
-        backend_ir: Some(format!("// Runtime\n{runtime_text}\n// Deployment\n{text}")),
-        ..Default::default()
-    })
+    let mut base = 0;
+    for _ in 0..16 {
+        let translated = super::memory::translate(module, base);
+        let mut runtime_text = lower(&translated, None, base)?;
+        let mut required = base;
+        let mut runtime = assemble(&mut runtime_text, optimization, base, &mut required)?;
+        if required > base {
+            base = required;
+            continue;
+        }
+        let immutable_references = super::alternative::append_immutable_data(module, &mut runtime);
+        let mut text = lower(&translated, Some(&runtime), base)?;
+        let deployment = assemble(&mut text, optimization, base, &mut required)?;
+        if required > base {
+            base = required;
+            continue;
+        }
+        return Ok(EvmArtifact {
+            deployment,
+            runtime,
+            immutable_references,
+            backend_ir: Some(format!("// Runtime\n{runtime_text}\n// Deployment\n{text}")),
+            ..Default::default()
+        });
+    }
+    Err("Sonatina spill layout did not stabilize".into())
 }
 
-fn assemble(text: &str, optimization: OptimizationMode) -> Result<Vec<u8>, String> {
+fn assemble(
+    text: &mut String,
+    optimization: OptimizationMode,
+    base: u64,
+    required: &mut u64,
+) -> Result<Vec<u8>, String> {
     let parsed = sonatina_parser::parse_module(text)
         .map_err(|e| format!("invalid generated Sonatina IR: {e:?}"))?;
     let level = match optimization {
@@ -48,6 +79,12 @@ fn assemble(text: &str, optimization: OptimizationMode) -> Result<Vec<u8>, Strin
     };
     let mut compiler = sonatina_codegen::EvmCompile::new(parsed.module).with_opt_level(level);
     let module = compiler.optimize();
+    if base != 0 {
+        defer_memory_addresses(module);
+        let mut bytes = Vec::new();
+        ModuleWriter::new(module).write(&mut bytes).map_err(|e| e.to_string())?;
+        *text = String::from_utf8(bytes).map_err(|e| e.to_string())?;
+    }
     let backend = EvmBackend::new(sonatina_ir::isa::evm::Evm::new(module.ctx.triple))
         .with_late_cleanup_profile(match level {
             sonatina_codegen::OptLevel::O0 => LateCleanupProfile::Off,
@@ -71,21 +108,34 @@ fn assemble(text: &str, optimization: OptimizationMode) -> Result<Vec<u8>, Strin
         .ok_or("missing Sonatina entry")?;
     let prepared =
         backend.prepare_section(SectionWorkModule::from_roots(module, entry, &[], &[]))?;
-    // NOTE: The pinned compiler exposes spill placement through its memory-plan
-    // snapshot. Its native arena and fixed scratch slots are not isolated from
-    // Solidity memory. Reject spills before emitting a possibly corrupt artifact.
+    // The pinned public snapshot exposes the exact static bound; dynamic
+    // recursive frames have no finite prefix and need a separate heap protocol.
     let plan = backend.snapshot_mem_plan_detail(&prepared);
-    if !plan.starts_with("evm mem plan: ") {
-        return Err("unrecognized Sonatina memory plan".into());
-    }
-    if let Some(spill) = plan
+    let bound = plan
+        .strip_prefix("evm mem plan: global_dyn_base=0x")
+        .and_then(|s| s.split_whitespace().next())
+        .and_then(|s| u64::from_str_radix(s, 16).ok())
+        .ok_or("unrecognized Sonatina memory plan")?;
+    let arena = plan
+        .lines()
+        .next()
+        .and_then(|line| {
+            line.split_whitespace().find_map(|word| word.strip_prefix("arena_base=0x"))
+        })
+        .and_then(|s| u64::from_str_radix(s, 16).ok())
+        .ok_or("unrecognized Sonatina arena bound")?;
+    let spills = plan
         .lines()
         .map(str::trim_start)
-        .find(|line| line.starts_with("spill ") || line.starts_with("scratch_spill "))
-    {
-        return Err(format!(
-            "Sonatina native stack spills require a separate memory layout ({spill})"
-        ));
+        .any(|line| line.starts_with("spill ") || line.starts_with("scratch_spill "));
+    if spills || bound > arena {
+        if plan.lines().any(|line| line.contains("stable_mode=DynamicFrame")) {
+            return Err("Sonatina recursive spills require dynamic native frames".into());
+        }
+        *required = (*required).max(bound);
+    }
+    if *required > base {
+        return Ok(Vec::new());
     }
     let artifacts = compiler.compile().map_err(|e| format!("Sonatina codegen failed: {e:?}"))?;
     let object = artifacts.first().ok_or("Sonatina produced no object")?;
@@ -97,8 +147,74 @@ fn assemble(text: &str, optimization: OptimizationMode) -> Result<Vec<u8>, Strin
         .ok_or("missing Sonatina code section".into())
 }
 
-fn lower(module: &Module, runtime: Option<&[u8]>) -> Result<String, String> {
+// Each independently linked code section starts at zero. Keeping fixed memory
+// addresses section-relative until linking prevents the native reservation scan
+// from moving its arena above contract memory. The measured arena must still fit
+// entirely below the translated contract prefix before emission is allowed.
+fn defer_memory_addresses(module: &sonatina_ir::Module) {
+    for fid in module.funcs() {
+        module.func_store.modify(fid, |f| {
+            let blocks = f.layout.iter_block().collect::<Vec<_>>();
+            for block in blocks {
+                let instructions = f.layout.iter_inst(block).collect::<Vec<_>>();
+                for id in instructions {
+                    let mut addresses = f
+                        .dfg
+                        .effects(id)
+                        .accesses
+                        .iter()
+                        .filter(|access| access.space == MEMORY)
+                        .filter_map(|access| match access.loc {
+                            AccessLoc::LinearExact { addr, .. }
+                            | AccessLoc::LinearRange { addr, .. }
+                                if f.dfg.value_is_imm(addr) =>
+                            {
+                                Some(addr)
+                            }
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>();
+                    addresses.sort_unstable();
+                    addresses.dedup();
+                    for address in addresses {
+                        // zero = sym_addr .; relocated = add zero address; memory_op relocated
+                        let symbol =
+                            SymAddr::new_unchecked(f.inst_set(), SymbolRef::CurrentSection);
+                        let zero = insert_native_value(f, id, symbol);
+                        let sum = Add::new_unchecked(f.inst_set(), zero, address);
+                        let relocated = insert_native_value(f, id, sum);
+                        let mut inst = f.dfg.clone_inst(id);
+                        inst.for_each_value_mut(&mut |value| {
+                            if *value == address {
+                                *value = relocated;
+                            }
+                        });
+                        f.dfg.replace_inst(id, inst);
+                    }
+                }
+            }
+        });
+    }
+}
+
+fn insert_native_value(
+    f: &mut sonatina_ir::Function,
+    before: sonatina_ir::InstId,
+    inst: impl Inst,
+) -> sonatina_ir::ValueId {
+    // value = instruction
+    let inst = f.dfg.make_inst(inst);
+    let value = f.dfg.make_value(sonatina_ir::Value::Inst { inst, result_idx: 0, ty: Type::I256 });
+    f.dfg.attach_results(inst, &[value]);
+    f.layout.insert_inst_before(inst, before);
+    value
+}
+
+fn lower(module: &Module, runtime: Option<&[u8]>, base: u64) -> Result<String, String> {
     let constructor = runtime.is_some();
+    let preserve_expansion = super::memory::observes_size(module);
+    let fmp = base + 64;
+    let return_slot = base + 32;
     let (return_base, heap) = super::alternative::memory_layout(module);
     let root = if constructor {
         module
@@ -111,7 +227,7 @@ fn lower(module: &Module, runtime: Option<&[u8]>) -> Result<String, String> {
     };
     // entry: initialize heap; call constructor/dispatch; deploy runtime or stop
     let mut out = format!(
-        "target = \"evm-ethereum-osaka\"\nfunc public %entry() {{\nblock0:\nevm_mstore 64.i256 {heap}.i256;\n"
+        "target = \"evm-ethereum-osaka\"\nfunc public %entry() {{\nblock0:\nevm_mstore {fmp}.i256 {heap}.i256;\n"
     );
     if constructor {
         if let Some(id) = module.library_deploy_address() {
@@ -119,15 +235,15 @@ fn lower(module: &Module, runtime: Option<&[u8]>) -> Result<String, String> {
             writeln!(
                 out,
                 "v25.i256 = evm_address;\nevm_mstore {}.i256 v25;",
-                immutable_staging_base(module) + id.index() as u64 * 32
+                base + immutable_staging_base(module) + id.index() as u64 * 32
             )
             .unwrap();
         }
         if let Some(id) = root {
             // size = codesize - sym_size .; codecopy heap end size; mstore 64 ceil32(heap + size)
-            writeln!(out, "v20.i256 = sym_size .;\nv21.i256 = evm_code_size;\nv22.i256 = sub v21 v20;\nevm_code_copy {heap}.i256 v20 v22;\nv23.i256 = add v22 {}.i256;\nv24.i256 = and v23 -32.i256;\nevm_mstore 64.i256 v24;", heap + 31).unwrap();
+            writeln!(out, "v20.i256 = sym_size .;\nv21.i256 = evm_code_size;\nv22.i256 = sub v21 v20;\nevm_code_copy {}.i256 v20 v22;\nv23.i256 = add v22 {}.i256;\nv24.i256 = and v23 -32.i256;\nevm_mstore {fmp}.i256 v24;", base + heap, heap + 31).unwrap();
             for i in 0..module.functions[id].params.len() {
-                writeln!(out, "v{}.i256 = evm_mload {}.i256;", 30 + i, heap + i as u64 * 32)
+                writeln!(out, "v{}.i256 = evm_mload {}.i256;", 30 + i, base + heap + i as u64 * 32)
                     .unwrap();
             }
             writeln!(
@@ -149,13 +265,19 @@ fn lower(module: &Module, runtime: Option<&[u8]>) -> Result<String, String> {
     }
     if let Some(runtime) = runtime {
         // deploy = evm_mload 64; codecopy deploy $runtime size; patch immutable words; return deploy size
-        out.push_str("v0.i256 = sym_addr $runtime;\nv1.i256 = evm_mload 64.i256;\n");
+        out.push_str("v0.i256 = sym_addr $runtime;\n");
+        if base == 0 {
+            out.push_str("v1.i256 = evm_mload 64.i256;\n");
+        } else {
+            // deploy = logical + base; overflow -> invalid; otherwise copy runtime
+            writeln!(out, "v2.i256 = evm_mload {fmp}.i256;\nv1.i256 = add v2 {base}.i256;\nv3.i1 = lt v1 v2;\nbr v3 block3 block4;\nblock3:\nevm_invalid;\nblock4:").unwrap();
+        }
         writeln!(out, "evm_code_copy v1 v0 {}.i256;", runtime.len()).unwrap();
         for (id, _) in module.iter_immutables() {
             let tmp = 30
                 + module.functions.iter().map(|f| f.params.len()).max().unwrap_or(0)
                 + id.index() * 2;
-            writeln!(out, "v{tmp}.i256 = evm_mload {}.i256;\nv{}.i256 = add v1 {}.i256;\nevm_mstore v{} v{tmp};", immutable_staging_base(module) + id.index() as u64 * 32, tmp + 1, runtime.len() - super::alternative::runtime_tail_size(module) - (module.immutable_count() - id.index()) * 33 + 1, tmp + 1).unwrap();
+            writeln!(out, "v{tmp}.i256 = evm_mload {}.i256;\nv{}.i256 = add v1 {}.i256;\nevm_mstore v{} v{tmp};", base + immutable_staging_base(module) + id.index() as u64 * 32, tmp + 1, runtime.len() - super::alternative::runtime_tail_size(module) - (module.immutable_count() - id.index()) * 33 + 1, tmp + 1).unwrap();
         }
         writeln!(out, "evm_return v1 {}.i256;\n}}", runtime.len()).unwrap();
     } else {
@@ -188,7 +310,7 @@ fn lower(module: &Module, runtime: Option<&[u8]>) -> Result<String, String> {
             writeln!(out, "block{}:", bid.index()).unwrap();
             if bid.index() == 0 && super::alternative::frame_size(f) != 0 {
                 // frame = evm_mload 64; end = add frame activation_size; evm_mstore 64 end
-                writeln!(out, "v{frame}.i256 = evm_mload 64.i256;\nv{}.i256 = add v{frame} {}.i256;\nevm_mstore 64.i256 v{};", frame + 1, super::alternative::frame_size(f), frame + 1).unwrap();
+                writeln!(out, "v{frame}.i256 = evm_mload {fmp}.i256;\nv{}.i256 = add v{frame} {}.i256;\nevm_mstore {fmp}.i256 v{};", frame + 1, super::alternative::frame_size(f), frame + 1).unwrap();
             }
             if bid.index() == 0 && f.params.is_empty() {
                 // vN = evm_calldata_load (4 + 32 * argument_index)
@@ -210,6 +332,14 @@ fn lower(module: &Module, runtime: Option<&[u8]>) -> Result<String, String> {
                 let result = f.inst_result_value(iid).map(|v| format!("v{}", v.index()));
                 let args =
                     inst.operands().iter().map(|&v| value(f, v)).collect::<Result<Vec<_>, _>>()?;
+                if preserve_expansion
+                    && matches!(inst.kind, InstKind::MLoad(..) | InstKind::Keccak256(..))
+                {
+                    // mcopy address address length: preserve expansion if the read becomes dead.
+                    let length =
+                        if matches!(inst.kind, InstKind::MLoad(..)) { "32.i256" } else { &args[1] };
+                    writeln!(out, "evm_mcopy {} {} {length};", args[0], args[0]).unwrap();
+                }
                 if let InstKind::Phi(inputs) = &inst.kind {
                     writeln!(
                         out,
@@ -231,7 +361,7 @@ fn lower(module: &Module, runtime: Option<&[u8]>) -> Result<String, String> {
                         writeln!(
                             out,
                             "{result}.i256 = evm_mload {}.i256;",
-                            immutable_staging_base(module) + id.index() as u64 * 32
+                            base + immutable_staging_base(module) + id.index() as u64 * 32
                         )
                         .unwrap();
                     } else {
@@ -241,7 +371,7 @@ fn lower(module: &Module, runtime: Option<&[u8]>) -> Result<String, String> {
                             + f.num_insts()
                             + f.blocks.len()
                             + iid.index() * 5;
-                        writeln!(out, "v{tmp}.i256 = evm_mload 0.i256;\nv{}.i256 = evm_code_size;\nv{}.i256 = sub v{} {}.i256;\nevm_code_copy 0.i256 v{} 32.i256;\n{result}.i256 = evm_mload 0.i256;\nevm_mstore 0.i256 v{tmp};", tmp+1, tmp+2, tmp+1, (module.immutable_count()-id.index())*33-1 + super::alternative::runtime_tail_size(module), tmp+2).unwrap();
+                        writeln!(out, "v{tmp}.i256 = evm_mload {base}.i256;\nv{}.i256 = evm_code_size;\nv{}.i256 = sub v{} {}.i256;\nevm_code_copy {base}.i256 v{} 32.i256;\n{result}.i256 = evm_mload {base}.i256;\nevm_mstore {base}.i256 v{tmp};", tmp+1, tmp+2, tmp+1, (module.immutable_count()-id.index())*33-1 + super::alternative::runtime_tail_size(module), tmp+2).unwrap();
                     }
                     continue;
                 }
@@ -290,7 +420,7 @@ fn lower(module: &Module, runtime: Option<&[u8]>) -> Result<String, String> {
                     writeln!(out, "v{tmp}.i256 = sym_addr $d{};\nv{}.i256 = add v{tmp} {}.i256;\nevm_code_copy {} v{} {};", data.id.index(), tmp + 1, data.offset, args[0], tmp + 1, args[1]).unwrap();
                     continue;
                 }
-                let (name, args) = operation(&inst.kind, args)?;
+                let (name, args) = operation(&inst.kind, args, base)?;
                 if matches!(
                     inst.kind,
                     InstKind::Lt(..)
@@ -358,12 +488,12 @@ fn lower(module: &Module, runtime: Option<&[u8]>) -> Result<String, String> {
                             writeln!(
                                 out,
                                 "evm_mstore {}.i256 {};",
-                                return_base + i as u64 * 32,
+                                base + return_base + i as u64 * 32,
                                 value(f, v)?
                             )
                             .unwrap();
                         }
-                        writeln!(out, "evm_mstore 32.i256 {return_base}.i256;").unwrap();
+                        writeln!(out, "evm_mstore {return_slot}.i256 {return_base}.i256;").unwrap();
                     }
                     writeln!(
                         out,
@@ -407,7 +537,7 @@ fn lower(module: &Module, runtime: Option<&[u8]>) -> Result<String, String> {
                     // size = returndatasize; returndatacopy 0 0 size; revert 0 size
                     let tmp =
                         f.num_values() + f.arg_indices().count() + f.num_insts() + bid.index();
-                    writeln!(out, "v{tmp}.i256 = evm_return_data_size;\nevm_return_data_copy 0.i256 0.i256 v{tmp};\nevm_revert 0.i256 v{tmp};").unwrap();
+                    writeln!(out, "v{tmp}.i256 = evm_return_data_size;\nevm_return_data_copy {base}.i256 0.i256 v{tmp};\nevm_revert {base}.i256 v{tmp};").unwrap();
                 }
             }
         }
@@ -455,7 +585,11 @@ fn value(f: &Function, id: ValueId) -> Result<String, String> {
     })
 }
 
-fn operation(inst: &InstKind, mut args: Vec<String>) -> Result<(String, Vec<String>), String> {
+fn operation(
+    inst: &InstKind,
+    mut args: Vec<String>,
+    base: u64,
+) -> Result<(String, Vec<String>), String> {
     let name = match inst {
         InstKind::Add(..)
         | InstKind::Sub(..)
@@ -490,11 +624,11 @@ fn operation(inst: &InstKind, mut args: Vec<String>) -> Result<(String, Vec<Stri
         InstKind::MStore(..) => "evm_mstore",
         InstKind::MStore8(..) => "evm_mstore8",
         InstKind::Fmp => {
-            args.push("64.i256".into());
+            args.push(format!("{}.i256", base + 64));
             "evm_mload"
         }
         InstKind::SetFmp(..) => {
-            args.insert(0, "64.i256".into());
+            args.insert(0, format!("{}.i256", base + 64));
             "evm_mstore"
         }
         InstKind::SLoad(..) => "evm_sload",

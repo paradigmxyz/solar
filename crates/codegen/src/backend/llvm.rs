@@ -6,8 +6,8 @@
 //! and CFG edges until its own optimizer and EVM stack scheduler run.
 //! Native emission runs in a child of the statically linked CLI so fatal LLVM
 //! failures become diagnostics. Native object relocations resolve constructor
-//! sizes and immutable offsets. Activation frames use the heap; native spills
-//! remain unsupported because they do not have an isolated memory region.
+//! sizes and immutable offsets. Activation frames use the heap; the worker reports
+//! native spill requirements so contract memory can start above the private region.
 
 use super::{assembler::ImmutableRef, evm::EvmArtifact};
 use crate::mir::{
@@ -30,10 +30,16 @@ use std::{
     sync::OnceLock,
 };
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Default, serde::Serialize, serde::Deserialize)]
 struct NativeArtifact {
     bytes: Vec<u8>,
     immutables: BTreeMap<String, BTreeSet<u64>>,
+}
+
+#[derive(Clone, Copy)]
+struct MemoryLayout {
+    base: u64,
+    preserve_expansion: bool,
 }
 
 static WORKER: OnceLock<PathBuf> = OnceLock::new();
@@ -41,8 +47,8 @@ const WORKER_ARG: &str = "--internal-llvm-codegen-worker";
 
 /// Initializes the CLI's statically linked LLVM worker before argument parsing.
 ///
-/// LLVM can terminate its process when EVM values need spills. Hosts must call this at
-/// startup and return a supplied exit code, so native failures stay in a child.
+/// Workers report spill requirements for replanning and isolate fatal native
+/// failures. Hosts must call this at startup and return a supplied exit code.
 /// Ordinary invocations only register the current executable for later workers.
 pub fn initialize_cli_worker() -> Option<ExitCode> {
     let mut args = std::env::args_os().skip(1);
@@ -64,9 +70,13 @@ pub fn initialize_cli_worker() -> Option<ExitCode> {
             Some("runtime") => false,
             _ => return Err("invalid LLVM worker section".into()),
         };
+        let base = args
+            .next()
+            .and_then(|a| a.to_str().and_then(|s| s.parse::<u64>().ok()))
+            .ok_or("invalid LLVM worker memory base")?;
         let mut text = String::new();
         std::io::stdin().read_to_string(&mut text).map_err(|e| e.to_string())?;
-        let artifact = assemble_native(&text, optimization, constructor)?;
+        let artifact = assemble_native(&text, optimization, constructor, base)?;
         serde_json::to_writer(std::io::stdout(), &artifact).map_err(|e| e.to_string())
     })();
     Some(match result {
@@ -78,8 +88,8 @@ pub fn initialize_cli_worker() -> Option<ExitCode> {
     })
 }
 
-unsafe extern "C" fn stack_error(_size: u64) {
-    eprintln!("LLVM stack spills require a separate memory layout");
+unsafe extern "C" fn stack_error(size: u64) {
+    eprintln!("solar-llvm-spill-bytes:{size}");
     std::process::exit(1);
 }
 
@@ -87,6 +97,27 @@ pub(super) fn compile(
     module: &Module,
     optimization: OptimizationMode,
 ) -> Result<EvmArtifact, String> {
+    let mut base = 0;
+    for _ in 0..16 {
+        let translated = super::memory::translate(module, base);
+        let mut required = base;
+        let artifact = compile_with_memory(&translated, optimization, base, &mut required)?;
+        if required <= base {
+            return Ok(artifact);
+        }
+        base = required;
+    }
+    Err("LLVM spill layout did not stabilize".into())
+}
+
+fn compile_with_memory(
+    module: &Module,
+    optimization: OptimizationMode,
+    base: u64,
+    required: &mut u64,
+) -> Result<EvmArtifact, String> {
+    let memory = MemoryLayout { base, preserve_expansion: super::memory::observes_size(module) };
+    let fmp = base + 64;
     let entry = module.dispatch_entry().ok_or("missing runtime entry")?;
     let staging = immutable_staging_base(module);
     let (_, args_base) = super::alternative::memory_layout(module);
@@ -101,6 +132,7 @@ pub(super) fn compile(
             &module.functions[id],
             id.index(),
             false,
+            memory,
             &mut functions,
             &mut declarations,
         )?;
@@ -119,13 +151,16 @@ pub(super) fn compile(
     }
     // __entry: initialize heap; call dispatch; stop
     let runtime_text = format!(
-        "{}\n{globals}\ndefine void @__entry() noreturn \"evm-entry-function\" #0 {{\nentry:\nstore i256 {args_base}, ptr addrspace(1) inttoptr (i256 64 to ptr addrspace(1)), align 1\ncall void @f{}()\ncall void @llvm.evm.stop()\nunreachable\n}}\n{functions}\n{}\n{}",
+        "{}\n{globals}\ndefine void @__entry() noreturn \"evm-entry-function\" #0 {{\nentry:\nstore i256 {args_base}, ptr addrspace(1) inttoptr (i256 {fmp} to ptr addrspace(1)), align 1\ncall void @f{}()\ncall void @llvm.evm.stop()\nunreachable\n}}\n{functions}\n{}\n{}",
         header(),
         entry.index(),
         declarations.iter().cloned().collect::<Vec<_>>().join("\n"),
         attributes()
     );
-    let mut runtime = assemble(&runtime_text, optimization, false)?;
+    let mut runtime = assemble(&runtime_text, optimization, false, base, required)?;
+    if *required > base {
+        return Ok(EvmArtifact::default());
+    }
     super::alternative::append_runtime_tail(module, &mut runtime.bytes);
     declarations.clear();
     functions.clear();
@@ -144,12 +179,13 @@ pub(super) fn compile(
             &module.functions[id],
             id.index(),
             true,
+            memory,
             &mut functions,
             &mut declarations,
         )?;
     }
     let mut init = format!(
-        "{}\n{globals}\n@runtime = private addrspace(4) constant [{} x i8] c\"{}\"\ndefine void @__entry() noreturn \"evm-entry-function\" #0 {{\nentry:\nstore i256 {args_base}, ptr addrspace(1) inttoptr (i256 64 to ptr addrspace(1)), align 1\n",
+        "{}\n{globals}\n@runtime = private addrspace(4) constant [{} x i8] c\"{}\"\ndefine void @__entry() noreturn \"evm-entry-function\" #0 {{\nentry:\nstore i256 {args_base}, ptr addrspace(1) inttoptr (i256 {fmp} to ptr addrspace(1)), align 1\n",
         header(),
         runtime.bytes.len(),
         runtime.bytes.iter().map(|b| format!("\\{b:02X}")).collect::<String>()
@@ -160,7 +196,7 @@ pub(super) fn compile(
         writeln!(
             init,
             "store i256 %address, ptr addrspace(1) inttoptr (i256 {} to ptr addrspace(1)), align 1",
-            staging + id.index() as u64 * 32
+            base + staging + id.index() as u64 * 32
         )
         .unwrap();
     }
@@ -178,15 +214,15 @@ pub(super) fn compile(
         copy_memory(
             4,
             false,
-            &args_base.to_string(),
+            &(base + args_base).to_string(),
             "%end",
             "%size",
             &mut init,
             &mut declarations,
         );
-        writeln!(init, "%rounded = add i256 %size, {}\n%free = and i256 %rounded, -32\nstore i256 %free, ptr addrspace(1) inttoptr (i256 64 to ptr addrspace(1)), align 1", args_base + 31).unwrap();
+        writeln!(init, "%rounded = add i256 %size, {}\n%free = and i256 %rounded, -32\nstore i256 %free, ptr addrspace(1) inttoptr (i256 {fmp} to ptr addrspace(1)), align 1", args_base + 31).unwrap();
         for i in 0..module.functions[id].params.len() {
-            writeln!(init, "%arg{i} = load i256, ptr addrspace(1) inttoptr (i256 {} to ptr addrspace(1)), align 1", args_base + i as u64 * 32).unwrap();
+            writeln!(init, "%arg{i} = load i256, ptr addrspace(1) inttoptr (i256 {} to ptr addrspace(1)), align 1", base + args_base + i as u64 * 32).unwrap();
         }
         writeln!(
             init,
@@ -205,7 +241,14 @@ pub(super) fn compile(
         init.push_str("%value = call i256 @llvm.evm.callvalue()\n%payable = icmp eq i256 %value, 0\nbr i1 %payable, label %postlude, label %reject\nreject:\ncall void @llvm.evm.revert(ptr addrspace(1) null, i256 0)\nunreachable\npostlude:\n");
     }
     // deploy = mload(64); codecopy(deploy, runtime, size); patch immutables; return(deploy, size)
-    init.push_str("%deploy = load i256, ptr addrspace(1) inttoptr (i256 64 to ptr addrspace(1)), align 1\n%deployptr = inttoptr i256 %deploy to ptr addrspace(1)\n");
+    if base == 0 {
+        init.push_str("%deploy = load i256, ptr addrspace(1) inttoptr (i256 64 to ptr addrspace(1)), align 1\n");
+    } else {
+        // deploy = logical + base; overflow -> invalid; otherwise copy runtime
+        declarations.insert("declare void @llvm.evm.invalid()".into());
+        writeln!(init, "%logical_deploy = load i256, ptr addrspace(1) inttoptr (i256 {fmp} to ptr addrspace(1)), align 1\n%deploy = add i256 %logical_deploy, {base}\n%overflowed = icmp ult i256 %deploy, %logical_deploy\nbr i1 %overflowed, label %overflow, label %copy_runtime\noverflow:\ncall void @llvm.evm.invalid()\nunreachable\ncopy_runtime:").unwrap();
+    }
+    init.push_str("%deployptr = inttoptr i256 %deploy to ptr addrspace(1)\n");
     writeln!(init, "call void @llvm.memcpy.p1.p4.i256(ptr addrspace(1) %deployptr, ptr addrspace(4) @runtime, i256 {}, i1 false)", runtime.bytes.len()).unwrap();
     let mut immutable_references = Vec::new();
     for (name, offsets) in &runtime.immutables {
@@ -216,7 +259,7 @@ pub(super) fn compile(
         if id >= module.immutable_count() {
             return Err("invalid LLVM immutable identifier".into());
         }
-        writeln!(init, "%imm{id} = load i256, ptr addrspace(1) inttoptr (i256 {} to ptr addrspace(1)), align 1", staging + id as u64 * 32).unwrap();
+        writeln!(init, "%imm{id} = load i256, ptr addrspace(1) inttoptr (i256 {} to ptr addrspace(1)), align 1", base + staging + id as u64 * 32).unwrap();
         for &offset in offsets {
             if offset == 0
                 || offset.checked_add(32).is_none_or(|end| end > runtime.bytes.len() as u64)
@@ -246,7 +289,7 @@ pub(super) fn compile(
     )
     .unwrap();
     Ok(EvmArtifact {
-        deployment: assemble(&init, optimization, true)?.bytes,
+        deployment: assemble(&init, optimization, true, base, required)?.bytes,
         runtime: runtime.bytes,
         immutable_references,
         backend_ir: Some(format!("; Runtime\n{runtime_text}\n; Deployment\n{init}")),
@@ -266,6 +309,8 @@ fn assemble(
     text: &str,
     optimization: OptimizationMode,
     constructor: bool,
+    base: u64,
+    required: &mut u64,
 ) -> Result<NativeArtifact, String> {
     let executable =
         WORKER.get().ok_or("LLVM requires initialize_cli_worker at process startup")?;
@@ -279,6 +324,7 @@ fn assemble(
             "gas"
         })
         .arg(if constructor { "init" } else { "runtime" })
+        .arg(base.to_string())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -290,6 +336,14 @@ fn assemble(
         let output = child.wait_with_output().map_err(|e| e.to_string())?;
         let written = writer.join().map_err(|_| "LLVM input writer panicked")?;
         if !output.status.success() {
+            if let Some(size) = String::from_utf8_lossy(&output.stderr).lines().find_map(|line| {
+                line.strip_prefix("solar-llvm-spill-bytes:").and_then(|s| s.parse::<u64>().ok())
+            }) {
+                *required = (*required).max(size);
+                if size > base {
+                    return Ok(NativeArtifact::default());
+                }
+            }
             return Err(format!(
                 "LLVM worker exited with {}: {}",
                 output.status,
@@ -306,8 +360,13 @@ fn assemble_native(
     text: &str,
     optimization: OptimizationMode,
     constructor: bool,
+    base: u64,
 ) -> Result<NativeArtifact, String> {
     Target::initialize_evm(&InitializationConfig::default());
+    inkwell::support::parse_command_line_options(
+        &["solar", "--evm-stack-region-offset=0", &format!("--evm-stack-region-size={base}")],
+        "",
+    );
     inkwell::support::error_handling::install_stack_error_handler(stack_error);
     let llvm = inkwell::context::Context::create();
     let module = llvm
@@ -360,9 +419,13 @@ fn function(
     f: &Function,
     id: usize,
     constructor: bool,
+    memory: MemoryLayout,
     out: &mut String,
     declarations: &mut BTreeSet<String>,
 ) -> Result<(), String> {
+    let base = memory.base;
+    let fmp = base + 64;
+    let return_slot = base + 32;
     let (return_base, args_base) = super::alternative::memory_layout(module);
     let ret = if f.returns.is_empty() { "void" } else { "i256" };
     // define fN(i256 a0, ...) { block0: instructions; terminator }
@@ -376,7 +439,7 @@ fn function(
         writeln!(out, "b{}:", bid.index()).unwrap();
         if bid.index() == 0 && super::alternative::frame_size(f) != 0 {
             // frame = mload(64); mstore(64, frame + activation_size)
-            writeln!(out, "%frame = load i256, ptr addrspace(1) inttoptr (i256 64 to ptr addrspace(1)), align 1\n%frame_end = add i256 %frame, {}\nstore i256 %frame_end, ptr addrspace(1) inttoptr (i256 64 to ptr addrspace(1)), align 1", super::alternative::frame_size(f)).unwrap();
+            writeln!(out, "%frame = load i256, ptr addrspace(1) inttoptr (i256 {fmp} to ptr addrspace(1)), align 1\n%frame_end = add i256 %frame, {}\nstore i256 %frame_end, ptr addrspace(1) inttoptr (i256 {fmp} to ptr addrspace(1)), align 1", super::alternative::frame_size(f)).unwrap();
         }
         if bid.index() == 0 && f.params.is_empty() {
             // aN = call llvm.evm.calldataload (4 + 32 * argument_index)
@@ -431,7 +494,7 @@ fn function(
                 }
                 InstKind::LoadImmutable(id) if constructor => {
                     // result = mload(staging[id])
-                    writeln!(out, "{} = load i256, ptr addrspace(1) inttoptr (i256 {} to ptr addrspace(1)), align 1", result.ok_or("immutable without result")?, immutable_staging_base(module) + id.index() as u64 * 32).unwrap();
+                    writeln!(out, "{} = load i256, ptr addrspace(1) inttoptr (i256 {} to ptr addrspace(1)), align 1", result.ok_or("immutable without result")?, base + immutable_staging_base(module) + id.index() as u64 * 32).unwrap();
                 }
                 InstKind::LoadImmutable(id) => {
                     call(
@@ -442,7 +505,7 @@ fn function(
                         declarations,
                     );
                 }
-                _ => instruction(module, &inst.kind, result, args, out, declarations)?,
+                _ => instruction(module, &inst.kind, result, args, memory, out, declarations)?,
             }
         }
         // LLVM branches retain MIR edges; external exits use noreturn EVM intrinsics.
@@ -470,9 +533,9 @@ fn function(
                 if values.len() > 1 {
                     // mstore(return_base + 32 * i, result_i); mstore(32, return_base)
                     for (i, &v) in values.iter().enumerate() {
-                        writeln!(out, "store i256 {}, ptr addrspace(1) inttoptr (i256 {} to ptr addrspace(1)), align 1", value(f, v)?, return_base + i as u64 * 32).unwrap();
+                        writeln!(out, "store i256 {}, ptr addrspace(1) inttoptr (i256 {} to ptr addrspace(1)), align 1", value(f, v)?, base + return_base + i as u64 * 32).unwrap();
                     }
-                    writeln!(out, "store i256 {return_base}, ptr addrspace(1) inttoptr (i256 32 to ptr addrspace(1)), align 1").unwrap();
+                    writeln!(out, "store i256 {return_base}, ptr addrspace(1) inttoptr (i256 {return_slot} to ptr addrspace(1)), align 1").unwrap();
                 }
                 if let Some(&v) = values.first() {
                     writeln!(out, "ret i256 {}", value(f, v)?).unwrap();
@@ -535,11 +598,17 @@ fn function(
                 // size = returndatasize; memcpy(heap:0, returndata:0, size); revert(heap:0, size)
                 let size = format!("%returndata{}", bid.index());
                 call("returndatasize", Some(size.clone()), vec![], out, declarations);
-                copy_memory(3, false, "0", "0", &size, out, declarations);
+                copy_memory(3, false, &base.to_string(), "0", &size, out, declarations);
                 call(
                     "revert",
                     None,
-                    vec![("ptr addrspace(1)".into(), "null".into()), ("i256".into(), size)],
+                    vec![
+                        (
+                            "ptr addrspace(1)".into(),
+                            format!("inttoptr (i256 {base} to ptr addrspace(1))"),
+                        ),
+                        ("i256".into(), size),
+                    ],
                     out,
                     declarations,
                 );
@@ -556,6 +625,7 @@ fn instruction(
     inst: &InstKind,
     result: Option<String>,
     mut args: Vec<String>,
+    memory: MemoryLayout,
     out: &mut String,
     declarations: &mut BTreeSet<String>,
 ) -> Result<(), String> {
@@ -573,7 +643,15 @@ fn instruction(
             // offset = ptrtoint(getelementptr @dN, data.offset); memcpy(heap:dest, code:offset, size)
             let offset = format!("%data{}", out.len());
             writeln!(out, "{offset} = ptrtoint ptr addrspace(4) getelementptr (i8, ptr addrspace(4) @d{}, i256 {}) to i256", data.id.index(), data.offset).unwrap();
-            copy_memory(4, false, &args[0], &offset, &args[1], out, declarations);
+            copy_memory(
+                4,
+                memory.preserve_expansion,
+                &args[0],
+                &offset,
+                &args[1],
+                out,
+                declarations,
+            );
         }
         InstKind::CalldataCopy(..)
         | InstKind::CodeCopy(..)
@@ -585,7 +663,15 @@ fn instruction(
                 InstKind::ReturnDataCopy(..) => 3,
                 _ => 1,
             };
-            copy_memory(space, space == 1, &args[0], &args[1], &args[2], out, declarations);
+            copy_memory(
+                space,
+                memory.preserve_expansion,
+                &args[0],
+                &args[1],
+                &args[2],
+                out,
+                declarations,
+            );
         }
         InstKind::Select(..) => {
             // c = icmp ne condition, 0; result = select c, yes, no
@@ -691,20 +777,29 @@ fn instruction(
                 _ => 1,
             };
             if matches!(inst, InstKind::Fmp | InstKind::SetFmp(..)) {
-                args.insert(0, "64".into());
+                args.insert(0, (memory.base + 64).to_string());
             }
             let pointer = format!("%ptr{}", out.len());
             writeln!(out, "{pointer} = inttoptr i256 {} to ptr addrspace({space})", args[0])
                 .unwrap();
             if let Some(result) = result {
-                writeln!(out, "{result} = load i256, ptr addrspace({space}) {pointer}, align 1")
-                    .unwrap();
+                let volatile =
+                    if space == 1 && memory.preserve_expansion { "volatile " } else { "" };
+                writeln!(
+                    out,
+                    "{result} = load {volatile}i256, ptr addrspace({space}) {pointer}, align 1"
+                )
+                .unwrap();
             } else {
                 writeln!(out, "store i256 {}, ptr addrspace({space}) {pointer}, align 1", args[1])
                     .unwrap();
             }
         }
         InstKind::CalldataLoad(..) | InstKind::Keccak256(..) | InstKind::MStore8(..) => {
+            if memory.preserve_expansion && matches!(inst, InstKind::Keccak256(..)) {
+                // volatile memmove(address, address, length): retain expansion if the hash is dead.
+                copy_memory(1, true, &args[0], &args[0], &args[1], out, declarations);
+            }
             let space = if matches!(inst, InstKind::CalldataLoad(..)) { 2 } else { 1 };
             let pointer = format!("%ptr{}", out.len());
             writeln!(out, "{pointer} = inttoptr i256 {} to ptr addrspace({space})", args[0])
@@ -818,16 +913,16 @@ fn value(f: &Function, id: ValueId) -> Result<String, String> {
 
 fn copy_memory(
     space: u32,
-    overlapping: bool,
+    volatile: bool,
     dest: &str,
     source: &str,
     size: &str,
     out: &mut String,
     declarations: &mut BTreeSet<String>,
 ) {
-    let name = if overlapping { "memmove" } else { "memcpy" };
+    let name = if space == 1 { "memmove" } else { "memcpy" };
     let tmp = out.len();
     // dest = inttoptr heap_offset; source = inttoptr source_offset; memcpy(dest, source, size)
-    writeln!(out, "%dest{tmp} = inttoptr i256 {dest} to ptr addrspace(1)\n%source{tmp} = inttoptr i256 {source} to ptr addrspace({space})\ncall void @llvm.{name}.p1.p{space}.i256(ptr addrspace(1) %dest{tmp}, ptr addrspace({space}) %source{tmp}, i256 {size}, i1 false)").unwrap();
+    writeln!(out, "%dest{tmp} = inttoptr i256 {dest} to ptr addrspace(1)\n%source{tmp} = inttoptr i256 {source} to ptr addrspace({space})\ncall void @llvm.{name}.p1.p{space}.i256(ptr addrspace(1) %dest{tmp}, ptr addrspace({space}) %source{tmp}, i256 {size}, i1 {volatile})").unwrap();
     declarations.insert(format!("declare void @llvm.{name}.p1.p{space}.i256(ptr addrspace(1), ptr addrspace({space}), i256, i1 immarg)"));
 }

@@ -75,24 +75,27 @@ as a deployment data segment. The built-in backend alone provides source maps
 and EVM IR dumps. Unsupported operations produce diagnostics without switching
 backends.
 
+Native spills use compiler-private memory below contract memory. The adapters
+translate memory accesses while keeping Solidity pointer values and the visible
+`MSIZE` unchanged. Yul uses the boundary returned by `memoryguard`; the other
+backends measure native storage and repeat planning if translation needs more
+slots. This adds address arithmetic and memory-expansion cost when spills occur.
+Sonatina retains explicit expansion for memory reads when `MSIZE` can observe it;
+LLVM uses volatile reads and copies for those cases.
+
 These adapters are still experimental. SIR's upstream compiler rejects recursive
-calls and does not expose `MSIZE`. Yul can exceed solc's stack limit; arbitrary
-Solidity memory access prevents us from adding a blanket `memoryguard` promise.
-Internal activation frames use the free-memory pointer and remain allocated so
-escaping references stay valid. This can cost more memory and gas than the
-built-in backend's frame planning. Native stack scheduling can still reject
-larger contracts.
+calls and does not expose `MSIZE`. Yul cannot spill recursive functions; recursive
+native spilling also remains limited in Sonatina and LLVM. Internal activation frames use the free-memory pointer and
+remain allocated so escaping references stay valid. This can cost more memory
+and gas than the built-in backend's frame planning.
 
 Yul uses solc's process interface; it does not link C++ libsolc into the CLI.
 Sonatina and SIR use their own native optimization and stack-scheduling pipelines.
 SIR uses the same upstream O2 pipeline for gas and size because it has no distinct
-size preset. Sonatina and SIR reject native stack spills until they can reserve
-memory without clobbering Solidity memory. LLVM uses the EVM LLVM target and
-linker in a child of the same statically linked CLI; fatal native failures become
-diagnostics.
-Library hosts using LLVM must call `backend::llvm::initialize_cli_worker` at
-startup and return its optional exit code. LLVM stack spills also remain
-unsupported. The musl release explicitly omits LLVM because its native libraries
+size preset. LLVM uses the EVM LLVM target and linker in a child of the same
+statically linked CLI. Library hosts using LLVM must call
+`backend::llvm::initialize_cli_worker` at startup and return its optional exit
+code. The musl release explicitly omits LLVM because its native libraries
 need a matching musl C++ toolchain; the other release targets include it.
 
 See [the benchmark guide](../../benches/runtime/README.md) for backend selection

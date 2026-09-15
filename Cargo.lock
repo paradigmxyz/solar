@@ -4983,6 +4983,7 @@ dependencies = [
  "sir-passes",
  "sir-release-backend",
  "sir-stack-scheduling",
+ "sir-static-memory-allocator",
  "smallvec",
  "snapbox",
  "solar-ast",

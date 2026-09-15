@@ -16,7 +16,7 @@ use std::{
 
 pub(super) fn yul(gcx: Gcx<'_>, module: &Module, text: &str) -> Result<EvmArtifact, String> {
     let opts = &gcx.sess.opts;
-    let input = json!({
+    let mut input = json!({
         "language": "Yul", "sources": {"input.yul": {"content": text}},
         "settings": {
             "evmVersion": opts.evm_version.to_string(),
@@ -24,6 +24,14 @@ pub(super) fn yul(gcx: Gcx<'_>, module: &Module, text: &str) -> Result<EvmArtifa
             "outputSelection": {"*": {"*": ["evm.bytecode.object", "evm.deployedBytecode.object", "evm.deployedBytecode.immutableReferences"]}}
         }
     });
+    if matches!(opts.optimization, OptimizationMode::None) {
+        // Stack allocation and spilling are required lowering even without an
+        // optional Yul optimization pipeline.
+        input["settings"]["optimizer"]["details"] = json!({
+            "yul": true,
+            "yulDetails": {"stackAllocation": true, "optimizerSteps": ":"}
+        });
+    }
     let executable = std::env::var_os("SOLAR_SOLC").unwrap_or_else(|| "solc".into());
     let mut child = Command::new(&executable)
         .arg("--standard-json")
