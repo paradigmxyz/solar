@@ -118,47 +118,10 @@ bb4:
   push 4
   calldataload
   add
-  dup 1
-  push 416
-  mstore
   push 4
   calldataload
   dup 2
   lt
-  dup 10
-  push 160
-  mstore
-  dup 9
-  push 192
-  mstore
-  dup 8
-  push 224
-  mstore
-  dup 7
-  push 256
-  mstore
-  dup 6
-  push 288
-  mstore
-  dup 5
-  push 320
-  mstore
-  dup 4
-  push 352
-  mstore
-  dup 3
-  push 384
-  mstore
-  swap 9
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
   push bb48
   jumpi
   push 10
@@ -195,10 +158,63 @@ bb4:
   push 4
   calldataload
   add
+  dup 1
+  push 544
+  mstore
   push 4
   calldataload
   dup 2
   lt
+  dup 14
+  push 160
+  mstore
+  dup 13
+  push 192
+  mstore
+  dup 12
+  push 224
+  mstore
+  dup 11
+  push 256
+  mstore
+  dup 10
+  push 288
+  mstore
+  dup 9
+  push 320
+  mstore
+  dup 8
+  push 352
+  mstore
+  dup 7
+  push 384
+  mstore
+  dup 6
+  push 416
+  mstore
+  dup 5
+  push 448
+  mstore
+  dup 4
+  push 480
+  mstore
+  dup 3
+  push 512
+  mstore
+  swap 13
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
   push bb48
   jumpi
   push 14
@@ -245,47 +261,10 @@ bb4:
   push 4
   calldataload
   add
-  dup 1
-  push 704
-  mstore
   push 4
   calldataload
   dup 2
   lt
-  dup 10
-  push 448
-  mstore
-  dup 9
-  push 480
-  mstore
-  dup 8
-  push 512
-  mstore
-  dup 7
-  push 544
-  mstore
-  dup 6
-  push 576
-  mstore
-  dup 5
-  push 608
-  mstore
-  dup 4
-  push 640
-  mstore
-  dup 3
-  push 672
-  mstore
-  swap 9
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
   push bb48
   jumpi
   push 19
@@ -437,52 +416,45 @@ bb4:
   lt
   push bb48
   jumpi
-  push 576
-  mload
-  dup 2
+  swap 8
+  dup 9
   add
-  swap 1
-  dup 2
+  swap 8
+  dup 9
   lt
   push bb48
   jumpi
-  push 608
-  mload
-  dup 2
+  swap 6
+  dup 8
   add
-  swap 1
-  dup 2
+  swap 7
+  dup 8
   lt
   push bb48
   jumpi
-  push 640
-  mload
-  dup 2
+  swap 4
+  dup 7
   add
-  swap 1
-  dup 2
+  swap 6
+  dup 7
   lt
   push bb48
   jumpi
-  push 672
-  mload
-  dup 2
+  swap 2
+  dup 6
   add
-  swap 1
-  dup 2
+  swap 5
+  dup 6
   lt
   push bb48
   jumpi
-  push 704
-  mload
-  dup 2
+  dup 5
   add
-  swap 1
-  dup 2
+  swap 4
+  dup 5
   lt
   push bb48
   jumpi
-  swap 3
   dup 4
   add
   swap 3
@@ -490,7 +462,6 @@ bb4:
   lt
   push bb48
   jumpi
-  swap 1
   dup 3
   add
   swap 2

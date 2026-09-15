@@ -233,10 +233,31 @@ fn @memory_write_barrier() -> u256 {
 
 // CHECK-LABEL: @icall_barrier
 // CHECK: {{^ +}}mstore [[ADDR:[0-9]+]], 42
-// CHECK: {{^ +}}icall @callee
+// CHECK: {{^ +}}icall @writer
 // CHECK: {{^ +}}[[LOAD:v[0-9]+]] = mload [[ADDR]]
 // CHECK: {{^ +}}ret [[LOAD]]
 fn @icall_barrier() -> u256 {
+  bb0:
+    mstore 128, 42
+    icall @writer, 0
+    v0 = mload 128
+    ret v0
+}
+
+fn @writer() {
+  bb0:
+    mstore 160, 7
+    ret
+}
+
+// A callee that touches no memory is no barrier, so the stored word forwards
+// through the call.
+// CHECK-LABEL: @icall_clean_callee
+// CHECK: {{^ +}}mstore [[ADDR:[0-9]+]], 42
+// CHECK: {{^ +}}icall @callee
+// CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
+// CHECK: +     ret 42
+fn @icall_clean_callee() -> u256 {
   bb0:
     mstore 128, 42
     icall @callee, 0

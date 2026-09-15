@@ -116,6 +116,7 @@ fn @bools() [selector=0xcfb203c5, pure] {
     v32 = gt v13, v31
     jumpi v32, bb1, bb8
   bb8:
+    v92 = add v23, 32
     jump bb9
   bb9:
     v33 = phi [bb8: v13], [bb12: v39]
@@ -136,10 +137,15 @@ fn @bools() [selector=0xcfb203c5, pure] {
     v105 = add v54, v48
     mstore 64, v105 !metadata(memory=scratch)
     mstore v54, v45
+    v95 = add v23, 32
+    v98 = add v54, 32
+    v111 = shl 5, v45
+    v112 = add v95, v111
     jump bb15
   bb15:
-    v55 = phi [bb14: 0], [bb16: v60]
-    v56 = lt v55, v45
+    v107 = phi [bb14: v95], [bb16: v108]
+    v109 = phi [bb14: v98], [bb16: v110]
+    v56 = lt v107, v112
     jumpi v56, bb16, bb17
   bb17:
     v64 = mload 64 !metadata(memory=scratch)
@@ -175,23 +181,18 @@ fn @bools() [selector=0xcfb203c5, pure] {
     mstore 64, v106 !metadata(memory=scratch)
     returndata v90, v85
   bb16:
-    v95 = add v23, 32
-    v96 = shl 5, v55
-    v97 = add v95, v96
-    v57 = mload v97
+    v57 = mload v107
     v58 = iszero v57
     v59 = iszero v58
-    v98 = add v54, 32
-    v100 = add v98, v96
-    mstore v100, v59
-    v60 = add v55, 1
+    mstore v109, v59
+    v108 = add v107, 32
+    v110 = add v109, 32
     jump bb15
   bb10:
     v37 = mload v34
     v38 = lt v37, 2
     jumpi v38, bb12, bb1
   bb12:
-    v92 = add v23, 32
     v93 = shl 5, v35
     v94 = add v92, v93
     mstore v94, v37
@@ -444,32 +445,26 @@ fn @mixed() [selector=0x6791505c, pure] {
     mstore v103, v28
     v104 = add v56, 64
     mstore v104, v52
-    v96 = mload 32 !metadata(memory=scratch)
-    v105 = add v96, 32
-    v2 = mload v105
-    v106 = add v96, 64
-    v3 = mload v106
     v64 = mload 64 !metadata(memory=scratch)
     v65 = add v64, 96
     mstore v64, v10
     v66 = add v64, 32
     mstore v66, 96
-    v69 = iszero v2
+    v69 = iszero v28
     v70 = iszero v69
-    v68 = mload v2
+    v68 = mload v28
     v71 = mul v68, v70
     mstore v65, v71
     v72 = shl 5, v71
     v73 = add v65, 32
-    v74 = add v2, 32
     v75 = add v73, v72
-    mcopy v73, v74, v72 !metadata(memory=heap)
+    mcopy v73, v97, v72
     v77 = sub v75, v64
     v76 = add v64, 64
     mstore v76, v77
-    v79 = iszero v3
+    v79 = iszero v52
     v80 = iszero v79
-    v78 = mload v3
+    v78 = mload v52
     v81 = mul v78, v80
     v83 = add v81, 31
     v84 = and v83, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -478,8 +473,7 @@ fn @mixed() [selector=0x6791505c, pure] {
     mstore v86, 0
     mstore v75, v81
     v88 = add v85, v84
-    v87 = add v3, 32
-    mcopy v85, v87, v81 !metadata(memory=heap)
+    mcopy v85, v100, v81
     v89 = sub v88, v64
     v91 = add v89, 31
     v93 = and v91, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0

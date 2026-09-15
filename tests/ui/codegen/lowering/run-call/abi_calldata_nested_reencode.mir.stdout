@@ -33,15 +33,15 @@ fn @encode3d(arg0: calldataslice) -> bytes32 [selector=0x92a57dfa, pure, abi_par
     set_memory_object_len memoryarray, v19, v0
     jump bb7
   bb7:
-    v20 = phi [bb6: 0], [bb19: v108]
+    v20 = phi [bb6: 0], [bb19: v107]
     v21 = lt v20, v0
     jumpi v21, bb8, bb9
   bb9:
-    v109 = abi_encode [memory_array<memory_array<memory_array<word<u8>>>>], scratch, args v19
-    v110 = slice_ptr v109
-    v111 = slice_len v109
-    v112 = keccak256 v110, v111
-    ret v112
+    v108 = abi_encode [memory_array<memory_array<memory_array<word<u8>>>>], scratch, args v19
+    v109 = slice_ptr v108
+    v110 = slice_len v108
+    v111 = keccak256 v109, v110
+    ret v111
   bb8:
     v22 = mul v20, 32
     v23 = iszero 32
@@ -94,12 +94,12 @@ fn @encode3d(arg0: calldataslice) -> bytes32 [selector=0x92a57dfa, pure, abi_par
     set_memory_object_len memoryarray, v55, v39
     jump bb17
   bb17:
-    v56 = phi [bb16: 0], [bb29: v107]
+    v56 = phi [bb16: 0], [bb29: v106]
     v57 = lt v56, v39
     jumpi v57, bb18, bb19
   bb19:
     memory_object_store_element memoryarray<1>, v19, v20, v55
-    v108 = add v20, 1
+    v107 = add v20, 1
     jump bb7
   bb18:
     v58 = mul v56, 32
@@ -153,12 +153,12 @@ fn @encode3d(arg0: calldataslice) -> bytes32 [selector=0x92a57dfa, pure, abi_par
     set_memory_object_len memoryarray, v91, v75
     jump bb27
   bb27:
-    v92 = phi [bb26: 0], [bb31: v106]
+    v92 = phi [bb26: 0], [bb31: v105]
     v93 = lt v92, v75
     jumpi v93, bb28, bb29
   bb29:
     memory_object_store_element memoryarray<1>, v55, v56, v91
-    v107 = add v56, 1
+    v106 = add v56, 1
     jump bb17
   bb28:
     v94 = mul v92, 32
@@ -176,9 +176,8 @@ fn @encode3d(arg0: calldataslice) -> bytes32 [selector=0x92a57dfa, pure, abi_par
     v104 = iszero v103
     jumpi v104, bb3, bb31
   bb31:
-    v105 = and v101, 255
-    memory_object_store_element memoryarray<1>, v91, v92, v105
-    v106 = add v92, 1
+    memory_object_store_element memoryarray<1>, v91, v92, v101
+    v105 = add v92, 1
     jump bb27
   bb3:
     revert 0, 0
@@ -221,15 +220,15 @@ fn @encodeFixed(arg0: calldataslice) -> bytes32 [selector=0x8942c5a0, pure, abi_
     set_memory_object_len memoryarray, v19, v0
     jump bb7
   bb7:
-    v20 = phi [bb6: 0], [bb16: v90]
+    v20 = phi [bb6: 0], [bb16: v89]
     v21 = lt v20, v0
     jumpi v21, bb8, bb9
   bb9:
-    v91 = abi_encode [memory_array<array<2, memory_array<word<u16>>>>], scratch, args v19
-    v92 = slice_ptr v91
-    v93 = slice_len v91
-    v94 = keccak256 v92, v93
-    ret v94
+    v90 = abi_encode [memory_array<array<2, memory_array<word<u16>>>>], scratch, args v19
+    v91 = slice_ptr v90
+    v92 = slice_len v90
+    v93 = keccak256 v91, v92
+    ret v93
   bb8:
     v22 = mul v20, 32
     v23 = iszero 32
@@ -262,12 +261,12 @@ fn @encodeFixed(arg0: calldataslice) -> bytes32 [selector=0x8942c5a0, pure, abi_
     v42 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     jump bb14
   bb14:
-    v43 = phi [bb13: 0], [bb25: v89]
+    v43 = phi [bb13: 0], [bb25: v88]
     v44 = lt v43, 2
     jumpi v44, bb15, bb16
   bb16:
     memory_object_store_element memoryarray<1>, v19, v20, v42
-    v90 = add v20, 1
+    v89 = add v20, 1
     jump bb7
   bb15:
     v45 = mul v43, 32
@@ -314,12 +313,12 @@ fn @encodeFixed(arg0: calldataslice) -> bytes32 [selector=0x8942c5a0, pure, abi_
     set_memory_object_len memoryarray, v73, v57
     jump bb23
   bb23:
-    v74 = phi [bb22: 0], [bb27: v88]
+    v74 = phi [bb22: 0], [bb27: v87]
     v75 = lt v74, v57
     jumpi v75, bb24, bb25
   bb25:
     memory_object_store_element memoryfixedarray<2, 1>, v42, v43, v73
-    v89 = add v43, 1
+    v88 = add v43, 1
     jump bb14
   bb24:
     v76 = mul v74, 32
@@ -337,9 +336,8 @@ fn @encodeFixed(arg0: calldataslice) -> bytes32 [selector=0x8942c5a0, pure, abi_
     v86 = iszero v85
     jumpi v86, bb3, bb27
   bb27:
-    v87 = and v83, 0xffff
-    memory_object_store_element memoryarray<1>, v73, v74, v87
-    v88 = add v74, 1
+    memory_object_store_element memoryarray<1>, v73, v74, v83
+    v87 = add v74, 1
     jump bb23
   bb3:
     revert 0, 0

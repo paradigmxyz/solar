@@ -16,14 +16,13 @@ contract ColdCallFallthrough {
     // NONE-NEXT: jump [[WRAPPER:bb[0-9]+]]
     // NONE: [[WRAPPER]]:
     // NONE: eq
-    // NONE-NEXT: iszero
-    // NONE-NEXT: push [[HOT:bb[0-9]+]]
+    // NONE-NEXT: push [[NONE_COLD:bb[0-9]+]]
     // NONE-NEXT: jumpi
-    // NONE-NEXT: jump [[NONE_COLD:bb[0-9]+]]
-    // NONE: [[NONE_COLD]]:
-    // NONE: jump
+    // NONE-NEXT: jump [[HOT:bb[0-9]+]]
     // NONE: [[HOT]]:
     // NONE: return
+    // NONE: [[NONE_COLD]]:
+    // NONE: jump
 
     // SIZE-LABEL: @module ColdCallFallthrough_runtime
     // SIZE: eq

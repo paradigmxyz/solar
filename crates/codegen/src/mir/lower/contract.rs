@@ -367,6 +367,8 @@ pub(super) fn declaration(
         may_return_memory: false,
         is_function_pointer_dispatcher: false,
         no_inline: false,
+        array_element_bits: Default::default(),
+        array_return_element_bits: None,
     };
 
     if function.kind == hir::FunctionKind::Function

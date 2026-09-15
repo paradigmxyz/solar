@@ -100,47 +100,10 @@ bb0:
   push 4
   calldataload
   add
-  dup 1
-  push 416
-  mstore
   push 4
   calldataload
   dup 2
   lt
-  dup 10
-  push 160
-  mstore
-  dup 9
-  push 192
-  mstore
-  dup 8
-  push 224
-  mstore
-  dup 7
-  push 256
-  mstore
-  dup 6
-  push 288
-  mstore
-  dup 5
-  push 320
-  mstore
-  dup 4
-  push 352
-  mstore
-  dup 3
-  push 384
-  mstore
-  swap 9
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
   push bb49
   jumpi
   push 10
@@ -177,10 +140,63 @@ bb0:
   push 4
   calldataload
   add
+  dup 1
+  push 544
+  mstore
   push 4
   calldataload
   dup 2
   lt
+  dup 14
+  push 160
+  mstore
+  dup 13
+  push 192
+  mstore
+  dup 12
+  push 224
+  mstore
+  dup 11
+  push 256
+  mstore
+  dup 10
+  push 288
+  mstore
+  dup 9
+  push 320
+  mstore
+  dup 8
+  push 352
+  mstore
+  dup 7
+  push 384
+  mstore
+  dup 6
+  push 416
+  mstore
+  dup 5
+  push 448
+  mstore
+  dup 4
+  push 480
+  mstore
+  dup 3
+  push 512
+  mstore
+  swap 13
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
   push bb49
   jumpi
   push 14
@@ -227,47 +243,10 @@ bb0:
   push 4
   calldataload
   add
-  dup 1
-  push 704
-  mstore
   push 4
   calldataload
   dup 2
   lt
-  dup 10
-  push 448
-  mstore
-  dup 9
-  push 480
-  mstore
-  dup 8
-  push 512
-  mstore
-  dup 7
-  push 544
-  mstore
-  dup 6
-  push 576
-  mstore
-  dup 5
-  push 608
-  mstore
-  dup 4
-  push 640
-  mstore
-  dup 3
-  push 672
-  mstore
-  swap 9
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
   push bb49
   jumpi
   push 19
@@ -280,12 +259,32 @@ bb0:
   lt
   push bb49
   jumpi
-  push 352
+  push 192
   push 384
-  push 736
+  push 576
   mcopy
-  push 0x440
+  dup 6
+  push 768
   mstore
+  dup 5
+  push 800
+  mstore
+  dup 4
+  push 832
+  mstore
+  dup 3
+  push 864
+  mstore
+  dup 2
+  push 896
+  mstore
+  push 928
+  mstore
+  pop
+  pop
+  pop
+  pop
+  pop
   push bb25
   push 4
   calldataload
@@ -307,7 +306,7 @@ bb0:
   dup 8
   add
   dup 1
-  push 0x460
+  push 960
   mstore
   swap 7
   dup 8
@@ -345,13 +344,13 @@ bb25 [continuation]:
   return
 bb29:
   swap 5
-  push 0x460
+  push 960
   mload
   add
   dup 1
-  push 0x480
+  push 992
   mstore
-  push 0x460
+  push 960
   mload
   gt
   swap 1
@@ -366,13 +365,13 @@ bb29:
   jump bb49
 bb30:
   swap 4
-  push 0x480
+  push 992
   mload
   add
   dup 1
-  push 0x460
+  push 960
   mstore
-  push 0x480
+  push 992
   mload
   gt
   swap 1
@@ -386,13 +385,13 @@ bb30:
   jump bb49
 bb31:
   swap 3
-  push 0x460
+  push 960
   mload
   add
   dup 1
-  push 0x480
+  push 992
   mstore
-  push 0x460
+  push 960
   mload
   gt
   swap 1
@@ -405,13 +404,13 @@ bb31:
   jump bb49
 bb32:
   swap 2
-  push 0x480
+  push 992
   mload
   add
   dup 1
-  push 0x460
+  push 960
   mstore
-  push 0x480
+  push 992
   mload
   gt
   exchange 1, 2
@@ -421,13 +420,13 @@ bb32:
   jump bb49
 bb33:
   swap 1
-  push 0x460
+  push 960
   mload
   add
   dup 1
-  push 0x480
+  push 992
   mstore
-  push 0x460
+  push 960
   mload
   gt
   iszero
@@ -435,9 +434,54 @@ bb33:
   jumpi
   jump bb49
 bb34:
-  push 0x480
+  push 992
   mload
   swap 1
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb49
+  jumpi
+  push 576
+  mload
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb49
+  jumpi
+  push 608
+  mload
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb49
+  jumpi
+  push 640
+  mload
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb49
+  jumpi
+  push 672
+  mload
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb49
+  jumpi
+  push 704
+  mload
   dup 2
   add
   swap 1
@@ -500,51 +544,6 @@ bb34:
   push bb49
   jumpi
   push 928
-  mload
-  dup 2
-  add
-  swap 1
-  dup 2
-  lt
-  push bb49
-  jumpi
-  push 960
-  mload
-  dup 2
-  add
-  swap 1
-  dup 2
-  lt
-  push bb49
-  jumpi
-  push 992
-  mload
-  dup 2
-  add
-  swap 1
-  dup 2
-  lt
-  push bb49
-  jumpi
-  push 0x400
-  mload
-  dup 2
-  add
-  swap 1
-  dup 2
-  lt
-  push bb49
-  jumpi
-  push 0x420
-  mload
-  dup 2
-  add
-  swap 1
-  dup 2
-  lt
-  push bb49
-  jumpi
-  push 0x440
   mload
   dup 2
   add

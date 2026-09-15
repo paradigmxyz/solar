@@ -6,11 +6,11 @@
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, arg0
-      v2 = mload v0
+-     v2 = mload v0
       mstore v1, arg1
 -     v3 = mload v0
 -     v4 = add v2, v3
-+     v4 = add v2, v2
++     v4 = add arg0, arg0
       ret v4
   }
   
@@ -18,12 +18,25 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, arg0
-      v1 = mload v0
+-     v1 = mload v0
       set_fmp v0
       v2 = alloc raw, exact, uninitialized, infallible, 32
       mstore v2, arg1
       v3 = mload v0
-      v4 = add v1, v3
+-     v4 = add v1, v3
++     v4 = add arg0, v3
       ret v4
+  }
+  
+  fn @argument_header(arg0: memorybytes) -> u256 {
+    bb0:
+      v0 = memory_object_len memorybytes, arg0
+      v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+      set_memory_object_len memorybytes, v1, 32
+      memory_object_store_byte memorybytes, v1, 0, 7
+-     v2 = memory_object_len memorybytes, arg0
+-     v3 = add v0, v2
++     v3 = add v0, v0
+      ret v3
   }
   

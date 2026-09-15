@@ -2,7 +2,8 @@
 //@ filecheck:
 
 // Static frame overlays use compile-time-fixed frame addresses, while recursive
-// and mutually recursive calls share the dynamic frame allocator and epilogue.
+// and mutually recursive calls allocate dynamic frames from the free memory
+// pointer and restore it on return.
 contract SF {
     uint256 public s;
 
@@ -17,8 +18,8 @@ contract SF {
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push 0
     // CHECK-NEXT: sload
-    // CHECK-NEXT: jump [[GETTER_RETURN:bb[0-9]+]]
-    // CHECK: [[GETTER_RETURN]]:
+    // CHECK-NEXT: push 128
+    // CHECK-NEXT: mstore
     // CHECK: return
     // The getter's accessed memory ranges are proven disjoint from the reserved FMP word, so the
     // allocating entry alone initializes its reachable frame floor.
@@ -38,24 +39,37 @@ contract SF {
     // CHECK: push 320
     // CHECK-NEXT: mstore
     // CHECK: [[CHAIN_RET]] [continuation]:
-    // CHECK-NEXT: dup 1
     // CHECK-NEXT: push 256
     // CHECK-NEXT: mstore
     // CHECK: push 7
     // CHECK-NEXT: push 4
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: mod
-    // CHECK: push [[REC_ALLOC:bb[0-9]+]]
-    // CHECK-NEXT: jump [[REC_DISPATCH:bb[0-9]+]]
-    // CHECK: [[REC_DISPATCH]]:
-    // CHECK-NEXT: push 64
+    // The recursive call allocates its dynamic frame at the call site: it saves
+    // the caller's frame pointer into the new frame and bumps the FMP past it.
+    // CHECK: push 64
     // CHECK-NEXT: mload
     // CHECK-NEXT: push 160
     // CHECK-NEXT: mload
-    // CHECK: [[REC_ALLOC]] [continuation]:
     // CHECK: push 288
     // CHECK-NEXT: add
     // CHECK-NEXT: push 64
+    // CHECK-NEXT: mstore
+    // CHECK: push [[REC_RET:bb[0-9]+]]
+    // CHECK-NEXT: jump [[REC_ENTRY:bb[0-9]+]]
+    // CHECK: [[REC_ENTRY]]:
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // The continuation restores the caller's FMP and frame pointer from the frame.
+    // CHECK: [[REC_RET]] [continuation]:
+    // CHECK: push 64
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 32
+    // CHECK-NEXT: add
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 160
     // CHECK-NEXT: mstore
     function top(uint256 x) external returns (uint256) {
         uint256 keep = x * 3; // live across all the calls below

@@ -1,0 +1,136 @@
+// === ROOT/tests/ui/codegen/lowering/checked_bit_search.sol:LibBit ===
+@module LibBit
+@phase evm-shaped
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/lowering/checked_bit_search.sol:CheckedBitSearch ===
+@module CheckedBitSearch
+@phase evm-shaped
+fn @fls.0() [selector=0x27be8b2d, pure] {
+  bb0:
+    v0 = icall @fls.3, 1, arg0
+    mstore 128, v0
+    returndata 128, 32
+}
+
+fn @clz.1() [selector=0x30244f7a, pure] {
+  bb0:
+    v0 = icall @clz.4, 1, arg0
+    mstore 128, v0
+    returndata 128, 32
+}
+
+fn @ffs.2() [selector=0x2297890a, pure] {
+  bb0:
+    v0 = icall @ffs.5, 1, arg0
+    mstore 128, v0
+    returndata 128, 32
+}
+
+fn @fls.3(arg0: u256) -> u256 [pure] {
+  bb0:
+    jumpi arg0, bb2, bb1
+  bb1:
+    ret 256
+  bb2:
+    v1 = shr 128, arg0
+    v51 = iszero v1
+    v52 = iszero v51
+    v53 = shl 7, v52
+    v55 = shr v53, arg0
+    v7 = shr 64, v55
+    v56 = iszero v7
+    v57 = iszero v56
+    v58 = shl 6, v57
+    v59 = or v53, v58
+    v61 = shr v58, v55
+    v14 = shr 32, v61
+    v62 = iszero v14
+    v63 = iszero v62
+    v64 = shl 5, v63
+    v65 = or v59, v64
+    v67 = shr v64, v61
+    v21 = shr 16, v67
+    v68 = iszero v21
+    v69 = iszero v68
+    v70 = shl 4, v69
+    v71 = or v65, v70
+    v73 = shr v70, v67
+    v28 = shr 8, v73
+    v74 = iszero v28
+    v75 = iszero v74
+    v76 = shl 3, v75
+    v77 = or v71, v76
+    v79 = shr v76, v73
+    v35 = shr 4, v79
+    v80 = iszero v35
+    v81 = iszero v80
+    v82 = shl 2, v81
+    v83 = or v77, v82
+    v85 = shr v82, v79
+    v42 = shr 2, v85
+    v86 = iszero v42
+    v87 = iszero v86
+    v88 = add v87, v87
+    v89 = or v83, v88
+    v91 = shr v88, v85
+    v49 = shr 1, v91
+    v50 = or v89, v49
+    ret v50
+}
+
+fn @clz.4(arg0: u256) -> u256 [pure] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v1 = icall @fls.3, 1, arg0
+    v2 = sub 255, v1
+    v3 = lt 255, v1
+    jumpi v3, bb3, bb2
+  bb2:
+    v4 = phi [bb0: 256], [bb1: v2]
+    ret v4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @ffs.5(arg0: u256) -> u256 [pure] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v1 = not arg0
+    v2 = add v1, 1
+    v4 = and arg0, v2
+    v5 = icall @fls.3, 1, v4
+    jump bb2
+  bb2:
+    v6 = phi [bb0: 256], [bb1: v5]
+    ret v6
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = or v0, v2
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = calldataload 0
+    v5 = shr 224, v4
+    switch v5, default bb1, [0x2297890a => bb3, 0x27be8b2d => bb4, 0x30244f7a => bb5]
+  bb5:
+    tail_call @clz.1
+  bb4:
+    tail_call @fls.0
+  bb3:
+    tail_call @ffs.2
+  bb1:
+    revert 0, 0
+}

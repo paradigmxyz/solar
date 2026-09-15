@@ -66,9 +66,9 @@ bb1:
   lt
   push bb9
   jumpi
-  dup 2
+  dup 1
+  swap 2
   sstore
-  sload
   push 255
   caller
   and

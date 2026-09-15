@@ -46,39 +46,38 @@ fn @dynField() -> u256 [selector=0x3938b4c8, abi_params=[], abi_returns=[word]] 
     sstore 0, v19 !metadata(storage=slot(0))
     v34 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v35 = address
-    v36 = and v35, 0xffffffffffffffffffffffffffffffffffffffff
-    v37 = icall @load_storage_packed_array_4_2, 1, 0
-    memory_object_store_field memorystruct<2>, v34, 0, v36
-    memory_object_store_field memorystruct<2>, v34, 1, v37
-    v38 = memory_object_load_field memorystruct<2>, v34, 1
-    v39 = memory_object_len memoryarray, v38
-    v40 = eq v39, 2
-    v41 = iszero v40
-    jumpi v41, bb4, bb5
+    v36 = icall @load_storage_packed_array_4_2, 1, 0
+    memory_object_store_field memorystruct<2>, v34, 0, v35
+    memory_object_store_field memorystruct<2>, v34, 1, v36
+    v37 = memory_object_load_field memorystruct<2>, v34, 1
+    v38 = memory_object_len memoryarray, v37
+    v39 = eq v38, 2
+    v40 = iszero v39
+    jumpi v40, bb4, bb5
   bb5:
-    v42 = memory_object_load_field memorystruct<2>, v34, 1
-    v43 = memory_object_len memoryarray, v42
-    v44 = lt 0, v43
-    v45 = iszero v44
-    jumpi v45, bb6, bb7
+    v41 = memory_object_load_field memorystruct<2>, v34, 1
+    v42 = memory_object_len memoryarray, v41
+    v43 = lt 0, v42
+    v44 = iszero v43
+    jumpi v44, bb6, bb7
   bb7:
-    v46 = memory_object_load_element memoryarray<1>, v42, 0
-    v47 = and v46, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v48 = eq v47, 0x3938b4c800000000000000000000000000000000000000000000000000000000
-    v49 = iszero v48
-    jumpi v49, bb8, bb9
+    v45 = memory_object_load_element memoryarray<1>, v41, 0
+    v46 = and v45, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v47 = eq v46, 0x3938b4c800000000000000000000000000000000000000000000000000000000
+    v48 = iszero v47
+    jumpi v48, bb8, bb9
   bb9:
-    v50 = memory_object_load_field memorystruct<2>, v34, 1
-    v51 = memory_object_len memoryarray, v50
-    v52 = lt 1, v51
-    v53 = iszero v52
-    jumpi v53, bb6, bb10
+    v49 = memory_object_load_field memorystruct<2>, v34, 1
+    v50 = memory_object_len memoryarray, v49
+    v51 = lt 1, v50
+    v52 = iszero v51
+    jumpi v52, bb6, bb10
   bb10:
-    v54 = memory_object_load_element memoryarray<1>, v50, 1
-    v55 = and v54, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v56 = eq v55, 0x3442156e00000000000000000000000000000000000000000000000000000000
-    v57 = iszero v56
-    jumpi v57, bb11, bb12
+    v53 = memory_object_load_element memoryarray<1>, v49, 1
+    v54 = and v53, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v55 = eq v54, 0x3442156e00000000000000000000000000000000000000000000000000000000
+    v56 = iszero v55
+    jumpi v56, bb11, bb12
   bb12:
     ret 1
   bb11:
@@ -120,45 +119,43 @@ fn @structField() -> u256 [selector=0x3442156e, abi_params=[], abi_returns=[word
     v13 = alloc memorystruct<2>, exact, uninitialized, panic, 64
     v14 = sload 4 !metadata(storage=slot(4))
     v15 = and v14, 0xffffffffffffffff
-    v16 = and v15, 0xffffffffffffffff
-    memory_object_store_field memorystruct<2>, v13, 0, v16
-    v17 = sload 4 !metadata(storage=slot(4))
-    v18 = shr 64, v17
-    v19 = and v18, 0xffffffffffffffff
-    v20 = and v19, 0xffffffffffffffff
-    memory_object_store_field memorystruct<2>, v13, 1, v20
+    memory_object_store_field memorystruct<2>, v13, 0, v15
+    v16 = sload 4 !metadata(storage=slot(4))
+    v17 = shr 64, v16
+    v18 = and v17, 0xffffffffffffffff
+    memory_object_store_field memorystruct<2>, v13, 1, v18
     memory_object_store_field memorystruct<2>, v12, 0, 1
     memory_object_store_field memorystruct<2>, v12, 1, v13
-    v21 = memory_object_load_field memorystruct<2>, v12, 1
-    v22 = memory_object_load_field memorystruct<2>, v21, 0
-    v23 = and v22, 0xffffffffffffffff
-    v24 = eq v23, 7
-    jumpi v24, bb1, bb2
+    v19 = memory_object_load_field memorystruct<2>, v12, 1
+    v20 = memory_object_load_field memorystruct<2>, v19, 0
+    v21 = and v20, 0xffffffffffffffff
+    v22 = eq v21, 7
+    jumpi v22, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v25 = memory_object_load_field memorystruct<2>, v12, 1
-    v26 = memory_object_load_field memorystruct<2>, v25, 1
-    v27 = and v26, 0xffffffffffffffff
-    v28 = eq v27, 9
+    v23 = memory_object_load_field memorystruct<2>, v12, 1
+    v24 = memory_object_load_field memorystruct<2>, v23, 1
+    v25 = and v24, 0xffffffffffffffff
+    v26 = eq v25, 9
     jump bb3
   bb3:
-    v29 = phi [bb1: v28], [bb2: 0]
-    v30 = iszero v29
-    jumpi v30, bb4, bb5
+    v27 = phi [bb1: v26], [bb2: 0]
+    v28 = iszero v27
+    jumpi v28, bb4, bb5
   bb5:
-    v31 = sload 4 !metadata(storage=slot(4))
-    v32 = not 0xffffffffffffffff
-    v33 = and v31, v32
-    v34 = and 100, 0xffffffffffffffff
-    v35 = or v33, v34
-    sstore 4, v35 !metadata(storage=slot(4))
-    v36 = memory_object_load_field memorystruct<2>, v12, 1
-    v37 = memory_object_load_field memorystruct<2>, v36, 0
-    v38 = and v37, 0xffffffffffffffff
-    v39 = eq v38, 7
-    v40 = iszero v39
-    jumpi v40, bb6, bb7
+    v29 = sload 4 !metadata(storage=slot(4))
+    v30 = not 0xffffffffffffffff
+    v31 = and v29, v30
+    v32 = and 100, 0xffffffffffffffff
+    v33 = or v31, v32
+    sstore 4, v33 !metadata(storage=slot(4))
+    v34 = memory_object_load_field memorystruct<2>, v12, 1
+    v35 = memory_object_load_field memorystruct<2>, v34, 0
+    v36 = and v35, 0xffffffffffffffff
+    v37 = eq v36, 7
+    v38 = iszero v37
+    jumpi v38, bb6, bb7
   bb7:
     ret 1
   bb6:

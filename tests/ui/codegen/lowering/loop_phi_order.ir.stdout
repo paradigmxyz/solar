@@ -2,7 +2,7 @@
 @module LoopPhiOrder_runtime
 bb0:
   callvalue
-  push bb14
+  push bb23
   jumpi
   push 0
   calldataload
@@ -32,7 +32,7 @@ bb0:
   push 132
   calldatasize
   lt
-  push bb14
+  push bb23
   jumpi
   push 224
   mload
@@ -43,8 +43,8 @@ bb0:
   push 0
   swap 3
   exchange 1, 2
-  jump bb15
-bb17:
+  jump bb20
+bb22 [loop]:
   dup 2
   xor
   swap 1
@@ -59,12 +59,12 @@ bb17:
   swap 3
   swap 2
   swap 1
-  jump bb15
-bb15:
+  jump bb20
+bb20 [loop]:
   dup 5
   dup 5
   lt
-  push bb17
+  push bb22
   jumpi
   push 128
   mstore
@@ -79,7 +79,7 @@ bb15:
   push 96
   push 128
   return
-bb14 [cold]:
+bb23 [cold]:
   push 0
   push 0
   revert
@@ -94,7 +94,7 @@ bb2:
   push 100
   calldatasize
   lt
-  push bb14
+  push bb23
   jumpi
   push 224
   mload
@@ -102,8 +102,8 @@ bb2:
   mload
   push 0
   swap 2
-  jump bb18
-bb20:
+  jump bb15
+bb17 [loop]:
   dup 2
   sub
   swap 1
@@ -114,16 +114,14 @@ bb20:
   add
   swap 2
   swap 1
-  jump bb18
-bb18:
+  jump bb15
+bb15 [loop]:
   push 288
   mload
   dup 4
   lt
-  push bb20
+  push bb17
   jumpi
-  jump bb24
-bb24:
   push 128
   mstore
   push 32
@@ -133,22 +131,22 @@ bb3:
   dup 1
   push 0xaf080e88
   sub
-  push bb14
+  push bb23
   jumpi
   pop
   pop
   push 68
   calldatasize
   lt
-  push bb14
+  push bb23
   jumpi
   push 0
   push 224
   mload
   push 0
   swap 2
-  jump bb21
-bb23:
+  jump bb10
+bb12 [loop]:
   dup 2
   push 11
   byte
@@ -163,12 +161,16 @@ bb23:
   add
   swap 2
   swap 1
-  jump bb21
-bb21:
+  jump bb10
+bb10 [loop]:
   push 256
   mload
   dup 4
   lt
-  push bb23
+  push bb12
   jumpi
-  jump bb24
+  push 128
+  mstore
+  push 32
+  push 128
+  return

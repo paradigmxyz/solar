@@ -1,0 +1,296 @@
+// === ROOT/tests/ui/codegen/lowering/byte_store_counter.sol:ByteStoreCounter ===
+@module ByteStoreCounter
+fn @encode(arg0: memorybytes) -> memorybytes [selector=0x12496a1b, pure, abi_params=[bytes], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = icall @encodeImpl, 1, arg0
+    ret v0
+}
+
+fn @encodeTwice(arg0: memorybytes) -> memorybytes [selector=0xf58df096, pure, abi_params=[bytes], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = icall @encodeImpl, 1, arg0
+    v1 = icall @encodeImpl, 1, v0
+    ret v1
+}
+
+fn @encodeImpl(arg0: memorybytes) -> memorybytes [pure] {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    v1 = mul v0, 2
+    v2 = iszero 2
+    v3 = div v1, 2
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = add v1, 63
+    v8 = lt v7, v1
+    jumpi v8, bb3, bb4
+  bb4:
+    v9 = not 31
+    v10 = and v7, v9
+    v11 = alloc memorybytes, exact, zeroed, panic, v10
+    set_memory_object_len memorybytes, v11, v1
+    jump bb5
+  bb5:
+    v12 = phi [bb4: arg0], [bb20: v12]
+    v13 = phi [bb4: v11], [bb20: v13]
+    v14 = phi [bb4: 0], [bb20: v55]
+    v15 = memory_object_len memorybytes, v12
+    v16 = lt v14, v15
+    jumpi v16, bb8, bb9
+  bb9:
+    jump bb6
+  bb6:
+    ret v13
+  bb8:
+    v17 = memory_object_len memorybytes, v12
+    v18 = lt v14, v17
+    v19 = iszero v18
+    jumpi v19, bb11, bb12
+  bb12:
+    v20 = memory_object_load_byte memorybytes, v12, v14
+    v21 = shl 248, v20
+    v22 = shr 248, v21
+    v23 = shr 4, v22
+    v24 = lt v23, 16
+    v25 = iszero v24
+    jumpi v25, bb11, bb13
+  bb13:
+    v26 = byte v23, 0x3031323334353637383961626364656600000000000000000000000000000000
+    v27 = shl 248, v26
+    v28 = mul 2, v14
+    v29 = iszero v14
+    v30 = div v28, v14
+    v31 = eq v30, 2
+    v32 = or v29, v31
+    v33 = iszero v32
+    jumpi v33, bb1, bb14
+  bb14:
+    v34 = memory_object_len memorybytes, v13
+    v35 = lt v28, v34
+    v36 = iszero v35
+    jumpi v36, bb11, bb15
+  bb15:
+    v37 = byte 0, v27
+    memory_object_store_byte memorybytes, v13, v28, v37
+    v38 = and v22, 15
+    v39 = lt v38, 16
+    v40 = iszero v39
+    jumpi v40, bb11, bb16
+  bb16:
+    v41 = byte v38, 0x3031323334353637383961626364656600000000000000000000000000000000
+    v42 = shl 248, v41
+    v43 = mul 2, v14
+    v44 = iszero v14
+    v45 = div v43, v14
+    v46 = eq v45, 2
+    v47 = or v44, v46
+    v48 = iszero v47
+    jumpi v48, bb1, bb17
+  bb17:
+    v49 = add v43, 1
+    v50 = lt v49, v43
+    jumpi v50, bb1, bb18
+  bb18:
+    v51 = memory_object_len memorybytes, v13
+    v52 = lt v49, v51
+    v53 = iszero v52
+    jumpi v53, bb11, bb19
+  bb19:
+    v54 = byte 0, v42
+    memory_object_store_byte memorybytes, v13, v49, v54
+    jump bb10
+  bb10:
+    jump bb7
+  bb7:
+    v55 = add v14, 1
+    v56 = lt v55, v14
+    jumpi v56, bb1, bb20
+  bb20:
+    jump bb5
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @scan(arg0: memorybytes) -> bool [selector=0x43f8e26b, pure, abi_params=[bytes], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = icall @scanImpl, 1, arg0
+    ret v0
+}
+
+fn @twice(arg0: memorybytes, arg1: memorybytes) -> (bool, bool) [selector=0xbca4d4a4, pure, abi_params=[bytes, bytes], abi_returns=[word<bool>, word<bool>]] {
+  bb0:
+    v0 = icall @scanImpl, 1, arg0
+    v1 = icall @scanImpl, 1, arg1
+    ret v0, v1
+}
+
+fn @scanImpl(arg0: memorybytes) -> bool [pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb13: v0]
+    v1 = phi [bb0: 0], [bb13: v11]
+    v2 = phi [bb0: 0], [bb13: v2]
+    v3 = memory_object_len memorybytes, v0
+    v4 = lt v1, v3
+    jumpi v4, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret 1
+  bb4:
+    v5 = memory_object_len memorybytes, v0
+    v6 = lt v1, v5
+    v7 = iszero v6
+    jumpi v7, bb7, bb8
+  bb8:
+    v8 = memory_object_load_byte memorybytes, v0, v1
+    v9 = shl 248, v8
+    v10 = gt v9, 0x7f00000000000000000000000000000000000000000000000000000000000000
+    jumpi v10, bb9, bb10
+  bb10:
+    jump bb11
+  bb11:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v11 = add v1, 1
+    v12 = lt v11, v1
+    jumpi v12, bb12, bb13
+  bb13:
+    jump bb1
+  bb12:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    ret 0
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @firstHigh(arg0: memorybytes) -> u256 [selector=0xec31a730, pure, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb13: v0]
+    v1 = phi [bb0: 0], [bb13: v11]
+    v2 = phi [bb0: 0], [bb13: v2]
+    v3 = memory_object_len memorybytes, v0
+    v4 = lt v1, v3
+    jumpi v4, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v13 = memory_object_len memorybytes, v0
+    ret v13
+  bb4:
+    v5 = memory_object_len memorybytes, v0
+    v6 = lt v1, v5
+    v7 = iszero v6
+    jumpi v7, bb7, bb8
+  bb8:
+    v8 = memory_object_load_byte memorybytes, v0, v1
+    v9 = shl 248, v8
+    v10 = gt v9, 0x7f00000000000000000000000000000000000000000000000000000000000000
+    jumpi v10, bb9, bb10
+  bb10:
+    jump bb11
+  bb11:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v11 = add v1, 1
+    v12 = lt v11, v1
+    jumpi v12, bb12, bb13
+  bb13:
+    jump bb1
+  bb12:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    ret v1
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @checkedScan(arg0: u256) -> bool [selector=0xf2609747, pure, abi_params=[u256], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = add arg0, 63
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    v2 = not 31
+    v3 = and v0, v2
+    v4 = alloc memorybytes, exact, zeroed, panic, v3
+    set_memory_object_len memorybytes, v4, arg0
+    jump bb3
+  bb3:
+    v5 = phi [bb2: 0], [bb15: v5]
+    v6 = phi [bb2: 0], [bb15: v17]
+    v7 = phi [bb2: arg0], [bb15: v7]
+    v8 = phi [bb2: v4], [bb15: v8]
+    v9 = memory_object_len memorybytes, v8
+    v10 = lt v6, v9
+    jumpi v10, bb6, bb7
+  bb7:
+    jump bb4
+  bb4:
+    ret 1
+  bb6:
+    v11 = memory_object_len memorybytes, v8
+    v12 = lt v6, v11
+    v13 = iszero v12
+    jumpi v13, bb9, bb10
+  bb10:
+    v14 = memory_object_load_byte memorybytes, v8, v6
+    v15 = shl 248, v14
+    v16 = gt v15, 0x7f00000000000000000000000000000000000000000000000000000000000000
+    jumpi v16, bb11, bb12
+  bb12:
+    jump bb13
+  bb13:
+    jump bb8
+  bb8:
+    jump bb5
+  bb5:
+    v17 = add v6, 1
+    v18 = gt v17, 255
+    jumpi v18, bb14, bb15
+  bb15:
+    jump bb3
+  bb14:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    ret 0
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}

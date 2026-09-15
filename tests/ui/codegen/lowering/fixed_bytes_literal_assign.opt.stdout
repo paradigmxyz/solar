@@ -1,0 +1,57 @@
+// === ROOT/tests/ui/codegen/lowering/fixed_bytes_literal_assign.sol:FixedBytesLiteralAssign ===
+@module FixedBytesLiteralAssign
+@phase evm-shaped
+fn @patch() [selector=0x7f603a02, pure] {
+  bb0:
+    v11 = calldatasize
+    v12 = lt v11, 36
+    jumpi v12, bb3, bb4
+  bb4:
+    v13 = calldataload 4
+    v14 = lt v13, 2
+    jumpi v14, bb5, bb3
+  bb5:
+    v0 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
+    mstore v0, 2
+    v1 = add v0, 32
+    mstore v1, 0x4142000000000000000000000000000000000000000000000000000000000000
+    jumpi arg0, bb1, bb2
+  bb1:
+    mstore8 v1, 45
+    jump bb2
+  bb2:
+    v21 = mload v1
+    v22 = byte 0, v21
+    v10 = shl 248, v22
+    mstore 128, v10
+    returndata 128, 32
+  bb3:
+    revert 0, 0
+}
+
+fn @store() [selector=0x975057e7] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v2 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v5 = or v2, 45
+    sstore 0, v5 !metadata(storage=slot(0))
+    v8 = shl 248, v5
+    mstore 128, v8
+    returndata 128, 32
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb4, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb4, [0x7f603a02 => bb2, 0x975057e7 => bb3]
+  bb3:
+    tail_call @store
+  bb2:
+    tail_call @patch
+  bb4:
+    revert 0, 0
+}

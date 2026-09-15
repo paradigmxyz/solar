@@ -229,53 +229,50 @@ fn @nestedRoundtrip() -> (u256, memorybytes, u256) [selector=0x07f0bc21, pure, a
     memory_object_store_field memorystruct<3>, v0, 1, v2
     memory_object_store_field memorystruct<3>, v0, 2, 96
     v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    v4 = and 1, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq 1, 0
-    v6 = iszero v5
     memory_object_store_field memorystruct<3>, v3, 0, 7
-    memory_object_store_field memorystruct<3>, v3, 1, v4
-    memory_object_store_field memorystruct<3>, v3, 2, v6
+    memory_object_store_field memorystruct<3>, v3, 1, 1
+    memory_object_store_field memorystruct<3>, v3, 2, 1
     memory_object_store_field memorystruct<3>, v0, 0, v3
+    v4 = memory_object_load_field memorystruct<3>, v0, 1
+    memory_object_store_field memorystruct<3>, v4, 0, 42
+    v5 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v5, 2
+    v6 = memory_object_data memorybytes, v5
+    mstore v6, 0x6869000000000000000000000000000000000000000000000000000000000000
     v7 = memory_object_load_field memorystruct<3>, v0, 1
-    memory_object_store_field memorystruct<3>, v7, 0, 42
-    v8 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v8, 2
-    v9 = memory_object_data memorybytes, v8
-    mstore v9, 0x6869000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_field memorystruct<3>, v7, 1, v5
+    v8 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    set_memory_object_len memoryarray, v8, 2
+    v9 = memory_object_load_field memorystruct<3>, v0, 1
+    memory_object_store_field memorystruct<3>, v9, 2, v8
     v10 = memory_object_load_field memorystruct<3>, v0, 1
-    memory_object_store_field memorystruct<3>, v10, 1, v8
-    v11 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    set_memory_object_len memoryarray, v11, 2
-    v12 = memory_object_load_field memorystruct<3>, v0, 1
-    memory_object_store_field memorystruct<3>, v12, 2, v11
-    v13 = memory_object_load_field memorystruct<3>, v0, 1
-    v14 = memory_object_load_field memorystruct<3>, v13, 2
-    v15 = memory_object_len memoryarray, v14
-    v16 = lt 0, v15
-    v17 = iszero v16
-    jumpi v17, bb1, bb2
+    v11 = memory_object_load_field memorystruct<3>, v10, 2
+    v12 = memory_object_len memoryarray, v11
+    v13 = lt 0, v12
+    v14 = iszero v13
+    jumpi v14, bb1, bb2
   bb2:
-    memory_object_store_element memoryarray<1>, v14, 0, 4
-    v18 = memory_object_load_field memorystruct<3>, v0, 1
-    v19 = memory_object_load_field memorystruct<3>, v18, 2
-    v20 = memory_object_len memoryarray, v19
-    v21 = lt 1, v20
-    v22 = iszero v21
-    jumpi v22, bb1, bb3
+    memory_object_store_element memoryarray<1>, v11, 0, 4
+    v15 = memory_object_load_field memorystruct<3>, v0, 1
+    v16 = memory_object_load_field memorystruct<3>, v15, 2
+    v17 = memory_object_len memoryarray, v16
+    v18 = lt 1, v17
+    v19 = iszero v18
+    jumpi v19, bb1, bb3
   bb3:
-    memory_object_store_element memoryarray<1>, v19, 1, 5
-    v23 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v23, 3
-    v24 = memory_object_data memorybytes, v23
-    mstore v24, 0x78797a0000000000000000000000000000000000000000000000000000000000
-    memory_object_store_field memorystruct<3>, v0, 2, v23
-    v25 = abi_encode [tuple<tuple<word, word<u160>, word<bool>>, tuple<word, memory_bytes, memory_array<word>>, memory_bytes>], object, args v0
-    v26 = icall @dNested, 3, v25
-    v27 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v28 = memory_object_load_element memoryfixedarray<3, 1>, v27, 1
-    v29 = add v27, 64
-    v30 = mload v29
-    ret v26, v28, v30
+    memory_object_store_element memoryarray<1>, v16, 1, 5
+    v20 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v20, 3
+    v21 = memory_object_data memorybytes, v20
+    mstore v21, 0x78797a0000000000000000000000000000000000000000000000000000000000
+    memory_object_store_field memorystruct<3>, v0, 2, v20
+    v22 = abi_encode [tuple<tuple<word, word<u160>, word<bool>>, tuple<word, memory_bytes, memory_array<word>>, memory_bytes>], object, args v0
+    v23 = icall @dNested, 3, v22
+    v24 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v25 = memory_object_load_element memoryfixedarray<3, 1>, v24, 1
+    v26 = add v24, 64
+    v27 = mload v26
+    ret v23, v25, v27
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
