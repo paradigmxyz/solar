@@ -16,7 +16,7 @@ use crate::{
     proto,
     protocol_trace::ProtocolTrace,
     symbols::{SymbolTables, SymbolTablesAggregator},
-    vfs::Vfs,
+    vfs::{Vfs, VfsPath},
     workspace::{WorkspaceError, WorkspacePathIndex, index_policy::IndexingCancellation},
 };
 use arc_swap::ArcSwap;
@@ -455,6 +455,7 @@ pub(crate) struct GlobalState {
     pub(crate) symbol_tables: Arc<ArcSwap<SymbolTables>>,
     diagnostics: Arc<RwLock<DiagnosticStore>>,
     import_completion_cache: Mutex<ImportCompletionCache>,
+    last_vfs_path: Option<(Url, Arc<VfsPath>)>,
 }
 
 pub(crate) struct AnalysisRevision {
@@ -503,6 +504,7 @@ impl GlobalState {
             symbol_tables: Arc::new(Default::default()),
             diagnostics: Arc::new(Default::default()),
             import_completion_cache: Mutex::new(ImportCompletionCache::default()),
+            last_vfs_path: None,
             config,
             launch_config: crate::LaunchConfig::default(),
         }
@@ -519,6 +521,18 @@ impl GlobalState {
 
     pub(crate) fn client_socket(&self) -> ClientSocket {
         self.client.clone()
+    }
+
+    /// Reuse the last pure URI-to-VFS-path conversion while still reading the current VFS entry.
+    pub(crate) fn cached_vfs_path(&mut self, uri: &Url) -> Option<Arc<VfsPath>> {
+        if let Some((cached_uri, path)) = &self.last_vfs_path
+            && cached_uri == uri
+        {
+            return Some(Arc::clone(path));
+        }
+        let path = Arc::new(crate::proto::vfs_path(uri)?);
+        self.last_vfs_path = Some((uri.clone(), Arc::clone(&path)));
+        Some(path)
     }
 
     /// Return cached candidates or build them from the current overlay snapshot.
