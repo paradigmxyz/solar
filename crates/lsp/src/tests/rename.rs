@@ -1040,21 +1040,18 @@ fn in_flight_rename_response_keeps_the_validated_version() {
     set_document_contents(&mut state, uri.clone(), 7, &contents);
     assert_eq!(state.vfs.read().get_file_version(&path), Some(7));
 
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .max_blocking_threads(1)
-        .build()
-        .unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
     let entered = runtime.enter();
     let mut rename = Box::pin(crate::handlers::rename(&mut state, params));
-    let (release_worker, worker) = super::pause_blocking_pool();
+    let vfs = Arc::clone(&state.vfs);
+    let vfs_guard = vfs.write();
     let (wake_tx, wake_rx) = mpsc::channel();
     let waker = Waker::from(Arc::new(CompletionWaker(wake_tx)));
     let mut context = Context::from_waker(&waker);
 
     assert!(rename.as_mut().poll(&mut context).is_pending());
     assert_eq!(wake_rx.try_recv(), Err(mpsc::TryRecvError::Empty));
-    release_worker.send(()).unwrap();
+    drop(vfs_guard);
     wake_rx.recv_timeout(Duration::from_secs(5)).expect("rename validation task should complete");
 
     let changed_contents = format!("// changed while rename was in flight\n{contents}");
@@ -1073,7 +1070,6 @@ fn in_flight_rename_response_keeps_the_validated_version() {
     assert_eq!(edits[0].text_document.uri, uri);
     assert_eq!(edits[0].text_document.version, Some(7));
 
-    runtime.block_on(worker).unwrap();
     drop(rename);
     drop(entered);
     drop(runtime);

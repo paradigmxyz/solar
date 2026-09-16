@@ -703,7 +703,7 @@ fn conflicting_request_files_cannot_leak_external_targets() {
 }
 
 #[test]
-fn requests_read_the_latest_published_analysis() {
+fn requests_reject_a_different_published_analysis_epoch() {
     let project = TestProject::from_fixture(
         r#"
         //- /Hierarchy.sol
@@ -752,9 +752,16 @@ fn requests_read_the_latest_published_analysis() {
     assert!(snapshot.publish_symbol_tables(2, Arc::new(new_tables)));
     assert!(!snapshot.publish_symbol_tables(1, Default::default()));
 
-    assert_eq!(ready_names(prepare.as_mut().poll(&mut context)), ["New"]);
-    assert_eq!(ready_names(supertypes.as_mut().poll(&mut context)), ["SuperNew"]);
-    assert_eq!(ready_names(subtypes.as_mut().poll(&mut context)), ["SubNew"]);
+    for response in [
+        prepare.as_mut().poll(&mut context),
+        supertypes.as_mut().poll(&mut context),
+        subtypes.as_mut().poll(&mut context),
+    ] {
+        let Poll::Ready(Err(error)) = response else {
+            panic!("a new publication must not retarget an old request");
+        };
+        assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
+    }
 }
 
 #[test]
@@ -875,11 +882,4 @@ fn analyze_tables(path: &std::path::Path, source: &str) -> SymbolTables {
         [(path.to_path_buf(), source.to_owned())],
     ))
     .symbol_tables
-}
-
-fn ready_names(
-    poll: Poll<Result<Option<Vec<TypeHierarchyItem>>, async_lsp::ResponseError>>,
-) -> Vec<String> {
-    let Poll::Ready(response) = poll else { panic!("request should be ready") };
-    names(response.unwrap())
 }

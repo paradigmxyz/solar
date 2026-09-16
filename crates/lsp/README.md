@@ -11,6 +11,13 @@ Indexing exclusions still apply. Foundry settings supply import resolution, comp
 and build entry points for flycheck. Explicitly configured source directories remain included,
 including directories outside the project root.
 
+Requests waiting for semantic analysis keep the workspace analysis epoch captured on receipt.
+If a processed change supersedes that epoch, the server wakes those requests and returns
+`ContentModified`; it does not reinterpret their positions against newer sources. This policy
+is conservative: changes elsewhere in the workspace can also invalidate a pending request.
+Document and workspace diagnostic pulls return `ServerCancelled` instead, which asks the
+client to retry. Content-identical edits that only advance a document version preserve the epoch.
+
 ## Embedding
 
 Use the public `solar_lsp::launch` entry point to run the same language server implementation

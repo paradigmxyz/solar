@@ -211,8 +211,16 @@ async fn edits_after_foreground_urgency_restart_the_full_debounce() {
     tokio::time::resume();
     let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, hover)
         .await
-        .expect("the earlier foreground request should receive the newest analysis")
-        .unwrap();
+        .expect("the earlier foreground request should be invalidated")
+        .unwrap_err();
+    assert_eq!(response.code, ErrorCode::CONTENT_MODIFIED);
+    let response = tokio::time::timeout(
+        ASYNC_TEST_TIMEOUT,
+        crate::handlers::hover(&mut state, hover_params(&uri)),
+    )
+    .await
+    .unwrap()
+    .unwrap();
     assert!(response.is_some());
     let tables = state.symbol_tables.load();
     assert!(tables.workspace_symbols("Before").is_empty());
@@ -251,7 +259,7 @@ async fn requests_recheck_freshness_after_analysis_wakes_them() {
     let Poll::Ready(Err(error)) = diagnostics.as_mut().poll(&mut cx) else {
         panic!("a superseded diagnostic request must finish without waiting for more edits");
     };
-    assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
+    assert_eq!(error.code, ErrorCode::SERVER_CANCELLED);
     let hover = crate::handlers::hover(&mut state, hover_params(&uri));
     let diagnostics = crate::handlers::document_diagnostic(
         &mut state,
@@ -317,7 +325,7 @@ async fn rapid_edits_and_saves_in_a_large_workspace_publish_the_latest_analysis(
     else {
         panic!("the earlier request must finish despite continued edits");
     };
-    assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
+    assert_eq!(error.code, ErrorCode::SERVER_CANCELLED);
     let diagnostics = crate::handlers::document_diagnostic(
         &mut state,
         document_diagnostic_params(uri.clone(), None),
@@ -366,4 +374,63 @@ async fn pending_rename_rejects_a_different_identifier_at_the_same_position() {
     assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
     let error = tokio::time::timeout(ASYNC_TEST_TIMEOUT, prepare).await.unwrap().unwrap_err();
     assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn superseded_requests_wake_without_analysis_publication() {
+    let (_project, mut state, uri) = fixture();
+    let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
+    change(&mut state, &uri, 1, "contract First {}");
+    let hover = tokio::spawn(crate::handlers::hover(&mut state, hover_params(&uri)));
+    tokio::task::yield_now().await;
+    assert!(!hover.is_finished());
+
+    change(&mut state, &uri, 2, "contract Second {}");
+    let result = tokio::time::timeout(ASYNC_TEST_TIMEOUT, hover).await;
+    assert_eq!(*state.published_analysis_version.borrow(), 0);
+    drop(gate);
+    let error = result
+        .expect("invalidation must wake the request without publication")
+        .unwrap()
+        .unwrap_err();
+    assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn pending_rename_rejects_disk_changes_after_analysis_catches_up() {
+    let (project, mut state, uri) = fixture();
+    let path = project.path("/Request.sol");
+    state.vfs.write().set_file_contents(path.clone().into(), None);
+    project.write_file("/Request.sol", "contract Original {}");
+    let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
+    state.recompute_with_disk_files(vec![path.clone()]);
+    let rename = crate::handlers::rename(
+        &mut state,
+        RenameParams {
+            text_document_position: position(&uri),
+            new_name: "Renamed".into(),
+            work_done_progress_params: Default::default(),
+        },
+    );
+    let revision = state.vfs.read().content_revision();
+    project.write_file("/Request.sol", "contract Replaced {}");
+    state.recompute_with_disk_files(vec![path]);
+    drop(gate);
+    state.prioritize_pending_analysis();
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    assert_eq!(state.vfs.read().content_revision(), revision);
+    let error = tokio::time::timeout(ASYNC_TEST_TIMEOUT, rename).await.unwrap().unwrap_err();
+    assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn content_identical_edits_preserve_pending_requests() {
+    let (_project, mut state, uri) = fixture();
+    let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
+    change(&mut state, &uri, 1, "contract Latest {}");
+    let hover = crate::handlers::hover(&mut state, hover_params(&uri));
+    change(&mut state, &uri, 2, "contract Latest {}");
+    drop(gate);
+    let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, hover).await.unwrap().unwrap();
+    assert!(response.is_some());
 }
