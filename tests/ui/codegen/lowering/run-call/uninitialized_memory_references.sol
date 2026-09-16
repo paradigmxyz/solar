@@ -3,6 +3,8 @@
 //@ run-call: nullArrayElementsEncodeAsEmpty => true
 //@ run-call: conditionalLiteral false => 0
 //@ run-call: conditionalLiteral true => 64
+//@ run-call: overlappingLiteral false => 0
+//@ run-call: overlappingLiteral true => 64
 //@ run-call: sharedWordLiteral 0 => 64
 //@ run-call: sharedWordLiteral 1 => 64
 //@ run-call: sharedWordLiteral 2 => 64
@@ -62,6 +64,22 @@ contract UninitializedMemoryReferences {
         }
         assembly {
             delta := sub(mload(0x40), before)
+        }
+    }
+
+    function overlappingLiteral(bool take) external returns (uint256 delta) {
+        uint256 before;
+        assembly {
+            before := shr(8, mload(0x41))
+        }
+        if (take) {
+            bytes memory data = hex"abcd";
+            assembly {
+                log0(add(data, 32), 2)
+            }
+        }
+        assembly {
+            delta := sub(shr(8, mload(0x41)), before)
         }
     }
 

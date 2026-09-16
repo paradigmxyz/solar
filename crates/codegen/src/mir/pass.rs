@@ -392,6 +392,8 @@ pub(crate) fn run_function_pass(
 
 /// Per-function analysis snapshots handed to a pass run.
 pub(crate) struct FunctionAnalyses {
+    /// Identity of the function owning these snapshots.
+    pub(crate) function: FunctionId,
     /// Shared alias analysis; provenance and address memos build lazily.
     pub(crate) alias: Rc<AliasAnalysis>,
     /// Shared CFG snapshot; RPO, dominators, and reachability build lazily.
@@ -445,7 +447,11 @@ impl ModuleAnalyses {
     }
 
     fn bundle(&mut self, func_id: FunctionId, func: &Function) -> FunctionAnalyses {
-        FunctionAnalyses { alias: self.alias(func_id), cfg: self.cfg(func_id, func) }
+        FunctionAnalyses {
+            function: func_id,
+            alias: self.alias(func_id),
+            cfg: self.cfg(func_id, func),
+        }
     }
 
     /// Returns the module call summaries, computing them on first use. A pass that changes
