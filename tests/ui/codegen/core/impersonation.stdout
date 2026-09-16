@@ -1,6 +1,6 @@
 // === <solar:core/v1/Bytes.sol>:Bytes ===
 @module Bytes
-@phase evm-shaped
+@phase lowered
 @library
 fn @entry() [entry] {
   bb0:
@@ -9,8 +9,8 @@ fn @entry() [entry] {
 
 // === ROOT/tests/ui/codegen/core/impersonation.sol:Test ===
 @module Test
-@phase evm-shaped
-fn @f() [selector=0xd45754f8, pure] {
+@phase lowered
+fn @f() [selector=0xd45754f8, abi_wrapper, pure] {
   bb0:
     v9 = calldatasize
     v10 = lt v9, 36
@@ -30,7 +30,7 @@ fn @f() [selector=0xd45754f8, pure] {
     jumpi v20, bb6, bb7
   bb7:
     v22 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v23 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v23 = mload 64 !metadata(memory=scratch)
     v32 = add v23, v22
     v33 = lt v32, v23
     v34 = gt v32, 0xffffffffffffffff
@@ -53,13 +53,13 @@ fn @f() [selector=0xd45754f8, pure] {
     mstore 128, v8
     returndata 128, 32
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb3:
     revert 0, 0
 }

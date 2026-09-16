@@ -10,13 +10,15 @@ contract Test {
     using Bytes for bytes;
 
     // Four bytes are a masked word read, not four indexed byte reads. The body
-    // the module ships is what runs when the intrinsic is off.
+    // the module ships is what runs when the intrinsic is off: small enough
+    // to be inlined, it arrives as its loop, one byte per iteration.
     // INTRINSIC-LABEL: fn @selector
     // INTRINSIC: mload
     // INTRINSIC: and {{.*}}, 0xffffffff00000000000000000000000000000000000000000000000000000000
     // INTRINSIC-NOT: byte
     // PORTABLE-LABEL: fn @selector
-    // PORTABLE: icall @readBytes4
+    // PORTABLE: phi
+    // PORTABLE: byte 0,
     function selector(bytes memory packet) public pure returns (bytes4) {
         return packet.readBytes4(0);
     }

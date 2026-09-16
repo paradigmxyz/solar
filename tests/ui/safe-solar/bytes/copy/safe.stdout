@@ -1,6 +1,6 @@
 // === <solar:core/v1/Bytes.sol>:Bytes ===
 @module Bytes
-@phase evm-shaped
+@phase lowered
 @library
 fn @entry() [entry] {
   bb0:
@@ -9,50 +9,50 @@ fn @entry() [entry] {
 
 // === ROOT/tests/ui/safe-solar/bytes/copy/safe.sol:Safe ===
 @module Safe
-@phase evm-shaped
-fn @shift() [selector=0x524ffe38, pure] {
+@phase lowered
+fn @shift() [selector=0x524ffe38, abi_wrapper, pure] {
   bb0:
-    v17 = calldatasize
-    v18 = lt v17, 36
-    jumpi v18, bb3, bb4
+    v18 = calldatasize
+    v19 = lt v18, 36
+    jumpi v19, bb3, bb4
   bb4:
-    v19 = icall @decode_calldata_type, 1, 4
-    v0 = mload v19
-    v1 = sub v0, 1
+    v20 = icall @decode_calldata_type, 4
+    v0 = mload v20
+    v16 = sub v0, 1
     jumpi v0, bb2, bb1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
   bb2:
-    v8 = add v19, 32
-    v9 = add v8, 1
-    mcopy v9, v8, v1
-    v24 = iszero v19
-    v25 = iszero v24
-    v26 = mul v0, v25
-    v28 = add v26, 31
-    v30 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v31 = add v8, v30
-    mstore v31, 0
-    v32 = add v8, 32
-    mcopy v32, v8, v26
-    mstore v19, 32
-    mstore v8, v26
-    v33 = add v30, 64
-    returndata v19, v33
+    v7 = add v20, 32
+    v8 = add v7, 1
+    mcopy v8, v7, v16
+    v25 = iszero v20
+    v26 = iszero v25
+    v27 = mul v0, v26
+    v29 = add v27, 31
+    v31 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v32 = add v7, v31
+    mstore v32, 0
+    v33 = add v7, 32
+    mcopy v33, v7, v27
+    mstore v20, 32
+    mstore v7, v27
+    v34 = add v31, 64
+    returndata v20, v34
   bb3:
     revert 0, 0
 }
 
-fn @between() [selector=0xf75bb619, pure] {
+fn @between() [selector=0xf75bb619, abi_wrapper, pure] {
   bb0:
     v14 = calldatasize
     v15 = lt v14, 68
     jumpi v15, bb4, bb5
   bb5:
-    v16 = icall @decode_calldata_type, 1, 4
-    v17 = icall @decode_calldata_type, 1, 36
+    v16 = icall @decode_calldata_type, 4
+    v17 = icall @decode_calldata_type, 36
     v0 = mload v16
     v3 = gt 7, v0
     jumpi v3, bb1, bb2
@@ -79,11 +79,16 @@ fn @between() [selector=0xf75bb619, pure] {
     v31 = add v28, 64
     returndata v16, v31
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @revert_stub
   bb4:
     revert 0, 0
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @decode_calldata_type(arg0: u256) -> memptr {
@@ -103,7 +108,7 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     jumpi v10, bb3, bb4
   bb4:
     v12 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v13 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v13 = mload 64 !metadata(memory=scratch)
     v20 = add v13, v12
     v21 = lt v20, v13
     v22 = gt v20, 0xffffffffffffffff
@@ -120,9 +125,9 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     calldatacopy v17, v3, v7
     ret v13
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb1:
     revert 0, 0
 }

@@ -1,52 +1,52 @@
 // === ROOT/tests/ui/safe-solar/base64/encode/unsafe.sol:Unsafe ===
 @module Unsafe
-@phase evm-shaped
-fn @encode() [selector=0xfc4c4555, pure] {
+@phase lowered
+fn @encode() [selector=0xfc4c4555, abi_wrapper, pure] {
   bb0:
-    v63 = calldatasize
-    v64 = lt v63, 100
-    jumpi v64, bb5, bb6
+    v64 = calldatasize
+    v65 = lt v64, 100
+    jumpi v65, bb5, bb6
   bb6:
-    v65 = calldataload 36
-    v66 = lt v65, 2
-    jumpi v66, bb7, bb5
+    v66 = calldataload 36
+    v67 = lt v66, 2
+    jumpi v67, bb7, bb5
   bb7:
-    v67 = calldataload 68
-    v68 = lt v67, 2
-    jumpi v68, bb8, bb5
+    v68 = calldataload 68
+    v69 = lt v68, 2
+    jumpi v69, bb8, bb5
   bb8:
-    v69 = calldataload 4
-    v70 = add v69, 4
-    v71 = add v70, 32
-    v72 = gt v69, 0xffffffffffffffff
-    v73 = gt v71, v63
-    v74 = or v72, v73
-    jumpi v74, bb5, bb9
+    v70 = calldataload 4
+    v71 = add v70, 4
+    v72 = add v71, 32
+    v73 = gt v70, 0xffffffffffffffff
+    v74 = gt v72, v64
+    v75 = or v73, v74
+    jumpi v75, bb5, bb9
   bb9:
-    v75 = calldataload v70
-    v77 = add v75, 63
-    v78 = lt v77, v75
-    jumpi v78, bb10, bb11
+    v76 = calldataload v71
+    v78 = add v76, 63
+    v79 = lt v78, v76
+    jumpi v79, bb10, bb11
   bb11:
-    v80 = and v77, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v81 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v112 = add v81, v80
-    v113 = lt v112, v81
-    v114 = gt v112, 0xffffffffffffffff
-    v115 = or v113, v114
-    jumpi v115, bb10, bb13
+    v81 = and v78, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v82 = mload 64 !metadata(memory=scratch)
+    v113 = add v82, v81
+    v114 = lt v113, v82
+    v115 = gt v113, 0xffffffffffffffff
+    v116 = or v114, v115
+    jumpi v116, bb10, bb13
   bb13:
-    mstore 64, v112 !metadata(memory=scratch)
-    mstore v81, v75
-    v82 = sub v63, v71
-    v83 = gt v75, v82
-    jumpi v83, bb5, bb12
+    mstore 64, v113 !metadata(memory=scratch)
+    mstore v82, v76
+    v83 = sub v64, v72
+    v84 = gt v76, v83
+    jumpi v84, bb5, bb12
   bb12:
-    v109 = add v81, 32
-    calldatacopy v109, v71, v75
-    jumpi v75, bb1, bb2
+    v110 = add v82, 32
+    calldatacopy v110, v72, v76
+    jumpi v76, bb1, bb2
   bb1:
-    v3 = add v75, 2
+    v3 = add v76, 2
     v4 = div v3, 3
     v5 = shl 2, v4
     v6 = mload 64 !metadata(memory=scratch)
@@ -57,13 +57,13 @@ fn @encode() [selector=0xfc4c4555, pure] {
     mstore 63, v9 !metadata(memory=scratch)
     v10 = add v6, 32
     v11 = add v10, v5
-    v13 = add v109, v75
+    v13 = add v110, v76
     v14 = mload v13
     mstore v13, 0
     jump bb3
   bb3:
     v18 = phi [bb1: v10], [bb3: v41]
-    v21 = phi [bb1: v81], [bb3: v27]
+    v21 = phi [bb1: v82], [bb3: v27]
     v27 = add v21, 3
     v28 = mload v27
     v29 = shr 18, v28
@@ -90,7 +90,7 @@ fn @encode() [selector=0xfc4c4555, pure] {
     mstore v13, v14
     v48 = add v11, 32
     mstore 64, v48 !metadata(memory=scratch)
-    v49 = mod v75, 3
+    v49 = mod v76, 3
     v50 = div 2, v49
     v52 = sub v41, v50
     mstore v52, 0x3d3d000000000000000000000000000000000000000000000000000000000000
@@ -103,34 +103,34 @@ fn @encode() [selector=0xfc4c4555, pure] {
     mstore v6, v57
     jump bb2
   bb2:
-    v58 = phi [bb4: v6], [bb12: 96]
-    v88 = mload 64 !metadata(memory=scratch)
-    v89 = add v88, 32
-    mstore v88, 32
-    v92 = iszero v58
-    v93 = iszero v92
-    v91 = mload v58
-    v94 = mul v91, v93
-    v96 = add v94, 31
-    v97 = and v96, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v98 = add v89, 32
-    v99 = add v89, v97
-    mstore v99, 0
-    mstore v89, v94
-    v101 = add v98, v97
-    v100 = add v58, 32
-    mcopy v98, v100, v94 !metadata(memory=heap)
-    v102 = sub v101, v88
-    v104 = add v102, 31
-    v106 = and v104, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v107 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
-    v116 = add v107, v106
-    mstore 64, v116 !metadata(memory=scratch)
-    returndata v107, v102
+    v58 = phi [bb4: v6], [bb12: memptr 96]
+    v89 = mload 64 !metadata(memory=scratch)
+    v90 = add v89, 32
+    mstore v89, 32
+    v93 = iszero v58
+    v94 = iszero v93
+    v92 = mload v58
+    v95 = mul v92, v94
+    v97 = add v95, 31
+    v98 = and v97, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v99 = add v90, 32
+    v100 = add v90, v98
+    mstore v100, 0
+    mstore v90, v95
+    v102 = add v99, v98
+    v101 = add v58, 32
+    mcopy v99, v101, v95 !metadata(memory=heap)
+    v103 = sub v102, v89
+    v105 = add v103, 31
+    v107 = and v105, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v108 = mload 64 !metadata(memory=scratch)
+    v117 = add v108, v107
+    mstore 64, v117 !metadata(memory=scratch)
+    returndata v108, v103
   bb10:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb5:
     revert 0, 0
 }
