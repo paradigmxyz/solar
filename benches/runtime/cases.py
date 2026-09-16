@@ -114,6 +114,7 @@ class GasCall:
     signature: str
     args: Sequence[str] = field(default_factory=tuple)
     repeat: int = 1
+    comparison_exclusion_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -1148,15 +1149,30 @@ TEST_CASES: Sequence[TestCase] = (
             GasCall("hex-bytes", "testBytesToHexString()", repeat=3),
             GasCall("ascii-all-bytes", "testStringIs7BitASCII()", repeat=3),
             *(
-                GasCall(f"hex-tail-{length}", "testBytesToHexStringNoPrefix(bytes)", ("0x" + "42" * length,))
+                GasCall(
+                    f"hex-tail-{length}",
+                    "testBytesToHexStringNoPrefix(bytes)",
+                    ("0x" + "42" * length,),
+                    comparison_exclusion_reason="Memory brutalizer workload depends on gas and contract bytecode.",
+                )
                 for length in (0, 1, 31, 32, 33, 64, 65)
             ),
             *(
-                GasCall(f"hex-prefixed-tail-{length}", "testBytesToHexString(bytes)", ("0x" + "ff" * length,))
+                GasCall(
+                    f"hex-prefixed-tail-{length}",
+                    "testBytesToHexString(bytes)",
+                    ("0x" + "ff" * length,),
+                    comparison_exclusion_reason="Memory brutalizer workload depends on gas and contract bytecode.",
+                )
                 for length in (0, 1, 31, 32, 33, 64, 65)
             ),
             *(
-                GasCall(label, "testStringIs7BitASCIIDifferential(bytes)", (value,))
+                GasCall(
+                    label,
+                    "testStringIs7BitASCIIDifferential(bytes)",
+                    (value,),
+                    comparison_exclusion_reason="Memory brutalizer workload depends on gas and contract bytecode.",
+                )
                 for label, value in (
                     ("ascii-empty", "0x"),
                     ("ascii-31", "0x" + "41" * 31),
