@@ -829,6 +829,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
         }
         let function_id = self.resolve_call_target(callee, function_id);
+        // A compiler-owned module function is lowered directly, from either
+        // spelling: `Bytes.readBytes4(b, 0)` and `b.readBytes4(0)` resolve to
+        // the same declaration and reach the same operation.
+        if let Some(intrinsic) = self.core_intrinsic(function_id) {
+            return self.lower_core_intrinsic_call(
+                expr,
+                intrinsic,
+                function_id,
+                attached_receiver,
+                args,
+            );
+        }
         let function = self.cx.gcx.hir.function(function_id);
         if delegate_call {
             // result = delegatecall(library, function, args)
