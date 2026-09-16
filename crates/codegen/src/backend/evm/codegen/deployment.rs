@@ -467,7 +467,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             self.asm.set_deferred_const(constructor_fixed_memory_end, U256::from(fixed_memory_end));
 
-            self.resolve_pending_frame_size_consts(module, heap_guard);
+            self.resolve_pending_frame_size_consts(module, |_| heap_guard);
 
             if !self.stack_prefixes_fit_from(module, ctor_id, MAX_STACK_DEPTH) {
                 self.report_stack_limit_error();

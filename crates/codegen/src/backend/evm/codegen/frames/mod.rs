@@ -87,12 +87,12 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(in crate::backend::evm::codegen) fn resolve_pending_frame_size_consts(
         &mut self,
         module: &Module,
-        heap_guard: u64,
+        heap_guard: impl Fn(FunctionId) -> u64,
     ) {
         for (id, callee) in std::mem::take(&mut self.pending_frame_size_consts) {
             // frame_extent = frame_size + heap_guard
-            let extent =
-                U256::from(self.emitted_frame_size(module, callee)) + U256::from(heap_guard);
+            let extent = U256::from(self.emitted_frame_size(module, callee))
+                + U256::from(heap_guard(callee));
             self.asm.set_deferred_const(id, extent);
         }
     }
@@ -561,10 +561,18 @@ impl<'gcx> EvmCodegen<'gcx> {
                 (entry, guard)
             })
             .collect();
-        self.resolve_pending_frame_size_consts(
-            module,
-            reachable_heap_prefix_guards.values().copied().max().unwrap_or(0),
-        );
+        let mut dynamic_heap_guards = FxHashMap::default();
+        for &(_, callee) in &self.pending_frame_size_consts {
+            dynamic_heap_guards.entry(callee).or_insert_with(|| {
+                self.runtime_entry_reachability
+                    .iter()
+                    .filter(|(_, reachable)| reachable.contains(callee))
+                    .filter_map(|(entry, _)| reachable_heap_prefix_guards.get(entry).copied())
+                    .max()
+                    .unwrap_or(0)
+            });
+        }
+        self.resolve_pending_frame_size_consts(module, |callee| dynamic_heap_guards[&callee]);
         let gcx = self.gcx;
         let free_memory_floor =
             |entry: FunctionId, entry_ends: &FxHashMap<FunctionId, u64>, region_start: u64| {
