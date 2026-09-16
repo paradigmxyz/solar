@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_dynamic_array_from_fixed.sol:StorageDynamicArrayFromFixed ===
 @module StorageDynamicArrayFromFixed
-fn @assign() -> (u256, u8, u8) [selector=0x12ae6397, abi_params=[], abi_returns=[word, word<enum 6>, word<enum 6>], abi_return_params=[u256, enum<6, u8>, enum<6, u8>]] {
+types:
+  struct0: {u256, u256, u256}
+
+fn @assign() -> struct0 [selector=0x12ae6397, abi_params=[], abi_returns=[word, word<enum 6>, word<enum 6>], abi_return_params=[u256, enum<6, u8>, enum<6, u8>]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 4
@@ -20,7 +23,7 @@ fn @assign() -> (u256, u8, u8) [selector=0x12ae6397, abi_params=[], abi_returns=
     sstore 0, 2 !metadata(storage=slot(0))
     jump bb6
   bb6:
-    v19 = phi [bb2: 0], [bb10: v37]
+    v19 = phi [bb2: 0], [bb7: v37]
     v20 = lt v19, 2
     jumpi v20, bb7, bb8
   bb8:
@@ -33,8 +36,7 @@ fn @assign() -> (u256, u8, u8) [selector=0x12ae6397, abi_params=[], abi_returns=
     v43 = sload 0 !metadata(storage=slot(0))
     v44 = lt 0, v43
     v45 = iszero v44
-    jumpi v45, bb11, bb12
-  bb12:
+    icall panic_if<0x32>, v45
     v46 = storage_array_data_slot 0
     v47 = div 0, 32
     v48 = add v46, v47
@@ -46,13 +48,11 @@ fn @assign() -> (u256, u8, u8) [selector=0x12ae6397, abi_params=[], abi_returns=
     v54 = and v53, 255
     v55 = lt v54, 6
     v56 = iszero v55
-    jumpi v56, bb9, bb13
-  bb13:
+    icall panic_if<0x21>, v56
     v57 = sload 0 !metadata(storage=slot(0))
     v58 = lt 1, v57
     v59 = iszero v58
-    jumpi v59, bb11, bb14
-  bb14:
+    icall panic_if<0x32>, v59
     v60 = storage_array_data_slot 0
     v61 = div 1, 32
     v62 = add v60, v61
@@ -64,13 +64,11 @@ fn @assign() -> (u256, u8, u8) [selector=0x12ae6397, abi_params=[], abi_returns=
     v68 = and v67, 255
     v69 = lt v68, 6
     v70 = iszero v69
-    jumpi v70, bb9, bb15
-  bb15:
-    ret v42, v54, v68
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    icall panic_if<0x21>, v70
+    v71 = insert_value struct0, undef struct0, 0, v42
+    v72 = insert_value struct0, v71, 1, v54
+    v73 = insert_value struct0, v72, 2, v68
+    ret v73
   bb7:
     v21 = memory_object_load_element memoryfixedarray<2, 1>, v0, v19
     v22 = storage_array_data_slot 0
@@ -80,8 +78,7 @@ fn @assign() -> (u256, u8, u8) [selector=0x12ae6397, abi_params=[], abi_returns=
     v26 = mul v25, 1
     v27 = lt v21, 6
     v28 = iszero v27
-    jumpi v28, bb9, bb10
-  bb10:
+    icall panic_if<0x21>, v28
     v29 = mul v26, 8
     v30 = shl v29, 255
     v31 = sload v24 !metadata(storage=symbolic(v24))
@@ -93,10 +90,6 @@ fn @assign() -> (u256, u8, u8) [selector=0x12ae6397, abi_params=[], abi_returns=
     sstore v24, v36 !metadata(storage=symbolic(v24))
     v37 = add v19, 1
     jump bb6
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 33 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v5 = storage_array_data_slot 0
     v6 = div v3, 32

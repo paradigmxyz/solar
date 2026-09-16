@@ -3,7 +3,7 @@
   @module SingleCallerSpecialization
   fn @caller(arg0: u256) -> memorybytes [selector=0x00000001] {
     bb0:
-      v0 = icall @fill, 1, arg0, 0
+      v0 = icall @fill, arg0, 0
       ret v0
   }
   
@@ -25,8 +25,8 @@
   @module SingleCallerSpecialization
   fn @caller(arg0: u256) -> memorybytes [selector=0x00000001] {
     bb0:
--     v0 = icall @fill, 1, arg0, 0
-+     v0 = icall @fill, 1, arg0
+-     v0 = icall @fill, arg0, 0
++     v0 = icall @fill, arg0
       ret v0
   }
   

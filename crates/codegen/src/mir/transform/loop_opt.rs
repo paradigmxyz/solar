@@ -38,8 +38,8 @@
 //! therefore constrain the guarantee even when a constant loop bound is known.
 
 use crate::mir::{
-    BlockId, Callee, EffectKind, Function, ImmutableId, InstId, InstKind, MemoryRegion, Module, OpTraits, StorageAlias,
-    Terminator, Value, ValueId,
+    BlockId, Callee, EffectKind, Function, ImmutableId, InstId, InstKind, MemoryRegion, Module,
+    OpTraits, StorageAlias, Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AffineExpr, AliasAnalysis, AliasResult, Location, LocationSize, Loop,
         LoopAnalyzer, MemoryBase, ScalarEvolution,

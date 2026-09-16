@@ -83,7 +83,10 @@ fn specialize_round(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
         solar_data_structures::bit_set::DenseBitSet::new_empty(module.functions.len());
     for (caller, func) in module.functions.iter_enumerated() {
         for inst in func.instructions() {
-            if let InstKind::ICall { function: crate::mir::Callee::Function(function), args, .. } = &func.inst(inst).kind {
+            if let InstKind::ICall {
+                function: crate::mir::Callee::Function(function), args, ..
+            } = &func.inst(inst).kind
+            {
                 let constants = args
                     .iter()
                     .enumerate()
@@ -201,8 +204,9 @@ fn specialize_round(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
         let old = target.code_estimate(body);
         let new = target.code_estimate(candidate);
         let removed_args = candidate.arg_uses().iter().filter(|uses| uses.is_empty()).count();
-        let old_call = target.icall(body.params.len(), body.returns.len(), 0);
-        let new_call = target.icall(body.params.len() - removed_args, body.returns.len(), 0);
+        let old_call = target.icall(body.params.len(), body.return_components().len(), 0);
+        let new_call =
+            target.icall(body.params.len() - removed_args, body.return_components().len(), 0);
         let count = selected.len() as u32;
         let all_calls = selected.len() == calls.len();
         let before = old.plus(old_call.times(count));
@@ -230,7 +234,9 @@ fn specialize_round(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
             let site = &calls[index];
             let instruction = module.functions[site.caller].inst_mut(site.inst);
             let mut kind = instruction.kind.clone();
-            if let InstKind::ICall { function: crate::mir::Callee::Function(function), .. } = &mut kind {
+            if let InstKind::ICall { function: crate::mir::Callee::Function(function), .. } =
+                &mut kind
+            {
                 *function = specialized;
             }
             instruction.replace_kind(kind);

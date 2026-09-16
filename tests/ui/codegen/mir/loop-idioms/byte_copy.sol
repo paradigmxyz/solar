@@ -12,13 +12,13 @@
 // CHECK-LABEL: fn @inPlace
 // CHECK: mstore8
 
-// A loop whose whole body moves one byte from a caller's object into a buffer
-// this function allocated becomes one copy in the preheader. The clamp gives
-// the compiler `end <= s.length`, and the loop bound is `end - start`, which
-// together put `start + k` inside the source.
+// The raw allocation frontier has no disjointness proof for the input header.
+// Keep the source bounds check and byte loop when that length cannot be reused.
 // CHECK-LABEL: fn @_slice
-// CHECK: mcopy
-// CHECK-NOT: mstore8
+// CHECK: mload arg0
+// CHECK: mload arg0
+// CHECK: mstore8
+// CHECK-NOT: mcopy
 
 contract Test {
     function slice(bytes memory s, uint256 start, uint256 end) public pure returns (bytes memory) {

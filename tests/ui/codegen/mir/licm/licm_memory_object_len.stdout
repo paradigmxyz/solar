@@ -82,7 +82,7 @@
       ret v0
     bb2:
       v4 = memory_object_load_byte memorybytes, arg0, v1
-      v5 = icall @mask_low, 1, v4
+      v5 = icall @mask_low, v4
       memory_object_store_byte memorybytes, v0, v1, v5
       v6 = add v1, 1
       jump bb1

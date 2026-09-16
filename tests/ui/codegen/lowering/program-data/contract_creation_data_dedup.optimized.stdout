@@ -99,12 +99,12 @@ bb0:
   dup 1
   push 0x3df4ddf4
   eq
-  push bb28
+  push bb6
   jumpi
   dup 1
   push 0x5a8ac02d
   eq
-  push bb28
+  push bb6
   jumpi
   dup 1
   push 0xa8aa1b31
@@ -124,6 +124,71 @@ bb26 [cold]:
   returndatasize
   push 0
   revert
+bb6:
+  push 224
+  push 64
+  mstore
+  push 0
+  push 160
+  mstore
+  push 64
+  mload
+  push 256
+  dup 2
+  add
+  push 64
+  mstore
+  push 255
+  push_data Child_initcode_0
+  dup 3
+  codecopy
+  push 255
+  swap 1
+  push 0
+  create
+  dup 1
+  push 192
+  mstore
+  iszero
+  push bb26
+  jumpi
+  push 64
+  mload
+  push 32
+  dup 2
+  add
+  push 64
+  mstore
+  push 0x3fa4f245
+  push 224
+  shl
+  dup 2
+  mstore
+  push 32
+  push 0
+  push 4
+  dup 4
+  push 192
+  mload
+  gas
+  staticcall
+  swap 1
+  pop
+  iszero
+  push bb26
+  jumpi
+  returndatasize
+  push 32
+  gt
+  push bb5
+  jumpi
+  push 0
+  mload
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb18:
   push 288
   push 64
@@ -247,75 +312,10 @@ bb18:
   lt
   push bb27
   jumpi
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb28:
-  push 224
-  push 64
-  mstore
   push 0
-  push 160
-  mstore
-  push 64
-  mload
-  push 256
-  dup 2
-  add
-  push 64
-  mstore
-  push 255
-  push_data Child_initcode_0
-  dup 3
-  codecopy
-  push 255
-  swap 1
-  push 0
-  create
-  dup 1
-  push 192
-  mstore
-  iszero
-  push bb26
-  jumpi
-  push 64
-  mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
-  push 0x3fa4f245
-  push 224
-  shl
-  dup 2
   mstore
   push 32
   push 0
-  push 4
-  dup 4
-  push 192
-  mload
-  gas
-  staticcall
-  swap 1
-  pop
-  iszero
-  push bb26
-  jumpi
-  returndatasize
-  push 32
-  gt
-  push bb5
-  jumpi
-  push 0
-  mload
-  push 128
-  mstore
-  push 32
-  push 128
   return
 bb27 [cold]:
   push 0x4e487b71

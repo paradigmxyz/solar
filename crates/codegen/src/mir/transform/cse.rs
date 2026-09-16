@@ -74,7 +74,8 @@ use crate::mir::{
     SliceLocation, StorageAlias, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
-        Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries, MemoryLocation,
+        Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
+        MemoryLocation,
     },
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass, run_function_pass_with_cfg},
@@ -649,6 +650,8 @@ impl CommonSubexprEliminator {
                 }
                 let candidate = self
                     .make_expr_key(func, inst_id, kind, ctx.replacements)
+                    // Restoring-call reuse is local: its read footprint must not cross CFG edges.
+                    .filter(|key| !matches!(key, ExprKey::RestoringCall(..)))
                     .filter(|key| !gas_observed || !Self::is_path_sensitive_expr(key))
                     .zip(func.inst_result_value(inst_id));
                 if let Some((key, result)) = &candidate
@@ -1142,27 +1145,9 @@ impl CommonSubexprEliminator {
                 break;
             }
         }
-        if let InstKind::MStore(address, value) = kind {
-            let address = mir_utils::resolve_replacement(*address, replacements);
-            let value = mir_utils::resolve_replacement(*value, replacements);
-            if func.value_u256(value).is_some()
-                && let Some(location) =
-                    self.memory_range_key(func, inst_id, address, LocationSize::Const(32))
-            {
-                // mstore address, constant; mload address -> constant
-                expr_cache.insert(ExprKey::MLoad(location), value);
-            }
-        }
-        if let InstKind::SetMemoryObjectLen(object, len, object_kind) = kind {
-            let object = mir_utils::resolve_replacement(*object, replacements);
-            let len = mir_utils::resolve_replacement(*len, replacements);
-            if func.value_u256(len).is_some()
-                && let Some(location) =
-                    self.alias().memory_object_length_location(func, inst_id, object, *object_kind)
-            {
-                // set_memory_object_len object, constant; memory_object_len object -> constant
-                expr_cache.insert(ExprKey::MLoad(location), len);
-            }
+        if let Some((key, stored)) = self.forwarded_store(func, inst_id, kind, replacements) {
+            // store word, value; load word -> value
+            expr_cache.insert(key, stored);
         }
     }
 

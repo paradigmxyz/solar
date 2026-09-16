@@ -73,15 +73,13 @@ bb8 [loop]:
   stop
 bb12 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 17
-  push 4
+  push 32
   mstore
   push 36
-  push 0
+  push 28
   revert
 // === ROOT/tests/ui/codegen/lowering/checked_loop_stack.sol:CheckedLoopStack (runtime) ===
 @module CheckedLoopStack_runtime
@@ -132,7 +130,7 @@ bb10 [loop]:
   swap 2
   or
   iszero
-  push bb29
+  push bb12
   jumpi
   swap 1
   push 1
@@ -182,18 +180,14 @@ bb16 [loop]:
   dup 2
   push bb16
   jumpi
-  jump bb29
-bb29 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 17
-  push 4
+  push 32
   mstore
   push 36
-  push 0
+  push 28
   revert
 bb17:
   push 128
@@ -246,6 +240,16 @@ bb23 [loop]:
   push 32
   push 128
   return
+bb12 [cold]:
+  push 0x4e487b71
+  push 0
+  mstore
+  push 17
+  push 32
+  mstore
+  push 36
+  push 28
+  revert
 bb27 [cold]:
   push 192
   push 0x760769fe

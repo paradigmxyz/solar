@@ -27,8 +27,8 @@
 
 use crate::{
     mir::{
-        BlockId, Callee, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType,
-        Module, Terminator, Value, ValueId,
+        BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
+        Terminator, Value, ValueId,
         analysis::{CallGraphInfo, CfgInfo},
         pass::{MirPass, run_function_pass},
         utils::{replace_terminator, retain_blocks},
@@ -916,7 +916,9 @@ pub(super) fn remove_unreferenced_functions(module: &mut Module, candidates: &[F
             referenced.insert(id);
         }
         for inst in func.instructions() {
-            if let InstKind::ICall { function, .. } = func.inst(inst).kind {
+            if let InstKind::ICall { function: crate::mir::Callee::Function(function), .. } =
+                func.inst(inst).kind
+            {
                 referenced.insert(function);
             }
         }
@@ -966,7 +968,9 @@ fn retain_functions(module: &mut Module, keep: &DenseBitSet<FunctionId>) -> usiz
 
     for func in &mut module.functions {
         func.for_each_instruction_mut(|_, inst| {
-            if let InstKind::ICall { function, .. } = &mut inst.kind {
+            if let InstKind::ICall { function: crate::mir::Callee::Function(function), .. } =
+                &mut inst.kind
+            {
                 *function =
                     remap[*function].expect("kept function cannot call an eliminated function");
             }

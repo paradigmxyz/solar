@@ -9,23 +9,21 @@
 //@ run-call-fail: pick 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 
 // Both branch paths keep the product on the stack through the overflow check.
-// Their sums share the final overflow check and return.
+// Both sums retain their overflow check before returning.
 contract SpillStoreUnloaded {
     // CHECK: push 0xa62f4550
     // CHECK: eq
     // CHECK: mul
     // CHECK-NOT: mstore
     // CHECK: gt
-    // CHECK-NEXT: iszero
     // CHECK-NEXT: push [[OTHER:bb[0-9]+]]
     // CHECK-NEXT: jumpi
-    // CHECK-NEXT: swap 1
-    // CHECK-NEXT: dup 2
-    // CHECK-NEXT: add
     // CHECK-NEXT: swap 2
+    // CHECK-NEXT: dup 3
+    // CHECK-NEXT: add
+    // CHECK-NEXT: swap 1
     // CHECK-NEXT: pop
-    // CHECK-NEXT: jump [[JOIN:bb[0-9]+]]
-    // CHECK: [[JOIN]]:
+    // CHECK-NEXT: swap 1
     // CHECK-NEXT: dup 2
     // CHECK-NEXT: lt
     // CHECK-NEXT: push [[OVERFLOW:bb[0-9]+]]
@@ -36,13 +34,17 @@ contract SpillStoreUnloaded {
     // CHECK-NEXT: push [[RETURN_OFFSET]]
     // CHECK-NEXT: return
     // CHECK: [[OTHER]]:
-    // CHECK-NEXT: swap 2
-    // CHECK-NEXT: dup 3
+    // CHECK-NEXT: swap 1
+    // CHECK-NEXT: dup 2
     // CHECK-NEXT: add
-    // CHECK-NEXT: swap 1
+    // CHECK-NEXT: swap 2
     // CHECK-NEXT: pop
-    // CHECK-NEXT: swap 1
-    // CHECK-NEXT: jump [[JOIN]]
+    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: lt
+    // CHECK-NEXT: push [[OVERFLOW]]
+    // CHECK-NEXT: jumpi
+    // CHECK-NEXT: push [[RETURN_OFFSET]]
+    // CHECK-NEXT: mstore
     function pick(uint256 a, uint256 b) external pure returns (uint256) {
         uint256 c = a * b;
         if (a > b) {

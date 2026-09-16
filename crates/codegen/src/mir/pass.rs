@@ -40,7 +40,7 @@ pub use crate::mir::pass_manager::{MirPass, pipeline_label, run_passes, run_pass
 /// All known MIR passes exposed by `-Zmir-pipeline`.
 static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::Inline,
-    &inline::InlineSingleUse,
+    &inline::InlineSingleUse::Semantic,
     &inline_guards::InlineGuards,
     &inline::InlineConstantLeaves,
     &inline::InlineTinyLeaves,
@@ -234,7 +234,7 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // Trivial leaf helpers cost less to duplicate than even the static internal-call protocol.
     // Keep this separate from general inlining, whose larger candidates regress measured gas.
     &GasOnly::new(inline::InlineTinyLeaves),
-    &GasOnly::new(inline::InlineSingleUse),
+    &GasOnly::new(inline::InlineSingleUse::Semantic),
     &inline::SpecializeFunctionPointers,
     &specialize::Specialize,
     &function_compaction::DeadArgElim,
@@ -378,7 +378,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // A word-at-a-time loop is compact enough to consume at its sole call site.
     // This removes the internal frame protocol without duplicating the body;
     // the pass drops the consumed callee itself.
-    &GasOnly::new(inline::InlineSingleUse),
+    &GasOnly::new(inline::InlineSingleUse::Physical),
     &lower_evm_shaped::LowerEvmShaped,
 ];
 

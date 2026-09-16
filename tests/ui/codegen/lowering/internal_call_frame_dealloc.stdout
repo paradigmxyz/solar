@@ -18,17 +18,15 @@ bb3 [cold]:
   push 0
   push 0
   revert
-bb18 [cold]:
+bb10 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 17
-  push 4
+  push 32
   mstore
   push 36
-  push 0
+  push 28
   revert
 bb4:
   push 288
@@ -133,7 +131,7 @@ bb6 [continuation]:
   push 256
   mstore
   iszero
-  push bb18
+  push bb10
   jumpi
   push 224
   mstore
@@ -185,12 +183,12 @@ bb8 [continuation]:
   swap 1
   dup 2
   lt
-  push bb18
+  push bb10
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb15 [continuation]:
   push 160
@@ -221,7 +219,7 @@ bb15 [continuation]:
   mload
   dup 2
   lt
-  push bb18
+  push bb10
   jumpi
   push 160
   mload

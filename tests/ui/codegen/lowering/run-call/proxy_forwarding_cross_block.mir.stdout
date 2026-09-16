@@ -8,25 +8,12 @@ fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
 
 fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: calldataslice) [selector=0x5269df1a, abi_params=[u256, u256, u256, bytes], abi_returns=[]] {
   bb0:
-    v0 = add arg0, arg1
-    v1 = lt v0, arg0
-    jumpi v1, bb1, bb2
-  bb2:
-    v2 = add v0, arg2
-    v3 = lt v2, v0
-    jumpi v3, bb1, bb3
-  bb3:
-    v4 = slice_len arg3
-    v5 = add v2, v4
-    v6 = lt v5, v2
-    jumpi v6, bb1, bb4
-  bb4:
-    sstore 1, v5 !metadata(storage=slot(1))
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_add u256, v0, arg2
+    v2 = slice_len arg3
+    v3 = checked_add u256, v1, v2
+    sstore 1, v3 !metadata(storage=slot(1))
     ret
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:FixedRangeProxy ===
@@ -125,21 +112,21 @@ fn @fallback() [fallback] {
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:ForwardingHarness ===
 @module ForwardingHarness
 data:
-  ForwardingImplementation_initcode_0: hex"34600e5761012d8060125f395ff35b5f5ffd346028575f3560e01c80633fa4f2451460245780635269df1a146020576028565b603f565b602c565b5f5ffd5b6001546080526020608001608090036080f35b60843610610129576064358060e0526004016020810167ffffffffffffffff60e05111368061012052821191501781358060a0528060a052602083019250823603925082811192508282179150915061012557602435600435018060c0528060c052600435811060f857604435818060c052018060805280608052818060c052811091508260a05250905060f85760a0518060a052608051018061010052806101005260805180608052811060f8578061010052600155005b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b5f5ffd5b5f5ffd"
+  ForwardingImplementation_initcode_0: hex"34600e576101128060125f395ff35b5f5ffd346028575f3560e01c80633fa4f2451460245780635269df1a146020576028565b603f565b602c565b5f5ffd5b6001546080526020608001608090036080f35b6084361061010e576064358060e0526004016020810167ffffffffffffffff60e05111368061012052821191501781358060a0528060a052602083019250823603925082811192508282179150915061010a57602435600435018060c0528060c052600435811060f857604435818060c052018060805280608052818060c052811091508260a05250905060f85760a0518060a052608051018061010052806101005260805180608052811060f8578061010052600155005b634e487b715f5260116020526024601cfd5b5f5ffd5b5f5ffd"
   RevertingProducer_initcode_1: hex"34600d57602e8060115f395ff35b5f5ffd34601a575f3560e01c8063a9cc471814601657601a565b601e565b5f5ffd5b6101006040526112345f5260e45ffd"
-  DynamicReturnWrapper_initcode_2: hex"6103ba3803806103ba6101003961010001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016604052346074576101008060e0528060e0526101006103ba38030160208201116070578060e0525160a01c15156070576101005160c0526078565b5f5ffd5b5f5ffd5b6103188060a260e03960c05160601b610106516bffffffffffffffffffffffff16176101065260e0f334601a575f3560e01c80634ce637d614601657601a565b601e565b5f5ffd5b6102006040527300000000000000000000000000000000000000006040518060a052602081016040527fa9cc4718000000000000000000000000000000000000000000000000000000008152600481015081610180525f5f600483855afa915050608a573d5f5f3e3d5ffd5b3d80610140528061014052603f8101806101c052806101c05281806101405281106102eb57601f19811690506040518060a05281810191508160405290508180610140528152602081018280610140525f823e509050602081018060c0528060c052818060a0525191508181018060e0528060e052818060c0528110602084109350839017925050506102e75760c0518060c052518060a05260c05101806101605280610160526020810167ffffffffffffffff60a0511160e0518060e05282119150176102e757806101605251806101205280610120526020610160510180610100528061010052603f8201806101e052806101e05282806101205281106102ba57601f19811690506040518060805280608052818101806101a0529150816101a05280608052811067ffffffffffffffff82118117905061028d57806101a0526040528161012052818061012052608051528061010052806101005260e0510381116102e757602060805101818061012052610100518061010052825e50506040518060a05260208101818060a05281038252608051806080525160805180608052151581029050601f19601f820116602083018184015f815250828452925060206080510181840191508281855e50915050818060a052900390505f9001601f8101601f1981169050604051806101805281810191508160405290508181f35b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b5f5ffd5b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd"
+  DynamicReturnWrapper_initcode_2: hex"6103693803806103696101003961010001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016604052346074576101008060e0528060e05261010061036938030160208201116070578060e0525160a01c15156070576101005160c0526078565b5f5ffd5b5f5ffd5b6102c78060a260e03960c05160601b610106516bffffffffffffffffffffffff16176101065260e0f334601a575f3560e01c80634ce637d614601657601a565b601e565b5f5ffd5b6102006040527300000000000000000000000000000000000000006040518060a052602081016040527fa9cc4718000000000000000000000000000000000000000000000000000000008152600481015081610180525f5f600483855afa915050608a573d5f5f3e3d5ffd5b3d80610140528061014052603f8101806101c052806101c05281806101405281106102b557601f19811690506040518060a05281810191508160405290508180610140528152602081018280610140525f823e509050602081018060c0528060c052818060a0525191508181018060e0528060e052818060c0528110602084109350839017925050506102b15760c0518060c052518060a05260c05101806101605280610160526020810167ffffffffffffffff60a0511160e0518060e05282119150176102b157806101605251806101205280610120526020610160510180610100528061010052603f8201806101e052806101e052828061012052811061029f57601f19811690506040518060805280608052818101806101a0529150816101a05280608052811067ffffffffffffffff82118117905061028d57806101a0526040528161012052818061012052608051528061010052806101005260e0510381116102b157602060805101818061012052610100518061010052825e50506040518060a05260208101818060a05281038252608051806080525160805180608052151581029050601f19601f820116602083018184015f815250828452925060206080510181840191508281855e50915050818060a052900390505f9001601f8101601f1981169050604051806101805281810191508160405290508181f35b634e487b715f5260416020526024601cfd5b634e487b715f5260416020526024601cfd5b5f5ffd5b634e487b715f5260416020526024601cfd"
 
 fn @fixedRange() -> u256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 350, v1
+    v2 = and 323, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ForwardingImplementation_initcode_0, v3, 319
+    data_copy ForwardingImplementation_initcode_0, v3, 292
     v4 = slice_ptr v0
-    v5 = add v3, 319
+    v5 = add v3, 292
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 319
+    v6 = create 0, v3, 292
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -184,53 +171,44 @@ fn @fixedRange() -> u256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     v29 = slice_len v27
     v30 = extcodesize v22
     v31 = iszero v30
-    jumpi v31, bb5, bb6
-  bb6:
+    icall revert_if<target_contract_has_no_code>, v31
     v32 = call v23, v22, 0, v28, v29, 0, 0
-    jumpi v32, bb8, bb7
-  bb7:
+    jumpi v32, bb6, bb5
+  bb5:
     revert_returndata
-  bb8:
+  bb6:
     v33 = gas
     v34 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
     v35 = slice_ptr v34
     v36 = slice_len v34
     v37 = staticcall v33, v22, v35, v36, 0, 32
-    jumpi v37, bb10, bb9
-  bb9:
+    jumpi v37, bb8, bb7
+  bb7:
     revert_returndata
-  bb10:
+  bb8:
     v38 = returndatasize
     v39 = lt v38, 32
-    jumpi v39, bb5, bb11
-  bb11:
+    icall revert_if<tuple_data_too_short>, v39
     v40 = add 0, 0
     v41 = mload v40
     v42 = add 0, 0
     v43 = mload v42
     v44 = eq v43, 166
-    v45 = iszero v44
-    jumpi v45, bb12, bb13
-  bb13:
+    icall require<short_string>, v44, 5, 0x6669786564000000000000000000000000000000000000000000000000000000
     ret 1
-  bb12:
-    icall @revert_error, 0, 5, 0x6669786564000000000000000000000000000000000000000000000000000000
-    invalid
-  bb5:
-    revert 0, 0
 }
 
 fn @crossBlock() -> u256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 350, v1
+    v2 = and 323, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ForwardingImplementation_initcode_0, v3, 319
+    data_copy ForwardingImplementation_initcode_0, v3, 292
     v4 = slice_ptr v0
-    v5 = add v3, 319
+    v5 = add v3, 292
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 319
+    v6 = create 0, v3, 292
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -277,40 +255,31 @@ fn @crossBlock() -> u256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     v30 = slice_len v28
     v31 = extcodesize v23
     v32 = iszero v31
-    jumpi v32, bb5, bb6
-  bb6:
+    icall revert_if<target_contract_has_no_code>, v32
     v33 = call v24, v23, 0, v29, v30, 0, 0
-    jumpi v33, bb8, bb7
-  bb7:
+    jumpi v33, bb6, bb5
+  bb5:
     revert_returndata
-  bb8:
+  bb6:
     v34 = gas
     v35 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
     v36 = slice_ptr v35
     v37 = slice_len v35
     v38 = staticcall v34, v23, v36, v37, 0, 32
-    jumpi v38, bb10, bb9
-  bb9:
+    jumpi v38, bb8, bb7
+  bb7:
     revert_returndata
-  bb10:
+  bb8:
     v39 = returndatasize
     v40 = lt v39, 32
-    jumpi v40, bb5, bb11
-  bb11:
+    icall revert_if<tuple_data_too_short>, v40
     v41 = add 0, 0
     v42 = mload v41
     v43 = add 0, 0
     v44 = mload v43
     v45 = eq v44, 175
-    v46 = iszero v45
-    jumpi v46, bb12, bb13
-  bb13:
+    icall require<short_string>, v45, 11, 0x63726f737320626c6f636b000000000000000000000000000000000000000000
     ret 1
-  bb12:
-    icall @revert_error, 0, 11, 0x63726f737320626c6f636b000000000000000000000000000000000000000000
-    invalid
-  bb5:
-    revert 0, 0
 }
 
 fn @dynamicRevert() -> u256 [selector=0x5dbb0715, abi_params=[], abi_returns=[word]] {
@@ -331,72 +300,32 @@ fn @dynamicRevert() -> u256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
     v8 = abi_encode [word<u160>], args v7
     v9 = not 31
-    v10 = and 0x3f9, v9
+    v10 = and 936, v9
     v11 = alloc raw, exact, uninitialized, infallible, v10
-    data_copy DynamicReturnWrapper_initcode_2, v11, 954
+    data_copy DynamicReturnWrapper_initcode_2, v11, 873
     v12 = slice_ptr v8
-    v13 = add v11, 954
+    v13 = add v11, 873
     mcopy v13, v12, 32 !metadata(memory=heap)
-    v14 = create 0, v11, 986
+    v14 = create 0, v11, 905
     jumpi v14, bb4, bb3
   bb3:
     revert_returndata
   bb4:
     v15 = gas
     v16 = abi_encode [], object, selector 0x4ce637d600000000000000000000000000000000000000000000000000000000
-    v17 = memory_object_data memorybytes, v16
-    v18 = memory_object_len memorybytes, v16
-    v19 = call v15, v14, 0, v17, v18, 0, 0
-    v20 = returndatasize
-    v21 = add v20, 63
-    v22 = lt v21, v20
-    jumpi v22, bb5, bb6
-  bb6:
-    v23 = not 31
-    v24 = and v21, v23
-    v25 = alloc memorybytes, exact, uninitialized, infallible, v24
-    set_memory_object_len memorybytes, v25, v20
-    v26 = make_returndata_slice 0, v20
-    memory_object_copy_from_slice memorybytes, v25, v26
-    v27 = iszero v19
-    v28 = iszero v27
-    jumpi v28, bb7, bb8
-  bb8:
-    v29 = memory_object_len memorybytes, v25
-    v30 = eq v29, 228
-    v31 = iszero v30
-    jumpi v31, bb9, bb10
-  bb10:
-    v32 = add v25, 32
-    v33 = mload v32
-    v34 = shl 0, 0x1234
-    v35 = eq v33, v34
-    v36 = iszero v35
-    jumpi v36, bb11, bb12
-  bb12:
+    v17 = address_call v14, v16, gas v15
+    v18 = icall returndata_bytes<>
+    v19 = iszero v17
+    icall require<short_string>, v19, 7, 0x7375636365737300000000000000000000000000000000000000000000000000
+    v20 = memory_object_len memorybytes, v18
+    v21 = eq v20, 228
+    icall require<short_string>, v21, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
+    v22 = add v18, 32
+    v23 = mload v22
+    v24 = shl 0, 0x1234
+    v25 = eq v23, v24
+    icall require<short_string>, v25, 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
     ret 1
-  bb11:
-    icall @revert_error, 0, 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
-    invalid
-  bb9:
-    icall @revert_error, 0, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
-    invalid
-  bb7:
-    icall @revert_error, 0, 7, 0x7375636365737300000000000000000000000000000000000000000000000000
-    invalid
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-}
-
-fn @revert_error(arg0: u256, arg1: u256) {
-  bb0:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 32 !metadata(memory=scratch)
-    mstore 36, arg0 !metadata(memory=scratch)
-    mstore 68, arg1 !metadata(memory=scratch)
-    revert 0, 100
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:RevertingProducer ===
@@ -430,23 +359,9 @@ fn @bubble() -> memorybytes [selector=0x4ce637d6, view, abi_params=[], abi_retur
   bb1:
     revert_returndata
   bb2:
-    v6 = returndatasize
-    v7 = add v6, 63
-    v8 = lt v7, v6
-    jumpi v8, bb3, bb4
-  bb4:
-    v9 = not 31
-    v10 = and v7, v9
-    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
-    set_memory_object_len memorybytes, v11, v6
-    v12 = make_returndata_slice 0, v6
-    memory_object_copy_from_slice memorybytes, v11, v12
-    v13 = abi_decode [bytes], v11
-    ret v13
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    v6 = icall returndata_bytes<>
+    v7 = abi_decode [bytes], v6
+    ret v7
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:SharedPublicFrame ===
@@ -459,7 +374,7 @@ fn @helper(arg0: u256) -> u256 [selector=0xdabf7ec4, pure, abi_params=[u256], ab
 
 fn @entry() -> u256 [selector=0x67f239dd, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = icall @helper, 1, 42
+    v0 = icall @helper, 42
     ret v0
 }
 
@@ -473,7 +388,7 @@ fn @buffer() -> u256 [pure] {
 
 fn @forward(arg0: address, arg1: calldataslice) -> bool [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[word<bool>]] {
   bb0:
-    v0 = icall @buffer, 1
+    v0 = icall @buffer
     v1 = slice_len arg1
     v2 = slice_ptr arg1
     v3 = add v0, 64

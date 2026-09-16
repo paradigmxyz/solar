@@ -92,8 +92,8 @@ fn @loop_allocation_after_fmp_reset(arg0: bool) -> u256 {
     ret v4
 }
 
-// A memory-object argument existed before the function ran, so writes into a
-// fresh allocation never reach its header.
+// After allocation has updated the FMP, writes into the fresh payload do not
+// reach the caller object's header.
 // CHECK-LABEL: @argument_header
 // CHECK: {{^ +}}[[LEN:v[0-9]+]] = memory_object_len memorybytes, arg0
 // CHECK: {{^ +}}memory_object_store_byte
@@ -101,8 +101,8 @@ fn @loop_allocation_after_fmp_reset(arg0: bool) -> u256 {
 // CHECK: +     {{v[0-9]+}} = add [[LEN]], [[LEN]]
 fn @argument_header(arg0: memorybytes) -> u256 {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = memory_object_len memorybytes, arg0
     set_memory_object_len memorybytes, v1, 32
     memory_object_store_byte memorybytes, v1, 0, 7
     v2 = memory_object_len memorybytes, arg0

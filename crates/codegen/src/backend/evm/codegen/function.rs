@@ -11,7 +11,6 @@ use super::{
     stack::layout::LIVE_JOIN_LAYOUT_LIMIT,
 };
 use crate::{mir::Callee, target::Target};
-use either::Either;
 use std::rc::Rc;
 
 impl<'gcx> EvmCodegen<'gcx> {

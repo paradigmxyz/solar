@@ -15,20 +15,24 @@ bb3 [cold]:
   push 0
   push 0
   revert
-bb25 [cold]:
+bb27 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 65
-  jump bb26
-bb26 [cold]:
-  push 4
+  jump bb28
+bb28 [cold]:
+  push 32
   mstore
   push 36
-  push 0
+  push 28
   revert
+bb26 [cold]:
+  push 0x4e487b71
+  push 0
+  mstore
+  push 17
+  jump bb28
 bb1:
   push_immutable 0, 20
   address
@@ -66,15 +70,14 @@ bb1:
   push 160
   dup 2
   calldataload
-  dup 1
-  dup 3
+  dup 2
   mstore
   push 32
-  dup 4
+  dup 3
   add
   calldataload
   dup 1
-  dup 5
+  dup 4
   add
   push 32
   dup 2
@@ -100,7 +103,7 @@ bb1:
   shr
   dup 3
   sub
-  push bb25
+  push bb27
   jumpi
   push 32
   dup 2
@@ -108,7 +111,7 @@ bb1:
   dup 2
   dup 2
   lt
-  push bb25
+  push bb27
   jumpi
   push 64
   mload
@@ -125,7 +128,7 @@ bb1:
   dup 3
   gt
   or
-  push bb25
+  push bb27
   jumpi
   push 64
   mstore
@@ -137,32 +140,34 @@ bb1:
   sub
   push 5
   shr
-  dup 4
+  swap 1
+  swap 3
   gt
   push bb3
   jumpi
   push 32
-  dup 2
-  add
   dup 3
-  dup 6
+  add
+  dup 2
+  dup 5
   dup 3
   calldatacopy
-  swap 2
   pop
-  swap 3
+  pop
+  swap 1
   pop
   push 32
-  dup 6
+  dup 3
   add
-  exchange 1, 3
+  swap 1
+  dup 2
   mstore
   push 64
-  dup 6
+  dup 4
   add
   calldataload
   dup 1
-  dup 7
+  dup 5
   add
   push 32
   dup 2
@@ -186,7 +191,7 @@ bb1:
   dup 2
   dup 2
   lt
-  push bb25
+  push bb27
   jumpi
   push 31
   not
@@ -206,7 +211,7 @@ bb1:
   dup 3
   gt
   or
-  push bb25
+  push bb27
   jumpi
   push 64
   mstore
@@ -230,67 +235,124 @@ bb1:
   pop
   swap 2
   pop
+  pop
   push 64
-  dup 7
+  dup 4
   add
-  exchange 1, 2
+  dup 2
+  swap 1
   mstore
   push 96
-  dup 7
+  dup 5
   add
   calldataload
   dup 1
-  dup 7
+  dup 5
   shr
   push bb3
   jumpi
   push 96
-  dup 7
+  dup 5
   add
   dup 2
   swap 1
   mstore
-  swap 5
   push 128
+  dup 5
   add
-  exchange 1, 6
+  exchange 1, 5
   mstore
-  push 5
-  shl
-  dup 2
+  swap 2
+  mload
+  swap 1
+  mload
+  dup 1
+  mload
+  push 32
+  dup 3
   add
   push 0
-  exchange 1, 3
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 1
+  exchange 5, 6
+  jump bb18
+bb22 [loop]:
+  dup 5
+  mload
+  dup 2
+  lt
+  iszero
+  push bb25
+  jumpi
+  dup 1
+  push 5
+  shl
+  dup 4
+  add
+  mload
+  swap 1
+  push 1
+  add
+  dup 1
+  dup 3
+  mul
+  dup 2
+  iszero
+  dup 3
+  dup 3
+  div
+  swap 1
+  swap 4
+  eq
+  swap 1
+  swap 3
+  or
+  iszero
+  push bb26
+  jumpi
+  swap 1
+  dup 3
+  add
+  swap 2
+  dup 3
+  lt
+  push bb26
+  jumpi
   jump bb18
 bb18 [loop]:
   dup 4
-  dup 4
+  dup 2
   lt
   push bb22
   jumpi
+  swap 6
+  mload
+  swap 4
+  pop
+  swap 5
+  pop
+  pop
+  pop
   push 0x3e8
-  dup 7
+  dup 2
   mul
-  swap 3
-  pop
-  pop
-  swap 2
-  pop
   push 0x3e8
   dup 2
   div
   swap 1
-  swap 4
-  sub
-  push bb24
-  jumpi
   swap 2
+  sub
+  push bb26
+  jumpi
   dup 3
   add
   swap 2
   dup 3
   lt
-  push bb24
+  push bb26
   jumpi
   push 0
   not
@@ -314,49 +376,12 @@ bb18 [loop]:
   push 32
   push 128
   return
-bb22 [loop]:
-  dup 3
-  mload
-  swap 1
-  push 1
-  add
-  dup 1
-  iszero
-  dup 2
-  dup 4
-  mul
-  dup 3
-  dup 2
-  div
-  swap 1
-  swap 4
-  eq
-  or
-  iszero
-  push bb24
-  jumpi
-  swap 1
-  dup 3
-  add
-  swap 3
-  push 32
-  add
-  swap 2
-  dup 4
-  lt
-  exchange 2, 3
-  iszero
-  push bb18
-  jumpi
-  jump bb24
-bb24 [cold]:
+bb25 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
-  push 17
-  jump bb26
+  push 50
+  jump bb28
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:C (runtime) ===
 @module C_runtime
 bb0:
@@ -382,17 +407,15 @@ bb4 [cold]:
   push 0
   push 0
   revert
-bb24 [cold]:
+bb26 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 65
-  push 4
+  push 32
   mstore
   push 36
-  push 0
+  push 28
   revert
 bb5:
   push 36
@@ -505,7 +528,7 @@ bb9:
   shr
   dup 5
   sub
-  push bb24
+  push bb26
   jumpi
   dup 5
   calldatasize
@@ -520,7 +543,7 @@ bb9:
   push 32
   dup 2
   lt
-  push bb24
+  push bb26
   jumpi
   push 64
   mload
@@ -784,7 +807,7 @@ bb9:
   dup 2
   dup 2
   lt
-  push bb24
+  push bb26
   jumpi
   push 31
   not

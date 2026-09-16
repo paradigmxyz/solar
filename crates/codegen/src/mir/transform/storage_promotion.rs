@@ -312,7 +312,7 @@ impl StorageScalarPromoter {
     }
 
     fn promotion_effects_are_safe(&self, func: &Function, loop_data: &Loop) -> bool {
-        let alias = AliasAnalysis::empty();
+        let alias = AliasAnalysis::new(func);
         for block_id in self.promotion_block_ids(func, loop_data) {
             if loop_data.blocks.contains(block_id)
                 && matches!(

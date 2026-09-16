@@ -61,9 +61,9 @@ use crate::{
     mir::{
         AbiLayout, AbiType, AllocationSemantics, BlockId, Builtin, Callee, EffectKind, FrameMode,
         FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate,
-        ImmutableEncoding, InstId, InstKind, Instruction, MemoryObjectKind, MirPhase, MirType, Module,
-        Terminator, Value, ValueId,
-        analysis::{CallGraphInfo, CfgInfo, Liveness, LoopAnalyzer},
+        ImmutableEncoding, InstId, InstKind, Instruction, MemoryObjectKind, MirPhase, MirType,
+        Module, Terminator, Value, ValueId,
+        analysis::{CallGraphInfo, Liveness, LoopAnalyzer},
         immutable::immutable_push_type_size,
         memory::{EvmMemoryLayout, MemoryLayoutPolicy},
         pass::MirPass,
@@ -205,7 +205,12 @@ impl MirPass for InlineHotLeaves {
 }
 
 /// Module pass for consuming a single-use helper without duplicating its body.
-pub(crate) struct InlineSingleUse;
+pub(crate) enum InlineSingleUse {
+    /// May introduce frame staging before memory lowering.
+    Semantic,
+    /// Must not introduce semantic frame operations after memory lowering.
+    Physical,
+}
 
 impl MirPass for InlineSingleUse {
     fn name(&self) -> &'static str {
@@ -221,7 +226,8 @@ impl MirPass for InlineSingleUse {
         let stats = MirInliner {
             mode: InlineMode::SingleUse,
             max_single_call_sanity_instructions: 256,
-            frame_staging_allowed: module.phase < MirPhase::MemoryLowered,
+            frame_staging_allowed: matches!(self, Self::Semantic)
+                && module.phase < MirPhase::Lowered,
             ..MirInliner::default()
         }
         .run(gcx, module);
@@ -1122,7 +1128,7 @@ fn summarize_function(
     let target = Target::new(gcx);
     let mut summary = MirInlineSummary {
         block_count: func.blocks.len(),
-        return_values: func.returns.len(),
+        return_values: func.return_components().len(),
         param_count: func.params.len(),
         internal_frame_size: func.internal_frame_size,
         is_entry_point: func.attributes.is_fallback

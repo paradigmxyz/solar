@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/mir/byte-run-loads/pack.sol:Test ===
 @module Test
-@phase evm-shaped
-fn @three() [selector=0x1158e167, pure] {
+@phase lowered
+fn @three() [selector=0x1158e167, abi_wrapper, pure] {
   bb0:
-    v26 = icall @decode_calldata_type, 1, 4
+    v26 = icall @decode_calldata_type, 4
     v0 = mload v26
     v1 = lt v0, 3
     jumpi v1, bb1, bb2
@@ -18,9 +18,9 @@ fn @three() [selector=0x1158e167, pure] {
     returndata 128, 32
 }
 
-fn @two() [selector=0x65313149, pure] {
+fn @two() [selector=0x65313149, abi_wrapper, pure] {
   bb0:
-    v18 = icall @decode_calldata_type, 1, 4
+    v18 = icall @decode_calldata_type, 4
     v0 = mload v18
     v1 = lt v0, 2
     jumpi v1, bb1, bb2
@@ -35,9 +35,9 @@ fn @two() [selector=0x65313149, pure] {
     returndata 128, 32
 }
 
-fn @gapped() [selector=0x63cfbce4, pure] {
+fn @gapped() [selector=0x63cfbce4, abi_wrapper, pure] {
   bb0:
-    v18 = icall @decode_calldata_type, 1, 4
+    v18 = icall @decode_calldata_type, 4
     v0 = mload v18
     v1 = lt v0, 3
     jumpi v1, bb1, bb2
@@ -55,9 +55,9 @@ fn @gapped() [selector=0x63cfbce4, pure] {
     returndata 128, 32
 }
 
-fn @stored() [selector=0xab0edd4e, pure] {
+fn @stored() [selector=0xab0edd4e, abi_wrapper, pure] {
   bb0:
-    v30 = icall @decode_calldata_type, 1, 4
+    v30 = icall @decode_calldata_type, 4
     v0 = mload v30
     v1 = lt v0, 3
     jumpi v1, bb1, bb2
@@ -98,7 +98,7 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     jumpi v10, bb3, bb4
   bb4:
     v12 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v13 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v13 = mload 64 !metadata(memory=scratch)
     v20 = add v13, v12
     v21 = lt v20, v13
     v22 = gt v20, 0xffffffffffffffff
@@ -115,9 +115,9 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     calldatacopy v17, v3, v7
     ret v13
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb1:
     revert 0, 0
 }

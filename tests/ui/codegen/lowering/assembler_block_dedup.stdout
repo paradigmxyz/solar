@@ -21,12 +21,12 @@ bb0:
   dup 1
   push 0x5ce8bda8
   eq
-  push bb15
+  push bb9
   jumpi
   dup 1
   push 0xfeb97429
   eq
-  push bb15
+  push bb9
   jumpi
   jump bb6
 bb6 [cold]:
@@ -40,7 +40,7 @@ bb7:
   push 32
   push 128
   return
-bb15:
+bb9:
   push 36
   calldatasize
   lt

@@ -104,7 +104,7 @@ impl MirPass for ElementCleanup {
             // re-encode the payload in one copy. A fresh array holds what this function
             // and its callees store; a returned parameter holds that and what it arrived
             // with. Several return blocks must all stay within the bound.
-            if func.returns.len() == 1 {
+            if func.return_components().len() == 1 {
                 let returned = func
                     .blocks
                     .iter()
@@ -232,7 +232,7 @@ fn store_bound(func: &Function) -> u32 {
 
 fn callees(func: &Function) -> impl Iterator<Item = FunctionId> + '_ {
     let calls = func.instructions().filter_map(|inst| match func.inst(inst).kind {
-        InstKind::ICall { function, .. } => Some(function),
+        InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => Some(function),
         _ => None,
     });
     let tail_calls = func.blocks.iter().filter_map(|block| match block.terminator {
@@ -328,7 +328,12 @@ fn param_bounds(
                 }
             };
             for inst in func.instructions() {
-                if let InstKind::ICall { function, args, .. } = &func.inst(inst).kind {
+                if let InstKind::ICall {
+                    function: crate::mir::Callee::Function(function),
+                    args,
+                    ..
+                } = &func.inst(inst).kind
+                {
                     visit(*function, args);
                 }
             }

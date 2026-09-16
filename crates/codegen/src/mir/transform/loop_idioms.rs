@@ -25,7 +25,7 @@ use crate::mir::{
     ValueId,
     analysis::{AliasAnalysis, LocationSize, MemoryAddress, MemoryBase, MemoryLocation},
     pass::{MirPass, ModuleAnalyses, run_function_pass_with_alias},
-    utils::repair_reachability_phis,
+    utils::{fold_terminator_to_jump, invalidate_unreachable_block},
 };
 use alloy_primitives::U256;
 use solar_sema::Gcx;
@@ -217,7 +217,7 @@ fn run_function(func: &mut Function, alias: &AliasAnalysis) -> bool {
             break;
         }
         changed = true;
-        let _ = repair_reachability_phis(func);
+        let _ = super::cfg_simplify::remove_unreachable_blocks(func);
     }
     changed
 }
@@ -1213,7 +1213,6 @@ fn rewrite_copy_loop(func: &mut Function, candidate: CopyLoop) {
     }
     // The copy is complete before the loop would start, so the header leaves at
     // once and later cleanup removes the unreachable body.
-    func.blocks[candidate.header].terminator = Some(Terminator::Jump(candidate.exit));
-    func.blocks[candidate.body].instructions.clear();
-    func.blocks[candidate.body].terminator = Some(Terminator::Jump(candidate.header));
+    fold_terminator_to_jump(func, candidate.header, candidate.exit);
+    let _ = invalidate_unreachable_block(func, candidate.body);
 }

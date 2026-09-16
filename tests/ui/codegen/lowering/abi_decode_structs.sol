@@ -33,8 +33,8 @@ contract AbiDecodeStructs {
     // The element loop steps a pointer through the fresh array and compares it
     // with the array's end instead of counting to two.
     // ADS-LABEL: fn @dFixed
-    // ADS: [[SIZE:v[0-9]+]] = shl 5, 2
-    // ADS-NEXT: [[END:v[0-9]+]] = add {{v[0-9]+}}, [[SIZE]]
+    // ADS: mstore 64, {{v[0-9]+}}
+    // ADS-NEXT: [[END:v[0-9]+]] = add {{v[0-9]+}}, 64
     // ADS: {{v[0-9]+}} = phi
     // ADS-NEXT: [[PTR:v[0-9]+]] = phi
     // ADS-NEXT: lt [[PTR]], [[END]]

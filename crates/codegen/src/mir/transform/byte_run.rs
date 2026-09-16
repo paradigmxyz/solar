@@ -354,7 +354,6 @@ fn sweep_dead(func: &mut Function) {
         for inst in func.instructions() {
             let inst_ref = func.inst(inst);
             if inst_ref.kind.has_side_effects()
-                || inst_ref.metadata.abi_validation()
                 || (observes_msize && inst_ref.kind.effect_kind() == EffectKind::MemoryRead)
             {
                 continue;

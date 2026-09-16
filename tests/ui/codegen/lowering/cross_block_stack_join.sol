@@ -18,8 +18,10 @@ contract CrossBlockStackJoin {
     // CHECK: sub
     // CHECK-NEXT: swap 1
     // CHECK-NEXT: swap 2
-    // CHECK-NEXT: push [[JOIN:bb[0-9]+]]
-    // CHECK: jump [[JOIN]]
+    // CHECK-NEXT: iszero
+    // CHECK-NEXT: push [[OVERFLOW:bb[0-9]+]]
+    // CHECK-NEXT: jumpi
+    // CHECK-NEXT: jump [[JOIN:bb[0-9]+]]
     // CHECK-NEXT: [[JOIN]]:
     // CHECK-NEXT: dup 2
     // CHECK-NEXT: dup 1

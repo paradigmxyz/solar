@@ -14,8 +14,8 @@ use super::{
     MemoryBase, MemoryLocation,
 };
 use crate::mir::{
-    ArgIdx, Callee, ControlEffects, Function, FunctionId, InstId, InstKind, MemoryRegion, Module,
-    StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    ArgIdx, BlockId, Callee, ControlEffects, Function, FunctionId, InstId, InstKind, MemoryRegion,
+    Module, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{

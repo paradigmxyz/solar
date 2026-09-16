@@ -173,6 +173,7 @@ fn pack_terminal_traces(gcx: Gcx<'_>, module: &Module, state: &mut RunState) {
                 &module.blocks[block],
                 next,
                 state.references[block] != 0,
+                module.code_follows,
             );
             references += state.references[block];
             position += 1;
@@ -244,12 +245,18 @@ fn terminal_packing_budget(
             offsets[block_id] = offset;
             let block = &module.blocks[block_id];
             let next = state.order.get(position + 1).copied();
-            offset += estimated_block_size(gcx, block, next, state.references[block_id] != 0);
+            offset += estimated_block_size(
+                gcx,
+                block,
+                next,
+                state.references[block_id] != 0,
+                module.code_follows,
+            );
             if let Some(kind @ TerminatorKind::IndexedJump(targets)) =
                 block.terminator.as_ref().map(|term| &term.kind)
                 && targets.len() <= 32
             {
-                offset -= estimated_terminator_size(gcx, kind, next);
+                offset -= estimated_terminator_size(gcx, kind, next, module.code_follows);
                 offset += estimated_indexed_jump_terminator_size(
                     targets.len(),
                     1,

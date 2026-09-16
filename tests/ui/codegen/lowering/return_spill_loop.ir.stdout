@@ -35,22 +35,18 @@ bb6 [cold]:
   revert
 bb40 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 50
   jump bb47
 bb47 [cold]:
-  push 4
+  push 32
   mstore
   push 36
-  push 0
+  push 28
   revert
 bb46 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 65
@@ -201,9 +197,8 @@ bb10 [continuation]:
   byte
   push 224
   mload
-  push 1
-  lt
-  iszero
+  push 2
+  gt
   push bb40
   jumpi
   push 1
@@ -214,9 +209,8 @@ bb10 [continuation]:
   byte
   push 224
   mload
-  push 2
-  lt
-  iszero
+  push 3
+  gt
   push bb40
   jumpi
   swap 2
@@ -269,9 +263,8 @@ bb18 [continuation]:
 bb19 [continuation]:
   dup 1
   mload
-  push 1
-  lt
-  iszero
+  push 2
+  gt
   push bb40
   jumpi
   push 33

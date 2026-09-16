@@ -1,7 +1,7 @@
 //@ compile-flags: -Ogas -Zmir-pipeline=loop-idioms
 //@ filecheck:
 @module AsciiLoop
-@phase memory-lowered
+@phase lowered
 
 // CHECK-LABEL: {{^[ +].*}}fn @ascii{{[( ]}}
 // CHECK: + [[FULL:v[0-9]+]] = and {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc0

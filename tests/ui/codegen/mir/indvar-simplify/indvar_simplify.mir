@@ -98,6 +98,7 @@ fn @keep_scale_one_single_use(arg0: u256) -> u256 {
 
 // Checked recurrences and address expressions expose their successful values; their
 // arithmetic still executes so strength reduction cannot discard a failure check.
+// Two address uses pay for carrying the extra pointer under the stack cost model.
 // CHECK-LABEL: {{^[ +].*}}fn @strength_reduce_checked_address{{[( ]}}
 // CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb0: arg0], [bb2: [[NEXT:v[0-9]+]]]
 // CHECK: {{^[ +].*}}checked_mul u256,
@@ -115,6 +116,8 @@ fn @strength_reduce_checked_address(arg0: u256, arg1: u256) -> u256 {
     v3 = checked_mul u256, v1, 32
     v4 = add arg0, v3
     mstore v4, v1
+    v7 = add arg0, v3
+    mstore v7, v1
     v6 = checked_add u256, v1, 1
     jump bb1
   bb3:
@@ -137,6 +140,8 @@ fn @strength_reduce_commuted_checked_step(arg0: u256) -> u256 {
     v3 = shl 5, v1
     v4 = add arg0, v3
     mstore v4, v1
+    v7 = add arg0, v3
+    mstore v7, v1
     v5 = checked_add u256, 1, v1
     jump bb1
   bb3:

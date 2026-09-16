@@ -3202,7 +3202,8 @@ fn find_canonical_return_calls(
                 // element width stands in for the exact type match.
                 if cleanup_helpers.contains_key(ty)
                     && let Value::Inst(inst) = func.value(value)
-                    && let InstKind::ICall { function: Callee::Function(function), .. } = func.inst(*inst).kind
+                    && let InstKind::ICall { function: Callee::Function(function), .. } =
+                        func.inst(*inst).kind
                     && module.function(function).return_components().len() == 1
                     && (func.value_ty(value) == Some(ty.mir_type())
                         || module.function(function).attributes.array_return_element_bits.is_some())
@@ -3709,7 +3710,9 @@ fn is_canonical_return_array_param(
     // An array a call returned and nothing has written since.
     if let Value::Inst(inst) = func.value(object)
         && let InstKind::ICall { function: Callee::Function(function), .. } = func.inst(*inst).kind
-                    && module.function(function).return_components().len() == 1
+        && calls
+            .module
+            .is_some_and(|module| module.function(function).return_components().len() == 1)
         && is_unmodified_call_result(func, object, *inst)
         && calls.module.is_some_and(|module| {
             module

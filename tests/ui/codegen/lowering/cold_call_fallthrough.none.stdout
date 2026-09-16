@@ -104,7 +104,7 @@ bb11:
   push 160
   mload
   eq
-  push bb17
+  push bb23
   jumpi
   jump bb12
 bb12:
@@ -112,7 +112,7 @@ bb12:
   push 160
   mload
   eq
-  push bb16
+  push bb20
   jumpi
   jump bb13
 bb13:
@@ -120,30 +120,58 @@ bb13:
   push 160
   mload
   eq
-  push bb15
+  push bb17
   jumpi
   jump bb14
 bb14:
+  push 0
+  push bb16
+  jumpi
+  jump bb15
+bb15:
   push 0x6f74686572000000000000000000000000000000000000000000000000000000
   push 5
   swap 1
+  jump bb26
+bb16 [cold]:
+  invalid
+bb17:
+  push 0
+  push bb19
+  jumpi
   jump bb18
-bb15:
+bb18:
   push 0x74776f0000000000000000000000000000000000000000000000000000000000
   push 3
   swap 1
-  jump bb18
-bb16:
+  jump bb26
+bb19 [cold]:
+  invalid
+bb20:
+  push 0
+  push bb22
+  jumpi
+  jump bb21
+bb21:
   push 0x6f6e650000000000000000000000000000000000000000000000000000000000
   push 3
   swap 1
-  jump bb18
-bb17:
+  jump bb26
+bb22 [cold]:
+  invalid
+bb23:
+  push 0
+  push bb25
+  jumpi
+  jump bb24
+bb24:
   push 0x7a65726f00000000000000000000000000000000000000000000000000000000
   push 4
   swap 1
-  jump bb18
-bb18:
+  jump bb26
+bb25 [cold]:
+  invalid
+bb26:
   push 224
   mstore
   push 192

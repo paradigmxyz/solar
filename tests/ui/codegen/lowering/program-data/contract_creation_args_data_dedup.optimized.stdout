@@ -202,10 +202,10 @@ bb28:
   jumpi
   push 0
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb12:
   push 256
@@ -402,10 +402,10 @@ bb18:
   lt
   push bb27
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb27 [cold]:
   push 0x4e487b71

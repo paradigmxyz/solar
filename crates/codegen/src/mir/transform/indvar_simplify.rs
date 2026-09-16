@@ -50,8 +50,8 @@
 //! - add only one scaled address counter when the original update must stay live.
 
 use crate::mir::{
-    BlockId, Function, Immediate, InstId, InstKind, Instruction, MemoryRegion, MirType, Module,
-    Terminator, Value, ValueId,
+    ArithmeticKind, BlockId, CheckedOp, Function, Immediate, InstId, InstKind, Instruction,
+    MemoryRegion, MirType, Module, Terminator, Value, ValueId,
     analysis::{
         AffineTerm, AliasAnalysis, InductionVariable, Loop, LoopAnalyzer, MemoryBase,
         ScalarEvolution,
@@ -201,19 +201,21 @@ impl IndVarSimplifier {
     ) {
         // Reducing an earlier counter can delete this one's update as dead
         // address arithmetic, leaving the recorded instruction outside the loop.
-        if iv.update_inst.is_some_and(|inst| {
-            !loop_data.blocks.iter().any(|block| func.blocks[block].instructions.contains(&inst))
-        }) {
+        if !loop_data
+            .blocks
+            .iter()
+            .any(|block| func.blocks[block].instructions.contains(&iv.update_inst))
+        {
             return;
         }
-        let Some(step) = self.additive_step(func, iv.value, iv.update_inst) else {
+        let Some(step) = self.additive_step(func, iv.value, Some(iv.update_inst)) else {
             return;
-        }
-        let must_keep_update = iv.update_inst.is_some_and(|inst| func.inst(inst).kind.effects().must_execute(false));
+        };
+        let must_keep_update = func.inst(iv.update_inst).kind.effects().must_execute(false);
 
         let scev = ScalarEvolution::analyze(func, loop_data);
         let carried = Self::carried_words(func, loop_data);
-        let update_value = iv.update_inst.and_then(|inst_id| func.inst_result_value(inst_id));
+        let update_value = func.inst_result_value(iv.update_inst);
         let mut candidates: FxHashMap<AddressKey, Vec<ValueId>> = FxHashMap::default();
         let mut offset_shared = FxHashSet::default();
 
@@ -267,16 +269,17 @@ impl IndVarSimplifier {
         // that cannot wrap takes over the exit test and the counter dies; that credit
         // is weighed across all families at once.
         let exit_test = self.counter_exit_test(func, loop_data, iv.value);
-        let counter_free = exit_test.is_some_and(|test| {
-            Self::counter_only_feeds(
-                func,
-                loop_data,
-                iv.value,
-                test.condition,
-                iv.update_inst,
-                &addresses,
-            )
-        });
+        let counter_free = !must_keep_update
+            && exit_test.is_some_and(|test| {
+                Self::counter_only_feeds(
+                    func,
+                    loop_data,
+                    iv.value,
+                    test.condition,
+                    Some(iv.update_inst),
+                    &addresses,
+                )
+            });
         let test_family = if counter_free {
             families.iter().position(|members| {
                 let key = &members[0].0;
@@ -390,7 +393,7 @@ impl IndVarSimplifier {
         // remove them here so the counter's remaining reads are visible below.
         self.remove_dead_address_arithmetic(func, loop_data);
         if test_rewritten {
-            self.remove_dead_counter(func, loop_data, iv.value, iv.update_inst);
+            self.remove_dead_counter(func, loop_data, iv.value, Some(iv.update_inst));
         }
     }
 
@@ -721,9 +724,27 @@ impl IndVarSimplifier {
     ) -> Option<i128> {
         let update_inst = update_inst?;
         match func.inst(update_inst).kind {
-            InstKind::Add(a, b) if a == iv_value => self.value_i128(func, b),
-            InstKind::Add(a, b) if b == iv_value => self.value_i128(func, a),
-            InstKind::Sub(a, b) if a == iv_value => self.value_i128(func, b)?.checked_neg(),
+            InstKind::Add(a, b)
+            | InstKind::CheckedBinary {
+                op: CheckedOp::Add,
+                arithmetic: ArithmeticKind::Unsigned(256),
+                lhs: a,
+                rhs: b,
+            } if a == iv_value => self.value_i128(func, b),
+            InstKind::Add(a, b)
+            | InstKind::CheckedBinary {
+                op: CheckedOp::Add,
+                arithmetic: ArithmeticKind::Unsigned(256),
+                lhs: a,
+                rhs: b,
+            } if b == iv_value => self.value_i128(func, a),
+            InstKind::Sub(a, b)
+            | InstKind::CheckedBinary {
+                op: CheckedOp::Sub,
+                arithmetic: ArithmeticKind::Unsigned(256),
+                lhs: a,
+                rhs: b,
+            } if a == iv_value => self.value_i128(func, b)?.checked_neg(),
             _ => None,
         }
     }
@@ -762,7 +783,8 @@ impl IndVarSimplifier {
         key: &AddressKey,
     ) -> Option<ValueId> {
         let iv = loop_data.induction_vars.iter().find(|iv| iv.value == key.iv)?;
-        let delta = self.additive_step(func, key.iv, iv.update_inst)?.checked_mul(key.scale)?;
+        let delta =
+            self.additive_step(func, key.iv, Some(iv.update_inst))?.checked_mul(key.scale)?;
         if delta == 0 {
             return None;
         }

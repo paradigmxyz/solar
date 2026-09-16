@@ -13,8 +13,7 @@ fn @patch(arg0: bool) -> bytes1 [selector=0x7f603a02, pure, abi_params=[bool], a
     v2 = memory_object_len memorybytes, v0
     v3 = lt 0, v2
     v4 = iszero v3
-    jumpi v4, bb4, bb5
-  bb5:
+    icall panic_if<0x32>, v4
     v5 = byte 0, 0x2d00000000000000000000000000000000000000000000000000000000000000
     memory_object_store_byte memorybytes, v0, 0, v5
     jump bb3
@@ -22,15 +21,10 @@ fn @patch(arg0: bool) -> bytes1 [selector=0x7f603a02, pure, abi_params=[bool], a
     v6 = memory_object_len memorybytes, v0
     v7 = lt 0, v6
     v8 = iszero v7
-    jumpi v8, bb4, bb6
-  bb6:
+    icall panic_if<0x32>, v8
     v9 = memory_object_load_byte memorybytes, v0, 0
     v10 = shl 248, v9
     ret v10
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @store() -> bytes1 [selector=0x975057e7, abi_params=[], abi_returns=[word<bytes1>]] {

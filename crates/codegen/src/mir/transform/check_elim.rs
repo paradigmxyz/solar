@@ -95,14 +95,14 @@
 use super::cfg_simplify::simplify_function;
 use crate::{
     mir::{
-        BlockId, Builtin, Callee, InstId, Function, FunctionId, ImmutableEncoding, ImmutableId, InstKind, Module,
-        Terminator, Value, ValueId,
+        BlockId, Builtin, Callee, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
+        InstKind, Module, Terminator, Value, ValueId,
         analysis::{CallGraphInfo, CfgInfo},
         immutable::immutable_push_type_size,
         pass::{
             MirPass, run_function_pass, run_function_pass_with_cfg, run_selected_function_pass,
         },
-        utils::{fold_terminator_to_jump, repair_reachability_phis},
+        utils::fold_terminator_to_jump,
     },
     target::Target,
 };
@@ -487,7 +487,8 @@ impl<'a> CheckEliminator<'a> {
             }
         }
         let mut proven = Vec::new();
-        let (mut folds, mut checks) = self.collect_folds(func, &cfg, &preds, &facts, &candidates, &mut proven);
+        let (mut folds, mut checks) =
+            self.collect_folds(func, &cfg, &preds, &facts, &candidates, &mut proven);
         if !proven.is_empty() {
             // The invariant is available wherever the phi is: attach it to the
             // header's entry facts and index it for transitive queries.

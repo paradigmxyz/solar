@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/abi_return_array_elements.sol:AbiReturnArrayElements ===
 @module AbiReturnArrayElements
-@phase evm-shaped
-fn @clean() [selector=0x945bb2ba, pure] {
+@phase lowered
+fn @clean() [selector=0x945bb2ba, abi_wrapper, pure] {
   bb0:
-    v2 = icall @decode_calldata_type, 1, 4
+    v2 = icall @decode_calldata_type, 4
     v7 = iszero v2
     v8 = iszero v7
     v6 = mload v2
@@ -18,39 +18,39 @@ fn @clean() [selector=0x945bb2ba, pure] {
     returndata v2, v13
 }
 
-fn @dirty() [selector=0x74016a59, pure] {
+fn @dirty() [selector=0x74016a59, abi_wrapper, pure] {
   bb0:
-    v4 = icall @decode_calldata_type, 1, 4
+    v4 = icall @decode_calldata_type, 4
     v1 = add v4, 32
     mstore v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v5 = icall @cleanup_return, 1, v4
+    v5 = icall @cleanup_return, v4
     v9 = mload 64 !metadata(memory=scratch)
     v10 = add v9, 32
     mstore v9, 32
-    v12 = icall @encode_abi_array, 1, v5, v10
+    v12 = icall @encode_abi_array, v5, v10
     v13 = sub v12, v9
     v15 = add v13, 31
     v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v18 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
+    v18 = mload 64 !metadata(memory=scratch)
     v20 = add v18, v17
     mstore 64, v20 !metadata(memory=scratch)
     returndata v18, v13
 }
 
-fn @viaHelper() [selector=0x43a4968c, pure] {
+fn @viaHelper() [selector=0x43a4968c, abi_wrapper, pure] {
   bb0:
-    v3 = icall @decode_calldata_type, 1, 4
+    v3 = icall @decode_calldata_type, 4
     v0 = add v3, 32
     mstore v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v4 = icall @cleanup_return, 1, v3
+    v4 = icall @cleanup_return, v3
     v8 = mload 64 !metadata(memory=scratch)
     v9 = add v8, 32
     mstore v8, 32
-    v11 = icall @encode_abi_array, 1, v4, v9
+    v11 = icall @encode_abi_array, v4, v9
     v12 = sub v11, v8
     v14 = add v12, 31
     v16 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v17 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
+    v17 = mload 64 !metadata(memory=scratch)
     v19 = add v17, v16
     mstore 64, v19 !metadata(memory=scratch)
     returndata v17, v12
@@ -77,7 +77,7 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     v16 = lt v15, v9
     jumpi v16, bb3, bb5
   bb5:
-    v17 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v17 = mload 64 !metadata(memory=scratch)
     v33 = add v17, v15
     v34 = lt v33, v17
     v35 = gt v33, 0xffffffffffffffff
@@ -110,9 +110,9 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     v28 = add v21, 1
     jump bb7
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb1:
     revert 0, 0
 }
@@ -128,30 +128,30 @@ fn @cleanup_return(arg0: memptr) -> memptr {
     v6 = eq v5, v1
     jumpi v6, bb3, bb1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb3:
-    v9 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v9 = mload 64 !metadata(memory=scratch)
     v21 = add v9, v3
     mstore 64, v21 !metadata(memory=scratch)
     mstore v9, v0
     v15 = add arg0, 32
     v18 = add v9, 32
     v26 = shl 5, v0
-    v27 = add v15, v26
+    v27 = add v18, v26
     jump bb4
   bb4:
-    v22 = phi [bb3: v15], [bb5: v23]
-    v24 = phi [bb3: v18], [bb5: v25]
+    v22 = phi [bb3: v18], [bb5: v23]
+    v24 = phi [bb3: v15], [bb5: v25]
     v11 = lt v22, v27
     jumpi v11, bb5, bb6
   bb6:
     ret v9
   bb5:
-    v12 = mload v22
+    v12 = mload v24
     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore v24, v13
+    mstore v22, v13
     v23 = add v22, 32
     v25 = add v24, 32
     jump bb4

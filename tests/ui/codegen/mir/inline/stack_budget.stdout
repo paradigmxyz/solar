@@ -3,7 +3,7 @@
   @module StackBudget
   fn @low_pressure(arg0: bool, arg1: u256) -> u256 [selector=0x01020304] {
     bb0:
--     v0 = icall @choose, 1, arg0, arg1
+-     v0 = icall @choose, arg0, arg1
 -     v1 = add arg1, v0
 -     ret v1
 - }
@@ -38,7 +38,7 @@
   
   fn @high_pressure(arg0: bool, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: u256, arg8: u256, arg9: u256, arg10: u256, arg11: u256, arg12: u256) -> u256 [selector=0x01020305] {
     bb0:
-      v0 = icall @wide_choose, 1, arg0, arg1
+      v0 = icall @wide_choose, arg0, arg1
       v1 = add arg1, arg2
       v2 = add arg3, arg4
       v3 = add arg5, arg6
@@ -70,7 +70,7 @@
   
   fn @loop_caller(arg0: u256) -> u256 [selector=0x01020306] {
     bb0:
--     v0 = icall @loop_body, 1, arg0
+-     v0 = icall @loop_body, arg0
 -     ret v0
 - }
 - 

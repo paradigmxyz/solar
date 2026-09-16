@@ -65,11 +65,18 @@ contract LoopStateChainSpillHome {
     // CHECK-NEXT: push [[STATE]]
     // CHECK-NEXT: mload
     // CHECK-NEXT: eq
+    // The final state choice is if-converted but still reloads the shared spill home.
     // CHECK: push [[STATE]]
     // CHECK-NEXT: mload
+    // CHECK-NEXT: mul
+    // CHECK-NEXT: push [[STATE]]
+    // CHECK-NEXT: mload
     // CHECK-NEXT: swap 1
-    // CHECK-NEXT: push {{bb[0-9]+}}
-    // CHECK-NEXT: jumpi
+    // CHECK-NEXT: sub
+    // CHECK-NEXT: mul
+    // CHECK-NEXT: push [[STATE]]
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: add
     function fourStates(uint256 n) external pure returns (uint256) {
         uint256 state = 0;
         for (uint256 i = 0; i < n; i++) {

@@ -163,7 +163,7 @@ bb11:
 
 // CHECK-LABEL: {{^[ +].*}}bb12:
 // CHECK: {{^[ +].*}}push 12
-// CHECK-NEXT: + jump [[TAIL_E]]
+// CHECK: + jump [[TAIL_E]]
 bb12:
   push 12
   push 1

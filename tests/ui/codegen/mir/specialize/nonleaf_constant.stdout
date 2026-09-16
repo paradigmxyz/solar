@@ -3,7 +3,7 @@
   @module NonLeafConstant
   fn @caller(arg0: u256) -> u256 [selector=0x00000001] {
     bb0:
-      v0 = icall @outer, 1, arg0, 0
+      v0 = icall @outer, arg0, 0
       ret v0
   }
   
@@ -15,7 +15,7 @@
       v1 = add arg0, 7
       ret v1
     bb1:
-      v0 = icall @inner, 1, arg0
+      v0 = icall @inner, arg0
       ret v0
   }
   
@@ -27,13 +27,13 @@
   
   fn @wide(arg0: u256) -> u256 [selector=0x00000002] {
     bb0:
-      v0 = icall @keep, 1, arg0, 0x1000000000000000000000000000000000000000000000000000000000000000
+      v0 = icall @keep, arg0, 0x1000000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
   fn @keep(arg0: u256, arg1: u256) -> u256 {
     bb0:
-      v0 = icall @inner, 1, arg0
+      v0 = icall @inner, arg0
       v1 = add v0, arg1
       ret v1
   }
@@ -43,8 +43,8 @@
   @module NonLeafConstant
   fn @caller(arg0: u256) -> u256 [selector=0x00000001] {
     bb0:
--     v0 = icall @outer, 1, arg0, 0
-+     v0 = icall @outer, 1, arg0
+-     v0 = icall @outer, arg0, 0
++     v0 = icall @outer, arg0
       ret v0
   }
   
@@ -56,7 +56,7 @@
       v1 = add arg0, 7
       ret v1
     bb1:
-      v0 = icall @inner, 1, arg0
+      v0 = icall @inner, arg0
       ret v0
   }
   
@@ -68,13 +68,13 @@
   
   fn @wide(arg0: u256) -> u256 [selector=0x00000002] {
     bb0:
-      v0 = icall @keep, 1, arg0, 0x1000000000000000000000000000000000000000000000000000000000000000
+      v0 = icall @keep, arg0, 0x1000000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
   fn @keep(arg0: u256, arg1: u256) -> u256 {
     bb0:
-      v0 = icall @inner, 1, arg0
+      v0 = icall @inner, arg0
       v1 = add v0, arg1
       ret v1
   }

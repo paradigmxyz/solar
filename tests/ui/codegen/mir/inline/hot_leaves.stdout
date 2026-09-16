@@ -14,7 +14,7 @@
     bb3:
       ret v1
     bb2:
--     v3 = icall @classify, 1, v0
+-     v3 = icall @classify, v0
 +     jump bb5
 +   bb5:
 +     v9 = lt v0, 32
@@ -36,7 +36,7 @@
 +   bb4:
 +     v14 = phi [bb6: 0], [bb10: v13]
       v4 = add v0, arg1
--     v5 = icall @classify, 1, v4
+-     v5 = icall @classify, v4
 -     v6 = add v3, v5
 +     jump bb12
 +   bb12:
@@ -66,7 +66,7 @@
   
   fn @straight_caller(arg0: u256) -> u256 {
     bb0:
-      v0 = icall @classify, 1, arg0
+      v0 = icall @classify, arg0
       ret v0
   }
   

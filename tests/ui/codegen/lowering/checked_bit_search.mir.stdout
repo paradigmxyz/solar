@@ -6,19 +6,19 @@
 @module CheckedBitSearch
 fn @fls.0(arg0: u256) -> u256 [selector=0x27be8b2d, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = icall @fls.3, 1, arg0
+    v0 = icall @fls.3, arg0
     ret v0
 }
 
 fn @clz.1(arg0: u256) -> u256 [selector=0x30244f7a, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = icall @clz.4, 1, arg0
+    v0 = icall @clz.4, arg0
     ret v0
 }
 
 fn @ffs.2(arg0: u256) -> u256 [selector=0x2297890a, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = icall @ffs.5, 1, arg0
+    v0 = icall @ffs.5, arg0
     ret v0
 }
 
@@ -131,21 +131,14 @@ fn @clz.4(arg0: u256) -> u256 [pure] {
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
   bb2:
-    v1 = icall @fls.3, 1, arg0
-    v2 = sub 255, v1
-    v3 = lt 255, v1
-    jumpi v3, bb4, bb5
-  bb5:
+    v1 = icall @fls.3, arg0
+    v2 = checked_sub u256, 255, v1
     jump bb3
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     jump bb3
   bb3:
-    v4 = phi [bb1: 256], [bb5: v2]
-    ret v4
+    v3 = phi [bb1: 256], [bb2: v2]
+    ret v3
 }
 
 fn @ffs.5(arg0: u256) -> u256 [pure] {
@@ -154,20 +147,13 @@ fn @ffs.5(arg0: u256) -> u256 [pure] {
     jumpi v0, bb1, bb2
   bb2:
     v1 = not arg0
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb4, bb5
-  bb5:
-    v4 = and arg0, v2
-    v5 = icall @fls.3, 1, v4
+    v2 = checked_add u256, v1, 1
+    v3 = and arg0, v2
+    v4 = icall @fls.3, v3
     jump bb3
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     jump bb3
   bb3:
-    v6 = phi [bb1: 256], [bb5: v5]
-    ret v6
+    v5 = phi [bb1: 256], [bb2: v4]
+    ret v5
 }
