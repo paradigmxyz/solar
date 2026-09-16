@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/safe-solar/bytes/fill/unsafe.sol:Unsafe ===
 @module Unsafe
-@phase evm-shaped
-fn @blank() [selector=0xc89c9e3d, pure] {
+@phase lowered
+fn @blank() [selector=0xc89c9e3d, abi_wrapper, pure] {
   bb0:
     v30 = calldatasize
     v31 = lt v30, 100
@@ -21,7 +21,7 @@ fn @blank() [selector=0xc89c9e3d, pure] {
     jumpi v41, bb9, bb10
   bb10:
     v43 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v44 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v44 = mload 64 !metadata(memory=scratch)
     v66 = add v44, v43
     v67 = lt v66, v44
     v68 = gt v66, 0xffffffffffffffff
@@ -77,9 +77,9 @@ fn @blank() [selector=0xc89c9e3d, pure] {
     v61 = add v58, 64
     returndata v44, v61
   bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb6:
     revert 0, 0
 }

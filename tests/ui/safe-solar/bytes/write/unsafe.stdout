@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/safe-solar/bytes/write/unsafe.sol:Unsafe ===
 @module Unsafe
-@phase evm-shaped
-fn @patch() [selector=0xa2c0192a, pure] {
+@phase lowered
+fn @patch() [selector=0xa2c0192a, abi_wrapper, pure] {
   bb0:
     v9 = calldataload 36
     v10 = shl 32, v9
     jumpi v10, bb1, bb2
   bb2:
-    v12 = icall @decode_calldata_type, 1, 4
+    v12 = icall @decode_calldata_type, 4
     v0 = add v12, 33
     v2 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v4 = mload v0
@@ -33,9 +33,9 @@ fn @patch() [selector=0xa2c0192a, pure] {
     revert 0, 0
 }
 
-fn @word() [selector=0x8ce8a8b7, pure] {
+fn @word() [selector=0x8ce8a8b7, abi_wrapper, pure] {
   bb0:
-    v3 = icall @decode_calldata_type, 1, 4
+    v3 = icall @decode_calldata_type, 4
     v0 = add v3, 32
     mstore v0, arg1
     v8 = iszero v3
@@ -71,7 +71,7 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     jumpi v10, bb3, bb4
   bb4:
     v12 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v13 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v13 = mload 64 !metadata(memory=scratch)
     v20 = add v13, v12
     v21 = lt v20, v13
     v22 = gt v20, 0xffffffffffffffff
@@ -88,9 +88,9 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     calldatacopy v17, v3, v7
     ret v13
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb1:
     revert 0, 0
 }

@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/safe-solar/libstring/hex/unsafe.sol:Unsafe ===
 @module Unsafe
-@phase evm-shaped
-fn @toHex() [selector=0xe1425395, pure] {
+@phase lowered
+fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
   bb0:
-    v37 = calldatasize
-    v38 = lt v37, 68
-    jumpi v38, bb5, bb6
+    v38 = calldatasize
+    v39 = lt v38, 68
+    jumpi v39, bb5, bb6
   bb6:
     v1 = add arg1, arg1
     v2 = add v1, 66
@@ -19,8 +19,8 @@ fn @toHex() [selector=0xe1425395, pure] {
     v8 = sub v5, v1
     jump bb1
   bb1:
-    v13 = phi [bb6: v5], [bb1: v19]
-    v15 = phi [bb6: arg0], [bb1: v26]
+    v13 = phi [bb6: v5], [bb7: v19]
+    v15 = phi [bb6: arg0], [bb7: v26]
     v19 = add v13, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
     v20 = and v15, 15
     v21 = mload v20
@@ -32,35 +32,37 @@ fn @toHex() [selector=0xe1425395, pure] {
     mstore8 v19, v25
     v26 = shr 8, v15
     v28 = eq v19, v8
-    jumpi v28, bb2, bb1
+    jumpi v28, bb2, bb7
+  bb7:
+    jump bb1
   bb2:
     jumpi v26, bb3, bb4
   bb4:
     v35 = sub v5, v19
-    v36 = sub v19, 32
+    v36 = add v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffde
     mstore v36, v35
-    v42 = mload 64 !metadata(memory=scratch)
-    v43 = add v42, 32
-    mstore v42, 32
-    v46 = iszero v36
-    v47 = iszero v46
-    v45 = mload v36
-    v48 = mul v45, v47
-    v50 = add v48, 31
-    v51 = and v50, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v52 = add v43, 32
-    v53 = add v43, v51
-    mstore v53, 0
-    mstore v43, v48
-    v55 = add v52, v51
-    mcopy v52, v19, v48
-    v56 = sub v55, v42
-    v58 = add v56, 31
-    v60 = and v58, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v61 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
-    v63 = add v61, v60
-    mstore 64, v63 !metadata(memory=scratch)
-    returndata v61, v56
+    v43 = mload 64 !metadata(memory=scratch)
+    v44 = add v43, 32
+    mstore v43, 32
+    v47 = iszero v36
+    v48 = iszero v47
+    v46 = mload v36
+    v49 = mul v46, v48
+    v51 = add v49, 31
+    v52 = and v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v53 = add v44, 32
+    v54 = add v44, v52
+    mstore v54, 0
+    mstore v44, v49
+    v56 = add v53, v52
+    mcopy v53, v19, v49
+    v57 = sub v56, v43
+    v59 = add v57, 31
+    v61 = and v59, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v62 = mload 64 !metadata(memory=scratch)
+    v64 = add v62, v61
+    mstore 64, v64 !metadata(memory=scratch)
+    returndata v62, v57
   bb3:
     mstore 0, 0x2194895a !metadata(memory=scratch)
     revert 28, 4
