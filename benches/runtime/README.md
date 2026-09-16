@@ -36,7 +36,13 @@ PR jobs never run solx, including when they must rebuild a missing baseline; sol
 when matching results are available in the downloaded main artifact.
 
 Pass `--artifacts PATH` to write a file tree for each runtime case and compiler. This extra compile
-runs outside the timed samples. Solar emits MIR, creation and runtime EVM IR, disassembly, bytecode,
+runs outside the timed samples. Each compiler directory includes a `sources/` tree containing every
+embedded source in its Standard JSON input, preserving source paths and contents, including
+extensionless names and line endings. Source URLs are not fetched. Paths must be relative and cannot
+contain empty, `.` or `..` components, Windows drive prefixes, backslashes, or control characters.
+Symlinks and file/directory collisions report artifact capture errors.
+
+The compiler emits MIR, creation and runtime EVM IR, disassembly, bytecode,
 and raw Standard JSON input and output. Solc emits unoptimized `ir.yul` and optimized
 `optimized-ir.yul` where available, disassembly,
 bytecode, and raw Standard JSON input and output. When `--reference-results` points to a result next

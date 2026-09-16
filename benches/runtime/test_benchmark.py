@@ -485,6 +485,104 @@ class RuntimeComparisonTests(unittest.TestCase):
 
 
 class ArtifactTests(unittest.TestCase):
+    def test_artifacts_include_complete_source_tree(self) -> None:
+        sources = {
+            "src/Main.sol": {"content": 'import "../lib/Lib.sol";\ncontract Main {}\n'},
+            "lib/Lib.sol": {"content": "library Lib {}\n"},
+            "@scope/package/Source": {"content": "// π\r\ncontract Source {}\r\n"},
+            "@scope/package/Source.sol": {"content": ""},
+            "folder with spaces/你好.sol": {"content": "// UTF-8\n"},
+            "remote.sol": {"urls": ["https://example.com/remote.sol"]},
+        }
+        spec = benchmark.CompilerSpec("solc", "solc", Path("solc"), "solc")
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(
+                benchmark, "run", return_value=mock.Mock(returncode=0, stdout="{}")
+            ),
+        ):
+            root = Path(directory)
+            case = benchmark.TEST_CASES[0]
+            error = benchmark.write_artifacts(
+                root, spec, case, (json.dumps({"sources": sources}), 1, "")
+            )
+            self.assertEqual(error, "")
+            output = root / case.test_id / "solc" / "sources"
+            self.assertEqual(
+                {
+                    p.relative_to(output).as_posix(): p.read_bytes().decode("utf-8")
+                    for p in output.rglob("*")
+                    if p.is_file()
+                },
+                {
+                    name: source["content"]
+                    for name, source in sources.items()
+                    if "content" in source
+                },
+            )
+            for name in (
+                "../escape.sol",
+                "/absolute.sol",
+                "a/../../escape.sol",
+                "a\\b.sol",
+                "C:/escape.sol",
+                "C:escape.sol",
+                "//server/share.sol",
+                "a//b.sol",
+                "./a.sol",
+                "a/./b.sol",
+                "nul\0.sol",
+                "control\x7f.sol",
+                "",
+            ):
+                with self.subTest(name=name):
+                    error = benchmark.write_artifacts(
+                        root,
+                        spec,
+                        case,
+                        (json.dumps({"sources": {name: {"content": ""}}}), 1, ""),
+                    )
+                    self.assertEqual(error, f"invalid source artifact path: {name!r}")
+
+    def test_source_artifacts_reject_symlinks_and_report_collisions(self) -> None:
+        spec = benchmark.CompilerSpec("solc", "solc", Path("solc"), "solc")
+        case = benchmark.TEST_CASES[0]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / case.test_id / "solc" / "sources"
+            output.mkdir(parents=True)
+            outside = root / "outside"
+            outside.mkdir()
+            (outside / "Keep.sol").write_text("keep")
+            (output / "linked").symlink_to(outside, target_is_directory=True)
+            error = benchmark.write_artifacts(
+                root,
+                spec,
+                case,
+                (
+                    json.dumps(
+                        {"sources": {"linked/Keep.sol": {"content": "changed"}}}
+                    ),
+                    1,
+                    "",
+                ),
+            )
+            self.assertEqual(
+                error, "source artifact path contains a symlink: 'linked/Keep.sol'"
+            )
+            self.assertEqual((outside / "Keep.sol").read_text(), "keep")
+            for sources in (
+                {"file": {"content": "keep"}, "file/Child.sol": {"content": "child"}},
+                {
+                    "directory/Child.sol": {"content": "child"},
+                    "directory": {"content": "keep"},
+                },
+            ):
+                error = benchmark.write_artifacts(
+                    root, spec, case, (json.dumps({"sources": sources}), 1, "")
+                )
+                self.assertTrue(error.startswith("cannot write source artifact"), error)
+
     def test_artifact_input_requests_portable_outputs(self) -> None:
         test_case = benchmark.TEST_CASES[0]
         input_text, _, _ = benchmark.compiler_input(test_case, None)
