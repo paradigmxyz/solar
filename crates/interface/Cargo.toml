@@ -39,7 +39,6 @@ itoa.workspace = true
 normalize-path.workspace = true
 once_map.workspace = true
 rayon.workspace = true
-scoped-tls.workspace = true
 tracing.workspace = true
 unicode-width.workspace = true
 

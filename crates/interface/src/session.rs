@@ -23,6 +23,7 @@ pub struct Session {
     /// The rayon thread pool. This is spawned lazily on first use, rather than always constructing
     /// one with `SessionBuilder`.
     thread_pool: OnceLock<rayon::ThreadPool>,
+    reusable: bool,
 }
 
 impl Default for Session {
@@ -47,9 +48,18 @@ pub struct SessionBuilder {
     dcx: Option<DiagCtxt>,
     globals: Option<SessionGlobals>,
     opts: Option<CompileOpts>,
+    thread_pool: Option<rayon::ThreadPool>,
+    reusable: bool,
 }
 
 impl SessionBuilder {
+    /// Enables recycling with [`Session::into_builder`]. Even single-threaded sessions use
+    /// owned workers, avoiding Rayon's leaked current-thread registry.
+    pub fn reusable(mut self) -> Self {
+        self.reusable = true;
+        self
+    }
+
     /// Sets the diagnostic context.
     ///
     /// If `opts` is set this will default to [`DiagCtxt::from_opts`], otherwise this is required.
@@ -171,7 +181,16 @@ impl SessionBuilder {
         });
         let mut opts = opts.unwrap_or_default();
         Session::infer_language(&mut opts);
-        let sess = Session { globals, dcx, opts, thread_pool: OnceLock::new() };
+        let sess =
+            Session { globals, dcx, opts, thread_pool: OnceLock::new(), reusable: self.reusable };
+        if let Some(pool) = self.thread_pool
+            && pool.current_num_threads() == sess.threads()
+        {
+            pool.broadcast(|_| {
+                SessionGlobals::replace(Some(sess.globals.clone()));
+            });
+            sess.thread_pool.set(pool).unwrap_or_else(|_| unreachable!());
+        }
         sess.reconfigure();
         debug!(version = %solar_config::version::SEMVER_VERSION, "created new session");
         sess
@@ -179,6 +198,30 @@ impl SessionBuilder {
 }
 
 impl Session {
+    /// Clears this session's globals and diagnostics, retaining its options and idle worker pool.
+    ///
+    /// All compiler data must be discarded first. Use [`spawn`](Self::spawn) for detached jobs
+    /// so their lifetime is tracked. As with dropping a session, its symbols and
+    /// spans must not be used in the next session. Outstanding [`spawn`](Self::spawn) jobs keep
+    /// their old pool; a new pool will be built for the next session instead.
+    /// Use [`SessionBuilder::reusable`] from the first session to also recycle one-thread pools.
+    pub fn into_builder(mut self) -> SessionBuilder {
+        let thread_pool = self.thread_pool.take().filter(|pool| {
+            if pool.current_num_threads() == 1 && !self.reusable {
+                return false;
+            }
+            // Each worker owns one reference; unfinished spawned jobs hold additional ones.
+            if Arc::strong_count(&self.globals) != pool.current_num_threads() + 1 {
+                return false;
+            }
+            pool.broadcast(|_| {
+                SessionGlobals::replace(None);
+            });
+            true
+        });
+        SessionBuilder { opts: Some(self.opts), thread_pool, reusable: true, ..Default::default() }
+    }
+
     fn infer_language(opts: &mut CompileOpts) {
         if opts.standard_json {
             return;
@@ -381,7 +424,8 @@ impl Session {
         if self.is_sequential() {
             f();
         } else {
-            rayon::spawn(f);
+            let globals = self.globals.clone();
+            rayon::spawn(move || globals.set(f));
         }
     }
 
@@ -421,7 +465,7 @@ impl Session {
     pub fn enter<R: Send>(&self, f: impl FnOnce() -> R + Send) -> R {
         if in_rayon() {
             // Avoid panicking if we were to build a `current_thread` thread pool.
-            if self.is_sequential() {
+            if self.is_sequential() && !self.reusable {
                 reentrant_log();
                 return self.enter_sequential(f);
             }
@@ -502,7 +546,10 @@ impl Session {
                         builder = builder.stack_size(size);
                     }
                     let globals = self.globals.clone();
-                    builder.spawn(move || globals.set(|| thread.run()))?;
+                    builder.spawn(move || {
+                        SessionGlobals::replace(Some(globals));
+                        thread.run();
+                    })?;
                     Ok(())
                 })
                 .build()
@@ -518,7 +565,7 @@ impl Session {
             .num_threads(threads);
         // We still want to use a rayon thread pool with 1 thread so that `ParallelIterator`s don't
         // install and run in the default global thread pool.
-        if threads == 1 {
+        if threads == 1 && !self.reusable {
             builder = builder.use_current_thread();
         }
         builder
@@ -552,7 +599,7 @@ fn in_rayon() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
+    use std::{cell::RefCell, path::PathBuf, sync::mpsc, time::Duration};
 
     /// Session to test `enter`.
     fn enter_tests_session() -> Session {
@@ -593,6 +640,107 @@ mod tests {
     #[track_caller]
     fn cant_use_globals() {
         std::panic::catch_unwind(|| use_globals()).unwrap_err();
+    }
+
+    #[test]
+    fn recycle_clears_globals_and_keeps_workers() {
+        for threads in [1, 4] {
+            let first = Session::builder().reusable().threads(threads).with_test_emitter().build();
+            let old_globals = Arc::downgrade(&first.globals);
+            let old_sources = first.clone_source_map();
+            old_sources.new_source_file(PathBuf::from("first"), "old source").unwrap();
+            first.dcx.err("old diagnostic").emit();
+            let symbol = first.intern(&format!("revision-{threads}"));
+            let workers = first.enter(|| rayon::broadcast(|_| std::thread::current().id()));
+            assert_eq!(workers.len(), threads);
+            assert!(!workers.contains(&std::thread::current().id()));
+
+            let builder = first.into_builder();
+            assert!(old_globals.upgrade().is_none());
+            builder.thread_pool.as_ref().unwrap().broadcast(|_| {
+                SessionGlobals::try_with(|globals| assert!(globals.is_none()));
+            });
+            let second = builder.with_test_emitter().build();
+            assert!(second.source_map().is_empty());
+            assert!(second.dcx.has_errors().is_ok());
+            assert_eq!(old_sources.files().len(), 1);
+            assert_eq!(second.intern(&format!("next-{threads}")), symbol);
+            assert_eq!(
+                workers,
+                second.enter(|| rayon::broadcast(|_| {
+                    assert!(second.is_entered());
+                    std::thread::current().id()
+                }))
+            );
+        }
+    }
+
+    #[test]
+    fn reusable_single_thread_session_owns_its_worker() {
+        let outer = rayon::ThreadPoolBuilder::new().num_threads(2).build().unwrap();
+        outer.install(|| {
+            let caller = std::thread::current().id();
+            let sess = Session::builder().reusable().single_threaded().with_test_emitter().build();
+            sess.enter(|| {
+                assert_eq!(rayon::current_num_threads(), 1);
+                assert_ne!(std::thread::current().id(), caller);
+                assert!(sess.is_entered());
+            });
+            assert!(sess.into_builder().thread_pool.is_some());
+        });
+    }
+
+    #[test]
+    fn recycle_preserves_outstanding_jobs() {
+        let first = Session::builder().reusable().threads(2).with_test_emitter().build();
+        first.source_map().new_source_file(PathBuf::from("first"), "old source").unwrap();
+        let (release, wait) = mpsc::channel();
+        let (finished, done) = mpsc::channel();
+        first.enter(|| {
+            first.spawn(move || {
+                wait.recv_timeout(Duration::from_secs(5)).unwrap();
+                SessionGlobals::with(|g| assert_eq!(g.source_map.files().len(), 1));
+                finished.send(()).unwrap();
+            })
+        });
+        let builder = first.into_builder();
+        assert!(builder.thread_pool.is_none());
+        let next = builder.with_test_emitter().build();
+        next.enter(|| assert!(next.source_map().is_empty()));
+        release.send(()).unwrap();
+        done.recv_timeout(Duration::from_secs(5)).unwrap();
+    }
+
+    struct WorkerExit(mpsc::Sender<()>);
+
+    impl Drop for WorkerExit {
+        fn drop(&mut self) {
+            let _ = self.0.send(());
+        }
+    }
+
+    #[test]
+    fn recycled_workers_shut_down_and_thread_count_can_change() {
+        thread_local! {
+            static EXIT: RefCell<Option<WorkerExit>> = const { RefCell::new(None) };
+        }
+        for threads in [1, 4] {
+            let sess = Session::builder().reusable().threads(threads).with_test_emitter().build();
+            let (tx, rx) = mpsc::channel();
+            sess.enter(|| rayon::broadcast(|_| EXIT.set(Some(WorkerExit(tx.clone())))));
+            let builder = sess.into_builder();
+            let next = builder.threads(2).with_test_emitter().build();
+            next.enter(|| assert_eq!(rayon::current_num_threads(), 2));
+            for _ in 0..threads {
+                rx.recv_timeout(Duration::from_secs(5)).expect("old worker did not exit");
+            }
+            let (tx, rx) = mpsc::channel();
+            next.enter(|| rayon::broadcast(|_| EXIT.set(Some(WorkerExit(tx.clone())))));
+            drop(next.into_builder());
+            for _ in 0..2 {
+                rx.recv_timeout(Duration::from_secs(5)).expect("recycled worker did not exit");
+            }
+        }
     }
 
     #[test]

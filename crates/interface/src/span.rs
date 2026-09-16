@@ -48,18 +48,15 @@ impl fmt::Debug for Span {
             write!(f, "Span({lo}..{hi})", lo = span.lo().0, hi = span.hi().0)
         }
 
-        if SessionGlobals::is_set() {
-            SessionGlobals::with(|g| {
-                let sm = &g.source_map;
-                if !sm.is_empty() {
-                    write!(f, "{}", sm.span_to_diagnostic_string(*self))
-                } else {
-                    fallback(*self, f)
-                }
-            })
-        } else {
-            fallback(*self, f)
-        }
+        SessionGlobals::try_with(|globals| {
+            if let Some(globals) = globals
+                && !globals.source_map.is_empty()
+            {
+                write!(f, "{}", globals.source_map.span_to_diagnostic_string(*self))
+            } else {
+                fallback(*self, f)
+            }
+        })
     }
 }
 
