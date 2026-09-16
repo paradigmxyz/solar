@@ -19,3 +19,20 @@ pub trait Backend {
     /// backend can run its own target-specific passes over the MIR first.
     fn lower_module(&mut self, module: &mut Module) -> Self::Output;
 }
+
+#[cfg(feature = "codegen-sonatina")]
+mod sonatina;
+#[cfg(feature = "codegen-yul")]
+mod yul;
+
+pub(crate) mod alternative;
+#[cfg(feature = "codegen-yul")]
+mod external;
+#[cfg(feature = "codegen-sir")]
+mod sir;
+
+#[cfg(feature = "codegen-llvm")]
+pub mod llvm;
+
+#[cfg(any(feature = "codegen-sonatina", feature = "codegen-sir", feature = "codegen-llvm"))]
+mod memory;

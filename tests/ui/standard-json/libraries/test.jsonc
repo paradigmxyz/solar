@@ -1,3 +1,8 @@
+//@ revisions: default yul sonatina sir llvm
+//@[yul] compile-flags: --codegen-backend yul
+//@[sonatina] compile-flags: --codegen-backend sonatina
+//@[sir] compile-flags: --codegen-backend sir
+//@[llvm] compile-flags: --codegen-backend llvm
 //@ filecheck:
 // CHECK: "errors": [
 // CHECK: "errorCode": "2264"

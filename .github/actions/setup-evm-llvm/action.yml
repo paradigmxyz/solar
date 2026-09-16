@@ -1,0 +1,56 @@
+name: EVM LLVM
+description: Build the pinned static solx LLVM target and LLD
+inputs:
+  static-crt:
+    description: Link the static Windows C runtime for release archives
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Identify build platform
+      id: platform
+      shell: bash
+      run: |
+        if [[ "$RUNNER_OS" == Linux ]]; then
+          source /etc/os-release
+          echo "image=$ID-$VERSION_ID" >> "$GITHUB_OUTPUT"
+        else
+          echo "image=${ImageOS:-$RUNNER_OS}" >> "$GITHUB_OUTPUT"
+        fi
+    - name: Restore native LLVM
+      id: cache
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ${{ runner.temp }}/evm-llvm
+        key: evm-llvm-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.platform.outputs.image }}-${{ inputs.static-crt }}-9cf8cfdbfcdc3e74dd81f7cc0e7258ef81e8810a
+    - name: Checkout EVM LLVM
+      if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        repository: NomicFoundation/solx-llvm
+        ref: 9cf8cfdbfcdc3e74dd81f7cc0e7258ef81e8810a
+        path: target/evm-llvm-source
+        persist-credentials: false
+    - name: Build native libraries
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        STATIC_CRT: ${{ inputs.static-crt }}
+      run: |
+        args=()
+        if [[ "$RUNNER_OS" == Windows && "$STATIC_CRT" == true ]]; then
+          args+=('-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded' '-DLLVM_USE_CRT_RELEASE=MT')
+        fi
+        cmake -S target/evm-llvm-source/llvm -B "$RUNNER_TEMP/evm-llvm-build" \
+          -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/evm-llvm" \
+          -DBUILD_SHARED_LIBS=OFF -DLLVM_TARGETS_TO_BUILD= \
+          -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=EVM -DLLVM_DEFAULT_TARGET_TRIPLE=evm \
+          -DLLVM_ENABLE_PROJECTS=lld -DLLVM_ENABLE_RTTI=ON \
+          -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF \
+          -DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_ZSTD=OFF -DLLVM_ENABLE_LIBXML2=OFF \
+          -DLLVM_ENABLE_LIBEDIT=OFF -DLLVM_ENABLE_LIBPFM=OFF "${args[@]}"
+        cmake --build "$RUNNER_TEMP/evm-llvm-build" --config Release --parallel 4
+        cmake --install "$RUNNER_TEMP/evm-llvm-build" --config Release
+    - name: Export LLVM prefix
+      shell: bash
+      run: echo "LLVM_SYS_211_PREFIX=$RUNNER_TEMP/evm-llvm" >> "$GITHUB_ENV"

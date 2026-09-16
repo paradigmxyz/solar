@@ -83,7 +83,10 @@ You can also use [`cargo binstall`](https://github.com/cargo-bins/cargo-binstall
     cargo binstall solar-compiler@0.1.8
     ```
 
-Or build Solar from source:
+Or build from source. Default CLI builds include optional backends and require
+the [EVM-enabled LLVM toolchain](crates/codegen/README.md#optional-backends).
+That guide also shows how to select features for builds without LLVM.
+
 - From crates.io:
     ```bash
     cargo install solar-compiler --locked

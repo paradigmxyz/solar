@@ -18,7 +18,7 @@ jobs:
   test:
     name: test ${{ matrix.os }} ${{ matrix.rust }}
     runs-on: depot-${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 90
     permissions:
       contents: read
     strategy:
@@ -79,6 +79,21 @@ jobs:
         with:
           cache-on-failure: true
           cache-targets: false
+      - uses: ./.github/actions/setup-evm-llvm
+      - name: Install solc for Yul backend tests
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          case "$RUNNER_OS-$RUNNER_ARCH" in
+            Linux-ARM64) asset=solc-static-linux-arm ;;
+            Linux-*) asset=solc-static-linux ;;
+            macOS-*) asset=solc-macos ;;
+            Windows-*) asset=solc-windows.exe ;;
+          esac
+          gh release download "v$SOLC_VERSION" -R argotorg/solidity -p "$asset" -D "$RUNNER_TEMP/solc"
+          chmod +x "$RUNNER_TEMP/solc/$asset"
+          echo "SOLAR_SOLC=$RUNNER_TEMP/solc/$asset" >> "$GITHUB_ENV"
       - name: build
         run: cargo build
       - name: symbolic differential unit tests
@@ -98,7 +113,7 @@ jobs:
   fandango:
     name: fandango
     runs-on: depot-ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     continue-on-error: true
     permissions:
       contents: read
@@ -132,6 +147,7 @@ jobs:
           version: stable
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - uses: ./.github/actions/setup-evm-llvm
       - name: Fandango and Foundry runtime differentials
         run: .github/scripts/run_fandango_checks.sh
       - name: Upload Fandango artifacts
@@ -145,7 +161,7 @@ jobs:
   feature-checks:
     name: features
     runs-on: depot-ubuntu-latest-4
-    timeout-minutes: 30
+    timeout-minutes: 90
     permissions:
       contents: read
     steps:
@@ -161,6 +177,7 @@ jobs:
         with:
           cache-on-failure: true
           cache-targets: false
+      - uses: ./.github/actions/setup-evm-llvm
       - name: cargo hack
         run: cargo hack check --feature-powerset --depth 1
 
@@ -196,7 +213,7 @@ jobs:
 
   clippy:
     runs-on: depot-ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     permissions:
       contents: read
     steps:
@@ -210,13 +227,14 @@ jobs:
         with:
           cache-on-failure: true
           cache-targets: false
+      - uses: ./.github/actions/setup-evm-llvm
       - run: cargo clippy --workspace --all-targets
         env:
           RUSTFLAGS: -Dwarnings
 
   docs:
     runs-on: depot-ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     permissions:
       contents: read
     steps:
@@ -229,6 +247,7 @@ jobs:
         with:
           cache-on-failure: true
           cache-targets: false
+      - uses: ./.github/actions/setup-evm-llvm
       - name: Build documentation
         run: cargo doc --workspace --all-features --no-deps --document-private-items
         env:
