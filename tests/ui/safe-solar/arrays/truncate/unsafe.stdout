@@ -1,10 +1,9 @@
 // === ROOT/tests/ui/safe-solar/arrays/truncate/unsafe.sol:Unsafe ===
 @module Unsafe
-@phase evm-shaped
-fn @shorten() [selector=0xf0187838, pure] {
+@phase lowered
+fn @shorten() [selector=0xf0187838, abi_wrapper, pure] {
   bb0:
-    v2 = icall @decode_calldata_type, 1, 4
-    mstore v2, arg1
+    v2 = icall @decode_calldata_type, 4
     v7 = iszero v2
     v8 = iszero v7
     v9 = mul arg1, v8
@@ -18,9 +17,9 @@ fn @shorten() [selector=0xf0187838, pure] {
     returndata v2, v13
 }
 
-fn @viaAlias() [selector=0xcc1cce1f, pure] {
+fn @viaAlias() [selector=0xcc1cce1f, abi_wrapper, pure] {
   bb0:
-    v3 = icall @decode_calldata_type, 1, 4
+    v3 = icall @decode_calldata_type, 4
     mstore v3, arg1
     mstore 128, arg1
     returndata 128, 32
@@ -47,7 +46,7 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     v16 = lt v15, v9
     jumpi v16, bb3, bb5
   bb5:
-    v17 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v17 = mload 64 !metadata(memory=scratch)
     v25 = add v17, v15
     v26 = lt v25, v17
     v27 = gt v25, 0xffffffffffffffff
@@ -65,9 +64,9 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     calldatacopy v22, v3, v9
     ret v17
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb1:
     revert 0, 0
 }

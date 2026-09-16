@@ -1,6 +1,6 @@
 // === <solar:core/v1/Arrays.sol>:Arrays ===
 @module Arrays
-@phase evm-shaped
+@phase lowered
 @library
 fn @entry() [entry] {
   bb0:
@@ -9,62 +9,65 @@ fn @entry() [entry] {
 
 // === ROOT/tests/ui/codegen/core/arrays_lowering.sol:Test ===
 @module Test
-@phase evm-shaped
-fn @shorten() [selector=0xf0187838, pure] {
+@phase lowered
+types:
+  struct0: {u256, u256}
+
+fn @shorten() [selector=0xf0187838, abi_wrapper, pure] {
   bb0:
-    v4 = calldatasize
-    v5 = lt v4, 68
-    jumpi v5, bb3, bb4
+    v6 = calldatasize
+    v7 = lt v6, 68
+    jumpi v7, bb3, bb4
   bb4:
-    v6 = calldataload 4
-    v7 = add v6, 4
-    v8 = add v7, 32
-    v9 = gt v6, 0xffffffffffffffff
-    v10 = gt v8, v4
-    v11 = or v9, v10
-    jumpi v11, bb3, bb5
+    v8 = calldataload 4
+    v9 = add v8, 4
+    v10 = add v9, 32
+    v11 = gt v8, 0xffffffffffffffff
+    v12 = gt v10, v6
+    v13 = or v11, v12
+    jumpi v13, bb3, bb5
   bb5:
-    v12 = calldataload v7
-    v14 = shl 5, v12
-    v16 = shr 5, v14
-    v17 = eq v16, v12
-    jumpi v17, bb7, bb6
+    v14 = calldataload v9
+    v16 = shl 5, v14
+    v18 = shr 5, v16
+    v19 = eq v18, v14
+    jumpi v19, bb7, bb6
   bb7:
-    v20 = add v14, 32
-    v21 = lt v20, v14
-    jumpi v21, bb6, bb8
+    v22 = add v16, 32
+    v23 = lt v22, v16
+    jumpi v23, bb6, bb8
   bb8:
-    v22 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v33 = add v22, v20
-    v34 = lt v33, v22
-    v35 = gt v33, 0xffffffffffffffff
-    v36 = or v34, v35
-    jumpi v36, bb6, bb10
+    v24 = mload 64 !metadata(memory=scratch)
+    v35 = add v24, v22
+    v36 = lt v35, v24
+    v37 = gt v35, 0xffffffffffffffff
+    v38 = or v36, v37
+    jumpi v38, bb6, bb10
   bb10:
-    mstore 64, v33 !metadata(memory=scratch)
-    mstore v22, v12
-    v23 = sub v4, v8
-    v24 = shr 5, v23
-    v25 = gt v12, v24
-    jumpi v25, bb3, bb9
+    mstore 64, v35 !metadata(memory=scratch)
+    mstore v24, v14
+    v25 = sub v6, v10
+    v26 = shr 5, v25
+    v27 = gt v14, v26
+    jumpi v27, bb3, bb9
   bb9:
-    v30 = add v22, 32
-    calldatacopy v30, v8, v14
-    v2 = gt arg1, v12
+    v32 = add v24, 32
+    calldatacopy v32, v10, v16
+    v2 = gt arg1, v14
     jumpi v2, bb1, bb2
   bb2:
-    mstore v22, arg1
-    mstore 128, v12
+    mstore v24, arg1
+    mstore 128, v14
     mstore 160, arg1
     returndata 128, 64
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb3:
     revert 0, 0
 }

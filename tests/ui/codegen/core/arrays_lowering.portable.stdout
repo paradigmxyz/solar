@@ -1,6 +1,6 @@
 // === <solar:core/v1/Arrays.sol>:Arrays ===
 @module Arrays
-@phase evm-shaped
+@phase lowered
 @library
 fn @entry() [entry] {
   bb0:
@@ -9,92 +9,87 @@ fn @entry() [entry] {
 
 // === ROOT/tests/ui/codegen/core/arrays_lowering.sol:Test ===
 @module Test
-@phase evm-shaped
-fn @shorten() [selector=0xf0187838, pure] {
+@phase lowered
+types:
+  struct0: {u256, u256}
+
+fn @shorten() [selector=0xf0187838, abi_wrapper, pure] {
   bb0:
-    v2 = calldatasize
-    v3 = lt v2, 68
-    jumpi v3, bb1, bb2
+    v4 = calldatasize
+    v5 = lt v4, 68
+    jumpi v5, bb1, bb2
   bb2:
-    v4 = calldataload 4
-    v5 = add v4, 4
-    v6 = add v5, 32
-    v7 = gt v4, 0xffffffffffffffff
-    v8 = gt v6, v2
-    v9 = or v7, v8
-    jumpi v9, bb1, bb3
+    v6 = calldataload 4
+    v7 = add v6, 4
+    v8 = add v7, 32
+    v9 = gt v6, 0xffffffffffffffff
+    v10 = gt v8, v4
+    v11 = or v9, v10
+    jumpi v11, bb1, bb3
   bb3:
-    v10 = calldataload v5
-    v12 = shl 5, v10
-    v14 = shr 5, v12
-    v15 = eq v14, v10
-    jumpi v15, bb5, bb4
+    v12 = calldataload v7
+    v14 = shl 5, v12
+    v16 = shr 5, v14
+    v17 = eq v16, v12
+    jumpi v17, bb5, bb4
   bb5:
-    v18 = add v12, 32
-    v19 = lt v18, v12
-    jumpi v19, bb4, bb6
+    v20 = add v14, 32
+    v21 = lt v20, v14
+    jumpi v21, bb4, bb6
   bb6:
-    v20 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v31 = add v20, v18
-    v32 = lt v31, v20
-    v33 = gt v31, 0xffffffffffffffff
-    v34 = or v32, v33
-    jumpi v34, bb4, bb8
+    v22 = mload 64 !metadata(memory=scratch)
+    v33 = add v22, v20
+    v34 = lt v33, v22
+    v35 = gt v33, 0xffffffffffffffff
+    v36 = or v34, v35
+    jumpi v36, bb4, bb8
   bb8:
-    mstore 64, v31 !metadata(memory=scratch)
-    mstore v20, v10
-    v21 = sub v2, v6
-    v22 = shr 5, v21
-    v23 = gt v10, v22
-    jumpi v23, bb1, bb7
+    mstore 64, v33 !metadata(memory=scratch)
+    mstore v22, v12
+    v23 = sub v4, v8
+    v24 = shr 5, v23
+    v25 = gt v12, v24
+    jumpi v25, bb1, bb7
   bb7:
-    v28 = add v20, 32
-    calldatacopy v28, v6, v12
-    icall @truncate, 0, v20, arg1
-    v1 = mload v20
-    mstore 128, v10
+    v30 = add v22, 32
+    calldatacopy v30, v8, v14
+    jump bb10
+  bb10:
+    v37 = mload v22
+    v38 = gt arg1, v37
+    jumpi v38, bb12, bb11
+  bb11:
+    mstore v22, arg1
+    jump bb9
+  bb9:
+    v1 = mload v22
+    mstore 128, v12
     mstore 160, v1
     returndata 128, 64
+  bb12:
+    v39 = mload 64
+    v40 = add v39, 32
+    v41 = lt v40, v39
+    v42 = gt v40, 0xffffffffffffffff
+    v43 = or v41, v42
+    jumpi v43, bb14, bb13
+  bb13:
+    mstore 64, v40
+    mstore v39, 0
+    mstore v39, 0
+    mstore 0, 0x4e487b71
+    mstore 32, 50
+    revert 28, 36
+  bb14:
+    mstore 0, 0x4e487b71
+    mstore 32, 65
+    revert 28, 36
   bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb1:
     revert 0, 0
-}
-
-fn @truncate(arg0: memptr, arg1: u256) [pure] {
-  bb0:
-    v0 = mload arg0
-    v1 = gt arg1, v0
-    jumpi v1, bb1, bb2
-  bb1:
-    v2 = icall @_outOfBounds, 1
-    jump bb2
-  bb2:
-    v3 = phi [bb1: v2], [bb0: arg1]
-    mstore arg0, v3
-    ret
-}
-
-fn @_outOfBounds() [pure] {
-  bb0:
-    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v5 = add v0, 32
-    v6 = lt v5, v0
-    v7 = gt v5, 0xffffffffffffffff
-    v8 = or v6, v7
-    jumpi v8, bb2, bb1
-  bb1:
-    mstore 64, v5 !metadata(memory=scratch)
-    mstore v0, 0
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @entry() [entry] {

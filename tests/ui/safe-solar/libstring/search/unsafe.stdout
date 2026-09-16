@@ -1,14 +1,14 @@
 // === ROOT/tests/ui/safe-solar/libstring/search/unsafe.sol:Unsafe ===
 @module Unsafe
-@phase evm-shaped
-fn @indexOf() [selector=0x86e2d68c, pure] {
+@phase lowered
+fn @indexOf() [selector=0x86e2d68c, abi_wrapper, pure] {
   bb0:
     v105 = calldatasize
     v106 = lt v105, 100
     jumpi v106, bb16, bb17
   bb17:
-    v107 = icall @decode_calldata_type, 1, 4
-    v108 = icall @decode_calldata_type, 1, 36
+    v107 = icall @decode_calldata_type, 4
+    v108 = icall @decode_calldata_type, 36
     v1 = mload v107
     v9 = mload v108
     jumpi v9, bb3, bb2
@@ -102,7 +102,7 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     jumpi v10, bb3, bb4
   bb4:
     v12 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v13 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v13 = mload 64 !metadata(memory=scratch)
     v20 = add v13, v12
     v21 = lt v20, v13
     v22 = gt v20, 0xffffffffffffffff
@@ -119,9 +119,9 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     calldatacopy v17, v3, v7
     ret v13
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb1:
     revert 0, 0
 }
