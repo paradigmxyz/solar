@@ -397,6 +397,18 @@ def write_artifacts(
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "input.json").write_text(input_text + "\n")
 
+    for name, source_input in json.loads(input_text)["sources"].items():
+        if (
+            not name
+            or "\\" in name
+            or any(part in ("", ".", "..") for part in name.split("/"))
+            or any(ord(char) < 32 or ord(char) == 127 for char in name)
+        ):
+            return f"invalid source artifact path: {name!r}"
+        source_path = output_dir / "sources" / name
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_text(source_input["content"], encoding="utf-8")
+
     cmd = [str(spec.path), "--standard-json"]
     source = test_case.source_name or test_case.source or f"{test_case.test_id}.sol"
     contract_path = f"{source}:{test_case.contract_name}"

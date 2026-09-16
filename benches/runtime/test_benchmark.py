@@ -485,6 +485,47 @@ class RuntimeComparisonTests(unittest.TestCase):
 
 
 class ArtifactTests(unittest.TestCase):
+    def test_artifacts_include_complete_source_tree(self) -> None:
+        sources = {
+            "src/Main.sol": {"content": 'import "../lib/Lib.sol";\ncontract Main {}\n'},
+            "lib/Lib.sol": {"content": "library Lib {}\n"},
+        }
+        spec = benchmark.CompilerSpec("solc", "solc", Path("solc"), "solc")
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(
+                benchmark, "run", return_value=mock.Mock(returncode=0, stdout="{}")
+            ),
+        ):
+            root = Path(directory)
+            case = benchmark.TEST_CASES[0]
+            error = benchmark.write_artifacts(
+                root, spec, case, (json.dumps({"sources": sources}), 1, "")
+            )
+            self.assertEqual(error, "")
+            output = root / case.test_id / "solc" / "sources"
+            self.assertEqual(
+                {
+                    str(p.relative_to(output)): p.read_text()
+                    for p in output.rglob("*.sol")
+                },
+                {name: source["content"] for name, source in sources.items()},
+            )
+            for name in (
+                "../escape.sol",
+                "/absolute.sol",
+                "a/../../escape.sol",
+                "a\\b.sol",
+            ):
+                with self.subTest(name=name):
+                    error = benchmark.write_artifacts(
+                        root,
+                        spec,
+                        case,
+                        (json.dumps({"sources": {name: {"content": ""}}}), 1, ""),
+                    )
+                    self.assertEqual(error, f"invalid source artifact path: {name!r}")
+
     def test_artifact_input_requests_portable_outputs(self) -> None:
         test_case = benchmark.TEST_CASES[0]
         input_text, _, _ = benchmark.compiler_input(test_case, None)
