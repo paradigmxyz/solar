@@ -26,7 +26,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.cx.gcx.sess.opts.unstable.no_core_intrinsics {
             return None;
         }
-        solar_sema::core::intrinsic_of(self.cx.gcx, function_id)
+        let intrinsic = solar_sema::core::intrinsic_of(self.cx.gcx, function_id)?;
+        // Without the instruction the shipped body is the implementation.
+        if intrinsic == CoreIntrinsic::LeadingZeros && !self.cx.gcx.sess.opts.evm_version.has_clz()
+        {
+            return None;
+        }
+        Some(intrinsic)
     }
 
     /// Lowers a call to a compiler-owned module function.
@@ -64,7 +70,88 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::CopyInto => self.lower_core_copy(&operands),
             CoreIntrinsic::Fill => self.lower_core_fill(&operands),
             CoreIntrinsic::Truncate => self.lower_core_truncate(expr, &operands, &parameter_tys),
+            CoreIntrinsic::RevertRaw => self.lower_core_revert_raw(&operands),
+            CoreIntrinsic::Keccak256Range => self.lower_core_keccak256_range(&operands),
+            CoreIntrinsic::Deploy | CoreIntrinsic::Deploy2 => {
+                self.lower_core_deploy(intrinsic, &operands)
+            }
+            CoreIntrinsic::CodeCopyInto => self.lower_core_code_copy(&operands),
+            CoreIntrinsic::LeadingZeros => {
+                let [value] = *operands.as_slice() else { return None };
+                Some(self.builder.clz(value))
+            }
         }
+    }
+
+    /// `Revert.raw(data)`: the call never returns.
+    fn lower_core_revert_raw(&mut self, operands: &[ValueId]) -> Option<ValueId> {
+        let [data] = *operands else { return None };
+        // revert(data(object), len(object))
+        let length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
+        let pointer = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
+        self.builder.revert(pointer, length);
+        Some(self.builder.imm(U256::ZERO))
+    }
+
+    /// `Hash.keccak256Range(b, offset, count)`: the range is hashed where it
+    /// lies instead of being copied out first.
+    fn lower_core_keccak256_range(&mut self, operands: &[ValueId]) -> Option<ValueId> {
+        let [object, offset, count] = *operands else { return None };
+        let start = self.core_checked_range(object, offset, Width::Dynamic(count));
+        // hash = keccak256(start, count)
+        Some(self.builder.keccak256(start, count))
+    }
+
+    /// `Create.deploy(initcode, value)` and `Create.deploy2(initcode, salt, value)`.
+    fn lower_core_deploy(
+        &mut self,
+        intrinsic: CoreIntrinsic,
+        operands: &[ValueId],
+    ) -> Option<ValueId> {
+        let (initcode, salt, value) = match (intrinsic, operands) {
+            (CoreIntrinsic::Deploy, &[initcode, value]) => (initcode, None, value),
+            (CoreIntrinsic::Deploy2, &[initcode, salt, value]) => (initcode, Some(salt), value),
+            _ => return None,
+        };
+        let length = self.builder.memory_object_len(initcode, MemoryObjectKind::Bytes);
+        let pointer = self.builder.memory_object_data(initcode, MemoryObjectKind::Bytes);
+        // deployed = create|create2(value, data, len[, salt])
+        let deployed = match salt {
+            Some(salt) => self.builder.create2(value, pointer, length, salt),
+            None => self.builder.create(value, pointer, length),
+        };
+        // if deployed == 0 { mstore(0, DeploymentFailed.selector); revert(0, 4) }
+        let failed = self.builder.iszero(deployed);
+        let failure = self.builder.create_block();
+        let success = self.builder.create_block();
+        self.builder.branch(failed, failure, success);
+        self.builder.switch_to_block(failure);
+        let zero = self.builder.imm(U256::ZERO);
+        let selector = self.builder.imm(DEPLOYMENT_FAILED_SELECTOR << 224);
+        self.builder.mstore(zero, selector);
+        let four = self.builder.imm(4);
+        self.builder.revert(zero, four);
+        self.builder.switch_to_block(success);
+        Some(deployed)
+    }
+
+    /// `Code.copyInto(dst, dstOffset, target, start, count)`: checked against
+    /// both the buffer and the code's size, so nothing is zero-padded.
+    fn lower_core_code_copy(&mut self, operands: &[ValueId]) -> Option<ValueId> {
+        let [dst, dst_offset, target, start, count] = *operands else { return None };
+        let destination = self.core_checked_range(dst, dst_offset, Width::Dynamic(count));
+        // size = extcodesize(target)
+        // end = start + count
+        // panic(0x32) if end < start || end > size
+        let size = self.builder.extcodesize(target);
+        let end = self.builder.add(start, count);
+        let wrapped = self.builder.lt(end, start);
+        let over = self.builder.gt(end, size);
+        let bad = self.builder.or(wrapped, over);
+        self.builder.panic_if(bad, PanicCode::ArrayOutOfBounds);
+        // extcodecopy(target, destination, start, count)
+        self.builder.extcodecopy_heap(target, destination, start, count);
+        Some(self.builder.imm(U256::ZERO))
     }
 
     /// `readBytesN(b, offset)` and `readUint256BE(b, offset)`.
@@ -209,6 +296,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.add(data, offset)
     }
 }
+
+/// The selector of `Create`'s `DeploymentFailed()` error.
+const DEPLOYMENT_FAILED_SELECTOR: U256 = U256::from_limbs([0x3011_6425, 0, 0, 0]);
 
 /// How wide a checked range is.
 #[derive(Clone, Copy)]
