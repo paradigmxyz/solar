@@ -14,7 +14,7 @@ fn @chunksAndHash() -> struct0 [pure] {
     v2 = lt v1, 20
     jumpi v2, bb2, bb3
   bb3:
-    v4 = alloc memorybytes, exact, uninitialized, infallible, 96
+    v4 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v4, 40
     v5 = memory_object_data memorybytes, v4
     mstore v5, 0x6162636465666768696a6b6c6d6e6f707172737475767778797a414243444546
@@ -25,7 +25,7 @@ fn @chunksAndHash() -> struct0 [pure] {
     v9 = iszero v8
     icall panic_if<0x32>, v9
     memory_object_store_element memoryarray<1>, v0, 0, v4
-    v10 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v10 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v10, 4
     v11 = memory_object_data memorybytes, v10
     mstore v11, 0x7461696c00000000000000000000000000000000000000000000000000000000

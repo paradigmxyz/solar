@@ -52,7 +52,7 @@ fn @plainCall() -> u256 [selector=0x707bf9ed, abi_params=[], abi_returns=[word]]
   bb1:
     revert_returndata
   bb2:
-    v7 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v7 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v7, 0
     v8 = memory_object_data memorybytes, v7
     v9 = fmp
@@ -126,7 +126,7 @@ fn @tryCall() -> u256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word]] {
   bb1:
     revert_returndata
   bb2:
-    v7 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v7 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v7, 0
     v8 = memory_object_data memorybytes, v7
     v9 = fmp
@@ -196,7 +196,7 @@ fn @stringCall() -> u256 [selector=0xbdbbac6d, abi_params=[], abi_returns=[word]
   bb1:
     revert_returndata
   bb2:
-    v7 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v7 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v7, 0
     v8 = memory_object_data memorybytes, v7
     v9 = fmp

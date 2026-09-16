@@ -98,7 +98,7 @@ fn @packedDynamicHashModified(arg0: bytes32, arg1: calldataslice) -> bytes32 [se
 
 fn @mutatedInput() -> memorybytes [selector=0x7d98764f, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 3
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x102030000000000000000000000000000000000000000000000000000000000

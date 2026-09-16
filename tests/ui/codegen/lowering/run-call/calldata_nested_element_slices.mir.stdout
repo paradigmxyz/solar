@@ -14,7 +14,7 @@ fn @nestedBytes() -> u256 [selector=0x126aa804, view, abi_params=[], abi_returns
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb3:
-    v4 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v4, 2
     v5 = memory_object_data memorybytes, v4
     mstore v5, 0x1122000000000000000000000000000000000000000000000000000000000000
@@ -23,7 +23,7 @@ fn @nestedBytes() -> u256 [selector=0x126aa804, view, abi_params=[], abi_returns
     v8 = iszero v7
     icall panic_if<0x32>, v8
     memory_object_store_element memoryarray<1>, v0, 0, v4
-    v9 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v9 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v9, 3
     v10 = memory_object_data memorybytes, v9
     mstore v10, 0x3344550000000000000000000000000000000000000000000000000000000000
@@ -129,7 +129,7 @@ fn @structMember() -> struct0 [selector=0x9f2d7231, view, abi_params=[], abi_ret
   bb3:
     v5 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v6 = and 1, 0xffffffffffffffffffffffffffffffffffffffff
-    v7 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v7 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v7, 3
     v8 = memory_object_data memorybytes, v7
     mstore v8, 0xabcdef0000000000000000000000000000000000000000000000000000000000
@@ -248,7 +248,7 @@ fn @tupleTernary() -> u256 [selector=0x75466b3a, view, abi_params=[], abi_return
   bb0:
     v0 = address
     v1 = gas
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, 4
     v3 = memory_object_data memorybytes, v2
     mstore v3, 0x1122334400000000000000000000000000000000000000000000000000000000

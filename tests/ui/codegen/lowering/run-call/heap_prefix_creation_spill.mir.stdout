@@ -25,7 +25,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb1:
     revert_returndata
   bb2:
-    v7 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v7 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v7, 15
     v8 = memory_object_data memorybytes, v7
     mstore v8, 0x112233445566778899aabbccddeeff0000000000000000000000000000000000
