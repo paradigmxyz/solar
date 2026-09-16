@@ -22,7 +22,7 @@ fn @forwardTuple(arg0: u256, arg1: u256) {
     v0 = eq arg0, 0
     v1 = iszero v0
     v2 = iszero v1
-    revert_if v2, empty
+    icall revert_if<empty>, v2
     icall @tupleSink, arg1, arg0, arg0
     ret
 }
@@ -32,7 +32,7 @@ fn @tupleSink(arg0: u256, arg1: u256, arg2: u256) {
     v0 = eq arg0, 0
     v1 = iszero v0
     v2 = iszero v1
-    revert_if v2, empty
+    icall revert_if<empty>, v2
     sstore 0, arg0 !metadata(storage=slot(0))
     sstore 1, arg1 !metadata(storage=slot(1))
     sstore 2, arg2 !metadata(storage=slot(2))
@@ -59,7 +59,7 @@ fn @forward(arg0: u256, arg1: u256) {
     v0 = eq arg0, 0
     v1 = iszero v0
     v2 = iszero v1
-    revert_if v2, empty
+    icall revert_if<empty>, v2
     icall @sink, arg1, arg0, arg0
     ret
 }
@@ -84,7 +84,7 @@ fn @sink(arg0: u256, arg1: u256, arg2: u256) {
   bb6:
     v4 = phi [bb4: v3], [bb5: false]
     v5 = iszero v4
-    revert_if v5, empty
+    icall revert_if<empty>, v5
     v6 = sload 0 !metadata(storage=slot(0))
     v7 = checked_mul u256, v6, 0x3e8
     v8 = checked_mul u256, arg0, 100
@@ -108,7 +108,7 @@ fn @zeroForward(arg0: u256) {
     v0 = eq arg0, 0
     v1 = iszero v0
     v2 = iszero v1
-    revert_if v2, empty
+    icall revert_if<empty>, v2
     sstore 0, arg0 !metadata(storage=slot(0))
     icall @finish
     ret

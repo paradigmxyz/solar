@@ -920,27 +920,9 @@ define_mir_ops! {
     #[mir_op(mnemonic = "validate_abi", result = None, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
     ValidateAbi(operand0: ValueId),
-    #[mir_op(mnemonic = "check", result = None, phases = PhaseSet::SEMANTIC,
-        effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
-    Check { condition: ValueId, is_zero: bool, failure: RevertKind },
-    #[mir_op(mnemonic = "sha256", result = Word, phases = PhaseSet::SEMANTIC,
-        effect = ExternalCall, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
-    Sha256(operand0: ValueId),
-    #[mir_op(mnemonic = "erc7201", result = Word, phases = PhaseSet::SEMANTIC,
-        effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
-    Erc7201(operand0: ValueId),
-    #[mir_op(mnemonic = "checked_addmod", result = Word, phases = PhaseSet::SEMANTIC,
-        effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
-    CheckedAddMod(operand0: ValueId, operand1: ValueId, operand2: ValueId),
-    #[mir_op(mnemonic = "checked_mulmod", result = Word, phases = PhaseSet::SEMANTIC,
-        effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
-    CheckedMulMod(operand0: ValueId, operand1: ValueId, operand2: ValueId),
     #[mir_op(mnemonic = "abi_encode_packed", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
     AbiEncodePacked { parts: Box<[PackedPart]>, hash: bool },
-    #[mir_op(mnemonic = "ripemd160", result = Word, phases = PhaseSet::SEMANTIC,
-        effect = ExternalCall, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
-    Ripemd160(operand0: ValueId),
     #[mir_op(mnemonic = "address_call", result = Word, phases = PhaseSet::SEMANTIC,
         effect = ExternalCall, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
     AddressCall {
@@ -950,18 +932,6 @@ define_mir_ops! {
         gas: Option<ValueId>,
         value: Option<ValueId>,
     },
-    #[mir_op(mnemonic = "returndata_bytes", result = Custom, phases = PhaseSet::SEMANTIC,
-        effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
-    ReturndataBytes,
-    #[mir_op(mnemonic = "send", result = Word, phases = PhaseSet::SEMANTIC,
-        effect = ExternalCall, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
-    Send(operand0: ValueId, operand1: ValueId),
-    #[mir_op(mnemonic = "transfer", result = None, phases = PhaseSet::SEMANTIC,
-        effect = ExternalCall, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
-    Transfer(operand0: ValueId, operand1: ValueId),
-    #[mir_op(mnemonic = "ecrecover", result = Word, phases = PhaseSet::SEMANTIC,
-        effect = ExternalCall, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
-    EcRecover(operand0: ValueId, operand1: ValueId, operand2: ValueId, operand3: ValueId),
 
     // Arithmetic operations
     /// Addition: `a + b`

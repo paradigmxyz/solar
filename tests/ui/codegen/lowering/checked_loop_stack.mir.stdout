@@ -110,6 +110,6 @@ fn @diagnostic(arg0: u256, arg1: u256) -> u256 [selector=0x6f25cb96, pure, abi_p
   bb5:
     jump bb1
   bb6:
-    icall require custom_error [word, word], false, 0x760769fe00000000000000000000000000000000000000000000000000000000, v1, v6
+    icall require<custom_error [word, word]>, false, 0x760769fe00000000000000000000000000000000000000000000000000000000, v1, v6
     invalid
 }

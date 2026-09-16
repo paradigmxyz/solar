@@ -11,7 +11,7 @@ fn @ascii(arg0: u8) -> bool [selector=0x394abd12, pure, abi_params=[u8], abi_ret
     v5 = memory_object_len memorybytes, v2
     v6 = lt 0, v5
     v7 = iszero v6
-    panic_if v7, 0x32
+    icall panic_if<0x32>, v7
     v8 = byte 0, v4
     memory_object_store_byte memorybytes, v2, 0, v8
     jump bb1
@@ -31,7 +31,7 @@ fn @ascii(arg0: u8) -> bool [selector=0x394abd12, pure, abi_params=[u8], abi_ret
     v15 = memory_object_len memorybytes, v11
     v16 = lt v9, v15
     v17 = iszero v16
-    panic_if v17, 0x32
+    icall panic_if<0x32>, v17
     v18 = memory_object_load_byte memorybytes, v11, v9
     v19 = shl 248, v18
     v20 = shr 248, v19
@@ -68,7 +68,7 @@ fn @sum(arg0: memoryarray) -> u256 [selector=0x0194db8e, pure, abi_params=[array
     v5 = memory_object_len memoryarray, v0
     v6 = lt v1, v5
     v7 = iszero v6
-    panic_if v7, 0x32
+    icall panic_if<0x32>, v7
     v8 = memory_object_load_element memoryarray<1>, v0, v1
     v9 = checked_add u256, v2, v8
     jump bb6
@@ -102,7 +102,7 @@ fn @shrinkingLoop() -> u256 [selector=0x99f5cf3a, pure, abi_params=[], abi_retur
     v8 = memory_object_len memorybytes, v4
     v9 = lt v5, v8
     v10 = iszero v9
-    panic_if v10, 0x32
+    icall panic_if<0x32>, v10
     v11 = memory_object_load_byte memorybytes, v4, v5
     v12 = shl 248, v11
     v13 = shr 248, v12
@@ -120,35 +120,35 @@ fn @shrink(arg0: u256, arg1: u256) -> u256 [selector=0xefab6938, pure, abi_param
     v0 = gt arg1, arg0
     v1 = iszero v0
     v2 = iszero v1
-    revert_if v2, empty
+    icall revert_if<empty>, v2
     v3 = mul arg0, 1
     v4 = iszero 1
     v5 = div v3, 1
     v6 = eq v5, arg0
     v7 = or v4, v6
     v8 = iszero v7
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = add v3, 1
     v10 = lt v9, v3
-    panic_if v10, 0x41
+    icall panic_if<0x41>, v10
     v11 = mul v9, 32
     v12 = iszero 32
     v13 = div v11, 32
     v14 = eq v13, v9
     v15 = or v12, v14
     v16 = iszero v15
-    panic_if v16, 0x41
+    icall panic_if<0x41>, v16
     v17 = alloc memoryarray<1>, exact, zeroed, panic, v11
     set_memory_object_len memoryarray, v17, arg0
     v18 = memory_object_len memoryarray, v17
     v19 = gt v18, 0
     v20 = iszero v19
-    revert_if v20, empty
+    icall revert_if<empty>, v20
     mstore v17, arg1
     v21 = memory_object_len memoryarray, v17
     v22 = lt 0, v21
     v23 = iszero v22
-    panic_if v23, 0x32
+    icall panic_if<0x32>, v23
     v24 = memory_object_load_element memoryarray<1>, v17, 0
     ret v24
 }

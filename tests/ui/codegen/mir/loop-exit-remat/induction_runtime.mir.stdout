@@ -93,19 +93,19 @@ fn @descending() -> struct0 [selector=0x94c06a58, pure, abi_params=[], abi_retur
   bb2:
     v34 = lt 0, 4
     v35 = iszero v34
-    panic_if v35, 0x32
+    icall panic_if<0x32>, v35
     v36 = memory_object_load_element memoryfixedarray<4, 1>, v9, 0
     v37 = lt 1, 4
     v38 = iszero v37
-    panic_if v38, 0x32
+    icall panic_if<0x32>, v38
     v39 = memory_object_load_element memoryfixedarray<4, 1>, v9, 1
     v40 = lt 2, 4
     v41 = iszero v40
-    panic_if v41, 0x32
+    icall panic_if<0x32>, v41
     v42 = memory_object_load_element memoryfixedarray<4, 1>, v9, 2
     v43 = lt 3, 4
     v44 = iszero v43
-    panic_if v44, 0x32
+    icall panic_if<0x32>, v44
     v45 = memory_object_load_element memoryfixedarray<4, 1>, v9, 3
     v46 = insert_value struct0, undef struct0, 0, v36
     v47 = insert_value struct0, v46, 1, v39

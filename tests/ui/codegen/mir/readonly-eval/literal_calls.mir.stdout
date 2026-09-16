@@ -90,7 +90,7 @@ fn @readWord(arg0: memorybytes) -> u256 [pure] {
     v0 = memory_object_len memorybytes, arg0
     v1 = eq v0, 32
     v2 = iszero v1
-    revert_if v2, empty
+    icall revert_if<empty>, v2
     v3 = add arg0, 32
     v4 = mload v3
     ret v4
@@ -101,7 +101,7 @@ fn @toShort(arg0: memorybytes) -> bytes32 [pure] {
     v0 = memory_object_len memorybytes, arg0
     v1 = lt v0, 32
     v2 = iszero v1
-    revert_if v2, empty
+    icall revert_if<empty>, v2
     v3 = not 0
     v4 = mload arg0
     v5 = sub 32, v4

@@ -33,7 +33,7 @@ fn @constructorAndRuntime() -> bool [selector=0x6b57fb7b, view, abi_params=[], a
   bb1:
     revert_returndata
   bb2:
-    v7 = returndata_bytes
+    v7 = icall returndata_bytes<>
     v8 = abi_decode [bytes], v7
     v9 = keccak256_bytes v8
     v10 = eq v0, v9

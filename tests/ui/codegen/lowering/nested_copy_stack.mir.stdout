@@ -14,7 +14,7 @@ fn @copyGroups(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [selector=0x03
   bb3:
     v4 = phi [bb1: v3], [bb2: false]
     v5 = iszero v4
-    revert_if v5, empty
+    icall revert_if<empty>, v5
     v6 = mload 64 !metadata(memory=scratch)
     v7 = mul arg0, arg1
     v8 = shl 5, v7

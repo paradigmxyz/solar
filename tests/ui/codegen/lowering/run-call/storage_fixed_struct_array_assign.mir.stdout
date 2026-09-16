@@ -8,7 +8,7 @@ fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[]] {
     v0 = sload 24 !metadata(storage=slot(24))
     v1 = lt v0, 4
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = mul v0, 3
     v4 = add 0, v3
     sstore v4, 1 !metadata(storage=symbolic(v3))
@@ -53,7 +53,7 @@ fn @testConstantIndex() -> struct0 [selector=0xb6aa0fa8, abi_params=[], abi_retu
   bb0:
     v0 = lt 3, 4
     v1 = iszero v0
-    panic_if v1, 0x32
+    icall panic_if<0x32>, v1
     v2 = mul 3, 3
     v3 = add 0, v2
     sstore v3, 1 !metadata(storage=symbolic(v2))
@@ -88,7 +88,7 @@ fn @testFromMemory() -> struct0 [selector=0xfebd1e0e, abi_params=[], abi_returns
     v4 = checked_add u256, v3, 1
     v5 = lt v4, 4
     v6 = iszero v5
-    panic_if v6, 0x32
+    icall panic_if<0x32>, v6
     v7 = mul v4, 3
     v8 = add 0, v7
     v9 = memory_object_load_field memorystruct<3>, v0, 0
@@ -119,13 +119,13 @@ fn @testNested() -> struct0 [selector=0xfbd4b8cc, abi_params=[], abi_returns=[wo
     v0 = sload 24 !metadata(storage=slot(24))
     v1 = lt v0, 2
     v2 = iszero v1
-    panic_if v2, 0x32
+    icall panic_if<0x32>, v2
     v3 = mul v0, 6
     v4 = add 12, v3
     v5 = sload 24 !metadata(storage=slot(24))
     v6 = lt v5, 2
     v7 = iszero v6
-    panic_if v7, 0x32
+    icall panic_if<0x32>, v7
     v8 = mul v5, 3
     v9 = add v4, v8
     sstore v9, 8 !metadata(storage=symbolic(v9))

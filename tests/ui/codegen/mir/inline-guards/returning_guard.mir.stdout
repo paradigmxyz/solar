@@ -51,7 +51,7 @@ fn @requireEqual(arg0: u256, arg1: u256) [pure] {
   bb2:
     jump bb3
   bb3:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
   bb1:
     ret

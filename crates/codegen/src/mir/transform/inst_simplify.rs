@@ -136,7 +136,6 @@ impl InstSimplifier {
                                 | InstKind::MemoryObjectFromPtr { .. }
                                 | InstKind::WordCast { .. }
                                 | InstKind::CheckedBinary { .. }
-                                | InstKind::Check { .. }
                                 | InstKind::ValidateAbi { .. }
                                 | InstKind::And(..)
                                 | InstKind::Shr(..)

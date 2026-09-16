@@ -38,7 +38,7 @@ fn @funded() -> struct1 [selector=0xf3a504f2, payable, abi_params=[], abi_return
     v6 = address
     v7 = eq v5, v6
     v8 = iszero v7
-    panic_if v8, 0x1
+    icall panic_if<0x1>, v8
     v9 = icall @masked, v2
     v10 = icall @wide, v2
     v11 = insert_value struct1, undef struct1, 0, v9

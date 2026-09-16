@@ -1027,10 +1027,18 @@ impl InstKind {
     pub(crate) const fn effect_kind(&self) -> EffectKind {
         match self {
             Self::ICall { function: Callee::Builtin(builtin), .. } => match builtin {
-                Builtin::CheckedAddMod | Builtin::CheckedMulMod | Builtin::Check { .. } => EffectKind::Pure,
-                Builtin::Erc7201 | Builtin::Concat(_) | Builtin::ReturndataBytes => EffectKind::MemoryWrite,
+                Builtin::CheckedAddMod | Builtin::CheckedMulMod | Builtin::Check { .. } => {
+                    EffectKind::Pure
+                }
+                Builtin::Erc7201 | Builtin::Concat(_) | Builtin::ReturndataBytes => {
+                    EffectKind::MemoryWrite
+                }
                 Builtin::Require(_) => EffectKind::MemoryRead,
-                Builtin::Sha256 | Builtin::Ripemd160 | Builtin::EcRecover | Builtin::Send | Builtin::Transfer => EffectKind::ExternalCall,
+                Builtin::Sha256
+                | Builtin::Ripemd160
+                | Builtin::EcRecover
+                | Builtin::Send
+                | Builtin::Transfer => EffectKind::ExternalCall,
             },
             _ => self.op_def().effect,
         }

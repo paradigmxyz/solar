@@ -9,7 +9,7 @@ fn @same(arg0: u256, arg1: u256) -> struct0 [selector=0xc32c70b1, pure, abi_para
     v0 = gt arg1, 8
     v1 = iszero v0
     v2 = iszero v1
-    revert_if v2, empty
+    icall revert_if<empty>, v2
     v3 = not 31
     v4 = and 127, v3
     v5 = alloc memorybytes, exact, zeroed, panic, v4
@@ -33,7 +33,7 @@ fn @repeated(arg0: u256, arg1: u256, arg2: bool) -> struct1 [selector=0xd6d01539
     v0 = gt arg1, 8
     v1 = iszero v0
     v2 = iszero v1
-    revert_if v2, empty
+    icall revert_if<empty>, v2
     v3 = not 31
     v4 = and 127, v3
     v5 = alloc memorybytes, exact, zeroed, panic, v4
@@ -99,7 +99,7 @@ fn @restored(arg0: u256, arg1: u256) -> struct0 [selector=0x70ef4778, pure, abi_
     v0 = gt arg1, 8
     v1 = iszero v0
     v2 = iszero v1
-    revert_if v2, empty
+    icall revert_if<empty>, v2
     v3 = not 31
     v4 = and 95, v3
     v5 = alloc memorybytes, exact, zeroed, panic, v4

@@ -39,7 +39,7 @@ fn @sink(arg0: u256, arg1: u256, arg2: u256) {
     v0 = eq arg0, 0
     v1 = iszero v0
     v2 = iszero v1
-    revert_if v2, empty
+    icall revert_if<empty>, v2
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = checked_mul u256, v3, 100
     v5 = checked_mul u256, arg1, 0x3e8
@@ -62,6 +62,6 @@ fn @uncheckedSink(arg0: u256, arg1: u256) {
     sstore 0, v1 !metadata(storage=slot(0))
     ret
   bb1:
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
 }

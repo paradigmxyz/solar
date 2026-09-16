@@ -6,18 +6,18 @@ fn @choose(arg0: bool, arg1: u256, arg2: u256) -> u256 [selector=0x28eac35d, pur
   bb2:
     v2 = lt arg2, 80
     v3 = iszero v2
-    revert_if v3, empty
+    icall revert_if<empty>, v3
     jump bb3
   bb1:
     v0 = lt arg1, 100
     v1 = iszero v0
-    revert_if v1, empty
+    icall revert_if<empty>, v1
     jump bb3
   bb3:
     v4 = phi [bb1: arg1], [bb2: arg2]
     v5 = lt v4, 100
     v6 = iszero v5
-    revert_if v6, empty
+    icall revert_if<empty>, v6
     v7 = checked_add u256, v4, 1
     ret v7
 }
@@ -27,7 +27,7 @@ fn @boundedLoop(arg0: u256) -> u256 [selector=0x46b5a18f, pure, abi_params=[u256
     v0 = gt arg0, 100
     v1 = iszero v0
     v2 = iszero v1
-    revert_if v2, empty
+    icall revert_if<empty>, v2
     jump bb1
   bb1:
     v3 = phi [bb0: arg0], [bb5: v3]
@@ -40,7 +40,7 @@ fn @boundedLoop(arg0: u256) -> u256 [selector=0x46b5a18f, pure, abi_params=[u256
     v7 = gt v4, 100
     v8 = iszero v7
     v9 = iszero v8
-    revert_if v9, empty
+    icall revert_if<empty>, v9
     ret v4
   bb3:
     v6 = checked_add u256, v4, 1

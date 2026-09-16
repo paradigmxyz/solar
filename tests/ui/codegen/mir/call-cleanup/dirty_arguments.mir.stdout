@@ -65,7 +65,7 @@ fn @recurse(arg0: u256, arg1: u256) -> u256 [selector=0x0dac78c4, pure, abi_para
     v0 = gt arg1, 4
     v1 = iszero v0
     v2 = iszero v1
-    revert_if v2, empty
+    icall revert_if<empty>, v2
     v3 = and arg0, 255
     v4 = icall @recursive, v3, arg1
     ret v4

@@ -1493,8 +1493,12 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         InstKind::ICall {
             function: Callee::Builtin(Builtin::Sha256 | Builtin::Ripemd160), ..
         } => Cost::new(800, 64),
-        InstKind::ICall { function: Callee::Builtin(Builtin::EcRecover), .. } => Cost::new(900, 100),
-        InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. } => Cost::new(24, 8),
+        InstKind::ICall { function: Callee::Builtin(Builtin::EcRecover), .. } => {
+            Cost::new(900, 100)
+        }
+        InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. } => {
+            Cost::new(24, 8)
+        }
         InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => Cost::new(40, 24),
         InstKind::ValidateAbi(_) => Cost::new(0, 0),
         InstKind::CheckedBinary { op: crate::mir::CheckedOp::Pow, .. } => Cost::new(300, 128),
@@ -1539,7 +1543,9 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
             })
         }
         InstKind::AddressCall { .. } => Cost::new(720, 12),
-        InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. } => Cost::new(60, 24),
+        InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. } => {
+            Cost::new(60, 24)
+        }
         InstKind::ICall { function: Callee::Builtin(Builtin::Send), .. } => Cost::new(720, 12),
         InstKind::ICall { function: Callee::Builtin(Builtin::Transfer), .. } => Cost::new(740, 20),
         InstKind::Call { .. }

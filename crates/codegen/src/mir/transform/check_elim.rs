@@ -361,10 +361,12 @@ impl<'a> CheckEliminator<'a> {
             matches!(
                 block.terminator,
                 Some(Terminator::Branch { then_block, else_block, .. }) if then_block != else_block
-            ) || block
-                .instructions
-                .iter()
-                .any(|&inst| matches!(func.inst(inst).kind, InstKind::Check { .. }))
+            ) || block.instructions.iter().any(|&inst| {
+                matches!(
+                    func.inst(inst).kind,
+                    InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. }
+                )
+            })
         }) {
             return 0;
         }
@@ -1135,8 +1137,10 @@ fn branch_inputs(func: &Function, cfg: &CfgInfo) -> DenseBitSet<ValueId> {
         .collect::<Vec<_>>();
     for &block in cfg.rpo() {
         for &inst in &func.blocks[block].instructions {
-            if let InstKind::Check { condition, .. } = func.inst(inst).kind {
-                pending.push(condition);
+            if let InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), args } =
+                &func.inst(inst).kind
+            {
+                pending.push(args[0]);
             }
         }
     }

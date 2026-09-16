@@ -3,7 +3,7 @@
 fn @haltThenRevert() [selector=0xf0f4d9f7, pure, abi_params=[], abi_returns=[]] {
   bb0:
     icall @halt
-    revert_if true, empty
+    icall revert_if<empty>, true
     invalid
 }
 

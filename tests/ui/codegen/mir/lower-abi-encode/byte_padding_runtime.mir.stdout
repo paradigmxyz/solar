@@ -5,10 +5,10 @@ fn @check(arg0: u256) -> bool [selector=0x5f72f450, pure, abi_params=[u256], abi
     v0 = gt arg0, 65
     v1 = iszero v0
     v2 = iszero v1
-    revert_if v2, empty
+    icall revert_if<empty>, v2
     v3 = add arg0, 63
     v4 = lt v3, arg0
-    panic_if v4, 0x41
+    icall panic_if<0x41>, v4
     v5 = not 31
     v6 = and v3, v5
     v7 = alloc memorybytes, exact, zeroed, panic, v6
@@ -51,7 +51,7 @@ fn @check(arg0: u256) -> bool [selector=0x5f72f450, pure, abi_params=[u256], abi
     v42 = checked_add u256, 128, v41
     v43 = eq v40, v42
     v44 = iszero v43
-    revert_if v44, empty
+    icall revert_if<empty>, v44
     v45 = add v36, 32
     v46 = mload v45
     v47 = add v36, 64
@@ -67,7 +67,7 @@ fn @check(arg0: u256) -> bool [selector=0x5f72f450, pure, abi_params=[u256], abi
   bb15:
     v52 = phi [bb13: v51], [bb14: false]
     v53 = iszero v52
-    revert_if v53, empty
+    icall revert_if<empty>, v53
     jump bb16
   bb16:
     v54 = phi [bb15: v26], [bb18: v74]
@@ -101,7 +101,7 @@ fn @check(arg0: u256) -> bool [selector=0x5f72f450, pure, abi_params=[u256], abi
     v70 = mload v69
     v71 = eq v70, v61
     v72 = iszero v71
-    revert_if v72, empty
+    icall revert_if<empty>, v72
     jump bb25
   bb25:
     v73 = phi [bb24: v70], [bb27: v73]
@@ -135,7 +135,7 @@ fn @check(arg0: u256) -> bool [selector=0x5f72f450, pure, abi_params=[u256], abi
     v90 = memory_object_len memorybytes, v78
     v91 = lt v89, v90
     v92 = iszero v91
-    panic_if v92, 0x32
+    icall panic_if<0x32>, v92
     v93 = memory_object_load_byte memorybytes, v78, v89
     v94 = shl 248, v93
     v95 = lt v76, v82
@@ -146,7 +146,7 @@ fn @check(arg0: u256) -> bool [selector=0x5f72f450, pure, abi_params=[u256], abi
     v96 = memory_object_len memorybytes, v77
     v97 = lt v76, v96
     v98 = iszero v97
-    panic_if v98, 0x32
+    icall panic_if<0x32>, v98
     v99 = memory_object_load_byte memorybytes, v77, v76
     v100 = shl 248, v99
     jump bb33
@@ -154,7 +154,7 @@ fn @check(arg0: u256) -> bool [selector=0x5f72f450, pure, abi_params=[u256], abi
     v101 = phi [bb31: v100], [bb32: 0]
     v102 = eq v94, v101
     v103 = iszero v102
-    revert_if v103, empty
+    icall revert_if<empty>, v103
     jump bb30
   bb30:
     jump bb27
@@ -178,7 +178,7 @@ fn @check(arg0: u256) -> bool [selector=0x5f72f450, pure, abi_params=[u256], abi
     v17 = memory_object_len memorybytes, v10
     v18 = lt v8, v17
     v19 = iszero v18
-    panic_if v19, 0x32
+    icall panic_if<0x32>, v19
     v20 = byte 0, v16
     memory_object_store_byte memorybytes, v10, v8, v20
     jump bb6

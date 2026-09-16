@@ -42,41 +42,11 @@
 (decl validateabi (Value) Value)
 (extractor (validateabi operand0) (inst (Op.ValidateAbi operand0)))
 
-(decl check (Value bool Unit) Value)
-(extractor (check condition is_zero failure) (inst (Op.Check condition is_zero failure)))
-
-(decl sha256 (Value) Value)
-(extractor (sha256 operand0) (inst (Op.Sha256 operand0)))
-
-(decl erc7201 (Value) Value)
-(extractor (erc7201 operand0) (inst (Op.Erc7201 operand0)))
-
-(decl checkedaddmod (Value Value Value) Value)
-(extractor (checkedaddmod operand0 operand1 operand2) (inst (Op.CheckedAddMod operand0 operand1 operand2)))
-
-(decl checkedmulmod (Value Value Value) Value)
-(extractor (checkedmulmod operand0 operand1 operand2) (inst (Op.CheckedMulMod operand0 operand1 operand2)))
-
 (decl abiencodepacked (Unit bool) Value)
 (extractor (abiencodepacked parts hash) (inst (Op.AbiEncodePacked parts hash)))
 
-(decl ripemd160 (Value) Value)
-(extractor (ripemd160 operand0) (inst (Op.Ripemd160 operand0)))
-
 (decl addresscall (AddressCallKind Value Value OptionValue OptionValue) Value)
 (extractor (addresscall kind address input gas value) (inst (Op.AddressCall kind address input gas value)))
-
-(decl returndatabytes () Value)
-(extractor (returndatabytes) (inst (Op.ReturndataBytes)))
-
-(decl send (Value Value) Value)
-(extractor (send operand0 operand1) (inst (Op.Send operand0 operand1)))
-
-(decl transfer (Value Value) Value)
-(extractor (transfer operand0 operand1) (inst (Op.Transfer operand0 operand1)))
-
-(decl ecrecover (Value Value Value Value) Value)
-(extractor (ecrecover operand0 operand1 operand2 operand3) (inst (Op.EcRecover operand0 operand1 operand2 operand3)))
 
 (decl add (Value Value) Value)
 (extractor (add a b) (inst (Op.Add a b)))

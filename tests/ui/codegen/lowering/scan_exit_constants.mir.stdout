@@ -5,10 +5,10 @@ fn @check(arg0: u256, arg1: u256) -> bool [selector=0x8fefd8ea, pure, abi_params
     v0 = gt arg0, 0x400
     v1 = iszero v0
     v2 = iszero v1
-    revert_if v2, empty
+    icall revert_if<empty>, v2
     v3 = add arg0, 63
     v4 = lt v3, arg0
-    panic_if v4, 0x41
+    icall panic_if<0x41>, v4
     v5 = not 31
     v6 = and v3, v5
     v7 = alloc memorybytes, exact, zeroed, panic, v6
@@ -34,7 +34,7 @@ fn @check(arg0: u256, arg1: u256) -> bool [selector=0x8fefd8ea, pure, abi_params
     v26 = mload v25
     v27 = eq v26, 0xdeadbeef
     v28 = iszero v27
-    revert_if v28, empty
+    icall revert_if<empty>, v28
     ret v23
   bb4:
     v14 = eq v10, v12
@@ -48,7 +48,7 @@ fn @check(arg0: u256, arg1: u256) -> bool [selector=0x8fefd8ea, pure, abi_params
     v16 = memory_object_len memorybytes, v8
     v17 = lt v10, v16
     v18 = iszero v17
-    panic_if v18, 0x32
+    icall panic_if<0x32>, v18
     v19 = byte 0, v15
     memory_object_store_byte memorybytes, v8, v10, v19
     jump bb6

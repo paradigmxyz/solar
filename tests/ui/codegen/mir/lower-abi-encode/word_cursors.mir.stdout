@@ -37,24 +37,24 @@ fn @encode(arg0: u256, arg1: u256) -> memorybytes [selector=0xdc0aa2af, pure, ab
     v0 = gt arg0, 64
     v1 = iszero v0
     v2 = iszero v1
-    revert_if v2, empty
+    icall revert_if<empty>, v2
     v3 = mul arg0, 1
     v4 = iszero 1
     v5 = div v3, 1
     v6 = eq v5, arg0
     v7 = or v4, v6
     v8 = iszero v7
-    panic_if v8, 0x41
+    icall panic_if<0x41>, v8
     v9 = add v3, 1
     v10 = lt v9, v3
-    panic_if v10, 0x41
+    icall panic_if<0x41>, v10
     v11 = mul v9, 32
     v12 = iszero 32
     v13 = div v11, 32
     v14 = eq v13, v9
     v15 = or v12, v14
     v16 = iszero v15
-    panic_if v16, 0x41
+    icall panic_if<0x41>, v16
     v17 = alloc memoryarray<1>, exact, zeroed, panic, v11
     set_memory_object_len memoryarray, v17, arg0
     v18 = add v17, 32

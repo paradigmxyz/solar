@@ -24,7 +24,7 @@ fn @freshInLoop(arg0: bytes1) -> bool [selector=0x533a7d1b, pure, abi_params=[by
     v9 = memory_object_len memorybytes, v5
     v10 = lt 0, v9
     v11 = iszero v10
-    panic_if v11, 0x32
+    icall panic_if<0x32>, v11
     v12 = memory_object_load_byte memorybytes, v5, 0
     v13 = shl 248, v12
     v14 = shl 248, 49
@@ -48,7 +48,7 @@ fn @freshInLoop(arg0: bytes1) -> bool [selector=0x533a7d1b, pure, abi_params=[by
     v20 = memory_object_len memorybytes, v2
     v21 = lt 0, v20
     v22 = iszero v21
-    panic_if v22, 0x32
+    icall panic_if<0x32>, v22
     v23 = memory_object_load_byte memorybytes, v2, 0
     v24 = shl 248, v23
     v25 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
@@ -64,7 +64,7 @@ fn @freshInLoop(arg0: bytes1) -> bool [selector=0x533a7d1b, pure, abi_params=[by
     v29 = memory_object_len memorybytes, v5
     v30 = lt 0, v29
     v31 = iszero v30
-    panic_if v31, 0x32
+    icall panic_if<0x32>, v31
     v32 = byte 0, v1
     memory_object_store_byte memorybytes, v5, 0, v32
     jump bb6
