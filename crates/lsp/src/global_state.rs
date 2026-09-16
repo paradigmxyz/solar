@@ -1437,24 +1437,29 @@ impl GlobalState {
         }
     }
 
-    /// Waits for analysis results that cover the latest edit when the request resumes.
+    /// Waits for the requested analysis and rejects results superseded by pending edits.
     pub(crate) fn latest_analysis(
         &self,
     ) -> impl Future<Output = Result<Arc<ArcSwap<SymbolTables>>, ResponseError>> + use<> {
         let mut published = self.published_analysis_version.subscribe();
         let analysis_version = self.analysis_version.clone();
+        let version = analysis_version.load(Ordering::Acquire);
         let symbol_tables = self.symbol_tables.clone();
         async move {
-            // An edit can supersede a completed analysis before this waiter is polled again.
-            published
-                .wait_for(|published| *published >= analysis_version.load(Ordering::Acquire))
-                .await
-                .map_err(|_| {
+            // Bound the wait to the requested epoch instead of chasing a continuous edit stream.
+            let published =
+                published.wait_for(|published| *published >= version).await.map_err(|_| {
                     ResponseError::new(
                         async_lsp::ErrorCode::REQUEST_FAILED,
                         "analysis was cancelled",
                     )
                 })?;
+            if *published < analysis_version.load(Ordering::Acquire) {
+                return Err(ResponseError::new(
+                    async_lsp::ErrorCode::CONTENT_MODIFIED,
+                    "analysis was superseded by a pending edit",
+                ));
+            }
             Ok(symbol_tables)
         }
     }

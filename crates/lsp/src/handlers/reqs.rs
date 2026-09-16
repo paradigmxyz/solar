@@ -886,9 +886,17 @@ pub(crate) fn prepare_rename(
     params: TextDocumentPositionParams,
 ) -> impl Future<Output = Result<Option<PrepareRenameResponse>, ResponseError>> + use<> {
     let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
+    let vfs = state.vfs.clone();
+    let content_revision = vfs.read().content_revision();
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
+        if vfs.read().content_revision() != content_revision {
+            return Err(ResponseError::new(
+                ErrorCode::CONTENT_MODIFIED,
+                "document contents changed since request",
+            ));
+        }
         let response = symbol_tables
             .load()
             .rename_candidate(&params.text_document.uri, params.position)
@@ -914,6 +922,7 @@ pub(crate) fn rename(
         latest_navigation_analysis_for_uri(state, &params_position.text_document.uri)
     };
     let vfs = state.vfs.clone();
+    let content_revision = vfs.read().content_revision();
     let document_changes = state.config.supports_workspace_edit_document_changes();
     async move {
         if invalid_name {
@@ -922,6 +931,12 @@ pub(crate) fn rename(
 
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
+        if vfs.read().content_revision() != content_revision {
+            return Err(ResponseError::new(
+                ErrorCode::CONTENT_MODIFIED,
+                "document contents changed since request",
+            ));
+        }
         let candidate = symbol_tables
             .load()
             .rename_candidate(&params_position.text_document.uri, params_position.position);

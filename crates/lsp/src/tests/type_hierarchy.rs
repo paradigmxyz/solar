@@ -6,7 +6,7 @@ use crate::test_support::{
     TestProject, type_hierarchy_prepare_params, type_hierarchy_subtypes_params,
     type_hierarchy_supertypes_params,
 };
-use async_lsp::ClientSocket;
+use async_lsp::{ClientSocket, ErrorCode};
 use lsp_types::{Position, Range, SymbolKind, SymbolTag, TypeHierarchyItem, Url};
 use serde_json::json;
 use solar_config::{CompileOpts, ImportRemapping};
@@ -758,7 +758,7 @@ fn requests_read_the_latest_published_analysis() {
 }
 
 #[test]
-fn requests_wait_for_the_latest_analysis_epoch_when_polled() {
+fn requests_reject_analysis_superseded_before_they_are_polled() {
     let project = TestProject::from_fixture(
         r#"
         //- /Hierarchy.sol
@@ -791,15 +791,16 @@ fn requests_wait_for_the_latest_analysis_epoch_when_polled() {
 
     let waker = Waker::noop();
     let mut context = Context::from_waker(waker);
-    assert!(prepare.as_mut().poll(&mut context).is_pending());
-    assert!(supertypes.as_mut().poll(&mut context).is_pending());
-    assert!(subtypes.as_mut().poll(&mut context).is_pending());
-
-    let version = state.analysis_version.load(Ordering::Acquire);
-    assert!(state.snapshot().publish_symbol_tables(version, state.symbol_tables.load_full()));
-    assert_eq!(ready_names(prepare.as_mut().poll(&mut context)), ["Base"]);
-    assert_eq!(ready_names(supertypes.as_mut().poll(&mut context)), ["Base"]);
-    assert_eq!(ready_names(subtypes.as_mut().poll(&mut context)), ["Child"]);
+    for response in [
+        prepare.as_mut().poll(&mut context),
+        supertypes.as_mut().poll(&mut context),
+        subtypes.as_mut().poll(&mut context),
+    ] {
+        let Poll::Ready(Err(error)) = response else {
+            panic!("superseded requests should return an error");
+        };
+        assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
+    }
 }
 
 #[test]
