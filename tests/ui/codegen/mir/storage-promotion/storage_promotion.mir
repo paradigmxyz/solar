@@ -173,3 +173,53 @@ fn @promote_without_init_rewrites_successor_phi() -> u256 [selector=0x01020304] 
   bb6:
     jump bb5
 }
+
+// CHECK-LABEL: @reject_memory_size_observers
+// CHECK-NOT: mstore
+// CHECK: sstore
+// CHECK-NOT: mstore
+// CHECK: ret
+fn @reject_memory_size_observers(arg0: bool) -> u256 [selector=0x01020304] {
+  bb0:
+    v0 = msize
+    sstore 0, 1
+    jump bb1
+  bb1:
+    jumpi arg0, bb2, bb3
+  bb2:
+    sstore 0, 2
+    jump bb1
+  bb3:
+    v1 = msize
+    v2 = sub v1, v0
+    ret v2
+}
+
+// CHECK-LABEL: @reject_callee_memory_size_observers
+// CHECK-NOT: mstore
+// CHECK: sstore
+// CHECK-NOT: mstore
+// CHECK: ret
+fn @reject_callee_memory_size_observers(arg0: bool) -> u256 [selector=0x01020304] {
+  bb0:
+    v0 = icall @observe_memory_size
+    sstore 0, 1
+    jump bb1
+  bb1:
+    jumpi arg0, bb2, bb3
+  bb2:
+    sstore 0, 2
+    jump bb1
+  bb3:
+    jump bb4
+  bb4:
+    v1 = icall @observe_memory_size
+    v2 = sub v1, v0
+    ret v2
+}
+
+fn @observe_memory_size() -> u256 {
+  bb0:
+    v0 = msize
+    ret v0
+}
