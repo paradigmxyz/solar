@@ -1,0 +1,242 @@
+// === <solar:core/v1/Bytes.sol>:Bytes ===
+@module Bytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/v1/Calls.sol>:Calls ===
+@module Calls
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/v1/Create.sol>:Create ===
+@module Create
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/calls_lowering.sol:Test ===
+@module Test
+@phase lowered
+types:
+  struct0: {u256, u256, u256, u256}
+  struct1: {u256, u256, u256}
+
+fn @probe() [selector=0xbed1a1cc, abi_wrapper] {
+  bb0:
+    v28 = icall @decode_calldata_type, 4
+    v0 = mload v28
+    v1 = add v28, 32
+    v2 = create 0, v1, v0
+    jumpi v2, bb2, bb1
+  bb1:
+    tail_call @revert_stub.4
+  bb2:
+    v6 = mload 64 !metadata(memory=scratch)
+    v43 = add v6, 64
+    v44 = lt v43, v6
+    v45 = gt v43, 0xffffffffffffffff
+    v46 = or v44, v45
+    jumpi v46, bb6, bb5
+  bb5:
+    mstore 64, v43 !metadata(memory=scratch)
+    v48 = calldatasize
+    calldatacopy v6, v48, 64
+    mstore v6, 32
+    v7 = gas
+    v8 = mload 64 !metadata(memory=scratch)
+    v47 = add v8, 32
+    mstore 64, v47 !metadata(memory=scratch)
+    mstore v8, 0
+    v36 = icall @callInto, v2, 0, v7, v8, v6
+    v42 = mload 32 !metadata(memory=scratch)
+    v38 = add v42, 32
+    v39 = mload v38
+    v40 = add v42, 64
+    v41 = mload v40
+    v14 = mload v6
+    v17 = gt 32, v14
+    jumpi v17, bb3, bb4
+  bb4:
+    v19 = add v6, 32
+    v21 = mload v19
+    v29 = iszero v36
+    v30 = iszero v29
+    mstore 128, v30
+    mstore 160, v39
+    mstore 192, v41
+    mstore 224, v21
+    returndata 128, 128
+  bb3:
+    tail_call @revert_stub.5
+  bb6:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @probeStatic() [selector=0x2151f594, abi_wrapper] {
+  bb0:
+    v28 = icall @decode_calldata_type, 4
+    v0 = mload v28
+    v1 = add v28, 32
+    v2 = create 0, v1, v0
+    jumpi v2, bb2, bb1
+  bb1:
+    tail_call @revert_stub.4
+  bb2:
+    v6 = mload 64 !metadata(memory=scratch)
+    v43 = add v6, 64
+    v44 = lt v43, v6
+    v45 = gt v43, 0xffffffffffffffff
+    v46 = or v44, v45
+    jumpi v46, bb6, bb5
+  bb5:
+    mstore 64, v43 !metadata(memory=scratch)
+    v48 = calldatasize
+    calldatacopy v6, v48, 64
+    mstore v6, 32
+    v7 = gas
+    v8 = mload 64 !metadata(memory=scratch)
+    v47 = add v8, 32
+    mstore 64, v47 !metadata(memory=scratch)
+    mstore v8, 0
+    v36 = icall @staticCallInto, v2, v7, v8, v6
+    v42 = mload 32 !metadata(memory=scratch)
+    v38 = add v42, 32
+    v39 = mload v38
+    v40 = add v42, 64
+    v41 = mload v40
+    v14 = mload v6
+    v17 = gt 32, v14
+    jumpi v17, bb3, bb4
+  bb4:
+    v19 = add v6, 32
+    v21 = mload v19
+    v29 = iszero v36
+    v30 = iszero v29
+    mstore 128, v30
+    mstore 160, v39
+    mstore 192, v41
+    mstore 224, v21
+    returndata 128, 128
+  bb3:
+    tail_call @revert_stub.5
+  bb6:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @callInto(arg0: address, arg1: u256, arg2: u256, arg3: memptr, arg4: memptr) -> struct1 [return_abi=[u256, u256, u256]] {
+  bb0:
+    v0 = mload arg4
+    v1 = add arg4, 32
+    v2 = mload arg3
+    v3 = add arg3, 32
+    v4 = call arg2, arg0, arg1, v3, v2, v1, v0
+    v5 = returndatasize
+    v7 = gt v5, v0
+    v15 = sub v0, v5
+    v16 = mul v7, v15
+    v17 = add v5, v16
+    ret v4, v17, v5
+}
+
+fn @staticCallInto(arg0: address, arg1: u256, arg2: memptr, arg3: memptr) -> struct1 [view, return_abi=[u256, u256, u256]] {
+  bb0:
+    v0 = mload arg3
+    v1 = add arg3, 32
+    v2 = mload arg2
+    v3 = add arg2, 32
+    v4 = staticcall arg1, arg0, v3, v2, v1, v0
+    v5 = returndatasize
+    v7 = gt v5, v0
+    v15 = sub v0, v5
+    v16 = mul v7, v15
+    v17 = add v5, v16
+    ret v4, v17, v5
+}
+
+fn @revert_stub.4() {
+  bb0:
+    mstore 0, 0x3011642500000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    revert 0, 4
+}
+
+fn @revert_stub.5() {
+  bb0:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @decode_calldata_type(arg0: u256) -> memptr {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload arg0
+    v2 = add v1, 4
+    v3 = add v2, 32
+    v4 = gt v1, 0xffffffffffffffff
+    v5 = gt v3, v0
+    v6 = or v4, v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = calldataload v2
+    v9 = add v7, 63
+    v10 = lt v9, v7
+    jumpi v10, bb3, bb4
+  bb4:
+    v12 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = mload 64 !metadata(memory=scratch)
+    v20 = add v13, v12
+    v21 = lt v20, v13
+    v22 = gt v20, 0xffffffffffffffff
+    v23 = or v21, v22
+    jumpi v23, bb3, bb6
+  bb6:
+    mstore 64, v20 !metadata(memory=scratch)
+    mstore v13, v7
+    v14 = sub v0, v3
+    v15 = gt v7, v14
+    jumpi v15, bb1, bb5
+  bb5:
+    v17 = add v13, 32
+    calldatacopy v17, v3, v7
+    ret v13
+  bb3:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = or v0, v2
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = calldataload 0
+    v5 = shr 224, v4
+    switch v5, default bb1, [0x2151f594 => bb3, 0xbed1a1cc => bb4]
+  bb4:
+    tail_call @probe
+  bb3:
+    tail_call @probeStatic
+  bb1:
+    revert 0, 0
+}
