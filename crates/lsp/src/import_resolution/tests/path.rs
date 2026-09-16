@@ -1,4 +1,41 @@
-use super::super::{import_path_at, import_path_at_for_completion, parse_import_path};
+use super::super::{
+    import_path_at, import_path_at_for_completion, may_complete_string,
+    may_complete_string_in_rope, parse_import_path,
+};
+use crop::Rope;
+
+#[test]
+fn rope_string_prefilter_matches_contiguous_source() {
+    let sources = [
+        "",
+        "contract C { function f() external { value; } }",
+        "import \"./Dep.sol\";\ncontract C { string s = \"ordinary\"; }",
+        "import {Dep as Alias} from './Dep",
+        "import \"./Dep\\\ncontinued.sol\";\nvalue",
+        "import \"./Dep\\\r\ncontinued.sol\";\r\nvalue",
+        "import \"./Dep\\\rcontinued.sol\";\rvalue",
+        "import \"./Dep\ncontract C { string s = \"ordinary\"; }",
+        "import * as Dep from \"./😀.sol\";\r\nαvalue",
+        "/* 'comment'\n */ value\r\n// \"comment\"\rvalue",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .chain(
+        (1020..1030).map(|padding| format!("{}\\\r\nnext\n\"quoted\"\rvalue", "x".repeat(padding))),
+    );
+    for source in sources {
+        let rope = Rope::from(source.as_str());
+        for cursor in 0..=source.len() {
+            let expected = source.is_char_boundary(cursor) && may_complete_string(&source, cursor);
+            assert_eq!(
+                may_complete_string_in_rope(&rope, cursor),
+                expected,
+                "cursor {cursor} in {source:?}",
+            );
+        }
+        assert!(!may_complete_string_in_rope(&rope, source.len() + 1));
+    }
+}
 
 #[test]
 fn completion_recovers_an_unterminated_import_before_an_unrelated_string() {

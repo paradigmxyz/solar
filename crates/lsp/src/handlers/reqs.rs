@@ -6,7 +6,7 @@ use crate::{
     global_state::{AnalysisRevision, GlobalState},
     import_resolution::{
         ImportCandidateKind, ImportResolver, decode_import_path, import_path_at,
-        import_path_at_for_completion,
+        import_path_at_for_completion, may_complete_string_in_rope,
     },
     natspec_completion::{self, NatSpecCompletionResult},
     progress::send_progress,
@@ -994,7 +994,7 @@ pub(crate) fn completion(
     if let Some(source) = source {
         let contents = source.contents();
         let cursor = source
-            .positions()
+            .point_positions()
             .checked_text_range(lsp_types::Range::new(params.position, params.position))
             .map(|range| range.start);
         match natspec_completion::target(contents, cursor) {
@@ -1021,6 +1021,7 @@ pub(crate) fn completion(
             NatSpecCompletionResult::NotApplicable => {}
         }
         if let Some(cursor) = cursor
+            && may_complete_string_in_rope(contents, cursor)
             && let Some(response) = import_completion(
                 state,
                 &params.text_document.uri,

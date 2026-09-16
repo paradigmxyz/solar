@@ -192,8 +192,8 @@ fn has_standalone_cr(rope: &Rope) -> bool {
 /// Maps between byte offsets and LSP UTF-16 positions for one document.
 pub(crate) struct LspPositionIndex<R> {
     rope: R,
-    // Short-lived conversions can use Rope's LF index. Owned request snapshots retain direct
-    // line lookup, and standalone CR always requires our explicit LSP line index.
+    // Point queries can use Rope's LF index. Bulk conversions retain direct line lookup,
+    // and standalone CR always requires our explicit LSP line index.
     line_starts: Option<Vec<usize>>,
 }
 
@@ -209,6 +209,13 @@ impl LspPositionIndex<Rope> {
     pub(crate) fn from_rope(rope: Rope) -> Self {
         let line_starts = collect_line_starts(&rope);
         Self { rope, line_starts: Some(line_starts) }
+    }
+
+    /// Reuses Rope's line index for point queries in large LF or CRLF documents.
+    pub(crate) fn from_rope_for_point_queries(rope: Rope) -> Self {
+        let indexed = rope.byte_len() <= 1024 || has_standalone_cr(&rope);
+        let line_starts = indexed.then(|| collect_line_starts(&rope));
+        Self { rope, line_starts }
     }
 }
 

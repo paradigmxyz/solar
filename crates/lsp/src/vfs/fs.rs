@@ -44,6 +44,7 @@ struct VfsFile {
     contents: Rope,
     analysis_source: OnceLock<Arc<String>>,
     positions: OnceLock<LspPositionIndex<Rope>>,
+    point_positions: OnceLock<LspPositionIndex<Rope>>,
     selection_range_index: OnceLock<SelectionRangeIndex>,
     folding_ranges: OnceLock<Vec<lsp_types::FoldingRange>>,
     first_statement_boundary: OnceLock<(usize, usize)>,
@@ -56,6 +57,7 @@ impl VfsFile {
             contents,
             analysis_source: OnceLock::new(),
             positions: OnceLock::new(),
+            point_positions: OnceLock::new(),
             selection_range_index: OnceLock::new(),
             folding_ranges: OnceLock::new(),
             first_statement_boundary: OnceLock::new(),
@@ -81,6 +83,16 @@ impl DocumentSource {
 
     pub(crate) fn positions(&self) -> &LspPositionIndex<Rope> {
         self.0.positions.get_or_init(|| LspPositionIndex::from_rope(self.0.contents.clone()))
+    }
+
+    /// Avoids building a document-wide index for a completion's single cursor lookup.
+    pub(crate) fn point_positions(&self) -> &LspPositionIndex<Rope> {
+        if let Some(positions) = self.0.positions.get() {
+            return positions;
+        }
+        self.0
+            .point_positions
+            .get_or_init(|| LspPositionIndex::from_rope_for_point_queries(self.0.contents.clone()))
     }
 
     pub(crate) fn source(&self) -> Arc<String> {
@@ -343,6 +355,9 @@ fn has_file_prefix(path: &VfsPath, prefixes: &[PathBuf]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{global_state::GlobalState, handlers};
+    use async_lsp::ClientSocket;
+    use lsp_types::{CompletionParams, TextDocumentIdentifier, TextDocumentPositionParams, Url};
     use std::path::PathBuf;
 
     fn path(path: &str) -> VfsPath {
@@ -473,6 +488,72 @@ mod tests {
         assert_eq!(at(&renamed, 1, 2), Some(6..6));
         vfs.set_file_contents(moved, None);
         assert_eq!(renamed.source().as_str(), "x\n😀z\n");
+    }
+
+    #[tokio::test]
+    async fn ordinary_completions_do_not_flatten_edited_documents() {
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        let uri = Url::from_file_path(std::env::temp_dir().join("completion-source.sol")).unwrap();
+        let file = VfsPath::from(uri.to_file_path().unwrap());
+        for (version, identifier) in [(1, "val"), (2, "value")] {
+            let text = format!(
+                "{}contract C {{\nfunction f() external {{\n{identifier}\n}}\n}}",
+                "// documentation '😀'\n".repeat(256)
+            );
+            state.vfs.write().set_file_contents_with_version(
+                file.clone(),
+                Some(Rope::from(text)),
+                Some(version),
+            );
+            let source = state.vfs.read().get_file_source(&file).unwrap();
+            for character in [identifier.len() as u32, 1, 0] {
+                handlers::completion(
+                    &mut state,
+                    CompletionParams {
+                        text_document_position: TextDocumentPositionParams {
+                            text_document: TextDocumentIdentifier { uri: uri.clone() },
+                            position: Position::new(258, character),
+                        },
+                        work_done_progress_params: Default::default(),
+                        partial_result_params: Default::default(),
+                        context: None,
+                    },
+                )
+                .await
+                .unwrap();
+                assert!(source.0.analysis_source.get().is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn point_query_positions_follow_unicode_and_line_ending_edits() {
+        let mut vfs = Vfs::default();
+        let file = path("/workspace/Test.sol");
+        for (version, ending) in [(1, "\n"), (2, "\r\n"), (3, "\r"), (4, "\n")] {
+            let text = format!("{}α😀z{ending}tail{ending}", "prefix\n".repeat(256));
+            insert(&mut vfs, "/workspace/Test.sol", &text, version);
+            let source = vfs.get_file_source(&file).unwrap();
+            let expected = LspPositionIndex::from_rope(source.contents().clone());
+            for line in [0, 128, 256, 257, 258, 259] {
+                for character in [0, 1, 2, 3, 4, 99] {
+                    let position = Position::new(line, character);
+                    let range = lsp_types::Range::new(position, position);
+                    assert_eq!(
+                        source.point_positions().checked_text_range(range),
+                        expected.checked_text_range(range),
+                        "version {version}, position {position:?}",
+                    );
+                }
+            }
+            for byte in text.len() - 16..=text.len() {
+                assert_eq!(
+                    source.point_positions().position_at_byte(byte),
+                    expected.position_at_byte(byte),
+                );
+            }
+            assert!(source.0.analysis_source.get().is_none());
+        }
     }
 
     #[test]

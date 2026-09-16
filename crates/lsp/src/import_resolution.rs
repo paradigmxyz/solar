@@ -2,6 +2,7 @@ use crate::{
     document_links::import_path_from_bytes,
     workspace::{Workspace, WorkspacePathIndex},
 };
+use crop::Rope;
 use normalize_path::NormalizePath;
 use solar_config::CompileOpts;
 use solar_interface::{
@@ -91,6 +92,35 @@ fn may_complete_string(source: &str, cursor: usize) -> bool {
     // A string from an earlier line must cross this line break. Completion already rejects
     // unescaped line breaks; possible continuations still use the full lexer and parser.
     line_break > 0 && prefix[line_break - 1] == b'\\'
+}
+
+/// Applies the string prefilter without flattening an open document.
+pub(crate) fn may_complete_string_in_rope(source: &Rope, cursor: usize) -> bool {
+    if cursor > source.byte_len() || !source.is_char_boundary(cursor) {
+        return false;
+    }
+    if cursor < source.byte_len() && matches!(source.byte(cursor), b'\'' | b'"') {
+        return true;
+    }
+
+    let mut chunk_start = cursor;
+    for chunk in source.byte_slice(..cursor).chunks().rev() {
+        chunk_start -= chunk.len();
+        let bytes = chunk.as_bytes();
+        let line_break = memchr::memrchr2(b'\r', b'\n', bytes);
+        let line_start = line_break.map_or(0, |offset| offset + 1);
+        if memchr::memchr2(b'\'', b'"', &bytes[line_start..]).is_some() {
+            return true;
+        }
+        if let Some(offset) = line_break {
+            let mut line_break = chunk_start + offset;
+            if bytes[offset] == b'\n' && line_break > 0 && source.byte(line_break - 1) == b'\r' {
+                line_break -= 1;
+            }
+            return line_break > 0 && source.byte(line_break - 1) == b'\\';
+        }
+    }
+    false
 }
 
 fn parse_import_path(source: &str, cursor: usize) -> Option<ImportPathAt> {
