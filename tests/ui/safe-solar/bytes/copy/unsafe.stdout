@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/safe-solar/bytes/copy/unsafe.sol:Unsafe ===
 @module Unsafe
-@phase evm-shaped
-fn @shift() [selector=0x524ffe38, pure] {
+@phase lowered
+fn @shift() [selector=0x524ffe38, abi_wrapper, pure] {
   bb0:
     v4 = calldatasize
     v5 = lt v4, 36
     jumpi v5, bb1, bb2
   bb2:
-    v6 = icall @decode_calldata_type, 1, 4
+    v6 = icall @decode_calldata_type, 4
     v0 = add v6, 32
     v1 = mload v6
     v2 = sub v1, 1
@@ -30,14 +30,14 @@ fn @shift() [selector=0x524ffe38, pure] {
     revert 0, 0
 }
 
-fn @between() [selector=0xf75bb619, pure] {
+fn @between() [selector=0xf75bb619, abi_wrapper, pure] {
   bb0:
     v2 = calldatasize
     v3 = lt v2, 68
     jumpi v3, bb1, bb2
   bb2:
-    v4 = icall @decode_calldata_type, 1, 4
-    v5 = icall @decode_calldata_type, 1, 36
+    v4 = icall @decode_calldata_type, 4
+    v5 = icall @decode_calldata_type, 36
     v0 = add v5, 33
     v1 = add v4, 34
     mcopy v1, v0, 5
@@ -77,7 +77,7 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     jumpi v10, bb3, bb4
   bb4:
     v12 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v13 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v13 = mload 64 !metadata(memory=scratch)
     v20 = add v13, v12
     v21 = lt v20, v13
     v22 = gt v20, 0xffffffffffffffff
@@ -94,9 +94,9 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     calldatacopy v17, v3, v7
     ret v13
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb1:
     revert 0, 0
 }

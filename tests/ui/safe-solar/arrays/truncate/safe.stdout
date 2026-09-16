@@ -1,6 +1,6 @@
 // === <solar:core/v1/Arrays.sol>:Arrays ===
 @module Arrays
-@phase evm-shaped
+@phase lowered
 @library
 fn @entry() [entry] {
   bb0:
@@ -9,15 +9,14 @@ fn @entry() [entry] {
 
 // === ROOT/tests/ui/safe-solar/arrays/truncate/safe.sol:Safe ===
 @module Safe
-@phase evm-shaped
-fn @shorten() [selector=0xf0187838, pure] {
+@phase lowered
+fn @shorten() [selector=0xf0187838, abi_wrapper, pure] {
   bb0:
-    v4 = icall @decode_calldata_type, 1, 4
+    v4 = icall @decode_calldata_type, 4
     v0 = mload v4
     v1 = gt arg1, v0
     jumpi v1, bb1, bb2
   bb2:
-    mstore v4, arg1
     v9 = iszero v4
     v10 = iszero v9
     v11 = mul arg1, v10
@@ -33,9 +32,9 @@ fn @shorten() [selector=0xf0187838, pure] {
     tail_call @revert_stub
 }
 
-fn @viaAlias() [selector=0xcc1cce1f, pure] {
+fn @viaAlias() [selector=0xcc1cce1f, abi_wrapper, pure] {
   bb0:
-    v5 = icall @decode_calldata_type, 1, 4
+    v5 = icall @decode_calldata_type, 4
     v0 = mload v5
     v1 = gt arg1, v0
     jumpi v1, bb1, bb2
@@ -49,9 +48,9 @@ fn @viaAlias() [selector=0xcc1cce1f, pure] {
 
 fn @revert_stub() {
   bb0:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @decode_calldata_type(arg0: u256) -> memptr {
@@ -75,7 +74,7 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     v16 = lt v15, v9
     jumpi v16, bb3, bb5
   bb5:
-    v17 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v17 = mload 64 !metadata(memory=scratch)
     v25 = add v17, v15
     v26 = lt v25, v17
     v27 = gt v25, 0xffffffffffffffff
@@ -93,9 +92,9 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     calldatacopy v22, v3, v9
     ret v17
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb1:
     revert 0, 0
 }
