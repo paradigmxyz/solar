@@ -1,0 +1,90 @@
+// === ROOT/tests/ui/safe-solar/calls/bounded/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase lowered
+types:
+  struct0: {u256, u256, u256, u256}
+
+fn @probe() [selector=0xbed1a1cc, abi_wrapper] {
+  bb0:
+    v23 = calldatasize
+    v24 = lt v23, 36
+    jumpi v24, bb1, bb2
+  bb2:
+    v25 = calldataload 4
+    v26 = add v25, 4
+    v27 = add v26, 32
+    v28 = gt v25, 0xffffffffffffffff
+    v29 = gt v27, v23
+    v30 = or v28, v29
+    jumpi v30, bb1, bb3
+  bb3:
+    v31 = calldataload v26
+    v33 = add v31, 63
+    v34 = lt v33, v31
+    jumpi v34, bb4, bb5
+  bb5:
+    v36 = and v33, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v37 = mload 64 !metadata(memory=scratch)
+    v51 = add v37, v36
+    v52 = lt v51, v37
+    v53 = gt v51, 0xffffffffffffffff
+    v54 = or v52, v53
+    jumpi v54, bb4, bb7
+  bb7:
+    mstore 64, v51 !metadata(memory=scratch)
+    mstore v37, v31
+    v38 = sub v23, v27
+    v39 = gt v31, v38
+    jumpi v39, bb1, bb6
+  bb6:
+    v48 = add v37, 32
+    calldatacopy v48, v27, v31
+    v2 = create 0, v48, v31
+    v5 = mload 64 !metadata(memory=scratch)
+    v55 = add v5, 64
+    v56 = lt v55, v5
+    v57 = gt v55, 0xffffffffffffffff
+    v58 = or v56, v57
+    jumpi v58, bb4, bb8
+  bb8:
+    mstore 64, v55 !metadata(memory=scratch)
+    v59 = calldatasize
+    calldatacopy v5, v59, 64
+    mstore v5, 32
+    v6 = add v5, 32
+    v7 = gas
+    v8 = call v7, v2, 0, 0, 0, v6, 32
+    v9 = returndatasize
+    v10 = gt v9, 32
+    v20 = sub 32, v9
+    v21 = mul v10, v20
+    v22 = add v9, v21
+    v15 = mload v6
+    v41 = iszero v8
+    v42 = iszero v41
+    mstore 128, v42
+    mstore 160, v22
+    mstore 192, v9
+    mstore 224, v15
+    returndata 128, 128
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0xbed1a1cc => bb2]
+  bb2:
+    tail_call @probe
+  bb3:
+    revert 0, 0
+}
