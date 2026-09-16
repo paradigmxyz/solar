@@ -18,10 +18,21 @@ const SPILL_HAZARD_BOUND: u64 = 0x2000;
 mod hazards;
 
 #[derive(Default)]
-struct HeapPrefixOffsets {
+pub(super) struct HeapPrefixOffsets {
     arguments: FxHashMap<FunctionId, FxHashMap<ArgIdx, u64>>,
     returns: FxHashMap<(FunctionId, usize), u64>,
     projections: FxHashMap<FunctionId, FxHashMap<ValueId, (FunctionId, usize)>>,
+}
+
+impl HeapPrefixOffsets {
+    pub(super) fn guard(&self, func_id: FunctionId, func: &Function) -> u64 {
+        EvmCodegen::heap_prefix_guard(
+            func,
+            self.arguments.get(&func_id),
+            &self.returns,
+            self.projections.get(&func_id),
+        )
+    }
 }
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -76,9 +87,13 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(in crate::backend::evm::codegen) fn resolve_pending_frame_size_consts(
         &mut self,
         module: &Module,
+        heap_guard: u64,
     ) {
         for (id, callee) in std::mem::take(&mut self.pending_frame_size_consts) {
-            self.asm.set_deferred_const(id, U256::from(self.emitted_frame_size(module, callee)));
+            // frame_extent = frame_size + heap_guard
+            let extent =
+                U256::from(self.emitted_frame_size(module, callee)) + U256::from(heap_guard);
+            self.asm.set_deferred_const(id, extent);
         }
     }
 
@@ -540,19 +555,16 @@ impl<'gcx> EvmCodegen<'gcx> {
             .map(|(&entry, reachable)| {
                 let guard = reachable
                     .iter()
-                    .map(|func_id| {
-                        Self::heap_prefix_guard(
-                            &module.functions[func_id],
-                            heap_prefix.arguments.get(&func_id),
-                            &heap_prefix.returns,
-                            heap_prefix.projections.get(&func_id),
-                        )
-                    })
+                    .map(|func_id| heap_prefix.guard(func_id, &module.functions[func_id]))
                     .max()
                     .unwrap_or(0);
                 (entry, guard)
             })
             .collect();
+        self.resolve_pending_frame_size_consts(
+            module,
+            reachable_heap_prefix_guards.values().copied().max().unwrap_or(0),
+        );
         let gcx = self.gcx;
         let free_memory_floor =
             |entry: FunctionId, entry_ends: &FxHashMap<FunctionId, u64>, region_start: u64| {
@@ -738,7 +750,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Propagates known heap offsets through actual arguments and helper returns.
     /// Scalar parameters acquire heap provenance only from a caller. Forward and
     /// backward propagation each need at most one round per nonrecursive call edge.
-    fn heap_prefix_offsets(module: &Module) -> HeapPrefixOffsets {
+    pub(in crate::backend::evm::codegen) fn heap_prefix_offsets(
+        module: &Module,
+    ) -> HeapPrefixOffsets {
         let mut offsets = HeapPrefixOffsets::default();
         for (func_id, func) in module.functions.iter_enumerated() {
             for (block_id, block) in func.blocks.iter_enumerated() {

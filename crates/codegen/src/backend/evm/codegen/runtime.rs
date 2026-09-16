@@ -412,7 +412,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.record_function_spill_size(func_id);
         }
 
-        self.resolve_pending_frame_size_consts(module);
         self.resolve_static_frames(module);
     }
 }
