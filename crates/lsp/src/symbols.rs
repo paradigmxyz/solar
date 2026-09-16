@@ -6,7 +6,7 @@ use lsp_types::{
 };
 use serde::Deserialize;
 use solar_interface::{
-    Span,
+    Span, Symbol,
     data_structures::{
         Never,
         index::IndexVec,
@@ -70,9 +70,10 @@ pub(crate) struct SymbolTables {
     scopes: IndexVec<ScopeId, Scope>,
     global_completions: Vec<CompletionItem>,
     builtin_member_completions: FxHashMap<String, Vec<CompletionItem>>,
-    receiver_member_completions: FxHashMap<(ScopeId, SymbolId), Arc<[CompletionItem]>>,
-    contract_member_completions: FxHashMap<(ScopeId, Builtin), Arc<[CompletionItem]>>,
-    namespace_completions: FxHashMap<ScopeId, FxHashMap<String, Arc<[CompletionItem]>>>,
+    member_completion_data: IndexVec<MemberCompletionId, CompletionItem>,
+    receiver_member_completions: FxHashMap<(ScopeId, SymbolId), MemberCompletionItems>,
+    contract_member_completions: FxHashMap<(ScopeId, Builtin), MemberCompletionItems>,
+    namespace_completions: FxHashMap<ScopeId, FxHashMap<String, MemberCompletionItems>>,
     member_completions: Vec<MemberCompletionScope>,
     file_member_completions: FxHashMap<Url, PositionIndex<usize>>,
     file_scopes: FxHashMap<Url, Vec<ScopeId>>,
@@ -128,6 +129,9 @@ newtype_index! {
 
     /// A lexical scope ID in the LSP symbol table.
     pub(crate) struct ScopeId;
+
+    /// An owned member completion response in the LSP symbol table.
+    struct MemberCompletionId;
 }
 
 impl SymbolId {
@@ -217,7 +221,33 @@ struct ScopedDeclaration {
 struct MemberCompletionScope {
     uri: Url,
     range: Range,
-    items: Arc<[CompletionItem]>,
+    items: MemberCompletionItems,
+}
+
+/// Context-resolved member lists share response data through compact indices.
+#[derive(Clone, Debug)]
+struct MemberCompletionItems {
+    ids: Arc<[MemberCompletionId]>,
+    /// Aggregating batches moves the response table without rewriting shared index slices.
+    offset: usize,
+}
+
+impl MemberCompletionItems {
+    fn is_empty(&self) -> bool {
+        self.ids.is_empty()
+    }
+
+    fn offset_by(mut self, offset: usize) -> Self {
+        self.offset += offset;
+        self
+    }
+
+    fn iter<'a>(
+        &'a self,
+        data: &'a IndexVec<MemberCompletionId, CompletionItem>,
+    ) -> impl Iterator<Item = &'a CompletionItem> {
+        self.ids.iter().map(|id| &data[MemberCompletionId::from_usize(id.index() + self.offset)])
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -327,9 +357,39 @@ impl SymbolTables {
     /// `document_link_sources` restricts link sources to files owned by this analysis batch;
     /// every other table still includes transitive dependencies.
     pub(crate) fn build(gcx: Gcx<'_>, document_link_sources: &FxHashSet<PathBuf>) -> Self {
-        let mut tables = Self::default();
         let locations = proto::LocationConverter::new(gcx.sess.clone_source_map());
-        tables.rename.record_source_contents(gcx, &locations);
+        // These indexes own their output and only read analyzed HIR. Use the session's existing
+        // workers; single-threaded sessions build the same indexes sequentially.
+        let (mut tables, ((document_links, natspec_completion), (inlay_hints, signature_help))) =
+            gcx.sess.join(
+                || Self::build_symbols(gcx, &locations),
+                || {
+                    gcx.sess.join(
+                        || {
+                            (
+                                DocumentLinkIndex::build(gcx, document_link_sources, &locations),
+                                NatSpecCompletionIndex::build(gcx),
+                            )
+                        },
+                        || {
+                            gcx.sess.join(
+                                || InlayHintIndex::build(gcx, &locations),
+                                || SignatureHelpIndex::build(gcx, &locations),
+                            )
+                        },
+                    )
+                },
+            );
+        tables.document_links = document_links;
+        tables.natspec_completion = natspec_completion;
+        tables.inlay_hints = inlay_hints;
+        tables.signature_help = signature_help;
+        tables
+    }
+
+    fn build_symbols(gcx: Gcx<'_>, locations: &proto::LocationConverter) -> Self {
+        let mut tables = Self::default();
+        tables.rename.record_source_contents(gcx, locations);
         tables.build_builtin_completions();
         let item_ids = gcx.hir.item_ids();
         let yul_variables = YulVariableCollector::collect(gcx);
@@ -392,7 +452,7 @@ impl SymbolTables {
 
         tables.build_type_definitions(gcx, &item_symbols);
         tables.call_hierarchy =
-            CallHierarchyIndex::build(gcx, &locations, &item_symbols, &tables.declarations);
+            CallHierarchyIndex::build(gcx, locations, &item_symbols, &tables.declarations);
         tables.code_lens = CodeLensIndex::build(gcx, &item_symbols);
 
         // Public state-variable getters are compiler-generated functions, but source member calls
@@ -405,18 +465,15 @@ impl SymbolTables {
             }
         }
         tables.type_hierarchy = TypeHierarchyIndex::build(gcx, &item_symbols, &tables.declarations);
-        let mut member_completions = FxHashMap::default();
-        let contexts = tables.build_scopes(gcx, &locations, &mut member_completions);
+        let mut member_completions = MemberCompletionCache::default();
+        let contexts = tables.build_scopes(gcx, locations, &mut member_completions);
         tables.build_receiver_member_completions(gcx, &contexts, &mut member_completions);
-        tables.build_member_completions(gcx, &locations, &mut member_completions);
+        tables.build_member_completions(gcx, locations, &mut member_completions);
+        tables.member_completion_data = std::mem::take(&mut member_completions.items);
         drop(member_completions);
-        tables.build_references(gcx, &locations, &item_symbols);
+        tables.build_references(gcx, locations, &item_symbols);
         // HIR IDs are scoped to this compiler run and cannot back published LSP queries.
         tables.symbols_by_key = FxHashMap::default();
-        tables.document_links = DocumentLinkIndex::build(gcx, document_link_sources, &locations);
-        tables.inlay_hints = InlayHintIndex::build(gcx, &locations);
-        tables.natspec_completion = NatSpecCompletionIndex::build(gcx);
-        tables.signature_help = SignatureHelpIndex::build(gcx, &locations);
         tables.rebuild_indexes();
         tables
     }
@@ -487,24 +544,35 @@ impl SymbolTables {
         }
         self.declarations.extend(other.declarations);
         self.scopes.extend(other.scopes);
+        let member_offset = self.member_completion_data.len();
+        self.member_completion_data.extend(other.member_completion_data);
         self.receiver_member_completions.extend(other.receiver_member_completions.into_iter().map(
             |((scope_id, symbol_id), items)| {
                 (
                     (remap_scope_id(scope_id, scope_offset), symbol_id.offset_by(symbol_offset)),
-                    items,
+                    items.offset_by(member_offset),
                 )
             },
         ));
         self.contract_member_completions.extend(other.contract_member_completions.into_iter().map(
-            |((scope, builtin), items)| ((remap_scope_id(scope, scope_offset), builtin), items),
+            |((scope, builtin), items)| {
+                ((remap_scope_id(scope, scope_offset), builtin), items.offset_by(member_offset))
+            },
         ));
-        self.namespace_completions.extend(
-            other
-                .namespace_completions
-                .into_iter()
-                .map(|(scope, namespaces)| (remap_scope_id(scope, scope_offset), namespaces)),
-        );
-        self.member_completions.extend(other.member_completions);
+        self.namespace_completions.extend(other.namespace_completions.into_iter().map(
+            |(scope, mut namespaces)| {
+                for items in namespaces.values_mut() {
+                    items.offset += member_offset;
+                }
+                (remap_scope_id(scope, scope_offset), namespaces)
+            },
+        ));
+        self.member_completions.extend(other.member_completions.into_iter().map(
+            |mut completion| {
+                completion.items = completion.items.offset_by(member_offset);
+                completion
+            },
+        ));
         self.references.extend(other.references);
         self.rename.extend(other.rename, symbol_offset);
     }
@@ -1111,7 +1179,10 @@ impl SymbolTables {
         if !self.member_completions.is_empty()
             && let Some(items) = self.member_completion_items(uri, position)
         {
-            return filtered_completion_items(items, context.prefix);
+            return filtered_completion_items(
+                items.iter(&self.member_completion_data),
+                context.prefix,
+            );
         }
         if let Some(items) =
             self.receiver_member_completion_items(uri, position, context.member_receiver)
@@ -1119,7 +1190,7 @@ impl SymbolTables {
             return filtered_completion_items(items, context.prefix);
         }
         if let Some(items) = self.builtin_member_completion_items(context.member_receiver) {
-            return filtered_completion_items(items, context.prefix);
+            return filtered_completion_items(items.iter(), context.prefix);
         }
 
         if context.member_receiver.is_some() {
@@ -1326,18 +1397,32 @@ impl SymbolTables {
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
         cache: &mut MemberCompletionCache<'gcx>,
-    ) -> Arc<[CompletionItem]> {
+    ) -> MemberCompletionItems {
         // Member visibility and attached functions depend on both source and contract context.
-        // Keep compiler types in this analysis-local cache and share only the owned LSP items.
-        Arc::clone(cache.entry((ty, source, contract)).or_insert_with(|| {
-            let mut items = gcx
-                .members_of(ty, source, contract)
-                .map(|member| self.completion_item_for_member(gcx, member))
-                .collect::<Vec<_>>();
-            sort_completion_items(&mut items);
-            items.dedup_by(|a, b| a.label == b.label);
-            Arc::from(items)
-        }))
+        // Keep compiler identities in this analysis-local cache and publish only owned responses.
+        cache
+            .contexts
+            .entry((ty, source, contract))
+            .or_insert_with(|| {
+                let mut members = gcx.members_of(ty, source, contract).collect::<Vec<_>>();
+                members.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+                members.dedup_by(|a, b| a.name == b.name);
+                let ids = members
+                    .into_iter()
+                    .map(|member| {
+                        // Rendering uses name, resolution and attachment, but not the receiver
+                        // type.
+                        *cache
+                            .members
+                            .entry((member.name, member.res, member.attached))
+                            .or_insert_with(|| {
+                                cache.items.push(self.completion_item_for_member(gcx, member))
+                            })
+                    })
+                    .collect();
+                MemberCompletionItems { ids, offset: 0 }
+            })
+            .clone()
     }
 
     fn push_declaration(&mut self, key: SymbolKey, declaration: DeclarationSymbol) -> SymbolId {
@@ -1813,7 +1898,11 @@ impl SymbolTables {
         Vec::new()
     }
 
-    fn member_completion_items(&self, uri: &Url, position: Position) -> Option<&[CompletionItem]> {
+    fn member_completion_items(
+        &self,
+        uri: &Url,
+        position: Position,
+    ) -> Option<&MemberCompletionItems> {
         let completions = self.file_member_completions.get(uri)?;
         self.member_completion_items_at(completions, position)
     }
@@ -1824,7 +1913,7 @@ impl SymbolTables {
         &self,
         completions: &PositionIndex<usize>,
         position: Position,
-    ) -> Option<&[CompletionItem]> {
+    ) -> Option<&MemberCompletionItems> {
         let index = completions
             .candidates_at_with(
                 position,
@@ -1848,7 +1937,7 @@ impl SymbolTables {
         uri: &Url,
         position: Position,
         receiver: Option<&str>,
-    ) -> Option<&[CompletionItem]> {
+    ) -> Option<impl Iterator<Item = &CompletionItem>> {
         let receiver = receiver?;
         let scope_id = self.scope_at_position(uri, position)?;
         let member_scope = self.scopes[scope_id].member_scope;
@@ -1860,7 +1949,7 @@ impl SymbolTables {
             return self
                 .contract_member_completions
                 .get(&(member_scope, builtin))
-                .map(AsRef::as_ref);
+                .map(|items| self.indexed_member_completion_items(Some(items)));
         }
         let mut scope = Some(scope_id);
         while let Some(scope_id) = scope {
@@ -1876,21 +1965,26 @@ impl SymbolTables {
                 if declaration.name.as_deref().unwrap_or(&self.declarations[symbol_id].name)
                     == receiver
                 {
-                    return self
-                        .receiver_member_completions
-                        .get(&(member_scope, symbol_id))
-                        .map(AsRef::as_ref)
-                        .or(Some(&[]));
+                    return Some(self.indexed_member_completion_items(
+                        self.receiver_member_completions.get(&(member_scope, symbol_id)),
+                    ));
                 }
             }
             if let Some(namespaces) = self.namespace_completions.get(&scope_id)
                 && let Some(items) = namespaces.get(receiver)
             {
-                return Some(items);
+                return Some(self.indexed_member_completion_items(Some(items)));
             }
             scope = current.parent;
         }
         None
+    }
+
+    fn indexed_member_completion_items<'a>(
+        &'a self,
+        items: Option<&'a MemberCompletionItems>,
+    ) -> impl Iterator<Item = &'a CompletionItem> {
+        items.into_iter().flat_map(|items| items.iter(&self.member_completion_data))
     }
 
     fn completion_item(&self, symbol_id: SymbolId, name: &str) -> CompletionItem {
@@ -2345,8 +2439,12 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
     }
 }
 
-type MemberCompletionCache<'gcx> =
-    FxHashMap<(Ty<'gcx>, hir::SourceId, Option<hir::ContractId>), Arc<[CompletionItem]>>;
+#[derive(Default)]
+struct MemberCompletionCache<'gcx> {
+    contexts: FxHashMap<(Ty<'gcx>, hir::SourceId, Option<hir::ContractId>), MemberCompletionItems>,
+    members: FxHashMap<(Symbol, Option<Res>, bool), MemberCompletionId>,
+    items: IndexVec<MemberCompletionId, CompletionItem>,
+}
 
 struct MemberCompletionCollector<'a, 'gcx> {
     cache: &'a mut MemberCompletionCache<'gcx>,
@@ -2896,9 +2994,12 @@ fn completion_item_for_builtin(builtin: Builtin) -> CompletionItem {
     }
 }
 
-fn filtered_completion_items(items: &[CompletionItem], prefix: &str) -> Vec<CompletionItem> {
-    let Some(prefix) = completion_filter_prefix(prefix) else { return items.to_vec() };
-    items.iter().filter(|item| fuzzy_completion_match(&prefix, &item.label)).cloned().collect()
+fn filtered_completion_items<'a>(
+    items: impl Iterator<Item = &'a CompletionItem>,
+    prefix: &str,
+) -> Vec<CompletionItem> {
+    let Some(prefix) = completion_filter_prefix(prefix) else { return items.cloned().collect() };
+    items.filter(|item| fuzzy_completion_match(&prefix, &item.label)).cloned().collect()
 }
 
 fn completion_filter_prefix(prefix: &str) -> Option<String> {
@@ -3250,24 +3351,45 @@ mod tests {
             ("earlier", range(1, 0, 1, 4)),
             ("point", range(2, 3, 2, 3)),
         ] {
+            let id = tables
+                .member_completion_data
+                .push(CompletionItem { label: label.into(), ..Default::default() });
             tables.member_completions.push(MemberCompletionScope {
                 uri: uri.clone(),
                 range,
-                items: Arc::from([CompletionItem { label: label.into(), ..Default::default() }]),
+                items: MemberCompletionItems { ids: Arc::from([id]), offset: 0 },
             });
         }
         tables.rebuild_indexes();
 
         let mut duplicate = SymbolTables::default();
-        duplicate.member_completions.push(MemberCompletionScope {
-            uri: uri.clone(),
-            range: range(1, 0, 1, 4),
-            items: Arc::from([CompletionItem { label: "duplicate".into(), ..Default::default() }]),
-        });
+        let id = duplicate
+            .member_completion_data
+            .push(CompletionItem { label: "duplicate".into(), ..Default::default() });
+        let items = MemberCompletionItems { ids: Arc::from([id]), offset: 0 };
+        for range in [range(1, 0, 1, 4), range(5, 0, 5, 4)] {
+            duplicate.member_completions.push(MemberCompletionScope {
+                uri: uri.clone(),
+                range,
+                items: items.clone(),
+            });
+        }
         duplicate.rebuild_indexes();
+        let mut tail = SymbolTables::default();
+        let id = tail
+            .member_completion_data
+            .push(CompletionItem { label: "tail".into(), ..Default::default() });
+        tail.member_completions.push(MemberCompletionScope {
+            uri: uri.clone(),
+            range: range(6, 0, 6, 4),
+            items: MemberCompletionItems { ids: Arc::from([id]), offset: 0 },
+        });
+        let mut nested = SymbolTablesAggregator::default();
+        nested.push(duplicate);
+        nested.push(tail);
         let mut aggregator = SymbolTablesAggregator::default();
         aggregator.push(tables);
-        aggregator.push(duplicate);
+        aggregator.push(nested.finish());
         let tables = aggregator.finish();
 
         for (position, expected) in [
@@ -3280,9 +3402,13 @@ mod tests {
             (Position::new(2, 3), Some("point")),
             (Position::new(4, 0), Some("outer")),
             (Position::new(4, 1), None),
+            (Position::new(5, 1), Some("duplicate")),
+            (Position::new(6, 1), Some("tail")),
         ] {
             assert_eq!(
-                tables.member_completion_items(&uri, position).map(|items| items[0].label.as_str()),
+                tables.member_completion_items(&uri, position).map(|items| {
+                    items.iter(&tables.member_completion_data).next().unwrap().label.as_str()
+                }),
                 expected,
                 "{position:?}",
             );

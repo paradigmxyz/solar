@@ -1,7 +1,7 @@
 use super::{
     AnalysisBatch, AnalysisResultAccumulator, GlobalState, analyze, support::RequestFixture,
 };
-use crate::test_support::MarkedProject;
+use crate::{symbols::CompletionContext, test_support::MarkedProject};
 use async_lsp::{AnyRequest, ClientSocket, router::Router};
 use lsp_types::{
     CompletionClientCapabilities, CompletionItem, CompletionItemCapability,
@@ -10,6 +10,7 @@ use lsp_types::{
     TextDocumentClientCapabilities, TextDocumentIdentifier, TextDocumentPositionParams,
     WorkDoneProgressParams, request, request::Request,
 };
+use snapbox::{assert_data_eq, str};
 use solar_config::{CompileOpts, ImportRemapping};
 use std::{
     future::Future,
@@ -152,6 +153,134 @@ async fn resolves_imported_public_getter_member_completion_documentation() {
     let mut unresolved = resolved;
     unresolved.documentation = None;
     assert_eq!(unresolved, original);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn resolves_members_in_overlapping_scopes_across_analysis_batches() {
+    let fixture = RequestFixture::new_in_batches(
+        r#"
+        //- /Noise.sol
+        contract Noise { uint256 public unrelated; }
+        //- /Definitions.sol
+        /// @notice Token API.
+        contract $1Token$2 {
+            /// @notice Current balance.
+            uint256 public $3balance$4;
+            /// @notice Transfers a numeric amount.
+            function $5transfer$6(uint256 value) public pure {}
+            /// @notice Transfers to an address.
+            function transfer(address recipient) public pure {}
+            /// @notice Internal operation.
+            function $7internalOnly$8() internal pure {}
+        }
+        library Extensions {
+            /// @notice Inspects a token.
+            function $9inspect$10(Token token) internal pure {}
+        }
+        //- /Exports.sol
+        import {Token as Asset} from "./Definitions.sol";
+        //- /Completion.sol open
+        import {Token, Extensions} from "./Definitions.sol";
+        import * as Definitions from "./Definitions.sol";
+        import * as Exports from "./Exports.sol";
+        contract WithExtension is Token {
+            using Extensions for Token;
+            function read(Token token) public view {
+                token;$11
+                this;$13
+                super;$14
+                Definitions;$15
+                Exports;$16
+                (token).$17balance();
+            }
+        }
+        contract WithoutExtension {
+            function read(Token token) public pure { token;$12 }
+        }
+        "#,
+        &["/Noise.sol", "/Completion.sol"],
+    );
+    let state = fixture.state();
+    let tables = state.symbol_tables.load_full();
+    let mut router = crate::new_router_with_state(state);
+    let members = |marker, receiver, prefix| {
+        let (uri, position) = fixture.marker_location(marker);
+        tables.completion_items(&uri, position, CompletionContext::new(prefix, receiver))
+    };
+    for (marker, expected) in
+        [("$11", vec!["balance", "inspect", "transfer"]), ("$12", vec!["balance", "transfer"])]
+    {
+        let items = members(marker, Some("token"), "");
+        assert_eq!(items.iter().map(|item| item.label.as_str()).collect::<Vec<_>>(), expected);
+    }
+
+    let balance = str![[r#"
+uint256 public balance
+
+Current balance.
+"#]];
+    let transfer = str![[r#"
+function transfer(uint256 value) public pure
+
+Transfers a numeric amount.
+"#]];
+    let token = str![[r#"
+contract Token
+
+Token API.
+"#]];
+    for (marker, receiver, label, start_marker, end_marker, expected) in [
+        ("$11", Some("token"), "balance", "$3", "$4", balance.clone()),
+        ("$12", Some("token"), "balance", "$3", "$4", balance.clone()),
+        ("$13", Some("this"), "balance", "$3", "$4", balance.clone()),
+        ("$17", None, "balance", "$3", "$4", balance),
+        ("$11", Some("token"), "transfer", "$5", "$6", transfer.clone()),
+        ("$12", Some("token"), "transfer", "$5", "$6", transfer.clone()),
+        ("$14", Some("super"), "transfer", "$5", "$6", transfer),
+        ("$15", Some("Definitions"), "Token", "$1", "$2", token.clone()),
+        ("$16", Some("Exports"), "Asset", "$1", "$2", token),
+        (
+            "$11",
+            Some("token"),
+            "inspect",
+            "$9",
+            "$10",
+            str![[r#"
+function inspect(Token token) internal pure
+
+Inspects a token.
+"#]],
+        ),
+        (
+            "$14",
+            Some("super"),
+            "internalOnly",
+            "$7",
+            "$8",
+            str![[r#"
+function internalOnly() internal pure
+
+Internal operation.
+"#]],
+        ),
+    ] {
+        let items = members(marker, receiver, label);
+        assert_eq!(items.len(), 1, "{marker}: {items:#?}");
+        let item = items.into_iter().next().unwrap();
+        assert_eq!(item.label, label);
+        let (uri, start) = fixture.marker_location(start_marker);
+        let (_, end) = fixture.marker_location(end_marker);
+        assert_eq!(
+            item.data,
+            Some(serde_json::json!([1, uri, start.line, start.character, end.line, end.character])),
+        );
+        let mut resolved = request_resolve_item(&mut router, item.clone()).await;
+        let Some(Documentation::String(documentation)) = resolved.documentation.take() else {
+            panic!("{marker}: expected resolved documentation");
+        };
+        assert_data_eq!(documentation, expected);
+        assert_eq!(resolved, item);
+    }
 }
 
 #[tokio::test(flavor = "current_thread")]
