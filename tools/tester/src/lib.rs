@@ -341,10 +341,13 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
     }
 
     assert_eq!(config.comment_start, "//");
-    let is_codegen_test = path.components().any(|component| component.as_os_str() == "codegen")
-        || path.file_stem().is_some_and(|stem| {
-            stem == "codegen" && path.parent().and_then(Path::file_name) != Some(OsStr::new("cli"))
-        });
+    // `safe-solar/` pairs each compiler-owned operation with its assembly
+    // spelling; both halves exercise generated output like any codegen test.
+    let is_codegen_test = path.components().any(|component| {
+        component.as_os_str() == "codegen" || component.as_os_str() == "safe-solar"
+    }) || path.file_stem().is_some_and(|stem| {
+        stem == "codegen" && path.parent().and_then(Path::file_name) != Some(OsStr::new("cli"))
+    });
     // Codegen fixtures exercise generated output; the warning is tested separately by CLI fixtures.
     if is_codegen_test {
         config.program.args.push("--allow=2264".into());
