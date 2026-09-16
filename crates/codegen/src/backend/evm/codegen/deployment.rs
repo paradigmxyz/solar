@@ -371,6 +371,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             let internal_targets = call_graph.reachable_callees_from(std::iter::once(ctor_id));
+            let heap_prefix = Self::heap_prefix_offsets(module);
+            let heap_guard = internal_targets
+                .iter()
+                .chain([ctor_id])
+                .map(|func_id| heap_prefix.guard(func_id, &module.functions[func_id]))
+                .max()
+                .unwrap_or(0);
             for func_id in &internal_targets {
                 let label = self.new_function_label(func_id);
                 self.function_labels.insert(func_id, label);
@@ -378,7 +385,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             // Constructor locals, immutable staging, and spills occupy fixed
             // compiler-owned regions. The ABI blob starts after their exact
-            // post-emission end, and dynamic allocations start after the blob.
+            // post-emission end. The heap prefix follows the complete ABI blob.
             let constructor_fixed_memory_end = self.asm.new_deferred_const();
             let constructor_arg_offset =
                 (!ctor.params.is_empty()).then(|| self.asm.new_deferred_const());
@@ -407,13 +414,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::ADD);
                 self.asm.emit_push(U256::MAX - U256::from(EvmMemoryLayout::WORD_SIZE - 1));
                 self.asm.emit_op(op::AND);
-                self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-                self.asm.emit_op(op::MSTORE);
             } else {
                 self.asm.emit_push_deferred(constructor_fixed_memory_end);
-                self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-                self.asm.emit_op(op::MSTORE);
             }
+            // heap_start = aligned_args_end + heap_guard
+            // mstore(FMP_SLOT, heap_start)
+            if heap_guard != 0 {
+                self.asm.emit_push(U256::from(heap_guard));
+                self.asm.emit_op(op::ADD);
+            }
+            self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
+            self.asm.emit_op(op::MSTORE);
 
             if !internal_targets.is_empty() {
                 let constructor_entry = self.asm.new_label();
@@ -445,15 +456,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.mark_debug_function_invoke(ctor);
             self.generate_function_body(ctor_id, ctor);
             let constructor_spill_size = self.record_function_spill_size(ctor_id);
-            self.asm.set_deferred_const(
-                constructor_fixed_memory_end,
-                U256::from(self.constructor_fixed_memory_end(
-                    module.immutable_count(),
-                    constructor_spill_size,
-                )),
-            );
+            let fixed_memory_end =
+                self.constructor_fixed_memory_end(module.immutable_count(), constructor_spill_size);
+            if fixed_memory_end.checked_add(heap_guard).is_none() {
+                self.gcx
+                    .dcx()
+                    .err("constructor heap prefix exceeds the addressable memory range")
+                    .span(ctor.name_span)
+                    .emit();
+            }
+            self.asm.set_deferred_const(constructor_fixed_memory_end, U256::from(fixed_memory_end));
 
-            self.resolve_pending_frame_size_consts(module);
+            self.resolve_pending_frame_size_consts(module, heap_guard);
 
             if !self.stack_prefixes_fit_from(module, ctor_id, MAX_STACK_DEPTH) {
                 self.report_stack_limit_error();
