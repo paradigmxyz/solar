@@ -1,0 +1,84 @@
+// === <solar:core/v1/Arrays.sol>:Arrays ===
+@module Arrays
+@phase evm-shaped
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/arrays_lowering.sol:Test ===
+@module Test
+@phase evm-shaped
+fn @shorten() [selector=0xf0187838, pure] {
+  bb0:
+    v4 = calldatasize
+    v5 = lt v4, 68
+    jumpi v5, bb3, bb4
+  bb4:
+    v6 = calldataload 4
+    v7 = add v6, 4
+    v8 = add v7, 32
+    v9 = gt v6, 0xffffffffffffffff
+    v10 = gt v8, v4
+    v11 = or v9, v10
+    jumpi v11, bb3, bb5
+  bb5:
+    v12 = calldataload v7
+    v14 = shl 5, v12
+    v16 = shr 5, v14
+    v17 = eq v16, v12
+    jumpi v17, bb7, bb6
+  bb7:
+    v20 = add v14, 32
+    v21 = lt v20, v14
+    jumpi v21, bb6, bb8
+  bb8:
+    v22 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v33 = add v22, v20
+    v34 = lt v33, v22
+    v35 = gt v33, 0xffffffffffffffff
+    v36 = or v34, v35
+    jumpi v36, bb6, bb10
+  bb10:
+    mstore 64, v33 !metadata(memory=scratch)
+    mstore v22, v12
+    v23 = sub v4, v8
+    v24 = shr 5, v23
+    v25 = gt v12, v24
+    jumpi v25, bb3, bb9
+  bb9:
+    v30 = add v22, 32
+    calldatacopy v30, v8, v14
+    v2 = gt arg1, v12
+    jumpi v2, bb1, bb2
+  bb2:
+    mstore v22, arg1
+    mstore 128, v12
+    mstore 160, arg1
+    returndata 128, 64
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0xf0187838 => bb2]
+  bb2:
+    tail_call @shorten
+  bb3:
+    revert 0, 0
+}
