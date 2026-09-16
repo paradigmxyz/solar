@@ -109,6 +109,28 @@ fn @conditionalLiteral(arg0: bool) -> u256 [selector=0x288b909f, abi_params=[boo
     ret v5
 }
 
+fn @overlappingLiteral(arg0: bool) -> u256 [selector=0x7d61a7f9, abi_params=[bool], abi_returns=[word]] {
+  bb0:
+    v0 = mload 65 !metadata(memory=scratch)
+    v1 = shr 8, v0
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v2, 2
+    v3 = memory_object_data memorybytes, v2
+    mstore v3, 0xabcd000000000000000000000000000000000000000000000000000000000000
+    v4 = add v2, 32
+    log0 v4, 2
+    jump bb3
+  bb3:
+    v5 = mload 65 !metadata(memory=scratch)
+    v6 = shr 8, v5
+    v7 = sub v6, v1
+    ret v7
+}
+
 fn @fmpIsStable() -> struct0 [selector=0x8543d886, pure, abi_params=[], abi_returns=[word<bool>, word, word], abi_return_params=[bool, u256, u256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)

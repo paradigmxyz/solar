@@ -621,7 +621,6 @@ impl<'a> Validator<'a> {
             .map(|index| func.arg_ty(index))
             .chain(std::iter::once(func.return_type()))
             .chain(func.return_components().iter().copied())
-            .chain(func.live_values().filter_map(|value| func.value_ty(value)))
         {
             if let MirType::Struct(id) = ty
                 && module.struct_types.get(id).is_none()
@@ -632,6 +631,18 @@ impl<'a> Validator<'a> {
         for (block, body) in func.blocks.iter_enumerated() {
             for &id in &body.instructions {
                 let inst = func.inst(id);
+                let operands = inst.kind.operands();
+                let mut has_struct_value = false;
+                for ty in
+                    operands.iter().filter_map(|&value| func.value_ty(value)).chain(inst.result_ty)
+                {
+                    if let MirType::Struct(ty) = ty {
+                        has_struct_value = true;
+                        if module.struct_types.get(ty).is_none() {
+                            self.emit(format_args!("undefined struct type `struct{}`", ty.index()));
+                        }
+                    }
+                }
                 match &inst.kind {
                     InstKind::Phi(incoming) => {
                         for &(_, value) in incoming {
@@ -712,7 +723,7 @@ impl<'a> Validator<'a> {
                         }
                     }
                     InstKind::InsertValue { .. } | InstKind::ExtractValue { .. } => {}
-                    _ => {
+                    _ if has_struct_value => {
                         if matches!(inst.result_ty, Some(MirType::Struct(_))) {
                             self.emit_at_inst(
                                 "instruction cannot produce a struct value",
@@ -720,7 +731,7 @@ impl<'a> Validator<'a> {
                                 id,
                             );
                         }
-                        for value in inst.kind.operands() {
+                        for &value in &operands {
                             if matches!(func.value_ty(value), Some(MirType::Struct(_))) {
                                 self.emit_at_inst(
                                     "instruction cannot consume a struct value",
@@ -730,6 +741,7 @@ impl<'a> Validator<'a> {
                             }
                         }
                     }
+                    _ => {}
                 }
                 let (ty, aggregate, index, inserted) = match inst.kind {
                     InstKind::InsertValue { ty, aggregate, index, value } => {
@@ -777,6 +789,15 @@ impl<'a> Validator<'a> {
                         id,
                     );
                 }
+            }
+            if let Some(term) = &body.terminator {
+                term.for_each_operand(|value| {
+                    if let Some(MirType::Struct(ty)) = func.value_ty(value)
+                        && module.struct_types.get(ty).is_none()
+                    {
+                        self.emit(format_args!("undefined struct type `struct{}`", ty.index()));
+                    }
+                });
             }
             match &body.terminator {
                 Some(crate::mir::Terminator::Return { values }) => {

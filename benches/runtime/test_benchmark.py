@@ -16,6 +16,26 @@ SPEC.loader.exec_module(benchmark)
 
 
 class CorpusTests(unittest.TestCase):
+    def test_brutalized_calls_keep_measurements_but_exclude_comparison(self):
+        case = next(
+            case for case in benchmark.TEST_CASES if case.test_id == "solady-lib-string"
+        )
+        calls = benchmark.gas_calls(case, "hot")
+        excluded = [call for call in calls if call.comparison_exclusion_reason]
+        self.assertEqual(len(excluded), 22)
+        self.assertEqual(
+            {call.signature for call in excluded},
+            {
+                "testBytesToHexStringNoPrefix(bytes)",
+                "testBytesToHexString(bytes)",
+                "testStringIs7BitASCIIDifferential(bytes)",
+            },
+        )
+        self.assertEqual(
+            {call.comparison_exclusion_reason for call in excluded},
+            {"Memory brutalizer workload depends on gas and contract bytecode."},
+        )
+
     def test_source_links_pin_checkout_and_upstream(self) -> None:
         case = next(
             case
@@ -669,6 +689,47 @@ class ArtifactTests(unittest.TestCase):
 
         self.assertFalse(merged)
         self.assertNotIn("solc", entry["compilers"])
+
+    def test_reference_reuse_copies_exclusions_without_changing_raw_gas(self):
+        current_call = {
+            "label": "stress",
+            "call": "stress()",
+            "args": [],
+            "gas": 90,
+            "comparison_exclusion_reason": "code-dependent workload",
+        }
+        entry = {
+            "test_id": "test",
+            "suite": "runtime",
+            "gas_profile": "hot",
+            "compilers": {
+                "solar": {"input_fingerprint": "input", "gas_results": [current_call]}
+            },
+        }
+        old_call = {"label": "stress", "call": "stress()", "args": [], "gas": 70}
+        reference = {
+            "gas_profile": "hot",
+            "compilers": {
+                "solc": {
+                    "input_fingerprint": "input",
+                    "gas_results": [old_call],
+                    "total_gas": 70,
+                }
+            },
+        }
+        self.assertTrue(
+            benchmark.merge_reference_compiler(
+                entry, {("runtime", "test"): reference}, "solc"
+            )
+        )
+        self.assertEqual(
+            entry["compilers"]["solc"]["gas_results"],
+            [{**old_call, "comparison_exclusion_reason": "code-dependent workload"}],
+        )
+        self.assertEqual(entry["compilers"]["solc"]["total_gas"], 70)
+        self.assertEqual(
+            old_call, {"label": "stress", "call": "stress()", "args": [], "gas": 70}
+        )
 
     def test_rejects_reference_results_for_different_workloads(self) -> None:
         entry = {

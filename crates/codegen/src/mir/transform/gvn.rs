@@ -29,7 +29,10 @@
 //! Only pure word expressions (and `calldataload`/`blockhash`/`blobhash`,
 //! which are pure within one execution) participate. Memory, storage, and
 //! account-environment reads, `gas`/`msize`/`returndatasize`, and calls never
-//! merge here; CSE keeps covering those with its clobber tracking.
+//! merge here; CSE keeps covering those with its clobber tracking. A narrow exception
+//! shares memory-key mapping hashes in uncalled external ABI entries whose decoded
+//! arguments stay unchanged below the free-memory pointer and whose scratch writes
+//! cannot be observed. Raw memory access, allocation, and calls disable this exception.
 //!
 //! ## Replacement
 //!
@@ -44,9 +47,10 @@
 //! are left behind for DCE, matching the other passes.
 
 use crate::mir::{
-    BlockId, Function, Immediate, InstId, InstKind, MemoryObjectKind, MemoryObjectLayout, MirType,
-    Module, Value, ValueId,
-    analysis::CfgInfo,
+    AbiParamType, AbiType, BlockId, Builtin, Callee, Function, FunctionId, Immediate, InstId,
+    InstKind, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, RequireKind,
+    Terminator, Value, ValueId,
+    analysis::{CallGraphInfo, CfgInfo},
     pass::{MirPass, run_function_pass},
     utils as mir_utils,
 };
@@ -67,12 +71,116 @@ impl MirPass for Gvn {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let mut fresh_mapping_entries =
+            DenseBitSet::<FunctionId>::new_empty(module.functions.len());
+        if module.phase() == MirPhase::Semantic {
+            for (id, func) in module.functions.iter_enumerated() {
+                if has_fresh_mapping_arguments(func) {
+                    fresh_mapping_entries.insert(id);
+                }
+            }
+            if !fresh_mapping_entries.is_empty() {
+                for func in &module.functions {
+                    fresh_mapping_entries.subtract(&CallGraphInfo::collect_internal_callees(
+                        func,
+                        module.functions.len(),
+                    ));
+                }
+            }
+        }
         run_function_pass(module, analyses, |func, analyses| {
             let mut numberer = GlobalValueNumberer::new();
             numberer.cfg = Some(Rc::clone(&analyses.cfg));
+            numberer.fresh_mapping_arguments = fresh_mapping_entries.contains(analyses.function);
             numberer.run(func) != 0
         })
     }
+}
+
+/// Proves ABI-decoded keys remain below scratch and no code observes scratch writes.
+fn has_fresh_mapping_arguments(func: &Function) -> bool {
+    if func.selector.is_none() || func.attributes.is_constructor || func.attributes.is_abi_wrapper {
+        return false;
+    }
+    let Some(abi_params) = &func.abi_params else { return false };
+    if func
+        .abi_returns
+        .as_ref()
+        .is_none_or(|layout| !layout.types.iter().all(|ty| matches!(ty, AbiType::Word(_))))
+        || func.abi_return_params.as_ref().is_some_and(|layout| {
+            !layout.types.iter().all(|ty| matches!(ty, AbiParamType::Scalar(ty) if ty.is_word()))
+        })
+    {
+        return false;
+    }
+    let mut has_mapping = false;
+    for block in &func.blocks {
+        if !matches!(
+            block.terminator,
+            Some(
+                Terminator::Jump(_)
+                    | Terminator::Branch { .. }
+                    | Terminator::Switch { .. }
+                    | Terminator::Return { .. }
+                    | Terminator::Invalid
+            )
+        ) {
+            return false;
+        }
+        for &inst in &block.instructions {
+            match &func.inst(inst).kind {
+                InstKind::MappingSlotMemory(key, _) => {
+                    if !matches!(func.value(*key), Value::Arg(index)
+                        if func.params[*index] == MirType::MemoryObject(MemoryObjectKind::Bytes)
+                            && abi_params.types.get(index.index()) == Some(&AbiParamType::Bytes))
+                    {
+                        return false;
+                    }
+                    has_mapping = true;
+                }
+                InstKind::ICall {
+                    function: Callee::Builtin(Builtin::Require(RequireKind::CustomError(layout))),
+                    ..
+                } if layout.types.is_empty()
+                    && matches!(block.terminator, Some(Terminator::Invalid))
+                    && block.instructions.last() == Some(&inst) => {}
+                InstKind::Phi(_)
+                | InstKind::Add(..)
+                | InstKind::Sub(..)
+                | InstKind::Mul(..)
+                | InstKind::Div(..)
+                | InstKind::SDiv(..)
+                | InstKind::Mod(..)
+                | InstKind::SMod(..)
+                | InstKind::Exp(..)
+                | InstKind::AddMod(..)
+                | InstKind::MulMod(..)
+                | InstKind::And(..)
+                | InstKind::Or(..)
+                | InstKind::Xor(..)
+                | InstKind::Not(..)
+                | InstKind::Shl(..)
+                | InstKind::Shr(..)
+                | InstKind::Sar(..)
+                | InstKind::Byte(..)
+                | InstKind::Lt(..)
+                | InstKind::Gt(..)
+                | InstKind::SLt(..)
+                | InstKind::SGt(..)
+                | InstKind::Eq(..)
+                | InstKind::IsZero(..)
+                | InstKind::Clz(..)
+                | InstKind::SignExtend(..)
+                | InstKind::Select(..)
+                | InstKind::SLoad(..)
+                | InstKind::SStore(..)
+                | InstKind::Caller
+                | InstKind::CallValue => {}
+                _ => return false,
+            }
+        }
+    }
+    has_mapping
 }
 
 /// Hard cap on value-numbering sweeps per round.
@@ -91,6 +199,7 @@ struct GlobalValueNumberer {
     cfg: Option<Rc<CfgInfo>>,
     /// Number of instructions folded onto a congruent leader.
     eliminated_count: usize,
+    fresh_mapping_arguments: bool,
 }
 
 /// A hash-consing key for one instruction: its expression over operand
@@ -142,6 +251,7 @@ enum ExprKind {
     MemoryObjectFieldAddr(ClassId, MemoryObjectLayout, u64),
     MemoryObjectElementAddr(ClassId, MemoryObjectLayout, ClassId),
     Phi(BlockId, Vec<(BlockId, ClassId)>),
+    MappingSlotMemory(ClassId, ClassId),
 }
 
 struct ReplaceCtx<'a> {
@@ -172,7 +282,7 @@ impl GlobalValueNumberer {
     /// Runs one numbering and replacement round. Returns true if MIR changed.
     fn run_round(&mut self, func: &mut Function) -> bool {
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
-        let Some((vn, available_values)) = Self::compute_value_numbers(func, cfg.rpo()) else {
+        let Some((vn, available_values)) = self.compute_value_numbers(func, cfg.rpo()) else {
             return false;
         };
 
@@ -206,6 +316,7 @@ impl GlobalValueNumberer {
     /// Computes a converged congruence-class assignment, or `None` if the
     /// sweep cap was hit first.
     fn compute_value_numbers(
+        &self,
         func: &Function,
         rpo: &[BlockId],
     ) -> Option<(IndexVec<ValueId, ClassId>, DenseBitSet<ValueId>)> {
@@ -244,7 +355,7 @@ impl GlobalValueNumberer {
                     let inst = func.inst(inst_id);
                     let Some(ty) = inst.result_ty else { continue };
                     let Some(class) =
-                        Self::instruction_class(block_id, &inst.kind, ty, result, &vn, &mut table)
+                        self.instruction_class(block_id, &inst.kind, ty, result, &vn, &mut table)
                     else {
                         continue;
                     };
@@ -268,6 +379,7 @@ impl GlobalValueNumberer {
     /// own result), so a stale merge from an earlier sweep cannot survive a
     /// sweep that no longer justifies it.
     fn instruction_class(
+        &self,
         block_id: BlockId,
         kind: &InstKind,
         ty: MirType,
@@ -285,7 +397,7 @@ impl GlobalValueNumberer {
             let key = ExprKey { kind: ExprKind::Phi(block_id, incoming), ty };
             return Some(*table.entry(key).or_insert(result));
         }
-        let kind = Self::expr_kind(kind, vn)?;
+        let kind = self.expr_kind(kind, vn)?;
         Some(*table.entry(ExprKey { kind, ty }).or_insert(result))
     }
 
@@ -309,7 +421,7 @@ impl GlobalValueNumberer {
 
     /// Builds the expression shape over operand classes for pure word ops.
     /// Returns `None` for every other instruction.
-    fn expr_kind(kind: &InstKind, vn: &IndexVec<ValueId, ClassId>) -> Option<ExprKind> {
+    fn expr_kind(&self, kind: &InstKind, vn: &IndexVec<ValueId, ClassId>) -> Option<ExprKind> {
         let class = |value: ValueId| vn[value];
         let sorted = |a: ValueId, b: ValueId| {
             let (a, b) = (class(a), class(b));
@@ -371,6 +483,9 @@ impl GlobalValueNumberer {
             InstKind::Select(condition, then_value, else_value) => {
                 ExprKind::Select(class(condition), class(then_value), class(else_value))
             }
+            InstKind::MappingSlotMemory(key, slot) if self.fresh_mapping_arguments => {
+                ExprKind::MappingSlotMemory(class(key), class(slot))
+            }
             InstKind::CalldataLoad(a) => ExprKind::CalldataLoad(class(a)),
             InstKind::BlockHash(a) => ExprKind::BlockHash(class(a)),
             InstKind::BlobHash(a) => ExprKind::BlobHash(class(a)),
@@ -408,7 +523,7 @@ impl GlobalValueNumberer {
         for &inst_id in &func.blocks[block_id].instructions {
             let Some(result) = func.inst_result_value(inst_id) else { continue };
             let kind = &func.inst(inst_id).kind;
-            if !matches!(kind, InstKind::Phi(_)) && Self::expr_kind(kind, ctx.vn).is_none() {
+            if !matches!(kind, InstKind::Phi(_)) && self.expr_kind(kind, ctx.vn).is_none() {
                 continue;
             }
             let class = ctx.vn[result];
