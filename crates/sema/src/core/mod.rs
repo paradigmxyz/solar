@@ -35,6 +35,12 @@ pub struct CoreModule {
 pub const MODULES: &[CoreModule] = &[
     CoreModule { path: "solar:core/v1/Bytes.sol", source: include_str!("v1/Bytes.sol") },
     CoreModule { path: "solar:core/v1/Arrays.sol", source: include_str!("v1/Arrays.sol") },
+    CoreModule { path: "solar:core/v1/Revert.sol", source: include_str!("v1/Revert.sol") },
+    CoreModule { path: "solar:core/v1/Hash.sol", source: include_str!("v1/Hash.sol") },
+    CoreModule { path: "solar:core/v1/Create.sol", source: include_str!("v1/Create.sol") },
+    CoreModule { path: "solar:core/v1/Code.sol", source: include_str!("v1/Code.sol") },
+    CoreModule { path: "solar:core/v1/Calls.sol", source: include_str!("v1/Calls.sol") },
+    CoreModule { path: "solar:core/v1/Bits.sol", source: include_str!("v1/Bits.sol") },
 ];
 
 /// Whether `path` lies under the reserved prefix.
@@ -74,6 +80,19 @@ pub enum CoreIntrinsic {
     Fill,
     /// `Arrays.truncate(a, n)` for every supported array type.
     Truncate,
+    /// `Revert.raw(data)`: revert with exactly `data`.
+    RevertRaw,
+    /// `Hash.keccak256Range(b, offset, count)`: hash a range where it lies.
+    Keccak256Range,
+    /// `Create.deploy(initcode, value)`: create, reverting on failure.
+    Deploy,
+    /// `Create.deploy2(initcode, salt, value)`: create2, reverting on failure.
+    Deploy2,
+    /// `Code.copyInto(dst, dstOffset, target, start, count)`: a checked
+    /// `extcodecopy`.
+    CodeCopyInto,
+    /// `Bits.leadingZeros(x)`: `clz`, on targets that have it.
+    LeadingZeros,
 }
 
 /// Returns the intrinsic `function` names, if it is one.
@@ -95,6 +114,11 @@ pub fn intrinsic_of(gcx: crate::ty::Gcx<'_>, function: hir::FunctionId) -> Optio
 fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreIntrinsic>> {
     static BYTES: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static ARRAYS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static REVERT: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static HASH: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static CREATE: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static CODE: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static BITS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     match path {
         "solar:core/v1/Bytes.sol" => Some(BYTES.get_or_init(|| {
             // The names are built here, so the whole family shares one
@@ -121,6 +145,32 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
             // kind off the declared parameter type.
             FxHashMap::from_iter([(Symbol::intern("truncate"), CoreIntrinsic::Truncate)])
         })),
+        "solar:core/v1/Revert.sol" => Some(REVERT.get_or_init(|| {
+            FxHashMap::from_iter([(Symbol::intern("raw"), CoreIntrinsic::RevertRaw)])
+        })),
+        "solar:core/v1/Hash.sol" => Some(HASH.get_or_init(|| {
+            FxHashMap::from_iter([(
+                Symbol::intern("keccak256Range"),
+                CoreIntrinsic::Keccak256Range,
+            )])
+        })),
+        "solar:core/v1/Create.sol" => Some(CREATE.get_or_init(|| {
+            // `predict2` is arithmetic and stays a call to its body.
+            FxHashMap::from_iter([
+                (Symbol::intern("deploy"), CoreIntrinsic::Deploy),
+                (Symbol::intern("deploy2"), CoreIntrinsic::Deploy2),
+            ])
+        })),
+        "solar:core/v1/Code.sol" => Some(CODE.get_or_init(|| {
+            // `read` is library code over `copyInto`.
+            FxHashMap::from_iter([(Symbol::intern("copyInto"), CoreIntrinsic::CodeCopyInto)])
+        })),
+        "solar:core/v1/Bits.sol" => Some(BITS.get_or_init(|| {
+            // `trailingZeros` and `popCount` have no instruction to lower to.
+            FxHashMap::from_iter([(Symbol::intern("leadingZeros"), CoreIntrinsic::LeadingZeros)])
+        })),
+        // `Calls` returns three values, which the lowering does not build
+        // yet; its bodies are single assembly calls.
         _ => None,
     }
 }

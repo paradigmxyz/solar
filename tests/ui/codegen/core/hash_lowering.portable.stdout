@@ -1,0 +1,155 @@
+// === <solar:core/v1/Hash.sol>:Hash ===
+@module Hash
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/hash_lowering.sol:Test ===
+@module Test
+@phase lowered
+fn @hash() [selector=0x00d07523, abi_wrapper, pure] {
+  bb0:
+    v1 = calldatasize
+    v2 = lt v1, 100
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = calldataload 4
+    v4 = add v3, 4
+    v5 = add v4, 32
+    v6 = gt v3, 0xffffffffffffffff
+    v7 = gt v5, v1
+    v8 = or v6, v7
+    jumpi v8, bb1, bb3
+  bb3:
+    v9 = calldataload v4
+    v11 = add v9, 63
+    v12 = lt v11, v9
+    jumpi v12, bb4, bb5
+  bb5:
+    v14 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = mload 64 !metadata(memory=scratch)
+    v24 = add v15, v14
+    v25 = lt v24, v15
+    v26 = gt v24, 0xffffffffffffffff
+    v27 = or v25, v26
+    jumpi v27, bb4, bb7
+  bb7:
+    mstore 64, v24 !metadata(memory=scratch)
+    mstore v15, v9
+    v16 = sub v1, v5
+    v17 = gt v9, v16
+    jumpi v17, bb1, bb6
+  bb6:
+    v21 = add v15, 32
+    calldatacopy v21, v5, v9
+    v0 = icall @keccak256Range, v15, arg1, arg2
+    mstore 128, v0
+    returndata 128, 32
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @keccak256Range(arg0: memptr, arg1: u256, arg2: u256) -> bytes32 [pure] {
+  bb0:
+    v0 = mload arg0
+    v1 = gt arg2, v0
+    jumpi v1, bb6, bb1
+  bb1:
+    v36 = sub v0, arg2
+    v4 = gt arg1, v36
+    jumpi v4, bb6, bb2
+  bb2:
+    v8 = add arg2, 63
+    v9 = lt v8, arg2
+    jumpi v9, bb7, bb8
+  bb8:
+    v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v12 = mload 64 !metadata(memory=scratch)
+    v54 = add v12, v11
+    v55 = lt v54, v12
+    v56 = gt v54, 0xffffffffffffffff
+    v57 = or v55, v56
+    jumpi v57, bb7, bb15
+  bb15:
+    mstore 64, v54 !metadata(memory=scratch)
+    v58 = calldatasize
+    calldatacopy v12, v58, v11
+    mstore v12, arg2
+    v21 = mload arg0
+    v44 = add arg0, 32
+    v48 = add v12, 32
+    jump bb3
+  bb3:
+    v14 = phi [bb15: 0], [bb11: v40]
+    v19 = lt v14, arg2
+    jumpi v19, bb5, bb4
+  bb4:
+    v42 = mload v12
+    v43 = add v12, 32
+    v31 = keccak256 v43, v42
+    ret v31
+  bb5:
+    v38 = add arg1, v14
+    v39 = lt v38, arg1
+    jumpi v39, bb12, bb13
+  bb13:
+    v22 = lt v38, v21
+    jumpi v22, bb10, bb9
+  bb10:
+    v45 = add v44, v38
+    v46 = mload v45
+    v47 = byte 0, v46
+    v26 = mload v12
+    v27 = lt v14, v26
+    jumpi v27, bb11, bb9
+  bb11:
+    v49 = add v48, v14
+    mstore8 v49, v47
+    v40 = add v14, 1
+    jump bb3
+  bb12:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
+  bb6:
+    v32 = mload 64 !metadata(memory=scratch)
+    v50 = add v32, 32
+    v51 = lt v50, v32
+    v52 = gt v50, 0xffffffffffffffff
+    v53 = or v51, v52
+    jumpi v53, bb7, bb14
+  bb14:
+    mstore 64, v50 !metadata(memory=scratch)
+    mstore v32, 0
+    mstore v32, 0
+    jump bb9
+  bb9:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
+  bb7:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0xd07523 => bb2]
+  bb2:
+    tail_call @hash
+  bb3:
+    revert 0, 0
+}
