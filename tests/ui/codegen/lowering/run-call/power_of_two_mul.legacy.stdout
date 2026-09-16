@@ -16,7 +16,7 @@ bb0:
   dup 1
   push 0xa75826ae
   eq
-  push bb39
+  push bb9
   jumpi
   dup 1
   push 0xb10b60bd
@@ -36,14 +36,14 @@ bb0:
   dup 1
   push 0xe4bb44bc
   eq
-  push bb39
+  push bb9
   jumpi
   jump bb8
 bb8 [cold]:
   push 0
   dup 1
   revert
-bb39:
+bb9:
   push 36
   calldatasize
   lt
@@ -58,6 +58,18 @@ bb39:
   push 32
   push 128
   return
+bb38 [cold]:
+  push 0x4e487b71
+  push 0
+  mstore
+  push 65
+  jump bb40
+bb40 [cold]:
+  push 32
+  mstore
+  push 36
+  push 28
+  revert
 bb15:
   push 36
   calldatasize
@@ -138,17 +150,11 @@ bb19 [loop]:
   jumpi
   jump bb21
 bb21 [cold]:
-  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
+  push 0x4e487b71
   push 0
   mstore
   push 17
   jump bb40
-bb40 [cold]:
-  push 4
-  mstore
-  push 36
-  push 0
-  revert
 bb23:
   push 36
   calldatasize
@@ -251,13 +257,11 @@ bb29:
   exp
   swap 1
   div
-  swap 1
-  swap 3
+  dup 4
   gt
   push bb8
   jumpi
   push 32
-  dup 3
   add
   dup 2
   dup 5
@@ -266,7 +270,6 @@ bb29:
   swap 3
   pop
   pop
-  mload
   push 36
   calldataload
   lt
@@ -285,14 +288,8 @@ bb29:
   push 128
   return
 bb37 [cold]:
-  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
+  push 0x4e487b71
   push 0
   mstore
   push 50
-  jump bb40
-bb38 [cold]:
-  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
-  push 0
-  mstore
-  push 65
   jump bb40

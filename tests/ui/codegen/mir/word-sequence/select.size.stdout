@@ -1,7 +1,6 @@
 - // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (before word-sequence) ===
 + // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (after word-sequence) ===
   @module ConstantSelectRecipes
-  @phase memory-lowered
   fn @zero_right_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     bb0:
 -     v0 = select arg0, arg1, 0

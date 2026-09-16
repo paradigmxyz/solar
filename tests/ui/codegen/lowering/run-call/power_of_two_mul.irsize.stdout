@@ -45,17 +45,15 @@ bb8 [cold]:
   revert
 bb38 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 65
   jump bb42
 bb42 [cold]:
-  push 4
+  push 32
   mstore
   push 36
-  push 0
+  push 28
   revert
 bb15:
   push 36
@@ -140,8 +138,6 @@ bb19 [loop]:
   jump bb21
 bb21 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 17
@@ -244,13 +240,11 @@ bb29:
   sub
   push 5
   shr
-  swap 1
-  swap 3
+  dup 4
   gt
   push bb8
   jumpi
   push 32
-  dup 3
   add
   dup 2
   dup 5
@@ -259,7 +253,6 @@ bb29:
   swap 3
   pop
   pop
-  mload
   push 36
   calldataload
   lt
@@ -275,8 +268,6 @@ bb29:
   jump bb43
 bb37 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 50

@@ -1,8 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (before lower-evm-shaped) ===
 + // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (after lower-evm-shaped) ===
   @module ConstantSelectRecipes
-- @phase memory-lowered
-+ @phase evm-shaped
++ @phase lowered
   fn @zero_right_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     bb0:
 -     v0 = select arg0, arg1, 0

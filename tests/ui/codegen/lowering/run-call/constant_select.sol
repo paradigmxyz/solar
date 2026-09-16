@@ -59,6 +59,7 @@ contract ConstantSelect {
     // SIZE: [[SIGNATURE]]:
     // SIZE: jump [[VALIDATED:bb[0-9]+]]
     // SIZE-NEXT: [[VALIDATED]]:
+    // SIZE-NEXT: lt
     // SIZE-NEXT: push {{bb[0-9]+}}
     // SIZE-NEXT: jumpi
     // SIZE-NEXT: push 4

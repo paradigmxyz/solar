@@ -6,7 +6,7 @@
 //@[size] filecheck: --check-prefixes=RECIPE,SIZE
 //@[shape] filecheck: --check-prefix=SHAPE
 @module ConstantSelectRecipes
-@phase memory-lowered
+@phase semantic
 
 // RECIPE-LABEL: fn @zero_right_dirty(
 // RECIPE: + {{ *}}[[Z:v[0-9]+]] = iszero arg0
