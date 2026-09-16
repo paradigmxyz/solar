@@ -1,0 +1,66 @@
+// === <solar:core/v1/Bits.sol>:Bits ===
+@module Bits
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/bits_lowering.sol:Test ===
+@module Test
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = or v0, v2
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = calldataload 0
+    v5 = shr 224, v4
+    v6 = calldataload 4
+    switch v5, default bb1, [0x3ce23483 => bb3, 0x5b348c5a => bb4, 0xb2f925a4 => bb5]
+  bb5:
+    v14 = and v6, 1
+    v16 = shr 2, v6
+    v17 = and v16, 0x5555555555555555555555555555555555555555555555555555555555555555
+    v15 = shr 1, v6
+    v18 = sub v15, v17
+    v20 = shr 2, v18
+    v21 = and v20, 0x3333333333333333333333333333333333333333333333333333333333333333
+    v19 = and v18, 0x3333333333333333333333333333333333333333333333333333333333333333
+    v22 = add v19, v21
+    v23 = shr 4, v22
+    v24 = add v22, v23
+    v25 = and v24, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+    v26 = mul v25, 0x101010101010101010101010101010101010101010101010101010101010101
+    v27 = shr 248, v26
+    v28 = add v27, v14
+    mstore 128, v28
+    returndata 128, 32
+  bb4:
+    jumpi v6, bb7, bb6
+  bb7:
+    v9 = not v6
+    v10 = add v9, 1
+    v11 = and v6, v10
+    v12 = clz v11
+    v13 = sub 255, v12
+    jumpi v11, bb6, bb8
+  bb8:
+    mstore 0, 0x4e487b71
+    mstore 32, 17
+    revert 28, 36
+  bb6:
+    v8 = phi [bb4: 256], [bb7: v13]
+    mstore 128, v8
+    returndata 128, 32
+  bb3:
+    v7 = clz v6
+    mstore 128, v7
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
