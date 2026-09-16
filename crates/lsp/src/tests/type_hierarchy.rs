@@ -758,7 +758,7 @@ fn requests_read_the_latest_published_analysis() {
 }
 
 #[test]
-fn requests_capture_the_analysis_epoch_when_created() {
+fn requests_wait_for_the_latest_analysis_epoch_when_polled() {
     let project = TestProject::from_fixture(
         r#"
         //- /Hierarchy.sol
@@ -791,6 +791,12 @@ fn requests_capture_the_analysis_epoch_when_created() {
 
     let waker = Waker::noop();
     let mut context = Context::from_waker(waker);
+    assert!(prepare.as_mut().poll(&mut context).is_pending());
+    assert!(supertypes.as_mut().poll(&mut context).is_pending());
+    assert!(subtypes.as_mut().poll(&mut context).is_pending());
+
+    let version = state.analysis_version.load(Ordering::Acquire);
+    assert!(state.snapshot().publish_symbol_tables(version, state.symbol_tables.load_full()));
     assert_eq!(ready_names(prepare.as_mut().poll(&mut context)), ["Base"]);
     assert_eq!(ready_names(supertypes.as_mut().poll(&mut context)), ["Base"]);
     assert_eq!(ready_names(subtypes.as_mut().poll(&mut context)), ["Child"]);
