@@ -214,6 +214,12 @@
       (if-let _ (power_of_two_shift c))
       (Op.And a (imm (u256_sub c (u256 1)))))
 
+;; 2 ** exponent => 1 << exponent, when SHL is available
+(rule (rewrite (Op.Exp (iconst base) exponent))
+      (if-let true (u256_eq base 2))
+      (if-let true (has_bitwise_shifting))
+      (Op.Shl exponent (imm (u256 1))))
+
 ;; a ** 2 => a * a
 (rule (rewrite (Op.Exp a (iconst c))) (if-let true (u256_eq c 2)) (Op.Mul a a))
 

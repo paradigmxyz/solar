@@ -33,5 +33,14 @@ contract WordRecipes {
         }
     }
 
+    function exp2(uint256 exponent, uint256 rounds) external pure returns (uint256 result) {
+        assembly {
+            for { let i := 0 } lt(i, rounds) { i := add(i, 1) } {
+                result := add(result, exp(2, exponent))
+                exponent := add(exponent, 1)
+            }
+        }
+    }
+
     function bounded(uint256 x) external pure returns (bool) { return x < 1 << 160; }
 }

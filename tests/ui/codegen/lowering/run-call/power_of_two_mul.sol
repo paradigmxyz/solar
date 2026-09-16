@@ -10,7 +10,30 @@
 //@ run-call: at [11,22,33], 2 => 33
 //@ run-call-fail: at [11,22,33], 3 => Panic(0x32)
 
+//@ run-call: exp2 0 => 1
+//@ run-call: exp2 1 => 2
+//@ run-call: exp2 255 => 0x8000000000000000000000000000000000000000000000000000000000000000
+//@ run-call: exp2 256 => 0
+//@ run-call: exp2 257 => 0
+//@ run-call: exp2 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0
+//@ run-call: uncheckedExp2 255 => 0x8000000000000000000000000000000000000000000000000000000000000000
+//@ run-call: uncheckedExp2 256 => 0
+//@ run-call: checkedExp2 255 => 0x8000000000000000000000000000000000000000000000000000000000000000
+//@ run-call-fail: checkedExp2 256 => Panic(0x11)
+
 contract PowerOfTwoMul {
+    function exp2(uint256 exponent) external pure returns (uint256 result) {
+        assembly { result := exp(2, exponent) }
+    }
+
+    function uncheckedExp2(uint256 exponent) external pure returns (uint256) {
+        unchecked { return 2 ** exponent; }
+    }
+
+    function checkedExp2(uint256 exponent) external pure returns (uint256) {
+        return 2 ** exponent;
+    }
+
     function mul32(uint256 value) external pure returns (uint256 result) {
         assembly { result := mul(value, 32) }
     }
