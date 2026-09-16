@@ -446,6 +446,7 @@ pub(crate) struct GlobalState {
     pub(crate) file_operations: FileOperationCoordinator,
     analysis_version: Arc<AtomicUsize>,
     published_analysis_version: watch::Sender<usize>,
+    analysis_invalidated: watch::Sender<()>,
     analysis_commit: Arc<Mutex<AnalysisCommitState>>,
     analysis_progress: ProgressCoordinator,
     analysis_scheduler: Arc<AnalysisScheduler>,
@@ -495,6 +496,7 @@ impl GlobalState {
             file_operations: FileOperationCoordinator::default(),
             analysis_version: Arc::new(AtomicUsize::new(0)),
             published_analysis_version,
+            analysis_invalidated: watch::channel(()).0,
             analysis_commit: Arc::new(Default::default()),
             analysis_progress,
             analysis_scheduler: Arc::new(Default::default()),
@@ -932,6 +934,7 @@ impl GlobalState {
                 diagnostics,
                 analysis_version,
                 published_analysis_version,
+                analysis_invalidated,
                 analysis_commit,
                 analysis_progress,
                 ..
@@ -942,6 +945,7 @@ impl GlobalState {
             analysis_progress.finish_active_after("Workspace index cleared", || {
                 // Invalidate workers before doing the potentially expensive diagnostic publication.
                 analysis_version.store(version, Ordering::Release);
+                analysis_invalidated.send_replace(());
                 let old_symbol_tables = symbol_tables.swap(Arc::default());
                 let inlay_hints_changed = compare_inlay_hints
                     && old_symbol_tables.inlay_hints_changed(&SymbolTables::default());
@@ -1418,6 +1422,7 @@ impl GlobalState {
         }
         commit.natspec_pending_source_changes.extend(changed_paths);
         self.analysis_version.store(version, Ordering::Release);
+        self.analysis_invalidated.send_replace(());
     }
 
     /// Wake delayed analysis when an interactive request needs a fresh semantic snapshot.
@@ -1437,17 +1442,36 @@ impl GlobalState {
         }
     }
 
-    /// Waits for analysis results at least as new as the latest version requested before this call.
+    /// Waits for the request's analysis epoch, failing if processed changes invalidate it.
     pub(crate) fn latest_analysis(
         &self,
     ) -> impl Future<Output = Result<Arc<ArcSwap<SymbolTables>>, ResponseError>> + use<> {
         let mut published = self.published_analysis_version.subscribe();
-        let version = self.analysis_version.load(Ordering::Acquire);
+        let mut invalidated = self.analysis_invalidated.subscribe();
+        let analysis_version = self.analysis_version.clone();
+        let version = analysis_version.load(Ordering::Acquire);
         let symbol_tables = self.symbol_tables.clone();
         async move {
-            published.wait_for(|published| *published >= version).await.map_err(|_| {
-                ResponseError::new(async_lsp::ErrorCode::REQUEST_FAILED, "analysis was cancelled")
-            })?;
+            // Superseded workers may never publish. Invalidation must wake their requests too.
+            let superseded = tokio::select! {
+                biased;
+                _ = invalidated.changed() => true,
+                result = published.wait_for(|published| *published >= version) => {
+                    result.map_err(|_| {
+                        ResponseError::new(
+                            async_lsp::ErrorCode::REQUEST_FAILED,
+                            "analysis was cancelled",
+                        )
+                    })?;
+                    analysis_version.load(Ordering::Acquire) != version
+                }
+            };
+            if superseded {
+                return Err(ResponseError::new(
+                    async_lsp::ErrorCode::CONTENT_MODIFIED,
+                    "analysis inputs changed since request",
+                ));
+            }
             Ok(symbol_tables)
         }
     }
