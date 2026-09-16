@@ -47,8 +47,9 @@
 //! are left behind for DCE, matching the other passes.
 
 use crate::mir::{
-    AbiParamType, BlockId, Builtin, Callee, Function, FunctionId, Immediate, InstId, InstKind,
-    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, Terminator, Value, ValueId,
+    AbiParamType, AbiType, BlockId, Builtin, Callee, Function, FunctionId, Immediate, InstId,
+    InstKind, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, RequireKind,
+    Terminator, Value, ValueId,
     analysis::{CallGraphInfo, CfgInfo},
     pass::{MirPass, run_function_pass},
     utils as mir_utils,
@@ -102,6 +103,16 @@ fn has_fresh_mapping_arguments(func: &Function) -> bool {
         return false;
     }
     let Some(abi_params) = &func.abi_params else { return false };
+    if func
+        .abi_returns
+        .as_ref()
+        .is_none_or(|layout| !layout.types.iter().all(|ty| matches!(ty, AbiType::Word(_))))
+        || func.abi_return_params.as_ref().is_some_and(|layout| {
+            !layout.types.iter().all(|ty| matches!(ty, AbiParamType::Scalar(ty) if ty.is_word()))
+        })
+    {
+        return false;
+    }
     let mut has_mapping = false;
     for block in &func.blocks {
         if !matches!(
@@ -127,9 +138,12 @@ fn has_fresh_mapping_arguments(func: &Function) -> bool {
                     }
                     has_mapping = true;
                 }
-                InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. }
-                    if matches!(block.terminator, Some(Terminator::Invalid))
-                        && block.instructions.last() == Some(&inst) => {}
+                InstKind::ICall {
+                    function: Callee::Builtin(Builtin::Require(RequireKind::CustomError(layout))),
+                    ..
+                } if layout.types.is_empty()
+                    && matches!(block.terminator, Some(Terminator::Invalid))
+                    && block.instructions.last() == Some(&inst) => {}
                 InstKind::Phi(_)
                 | InstKind::Add(..)
                 | InstKind::Sub(..)

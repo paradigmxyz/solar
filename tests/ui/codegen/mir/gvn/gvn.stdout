@@ -134,3 +134,18 @@
       tail_call @mapping_tail_target, arg0
   }
   
+  fn @mapping_dynamic_return(arg0: memorybytes) -> memorybytes [selector=0x10000007, abi_params=[bytes], abi_returns=[memory_bytes]] {
+    bb0:
+      v0 = mapping_slot_memory arg0, 0
+      v1 = mapping_slot_memory arg0, 0
+      ret arg0
+  }
+  
+  fn @mapping_payload_require(arg0: memorybytes) [selector=0x10000008, abi_params=[bytes], abi_returns=[]] {
+    bb0:
+      v0 = mapping_slot_memory arg0, 0
+      v1 = mapping_slot_memory arg0, 0
+      icall require<custom_error [memory_bytes]>, false, 0, arg0
+      invalid
+  }
+  

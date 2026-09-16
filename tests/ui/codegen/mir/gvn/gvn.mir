@@ -174,3 +174,26 @@ fn @tailcall_mapping_entry(arg0: memorybytes) -> u256 {
   bb0:
     tail_call @mapping_tail_target, arg0
 }
+
+// Return encoding can read memory even when the body has no explicit load.
+// CHECK-LABEL: {{^[ +].*}}fn @mapping_dynamic_return{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
+fn @mapping_dynamic_return(arg0: memorybytes) -> memorybytes [selector=0x10000007, abi_params=[bytes], abi_returns=[memory_bytes]] {
+  bb0:
+    v1 = mapping_slot_memory arg0, 0
+    v2 = mapping_slot_memory arg0, 0
+    ret arg0
+}
+
+// A terminal require can read memory while encoding its payload.
+// CHECK-LABEL: {{^[ +].*}}fn @mapping_payload_require{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
+fn @mapping_payload_require(arg0: memorybytes) [selector=0x10000008, abi_params=[bytes], abi_returns=[]] {
+  bb0:
+    v1 = mapping_slot_memory arg0, 0
+    v2 = mapping_slot_memory arg0, 0
+    icall require<custom_error [memory_bytes]>, false, 0, arg0
+    invalid
+}
