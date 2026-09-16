@@ -157,3 +157,79 @@ fn @pair.3() -> struct0 {
     v3 = insert_value struct0, v2, 1, v1
     ret v3
 }
+
+// === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:HeapPrefixConstructor ===
+@module HeapPrefixConstructor
+fn @saved() -> u256 [selector=0x164b045a, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
+  bb0:
+    v0 = not 31
+    v1 = and 95, v0
+    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    set_memory_object_len memorybytes, v2, 32
+    v3 = sub v2, 32
+    mstore v3, 0xdeadbeef
+    sstore 0, arg0 !metadata(storage=slot(0))
+    ret
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:HeapPrefixConstructorHelper ===
+@module HeapPrefixConstructorHelper
+fn @saved() -> u256 [selector=0x164b045a, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
+  bb0:
+    v0 = icall @build, arg0
+    sstore 0, v0 !metadata(storage=slot(0))
+    ret
+}
+
+fn @build(arg0: u256) -> u256 [pure] {
+  bb0:
+    v0 = not 31
+    v1 = and 95, v0
+    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    set_memory_object_len memorybytes, v2, 32
+    v3 = sub v2, 160
+    mstore v3, 0xdeadbeef
+    ret arg0
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:HeapPrefixRecursive ===
+@module HeapPrefixRecursive
+fn @check(arg0: u256, arg1: u256) -> u256 [selector=0x8fefd8ea, pure, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = icall @build, arg0, arg1
+    ret v0
+}
+
+fn @build(arg0: u256, arg1: u256) -> u256 [pure] {
+  bb0:
+    v0 = eq arg1, 0
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v5 = not 31
+    v6 = and 95, v5
+    v7 = alloc memorybytes, exact, zeroed, panic, v6
+    set_memory_object_len memorybytes, v7, 32
+    v8 = sub v7, 288
+    mstore v8, 0xdeadbeef
+    ret arg0
+  bb1:
+    v2 = checked_sub u256, arg1, 1
+    v3 = icall @build, arg0, v2
+    v4 = checked_add u256, v3, 1
+    ret v4
+}
