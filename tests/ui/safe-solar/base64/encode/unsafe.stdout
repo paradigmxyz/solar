@@ -1,0 +1,150 @@
+// === ROOT/tests/ui/safe-solar/base64/encode/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase evm-shaped
+fn @encode() [selector=0xfc4c4555, pure] {
+  bb0:
+    v63 = calldatasize
+    v64 = lt v63, 100
+    jumpi v64, bb5, bb6
+  bb6:
+    v65 = calldataload 36
+    v66 = lt v65, 2
+    jumpi v66, bb7, bb5
+  bb7:
+    v67 = calldataload 68
+    v68 = lt v67, 2
+    jumpi v68, bb8, bb5
+  bb8:
+    v69 = calldataload 4
+    v70 = add v69, 4
+    v71 = add v70, 32
+    v72 = gt v69, 0xffffffffffffffff
+    v73 = gt v71, v63
+    v74 = or v72, v73
+    jumpi v74, bb5, bb9
+  bb9:
+    v75 = calldataload v70
+    v77 = add v75, 63
+    v78 = lt v77, v75
+    jumpi v78, bb10, bb11
+  bb11:
+    v80 = and v77, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v81 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v112 = add v81, v80
+    v113 = lt v112, v81
+    v114 = gt v112, 0xffffffffffffffff
+    v115 = or v113, v114
+    jumpi v115, bb10, bb13
+  bb13:
+    mstore 64, v112 !metadata(memory=scratch)
+    mstore v81, v75
+    v82 = sub v63, v71
+    v83 = gt v75, v82
+    jumpi v83, bb5, bb12
+  bb12:
+    v109 = add v81, 32
+    calldatacopy v109, v71, v75
+    jumpi v75, bb1, bb2
+  bb1:
+    v3 = add v75, 2
+    v4 = div v3, 3
+    v5 = shl 2, v4
+    v6 = mload 64 !metadata(memory=scratch)
+    mstore 31, 0x4142434445464748494a4b4c4d4e4f505152535455565758595a616263646566 !metadata(memory=scratch)
+    v7 = iszero arg1
+    v8 = mul v7, 0x670
+    v9 = xor 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392d5f, v8
+    mstore 63, v9 !metadata(memory=scratch)
+    v10 = add v6, 32
+    v11 = add v10, v5
+    v13 = add v109, v75
+    v14 = mload v13
+    mstore v13, 0
+    jump bb3
+  bb3:
+    v18 = phi [bb1: v10], [bb3: v41]
+    v21 = phi [bb1: v81], [bb3: v27]
+    v27 = add v21, 3
+    v28 = mload v27
+    v29 = shr 18, v28
+    v30 = and v29, 63
+    v31 = mload v30
+    mstore8 0, v31 !metadata(memory=scratch)
+    v32 = shr 12, v28
+    v33 = and v32, 63
+    v34 = mload v33
+    mstore8 1, v34 !metadata(memory=scratch)
+    v35 = shr 6, v28
+    v36 = and v35, 63
+    v37 = mload v36
+    mstore8 2, v37 !metadata(memory=scratch)
+    v38 = and v28, 63
+    v39 = mload v38
+    mstore8 3, v39 !metadata(memory=scratch)
+    v40 = mload 0 !metadata(memory=scratch)
+    mstore v18, v40
+    v41 = add v18, 4
+    v42 = lt v41, v11
+    jumpi v42, bb3, bb4
+  bb4:
+    mstore v13, v14
+    v48 = add v11, 32
+    mstore 64, v48 !metadata(memory=scratch)
+    v49 = mod v75, 3
+    v50 = div 2, v49
+    v52 = sub v41, v50
+    mstore v52, 0x3d3d000000000000000000000000000000000000000000000000000000000000
+    v53 = iszero arg2
+    v54 = iszero v53
+    v55 = mul v54, v50
+    v56 = sub v41, v55
+    mstore v56, 0
+    v57 = sub v5, v55
+    mstore v6, v57
+    jump bb2
+  bb2:
+    v58 = phi [bb4: v6], [bb12: 96]
+    v88 = mload 64 !metadata(memory=scratch)
+    v89 = add v88, 32
+    mstore v88, 32
+    v92 = iszero v58
+    v93 = iszero v92
+    v91 = mload v58
+    v94 = mul v91, v93
+    v96 = add v94, 31
+    v97 = and v96, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v98 = add v89, 32
+    v99 = add v89, v97
+    mstore v99, 0
+    mstore v89, v94
+    v101 = add v98, v97
+    v100 = add v58, 32
+    mcopy v98, v100, v94 !metadata(memory=heap)
+    v102 = sub v101, v88
+    v104 = add v102, 31
+    v106 = and v104, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v107 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
+    v116 = add v107, v106
+    mstore 64, v116 !metadata(memory=scratch)
+    returndata v107, v102
+  bb10:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0xfc4c4555 => bb2]
+  bb2:
+    tail_call @encode
+  bb3:
+    revert 0, 0
+}
