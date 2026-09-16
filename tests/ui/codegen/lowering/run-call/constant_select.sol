@@ -1,6 +1,8 @@
-//@ codegen-matrix: standard ir
+//@ codegen-matrix: standard ir irsize
 //@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
 //@[ir] filecheck: --check-prefix=EVM
+//@[irsize] compile-flags: -Osize -Zdump=evm-ir-runtime
+//@[irsize] filecheck: --check-prefix=SIZE
 //@[mir] filecheck:
 //@ run-call: store 0x => 0x
 //@ run-call: store 0x123456 => 0x123456
@@ -27,6 +29,10 @@
 //@ run-call: yulBranch 2, 19 => 19
 
 // EVM-LABEL: @module ConstantSelect_runtime
+// SIZE-LABEL: @module ConstantSelect_runtime
+// SIZE: push 0x59834352
+// SIZE-NEXT: eq
+// SIZE-NEXT: push [[SIGNATURE:bb[0-9]+]]
 contract ConstantSelect {
     bytes saved;
 
@@ -50,6 +56,18 @@ contract ConstantSelect {
 
     // CHECK-LABEL: fn @signature(
     // CHECK: select
+    // SIZE: [[SIGNATURE]]:
+    // SIZE: jump [[VALIDATED:bb[0-9]+]]
+    // SIZE-NEXT: [[VALIDATED]]:
+    // SIZE-NEXT: push {{bb[0-9]+}}
+    // SIZE-NEXT: jumpi
+    // SIZE-NEXT: push 4
+    // SIZE-NEXT: calldataload
+    // SIZE-NEXT: iszero
+    // SIZE-NEXT: push 0xe2179b8e
+    // SIZE-NEXT: push 224
+    // SIZE-NEXT: shl
+    // SIZE-NEXT: push 0x26121ff0
     // EVM: push 0xbc057b9e
     // EVM-NEXT: push 224
     // EVM-NEXT: shl

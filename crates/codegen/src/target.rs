@@ -467,7 +467,7 @@ impl Target {
             .into_iter()
             .map(|opcode| self.opcode(opcode))
             .sum::<Cost>();
-        if normalize_condition { sequence + self.opcode(op::ISZERO).times(2) } else { sequence }
+        if normalize_condition { sequence + self.opcode(op::ISZERO) } else { sequence }
     }
 
     /// Gas of copying one more word with a copy opcode.
@@ -683,7 +683,7 @@ mod tests {
     fn select_prices_the_emitted_sequence() {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
         assert_eq!(target.select(false), Cost::new(22, 7));
-        assert_eq!(target.select(true), Cost::new(28, 9));
+        assert_eq!(target.select(true), Cost::new(25, 8));
     }
 
     #[test]

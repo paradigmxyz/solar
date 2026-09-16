@@ -26,6 +26,7 @@
 //!
 //! The arithmetic Select emitter requires a zero-or-one condition. Normalize any
 //! condition whose definition does not prove that bound, including dirty bool words.
+//! Invert unknown conditions and exchange the arms so one `iszero` suffices.
 
 use crate::mir::{
     Callee, Function, InstKind, Instruction, MirPhase, MirType, Module, Terminator,
@@ -74,19 +75,14 @@ fn normalize_select_conditions(func: &mut Function) {
             if let InstKind::Select(condition, if_true, if_false) = func.inst(inst).kind
                 && !is_bool_value(func, condition)
             {
-                // zero = iszero condition
-                // boolean = iszero zero
-                // result = select boolean, if_true, if_false
-                let mut condition = condition;
-                for _ in 0..2 {
-                    let mut normalized =
-                        Instruction::new(InstKind::IsZero(condition), Some(MirType::Bool));
-                    normalized.metadata = func.inst(inst).metadata.debug_context();
-                    let (new_inst, value) = func.alloc_value_inst(normalized);
-                    ordered.push(new_inst);
-                    condition = value;
-                }
-                func.inst_mut(inst).replace_kind(InstKind::Select(condition, if_true, if_false));
+                // inverted = iszero condition
+                // result = select inverted, if_false, if_true
+                let mut inverted =
+                    Instruction::new(InstKind::IsZero(condition), Some(MirType::Bool));
+                inverted.metadata = func.inst(inst).metadata.debug_context();
+                let (new_inst, condition) = func.alloc_value_inst(inverted);
+                ordered.push(new_inst);
+                func.inst_mut(inst).replace_kind(InstKind::Select(condition, if_false, if_true));
             }
             ordered.push(inst);
         }
