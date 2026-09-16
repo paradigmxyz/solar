@@ -1,5 +1,6 @@
-//@ codegen-matrix: standard
-//@ filecheck:
+//@ codegen-matrix: standard ir
+//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
+//@[mir] filecheck:
 //@ run-call: store 0x => 0x
 //@ run-call: store 0x123456 => 0x123456
 //@ run-call: store 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20 => 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20

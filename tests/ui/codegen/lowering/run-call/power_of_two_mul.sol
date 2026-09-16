@@ -1,4 +1,17 @@
-//@ codegen-matrix: standard
+//@ codegen-matrix: standard irgas irsize legacy
+//@[irgas] compile-flags: -Ogas --evm-version=constantinople -Zdump=evm-ir-runtime
+//@[irsize] compile-flags: -Osize --evm-version=constantinople -Zdump=evm-ir-runtime
+//@[legacy] compile-flags: -Ogas --evm-version=byzantium -Zdump=evm-ir-runtime
+//@[irgas] filecheck: --check-prefix=MODERN --implicit-check-not={{^[[:blank:]]*exp$}}
+//@[irsize] filecheck: --check-prefix=MODERN --implicit-check-not={{^[[:blank:]]*exp$}}
+//@[legacy] filecheck: --check-prefix=LEGACY --implicit-check-not={{^[[:blank:]]*(shl|shr|sar)$}}
+// MODERN-LABEL: @module PowerOfTwoMul_runtime
+// MODERN: {{^ *}}shl{{$}}
+// LEGACY-LABEL: @module PowerOfTwoMul_runtime
+// LEGACY: {{^ *}}push 4{{$}}
+// LEGACY-NEXT: calldataload
+// LEGACY-NEXT: push 2
+// LEGACY-NEXT: exp
 //@[none] compile-flags: --evm-version=byzantium
 //@ run-call: mul32 0 => 0
 //@ run-call: mul32 1 => 32
