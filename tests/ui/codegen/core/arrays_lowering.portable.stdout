@@ -1,0 +1,112 @@
+// === <solar:core/v1/Arrays.sol>:Arrays ===
+@module Arrays
+@phase evm-shaped
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/arrays_lowering.sol:Test ===
+@module Test
+@phase evm-shaped
+fn @shorten() [selector=0xf0187838, pure] {
+  bb0:
+    v2 = calldatasize
+    v3 = lt v2, 68
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = calldataload 4
+    v5 = add v4, 4
+    v6 = add v5, 32
+    v7 = gt v4, 0xffffffffffffffff
+    v8 = gt v6, v2
+    v9 = or v7, v8
+    jumpi v9, bb1, bb3
+  bb3:
+    v10 = calldataload v5
+    v12 = shl 5, v10
+    v14 = shr 5, v12
+    v15 = eq v14, v10
+    jumpi v15, bb5, bb4
+  bb5:
+    v18 = add v12, 32
+    v19 = lt v18, v12
+    jumpi v19, bb4, bb6
+  bb6:
+    v20 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v31 = add v20, v18
+    v32 = lt v31, v20
+    v33 = gt v31, 0xffffffffffffffff
+    v34 = or v32, v33
+    jumpi v34, bb4, bb8
+  bb8:
+    mstore 64, v31 !metadata(memory=scratch)
+    mstore v20, v10
+    v21 = sub v2, v6
+    v22 = shr 5, v21
+    v23 = gt v10, v22
+    jumpi v23, bb1, bb7
+  bb7:
+    v28 = add v20, 32
+    calldatacopy v28, v6, v12
+    icall @truncate, 0, v20, arg1
+    v1 = mload v20
+    mstore 128, v10
+    mstore 160, v1
+    returndata 128, 64
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @truncate(arg0: memptr, arg1: u256) [pure] {
+  bb0:
+    v0 = mload arg0
+    v1 = gt arg1, v0
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = icall @_outOfBounds, 1
+    jump bb2
+  bb2:
+    v3 = phi [bb1: v2], [bb0: arg1]
+    mstore arg0, v3
+    ret
+}
+
+fn @_outOfBounds() [pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v5 = add v0, 32
+    v6 = lt v5, v0
+    v7 = gt v5, 0xffffffffffffffff
+    v8 = or v6, v7
+    jumpi v8, bb2, bb1
+  bb1:
+    mstore 64, v5 !metadata(memory=scratch)
+    mstore v0, 0
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0xf0187838 => bb2]
+  bb2:
+    tail_call @shorten
+  bb3:
+    revert 0, 0
+}

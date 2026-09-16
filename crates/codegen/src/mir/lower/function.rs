@@ -33,6 +33,7 @@ mod abi_values;
 mod builtins;
 mod calls;
 mod control_flow;
+mod core;
 mod entry;
 mod expressions;
 mod indexing;
