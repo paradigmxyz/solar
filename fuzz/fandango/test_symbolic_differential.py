@@ -7,6 +7,7 @@ import json
 import pathlib
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import symbolic_differential as symbolic
 
@@ -167,12 +168,14 @@ class FunctionSelectionTests(unittest.TestCase):
     def test_validates_prefix_calldata(self) -> None:
         self.assertEqual(symbolic._prefix_calldata("0xAa00"), "0xaa00")
         for value in ("", "1234", "0x0", "0xzz"):
-            with self.subTest(value=value):
-                with self.assertRaisesRegex(
+            with (
+                self.subTest(value=value),
+                self.assertRaisesRegex(
                     argparse.ArgumentTypeError,
                     "even-length hexadecimal",
-                ):
-                    symbolic._prefix_calldata(value)
+                ),
+            ):
+                symbolic._prefix_calldata(value)
 
 
 class ResultClassificationTests(unittest.TestCase):
@@ -312,9 +315,7 @@ class ProjectGenerationTests(unittest.TestCase):
                 prefix_calldata=("0x12345678", "0x"),
             )
 
-            test_source = (
-                project / "test" / "SymbolicDifferential.t.sol"
-            ).read_text()
+            test_source = (project / "test" / "SymbolicDifferential.t.sol").read_text()
 
         symbolic_start = test_source.index("function checkSymbolicDifferential")
         self.assertEqual(test_source.count('hex"12345678"'), 2)
@@ -324,10 +325,7 @@ class ProjectGenerationTests(unittest.TestCase):
         first_prefix_b = test_source.index('hex"12345678"', first_prefix_a + 1)
         second_prefix_b = test_source.index('hex""', second_prefix_a + 1)
         self.assertTrue(
-            first_prefix_a
-            < second_prefix_a
-            < first_prefix_b
-            < second_prefix_b
+            first_prefix_a < second_prefix_a < first_prefix_b < second_prefix_b
         )
         self.assertGreater(first_prefix_a, symbolic_start)
         self.assertIn("assert(prefixResults[0]", test_source)
@@ -404,6 +402,63 @@ class CommandTests(unittest.TestCase):
                 standard_input["settings"]["optimizer"],
                 {"enabled": True, "runs": 200},
             )
+
+            for name, runtime in (("solc", "60" * 300), ("solar", "60" * 400)):
+                directory = root / (name + "-attempt")
+                directory.mkdir()
+                (directory / "input.json").write_text(json.dumps(standard_input))
+                (directory / "result.json").write_text(
+                    json.dumps({"returncode": 0, "error": None})
+                )
+                output = {
+                    "contracts": {
+                        "Probe.sol": {
+                            "Probe": {
+                                "abi": _artifact()["abi"],
+                                "evm": {
+                                    "methodIdentifiers": {"f(uint256)": "b3de648b"},
+                                    "deployedBytecode": {
+                                        "object": runtime,
+                                        "immutableReferences": {},
+                                        "linkReferences": {},
+                                    },
+                                },
+                            }
+                        }
+                    }
+                }
+                (directory / "stdout.txt").write_text(json.dumps(output))
+            args.solc_attempt = root / "solc-attempt"
+            args.solar_attempt = root / "solar-attempt"
+            args.source = pathlib.Path("Probe.sol")
+            args.solar = "missing-compiler-must-not-be-resolved"
+            with patch.object(
+                symbolic,
+                "_compile",
+                side_effect=AssertionError("must reuse saved artifacts"),
+            ):
+                result = symbolic.run(args, root / "saved-out")
+            self.assertEqual(result["status"], "bounded_agreement")
+            self.assertEqual(
+                result["standard_input_sha256"],
+                symbolic.hashlib.sha256(
+                    json.dumps(
+                        standard_input,
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                        sort_keys=True,
+                    ).encode()
+                ).hexdigest(),
+            )
+            output["contracts"]["Probe.sol"]["Probe"]["evm"]["deployedBytecode"].pop(
+                "immutableReferences"
+            )
+            (args.solar_attempt / "stdout.txt").write_text(json.dumps(output))
+            with self.assertRaisesRegex(ValueError, "immutableReferences"):
+                symbolic.run(args, root / "saved-out")
+            (args.solar_attempt / "input.json").write_text("{}")
+            with self.assertRaisesRegex(ValueError, "different inputs"):
+                symbolic.run(args, root / "saved-out")
 
     def test_import_discovery_uses_requested_evm_version(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
