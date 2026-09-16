@@ -3,6 +3,38 @@
 types:
   struct0: {u256, u256}
 
+fn @storageLoopMemory(arg0: u256) -> u256 [selector=0xb09bad66, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = msize
+    sstore 1, 1 !metadata(storage=slot(1))
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v10]
+    v3 = phi [bb0: arg0], [bb3: v3]
+    v4 = phi [bb0: v0], [bb3: v4]
+    v5 = lt v2, v3
+    v6 = eq v5, 0
+    v7 = iszero v6
+    jumpi v7, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v11 = msize
+    v12 = sub v11, v4
+    ret v12
+  bb4:
+    v8 = sload 1 !metadata(storage=slot(1))
+    v9 = add v8, 1
+    sstore 1, v9 !metadata(storage=slot(1))
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v10 = add v2, 1
+    jump bb1
+}
+
 fn @rebindLoop(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> struct0 [selector=0x936672d8, abi_params=[bool, u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = mapping_slot arg1, 0
