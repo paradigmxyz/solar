@@ -51,7 +51,7 @@ fn @nestedFailure() [selector=0x3e70e061, pure, abi_params=[], abi_returns=[]] {
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v4 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v4, 3
     v5 = memory_object_data memorybytes, v4
     mstore v5, 0x102030000000000000000000000000000000000000000000000000000000000
@@ -81,7 +81,7 @@ fn @reason() -> memorybytes {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, 1
     v3 = memory_object_data memorybytes, v2
     mstore v3, 0x7800000000000000000000000000000000000000000000000000000000000000

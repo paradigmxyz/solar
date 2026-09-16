@@ -246,7 +246,7 @@ fn @nestedRoundtrip() -> struct1 [selector=0x07f0bc21, pure, abi_params=[], abi_
     memory_object_store_field memorystruct<3>, v0, 0, v3
     v7 = memory_object_load_field memorystruct<3>, v0, 1, memorystruct
     memory_object_store_field memorystruct<3>, v7, 0, 42
-    v8 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v8 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v8, 2
     v9 = memory_object_data memorybytes, v8
     mstore v9, 0x6869000000000000000000000000000000000000000000000000000000000000
@@ -270,7 +270,7 @@ fn @nestedRoundtrip() -> struct1 [selector=0x07f0bc21, pure, abi_params=[], abi_
     v22 = iszero v21
     icall panic_if<0x32>, v22
     memory_object_store_element memoryarray<1>, v19, 1, 5
-    v23 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v23 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v23, 3
     v24 = memory_object_data memorybytes, v23
     mstore v24, 0x78797a0000000000000000000000000000000000000000000000000000000000
@@ -301,7 +301,7 @@ fn @dynamicArrayRoundtrip() -> struct3 [selector=0x533c608a, pure, abi_params=[]
     memory_object_store_field memorystruct<3>, v5, 1, memorybytes 96
     memory_object_store_field memorystruct<3>, v5, 2, memoryarray 96
     memory_object_store_field memorystruct<3>, v5, 0, 42
-    v6 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v6, 2
     v7 = memory_object_data memorybytes, v6
     mstore v7, 0x6869000000000000000000000000000000000000000000000000000000000000
@@ -326,7 +326,7 @@ fn @dynamicArrayRoundtrip() -> struct3 [selector=0x533c608a, pure, abi_params=[]
     memory_object_store_field memorystruct<3>, v17, 1, memorybytes 96
     memory_object_store_field memorystruct<3>, v17, 2, memoryarray 96
     memory_object_store_field memorystruct<3>, v17, 0, 43
-    v18 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v18 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v18, 3
     v19 = memory_object_data memorybytes, v18
     mstore v19, 0x6279650000000000000000000000000000000000000000000000000000000000
@@ -380,7 +380,7 @@ fn @fixedDynamicRoundtrip() -> struct4 [selector=0x273ceef0, pure, abi_params=[]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb3:
-    v4 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v4, 1
     v5 = memory_object_data memorybytes, v4
     mstore v5, 0x100000000000000000000000000000000000000000000000000000000000000
@@ -388,7 +388,7 @@ fn @fixedDynamicRoundtrip() -> struct4 [selector=0x273ceef0, pure, abi_params=[]
     v7 = iszero v6
     icall panic_if<0x32>, v7
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v4
-    v8 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v8 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v8, 2
     v9 = memory_object_data memorybytes, v8
     mstore v9, 0x203000000000000000000000000000000000000000000000000000000000000

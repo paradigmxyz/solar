@@ -107,7 +107,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
   bb5:
     v14 = phi [bb3: v9], [bb4: v11]
     memory_object_store_field memorystruct<3>, v14, 0, 7
-    v15 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v15 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v15, 2
     v16 = memory_object_data memorybytes, v15
     mstore v16, 0x102000000000000000000000000000000000000000000000000000000000000
@@ -233,7 +233,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
   bb15:
     v75 = phi [bb13: v70], [bb14: v72]
     memory_object_store_field memorystruct<3>, v75, 0, 11
-    v76 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v76 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v76, 3
     v77 = memory_object_data memorybytes, v76
     mstore v77, 0x304050000000000000000000000000000000000000000000000000000000000
@@ -499,7 +499,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
   bb5:
     v13 = phi [bb3: v8], [bb4: v10]
     memory_object_store_field memorystruct<3>, v13, 0, 5
-    v14 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v14 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v14, 2
     v15 = memory_object_data memorybytes, v14
     mstore v15, 0x102000000000000000000000000000000000000000000000000000000000000
@@ -594,7 +594,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
   bb13:
     v56 = phi [bb11: v51], [bb12: v53]
     memory_object_store_field memorystruct<3>, v56, 0, 7
-    v57 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v57 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v57, 3
     v58 = memory_object_data memorybytes, v57
     mstore v58, 0x304050000000000000000000000000000000000000000000000000000000000

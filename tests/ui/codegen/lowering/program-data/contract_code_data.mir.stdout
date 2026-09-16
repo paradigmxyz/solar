@@ -10,7 +10,7 @@ fn @value() -> u256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word
 
 fn @payload() -> memorybytes [selector=0xa878f858, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 160
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 128
     v1 = memory_object_data memorybytes, v0
     data_copy literal_0, v1, 128
@@ -25,7 +25,7 @@ data:
 
 fn @deployCreationCode() -> u256 [selector=0x5986dddb, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 480
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 480 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 448
     v1 = memory_object_data memorybytes, v0
     data_copy CodeTarget_initcode_0, v1, 448
@@ -67,7 +67,7 @@ fn @runtimeCodeMatches() -> bool [selector=0x337e11d0, abi_params=[], abi_return
   bb1:
     revert_returndata
   bb2:
-    v7 = alloc memorybytes, exact, uninitialized, infallible, 480
+    v7 = alloc memorybytes, exact, uninitialized, infallible, 480 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v7, 430
     v8 = memory_object_data memorybytes, v7
     v9 = add v8, 416

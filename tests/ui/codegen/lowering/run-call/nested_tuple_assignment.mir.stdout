@@ -6,15 +6,15 @@ types:
 
 fn @assign() -> struct0 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x3000000000000000000000000000000000000000000000000000000000000000
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, 1
     v3 = memory_object_data memorybytes, v2
     mstore v3, 0x3100000000000000000000000000000000000000000000000000000000000000
-    v4 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v4, 1
     v5 = memory_object_data memorybytes, v4
     mstore v5, 0x3200000000000000000000000000000000000000000000000000000000000000

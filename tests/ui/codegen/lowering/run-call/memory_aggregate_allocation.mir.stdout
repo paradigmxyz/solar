@@ -6,7 +6,7 @@ fn @allocate() -> u256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v1 = and 98, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 35
-    v3 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v3 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v3, 1
     v4 = memory_object_data memorybytes, v3
     mstore v4, 0x4100000000000000000000000000000000000000000000000000000000000000
@@ -109,7 +109,7 @@ fn @allocate() -> u256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
   bb12:
     v63 = phi [bb10: v58], [bb11: v60]
     memory_object_store_field memorystruct<2>, v63, 1, v53
-    v64 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v64 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v64, 1
     v65 = memory_object_data memorybytes, v64
     mstore v65, 0x4200000000000000000000000000000000000000000000000000000000000000

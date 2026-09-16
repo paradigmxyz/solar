@@ -23,7 +23,7 @@ fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = abi_encode [word, memory_bytes, word], object, args 1, v0, 2
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, 3
     v3 = memory_object_data memorybytes, v2
     mstore v3, 0x6465660000000000000000000000000000000000000000000000000000000000
@@ -33,7 +33,7 @@ fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[
     icall panic_if<0x32>, v6
     v7 = memory_object_load_byte memorybytes, v2, 0
     v8 = shl 248, v7
-    v9 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v9 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v9, 1
     v10 = memory_object_data memorybytes, v9
     mstore v10, 0x6400000000000000000000000000000000000000000000000000000000000000
@@ -113,7 +113,7 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     v16 = icall @load_storage_word_array, v15
     memory_object_store_field memorystruct<2>, v13, 1, v16
     v17 = abi_encode [word, memory_bytes, tuple<word, memory_array<word>>, word], object, args 1, v0, v13, 2
-    v18 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v18 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v18, 3
     v19 = memory_object_data memorybytes, v18
     mstore v19, 0x6465660000000000000000000000000000000000000000000000000000000000
@@ -123,7 +123,7 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     icall panic_if<0x32>, v22
     v23 = memory_object_load_byte memorybytes, v18, 0
     v24 = shl 248, v23
-    v25 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v25 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v25, 1
     v26 = memory_object_data memorybytes, v25
     mstore v26, 0x6400000000000000000000000000000000000000000000000000000000000000
@@ -195,7 +195,7 @@ fn @literalRemainsLive() -> bool [selector=0x8eddb2e8, pure, abi_params=[], abi_
 
 fn @literal_bytes_word(arg0: bytes32, arg1: u256) -> memorybytes {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, arg1
     memory_object_store_word memorybytes, v0, 0, arg0
     ret v0

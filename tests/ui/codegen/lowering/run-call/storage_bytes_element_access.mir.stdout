@@ -1084,7 +1084,7 @@ fn @longString() -> struct2 [selector=0x68a55dc0, abi_params=[], abi_returns=[wo
 fn @writeShortString() -> struct2 [selector=0x9aa67864, abi_params=[], abi_returns=[word<u8>, word<u8>, word], abi_return_params=[u8, u8, u256]] {
   bb0:
     store_storage_bytes_literal 1, hex"68656c6c6f"
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x5a00000000000000000000000000000000000000000000000000000000000000
@@ -1204,7 +1204,7 @@ fn @writeShortString() -> struct2 [selector=0x9aa67864, abi_params=[], abi_retur
 fn @writeLongString() -> struct2 [selector=0x233b60b4, abi_params=[], abi_returns=[word<u8>, word<u8>, word], abi_return_params=[u8, u8, u256]] {
   bb0:
     store_storage_bytes_literal 1, hex"6162636465666768696a6b6c6d6e6f707172737475767778797a30313233343536"
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x5a00000000000000000000000000000000000000000000000000000000000000

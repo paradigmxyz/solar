@@ -29,7 +29,7 @@ fn @array() -> struct0 [selector=0xb0ec2ae1, pure, abi_params=[], abi_returns=[w
 
 fn @bytesValue() -> struct0 [selector=0x5a286ac0, pure, abi_params=[], abi_returns=[word, word, word<bytes2>], abi_return_params=[u256, u256, bytes2]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 2
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0xabcd000000000000000000000000000000000000000000000000000000000000

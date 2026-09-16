@@ -186,7 +186,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn ensure_bytes_word_helper(&mut self) -> FunctionId {
-        // object = bytes(word, length)
+        // object = bytes(word, length) !preserves_fmp
         // object[0] = word
         // return object
         self.lazy_helper(sym::literal_bytes_word, |_, function| {
@@ -200,6 +200,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 MemoryObjectLayout::Bytes,
                 AllocationSemantics::INTERNAL,
             );
+            let Value::Inst(alloc) = *builder.func().value(object) else {
+                unreachable!("allocation result must reference its instruction")
+            };
+            builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
             builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
             let zero = builder.imm(0);
             builder.memory_object_store_word(object, zero, word);
@@ -217,10 +221,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         semantics: AllocationSemantics,
         name: Option<Symbol>,
     ) -> Option<ValueId> {
-        // object = bytes(len)
+        // object = bytes(len) !preserves_fmp
         let words = u64::try_from(bytes.len().div_ceil(32)).ok()?;
         let size = builder.imm(words.checked_add(1)?.checked_mul(32)?);
         let object = builder.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
+        let Value::Inst(alloc) = *builder.func().value(object) else {
+            unreachable!("allocation result must reference its instruction")
+        };
+        builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
         let length = builder.imm(u64::try_from(bytes.len()).ok()?);
         builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
         let data = builder.memory_object_data(object, MemoryObjectKind::Bytes);

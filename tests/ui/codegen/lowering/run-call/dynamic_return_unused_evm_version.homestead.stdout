@@ -8,7 +8,7 @@ data:
 
 fn @dynBytes() -> memorybytes [selector=0x7271bb2c, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 96
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 34
     v1 = memory_object_data memorybytes, v0
     data_copy literal_0, v1, 64
@@ -17,7 +17,7 @@ fn @dynBytes() -> memorybytes [selector=0x7271bb2c, pure, abi_params=[], abi_ret
 
 fn @dynString() -> memorybytes [selector=0x2f4e7409, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 5
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
@@ -26,7 +26,7 @@ fn @dynString() -> memorybytes [selector=0x2f4e7409, pure, abi_params=[], abi_re
 
 fn @mixed() -> struct0 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 3
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x6162630000000000000000000000000000000000000000000000000000000000

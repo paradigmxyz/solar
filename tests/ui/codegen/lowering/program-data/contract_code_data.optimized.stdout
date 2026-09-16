@@ -259,7 +259,7 @@ bb8 [cold]:
   push 0
   revert
 bb10:
-  push 640
+  push 256
   push 64
   mstore
   push 0
@@ -289,7 +289,13 @@ bb10:
   iszero
   push bb8
   jumpi
-  push 256
+  push 64
+  mload
+  push 384
+  dup 2
+  add
+  push 64
+  mstore
   push 324
   dup 2
   mstore

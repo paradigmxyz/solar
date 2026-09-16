@@ -69,7 +69,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v35 = iszero v34
     icall panic_if<0x32>, v35
     memory_object_store_element memoryarray<1>, v0, 1, v32
-    v36 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v36 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v36, 5
     v37 = memory_object_data memorybytes, v36
     mstore v37, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
@@ -105,7 +105,7 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     v87 = keccak256_bytes v36
     log3 0, 0, 0x305fadca9073c40aaec3082e2ca0f173c104f10695c51a17b9cfa47f9fa02e76, v86, v87
     v88 = memory_object_len memoryarray, v0
-    v89 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v89 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v89, 5
     v90 = memory_object_data memorybytes, v89
     mstore v90, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
@@ -179,7 +179,7 @@ fn @test_strings() -> memorybytes [selector=0xcdb50c38, abi_params=[], abi_retur
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v4 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v4, 1
     v5 = memory_object_data memorybytes, v4
     mstore v5, 0x7800000000000000000000000000000000000000000000000000000000000000
@@ -188,7 +188,7 @@ fn @test_strings() -> memorybytes [selector=0xcdb50c38, abi_params=[], abi_retur
     v8 = iszero v7
     icall panic_if<0x32>, v8
     memory_object_store_element memoryarray<1>, v0, 0, v4
-    v9 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v9 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v9, 5
     v10 = memory_object_data memorybytes, v9
     mstore v10, 0x776f726c64000000000000000000000000000000000000000000000000000000
@@ -223,7 +223,7 @@ fn @test_strings() -> memorybytes [selector=0xcdb50c38, abi_params=[], abi_retur
   bb9:
     v58 = keccak256_bytes v37
     log3 0, 0, 0xe9d28597fb984e7305318ffadc229c4d310bb7cf174b53aff9316f6e3cc105e8, v11, v58
-    v59 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v59 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v59, 5
     v60 = memory_object_data memorybytes, v59
     mstore v60, 0x776f726c64000000000000000000000000000000000000000000000000000000
