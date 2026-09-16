@@ -2,9 +2,21 @@
 //@[gas] compile-flags: -Ogas -Zmir-pipeline=word-sequence
 //@[size] compile-flags: -Osize -Zmir-pipeline=word-sequence
 //@[shape] compile-flags: -Zmir-pipeline=lower-evm-shaped
+//@[gas] filecheck: --check-prefixes=RECIPE,GAS
+//@[size] filecheck: --check-prefixes=RECIPE,SIZE
+//@[shape] filecheck: --check-prefix=SHAPE
 @module ConstantSelectRecipes
 @phase memory-lowered
 
+// RECIPE-LABEL: fn @zero_right_dirty(
+// RECIPE: + {{ *}}[[Z:v[0-9]+]] = iszero arg0
+// RECIPE-NEXT: + {{ *}}[[B:v[0-9]+]] = iszero [[Z]]
+// RECIPE-NEXT: + {{ *}}[[R:v[0-9]+]] = mul [[B]], arg1
+// RECIPE-NEXT: {{ *}}ret [[R]]
+// SHAPE-LABEL: fn @zero_right_dirty(
+// SHAPE: + {{ *}}[[Z:v[0-9]+]] = iszero arg0
+// SHAPE-NEXT: + {{ *}}[[B:v[0-9]+]] = iszero [[Z]]
+// SHAPE-NEXT: + {{ *}}[[R:v[0-9]+]] = select [[B]], arg1, 0
 fn @zero_right_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
   bb0:
     v1 = select arg0, arg1, 0
@@ -17,12 +29,20 @@ fn @zero_left_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v1
 }
 
+// RECIPE-LABEL: fn @max_right_dirty(
+// RECIPE: + {{ *}}[[Z:v[0-9]+]] = iszero arg0
+// RECIPE-NEXT: + {{ *}}[[MASK:v[0-9]+]] = sub 0, [[Z]]
+// RECIPE-NEXT: + {{ *}}[[R:v[0-9]+]] = or arg1, [[MASK]]
 fn @max_right_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
   bb0:
     v1 = select arg0, arg1, 115792089237316195423570985008687907853269984665640564039457584007913129639935
     ret v1
 }
 
+// RECIPE-LABEL: fn @max_left_dirty(
+// RECIPE: + {{ *}}[[Z:v[0-9]+]] = iszero arg0
+// RECIPE-NEXT: + {{ *}}[[MASK:v[0-9]+]] = sub [[Z]], 1
+// RECIPE-NEXT: + {{ *}}[[R:v[0-9]+]] = or arg1, [[MASK]]
 fn @max_left_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
   bb0:
     v1 = select arg0, 115792089237316195423570985008687907853269984665640564039457584007913129639935, arg1
@@ -47,6 +67,14 @@ fn @constant_right_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v1
 }
 
+// GAS-LABEL: fn @constant_left_dirty(
+// GAS: + {{ *}}[[Z:v[0-9]+]] = iszero arg0
+// GAS-NEXT: + {{ *}}[[DELTA:v[0-9]+]] = sub arg1, 42
+// GAS-NEXT: + {{ *}}[[SCALED:v[0-9]+]] = mul [[Z]], [[DELTA]]
+// GAS-NEXT: + {{ *}}[[R:v[0-9]+]] = add 42, [[SCALED]]
+// SIZE-LABEL: fn @constant_left_dirty(
+// SIZE: {{^ *}}[[R:v[0-9]+]] = select arg0, 42, arg1
+// SIZE-NEXT: {{ *}}ret [[R]]
 fn @constant_left_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
   bb0:
     v1 = select arg0, 42, arg1
@@ -77,6 +105,9 @@ fn @variable_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v1
 }
 
+// RECIPE-LABEL: fn @zero_right_canonical(
+// RECIPE: + {{ *}}[[R:v[0-9]+]] = mul {{v[0-9]+}}, arg1
+// RECIPE-NEXT: {{ *}}ret [[R]]
 fn @zero_right_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
   bb0:
     v0 = iszero arg0
@@ -161,12 +192,19 @@ fn @variable_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v1
 }
 
+// SHAPE-LABEL: fn @dirty_bool(
+// SHAPE: + {{ *}}[[Z:v[0-9]+]] = iszero arg0
+// SHAPE-NEXT: + {{ *}}[[B:v[0-9]+]] = iszero [[Z]]
+// SHAPE-NEXT: + {{ *}}[[R:v[0-9]+]] = select [[B]], arg1, 0
 fn @dirty_bool(arg0: bool, arg1: u256) -> u256 {
   bb0:
     v0 = select arg0, arg1, 0
     ret v0
 }
 
+// RECIPE-LABEL: fn @pointer_arm(
+// RECIPE: {{^ *}}[[R:v[0-9]+]] = select arg0, arg1, 0
+// RECIPE-NEXT: {{ *}}ret [[R]]
 fn @pointer_arm(arg0: bool, arg1: memptr) -> u256 {
   bb0:
     v0 = select arg0, arg1, 0

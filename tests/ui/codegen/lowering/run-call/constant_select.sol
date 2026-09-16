@@ -1,5 +1,6 @@
 //@ codegen-matrix: standard ir
 //@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
+//@[ir] filecheck: --check-prefix=EVM
 //@[mir] filecheck:
 //@ run-call: store 0x => 0x
 //@ run-call: store 0x123456 => 0x123456
@@ -25,6 +26,7 @@
 //@ run-call: yulBranch 0, 19 => 7
 //@ run-call: yulBranch 2, 19 => 19
 
+// EVM-LABEL: @module ConstantSelect_runtime
 contract ConstantSelect {
     bytes saved;
 
@@ -48,6 +50,14 @@ contract ConstantSelect {
 
     // CHECK-LABEL: fn @signature(
     // CHECK: select
+    // EVM: push 0xbc057b9e
+    // EVM-NEXT: push 224
+    // EVM-NEXT: shl
+    // EVM-NEXT: mul
+    // EVM-NEXT: push 0x26121ff0
+    // EVM-NEXT: push 224
+    // EVM-NEXT: shl
+    // EVM-NEXT: add
     function signature(bool condition) external pure returns (bytes memory) {
         return abi.encodeWithSignature(condition ? "f()" : "g()");
     }
