@@ -21,7 +21,7 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import cache, lru_cache
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from urllib.parse import quote
 
 from cases import (
@@ -397,17 +397,30 @@ def write_artifacts(
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "input.json").write_text(input_text + "\n")
 
+    source_root = output_dir.resolve() / "sources"
     for name, source_input in json.loads(input_text)["sources"].items():
+        if not isinstance(source_input, dict) or not isinstance(
+            source_input.get("content"), str
+        ):
+            continue
         if (
             not name
             or "\\" in name
+            or PureWindowsPath(name).drive
             or any(part in ("", ".", "..") for part in name.split("/"))
             or any(ord(char) < 32 or ord(char) == 127 for char in name)
         ):
             return f"invalid source artifact path: {name!r}"
-        source_path = output_dir / "sources" / name
-        source_path.parent.mkdir(parents=True, exist_ok=True)
-        source_path.write_text(source_input["content"], encoding="utf-8")
+        source_path = source_root / name
+        try:
+            if source_path.resolve() != source_path:
+                return f"source artifact path contains a symlink: {name!r}"
+            source_path.parent.mkdir(parents=True, exist_ok=True)
+            source_path.write_text(
+                source_input["content"], encoding="utf-8", newline=""
+            )
+        except (OSError, RuntimeError) as error:
+            return f"cannot write source artifact {name!r}: {error}"
 
     cmd = [str(spec.path), "--standard-json"]
     source = test_case.source_name or test_case.source or f"{test_case.test_id}.sol"
