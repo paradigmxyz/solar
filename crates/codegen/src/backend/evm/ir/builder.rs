@@ -1,7 +1,6 @@
 //! EVM IR construction through the backend assembler interface.
 
 use super::{self as ir};
-use crate::link::LibraryId;
 use crate::{
     backend::{
         assembler::{
@@ -13,6 +12,7 @@ use crate::{
             op::{self, push_len},
         },
     },
+    link::LibraryId,
     mir::{
         DataRef as MirDataRef, ImmutableId, Module as MirModule, TypeSize, memory::EvmMemoryLayout,
     },

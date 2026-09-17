@@ -9,7 +9,6 @@
 //! relocatable bytes.
 
 use super::{EvmPass, utils::instruction_size_lower_bound};
-use crate::link::LibraryRelocation;
 use crate::{
     backend::evm::{
         data_copy_cost, data_copy_gas, data_copy_is_profitable,
@@ -19,6 +18,7 @@ use crate::{
         },
         op::{self, WORD_BYTES},
     },
+    link::LibraryRelocation,
     target::GasTier,
 };
 use alloy_primitives::{Bytes, U256};

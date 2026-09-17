@@ -29,11 +29,11 @@ use super::{
     layout::{RelayoutAddress, preserves_push_width},
     op::{self, WORD_BYTES},
 };
-use crate::link::LibraryRelocation;
 use crate::{
     backend::assembler::{
         ArtifactKind, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
     },
+    link::LibraryRelocation,
     mir::{
         ArgIdx, BlockId, EffectKind, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
         InstKind, MemoryRegion, MirPhase, MirType, Module, Terminator, Value, ValueId,

@@ -6,8 +6,7 @@ use super::{
     Module, OptimizationMode, StackOp, U256, WORD_BYTES, immutable_push_type_size,
     immutable_staging_addr, immutable_staging_base, immutable_staging_end, op,
 };
-use crate::backend::assembler::PreparedAssembly;
-use crate::link::LibraryRelocation;
+use crate::{backend::assembler::PreparedAssembly, link::LibraryRelocation};
 
 struct PreparedDeploymentPrefix {
     assembly: PreparedAssembly,

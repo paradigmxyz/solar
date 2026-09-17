@@ -7,8 +7,10 @@ use super::{
     RevertKind, RevertPayload, RevertReason, SliceLocation, StorageAlias, StructId, Terminator,
     Value, ValueId,
 };
-use crate::link::LibraryId;
-use crate::mir::{Callee, memory::EvmMemoryLayout};
+use crate::{
+    link::LibraryId,
+    mir::{Callee, memory::EvmMemoryLayout},
+};
 use alloy_primitives::{Bytes, U256};
 use smallvec::SmallVec;
 use solar_config::RevertStrings;
