@@ -78,8 +78,7 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
   bb2:
     v104 = iszero v7
     v105 = iszero v104
-    v103 = mload v7
-    v106 = mul v103, v105
+    v106 = mul v58, v105
     v107 = add v7, 32
     v108 = add v106, 31
     v110 = and v108, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
