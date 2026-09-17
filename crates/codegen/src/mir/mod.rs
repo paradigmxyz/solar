@@ -61,7 +61,7 @@ mod function;
 pub(crate) use function::{Function, FunctionAttributes};
 
 mod module;
-pub(crate) use module::{LibraryLink, LoweredModule};
+pub(crate) use module::LoweredModule;
 pub use module::{MirPhase, Module};
 
 mod builtin;

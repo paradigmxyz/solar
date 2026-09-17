@@ -12,6 +12,7 @@ use crate::{
             op::{self, push_len},
         },
     },
+    link::LibraryId,
     mir::{
         DataRef as MirDataRef, ImmutableId, Module as MirModule, TypeSize, memory::EvmMemoryLayout,
     },
@@ -139,10 +140,12 @@ impl<'gcx> Assembler<'gcx> {
     /// Loads MIR constant data into the EVM IR module with matching IDs.
     pub(crate) fn load_data(&mut self, module: &MirModule) {
         assert!(self.program.data.is_empty(), "EVM IR data must be empty before loading MIR data");
+        self.program.libraries = module.libraries.clone();
         self.program.data = module
             .iter_data()
             .map(|(id, data)| ir::Data {
                 bytes: data.clone(),
+                library_relocations: module.data_library_relocations(id).to_vec(),
                 name: module.data_name(id),
                 emit_in_runtime: self.artifact_kind == ArtifactKind::Runtime
                     && module.data_is_emitted_in_runtime(id),
@@ -364,7 +367,9 @@ impl<'gcx> Assembler<'gcx> {
         block_target_width: usize,
         deferred_value_width: usize,
     ) -> (usize, usize) {
-        if let Some(type_size) = inst.immutable_type_size() {
+        if inst.pushed_library().is_some() {
+            (21, 21)
+        } else if let Some(type_size) = inst.immutable_type_size() {
             let size = usize::from(type_size.bytes()) + 1;
             (size, size)
         } else if !inst.is_encoded_push() {
@@ -463,6 +468,12 @@ impl<'gcx> Assembler<'gcx> {
     /// Resolves an allocation to the ordinary free-memory-pointer bump.
     pub(in crate::backend) fn set_deferred_alloc_dynamic(&mut self, id: DeferredAlloc, size: U256) {
         self.deferred_allocations.insert(id, DeferredAllocResolution::Dynamic(size));
+    }
+
+    /// Emits a symbolic library address.
+    pub(crate) fn emit_push_library(&mut self, value: LibraryId) {
+        // push_library library
+        self.push_ir_instruction(ir::Instruction::push_library(value));
     }
 
     /// Emits a `PUSH<N>` zero placeholder for the immutable identified by `id`.

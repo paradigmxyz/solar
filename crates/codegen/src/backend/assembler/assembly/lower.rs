@@ -342,7 +342,10 @@ fn lower_instruction(
         let type_size = inst.immutable_type_size().expect("validated immutable width");
         assembler.immutable_push_inst(id, type_size)
     } else if inst.is_encoded_push() {
-        if let Some(value) = inst.pushed_value() {
+        // push_library source:library | push immediate
+        if let Some(library) = inst.pushed_library() {
+            AsmInst::push_library(library)
+        } else if let Some(value) = inst.pushed_value() {
             assembler.push_inst(value)
         } else if let Some(block) = inst.pushed_block() {
             AsmInst::push_label(label_for_block(assembler, module, block, labels))

@@ -23,6 +23,7 @@
 //! `#[commutative(lhs, rhs)]` generates the trait and canonicalizes exactly that
 //! operand pair, leaving attributes and any remaining operands untouched.
 
+use crate::link::LibraryId;
 use alloy_primitives::Bytes;
 
 use super::{
@@ -479,6 +480,7 @@ attributes! {
     bool, StructId, MirType, AddressCallKind, CheckedOp, ArithmeticKind, OptionU64,
     u32,
     u64,
+    LibraryId,
     AbiEncodeMode,
     AllocationKind,
     AllocationSemantics,
@@ -2052,6 +2054,18 @@ define_mir_ops! {
         category = None
     )]
     LoadImmutable(id: ImmutableId),
+
+    /// A library address whose value is supplied by the linker.
+    #[mir_op(
+        mnemonic = "library_address",
+        result = Word,
+        phases = PhaseSet::ALL,
+        effect = Pure,
+        traits = OpTraits::NONE,
+        side_effects = false,
+        category = None
+    )]
+    LibraryAddress(library: LibraryId),
 
     // Return data operations
     /// Get the current call's return data size: `returndatasize()`.

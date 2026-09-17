@@ -22,6 +22,7 @@
 (type FrameSlotKind (primitive FrameSlotKind))
 (type DataRef (primitive DataRef))
 (type ImmutableId (primitive ImmutableId))
+(type LibraryId (primitive LibraryId))
 
 (type Op extern (enum
   (InsertValue (ty StructId) (aggregate Value) (index u32) (value Value))
@@ -117,6 +118,7 @@
   (ExtCodeHash (addr Value))
   (StoreImmutable (id ImmutableId) (value Value))
   (LoadImmutable (id ImmutableId))
+  (LibraryAddress (library LibraryId))
   (ReturnDataSize)
   (ReturnDataCopy (dest Value) (offset Value) (size Value))
   (Caller)

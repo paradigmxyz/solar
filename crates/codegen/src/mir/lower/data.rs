@@ -5,9 +5,10 @@ use crate::{
         ir::immediate_materialization_cost,
         op::{WORD_BYTES, push_len},
     },
+    link::{LibraryRelocation, RelocatableBytecode},
     mir::{FunctionBuilder, Module, ValueId, memory::EvmMemoryLayout},
 };
-use alloy_primitives::{Bytes, U256};
+use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_interface::Symbol;
 use solar_sema::{Gcx, hir::ContractId};
@@ -35,29 +36,67 @@ pub(crate) fn data_copy_is_profitable(
 #[derive(Clone, Debug, Default)]
 pub struct ContractBytecodes {
     /// Deployment bytecode, including the initcode prefix.
-    deployment: Option<Bytes>,
+    deployment: Option<RelocatableBytecode>,
     /// Deployed runtime bytecode.
-    runtime: Option<Bytes>,
+    runtime: Option<RelocatableBytecode>,
 }
 
 impl ContractBytecodes {
-    /// Creates bytecode metadata from a generated artifact.
-    pub fn new(deployment: Bytes, runtime: Bytes) -> Self {
+    /// Creates bytecode metadata from a generated artifact and its relocations.
+    pub fn new(deployment: RelocatableBytecode, runtime: RelocatableBytecode) -> Self {
         Self {
-            deployment: (!deployment.is_empty()).then_some(deployment),
-            runtime: (!runtime.is_empty()).then_some(runtime),
+            deployment: (!deployment.bytes.is_empty()).then_some(deployment),
+            runtime: (!runtime.bytes.is_empty()).then_some(runtime),
         }
     }
 
     /// Returns the deployment bytecode, when codegen produced it.
-    pub fn deployment(&self) -> Option<&Bytes> {
+    pub(crate) fn deployment(&self) -> Option<&RelocatableBytecode> {
         self.deployment.as_ref()
     }
 
     /// Returns the runtime bytecode, when codegen produced it.
-    pub fn runtime(&self) -> Option<&Bytes> {
+    pub(crate) fn runtime(&self) -> Option<&RelocatableBytecode> {
         self.runtime.as_ref()
     }
+}
+
+/// Copies embedded bytecode, remapping its library relocations into this module.
+pub(super) fn copy_bytecode_to_memory(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    builder: &mut FunctionBuilder<'_>,
+    dest: ValueId,
+    bytecode: &RelocatableBytecode,
+    padded_size: usize,
+    name: Symbol,
+) {
+    let data = &bytecode.bytes;
+    debug_assert!(padded_size >= data.len());
+    if bytecode.relocations.is_empty() {
+        copy_data_to_memory(gcx, module, builder, dest, data, padded_size, Some(name));
+        return;
+    }
+    // memory_zero dest + floor(size / 32) * 32, padded_size - floor(size / 32) * 32
+    // data_copy linked_bytecode, dest, size
+    if padded_size > data.len() {
+        let tail = builder.add_u64_offset(dest, (data.len() / WORD_BYTES * WORD_BYTES) as u64);
+        let size = builder.imm((padded_size - data.len() / WORD_BYTES * WORD_BYTES) as u64);
+        builder.memory_zero(tail, size);
+    }
+    let size = builder.imm(data.len() as u64);
+    let relocations = bytecode
+        .relocations
+        .iter()
+        .map(|reloc| LibraryRelocation {
+            offset: reloc.offset,
+            library: module
+                .libraries
+                .intern(*bytecode.libraries.get(reloc.library).expect("valid embedded library ID")),
+        })
+        .collect();
+    let data = module.intern_linked_data(bytecode.bytes.clone(), Some(name), relocations);
+    builder.data_copy(data, dest, size);
 }
 
 /// Copies constant data and clears its padding through `padded_size`.

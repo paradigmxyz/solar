@@ -1,19 +1,24 @@
+use crate::link::{Library, LibraryId, LibraryRelocation, LibraryTable};
 use alloy_primitives::{Bytes, U256};
 use solar_ast::{
     Arena,
-    token::{BinOpToken, Token, TokenKind, TokenLitKind},
+    token::{BinOpToken, Delimiter, Token, TokenKind, TokenLitKind},
 };
-use solar_interface::{Session, Span, Symbol, source_map::SourceFile};
+use solar_interface::{Session, Span, Symbol, source_map::SourceFile, sym};
 use solar_parse::PErr;
 
 /// Shared parser primitives for the textual IR parsers.
 pub(crate) struct Parser<'sess, 'ast> {
+    pub(crate) libraries: LibraryTable,
     parser: solar_parse::Parser<'sess, 'ast, 'ast>,
 }
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     pub(crate) fn new(sess: &'sess Session, arena: &'ast Arena, source: &SourceFile) -> Self {
-        Self { parser: solar_parse::Parser::from_source_file(sess, arena, source) }
+        Self {
+            parser: solar_parse::Parser::from_source_file(sess, arena, source),
+            libraries: LibraryTable::default(),
+        }
     }
 
     pub(crate) fn token(&self) -> Token {
@@ -130,6 +135,58 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             .map_err(|err| self.error(format!("invalid data: {err}")))?;
         self.bump();
         Ok(bytes.into())
+    }
+
+    /// Parses a source-qualified library identity.
+    pub(crate) fn parse_library(&mut self) -> Result<LibraryId, PErr<'sess>> {
+        let source = self.parse_library_component()?;
+        self.expect(TokenKind::Colon)?;
+        let name = self.parse_library_component()?;
+        Ok(self.libraries.intern(Library { source, name }))
+    }
+
+    fn parse_library_component(&mut self) -> Result<Symbol, PErr<'sess>> {
+        if !matches!(self.token().kind, TokenKind::Literal(TokenLitKind::Str, _)) {
+            return Err(self.error("expected library source or name string"));
+        }
+        let (literal, _) = self.parser.parse_lit(false)?;
+        let solar_ast::LitKind::Str(_, value, _) = literal.kind else { unreachable!() };
+        let value = value.as_byte_str();
+        let text = std::str::from_utf8(value)
+            .map_err(|_| self.error("library source and name must be UTF-8"))?;
+        Ok(Symbol::intern(text))
+    }
+
+    /// Parses optional library relocations following a constant-data declaration.
+    pub(crate) fn parse_data_library_relocations(
+        &mut self,
+        bytes: &[u8],
+    ) -> Result<Vec<LibraryRelocation>, PErr<'sess>> {
+        let mut relocations = Vec::<LibraryRelocation>::new();
+        if self.eat_keyword(sym::library_relocations) {
+            self.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
+            while !self.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
+                let value = self.parse_uint()?;
+                let offset = usize::try_from(value)
+                    .map_err(|_| self.error("library offset exceeds `usize`"))?;
+                if offset.checked_add(20).is_none_or(|end| end > bytes.len()) {
+                    return Err(self.error("library relocation exceeds data size"));
+                }
+                if relocations.last().is_some_and(|previous| previous.offset + 20 > offset) {
+                    return Err(
+                        self.error("library relocations must be ordered and non-overlapping")
+                    );
+                }
+                self.expect(TokenKind::Colon)?;
+                let library = self.parse_library()?;
+                relocations.push(LibraryRelocation { offset, library });
+                if !self.eat(TokenKind::Comma) {
+                    self.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
+                    break;
+                }
+            }
+        }
+        Ok(relocations)
     }
 
     /// Parses the canonical `lo..hi` source-span bounds syntax.
