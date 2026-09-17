@@ -166,10 +166,69 @@
 (rule (rewrite (Op.Sub (sub base (iconst existing)) (iconst offset)))
         (Op.Add base (imm (u256_sub (u256_neg existing) offset))))
 
+;; Only cancel unshared producers in this block to avoid extending live ranges.
+;; (x + y) - (x + z) => y - z
+(rule (rewrite (Op.Sub (and lhs (add x y)) (and rhs (add x z))))
+      (if-let true (single_use lhs))
+      (if-let true (single_use rhs))
+      (if-let true (in_current_block lhs))
+      (if-let true (in_current_block rhs))
+      (Op.Sub y z))
+(rule (rewrite (Op.Sub (and lhs (add x y)) (and rhs (add z x))))
+      (if-let true (single_use lhs))
+      (if-let true (single_use rhs))
+      (if-let true (in_current_block lhs))
+      (if-let true (in_current_block rhs))
+      (Op.Sub y z))
+(rule (rewrite (Op.Sub (and lhs (add y x)) (and rhs (add x z))))
+      (if-let true (single_use lhs))
+      (if-let true (single_use rhs))
+      (if-let true (in_current_block lhs))
+      (if-let true (in_current_block rhs))
+      (Op.Sub y z))
+(rule (rewrite (Op.Sub (and lhs (add y x)) (and rhs (add z x))))
+      (if-let true (single_use lhs))
+      (if-let true (single_use rhs))
+      (if-let true (in_current_block lhs))
+      (if-let true (in_current_block rhs))
+      (Op.Sub y z))
+;; (x - z) - (y - z) => x - y
+(rule (rewrite (Op.Sub (and lhs (sub x z)) (and rhs (sub y z))))
+      (if-let true (single_use lhs))
+      (if-let true (single_use rhs))
+      (if-let true (in_current_block lhs))
+      (if-let true (in_current_block rhs))
+      (Op.Sub x y))
+;; (x - y) - (x - z) => z - y
+(rule (rewrite (Op.Sub (and lhs (sub x y)) (and rhs (sub x z))))
+      (if-let true (single_use lhs))
+      (if-let true (single_use rhs))
+      (if-let true (in_current_block lhs))
+      (if-let true (in_current_block rhs))
+      (Op.Sub z y))
+
+;; (x ^ y) + ((x & y) << 1) => x + y
+(rule (rewrite (Op.Add (bxor x y) (shl (one) (band x y)))) (Op.Add x y))
+(rule (rewrite (Op.Add (bxor x y) (shl (one) (band y x)))) (Op.Add x y))
+(rule (rewrite (Op.Add (shl (one) (band x y)) (bxor x y))) (Op.Add x y))
+(rule (rewrite (Op.Add (shl (one) (band y x)) (bxor x y))) (Op.Add x y))
+;; The carry may already use the equivalent doubling form.
+;; (x ^ y) + ((x & y) + (x & y)) => x + y
+(rule (rewrite (Op.Add (bxor x y) (add (and carry (band x y)) carry))) (Op.Add x y))
+(rule (rewrite (Op.Add (bxor x y) (add (and carry (band y x)) carry))) (Op.Add x y))
+(rule (rewrite (Op.Add (add (and carry (band x y)) carry) (bxor x y))) (Op.Add x y))
+(rule (rewrite (Op.Add (add (and carry (band y x)) carry) (bxor x y))) (Op.Add x y))
+
 ;; ~a == ~b => a == b
 (rule (rewrite (Op.Eq (bnot a) (bnot b))) (Op.Eq a b))
 ;; ~a ^ ~b => a ^ b
 (rule (rewrite (Op.Xor (bnot a) (bnot b))) (Op.Xor a b))
+
+;; x * (1 << y) => x << y, including saturating EVM shift counts.
+(rule (rewrite (Op.Mul x (shl y (one))))
+      (if-let true (has_bitwise_shifting)) (Op.Shl y x))
+(rule (rewrite (Op.Mul (shl y (one)) x))
+      (if-let true (has_bitwise_shifting)) (Op.Shl y x))
 
 ;; value * 2 ** k => value << k, when 1 <= k <= 255, value is not a known 0 or 1, and SHL is available
 (rule (rewrite (Op.Mul value (iconst c)))
@@ -229,6 +288,15 @@
 (rule (rewrite (Op.SignExtend (iconst outer) (signextend (iconst inner) value)))
       (Op.SignExtend (imm (u256_min outer inner)) value))
 
+;; (x ^ y) == x => y == 0
+(rule (rewrite (Op.Eq (bxor x y) x)) (Op.Eq y (imm (u256 0))))
+(rule (rewrite (Op.Eq (bxor y x) x)) (Op.Eq y (imm (u256 0))))
+(rule (rewrite (Op.Eq x (bxor x y))) (Op.Eq y (imm (u256 0))))
+(rule (rewrite (Op.Eq x (bxor y x))) (Op.Eq y (imm (u256 0))))
+;; x < (x - y) => x < y
+(rule (rewrite (Op.Lt x (sub x y))) (Op.Lt x y))
+(rule (rewrite (Op.Gt (sub x y) x)) (Op.Lt x y))
+
 ;; clz(input) == 255 => input == 1
 (rule (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c 255)) (Op.Eq input (imm (u256 1))))
 ;; clz(input) == 256 => input == 0
@@ -260,6 +328,11 @@
       (if-let true (single_use shifted))
       (if-let true (u256_eq amount 248))
       (Op.And value (imm (u256 255))))
+
+;; c ? a : (c ? b : d) => c ? a : d
+(rule (rewrite (Op.Select c a (select c _ d))) (Op.Select c a d))
+;; c ? (c ? a : b) : d => c ? a : d
+(rule (rewrite (Op.Select c (select c a _) d)) (Op.Select c a d))
 
 ;; cond ? 0 : 1 => cond == 0, when cond is boolean
 (rule (rewrite (Op.Select (and cond (bool_value)) (zero) (one))) (Op.Eq cond (imm (u256 0))))
@@ -381,6 +454,8 @@
 (rule 2 (simplify (Op.Mod a a)) (imm (u256 0)))
 ;; clz(x) % b => clz(x), when constant b > 256
 (rule 1 (simplify (Op.Mod (and a (clz _)) (iconst b))) (if-let true (u256_gt b 256)) a)
+;; smod(x, -1) => 0
+(rule 5 (simplify (Op.SMod _ (all_ones))) (imm (u256 0)))
 ;; smod(0, _) => 0
 (rule 4 (simplify (Op.SMod (and a (zero)) _)) a)
 ;; smod(_, 0) => 0
@@ -583,6 +658,22 @@
 (rule (simplify (Op.SLt a a)) (imm_bool false))
 ;; signed(a) > signed(a) => 0
 (rule (simplify (Op.SGt a a)) (imm_bool false))
+
+;; (x == y) ? x : y => y
+(rule 10 (simplify (Op.Select (eq x y) x y)) y)
+(rule 9 (simplify (Op.Select (eq y x) x y)) y)
+;; (x & mask) == 0 ? (x & ~mask) : x => x
+(rule 8 (simplify (Op.Select (eq (band x (iconst mask)) (zero)) (band x (iconst clear)) x))
+      (if-let clear (u256_not mask)) x)
+;; (x & mask) != 0 ? (x & ~mask) : x => x & ~mask
+(rule 7 (simplify (Op.Select (ne (band x (iconst mask)) (zero)) (and cleared (band x (iconst clear))) x))
+      (if-let clear (u256_not mask)) cleared)
+;; (x & mask) == 0 ? x : (x & ~mask) => x & ~mask
+(rule 6 (simplify (Op.Select (eq (band x (iconst mask)) (zero)) x (and cleared (band x (iconst clear)))))
+      (if-let clear (u256_not mask)) cleared)
+;; (x & mask) != 0 ? x : (x & ~mask) => x
+(rule 5 (simplify (Op.Select (ne (band x (iconst mask)) (zero)) x (band x (iconst clear))))
+      (if-let clear (u256_not mask)) x)
 
 ;; 1 ? then_value : _ => then_value
 (rule 4 (simplify (Op.Select (one) then_value _)) then_value)

@@ -203,13 +203,13 @@ fn @fold_clz_constants() -> struct0 [return_abi=[i256, i256, i256, i256, i256]] 
 // CHECK-LABEL: fn @checked_constants
 // CHECK: {{^[ +].*}}checked_add u8, 255, 1
 // CHECK: {{^[ +].*}}checked_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-// CHECK: {{^[ +].*}}checked_div u256, 1, 0
+// CHECK: {{^[ +].*}}checked_div i256, 1, 0
 // CHECK: {{^[ +].*}}ret 243
 fn @checked_constants() -> i256 {
   bb0:
     v0 = checked_add u8, 255, 1
     v1 = checked_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v2 = checked_div u256, 1, 0
+    v2 = checked_div i256, 1, 0
     v3 = checked_pow u8, 3, 5
     ret v3
 }
@@ -523,6 +523,81 @@ fn @eof_address_cast(arg0: i256) -> i256 {
     v1 = zext i160 v0 to i256
     v2 = extcall v1, 0, 0, 0
     ret v2
+}
+
+fn @nested_select_false(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> i256 {
+  bb0:
+    v4 = select arg0, arg2, arg3
+    v5 = select arg0, arg1, v4
+    ret v5
+}
+
+fn @nested_select_true(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> i256 {
+  bb0:
+    v4 = select arg0, arg1, arg2
+    v5 = select arg0, v4, arg3
+    ret v5
+}
+
+fn @equal_select_0(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v2 = eq arg0, arg1
+    v3 = select v2, arg0, arg1
+    ret v3
+}
+
+fn @equal_select_1(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v2 = eq arg1, arg0
+    v3 = select v2, arg0, arg1
+    ret v3
+}
+
+fn @bit_test_select_0(arg0: i256) -> i256 {
+  bb0:
+    v1 = and arg0, 255
+    v2 = eq v1, 0
+    v3 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v4 = select v2, v3, arg0
+    ret v4
+}
+
+fn @bit_test_select_1(arg0: i256) -> i256 {
+  bb0:
+    v1 = and arg0, 255
+    v2 = eq v1, 0
+    v3 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v4 = select v2, arg0, v3
+    ret v4
+}
+
+fn @bit_test_select_2(arg0: i256) -> i256 {
+  bb0:
+    v1 = and arg0, 255
+    v2 = eq v1, 0
+    v3 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v5 = ne v1, 0
+    v4 = select v5, v3, arg0
+    ret v4
+}
+
+fn @bit_test_select_3(arg0: i256) -> i256 {
+  bb0:
+    v1 = and arg0, 255
+    v2 = eq v1, 0
+    v3 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v5 = ne v1, 0
+    v4 = select v5, arg0, v3
+    ret v4
+}
+
+fn @bit_test_select_distinct_mask(arg0: i256) -> i256 {
+  bb0:
+    v1 = and arg0, 255
+    v2 = eq v1, 0
+    v3 = and arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeff00
+    v4 = select v2, v3, arg0
+    ret v4
 }
 
 // CHECK-LABEL: fn @ne_sub
