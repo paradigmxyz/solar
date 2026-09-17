@@ -74,7 +74,7 @@
 use crate::mir::{
     AddressCallKind, AllocationKind, BlockId, Callee, EffectKind, Function, FunctionId, Immediate,
     ImmutableId, InstId, InstKind, Instruction, MemoryObjectKind, MemoryObjectLayout, MirType,
-    Module, SliceLocation, StorageAlias, Value, ValueId,
+    Module, SliceLocation, StorageAlias, Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
         Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryBase,
@@ -676,7 +676,7 @@ impl CommonSubexprEliminator {
                     && func.value_ty(*result) == func.value_ty(*cached)
                 {
                     if matches!(key, ExprKey::MLoad(_))
-                        && !Self::memory_reuse_pays_off(func, ctx, block_id, *cached, kind)
+                        && !Self::memory_reuse_pays_off(func, ctx, block_id, *cached, *result, kind)
                     {
                         // Reload instead of extending the cached value's live range.
                         cache.insert(key.clone(), *result);
@@ -721,12 +721,15 @@ impl CommonSubexprEliminator {
     /// word is defined in this block, is already live into it, or is a
     /// loop-invariant read, where every iteration repeats the saving and code
     /// motion would keep the word live anyway; a loop-varying element reloaded
-    /// after a compare-and-branch is cheaper to load again than to carry.
+    /// after a compare-and-branch is cheaper to load again than to carry,
+    /// unless the reload is itself only tested again, where reuse lets the
+    /// second test fold into the first.
     fn memory_reuse_pays_off(
         func: &Function,
         ctx: &GlobalCseContext<'_>,
         block: BlockId,
         cached: ValueId,
+        reload: ValueId,
         kind: &InstKind,
     ) -> bool {
         let Some(reuse) = &ctx.reuse else { return true };
@@ -745,6 +748,21 @@ impl CommonSubexprEliminator {
             return true;
         }
         if facts.liveness.live_in(block).contains(cached) {
+            return true;
+        }
+        // The cached word decided the branch into this block and the reload decides the
+        // branch out of it, as when a loop tests `seen[slot] != 0` and its body computes
+        // `seen[slot] - 1`. Reuse makes the second test a repeat of the first, which branch
+        // folding removes along with the load, so it pays whatever else is live here.
+        if let Some(&home) = facts.definitions.get(cached_inst)
+            && ctx.predecessors[block].as_slice() == [home]
+            && let Some(Terminator::Branch { condition: tested, then_block, else_block }) =
+                &func.blocks[home].terminator
+            && *tested == cached
+            && then_block != else_block
+            && let Some(Terminator::Branch { condition, .. }) = &func.blocks[block].terminator
+            && *condition == reload
+        {
             return true;
         }
         // The word crosses exactly one edge from its defining block, as after
@@ -1558,12 +1576,7 @@ impl CommonSubexprEliminator {
         counts
     }
 
-    fn count_terminator_uses(
-        term: &crate::mir::Terminator,
-        counts: &mut FxHashMap<ValueId, usize>,
-    ) {
-        use crate::mir::Terminator;
-
+    fn count_terminator_uses(term: &Terminator, counts: &mut FxHashMap<ValueId, usize>) {
         let mut count = |value| {
             *counts.entry(value).or_default() += 1;
         };
