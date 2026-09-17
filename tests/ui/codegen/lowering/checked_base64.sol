@@ -126,15 +126,15 @@ library Base64 {
 
 contract CheckedBase64 {
     // OPT-LABEL: fn @encode{{[.0-9]*}}(arg0: memptr, arg1: i256, arg2: i256)
-    // Allocating the output may alias the input header, so reload it before the loop.
+    // Allocating the output cannot change the input's length, so it is read once.
     // OPT: [[INPUT:v[0-9]+]] = ptrtoint memptr arg0 to i256
     // OPT: {{v[0-9]+}} = mload [[INPUT]]
-    // OPT: {{v[0-9]+}} = mload [[INPUT]]
+    // OPT-NOT: mload [[INPUT]]
     // OPT-LABEL: fn @decode{{[.0-9]*}}(arg0: memptr)
-    // Allocating the output may alias the input header, so reload it before the loop.
-    // OPT: [[INPUT:v[0-9]+]] = ptrtoint memptr arg0 to i256
-    // OPT: {{v[0-9]+}} = mload [[INPUT]]
-    // OPT: {{v[0-9]+}} = mload [[INPUT]]
+    // Allocating the output cannot change the input's length, so it is read once.
+    // OPT: [[DINPUT:v[0-9]+]] = ptrtoint memptr arg0 to i256
+    // OPT: {{v[0-9]+}} = mload [[DINPUT]]
+    // OPT-NOT: mload [[DINPUT]]
     // OPT-NOT: icall @literal_bytes_word
     // OPT: {{v[0-9]+}} = add {{v[0-9]+}}, 3{{$}}
     // OPT-NEXT: [[MAIN:v[0-9]+]] = lt

@@ -72,13 +72,13 @@
 //! body changes; callers must still observe any improved callee summaries.
 
 use crate::mir::{
-    AddressCallKind, BlockId, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId,
-    InstId, InstKind, Instruction, MemoryObjectKind, MemoryObjectLayout, MirType, Module,
-    SliceLocation, StorageAlias, Value, ValueId,
+    AddressCallKind, AllocationKind, BlockId, Callee, EffectKind, Function, FunctionId, Immediate,
+    ImmutableId, InstId, InstKind, Instruction, MemoryObjectKind, MemoryObjectLayout, MirType,
+    Module, SliceLocation, StorageAlias, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
-        Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
-        MemoryLocation,
+        Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryBase,
+        MemoryCallSummaries, MemoryLocation,
     },
     memory::EvmMemoryLayout,
     pass::{
@@ -825,7 +825,7 @@ impl CommonSubexprEliminator {
                 continue;
             }
             for clobber in clobbers {
-                self.apply_clobber(cache, clobber);
+                self.apply_clobber(func, cache, clobber);
                 if !cache.has_stateful() {
                     break;
                 }
@@ -1170,7 +1170,7 @@ impl CommonSubexprEliminator {
         let mut clobbers = Vec::new();
         self.side_effect_clobbers(func, inst_id, kind, replacements, &mut clobbers);
         for clobber in &clobbers {
-            self.apply_clobber(expr_cache, clobber);
+            self.apply_clobber(func, expr_cache, clobber);
             if !expr_cache.has_stateful() {
                 break;
             }
@@ -1218,10 +1218,10 @@ impl CommonSubexprEliminator {
     }
 
     /// Removes cache entries invalidated by a single clobbering effect.
-    fn apply_clobber(&self, expr_cache: &mut ExprCache, clobber: &Clobber) {
+    fn apply_clobber(&self, func: &Function, expr_cache: &mut ExprCache, clobber: &Clobber) {
         match *clobber {
             Clobber::GasObservation => expr_cache.clear_stateful(),
-            Clobber::Memory(write) => self.invalidate_memory(expr_cache, write),
+            Clobber::Memory(write) => self.invalidate_memory(func, expr_cache, write),
             Clobber::Storage(write) => {
                 expr_cache.retain_stateful(|key, _| match key {
                     ExprKey::SLoad(cached) => write.preserves(*cached, |cached, assigned| {
@@ -1260,12 +1260,67 @@ impl CommonSubexprEliminator {
         }
     }
 
-    fn invalidate_memory(&self, expr_cache: &mut ExprCache, write: ClobberScope<MemRangeKey>) {
+    /// Whether `write` is the free-memory-pointer slot, which the bump of every
+    /// allocation stores to, and `read` the length word of a dynamic memory
+    /// object.
+    ///
+    /// The memory model owns both. The slot is a reserved word that ends where
+    /// the zero slot begins, and an object's length word is the zero slot or a
+    /// heap word, so the bump cannot change a length. Nothing else is claimed:
+    /// a raw load, a field, an element, and the object of a recycled
+    /// allocation keep the alias answer, and only this cache asks. Without it
+    /// every `new bytes(n)` between a read of `s.length` and the loop over `s`
+    /// leaves the loop comparing against a second length, which no bounds
+    /// check can be folded into.
+    fn bump_misses_length_word(
+        func: &Function,
+        read: MemoryLocation,
+        write: MemoryLocation,
+    ) -> bool {
+        let word = LocationSize::Const(EvmMemoryLayout::WORD_SIZE);
+        let is_bump = write.address.base == MemoryBase::Absolute
+            && write.address.offset == EvmMemoryLayout::FMP_SLOT
+            && write.size == word;
+        if !is_bump || read.address.offset != 0 || read.size != word {
+            return false;
+        }
+        match read.address.base {
+            MemoryBase::Param(value) => matches!(
+                func.value(value),
+                Value::Arg(index) if matches!(
+                    func.arg_ty(*index),
+                    MirType::MemoryObject(
+                        MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray
+                    )
+                )
+            ),
+            MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) => matches!(
+                func.inst(inst).kind,
+                InstKind::Alloc {
+                    kind: AllocationKind::Object(
+                        MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. }
+                    ),
+                    ..
+                }
+            ),
+            _ => false,
+        }
+    }
+
+    fn invalidate_memory(
+        &self,
+        func: &Function,
+        expr_cache: &mut ExprCache,
+        write: ClobberScope<MemRangeKey>,
+    ) {
         expr_cache.retain_stateful(|key, _| match key {
-            ExprKey::MLoad(read) | ExprKey::Keccak256(read) => write
-                .preserves(*read, |read, write| {
-                    AliasAnalysis::memory_alias_locations(read, write).may_alias()
-                }),
+            ExprKey::MLoad(read) => write.preserves(*read, |read, write| {
+                !Self::bump_misses_length_word(func, read, write)
+                    && AliasAnalysis::memory_alias_locations(read, write).may_alias()
+            }),
+            ExprKey::Keccak256(read) => write.preserves(*read, |read, write| {
+                AliasAnalysis::memory_alias_locations(read, write).may_alias()
+            }),
             ExprKey::MappingSlot(..)
             | ExprKey::StorageArrayDataSlot(..)
             | ExprKey::StorageArrayElementSlot(..) => {

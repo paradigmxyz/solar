@@ -19,14 +19,16 @@
 // CHECK-LABEL: fn @inPlace
 // CHECK: mstore8
 
-// The raw allocation frontier has no disjointness proof for the input header.
-// Keep the source bounds check and byte loop when that length cannot be reused.
+// The output's allocation cannot change the input's length: its fill and its
+// length word stay inside it, and its pointer bump is a reserved word. So the
+// length read before it is the one the loop compares against, the source
+// bounds check folds into the loop condition, and the byte loop is one `mcopy`.
 // CHECK-LABEL: fn @_slice
 // CHECK: [[INPUT:v[0-9]+]] = ptrtoint memptr arg0 to i256
 // CHECK: mload [[INPUT]]
-// CHECK: mload [[INPUT]]
-// CHECK: mstore8
-// CHECK-NOT: mcopy
+// CHECK-NOT: mload [[INPUT]]
+// CHECK-NOT: mstore8
+// CHECK: mcopy
 
 contract Test {
     function slice(bytes memory s, uint256 start, uint256 end) public pure returns (bytes memory) {

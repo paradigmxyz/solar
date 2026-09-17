@@ -54,10 +54,9 @@ fn @peek() [selector=0xa230438f, abi_wrapper, pure] {
     mstore v0, 4
     v1 = add v0, 32
     mstore v1, 0x1122334400000000000000000000000000000000000000000000000000000000
-    v2 = mload v34
     v3 = add arg1, 4
     v4 = lt v3, arg1
-    v5 = gt v3, v2
+    v5 = gt v3, v28
     v6 = or v4, v5
     v7 = iszero v6
     v8 = mul v7, arg1
