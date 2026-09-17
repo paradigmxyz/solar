@@ -1,53 +1,66 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/// @notice Bit counting.
-/// @dev Compiler-owned module, imported as `solar:core/v1/Bits.sol`. The
-/// bodies are plain Solidity; where the target EVM has a matching instruction
-/// the compiler uses it instead, and otherwise the body is what runs.
+/// @notice Bit scanning and counting.
+/// @dev Compiler-owned module, imported as `solar:core/v1/Bits.sol`. Every
+/// function is total: a zero input gives 256, which no bit index or count of
+/// a non-zero word can be. The bodies are plain Solidity; where the target EVM
+/// has a matching instruction the compiler uses it instead, and otherwise the
+/// body is what runs.
 library Bits {
+    /// @dev Selects a table slot from a byte value: shifted right by the byte
+    /// and masked to five bits, it gives a distinct slot for each position the
+    /// byte's highest set bit can have, and slot 30 for a zero byte.
+    uint256 private constant _SELECTOR = 0x8421084210842108cc6318c6db6d54be;
+
+    /// @dev The highest set bit's index within a byte, per selector slot.
+    bytes32 private constant _HIGHEST =
+        0x0706060506020504060203020504030106050205030304010505030400000000;
+
+    /// @dev The same table complemented to 255, so that a leading-zero count
+    /// is the byte position exclusive-ored with the slot.
+    bytes32 private constant _LEADING =
+        0xf8f9f9faf9fdfafbf9fdfcfdfafbfcfef9fafdfafcfcfbfefafafcfbffffffff;
+
     /// @dev The number of zero bits above the highest set bit of `x`; 256
     /// for zero.
-    function leadingZeros(uint256 x) internal pure returns (uint256 n) {
-        if (x == 0) return 256;
-        if (x >> 128 == 0) {
-            n += 128;
-            x <<= 128;
+    function leadingZeros(uint256 x) internal pure returns (uint256 r) {
+        // Five comparisons find the byte holding the highest set bit without
+        // a branch; the table finishes inside it. `r` only ever holds bits at
+        // or above three and the slot value has all of those set, so the
+        // exclusive-or subtracts. Zero reaches the last slot, 255, and the
+        // final term makes it 256.
+        r = x > type(uint128).max ? 128 : 0;
+        r |= (x >> r) > type(uint64).max ? 64 : 0;
+        r |= (x >> r) > type(uint32).max ? 32 : 0;
+        r |= (x >> r) > type(uint16).max ? 16 : 0;
+        r |= (x >> r) > type(uint8).max ? 8 : 0;
+        unchecked {
+            r = (r ^ uint8(_LEADING[(_SELECTOR >> (x >> r)) & 31])) + (x == 0 ? 1 : 0);
         }
-        if (x >> 192 == 0) {
-            n += 64;
-            x <<= 64;
-        }
-        if (x >> 224 == 0) {
-            n += 32;
-            x <<= 32;
-        }
-        if (x >> 240 == 0) {
-            n += 16;
-            x <<= 16;
-        }
-        if (x >> 248 == 0) {
-            n += 8;
-            x <<= 8;
-        }
-        if (x >> 252 == 0) {
-            n += 4;
-            x <<= 4;
-        }
-        if (x >> 254 == 0) {
-            n += 2;
-            x <<= 2;
-        }
-        if (x >> 255 == 0) n += 1;
     }
 
-    /// @dev The number of zero bits below the lowest set bit of `x`; 256 for
-    /// zero.
+    /// @dev The index of the highest set bit of `x`, counting from zero at
+    /// the low end; 256 for zero.
+    function highestSetBit(uint256 x) internal pure returns (uint256 r) {
+        // The same search as `leadingZeros`. Zero is seeded with 256: every
+        // comparison is then false and its slot contributes nothing.
+        r = (x == 0 ? 256 : 0) | (x > type(uint128).max ? 128 : 0);
+        r |= (x >> r) > type(uint64).max ? 64 : 0;
+        r |= (x >> r) > type(uint32).max ? 32 : 0;
+        r |= (x >> r) > type(uint16).max ? 16 : 0;
+        r |= (x >> r) > type(uint8).max ? 8 : 0;
+        r |= uint8(_HIGHEST[(_SELECTOR >> (x >> r)) & 31]);
+    }
+
+    /// @dev The number of zero bits below the lowest set bit of `x`, which is
+    /// that bit's index; 256 for zero.
     function trailingZeros(uint256 x) internal pure returns (uint256) {
-        if (x == 0) return 256;
-        // Isolating the lowest set bit leaves a power of two, whose position
-        // is what the leading count of it reports from the other end.
-        return 255 - leadingZeros(x & (~x + 1));
+        // Isolating the lowest set bit leaves a power of two, and the highest
+        // set bit of that is the same bit. Zero stays zero.
+        unchecked {
+            return highestSetBit(x & (0 - x));
+        }
     }
 
     /// @dev The number of set bits in `x`.
