@@ -4,8 +4,10 @@
 ;; the e-graph adds to the class as alternative nodes, and `simplify` returns
 ;; the value an instruction is equal to, which merges the class into that
 ;; value. The pass in
-;; `transform/egraph.rs` hands each instruction over with its operands
-;; canonicalized and inspects operands of defining instructions as written.
+;; `transform/egraph.rs` resolves operand value identities before matching.
+;; The matcher presents constants on the right of declared commutative pairs,
+;; both at the root and in defining instructions, without changing emitted IR.
+;; Rules only need the constant-right spelling; nonconstant permutations remain.
 ;; Every rule must be exact for all 256-bit EVM words.
 ;;
 ;; The number after `rule` is an ISLE match priority: `(rule 9 ...)` is tried
@@ -43,8 +45,6 @@
 ;; A non-zero immediate.
 (decl nonzero_const (U256) Value)
 (extern extractor nonzero_const nonzero_const)
-(decl pure is_const (Value) bool)
-(extern constructor is_const is_const)
 (decl pure is_zero_or_one (Value) bool)
 (extern constructor is_zero_or_one is_zero_or_one)
 ;; `mask` clears the upper 96 bits of `value`, which are already clear.
@@ -155,29 +155,12 @@
 ;; (base + existing) + offset => base + (existing + offset), when offset != 0
 (rule (rewrite (Op.Add (add base (iconst existing)) (nonzero_const offset)))
         (Op.Add base (imm (u256_add existing offset))))
-;; (existing + base) + offset => base + (existing + offset), when offset != 0
-(rule (rewrite (Op.Add (add (iconst existing) base) (nonzero_const offset)))
-        (Op.Add base (imm (u256_add existing offset))))
 ;; (base - existing) + offset => base + (offset - existing), when offset != 0
 (rule (rewrite (Op.Add (sub base (iconst existing)) (nonzero_const offset)))
         (Op.Add base (imm (u256_add (u256_neg existing) offset))))
-;; offset + (base + existing) => base + (existing + offset), when offset != 0
-(rule (rewrite (Op.Add (nonzero_const offset) (add base (iconst existing))))
-        (Op.Add base (imm (u256_add existing offset))))
-;; offset + (existing + base) => base + (existing + offset), when offset != 0
-(rule (rewrite (Op.Add (nonzero_const offset) (add (iconst existing) base)))
-        (Op.Add base (imm (u256_add existing offset))))
-;; offset + (base - existing) => base + (offset - existing), when offset != 0
-(rule (rewrite (Op.Add (nonzero_const offset) (sub base (iconst existing))))
-        (Op.Add base (imm (u256_add (u256_neg existing) offset))))
-;; c + b => b + c, when c != 0 and b is not constant
-(rule (rewrite (Op.Add (and a (nonzero_const _)) b)) (if-let false (is_const b)) (Op.Add b a))
 
 ;; (base + existing) - offset => base + (existing - offset)
 (rule (rewrite (Op.Sub (add base (iconst existing)) (iconst offset)))
-        (Op.Add base (imm (u256_sub existing offset))))
-;; (existing + base) - offset => base + (existing - offset)
-(rule (rewrite (Op.Sub (add (iconst existing) base) (iconst offset)))
         (Op.Add base (imm (u256_sub existing offset))))
 ;; (base - existing) - offset => base + (-existing - offset)
 (rule (rewrite (Op.Sub (sub base (iconst existing)) (iconst offset)))
@@ -188,12 +171,6 @@
 ;; ~a ^ ~b => a ^ b
 (rule (rewrite (Op.Xor (bnot a) (bnot b))) (Op.Xor a b))
 
-;; c * b => b * c, when c is neither 0 nor 1 and b is not constant
-(rule (rewrite (Op.Mul (and a (iconst c)) b))
-        (if-let false (is_const b))
-        (if-let false (u256_is_zero c))
-        (if-let false (u256_is_one c))
-        (Op.Mul b a))
 ;; value * 2 ** k => value << k, when 1 <= k <= 255, value is not a known 0 or 1, and SHL is available
 (rule (rewrite (Op.Mul value (iconst c)))
         (if-let false (is_zero_or_one value))
@@ -223,27 +200,12 @@
 ;; a ** 2 => a * a
 (rule (rewrite (Op.Exp a (iconst c))) (if-let true (u256_eq c 2)) (Op.Mul a a))
 
-;; c & b => b & c
-;; when c is neither 0 nor MAX, b is not constant, and c is not a redundant address mask
-(rule (rewrite (Op.And (and a (iconst c)) b))
-        (if-let false (is_const b))
-        (if-let false (u256_is_zero c))
-        (if-let false (u256_is_all_ones c))
-        (if-let false (masks_clean_address c b))
-        (Op.And b a))
 ;; (base & existing) & mask => base & (existing & mask), when mask is neither 0 nor MAX
 (rule (rewrite (Op.And (band base (iconst existing)) (iconst mask)))
         (if-let false (u256_is_zero mask))
         (if-let false (u256_is_all_ones mask))
         (Op.And base (imm (u256_and mask existing))))
-;; (existing & base) & mask => base & (existing & mask), when mask is neither 0 nor MAX
-(rule (rewrite (Op.And (band (iconst existing) base) (iconst mask)))
-        (if-let false (u256_is_zero mask))
-        (if-let false (u256_is_all_ones mask))
-        (Op.And base (imm (u256_and mask existing))))
 
-;; MAX ^ b => ~b
-(rule (rewrite (Op.Xor (all_ones) b)) (Op.Not b))
 ;; a ^ MAX => ~a
 (rule (rewrite (Op.Xor a (all_ones))) (Op.Not a))
 
@@ -319,12 +281,6 @@
       (if-let true (single_use masked))
       (if-let true (u256_is_zero (u256_shl (u256 96) (u256_not mask))))
       (Op.Balance address))
-;; balance(mask & address) => balance(address), under the same conditions.
-(rule (rewrite (Op.Balance (and masked (band (iconst mask) address))))
-      (if-let true (in_current_block masked))
-      (if-let true (single_use masked))
-      (if-let true (u256_is_zero (u256_shl (u256 96) (u256_not mask))))
-      (Op.Balance address))
 
 ;; call(gas, zext(trunc(address, 160)), ...) => call(gas, address, ...).
 ;; The EVM consumes only the low 160 address bits; both casts must die in this block.
@@ -375,40 +331,18 @@
 (rule 5 (simplify (Op.Add b (sub a b))) a)
 ;; a + 0 => a
 (rule 2 (simplify (Op.Add a (zero))) a)
-;; 0 + b => b
-(rule 1 (simplify (Op.Add (zero) b)) b)
 
 ;; (base + offset_a) - (base + offset_b) => offset_a - offset_b
 (rule 13 (simplify (Op.Sub (sub base (iconst a)) (sub base (iconst b))))
       (imm (u256_sub (u256_neg a) (u256_neg b))))
 
 ;; (base + offset_a) - (base + offset_b) => offset_a - offset_b
-(rule 12 (simplify (Op.Sub (sub base (iconst a)) (add (iconst b) base)))
-      (imm (u256_sub (u256_neg a) b)))
-
-;; (base + offset_a) - (base + offset_b) => offset_a - offset_b
 (rule 11 (simplify (Op.Sub (sub base (iconst a)) (add base (iconst b))))
       (imm (u256_sub (u256_neg a) b)))
 
 ;; (base + offset_a) - (base + offset_b) => offset_a - offset_b
-(rule 10 (simplify (Op.Sub (add (iconst a) base) (sub base (iconst b))))
-      (imm (u256_sub a (u256_neg b))))
-
-;; (base + offset_a) - (base + offset_b) => offset_a - offset_b
-(rule 9 (simplify (Op.Sub (add (iconst a) base) (add (iconst b) base)))
-      (imm (u256_sub a b)))
-
-;; (base + offset_a) - (base + offset_b) => offset_a - offset_b
-(rule 8 (simplify (Op.Sub (add (iconst a) base) (add base (iconst b))))
-      (imm (u256_sub a b)))
-
-;; (base + offset_a) - (base + offset_b) => offset_a - offset_b
 (rule 7 (simplify (Op.Sub (add base (iconst a)) (sub base (iconst b))))
       (imm (u256_sub a (u256_neg b))))
-
-;; (base + offset_a) - (base + offset_b) => offset_a - offset_b
-(rule 6 (simplify (Op.Sub (add base (iconst a)) (add (iconst b) base)))
-      (imm (u256_sub a b)))
 
 ;; (base + offset_a) - (base + offset_b) => offset_a - offset_b
 (rule 5 (simplify (Op.Sub (add base (iconst a)) (add base (iconst b))))
@@ -423,14 +357,10 @@
 ;; a - a => 0
 (rule 1 (simplify (Op.Sub a a)) (imm (u256 0)))
 
-;; 0 * _ => 0
-(rule 4 (simplify (Op.Mul (and a (zero)) _)) a)
 ;; a * 1 => a
 (rule 3 (simplify (Op.Mul a (one))) a)
 ;; _ * 0 => 0
 (rule 2 (simplify (Op.Mul _ (and b (zero)))) b)
-;; 1 * b => b
-(rule 1 (simplify (Op.Mul (one) b)) b)
 
 ;; a / d => 0, when a is known to be less than constant d
 (rule 5 (simplify (Op.Div a (iconst d))) (if-let true (below_const a d)) (imm (u256 0)))
@@ -512,44 +442,8 @@
 
 ;; ((value >> shift) | constant) & mask => constant & mask
 ;; Every selected bit outside constant is shifted out of the word.
-(rule 46 (simplify (Op.And (iconst mask) (bor (iconst constant) (shr (iconst shift) value))))
-      (if-let true (u256_is_zero (u256_shl shift (u256_and mask (u256_not constant)))))
-      (imm (u256_and constant mask)))
-
-;; ((value >> shift) | constant) & mask => constant & mask
-;; Every selected bit outside constant is shifted out of the word.
-(rule 45 (simplify (Op.And (bor (iconst constant) (shr (iconst shift) value)) (iconst mask)))
-      (if-let true (u256_is_zero (u256_shl shift (u256_and mask (u256_not constant)))))
-      (imm (u256_and constant mask)))
-
-;; ((value >> shift) | constant) & mask => constant & mask
-;; Every selected bit outside constant is shifted out of the word.
-(rule 44 (simplify (Op.And (iconst mask) (bor (shr (iconst shift) value) (iconst constant))))
-      (if-let true (u256_is_zero (u256_shl shift (u256_and mask (u256_not constant)))))
-      (imm (u256_and constant mask)))
-
-;; ((value >> shift) | constant) & mask => constant & mask
-;; Every selected bit outside constant is shifted out of the word.
 (rule 43 (simplify (Op.And (bor (shr (iconst shift) value) (iconst constant)) (iconst mask)))
       (if-let true (u256_is_zero (u256_shl shift (u256_and mask (u256_not constant)))))
-      (imm (u256_and constant mask)))
-
-;; ((value << shift) | constant) & mask => constant & mask
-;; Every selected bit outside constant is shifted out of the word.
-(rule 42 (simplify (Op.And (iconst mask) (bor (iconst constant) (shl (iconst shift) value))))
-      (if-let true (u256_is_zero (u256_shr shift (u256_and mask (u256_not constant)))))
-      (imm (u256_and constant mask)))
-
-;; ((value << shift) | constant) & mask => constant & mask
-;; Every selected bit outside constant is shifted out of the word.
-(rule 41 (simplify (Op.And (bor (iconst constant) (shl (iconst shift) value)) (iconst mask)))
-      (if-let true (u256_is_zero (u256_shr shift (u256_and mask (u256_not constant)))))
-      (imm (u256_and constant mask)))
-
-;; ((value << shift) | constant) & mask => constant & mask
-;; Every selected bit outside constant is shifted out of the word.
-(rule 40 (simplify (Op.And (iconst mask) (bor (shl (iconst shift) value) (iconst constant))))
-      (if-let true (u256_is_zero (u256_shr shift (u256_and mask (u256_not constant)))))
       (imm (u256_and constant mask)))
 
 ;; ((value << shift) | constant) & mask => constant & mask
@@ -568,16 +462,10 @@
 (rule 15 (simplify (Op.And (bor _ b) b)) b)
 ;; a & mask => a, when mask is a low-bit mask covering every possible set bit of a
 (rule 14 (simplify (Op.And a (iconst mask))) (if-let true (mask_covers mask a)) a)
-;; mask & b => b, when mask is a low-bit mask covering every possible set bit of b
-(rule 13 (simplify (Op.And (iconst mask) b)) (if-let true (mask_covers mask b)) b)
 ;; clz(x) & mask => clz(x), when (mask & 511) == 511
 (rule 12 (simplify (Op.And (and a (clz _)) (iconst mask))) (if-let true (u256_has_bits mask 511)) a)
-;; mask & clz(x) => clz(x), when (mask & 511) == 511
-(rule 11 (simplify (Op.And (iconst mask) (and b (clz _)))) (if-let true (u256_has_bits mask 511)) b)
 ;; a & a => a
 (rule 10 (simplify (Op.And a a)) a)
-;; 0 & _ => 0
-(rule 9 (simplify (Op.And (and a (zero)) _)) a)
 ;; _ & 0 => 0
 (rule 6 (simplify (Op.And _ (and b (zero)))) b)
 ;; ~b & b => 0
@@ -595,14 +483,10 @@
 (rule 8 (simplify (Op.Or (band _ b) b)) b)
 ;; a | a => a
 (rule 7 (simplify (Op.Or a a)) a)
-;; MAX | _ => MAX
-(rule 6 (simplify (Op.Or (and a (all_ones)) _)) a)
 ;; a | 0 => a
 (rule 5 (simplify (Op.Or a (zero))) a)
 ;; _ | MAX => MAX
 (rule 4 (simplify (Op.Or _ (and b (all_ones)))) b)
-;; 0 | b => b
-(rule 3 (simplify (Op.Or (zero) b)) b)
 ;; ~b | b => MAX
 (rule 2 (simplify (Op.Or (bnot b) b)) (imm (u256_max)))
 ;; a | ~a => MAX
@@ -618,8 +502,6 @@
 (rule 6 (simplify (Op.Xor (bxor b a) a)) b)
 ;; a ^ a => 0
 (rule 5 (simplify (Op.Xor a a)) (imm (u256 0)))
-;; 0 ^ b => b
-(rule 4 (simplify (Op.Xor (zero) b)) b)
 ;; a ^ 0 => a
 (rule 3 (simplify (Op.Xor a (zero))) a)
 ;; ~b ^ b => MAX
@@ -641,14 +523,6 @@
 (rule 2 (simplify (Op.Shl _ (and value (zero)))) value)
 ;; _ << shift => 0, when shift >= 256
 (rule 1 (simplify (Op.Shl (iconst shift) _)) (if-let true (u256_ge shift 256)) (imm (u256 0)))
-
-;; (address << shift | constant) >> shift => address
-;; No address bits are lost, and constant fits below the shift.
-(rule 31 (simplify (Op.Shr (iconst shift) (bor (iconst constant) (shl (iconst shift) address))))
-      (if-let true (u256_lt shift 97))
-      (if-let true (u256_is_zero (u256_shr shift constant)))
-      (if-let true (masks_clean_address (u256_from_limbs 18446744073709551615 18446744073709551615 4294967295 0) address))
-      address)
 
 ;; (address << shift | constant) >> shift => address
 ;; No address bits are lost, and constant fits below the shift.
@@ -686,18 +560,12 @@
 
 ;; a == c => 0, when a is known to be less than constant c
 (rule 7 (simplify (Op.Eq a (iconst c))) (if-let true (below_const a c)) (imm_bool false))
-;; c == b => 0, when b is known to be less than constant c
-(rule 6 (simplify (Op.Eq (iconst c) b)) (if-let true (below_const b c)) (imm_bool false))
 ;; a == a => 1
 (rule 5 (simplify (Op.Eq a a)) (imm_bool true))
 ;; clz(_) == c => 0, when c > 256
 (rule 4 (simplify (Op.Eq (clz _) (iconst c))) (if-let true (u256_gt c 256)) (imm_bool false))
-;; c == clz(_) => 0, when c > 256
-(rule 3 (simplify (Op.Eq (iconst c) (clz _))) (if-let true (u256_gt c 256)) (imm_bool false))
 ;; a == 1 => a, when a is boolean
 (rule 2 (simplify (Op.Eq (and a (bool_value)) (one))) a)
-;; 1 == b => b, when b is boolean
-(rule 1 (simplify (Op.Eq (one) (and b (bool_value)))) b)
 
 ;; a < c => 1, when a is known to be less than constant c
 (rule 10 (simplify (Op.Lt a (iconst c))) (if-let true (below_const a c)) (imm_bool true))

@@ -71,7 +71,9 @@ opcode mappings and stack contracts against both operation tables.
 The e-graph owns scalar identities, checked constant evaluation, passing-check
 removal, and fixed aggregate projection folding. Late `const-fold` shares its
 rules but accepts only immediate results, so it cannot extend nonconstant live
-ranges before stack scheduling.
+ranges before stack scheduling. Matching presents constants on the right of
+commutative operations, including nested definitions, so rules need not repeat
+constant-left variants. This view leaves emitted operand order to extraction.
 
 The e-graph overlaps pure-expression CSE, but it does not replace the `cse`
 pass's alias-sensitive memory, storage, and call reuse. SCCP still propagates

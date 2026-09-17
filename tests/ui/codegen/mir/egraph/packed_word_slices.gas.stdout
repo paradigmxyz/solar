@@ -14,9 +14,8 @@
   
   fn @shl_discard_mask_1(arg0: i256) -> i256 {
     bb0:
--     v0 = and 255, arg0
+      v0 = and 255, arg0
 -     v1 = shl 248, v0
-+     v0 = and arg0, 255
 +     v1 = shl 248, arg0
       ret v1
   }
@@ -31,9 +30,8 @@
   
   fn @shr_discard_mask_1(arg0: i256) -> i256 {
     bb0:
--     v0 = and 0xff00000000000000000000000000000000000000000000000000000000000000, arg0
+      v0 = and 0xff00000000000000000000000000000000000000000000000000000000000000, arg0
 -     v1 = shr 248, v0
-+     v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
 +     v1 = shr 248, arg0
       ret v1
   }
@@ -70,9 +68,8 @@
   
   fn @byte_high_mask_1(arg0: i256) -> i256 {
     bb0:
--     v0 = and 0xff00000000000000000000000000000000000000000000000000000000000000, arg0
+      v0 = and 0xff00000000000000000000000000000000000000000000000000000000000000, arg0
 -     v1 = byte 0, v0
-+     v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
 +     v1 = byte 0, arg0
       ret v1
   }
@@ -87,9 +84,8 @@
   
   fn @byte_low_mask_1(arg0: i256) -> i256 {
     bb0:
--     v0 = and 255, arg0
+      v0 = and 255, arg0
 -     v1 = byte 31, v0
-+     v0 = and arg0, 255
 +     v1 = byte 31, arg0
       ret v1
   }
@@ -103,8 +99,7 @@
   
   fn @byte_partial_mask_1(arg0: i256) -> i256 {
     bb0:
--     v0 = and 127, arg0
-+     v0 = and arg0, 127
+      v0 = and 127, arg0
       v1 = byte 31, v0
       ret v1
   }
@@ -119,10 +114,9 @@
   
   fn @byte_out_of_range_mask_1(arg0: i256) -> i256 {
     bb0:
--     v0 = and 255, arg0
+      v0 = and 255, arg0
 -     v1 = byte 32, v0
 -     ret v1
-+     v0 = and arg0, 255
 +     ret 0
   }
   
@@ -235,7 +229,7 @@
   
   fn @shl_discard_mask_1(arg0: i256) -> i256 {
     bb0:
--     v0 = and arg0, 255
+-     v0 = and 255, arg0
       v1 = shl 248, arg0
       ret v1
   }
@@ -249,7 +243,7 @@
   
   fn @shr_discard_mask_1(arg0: i256) -> i256 {
     bb0:
--     v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
+-     v0 = and 0xff00000000000000000000000000000000000000000000000000000000000000, arg0
       v1 = shr 248, arg0
       ret v1
   }
@@ -285,7 +279,7 @@
   
   fn @byte_high_mask_1(arg0: i256) -> i256 {
     bb0:
--     v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
+-     v0 = and 0xff00000000000000000000000000000000000000000000000000000000000000, arg0
       v1 = byte 0, arg0
       ret v1
   }
@@ -299,7 +293,7 @@
   
   fn @byte_low_mask_1(arg0: i256) -> i256 {
     bb0:
--     v0 = and arg0, 255
+-     v0 = and 255, arg0
       v1 = byte 31, arg0
       ret v1
   }
@@ -313,7 +307,7 @@
   
   fn @byte_partial_mask_1(arg0: i256) -> i256 {
     bb0:
-      v0 = and arg0, 127
+      v0 = and 127, arg0
       v1 = byte 31, v0
       ret v1
   }
@@ -326,7 +320,7 @@
   
   fn @byte_out_of_range_mask_1(arg0: i256) -> i256 {
     bb0:
--     v0 = and arg0, 255
+-     v0 = and 255, arg0
       ret 0
   }
   
