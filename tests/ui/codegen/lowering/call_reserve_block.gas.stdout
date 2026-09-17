@@ -43,7 +43,7 @@ bb0:
   sub
   push bb4
   jumpi
-  push 192
+  push 160
   push 64
   mstore
   push 0
@@ -65,9 +65,6 @@ bb0:
   iszero
   push bb4
   jumpi
-  dup 1
-  push 160
-  mstore
   push 32
   dup 2
   push 4
@@ -76,16 +73,12 @@ bb0:
   dup 7
   push 0xc350
   call
-  jump bb10
-bb10:
   swap 2
   pop
-  pop
+  swap 1
   iszero
   push bb4
   jumpi
-  push 160
-  mload
   mload
   push 128
   mstore
@@ -97,7 +90,7 @@ bb4 [cold]:
   dup 1
   invalid
 bb9:
-  push 192
+  push 160
   push 64
   mstore
   push 0
@@ -136,9 +129,6 @@ bb9:
   iszero
   push bb4
   jumpi
-  dup 1
-  push 160
-  mstore
   push 32
   dup 2
   push 4
@@ -149,4 +139,15 @@ bb9:
   gas !metadata(keep_with_next)
   sub !metadata(keep_with_next)
   call
-  jump bb10
+  swap 2
+  pop
+  swap 1
+  iszero
+  push bb4
+  jumpi
+  mload
+  push 128
+  mstore
+  push 32
+  push 128
+  return
