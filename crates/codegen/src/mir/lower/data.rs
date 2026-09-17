@@ -43,7 +43,23 @@ pub struct ContractBytecodes {
 
 impl ContractBytecodes {
     /// Creates bytecode metadata from a generated artifact and its relocations.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a relocation names a missing library or its 20-byte address is out of bounds.
     pub fn new(deployment: RelocatableBytecode, runtime: RelocatableBytecode) -> Self {
+        for bytecode in [&deployment, &runtime] {
+            for relocation in &bytecode.relocations {
+                assert!(bytecode.libraries.get(relocation.library).is_some(), "invalid library ID");
+                assert!(
+                    relocation
+                        .offset
+                        .checked_add(20)
+                        .is_some_and(|end| end <= bytecode.bytes.len()),
+                    "library relocation exceeds bytecode bounds"
+                );
+            }
+        }
         Self {
             deployment: (!deployment.bytes.is_empty()).then_some(deployment),
             runtime: (!runtime.bytes.is_empty()).then_some(runtime),
@@ -269,6 +285,47 @@ fn is_repeated_word(data: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::link::{Library, LibraryTable};
+    use solar_interface::sym;
+
+    #[test]
+    fn contract_bytecodes_validate_relocations() {
+        solar_interface::enter(|| {
+            let mut libraries = LibraryTable::default();
+            let library = libraries.intern(Library { source: sym::Test, name: sym::Test });
+            let valid = RelocatableBytecode {
+                libraries,
+                bytes: vec![0; 20].into(),
+                relocations: vec![LibraryRelocation { offset: 0, library }],
+            };
+            let bytecodes = ContractBytecodes::new(valid.clone(), valid.clone());
+            assert_eq!(bytecodes.deployment(), Some(&valid));
+            assert_eq!(bytecodes.runtime(), Some(&valid));
+
+            for invalid in [
+                RelocatableBytecode { libraries: LibraryTable::default(), ..valid.clone() },
+                RelocatableBytecode { bytes: vec![0; 19].into(), ..valid.clone() },
+                RelocatableBytecode { bytes: Default::default(), ..valid.clone() },
+                RelocatableBytecode {
+                    relocations: vec![LibraryRelocation { offset: usize::MAX, library }],
+                    ..valid.clone()
+                },
+            ] {
+                assert!(
+                    std::panic::catch_unwind(|| {
+                        ContractBytecodes::new(invalid.clone(), valid.clone())
+                    })
+                    .is_err()
+                );
+                assert!(
+                    std::panic::catch_unwind(|| {
+                        ContractBytecodes::new(valid.clone(), invalid.clone())
+                    })
+                    .is_err()
+                );
+            }
+        });
+    }
 
     #[test]
     fn repeated_word() {

@@ -68,3 +68,14 @@
 +     ret v1
   }
   
+  fn @library_address_bits() -> struct0 [return_abi=[u256, u256, u256, u256]] {
+    bb0:
+      v0 = library_address "library.sol":"L"
+-     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+-     v2 = shr 160, v0
+      v3 = shr 159, v0
+      v4 = and v0, 255
+-     ret v1, v2, v3, v4
++     ret v0, 0, v3, v4
+  }
+  

@@ -104,3 +104,20 @@ fn @phi_bound(arg0: u256, arg1: bool) -> u256 {
     v4 = and v3, 255
     ret v4
 }
+
+// Linked addresses have exactly 160 available bits; narrower masks and shifts remain.
+// CHECK-LABEL: {{^[ +].*}}fn @library_address_bits
+// CHECK: {{^[ +].*}}[[LIB:v[0-9]+]] = library_address "library.sol":"L"
+// CHECK-NOT: {{^[ +].*}}= and [[LIB]], 0xffffffffffffffffffffffffffffffffffffffff
+// CHECK: {{^[ +].*}}[[HIGH:v[0-9]+]] = shr 159, [[LIB]]
+// CHECK: {{^[ +].*}}[[LOW:v[0-9]+]] = and [[LIB]], 255
+// CHECK: {{^[ +].*}}ret [[LIB]], 0, [[HIGH]], [[LOW]]
+fn @library_address_bits() -> struct0 [return_abi=[u256, u256, u256, u256]] {
+  bb0:
+    v0 = library_address "library.sol":"L"
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = shr 160, v0
+    v3 = shr 159, v0
+    v4 = and v0, 255
+    ret v1, v2, v3, v4
+}

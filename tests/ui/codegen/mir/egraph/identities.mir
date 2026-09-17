@@ -411,3 +411,18 @@ fn @mixed_and_variable_shifts(arg0: u256, arg1: u256) -> struct2 [return_abi=[u2
     v5 = shl arg1, v4
     ret v1, v3, v5
 }
+
+// CHECK-LABEL: @unshift_library_address
+// CHECK: [[LIB:v[0-9]+]] = library_address "library.sol":"L"
+// CHECK: ret [[LIB]], [[LIB]]
+fn @unshift_library_address() -> struct0 [return_abi=[u256, u256]] {
+  bb0:
+    v0 = library_address "library.sol":"L"
+    v1 = shl 32, v0
+    v2 = or v1, 0x12345678
+    v3 = shr 32, v2
+    v4 = shl 96, v0
+    v5 = or 7, v4
+    v6 = shr 96, v5
+    ret v3, v6
+}

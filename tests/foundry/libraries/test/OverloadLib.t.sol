@@ -42,6 +42,8 @@ contract OverloadLibTest {
         require(uint160(address(OverloadLib)) + 1 == uint160(linked) + 1);
         require(bytes1(bytes20(address(OverloadLib))) == bytes1(bytes20(linked)));
         require(address(OverloadLib) != address(0));
+        require(uint256(uint160(address(OverloadLib))) >> 160 == 0);
+        require((uint256(uint160(address(OverloadLib))) << 96 | 7) >> 96 == uint160(linked));
         bytes memory packed = abi.encodePacked(address(OverloadLib));
         require(keccak256(packed) == keccak256(abi.encodePacked(linked)));
     }

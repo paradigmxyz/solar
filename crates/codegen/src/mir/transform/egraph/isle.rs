@@ -145,6 +145,7 @@ pub(in crate::mir::transform) fn max_bits_with_args(
         | InstKind::Eq(..) => 1,
         InstKind::Byte(..) => 8,
         InstKind::Address
+        | InstKind::LibraryAddress(_)
         | InstKind::Caller
         | InstKind::Origin
         | InstKind::Coinbase
@@ -222,12 +223,13 @@ pub(in crate::mir::transform) fn is_bool_value(func: &Function, value: ValueId) 
     max_bits(func, value, MAX_BITS_DEPTH) <= 1
 }
 
-/// Returns whether `value` is an address produced by an EVM opcode.
+/// Returns whether `value` is an address produced by an EVM opcode or the linker.
 fn is_clean_address(func: &Function, value: ValueId) -> bool {
     matches!(
         defining_kind(func, value),
         Some(
             InstKind::Address
+                | InstKind::LibraryAddress(_)
                 | InstKind::Caller
                 | InstKind::Origin
                 | InstKind::Coinbase
