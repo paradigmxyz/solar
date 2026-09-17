@@ -1195,7 +1195,7 @@ function two(address account) external pure returns (address)
 }
 
 #[test]
-fn waits_for_latest_analysis_before_returning_hover() {
+fn waits_for_requested_analysis_before_returning_hover() {
     let project = TestProject::from_fixture(
         r#"
         //- /Fresh.sol
@@ -1232,10 +1232,9 @@ fn waits_for_latest_analysis_before_returning_hover() {
     let mut context = Context::from_waker(waker);
     assert!(request.as_mut().poll(&mut context).is_pending());
 
-    state.mark_analysis_pending_for_test();
     let mut snapshot = state.snapshot();
-    assert!(snapshot.publish_symbol_tables(2, Arc::new(new_tables)));
-    assert!(!snapshot.publish_symbol_tables(1, Default::default()));
+    assert!(snapshot.publish_symbol_tables(1, Arc::new(new_tables)));
+    assert!(!snapshot.publish_symbol_tables(0, Default::default()));
 
     let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
         panic!("hover request should complete after analysis is published");

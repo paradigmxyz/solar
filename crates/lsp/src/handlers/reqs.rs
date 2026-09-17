@@ -290,6 +290,15 @@ fn latest_analysis_for_uri(
     Some(state.latest_analysis())
 }
 
+fn latest_navigation_analysis_for_uri(
+    state: &GlobalState,
+    uri: &Url,
+) -> Option<impl Future<Output = Result<Arc<ArcSwap<SymbolTables>>, ResponseError>> + use<>> {
+    let analysis = latest_analysis_for_uri(state, uri)?;
+    state.prioritize_pending_analysis();
+    Some(analysis)
+}
+
 fn formatting_edits(source: &str, formatted: String) -> Option<Vec<TextEdit>> {
     if source == formatted {
         return None;
@@ -374,7 +383,7 @@ pub(crate) fn code_actions(
     let literals = state.config.supports_code_action_literals();
     let is_preferred = state.config.supports_code_action_is_preferred();
     let diagnostic_data = state.config.supports_code_action_diagnostic_data();
-    let diagnostics = state.code_action_diagnostics(params.text_document.uri.clone());
+    let diagnostics = state.code_action_diagnostics(params.text_document.uri.clone(), params.range);
     async move {
         if !literals {
             return Ok(Some(Vec::new()));
@@ -407,7 +416,7 @@ pub(crate) fn document_diagnostic(
 ) -> impl Future<Output = Result<DocumentDiagnosticReportResult, ResponseError>> + use<> {
     let report = state.pull_diagnostic_report(params.text_document.uri, params.previous_result_id);
     async move {
-        let report = match report.await? {
+        let report = match report.await.map_err(diagnostic_request_error)? {
             PullReport::Full { result_id, diagnostics } => {
                 DocumentDiagnosticReport::Full(RelatedFullDocumentDiagnosticReport {
                     related_documents: None,
@@ -440,11 +449,23 @@ pub(crate) fn workspace_diagnostic(
     let work_done_token = params.work_done_progress_params.work_done_token;
     async move {
         let _work_done = RequestWorkDoneProgress::begin(client.clone(), work_done_token);
-        let items = reports.await?.into_iter().map(workspace_document_diagnostic_report);
+        let items = reports
+            .await
+            .map_err(diagnostic_request_error)?
+            .into_iter()
+            .map(workspace_document_diagnostic_report);
         let items =
             stream_workspace_diagnostic_partials(&client, partial_result_token, items).await;
         Ok(WorkspaceDiagnosticReport { items }.into())
     }
+}
+
+fn diagnostic_request_error(mut error: ResponseError) -> ResponseError {
+    if error.code == ErrorCode::CONTENT_MODIFIED {
+        // Pull diagnostics explicitly support server cancellation and default to retrying.
+        error.code = ErrorCode::SERVER_CANCELLED;
+    }
+    error
 }
 
 fn workspace_document_diagnostic_report(
@@ -552,7 +573,7 @@ pub(crate) fn goto_definition(
     params: GotoDefinitionParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
     let params = params.text_document_position_params;
-    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     let analysis_revision = state.analysis_revision();
     let import_request = import_definition_request(
         state,
@@ -725,7 +746,7 @@ pub(crate) fn goto_type_definition(
     params: GotoDefinitionParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
     let params = params.text_document_position_params;
-    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
@@ -740,7 +761,7 @@ pub(crate) fn goto_declaration(
     params: GotoDefinitionParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
     let params = params.text_document_position_params;
-    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
@@ -755,7 +776,7 @@ pub(crate) fn goto_implementation(
     params: GotoImplementationParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
     let params = params.text_document_position_params;
-    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
@@ -814,7 +835,7 @@ pub(crate) fn references(
 ) -> impl Future<Output = Result<Option<Vec<lsp_types::Location>>, ResponseError>> + use<> {
     let include_declaration = params.context.include_declaration;
     let params = params.text_document_position;
-    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
@@ -863,7 +884,7 @@ pub(crate) fn hover(
     params: HoverParams,
 ) -> impl Future<Output = Result<Option<Hover>, ResponseError>> + use<> {
     let params = params.text_document_position_params;
-    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
@@ -876,7 +897,7 @@ pub(crate) fn prepare_rename(
     state: &mut GlobalState,
     params: TextDocumentPositionParams,
 ) -> impl Future<Output = Result<Option<PrepareRenameResponse>, ResponseError>> + use<> {
-    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
@@ -902,7 +923,7 @@ pub(crate) fn rename(
     let latest_analysis = if invalid_name {
         None
     } else {
-        latest_analysis_for_uri(state, &params_position.text_document.uri)
+        latest_navigation_analysis_for_uri(state, &params_position.text_document.uri)
     };
     let vfs = state.vfs.clone();
     let document_changes = state.config.supports_workspace_edit_document_changes();
@@ -953,13 +974,19 @@ pub(crate) fn signature_help(
     params: SignatureHelpParams,
 ) -> impl Future<Output = Result<Option<SignatureHelp>, ResponseError>> + use<> {
     let params = params.text_document_position_params;
-    let response = crate::proto::vfs_path(&params.text_document.uri).and_then(|path| {
+    let response = state.cached_vfs_path(&params.text_document.uri).and_then(|path| {
         let source = state.vfs.read().get_file_source(&path)?;
+        let cursor = source
+            .positions()
+            .text_range(lsp_types::Range::new(params.position, params.position))
+            .start;
+        let statement_boundary = Some(source.statement_boundary(cursor));
         state.symbol_tables.load().signature_help(
             &params.text_document.uri,
             params.position,
             source.positions(),
             &source.source(),
+            statement_boundary,
             state.config.signature_help_options(),
         )
     });
@@ -973,7 +1000,8 @@ pub(crate) fn completion(
     let trigger_character =
         params.context.as_ref().and_then(|context| context.trigger_character.as_deref());
     let params = params.text_document_position;
-    let source = crate::proto::vfs_path(&params.text_document.uri)
+    let source = state
+        .cached_vfs_path(&params.text_document.uri)
         .and_then(|path| state.vfs.read().get_file_source(&path));
     if let Some(source) = source {
         let contents = source.contents();
@@ -1208,10 +1236,14 @@ fn completion_input_from_line_prefix(line_prefix: &str) -> CompletionInput {
     let prefix_start = start_of_trailing_ident(line_prefix);
     let prefix = line_prefix[prefix_start..].to_string();
     let before_prefix = &line_prefix[..prefix_start];
-    let member_receiver = before_prefix.strip_suffix('.').and_then(|before_dot| {
+    let member_receiver = before_prefix.trim_end().strip_suffix('.').map(|before_dot| {
+        let before_dot = before_dot.trim_end();
         let receiver_start = start_of_trailing_ident(before_dot);
-        let receiver = &before_dot[receiver_start..];
-        (!receiver.is_empty()).then(|| receiver.to_string())
+        if before_dot[..receiver_start].trim_end().ends_with('.') {
+            String::new()
+        } else {
+            before_dot[receiver_start..].to_string()
+        }
     });
     CompletionInput { prefix, member_receiver }
 }

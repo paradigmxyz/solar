@@ -117,7 +117,7 @@ fn @compareControl() -> bool [selector=0x86f1fef0, pure, abi_params=[], abi_retu
 
 fn @bytesObjectCast() -> bytes4 [selector=0x3edbb59d, pure, abi_params=[], abi_returns=[word<bytes4>]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 6
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x93dafdf1aabb0000000000000000000000000000000000000000000000000000
@@ -151,7 +151,7 @@ fn @returnedBytesObjectCast() -> u256 [selector=0x28a9d934, pure, abi_params=[],
 
 fn @returnBytes() -> struct0 [pure] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0xe00000000000000000000000000000000000000000000000000000000000000
@@ -186,7 +186,7 @@ fn @calldataSliceCast() -> bytes32 [selector=0x93f40587, view, abi_params=[], ab
   bb0:
     v0 = address
     v1 = gas
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, 9
     v3 = memory_object_data memorybytes, v2
     mstore v3, 0x1122334455667788990000000000000000000000000000000000000000000000

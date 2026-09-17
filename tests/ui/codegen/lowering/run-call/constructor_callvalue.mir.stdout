@@ -43,7 +43,7 @@ fn @constructor() [constructor, payable] {
 @module ConstructorCallvalue
 fn @rejectsExplicit() -> bool [selector=0x90887b1f, payable, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 160
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 103
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x6067380380606760c03960c001601f017fffffffffffffffffffffffffffffff
@@ -63,7 +63,7 @@ fn @rejectsExplicit() -> bool [selector=0x90887b1f, payable, abi_params=[], abi_
 
 fn @rejectsImplicit() -> bool [selector=0x05da30eb, payable, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 20
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x34600d5760038060115f395ff35b5f5ffd5f5ffd000000000000000000000000
@@ -75,7 +75,7 @@ fn @rejectsImplicit() -> bool [selector=0x05da30eb, payable, abi_params=[], abi_
 
 fn @rejectsSynthetic() -> bool [selector=0x28868c98, payable, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 96
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 33
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x60c06040523460105760015f556014565b5f5ffd5b600380601e5f395ff35f5f
@@ -89,7 +89,7 @@ fn @rejectsSynthetic() -> bool [selector=0x28868c98, payable, abi_params=[], abi
 
 fn @rejectsInherited() -> bool [selector=0xb3ba0b5d, payable, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 29
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x60c060405234600c576010565b5f5ffd5b600380601a5f395ff35f5ffd000000
@@ -101,7 +101,7 @@ fn @rejectsInherited() -> bool [selector=0xb3ba0b5d, payable, abi_params=[], abi
 
 fn @acceptsPayable() -> bool [selector=0xd6e5da6b, payable, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 17
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x60c0604052600380600e5f395ff35f5ffd000000000000000000000000000000

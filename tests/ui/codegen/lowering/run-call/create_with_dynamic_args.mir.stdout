@@ -42,7 +42,7 @@ data:
 
 fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[word, word<u8>], abi_return_params=[u256, u8]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 5
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x68656c6c6f000000000000000000000000000000000000000000000000000000

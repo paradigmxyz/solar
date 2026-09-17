@@ -60,7 +60,7 @@ fn @encodeSelector(arg0: bytes4) -> bytes4 [selector=0xe234433f, pure, abi_param
 fn @encodeLocalSelector() -> bytes4 [selector=0x0e6d4a3f, pure, abi_params=[], abi_returns=[word<bytes4>]] {
   bb0:
     v0 = shl 224, 0x12345678
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v1, 3
     v2 = memory_object_data memorybytes, v1
     mstore v2, 0x6162630000000000000000000000000000000000000000000000000000000000

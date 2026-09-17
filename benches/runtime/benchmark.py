@@ -21,7 +21,8 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import cache, lru_cache
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
+from urllib.parse import quote
 
 from cases import (
     DEFAULT_FOURTH,
@@ -315,7 +316,7 @@ def compiler_input(
     evm_version: str | None,
     optimizer_runs: int | None = None,
 ) -> tuple[str, int, str]:
-    if test_case.project_file is not None:
+    if test_case.project is not None:
         if test_case.whole_project:
             input_text = project_full_standard_json_input(test_case.project_file)
             timeout = 900
@@ -414,6 +415,31 @@ def write_artifacts(
     output_dir = root / test_case.test_id / spec.compiler_id
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "input.json").write_text(input_text + "\n")
+
+    source_root = output_dir.resolve() / "sources"
+    for name, source_input in json.loads(input_text)["sources"].items():
+        if not isinstance(source_input, dict) or not isinstance(
+            source_input.get("content"), str
+        ):
+            continue
+        if (
+            not name
+            or "\\" in name
+            or PureWindowsPath(name).drive
+            or any(part in ("", ".", "..") for part in name.split("/"))
+            or any(ord(char) < 32 or ord(char) == 127 for char in name)
+        ):
+            return f"invalid source artifact path: {name!r}"
+        source_path = source_root / name
+        try:
+            if source_path.resolve() != source_path:
+                return f"source artifact path contains a symlink: {name!r}"
+            source_path.parent.mkdir(parents=True, exist_ok=True)
+            source_path.write_text(
+                source_input["content"], encoding="utf-8", newline=""
+            )
+        except (OSError, RuntimeError) as error:
+            return f"cannot write source artifact {name!r}: {error}"
 
     cmd = [str(spec.path), "--standard-json"]
     source = test_case.source_name or test_case.source or f"{test_case.test_id}.sol"
@@ -530,8 +556,8 @@ def compile_case(
         "peak_rss_bytes": None,
         "error": "",
     }
-    if test_case.project_file is not None:
-        result.update(source=test_case.source, project=test_case.project)
+    if test_case.project is not None:
+        result.update(source=test_case.source, project=test_case.project.name)
         if not test_case.project_path.exists():
             result["status"] = "failed"
             result["error"] = f"vendored project not found: {test_case.project_file}"
@@ -1540,18 +1566,66 @@ def merge_reference_compiler(
     if entry.get("gas_profile") != reference.get("gas_profile"):
         return False
     # Compilation failures have no runtime workload to match.
-    if reference_data.get("status") != "failed" and not any(
-        workload_signature(data) == workload_signature(reference_data)
-        for data in compilers.values()
-        if isinstance(data, dict)
-    ):
+    matching_data = next(
+        (
+            data
+            for data in compilers.values()
+            if isinstance(data, dict)
+            and workload_signature(data) == workload_signature(reference_data)
+        ),
+        None,
+    )
+    if reference_data.get("status") != "failed" and matching_data is None:
         return False
 
+    imported = copy.deepcopy(reference_data)
+    if matching_data is not None:
+        for old_call, current_call in zip(
+            imported.get("gas_results") or [],
+            matching_data.get("gas_results") or [],
+            strict=True,
+        ):
+            if reason := current_call.get("comparison_exclusion_reason"):
+                old_call["comparison_exclusion_reason"] = reason
     entry["compilers"] = {
-        compiler_id: copy.deepcopy(reference_data),
+        compiler_id: imported,
         **compilers,
     }
     return True
+
+
+@cache
+def source_revision() -> str:
+    return subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=REPOSITORY_ROOT, text=True
+    ).strip()
+
+
+def source_links(test_case: TestCase) -> list[dict[str, str]]:
+    paths = []
+    if test_case.project is not None:
+        paths.append(str(test_case.project_path.relative_to(REPOSITORY_ROOT)))
+    if test_case.source_path:
+        paths.append(test_case.source_path)
+    if not paths:
+        paths.append("benches/runtime/cases.py")
+    links = [
+        {
+            "label": path,
+            "url": f"https://github.com/paradigmxyz/solar/blob/{source_revision()}/{quote(path)}",
+        }
+        for path in paths
+    ]
+    links.extend(
+        {
+            "label": source.repo,
+            "url": f"https://github.com/{source.repo}/tree/{source.commit}",
+        }
+        for source in (
+            test_case.project.sources if test_case.project is not None else ()
+        )
+    )
+    return links
 
 
 def failed_test_result(
@@ -1567,13 +1641,14 @@ def failed_test_result(
         "contract_name": test_case.contract_name,
         "suite": test_case.suite,
         "gas_profile": gas_profile,
+        "source_links": source_links(test_case),
         "benchmark_error": message,
         "compilers": {
             spec.compiler_id: {"status": "failed", "error": message} for spec in specs
         },
     }
-    if test_case.project_file is not None:
-        entry["project"] = test_case.project
+    if test_case.project is not None:
+        entry["project"] = test_case.project.name
         entry["source"] = test_case.source
     return entry
 
@@ -1599,10 +1674,11 @@ def run_test_case(
         "contract_name": test_case.contract_name,
         "suite": test_case.suite,
         "gas_profile": gas_profile,
+        "source_links": source_links(test_case),
         "compilers": {},
     }
-    if test_case.project_file is not None:
-        entry["project"] = test_case.project
+    if test_case.project is not None:
+        entry["project"] = test_case.project.name
         entry["source"] = test_case.source
     reference_solc = next(
         (spec.path for spec in specs if spec.kind == "solc"), reference_solc_path
@@ -1691,6 +1767,7 @@ def run_test_case(
                             "call": call.signature,
                             "args": list(call.args),
                             "gas": None,
+                            "comparison_exclusion_reason": call.comparison_exclusion_reason,
                             "error": error,
                         }
                     )
@@ -1701,6 +1778,7 @@ def run_test_case(
                         "call": call.signature,
                         "args": list(call.args),
                         "gas": gas,
+                        "comparison_exclusion_reason": call.comparison_exclusion_reason,
                     }
                 )
                 total_gas += gas
@@ -1909,14 +1987,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.projects:
         project_set = set(args.projects)
-        suite_tests = [test for test in suite_tests if test.project in project_set]
+        suite_tests = [
+            test
+            for test in suite_tests
+            if test.project is not None and test.project.name in project_set
+        ]
 
     test_map = {test.test_id: test for test in suite_tests}
     if args.list_tests:
         for test in suite_tests:
-            if test.project_file is not None:
+            if test.project is not None:
                 print(
-                    f"{test.test_id}	{test.project}	{test.source}	{test.contract_name}"
+                    f"{test.test_id}	{test.project.name}	{test.source}	{test.contract_name}"
                 )
             else:
                 print(

@@ -750,25 +750,14 @@ impl LowerAbiCx {
             .iter()
             .map(|&id| {
                 let func = module.function(id);
-                let uses = func.arg_uses();
                 func.abi_params.as_ref().map_or(0, |layout| {
                     layout
                         .types
                         .iter()
                         .zip(&func.params)
-                        .enumerate()
-                        .filter(|&(index, (ty, arg_type))| {
+                        .filter(|(ty, arg_type)| {
                             matches!(ty, AbiParamType::Bytes)
-                                && (matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
-                                    || (matches!(arg_type, MirType::MemoryObject(_))
-                                        && func
-                                            .abi_param_locations
-                                            .as_deref()
-                                            .and_then(|locations| locations.get(index))
-                                            == Some(&AbiParamLocation::Memory)
-                                        && uses
-                                            .get(ArgIdx::new(index))
-                                            .is_none_or(|uses| uses.is_empty())))
+                                && matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
                         })
                         .count()
                 })
@@ -1350,29 +1339,17 @@ impl LowerAbiCx {
                         ..DecodeOptions::new(constructor, input_end, self.has_bitwise_shifting)
                     };
                     if uses.is_empty() {
-                        let validate_only = ty.is_dynamic()
-                            && (location != AbiParamLocation::Memory
-                                || (!constructor && matches!(ty, AbiParamType::Bytes)));
-                        if validate_only {
-                            // The shared slice helper reports calldata array reasons, so a
-                            // memory-bound `bytes` validates inline when reasons are encoded.
-                            if location == AbiParamLocation::Memory
-                                && !builder.encodes_revert_reasons()
-                                && let Some(helper) = self.calldata_slice_helper
-                            {
-                                builder.icall_void(helper, vec![head]);
-                            } else {
-                                Self::validate_dynamic_aggregate_argument(
-                                    &mut builder,
-                                    ty,
-                                    head,
-                                    tuple_base,
-                                    input_end,
-                                    constructor,
-                                    location == AbiParamLocation::Memory,
-                                    &mut current,
-                                );
-                            }
+                        if ty.is_dynamic() && location != AbiParamLocation::Memory {
+                            // validate_dynamic_aggregate(head, tuple_base, input_end)
+                            Self::validate_dynamic_aggregate_argument(
+                                &mut builder,
+                                ty,
+                                head,
+                                tuple_base,
+                                input_end,
+                                constructor,
+                                &mut current,
+                            );
                         } else if location == AbiParamLocation::Memory {
                             if !constructor
                                 && matches!(arg_type, MirType::MemoryObject(_))
@@ -1583,10 +1560,6 @@ impl LowerAbiCx {
 
     /// Validates the immediate ABI shape of a dynamic aggregate without
     /// materializing its memory representation.
-    ///
-    /// `to_memory` selects the debug messages of the memory decoder for a value that solc
-    /// would copy to memory, even though the unused value is only validated here.
-    #[allow(clippy::too_many_arguments)]
     fn validate_dynamic_aggregate_argument(
         builder: &mut FunctionBuilder<'_>,
         ty: &crate::mir::AbiParamType,
@@ -1594,7 +1567,6 @@ impl LowerAbiCx {
         tuple_base: ValueId,
         input_end: ValueId,
         constructor: bool,
-        to_memory: bool,
         current: &mut BlockId,
     ) {
         builder.switch_to_block(*current);
@@ -1607,7 +1579,7 @@ impl LowerAbiCx {
             ty,
             current,
             RevertReason::InvalidTupleOffset,
-            !constructor && !to_memory,
+            !constructor,
         );
 
         match ty {
@@ -1622,7 +1594,7 @@ impl LowerAbiCx {
                 );
             }
             crate::mir::AbiParamType::FixedArray { .. } | crate::mir::AbiParamType::Tuple(..) => {
-                let reason = Self::aggregate_short_reason(ty, !constructor && !to_memory);
+                let reason = Self::aggregate_short_reason(ty, !constructor);
                 Self::guard_input_range(
                     builder,
                     base,
@@ -1635,7 +1607,7 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::Bytes => {
                 let len = Self::load_input_word(builder, base, constructor);
                 let data = builder.add_u64_offset(base, 32);
-                Self::guard_bytes_data(builder, data, len, input_end, current, to_memory);
+                Self::guard_bytes_data(builder, data, len, input_end, current, false);
             }
             crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. } => {
                 unreachable!("scalar ABI value is not a dynamic aggregate")

@@ -127,13 +127,10 @@ fn @zeroHash() [selector=0x672c8259, abi_wrapper, pure] {
 
 fn @zeroWordHash() [selector=0x0d00d797, abi_wrapper, pure] {
   bb0:
-    v4 = mload 64 !metadata(memory=scratch)
-    v10 = add v4, 64
-    mstore 64, v10
-    mstore v4, 32
-    v6 = add v4, 32
-    mstore v6, 0
-    v1 = keccak256 v6, 32
+    v0 = icall @zeroWord.body
+    v4 = mload v0
+    v5 = add v0, 32
+    v1 = keccak256 v5, v4
     mstore 128, v1
     returndata 128, 32
 }
@@ -157,6 +154,17 @@ fn @zeroData.body() -> memptr [pure] {
     v3 = calldatasize
     v1 = add v0, 32
     calldatacopy v1, v3, 160
+    ret v0
+}
+
+fn @zeroWord.body() -> memptr [pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v2 = add v0, 64
+    mstore 64, v2
+    mstore v0, 32
+    v1 = add v0, 32
+    mstore v1, 0
     ret v0
 }
 
@@ -231,7 +239,7 @@ bb0:
   dup 1
   push 0x38f844b9
   eq
-  push bb25
+  push bb26
   jumpi
   dup 1
   push 0x4c092794
@@ -303,8 +311,8 @@ bb13:
   iszero
   iszero
   push 257
-  jump bb30
-bb30:
+  jump bb32
+bb32:
   mul
   push 31
   dup 2
@@ -330,8 +338,8 @@ bb30:
   dup 5
   mstore
   swap 2
-  jump bb29
-bb29:
+  jump bb31
+bb31:
   mstore
   push 64
   add
@@ -367,11 +375,11 @@ bb14:
   iszero
   iszero
   push 161
-  jump bb30
+  jump bb32
 bb15:
   push 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
-  jump bb31
-bb31:
+  jump bb33
+bb33:
   push 128
   mstore
   push 32
@@ -379,14 +387,14 @@ bb31:
   return
 bb16:
   push 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
-  jump bb31
+  jump bb33
 bb17:
   push 128
   push 64
   mstore
   push bb18
-  jump bb27
-bb27:
+  jump bb28
+bb28:
   push 64
   mload
   push 192
@@ -442,7 +450,7 @@ bb18 [continuation]:
   mstore
   swap 2
   swap 1
-  jump bb29
+  jump bb31
 bb19:
   push 32
   push 128
@@ -461,8 +469,8 @@ bb20:
   push 64
   mstore
   push bb18
-  jump bb28
-bb28:
+  jump bb30
+bb30:
   push 64
   mload
   push 192
@@ -471,11 +479,11 @@ bb28:
   push 64
   mstore
   push 160
-  push bb34
+  push bb36
   swap 2
   swap 1
-  jump bb32
-bb32:
+  jump bb34
+bb34:
   dup 2
   mstore
   push 32
@@ -491,7 +499,7 @@ bb22:
   push 64
   mstore
   push bb23
-  jump bb27
+  jump bb28
 bb23 [continuation]:
   dup 1
   mload
@@ -499,36 +507,37 @@ bb23 [continuation]:
   push 32
   add
   keccak256
-  jump bb31
+  jump bb33
 bb24:
-  push 160
-  dup 1
-  push 64
-  mstore
-  push 64
-  dup 2
-  add
-  push 64
-  mstore
-  push 32
-  dup 2
-  mstore
-  push 32
-  add
-  push 0
-  dup 2
-  mstore
-  push 32
-  swap 1
-  keccak256
-  jump bb31
-bb25:
   push 160
   push 64
   mstore
   push bb23
-  jump bb28
-bb33 [continuation]:
+  push 64
+  mload
+  push 64
+  dup 2
+  add
+  push 64
+  mstore
+  push 32
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
+  swap 1
+  jump
+bb26:
+  push 160
+  push 64
+  mstore
+  push bb23
+  jump bb30
+bb35 [continuation]:
   swap 1
   mstore
   push 64
@@ -550,10 +559,10 @@ bb33 [continuation]:
   pop
   swap 1
   jump
-bb34 [continuation]:
-  push bb33
+bb36 [continuation]:
+  push bb35
   swap 2
   swap 1
-  jump bb32
+  jump bb34
 
 @data literal_0 hex"41414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465665a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a21"

@@ -86,3 +86,114 @@ fn @no_replacement_across_siblings(arg0: u256, arg1: bool) -> u256 {
     v6 = phi [bb1: v3], [bb2: v5]
     ret v6
 }
+
+// Fresh decoded keys stay below scratch; the failure branch does not return.
+// CHECK-LABEL: {{^[ +].*}}fn @fresh_mapping_entry{{[( ]}}
+// CHECK-DAG: - {{v[0-9]+}} = mapping_slot_memory arg0, 0
+// CHECK-DAG: + {{v[0-9]+}} = add [[MAPPING:v[0-9]+]], [[MAPPING]]
+fn @fresh_mapping_entry(arg0: memorybytes) -> u256 [selector=0x10000001, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v1 = mapping_slot_memory arg0, 0
+    v2 = sload v1
+    v3 = eq v2, 0
+    jumpi v3, bb1, bb2
+  bb1:
+    v4 = mapping_slot_memory arg0, 0
+    v5 = add v1, v4
+    ret v5
+  bb2:
+    icall require<custom_error []>, false, 0
+    invalid
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @mapping_internal_target{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
+fn @mapping_internal_target(arg0: memorybytes) -> u256 [selector=0x10000002, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v1 = mapping_slot_memory arg0, 0
+    v2 = mapping_slot_memory arg0, 0
+    v3 = add v1, v2
+    ret v3
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @mapping_tail_target{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
+fn @mapping_tail_target(arg0: memorybytes) -> u256 [selector=0x10000003, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v1 = mapping_slot_memory arg0, 0
+    v2 = mapping_slot_memory arg0, 0
+    v3 = add v1, v2
+    ret v3
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @mapping_fmp_reset{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
+fn @mapping_fmp_reset(arg0: memorybytes) -> u256 [selector=0x10000004, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v1 = mapping_slot_memory arg0, 0
+    set_fmp 0
+    v2 = mapping_slot_memory arg0, 0
+    v3 = add v1, v2
+    ret v3
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @mapping_raw_read{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
+fn @mapping_raw_read(arg0: memorybytes) -> u256 [selector=0x10000005, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v1 = mapping_slot_memory arg0, 0
+    v4 = mload 128
+    v2 = mapping_slot_memory arg0, 0
+    v3 = add v1, v2
+    ret v3
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @mapping_size_observer{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
+fn @mapping_size_observer(arg0: memorybytes) -> u256 [selector=0x10000006, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v1 = mapping_slot_memory arg0, 0
+    v4 = msize
+    v2 = mapping_slot_memory arg0, 0
+    v3 = add v1, v2
+    ret v3
+}
+
+fn @call_mapping_entry(arg0: memorybytes) -> u256 {
+  bb0:
+    v1 = icall @mapping_internal_target, arg0
+    ret v1
+}
+
+fn @tailcall_mapping_entry(arg0: memorybytes) -> u256 {
+  bb0:
+    tail_call @mapping_tail_target, arg0
+}
+
+// Return encoding can read memory even when the body has no explicit load.
+// CHECK-LABEL: {{^[ +].*}}fn @mapping_dynamic_return{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
+fn @mapping_dynamic_return(arg0: memorybytes) -> memorybytes [selector=0x10000007, abi_params=[bytes], abi_returns=[memory_bytes]] {
+  bb0:
+    v1 = mapping_slot_memory arg0, 0
+    v2 = mapping_slot_memory arg0, 0
+    ret arg0
+}
+
+// A terminal require can read memory while encoding its payload.
+// CHECK-LABEL: {{^[ +].*}}fn @mapping_payload_require{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
+fn @mapping_payload_require(arg0: memorybytes) [selector=0x10000008, abi_params=[bytes], abi_returns=[]] {
+  bb0:
+    v1 = mapping_slot_memory arg0, 0
+    v2 = mapping_slot_memory arg0, 0
+    icall require<custom_error [memory_bytes]>, false, 0, arg0
+    invalid
+}

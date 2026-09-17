@@ -68,7 +68,7 @@ fn @memParam(arg0: memorybytes, arg1: bool) -> u256 [selector=0x7f0132b5, pure, 
   bb2:
     jump bb3
   bb1:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 3
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0xaabbcc0000000000000000000000000000000000000000000000000000000000
@@ -85,7 +85,7 @@ fn @deferredMemory(arg0: bool) -> u256 [selector=0xfd723601, pure, abi_params=[b
   bb2:
     jump bb3
   bb1:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 3
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0xaabbcc0000000000000000000000000000000000000000000000000000000000

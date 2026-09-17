@@ -48,6 +48,11 @@
 //! one original use of the mask in the same block. The account read remains
 //! at its original position; only its redundant address computation changes.
 //!
+//! Memory-key mapping hashes also share dominating definitions in uncalled
+//! semantic ABI entries where fresh decoded keys stay below scratch and no path
+//! observes scratch writes. The whole-function proof rejects raw memory access,
+//! internal entry calls, dynamic return payloads, and observing failure payloads.
+//!
 //! Safety contract:
 //! - do not remove or reorder side effects
 //! - replace an instruction with a value only when the equality is exact for all 256-bit EVM words
@@ -55,11 +60,12 @@
 
 use crate::{
     mir::{
-        ArgIdx, BlockId, EffectKind, Function, Immediate, InstId, InstKind, MirType, Module, Op,
-        OpTraits, Terminator, Value, ValueId,
-        analysis::{CfgInfo, Liveness},
+        AbiParamType, AbiType, ArgIdx, BlockId, Builtin, Callee, EffectKind, Function, Immediate,
+        InstId, InstKind, MemoryObjectKind, MirPhase, MirType, Module, Op, OpTraits, RequireKind,
+        Terminator, Value, ValueId,
+        analysis::{CallGraphInfo, CfgInfo, Liveness},
         pass::{
-            MirPass, run_selected_function_pass_cached,
+            MirPass, run_selected_function_pass, run_selected_function_pass_cached,
             run_selected_function_pass_without_analyses_cached,
         },
         utils::eval,
@@ -100,6 +106,22 @@ impl MirPass for Egraph {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let mut fresh_mapping_entries = DenseBitSet::new_empty(module.functions.len());
+        if module.phase() == MirPhase::Semantic {
+            for (id, func) in module.functions.iter_enumerated() {
+                if has_fresh_mapping_arguments(func) {
+                    fresh_mapping_entries.insert(id);
+                }
+            }
+            if !fresh_mapping_entries.is_empty() {
+                for func in &module.functions {
+                    fresh_mapping_entries.subtract(&CallGraphInfo::collect_internal_callees(
+                        func,
+                        module.functions.len(),
+                    ));
+                }
+            }
+        }
         let mut flat = DenseBitSet::new_empty(module.functions.len());
         let mut with_cfg = DenseBitSet::new_empty(module.functions.len());
         for (func_id, func) in module.functions.iter_enumerated() {
@@ -112,7 +134,9 @@ impl MirPass for Egraph {
                         Some(Terminator::ReturnData { size, .. }) if is_zero(func, size)
                     )
                 });
-            if func.instructions().next().is_some() || empty_return {
+            if !fresh_mapping_entries.contains(func_id)
+                && (func.instructions().next().is_some() || empty_return)
+            {
                 let has_edges = func.blocks.iter().any(|block| {
                     block.terminator.as_ref().is_some_and(|term| !term.successors().is_empty())
                 });
@@ -144,8 +168,107 @@ impl MirPass for Egraph {
                 Builder::new(func, target, Some(Rc::clone(analyses.cfg()))).run() + semantic != 0
             },
         );
+        // Eligibility depends on module-wide callers, so do not cache it by body alone.
+        changed |= run_selected_function_pass(
+            module,
+            analyses,
+            &fresh_mapping_entries,
+            |func, analyses| {
+                let semantic =
+                    super::inst_simplify::simplify_before_egraph(func, gcx.sess.opts.evm_version);
+                let mut builder = Builder::new(func, target, Some(Rc::clone(analyses.cfg())));
+                builder.fresh_mapping_arguments = true;
+                builder.run() + semantic != 0
+            },
+        );
         changed
     }
+}
+
+/// Proves ABI-decoded keys remain below scratch and no code observes scratch writes.
+fn has_fresh_mapping_arguments(func: &Function) -> bool {
+    if func.selector.is_none() || func.attributes.is_constructor || func.attributes.is_abi_wrapper {
+        return false;
+    }
+    let Some(abi_params) = &func.abi_params else { return false };
+    if func
+        .abi_returns
+        .as_ref()
+        .is_none_or(|layout| !layout.types.iter().all(|ty| matches!(ty, AbiType::Word(_))))
+        || func.abi_return_params.as_ref().is_some_and(|layout| {
+            !layout.types.iter().all(|ty| matches!(ty, AbiParamType::Scalar(ty) if ty.is_word()))
+        })
+    {
+        return false;
+    }
+    let mut has_mapping = false;
+    for block in &func.blocks {
+        if !matches!(
+            block.terminator,
+            Some(
+                Terminator::Jump(_)
+                    | Terminator::Branch { .. }
+                    | Terminator::Switch { .. }
+                    | Terminator::Return { .. }
+                    | Terminator::Invalid
+            )
+        ) {
+            return false;
+        }
+        for &inst in &block.instructions {
+            match &func.inst(inst).kind {
+                InstKind::MappingSlotMemory(key, _) => {
+                    if !matches!(func.value(*key), Value::Arg(index)
+                        if func.params[*index] == MirType::MemoryObject(MemoryObjectKind::Bytes)
+                            && abi_params.types.get(index.index()) == Some(&AbiParamType::Bytes))
+                    {
+                        return false;
+                    }
+                    has_mapping = true;
+                }
+                InstKind::ICall {
+                    function: Callee::Builtin(Builtin::Require(RequireKind::CustomError(layout))),
+                    ..
+                } if layout.types.is_empty()
+                    && matches!(block.terminator, Some(Terminator::Invalid))
+                    && block.instructions.last() == Some(&inst) => {}
+                InstKind::Phi(_)
+                | InstKind::Add(..)
+                | InstKind::Sub(..)
+                | InstKind::Mul(..)
+                | InstKind::Div(..)
+                | InstKind::SDiv(..)
+                | InstKind::Mod(..)
+                | InstKind::SMod(..)
+                | InstKind::Exp(..)
+                | InstKind::AddMod(..)
+                | InstKind::MulMod(..)
+                | InstKind::And(..)
+                | InstKind::Or(..)
+                | InstKind::Xor(..)
+                | InstKind::Not(..)
+                | InstKind::Shl(..)
+                | InstKind::Shr(..)
+                | InstKind::Sar(..)
+                | InstKind::Byte(..)
+                | InstKind::Lt(..)
+                | InstKind::Gt(..)
+                | InstKind::SLt(..)
+                | InstKind::SGt(..)
+                | InstKind::Eq(..)
+                | InstKind::IsZero(..)
+                | InstKind::Clz(..)
+                | InstKind::SignExtend(..)
+                | InstKind::Select(..)
+                | InstKind::SLoad(..)
+                | InstKind::SStore(..)
+                | InstKind::Caller
+                | InstKind::CallValue => {}
+                _ => return false,
+            }
+        }
+    }
+    has_mapping
 }
 
 /// Initial per-class search bound, counting the instruction as written.
@@ -232,6 +355,7 @@ struct Builder<'a> {
     func: &'a mut Function,
     target: Target,
     cfg: Option<Rc<CfgInfo>>,
+    fresh_mapping_arguments: bool,
     /// One identity for equal immediates, so nodes over them compare equal.
     immediates: FxHashMap<Immediate, ValueId>,
     /// One identity for equal immediates and for each function argument.
@@ -277,6 +401,7 @@ impl<'a> Builder<'a> {
             func,
             target,
             cfg,
+            fresh_mapping_arguments: false,
             immediates,
             leaves,
             optimistic,
@@ -368,7 +493,10 @@ impl<'a> Builder<'a> {
             self.visit_phi(inst_id, result, incoming, ty);
             return;
         }
-        if !is_node(&inst.kind) {
+        if !(is_node(&inst.kind)
+            || (self.fresh_mapping_arguments
+                && matches!(inst.kind, InstKind::MappingSlotMemory(..))))
+        {
             self.rewrite_in_place(inst_id, block);
             return;
         }

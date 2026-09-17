@@ -256,7 +256,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb5:
     v13 = phi [bb3: v9], [bb4: v11]
     memory_object_store_field memorystruct<2>, v13, 0, 7
-    v14 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v14 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v14, 2
     v15 = memory_object_data memorybytes, v14
     mstore v15, 0x102000000000000000000000000000000000000000000000000000000000000
@@ -298,7 +298,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb9:
     v33 = phi [bb7: v29], [bb8: v31]
     memory_object_store_field memorystruct<2>, v33, 0, 11
-    v34 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v34 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v34, 3
     v35 = memory_object_data memorybytes, v34
     mstore v35, 0x304050000000000000000000000000000000000000000000000000000000000

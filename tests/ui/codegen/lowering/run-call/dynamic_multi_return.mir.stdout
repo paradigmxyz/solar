@@ -8,7 +8,7 @@ types:
 
 fn @strAndNum() -> struct0 [selector=0x713d228b, pure, abi_params=[], abi_returns=[memory_bytes, word], abi_return_params=[bytes, u256]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 5
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
@@ -19,7 +19,7 @@ fn @strAndNum() -> struct0 [selector=0x713d228b, pure, abi_params=[], abi_return
 
 fn @numAndStr() -> struct1 [selector=0xed19722c, pure, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 5
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x776f726c64000000000000000000000000000000000000000000000000000000
@@ -30,11 +30,11 @@ fn @numAndStr() -> struct1 [selector=0xed19722c, pure, abi_params=[], abi_return
 
 fn @twoStrings() -> struct2 [selector=0x477be19f, pure, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 5
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, 2
     v3 = memory_object_data memorybytes, v2
     mstore v3, 0xaabb000000000000000000000000000000000000000000000000000000000000
@@ -52,7 +52,7 @@ fn @mixed() -> struct3 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[m
     v3 = iszero v2
     icall panic_if<0x32>, v3
     memory_object_store_element memoryarray<1>, v0, 0, 7
-    v4 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v4, 1
     v5 = memory_object_data memorybytes, v4
     mstore v5, 0xcc00000000000000000000000000000000000000000000000000000000000000

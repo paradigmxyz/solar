@@ -18,7 +18,7 @@ fn @constructor() [constructor] {
     v4 = icall @readWord, v2
     v5 = checked_add u256, v4, 1
     storeimmutable answer, v5
-    v6 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v6, 1
     v7 = memory_object_data memorybytes, v6
     mstore v7, 0x3100000000000000000000000000000000000000000000000000000000000000
@@ -78,7 +78,7 @@ fn @modified(arg0: u256) -> u256 [selector=0xd492dffb, pure, abi_params=[u256], 
 
 fn @fails() -> u256 [selector=0xce869a64, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 0
     v1 = memory_object_data memorybytes, v0
     v2 = icall @readWord, v0

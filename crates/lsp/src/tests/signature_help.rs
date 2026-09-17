@@ -1517,3 +1517,33 @@ callback(uint256 value) returns (uint256)
 "#]],
     );
 }
+
+#[test]
+fn pending_calls_resolve_import_aliases() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Math.sol
+        function twice(uint value) pure returns (uint) { return value * 2; }
+        //- /Signature.sol open
+        import {twice as double} from "./Math.sol";
+        contract C {
+            function f() public pure {
+                double;$1
+            }
+        }
+        "#,
+        "/Signature.sol",
+    );
+    let changed = fixture.project_contents("/Signature.sol").replace("double;", "double(");
+    fixture.check_signature_help_after_change(
+        "$1",
+        "/Signature.sol",
+        &changed,
+        str![[r#"
+active signature=Some(0) parameter=Some(0)
+function twice(uint256 value) internal pure returns (uint256)
+  15..28
+
+"#]],
+    );
+}

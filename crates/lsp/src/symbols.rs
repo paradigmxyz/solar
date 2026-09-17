@@ -25,10 +25,11 @@ use solar_sema::{
     ty::{CallableParamSource, Ty, TyKind},
 };
 use std::{
+    cmp::Reverse,
     fmt::Write as _,
     ops::ControlFlow,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, OnceLock},
 };
 
 use crate::{
@@ -48,6 +49,13 @@ use crate::{
 };
 
 const COMPLETION_ITEM_DATA_VERSION: u8 = 1;
+const WORKSPACE_SEARCH_CORPUS_THRESHOLD: usize = 512;
+
+#[derive(Clone, Debug)]
+struct WorkspaceSearchCorpus {
+    names: String,
+    ends: Vec<usize>,
+}
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SymbolTables {
@@ -57,11 +65,14 @@ pub(crate) struct SymbolTables {
     file_declaration_positions: FxHashMap<Url, PositionIndex<SymbolId>>,
     document_symbol_children: IndexVec<SymbolId, Vec<SymbolId>>,
     workspace_symbol_ids: Vec<SymbolId>,
+    workspace_search: OnceLock<WorkspaceSearchCorpus>,
     symbols_by_key: FxHashMap<SymbolKey, SymbolId>,
     scopes: IndexVec<ScopeId, Scope>,
     global_completions: Vec<CompletionItem>,
     builtin_member_completions: FxHashMap<String, Vec<CompletionItem>>,
-    receiver_member_completions: FxHashMap<SymbolId, Arc<[CompletionItem]>>,
+    receiver_member_completions: FxHashMap<(ScopeId, SymbolId), Arc<[CompletionItem]>>,
+    contract_member_completions: FxHashMap<(ScopeId, Builtin), Arc<[CompletionItem]>>,
+    namespace_completions: FxHashMap<ScopeId, FxHashMap<String, Arc<[CompletionItem]>>>,
     member_completions: Vec<MemberCompletionScope>,
     file_member_completions: FxHashMap<Url, PositionIndex<usize>>,
     file_scopes: FxHashMap<Url, Vec<ScopeId>>,
@@ -132,7 +143,6 @@ type ReferenceTargets = SmallVec<[SymbolId; 1]>;
 pub(crate) struct DeclarationSymbol {
     pub(crate) id: SymbolId,
     pub(crate) name: String,
-    search_name: String,
     pub(crate) kind: SymbolKind,
     pub(crate) location: Location,
     pub(crate) name_range: Range,
@@ -189,14 +199,17 @@ enum SymbolKey {
 #[derive(Clone, Debug)]
 struct Scope {
     parent: Option<ScopeId>,
+    /// The source or contract scope that determines member visibility and attachments.
+    member_scope: ScopeId,
     uri: Url,
     range: Range,
     declarations: Vec<ScopedDeclaration>,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 struct ScopedDeclaration {
     symbol_id: SymbolId,
+    name: Option<String>,
     available_from: Option<Position>,
 }
 
@@ -210,6 +223,7 @@ struct MemberCompletionScope {
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct CompletionContext<'a> {
     pub(crate) prefix: &'a str,
+    /// Present after a dot, with an empty receiver for non-identifier expressions.
     pub(crate) member_receiver: Option<&'a str>,
 }
 
@@ -345,7 +359,6 @@ impl SymbolTables {
                 SymbolKey::Item(item_id),
                 DeclarationSymbol {
                     id: tables.declarations.next_idx(),
-                    search_name: search_name(&name),
                     name,
                     kind: item_symbol_kind(gcx, item_id),
                     location,
@@ -392,9 +405,9 @@ impl SymbolTables {
             }
         }
         tables.type_hierarchy = TypeHierarchyIndex::build(gcx, &item_symbols, &tables.declarations);
-        tables.build_scopes(gcx, &locations);
         let mut member_completions = FxHashMap::default();
-        tables.build_receiver_member_completions(gcx, &mut member_completions);
+        let contexts = tables.build_scopes(gcx, &locations, &mut member_completions);
+        tables.build_receiver_member_completions(gcx, &contexts, &mut member_completions);
         tables.build_member_completions(gcx, &locations, &mut member_completions);
         drop(member_completions);
         tables.build_references(gcx, &locations, &item_symbols);
@@ -455,6 +468,7 @@ impl SymbolTables {
         }
         for scope in &mut other.scopes {
             scope.parent = scope.parent.map(|parent| remap_scope_id(parent, scope_offset));
+            scope.member_scope = remap_scope_id(scope.member_scope, scope_offset);
             for declaration in &mut scope.declarations {
                 declaration.symbol_id = declaration.symbol_id.offset_by(symbol_offset);
             }
@@ -473,11 +487,22 @@ impl SymbolTables {
         }
         self.declarations.extend(other.declarations);
         self.scopes.extend(other.scopes);
-        self.receiver_member_completions.extend(
+        self.receiver_member_completions.extend(other.receiver_member_completions.into_iter().map(
+            |((scope_id, symbol_id), items)| {
+                (
+                    (remap_scope_id(scope_id, scope_offset), symbol_id.offset_by(symbol_offset)),
+                    items,
+                )
+            },
+        ));
+        self.contract_member_completions.extend(other.contract_member_completions.into_iter().map(
+            |((scope, builtin), items)| ((remap_scope_id(scope, scope_offset), builtin), items),
+        ));
+        self.namespace_completions.extend(
             other
-                .receiver_member_completions
+                .namespace_completions
                 .into_iter()
-                .map(|(symbol_id, items)| (symbol_id.offset_by(symbol_offset), items)),
+                .map(|(scope, namespaces)| (remap_scope_id(scope, scope_offset), namespaces)),
         );
         self.member_completions.extend(other.member_completions);
         self.references.extend(other.references);
@@ -670,6 +695,7 @@ impl SymbolTables {
         position: Position,
         positions: &proto::LspPositionIndex<crop::Rope>,
         source: &str,
+        statement_boundary: Option<usize>,
         options: crate::config::SignatureHelpClientOptions,
     ) -> Option<lsp_types::SignatureHelp> {
         self.signature_help.signature_help(
@@ -677,6 +703,7 @@ impl SymbolTables {
             position,
             positions,
             source,
+            statement_boundary,
             |name| self.visible_declaration_locations(uri, position, name),
             options,
         )
@@ -723,29 +750,83 @@ impl SymbolTables {
     }
 
     pub(crate) fn workspace_symbols(&self, query: &str) -> Vec<WorkspaceSymbol> {
-        let query = (!query.is_empty()).then(|| search_name(query));
-        let mut symbols =
-            Vec::with_capacity(query.as_ref().map_or(self.workspace_symbol_ids.len(), |_| 0));
+        if query.is_empty() {
+            return self
+                .workspace_symbol_ids
+                .iter()
+                .map(|&symbol_id| self.workspace_symbol(symbol_id))
+                .collect();
+        }
+        // Names cannot contain NUL, which separates them in the search corpus. Reject it in
+        // queries as well so a match cannot span multiple names.
+        if query.contains('\0') {
+            return Vec::new();
+        }
 
-        for &symbol_id in &self.workspace_symbol_ids {
-            let symbol = &self.declarations[symbol_id];
-            if let Some(query) = &query
-                && !symbol.search_name.contains(query)
-            {
-                continue;
-            }
-
-            symbols.push(WorkspaceSymbol {
-                name: symbol.name.clone(),
-                kind: symbol.kind,
-                tags: None,
-                container_name: self.container_name(symbol),
-                location: OneOf::Left(symbol.location.clone()),
-                data: None,
-            });
+        let query = query.to_lowercase();
+        if self.workspace_symbol_ids.len() < WORKSPACE_SEARCH_CORPUS_THRESHOLD {
+            return self
+                .workspace_symbol_ids
+                .iter()
+                .filter_map(|&symbol_id| {
+                    let symbol = &self.declarations[symbol_id];
+                    symbol
+                        .name
+                        .to_lowercase()
+                        .contains(&query)
+                        .then(|| self.workspace_symbol(symbol_id))
+                })
+                .collect();
+        }
+        let corpus = self.workspace_search.get_or_init(|| self.build_workspace_search_corpus());
+        let finder = memchr::memmem::Finder::new(query.as_bytes());
+        let mut symbols = Vec::new();
+        let mut offset = 0;
+        while let Some(relative) = finder.find(&corpus.names.as_bytes()[offset..]) {
+            let start = offset + relative;
+            let index = corpus.ends.partition_point(|&end| end <= start);
+            symbols.push(self.workspace_symbol(self.workspace_symbol_ids[index]));
+            // Emit each declaration once, including when its name contains repeated matches.
+            offset = corpus.ends[index];
         }
 
         symbols
+    }
+
+    fn build_workspace_search_corpus(&self) -> WorkspaceSearchCorpus {
+        let mut names = String::new();
+        names.reserve(
+            self.workspace_symbol_ids
+                .iter()
+                .map(|&symbol_id| self.declarations[symbol_id].name.len() + 1)
+                .sum(),
+        );
+        let mut ends = Vec::with_capacity(self.workspace_symbol_ids.len());
+        for &symbol_id in &self.workspace_symbol_ids {
+            let name = &self.declarations[symbol_id].name;
+            if name.is_ascii() {
+                let start = names.len();
+                names.push_str(name);
+                names[start..].make_ascii_lowercase();
+            } else {
+                names.push_str(&name.to_lowercase());
+            }
+            names.push('\0');
+            ends.push(names.len());
+        }
+        WorkspaceSearchCorpus { names, ends }
+    }
+
+    fn workspace_symbol(&self, symbol_id: SymbolId) -> WorkspaceSymbol {
+        let symbol = &self.declarations[symbol_id];
+        WorkspaceSymbol {
+            name: symbol.name.clone(),
+            kind: symbol.kind,
+            tags: None,
+            container_name: self.container_name(symbol),
+            location: OneOf::Left(symbol.location.clone()),
+            data: None,
+        }
     }
 
     /// Whether an unambiguous source snapshot indexes code at this position.
@@ -841,7 +922,11 @@ impl SymbolTables {
                 .candidates_at(position, |index| self.references[index].location.range)
                 .filter(|&index| self.references[index].location.range == range)
                 .all(|index| {
-                    self.type_hierarchy.prepare(&self.references[index].targets) == prepared
+                    let targets = &self.references[index].targets;
+                    // The selected reference also appears in this scan. Identical targets have
+                    // identical responses; differing targets still need the cross-batch check.
+                    targets == &reference.targets
+                        || self.type_hierarchy.prepare(targets) == prepared
                 });
             return if agree { prepared } else { None };
         }
@@ -1028,13 +1113,17 @@ impl SymbolTables {
         {
             return filtered_completion_items(items, context.prefix);
         }
-        if let Some(items) = self.builtin_member_completion_items(context.member_receiver) {
-            return filtered_completion_items(items, context.prefix);
-        }
         if let Some(items) =
             self.receiver_member_completion_items(uri, position, context.member_receiver)
         {
             return filtered_completion_items(items, context.prefix);
+        }
+        if let Some(items) = self.builtin_member_completion_items(context.member_receiver) {
+            return filtered_completion_items(items, context.prefix);
+        }
+
+        if context.member_receiver.is_some() {
+            return Vec::new();
         }
 
         let Some(scope_id) = self.scope_at_position(uri, position) else {
@@ -1044,7 +1133,21 @@ impl SymbolTables {
         let prefix = completion_filter_prefix(context.prefix);
         let matches_prefix =
             |name: &str| prefix.as_ref().is_none_or(|prefix| fuzzy_completion_match(prefix, name));
-        let mut seen = FxHashMap::<&str, SymbolId>::default();
+        enum Candidate<'a> {
+            Symbol(&'a str, SymbolId),
+            Namespace(&'a str),
+            Global(&'a CompletionItem),
+        }
+        impl<'a> Candidate<'a> {
+            fn label(&self) -> &'a str {
+                match self {
+                    Self::Symbol(label, _) | Self::Namespace(label) => label,
+                    Self::Global(item) => item.label.as_str(),
+                }
+            }
+        }
+
+        let mut seen = FxHashMap::default();
         let mut scope = Some(scope_id);
         while let Some(scope_id) = scope {
             let current = &self.scopes[scope_id];
@@ -1056,21 +1159,44 @@ impl SymbolTables {
                     continue;
                 }
                 let symbol = &self.declarations[declaration.symbol_id];
-                if matches_prefix(&symbol.name) {
-                    seen.entry(symbol.name.as_str()).or_insert(declaration.symbol_id);
+                let name = declaration.name.as_deref().unwrap_or(&symbol.name);
+                if matches_prefix(name) {
+                    seen.entry(name).or_insert(Candidate::Symbol(name, declaration.symbol_id));
+                }
+            }
+            if let Some(namespaces) = self.namespace_completions.get(&scope_id) {
+                for name in namespaces.keys() {
+                    if matches_prefix(name) {
+                        seen.entry(name.as_str()).or_insert(Candidate::Namespace(name));
+                    }
                 }
             }
             scope = current.parent;
         }
 
-        let mut items =
-            seen.into_values().map(|symbol_id| self.completion_item(symbol_id)).collect::<Vec<_>>();
-        items.extend(
-            self.global_completions.iter().filter(|item| matches_prefix(&item.label)).cloned(),
+        let mut candidates = seen.into_values().collect::<Vec<_>>();
+        candidates.extend(
+            self.global_completions
+                .iter()
+                .filter(|item| matches_prefix(&item.label))
+                .map(Candidate::Global),
         );
-        items.sort_by(|a, b| a.label.cmp(&b.label));
-        items.dedup_by(|a, b| a.label == b.label);
-        items
+        // Keep candidates compact while sorting and deduplicating; materialize the larger
+        // completion response objects only for labels that survive both operations.
+        candidates.sort_by(|lhs, rhs| lhs.label().cmp(rhs.label()));
+        candidates.dedup_by(|lhs, rhs| lhs.label() == rhs.label());
+        candidates
+            .into_iter()
+            .map(|candidate| match candidate {
+                Candidate::Symbol(name, symbol_id) => self.completion_item(symbol_id, name),
+                Candidate::Namespace(name) => CompletionItem {
+                    label: name.to_string(),
+                    kind: Some(CompletionItemKind::MODULE),
+                    ..Default::default()
+                },
+                Candidate::Global(item) => item.clone(),
+            })
+            .collect()
     }
 
     pub(crate) fn resolve_completion_item(
@@ -1112,10 +1238,17 @@ impl SymbolTables {
             .filter(|symbol| symbol.name_range == data.selection_range);
         let Some(symbol) = candidates.next() else { return };
         let Some(kind) = item.kind else { return };
-        if item.label != symbol.name || !symbol_supports_completion_kind(symbol, kind) {
+        let Some(documentation) = symbol.documentation.as_ref() else { return };
+        let matches_name = item.label == symbol.name
+            || self.scopes.iter().any(|scope| {
+                scope.declarations.iter().any(|declaration| {
+                    declaration.name.as_deref() == Some(&item.label)
+                        && self.declarations[declaration.symbol_id].location == symbol.location
+                })
+            });
+        if !matches_name || !symbol_supports_completion_kind(symbol, kind) {
             return;
         }
-        let Some(documentation) = symbol.documentation.as_ref() else { return };
         if candidates.any(|candidate| {
             candidate.name != symbol.name
                 || !symbol_supports_completion_kind(candidate, kind)
@@ -1145,25 +1278,43 @@ impl SymbolTables {
     fn build_receiver_member_completions<'gcx>(
         &mut self,
         gcx: Gcx<'gcx>,
+        contexts: &FxHashMap<ScopeId, (hir::SourceId, Option<hir::ContractId>)>,
         cache: &mut MemberCompletionCache<'gcx>,
     ) {
-        for variable_id in gcx.hir.variable_ids() {
-            let Some(&symbol_id) =
-                self.symbols_by_key.get(&SymbolKey::Item(ItemId::Variable(variable_id)))
-            else {
-                continue;
-            };
-            let variable = gcx.hir.variable(variable_id);
-            let ty = gcx.type_of_item(ItemId::Variable(variable_id));
-            let items = self.member_completion_items_for_ty(
-                gcx,
-                ty,
-                variable.source,
-                variable.contract,
-                cache,
-            );
-            if !items.is_empty() {
-                self.receiver_member_completions.insert(symbol_id, items);
+        let mut types = IndexVec::from_vec(vec![None; self.declarations.len()]);
+        for (&SymbolKey::Item(item), &symbol) in &self.symbols_by_key {
+            types[symbol] = Some(gcx.type_of_res(Res::Item(item)));
+        }
+        let mut members = FxHashMap::default();
+        for (scope_id, scope) in self.scopes.iter_enumerated() {
+            let member_scope = scope.member_scope;
+            let (source, contract) = contexts[&member_scope];
+            let mut visible_scope = Some(scope_id);
+            while let Some(id) = visible_scope {
+                for declaration in &self.scopes[id].declarations {
+                    let key = (member_scope, declaration.symbol_id);
+                    if let Some(ty) = types[declaration.symbol_id] {
+                        members.entry(key).or_insert_with(|| {
+                            self.member_completion_items_for_ty(gcx, ty, source, contract, cache)
+                        });
+                    }
+                }
+                visible_scope =
+                    if scope_id == member_scope { self.scopes[id].parent } else { None };
+            }
+        }
+        members.retain(|_, items| !items.is_empty());
+        self.receiver_member_completions = members;
+        for (&scope, &(source, contract)) in contexts {
+            if let Some(contract) = contract {
+                for (builtin, ty) in [
+                    (Builtin::This, gcx.type_of_item(contract.into())),
+                    (Builtin::Super, gcx.mk_ty(TyKind::Type(gcx.mk_ty(TyKind::Super(contract))))),
+                ] {
+                    let items =
+                        self.member_completion_items_for_ty(gcx, ty, source, Some(contract), cache);
+                    self.contract_member_completions.insert((scope, builtin), items);
+                }
             }
         }
     }
@@ -1221,11 +1372,24 @@ impl SymbolTables {
         id
     }
 
-    fn build_scopes(&mut self, gcx: Gcx<'_>, locations: &proto::LocationConverter) {
-        let mut builder = ScopeBuilder { tables: self, locations, gcx, scope: None };
+    fn build_scopes<'gcx>(
+        &mut self,
+        gcx: Gcx<'gcx>,
+        locations: &proto::LocationConverter,
+        cache: &mut MemberCompletionCache<'gcx>,
+    ) -> FxHashMap<ScopeId, (hir::SourceId, Option<hir::ContractId>)> {
+        let mut builder = ScopeBuilder {
+            tables: self,
+            locations,
+            gcx,
+            cache,
+            scope: None,
+            contexts: FxHashMap::default(),
+        };
         for source_id in gcx.hir.source_ids() {
             builder.visit_source_scope(source_id);
         }
+        builder.contexts
     }
 
     fn build_member_completions<'gcx>(
@@ -1261,7 +1425,9 @@ impl SymbolTables {
     }
 
     fn push_scope(&mut self, uri: Url, range: Range, parent: Option<ScopeId>) -> ScopeId {
-        self.scopes.push(Scope { parent, uri, range, declarations: Vec::new() })
+        let member_scope =
+            parent.map_or(self.scopes.next_idx(), |parent| self.scopes[parent].member_scope);
+        self.scopes.push(Scope { parent, member_scope, uri, range, declarations: Vec::new() })
     }
 
     fn add_scope_declaration(&mut self, scope: ScopeId, item_id: ItemId) {
@@ -1283,7 +1449,11 @@ impl SymbolTables {
     }
 
     fn add_symbol_to_scope(&mut self, scope: ScopeId, symbol_id: SymbolId) {
-        self.scopes[scope].declarations.push(ScopedDeclaration { symbol_id, available_from: None });
+        self.scopes[scope].declarations.push(ScopedDeclaration {
+            symbol_id,
+            name: None,
+            available_from: None,
+        });
     }
 
     fn add_local_symbol_to_scope(
@@ -1297,9 +1467,11 @@ impl SymbolTables {
             .location(span)
             .map(|location| location.range.end)
             .unwrap_or(self.declarations[symbol_id].location.range.end);
-        self.scopes[scope]
-            .declarations
-            .push(ScopedDeclaration { symbol_id, available_from: Some(available_from) });
+        self.scopes[scope].declarations.push(ScopedDeclaration {
+            symbol_id,
+            name: None,
+            available_from: Some(available_from),
+        });
     }
 
     fn build_references(
@@ -1318,7 +1490,34 @@ impl SymbolTables {
             );
         }
         let mapping_bindings = self.rename.build_mapping_names(gcx, locations);
-        self.rename.build_natspec(gcx, locations, &bindings, item_symbols, &self.declarations);
+        for item_id in gcx.hir.item_ids() {
+            let item = gcx.hir.item(item_id);
+            if item.doc().is_empty() {
+                continue;
+            }
+            for (span, resolutions) in gcx.natspec_references(item_id) {
+                let targets = resolutions
+                    .iter()
+                    .filter_map(|res| {
+                        if let Res::Item(id) = res { item_symbols.get(id).copied() } else { None }
+                    })
+                    .collect::<SmallVec<_>>();
+                self.rename.push_symbol_reference(
+                    gcx,
+                    locations,
+                    RenameReferenceContext {
+                        bindings: &bindings,
+                        source: item.source(),
+                        contract: item.contract(),
+                        item_symbols,
+                        declarations: &self.declarations,
+                    },
+                    span,
+                    &targets,
+                );
+                self.push_reference_entry(locations, span, targets, DocumentHighlightKind::READ);
+            }
+        }
         self.rename.build_overrides(
             gcx,
             locations,
@@ -1404,7 +1603,6 @@ impl SymbolTables {
         let pushed_id = self.push_test_declaration(DeclarationSymbol {
             id: symbol_id,
             name: name.into(),
-            search_name: search_name(name),
             kind,
             location: Location { uri: uri.clone(), range: location },
             name_range,
@@ -1563,15 +1761,27 @@ impl SymbolTables {
     }
 
     fn scope_at_position(&self, uri: &Url, position: Position) -> Option<ScopeId> {
-        self.file_scopes
-            .get(uri)?
-            .iter()
-            .copied()
-            .filter(|&scope_id| proto::range_contains(self.scopes[scope_id].range, position))
-            .min_by_key(|&scope_id| {
-                let (lines, chars) = proto::range_size_key(self.scopes[scope_id].range);
-                (lines, chars, u32::MAX - self.scope_depth(scope_id))
-            })
+        let scopes = self.file_scopes.get(uri)?;
+        let mut index =
+            scopes.partition_point(|&scope_id| self.scopes[scope_id].range.start <= position);
+        while index > 0 {
+            index -= 1;
+            let mut scope_id = scopes[index];
+            loop {
+                if proto::range_contains(self.scopes[scope_id].range, position) {
+                    return Some(scope_id);
+                }
+                let Some(parent) = self.scopes[scope_id].parent else { break };
+                scope_id = parent;
+            }
+            if index == 0
+                || self.scopes[scopes[index - 1]].range.start
+                    != self.scopes[scopes[index]].range.start
+            {
+                break;
+            }
+        }
+        None
     }
 
     fn visible_declaration_locations<'a>(
@@ -1601,15 +1811,6 @@ impl SymbolTables {
             scope = current.parent;
         }
         Vec::new()
-    }
-
-    fn scope_depth(&self, mut scope_id: ScopeId) -> u32 {
-        let mut depth = 0;
-        while let Some(parent) = self.scopes[scope_id].parent {
-            depth += 1;
-            scope_id = parent;
-        }
-        depth
     }
 
     fn member_completion_items(&self, uri: &Url, position: Position) -> Option<&[CompletionItem]> {
@@ -1649,7 +1850,19 @@ impl SymbolTables {
         receiver: Option<&str>,
     ) -> Option<&[CompletionItem]> {
         let receiver = receiver?;
-        let mut scope = Some(self.scope_at_position(uri, position)?);
+        let scope_id = self.scope_at_position(uri, position)?;
+        let member_scope = self.scopes[scope_id].member_scope;
+        if let Some(builtin) = match receiver {
+            "this" => Some(Builtin::This),
+            "super" => Some(Builtin::Super),
+            _ => None,
+        } {
+            return self
+                .contract_member_completions
+                .get(&(member_scope, builtin))
+                .map(AsRef::as_ref);
+        }
+        let mut scope = Some(scope_id);
         while let Some(scope_id) = scope {
             let current = &self.scopes[scope_id];
             for declaration in &current.declarations {
@@ -1660,23 +1873,30 @@ impl SymbolTables {
                     continue;
                 }
                 let symbol_id = declaration.symbol_id;
-                if self.declarations[symbol_id].name == receiver {
+                if declaration.name.as_deref().unwrap_or(&self.declarations[symbol_id].name)
+                    == receiver
+                {
                     return self
                         .receiver_member_completions
-                        .get(&symbol_id)
+                        .get(&(member_scope, symbol_id))
                         .map(AsRef::as_ref)
                         .or(Some(&[]));
                 }
+            }
+            if let Some(namespaces) = self.namespace_completions.get(&scope_id)
+                && let Some(items) = namespaces.get(receiver)
+            {
+                return Some(items);
             }
             scope = current.parent;
         }
         None
     }
 
-    fn completion_item(&self, symbol_id: SymbolId) -> CompletionItem {
+    fn completion_item(&self, symbol_id: SymbolId, name: &str) -> CompletionItem {
         let symbol = &self.declarations[symbol_id];
         CompletionItem {
-            label: symbol.name.clone(),
+            label: name.to_string(),
             kind: Some(completion_item_kind(symbol.kind)),
             detail: self.container_name(symbol),
             data: Some(self.completion_item_data(symbol_id)),
@@ -1686,7 +1906,7 @@ impl SymbolTables {
 
     fn completion_item_for_member(&self, gcx: Gcx<'_>, member: Member<'_>) -> CompletionItem {
         if let Some(symbol_id) = self.symbol_id_for_member_completion(member) {
-            return self.completion_item(symbol_id);
+            return self.completion_item(symbol_id, member.name.as_str());
         }
 
         CompletionItem {
@@ -1733,7 +1953,11 @@ impl SymbolTables {
 
     fn rebuild_indexes(&mut self) {
         for symbols in self.files.values_mut() {
-            sort_symbol_ids(&self.declarations, symbols);
+            // Each group has one URI, so only source position and ID can affect its order.
+            symbols.sort_by_key(|&id| {
+                let position = self.declarations[id].location.range.start;
+                (position.line, position.character, id.index())
+            });
         }
 
         self.file_declaration_positions.clear();
@@ -1763,8 +1987,12 @@ impl SymbolTables {
 
         self.workspace_symbol_ids.clear();
         self.workspace_symbol_ids.reserve(self.declarations.len());
-        self.workspace_symbol_ids.extend(self.declarations.indices());
-        sort_symbol_ids(&self.declarations, &mut self.workspace_symbol_ids);
+        // Per-file declarations are already ordered. Concatenate files in URI order instead of
+        // sorting every declaration again with repeated URI comparisons.
+        let mut files = self.files.iter().collect::<Vec<_>>();
+        files.sort_unstable_by(|(a, _), (b, _)| a.as_str().cmp(b.as_str()));
+        self.workspace_symbol_ids.extend(files.into_iter().flat_map(|(_, symbols)| symbols));
+        self.workspace_search = OnceLock::new();
 
         self.file_scopes.clear();
         for scope_id in self.scopes.indices() {
@@ -1772,9 +2000,16 @@ impl SymbolTables {
             self.file_scopes.entry(uri).or_default().push(scope_id);
         }
         for scopes in self.file_scopes.values_mut() {
+            // Reverse lookup visits the last scope with a matching start first, so equal-start
+            // scopes must place the smallest containing range last.
             scopes.sort_by_key(|&scope_id| {
                 let range = self.scopes[scope_id].range;
-                (range.start.line, range.start.character, range.end.line, range.end.character)
+                (
+                    range.start.line,
+                    range.start.character,
+                    Reverse(range.end.line),
+                    Reverse(range.end.character),
+                )
             });
         }
 
@@ -1863,6 +2098,8 @@ struct ScopeBuilder<'a, 'gcx> {
     locations: &'a proto::LocationConverter,
     gcx: Gcx<'gcx>,
     scope: Option<ScopeId>,
+    cache: &'a mut MemberCompletionCache<'gcx>,
+    contexts: FxHashMap<ScopeId, (hir::SourceId, Option<hir::ContractId>)>,
 }
 
 impl<'gcx> ScopeBuilder<'_, 'gcx> {
@@ -1876,9 +2113,29 @@ impl<'gcx> ScopeBuilder<'_, 'gcx> {
         };
 
         let root = self.tables.push_scope(location.uri, location.range, None);
+        self.contexts.insert(root, (source_id, None));
         self.with_scope(root, |this| {
+            let ty = this.gcx.mk_ty(TyKind::Module(source_id));
+            for member in this.gcx.members_of(ty, source_id, None) {
+                if let Some(symbol_id) = this.tables.symbol_id_for_member_completion(member) {
+                    this.tables.scopes[root].declarations.push(ScopedDeclaration {
+                        symbol_id,
+                        name: (member.name.as_str() != this.tables.declarations[symbol_id].name)
+                            .then(|| member.name.to_string()),
+                        available_from: None,
+                    });
+                } else if matches!(member.res, Some(Res::Namespace(_))) {
+                    let items = this.tables.member_completion_items_for_ty(
+                        this.gcx, member.ty, source_id, None, this.cache,
+                    );
+                    this.tables
+                        .namespace_completions
+                        .entry(root)
+                        .or_default()
+                        .insert(member.name.to_string(), items);
+                }
+            }
             for &item_id in source.items {
-                this.tables.add_scope_declaration(root, item_id);
                 let _ = this.visit_nested_item(item_id);
             }
         });
@@ -1943,9 +2200,15 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
         let Some(scope) = self.push_child_scope(contract.span) else {
             return ControlFlow::Continue(());
         };
+        self.tables.scopes[scope].member_scope = scope;
+        self.contexts.insert(scope, (contract.source, Some(id)));
         self.with_scope(scope, |this| {
+            for res in this.gcx.contract_scope_declarations(id) {
+                if let Res::Item(item) = res {
+                    this.tables.add_scope_declaration(scope, item);
+                }
+            }
             for &item_id in contract.items {
-                this.tables.add_scope_declaration(scope, item_id);
                 let _ = this.visit_nested_item(item_id);
             }
         });
@@ -2106,6 +2369,9 @@ impl<'gcx> MemberCompletionCollector<'_, 'gcx> {
         let Some(receiver_ty) = self.gcx.type_of_expr(receiver.id) else {
             return;
         };
+        if receiver_ty.references_error() {
+            return;
+        }
         let Some(location) = self.locations.location(member.span) else {
             return;
         };
@@ -2117,10 +2383,6 @@ impl<'gcx> MemberCompletionCollector<'_, 'gcx> {
             self.contract,
             self.cache,
         );
-        if items.is_empty() {
-            return;
-        }
-
         self.tables.member_completions.push(MemberCompletionScope {
             uri: location.uri,
             range: location.range,
@@ -2488,21 +2750,6 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
     }
 }
 
-fn sort_symbol_ids(
-    declarations: &IndexVec<SymbolId, DeclarationSymbol>,
-    symbol_ids: &mut [SymbolId],
-) {
-    symbol_ids.sort_by_key(|symbol_id| {
-        let location = &declarations[*symbol_id].location;
-        (
-            location.uri.as_str(),
-            location.range.start.line,
-            location.range.start.character,
-            symbol_id.index(),
-        )
-    });
-}
-
 fn sort_locations(locations: &mut [Location]) {
     locations.sort_by(|a, b| {
         a.uri.as_str().cmp(b.uri.as_str()).then_with(|| {
@@ -2660,7 +2907,11 @@ fn completion_filter_prefix(prefix: &str) -> Option<String> {
 
 fn fuzzy_completion_match(prefix: &str, label: &str) -> bool {
     // Match ASCII names byte by byte, retaining Unicode case folding for other labels.
-    if prefix.is_ascii() && label.is_ascii() {
+    if label.is_ascii() {
+        // Equal-length subsequences must match every byte; longer prefixes cannot match.
+        if prefix.len() >= label.len() {
+            return prefix.eq_ignore_ascii_case(label);
+        }
         let mut label = label.bytes();
         return prefix.bytes().all(|prefix_byte| {
             label.by_ref().any(|label_byte| label_byte.eq_ignore_ascii_case(&prefix_byte))
@@ -2671,10 +2922,6 @@ fn fuzzy_completion_match(prefix: &str, label: &str) -> bool {
     prefix
         .chars()
         .all(|prefix_char| label_chars.by_ref().any(|label_char| label_char == prefix_char))
-}
-
-fn search_name(name: &str) -> String {
-    name.to_lowercase()
 }
 
 #[cfg(test)]
@@ -2794,6 +3041,15 @@ mod tests {
         assert!(fuzzy_completion_match("fnn", "FunctionName"));
         assert!(!fuzzy_completion_match("fz", "FunctionName"));
         assert!(fuzzy_completion_match("é", "Éclair"));
+        assert!(!fuzzy_completion_match("é", "Eclair"));
+        assert!(fuzzy_completion_match("functionname", "FunctionName"));
+        assert!(!fuzzy_completion_match("functionnamo", "FunctionName"));
+        assert!(!fuzzy_completion_match("functionnames", "FunctionName"));
+        assert!(fuzzy_completion_match("", ""));
+        assert!(!fuzzy_completion_match("f", ""));
+        // Unicode lowercase expansion can match a prefix with more bytes than the label.
+        assert!(fuzzy_completion_match("i\u{307}", "İ"));
+        assert!(fuzzy_completion_match("kk", "KK"));
     }
 
     #[test]
@@ -2876,6 +3132,45 @@ mod tests {
                 ("Lib", SymbolKind::MODULE)
             ]
         );
+    }
+
+    #[test]
+    fn workspace_symbols_search_corpus_respects_name_boundaries_and_unicode() {
+        let uri = parse_uri("file:///workspace/src/Contract.sol");
+        let mut tables = SymbolTables::default();
+        push(&mut tables, &uri, "Alpha", SymbolKind::FUNCTION, 0, 0, None);
+        push(&mut tables, &uri, "Alphabet", SymbolKind::FUNCTION, 1, 0, None);
+        push(&mut tables, &uri, "ALPHA", SymbolKind::FUNCTION, 2, 0, None);
+        push(&mut tables, &uri, "Éclair", SymbolKind::FUNCTION, 3, 0, None);
+        for index in 0..WORKSPACE_SEARCH_CORPUS_THRESHOLD {
+            push(
+                &mut tables,
+                &uri,
+                &format!("Unrelated{index}"),
+                SymbolKind::FUNCTION,
+                (index + 4) as u32,
+                0,
+                None,
+            );
+        }
+
+        assert_eq!(
+            tables
+                .workspace_symbols("ha")
+                .iter()
+                .map(|symbol| symbol.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Alpha", "Alphabet", "ALPHA"]
+        );
+        assert_eq!(
+            tables
+                .workspace_symbols("ÉC")
+                .iter()
+                .map(|symbol| symbol.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Éclair"]
+        );
+        assert!(tables.workspace_symbols("pha\0bet").is_empty());
     }
 
     #[test]
