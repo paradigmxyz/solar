@@ -151,7 +151,7 @@ def compare_saved(db, root, args, *, compilation_id=None, expectations=None):
         raise ValueError("--left and --right must be supplied together")
     selected = args.check or ["abi", "methods"]
     if args.left:
-        pairs = [("files", args.left.resolve(), args.right.resolve())]
+        pairs = [(compilation_id or "files", args.left.resolve(), args.right.resolve())]
     else:
         if args.reference == args.candidate:
             raise ValueError("reference and candidate must differ")
@@ -437,16 +437,15 @@ def fuzz_campaign(root, args):
             if args.generate_only:
                 case["status"] = "imported"
                 continue
+            attempts = {}
             code = corpus.run(
-                db, data, args, compilation_id=identifier, compilers=compilers
+                db,
+                data,
+                args,
+                compilation_id=identifier,
+                compilers=compilers,
+                attempts=attempts,
             )
-            attempts = {
-                name: Path(directory)
-                for name, directory in db.execute(
-                    "SELECT compiler, directory FROM attempts WHERE compilation_id = ? QUALIFY row_number() OVER (PARTITION BY compiler ORDER BY started DESC, id DESC) = 1",
-                    [identifier],
-                ).fetchall()
-            }
             case["compile_exit"] = code
             case["attempts"] = {
                 name: str(attempts[name]) for name in names if name in attempts
@@ -474,8 +473,8 @@ def fuzz_campaign(root, args):
                     comparison_args = argparse.Namespace(
                         **{
                             **vars(args),
-                            "left": None,
-                            "right": None,
+                            "left": attempts[reference],
+                            "right": attempts[candidate],
                             "reference": reference,
                             "candidate": candidate,
                         }
@@ -886,6 +885,13 @@ class Tests(corpus.Tests):
                 )
             finally:
                 data.close()
+            matching_candidate = baseline.replace("baseline=", "candidate=", 1)
+            self.assertEqual(main([*base[:-1], matching_candidate]), 0)
+            self.assertEqual(main(base), 1)
+            selected = Path(read_json(report_path)["cases"][0]["attempts"]["candidate"])
+            command = shlex.split(candidate.partition("=")[2])
+            command[0] = str(Path(command[0]).resolve())
+            self.assertEqual(read_json(selected / "compiler.json")["command"], command)
 
     def test_local_import(self):
         path = self.root / "input.json"
@@ -941,6 +947,12 @@ class Tests(corpus.Tests):
             "SELECT directory FROM attempts WHERE compiler = 'solar'"
         ).fetchone()
         right = Path(row[0])
+        result = read_json(right / "result.json")
+        result["failure"] = "missing bytecode output"
+        corpus.write_json(right / "result.json", result)
+        self.assertEqual(compare_saved(self.db, self.root, args), 1)
+        result["failure"] = None
+        corpus.write_json(right / "result.json", result)
         output["contracts"]["../C.sol"]["C"]["abi"][0]["stateMutability"] = "pure"
         corpus.write_json(right / "stdout.txt", output)
         self.assertEqual(compare_saved(self.db, self.root, args), 1)

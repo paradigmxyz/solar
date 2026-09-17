@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import pathlib
 import tempfile
@@ -229,7 +230,9 @@ class ResultClassificationTests(unittest.TestCase):
             symbolic._classify(report, "0xb3de648b", expected),
             {"status": "bounded_agreement"},
         )
-        symbolic_result = next(iter(report.values()))["test_results"]
+        contract_report = next(iter(report.values()))
+        assert isinstance(contract_report, dict)
+        symbolic_result = contract_report["test_results"]
         symbolic_result = next(iter(symbolic_result.values()))["symbolic"]
         symbolic_result["bounds"]["max_paths"] = 31
         with self.assertRaisesRegex(ValueError, "max_paths=31"):
@@ -450,6 +453,65 @@ class CommandTests(unittest.TestCase):
                     ).encode()
                 ).hexdigest(),
             )
+            for source_unit in ("./C.sol", "https://example.com/C.sol"):
+                with self.subTest(source_unit=source_unit):
+                    request = {
+                        **standard_input,
+                        "sources": {
+                            source_unit: next(iter(standard_input["sources"].values()))
+                        },
+                    }
+                    for directory in (args.solc_attempt, args.solar_attempt):
+                        saved_output = json.loads(
+                            (directory / "stdout.txt").read_text()
+                        )
+                        saved_output["contracts"] = {
+                            source_unit: next(iter(saved_output["contracts"].values()))
+                        }
+                        (directory / "input.json").write_text(json.dumps(request))
+                        (directory / "stdout.txt").write_text(json.dumps(saved_output))
+                    with patch("sys.stdout", new_callable=io.StringIO) as stdout:
+                        code = symbolic.main(
+                            [
+                                "--source",
+                                source_unit,
+                                "--contract",
+                                "Probe",
+                                "--signature",
+                                "f(uint256)",
+                                "--solc-attempt",
+                                str(args.solc_attempt),
+                                "--solar-attempt",
+                                str(args.solar_attempt),
+                                "--solc",
+                                str(solc),
+                                "--forge",
+                                str(forge),
+                                "--solver",
+                                str(solver),
+                                "--output-root",
+                                str(root / "literal-source-out"),
+                                "--max-paths",
+                                "32",
+                                "--max-solver-queries",
+                                "100",
+                                "--max-calldata-bytes",
+                                "512",
+                                "--symbolic-timeout",
+                                "5",
+                                "--dynamic-lengths",
+                                "0,1",
+                                "--max-returndata-bytes",
+                                "256",
+                            ]
+                        )
+                    self.assertEqual(code, 0, stdout.getvalue())
+                    saved_result = json.loads(stdout.getvalue())
+                    self.assertEqual(saved_result["source"], source_unit)
+                    self.assertEqual(saved_result["sources"], [source_unit])
+            for directory in (args.solc_attempt, args.solar_attempt):
+                (directory / "input.json").write_text(json.dumps(standard_input))
+                (directory / "stdout.txt").write_text(json.dumps(output))
             output["contracts"]["Probe.sol"]["Probe"]["evm"]["deployedBytecode"].pop(
                 "immutableReferences"
             )

@@ -39,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
         description="Symbolically compare one function compiled by Solc and Solar.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--source", type=pathlib.Path, required=True)
+    parser.add_argument("--source", required=True)
     parser.add_argument("--solc-attempt", type=pathlib.Path)
     parser.add_argument("--solar-attempt", type=pathlib.Path)
     parser.add_argument("--output-root", type=pathlib.Path)
@@ -151,7 +151,7 @@ def main(argv: list[str] | None = None) -> int:
 def run(
     args: argparse.Namespace, output_root: pathlib.Path | None = None
 ) -> dict[str, Any]:
-    source = args.source.resolve()
+    source = args.source
     saved_solc = getattr(args, "solc_attempt", None)
     saved_solar = getattr(args, "solar_attempt", None)
     if bool(saved_solc) != bool(saved_solar):
@@ -175,7 +175,7 @@ def run(
         if not settings.get("evmVersion"):
             raise ValueError("saved symbolic inputs require an explicit evmVersion")
         args.evm_version = settings["evmVersion"]
-        root_source = args.source.as_posix()
+        root_source = str(args.source)
         if root_source not in left_input.get("sources", {}):
             raise ValueError("--source must name a source unit in the saved input")
         serialized_input = json.dumps(
@@ -206,6 +206,7 @@ def run(
         solc_artifact = _artifact(left_output, root_source, args.contract, "Solc")
         solar_artifact = _artifact(right_output, root_source, args.contract, "Solar")
     else:
+        source = pathlib.Path(args.source).resolve()
         if not source.is_file():
             raise ValueError(f"source file does not exist: {source}")
         standard_input = _standard_input(
@@ -284,7 +285,8 @@ def run(
             pathlib.Path(__file__).resolve().parents[2] / "target" / "solsymdiff"
         )
     output_root.mkdir(parents=True, exist_ok=True)
-    project = pathlib.Path(tempfile.mkdtemp(prefix=f"{source.stem}-", dir=output_root))
+    prefix = args.contract if saved_solc else source.stem
+    project = pathlib.Path(tempfile.mkdtemp(prefix=f"{prefix}-", dir=output_root))
     (project / "standard-input.json").write_text(
         serialized_input + "\n",
         encoding="utf-8",

@@ -95,6 +95,18 @@ jobs:
       - name: doctest
         run: cargo test --doc --workspace
 
+  compiler-diff:
+    name: compiler-diff
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Compiler comparison regression tests
+        run: uv run --project tools/compiler-diff --locked --python 3.11 compiler-diff self-test
+
   fandango:
     name: fandango
     runs-on: depot-ubuntu-latest
@@ -287,6 +299,7 @@ jobs:
     permissions: {}
     needs:
       - test
+      - compiler-diff
       - feature-checks
       - wasm
       - typos

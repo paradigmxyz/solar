@@ -255,7 +255,8 @@ A missing function or incomplete symbolic check fails the case.
 Campaigns live under `<dir>/<version>/fuzz/<id>/`. Their identity includes the
 grammar content, generator version, seed, count, target and settings. Repeating
 those options verifies and reuses generated files; changed compiler commands
-start new compilation jobs without regenerating sources. Comparisons run again
+start new compilation jobs without regenerating sources. Campaign comparisons use
+the exact attempts selected for that invocation, including older cache hits. Comparisons run again
 so changed rules take effect. `--retry-failures` retries failed compiler jobs.
 `--continue-on-failure` processes later cases; the default stops at the first
 failed case. Any failed case returns exit status 1.

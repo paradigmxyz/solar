@@ -426,7 +426,9 @@ def output_error(directory, result, target=None):
     return None
 
 
-def run(db, root, args, *, compilation_id=None, compilers=None):
+def run(db, root, args, *, compilation_id=None, compilers=None, attempts=None):
+    if attempts is None:
+        attempts = {}
     if db.execute("SELECT value FROM state WHERE key = 'sync_complete'").fetchone() != (
         "true",
     ):
@@ -482,8 +484,10 @@ def run(db, root, args, *, compilation_id=None, compilers=None):
                     [job],
                 ).fetchone()
                 if previous and previous[0] == "success":
+                    attempts[compiler["name"]] = Path(previous[1])
                     continue
                 if previous and previous[0] == "failure" and not args.retry_failures:
+                    attempts[compiler["name"]] = Path(previous[1])
                     failures += 1
                     print(f"[FAIL] cached failure: {compilation_id}", flush=True)
                     show_attempt(previous[1], compiler["name"])
@@ -570,6 +574,7 @@ def run(db, root, args, *, compilation_id=None, compilers=None):
                     "UPDATE attempts SET status = ?, directory = ? WHERE id = ?",
                     [outcome, str(directory), attempt_id],
                 )
+                attempts[compiler["name"]] = directory
                 print(
                     f"{compiler['name']} {compilation_id}: {outcome}: {directory}",
                     flush=True,

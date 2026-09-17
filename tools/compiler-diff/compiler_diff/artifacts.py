@@ -30,6 +30,7 @@ def read_attempt(directory):
     if (
         not isinstance(result, dict)
         or result.get("error")
+        or result.get("failure")
         or result.get("returncode") != 0
     ):
         raise ValueError(f"failed compiler attempt: {directory}")
