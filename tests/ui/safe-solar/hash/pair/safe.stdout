@@ -1,0 +1,79 @@
+// === ROOT/tests/ui/safe-solar/hash/pair/safe.sol:Safe ===
+@module Safe
+@phase lowered
+fn @pair() [selector=0x9280bddf, abi_wrapper, pure] {
+  bb0:
+    v2 = calldatasize
+    v3 = lt v2, 68
+    jumpi v3, bb1, bb2
+  bb2:
+    mstore 0, arg0
+    mstore 32, arg1
+    v1 = keccak256 0, 64 !metadata(memory=scratch)
+    mstore 128, v1
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @mixed() [selector=0x662ae64e, abi_wrapper, pure] {
+  bb0:
+    v4 = calldatasize
+    v5 = lt v4, 68
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 4
+    v7 = signextend 0, v6
+    v8 = eq v6, v7
+    jumpi v8, bb3, bb1
+  bb3:
+    v9 = calldataload 36
+    v10 = shl 32, v9
+    jumpi v10, bb1, bb4
+  bb4:
+    v1 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v0 = signextend 0, arg0
+    mstore 0, v0 !metadata(memory=scratch)
+    mstore 32, v1 !metadata(memory=scratch)
+    v3 = keccak256 0, 64 !metadata(memory=scratch)
+    mstore 128, v3
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @single() [selector=0x6bd47c49, abi_wrapper, pure] {
+  bb0:
+    v4 = calldatasize
+    v5 = lt v4, 36
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 4
+    v7 = lt v6, 2
+    jumpi v7, bb3, bb1
+  bb3:
+    mstore 0, arg0
+    v3 = keccak256 0, 32 !metadata(memory=scratch)
+    mstore 128, v3
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb5, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb5, [0x662ae64e => bb2, 0x6bd47c49 => bb3, 0x9280bddf => bb4]
+  bb4:
+    tail_call @pair
+  bb3:
+    tail_call @single
+  bb2:
+    tail_call @mixed
+  bb5:
+    revert 0, 0
+}
