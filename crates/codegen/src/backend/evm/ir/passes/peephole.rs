@@ -1,6 +1,6 @@
 //! Local peephole optimization over scheduled EVM IR.
 //!
-//! The rewrite rules are written in ISLE in `isle/peephole.isle`; this module
+//! The rewrite rules are written in ISLE in `isle/evm-ir/peephole.isle`; this module
 //! drives them over each block and applies the edits they return. Matching uses
 //! the same ordered rules on each successive prefix, retrying its tail after
 //! every edit so newly adjacent operations can simplify immediately.
