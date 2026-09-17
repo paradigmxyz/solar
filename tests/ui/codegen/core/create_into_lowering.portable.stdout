@@ -1,0 +1,215 @@
+// === <solar:core/v1/Bytes.sol>:Bytes ===
+@module Bytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/v1/Create.sol>:Create ===
+@module Create
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/create_into_lowering.sol:Test ===
+@module Test
+@phase lowered
+types:
+  struct0: {u256, memorybytes, u256, u256, memorybytes}
+  struct1: {u256, u256, u256, u256}
+
+fn @attempt() [selector=0xf1f9ae8f, abi_wrapper] {
+  bb0:
+    v22 = calldatasize
+    v23 = lt v22, 68
+    jumpi v23, bb4, bb5
+  bb5:
+    v24 = calldataload 4
+    v25 = add v24, 4
+    v26 = add v25, 32
+    v27 = gt v24, 0xffffffffffffffff
+    v28 = gt v26, v22
+    v29 = or v27, v28
+    jumpi v29, bb4, bb6
+  bb6:
+    v30 = calldataload v25
+    v32 = add v30, 63
+    v33 = lt v32, v30
+    jumpi v33, bb1, bb7
+  bb7:
+    v35 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v36 = mload 64 !metadata(memory=scratch)
+    v102 = add v36, v35
+    v103 = lt v102, v36
+    v104 = gt v102, 0xffffffffffffffff
+    v105 = or v103, v104
+    jumpi v105, bb1, bb11
+  bb11:
+    mstore 64, v102 !metadata(memory=scratch)
+    mstore v36, v30
+    v37 = sub v22, v26
+    v38 = gt v30, v37
+    jumpi v38, bb4, bb8
+  bb8:
+    v91 = add v36, 32
+    calldatacopy v91, v26, v30
+    v0 = add arg1, 63
+    v1 = lt v0, arg1
+    jumpi v1, bb1, bb2
+  bb2:
+    v3 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v4 = mload 64 !metadata(memory=scratch)
+    v94 = add v4, v3
+    v95 = lt v94, v4
+    v96 = gt v94, 0xffffffffffffffff
+    v97 = or v95, v96
+    jumpi v97, bb1, bb9
+  bb9:
+    mstore 64, v94 !metadata(memory=scratch)
+    v107 = calldatasize
+    calldatacopy v4, v107, v3
+    mstore v4, arg1
+    icall @fill, v4, arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v82 = icall @tryDeployInto, v36, 0, v4
+    v90 = mload 32 !metadata(memory=scratch)
+    v84 = add v90, 32
+    v85 = mload v84
+    v86 = add v90, 64
+    v87 = mload v86
+    v88 = add v90, 96
+    v89 = mload v88
+    v10 = extcodesize v85
+    v11 = add v10, 63
+    v12 = lt v11, v10
+    jumpi v12, bb1, bb3
+  bb3:
+    v14 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = mload 64 !metadata(memory=scratch)
+    v98 = add v15, v14
+    v99 = lt v98, v15
+    v100 = gt v98, 0xffffffffffffffff
+    v101 = or v99, v100
+    jumpi v101, bb1, bb10
+  bb10:
+    mstore 64, v98 !metadata(memory=scratch)
+    v108 = calldatasize
+    calldatacopy v15, v108, v14
+    mstore v15, v10
+    v16 = add v15, 32
+    extcodecopy v85, v16, 0, v10
+    v40 = iszero v82
+    v41 = iszero v40
+    v45 = mload 64 !metadata(memory=scratch)
+    v46 = add v45, 160
+    mstore v45, v41
+    v47 = add v45, 32
+    mstore v47, 160
+    v50 = iszero v15
+    v51 = iszero v50
+    v49 = mload v15
+    v52 = mul v49, v51
+    v54 = add v52, 31
+    v55 = and v54, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v56 = add v46, 32
+    v57 = add v46, v55
+    mstore v57, 0
+    mstore v46, v52
+    v59 = add v56, v55
+    mcopy v56, v16, v52
+    v60 = add v45, 64
+    mstore v60, v87
+    v61 = add v45, 96
+    mstore v61, v89
+    v63 = sub v59, v45
+    v62 = add v45, 128
+    mstore v62, v63
+    v65 = iszero v4
+    v66 = iszero v65
+    v64 = mload v4
+    v67 = mul v64, v66
+    v69 = add v67, 31
+    v70 = and v69, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v71 = add v59, 32
+    v72 = add v59, v70
+    mstore v72, 0
+    mstore v59, v67
+    v74 = add v71, v70
+    v73 = add v4, 32
+    mcopy v71, v73, v67 !metadata(memory=heap)
+    v75 = sub v74, v45
+    v77 = add v75, 31
+    v79 = and v77, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v80 = mload 64 !metadata(memory=scratch)
+    v106 = add v80, v79
+    mstore 64, v106 !metadata(memory=scratch)
+    returndata v80, v75
+  bb1:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb4:
+    revert 0, 0
+}
+
+fn @fill(arg0: memptr, arg1: u256, arg2: bytes1) [pure] {
+  bb0:
+    v7 = mload arg0
+    v10 = byte 0, arg2
+    v16 = add arg0, 32
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 0], [bb4: v14]
+    v5 = lt v2, arg1
+    jumpi v5, bb5, bb2
+  bb2:
+    ret
+  bb5:
+    v8 = lt v2, v7
+    jumpi v8, bb4, bb3
+  bb3:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
+  bb4:
+    v17 = add v16, v2
+    mstore8 v17, v10
+    v14 = add v2, 1
+    jump bb1
+}
+
+fn @tryDeployInto(arg0: memptr, arg1: u256, arg2: memptr) -> struct1 [return_abi=[u256, u256, u256, u256]] {
+  bb0:
+    v0 = mload arg0
+    v1 = add arg0, 32
+    v2 = create arg1, v1, v0
+    v3 = returndatasize
+    v4 = mload arg2
+    v5 = gt v3, v4
+    v18 = sub v4, v3
+    v19 = mul v5, v18
+    v20 = add v3, v19
+    v10 = add arg2, 32
+    returndatacopy v10, 0, v20
+    v12 = iszero v2
+    v13 = iszero v12
+    ret v13, v2, v20, v3
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0xf1f9ae8f => bb2]
+  bb2:
+    tail_call @attempt
+  bb3:
+    revert 0, 0
+}

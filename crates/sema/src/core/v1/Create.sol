@@ -55,6 +55,25 @@ library Create {
         success = deployed != address(0);
     }
 
+    /// @dev Like `tryDeploy`, and when the creation fails it copies at most
+    /// `diagnostics.length` bytes of what the constructor reverted with into
+    /// `diagnostics`, reporting how many arrived and how many there were. The
+    /// rest of `diagnostics` is left alone.
+    function tryDeployInto(bytes memory initcode, uint256 value, bytes memory diagnostics)
+        internal
+        returns (bool success, address deployed, uint256 copied, uint256 totalSize)
+    {
+        assembly ("memory-safe") {
+            deployed := create(value, add(initcode, 0x20), mload(initcode))
+            // A creation that succeeds leaves no return data.
+            totalSize := returndatasize()
+            copied := totalSize
+            if gt(copied, mload(diagnostics)) { copied := mload(diagnostics) }
+            returndatacopy(add(diagnostics, 0x20), 0, copied)
+        }
+        success = deployed != address(0);
+    }
+
     /// @dev The address `deploy2` gives `deployer` for `salt` and initcode
     /// hashing to `initcodeHash`. Computes only; deploys nothing.
     function predict2(address deployer, bytes32 salt, bytes32 initcodeHash)
