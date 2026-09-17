@@ -130,31 +130,29 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.spill_top_value_if_live(func, liveness, block, inst_idx, value);
                 }
             }
-            if let InstKind::Sext(_, from, _) = *kind {
-                if from == 1 {
-                    // sext i1 value to integer -> MUL value, -1
-                    self.asm.emit_push(U256::MAX);
+            match *kind {
+                InstKind::Sext(_, 1, 256) => {
+                    // sext i1 value to i256 -> SUB 0, value
+                    self.asm.emit_push(U256::ZERO);
+                    self.asm.emit_op(op::SUB);
+                }
+                InstKind::Sext(_, 1, bits) => {
+                    // sext i1 value to iN -> MUL value, (1 << N) - 1
+                    self.asm.emit_push(U256::MAX >> (256 - bits));
                     self.asm.emit_op(op::MUL);
-                } else {
+                }
+                InstKind::Sext(_, 160, 256) => {
                     // sext i160 value to i256 -> SIGNEXTEND 19, value
-                    self.asm.emit_push(U256::from(from / 8 - 1));
+                    self.asm.emit_push(U256::from(19));
                     self.asm.emit_op(op::SIGNEXTEND);
                 }
-            }
-            let mask_bits = match *kind {
-                InstKind::Trunc(_, bits)
-                | InstKind::PtrToInt(_, bits)
-                | InstKind::Sext(_, _, bits)
-                    if bits < 256 =>
-                {
-                    Some(bits)
+                InstKind::Trunc(_, bits) | InstKind::PtrToInt(_, bits) if bits < 256 => {
+                    // result = AND value, (1 << bits) - 1
+                    self.asm.emit_push(U256::MAX >> (256 - bits));
+                    self.asm.emit_op(op::AND);
                 }
-                _ => None,
-            };
-            if let Some(bits) = mask_bits {
-                // result = AND value, (1 << bits) - 1
-                self.asm.emit_push(U256::MAX >> (256 - bits));
-                self.asm.emit_op(op::AND);
+                InstKind::Sext(..) => unreachable!("unsupported integer width reached codegen"),
+                _ => {}
             }
             self.scheduler.instruction_executed(1, result_value);
         } else if let InstKind::Eq(a, b) | InstKind::Ne(a, b) = *kind {

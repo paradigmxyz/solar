@@ -1093,6 +1093,23 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(rule["status"], "proved")
         self.assertEqual(rule["constant_specializations"], {"a": "0x1"})
 
+    def test_actual_integer_and_pointer_cast_rules(self):
+        path = ISLE / "egraph.isle"
+        source = path.read_text()
+        start = source.index(";; Identity casts")
+        rules = [
+            Rule(form, line, str(path))
+            for form, line in forms(source[start:])
+            if form[0] == "rule"
+        ]
+        self.assertEqual(len(rules), 24)
+        for rule in rules:
+            with self.subTest(rule=rule.form):
+                cx = Context()
+                lhs, rhs = cx.obligation(rule)
+                result, _ = check(lhs, rhs, cx.assumptions, 10000, cx.model)
+                self.assertEqual(result["status"], "proved", result)
+
     def test_actual_compiled_exp_rules(self):
         def uses_exp(node):
             return (

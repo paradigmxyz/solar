@@ -287,3 +287,165 @@ fn @word_check_polarity(arg0: i256) {
     icall panic_if<0x1>, v0
     ret
 }
+
+// CHECK-LABEL: fn @sext_chain
+// CHECK: {{^[ +].*}}sext i1 arg0 to i256
+fn @sext_chain(arg0: i1) -> i256 {
+  bb0:
+    v0 = sext i1 arg0 to i160
+    v1 = sext i160 v0 to i256
+    ret v1
+}
+
+// CHECK-LABEL: fn @zext_chain
+// CHECK: {{^[ +].*}}zext i1 arg0 to i256
+fn @zext_chain(arg0: i1) -> i256 {
+  bb0:
+    v0 = zext i1 arg0 to i160
+    v1 = zext i160 v0 to i256
+    ret v1
+}
+
+// CHECK-LABEL: fn @sext_zext
+// CHECK: {{^[ +].*}}zext i1 arg0 to i256
+fn @sext_zext(arg0: i1) -> i256 {
+  bb0:
+    v0 = zext i1 arg0 to i160
+    v1 = sext i160 v0 to i256
+    ret v1
+}
+
+// CHECK-LABEL: fn @trunc_chain
+// CHECK: {{^[ +].*}}trunc i256 arg0 to i1
+fn @trunc_chain(arg0: i256) -> i1 {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = trunc i160 v0 to i1
+    ret v1
+}
+
+// CHECK-LABEL: fn @trunc_zext_identity
+// CHECK: {{^[ +].*}}ret arg0
+fn @trunc_zext_identity(arg0: i160) -> i160 {
+  bb0:
+    v0 = zext i160 arg0 to i256
+    v1 = trunc i256 v0 to i160
+    ret v1
+}
+
+// CHECK-LABEL: fn @trunc_sext_identity
+// CHECK: {{^[ +].*}}ret arg0
+fn @trunc_sext_identity(arg0: i160) -> i160 {
+  bb0:
+    v0 = sext i160 arg0 to i256
+    v1 = trunc i256 v0 to i160
+    ret v1
+}
+
+// CHECK-LABEL: fn @trunc_zext_shorter
+// CHECK: {{^[ +].*}}zext i1 arg0 to i160
+fn @trunc_zext_shorter(arg0: i1) -> i160 {
+  bb0:
+    v0 = zext i1 arg0 to i256
+    v1 = trunc i256 v0 to i160
+    ret v1
+}
+
+// CHECK-LABEL: fn @trunc_sext_shorter
+// CHECK: {{^[ +].*}}sext i1 arg0 to i160
+fn @trunc_sext_shorter(arg0: i1) -> i160 {
+  bb0:
+    v0 = sext i1 arg0 to i256
+    v1 = trunc i256 v0 to i160
+    ret v1
+}
+
+// CHECK-LABEL: fn @trunc_zext_narrower
+// CHECK: {{^[ +].*}}trunc i160 arg0 to i1
+fn @trunc_zext_narrower(arg0: i160) -> i1 {
+  bb0:
+    v0 = zext i160 arg0 to i256
+    v1 = trunc i256 v0 to i1
+    ret v1
+}
+
+// CHECK-LABEL: fn @trunc_sext_narrower
+// CHECK: {{^[ +].*}}trunc i160 arg0 to i1
+fn @trunc_sext_narrower(arg0: i160) -> i1 {
+  bb0:
+    v0 = sext i160 arg0 to i256
+    v1 = trunc i256 v0 to i1
+    ret v1
+}
+
+// CHECK-LABEL: fn @ptr_roundtrip
+// CHECK: {{^[ +].*}}ret arg0
+fn @ptr_roundtrip(arg0: memptr) -> memptr {
+  bb0:
+    v0 = ptrtoint memptr arg0 to i256
+    v1 = inttoptr i256 v0 to memptr
+    ret v1
+}
+
+// CHECK-LABEL: fn @int_ptr_roundtrip
+// CHECK: {{^[ +].*}}ret arg0
+fn @int_ptr_roundtrip(arg0: i160) -> i160 {
+  bb0:
+    v0 = inttoptr i160 arg0 to memptr
+    v1 = ptrtoint memptr v0 to i160
+    ret v1
+}
+
+// CHECK-LABEL: fn @int_ptr_widen
+// CHECK: {{^[ +].*}}zext i160 arg0 to i256
+fn @int_ptr_widen(arg0: i160) -> i256 {
+  bb0:
+    v0 = inttoptr i160 arg0 to memptr
+    v1 = ptrtoint memptr v0 to i256
+    ret v1
+}
+
+// CHECK-LABEL: fn @int_ptr_narrow
+// CHECK: {{^[ +].*}}trunc i160 arg0 to i1
+fn @int_ptr_narrow(arg0: i160) -> i1 {
+  bb0:
+    v0 = inttoptr i160 arg0 to memptr
+    v1 = ptrtoint memptr v0 to i1
+    ret v1
+}
+
+// CHECK-LABEL: fn @ptr_trunc
+// CHECK: {{^[ +].*}}ptrtoint memptr arg0 to i1
+fn @ptr_trunc(arg0: memptr) -> i1 {
+  bb0:
+    v0 = ptrtoint memptr arg0 to i160
+    v1 = trunc i160 v0 to i1
+    ret v1
+}
+
+// CHECK-LABEL: fn @ptr_narrow_preserved
+// CHECK: {{^[ +].*}}ptrtoint memptr arg0 to i160
+fn @ptr_narrow_preserved(arg0: memptr) -> memptr {
+  bb0:
+    v0 = ptrtoint memptr arg0 to i160
+    v1 = inttoptr i160 v0 to memptr
+    ret v1
+}
+
+// CHECK-LABEL: fn @wide_ptr_roundtrip_preserved
+// CHECK: {{^[ +].*}}inttoptr i512 arg0 to memptr
+fn @wide_ptr_roundtrip_preserved(arg0: i512) -> i512 {
+  bb0:
+    v0 = inttoptr i512 arg0 to memptr
+    v1 = ptrtoint memptr v0 to i512
+    ret v1
+}
+
+// CHECK-LABEL: fn @sext_then_zext_preserved
+// CHECK: {{^[ +].*}}sext i1 arg0 to i160
+fn @sext_then_zext_preserved(arg0: i1) -> i256 {
+  bb0:
+    v0 = sext i1 arg0 to i160
+    v1 = zext i160 v0 to i256
+    ret v1
+}

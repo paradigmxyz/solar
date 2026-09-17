@@ -137,7 +137,9 @@ class Context:
                 raise Unsupported(f"unmodeled or changed memory address schema: {name}")
             return self.memory.operation(name, tuple(args))
         if name in ("Op.Ne", "Op.Zext", "Op.Bitcast", "Op.IntToPtr"):
-            self.contracts.add(f"{name}: trusted MIR word inequality or bit-preserving scalar cast")
+            self.contracts.add(
+                f"{name}: trusted MIR word inequality or bit-preserving scalar cast"
+            )
             if name == "Op.Ne" and len(args) == 2:
                 return Expr("ne", tuple(args))
             if name in ("Op.Zext", "Op.Bitcast", "Op.IntToPtr") and len(args) == 1:
@@ -150,6 +152,19 @@ class Context:
             mask = Expr("sub", (Expr("shl", (bits, Expr.const(1))), Expr.const(1)))
             self.contracts.add(f"{name}: truncate or zero-extend a 256-bit value")
             return Expr("and", (value, mask))
+        if name == "Op.Sext":
+            if len(args) != 3:
+                raise Unsupported("invalid sign extension arity")
+            value, source, target = args
+            width = Expr.const(256)
+            capped = Expr("select", (Expr("lt", (source, width)), source, width))
+            shift = Expr("sub", (width, capped))
+            extended = Expr("sar", (shift, Expr("shl", (shift, value))))
+            mask = Expr("sub", (Expr("shl", (target, Expr.const(1))), Expr.const(1)))
+            self.contracts.add(
+                "Sext: sign-extend the source bit width and retain target bits"
+            )
+            return Expr("and", (extended, mask))
         if name == "Op.Select":
             self.contracts.add(
                 "Select: trusted MIR semantics select the true arm for any nonzero word"
@@ -221,6 +236,18 @@ class Context:
                 "current_address: Rust extractor matches an ADDRESS producer in this execution context"
             )
             return self.operation("Op.Address", [])
+        if name == "integer_bits" and len(args) == 1:
+            bits = self.model.eval(self.pattern(args[0]))
+            value = self.fresh()
+            self.assumptions.extend((z3.UGE(bits, word(1)), z3.ULE(bits, word(256))))
+            self.assumptions.append(
+                self.model.eval(value) & ((word(1) << bits) - 1)
+                == self.model.eval(value)
+            )
+            self.contracts.add(
+                "integer_bits: the Rust extractor returns a canonical integer width in 1..=256"
+            )
+            return value
         if name == "bool_value" and not args:
             value = self.fresh()
             self.assumptions.append(z3.ULE(self.model.eval(value), word(1)))
@@ -293,6 +320,8 @@ class Context:
                 == {"u256_is_zero": 0, "u256_is_one": 1, "u256_is_all_ones": MASK}[name]
             )
         predicates = {
+            "u32_lt": z3.ULT,
+            "u32_le": z3.ULE,
             "u256_gt": z3.UGT,
             "u256_ge": z3.UGE,
             "u256_lt": z3.ULT,

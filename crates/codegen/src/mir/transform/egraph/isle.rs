@@ -9,8 +9,8 @@ use super::{OperandViews, same_value};
 use crate::{
     backend::evm::op,
     mir::{
-        ArgIdx, BlockId, Function, Immediate, InstKind, MemoryObjectKind, MemoryObjectLayout, Op,
-        Value as MirValue, ValueId,
+        ArgIdx, BlockId, Function, Immediate, InstKind, MemoryObjectKind, MemoryObjectLayout,
+        MirType, Op, Value as MirValue, ValueId,
         memory::{EvmMemoryLayout, MemoryLayoutPolicy},
         utils::eval::eval_opcode,
     },
@@ -281,6 +281,19 @@ impl generated::Context for RuleContext<'_> {
 
     fn bool_value(&mut self, value: Value) -> Option<()> {
         is_bool_value(self.func, value).then_some(())
+    }
+
+    fn integer_bits(&mut self, value: Value) -> Option<u32> {
+        let MirType::Int(bits) = self.func.value_ty(value)? else { return None };
+        (bits.get() <= 256).then_some(bits.get())
+    }
+
+    fn u32_lt(&mut self, a: u32, b: u32) -> bool {
+        a < b
+    }
+
+    fn u32_le(&mut self, a: u32, b: u32) -> bool {
+        a <= b
     }
 
     fn current_address(&mut self, value: Value) -> Option<()> {

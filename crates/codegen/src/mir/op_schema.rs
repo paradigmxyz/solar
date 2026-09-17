@@ -874,7 +874,7 @@ define_mir_ops! {
         effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
     Trunc(operand0: ValueId, bits: u32),
     #[mir_op(mnemonic = "sext", result = Custom, phases = PhaseSet::ALL,
-        effect = Pure, traits = OpTraits::NONE, side_effects = false, category = None)]
+        effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
     Sext(operand0: ValueId, from_bits: u32, to_bits: u32),
     #[mir_op(mnemonic = "ptrtoint", result = Custom, phases = PhaseSet::ALL,
         effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]

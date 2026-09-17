@@ -449,9 +449,16 @@ impl Target {
             };
         }
         if let Op::Sext { from_bits, to_bits, .. } = *op {
-            let extension = if from_bits == 1 {
-                self.push(U256::MAX) + self.opcode(op::MUL)
-            } else if from_bits != 0 && from_bits.is_multiple_of(8) && from_bits <= 256 {
+            if from_bits == 1 {
+                return if to_bits == 256 {
+                    self.push(U256::ZERO) + self.opcode(op::SUB)
+                } else if to_bits < 256 {
+                    self.push(U256::MAX >> (256 - to_bits)) + self.opcode(op::MUL)
+                } else {
+                    self.push(U256::MAX) + self.opcode(op::MUL)
+                };
+            }
+            let extension = if from_bits != 0 && from_bits.is_multiple_of(8) && from_bits <= 256 {
                 self.push(U256::from(from_bits / 8 - 1)) + self.opcode(op::SIGNEXTEND)
             } else {
                 let shift = self.push(U256::from(256_u32.saturating_sub(from_bits)));
