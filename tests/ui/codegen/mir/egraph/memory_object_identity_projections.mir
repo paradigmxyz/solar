@@ -1,6 +1,6 @@
 //@compile-flags: -Zmir-pipeline=egraph,dce
 //@filecheck:
-@module MemoryObjectInstSimplify
+@module MemoryObjectIdentityProjections
 
 // CHECK-LABEL: {{^[ +].*}}fn @fold_identity_projections{{[( ]}}
 // CHECK: - {{.*}}memory_object_data
