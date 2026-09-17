@@ -34,12 +34,12 @@ fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
   bb4:
     v41 = add v19, 64
     mstore v41, v26
-    v3 = and v22, 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = ne v26, 0
-    v7 = word_cast v6
     v1 = mload v19
     mstore 128, v1
+    v3 = and v22, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 160, v3
+    v6 = ne v26, 0
+    v7 = word_cast v6
     mstore 192, v7
     returndata 128, 96
   bb1:

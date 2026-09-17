@@ -1,0 +1,65 @@
+- // === ROOT/tests/ui/codegen/mir/constant-hash/memory.mir (before constant-hash) ===
++ // === ROOT/tests/ui/codegen/mir/constant-hash/memory.mir (after constant-hash) ===
+  @module Hashes
+  fn @words() -> i256 {
+    bb0:
+      mstore 128, 1
+      mstore 160, 2
+      mstore8 159, 255
+-     v0 = keccak256 128, 64
+-     ret v0
++     ret 0x16ed800b3553d170d9b9afe6d01a73447a37318a016996524f15d95a2ceafbc3
+  }
+  
+  fn @empty() -> i256 {
+    bb0:
+-     v0 = keccak256 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0
+-     ret v0
++     ret 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+  }
+  
+  fn @unknown_write(arg0: i256) -> i256 {
+    bb0:
+      mstore 128, 1
+      mstore8 159, arg0
+      v0 = keccak256 128, 32
+      ret v0
+  }
+  
+  fn @unknown_alias(arg0: i256) -> i256 {
+    bb0:
+      mstore 128, 1
+      mstore8 arg0, 9
+      v0 = keccak256 128, 32
+      ret v0
+  }
+  
+  fn @partial() -> i256 {
+    bb0:
+      mstore8 128, 1
+      v0 = keccak256 128, 32
+      ret v0
+  }
+  
+  fn @copy(arg0: i256) -> i256 {
+    bb0:
+      mstore 128, 1
+      mcopy 128, arg0, 32
+      v0 = keccak256 128, 32
+      ret v0
+  }
+  
+  fn @join(arg0: i1) -> i256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      mstore 128, 2
+      jump bb3
+    bb1:
+      mstore 128, 1
+      jump bb3
+    bb3:
+      v0 = keccak256 128, 32
+      ret v0
+  }
+  

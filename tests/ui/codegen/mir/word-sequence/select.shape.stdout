@@ -183,6 +183,52 @@
       ret v0
   }
   
+  fn @factor_add(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = add arg1, arg2
+      v1 = select arg0, v0, arg2
+      ret v1
+  }
+  
+  fn @factor_add_reverse(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = add arg2, arg1
+      v2 = select v0, arg2, v1
+      ret v2
+  }
+  
+  fn @factor_sub(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = sub arg2, arg1
+      v2 = select v0, v1, arg2
+      ret v2
+  }
+  
+  fn @factor_or(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = or arg1, arg2
+      v2 = select v0, v1, arg2
+      ret v2
+  }
+  
+  fn @factor_xor(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = xor arg2, arg1
+      v1 = select arg0, v0, arg2
+      ret v1
+  }
+  
+  fn @factor_and(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = and arg1, arg2
+      v2 = select v0, v1, arg2
+      ret v2
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (before lower-evm-shaped) ===
 + // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (after lower-evm-shaped) ===
   @module ConstantSelectRecipes
@@ -365,5 +411,51 @@
     bb0:
       v0 = select arg0, arg1, 0
       ret v0
+  }
+  
+  fn @factor_add(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = add arg1, arg2
+      v1 = select arg0, v0, arg2
+      ret v1
+  }
+  
+  fn @factor_add_reverse(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = add arg2, arg1
+      v2 = select v0, arg2, v1
+      ret v2
+  }
+  
+  fn @factor_sub(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = sub arg2, arg1
+      v2 = select v0, v1, arg2
+      ret v2
+  }
+  
+  fn @factor_or(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = or arg1, arg2
+      v2 = select v0, v1, arg2
+      ret v2
+  }
+  
+  fn @factor_xor(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = xor arg2, arg1
+      v1 = select arg0, v0, arg2
+      ret v1
+  }
+  
+  fn @factor_and(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = and arg1, arg2
+      v2 = select v0, v1, arg2
+      ret v2
   }
   

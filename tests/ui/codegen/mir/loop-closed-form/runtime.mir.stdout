@@ -1,0 +1,77 @@
+// === ROOT/tests/ui/codegen/mir/loop-closed-form/runtime.sol:Affine ===
+@module Affine
+fn @assign(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb012a833, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v0]
+    v1 = phi [bb0: arg0], [bb3: v4]
+    v2 = phi [bb0: arg2], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v6]
+    v4 = phi [bb0: arg1], [bb3: v4]
+    v5 = lt v3, v2
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v1
+  bb4:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v6 = add v3, 1
+    jump bb1
+}
+
+fn @mixed(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x505a3b6b, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v9]
+    v1 = phi [bb0: arg2], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: arg1], [bb3: v10]
+    v4 = phi [bb0: arg3], [bb3: v4]
+    v5 = phi [bb0: 0], [bb3: v11]
+    v6 = lt v5, v1
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v0
+  bb4:
+    v7 = and v0, v3
+    v8 = or v0, v3
+    v9 = add v7, v8
+    v10 = add v3, v4
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v11 = add v5, 1
+    jump bb1
+}
+
+fn @checked(arg0: i256) -> i256 [selector=0x2e53fee2, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v5]
+    v1 = phi [bb0: 0], [bb3: v4]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = lt v0, v2
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v1
+  bb4:
+    v4 = checked_add u256, v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v5 = checked_add u256, v0, 1
+    jump bb1
+}

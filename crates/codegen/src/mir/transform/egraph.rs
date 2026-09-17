@@ -501,7 +501,7 @@ impl<'a> Builder<'a> {
         {
             let mut kind = inst.kind.clone();
             kind.visit_operands_mut(|value| *value = self.resolve(*value));
-            if let Some(value) = const_fold(self.func, &kind) {
+            if let Some(value) = const_fold(self.func, &kind, ty) {
                 // %result = <nontrapping constant expression> => constant
                 self.merge(result, value, inst_id);
             } else {
@@ -536,7 +536,7 @@ impl<'a> Builder<'a> {
                 frontier += 1;
                 alternatives.clear();
                 let kind = current.into_kind().expect("nodes are complete instructions");
-                let folded = const_fold(self.func, &kind);
+                let folded = const_fold(self.func, &kind, ty);
                 if kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
                     let (views, truncated) = self.matching_views(&current, view_limit);
                     views_truncated |= truncated;
@@ -601,7 +601,7 @@ impl<'a> Builder<'a> {
                 Simplified::Unchanged => None,
                 Simplified::Pending => {
                     let kind = node.into_kind().expect("nodes are complete instructions");
-                    let folded = const_fold(self.func, &kind);
+                    let folded = const_fold(self.func, &kind, ty);
                     if kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
                         let (views, _) = self.matching_views(node, view_limit);
                         folded.or_else(|| {
@@ -1236,20 +1236,16 @@ fn canonical(op: Op) -> Op {
 }
 
 /// Folds an instruction over immediate operands to an immediate result.
-fn const_fold(func: &mut Function, kind: &InstKind) -> Option<ValueId> {
+fn const_fold(func: &mut Function, kind: &InstKind, ty: Option<MirType>) -> Option<ValueId> {
     if let InstKind::Select(condition, then_value, else_value) = *kind {
         let condition = func.value_u256(condition)?;
         return Some(if condition.is_zero() { else_value } else { then_value });
     }
     let value = eval::eval_inst(kind, |value| func.value_u256(value).ok_or(())).ok().flatten()?;
-    let immediate = match kind {
-        InstKind::Lt(..)
-        | InstKind::Gt(..)
-        | InstKind::SLt(..)
-        | InstKind::SGt(..)
-        | InstKind::Eq(..)
-        | InstKind::Ne(..) => Immediate::bool(!value.is_zero()),
-        _ => Immediate::uint256(value),
+    let immediate = if ty == Some(MirType::I1) {
+        Immediate::bool(!value.is_zero())
+    } else {
+        Immediate::uint256(value)
     };
     Some(func.alloc_value(Value::Immediate(immediate)))
 }
@@ -1259,6 +1255,7 @@ pub(super) fn fold_constant(
     func: &mut Function,
     kind: &InstKind,
     evm: EvmVersion,
+    ty: Option<MirType>,
 ) -> Option<ValueId> {
     if let InstKind::Phi(incoming) = kind
         && let Some(&(_, first)) = incoming.first()
@@ -1267,7 +1264,7 @@ pub(super) fn fold_constant(
     {
         return Some(first);
     }
-    let value = const_fold(func, kind).or_else(|| {
+    let value = const_fold(func, kind, ty).or_else(|| {
         if is_node(kind) && kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
             isle::RuleContext::new(func, evm).simplify(&kind.op())
         } else {

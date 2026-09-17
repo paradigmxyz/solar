@@ -408,13 +408,22 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     instruction.result_ty = Some(*ty);
                 }
             }
-            // phi/select of aggregate operands -> an aggregate-typed result
+            // Boolean scalar operations and aggregate phi/select recover their operand type.
             // Resolve after calls, including forward and numeric function references. Each merge
-            // acquires a composite type at most once, so cyclic value references cannot oscillate.
+            // acquires its operand type at most once, so cyclic value references cannot oscillate.
             loop {
                 let mut changed = false;
                 for &id in &instructions {
                     let instruction = function.inst(id);
+                    if instruction.result_ty == Some(MirType::I256)
+                        && instruction.kind.op_def().result.default_type() == Some(MirType::I256)
+                        && instruction.kind.admits_result_type(MirType::I1)
+                        && instruction.kind.scalar_types_match(function, Some(MirType::I1))
+                    {
+                        function.inst_mut(id).result_ty = Some(MirType::I1);
+                        changed = true;
+                        continue;
+                    }
                     let composite = |ty| {
                         matches!(
                             ty,

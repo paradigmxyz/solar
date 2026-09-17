@@ -102,13 +102,12 @@ bb19 [loop]:
   swap 2
   iszero
   iszero
+  swap 1
   exchange 2, 3
   dup 3
-  dup 3
+  swap 1
   sub
   mul
-  swap 1
-  pop
   add
   swap 3
   push 1

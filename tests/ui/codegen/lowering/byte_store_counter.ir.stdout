@@ -449,13 +449,13 @@ bb29 [continuation]:
 bb30 [continuation]:
   swap 1
   pop
-  iszero
-  iszero
   swap 1
   iszero
   iszero
   push 128
   mstore
+  iszero
+  iszero
   push 160
   mstore
   push 64

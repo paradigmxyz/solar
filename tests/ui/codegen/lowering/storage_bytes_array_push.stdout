@@ -42,9 +42,8 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
   bb3:
     v2 = add v0, 1
     mstore 0, 0 !metadata(memory=scratch)
-    v84 = keccak256 0, 32 !metadata(memory=scratch)
-    v4 = add v84, v0
-    v5 = sload v4 !metadata(storage=symbolic(v4))
+    v4 = add v0, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
+    v5 = sload v4 !metadata(storage=offset(v0, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
     v6 = and v5, 1
     v7 = eq v6, 1
     v8 = sub 0, v6
@@ -78,7 +77,7 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
   bb10:
     v62 = not v14
     v38 = sub v14, v62
-    sstore v4, v38 !metadata(storage=symbolic(v4))
+    sstore v4, v38 !metadata(storage=offset(v0, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
     mstore 0, v4 !metadata(memory=scratch)
     v85 = keccak256 0, 32 !metadata(memory=scratch)
     v40 = shr 5, v14
@@ -118,7 +117,7 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v34 = and v28, v33
     v35 = add v14, v14
     v36 = or v34, v35
-    sstore v4, v36 !metadata(storage=symbolic(v4))
+    sstore v4, v36 !metadata(storage=offset(v0, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
     jump bb1
   bb1:
     sstore 0, v2 !metadata(storage=slot(0))
@@ -144,9 +143,8 @@ fn @popStr() [selector=0x5d7696c3, abi_wrapper] {
     v2 = sub v0, 1
     sstore 0, v2 !metadata(storage=slot(0))
     mstore 0, 0 !metadata(memory=scratch)
-    v30 = keccak256 0, 32 !metadata(memory=scratch)
-    v4 = add v30, v2
-    v5 = sload v4 !metadata(storage=symbolic(v4))
+    v4 = add v2, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
+    v5 = sload v4 !metadata(storage=offset(v0, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562))
     v21 = and v5, 1
     v22 = eq v21, 1
     v23 = sub 0, v21
@@ -170,7 +168,7 @@ fn @popStr() [selector=0x5d7696c3, abi_wrapper] {
     v18 = lt v16, v13
     jumpi v18, bb6, bb2
   bb2:
-    sstore v4, 0 !metadata(storage=symbolic(v4))
+    sstore v4, 0 !metadata(storage=offset(v0, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562))
     stop
   bb6:
     sstore v17, 0 !metadata(storage=symbolic(v17))
@@ -200,8 +198,7 @@ fn @blobAt() [selector=0x8f236983, abi_wrapper, view] {
     revert 28, 36
   bb2:
     mstore 0, 2 !metadata(memory=scratch)
-    v27 = keccak256 0, 32 !metadata(memory=scratch)
-    v4 = add v27, arg0
+    v4 = add arg0, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace
     v5 = icall @load_storage_bytes, v4
     v15 = ne v5, 0
     v16 = word_cast v15
@@ -228,8 +225,8 @@ fn @pushEmpty() [selector=0x19d30117, abi_wrapper] {
     v1 = gt v0, 0xffffffffffffffff
     jumpi v1, bb1, bb2
   bb2:
-    v2 = add v0, 1
     mstore 0, 2 !metadata(memory=scratch)
+    v2 = add v0, 1
     sstore 2, v2 !metadata(storage=slot(2))
     stop
   bb1:

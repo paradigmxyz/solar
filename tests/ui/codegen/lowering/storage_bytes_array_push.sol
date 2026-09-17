@@ -18,7 +18,7 @@ contract StorageBytesArrayPush {
     bytes[] internal blobs;
 
     // SBAP-LABEL: fn @pushStr
-    // SBAP: keccak256
+    // SBAP: 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
     // SBAP: sstore
     function pushStr(string memory v) public {
         set._values.push(v);
@@ -27,7 +27,7 @@ contract StorageBytesArrayPush {
     // SBAP-LABEL: fn @popStr
     // The popped element clears through the packed-form store, not a single
     // zero word.
-    // SBAP: keccak256
+    // SBAP: 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
     // SBAP: sstore
     function popStr() public {
         set._values.pop();
@@ -36,7 +36,7 @@ contract StorageBytesArrayPush {
     // SBAP-LABEL: fn @blobAt
     // Indexed bytes elements materialize into memory.
     // SBAP: sload
-    // SBAP: keccak256
+    // SBAP: 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace
     function blobAt(uint256 i) public view returns (bytes memory) {
         return blobs[i];
     }

@@ -1,0 +1,34 @@
+// === ROOT/tests/ui/codegen/mir/code-sink/runtime.sol:Sink ===
+@module Sink
+types:
+  struct0: {i256, i256, i256}
+
+fn @acrossStores(arg0: i256) -> struct0 [selector=0x46a3d424, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+  bb0:
+    v0 = mul arg0, 9
+    sstore 0, arg0 !metadata(storage=slot(0))
+    mstore 0, arg0 !metadata(memory=scratch)
+    v1 = add v0, 7
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = mload 0 !metadata(memory=scratch)
+    v4 = insert_value struct0, undef struct0, 0, v1
+    v5 = insert_value struct0, v4, 1, v2
+    v6 = insert_value struct0, v5, 2, v3
+    ret v6
+}
+
+fn @choose(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x28eac35d, abi_params=[bool, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = mul arg1, 9
+    v1 = add v0, 7
+    v2 = ne arg0, 0
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    sstore 0, v1 !metadata(storage=slot(0))
+    jump bb3
+  bb3:
+    v3 = phi [bb1: v1], [bb2: arg2]
+    ret v3
+}
