@@ -219,7 +219,8 @@ campaign report. `--count` bounds outputs per round; the total is at most
 initial seeds, so a small count does not prove mutation occurred. Each round starts
 from the specified seed corpus; there is no automatic promotion of outputs into
 later rounds. Failure stops the loop unless `--continue-on-failure` is set; any
-failed round still makes the command exit 1. Interrupts stop immediately.
+failed round still makes the command exit 1. Generation/setup errors and interrupts
+stop immediately.
 
 Repeat `--compiler NAME='COMMAND ARGS'` for any standard-JSON compilers. The first
 is the default reference, compared with every other compiler. `--reference NAME`

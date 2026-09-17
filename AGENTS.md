@@ -165,7 +165,14 @@ programs or purposes.
 Use `uv run --project tools/compiler-diff compiler-diff` from the repository root.
 The [project guide](tools/compiler-diff/README.md) covers local standard-JSON
 imports, Sourcify sync, compiler commands, comparison policies, and replay.
-`scripts/sourcify.py` remains a compatibility entry point.
+`scripts/sourcify.py` remains a compatibility entry point. Run `self-test` for the
+package's embedded tests.
+
+Start a corpus with `sync` for Sourcify, `import-input input.json --target SOURCE:CONTRACT`
+for an inline standard-JSON repro, or `import-directory` for a source tree. Then use
+`run` to compile and `compare` to check saved outputs; `status` shows corpus progress.
+`--version` selects the corpus partition and Sourcify release, not a compiler binary:
+provide the intended executables with `--compiler NAME='COMMAND ARGS'`.
 
 Use `fuzz --seed N --count N` for [Fandango source campaigns](tools/compiler-diff/README.md#fandango-campaigns).
 Repeat `--compiler NAME='COMMAND ARGS'` to select compilers; each candidate is
@@ -188,6 +195,9 @@ identifiers without recompiling. Add `--check userdoc` or `--check devdoc` for
 JSON documentation. ABI `--policy interface` ignores parameter names and
 `internalType`; `--policy exact` preserves them. Neither policy establishes
 runtime equivalence. Use `compare --full` for complete field-level differences.
+Select named compilers with `compare --reference NAME --candidate NAME`, or pass
+`--left ATTEMPT_DIR --right ATTEMPT_DIR` for specific saved attempts. Comparisons
+use the latest attempts, including failures; unrun inputs do not count as covered.
 
 For execution behavior, use `runtime --` with the
 [curated runtime suite](benches/runtime/README.md), or `symbolic --` for a
@@ -204,9 +214,16 @@ hold inputs, outputs, diagnostics and reports. Mismatch bundles include
 `compare.sh`; compiler `replay.sh` uses the recorded executable path, so keep
 the required binaries available. Use a persistent `--dir` for retained evidence;
 set `UV_CACHE_DIR` and `UV_PROJECT_ENVIRONMENT` to subdirectories there for uv's files.
+Directory imports write coverage and skip reasons to `imports/<id>/report.json`.
+Fandango writes `<dir>/<version>/fuzz/<id>/report.json`; its database and attempts
+live in that campaign's `<version>/` subdirectory. Use the printed campaign path as
+`--dir` to inspect it with `status`, `run`, or `compare`.
 
 Runs and comparisons stop on the first failure unless `--continue-on-failure`
-is set. Review differences before adding exact expectation rules with a reason;
+is set. Successful compiler jobs are reused; add `--retry-failures` to retry cached
+failures and change `--tag` when wrapper dependencies or environment change. Inputs
+retain settings except `outputSelection`, which requests the comparison artifacts.
+Review differences before using `--expectations FILE` with exact rules and a reason;
 never hide errors or unsupported checks. Report coverage counts, and reduce new
 compiler failures into regression tests. Record accepted intentional differences
 in [SOLC_DIVERGENCE.md](docs/SOLC_DIVERGENCE.md).
