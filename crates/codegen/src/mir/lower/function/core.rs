@@ -92,6 +92,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             CoreIntrinsic::CalldataReadUint256Be => self.lower_core_calldata_read(&operands, 32),
             CoreIntrinsic::CalldataCopyInto => self.lower_core_calldata_copy(&operands),
+            CoreIntrinsic::CalldataTryReadBytes(width) => {
+                self.lower_core_calldata_try_read(function_id, &operands, width)
+            }
+            CoreIntrinsic::CalldataTryReadUint256Be => {
+                self.lower_core_calldata_try_read(function_id, &operands, 32)
+            }
             CoreIntrinsic::CodeCopyInto => self.lower_core_code_copy(&operands),
             CoreIntrinsic::LeadingZeros => {
                 let [value] = *operands.as_slice() else { return None };
@@ -363,6 +369,38 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             None => word,
         })
+    }
+
+    /// `CalldataBytes.tryReadBytesN(b, offset)` and `tryReadUint256BE(b, offset)`.
+    /// A load from calldata cannot fault, so a read that fails is aimed at the
+    /// start of the slice only to keep its address small, and is discarded.
+    fn lower_core_calldata_try_read(
+        &mut self,
+        function_id: hir::FunctionId,
+        operands: &[ValueId],
+        width: u8,
+    ) -> Option<ValueId> {
+        let [slice, offset] = *operands else { return None };
+        let length = self.builder.slice_len(slice);
+        let misses = self.core_range_misses(length, offset, Width::Const(u64::from(width)));
+        // ok = !misses
+        // word = calldataload(ptr(slice) + (ok ? offset : 0))
+        // value = (ok ? word : 0) & leading(width)
+        let ok = self.builder.iszero(misses);
+        let zero = self.builder.imm(U256::ZERO);
+        let aimed = self.builder.select(ok, offset, zero);
+        let base = self.builder.slice_ptr(slice);
+        let address = self.builder.add(base, aimed);
+        let word = self.builder.calldataload(address);
+        let gated = self.builder.select(ok, word, zero);
+        let value = match leading_mask(width) {
+            Some(mask) => {
+                let mask = self.builder.imm(mask);
+                self.builder.and(gated, mask)
+            }
+            None => gated,
+        };
+        Some(self.core_results(function_id, vec![ok, value]))
     }
 
     /// `CalldataBytes.copyInto(dst, dstOffset, src, srcOffset, count)`.

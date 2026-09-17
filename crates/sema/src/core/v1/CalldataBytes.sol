@@ -365,11 +365,374 @@ library CalldataBytes {
         }
     }
 
+    /// @dev The 1 byte of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes1(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes1 result)
+    {
+        if (offset > b.length || b.length - offset < 1) return (false, bytes1(0));
+        return (true, readBytes1(b, offset));
+    }
+
+    /// @dev The 2 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes2(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes2 result)
+    {
+        if (offset > b.length || b.length - offset < 2) return (false, bytes2(0));
+        return (true, readBytes2(b, offset));
+    }
+
+    /// @dev The 3 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes3(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes3 result)
+    {
+        if (offset > b.length || b.length - offset < 3) return (false, bytes3(0));
+        return (true, readBytes3(b, offset));
+    }
+
+    /// @dev The 4 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes4(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes4 result)
+    {
+        if (offset > b.length || b.length - offset < 4) return (false, bytes4(0));
+        return (true, readBytes4(b, offset));
+    }
+
+    /// @dev The 5 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes5(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes5 result)
+    {
+        if (offset > b.length || b.length - offset < 5) return (false, bytes5(0));
+        return (true, readBytes5(b, offset));
+    }
+
+    /// @dev The 6 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes6(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes6 result)
+    {
+        if (offset > b.length || b.length - offset < 6) return (false, bytes6(0));
+        return (true, readBytes6(b, offset));
+    }
+
+    /// @dev The 7 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes7(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes7 result)
+    {
+        if (offset > b.length || b.length - offset < 7) return (false, bytes7(0));
+        return (true, readBytes7(b, offset));
+    }
+
+    /// @dev The 8 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes8(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes8 result)
+    {
+        if (offset > b.length || b.length - offset < 8) return (false, bytes8(0));
+        return (true, readBytes8(b, offset));
+    }
+
+    /// @dev The 9 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes9(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes9 result)
+    {
+        if (offset > b.length || b.length - offset < 9) return (false, bytes9(0));
+        return (true, readBytes9(b, offset));
+    }
+
+    /// @dev The 10 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes10(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes10 result)
+    {
+        if (offset > b.length || b.length - offset < 10) return (false, bytes10(0));
+        return (true, readBytes10(b, offset));
+    }
+
+    /// @dev The 11 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes11(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes11 result)
+    {
+        if (offset > b.length || b.length - offset < 11) return (false, bytes11(0));
+        return (true, readBytes11(b, offset));
+    }
+
+    /// @dev The 12 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes12(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes12 result)
+    {
+        if (offset > b.length || b.length - offset < 12) return (false, bytes12(0));
+        return (true, readBytes12(b, offset));
+    }
+
+    /// @dev The 13 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes13(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes13 result)
+    {
+        if (offset > b.length || b.length - offset < 13) return (false, bytes13(0));
+        return (true, readBytes13(b, offset));
+    }
+
+    /// @dev The 14 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes14(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes14 result)
+    {
+        if (offset > b.length || b.length - offset < 14) return (false, bytes14(0));
+        return (true, readBytes14(b, offset));
+    }
+
+    /// @dev The 15 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes15(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes15 result)
+    {
+        if (offset > b.length || b.length - offset < 15) return (false, bytes15(0));
+        return (true, readBytes15(b, offset));
+    }
+
+    /// @dev The 16 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes16(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes16 result)
+    {
+        if (offset > b.length || b.length - offset < 16) return (false, bytes16(0));
+        return (true, readBytes16(b, offset));
+    }
+
+    /// @dev The 17 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes17(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes17 result)
+    {
+        if (offset > b.length || b.length - offset < 17) return (false, bytes17(0));
+        return (true, readBytes17(b, offset));
+    }
+
+    /// @dev The 18 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes18(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes18 result)
+    {
+        if (offset > b.length || b.length - offset < 18) return (false, bytes18(0));
+        return (true, readBytes18(b, offset));
+    }
+
+    /// @dev The 19 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes19(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes19 result)
+    {
+        if (offset > b.length || b.length - offset < 19) return (false, bytes19(0));
+        return (true, readBytes19(b, offset));
+    }
+
+    /// @dev The 20 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes20(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes20 result)
+    {
+        if (offset > b.length || b.length - offset < 20) return (false, bytes20(0));
+        return (true, readBytes20(b, offset));
+    }
+
+    /// @dev The 21 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes21(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes21 result)
+    {
+        if (offset > b.length || b.length - offset < 21) return (false, bytes21(0));
+        return (true, readBytes21(b, offset));
+    }
+
+    /// @dev The 22 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes22(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes22 result)
+    {
+        if (offset > b.length || b.length - offset < 22) return (false, bytes22(0));
+        return (true, readBytes22(b, offset));
+    }
+
+    /// @dev The 23 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes23(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes23 result)
+    {
+        if (offset > b.length || b.length - offset < 23) return (false, bytes23(0));
+        return (true, readBytes23(b, offset));
+    }
+
+    /// @dev The 24 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes24(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes24 result)
+    {
+        if (offset > b.length || b.length - offset < 24) return (false, bytes24(0));
+        return (true, readBytes24(b, offset));
+    }
+
+    /// @dev The 25 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes25(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes25 result)
+    {
+        if (offset > b.length || b.length - offset < 25) return (false, bytes25(0));
+        return (true, readBytes25(b, offset));
+    }
+
+    /// @dev The 26 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes26(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes26 result)
+    {
+        if (offset > b.length || b.length - offset < 26) return (false, bytes26(0));
+        return (true, readBytes26(b, offset));
+    }
+
+    /// @dev The 27 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes27(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes27 result)
+    {
+        if (offset > b.length || b.length - offset < 27) return (false, bytes27(0));
+        return (true, readBytes27(b, offset));
+    }
+
+    /// @dev The 28 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes28(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes28 result)
+    {
+        if (offset > b.length || b.length - offset < 28) return (false, bytes28(0));
+        return (true, readBytes28(b, offset));
+    }
+
+    /// @dev The 29 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes29(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes29 result)
+    {
+        if (offset > b.length || b.length - offset < 29) return (false, bytes29(0));
+        return (true, readBytes29(b, offset));
+    }
+
+    /// @dev The 30 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes30(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes30 result)
+    {
+        if (offset > b.length || b.length - offset < 30) return (false, bytes30(0));
+        return (true, readBytes30(b, offset));
+    }
+
+    /// @dev The 31 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes31(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes31 result)
+    {
+        if (offset > b.length || b.length - offset < 31) return (false, bytes31(0));
+        return (true, readBytes31(b, offset));
+    }
+
+    /// @dev The 32 bytes of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes32(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes32 result)
+    {
+        if (offset > b.length || b.length - offset < 32) return (false, bytes32(0));
+        return (true, readBytes32(b, offset));
+    }
+
     /// @dev The 32 bytes of `b` at `offset`, read as a big-endian integer.
     function readUint256BE(bytes calldata b, uint256 offset) internal pure returns (uint256 result) {
         for (uint256 k; k < 32; ++k) {
             result = (result << 8) | uint8(b[offset + k]);
         }
+    }
+
+    /// @dev The 32 bytes of `b` at `offset` as a big-endian integer, or `false`
+    /// and zero when they do not all lie inside `b`.
+    function tryReadUint256BE(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, uint256 result)
+    {
+        if (offset > b.length || b.length - offset < 32) return (false, 0);
+        return (true, readUint256BE(b, offset));
     }
 
     /// @dev Copies `count` bytes of `src` at `srcOffset` into `dst` at

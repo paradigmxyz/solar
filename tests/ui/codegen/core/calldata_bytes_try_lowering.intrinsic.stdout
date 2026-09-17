@@ -1,0 +1,197 @@
+// === <solar:core/v1/CalldataBytes.sol>:CalldataBytes ===
+@module CalldataBytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/calldata_bytes_try_lowering.sol:Test ===
+@module Test
+@phase lowered
+types:
+  struct0: {u256, u256}
+
+fn @try1() [selector=0x7c4fe00c, abi_wrapper, pure] {
+  bb0:
+    v18 = calldatasize
+    v19 = lt v18, 68
+    jumpi v19, bb1, bb2
+  bb2:
+    v20 = icall @decode_calldata_slice, 4
+    v21 = calldataload v20
+    v22 = add v20, 32
+    v1 = add arg1, 1
+    v2 = iszero v1
+    v3 = gt v1, v21
+    v4 = or v2, v3
+    v5 = iszero v4
+    v6 = mul v5, arg1
+    v8 = add v22, v6
+    v9 = calldataload v8
+    v10 = mul v5, v9
+    v11 = and v10, 0xff00000000000000000000000000000000000000000000000000000000000000
+    mstore 128, v5
+    mstore 160, v11
+    returndata 128, 64
+  bb1:
+    revert 0, 0
+}
+
+fn @try4() [selector=0x7f498037, abi_wrapper, pure] {
+  bb0:
+    v18 = calldatasize
+    v19 = lt v18, 68
+    jumpi v19, bb1, bb2
+  bb2:
+    v20 = icall @decode_calldata_slice, 4
+    v21 = calldataload v20
+    v22 = add v20, 32
+    v1 = add arg1, 4
+    v2 = lt v1, arg1
+    v3 = gt v1, v21
+    v4 = or v2, v3
+    v5 = iszero v4
+    v6 = mul v5, arg1
+    v8 = add v22, v6
+    v9 = calldataload v8
+    v10 = mul v5, v9
+    v11 = and v10, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 128, v5
+    mstore 160, v11
+    returndata 128, 64
+  bb1:
+    revert 0, 0
+}
+
+fn @try32() [selector=0xf00ebb05, abi_wrapper, pure] {
+  bb0:
+    v17 = calldatasize
+    v18 = lt v17, 68
+    jumpi v18, bb1, bb2
+  bb2:
+    v19 = icall @decode_calldata_slice, 4
+    v20 = calldataload v19
+    v21 = add v19, 32
+    v1 = add arg1, 32
+    v2 = lt v1, arg1
+    v3 = gt v1, v20
+    v4 = or v2, v3
+    v5 = iszero v4
+    v6 = mul v5, arg1
+    v8 = add v21, v6
+    v9 = calldataload v8
+    v10 = mul v5, v9
+    mstore 128, v5
+    mstore 160, v10
+    returndata 128, 64
+  bb1:
+    revert 0, 0
+}
+
+fn @tryWord() [selector=0xdc133dec, abi_wrapper, pure] {
+  bb0:
+    v17 = calldatasize
+    v18 = lt v17, 68
+    jumpi v18, bb1, bb2
+  bb2:
+    v19 = icall @decode_calldata_slice, 4
+    v20 = calldataload v19
+    v21 = add v19, 32
+    v1 = add arg1, 32
+    v2 = lt v1, arg1
+    v3 = gt v1, v20
+    v4 = or v2, v3
+    v5 = iszero v4
+    v6 = mul v5, arg1
+    v8 = add v21, v6
+    v9 = calldataload v8
+    v10 = mul v5, v9
+    mstore 128, v5
+    mstore 160, v10
+    returndata 128, 64
+  bb1:
+    revert 0, 0
+}
+
+fn @tryTwo() [selector=0x2031ea5c, abi_wrapper, pure] {
+  bb0:
+    v18 = calldatasize
+    v19 = lt v18, 100
+    jumpi v19, bb1, bb2
+  bb2:
+    v20 = icall @decode_calldata_slice, 4
+    v21 = calldataload v20
+    v22 = add v20, 32
+    v24 = calldataload 36
+    v25 = add v24, 4
+    v26 = add v25, 32
+    v27 = gt v24, 0xffffffffffffffff
+    v28 = gt v26, v18
+    v29 = or v27, v28
+    jumpi v29, bb1, bb3
+  bb3:
+    v30 = calldataload v25
+    v32 = sub v18, v26
+    v33 = gt v30, v32
+    jumpi v33, bb1, bb4
+  bb4:
+    v1 = add arg2, 4
+    v2 = lt v1, arg2
+    v3 = gt v1, v21
+    v4 = or v2, v3
+    v5 = iszero v4
+    v6 = mul v5, arg2
+    v8 = add v22, v6
+    v9 = calldataload v8
+    v10 = mul v5, v9
+    v11 = and v10, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 128, v5
+    mstore 160, v11
+    returndata 128, 64
+  bb1:
+    revert 0, 0
+}
+
+fn @decode_calldata_slice(arg0: u256) -> u256 {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload arg0
+    v2 = add v1, 4
+    v3 = add v2, 32
+    v4 = gt v1, 0xffffffffffffffff
+    v5 = gt v3, v0
+    v6 = or v4, v5
+    v7 = calldataload v2
+    v9 = sub v0, v3
+    v10 = gt v7, v9
+    v11 = or v6, v10
+    jumpi v11, bb1, bb2
+  bb2:
+    ret v2
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb7, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb7, [0x2031ea5c => bb2, 0x7c4fe00c => bb3, 0x7f498037 => bb4, 0xdc133dec => bb5, 0xf00ebb05 => bb6]
+  bb6:
+    tail_call @try32
+  bb5:
+    tail_call @tryWord
+  bb4:
+    tail_call @try4
+  bb3:
+    tail_call @try1
+  bb2:
+    tail_call @tryTwo
+  bb7:
+    revert 0, 0
+}

@@ -999,6 +999,26 @@ library Bytes {
         }
     }
 
+    /// @dev Whether `a` and `b` have the same length and the same bytes. This
+    /// is an exact comparison, a word at a time, not a comparison of hashes.
+    function equals(bytes memory a, bytes memory b) internal pure returns (bool) {
+        uint256 n = a.length;
+        if (n != b.length) return false;
+        uint256 i;
+        while (i + 32 <= n) {
+            if (readBytes32(a, i) != readBytes32(b, i)) return false;
+            i += 32;
+        }
+        if (i == n) return true;
+        // What is left is shorter than a word. One more word pulled back to
+        // end where the input ends covers it; below a word, a byte at a time.
+        if (n >= 32) return readBytes32(a, n - 32) == readBytes32(b, n - 32);
+        for (; i < n; ++i) {
+            if (a[i] != b[i]) return false;
+        }
+        return true;
+    }
+
     /// @dev Raises the `Panic(0x32)` an out-of-range index raises, which is the
     /// portable spelling of a failed range check.
     function _outOfBounds() private pure returns (uint256) {
