@@ -129,6 +129,12 @@ They are committed thin wrappers around the implementation scripts in this
 directory. That gives us command-like UX without breaking direct script usage
 in existing automation.
 
+For saved compiler artifacts and bounded mutation batches, use the unified
+[population campaign command](/tools/compiler-diff/README.md#fandango-campaigns).
+It snapshots the grammar and seed directory, records compiler attempts, compares
+ABI/JSON artifacts, and can run bounded symbolic checks. Use the direct runtime
+runner below to compare harness side effects in anvil.
+
 Generate Solidity runtime harnesses and compare side effects:
 
 ```bash

@@ -15,7 +15,7 @@ from pathlib import Path
 
 import duckdb
 
-from . import compare, corpus, display, fandango
+from . import compare, corpus, display, fandango, suite
 from .artifacts import read_attempt
 
 
@@ -48,7 +48,7 @@ def load_rules(path):
     return rules
 
 
-def import_input(db, path, target, version, *, request=None):
+def import_input(db, path, target, version, *, request=None, quiet=False):
     if request is None:
         request = read_json(path)
     if not isinstance(request, dict) or request.get("language") != "Solidity":
@@ -60,7 +60,7 @@ def import_input(db, path, target, version, *, request=None):
     if not isinstance(settings, dict) or not isinstance(sources, dict) or not sources:
         raise ValueError("input requires settings object and nonempty sources object")
     source_path, separator, name = target.rpartition(":")
-    if not separator or not name or source_path not in sources:
+    if target != "*:*" and (not separator or not name or source_path not in sources):
         raise ValueError("--target must be SOURCE:CONTRACT in the input")
     for source in sources.values():
         if (
@@ -102,7 +102,8 @@ def import_input(db, path, target, version, *, request=None):
     except BaseException:
         db.execute("ROLLBACK")
         raise
-    print(identifier)
+    if not quiet:
+        print(identifier)
     return identifier
 
 
@@ -220,6 +221,7 @@ def compare_saved(db, root, args, *, compilation_id=None, expectations=None):
                             "result.json",
                             "replay.sh",
                             "generator.json",
+                            "import.json",
                         ):
                             if (source / name).is_file():
                                 shutil.copyfile(source / name, destination / name)
@@ -395,6 +397,12 @@ def fuzz_campaign(root, args):
     try:
         files = fandango.generate(campaign, config, grammar, args.generation_timeout)
         report["generated"] = len(files)
+        population = {
+            record["name"]: (campaign / "population" / f"{index:08d}.sol").read_text(
+                encoding="utf-8"
+            )
+            for index, record in enumerate(config.get("population", []))
+        }
         compilers = (
             []
             if args.generate_only
@@ -453,6 +461,7 @@ def fuzz_campaign(root, args):
                                 "campaign": str(campaign),
                                 "config": config,
                                 "grammar": grammar.decode(),
+                                "population": population,
                                 "source": str(source),
                             },
                         )
@@ -588,6 +597,15 @@ def main(argv=None):
     fuzzer.add_argument("--seed", type=int, default=1)
     fuzzer.add_argument("--count", type=int, default=16)
     fuzzer.add_argument(
+        "--rounds", type=int, default=1, help="Batches with consecutive seeds"
+    )
+    fuzzer.add_argument(
+        "--initial-population", type=Path, help="Recursively snapshot .sol seed files"
+    )
+    fuzzer.add_argument("--population-size", type=int)
+    fuzzer.add_argument("--mutation-rate", type=float)
+    fuzzer.add_argument("--crossover-rate", type=float)
+    fuzzer.add_argument(
         "--settings",
         type=Path,
         help="JSON settings object; evmVersion defaults to osaka",
@@ -623,6 +641,25 @@ def main(argv=None):
     importer = sub.add_parser("import-input", help="Import a local standard-JSON input")
     importer.add_argument("input", type=Path)
     importer.add_argument("--target", required=True, metavar="SOURCE:CONTRACT")
+    directory = sub.add_parser(
+        "import-directory",
+        help="Import Solidity files or upstream solc fixtures recursively",
+    )
+    directory.add_argument("directory", type=Path)
+    directory.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print every imported and skipped fixture",
+    )
+    directory.add_argument("--format", choices=["solidity", "solc"], default="solc")
+    directory.add_argument(
+        "--settings", type=Path, help="Default standard-JSON settings"
+    )
+    directory.add_argument(
+        "--allow-skips",
+        action="store_true",
+        help="Exit successfully when unsupported cases are reported",
+    )
     comparer = sub.add_parser("compare", help="Compare saved compiler outputs")
     comparer.add_argument(
         "--left", type=Path, help="Reference JSON output or attempt directory"
@@ -637,11 +674,11 @@ def main(argv=None):
     if args.action == "self-test":
         if rest:
             parser.error("unrecognized arguments: " + " ".join(rest))
-        suite = unittest.TestSuite(
+        tests = unittest.TestSuite(
             unittest.defaultTestLoader.loadTestsFromTestCase(t)
-            for t in (compare.Tests, display.Tests, fandango.Tests, Tests)
+            for t in (compare.Tests, display.Tests, fandango.Tests, suite.Tests, Tests)
         )
-        return int(not unittest.TextTestRunner().run(suite).wasSuccessful())
+        return int(not unittest.TextTestRunner().run(tests).wasSuccessful())
     if args.action in {"sync", "run", "status"}:
         return corpus.main(argv)
     if rest:
@@ -659,7 +696,28 @@ def main(argv=None):
             for value in (args.timeout, args.generation_timeout, args.engine_timeout)
         ):
             parser.error("timeouts must be positive and finite")
-        return fuzz_campaign(root, args)
+        if args.rounds < 1 or args.seed + args.rounds > 2**32:
+            parser.error(
+                "--rounds must be positive and consecutive seeds must fit uint32"
+            )
+        if args.population_size is not None and args.population_size < 1:
+            parser.error("--population-size must be positive")
+        if any(
+            value is not None and not 0 <= value <= 1
+            for value in (args.mutation_rate, args.crossover_rate)
+        ):
+            parser.error("mutation and crossover rates must be between 0 and 1")
+        failed = False
+        for index in range(args.rounds):
+            batch = argparse.Namespace(**{**vars(args), "seed": args.seed + index})
+            print(f"Round {index + 1}/{args.rounds}; seed {batch.seed}", flush=True)
+            code = fuzz_campaign(root, batch)
+            if code == 130:
+                return code
+            failed |= bool(code)
+            if code and not args.continue_on_failure:
+                break
+        return int(failed)
     if args.action in {"symbolic", "runtime"}:
         if not 0 < args.engine_timeout < float("inf"):
             parser.error("--engine-timeout must be positive and finite")
@@ -669,6 +727,8 @@ def main(argv=None):
         if args.action == "import-input":
             import_input(db, args.input, args.target, args.version)
             return 0
+        if args.action == "import-directory":
+            return suite.import_directory(db, root, args, import_input)
         return compare_saved(db, root, args)
     finally:
         db.close()
@@ -685,6 +745,57 @@ def entrypoint():
 
 
 class Tests(corpus.Tests):
+    def test_directory_import_coverage_and_resume(self):
+        directory = self.root / "fixtures"
+        directory.mkdir()
+        (directory / "good.sol").write_text("contract C {}\n// ----\n")
+        (directory / "bad.sol").write_text(
+            "contract C {\n// ----\n// ParserError 1: expected brace\n"
+        )
+        (directory / "unsupported.sol").write_text(
+            "contract C {}\n// ====\n// SMTEngine: all\n// ----\n"
+        )
+        args = argparse.Namespace(
+            directory=directory,
+            format="solc",
+            settings=None,
+            version=corpus.DEFAULT_VERSION,
+            allow_skips=False,
+            verbose=False,
+        )
+        self.assertEqual(
+            suite.import_directory(self.db, self.root, args, import_input), 1
+        )
+        args.allow_skips = True
+        self.assertEqual(
+            suite.import_directory(self.db, self.root, args, import_input), 0
+        )
+        self.assertEqual(
+            self.db.execute("SELECT count(*) FROM compilations").fetchone(), (1,)
+        )
+        self.assertEqual(
+            self.db.execute("SELECT count(*) FROM input_provenance").fetchone(), (1,)
+        )
+        report = read_json(next((self.root / "imports").glob("*/report.json")))
+        self.assertEqual(report["counts"], {"imported": 1, "skipped": 2})
+
+    def test_rounds_stop_and_continue(self):
+        with corpus.patch.object(
+            sys.modules[__name__], "fuzz_campaign", side_effect=[1, 0]
+        ) as campaign:
+            self.assertEqual(main(["fuzz", "--rounds", "2", "--seed", "9"]), 1)
+            self.assertEqual(campaign.call_count, 1)
+        with corpus.patch.object(
+            sys.modules[__name__], "fuzz_campaign", side_effect=[1, 0]
+        ) as campaign:
+            self.assertEqual(
+                main(["fuzz", "--rounds", "2", "--seed", "9", "--continue-on-failure"]),
+                1,
+            )
+            self.assertEqual(
+                [call.args[1].seed for call in campaign.call_args_list], [9, 10]
+            )
+
     def test_fuzz_stop_continue_expectations_and_resume(self):
         grammar = self.root / "grammar.fan"
         grammar.write_text("<start> ::= 'contract FandangoSource {}'\n")

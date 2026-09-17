@@ -132,6 +132,50 @@ comparison stops before reaching them. No divergences are accepted by default.
 Rules apply to matching contract paths across inputs; use separate expectation
 files when a rule is intended for one corpus only.
 
+## Directory corpora and solc tests
+
+Import an existing directory before running and comparing its saved compilations:
+
+```sh
+uv run --project tools/compiler-diff compiler-diff --dir /tmp/solc-suite import-directory \
+  testdata/solidity/test/libsolidity --format solc --allow-skips
+uv run --project tools/compiler-diff compiler-diff --dir /tmp/solc-suite run \
+  --compiler 'solc=/absolute/path/to/solc --standard-json' \
+  --compiler 'solar=/absolute/path/to/solar --standard-json' --continue-on-failure
+uv run --project tools/compiler-diff compiler-diff --dir /tmp/solc-suite compare \
+  --continue-on-failure
+```
+
+The importer recursively reads `.sol` files. Use `--format solidity` for ordinary
+source directories. Each file is an entry point; imports bring in its dependencies.
+Identical inputs deduplicate in the database. All emitted contracts are compared;
+there is no need to choose a single target contract.
+
+For solc fixtures, the importer splits `==== Source:` sections, loads
+`==== ExternalSource:` aliases, resolves imports, and snapshots source text inline.
+Dependencies must stay inside the imported directory. Import the common parent
+when fixtures reference sibling directories. Escaped import paths and settings
+remappings are unsupported. Source-unit names remain JSON keys, never output paths.
+
+`--settings FILE` supplies default standard-JSON settings, with `evmVersion`
+defaulting to `osaka`. Explicit solc `EVMVersion` settings select a target or check
+that the target meets a restriction. `compileViaYul: also` imports both pipeline
+variants; `true` and `false` select one. `revertStrings` is also translated. Other
+test settings are reported as unsupported, rather than silently dropped.
+
+Intentional compiler-error tests are retained in the import report and skipped:
+ABI and bytecode comparisons do not apply to those tests. This command does not
+check diagnostic text or execute upstream runtime expectations. Warnings and
+runtime expectation text remain in fixture metadata. Use `cargo tq solc-solidity`
+for the existing upstream suite runner.
+
+Every import writes `imports/<id>/report.json`, with per-file status, skip reasons,
+compilation IDs, original fixtures, and standard-JSON inputs. New compiler attempts
+and comparison failure bundles include `import.json` provenance. The CLI summarizes
+coverage and common skip reasons; `--verbose` prints each fixture. Skips cause exit
+1 unless `--allow-skips` is explicit; an entirely skipped import always exits 1.
+Read the report before interpreting a later successful comparison as suite coverage.
+
 ## Fandango campaigns
 
 `fuzz` generates complete Solidity sources, imports each as standard JSON, then
@@ -150,6 +194,32 @@ self-contained Solidity-source grammar. The adapter snapshots the grammar file;
 external grammar resources are not copied. It runs Fandango 1.1.1 with uv-managed
 Python 3.12 and sets `PYTHONHASHSEED` to `--seed`. The generator's managed Python,
 tool environment and cache live under `<dir>/fandango-tools/`.
+
+Seed generation from a directory, then run several bounded batches:
+
+```sh
+uv run --project tools/compiler-diff compiler-diff --dir /tmp/compiler-fuzz fuzz \
+  --grammar fuzz/fandango/solidity-runtime-source.fan --contract FandangoRuntime \
+  --initial-population fuzz/fandango/runtime-corpus \
+  --population-size 24 --mutation-rate 0.4 --crossover-rate 0.4 \
+  --seed 7 --count 64 --rounds 10 \
+  --compiler 'solc=/absolute/path/to/solc --standard-json' \
+  --compiler 'solar=/absolute/path/to/solar --standard-json'
+```
+
+`--initial-population` recursively snapshots `.sol` files, including their original
+relative names and content hashes. Seed content and mutation options form part of
+the campaign identity. Seeds must parse with the selected grammar; incompatible
+seeds fail generation, with stderr and a campaign error report. A directory of
+arbitrary solc tests is not automatically compatible with the small runtime grammar.
+
+`--rounds` runs finite batches with consecutive seeds, each retaining its own
+campaign report. `--count` bounds outputs per round; the total is at most
+`rounds * count`. Fandango evolves its population within a batch. Outputs can include
+initial seeds, so a small count does not prove mutation occurred. Each round starts
+from the specified seed corpus; there is no automatic promotion of outputs into
+later rounds. Failure stops the loop unless `--continue-on-failure` is set; any
+failed round still makes the command exit 1. Interrupts stop immediately.
 
 Repeat `--compiler NAME='COMMAND ARGS'` for any standard-JSON compilers. The first
 is the default reference, compared with every other compiler. `--reference NAME`

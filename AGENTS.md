@@ -172,7 +172,16 @@ Repeat `--compiler NAME='COMMAND ARGS'` to select compilers; each candidate is
 compared with the reference. Campaigns snapshot the grammar and generated inputs,
 reuse completed attempts, and stop at the first failure. Add
 `--symbolic-signature` for bounded execution checks of a function present in every
-case. Preserve the campaign report and generator provenance when reducing failures.
+case. Add `--initial-population DIR` for grammar-compatible `.sol` seeds and
+`--rounds N` for bounded batches with consecutive seeds. Mutation controls and seed
+snapshots are documented in the project guide. Preserve the campaign report and
+generator provenance when reducing failures.
+
+Use `import-directory DIR --format solc` for upstream fixtures or `--format solidity`
+for ordinary source directories, then `run` and `compare`. Inspect the import report:
+intentional compiler-error tests and unsupported settings are skipped, never counted
+as passing. `--allow-skips` only changes the import exit status; it does not expand
+coverage. This importer does not execute upstream runtime expectations.
 
 `run` records compilation attempts; `compare` checks saved ABI and method
 identifiers without recompiling. Add `--check userdoc` or `--check devdoc` for

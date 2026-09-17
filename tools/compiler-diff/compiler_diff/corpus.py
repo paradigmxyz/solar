@@ -141,6 +141,10 @@ def connect(root):
         CREATE TABLE IF NOT EXISTS shards (
             key VARCHAR PRIMARY KEY, etag VARCHAR, selection VARCHAR
         );
+        CREATE TABLE IF NOT EXISTS input_provenance (
+            compilation_id VARCHAR, origin VARCHAR, metadata VARCHAR,
+            PRIMARY KEY (compilation_id, origin)
+        );
         CREATE TABLE IF NOT EXISTS state (key VARCHAR PRIMARY KEY, value VARCHAR);
         CREATE TABLE IF NOT EXISTS attempts (
             id VARCHAR PRIMARY KEY, job VARCHAR, compilation_id VARCHAR,
@@ -402,7 +406,7 @@ def output_error(directory, result, target=None):
     try:
         output = json.loads((directory / "stdout.txt").read_text(encoding="utf-8"))
         contracts = contract_outputs(output)
-        if target:
+        if target and target != "*:*":
             path, _, name = target.rpartition(":")
             if name not in contracts.get(path, {}):
                 return f"missing output for {target}"
@@ -496,6 +500,15 @@ def run(db, root, args, *, compilation_id=None, compilers=None):
                     request_text = json_text(request)
                 (directory / "input.json").write_text(request_text, encoding="utf-8")
                 write_json(directory / "compilation.json", record)
+                provenance = db.execute(
+                    "SELECT metadata FROM input_provenance WHERE compilation_id = ? ORDER BY origin",
+                    [compilation_id],
+                ).fetchall()
+                if provenance:
+                    write_json(
+                        directory / "import.json",
+                        [json.loads(row[0]) for row in provenance],
+                    )
                 write_json(directory / "compiler.json", compiler)
                 replay = '#!/bin/sh\nset -eu\ncd -- "$(dirname -- "$0")"\nexport TMPDIR="$PWD" TMP="$PWD" TEMP="$PWD"\n'
                 replay += (
