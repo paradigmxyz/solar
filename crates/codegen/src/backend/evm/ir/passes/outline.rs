@@ -13,7 +13,8 @@
 //! or gas observations. Profitability includes the shared body,
 //! per-site call sequence, continuation labels, and target-dependent push widths. Constant
 //! recipes charge call/return gas against deposited bytes using the requested optimizer run count
-//! in gas mode. Gas mode never outlines a site inside a loop: static duplicate counts cannot
+//! in gas mode, counting only hot sites. Cold paths retain size-based sharing. Gas mode never
+//! outlines a site inside a loop: static duplicate counts cannot
 //! justify adding two jumps to every dynamic iteration. Sites are selected without overlap, and
 //! new blocks and labels are installed through the normal EVM IR CFG representation.
 //!
@@ -242,7 +243,9 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                     * u32::from(first.outputs.saturating_add(first.inputs));
             if !sharing_improves_lifetime(
                 saved_bytes,
-                free.len(),
+                free.iter()
+                    .filter(|site| !module.blocks[site.block].metadata.hotness.is_cold())
+                    .count(),
                 transfer_gas,
                 target.expected_executions(),
             ) {
@@ -693,7 +696,10 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
                 && (!gcx.sess.opts.optimization.is_gas()
                     || sharing_improves_lifetime(
                         saved_bytes,
-                        occurrences.len(),
+                        occurrences
+                            .iter()
+                            .filter(|&&(block, _)| !module.blocks[block].metadata.hotness.is_cold())
+                            .count(),
                         transfer_gas,
                         target.expected_executions(),
                     )))
@@ -713,7 +719,10 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             && (!gcx.sess.opts.optimization.is_gas()
                 || sharing_improves_lifetime(
                     saved_bytes,
-                    occurrences.len(),
+                    occurrences
+                        .iter()
+                        .filter(|&&(block, _)| !module.blocks[block].metadata.hotness.is_cold())
+                        .count(),
                     transfer_gas,
                     target.expected_executions(),
                 ))

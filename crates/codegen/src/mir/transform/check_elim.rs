@@ -406,6 +406,8 @@ struct CheckEliminator<'a> {
     difference_index: Option<DifferenceIndex>,
     /// Depth of the sum-bound lemma, which asks relational questions of its own.
     sum_depth: usize,
+    /// Lower-bound queries memoized only while the scoped relations remain unchanged.
+    strict_lower_bounds: FxHashMap<ValueId, bool>,
     /// Counting header phis with constant start and step, bounded by the
     /// distance any affordable number of iterations can travel.
     trip_bounds: FxHashMap<ValueId, Range>,
@@ -433,6 +435,7 @@ impl<'a> CheckEliminator<'a> {
         selected: Option<(&DenseBitSet<BlockId>, &FxHashSet<FunctionId>)>,
     ) -> usize {
         self.stats = CheckElimStats::default();
+        self.strict_lower_bounds.clear();
         self.relation_index = None;
         self.reverse_index = None;
         self.monotone_relations.clear();
@@ -579,6 +582,9 @@ impl<'a> CheckEliminator<'a> {
                             None => self.ranges.remove(&value),
                         };
                     }
+                    if self.relation_undo.len() > relation_mark {
+                        self.strict_lower_bounds.clear();
+                    }
                     while self.relation_undo.len() > relation_mark {
                         let relation = self.relation_undo.pop().expect("checked len");
                         self.relations.remove(&relation);
@@ -706,6 +712,7 @@ impl<'a> CheckEliminator<'a> {
                     for &pred in &preds[block] {
                         cx.ranges.clone_from(&exits[pred].ranges);
                         cx.relations.clone_from(&exits[pred].relations);
+                        cx.strict_lower_bounds.clear();
                         cx.range_undo.clear();
                         cx.relation_undo.clear();
                         if let Some(Terminator::Branch { condition, then_block, else_block }) =
@@ -772,6 +779,7 @@ impl<'a> CheckEliminator<'a> {
                 let entry = merged.unwrap_or_default();
                 cx.ranges.clone_from(&entry.ranges);
                 cx.relations.clone_from(&entry.relations);
+                cx.strict_lower_bounds.clear();
                 cx.range_undo.clear();
                 cx.relation_undo.clear();
                 for &inst in &func.blocks[block].instructions {
@@ -916,6 +924,7 @@ impl<'a> CheckEliminator<'a> {
 
     fn add_relation(&mut self, relation: Relation) {
         if self.relations.insert(relation) {
+            self.strict_lower_bounds.clear();
             self.relation_undo.push(relation);
         }
     }
@@ -1034,6 +1043,15 @@ impl<'a> CheckEliminator<'a> {
     /// Whether some value is provably below `value` in the current scope,
     /// which puts `value` at one or more: every word is at least zero.
     fn has_strict_lower_bound(&mut self, func: &Function, value: ValueId) -> bool {
+        if let Some(&bound) = self.strict_lower_bounds.get(&value) {
+            return bound;
+        }
+        let bound = self.compute_strict_lower_bound(func, value);
+        self.strict_lower_bounds.insert(value, bound);
+        bound
+    }
+
+    fn compute_strict_lower_bound(&mut self, func: &Function, value: ValueId) -> bool {
         self.ensure_relation_index(func);
         let reverse = self.reverse_index.as_ref().expect("relation index was just built");
         if !reverse.contains_key(&value) {

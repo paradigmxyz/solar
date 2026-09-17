@@ -29,4 +29,42 @@
     dup 1
     push 4
     stop
+  bb5 [cold]:
++   push bb9
++   jump bb8
++ bb6 [cold]:
++   push bb10
++   jump bb8
++ bb7 [cold]:
++   push bb13
++   jump bb11
++ bb8:
+    push 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    push 192
+    mstore
++   jump
++ bb9 [cold] [continuation]:
+    push 5
+    stop
+- bb6 [cold]:
+-   push 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+-   push 192
+-   mstore
++ bb10 [cold] [continuation]:
+    push 6
+    stop
+- bb7 [cold]:
++ bb11:
+    push 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
++   swap 1
++   jump
++ bb12 [cold] [continuation]:
+    pop
+-   push 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+-   pop
+    stop
++ bb13 [cold] [continuation]:
++   pop
++   push bb12
++   jump bb11
   
