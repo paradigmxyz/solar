@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dirty_internal_multi_return.sol:DirtyInternalMultiReturn ===
 @module DirtyInternalMultiReturn
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
 fn @dirtyPair() -> struct0 [pure] {
   bb0:
@@ -10,30 +10,32 @@ fn @dirtyPair() -> struct0 [pure] {
     ret v1
 }
 
-fn @dirty(arg0: u8) -> u8 [pure] {
+fn @dirty(arg0: i256) -> i256 [pure] {
   bb0:
     ret 257
 }
 
-fn @multipleReturns() -> bool [selector=0xd40a8f12, pure, abi_params=[], abi_returns=[word<bool>]] {
+fn @multipleReturns() -> i256 [selector=0xd40a8f12, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @dirtyPair
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
     v3 = and v2, 255
     v4 = eq v3, 1
-    ret v4
+    v5 = zext i1 v4 to i256
+    ret v5
 }
 
-fn @functionPointer() -> bool [selector=0xbd108928, pure, abi_params=[], abi_returns=[word<bool>]] {
+fn @functionPointer() -> i256 [selector=0xbd108928, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @internal_dispatcher_p_u8_r_u8, 2, 1
     v1 = and v0, 255
     v2 = eq v1, 1
-    ret v2
+    v3 = zext i1 v2 to i256
+    ret v3
 }
 
-fn @internal_dispatcher_p_u8_r_u8(arg0: function, arg1: u8) -> u8 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_u8_r_u8(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2

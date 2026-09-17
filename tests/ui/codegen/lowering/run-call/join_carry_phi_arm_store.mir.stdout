@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/join_carry_phi_arm_store.sol:JoinCarryPhiArmStore ===
 @module JoinCarryPhiArmStore
-fn @helper(arg0: u256, arg1: u256) -> u256 [pure] {
+fn @helper(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -15,7 +15,7 @@ fn @helper(arg0: u256, arg1: u256) -> u256 [pure] {
     ret arg1
 }
 
-fn @sum(arg0: u256) -> u256 [selector=0x188b85b4, pure, abi_params=[u256], abi_returns=[word]] {
+fn @sum(arg0: i256) -> i256 [selector=0x188b85b4, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -48,7 +48,7 @@ fn @sum(arg0: u256) -> u256 [selector=0x188b85b4, pure, abi_params=[u256], abi_r
     jump bb1
 }
 
-fn @pick(arg0: u256, arg1: u256) -> u256 [selector=0xa62f4550, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @pick(arg0: i256, arg1: i256) -> i256 [selector=0xa62f4550, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gt arg0, arg1
     jumpi v0, bb1, bb2
@@ -75,7 +75,7 @@ fn @pick(arg0: u256, arg1: u256) -> u256 [selector=0xa62f4550, pure, abi_params=
     ret v7
   bb7:
     v10 = lt v8, v6
-    v11 = iszero v10
+    v11 = eq v10, false
     jumpi v11, bb10, bb11
   bb11:
     jump bb12

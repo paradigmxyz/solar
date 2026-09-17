@@ -550,6 +550,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let ty = self.cx.module.intern_return_type(fields).expect("return values are not empty");
         if let MirType::Struct(id) = ty {
             // result = insert_value(undef, field0), ...
+            let fields = self.cx.module.struct_types[id].fields.clone();
+            let values = values
+                .into_iter()
+                .zip(fields)
+                .map(|(value, ty)| self.builder.cast(value, ty))
+                .collect::<Vec<_>>();
             self.builder.make_struct(id, values)
         } else {
             values[0]

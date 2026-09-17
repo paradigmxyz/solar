@@ -47,6 +47,8 @@ fn lower_function(func: &mut Function) -> bool {
                 builder.func_mut().blocks[block].instructions.push(inst);
                 continue;
             };
+            // destination = ptrtoint destination to i256
+            let dest = builder.cast(dest, crate::mir::MirType::I256);
             if builder.func().value_u64(size) == Some(32) {
                 let zero = builder.imm(0);
                 let instruction = builder.func_mut().inst_mut(inst);

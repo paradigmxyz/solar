@@ -4,13 +4,13 @@
 @module SliceForwarder
 
 // Slice constructors and projections preserve the address space and the component words.
-fn @caller(arg0: calldataptr, arg1: u256) -> calldataslice {
+fn @caller(arg0: i256, arg1: i256) -> calldataslice {
   bb0:
     v0 = icall @construct, arg0, arg1
     ret v0
 }
 
-fn @construct(arg0: calldataptr, arg1: u256) -> calldataslice {
+fn @construct(arg0: i256, arg1: i256) -> calldataslice {
   bb0:
     v0 = make_calldata_slice arg0, 0
     v1 = slice_ptr v0
@@ -18,38 +18,38 @@ fn @construct(arg0: calldataptr, arg1: u256) -> calldataslice {
     ret v2
 }
 
-fn @memory_caller(arg0: memptr, arg1: u256) -> memoryslice {
+fn @memory_caller(arg0: i256, arg1: i256) -> memoryslice {
   bb0:
     v0 = icall @memory_construct, arg0, arg1
     ret v0
 }
 
-fn @memory_construct(arg0: memptr, arg1: u256) -> memoryslice {
+fn @memory_construct(arg0: i256, arg1: i256) -> memoryslice {
   bb0:
     v0 = make_memory_slice arg0, arg1
     ret v0
 }
 
-fn @returndata_caller(arg0: u256, arg1: u256) -> returndataslice {
+fn @returndata_caller(arg0: i256, arg1: i256) -> returndataslice {
   bb0:
     v0 = icall @returndata_construct, arg0, arg1
     ret v0
 }
 
-fn @returndata_construct(arg0: u256, arg1: u256) -> returndataslice {
+fn @returndata_construct(arg0: i256, arg1: i256) -> returndataslice {
   bb0:
     v0 = make_returndata_slice arg0, arg1
     ret v0
 }
 
 // A payload read is not a transparent slice operation.
-fn @load_caller(arg0: memptr) -> memoryslice {
+fn @load_caller(arg0: i256) -> memoryslice {
   bb0:
     v0 = icall @load, arg0
     ret v0
 }
 
-fn @load(arg0: memptr) -> memoryslice {
+fn @load(arg0: i256) -> memoryslice {
   bb0:
     v0 = mload arg0
     v1 = make_memory_slice arg0, v0

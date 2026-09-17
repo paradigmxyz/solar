@@ -1,8 +1,8 @@
 //! ISLE rules for the EVM IR peephole pass.
 //!
-//! The rules live in `isle/peephole.isle` and match on a view of the last few
+//! The rules live in `isle/evm-ir/peephole.isle` and match on a view of the last few
 //! instructions of a block. The opcode vocabulary they use is generated from
-//! the opcode table into `isle/evm_prelude.isle`. This module implements the
+//! the opcode table into `isle/evm-ir/prelude.isle`. This module implements the
 //! window extractors, instruction facets, and opcode classes the rules call.
 
 use super::{Edit, is_block_push, is_removable_push, materialization_cost, push_value, raw_opcode};
@@ -96,6 +96,63 @@ fn is_noop_stack_sequence(instructions: &[Instruction]) -> bool {
         }
     }
     depth == 0
+}
+
+/// Tracks a word through instructions that cannot inspect, duplicate, or consume it.
+fn protected_word_depth(instructions: &[Instruction]) -> Option<usize> {
+    // Track the one word whose value changes. Every other word and operation
+    // must be independent of it; only permutations may move the protected word.
+    let mut above = 0usize;
+    for inst in instructions {
+        if !inst.has_canonical_stack_effect() || inst.keeps_with_next() {
+            return None;
+        }
+        if inst.is_encoded_push() {
+            above += 1;
+        } else if let Some(stack_op) = inst.as_stack_op() {
+            match stack_op {
+                StackOp::Dup(depth) => {
+                    if usize::from(depth) == above + 1 {
+                        return None;
+                    }
+                    above += 1;
+                }
+                StackOp::Swap(depth) => {
+                    let depth = usize::from(depth);
+                    if above == 0 {
+                        above = depth;
+                    } else if above == depth {
+                        above = 0;
+                    }
+                }
+                StackOp::Exchange(first, second) => {
+                    let (first, second) = (usize::from(first), usize::from(second));
+                    if above == first {
+                        above = second;
+                    } else if above == second {
+                        above = first;
+                    }
+                }
+                StackOp::Pop => {
+                    if above == 0 {
+                        return None;
+                    }
+                    above -= 1;
+                }
+            }
+        } else if let Some(opcode) = raw_opcode(inst)
+            && op::is_unaffected_by_preceding_push(opcode)
+            && let Some((inputs, outputs)) = op::stack_io(opcode)
+        {
+            if above < usize::from(inputs) {
+                return None;
+            }
+            above = above - usize::from(inputs) + usize::from(outputs);
+        } else {
+            return None;
+        }
+    }
+    Some(above)
 }
 
 /// Context the rules run against: the instructions of one block so far.
@@ -272,56 +329,7 @@ impl generated::Context for PeepContext<'_> {
         {
             return false;
         }
-        // Track the one word whose value changes. Every other word and operation
-        // must be independent of it; only permutations may move the protected word.
-        let mut above = 0usize;
-        for inst in &self.instructions[start + 1..end - 4] {
-            if inst.is_encoded_push() {
-                above += 1;
-            } else if let Some(stack_op) = inst.as_stack_op() {
-                match stack_op {
-                    StackOp::Dup(depth) => {
-                        if usize::from(depth) == above + 1 {
-                            return false;
-                        }
-                        above += 1;
-                    }
-                    StackOp::Swap(depth) => {
-                        let depth = usize::from(depth);
-                        if above == 0 {
-                            above = depth;
-                        } else if above == depth {
-                            above = 0;
-                        }
-                    }
-                    StackOp::Exchange(first, second) => {
-                        let (first, second) = (usize::from(first), usize::from(second));
-                        if above == first {
-                            above = second;
-                        } else if above == second {
-                            above = first;
-                        }
-                    }
-                    StackOp::Pop => {
-                        if above == 0 {
-                            return false;
-                        }
-                        above -= 1;
-                    }
-                }
-            } else if let Some(opcode) = raw_opcode(inst)
-                && op::is_unaffected_by_preceding_push(opcode)
-                && let Some((inputs, outputs)) = op::stack_io(opcode)
-            {
-                if above < usize::from(inputs) {
-                    return false;
-                }
-                above = above - usize::from(inputs) + usize::from(outputs);
-            } else {
-                return false;
-            }
-        }
-        above == 1
+        protected_word_depth(&self.instructions[start + 1..end - 4]) == Some(1)
     }
 
     fn nonpush_tail(&mut self, _: Window) -> Option<()> {
@@ -663,30 +671,52 @@ impl generated::Context for PeepContext<'_> {
         if self.instructions.last()?.as_evm_opcode() != Some(ISZERO) {
             return None;
         }
-        let (pushed, comparison, duplicated, count) = match self.instructions {
-            [.., pushed, dup, comparison, _] if matches!(dup.as_stack_op(), Some(StackOp::Dup(depth)) if depth >= 2) => {
-                (pushed, comparison, true, 4)
-            }
-            [.., pushed, comparison, _] => (pushed, comparison, false, 3),
+        let end = self.instructions.len().checked_sub(2)?;
+        let comparison = &self.instructions[end];
+        let opcode = comparison.as_evm_opcode()?;
+        let opposite = match opcode {
+            GT => LT,
+            LT => GT,
+            SGT => SLT,
+            SLT => SGT,
             _ => return None,
         };
-        let value = pushed.concrete_immediate()?;
-        let opcode = comparison.as_evm_opcode()?;
-        if !matches!(opcode, GT | LT)
-            || !self.instructions[self.instructions.len() - count..]
-                .iter()
-                .all(|inst| inst.has_canonical_stack_effect() && !inst.metadata.keep_with_next)
+        if !comparison.has_canonical_stack_effect()
+            || comparison.keeps_with_next()
+            || !self.instructions[end + 1].has_canonical_stack_effect()
+            || self.instructions[end + 1].keeps_with_next()
         {
             return None;
         }
-        let bound = if (opcode == GT) == duplicated {
-            value.checked_add(U256::ONE)?
-        } else {
-            value.checked_sub(U256::ONE)?
-        };
-        (op::push_len(self.evm_version, bound)
-            <= super::immediate_materialization_cost(self.evm_version, value).0 + 1)
-            .then_some((count as u8, bound, if opcode == GT { LT } else { GT }))
+        for start in (end.saturating_sub(MAX_STACK_WINDOW - 2)..end).rev() {
+            let pushed = &self.instructions[start];
+            if !pushed.has_canonical_stack_effect()
+                || pushed.keeps_with_next()
+                || start > 0 && self.instructions[start - 1].keeps_with_next()
+            {
+                break;
+            }
+            if let Some(value) = pushed.concrete_immediate()
+                && let Some(depth @ 0..=1) =
+                    protected_word_depth(&self.instructions[start + 1..end])
+            {
+                // Bias signed bounds into unsigned order before checking for overflow.
+                let bias = if matches!(opcode, SLT | SGT) { U256::ONE << 255 } else { U256::ZERO };
+                let ordered = value ^ bias;
+                let bound = if matches!(opcode, GT | SGT) == (depth == 1) {
+                    ordered.checked_add(U256::ONE)
+                } else {
+                    ordered.checked_sub(U256::ONE)
+                };
+                if let Some(bound) = bound.map(|bound| bound ^ bias)
+                    && op::push_len(self.evm_version, bound)
+                        <= super::immediate_materialization_cost(self.evm_version, value).0 + 1
+                {
+                    return Some(((self.instructions.len() - start) as u8, bound, opposite));
+                }
+            }
+        }
+        None
     }
 
     fn rewrite(&mut self, skip: u8, edit: &Edit) -> Rewrite {
@@ -698,6 +728,24 @@ impl generated::Context for PeepContext<'_> {
 mod tests {
     use super::*;
     use crate::backend::evm::ir::StackEffect;
+
+    #[test]
+    fn protected_word_rejects_observation_and_custom_effects() {
+        let mut instructions =
+            [Instruction::push_value(U256::from(288)), Instruction::opcode(MLOAD)];
+        assert_eq!(protected_word_depth(&instructions), Some(1));
+        for index in 0..instructions.len() {
+            instructions[index].metadata.keep_with_next = true;
+            assert_eq!(protected_word_depth(&instructions), None);
+            instructions[index].metadata.keep_with_next = false;
+        }
+        instructions[1].metadata.stack = Some(StackEffect::new(2, 1));
+        assert_eq!(protected_word_depth(&instructions), None);
+        instructions[1] = Instruction::stack_op(StackOp::Dup(2));
+        assert_eq!(protected_word_depth(&instructions), None);
+        instructions[1] = Instruction::stack_op(StackOp::Swap(1));
+        assert_eq!(protected_word_depth(&instructions), Some(0));
+    }
 
     #[test]
     fn suffix_boundaries_remain_protected() {

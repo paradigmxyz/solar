@@ -142,7 +142,10 @@ pub(crate) fn rematerializable_nullary_opcode(kind: &InstKind) -> Option<u8> {
 /// Returns the opcode for a stable nullary MIR value that is cheaper to re-emit than preserve.
 pub(crate) fn rematerializable_nullary_value(func: &Function, value: ValueId) -> Option<u8> {
     let Value::Inst(inst_id) = func.value(value) else { return None };
-    rematerializable_nullary_opcode(&func.inst(*inst_id).kind)
+    match func.inst(*inst_id).kind {
+        InstKind::Zext(inner) => rematerializable_nullary_value(func, inner),
+        _ => rematerializable_nullary_opcode(&func.inst(*inst_id).kind),
+    }
 }
 
 /// Returns whether an instruction result can be rebuilt across basic blocks.
@@ -2581,37 +2584,31 @@ mod tests {
     #[test]
     fn cross_block_recomputation_requires_stable_leaves() {
         let mut function = Function::new(Ident::DUMMY);
-        let argument = function.alloc_param(MirType::uint256());
+        let argument = function.alloc_param(MirType::I256);
         let immediate = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
         let (safe_inst, safe) = function.alloc_value_inst(Instruction::new(
             InstKind::Add(argument, immediate),
-            Some(MirType::uint256()),
+            Some(MirType::I256),
         ));
-        let (nested_safe_inst, nested_safe) = function.alloc_value_inst(Instruction::new(
-            InstKind::Mul(safe, argument),
-            Some(MirType::uint256()),
-        ));
-        let (calldata_inst, calldata) = function.alloc_value_inst(Instruction::new(
-            InstKind::CalldataLoad(safe),
-            Some(MirType::uint256()),
-        ));
+        let (nested_safe_inst, nested_safe) = function
+            .alloc_value_inst(Instruction::new(InstKind::Mul(safe, argument), Some(MirType::I256)));
+        let (calldata_inst, calldata) = function
+            .alloc_value_inst(Instruction::new(InstKind::CalldataLoad(safe), Some(MirType::I256)));
         let (calldata_safe_inst, calldata_safe) = function.alloc_value_inst(Instruction::new(
             InstKind::Add(calldata, immediate),
-            Some(MirType::uint256()),
+            Some(MirType::I256),
         ));
-        let (context_inst, context) = function
-            .alloc_value_inst(Instruction::new(InstKind::CallValue, Some(MirType::uint256())));
+        let (context_inst, context) =
+            function.alloc_value_inst(Instruction::new(InstKind::CallValue, Some(MirType::I256)));
         let (immutable_inst, immutable) = function.alloc_value_inst(Instruction::new(
             InstKind::LoadImmutable(ImmutableId::from_usize(0)),
-            Some(MirType::uint256()),
+            Some(MirType::I256),
         ));
-        let (mutable_inst, mutable) = function.alloc_value_inst(Instruction::new(
-            InstKind::SLoad(immediate),
-            Some(MirType::uint256()),
-        ));
+        let (mutable_inst, mutable) = function
+            .alloc_value_inst(Instruction::new(InstKind::SLoad(immediate), Some(MirType::I256)));
         let (unsafe_inst, unsafe_value) = function.alloc_value_inst(Instruction::new(
             InstKind::Add(mutable, immediate),
-            Some(MirType::uint256()),
+            Some(MirType::I256),
         ));
         function.blocks[BlockId::ENTRY].instructions.extend([
             safe_inst,
@@ -2864,7 +2861,7 @@ mod tests {
     fn ensure_operand_on_top_rematerializes_stable_nullaries() {
         let mut func = Function::new(Ident::DUMMY);
         let (_, caller) =
-            func.alloc_value_inst(Instruction::new(InstKind::Caller, Some(MirType::uint256())));
+            func.alloc_value_inst(Instruction::new(InstKind::Caller, Some(MirType::I256)));
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(caller);
 
@@ -2882,7 +2879,7 @@ mod tests {
         let filler =
             func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ONE)));
         let (_, caller) =
-            func.alloc_value_inst(Instruction::new(InstKind::Caller, Some(MirType::uint256())));
+            func.alloc_value_inst(Instruction::new(InstKind::Caller, Some(MirType::I256)));
 
         for (value, expected) in [
             (zero, ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO)),
@@ -2900,8 +2897,8 @@ mod tests {
         let mut func = make_test_func();
         let v0 = ValueId::from_usize(0);
         let v1 = ValueId::from_usize(1);
-        let (_, deep) = func
-            .alloc_value_inst(Instruction::new(InstKind::Add(v0, v1), Some(MirType::uint256())));
+        let (_, deep) =
+            func.alloc_value_inst(Instruction::new(InstKind::Add(v0, v1), Some(MirType::I256)));
         let mut scheduler = StackScheduler::new();
 
         scheduler.stack.push(deep);
@@ -2944,8 +2941,8 @@ mod tests {
         let mut func = make_test_func();
         let v0 = ValueId::from_usize(0);
         let v1 = ValueId::from_usize(1);
-        let (_, target) = func
-            .alloc_value_inst(Instruction::new(InstKind::Add(v0, v1), Some(MirType::uint256())));
+        let (_, target) =
+            func.alloc_value_inst(Instruction::new(InstKind::Add(v0, v1), Some(MirType::I256)));
         let mut scheduler = StackScheduler::for_evm_version(EvmVersion::Amsterdam);
         scheduler.stack.push(target);
         for i in 0..235 {
@@ -3100,7 +3097,7 @@ mod tests {
     fn operand_plan_prefers_rematerialized_nullary() {
         let mut func = Function::new(Ident::DUMMY);
         let (_, caller) =
-            func.alloc_value_inst(Instruction::new(InstKind::Caller, Some(MirType::uint256())));
+            func.alloc_value_inst(Instruction::new(InstKind::Caller, Some(MirType::I256)));
         for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
             let mut scheduler = StackScheduler::new();
             scheduler.stack.push(caller);
@@ -3129,7 +3126,7 @@ mod tests {
     fn operand_plan_does_not_rematerialize_at_stack_limit() {
         let mut func = Function::new(Ident::DUMMY);
         let (_, caller) =
-            func.alloc_value_inst(Instruction::new(InstKind::Caller, Some(MirType::uint256())));
+            func.alloc_value_inst(Instruction::new(InstKind::Caller, Some(MirType::I256)));
         let filler =
             func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
         let top =
@@ -3185,7 +3182,7 @@ mod tests {
         let a = ValueId::from_usize(0);
         let b = ValueId::from_usize(1);
         let (_, value) =
-            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::uint256())));
+            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::I256)));
         let dead =
             func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
 
@@ -3212,9 +3209,9 @@ mod tests {
     #[test]
     fn operand_plan_accounts_for_load_peak() {
         let mut func = Function::new(Ident::DUMMY);
-        func.alloc_param(MirType::uint256());
-        let argument = func.alloc_param(MirType::uint256());
-        let spilled = func.alloc_param(MirType::uint256());
+        func.alloc_param(MirType::I256);
+        let argument = func.alloc_param(MirType::I256);
+        let spilled = func.alloc_param(MirType::I256);
         let filler =
             func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
         let mut scheduler = StackScheduler::new();
@@ -3282,7 +3279,7 @@ mod tests {
     #[test]
     fn fallback_materialization_accounts_for_load_peak() {
         let mut func = Function::new(Ident::DUMMY);
-        let argument = func.alloc_param(MirType::uint256());
+        let argument = func.alloc_param(MirType::I256);
         let filler =
             func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ONE)));
         let mut scheduler = StackScheduler::new();
@@ -3440,9 +3437,9 @@ mod tests {
         let a = ValueId::from_usize(0);
         let b = ValueId::from_usize(1);
         let (_, preserved) =
-            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::uint256())));
+            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::I256)));
         let (_, second) =
-            func.alloc_value_inst(Instruction::new(InstKind::Sub(a, b), Some(MirType::uint256())));
+            func.alloc_value_inst(Instruction::new(InstKind::Sub(a, b), Some(MirType::I256)));
         let size = func
             .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(32))));
         let topic = func
@@ -3689,7 +3686,7 @@ mod tests {
     #[test]
     fn operand_search_handles_anonymous_top_admissibly() {
         let mut func = Function::new(Ident::DUMMY);
-        let a = func.alloc_param(MirType::uint256());
+        let a = func.alloc_param(MirType::I256);
         let c = func
             .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(17))));
         let mut scheduler = StackScheduler::new();
@@ -3723,7 +3720,7 @@ mod tests {
     #[test]
     fn operand_search_exhausts_function_budget_and_keeps_fast_paths() {
         let mut func = Function::new(Ident::DUMMY);
-        let a = func.alloc_param(MirType::uint256());
+        let a = func.alloc_param(MirType::I256);
         let c = func
             .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(17))));
         let mut scheduler = StackScheduler::new();
@@ -3783,8 +3780,8 @@ mod tests {
     #[test]
     fn operand_search_lower_bound_is_admissible_with_anonymous_slots() {
         let mut func = Function::new(Ident::DUMMY);
-        let a = func.alloc_param(MirType::uint256());
-        let b = func.alloc_param(MirType::uint256());
+        let a = func.alloc_param(MirType::I256);
+        let b = func.alloc_param(MirType::I256);
         let layouts = sequences(&[None, Some(a), Some(b)], 4);
         let operand_sets = sequences(&[a, b], 2);
         let preserved_sets = [vec![], vec![a], vec![b]];
@@ -3992,7 +3989,7 @@ mod tests {
         let a = ValueId::from_usize(0);
         let b = ValueId::from_usize(1);
         let (_, target) =
-            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::uint256())));
+            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::I256)));
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(target);
         for value in 0..=MAX_STACK_ACCESS {
@@ -4029,9 +4026,9 @@ mod tests {
         let a = ValueId::from_usize(0);
         let b = ValueId::from_usize(1);
         let (_, target) =
-            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::uint256())));
+            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::I256)));
         let (_, top) =
-            func.alloc_value_inst(Instruction::new(InstKind::Sub(a, b), Some(MirType::uint256())));
+            func.alloc_value_inst(Instruction::new(InstKind::Sub(a, b), Some(MirType::I256)));
         let mut scheduler = StackScheduler::new();
         scheduler.spills.allocate(target);
         scheduler.spills.mark_reloadable(target);
@@ -4067,9 +4064,9 @@ mod tests {
         let a = ValueId::from_usize(0);
         let b = ValueId::from_usize(1);
         let (_, target) =
-            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::uint256())));
+            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::I256)));
         let (_, top) =
-            func.alloc_value_inst(Instruction::new(InstKind::Sub(a, b), Some(MirType::uint256())));
+            func.alloc_value_inst(Instruction::new(InstKind::Sub(a, b), Some(MirType::I256)));
         let surplus = func
             .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(256))));
         let mut scheduler = StackScheduler::new();
@@ -4190,8 +4187,8 @@ mod tests {
         let mut func = Function::new(Ident::DUMMY);
         let immediate =
             func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
-        let argument = func.alloc_param(MirType::uint256());
-        let spilled = func.alloc_param(MirType::uint256());
+        let argument = func.alloc_param(MirType::I256);
+        let spilled = func.alloc_param(MirType::I256);
         let mut scheduler = StackScheduler::new();
         let spill = scheduler.spills.allocate(spilled);
         scheduler.spills.mark_reloadable(spilled);
@@ -4308,7 +4305,7 @@ mod tests {
     #[test]
     fn operand_plan_duplicates_value_below_dup16_reach() {
         let mut func = Function::new(Ident::DUMMY);
-        let target = func.alloc_param(MirType::uint256());
+        let target = func.alloc_param(MirType::I256);
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(target);
         for value in 0..MAX_STACK_ACCESS {
@@ -4359,7 +4356,7 @@ mod tests {
         let a = ValueId::from_usize(0);
         let b = ValueId::from_usize(1);
         let (_, value) =
-            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::uint256())));
+            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::I256)));
         let mut scheduler = StackScheduler::new();
         let slot = scheduler.spills.allocate(value);
         scheduler.spills.mark_reloadable(value);
@@ -4389,7 +4386,7 @@ mod tests {
     fn operand_plan_prefers_stable_nullary_rematerialization() {
         let mut func = make_test_func();
         let (_, value) =
-            func.alloc_value_inst(Instruction::new(InstKind::CallValue, Some(MirType::uint256())));
+            func.alloc_value_inst(Instruction::new(InstKind::CallValue, Some(MirType::I256)));
         let mut scheduler = StackScheduler::new();
         scheduler.spills.allocate(value);
         scheduler.spills.mark_stored(value);
@@ -4420,7 +4417,7 @@ mod tests {
     fn operand_plan_accepts_runtime_valid_unstored_spill() {
         let mut func = make_test_func();
         let (_, value) =
-            func.alloc_value_inst(Instruction::new(InstKind::Gas, Some(MirType::uint256())));
+            func.alloc_value_inst(Instruction::new(InstKind::Gas, Some(MirType::I256)));
         let mut scheduler = StackScheduler::new();
         let slot = scheduler.spills.allocate(value);
         scheduler.spills.mark_reloadable(value);
@@ -4437,7 +4434,7 @@ mod tests {
         let a = ValueId::from_usize(0);
         let b = ValueId::from_usize(1);
         let (_, value) =
-            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::uint256())));
+            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::I256)));
 
         for (cost_model, expected_gas, expected_bytes) in
             [(OperandCostModel::DIRECT, 6, 4), (OperandCostModel::DYNAMIC_FRAME, 15, 7)]
@@ -4462,7 +4459,7 @@ mod tests {
         let a = ValueId::from_usize(0);
         let b = ValueId::from_usize(1);
         let (_, value) =
-            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::uint256())));
+            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::I256)));
         let mut scheduler = StackScheduler::new();
         scheduler.spills.allocate(value);
         scheduler.spills.mark_reloadable(value);
@@ -4492,14 +4489,14 @@ mod tests {
             {
                 for immediate in [0, 17] {
                     let mut func = Function::new(Ident::DUMMY);
-                    let resident = func.alloc_param(MirType::uint256());
+                    let resident = func.alloc_param(MirType::I256);
                     let other = func.alloc_value(Value::Immediate(Immediate::uint256(
                         alloy_primitives::U256::from(immediate),
                     )));
                     let mut scheduler = StackScheduler::for_evm_version(evm_version);
                     scheduler.stack.push(resident);
                     for _ in 0..depth {
-                        let filler = func.alloc_param(MirType::uint256());
+                        let filler = func.alloc_param(MirType::I256);
                         scheduler.stack.push(filler);
                     }
                     let original = scheduler.stack.clone();
@@ -4529,10 +4526,10 @@ mod tests {
     #[test]
     fn preserved_binary_boundary_keeps_cheaper_pop_in_search() {
         let mut func = Function::new(Ident::DUMMY);
-        let resident = func.alloc_param(MirType::uint256());
+        let resident = func.alloc_param(MirType::I256);
         let other =
             func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ONE)));
-        let filler = func.alloc_param(MirType::uint256());
+        let filler = func.alloc_param(MirType::I256);
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(resident);
         for _ in 0..MAX_STACK_ACCESS - 1 {
@@ -4641,9 +4638,9 @@ mod tests {
     fn drops_contiguous_dead_values_with_one_swap() {
         let mut func = Function::new(Ident::DUMMY);
         let mut builder = FunctionBuilder::new(&mut func);
-        let a = builder.add_param(MirType::uint256());
-        let b = builder.add_param(MirType::uint256());
-        let c = builder.add_param(MirType::uint256());
+        let a = builder.add_param(MirType::I256);
+        let b = builder.add_param(MirType::I256);
+        let c = builder.add_param(MirType::I256);
         let sum = builder.add(a, b);
         let result = builder.add(sum, c);
         builder.ret([result]);
@@ -4665,8 +4662,8 @@ mod tests {
     fn amsterdam_drops_deep_dead_values() {
         let mut func = Function::new(Ident::DUMMY);
         let mut builder = FunctionBuilder::new(&mut func);
-        let a = builder.add_param(MirType::uint256());
-        let b = builder.add_param(MirType::uint256());
+        let a = builder.add_param(MirType::I256);
+        let b = builder.add_param(MirType::I256);
         let sum = builder.add(a, b);
         builder.ret([sum]);
 

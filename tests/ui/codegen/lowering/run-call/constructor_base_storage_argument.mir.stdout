@@ -12,7 +12,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @getM(arg0: u256, arg1: u256) -> u256 [selector=0x1136c6ce, view, abi_params=[u256, u256], abi_returns=[word]] {
+fn @getM(arg0: i256, arg1: i256) -> i256 [selector=0x1136c6ce, view, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = mapping_slot arg1, v0
@@ -22,7 +22,7 @@ fn @getM(arg0: u256, arg1: u256) -> u256 [selector=0x1136c6ce, view, abi_params=
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_storage_argument.sol:MappingArrayParam ===
 @module MappingArrayParam
-fn @m(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x2def5e24, view, abi_params=[u256, u256, u256], abi_returns=[word]] {
+fn @m(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x2def5e24, view, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -47,7 +47,7 @@ fn @constructor() [constructor] {
     sstore v0, v3 !metadata(storage=symbolic(v0))
     v6 = sload v0 !metadata(storage=symbolic(v0))
     v7 = lt 0, v6
-    v8 = iszero v7
+    v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = storage_array_data_slot v0
     v10 = add v9, 0
@@ -62,7 +62,7 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_storage_argument.sol:ArrayParam ===
 @module ArrayParam
-fn @values(arg0: u256) -> u256 [selector=0x5e383d21, view, abi_params=[u256], abi_returns=[word]] {
+fn @values(arg0: i256) -> i256 [selector=0x5e383d21, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = lt arg0, v0
@@ -98,7 +98,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @len() -> u256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word]] {
+fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -117,7 +117,7 @@ fn @constructor() [constructor] {
     v5 = shr 1, v0
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
-    v8 = iszero v7
+    v8 = eq v7, false
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb3, bb2
@@ -174,7 +174,7 @@ fn @constructor() [constructor] {
     v45 = shr 1, v40
     v46 = and v45, v44
     v47 = lt v46, 0x10000000000000000
-    v48 = iszero v47
+    v48 = eq v47, false
     icall panic_if<0x41>, v48
     v49 = gt v46, 31
     jumpi v49, bb8, bb7
@@ -229,7 +229,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @len() -> u256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word]] {
+fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v0
@@ -242,7 +242,7 @@ fn @len() -> u256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word]]
     ret v6
 }
 
-fn @at(arg0: u256) -> u8 [selector=0xe0886f90, view, abi_params=[u256], abi_returns=[word<u8>]] {
+fn @at(arg0: i256) -> i256 [selector=0xe0886f90, view, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v0
@@ -253,7 +253,7 @@ fn @at(arg0: u256) -> u8 [selector=0xe0886f90, view, abi_params=[u256], abi_retu
     v5 = shr 1, v0
     v6 = and v5, v4
     v7 = lt arg0, v6
-    v8 = iszero v7
+    v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
@@ -296,7 +296,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @getM(arg0: u256, arg1: u256) -> u256 [selector=0x1136c6ce, view, abi_params=[u256, u256], abi_returns=[word]] {
+fn @getM(arg0: i256, arg1: i256) -> i256 [selector=0x1136c6ce, view, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = mapping_slot arg1, v0
@@ -306,19 +306,20 @@ fn @getM(arg0: u256, arg1: u256) -> u256 [selector=0x1136c6ce, view, abi_params=
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_storage_argument.sol:TernaryParam ===
 @module TernaryParam
-fn @constructor(arg0: bool) [constructor, abi_params=[bool]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[bool]] {
   bb0:
-    jumpi arg0, bb1, bb2
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
   bb2:
-    v1 = mapping_slot 2, 0
+    v2 = mapping_slot 2, 0
     jump bb3
   bb1:
-    v0 = mapping_slot 1, 0
+    v1 = mapping_slot 1, 0
     jump bb3
   bb3:
-    v2 = phi [bb1: v0], [bb2: v1]
-    v3 = mapping_slot 5, v2
-    sstore v3, 16 !metadata(storage=symbolic(v3))
+    v3 = phi [bb1: v1], [bb2: v2]
+    v4 = mapping_slot 5, v3
+    sstore v4, 16 !metadata(storage=symbolic(v4))
     jump bb4
   bb4:
     jump bb5
@@ -326,7 +327,7 @@ fn @constructor(arg0: bool) [constructor, abi_params=[bool]] {
     ret
 }
 
-fn @getM(arg0: u256, arg1: u256) -> u256 [selector=0x1136c6ce, view, abi_params=[u256, u256], abi_returns=[word]] {
+fn @getM(arg0: i256, arg1: i256) -> i256 [selector=0x1136c6ce, view, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = mapping_slot arg1, v0

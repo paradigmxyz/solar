@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/licm/licm_loop_bound.mir (before licm) ===
 + // === ROOT/tests/ui/codegen/mir/licm/licm_loop_bound.mir (after licm) ===
   @module LicmLoopBound
-  fn @keep_mload_non_exiting_bound() -> u256 {
+  fn @keep_mload_non_exiting_bound() -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -24,7 +24,7 @@
       ret v0
   }
   
-  fn @keep_mload_inner_branch_bound() -> u256 {
+  fn @keep_mload_inner_branch_bound() -> i256 {
     bb0:
       jump bb1
     bb1:

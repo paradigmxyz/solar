@@ -10,5 +10,7 @@ error: [fn0] [bb0, inst3] memory-object instruction `memory_object_load_byte` su
 
 error: [fn1] non-word type `memorybytes` survives the `lowered` phase boundary
 
-error: aborting due to 6 previous errors
+error: [fn2] non-word type `i8` survives the `lowered` phase boundary
+
+error: aborting due to 7 previous errors
 

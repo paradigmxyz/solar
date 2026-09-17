@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_call_options.sol:TryCallOptionsTarget ===
 @module TryCallOptionsTarget
-fn @ping() [selector=0x5c36b186, abi_params=[], abi_returns=[]] {
+fn @ping() [selector=0x5c36b186, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
@@ -8,33 +8,38 @@ fn @ping() [selector=0x5c36b186, abi_params=[], abi_returns=[]] {
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_call_options.sol:TryCallOptions ===
 @module TryCallOptions
 data:
-  TryCallOptionsTarget_initcode_0: hex"34600d57601f8060115f395ff35b5f5ffd34601a575f3560e01c80635c36b18614601657601a565b601e565b5f5ffd5b"
+  TryCallOptionsTarget_initcode_0: hex"34600d5760218060115f395ff35b5f5ffd341515601c575f3560e01c80635c36b18614601857601c565b6020565b5f5ffd5b"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 79, v1
+    v2 = and 81, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy TryCallOptionsTarget_initcode_0, v3, 48
+    data_copy TryCallOptionsTarget_initcode_0, v3, 50
     v4 = slice_ptr v0
-    v5 = add v3, 48
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 48
-    jumpi v6, bb2, bb1
+    v5 = ptrtoint memptr v3 to i256
+    v6 = add v5, 50
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = ptrtoint memptr v3 to i256
+    v8 = create 0, v7, 50
+    v9 = zext i160 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = sload 0 !metadata(storage=slot(0))
-    v8 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = and v7, v8
-    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = or v9, v10
-    sstore 0, v11 !metadata(storage=slot(0))
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v13 = and v11, v12
+    v14 = zext i160 v8 to i256
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = or v13, v15
+    sstore 0, v16 !metadata(storage=slot(0))
     ret
 }
 
-fn @highLevelGas() -> bool [selector=0x480be654, abi_params=[], abi_returns=[word<bool>]] {
+fn @highLevelGas() -> i256 [selector=0x480be654, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -43,7 +48,7 @@ fn @highLevelGas() -> bool [selector=0x480be654, abi_params=[], abi_returns=[wor
     v4 = slice_ptr v3
     v5 = slice_len v3
     v6 = extcodesize v1
-    v7 = iszero v6
+    v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
     v8 = call 0, v1, 0, v4, v5, 0, 0
     jumpi v8, bb1, bb2
@@ -53,33 +58,36 @@ fn @highLevelGas() -> bool [selector=0x480be654, abi_params=[], abi_returns=[wor
     icall revert_if<empty>, true
     invalid
   bb4:
-    ret true
+    v10 = zext i1 1 to i256
+    ret v10
   bb1:
-    ret false
+    v9 = zext i1 0 to i256
+    ret v9
   bb3:
     ret 0
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_call_options.sol:BareCatchReturndata ===
 @module BareCatchReturndata
-fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[]] {
+fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     mstore 0, 42 !metadata(memory=scratch)
     revert 0, 32
 }
 
-fn @read() -> u256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word]] {
+fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = extcodesize v0
-    v6 = iszero v5
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = staticcall v1, v0, v3, v4, 0, 0
-    jumpi v7, bb1, bb2
+    v5 = zext i160 v0 to i256
+    v6 = extcodesize v5
+    v7 = eq v6, 0
+    icall revert_if<target_contract_has_no_code>, v7
+    v8 = staticcall v1, v0, v3, v4, 0, 0
+    jumpi v8, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -87,11 +95,11 @@ fn @read() -> u256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word]
     invalid
   bb4:
     returndatacopy 0, 0, 32 !metadata(memory=scratch)
-    v8 = mload 0 !metadata(memory=scratch)
+    v9 = mload 0 !metadata(memory=scratch)
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v9 = phi [bb1: 0], [bb4: v8]
-    ret v9
+    v10 = phi [bb1: 0], [bb4: v9]
+    ret v10
 }

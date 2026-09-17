@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/storage-dse/storage_dse.mir (before storage-dse) ===
 + // === ROOT/tests/ui/codegen/mir/storage-dse/storage_dse.mir (after storage-dse) ===
   @module StorageDse
-  fn @remove_overwritten_store(arg0: u256) {
+  fn @remove_overwritten_store(arg0: i256) {
     bb0:
 -     sstore 0, arg0
 -     sstore 0, 7
@@ -9,7 +9,7 @@
       stop
   }
   
-  fn @keep_store_observed_by_load(arg0: u256) -> u256 {
+  fn @keep_store_observed_by_load(arg0: i256) -> i256 {
     bb0:
 -     sstore 0, arg0
 -     v0 = sload 0
@@ -20,7 +20,7 @@
       ret v0
   }
   
-  fn @remove_equal_store_after_load(arg0: u256) -> u256 {
+  fn @remove_equal_store_after_load(arg0: i256) -> i256 {
     bb0:
 -     sstore 0, arg0
 -     v0 = sload 0
@@ -30,7 +30,7 @@
       ret v0
   }
   
-  fn @keep_may_alias_symbolic_store(arg0: u256, arg1: u256) {
+  fn @keep_may_alias_symbolic_store(arg0: i256, arg1: i256) {
     bb0:
 -     sstore arg0, 1
 -     sstore arg1, 2
@@ -39,7 +39,7 @@
       stop
   }
   
-  fn @remove_disjoint_offset_overwrite(arg0: u256) {
+  fn @remove_disjoint_offset_overwrite(arg0: i256) {
     bb0:
       v0 = add arg0, 1
 -     sstore v0, 1
@@ -52,7 +52,7 @@
       stop
   }
   
-  fn @keep_across_call(arg0: u256, arg1: address) {
+  fn @keep_across_call(arg0: i256, arg1: i256) {
     bb0:
 -     sstore 0, arg0
 +     sstore 0, arg0 !metadata(storage=slot(0))
@@ -62,7 +62,7 @@
       stop
   }
   
-  fn @header_observes_store(arg0: u256) {
+  fn @header_observes_store(arg0: i256) {
     bb0:
 -     sstore arg0, 64
 -     v0 = sload arg0
@@ -74,7 +74,7 @@
       ret
   }
   
-  fn @copy_observes_store(arg0: u256, arg1: u256) -> memorybytes {
+  fn @copy_observes_store(arg0: i256, arg1: i256) -> memorybytes {
     bb0:
 -     sstore arg0, 7
 +     sstore arg0, 7 !metadata(storage=symbolic(arg0))
@@ -84,7 +84,7 @@
       ret v0
   }
   
-  fn @keep_store_observed_by_gas() -> u256 {
+  fn @keep_store_observed_by_gas() -> i256 {
     bb0:
       v0 = gas
 -     sstore 0, 1
@@ -96,7 +96,7 @@
       ret v2
   }
   
-  fn @keep_cross_block_store_observed_by_gas() -> u256 {
+  fn @keep_cross_block_store_observed_by_gas() -> i256 {
     bb0:
       v0 = gas
 -     sstore 0, 1
@@ -110,7 +110,7 @@
       ret v2
   }
   
-  fn @keep_store_observed_by_callee() -> u256 {
+  fn @keep_store_observed_by_callee() -> i256 {
     bb0:
 -     sstore 0, 1
 +     sstore 0, 1 !metadata(storage=slot(0))
@@ -120,13 +120,13 @@
       ret v0
   }
   
-  fn @observe_indirect() -> u256 {
+  fn @observe_indirect() -> i256 {
     bb0:
       v0 = icall @observe_gas
       ret v0
   }
   
-  fn @observe_gas() -> u256 {
+  fn @observe_gas() -> i256 {
     bb0:
       v0 = gas
       ret v0

@@ -1,6 +1,7 @@
 //! Literal, member, environment, and shared expression lowering.
 
 use super::*;
+use crate::mir::Immediate;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_string_literal_word(&mut self, bytes: &[u8]) -> ValueId {
@@ -38,9 +39,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             LitKind::Str(_, value, _) => self.lower_shared_bytes_literal(value),
             LitKind::Number(value) => Some(self.builder.imm(value)),
             LitKind::Bool(value) => Some(self.builder.imm_bool(value)),
-            LitKind::Address(value) => {
-                Some(self.builder.imm(U256::from_be_slice(value.as_slice())))
-            }
+            LitKind::Address(value) => Some(self.builder.alloc_value(Value::Immediate(
+                Immediate::for_type(Some(MirType::I160), U256::from_be_slice(value.as_slice())),
+            ))),
             LitKind::Rational(value) if *value.denom() == U256::from(1) => {
                 Some(self.builder.imm(*value.numer()))
             }

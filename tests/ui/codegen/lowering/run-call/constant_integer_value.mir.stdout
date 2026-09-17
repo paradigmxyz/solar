@@ -4,7 +4,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constant_integer_value.sol:ConstantIntegerValue ===
 @module ConstantIntegerValue
-fn @calc() -> u256 [selector=0x96f1b6be, pure, abi_params=[], abi_returns=[word]] {
+fn @calc() -> i256 [selector=0x96f1b6be, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @mulWadDown, 0x8ac7230489e80000, 0xaa87bee538000
     v1 = exp 2, 128
@@ -12,20 +12,20 @@ fn @calc() -> u256 [selector=0x96f1b6be, pure, abi_params=[], abi_returns=[word]
     ret v2
 }
 
-fn @avgEdge() -> u256 [selector=0xbb94a0c5, pure, abi_params=[], abi_returns=[word]] {
+fn @avgEdge() -> i256 [selector=0xbb94a0c5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @average, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
     ret v0
 }
 
-fn @negativeConstant() -> bool [selector=0xce4ac84e, pure, abi_params=[], abi_returns=[word<bool>]] {
+fn @negativeConstant() -> i256 [selector=0xce4ac84e, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sub 0, 0xd89e8
     v1 = icall @isMinTick, v0
     ret v1
 }
 
-fn @average(arg0: u256, arg1: u256) -> u256 [pure] {
+fn @average(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = and arg0, arg1
     v1 = xor arg0, arg1
@@ -34,36 +34,39 @@ fn @average(arg0: u256, arg1: u256) -> u256 [pure] {
     ret v3
 }
 
-fn @mulWadDown(arg0: u256, arg1: u256) -> u256 [pure] {
+fn @mulWadDown(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = icall @mulDivDown, arg0, arg1, 0xde0b6b3a7640000
     ret v0
 }
 
-fn @mulDivDown(arg0: u256, arg1: u256, arg2: u256) -> u256 [pure] {
+fn @mulDivDown(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
   bb0:
     v0 = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1
     v1 = gt arg0, v0
-    v2 = mul arg1, v1
-    v3 = iszero v2
-    v4 = mul arg2, v3
-    v5 = iszero v4
-    v6 = eq v5, 0
-    v7 = iszero v6
-    jumpi v7, bb1, bb2
+    v2 = zext i1 v1 to i256
+    v3 = mul arg1, v2
+    v4 = eq v3, 0
+    v5 = zext i1 v4 to i256
+    v6 = mul arg2, v5
+    v7 = eq v6, 0
+    v8 = zext i1 v7 to i256
+    v9 = ne v8, 0
+    jumpi v9, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v8 = mul arg0, arg1
-    v9 = div v8, arg2
-    ret v9
+    v10 = mul arg0, arg1
+    v11 = div v10, arg2
+    ret v11
   bb1:
     revert 0, 0
 }
 
-fn @isMinTick(arg0: i24) -> bool [pure] {
+fn @isMinTick(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = signextend 2, arg0
     v1 = eq v0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffff27618
-    ret v1
+    v2 = zext i1 v1 to i256
+    ret v2
 }

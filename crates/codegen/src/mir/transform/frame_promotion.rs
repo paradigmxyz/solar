@@ -423,6 +423,7 @@ impl FrameSlotPromoter {
         slot_offset: u64,
     ) -> bool {
         match *kind {
+            InstKind::PtrToInt(_, 256) | InstKind::IntToPtr(_) | InstKind::Bitcast(_) => false,
             InstKind::MLoad(addr) => {
                 !Self::is_exact_internal_slot_access(func, aa, addr, slot_offset)
                     && Self::internal_frame_range_may_overlap(func, aa, addr, Some(32), slot_offset)
@@ -1104,7 +1105,7 @@ impl<'a> SlotSsaBuilder<'a> {
 
         // field = phi []
         let (inst, value) = func.alloc_value_inst(
-            Instruction::new(InstKind::Phi(Vec::new()), Some(MirType::uint256()))
+            Instruction::new(InstKind::Phi(Vec::new()), Some(MirType::I256))
                 .with_debug_info_dropped(),
         );
         self.phis.insert(

@@ -8,7 +8,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @keep_mload_non_exiting_bound{{[( ]}}
 // CHECK: {{^[ +].*}}mload 64
 // CHECK: {{^[ +].*}}mstore
-fn @keep_mload_non_exiting_bound() -> u256 {
+fn @keep_mload_non_exiting_bound() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -37,7 +37,7 @@ fn @keep_mload_non_exiting_bound() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_mload_inner_branch_bound{{[( ]}}
 // CHECK: {{^[ +].*}}mload 64
 // CHECK: {{^[ +].*}}mstore
-fn @keep_mload_inner_branch_bound() -> u256 {
+fn @keep_mload_inner_branch_bound() -> i256 {
   bb0:
     jump bb1
   bb1:

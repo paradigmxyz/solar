@@ -1,44 +1,44 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_call_stack.sol:CalldataSliceCallStack ===
 @module CalldataSliceCallStack
-fn @fees(arg0: address) -> u256 [selector=0xfaaebd21, view, abi_params=[address], abi_returns=[word]] {
+fn @fees(arg0: i256) -> i256 [selector=0xfaaebd21, view, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v0 = trunc i256 arg0 to i160
     v1 = mapping_slot v0, 0
     v2 = sload v1 !metadata(storage=symbolic(v1))
     ret v2
 }
 
-fn @execute(arg0: address, arg1: address, arg2: u256, arg3: calldataslice) [selector=0x9aefaff8, abi_params=[address, address, u256, bytes], abi_returns=[]] {
+fn @execute(arg0: i256, arg1: i256, arg2: i256, arg3: calldataslice) [selector=0x9aefaff8, abi_params=[address, address, u256, bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = gas
     v1 = address
-    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = abi_encode [word<u160>], selector 0x70a0823100000000000000000000000000000000000000000000000000000000, args v2
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    v6 = staticcall v0, arg1, v4, v5, 0, 32
-    jumpi v6, bb2, bb1
+    v2 = abi_encode [word<u160>], selector 0x70a0823100000000000000000000000000000000000000000000000000000000, args v1
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = staticcall v0, arg1, v3, v4, 0, 32
+    jumpi v5, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = returndatasize
-    v8 = lt v7, 32
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    v11 = add 0, 0
-    v12 = mload v11
-    v13 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = returndatasize
+    v7 = lt v6, 32
+    icall revert_if<tuple_data_too_short>, v7
+    v8 = add 0, 0
+    v9 = mload v8
+    v10 = add 0, 0
+    v11 = mload v10
+    v12 = trunc i256 arg0 to i160
+    v13 = trunc i256 arg1 to i160
     mstore 0, arg2 !metadata(memory=scratch)
-    log3 0, 32, 0xa6d5647a92aa1dcbb9b0a53bd2edba8935c58f1e2c7c8fae35acd2acf52a5bd1, v13, v14
-    v15 = gas
-    v16 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = zext i160 v12 to i256
+    v15 = zext i160 v13 to i256
+    log3 0, 32, 0xa6d5647a92aa1dcbb9b0a53bd2edba8935c58f1e2c7c8fae35acd2acf52a5bd1, v14, v15
+    v16 = gas
+    v17 = trunc i256 arg0 to i160
     v18 = abi_encode [word<u160>, word], selector 0xa9059cbb00000000000000000000000000000000000000000000000000000000, args v17, arg2
     v19 = slice_ptr v18
     v20 = slice_len v18
-    v21 = call v15, arg1, 0, v19, v20, 0, 32
+    v21 = call v16, arg1, 0, v19, v20, 0, 32
     jumpi v21, bb4, bb3
   bb3:
     revert_returndata
@@ -48,35 +48,35 @@ fn @execute(arg0: address, arg1: address, arg2: u256, arg3: calldataslice) [sele
     icall revert_if<tuple_data_too_short>, v23
     v24 = add 0, 0
     v25 = mload v24
-    v26 = iszero v25
-    v27 = iszero v26
-    v28 = eq v25, v27
-    v29 = iszero v28
-    icall revert_if<empty>, v29
-    v30 = add 0, 0
-    v31 = mload v30
-    v32 = gas
-    v33 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
-    v34 = abi_encode [word<u160>, word, calldata_bytes], selector 0x794dca5300000000000000000000000000000000000000000000000000000000, args v33, arg2, arg3
-    v35 = slice_ptr v34
-    v36 = slice_len v34
-    v37 = extcodesize arg0
-    v38 = iszero v37
-    icall revert_if<target_contract_has_no_code>, v38
-    v39 = call v32, arg0, 0, v35, v36, 0, 0
-    jumpi v39, bb6, bb5
+    v26 = eq v25, 0
+    v27 = eq v26, false
+    v28 = zext i1 v27 to i256
+    v29 = eq v25, v28
+    v30 = eq v29, false
+    icall revert_if<empty>, v30
+    v31 = add 0, 0
+    v32 = mload v31
+    v33 = gas
+    v34 = trunc i256 arg1 to i160
+    v35 = abi_encode [word<u160>, word, calldata_bytes], selector 0x794dca5300000000000000000000000000000000000000000000000000000000, args v34, arg2, arg3
+    v36 = slice_ptr v35
+    v37 = slice_len v35
+    v38 = extcodesize arg0
+    v39 = eq v38, 0
+    icall revert_if<target_contract_has_no_code>, v39
+    v40 = call v33, arg0, 0, v36, v37, 0, 0
+    jumpi v40, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v40 = icall @getFee, arg1, arg2
-    v41 = checked_add u256, v12, v40
-    v42 = gas
-    v43 = address
-    v44 = and v43, 0xffffffffffffffffffffffffffffffffffffffff
+    v41 = icall @getFee, arg1, arg2
+    v42 = checked_add u256, v11, v41
+    v43 = gas
+    v44 = address
     v45 = abi_encode [word<u160>], selector 0x70a0823100000000000000000000000000000000000000000000000000000000, args v44
     v46 = slice_ptr v45
     v47 = slice_len v45
-    v48 = staticcall v42, arg1, v46, v47, 0, 32
+    v48 = staticcall v43, arg1, v46, v47, 0, 32
     jumpi v48, bb8, bb7
   bb7:
     revert_returndata
@@ -88,7 +88,7 @@ fn @execute(arg0: address, arg1: address, arg2: u256, arg3: calldataslice) [sele
     v52 = mload v51
     v53 = add 0, 0
     v54 = mload v53
-    v55 = gt v41, v54
+    v55 = gt v42, v54
     jumpi v55, bb9, bb10
   bb10:
     jump bb11
@@ -99,9 +99,9 @@ fn @execute(arg0: address, arg1: address, arg2: u256, arg3: calldataslice) [sele
     invalid
 }
 
-fn @getFee(arg0: address, arg1: u256) -> u256 [selector=0x4edeb834, view, abi_params=[address, u256], abi_returns=[word]] {
+fn @getFee(arg0: i256, arg1: i256) -> i256 [selector=0x4edeb834, view, abi_params=[address, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v0 = trunc i256 arg0 to i160
     v1 = mapping_slot v0, 0
     v2 = sload v1 !metadata(storage=symbolic(v1))
     v3 = eq v2, 0
@@ -109,7 +109,7 @@ fn @getFee(arg0: address, arg1: u256) -> u256 [selector=0x4edeb834, view, abi_pa
   bb2:
     jump bb3
   bb3:
-    v4 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v4 = trunc i256 arg0 to i160
     v5 = mapping_slot v4, 0
     v6 = sload v5 !metadata(storage=symbolic(v5))
     v7 = checked_mul u256, arg1, v6

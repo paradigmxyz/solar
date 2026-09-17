@@ -1,25 +1,26 @@
 - // === ROOT/tests/ui/codegen/mir/storage-promotion/terminator_metadata.mir (before storage-promotion) ===
 + // === ROOT/tests/ui/codegen/mir/storage-promotion/terminator_metadata.mir (after storage-promotion) ===
   @module DirtyTerminatorMetadata
-  fn @dirty(arg0: u256) -> u256 [selector=0x01020304] {
+  fn @dirty(arg0: i256) -> i256 [selector=0x01020304] {
     bb0:
-+     mstore 160, false
++     mstore 160, 0
       jump bb1
     bb1:
       jumpi true, bb2, bb4
     bb4:
 +     v0 = mload 160
-+     jumpi v0, bb6, bb5
++     v1 = ne v0, 0
++     jumpi v1, bb6, bb5
 +   bb6:
-+     v1 = mload 128
-+     sstore 0, v1
++     v2 = mload 128
++     sstore 0, v2
 +     jump bb5
 +   bb5:
       ret arg0 !metadata(span=100..120, modifier_depth=2)
     bb2:
 -     sstore 0, 7
 +     mstore 128, 7
-+     mstore 160, true
++     mstore 160, 1
       jump bb3
     bb3:
       jump bb1

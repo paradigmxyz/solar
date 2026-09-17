@@ -8,7 +8,7 @@ immutables:
   signed: i64
   wide: u256
 
-fn @runtime() -> u256 [selector=1] {
+fn @runtime() -> i256 [selector=1] {
   bb0:
     v0 = icall @bounded
     icall @shared
@@ -21,7 +21,7 @@ fn @runtime() -> u256 [selector=1] {
 
 // Modern targets encode unsigned runtime loads in eight-byte immediates.
 // The legacy target uses a full word and cannot use this bound.
-fn @bounded() -> u256 {
+fn @bounded() -> i256 {
   bb0:
     v0 = loadimmutable small
     v1 = add v0, 1
@@ -35,7 +35,7 @@ fn @bounded() -> u256 {
 
 // Constructor reachability crosses both calls and tail calls. Shared helpers
 // must retain their checks because constructor loads read full staging words.
-fn @constructor(arg0: u64) [constructor] {
+fn @constructor(arg0: i256) [constructor] {
   bb0:
     storeimmutable small, arg0
     icall @bridge
@@ -60,7 +60,7 @@ fn @shared() {
 }
 
 // Signed values can have every high bit set even with a short immediate.
-fn @signed_value() -> u256 {
+fn @signed_value() -> i256 {
   bb0:
     v0 = loadimmutable signed
     v1 = add v0, 1
@@ -72,7 +72,7 @@ fn @signed_value() -> u256 {
     ret v1
 }
 
-fn @wide_value() -> u256 {
+fn @wide_value() -> i256 {
   bb0:
     v0 = loadimmutable wide
     v1 = add v0, 1
@@ -85,7 +85,7 @@ fn @wide_value() -> u256 {
 }
 
 // A helper with no established runtime entry cannot acquire runtime facts.
-fn @unrooted() -> u256 {
+fn @unrooted() -> i256 {
   bb0:
     v0 = loadimmutable small
     v1 = add v0, 1

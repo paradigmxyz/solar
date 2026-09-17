@@ -8,7 +8,7 @@
 // CHECK: {{^[ +].*}}mstore 128, arg0
 // CHECK: {{^[ +].*}}keccak256
 // CHECK: - mstore 128, arg0
-fn @remove_equal_store_after_keccak(arg0: u256) -> u256 {
+fn @remove_equal_store_after_keccak(arg0: i256) -> i256 {
   bb0:
     mstore 128, arg0
     v2 = keccak256 128, 32
@@ -22,7 +22,7 @@ fn @remove_equal_store_after_keccak(arg0: u256) -> u256 {
 // CHECK: {{^[ +].*}}calldatacopy
 // CHECK: {{^[ +].*}}mstore 128, arg0
 // CHECK: + ret arg0
-fn @keep_equal_store_after_copy(arg0: u256, arg1: u256) -> u256 {
+fn @keep_equal_store_after_copy(arg0: i256, arg1: i256) -> i256 {
   bb0:
     mstore 128, arg0
     calldatacopy 128, arg1, 32
@@ -37,7 +37,7 @@ fn @keep_equal_store_after_copy(arg0: u256, arg1: u256) -> u256 {
 // CHECK: {{^[ +].*}}mstore 128, 0x1234
 // CHECK: {{^[ +].*}}mstore 129, 0
 // CHECK: {{^[ +].*}}mstore 128, 0x1234
-fn @keep_restore_after_overlapping_store() -> u256 {
+fn @keep_restore_after_overlapping_store() -> i256 {
   bb0:
     mstore 128, 4660
     jump bb1
@@ -57,7 +57,7 @@ fn @keep_restore_after_overlapping_store() -> u256 {
 // CHECK: {{^[ +].*}}mstore 128, 0x1234
 // CHECK: {{^[ +].*}}mstore 129, arg0
 // CHECK: {{^[ +].*}}mstore 128, 0x1234
-fn @keep_restore_after_dynamic_overlapping_store(arg0: u256) -> u256 {
+fn @keep_restore_after_dynamic_overlapping_store(arg0: i256) -> i256 {
   bb0:
     mstore 128, 0x1234
     jump bb1

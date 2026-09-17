@@ -1,75 +1,97 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopRuntime ===
 @module ConstructorStopRuntime
 data:
-  ConstructorStopAlways_initcode_0: hex"60c060405234600e5760015f55005b5f5ffd603080601b5f395ff334601a575f3560e01c80633fa4f24514601657601a565b601e565b5f5ffd5b5f546080526020608001608090036080f3"
-  ConstructorStopConditional_initcode_1: hex"60b038038060b060e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0166040523460725760e08060c0528060c05260e060b03803016020820111606e578060c052516002901015606e5760015f5560e051606c576076565b005b5f5ffd5b5f5ffd5b60308060805f395ff334601a575f3560e01c80633fa4f24514601657601a565b601e565b5f5ffd5b5f546080526020608001608090036080f3"
+  ConstructorStopAlways_initcode_0: hex"60c060405234151560105760015f55005b5f5ffd603280601d5f395ff3341515601c575f3560e01c80633fa4f24514601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
+  ConstructorStopConditional_initcode_1: hex"60b638038060b660e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405234151560765760e08060c0528060c05260e060b638030160208201116072578060c05251600290101560725760015f5560e0511515607057607a565b005b5f5ffd5b5f5ffd5b60328060845f395ff3341515601c575f3560e01c80633fa4f24514601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
 
-fn @unconditional() -> u256 [selector=0x7d06b8f6, abi_params=[], abi_returns=[word]] {
+fn @unconditional() -> i256 [selector=0x7d06b8f6, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 106, v1
+    v2 = and 110, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ConstructorStopAlways_initcode_0, v3, 75
+    data_copy ConstructorStopAlways_initcode_0, v3, 79
     v4 = slice_ptr v0
-    v5 = add v3, 75
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 75
-    jumpi v6, bb2, bb1
+    v5 = ptrtoint memptr v3 to i256
+    v6 = add v5, 79
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = ptrtoint memptr v3 to i256
+    v8 = create 0, v7, 79
+    v9 = zext i160 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = extcodesize v6
-    ret v7
+    v11 = zext i160 v8 to i256
+    v12 = trunc i256 v11 to i160
+    v13 = zext i160 v12 to i256
+    v14 = extcodesize v13
+    ret v14
 }
 
-fn @conditional(arg0: bool) -> u256 [selector=0x9077f189, abi_params=[bool], abi_returns=[word]] {
+fn @conditional(arg0: i256) -> i256 [selector=0x9077f189, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq arg0, 0
-    v1 = iszero v0
+    v1 = eq v0, false
     v2 = abi_encode [word<bool>], args v1
     v3 = not 31
-    v4 = and 239, v3
+    v4 = and 245, v3
     v5 = alloc raw, exact, uninitialized, infallible, v4
-    data_copy ConstructorStopConditional_initcode_1, v5, 176
+    data_copy ConstructorStopConditional_initcode_1, v5, 182
     v6 = slice_ptr v2
-    v7 = add v5, 176
-    mcopy v7, v6, 32 !metadata(memory=heap)
-    v8 = create 0, v5, 208
-    jumpi v8, bb2, bb1
+    v7 = ptrtoint memptr v5 to i256
+    v8 = add v7, 182
+    mcopy v8, v6, 32 !metadata(memory=heap)
+    v9 = ptrtoint memptr v5 to i256
+    v10 = create 0, v9, 214
+    v11 = zext i160 v10 to i256
+    v12 = ne v11, 0
+    jumpi v12, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = extcodesize v8
-    ret v9
+    v13 = zext i160 v10 to i256
+    v14 = trunc i256 v13 to i160
+    v15 = zext i160 v14 to i256
+    v16 = extcodesize v15
+    ret v16
 }
 
-fn @conditionalContinues() -> bool [selector=0x828f9845, abi_params=[], abi_returns=[word<bool>]] {
+fn @conditionalContinues() -> i256 [selector=0x828f9845, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = eq false, 0
-    v1 = iszero v0
-    v2 = abi_encode [word<bool>], args v1
-    v3 = not 31
-    v4 = and 239, v3
-    v5 = alloc raw, exact, uninitialized, infallible, v4
-    data_copy ConstructorStopConditional_initcode_1, v5, 176
-    v6 = slice_ptr v2
-    v7 = add v5, 176
-    mcopy v7, v6, 32 !metadata(memory=heap)
-    v8 = create 0, v5, 208
-    jumpi v8, bb2, bb1
+    v0 = zext i1 0 to i256
+    v1 = eq v0, 0
+    v2 = eq v1, false
+    v3 = abi_encode [word<bool>], args v2
+    v4 = not 31
+    v5 = and 245, v4
+    v6 = alloc raw, exact, uninitialized, infallible, v5
+    data_copy ConstructorStopConditional_initcode_1, v6, 182
+    v7 = slice_ptr v3
+    v8 = ptrtoint memptr v6 to i256
+    v9 = add v8, 182
+    mcopy v9, v7, 32 !metadata(memory=heap)
+    v10 = ptrtoint memptr v6 to i256
+    v11 = create 0, v10, 214
+    v12 = zext i160 v11 to i256
+    v13 = ne v12, 0
+    jumpi v13, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = extcodesize v8
-    v10 = eq v9, 0
-    v11 = iszero v10
-    ret v11
+    v14 = zext i160 v11 to i256
+    v15 = trunc i256 v14 to i160
+    v16 = zext i160 v15 to i256
+    v17 = extcodesize v16
+    v18 = ne v17, 0
+    v19 = zext i1 v18 to i256
+    ret v19
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopAlways ===
 @module ConstructorStopAlways
-fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -83,16 +105,17 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopConditional ===
 @module ConstructorStopConditional
-fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: bool) [constructor, abi_params=[bool]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[bool]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
-    jumpi arg0, bb1, bb2
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb3:

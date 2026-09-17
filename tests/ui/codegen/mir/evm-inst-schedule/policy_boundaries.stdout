@@ -2,12 +2,12 @@
 + // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/policy_boundaries.mir (after evm-inst-schedule) ===
   @module EvmInstSchedulePolicy
   types:
-    struct0: {bool, bool, u256}
-    struct1: {u256, u256}
-    struct2: {u256, u256, u256}
-    struct3: {bool, u256}
+    struct0: {i1, i1, i256}
+    struct1: {i256, i256}
+    struct2: {i256, i256, i256}
+    struct3: {i1, i256}
   
-  fn @deep_dependency_tree(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256) -> u256 {
+  fn @deep_dependency_tree(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) -> i256 {
     bb0:
 -     v0 = add arg0, arg1
 +     v3 = xor arg4, arg5
@@ -19,7 +19,7 @@
       ret v4
   }
   
-  fn @independent_barrier_segments(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+  fn @independent_barrier_segments(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 {
     bb0:
 -     v0 = add arg0, arg1
       v1 = mul arg2, arg3
@@ -33,7 +33,7 @@
       ret v5
   }
   
-  fn @shared_result_schedules_islands(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+  fn @shared_result_schedules_islands(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 {
     bb0:
 -     v0 = add arg0, arg1
       v1 = mul arg2, arg3
@@ -46,7 +46,7 @@
       ret v5
   }
   
-  fn @repeated_operand_is_single_user(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+  fn @repeated_operand_is_single_user(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 {
     bb0:
 -     v0 = add arg0, arg1
       v1 = mul arg2, arg3
@@ -55,7 +55,7 @@
       ret v2
   }
   
-  fn @comparison_producer_order(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> bool {
+  fn @comparison_producer_order(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i1 {
     bb0:
       v0 = sub arg0, arg1
       v1 = div arg2, arg3
@@ -63,7 +63,7 @@
       ret v2
   }
   
-  fn @multiple_terminator_roots(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> struct1 [return_abi=[u256, u256]] {
+  fn @multiple_terminator_roots(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct1 [return_abi=[i256, i256]] {
     bb0:
 -     v0 = add arg0, arg1
       v1 = mul arg2, arg3
@@ -71,7 +71,7 @@
       ret v0, v1
   }
   
-  fn @disconnected_root_is_retained(arg0: u256, arg1: u256) -> u256 {
+  fn @disconnected_root_is_retained(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = mul arg1, 2
       v1 = add arg0, 1
@@ -79,19 +79,20 @@
       ret v0
   }
   
-  fn @read_effects_are_movable(arg0: u256, arg1: u256) -> u256 {
+  fn @read_effects_are_movable(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = mload arg0
 -     v1 = tload arg1
       v2 = caller
+      v3 = zext i160 v2 to i256
 +     v1 = tload arg1
 +     v0 = mload arg0
-      v3 = sub v0, v1
-      v4 = div v3, v2
-      ret v4
+      v4 = sub v0, v1
+      v5 = div v4, v3
+      ret v5
   }
   
-  fn @clz_is_movable(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  fn @clz_is_movable(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
 -     v0 = clz arg0
       v1 = mul arg1, arg2
@@ -100,7 +101,7 @@
       ret v2
   }
   
-  fn @callcode_is_a_barrier(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> struct3 [return_abi=[bool, u256]] {
+  fn @callcode_is_a_barrier(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct3 [return_abi=[i1, i256]] {
     bb0:
 -     v0 = add arg0, arg1
       v1 = mul arg2, arg3
@@ -114,7 +115,7 @@
       ret v3, v6
   }
   
-  fn @msize_is_a_barrier(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> struct2 [return_abi=[u256, u256, u256]] {
+  fn @msize_is_a_barrier(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct2 [return_abi=[i256, i256, i256]] {
     bb0:
 -     v0 = add arg0, arg1
       v1 = mul arg2, arg3
@@ -128,7 +129,7 @@
       ret v2, v3, v6
   }
   
-  fn @phi_is_a_barrier(arg0: u256, arg1: u256, arg2: u256, arg3: bool) -> u256 {
+  fn @phi_is_a_barrier(arg0: i256, arg1: i256, arg2: i256, arg3: i1) -> i256 {
     bb0:
       jumpi arg3, bb1, bb2
     bb2:
@@ -142,7 +143,7 @@
       ret v2
   }
   
-  fn @metadata_effect_is_a_barrier(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+  fn @metadata_effect_is_a_barrier(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 {
     bb0:
 -     v0 = add arg0, arg1
       v1 = mul arg2, arg3
@@ -156,20 +157,20 @@
       ret v6
   }
   
-  fn @metadata_cannot_downgrade_effect() -> struct0 [return_abi=[bool, bool, u256]] {
+  fn @metadata_cannot_downgrade_effect() -> struct0 [return_abi=[i1, i1, i256]] {
     bb0:
       v0 = staticcall 0x3e8, 0xbeef, 0, 0, 0, 0 !metadata(effect=environment_read)
       v1 = returndatasize
       ret v0, v0, v1
   }
   
-  fn @block_local_scratch(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+  fn @block_local_scratch(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 {
     bb0:
 -     v0 = add arg0, arg1
       v1 = mul arg2, arg3
 +     v0 = add arg0, arg1
       v2 = sub v0, v1
-      v3 = iszero v2
+      v3 = eq v2, 0
       jumpi v3, bb1, bb2
     bb2:
 -     v7 = add arg0, arg3
@@ -185,7 +186,7 @@
       ret v6
   }
   
-  fn @checked_operations_are_barriers(arg0: u256, arg1: u256) -> u256 {
+  fn @checked_operations_are_barriers(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = checked_add u256, arg0, 1
       v1 = checked_mul u256, arg1, 2

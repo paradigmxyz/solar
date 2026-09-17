@@ -382,6 +382,12 @@ fn count_phis(
     Some((count_phi, index_phi, count, exit))
 }
 
+fn is_nonzero_test(func: &Function, inst: InstId, result: ValueId, value: ValueId) -> bool {
+    func.inst_result_value(inst) == Some(result)
+        && matches!(func.inst(inst).kind, InstKind::Ne(lhs, rhs)
+            if lhs == value && func.value_u64(rhs) == Some(0))
+}
+
 fn match_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLoop> {
     // header: count = phi; index = phi; [length = mload object]; jumpi lt(index, length), body,
     // exit
@@ -408,13 +414,13 @@ fn match_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLo
     let (count_phi, index_phi, count, count_exit) = count_phis(func, phis, *exit, index)?;
 
     // body: [base = object + 32]; ptr = base + index; word = mload ptr; byte = byte 0, word
-    //       aligned = shl 248, byte; jumpi aligned, latch, increment
+    //       aligned = shl 248, byte; nonzero = ne aligned, 0; jumpi nonzero, latch, increment
     let InstKind::Phi(index_incoming) = &func.inst(index_phi).kind else { unreachable!() };
     let [(preheader, _), _] = index_incoming.as_slice() else { return None };
     let object = length_object(func, *preheader, len_inst, length)?;
     let hoisted_length = len_inst.is_none().then_some(length);
     let (pointer, rest) = payload_pointer(func, &func.blocks[*body].instructions, object, index)?;
-    let [load_inst, byte_inst, align_inst] = rest else { return None };
+    let [load_inst, byte_inst, align_inst, nonzero_inst] = rest else { return None };
     let InstKind::MLoad(load_pointer) = func.inst(*load_inst).kind else { return None };
     if load_pointer != pointer {
         return None;
@@ -435,11 +441,13 @@ fn match_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLo
     else {
         return None;
     };
-    if *nonzero != aligned {
+    if !is_nonzero_test(func, *nonzero_inst, *nonzero, aligned) {
         return None;
     }
 
-    let [increment_inst] = func.blocks[*increment].instructions.as_slice() else { return None };
+    let [increment_inst, nonzero_inst] = func.blocks[*increment].instructions.as_slice() else {
+        return None;
+    };
     let InstKind::Add(increment_count, one) = func.inst(*increment_inst).kind else { return None };
     if increment_count != count || func.value_u64(one) != Some(1) {
         return None;
@@ -453,7 +461,9 @@ fn match_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLo
     else {
         return None;
     };
-    if *overflow_result != incremented || *increment_latch != *latch {
+    if !is_nonzero_test(func, *nonzero_inst, *overflow_result, incremented)
+        || *increment_latch != *latch
+    {
         return None;
     }
 
@@ -524,7 +534,8 @@ fn match_calldata_zero_count_loop(func: &Function, header: BlockId) -> Option<Ze
     }
     let (count_phi, index_phi, count, count_exit) = count_phis(func, phis, *exit, index)?;
 
-    let [ptr_inst, load_inst, byte_inst] = func.blocks[*body].instructions.as_slice() else {
+    let [ptr_inst, load_inst, byte_inst, nonzero_inst] = func.blocks[*body].instructions.as_slice()
+    else {
         return None;
     };
     let InstKind::Add(data, ptr_index) = func.inst(*ptr_inst).kind else { return None };
@@ -547,11 +558,13 @@ fn match_calldata_zero_count_loop(func: &Function, header: BlockId) -> Option<Ze
     else {
         return None;
     };
-    if *nonzero != byte {
+    if !is_nonzero_test(func, *nonzero_inst, *nonzero, byte) {
         return None;
     }
 
-    let [increment_inst] = func.blocks[*increment].instructions.as_slice() else { return None };
+    let [increment_inst, nonzero_inst] = func.blocks[*increment].instructions.as_slice() else {
+        return None;
+    };
     let InstKind::Add(increment_count, one) = func.inst(*increment_inst).kind else { return None };
     if increment_count != count || func.value_u64(one) != Some(1) {
         return None;
@@ -565,7 +578,9 @@ fn match_calldata_zero_count_loop(func: &Function, header: BlockId) -> Option<Ze
     else {
         return None;
     };
-    if *overflow_result != incremented || *increment_latch != *latch {
+    if !is_nonzero_test(func, *nonzero_inst, *overflow_result, incremented)
+        || *increment_latch != *latch
+    {
         return None;
     }
 
@@ -797,7 +812,7 @@ fn rewrite_ascii_loop(func: &mut Function, candidate: AsciiLoop) {
 
         // shift = (32 - length) * 8
         // word = mload(object + 32) >> shift
-        // jump finish(iszero(word & 0x8080..80))
+        // jump finish((word & 0x8080..80) == 0)
         builder.switch_to_block(one_word);
         let data = builder.add_u64_offset(candidate.object, 32);
         let word = builder.mload(data);
@@ -811,7 +826,7 @@ fn rewrite_ascii_loop(func: &mut Function, candidate: AsciiLoop) {
 
         // shift = (64 - length) * 8
         // words = mload(object + 32) | (mload(object + 64) >> shift)
-        // jump finish(iszero(words & 0x8080..80))
+        // jump finish((words & 0x8080..80) == 0)
         builder.switch_to_block(two_words);
         let data = builder.add_u64_offset(candidate.object, 32);
         let first = builder.mload(data);
@@ -871,7 +886,7 @@ fn rewrite_ascii_loop(func: &mut Function, candidate: AsciiLoop) {
         // tail_aggregate = phi(pair_exit: 0, single_body: mload(pointer))
         // padding_bits = (32 - (length & 31)) * 8
         // word = mload(tail_pointer) >> padding_bits
-        // return iszero((tail_aggregate | word) & 0x8080..80)
+        // return ((tail_aggregate | word) & 0x8080..80) == 0
         builder.switch_to_block(tail);
         let tail_pointer = builder.phi(vec![(pair_exit, pointer)]);
         let zero = builder.imm(0);
@@ -916,10 +931,10 @@ fn rewrite_ascii_loop(func: &mut Function, candidate: AsciiLoop) {
 }
 
 fn emit_ascii_result(builder: &mut FunctionBuilder<'_>, aggregate: ValueId) -> ValueId {
-    // return iszero(aggregate & 0x8080..80)
+    // return (aggregate & 0x8080..80) == 0
     let high_bits = builder.imm(U256::from_be_bytes([0x80; 32]));
     let non_ascii = builder.and(aggregate, high_bits);
-    builder.iszero(non_ascii)
+    builder.eq_zero(non_ascii)
 }
 
 /// A loop that moves one byte per iteration from one memory range to another.
@@ -981,7 +996,7 @@ fn defined_outside(func: &Function, header: BlockId, body: BlockId, value: Value
 /// already turned into a plain pointer by the time this pass runs.
 fn is_caller_memory(func: &Function, value: ValueId) -> bool {
     let Value::Arg(index) = *func.value(value) else { return false };
-    matches!(func.arg_ty(index), MirType::MemPtr | MirType::MemoryObject(_))
+    matches!(func.arg_ty(index), MirType::I256 | MirType::MemoryObject(_))
 }
 
 /// Whether a value is the free-memory pointer this function read, which every

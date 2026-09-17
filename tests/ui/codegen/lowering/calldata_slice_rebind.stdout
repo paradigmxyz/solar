@@ -1,33 +1,34 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_rebind.sol:CalldataSliceRebind ===
 @module CalldataSliceRebind
-fn @forward(arg0: calldataslice, arg1: u256, arg2: address) [selector=0xb8467e08, abi_params=[bytes, u256, address], abi_returns=[]] {
+fn @forward(arg0: calldataslice, arg1: i256, arg2: i256) [selector=0xb8467e08, abi_params=[bytes, u256, address], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt v1, v1
     v3 = lt v1, arg1
     v4 = or v2, v3
-    icall revert_if<empty>, v4
-    v5 = sub v1, arg1
-    v6 = add v0, arg1
-    v7 = make_calldata_slice v6, v5
-    v8 = gas
-    v9 = slice_ptr v7
-    v10 = slice_len v7
-    v11 = gt v10, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v11
-    v12 = calldatasize
-    v13 = sub v12, v10
-    v14 = sgt v9, v13
-    icall revert_if<calldata_tail_too_short>, v14
-    v15 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v7
-    v16 = slice_ptr v15
-    v17 = slice_len v15
-    v18 = extcodesize arg2
-    v19 = iszero v18
-    icall revert_if<target_contract_has_no_code>, v19
-    v20 = call v8, arg2, 0, v16, v17, 0, 0
-    jumpi v20, bb2, bb1
+    v5 = zext i1 v4 to i256
+    icall revert_if<empty>, v5
+    v6 = sub v1, arg1
+    v7 = add v0, arg1
+    v8 = make_calldata_slice v7, v6
+    v9 = gas
+    v10 = slice_ptr v8
+    v11 = slice_len v8
+    v12 = gt v11, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v12
+    v13 = calldatasize
+    v14 = sub v13, v11
+    v15 = sgt v10, v14
+    icall revert_if<calldata_tail_too_short>, v15
+    v16 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v8
+    v17 = slice_ptr v16
+    v18 = slice_len v16
+    v19 = extcodesize arg2
+    v20 = eq v19, 0
+    icall revert_if<target_contract_has_no_code>, v20
+    v21 = call v9, arg2, 0, v17, v18, 0, 0
+    jumpi v21, bb2, bb1
   bb1:
     revert_returndata
   bb2:

@@ -1,18 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return_scratch.sol:MultiReturnScratch ===
 @module MultiReturnScratch
 types:
-  struct0: {u256, u256, u256}
-  struct1: {u256, u256, u256, u256}
-  struct2: {u256, u256}
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256, i256, i256}
+  struct2: {i256, i256}
 
-fn @stored(arg0: u256) -> u256 [selector=0x8c396222, view, abi_params=[u256], abi_returns=[word]] {
+fn @stored(arg0: i256) -> i256 [selector=0x8c396222, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
     ret v1
 }
 
-fn @triple(arg0: u256) -> struct0 [pure] {
+fn @triple(arg0: i256) -> struct0 [pure] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -32,7 +32,7 @@ fn @triple(arg0: u256) -> struct0 [pure] {
     ret v3
 }
 
-fn @assign(arg0: u256, arg1: u256) -> struct1 [selector=0xf09915d4, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @assign(arg0: i256, arg1: i256) -> struct1 [selector=0xf09915d4, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = icall @triple, arg1
@@ -49,20 +49,21 @@ fn @assign(arg0: u256, arg1: u256) -> struct1 [selector=0xf09915d4, abi_params=[
     ret v10
 }
 
-fn @ternary(arg0: bool, arg1: u256) -> struct2 [selector=0x09a143f6, pure, abi_params=[bool, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @ternary(arg0: i256, arg1: i256) -> struct2 [selector=0x09a143f6, pure, abi_params=[bool, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    jumpi arg0, bb1, bb2
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
   bb2:
-    v1 = checked_add u256, arg1, 2
-    v2 = checked_add u256, arg1, 3
+    v2 = checked_add u256, arg1, 2
+    v3 = checked_add u256, arg1, 3
     jump bb3
   bb1:
-    v0 = checked_add u256, arg1, 1
+    v1 = checked_add u256, arg1, 1
     jump bb3
   bb3:
-    v3 = phi [bb1: arg1], [bb2: v1]
-    v4 = phi [bb1: v0], [bb2: v2]
-    v5 = insert_value struct2, undef struct2, 0, v3
-    v6 = insert_value struct2, v5, 1, v4
-    ret v6
+    v4 = phi [bb1: arg1], [bb2: v2]
+    v5 = phi [bb1: v1], [bb2: v3]
+    v6 = insert_value struct2, undef struct2, 0, v4
+    v7 = insert_value struct2, v6, 1, v5
+    ret v7
 }

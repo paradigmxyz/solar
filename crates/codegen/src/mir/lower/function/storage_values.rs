@@ -6,7 +6,7 @@ use super::*;
 fn build_storage_bytes_helper(function: &mut Function) {
     // load_storage_bytes(slot) -> bytes_object
     let mut builder = FunctionBuilder::new_semantic(function);
-    let slot = builder.add_param(MirType::uint256());
+    let slot = builder.add_param(MirType::I256);
     builder.set_return_type(MirType::MemoryObject(MemoryObjectKind::Bytes));
     let object = builder.emit_inst(
         InstKind::StorageBytesLoad(slot),
@@ -17,12 +17,12 @@ fn build_storage_bytes_helper(function: &mut Function) {
 
 fn build_storage_array_helper(
     function: &mut Function,
-    element: MirType,
+    element: crate::mir::ValueLayout,
     enum_variants: Option<u64>,
 ) {
     // object = load_storage_array element, slot; ret object
     let mut builder = FunctionBuilder::new_semantic(function);
-    let slot = builder.add_param(MirType::uint256());
+    let slot = builder.add_param(MirType::I256);
     let ty = MirType::MemoryObject(MemoryObjectKind::DynamicArray);
     builder.set_return_type(ty);
     let object =
@@ -56,7 +56,7 @@ fn packed_storage_array_position(
 fn build_storage_bytes_store_helper(function: &mut Function) {
     // store_storage_bytes(slot, object); ret
     let mut builder = FunctionBuilder::new_semantic(function);
-    let slot = builder.add_param(MirType::uint256());
+    let slot = builder.add_param(MirType::I256);
     let object = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
     builder.store_storage_bytes(slot, object);
     builder.ret([]);
@@ -600,7 +600,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let (data, _, old_length) = decode_storage_bytes_header(&mut self.builder, slot);
         let max_length = self.builder.imm(U256::from(1u64) << 64);
         let in_range = self.builder.lt(old_length, max_length);
-        let too_long = self.builder.iszero(in_range);
+        let too_long = self.builder.eq_zero(in_range);
         self.builder.panic_if(too_long, PanicCode::MemoryAllocationOverflow);
 
         // Keep the short-header path first so repeated packed pushes can fall through.
@@ -1014,7 +1014,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .lazy_helper(sym::load_storage_bytes_array, |_, function| {
                     build_storage_array_helper(
                         function,
-                        MirType::MemoryObject(MemoryObjectKind::Bytes),
+                        crate::mir::ValueLayout::MemoryObject(MemoryObjectKind::Bytes),
                         None,
                     );
                     Some(())
@@ -1052,9 +1052,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     build_storage_array_helper(
                         function,
                         match encoding {
-                            StorageEncoding::Unsigned => MirType::UInt(size),
-                            StorageEncoding::Signed => MirType::Int(size),
-                            StorageEncoding::FixedBytes => MirType::FixedBytes(size),
+                            StorageEncoding::Unsigned => crate::mir::ValueLayout::UInt(size),
+                            StorageEncoding::Signed => crate::mir::ValueLayout::Int(size),
+                            StorageEncoding::FixedBytes => {
+                                crate::mir::ValueLayout::FixedBytes(size)
+                            }
                         },
                         enum_variants,
                     );
@@ -1069,7 +1071,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             let helper = self
                 .lazy_helper(sym::load_storage_word_array, |_, function| {
-                    build_storage_array_helper(function, MirType::uint256(), None);
+                    build_storage_array_helper(function, crate::mir::ValueLayout::uint256(), None);
                     Some(())
                 })
                 .expect("storage word array helper construction cannot fail");
@@ -1100,7 +1102,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         //     array[i] = load_struct(element_slot)
         //     element_slot += element_slots
         // }
-        let slot = self.builder.add_param(MirType::uint256());
+        let slot = self.builder.add_param(MirType::I256);
         self.builder.set_return_type(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
 
         let length = self.builder.sload(slot);
@@ -1336,6 +1338,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             build_storage_bytes_store_helper(function);
             Some(())
         })?;
+        // object = inttoptr object
+        // icall store_storage_bytes(slot, object)
+        let object = self.builder.cast(object, MirType::MemoryObject(MemoryObjectKind::Bytes));
         self.builder.icall_void(helper, vec![slot, object]);
         Some(())
     }
@@ -1430,7 +1435,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             } else {
                 let (slot_index, remainder) =
                     packed_storage_array_position(&mut self.builder, length, size.bytes());
-                let no_partial_slot = self.builder.iszero(remainder);
+                let no_partial_slot = self.builder.eq_zero(remainder);
                 let cleanup_block = self.builder.create_block();
                 let merge_block = self.builder.create_block();
                 self.builder.branch(no_partial_slot, merge_block, cleanup_block);
@@ -1504,7 +1509,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         self.lazy_helper(name, |this, function| {
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
-            let slot = lowerer.builder.add_param(MirType::uint256());
+            let slot = lowerer.builder.add_param(MirType::I256);
             let lowered = match helper {
                 RecursiveStorageHelper::Store { target, source } => {
                     let object =
@@ -1550,8 +1555,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let elements_per_slot = self.builder.imm(32 / u64::from(size.bytes()));
                     let full_slots = self.builder.div(length, elements_per_slot);
                     let remainder = self.builder.mod_(length, elements_per_slot);
-                    let remainder_is_zero = self.builder.iszero(remainder);
-                    let has_partial_slot = self.builder.iszero(remainder_is_zero);
+                    let remainder_is_zero = self.builder.eq_zero(remainder);
+                    let has_partial_slot = self.builder.eq_zero(remainder_is_zero);
                     let slots = self.builder.add(full_slots, has_partial_slot);
                     self.builder.clear_storage_words(access.slot, zero, slots);
                     return Some(());

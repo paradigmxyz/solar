@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_dynamic_storage_copy.sol:InternalFunctionPointerDynamicStorageCopy ===
 @module InternalFunctionPointerDynamicStorageCopy
-fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
+fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 352
     set_memory_object_len memoryarray, v0, 10
@@ -26,7 +26,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
   bb8:
     v37 = shr 2, v1
     v38 = and v1, 3
-    v39 = iszero v38
+    v39 = eq v38, 0
     jumpi v39, bb10, bb9
   bb9:
     v40 = mul v38, 64
@@ -41,7 +41,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
   bb10:
     v47 = sload 0 !metadata(storage=slot(0))
     v48 = lt 9, v47
-    v49 = iszero v48
+    v49 = eq v48, false
     icall panic_if<0x32>, v49
     v50 = storage_array_data_slot 0
     v51 = div 9, 4
@@ -80,7 +80,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
   bb18:
     v100 = shr 2, v64
     v101 = and v64, 3
-    v102 = iszero v101
+    v102 = eq v101, 0
     jumpi v102, bb20, bb19
   bb19:
     v103 = mul v101, 64
@@ -95,7 +95,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
   bb20:
     v110 = sload 1 !metadata(storage=slot(1))
     v111 = lt 9, v110
-    v112 = iszero v111
+    v112 = eq v111, false
     icall panic_if<0x32>, v112
     v113 = storage_array_data_slot 1
     v114 = div 9, 4
@@ -180,18 +180,18 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     jump bb3
 }
 
-fn @a() -> u256 [selector=0x0dbe671f, pure, abi_params=[], abi_returns=[word]] {
+fn @a() -> i256 [selector=0x0dbe671f, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 7
 }
 
-fn @load_storage_packed_array_8_0(arg0: u256) -> memoryarray {
+fn @load_storage_packed_array_8_0(arg0: i256) -> memoryarray {
   bb0:
     v0 = load_storage_array u64, arg0
     ret v0
 }
 
-fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_none_r_u256(arg0: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2

@@ -4,7 +4,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @insert_missing_predecessor{{[( ]}}
 // CHECK: + [[INSERTED:v[0-9]+]] = add arg0, 7
 // CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}], [bb3: [[INSERTED]]]
-fn @insert_missing_predecessor(arg0: u256, arg1: u256) -> u256 {
+fn @insert_missing_predecessor(arg0: i256, arg1: i256) -> i256 {
   bb0:
     switch arg1, default bb3, [1 => bb1, 2 => bb2]
   bb1:
@@ -23,7 +23,7 @@ fn @insert_missing_predecessor(arg0: u256, arg1: u256) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @translate_join_phi{{[( ]}}
 // CHECK: + [[INSERTED:v[0-9]+]] = add arg2, 1
 // CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}], [bb3: [[INSERTED]]]
-fn @translate_join_phi(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+fn @translate_join_phi(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 {
   bb0:
     switch arg3, default bb3, [1 => bb1, 2 => bb2]
   bb1:
@@ -43,7 +43,7 @@ fn @translate_join_phi(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @two_way_join{{[( ]}}
 // CHECK: + [[INSERTED:v[0-9]+]] = add arg0, 1
 // CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb2: [[INSERTED]]]
-fn @two_way_join(arg0: u256, arg1: bool) -> u256 {
+fn @two_way_join(arg0: i256, arg1: i1) -> i256 {
   bb0:
     jumpi arg1, bb1, bb2
   bb1:
@@ -57,10 +57,10 @@ fn @two_way_join(arg0: u256, arg1: bool) -> u256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @split_branch_terminated_pred{{[( ]}}
-// CHECK: + jumpi arg1, bb5, bb4
+// CHECK: + jumpi {{(arg[0-9]+|v[0-9]+)}}, bb5, bb4
 // CHECK: + [[INSERTED:v[0-9]+]] = add arg0, 1
 // CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb5: [[INSERTED]]]
-fn @split_branch_terminated_pred(arg0: u256, arg1: bool) -> u256 {
+fn @split_branch_terminated_pred(arg0: i256, arg1: i1) -> i256 {
   bb0:
     jumpi arg1, bb1, bb2
   bb1:

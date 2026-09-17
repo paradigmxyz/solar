@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_assignment_cleanup.sol:StorageBytesAssignmentCleanup ===
 @module StorageBytesAssignmentCleanup
 types:
-  struct0: {u256, u256, u256}
+  struct0: {i256, i256, i256}
 
 fn @cleanup() -> struct0 [selector=0x3cecd719, abi_params=[], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, u256]] {
   bb0:
@@ -10,23 +10,26 @@ fn @cleanup() -> struct0 [selector=0x3cecd719, abi_params=[], abi_returns=[word<
     mstore 0, 0 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     v1 = sload v0 !metadata(storage=symbolic(v0))
-    v2 = iszero v1
-    v3 = iszero v2
-    v4 = add v0, 1
-    v5 = sload v4 !metadata(storage=offset(v0, 1))
-    v6 = iszero v5
-    v7 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v7
-    v8 = and v7, 1
-    v9 = eq v8, 1
-    v10 = sub 0, v8
-    v11 = or 127, v10
-    v12 = shr 1, v7
-    v13 = and v12, v11
-    v14 = insert_value struct0, undef struct0, 0, v3
-    v15 = insert_value struct0, v14, 1, v6
-    v16 = insert_value struct0, v15, 2, v13
-    ret v16
+    v2 = eq v1, 0
+    v3 = zext i1 v2 to i256
+    v4 = eq v3, 0
+    v5 = zext i1 v4 to i256
+    v6 = add v0, 1
+    v7 = sload v6 !metadata(storage=offset(v0, 1))
+    v8 = eq v7, 0
+    v9 = zext i1 v8 to i256
+    v10 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v10
+    v11 = and v10, 1
+    v12 = eq v11, 1
+    v13 = sub 0, v11
+    v14 = or 127, v13
+    v15 = shr 1, v10
+    v16 = and v15, v14
+    v17 = insert_value struct0, undef struct0, 0, v5
+    v18 = insert_value struct0, v17, 1, v9
+    v19 = insert_value struct0, v18, 2, v16
+    ret v19
 }
 
 fn @cleanupShort() -> struct0 [selector=0x14d48529, abi_params=[], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, u256]] {
@@ -36,21 +39,24 @@ fn @cleanupShort() -> struct0 [selector=0x14d48529, abi_params=[], abi_returns=[
     mstore 0, 0 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     v1 = sload v0 !metadata(storage=symbolic(v0))
-    v2 = iszero v1
-    v3 = iszero v2
-    v4 = add v0, 1
-    v5 = sload v4 !metadata(storage=offset(v0, 1))
-    v6 = iszero v5
-    v7 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v7
-    v8 = and v7, 1
-    v9 = eq v8, 1
-    v10 = sub 0, v8
-    v11 = or 127, v10
-    v12 = shr 1, v7
-    v13 = and v12, v11
-    v14 = insert_value struct0, undef struct0, 0, v3
-    v15 = insert_value struct0, v14, 1, v6
-    v16 = insert_value struct0, v15, 2, v13
-    ret v16
+    v2 = eq v1, 0
+    v3 = zext i1 v2 to i256
+    v4 = eq v3, 0
+    v5 = zext i1 v4 to i256
+    v6 = add v0, 1
+    v7 = sload v6 !metadata(storage=offset(v0, 1))
+    v8 = eq v7, 0
+    v9 = zext i1 v8 to i256
+    v10 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v10
+    v11 = and v10, 1
+    v12 = eq v11, 1
+    v13 = sub 0, v11
+    v14 = or 127, v13
+    v15 = shr 1, v10
+    v16 = and v15, v14
+    v17 = insert_value struct0, undef struct0, 0, v5
+    v18 = insert_value struct0, v17, 1, v9
+    v19 = insert_value struct0, v18, 2, v16
+    ret v19
 }

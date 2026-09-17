@@ -9,7 +9,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @keep_mload_descending_iv{{[( ]}}
 // CHECK: {{^[ +].*}}[[LOAD:v[0-9]+]] = mload 0
 // CHECK: {{^[ +].*}}mstore
-fn @keep_mload_descending_iv() -> u256 {
+fn @keep_mload_descending_iv() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -32,7 +32,7 @@ fn @keep_mload_descending_iv() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @hoist_mload_ascending_iv{{[( ]}}
 // CHECK: + [[LOAD:v[0-9]+]] = mload 0
 // CHECK: - [[LOAD]] = mload 0
-fn @hoist_mload_ascending_iv() -> u256 {
+fn @hoist_mload_ascending_iv() -> i256 {
   bb0:
     jump bb1
   bb1:

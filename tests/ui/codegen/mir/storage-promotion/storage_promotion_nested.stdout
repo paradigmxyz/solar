@@ -3,33 +3,35 @@
   @module StoragePromotionNested
   fn @promote_outer_after_inner_flush_split() [selector=0x01020304] {
     bb0:
-+     v4 = sload 0
-+     mstore 192, v4
-+     mstore 224, false
++     v5 = sload 0
++     mstore 192, v5
++     mstore 224, 0
       jump bb6
     bb6:
       jumpi true, bb7, bb8
     bb8:
-+     v5 = mload 224
-+     jumpi v5, bb12, bb11
++     v6 = mload 224
++     v7 = ne v6, 0
++     jumpi v7, bb12, bb11
 +   bb12:
-+     v6 = mload 192
-+     sstore 0, v6
++     v8 = mload 192
++     sstore 0, v8
 +     jump bb11
 +   bb11:
       stop
     bb7:
-+     mstore 160, false
++     mstore 160, 0
       jump bb1
     bb1:
       jumpi true, bb2, bb4
     bb4:
 +     v2 = mload 160
-+     jumpi v2, bb10, bb9
++     v3 = ne v2, 0
++     jumpi v3, bb10, bb9
 +   bb10:
-+     v3 = mload 128
-+     mstore 192, v3
-+     mstore 224, true
++     v4 = mload 128
++     mstore 192, v4
++     mstore 224, 1
 +     jump bb9
 +   bb9:
       jump bb5
@@ -39,18 +41,18 @@
       v1 = add v0, 1
 -     sstore 0, v1
 +     mstore 192, v1
-+     mstore 224, true
++     mstore 224, 1
       jump bb6
     bb2:
 -     sstore 0, 7
 +     mstore 128, 7
-+     mstore 160, true
++     mstore 160, 1
       jump bb3
     bb3:
       jump bb1
   }
   
-  fn @reject_outer_when_inner_flush_may_alias(arg0: u256) [selector=0x01020304] {
+  fn @reject_outer_when_inner_flush_may_alias(arg0: i256) [selector=0x01020304] {
     bb0:
       jump bb6
     bb6:
@@ -58,16 +60,17 @@
     bb8:
       stop
     bb7:
-+     mstore 160, false
++     mstore 160, 0
       jump bb1
     bb1:
       jumpi true, bb2, bb4
     bb4:
 +     v2 = mload 160
-+     jumpi v2, bb10, bb9
++     v3 = ne v2, 0
++     jumpi v3, bb10, bb9
 +   bb10:
-+     v3 = mload 128
-+     sstore arg0, v3
++     v4 = mload 128
++     sstore arg0, v4
 +     jump bb9
 +   bb9:
       jump bb5
@@ -81,7 +84,7 @@
     bb2:
 -     sstore arg0, 7
 +     mstore 128, 7
-+     mstore 160, true
++     mstore 160, 1
       jump bb3
     bb3:
       jump bb1

@@ -373,11 +373,10 @@ impl LowerAbiCx {
     fn can_wrap_constructor_params(func: &Function) -> bool {
         let Some(layout) = &func.abi_params else { return false };
         func.params.len() == layout.types.len()
-            && layout
-                .types
-                .iter()
-                .zip(&func.params)
-                .all(|(abi_ty, &param_ty)| abi_ty.mir_type() == param_ty)
+            && layout.types.iter().zip(&func.params).all(|(abi_ty, &param_ty)| {
+                abi_ty.mir_type() == param_ty
+                    || (abi_ty.is_scalar_word() && param_ty == MirType::I256)
+            })
     }
 
     /// Rewrites value-carrying returns into a semantic ABI encode followed by
@@ -486,7 +485,12 @@ impl LowerAbiCx {
                     let value = calldata_returns.get(&value).copied().unwrap_or(value);
                     let Some(ty) = return_params
                         .and_then(|layout| layout.types.get(index).cloned())
-                        .or_else(|| return_types.get(index).copied().map(AbiParamType::Scalar))
+                        .or_else(|| {
+                            return_types
+                                .get(index)
+                                .copied()
+                                .map(|ty| AbiParamType::Scalar(ty.value_layout()))
+                        })
                     else {
                         return value;
                     };
@@ -645,7 +649,7 @@ impl LowerAbiCx {
                         .func()
                         .inst_result_value(inst)
                         .expect("ABI decode must produce a value");
-                    let data = if matches!(builder.func().value_ty(data), Some(MirType::MemPtr)) {
+                    let data = if matches!(builder.func().value_ty(data), Some(MirType::I256)) {
                         Self::materialize_static_decode_bytes(&mut builder, data, &layout)
                     } else {
                         data
@@ -670,7 +674,13 @@ impl LowerAbiCx {
                     ) else {
                         return false;
                     };
+                    // field = cast decoded word to the declared field type
                     // result = insert_value(undef, field0), ...
+                    let values = values
+                        .into_iter()
+                        .zip(&layout.types)
+                        .map(|(value, ty)| builder.cast(value, ty.mir_type()))
+                        .collect::<Vec<_>>();
                     let value = if let MirType::Struct(id) = result_ty {
                         builder.make_struct(id, values)
                     } else {
@@ -722,7 +732,7 @@ impl LowerAbiCx {
         let mut function = Function::new(Ident::with_dummy_span(sym::decode_calldata_type));
         {
             let mut builder = self.builder(&mut function);
-            let head = builder.add_param(MirType::uint256());
+            let head = builder.add_param(MirType::I256);
             let tuple_base = builder.imm(4);
             let input_end = builder.calldatasize();
             let mut current = builder.current_block();
@@ -812,7 +822,7 @@ impl LowerAbiCx {
         let mut function = Function::new(Ident::with_dummy_span(sym::decode_calldata_slice));
         {
             let mut builder = self.builder(&mut function);
-            let head = builder.add_param(MirType::uint256());
+            let head = builder.add_param(MirType::I256);
             let tuple_base = builder.imm(4);
             let input_end = builder.calldatasize();
             let mut current = builder.current_block();
@@ -825,7 +835,7 @@ impl LowerAbiCx {
                 true,
                 RevertReason::InvalidTupleOffset,
             );
-            builder.set_return_type(MirType::uint256());
+            builder.set_return_type(MirType::I256);
             builder.ret([base]);
         }
         module.add_function(function)
@@ -855,6 +865,13 @@ impl LowerAbiCx {
                 self.has_bitwise_shifting,
             )
             .expect("checked ABI layout");
+            // field = cast decoded word to the declared field type
+            // ret insert_value(undef, field0), ...
+            let values = values
+                .into_iter()
+                .zip(&layout.types)
+                .map(|(value, ty)| builder.cast(value, ty.mir_type()))
+                .collect::<Vec<_>>();
             builder.ret(values);
         }
         module.add_function(function)
@@ -1015,7 +1032,8 @@ impl LowerAbiCx {
         layout.types.len() == func.params.len()
             && layout.types.iter().zip(&func.params).all(|(abi_ty, &param_ty)| {
                 (abi_ty.is_scalar_word()
-                    && !matches!(param_ty, MirType::Function | MirType::MemoryObject(_)))
+                    && !matches!(abi_ty, AbiParamType::Scalar(crate::mir::ValueLayout::Function))
+                    && !matches!(param_ty, MirType::MemoryObject(_)))
                     || (!abi_ty.is_scalar_word()
                         && matches!(param_ty, MirType::MemoryObject(_) | MirType::Slice(_)))
             })
@@ -1208,15 +1226,13 @@ impl LowerAbiCx {
             }
             let preserve_word_types = layout.types.len() == arg_types.len()
                 && layout.types.iter().zip(&arg_types).all(|(ty, &param)| {
-                    ty.is_scalar_word() && ty.mir_type() == param && param != MirType::Function
+                    ty.is_scalar_word()
+                        && ty.mir_type() == param
+                        && !matches!(ty, AbiParamType::Scalar(crate::mir::ValueLayout::Function))
                 });
             let mut params = IndexVec::with_capacity((head_offset / 32) as usize);
             for (index, _) in (0..head_offset / 32).enumerate() {
-                params.push(if preserve_word_types {
-                    arg_types[index]
-                } else {
-                    MirType::uint256()
-                });
+                params.push(if preserve_word_types { arg_types[index] } else { MirType::I256 });
             }
             func.set_params(params);
             logical_values = logical_physical
@@ -1225,7 +1241,9 @@ impl LowerAbiCx {
                 .collect::<Vec<_>>();
             for (logical, value) in logical_values.iter().enumerate() {
                 if let Some(value) = value {
-                    if arg_types.get(logical) == Some(&MirType::Function) {
+                    if abi_params.and_then(|layout| layout.types.get(logical)).is_some_and(|ty| {
+                        matches!(ty, AbiParamType::Scalar(crate::mir::ValueLayout::Function))
+                    }) {
                         continue;
                     }
                     for &use_value in
@@ -1270,7 +1288,7 @@ impl LowerAbiCx {
                 let abi_type = abi_params.and_then(|layout| layout.types.get(index));
                 let validator = abi_type
                     .and_then(crate::mir::AbiParamType::word_validator)
-                    .or_else(|| AbiWordValidator::from_mir_type(ty));
+                    .or_else(|| AbiWordValidator::from_layout(ty.value_layout()));
                 head_offset += abi_type.map_or(32, |ty| {
                     ty.checked_head_size().expect("ABI head size exceeds u64 range")
                 });
@@ -1383,7 +1401,7 @@ impl LowerAbiCx {
                             && matches!(ty, AbiParamType::Bytes)
                             && let Some(helper) = self.calldata_slice_helper
                         {
-                            let base = builder.icall(helper, vec![head], MirType::uint256());
+                            let base = builder.icall(helper, vec![head], MirType::I256);
                             let len = builder.calldataload(base);
                             let data = builder.add_u64_offset(base, 32);
                             builder.make_slice(data, len, SliceLocation::Calldata)
@@ -1416,8 +1434,23 @@ impl LowerAbiCx {
             }
 
             builder.switch_to_block(current);
-            for (logical, value) in logical_values.iter().enumerate() {
-                if arg_types.get(logical) != Some(&MirType::Function) {
+            for (logical, value) in logical_values.iter_mut().enumerate() {
+                if let Some(raw) = *value
+                    && let Some(&ty) = arg_types.get(logical)
+                    && matches!(ty, MirType::I1 | MirType::I160)
+                {
+                    // value = cast raw to the declared scalar type
+                    let normalized = builder.cast(raw, ty);
+                    *value = Some(normalized);
+                    for &use_value in
+                        arg_uses.get(crate::mir::ArgIdx::new(logical)).into_iter().flatten()
+                    {
+                        replacements.insert(use_value, normalized);
+                    }
+                }
+                if !abi_params.and_then(|layout| layout.types.get(logical)).is_some_and(|ty| {
+                    matches!(ty, AbiParamType::Scalar(crate::mir::ValueLayout::Function))
+                }) {
                     continue;
                 }
                 let Some(value) = value else { continue };
@@ -1647,7 +1680,13 @@ impl LowerAbiCx {
                 || offset_reason == RevertReason::InvalidTupleOffset)
             && let Some(&helper) = helpers.and_then(|helpers| helpers.get(ty))
         {
-            return builder.icall(helper, vec![head, tuple_base, input_end], ty.mir_type());
+            // word_arguments = ptrtoint pointer_arguments to i256
+            // decoded = icall helper, word_arguments
+            let args = [head, tuple_base, input_end]
+                .into_iter()
+                .map(|value| builder.cast(value, MirType::I256))
+                .collect();
+            return builder.icall(helper, args, ty.mir_type());
         }
         if !constructor
             && matches!(ty, crate::mir::AbiParamType::Bytes)
@@ -2242,7 +2281,7 @@ impl LowerAbiCx {
         let mut valid = builder.imm(1);
         let value =
             Self::decode_static_calldata_value(builder, ty, head, &mut valid, has_bitwise_shifting);
-        let invalid = builder.iszero(valid);
+        let invalid = builder.eq_zero(valid);
         *current = builder.revert_if(invalid, RevertReason::Empty);
         value
     }
@@ -2265,7 +2304,7 @@ impl LowerAbiCx {
         }
         if let AbiParamType::FixedArray { element, len } = ty
             && Self::is_scalar_or_enum(element)
-            && element.mir_type() != MirType::Function
+            && !matches!(element.as_ref(), AbiParamType::Scalar(crate::mir::ValueLayout::Function))
         {
             let (object, layout) = builder.alloc_word_array(*len, AllocationSemantics::INTERNAL);
             if element.word_validator().is_some() {
@@ -2547,11 +2586,11 @@ impl LowerAbiCx {
     ) -> ValueId {
         builder.switch_to_block(*current);
         let result = builder.mul(lhs, rhs);
-        let rhs_zero = builder.iszero(rhs);
+        let rhs_zero = builder.eq_zero(rhs);
         let quotient = builder.div(result, rhs);
         let exact = builder.eq(quotient, lhs);
         let valid = builder.or(rhs_zero, exact);
-        let overflow = builder.iszero(valid);
+        let overflow = builder.eq_zero(valid);
         builder.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
         *current = builder.current_block();
         result
@@ -2703,7 +2742,8 @@ impl LowerAbiCx {
                 // A bytes memory value is commonly used as a raw pointer in inline assembly
                 // (`add(data, 0x20)`). Do not replace that pointer with a calldata slice. Keep
                 // the older propagation rule for other aggregate operations.
-                InstKind::Add(..)
+                InstKind::Zext(_)
+                | InstKind::Add(..)
                 | InstKind::Sub(..)
                 | InstKind::MLoad(_)
                 | InstKind::Keccak256(..)
@@ -2932,7 +2972,8 @@ impl LowerAbiCx {
     }
 
     fn is_scalar_or_enum(ty: &crate::mir::AbiParamType) -> bool {
-        ty.is_scalar_word() && ty.mir_type() != MirType::Function
+        ty.is_scalar_word()
+            && !matches!(ty, AbiParamType::Scalar(crate::mir::ValueLayout::Function))
     }
 
     fn normalize_abi_word(
@@ -2940,7 +2981,7 @@ impl LowerAbiCx {
         ty: &AbiParamType,
         value: ValueId,
     ) -> ValueId {
-        if matches!(ty, AbiParamType::Scalar(MirType::Function)) {
+        if matches!(ty, AbiParamType::Scalar(crate::mir::ValueLayout::Function)) {
             let shift = builder.imm(64);
             builder.shr(shift, value)
         } else {
@@ -2953,7 +2994,7 @@ impl LowerAbiCx {
         ty: &AbiParamType,
         value: ValueId,
     ) -> ValueId {
-        if matches!(ty, AbiParamType::Scalar(MirType::Function)) {
+        if matches!(ty, AbiParamType::Scalar(crate::mir::ValueLayout::Function)) {
             let shift = builder.imm(64);
             return builder.shl(shift, value);
         }
@@ -3094,9 +3135,9 @@ fn synthesize_memory_decode_helper(
     let mut function = Function::new(Ident::with_dummy_span(sym::decode_memory_type));
     {
         let mut builder = FunctionBuilder::new(&mut function).with_revert_strings(revert_strings);
-        let head = builder.add_param(MirType::uint256());
-        let tuple_base = builder.add_param(MirType::uint256());
-        let input_end = builder.add_param(MirType::uint256());
+        let head = builder.add_param(MirType::I256);
+        let tuple_base = builder.add_param(MirType::I256);
+        let input_end = builder.add_param(MirType::I256);
         let mut current = builder.current_block();
         let value = LowerAbiCx::decode_aggregate_argument(
             &mut builder,
@@ -3227,18 +3268,34 @@ fn canonical_input_covers_return(input: &AbiParamType, output: &AbiParamType) ->
     }
 }
 
-fn canonical_scalar_covers_return(input: MirType, output: MirType) -> bool {
+fn canonical_scalar_covers_return(
+    input: crate::mir::ValueLayout,
+    output: crate::mir::ValueLayout,
+) -> bool {
     match (input, output) {
-        (MirType::UInt(input), MirType::UInt(output)) => input.bits() <= output.bits(),
-        (MirType::UInt(input), MirType::Address) => input.bits() <= 160,
-        (MirType::Address, MirType::UInt(output)) => output.bits() >= 160,
-        (MirType::Int(input), MirType::Int(output)) => input.bits() <= output.bits(),
-        (MirType::FixedBytes(input), MirType::FixedBytes(output)) => {
-            input.bytes() <= output.bytes()
+        (crate::mir::ValueLayout::UInt(input), crate::mir::ValueLayout::UInt(output)) => {
+            input.bits() <= output.bits()
         }
-        (MirType::Bool, MirType::Bool | MirType::UInt(_) | MirType::Int(_) | MirType::Address) => {
-            true
+        (crate::mir::ValueLayout::UInt(input), crate::mir::ValueLayout::Address) => {
+            input.bits() <= 160
         }
+        (crate::mir::ValueLayout::Address, crate::mir::ValueLayout::UInt(output)) => {
+            output.bits() >= 160
+        }
+        (crate::mir::ValueLayout::Int(input), crate::mir::ValueLayout::Int(output)) => {
+            input.bits() <= output.bits()
+        }
+        (
+            crate::mir::ValueLayout::FixedBytes(input),
+            crate::mir::ValueLayout::FixedBytes(output),
+        ) => input.bytes() <= output.bytes(),
+        (
+            crate::mir::ValueLayout::Bool,
+            crate::mir::ValueLayout::Bool
+            | crate::mir::ValueLayout::UInt(_)
+            | crate::mir::ValueLayout::Int(_)
+            | crate::mir::ValueLayout::Address,
+        ) => true,
         _ => input == output,
     }
 }
@@ -3431,12 +3488,12 @@ fn returns_proved_call(
 
 fn is_canonical_return_scalar(
     func: &Function,
-    ty: MirType,
+    ty: crate::mir::ValueLayout,
     value: ValueId,
     source: ReturnValueSource,
 ) -> bool {
     let Some(expected) = return_cleanup_mask(ty, source) else {
-        if let MirType::Int(size) = ty
+        if let crate::mir::ValueLayout::Int(size) = ty
             && size.bits() < 256
             && let Value::Inst(inst) = func.value(value)
             && let InstKind::SignExtend(byte, input) = func.inst(*inst).kind
@@ -3444,9 +3501,9 @@ fn is_canonical_return_scalar(
             return func.value_u64(byte) == Some(u64::from(size.bits() / 8 - 1))
                 && is_canonical_return_scalar(func, ty, input, source);
         }
-        return matches!(ty, MirType::Int(size) if size.bits() >= 256);
+        return matches!(ty, crate::mir::ValueLayout::Int(size) if size.bits() >= 256);
     };
-    if ty == MirType::Function
+    if ty == crate::mir::ValueLayout::Function
         && source == ReturnValueSource::Memory
         && let Value::Inst(inst) = func.value(value)
         && let InstKind::Shl(shift, _) = func.inst(*inst).kind
@@ -3456,7 +3513,7 @@ fn is_canonical_return_scalar(
     }
     // Shifting by the padding width clears every bit outside the fixed-bytes
     // result, even when the input has dirty upper bits.
-    if let MirType::FixedBytes(size) = ty
+    if let crate::mir::ValueLayout::FixedBytes(size) = ty
         && size.bytes() < 32
         && let Value::Inst(inst) = func.value(value)
         && let InstKind::Shl(shift, _) = func.inst(*inst).kind
@@ -3502,11 +3559,11 @@ fn is_canonical_return_scalar(
     mask == expected && source != value
 }
 
-fn return_cleanup_mask(ty: MirType, source: ReturnValueSource) -> Option<U256> {
+fn return_cleanup_mask(ty: crate::mir::ValueLayout, source: ReturnValueSource) -> Option<U256> {
     let validator = if source == ReturnValueSource::Memory {
-        AbiWordValidator::from_mir_type(ty)
+        AbiWordValidator::from_layout(ty)
     } else {
-        AbiWordValidator::from_return_mir_type(ty)
+        AbiWordValidator::from_return_layout(ty)
     };
     validator.and_then(AbiWordValidator::canonical_mask)
 }
@@ -3703,7 +3760,7 @@ fn is_canonical_return_array_param(
 /// The width the ABI validates for a scalar array element, when it validates one.
 fn abi_element_bits(element: &AbiParamType) -> Option<u32> {
     let AbiParamType::Scalar(ty) = element else { return None };
-    let Some(AbiWordValidator::Unsigned(bits)) = AbiWordValidator::from_mir_type(*ty) else {
+    let Some(AbiWordValidator::Unsigned(bits)) = AbiWordValidator::from_layout(*ty) else {
         return None;
     };
     Some(u32::from(bits))
@@ -3879,9 +3936,9 @@ fn canonicalize_return_value_inner(
     match ty {
         AbiParamType::Scalar(ty) | AbiParamType::Enum { ty, .. } => {
             let validator = if source == ReturnValueSource::Memory {
-                AbiWordValidator::from_mir_type(*ty)
+                AbiWordValidator::from_layout(*ty)
             } else {
-                AbiWordValidator::from_return_mir_type(*ty)
+                AbiWordValidator::from_return_layout(*ty)
             };
             validator.map_or(value, |validator| validator.cleanup(builder, value))
         }
@@ -3964,8 +4021,8 @@ fn canonicalize_return_value_inner(
 }
 
 fn memory_object_non_null(builder: &mut FunctionBuilder<'_>, object: ValueId) -> ValueId {
-    let non_null = builder.iszero(object);
-    builder.iszero(non_null)
+    let non_null = builder.eq_zero(object);
+    builder.eq_zero(non_null)
 }
 
 fn direct_calldata_copy_source(
@@ -4113,14 +4170,18 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
             }
             (value, None)
         }
-        [data, store, remaining @ ..] => {
+        [data, cast, store, remaining @ ..] => {
             let InstKind::MemoryObjectData(data_object, MemoryObjectKind::Bytes) =
                 func.inst(*data).kind
             else {
                 return None;
             };
+            let InstKind::PtrToInt(data_ptr, 256) = func.inst(*cast).kind else { return None };
             let InstKind::MStore(ptr, value) = func.inst(*store).kind else { return None };
-            if data_object != *object || func.inst_result_value(*data) != Some(ptr) {
+            if data_object != *object
+                || func.inst_result_value(*data) != Some(data_ptr)
+                || func.inst_result_value(*cast) != Some(ptr)
+            {
                 return None;
             }
             let tail = match remaining {
@@ -4206,6 +4267,8 @@ fn materialize_calldata_return(
     base: ValueId,
     has_bitwise_shifting: bool,
 ) -> ValueId {
+    // base = slice_ptr returned_slice
+    let base = builder.slice_ptr(base);
     let input_end = builder.calldatasize();
     let mut current = builder.current_block();
     let reason = LowerAbiCx::aggregate_short_reason(ty, true);

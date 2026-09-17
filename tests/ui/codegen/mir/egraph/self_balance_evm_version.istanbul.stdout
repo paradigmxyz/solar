@@ -1,11 +1,12 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/self_balance_evm_version.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/self_balance_evm_version.mir (after egraph) ===
-  @module InstSimplifySelfBalance
-  fn @own_balance() -> u256 {
+  @module SelfBalanceEvmVersion
+  fn @own_balance() -> i256 {
     bb0:
       v0 = address
--     v1 = balance v0
-+     v1 = selfbalance
-      ret v1
+      v1 = zext i160 v0 to i256
+-     v2 = balance v1
++     v2 = selfbalance
+      ret v2
   }
   

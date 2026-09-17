@@ -125,9 +125,9 @@ fn shared_copy_helper(target: Target, sites: usize) -> Option<Function> {
     let mut function = Function::new(Ident::with_dummy_span(sym::mcopy_words));
     {
         let mut builder = FunctionBuilder::new(&mut function);
-        let dest = builder.add_param(MirType::MemPtr);
-        let src = builder.add_param(MirType::MemPtr);
-        let len = builder.add_param(MirType::uint256());
+        let dest = builder.add_param(MirType::I256);
+        let src = builder.add_param(MirType::I256);
+        let len = builder.add_param(MirType::I256);
         let exit = builder.create_block();
         emit_copy_loop(&mut builder, dest, src, len, exit, CopyDirection::Dynamic);
         builder.switch_to_block(exit);
@@ -352,7 +352,7 @@ fn emit_copy_loop(
 
     // empty = len == 0
     // branch empty, continuation, copy
-    let empty = builder.iszero(len);
+    let empty = builder.eq_zero(len);
     builder.branch(empty, continuation, copy);
     builder.switch_to_block(copy);
 
@@ -452,7 +452,7 @@ fn emit_reverse_copy(
     // branch done, continuation, reverse_body
     builder.switch_to_block(reverse_head);
     let reverse_offset = builder.phi(vec![(partial_check, full), (partial_block, full)]);
-    let done = builder.iszero(reverse_offset);
+    let done = builder.eq_zero(reverse_offset);
     builder.branch(done, continuation, reverse_body);
 
     // reverse_next = reverse_offset - 32

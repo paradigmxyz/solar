@@ -11,10 +11,11 @@
 // CHECK-LABEL: after dce
 // CHECK: {{^[ +].*}}fn @unread{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = alloc memorybytes, exact, zeroed, panic, 64
-fn @unread(arg0: u256) -> u256 {
+fn @unread(arg0: i256) -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, zeroed, panic, 64
-    v1 = memory_object_data memorybytes, v0
+    v4 = memory_object_data memorybytes, v0
+    v1 = ptrtoint memptr v4 to i256
     calldatacopy v1, 4, 32
     ret arg0
 }
@@ -23,10 +24,11 @@ fn @unread(arg0: u256) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @read{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = alloc memorybytes, exact, uninitialized, infallible, 64
 // CHECK: {{^[ +].*}}calldatacopy {{v[0-9]+}}, 4, 32
-fn @read(arg0: u256) -> u256 {
+fn @read(arg0: i256) -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-    v1 = memory_object_data memorybytes, v0
+    v5 = memory_object_data memorybytes, v0
+    v1 = ptrtoint memptr v5 to i256
     calldatacopy v1, 4, 32
     v2 = mload v1
     ret v2
@@ -35,10 +37,11 @@ fn @read(arg0: u256) -> u256 {
 // A read through a non-derived alias may observe the allocation.
 // CHECK-LABEL: {{^[ +].*}}fn @absolute_alias{{[( ]}}
 // CHECK: {{^[ +].*}}mstore {{v[0-9]+}}, 7
-fn @absolute_alias() -> u256 {
+fn @absolute_alias() -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-    v1 = memory_object_data memorybytes, v0
+    v6 = memory_object_data memorybytes, v0
+    v1 = ptrtoint memptr v6 to i256
     mstore v1, 7
     v2 = mload 128
     ret v2
@@ -47,10 +50,11 @@ fn @absolute_alias() -> u256 {
 // Storing a derived pointer byte lets later code reconstruct an alias.
 // CHECK-LABEL: {{^[ +].*}}fn @mstore8_escape{{[( ]}}
 // CHECK: {{^[ +].*}}mstore {{v[0-9]+}}, 9
-fn @mstore8_escape() -> u256 {
+fn @mstore8_escape() -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-    v1 = memory_object_data memorybytes, v0
+    v7 = memory_object_data memorybytes, v0
+    v1 = ptrtoint memptr v7 to i256
     mstore v1, 9
     mstore8 0, v1
     ret 0
@@ -58,21 +62,25 @@ fn @mstore8_escape() -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @zero_sized_write{{[( ]}}
 // CHECK: {{^[ +].*}}mstore {{v[0-9]+}}, 7
-fn @zero_sized_write() -> u256 {
+fn @zero_sized_write() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 0
+    v8 = alloc raw, exact, uninitialized, infallible, 0
+    v0 = ptrtoint memptr v8 to i256
     mstore v0, 7
-    v1 = fmp
+    v9 = fmp
+    v1 = ptrtoint memptr v9 to i256
     v2 = mload v1
     ret v2
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @write_past_allocation{{[( ]}}
 // CHECK: {{^[ +].*}}mstore {{v[0-9]+}}, 7
-fn @write_past_allocation() -> u256 {
+fn @write_past_allocation() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
-    v1 = alloc raw, exact, uninitialized, infallible, 32
+    v10 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v10 to i256
+    v11 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = ptrtoint memptr v11 to i256
     v2 = add v0, 32
     mstore v2, 7
     v3 = mload v1
@@ -82,7 +90,7 @@ fn @write_past_allocation() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @guarded_loop{{[( ]}}
 // CHECK: alloc memoryfixedarray<2, 1>
 // CHECK: memory_object_store_element
-fn @guarded_loop() -> u256 {
+fn @guarded_loop() -> i256 {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     jump bb1
@@ -100,7 +108,7 @@ fn @guarded_loop() -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @guarded_overrun{{[( ]}}
 // CHECK: {{^[ +].*}}memory_object_store_element
-fn @guarded_overrun(arg0: u256) -> u256 {
+fn @guarded_overrun(arg0: i256) -> i256 {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v1 = lt arg0, 3
@@ -114,7 +122,7 @@ fn @guarded_overrun(arg0: u256) -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @unguarded_join{{[( ]}}
 // CHECK: {{^[ +].*}}memory_object_store_element
-fn @unguarded_join(arg0: u256) -> u256 {
+fn @unguarded_join(arg0: i256) -> i256 {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v1 = lt arg0, 2

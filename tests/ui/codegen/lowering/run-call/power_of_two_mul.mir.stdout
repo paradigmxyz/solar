@@ -1,40 +1,40 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/power_of_two_mul.sol:PowerOfTwoMul ===
 @module PowerOfTwoMul
-fn @exp2(arg0: u256) -> u256 [selector=0xa75826ae, pure, abi_params=[u256], abi_returns=[word]] {
+fn @exp2(arg0: i256) -> i256 [selector=0xa75826ae, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = exp 2, arg0
     ret v0
 }
 
-fn @uncheckedExp2(arg0: u256) -> u256 [selector=0xe4bb44bc, pure, abi_params=[u256], abi_returns=[word]] {
+fn @uncheckedExp2(arg0: i256) -> i256 [selector=0xe4bb44bc, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = exp 2, arg0
     ret v0
 }
 
-fn @checkedExp2(arg0: u256) -> u256 [selector=0xb10b60bd, pure, abi_params=[u256], abi_returns=[word]] {
+fn @checkedExp2(arg0: i256) -> i256 [selector=0xb10b60bd, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_pow u256, 2, arg0
     ret v0
 }
 
-fn @mul32(arg0: u256) -> u256 [selector=0xde1efc56, pure, abi_params=[u256], abi_returns=[word]] {
+fn @mul32(arg0: i256) -> i256 [selector=0xde1efc56, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mul arg0, 32
     ret v0
 }
 
-fn @mulHigh(arg0: u256) -> u256 [selector=0x25ee2d76, pure, abi_params=[u256], abi_returns=[word]] {
+fn @mulHigh(arg0: i256) -> i256 [selector=0x25ee2d76, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mul 0x8000000000000000000000000000000000000000000000000000000000000000, arg0
     ret v0
 }
 
-fn @at(arg0: memoryarray, arg1: u256) -> u256 [selector=0xc78126ad, pure, abi_params=[array<_, u256>, u256], abi_returns=[word]] {
+fn @at(arg0: memoryarray, arg1: i256) -> i256 [selector=0xc78126ad, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = lt arg1, v0
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryarray<1>, arg0, arg1
     ret v3

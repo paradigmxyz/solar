@@ -3,7 +3,7 @@
 //@[size] compile-flags: -Osize -Zmir-pipeline=word-sequence
 @module WordCandidates
 
-fn @rule_0(arg0: u256, arg1: u256) -> u256 {
+fn @rule_0(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = not arg0
     v1 = not arg1
@@ -11,7 +11,7 @@ fn @rule_0(arg0: u256, arg1: u256) -> u256 {
     ret v2
 }
 
-fn @rule_1(arg0: u256, arg1: u256) -> u256 {
+fn @rule_1(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = not arg0
     v1 = not arg1
@@ -19,15 +19,17 @@ fn @rule_1(arg0: u256, arg1: u256) -> u256 {
     ret v2
 }
 
-fn @rule_2(arg0: u256, arg1: u256) -> u256 {
+fn @rule_2(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v0 = iszero arg0
-    v1 = iszero arg1
-    v2 = and v0, v1
+    v0 = eq arg0, 0
+    v1 = eq arg1, 0
+    v3 = zext i1 v0 to i256
+    v4 = zext i1 v1 to i256
+    v2 = and v3, v4
     ret v2
 }
 
-fn @rule_3(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_3(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = and arg0, arg1
     v1 = and arg0, arg2
@@ -35,7 +37,7 @@ fn @rule_3(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_4(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_4(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = and arg0, arg1
     v1 = and arg1, arg2
@@ -43,7 +45,7 @@ fn @rule_4(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_5(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_5(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = and arg0, arg1
     v1 = and arg2, arg0
@@ -51,7 +53,7 @@ fn @rule_5(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_6(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_6(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = and arg0, arg1
     v1 = and arg2, arg1
@@ -59,7 +61,7 @@ fn @rule_6(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_7(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_7(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = and arg0, arg1
     v1 = and arg0, arg2
@@ -67,7 +69,7 @@ fn @rule_7(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_8(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_8(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = and arg0, arg1
     v1 = and arg1, arg2
@@ -75,7 +77,7 @@ fn @rule_8(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_9(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_9(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = and arg0, arg1
     v1 = and arg2, arg0
@@ -83,7 +85,7 @@ fn @rule_9(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_10(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_10(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = and arg0, arg1
     v1 = and arg2, arg1
@@ -91,7 +93,7 @@ fn @rule_10(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_11(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_11(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = or arg0, arg1
     v1 = or arg0, arg2
@@ -99,7 +101,7 @@ fn @rule_11(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_12(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_12(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = or arg0, arg1
     v1 = or arg1, arg2
@@ -107,7 +109,7 @@ fn @rule_12(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_13(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_13(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = or arg0, arg1
     v1 = or arg2, arg0
@@ -115,7 +117,7 @@ fn @rule_13(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_14(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_14(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = or arg0, arg1
     v1 = or arg2, arg1
@@ -123,7 +125,7 @@ fn @rule_14(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_15(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_15(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = shl arg0, arg1
     v1 = shl arg0, arg2
@@ -131,7 +133,7 @@ fn @rule_15(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_16(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_16(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = shl arg0, arg1
     v1 = shl arg0, arg2
@@ -139,7 +141,7 @@ fn @rule_16(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_17(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_17(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = shl arg0, arg1
     v1 = shl arg0, arg2
@@ -147,7 +149,7 @@ fn @rule_17(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_18(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_18(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = shr arg0, arg1
     v1 = shr arg0, arg2
@@ -155,7 +157,7 @@ fn @rule_18(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_19(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_19(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = shr arg0, arg1
     v1 = shr arg0, arg2
@@ -163,7 +165,7 @@ fn @rule_19(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_20(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_20(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = shr arg0, arg1
     v1 = shr arg0, arg2
@@ -171,7 +173,7 @@ fn @rule_20(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_21(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_21(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = sar arg0, arg1
     v1 = sar arg0, arg2
@@ -179,7 +181,7 @@ fn @rule_21(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_22(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_22(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = sar arg0, arg1
     v1 = sar arg0, arg2
@@ -187,7 +189,7 @@ fn @rule_22(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_23(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_23(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = sar arg0, arg1
     v1 = sar arg0, arg2
@@ -195,7 +197,7 @@ fn @rule_23(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_24(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @rule_24(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = shl arg0, arg1
     v1 = shl arg0, arg2
@@ -203,50 +205,58 @@ fn @rule_24(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @rule_25(arg0: u256) -> u256 {
+fn @rule_25(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 0x100
-    ret v0
+    v1 = zext i1 v0 to i256
+    ret v1
 }
 
-fn @rule_26(arg0: u256) -> u256 {
+fn @rule_26(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 0x10000
-    ret v0
+    v1 = zext i1 v0 to i256
+    ret v1
 }
 
-fn @rule_27(arg0: u256) -> u256 {
+fn @rule_27(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 0x100000000
-    ret v0
+    v1 = zext i1 v0 to i256
+    ret v1
 }
 
-fn @rule_28(arg0: u256) -> u256 {
+fn @rule_28(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 0x10000000000000000
-    ret v0
+    v1 = zext i1 v0 to i256
+    ret v1
 }
 
-fn @rule_29(arg0: u256) -> u256 {
+fn @rule_29(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 0x100000000000000000000000000000000
-    ret v0
+    v1 = zext i1 v0 to i256
+    ret v1
 }
 
-fn @rule_30(arg0: u256) -> u256 {
+fn @rule_30(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 0x10000000000000000000000000000000000000000
-    ret v0
+    v1 = zext i1 v0 to i256
+    ret v1
 }
 
-fn @rule_31(arg0: u256) -> u256 {
+fn @rule_31(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 0x100000000000000000000000000000000000000000000000000000000
-    ret v0
+    v1 = zext i1 v0 to i256
+    ret v1
 }
 
-fn @rule_32(arg0: u256) -> u256 {
+fn @rule_32(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 0x100000000000000000000000000000000000000000000000000000000000000
-    ret v0
+    v1 = zext i1 v0 to i256
+    ret v1
 }

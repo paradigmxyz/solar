@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/sccp/sccp_switch_order.mir (before sccp) ===
 + // === ROOT/tests/ui/codegen/mir/sccp/sccp_switch_order.mir (after sccp) ===
   @module SccpSwitchOrder
-  fn @earlier_unknown_case_blocks_fold(arg0: u256) -> u256 {
+  fn @earlier_unknown_case_blocks_fold(arg0: i256) -> i256 {
     bb0:
       switch 5, default bb3, [arg0 => bb1, 5 => bb2]
     bb2:
@@ -13,7 +13,7 @@
 +     invalid
   }
   
-  fn @constant_cases_fold() -> u256 {
+  fn @constant_cases_fold() -> i256 {
     bb0:
 -     switch 5, default bb3, [1 => bb1, 5 => bb2]
 +     jump bb2
@@ -27,7 +27,7 @@
 +     invalid
   }
   
-  fn @unknown_case_keeps_default(arg0: u256) -> u256 {
+  fn @unknown_case_keeps_default(arg0: i256) -> i256 {
     bb0:
       switch 5, default bb3, [arg0 => bb1, 4 => bb2]
     bb2:

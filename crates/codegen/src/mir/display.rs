@@ -181,7 +181,7 @@ pub(crate) fn display_function_dot<'a>(
 ///
 /// The format is designed for diffing and FileCheck-style pattern matching:
 /// ```text
-/// fn @name(arg0: uint256, arg1: bool) -> uint256 {
+/// fn @name(arg0: uint256, arg1: i1) -> uint256 {
 ///   bb0:
 ///     v0 = add arg0, 1
 ///     jumpi arg1, bb1, bb2
@@ -422,14 +422,23 @@ fn display_inst_kind<'a>(
             ty.index(),
             display_val(*aggregate, func)
         ),
-        InstKind::WordCast(value) => write!(f, "word_cast {}", display_val(*value, func)),
-        InstKind::MemoryObjectFromPtr { ptr, kind } => {
-            write!(
-                f,
-                "memory_object_from_ptr {}, {}",
-                MirType::MemoryObject(*kind),
-                display_val(*ptr, func)
-            )
+        InstKind::Trunc(value, _)
+        | InstKind::Zext(value)
+        | InstKind::Sext(value, _, _)
+        | InstKind::PtrToInt(value, _)
+        | InstKind::IntToPtr(value)
+        | InstKind::Bitcast(value) => {
+            let from = func.value_ty(*value).unwrap_or(MirType::I256);
+            let to = result_ty.unwrap_or(MirType::I256);
+            write!(f, "{} {from} ", kind.mnemonic())?;
+            if let Value::Immediate(immediate) = func.value(*value) {
+                write!(f, "{}", display_u256(immediate.as_u256().unwrap()))?;
+            } else if matches!(func.value(*value), Value::Undef(_)) {
+                f.write_str("undef")?;
+            } else {
+                write!(f, "{}", display_val(*value, func))?;
+            }
+            write!(f, " to {to}")
         }
         InstKind::StoreImmutable(id, value) => {
             write!(f, "storeimmutable {}", display_immutable_ref(*id, module))?;
@@ -846,7 +855,7 @@ fn display_val(vid: ValueId, func: &Function) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| match func.value(vid) {
         Value::Immediate(imm) if let Some(u256) = imm.as_u256() => match imm {
             Immediate::Bool(value) => write!(f, "{value}"),
-            _ if imm.ty() != MirType::uint256() => write!(f, "{} {}", imm.ty(), display_u256(u256)),
+            _ if imm.ty() != MirType::I256 => write!(f, "{} {}", imm.ty(), display_u256(u256)),
             _ => write!(f, "{}", display_u256(u256)),
         },
         Value::Arg(index) => write!(f, "arg{}", index.index()),

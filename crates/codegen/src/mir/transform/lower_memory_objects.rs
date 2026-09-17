@@ -58,6 +58,13 @@ impl MirPass for LowerMemoryObjects {
             return false;
         }
         let mut changed = false;
+        // struct { memory_object, ... } -> struct { memptr, ... }
+        for structure in &mut module.struct_types {
+            for field in &mut structure.fields {
+                changed |= is_object_type(field);
+                erase_object_type(field);
+            }
+        }
         for func in module.functions.iter_mut() {
             changed |= lower_function::<EvmMemoryLayout>(func);
         }
@@ -90,6 +97,13 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         for &inst in &instructions {
+            if builder
+                .func()
+                .inst_result_value(inst)
+                .is_some_and(|value| replacements.contains_key(&value))
+            {
+                continue;
+            }
             let kind = builder.func().inst(inst).kind.clone();
             let keep = (|| {
                 match kind {
@@ -97,13 +111,6 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         let instruction = builder.func_mut().inst_mut(inst);
                         instruction.kind =
                             InstKind::Alloc { size, kind: AllocationKind::Raw, semantics };
-                    }
-                    InstKind::MemoryObjectFromPtr { ptr, .. } | InstKind::WordCast(ptr) => {
-                        // object -> ptr
-                        if let Some(result) = builder.func().inst_result_value(inst) {
-                            replacements.insert(result, ptr);
-                        }
-                        return false;
                     }
                     InstKind::MemoryObjectLen(object, kind) => {
                         if matches!(builder.func().value_ty(object), Some(MirType::Slice(_))) {
@@ -129,6 +136,8 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                                 return false;
                             };
                             let pointer = builder.slice_ptr(object);
+                            // pointer = inttoptr slice_ptr to memptr
+                            let pointer = builder.cast(pointer, MirType::MemPtr);
                             replacements.insert(result, pointer);
                             return false;
                         }
@@ -175,15 +184,42 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                                         break;
                                     }
                                 }
-                                if !multiple_users
-                                    && let Some(user) = user
-                                    && matches!(builder.func().inst(user).kind, InstKind::MLoad(value) if value == result)
-                                {
-                                    let base = builder.slice_ptr(object);
-                                    let address = builder.add_u64_offset(base, offset);
-                                    builder.func_mut().inst_mut(user).kind =
-                                        InstKind::CalldataLoad(address);
-                                    return false;
+                                if !multiple_users && let Some(mut user) = user {
+                                    let mut address_value = result;
+                                    let mut cast_result = None;
+                                    if let InstKind::PtrToInt(value, 256) =
+                                        builder.func().inst(user).kind
+                                        && value == result
+                                    {
+                                        address_value =
+                                            builder.func().inst_result_value(user).unwrap();
+                                        cast_result = Some(address_value);
+                                        let mut uses = instructions.iter().copied().filter(|&id| {
+                                            builder
+                                                .func()
+                                                .inst(id)
+                                                .operands()
+                                                .contains(&address_value)
+                                        });
+                                        if let Some(load) = uses.next()
+                                            && uses.next().is_none()
+                                        {
+                                            user = load;
+                                        }
+                                    }
+                                    if matches!(builder.func().inst(user).kind, InstKind::MLoad(value) if value == address_value)
+                                    {
+                                        // address = slice_ptr calldata_slice + field_offset
+                                        // value = calldataload address
+                                        let base = builder.slice_ptr(object);
+                                        let address = builder.add_u64_offset(base, offset);
+                                        builder.func_mut().inst_mut(user).kind =
+                                            InstKind::CalldataLoad(address);
+                                        if let Some(cast_result) = cast_result {
+                                            replacements.insert(cast_result, address);
+                                        }
+                                        return false;
+                                    }
                                 }
                             }
                             if location != SliceLocation::Memory {
@@ -191,6 +227,8 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                             }
                             let base = builder.slice_ptr(object);
                             let address = builder.add_u64_offset(base, offset);
+                            // address = inttoptr byte_offset to memptr
+                            let address = builder.cast(address, MirType::MemPtr);
                             if let Some(result) = builder.func().inst_result_value(inst) {
                                 replacements.insert(result, address);
                             }
@@ -388,6 +426,21 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                 true
             })();
             if keep {
+                let mut kind = builder.func().inst(inst).kind.clone();
+                if kind.evm_opcode().is_some()
+                    && !kind.scalar_types_match(builder.func(), builder.func().inst(inst).result_ty)
+                {
+                    // scalar_operand = zext scalar_operand to i256
+                    kind.visit_operands_mut(|value| {
+                        if matches!(
+                            builder.func().value_ty(*value),
+                            Some(MirType::I1 | MirType::I160)
+                        ) {
+                            *value = builder.cast_word(*value);
+                        }
+                    });
+                    builder.func_mut().inst_mut(inst).kind = kind;
+                }
                 builder.func_mut().blocks[block].instructions.push(inst);
             }
         }
@@ -396,6 +449,7 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
     func.replace_uses_canonicalized(&replacements);
     erase_object_types(func);
     coalesce_constant_allocations(func);
+    normalize_pointer_operands(func);
     true
 }
 
@@ -694,6 +748,8 @@ fn lower_object_copy<P: MemoryLayoutPolicy>(
 }
 
 fn erase_object_types(func: &mut Function) {
+    func.attributes.may_return_memory |=
+        func.params.iter().chain(func.return_components()).any(|ty| ty.is_memory_reference());
     for index in func.arg_indices() {
         let mut ty = func.arg_ty(index);
         erase_object_type(&mut ty);
@@ -727,4 +783,39 @@ fn erase_object_type(ty: &mut MirType) {
 
 fn is_object_type(ty: &MirType) -> bool {
     matches!(ty, MirType::MemoryObject(_))
+}
+
+/// Materializes integer operands and pointer results at the physical opcode boundary.
+pub(super) fn normalize_pointer_operands(func: &mut Function) {
+    for block in func.blocks.indices() {
+        let instructions = std::mem::take(&mut func.blocks[block].instructions);
+        let mut builder = FunctionBuilder::new(func);
+        builder.switch_to_block(block);
+        for id in instructions {
+            let inst = builder.func().inst(id).clone();
+            if inst.kind.evm_opcode().is_some()
+                && !inst.kind.scalar_types_match(builder.func(), inst.result_ty)
+            {
+                builder.set_debug_context(&inst.metadata);
+                let mut kind = inst.kind;
+                // integer_operand = ptrtoint pointer_operand to i256
+                kind.visit_operands_mut(|value| *value = builder.cast(*value, MirType::I256));
+                if inst.result_ty == Some(MirType::MemPtr) {
+                    // integer_result = opcode integer_operands
+                    // pointer_result = inttoptr integer_result to memptr
+                    let value = builder.emit_inst(kind, Some(MirType::I256));
+                    if let Value::Inst(emitted) = *builder.func().value(value) {
+                        builder.func_mut().inst_mut(emitted).metadata = inst.metadata.clone();
+                    }
+                    let instruction = builder.func_mut().inst_mut(id);
+                    instruction.kind = InstKind::IntToPtr(value);
+                    instruction.metadata.set_effect(None);
+                    instruction.metadata.set_memory_region(None);
+                } else {
+                    builder.func_mut().inst_mut(id).kind = kind;
+                }
+            }
+            builder.func_mut().blocks[block].instructions.push(id);
+        }
+    }
 }

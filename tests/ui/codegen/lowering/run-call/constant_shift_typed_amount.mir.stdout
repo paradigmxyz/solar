@@ -1,49 +1,49 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constant_shift_typed_amount.sol:C ===
 @module C
-fn @shl255() -> u256 [selector=0xcc0960fa, pure, abi_params=[], abi_returns=[word]] {
+fn @shl255() -> i256 [selector=0xcc0960fa, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 0x8000000000000000000000000000000000000000000000000000000000000000
 }
 
-fn @round255() -> u256 [selector=0xc640ed0c, pure, abi_params=[], abi_returns=[word]] {
+fn @round255() -> i256 [selector=0xc640ed0c, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 1
 }
 
-fn @shl256() -> u256 [selector=0x6f0a6f55, pure, abi_params=[], abi_returns=[word]] {
+fn @shl256() -> i256 [selector=0x6f0a6f55, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = shl 256, 1
     ret v0
 }
 
-fn @round256() -> u256 [selector=0x18bce979, pure, abi_params=[], abi_returns=[word]] {
+fn @round256() -> i256 [selector=0x18bce979, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = shl 256, 1
     v1 = shr 256, v0
     ret v1
 }
 
-fn @shr256() -> u256 [selector=0xe3729ce8, pure, abi_params=[], abi_returns=[word]] {
+fn @shr256() -> i256 [selector=0xe3729ce8, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 0
 }
 
-fn @negativeShl() -> i256 [selector=0x23aa9ca8, pure, abi_params=[], abi_returns=[word]] {
+fn @negativeShl() -> i256 [selector=0x23aa9ca8, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
 }
 
-fn @negativePow() -> i256 [selector=0x31bd6b2c, pure, abi_params=[], abi_returns=[word]] {
+fn @negativePow() -> i256 [selector=0x31bd6b2c, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     ret 256
 }
 
-fn @pow() -> u256 [selector=0xef7e1e89, pure, abi_params=[], abi_returns=[word]] {
+fn @pow() -> i256 [selector=0xef7e1e89, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 0x19a1
 }
 
-fn @pow256() -> u256 [selector=0x7ae45de1, pure, abi_params=[], abi_returns=[word]] {
+fn @pow256() -> i256 [selector=0x7ae45de1, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_pow u256, 2, 256
     ret v0

@@ -1,7 +1,7 @@
 //@ compile-flags: -Zmir-pipeline=call-cleanup,dce
 @module BooleanReturns
 
-fn @clean(arg0: u256) -> bool {
+fn @clean(arg0: i256) -> i1 {
   bb0:
     v0 = lt arg0, 128
     jumpi v0, bb1, bb2
@@ -11,61 +11,64 @@ fn @clean(arg0: u256) -> bool {
     jump bb3
   bb3:
     v1 = phi [bb1: 1], [bb2: 0]
-    ret v1
+    v2 = ne v1, 0
+    ret v2
 }
 
-// A bool signature is insufficient: assembly may return a dirty word.
-fn @dirty(arg0: u256) -> bool {
+// Assembly words must be normalized before returning a boolean.
+fn @dirty(arg0: i256) -> i1 {
   bb0:
-    ret arg0
+    v0 = ne arg0, 0
+    ret v0
 }
 
-// Recursive return facts cannot bootstrap their own proof.
-fn @recursive(arg0: u256) -> bool {
+// Recursive calls preserve the declared boolean contract.
+fn @recursive(arg0: i256) -> i1 {
   bb0:
     v0 = icall @recursive, arg0
     ret v0
 }
 
-fn @compare(arg0: u256) -> bool {
+fn @compare(arg0: i256) -> i1 {
   bb0:
     v0 = icall @clean, arg0
-    v1 = iszero v0
-    v2 = iszero v1
+    v1 = eq v0, false
+    v2 = eq v1, false
     ret v2
 }
 
-fn @keep_dirty(arg0: u256) -> bool {
+fn @keep_dirty(arg0: i256) -> i1 {
   bb0:
     v0 = icall @dirty, arg0
-    v1 = iszero v0
-    v2 = iszero v1
+    v1 = eq v0, false
+    v2 = eq v1, false
     ret v2
 }
 
-fn @keep_recursive(arg0: u256) -> bool {
+fn @keep_recursive(arg0: i256) -> i1 {
   bb0:
     v0 = icall @recursive, arg0
-    v1 = iszero v0
-    v2 = iszero v1
+    v1 = eq v0, false
+    v2 = eq v1, false
     ret v2
 }
 
-// A dirty return on one arm prevents proving the complete helper clean.
-fn @mixed(arg0: u256) -> bool {
+// Every return arm normalizes raw words to booleans.
+fn @mixed(arg0: i256) -> i1 {
   bb0:
     v0 = lt arg0, 5
     jumpi v0, bb1, bb2
   bb1:
-    ret 1
+    ret true
   bb2:
-    ret 2
+    v1 = ne 2, 0
+    ret v1
 }
 
-fn @keep_mixed(arg0: u256) -> bool {
+fn @keep_mixed(arg0: i256) -> i1 {
   bb0:
     v0 = icall @mixed, arg0
-    v1 = iszero v0
-    v2 = iszero v1
+    v1 = eq v0, false
+    v2 = eq v1, false
     ret v2
 }

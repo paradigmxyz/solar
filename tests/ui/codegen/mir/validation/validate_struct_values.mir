@@ -1,19 +1,21 @@
 //@compile-flags: -Zmir-pipeline=none
 //~? ERROR: [fn0] [bb0, inst0] aggregate operand does not match its declared struct type
-//~? ERROR: [fn1] [bb0, inst0] inserted value must have type `bool`
-//~? ERROR: [fn2] [bb0] return values do not match the struct signature
-//~? ERROR: [fn3] [bb0, inst0] struct value does not match the required type
-//~? ERROR: [fn4] [bb0] terminator cannot consume a struct value
-//~? ERROR: [fn5] [bb0] tail-call arguments do not match the struct signature
+//~? ERROR: [fn1] [bb0, inst0] inserted value must have type `i1`
+//~? ERROR: [fn2] [bb0] return values do not match the signature
+//~? ERROR: [fn3] [bb0, inst0] value has type `struct0`, expected `i1`; use an explicit cast
+//~? ERROR: [fn4] [bb0] branch condition must have type `i1`; compare words with zero
+//~? ERROR: [fn5] [bb0] tail-call arguments do not match the signature
 //~? ERROR: [fn6] internal return ABI does not match the function's result type
-//~? ERROR: [fn7] [bb0, inst0] memory object pointer conversion requires a word and matching object result
+//~? ERROR: [fn7] [bb0, inst0] `inttoptr` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn16] [bb0] return values do not match the signature
+//~? ERROR: [fn17] [bb0, inst0] `trunc` has incompatible scalar types; use an explicit cast
 @module InvalidStructValues
 
 types:
-  struct0: {u256, bool}
-  struct1: {struct0, u256}
+  struct0: {i256, i1}
+  struct1: {struct0, i256}
 
-fn @invalid_operand(arg0: u256) -> u256 {
+fn @invalid_operand(arg0: i256) -> i256 {
   bb0:
     v0 = extract_value struct0, arg0, 0
     ret v0
@@ -25,7 +27,7 @@ fn @invalid_field(arg0: struct0) -> struct0 {
     ret v0
 }
 
-fn @invalid_return(arg0: u256) -> struct0 {
+fn @invalid_return(arg0: i256) -> struct0 {
   bb0:
     ret arg0
 }
@@ -45,40 +47,108 @@ fn @invalid_branch(arg0: struct0) {
     ret
 }
 
-fn @invalid_tail(arg0: u256) -> struct0 {
+fn @invalid_tail(arg0: i256) -> struct0 {
   bb0:
     tail_call @invalid_field, arg0
 }
 
-fn @mixed_return(arg0: struct0, arg1: u256) -> struct1 [return_abi=[struct0, u256]] {
+fn @mixed_return(arg0: struct0, arg1: i256) -> struct1 [return_abi=[struct0, i256]] {
   bb0:
     ret arg0, arg1
 }
 
 fn @invalid_object_pointer(arg0: struct0) -> memorybytes {
   bb0:
-    v0 = memory_object_from_ptr memorybytes, arg0
+    v0 = inttoptr struct0 arg0 to memorybytes
     ret v0
 }
 
 //~? ERROR: [fn8] [bb0, inst0] memory object has type `memorystruct`, expected `memorybytes`
-fn @wrong_object_kind(arg0: memorystruct) -> u256 {
+fn @wrong_object_kind(arg0: memorystruct) -> i256 {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     ret v0
 }
 
 //~? ERROR: [fn9] [bb0, inst0] memory object has type `memorybytes`, expected `memoryfixedarray`
-fn @wrong_element_layout(arg0: memorybytes) -> u256 {
+fn @wrong_element_layout(arg0: memorybytes) -> i256 {
   bb0:
     v0 = memory_object_element_addr memoryfixedarray<4, 1>, arg0, 0
-    v1 = mload v0
+    v2 = ptrtoint memptr v0 to i256
+    v1 = mload v2
     ret v1
 }
 
-//~? ERROR: [fn10] [bb0, inst0] word cast requires a one-word operand and u256 result
-fn @invalid_word_cast(arg0: calldataslice) -> u256 {
+//~? ERROR: [fn10] [bb0, inst0] `zext` has incompatible scalar types; use an explicit cast
+fn @invalid_integer_extension(arg0: calldataslice) -> i256 {
   bb0:
-    v0 = word_cast arg0
+    v0 = zext calldataslice arg0 to i256
+    ret v0
+}
+
+//~? ERROR: [fn11] [bb0] branch condition must have type `i1`; compare words with zero
+fn @word_branch(arg0: i256) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    ret
+  bb2:
+    ret
+}
+
+//~? ERROR: [fn12] [bb0] return values do not match the signature
+fn @dirty_bool_return() -> i1 {
+  bb0:
+    ret 2
+}
+
+//~? ERROR: [fn13] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
+fn @implicit_bool_word(arg0: i1) -> i256 {
+  bb0:
+    v0 = add arg0, 1
+    ret v0
+}
+
+fn @bool_parameter(arg0: i1) -> i1 {
+  bb0:
+    ret arg0
+}
+
+//~? ERROR: [fn15] [bb0, inst0] value has type `i256`, expected `i1`; use an explicit cast
+fn @implicit_call_argument(arg0: i256) -> i1 {
+  bb0:
+    v0 = icall @bool_parameter, arg0
+    ret v0
+}
+
+fn @implicit_address_word(arg0: i160) -> i256 {
+  bb0:
+    ret arg0
+}
+
+fn @invalid_address_trunc(arg0: i160) -> i160 {
+  bb0:
+    v0 = trunc i160 arg0 to i160
+    ret v0
+}
+
+//~? ERROR: [fn18] [bb0, inst0] `zext` has incompatible scalar types; use an explicit cast
+fn @narrowing_zext(arg0: i256) -> i160 {
+  bb0:
+    v0 = zext i256 arg0 to i160
+    ret v0
+}
+
+//~? ERROR: [fn19] [bb0, inst0] `ptrtoint` has incompatible scalar types; use an explicit cast
+fn @integer_ptrtoint(arg0: i256) -> i256 {
+  bb0:
+    v0 = ptrtoint i256 arg0 to i256
+    ret v0
+}
+
+//~? ERROR: [fn20] [bb0, inst0] `bitcast` has incompatible scalar types; use an explicit cast
+fn @integer_pointer_bitcast(arg0: i256) -> memptr {
+  bb0:
+    v0 = bitcast i256 arg0 to memptr
     ret v0
 }

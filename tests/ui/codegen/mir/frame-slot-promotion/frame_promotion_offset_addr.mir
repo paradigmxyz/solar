@@ -3,12 +3,14 @@
 @module FramePromotionOffsetAddr
 // CHECK-LABEL: {{^[ +].*}}fn @offset_addr{{[( ]}}
 // CHECK: + ret 99
-fn @offset_addr() -> u256 {
+fn @offset_addr() -> i256 {
   bb0:
-    v1 = internal_frame_addr 128
+    v6 = internal_frame_addr 128
+    v1 = ptrtoint memptr v6 to i256
     v2 = add v1, 32
     mstore v2, 99
-    v3 = internal_frame_addr 128
+    v7 = internal_frame_addr 128
+    v3 = ptrtoint memptr v7 to i256
     v4 = add v3, 32
     v5 = mload v4
     ret v5

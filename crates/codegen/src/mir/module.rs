@@ -22,7 +22,7 @@ pub(crate) struct Immutable {
     /// The source-level name used by textual MIR.
     pub(crate) name: Ident,
     /// The immutable's MIR type.
-    pub(crate) ty: MirType,
+    pub(crate) ty: super::ValueLayout,
     /// The source variable, when this module was lowered from Solidity.
     pub(crate) variable_id: Option<VariableId>,
 }
@@ -140,9 +140,7 @@ impl Module {
         match fields.as_slice() {
             [] => None,
             [ty] => Some(*ty),
-            _ => Some(self.intern_struct(
-                fields.into_iter().map(MirType::return_field_type).collect::<Vec<_>>(),
-            )),
+            _ => Some(self.intern_struct(fields)),
         }
     }
 
@@ -371,7 +369,7 @@ impl Module {
     pub(crate) fn add_immutable(
         &mut self,
         name: Ident,
-        ty: MirType,
+        ty: super::ValueLayout,
         variable_id: Option<VariableId>,
     ) -> ImmutableId {
         self.immutables.push(Immutable { name, ty, variable_id })
@@ -391,13 +389,13 @@ impl Module {
 
     /// Returns an immutable's MIR type.
     #[must_use]
-    pub(crate) fn immutable_type(&self, id: ImmutableId) -> MirType {
+    pub(crate) fn immutable_type(&self, id: ImmutableId) -> super::ValueLayout {
         self.immutable(id).ty
     }
 
     /// Returns an immutable's MIR type if the identifier is allocated.
     #[must_use]
-    pub(crate) fn get_immutable_type(&self, id: ImmutableId) -> Option<MirType> {
+    pub(crate) fn get_immutable_type(&self, id: ImmutableId) -> Option<super::ValueLayout> {
         self.get_immutable(id).map(|immutable| immutable.ty)
     }
 

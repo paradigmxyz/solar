@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/mapping_nested_struct_copy.sol:MappingNestedStructCopy ===
 @module MappingNestedStructCopy
 types:
-  struct0: {u256, u256, u256, u256}
+  struct0: {i256, i256, i256, i256}
 
-fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) [selector=0xeccd65dc, abi_params=[u256, u256, u256, u256, u256], abi_returns=[]] {
+fn @set(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [selector=0xeccd65dc, abi_params=[u256, u256, u256, u256, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
@@ -17,18 +17,20 @@ fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) [selector=0x
     sstore v2, v3 !metadata(storage=symbolic(v2))
     v4 = add v2, 1
     v5 = memory_object_load_field memorystruct<3>, v0, 1
-    v6 = memory_object_load_field memorystruct<2>, v5, 0
-    sstore v4, v6 !metadata(storage=offset(v2, 1))
-    v7 = add v4, 1
-    v8 = memory_object_load_field memorystruct<2>, v5, 1
-    sstore v7, v8 !metadata(storage=offset(v2, 2))
-    v9 = add v2, 3
-    v10 = memory_object_load_field memorystruct<3>, v0, 2
-    sstore v9, v10 !metadata(storage=offset(v2, 3))
+    v6 = inttoptr i256 v5 to memorystruct
+    v7 = memory_object_load_field memorystruct<2>, v6, 0
+    sstore v4, v7 !metadata(storage=offset(v2, 1))
+    v8 = add v4, 1
+    v9 = inttoptr i256 v5 to memorystruct
+    v10 = memory_object_load_field memorystruct<2>, v9, 1
+    sstore v8, v10 !metadata(storage=offset(v2, 2))
+    v11 = add v2, 3
+    v12 = memory_object_load_field memorystruct<3>, v0, 2
+    sstore v11, v12 !metadata(storage=offset(v2, 3))
     ret
 }
 
-fn @get(arg0: u256) -> struct0 [selector=0x9507d39a, view, abi_params=[u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @get(arg0: i256) -> struct0 [selector=0x9507d39a, view, abi_params=[u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = alloc memorystruct<3>, exact, uninitialized, panic, 96
@@ -46,19 +48,21 @@ fn @get(arg0: u256) -> struct0 [selector=0x9507d39a, view, abi_params=[u256], ab
     v9 = sload v8 !metadata(storage=offset(v0, 3))
     memory_object_store_field memorystruct<3>, v1, 2, v9
     v10 = memory_object_load_field memorystruct<3>, v1, 0
-    v11 = memory_object_load_field memorystruct<3>, v1, 1, memorystruct
-    v12 = memory_object_load_field memorystruct<2>, v11, 0
-    v13 = memory_object_load_field memorystruct<3>, v1, 1, memorystruct
-    v14 = memory_object_load_field memorystruct<2>, v13, 1
-    v15 = memory_object_load_field memorystruct<3>, v1, 2
-    v16 = insert_value struct0, undef struct0, 0, v10
-    v17 = insert_value struct0, v16, 1, v12
-    v18 = insert_value struct0, v17, 2, v14
-    v19 = insert_value struct0, v18, 3, v15
-    ret v19
+    v11 = memory_object_load_field memorystruct<3>, v1, 1
+    v12 = inttoptr i256 v11 to memorystruct
+    v13 = memory_object_load_field memorystruct<2>, v12, 0
+    v14 = memory_object_load_field memorystruct<3>, v1, 1
+    v15 = inttoptr i256 v14 to memorystruct
+    v16 = memory_object_load_field memorystruct<2>, v15, 1
+    v17 = memory_object_load_field memorystruct<3>, v1, 2
+    v18 = insert_value struct0, undef struct0, 0, v10
+    v19 = insert_value struct0, v18, 1, v13
+    v20 = insert_value struct0, v19, 2, v16
+    v21 = insert_value struct0, v20, 3, v17
+    ret v21
 }
 
-fn @clear(arg0: u256) [selector=0xc0fe1af8, abi_params=[u256], abi_returns=[]] {
+fn @clear(arg0: i256) [selector=0xc0fe1af8, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = mapping_slot arg0, 0
     sstore v0, 0 !metadata(storage=symbolic(v0))

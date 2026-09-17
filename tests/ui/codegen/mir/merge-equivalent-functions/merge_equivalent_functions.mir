@@ -2,49 +2,49 @@
 //@ filecheck:
 @module MergeEquivalentFunctions
 
-// CHECK-LABEL: fn @leaf_a(arg0: u256) -> u256
-fn @leaf_a(arg0: u256) -> u256 {
+// CHECK-LABEL: fn @leaf_a(arg0: i256) -> i256
+fn @leaf_a(arg0: i256) -> i256 {
   bb0:
     v0 = add arg0, 1
     ret v0
 }
 
-// CHECK-LABEL: fn @leaf_b(arg0: u256) -> u256
-fn @leaf_b(arg0: u256) -> u256 {
+// CHECK-LABEL: fn @leaf_b(arg0: i256) -> i256
+fn @leaf_b(arg0: i256) -> i256 {
   bb0:
     v0 = add arg0, 1
     ret v0
 }
 
-// CHECK-LABEL: fn @wrap_a(arg0: u256) -> u256
-fn @wrap_a(arg0: u256) -> u256 {
+// CHECK-LABEL: fn @wrap_a(arg0: i256) -> i256
+fn @wrap_a(arg0: i256) -> i256 {
   bb0:
     v0 = icall fn0, arg0
     ret v0
 }
 
 // Merging the leaves exposes these wrappers as equivalent on the next wave.
-// CHECK-LABEL: fn @wrap_b(arg0: u256) -> u256
+// CHECK-LABEL: fn @wrap_b(arg0: i256) -> i256
 // CHECK: {{^\+.*}}icall @leaf_a, arg0
-fn @wrap_b(arg0: u256) -> u256 {
+fn @wrap_b(arg0: i256) -> i256 {
   bb0:
     v0 = icall fn1, arg0
     ret v0
 }
 
 // A different immediate must prevent folding.
-// CHECK-LABEL: fn @different(arg0: u256) -> u256
-fn @different(arg0: u256) -> u256 {
+// CHECK-LABEL: fn @different(arg0: i256) -> i256
+fn @different(arg0: i256) -> i256 {
   bb0:
     v0 = add arg0, 2
     ret v0
 }
 
-// CHECK-LABEL: fn @entry() -> u256
+// CHECK-LABEL: fn @entry() -> i256
 // CHECK: icall @wrap_a, 1
 // CHECK: icall @wrap_a, 2
 // CHECK: icall @different, 3
-fn @entry() -> u256 [selector=0x01020304] {
+fn @entry() -> i256 [selector=0x01020304] {
   bb0:
     v0 = icall fn2, 1
     v1 = icall fn3, 2
@@ -55,8 +55,8 @@ fn @entry() -> u256 [selector=0x01020304] {
 }
 
 // Direct self-recursion is alpha-equivalent across function IDs.
-// CHECK-LABEL: fn @recursive_a(arg0: bool, arg1: u256) -> u256
-fn @recursive_a(arg0: bool, arg1: u256) -> u256 {
+// CHECK-LABEL: fn @recursive_a(arg0: i1, arg1: i256) -> i256
+fn @recursive_a(arg0: i1, arg1: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -66,9 +66,9 @@ fn @recursive_a(arg0: bool, arg1: u256) -> u256 {
     ret arg1
 }
 
-// CHECK-LABEL: fn @recursive_b(arg0: bool, arg1: u256) -> u256
+// CHECK-LABEL: fn @recursive_b(arg0: i1, arg1: i256) -> i256
 // CHECK: {{^\+.*}}icall @recursive_a, false, arg1
-fn @recursive_b(arg0: bool, arg1: u256) -> u256 {
+fn @recursive_b(arg0: i1, arg1: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -90,9 +90,9 @@ fn @recursive_entry() [selector=0x01020306] {
 
 // CHECK-LABEL: fn @mutual_a(
 // CHECK: + {{v[0-9]+}} = icall @mutual_a, {{v[0-9]+}} !metadata(spans=[100..110, 120..130])
-fn @mutual_a(arg0: u256) -> u256 {
+fn @mutual_a(arg0: i256) -> i256 {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     jumpi v0, bb1, bb2
   bb1:
     ret 7
@@ -103,9 +103,9 @@ fn @mutual_a(arg0: u256) -> u256 {
 }
 
 // CHECK-LABEL: fn @mutual_b(
-fn @mutual_b(arg0: u256) -> u256 {
+fn @mutual_b(arg0: i256) -> i256 {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     jumpi v0, bb1, bb2
   bb1:
     ret 7
@@ -117,7 +117,7 @@ fn @mutual_b(arg0: u256) -> u256 {
 
 // CHECK-LABEL: fn @mutual_entry(
 // CHECK: + {{v[0-9]+}} = icall @mutual_a, 2
-fn @mutual_entry() -> u256 [selector=0x01020307] {
+fn @mutual_entry() -> i256 [selector=0x01020307] {
   bb0:
     v0 = icall fn10, 2
     ret v0
@@ -125,9 +125,9 @@ fn @mutual_entry() -> u256 [selector=0x01020307] {
 
 // CHECK-LABEL: fn @different_mutual_a(
 // CHECK: {{^ +}}{{v[0-9]+}} = icall @different_mutual_b,
-fn @different_mutual_a(arg0: u256) -> u256 {
+fn @different_mutual_a(arg0: i256) -> i256 {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     jumpi v0, bb1, bb2
   bb1:
     ret 17
@@ -139,9 +139,9 @@ fn @different_mutual_a(arg0: u256) -> u256 {
 
 // CHECK-LABEL: fn @different_mutual_b(
 // CHECK: {{^ +}}{{v[0-9]+}} = icall @different_mutual_a,
-fn @different_mutual_b(arg0: u256) -> u256 {
+fn @different_mutual_b(arg0: i256) -> i256 {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     jumpi v0, bb1, bb2
   bb1:
     ret 18
@@ -153,9 +153,9 @@ fn @different_mutual_b(arg0: u256) -> u256 {
 
 // CHECK-LABEL: fn @mutual_tail_a(
 // CHECK: + tail_call @mutual_tail_a,
-fn @mutual_tail_a(arg0: u256) -> u256 {
+fn @mutual_tail_a(arg0: i256) -> i256 {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     jumpi v0, bb1, bb2
   bb1:
     ret 23
@@ -165,9 +165,9 @@ fn @mutual_tail_a(arg0: u256) -> u256 {
 }
 
 // CHECK-LABEL: fn @mutual_tail_b(
-fn @mutual_tail_b(arg0: u256) -> u256 {
+fn @mutual_tail_b(arg0: i256) -> i256 {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     jumpi v0, bb1, bb2
   bb1:
     ret 23

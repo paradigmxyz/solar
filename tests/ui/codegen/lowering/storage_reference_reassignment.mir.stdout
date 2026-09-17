@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/storage_reference_reassignment.sol:StorageReferenceReassignment ===
 @module StorageReferenceReassignment
 types:
-  struct0: {u256, u256}
-  struct1: {u256, u256, u256}
-  struct2: {u256, u256, u256, u256}
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256}
+  struct2: {i256, i256, i256, i256}
 
-fn @bindAfterDeclaration(arg0: u256, arg1: u256) -> struct0 [selector=0x605b6474, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @bindAfterDeclaration(arg0: i256, arg1: i256) -> struct0 [selector=0x605b6474, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     sstore v0, arg1 !metadata(storage=symbolic(v0))
@@ -19,28 +19,29 @@ fn @bindAfterDeclaration(arg0: u256, arg1: u256) -> struct0 [selector=0x605b6474
     ret v6
 }
 
-fn @rebind(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> struct0 [selector=0xda61745d, abi_params=[bool, u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @rebind(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0xda61745d, abi_params=[bool, u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = mapping_slot arg1, 0
-    jumpi arg0, bb1, bb2
+    v1 = ne arg0, 0
+    jumpi v1, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v1 = mapping_slot arg2, 0
+    v2 = mapping_slot arg2, 0
     jump bb3
   bb3:
-    v2 = phi [bb1: v1], [bb2: v0]
-    sstore v2, arg3 !metadata(storage=symbolic(v2))
-    v3 = mapping_slot arg1, 0
-    v4 = sload v3 !metadata(storage=symbolic(v3))
-    v5 = mapping_slot arg2, 0
-    v6 = sload v5 !metadata(storage=symbolic(v5))
-    v7 = insert_value struct0, undef struct0, 0, v4
-    v8 = insert_value struct0, v7, 1, v6
-    ret v8
+    v3 = phi [bb1: v2], [bb2: v0]
+    sstore v3, arg3 !metadata(storage=symbolic(v3))
+    v4 = mapping_slot arg1, 0
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    v6 = mapping_slot arg2, 0
+    v7 = sload v6 !metadata(storage=symbolic(v6))
+    v8 = insert_value struct0, undef struct0, 0, v5
+    v9 = insert_value struct0, v8, 1, v7
+    ret v9
 }
 
-fn @rebindParameter(arg0: u256, arg1: u256, arg2: u256) -> struct0 [selector=0xe4706ccb, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @rebindParameter(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xe4706ccb, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     icall @rebindParameterInner, v0, arg1, arg2
@@ -53,7 +54,7 @@ fn @rebindParameter(arg0: u256, arg1: u256, arg2: u256) -> struct0 [selector=0xe
     ret v6
 }
 
-fn @swap(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> struct0 [selector=0x5673b02d, abi_params=[u256, u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @swap(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0x5673b02d, abi_params=[u256, u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = mapping_slot arg1, 0
@@ -68,64 +69,66 @@ fn @swap(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> struct0 [selector=0x
     ret v7
 }
 
-fn @packedRebind(arg0: bool, arg1: u256, arg2: u256, arg3: u8) -> struct0 [selector=0xcccc734d, abi_params=[bool, u256, u256, u8], abi_returns=[word<u8>, word<u8>], abi_return_params=[u8, u8]] {
+fn @packedRebind(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0xcccc734d, abi_params=[bool, u256, u256, u8], abi_returns=[word<u8>, word<u8>], abi_return_params=[u8, u8]] {
   bb0:
     v0 = mapping_slot arg1, 1
-    jumpi arg0, bb1, bb2
+    v1 = ne arg0, 0
+    jumpi v1, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v1 = mapping_slot arg2, 1
+    v2 = mapping_slot arg2, 1
     jump bb3
   bb3:
-    v2 = phi [bb1: v1], [bb2: v0]
-    v3 = add v2, 1
-    v4 = and arg3, 255
-    v5 = shl 8, 255
-    v6 = sload v3 !metadata(storage=offset(v2, 1))
-    v7 = not v5
-    v8 = and v6, v7
-    v9 = and v4, 255
-    v10 = shl 8, v9
-    v11 = or v8, v10
-    sstore v3, v11 !metadata(storage=offset(v2, 1))
-    v12 = mapping_slot arg1, 1
-    v13 = add v12, 1
-    v14 = sload v13 !metadata(storage=offset(v12, 1))
-    v15 = shr 8, v14
-    v16 = and v15, 255
-    v17 = mapping_slot arg2, 1
-    v18 = add v17, 1
-    v19 = sload v18 !metadata(storage=offset(v17, 1))
-    v20 = shr 8, v19
-    v21 = and v20, 255
-    v22 = insert_value struct0, undef struct0, 0, v16
-    v23 = insert_value struct0, v22, 1, v21
-    ret v23
+    v3 = phi [bb1: v2], [bb2: v0]
+    v4 = add v3, 1
+    v5 = and arg3, 255
+    v6 = shl 8, 255
+    v7 = sload v4 !metadata(storage=offset(v3, 1))
+    v8 = not v6
+    v9 = and v7, v8
+    v10 = and v5, 255
+    v11 = shl 8, v10
+    v12 = or v9, v11
+    sstore v4, v12 !metadata(storage=offset(v3, 1))
+    v13 = mapping_slot arg1, 1
+    v14 = add v13, 1
+    v15 = sload v14 !metadata(storage=offset(v13, 1))
+    v16 = shr 8, v15
+    v17 = and v16, 255
+    v18 = mapping_slot arg2, 1
+    v19 = add v18, 1
+    v20 = sload v19 !metadata(storage=offset(v18, 1))
+    v21 = shr 8, v20
+    v22 = and v21, 255
+    v23 = insert_value struct0, undef struct0, 0, v17
+    v24 = insert_value struct0, v23, 1, v22
+    ret v24
 }
 
-fn @packedYulRebind(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> struct1 [selector=0x3c827d72, abi_params=[bool, u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @packedYulRebind(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct1 [selector=0x3c827d72, abi_params=[bool, u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    jumpi arg0, bb1, bb2
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v0 = phi [bb1: 2], [bb2: 1]
-    v1 = mapping_slot arg1, v0
-    sstore v1, arg3 !metadata(storage=symbolic(v1))
-    v2 = mapping_slot arg1, v0
-    v3 = sload v2 !metadata(storage=symbolic(v2))
-    v4 = mapping_slot arg2, v0
-    v5 = sload v4 !metadata(storage=symbolic(v4))
-    v6 = insert_value struct1, undef struct1, 0, v3
-    v7 = insert_value struct1, v6, 1, v5
-    v8 = insert_value struct1, v7, 2, 0
-    ret v8
+    v1 = phi [bb1: 2], [bb2: 1]
+    v2 = mapping_slot arg1, v1
+    sstore v2, arg3 !metadata(storage=symbolic(v2))
+    v3 = mapping_slot arg1, v1
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    v5 = mapping_slot arg2, v1
+    v6 = sload v5 !metadata(storage=symbolic(v5))
+    v7 = insert_value struct1, undef struct1, 0, v4
+    v8 = insert_value struct1, v7, 1, v6
+    v9 = insert_value struct1, v8, 2, 0
+    ret v9
 }
 
-fn @yulPackedOffset(arg0: u8) -> u256 [selector=0x6d9cf6e9, abi_params=[u8], abi_returns=[word]] {
+fn @yulPackedOffset(arg0: i256) -> i256 [selector=0x6d9cf6e9, abi_params=[u8], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mul 1, 8
     v1 = shl v0, 255
@@ -138,7 +141,7 @@ fn @yulPackedOffset(arg0: u8) -> u256 [selector=0x6d9cf6e9, abi_params=[u8], abi
     ret 1
 }
 
-fn @assignmentExpression(arg0: u256, arg1: u256, arg2: u256) -> struct0 [selector=0x3edbf013, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @assignmentExpression(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0x3edbf013, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = mapping_slot arg1, 0
@@ -152,7 +155,7 @@ fn @assignmentExpression(arg0: u256, arg1: u256, arg2: u256) -> struct0 [selecto
     ret v7
 }
 
-fn @chainedAssignmentExpression(arg0: u256, arg1: u256, arg2: u256) -> struct0 [selector=0x02f2596d, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @chainedAssignmentExpression(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0x02f2596d, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = mapping_slot arg0, 0
@@ -167,7 +170,7 @@ fn @chainedAssignmentExpression(arg0: u256, arg1: u256, arg2: u256) -> struct0 [
     ret v8
 }
 
-fn @mappingAssignmentExpression(arg0: u256, arg1: u256, arg2: u8) -> struct2 [selector=0xe5a9572e, abi_params=[u256, u256, u8], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>], abi_return_params=[u8, u8, u8, u8]] {
+fn @mappingAssignmentExpression(arg0: i256, arg1: i256, arg2: i256) -> struct2 [selector=0xe5a9572e, abi_params=[u256, u256, u8], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>], abi_return_params=[u8, u8, u8, u8]] {
   bb0:
     v0 = mapping_slot arg0, 1
     v1 = add v0, 1
@@ -217,14 +220,14 @@ fn @mappingAssignmentExpression(arg0: u256, arg1: u256, arg2: u8) -> struct2 [se
     ret v42
 }
 
-fn @readB(arg0: storageptr) -> u256 [view] {
+fn @readB(arg0: i256) -> i256 [view] {
   bb0:
     v0 = add arg0, 1
     v1 = sload v0 !metadata(storage=offset(arg0, 1))
     ret v1
 }
 
-fn @rebindParameterInner(arg0: storageptr, arg1: u256, arg2: u256) {
+fn @rebindParameterInner(arg0: i256, arg1: i256, arg2: i256) {
   bb0:
     v0 = mapping_slot arg1, 0
     sstore v0, arg2 !metadata(storage=symbolic(v0))

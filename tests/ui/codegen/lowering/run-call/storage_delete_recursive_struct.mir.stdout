@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_delete_recursive_struct.sol:StorageDeleteRecursiveStruct ===
 @module StorageDeleteRecursiveStruct
 types:
-  struct0: {u256, u256, u256, u256, u256, u256}
+  struct0: {i256, i256, i256, i256, i256, i256}
 
 fn @clearNested() [selector=0xdcbc9943, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
@@ -17,7 +17,7 @@ fn @clearNested() [selector=0xdcbc9943, abi_params=[], abi_returns=[word, word, 
     v7 = add 0, 1
     v8 = sload v7 !metadata(storage=slot(1))
     v9 = lt 0, v8
-    v10 = iszero v9
+    v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = storage_array_data_slot v7
     v12 = mul 0, 2
@@ -34,7 +34,7 @@ fn @clearNested() [selector=0xdcbc9943, abi_params=[], abi_returns=[word, word, 
     v21 = add v13, 1
     v22 = sload v21 !metadata(storage=offset(v13, 1))
     v23 = lt 0, v22
-    v24 = iszero v23
+    v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = storage_array_data_slot v21
     v26 = mul 0, 2
@@ -145,7 +145,7 @@ fn @clearMutual() [selector=0x5baf460d, abi_params=[], abi_returns=[word, word, 
     returndata 0, 192
 }
 
-fn @clear_recursive_storage_0(arg0: u256) {
+fn @clear_recursive_storage_0(arg0: i256) {
   bb0:
     sstore arg0, 0 !metadata(storage=symbolic(arg0))
     v0 = add arg0, 1
@@ -167,7 +167,7 @@ fn @clear_recursive_storage_0(arg0: u256) {
     jump bb1
 }
 
-fn @clear_recursive_storage_1(arg0: u256) {
+fn @clear_recursive_storage_1(arg0: i256) {
   bb0:
     sstore arg0, 0 !metadata(storage=symbolic(arg0))
     v0 = add arg0, 1
@@ -189,7 +189,7 @@ fn @clear_recursive_storage_1(arg0: u256) {
     jump bb1
 }
 
-fn @clear_recursive_storage_2(arg0: u256) {
+fn @clear_recursive_storage_2(arg0: i256) {
   bb0:
     sstore arg0, 0 !metadata(storage=symbolic(arg0))
     v0 = add arg0, 1

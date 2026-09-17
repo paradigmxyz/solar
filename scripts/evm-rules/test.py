@@ -184,7 +184,7 @@ class StackProofTests(unittest.TestCase):
             return verify_stack_file(path)
 
     def test_actual_compiled_stack_rules(self):
-        report = verify_stack_file(ISLE / "stack_peephole.isle")
+        report = verify_stack_file(ISLE / "evm-ir/stack_peephole.isle")
         self.assertEqual(len(report["rules"]), 6)
         self.assertTrue(all(r["status"] == "proved" for r in report["rules"]))
         self.assertGreater(sum(len(r["variants"]) for r in report["rules"]), 900)
@@ -215,7 +215,7 @@ class LateWordProofTests(unittest.TestCase):
             return verify_late_file(path)
 
     def test_compiled_mask_window_and_boundaries(self):
-        report = self.verify((ISLE / "late_word.isle").read_text())
+        report = self.verify((ISLE / "evm-ir/late_word.isle").read_text())
         result = report["rules"][0]
         self.assertTrue(all(r["status"] == "proved" for r in report["rules"]))
         self.assertEqual(
@@ -239,7 +239,7 @@ class LateWordProofTests(unittest.TestCase):
 
     def test_changed_shift_replays_counterexample(self):
         source = (
-            (ISLE / "late_word.isle")
+            (ISLE / "evm-ir/late_word.isle")
             .read_text()
             .replace("(opcode $SHL)", "(opcode $SHR)")
         )
@@ -248,7 +248,7 @@ class LateWordProofTests(unittest.TestCase):
         )
 
     def test_missing_contract_or_changed_edit_fails_closed(self):
-        source = (ISLE / "late_word.isle").read_text()
+        source = (ISLE / "evm-ir/late_word.isle").read_text()
         for change in (
             source.replace("(if-let true (closed_count window))", ""),
             source.replace("(late_length window)", "4"),
@@ -745,13 +745,13 @@ class OutputBitPartitionTests(unittest.TestCase):
 
 class EnvironmentTests(unittest.TestCase):
     def test_actual_balance_mask_rules_require_all_address_bits(self):
-        path = ISLE / "egraph.isle"
+        path = ISLE / "mir/egraph.isle"
         rules = [
             Rule(form, line, str(path))
             for form, line in forms(path.read_text())
             if form[0] == "rule" and "Op.Balance" in repr(form) and "band" in repr(form)
         ]
-        self.assertEqual(len(rules), 2)
+        self.assertEqual(len(rules), 1)
         for rule in rules:
             with self.subTest(line=rule.line):
                 cx = Context()
@@ -775,7 +775,7 @@ class EnvironmentTests(unittest.TestCase):
                 self.assertTrue(result["replayed"])
 
     def test_actual_self_balance_rule_uses_a_shared_state_array(self):
-        path = ISLE / "egraph.isle"
+        path = ISLE / "mir/egraph.isle"
         rules = [
             Rule(form, line, str(path))
             for form, line in forms(path.read_text())
@@ -851,7 +851,11 @@ class EnvironmentTests(unittest.TestCase):
             concrete(expression("selfbalance"), {})
         with self.assertRaises(Unsupported):
             Context().pattern("@environment:address")
-        source = (ISLE / "select.isle").read_text().replace("$ADDRESS)", "$ORIGIN)")
+        source = (
+            (ISLE / "mir-to-evm/select.isle")
+            .read_text()
+            .replace("$ADDRESS)", "$ORIGIN)")
+        )
         with self.assertRaises(Unsupported):
             Context(selection_source=source).pattern(("current_address",))
 
@@ -878,7 +882,7 @@ class EnvironmentTests(unittest.TestCase):
 
 class MemoryAddressTests(unittest.TestCase):
     def test_actual_projection_rules_and_missing_guards(self):
-        path = ISLE / "egraph.isle"
+        path = ISLE / "mir/egraph.isle"
         rules = [
             Rule(form, line, str(path))
             for form, line in forms(path.read_text())
@@ -1053,7 +1057,7 @@ class RuleTests(unittest.TestCase):
         self.assertNotEqual(before["source_sha256"], after["source_sha256"])
 
     def test_instruction_selection_drift_fails_closed(self):
-        selection = (ISLE / "select.isle").read_text()
+        selection = (ISLE / "mir-to-evm/select.isle").read_text()
         for changed in (
             selection.replace("$ADD)", "$SUB)"),
             selection.replace("Op.Add _ _", "Op.Add x x"),
@@ -1093,6 +1097,36 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(rule["status"], "proved")
         self.assertEqual(rule["constant_specializations"], {"a": "0x1"})
 
+    def test_i1_sign_extension_lowering(self):
+        for bits in (160, 256):
+            cx = Context()
+            value = Expr.var("value")
+            expected = cx.operation("Op.Sext", [value, Expr.const(1), Expr.const(bits)])
+            negate = Expr("sub", (Expr.const(0), value))
+            shifted = Expr("shr", (Expr.const(256 - bits), negate))
+            multiply = Expr("mul", (value, Expr.const((1 << bits) - 1)))
+            assumptions = [z3.ULE(cx.model.eval(value), z3.BitVecVal(1, 256))]
+            for lowered in (shifted, multiply):
+                result, _ = check(expected, lowered, assumptions, 5000, cx.model)
+                self.assertEqual(result["status"], "proved", (bits, lowered, result))
+
+    def test_actual_integer_and_pointer_cast_rules(self):
+        path = ISLE / "mir/egraph.isle"
+        source = path.read_text()
+        start = source.index(";; Identity casts")
+        rules = [
+            Rule(form, line, str(path))
+            for form, line in forms(source[start:])
+            if form[0] == "rule"
+        ]
+        self.assertEqual(len(rules), 24)
+        for rule in rules:
+            with self.subTest(rule=rule.form):
+                cx = Context()
+                lhs, rhs = cx.obligation(rule)
+                result, _ = check(lhs, rhs, cx.assumptions, 10000, cx.model)
+                self.assertEqual(result["status"], "proved", result)
+
     def test_actual_compiled_exp_rules(self):
         def uses_exp(node):
             return (
@@ -1101,7 +1135,7 @@ class RuleTests(unittest.TestCase):
                 and any(uses_exp(child) for child in node)
             )
 
-        path = ISLE / "egraph.isle"
+        path = ISLE / "mir/egraph.isle"
         rules = [
             Rule(form, line, str(path))
             for form, line in forms(path.read_text())
@@ -1122,7 +1156,7 @@ class RuleTests(unittest.TestCase):
                 and any(contains(child, atom) for child in node)
             )
 
-        path = ISLE / "egraph.isle"
+        path = ISLE / "mir/egraph.isle"
         rules = [
             Rule(form, line, str(path))
             for form, line in forms(path.read_text())
@@ -1144,7 +1178,7 @@ class RuleTests(unittest.TestCase):
         self.assertEqual((result["cases"], len(queries)), (257, 258))
 
     def test_actual_nested_signextend_rule(self):
-        path = ISLE / "egraph.isle"
+        path = ISLE / "mir/egraph.isle"
 
         def has_nested_signextend(node):
             return isinstance(node, tuple) and (
@@ -1199,7 +1233,7 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(rule["inputs"]["a"], rule["inputs"]["b"])
 
     def test_guard_and_pattern_semantics(self):
-        report = self.verify("""(rule (simplify (Op.IsZero (iszero (and x (bool_value))))) x)
+        report = self.verify("""(rule (simplify (Op.Eq (eq (and x (bool_value)) (zero)) (zero))) x)
           (rule (rewrite (Op.Sub x x)) (if-let false (u256_eq (u256 1) 1))
              (Op.Add x (imm (u256 0))))""")
         self.assertEqual(
@@ -1733,7 +1767,7 @@ class SolverFallbackTests(unittest.TestCase):
                 and any(uses_clz(child) for child in node)
             )
 
-        path = ISLE / "egraph.isle"
+        path = ISLE / "mir/egraph.isle"
         rules = [
             Rule(form, line, str(path))
             for form, line in forms(path.read_text())
@@ -1764,13 +1798,13 @@ class SolverFallbackTests(unittest.TestCase):
                 or any(selected(child) for child in node)
             )
 
-        path = ISLE / "egraph.isle"
+        path = ISLE / "mir/egraph.isle"
         rules = [
             Rule(form, line, str(path))
             for form, line in forms(path.read_text())
             if form[0] == "rule" and selected(form)
         ]
-        self.assertEqual(len(rules), 8)
+        self.assertEqual(len(rules), 6)
         fallback = Cvc5(timeout_ms=1000)
         for rule in rules:
             cx = Context()
@@ -2045,7 +2079,7 @@ class DiscoveryTests(unittest.TestCase):
     def test_large_literal_guard_and_recipe_are_verified(self):
         x = Expr.var("x")
         lhs = expression("lt", x, 1 << 160)
-        rhs = expression("iszero", expression("shr", 160, x))
+        rhs = expression("eq", expression("shr", 160, x), 0)
         source = emit_rule(lhs, rhs)
         for expected, text in (
             ("proved", source),

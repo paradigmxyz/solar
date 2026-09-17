@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_length_cap.sol:C ===
 @module C
 types:
-  struct0: {u256, u256, u256}
+  struct0: {i256, i256, i256}
 
 fn @grow() -> struct0 [selector=0x5298948e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
@@ -23,14 +23,14 @@ fn @grow() -> struct0 [selector=0x5298948e, abi_params=[], abi_returns=[word, wo
     sstore 1, v7 !metadata(storage=slot(1))
     v10 = sload 1 !metadata(storage=slot(1))
     v11 = lt 0, v10
-    v12 = iszero v11
+    v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = storage_array_data_slot 1
     v14 = add v13, 0
     v15 = sload v14 !metadata(storage=symbolic(v13))
     v16 = sload 1 !metadata(storage=slot(1))
     v17 = lt 1, v16
-    v18 = iszero v17
+    v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = storage_array_data_slot 1
     v20 = add v19, 1
@@ -42,7 +42,7 @@ fn @grow() -> struct0 [selector=0x5298948e, abi_params=[], abi_returns=[word, wo
     ret v25
 }
 
-fn @wrapOntoOwner() -> u256 [selector=0x428ae2e7, abi_params=[], abi_returns=[word]] {
+fn @wrapOntoOwner() -> i256 [selector=0x428ae2e7, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 1, 0x4ef1d2ad89edf8c4d91132028e8195cdf30bb4b5053d4f8cd260341d4805f30a !metadata(storage=slot(1))
     v0 = sload 1 !metadata(storage=slot(1))
@@ -57,7 +57,7 @@ fn @wrapOntoOwner() -> u256 [selector=0x428ae2e7, abi_params=[], abi_returns=[wo
     ret v5
 }
 
-fn @atCap() [selector=0xdb9a763c, abi_params=[], abi_returns=[]] {
+fn @atCap() [selector=0xdb9a763c, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 1, 0x10000000000000000 !metadata(storage=slot(1))
     v0 = sload 1 !metadata(storage=slot(1))

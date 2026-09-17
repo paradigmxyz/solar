@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/load-pre/load_pre_clobbers.mir (before load-pre) ===
 + // === ROOT/tests/ui/codegen/mir/load-pre/load_pre_clobbers.mir (after load-pre) ===
   @module LoadPreClobbers
-  fn @kill_blocks_reuse(arg0: bool, arg1: u256) -> u256 {
+  fn @kill_blocks_reuse(arg0: i1, arg1: i256) -> i256 {
     bb0:
       v0 = sload 5
       jumpi arg0, bb1, bb2
@@ -23,7 +23,7 @@
 +     ret v3
   }
   
-  fn @call_kills_storage(arg0: bool, arg1: address) -> u256 {
+  fn @call_kills_storage(arg0: i1, arg1: i256) -> i256 {
     bb0:
       v0 = sload 5
       jumpi arg0, bb1, bb2
@@ -45,7 +45,7 @@
 +     ret v4
   }
   
-  fn @staticcall_preserves_storage(arg0: bool, arg1: address) -> u256 {
+  fn @staticcall_preserves_storage(arg0: i1, arg1: i256) -> i256 {
     bb0:
       v0 = sload 5
       jumpi arg0, bb1, bb2
@@ -62,7 +62,7 @@
 +     ret v0
   }
   
-  fn @clobbered_arm_reload_after_store(arg0: bool, arg1: u256) -> u256 {
+  fn @clobbered_arm_reload_after_store(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -80,7 +80,7 @@
 +     ret v4
   }
   
-  fn @gas_blocks_rewrite(arg0: bool) -> u256 {
+  fn @gas_blocks_rewrite(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -96,7 +96,7 @@
       ret v4
   }
   
-  fn @checked_arithmetic_blocks_memory_insertion(arg0: bool, arg1: u256) -> u256 {
+  fn @checked_arithmetic_blocks_memory_insertion(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -113,7 +113,7 @@
       ret v5
   }
   
-  fn @checked_modulus_blocks_storage_insertion(arg0: bool, arg1: u256) -> u256 {
+  fn @checked_modulus_blocks_storage_insertion(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -128,7 +128,7 @@
       ret v3
   }
   
-  fn @conditional_check_blocks_keccak_insertion(arg0: bool, arg1: bool) -> u256 {
+  fn @conditional_check_blocks_keccak_insertion(arg0: i1, arg1: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -142,7 +142,7 @@
       ret v1
   }
   
-  fn @check_preserves_full_availability(arg0: bool, arg1: bool) -> u256 {
+  fn @check_preserves_full_availability(arg0: i1, arg1: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:

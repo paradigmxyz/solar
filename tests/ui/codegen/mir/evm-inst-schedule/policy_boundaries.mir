@@ -11,20 +11,20 @@
 // CHECK-NEXT: - [[XOR]] = xor arg4, arg5
 // CHECK-NEXT: {{v[0-9]+}} = div [[SUB]], [[XOR]]
 types:
-  struct0: {bool, bool, u256}
-  struct1: {u256, u256}
+  struct0: {i1, i1, i256}
+  struct1: {i256, i256}
 
-  struct2: {u256, u256, u256}
-  struct3: {bool, u256}
+  struct2: {i256, i256, i256}
+  struct3: {i1, i256}
 
 fn @deep_dependency_tree(
-  arg0: u256,
-  arg1: u256,
-  arg2: u256,
-  arg3: u256,
-  arg4: u256,
-  arg5: u256
-) -> u256 {
+  arg0: i256,
+  arg1: i256,
+  arg2: i256,
+  arg3: i256,
+  arg4: i256,
+  arg5: i256
+) -> i256 {
   bb0:
     v6 = add arg0, arg1
     v7 = mul arg2, arg3
@@ -45,7 +45,7 @@ fn @deep_dependency_tree(
 // CHECK-NEXT: [[MUL2:v[0-9]+]] = mul arg1, arg3
 // CHECK-NEXT: + [[ADD2]] = add arg0, arg2
 // CHECK-NEXT: {{v[0-9]+}} = div [[ADD2]], [[MUL2]]
-fn @independent_barrier_segments(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+fn @independent_barrier_segments(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 {
   bb0:
     v4 = add arg0, arg1
     v5 = mul arg2, arg3
@@ -67,7 +67,7 @@ fn @independent_barrier_segments(arg0: u256, arg1: u256, arg2: u256, arg3: u256)
 // CHECK-NEXT: [[MUL2:v[0-9]+]] = mul [[SHARED]], arg3
 // CHECK-NEXT: + [[ADD2]] = add [[SHARED]], arg2
 // CHECK-NEXT: {{v[0-9]+}} = div [[ADD2]], [[MUL2]]
-fn @shared_result_schedules_islands(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+fn @shared_result_schedules_islands(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 {
   bb0:
     v4 = add arg0, arg1
     v5 = mul arg2, arg3
@@ -85,11 +85,11 @@ fn @shared_result_schedules_islands(arg0: u256, arg1: u256, arg2: u256, arg3: u2
 // CHECK-NEXT: + [[REPEATED]] = add arg0, arg1
 // CHECK-NEXT: {{v[0-9]+}} = add [[REPEATED]], [[REPEATED]]
 fn @repeated_operand_is_single_user(
-  arg0: u256,
-  arg1: u256,
-  arg2: u256,
-  arg3: u256
-) -> u256 {
+  arg0: i256,
+  arg1: i256,
+  arg2: i256,
+  arg3: i256
+) -> i256 {
   bb0:
     v4 = add arg0, arg1
     v5 = mul arg2, arg3
@@ -103,7 +103,7 @@ fn @repeated_operand_is_single_user(
 // CHECK: [[LEFT:v[0-9]+]] = sub arg0, arg1
 // CHECK-NEXT: [[RIGHT:v[0-9]+]] = div arg2, arg3
 // CHECK-NEXT: {{v[0-9]+}} = lt [[LEFT]], [[RIGHT]]
-fn @comparison_producer_order(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> bool {
+fn @comparison_producer_order(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i1 {
   bb0:
     v4 = sub arg0, arg1
     v5 = div arg2, arg3
@@ -118,11 +118,11 @@ fn @comparison_producer_order(arg0: u256, arg1: u256, arg2: u256, arg3: u256) ->
 // CHECK-NEXT: + [[ADD]] = add arg0, arg1
 // CHECK-NEXT: ret [[ADD]], [[MUL]]
 fn @multiple_terminator_roots(
-  arg0: u256,
-  arg1: u256,
-  arg2: u256,
-  arg3: u256
-) -> struct1 [return_abi=[u256, u256]] {
+  arg0: i256,
+  arg1: i256,
+  arg2: i256,
+  arg3: i256
+) -> struct1 [return_abi=[i256, i256]] {
   bb0:
     v4 = add arg0, arg1
     v5 = mul arg2, arg3
@@ -135,7 +135,7 @@ fn @multiple_terminator_roots(
 // CHECK-NEXT: {{v[0-9]+}} = add arg0, 1
 // CHECK-NEXT: + [[RETURNED]] = mul arg1, 2
 // CHECK-NEXT: ret [[RETURNED]]
-fn @disconnected_root_is_retained(arg0: u256, arg1: u256) -> u256 {
+fn @disconnected_root_is_retained(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = mul arg1, 2
     v3 = add arg0, 1
@@ -146,16 +146,18 @@ fn @disconnected_root_is_retained(arg0: u256, arg1: u256) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @read_effects_are_movable{{[( ]}}
 // CHECK: - [[MEMORY:v[0-9]+]] = mload arg0
 // CHECK-NEXT: - [[TRANSIENT:v[0-9]+]] = tload arg1
-// CHECK-NEXT: [[CALLER:v[0-9]+]] = caller
+// CHECK-NEXT: [[ADDRESS:v[0-9]+]] = caller
+// CHECK-NEXT: [[CALLER:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[ADDRESS]]
 // CHECK-NEXT: + [[TRANSIENT]] = tload arg1
 // CHECK-NEXT: + [[MEMORY]] = mload arg0
 // CHECK-NEXT: [[SUB:v[0-9]+]] = sub [[MEMORY]], [[TRANSIENT]]
 // CHECK-NEXT: {{v[0-9]+}} = div [[SUB]], [[CALLER]]
-fn @read_effects_are_movable(arg0: u256, arg1: u256) -> u256 {
+fn @read_effects_are_movable(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = mload arg0
     v3 = tload arg1
-    v4 = caller
+    v14 = caller
+    v4 = zext i160 v14 to i256
     v5 = sub v2, v3
     v6 = div v5, v4
     ret v6
@@ -167,7 +169,7 @@ fn @read_effects_are_movable(arg0: u256, arg1: u256) -> u256 {
 // CHECK-NEXT: [[MUL:v[0-9]+]] = mul arg1, arg2
 // CHECK-NEXT: + [[CLZ]] = clz arg0
 // CHECK-NEXT: {{v[0-9]+}} = sub [[CLZ]], [[MUL]]
-fn @clz_is_movable(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @clz_is_movable(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v3 = clz arg0
     v4 = mul arg1, arg2
@@ -188,11 +190,11 @@ fn @clz_is_movable(arg0: u256, arg1: u256, arg2: u256) -> u256 {
 // CHECK-NEXT: [[DIV:v[0-9]+]] = div [[ADD2]], [[MUL2]]
 // CHECK-NEXT: ret [[CALL]], [[DIV]]
 fn @callcode_is_a_barrier(
-  arg0: u256,
-  arg1: u256,
-  arg2: u256,
-  arg3: u256
-) -> struct3 [return_abi=[bool, u256]] {
+  arg0: i256,
+  arg1: i256,
+  arg2: i256,
+  arg3: i256
+) -> struct3 [return_abi=[i1, i256]] {
   bb0:
     v4 = add arg0, arg1
     v5 = mul arg2, arg3
@@ -217,11 +219,11 @@ fn @callcode_is_a_barrier(
 // CHECK-NEXT: [[DIV:v[0-9]+]] = div [[ADD2]], [[MUL2]]
 // CHECK-NEXT: ret [[SUB]], [[MSIZE]], [[DIV]]
 fn @msize_is_a_barrier(
-  arg0: u256,
-  arg1: u256,
-  arg2: u256,
-  arg3: u256
-) -> struct2 [return_abi=[u256, u256, u256]] {
+  arg0: i256,
+  arg1: i256,
+  arg2: i256,
+  arg3: i256
+) -> struct2 [return_abi=[i256, i256, i256]] {
   bb0:
     v4 = add arg0, arg1
     v5 = mul arg2, arg3
@@ -240,7 +242,7 @@ fn @msize_is_a_barrier(
 // CHECK-NEXT: [[PHI:v[0-9]+]] = phi
 // CHECK-NEXT: {{v[0-9]+}} = add arg0, arg1
 // CHECK-NEXT: {{v[0-9]+}} = mul [[PHI]], arg2
-fn @phi_is_a_barrier(arg0: u256, arg1: u256, arg2: u256, arg3: bool) -> u256 {
+fn @phi_is_a_barrier(arg0: i256, arg1: i256, arg2: i256, arg3: i1) -> i256 {
   bb0:
     jumpi arg3, bb1, bb2
   bb1:
@@ -266,11 +268,11 @@ fn @phi_is_a_barrier(arg0: u256, arg1: u256, arg2: u256, arg3: bool) -> u256 {
 // CHECK-NEXT: + [[ADD2]] = add arg0, arg2
 // CHECK-NEXT: {{v[0-9]+}} = div [[ADD2]], [[MUL2]]
 fn @metadata_effect_is_a_barrier(
-  arg0: u256,
-  arg1: u256,
-  arg2: u256,
-  arg3: u256
-) -> u256 {
+  arg0: i256,
+  arg1: i256,
+  arg2: i256,
+  arg3: i256
+) -> i256 {
   bb0:
     v4 = add arg0, arg1
     v5 = mul arg2, arg3
@@ -288,7 +290,7 @@ fn @metadata_effect_is_a_barrier(
 // CHECK: [[CALL:v[0-9]+]] = staticcall 0x3e8, 0xbeef, 0, 0, 0, 0 !metadata(effect=environment_read)
 // CHECK-NEXT: [[SIZE:v[0-9]+]] = returndatasize
 // CHECK-NEXT: ret [[CALL]], [[CALL]], [[SIZE]]
-fn @metadata_cannot_downgrade_effect() -> struct0 [return_abi=[bool, bool, u256]] {
+fn @metadata_cannot_downgrade_effect() -> struct0 [return_abi=[i1, i1, i256]] {
   bb0:
     v0 = staticcall 1000, 0xbeef, 0, 0, 0, 0 !metadata(effect=environment_read)
     v1 = returndatasize
@@ -309,16 +311,16 @@ fn @metadata_cannot_downgrade_effect() -> struct0 [return_abi=[bool, bool, u256]
 // CHECK-NEXT: [[MUL1:v[0-9]+]] = mul arg1, arg3
 // CHECK-NEXT: + [[ADD1]] = add arg0, arg2
 fn @block_local_scratch(
-  arg0: u256,
-  arg1: u256,
-  arg2: u256,
-  arg3: u256
-) -> u256 {
+  arg0: i256,
+  arg1: i256,
+  arg2: i256,
+  arg3: i256
+) -> i256 {
   bb0:
     v4 = add arg0, arg1
     v5 = mul arg2, arg3
     v6 = sub v4, v5
-    v7 = iszero v6
+    v7 = eq v6, 0
     jumpi v7, bb1, bb2
   bb1:
     v8 = add arg0, arg2
@@ -338,7 +340,7 @@ fn @block_local_scratch(
 // CHECK: [[FIRST:v[0-9]+]] = checked_add u256, arg0, 1
 // CHECK-NEXT: [[SECOND:v[0-9]+]] = checked_mul u256, arg1, 2
 // CHECK-NEXT: {{v[0-9]+}} = sub [[FIRST]], [[SECOND]]
-fn @checked_operations_are_barriers(arg0: u256, arg1: u256) -> u256 {
+fn @checked_operations_are_barriers(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = checked_add u256, arg0, 1
     v1 = checked_mul u256, arg1, 2

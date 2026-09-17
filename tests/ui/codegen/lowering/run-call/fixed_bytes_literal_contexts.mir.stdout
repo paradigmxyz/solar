@@ -4,7 +4,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_literal_contexts.sol:FixedBytesLiteralBase ===
 @module FixedBytesLiteralBase
-fn @constructor(arg0: bytes2) [constructor, abi_params=[bytes2]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[bytes2]] {
   bb0:
     v0 = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
     v1 = sload 0 !metadata(storage=slot(0))
@@ -20,7 +20,7 @@ fn @constructor(arg0: bytes2) [constructor, abi_params=[bytes2]] {
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_literal_contexts.sol:FixedBytesLiteralContexts ===
 @module FixedBytesLiteralContexts
 types:
-  struct0: {u256, u256, u256, u256, u256, u256, u256, u256, u256}
+  struct0: {i256, i256, i256, i256, i256, i256, i256, i256, i256}
 
 fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word<bytes1>, word<bytes2>, word<bytes1>, word<bytes2>, word<bytes1>, word<bytes2>, word<bytes1>, word<bytes1>, word<bytes1>], abi_return_params=[bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes1, bytes1]] {
   bb0:
@@ -36,7 +36,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v6 = shr 1, v1
     v7 = and v6, v5
     v8 = lt v7, 0x10000000000000000
-    v9 = iszero v8
+    v9 = eq v8, false
     icall panic_if<0x41>, v9
     v10 = gt v7, 31
     jumpi v10, bb2, bb1
@@ -135,7 +135,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v81 = mload v80
     v82 = and v81, 0xff00000000000000000000000000000000000000000000000000000000000000
     v83 = eq v81, v82
-    v84 = iszero v83
+    v84 = eq v83, false
     icall revert_if<empty>, v84
     v85 = add 0, 0
     v86 = mload v85
@@ -148,7 +148,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v92 = shr 1, v87
     v93 = and v92, v91
     v94 = lt 0, v93
-    v95 = iszero v94
+    v95 = eq v94, false
     icall panic_if<0x32>, v95
     jumpi v89, bb8, bb9
   bb9:
@@ -169,7 +169,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v106 = shl 248, v105
     v107 = sload 2 !metadata(storage=slot(2))
     v108 = lt 0, v107
-    v109 = iszero v108
+    v109 = eq v108, false
     icall panic_if<0x32>, v109
     v110 = storage_array_data_slot 2
     v111 = div 0, 32
@@ -193,7 +193,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     ret v128
 }
 
-fn @throughModifier() -> bytes1 [selector=0x6b6c6d94, abi_params=[], abi_returns=[word<bytes1>]] {
+fn @throughModifier() -> i256 [selector=0x6b6c6d94, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = shl 24, 255
     v1 = sload 0 !metadata(storage=slot(0))
@@ -215,17 +215,17 @@ fn @throughModifier() -> bytes1 [selector=0x6b6c6d94, abi_params=[], abi_returns
     ret v11
 }
 
-fn @externalIdentity(arg0: bytes1) -> bytes1 [selector=0xa8775ceb, pure, abi_params=[bytes1], abi_returns=[word<bytes1>]] {
+fn @externalIdentity(arg0: i256) -> i256 [selector=0xa8775ceb, pure, abi_params=[bytes1], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     ret arg0
 }
 
-fn @internalIdentity(arg0: bytes1) -> bytes1 [pure] {
+fn @internalIdentity(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
 
-fn @identity(arg0: bytes2) -> bytes2 [pure] {
+fn @identity(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }

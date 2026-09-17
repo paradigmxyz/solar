@@ -2,12 +2,12 @@
 @module Lib
 @library
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
 immutables:
   library_deploy_address: address
 
-fn @bump(arg0: storageptr, arg1: u256) -> u256 [selector=0x14f9a01b, abi_params=[storageptr, u256], abi_returns=[word]] {
+fn @bump(arg0: i256, arg1: i256) -> i256 [selector=0x14f9a01b, abi_params=[storageptr, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = gt v0, 0xffffffffffffffff
@@ -21,13 +21,13 @@ fn @bump(arg0: storageptr, arg1: u256) -> u256 [selector=0x14f9a01b, abi_params=
     ret v5
 }
 
-fn @peek(arg0: storageptr) -> u256 [selector=0xcbdd72a4, view, abi_params=[storageptr], abi_returns=[word]] {
+fn @peek(arg0: i256) -> i256 [selector=0xcbdd72a4, view, abi_params=[storageptr], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     ret v0
 }
 
-fn @twice(arg0: u256) -> u256 [selector=0x3cf3bbf4, pure, abi_params=[u256], abi_returns=[word]] {
+fn @twice(arg0: i256) -> i256 [selector=0x3cf3bbf4, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_mul u256, 2, arg0
     ret v0

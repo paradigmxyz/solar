@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_static_struct_alias.sol:AbiDecodeStaticStructAlias ===
 @module AbiDecodeStaticStructAlias
-fn @mutateFirst(arg0: memorybytes) -> u256 [selector=0x781f0687, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @mutateFirst(arg0: memorybytes) -> i256 [selector=0x781f0687, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_decode [tuple<u256>], arg0
     v1 = memory_object_len memorybytes, arg0
     v2 = lt 31, v1
-    v3 = iszero v2
+    v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = byte 0, 0x200000000000000000000000000000000000000000000000000000000000000
     memory_object_store_byte memorybytes, arg0, 31, v4
@@ -13,12 +13,12 @@ fn @mutateFirst(arg0: memorybytes) -> u256 [selector=0x781f0687, pure, abi_param
     ret v5
 }
 
-fn @mutateSecond(arg0: memorybytes) -> u256 [selector=0xe7eeece1, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @mutateSecond(arg0: memorybytes) -> i256 [selector=0xe7eeece1, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_decode [tuple<u256>], arg0
     v1 = memory_object_len memorybytes, arg0
     v2 = lt 31, v1
-    v3 = iszero v2
+    v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = byte 0, 0x300000000000000000000000000000000000000000000000000000000000000
     memory_object_store_byte memorybytes, arg0, 31, v4
@@ -26,13 +26,13 @@ fn @mutateSecond(arg0: memorybytes) -> u256 [selector=0xe7eeece1, pure, abi_para
     ret v5
 }
 
-fn @mutateAlias(arg0: memorybytes) -> u256 [selector=0x60c81d20, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @mutateAlias(arg0: memorybytes) -> i256 [selector=0x60c81d20, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @mutateAliasInner, arg0, arg0
     ret v0
 }
 
-fn @mutateAliasInner(arg0: memorybytes, arg1: memorybytes) -> u256 [pure] {
+fn @mutateAliasInner(arg0: memorybytes, arg1: memorybytes) -> i256 [pure] {
   bb0:
     v0 = abi_decode [tuple<u256>], arg0
     v1 = memory_object_len memorybytes, arg1
@@ -43,7 +43,7 @@ fn @mutateAliasInner(arg0: memorybytes, arg1: memorybytes) -> u256 [pure] {
   bb3:
     v3 = memory_object_len memorybytes, arg1
     v4 = lt 31, v3
-    v5 = iszero v4
+    v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = byte 0, 0x400000000000000000000000000000000000000000000000000000000000000
     memory_object_store_byte memorybytes, arg1, 31, v6

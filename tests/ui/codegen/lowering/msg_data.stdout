@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/msg_data.sol:MsgData ===
 @module MsgData
-fn @len() -> u256 [selector=0x56d88e27, pure, abi_params=[], abi_returns=[word]] {
+fn @len() -> i256 [selector=0x56d88e27, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
@@ -8,7 +8,7 @@ fn @len() -> u256 [selector=0x56d88e27, pure, abi_params=[], abi_returns=[word]]
     ret v2
 }
 
-fn @copy() -> memorybytes [selector=0x60726abb, pure, abi_params=[], abi_returns=[memory_bytes]] {
+fn @copy() -> memorybytes [selector=0x60726abb, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
@@ -32,38 +32,40 @@ fn @copy() -> memorybytes [selector=0x60726abb, pure, abi_params=[], abi_returns
     ret v13
 }
 
-fn @environment() -> u256 [selector=0x74e2b63c, view, abi_params=[], abi_returns=[word]] {
+fn @environment() -> i256 [selector=0x74e2b63c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = coinbase
-    v1 = xor 0, v0
-    v2 = timestamp
-    v3 = xor v1, v2
-    v4 = prevrandao
-    v5 = xor v3, v4
-    v6 = number
-    v7 = xor v5, v6
-    v8 = gaslimit
-    v9 = xor v7, v8
-    v10 = chainid
-    v11 = xor v9, v10
-    v12 = basefee
-    v13 = xor v11, v12
-    v14 = blobbasefee
-    v15 = xor v13, v14
-    v16 = calldataload 0
-    v17 = and v16, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v18 = shr 224, v17
-    v19 = xor v15, v18
-    v20 = origin
-    v21 = xor v19, v20
-    v22 = gasprice
-    v23 = xor v21, v22
-    v24 = gas
+    v1 = zext i160 v0 to i256
+    v2 = xor 0, v1
+    v3 = timestamp
+    v4 = xor v2, v3
+    v5 = prevrandao
+    v6 = xor v4, v5
+    v7 = number
+    v8 = xor v6, v7
+    v9 = gaslimit
+    v10 = xor v8, v9
+    v11 = chainid
+    v12 = xor v10, v11
+    v13 = basefee
+    v14 = xor v12, v13
+    v15 = blobbasefee
+    v16 = xor v14, v15
+    v17 = calldataload 0
+    v18 = and v17, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v19 = shr 224, v18
+    v20 = xor v16, v19
+    v21 = origin
+    v22 = zext i160 v21 to i256
+    v23 = xor v20, v22
+    v24 = gasprice
     v25 = xor v23, v24
-    ret v25
+    v26 = gas
+    v27 = xor v25, v26
+    ret v27
 }
 
-fn @tail(arg0: u256, arg1: u256) -> memorybytes [selector=0xb62868c3, pure, abi_params=[u256, u256], abi_returns=[memory_bytes]] {
+fn @tail(arg0: i256, arg1: i256) -> memorybytes [selector=0xb62868c3, pure, abi_params=[u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
@@ -72,26 +74,27 @@ fn @tail(arg0: u256, arg1: u256) -> memorybytes [selector=0xb62868c3, pure, abi_
     v4 = gt arg1, v3
     v5 = lt arg1, arg0
     v6 = or v4, v5
-    icall revert_if<empty>, v6
-    v7 = sub arg1, arg0
-    v8 = add v2, arg0
-    v9 = make_calldata_slice v8, v7
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = gt v11, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v12
-    v13 = calldatasize
-    v14 = sub v13, v11
-    v15 = sgt v10, v14
-    icall revert_if<calldata_tail_too_short>, v15
-    v16 = slice_len v9
-    v17 = add v16, 63
-    v18 = lt v17, v16
-    icall panic_if<0x41>, v18
-    v19 = not 31
-    v20 = and v17, v19
-    v21 = alloc memorybytes, exact, uninitialized, infallible, v20
-    set_memory_object_len memorybytes, v21, v16
-    memory_object_copy_from_slice memorybytes, v21, v9
-    ret v21
+    v7 = zext i1 v6 to i256
+    icall revert_if<empty>, v7
+    v8 = sub arg1, arg0
+    v9 = add v2, arg0
+    v10 = make_calldata_slice v9, v8
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = gt v12, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v13
+    v14 = calldatasize
+    v15 = sub v14, v12
+    v16 = sgt v11, v15
+    icall revert_if<calldata_tail_too_short>, v16
+    v17 = slice_len v10
+    v18 = add v17, 63
+    v19 = lt v18, v17
+    icall panic_if<0x41>, v19
+    v20 = not 31
+    v21 = and v18, v20
+    v22 = alloc memorybytes, exact, uninitialized, infallible, v21
+    set_memory_object_len memorybytes, v22, v17
+    memory_object_copy_from_slice memorybytes, v22, v10
+    ret v22
 }

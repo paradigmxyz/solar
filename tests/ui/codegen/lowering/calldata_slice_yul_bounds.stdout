@@ -9,20 +9,20 @@ fn @_empty() -> calldataslice [pure] {
     ret v3
 }
 
-fn @emptyLen() -> u256 [selector=0x24046374, pure, abi_params=[], abi_returns=[word]] {
+fn @emptyLen() -> i256 [selector=0x24046374, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @_empty
     v1 = icall @_sink, v0
     ret v1
 }
 
-fn @_sink(arg0: calldataslice) -> u256 [pure] {
+fn @_sink(arg0: calldataslice) -> i256 [pure] {
   bb0:
     v0 = slice_len arg0
     ret v0
 }
 
-fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @trimLen(arg0: calldataslice) -> i256 [selector=0x341fda35, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 4
@@ -38,7 +38,7 @@ fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, pure, abi_params=
     ret v10
 }
 
-fn @conditional(arg0: calldataslice) -> u256 [selector=0x1a013c9e, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @conditional(arg0: calldataslice) -> i256 [selector=0x1a013c9e, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = gt v0, 32

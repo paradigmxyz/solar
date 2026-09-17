@@ -1,27 +1,28 @@
 // === ROOT/tests/ui/codegen/lowering/dynamic_struct_param.sol:DynamicStructParam ===
 @module DynamicStructParam
-fn @init(arg0: calldataslice, arg1: address) -> u256 [selector=0x5c58abd8, pure, abi_params=[tuple<address, u8, bytes, bytes>, address], abi_returns=[word]] {
+fn @init(arg0: calldataslice, arg1: i256) -> i256 [selector=0x5c58abd8, pure, abi_params=[tuple<address, u8, bytes, bytes>, address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 32
     v2 = calldataload v1
     v3 = and v2, 255
     v4 = eq v2, v3
-    v5 = iszero v4
+    v5 = eq v4, false
     icall revert_if<empty>, v5
-    v6 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
-    v8 = add v2, v6
-    v9 = gt v8, 0xffffffffffffffffffffffffffffffffffffffff
-    jumpi v9, bb1, bb2
+    v6 = trunc i256 arg1 to i160
+    v8 = zext i160 v6 to i256
+    v9 = add v2, v8
+    v10 = gt v9, 0xffffffffffffffffffffffffffffffffffffffff
+    jumpi v10, bb1, bb2
   bb2:
-    ret v8
+    ret v9
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @flat(arg0: calldataslice) -> u256 [selector=0x73a9ddca, pure, abi_params=[tuple<u256, address>], abi_returns=[word]] {
+fn @flat(arg0: calldataslice) -> i256 [selector=0x73a9ddca, pure, abi_params=[tuple<u256, address>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
@@ -29,7 +30,7 @@ fn @flat(arg0: calldataslice) -> u256 [selector=0x73a9ddca, pure, abi_params=[tu
     ret v2
 }
 
-fn @words(arg0: calldataslice) -> u256 [selector=0x6d5f7443, pure, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word]] {
+fn @words(arg0: calldataslice) -> i256 [selector=0x6d5f7443, pure, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
@@ -43,7 +44,7 @@ fn @words(arg0: calldataslice) -> u256 [selector=0x6d5f7443, pure, abi_params=[t
     v8 = sub v7, v0
     v9 = sub v8, 31
     v10 = slt v5, v9
-    v11 = iszero v10
+    v11 = eq v10, false
     icall revert_if<invalid_calldata_tail_offset>, v11
     v12 = calldataload v6
     v13 = gt v12, 0xffffffffffffffff
@@ -71,7 +72,7 @@ fn @words(arg0: calldataslice) -> u256 [selector=0x6d5f7443, pure, abi_params=[t
     revert 28, 36
 }
 
-fn @signedWords(arg0: calldataslice) -> u256 [selector=0x69491962, pure, abi_params=[tuple<array<_, i256>, u256>], abi_returns=[word]] {
+fn @signedWords(arg0: calldataslice) -> i256 [selector=0x69491962, pure, abi_params=[tuple<array<_, i256>, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
@@ -85,7 +86,7 @@ fn @signedWords(arg0: calldataslice) -> u256 [selector=0x69491962, pure, abi_par
     v8 = sub v7, v0
     v9 = sub v8, 31
     v10 = slt v5, v9
-    v11 = iszero v10
+    v11 = eq v10, false
     icall revert_if<invalid_calldata_tail_offset>, v11
     v12 = calldataload v6
     v13 = gt v12, 0xffffffffffffffff
@@ -113,7 +114,7 @@ fn @signedWords(arg0: calldataslice) -> u256 [selector=0x69491962, pure, abi_par
     revert 28, 36
 }
 
-fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_params=[tuple<array<_, array<_, u256>>>], abi_returns=[word]] {
+fn @nestedWords(arg0: calldataslice) -> i256 [selector=0x0b0be15f, pure, abi_params=[tuple<array<_, array<_, u256>>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
@@ -127,7 +128,7 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
     v8 = sub v7, v0
     v9 = sub v8, 31
     v10 = slt v5, v9
-    v11 = iszero v10
+    v11 = eq v10, false
     icall revert_if<invalid_calldata_tail_offset>, v11
     v12 = calldataload v6
     v13 = gt v12, 0xffffffffffffffff
@@ -153,7 +154,7 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
     v30 = sub v29, v22
     v31 = sub v30, 31
     v32 = slt v27, v31
-    v33 = iszero v32
+    v33 = eq v32, false
     icall revert_if<invalid_calldata_tail_offset>, v33
     v34 = calldataload v28
     v35 = gt v34, 0xffffffffffffffff
@@ -168,7 +169,7 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
     v42 = make_calldata_slice v41, v34
     v43 = slice_len v42
     v44 = lt 0, v43
-    v45 = iszero v44
+    v45 = eq v44, false
     icall panic_if<0x32>, v45
     v46 = slice_ptr v42
     v47 = add v46, 0
@@ -182,7 +183,7 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
     v54 = sub v53, v46
     v55 = sub v54, 31
     v56 = slt v51, v55
-    v57 = iszero v56
+    v57 = eq v56, false
     icall revert_if<invalid_calldata_tail_offset>, v57
     v58 = calldataload v52
     v59 = gt v58, 0xffffffffffffffff

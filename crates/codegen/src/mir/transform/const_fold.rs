@@ -45,8 +45,12 @@ impl MirPass for ConstFold {
                             // <passing check or zero-length copy> => nothing
                             dead.insert(id);
                         } else if let Some(result) = func.inst_result_value(id)
-                            && let Some(value) =
-                                egraph::fold_constant(func, &kind, gcx.sess.opts.evm_version)
+                            && let Some(value) = egraph::fold_constant(
+                                func,
+                                &kind,
+                                func.value_ty(result),
+                                gcx.sess.opts.evm_version,
+                            )
                         {
                             // %result = <constant expression> => constant
                             replacements.insert(result, value);

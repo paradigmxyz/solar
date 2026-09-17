@@ -10,7 +10,7 @@
 // CHECK: + {{v[0-9]+}} = phi
 // CHECK-LABEL: {{^[ +].*}}fn @straight_caller{{[( ]}}
 // CHECK: {{^ +}}{{v[0-9]+}} = icall @classify
-fn @loop_caller(arg0: u256, arg1: u256) -> u256 {
+fn @loop_caller(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -29,12 +29,12 @@ fn @loop_caller(arg0: u256, arg1: u256) -> u256 {
   bb3:
     ret v6
 }
-fn @straight_caller(arg0: u256) -> u256 {
+fn @straight_caller(arg0: i256) -> i256 {
   bb0:
     v0 = icall @classify, arg0
     ret v0
 }
-fn @classify(arg0: u256) -> u256 {
+fn @classify(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 32
     jumpi v0, bb1, bb2

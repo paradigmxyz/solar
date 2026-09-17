@@ -1,69 +1,73 @@
 // === ROOT/tests/ui/codegen/lowering/insertion_phi_order.sol:Test ===
 @module Test
-fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>]] {
+fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
-    v0 = mload arg0
-    mstore arg0, 0
-    v1 = shl 5, v0
-    v2 = add arg0, v1
-    v3 = add arg0, 32
+    v0 = ptrtoint memoryarray arg0 to i256
+    v1 = mload v0
+    v2 = ptrtoint memoryarray arg0 to i256
+    mstore v2, 0
+    v3 = shl 5, v1
+    v4 = ptrtoint memoryarray arg0 to i256
+    v5 = add v4, v3
+    v6 = ptrtoint memoryarray arg0 to i256
+    v7 = add v6, 32
     jump bb1
   bb1:
-    v4 = phi [bb0: v2], [bb5: v25], [bb9: v4]
-    v5 = phi [bb0: arg0], [bb5: v27], [bb9: v5]
-    v6 = phi [bb0: v0], [bb5: v23], [bb9: v6]
-    v7 = phi [bb0: v3], [bb5: v28], [bb9: v11]
-    v8 = phi [bb0: memoryarray 96], [bb5: v29], [bb9: v8]
-    v9 = eq 1, 0
-    v10 = iszero v9
-    jumpi v10, bb3, bb4
+    v8 = phi [bb0: v5], [bb5: v29], [bb9: v8]
+    v9 = phi [bb0: arg0], [bb5: v31], [bb9: v9]
+    v10 = phi [bb0: v1], [bb5: v27], [bb9: v10]
+    v11 = phi [bb0: v7], [bb5: v32], [bb9: v14]
+    v12 = phi [bb0: memoryarray 96], [bb5: v33], [bb9: v12]
+    v13 = ne 1, 0
+    jumpi v13, bb3, bb4
   bb4:
     jump bb2
   bb3:
-    v11 = add v7, 32
-    v12 = gt v11, v4
-    v13 = eq v12, 0
-    v14 = iszero v13
-    jumpi v14, bb6, bb7
+    v14 = add v11, 32
+    v15 = gt v14, v8
+    v16 = zext i1 v15 to i256
+    v17 = ne v16, 0
+    jumpi v17, bb6, bb7
   bb7:
     jump bb8
   bb8:
-    v15 = mload v11
-    v16 = sub v11, 32
-    v17 = mload v16
-    v18 = gt v17, v15
-    v19 = iszero v18
-    v20 = eq v19, 0
-    v21 = iszero v20
-    jumpi v21, bb9, bb10
+    v18 = mload v14
+    v19 = sub v14, 32
+    v20 = mload v19
+    v21 = gt v20, v18
+    v22 = zext i1 v21 to i256
+    v23 = eq v22, 0
+    v24 = zext i1 v23 to i256
+    v25 = ne v24, 0
+    jumpi v25, bb9, bb10
   bb10:
     jump bb11
   bb11:
     jump bb12
   bb12:
-    v22 = phi [bb11: v15], [bb16: v22]
-    v23 = phi [bb11: v6], [bb16: v23]
-    v24 = phi [bb11: v16], [bb16: v33]
-    v25 = phi [bb11: v4], [bb16: v25]
-    v26 = phi [bb11: v17], [bb16: v34]
-    v27 = phi [bb11: v5], [bb16: v27]
-    v28 = phi [bb11: v11], [bb16: v28]
+    v26 = phi [bb11: v18], [bb16: v26]
+    v27 = phi [bb11: v10], [bb16: v27]
+    v28 = phi [bb11: v19], [bb16: v36]
     v29 = phi [bb11: v8], [bb16: v29]
-    v30 = eq 1, 0
-    v31 = iszero v30
-    jumpi v31, bb14, bb15
+    v30 = phi [bb11: v20], [bb16: v37]
+    v31 = phi [bb11: v9], [bb16: v31]
+    v32 = phi [bb11: v14], [bb16: v32]
+    v33 = phi [bb11: v12], [bb16: v33]
+    v34 = ne 1, 0
+    jumpi v34, bb14, bb15
   bb15:
     jump bb13
   bb14:
-    v32 = add v24, 32
-    mstore v32, v26
-    v33 = sub v24, 32
-    v34 = mload v33
-    v35 = gt v34, v22
-    v36 = iszero v35
-    v37 = eq v36, 0
-    v38 = iszero v37
-    jumpi v38, bb17, bb18
+    v35 = add v28, 32
+    mstore v35, v30
+    v36 = sub v28, 32
+    v37 = mload v36
+    v38 = gt v37, v26
+    v39 = zext i1 v38 to i256
+    v40 = eq v39, 0
+    v41 = zext i1 v40 to i256
+    v42 = ne v41, 0
+    jumpi v42, bb17, bb18
   bb18:
     jump bb19
   bb19:
@@ -73,10 +77,10 @@ fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_param
   bb17:
     jump bb13
   bb13:
-    v39 = phi [bb17: v33], [bb15: v24]
-    v40 = phi [bb17: v34], [bb15: v26]
-    v41 = add v39, 32
-    mstore v41, v22
+    v43 = phi [bb17: v36], [bb15: v28]
+    v44 = phi [bb17: v37], [bb15: v30]
+    v45 = add v43, 32
+    mstore v45, v26
     jump bb5
   bb5:
     jump bb1
@@ -85,7 +89,8 @@ fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_param
   bb6:
     jump bb2
   bb2:
-    v42 = phi [bb6: v11], [bb4: v7]
-    mstore v5, v6
-    ret v5
+    v46 = phi [bb6: v14], [bb4: v11]
+    v47 = ptrtoint memoryarray v9 to i256
+    mstore v47, v10
+    ret v9
 }

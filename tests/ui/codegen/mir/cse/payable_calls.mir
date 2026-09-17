@@ -1,7 +1,7 @@
 //@ compile-flags: -Zmir-pipeline=cse,dce
 @module PayableCallEffects
 
-fn @observe(arg0: address) -> u256 {
+fn @observe(arg0: i256) -> i256 {
   bb0:
     v0 = balance arg0
     v1 = selfbalance

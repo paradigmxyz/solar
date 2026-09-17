@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/call-cleanup/boolean_returns.mir (before call-cleanup) ===
 + // === ROOT/tests/ui/codegen/mir/call-cleanup/boolean_returns.mir (after call-cleanup) ===
   @module BooleanReturns
-  fn @clean(arg0: u256) -> bool {
+  fn @clean(arg0: i256) -> i1 {
     bb0:
       v0 = lt arg0, 128
       jumpi v0, bb1, bb2
@@ -11,67 +11,73 @@
       jump bb3
     bb3:
       v1 = phi [bb1: 1], [bb2: 0]
-      ret v1
+      v2 = ne v1, 0
+      ret v2
   }
   
-  fn @dirty(arg0: u256) -> bool {
+  fn @dirty(arg0: i256) -> i1 {
     bb0:
-      ret arg0
+      v0 = ne arg0, 0
+      ret v0
   }
   
-  fn @recursive(arg0: u256) -> bool {
+  fn @recursive(arg0: i256) -> i1 {
     bb0:
       v0 = icall @recursive, arg0
       ret v0
   }
   
-  fn @compare(arg0: u256) -> bool {
+  fn @compare(arg0: i256) -> i1 {
     bb0:
       v0 = icall @clean, arg0
-      v1 = iszero v0
--     v2 = iszero v1
+      v1 = eq v0, false
+-     v2 = eq v1, false
 -     ret v2
 +     ret v0
   }
   
-  fn @keep_dirty(arg0: u256) -> bool {
+  fn @keep_dirty(arg0: i256) -> i1 {
     bb0:
       v0 = icall @dirty, arg0
-      v1 = iszero v0
-      v2 = iszero v1
-      ret v2
+      v1 = eq v0, false
+-     v2 = eq v1, false
+-     ret v2
++     ret v0
   }
   
-  fn @keep_recursive(arg0: u256) -> bool {
+  fn @keep_recursive(arg0: i256) -> i1 {
     bb0:
       v0 = icall @recursive, arg0
-      v1 = iszero v0
-      v2 = iszero v1
-      ret v2
+      v1 = eq v0, false
+-     v2 = eq v1, false
+-     ret v2
++     ret v0
   }
   
-  fn @mixed(arg0: u256) -> bool {
+  fn @mixed(arg0: i256) -> i1 {
     bb0:
       v0 = lt arg0, 5
       jumpi v0, bb1, bb2
     bb2:
-      ret 2
+      v1 = ne 2, 0
+      ret v1
     bb1:
-      ret 1
+      ret true
   }
   
-  fn @keep_mixed(arg0: u256) -> bool {
+  fn @keep_mixed(arg0: i256) -> i1 {
     bb0:
       v0 = icall @mixed, arg0
-      v1 = iszero v0
-      v2 = iszero v1
-      ret v2
+      v1 = eq v0, false
+-     v2 = eq v1, false
+-     ret v2
++     ret v0
   }
   
 - // === ROOT/tests/ui/codegen/mir/call-cleanup/boolean_returns.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/call-cleanup/boolean_returns.mir (after dce) ===
   @module BooleanReturns
-  fn @clean(arg0: u256) -> bool {
+  fn @clean(arg0: i256) -> i1 {
     bb0:
       v0 = lt arg0, 128
       jumpi v0, bb1, bb2
@@ -81,58 +87,58 @@
       jump bb3
     bb3:
       v1 = phi [bb1: 1], [bb2: 0]
-      ret v1
+      v2 = ne v1, 0
+      ret v2
   }
   
-  fn @dirty(arg0: u256) -> bool {
+  fn @dirty(arg0: i256) -> i1 {
     bb0:
-      ret arg0
+      v0 = ne arg0, 0
+      ret v0
   }
   
-  fn @recursive(arg0: u256) -> bool {
+  fn @recursive(arg0: i256) -> i1 {
     bb0:
       v0 = icall @recursive, arg0
       ret v0
   }
   
-  fn @compare(arg0: u256) -> bool {
+  fn @compare(arg0: i256) -> i1 {
     bb0:
       v0 = icall @clean, arg0
--     v1 = iszero v0
+-     v1 = eq v0, false
       ret v0
   }
   
-  fn @keep_dirty(arg0: u256) -> bool {
+  fn @keep_dirty(arg0: i256) -> i1 {
     bb0:
       v0 = icall @dirty, arg0
-      v1 = iszero v0
-      v2 = iszero v1
-      ret v2
+-     v1 = eq v0, false
+      ret v0
   }
   
-  fn @keep_recursive(arg0: u256) -> bool {
+  fn @keep_recursive(arg0: i256) -> i1 {
     bb0:
       v0 = icall @recursive, arg0
-      v1 = iszero v0
-      v2 = iszero v1
-      ret v2
+-     v1 = eq v0, false
+      ret v0
   }
   
-  fn @mixed(arg0: u256) -> bool {
+  fn @mixed(arg0: i256) -> i1 {
     bb0:
       v0 = lt arg0, 5
       jumpi v0, bb1, bb2
     bb2:
-      ret 2
+      v1 = ne 2, 0
+      ret v1
     bb1:
-      ret 1
+      ret true
   }
   
-  fn @keep_mixed(arg0: u256) -> bool {
+  fn @keep_mixed(arg0: i256) -> i1 {
     bb0:
       v0 = icall @mixed, arg0
-      v1 = iszero v0
-      v2 = iszero v1
-      ret v2
+-     v1 = eq v0, false
+      ret v0
   }
   

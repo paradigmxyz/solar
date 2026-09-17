@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_default_memory_aggregate.sol:AbiEncodeDefaultMemoryAggregates ===
 @module AbiEncodeDefaultMemoryAggregates
-fn @hashStaticTuple() -> bytes32 [selector=0x432a72da, pure, abi_params=[], abi_returns=[word]] {
+fn @hashStaticTuple() -> i256 [selector=0x432a72da, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -25,7 +25,7 @@ fn @hashStaticTuple() -> bytes32 [selector=0x432a72da, pure, abi_params=[], abi_
     jump bb1
 }
 
-fn @hashDynamicTuple() -> bytes32 [selector=0xfe92a929, pure, abi_params=[], abi_returns=[word]] {
+fn @hashDynamicTuple() -> i256 [selector=0xfe92a929, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -50,7 +50,7 @@ fn @hashDynamicTuple() -> bytes32 [selector=0xfe92a929, pure, abi_params=[], abi
     jump bb1
 }
 
-fn @hashStaticFixedArray() -> bytes32 [selector=0x5fdc5289, pure, abi_params=[], abi_returns=[word]] {
+fn @hashStaticFixedArray() -> i256 [selector=0x5fdc5289, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -73,7 +73,7 @@ fn @hashStaticFixedArray() -> bytes32 [selector=0x5fdc5289, pure, abi_params=[],
     jump bb1
 }
 
-fn @hashDynamicFixedArray() -> bytes32 [selector=0x6c0960c7, pure, abi_params=[], abi_returns=[word]] {
+fn @hashDynamicFixedArray() -> i256 [selector=0x6c0960c7, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -105,7 +105,7 @@ fn @hashDynamicFixedArray() -> bytes32 [selector=0x6c0960c7, pure, abi_params=[]
     jump bb4
 }
 
-fn @hashNestedTuple() -> bytes32 [selector=0xe4f5ccbe, pure, abi_params=[], abi_returns=[word]] {
+fn @hashNestedTuple() -> i256 [selector=0xe4f5ccbe, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1

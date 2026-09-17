@@ -15,7 +15,8 @@
 // CHECK: mstore [[DEST]], [[CLEAN]]
 // CHECK: [[NEXT_COUNT:v[0-9]+]] = sub [[REMAINING]], 1
 // CHECK: [[NEXT_DEST:v[0-9]+]] = add [[DEST]], 32
-// CHECK: jumpi [[NEXT_COUNT]], [[BODY]], [[DONE]]
+// CHECK: [[CONTINUE:v[0-9]+]] = ne [[NEXT_COUNT]], 0
+// CHECK: jumpi [[CONTINUE]], [[BODY]], [[DONE]]
 // CHECK: [[DONE]]:
 // CHECK: {{v[0-9]+}} = phi {{.*}}[[NEXT_DEST]]
 fn @words(arg0: memoryarray) -> memoryslice {

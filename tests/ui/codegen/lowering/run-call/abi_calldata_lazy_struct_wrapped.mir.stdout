@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_lazy_struct_wrapped.sol:AbiCalldataLazyStructWrapped ===
 @module AbiCalldataLazyStructWrapped
 types:
-  struct0: {u256, memorybytes}
+  struct0: {i256, memorybytes}
 
 fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=[array<_, tuple<u256, bytes>>], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 0
@@ -21,7 +21,7 @@ fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=
     v11 = sub v10, v3
     v12 = sub v11, 63
     v13 = slt v8, v12
-    v14 = iszero v13
+    v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = make_calldata_slice v9, 32
     v16 = slice_ptr v15
@@ -29,7 +29,7 @@ fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=
     v18 = calldataload v17
     v19 = slice_len arg0
     v20 = lt 0, v19
-    v21 = iszero v20
+    v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = slice_ptr arg0
     v23 = add v22, 0
@@ -43,7 +43,7 @@ fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=
     v30 = sub v29, v22
     v31 = sub v30, 63
     v32 = slt v27, v31
-    v33 = iszero v32
+    v33 = eq v32, false
     icall revert_if<invalid_calldata_tail_offset>, v33
     v34 = make_calldata_slice v28, 32
     v35 = slice_ptr v34
@@ -58,7 +58,7 @@ fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=
     v43 = sub v42, v35
     v44 = sub v43, 31
     v45 = slt v40, v44
-    v46 = iszero v45
+    v46 = eq v45, false
     icall revert_if<invalid_calldata_tail_offset>, v46
     v47 = calldataload v41
     v48 = gt v47, 0xffffffffffffffff

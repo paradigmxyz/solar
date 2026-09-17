@@ -1655,9 +1655,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_operand(func, entries[mid].value_id);
         self.asm.emit_op(op::GT);
         self.scheduler.instruction_executed_untracked(2);
-        self.emit_push_label(left_label);
-        self.asm.emit_op(op::JUMPI);
-        self.scheduler.instruction_executed(1, None);
+        self.emit_conditional_jump(left_label, false);
 
         self.emit_binary_mir_switch(func, &entries[mid..], default, false, leaf_size);
 
@@ -1889,9 +1887,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.stack.push_unknown();
         self.asm.emit_op(op::GT);
         self.scheduler.instruction_executed_untracked(2);
-        self.emit_push_label(in_range);
-        self.asm.emit_op(op::JUMPI);
-        self.scheduler.instruction_executed(1, None);
+        self.emit_conditional_jump(in_range, false);
 
         let indexed_stack = self.scheduler.stack.clone();
         self.emit_stack_op(StackOp::Pop);
@@ -1922,28 +1918,21 @@ impl<'gcx> EvmCodegen<'gcx> {
         target: BlockId,
         miss: Option<Label>,
     ) {
+        // dup selector; [push value; eq/sub]; jumpi [iszero] condition, target/next
         self.emit_stack_op(StackOp::Dup(1));
-        if value.is_some_and(|value| value.is_zero())
-            && self.gcx.sess.opts.optimization != OptimizationMode::None
-        {
-            self.asm.emit_op(op::ISZERO);
-            self.scheduler.instruction_executed_untracked(1);
-        } else {
+        let compare_zero = value.is_some_and(|value| value.is_zero())
+            && self.gcx.sess.opts.optimization != OptimizationMode::None;
+        if !compare_zero {
             self.emit_operand(func, value_id);
-            self.asm.emit_op(op::EQ);
+            // A miss needs only nonzero, so subtraction avoids EQ followed by ISZERO.
+            self.asm.emit_op(if self.emitting_entry { op::EQ } else { op::SUB });
             self.scheduler.instruction_executed_untracked(2);
         }
         if self.emitting_entry {
-            self.emit_push_label(self.block_labels[&target]);
-            self.asm.emit_op(op::JUMPI);
-            self.scheduler.instruction_executed(1, None);
+            self.emit_conditional_jump(self.block_labels[&target], compare_zero);
         } else {
-            self.asm.emit_op(op::ISZERO);
-            self.scheduler.instruction_executed_untracked(1);
             let next = miss.unwrap_or_else(|| self.asm.new_label());
-            self.emit_push_label(next);
-            self.asm.emit_op(op::JUMPI);
-            self.scheduler.instruction_executed(1, None);
+            self.emit_conditional_jump(next, false);
 
             let next_stack = self.scheduler.stack.clone();
             self.emit_stack_op(StackOp::Pop);

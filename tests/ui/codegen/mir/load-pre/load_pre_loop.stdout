@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/load-pre/load_pre_loop.mir (before load-pre) ===
 + // === ROOT/tests/ui/codegen/mir/load-pre/load_pre_loop.mir (after load-pre) ===
   @module LoadPreLoop
-  fn @loop_header_reload(arg0: u256) -> u256 {
+  fn @loop_header_reload(arg0: i256) -> i256 {
     bb0:
       v0 = sload 5
       jump bb1
@@ -18,7 +18,7 @@
       jump bb1
   }
   
-  fn @loop_clobbered_keeps_reload(arg0: u256, arg1: u256) -> u256 {
+  fn @loop_clobbered_keeps_reload(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = sload 5
       jump bb1
@@ -33,7 +33,7 @@
       jump bb1
   }
   
-  fn @loop_clobbered_no_insert(arg0: u256, arg1: u256) -> u256 {
+  fn @loop_clobbered_no_insert(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = sload 5
       jump bb1

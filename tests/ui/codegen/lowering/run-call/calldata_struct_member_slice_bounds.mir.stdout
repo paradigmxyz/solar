@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_member_slice_bounds.sol:CalldataStructMemberSliceBounds ===
 @module CalldataStructMemberSliceBounds
-fn @edge(arg0: calldataslice) -> u256 [selector=0xf583b19b, pure, abi_params=[tuple<bytes, bytes>], abi_returns=[word]] {
+fn @edge(arg0: calldataslice) -> i256 [selector=0xf583b19b, pure, abi_params=[tuple<bytes, bytes>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
@@ -14,7 +14,7 @@ fn @edge(arg0: calldataslice) -> u256 [selector=0xf583b19b, pure, abi_params=[tu
     v8 = sub v7, v0
     v9 = sub v8, 31
     v10 = slt v5, v9
-    v11 = iszero v10
+    v11 = eq v10, false
     icall revert_if<invalid_calldata_tail_offset>, v11
     v12 = calldataload v6
     v13 = gt v12, 0xffffffffffffffff
@@ -32,7 +32,7 @@ fn @edge(arg0: calldataslice) -> u256 [selector=0xf583b19b, pure, abi_params=[tu
     ret v22
 }
 
-fn @abiEdge(arg0: calldataslice) -> u256 [selector=0xdff25446, pure, abi_params=[tuple<bytes, bytes>], abi_returns=[word]] {
+fn @abiEdge(arg0: calldataslice) -> i256 [selector=0xdff25446, pure, abi_params=[tuple<bytes, bytes>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
@@ -46,7 +46,7 @@ fn @abiEdge(arg0: calldataslice) -> u256 [selector=0xdff25446, pure, abi_params=
     v8 = sub v7, v0
     v9 = sub v8, 31
     v10 = slt v5, v9
-    v11 = iszero v10
+    v11 = eq v10, false
     icall revert_if<invalid_calldata_tail_offset>, v11
     v12 = calldataload v6
     v13 = gt v12, 0xffffffffffffffff
@@ -104,10 +104,10 @@ fn @_decodeBatch(arg0: calldataslice) -> calldataslice [pure] {
     v18 = shl 5, v17
     v19 = add v3, v18
     v20 = gt v19, v7
-    v21 = shr 64, v1
-    v22 = or v21, v20
-    v23 = eq v22, 0
-    v24 = iszero v23
+    v21 = zext i1 v20 to i256
+    v22 = shr 64, v1
+    v23 = or v22, v21
+    v24 = ne v23, 0
     jumpi v24, bb1, bb2
   bb2:
     jump bb3

@@ -21,19 +21,19 @@
       "A": {
         "evm": {
           "bytecode": {
-            "object": "60c06040523460125760408060165f395ff35b5f5ffd34603c575f3560e01c80633c311f3c03603c5760243610603c576004356024565b60a0515b600190038060a052602057600160a051015f5260205ff35b5f5ffd",
+            "object": "60c06040523460125760358060165f395ff35b5f5ffd346031575f3560e01c80633c311f3c03603157602436106031576004355b6001900380601d5760010160805260206080f35b5f5ffd",
             "sourceMap": ":::-:0;;;;;;;;;;;;;;;;"
           },
           "deployedBytecode": {
-            "object": "34603c575f3560e01c80633c311f3c03603c5760243610603c576004356024565b60a0515b600190038060a052602057600160a051015f5260205ff35b5f5ffd",
-            "sourceMap": ":::-:0;;;;;;;;;;;;;;;;;;;;;;;;;180:9:0;;;;;;206:22;;-1:-1:-1;;;;20:238:0;;;;;-1:-1:-1;;;"
+            "object": "346031575f3560e01c80633c311f3c03603157602436106031576004355b6001900380601d5760010160805260206080f35b5f5ffd",
+            "sourceMap": ":::-:0;;;;;;;;;;;;;;;;;;;;180:9:0;;;209;206:22;;-1:-1:-1;;20:238:0;;;;;-1:-1:-1;;;"
           }
         }
       },
       "B": {
         "evm": {
           "bytecode": {
-            "object": "60c06040523460125760408060165f395ff35b5f5ffd34603c575f3560e01c80633c311f3c03603c5760243610603c576004356024565b60a0515b600190038060a052602057600160a051015f5260205ff35b5f5ffd",
+            "object": "60c06040523460125760358060165f395ff35b5f5ffd346031575f3560e01c80633c311f3c03603157602436106031576004355b6001900380601d5760010160805260206080f35b5f5ffd",
             "ethdebug": {
               "compilation": {
                 "id": "solar-COMPILATION_ID"
@@ -102,7 +102,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x40"
+                      "0x35"
                     ]
                   }
                 },
@@ -173,7 +173,7 @@
             }
           },
           "deployedBytecode": {
-            "object": "34603c575f3560e01c80633c311f3c03603c5760243610603c576004356024565b60a0515b600190038060a052602057600160a051015f5260205ff35b5f5ffd",
+            "object": "346031575f3560e01c80633c311f3c03603157602436106031576004355b6001900380601d5760010160805260206080f35b5f5ffd",
             "ethdebug": {
               "compilation": {
                 "id": "solar-COMPILATION_ID"
@@ -203,7 +203,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x3c"
+                      "0x31"
                     ]
                   }
                 },
@@ -266,7 +266,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x3c"
+                      "0x31"
                     ]
                   }
                 },
@@ -302,7 +302,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x3c"
+                      "0x31"
                     ]
                   }
                 },
@@ -330,47 +330,11 @@
                 {
                   "offset": 29,
                   "operation": {
-                    "mnemonic": "PUSH1",
-                    "arguments": [
-                      "0x24"
-                    ]
-                  }
-                },
-                {
-                  "offset": 31,
-                  "operation": {
-                    "mnemonic": "JUMP"
-                  }
-                },
-                {
-                  "offset": 32,
-                  "operation": {
                     "mnemonic": "JUMPDEST"
                   }
                 },
                 {
-                  "offset": 33,
-                  "operation": {
-                    "mnemonic": "PUSH1",
-                    "arguments": [
-                      "0xa0"
-                    ]
-                  }
-                },
-                {
-                  "offset": 35,
-                  "operation": {
-                    "mnemonic": "MLOAD"
-                  }
-                },
-                {
-                  "offset": 36,
-                  "operation": {
-                    "mnemonic": "JUMPDEST"
-                  }
-                },
-                {
-                  "offset": 37,
+                  "offset": 30,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -390,7 +354,7 @@
                   }
                 },
                 {
-                  "offset": 39,
+                  "offset": 32,
                   "operation": {
                     "mnemonic": "SWAP1"
                   },
@@ -407,7 +371,7 @@
                   }
                 },
                 {
-                  "offset": 40,
+                  "offset": 33,
                   "operation": {
                     "mnemonic": "SUB"
                   },
@@ -424,7 +388,7 @@
                   }
                 },
                 {
-                  "offset": 41,
+                  "offset": 34,
                   "operation": {
                     "mnemonic": "DUP1"
                   },
@@ -434,55 +398,18 @@
                         "id": 0
                       },
                       "range": {
-                        "offset": 180,
+                        "offset": 209,
                         "length": 9
                       }
                     }
                   }
                 },
                 {
-                  "offset": 42,
+                  "offset": 35,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0xa0"
-                    ]
-                  },
-                  "context": {
-                    "code": {
-                      "source": {
-                        "id": 0
-                      },
-                      "range": {
-                        "offset": 180,
-                        "length": 9
-                      }
-                    }
-                  }
-                },
-                {
-                  "offset": 44,
-                  "operation": {
-                    "mnemonic": "MSTORE"
-                  },
-                  "context": {
-                    "code": {
-                      "source": {
-                        "id": 0
-                      },
-                      "range": {
-                        "offset": 180,
-                        "length": 9
-                      }
-                    }
-                  }
-                },
-                {
-                  "offset": 45,
-                  "operation": {
-                    "mnemonic": "PUSH1",
-                    "arguments": [
-                      "0x20"
+                      "0x1d"
                     ]
                   },
                   "context": {
@@ -498,7 +425,7 @@
                   }
                 },
                 {
-                  "offset": 47,
+                  "offset": 37,
                   "operation": {
                     "mnemonic": "JUMPI"
                   },
@@ -515,7 +442,7 @@
                   }
                 },
                 {
-                  "offset": 48,
+                  "offset": 38,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -524,30 +451,18 @@
                   }
                 },
                 {
-                  "offset": 50,
-                  "operation": {
-                    "mnemonic": "PUSH1",
-                    "arguments": [
-                      "0xa0"
-                    ]
-                  }
-                },
-                {
-                  "offset": 52,
-                  "operation": {
-                    "mnemonic": "MLOAD"
-                  }
-                },
-                {
-                  "offset": 53,
+                  "offset": 40,
                   "operation": {
                     "mnemonic": "ADD"
                   }
                 },
                 {
-                  "offset": 54,
+                  "offset": 41,
                   "operation": {
-                    "mnemonic": "PUSH0"
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x80"
+                    ]
                   },
                   "context": {
                     "code": {
@@ -562,7 +477,7 @@
                   }
                 },
                 {
-                  "offset": 55,
+                  "offset": 43,
                   "operation": {
                     "mnemonic": "MSTORE"
                   },
@@ -579,7 +494,7 @@
                   }
                 },
                 {
-                  "offset": 56,
+                  "offset": 44,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -599,9 +514,12 @@
                   }
                 },
                 {
-                  "offset": 58,
+                  "offset": 46,
                   "operation": {
-                    "mnemonic": "PUSH0"
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x80"
+                    ]
                   },
                   "context": {
                     "code": {
@@ -616,7 +534,7 @@
                   }
                 },
                 {
-                  "offset": 59,
+                  "offset": 48,
                   "operation": {
                     "mnemonic": "RETURN"
                   },
@@ -634,25 +552,25 @@
                   }
                 },
                 {
-                  "offset": 60,
+                  "offset": 49,
                   "operation": {
                     "mnemonic": "JUMPDEST"
                   }
                 },
                 {
-                  "offset": 61,
+                  "offset": 50,
                   "operation": {
                     "mnemonic": "PUSH0"
                   }
                 },
                 {
-                  "offset": 62,
+                  "offset": 51,
                   "operation": {
                     "mnemonic": "PUSH0"
                   }
                 },
                 {
-                  "offset": 63,
+                  "offset": 52,
                   "operation": {
                     "mnemonic": "REVERT"
                   },
@@ -668,10 +586,10 @@
       "C": {
         "evm": {
           "bytecode": {
-            "object": "60c06040523460125760408060165f395ff35b5f5ffd34603c575f3560e01c80633c311f3c03603c5760243610603c576004356024565b60a0515b600190038060a052602057600160a051015f5260205ff35b5f5ffd"
+            "object": "60c06040523460125760358060165f395ff35b5f5ffd346031575f3560e01c80633c311f3c03603157602436106031576004355b6001900380601d5760010160805260206080f35b5f5ffd"
           },
           "deployedBytecode": {
-            "object": "34603c575f3560e01c80633c311f3c03603c5760243610603c576004356024565b60a0515b600190038060a052602057600160a051015f5260205ff35b5f5ffd"
+            "object": "346031575f3560e01c80633c311f3c03603157602436106031576004355b6001900380601d5760010160805260206080f35b5f5ffd"
           }
         }
       }

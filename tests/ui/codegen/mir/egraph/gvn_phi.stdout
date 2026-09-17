@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/gvn_phi.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/gvn_phi.mir (after egraph) ===
   @module GvnPhi
-  fn @congruent_phis_collapse(arg0: u256, arg1: u256, arg2: bool) -> u256 {
+  fn @congruent_phis_collapse(arg0: i256, arg1: i256, arg2: i1) -> i256 {
     bb0:
       jumpi arg2, bb1, bb2
     bb2:
@@ -16,7 +16,7 @@
       ret v2
   }
   
-  fn @phi_of_same_folds_to_dominating_operand(arg0: u256, arg1: bool) -> u256 {
+  fn @phi_of_same_folds_to_dominating_operand(arg0: i256, arg1: i1) -> i256 {
     bb0:
       v0 = add arg0, 1
       jumpi arg1, bb1, bb2
@@ -31,7 +31,7 @@
       ret v2
   }
   
-  fn @phi_of_congruent_incoming(arg0: u256, arg1: bool) -> u256 {
+  fn @phi_of_congruent_incoming(arg0: i256, arg1: i1) -> i256 {
     bb0:
       v0 = add arg0, 1
       jumpi arg1, bb1, bb2
@@ -46,7 +46,7 @@
 +     ret v0
   }
   
-  fn @phi_of_equal_immediates(arg0: bool) -> u256 {
+  fn @phi_of_equal_immediates(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:

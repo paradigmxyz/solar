@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/return_variable_allocation.sol:C ===
 @module C
 types:
-  struct0: {u256, u256, u256}
+  struct0: {i256, i256, i256}
 
-fn @memorySize() -> u256 [pure] {
+fn @memorySize() -> i256 [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     ret v0

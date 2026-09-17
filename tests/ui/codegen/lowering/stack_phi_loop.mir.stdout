@@ -1,41 +1,42 @@
 // === ROOT/tests/ui/codegen/lowering/stack_phi_loop.sol:StackPhiLoop ===
 @module StackPhiLoop
-fn @loopCarried(arg0: u256, arg1: bool) -> u256 [selector=0x71b76bb2, pure, abi_params=[u256, bool], abi_returns=[word]] {
+fn @loopCarried(arg0: i256, arg1: i256) -> i256 [selector=0x71b76bb2, pure, abi_params=[u256, bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    jumpi arg1, bb1, bb2
+    v0 = ne arg1, 0
+    jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v0 = phi [bb1: 7], [bb2: 11]
+    v1 = phi [bb1: 7], [bb2: 11]
     jump bb4
   bb4:
-    v1 = phi [bb3: 0], [bb6: v1]
-    v2 = phi [bb3: 0], [bb6: v10]
-    v3 = phi [bb3: arg1], [bb6: v3]
-    v4 = phi [bb3: v0], [bb6: v4]
-    v5 = phi [bb3: 0], [bb6: v11]
-    v6 = phi [bb3: arg0], [bb6: v6]
-    v7 = lt v5, v6
-    jumpi v7, bb7, bb8
+    v2 = phi [bb3: 0], [bb6: v2]
+    v3 = phi [bb3: 0], [bb6: v11]
+    v4 = phi [bb3: arg1], [bb6: v4]
+    v5 = phi [bb3: v1], [bb6: v5]
+    v6 = phi [bb3: 0], [bb6: v12]
+    v7 = phi [bb3: arg0], [bb6: v7]
+    v8 = lt v6, v7
+    jumpi v8, bb7, bb8
   bb8:
     jump bb5
   bb5:
-    ret v2
+    ret v3
   bb7:
-    v8 = checked_mul u256, v5, 3
-    v9 = checked_add u256, v8, v4
-    v10 = checked_add u256, v2, v9
+    v9 = checked_mul u256, v6, 3
+    v10 = checked_add u256, v9, v5
+    v11 = checked_add u256, v3, v10
     jump bb9
   bb9:
     jump bb6
   bb6:
-    v11 = checked_add u256, v5, 1
+    v12 = checked_add u256, v6, 1
     jump bb4
 }
 
-fn @sequential(arg0: u256, arg1: u256) -> u256 [selector=0xfb08deb2, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @sequential(arg0: i256, arg1: i256) -> i256 [selector=0xfb08deb2, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -84,7 +85,7 @@ fn @sequential(arg0: u256, arg1: u256) -> u256 [selector=0xfb08deb2, pure, abi_p
     jump bb1
 }
 
-fn @nested(arg0: u256, arg1: u256) -> u256 [selector=0x50d1f082, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @nested(arg0: i256, arg1: i256) -> i256 [selector=0x50d1f082, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -131,7 +132,7 @@ fn @nested(arg0: u256, arg1: u256) -> u256 [selector=0x50d1f082, pure, abi_param
     jump bb7
 }
 
-fn @storeAfterLoop(arg0: u256, arg1: u256, arg2: u256) [selector=0xd8c2ef0a, abi_params=[u256, u256, u256], abi_returns=[]] {
+fn @storeAfterLoop(arg0: i256, arg1: i256, arg2: i256) [selector=0xd8c2ef0a, abi_params=[u256, u256, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     jump bb1
   bb1:

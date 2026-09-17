@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_delete_packed_array.sol:StorageDeletePackedArray ===
 @module StorageDeletePackedArray
 types:
-  struct0: {u256, u256, u256}
-  struct1: {u256, u256, u256, u256, u256, u256}
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256, i256, i256, i256, i256}
 
 fn @clear() -> struct0 [selector=0x52efea6e, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>], abi_return_params=[u8, u8, u8]] {
   bb0:
@@ -65,7 +65,7 @@ fn @clear() -> struct0 [selector=0x52efea6e, abi_params=[], abi_returns=[word<u8
     sstore 0, v34 !metadata(storage=slot(0))
     v48 = sload 0 !metadata(storage=slot(0))
     v49 = lt 1, v48
-    v50 = iszero v49
+    v50 = eq v49, false
     icall panic_if<0x32>, v50
     v51 = storage_array_data_slot 0
     v52 = div 1, 32
@@ -83,7 +83,7 @@ fn @clear() -> struct0 [selector=0x52efea6e, abi_params=[], abi_returns=[word<u8
     sstore v53, v63 !metadata(storage=symbolic(v53))
     v64 = sload 0 !metadata(storage=slot(0))
     v65 = lt 0, v64
-    v66 = iszero v65
+    v66 = eq v65, false
     icall panic_if<0x32>, v66
     v67 = storage_array_data_slot 0
     v68 = div 0, 32
@@ -96,7 +96,7 @@ fn @clear() -> struct0 [selector=0x52efea6e, abi_params=[], abi_returns=[word<u8
     v75 = and v74, 255
     v76 = sload 0 !metadata(storage=slot(0))
     v77 = lt 1, v76
-    v78 = iszero v77
+    v78 = eq v77, false
     icall panic_if<0x32>, v78
     v79 = storage_array_data_slot 0
     v80 = div 1, 32
@@ -109,7 +109,7 @@ fn @clear() -> struct0 [selector=0x52efea6e, abi_params=[], abi_returns=[word<u8
     v87 = and v86, 255
     v88 = sload 0 !metadata(storage=slot(0))
     v89 = lt 2, v88
-    v90 = iszero v89
+    v90 = eq v89, false
     icall panic_if<0x32>, v90
     v91 = storage_array_data_slot 0
     v92 = div 2, 32
@@ -129,7 +129,7 @@ fn @clear() -> struct0 [selector=0x52efea6e, abi_params=[], abi_returns=[word<u8
 fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>], abi_return_params=[u8, u8, u8]] {
   bb0:
     v0 = lt 0, 3
-    v1 = iszero v0
+    v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = div 0, 32
     v3 = add 1, v2
@@ -145,7 +145,7 @@ fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns
     v13 = or v10, v12
     sstore v3, v13 !metadata(storage=offset(v2, 1))
     v14 = lt 1, 3
-    v15 = iszero v14
+    v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = div 1, 32
     v17 = add 1, v16
@@ -161,7 +161,7 @@ fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns
     v27 = or v24, v26
     sstore v17, v27 !metadata(storage=offset(v16, 1))
     v28 = lt 2, 3
-    v29 = iszero v28
+    v29 = eq v28, false
     icall panic_if<0x32>, v29
     v30 = div 2, 32
     v31 = add 1, v30
@@ -183,7 +183,7 @@ fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns
     jumpi v43, bb2, bb3
   bb3:
     v46 = lt 0, 3
-    v47 = iszero v46
+    v47 = eq v46, false
     icall panic_if<0x32>, v47
     v48 = div 0, 32
     v49 = add 1, v48
@@ -194,7 +194,7 @@ fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns
     v54 = shr v53, v52
     v55 = and v54, 255
     v56 = lt 1, 3
-    v57 = iszero v56
+    v57 = eq v56, false
     icall panic_if<0x32>, v57
     v58 = div 1, 32
     v59 = add 1, v58
@@ -205,7 +205,7 @@ fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns
     v64 = shr v63, v62
     v65 = and v64, 255
     v66 = lt 2, 3
-    v67 = iszero v66
+    v67 = eq v66, false
     icall panic_if<0x32>, v67
     v68 = div 2, 32
     v69 = add 1, v68
@@ -252,54 +252,55 @@ fn @deleteThenPush() -> struct0 [selector=0x63470f4e, abi_params=[], abi_returns
     sstore 6, 0 !metadata(storage=slot(6))
     v17 = div v16, 32
     v18 = mod v16, 32
-    v19 = iszero v18
-    v20 = iszero v19
-    v21 = add v17, v20
-    clear_storage_words 6, 0, v21
-    v22 = sload 6 !metadata(storage=slot(6))
-    v23 = gt v22, 0xffffffffffffffff
-    icall panic_if<0x41>, v23
-    v24 = add v22, 1
-    v25 = storage_array_data_slot 6
-    v26 = div v22, 32
-    v27 = add v25, v26
-    v28 = mod v22, 32
-    v29 = mul v28, 1
-    v30 = mul v29, 8
-    v31 = shl v30, 255
-    v32 = sload v27 !metadata(storage=symbolic(v27))
-    v33 = not v31
-    v34 = and v32, v33
-    v35 = and 7, 255
-    v36 = shl v30, v35
-    v37 = or v34, v36
-    sstore v27, v37 !metadata(storage=symbolic(v27))
-    sstore 6, v24 !metadata(storage=slot(6))
-    v38 = sload 0 !metadata(storage=slot(0))
-    v39 = sload 6 !metadata(storage=slot(6))
-    v40 = lt 0, v39
-    v41 = iszero v40
-    icall panic_if<0x32>, v41
-    v42 = storage_array_data_slot 6
-    v43 = div 0, 32
-    v44 = add v42, v43
-    v45 = mod 0, 32
-    v46 = mul v45, 1
-    v47 = sload v44 !metadata(storage=symbolic(v44))
-    v48 = mul v46, 8
-    v49 = shr v48, v47
-    v50 = and v49, 255
-    v51 = sload 6 !metadata(storage=slot(6))
-    v52 = insert_value struct0, undef struct0, 0, v38
-    v53 = insert_value struct0, v52, 1, v50
-    v54 = insert_value struct0, v53, 2, v51
-    ret v54
+    v19 = eq v18, 0
+    v20 = eq v19, false
+    v21 = zext i1 v20 to i256
+    v22 = add v17, v21
+    clear_storage_words 6, 0, v22
+    v23 = sload 6 !metadata(storage=slot(6))
+    v24 = gt v23, 0xffffffffffffffff
+    icall panic_if<0x41>, v24
+    v25 = add v23, 1
+    v26 = storage_array_data_slot 6
+    v27 = div v23, 32
+    v28 = add v26, v27
+    v29 = mod v23, 32
+    v30 = mul v29, 1
+    v31 = mul v30, 8
+    v32 = shl v31, 255
+    v33 = sload v28 !metadata(storage=symbolic(v28))
+    v34 = not v32
+    v35 = and v33, v34
+    v36 = and 7, 255
+    v37 = shl v31, v36
+    v38 = or v35, v37
+    sstore v28, v38 !metadata(storage=symbolic(v28))
+    sstore 6, v25 !metadata(storage=slot(6))
+    v39 = sload 0 !metadata(storage=slot(0))
+    v40 = sload 6 !metadata(storage=slot(6))
+    v41 = lt 0, v40
+    v42 = eq v41, false
+    icall panic_if<0x32>, v42
+    v43 = storage_array_data_slot 6
+    v44 = div 0, 32
+    v45 = add v43, v44
+    v46 = mod 0, 32
+    v47 = mul v46, 1
+    v48 = sload v45 !metadata(storage=symbolic(v45))
+    v49 = mul v47, 8
+    v50 = shr v49, v48
+    v51 = and v50, 255
+    v52 = sload 6 !metadata(storage=slot(6))
+    v53 = insert_value struct0, undef struct0, 0, v39
+    v54 = insert_value struct0, v53, 1, v51
+    v55 = insert_value struct0, v54, 2, v52
+    ret v55
 }
 
 fn @clearFixed() -> struct0 [selector=0x94bd0f54, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>], abi_return_params=[u8, u8, u8]] {
   bb0:
     v0 = lt 0, 3
-    v1 = iszero v0
+    v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = div 0, 32
     v3 = add 1, v2
@@ -315,7 +316,7 @@ fn @clearFixed() -> struct0 [selector=0x94bd0f54, abi_params=[], abi_returns=[wo
     v13 = or v10, v12
     sstore v3, v13 !metadata(storage=offset(v2, 1))
     v14 = lt 1, 3
-    v15 = iszero v14
+    v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = div 1, 32
     v17 = add 1, v16
@@ -331,7 +332,7 @@ fn @clearFixed() -> struct0 [selector=0x94bd0f54, abi_params=[], abi_returns=[wo
     v27 = or v24, v26
     sstore v17, v27 !metadata(storage=offset(v16, 1))
     v28 = lt 2, 3
-    v29 = iszero v28
+    v29 = eq v28, false
     icall panic_if<0x32>, v29
     v30 = div 2, 32
     v31 = add 1, v30
@@ -353,7 +354,7 @@ fn @clearFixed() -> struct0 [selector=0x94bd0f54, abi_params=[], abi_returns=[wo
     jumpi v43, bb2, bb3
   bb3:
     v46 = lt 0, 3
-    v47 = iszero v46
+    v47 = eq v46, false
     icall panic_if<0x32>, v47
     v48 = div 0, 32
     v49 = add 1, v48
@@ -364,7 +365,7 @@ fn @clearFixed() -> struct0 [selector=0x94bd0f54, abi_params=[], abi_returns=[wo
     v54 = shr v53, v52
     v55 = and v54, 255
     v56 = lt 1, 3
-    v57 = iszero v56
+    v57 = eq v56, false
     icall panic_if<0x32>, v57
     v58 = div 1, 32
     v59 = add 1, v58
@@ -375,7 +376,7 @@ fn @clearFixed() -> struct0 [selector=0x94bd0f54, abi_params=[], abi_returns=[wo
     v64 = shr v63, v62
     v65 = and v64, 255
     v66 = lt 2, 3
-    v67 = iszero v66
+    v67 = eq v66, false
     icall panic_if<0x32>, v67
     v68 = div 2, 32
     v69 = add 1, v68
@@ -396,7 +397,7 @@ fn @clearFixed() -> struct0 [selector=0x94bd0f54, abi_params=[], abi_returns=[wo
     jump bb1
 }
 
-fn @clearDynamicDirtyWord() -> u256 [selector=0xa7b98e77, abi_params=[], abi_returns=[word]] {
+fn @clearDynamicDirtyWord() -> i256 [selector=0xa7b98e77, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -436,15 +437,16 @@ fn @clearDynamicDirtyWord() -> u256 [selector=0xa7b98e77, abi_params=[], abi_ret
     sstore 0, 0 !metadata(storage=slot(0))
     v27 = div v26, 32
     v28 = mod v26, 32
-    v29 = iszero v28
-    v30 = iszero v29
-    v31 = add v27, v30
-    clear_storage_words 0, 0, v31
-    v32 = sload v24 !metadata(storage=symbolic(v24))
-    ret v32
+    v29 = eq v28, 0
+    v30 = eq v29, false
+    v31 = zext i1 v30 to i256
+    v32 = add v27, v31
+    clear_storage_words 0, 0, v32
+    v33 = sload v24 !metadata(storage=symbolic(v24))
+    ret v33
 }
 
-fn @clearFixedDirtyWord() -> u256 [selector=0xb56337b4, abi_params=[], abi_returns=[word]] {
+fn @clearFixedDirtyWord() -> i256 [selector=0xb56337b4, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = not 0
     sstore 1, v0 !metadata(storage=slot(1))
@@ -488,36 +490,37 @@ fn @clearOddWidthDirtyWords() [selector=0xf2b0f658, abi_params=[], abi_returns=[
     sstore 2, 0 !metadata(storage=slot(2))
     v12 = div v11, 3
     v13 = mod v11, 3
-    v14 = iszero v13
-    v15 = iszero v14
-    v16 = add v12, v15
-    clear_storage_words 2, 0, v16
+    v14 = eq v13, 0
+    v15 = eq v14, false
+    v16 = zext i1 v15 to i256
+    v17 = add v12, v16
+    clear_storage_words 2, 0, v17
     jump bb1
   bb1:
-    v17 = phi [bb0: 0], [bb2: v20]
-    v18 = lt v17, 3
-    jumpi v18, bb2, bb3
+    v18 = phi [bb0: 0], [bb2: v21]
+    v19 = lt v18, 3
+    jumpi v19, bb2, bb3
   bb3:
-    v21 = sload v0 !metadata(storage=symbolic(v0))
-    mstore 0, v21 !metadata(memory=scratch)
-    v22 = add v0, 1
-    v23 = sload v22 !metadata(storage=offset(v0, 1))
-    mstore 32, v23 !metadata(memory=scratch)
-    v24 = add v0, 2
-    v25 = sload v24 !metadata(storage=offset(v0, 2))
-    mstore 64, v25 !metadata(memory=scratch)
-    v26 = sload 3 !metadata(storage=slot(3))
-    mstore 96, v26 !metadata(memory=scratch)
-    v27 = add 3, 1
-    v28 = sload v27 !metadata(storage=slot(4))
-    mstore 128, v28
-    v29 = add 3, 2
-    v30 = sload v29 !metadata(storage=slot(5))
-    mstore 160, v30
+    v22 = sload v0 !metadata(storage=symbolic(v0))
+    mstore 0, v22 !metadata(memory=scratch)
+    v23 = add v0, 1
+    v24 = sload v23 !metadata(storage=offset(v0, 1))
+    mstore 32, v24 !metadata(memory=scratch)
+    v25 = add v0, 2
+    v26 = sload v25 !metadata(storage=offset(v0, 2))
+    mstore 64, v26 !metadata(memory=scratch)
+    v27 = sload 3 !metadata(storage=slot(3))
+    mstore 96, v27 !metadata(memory=scratch)
+    v28 = add 3, 1
+    v29 = sload v28 !metadata(storage=slot(4))
+    mstore 128, v29
+    v30 = add 3, 2
+    v31 = sload v30 !metadata(storage=slot(5))
+    mstore 160, v31
     returndata 0, 192
   bb2:
-    v19 = add 3, v17
-    sstore v19, 0 !metadata(storage=offset(v17, 3))
-    v20 = add v17, 1
+    v20 = add 3, v18
+    sstore v20, 0 !metadata(storage=offset(v18, 3))
+    v21 = add v18, 1
     jump bb1
 }

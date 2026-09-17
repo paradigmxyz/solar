@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/load-pre/critical_edges.mir (before load-pre) ===
 + // === ROOT/tests/ui/codegen/mir/load-pre/critical_edges.mir (after load-pre) ===
   @module CriticalLoadEdges
-  fn @branch(arg0: bool, arg1: bool, arg2: u256) -> u256 {
+  fn @branch(arg0: i1, arg1: i1, arg2: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -25,7 +25,7 @@
       ret v2
   }
   
-  fn @switch_edges(arg0: bool, arg1: u256, arg2: u256) -> u256 {
+  fn @switch_edges(arg0: i1, arg1: i256, arg2: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -46,7 +46,7 @@
 +     ret v2
   }
   
-  fn @gas_barrier(arg0: bool, arg1: bool) -> u256 {
+  fn @gas_barrier(arg0: i1, arg1: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -63,7 +63,7 @@
       ret v3
   }
   
-  fn @cheap_memory(arg0: bool, arg1: bool) -> u256 {
+  fn @cheap_memory(arg0: i1, arg1: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:

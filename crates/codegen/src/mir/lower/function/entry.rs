@@ -7,7 +7,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.parameters.extend_from_slice(function.parameters);
         for &param in function.parameters {
             let ty = self.cx.gcx.type_of_item(param.into());
-            let value = self.builder.add_param(types::TypeLowerer::mir_type(ty));
+            let value = self.builder.add_param(types::TypeLowerer::mir_signature_type(ty));
             if ty.is_ref_at(DataLocation::Storage) {
                 self.storage_refs.insert(
                     param,
@@ -64,6 +64,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let source_ty = self.cx.gcx.type_of_expr(initializer.id)?;
             let value = self.lower_typed_expr(initializer, ty)?;
             if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
+                // value = cast to the immutable value type
+                let ty = self.cx.module.immutable_type(immutable_id).mir_type();
+                let value = self.builder.cast(value, ty);
                 self.builder.store_immutable(immutable_id, value);
             } else {
                 self.store_state_variable(id, value, source_ty, initializer.span)?;

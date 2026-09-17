@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/exponent_operand_cleanup.sol:ExponentOperandCleanup ===
 @module ExponentOperandCleanup
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
 fn @checkedDirtyOperands() -> struct0 [selector=0xfef4b418, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[i256, i256]] {
   bb0:
@@ -15,7 +15,7 @@ fn @checkedDirtyOperands() -> struct0 [selector=0xfef4b418, pure, abi_params=[],
     ret v6
 }
 
-fn @uncheckedDirtyOperands() -> u256 [selector=0x84faa534, pure, abi_params=[], abi_returns=[word]] {
+fn @uncheckedDirtyOperands() -> i256 [selector=0x84faa534, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and 0xfffffffffe, 0xffffffff
     v1 = and 258, 255
@@ -24,47 +24,48 @@ fn @uncheckedDirtyOperands() -> u256 [selector=0x84faa534, pure, abi_params=[], 
     ret v3
 }
 
-fn @copiedDirtyOperand() -> u256 [selector=0x2f5133b3, pure, abi_params=[], abi_returns=[word]] {
+fn @copiedDirtyOperand() -> i256 [selector=0x2f5133b3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and 258, 255
     v1 = checked_pow u256, 3, v0
     ret v1
 }
 
-fn @branchedDirtyOperand(arg0: bool) -> i256 [selector=0x3d6d96b7, pure, abi_params=[bool], abi_returns=[word]] {
+fn @branchedDirtyOperand(arg0: i256) -> i256 [selector=0x3d6d96b7, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
-    jumpi arg0, bb1, bb2
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v0 = phi [bb1: 259], [bb2: 2]
-    v1 = sub 0, 3
-    v2 = and v0, 255
-    v3 = checked_pow i256, v1, v2
-    ret v3
+    v1 = phi [bb1: 259], [bb2: 2]
+    v2 = sub 0, 3
+    v3 = and v1, 255
+    v4 = checked_pow i256, v2, v3
+    ret v4
 }
 
-fn @fullWidthOperands() -> u256 [selector=0xd0e127e5, pure, abi_params=[], abi_returns=[word]] {
+fn @fullWidthOperands() -> i256 [selector=0xd0e127e5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = exp 2, 4
     ret v0
 }
 
-fn @signedProduct(arg0: i256, arg1: i256) -> i256 [selector=0x1224b6ec, pure, abi_params=[i256, i256], abi_returns=[word]] {
+fn @signedProduct(arg0: i256, arg1: i256) -> i256 [selector=0x1224b6ec, pure, abi_params=[i256, i256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = checked_mul i256, arg0, arg1
     ret v0
 }
 
-fn @signedPower(arg0: i256, arg1: u256) -> i256 [selector=0xf418e101, pure, abi_params=[i256, u256], abi_returns=[word]] {
+fn @signedPower(arg0: i256, arg1: i256) -> i256 [selector=0xf418e101, pure, abi_params=[i256, u256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = checked_pow i256, arg0, arg1
     ret v0
 }
 
-fn @narrowSignedPower(arg0: i8, arg1: u8) -> i8 [selector=0x6e1f2e38, pure, abi_params=[i8, u8], abi_returns=[word<i8>]] {
+fn @narrowSignedPower(arg0: i256, arg1: i256) -> i256 [selector=0x6e1f2e38, pure, abi_params=[i8, u8], abi_returns=[word<i8>], abi_return_params=[i8]] {
   bb0:
     v0 = signextend 0, arg0
     v1 = and arg1, 255

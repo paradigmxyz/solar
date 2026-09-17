@@ -8,7 +8,7 @@
 // CHECK: + [[HOISTED:v[0-9]+]] = add arg0, 7
 // CHECK: + [[VALUE:v[0-9]+]] = phi [bb0: [[HOISTED]]], [bb2: {{v[0-9]+}}]
 // CHECK: + ret [[VALUE]]
-fn @hoist_header_expr(arg0: u256, arg1: u256) -> u256 {
+fn @hoist_header_expr(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -28,7 +28,7 @@ fn @hoist_header_expr(arg0: u256, arg1: u256) -> u256 {
 // CHECK: + [[HOISTED:v[0-9]+]] = add arg0, 7
 // CHECK: + [[VALUE:v[0-9]+]] = phi [bb0: [[HOISTED]]], [bb3: {{v[0-9]+}}], [bb4: {{v[0-9]+}}]
 // CHECK: + ret [[VALUE]]
-fn @hoist_header_expr_two_latches(arg0: u256, arg1: u256) -> u256 {
+fn @hoist_header_expr_two_latches(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:

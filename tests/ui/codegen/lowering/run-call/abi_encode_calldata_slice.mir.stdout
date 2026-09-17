@@ -1,238 +1,254 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_calldata_slice.sol:AbiEncodeCalldataSlice ===
 @module AbiEncodeCalldataSlice
-fn @encPackedBytes(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0xe3b899da, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes]] {
+fn @encPackedBytes(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [selector=0xe3b899da, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    icall revert_if<empty>, v4
-    v5 = sub arg2, arg1
-    v6 = add v0, arg1
-    v7 = make_calldata_slice v6, v5
-    v8 = abi_encode_packed (bytes v7)
-    ret v8
+    v5 = zext i1 v4 to i256
+    icall revert_if<empty>, v5
+    v6 = sub arg2, arg1
+    v7 = add v0, arg1
+    v8 = make_calldata_slice v7, v6
+    v9 = abi_encode_packed (bytes v8)
+    ret v9
 }
 
-fn @encPackedBytesReference(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0x31b229fc, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes]] {
+fn @encPackedBytesReference(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [selector=0x31b229fc, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    icall revert_if<empty>, v4
-    v5 = sub arg2, arg1
-    v6 = add v0, arg1
-    v7 = make_calldata_slice v6, v5
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = gt v9, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v10
-    v11 = calldatasize
-    v12 = sub v11, v9
-    v13 = sgt v8, v12
-    icall revert_if<calldata_tail_too_short>, v13
-    v14 = abi_encode_packed (bytes v7)
-    ret v14
+    v5 = zext i1 v4 to i256
+    icall revert_if<empty>, v5
+    v6 = sub arg2, arg1
+    v7 = add v0, arg1
+    v8 = make_calldata_slice v7, v6
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = gt v10, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v11
+    v12 = calldatasize
+    v13 = sub v12, v10
+    v14 = sgt v9, v13
+    icall revert_if<calldata_tail_too_short>, v14
+    v15 = abi_encode_packed (bytes v8)
+    ret v15
 }
 
-fn @encBytes(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0x676eb8e5, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes]] {
+fn @encBytes(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [selector=0x676eb8e5, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    icall revert_if<empty>, v4
-    v5 = sub arg2, arg1
-    v6 = add v0, arg1
-    v7 = make_calldata_slice v6, v5
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = gt v9, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v10
-    v11 = calldatasize
-    v12 = sub v11, v9
-    v13 = sgt v8, v12
-    icall revert_if<calldata_tail_too_short>, v13
-    v14 = abi_encode [calldata_bytes], object, args v7
-    ret v14
+    v5 = zext i1 v4 to i256
+    icall revert_if<empty>, v5
+    v6 = sub arg2, arg1
+    v7 = add v0, arg1
+    v8 = make_calldata_slice v7, v6
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = gt v10, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v11
+    v12 = calldatasize
+    v13 = sub v12, v10
+    v14 = sgt v9, v13
+    icall revert_if<calldata_tail_too_short>, v14
+    v15 = abi_encode [calldata_bytes], object, args v8
+    ret v15
 }
 
-fn @encBytesReference(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0x94ba4b13, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes]] {
+fn @encBytesReference(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [selector=0x94ba4b13, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    icall revert_if<empty>, v4
-    v5 = sub arg2, arg1
-    v6 = add v0, arg1
-    v7 = make_calldata_slice v6, v5
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = gt v9, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v10
-    v11 = calldatasize
-    v12 = sub v11, v9
-    v13 = sgt v8, v12
-    icall revert_if<calldata_tail_too_short>, v13
-    v14 = abi_encode [calldata_bytes], object, args v7
-    ret v14
+    v5 = zext i1 v4 to i256
+    icall revert_if<empty>, v5
+    v6 = sub arg2, arg1
+    v7 = add v0, arg1
+    v8 = make_calldata_slice v7, v6
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = gt v10, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v11
+    v12 = calldatasize
+    v13 = sub v12, v10
+    v14 = sgt v9, v13
+    icall revert_if<calldata_tail_too_short>, v14
+    v15 = abi_encode [calldata_bytes], object, args v8
+    ret v15
 }
 
-fn @encUint256(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0x5f29ad1d, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes]] {
+fn @encUint256(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [selector=0x5f29ad1d, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    icall revert_if<empty>, v4
-    v5 = sub arg2, arg1
-    v6 = mul arg1, 32
-    v7 = iszero 32
-    v8 = div v6, 32
-    v9 = eq v8, arg1
-    v10 = or v7, v9
-    v11 = iszero v10
-    icall panic_if<0x41>, v11
-    v12 = add v0, v6
-    v13 = make_calldata_slice v12, v5
-    v14 = abi_encode [calldata_array<word>], object, args v13
-    ret v14
+    v5 = zext i1 v4 to i256
+    icall revert_if<empty>, v5
+    v6 = sub arg2, arg1
+    v7 = mul arg1, 32
+    v8 = eq 32, 0
+    v9 = div v7, 32
+    v10 = eq v9, arg1
+    v11 = or v8, v10
+    v12 = zext i1 v11 to i256
+    v13 = eq v12, 0
+    icall panic_if<0x41>, v13
+    v14 = add v0, v7
+    v15 = make_calldata_slice v14, v6
+    v16 = abi_encode [calldata_array<word>], object, args v15
+    ret v16
 }
 
-fn @encUint256Reference(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0xea73d5ef, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes]] {
+fn @encUint256Reference(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [selector=0xea73d5ef, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    icall revert_if<empty>, v4
-    v5 = sub arg2, arg1
-    v6 = mul arg1, 32
-    v7 = iszero 32
-    v8 = div v6, 32
-    v9 = eq v8, arg1
-    v10 = or v7, v9
-    v11 = iszero v10
-    icall panic_if<0x41>, v11
-    v12 = add v0, v6
-    v13 = make_calldata_slice v12, v5
-    v14 = abi_encode [calldata_array<word>], object, args v13
-    ret v14
+    v5 = zext i1 v4 to i256
+    icall revert_if<empty>, v5
+    v6 = sub arg2, arg1
+    v7 = mul arg1, 32
+    v8 = eq 32, 0
+    v9 = div v7, 32
+    v10 = eq v9, arg1
+    v11 = or v8, v10
+    v12 = zext i1 v11 to i256
+    v13 = eq v12, 0
+    icall panic_if<0x41>, v13
+    v14 = add v0, v7
+    v15 = make_calldata_slice v14, v6
+    v16 = abi_encode [calldata_array<word>], object, args v15
+    ret v16
 }
 
-fn @encPackedUint256(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0x0d7d5d61, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes]] {
+fn @encPackedUint256(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [selector=0x0d7d5d61, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    icall revert_if<empty>, v4
-    v5 = sub arg2, arg1
-    v6 = mul arg1, 32
-    v7 = iszero 32
-    v8 = div v6, 32
-    v9 = eq v8, arg1
-    v10 = or v7, v9
-    v11 = iszero v10
-    icall panic_if<0x41>, v11
-    v12 = add v0, v6
-    v13 = make_calldata_slice v12, v5
-    v14 = abi_encode_packed (array<word> calldata v13)
-    ret v14
+    v5 = zext i1 v4 to i256
+    icall revert_if<empty>, v5
+    v6 = sub arg2, arg1
+    v7 = mul arg1, 32
+    v8 = eq 32, 0
+    v9 = div v7, 32
+    v10 = eq v9, arg1
+    v11 = or v8, v10
+    v12 = zext i1 v11 to i256
+    v13 = eq v12, 0
+    icall panic_if<0x41>, v13
+    v14 = add v0, v7
+    v15 = make_calldata_slice v14, v6
+    v16 = abi_encode_packed (array<word> calldata v15)
+    ret v16
 }
 
-fn @encPackedUint256Reference(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0xf98ab314, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes]] {
+fn @encPackedUint256Reference(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [selector=0xf98ab314, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    icall revert_if<empty>, v4
-    v5 = sub arg2, arg1
-    v6 = mul arg1, 32
-    v7 = iszero 32
-    v8 = div v6, 32
-    v9 = eq v8, arg1
-    v10 = or v7, v9
-    v11 = iszero v10
-    icall panic_if<0x41>, v11
-    v12 = add v0, v6
-    v13 = make_calldata_slice v12, v5
-    v14 = abi_encode_packed (array<word> calldata v13)
-    ret v14
+    v5 = zext i1 v4 to i256
+    icall revert_if<empty>, v5
+    v6 = sub arg2, arg1
+    v7 = mul arg1, 32
+    v8 = eq 32, 0
+    v9 = div v7, 32
+    v10 = eq v9, arg1
+    v11 = or v8, v10
+    v12 = zext i1 v11 to i256
+    v13 = eq v12, 0
+    icall panic_if<0x41>, v13
+    v14 = add v0, v7
+    v15 = make_calldata_slice v14, v6
+    v16 = abi_encode_packed (array<word> calldata v15)
+    ret v16
 }
 
-fn @encPackedUint8(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0x7ae711bd, pure, abi_params=[array<_, u8>, u256, u256], abi_returns=[memory_bytes]] {
+fn @encPackedUint8(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [selector=0x7ae711bd, pure, abi_params=[array<_, u8>, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    icall revert_if<empty>, v4
-    v5 = sub arg2, arg1
-    v6 = mul arg1, 32
-    v7 = iszero 32
-    v8 = div v6, 32
-    v9 = eq v8, arg1
-    v10 = or v7, v9
-    v11 = iszero v10
-    icall panic_if<0x41>, v11
-    v12 = add v0, v6
-    v13 = make_calldata_slice v12, v5
-    v14 = slice_len v13
-    v15 = slice_ptr v13
-    v16 = mul v14, 32
-    v17 = iszero 32
-    v18 = div v16, 32
-    v19 = eq v18, v14
-    v20 = or v17, v19
-    v21 = iszero v20
-    icall panic_if<0x41>, v21
-    v22 = calldatasize
-    v23 = sub v22, v15
-    v24 = slt v23, v16
-    icall revert_if<calldata_tail_too_short>, v24
-    v25 = mul v14, 32
-    v26 = iszero 32
-    v27 = div v25, 32
-    v28 = eq v27, v14
-    v29 = or v26, v28
-    v30 = iszero v29
-    icall panic_if<0x41>, v30
-    v31 = add 32, v25
-    v32 = lt v31, 32
-    icall panic_if<0x41>, v32
-    v33 = alloc memoryarray<1>, exact, uninitialized, infallible, v31
-    set_memory_object_len memoryarray, v33, v14
+    v5 = zext i1 v4 to i256
+    icall revert_if<empty>, v5
+    v6 = sub arg2, arg1
+    v7 = mul arg1, 32
+    v8 = eq 32, 0
+    v9 = div v7, 32
+    v10 = eq v9, arg1
+    v11 = or v8, v10
+    v12 = zext i1 v11 to i256
+    v13 = eq v12, 0
+    icall panic_if<0x41>, v13
+    v14 = add v0, v7
+    v15 = make_calldata_slice v14, v6
+    v16 = slice_len v15
+    v17 = slice_ptr v15
+    v18 = mul v16, 32
+    v19 = eq 32, 0
+    v20 = div v18, 32
+    v21 = eq v20, v16
+    v22 = or v19, v21
+    v23 = zext i1 v22 to i256
+    v24 = eq v23, 0
+    icall panic_if<0x41>, v24
+    v25 = calldatasize
+    v26 = sub v25, v17
+    v27 = slt v26, v18
+    icall revert_if<calldata_tail_too_short>, v27
+    v28 = mul v16, 32
+    v29 = eq 32, 0
+    v30 = div v28, 32
+    v31 = eq v30, v16
+    v32 = or v29, v31
+    v33 = zext i1 v32 to i256
+    v34 = eq v33, 0
+    icall panic_if<0x41>, v34
+    v35 = add 32, v28
+    v36 = lt v35, 32
+    icall panic_if<0x41>, v36
+    v37 = alloc memoryarray<1>, exact, uninitialized, infallible, v35
+    set_memory_object_len memoryarray, v37, v16
     jump bb1
   bb1:
-    v34 = phi [bb0: 0], [bb2: v42]
-    v35 = lt v34, v14
-    jumpi v35, bb2, bb3
+    v38 = phi [bb0: 0], [bb2: v46]
+    v39 = lt v38, v16
+    jumpi v39, bb2, bb3
   bb3:
-    v43 = abi_encode_packed (array<word<u8>> memoryarray<1> v33)
-    ret v43
+    v47 = abi_encode_packed (array<word<u8>> memoryarray<1> v37)
+    ret v47
   bb2:
-    v36 = mul v34, 32
-    v37 = add v15, v36
-    v38 = calldataload v37
-    v39 = and v38, 255
-    v40 = eq v38, v39
-    v41 = iszero v40
-    icall revert_if<empty>, v41
-    memory_object_store_element memoryarray<1>, v33, v34, v38
-    v42 = add v34, 1
+    v40 = mul v38, 32
+    v41 = add v17, v40
+    v42 = calldataload v41
+    v43 = and v42, 255
+    v44 = eq v42, v43
+    v45 = eq v44, false
+    icall revert_if<empty>, v45
+    memory_object_store_element memoryarray<1>, v37, v38, v42
+    v46 = add v38, 1
     jump bb1
 }
 
@@ -241,7 +257,7 @@ fn @compare(arg0: memorybytes, arg1: memorybytes) [pure] {
     v0 = memory_object_len memorybytes, arg0
     v1 = memory_object_len memorybytes, arg1
     v2 = eq v0, v1
-    v3 = iszero v2
+    v3 = eq v2, false
     icall panic_if<0x1>, v3
     jump bb1
   bb1:
@@ -258,18 +274,18 @@ fn @compare(arg0: memorybytes, arg1: memorybytes) [pure] {
   bb4:
     v9 = memory_object_len memorybytes, v6
     v10 = lt v5, v9
-    v11 = iszero v10
+    v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = memory_object_load_byte memorybytes, v6, v5
     v13 = shl 248, v12
     v14 = memory_object_len memorybytes, v4
     v15 = lt v5, v14
-    v16 = iszero v15
+    v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = memory_object_load_byte memorybytes, v4, v5
     v18 = shl 248, v17
     v19 = eq v13, v18
-    v20 = iszero v19
+    v20 = eq v19, false
     icall panic_if<0x1>, v20
     jump bb6
   bb6:
@@ -279,7 +295,7 @@ fn @compare(arg0: memorybytes, arg1: memorybytes) [pure] {
     jump bb1
 }
 
-fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
+fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = not 31
     v1 = and 66, v0
@@ -287,19 +303,19 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
     set_memory_object_len memorybytes, v2, 3
     v3 = memory_object_len memorybytes, v2
     v4 = lt 0, v3
-    v5 = iszero v4
+    v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = byte 0, 0x4100000000000000000000000000000000000000000000000000000000000000
     memory_object_store_byte memorybytes, v2, 0, v6
     v7 = memory_object_len memorybytes, v2
     v8 = lt 1, v7
-    v9 = iszero v8
+    v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = byte 0, 0x4200000000000000000000000000000000000000000000000000000000000000
     memory_object_store_byte memorybytes, v2, 1, v10
     v11 = memory_object_len memorybytes, v2
     v12 = lt 2, v11
-    v13 = iszero v12
+    v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = byte 0, 0x4200000000000000000000000000000000000000000000000000000000000000
     memory_object_store_byte memorybytes, v2, 2, v14
@@ -322,7 +338,7 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
     v21 = phi [bb4: v16], [bb9: v57]
     v22 = memory_object_len memorybytes, v19
     v23 = gt v21, v22
-    v24 = iszero v23
+    v24 = eq v23, false
     jumpi v24, bb10, bb11
   bb11:
     jump bb8
@@ -392,23 +408,23 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
     jump bb7
 }
 
-fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[]] {
+fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
     set_memory_object_len memoryarray, v0, 3
     v1 = memory_object_len memoryarray, v0
     v2 = lt 0, v1
-    v3 = iszero v2
+    v3 = eq v2, false
     icall panic_if<0x32>, v3
     memory_object_store_element memoryarray<1>, v0, 0, 65
     v4 = memory_object_len memoryarray, v0
     v5 = lt 1, v4
-    v6 = iszero v5
+    v6 = eq v5, false
     icall panic_if<0x32>, v6
     memory_object_store_element memoryarray<1>, v0, 1, 66
     v7 = memory_object_len memoryarray, v0
     v8 = lt 2, v7
-    v9 = iszero v8
+    v9 = eq v8, false
     icall panic_if<0x32>, v9
     memory_object_store_element memoryarray<1>, v0, 2, 66
     jump bb1
@@ -430,7 +446,7 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[]] {
     v16 = phi [bb4: v11], [bb9: v52]
     v17 = memory_object_len memoryarray, v14
     v18 = gt v16, v17
-    v19 = iszero v18
+    v19 = eq v18, false
     jumpi v19, bb10, bb11
   bb11:
     jump bb8

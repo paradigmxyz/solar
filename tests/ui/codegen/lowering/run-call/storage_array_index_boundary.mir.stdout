@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_index_boundary.sol:StorageArrayIndexBoundary ===
 @module StorageArrayIndexBoundary
-fn @read(arg0: u256, arg1: u256) -> u256 [selector=0x75080997, abi_params=[u256, u256], abi_returns=[word]] {
+fn @read(arg0: i256, arg1: i256) -> i256 [selector=0x75080997, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -26,7 +26,7 @@ fn @read(arg0: u256, arg1: u256) -> u256 [selector=0x75080997, abi_params=[u256,
   bb7:
     v20 = sload 0 !metadata(storage=slot(0))
     v21 = lt v11, v20
-    v22 = iszero v21
+    v22 = eq v21, false
     icall panic_if<0x32>, v22
     v23 = storage_array_data_slot 0
     v24 = add v23, v11

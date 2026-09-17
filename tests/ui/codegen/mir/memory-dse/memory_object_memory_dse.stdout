@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (before memory-dse) ===
 + // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (after memory-dse) ===
   @module MemoryObjectMemoryDse
-  fn @forward_length(arg0: memorybytes) -> u256 {
+  fn @forward_length(arg0: memorybytes) -> i256 {
     bb0:
       set_memory_object_len memorybytes, arg0, 39
 -     v0 = memory_object_len memorybytes, arg0
@@ -9,7 +9,7 @@
 +     ret 39
   }
   
-  fn @keep_length_after_clobber(arg0: memorybytes, arg1: u256) -> u256 {
+  fn @keep_length_after_clobber(arg0: memorybytes, arg1: i256) -> i256 {
     bb0:
       set_memory_object_len memorybytes, arg0, 39
       mstore arg1, 7
@@ -17,7 +17,7 @@
       ret v0
   }
   
-  fn @store_bytes_reads_memory(arg0: u256, arg1: memorybytes) {
+  fn @store_bytes_reads_memory(arg0: i256, arg1: memorybytes) {
     bb0:
       set_memory_object_len memorybytes, arg1, 32
       memory_object_store_word memorybytes, arg1, 0, 7
@@ -25,18 +25,21 @@
       ret
   }
   
-  fn @acyclic_shared_exit(arg0: u256, arg1: u256) -> u256 {
+  fn @acyclic_shared_exit(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      jumpi arg0, bb3, bb1
+      v0 = ne arg0, 0
+      jumpi v0, bb3, bb1
     bb1:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v0, 39
-      v1 = memory_object_data memorybytes, v0
-      mstore v1, 7
--     v2 = memory_object_len memorybytes, v0
-      jumpi arg1, bb3, bb2
+      v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+      set_memory_object_len memorybytes, v1, 39
+      v2 = memory_object_data memorybytes, v1
+      v3 = ptrtoint memptr v2 to i256
+      mstore v3, 7
+-     v4 = memory_object_len memorybytes, v1
+      v5 = ne arg1, 0
+      jumpi v5, bb3, bb2
     bb2:
--     ret v2
+-     ret v4
 +     ret 39
     bb3:
       ret 0
@@ -45,13 +48,13 @@
 - // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (after dce) ===
   @module MemoryObjectMemoryDse
-  fn @forward_length(arg0: memorybytes) -> u256 {
+  fn @forward_length(arg0: memorybytes) -> i256 {
     bb0:
       set_memory_object_len memorybytes, arg0, 39
       ret 39
   }
   
-  fn @keep_length_after_clobber(arg0: memorybytes, arg1: u256) -> u256 {
+  fn @keep_length_after_clobber(arg0: memorybytes, arg1: i256) -> i256 {
     bb0:
       set_memory_object_len memorybytes, arg0, 39
       mstore arg1, 7
@@ -59,7 +62,7 @@
       ret v0
   }
   
-  fn @store_bytes_reads_memory(arg0: u256, arg1: memorybytes) {
+  fn @store_bytes_reads_memory(arg0: i256, arg1: memorybytes) {
     bb0:
       set_memory_object_len memorybytes, arg1, 32
       memory_object_store_word memorybytes, arg1, 0, 7
@@ -67,15 +70,18 @@
       ret
   }
   
-  fn @acyclic_shared_exit(arg0: u256, arg1: u256) -> u256 {
+  fn @acyclic_shared_exit(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      jumpi arg0, bb3, bb1
+      v0 = ne arg0, 0
+      jumpi v0, bb3, bb1
     bb1:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v0, 39
-      v1 = memory_object_data memorybytes, v0
-      mstore v1, 7
-      jumpi arg1, bb3, bb2
+      v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+      set_memory_object_len memorybytes, v1, 39
+      v2 = memory_object_data memorybytes, v1
+      v3 = ptrtoint memptr v2 to i256
+      mstore v3, 7
+      v5 = ne arg1, 0
+      jumpi v5, bb3, bb2
     bb2:
       ret 39
     bb3:

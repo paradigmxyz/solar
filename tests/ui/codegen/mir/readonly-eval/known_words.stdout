@@ -1,132 +1,143 @@
 - // === ROOT/tests/ui/codegen/mir/readonly-eval/known_words.mir (before readonly-eval) ===
 + // === ROOT/tests/ui/codegen/mir/readonly-eval/known_words.mir (after readonly-eval) ===
   @module KnownWords
-  fn @known() -> u256 {
+  fn @known() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64
-      mstore v0, 1
-      v1 = add v0, 32
-      mstore v1, 41
--     v2 = icall @choose, v0
--     ret v2
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 1
+      v2 = add v1, 32
+      mstore v2, 41
+-     v3 = icall @choose, v1
+-     ret v3
 +     ret 42
   }
   
-  fn @choose(arg0: memptr) -> u256 {
+  fn @choose(arg0: i256) -> i256 {
     bb0:
       v0 = mload arg0
-      jumpi v0, bb1, bb2
+      v1 = ne v0, 0
+      jumpi v1, bb1, bb2
     bb2:
       sstore 0, 1
       ret 7
     bb1:
-      v1 = add arg0, 32
-      v2 = icall @read, v1
-      v3 = add v2, 1
-      ret v3
+      v2 = add arg0, 32
+      v3 = icall @read, v2
+      v4 = add v3, 1
+      ret v4
   }
   
-  fn @read(arg0: memptr) -> u256 {
+  fn @read(arg0: i256) -> i256 {
     bb0:
       v0 = mload arg0
       ret v0
   }
   
-  fn @writes() -> u256 {
+  fn @writes() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64
-      mstore v0, 0
-      v1 = icall @choose, v0
-      ret v1
-  }
-  
-  fn @partial_write(arg0: u256) -> u256 {
-    bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 42
-      v1 = add v0, 1
-      mstore8 v1, arg0
-      v2 = icall @read, v0
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 0
+      v2 = icall @choose, v1
       ret v2
   }
   
-  fn @clobbered(arg0: u256) -> u256 {
+  fn @partial_write(arg0: i256) -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 42
-      icall @overwrite, v0, arg0
-      v1 = icall @read, v0
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 42
+      v2 = add v1, 1
+      mstore8 v2, arg0
+      v3 = icall @read, v1
+      ret v3
   }
   
-  fn @overwrite(arg0: memptr, arg1: u256) {
+  fn @clobbered(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 42
+      icall @overwrite, v1, arg0
+      v2 = icall @read, v1
+      ret v2
+  }
+  
+  fn @overwrite(arg0: i256, arg1: i256) {
     bb0:
       mstore arg0, arg1
       ret
   }
   
-  fn @uninitialized() -> u256 {
+  fn @uninitialized() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64
-      mstore v0, 1
-      v1 = icall @choose, v0
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 1
+      v2 = icall @choose, v1
+      ret v2
   }
   
-  fn @scratch() -> u256 {
+  fn @scratch() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 1
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 1
       mstore 0, 42
-      v1 = icall @read, 0
-      ret v1
+      v2 = icall @read, 0
+      ret v2
   }
   
-  fn @phi_caller() -> u256 {
+  fn @phi_caller() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 1
--     v1 = icall @phi_callee, v0
--     ret v1
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 1
+-     v2 = icall @phi_callee, v1
+-     ret v2
 +     ret 42
   }
   
-  fn @phi_callee(arg0: memptr) -> u256 {
+  fn @phi_callee(arg0: i256) -> i256 {
     bb0:
       v0 = mload arg0
-      jumpi v0, bb1, bb2
+      v1 = ne v0, 0
+      jumpi v1, bb1, bb2
     bb2:
       jump bb3
     bb1:
       jump bb3
     bb3:
-      v1 = phi [bb1: 42], [bb2: 7]
-      ret v1
+      v2 = phi [bb1: 42], [bb2: 7]
+      ret v2
   }
   
-  fn @recursive_caller() -> u256 {
+  fn @recursive_caller() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 1
-      v1 = icall @recursive, v0
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 1
+      v2 = icall @recursive, v1
+      ret v2
   }
   
-  fn @recursive(arg0: memptr) -> u256 {
+  fn @recursive(arg0: i256) -> i256 {
     bb0:
       v0 = icall @recursive, arg0
       ret v0
   }
   
-  fn @observes_gas() -> u256 {
+  fn @observes_gas() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 42
-      v1 = icall @gas_reader, v0
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 42
+      v2 = icall @gas_reader, v1
+      ret v2
   }
   
-  fn @gas_reader(arg0: memptr) -> u256 {
+  fn @gas_reader(arg0: i256) -> i256 {
     bb0:
       v0 = gas
       v1 = mload arg0
@@ -134,50 +145,55 @@
       ret v2
   }
   
-  fn @loop_allocation(arg0: bool) -> u256 {
+  fn @loop_allocation(arg0: i1) -> i256 {
     bb0:
       jump bb1
     bb1:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 42
-      v1 = icall @read, v0
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 42
+      v2 = icall @read, v1
       jumpi arg0, bb1, bb2
     bb2:
-      ret v1
+      ret v2
   }
   
-  fn @unknown_alias(arg0: memptr) -> u256 {
+  fn @unknown_alias(arg0: i256) -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 42
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 42
       mstore arg0, 7
-      v1 = icall @read, v0
-      ret v1
+      v2 = icall @read, v1
+      ret v2
   }
   
-  fn @recycled(arg0: u256) -> u256 {
+  fn @recycled(arg0: i256) -> i256 {
     bb0:
       set_fmp arg0
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 42
-      v1 = icall @read, v0
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 42
+      v2 = icall @read, v1
+      ret v2
   }
   
-  fn @loop_caller() -> u256 {
+  fn @loop_caller() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 1
-      v1 = icall @loop_callee, v0
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 1
+      v2 = icall @loop_callee, v1
+      ret v2
   }
   
-  fn @loop_callee(arg0: memptr) -> u256 {
+  fn @loop_callee(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
       v0 = mload arg0
-      jumpi v0, bb1, bb2
+      v1 = ne v0, 0
+      jumpi v1, bb1, bb2
     bb2:
       ret v0
   }

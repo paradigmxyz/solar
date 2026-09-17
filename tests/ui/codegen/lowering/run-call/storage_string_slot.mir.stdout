@@ -4,14 +4,14 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_string_slot.sol:StorageStringSlot ===
 @module StorageStringSlot
-fn @lengthThroughRef() -> u256 [selector=0xeaac3ffa, abi_params=[], abi_returns=[word]] {
+fn @lengthThroughRef() -> i256 [selector=0xeaac3ffa, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     store_storage_bytes_literal 32, hex"61616161616161616161616161616161616161616161616161616161616161616161616161616161"
     v0 = icall @length, 32
     ret v0
 }
 
-fn @returnThroughRef() -> u256 [selector=0x49589c2a, abi_params=[], abi_returns=[word]] {
+fn @returnThroughRef() -> i256 [selector=0x49589c2a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     store_storage_bytes_literal 32, hex"61616161616161616161616161616161616161616161616161616161616161616161616161616161"
     v0 = icall @read, 32
@@ -19,7 +19,7 @@ fn @returnThroughRef() -> u256 [selector=0x49589c2a, abi_params=[], abi_returns=
     ret v1
 }
 
-fn @length(arg0: storageptr) -> u256 [view] {
+fn @length(arg0: i256) -> i256 [view] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     validate_storage_bytes v0
@@ -32,7 +32,7 @@ fn @length(arg0: storageptr) -> u256 [view] {
     ret v6
 }
 
-fn @read(arg0: storageptr) -> memorybytes [pure] {
+fn @read(arg0: i256) -> memorybytes [pure] {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0

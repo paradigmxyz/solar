@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/licm/licm_staticcall_storage.mir (before licm) ===
 + // === ROOT/tests/ui/codegen/mir/licm/licm_staticcall_storage.mir (after licm) ===
   @module LicmStaticcallStorage
-  fn @hoist_sload_with_staticcall() -> u256 {
+  fn @hoist_sload_with_staticcall() -> i256 {
     bb0:
 +     v3 = sload 5 !metadata(storage=slot(5))
       jump bb1
@@ -19,7 +19,7 @@
       jump bb1
   }
   
-  fn @hoist_tload_with_staticcall() -> u256 {
+  fn @hoist_tload_with_staticcall() -> i256 {
     bb0:
 +     v3 = tload 5 !metadata(storage=slot(5))
       jump bb1
@@ -37,7 +37,7 @@
       jump bb1
   }
   
-  fn @keep_sload_with_call() -> u256 {
+  fn @keep_sload_with_call() -> i256 {
     bb0:
       jump bb1
     bb1:

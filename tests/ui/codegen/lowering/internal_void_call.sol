@@ -13,8 +13,8 @@ contract InternalVoidCall {
     }
 
     // CHECK-LABEL: fn @writeIfNonZero{{[( ]}}
-    // CHECK: [[ZERO:v[0-9]+]] = eq arg0, 0
-    // CHECK: {{v[0-9]+}} = iszero [[ZERO]]
+    // CHECK: [[NONZERO:v[0-9]+]] = ne arg0, 0
+    // CHECK: jumpi [[NONZERO]],
     // CHECK: sstore 0, arg0
     function writeIfNonZero(uint256 newValue) internal {
         if (newValue != 0) {
@@ -47,7 +47,7 @@ contract InternalVoidCall {
     }
 
     // CHECK-LABEL: fn @unitTernary{{[( ]}}
-    // CHECK: jumpi arg0,
+    // CHECK: jumpi {{(arg[0-9]+|v[0-9]+)}},
     // CHECK: icall @clear
     // CHECK: icall @writeIfNonZero, arg1
     function unitTernary(bool writeValue, uint256 newValue) public {

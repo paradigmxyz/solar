@@ -1,43 +1,44 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_fixed_scalar_reencode.sol:AbiCalldataFixedScalarReencode ===
 @module AbiCalldataFixedScalarReencode
-fn @f(arg0: calldataslice) -> memorybytes [selector=0x5dc12891, pure, abi_params=[array<3, u256>], abi_returns=[memory_bytes]] {
+fn @f(arg0: calldataslice) -> memorybytes [selector=0x5dc12891, pure, abi_params=[array<3, u256>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_encode [array<3, word>], object, args arg0
     ret v0
 }
 
-fn @g(arg0: calldataslice, arg1: u256) -> memorybytes [selector=0x1fd55338, view, abi_params=[array<2, array<3, u256>>, u256], abi_returns=[memory_bytes]] {
+fn @g(arg0: calldataslice, arg1: i256) -> memorybytes [selector=0x1fd55338, view, abi_params=[array<2, array<3, u256>>, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = address
     v1 = gas
     v2 = slice_len arg0
     v3 = lt arg1, v2
-    v4 = iszero v3
+    v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = slice_ptr arg0
     v6 = mul arg1, 96
-    v7 = iszero 96
+    v7 = eq 96, 0
     v8 = div v6, 96
     v9 = eq v8, arg1
     v10 = or v7, v9
-    v11 = iszero v10
-    icall panic_if<0x41>, v11
-    v12 = add v5, v6
-    v13 = make_calldata_slice v12, 3
-    v14 = abi_encode [array<3, word>], selector 0x5dc1289100000000000000000000000000000000000000000000000000000000, args v13
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = staticcall v1, v0, v15, v16, 0, 0
-    jumpi v17, bb2, bb1
+    v11 = zext i1 v10 to i256
+    v12 = eq v11, 0
+    icall panic_if<0x41>, v12
+    v13 = add v5, v6
+    v14 = make_calldata_slice v13, 3
+    v15 = abi_encode [array<3, word>], selector 0x5dc1289100000000000000000000000000000000000000000000000000000000, args v14
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = staticcall v1, v0, v16, v17, 0, 0
+    jumpi v18, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v18 = icall returndata_bytes<>
-    v19 = abi_decode [bytes], v18
-    ret v19
+    v19 = icall returndata_bytes<>
+    v20 = abi_decode [bytes], v19
+    ret v20
 }
 
-fn @h(arg0: calldataslice) -> memorybytes [selector=0x94e17704, pure, abi_params=[array<3, u8>], abi_returns=[memory_bytes]] {
+fn @h(arg0: calldataslice) -> memorybytes [selector=0x94e17704, pure, abi_params=[array<3, u8>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = calldatasize
@@ -61,60 +62,61 @@ fn @h(arg0: calldataslice) -> memorybytes [selector=0x94e17704, pure, abi_params
     v9 = calldataload v8
     v10 = and v9, 255
     v11 = eq v9, v10
-    v12 = iszero v11
+    v12 = eq v11, false
     icall revert_if<empty>, v12
     v13 = add v5, 1
     jump bb1
 }
 
-fn @i(arg0: calldataslice, arg1: u256) -> memorybytes [selector=0x18e849a4, view, abi_params=[array<2, array<3, u8>>, u256], abi_returns=[memory_bytes]] {
+fn @i(arg0: calldataslice, arg1: i256) -> memorybytes [selector=0x18e849a4, view, abi_params=[array<2, array<3, u8>>, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = address
     v1 = gas
     v2 = slice_len arg0
     v3 = lt arg1, v2
-    v4 = iszero v3
+    v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = slice_ptr arg0
     v6 = mul arg1, 96
-    v7 = iszero 96
+    v7 = eq 96, 0
     v8 = div v6, 96
     v9 = eq v8, arg1
     v10 = or v7, v9
-    v11 = iszero v10
-    icall panic_if<0x41>, v11
-    v12 = add v5, v6
-    v13 = make_calldata_slice v12, 3
-    v14 = slice_ptr v13
-    v15 = calldatasize
-    v16 = sub v15, v14
-    v17 = slt v16, 96
-    icall revert_if<calldata_tail_too_short>, v17
+    v11 = zext i1 v10 to i256
+    v12 = eq v11, 0
+    icall panic_if<0x41>, v12
+    v13 = add v5, v6
+    v14 = make_calldata_slice v13, 3
+    v15 = slice_ptr v14
+    v16 = calldatasize
+    v17 = sub v16, v15
+    v18 = slt v17, 96
+    icall revert_if<calldata_tail_too_short>, v18
     jump bb1
   bb1:
-    v18 = phi [bb0: 0], [bb2: v26]
-    v19 = lt v18, 3
-    jumpi v19, bb2, bb3
+    v19 = phi [bb0: 0], [bb2: v27]
+    v20 = lt v19, 3
+    jumpi v20, bb2, bb3
   bb3:
-    v27 = abi_encode [array<3, word<u8>>], selector 0x94e1770400000000000000000000000000000000000000000000000000000000, args v13
-    v28 = slice_ptr v27
-    v29 = slice_len v27
-    v30 = staticcall v1, v0, v28, v29, 0, 0
-    jumpi v30, bb5, bb4
+    v28 = abi_encode [array<3, word<u8>>], selector 0x94e1770400000000000000000000000000000000000000000000000000000000, args v14
+    v29 = slice_ptr v28
+    v30 = slice_len v28
+    v31 = staticcall v1, v0, v29, v30, 0, 0
+    jumpi v31, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v31 = icall returndata_bytes<>
-    v32 = abi_decode [bytes], v31
-    ret v32
+    v32 = icall returndata_bytes<>
+    v33 = abi_decode [bytes], v32
+    ret v33
   bb2:
-    v20 = mul v18, 32
-    v21 = add v14, v20
-    v22 = calldataload v21
-    v23 = and v22, 255
-    v24 = eq v22, v23
-    v25 = iszero v24
-    icall revert_if<empty>, v25
-    v26 = add v18, 1
+    v21 = mul v19, 32
+    v22 = add v15, v21
+    v23 = calldataload v22
+    v24 = and v23, 255
+    v25 = eq v23, v24
+    v26 = eq v25, false
+    icall revert_if<empty>, v26
+    v27 = add v19, 1
     jump bb1
 }

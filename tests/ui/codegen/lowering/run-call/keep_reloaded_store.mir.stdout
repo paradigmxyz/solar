@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/keep_reloaded_store.sol:Target ===
 @module Target
-fn @six(arg0: u256) -> u256 [selector=0x84b8ba08, pure, abi_params=[u256], abi_returns=[word]] {
+fn @six(arg0: i256) -> i256 [selector=0x84b8ba08, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_mul u256, arg0, 6
     ret v0
@@ -9,33 +9,38 @@ fn @six(arg0: u256) -> u256 [selector=0x84b8ba08, pure, abi_params=[u256], abi_r
 // === ROOT/tests/ui/codegen/lowering/run-call/keep_reloaded_store.sol:KeepReloadedStore ===
 @module KeepReloadedStore
 data:
-  Target_initcode_0: hex"34600d5760718060115f395ff35b5f5ffd34601a575f3560e01c806384b8ba0814601657601a565b601e565b5f5ffd5b60243610606d576006600435028060a0528060a0526006156006820460043590148117905015605b578060a0526080526020608001608090036080f35b634e487b715f5260116020526024601cfd5b5f5ffd"
+  Target_initcode_0: hex"34600d5760738060115f395ff35b5f5ffd341515601c575f3560e01c806384b8ba0814601857601c565b6020565b5f5ffd5b60243610606f576006600435028060a0528060a0526006156006820460043590148117905015605d578060a0526080526020608001608090036080f35b634e487b715f5260116020526024601cfd5b5f5ffd"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 161, v1
+    v2 = and 163, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Target_initcode_0, v3, 130
+    data_copy Target_initcode_0, v3, 132
     v4 = slice_ptr v0
-    v5 = add v3, 130
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 130
-    jumpi v6, bb2, bb1
+    v5 = ptrtoint memptr v3 to i256
+    v6 = add v5, 132
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = ptrtoint memptr v3 to i256
+    v8 = create 0, v7, 132
+    v9 = zext i160 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = sload 0 !metadata(storage=slot(0))
-    v8 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = and v7, v8
-    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = or v9, v10
-    sstore 0, v11 !metadata(storage=slot(0))
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v13 = and v11, v12
+    v14 = zext i160 v8 to i256
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = or v13, v15
+    sstore 0, v16 !metadata(storage=slot(0))
     ret
 }
 
-fn @depth(arg0: u256) -> u256 [pure] {
+fn @depth(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -50,26 +55,28 @@ fn @depth(arg0: u256) -> u256 [pure] {
     ret 0
 }
 
-fn @check(arg0: bool) [pure] {
+fn @check(arg0: i256) [pure] {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     icall revert_if<empty>, v0
     v1 = icall @depth, 2
     v2 = eq v1, 2
-    v3 = iszero v2
+    v3 = eq v2, false
     icall revert_if<empty>, v3
     ret
 }
 
-fn @probe(arg0: u256) -> u256 [selector=0xdb082440, view, abi_params=[u256], abi_returns=[word]] {
+fn @probe(arg0: i256) -> i256 [selector=0xdb082440, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = gas
-    v3 = abi_encode [word], object, selector 0x84b8ba0800000000000000000000000000000000000000000000000000000000, args arg0
-    v4 = address_staticcall v1, v3, gas v2
-    v5 = icall returndata_bytes<>
-    icall @check, v4
-    v6 = abi_decode [u256], v5
-    ret v6
+    v2 = trunc i256 v1 to i160
+    v3 = gas
+    v4 = abi_encode [word], object, selector 0x84b8ba0800000000000000000000000000000000000000000000000000000000, args arg0
+    v5 = address_staticcall v2, v4, gas v3
+    v6 = icall returndata_bytes<>
+    v7 = zext i1 v5 to i256
+    icall @check, v7
+    v8 = abi_decode [u256], v6
+    ret v8
 }

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_return_parameter_complex.sol:ModifierReturnParameterComplex ===
 @module ModifierReturnParameterComplex
 types:
-  struct0: {u256, u256, u256}
+  struct0: {i256, i256, i256}
 
 fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
@@ -22,7 +22,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     ret v6
 }
 
-fn @g() -> u256 [selector=0xe2179b8e, abi_params=[], abi_returns=[word]] {
+fn @g() -> i256 [selector=0xe2179b8e, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1

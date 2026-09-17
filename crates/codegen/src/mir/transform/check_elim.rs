@@ -685,8 +685,12 @@ impl<'a> CheckEliminator<'a> {
                 let mut value = condition;
                 while uses[value] == 1 {
                     consumed_conditions.entry(block).or_default().push(value);
-                    let Some(InstKind::IsZero(inner)) = inst_kind(func, value) else { break };
-                    value = *inner;
+                    let Some(inner) =
+                        inst_kind(func, value).and_then(|kind| kind.zero_test_operand(func))
+                    else {
+                        break;
+                    };
+                    value = inner;
                 }
             }
         }
@@ -820,7 +824,7 @@ impl<'a> CheckEliminator<'a> {
         let Some(depth) = depth.checked_sub(1) else { return };
         let Some(kind) = inst_kind(func, value) else { return };
         match *kind {
-            InstKind::IsZero(a) => self.assume(func, a, !truth, depth),
+            InstKind::Ne(a, b) => self.assume_eq(func, a, b, !truth, depth),
             InstKind::Lt(a, b) => self.assume_lt(func, a, b, truth, depth),
             InstKind::Gt(a, b) => self.assume_lt(func, b, a, truth, depth),
             InstKind::Eq(a, b) => self.assume_eq(func, a, b, truth, depth),
@@ -866,6 +870,11 @@ impl<'a> CheckEliminator<'a> {
 
     /// Records the consequences of `(a == b) == truth`.
     fn assume_eq(&mut self, func: &Function, a: ValueId, b: ValueId, truth: bool, depth: usize) {
+        if const_of(func, b).is_some_and(|v| v.is_zero()) {
+            self.assume(func, a, !truth, depth);
+        } else if const_of(func, a).is_some_and(|v| v.is_zero()) {
+            self.assume(func, b, !truth, depth);
+        }
         let (x, y) = ordered(a, b);
         if truth {
             self.add_relation(Relation::Eq(x, y));
@@ -1234,7 +1243,7 @@ impl<'a> CheckEliminator<'a> {
             | InstKind::SLt(..)
             | InstKind::SGt(..)
             | InstKind::Eq(..)
-            | InstKind::IsZero(..) => match self.eval_truth(func, value, depth) {
+            | InstKind::Ne(..) => match self.eval_truth(func, value, depth) {
                 Some(true) => Range::singleton(U256::from(1)),
                 Some(false) => Range::singleton(U256::ZERO),
                 None => Range::new(U256::ZERO, U256::from(1)),
@@ -1281,7 +1290,7 @@ impl<'a> CheckEliminator<'a> {
             InstKind::Lt(a, b) => self.eval_lt(func, a, b, depth),
             InstKind::Gt(a, b) => self.eval_lt(func, b, a, depth),
             InstKind::Eq(a, b) => self.eval_eq(func, a, b, depth),
-            InstKind::IsZero(a) => self.eval_truth(func, a, depth).map(|truth| !truth),
+            InstKind::Ne(a, b) => self.eval_eq(func, a, b, depth).map(|truth| !truth),
             InstKind::Sub(a, b) | InstKind::Xor(a, b) => {
                 self.eval_eq(func, a, b, depth).map(|eq| !eq)
             }
@@ -1490,7 +1499,7 @@ impl<'a> CheckEliminator<'a> {
         None
     }
 
-    /// Recognizes the checked doubling `or (iszero x), (eq (div (add x, x), x), 2)`,
+    /// Recognizes the checked doubling `or (eq x, 0), (eq (div (add x, x), x), 2)`,
     /// which holds whenever `x + x` cannot wrap: a zero `x` satisfies the first
     /// disjunct and any other `x` divides its doubling back to two.
     fn doubling_check_holds(
@@ -1500,7 +1509,10 @@ impl<'a> CheckEliminator<'a> {
         roundtrip: ValueId,
         depth: usize,
     ) -> bool {
-        let Some(&InstKind::IsZero(x)) = inst_kind(func, zero_test) else { return false };
+        let Some(x) = inst_kind(func, zero_test).and_then(|kind| kind.zero_test_operand(func))
+        else {
+            return false;
+        };
         let Some(&InstKind::Eq(lhs, rhs)) = inst_kind(func, roundtrip) else { return false };
         let (quotient, two) = if const_of(func, rhs) == Some(U256::from(2)) {
             (lhs, rhs)
@@ -1669,11 +1681,16 @@ fn relation_candidates(func: &Function) -> FxHashMap<ValueId, SmallVec<[Relation
                     add(Relation::Lt(a, b));
                     add(Relation::Le(b, a));
                 }
-                Some(&InstKind::Eq(a, b) | &InstKind::Sub(a, b) | &InstKind::Xor(a, b)) => {
+                Some(
+                    &InstKind::Eq(a, b)
+                    | &InstKind::Ne(a, b)
+                    | &InstKind::Sub(a, b)
+                    | &InstKind::Xor(a, b),
+                ) => {
                     let (x, y) = ordered(a, b);
                     add(Relation::Eq(x, y));
                 }
-                Some(&InstKind::IsZero(a)) => pending.push(a),
+
                 Some(&InstKind::And(a, b) | &InstKind::Or(a, b)) => {
                     pending.extend([b, a]);
                 }

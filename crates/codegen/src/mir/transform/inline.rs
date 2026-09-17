@@ -1135,20 +1135,14 @@ fn summarize_function(
             || func.attributes.is_receive
             || func.selector.is_some(),
         is_constructor: func.attributes.is_constructor,
-        has_reference_return: func.return_components().iter().any(|ty| {
-            matches!(
-                ty,
-                MirType::MemPtr
-                    | MirType::MemoryObject(_)
-                    | MirType::StoragePtr
-                    | MirType::CalldataPtr
-                    | MirType::Slice(_)
-            )
-        }),
+        has_reference_return: func
+            .return_components()
+            .iter()
+            .any(|ty| matches!(ty, MirType::MemoryObject(_) | MirType::Slice(_))),
         is_transparent_forwarder: is_transparent_forwarder(module, func),
         is_small_literal_return: is_small_literal_return(func),
         is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
-        has_function_selector: func.params.first() == Some(&MirType::Function),
+        has_function_selector: func.attributes.is_function_pointer_dispatcher,
         is_pure: func.attributes.state_mutability == StateMutability::Pure,
         has_loop: has_back_edge(func),
         ..MirInlineSummary::default()
@@ -1372,7 +1366,7 @@ fn is_memory_wrapper(func: &Function) -> bool {
         || func.internal_frame_size != 0
         || func.blocks.len() != 1
         || func.params.len() > 2
-        || func.return_components() != [MirType::MemPtr]
+        || func.return_components() != [MirType::I256]
     {
         return false;
     }
@@ -1486,8 +1480,8 @@ fn is_identity_function(func: &Function) -> bool {
 }
 
 fn is_transparent_function_pointer_cast(func: &Function) -> bool {
-    func.params == [MirType::Function]
-        && func.return_components() == [MirType::Function]
+    func.params == [MirType::I256]
+        && func.return_components() == [MirType::I256]
         && is_identity_function(func)
 }
 
@@ -1532,10 +1526,15 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         return (target.op(&kind.op(), |_| None), 1);
     }
     let code = match kind {
+        InstKind::Ne(..) => seq(&[op::EQ, op::ISZERO]),
+        InstKind::Trunc(..) | InstKind::Sext(..) | InstKind::PtrToInt(..) => {
+            target.op(&kind.op(), |_| None)
+        }
         InstKind::InsertValue { .. }
         | InstKind::ExtractValue { .. }
-        | InstKind::MemoryObjectFromPtr { .. }
-        | InstKind::WordCast(_) => Cost::ZERO,
+        | InstKind::IntToPtr(..)
+        | InstKind::Zext(_)
+        | InstKind::Bitcast(_) => Cost::ZERO,
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => Cost::ZERO,
         InstKind::MemoryObjectData(_, kind) => {
             if EvmMemoryLayout::object_data_offset(*kind) == 0 {
@@ -1948,7 +1947,7 @@ fn direct_dispatch_target(
         };
         let matches_selector = [(lhs, rhs), (rhs, lhs)].into_iter().any(|(arg, value)| {
             matches!(dispatcher.value(arg), Value::Arg(index) if index.index() == 0)
-                && dispatcher.value_ty(arg) == Some(MirType::Function)
+                && dispatcher.value_ty(arg) == Some(MirType::I256)
                 && dispatcher.value(value).as_immediate().and_then(Immediate::as_u256)
                     == Some(selector)
         });
@@ -2080,22 +2079,21 @@ fn inline_call_impl(
         );
     }
 
-    // object_arg = memory_object_from_ptr raw_arg
+    // object_arg = inttoptr raw_arg
     // jump cloned_entry(object_arg)
     // Calls can carry raw pointer words; cloned semantic operations still require
     // the callee's object types. Materialize the zero-cost view at the cloned entry.
     let mut args = args;
     let mut argument_views = Vec::new();
     for (arg, &ty) in args.iter_mut().zip(&callee.params) {
-        if let MirType::MemoryObject(kind) = ty
+        if let MirType::MemoryObject(_) = ty
             && caller.value_ty(*arg) != Some(ty)
         {
             if !caller.value_ty(*arg).is_some_and(MirType::is_word) {
                 return None;
             }
             let (inst, value) = caller.alloc_value_inst(
-                Instruction::new(InstKind::MemoryObjectFromPtr { ptr: *arg, kind }, Some(ty))
-                    .with_debug_info_dropped(),
+                Instruction::new(InstKind::IntToPtr(*arg), Some(ty)).with_debug_info_dropped(),
             );
             argument_views.push(inst);
             *arg = value;

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_storage_copy.sol:InternalFunctionPointerStorageCopy ===
 @module InternalFunctionPointerStorageCopy
-fn @one() -> u256 [selector=0x901717d1, abi_params=[], abi_returns=[word]] {
+fn @one() -> i256 [selector=0x901717d1, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<20, 1>, exact, uninitialized, infallible, 640 !metadata(preserves_fmp)
     memory_zero v0, 640
@@ -46,7 +46,7 @@ fn @one() -> u256 [selector=0x901717d1, abi_params=[], abi_returns=[word]] {
     jump bb1
 }
 
-fn @two() -> u256 [selector=0x5fdf05d7, abi_params=[], abi_returns=[word]] {
+fn @two() -> i256 [selector=0x5fdf05d7, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 5 !metadata(storage=slot(5))
     v1 = sgt v0, 0
@@ -56,7 +56,7 @@ fn @two() -> u256 [selector=0x5fdf05d7, abi_params=[], abi_returns=[word]] {
   bb3:
     sstore 5, 1 !metadata(storage=slot(5))
     v2 = lt 0, 20
-    v3 = iszero v2
+    v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = div 0, 4
     v5 = add 0, v4
@@ -72,7 +72,7 @@ fn @two() -> u256 [selector=0x5fdf05d7, abi_params=[], abi_returns=[word]] {
     ret 7
 }
 
-fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_none_r_u256(arg0: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     icall panic_if<0x51>, true
     invalid

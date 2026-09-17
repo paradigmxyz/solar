@@ -3,14 +3,15 @@
   @module LowerImmutables
   immutables:
     first: u8
-    second: bytes20
+    second: bool
   
-  fn @constructor(arg0: u8, arg1: bytes20) -> u8 [constructor] {
+  fn @constructor(arg0: i256, arg1: i1) -> i256 [constructor] {
     bb0:
 -     storeimmutable first, arg0
 -     storeimmutable second, arg1
 +     mstore 192, arg0
-+     mstore 224, arg1
++     v1 = zext i1 arg1 to i256
++     mstore 224, v1
       v0 = loadimmutable first
       ret v0
   }

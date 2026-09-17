@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/shared_public_body.sol:SharedPublicBody ===
 @module SharedPublicBody
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
-fn @shared(arg0: u256) -> struct0 [selector=0x727ee1fa, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @shared(arg0: i256) -> struct0 [selector=0x727ee1fa, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -21,7 +21,7 @@ fn @shared(arg0: u256) -> struct0 [selector=0x727ee1fa, abi_params=[u256], abi_r
     ret v6
 }
 
-fn @invoke(arg0: u256) -> struct0 [selector=0x2b30d2b8, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @invoke(arg0: i256) -> struct0 [selector=0x2b30d2b8, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = icall @shared, arg0
     v1 = extract_value struct0, v0, 0
@@ -31,7 +31,7 @@ fn @invoke(arg0: u256) -> struct0 [selector=0x2b30d2b8, abi_params=[u256], abi_r
     ret v4
 }
 
-fn @fib(arg0: u256) -> u256 [selector=0xc6c2ea17, pure, abi_params=[u256], abi_returns=[word]] {
+fn @fib(arg0: i256) -> i256 [selector=0xc6c2ea17, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = lt arg0, 2
     jumpi v0, bb1, bb2

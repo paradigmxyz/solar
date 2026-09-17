@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/bytes_memory_elements.sol:BytesMemoryElements ===
 @module BytesMemoryElements
-fn @alloc() -> bytes32 [selector=0xbbc001c3, pure, abi_params=[], abi_returns=[word]] {
+fn @alloc() -> i256 [selector=0xbbc001c3, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = not 31
     v1 = and 159, v0
@@ -8,13 +8,13 @@ fn @alloc() -> bytes32 [selector=0xbbc001c3, pure, abi_params=[], abi_returns=[w
     set_memory_object_len memorybytes, v2, 96
     v3 = memory_object_len memorybytes, v2
     v4 = lt 5, v3
-    v5 = iszero v4
+    v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = byte 0, 0xaa00000000000000000000000000000000000000000000000000000000000000
     memory_object_store_byte memorybytes, v2, 5, v6
     v7 = memory_object_len memorybytes, v2
     v8 = lt 95, v7
-    v9 = iszero v8
+    v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = byte 0, 0xff00000000000000000000000000000000000000000000000000000000000000
     memory_object_store_byte memorybytes, v2, 95, v10
@@ -22,23 +22,24 @@ fn @alloc() -> bytes32 [selector=0xbbc001c3, pure, abi_params=[], abi_returns=[w
     ret v11
 }
 
-fn @literal() -> bytes32 [selector=0x1373185e, pure, abi_params=[], abi_returns=[word]] {
+fn @literal() -> i256 [selector=0x1373185e, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 10
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x1020304050607080900000000000000000000000000000000000000000000
-    v2 = memory_object_len memorybytes, v0
-    v3 = lt 5, v2
-    v4 = iszero v3
-    icall panic_if<0x32>, v4
-    v5 = byte 0, 0xaa00000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_byte memorybytes, v0, 5, v5
-    v6 = keccak256_bytes v0
-    ret v6
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x1020304050607080900000000000000000000000000000000000000000000
+    v3 = memory_object_len memorybytes, v0
+    v4 = lt 5, v3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = byte 0, 0xaa00000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_byte memorybytes, v0, 5, v6
+    v7 = keccak256_bytes v0
+    ret v7
 }
 
-fn @allocDynamic(arg0: u256) -> u256 [selector=0x2ab2abe8, pure, abi_params=[u256], abi_returns=[word]] {
+fn @allocDynamic(arg0: i256) -> i256 [selector=0x2ab2abe8, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = add arg0, 63
     v1 = lt v0, arg0
@@ -51,17 +52,17 @@ fn @allocDynamic(arg0: u256) -> u256 [selector=0x2ab2abe8, pure, abi_params=[u25
     ret v5
 }
 
-fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) -> bytes1 [selector=0x4b25a5a7, pure, abi_params=[bytes, u256, bytes1], abi_returns=[word<bytes1>]] {
+fn @readWrite(arg0: memorybytes, arg1: i256, arg2: i256) -> i256 [selector=0x4b25a5a7, pure, abi_params=[bytes, u256, bytes1], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = lt arg1, v0
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = byte 0, arg2
     memory_object_store_byte memorybytes, arg0, arg1, v3
     v4 = memory_object_len memorybytes, arg0
     v5 = lt arg1, v4
-    v6 = iszero v5
+    v6 = eq v5, false
     icall panic_if<0x32>, v6
     v7 = memory_object_load_byte memorybytes, arg0, arg1
     v8 = shl 248, v7

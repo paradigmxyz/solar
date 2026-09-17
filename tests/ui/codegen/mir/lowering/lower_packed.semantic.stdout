@@ -1,13 +1,13 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_packed.mir (before none) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_packed.mir (after none) ===
   @module PackedEncoding
-  fn @mixed(arg0: u16, arg1: memorybytes) -> memorybytes {
+  fn @mixed(arg0: i256, arg1: memorybytes) -> memorybytes {
     bb0:
       v0 = abi_encode_packed (data hex"000102", u16 arg0, bytes arg1)
       ret v0
   }
   
-  fn @hash(arg0: i16) -> bytes32 {
+  fn @hash(arg0: i256) -> i256 {
     bb0:
       v0 = keccak256_packed (data hex"ab", i16 arg0, bytes2 0xcdef000000000000000000000000000000000000000000000000000000000000)
       ret v0
@@ -25,7 +25,7 @@
       ret v0
   }
   
-  fn @edge(arg0: bool, arg1: memoryarray, arg2: memorybytes) -> memorybytes {
+  fn @edge(arg0: i1, arg1: memoryarray, arg2: memorybytes) -> memorybytes {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:

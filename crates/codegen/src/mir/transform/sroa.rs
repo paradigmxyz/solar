@@ -169,6 +169,28 @@ impl SroaCx {
             address_insts.insert(inst_id);
         }
 
+        // field_word = ptrtoint field_pointer to i256
+        // field_pointer = inttoptr field_word, or bitcast field_pointer
+        loop {
+            let mut changed = false;
+            for id in func.instructions() {
+                if let InstKind::PtrToInt(base, 256)
+                | InstKind::IntToPtr(base)
+                | InstKind::Bitcast(base) = func.inst(id).kind
+                    && let Some(&slot) = slot_of.get(&base)
+                    && let Some(result) = func.inst_result_value(id)
+                    && !slot_of.contains_key(&result)
+                {
+                    slot_of.insert(result, slot);
+                    address_insts.insert(id);
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+
         // Non-capturing terminators can still read the object's memory.
         if func.blocks.iter().any(|block| {
             block.terminator.as_ref().is_some_and(|terminator| {
@@ -198,6 +220,9 @@ impl SroaCx {
         for inst_id in func.instructions() {
             let inst = func.inst(inst_id);
             let kind = &inst.kind;
+            if address_insts.contains(&inst_id) {
+                continue;
+            }
             let addr = match *kind {
                 InstKind::MStore(addr, value) => {
                     // The address may be a field address; the stored value must
