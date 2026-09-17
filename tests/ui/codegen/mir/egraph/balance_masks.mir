@@ -1,0 +1,57 @@
+//@ compile-flags: -Zmir-pipeline=egraph
+//@ filecheck:
+
+@module BalanceMasks
+
+// CHECK-LABEL: fn @masked(
+// CHECK: + {{v[0-9]+}} = balance arg0
+fn @masked(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = balance v0
+    ret v1
+}
+
+// CHECK-LABEL: fn @wide_mask(
+// CHECK: + {{v[0-9]+}} = balance arg0
+fn @wide_mask(arg0: u256) -> u256 {
+  bb0:
+    v0 = and 0x800000000000000000000000ffffffffffffffffffffffffffffffffffffffff, arg0
+    v1 = balance v0
+    ret v1
+}
+
+// CHECK-LABEL: fn @cleared_low_bit(
+// CHECK: v0 = and arg0, 0xfffffffffffffffffffffffffffffffffffffffe
+// CHECK-NEXT: v1 = balance v0
+fn @cleared_low_bit(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 0xfffffffffffffffffffffffffffffffffffffffe
+    v1 = balance v0
+    ret v1
+}
+
+// CHECK-LABEL: fn @shared(
+// CHECK: v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+// CHECK-NEXT: v1 = balance v0
+// CHECK-NEXT: v2 = add v0, v1
+fn @shared(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = balance v0
+    v2 = add v0, v1
+    ret v2
+}
+
+// CHECK-LABEL: fn @cross_block(
+// CHECK: v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+// CHECK: bb1:
+// CHECK-NEXT: v1 = balance v0
+fn @cross_block(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    jump bb1
+  bb1:
+    v1 = balance v0
+    ret v1
+}

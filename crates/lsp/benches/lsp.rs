@@ -1,4 +1,5 @@
-//! Use parameter IDs within groups so CodSpeed displays the workflow alongside each case.
+//! Name every case `lsp/<operation>[<scenario>]` using parameter IDs so CodSpeed retains the
+//! operation. Include the corpus or workload size with units, plus any cache or cursor state.
 
 #![allow(unused_crate_dependencies)]
 
@@ -100,7 +101,7 @@ fn analysis_build(c: &mut Criterion) {
         assert_clean(&analysis);
         group.throughput(Throughput::Bytes(fixture.source.len() as u64));
         group.bench_with_input(
-            BenchmarkId::from_parameter(function_count),
+            BenchmarkId::from_parameter(format!("{function_count}-functions")),
             &fixture.source,
             |b, source| {
                 b.iter_batched(
@@ -115,7 +116,7 @@ fn analysis_build(c: &mut Criterion) {
     let source = benchmark_source(1).source.replace(call, &call.repeat(256));
     assert_clean(&BenchmarkAnalysis::from_source(source.clone()));
     group.throughput(Throughput::Bytes(source.len() as u64));
-    group.bench_function(BenchmarkId::from_parameter("repeated-calls"), |b| {
+    group.bench_function(BenchmarkId::from_parameter("1-function-256-repeated-calls"), |b| {
         b.iter_batched(
             || source.clone(),
             |source| black_box(BenchmarkAnalysis::from_source(black_box(source))),
@@ -139,11 +140,14 @@ fn call_hierarchy_queries(c: &mut Criterion) {
         let analysis = project.clone().analyze();
         assert_clean(&analysis);
         assert_eq!(analysis.incoming_calls(&uri, target_position).len(), caller_count);
-        group.bench_function(BenchmarkId::from_parameter(format!("{caller_count}-callers")), |b| {
-            b.iter(|| {
-                black_box(analysis.incoming_calls(black_box(&uri), black_box(target_position)))
-            });
-        });
+        group.bench_function(
+            BenchmarkId::from_parameter(format!("{caller_count}-callers-incoming")),
+            |b| {
+                b.iter(|| {
+                    black_box(analysis.incoming_calls(black_box(&uri), black_box(target_position)))
+                });
+            },
+        );
 
         let caller_line = format!("function caller{}() public {{ target(); }}", caller_count - 1);
         let (body_uri, line_start) = project.unique_anchor("benchmark.sol", &caller_line).unwrap();
@@ -181,7 +185,9 @@ fn call_hierarchy_queries(c: &mut Criterion) {
         );
 
         group.bench_function(
-            BenchmarkId::from_parameter(format!("{caller_count}-callers-prepare-cold")),
+            BenchmarkId::from_parameter(format!(
+                "{caller_count}-callers-prepare-body-first-request"
+            )),
             |b| {
                 b.iter_batched(
                     || analysis.clone(),
@@ -495,9 +501,12 @@ fn document_symbol_queries(c: &mut Criterion) {
         assert_eq!(symbols.len(), 1);
         assert_eq!(symbols[0].children.as_ref().map_or(0, Vec::len), function_count + 1);
         group.throughput(Throughput::Elements(function_count as u64));
-        group.bench_function(BenchmarkId::from_parameter(function_count), |b| {
-            b.iter(|| black_box(analysis.document_symbols(black_box(&uri))));
-        });
+        group.bench_function(
+            BenchmarkId::from_parameter(format!("{function_count}-functions")),
+            |b| {
+                b.iter(|| black_box(analysis.document_symbols(black_box(&uri))));
+            },
+        );
     }
     group.finish();
 }
@@ -506,7 +515,7 @@ fn import_path_queries(c: &mut Criterion) {
     let mut group = c.benchmark_group("lsp/import-path");
     let cursor = OPTIMISM_SOURCE.rfind('}').unwrap();
     assert!(!benchmark_import_path_at(OPTIMISM_SOURCE, cursor));
-    group.bench_function(BenchmarkId::from_parameter("optimism-code"), |b| {
+    group.bench_function(BenchmarkId::from_parameter("optimism-non-import-at-end"), |b| {
         b.iter(|| {
             black_box(benchmark_import_path_at(black_box(OPTIMISM_SOURCE), black_box(cursor)))
         });
@@ -537,15 +546,18 @@ fn completion_queries(c: &mut Criterion) {
             ),
             _ => assert!(items.is_empty()),
         }
-        group.bench_function(BenchmarkId::from_parameter(name), |b| {
-            b.iter(|| {
-                black_box(analysis.completions(
-                    black_box(&uri),
-                    black_box(position),
-                    black_box(prefix),
-                ))
-            });
-        });
+        group.bench_function(
+            BenchmarkId::from_parameter(format!("{HOVER_FUNCTION_COUNT}-functions-{name}")),
+            |b| {
+                b.iter(|| {
+                    black_box(analysis.completions(
+                        black_box(&uri),
+                        black_box(position),
+                        black_box(prefix),
+                    ))
+                });
+            },
+        );
     }
     group.finish();
 }
@@ -568,15 +580,18 @@ fn member_completion_queries(c: &mut Criterion) {
         assert_clean(&analysis);
         let items = analysis.completions(&uri, position, "field");
         assert_eq!(items.iter().map(|item| item.label.as_str()).collect::<Vec<_>>(), ["field"]);
-        group.bench_function(BenchmarkId::from_parameter(access_count), |b| {
-            b.iter(|| {
-                black_box(analysis.completions(
-                    black_box(&uri),
-                    black_box(position),
-                    black_box("field"),
-                ))
-            });
-        });
+        group.bench_function(
+            BenchmarkId::from_parameter(format!("{access_count}-member-accesses")),
+            |b| {
+                b.iter(|| {
+                    black_box(analysis.completions(
+                        black_box(&uri),
+                        black_box(position),
+                        black_box("field"),
+                    ))
+                });
+            },
+        );
     }
     group.finish();
 }
@@ -595,9 +610,12 @@ fn signature_help_requests(c: &mut Criterion) {
         assert!(
             response.signatures[0].label.contains(&format!("function_{:04}", function_count - 1))
         );
-        group.bench_function(BenchmarkId::from_parameter(function_count), |b| {
-            b.iter(|| black_box(requests.run()));
-        });
+        group.bench_function(
+            BenchmarkId::from_parameter(format!("{function_count}-functions")),
+            |b| {
+                b.iter(|| black_box(requests.run()));
+            },
+        );
     }
 
     let mut source = String::from(
@@ -676,7 +694,7 @@ fn signature_help_moving_cursors(c: &mut Criterion) {
         let late = positions.last().unwrap().clone();
         let requests = BenchmarkSignatureHelpRequests::new(project, uri, early);
         workloads.push((
-            function_count.to_string(),
+            format!("{function_count}-functions"),
             requests,
             positions,
             (early, 0, signature(0)),
@@ -743,13 +761,16 @@ fn signature_help_moving_cursors(c: &mut Criterion) {
     let mut group = c.benchmark_group("lsp/signature-help-moving-cursor");
     for (name, requests, positions, _, _) in &mut workloads {
         group.throughput(Throughput::Elements(positions.len() as u64));
-        group.bench_function(BenchmarkId::from_parameter(name), |b| {
-            b.iter(|| {
-                for (position, _, _) in black_box(&*positions) {
-                    black_box(requests.run_at(black_box(*position)));
-                }
-            });
-        });
+        group.bench_function(
+            BenchmarkId::from_parameter(format!("{name}-{}-cursor-positions", positions.len())),
+            |b| {
+                b.iter(|| {
+                    for (position, _, _) in black_box(&*positions) {
+                        black_box(requests.run_at(black_box(*position)));
+                    }
+                });
+            },
+        );
     }
     group.finish();
 
@@ -761,19 +782,22 @@ fn signature_help_moving_cursors(c: &mut Criterion) {
         });
         for (name, requests, _, early, late) in &workloads {
             for (location, &(position, _, _)) in [("early", early), ("late", late)] {
-                group.bench_function(BenchmarkId::new(name, location), |b| {
-                    b.iter_batched_ref(
-                        || {
-                            if edited {
-                                requests.after_edit()
-                            } else {
-                                requests.before_first_request()
-                            }
-                        },
-                        |requests| black_box(requests.run_at(black_box(position))),
-                        BatchSize::PerIteration,
-                    );
-                });
+                group.bench_function(
+                    BenchmarkId::from_parameter(format!("{name}-{location}-cursor")),
+                    |b| {
+                        b.iter_batched_ref(
+                            || {
+                                if edited {
+                                    requests.after_edit()
+                                } else {
+                                    requests.before_first_request()
+                                }
+                            },
+                            |requests| black_box(requests.run_at(black_box(position))),
+                            BatchSize::PerIteration,
+                        );
+                    },
+                );
             }
         }
         group.finish();
@@ -802,7 +826,7 @@ fn bounded_workspace_discovery(c: &mut Criterion) {
     assert_eq!(baseline.visited(), 9);
 
     let mut group = c.benchmark_group("lsp/workspace-discovery");
-    group.bench_function(BenchmarkId::from_parameter("foundry-10k-import-only"), |b| {
+    group.bench_function(BenchmarkId::from_parameter("foundry-10000-import-only-files"), |b| {
         b.iter(|| black_box(BenchmarkWorkspaceDiscovery::run(black_box(temp.path()))));
     });
     group.finish();
@@ -857,7 +881,9 @@ fn symbol_table_aggregation(c: &mut Criterion) {
 
         group.throughput(Throughput::Elements(batch_count as u64));
         group.bench_with_input(
-            BenchmarkId::from_parameter(batch_count),
+            BenchmarkId::from_parameter(format!(
+                "{batch_count}-batches-{AGGREGATION_FUNCTION_COUNT}-functions-per-batch"
+            )),
             &batch_count,
             |b, &batch_count| {
                 b.iter_batched(
@@ -870,16 +896,22 @@ fn symbol_table_aggregation(c: &mut Criterion) {
     }
     group.finish();
 
-    let end_to_end_id = format!("lsp/project-analysis-batched/{AGGREGATION_BATCH_COUNT}");
-    c.bench_function(&end_to_end_id, |b| {
-        b.iter_batched(
-            || project.clone(),
-            |project| {
-                black_box(BenchmarkAnalysis::merge(black_box(project.analyze_file_batches())))
-            },
-            BatchSize::PerIteration,
-        );
-    });
+    let mut group = c.benchmark_group("lsp/project-analysis-batched");
+    group.bench_function(
+        BenchmarkId::from_parameter(format!(
+            "{AGGREGATION_BATCH_COUNT}-batches-{AGGREGATION_FUNCTION_COUNT}-functions-per-batch"
+        )),
+        |b| {
+            b.iter_batched(
+                || project.clone(),
+                |project| {
+                    black_box(BenchmarkAnalysis::merge(black_box(project.analyze_file_batches())))
+                },
+                BatchSize::PerIteration,
+            );
+        },
+    );
+    group.finish();
 }
 
 fn burst_hover(c: &mut Criterion) {
@@ -892,14 +924,20 @@ fn burst_hover(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("lsp/burst-hover");
     group.throughput(Throughput::Elements(positions.len() as u64));
-    group.bench_function(BenchmarkId::from_parameter(HOVER_FUNCTION_COUNT), |b| {
-        b.iter(|| {
-            let analysis = black_box(&analysis);
-            for &(line, character) in black_box(&positions) {
-                black_box(analysis.hover(black_box(line), black_box(character)));
-            }
-        });
-    });
+    group.bench_function(
+        BenchmarkId::from_parameter(format!(
+            "{HOVER_FUNCTION_COUNT}-functions-{}-requests",
+            positions.len()
+        )),
+        |b| {
+            b.iter(|| {
+                let analysis = black_box(&analysis);
+                for &(line, character) in black_box(&positions) {
+                    black_box(analysis.hover(black_box(line), black_box(character)));
+                }
+            });
+        },
+    );
     group.finish();
 }
 
@@ -912,7 +950,7 @@ fn selection_range(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("lsp/selection-range");
     group.throughput(Throughput::Bytes(OPTIMISM_SOURCE.len() as u64));
-    group.bench_function(BenchmarkId::from_parameter("optimism"), |b| {
+    group.bench_function(BenchmarkId::from_parameter("optimism-start-1-position"), |b| {
         b.iter_batched(
             || OPTIMISM_SOURCE.to_owned(),
             |source| {
@@ -974,7 +1012,11 @@ fn folding_range(c: &mut Criterion) {
     assert_eq!(benchmark_folding_ranges_from_rope(open_rope.clone()), clean_ranges);
 
     let mut group = c.benchmark_group("lsp/folding-range");
-    for (name, source) in [("clean", clean), ("incomplete", incomplete), ("minified", minified)] {
+    for (name, source) in [
+        ("optimism-clean".to_owned(), clean),
+        (format!("{}-contracts-incomplete", INCOMPLETE_FOLDING_CONTRACT_COUNT * 2), incomplete),
+        (format!("{MINIFIED_FOLDING_FUNCTION_COUNT}-functions-minified"), minified),
+    ] {
         group.throughput(Throughput::Bytes(source.len() as u64));
         group.bench_with_input(BenchmarkId::from_parameter(name), &source, |b, source| {
             b.iter_batched(
@@ -985,23 +1027,29 @@ fn folding_range(c: &mut Criterion) {
         });
     }
     group.throughput(Throughput::Bytes(OPTIMISM_SOURCE.len() as u64));
-    group.bench_function(BenchmarkId::from_parameter("open-clean-legacy"), |b| {
-        b.iter_batched(
-            || open_rope.clone(),
-            |rope| {
-                let source = rope_to_string(&rope);
-                black_box(benchmark_folding_ranges(black_box(source)))
-            },
-            BatchSize::PerIteration,
-        );
-    });
-    group.bench_function(BenchmarkId::from_parameter("open-clean-snapshot"), |b| {
-        b.iter_batched(
-            || open_rope.clone(),
-            |rope| black_box(benchmark_folding_ranges_from_rope(black_box(rope))),
-            BatchSize::PerIteration,
-        );
-    });
+    group.bench_function(
+        BenchmarkId::from_parameter("optimism-open-document-rope-to-string"),
+        |b| {
+            b.iter_batched(
+                || open_rope.clone(),
+                |rope| {
+                    let source = rope_to_string(&rope);
+                    black_box(benchmark_folding_ranges(black_box(source)))
+                },
+                BatchSize::PerIteration,
+            );
+        },
+    );
+    group.bench_function(
+        BenchmarkId::from_parameter("optimism-open-document-rope-snapshot"),
+        |b| {
+            b.iter_batched(
+                || open_rope.clone(),
+                |rope| black_box(benchmark_folding_ranges_from_rope(black_box(rope))),
+                BatchSize::PerIteration,
+            );
+        },
+    );
     group.finish();
 
     let requests = BenchmarkFoldingRangeRequests::new(OPTIMISM_SOURCE.to_owned());
@@ -1043,10 +1091,10 @@ fn open_document_selection_range(c: &mut Criterion) {
     let mut group = c.benchmark_group("lsp/open-document-selection-range");
     group.throughput(Throughput::Bytes(OPTIMISM_SOURCE.len() as u64));
     for (name, positions) in [
-        ("optimism", vec![start]),
-        ("optimism-middle", vec![middle]),
-        ("optimism-end", vec![end]),
-        ("optimism-multiple", vec![end, start, middle, end]),
+        ("optimism-start-1-position", vec![start]),
+        ("optimism-middle-1-position", vec![middle]),
+        ("optimism-end-1-position", vec![end]),
+        ("optimism-mixed-4-positions", vec![end, start, middle, end]),
     ] {
         let requests = BenchmarkSelectionRangeRequests::new(
             OPTIMISM_SOURCE.to_owned(),
@@ -1124,15 +1172,18 @@ fn open_document_selection_range(c: &mut Criterion) {
         lines.throughput(Throughput::Bytes(source.len() as u64));
         let requests = BenchmarkSelectionRangeRequests::new(source, positions);
         assert_eq!(requests.run(), Some(expected));
-        lines.bench_function(BenchmarkId::from_parameter(name), |b| {
-            b.iter(|| black_box(black_box(&requests).run()));
-        });
+        lines.bench_function(
+            BenchmarkId::from_parameter(format!("1024-functions-{name}-1-position")),
+            |b| {
+                b.iter(|| black_box(black_box(&requests).run()));
+            },
+        );
     }
     lines.finish();
 
     let mut cold = c.benchmark_group("lsp/open-document-selection-range-cold");
     cold.throughput(Throughput::Bytes(OPTIMISM_SOURCE.len() as u64));
-    cold.bench_function(BenchmarkId::from_parameter("optimism"), |b| {
+    cold.bench_function(BenchmarkId::from_parameter("optimism-middle-1-position"), |b| {
         b.iter_batched_ref(
             || BenchmarkSelectionRangeRequests::new(OPTIMISM_SOURCE.to_owned(), [middle]),
             |requests| black_box(requests.run()),
@@ -1164,7 +1215,7 @@ fn workspace_diagnostic_hot_paths(c: &mut Criterion) {
         );
         reports.throughput(Throughput::Elements(document_count as u64));
         reports.bench_with_input(
-            BenchmarkId::from_parameter(document_count),
+            BenchmarkId::from_parameter(format!("{document_count}-documents")),
             &document_count,
             |b, &document_count| {
                 b.iter_batched(
@@ -1231,7 +1282,7 @@ fn incoming_document_changes(c: &mut Criterion) {
             assert_eq!(change.clone().apply().contents().to_string(), expected);
             group.throughput(Throughput::Elements(edit_count as u64));
             group.bench_function(
-                BenchmarkId::from_parameter(format!("{name}-{edit_count}")),
+                BenchmarkId::from_parameter(format!("{name}-{edit_count}-edits")),
                 |b| {
                     b.iter_batched(
                         || change.clone(),
@@ -1260,13 +1311,16 @@ fn incoming_document_changes(c: &mut Criterion) {
     let change = BenchmarkDocumentChange::from_changes(source, changes);
     assert_eq!(change.clone().apply().contents().to_string(), "aYef\nghijkl\n");
     group.throughput(Throughput::Elements(2));
-    group.bench_function("sequential-overlap-fallback", |b| {
-        b.iter_batched(
-            || change.clone(),
-            |change| black_box(change.apply()),
-            BatchSize::PerIteration,
-        );
-    });
+    group.bench_function(
+        BenchmarkId::from_parameter("2-overlapping-edits-sequential-fallback"),
+        |b| {
+            b.iter_batched(
+                || change.clone(),
+                |change| black_box(change.apply()),
+                BatchSize::PerIteration,
+            );
+        },
+    );
     group.finish();
 }
 
@@ -1278,7 +1332,9 @@ fn open_document_analysis_batches(c: &mut Criterion) {
     let mut group = c.benchmark_group("lsp/open-document-analysis-batches");
     group.throughput(Throughput::Bytes(documents.source_bytes() as u64));
     group.bench_function(
-        BenchmarkId::from_parameter(format!("{OPEN_DOCUMENT_COUNT}x{OPEN_DOCUMENT_BYTES}")),
+        BenchmarkId::from_parameter(format!(
+            "{OPEN_DOCUMENT_COUNT}-documents-{OPEN_DOCUMENT_BYTES}-bytes-per-document"
+        )),
         |b| b.iter(|| black_box(documents.build_analysis_batches())),
     );
     group.finish();
@@ -1288,7 +1344,7 @@ fn repeated_analysis(c: &mut Criterion) {
     let fixture = benchmark_source(256);
 
     let mut cold = c.benchmark_group("lsp/incremental-analysis");
-    cold.bench_function(BenchmarkId::from_parameter("cold"), |b| {
+    cold.bench_function(BenchmarkId::from_parameter("256-functions-cold"), |b| {
         b.iter_batched(
             || BenchmarkRepeatedAnalysis::new(fixture.source.clone()),
             |mut analysis| black_box(analysis.run()),
@@ -1300,10 +1356,10 @@ fn repeated_analysis(c: &mut Criterion) {
     let mut analysis = BenchmarkRepeatedAnalysis::new(fixture.source);
     assert!(analysis.run());
     let mut cached = c.benchmark_group("lsp/incremental-analysis");
-    cached.bench_function(BenchmarkId::from_parameter("unchanged"), |b| {
+    cached.bench_function(BenchmarkId::from_parameter("256-functions-unchanged"), |b| {
         b.iter(|| black_box(analysis.run()))
     });
-    cached.bench_function(BenchmarkId::from_parameter("reverted-edit"), |b| {
+    cached.bench_function(BenchmarkId::from_parameter("256-functions-reverted-edit"), |b| {
         b.iter(|| {
             analysis.edit_and_revert();
             black_box(analysis.run())
@@ -1457,60 +1513,86 @@ fn workspace_index_reuse(c: &mut Criterion) {
     );
 
     let mut group = c.benchmark_group("lsp/workspace-index-reuse");
-    group.bench_function("4x256-callers-cold", |b| {
-        b.iter_batched_ref(
-            || BenchmarkRepeatedAnalysis::from_workspaces(&roots, &source),
-            |analysis| black_box(analysis.run_epoch()),
-            BatchSize::PerIteration,
-        );
-    });
-    group.bench_function("4x256-callers-open-indexed-document-first-prepare", |b| {
-        b.iter_batched_ref(
-            || {
-                let mut analysis = BenchmarkRepeatedAnalysis::from_workspaces(&roots, &source);
-                analysis.clear_open_documents();
-                assert!(analysis.run_epoch());
-                assert_eq!(analysis.prepare_call_hierarchy(&uri, position).unwrap().len(), 1);
-                analysis
-            },
-            |analysis| {
-                analysis.replace_source(&path, &source);
-                black_box(analysis.run_epoch());
-                black_box(analysis.prepare_call_hierarchy(&uri, position))
-            },
-            BatchSize::PerIteration,
-        );
-    });
+    group.bench_function(
+        BenchmarkId::from_parameter("4-workspaces-256-callers-per-workspace-cold"),
+        |b| {
+            b.iter_batched_ref(
+                || BenchmarkRepeatedAnalysis::from_workspaces(&roots, &source),
+                |analysis| black_box(analysis.run_epoch()),
+                BatchSize::PerIteration,
+            );
+        },
+    );
+    group.bench_function(
+        BenchmarkId::from_parameter(
+            "4-workspaces-256-callers-per-workspace-open-indexed-document-first-call-hierarchy",
+        ),
+        |b| {
+            b.iter_batched_ref(
+                || {
+                    let mut analysis = BenchmarkRepeatedAnalysis::from_workspaces(&roots, &source);
+                    analysis.clear_open_documents();
+                    assert!(analysis.run_epoch());
+                    assert_eq!(analysis.prepare_call_hierarchy(&uri, position).unwrap().len(), 1);
+                    analysis
+                },
+                |analysis| {
+                    analysis.replace_source(&path, &source);
+                    black_box(analysis.run_epoch());
+                    black_box(analysis.prepare_call_hierarchy(&uri, position))
+                },
+                BatchSize::PerIteration,
+            );
+        },
+    );
 
     let mut analysis = BenchmarkRepeatedAnalysis::from_workspaces(&roots, &source);
     assert!(analysis.run_epoch());
     assert_eq!(analysis.prepare_call_hierarchy(&uri, position).unwrap().len(), 1);
     // Initialization and the first lazy query happen once, outside every incremental sample.
-    group.bench_function("4x256-callers-unchanged", |b| {
-        b.iter(|| black_box(analysis.run_epoch()));
-    });
-    group.bench_function("4x256-callers-unchanged-first-prepare", |b| {
-        b.iter(|| {
-            black_box(analysis.run_epoch());
-            black_box(analysis.prepare_call_hierarchy(&uri, position))
-        });
-    });
-    group.bench_function("4x256-callers-reverted-edit-first-prepare", |b| {
-        b.iter(|| {
-            analysis.edit_and_revert();
-            black_box(analysis.run_epoch());
-            black_box(analysis.prepare_call_hierarchy(&uri, position))
-        });
-    });
+    group.bench_function(
+        BenchmarkId::from_parameter("4-workspaces-256-callers-per-workspace-unchanged"),
+        |b| {
+            b.iter(|| black_box(analysis.run_epoch()));
+        },
+    );
+    group.bench_function(
+        BenchmarkId::from_parameter(
+            "4-workspaces-256-callers-per-workspace-unchanged-first-call-hierarchy",
+        ),
+        |b| {
+            b.iter(|| {
+                black_box(analysis.run_epoch());
+                black_box(analysis.prepare_call_hierarchy(&uri, position))
+            });
+        },
+    );
+    group.bench_function(
+        BenchmarkId::from_parameter(
+            "4-workspaces-256-callers-per-workspace-reverted-edit-first-call-hierarchy",
+        ),
+        |b| {
+            b.iter(|| {
+                analysis.edit_and_revert();
+                black_box(analysis.run_epoch());
+                black_box(analysis.prepare_call_hierarchy(&uri, position))
+            });
+        },
+    );
     let mut edited = false;
-    group.bench_function("4x256-callers-one-workspace-edit-first-prepare", |b| {
-        b.iter(|| {
-            edited = !edited;
-            analysis.replace_source(&path, if edited { &edited_source } else { &source });
-            black_box(analysis.run_epoch());
-            black_box(analysis.prepare_call_hierarchy(&uri, position))
-        });
-    });
+    group.bench_function(
+        BenchmarkId::from_parameter(
+            "4-workspaces-256-callers-per-workspace-one-workspace-edit-first-call-hierarchy",
+        ),
+        |b| {
+            b.iter(|| {
+                edited = !edited;
+                analysis.replace_source(&path, if edited { &edited_source } else { &source });
+                black_box(analysis.run_epoch());
+                black_box(analysis.prepare_call_hierarchy(&uri, position))
+            });
+        },
+    );
     group.finish();
 }
 
@@ -1679,16 +1761,22 @@ fn optimism_requests(c: &mut Criterion) {
     let edits = &response.changes.as_ref().unwrap()[&uri];
     assert_eq!(edits.len(), 31);
     assert!(edits.iter().all(|edit| edit.new_text == "renamed"));
-    c.benchmark_group("lsp/rename").bench_function("optimism-predeploys", |b| {
-        b.iter(|| black_box(requests.run()));
-    });
-    c.benchmark_group("lsp/project-analysis").bench_function("optimism-predeploys", |b| {
-        b.iter_batched(
-            || project.clone(),
-            |project| black_box(project.analyze()),
-            BatchSize::PerIteration,
-        );
-    });
+    c.benchmark_group("lsp/rename").bench_function(
+        BenchmarkId::from_parameter("optimism-predeploys"),
+        |b| {
+            b.iter(|| black_box(requests.run()));
+        },
+    );
+    c.benchmark_group("lsp/project-analysis").bench_function(
+        BenchmarkId::from_parameter("optimism-predeploys"),
+        |b| {
+            b.iter_batched(
+                || project.clone(),
+                |project| black_box(project.analyze()),
+                BatchSize::PerIteration,
+            );
+        },
+    );
 }
 
 fn unifap_benches(c: &mut Criterion) {
@@ -1753,7 +1841,7 @@ fn unifap_benches(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("lsp/symbol-table-queries");
     for (name, request) in &requests {
-        let id = format!("{UNIFAP_PROJECT}/{name}");
+        let id = format!("{UNIFAP_PROJECT}-{name}");
         group.bench_with_input(BenchmarkId::from_parameter(id), request, |b, request| {
             b.iter(|| black_box(analysis.execute(black_box(request))))
         });

@@ -1001,3 +1001,21 @@ fn concurrent_workspace_diagnostic_requests_share_the_published_analysis() {
         assert_eq!(broken.full_document_diagnostic_report.items, vec![diagnostic("broken")]);
     }
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn invalidation_returns_retryable_server_cancellation() {
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.mark_analysis_pending_for_test();
+    let mut request = std::pin::pin!(crate::handlers::workspace_diagnostic(
+        &mut state,
+        workspace_diagnostic_params(),
+    ));
+    let mut cx = Context::from_waker(Waker::noop());
+    assert!(request.as_mut().poll(&mut cx).is_pending());
+    state.mark_analysis_pending_for_test();
+    let Poll::Ready(Err(error)) = request.as_mut().poll(&mut cx) else {
+        panic!("invalidation must cancel the diagnostic pull without publication");
+    };
+    assert_eq!(error.code, ErrorCode::SERVER_CANCELLED);
+    assert_eq!(error.data, None);
+}

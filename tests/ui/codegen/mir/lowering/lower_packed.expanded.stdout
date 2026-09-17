@@ -1,0 +1,317 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_packed.mir (before lower-builtins) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_packed.mir (after lower-builtins) ===
+  @module PackedEncoding
+  fn @mixed(arg0: u16, arg1: memorybytes) -> memorybytes {
+    bb0:
+-     v0 = abi_encode_packed (data hex"000102", u16 arg0, bytes arg1)
+-     ret v0
++     v1 = memory_object_len memorybytes, arg1
++     v2 = memory_object_data memorybytes, arg1
++     v3 = make_memory_slice v2, v1
++     v4 = add 5, v1
++     v5 = lt v4, 5
++     jumpi v5, bb1, bb2
++   bb2:
++     v6 = add v4, 63
++     v7 = lt v6, v4
++     jumpi v7, bb1, bb3
++   bb3:
++     v8 = not 31
++     v9 = and v6, v8
++     v10 = alloc memorybytes, exact, uninitialized, infallible, v9 !metadata(preserves_fmp)
++     set_memory_object_len memorybytes, v10, v4
++     v11 = shl 216, arg0
++     v12 = or 0x1020000000000000000000000000000000000000000000000000000000000, v11
++     memory_object_store_word memorybytes, v10, 0, v12
++     memory_object_copy_from_slice_at memorybytes, v10, 5, v3
++     v13 = add 5, v1
++     v14 = lt v13, 5
++     jumpi v14, bb1, bb4
++   bb4:
++     ret v10
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @hash(arg0: i16) -> bytes32 {
+    bb0:
+-     v0 = keccak256_packed (data hex"ab", i16 arg0, bytes2 0xcdef000000000000000000000000000000000000000000000000000000000000)
+-     ret v0
++     v1 = and arg0, 0xffff
++     v2 = shl 232, v1
++     v3 = or 0xab00000000000000000000000000000000000000000000000000000000000000, v2
++     mstore 0, v3 !metadata(memory=scratch)
++     mstore 3, 0xcdef000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
++     v4 = keccak256 0, 5 !metadata(memory=scratch)
++     ret v4
+  }
+  
+  fn @arrays(arg0: memoryarray, arg1: calldataslice) -> memorybytes {
+    bb0:
+-     v0 = abi_encode_packed (array<word<i16>> memoryarray<1> arg0, array<word<bool>> calldata arg1)
+-     ret v0
++     v1 = memory_object_len memoryarray, arg0
++     v2 = mul v1, 32
++     v3 = iszero 32
++     v4 = div v2, 32
++     v5 = eq v4, v1
++     v6 = or v3, v5
++     v7 = iszero v6
++     jumpi v7, bb1, bb2
++   bb2:
++     v8 = add 0, v2
++     v9 = lt v8, 0
++     jumpi v9, bb1, bb3
++   bb3:
++     v10 = slice_len arg1
++     v11 = mul v10, 32
++     v12 = iszero 32
++     v13 = div v11, 32
++     v14 = eq v13, v10
++     v15 = or v12, v14
++     v16 = iszero v15
++     jumpi v16, bb1, bb4
++   bb4:
++     v17 = add v8, v11
++     v18 = lt v17, v8
++     jumpi v18, bb1, bb5
++   bb5:
++     v19 = add v17, 32
++     v20 = lt v19, v17
++     jumpi v20, bb1, bb6
++   bb6:
++     v21 = alloc memorybytes, exact, uninitialized, infallible, v19 !metadata(preserves_fmp)
++     set_memory_object_len memorybytes, v21, v17
++     v22 = mul v1, 32
++     v23 = iszero 32
++     v24 = div v22, 32
++     v25 = eq v24, v1
++     v26 = or v23, v25
++     v27 = iszero v26
++     jumpi v27, bb1, bb7
++   bb7:
++     v28 = add 0, v22
++     v29 = lt v28, 0
++     jumpi v29, bb1, bb8
++   bb8:
++     jump bb9
++   bb9:
++     v30 = phi [bb8: 0], [bb10: v36]
++     v31 = lt v30, v1
++     jumpi v31, bb10, bb11
++   bb11:
++     v37 = mul v10, 32
++     v38 = iszero 32
++     v39 = div v37, 32
++     v40 = eq v39, v10
++     v41 = or v38, v40
++     v42 = iszero v41
++     jumpi v42, bb1, bb12
++   bb12:
++     v43 = add v28, v37
++     v44 = lt v43, v28
++     jumpi v44, bb1, bb13
++   bb13:
++     v45 = slice_ptr arg1
++     jump bb14
++   bb14:
++     v46 = phi [bb13: 0], [bb15: v53]
++     v47 = lt v46, v10
++     jumpi v47, bb15, bb16
++   bb16:
++     ret v21
++   bb15:
++     v48 = mul v46, 32
++     v49 = add v28, v48
++     v50 = calldata_slice_load_word calldata, arg1, v48
++     v51 = iszero v50
++     v52 = iszero v51
++     memory_object_store_word memorybytes, v21, v49, v52
++     v53 = add v46, 1
++     jump bb14
++   bb10:
++     v32 = mul v30, 32
++     v33 = add 0, v32
++     v34 = memory_object_load_element memoryarray<1>, arg0, v30
++     v35 = signextend 1, v34
++     memory_object_store_word memorybytes, v21, v33, v35
++     v36 = add v30, 1
++     jump bb9
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @nested(arg0: memoryfixedarray) -> memorybytes {
+    bb0:
+-     v0 = abi_encode_packed (array<array<2, word<enum 3>>> memoryfixedarray<2, 1> arg0)
+-     ret v0
++     v1 = alloc memorybytes, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
++     set_memory_object_len memorybytes, v1, 128
++     jump bb1
++   bb1:
++     v2 = phi [bb0: 0], [bb8: v16]
++     v3 = lt v2, 2
++     jumpi v3, bb2, bb3
++   bb3:
++     ret v1
++   bb2:
++     v4 = mul v2, 64
++     v5 = add 0, v4
++     v6 = memory_object_load_element memoryfixedarray<2, 1>, arg0, v2
++     v7 = add v5, 64
++     v8 = lt v7, v5
++     jumpi v8, bb4, bb5
++   bb5:
++     jump bb6
++   bb6:
++     v9 = phi [bb5: 0], [bb10: v15]
++     v10 = lt v9, 2
++     jumpi v10, bb7, bb8
++   bb8:
++     v16 = add v2, 1
++     jump bb1
++   bb7:
++     v11 = mul v9, 32
++     v12 = add v5, v11
++     v13 = memory_object_load_element memoryfixedarray<2, 1>, v6, v9
++     v14 = lt v13, 3
++     jumpi v14, bb10, bb9
++   bb9:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 33 !metadata(memory=scratch)
++     revert 28, 36
++   bb10:
++     memory_object_store_word memorybytes, v1, v12, v13
++     v15 = add v9, 1
++     jump bb6
++   bb4:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @edge(arg0: bool, arg1: memoryarray, arg2: memorybytes) -> memorybytes {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+-     v0 = abi_encode_packed (array<word> memoryarray<1> arg1)
++     v2 = memory_object_len memoryarray, arg1
++     v3 = mul v2, 32
++     v4 = iszero 32
++     v5 = div v3, 32
++     v6 = eq v5, v2
++     v7 = or v4, v6
++     v8 = iszero v7
++     jumpi v8, bb4, bb5
++   bb5:
++     v9 = add 0, v3
++     v10 = lt v9, 0
++     jumpi v10, bb4, bb6
++   bb6:
++     v11 = add v9, 32
++     v12 = lt v11, v9
++     jumpi v12, bb4, bb7
++   bb7:
++     v13 = alloc memorybytes, exact, uninitialized, infallible, v11 !metadata(preserves_fmp)
++     set_memory_object_len memorybytes, v13, v9
++     v14 = mul v2, 32
++     v15 = iszero 32
++     v16 = div v14, 32
++     v17 = eq v16, v2
++     v18 = or v15, v17
++     v19 = iszero v18
++     jumpi v19, bb4, bb8
++   bb8:
++     v20 = add 0, v14
++     v21 = lt v20, 0
++     jumpi v21, bb4, bb9
++   bb9:
++     jump bb10
++   bb10:
++     v22 = phi [bb9: 0], [bb11: v27]
++     v23 = lt v22, v2
++     jumpi v23, bb11, bb12
++   bb12:
+      jump bb3
+    bb3:
+-     v1 = phi [bb1: v0], [bb2: arg2]
++     v1 = phi [bb12: v13], [bb2: arg2]
+      ret v1
++   bb11:
++     v24 = mul v22, 32
++     v25 = add 0, v24
++     v26 = memory_object_load_element memoryarray<1>, arg1, v22
++     memory_object_store_word memorybytes, v13, v25, v26
++     v27 = add v22, 1
++     jump bb10
++   bb4:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @prefixed_array(arg0: memoryarray) -> memorybytes {
+    bb0:
+-     v0 = abi_encode_packed (data hex"ab", array<word<u8>> memoryarray<1> arg0)
+-     ret v0
++     v1 = memory_object_len memoryarray, arg0
++     v2 = mul v1, 32
++     v3 = iszero 32
++     v4 = div v2, 32
++     v5 = eq v4, v1
++     v6 = or v3, v5
++     v7 = iszero v6
++     jumpi v7, bb1, bb2
++   bb2:
++     v8 = add 1, v2
++     v9 = lt v8, 1
++     jumpi v9, bb1, bb3
++   bb3:
++     v10 = add v8, 63
++     v11 = lt v10, v8
++     jumpi v11, bb1, bb4
++   bb4:
++     v12 = not 31
++     v13 = and v10, v12
++     v14 = alloc memorybytes, exact, uninitialized, infallible, v13 !metadata(preserves_fmp)
++     set_memory_object_len memorybytes, v14, v8
++     memory_object_store_word memorybytes, v14, 0, 0xab00000000000000000000000000000000000000000000000000000000000000
++     v15 = mul v1, 32
++     v16 = iszero 32
++     v17 = div v15, 32
++     v18 = eq v17, v1
++     v19 = or v16, v18
++     v20 = iszero v19
++     jumpi v20, bb1, bb5
++   bb5:
++     v21 = add 1, v15
++     v22 = lt v21, 1
++     jumpi v22, bb1, bb6
++   bb6:
++     jump bb7
++   bb7:
++     v23 = phi [bb6: 0], [bb8: v29]
++     v24 = lt v23, v1
++     jumpi v24, bb8, bb9
++   bb9:
++     ret v14
++   bb8:
++     v25 = mul v23, 32
++     v26 = add 1, v25
++     v27 = memory_object_load_element memoryarray<1>, arg0, v23
++     v28 = and v27, 255
++     memory_object_store_word memorybytes, v14, v26, v28
++     v29 = add v23, 1
++     jump bb7
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  

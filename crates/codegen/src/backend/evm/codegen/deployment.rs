@@ -3,7 +3,7 @@
 use super::{
     ArtifactKind, CallGraphInfo, DeferredConst, DenseBitSet, EvmArtifact, EvmCodegen,
     EvmMemoryLayout, GeneratedCode, ImmutableEncoding, ImmutableId, ImmutableRef, MAX_STACK_DEPTH,
-    MirPhase, Module, OptimizationMode, StackOp, U256, WORD_BYTES, immutable_push_type_size,
+    Module, OptimizationMode, StackOp, U256, WORD_BYTES, immutable_push_type_size,
     immutable_staging_addr, immutable_staging_base, immutable_staging_end, op,
 };
 use crate::backend::assembler::PreparedAssembly;
@@ -43,18 +43,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         self.reset_for_module(module);
         self.run_optimization_passes(module);
-        if self.emit_unsupported(module) {
+        if self.gcx.dcx().has_errors().is_err() {
             return EvmArtifact::default();
         }
-        if module.phase != MirPhase::EvmShaped {
-            self.gcx
-                .dcx()
-                .err(format!(
-                    "EVM codegen requires MIR in the `evm-shaped` phase, stopped at `{}`",
-                    module.phase.name()
-                ))
-                .span(module.name.span)
-                .emit();
+        self.function_return_counts =
+            module.functions.iter().map(|func| func.return_components().len()).collect();
+        if self.emit_unsupported(module) {
             return EvmArtifact::default();
         }
         self.immutable_staging_base = immutable_staging_base(module);
@@ -80,6 +74,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
+        let Ok(lowered) = module.as_lowered(self.gcx.dcx()) else {
+            return EvmArtifact::default();
+        };
+        let module = &*lowered;
         // Runtime and constructor emission inspect the same final MIR. Compute module-wide facts
         // once instead of rebuilding them for each artifact and caller-stack retry.
         let call_graph = CallGraphInfo::new(module);
@@ -91,7 +89,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
 
         // First generate the runtime code
-        let runtime_code = self.generate_runtime_code(module, &call_graph);
+        let runtime_code = self.generate_runtime_code(&lowered, &call_graph);
         let runtime_len = runtime_code.bytecode.len();
         let immutable_refs = std::mem::take(&mut self.runtime_immutable_refs);
 
@@ -350,6 +348,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // the runtime prefix validation below.
             self.preserve_caller_stack = false;
             self.static_frame_addr_consts.clear();
+            self.packed_static_frame_sizes.clear();
             self.external_spill_addr_consts.clear();
             self.pending_static_allocs.clear();
             self.runtime_free_memory_consts.clear();
@@ -362,13 +361,24 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             for (func_id, func) in module.functions.iter_enumerated() {
                 if !func.attributes.may_return_memory
-                    && !func.params.iter().chain(&func.returns).any(|ty| ty.is_memory_reference())
+                    && !func
+                        .params
+                        .iter()
+                        .chain(func.return_components())
+                        .any(|ty| ty.is_memory_reference())
                 {
                     self.restorable_internal_frames.insert(func_id);
                 }
             }
 
             let internal_targets = call_graph.reachable_callees_from(std::iter::once(ctor_id));
+            let heap_prefix = Self::heap_prefix_offsets(module);
+            let heap_guard = internal_targets
+                .iter()
+                .chain([ctor_id])
+                .map(|func_id| heap_prefix.guard(func_id, &module.functions[func_id]))
+                .max()
+                .unwrap_or(0);
             for func_id in &internal_targets {
                 let label = self.new_function_label(func_id);
                 self.function_labels.insert(func_id, label);
@@ -376,7 +386,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             // Constructor locals, immutable staging, and spills occupy fixed
             // compiler-owned regions. The ABI blob starts after their exact
-            // post-emission end, and dynamic allocations start after the blob.
+            // post-emission end. The heap prefix follows the complete ABI blob.
             let constructor_fixed_memory_end = self.asm.new_deferred_const();
             let constructor_arg_offset =
                 (!ctor.params.is_empty()).then(|| self.asm.new_deferred_const());
@@ -405,13 +415,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::ADD);
                 self.asm.emit_push(U256::MAX - U256::from(EvmMemoryLayout::WORD_SIZE - 1));
                 self.asm.emit_op(op::AND);
-                self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-                self.asm.emit_op(op::MSTORE);
             } else {
                 self.asm.emit_push_deferred(constructor_fixed_memory_end);
-                self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-                self.asm.emit_op(op::MSTORE);
             }
+            // heap_start = aligned_args_end + heap_guard
+            // mstore(FMP_SLOT, heap_start)
+            if heap_guard != 0 {
+                self.asm.emit_push(U256::from(heap_guard));
+                self.asm.emit_op(op::ADD);
+            }
+            self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
+            self.asm.emit_op(op::MSTORE);
 
             if !internal_targets.is_empty() {
                 let constructor_entry = self.asm.new_label();
@@ -443,15 +457,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.mark_debug_function_invoke(ctor);
             self.generate_function_body(ctor_id, ctor);
             let constructor_spill_size = self.record_function_spill_size(ctor_id);
-            self.asm.set_deferred_const(
-                constructor_fixed_memory_end,
-                U256::from(self.constructor_fixed_memory_end(
-                    module.immutable_count(),
-                    constructor_spill_size,
-                )),
-            );
+            let fixed_memory_end =
+                self.constructor_fixed_memory_end(module.immutable_count(), constructor_spill_size);
+            if fixed_memory_end.checked_add(heap_guard).is_none() {
+                self.gcx
+                    .dcx()
+                    .err("constructor heap prefix exceeds the addressable memory range")
+                    .span(ctor.name_span)
+                    .emit();
+            }
+            self.asm.set_deferred_const(constructor_fixed_memory_end, U256::from(fixed_memory_end));
 
-            self.resolve_pending_frame_size_consts(module);
+            self.resolve_pending_frame_size_consts(module, |_| heap_guard);
 
             if !self.stack_prefixes_fit_from(module, ctor_id, MAX_STACK_DEPTH) {
                 self.report_stack_limit_error();

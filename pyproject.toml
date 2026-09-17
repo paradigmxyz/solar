@@ -11,7 +11,7 @@ package = false
 members = ["tools/compiler-diff", "benches/analyze"]
 
 [dependency-groups]
-dev = ["ruff", "ty", "jsonschema==4.25.1"]
+dev = ["ruff", "ty", "jsonschema==4.25.1", "z3-solver==4.16.0.0"]
 
 [tool.ty.environment]
 extra-paths = ["tools/compiler-diff"]

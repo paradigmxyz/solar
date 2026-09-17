@@ -1,5 +1,15 @@
-//@ filecheck:
+//@[mir] filecheck:
 // CHECK: @module
+//@[gas] compile-flags: -Zdump=disasm-runtime
+//@[gas] filecheck: --check-prefix=TABLE
+// TABLE-LABEL: ExternalFunctionPointerMemoryCleanup (runtime)
+// A memory function pointer occupies the high 24 bytes; clear dirty low padding.
+// TABLE: NOT
+// TABLE-NEXT: PUSH1 0xc0
+// TABLE-NEXT: SHR
+// TABLE-NEXT: NOT
+// TABLE-NEXT: DUP2
+// TABLE-NEXT: AND
 //@ codegen-matrix: standard
 //@ run-call: memoryLayout => true
 //@ run-call: cleanup 1 => 0, 0

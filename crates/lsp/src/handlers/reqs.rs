@@ -416,7 +416,7 @@ pub(crate) fn document_diagnostic(
 ) -> impl Future<Output = Result<DocumentDiagnosticReportResult, ResponseError>> + use<> {
     let report = state.pull_diagnostic_report(params.text_document.uri, params.previous_result_id);
     async move {
-        let report = match report.await? {
+        let report = match report.await.map_err(diagnostic_request_error)? {
             PullReport::Full { result_id, diagnostics } => {
                 DocumentDiagnosticReport::Full(RelatedFullDocumentDiagnosticReport {
                     related_documents: None,
@@ -449,11 +449,23 @@ pub(crate) fn workspace_diagnostic(
     let work_done_token = params.work_done_progress_params.work_done_token;
     async move {
         let _work_done = RequestWorkDoneProgress::begin(client.clone(), work_done_token);
-        let items = reports.await?.into_iter().map(workspace_document_diagnostic_report);
+        let items = reports
+            .await
+            .map_err(diagnostic_request_error)?
+            .into_iter()
+            .map(workspace_document_diagnostic_report);
         let items =
             stream_workspace_diagnostic_partials(&client, partial_result_token, items).await;
         Ok(WorkspaceDiagnosticReport { items }.into())
     }
+}
+
+fn diagnostic_request_error(mut error: ResponseError) -> ResponseError {
+    if error.code == ErrorCode::CONTENT_MODIFIED {
+        // Pull diagnostics explicitly support server cancellation and default to retrying.
+        error.code = ErrorCode::SERVER_CANCELLED;
+    }
+    error
 }
 
 fn workspace_document_diagnostic_report(

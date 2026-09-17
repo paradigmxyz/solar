@@ -28,11 +28,16 @@ The default coverage mode ignores stop order and repetition. This does not
 assert equality of every source span or reconstructed call frame.
 
 The baseline suite covers creation, arithmetic, both branch arms, and a
-storage read, with exact call-result assertions. `--comparison formats`
+storage read and an internal multiple return, with exact call-result assertions. `--comparison formats`
 runs without solc. `--mode steps` compares ordered stops, and `--mode spans`
 also compares their precise ranges and modifier depth. `--all-stops` removes
 the checkpoint filter from the solc leg, including declaration/prologue stops
 that differ across the compilers.
+
+Strict `--comparison formats --mode spans` currently reports modifier-depth
+availability differences: legacy source maps expose the depth, while our
+ETHDebug output leaves it unknown. Coverage and ordered-stop comparisons do
+not check that field; passing them does not imply strict span conformance.
 
 All inputs, compiler outputs, adapter artifacts, execution traces, comparison
 reports, versions, and settings remain under `target/debug-diff/`. A command

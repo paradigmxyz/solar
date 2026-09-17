@@ -13,26 +13,18 @@ bb0:
   shr
   dup 1
   push 0xfaf4836c
-  eq
-  push bb1
+  sub
+  push bb3
   jumpi
-  push 0
-  push 0
-  revert
-bb4 [cold]:
-  push 0
-  push 0
-  revert
-bb1:
   push_immutable 0, 20
   address
   eq
-  push bb4
+  push bb3
   jumpi
   push 68
   calldatasize
   lt
-  push bb4
+  push bb3
   jumpi
   push 4
   calldataload
@@ -44,30 +36,30 @@ bb1:
   swap 1
   dup 2
   lt
-  push bb8
+  push bb7
   jumpi
+  dup 1
   push 4
   calldataload
   sstore
-  push 4
-  calldataload
-  sload
   push 128
   mstore
   push 32
   push 128
   return
-bb8 [cold]:
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb7 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 17
-  push 4
+  push 32
   mstore
   push 36
-  push 0
+  push 28
   revert
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Outer (runtime) ===
 @module Outer_runtime
@@ -78,43 +70,37 @@ bb0:
   shr
   dup 1
   push 0x5e0b1cef
-  eq
-  push bb1
+  sub
+  push bb3
   jumpi
-  push 0
-  push 0
-  revert
-bb14 [cold]:
-  push 0
-  push 0
-  revert
-bb1:
   push_immutable 0, 20
   address
   eq
-  push bb14
+  push bb3
   jumpi
-  push 256
+  push 160
   push 64
   mstore
   push 68
   calldatasize
   lt
-  push bb14
+  push bb3
   jumpi
   push 36
   calldataload
-  push bb8
+  push bb7
   jumpi
   push 0
-  jump bb15
-bb15:
   push 128
   mstore
   push 32
   push 128
   return
-bb8:
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb7:
   push 64
   mload
   push 96
@@ -132,10 +118,9 @@ bb8:
   add
   push 4
   calldataload
-  swap 1
-  mstore
-  push 36
   dup 2
+  mstore
+  push 32
   add
   push 36
   calldataload
@@ -151,7 +136,7 @@ bb8:
   swap 1
   pop
   iszero
-  push bb12
+  push bb11
   jumpi
   returndatasize
   push 63
@@ -160,7 +145,7 @@ bb8:
   dup 2
   dup 2
   lt
-  push bb13
+  push bb12
   jumpi
   push 31
   not
@@ -176,29 +161,31 @@ bb8:
   dup 2
   mstore
   push 32
-  dup 2
   add
-  dup 3
+  dup 2
   push 0
   dup 3
   returndatacopy
-  swap 2
-  pop
-  mload
-  dup 1
-  dup 3
+  dup 2
+  dup 2
   add
-  dup 3
+  dup 2
   gt
-  swap 1
+  swap 2
   push 32
   gt
+  swap 1
+  swap 2
   or
-  push bb14
+  push bb3
   jumpi
   mload
-  jump bb15
-bb12 [cold]:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb11 [cold]:
   returndatasize
   push 0
   push 0
@@ -206,17 +193,15 @@ bb12 [cold]:
   returndatasize
   push 0
   revert
-bb13 [cold]:
+bb12 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 65
-  push 4
+  push 32
   mstore
   push 36
-  push 0
+  push 28
   revert
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:C (runtime) ===
 @module C_runtime
@@ -233,7 +218,7 @@ bb0:
   sub
   push bb3
   jumpi
-  push 256
+  push 160
   push 64
   mstore
   push 36
@@ -257,10 +242,9 @@ bb0:
   dup 2
   add
   push 0
-  swap 1
-  mstore
-  push 36
   dup 2
+  mstore
+  push 32
   add
   push 4
   calldataload
@@ -301,23 +285,21 @@ bb0:
   dup 2
   mstore
   push 32
-  dup 2
   add
-  dup 3
+  dup 2
   push 0
   dup 3
   returndatacopy
-  swap 2
-  pop
-  mload
-  dup 1
-  dup 3
+  dup 2
+  dup 2
   add
-  dup 3
+  dup 2
   gt
-  swap 1
+  swap 2
   push 32
   gt
+  swap 1
+  swap 2
   or
   push bb3
   jumpi
@@ -341,13 +323,11 @@ bb9 [cold]:
   revert
 bb10 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 65
-  push 4
+  push 32
   mstore
   push 36
-  push 0
+  push 28
   revert

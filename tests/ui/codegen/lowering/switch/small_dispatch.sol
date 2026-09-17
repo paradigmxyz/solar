@@ -70,7 +70,7 @@ contract FourFunctions {
 
 contract PartialTerminalDispatch {
     // SIZE-LABEL: small_dispatch.sol:PartialTerminalDispatch (runtime) ===
-    // SIZE-COUNT-2: gt
+    // SIZE: gt
     // SIZE-NOT: gt
     // SIZE: eq
     // SIZE-NEXT: push [[STOP:bb[0-9]+]]
@@ -78,7 +78,6 @@ contract PartialTerminalDispatch {
     // SIZE-NOT: gt
     // SIZE: [[STOP]]:
     // SIZE-NEXT: stop
-    // SIZE: gt
     // SIZE-NOT: gt
     // SIZE: eq
     // SIZE-NEXT: push [[STOP]]

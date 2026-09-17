@@ -1,0 +1,18 @@
+//@ revisions: modern legacy
+//@[modern] compile-flags: --evm-version=constantinople -Zmir-pipeline=egraph
+//@[legacy] compile-flags: --evm-version=byzantium -Zmir-pipeline=egraph
+//@[modern] filecheck: --check-prefix=MODERN
+//@[legacy] filecheck: --check-prefix=LEGACY
+@module Exp2
+
+// MODERN-LABEL: {{^[ +].*}}fn @exp2{{[( ]}}
+// MODERN: {{^[ +].*}}[[POWER:v[0-9]+]] = shl arg0, 1
+// MODERN: {{^[ +].*}}ret [[POWER]]
+// LEGACY-LABEL: {{^[ +].*}}fn @exp2{{[( ]}}
+// LEGACY: {{^[ +].*}}[[POWER:v[0-9]+]] = exp 2, arg0
+// LEGACY: {{^[ +].*}}ret [[POWER]]
+fn @exp2(arg0: u256) -> u256 {
+  bb0:
+    v0 = exp 2, arg0
+    ret v0
+}

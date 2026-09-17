@@ -19,16 +19,16 @@ contract PointerBase {
 // CHECK-LABEL: fn @target.0(
 // CHECK: ret 2
 // CHECK-LABEL: fn @callQualified(
-// CHECK: icall @internal_dispatcher{{.*}}, 1, [[BASE_TARGET:[0-9]+]]
+// CHECK: icall @internal_dispatcher{{.*}}, [[BASE_TARGET:[0-9]+]]
 // CHECK-LABEL: fn @callVirtual(
-// CHECK: icall @callThroughVirtualPointer, 1
+// CHECK: icall @callThroughVirtualPointer
 // CHECK-LABEL: fn @callThroughVirtualPointer(
-// CHECK: icall @internal_dispatcher{{.*}}, 1, [[DERIVED_TARGET:[0-9]+]]
+// CHECK: icall @internal_dispatcher{{.*}}, [[DERIVED_TARGET:[0-9]+]]
 // CHECK-LABEL: fn @internal_dispatcher{{.*}}(
 // CHECK: eq arg0, [[BASE_TARGET]]
 // CHECK: eq arg0, [[DERIVED_TARGET]]
-// CHECK: icall @target.{{[0-9]+}}, 1
-// CHECK: icall @target.{{[0-9]+}}, 1
+// CHECK: icall @target.{{[0-9]+}}
+// CHECK: icall @target.{{[0-9]+}}
 contract PointerDerived is PointerBase {
     function target() internal pure override returns (uint256) {
         return 2;

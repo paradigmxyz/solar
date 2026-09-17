@@ -43,3 +43,21 @@
       ret v4
   }
   
+  fn @clear_clobbers_storage(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = sload 0
+      clear_storage_words arg0, 0, arg1
+      v1 = sload 0
+      v2 = sub v1, v0
+      ret v2
+  }
+  
+  fn @store_bytes_clobbers_storage(arg0: u256, arg1: memorybytes) -> u256 {
+    bb0:
+      v0 = sload 0
+      store_storage_bytes arg0, arg1
+      v1 = sload 0
+      v2 = sub v1, v0
+      ret v2
+  }
+  

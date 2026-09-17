@@ -17,7 +17,8 @@
 use crate::mir::{
     BlockId, Function, Immediate, InstId, InstKind, Module, Terminator, Value, ValueId,
     pass::{MirPass, run_function_pass},
-    utils::{self as mir_utils, eval, repair_reachability_phis},
+    utils as mir_utils,
+    utils::eval,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -141,6 +142,10 @@ impl SccpCx {
     /// including unreachable-block cleanup and phi repairs.
     fn run(&mut self, func: &mut Function) -> usize {
         self.stats = SccpStats::default();
+
+        if !can_change(func) {
+            return 0;
+        }
 
         let num_values = func.num_values();
 
@@ -589,7 +594,7 @@ impl SccpCx {
             let all_insts: Vec<InstId> =
                 func.instructions().filter(|&id| !dead_insts.contains(id)).collect();
             for inst_id in all_insts {
-                mir_utils::replace_inst_uses(&mut func.inst_mut(inst_id).kind, &const_values);
+                mir_utils::replace_inst_uses(func.inst_mut(inst_id), &const_values);
             }
             for block_id in func.blocks.indices() {
                 if let Some(term) = &mut func.blocks[block_id].terminator {
@@ -605,20 +610,10 @@ impl SccpCx {
 
         // Phase 5: Apply branch/switch rewrites.
         for (block_id, target) in control_rewrites {
-            let old_successors = func.blocks[block_id]
-                .terminator
-                .as_ref()
-                .map(Terminator::successors)
-                .unwrap_or_default();
             let was_switch =
                 matches!(func.blocks[block_id].terminator, Some(Terminator::Switch { .. }));
-            for successor in old_successors {
-                func.blocks[successor].predecessors.retain(|pred| *pred != block_id);
-            }
-            if !func.blocks[target].predecessors.contains(&block_id) {
-                func.blocks[target].predecessors.push(block_id);
-            }
-            func.blocks[block_id].terminator = Some(Terminator::Jump(target));
+            // branch/switch ..., target, ... -> jump target
+            mir_utils::fold_terminator_to_jump(func, block_id, target);
             if was_switch {
                 self.stats.switches_folded += 1;
             } else {
@@ -631,30 +626,96 @@ impl SccpCx {
             if executable_blocks.contains(block_id) {
                 continue;
             }
-            let block = &mut func.blocks[block_id];
-            // Predecessor lists are rebuilt from terminators by
-            // `repair_reachability_phis` below, so a never-taken switch target
-            // keeps a predecessor entry; checking it here would re-count the
-            // block as invalidated on every run.
-            let already_invalid = block.instructions.is_empty()
-                && matches!(block.terminator, Some(Terminator::Invalid));
-            if already_invalid {
-                continue;
-            }
-            block.instructions.clear();
-            block.terminator = Some(Terminator::Invalid);
-            block.predecessors.clear();
-            self.stats.blocks_invalidated += 1;
+            // non-executable block -> invalid
+            self.stats.blocks_invalidated +=
+                usize::from(mir_utils::invalidate_unreachable_block(func, block_id));
         }
-
-        let reachability_repaired = repair_reachability_phis(func);
 
         self.stats.constants_folded
             + self.stats.branches_folded
             + self.stats.switches_folded
             + self.stats.blocks_invalidated
-            + usize::from(reachability_repaired)
     }
+}
+
+/// Returns whether SCCP can discover a constant or structurally unreachable
+/// block. Every derived constant starts at one of these local seeds, so a
+/// function without a seed can skip user lists, lattices, and worklists.
+fn can_change(func: &Function) -> bool {
+    for inst_id in func.instructions() {
+        let inst = func.inst(inst_id);
+        if inst.kind.has_side_effects() {
+            continue;
+        }
+        let directly_constant = match &inst.kind {
+            InstKind::Phi(incoming) => incoming
+                .first()
+                .and_then(|&(_, value)| func.value_u256(value))
+                .is_some_and(|first| {
+                    incoming.iter().all(|&(_, value)| func.value_u256(value) == Some(first))
+                }),
+            InstKind::Select(condition, then_value, else_value) => {
+                func.value_u256(*condition)
+                    .and_then(|condition| {
+                        func.value_u256(if condition.is_zero() { *else_value } else { *then_value })
+                    })
+                    .is_some()
+                    || func
+                        .value_u256(*then_value)
+                        .is_some_and(|then_value| func.value_u256(*else_value) == Some(then_value))
+            }
+            InstKind::Div(_, divisor)
+            | InstKind::SDiv(_, divisor)
+            | InstKind::Mod(_, divisor)
+            | InstKind::SMod(_, divisor) => {
+                func.value_u256(*divisor).is_some_and(|divisor| divisor.is_zero())
+                    || eval::eval_inst(&inst.kind, |value| func.value_u256(value).ok_or(()))
+                        .ok()
+                        .flatten()
+                        .is_some()
+            }
+            InstKind::AddMod(_, _, modulus) | InstKind::MulMod(_, _, modulus) => {
+                func.value_u256(*modulus).is_some_and(|modulus| modulus.is_zero())
+                    || eval::eval_inst(&inst.kind, |value| func.value_u256(value).ok_or(()))
+                        .ok()
+                        .flatten()
+                        .is_some()
+            }
+            _ => eval::eval_inst(&inst.kind, |value| func.value_u256(value).ok_or(()))
+                .ok()
+                .flatten()
+                .is_some(),
+        };
+        if directly_constant {
+            return true;
+        }
+    }
+
+    for block in &func.blocks {
+        match block.terminator.as_ref() {
+            Some(Terminator::Branch { condition, .. }) if func.value_u256(*condition).is_some() => {
+                return true;
+            }
+            Some(Terminator::Switch { value, .. }) if func.value_u256(*value).is_some() => {
+                return true;
+            }
+            _ => {}
+        }
+    }
+
+    let mut reachable = DenseBitSet::new_empty(func.blocks.len());
+    let mut pending = vec![BlockId::ENTRY];
+    while let Some(block) = pending.pop() {
+        if reachable.insert(block)
+            && let Some(terminator) = &func.blocks[block].terminator
+        {
+            pending.extend(terminator.successors());
+        }
+    }
+    func.blocks.indices().any(|block| {
+        !reachable.contains(block)
+            && !matches!(func.blocks[block].terminator, Some(Terminator::Invalid))
+    })
 }
 
 #[cfg(test)]

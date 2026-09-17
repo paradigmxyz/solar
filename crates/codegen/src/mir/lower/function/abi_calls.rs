@@ -337,7 +337,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             Some(value)
         } else {
-            self.materialize_memory_argument(ty, value, span)
+            let value = self.materialize_memory_argument(ty, value, span)?;
+            if let MirType::MemoryObject(kind) = types::TypeLowerer::mir_type(ty)
+                && self.builder.func().value_ty(value) != Some(MirType::MemoryObject(kind))
+                && self.builder.func().value_slice_location(value).is_none()
+            {
+                // object = memory_object_from_ptr value
+                Some(self.builder.memory_object_from_ptr(value, kind))
+            } else {
+                Some(value)
+            }
         }
     }
 
@@ -495,7 +504,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.set_memory_object_len(object, length, layout.kind());
 
         self.counted_loop(length, |this, index| {
-            let offset = this.builder.checked_mul(index, element_head_size);
+            // The checked payload size bounds offsets for one-word ABI heads.
+            // offset = index * element_head_size
+            let offset = if element_abi.head_size() == 32 {
+                this.builder.mul(index, element_head_size)
+            } else {
+                this.builder.checked_mul(index, element_head_size)
+            };
             let head = this.builder.add(data, offset);
             let value = this.materialize_calldata_value_at_inner(
                 element,

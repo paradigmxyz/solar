@@ -15,11 +15,10 @@
 // CHECK: {{^[ +].*}}fn @overlapping_storage{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = sload 0
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = sload 0
-// Aggregate writes kill preceding stores only when they overwrite the value.
-// CHECK: + // === {{.*}} (after memory-dse) ===
-// CHECK: {{^[ +].*}}fn @overwrites_memory{{[( ]}}
-// CHECK: - mstore arg0, 7
+// Only unconditional stores prove overwrites; aggregate effects describe possible writes.
 // CHECK: + // === {{.*}} (after storage-dse) ===
+// CHECK: {{^[ +].*}}fn @overwrites_memory{{[( ]}}
+// CHECK: {{^[ +].*}}mstore arg0, 7
 // CHECK: {{^[ +].*}}fn @clobbers_stored_value{{[( ]}}
 // CHECK: - sstore 0, 1 !metadata(storage=slot(0))
 

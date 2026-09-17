@@ -1,7 +1,10 @@
 - // === ROOT/tests/ui/codegen/mir/cse/cse_extended_ops.mir (before cse) ===
 + // === ROOT/tests/ui/codegen/mir/cse/cse_extended_ops.mir (after cse) ===
   @module CseExtendedOps
-  fn @extended_pure_ops(arg0: u256, arg1: u256, arg2: bool) -> (u256, u256, u256, u256, u256, bool) {
+  types:
+    struct0: {u256, u256, u256, u256, u256, bool}
+  
+  fn @extended_pure_ops(arg0: u256, arg1: u256, arg2: bool) -> struct0 [return_abi=[u256, u256, u256, u256, u256, bool]] {
     bb0:
       v0 = sdiv arg0, arg1
 -     v1 = sdiv arg0, arg1

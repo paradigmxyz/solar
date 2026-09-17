@@ -16,6 +16,26 @@ SPEC.loader.exec_module(benchmark)
 
 
 class CorpusTests(unittest.TestCase):
+    def test_brutalized_calls_keep_measurements_but_exclude_comparison(self):
+        case = next(
+            case for case in benchmark.TEST_CASES if case.test_id == "solady-lib-string"
+        )
+        calls = benchmark.gas_calls(case, "hot")
+        excluded = [call for call in calls if call.comparison_exclusion_reason]
+        self.assertEqual(len(excluded), 22)
+        self.assertEqual(
+            {call.signature for call in excluded},
+            {
+                "testBytesToHexStringNoPrefix(bytes)",
+                "testBytesToHexString(bytes)",
+                "testStringIs7BitASCIIDifferential(bytes)",
+            },
+        )
+        self.assertEqual(
+            {call.comparison_exclusion_reason for call in excluded},
+            {"Memory brutalizer workload depends on gas and contract bytecode."},
+        )
+
     def test_source_links_pin_checkout_and_upstream(self) -> None:
         case = next(
             case
@@ -179,6 +199,17 @@ class CorpusTests(unittest.TestCase):
         self.assertEqual(json.loads(original)["settings"]["evmVersion"], "paris")
         self.assertEqual(json.loads(overridden)["settings"]["evmVersion"], "amsterdam")
         self.assertEqual(benchmark.with_evm_version(original, None), original)
+
+    def test_optimizer_runs_override_replaces_project_setting(self) -> None:
+        original = benchmark.full_project_standard_json_input("solady-0.1.26.json.gz")
+        overridden = benchmark.with_optimizer_runs(original, 1)
+
+        self.assertEqual(json.loads(original)["settings"]["optimizer"]["runs"], 1000)
+        self.assertEqual(
+            json.loads(overridden)["settings"]["optimizer"],
+            {"enabled": True, "runs": 1},
+        )
+        self.assertEqual(benchmark.with_optimizer_runs(original, None), original)
 
     def test_compiler_output_fingerprint_ignores_diagnostic_order(self) -> None:
         first = json.dumps(
@@ -485,6 +516,104 @@ class RuntimeComparisonTests(unittest.TestCase):
 
 
 class ArtifactTests(unittest.TestCase):
+    def test_artifacts_include_complete_source_tree(self) -> None:
+        sources = {
+            "src/Main.sol": {"content": 'import "../lib/Lib.sol";\ncontract Main {}\n'},
+            "lib/Lib.sol": {"content": "library Lib {}\n"},
+            "@scope/package/Source": {"content": "// π\r\ncontract Source {}\r\n"},
+            "@scope/package/Source.sol": {"content": ""},
+            "folder with spaces/你好.sol": {"content": "// UTF-8\n"},
+            "remote.sol": {"urls": ["https://example.com/remote.sol"]},
+        }
+        spec = benchmark.CompilerSpec("solc", "solc", Path("solc"), "solc")
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(
+                benchmark, "run", return_value=mock.Mock(returncode=0, stdout="{}")
+            ),
+        ):
+            root = Path(directory)
+            case = benchmark.TEST_CASES[0]
+            error = benchmark.write_artifacts(
+                root, spec, case, (json.dumps({"sources": sources}), 1, "")
+            )
+            self.assertEqual(error, "")
+            output = root / case.test_id / "solc" / "sources"
+            self.assertEqual(
+                {
+                    p.relative_to(output).as_posix(): p.read_bytes().decode("utf-8")
+                    for p in output.rglob("*")
+                    if p.is_file()
+                },
+                {
+                    name: source["content"]
+                    for name, source in sources.items()
+                    if "content" in source
+                },
+            )
+            for name in (
+                "../escape.sol",
+                "/absolute.sol",
+                "a/../../escape.sol",
+                "a\\b.sol",
+                "C:/escape.sol",
+                "C:escape.sol",
+                "//server/share.sol",
+                "a//b.sol",
+                "./a.sol",
+                "a/./b.sol",
+                "nul\0.sol",
+                "control\x7f.sol",
+                "",
+            ):
+                with self.subTest(name=name):
+                    error = benchmark.write_artifacts(
+                        root,
+                        spec,
+                        case,
+                        (json.dumps({"sources": {name: {"content": ""}}}), 1, ""),
+                    )
+                    self.assertEqual(error, f"invalid source artifact path: {name!r}")
+
+    def test_source_artifacts_reject_symlinks_and_report_collisions(self) -> None:
+        spec = benchmark.CompilerSpec("solc", "solc", Path("solc"), "solc")
+        case = benchmark.TEST_CASES[0]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / case.test_id / "solc" / "sources"
+            output.mkdir(parents=True)
+            outside = root / "outside"
+            outside.mkdir()
+            (outside / "Keep.sol").write_text("keep")
+            (output / "linked").symlink_to(outside, target_is_directory=True)
+            error = benchmark.write_artifacts(
+                root,
+                spec,
+                case,
+                (
+                    json.dumps(
+                        {"sources": {"linked/Keep.sol": {"content": "changed"}}}
+                    ),
+                    1,
+                    "",
+                ),
+            )
+            self.assertEqual(
+                error, "source artifact path contains a symlink: 'linked/Keep.sol'"
+            )
+            self.assertEqual((outside / "Keep.sol").read_text(), "keep")
+            for sources in (
+                {"file": {"content": "keep"}, "file/Child.sol": {"content": "child"}},
+                {
+                    "directory/Child.sol": {"content": "child"},
+                    "directory": {"content": "keep"},
+                },
+            ):
+                error = benchmark.write_artifacts(
+                    root, spec, case, (json.dumps({"sources": sources}), 1, "")
+                )
+                self.assertTrue(error.startswith("cannot write source artifact"), error)
+
     def test_artifact_input_requests_portable_outputs(self) -> None:
         test_case = benchmark.TEST_CASES[0]
         input_text, _, _ = benchmark.compiler_input(test_case, None)
@@ -514,7 +643,65 @@ class ArtifactTests(unittest.TestCase):
         self.assertNotIn("ir", solar_outputs)
         self.assertIn("ir", solc_outputs)
         self.assertIn("irOptimized", solc_outputs)
-        self.assertEqual(solx_outputs, solc_outputs)
+        self.assertEqual(
+            solx_outputs,
+            solc_outputs
+            + [
+                "evm.bytecode.llvmIrUnoptimized",
+                "evm.bytecode.llvmIr",
+                "evm.deployedBytecode.llvmIrUnoptimized",
+                "evm.deployedBytecode.llvmIr",
+            ],
+        )
+
+    def test_solx_llvm_artifacts(self) -> None:
+        test_case = benchmark.TEST_CASES[0]
+        output = {
+            "contracts": {
+                "test.sol": {
+                    test_case.contract_name: {
+                        "evm": {
+                            "bytecode": {
+                                "llvmIrUnoptimized": "; creation before\n",
+                                "llvmIr": "; creation after\n",
+                            },
+                            "deployedBytecode": {
+                                "llvmIrUnoptimized": "; runtime before\n",
+                                "llvmIr": "; runtime after\n",
+                            },
+                        }
+                    }
+                }
+            }
+        }
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(
+                benchmark,
+                "run",
+                return_value=mock.Mock(returncode=0, stdout=json.dumps(output)),
+            ),
+        ):
+            root = Path(directory)
+            error = benchmark.write_artifacts(
+                root,
+                benchmark.CompilerSpec("solx", "solx", Path("solx"), "solx"),
+                test_case,
+                benchmark.compiler_input(test_case, None),
+            )
+            self.assertEqual(error, "")
+            self.assertEqual(
+                {
+                    path.name: path.read_text()
+                    for path in (root / test_case.test_id / "solx").glob("*.ll")
+                },
+                {
+                    "creation.unoptimized.ll": "; creation before\n",
+                    "creation.optimized.ll": "; creation after\n",
+                    "runtime.unoptimized.ll": "; runtime before\n",
+                    "runtime.optimized.ll": "; runtime after\n",
+                },
+            )
 
     def test_disassemble_evm_matches_solar_dump_style(self) -> None:
         self.assertEqual(
@@ -571,6 +758,47 @@ class ArtifactTests(unittest.TestCase):
 
         self.assertFalse(merged)
         self.assertNotIn("solc", entry["compilers"])
+
+    def test_reference_reuse_copies_exclusions_without_changing_raw_gas(self):
+        current_call = {
+            "label": "stress",
+            "call": "stress()",
+            "args": [],
+            "gas": 90,
+            "comparison_exclusion_reason": "code-dependent workload",
+        }
+        entry = {
+            "test_id": "test",
+            "suite": "runtime",
+            "gas_profile": "hot",
+            "compilers": {
+                "solar": {"input_fingerprint": "input", "gas_results": [current_call]}
+            },
+        }
+        old_call = {"label": "stress", "call": "stress()", "args": [], "gas": 70}
+        reference = {
+            "gas_profile": "hot",
+            "compilers": {
+                "solc": {
+                    "input_fingerprint": "input",
+                    "gas_results": [old_call],
+                    "total_gas": 70,
+                }
+            },
+        }
+        self.assertTrue(
+            benchmark.merge_reference_compiler(
+                entry, {("runtime", "test"): reference}, "solc"
+            )
+        )
+        self.assertEqual(
+            entry["compilers"]["solc"]["gas_results"],
+            [{**old_call, "comparison_exclusion_reason": "code-dependent workload"}],
+        )
+        self.assertEqual(entry["compilers"]["solc"]["total_gas"], 70)
+        self.assertEqual(
+            old_call, {"label": "stress", "call": "stress()", "args": [], "gas": 70}
+        )
 
     def test_rejects_reference_results_for_different_workloads(self) -> None:
         entry = {

@@ -183,6 +183,8 @@ fn snapshot_with_config(config: Config, vfs: Vfs) -> GlobalStateSnapshot {
         flycheck_versions: Arc::new(Default::default()),
         symbol_tables: Arc::new(Default::default()),
         diagnostics: Arc::new(Default::default()),
+        #[cfg(any(test, feature = "bench"))]
+        benchmark_threads: None,
     }
 }
 

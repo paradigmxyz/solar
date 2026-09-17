@@ -1,13 +1,49 @@
 //! Stack-resident phi planning for loops, branches, and live joins.
+//!
+//! Loop headers and joins receive explicit physical layouts whose source words are renamed to
+//! the successor's phi results. Conditional backedges can carry that layout when their other arm
+//! aborts; they need not spill every iteration merely to support an overflow check. The abort arm
+//! receives an empty layout and retains ordinary spill handling for any values its diagnostic
+//! needs. Existing plans, nonterminal exits with live phis, unsupported loop bodies, and layouts
+//! beyond DUP/SWAP reach keep their established fallback. Planning stays at the MIR-to-EVM
+//! boundary and changes neither the MIR CFG nor the semantics of its checks.
+//!
+//! A non-header join with one phi also considers interleaving that result with carried words in
+//! an incoming stack's order. Both layouts are priced with the actual target stack shuffler over
+//! every predecessor; unknown residency or an unrealizable shuffle retains the existing layout.
+//! Small loop headers with no carried words instead order their phi results by final use in the
+//! pure latch, keeping soon-consumed words near the top. This heuristic is limited to three or
+//! four phis and a single-predecessor latch with at most sixteen instructions. Both incoming edges
+//! use the same permutation, so initial values and backedge values retain their result identities.
+//! It changes physical layouts only; instruction order and the MIR recurrence stay intact.
+//! In gas mode, conditional arms do not carry immediate phi inputs belonging to the sibling
+//! join edge. Those values can be materialized on their own edge, rather than
+//! being shuffled through an arm that does not consume them.
+//! Two-word load/store recurrences order the phi consumed by the store before
+//! the pointer updated afterward. Both entries and latches use this order,
+//! avoiding a store-operand exchange and a second exchange on the backedge.
+//! Only gas-mode loops with a direct or empty latch and a small header qualify;
+//! carried invariants retain their order below the two phi words.
+//! In gas mode, a non-nested loop with one phi and multiple byte stores can also
+//! retain its counter across body branches. The extra stores amortize the
+//! transfers. Existing exit-shape, call, and stack-depth restrictions still
+//! apply.
 
 use super::super::super::{
-    BlockId, DenseBitSet, Function, FunctionId, FxHashMap, FxHashSet, GlobalStackPlan, IndexVec,
-    InstId, InstKind, Liveness, Loop, LoopAnalyzer, MAX_STACK_ACCESS, STACK_PHI_LAYOUT_LIMIT,
-    SmallVec, Terminator, ValueId, index_vec, rematerializable_nullary_opcode,
+    BlockId, DenseBitSet, Function, FunctionId, FxHashMap, FxHashSet, GlobalStackPlan,
+    GrowableBitSet, IndexVec, InstId, InstKind, Liveness, Loop, LoopAnalyzer, MAX_STACK_ACCESS,
+    STACK_PHI_LAYOUT_LIMIT, SmallVec, StackModel, TargetSlot, Terminator, ValueId, index_vec,
+    lowered_stack_cost, rematerializable_nullary_opcode,
+};
+
+use crate::{
+    backend::evm::codegen::stack::shuffler::StackShuffler,
+    target::{Cost, Target},
 };
 
 #[derive(Clone, Default)]
 pub(in crate::backend::evm::codegen) struct StackPhiPlan {
+    pub(in crate::backend::evm::codegen) loop_blocks: GrowableBitSet<BlockId>,
     pub(in crate::backend::evm::codegen) entries: FxHashMap<BlockId, Vec<ValueId>>,
     pub(in crate::backend::evm::codegen) edges: FxHashMap<BlockId, StackPhiEdge>,
     pub(in crate::backend::evm::codegen) branch_edges: FxHashMap<BlockId, StackPhiBranch>,
@@ -67,8 +103,9 @@ impl StackPhiPlan {
         func: &Function,
         liveness: &Liveness,
         cold_functions: &DenseBitSet<FunctionId>,
+        target: Target,
     ) -> Self {
-        StackPhiPlanner::new(func, cold_functions).plan(liveness)
+        StackPhiPlanner::new(func, cold_functions, target).plan(liveness)
     }
 
     pub(in crate::backend::evm::codegen) fn edge_fits(
@@ -187,6 +224,7 @@ impl StackPhiPlan {
 }
 
 struct StackPhiPlanner<'a> {
+    target: Target,
     func: &'a Function,
     loops: Vec<Loop>,
     header_results: FxHashMap<BlockId, Vec<ValueId>>,
@@ -197,7 +235,7 @@ struct StackPhiPlanner<'a> {
 }
 
 /// Longest entry layout `plan_live_joins` carries into a block.
-const LIVE_JOIN_LAYOUT_LIMIT: usize = 12;
+pub(in crate::backend::evm::codegen) const LIVE_JOIN_LAYOUT_LIMIT: usize = 12;
 
 /// Most forward-and-backward rounds `plan_live_joins` spends converging its layouts.
 const LIVE_JOIN_ROUNDS: usize = 64;
@@ -258,7 +296,11 @@ impl LiveJoinState {
 }
 
 impl<'a> StackPhiPlanner<'a> {
-    fn new(func: &'a Function, cold_functions: &'a DenseBitSet<FunctionId>) -> Self {
+    fn new(
+        func: &'a Function,
+        cold_functions: &'a DenseBitSet<FunctionId>,
+        target: Target,
+    ) -> Self {
         let mut loop_analyzer = LoopAnalyzer::new();
         let loop_info = loop_analyzer.analyze(func);
         let loops = loop_info.all_loops().cloned().collect();
@@ -271,8 +313,14 @@ impl<'a> StackPhiPlanner<'a> {
                 }
             }
         }
-        let mut planner =
-            Self { func, loops, header_results: FxHashMap::default(), definitions, cold_functions };
+        let mut planner = Self {
+            target,
+            func,
+            loops,
+            header_results: FxHashMap::default(),
+            definitions,
+            cold_functions,
+        };
         planner.collect_header_results();
         planner
     }
@@ -281,12 +329,22 @@ impl<'a> StackPhiPlanner<'a> {
         let mut plan = StackPhiPlan::default();
         self.plan_live_joins(liveness, &mut plan);
         for loop_info in &self.loops {
+            for block in loop_info.blocks.iter() {
+                plan.loop_blocks.insert(block);
+            }
             self.plan_loop(loop_info, liveness, &mut plan);
         }
         self.plan_branch_phi_joins(&mut plan);
         for block in self.func.blocks.indices() {
             self.plan_join(block, &mut plan);
         }
+        tracing::trace!(
+            function = %self.func.name,
+            entries = ?plan.entries,
+            edges = ?plan.edges,
+            branch_edges = ?plan.branch_edges,
+            "stack phi plan"
+        );
         plan
     }
 
@@ -324,9 +382,32 @@ impl<'a> StackPhiPlanner<'a> {
                     }
             });
             let phis = self.phi_insts(block);
+            // A computed phi source that stays live past the join rides the layout twice:
+            // once renamed to its phi result and once as itself. The edge shuffler duplicates
+            // the word, and a source used past the phis keeps its store unless every layout it
+            // is live in carries it. This is the shape of an inner index initialized from an
+            // enclosing counter, `j = i`, whose exit still reads `i`.
+            //
+            // Two kinds of source keep the join out of the plan. A resident argument has one
+            // physical word with no frame fallback, so it cannot be both the phi input and the
+            // invariant prefix the argument layout merges below the phis. A literal that is
+            // also live past the join is admitted only in gas mode, where the branch emitter
+            // materializes an edge-exclusive immediate on its own edge; the other modes keep
+            // the established exclusion outside self-loops, since two loops seeded from one
+            // literal and allocating inside their bodies mislaid the counter at `-O none`.
             let phi_source_is_live_in = block.predecessors.iter().any(|&pred| {
                 self.phi_sources_for_pred(&phis, pred).is_some_and(|sources| {
-                    sources.iter().any(|&source| liveness.live_in(block_id).contains(source))
+                    sources.iter().any(|&source| {
+                        liveness.live_in(block_id).contains(source)
+                            && match self.func.value(source) {
+                                crate::mir::Value::Arg(_) => true,
+                                crate::mir::Value::Immediate(_) => {
+                                    !self.target.optimization().is_gas()
+                                        && !block.predecessors.contains(&block_id)
+                                }
+                                _ => false,
+                            }
+                    })
                 })
             });
             if preds_ok
@@ -337,6 +418,7 @@ impl<'a> StackPhiPlanner<'a> {
                 joins.push(block_id);
             }
         }
+        tracing::trace!(function = %func.name, ?joins, "live join candidates");
         if joins.is_empty() {
             return;
         }
@@ -422,6 +504,16 @@ impl<'a> StackPhiPlanner<'a> {
                         })
                         && banned.entry(header).or_default().insert(value)
                     {
+                        tracing::trace!(
+                            function = %func.name,
+                            ?header,
+                            ?value,
+                            latches = ?latches
+                                .iter()
+                                .map(|latch| (latch, state.resident_out.get(latch)))
+                                .collect::<Vec<_>>(),
+                            "live join word banned"
+                        );
                         changed = true;
                     }
                 }
@@ -436,6 +528,12 @@ impl<'a> StackPhiPlanner<'a> {
         }
         let mut layouts = state.layouts;
         layouts.retain(|_, layout| !layout.is_empty());
+        tracing::trace!(
+            function = %func.name,
+            ?layouts,
+            ?banned,
+            "live join layouts converged"
+        );
         let mut join_layouts = layouts.clone();
         join_layouts.retain(|block, _| facts.is_join.contains(block));
         let mut arm_layouts = layouts;
@@ -516,6 +614,7 @@ impl<'a> StackPhiPlanner<'a> {
                 }
             }
             if !dropped.is_empty() {
+                tracing::trace!(function = %func.name, ?dropped, "live joins dropped");
                 for block in dropped {
                     join_layouts.remove(&block);
                 }
@@ -649,6 +748,29 @@ impl<'a> StackPhiPlanner<'a> {
         }
     }
 
+    /// Prices all incoming shuffles from the currently predicted resident stacks. Unknown
+    /// residency keeps the established order; both alternatives must be physically realizable.
+    fn join_shuffle_cost(
+        &self,
+        join: BlockId,
+        layout: &[ValueId],
+        state: &LiveJoinState,
+    ) -> Option<Cost> {
+        let mut cost = Cost::ZERO;
+        for &pred in &self.func.blocks[join].predecessors {
+            let resident = state.resident_out.get(&pred)?;
+            let sources = self.layout_sources(join, layout, pred)?;
+            let stack = StackModel::from_top_to_bottom(resident.iter().copied().map(Some));
+            let goal = sources.into_iter().map(TargetSlot::Value).collect::<Vec<_>>();
+            let shuffle = StackShuffler::for_evm_version(&stack, &goal, self.target.evm_version())
+                .with_wide_permutation_search(self.target.optimization().is_gas())
+                .shuffle()?;
+            let (_, gas, bytes) = lowered_stack_cost(&shuffle.ops, self.target.evm_version());
+            cost += Cost::new(gas as u32, bytes as u32);
+        }
+        Some(cost)
+    }
+
     /// Refreshes the layout of a planned join or sibling arm from the newest residency and
     /// wants; returns whether it changed.
     fn refresh_live_join_layout(
@@ -673,10 +795,17 @@ impl<'a> StackPhiPlanner<'a> {
             // A wide join shuffles every predecessor into one order; a word the join only
             // passes on rarely pays that there. A loop header is different: its latches
             // return with the header's own order, so a word riding around the loop
-            // shuffles nowhere.
+            // shuffles nowhere, and a word an enclosing header carries must ride through
+            // every wide join on the way to the latch, or it is stored and reloaded on
+            // every iteration instead of shuffled once.
             let wide = block.predecessors.len() > 2 && !facts.back_edges.contains_key(&join);
             let used_here = &facts.join_uses[&join];
             let wanted = &state.wanted[join];
+            let loop_carried = |value: ValueId| {
+                facts.loop_headers_of[join].iter().any(|header| {
+                    state.layouts.get(header).is_some_and(|layout| layout.contains(&value))
+                })
+            };
             let mut carried = state
                 .resident_out
                 .get(&first)
@@ -688,7 +817,7 @@ impl<'a> StackPhiPlanner<'a> {
                         && self.carriable(value)
                         && !banned.get(&join).is_some_and(|set| set.contains(&value))
                         && wanted.contains(value)
-                        && (!precise || !wide || used_here.contains(&value))
+                        && (!precise || !wide || used_here.contains(&value) || loop_carried(value))
                         && forward.clone().all(|pred| {
                             state.resident_out.get(&pred).is_some_and(|list| list.contains(&value))
                         })
@@ -696,8 +825,62 @@ impl<'a> StackPhiPlanner<'a> {
                 .collect::<Vec<_>>();
             // Phi sources are the newest words of a predecessor, so the results ride on top.
             let mut phis = facts.join_phis[&join].clone();
+            if self.target.optimization().is_gas()
+                && phis.len() == 2
+                && !latches.is_empty()
+                && block.instructions.len() <= 16
+                && latches.iter().all(|&latch| latch == join || func.blocks[latch].instructions.is_empty())
+                && block.instructions.iter().any(|&inst| {
+                    matches!(func.inst(inst).kind, InstKind::MStore(_, value) if phis.contains(&value))
+                })
+            {
+                // header: [stored_word, pointer, invariants...]
+                // latch: [next_stored_word, next_pointer, invariants...]
+                phis.sort_by_key(|value| {
+                    block.instructions.iter().rposition(|&inst| {
+                        !matches!(func.inst(inst).kind, InstKind::Phi(_))
+                            && func.inst(inst).operands().contains(value)
+                    })
+                });
+            }
             carried.truncate(LIVE_JOIN_LAYOUT_LIMIT - phis.len());
             phis.extend(carried);
+            if let [latch] = latches
+                && (3..=4).contains(&phis.len())
+                && facts.join_phis[&join].len() == phis.len()
+                && func.blocks[*latch].predecessors.as_slice() == [join]
+                && func.blocks[*latch].instructions.len() <= 16
+                && func.blocks[*latch]
+                    .instructions
+                    .iter()
+                    .all(|&inst| func.inst(inst).kind.effect_kind() == crate::mir::EffectKind::Pure)
+            {
+                // phi layout -> order of final body use, earliest nearest the top
+                phis.sort_by_key(|value| {
+                    func.blocks[*latch]
+                        .instructions
+                        .iter()
+                        .rposition(|&inst| func.inst(inst).kind.operands().contains(value))
+                });
+            }
+            if latches.is_empty()
+                && facts.join_phis[&join].len() == 1
+                && let Some(resident) = state.resident_out.get(&first)
+                && let Some(sources) = self.layout_sources(join, &phis, first)
+                && sources.iter().all(|source| resident.contains(source))
+            {
+                let mut slots = phis.iter().copied().zip(sources).collect::<Vec<_>>();
+                slots.sort_by_key(|(_, source)| resident.iter().position(|value| value == source));
+                let ordered = slots.into_iter().map(|(result, _)| result).collect::<Vec<_>>();
+                if ordered != phis
+                    && let Some(before) = self.join_shuffle_cost(join, &phis, state)
+                    && let Some(after) = self.join_shuffle_cost(join, &ordered, state)
+                    && self.target.cmp(after, before).is_le()
+                {
+                    // [phi, carried...] -> incoming physical order, with phi sources renamed
+                    phis = ordered;
+                }
+            }
             phis
         } else if let Some(&(pred, join)) = facts.arms.get(&block_id) {
             let arm = block_id;
@@ -706,12 +889,25 @@ impl<'a> StackPhiPlanner<'a> {
             // the branch's identity edge, so this order is what the branch shuffles to, and
             // matching the resident order keeps that shuffle empty on every execution. The
             // join edge reorders on its own path only.
-            let sources = state
+            let mut sources = state
                 .layouts
                 .get(&join)
                 .and_then(|layout| self.layout_sources(join, layout, pred))
-                .unwrap_or_default();
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|&value| {
+                    !self.target.optimization().is_gas()
+                        || self.func.value(value).as_immediate().is_none()
+                })
+                .collect::<Vec<_>>();
             let live_in = liveness.live_in(arm);
+            // branch; arm-local uses; join-only immediates on the join edge
+            if self.target.optimization().is_gas() {
+                sources.retain(|&value| {
+                    !matches!(self.func.value(value), crate::mir::Value::Immediate(_))
+                        || live_in.contains(value)
+                });
+            }
             let resident = state.resident_out.get(&pred).map(Vec::as_slice).unwrap_or_default();
             let wanted = &state.wanted[arm];
             let mut carried = resident
@@ -724,10 +920,17 @@ impl<'a> StackPhiPlanner<'a> {
                             && wanted.contains(value))
                 })
                 .collect::<Vec<_>>();
-            // Join words the predecessor does not hold are materialized for the branch.
+            // A two-word layout needs only one swap to put the condition above its reload.
+            let reload_on_top = carried.len() == 1
+                && sources.iter().filter(|value| !carried.contains(value)).count() == 1;
             for &value in &sources {
                 if !carried.contains(&value) {
-                    carried.push(value);
+                    // [resident]; push value -> [value, resident]
+                    if reload_on_top {
+                        carried.insert(0, value);
+                    } else {
+                        carried.push(value);
+                    }
                 }
             }
             carried.truncate(LIVE_JOIN_LAYOUT_LIMIT.max(sources.len()));
@@ -789,6 +992,14 @@ impl<'a> StackPhiPlanner<'a> {
             resident.extend(defs.iter().copied().filter(|def| !incoming.contains(def)));
             resident.extend(incoming.iter().copied().filter(|value| live_out.contains(*value)));
         }
+        // An unplanned branch consumes its condition. Its spill home may still exist, but
+        // the join planner must not count a reload as an already-resident stack word.
+        if !facts.planned_branches.contains(block_id)
+            && !plan.branch_edges.contains_key(&block_id)
+            && let Some(Terminator::Branch { condition, .. }) = &block.terminator
+        {
+            resident.retain(|value| value != condition);
+        }
         if state.resident_out.get(&block_id) == Some(&resident) {
             return false;
         }
@@ -815,8 +1026,11 @@ impl<'a> StackPhiPlanner<'a> {
         for &value in &facts.own_uses[block_id] {
             scratch.insert(value);
         }
-        let want = |scratch: &mut DenseBitSet<ValueId>, layout: &[ValueId]| {
-            for &value in layout {
+        // A successor's layout names its phi results; this block delivers the
+        // sources of those phis on its edge, so those are the words it wants.
+        let want = |scratch: &mut DenseBitSet<ValueId>, succ: BlockId, layout: &[ValueId]| {
+            let sources = self.layout_sources(succ, layout, block_id);
+            for &value in sources.as_deref().unwrap_or(layout) {
                 if live_through.contains(value) {
                     scratch.insert(value);
                 }
@@ -857,9 +1071,9 @@ impl<'a> StackPhiPlanner<'a> {
                 // for, so asking with the layout alone never bootstraps a loop-carried
                 // word. The latch check and the precise phase prune what it costs.
                 if let Some(layout) = layouts.get(&succ).filter(|_| precise) {
-                    want(scratch, layout);
+                    want(scratch, succ, layout);
                 } else if let Some(entry) = plan.entries.get(&succ) {
-                    want(scratch, entry);
+                    want(scratch, succ, entry);
                 } else {
                     mask.clone_from(&wanted[succ]);
                     mask.intersect(live_through);
@@ -870,9 +1084,13 @@ impl<'a> StackPhiPlanner<'a> {
         // A word the enclosing loop carries around is wanted everywhere inside it:
         // the joins on the way to a latch must carry it, or the latch cannot deliver
         // it back to the header and the header drops it.
-        for header in &facts.loop_headers_of[block_id] {
-            if let Some(layout) = layouts.get(header) {
-                want(scratch, layout);
+        for &header in &facts.loop_headers_of[block_id] {
+            if let Some(layout) = layouts.get(&header) {
+                for &value in layout {
+                    if live_through.contains(value) {
+                        scratch.insert(value);
+                    }
+                }
             }
         }
         if wanted[block_id] == *scratch {
@@ -1125,14 +1343,14 @@ impl<'a> StackPhiPlanner<'a> {
 
     fn plan_loop(&self, loop_info: &Loop, liveness: &Liveness, plan: &mut StackPhiPlan) {
         let Some(preheader) = loop_info.preheader else {
-            return;
+            return self.reject_loop(loop_info, "no preheader");
         };
         if loop_info.back_edges.is_empty() {
-            return;
+            return self.reject_loop(loop_info, "no back edge");
         }
         if !matches!(self.func.blocks[preheader].terminator, Some(Terminator::Jump(target)) if target == loop_info.header)
         {
-            return;
+            return self.reject_loop(loop_info, "preheader does not jump to the header");
         }
         if let [latch] = loop_info.back_edges.as_slice()
             && *latch == loop_info.header
@@ -1140,15 +1358,39 @@ impl<'a> StackPhiPlanner<'a> {
         {
             return;
         }
-        if loop_info.back_edges.iter().any(|&latch| {
-            !matches!(self.func.blocks[latch].terminator, Some(Terminator::Jump(target)) if target == loop_info.header)
-        }) {
-            return;
+        let mut conditional_latches = FxHashMap::default();
+        for &latch in &loop_info.back_edges {
+            match self.func.blocks[latch].terminator {
+                Some(Terminator::Jump(target)) if target == loop_info.header => {}
+                Some(Terminator::Branch { then_block, else_block, .. }) => {
+                    let (backedge_is_then, exit) = if then_block == loop_info.header {
+                        (true, else_block)
+                    } else if else_block == loop_info.header {
+                        (false, then_block)
+                    } else {
+                        return self
+                            .reject_loop(loop_info, "latch branch does not target the header");
+                    };
+                    if loop_info.blocks.contains(exit)
+                        || !self.is_noreturn_block(exit)
+                        || !self.phi_insts(&self.func.blocks[exit]).is_empty()
+                        || plan.entries.contains_key(&exit)
+                    {
+                        return self
+                            .reject_loop(loop_info, "conditional latch exit is not an abort");
+                    }
+                    conditional_latches.insert(latch, backedge_is_then);
+                }
+                _ => return,
+            }
         }
         if plan.edges.contains_key(&preheader)
-            || loop_info.back_edges.iter().any(|latch| plan.edges.contains_key(latch))
+            || plan.branch_edges.contains_key(&preheader)
+            || loop_info.back_edges.iter().any(|latch| {
+                plan.edges.contains_key(latch) || plan.branch_edges.contains_key(latch)
+            })
         {
-            return;
+            return self.reject_loop(loop_info, "preheader or latch already planned");
         }
         let has_branching_body = loop_info.blocks.iter().any(|block_id| {
             block_id != loop_info.header
@@ -1158,19 +1400,19 @@ impl<'a> StackPhiPlanner<'a> {
             other.header != loop_info.header && loop_info.blocks.contains(other.header)
         });
         if has_branching_body && !self.can_plan_branching_loop(loop_info) {
-            return;
+            return self.reject_loop(loop_info, "unsupported branching body");
         }
         let block = &self.func.blocks[loop_info.header];
         let phi_insts = self.phi_insts(block);
         if phi_insts.is_empty() || phi_insts.len() > STACK_PHI_LAYOUT_LIMIT {
-            return;
+            return self.reject_loop(loop_info, "no phis or too many phis");
         }
 
         let Some(results) = self.phi_result_values(&phi_insts) else {
-            return;
+            return self.reject_loop(loop_info, "phi results unavailable");
         };
         if results.len() > STACK_PHI_LAYOUT_LIMIT {
-            return;
+            return self.reject_loop(loop_info, "too many phi results");
         }
 
         let mut carry_through = self.carry_through_values(loop_info);
@@ -1184,7 +1426,7 @@ impl<'a> StackPhiPlanner<'a> {
             self.extend_live_through_values(loop_info, &mut carry_through);
         }
         if carry_through.len() + results.len() > STACK_PHI_LAYOUT_LIMIT {
-            return;
+            return self.reject_loop(loop_info, "layout exceeds the phi limit");
         }
         let mut entry = carry_through.clone();
         entry.extend(results.iter().copied());
@@ -1192,7 +1434,7 @@ impl<'a> StackPhiPlanner<'a> {
         let mut edges = Vec::with_capacity(loop_info.back_edges.len() + 1);
         for pred in std::iter::once(preheader).chain(loop_info.back_edges.iter().copied()) {
             let Some(phi_sources) = self.phi_sources_for_pred(&phi_insts, pred) else {
-                return;
+                return self.reject_loop(loop_info, "phi sources unavailable for a predecessor");
             };
             if pred != preheader
                 && !has_branching_body
@@ -1202,7 +1444,7 @@ impl<'a> StackPhiPlanner<'a> {
                         && !self.is_loop_header_phi(source)
                 })
             {
-                return;
+                return self.reject_loop(loop_info, "backedge source is a foreign phi");
             }
             let mut sources = carry_through.clone();
             sources.extend(phi_sources);
@@ -1210,10 +1452,37 @@ impl<'a> StackPhiPlanner<'a> {
             edges.push((pred, sources));
         }
 
+        // header(phi_results := initial_sources)
+        // latch: jumpi condition, header(phi_results := backedge_sources), abort()
+        tracing::trace!(
+            function = %self.func.name,
+            header = ?loop_info.header,
+            ?entry,
+            "loop plan"
+        );
         plan.entries.insert(loop_info.header, entry.clone());
         for (pred, sources) in edges {
-            plan.edges.insert(pred, StackPhiEdge { sources, results: entry.clone() });
+            let edge = StackPhiEdge { sources, results: entry.clone() };
+            if let Some(&backedge_is_then) = conditional_latches.get(&pred) {
+                let union = edge.sources.clone();
+                let exit = StackPhiEdge { sources: Vec::new(), results: Vec::new() };
+                let (then_edge, else_edge) =
+                    if backedge_is_then { (edge, exit) } else { (exit, edge) };
+                plan.branch_edges.insert(pred, StackPhiBranch { then_edge, else_edge, union });
+            } else {
+                plan.edges.insert(pred, edge);
+            }
         }
+    }
+
+    /// Records why a loop keeps its established fallback instead of a stack-phi plan.
+    fn reject_loop(&self, loop_info: &Loop, reason: &str) {
+        tracing::trace!(
+            function = %self.func.name,
+            header = ?loop_info.header,
+            reason,
+            "loop plan rejected"
+        );
     }
 
     fn plan_conditional_self_loop(
@@ -1285,11 +1554,22 @@ impl<'a> StackPhiPlanner<'a> {
             return false;
         }
 
-        let exit_values = entry
+        let mut exit_values = entry
             .iter()
             .copied()
             .filter(|value| liveness.live_in(exit).contains(*value))
             .collect::<Vec<_>>();
+        if self.target.optimization().is_gas() {
+            // header: [next_phi_sources, invariants...]
+            // exit: [live_next_phi_sources, live_invariants...]
+            // A phi update is already carried on the backedge. Its exit use can
+            // consume that same word, avoiding a store on every iteration.
+            for &value in &backedge_sources {
+                if liveness.live_in(exit).contains(value) && !exit_values.contains(&value) {
+                    exit_values.push(value);
+                }
+            }
+        }
         let backedge = StackPhiEdge { sources: backedge_sources, results: entry.clone() };
         let exit_edge = StackPhiEdge { sources: exit_values.clone(), results: exit_values.clone() };
         let (then_edge, else_edge) =
@@ -1339,7 +1619,27 @@ impl<'a> StackPhiPlanner<'a> {
                         && self.is_noreturn_block(*else_block))
                     || self.branch_phi_shape(loop_info, *then_block, *else_block).is_some()
             });
-        branch_shapes_safe && self.phi_insts(&self.func.blocks[loop_info.header]).len() >= 2
+        let phi_count = self.phi_insts(&self.func.blocks[loop_info.header]).len();
+        let single_counter = self.target.optimization().is_gas()
+            && phi_count == 1
+            && nesting_depth == 0
+            && loop_info.back_edges.len() == 1
+            && !self.loops.iter().any(|other| {
+                other.header != loop_info.header && loop_info.blocks.contains(other.header)
+            });
+        // header: [counter]; ...; mstore8 out_a, a; ...; mstore8 out_b, b
+        // latch: [next_counter] -> header
+        // Multiple byte stores amortize the stack transfers across body branches.
+        let writes_multiple_bytes = single_counter
+            && loop_info
+                .blocks
+                .iter()
+                .flat_map(|block| &self.func.blocks[block].instructions)
+                .filter(|&&inst| matches!(self.func.inst(inst).kind, InstKind::MStore8(..)))
+                .take(2)
+                .count()
+                == 2;
+        branch_shapes_safe && (phi_count >= 2 || writes_multiple_bytes)
     }
 
     fn loop_instructions_are_stack_safe(&self, loop_info: &Loop) -> bool {

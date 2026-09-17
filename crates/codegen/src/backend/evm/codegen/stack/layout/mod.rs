@@ -10,5 +10,5 @@ mod select;
 
 pub(in crate::backend::evm::codegen) use global::GlobalStackPlan;
 pub(in crate::backend::evm::codegen) use phi::{
-    StackPhiBranch, StackPhiEdge, StackPhiPlan, planned_entry_carries,
+    LIVE_JOIN_LAYOUT_LIMIT, StackPhiBranch, StackPhiEdge, StackPhiPlan, planned_entry_carries,
 };

@@ -1,0 +1,211 @@
+- // === ROOT/tests/ui/codegen/mir/check-elim/long_relation_paths.mir (before check-elim) ===
++ // === ROOT/tests/ui/codegen/mir/check-elim/long_relation_paths.mir (after check-elim) ===
+  @module LongRelationPaths
+  fn @long_order(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: u256, arg8: u256, arg9: u256, arg10: u256, arg11: u256, arg12: u256, arg13: u256, arg14: u256, arg15: u256, arg16: u256, arg17: u256, arg18: u256, arg19: u256, arg20: u256, arg21: u256, arg22: u256, arg23: u256, arg24: u256, arg25: u256, arg26: u256, arg27: u256, arg28: u256, arg29: u256, arg30: u256, arg31: u256, arg32: u256, arg33: u256, arg34: u256, arg35: u256, arg36: u256, arg37: u256, arg38: u256, arg39: u256, arg40: u256, arg41: u256, arg42: u256, arg43: u256, arg44: u256, arg45: u256, arg46: u256, arg47: u256, arg48: u256, arg49: u256, arg50: u256, arg51: u256, arg52: u256, arg53: u256, arg54: u256, arg55: u256, arg56: u256, arg57: u256, arg58: u256, arg59: u256, arg60: u256, arg61: u256, arg62: u256, arg63: u256, arg64: u256, arg65: u256) -> u256 {
+    bb0:
+      v0 = lt arg0, arg1
+      jumpi v0, bb1, bb67
+    bb1:
+      v1 = lt arg1, arg2
+      jumpi v1, bb2, bb67
+    bb2:
+      v2 = lt arg2, arg3
+      jumpi v2, bb3, bb67
+    bb3:
+      v3 = lt arg3, arg4
+      jumpi v3, bb4, bb67
+    bb4:
+      v4 = lt arg4, arg5
+      jumpi v4, bb5, bb67
+    bb5:
+      v5 = lt arg5, arg6
+      jumpi v5, bb6, bb67
+    bb6:
+      v6 = lt arg6, arg7
+      jumpi v6, bb7, bb67
+    bb7:
+      v7 = lt arg7, arg8
+      jumpi v7, bb8, bb67
+    bb8:
+      v8 = lt arg8, arg9
+      jumpi v8, bb9, bb67
+    bb9:
+      v9 = lt arg9, arg10
+      jumpi v9, bb10, bb67
+    bb10:
+      v10 = lt arg10, arg11
+      jumpi v10, bb11, bb67
+    bb11:
+      v11 = lt arg11, arg12
+      jumpi v11, bb12, bb67
+    bb12:
+      v12 = lt arg12, arg13
+      jumpi v12, bb13, bb67
+    bb13:
+      v13 = lt arg13, arg14
+      jumpi v13, bb14, bb67
+    bb14:
+      v14 = lt arg14, arg15
+      jumpi v14, bb15, bb67
+    bb15:
+      v15 = lt arg15, arg16
+      jumpi v15, bb16, bb67
+    bb16:
+      v16 = lt arg16, arg17
+      jumpi v16, bb17, bb67
+    bb17:
+      v17 = lt arg17, arg18
+      jumpi v17, bb18, bb67
+    bb18:
+      v18 = lt arg18, arg19
+      jumpi v18, bb19, bb67
+    bb19:
+      v19 = lt arg19, arg20
+      jumpi v19, bb20, bb67
+    bb20:
+      v20 = lt arg20, arg21
+      jumpi v20, bb21, bb67
+    bb21:
+      v21 = lt arg21, arg22
+      jumpi v21, bb22, bb67
+    bb22:
+      v22 = lt arg22, arg23
+      jumpi v22, bb23, bb67
+    bb23:
+      v23 = lt arg23, arg24
+      jumpi v23, bb24, bb67
+    bb24:
+      v24 = lt arg24, arg25
+      jumpi v24, bb25, bb67
+    bb25:
+      v25 = lt arg25, arg26
+      jumpi v25, bb26, bb67
+    bb26:
+      v26 = lt arg26, arg27
+      jumpi v26, bb27, bb67
+    bb27:
+      v27 = lt arg27, arg28
+      jumpi v27, bb28, bb67
+    bb28:
+      v28 = lt arg28, arg29
+      jumpi v28, bb29, bb67
+    bb29:
+      v29 = lt arg29, arg30
+      jumpi v29, bb30, bb67
+    bb30:
+      v30 = lt arg30, arg31
+      jumpi v30, bb31, bb67
+    bb31:
+      v31 = lt arg31, arg32
+      jumpi v31, bb32, bb67
+    bb32:
+      v32 = lt arg32, arg33
+      jumpi v32, bb33, bb67
+    bb33:
+      v33 = lt arg33, arg34
+      jumpi v33, bb34, bb67
+    bb34:
+      v34 = lt arg34, arg35
+      jumpi v34, bb35, bb67
+    bb35:
+      v35 = lt arg35, arg36
+      jumpi v35, bb36, bb67
+    bb36:
+      v36 = lt arg36, arg37
+      jumpi v36, bb37, bb67
+    bb37:
+      v37 = lt arg37, arg38
+      jumpi v37, bb38, bb67
+    bb38:
+      v38 = lt arg38, arg39
+      jumpi v38, bb39, bb67
+    bb39:
+      v39 = lt arg39, arg40
+      jumpi v39, bb40, bb67
+    bb40:
+      v40 = lt arg40, arg41
+      jumpi v40, bb41, bb67
+    bb41:
+      v41 = lt arg41, arg42
+      jumpi v41, bb42, bb67
+    bb42:
+      v42 = lt arg42, arg43
+      jumpi v42, bb43, bb67
+    bb43:
+      v43 = lt arg43, arg44
+      jumpi v43, bb44, bb67
+    bb44:
+      v44 = lt arg44, arg45
+      jumpi v44, bb45, bb67
+    bb45:
+      v45 = lt arg45, arg46
+      jumpi v45, bb46, bb67
+    bb46:
+      v46 = lt arg46, arg47
+      jumpi v46, bb47, bb67
+    bb47:
+      v47 = lt arg47, arg48
+      jumpi v47, bb48, bb67
+    bb48:
+      v48 = lt arg48, arg49
+      jumpi v48, bb49, bb67
+    bb49:
+      v49 = lt arg49, arg50
+      jumpi v49, bb50, bb67
+    bb50:
+      v50 = lt arg50, arg51
+      jumpi v50, bb51, bb67
+    bb51:
+      v51 = lt arg51, arg52
+      jumpi v51, bb52, bb67
+    bb52:
+      v52 = lt arg52, arg53
+      jumpi v52, bb53, bb67
+    bb53:
+      v53 = lt arg53, arg54
+      jumpi v53, bb54, bb67
+    bb54:
+      v54 = lt arg54, arg55
+      jumpi v54, bb55, bb67
+    bb55:
+      v55 = lt arg55, arg56
+      jumpi v55, bb56, bb67
+    bb56:
+      v56 = lt arg56, arg57
+      jumpi v56, bb57, bb67
+    bb57:
+      v57 = lt arg57, arg58
+      jumpi v57, bb58, bb67
+    bb58:
+      v58 = lt arg58, arg59
+      jumpi v58, bb59, bb67
+    bb59:
+      v59 = lt arg59, arg60
+      jumpi v59, bb60, bb67
+    bb60:
+      v60 = lt arg60, arg61
+      jumpi v60, bb61, bb67
+    bb61:
+      v61 = lt arg61, arg62
+      jumpi v61, bb62, bb67
+    bb62:
+      v62 = lt arg62, arg63
+      jumpi v62, bb63, bb67
+    bb63:
+      v63 = lt arg63, arg64
+      jumpi v63, bb64, bb67
+    bb64:
+      v64 = lt arg64, arg65
+      jumpi v64, bb65, bb67
+-   bb65:
+-     v65 = lt arg0, arg65
+-     jumpi v65, bb66, bb67
+    bb67:
+      ret 0
++   bb65:
++     v65 = lt arg0, arg65
++     jump bb66
+    bb66:
+      ret 1
+  }
+  

@@ -1,6 +1,6 @@
 //! Module-level call graph facts for MIR.
 
-use crate::mir::{Function, FunctionId, InstKind, Module, Terminator};
+use crate::mir::{Callee, Function, FunctionId, InstKind, Module, Terminator};
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use std::collections::VecDeque;
 
@@ -13,6 +13,36 @@ pub(crate) struct CallGraphInfo {
 }
 
 impl CallGraphInfo {
+    /// Checks the phase contract for helpers that require runtime static frames.
+    /// Constructor ABI staging may already occupy the free-memory pointer, so
+    /// these helpers must not be reachable through any constructor call chain.
+    pub(crate) fn assert_runtime_helpers(
+        module: &Module,
+        helpers: impl IntoIterator<Item = FunctionId>,
+    ) {
+        if cfg!(debug_assertions) {
+            let helpers = helpers.into_iter().collect::<Vec<_>>();
+            if helpers.is_empty() {
+                return;
+            }
+            let graph = Self::new(module);
+            let reachable = graph.reachable_callees_from(
+                module
+                    .functions
+                    .iter_enumerated()
+                    .filter_map(|(id, function)| function.attributes.is_constructor.then_some(id)),
+            );
+            for helper in helpers {
+                assert!(
+                    !reachable.contains(helper)
+                        && !module.function(helper).attributes.is_constructor,
+                    "runtime helper `{}` is constructor-reachable and may overlap ABI staging",
+                    module.function(helper).name
+                );
+            }
+        }
+    }
+
     /// Computes call graph facts for `module`.
     #[must_use]
     pub(crate) fn new(module: &Module) -> Self {
@@ -93,10 +123,16 @@ impl CallGraphInfo {
         reachable
     }
 
-    fn collect_internal_callees(func: &Function, function_count: usize) -> DenseBitSet<FunctionId> {
+    /// Collects direct call targets, including tail calls, without building graph analyses.
+    pub(crate) fn collect_internal_callees(
+        func: &Function,
+        function_count: usize,
+    ) -> DenseBitSet<FunctionId> {
         let mut callees = DenseBitSet::new_empty(function_count);
         for inst_id in func.instructions() {
-            if let InstKind::ICall { function, .. } = func.inst(inst_id).kind {
+            if let InstKind::ICall { function: Callee::Function(function), .. } =
+                func.inst(inst_id).kind
+            {
                 callees.insert(function);
             }
         }

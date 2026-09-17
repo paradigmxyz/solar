@@ -15,8 +15,8 @@
   
   fn @entry() -> u256 [selector=0x01020304] {
     bb0:
--     v0 = icall @framed, 1, 5, 6, 7
-+     v0 = icall @framed, 1, 5, 7
+-     v0 = icall @framed, 5, 6, 7
++     v0 = icall @framed, 5, 7
       ret v0
   }
   
@@ -30,7 +30,21 @@
   
   fn @explicit_slot_caller() -> u256 [selector=0x05060708] {
     bb0:
-      v0 = icall @explicit_slot, 1, 1, 2
+      v0 = icall @explicit_slot, 1, 2
       ret v0
+  }
+  
+  fn @constant_frame(arg0: u256) -> u256 {
+    bb0:
+      v0 = internal_frame_addr 0
+      mstore v0, arg0
+      ret 9
+  }
+  
+  fn @constant_frame_caller() -> u256 [selector=0x090a0b0c] {
+    bb0:
+      v0 = icall @constant_frame, 1
+      v1 = add v0, 1
+      ret v1
   }
   

@@ -1,19 +1,18 @@
-//! Dispatch phase lowering: materialize the selector switch as MIR.
+//! Dispatch lowering: materialize the selector switch as MIR.
 //!
-//! In `built`/`optimized` MIR, selector routing is still implicit. This pass
-//! makes it an ordinary MIR function named `entry` (the dispatch phase of the
-//! sketch in [`MirPhase`]).
+//! Semantic MIR initially leaves selector routing implicit. This conversion pass
+//! creates an ordinary MIR function named `entry` while the module stays semantic.
 //!
 //! The synthesized `entry` function loads the 4-byte selector through a
-//! semantic calldata slice and switches on it to one argument-free `icall`
+//! semantic calldata slice and switches on it to one argument-free `tail_call`
 //! per external wrapper, defaulting to a `revert`. It is meant
 //! to run after [`super::lower_abi::LowerAbi`], which turns external functions into the
 //! argument-free self-decoding wrappers this switch routes to; that is why it
 //! only routes selector-bearing functions that take no MIR arguments.
 //!
-//! It requires the `abi` phase: it routes to the argument-free wrappers that
-//! [`super::lower_abi::LowerAbi`] produces, so it bails on `built`/`optimized` modules
-//! rather than half-dispatching argument-taking functions.
+//! It checks that ABI entries are explicit before creating routes, and reports an error
+//! if no valid entry can be formed. The final conversion verifies the complete lowered
+//! representation before the backend can consume it.
 //!
 //! Library modules differ in two ways, both matching solc. Their entry never
 //! checks `callvalue`: a `DELEGATECALL` sees the caller's value, so a library
@@ -28,19 +27,32 @@
 //! `--revert-strings debug` mode the revert carries solc's "Non-view function of
 //! library called without DELEGATECALL" message.
 //!
+//! When every selector wrapper starts with the same ABI head-size check, this
+//! pass hoists that check into `entry` and removes the dead wrapper guards. In
+//! non-debug mode the hoisted calldata check, the callvalue check, and selector
+//! misses share one empty-revert block. Debug revert strings retain distinct
+//! paths so each rejection keeps its diagnostic payload.
+//!
 //! This pass runs after [`super::lower_abi::LowerAbi`] in the codegen pipeline.
-//! The backend only consumes the final `evm-shaped` module.
+//! The backend only consumes the final `lowered` module.
 
 use crate::mir::{
-    Function, FunctionBuilder, FunctionId, MirPhase, MirType, Module, RevertReason, ValueId,
-    pass::MirPass,
+    BlockId, Function, FunctionBuilder, FunctionId, InstKind, MirPhase, MirType, Module,
+    RevertReason, Terminator, Value, ValueId, pass::MirPass,
 };
 use alloy_primitives::U256;
 use solar_config::RevertStrings;
 use solar_interface::{Ident, sym};
 
-/// Dispatch phase lowering pass.
+/// Materializes selector routing through explicit ABI wrappers.
 pub(crate) struct LowerDispatch;
+
+struct EntryOptions {
+    hoist_callvalue: bool,
+    minimum_calldata: Option<u64>,
+    has_bitwise_shifting: bool,
+    revert_strings: RevertStrings,
+}
 
 impl MirPass for LowerDispatch {
     fn name(&self) -> &'static str {
@@ -48,7 +60,7 @@ impl MirPass for LowerDispatch {
     }
 
     fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        module.phase == MirPhase::Abi
+        module.phase() == MirPhase::Semantic
     }
 
     fn is_required(&self) -> bool {
@@ -59,13 +71,27 @@ impl MirPass for LowerDispatch {
         &self,
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        lower_dispatch(
+        if !module.has_explicit_abi() {
+            analyses.fail(
+                gcx.dcx()
+                    .err("`lower-dispatch` requires explicit ABI entries; run `lower-abi` first")
+                    .emit(),
+            );
+            return false;
+        }
+        let changed = lower_dispatch(
             module,
             gcx.sess.opts.evm_version.has_bitwise_shifting(),
             gcx.sess.opts.revert_strings,
-        )
+        );
+        if module.dispatch_entry().is_none() {
+            analyses
+                .fail(gcx.dcx().err("`lower-dispatch` cannot route this entry signature").emit());
+            return changed;
+        }
+        changed
     }
 }
 
@@ -74,15 +100,12 @@ fn lower_dispatch(
     has_bitwise_shifting: bool,
     revert_strings: RevertStrings,
 ) -> bool {
-    // Dispatch routes to the argument-free ABI wrappers, so it requires the
-    // ABI phase. Running on `built`/`optimized` MIR would leave
-    // argument-taking external functions unroutable while still advancing
-    // the phase; require the precondition and bail otherwise.
-    if module.phase != MirPhase::Abi {
+    // An existing entry already makes selector routing explicit.
+    if module.dispatch_entry().is_some() {
         return false;
     }
 
-    // Collect the routable external wrappers. After the ABI phase every
+    // Collect the routable external wrappers. After ABI lowering every
     // such wrapper is argument-free; assert that rather
     // than silently skipping, since a leftover argument-taking selector
     // function would mean the ABI invariant was violated.
@@ -123,16 +146,29 @@ fn lower_dispatch(
     // value, since a `DELEGATECALL` sees the caller's.
     let hoist_callvalue = !module.is_library && callvalue.hoists();
 
+    let common_calldata_guard = common_calldata_guard(module, &routes, receive, fallback);
+    if let Some((_, guarded)) = &common_calldata_guard {
+        for &(func_id, reject, success) in guarded {
+            let func = &mut module.functions[func_id];
+            // bb0: jumpi calldata_too_short, reject, success
+            //   => jump success
+            func.blocks[BlockId::ENTRY].set_generated_terminator(Terminator::Jump(success));
+            func.blocks[reject].predecessors.retain(|pred| *pred != BlockId::ENTRY);
+        }
+    }
+
     build_entry(
         module,
         &routes,
         receive,
         fallback,
-        hoist_callvalue,
-        has_bitwise_shifting,
-        revert_strings,
+        EntryOptions {
+            hoist_callvalue,
+            minimum_calldata: common_calldata_guard.as_ref().map(|(minimum, _)| *minimum),
+            has_bitwise_shifting,
+            revert_strings,
+        },
     );
-    module.advance_phase(MirPhase::Dispatch);
     true
 }
 
@@ -147,10 +183,10 @@ fn build_entry(
     routes: &[(u32, FunctionId)],
     receive: Option<FunctionId>,
     fallback: Option<FunctionId>,
-    hoist_callvalue: bool,
-    has_bitwise_shifting: bool,
-    revert_strings: RevertStrings,
+    options: EntryOptions,
 ) {
+    let EntryOptions { hoist_callvalue, minimum_calldata, has_bitwise_shifting, revert_strings } =
+        options;
     // `CALLDATALOAD(0)` right-pads short calldata with zeroes before the
     // selector extraction. A short input can therefore match a selector
     // only when its final byte is zero; guard all short inputs if any
@@ -162,13 +198,24 @@ fn build_entry(
     {
         let mut builder = FunctionBuilder::new(&mut entry).with_revert_strings(revert_strings);
 
+        let combine_dispatch_guards =
+            hoist_callvalue && minimum_calldata.is_some() && !revert_strings.is_debug();
+        let calldata_size_block =
+            minimum_calldata.filter(|_| !combine_dispatch_guards).map(|_| builder.create_block());
+        let calldata_revert_block = minimum_calldata.map(|_| builder.create_block());
         let receive_size_block = receive.map(|_| builder.create_block());
         let selector_size_block = needs_short_calldata_guard.then(|| builder.create_block());
         let receive_block = receive.map(|target| (target, builder.create_block()));
         let select_block = builder.create_block();
         let case_blocks: Vec<_> = routes.iter().map(|_| builder.create_block()).collect();
         let fallback_block = fallback.map(|target| (target, builder.create_block()));
-        let revert_block = builder.create_block();
+        let revert_block = if !revert_strings.is_debug()
+            && let Some(calldata_revert_block) = calldata_revert_block
+        {
+            calldata_revert_block
+        } else {
+            builder.create_block()
+        };
         // Rejected Ether and unknown selectors share one empty revert unless revert reasons are
         // encoded, in which case each gets its own message.
         let checks_callvalue = hoist_callvalue
@@ -181,13 +228,53 @@ fn build_entry(
         };
         let default_block = fallback_block.as_ref().map_or(revert_block, |&(_, block)| block);
         let dispatch_block = receive_size_block.or(selector_size_block).unwrap_or(select_block);
+        let guarded_dispatch_block = calldata_size_block.unwrap_or(dispatch_block);
 
         // Optional hoisted callvalue check.
-        if hoist_callvalue {
+        if combine_dispatch_guards {
+            // value = callvalue
+            // size = calldatasize
+            // short = size < minimum
+            // rejected = value | short
+            // jumpi rejected, reject, dispatch
             let value = builder.callvalue();
-            builder.branch(value, callvalue_revert_block, dispatch_block);
+            let size = builder.calldatasize();
+            let minimum = builder.imm(minimum_calldata.expect("combined guard needs a minimum"));
+            let short = builder.lt(size, minimum);
+            let rejected = builder.or(value, short);
+            builder.branch(
+                rejected,
+                calldata_revert_block.expect("calldata reject block must exist"),
+                dispatch_block,
+            );
+        } else if hoist_callvalue {
+            let value = builder.callvalue();
+            builder.branch(value, callvalue_revert_block, guarded_dispatch_block);
         } else {
-            builder.jump(dispatch_block);
+            builder.jump(guarded_dispatch_block);
+        }
+
+        if let Some(minimum) = minimum_calldata.filter(|_| !combine_dispatch_guards) {
+            builder.switch_to_block(calldata_size_block.expect("calldata guard block must exist"));
+            // size = calldatasize
+            // short = size < minimum
+            // jumpi short, reject, dispatch
+            let size = builder.calldatasize();
+            let minimum = builder.imm(minimum);
+            let short = builder.lt(size, minimum);
+            builder.branch(
+                short,
+                calldata_revert_block.expect("calldata reject block must exist"),
+                dispatch_block,
+            );
+        }
+
+        if let Some(calldata_revert_block) =
+            calldata_revert_block.filter(|block| *block != revert_block)
+        {
+            builder.switch_to_block(calldata_revert_block);
+            let zero = builder.imm(0);
+            builder.revert(zero, zero);
         }
 
         if let Some(receive_size_block) = receive_size_block {
@@ -278,6 +365,55 @@ fn build_entry(
 
     let entry = module.add_function(entry);
     module.set_dispatch_entry(entry);
+}
+
+type GuardedEntry = (FunctionId, BlockId, BlockId);
+
+/// Finds an identical ABI head-size guard on every selector route.
+///
+/// Receive and fallback entries accept calldata shapes outside selector ABI
+/// decoding, so their presence prevents the hoist. The wrapper guard must be
+/// the canonical empty-revert shape built by ABI lowering.
+fn common_calldata_guard(
+    module: &Module,
+    routes: &[(u32, FunctionId)],
+    receive: Option<FunctionId>,
+    fallback: Option<FunctionId>,
+) -> Option<(u64, Vec<GuardedEntry>)> {
+    if routes.len() < 2 || receive.is_some() || fallback.is_some() {
+        return None;
+    }
+
+    let mut minimum = None;
+    let mut guarded = Vec::with_capacity(routes.len());
+    for &(_, func_id) in routes {
+        let func = &module.functions[func_id];
+        let entry = &func.blocks[BlockId::ENTRY];
+        let Terminator::Branch { condition, then_block: reject, else_block: success } =
+            entry.terminator.as_ref()?
+        else {
+            return None;
+        };
+        let Value::Inst(condition) = func.value(*condition) else { return None };
+        let InstKind::Lt(size, bound) = func.inst(*condition).kind else { return None };
+        let Value::Inst(size) = func.value(size) else { return None };
+        if !matches!(func.inst(*size).kind, InstKind::CalldataSize) {
+            return None;
+        }
+        let bound = func.value_u64(bound)?;
+        let reject_block = &func.blocks[*reject];
+        let Some(Terminator::Revert { offset, size }) = reject_block.terminator.as_ref() else {
+            return None;
+        };
+        if func.value_u64(*offset) != Some(0) || func.value_u64(*size) != Some(0) {
+            return None;
+        }
+        if minimum.replace(bound).is_some_and(|previous| previous != bound) {
+            return None;
+        }
+        guarded.push((func_id, *reject, *success));
+    }
+    Some((minimum?, guarded))
 }
 
 /// Loads the 4-byte function selector from the first calldata word.

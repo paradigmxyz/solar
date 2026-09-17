@@ -21,7 +21,7 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import cache, lru_cache
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 from urllib.parse import quote
 
@@ -370,8 +370,26 @@ def with_evm_version(input_text: str, evm_version: str | None) -> str:
     return json.dumps(payload)
 
 
+def with_optimizer_runs(input_text: str, optimizer_runs: int | None) -> str:
+    """Replaces the optimizer run count of a Standard JSON input.
+
+    Solar selects its objective from the run count: fewer than 200 runs optimize for size,
+    200 or more for gas. Pinning every case to one count benchmarks the corpus under one
+    objective for both compilers.
+    """
+    if optimizer_runs is None:
+        return input_text
+    payload = json.loads(input_text)
+    optimizer = payload.setdefault("settings", {}).setdefault("optimizer", {})
+    optimizer["enabled"] = True
+    optimizer["runs"] = optimizer_runs
+    return json.dumps(payload)
+
+
 def compiler_input(
-    test_case: TestCase, evm_version: str | None
+    test_case: TestCase,
+    evm_version: str | None,
+    optimizer_runs: int | None = None,
 ) -> tuple[str, int, str]:
     if test_case.project is not None:
         assert test_case.project_file is not None
@@ -391,6 +409,7 @@ def compiler_input(
         input_text = standard_json_input(test_case)
         timeout = 120
     input_text = with_evm_version(input_text, evm_version)
+    input_text = with_optimizer_runs(input_text, optimizer_runs)
     return input_text, timeout, hashlib.sha256(input_text.encode()).hexdigest()
 
 
@@ -404,6 +423,12 @@ def artifact_compiler_input(input_text: str, test_case: TestCase, kind: str) -> 
     ]
     if kind in ("solc", "solx"):
         outputs.extend(("ir", "irOptimized"))
+    if kind == "solx":
+        outputs.extend(
+            f"evm.{segment}.{field}"
+            for segment in ("bytecode", "deployedBytecode")
+            for field in ("llvmIrUnoptimized", "llvmIr")
+        )
     payload.setdefault("settings", {})["outputSelection"] = {
         source: {test_case.contract_name: outputs}
     }
@@ -473,6 +498,31 @@ def write_artifacts(
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "input.json").write_text(input_text + "\n")
 
+    source_root = output_dir.resolve() / "sources"
+    for name, source_input in json.loads(input_text)["sources"].items():
+        if not isinstance(source_input, dict) or not isinstance(
+            source_input.get("content"), str
+        ):
+            continue
+        if (
+            not name
+            or "\\" in name
+            or PureWindowsPath(name).drive
+            or any(part in ("", ".", "..") for part in name.split("/"))
+            or any(ord(char) < 32 or ord(char) == 127 for char in name)
+        ):
+            return f"invalid source artifact path: {name!r}"
+        source_path = source_root / name
+        try:
+            if source_path.resolve() != source_path:
+                return f"source artifact path contains a symlink: {name!r}"
+            source_path.parent.mkdir(parents=True, exist_ok=True)
+            source_path.write_text(
+                source_input["content"], encoding="utf-8", newline=""
+            )
+        except (OSError, RuntimeError) as error:
+            return f"cannot write source artifact {name!r}: {error}"
+
     cmd = [str(spec.path), "--standard-json"]
     source = test_case.source_name or test_case.source or f"{test_case.test_id}.sol"
     contract_path = f"{source}:{test_case.contract_name}"
@@ -502,6 +552,15 @@ def write_artifacts(
     bytecodes: dict[str, bytes] = {}
     for prefix, key in (("creation", "bytecode"), ("runtime", "deployedBytecode")):
         bytecode = evm.get(key) or {}
+        if spec.kind == "solx":
+            for field, suffix in (
+                ("llvmIrUnoptimized", "unoptimized.ll"),
+                ("llvmIr", "optimized.ll"),
+            ):
+                if ir := bytecode.get(field):
+                    (output_dir / f"{prefix}.{suffix}").write_text(
+                        str(ir).rstrip() + "\n"
+                    )
         if object_hex := bytecode.get("object"):
             try:
                 bytes_ = bytes.fromhex(str(object_hex).removeprefix("0x"))
@@ -1600,15 +1659,29 @@ def merge_reference_compiler(
     if entry.get("gas_profile") != reference.get("gas_profile"):
         return False
     # Compilation failures have no runtime workload to match.
-    if reference_data.get("status") != "failed" and not any(
-        workload_signature(data) == workload_signature(reference_data)
-        for data in compilers.values()
-        if isinstance(data, dict)
-    ):
+    matching_data = next(
+        (
+            data
+            for data in compilers.values()
+            if isinstance(data, dict)
+            and workload_signature(data) == workload_signature(reference_data)
+        ),
+        None,
+    )
+    if reference_data.get("status") != "failed" and matching_data is None:
         return False
 
+    imported = copy.deepcopy(reference_data)
+    if matching_data is not None:
+        for old_call, current_call in zip(
+            imported.get("gas_results") or [],
+            matching_data.get("gas_results") or [],
+            strict=True,
+        ):
+            if reason := current_call.get("comparison_exclusion_reason"):
+                old_call["comparison_exclusion_reason"] = reason
     entry["compilers"] = {
-        compiler_id: copy.deepcopy(reference_data),
+        compiler_id: imported,
         **compilers,
     }
     return True
@@ -1686,6 +1759,7 @@ def run_test_case(
     reference_solc_path: Path | None = None,
     repeat_long_compiles: bool = False,
     artifact_root: Path | None = None,
+    optimizer_runs: int | None = None,
 ) -> dict[str, Any]:
     entry: dict[str, Any] = {
         "test_id": test_case.test_id,
@@ -1705,7 +1779,7 @@ def run_test_case(
     prepared_input = (
         None
         if test_case.project_file is not None and not test_case.project_path.exists()
-        else compiler_input(test_case, evm_version)
+        else compiler_input(test_case, evm_version, optimizer_runs)
     )
     for spec in specs:
         verbose_log(verbose, f"[{test_case.test_id}] compiling with {spec.compiler_id}")
@@ -1786,6 +1860,7 @@ def run_test_case(
                             "call": call.signature,
                             "args": list(call.args),
                             "gas": None,
+                            "comparison_exclusion_reason": call.comparison_exclusion_reason,
                             "error": error,
                         }
                     )
@@ -1796,6 +1871,7 @@ def run_test_case(
                         "call": call.signature,
                         "args": list(call.args),
                         "gas": gas,
+                        "comparison_exclusion_reason": call.comparison_exclusion_reason,
                     }
                 )
                 total_gas += gas
@@ -1920,6 +1996,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--evm-version",
         help="Override Standard JSON `evmVersion` for every benchmark case",
+    )
+    parser.add_argument(
+        "--optimizer-runs",
+        type=int,
+        help="Override Standard JSON `optimizer.runs` for every benchmark case; below 200 Solar optimizes for size",
     )
     parser.add_argument(
         "--solar-only",
@@ -2150,6 +2231,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     if args.evm_version:
         print(f"Forcing EVM version {args.evm_version}")
+    if args.optimizer_runs is not None:
+        objective = "size" if args.optimizer_runs < 200 else "gas"
+        print(
+            f"Forcing optimizer runs {args.optimizer_runs} ({objective} objective for Solar)"
+        )
     print(f"Running {len(tests)} tests")
 
     results = []
@@ -2194,6 +2280,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     solc,
                     args.repeat_long_compiles,
                     args.artifacts,
+                    args.optimizer_runs,
                 )
             except Exception as exc:
                 print(
@@ -2280,6 +2367,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     document = {
         "format_version": 1,
         "evm_version_override": args.evm_version,
+        "optimizer_runs_override": args.optimizer_runs,
         "timings": timings,
         "results": results,
     }

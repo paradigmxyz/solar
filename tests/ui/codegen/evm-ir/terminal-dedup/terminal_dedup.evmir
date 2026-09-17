@@ -8,16 +8,16 @@ bb0:
   push 1
   indexed_jump bb1, bb2
 
-// CHECK-LABEL: + bb1:
+// CHECK-LABEL: + bb1 [loop]:
 // CHECK: {{^[ +].*}}revert
 bb1 [cold]:
   push 64
   push 32
   push 0
   revert
-// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK-LABEL: {{^[ +].*}}bb2 [loop]:
 // CHECK: + jump bb1
-bb2:
+bb2 [loop]:
   push 64
   push 32
   push 0

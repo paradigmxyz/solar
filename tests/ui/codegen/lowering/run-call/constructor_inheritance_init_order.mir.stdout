@@ -3,7 +3,7 @@
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 42 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @f() -> u256 [selector=0x26121ff0, view, abi_params=[], abi_returns=[word]] {
@@ -31,9 +31,9 @@ fn @constructor() [constructor] {
     sstore 0, 42 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    v0 = icall @f, 1
+    v0 = icall @f
     sstore 1, v0 !metadata(storage=slot(1))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_inheritance_init_order.sol:NoCtorBase ===
@@ -47,7 +47,7 @@ fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 42 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_inheritance_init_order.sol:NoCtorDerived ===
@@ -69,5 +69,5 @@ fn @constructor() [constructor] {
     sstore 0, 42 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
     sstore 1, v0 !metadata(storage=slot(1))
-    stop
+    ret
 }

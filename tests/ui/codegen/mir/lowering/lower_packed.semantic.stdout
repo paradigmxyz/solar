@@ -1,0 +1,46 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_packed.mir (before none) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_packed.mir (after none) ===
+  @module PackedEncoding
+  fn @mixed(arg0: u16, arg1: memorybytes) -> memorybytes {
+    bb0:
+      v0 = abi_encode_packed (data hex"000102", u16 arg0, bytes arg1)
+      ret v0
+  }
+  
+  fn @hash(arg0: i16) -> bytes32 {
+    bb0:
+      v0 = keccak256_packed (data hex"ab", i16 arg0, bytes2 0xcdef000000000000000000000000000000000000000000000000000000000000)
+      ret v0
+  }
+  
+  fn @arrays(arg0: memoryarray, arg1: calldataslice) -> memorybytes {
+    bb0:
+      v0 = abi_encode_packed (array<word<i16>> memoryarray<1> arg0, array<word<bool>> calldata arg1)
+      ret v0
+  }
+  
+  fn @nested(arg0: memoryfixedarray) -> memorybytes {
+    bb0:
+      v0 = abi_encode_packed (array<array<2, word<enum 3>>> memoryfixedarray<2, 1> arg0)
+      ret v0
+  }
+  
+  fn @edge(arg0: bool, arg1: memoryarray, arg2: memorybytes) -> memorybytes {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      v0 = abi_encode_packed (array<word> memoryarray<1> arg1)
+      jump bb3
+    bb3:
+      v1 = phi [bb1: v0], [bb2: arg2]
+      ret v1
+  }
+  
+  fn @prefixed_array(arg0: memoryarray) -> memorybytes {
+    bb0:
+      v0 = abi_encode_packed (data hex"ab", array<word<u8>> memoryarray<1> arg0)
+      ret v0
+  }
+  

@@ -3,12 +3,12 @@
 //! This module converts a source stack layout to a target layout using DUP, SWAP, and POP
 //! operations. Layouts of up to four words compare nontrivial greedy results with a bounded
 //! shortest-action search and take the searched sequence only when it improves one objective
-//! without worsening action count, static gas, or encoded size. Larger layouts use the verified
-//! greedy result, with the bounded search as the correctness fallback when the greedy pass cannot
-//! reach the target. When exact search reaches its state cap it stops enqueueing successors but
-//! drains the existing frontier, preserving targets that were discovered before the cap. Physical
-//! runs with unique values use a direct deletion-order and permutation solver, which avoids a
-//! wider graph search for the SWAP/POP cleanup sequences seen in generated code.
+//! without worsening action count, static gas, or encoded size. Larger non-permutation layouts
+//! use the verified greedy result, with the bounded search as the correctness fallback when it
+//! cannot reach the target. When exact search reaches its state cap it stops enqueueing successors
+//! but drains the existing frontier, preserving targets that were discovered before the cap.
+//! Physical runs with unique values use a direct deletion-order and permutation solver, which
+//! avoids a wider graph search for the SWAP/POP cleanup sequences seen in generated code.
 //!
 //! ## Algorithm overview
 //!
@@ -21,21 +21,52 @@
 //!
 //! Swaps between equal tracked values are omitted. A transition is returned only
 //! when the modeled source reaches the exact target.
+//! Equal-multiplicity layouts need no pushes or pops. Unique permutations use
+//! the direct cycle solver up to the target's SWAP reach; permutations with
+//! duplicates use exact search through six words (at most 720 permutations).
+//! Existing results win cost ties, preserving the ordinary scheduling choices.
+//! The MIR scheduler enables the wider permutation choices in gas mode. Size
+//! mode keeps its existing choices because locally shorter shuffles can reduce
+//! later block sharing and increase the final bytecode size.
+//! Exact results are cached by complete symbolic layout and EVM version within
+//! each worker; generated wrappers and repeated cleanup passes frequently ask
+//! the same bounded question.
 
 use super::model::StackModel;
 use crate::{backend::evm::op::StackOp, mir::ValueId};
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_data_structures::map::{FxHashMap, StdEntry};
-use std::collections::VecDeque;
+use std::{cell::RefCell, collections::VecDeque};
 
 const MAX_LAYOUT_SEARCH_STATES: usize = 100_000;
+const MAX_SHARED_EXACT_SEARCHES: usize = 2_048;
 const EXACT_LAYOUT_OPTIMIZATION_LIMIT: usize = 4;
 const MAX_ENUMERATED_PHYSICAL_REMOVALS: usize = 7;
 const PHYSICAL_RESYNTHESIS_LAYOUT_LIMIT: usize = 236;
 
 type Layout = SmallVec<[Option<ValueId>; 16]>;
-type Predecessors = FxHashMap<Layout, Option<(Layout, StackOp)>>;
+type VisitedLayouts = FxHashMap<Layout, usize>;
+
+#[derive(Clone, Copy)]
+struct Predecessor {
+    previous: usize,
+    op: StackOp,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct ExactSearchKey {
+    source: Layout,
+    target: SmallVec<[ValueId; 16]>,
+    max_stack_access: usize,
+    evm_version: EvmVersion,
+}
+
+type ExactSearchCache = FxHashMap<ExactSearchKey, Option<Vec<StackOp>>>;
+
+thread_local! {
+    static EXACT_SEARCH_CACHE: RefCell<ExactSearchCache> = RefCell::default();
+}
 
 pub(crate) fn lowered_stack_cost(
     ops: &[StackOp],
@@ -155,6 +186,11 @@ fn synthesize_unique_layout(
         ops.extend(synthesize_unique_permutation(&mut current, &target_values));
         if ops.iter().all(|op| op.lowering(evm_version).is_some()) {
             let cost = lowered_stack_cost(&ops, evm_version);
+            // Removing k words requires at least k POPs. Nothing can improve
+            // a sequence that meets this bound, regardless of removal order.
+            if ops.len() == removed.len() {
+                return Some(ops);
+            }
             if best.as_ref().is_none_or(|(_, best_cost)| cost < *best_cost) {
                 best = Some((ops, cost));
             }
@@ -227,6 +263,8 @@ pub(crate) struct StackShuffler<'a> {
     evm_version: EvmVersion,
     /// Multiplicity: how many copies of each value are needed.
     multiplicities: FxHashMap<ValueId, usize>,
+    /// Whether to consider wider permutations and the direct cycle solver.
+    wide_permutations: bool,
 }
 
 impl<'a> StackShuffler<'a> {
@@ -251,7 +289,20 @@ impl<'a> StackShuffler<'a> {
             *multiplicities.entry(*v).or_default() += 1;
         }
 
-        Self { source: source_stack, target, ops: Vec::new(), evm_version, multiplicities }
+        Self {
+            source: source_stack,
+            target,
+            ops: Vec::new(),
+            evm_version,
+            multiplicities,
+            wide_permutations: true,
+        }
+    }
+
+    /// Selects whether to compare wider permutations with the existing layout choices.
+    pub(crate) fn with_wide_permutation_search(mut self, enabled: bool) -> Self {
+        self.wide_permutations = enabled;
+        self
     }
 
     fn max_stack_access(&self) -> usize {
@@ -263,17 +314,36 @@ impl<'a> StackShuffler<'a> {
         let original = self.source.clone();
         let max_stack_access = self.max_stack_access();
         let greedy = self.run_greedy();
+        let permutation = self.wide_permutations
+            && original.len() == self.target.len()
+            && original.len() <= max_stack_access + 1
+            && self.multiplicities.iter().all(|(&value, &count)| {
+                original.iter().filter(|&&slot| slot == Some(value)).count() == count
+            });
+        let unique = permutation && self.multiplicities.values().all(|&count| count == 1);
         let operation_lower_bound = original
             .len()
             .abs_diff(self.target.len())
             .max(usize::from(!Self::matches_target(&original, self.target)));
-        if original.len().max(self.target.len()) <= EXACT_LAYOUT_OPTIMIZATION_LIMIT
+        if (original.len().max(self.target.len()) <= EXACT_LAYOUT_OPTIMIZATION_LIMIT
+            || unique
+            || (permutation && original.len() <= 6))
             && greedy.as_ref().is_none_or(|result| {
                 lowered_stack_cost(&result.ops, self.evm_version).0 > operation_lower_bound
             })
         {
-            let exact =
-                Self::search_exact(original, self.target, &self.multiplicities, max_stack_access);
+            let exact = if unique {
+                synthesize_unique_layout(&original, self.target, self.evm_version)
+                    .map(|ops| ShuffleResult { ops })
+            } else {
+                Self::search_exact(
+                    original,
+                    self.target,
+                    &self.multiplicities,
+                    max_stack_access,
+                    self.evm_version,
+                )
+            };
             return match (greedy, exact) {
                 (Some(greedy), Some(exact)) => {
                     let (exact_actions, exact_gas, exact_size) =
@@ -294,7 +364,13 @@ impl<'a> StackShuffler<'a> {
         }
 
         greedy.or_else(|| {
-            Self::search_exact(original, self.target, &self.multiplicities, max_stack_access)
+            Self::search_exact(
+                original,
+                self.target,
+                &self.multiplicities,
+                max_stack_access,
+                self.evm_version,
+            )
         })
     }
 
@@ -311,24 +387,58 @@ impl<'a> StackShuffler<'a> {
         target: &[TargetSlot],
         multiplicities: &FxHashMap<ValueId, usize>,
         max_stack_access: usize,
+        evm_version: EvmVersion,
+    ) -> Option<ShuffleResult> {
+        let key = ExactSearchKey {
+            source: source.clone(),
+            target: target
+                .iter()
+                .map(|slot| match slot {
+                    TargetSlot::Value(value) => *value,
+                })
+                .collect(),
+            max_stack_access,
+            evm_version,
+        };
+        if let Some(ops) = EXACT_SEARCH_CACHE.with_borrow(|cache| cache.get(&key).cloned()) {
+            return ops.map(|ops| ShuffleResult { ops });
+        }
+
+        let result = Self::search_exact_uncached(source, target, multiplicities, max_stack_access);
+        EXACT_SEARCH_CACHE.with_borrow_mut(|cache| {
+            if cache.len() == MAX_SHARED_EXACT_SEARCHES {
+                cache.clear();
+            }
+            cache.insert(key, result.as_ref().map(|result| result.ops.clone()));
+        });
+        result
+    }
+
+    fn search_exact_uncached(
+        source: Layout,
+        target: &[TargetSlot],
+        multiplicities: &FxHashMap<ValueId, usize>,
+        max_stack_access: usize,
     ) -> Option<ShuffleResult> {
         let mut queue = VecDeque::new();
-        let mut predecessors = FxHashMap::default();
-        predecessors.insert(source.clone(), None);
-        queue.push_back(source);
+        let mut visited = FxHashMap::default();
+        let mut predecessors = Vec::<Option<Predecessor>>::new();
+        predecessors.push(None);
+        visited.insert(source.clone(), 0);
+        queue.push_back((0, source));
 
-        while let Some(stack) = queue.pop_front() {
+        while let Some((state, stack)) = queue.pop_front() {
             if Self::matches_target(&stack, target) {
                 let mut ops = Vec::new();
-                let mut current = stack;
-                while let Some((previous, op)) = predecessors[&current].clone() {
-                    ops.push(op);
-                    current = previous;
+                let mut current = state;
+                while let Some(predecessor) = predecessors[current] {
+                    ops.push(predecessor.op);
+                    current = predecessor.previous;
                 }
                 ops.reverse();
                 return Some(ShuffleResult { ops });
             }
-            if predecessors.len() >= MAX_LAYOUT_SEARCH_STATES {
+            if visited.len() >= MAX_LAYOUT_SEARCH_STATES {
                 continue;
             }
             let max_swap = stack.len().saturating_sub(1).min(max_stack_access);
@@ -336,21 +446,29 @@ impl<'a> StackShuffler<'a> {
                 if stack[0] == stack[depth] {
                     continue;
                 }
-                let mut next = stack.clone();
+                let mut next = Layout::clone(&stack);
                 next.swap(0, depth);
                 Self::enqueue(
                     &mut queue,
+                    &mut visited,
                     &mut predecessors,
-                    &stack,
+                    state,
                     next,
                     StackOp::Swap(depth as u8),
                 );
             }
 
             if stack.len() > target.len() {
-                let mut next = stack.clone();
+                let mut next = Layout::clone(&stack);
                 next.remove(0);
-                Self::enqueue(&mut queue, &mut predecessors, &stack, next, StackOp::Pop);
+                Self::enqueue(
+                    &mut queue,
+                    &mut visited,
+                    &mut predecessors,
+                    state,
+                    next,
+                    StackOp::Pop,
+                );
             }
 
             for (&value, &required) in multiplicities {
@@ -363,12 +481,13 @@ impl<'a> StackShuffler<'a> {
                 else {
                     continue;
                 };
-                let mut next = stack.clone();
+                let mut next = Layout::clone(&stack);
                 next.insert(0, Some(value));
                 Self::enqueue(
                     &mut queue,
+                    &mut visited,
                     &mut predecessors,
-                    &stack,
+                    state,
                     next,
                     StackOp::Dup((depth + 1) as u8),
                 );
@@ -379,19 +498,22 @@ impl<'a> StackShuffler<'a> {
     }
 
     fn enqueue(
-        queue: &mut VecDeque<Layout>,
-        predecessors: &mut Predecessors,
-        previous: &Layout,
+        queue: &mut VecDeque<(usize, Layout)>,
+        visited: &mut VisitedLayouts,
+        predecessors: &mut Vec<Option<Predecessor>>,
+        previous: usize,
         next: Layout,
         op: StackOp,
     ) {
-        if predecessors.len() >= MAX_LAYOUT_SEARCH_STATES {
+        if visited.len() >= MAX_LAYOUT_SEARCH_STATES {
             return;
         }
-        if let StdEntry::Vacant(entry) = predecessors.entry(next) {
+        if let StdEntry::Vacant(entry) = visited.entry(next) {
+            let state = predecessors.len();
             let next = entry.key().clone();
-            entry.insert(Some((previous.clone(), op)));
-            queue.push_back(next);
+            entry.insert(state);
+            predecessors.push(Some(Predecessor { previous, op }));
+            queue.push_back((state, next));
         }
     }
 
@@ -833,9 +955,14 @@ mod tests {
             counts
         });
 
-        let result =
-            StackShuffler::search_exact(source, &target, &multiplicities, MAX_STACK_ACCESS)
-                .unwrap();
+        let result = StackShuffler::search_exact(
+            source,
+            &target,
+            &multiplicities,
+            MAX_STACK_ACCESS,
+            EvmVersion::Osaka,
+        )
+        .unwrap();
 
         assert_eq!(
             result.ops,
@@ -850,6 +977,17 @@ mod tests {
                 StackOp::Pop,
             ]
         );
+    }
+
+    #[test]
+    fn six_word_duplicate_permutation_uses_five_swaps() {
+        let values = [0, 0, 1, 1, 2, 2].map(|n| Some(ValueId::from_usize(n)));
+        let source = make_model(&values);
+        let target = [2, 1, 0, 2, 1, 0].map(|n| TargetSlot::Value(ValueId::from_usize(n)));
+        let result = StackShuffler::new(&source, &target).shuffle().unwrap();
+        assert_eq!(result.ops.len(), 5);
+        assert!(result.ops.iter().all(|op| matches!(op, StackOp::Swap(_))));
+        assert_reaches(&source, &target, &result);
     }
 
     #[test]
@@ -876,6 +1014,7 @@ mod tests {
                     &target,
                     &shuffler.multiplicities,
                     MAX_STACK_ACCESS,
+                    shuffler.evm_version,
                 )
                 .unwrap();
                 assert!(

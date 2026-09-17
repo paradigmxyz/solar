@@ -174,7 +174,7 @@ fn overlapping_workspaces_prefer_vfs_document_links() {
 }
 
 #[test]
-fn waits_for_current_analysis_before_returning_document_links() {
+fn waits_for_requested_analysis_before_returning_document_links() {
     let project = TestProject::from_fixture(
         r#"
         //- /Imports.sol
@@ -214,10 +214,9 @@ fn waits_for_current_analysis_before_returning_document_links() {
 
     assert!(request.as_mut().poll(&mut context).is_pending());
 
-    state.analysis_version.fetch_add(1, Ordering::AcqRel);
     let mut snapshot = state.snapshot();
-    assert!(snapshot.publish_symbol_tables(2, Arc::new(new_tables)));
-    assert!(!snapshot.publish_symbol_tables(1, Default::default()));
+    assert!(snapshot.publish_symbol_tables(1, Arc::new(new_tables)));
+    assert!(!snapshot.publish_symbol_tables(0, Default::default()));
     let std::task::Poll::Ready(response) = request.as_mut().poll(&mut context) else {
         panic!("document-link request should complete after analysis is published");
     };

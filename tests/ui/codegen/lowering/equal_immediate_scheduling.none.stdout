@@ -26,10 +26,9 @@ bb4:
   push 36
   calldatasize
   lt
-  iszero
-  push bb9
+  push bb8
   jumpi
-  jump bb8
+  jump bb5
 bb5:
   push 4
   calldataload
@@ -37,14 +36,14 @@ bb5:
   jumpi
   jump bb6
 bb6 [cold]:
-  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
+  push 0x4e487b71
   push 0
   mstore
   push 18
-  push 4
+  push 32
   mstore
   push 36
-  push 0
+  push 28
   revert
 bb7:
   push 4
@@ -66,5 +65,3 @@ bb8 [cold]:
   push 0
   push 0
   revert
-bb9:
-  jump bb5

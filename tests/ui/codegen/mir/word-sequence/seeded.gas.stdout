@@ -1,0 +1,101 @@
+- // === ROOT/tests/ui/codegen/mir/word-sequence/seeded.mir (before word-sequence) ===
++ // === ROOT/tests/ui/codegen/mir/word-sequence/seeded.mir (after word-sequence) ===
+  @module SeededWords
+  fn @rule_11(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = and arg0, arg1
+-     v1 = not v0
+-     v2 = and v1, arg0
++     v3 = not arg1
++     v2 = and v3, arg0
+      ret v2
+  }
+  
+  fn @rule_12(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = and arg1, arg0
+-     v1 = not v0
+-     v2 = and v1, arg0
++     v3 = not arg1
++     v2 = and v3, arg0
+      ret v2
+  }
+  
+  fn @rule_13(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = and arg0, arg1
+-     v1 = not v0
+-     v2 = and arg0, v1
++     v3 = not arg1
++     v2 = and v3, arg0
+      ret v2
+  }
+  
+  fn @rule_14(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = and arg1, arg0
+-     v1 = not v0
+-     v2 = and arg0, v1
++     v3 = not arg1
++     v2 = and v3, arg0
+      ret v2
+  }
+  
+  fn @rule_15(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = or arg0, arg1
+-     v1 = not v0
+-     v2 = or v1, arg0
++     v3 = not arg1
++     v2 = or v3, arg0
+      ret v2
+  }
+  
+  fn @rule_16(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = or arg1, arg0
+-     v1 = not v0
+-     v2 = or v1, arg0
++     v3 = not arg1
++     v2 = or v3, arg0
+      ret v2
+  }
+  
+  fn @rule_17(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = or arg0, arg1
+-     v1 = not v0
+-     v2 = or arg0, v1
++     v3 = not arg1
++     v2 = or v3, arg0
+      ret v2
+  }
+  
+  fn @rule_18(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = or arg1, arg0
+-     v1 = not v0
+-     v2 = or arg0, v1
++     v3 = not arg1
++     v2 = or v3, arg0
+      ret v2
+  }
+  
+  fn @shared(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = and arg0, arg1
+      v1 = not v0
+      v2 = and arg0, v1
+      v3 = add v1, v2
+      ret v3
+  }
+  
+  fn @barrier(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = and arg0, arg1
+      v1 = not v0
+      mstore 0, arg0
+      v2 = and arg0, v1
+      ret v2
+  }
+  

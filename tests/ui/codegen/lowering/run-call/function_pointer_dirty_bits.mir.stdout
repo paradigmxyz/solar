@@ -2,7 +2,7 @@
 @module FunctionPointerDirtyBits
 fn @g() [selector=0xe2179b8e, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @comparison() -> bool [selector=0xaae103ad, view, abi_params=[], abi_returns=[word<bool>]] {

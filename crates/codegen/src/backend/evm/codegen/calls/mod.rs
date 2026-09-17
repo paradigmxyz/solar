@@ -9,6 +9,7 @@ use super::{
 
 mod abi;
 mod arguments;
+mod tail;
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Returns the first internal-call result only when it is consumed. The call itself remains
@@ -170,7 +171,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_push_label(callee_label);
         self.asm.emit_op(op::JUMP);
 
-        self.asm.define_label(return_label);
+        self.asm.define_continuation_label(return_label);
         if let Some(caller_stack) = caller_stack {
             self.scheduler.stack = caller_stack;
         } else {
@@ -799,7 +800,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_push_label(callee_label);
         self.asm.emit_op(op::JUMP);
 
-        self.asm.define_label(return_label);
+        self.asm.define_continuation_label(return_label);
         if let Some(caller_stack) = caller_stack {
             self.scheduler.stack = caller_stack;
         } else {
@@ -950,6 +951,38 @@ impl<'gcx> EvmCodegen<'gcx> {
         call_idx: usize,
         arity: usize,
     ) -> Option<StackResultProjection> {
+        let (projection, tracked) =
+            Self::visit_call_result_projections(func, block, call_idx, arity, |_, _| {})?;
+        // The pointer and its offset addresses must have no consumers beyond
+        // the elided protocol; anything else still expects the buffer.
+        let elided_set = projection.elided.iter().copied().collect::<FxHashSet<_>>();
+        for check_block in func.blocks.iter() {
+            for &inst_id in &check_block.instructions {
+                if !elided_set.contains(&inst_id)
+                    && func.inst(inst_id).kind.operands().iter().any(|op| tracked.contains(op))
+                {
+                    return None;
+                }
+            }
+            if let Some(terminator) = &check_block.terminator
+                && terminator.operands().iter().any(|op| tracked.contains(op))
+            {
+                return None;
+            }
+        }
+
+        Some(projection)
+    }
+
+    /// Visits known extra-return loads before any clobber, including partial tuples.
+    /// Returns the complete protocol when every component can be bound to a stack word.
+    pub(in crate::backend::evm::codegen) fn visit_call_result_projections(
+        func: &Function,
+        block: BlockId,
+        call_idx: usize,
+        arity: usize,
+        mut visit: impl FnMut(usize, ValueId),
+    ) -> Option<(StackResultProjection, FxHashSet<ValueId>)> {
         let tail = func.blocks[block].instructions.get(call_idx + 1..)?;
 
         // The first effectful instruction after the call must be the buffer
@@ -990,6 +1023,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 InstKind::MLoad(addr) if addresses.contains_key(addr) => {
                     let result = func.inst_result_value(inst_id)?;
+                    visit(addresses[addr], result);
                     if extras[addresses[addr] - 1].replace(result).is_some() {
                         return None;
                     }
@@ -1004,26 +1038,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         let extras = extras.into_iter().collect::<Option<Vec<_>>>()?;
 
-        // The pointer and its offset addresses must have no consumers beyond
-        // the elided protocol; anything else still expects the buffer.
-        let tracked = addresses.keys().copied().chain([base_value]).collect::<FxHashSet<_>>();
-        let elided_set = elided.iter().copied().collect::<FxHashSet<_>>();
-        for check_block in func.blocks.iter() {
-            for &inst_id in &check_block.instructions {
-                if !elided_set.contains(&inst_id)
-                    && func.inst(inst_id).kind.operands().iter().any(|op| tracked.contains(op))
-                {
-                    return None;
-                }
-            }
-            if let Some(terminator) = &check_block.terminator
-                && terminator.operands().iter().any(|op| tracked.contains(op))
-            {
-                return None;
-            }
-        }
-
-        Some(StackResultProjection { elided, extras })
+        let tracked = addresses.keys().copied().chain([base_value]).collect();
+        Some((StackResultProjection { elided, extras }, tracked))
     }
 
     /// Applies the eager-spill contract to a call result adopted mid-stack.

@@ -13,13 +13,13 @@
 contract ICallMultiStackReturn {
     // A two-word stack return rotates the hidden return label above both results.
     // CHECK-LABEL: @module ICallMultiStackReturn_runtime
-    // CHECK: push 256
+    // CHECK: push 192
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // CHECK: push [[PAIR_RETURN:bb[0-9]+]]
     // CHECK: jump [[PAIR_HELPER:bb[0-9]+]]
     // CHECK: [[PAIR_HELPER]]:
-    // CHECK: swap2
+    // CHECK: swap 2
     // CHECK-NEXT: jump
     function pair(uint256 x) external pure returns (uint256, uint256) {
         return pairHelper(x);
@@ -47,13 +47,13 @@ contract ICallMultiStackReturn {
     }
 
     // Three results exercise the complete SWAP1..SWAP3 return-label rotation.
-    // CHECK: push 320
+    // CHECK: push 224
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // CHECK: push [[TRIPLE_RETURN:bb[0-9]+]]
     // CHECK: jump [[TRIPLE_HELPER:bb[0-9]+]]
     // CHECK: [[TRIPLE_HELPER]]:
-    // CHECK: swap3
+    // CHECK: swap 3
     // CHECK-NEXT: jump
     function triple(uint256 x) external pure returns (uint256, uint256, uint256) {
         return tripleHelper(x);
@@ -93,17 +93,15 @@ contract ICallMultiStackReturn {
     // Six results exercise a return whose values are already live on the physical stack. The
     // return shuffler must reuse those words instead of duplicating the entire tuple beyond its
     // requested layout.
-    // CHECK: push 512
+    // CHECK: push 320
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // CHECK: push [[SIX_RETURN:bb[0-9]+]]
     // CHECK: jump [[SIX_HELPER:bb[0-9]+]]
     // CHECK: [[SIX_HELPER]]:
-    // CHECK: swap2
-    // CHECK-NEXT: swap3
-    // CHECK-NEXT: swap4
-    // CHECK-NEXT: swap5
-    // CHECK-NEXT: swap6
+    // CHECK: swap 6
+    // CHECK-NEXT: exchange 1, 4
+    // CHECK-NEXT: exchange 2, 3
     // CHECK-NEXT: jump
     function six(uint256 x)
         external

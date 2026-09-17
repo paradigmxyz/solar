@@ -4,25 +4,36 @@
 //!
 //! ## Block Merging
 //! If block A unconditionally jumps to B, and B has only A as predecessor,
-//! merge A and B into a single block. This reduces jump instructions (8 gas each).
+//! merge A and B into a single block. This reduces jump instructions (one `JUMP` each).
 //!
 //! ## Empty Block Elimination
 //! Remove blocks that contain no instructions and only an unconditional jump,
 //! redirecting predecessors to the target.
 //!
+//! A branch also folds when its sole incoming edge establishes the same SSA condition.
+//! The block keeps its instructions; only its terminator changes. Entry blocks and
+//! predecessors whose two arms reach the block provide no such fact. `branch-simplify`
+//! runs just this terminator cleanup after lowering, followed by unreachable-block removal.
+//! It leaves block merging and terminal sharing to the backend to preserve stack lifetimes.
+//!
 //! ## Dead Function Elimination
 //! Remove functions that are never called, starting from entry points
 //! (public/external functions, constructor, fallback, receive).
 //!
-//! Terminal-block equivalence ignores source context. Shared instructions and
+//! Terminal-block equivalence compares every non-operand instruction field, including semantic
+//! layouts and literal payloads, while comparing SSA operands by definition position. It ignores
+//! source context. Shared instructions and
 //! terminators retain the bounded union of their original locations instead.
 
-use crate::mir::{
-    BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
-    Terminator, Value, ValueId,
-    analysis::{CallGraphInfo, CfgInfo},
-    pass::{MirPass, run_function_pass},
-    utils::{repair_reachability_phis, retain_blocks},
+use crate::{
+    mir::{
+        BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
+        Terminator, Value, ValueId,
+        analysis::{CallGraphInfo, CfgInfo},
+        pass::{MirPass, run_function_pass},
+        utils::{replace_terminator, retain_blocks},
+    },
+    target::GasTier,
 };
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -44,8 +55,76 @@ impl MirPass for CfgSimplify {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        run_function_pass(module, analyses, |func, _| simplify_function(func))
+    }
+}
+
+/// Folds known branches after representation lowering exposes repeated conditions.
+pub(crate) struct BranchSimplify;
+
+impl MirPass for BranchSimplify {
+    fn name(&self) -> &'static str {
+        "branch-simplify"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
         run_function_pass(module, analyses, |func, _| {
-            CfgSimplifier::new().run_to_fixpoint(func).total() != 0
+            let mut simplifier = CfgSimplifier::new();
+            simplifier.simplify_degenerate_terminators(func);
+            let changed = simplifier.stats.total() != 0;
+            if changed {
+                let _ = remove_unreachable_blocks(func);
+            }
+            changed
+        })
+    }
+}
+
+/// Cleans a function after a local transform changes its control flow.
+pub(super) fn simplify_function(func: &mut Function) -> bool {
+    CfgSimplifier::new().run_to_fixpoint(func).total() != 0
+}
+
+/// Function pass that only replaces trivial phis by their unique incoming value.
+///
+/// HIR lowering leaves a phi for every local a loop could reassign, including
+/// locals it never does. Those phis hide one object behind several SSA names,
+/// which alias analysis joins to distinct symbolic pointers, so the loop and
+/// memory passes cannot prove that element stores leave a length word alone.
+/// Full CFG cleanup this early would also merge and remove the blocks that
+/// jump threading later recognizes in short-circuit conditions, so this pass
+/// touches nothing but the phis.
+pub(crate) struct SimplifyTrivialPhis;
+
+impl MirPass for SimplifyTrivialPhis {
+    fn name(&self) -> &'static str {
+        "simplify-phis"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
+            let mut simplifier = CfgSimplifier::new();
+            let mut changed = false;
+            // Replacing one phi can make the phi it fed trivial in turn.
+            loop {
+                let before = simplifier.stats.trivial_phis_simplified;
+                simplifier.simplify_trivial_phis(func);
+                if simplifier.stats.trivial_phis_simplified == before {
+                    break;
+                }
+                changed = true;
+            }
+            changed
         })
     }
 }
@@ -81,19 +160,10 @@ struct CanonBlock {
 /// Alpha-equivalence key for one instruction of a terminal block.
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct CanonInst {
-    mnemonic: &'static str,
-    payload: CanonPayload,
+    kind: InstKind,
     operands: Vec<CanonOperand>,
     result_ty: Option<MirType>,
     metadata: InstructionMetadata,
-}
-
-/// Non-operand payload carried by an instruction kind.
-#[derive(Debug, PartialEq, Eq, Hash)]
-enum CanonPayload {
-    None,
-    FrameAddr(u64),
-    Call(FunctionId, usize),
 }
 
 /// A canonicalized operand: block-local results compare by definition
@@ -122,9 +192,7 @@ struct CfgSimplifyStats {
     unreachable_blocks_removed: usize,
     /// Number of dead functions eliminated.
     dead_functions_eliminated: usize,
-    /// Whether CFG backlinks or phi inputs were repaired.
-    reachability_repaired: bool,
-    /// Estimated gas saved (8 gas per eliminated jump).
+    /// Estimated gas saved (one `JUMP` per eliminated jump).
     gas_saved: usize,
 }
 
@@ -139,7 +207,6 @@ impl CfgSimplifyStats {
             + self.terminal_blocks_deduplicated
             + self.unreachable_blocks_removed
             + self.dead_functions_eliminated
-            + self.reachability_repaired as usize
     }
 
     /// Combines stats from another run.
@@ -151,7 +218,6 @@ impl CfgSimplifyStats {
         self.terminal_blocks_deduplicated += other.terminal_blocks_deduplicated;
         self.unreachable_blocks_removed += other.unreachable_blocks_removed;
         self.dead_functions_eliminated += other.dead_functions_eliminated;
-        self.reachability_repaired |= other.reachability_repaired;
         self.gas_saved += other.gas_saved;
     }
 }
@@ -277,13 +343,9 @@ impl CfgSimplifier {
         let mut insts = Vec::with_capacity(block.instructions.len());
         for &inst_id in &block.instructions {
             let inst = func.inst(inst_id);
-            let extra = match &inst.kind {
-                InstKind::Phi(_) => return None,
-                InstKind::InternalFrameAddr(offset) => CanonPayload::FrameAddr(*offset),
-                InstKind::ICall { function, returns, .. } => {
-                    CanonPayload::Call(*function, *returns as usize)
-                }
-                InstKind::Alloc { .. }
+            match &inst.kind {
+                InstKind::Phi(_)
+                | InstKind::Alloc { .. }
                 | InstKind::MemoryObjectLen(_, _)
                 | InstKind::SetMemoryObjectLen(_, _, _)
                 | InstKind::MemoryObjectData(_, _)
@@ -311,15 +373,14 @@ impl CfgSimplifier {
                 | InstKind::StoreImmutable(_, _)
                 | InstKind::LoadImmutable(_)
                 | InstKind::StorageArrayElementSlot { .. } => return None,
-                _ => CanonPayload::None,
-            };
+                _ => {}
+            }
             let mut metadata = inst.metadata.clone();
             metadata.set_hir_expr(None);
             metadata.mark_debug_info_dropped();
             metadata.loop_depth = 0;
             insts.push(CanonInst {
-                mnemonic: inst.kind.mnemonic(),
-                payload: extra,
+                kind: inst.kind.clone_without_operands(),
                 operands: inst.kind.operands().into_iter().map(canon_operand).collect(),
                 result_ty: inst.result_ty,
                 metadata,
@@ -409,11 +470,17 @@ impl CfgSimplifier {
     }
 
     fn simplify_degenerate_terminators(&mut self, func: &mut Function) {
-        let mut changed = false;
         for block_id in func.blocks.indices() {
-            let mut replacement = Self::immediate_branch_target(func, block_id);
+            if !matches!(
+                func.blocks[block_id].terminator,
+                Some(Terminator::Branch { .. } | Terminator::Switch { .. })
+            ) {
+                continue;
+            }
+            let mut terminator = func.blocks[block_id].terminator.clone();
+            let mut replacement = Self::known_branch_target(func, block_id);
             if replacement.is_none() {
-                replacement = match func.blocks[block_id].terminator.as_mut() {
+                replacement = match terminator.as_mut() {
                     Some(Terminator::Branch { then_block, else_block, .. })
                         if then_block == else_block =>
                     {
@@ -426,7 +493,6 @@ impl CfgSimplifier {
                         }
                         if cases.len() != old_len {
                             self.stats.terminators_simplified += old_len - cases.len();
-                            changed = true;
                         }
                         cases.is_empty().then_some(*default)
                     }
@@ -434,26 +500,46 @@ impl CfgSimplifier {
                 };
             }
             if let Some(target) = replacement {
-                func.blocks[block_id].terminator = Some(Terminator::Jump(target));
+                terminator = Some(Terminator::Jump(target));
                 self.stats.terminators_simplified += 1;
                 self.stats.gas_saved += 10;
-                changed = true;
             }
-        }
-
-        if changed {
-            self.stats.reachability_repaired |= repair_reachability_phis(func);
+            if let Some(terminator) = terminator {
+                // branch/switch -> simplified terminator
+                replace_terminator(func, block_id, terminator);
+            }
         }
     }
 
-    fn immediate_branch_target(func: &Function, block: BlockId) -> Option<BlockId> {
+    fn known_branch_target(func: &Function, block: BlockId) -> Option<BlockId> {
         let Terminator::Branch { condition, then_block, else_block } =
             func.blocks[block].terminator.as_ref()?
         else {
             return None;
         };
-        let value = func.value_u256(*condition)?;
-        Some(if value.is_zero() { *else_block } else { *then_block })
+        let taken = if let Some(value) = func.value_u256(*condition) {
+            !value.is_zero()
+        } else {
+            if block == BlockId::ENTRY {
+                return None;
+            }
+            let [pred] = func.blocks[block].predecessors.as_slice() else {
+                return None;
+            };
+            let Terminator::Branch {
+                condition: incoming,
+                then_block: incoming_then,
+                else_block: incoming_else,
+            } = func.blocks[*pred].terminator.as_ref()?
+            else {
+                return None;
+            };
+            if incoming != condition || incoming_then == incoming_else {
+                return None;
+            }
+            *incoming_then == block
+        };
+        Some(if taken { *then_block } else { *else_block })
     }
 
     /// Runs CFG simplification iteratively until no more changes.
@@ -495,7 +581,7 @@ impl CfgSimplifier {
                     self.do_merge(func, block_id, target);
                     merged = true;
                     self.stats.blocks_merged += 1;
-                    self.stats.gas_saved += 8;
+                    self.stats.gas_saved += GasTier::Mid.fixed_gas() as usize;
                     break;
                 }
             }
@@ -616,7 +702,7 @@ impl CfgSimplifier {
                     self.eliminate_forwarder(func, block_id);
                     eliminated = true;
                     self.stats.empty_blocks_eliminated += 1;
-                    self.stats.gas_saved += 8;
+                    self.stats.gas_saved += GasTier::Mid.fixed_gas() as usize;
                     break;
                 }
             }
@@ -805,48 +891,97 @@ impl DeadFunctionEliminator {
             return 0;
         }
 
-        self.stats.dead_functions_eliminated = module.functions.len() - reachable.count();
-        if self.stats.dead_functions_eliminated == 0 {
-            return 0;
-        }
-
-        let mut remap = index_vec![None; module.functions.len()];
-        let mut old_functions = std::mem::take(&mut module.functions)
-            .into_iter()
-            .map(Some)
-            .collect::<IndexVec<FunctionId, _>>();
-        let mut functions = IndexVec::with_capacity(reachable.count());
-        for old_id in reachable {
-            let function = old_functions[old_id].take().expect("reachable function must exist");
-            let new_id = functions.push(function);
-            remap[old_id] = Some(new_id);
-        }
-        module.functions = functions;
-        module.remap_dispatch_entry(
-            module.dispatch_entry().map(|entry| {
-                remap[entry].expect("reachable function cannot be the dispatch entry")
-            }),
-        );
-        module.function_name_index.clear();
-        module.function_name_index.extend(
-            module.functions.iter_enumerated().map(|(id, function)| (function.name.symbol, id)),
-        );
-
-        for func in &mut module.functions {
-            func.for_each_instruction_mut(|_, inst| {
-                if let InstKind::ICall { function, .. } = &mut inst.kind {
-                    *function = remap[*function]
-                        .expect("reachable function cannot call an eliminated function");
-                }
-            });
-            for block in &mut func.blocks {
-                if let Some(Terminator::TailCall { function, .. }) = &mut block.terminator {
-                    *function = remap[*function]
-                        .expect("reachable function cannot tail-call an eliminated function");
-                }
-            }
-        }
-
+        self.stats.dead_functions_eliminated = retain_functions(module, reachable);
         self.stats.dead_functions_eliminated
     }
+}
+
+/// Removes the `candidates` that no remaining function calls or tail-calls and
+/// that are not entry points themselves, renumbering the survivors.
+///
+/// Unlike [`FunctionDce`], this never touches a function outside `candidates`,
+/// so an uncalled function that was never reachable survives.
+pub(super) fn remove_unreferenced_functions(module: &mut Module, candidates: &[FunctionId]) {
+    let count = module.functions.len();
+    let mut referenced = DenseBitSet::new_empty(count);
+    if let Some(entry) = module.dispatch_entry() {
+        referenced.insert(entry);
+    }
+    for (id, func) in module.functions.iter_enumerated() {
+        if func.selector.is_some()
+            || func.attributes.is_constructor
+            || func.attributes.is_fallback
+            || func.attributes.is_receive
+        {
+            referenced.insert(id);
+        }
+        for inst in func.instructions() {
+            if let InstKind::ICall { function: crate::mir::Callee::Function(function), .. } =
+                func.inst(inst).kind
+            {
+                referenced.insert(function);
+            }
+        }
+        for block in func.blocks.iter() {
+            if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
+                referenced.insert(*function);
+            }
+        }
+    }
+    let mut keep = DenseBitSet::new_filled(count);
+    for &candidate in candidates {
+        if !referenced.contains(candidate) {
+            keep.remove(candidate);
+        }
+    }
+    retain_functions(module, &keep);
+}
+
+/// Keeps exactly the functions in `keep`, renumbering call and tail-call
+/// targets. Returns the number of removed functions.
+fn retain_functions(module: &mut Module, keep: &DenseBitSet<FunctionId>) -> usize {
+    let removed = module.functions.len() - keep.count();
+    if removed == 0 {
+        return 0;
+    }
+    let mut remap = index_vec![None; module.functions.len()];
+    let mut old_functions = std::mem::take(&mut module.functions)
+        .into_iter()
+        .map(Some)
+        .collect::<IndexVec<FunctionId, _>>();
+    let mut functions = IndexVec::with_capacity(keep.count());
+    for old_id in keep {
+        let function = old_functions[old_id].take().expect("kept function must exist");
+        let new_id = functions.push(function);
+        remap[old_id] = Some(new_id);
+    }
+    module.functions = functions;
+    module.remap_dispatch_entry(
+        module
+            .dispatch_entry()
+            .map(|entry| remap[entry].expect("kept function cannot be the dispatch entry")),
+    );
+    module.function_name_index.clear();
+    module.function_name_index.extend(
+        module.functions.iter_enumerated().map(|(id, function)| (function.name.symbol, id)),
+    );
+
+    for func in &mut module.functions {
+        func.for_each_instruction_mut(|_, inst| {
+            if let InstKind::ICall { function: crate::mir::Callee::Function(function), .. } =
+                &mut inst.kind
+            {
+                *function =
+                    remap[*function].expect("kept function cannot call an eliminated function");
+            }
+        });
+        for block in &mut func.blocks {
+            if let Some(Terminator::TailCall { function, .. }) = &mut block.terminator {
+                *function = remap[*function]
+                    .expect("kept function cannot tail-call an eliminated function");
+            }
+        }
+    }
+
+    removed
 }

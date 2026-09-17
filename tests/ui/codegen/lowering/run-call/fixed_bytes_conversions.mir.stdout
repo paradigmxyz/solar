@@ -1,18 +1,27 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_conversions.sol:FixedBytesConversions ===
 @module FixedBytesConversions
-fn @narrow() -> (bytes2, bytes4, bytes6) [selector=0xe3b21a7a, pure, abi_params=[], abi_returns=[word<bytes2>, word<bytes4>, word<bytes6>]] {
+types:
+  struct0: {u256, u256, u256}
+
+fn @narrow() -> struct0 [selector=0xe3b21a7a, pure, abi_params=[], abi_returns=[word<bytes2>, word<bytes4>, word<bytes6>], abi_return_params=[bytes2, bytes4, bytes6]] {
   bb0:
     v0 = shl 224, 0x12345678
     v1 = and v0, 0xffff000000000000000000000000000000000000000000000000000000000000
-    ret v1, v0, v0
+    v2 = insert_value struct0, undef struct0, 0, v1
+    v3 = insert_value struct0, v2, 1, v0
+    v4 = insert_value struct0, v3, 2, v0
+    ret v4
 }
 
-fn @numeric() -> (u16, u32, u48) [selector=0x9d8f2cea, pure, abi_params=[], abi_returns=[word<u16>, word<u32>, word<u48>]] {
+fn @numeric() -> struct0 [selector=0x9d8f2cea, pure, abi_params=[], abi_returns=[word<u16>, word<u32>, word<u48>], abi_return_params=[u16, u32, u48]] {
   bb0:
     v0 = shl 224, 0x12345678
     v1 = and v0, 0xffff000000000000000000000000000000000000000000000000000000000000
     v2 = shr 240, v1
     v3 = shr 224, v0
     v4 = shr 208, v0
-    ret v2, v3, v4
+    v5 = insert_value struct0, undef struct0, 0, v2
+    v6 = insert_value struct0, v5, 1, v3
+    v7 = insert_value struct0, v6, 2, v4
+    ret v7
 }

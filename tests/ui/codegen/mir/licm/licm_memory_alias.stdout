@@ -6,14 +6,15 @@
   
   fn @hoist_non_aliasing_mload() -> u256 {
     bb0:
-+     v0 = mload 0
++     v1 = mload 0
       jump bb1
     bb1:
-      jumpi 1, bb2, bb3
+      v0 = phi [bb0: 0], [bb2: v1]
+      jumpi true, bb2, bb3
     bb3:
       ret v0
     bb2:
--     v0 = mload 0
+-     v1 = mload 0
       mstore 64, 1
       jump bb1
   }
@@ -22,25 +23,27 @@
     bb0:
       jump bb1
     bb1:
-      jumpi 1, bb2, bb3
+      v0 = phi [bb0: 0], [bb2: v1]
+      jumpi true, bb2, bb3
     bb3:
       ret v0
     bb2:
-      v0 = mload 0
+      v1 = mload 0
       mstore 16, 1
       jump bb1
   }
   
   fn @hoist_non_aliasing_keccak() -> bytes32 {
     bb0:
-+     v0 = keccak256 0, 32
++     v1 = keccak256 0, 32
       jump bb1
     bb1:
-      jumpi 1, bb2, bb3
+      v0 = phi [bb0: 0], [bb2: v1]
+      jumpi true, bb2, bb3
     bb3:
       ret v0
     bb2:
--     v0 = keccak256 0, 32
+-     v1 = keccak256 0, 32
       mstore 64, 1
       jump bb1
   }
@@ -49,27 +52,29 @@
     bb0:
       jump bb1
     bb1:
-      jumpi 1, bb2, bb3
+      v0 = phi [bb0: 0], [bb2: v1]
+      jumpi true, bb2, bb3
     bb3:
       ret v0
     bb2:
-      v0 = keccak256 0, 32
+      v1 = keccak256 0, 32
       mstore 16, 1
       jump bb1
   }
   
   fn @hoist_unassigned_immutable() -> u256 {
     bb0:
-+     v0 = loadimmutable value
-+     v1 = mul v0, 2
++     v1 = loadimmutable value
++     v2 = mul v1, 2
       jump bb1
     bb1:
-      jumpi 1, bb2, bb3
+      v0 = phi [bb0: 0], [bb2: v2]
+      jumpi true, bb2, bb3
     bb3:
-      ret v1
+      ret v0
     bb2:
--     v0 = loadimmutable value
--     v1 = mul v0, 2
+-     v1 = loadimmutable value
+-     v2 = mul v1, 2
       jump bb1
   }
   
@@ -77,12 +82,13 @@
     bb0:
       jump bb1
     bb1:
-      jumpi 1, bb2, bb3
+      v0 = phi [bb0: 0], [bb2: v2]
+      jumpi true, bb2, bb3
     bb3:
-      ret v1
+      ret v0
     bb2:
-      v0 = loadimmutable value
-      v1 = mul v0, 2
+      v1 = loadimmutable value
+      v2 = mul v1, 2
       storeimmutable value, 1
       jump bb1
   }

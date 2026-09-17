@@ -1,0 +1,38 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=loop-idioms
+//@ filecheck:
+@module ByteCopyLoop
+@phase lowered
+
+// A canonical byte loop with disjoint caller input and a fresh destination
+// becomes one bulk copy. The Solidity fixture covers retained bounds checks.
+// CHECK-LABEL: fn @copy
+// CHECK: + {{v[0-9]+}} = add arg0, 32
+// CHECK: + {{v[0-9]+}} = add {{v[0-9]+}}, 32
+// CHECK: + mcopy
+// CHECK: - {{v[0-9]+}} = byte 0,
+// CHECK: - mstore8
+fn @copy(arg0: memptr, arg1: u256) -> memptr {
+  bb0:
+    v0 = mload 64
+    v1 = add arg1, 32
+    v2 = add v0, v1
+    mstore 64, v2
+    mstore v0, arg1
+    v3 = add arg0, 32
+    v4 = add v0, 32
+    jump bb1
+  bb1:
+    v5 = phi [bb0: 0], [bb2: v11]
+    v6 = lt v5, arg1
+    jumpi v6, bb2, bb3
+  bb2:
+    v7 = add v3, v5
+    v8 = mload v7
+    v9 = byte 0, v8
+    v10 = add v4, v5
+    mstore8 v10, v9
+    v11 = add v5, 1
+    jump bb1
+  bb3:
+    ret v0
+}

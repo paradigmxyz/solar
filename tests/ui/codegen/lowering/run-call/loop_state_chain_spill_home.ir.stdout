@@ -1,0 +1,225 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/loop_state_chain_spill_home.sol:LoopStateChainSpillHome (runtime) ===
+@module LoopStateChainSpillHome_runtime
+bb0:
+  callvalue
+  push bb31
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  push 4
+  calldataload
+  push 192
+  mstore
+  dup 1
+  push 224
+  mstore
+  dup 1
+  push 0xce294ff
+  sub
+  push bb2
+  jumpi
+  pop
+  push 36
+  calldatasize
+  lt
+  push bb31
+  jumpi
+  push 0
+  push 0
+  jump bb22
+bb22 [loop]:
+  push 192
+  mload
+  dup 3
+  lt
+  push bb24
+  jumpi
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb31 [cold]:
+  push 0
+  push 0
+  revert
+bb2:
+  dup 1
+  push 0xcb11e62b
+  sub
+  push bb3
+  jumpi
+  pop
+  push 36
+  calldatasize
+  lt
+  push bb31
+  jumpi
+  push 0
+  push 0
+  jump bb8
+bb8 [loop]:
+  push 192
+  mload
+  dup 3
+  lt
+  push bb10
+  jumpi
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb3:
+  dup 1
+  push 0xcf25b09f
+  sub
+  push bb31
+  jumpi
+  pop
+  push 1
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb10 [loop]:
+  dup 1
+  push 160
+  mstore
+  push bb12
+  jumpi
+  push 3
+  dup 2
+  eq
+  push 160
+  mload
+  push 1
+  sub
+  mul
+  push 160
+  mload
+  add
+  jump bb19
+bb19 [loop]:
+  swap 1
+  push 1
+  add
+  swap 1
+  jump bb8
+bb12 [loop]:
+  push 1
+  push 160
+  mload
+  eq
+  push bb17
+  jumpi
+  push 2
+  push 160
+  mload
+  eq
+  push bb15
+  jumpi
+  push 3
+  push 160
+  mload
+  eq
+  push 13
+  dup 3
+  eq
+  iszero
+  push 160
+  mload
+  mul
+  push 160
+  mload
+  swap 1
+  sub
+  mul
+  push 160
+  mload
+  add
+  jump bb19
+bb15 [loop]:
+  push 11
+  dup 2
+  eq
+  push 160
+  mload
+  push 3
+  sub
+  mul
+  push 160
+  mload
+  add
+  jump bb19
+bb17 [loop]:
+  push 5
+  dup 2
+  eq
+  push 160
+  mload
+  push 2
+  sub
+  mul
+  push 160
+  mload
+  add
+  jump bb19
+bb24 [loop]:
+  dup 1
+  push 160
+  mstore
+  push bb26
+  jumpi
+  push 3
+  dup 2
+  eq
+  push 160
+  mload
+  push 1
+  sub
+  mul
+  push 160
+  mload
+  add
+  jump bb30
+bb30 [loop]:
+  swap 1
+  push 1
+  add
+  swap 1
+  jump bb22
+bb26 [loop]:
+  push 1
+  push 160
+  mload
+  eq
+  push bb28
+  jumpi
+  push 160
+  mload
+  push 2
+  dup 2
+  eq
+  dup 2
+  push 3
+  sub
+  mul
+  add
+  jump bb30
+bb28 [loop]:
+  push 5
+  dup 2
+  eq
+  push 160
+  mload
+  push 2
+  sub
+  mul
+  push 160
+  mload
+  add
+  jump bb30

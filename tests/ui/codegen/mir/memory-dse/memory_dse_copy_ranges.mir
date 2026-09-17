@@ -26,12 +26,13 @@ fn @keep_store_after_partial_copy() -> u256 {
     ret v2
 }
 
-// Updating the free-memory pointer at 0x40 and zeroing the data area do not
-// clobber the fresh allocation length word at the old FMP.
-// CHECK-LABEL: {{^[ +].*}}fn @forward_fresh_array_length{{[( ]}}
+// A raw FMP read does not prove that the object header avoids the FMP slot.
+// Retain the header load across an update to that slot.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_unproven_array_length{{[( ]}}
 // CHECK: {{^[ +].*}}calldatacopy
-// CHECK: + ret 3
-fn @forward_fresh_array_length() -> u256 {
+// CHECK: {{^[ +].*}}[[LENGTH:v[0-9]+]] = mload {{v[0-9]+}}
+// CHECK-NEXT: {{^[ +].*}}ret [[LENGTH]]
+fn @keep_unproven_array_length() -> u256 {
   bb0:
     v0 = mload 64
     mstore v0, 3
