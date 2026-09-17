@@ -94,7 +94,9 @@ fn @tryWord() [selector=0xdc133dec, abi_wrapper, pure] {
 fn @guarded() [selector=0xd0dcc2fe, abi_wrapper, pure] {
   bb0:
     v9 = icall @decode_calldata_type, 4
-    v0 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
+    v0 = mload 64 !metadata(memory=scratch)
+    v18 = add v0, 64
+    mstore 64, v18 !metadata(memory=scratch)
     mstore v0, 4
     v1 = add v0, 32
     mstore v1, 0x1122334400000000000000000000000000000000000000000000000000000000
