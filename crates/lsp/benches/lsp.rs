@@ -1482,6 +1482,89 @@ fn single_workspace_index_reuse(c: &mut Criterion) {
     }
 }
 
+fn fresh_completion_scaling(c: &mut Criterion) {
+    let source = "contract Main {
+uint marker0;
+function target() public view returns (uint) { return marker0; }
+}
+";
+    let edited_source = source.replace("marker0", "marker1");
+    let position = Position::new(2, 52);
+    for unrelated_count in [0, 8, 32] {
+        for separate_workspaces in [false, true] {
+            if unrelated_count == 0 && separate_workspaces {
+                continue;
+            }
+            let temp = tempfile::tempdir().expect("fresh completion benchmark directory");
+            let root = temp.path().join("active");
+            fs::create_dir(&root).unwrap();
+            let main = root.join("Main.sol");
+            fs::write(&main, source).unwrap();
+            let uri = Url::from_file_path(&main).unwrap();
+            let mut roots = vec![root.clone()];
+            let mut unrelated_paths = Vec::new();
+            for index in 0..unrelated_count {
+                let mut unrelated = format!("contract Unrelated{index} {{\n");
+                for function in 0..64 {
+                    writeln!(unrelated, "function f{function}(uint x) public pure returns (uint) {{ return x + {function}; }}").unwrap();
+                }
+                unrelated.push_str("}\n");
+                let path = if separate_workspaces {
+                    let root = temp.path().join(format!("unrelated-{index}"));
+                    fs::create_dir(&root).unwrap();
+                    let path = root.join("Main.sol");
+                    roots.push(root);
+                    path
+                } else {
+                    root.join(format!("Unrelated{index}.sol"))
+                };
+                fs::write(&path, unrelated).unwrap();
+                unrelated_paths.push(path);
+            }
+            let mut analysis = BenchmarkRepeatedAnalysis::from_workspaces(&roots, source);
+            analysis.clear_open_documents();
+            analysis.replace_source(&main, source);
+            assert!(analysis.run_epoch());
+            analysis.assert_no_diagnostics();
+            for path in &unrelated_paths {
+                let uri = Url::from_file_path(path).unwrap();
+                assert_eq!(
+                    analysis.prepare_call_hierarchy(&uri, Position::new(1, 10)).unwrap()[0].name,
+                    "f0"
+                );
+            }
+            let layout = if separate_workspaces { "separate-workspaces" } else { "same-workspace" };
+            let scenario = format!("{unrelated_count}-unrelated-64-functions-{layout}");
+            let check = |items: Vec<lsp_types::CompletionItem>, expected: &str| {
+                assert_eq!(items.len(), 1);
+                assert_eq!(items[0].label, expected);
+                black_box(items)
+            };
+            check(analysis.completions(&uri, position, "marker"), "marker0");
+            c.benchmark_group("lsp/fresh-completion-warm")
+                .bench_function(BenchmarkId::from_parameter(&scenario), |b| {
+                    b.iter(|| black_box(analysis.completions(&uri, position, "marker")))
+                });
+            let mut edited = false;
+            c.benchmark_group("lsp/fresh-completion-after-edit").bench_function(
+                BenchmarkId::from_parameter(&scenario),
+                |b| {
+                    b.iter(|| {
+                        edited = !edited;
+                        analysis
+                            .replace_source(&main, if edited { &edited_source } else { source });
+                        assert!(analysis.run_epoch());
+                        check(
+                            analysis.completions(&uri, position, "marker"),
+                            if edited { "marker1" } else { "marker0" },
+                        )
+                    })
+                },
+            );
+        }
+    }
+}
+
 fn workspace_index_reuse(c: &mut Criterion) {
     let workspace_count = 4;
     let caller_count = 256;
@@ -1876,6 +1959,7 @@ criterion_group!(
     repeated_analysis,
     workspace_index_reuse,
     single_workspace_index_reuse,
+    fresh_completion_scaling,
     workspace_path_queries,
     optimism_requests,
     unifap_benches

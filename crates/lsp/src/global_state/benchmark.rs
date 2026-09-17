@@ -579,8 +579,10 @@ impl BenchmarkRepeatedAnalysis {
         config.try_rediscover_workspaces().expect("benchmark workspace discovery should succeed");
         assert_eq!(config.workspaces().len(), roots.len());
         assert!(config.workspaces().iter().all(|workspace| {
-            workspace.source_files().len() == 1
-                && workspace.source_files()[0].file_name().is_some_and(|name| name == "Main.sol")
+            workspace
+                .source_files()
+                .iter()
+                .any(|path| path.file_name().is_some_and(|name| name == "Main.sol"))
         }));
         let mut state = super::GlobalState::new(ClientSocket::new_closed());
         state.config = Arc::new(config);
@@ -658,6 +660,15 @@ impl BenchmarkRepeatedAnalysis {
         position: Position,
     ) -> Option<Vec<CallHierarchyItem>> {
         self.state.symbol_tables.load().prepare_call_hierarchy(uri, position)
+    }
+
+    /// Complete names against the latest published snapshot.
+    pub fn completions(&self, uri: &Url, position: Position, prefix: &str) -> Vec<CompletionItem> {
+        self.state.symbol_tables.load().completion_items(
+            uri,
+            position,
+            CompletionContext::new(prefix, None),
+        )
     }
 
     /// Advance the VFS revision through an edit and undo before analysis begins.

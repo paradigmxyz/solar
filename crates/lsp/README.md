@@ -97,3 +97,8 @@ The benchmark groups intentionally keep separate timing boundaries:
   `single-workspace-changed`, and `single-workspace-unchanged` provide first-analysis, changed-text,
   and unchanged-epoch controls. These include synchronous filesystem validation and compiler work;
   they exclude protocol transport, debounce, and blocking-pool scheduling.
+- `fresh-completion-warm` and `fresh-completion-after-edit` compare a warm query with
+  an edit, a complete synchronous analysis epoch, and a checked fresh response.
+  Unrelated contracts share the active workspace or occupy separate workspaces.
+  See [the analysis latency investigation](ANALYSIS_LATENCY.md) for timing boundaries,
+  measurements, and the proposed request-snapshot boundary.
