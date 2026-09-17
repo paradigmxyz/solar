@@ -33,14 +33,11 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     mstore v5, arg0
     v78 = add v5, 32
     mstore v78, v0
-    v7 = mload v5
     v8 = sload 0 !metadata(storage=slot(0))
     v10 = and v8, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v11 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    v12 = or v10, v11
+    v12 = or v10, arg0
     sstore 0, v12 !metadata(storage=slot(0))
-    v14 = mload v78
-    v15 = mload v14
+    v15 = mload v0
     v16 = sload 1 !metadata(storage=slot(1))
     v17 = gt v16, v15
     jumpi v17, bb1, bb2
@@ -75,9 +72,8 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
   bb9:
     stop
   bb6:
-    v74 = add v14, 32
     v75 = shl 5, v35
-    v76 = add v74, v75
+    v76 = add v77, v75
     v37 = mload v76
     mstore 0, 1 !metadata(memory=scratch)
     v39 = shr 3, v35
@@ -178,6 +174,7 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     jumpi v25, bb4, bb2
   bb2:
     sstore v19, v21 !metadata(storage=offset(v12, 1))
+    v81 = add v20, 32
     jump bb5
   bb5:
     v41 = phi [bb2: 0], [bb6: v58]
@@ -202,7 +199,6 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     sstore 2, v9 !metadata(storage=slot(2))
     stop
   bb6:
-    v81 = add v20, 32
     v82 = shl 5, v41
     v83 = add v81, v82
     v43 = mload v83
@@ -317,14 +313,11 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     mstore v5, arg0
     v82 = add v5, 32
     mstore v82, v0
-    v11 = mload v5
     v12 = sload 3 !metadata(storage=slot(3))
     v14 = and v12, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v15 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
-    v16 = or v14, v15
+    v16 = or v14, arg0
     sstore 3, v16 !metadata(storage=slot(3))
-    v18 = mload v82
-    v19 = mload v18
+    v19 = mload v0
     v20 = sload 4 !metadata(storage=slot(4))
     v21 = gt v20, v19
     jumpi v21, bb1, bb2
@@ -359,9 +352,8 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
   bb9:
     stop
   bb6:
-    v78 = add v18, 32
     v79 = shl 5, v39
-    v80 = add v78, v79
+    v80 = add v81, v79
     v41 = mload v80
     mstore 0, 4 !metadata(memory=scratch)
     v43 = shr 3, v39

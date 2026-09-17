@@ -13,7 +13,7 @@
 contract ICallStackReturn {
     uint256 private state;
 
-    // Equivalent one-result entries share a stack-only body after outlining.
+    // Equivalent one-result entries share an inlined stack-only body.
     // GAS-LABEL: @module ICallStackReturn_runtime
     // GAS: push 0x1e388922
     // GAS-NEXT: eq
@@ -31,35 +31,34 @@ contract ICallStackReturn {
     // GAS-NEXT: eq
     // GAS-NEXT: push [[VOID_ENTRY:bb[0-9]+]]
     // GAS: [[COMMON_ENTRY]]:
-    // GAS-NEXT: push [[RETURN:bb[0-9]+]]
-    // GAS-NEXT: jump [[SHARED:bb[0-9]+]]
-    // GAS-NEXT: [[SHARED]]:
+    // GAS-NOT: mload
     // GAS: push 11
     // GAS-NEXT: mul
-    // GAS-NOT: mstore
-    // GAS: swap 2
-    // GAS-NEXT: jump
+    // GAS-NEXT: add
+    // GAS-NEXT: push 128
+    // GAS-NEXT: mstore
     // The void helper is inlined, keeping the multiplication live across storage writes.
     // GAS: [[VOID_ENTRY]]:
     // GAS: mul
     // GAS-NEXT: push 0
     // GAS-NEXT: sload
     // GAS: sstore
+    // The nested leaf is also inlined without reloading its result.
     // GAS: [[NESTED_ENTRY]]:
-    // GAS-NEXT: push [[NESTED_RETURN:bb[0-9]+]]
-    // GAS-NEXT: jump [[SHARED]]
+    // GAS-NOT: mload
+    // GAS: push 11
+    // GAS-NEXT: mul
+    // GAS-NEXT: push 3
+    // GAS-NEXT: add
+    // GAS-NEXT: add
     // ADDMOD consumes the inlined result without a frame reload.
     // GAS: [[MULTI_ENTRY]]:
     // GAS: or
     // GAS-NOT: mload
     // GAS: addmod
-    // GAS: [[NESTED_RETURN]] [continuation]:
-    // GAS-NEXT: push 3
-    // GAS-NEXT: add
 
-    // Both optimized modes keep a one-word helper result on the physical stack and remove its
-    // frame slot. Five operations keep each leaf above the tiny-leaf inlining threshold so these
-    // checks exercise the internal-call conventions.
+    // Size mode keeps a one-word helper result on the physical stack and removes its
+    // frame slot. Gas mode consumes the small helpers through single-use inlining.
     //
     // SIZE-LABEL: @module ICallStackReturn_runtime
     // SIZE: push 11

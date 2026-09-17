@@ -161,17 +161,16 @@ fn @preserveInput() -> struct0 [selector=0xd24f7044, abi_params=[], abi_returns=
     v6 = icall returndata_bytes<>
     v7 = iszero v5
     icall revert_if<empty>, v7
-    v8 = shl 248, 153
-    v9 = memory_object_len memorybytes, v0
-    v10 = lt 0, v9
-    v11 = iszero v10
-    icall panic_if<0x32>, v11
-    v12 = byte 0, v8
-    memory_object_store_byte memorybytes, v0, 0, v12
-    v13 = abi_decode [bytes], v6
-    v14 = insert_value struct0, undef struct0, 0, v13
-    v15 = insert_value struct0, v14, 1, v0
-    ret v15
+    v8 = memory_object_len memorybytes, v0
+    v9 = lt 0, v8
+    v10 = iszero v9
+    icall panic_if<0x32>, v10
+    v11 = byte 0, 0x9900000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_byte memorybytes, v0, 0, v11
+    v12 = abi_decode [bytes], v6
+    v13 = insert_value struct0, undef struct0, 0, v12
+    v14 = insert_value struct0, v13, 1, v0
+    ret v14
 }
 
 fn @failedCapture() -> struct1 [selector=0x5ee5463d, abi_params=[], abi_returns=[word<bool>, memory_bytes], abi_return_params=[bool, bytes]] {

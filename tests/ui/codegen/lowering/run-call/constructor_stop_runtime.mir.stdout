@@ -2,7 +2,7 @@
 @module ConstructorStopRuntime
 data:
   ConstructorStopAlways_initcode_0: hex"60c060405234600e5760015f55005b5f5ffd603080601b5f395ff334601a575f3560e01c80633fa4f24514601657601a565b601e565b5f5ffd5b5f546080526020608001608090036080f3"
-  ConstructorStopConditional_initcode_1: hex"60ba38038060ba60e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405234607c5760e08060c0528060c05260e060ba380301602082011115606b576067565b60015f5560e05115606357005b6080565b5f5ffd5b8060c0525160029010156067576056565b5f5ffd5b603080608a5f395ff334601a575f3560e01c80633fa4f24514601657601a565b601e565b5f5ffd5b5f546080526020608001608090036080f3"
+  ConstructorStopConditional_initcode_1: hex"60b038038060b060e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0166040523460725760e08060c0528060c05260e060b03803016020820111606e578060c052516002901015606e5760015f5560e051606c576076565b005b5f5ffd5b5f5ffd5b60308060805f395ff334601a575f3560e01c80633fa4f24514601657601a565b601e565b5f5ffd5b5f546080526020608001608090036080f3"
 
 fn @unconditional() -> u256 [selector=0x7d06b8f6, abi_params=[], abi_returns=[word]] {
   bb0:
@@ -29,13 +29,13 @@ fn @conditional(arg0: bool) -> u256 [selector=0x9077f189, abi_params=[bool], abi
     v1 = iszero v0
     v2 = abi_encode [word<bool>], args v1
     v3 = not 31
-    v4 = and 249, v3
+    v4 = and 239, v3
     v5 = alloc raw, exact, uninitialized, infallible, v4
-    data_copy ConstructorStopConditional_initcode_1, v5, 186
+    data_copy ConstructorStopConditional_initcode_1, v5, 176
     v6 = slice_ptr v2
-    v7 = add v5, 186
+    v7 = add v5, 176
     mcopy v7, v6, 32 !metadata(memory=heap)
-    v8 = create 0, v5, 218
+    v8 = create 0, v5, 208
     jumpi v8, bb2, bb1
   bb1:
     revert_returndata
@@ -50,13 +50,13 @@ fn @conditionalContinues() -> bool [selector=0x828f9845, abi_params=[], abi_retu
     v1 = iszero v0
     v2 = abi_encode [word<bool>], args v1
     v3 = not 31
-    v4 = and 249, v3
+    v4 = and 239, v3
     v5 = alloc raw, exact, uninitialized, infallible, v4
-    data_copy ConstructorStopConditional_initcode_1, v5, 186
+    data_copy ConstructorStopConditional_initcode_1, v5, 176
     v6 = slice_ptr v2
-    v7 = add v5, 186
+    v7 = add v5, 176
     mcopy v7, v6, 32 !metadata(memory=heap)
-    v8 = create 0, v5, 218
+    v8 = create 0, v5, 208
     jumpi v8, bb2, bb1
   bb1:
     revert_returndata

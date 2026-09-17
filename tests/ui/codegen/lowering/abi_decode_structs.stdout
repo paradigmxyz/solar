@@ -33,10 +33,8 @@ fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
   bb4:
     v35 = add v16, 64
     mstore v35, v23
-    v2 = mload v34
-    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    v4 = mload v35
-    v5 = iszero v4
+    v3 = and v19, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = iszero v23
     v6 = iszero v5
     v1 = mload v16
     mstore 128, v1
@@ -129,8 +127,7 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     v3 = mload v82
     v88 = add v3, 32
     v4 = mload v88
-    v5 = mload v86
-    v6 = mload v5
+    v6 = mload v47
     v57 = mload 64 !metadata(memory=scratch)
     v58 = add v57, 96
     mstore v57, v2
@@ -189,10 +186,12 @@ fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
     v24 = mload 64 !metadata(memory=scratch)
     v44 = add v24, 64
     mstore 64, v44 !metadata(memory=scratch)
+    v50 = add v24, 64
     jump bb7
   bb7:
-    v25 = phi [bb6: 0], [bb8: v30]
-    v26 = lt v25, 2
+    v45 = phi [bb6: v19], [bb8: v46]
+    v47 = phi [bb6: v24], [bb8: v48]
+    v26 = lt v47, v50
     jumpi v26, bb8, bb9
   bb9:
     v42 = add v24, 32
@@ -221,13 +220,10 @@ fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
     mstore 128, v11
     returndata 128, 32
   bb8:
-    v27 = shl 5, v25
-    v28 = add v19, v27
-    v29 = icall @decode_memory_type, v28, v19, v14
-    v40 = shl 5, v25
-    v41 = add v24, v40
-    mstore v41, v29
-    v30 = add v25, 1
+    v29 = icall @decode_memory_type, v45, v19, v14
+    mstore v47, v29
+    v46 = add v45, 32
+    v48 = add v47, 32
     jump bb7
   bb3:
     revert 0, 0

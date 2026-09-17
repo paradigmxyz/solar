@@ -123,8 +123,7 @@ fn @dirtyStructBranch(arg0: bool) -> memorystruct [selector=0x6dd0f9bf, pure, ab
   bb2:
     jump bb3
   bb1:
-    v3 = and 1, 255
-    memory_object_store_field memorystruct<1>, v1, 0, v3
+    memory_object_store_field memorystruct<1>, v1, 0, 1
     jump bb3
   bb3:
     ret v1
@@ -298,15 +297,14 @@ fn @dirtyMemoryLvalue() -> bool [selector=0x91f3b994, pure, abi_params=[], abi_r
     v3 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
     v4 = and v3, 255
     v5 = checked_add u8, v4, 1
-    v6 = and v5, 255
-    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v6
-    v7 = lt 0, 1
-    v8 = iszero v7
-    icall panic_if<0x32>, v8
-    v9 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
-    v10 = and v9, 255
-    v11 = eq v10, 2
-    ret v11
+    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v5
+    v6 = lt 0, 1
+    v7 = iszero v6
+    icall panic_if<0x32>, v7
+    v8 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
+    v9 = and v8, 255
+    v10 = eq v9, 2
+    ret v10
 }
 
 fn @dirtyEnum() -> u8 [selector=0x676092a0, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {

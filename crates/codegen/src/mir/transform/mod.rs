@@ -1,6 +1,7 @@
 //! Optimization and transformation passes for the Solar compiler.
 
 pub(crate) mod adce;
+pub(crate) mod byte_run;
 pub(crate) mod call_cleanup;
 pub(crate) mod cfg_simplify;
 pub(crate) mod check_elim;
@@ -9,9 +10,11 @@ pub(crate) mod copy_elision;
 pub(crate) mod cse;
 pub(crate) mod dce;
 pub(crate) mod egraph;
+pub(crate) mod element_cleanup;
 pub(crate) mod evm_inst_schedule;
 pub(crate) mod frame_promotion;
 pub(crate) mod function_compaction;
+pub(crate) mod if_convert;
 pub(crate) mod indvar_simplify;
 pub(crate) mod inline;
 pub(crate) mod inline_dispatch;
@@ -20,7 +23,9 @@ pub(crate) mod jump_threading;
 pub(crate) mod load_pre;
 pub(crate) mod loop_canonicalize;
 pub(crate) mod loop_exit_remat;
+pub(crate) mod loop_idioms;
 pub(crate) mod loop_opt;
+pub(crate) mod loop_split;
 pub(crate) mod lower_abi;
 pub(crate) mod lower_abi_encode;
 pub(crate) mod lower_aggregates;

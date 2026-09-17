@@ -2,7 +2,8 @@
 //@ filecheck:
 
 // Static frame overlays use compile-time-fixed frame addresses, while recursive
-// and mutually recursive calls share the dynamic frame allocator and epilogue.
+// and mutually recursive calls allocate dynamic frames from the free memory
+// pointer and restore it on return.
 contract SF {
     uint256 public s;
 
@@ -15,26 +16,41 @@ contract SF {
     // CHECK: [[GETTER]]:
     // CHECK-NEXT: push 0
     // CHECK-NEXT: sload
-    // CHECK-NEXT: jump [[GETTER_RETURN:bb[0-9]+]]
-    // CHECK: [[GETTER_RETURN]]:
+    // CHECK-NEXT: push 128
+    // CHECK-NEXT: mstore
     // CHECK: return
     // The allocating entry initializes its reachable frame floor.
     // CHECK: [[TOP]]:
-    // CHECK-NEXT: push 416
+    // CHECK-NEXT: push 384
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // Static locals use fixed addresses without a dynamic-frame header.
     // CHECK: push 224
     // CHECK-NEXT: mstore
-    // CHECK: push 352
+    // CHECK: push 320
     // CHECK-NEXT: mstore
-    // Recursive calls reserve dynamic frames through the shared allocator.
+    // Recursive calls reserve dynamic frames from the free-memory pointer.
     // CHECK: push 160
     // CHECK-NEXT: mload
-    // CHECK: [[REC_ALLOC:bb[0-9]+]] [continuation]:
     // CHECK: push 288
     // CHECK-NEXT: add
     // CHECK-NEXT: push 64
+    // CHECK-NEXT: mstore
+    // CHECK: push [[REC_RET:bb[0-9]+]]
+    // CHECK-NEXT: jump [[REC_ENTRY:bb[0-9]+]]
+    // CHECK: [[REC_ENTRY]]:
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // The continuation restores the caller's FMP and frame pointer from the frame.
+    // CHECK: [[REC_RET]] [continuation]:
+    // CHECK: push 64
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 32
+    // CHECK-NEXT: add
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 160
     // CHECK-NEXT: mstore
     function top(uint256 x) external returns (uint256) {
         uint256 keep = x * 3; // live across all the calls below

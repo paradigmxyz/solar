@@ -1,9 +1,12 @@
 //@compile-flags: -Zmir-pipeline=default
 //@filecheck: --implicit-check-not=internal_frame_addr --implicit-check-not=mload
 @module PipelineFrameIndVar
+// The promoted frame counter feeds a scaled and offset address, which the
+// strength reduction turns into a pointer phi.
 // CHECK-LABEL: fn @frame_counter_feeds_affine_address{{[( ]}}
+// CHECK: [[START:v[0-9]+]] = add arg1, 32
 // CHECK: [[INDEX:v[0-9]+]] = phi [bb0: 0], [bb2: [[NEXT_INDEX:v[0-9]+]]]
-// CHECK: [[ADDRESS:v[0-9]+]] = phi [bb0: arg1], [bb2: [[NEXT_ADDRESS:v[0-9]+]]]
+// CHECK: [[ADDRESS:v[0-9]+]] = phi [bb0: [[START]]], [bb2: [[NEXT_ADDRESS:v[0-9]+]]]
 // CHECK: mstore [[ADDRESS]], [[INDEX]]
 // CHECK: [[NEXT_INDEX]] = add [[INDEX]], 1
 // CHECK: [[NEXT_ADDRESS]] = add [[ADDRESS]], 32
@@ -19,7 +22,8 @@ fn @frame_counter_feeds_affine_address(arg0: u256, arg1: u256) -> u256 {
     jumpi v4, bb2, bb3
   bb2:
     v5 = mul v3, 32
-    v6 = add arg1, v5
+    v9 = add arg1, v5
+    v6 = add v9, 32
     mstore v6, v3
     v7 = add v3, 1
     v8 = internal_frame_addr 128

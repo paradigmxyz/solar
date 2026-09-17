@@ -3,29 +3,27 @@
 fn @mutateFirst(arg0: memorybytes) -> u256 [selector=0x781f0687, pure, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = abi_decode [tuple<u256>], arg0
-    v1 = shl 248, 2
-    v2 = memory_object_len memorybytes, arg0
-    v3 = lt 31, v2
-    v4 = iszero v3
-    icall panic_if<0x32>, v4
-    v5 = byte 0, v1
-    memory_object_store_byte memorybytes, arg0, 31, v5
-    v6 = memory_object_load_field memorystruct<1>, v0, 0
-    ret v6
+    v1 = memory_object_len memorybytes, arg0
+    v2 = lt 31, v1
+    v3 = iszero v2
+    icall panic_if<0x32>, v3
+    v4 = byte 0, 0x200000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_byte memorybytes, arg0, 31, v4
+    v5 = memory_object_load_field memorystruct<1>, v0, 0
+    ret v5
 }
 
 fn @mutateSecond(arg0: memorybytes) -> u256 [selector=0xe7eeece1, pure, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = abi_decode [tuple<u256>], arg0
-    v1 = shl 248, 3
-    v2 = memory_object_len memorybytes, arg0
-    v3 = lt 31, v2
-    v4 = iszero v3
-    icall panic_if<0x32>, v4
-    v5 = byte 0, v1
-    memory_object_store_byte memorybytes, arg0, 31, v5
-    v6 = memory_object_load_field memorystruct<1>, v0, 0
-    ret v6
+    v1 = memory_object_len memorybytes, arg0
+    v2 = lt 31, v1
+    v3 = iszero v2
+    icall panic_if<0x32>, v3
+    v4 = byte 0, 0x300000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_byte memorybytes, arg0, 31, v4
+    v5 = memory_object_load_field memorystruct<1>, v0, 0
+    ret v5
 }
 
 fn @mutateAlias(arg0: memorybytes) -> u256 [selector=0x60c81d20, pure, abi_params=[bytes], abi_returns=[word]] {
@@ -43,15 +41,14 @@ fn @mutateAliasInner(arg0: memorybytes, arg1: memorybytes) -> u256 [pure] {
   bb2:
     jump bb3
   bb3:
-    v3 = shl 248, 4
-    v4 = memory_object_len memorybytes, arg1
-    v5 = lt 31, v4
-    v6 = iszero v5
-    icall panic_if<0x32>, v6
-    v7 = byte 0, v3
-    memory_object_store_byte memorybytes, arg1, 31, v7
-    v8 = memory_object_load_field memorystruct<1>, v0, 0
-    ret v8
+    v3 = memory_object_len memorybytes, arg1
+    v4 = lt 31, v3
+    v5 = iszero v4
+    icall panic_if<0x32>, v5
+    v6 = byte 0, 0x400000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_byte memorybytes, arg1, 31, v6
+    v7 = memory_object_load_field memorystruct<1>, v0, 0
+    ret v7
   bb1:
     ret 0
 }

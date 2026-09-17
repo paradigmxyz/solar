@@ -15,15 +15,12 @@ contract StackPhiLoop {
     // CHECK: eq
     // CHECK: push [[CARRIED:bb[0-9]+]]
     // CHECK: jumpi
+    // The step select is arithmetic, `11 + flag * (7 - 11)`, so no join
+    // precedes the loop.
     // CHECK: [[CARRIED]]:
-    // CHECK-NOT: push 7
-    // CHECK: calldataload
-    // CHECK-NOT: push 7
-    // CHECK: iszero
-    // CHECK-NEXT: push [[ELSE:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
-    // CHECK-NEXT: push 7
-    // CHECK: [[CARRIED_MERGE:bb[0-9]+]]:
+    // CHECK: mul
+    // CHECK-NEXT: push 11
+    // CHECK-NEXT: add
     // CHECK: jump [[CARRIED_HEADER:bb[0-9]+]]
     // CHECK: {{bb[0-9]+}} [loop]:
     // CHECK: jumpi

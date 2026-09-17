@@ -217,12 +217,12 @@ fn @encPackedUint8(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [
     set_memory_object_len memoryarray, v33, v14
     jump bb1
   bb1:
-    v34 = phi [bb0: 0], [bb2: v43]
+    v34 = phi [bb0: 0], [bb2: v42]
     v35 = lt v34, v14
     jumpi v35, bb2, bb3
   bb3:
-    v44 = abi_encode_packed (array<word<u8>> memoryarray<1> v33)
-    ret v44
+    v43 = abi_encode_packed (array<word<u8>> memoryarray<1> v33)
+    ret v43
   bb2:
     v36 = mul v34, 32
     v37 = add v15, v36
@@ -231,9 +231,8 @@ fn @encPackedUint8(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [
     v40 = eq v38, v39
     v41 = iszero v40
     icall revert_if<empty>, v41
-    v42 = and v38, 255
-    memory_object_store_element memoryarray<1>, v33, v34, v42
-    v43 = add v34, 1
+    memory_object_store_element memoryarray<1>, v33, v34, v38
+    v42 = add v34, 1
     jump bb1
 }
 
@@ -286,34 +285,31 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
     v1 = and 66, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 3
-    v3 = shl 248, 65
-    v4 = memory_object_len memorybytes, v2
-    v5 = lt 0, v4
-    v6 = iszero v5
-    icall panic_if<0x32>, v6
-    v7 = byte 0, v3
-    memory_object_store_byte memorybytes, v2, 0, v7
-    v8 = shl 248, 66
-    v9 = memory_object_len memorybytes, v2
-    v10 = lt 1, v9
-    v11 = iszero v10
-    icall panic_if<0x32>, v11
-    v12 = byte 0, v8
-    memory_object_store_byte memorybytes, v2, 1, v12
-    v13 = shl 248, 66
-    v14 = memory_object_len memorybytes, v2
-    v15 = lt 2, v14
-    v16 = iszero v15
-    icall panic_if<0x32>, v16
-    v17 = byte 0, v13
-    memory_object_store_byte memorybytes, v2, 2, v17
+    v3 = memory_object_len memorybytes, v2
+    v4 = lt 0, v3
+    v5 = iszero v4
+    icall panic_if<0x32>, v5
+    v6 = byte 0, 0x4100000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_byte memorybytes, v2, 0, v6
+    v7 = memory_object_len memorybytes, v2
+    v8 = lt 1, v7
+    v9 = iszero v8
+    icall panic_if<0x32>, v9
+    v10 = byte 0, 0x4200000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_byte memorybytes, v2, 1, v10
+    v11 = memory_object_len memorybytes, v2
+    v12 = lt 2, v11
+    v13 = iszero v12
+    icall panic_if<0x32>, v13
+    v14 = byte 0, 0x4200000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_byte memorybytes, v2, 2, v14
     jump bb1
   bb1:
-    v18 = phi [bb0: v2], [bb3: v22]
-    v19 = phi [bb0: 0], [bb3: v61]
-    v20 = memory_object_len memorybytes, v18
-    v21 = lt v19, v20
-    jumpi v21, bb4, bb5
+    v15 = phi [bb0: v2], [bb3: v19]
+    v16 = phi [bb0: 0], [bb3: v58]
+    v17 = memory_object_len memorybytes, v15
+    v18 = lt v16, v17
+    jumpi v18, bb4, bb5
   bb5:
     jump bb2
   bb2:
@@ -321,13 +317,13 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
   bb4:
     jump bb7
   bb7:
-    v22 = phi [bb4: v18], [bb9: v22]
-    v23 = phi [bb4: v19], [bb9: v23]
-    v24 = phi [bb4: v19], [bb9: v60]
-    v25 = memory_object_len memorybytes, v22
-    v26 = gt v24, v25
-    v27 = iszero v26
-    jumpi v27, bb10, bb11
+    v19 = phi [bb4: v15], [bb9: v19]
+    v20 = phi [bb4: v16], [bb9: v20]
+    v21 = phi [bb4: v16], [bb9: v57]
+    v22 = memory_object_len memorybytes, v19
+    v23 = gt v21, v22
+    v24 = iszero v23
+    jumpi v24, bb10, bb11
   bb11:
     jump bb8
   bb8:
@@ -335,64 +331,64 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
   bb6:
     jump bb3
   bb3:
-    v61 = checked_add u256, v23, 1
+    v58 = checked_add u256, v20, 1
     jump bb1
   bb10:
-    v28 = address
-    v29 = gas
-    v30 = abi_encode [memory_bytes, word, word], selector 0xe3b899da00000000000000000000000000000000000000000000000000000000, args v22, v23, v24
-    v31 = slice_ptr v30
-    v32 = slice_len v30
-    v33 = staticcall v29, v28, v31, v32, 0, 0
-    jumpi v33, bb14, bb13
+    v25 = address
+    v26 = gas
+    v27 = abi_encode [memory_bytes, word, word], selector 0xe3b899da00000000000000000000000000000000000000000000000000000000, args v19, v20, v21
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = staticcall v26, v25, v28, v29, 0, 0
+    jumpi v30, bb14, bb13
   bb13:
     revert_returndata
   bb14:
-    v34 = icall returndata_bytes<>
-    v35 = abi_decode [bytes], v34
-    v36 = address
-    v37 = gas
-    v38 = abi_encode [memory_bytes, word, word], selector 0x31b229fc00000000000000000000000000000000000000000000000000000000, args v22, v23, v24
-    v39 = slice_ptr v38
-    v40 = slice_len v38
-    v41 = staticcall v37, v36, v39, v40, 0, 0
-    jumpi v41, bb16, bb15
+    v31 = icall returndata_bytes<>
+    v32 = abi_decode [bytes], v31
+    v33 = address
+    v34 = gas
+    v35 = abi_encode [memory_bytes, word, word], selector 0x31b229fc00000000000000000000000000000000000000000000000000000000, args v19, v20, v21
+    v36 = slice_ptr v35
+    v37 = slice_len v35
+    v38 = staticcall v34, v33, v36, v37, 0, 0
+    jumpi v38, bb16, bb15
   bb15:
     revert_returndata
   bb16:
-    v42 = icall returndata_bytes<>
-    v43 = abi_decode [bytes], v42
-    icall @compare, v35, v43
-    v44 = address
-    v45 = gas
-    v46 = abi_encode [memory_bytes, word, word], selector 0x676eb8e500000000000000000000000000000000000000000000000000000000, args v22, v23, v24
-    v47 = slice_ptr v46
-    v48 = slice_len v46
-    v49 = staticcall v45, v44, v47, v48, 0, 0
-    jumpi v49, bb18, bb17
+    v39 = icall returndata_bytes<>
+    v40 = abi_decode [bytes], v39
+    icall @compare, v32, v40
+    v41 = address
+    v42 = gas
+    v43 = abi_encode [memory_bytes, word, word], selector 0x676eb8e500000000000000000000000000000000000000000000000000000000, args v19, v20, v21
+    v44 = slice_ptr v43
+    v45 = slice_len v43
+    v46 = staticcall v42, v41, v44, v45, 0, 0
+    jumpi v46, bb18, bb17
   bb17:
     revert_returndata
   bb18:
-    v50 = icall returndata_bytes<>
-    v51 = abi_decode [bytes], v50
-    v52 = address
-    v53 = gas
-    v54 = abi_encode [memory_bytes, word, word], selector 0x94ba4b1300000000000000000000000000000000000000000000000000000000, args v22, v23, v24
-    v55 = slice_ptr v54
-    v56 = slice_len v54
-    v57 = staticcall v53, v52, v55, v56, 0, 0
-    jumpi v57, bb20, bb19
+    v47 = icall returndata_bytes<>
+    v48 = abi_decode [bytes], v47
+    v49 = address
+    v50 = gas
+    v51 = abi_encode [memory_bytes, word, word], selector 0x94ba4b1300000000000000000000000000000000000000000000000000000000, args v19, v20, v21
+    v52 = slice_ptr v51
+    v53 = slice_len v51
+    v54 = staticcall v50, v49, v52, v53, 0, 0
+    jumpi v54, bb20, bb19
   bb19:
     revert_returndata
   bb20:
-    v58 = icall returndata_bytes<>
-    v59 = abi_decode [bytes], v58
-    icall @compare, v51, v59
+    v55 = icall returndata_bytes<>
+    v56 = abi_decode [bytes], v55
+    icall @compare, v48, v56
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v60 = checked_add u256, v24, 1
+    v57 = checked_add u256, v21, 1
     jump bb7
 }
 

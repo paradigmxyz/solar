@@ -29,15 +29,15 @@ fn @encode3d(arg0: calldataslice) -> bytes32 [selector=0x92a57dfa, pure, abi_par
     set_memory_object_len memoryarray, v19, v0
     jump bb1
   bb1:
-    v20 = phi [bb0: 0], [bb6: v93]
+    v20 = phi [bb0: 0], [bb6: v92]
     v21 = lt v20, v0
     jumpi v21, bb2, bb3
   bb3:
-    v94 = abi_encode [memory_array<memory_array<memory_array<word<u8>>>>], scratch, args v19
-    v95 = slice_ptr v94
-    v96 = slice_len v94
-    v97 = keccak256 v95, v96
-    ret v97
+    v93 = abi_encode [memory_array<memory_array<memory_array<word<u8>>>>], scratch, args v19
+    v94 = slice_ptr v93
+    v95 = slice_len v93
+    v96 = keccak256 v94, v95
+    ret v96
   bb2:
     v22 = mul v20, 32
     v23 = add v1, v22
@@ -77,12 +77,12 @@ fn @encode3d(arg0: calldataslice) -> bytes32 [selector=0x92a57dfa, pure, abi_par
     set_memory_object_len memoryarray, v50, v34
     jump bb4
   bb4:
-    v51 = phi [bb2: 0], [bb9: v92]
+    v51 = phi [bb2: 0], [bb9: v91]
     v52 = lt v51, v34
     jumpi v52, bb5, bb6
   bb6:
     memory_object_store_element memoryarray<1>, v19, v20, v50
-    v93 = add v20, 1
+    v92 = add v20, 1
     jump bb1
   bb5:
     v53 = mul v51, 32
@@ -123,12 +123,12 @@ fn @encode3d(arg0: calldataslice) -> bytes32 [selector=0x92a57dfa, pure, abi_par
     set_memory_object_len memoryarray, v81, v65
     jump bb7
   bb7:
-    v82 = phi [bb5: 0], [bb8: v91]
+    v82 = phi [bb5: 0], [bb8: v90]
     v83 = lt v82, v65
     jumpi v83, bb8, bb9
   bb9:
     memory_object_store_element memoryarray<1>, v50, v51, v81
-    v92 = add v51, 1
+    v91 = add v51, 1
     jump bb4
   bb8:
     v84 = mul v82, 32
@@ -138,9 +138,8 @@ fn @encode3d(arg0: calldataslice) -> bytes32 [selector=0x92a57dfa, pure, abi_par
     v88 = eq v86, v87
     v89 = iszero v88
     icall revert_if<empty>, v89
-    v90 = and v86, 255
-    memory_object_store_element memoryarray<1>, v81, v82, v90
-    v91 = add v82, 1
+    memory_object_store_element memoryarray<1>, v81, v82, v86
+    v90 = add v82, 1
     jump bb7
 }
 
@@ -173,15 +172,15 @@ fn @encodeFixed(arg0: calldataslice) -> bytes32 [selector=0x8942c5a0, pure, abi_
     set_memory_object_len memoryarray, v19, v0
     jump bb1
   bb1:
-    v20 = phi [bb0: 0], [bb6: v80]
+    v20 = phi [bb0: 0], [bb6: v79]
     v21 = lt v20, v0
     jumpi v21, bb2, bb3
   bb3:
-    v81 = abi_encode [memory_array<array<2, memory_array<word<u16>>>>], scratch, args v19
-    v82 = slice_ptr v81
-    v83 = slice_len v81
-    v84 = keccak256 v82, v83
-    ret v84
+    v80 = abi_encode [memory_array<array<2, memory_array<word<u16>>>>], scratch, args v19
+    v81 = slice_ptr v80
+    v82 = slice_len v80
+    v83 = keccak256 v81, v82
+    ret v83
   bb2:
     v22 = mul v20, 32
     v23 = add v1, v22
@@ -204,12 +203,12 @@ fn @encodeFixed(arg0: calldataslice) -> bytes32 [selector=0x8942c5a0, pure, abi_
     v37 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     jump bb4
   bb4:
-    v38 = phi [bb2: 0], [bb9: v79]
+    v38 = phi [bb2: 0], [bb9: v78]
     v39 = lt v38, 2
     jumpi v39, bb5, bb6
   bb6:
     memory_object_store_element memoryarray<1>, v19, v20, v37
-    v80 = add v20, 1
+    v79 = add v20, 1
     jump bb1
   bb5:
     v40 = mul v38, 32
@@ -250,12 +249,12 @@ fn @encodeFixed(arg0: calldataslice) -> bytes32 [selector=0x8942c5a0, pure, abi_
     set_memory_object_len memoryarray, v68, v52
     jump bb7
   bb7:
-    v69 = phi [bb5: 0], [bb8: v78]
+    v69 = phi [bb5: 0], [bb8: v77]
     v70 = lt v69, v52
     jumpi v70, bb8, bb9
   bb9:
     memory_object_store_element memoryfixedarray<2, 1>, v37, v38, v68
-    v79 = add v38, 1
+    v78 = add v38, 1
     jump bb4
   bb8:
     v71 = mul v69, 32
@@ -265,8 +264,7 @@ fn @encodeFixed(arg0: calldataslice) -> bytes32 [selector=0x8942c5a0, pure, abi_
     v75 = eq v73, v74
     v76 = iszero v75
     icall revert_if<empty>, v76
-    v77 = and v73, 0xffff
-    memory_object_store_element memoryarray<1>, v68, v69, v77
-    v78 = add v69, 1
+    memory_object_store_element memoryarray<1>, v68, v69, v73
+    v77 = add v69, 1
     jump bb7
 }

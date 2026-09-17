@@ -6,7 +6,7 @@ bb0:
   lt
   callvalue
   or
-  push bb2
+  push bb4
   jumpi
   push 0
   calldataload
@@ -22,8 +22,8 @@ bb0:
   eq
   push bb7
   jumpi
-  jump bb2
-bb2 [cold]:
+  jump bb4
+bb4 [cold]:
   push 0
   push 0
   revert
@@ -65,7 +65,7 @@ bb11:
   swap 2
   gt
   or
-  push bb2
+  push bb4
   jumpi
   swap 1
   jump
@@ -91,8 +91,6 @@ bb6 [continuation]:
   dup 2
   mstore
   push 32
-  jump bb14
-bb14:
   add
   dup 2
   swap 1
@@ -112,7 +110,7 @@ bb7:
   calldataload
   push 160
   shr
-  push bb2
+  push bb4
   jumpi
   push bb9
   push 4
@@ -148,4 +146,14 @@ bb9 [continuation]:
   dup 2
   mstore
   push 20
-  jump bb14
+  add
+  dup 2
+  swap 1
+  sub
+  swap 1
+  keccak256
+  push 128
+  mstore
+  push 32
+  push 128
+  return

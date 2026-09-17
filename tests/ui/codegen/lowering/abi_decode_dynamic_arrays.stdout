@@ -55,8 +55,7 @@ fn @words() [selector=0x5a7641c8, abi_wrapper, pure] {
     mcopy v49, v9, v24
     v41 = iszero v23
     v42 = iszero v41
-    v40 = mload v23
-    v43 = mul v40, v42
+    v43 = mul v13, v42
     v45 = shl 5, v43
     v46 = add v49, 32
     mcopy v46, v49, v45
@@ -119,6 +118,7 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
     v32 = gt v13, v31
     jumpi v32, bb1, bb8
   bb8:
+    v92 = add v23, 32
     jump bb9
   bb9:
     v33 = phi [bb8: v13], [bb12: v39]
@@ -139,10 +139,15 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
     v105 = add v54, v48
     mstore 64, v105 !metadata(memory=scratch)
     mstore v54, v45
+    v95 = add v23, 32
+    v98 = add v54, 32
+    v111 = shl 5, v45
+    v112 = add v98, v111
     jump bb15
   bb15:
-    v55 = phi [bb14: 0], [bb16: v60]
-    v56 = lt v55, v45
+    v107 = phi [bb14: v98], [bb16: v108]
+    v109 = phi [bb14: v95], [bb16: v110]
+    v56 = lt v107, v112
     jumpi v56, bb16, bb17
   bb17:
     v64 = mload 64 !metadata(memory=scratch)
@@ -178,23 +183,18 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
     mstore 64, v106 !metadata(memory=scratch)
     returndata v90, v85
   bb16:
-    v95 = add v23, 32
-    v96 = shl 5, v55
-    v97 = add v95, v96
-    v57 = mload v97
+    v57 = mload v109
     v58 = iszero v57
     v59 = iszero v58
-    v98 = add v54, 32
-    v100 = add v98, v96
-    mstore v100, v59
-    v60 = add v55, 1
+    mstore v107, v59
+    v108 = add v107, 32
+    v110 = add v109, 32
     jump bb15
   bb10:
     v37 = mload v34
     v38 = lt v37, 2
     jumpi v38, bb12, bb1
   bb12:
-    v92 = add v23, 32
     v93 = shl 5, v35
     v94 = add v92, v93
     mstore v94, v37

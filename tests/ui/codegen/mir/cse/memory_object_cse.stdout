@@ -92,8 +92,9 @@
       set_memory_object_len memorybytes, arg0, 3
       v0 = word_cast arg0
       mstore v0, arg1
-      v1 = memory_object_len memorybytes, arg0
-      ret v1
+-     v1 = memory_object_len memorybytes, arg0
+-     ret v1
++     ret arg1
   }
   
   fn @diamond_header_clobber(arg0: memorybytes, arg1: u256) -> u256 {

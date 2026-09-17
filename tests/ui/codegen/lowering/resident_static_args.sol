@@ -16,7 +16,7 @@
 contract ResidentStaticArgs {
     error Failed(uint256 value);
 
-    // The outlined shared body loads arguments directly and returns its result
+    // The shared body receives arguments directly on the stack and returns its result
     // on the stack, without allocating a parameter frame.
     // CHECK-LABEL: @module ResidentStaticArgs_runtime
     // CHECK: push 0xa3395f5
@@ -28,17 +28,22 @@ contract ResidentStaticArgs {
     // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push [[RET:bb[0-9]+]]
-    // CHECK-NEXT: jump [[CHOOSE:bb[0-9]+]]
-    // CHECK-NEXT: [[CHOOSE]]:
     // CHECK-NEXT: push 4
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: push 36
     // CHECK-NEXT: calldataload
-    // CHECK-NEXT: iszero
+    // CHECK-NEXT: jump [[CHOOSE:bb[0-9]+]]
+    // CHECK-NEXT: [[CHOOSE]]:
     // CHECK-NEXT: push [[OTHER:bb[0-9]+]]
     // CHECK-NEXT: jumpi
-    // CHECK-NEXT: push 1
+    // CHECK-NEXT: push 2
+    // CHECK-NEXT: dup 2
     // CHECK-NEXT: add
+    // CHECK-NEXT: swap 1
+    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: lt
+    // CHECK-NEXT: push {{bb[0-9]+}}
+    // CHECK-NEXT: jumpi
     // CHECK-NOT: mload
     // CHECK-NOT: mstore
     // CHECK: swap 1

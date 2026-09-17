@@ -67,7 +67,8 @@ fn @same_select(arg0: bool) -> u256 {
 }
 
 // CHECK-LABEL: @joined_select
-// CHECK: -     {{v[0-9]+}} = mload [[FIRST:v[0-9]+]]
+// CHECK: {{^ +}}mstore [[FIRST:v[0-9]+]], 1
+// CHECK: -     {{v[0-9]+}} = mload [[FIRST]]
 // CHECK: {{^ +}}mstore
 // CHECK: {{^ +}}[[AFTER:v[0-9]+]] = mload [[FIRST]]
 // CHECK: +     {{v[0-9]+}} = add 1, [[AFTER]]
@@ -87,10 +88,11 @@ fn @joined_select(arg0: bool) -> u256 {
 // CHECK-LABEL: @distinct_loop_allocations
 // CHECK: [[FIRST:v[0-9]+]] = alloc
 // CHECK: [[SECOND:v[0-9]+]] = alloc
+// CHECK: mstore [[FIRST]], 7
 // CHECK: -     {{v[0-9]+}} = mload [[FIRST]]
 // CHECK: mstore [[SECOND]]
 // CHECK: -     {{v[0-9]+}} = mload [[FIRST]]
-// CHECK: +     {{v[0-9]+}} = add 7, 7
+// CHECK: + {{v[0-9]+}} = add 7, 7
 fn @distinct_loop_allocations(arg0: bool) -> u256 {
   bb0:
     jump bb1

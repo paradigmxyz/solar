@@ -28,7 +28,8 @@ fn @constant_index() -> u256 {
     ret 7
 }
 
-// Runtime lengths still need the bounds branch.
+// Runtime lengths also need a reload: the raw FMP update and unbounded copy
+// can alias the length word.
 // CHECK-LABEL: fn @runtime_index{{[( ]}}
 // CHECK: [[LENGTH:v[0-9]+]] = mload {{v[0-9]+}}
 // CHECK: [[IN_BOUNDS:v[0-9]+]] = lt 1, [[LENGTH]]

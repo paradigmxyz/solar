@@ -1,4 +1,4 @@
-//@ compile-flags: -Zevm-ir-pipeline=outline
+//@ compile-flags: -Zevm-ir-pipeline=outline --optimize-runs 1
 //@ filecheck:
 @module DebugInfo
 

@@ -6,7 +6,7 @@ bb0:
   lt
   callvalue
   or
-  push bb7
+  push bb11
   jumpi
   push 0
   calldataload
@@ -44,14 +44,12 @@ bb0:
   dup 3
   dup 3
   or
-  jump bb9
-bb9:
+  jump bb12
+bb12:
   swap 3
   swap 1
   swap 2
   and
-  jump bb8
-bb8:
   push 128
   mstore
   push 160
@@ -61,7 +59,7 @@ bb8:
   push 96
   push 128
   return
-bb7 [cold]:
+bb11 [cold]:
   push 0
   push 0
   revert
@@ -69,7 +67,7 @@ bb2:
   dup 1
   push 0xcad0899b
   sub
-  push bb7
+  push bb11
   jumpi
   pop
   push 256
@@ -82,7 +80,7 @@ bb2:
   dup 3
   dup 3
   add
-  jump bb9
+  jump bb12
 bb4:
   dup 1
   push 0x966953d1
@@ -104,12 +102,20 @@ bb4:
   swap 1
   swap 2
   or
-  jump bb8
+  push 128
+  mstore
+  push 160
+  mstore
+  push 192
+  mstore
+  push 96
+  push 128
+  return
 bb5:
   dup 1
   push 0x9ed41ba1
   sub
-  push bb7
+  push bb11
   jumpi
   pop
   push 256
@@ -122,4 +128,4 @@ bb5:
   dup 3
   dup 3
   xor
-  jump bb9
+  jump bb12

@@ -109,58 +109,56 @@ fn @constructor() [constructor] {
     v86 = shl 168, v85
     v87 = or v84, v86
     sstore 3, v87 !metadata(storage=slot(3))
-    v88 = shl 224, 0x11223344
-    v89 = sload 4 !metadata(storage=slot(4))
-    v90 = not 0xffffffff
-    v91 = and v89, v90
-    v92 = shr 224, v88
-    v93 = and v92, 0xffffffff
-    v94 = or v91, v93
-    sstore 4, v94 !metadata(storage=slot(4))
-    v95 = sub 0, 7
-    v96 = shl 32, 255
-    v97 = sload 4 !metadata(storage=slot(4))
-    v98 = not v96
-    v99 = and v97, v98
-    v100 = and v95, 255
-    v101 = shl 32, v100
-    v102 = or v99, v101
-    sstore 4, v102 !metadata(storage=slot(4))
-    v103 = shl 224, 0x55667788
-    v104 = lt 1, 2
-    v105 = iszero v104
-    icall panic_if<0x32>, v105
-    v106 = div 1, 8
-    v107 = add 5, v106
-    v108 = mod 1, 8
-    v109 = mul v108, 4
-    v110 = mul v109, 8
-    v111 = shl v110, 0xffffffff
-    v112 = sload v107 !metadata(storage=offset(v106, 5))
-    v113 = not v111
-    v114 = and v112, v113
-    v115 = shr 224, v103
-    v116 = and v115, 0xffffffff
-    v117 = shl v110, v116
-    v118 = or v114, v117
-    sstore v107, v118 !metadata(storage=offset(v106, 5))
-    v119 = sub 0, 8
-    v120 = lt 1, 2
-    v121 = iszero v120
-    icall panic_if<0x32>, v121
-    v122 = div 1, 32
-    v123 = add 6, v122
-    v124 = mod 1, 32
-    v125 = mul v124, 1
-    v126 = mul v125, 8
-    v127 = shl v126, 255
-    v128 = sload v123 !metadata(storage=offset(v122, 6))
-    v129 = not v127
-    v130 = and v128, v129
-    v131 = and v119, 255
-    v132 = shl v126, v131
-    v133 = or v130, v132
-    sstore v123, v133 !metadata(storage=offset(v122, 6))
+    v88 = sload 4 !metadata(storage=slot(4))
+    v89 = not 0xffffffff
+    v90 = and v88, v89
+    v91 = shr 224, 0x1122334400000000000000000000000000000000000000000000000000000000
+    v92 = and v91, 0xffffffff
+    v93 = or v90, v92
+    sstore 4, v93 !metadata(storage=slot(4))
+    v94 = sub 0, 7
+    v95 = shl 32, 255
+    v96 = sload 4 !metadata(storage=slot(4))
+    v97 = not v95
+    v98 = and v96, v97
+    v99 = and v94, 255
+    v100 = shl 32, v99
+    v101 = or v98, v100
+    sstore 4, v101 !metadata(storage=slot(4))
+    v102 = lt 1, 2
+    v103 = iszero v102
+    icall panic_if<0x32>, v103
+    v104 = div 1, 8
+    v105 = add 5, v104
+    v106 = mod 1, 8
+    v107 = mul v106, 4
+    v108 = mul v107, 8
+    v109 = shl v108, 0xffffffff
+    v110 = sload v105 !metadata(storage=offset(v104, 5))
+    v111 = not v109
+    v112 = and v110, v111
+    v113 = shr 224, 0x5566778800000000000000000000000000000000000000000000000000000000
+    v114 = and v113, 0xffffffff
+    v115 = shl v108, v114
+    v116 = or v112, v115
+    sstore v105, v116 !metadata(storage=offset(v104, 5))
+    v117 = sub 0, 8
+    v118 = lt 1, 2
+    v119 = iszero v118
+    icall panic_if<0x32>, v119
+    v120 = div 1, 32
+    v121 = add 6, v120
+    v122 = mod 1, 32
+    v123 = mul v122, 1
+    v124 = mul v123, 8
+    v125 = shl v124, 255
+    v126 = sload v121 !metadata(storage=offset(v120, 6))
+    v127 = not v125
+    v128 = and v126, v127
+    v129 = and v117, 255
+    v130 = shl v124, v129
+    v131 = or v128, v130
+    sstore v121, v131 !metadata(storage=offset(v120, 6))
     ret
 }
 
@@ -184,25 +182,23 @@ fn @copyValues() -> struct0 [selector=0xd888038d, view, abi_params=[], abi_retur
     v0 = alloc memorystruct<3>, exact, uninitialized, panic, 96
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = and v1, 255
-    v3 = and v2, 255
-    memory_object_store_field memorystruct<3>, v0, 0, v3
-    v4 = sload 0 !metadata(storage=slot(0))
-    v5 = shr 8, v4
-    v6 = and v5, 255
-    v7 = and v6, 255
-    memory_object_store_field memorystruct<3>, v0, 1, v7
-    v8 = add 0, 1
-    v9 = sload v8 !metadata(storage=slot(1))
-    memory_object_store_field memorystruct<3>, v0, 2, v9
-    v10 = memory_object_load_field memorystruct<3>, v0, 0
+    memory_object_store_field memorystruct<3>, v0, 0, v2
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = shr 8, v3
+    v5 = and v4, 255
+    memory_object_store_field memorystruct<3>, v0, 1, v5
+    v6 = add 0, 1
+    v7 = sload v6 !metadata(storage=slot(1))
+    memory_object_store_field memorystruct<3>, v0, 2, v7
+    v8 = memory_object_load_field memorystruct<3>, v0, 0
+    v9 = and v8, 255
+    v10 = memory_object_load_field memorystruct<3>, v0, 1
     v11 = and v10, 255
-    v12 = memory_object_load_field memorystruct<3>, v0, 1
-    v13 = and v12, 255
-    v14 = memory_object_load_field memorystruct<3>, v0, 2
-    v15 = insert_value struct0, undef struct0, 0, v11
-    v16 = insert_value struct0, v15, 1, v13
-    v17 = insert_value struct0, v16, 2, v14
-    ret v17
+    v12 = memory_object_load_field memorystruct<3>, v0, 2
+    v13 = insert_value struct0, undef struct0, 0, v9
+    v14 = insert_value struct0, v13, 1, v11
+    v15 = insert_value struct0, v14, 2, v12
+    ret v15
 }
 
 fn @raw() -> bytes32 [selector=0xc096a632, view, abi_params=[], abi_returns=[word]] {
@@ -498,109 +494,105 @@ fn @replaceArray() -> struct2 [selector=0x47102f59, abi_params=[], abi_returns=[
     v1 = lt 0, 4
     v2 = iszero v1
     icall panic_if<0x32>, v2
-    v3 = and 5, 255
-    memory_object_store_element memoryfixedarray<4, 1>, v0, 0, v3
-    v4 = lt 1, 4
-    v5 = iszero v4
-    icall panic_if<0x32>, v5
-    v6 = and 6, 255
-    memory_object_store_element memoryfixedarray<4, 1>, v0, 1, v6
-    v7 = lt 2, 4
+    memory_object_store_element memoryfixedarray<4, 1>, v0, 0, 5
+    v3 = lt 1, 4
+    v4 = iszero v3
+    icall panic_if<0x32>, v4
+    memory_object_store_element memoryfixedarray<4, 1>, v0, 1, 6
+    v5 = lt 2, 4
+    v6 = iszero v5
+    icall panic_if<0x32>, v6
+    memory_object_store_element memoryfixedarray<4, 1>, v0, 2, 7
+    v7 = lt 3, 4
     v8 = iszero v7
     icall panic_if<0x32>, v8
-    v9 = and 7, 255
-    memory_object_store_element memoryfixedarray<4, 1>, v0, 2, v9
-    v10 = lt 3, 4
-    v11 = iszero v10
-    icall panic_if<0x32>, v11
-    v12 = and 8, 255
-    memory_object_store_element memoryfixedarray<4, 1>, v0, 3, v12
+    memory_object_store_element memoryfixedarray<4, 1>, v0, 3, 8
     jump bb1
   bb1:
-    v13 = phi [bb0: 0], [bb6: v37]
-    v14 = lt v13, 4
-    jumpi v14, bb2, bb3
+    v9 = phi [bb0: 0], [bb6: v33]
+    v10 = lt v9, 4
+    jumpi v10, bb2, bb3
   bb3:
-    v38 = lt 0, 4
-    v39 = iszero v38
-    icall panic_if<0x32>, v39
-    v40 = div 0, 32
-    v41 = add 2, v40
-    v42 = mod 0, 32
-    v43 = mul v42, 1
-    v44 = sload v41 !metadata(storage=offset(v40, 2))
-    v45 = mul v43, 8
-    v46 = shr v45, v44
-    v47 = and v46, 255
-    v48 = lt 1, 4
-    v49 = iszero v48
-    icall panic_if<0x32>, v49
-    v50 = div 1, 32
-    v51 = add 2, v50
-    v52 = mod 1, 32
-    v53 = mul v52, 1
-    v54 = sload v51 !metadata(storage=offset(v50, 2))
-    v55 = mul v53, 8
-    v56 = shr v55, v54
-    v57 = and v56, 255
-    v58 = lt 2, 4
-    v59 = iszero v58
-    icall panic_if<0x32>, v59
-    v60 = div 2, 32
-    v61 = add 2, v60
-    v62 = mod 2, 32
-    v63 = mul v62, 1
-    v64 = sload v61 !metadata(storage=offset(v60, 2))
-    v65 = mul v63, 8
-    v66 = shr v65, v64
-    v67 = and v66, 255
-    v68 = lt 3, 4
-    v69 = iszero v68
-    icall panic_if<0x32>, v69
-    v70 = div 3, 32
-    v71 = add 2, v70
-    v72 = mod 3, 32
-    v73 = mul v72, 1
-    v74 = sload v71 !metadata(storage=offset(v70, 2))
-    v75 = mul v73, 8
-    v76 = shr v75, v74
-    v77 = and v76, 255
-    v78 = insert_value struct2, undef struct2, 0, v47
-    v79 = insert_value struct2, v78, 1, v57
-    v80 = insert_value struct2, v79, 2, v67
-    v81 = insert_value struct2, v80, 3, v77
-    ret v81
+    v34 = lt 0, 4
+    v35 = iszero v34
+    icall panic_if<0x32>, v35
+    v36 = div 0, 32
+    v37 = add 2, v36
+    v38 = mod 0, 32
+    v39 = mul v38, 1
+    v40 = sload v37 !metadata(storage=offset(v36, 2))
+    v41 = mul v39, 8
+    v42 = shr v41, v40
+    v43 = and v42, 255
+    v44 = lt 1, 4
+    v45 = iszero v44
+    icall panic_if<0x32>, v45
+    v46 = div 1, 32
+    v47 = add 2, v46
+    v48 = mod 1, 32
+    v49 = mul v48, 1
+    v50 = sload v47 !metadata(storage=offset(v46, 2))
+    v51 = mul v49, 8
+    v52 = shr v51, v50
+    v53 = and v52, 255
+    v54 = lt 2, 4
+    v55 = iszero v54
+    icall panic_if<0x32>, v55
+    v56 = div 2, 32
+    v57 = add 2, v56
+    v58 = mod 2, 32
+    v59 = mul v58, 1
+    v60 = sload v57 !metadata(storage=offset(v56, 2))
+    v61 = mul v59, 8
+    v62 = shr v61, v60
+    v63 = and v62, 255
+    v64 = lt 3, 4
+    v65 = iszero v64
+    icall panic_if<0x32>, v65
+    v66 = div 3, 32
+    v67 = add 2, v66
+    v68 = mod 3, 32
+    v69 = mul v68, 1
+    v70 = sload v67 !metadata(storage=offset(v66, 2))
+    v71 = mul v69, 8
+    v72 = shr v71, v70
+    v73 = and v72, 255
+    v74 = insert_value struct2, undef struct2, 0, v43
+    v75 = insert_value struct2, v74, 1, v53
+    v76 = insert_value struct2, v75, 2, v63
+    v77 = insert_value struct2, v76, 3, v73
+    ret v77
   bb2:
-    v15 = div v13, 32
-    v16 = add 2, v15
-    v17 = mod v13, 32
-    v18 = mul v17, 1
-    v19 = lt v13, 4
-    jumpi v19, bb4, bb5
+    v11 = div v9, 32
+    v12 = add 2, v11
+    v13 = mod v9, 32
+    v14 = mul v13, 1
+    v15 = lt v9, 4
+    jumpi v15, bb4, bb5
   bb5:
-    v29 = mul v18, 8
-    v30 = shl v29, 255
-    v31 = sload v16 !metadata(storage=offset(v15, 2))
-    v32 = not v30
-    v33 = and v31, v32
-    v34 = and 0, 255
-    v35 = shl v29, v34
-    v36 = or v33, v35
-    sstore v16, v36 !metadata(storage=offset(v15, 2))
+    v25 = mul v14, 8
+    v26 = shl v25, 255
+    v27 = sload v12 !metadata(storage=offset(v11, 2))
+    v28 = not v26
+    v29 = and v27, v28
+    v30 = and 0, 255
+    v31 = shl v25, v30
+    v32 = or v29, v31
+    sstore v12, v32 !metadata(storage=offset(v11, 2))
     jump bb6
   bb4:
-    v20 = memory_object_load_element memoryfixedarray<4, 1>, v0, v13
-    v21 = mul v18, 8
-    v22 = shl v21, 255
-    v23 = sload v16 !metadata(storage=offset(v15, 2))
-    v24 = not v22
-    v25 = and v23, v24
-    v26 = and v20, 255
-    v27 = shl v21, v26
-    v28 = or v25, v27
-    sstore v16, v28 !metadata(storage=offset(v15, 2))
+    v16 = memory_object_load_element memoryfixedarray<4, 1>, v0, v9
+    v17 = mul v14, 8
+    v18 = shl v17, 255
+    v19 = sload v12 !metadata(storage=offset(v11, 2))
+    v20 = not v18
+    v21 = and v19, v20
+    v22 = and v16, 255
+    v23 = shl v17, v22
+    v24 = or v21, v23
+    sstore v12, v24 !metadata(storage=offset(v11, 2))
     jump bb6
   bb6:
-    v37 = add v13, 1
+    v33 = add v9, 1
     jump bb1
 }

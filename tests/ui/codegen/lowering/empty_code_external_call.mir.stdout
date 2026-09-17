@@ -219,19 +219,19 @@ fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
 // === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTryFactory ===
 @module EmptyCodeTryFactory
 data:
-  EmptyCodeTryConstructor_initcode_0: hex"61012060405234609b575a8060e0528060e05260405180610100528061010052602081016040527f5dfc2e4a0000000000000000000000000000000000000000000000000000000081526004810150308060c0523b1515607d576079565b606a565b6001606e576072565b609f565b606a565b6001156099575b5f5ffd5b8160e05280610100525f5f6004835f3087f1915050605d576061565bfe5b5f5ffd5b601f8060a95f395ff334601a575f3560e01c80635dfc2e4a14601657601a565b601e565b5f5ffd5b"
+  EmptyCodeTryConstructor_initcode_0: hex"610120604052346089575a8060e0528060e05260405180610100528061010052602081016040527f5dfc2e4a0000000000000000000000000000000000000000000000000000000081526004810150308060c0523b156085578160e05280610100525f5f6004835f3087f19150506080576001607c576001608557fe5b6081565b5b608d565b5f5ffd5b5f5ffd5b601f8060975f395ff334601a575f3560e01c80635dfc2e4a14601657601a565b601e565b5f5ffd5b"
 
 fn @deploy() [selector=0x775c300c, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 231, v1
+    v2 = and 213, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy EmptyCodeTryConstructor_initcode_0, v3, 200
+    data_copy EmptyCodeTryConstructor_initcode_0, v3, 182
     v4 = slice_ptr v0
-    v5 = add v3, 200
+    v5 = add v3, 182
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 200
+    v6 = create 0, v3, 182
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata

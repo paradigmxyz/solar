@@ -30,17 +30,16 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     mstore v63, v58
     v186 = add v63, 32
     returndatacopy v186, 0, v58
-    v15 = mload v63
     v17 = mload v186
     v18 = shr 224, v17
     v19 = eq v18, 0x8c379a0
     jumpi v19, bb3, bb5
   bb3:
-    v20 = icall @try_decode_error_message, v186, v15
+    v20 = icall @try_decode_error_message, v186, v58
     jumpi v20, bb4, bb5
   bb5:
     v36 = eq v18, 0x4e487b71
-    v37 = lt v15, 36
+    v37 = lt v58, 36
     v38 = iszero v37
     v39 = and v36, v38
     jumpi v39, bb6, bb7
@@ -104,7 +103,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     returndata v106, v101
   bb4:
     v24 = add v186, 4
-    v25 = sub v15, 4
+    v25 = sub v58, 4
     v28 = add v25, 63
     v29 = lt v28, v25
     jumpi v29, bb8, bb9
@@ -214,19 +213,18 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
     mstore v45, v40
     v66 = add v45, 32
     returndatacopy v66, 0, v40
-    v13 = mload v45
     v15 = mload v66
     v16 = shr 224, v15
     v17 = eq v16, 0x8c379a0
     jumpi v17, bb4, bb6
   bb4:
-    v18 = icall @try_decode_error_message, v66, v13
+    v18 = icall @try_decode_error_message, v66, v40
     jumpi v18, bb5, bb6
   bb6:
-    revert v66, v13
+    revert v66, v40
   bb5:
     v22 = add v66, 4
-    v23 = sub v13, 4
+    v23 = sub v40, 4
     v26 = add v23, 63
     v27 = lt v26, v23
     jumpi v27, bb7, bb8

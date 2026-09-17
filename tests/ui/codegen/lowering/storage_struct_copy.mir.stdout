@@ -40,23 +40,22 @@ fn @readCopy() -> struct0 [selector=0x3af23521, view, abi_params=[], abi_returns
     v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<2>, v0, 0, v3
-    v4 = add 0, 1
-    v5 = icall @load_storage_packed_array_4_2, v4
-    memory_object_store_field memorystruct<2>, v0, 1, v5
-    v6 = memory_object_load_field memorystruct<2>, v0, 0
-    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v8 = memory_object_load_field memorystruct<2>, v0, 1, memoryarray
-    v9 = memory_object_len memoryarray, v8
-    v10 = lt 0, v9
-    v11 = iszero v10
-    icall panic_if<0x32>, v11
-    v12 = memory_object_load_element memoryarray<1>, v8, 0
-    v13 = and v12, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v14 = insert_value struct0, undef struct0, 0, v7
-    v15 = insert_value struct0, v14, 1, v13
-    ret v15
+    memory_object_store_field memorystruct<2>, v0, 0, v2
+    v3 = add 0, 1
+    v4 = icall @load_storage_packed_array_4_2, v3
+    memory_object_store_field memorystruct<2>, v0, 1, v4
+    v5 = memory_object_load_field memorystruct<2>, v0, 0
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
+    v7 = memory_object_load_field memorystruct<2>, v0, 1, memoryarray
+    v8 = memory_object_len memoryarray, v7
+    v9 = lt 0, v8
+    v10 = iszero v9
+    icall panic_if<0x32>, v10
+    v11 = memory_object_load_element memoryarray<1>, v7, 0
+    v12 = and v11, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v13 = insert_value struct0, undef struct0, 0, v6
+    v14 = insert_value struct0, v13, 1, v12
+    ret v14
 }
 
 fn @readDirect() -> struct0 [selector=0x28da8d5d, view, abi_params=[], abi_returns=[word<u160>, word<bytes4>], abi_return_params=[address, bytes4]] {
@@ -64,23 +63,22 @@ fn @readDirect() -> struct0 [selector=0x28da8d5d, view, abi_params=[], abi_retur
     v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<2>, v0, 0, v3
-    v4 = add 0, 1
-    v5 = icall @load_storage_packed_array_4_2, v4
-    memory_object_store_field memorystruct<2>, v0, 1, v5
-    v6 = memory_object_load_field memorystruct<2>, v0, 0
-    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v8 = memory_object_load_field memorystruct<2>, v0, 1, memoryarray
-    v9 = memory_object_len memoryarray, v8
-    v10 = lt 0, v9
-    v11 = iszero v10
-    icall panic_if<0x32>, v11
-    v12 = memory_object_load_element memoryarray<1>, v8, 0
-    v13 = and v12, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v14 = insert_value struct0, undef struct0, 0, v7
-    v15 = insert_value struct0, v14, 1, v13
-    ret v15
+    memory_object_store_field memorystruct<2>, v0, 0, v2
+    v3 = add 0, 1
+    v4 = icall @load_storage_packed_array_4_2, v3
+    memory_object_store_field memorystruct<2>, v0, 1, v4
+    v5 = memory_object_load_field memorystruct<2>, v0, 0
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
+    v7 = memory_object_load_field memorystruct<2>, v0, 1, memoryarray
+    v8 = memory_object_len memoryarray, v7
+    v9 = lt 0, v8
+    v10 = iszero v9
+    icall panic_if<0x32>, v10
+    v11 = memory_object_load_element memoryarray<1>, v7, 0
+    v12 = and v11, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v13 = insert_value struct0, undef struct0, 0, v6
+    v14 = insert_value struct0, v13, 1, v12
+    ret v14
 }
 
 fn @load_storage_packed_array_4_2(arg0: u256) -> memoryarray {

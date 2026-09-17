@@ -232,7 +232,7 @@ fn @dynamicNarrow(arg0: calldataslice) -> memoryarray [selector=0x320b552a, pure
     set_memory_object_len memoryarray, v25, v6
     jump bb1
   bb1:
-    v26 = phi [bb0: 0], [bb2: v35]
+    v26 = phi [bb0: 0], [bb2: v34]
     v27 = lt v26, v6
     jumpi v27, bb2, bb3
   bb3:
@@ -245,9 +245,8 @@ fn @dynamicNarrow(arg0: calldataslice) -> memoryarray [selector=0x320b552a, pure
     v32 = eq v30, v31
     v33 = iszero v32
     icall revert_if<empty>, v33
-    v34 = and v30, 255
-    memory_object_store_element memoryarray<1>, v25, v26, v34
-    v35 = add v26, 1
+    memory_object_store_element memoryarray<1>, v25, v26, v30
+    v34 = add v26, 1
     jump bb1
 }
 

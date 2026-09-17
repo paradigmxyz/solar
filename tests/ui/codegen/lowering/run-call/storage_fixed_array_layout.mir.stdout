@@ -147,66 +147,66 @@ fn @copyDoesNotOverlapSource() -> struct1 [selector=0x8b005e62, abi_params=[], a
     v31 = alloc memoryfixedarray<7, 1>, exact, uninitialized, panic, 224
     jump bb7
   bb7:
-    v32 = phi [bb2: 0], [bb8: v44]
+    v32 = phi [bb2: 0], [bb8: v43]
     v33 = lt v32, 7
     jumpi v33, bb8, bb9
   bb9:
     jump bb10
   bb10:
-    v45 = phi [bb9: 0], [bb15: v50]
-    v46 = lt v45, 10
-    jumpi v46, bb11, bb12
+    v44 = phi [bb9: 0], [bb15: v49]
+    v45 = lt v44, 10
+    jumpi v45, bb11, bb12
   bb12:
-    v51 = lt 6, 7
-    v52 = iszero v51
-    icall panic_if<0x32>, v52
-    v53 = div 6, 3
-    v54 = add 0, v53
-    v55 = mod 6, 3
-    v56 = mul v55, 9
-    v57 = sload v54 !metadata(storage=symbolic(v53))
-    v58 = mul v56, 8
-    v59 = shr v58, v57
-    v60 = and v59, 0xffffffffffffffffff
-    v61 = shl 184, v60
-    v62 = shr 184, v61
-    v63 = lt 1, 10
-    v64 = iszero v63
-    icall panic_if<0x32>, v64
-    v65 = add 11, 1
-    v66 = sload v65 !metadata(storage=slot(12))
-    v67 = and v66, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
-    v68 = shr 184, v67
-    v69 = lt 6, 10
-    v70 = iszero v69
-    icall panic_if<0x32>, v70
-    v71 = add 11, 6
-    v72 = sload v71 !metadata(storage=slot(17))
-    v73 = and v72, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
-    v74 = shr 184, v73
-    v75 = lt 9, 10
-    v76 = iszero v75
-    icall panic_if<0x32>, v76
-    v77 = add 11, 9
-    v78 = sload v77 !metadata(storage=slot(20))
-    v79 = insert_value struct1, undef struct1, 0, v62
-    v80 = insert_value struct1, v79, 1, v68
-    v81 = insert_value struct1, v80, 2, v74
-    v82 = insert_value struct1, v81, 3, v78
-    ret v82
+    v50 = lt 6, 7
+    v51 = iszero v50
+    icall panic_if<0x32>, v51
+    v52 = div 6, 3
+    v53 = add 0, v52
+    v54 = mod 6, 3
+    v55 = mul v54, 9
+    v56 = sload v53 !metadata(storage=symbolic(v52))
+    v57 = mul v55, 8
+    v58 = shr v57, v56
+    v59 = and v58, 0xffffffffffffffffff
+    v60 = shl 184, v59
+    v61 = shr 184, v60
+    v62 = lt 1, 10
+    v63 = iszero v62
+    icall panic_if<0x32>, v63
+    v64 = add 11, 1
+    v65 = sload v64 !metadata(storage=slot(12))
+    v66 = and v65, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
+    v67 = shr 184, v66
+    v68 = lt 6, 10
+    v69 = iszero v68
+    icall panic_if<0x32>, v69
+    v70 = add 11, 6
+    v71 = sload v70 !metadata(storage=slot(17))
+    v72 = and v71, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
+    v73 = shr 184, v72
+    v74 = lt 9, 10
+    v75 = iszero v74
+    icall panic_if<0x32>, v75
+    v76 = add 11, 9
+    v77 = sload v76 !metadata(storage=slot(20))
+    v78 = insert_value struct1, undef struct1, 0, v61
+    v79 = insert_value struct1, v78, 1, v67
+    v80 = insert_value struct1, v79, 2, v73
+    v81 = insert_value struct1, v80, 3, v77
+    ret v81
   bb11:
-    v47 = add 11, v45
-    v48 = lt v45, 7
-    jumpi v48, bb13, bb14
+    v46 = add 11, v44
+    v47 = lt v44, 7
+    jumpi v47, bb13, bb14
   bb14:
-    sstore v47, 0 !metadata(storage=offset(v45, 11))
+    sstore v46, 0 !metadata(storage=offset(v44, 11))
     jump bb15
   bb13:
-    v49 = memory_object_load_element memoryfixedarray<7, 1>, v31, v45
-    sstore v47, v49 !metadata(storage=offset(v45, 11))
+    v48 = memory_object_load_element memoryfixedarray<7, 1>, v31, v44
+    sstore v46, v48 !metadata(storage=offset(v44, 11))
     jump bb15
   bb15:
-    v50 = add v45, 1
+    v49 = add v44, 1
     jump bb10
   bb8:
     v34 = div v32, 3
@@ -218,9 +218,8 @@ fn @copyDoesNotOverlapSource() -> struct1 [selector=0x8b005e62, abi_params=[], a
     v40 = shr v39, v38
     v41 = and v40, 0xffffffffffffffffff
     v42 = shl 184, v41
-    v43 = and v42, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
-    memory_object_store_element memoryfixedarray<7, 1>, v31, v32, v43
-    v44 = add v32, 1
+    memory_object_store_element memoryfixedarray<7, 1>, v31, v32, v42
+    v43 = add v32, 1
     jump bb7
   bb4:
     v6 = and v1, 0xffffffffffffffffff

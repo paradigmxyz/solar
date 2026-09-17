@@ -125,7 +125,7 @@ fn has_small_fixed_layout(gcx: Gcx<'_>, module: &Module) -> bool {
         // Count a destination label at every block and keep all transfers explicit. If the
         // bound fits one-byte addresses even with two-byte label pushes, their least fixed
         // point fits too. Rearrangement cannot increase the number of transfers or labels.
-        upper_bound += estimated_block_size(gcx, block, None, true);
+        upper_bound += estimated_block_size(gcx, block, None, true, module.code_follows);
         // The layout estimator omits STOP for a final block; count it here because every
         // block may have a physical successor after reordering.
         if matches!(

@@ -3,16 +3,13 @@
 fn @structField() -> u8 [selector=0x3442156e, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v1 = lt 0, 2
-    v2 = iszero v1
-    icall panic_if<0x21>, v2
     memory_object_store_field memorystruct<1>, v0, 0, 0
     mstore v0, 2
-    v3 = memory_object_load_field memorystruct<1>, v0, 0
-    v4 = lt v3, 2
-    v5 = iszero v4
-    icall panic_if<0x21>, v5
-    ret v3
+    v1 = memory_object_load_field memorystruct<1>, v0, 0
+    v2 = lt v1, 2
+    v3 = iszero v2
+    icall panic_if<0x21>, v3
+    ret v1
 }
 
 fn @fixedArrayElement() -> u8 [selector=0x43876e90, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {

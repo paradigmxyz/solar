@@ -50,6 +50,9 @@ pub(crate) enum MemoryBase {
     Allocation(InstId),
     /// An unrecycled allocation site with multiple dynamic loop instances.
     DynamicAllocation(InstId),
+    /// A memory-object argument: an object that existed before the function
+    /// ran, below every allocation the function makes.
+    Param(ValueId),
     /// A symbolic MIR value.
     Value(ValueId),
 }
@@ -89,6 +92,12 @@ impl MemoryAddress {
         Self { region, base: MemoryBase::Value(value), offset: 0 }
     }
 
+    /// Creates the address of a memory object passed in as an argument.
+    #[must_use]
+    pub(crate) const fn param(value: ValueId) -> Self {
+        Self { region: MemoryRegion::Heap, base: MemoryBase::Param(value), offset: 0 }
+    }
+
     /// Returns the absolute address, if known.
     #[must_use]
     pub(crate) const fn as_absolute(self) -> Option<u64> {
@@ -97,6 +106,7 @@ impl MemoryAddress {
             MemoryBase::InternalFrame
             | MemoryBase::Allocation(_)
             | MemoryBase::DynamicAllocation(_)
+            | MemoryBase::Param(_)
             | MemoryBase::Value(_) => None,
         }
     }
@@ -109,6 +119,7 @@ impl MemoryAddress {
             MemoryBase::Absolute
             | MemoryBase::Allocation(_)
             | MemoryBase::DynamicAllocation(_)
+            | MemoryBase::Param(_)
             | MemoryBase::Value(_) => None,
         }
     }
@@ -496,15 +507,16 @@ impl AliasAnalysis {
         Self::with_optional_summaries(func, None)
     }
 
-    /// An unpopulated snapshot: provenance and memos build lazily on the first
-    /// query, so this is equivalent to [`Self::new`] without needing the
+    /// An unpopulated snapshot that resolves internal calls through
+    /// `summaries`: provenance and memos build lazily on the first query, so
+    /// this is equivalent to [`Self::with_call_summaries`] without needing the
     /// function up front.
     #[must_use]
-    pub(crate) fn empty() -> Self {
+    pub(crate) fn empty_with_summaries(summaries: Arc<MemoryCallSummaries>) -> Self {
         Self {
             provenance: OnceCell::new(),
             escaping_values: RefCell::new(None),
-            call_summaries: None,
+            call_summaries: Some(summaries),
         }
     }
 
@@ -640,6 +652,31 @@ impl AliasAnalysis {
             address,
             LocationSize::Const(EvmMemoryLayout::WORD_SIZE),
         )
+    }
+
+    /// Returns the payload range of a semantic memory object: its first data
+    /// byte with an unknown extent.
+    ///
+    /// Element, byte, and word accesses with runtime indices resolve here. The
+    /// payload of a dynamic object starts after its length word, so such an
+    /// access never overlaps the object's own header.
+    #[must_use]
+    pub(crate) fn memory_object_data_location(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        object: ValueId,
+        kind: MemoryObjectKind,
+    ) -> Option<MemoryLocation> {
+        let mut address = self
+            .memory_address(func, object)?
+            .checked_add(EvmMemoryLayout::object_data_offset(kind))?;
+        if let Some(region) = func.inst(inst_id).metadata.memory_region()
+            && region != MemoryRegion::Unknown
+        {
+            address.region = region;
+        }
+        Some(MemoryLocation::new(address, LocationSize::Unknown))
     }
 
     /// Creates a memory location without instruction metadata.
@@ -1102,32 +1139,51 @@ impl AliasAnalysis {
                     effects.write_any(AddressSpace::Memory);
                 }
             }
+            // A runtime index selects an unknown element, but every element
+            // lies in the object's payload, so the access stays inside the
+            // payload range and cannot touch the length word.
             InstKind::MemoryObjectLoadElement { object, layout, index } => {
-                if let Some(location) =
-                    self.memory_object_element_location(func, inst_id, object, layout, index)
+                if let Some(location) = self
+                    .memory_object_element_location(func, inst_id, object, layout, index)
+                    .or_else(|| {
+                        self.memory_object_data_location(func, inst_id, object, layout.kind())
+                    })
                 {
                     effects.read(Access::Location(Location::Memory(location)));
                 } else {
                     effects.read_any(AddressSpace::Memory);
                 }
             }
-            InstKind::MemoryObjectLoadByte { .. } => {
-                effects.read_any(AddressSpace::Memory);
+            InstKind::MemoryObjectLoadByte { object, .. } => {
+                if let Some(location) =
+                    self.memory_object_data_location(func, inst_id, object, MemoryObjectKind::Bytes)
+                {
+                    effects.read(Access::Location(Location::Memory(location)));
+                } else {
+                    effects.read_any(AddressSpace::Memory);
+                }
             }
             InstKind::MemoryObjectStoreElement { object, layout, index, .. } => {
-                if let Some(location) =
-                    self.memory_object_element_location(func, inst_id, object, layout, index)
+                if let Some(location) = self
+                    .memory_object_element_location(func, inst_id, object, layout, index)
+                    .or_else(|| {
+                        self.memory_object_data_location(func, inst_id, object, layout.kind())
+                    })
                 {
                     effects.write(Access::Location(Location::Memory(location)));
                 } else {
                     effects.write_any(AddressSpace::Memory);
                 }
             }
-            InstKind::MemoryObjectStoreByte { .. } => {
-                effects.write_any(AddressSpace::Memory);
-            }
-            InstKind::MemoryObjectStoreWord { .. } => {
-                effects.write_any(AddressSpace::Memory);
+            InstKind::MemoryObjectStoreByte { object, .. }
+            | InstKind::MemoryObjectStoreWord { object, .. } => {
+                if let Some(location) =
+                    self.memory_object_data_location(func, inst_id, object, MemoryObjectKind::Bytes)
+                {
+                    effects.write(Access::Location(Location::Memory(location)));
+                } else {
+                    effects.write_any(AddressSpace::Memory);
+                }
             }
             InstKind::MemorySliceLoadWord { .. } => {
                 effects.read_any(AddressSpace::Memory);
@@ -1146,23 +1202,23 @@ impl AliasAnalysis {
                     effects.write_any(AddressSpace::Memory);
                 }
             }
-            InstKind::MemoryObjectCopyFromSlice { source, .. } => {
+            // Both copies fill the destination payload, at its start or at a
+            // runtime offset into it, and never rewrite the length word.
+            InstKind::MemoryObjectCopyFromSlice { object, kind, source }
+            | InstKind::MemoryObjectCopyFromSliceAt { object, kind, source, .. } => {
                 if matches!(
                     func.value_ty(source),
                     Some(crate::mir::MirType::Slice(crate::mir::SliceLocation::Memory,))
                 ) {
                     effects.read_any(AddressSpace::Memory);
                 }
-                effects.write_any(AddressSpace::Memory);
-            }
-            InstKind::MemoryObjectCopyFromSliceAt { source, .. } => {
-                if matches!(
-                    func.value_ty(source),
-                    Some(crate::mir::MirType::Slice(crate::mir::SliceLocation::Memory,))
-                ) {
-                    effects.read_any(AddressSpace::Memory);
+                if let Some(location) =
+                    self.memory_object_data_location(func, inst_id, object, kind)
+                {
+                    effects.write(Access::Location(Location::Memory(location)));
+                } else {
+                    effects.write_any(AddressSpace::Memory);
                 }
-                effects.write_any(AddressSpace::Memory);
             }
             InstKind::MemoryObjectCopy { .. } => {
                 effects.read_any(AddressSpace::Memory);
@@ -1573,7 +1629,10 @@ impl AliasAnalysis {
         // disjoint from every other allocation site. Two accesses to the same
         // loop-instance allocation may hit the same or different instances, so
         // they stay `MayAlias`; a dynamic allocation against a
-        // non-allocation base is likewise `MayAlias`.
+        // non-allocation base is likewise `MayAlias`. A memory-object
+        // argument was allocated before the function ran, below the pointer
+        // every allocation in the function bumps, so both allocation kinds
+        // are disjoint from it.
         let first_alloc = Self::allocation_base(first.address.base);
         let second_alloc = Self::allocation_base(second.address.base);
         match (first_alloc, second_alloc) {
@@ -1581,10 +1640,26 @@ impl AliasAnalysis {
                 if a != b {
                     return AliasResult::NoAlias;
                 }
+                // One allocation site that runs more than once gives each
+                // instance its own region, so two accesses to different
+                // instances never overlap and two accesses to one instance
+                // overlap exactly when their offsets do. Disjoint offsets are
+                // therefore disjoint either way, which the comparison below
+                // establishes; an overlap only means they *may* alias, because
+                // the accesses may belong to different instances.
                 if a_dynamic || b_dynamic {
-                    return AliasResult::MayAlias;
+                    return match Self::compare_offsets(first, second) {
+                        AliasResult::NoAlias => AliasResult::NoAlias,
+                        _ => AliasResult::MayAlias,
+                    };
                 }
                 // Same unique static allocation: compare offsets below.
+            }
+            (Some(_), None) if matches!(second.address.base, MemoryBase::Param(_)) => {
+                return AliasResult::NoAlias;
+            }
+            (None, Some(_)) if matches!(first.address.base, MemoryBase::Param(_)) => {
+                return AliasResult::NoAlias;
             }
             (Some((_, true)), _) | (_, Some((_, true))) => return AliasResult::MayAlias,
             _ => {}
@@ -1592,6 +1667,11 @@ impl AliasAnalysis {
         if first.address.base != second.address.base {
             return AliasResult::MayAlias;
         }
+        Self::compare_offsets(first, second)
+    }
+
+    /// Compares two ranges that share a base, by offset and width.
+    fn compare_offsets(first: MemoryLocation, second: MemoryLocation) -> AliasResult {
         match (first.size, second.size) {
             (LocationSize::Const(first_size), LocationSize::Const(second_size)) => {
                 let Some(first_end) = first.address.offset.checked_add(first_size) else {
@@ -1614,6 +1694,21 @@ impl AliasAnalysis {
             {
                 AliasResult::MustAlias
             }
+            // A location of unknown extent still starts at its offset, so a
+            // bounded access that ends at or before that start is disjoint.
+            (LocationSize::Const(first_size), LocationSize::Dynamic(_) | LocationSize::Unknown) => {
+                match first.address.offset.checked_add(first_size) {
+                    Some(first_end) if first_end <= second.address.offset => AliasResult::NoAlias,
+                    _ => AliasResult::MayAlias,
+                }
+            }
+            (
+                LocationSize::Dynamic(_) | LocationSize::Unknown,
+                LocationSize::Const(second_size),
+            ) => match second.address.offset.checked_add(second_size) {
+                Some(second_end) if second_end <= first.address.offset => AliasResult::NoAlias,
+                _ => AliasResult::MayAlias,
+            },
             _ => AliasResult::MayAlias,
         }
     }
@@ -1637,14 +1732,15 @@ impl AliasAnalysis {
             Value::Immediate(immediate) => {
                 Some(MemoryAddress::absolute(immediate.as_u256()?.try_into().ok()?))
             }
-            Value::Arg(index) => Some(MemoryAddress::symbolic(
-                value,
-                if matches!(func.arg_ty(*index), crate::mir::MirType::MemoryObject(_)) {
-                    MemoryRegion::Heap
+            // A memory-object argument was allocated by a caller, so it sits
+            // below the free-memory pointer this function starts from.
+            Value::Arg(index) => {
+                Some(if matches!(func.arg_ty(*index), crate::mir::MirType::MemoryObject(_)) {
+                    MemoryAddress::param(value)
                 } else {
-                    MemoryRegion::Unknown
-                },
-            )),
+                    MemoryAddress::symbolic(value, MemoryRegion::Unknown)
+                })
+            }
             Value::Undef(_) | Value::Error(_) => None,
             Value::Inst(inst_id) => match func.inst(*inst_id).kind {
                 InstKind::InternalFrameAddr(offset) => Some(MemoryAddress::internal_frame(offset)),

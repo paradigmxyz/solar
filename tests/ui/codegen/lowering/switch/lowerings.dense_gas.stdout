@@ -23,63 +23,63 @@ bb13 [cold]:
   push 0
   revert
 bb5:
-  push 100
-  push 0
-  mstore
-  push 32
-  push 0
-  return
-bb6:
-  push 101
-  push 0
-  mstore
-  push 32
-  push 0
-  return
-bb7:
-  push 102
-  push 0
-  mstore
-  push 32
-  push 0
-  return
-bb8:
-  push 103
-  push 0
-  mstore
-  push 32
-  push 0
-  return
-bb9:
-  push 104
-  push 0
-  mstore
-  push 32
-  push 0
-  return
-bb10:
-  push 105
-  push 0
-  mstore
-  push 32
-  push 0
-  return
-bb11:
-  push 106
-  push 0
-  mstore
-  push 32
-  push 0
-  return
-bb12:
   push 107
   push 0
   mstore
   push 32
   push 0
   return
+bb6:
+  push 106
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb7:
+  push 105
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb8:
+  push 104
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb9:
+  push 103
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb10:
+  push 102
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb11:
+  push 101
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb12:
+  push 100
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb14:
-  jump bb5
+  jump bb12
 bb15:
   jump bb13
 bb16:
@@ -95,7 +95,7 @@ bb20:
 bb21:
   jump bb13
 bb22:
-  jump bb6
+  jump bb11
 bb23:
   jump bb13
 bb24:
@@ -111,7 +111,7 @@ bb28:
 bb29:
   jump bb13
 bb30:
-  jump bb7
+  jump bb10
 bb31:
   jump bb13
 bb32:
@@ -127,7 +127,7 @@ bb36:
 bb37:
   jump bb13
 bb38:
-  jump bb8
+  jump bb9
 bb39:
   jump bb13
 bb40:
@@ -143,7 +143,7 @@ bb44:
 bb45:
   jump bb13
 bb46:
-  jump bb9
+  jump bb8
 bb47:
   jump bb13
 bb48:
@@ -159,7 +159,7 @@ bb52:
 bb53:
   jump bb13
 bb54:
-  jump bb10
+  jump bb7
 bb55:
   jump bb13
 bb56:
@@ -175,7 +175,7 @@ bb60:
 bb61:
   jump bb13
 bb62:
-  jump bb11
+  jump bb6
 bb63:
   jump bb13
 bb64:
@@ -191,7 +191,7 @@ bb68:
 bb69:
   jump bb13
 bb70:
-  jump bb12
+  jump bb5
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
 CALLVALUE
 PUSH1 0x1c ; bb0
@@ -221,7 +221,7 @@ PUSH0
 REVERT
 ; bb1
 JUMPDEST
-PUSH1 0x64
+PUSH1 0x6b
 PUSH0
 MSTORE
 PUSH1 0x20
@@ -229,7 +229,7 @@ PUSH0
 RETURN
 ; bb2
 JUMPDEST
-PUSH1 0x65
+PUSH1 0x6a
 PUSH0
 MSTORE
 PUSH1 0x20
@@ -237,7 +237,7 @@ PUSH0
 RETURN
 ; bb3
 JUMPDEST
-PUSH1 0x66
+PUSH1 0x69
 PUSH0
 MSTORE
 PUSH1 0x20
@@ -245,7 +245,7 @@ PUSH0
 RETURN
 ; bb4
 JUMPDEST
-PUSH1 0x67
+PUSH1 0x68
 PUSH0
 MSTORE
 PUSH1 0x20
@@ -253,7 +253,7 @@ PUSH0
 RETURN
 ; bb5
 JUMPDEST
-PUSH1 0x68
+PUSH1 0x67
 PUSH0
 MSTORE
 PUSH1 0x20
@@ -261,7 +261,7 @@ PUSH0
 RETURN
 ; bb6
 JUMPDEST
-PUSH1 0x69
+PUSH1 0x66
 PUSH0
 MSTORE
 PUSH1 0x20
@@ -269,7 +269,7 @@ PUSH0
 RETURN
 ; bb7
 JUMPDEST
-PUSH1 0x6a
+PUSH1 0x65
 PUSH0
 MSTORE
 PUSH1 0x20
@@ -277,7 +277,7 @@ PUSH0
 RETURN
 ; bb8
 JUMPDEST
-PUSH1 0x6b
+PUSH1 0x64
 PUSH0
 MSTORE
 PUSH1 0x20
@@ -285,7 +285,7 @@ PUSH0
 RETURN
 ; bb9
 JUMPDEST
-PUSH1 0x20 ; bb1
+PUSH1 0x5f ; bb8
 JUMP
 ; bb10
 JUMPDEST
@@ -317,7 +317,7 @@ PUSH1 0x1c ; bb0
 JUMP
 ; bb17
 JUMPDEST
-PUSH1 0x29 ; bb2
+PUSH1 0x56 ; bb7
 JUMP
 ; bb18
 JUMPDEST
@@ -349,7 +349,7 @@ PUSH1 0x1c ; bb0
 JUMP
 ; bb25
 JUMPDEST
-PUSH1 0x32 ; bb3
+PUSH1 0x4d ; bb6
 JUMP
 ; bb26
 JUMPDEST
@@ -381,7 +381,7 @@ PUSH1 0x1c ; bb0
 JUMP
 ; bb33
 JUMPDEST
-PUSH1 0x3b ; bb4
+PUSH1 0x44 ; bb5
 JUMP
 ; bb34
 JUMPDEST
@@ -413,7 +413,7 @@ PUSH1 0x1c ; bb0
 JUMP
 ; bb41
 JUMPDEST
-PUSH1 0x44 ; bb5
+PUSH1 0x3b ; bb4
 JUMP
 ; bb42
 JUMPDEST
@@ -445,7 +445,7 @@ PUSH1 0x1c ; bb0
 JUMP
 ; bb49
 JUMPDEST
-PUSH1 0x4d ; bb6
+PUSH1 0x32 ; bb3
 JUMP
 ; bb50
 JUMPDEST
@@ -477,7 +477,7 @@ PUSH1 0x1c ; bb0
 JUMP
 ; bb57
 JUMPDEST
-PUSH1 0x56 ; bb7
+PUSH1 0x29 ; bb2
 JUMP
 ; bb58
 JUMPDEST
@@ -509,5 +509,5 @@ PUSH1 0x1c ; bb0
 JUMP
 ; bb65
 JUMPDEST
-PUSH1 0x5f ; bb8
+PUSH1 0x20 ; bb1
 JUMP

@@ -15,7 +15,7 @@ fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[]] {
 // === ROOT/tests/ui/codegen/lowering/try_catch_panic.sol:TryCatchPanic ===
 @module TryCatchPanic
 data:
-  TryCatchPanicTarget_initcode_0: hex"34600d5760478060115f395ff35b5f5ffd346028575f3560e01c8063a9cc4718146020578063d909b403146024576028565b602e565b602c565b5f5ffd5b005b5f1515604657634e487b715f5260016020526024601cfd5b"
+  TryCatchPanicTarget_initcode_0: hex"34600d5760478060115f395ff35b5f5ffd346028575f3560e01c8063a9cc4718146024578063d909b403146020576028565b602c565b602e565b5f5ffd5b005b5f15603557005b634e487b715f5260016020526024601cfd"
 
 fn @constructor() [constructor] {
   bb0:

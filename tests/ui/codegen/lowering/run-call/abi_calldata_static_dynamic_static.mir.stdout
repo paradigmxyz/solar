@@ -92,21 +92,20 @@ fn @g() -> memorybytes [selector=0xe2179b8e, view, abi_params=[], abi_returns=[m
     v21 = lt 0, 1
     v22 = iszero v21
     icall panic_if<0x32>, v22
-    v23 = and 42, 255
-    memory_object_store_element memoryfixedarray<1, 1>, v20, 0, v23
-    v24 = address
-    v25 = gas
-    v26 = abi_encode [array<1, memory_array<array<1, word<u8>>>>], selector 0x15cfcc0100000000000000000000000000000000000000000000000000000000, args v0
-    v27 = slice_ptr v26
-    v28 = slice_len v26
-    v29 = staticcall v25, v24, v27, v28, 0, 0
-    jumpi v29, bb9, bb8
+    memory_object_store_element memoryfixedarray<1, 1>, v20, 0, 42
+    v23 = address
+    v24 = gas
+    v25 = abi_encode [array<1, memory_array<array<1, word<u8>>>>], selector 0x15cfcc0100000000000000000000000000000000000000000000000000000000, args v0
+    v26 = slice_ptr v25
+    v27 = slice_len v25
+    v28 = staticcall v24, v23, v26, v27, 0, 0
+    jumpi v28, bb9, bb8
   bb8:
     revert_returndata
   bb9:
-    v30 = icall returndata_bytes<>
-    v31 = abi_decode [bytes], v30
-    ret v31
+    v29 = icall returndata_bytes<>
+    v30 = abi_decode [bytes], v29
+    ret v30
   bb2:
     v4 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_zero v4, 32

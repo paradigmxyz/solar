@@ -91,13 +91,13 @@ fn @packCalldata(arg0: calldataslice) -> bytes32 [selector=0x38651f67, pure, abi
     set_memory_object_len memoryarray, v19, v0
     jump bb1
   bb1:
-    v20 = phi [bb0: 0], [bb2: v29]
+    v20 = phi [bb0: 0], [bb2: v28]
     v21 = lt v20, v0
     jumpi v21, bb2, bb3
   bb3:
-    v30 = abi_encode_packed (array<word<u8>> memoryarray<1> v19)
-    v31 = keccak256_bytes v30
-    ret v31
+    v29 = abi_encode_packed (array<word<u8>> memoryarray<1> v19)
+    v30 = keccak256_bytes v29
+    ret v30
   bb2:
     v22 = mul v20, 32
     v23 = add v1, v22
@@ -106,9 +106,8 @@ fn @packCalldata(arg0: calldataslice) -> bytes32 [selector=0x38651f67, pure, abi
     v26 = eq v24, v25
     v27 = iszero v26
     icall revert_if<empty>, v27
-    v28 = and v24, 255
-    memory_object_store_element memoryarray<1>, v19, v20, v28
-    v29 = add v20, 1
+    memory_object_store_element memoryarray<1>, v19, v20, v24
+    v28 = add v20, 1
     jump bb1
 }
 
@@ -120,15 +119,14 @@ fn @rejectDirtyCalldata() -> u256 [selector=0xe0d4a2a5, abi_params=[], abi_retur
     v2 = lt 0, v1
     v3 = iszero v2
     icall panic_if<0x32>, v3
-    v4 = and 1, 255
-    memory_object_store_element memoryarray<1>, v0, 0, v4
-    v5 = abi_encode [memory_array<word<u8>>], object, selector 0x38651f6700000000000000000000000000000000000000000000000000000000, args v0
-    v6 = add v5, 100
-    mstore v6, 257
-    v7 = address
-    v8 = gas
-    v9 = address_call v7, v5, gas v8
-    v10 = iszero v9
-    icall require<short_string>, v10, 14, 0x64697274792063616c6c64617461000000000000000000000000000000000000
+    memory_object_store_element memoryarray<1>, v0, 0, 1
+    v4 = abi_encode [memory_array<word<u8>>], object, selector 0x38651f6700000000000000000000000000000000000000000000000000000000, args v0
+    v5 = add v4, 100
+    mstore v5, 257
+    v6 = address
+    v7 = gas
+    v8 = address_call v6, v4, gas v7
+    v9 = iszero v8
+    icall require<short_string>, v9, 14, 0x64697274792063616c6c64617461000000000000000000000000000000000000
     ret 1
 }

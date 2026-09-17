@@ -245,50 +245,45 @@ fn @load_storage_bytes(arg0: u256) -> memptr {
     v10 = add v7, 31
     v11 = shr 5, v10
     v12 = add v7, 63
-    v13 = lt v12, v7
-    jumpi v13, bb3, bb4
-  bb4:
     v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v16 = mload 64 !metadata(memory=scratch)
     v30 = add v16, v15
     v31 = lt v30, v16
     v32 = gt v30, 0xffffffffffffffff
     v33 = or v31, v32
-    jumpi v33, bb11, bb10
-  bb10:
+    jumpi v33, bb9, bb8
+  bb8:
     mstore 64, v30 !metadata(memory=scratch)
     mstore v16, v7
-    jumpi v2, bb6, bb5
-  bb5:
+    jumpi v2, bb4, bb3
+  bb3:
     v17 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v26 = add v16, 32
     mstore v26, v17
-    jump bb7
-  bb6:
+    jump bb5
+  bb4:
     mstore 0, arg0 !metadata(memory=scratch)
     v25 = keccak256 0, 32 !metadata(memory=scratch)
-    jump bb8
-  bb8:
-    v19 = phi [bb6: 0], [bb9: v24]
+    v28 = add v16, 32
+    jump bb6
+  bb6:
+    v19 = phi [bb4: 0], [bb7: v24]
     v20 = lt v19, v11
-    jumpi v20, bb9, bb7
-  bb7:
+    jumpi v20, bb7, bb5
+  bb5:
     ret v16
-  bb9:
+  bb7:
     v21 = add v25, v19
     v22 = sload v21 !metadata(storage=symbolic(v21))
     v23 = shl 5, v19
-    v28 = add v16, 32
     v29 = add v28, v23
     mstore v29, v22
     v24 = add v19, 1
-    jump bb8
-  bb11:
+    jump bb6
+  bb9:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36
-  bb3:
-    tail_call @revert_stub.6
   bb1:
     tail_call @revert_stub.7
 }

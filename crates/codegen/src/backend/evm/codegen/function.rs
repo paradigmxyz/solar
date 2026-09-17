@@ -5,12 +5,12 @@
 
 use super::{
     BlockId, CfgInfo, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap,
-    FxHashSet, GlobalStackPlan, GrowableBitSet, InstId, InstKind, Label, Liveness, Module,
-    OnceCell, OptimizationMode, PhiEliminator, STACK_PHI_LAYOUT_LIMIT, StackModel, StackOp,
-    StackPhiPlan, Terminator, Value, ValueId, cross_block_values, planned_entry_carries,
+    FxHashSet, GlobalStackPlan, GrowableBitSet, InstId, InstKind, Label, Liveness, LoopAnalyzer,
+    Module, OnceCell, OptimizationMode, PhiEliminator, StackModel, StackOp, StackPhiPlan,
+    Terminator, Value, ValueId, cross_block_values, planned_entry_carries,
+    stack::layout::LIVE_JOIN_LAYOUT_LIMIT,
 };
 use crate::{mir::Callee, target::Target};
-use either::Either;
 use std::rc::Rc;
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -334,6 +334,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.preallocate_cross_block_spills(func, liveness, &cross_block_live);
 
         self.cold_blocks = self.collect_cold_blocks(func);
+        let mut loop_analyzer = LoopAnalyzer::new();
+        let loop_info = loop_analyzer.analyze(func);
+        let mut loop_blocks = DenseBitSet::new_empty(func.blocks.len());
+        for loop_data in loop_info.all_loops() {
+            loop_blocks.union(&loop_data.blocks);
+        }
 
         // Create labels for each block
         self.block_labels.clear();
@@ -342,7 +348,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if self.block_is_cold(block_id) {
                 self.asm.mark_label_cold(label);
             }
-            if stack_phi_plan.loop_blocks.contains(block_id) {
+            if loop_blocks.contains(block_id) {
                 self.asm.mark_label_loop(label);
             }
             self.block_labels.insert(block_id, label);
@@ -875,6 +881,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                 false
             };
 
+            tracing::trace!(
+                block = ?block_id,
+                has_edge_specific_global,
+                preserve_stack_to_fallthrough,
+                ?preserve_jump_target,
+                ?preserve_branch_targets,
+                stack_phi_preserved,
+                stack_phi_branch_preserved,
+                "block exit"
+            );
             let preserve_stack = preserve_stack_to_fallthrough
                 || preserve_jump_target.is_some()
                 || !preserve_branch_targets.is_empty()
@@ -1044,7 +1060,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// computes the branch condition while the carried phi values remain below
     /// it. If both successors are private, later blocks, we can leave those
     /// values on the stack for both edges instead of spilling them before every
-    /// loop condition.
+    /// loop condition. The condition may also be a carried loop invariant below
+    /// the top, which the terminator duplicates for `JUMPI`. Every word must be
+    /// live out of the block, and at most `LIVE_JOIN_LAYOUT_LIMIT` words are
+    /// carried, matching what the live-join planner delivers into a block.
     fn branch_preserve_targets(
         &self,
         func: &Function,
@@ -1059,7 +1078,22 @@ impl<'gcx> EvmCodegen<'gcx> {
             return Vec::new();
         };
 
-        if self.scheduler.stack.top() != Some(*condition) {
+        // A freshly computed condition is the top word and JUMPI consumes it. A condition
+        // carried below the top is a loop invariant the successors still read; the terminator
+        // duplicates it for JUMPI, so the whole stack survives the branch.
+        let condition_on_top = self.scheduler.stack.top() == Some(*condition);
+        if !condition_on_top
+            && !(liveness.live_out(block_id).contains(*condition)
+                && self
+                    .scheduler
+                    .stack
+                    .find(*condition)
+                    .is_some_and(|depth| depth < self.stack_access_limit()))
+        {
+            tracing::trace!(
+                block = ?block_id,
+                "branch preserve: condition neither on top nor carried"
+            );
             return Vec::new();
         }
 
@@ -1067,13 +1101,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             .scheduler
             .stack
             .iter()
-            .skip(1)
+            .skip(usize::from(condition_on_top))
             .map(|slot| {
                 let value = slot?;
                 liveness.live_out(block_id).contains(value).then_some(value)
             })
             .collect::<Option<Vec<_>>>()
         else {
+            tracing::trace!(
+                block = ?block_id,
+                stack = ?self.scheduler.stack,
+                "branch preserve: dead word below condition"
+            );
             return Vec::new();
         };
         // Unit-increment overflow checks use the sum itself as their condition. Keep that
@@ -1086,7 +1125,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         {
             carried.push(*condition);
         }
-        if carried.is_empty() || carried.len() > STACK_PHI_LAYOUT_LIMIT {
+        // The live-join planner carries up to `LIVE_JOIN_LAYOUT_LIMIT` words into a block; a
+        // branch that cannot keep that many drops every one of them to memory on both arms.
+        if carried.is_empty() || carried.len() > LIVE_JOIN_LAYOUT_LIMIT {
+            tracing::trace!(
+                block = ?block_id,
+                carried = carried.len(),
+                "branch preserve: too many carried words"
+            );
             return Vec::new();
         }
 
@@ -1110,6 +1156,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         if carried.iter().any(|&value| !live_in_any_target.contains(value)) {
+            tracing::trace!(
+                block = ?block_id,
+                ?carried,
+                "branch preserve: carried word dead in both targets"
+            );
             return Vec::new();
         }
 
@@ -1118,6 +1169,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             if target == block_id {
                 return Vec::new();
             }
+            tracing::trace!(
+                block = ?block_id,
+                ?target,
+                pos,
+                target_pos = ?block_pos.get(&target),
+                preds = ?func.blocks[target].predecessors,
+                "branch preserve: target"
+            );
             let has_phi = func.blocks[target]
                 .instructions
                 .iter()
@@ -1294,37 +1353,53 @@ impl<'gcx> EvmCodegen<'gcx> {
         let reachable = cfg.reachable();
         let mut order = Vec::with_capacity(func.blocks.len());
         let mut placed = DenseBitSet::new_empty(func.blocks.len());
-        let mut predecessors = Vec::new();
 
         self.append_layout_chain(func, BlockId::ENTRY, reachable, &mut placed, &mut order);
-        let blocks = if self.gcx.sess.opts.optimization.is_size() {
-            Either::Left(cfg.rpo().iter().copied())
-        } else {
-            Either::Right(func.blocks.indices())
+        // Reverse postorder emits every block after its forward predecessors. A block with one
+        // predecessor is then always emitted after it, so the predecessor's exit stack can be
+        // recorded as the block's entry layout instead of spilled; block-index order emitted
+        // a loop's latch before the body join that feeds it, and every value the join carried
+        // went through memory once per iteration. The search enters a loop's own blocks before
+        // its exits: the successor a search leaves last is the first one emitted after the
+        // block, so a header is followed by its exit and its body comes later. The header's
+        // branch is then shaped toward the exit fallthrough and jumps into the body, and the
+        // EVM IR loop layout places the latch before the header; a header followed by its body
+        // folds the body into a self-loop that pays a jump on every iteration. The physical
+        // order is chosen later by the EVM IR layout passes, so this order only decides which
+        // edges may carry a stack and which arm each branch is shaped toward.
+        let mut loop_analyzer = LoopAnalyzer::new();
+        let loop_info = loop_analyzer.analyze(func);
+        let stays_in_loop = |block: BlockId, successor: BlockId| {
+            loop_info
+                .block_to_loop
+                .get(&block)
+                .and_then(|header| loop_info.loops.get(header))
+                .is_some_and(|loop_data| loop_data.blocks.contains(successor))
         };
-        for block_id in blocks {
-            if reachable.contains(block_id) && !placed.contains(block_id) {
-                if self.gcx.sess.opts.optimization.is_gas() && !self.block_is_cold(block_id) {
-                    // predecessor; private continuation
-                    let mut predecessor = block_id;
-                    while let [parent] = func.blocks[predecessor].predecessors.as_slice()
-                        && !placed.contains(*parent)
-                    {
-                        predecessors.push(*parent);
-                        predecessor = *parent;
-                    }
-                    for predecessor in predecessors.drain(..).rev() {
-                        self.append_layout_chain(
-                            func,
-                            predecessor,
-                            reachable,
-                            &mut placed,
-                            &mut order,
-                        );
-                    }
+        // Successors are popped from the end, so a loop's own blocks go last.
+        let search_order = |block: BlockId| {
+            let successors = cfg.successors(block);
+            let mut ordered = Vec::with_capacity(successors.len());
+            ordered.extend(successors.iter().rev().filter(|&&succ| !stays_in_loop(block, succ)));
+            ordered.extend(successors.iter().rev().filter(|&&succ| stays_in_loop(block, succ)));
+            ordered
+        };
+        let mut visited = DenseBitSet::new_empty(func.blocks.len());
+        let mut postorder = Vec::with_capacity(func.blocks.len());
+        let mut search = vec![(BlockId::ENTRY, search_order(BlockId::ENTRY))];
+        visited.insert(BlockId::ENTRY);
+        while let Some((block, successors)) = search.last_mut() {
+            if let Some(succ) = successors.pop() {
+                if visited.insert(succ) {
+                    search.push((succ, search_order(succ)));
                 }
-                self.append_layout_chain(func, block_id, reachable, &mut placed, &mut order);
+            } else {
+                postorder.push(*block);
+                search.pop();
             }
+        }
+        for &block_id in postorder.iter().rev() {
+            self.append_layout_chain(func, block_id, reachable, &mut placed, &mut order);
         }
 
         order
