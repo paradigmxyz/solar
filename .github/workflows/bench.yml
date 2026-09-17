@@ -346,12 +346,9 @@ jobs:
       - name: Run the benchmarks
         uses: CodSpeedHQ/action@373d6868929f444bc08d901fd0eb0ad52a8875ea # v5.2.1
         with:
-          # Restrict available_parallelism to one so workspace analysis cannot spawn Rayon
-          # workers whose scheduling and teardown spill into later simulation measurements.
-          run: |
-            cpu="$(awk '/Cpus_allowed_list/ { split($2, cpus, /[-,]/); print cpus[1] }' /proc/self/status)"
-            taskset --cpu-list "$cpu" cargo codspeed run -m simulation \
-              -p solar-bench -p solar-lsp \
-              --bench criterion --bench lsp --bench lsp_diagnostic
+          run: >-
+            cargo codspeed run -m simulation
+            -p solar-bench -p solar-lsp
+            --bench criterion --bench lsp --bench lsp_diagnostic
           mode: simulation
           token: ${{ secrets.CODSPEED_TOKEN }}

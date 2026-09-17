@@ -29,10 +29,10 @@ updates to `main`. CodSpeed simulates the single-file and whole-project benchmar
 codegen for selected projects. The workflow can also be dispatched for codegen runtime comparisons,
 CodSpeed, or both, and can override the pinned solc release.
 
-CodSpeed runs on one allowed CPU so default compiler sessions use one thread. This prevents
-Rayon worker scheduling and teardown from leaking into later measurements and keeps Tokio
-request benchmarks on the same CPU. The build still uses all available CPUs. Simulation
-measures CPU work; use the
+LSP benchmark fixtures explicitly use single-threaded compiler sessions, including repeated
+workspace analysis. This prevents Rayon worker scheduling and teardown from leaking into later
+samples. Rename and quick-fix microbenchmarks call the production validation and edit-building
+functions synchronously, excluding Tokio task dispatch. Use the
 [LSP session benchmarks](lsp/README.md) to measure end-to-end request latency.
 
 All LSP microbenchmarks use `lsp/<operation>[<scenario>]` display names. Register each case

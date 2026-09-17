@@ -1722,6 +1722,8 @@ impl GlobalState {
             flycheck_versions: self.flycheck_versions.clone(),
             symbol_tables: self.symbol_tables.clone(),
             diagnostics: self.diagnostics.clone(),
+            #[cfg(any(test, feature = "bench"))]
+            benchmark_threads: None,
         }
     }
 
@@ -2488,6 +2490,9 @@ pub(crate) struct GlobalStateSnapshot {
     flycheck_versions: Arc<RwLock<FxHashMap<DiagnosticOwner, usize>>>,
     symbol_tables: Arc<ArcSwap<SymbolTables>>,
     diagnostics: Arc<RwLock<DiagnosticStore>>,
+    /// Override compiler parallelism only in benchmark snapshots.
+    #[cfg(any(test, feature = "bench"))]
+    benchmark_threads: Option<solar_config::Threads>,
 }
 
 impl GlobalStateSnapshot {
@@ -2565,6 +2570,12 @@ impl GlobalStateSnapshot {
             .iter()
             .map(|workspace| AnalysisBatch::new(workspace.compile_opts().clone()))
             .collect::<Vec<_>>();
+        #[cfg(any(test, feature = "bench"))]
+        if let Some(threads) = self.benchmark_threads {
+            for batch in &mut batches {
+                batch.opts.threads = threads;
+            }
+        }
         let source_map = SourceMap::empty();
         let mut source_files_complete = true;
 
