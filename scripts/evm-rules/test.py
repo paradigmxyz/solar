@@ -751,7 +751,7 @@ class EnvironmentTests(unittest.TestCase):
             for form, line in forms(path.read_text())
             if form[0] == "rule" and "Op.Balance" in repr(form) and "band" in repr(form)
         ]
-        self.assertEqual(len(rules), 2)
+        self.assertEqual(len(rules), 1)
         for rule in rules:
             with self.subTest(line=rule.line):
                 cx = Context()

@@ -70,8 +70,8 @@ bb8:
   jumpi
   push 4
   calldataload
+  dup 1
   push 4
-  dup 2
   add
   push 32
   dup 2
@@ -115,8 +115,8 @@ bb8:
   sgt
   push bb6
   jumpi
+  dup 1
   push 32
-  dup 2
   add
   push 32
   dup 2
@@ -192,8 +192,8 @@ bb22:
   jumpi
   push 4
   calldataload
+  dup 1
   push 4
-  dup 2
   add
   push 32
   dup 2
@@ -237,8 +237,8 @@ bb22:
   sgt
   push bb6
   jumpi
+  dup 1
   push 32
-  dup 2
   add
   push 32
   dup 2
@@ -281,8 +281,8 @@ bb31:
   jumpi
   push 36
   calldataload
+  dup 1
   push 4
-  dup 2
   add
   push 32
   dup 2
@@ -311,8 +311,8 @@ bb31:
   jumpi
   push 68
   calldataload
+  dup 1
   push 4
-  dup 2
   add
   push 32
   dup 2
@@ -357,8 +357,8 @@ bb31:
   sgt
   push bb6
   jumpi
+  dup 1
   push 32
-  dup 2
   add
   push 32
   dup 2

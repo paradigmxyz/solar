@@ -5,6 +5,7 @@
 types:
   struct0: {i256, i256, i256}
   struct1: {i256, i256}
+  struct2: {i256, i256, i256, i256}
 
 fn @shift_chains(arg0: i256) -> struct0 [return_abi=[i256, i256, i256]] {
   bb0:
@@ -96,4 +97,39 @@ fn @repeated_dynamic_extension(arg0: i256, arg1: i256) -> i256 {
     v2 = signextend arg1, arg0
     v3 = signextend arg1, v2
     ret v3
+}
+
+// Every AND/OR operand order must match through the constant-right view.
+fn @constant_left_shift_masks(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> struct2 [return_abi=[u256, u256, u256, u256]] {
+  bb0:
+    v4 = shl 8, arg0
+    v5 = or v4, 3
+    v6 = and v5, 255
+    v7 = shl 8, arg1
+    v8 = or 3, v7
+    v9 = and v8, 255
+    v10 = shl 8, arg2
+    v11 = or v10, 3
+    v12 = and 255, v11
+    v13 = shl 8, arg3
+    v14 = or 3, v13
+    v15 = and 255, v14
+    ret v6, v9, v12, v15
+}
+
+fn @constant_right_shift_masks(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> struct2 [return_abi=[u256, u256, u256, u256]] {
+  bb0:
+    v4 = shr 248, arg0
+    v5 = or v4, 256
+    v6 = and v5, 65280
+    v7 = shr 248, arg1
+    v8 = or 256, v7
+    v9 = and v8, 65280
+    v10 = shr 248, arg2
+    v11 = or v10, 256
+    v12 = and 65280, v11
+    v13 = shr 248, arg3
+    v14 = or 256, v13
+    v15 = and 65280, v14
+    ret v6, v9, v12, v15
 }

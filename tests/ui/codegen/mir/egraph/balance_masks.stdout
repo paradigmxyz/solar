@@ -11,9 +11,8 @@
   
   fn @wide_mask(arg0: i256) -> i256 {
     bb0:
--     v0 = and 0x800000000000000000000000ffffffffffffffffffffffffffffffffffffffff, arg0
+      v0 = and 0x800000000000000000000000ffffffffffffffffffffffffffffffffffffffff, arg0
 -     v1 = balance v0
-+     v0 = and arg0, 0x800000000000000000000000ffffffffffffffffffffffffffffffffffffffff
 +     v1 = balance arg0
       ret v1
   }

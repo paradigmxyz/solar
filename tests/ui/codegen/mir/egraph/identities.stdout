@@ -1,6 +1,6 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/identities.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/identities.mir (after egraph) ===
-  @module InstSimplifyIdentities
+  @module Identities
   types:
     struct0: {i256, i256}
     struct1: {struct0, i256}
@@ -286,9 +286,8 @@
   fn @subtract_common_base(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = add arg0, 68
--     v1 = add 36, arg0
+      v1 = add 36, arg0
 -     v2 = sub v0, v1
-+     v1 = add arg0, 36
       v3 = sub arg0, 1
       v4 = add arg0, 1
 -     v5 = sub v4, v3
@@ -341,5 +340,13 @@
       v4 = shl 5, arg0
       v5 = shl arg1, v4
       ret v1, v3, v5
+  }
+  
+  fn @constant_multiplicands(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
+    bb0:
+-     v0 = mulmod 0, 5, arg0
+-     v1 = mulmod 5, 0, arg0
+-     ret v0, v1
++     ret 0, 0
   }
   

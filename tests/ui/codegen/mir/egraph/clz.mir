@@ -1,5 +1,5 @@
 //@compile-flags: -Zmir-pipeline=egraph
-@module ClzInstSimplify
+@module Clz
 
 types:
   struct0: {i256, i256, i256}

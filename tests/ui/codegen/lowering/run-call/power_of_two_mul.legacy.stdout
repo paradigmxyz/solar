@@ -178,9 +178,9 @@ bb26:
   lt
   push bb8
   jumpi
-  push 0x8000000000000000000000000000000000000000000000000000000000000000
   push 4
   calldataload
+  push 0x8000000000000000000000000000000000000000000000000000000000000000
   mul
   push 128
   mstore
@@ -198,8 +198,8 @@ bb29:
   jumpi
   push 4
   calldataload
+  dup 1
   push 4
-  dup 2
   add
   push 32
   dup 2
