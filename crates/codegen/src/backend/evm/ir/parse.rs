@@ -84,6 +84,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
             }
         }
+        module.libraries = std::mem::take(&mut self.parser.libraries);
         Ok(module)
     }
 

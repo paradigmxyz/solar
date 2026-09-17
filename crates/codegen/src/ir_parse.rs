@@ -1,4 +1,4 @@
-use crate::link::{LibraryId, LibraryRelocation};
+use crate::link::{Library, LibraryId, LibraryRelocation, LibraryTable};
 use alloy_primitives::{Bytes, U256};
 use solar_ast::{
     Arena,
@@ -9,12 +9,16 @@ use solar_parse::PErr;
 
 /// Shared parser primitives for the textual IR parsers.
 pub(crate) struct Parser<'sess, 'ast> {
+    pub(crate) libraries: LibraryTable,
     parser: solar_parse::Parser<'sess, 'ast, 'ast>,
 }
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     pub(crate) fn new(sess: &'sess Session, arena: &'ast Arena, source: &SourceFile) -> Self {
-        Self { parser: solar_parse::Parser::from_source_file(sess, arena, source) }
+        Self {
+            parser: solar_parse::Parser::from_source_file(sess, arena, source),
+            libraries: LibraryTable::default(),
+        }
     }
 
     pub(crate) fn token(&self) -> Token {
@@ -138,7 +142,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let source = self.parse_library_component()?;
         self.expect(TokenKind::Colon)?;
         let name = self.parse_library_component()?;
-        Ok(LibraryId { source, name })
+        Ok(self.libraries.intern(Library { source, name }))
     }
 
     fn parse_library_component(&mut self) -> Result<Symbol, PErr<'sess>> {

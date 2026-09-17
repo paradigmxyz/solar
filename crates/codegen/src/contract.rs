@@ -3,7 +3,7 @@
 use crate::{
     Backend, EvmCodegen,
     backend::evm::{DebugInstruction, ir},
-    link::{LibraryId, LibraryRelocation, RelocatableBytecode},
+    link::{Library, LibraryRelocation, LibraryTable, RelocatableBytecode},
     mir::{Module, lower, pass::run_pipeline},
 };
 use alloy_primitives::Bytes;
@@ -355,16 +355,23 @@ fn generate_contract_bytecode(
             let artifact = artifacts[dependency]
                 .get()
                 .expect("dependency artifact should have been generated");
+            let mut libraries = LibraryTable::default();
+            let deployment_relocations =
+                library_relocations(&artifact.deployment_link_references, &mut libraries);
+            let runtime_relocations =
+                library_relocations(&artifact.runtime_link_references, &mut libraries);
             (
                 dependency,
                 lower::ContractBytecodes::new(
                     RelocatableBytecode {
                         bytes: artifact.deployment.clone(),
-                        relocations: library_relocations(&artifact.deployment_link_references),
+                        relocations: deployment_relocations,
+                        libraries: libraries.clone(),
                     },
                     RelocatableBytecode {
                         bytes: artifact.runtime.clone(),
-                        relocations: library_relocations(&artifact.runtime_link_references),
+                        relocations: runtime_relocations,
+                        libraries,
                     },
                 ),
             )
@@ -457,8 +464,9 @@ fn generate_contract_bytecode(
         })
         .collect();
     let deployment_link_references =
-        collect_library_references(&artifact.deployment_library_relocations);
-    let runtime_link_references = collect_library_references(&artifact.runtime_library_relocations);
+        collect_library_references(&artifact.deployment_library_relocations, &artifact.libraries);
+    let runtime_link_references =
+        collect_library_references(&artifact.runtime_library_relocations, &artifact.libraries);
     let mir = capture_mir.then(|| built_mir.unwrap_or(module));
 
     Ok(ContractArtifact {
@@ -476,27 +484,36 @@ fn generate_contract_bytecode(
 }
 
 /// Converts named artifact references into identities for embedded bytecode.
-fn library_relocations(references: &[LibraryReference]) -> Vec<LibraryRelocation> {
+fn library_relocations(
+    references: &[LibraryReference],
+    libraries: &mut LibraryTable,
+) -> Vec<LibraryRelocation> {
     references
         .iter()
         .map(|reference| LibraryRelocation {
             offset: reference.start,
-            library: LibraryId {
+            library: libraries.intern(Library {
                 source: Symbol::intern(&reference.source),
                 name: Symbol::intern(&reference.name),
-            },
+            }),
         })
         .collect()
 }
 
 /// Resolves the assembler's library relocations to source-qualified names.
-fn collect_library_references(relocations: &[LibraryRelocation]) -> Vec<LibraryReference> {
+fn collect_library_references(
+    relocations: &[LibraryRelocation],
+    libraries: &LibraryTable,
+) -> Vec<LibraryReference> {
     relocations
         .iter()
-        .map(|reloc| LibraryReference {
-            source: reloc.library.source.to_string(),
-            name: reloc.library.name.to_string(),
-            start: reloc.offset,
+        .map(|reloc| {
+            let library = libraries.get(reloc.library).expect("valid artifact library ID");
+            LibraryReference {
+                source: library.source.to_string(),
+                name: library.name.to_string(),
+                start: reloc.offset,
+            }
         })
         .collect()
 }
@@ -515,16 +532,17 @@ mod tests {
     #[test]
     fn library_references_use_recorded_identities() {
         solar_interface::enter(|| {
+            let mut libraries = LibraryTable::default();
             let relocation = LibraryRelocation {
                 offset: 22,
-                library: LibraryId { source: sym::literal, name: sym::runtime },
+                library: libraries.intern(Library { source: sym::literal, name: sym::runtime }),
             };
-            let references = collect_library_references(&[relocation]);
+            let references = collect_library_references(&[relocation], &libraries);
             assert_eq!(
                 references,
                 [LibraryReference { source: "literal".into(), name: "runtime".into(), start: 22 }]
             );
-            assert_eq!(library_relocations(&references), [relocation]);
+            assert_eq!(library_relocations(&references, &mut libraries), [relocation]);
         });
     }
 }

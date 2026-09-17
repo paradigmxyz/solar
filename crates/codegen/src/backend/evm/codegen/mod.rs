@@ -612,6 +612,8 @@ impl<'gcx> EvmCodegen<'gcx> {
 /// The artifact produced by the EVM backend.
 #[derive(Clone, Debug, Default)]
 pub struct EvmArtifact {
+    /// Library identities referenced by this artifact.
+    pub libraries: crate::link::LibraryTable,
     /// Deployment (init) bytecode that, when run, returns the runtime code.
     pub deployment: Vec<u8>,
     /// Runtime bytecode, i.e. the code stored on-chain.

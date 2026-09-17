@@ -21,8 +21,8 @@ pub(in crate::backend) use indexed_jump::{
     indexed_jump_target_width_bound, packs_indexed_jump,
 };
 pub(in crate::backend) use inst::{
-    AsmIndex, AsmInst, AsmInstKind, DataRefId, DeferredAlloc, ImmutablePushId, LibraryPushId,
-    PackedLabelsId, PushValueId,
+    AsmIndex, AsmInst, AsmInstKind, DataRefId, DeferredAlloc, ImmutablePushId, PackedLabelsId,
+    PushValueId,
 };
 pub(crate) use inst::{DeferredConst, Label};
 

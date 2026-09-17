@@ -17,7 +17,7 @@ use super::{
 };
 use crate::{
     backend::assembler::{self, assembly},
-    link::{LibraryId, LibraryRelocation},
+    link::{LibraryId, LibraryRelocation, LibraryTable},
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::{Bytes, U256};
@@ -87,6 +87,7 @@ impl BlockId {
 /// An EVM IR module.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Module {
+    pub(crate) libraries: LibraryTable,
     /// Program name used by tools and diagnostics.
     pub(crate) name: Symbol,
     /// Basic blocks in layout order.
@@ -125,6 +126,7 @@ impl Module {
     pub(crate) fn new(name: Symbol) -> Self {
         Self {
             name,
+            libraries: LibraryTable::default(),
             blocks: IndexVec::new(),
             data: IndexVec::new(),
             enable_size_outlining: false,
@@ -137,6 +139,7 @@ impl Module {
     pub(in crate::backend) fn clear(&mut self) {
         self.blocks.clear();
         self.data.clear();
+        self.libraries.clear();
         self.enable_size_outlining = false;
         self.code_follows = false;
         self.debug_info_tracked = false;

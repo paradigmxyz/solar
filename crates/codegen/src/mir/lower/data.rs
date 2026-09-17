@@ -5,7 +5,7 @@ use crate::{
         ir::immediate_materialization_cost,
         op::{WORD_BYTES, push_len},
     },
-    link::RelocatableBytecode,
+    link::{LibraryRelocation, RelocatableBytecode},
     mir::{FunctionBuilder, Module, ValueId, memory::EvmMemoryLayout},
 };
 use alloy_primitives::U256;
@@ -85,8 +85,17 @@ pub(super) fn copy_data_to_memory(
             builder.memory_zero(tail, size);
         }
         let size = builder.imm(data.len() as u64);
-        let data =
-            module.intern_linked_data(bytecode.bytes.clone(), name, bytecode.relocations.clone());
+        let relocations = bytecode
+            .relocations
+            .iter()
+            .map(|reloc| LibraryRelocation {
+                offset: reloc.offset,
+                library: module.libraries.intern(
+                    *bytecode.libraries.get(reloc.library).expect("valid embedded library ID"),
+                ),
+            })
+            .collect();
+        let data = module.intern_linked_data(bytecode.bytes.clone(), name, relocations);
         builder.data_copy(data, dest, size);
         return;
     }

@@ -119,7 +119,7 @@ impl<'a> Validator<'a> {
             self.emit("return signature cannot contain `void`; use an empty return list");
         }
         self.validate_function_body(Some(module), func);
-        self.validate_immutables(module, func);
+        self.validate_module_references(module, func);
         self.validate_calls(module, func);
         if self.error_count == errors_before {
             self.validate_struct_values(module, func);
@@ -522,10 +522,17 @@ impl<'a> Validator<'a> {
         location
     }
 
-    fn validate_immutables(&mut self, module: &Module, func: &Function) {
+    fn validate_module_references(&mut self, module: &Module, func: &Function) {
         for inst_id in func.instructions() {
             let inst = func.inst(inst_id);
             match inst.kind {
+                InstKind::LibraryAddress(id) if module.libraries.get(id).is_none() => {
+                    self.emit(format_args!(
+                        "inst{} references nonexistent library {}",
+                        inst_id.index(),
+                        id.index()
+                    ));
+                }
                 InstKind::LoadImmutable(id) => {
                     match (module.get_immutable_type(id), inst.result_ty) {
                         (Some(expected), Some(actual)) if actual != expected => {

@@ -4,7 +4,7 @@ use super::{
     AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, DataId, DataRef, Disambiguator,
     Function, FunctionId, ImmutableId, MangledSymbol, MirType, StructId, StructType, Terminator,
 };
-use crate::link::LibraryRelocation;
+use crate::link::{LibraryRelocation, LibraryTable};
 use alloy_primitives::Bytes;
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -86,6 +86,7 @@ impl std::ops::Deref for LoweredModule<'_> {
 /// A MIR module representing a compiled contract.
 #[derive(Clone, Debug)]
 pub struct Module {
+    pub(crate) libraries: LibraryTable,
     /// Module/contract name.
     pub(crate) name: Ident,
     /// Fixed aggregate types, with nested types declared before their users.
@@ -178,6 +179,7 @@ impl Module {
             immutables: IndexVec::new(),
             data: IndexVec::new(),
             data_index: FxHashMap::default(),
+            libraries: LibraryTable::default(),
             linked_data_index: FxHashMap::default(),
             is_interface: false,
             is_library: false,
@@ -567,7 +569,11 @@ impl Module {
                     write!(f, "\"")?;
                     let offsets = self.data_library_relocations(id);
                     if !offsets.is_empty() {
-                        write!(f, " library_relocations [{}]", offsets.iter().format(", "))?;
+                        write!(
+                            f,
+                            " library_relocations [{}]",
+                            offsets.iter().map(|reloc| reloc.display(&self.libraries)).format(", ")
+                        )?;
                     }
                     writeln!(f)?;
                 }

@@ -140,6 +140,7 @@ impl<'gcx> Assembler<'gcx> {
     /// Loads MIR constant data into the EVM IR module with matching IDs.
     pub(crate) fn load_data(&mut self, module: &MirModule) {
         assert!(self.program.data.is_empty(), "EVM IR data must be empty before loading MIR data");
+        self.program.libraries = module.libraries.clone();
         self.program.data = module
             .iter_data()
             .map(|(id, data)| ir::Data {

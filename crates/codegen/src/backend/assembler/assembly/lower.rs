@@ -65,7 +65,6 @@ impl Assembler<'_> {
             evm_ir,
             program,
             push_values: std::mem::take(&mut self.push_values),
-            library_pushes: std::mem::take(&mut self.library_pushes),
             immutable_pushes: std::mem::take(&mut self.immutable_pushes),
             next_label: std::mem::take(&mut self.next_label),
             deferred_values: std::mem::take(&mut self.deferred_values),
@@ -345,7 +344,7 @@ fn lower_instruction(
     } else if inst.is_encoded_push() {
         // push_library source:library | push immediate
         if let Some(library) = inst.pushed_library() {
-            assembler.library_push_inst(library)
+            AsmInst::push_library(library)
         } else if let Some(value) = inst.pushed_value() {
             assembler.push_inst(value)
         } else if let Some(block) = inst.pushed_block() {

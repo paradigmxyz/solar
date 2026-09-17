@@ -1,7 +1,7 @@
 //! Function calls, conversions, and call-target resolution.
 
 use super::*;
-use crate::link::LibraryId;
+use crate::link::Library;
 
 #[derive(Clone, Copy)]
 pub(super) struct ExternalReturnPlan {
@@ -1085,7 +1085,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let contract = self.cx.gcx.hir.contract(contract_id);
         let source = self.cx.gcx.hir.source(contract.source).file.name.display().to_string();
 
-        let library = LibraryId { source: Symbol::intern(&source), name: contract.name.name };
+        let library = self
+            .cx
+            .module
+            .libraries
+            .intern(Library { source: Symbol::intern(&source), name: contract.name.name });
         // result = library_address source:library
         self.builder.library_address(library)
     }

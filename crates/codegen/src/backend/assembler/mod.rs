@@ -11,7 +11,7 @@ use crate::{
     backend::evm::{
         DebugFunction, DebugFunctionExit, DebugInstruction, DebugSpans, ir, op, op::WORD_BYTES,
     },
-    link::{LibraryId, LibraryRelocation},
+    link::LibraryRelocation,
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::U256;
@@ -24,9 +24,7 @@ pub(crate) mod assembly;
 mod id_counter;
 pub(in crate::backend) use id_counter::IdCounter;
 
-pub(super) use assembly::{
-    AsmInst, AsmInstKind, DeferredAlloc, ImmutablePushId, LibraryPushId, PushValueId,
-};
+pub(super) use assembly::{AsmInst, AsmInstKind, DeferredAlloc, ImmutablePushId, PushValueId};
 pub(crate) use assembly::{DeferredConst, Label};
 
 mod local_interner;
@@ -95,7 +93,6 @@ pub(in crate::backend) struct PreparedAssembly {
     pub(in crate::backend) program: AssemblyProgram,
     pub(in crate::backend) evm_ir: Option<ir::Module>,
     pub(in crate::backend) push_values: LocalInterner<U256, PushValueId>,
-    pub(in crate::backend) library_pushes: LocalInterner<LibraryId, LibraryPushId>,
     pub(in crate::backend) immutable_pushes: LocalInterner<ImmutablePush, ImmutablePushId>,
     pub(in crate::backend) next_label: IdCounter<Label>,
     pub(in crate::backend) deferred_values: FxHashMap<DeferredConst, U256>,
@@ -134,7 +131,6 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) indexed_jump_relocations: Vec<(ir::BlockId, Vec<Label>, ir::Metadata)>,
     /// Interned push immediates too large for inline storage.
     pub(in crate::backend) push_values: LocalInterner<U256, PushValueId>,
-    pub(in crate::backend) library_pushes: LocalInterner<LibraryId, LibraryPushId>,
     /// Interned immutable placeholders.
     pub(in crate::backend) immutable_pushes: LocalInterner<ImmutablePush, ImmutablePushId>,
     /// Next label ID.
@@ -178,7 +174,6 @@ impl<'gcx> Assembler<'gcx> {
             deferred_relocations: Vec::new(),
             indexed_jump_relocations: Vec::new(),
             push_values: LocalInterner::new(),
-            library_pushes: LocalInterner::new(),
             immutable_pushes: LocalInterner::new(),
             next_label: IdCounter::new(),
             next_deferred: IdCounter::new(),
@@ -205,7 +200,6 @@ impl<'gcx> Assembler<'gcx> {
         self.deferred_relocations.clear();
         self.indexed_jump_relocations.clear();
         self.push_values.clear();
-        self.library_pushes.clear();
         self.immutable_pushes.clear();
         self.next_label.clear();
         self.next_deferred.clear();
@@ -248,11 +242,6 @@ impl<'gcx> Assembler<'gcx> {
         }
 
         AsmInst::push(self.push_values.intern(value))
-    }
-
-    pub(in crate::backend) fn library_push_inst(&mut self, library: LibraryId) -> AsmInst {
-        // push_library source:library
-        AsmInst::push_library(self.library_pushes.intern(library))
     }
 
     pub(in crate::backend) fn immutable_push_inst(
@@ -301,7 +290,6 @@ impl<'gcx> Assembler<'gcx> {
         deferred_values: &[(DeferredConst, U256)],
     ) -> AssembledCode {
         self.push_values = prepared.push_values.clone();
-        self.library_pushes = prepared.library_pushes.clone();
         self.immutable_pushes = prepared.immutable_pushes.clone();
         self.next_label = prepared.next_label.clone();
         self.deferred_values.clone_from(&prepared.deferred_values);
@@ -515,10 +503,8 @@ impl<'gcx> Assembler<'gcx> {
                     out.emit_push_value(self.push_value(index), source_spans);
                 }
                 AsmInstKind::PushLibrary(id) => {
-                    out.library_relocations.push(LibraryRelocation {
-                        offset: out.bytecode.len() + 1,
-                        library: *self.library_pushes.get(id),
-                    });
+                    out.library_relocations
+                        .push(LibraryRelocation { offset: out.bytecode.len() + 1, library: id });
                     out.emit_push_fixed_width(U256::ZERO, 20, source_spans);
                 }
                 AsmInstKind::PushLabel(label) => {

@@ -33,7 +33,10 @@ impl Module {
                     write!(
                         f,
                         " library_relocations [{}]",
-                        data.library_relocations.iter().format(", ")
+                        data.library_relocations
+                            .iter()
+                            .map(|reloc| reloc.display(&self.libraries))
+                            .format(", ")
                     )?;
                 }
                 writeln!(f)?;
@@ -218,7 +221,9 @@ fn display_push_value<'a>(module: &'a Module, value: &'a PushValue) -> impl fmt:
         PushValue::Immediate(value) => {
             write!(f, "{}", display_u256(*value))
         }
-        PushValue::Library(library) => write!(f, "{library}"),
+        PushValue::Library(library) => {
+            write!(f, "{}", module.libraries.get(*library).expect("valid library ID"))
+        }
         PushValue::Block(block) => write!(f, "{}", display_block_id(module, *block)),
         PushValue::Data(data) => write!(
             f,

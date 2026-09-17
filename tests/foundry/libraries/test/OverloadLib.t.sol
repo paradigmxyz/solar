@@ -26,6 +26,10 @@ contract OverloadLibTest {
         RuntimeCodeDeployer deployed = new RuntimeCodeDeployer(type(LibraryAddressChild).runtimeCode);
         require(LibraryAddressChild(address(deployed)).linked() == address(OverloadLib));
         require(LibraryAddressChild(address(deployed)).linkedOther() == address(OtherOverloadLib));
+        OtherLibraryAddressChild other = new OtherLibraryAddressChild();
+        require(other.linked() == address(OtherOverloadLib));
+        RuntimeCodeDeployer otherDeployed = new RuntimeCodeDeployer(type(OtherLibraryAddressChild).runtimeCode);
+        require(OtherLibraryAddressChild(address(otherDeployed)).linked() == address(OtherOverloadLib));
     }
 
     function libraryAddress() external pure returns (address) {
@@ -83,6 +87,10 @@ contract OverloadLibTest {
 contract LibraryAddressChild {
     function linked() external pure returns (address) { return address(OverloadLib); }
     function linkedOther() external pure returns (address) { return address(OtherOverloadLib); }
+}
+
+contract OtherLibraryAddressChild {
+    function linked() external pure returns (address) { return address(OtherOverloadLib); }
 }
 
 contract RuntimeCodeDeployer {

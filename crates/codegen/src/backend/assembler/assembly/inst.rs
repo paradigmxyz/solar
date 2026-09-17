@@ -1,6 +1,6 @@
 //! Compact instructions for finalized, layout-linear EVM IR.
 
-use crate::backend::evm::ir::DataId;
+use crate::{backend::evm::ir::DataId, link::LibraryId};
 use solar_data_structures::{index::Idx, newtype_index};
 
 newtype_index! {
@@ -22,9 +22,6 @@ newtype_index! {
 
     /// A packed-label immediate identifier.
     pub(in crate::backend) struct PackedLabelsId;
-
-    /// An interned source-qualified library identifier.
-    pub(in crate::backend) struct LibraryPushId;
 
     /// An interned immutable placeholder identifier.
     pub(in crate::backend) struct ImmutablePushId;
@@ -64,7 +61,7 @@ impl AsmIndex for PushValueId {
     const NAME: &'static str = "assembler push value index";
 }
 
-impl AsmIndex for LibraryPushId {
+impl AsmIndex for LibraryId {
     const NAME: &'static str = "assembler library push index";
 }
 
@@ -131,7 +128,7 @@ impl AsmInst {
         Self::tagged(Self::TAG_PUSH, index.inst_payload())
     }
 
-    pub(in crate::backend) fn push_library(id: LibraryPushId) -> Self {
+    pub(in crate::backend) fn push_library(id: LibraryId) -> Self {
         Self::extended(Self::EXTENDED_PUSH_LIBRARY, id.inst_payload())
     }
 
@@ -221,7 +218,7 @@ impl AsmInst {
                         AsmInstKind::PushData(DataRefId::from_inst_payload(index))
                     }
                     Self::EXTENDED_PUSH_LIBRARY => {
-                        AsmInstKind::PushLibrary(LibraryPushId::from_inst_payload(index))
+                        AsmInstKind::PushLibrary(LibraryId::from_inst_payload(index))
                     }
                     Self::EXTENDED_DATA => AsmInstKind::Data(DataId::from_inst_payload(index)),
                     _ => unreachable!("invalid extended assembler instruction tag"),
@@ -243,7 +240,7 @@ pub(in crate::backend) enum AsmInstKind {
     PushPackedLabels(PackedLabelsId),
     PushDeferred(DeferredConst),
     PushImmutable(ImmutablePushId),
-    PushLibrary(LibraryPushId),
+    PushLibrary(LibraryId),
     Label(Label),
     PushData(DataRefId),
     Data(DataId),

@@ -230,10 +230,12 @@ fn ensure_contract_bytecode(
         contract_id,
         codegen::mir::lower::ContractBytecodes::new(
             RelocatableBytecode {
+                libraries: artifact.libraries.clone(),
                 bytes: artifact.deployment.clone().into(),
                 relocations: artifact.deployment_library_relocations.clone(),
             },
             RelocatableBytecode {
+                libraries: artifact.libraries.clone(),
                 bytes: artifact.runtime.clone().into(),
                 relocations: artifact.runtime_library_relocations.clone(),
             },
