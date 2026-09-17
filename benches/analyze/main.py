@@ -619,7 +619,7 @@ def format_number(n: float) -> str:
     return f"{n:.2f}{s}"
 
 
-def format_ns(ns: int) -> str:
+def format_ns(ns: float) -> str:
     """Format nanoseconds with appropriate unit (ns, µs, ms, s)."""
     if ns >= 1_000_000_000:
         ns /= 1_000_000_000

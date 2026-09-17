@@ -19,7 +19,7 @@ import sys
 import uuid
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlencode
 
 from benchmark import workload_signature
@@ -65,7 +65,7 @@ def compare_runs(
 ) -> dict[str, Any]:
     current = by_test_id(results)
     baseline = by_test_id(baseline_results)
-    rows = []
+    rows: list[dict[str, Any]] = []
     for key in sorted(current.keys() | baseline.keys()):
         after = current.get(key, {})
         before = baseline.get(key, {})
@@ -960,20 +960,22 @@ def pct_change(current: float | None, baseline: float | None) -> float | None:
     return (current - baseline) / baseline * 100
 
 
-def fmt_pct_change_lower_is_better(current: int | None, baseline: int | None) -> str:
+def fmt_pct_change_lower_is_better(
+    current: float | None, baseline: float | None
+) -> str:
     delta = pct_change(current, baseline)
     if delta is None:
         return "n/a"
     return fmt_pct(delta, positive_is_good=False)
 
 
-def pct_vs_current(current: int | None, comparison: int | None) -> float | None:
+def pct_vs_current(current: float | None, comparison: float | None) -> float | None:
     if current in (None, 0) or comparison is None:
         return None
     return (comparison - current) / current * 100
 
 
-def fmt_pct_vs_current(current: int | None, comparison: int | None) -> str:
+def fmt_pct_vs_current(current: float | None, comparison: float | None) -> str:
     delta = pct_vs_current(current, comparison)
     if delta is None:
         return "n/a"
@@ -1285,7 +1287,11 @@ def compile_time_report(
     # cannot make the Solar total look faster.
     ids = ["solar", *reference_compiler_ids(results)]
     paired = [[compile_time(result, name) for name in ids] for result in results]
-    paired = [values for values in paired if all(value is not None for value in values)]
+    paired = [
+        cast(list[float], values)
+        for values in paired
+        if all(value is not None for value in values)
+    ]
     if not any(compile_time(result, "solar") is not None for result in results):
         return []
 
@@ -1417,7 +1423,7 @@ def branch_is_behind(base_ref: str = "main") -> bool:
             text=True,
             stderr=subprocess.DEVNULL,
         )
-    except (OSError, subprocess.CalledProcessError):
+    except OSError, subprocess.CalledProcessError:
         warning(f"could not determine whether the branch is behind {base_ref}")
         return False
     return int(count) > 0
@@ -1555,7 +1561,7 @@ def common_benchmark(
         values = [compiler.get(key) for compiler in successful]
         if failed or not values or any(type(value) is not int for value in values):
             return None
-        return values
+        return cast(list[int], values)
 
     gas = {}
     total_gas_values = complete_values("total_gas")
@@ -1764,6 +1770,8 @@ def main(argv: list[str] | None = None) -> int:
     if (
         args.baseline
         and args.baseline.resolve() != args.results.resolve()
+        and baseline_root is not None
+        and current_root is not None
         and baseline_root.resolve() == current_root.resolve()
     ):
         comparison["artifact_warning"] = (

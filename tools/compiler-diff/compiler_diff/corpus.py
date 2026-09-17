@@ -166,7 +166,7 @@ def list_shards(table, base=EXPORT):
                 with urllib.request.urlopen(f"{base}/?{query}", timeout=60) as response:
                     root = ET.fromstring(response.read())
                 break
-            except (urllib.error.URLError, TimeoutError):
+            except urllib.error.URLError, TimeoutError:
                 if attempt == 3:
                     raise
                 time.sleep(2**attempt)

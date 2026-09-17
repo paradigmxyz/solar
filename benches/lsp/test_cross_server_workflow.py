@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 from workflow_helpers import extract_job, github_script, step_block
 
@@ -63,7 +64,7 @@ def manual_command_job_block(name: str) -> str:
 
 
 def run_manual_comment_validation(
-    provenance: dict[str, object], summary: bytes, *, expect_success: bool
+    provenance: dict[str, Any], summary: bytes, *, expect_success: bool
 ) -> str:
     step = step_block(
         manual_command_job_block("comment"),
@@ -137,11 +138,11 @@ BASELINE_SUMMARY = json.dumps(
 
 
 def run_workflow_comment_validation(
-    provenance: dict[str, object],
+    provenance: dict[str, Any],
     summary: bytes,
-    pull: dict[str, object],
-    base: dict[str, object],
-    merge: dict[str, object],
+    pull: dict[str, Any],
+    base: dict[str, Any],
+    merge: dict[str, Any],
     *,
     expect_success: bool,
     baseline: bytes = BASELINE_SUMMARY,
@@ -276,7 +277,7 @@ class CrossServerWorkflowTests(unittest.TestCase):
         self.assertIn("--allow-failures", run)
         self.assertIn("--solar-binary target/release/solar", run)
         self.assertIn('--solar-revision "$TESTED_MERGE_SHA"', run)
-        self.assertIn('TESTED_MERGE_SHA: ${{ github.sha }}', run)
+        self.assertIn("TESTED_MERGE_SHA: ${{ github.sha }}", run)
         self.assertNotIn("--require-authoritative", pr)
 
     def test_automatic_comments_require_base_result_changes(self) -> None:
@@ -315,9 +316,7 @@ class CrossServerWorkflowTests(unittest.TestCase):
         verify = step_block(pr, "Verify checked out test merge")
         stage = step_block(pr, "Stage PR smoke comment data")
         upload = step_block(pr, "Upload PR smoke comment data")
-        self.assertIn(
-            "SOLAR_LSP_BENCH_BUILD_REVISION: ${{ github.sha }}", build
-        )
+        self.assertIn("SOLAR_LSP_BENCH_BUILD_REVISION: ${{ github.sha }}", build)
         self.assertIn('test "$(git rev-parse HEAD)" = "$MERGE_SHA"', verify)
         self.assertIn('test "$(git rev-parse HEAD^2)" = "$HEAD_SHA"', verify)
         self.assertIn("summary.json", stage)
@@ -325,9 +324,7 @@ class CrossServerWorkflowTests(unittest.TestCase):
         self.assertIn('TESTED_BASE_SHA="$(git rev-parse HEAD^1)"', stage)
         self.assertIn("git rev-parse HEAD^2", stage)
         self.assertIn("base_sha: process.env.TESTED_BASE_SHA", stage)
-        self.assertIn(
-            'harness_sha256: digest("target/release/solar-lsp-bench")', stage
-        )
+        self.assertIn('harness_sha256: digest("target/release/solar-lsp-bench")', stage)
         self.assertIn("target/lsp-bench/pr-comment/", upload)
         self.assertNotIn(f"uses: {STICKY_COMMENT_ACTION}", pr)
 
@@ -365,9 +362,7 @@ class CrossServerWorkflowTests(unittest.TestCase):
             self.assertIn(
                 f"if: always() && hashFiles('{output}/summary.md') != ''", publish
             )
-            self.assertIn(
-                f"cat {output}/summary.md >> \"$GITHUB_STEP_SUMMARY\"", publish
-            )
+            self.assertIn(f'cat {output}/summary.md >> "$GITHUB_STEP_SUMMARY"', publish)
 
             upload_name = (
                 "Upload PR smoke evidence"
@@ -394,7 +389,9 @@ class CrossServerWorkflowTests(unittest.TestCase):
         self.assertEqual(text.count(f"uses: {UPLOAD_ACTION}"), 3)
         self.assertIn("${{ github.run_id }}-${{ github.run_attempt }}", text)
 
-        comment_upload = step_block(job_block("pr-smoke"), "Upload PR smoke comment data")
+        comment_upload = step_block(
+            job_block("pr-smoke"), "Upload PR smoke comment data"
+        )
         self.assertIn(
             "name: cross-lsp-pr-comment-${{ github.run_id }}-${{ github.run_attempt }}",
             comment_upload,
@@ -431,28 +428,28 @@ class CrossServerWorkflowTests(unittest.TestCase):
         for contract in (
             'const workflowPath = ".github/workflows/lsp-bench.yml"',
             "run.repository?.full_name !== repository",
-            'run.path === workflowPath || run.path?.startsWith(`${workflowPath}@`)',
+            "run.path === workflowPath || run.path?.startsWith(`${workflowPath}@`)",
             'run.event !== "pull_request"',
             "provenance.run_id !== Number(run.id)",
             "artifact.workflow_run?.id === run.id",
-            'artifact.name === expectedName',
+            "artifact.name === expectedName",
             "artifact-ids: ${{ steps.artifact.outputs.artifact_id }}",
             "run-id: ${{ github.event.workflow_run.id }}",
             "${{ runner.temp }}/cross-lsp-comment",
             'summary="$REPORT_ROOT/summary.json"',
             'provenance="$REPORT_ROOT/provenance.json"',
-            'pull.head?.sha !== run.head_sha',
-            'pull.head?.repo?.full_name !== headRepository',
-            'pull.base?.repo?.full_name !== repository',
+            "pull.head?.sha !== run.head_sha",
+            "pull.head?.repo?.full_name !== headRepository",
+            "pull.base?.repo?.full_name !== repository",
             "pull.mergeable !== true",
             "github.rest.repos.getBranch",
-            'pull.merge_commit_sha !== provenance.merge_sha',
-            'base.commit?.sha !== provenance.base_sha',
-            'parents[0] !== provenance.base_sha',
-            'parents[1] !== provenance.head_sha',
-            'base.commit?.sha !== process.env.BASE_SHA',
-            'parents[0] !== process.env.BASE_SHA',
-            'parents[1] !== process.env.HEAD_SHA',
+            "pull.merge_commit_sha !== provenance.merge_sha",
+            "base.commit?.sha !== provenance.base_sha",
+            "parents[0] !== provenance.base_sha",
+            "parents[1] !== provenance.head_sha",
+            "base.commit?.sha !== process.env.BASE_SHA",
+            "parents[0] !== process.env.BASE_SHA",
+            "parents[1] !== process.env.HEAD_SHA",
             "header: cross-lsp-benchmark",
             "number_force: ${{ steps.pr.outputs.number }}",
         ):
@@ -489,7 +486,7 @@ class CrossServerWorkflowTests(unittest.TestCase):
         self.assertIn("pull-requests: read", resolve)
         self.assertIn("merge_sha: ${{ steps.resolve.outputs.merge_sha }}", resolve)
         for contract in (
-            "!SHA_RE.test(pull.merge_commit_sha || \"\")",
+            '!SHA_RE.test(pull.merge_commit_sha || "")',
             "github.rest.repos.getCommit",
             "github.rest.repos.getBranch",
             "pull.mergeable !== true",
@@ -520,13 +517,11 @@ class CrossServerWorkflowTests(unittest.TestCase):
             build,
         )
         stage = step_block(benchmark, "Stage comment data")
-        self.assertIn(
-            'harness_sha256: digest("target/release/solar-lsp-bench")', stage
-        )
+        self.assertIn('harness_sha256: digest("target/release/solar-lsp-bench")', stage)
         self.assertIn("run \\\n            --profile pr-smoke", benchmark)
         self.assertIn(SERVER_ARGS, benchmark)
         self.assertIn("--allow-failures", benchmark)
-        self.assertIn("--solar-revision \"$TESTED_MERGE_SHA\"", benchmark)
+        self.assertIn('--solar-revision "$TESTED_MERGE_SHA"', benchmark)
         self.assertIn("artifact_id: ${{ steps.upload.outputs.artifact-id }}", benchmark)
         self.assertIn(
             "name: cross-lsp-manual-${{ github.run_id }}-${{ github.run_attempt }}",
@@ -553,26 +548,26 @@ class CrossServerWorkflowTests(unittest.TestCase):
             "ref: ${{ github.sha }}",
             "path: trusted-renderer",
             "Render comment from validated data",
-            "--expected-harness-revision \"$EXPECTED_MERGE_SHA\"",
-            "--expected-harness-sha256 \"$EXPECTED_HARNESS_SHA256\"",
+            '--expected-harness-revision "$EXPECTED_MERGE_SHA"',
+            '--expected-harness-sha256 "$EXPECTED_HARNESS_SHA256"',
             "--expected-profile pr-smoke",
-            'pull.merge_commit_sha !== process.env.MERGE_SHA',
-            'base.commit?.sha !== process.env.BASE_SHA',
-            'parents[0] !== process.env.BASE_SHA',
-            'parents[1] !== process.env.HEAD_SHA',
+            "pull.merge_commit_sha !== process.env.MERGE_SHA",
+            "base.commit?.sha !== process.env.BASE_SHA",
+            "parents[0] !== process.env.BASE_SHA",
+            "parents[1] !== process.env.HEAD_SHA",
             "header: cross-lsp-command",
             "number_force: ${{ needs.resolve.outputs.pr_number }}",
         ):
             self.assertIn(contract, text)
-        self.assertNotIn("find -P \"$REPORT_ROOT\" -type f -name report.md", text)
-        self.assertNotIn("cp -- \"$report\"", text)
+        self.assertNotIn('find -P "$REPORT_ROOT" -type f -name report.md', text)
+        self.assertNotIn('cp -- "$report"', text)
         self.assertNotIn("cross-lsp-benchmark", text)
         self.assertNotIn("lsp-bench-command", text)
 
     @unittest.skipUnless(shutil.which("node"), "Node.js is required for workflow tests")
     def test_manual_comment_provenance_is_strict_and_digest_bound(self) -> None:
         summary = b'{"schema_version":7}\n'
-        provenance: dict[str, object] = {
+        provenance: dict[str, Any] = {
             "schema_version": 1,
             "kind": "solar-cross-lsp-comment-data",
             "repository": "target/solar",
@@ -595,9 +590,7 @@ class CrossServerWorkflowTests(unittest.TestCase):
         self.assertEqual(outputs, {"harness_sha256": "d" * 64})
 
         with_extra = dict(provenance, unexpected=True)
-        error = run_manual_comment_validation(
-            with_extra, summary, expect_success=False
-        )
+        error = run_manual_comment_validation(with_extra, summary, expect_success=False)
         self.assertIn("does not match the exact schema", error)
 
         wrong_revision = dict(provenance, base_sha="e" * 40)
@@ -616,7 +609,7 @@ class CrossServerWorkflowTests(unittest.TestCase):
         self,
     ) -> None:
         summary = b'{"schema_version":7}\n'
-        provenance: dict[str, object] = {
+        provenance: dict[str, Any] = {
             "schema_version": 2,
             "kind": "solar-cross-lsp-comment-data",
             "repository": "target/solar",
@@ -633,7 +626,7 @@ class CrossServerWorkflowTests(unittest.TestCase):
             "summary_sha256": hashlib.sha256(summary).hexdigest(),
             "baseline_sha256": hashlib.sha256(BASELINE_SUMMARY).hexdigest(),
         }
-        pull: dict[str, object] = {
+        pull: dict[str, Any] = {
             "state": "open",
             "mergeable": True,
             "base": {
@@ -648,8 +641,8 @@ class CrossServerWorkflowTests(unittest.TestCase):
             },
             "merge_commit_sha": "c" * 40,
         }
-        base: dict[str, object] = {"commit": {"sha": "a" * 40}}
-        merge: dict[str, object] = {
+        base: dict[str, Any] = {"commit": {"sha": "a" * 40}}
+        merge: dict[str, Any] = {
             "sha": "c" * 40,
             "parents": [{"sha": "a" * 40}, {"sha": "b" * 40}],
         }

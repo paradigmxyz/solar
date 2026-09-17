@@ -12,6 +12,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 from workflow_helpers import extract_job, github_script, step_block
 
@@ -55,10 +56,10 @@ def run_script(step: str) -> str:
 def run_resolution_script(
     *,
     main_shas: list[str],
-    pull_requests: list[dict[str, object]],
-    merge_commits: dict[str, dict[str, object]],
+    pull_requests: list[dict[str, Any]],
+    merge_commits: dict[str, dict[str, Any]],
     expect_success: bool = True,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     script = github_script(
         step_block(job_block("resolve"), "Validate request and freeze revisions")
     )
@@ -140,7 +141,7 @@ globalThis.setTimeout = (callback) => {{ callback(); return 0; }};
         return result
 
 
-def run_arbitration_script(current_number: int, other_number: int) -> dict[str, object]:
+def run_arbitration_script(current_number: int, other_number: int) -> dict[str, Any]:
     script = github_script(
         step_block(job_block("arbitrate"), "Keep only the latest accepted request")
     )
@@ -430,7 +431,7 @@ class TriggerAndResolutionTests(unittest.TestCase):
         first_merge = "4" * 40
         second_merge = "5" * 40
 
-        def pull(merge_candidate_sha: str) -> dict[str, object]:
+        def pull(merge_candidate_sha: str) -> dict[str, Any]:
             return {
                 "state": "open",
                 "base": {"repo": {"full_name": "target/solar"}, "ref": "main"},
@@ -1206,20 +1207,19 @@ class ExecutionAndRemovalTests(unittest.TestCase):
         self.assertIn(
             "PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}", BENCH_WORKFLOW
         )
-        self.assertIn(
-            'test "$(git rev-parse HEAD)" = "$GITHUB_SHA"', BENCH_WORKFLOW
-        )
-        self.assertIn(
-            'test "$(git rev-parse HEAD^2)" = "$PR_HEAD_SHA"', BENCH_WORKFLOW
-        )
+        self.assertIn('test "$(git rev-parse HEAD)" = "$GITHUB_SHA"', BENCH_WORKFLOW)
+        self.assertIn('test "$(git rev-parse HEAD^2)" = "$PR_HEAD_SHA"', BENCH_WORKFLOW)
         self.assertIn('base_sha="$(git rev-parse HEAD^1)"', BENCH_WORKFLOW)
         self.assertIn(
             'base_sha="$(git rev-parse "origin/$BASE_BRANCH")"', BENCH_WORKFLOW
         )
         self.assertIn(
-            '"$RUNNER_TEMP/schema-test/bin/python" -m unittest discover \\\n'
-            "            -s benches/lsp -p 'test_*.py'",
-            BENCH_WORKFLOW,
+            "bash scripts/check-python.sh",
+            (ROOT / ".github/workflows/ci.yml").read_text(),
+        )
+        self.assertIn(
+            "-s benches/lsp",
+            (ROOT / "scripts/check-python.sh").read_text(),
         )
 
     def test_cross_server_stack_coexists_with_command_gate(self) -> None:

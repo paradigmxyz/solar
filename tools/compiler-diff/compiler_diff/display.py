@@ -34,7 +34,7 @@ def show_attempt(directory, label):
                 )
                 if record.get("failure"):
                     print(f"    failure: {record['failure']}")
-        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        except OSError, ValueError, KeyError, TypeError, AttributeError:
             print(f"    {filename}: unavailable or malformed")
     print(f"    output: {directory / 'stdout.txt'}")
     print(f"    stderr: {directory / 'stderr.txt'}")

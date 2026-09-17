@@ -192,7 +192,7 @@ The default grammar is `fuzz/fandango/solidity-source.fan`, targeting
 `FandangoSource`. Use `--grammar /path/to/grammar.fan --contract Name` for another
 self-contained Solidity-source grammar. The adapter snapshots the grammar file;
 external grammar resources are not copied. It runs Fandango 1.1.1 with uv-managed
-Python 3.12 and sets `PYTHONHASHSEED` to `--seed`. The generator's managed Python,
+Python 3.14.7 and sets `PYTHONHASHSEED` to `--seed`. The generator's managed Python,
 tool environment and cache live under `<dir>/fandango-tools/`.
 
 Seed generation from a directory, then run several bounded batches:

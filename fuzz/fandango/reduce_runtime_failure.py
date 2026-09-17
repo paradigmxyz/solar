@@ -218,7 +218,7 @@ class Reducer:
             )
         try:
             summary = json.loads(result.stdout.strip().splitlines()[-1])
-        except (IndexError, json.JSONDecodeError):
+        except IndexError, json.JSONDecodeError:
             return False
         if result.returncode == 0 or summary.get("failures") != 1:
             return False

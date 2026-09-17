@@ -13,7 +13,7 @@ from unittest.mock import patch
 from . import corpus
 
 VERSION = "1.1.1"
-PYTHON = "3.12"
+PYTHON = "3.14.7"
 
 
 def prepare(root, args):

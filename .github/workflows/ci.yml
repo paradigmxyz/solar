@@ -81,9 +81,6 @@ jobs:
           cache-targets: false
       - name: build
         run: cargo build
-      - name: symbolic differential unit tests
-        if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
-        run: python3 fuzz/fandango/test_symbolic_differential.py -v
       - name: test
         run: cargo nextest run --profile ci --workspace
       - name: test C API
@@ -95,8 +92,8 @@ jobs:
       - name: doctest
         run: cargo test --doc --workspace
 
-  compiler-diff:
-    name: compiler-diff
+  python:
+    name: Python
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -104,8 +101,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-      - name: Compiler comparison regression tests
-        run: uv run --project tools/compiler-diff --locked --python 3.11 compiler-diff self-test
+      - name: Python checks and tests
+        run: bash scripts/check-python.sh
 
   fandango:
     name: fandango
@@ -144,6 +141,9 @@ jobs:
           version: stable
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
       - name: Fandango and Foundry runtime differentials
         run: .github/scripts/run_fandango_checks.sh
       - name: Upload Fandango artifacts
@@ -299,7 +299,7 @@ jobs:
     permissions: {}
     needs:
       - test
-      - compiler-diff
+      - python
       - feature-checks
       - wasm
       - typos

@@ -1,7 +1,7 @@
 """Compare baseline and PGO Solar binaries on a source-disjoint corpus."""
 
 # /// script
-# requires-python = ">=3.11"
+# requires-python = ">=3.14"
 # dependencies = []
 # ///
 
@@ -17,6 +17,7 @@ import statistics
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_ROOT = REPOSITORY_ROOT / "benches" / "runtime"
@@ -25,7 +26,7 @@ sys.path.insert(0, str(RUNTIME_ROOT))
 
 from benchmark import compiler_input
 from build import EVALUATION_TESTS, SYNTHETIC_CORPUS, TRAINING_TESTS
-from cases import TEST_CASES
+from cases import TEST_CASES, TestCase
 
 
 def main() -> None:
@@ -96,7 +97,7 @@ def main() -> None:
         raise RuntimeError("; ".join(failed))
 
 
-def corpus_split() -> dict[str, object]:
+def corpus_split() -> dict[str, Any]:
     tests = {test.test_id: test for test in TEST_CASES}
     selected = set(TRAINING_TESTS) | set(EVALUATION_TESTS)
     missing = sorted(selected - tests.keys())
@@ -132,7 +133,7 @@ def corpus_split() -> dict[str, object]:
     }
 
 
-def split_cases(test_ids: tuple[str, ...], tests: dict[str, object]) -> list[dict]:
+def split_cases(test_ids: tuple[str, ...], tests: dict[str, TestCase]) -> list[dict]:
     cases = []
     for test_id in test_ids:
         input_text, _, input_fingerprint = compiler_input(tests[test_id], None)
@@ -195,10 +196,10 @@ def compare_results(
     baseline: Path,
     pgo: Path,
     results: dict[str, dict[str, dict]],
-    split: dict[str, object],
+    split: dict[str, Any],
     repeats: int,
-) -> dict[str, object]:
-    cases = []
+) -> dict[str, Any]:
+    cases: list[dict[str, Any]] = []
     ratios = []
     baseline_drift_ratios = []
     pgo_drift_ratios = []
@@ -311,14 +312,14 @@ def geometric_mean_change(ratios: list[float]) -> float:
 
 
 def evaluate_gates(
-    report: dict[str, object],
+    report: dict[str, Any],
     *,
     minimum_improvement: float,
     maximum_case_regression: float,
     maximum_case_regression_milliseconds: float,
     maximum_run_drift: float,
     maximum_run_drift_milliseconds: float,
-) -> list[dict[str, object]]:
+) -> list[dict[str, Any]]:
     aggregate = report["aggregate"]
     improvement = aggregate["elapsed_time_reduction_percent"]
     regression_observations = []
@@ -414,7 +415,7 @@ def evaluate_gates(
     ]
 
 
-def binary_report(binary: Path) -> dict[str, object]:
+def binary_report(binary: Path) -> dict[str, Any]:
     return {
         "path": str(binary),
         "size_bytes": binary.stat().st_size,
@@ -422,7 +423,7 @@ def binary_report(binary: Path) -> dict[str, object]:
     }
 
 
-def environment_report() -> dict[str, object]:
+def environment_report() -> dict[str, Any]:
     return {
         "git_commit": capture(["git", "rev-parse", "HEAD"]),
         "git_status": capture(["git", "status", "--short"]),
@@ -465,7 +466,7 @@ def read_text_if_exists(path: Path) -> str | None:
     return path.read_text(encoding="utf-8").strip() if path.is_file() else None
 
 
-def format_markdown(report: dict[str, object]) -> str:
+def format_markdown(report: dict[str, Any]) -> str:
     lines = [
         "## Solar PGO comparison",
         "",

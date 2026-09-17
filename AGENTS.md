@@ -160,6 +160,17 @@ with a common prefix. Keep separate files when the source text itself is the
 behavior under test or combining the cases would hide materially different
 programs or purposes.
 
+### Python tooling
+
+Python tooling uses the version in `.python-version` (currently 3.14.7).
+Use uv from the repository root; the workspace shares `uv.lock` across
+`tools/compiler-diff` and `benches/analyze`.
+Run `bash scripts/check-python.sh` for formatting, lint, type checks, and all
+Python unit tests. The required `Python` CI job runs the same command.
+Node.js must be on PATH for the workflow tests; these checks do not build the
+compilers or run live Fandango/Foundry differentials.
+Use `uv run --all-packages ruff format .` to format Python files.
+
 ### Compiler comparisons
 
 Use `uv run --project tools/compiler-diff compiler-diff` from the repository root.
