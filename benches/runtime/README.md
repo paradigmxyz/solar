@@ -45,12 +45,13 @@ trigger PR comments. Failures from our compiler and result mismatches involving 
 
 Use `--solar-only` to skip solc and solx benchmark compilation. Without
 `--reference-results`, it also ignores reference compiler paths and does not discover or run solc.
-Runtime helper contracts use the compiler under test when no reference solc is selected. A one-compiler run retains compilation, gas
-measurements, and runtime failure checks, but cannot make differential runtime claims, so
+Runtime helper contracts use the compiler under test when no reference solc is selected.
+A one-compiler run retains compilation, gas measurements, and runtime failure checks, but cannot make differential runtime claims, so
 successful runtime comparisons are marked as skipped unless a matching reference result is supplied.
 
 Pass `--reference-results PATH` to reuse matching solc and solx results from a prior
-run. This opt-in mode still requires solc for version checks and shared runtime helper contracts. The benchmark copies reference compile, gas, and runtime data only when the input fingerprint
+run. This opt-in mode still requires solc for version checks and shared runtime helper contracts.
+The benchmark copies reference compile, gas, and runtime data only when the input fingerprint
 matches, then performs the normal cross-compiler runtime checks. PR CI uses the exact-base result
 as the reference, so solc runs on the base revision instead of repeating unchanged work on the PR.
 PR jobs never run solx, including when they must rebuild a missing baseline; solx columns appear

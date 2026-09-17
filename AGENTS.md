@@ -666,8 +666,8 @@ in CI unless the user explicitly asks for them.
 
 Record the baseline before editing, then rebuild the candidate with the same
 flags. Start with affected UI fixtures and runtime cases, one compile sample,
-and no artifact capture. Collect artifacts only for cases whose gas, size, or
-behavior changes, using both saved builds. Artifact capture recompiles cases
+and no artifact capture. Collect artifacts for cases whose gas, size, behavior,
+or output fingerprint changes, using both saved builds. Artifact capture recompiles cases
 outside the reported compile samples, so it is not free.
 
 For example, replace `counter factorial` with the affected test IDs:
@@ -725,7 +725,8 @@ artifact paths/hashes. Add `--tests NAME...` to the comparison to focus on
 affected cases, or `--artifact mir evm-ir` to narrow the patch.
 
 Whole-project cases measure compilation only and do not capture artifact trees.
-Inputs and upstream commits are pinned in `testdata/projects/README.md` and `benches/runtime/README.md`.
+Inputs and upstream commits are pinned in `testdata/projects/README.md` and
+`benches/runtime/README.md`.
 CI uses the same comparison script to produce its Markdown and shared JSON.
 
 Keep baseline binaries, results, and any captured artifacts immutable. Record
