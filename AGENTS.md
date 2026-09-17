@@ -27,34 +27,11 @@ cargo run -- file.sol                  # Run compiler
 cargo run -- -Zhelp                    # Unstable flags help
 ```
 
-DO NOT USE `cargo test` DIRECTLY IF YOU CAN AVOID IT.
+Prefer focused tests during iteration and broader relevant checks once the change
+settles. For documentation-only changes, check prose, examples, and spelling;
+do not build or run test suites. DO NOT USE `cargo test` DIRECTLY IF YOU CAN AVOID IT.
 
 NEVER RUN TESTS WITH `--all-features`. This enables "tracy" which has heavy overhead per-process, which the UI tests spawn lots of, increasing test times to minutes and 100% CPU for no reason.
-
-## Local workflow
-
-- Start with the smallest fix in the existing code path. Add a new cache,
-  compiler path, framework, or abstraction only when the current design cannot
-  meet the requirement.
-- Batch independent searches and reads. Reuse context and completed checks;
-  avoid repeated status polling, full-file dumps, and rereading unchanged files.
-- During iteration, run focused tests and checks for the changed behavior.
-  Run broader relevant validation once the implementation settles. Repeat it
-  only when a later change, failure, or unresolved concern invalidates the result.
-  For documentation-only changes, check the diff, links, examples, and spelling;
-  do not build the compiler or run Rust/Python test suites.
-- Self-review the final diff for correctness and simplicity, fix concrete
-  findings, and recheck affected paths. Start another full review only for a
-  substantial change or unresolved cross-cutting risk. Stop when no actionable
-  findings remain; do not manufacture cleanup work.
-- After publishing, inspect CI/review status once. Do not keep a task active
-  with sleep/poll loops unless the user requested monitoring or an external
-  review loop. Report pending checks, or use a completion notification when
-  available. Do not request extra external reviews by default.
-- Keep temporary worktrees isolated. When one is requested, remove it with
-  `git worktree remove` after publishing and verifying the result. Preserve
-  requested evidence outside it first; never clean another task's worktree,
-  build directory, or benchmark results.
 
 ## Architecture
 
@@ -321,13 +298,8 @@ Use `uv run --all-packages ruff format .` to format Python files.
 
 ### Compiler comparisons
 
-Local work compares our compiler's base and candidate builds by default. Do not
-install, build, or run solc/solx locally, or launch reference-compiler campaigns,
-unless the user explicitly requests that comparison or an upstream compiler
-update. The commands below describe those opt-in workflows; they are not a
-validation checklist for ordinary changes. CI retains reference comparisons.
-
-Use `uv run --project tools/compiler-diff compiler-diff` from the repository root.
+For explicitly requested reference comparisons, use
+`uv run --project tools/compiler-diff compiler-diff` from the repository root.
 The [project guide](tools/compiler-diff/README.md) covers local standard-JSON
 imports, Sourcify sync, compiler commands, comparison policies, and replay.
 `scripts/sourcify.py` remains a compatibility entry point. Run `self-test` for the
@@ -591,7 +563,9 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 
 ## PR Descriptions
 
-- Explain what and why in flowing prose
+- Explain what and why in flowing prose. Self-review the final diff and recheck
+  fixes; repeat a full review only for substantial changes or unresolved risks.
+  After publishing, inspect CI/review status once; do not poll unless requested.
 - Include real measurements only
 - Do not include validation/testing boilerplate like "Validated with", "Tested with", or command lists unless explicitly requested.
 - Link related issues/PRs
@@ -602,7 +576,7 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 
 - Comments end with periods (except URLs)
 - Files end with LF and trailing newline
-- Follow existing patterns
+- Follow existing patterns; fix the existing path before adding infrastructure.
 - Never expose secrets
 
 ### Rust
@@ -659,19 +633,11 @@ Prioritize correctness and `-Ogas` runtime gas, then bytecode size in `-Ogas`
 and `-Osize`, then compiler time and memory. Reject changes whose only benefit
 is faster compilation.
 
-Local benchmarks compare our compiler's base and candidate builds. Running only
-our compiler is the default. Do not pass
-`--solc`, `--solx`, or `--reference-results`, install a reference compiler, or
-repeat its corpus locally. Reference comparisons belong
-in CI unless the user explicitly asks for them.
-
-Record the baseline before editing, then rebuild the candidate with the same
-flags. Start with affected UI fixtures and runtime cases, one compile sample,
-and no artifact capture. Collect artifacts for cases whose gas, size, behavior,
-or output fingerprint changes, using both saved builds. Artifact capture recompiles cases
-outside the reported compile samples, so it is not free.
-
-For example, replace `counter factorial` with the affected test IDs:
+Compare our compiler's base and candidate builds locally; do not install or run
+solc/solx unless explicitly requested. Record the baseline before editing and
+reuse it while the commit, toolchain, flags, and corpus match. During iteration,
+run affected cases with one compile sample; replace `counter factorial` below
+with their IDs. Use Foundry's `cast` and `anvil` for execution.
 
 ```bash
 bench_run() {
@@ -695,56 +661,41 @@ uv run benches/runtime/benchmark-compare.py \
   --json-output target/codegen-bench/comparison.json
 ```
 
-Use Foundry's `cast` and `anvil` for local execution. Compiler-only runs also
-build their runtime helper contracts with our compiler; no solc is needed.
-
-Once a codegen change settles, cover both the UI corpus (including `-Osize`)
-and the runtime/project corpus. Run one full base/candidate comparison with
-`--mode runtime compile-time --suite all --compile-repeats 1`, removing the
-focused `--tests` filter; reuse a matching saved baseline. Do not repeat the
-full corpus for every edit or review round. Repeat affected checks after fixes
-and broaden only when the change invalidates earlier coverage.
-
-Measure compiler timing separately when relevant. Use repeated samples only
-for affected cases and suspected regressions, with matching profiles and a
-quiet machine. The ten-second repeat cutoff applies to each sample, not total
-case time; five nine-second samples still cost 45 seconds. One sample is enough
-for gas/size iteration, but not evidence of a stable compiler-speed change.
-
 The comparison prints agent-readable Markdown to stdout by default; no output
 flag is needed. `--report-output` also saves the same report for later review.
 The summary weights each benchmark equally using geometric-mean ratios, separately
 for gas, size, time, and RSS; it does not weight large contracts more heavily.
 Read the report's failures, missing cases, and excluded comparisons first.
 Compare per-case bytecode sizes and gas, including per-call gas deltas; aggregate
-wins must not hide regressions or missing results. Investigate changes by
-diffing MIR (`mir.mir`), EVM IR (`creation.evmir`, `runtime.evmir`), disassembly,
-and bytecode with `--diff-output target/codegen-bench/changes.patch` after
-capturing artifacts. Equal byte counts do not prove equal bytecode.
+wins must not hide regressions or missing results. Capture artifacts from both
+saved builds for changed gas, size, behavior, or output fingerprints; capture
+recompiles cases outside the timed samples. Diff MIR (`mir.mir`), EVM IR
+(`creation.evmir`, `runtime.evmir`), disassembly, and bytecode with
+`--diff-output target/codegen-bench/changes.patch`. Equal byte counts do not prove
+equal bytecode.
 The JSON retains exact values, compile samples, comparison exclusions, and
 artifact paths/hashes. Add `--tests NAME...` to the comparison to focus on
 affected cases, or `--artifact mir evm-ir` to narrow the patch.
 
 Whole-project cases measure compilation only and do not capture artifact trees.
-Inputs and upstream commits are pinned in `testdata/projects/README.md` and
-`benches/runtime/README.md`.
+Inputs and upstream commits are pinned in `testdata/projects/README.md` and `benches/runtime/README.md`.
 CI uses the same comparison script to produce its Markdown and shared JSON.
 
-Keep baseline binaries, results, and any captured artifacts immutable. Record
-base commit, source changes, toolchain, build profile, compiler flags, corpus
-revision, and machine so reuse is valid. Use fresh candidate output directories;
-do not overwrite the baseline or rerun it when those inputs still match. Store
-retained evidence outside a build directory that will be cleaned, and outside
-any temporary worktree before removing it.
+Keep baseline binaries, results, and artifacts immutable; use fresh candidate
+directories. Use debug builds and the existing target directory. Preserve evidence
+outside directories scheduled for cleanup, then remove requested temporary
+worktrees with `git worktree remove`; never clean another task's files. Measure
+compiler timing separately with repeated samples, matching build profiles, and
+no concurrent benchmarks or heavy builds. A single sample does not establish a
+compiler-speed change; repeat only affected cases and suspected regressions.
 
-Use debug builds and the existing target directory; do not create extra
-worktrees or build targets for routine comparisons. Coordinate timing runs
-across tasks on the same host: do not overlap them with other benchmarks or
-heavy builds. A noisy run does not establish a regression. Keep correctness
-and gas/size results separate from unsupported timing claims.
-
+Once a codegen change settles, run both corpora once: UI fixtures for size and
+`-Osize` coverage, and the full runtime/project corpus with
+`--mode runtime compile-time --suite all --compile-repeats 1` and no `--tests`
+filter. Reuse the matching baseline; repeat affected checks after fixes, and
+broaden only when changes or failures invalidate earlier coverage.
 When tuning a pipeline, move or remove one pass group at a time, record its
-ordering and focused results under `target/codegen-bench/`, and keep IR
-snapshots canonical. Use `-Ztime-passes` on an affected large contract to find
-repeated passes that still change IR. One `changed=false` result does not prove
-a pass is redundant.
+ordering and both corpora's results under `target/codegen-bench/`, and keep IR
+snapshots canonical. Use `-Ztime-passes` on a large contract to find repeated
+passes that still change IR. One `changed=false` result does not prove a pass
+is redundant.
