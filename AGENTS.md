@@ -295,7 +295,7 @@ use the versions configured in `.github/workflows/ci.yml`.
 These checks do not build the compilers or run live Fandango/Foundry differentials.
 Use `uv run --all-packages ruff format .` to format Python files.
 
-The separate proof CI matrix verifies and replays every rule in parallel shards,
+The separate proof CI job verifies and replays every rule with parallel workers,
 with exact-input caches for successful runs. See the
 [proof guide](scripts/evm-rules/README.md) for shard replay and cache inputs.
 

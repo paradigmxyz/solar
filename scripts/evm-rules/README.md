@@ -64,16 +64,19 @@ certificate. The proof job runs on native Linux ARM64, downloads the matching
 cvc5 1.2.0 release with a pinned SHA-256, exports exhaustive partitions, and
 requires both Z3 verification and complete cvc5 replay to pass.
 
-CI verifies word rules in four shards and e-graph rules in eight shards, with
-one further job for sequence, stack, and late rules. Every shard verifies and
-replays all of its queries; `ci success` requires every shard to pass. Reproduce
-a shard with `verify --shard-index N --shard-count M` (zero-based). Reports retain
-the full source hash, total rule count, and shard selection. Shards assign every
-rule exactly once and reject empty or invalid selections.
+CI runs one proof job on a larger Depot runner. The
+[proof runner](../../.github/scripts/run_evm_proofs.sh) launches independent
+workers within that machine, with separate logs, reports, and SMT artifacts
+under `target/evm-rules/<suite>-<shard>/`. It waits for every worker and fails
+if any verification or replay fails. Run `bash .github/scripts/run_evm_proofs.sh`
+to reproduce the whole job, or use `verify --shard-index N --shard-count M`
+(zero-based) to reproduce one shard. Reports retain the full source hash,
+total rule count, and shard selection.
 
 Successful jobs cache their reports and SMT artifacts with an exact key covering
-all codegen sources, proof tooling, Python/dependency pins, and this workflow.
-No partial cache matches are accepted, and failed proofs never populate the cache.
+all codegen sources, proof tooling, the worker script, Python/dependency pins,
+and the workflow. No partial cache matches are accepted, and failed proofs
+never populate the cache.
 
 The shared `Python` CI job runs this project's unit tests alongside all other
 Python suites, with cvc5 installed. Run `bash scripts/check-python.sh` from the

@@ -16,35 +16,18 @@ env:
 
 jobs:
   evm-rules:
-    name: EVM proofs (${{ matrix.suite }}, ${{ matrix.shard }})
-    runs-on: depot-ubuntu-24.04-arm
+    name: EVM word and stack proofs
+    runs-on: depot-ubuntu-24.04-arm-32
     timeout-minutes: 15
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {suite: word, shard: 0, count: 4}
-          - {suite: word, shard: 1, count: 4}
-          - {suite: word, shard: 2, count: 4}
-          - {suite: word, shard: 3, count: 4}
-          - {suite: egraph, shard: 0, count: 8}
-          - {suite: egraph, shard: 1, count: 8}
-          - {suite: egraph, shard: 2, count: 8}
-          - {suite: egraph, shard: 3, count: 8}
-          - {suite: egraph, shard: 4, count: 8}
-          - {suite: egraph, shard: 5, count: 8}
-          - {suite: egraph, shard: 6, count: 8}
-          - {suite: egraph, shard: 7, count: 8}
-          - {suite: other, shard: 0, count: 1}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         id: proofs
         with:
           path: target/evm-rules
-          key: proofs-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.suite }}-${{ matrix.shard }}-${{ hashFiles('scripts/evm-rules/**', 'crates/codegen/**', '.github/workflows/ci.yml', '.python-version', 'uv.lock') }}
+          key: proofs-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/scripts/run_evm_proofs.sh', 'scripts/evm-rules/**', 'crates/codegen/**', '.github/workflows/ci.yml', '.python-version', 'uv.lock') }}
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         if: steps.proofs.outputs.cache-hit != 'true'
       - name: Install cvc5 1.2.0
@@ -56,39 +39,14 @@ jobs:
           echo "142ac177af1ce37922308f69fe519d06e6cb4d0a62a312f28c25001e94c2fb56  $RUNNER_TEMP/cvc5.zip" | sha256sum --check
           unzip -q "$RUNNER_TEMP/cvc5.zip" -d "$RUNNER_TEMP/cvc5"
           echo "$RUNNER_TEMP/cvc5/cvc5-Linux-arm64-static/bin" >> "$GITHUB_PATH"
-      - name: Verify rule shard
+      - name: Verify and replay all rules
         if: steps.proofs.outputs.cache-hit != 'true'
-        env:
-          SUITE: ${{ matrix.suite }}
-          SHARD: ${{ matrix.shard }}
-          SHARDS: ${{ matrix.count }}
-        run: |
-          if [[ "$SUITE" == other ]]; then
-            files=(word_sequence stack_select stack_peephole late_word)
-          else
-            files=("$SUITE")
-          fi
-          options=(--partition-shifts --index-partition-timeout-ms 30000)
-          if [[ "$SUITE" == egraph ]]; then
-            options+=(--fallback-solver cvc5
-              --bit-partition-timeout-ms 120000 --bit-partition-jobs 4)
-          fi
-          inputs=()
-          for file in "${files[@]}"; do
-            inputs+=("crates/codegen/isle/$file.isle")
-          done
-          uv run scripts/evm-rules/verify.py verify "${inputs[@]}" \
-            --shard-index "$SHARD" --shard-count "$SHARDS" \
-            "${options[@]}" \
-            --output target/evm-rules/proofs.json --artifacts target/evm-rules/smt
-      - name: Replay every proof query with cvc5
-        if: steps.proofs.outputs.cache-hit != 'true'
-        run: uv run scripts/evm-rules/replay.py target/evm-rules/proofs.json --output target/evm-rules/cvc5.json
+        run: bash .github/scripts/run_evm_proofs.sh
       - name: Upload failed proof diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: evm-proofs-${{ matrix.suite }}-${{ matrix.shard }}
+          name: evm-proofs
           path: target/evm-rules
           if-no-files-found: ignore
           retention-days: 7
