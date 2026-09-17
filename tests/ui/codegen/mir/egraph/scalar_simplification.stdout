@@ -386,3 +386,84 @@
       ret v1
   }
   
+  fn @nested_select_false(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+    bb0:
+      v0 = select arg0, arg2, arg3
+-     v1 = select arg0, arg1, v0
++     v1 = select arg0, arg1, arg3
+      ret v1
+  }
+  
+  fn @nested_select_true(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+    bb0:
+      v0 = select arg0, arg1, arg2
+-     v1 = select arg0, v0, arg3
++     v1 = select arg0, arg1, arg3
+      ret v1
+  }
+  
+  fn @equal_select_0(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = eq arg0, arg1
+-     v1 = select v0, arg0, arg1
+-     ret v1
++     ret arg1
+  }
+  
+  fn @equal_select_1(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = eq arg1, arg0
+-     v1 = select v0, arg0, arg1
+-     ret v1
++     ret arg1
+  }
+  
+  fn @bit_test_select_0(arg0: u256) -> u256 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = iszero v0
+      v2 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+-     v3 = select v1, v2, arg0
+-     ret v3
++     ret arg0
+  }
+  
+  fn @bit_test_select_1(arg0: u256) -> u256 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = iszero v0
+      v2 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+-     v3 = select v1, arg0, v2
+-     ret v3
++     ret v2
+  }
+  
+  fn @bit_test_select_2(arg0: u256) -> u256 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = iszero v0
+      v2 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+-     v3 = select v0, v2, arg0
+-     ret v3
++     ret v2
+  }
+  
+  fn @bit_test_select_3(arg0: u256) -> u256 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = iszero v0
+      v2 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+-     v3 = select v0, arg0, v2
+-     ret v3
++     ret arg0
+  }
+  
+  fn @bit_test_select_distinct_mask(arg0: u256) -> u256 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = iszero v0
+      v2 = and arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeff00
+      v3 = select v1, v2, arg0
+      ret v3
+  }
+  

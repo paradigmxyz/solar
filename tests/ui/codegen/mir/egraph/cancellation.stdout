@@ -69,6 +69,193 @@
       ret v1, v3
   }
   
+  fn @common_add_0(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+      v0 = add arg0, arg1
+      v1 = add arg0, arg2
+-     v2 = sub v0, v1
++     v2 = sub arg1, arg2
+      ret v2
+  }
+  
+  fn @common_add_1(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+      v0 = add arg0, arg1
+      v1 = add arg2, arg0
+-     v2 = sub v0, v1
++     v2 = sub arg1, arg2
+      ret v2
+  }
+  
+  fn @common_add_2(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+      v0 = add arg1, arg0
+      v1 = add arg0, arg2
+-     v2 = sub v0, v1
++     v2 = sub arg1, arg2
+      ret v2
+  }
+  
+  fn @common_add_3(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+      v0 = add arg1, arg0
+      v1 = add arg2, arg0
+-     v2 = sub v0, v1
++     v2 = sub arg1, arg2
+      ret v2
+  }
+  
+  fn @common_subtrahend(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+      v0 = sub arg0, arg2
+      v1 = sub arg1, arg2
+-     v2 = sub v0, v1
++     v2 = sub arg0, arg1
+      ret v2
+  }
+  
+  fn @common_minuend(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+      v0 = sub arg0, arg1
+      v1 = sub arg0, arg2
+-     v2 = sub v0, v1
++     v2 = sub arg2, arg1
+      ret v2
+  }
+  
+  fn @shared_common_add(arg0: u256, arg1: u256, arg2: u256) -> struct3 [return_abi=[u256, u256]] {
+    bb0:
+      v0 = add arg0, arg1
+      v1 = add arg0, arg2
+      v2 = sub v0, v1
+      ret v0, v2
+  }
+  
+  fn @carry_0(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = xor arg0, arg1
+      v1 = and arg0, arg1
+-     v2 = shl 1, v1
+-     v3 = add v0, v2
++     v2 = add v1, v1
++     v3 = add arg0, arg1
+      ret v3
+  }
+  
+  fn @carry_1(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = xor arg0, arg1
+      v1 = and arg1, arg0
+-     v2 = shl 1, v1
+-     v3 = add v0, v2
++     v2 = add v1, v1
++     v3 = add arg0, arg1
+      ret v3
+  }
+  
+  fn @carry_2(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = xor arg0, arg1
+      v1 = and arg0, arg1
+-     v2 = shl 1, v1
+-     v3 = add v2, v0
++     v2 = add v1, v1
++     v3 = add arg0, arg1
+      ret v3
+  }
+  
+  fn @carry_3(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = xor arg0, arg1
+      v1 = and arg1, arg0
+-     v2 = shl 1, v1
+-     v3 = add v2, v0
++     v2 = add v1, v1
++     v3 = add arg0, arg1
+      ret v3
+  }
+  
+  fn @carry_doubled(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = xor arg0, arg1
+      v1 = and arg0, arg1
+      v2 = add v1, v1
+-     v3 = add v0, v2
++     v3 = add arg0, arg1
+      ret v3
+  }
+  
+  fn @dynamic_power_mul_0(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = shl arg1, 1
+-     v1 = mul arg0, v0
++     v1 = shl arg1, arg0
+      ret v1
+  }
+  
+  fn @dynamic_power_mul_1(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = shl arg1, 1
+-     v1 = mul v0, arg0
++     v1 = shl arg1, arg0
+      ret v1
+  }
+  
+  fn @signed_remainder_minus_one(arg0: u256) -> u256 {
+    bb0:
+-     v0 = smod arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     ret v0
++     ret 0
+  }
+  
+  fn @xor_comparison_0(arg0: u256, arg1: u256) -> bool {
+    bb0:
+      v0 = xor arg0, arg1
+-     v1 = eq v0, arg0
++     v1 = iszero arg1
+      ret v1
+  }
+  
+  fn @xor_comparison_1(arg0: u256, arg1: u256) -> bool {
+    bb0:
+      v0 = xor arg1, arg0
+-     v1 = eq v0, arg0
++     v1 = iszero arg1
+      ret v1
+  }
+  
+  fn @xor_comparison_2(arg0: u256, arg1: u256) -> bool {
+    bb0:
+      v0 = xor arg0, arg1
+-     v1 = eq arg0, v0
++     v1 = iszero arg1
+      ret v1
+  }
+  
+  fn @xor_comparison_3(arg0: u256, arg1: u256) -> bool {
+    bb0:
+      v0 = xor arg1, arg0
+-     v1 = eq arg0, v0
++     v1 = iszero arg1
+      ret v1
+  }
+  
+  fn @wrapping_comparison(arg0: u256, arg1: u256) -> bool {
+    bb0:
+      v0 = sub arg0, arg1
+-     v1 = lt arg0, v0
++     v1 = lt arg0, arg1
+      ret v1
+  }
+  
+  fn @wrapping_comparison_reversed(arg0: u256, arg1: u256) -> bool {
+    bb0:
+      v0 = sub arg0, arg1
+-     v1 = gt v0, arg0
++     v1 = lt arg0, arg1
+      ret v1
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/egraph/cancellation.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/cancellation.mir (after dce) ===
   @module Cancellation
@@ -120,5 +307,167 @@
       v2 = xor arg0, arg1
       v3 = xor v2, arg2
       ret v1, v3
+  }
+  
+  fn @common_add_0(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+-     v0 = add arg0, arg1
+-     v1 = add arg0, arg2
+      v2 = sub arg1, arg2
+      ret v2
+  }
+  
+  fn @common_add_1(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+-     v0 = add arg0, arg1
+-     v1 = add arg2, arg0
+      v2 = sub arg1, arg2
+      ret v2
+  }
+  
+  fn @common_add_2(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+-     v0 = add arg1, arg0
+-     v1 = add arg0, arg2
+      v2 = sub arg1, arg2
+      ret v2
+  }
+  
+  fn @common_add_3(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+-     v0 = add arg1, arg0
+-     v1 = add arg2, arg0
+      v2 = sub arg1, arg2
+      ret v2
+  }
+  
+  fn @common_subtrahend(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+-     v0 = sub arg0, arg2
+-     v1 = sub arg1, arg2
+      v2 = sub arg0, arg1
+      ret v2
+  }
+  
+  fn @common_minuend(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+-     v0 = sub arg0, arg1
+-     v1 = sub arg0, arg2
+      v2 = sub arg2, arg1
+      ret v2
+  }
+  
+  fn @shared_common_add(arg0: u256, arg1: u256, arg2: u256) -> struct3 [return_abi=[u256, u256]] {
+    bb0:
+      v0 = add arg0, arg1
+      v1 = add arg0, arg2
+      v2 = sub v0, v1
+      ret v0, v2
+  }
+  
+  fn @carry_0(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = xor arg0, arg1
+-     v1 = and arg0, arg1
+-     v2 = add v1, v1
+      v3 = add arg0, arg1
+      ret v3
+  }
+  
+  fn @carry_1(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = xor arg0, arg1
+-     v1 = and arg1, arg0
+-     v2 = add v1, v1
+      v3 = add arg0, arg1
+      ret v3
+  }
+  
+  fn @carry_2(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = xor arg0, arg1
+-     v1 = and arg0, arg1
+-     v2 = add v1, v1
+      v3 = add arg0, arg1
+      ret v3
+  }
+  
+  fn @carry_3(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = xor arg0, arg1
+-     v1 = and arg1, arg0
+-     v2 = add v1, v1
+      v3 = add arg0, arg1
+      ret v3
+  }
+  
+  fn @carry_doubled(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = xor arg0, arg1
+-     v1 = and arg0, arg1
+-     v2 = add v1, v1
+      v3 = add arg0, arg1
+      ret v3
+  }
+  
+  fn @dynamic_power_mul_0(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = shl arg1, 1
+      v1 = shl arg1, arg0
+      ret v1
+  }
+  
+  fn @dynamic_power_mul_1(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = shl arg1, 1
+      v1 = shl arg1, arg0
+      ret v1
+  }
+  
+  fn @signed_remainder_minus_one(arg0: u256) -> u256 {
+    bb0:
+      ret 0
+  }
+  
+  fn @xor_comparison_0(arg0: u256, arg1: u256) -> bool {
+    bb0:
+-     v0 = xor arg0, arg1
+      v1 = iszero arg1
+      ret v1
+  }
+  
+  fn @xor_comparison_1(arg0: u256, arg1: u256) -> bool {
+    bb0:
+-     v0 = xor arg1, arg0
+      v1 = iszero arg1
+      ret v1
+  }
+  
+  fn @xor_comparison_2(arg0: u256, arg1: u256) -> bool {
+    bb0:
+-     v0 = xor arg0, arg1
+      v1 = iszero arg1
+      ret v1
+  }
+  
+  fn @xor_comparison_3(arg0: u256, arg1: u256) -> bool {
+    bb0:
+-     v0 = xor arg1, arg0
+      v1 = iszero arg1
+      ret v1
+  }
+  
+  fn @wrapping_comparison(arg0: u256, arg1: u256) -> bool {
+    bb0:
+-     v0 = sub arg0, arg1
+      v1 = lt arg0, arg1
+      ret v1
+  }
+  
+  fn @wrapping_comparison_reversed(arg0: u256, arg1: u256) -> bool {
+    bb0:
+-     v0 = sub arg0, arg1
+      v1 = lt arg0, arg1
+      ret v1
   }
   
