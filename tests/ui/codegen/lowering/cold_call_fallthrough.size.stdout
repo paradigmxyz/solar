@@ -69,11 +69,9 @@ bb22 [cold]:
   push 32
   push 4
   mstore
-  dup 2
+  swap 1
   push 36
   mstore
-  swap 1
-  pop
   push 68
   mstore
   push 100

@@ -116,3 +116,216 @@ bb6:
   push 32
   mload
   stop
+
+// CHECK-LABEL: bb7:
+// CHECK: +   dup 1
+// CHECK: {{^[ +].*}}sstore
+// CHECK: -   sload
+bb7:
+  push 7
+  push 4
+  sstore
+  push 4
+  sload
+  stop
+
+// CHECK-LABEL: bb8:
+// CHECK: +   dup 1
+// CHECK: {{^[ +].*}}tstore
+// CHECK: -   tload
+bb8:
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0
+  tstore
+  push 0
+  tload
+  stop
+
+// Storage and transient storage are separate address spaces.
+// CHECK-LABEL: bb9:
+// CHECK: {{^[ +].*}}sstore
+// CHECK-NEXT: {{^[ +].*}}push 4
+// CHECK-NEXT: {{^[ +].*}}tload
+bb9:
+  push 7
+  push 4
+  sstore
+  push 4
+  tload
+  stop
+
+// A different slot must still be loaded.
+// CHECK-LABEL: bb10:
+// CHECK: {{^[ +].*}}tstore
+// CHECK-NEXT: {{^[ +].*}}push 5
+// CHECK-NEXT: {{^[ +].*}}tload
+bb10:
+  push 7
+  push 4
+  tstore
+  push 5
+  tload
+  stop
+
+// A return cannot establish its own memory-expansion proof.
+// CHECK-LABEL: bb11:
+// CHECK: {{^[ +].*}}push 128
+// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +].*}}push 32
+// CHECK: {{^[ +].*}}push 128
+bb11:
+  calldatasize
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+
+// A longer return includes memory outside the stored word.
+bb12:
+  calldatasize
+  push 128
+  mstore
+  push 64
+  push 128
+  return
+
+// A different return offset does not read the stored word.
+bb13:
+  calldatasize
+  push 128
+  mstore
+  push 32
+  push 160
+  return
+
+// MSIZE observes the store's original memory expansion.
+bb14:
+  calldatasize
+  push 128
+  mstore
+  msize
+  push 32
+  push 128
+  return
+
+// CHECK-LABEL: bb15:
+// CHECK: -   dup 2
+// CHECK: +   swap 1
+// CHECK: {{^[ +].*}}mstore
+// CHECK: -   swap 1
+// CHECK: -   pop
+bb15:
+  calldatasize
+  caller
+  dup 2
+  push 128
+  mstore
+  swap 1
+  pop
+  stop
+
+// Consume a deeper word without disturbing the remaining stack order.
+bb16:
+  calldatasize
+  caller
+  callvalue
+  dup 3
+  push 128
+  mstore
+  swap 2
+  pop
+  stop
+
+// A different swap discards a different source.
+bb17:
+  calldatasize
+  caller
+  callvalue
+  dup 3
+  push 128
+  mstore
+  swap 1
+  pop
+  stop
+
+// Huge offsets must keep their exceptional memory expansion.
+// CHECK-LABEL: bb18:
+// CHECK: {{^[ +].*}}push 0x123456789abcdef0
+// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +].*}}push 0x123456789abcdef0
+bb18:
+  calldatasize
+  push 0x123456789abcdef0
+  mstore
+  push 32
+  push 0x123456789abcdef0
+  return
+
+// The memory range can also overflow the address itself.
+bb19:
+  calldatasize
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  mstore
+  push 32
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  return
+
+// An earlier store proves that the returned word is already in expanded memory.
+// CHECK-LABEL: bb20:
+// CHECK: {{^[ +].*}}push 256
+// CHECK: {{^[ +].*}}mstore
+// CHECK: -   push 128
+// CHECK: +   push 0
+// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +].*}}push 32
+// CHECK: -   push 128
+// CHECK: +   push 0
+bb20:
+  calldatasize
+  push 256
+  mstore
+  caller
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+
+// A lower store does not prove that the returned word is in expanded memory.
+// CHECK-LABEL: bb21:
+// CHECK: {{^[ +].*}}push 64
+// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +].*}}push 128
+// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +].*}}push 32
+// CHECK: {{^[ +].*}}push 128
+bb21:
+  calldatasize
+  push 64
+  mstore
+  caller
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+
+// An inline jump destination can bypass the earlier store.
+// CHECK-LABEL: bb22:
+// CHECK: {{^[ +].*}}jumpdest
+// CHECK: {{^[ +].*}}push 128
+// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +].*}}push 32
+// CHECK: {{^[ +].*}}push 128
+bb22:
+  calldatasize
+  push 256
+  mstore
+  jumpdest
+  caller
+  push 128
+  mstore
+  push 32
+  push 128
+  return
