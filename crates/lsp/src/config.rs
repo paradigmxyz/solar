@@ -40,7 +40,7 @@ use std::{
 };
 use tracing::{info, warn};
 
-const DEFAULT_SOURCE_CHANGE_DEBOUNCE: Duration = Duration::from_millis(350);
+const DEFAULT_SOURCE_CHANGE_DEBOUNCE: Duration = Duration::from_millis(150);
 
 /// The LSP config.
 ///
@@ -1314,16 +1314,16 @@ mod tests {
 
     #[test]
     fn source_change_debounce_initialization_options() {
-        assert_eq!(Config::default().source_change_debounce(), Duration::from_millis(350));
+        assert_eq!(Config::default().source_change_debounce(), Duration::from_millis(150));
         for (options, expected_ms) in [
-            (None, 350),
-            (Some(serde_json::json!({})), 350),
+            (None, 150),
+            (Some(serde_json::json!({})), 150),
             (Some(serde_json::json!({ "sourceChangeDebounce": 500 })), 500),
             (Some(serde_json::json!({ "sourceChangeDebounce": 0 })), 0),
-            (Some(serde_json::json!({ "sourceChangeDebounce": -1 })), 350),
-            (Some(serde_json::json!({ "sourceChangeDebounce": 1.5 })), 350),
-            (Some(serde_json::json!({ "sourceChangeDebounce": "500" })), 350),
-            (Some(serde_json::json!({ "sourceChangeDebounce": null })), 350),
+            (Some(serde_json::json!({ "sourceChangeDebounce": -1 })), 150),
+            (Some(serde_json::json!({ "sourceChangeDebounce": 1.5 })), 150),
+            (Some(serde_json::json!({ "sourceChangeDebounce": "500" })), 150),
+            (Some(serde_json::json!({ "sourceChangeDebounce": null })), 150),
         ] {
             let (_, config) = negotiate_capabilities(InitializeParams {
                 initialization_options: options,

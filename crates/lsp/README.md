@@ -13,18 +13,18 @@ including directories outside the project root.
 
 ## Source change debounce
 
-The server waits 350 ms after the latest source change before starting analysis. Each new
+The server waits 150 ms after the latest source change before starting analysis. Each new
 change restarts the wait. This applies to document edits, closes, and watched source-file
 changes; opening a document starts analysis without this delay.
 
 Set `initializationOptions.sourceChangeDebounce` to a non-negative integer in milliseconds
-when starting the server. Use `0` to disable the wait. Missing or invalid values use 350 ms.
+when starting the server. Use `0` to disable the wait. Missing or invalid values use 150 ms.
 Restart the server to apply a new value.
 
 ```json
 {
   "initializationOptions": {
-    "sourceChangeDebounce": 350
+    "sourceChangeDebounce": 150
   }
 }
 ```
