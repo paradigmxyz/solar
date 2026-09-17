@@ -39,7 +39,7 @@ fn @data() -> memorybytes {
     v1 = checked_mul u256, v0, 10
     v2 = checked_add u256, v1, 4
     sstore 0, v2 !metadata(storage=slot(0))
-    v3 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v3 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v3, 0
     v4 = memory_object_data memorybytes, v3
     ret v3
@@ -91,7 +91,7 @@ fn @captureAcrossCalls() -> struct0 [selector=0x23d1e290, abi_params=[], abi_ret
   bb0:
     v0 = address
     v1 = gas
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, 3
     v3 = memory_object_data memorybytes, v2
     mstore v3, 0x102030000000000000000000000000000000000000000000000000000000000
@@ -100,7 +100,7 @@ fn @captureAcrossCalls() -> struct0 [selector=0x23d1e290, abi_params=[], abi_ret
     v6 = icall returndata_bytes<>
     v7 = address
     v8 = gas
-    v9 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v9 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v9, 1
     v10 = memory_object_data memorybytes, v9
     mstore v10, 0xab00000000000000000000000000000000000000000000000000000000000000
@@ -150,7 +150,7 @@ fn @delegateWrite() -> u256 [selector=0xeedb6db6, abi_params=[], abi_returns=[wo
 
 fn @preserveInput() -> struct0 [selector=0xd24f7044, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 3
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x102030000000000000000000000000000000000000000000000000000000000

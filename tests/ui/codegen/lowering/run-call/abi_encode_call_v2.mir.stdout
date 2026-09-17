@@ -282,12 +282,12 @@ fn @callExternal() -> bool [selector=0x5f431992, abi_params=[], abi_returns=[wor
     icall panic_if<0x32>, v13
     memory_object_store_element memoryarray<1>, v10, 2, 2
     memory_object_store_field memorystruct<5>, v0, 1, 6
-    v14 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v14 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v14, 10
     v15 = memory_object_data memorybytes, v14
     mstore v15, 0x5374727563744e616d6500000000000000000000000000000000000000000000
     memory_object_store_field memorystruct<5>, v0, 2, v14
-    v16 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v16 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v16, 4
     v17 = memory_object_data memorybytes, v16
     mstore v17, 0x3132333400000000000000000000000000000000000000000000000000000000
@@ -295,7 +295,7 @@ fn @callExternal() -> bool [selector=0x5f431992, abi_params=[], abi_returns=[wor
     memory_object_store_field memorystruct<5>, v0, 4, 1
     v18 = address
     v19 = gas
-    v20 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v20 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v20, 8
     v21 = memory_object_data memorybytes, v20
     mstore v21, 0x546573744e616d65000000000000000000000000000000000000000000000000

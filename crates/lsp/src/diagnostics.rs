@@ -1,5 +1,5 @@
 use crate::file_operations::file_path_from_url;
-use lsp_types::{Diagnostic, PreviousResultId, Url};
+use lsp_types::{Diagnostic, PreviousResultId, Range, Url};
 use normalize_path::NormalizePath;
 use solar_interface::data_structures::map::{FxHashMap, FxHashSet};
 use std::{borrow::Cow, path::PathBuf};
@@ -139,6 +139,23 @@ impl DiagnosticStore {
 
     pub(crate) fn pull_report(&self, uri: &Url, previous_result_id: Option<&str>) -> PullReport {
         Self::make_pull_report(self.reports.get(uri), previous_result_id.map(Cow::Borrowed))
+    }
+
+    /// Copies only diagnostics relevant to the requested quick-fix range.
+    ///
+    /// Cursor requests usually select a small part of the report. Filter before cloning the
+    /// diagnostics and their suggestion data; exact source positions and edits are still
+    /// validated against the current document when building actions.
+    pub(crate) fn code_action_diagnostics(&self, uri: &Url, range: Range) -> Vec<Diagnostic> {
+        let Some(report) = self.reports.get(uri) else { return Vec::new() };
+        report
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| {
+                crate::code_actions::code_action_ranges_intersect(range, diagnostic.range)
+            })
+            .cloned()
+            .collect()
     }
 
     fn make_pull_report(

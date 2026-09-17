@@ -27,7 +27,7 @@ fn @recordFirst(arg0: address) {
   bb0:
     v0 = gas
     v1 = and 1, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, 5
     v3 = memory_object_data memorybytes, v2
     mstore v3, 0x6669727374000000000000000000000000000000000000000000000000000000
@@ -49,7 +49,7 @@ fn @recordSecond(arg0: address) {
   bb0:
     v0 = gas
     v1 = and 2, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, 6
     v3 = memory_object_data memorybytes, v2
     mstore v3, 0x7365636f6e640000000000000000000000000000000000000000000000000000

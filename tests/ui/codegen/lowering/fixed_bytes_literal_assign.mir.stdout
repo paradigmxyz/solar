@@ -2,7 +2,7 @@
 @module FixedBytesLiteralAssign
 fn @patch(arg0: bool) -> bytes1 [selector=0x7f603a02, pure, abi_params=[bool], abi_returns=[word<bytes1>]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 2
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x4142000000000000000000000000000000000000000000000000000000000000

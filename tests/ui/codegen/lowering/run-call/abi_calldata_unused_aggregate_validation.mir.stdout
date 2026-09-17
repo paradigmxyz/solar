@@ -10,6 +10,60 @@ fn @unusedMemoryBytes(arg0: memorybytes) -> u256 [selector=0x2758f02b, pure, abi
     ret 2
 }
 
+fn @unusedMemoryFmp(arg0: memorybytes) -> u256 [selector=0xc3b2ecc1, pure, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    ret v0
+}
+
+fn @memoryGrowth() -> u256 [selector=0x1de751fc, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = not 31
+    v3 = and 127, v2
+    v4 = alloc memorybytes, exact, zeroed, panic, v3
+    set_memory_object_len memorybytes, v4, 64
+    v5 = abi_encode [memory_bytes], selector 0xc3b2ecc100000000000000000000000000000000000000000000000000000000, args v4
+    v6 = slice_ptr v5
+    v7 = slice_len v5
+    v8 = staticcall v1, v0, v6, v7, 0, 32
+    jumpi v8, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v9 = returndatasize
+    v10 = lt v9, 32
+    icall revert_if<tuple_data_too_short>, v10
+    v11 = add 0, 0
+    v12 = mload v11
+    v13 = add 0, 0
+    v14 = mload v13
+    v15 = address
+    v16 = gas
+    v17 = not 31
+    v18 = and 63, v17
+    v19 = alloc memorybytes, exact, zeroed, panic, v18
+    set_memory_object_len memorybytes, v19, 0
+    v20 = abi_encode [memory_bytes], selector 0xc3b2ecc100000000000000000000000000000000000000000000000000000000, args v19
+    v21 = slice_ptr v20
+    v22 = slice_len v20
+    v23 = staticcall v16, v15, v21, v22, 0, 32
+    jumpi v23, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v24 = returndatasize
+    v25 = lt v24, 32
+    icall revert_if<tuple_data_too_short>, v25
+    v26 = add 0, 0
+    v27 = mload v26
+    v28 = add 0, 0
+    v29 = mload v28
+    v30 = checked_sub u256, v14, v29
+    ret v30
+}
+
 fn @unusedStruct(arg0: calldataslice) -> u256 [selector=0xf3a326f8, pure, abi_params=[tuple<u256, bytes, u256>], abi_returns=[word]] {
   bb0:
     ret 1

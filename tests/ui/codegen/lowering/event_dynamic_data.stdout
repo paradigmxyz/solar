@@ -11,7 +11,7 @@ fn @text(arg0: memorybytes) [selector=0x174e6c98, abi_params=[bytes], abi_return
 
 fn @literal() [selector=0x1373185e, abi_params=[], abi_returns=[]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 5
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x736f6c6172000000000000000000000000000000000000000000000000000000

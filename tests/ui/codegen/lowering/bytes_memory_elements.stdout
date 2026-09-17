@@ -24,7 +24,7 @@ fn @alloc() -> bytes32 [selector=0xbbc001c3, pure, abi_params=[], abi_returns=[w
 
 fn @literal() -> bytes32 [selector=0x1373185e, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 10
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x1020304050607080900000000000000000000000000000000000000000000

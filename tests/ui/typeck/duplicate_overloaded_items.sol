@@ -100,3 +100,33 @@ contract C2 {
 contract D is C2 {
     event E5() anonymous; //~ ERROR: event with same name and parameter types declared twice
 }
+
+contract InterleavedDuplicates {
+    // Interleaved duplicate classes keep their original diagnostic grouping.
+    function f(uint) internal pure returns (uint) { return 0; }
+    //~^ ERROR: function with same name and parameter types declared twice
+    function f(bytes calldata) internal view {}
+    //~^ ERROR: function with same name and parameter types declared twice
+    function f(uint) internal view returns (bytes32) { return 0; }
+    function f(bytes memory) internal pure {}
+    function f(bytes storage) internal {}
+
+    // Keys from another name must not leak into these distinct overloads.
+    function g(address) internal {}
+    function g(uint) internal {}
+    function g(bytes32) internal {}
+    function g(bool) internal {}
+
+    event Interleaved(uint);
+    //~^ ERROR: event with same name and parameter types declared twice
+    event Interleaved(bytes);
+    //~^ ERROR: event with same name and parameter types declared twice
+    event Interleaved(uint indexed) anonymous;
+    event Interleaved(bytes indexed);
+}
+
+contract InvalidParameters {
+    function f(Missing) internal {} //~ ERROR: unresolved symbol `Missing`
+    //~^ ERROR: function with same name and parameter types declared twice
+    function f(Missing) internal {} //~ ERROR: unresolved symbol `Missing`
+}

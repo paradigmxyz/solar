@@ -325,7 +325,7 @@ fn @storageRevertPayload() -> bool [selector=0x0156c876, abi_params=[], abi_retu
     revert v9, v10
   bb4:
     v14 = keccak256_bytes v8
-    v15 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v15 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v15, 4
     v16 = memory_object_data memorybytes, v15
     mstore v16, 0

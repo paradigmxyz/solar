@@ -39,7 +39,7 @@ fn @testTypedConstant() -> bool [selector=0x62655512, pure, abi_params=[], abi_r
 
 fn @auth() -> memorystruct [pure] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 96
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 62
     v1 = memory_object_data memorybytes, v0
     data_copy literal_0, v1, 64
@@ -57,7 +57,7 @@ fn @auth() -> memorystruct [pure] {
 
 fn @check(arg0: bool, arg1: memorystruct) -> bool [pure] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 2
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x4667000000000000000000000000000000000000000000000000000000000000

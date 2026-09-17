@@ -40,7 +40,13 @@ PR jobs never run solx, including when they must rebuild a missing baseline; sol
 when matching results are available in the downloaded main artifact.
 
 Pass `--artifacts PATH` to write a file tree for each runtime case and compiler. This extra compile
-runs outside the timed samples. Solar emits MIR, creation and runtime EVM IR, disassembly, bytecode,
+runs outside the timed samples. Each compiler directory includes a `sources/` tree containing every
+embedded source in its Standard JSON input, preserving source paths and contents, including
+extensionless names and line endings. Source URLs are not fetched. Paths must be relative and cannot
+contain empty, `.` or `..` components, Windows drive prefixes, backslashes, or control characters.
+Symlinks and file/directory collisions report artifact capture errors.
+
+The compiler emits MIR, creation and runtime EVM IR, disassembly, bytecode,
 and raw Standard JSON input and output. Solc emits unoptimized `ir.yul` and optimized
 `optimized-ir.yul` where available, disassembly,
 bytecode, and raw Standard JSON input and output. When `--reference-results` points to a result next
@@ -85,7 +91,7 @@ The comparison reports missing/failed cases and excludes incompatible inputs or 
 workloads from deltas. The summary uses the geometric mean of candidate/baseline ratios,
 with equal weight per benchmark, separately for each metric. Zero-valued pairs stay in
 the per-case results and change counts but do not enter the mean. Runtime gas sums the
-measured transactions within each benchmark, not across benchmarks. It includes per-call gas changes,
+comparable transactions within each benchmark, not across benchmarks. It includes per-call gas changes,
 compile samples in JSON, artifact hashes, and file additions/removals, so equal bytecode sizes
 do not hide changed bytecode. Missing artifacts are reported as unavailable, including the
 whole-project cases that do not capture them. Compile time and RSS comparisons require matching
@@ -95,6 +101,13 @@ additional dependency features even when both binaries report the same debug pro
 Record the build command and freeze the measured baseline binary before running builds
 with different targets. Compiler labels alone do not establish build comparability.
 Artifact capture errors and runtime observation changes appear in the comparison's issues.
+
+Calls with `comparison_exclusion_reason` still execute and retain their raw gas and
+failures in `results.json`. Reports sum only calls eligible on both sides and list
+excluded gas and reasons separately. This excludes the upstream LibString memory
+brutalizer, whose workload depends on gas and contract bytecode. Older baselines
+use exclusions recorded by the candidate; two old reports without this metadata
+retain their original totals.
 
 The workload definitions and helper fixtures were imported from
 [`walnuthq/solidity-compiler-benchmarks`](https://github.com/walnuthq/solidity-compiler-benchmarks)
@@ -202,3 +215,11 @@ subtraction, complemented arithmetic and mask absorption discovered from the
 offline seed trees. It checks zero iterations and
 wrapping inputs as well as hot loops. These targeted results are separate from
 the pinned project corpus and do not establish general superiority over solc.
+
+The local `minimal-proxy` micro benchmark uses `../../testdata/MinimalProxy.sol`.
+Its payable high-level fallback delegates to an immutable implementation deployed
+by its constructor, using assembly only to forward revert data. Both gas profiles
+measure storage writes, reads, and empty, short, and 1 KiB byte echoes through the
+proxy. Runtime checks compare the stored value and returned bytes across compilers.
+Runtime size measures the proxy alone;
+creation size and deployment gas include the helper implementation.

@@ -83,7 +83,7 @@ fn @mixedRoundtrip() -> struct0 [selector=0xb3f929db, pure, abi_params=[], abi_r
     v4 = iszero v3
     icall panic_if<0x32>, v4
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 9
-    v5 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v5 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v5, 3
     v6 = memory_object_data memorybytes, v5
     mstore v6, 0x102030000000000000000000000000000000000000000000000000000000000
@@ -188,7 +188,7 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v44 = iszero v43
     icall panic_if<0x32>, v44
     memory_object_store_element memoryarray<1>, v41, 0, 3
-    v45 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v45 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v45, 4
     v46 = memory_object_data memorybytes, v45
     mstore v46, 0x102030400000000000000000000000000000000000000000000000000000000

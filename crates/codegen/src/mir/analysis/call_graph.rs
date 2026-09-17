@@ -123,7 +123,11 @@ impl CallGraphInfo {
         reachable
     }
 
-    fn collect_internal_callees(func: &Function, function_count: usize) -> DenseBitSet<FunctionId> {
+    /// Collects direct call targets, including tail calls, without building graph analyses.
+    pub(crate) fn collect_internal_callees(
+        func: &Function,
+        function_count: usize,
+    ) -> DenseBitSet<FunctionId> {
         let mut callees = DenseBitSet::new_empty(function_count);
         for inst_id in func.instructions() {
             if let InstKind::ICall { function: Callee::Function(function), .. } =

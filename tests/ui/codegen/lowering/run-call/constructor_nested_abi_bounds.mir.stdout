@@ -107,7 +107,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb3:
-    v4 = alloc memorybytes, exact, uninitialized, infallible, 96
+    v4 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v4, 62
     v5 = memory_object_data memorybytes, v4
     mstore v5, 0x9e5b51c01b06aa9662e69b102026ffa1757b2a877ea1721d7e523dd900000000
@@ -118,7 +118,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v9 = iszero v8
     icall panic_if<0x32>, v9
     memory_object_store_element memoryarray<1>, v0, 0, v4
-    v10 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v10 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v10, 5
     v11 = memory_object_data memorybytes, v10
     mstore v11, 0x102030405000000000000000000000000000000000000000000000000000000

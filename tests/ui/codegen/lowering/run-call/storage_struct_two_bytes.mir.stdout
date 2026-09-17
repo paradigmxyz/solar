@@ -10,7 +10,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[memory_byte
     memory_object_store_field memorystruct<4>, v0, 1, memorybytes 96
     memory_object_store_field memorystruct<4>, v0, 3, memorybytes 96
     memory_object_store_field memorystruct<4>, v0, 0, 7
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 128
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v1, 73
     v2 = memory_object_data memorybytes, v1
     mstore v2, 0x3132333435363738393031323334353637383930313233343536373839303120
@@ -19,7 +19,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[memory_byte
     v4 = add v2, 64
     mstore v4, 0x3132333435363738390000000000000000000000000000000000000000000000
     memory_object_store_field memorystruct<4>, v0, 3, v1
-    v5 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v5 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v5, 6
     v6 = memory_object_data memorybytes, v5
     mstore v6, 0x6162636465660000000000000000000000000000000000000000000000000000
@@ -62,12 +62,12 @@ fn @g() -> struct0 [selector=0xe2179b8e, abi_params=[], abi_returns=[memory_byte
     memory_object_store_field memorystruct<4>, v0, 1, memorybytes 96
     memory_object_store_field memorystruct<4>, v0, 3, memorybytes 96
     memory_object_store_field memorystruct<4>, v0, 0, 7
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v1, 17
     v2 = memory_object_data memorybytes, v1
     mstore v2, 0x3132333435363738393233343536373839000000000000000000000000000000
     memory_object_store_field memorystruct<4>, v0, 3, v1
-    v3 = alloc memorybytes, exact, uninitialized, infallible, 128
+    v3 = alloc memorybytes, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v3, 73
     v4 = memory_object_data memorybytes, v3
     mstore v4, 0x3132333435363738393031323334353637383930313233343536373839303120

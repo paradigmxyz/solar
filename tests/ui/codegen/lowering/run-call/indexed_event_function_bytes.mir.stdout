@@ -15,7 +15,7 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[]] {
     v3 = or v2, 0xd4b83992
     v4 = shl 64, v3
     memory_object_store_field memorystruct<2>, v0, 0, v4
-    v5 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v5 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v5, 1
     v6 = memory_object_data memorybytes, v5
     mstore v6, 0x7800000000000000000000000000000000000000000000000000000000000000
