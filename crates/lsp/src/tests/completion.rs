@@ -887,7 +887,7 @@ new_text:
 }
 
 #[test]
-fn pending_analysis_omits_stale_getter_returns_without_waiting() {
+fn edited_getter_uses_fresh_returns() {
     let fixture = RequestFixture::new(
         r#"
         //- /Completion.sol open
@@ -916,14 +916,16 @@ sort_text=0
 text_edit=edit 5:4-5:7
 insert_text_format=Snippet
 new_text:
-/// @notice $1$0
+/// @notice $1
+    /// @return amount $2
+    /// @return admin $3$0
 
 "#]],
     );
 }
 
 #[test]
-fn pending_analysis_omits_stale_inheritdoc_without_waiting() {
+fn edited_inheritance_uses_fresh_inheritdoc() {
     let fixture = RequestFixture::new(
         r#"
         //- /Completion.sol open
@@ -953,12 +955,21 @@ insert_text_format=Snippet
 new_text:
 /// $1$0
 
+label=NatSpec @inheritdoc Other
+kind=Snippet
+detail=Inherit documentation from Other
+sort_text=1:Other
+text_edit=edit 3:4-3:7
+insert_text_format=Snippet
+new_text:
+/// @inheritdoc Other$0
+
 "#]],
     );
 }
 
 #[test]
-fn pending_context_change_omits_inheritdoc_without_waiting() {
+fn context_change_waits_for_fresh_inheritdoc() {
     let fixture = RequestFixture::new(
         r#"
         //- /Completion.sol open
@@ -982,6 +993,15 @@ text_edit=edit 2:4-2:7
 insert_text_format=Snippet
 new_text:
 /// $1$0
+
+label=NatSpec @inheritdoc Base
+kind=Snippet
+detail=Inherit documentation from Base
+sort_text=1:Base
+text_edit=edit 2:4-2:7
+insert_text_format=Snippet
+new_text:
+/// @inheritdoc Base$0
 
 "#]],
     );
@@ -1026,7 +1046,7 @@ new_text:
 }
 
 #[test]
-fn pending_unclosed_block_keeps_getter_semantics() {
+fn unclosed_block_omits_unavailable_getter_semantics() {
     let fixture = RequestFixture::new(
         r#"
         //- /Completion.sol open
@@ -1056,9 +1076,7 @@ text_edit=edit 5:4-5:7
 insert_text_format=Snippet
 new_text:
 /**
-     * @notice $1
-     * @return amount $2
-     * @return owner $3$0
+     * @notice $1$0
      */
 
 "#]],
@@ -1066,7 +1084,7 @@ new_text:
 }
 
 #[test]
-fn pending_unclosed_block_keeps_inheritdoc_semantics() {
+fn unclosed_block_omits_unavailable_inheritdoc_semantics() {
     let fixture = RequestFixture::new(
         r#"
         //- /Completion.sol open
@@ -1094,17 +1112,6 @@ insert_text_format=Snippet
 new_text:
 /**
      * $1$0
-     */
-
-label=NatSpec @inheritdoc Base
-kind=Snippet
-detail=Inherit documentation from Base
-sort_text=1:Base
-text_edit=edit 2:4-2:7
-insert_text_format=Snippet
-new_text:
-/**
-     * @inheritdoc Base$0
      */
 
 "#]],
@@ -1154,7 +1161,7 @@ new_text:
 }
 
 #[test]
-fn pending_imported_struct_change_omits_stale_getter_returns() {
+fn edited_imported_struct_uses_fresh_getter_returns() {
     let fixture = RequestFixture::new(
         r#"
         //- /Base.sol open
@@ -1187,7 +1194,9 @@ sort_text=0
 text_edit=edit 2:4-2:7
 insert_text_format=Snippet
 new_text:
-/// @notice $1$0
+/// @notice $1
+    /// @return amount $2
+    /// @return admin $3$0
 
 "#]],
     );

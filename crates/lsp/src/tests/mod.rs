@@ -574,10 +574,6 @@ fn assert_source_notification_tracks_until_publish(
             external_refresh_pending
         );
         assert!(state.analysis_commit.lock().natspec_pending_source_changes.contains(path));
-        let changed_uri = Url::from_file_path(path).unwrap();
-        let other_uri = Url::from_file_path(project.path("/OtherRequest.sol")).unwrap();
-        assert!(state.natspec_semantics_are_usable(&changed_uri));
-        assert!(!state.natspec_semantics_are_usable(&other_uri));
         release_worker.send(()).unwrap();
         worker.await.unwrap();
         tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
@@ -585,7 +581,6 @@ fn assert_source_notification_tracks_until_publish(
             .expect("source analysis should finish")
             .unwrap();
         assert!(state.analysis_commit.lock().natspec_pending_source_changes.is_empty());
-        assert!(state.natspec_semantics_are_usable(&other_uri));
     });
 }
 
@@ -1123,7 +1118,6 @@ async fn failed_current_analysis_recovers_after_save() {
         .unwrap();
     assert!(tables.load().workspace_symbols("Old").iter().any(|symbol| symbol.name == "Old"));
     assert!(state.analysis_cache_invalidated());
-    assert!(!state.natspec_semantics_are_usable(&uri));
 
     let probe_owner =
         DiagnosticOwner::Flycheck { id: "probe".into(), workspace: project.root().into() };
@@ -1159,7 +1153,6 @@ async fn failed_current_analysis_recovers_after_save() {
     assert!(tables.workspace_symbols("Recovered").iter().any(|symbol| symbol.name == "Recovered"));
     drop(tables);
     assert!(!state.analysis_cache_invalidated());
-    assert!(state.natspec_semantics_are_usable(&uri));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1187,7 +1180,6 @@ async fn cancelled_current_analysis_recovers_after_save() {
         .unwrap();
     assert!(tables.load().workspace_symbols("").is_empty());
     assert!(state.analysis_cache_invalidated());
-    assert!(!state.natspec_semantics_are_usable(&uri));
 
     let result = crate::handlers::did_save_text_document(
         &mut state,
@@ -1209,7 +1201,6 @@ async fn cancelled_current_analysis_recovers_after_save() {
             .any(|symbol| symbol.name == "Recovered")
     );
     assert!(!state.analysis_cache_invalidated());
-    assert!(state.natspec_semantics_are_usable(&uri));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1560,7 +1551,6 @@ fn did_change_tracks_the_request_source_until_analysis_publishes() {
 
         let request_path = project.path("/Request.sol");
         let request_uri = Url::from_file_path(&request_path).unwrap();
-        let other_uri = Url::from_file_path(project.path("/Other.sol")).unwrap();
         let mut state = GlobalState::new(ClientSocket::new_closed());
         state.config = Arc::new(project.config());
         state.vfs = Arc::new(RwLock::new(project.vfs()));
@@ -1584,8 +1574,6 @@ fn did_change_tracks_the_request_source_until_analysis_publishes() {
         assert!(
             state.analysis_commit.lock().natspec_pending_source_changes.contains(&request_path)
         );
-        assert!(state.natspec_semantics_are_usable(&request_uri));
-        assert!(!state.natspec_semantics_are_usable(&other_uri));
 
         release_worker.send(()).unwrap();
         worker.await.unwrap();
@@ -1598,12 +1586,11 @@ fn did_change_tracks_the_request_source_until_analysis_publishes() {
         assert!(tables.workspace_symbols("After").iter().any(|symbol| symbol.name == "After"));
         drop(tables);
         assert!(state.analysis_commit.lock().natspec_pending_source_changes.is_empty());
-        assert!(state.natspec_semantics_are_usable(&other_uri));
     });
 }
 
 #[test]
-fn configuration_change_invalidates_natspec_context_until_analysis_publishes() {
+fn configuration_change_schedules_external_refresh() {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .max_blocking_threads(1)
@@ -1611,7 +1598,6 @@ fn configuration_change_invalidates_natspec_context_until_analysis_publishes() {
         .unwrap();
     runtime.block_on(async {
         let mut state = GlobalState::new(ClientSocket::new_closed());
-        let request_uri = Url::parse("file:///Request.sol").unwrap();
         let (release_worker, worker) = pause_blocking_pool();
 
         let result = crate::handlers::did_change_configuration(
@@ -1621,7 +1607,6 @@ fn configuration_change_invalidates_natspec_context_until_analysis_publishes() {
 
         assert!(matches!(result, ControlFlow::Continue(())));
         assert!(state.analysis_commit.lock().external_refresh.is_some());
-        assert!(!state.natspec_semantics_are_usable(&request_uri));
 
         release_worker.send(()).unwrap();
         worker.await.unwrap();
@@ -1629,7 +1614,6 @@ fn configuration_change_invalidates_natspec_context_until_analysis_publishes() {
             .await
             .expect("configuration-change analysis should finish")
             .unwrap();
-        assert!(state.natspec_semantics_are_usable(&request_uri));
     });
 }
 
@@ -1813,42 +1797,6 @@ async fn rapid_did_changes_debounce_to_the_latest_source() {
     let tables = tables.load();
     assert!(tables.workspace_symbols("Intermediate").is_empty());
     assert!(tables.workspace_symbols("Latest").iter().any(|symbol| symbol.name == "Latest"));
-}
-
-#[test]
-fn pending_request_source_defers_to_target_specific_natspec_lookup() {
-    let project = TestProject::new();
-    let state = GlobalState::new(ClientSocket::new_closed());
-    let path = project.path("/Request.sol");
-    let uri = Url::from_file_path(&path).unwrap();
-    let equivalent_uri =
-        Url::parse(&uri.as_str().replacen("Request.sol", "%52equest.sol", 1)).unwrap();
-
-    state.mark_source_analysis_pending_for_test(path);
-
-    assert_ne!(uri, equivalent_uri);
-    assert_eq!(uri.to_file_path(), equivalent_uri.to_file_path());
-    assert!(state.natspec_semantics_are_usable(&equivalent_uri));
-}
-
-#[test]
-fn pending_other_source_does_not_reuse_unknown_natspec_semantics() {
-    let project = TestProject::new();
-    let state = GlobalState::new(ClientSocket::new_closed());
-    let request_uri = Url::from_file_path(project.path("/Request.sol")).unwrap();
-
-    state.mark_source_analysis_pending_for_test(project.path("/Missing.sol"));
-
-    assert!(!state.natspec_semantics_are_usable(&request_uri));
-}
-
-#[test]
-fn pending_context_change_invalidates_natspec_semantics() {
-    let state = GlobalState::new(ClientSocket::new_closed());
-    let uri = Url::parse("file:///Request.sol").unwrap();
-    state.mark_context_analysis_pending_for_test();
-
-    assert!(!state.natspec_semantics_are_usable(&uri));
 }
 
 #[test]

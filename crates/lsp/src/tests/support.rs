@@ -207,18 +207,24 @@ impl RequestFixture {
         let mut state = self.state_with_completion_snippets(true);
         for &(path, contents) in changes {
             let path = self.marked.project().path(path);
-            state.mark_source_analysis_pending_for_test(path.clone());
             state.vfs.write().set_file_contents(
-                crate::vfs::VfsPath::from(path),
+                crate::vfs::VfsPath::from(path.clone()),
                 Some(crop::Rope::from(contents)),
             );
+            state.mark_source_analysis_pending_for_test(path);
         }
         let uri = Url::from_file_path(self.marked.project().path(request_path)).unwrap();
         let position = self.marked.marker(marker).position();
-        let mut completion = std::pin::pin!(crate::handlers::completion(
-            &mut state,
-            completion_params(uri, position),
-        ));
+        Self::completion_after_analysis(&mut state, uri, position)
+    }
+
+    fn completion_after_analysis(
+        state: &mut GlobalState,
+        uri: Url,
+        position: Position,
+    ) -> Vec<CompletionItem> {
+        let mut completion =
+            std::pin::pin!(crate::handlers::completion(state, completion_params(uri, position)));
         let response = match completion.as_mut().poll(&mut Context::from_waker(Waker::noop())) {
             Poll::Ready(response) => response,
             Poll::Pending => {
@@ -255,13 +261,7 @@ impl RequestFixture {
         std::fs::remove_file(deleted_path).unwrap();
         let uri = Url::from_file_path(self.marked.project().path(request_path)).unwrap();
         let position = self.marked.marker(marker).position();
-        let response =
-            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
-                .unwrap()
-                .unwrap();
-        let CompletionResponse::Array(items) = response else {
-            panic!("expected completion array");
-        };
+        let items = Self::completion_after_analysis(&mut state, uri, position);
         assert_data_eq!(completion_details_output(&items), expected);
     }
 
@@ -273,13 +273,7 @@ impl RequestFixture {
         let mut state = self.state_with_completion_snippets(true);
         state.mark_context_analysis_pending_for_test();
         let (uri, position) = self.marker_location(marker);
-        let response =
-            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
-                .unwrap()
-                .unwrap();
-        let CompletionResponse::Array(items) = response else {
-            panic!("expected completion array");
-        };
+        let items = Self::completion_after_analysis(&mut state, uri, position);
         assert_data_eq!(completion_details_output(&items), expected);
     }
 

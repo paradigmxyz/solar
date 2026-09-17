@@ -623,7 +623,6 @@ impl BenchmarkRepeatedAnalysis {
             &mut self.state.analysis_commit.lock(),
             version,
             Vec::new(),
-            false,
         );
         let mut snapshot = self.state.snapshot();
         let progress = self.state.analysis_progress.reserve(version);

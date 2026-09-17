@@ -15,10 +15,6 @@ pub(crate) use index::{
     DeclarationKey, DeclarationPath, NatSpecCompletionIndex, NatSpecTargetSemantics, TargetKind,
 };
 
-pub(crate) fn source_syntax_fingerprint(source: &str) -> Box<str> {
-    syntax_fingerprint(source)
-}
-
 pub(crate) enum NatSpecCompletionResult {
     NotApplicable,
     Claimed(Option<Box<NatSpecCompletionTarget>>),

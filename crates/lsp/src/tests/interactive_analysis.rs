@@ -609,3 +609,43 @@ async fn completion_and_signature_help_reject_superseding_edits() {
     assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
     drop(gate);
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn natspec_and_import_completions_wait_for_analysis() {
+    for (source, position) in
+        [("///\ncontract C {}", Position::new(0, 3)), ("import \"./\";", Position::new(0, 10))]
+    {
+        let (_project, mut state, uri) = fixture();
+        Arc::make_mut(&mut state.config).enable_completion_snippets();
+        let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
+        change(&mut state, &uri, 1, source);
+        let mut params = completion_params(&uri, 0);
+        params.text_document_position.position = position;
+        let mut completion = std::pin::pin!(crate::handlers::completion(&mut state, params));
+        assert!(completion.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
+        assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
+        drop(gate);
+        let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, completion).await.unwrap().unwrap();
+        assert!(response.is_some());
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn completion_rejects_results_after_analysis_failure() {
+    let (_project, mut state, uri) = fixture();
+    let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
+    change(&mut state, &uri, 1, "///\ncontract C {}");
+    let mut params = completion_params(&uri, 0);
+    params.text_document_position.position = Position::new(0, 3);
+    let completion = crate::handlers::completion(&mut state, params);
+    handle_analysis_failure(
+        state.analysis_version.load(Ordering::Acquire),
+        "test analysis failure",
+        &state.analysis_version,
+        &state.published_analysis_version,
+        &state.analysis_commit,
+    );
+    let error = completion.await.unwrap_err();
+    assert_eq!(error.code, ErrorCode::REQUEST_FAILED);
+    drop(gate);
+}
