@@ -122,6 +122,26 @@ library Bytes {
         }
     }
 
+    /// @dev Whether `a` and `b` have the same length and the same bytes. This
+    /// is an exact comparison, a word at a time, not a comparison of hashes.
+    function equals(bytes memory a, bytes memory b) internal pure returns (bool) {
+        uint256 n = a.length;
+        if (n != b.length) return false;
+        uint256 i;
+        while (i + 32 <= n) {
+            if (readBytes32(a, i) != readBytes32(b, i)) return false;
+            i += 32;
+        }
+        if (i == n) return true;
+        // What is left is shorter than a word. One more word pulled back to
+        // end where the input ends covers it; below a word, a byte at a time.
+        if (n >= 32) return readBytes32(a, n - 32) == readBytes32(b, n - 32);
+        for (; i < n; ++i) {
+            if (a[i] != b[i]) return false;
+        }
+        return true;
+    }
+
     /// @dev Raises the `Panic(0x32)` an out-of-range index raises, which is the
     /// portable spelling of a failed range check.
     function _outOfBounds() private pure returns (uint256) {
@@ -213,11 +233,35 @@ library CalldataBytes {
     }}
 
 ''')
+    for n in range(1, 33):
+        out.append(f'''    /// @dev The {n} byte{"s" if n > 1 else ""} of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes{n}(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes{n} result)
+    {{
+        if (offset > b.length || b.length - offset < {n}) return (false, bytes{n}(0));
+        return (true, readBytes{n}(b, offset));
+    }}
+
+''')
     out.append('''    /// @dev The 32 bytes of `b` at `offset`, read as a big-endian integer.
     function readUint256BE(bytes calldata b, uint256 offset) internal pure returns (uint256 result) {
         for (uint256 k; k < 32; ++k) {
             result = (result << 8) | uint8(b[offset + k]);
         }
+    }
+
+    /// @dev The 32 bytes of `b` at `offset` as a big-endian integer, or `false`
+    /// and zero when they do not all lie inside `b`.
+    function tryReadUint256BE(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, uint256 result)
+    {
+        if (offset > b.length || b.length - offset < 32) return (false, 0);
+        return (true, readUint256BE(b, offset));
     }
 
     /// @dev Copies `count` bytes of `src` at `srcOffset` into `dst` at
