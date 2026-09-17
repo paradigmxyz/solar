@@ -1,0 +1,30 @@
+// === ROOT/tests/ui/safe-solar/math/muldiv/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase lowered
+fn @quotient() [selector=0x211bc189, abi_wrapper, pure] {
+  bb0:
+    v2 = calldatasize
+    v3 = lt v2, 100
+    jumpi v3, bb1, bb2
+  bb2:
+    v0 = mul arg0, arg1
+    v1 = div v0, arg2
+    mstore 128, v1
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0x211bc189 => bb2]
+  bb2:
+    tail_call @quotient
+  bb3:
+    revert 0, 0
+}

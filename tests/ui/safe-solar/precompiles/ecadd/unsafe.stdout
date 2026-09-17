@@ -1,0 +1,47 @@
+// === ROOT/tests/ui/safe-solar/precompiles/ecadd/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase lowered
+types:
+  struct0: {u256, u256, u256}
+
+fn @add() [selector=0xe022d77c, abi_wrapper, view] {
+  bb0:
+    v12 = calldatasize
+    v13 = lt v12, 132
+    jumpi v13, bb1, bb2
+  bb2:
+    v0 = mload 64 !metadata(memory=scratch)
+    mstore v0, arg0
+    v1 = add v0, 32
+    mstore v1, arg1
+    v2 = add v0, 64
+    mstore v2, arg2
+    v3 = add v0, 96
+    mstore v3, arg3
+    v4 = gas
+    v5 = staticcall v4, 6, v0, 128, v0, 64
+    v6 = mload v0
+    v8 = mload v1
+    v14 = iszero v5
+    v15 = iszero v14
+    mstore 128, v15
+    mstore 160, v6
+    mstore 192, v8
+    returndata 128, 96
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0xe022d77c => bb2]
+  bb2:
+    tail_call @add
+  bb3:
+    revert 0, 0
+}
