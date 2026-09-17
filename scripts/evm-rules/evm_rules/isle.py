@@ -357,7 +357,8 @@ class Context:
                 ]
             )
             return shift
-        if name in ("differ",
+        if name in (
+            "differ",
             "has_bitwise_shifting",
             "has_self_balance",
             "in_current_block",
