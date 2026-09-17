@@ -353,7 +353,7 @@ class FailureHandlingTests(unittest.TestCase):
                 benchmark,
                 "find_binary",
                 side_effect=lambda value, _fallbacks: Path(value) if value else None,
-            ),
+            ) as find_binary,
             mock.patch.object(
                 benchmark,
                 "binary_version",
@@ -380,6 +380,10 @@ class FailureHandlingTests(unittest.TestCase):
             )
             document = json.loads(output.read_text())
 
+        if compilers == {"solar"}:
+            self.assertEqual(
+                [call.args[0] for call in find_binary.call_args_list], ["solar"]
+            )
         self.assertEqual(return_code, 0)
         self.assertEqual(len(document["results"]), 1)
         failure = document["results"][0]
@@ -392,6 +396,69 @@ class FailureHandlingTests(unittest.TestCase):
 
 
 class RuntimeComparisonTests(unittest.TestCase):
+    def test_cold_paths_use_candidate_without_reference_and_preserve_failures(
+        self,
+    ) -> None:
+        spec = benchmark.CompilerSpec("solar", "solar", Path("candidate"), "solar")
+        for test_id in (
+            "openzeppelin-vesting-wallet",
+            "lilweb3-fractional",
+            "nitro-one-step-proof",
+        ):
+            case = next(
+                case for case in benchmark.TEST_CASES if case.test_id == test_id
+            )
+            for reference in (None, Path("reference")):
+                for status in ("ok", "failed"):
+                    with (
+                        self.subTest(
+                            test_id=test_id, reference=reference, status=status
+                        ),
+                        mock.patch.object(
+                            benchmark,
+                            "compiler_input",
+                            return_value=("{}", 120, "input"),
+                        ),
+                        mock.patch.object(
+                            benchmark,
+                            "compile_case",
+                            return_value={"status": "ok", "bytecode": "00"},
+                        ),
+                        mock.patch.object(
+                            benchmark,
+                            "deploy_contract",
+                            return_value=("address", 1, ""),
+                        ),
+                        mock.patch.object(benchmark, "gas_calls", return_value=[]),
+                        mock.patch.object(benchmark, "runtime_checks", return_value=[]),
+                        mock.patch.object(
+                            benchmark,
+                            "run_cold_path_checks",
+                            return_value=[
+                                {"label": "cold", "status": status, "value": "1"}
+                            ],
+                        ) as cold_checks,
+                    ):
+                        result = benchmark.run_test_case(
+                            case,
+                            [spec],
+                            True,
+                            "hot",
+                            "rpc",
+                            "key",
+                            reference_solc_path=reference,
+                        )
+                    cold_checks.assert_called_once_with(
+                        case, "address", reference or spec.path, "rpc", "key"
+                    )
+                    self.assertEqual(
+                        result["compilers"]["solar"]["runtime_status"], status
+                    )
+                    self.assertEqual(
+                        result["runtime_status"],
+                        "failed" if status == "failed" else "skipped",
+                    )
+
     def test_single_compiler_is_not_a_semantic_oracle(self) -> None:
         specs = (benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar"),)
         entry = {

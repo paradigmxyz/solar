@@ -694,20 +694,15 @@ uv run benches/runtime/benchmark-compare.py \
   --json-output target/codegen-bench/comparison.json
 ```
 
-Use Foundry's `cast` and `anvil` for local execution. The current runner still
-uses reference fixtures in the cold-path checks for `openzeppelin-vesting-wallet`,
-`nitro-one-step-proof`, and `lilweb3-fractional`, even with `--solar-only`.
-Exclude these cases from local gas runs with an explicit `--tests` list; leave
-their differential checks to CI and report the local coverage gap. Do not
-install solc to satisfy them or count omitted checks as passing. They can still
-be compiled locally without `--gas`.
+Use Foundry's `cast` and `anvil` for local execution. Compiler-only runs also
+build their runtime helper contracts with our compiler; no solc is needed.
 
 Once a codegen change settles, cover both the UI corpus (including `-Osize`)
-and the runtime/project corpus, with the local fixture exclusions above.
-Run one full base/candidate comparison with `--mode runtime compile-time` and
-`--compile-repeats 1`; reuse a matching saved baseline. Do not repeat the full
-corpus for every edit or review round. Repeat affected checks after fixes and
-broaden only when the change invalidates earlier coverage.
+and the runtime/project corpus. Run one full base/candidate comparison with
+`--mode runtime compile-time --suite all --compile-repeats 1`, removing the
+focused `--tests` filter; reuse a matching saved baseline. Do not repeat the
+full corpus for every edit or review round. Repeat affected checks after fixes
+and broaden only when the change invalidates earlier coverage.
 
 Measure compiler timing separately when relevant. Use repeated samples only
 for affected cases and suspected regressions, with matching profiles and a

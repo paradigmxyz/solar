@@ -803,7 +803,7 @@ def parse_standard_json_output(
 
 @cache
 def compile_runtime_fixture(
-    solc_path: str, contract_name: str
+    fixture_compiler_path: str, contract_name: str
 ) -> tuple[str | None, str]:
     source_name = str(RUNTIME_FIXTURES.relative_to(ROOT))
     payload = {
@@ -815,7 +815,9 @@ def compile_runtime_fixture(
         },
     }
     proc = run(
-        [solc_path, "--standard-json"], input_text=json.dumps(payload), timeout=120
+        [fixture_compiler_path, "--standard-json"],
+        input_text=json.dumps(payload),
+        timeout=120,
     )
     if proc.returncode != 0:
         return None, (proc.stderr or proc.stdout or "fixture compiler failed")[:1000]
@@ -1239,7 +1241,7 @@ def decode_words(data: str) -> list[int]:
 
 def run_vesting_cold_paths(
     address: str,
-    solc_path: Path,
+    fixture_compiler_path: Path,
     rpc_url: str,
     private_key: str,
 ) -> list[dict[str, Any]]:
@@ -1250,7 +1252,9 @@ def run_vesting_cold_paths(
     if error:
         return [runtime_error("cold-vesting-eth-release", error)]
 
-    token_bytecode, error = compile_runtime_fixture(str(solc_path), "RuntimeERC20")
+    token_bytecode, error = compile_runtime_fixture(
+        str(fixture_compiler_path), "RuntimeERC20"
+    )
     if token_bytecode is None:
         return [runtime_error("cold-vesting-token-compile", error)]
     token, _, error = deploy_creation_code(
@@ -1320,11 +1324,13 @@ def run_vesting_cold_paths(
 
 def run_fractional_cold_paths(
     address: str,
-    solc_path: Path,
+    fixture_compiler_path: Path,
     rpc_url: str,
     private_key: str,
 ) -> list[dict[str, Any]]:
-    nft_bytecode, error = compile_runtime_fixture(str(solc_path), "RuntimeNFT")
+    nft_bytecode, error = compile_runtime_fixture(
+        str(fixture_compiler_path), "RuntimeNFT"
+    )
     if nft_bytecode is None:
         return [runtime_error("cold-fractional-nft-compile", error)]
     nft, _, error = deploy_creation_code(nft_bytecode, (), None, rpc_url, private_key)
@@ -1531,14 +1537,18 @@ def run_nitro_cold_paths(address: str, rpc_url: str) -> list[dict[str, Any]]:
 def run_cold_path_checks(
     test_case: TestCase,
     address: str,
-    solc_path: Path,
+    fixture_compiler_path: Path,
     rpc_url: str,
     private_key: str,
 ) -> list[dict[str, Any]]:
     if test_case.test_id == "openzeppelin-vesting-wallet":
-        return run_vesting_cold_paths(address, solc_path, rpc_url, private_key)
+        return run_vesting_cold_paths(
+            address, fixture_compiler_path, rpc_url, private_key
+        )
     if test_case.test_id == "lilweb3-fractional":
-        return run_fractional_cold_paths(address, solc_path, rpc_url, private_key)
+        return run_fractional_cold_paths(
+            address, fixture_compiler_path, rpc_url, private_key
+        )
     if test_case.test_id == "nitro-one-step-proof":
         return run_nitro_cold_paths(address, rpc_url)
     return []
@@ -1909,22 +1919,17 @@ def run_test_case(
                 }
             )
         if has_cold_paths:
-            if reference_solc is None:
-                cold_results = [
-                    runtime_error("cold-path-setup", "reference solc is required")
-                ]
-            else:
-                verbose_log(
-                    verbose,
-                    f"[{test_case.test_id}] {spec.compiler_id} cold-path differential",
-                )
-                cold_results = run_cold_path_checks(
-                    test_case,
-                    address,
-                    reference_solc,
-                    rpc_url,
-                    private_key,
-                )
+            verbose_log(
+                verbose,
+                f"[{test_case.test_id}] {spec.compiler_id} cold-path checks",
+            )
+            cold_results = run_cold_path_checks(
+                test_case,
+                address,
+                reference_solc or spec.path,
+                rpc_url,
+                private_key,
+            )
             runtime_results.extend(cold_results)
             runtime_failed |= any(
                 result.get("status") != "ok" for result in cold_results
@@ -2099,7 +2104,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
         return 0
 
-    solc = find_binary(args.solc, ["solc"])
+    solc = (
+        find_binary(args.solc, ["solc"])
+        if (args.solc and not args.solar_only) or args.reference_results
+        else None
+    )
     if not solc and ((args.solc and not args.solar_only) or args.reference_results):
         print(_color(f"solc not found: {args.solc}", RED), file=sys.stderr)
         return 1
