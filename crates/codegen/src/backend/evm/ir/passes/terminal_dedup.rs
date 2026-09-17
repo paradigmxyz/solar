@@ -12,12 +12,25 @@
 //! The body key includes each instruction's `keep_with_next` flag, so the surviving copy cannot
 //! drop a constraint one of the redirected copies carried. A shared body is entered at its own
 //! block boundary, which is legal by construction, so the pass needs no other split check.
+//!
+//! Nonterminal blocks can also share identical bodies when all incoming edges already require a
+//! jump. A physical fallthrough excludes the block, as does an ordinary address-taken label whose
+//! numeric identity must remain observable. Compiler-generated return continuations explicitly
+//! permit their addresses to be redirected. These restrictions let CFG simplification bypass the
+//! duplicate's temporary thunk without adding a transfer to any incoming path. Blocks entered by
+//! fallthrough remain with tail merging's separate profitability policy.
+//!
+//! Shared code keeps source origins but drops function events that disagree between paths. Debug
+//! metadata does not participate in candidate selection or prevent executable-code sharing.
 
-use super::{EvmPass, utils::is_terminal_boundary};
+use super::{EvmPass, cfg_simplify::is_direct_jump_label, utils::is_terminal_boundary};
 use crate::backend::evm::ir::{
     Block, BlockId, Hotness, Module, PushValue, Terminator, TerminatorKind,
 };
-use solar_data_structures::map::{FxHashMap, StdEntry};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, StdEntry},
+};
 use solar_sema::Gcx;
 
 pub(super) struct TerminalDedup;
@@ -40,9 +53,35 @@ struct RunState {
 
 fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();
+    let mut unshareable = DenseBitSet::new_empty(module.blocks.len());
+    unshareable.insert(BlockId::ENTRY);
+    for (id, block) in module.blocks.iter_enumerated() {
+        if let Some(next) = module.next_block(id)
+            && let Some(term) = &block.terminator
+            && matches!(term.kind, TerminatorKind::Jump(to) if to == next)
+        {
+            unshareable.insert(next);
+        }
+        if let Some(next) = module.next_block(id)
+            && let Some(term) = &block.terminator
+            && matches!(term.kind, TerminatorKind::JumpI { then_block, else_block }
+                if then_block == next || else_block == next)
+        {
+            unshareable.insert(next);
+        }
+        for (at, inst) in block.instructions.iter().enumerate() {
+            if !is_direct_jump_label(block, at)
+                && let Some(to) = inst.pushed_block()
+                && !module.blocks[to].metadata.is_continuation
+            {
+                unshareable.insert(to);
+            }
+        }
+    }
     for block_id in module.blocks.indices() {
         let block = &module.blocks[block_id];
-        let Some(key) = terminal_block_key(block) else { continue };
+        let redirectable = !unshareable.contains(block_id);
+        let Some(key) = terminal_block_key(block, redirectable) else { continue };
         match state.canonical.entry(key) {
             StdEntry::Occupied(entry) => state.redirects.push((block_id, *entry.get())),
             StdEntry::Vacant(entry) => {
@@ -88,9 +127,9 @@ fn merge_debug_origins(module: &mut Module, redirects: &[(BlockId, BlockId)]) {
     module.blocks[target].terminator.as_mut().unwrap().metadata = metadata;
 }
 
-fn terminal_block_key(block: &Block) -> Option<TerminalBlockKey> {
+fn terminal_block_key(block: &Block, redirectable: bool) -> Option<TerminalBlockKey> {
     let terminator = &block.terminator.as_ref()?.kind;
-    if !is_terminal_boundary(terminator) {
+    if !is_terminal_boundary(terminator) && !redirectable {
         return None;
     }
     let instructions = block

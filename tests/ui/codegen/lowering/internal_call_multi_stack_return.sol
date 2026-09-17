@@ -13,7 +13,7 @@
 contract ICallMultiStackReturn {
     // A two-word stack return rotates the hidden return label above both results.
     // CHECK-LABEL: @module ICallMultiStackReturn_runtime
-    // CHECK: push 256
+    // CHECK: push 192
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // CHECK: push [[PAIR_RETURN:bb[0-9]+]]
@@ -47,7 +47,7 @@ contract ICallMultiStackReturn {
     }
 
     // Three results exercise the complete SWAP1..SWAP3 return-label rotation.
-    // CHECK: push 320
+    // CHECK: push 224
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // CHECK: push [[TRIPLE_RETURN:bb[0-9]+]]
@@ -93,7 +93,7 @@ contract ICallMultiStackReturn {
     // Six results exercise a return whose values are already live on the physical stack. The
     // return shuffler must reuse those words instead of duplicating the entire tuple beyond its
     // requested layout.
-    // CHECK: push 512
+    // CHECK: push 320
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // CHECK: push [[SIX_RETURN:bb[0-9]+]]

@@ -27,6 +27,7 @@ pub(in crate::backend) mod builder;
 mod display;
 mod parse;
 mod passes;
+pub(crate) use passes::compact_pushes;
 pub(in crate::backend) mod verify;
 
 pub(crate) use passes::compact_pushes::immediate_materialization_cost;
@@ -206,6 +207,12 @@ pub(crate) struct BlockMetadata {
     pub(crate) hotness: Hotness,
     /// Whether the block contains code from a known natural loop.
     pub(crate) in_loop: bool,
+    /// This label's address is used only for control transfer, never as an observable word.
+    /// Hidden return targets and branches separated from their pushed labels by sharing carry
+    /// this property. References may be redirected to an
+    /// equivalent continuation, unlike ordinary address-taken labels whose identity is opaque.
+    /// This is an executable-code property, independent of optional debug information.
+    pub(crate) is_continuation: bool,
     /// Source function entered by this block's leading `JUMPDEST`.
     pub(crate) function_invoke: Option<DebugFunction>,
 }
@@ -418,14 +425,17 @@ impl Instruction {
         }
     }
 
+    /// Returns the generated opcode definition for this instruction.
+    #[must_use]
+    pub(crate) const fn definition(&self) -> Option<&'static op::OpDef> {
+        op::definition(self.opcode)
+    }
+
     /// Returns the instruction mnemonic as printed in EVM IR.
     #[must_use]
     pub(crate) fn mnemonic(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| match self.stack_op {
-            Some(StackOp::Dup(_)) => f.write_str("dup"),
-            Some(StackOp::Swap(_)) => f.write_str("swap"),
-            Some(StackOp::Exchange(_, _)) => f.write_str("exchange"),
-            Some(StackOp::Pop) => f.write_str("pop"),
+            Some(stack_op) => f.write_str(stack_op.definition().mnemonic),
             None => match self.encoding {
                 Self::ENCODED_PUSH => f.write_str("push"),
                 encoding if encoding == Self::ENCODED_PUSH | Self::DEFERRED => {
@@ -594,6 +604,16 @@ impl TerminatorKind {
             Self::Jump(target) => usize::from(Some(*target) != next),
             Self::JumpI { .. } => 1,
             Self::Op(_) => 0,
+        }
+    }
+
+    /// Returns the number of stack items consumed and produced, when fixed.
+    #[must_use]
+    pub(crate) const fn stack_io(&self) -> Option<(u8, u8)> {
+        match self {
+            Self::Jump(_) => Some((0, 0)),
+            Self::JumpI { .. } | Self::IndexedJump(_) => Some((1, 0)),
+            Self::Op(opcode) => op::stack_io(*opcode),
         }
     }
 
@@ -883,7 +903,7 @@ impl StackEffect {
 pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> Option<StackEffect> {
     if inst.is_encoded_push() {
         Some(StackEffect::new(0, 1))
-    } else if let Some((inputs, outputs)) = op::stack_io(inst.opcode) {
+    } else if let Some((inputs, outputs)) = inst.definition().and_then(|def| def.stack_io) {
         Some(StackEffect::new(inputs, outputs))
     } else {
         None
@@ -891,12 +911,28 @@ pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> Option<Sta
 }
 
 pub(super) fn default_terminator_stack_effect(kind: &TerminatorKind) -> Option<StackEffect> {
-    match kind {
-        TerminatorKind::JumpI { .. } => Some(StackEffect::new(1, 0)),
-        TerminatorKind::IndexedJump(_) => Some(StackEffect::new(1, 0)),
-        TerminatorKind::Jump(_) => Some(StackEffect::new(0, 0)),
-        TerminatorKind::Op(opcode) => {
-            op::stack_io(*opcode).map(|(inputs, outputs)| StackEffect::new(inputs, outputs))
-        }
+    let (inputs, outputs) = kind.stack_io()?;
+    Some(StackEffect::new(inputs, outputs))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn terminators_describe_control_flow() {
+        let add = Instruction::opcode(op::ADD);
+        assert_eq!(add.definition().map(|def| def.mnemonic), Some("add"));
+        assert_eq!(default_instruction_stack_effect(&add), Some(StackEffect::new(2, 1)));
+
+        let jump = TerminatorKind::Jump(BlockId::ENTRY);
+        assert_eq!(jump.stack_io(), Some((0, 0)));
+
+        let branch =
+            TerminatorKind::JumpI { then_block: BlockId::ENTRY, else_block: BlockId::ENTRY };
+        assert_eq!(default_terminator_stack_effect(&branch), Some(StackEffect::new(1, 0)));
+
+        let terminal = TerminatorKind::Op(op::RETURN);
+        assert_eq!(default_terminator_stack_effect(&terminal), Some(StackEffect::new(2, 0)));
     }
 }

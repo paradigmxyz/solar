@@ -11,7 +11,7 @@
 use crate::mir::{
     Callee, Function, InstId, InstKind, Module, Value, ValueId,
     analysis::{CfgInfo, MemoryCallSummaries, may_observe_msize},
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_with_cfg},
     utils::invalidate_unreachable_block,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
@@ -32,9 +32,9 @@ impl MirPass for Dce {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let summaries = analyses.call_summaries(module);
-        let changed = run_function_pass(module, analyses, |func, analyses| {
+        let changed = run_function_pass_with_cfg(module, analyses, |func, analyses| {
             DeadCodeEliminator { call_summaries: Some(Arc::clone(&summaries)) }
-                .run_with_cfg(func, &analyses.cfg)
+                .run_with_cfg(func, analyses.cfg())
                 != 0
         });
         // Removing operations and unreachable blocks cannot add call effects.

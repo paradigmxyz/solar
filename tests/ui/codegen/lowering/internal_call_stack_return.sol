@@ -13,61 +13,49 @@
 contract ICallStackReturn {
     uint256 private state;
 
-    // Capture the dispatch targets in their hash-bucket order so checks remain independent of
-    // block numbering. Equivalent one-result entries share one block after the late structural
-    // sweep, while stateful, nested, and multi-operand callers retain their specialized layouts.
+    // Equivalent one-result entries share a stack-only body after outlining.
     // GAS-LABEL: @module ICallStackReturn_runtime
-    // GAS: push 0xf368aee0
-    // GAS-NEXT: eq
-    // GAS-NEXT: push [[VOID_ENTRY:bb[0-9]+]]
     // GAS: push 0x1e388922
     // GAS-NEXT: eq
     // GAS-NEXT: push [[COMMON_ENTRY:bb[0-9]+]]
-    // GAS: push 0xc877cdbb
-    // GAS-NEXT: eq
-    // GAS-NEXT: push [[MULTI_ENTRY:bb[0-9]+]]
-    // GAS: push 0xb1e54a6c
-    // GAS-NEXT: eq
-    // GAS-NEXT: push [[NESTED_ENTRY:bb[0-9]+]]
     // GAS: push 0x2137370e
     // GAS-NEXT: eq
     // GAS-NEXT: push [[COMMON_ENTRY]]
-    //
-    // A void call carries the caller multiplication beneath the hidden return label.
-    // GAS: [[VOID_ENTRY]]:
-    // GAS: mul
-    // GAS-NEXT: push [[VOID_RETURN:bb[0-9]+]]
-    // GAS-NEXT: push 0
-    // GAS-NEXT: sload
-    // GAS: [[VOID_RETURN]]:
-    // GAS-NEXT: push 4
-    // GAS-NEXT: calldataload
-    //
-    // A nested helper rotates its one-word result above the hidden return label.
-    // GAS: [[NESTED_ENTRY]]:
-    // GAS: mul
-    // GAS-NEXT: push [[NESTED_RETURN:bb[0-9]+]]
-    // GAS-NEXT: jump [[HELPER:bb[0-9]+]]
-    // GAS-NEXT: [[HELPER]]:
+    // GAS: push 0xb1e54a6c
+    // GAS-NEXT: eq
+    // GAS-NEXT: push [[NESTED_ENTRY:bb[0-9]+]]
+    // GAS: push 0xc877cdbb
+    // GAS-NEXT: eq
+    // GAS-NEXT: push [[MULTI_ENTRY:bb[0-9]+]]
+    // GAS: push 0xf368aee0
+    // GAS-NEXT: eq
+    // GAS-NEXT: push [[VOID_ENTRY:bb[0-9]+]]
+    // GAS: [[COMMON_ENTRY]]:
+    // GAS-NEXT: push [[RETURN:bb[0-9]+]]
+    // GAS-NEXT: jump [[SHARED:bb[0-9]+]]
+    // GAS-NEXT: [[SHARED]]:
     // GAS: push 11
     // GAS-NEXT: mul
-    // GAS-NEXT: swap 1
+    // GAS-NOT: mstore
+    // GAS: swap 2
     // GAS-NEXT: jump
-    //
-    // ADDMOD consumes two caller words and the helper result without a frame reload.
+    // The void helper is inlined, keeping the multiplication live across storage writes.
+    // GAS: [[VOID_ENTRY]]:
+    // GAS: mul
+    // GAS-NEXT: push 0
+    // GAS-NEXT: sload
+    // GAS: sstore
+    // GAS: [[NESTED_ENTRY]]:
+    // GAS-NEXT: push [[NESTED_RETURN:bb[0-9]+]]
+    // GAS-NEXT: jump [[SHARED]]
+    // ADDMOD consumes the inlined result without a frame reload.
     // GAS: [[MULTI_ENTRY]]:
     // GAS: or
-    // GAS: push [[MULTI_RETURN:bb[0-9]+]]
-    // GAS-NEXT: jump [[HELPER]]
-    //
-    // The ordinary one-result callers share a tail-merged stack-only entry.
-    // GAS: [[COMMON_ENTRY]]:
-    // GAS: jump [[HELPER]]
-    // GAS: [[NESTED_RETURN]]:
+    // GAS-NOT: mload
+    // GAS: addmod
+    // GAS: [[NESTED_RETURN]] [continuation]:
     // GAS-NEXT: push 3
     // GAS-NEXT: add
-    // GAS: [[MULTI_RETURN]]:
-    // GAS: addmod
 
     // Both optimized modes keep a one-word helper result on the physical stack and remove its
     // frame slot. Five operations keep each leaf above the tiny-leaf inlining threshold so these

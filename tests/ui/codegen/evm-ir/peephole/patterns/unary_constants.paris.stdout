@@ -1,0 +1,70 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/unary_constants.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/unary_constants.evmir (after peephole) ===
+  @module UnaryConstants
+  bb0:
++   push 1
+    push 0
+-   iszero
+-   push 0
+    mstore
+    stop
+  bb1:
+-   push 2
+-   iszero
+-   push bb100
+-   jumpi
+    push 9
+    push 0
+    mstore
+    stop
+  bb2:
+-   push 0
+-   push bb100
+-   jumpi
+    stop
+  bb3:
+    push 1
+    push bb100
+    jumpi
+    stop
+  bb4:
+    iszero
+    push bb100
+    jumpi
+    stop
+  bb5:
+-   push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-   not
+    push 0
++   push 0
+    mstore
+    stop
+  bb6:
+    push 0
+    not
+    push 0
+    mstore
+    stop
+  bb11:
+    push 0
+    push 255
+    jumpi
+    stop
+  bb12:
+-   push 7
+-   iszero
++   push 0
+    stop
+  bb14:
+    push bb100
+    iszero
+    stop
+  bb15:
+    push_deferred 0
+    iszero
+    stop
+  bb100:
+    push 0
+    push 0
+    revert
+  

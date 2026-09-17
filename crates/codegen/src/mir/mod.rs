@@ -37,7 +37,7 @@ mod inst;
 pub(crate) use inst::{
     AbiEncodeMode, AddressCallKind, AllocationAlignment, AllocationFailure,
     AllocationInitialization, AllocationKind, AllocationSemantics, ConcatPart, EffectKind,
-    InstKind, Instruction, InstructionMetadata, MemoryRegion, StorageAlias,
+    Instruction, InstructionMetadata, MemoryRegion, StorageAlias,
 };
 
 mod arithmetic;
@@ -48,6 +48,8 @@ pub(crate) use checks::{PanicCode, RevertKind, RevertPayload, RevertReason};
 
 mod effects;
 pub(crate) use effects::ControlEffects;
+mod op_schema;
+pub(crate) use op_schema::{InstKind, Op, OpTraits, ResultKind};
 
 mod block;
 pub(crate) use block::{BasicBlock, Terminator};

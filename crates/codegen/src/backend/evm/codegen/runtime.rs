@@ -2,7 +2,7 @@
 
 use super::{
     ArtifactKind, BlockId, CallGraphInfo, DenseBitSet, EvmCodegen, FunctionId, GeneratedCode,
-    IndexVec, MAX_STACK_DEPTH, MirPhase, Module, OptimizationMode, Terminator, index_vec,
+    IndexVec, Liveness, MAX_STACK_DEPTH, MirPhase, Module, OptimizationMode, Terminator, index_vec,
     run_pipeline,
 };
 
@@ -114,6 +114,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.restorable_internal_frames.clear_to(module.functions.len());
         self.static_frame_functions.clear_to(module.functions.len());
         self.static_frame_addr_consts.clear();
+        self.packed_static_frame_sizes.clear();
         self.external_spill_addr_consts.clear();
         self.pending_static_allocs.clear();
         self.runtime_free_memory_consts.clear();
@@ -254,7 +255,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Emits a runtime from final-phase MIR.
     ///
     /// Selector matching, receive/fallback routing, and callvalue checks all
-    /// live in the MIR `entry`, whose `tail_call`s jump to the ABI wrappers.
+    /// live in the MIR `entry`. Its routes jump to ABI wrappers or contain
+    /// eligible bodies inlined by `inline-dispatch`.
     fn emit_runtime(&mut self, module: &Module, call_graph: &CallGraphInfo) {
         let Some(entry_id) = module.dispatch_entry() else {
             assert!(
@@ -368,10 +370,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
-        // The MIR entry only dispatches. External wrappers initialize the free-memory pointer on
-        // demand with a floor sized for their own reachable static frames.
+        // Compact dispatch can leave its selector below a separately scheduled wrapper.
+        // An entry with inlined bodies uses ordinary intra-function switch cleanup instead.
+        self.record_runtime_entry_reachability(call_graph, entry_id);
         self.in_internal_function = false;
-        self.emitting_entry = true;
+        self.emitting_entry =
+            Liveness::compute_block_local_for_codegen(&module.functions[entry_id]).is_some();
         self.generate_function_body(entry_id, &module.functions[entry_id]);
         self.emitting_entry = false;
         self.record_function_spill_size(entry_id);
@@ -412,6 +416,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.record_function_spill_size(func_id);
         }
 
+        self.pack_scalar_static_frames(module);
         self.resolve_static_frames(module);
     }
 }

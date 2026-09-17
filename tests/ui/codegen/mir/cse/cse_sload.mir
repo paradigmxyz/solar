@@ -25,3 +25,17 @@ fn @sload_after_sstore(arg0: u256, arg1: u256) -> u256 {
     v5 = add v2, v4
     ret v5
 }
+
+// CHECK-LABEL: {{^[ +].*}}fn @sload_inside_gas_interval{{[( ]}}
+// CHECK-NOT: {{^-}}
+fn @sload_inside_gas_interval(arg0: u256) -> u256 {
+  bb0:
+    v1 = gas
+    v2 = sload arg0
+    v3 = sload arg0
+    v4 = gas
+    v5 = add v1, v2
+    v6 = add v3, v4
+    v7 = add v5, v6
+    ret v7
+}

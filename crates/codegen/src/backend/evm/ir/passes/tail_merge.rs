@@ -20,19 +20,35 @@
 //! A shared tail starts at a block boundary, so both the merged block and the representative may
 //! only be cut where `keep_with_next` allows a split. That keeps sequences whose intervening gas
 //! is observable, such as a pre-EIP-150 call's `GAS`-relative gas reserve, in one block.
+//!
+//! Splitting between a pushed label and its branch must preserve the label's control-only
+//! identity. Once it finds a profitable merge, the pass records opaque label uses and marks safe
+//! branch continuations before separating the push from its consumer. Subsequent CFG cleanup can
+//! still redirect those addresses through jump thunks, while numerically observed labels remain
+//! distinct.
+//!
+//! Gas mode keeps a short word loop's branch in its original block. Such a branch targets a
+//! latch of at most 24 pure word/stack instructions, with a three- or four-word input, that jumps
+//! straight back to the branch's block. A shared suffix must begin after its conditional branch:
+//! the continuing path avoids an extra jump, while the exiting path may still share the terminal
+//! suffix. This bounded frequency heuristic is independent of optional loop markers. Simpler
+//! layouts, larger loops, stack-only latches and memory/call bodies retain the existing sharing
+//! policy; broadly preventing their tail merges increased corpus bytecode size. Size mode may
+//! share across the branch as before.
 
 use super::{
     EvmPass,
+    cfg_simplify::is_direct_jump_label,
     utils::{
         FreshLabels, MachineInstKey, instruction_size_lower_bound, is_split_point,
         is_terminal_boundary,
     },
 };
 use crate::backend::evm::{
-    ir::{Block, BlockId, Hotness, Metadata, Module, Terminator, TerminatorKind},
-    op::{StackOp, push_len},
+    ir::{Block, BlockId, Hotness, Instruction, Metadata, Module, Terminator, TerminatorKind},
+    op::{self, StackOp, push_len},
 };
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::Gcx;
 
 pub(super) struct TailMerge;
@@ -69,6 +85,7 @@ fn merge_tails(gcx: Gcx<'_>, module: &mut Module) -> bool {
 
 #[derive(Default)]
 struct RunState {
+    opaque_labels: FxHashSet<BlockId>,
     merges: Vec<Merge>,
     group_indices: FxHashMap<BlockId, usize>,
     groups: Vec<MergeGroup>,
@@ -82,6 +99,7 @@ struct RunState {
 impl RunState {
     fn plan_merges(&mut self, gcx: Gcx<'_>, module: &Module) {
         self.merges.clear();
+        self.opaque_labels.clear();
         self.tail_roots.clear();
         self.tail_edges.clear();
         self.tail_representatives.clear();
@@ -109,7 +127,9 @@ impl RunState {
             }
             // Do not use loop bodies to seed sharing groups. They may reuse a tail
             // from a non-loop path to preserve common loop entries.
-            let matched = self.longest_common_tail(block);
+            let keep_branches =
+                gcx.sess.opts.optimization.is_gas() && has_short_word_backedge(module, block_id);
+            let matched = self.longest_common_tail(block, keep_branches);
             let in_gas_loop = gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop;
 
             // A hot shared tail adds a runtime jump, so require one extra byte in gas mode.
@@ -124,17 +144,32 @@ impl RunState {
             {
                 self.merges.push(Merge { representative, block: block_id, common });
             } else if !in_gas_loop {
-                self.insert_tail(block_id, block);
+                self.insert_tail(block_id, block, keep_branches);
+            }
+        }
+        if !self.merges.is_empty() {
+            for block in &module.blocks {
+                for (at, inst) in block.instructions.iter().enumerate() {
+                    if let Some(target) = inst.pushed_block()
+                        && !module.blocks[target].metadata.is_continuation
+                        && !is_direct_jump_label(block, at)
+                    {
+                        self.opaque_labels.insert(target);
+                    }
+                }
             }
         }
     }
 
-    fn longest_common_tail(&self, block: &Block) -> Option<(BlockId, usize)> {
+    fn longest_common_tail(&self, block: &Block, keep_branches: bool) -> Option<(BlockId, usize)> {
         let terminator = &block.terminator.as_ref()?.kind;
         let mut node = *self.tail_roots.get(terminator)?;
         let mut matched = None;
         let len = block.instructions.len();
         for (common, inst) in block.instructions.iter().rev().enumerate() {
+            if keep_branches && inst.as_evm_opcode() == Some(op::JUMPI) {
+                break;
+            }
             let Some(&child) = self.tail_edges.get(&(node, MachineInstKey::new(inst))) else {
                 break;
             };
@@ -151,7 +186,7 @@ impl RunState {
         matched
     }
 
-    fn insert_tail(&mut self, block_id: BlockId, block: &Block) {
+    fn insert_tail(&mut self, block_id: BlockId, block: &Block, keep_branches: bool) {
         let terminator = &block.terminator.as_ref().expect("candidate must have a terminator").kind;
         let mut node = self.tail_root(terminator);
         let len = block.instructions.len();
@@ -159,6 +194,11 @@ impl RunState {
         // whose start is a legal split point in its own instruction list.
         for common in 0..=len {
             if common > 0 {
+                if keep_branches
+                    && block.instructions[len - common].as_evm_opcode() == Some(op::JUMPI)
+                {
+                    break;
+                }
                 node =
                     self.tail_child(node, MachineInstKey::new(&block.instructions[len - common]));
             }
@@ -192,6 +232,7 @@ impl RunState {
     }
 
     fn apply_merges(&mut self, module: &mut Module, labels: &mut FreshLabels) -> bool {
+        let track_debug_info = module.debug_info_is_tracked();
         self.group_indices.clear();
         let mut group_count = 0;
         for &merge in &self.merges {
@@ -215,7 +256,7 @@ impl RunState {
             self.groups[index].sites.push((merge.block, merge.common));
         }
 
-        let Self { groups, commons, tails, .. } = self;
+        let Self { groups, commons, tails, opaque_labels, .. } = self;
         let mut label_count = 0;
         for group in groups.iter().take(group_count) {
             commons.clear();
@@ -246,6 +287,12 @@ impl RunState {
             let mut previous_common = 0;
             let mut previous_tail = None;
             for &common in commons.iter() {
+                preserve_split_control_target(
+                    module,
+                    group.representative,
+                    instructions.len() - common,
+                    opaque_labels,
+                );
                 let mut tail = Block::new(labels.next().expect("reserved one label per tail"));
                 tail.metadata.hotness = metadata.hotness;
                 tail.metadata.in_loop = metadata.in_loop
@@ -260,20 +307,22 @@ impl RunState {
                 tail.instructions = instructions
                     [instructions.len() - common..instructions.len() - previous_common]
                     .to_vec();
-                for instruction in &mut tail.instructions {
-                    instruction.metadata.take_function_invoke();
-                }
-                for &(site, site_common) in &group.sites {
-                    if site_common < common {
-                        continue;
+                if track_debug_info {
+                    for instruction in &mut tail.instructions {
+                        instruction.metadata.take_function_invoke();
                     }
-                    let site_instructions = &module.blocks[site].instructions;
-                    let site_segment = &site_instructions[site_instructions.len() - common
-                        ..site_instructions.len() - previous_common];
-                    for (instruction, site_instruction) in
-                        tail.instructions.iter_mut().zip(site_segment)
-                    {
-                        instruction.metadata.merge_source_spans(&site_instruction.metadata);
+                    for &(site, site_common) in &group.sites {
+                        if site_common < common {
+                            continue;
+                        }
+                        let site_instructions = &module.blocks[site].instructions;
+                        let site_segment = &site_instructions[site_instructions.len() - common
+                            ..site_instructions.len() - previous_common];
+                        for (instruction, site_instruction) in
+                            tail.instructions.iter_mut().zip(site_segment)
+                        {
+                            instruction.metadata.merge_source_spans(&site_instruction.metadata);
+                        }
                     }
                 }
                 tail.terminator = previous_tail.map_or_else(
@@ -284,7 +333,8 @@ impl RunState {
                         )
                     },
                 );
-                if previous_tail.is_none()
+                if track_debug_info
+                    && previous_tail.is_none()
                     && let Some(tail_terminator) = &mut tail.terminator
                 {
                     tail_terminator.metadata.take_function_invoke();
@@ -332,18 +382,80 @@ impl RunState {
                     .map(|index| tails[index].1)
                     .expect("tail must exist for every merge site");
                 let len = module.blocks[block].instructions.len();
-                let debug_info = suffix_debug_info(&module.blocks[block], common);
+                preserve_split_control_target(module, block, len - common, opaque_labels);
+                let debug_info =
+                    track_debug_info.then(|| suffix_debug_info(&module.blocks[block], common));
                 // prefix; suffix !metadata(origin) => prefix; jump tail !metadata(origin)
                 module.blocks[block].instructions.truncate(len - common);
                 let mut terminator =
                     Terminator::new(TerminatorKind::Jump(tail)).with_debug_info_dropped();
-                terminator.metadata.copy_debug_info_from(&debug_info);
+                if let Some(debug_info) = debug_info {
+                    terminator.metadata.copy_debug_info_from(&debug_info);
+                }
                 module.blocks[block].terminator = Some(terminator);
             }
         }
         debug_assert!(labels.next().is_none());
         true
     }
+}
+
+/// Preserve an address's control-only identity when its consumer moves into a shared tail.
+fn preserve_split_control_target(
+    module: &mut Module,
+    block: BlockId,
+    split: usize,
+    opaque_labels: &FxHashSet<BlockId>,
+) {
+    if let Some(previous) = split.checked_sub(1)
+        && is_direct_jump_label(&module.blocks[block], previous)
+        && let Some(target) = module.blocks[block].instructions[previous].pushed_block()
+        && !opaque_labels.contains(&target)
+    {
+        // push target; jumpi -> push target; jump shared; shared: jumpi
+        module.blocks[target].metadata.is_continuation = true;
+    }
+}
+
+/// Recognizes a small recurring word computation whose branch must stay on the local path.
+fn has_short_word_backedge(module: &Module, header: BlockId) -> bool {
+    module.blocks[header].instructions.windows(2).any(|pair| {
+        pair[1].as_evm_opcode() == Some(op::JUMPI)
+            && pair[0].pushed_block().is_some_and(|target| {
+                let latch = &module.blocks[target];
+                matches!(latch.terminator.as_ref().map(|term| &term.kind),
+                    Some(TerminatorKind::Jump(back)) if *back == header)
+                    && latch.instructions.len() <= 24
+                    && word_loop_input_width(&latch.instructions)
+                        .is_some_and(|width| (3..=4).contains(&width))
+            })
+    })
+}
+
+/// Computes the required input prefix for a pure latch containing a word computation.
+fn word_loop_input_width(instructions: &[Instruction]) -> Option<isize> {
+    let mut depth = 0;
+    let mut required = 0;
+    let mut computes_word = false;
+    for inst in instructions {
+        if !inst.has_canonical_stack_effect() {
+            return None;
+        }
+        let (inputs, growth) = if let Some(stack) = inst.as_stack_op() {
+            (stack.required_depth() as isize, stack.net_growth())
+        } else if inst.is_encoded_push() {
+            (0, 1)
+        } else if inst.as_evm_opcode().is_some_and(op::is_pure) {
+            computes_word = true;
+            let effect = inst.effective_stack_effect()?;
+            (isize::from(effect.inputs), isize::from(effect.outputs) - isize::from(effect.inputs))
+        } else {
+            return None;
+        };
+        required = required.max(inputs - depth);
+        depth += growth;
+    }
+    computes_word.then_some(required)
 }
 
 fn suffix_debug_info(block: &Block, len: usize) -> Metadata {

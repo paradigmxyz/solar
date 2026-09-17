@@ -1,0 +1,22 @@
+//@ compile-flags: -Zmir-pipeline=lower-abi-encode,egraph,dce
+//@ filecheck:
+@module LiteralReservation
+
+// Two literal tails, including an empty tail, and an unaligned selector.
+// CHECK-LABEL: (after dce)
+// CHECK: fn @encode
+// CHECK: [[BUFFER:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 256{{$}}
+// CHECK: mstore [[BUFFER]], 0x12345678
+// CHECK: make_memory_slice [[BUFFER]], 228
+// CHECK-NOT: preserves_fmp
+fn @encode(arg0: u256) -> memoryslice {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 96
+    set_memory_object_len memorybytes, v0, 33
+    memory_object_store_word memorybytes, v0, 0, 0x6161616161616161616161616161616161616161616161616161616161616161
+    memory_object_store_word memorybytes, v0, 32, 0x6200000000000000000000000000000000000000000000000000000000000000
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v1, 0
+    v2 = abi_encode [memory_bytes, word, memory_bytes], selector 0x1234567800000000000000000000000000000000000000000000000000000000, args v0, arg0, v1
+    ret v2
+}

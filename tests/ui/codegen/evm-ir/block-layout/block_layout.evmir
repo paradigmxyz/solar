@@ -5,13 +5,13 @@
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: {{^[ +].*}}bb2:
 // CHECK: {{^[ +].*}}bb3:
-// CHECK: {{^[ +].*}}bb1:
-// CHECK-NEXT: {{^[ +].*}}stop
 // CHECK: {{^[ +].*}}bb8:
 // CHECK: {{^[ +].*}}push bb10
 // CHECK-NEXT: {{^[ +].*}}jumpi
 // CHECK-NEXT: {{^[ +].*}}jump bb9
 // CHECK-NEXT: {{^[ +].*}}bb9 [cold]:
+// CHECK: {{^[ +].*}}bb1:
+// CHECK-NEXT: {{^[ +].*}}stop
 // CHECK: {{^[ +].*}}bb4:
 bb0:
   push 1

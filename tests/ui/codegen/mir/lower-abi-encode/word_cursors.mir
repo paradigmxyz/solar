@@ -1,0 +1,25 @@
+//@ compile-flags: -Zmir-pipeline=lower-abi-encode,egraph,dce
+//@ filecheck:
+@module WordCursors
+
+// CHECK-LABEL: (after dce)
+// CHECK: fn @words
+// CHECK: [[DELTA:v[0-9]+]] = sub
+// CHECK: jumpi [[LEN:v[0-9]+]], [[BODY:bb[0-9]+]], [[DONE:bb[0-9]+]]
+// CHECK: [[BODY]]:
+// CHECK: [[REMAINING:v[0-9]+]] = phi
+// CHECK: [[DEST:v[0-9]+]] = phi
+// CHECK: [[SOURCE:v[0-9]+]] = add [[DEST]], [[DELTA]]
+// CHECK: [[WORD:v[0-9]+]] = mload [[SOURCE]]
+// CHECK: [[CLEAN:v[0-9]+]] = and [[WORD]], 255
+// CHECK: mstore [[DEST]], [[CLEAN]]
+// CHECK: [[NEXT_COUNT:v[0-9]+]] = sub [[REMAINING]], 1
+// CHECK: [[NEXT_DEST:v[0-9]+]] = add [[DEST]], 32
+// CHECK: jumpi [[NEXT_COUNT]], [[BODY]], [[DONE]]
+// CHECK: [[DONE]]:
+// CHECK: {{v[0-9]+}} = phi {{.*}}[[NEXT_DEST]]
+fn @words(arg0: memoryarray) -> memoryslice {
+  bb0:
+    v0 = abi_encode [memory_array<word<u8>>], args arg0
+    ret v0
+}

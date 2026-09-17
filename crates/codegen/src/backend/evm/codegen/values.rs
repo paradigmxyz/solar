@@ -33,8 +33,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Plans operand preparation for operations whose inputs remain valid while
-    /// they are rearranged. Memory-mutating stores/copies and calls keep their
-    /// freshness-aware emitters until the stack model represents value epochs.
+    /// they are rearranged. Stores prepare both inputs before performing the write;
+    /// the instruction's hazard handling has already protected any clobbered spill slots.
+    /// Copies and calls retain their specialized freshness-aware emitters.
     pub(super) fn plan_operands(
         &self,
         func: &Function,

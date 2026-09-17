@@ -1,0 +1,311 @@
+;; Pure 256-bit word reductions, checked by scripts/evm-rules/verify.py.
+;;
+;; Mixed bitwise families were discovered by bounded enumeration; arithmetic
+;; candidates were supplied explicitly. See scripts/evm-rules/README.md for the
+;; search recipe, proof boundary and counterexample replay. These alternatives
+;; stay at the original instruction and compete under Target plus stack traffic.
+;; Add(value, 0) lets a leaf replacement use the multi-result rewrite interface;
+;; ordinary simplification removes it without allocating an instruction.
+
+;; shl(1, x) => x + x
+;; Keep the producer in place; rebuilding it at a later consumer extends live ranges.
+(rule (rewrite (Op.Shl (one) x)) (Op.Add x x))
+
+;; ~((1 << n) - 1) => MAX << n
+;; ~(x - 1) => 0 - x
+;; Mined from storage-byte masks; shifts of 256 or more yield zero.
+(rule (rewrite (Op.Not (sub (shl n (one)) (one)))) (Op.Shl n (imm (u256_max))))
+(rule (rewrite (Op.Not (sub x (one)))) (Op.Sub (imm (u256 0)) x))
+
+;; lt (add x, 1), x => iszero (add x, 1)
+;; gt x, (add x, 1) => iszero (add x, 1)
+;; Only wrapping from MAX to zero can make an increment smaller. Reuse the
+;; sum so a checked increment does not keep the previous counter live too.
+(rule (rewrite (Op.Lt (and sum (add x (one))) x)) (Op.IsZero sum))
+(rule (rewrite (Op.Lt (and sum (add (one) x)) x)) (Op.IsZero sum))
+(rule (rewrite (Op.Gt x (and sum (add x (one))))) (Op.IsZero sum))
+(rule (rewrite (Op.Gt x (and sum (add (one) x)))) (Op.IsZero sum))
+
+;; gt (sub x, 1), x => iszero x
+;; lt x, (sub x, 1) => iszero x
+;; Only wrapping from zero to MAX can make a decrement larger.
+(rule (rewrite (Op.Gt (sub x (one)) x)) (Op.IsZero x))
+(rule (rewrite (Op.Lt x (sub x (one)))) (Op.IsZero x))
+(rule (rewrite (Op.Gt (add x (all_ones)) x)) (Op.IsZero x))
+(rule (rewrite (Op.Gt (add (all_ones) x) x)) (Op.IsZero x))
+(rule (rewrite (Op.Lt x (add x (all_ones)))) (Op.IsZero x))
+(rule (rewrite (Op.Lt x (add (all_ones) x))) (Op.IsZero x))
+
+;; (x & y) & (x ^ y) => 0
+;; (x & y) & (x | y) => x & y
+;; (x | y) & (x ^ y) => x ^ y
+;; (x & y) | (x | y) => x | y
+;; (x & y) | (x ^ y) => x | y
+;; (x | y) | (x ^ y) => x | y
+;; (x & y) ^ (x | y) => x ^ y
+;; (x & y) ^ (x ^ y) => x | y
+;; (x | y) ^ (x ^ y) => x & y
+(rule (rewrite (Op.And (band v0 v1) (bxor v0 v1))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.And (band v0 v1) (bxor v1 v0))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.And (bxor v0 v1) (band v0 v1))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.And (bxor v0 v1) (band v1 v0))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.And (band v0 v1) (bor v0 v1))) (Op.And v0 v1))
+(rule (rewrite (Op.And (band v0 v1) (bor v1 v0))) (Op.And v0 v1))
+(rule (rewrite (Op.And (bor v0 v1) (band v0 v1))) (Op.And v0 v1))
+(rule (rewrite (Op.And (bor v0 v1) (band v1 v0))) (Op.And v0 v1))
+(rule (rewrite (Op.And (bor v0 v1) (bxor v0 v1))) (Op.Xor v0 v1))
+(rule (rewrite (Op.And (bor v0 v1) (bxor v1 v0))) (Op.Xor v0 v1))
+(rule (rewrite (Op.And (bxor v0 v1) (bor v0 v1))) (Op.Xor v0 v1))
+(rule (rewrite (Op.And (bxor v0 v1) (bor v1 v0))) (Op.Xor v0 v1))
+(rule (rewrite (Op.Or (band v0 v1) (bor v0 v1))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (band v0 v1) (bor v1 v0))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (bor v0 v1) (band v0 v1))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (bor v0 v1) (band v1 v0))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (band v0 v1) (bxor v0 v1))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (band v0 v1) (bxor v1 v0))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (bxor v0 v1) (band v0 v1))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (bxor v0 v1) (band v1 v0))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (bor v0 v1) (bxor v0 v1))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (bor v0 v1) (bxor v1 v0))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (bxor v0 v1) (bor v0 v1))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (bxor v0 v1) (bor v1 v0))) (Op.Or v0 v1))
+(rule (rewrite (Op.Xor (band v0 v1) (bor v0 v1))) (Op.Xor v0 v1))
+(rule (rewrite (Op.Xor (band v0 v1) (bor v1 v0))) (Op.Xor v0 v1))
+(rule (rewrite (Op.Xor (bor v0 v1) (band v0 v1))) (Op.Xor v0 v1))
+(rule (rewrite (Op.Xor (bor v0 v1) (band v1 v0))) (Op.Xor v0 v1))
+(rule (rewrite (Op.Xor (band v0 v1) (bxor v0 v1))) (Op.Or v0 v1))
+(rule (rewrite (Op.Xor (band v0 v1) (bxor v1 v0))) (Op.Or v0 v1))
+(rule (rewrite (Op.Xor (bxor v0 v1) (band v0 v1))) (Op.Or v0 v1))
+(rule (rewrite (Op.Xor (bxor v0 v1) (band v1 v0))) (Op.Or v0 v1))
+(rule (rewrite (Op.Xor (bor v0 v1) (bxor v0 v1))) (Op.And v0 v1))
+(rule (rewrite (Op.Xor (bor v0 v1) (bxor v1 v0))) (Op.And v0 v1))
+(rule (rewrite (Op.Xor (bxor v0 v1) (bor v0 v1))) (Op.And v0 v1))
+(rule (rewrite (Op.Xor (bxor v0 v1) (bor v1 v0))) (Op.And v0 v1))
+
+;; x * MAX => 0 - x
+;; sdiv(x, MAX) => 0 - x
+;; Includes the EVM minimum-signed-word / -1 wraparound case.
+(rule (rewrite (Op.Mul x (all_ones))) (Op.Sub (imm (u256 0)) x))
+(rule (rewrite (Op.Mul (all_ones) x)) (Op.Sub (imm (u256 0)) x))
+(rule (rewrite (Op.SDiv x (all_ones))) (Op.Sub (imm (u256 0)) x))
+
+;; ~x - ~y => y - x
+;; x + ~x => MAX
+(rule (rewrite (Op.Sub (bnot x) (bnot y))) (Op.Sub y x))
+(rule (rewrite (Op.Add x (bnot x))) (Op.Add (imm (u256_max)) (imm (u256 0))))
+(rule (rewrite (Op.Add (bnot x) x)) (Op.Add (imm (u256_max)) (imm (u256 0))))
+
+;; Additional families from mixed arithmetic/bitwise enumeration.
+;; (add (and x y) (or x y)) => (add x y)
+(rule (rewrite (Op.Add (band v0 v1) (bor v0 v1))) (Op.Add v0 v1))
+(rule (rewrite (Op.Add (band v0 v1) (bor v1 v0))) (Op.Add v0 v1))
+(rule (rewrite (Op.Add (bor v0 v1) (band v0 v1))) (Op.Add v0 v1))
+(rule (rewrite (Op.Add (bor v0 v1) (band v1 v0))) (Op.Add v0 v1))
+
+;; (add (and x y) (xor x y)) => (or x y)
+(rule (rewrite (Op.Add (band v0 v1) (bxor v0 v1))) (Op.Or v0 v1))
+(rule (rewrite (Op.Add (band v0 v1) (bxor v1 v0))) (Op.Or v0 v1))
+(rule (rewrite (Op.Add (bxor v0 v1) (band v0 v1))) (Op.Or v0 v1))
+(rule (rewrite (Op.Add (bxor v0 v1) (band v1 v0))) (Op.Or v0 v1))
+
+;; (add (not (add x y)) x) => (not y)
+(rule (rewrite (Op.Add (bnot (add v0 v1)) v0)) (Op.Not v1))
+(rule (rewrite (Op.Add (bnot (add v0 v1)) v1)) (Op.Not v0))
+(rule (rewrite (Op.Add v0 (bnot (add v0 v1)))) (Op.Not v1))
+(rule (rewrite (Op.Add v0 (bnot (add v1 v0)))) (Op.Not v1))
+
+;; (add (not x) (sub x y)) => (not y)
+(rule (rewrite (Op.Add (bnot v0) (sub v0 v1))) (Op.Not v1))
+(rule (rewrite (Op.Add (sub v0 v1) (bnot v0))) (Op.Not v1))
+
+;; (add (sub x y) (sub y x)) => 0x0
+(rule (rewrite (Op.Add (sub v0 v1) (sub v1 v0))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+
+;; (add (add x y) (sub x y)) => (add x x)
+(rule (rewrite (Op.Add (add v0 v1) (sub v0 v1))) (Op.Add v0 v0))
+(rule (rewrite (Op.Add (add v0 v1) (sub v1 v0))) (Op.Add v1 v1))
+(rule (rewrite (Op.Add (sub v0 v1) (add v0 v1))) (Op.Add v0 v0))
+(rule (rewrite (Op.Add (sub v0 v1) (add v1 v0))) (Op.Add v0 v0))
+
+;; (and (sub (or x y) x) x) => 0x0
+(rule (rewrite (Op.And (sub (bor v0 v1) v0) v0)) (Op.Add (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.And (sub (bor v0 v1) v1) v1)) (Op.Add (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.And v0 (sub (bor v0 v1) v0))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.And v0 (sub (bor v1 v0) v0))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+
+;; (or (sub x (and x y)) x) => x
+(rule (rewrite (Op.Or (sub v0 (band v0 v1)) v0)) (Op.Add v0 (imm (u256 0))))
+(rule (rewrite (Op.Or (sub v0 (band v1 v0)) v0)) (Op.Add v0 (imm (u256 0))))
+(rule (rewrite (Op.Or v0 (sub v0 (band v0 v1)))) (Op.Add v0 (imm (u256 0))))
+(rule (rewrite (Op.Or v0 (sub v0 (band v1 v0)))) (Op.Add v0 (imm (u256 0))))
+
+;; (and (not (or x y)) x) => 0x0
+(rule (rewrite (Op.And (bnot (bor v0 v1)) v0)) (Op.Add (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.And (bnot (bor v0 v1)) v1)) (Op.Add (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.And v0 (bnot (bor v0 v1)))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.And v0 (bnot (bor v1 v0)))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+
+;; (or (not (and x y)) x) => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+(rule (rewrite (Op.Or (bnot (band v0 v1)) v0)) (Op.Add (imm (u256_max)) (imm (u256 0))))
+(rule (rewrite (Op.Or (bnot (band v0 v1)) v1)) (Op.Add (imm (u256_max)) (imm (u256 0))))
+(rule (rewrite (Op.Or v0 (bnot (band v0 v1)))) (Op.Add (imm (u256_max)) (imm (u256 0))))
+(rule (rewrite (Op.Or v0 (bnot (band v1 v0)))) (Op.Add (imm (u256_max)) (imm (u256 0))))
+
+;; Extract one byte from a word, including both constant-mask orientations.
+(rule (rewrite (Op.And (shr (iconst shift) x) (iconst mask)))
+  (if-let true (u256_eq mask 255))
+  (if-let index (sign_byte shift))
+  (Op.Byte (imm index) x))
+(rule (rewrite (Op.And (iconst mask) (shr (iconst shift) x)))
+  (if-let true (u256_eq mask 255))
+  (if-let index (sign_byte shift))
+  (Op.Byte (imm index) x))
+
+;; (x << s) >> s => x, if x fits in the retained 256 - s bits.
+;; Keep the intermediate in this block to avoid extending a cross-block live range.
+;; Require one use so removing a shared overflow check does not disrupt outlining.
+(rule (rewrite (Op.Shr (iconst shift) (and shifted (shl (iconst shift) x))))
+      (if-let true (in_current_block shifted))
+      (if-let true (single_use shifted))
+      (if-let true (u256_lt shift 256))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (Op.Add x (imm (u256 0))))
+
+;; (x << s) == (y << s) => x == y, if neither shift loses bits.
+(rule (rewrite (Op.Eq (shl (iconst shift) x) (shl (iconst shift) y)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) y))
+      (Op.Eq x y))
+
+;; (x << s) == c => x == (c >> s), if x fits and c is aligned to 2^s.
+(rule (rewrite (Op.Eq (shl (iconst shift) x) (iconst c)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (Op.Eq x (imm (u256_shr shift c))))
+
+;; c == (x << s) => (c >> s) == x, if x fits and c is aligned to 2^s.
+(rule (rewrite (Op.Eq (iconst c) (shl (iconst shift) x)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (Op.Eq (imm (u256_shr shift c)) x))
+
+;; (x << s) < (y << s) => x < y, if neither shift loses bits.
+(rule (rewrite (Op.Lt (shl (iconst shift) x) (shl (iconst shift) y)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) y))
+      (Op.Lt x y))
+
+;; (x << s) < c => x < (c >> s), if x fits and c is aligned to 2^s.
+(rule (rewrite (Op.Lt (shl (iconst shift) x) (iconst c)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (Op.Lt x (imm (u256_shr shift c))))
+
+;; c < (x << s) => (c >> s) < x, if x fits and c is aligned to 2^s.
+(rule (rewrite (Op.Lt (iconst c) (shl (iconst shift) x)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (Op.Lt (imm (u256_shr shift c)) x))
+
+;; (x << s) > (y << s) => x > y, if neither shift loses bits.
+(rule (rewrite (Op.Gt (shl (iconst shift) x) (shl (iconst shift) y)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) y))
+      (Op.Gt x y))
+
+;; (x << s) > c => x > (c >> s), if x fits and c is aligned to 2^s.
+(rule (rewrite (Op.Gt (shl (iconst shift) x) (iconst c)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (Op.Gt x (imm (u256_shr shift c))))
+
+;; c > (x << s) => (c >> s) > x, if x fits and c is aligned to 2^s.
+(rule (rewrite (Op.Gt (iconst c) (shl (iconst shift) x)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (Op.Gt (imm (u256_shr shift c)) x))
+
+;; Applying the same sign extension twice has no further effect.
+(rule (rewrite (Op.SignExtend index (signextend index x))) (Op.SignExtend index x))
+
+;; shl n, (and x, mask) => shl n, x
+;; shr n, (and x, mask) => shr n, x
+;; A mask may be omitted when every cleared bit is shifted out of the word.
+(rule (rewrite (Op.Shl (iconst shift) (band x (iconst mask))))
+  (if-let true (u256_same (u256_shl shift mask) (u256_shl shift (u256_max))))
+  (Op.Shl (imm shift) x))
+(rule (rewrite (Op.Shl (iconst shift) (band (iconst mask) x)))
+  (if-let true (u256_same (u256_shl shift mask) (u256_shl shift (u256_max))))
+  (Op.Shl (imm shift) x))
+(rule (rewrite (Op.Shr (iconst shift) (band x (iconst mask))))
+  (if-let true (u256_same (u256_shr shift mask) (u256_shr shift (u256_max))))
+  (Op.Shr (imm shift) x))
+(rule (rewrite (Op.Shr (iconst shift) (band (iconst mask) x)))
+  (if-let true (u256_same (u256_shr shift mask) (u256_shr shift (u256_max))))
+  (Op.Shr (imm shift) x))
+
+;; byte i, (and x, mask) => byte i, x
+;; BYTE ignores every mask bit outside the selected byte.
+(rule (rewrite (Op.Byte (iconst index) (band x (iconst mask))))
+  (if-let true (u256_eq (u256_byte index mask) 255))
+  (Op.Byte (imm index) x))
+(rule (rewrite (Op.Byte (iconst index) (band (iconst mask) x)))
+  (if-let true (u256_eq (u256_byte index mask) 255))
+  (Op.Byte (imm index) x))
+
+;; byte i, (shl n, x) => byte (i + n / 8), x
+;; byte i, (shr n, x) => byte (i - n / 8), x ; or zero if i < n / 8
+;; Adjust byte indexes across byte-aligned shifts. Check the original index
+;; before arithmetic so an out-of-range index cannot wrap back into the word.
+;; Keep the producer in the root block: crossing a branch can replace a cheap
+;; temporary with a loop-carried dependency that the stack scheduler must spill.
+(rule (rewrite (Op.Byte (iconst index) (and shifted (shl (iconst shift) x))))
+  (if-let true (in_current_block shifted))
+  (if-let true (u256_lt index 32))
+  (if-let byte (sign_byte shift))
+  (Op.Byte (imm (u256_add index (u256_sub (u256 31) byte))) x))
+(rule (rewrite (Op.Byte (iconst index) (and shifted (shr (iconst shift) x))))
+  (if-let true (in_current_block shifted))
+  (if-let true (u256_lt index 32))
+  (if-let byte (sign_byte shift))
+  (if-let true (u256_le (u256_sub (u256 31) byte) index))
+  (Op.Byte (imm (u256_sub index (u256_sub (u256 31) byte))) x))
+(rule (rewrite (Op.Byte (iconst index) (and shifted (shr (iconst shift) x))))
+  (if-let true (in_current_block shifted))
+  (if-let true (u256_lt index 32))
+  (if-let byte (sign_byte shift))
+  (if-let false (u256_le (u256_sub (u256 31) byte) index))
+  (Op.Add (imm (u256 0)) (imm (u256 0))))
+
+;; Seeded search: scripts/evm-rules/seeds.json.
+;; ((x + y) - (x & y)) => (x | y)
+(rule (rewrite (Op.Sub (add v0 v1) (band v0 v1))) (Op.Or v0 v1))
+;; ((x + y) - (y & x)) => (x | y)
+(rule (rewrite (Op.Sub (add v0 v1) (band v1 v0))) (Op.Or v0 v1))
+;; ((x + y) - (x | y)) => (x & y)
+(rule (rewrite (Op.Sub (add v0 v1) (bor v0 v1))) (Op.And v0 v1))
+;; ((x + y) - (y | x)) => (x & y)
+(rule (rewrite (Op.Sub (add v0 v1) (bor v1 v0))) (Op.And v0 v1))
+;; ((x | y) - (x & y)) => (x ^ y)
+(rule (rewrite (Op.Sub (bor v0 v1) (band v0 v1))) (Op.Xor v0 v1))
+;; ((x | y) - (y & x)) => (x ^ y)
+(rule (rewrite (Op.Sub (bor v0 v1) (band v1 v0))) (Op.Xor v0 v1))
+;; ((x | y) - (x ^ y)) => (x & y)
+(rule (rewrite (Op.Sub (bor v0 v1) (bxor v0 v1))) (Op.And v0 v1))
+;; ((x | y) - (y ^ x)) => (x & y)
+(rule (rewrite (Op.Sub (bor v0 v1) (bxor v1 v0))) (Op.And v0 v1))
+;; ~(~y + x) => (y - x)
+(rule (rewrite (Op.Not (add (bnot v0) v1))) (Op.Sub v0 v1))
+;; ~(x + ~y) => (y - x)
+(rule (rewrite (Op.Not (add v0 (bnot v1)))) (Op.Sub v1 v0))
+;; ~(~x - y) => (x + y)
+(rule (rewrite (Op.Not (sub (bnot v0) v1))) (Op.Add v0 v1))

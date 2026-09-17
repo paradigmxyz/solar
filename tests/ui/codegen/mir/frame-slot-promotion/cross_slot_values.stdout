@@ -1,0 +1,48 @@
+- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/cross_slot_values.mir (before frame-slot-promotion) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/cross_slot_values.mir (after frame-slot-promotion) ===
+  @module CrossSlotValues
+  fn @same_block() -> u256 {
+    bb0:
+      v0 = internal_frame_addr 128
+      v1 = internal_frame_addr 160
+-     mstore v0, 42
+-     v2 = mload v0
+-     mstore v1, v2
+-     v3 = mload v1
+-     ret v3
++     ret 42
+  }
+  
+  fn @dominated_store() -> u256 {
+    bb0:
+      v0 = internal_frame_addr 128
+      v1 = internal_frame_addr 160
+-     mstore v0, 42
+-     v2 = mload v0
+-     mstore v1, v2
+      jump bb1
+    bb1:
+-     v3 = mload v1
+-     ret v3
++     ret 42
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/cross_slot_values.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/cross_slot_values.mir (after dce) ===
+  @module CrossSlotValues
+  fn @same_block() -> u256 {
+    bb0:
+-     v0 = internal_frame_addr 128
+-     v1 = internal_frame_addr 160
+      ret 42
+  }
+  
+  fn @dominated_store() -> u256 {
+    bb0:
+-     v0 = internal_frame_addr 128
+-     v1 = internal_frame_addr 160
+      jump bb1
+    bb1:
+      ret 42
+  }
+  

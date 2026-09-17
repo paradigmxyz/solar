@@ -1,0 +1,51 @@
+// === ROOT/tests/ui/codegen/lowering/return_variable_allocation.sol:C ===
+@module C
+types:
+  struct0: {u256, u256, u256}
+
+fn @memorySize() -> u256 [pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    ret v0
+}
+
+fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+  bb0:
+    v0 = icall @memorySize
+    v1 = icall @g
+    v2 = icall @memorySize
+    v3 = icall @h
+    v4 = icall @memorySize
+    v5 = icall @i
+    v6 = icall @memorySize
+    v7 = checked_sub u256, v2, v0
+    v8 = checked_sub u256, v4, v2
+    v9 = checked_sub u256, v6, v4
+    v10 = insert_value struct0, undef struct0, 0, v7
+    v11 = insert_value struct0, v10, 1, v8
+    v12 = insert_value struct0, v11, 2, v9
+    ret v12
+}
+
+fn @g() -> memoryfixedarray {
+  bb0:
+    v0 = alloc memoryfixedarray<40, 1>, exact, uninitialized, infallible, 0x500 !metadata(preserves_fmp)
+    memory_zero v0, 0x500
+    ret v0
+}
+
+fn @h() -> memoryfixedarray {
+  bb0:
+    v0 = alloc memoryfixedarray<40, 1>, exact, uninitialized, infallible, 0x500 !metadata(preserves_fmp)
+    memory_zero v0, 0x500
+    ret v0
+}
+
+fn @i() -> memoryfixedarray {
+  bb0:
+    v0 = alloc memoryfixedarray<40, 1>, exact, uninitialized, infallible, 0x500 !metadata(preserves_fmp)
+    memory_zero v0, 0x500
+    v1 = alloc memoryfixedarray<40, 1>, exact, uninitialized, infallible, 0x500 !metadata(preserves_fmp)
+    memory_zero v1, 0x500
+    ret v0
+}

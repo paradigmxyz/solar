@@ -1,0 +1,48 @@
+// === ROOT/tests/ui/codegen/mir/egraph/cancellation_runtime.sol:Cancellation ===
+@module Cancellation
+types:
+  struct0: {u256, u256, u256}
+  struct1: {u256, u256, u256, u256}
+
+fn @arithmetic(arg0: u256, arg1: u256) -> struct0 [selector=0x6cbb5ae3, pure, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+  bb0:
+    v0 = sub arg0, arg1
+    v1 = add v0, arg1
+    v2 = add arg0, arg1
+    v3 = sub v2, arg1
+    v4 = add arg0, arg1
+    v5 = sub v4, arg0
+    v6 = insert_value struct0, undef struct0, 0, v1
+    v7 = insert_value struct0, v6, 1, v3
+    v8 = insert_value struct0, v7, 2, v5
+    ret v8
+}
+
+fn @bitwise(arg0: u256, arg1: u256) -> struct1 [selector=0x2c27aaa9, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+  bb0:
+    v0 = or arg0, arg1
+    v1 = and arg0, v0
+    v2 = and arg0, arg1
+    v3 = or arg1, v2
+    v4 = xor arg0, arg1
+    v5 = xor arg0, v4
+    v6 = xor arg0, arg1
+    v7 = xor v6, arg1
+    v8 = insert_value struct1, undef struct1, 0, v1
+    v9 = insert_value struct1, v8, 1, v3
+    v10 = insert_value struct1, v9, 2, v5
+    v11 = insert_value struct1, v10, 3, v7
+    ret v11
+}
+
+fn @equality(arg0: u256, arg1: u256) -> struct0 [selector=0xf53825c4, pure, abi_params=[u256, u256], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, u256]] {
+  bb0:
+    v0 = sub arg0, arg1
+    v1 = iszero v0
+    v2 = xor arg0, arg1
+    v3 = iszero v2
+    v4 = insert_value struct0, undef struct0, 0, v1
+    v5 = insert_value struct0, v4, 1, v3
+    v6 = insert_value struct0, v5, 2, v0
+    ret v6
+}

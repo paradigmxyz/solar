@@ -324,7 +324,7 @@ impl Function {
 
         let mut replaced = 0;
         self.for_each_instruction_mut(|_, inst| {
-            replaced += utils::replace_inst_uses(&mut inst.kind, &replacements);
+            replaced += utils::replace_inst_uses(inst, &replacements);
         });
         for block in &mut self.blocks {
             if let Some(term) = &mut block.terminator {
@@ -368,7 +368,7 @@ impl Function {
         };
         for block in &mut self.blocks {
             for &inst_id in &block.instructions {
-                instructions[inst_id].kind.visit_operands_mut(&mut canonicalize);
+                instructions[inst_id].rewrite_operands(&mut canonicalize);
             }
             if let Some(term) = &mut block.terminator {
                 term.visit_operands_mut(&mut canonicalize);
@@ -572,7 +572,7 @@ impl Function {
         }
 
         self.for_each_instruction_mut(|_, inst| {
-            super::utils::replace_inst_uses(&mut inst.kind, replacements);
+            super::utils::replace_inst_uses(inst, replacements);
         });
         for block in self.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {
@@ -591,7 +591,7 @@ impl Function {
         }
 
         self.for_each_instruction_mut(|_, inst| {
-            super::utils::replace_inst_uses_canonicalized(&mut inst.kind, replacements);
+            super::utils::replace_inst_uses_canonicalized(inst, replacements);
         });
         for block in self.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {
@@ -712,7 +712,7 @@ impl fmt::Display for Function {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{FunctionBuilder, Terminator};
+    use crate::mir::{EffectKind, FunctionBuilder, MemoryRegion, Terminator};
 
     #[test]
     fn live_values_include_terminator_operands() {
@@ -778,5 +778,33 @@ mod tests {
         };
         assert_eq!(values.as_slice(), [first, result]);
         assert_ne!(first, second);
+    }
+
+    #[test]
+    fn replace_uses_invalidates_operand_metadata() {
+        let mut func = Function::new(Ident::DUMMY);
+        let (old, new, load) = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let old = builder.add_param(MirType::MemPtr);
+            let new = builder.add_param(MirType::MemPtr);
+            let value = builder.mload(old);
+            builder.ret([value]);
+            let Value::Inst(load) = builder.func().value(value) else {
+                panic!("expected instruction result")
+            };
+            (old, new, *load)
+        };
+        let inst = func.inst_mut(load);
+        inst.metadata.set_memory_region(Some(MemoryRegion::Heap));
+        inst.metadata.set_storage_alias(Some(StorageAlias::Slot(U256::from(7))));
+        inst.metadata.set_effect(Some(EffectKind::MemoryRead));
+
+        func.replace_uses(&FxHashMap::from_iter([(old, new)]));
+
+        let inst = func.inst(load);
+        assert_eq!(inst.kind, InstKind::MLoad(new));
+        assert_eq!(inst.metadata.memory_region(), None);
+        assert_eq!(inst.metadata.storage_alias(), None);
+        assert_eq!(inst.metadata.effect(), None);
     }
 }

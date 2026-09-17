@@ -1,4 +1,11 @@
 //! MIR pass execution, following rustc's MIR pass manager.
+//!
+//! Within one pipeline run, an exact pass instance that reported no change is
+//! skipped until another pass mutates the module. Repeating a deterministic
+//! transform on identical MIR cannot produce a new result, while avoiding that
+//! work matters for the deliberately iterative optimization pipeline. The
+//! cache stays module-wide because function-local results can depend on callee
+//! summaries and other module state.
 
 use crate::{
     mir::{Module, pass::ModuleAnalyses, validate},
@@ -103,6 +110,13 @@ pub trait MirPass: Sync {
         false
     }
 
+    /// Cache only stateless optional passes, keyed by concrete type and pipeline name.
+    /// Configured or required passes must run unless they provide their own safe cache.
+    fn cache_key(&self) -> Option<(&'static str, &'static str)> {
+        (!self.is_required() && std::mem::size_of_val(self) == 0)
+            .then_some((std::any::type_name::<Self>(), self.name()))
+    }
+
     /// Runs the pass and returns whether the module changed.
     ///
     /// Report an emitted error with [`ModuleAnalyses::fail`] to stop this pipeline.
@@ -143,6 +157,7 @@ pub(crate) fn run_passes_inner(
     let explicit = name.is_some();
     let mut changed = false;
     let mut analyses = ModuleAnalyses::default();
+    let mut unchanged = Vec::new();
     for pass in passes {
         let pass_name = pass.name();
         let before =
@@ -154,11 +169,23 @@ pub(crate) fn run_passes_inner(
 
         if enabled {
             assert_debug_info_handled(module, pass_name, "before");
-            analyses.begin_pass();
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
-            let pass_changed = pass.run_pass(gcx, module, &mut analyses);
+            let key = pass.cache_key();
+            let cached = key.is_some_and(|key| unchanged.contains(&key));
+            let pass_changed = if cached {
+                false
+            } else {
+                analyses.begin_pass();
+                let pass_changed = pass.run_pass(gcx, module, &mut analyses);
+                analyses.finish_pass(pass_changed);
+                pass_changed
+            };
+            if pass_changed {
+                unchanged.clear();
+            } else if !cached && let Some(key) = key {
+                unchanged.push(key);
+            }
             timer.finish("MIR", module.name, pass_name, pass_changed);
-            analyses.finish_pass(pass_changed);
             changed |= pass_changed;
             if analyses.error.is_some() {
                 return (changed, analyses.error);
