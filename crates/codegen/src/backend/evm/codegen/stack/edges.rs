@@ -169,13 +169,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             } else {
                 (else_block, then_block, then_layout, true)
             };
-            if invert {
-                self.asm.emit_op(op::ISZERO);
-                self.scheduler.instruction_executed_untracked(1);
-            }
-            self.emit_push_label(self.block_labels[&direct]);
-            self.asm.emit_op(op::JUMPI);
-            self.scheduler.stack.pop();
+            // jumpi [iszero] condition, direct
+            self.emit_conditional_jump(self.block_labels[&direct], invert);
             self.emit_global_branch_cleanup(cleanup_layout);
             if Some(cleanup) != fallthrough {
                 self.emit_push_label(self.block_labels[&cleanup]);
@@ -187,9 +182,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Neither target wants the complete incoming union. Route one edge through a local
         // cleanup label and clean the fallthrough edge inline.
         let then_cleanup = self.asm.new_label();
-        self.emit_push_label(then_cleanup);
-        self.asm.emit_op(op::JUMPI);
-        self.scheduler.stack.pop();
+        self.emit_conditional_jump(then_cleanup, false);
         let union_stack = self.scheduler.stack.clone();
 
         self.emit_global_branch_cleanup(else_layout);
@@ -434,9 +427,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 (&branch.then_edge, else_block, then_block, true)
             } else {
                 let then_cleanup = self.asm.new_label();
-                self.asm.emit_push_label(then_cleanup);
-                self.asm.emit_op(op::JUMPI);
-                self.scheduler.stack.pop();
+                self.emit_conditional_jump(then_cleanup, false);
                 let union_stack = self.scheduler.stack.clone();
 
                 self.emit_stack_phi_edge_layout(func, &branch.else_edge);
@@ -450,12 +441,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::JUMP);
                 return;
             };
-        if invert {
-            self.asm.emit_op(op::ISZERO);
-        }
-        self.emit_push_label(self.block_labels[&direct_block]);
-        self.asm.emit_op(op::JUMPI);
-        self.scheduler.stack.pop();
+        // jumpi [iszero] condition, direct_block
+        self.emit_conditional_jump(self.block_labels[&direct_block], invert);
         self.emit_stack_phi_edge_layout(func, laid_out);
         if fallthrough != Some(laid_out_block) {
             self.emit_push_label(self.block_labels[&laid_out_block]);
