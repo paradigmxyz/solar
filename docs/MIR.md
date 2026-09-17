@@ -82,7 +82,15 @@ Return signatures come from the callee. Expansion adds no runtime call overhead.
 ABI encoding/decoding, aggregate copies, memory-object accesses, abstract
 allocations, checked arithmetic, packed encoding, concatenation, and precompiles follow this
 approach. `lower-arithmetic` expands checked word operations and exponentiation
-loops. Loop analysis recognizes checked unsigned word recurrences and affine
+loops. In gas mode, it combines overflow predicates for add, subtract, multiply,
+and negation across safe scalar work in one block. Groups support signed and
+unsigned widths, independent calculations, and reused results. Effects, division,
+remainder, exponentiation, and block boundaries end a group. Every overflow
+predicate remains, even if later arithmetic returns to range. Shared checks have
+no unique source location. Range analysis folds proven scalar predicates, and
+existing e-graph rules simplify the combined checks.
+
+Loop analysis recognizes checked unsigned word recurrences and affine
 expressions without removing their checks. When a checked update must stay live,
 strength reduction adds at most one scaled address counter; extra plain-add or
 per-field counters can cost more than the arithmetic they replace. LICM also checks
