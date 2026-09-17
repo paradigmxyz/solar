@@ -1,6 +1,6 @@
-- // === ROOT/tests/ui/codegen/mir/egraph/inst_simplify.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/inst_simplify.mir (after egraph) ===
-  @module InstSimplify
+- // === ROOT/tests/ui/codegen/mir/egraph/scalar_simplification.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/scalar_simplification.mir (after egraph) ===
+  @module ScalarSimplification
   types:
     struct0: {u256, u256, u256, u256, u256}
     struct1: {u256, u256, u256, u256, u256, u256, u256, u256, u256, bool, bool, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256}

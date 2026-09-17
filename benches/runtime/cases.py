@@ -51,52 +51,93 @@ ENCODING_INPUTS = tuple(
 )
 # Additional boundaries and long scans are checked independently of the original
 # short-input tuning set, using a different nonuniform byte pattern.
-ENCODING_INPUTS += tuple(
-    (f"boundary-{length}", "0x" + bytes((i * 73 + 19) % 256 for i in range(length)).hex())
-    for length in (2, 7, 8, 17, 47, 95, 127, 128, 129, 255, 257, 511, 512, 513, 1023, 1024)
-) + tuple(
-    (f"ascii-{length}", "0x" + "41" * length)
-    for length in (0, 1, 2, 31, 32, 33, 63, 64, 127, 128, 129, 256, 257, 1024)
-) + tuple(
-    (f"high-{position}-{length}", "0x" + "41" * offset + "80" + "41" * (length - offset - 1))
-    for length in (257, 1024)
-    for position, offset in (("first", 0), ("boundary", 31), ("tail", length - 1))
+ENCODING_INPUTS += (
+    tuple(
+        (
+            f"boundary-{length}",
+            "0x" + bytes((i * 73 + 19) % 256 for i in range(length)).hex(),
+        )
+        for length in (
+            2,
+            7,
+            8,
+            17,
+            47,
+            95,
+            127,
+            128,
+            129,
+            255,
+            257,
+            511,
+            512,
+            513,
+            1023,
+            1024,
+        )
+    )
+    + tuple(
+        (f"ascii-{length}", "0x" + "41" * length)
+        for length in (0, 1, 2, 31, 32, 33, 63, 64, 127, 128, 129, 256, 257, 1024)
+    )
+    + tuple(
+        (
+            f"high-{position}-{length}",
+            "0x" + "41" * offset + "80" + "41" * (length - offset - 1),
+        )
+        for length in (257, 1024)
+        for position, offset in (("first", 0), ("boundary", 31), ("tail", length - 1))
+    )
 )
 
 
 # Isolated decimal and sorting calls avoid upstream assertions and gas-dependent
 # memory stress. Use the same inputs for timing and return-value comparison.
-ALGORITHM_INPUTS = tuple(
-    (f"decimal-{value}", "decimal(uint256)", "string", str(value))
-    for value in (
-        0, 1, 9, 10, 99, 100, (1 << 64) - 1, 10**31 - 1, 10**31,
-        (1 << 255) - 1, (1 << 256) - 1,
+ALGORITHM_INPUTS = (
+    tuple(
+        (f"decimal-{value}", "decimal(uint256)", "string", str(value))
+        for value in (
+            0,
+            1,
+            9,
+            10,
+            99,
+            100,
+            (1 << 64) - 1,
+            10**31 - 1,
+            10**31,
+            (1 << 255) - 1,
+            (1 << 256) - 1,
+        )
     )
-) + tuple(
-    (f"signed-{value}", "signedDecimal(int256)", "string", str(value))
-    for value in (-1, -10, -(1 << 255), 0, 1, (1 << 255) - 1)
-) + tuple(
-    (
-        f"{method}-{pattern}-{length}",
-        f"{method}(uint256[])",
-        "uint256[]",
-        "[" + ",".join(map(str, values)) + "]",
+    + tuple(
+        (f"signed-{value}", "signedDecimal(int256)", "string", str(value))
+        for value in (-1, -10, -(1 << 255), 0, 1, (1 << 255) - 1)
     )
-    for length in (0, 1, 2, 4, 12, 13, 32, 64)
-    for pattern, values in (
-        ("sorted", range(length)),
-        ("reversed", range(length - 1, -1, -1)),
-        ("equal", [1] * length),
-        ("mixed", [(i * 73 + 7) % 37 for i in range(length)]),
+    + tuple(
+        (
+            f"{method}-{pattern}-{length}",
+            f"{method}(uint256[])",
+            "uint256[]",
+            "[" + ",".join(map(str, values)) + "]",
+        )
+        for length in (0, 1, 2, 4, 12, 13, 32, 64)
+        for pattern, values in (
+            ("sorted", range(length)),
+            ("reversed", range(length - 1, -1, -1)),
+            ("equal", [1] * length),
+            ("mixed", [(i * 73 + 7) % 37 for i in range(length)]),
+        )
+        for method in ("insertion", "sort")
     )
-    for method in ("insertion", "sort")
-) + tuple(
-    (label, "decode(string)", "bytes", value)
-    for label, value in (
-        ("base64-empty", ""),
-        ("base64-one", "YQ=="),
-        ("base64-three", "YWJj"),
-        ("base64-long", "YWJj" * 32),
+    + tuple(
+        (label, "decode(string)", "bytes", value)
+        for label, value in (
+            ("base64-empty", ""),
+            ("base64-one", "YQ=="),
+            ("base64-three", "YWJj"),
+            ("base64-long", "YWJj" * 32),
+        )
     )
 )
 
@@ -367,14 +408,28 @@ TEST_CASES: Sequence[TestCase] = (
         contract_name="VerifiedWords",
         gas_calls=(
             GasCall("mix", "mix(uint256,uint256,uint256)", ("32769", "65408", "64")),
-            GasCall("merge", "merge(uint256,uint256,uint256)", ("32769", "65408", "64")),
+            GasCall(
+                "merge", "merge(uint256,uint256,uint256)", ("32769", "65408", "64")
+            ),
             GasCall("negate", "negate(uint256,uint256)", (str(1 << 255), "64")),
         ),
         runtime_checks=(
-            RuntimeCheck("mix", "mix(uint256,uint256,uint256)(uint256)", ("32769", "65408", "64")),
-            RuntimeCheck("merge", "merge(uint256,uint256,uint256)(uint256)", ("32769", "65408", "64")),
-            RuntimeCheck("negate", "negate(uint256,uint256)(uint256)", (str(1 << 255), "64")),
-            RuntimeCheck("zero-rounds", "mix(uint256,uint256,uint256)(uint256)", (MAX_UINT256, "1", "0")),
+            RuntimeCheck(
+                "mix", "mix(uint256,uint256,uint256)(uint256)", ("32769", "65408", "64")
+            ),
+            RuntimeCheck(
+                "merge",
+                "merge(uint256,uint256,uint256)(uint256)",
+                ("32769", "65408", "64"),
+            ),
+            RuntimeCheck(
+                "negate", "negate(uint256,uint256)(uint256)", (str(1 << 255), "64")
+            ),
+            RuntimeCheck(
+                "zero-rounds",
+                "mix(uint256,uint256,uint256)(uint256)",
+                (MAX_UINT256, "1", "0"),
+            ),
         ),
     ),
     TestCase(
@@ -385,8 +440,14 @@ TEST_CASES: Sequence[TestCase] = (
         source_name="WordRecipes.sol",
         contract_name="WordRecipes",
         gas_calls=(
-            GasCall("mixed", "mixed(uint256,uint256,uint256)", ("32769", "65408", "64")),
-            GasCall("factored", "factored(uint256,uint256,uint256,uint256)", ("32769", "65408", MAX_UINT256, "64")),
+            GasCall(
+                "mixed", "mixed(uint256,uint256,uint256)", ("32769", "65408", "64")
+            ),
+            GasCall(
+                "factored",
+                "factored(uint256,uint256,uint256,uint256)",
+                ("32769", "65408", MAX_UINT256, "64"),
+            ),
             GasCall("packed", "packed(uint256,uint256)", (MAX_UINT256, "64")),
             GasCall("exp2-small", "exp2(uint256,uint256)", ("0", "64")),
             GasCall("exp2-boundary", "exp2(uint256,uint256)", ("224", "64")),
@@ -394,14 +455,32 @@ TEST_CASES: Sequence[TestCase] = (
             GasCall("bounded", "bounded(uint256)", (str((1 << 160) - 1),)),
         ),
         runtime_checks=(
-            RuntimeCheck("mixed", "mixed(uint256,uint256,uint256)(uint256)", ("32769", "65408", "64")),
-            RuntimeCheck("factored", "factored(uint256,uint256,uint256,uint256)(uint256)", ("32769", "65408", MAX_UINT256, "64")),
-            RuntimeCheck("packed", "packed(uint256,uint256)(uint256)", (MAX_UINT256, "64")),
+            RuntimeCheck(
+                "mixed",
+                "mixed(uint256,uint256,uint256)(uint256)",
+                ("32769", "65408", "64"),
+            ),
+            RuntimeCheck(
+                "factored",
+                "factored(uint256,uint256,uint256,uint256)(uint256)",
+                ("32769", "65408", MAX_UINT256, "64"),
+            ),
+            RuntimeCheck(
+                "packed", "packed(uint256,uint256)(uint256)", (MAX_UINT256, "64")
+            ),
             RuntimeCheck("exp2-small", "exp2(uint256,uint256)(uint256)", ("0", "64")),
-            RuntimeCheck("exp2-boundary", "exp2(uint256,uint256)(uint256)", ("224", "64")),
-            RuntimeCheck("exp2-large", "exp2(uint256,uint256)(uint256)", (MAX_UINT256, "64")),
-            RuntimeCheck("bounded-max", "bounded(uint256)(bool)", (str((1 << 160) - 1),)),
-            RuntimeCheck("bounded-overflow", "bounded(uint256)(bool)", (str(1 << 160),)),
+            RuntimeCheck(
+                "exp2-boundary", "exp2(uint256,uint256)(uint256)", ("224", "64")
+            ),
+            RuntimeCheck(
+                "exp2-large", "exp2(uint256,uint256)(uint256)", (MAX_UINT256, "64")
+            ),
+            RuntimeCheck(
+                "bounded-max", "bounded(uint256)(bool)", (str((1 << 160) - 1),)
+            ),
+            RuntimeCheck(
+                "bounded-overflow", "bounded(uint256)(bool)", (str(1 << 160),)
+            ),
         ),
     ),
     TestCase(
@@ -416,7 +495,9 @@ TEST_CASES: Sequence[TestCase] = (
             for name in ("difference", "sumDifference", "complement", "absorb")
         ),
         runtime_checks=tuple(
-            RuntimeCheck(f"{name}-{label}", f"{name}(uint256,uint256,uint256)(uint256)", args)
+            RuntimeCheck(
+                f"{name}-{label}", f"{name}(uint256,uint256,uint256)(uint256)", args
+            )
             for name in ("difference", "sumDifference", "complement", "absorb")
             for label, args in (
                 ("loop", ("32769", "65408", "64")),
@@ -433,22 +514,40 @@ TEST_CASES: Sequence[TestCase] = (
         source_name="CompilerOptimizations.sol",
         contract_name="CompilerOptimizations",
         gas_calls=(
-            GasCall("aggregate-true", "aggregate(bool,uint256)", ("true", "30"), repeat=2),
-            GasCall("aggregate-false", "aggregate(bool,uint256)", ("false", "30"), repeat=2),
-            GasCall("bounds-left", "bounds(bool,uint256,uint256)", ("true", "99", "79")),
-            GasCall("bounds-right", "bounds(bool,uint256,uint256)", ("false", "99", "79")),
+            GasCall(
+                "aggregate-true", "aggregate(bool,uint256)", ("true", "30"), repeat=2
+            ),
+            GasCall(
+                "aggregate-false", "aggregate(bool,uint256)", ("false", "30"), repeat=2
+            ),
+            GasCall(
+                "bounds-left", "bounds(bool,uint256,uint256)", ("true", "99", "79")
+            ),
+            GasCall(
+                "bounds-right", "bounds(bool,uint256,uint256)", ("false", "99", "79")
+            ),
             GasCall("packed", "packed(uint8,uint8)", ("255", "128"), repeat=3),
             GasCall("overwrite", "overwrite(bool,uint256)", ("true", "37"), repeat=3),
             GasCall("stack-equal", "stackShape(uint256,uint256)", ("7", "7"), repeat=2),
-            GasCall("stack-different", "stackShape(uint256,uint256)", ("9", "4"), repeat=2),
+            GasCall(
+                "stack-different", "stackShape(uint256,uint256)", ("9", "4"), repeat=2
+            ),
             GasCall("shared-first", "first(uint256)", ("17",)),
             GasCall("shared-second", "second(uint256)", ("23",)),
             GasCall("shared-third", "third(uint256)", ("31",)),
         ),
         runtime_checks=(
-            RuntimeCheck("aggregate", "aggregate(bool,uint256)(uint256)", ("true", "30")),
-            RuntimeCheck("bounds", "bounds(bool,uint256,uint256)(uint256)", ("false", "99", "79")),
-            RuntimeCheck("stack-shape", "stackShape(uint256,uint256)(uint256,uint256,bool)", ("9", "4")),
+            RuntimeCheck(
+                "aggregate", "aggregate(bool,uint256)(uint256)", ("true", "30")
+            ),
+            RuntimeCheck(
+                "bounds", "bounds(bool,uint256,uint256)(uint256)", ("false", "99", "79")
+            ),
+            RuntimeCheck(
+                "stack-shape",
+                "stackShape(uint256,uint256)(uint256,uint256,bool)",
+                ("9", "4"),
+            ),
             RuntimeCheck("generic", "generic(bool,uint256)(uint256)", ("true", "3")),
             RuntimeCheck("word", "word()(uint256)"),
             RuntimeCheck("low", "low()(uint8)"),
@@ -1191,7 +1290,9 @@ TEST_CASES: Sequence[TestCase] = (
                 )
             ),
             *(
-                GasCall(label, "testStringRuneCountDifferential(string)", (value,), repeat=3)
+                GasCall(
+                    label, "testStringRuneCountDifferential(string)", (value,), repeat=3
+                )
                 for label, value in (
                     ("runes-empty", ""),
                     ("runes-one", "A"),

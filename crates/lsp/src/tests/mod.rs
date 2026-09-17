@@ -1723,9 +1723,13 @@ async fn rapid_did_changes_restart_the_full_source_change_debounce() {
         }],
     };
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config());
+    let mut params = project.initialize_params();
+    params.initialization_options = Some(serde_json::json!({ "sourceChangeDebounce": 75 }));
+    let (_, mut config) = negotiate_capabilities(params);
+    config.rediscover_workspaces();
+    state.config = Arc::new(config);
     state.vfs = Arc::new(RwLock::new(project.vfs()));
-    let debounce = state.config.source_change_debounce();
+    let debounce = Duration::from_millis(75);
     let final_tick = Duration::from_millis(1);
     let almost_debounce = debounce - final_tick;
 

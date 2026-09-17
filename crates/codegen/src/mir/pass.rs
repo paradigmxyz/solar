@@ -57,8 +57,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &cfg_simplify::SimplifyTrivialPhis,
     &sccp::Sccp,
     &pure_eval::PureEval,
-    &inst_simplify::InstSimplify,
-    &inst_simplify::ConstFold,
+    &const_fold::ConstFold,
     &readonly_eval::ReadonlyEval,
     &cse::Cse::All,
     &cse::Cse::ObjectLengths,
@@ -387,7 +386,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
 /// Optimizes lowered word SSA before physical stack scheduling.
 static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     &GasOnly::new(cse::FmpCse),
-    &inst_simplify::ConstFold,
+    &const_fold::ConstFold,
     &cfg_simplify::BranchSimplify,
     // Reconstruct old induction values on exits before selecting physical stack order.
     &loop_exit_remat::LoopExitRemat,

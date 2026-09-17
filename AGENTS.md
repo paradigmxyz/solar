@@ -8,9 +8,9 @@ Solar is a blazingly fast, modular Solidity compiler written in Rust, aiming to 
 
 For testing and comparing behavior and semantics, the current tracked solc version (usually the latest stable release) is always available as a submodule `./testdata/solidity`.
 
-When comparing compiler semantics with solc, use `fuzz/bin/solsymdiff` to obtain
-a replay-confirmed differential; see the
-[symbolic differential guide](fuzz/fandango/README.md#symbolic-solc-vs-solar-differential).
+For comparisons with solc, use the [compiler-diff project](tools/compiler-diff/README.md)
+for saved artifacts, Sourcify corpora, and runtime or symbolic checks. See
+[Compiler comparisons](#compiler-comparisons) for choosing a check.
 
 ## Commands
 
@@ -27,7 +27,9 @@ cargo run -- file.sol                  # Run compiler
 cargo run -- -Zhelp                    # Unstable flags help
 ```
 
-DO NOT USE `cargo test` DIRECTLY IF YOU CAN AVOID IT.
+Prefer focused tests during iteration and broader relevant checks once the change
+settles. For documentation-only changes, check prose, examples, and spelling;
+do not build or run test suites. DO NOT USE `cargo test` DIRECTLY IF YOU CAN AVOID IT.
 
 NEVER RUN TESTS WITH `--all-features`. This enables "tracy" which has heavy overhead per-process, which the UI tests spawn lots of, increasing test times to minutes and 100% CPU for no reason.
 
@@ -283,6 +285,93 @@ with a common prefix. Keep separate files when the source text itself is the
 behavior under test or combining the cases would hide materially different
 programs or purposes.
 
+### Python tooling
+
+Python tooling uses the version in `.python-version`.
+Use uv from the repository root; the workspace shares `uv.lock` across
+`tools/compiler-diff` and `benches/analyze`.
+Run `bash scripts/check-python.sh` for formatting, lint, type checks, and all
+Python unit tests. The required `Python` CI job runs the same command.
+Node.js and cvc5 must be on PATH for the workflow and proof unit tests;
+use the versions configured in `.github/workflows/ci.yml`.
+These checks do not build the compilers or run live Fandango/Foundry differentials.
+Use `uv run --all-packages ruff format .` to format Python files.
+
+The proof CI job runs for changes to codegen or proof inputs, and on main.
+It checks all selected rules with parallel workers and reuses cached UNSAT
+queries. Scheduled and manual audits bypass the cache and replay with cvc5.
+See the [proof guide](scripts/evm-rules/README.md) for local commands, cache
+sharing, audit controls, and failure artifacts.
+
+### Compiler comparisons
+
+For explicitly requested reference comparisons, use
+`uv run --project tools/compiler-diff compiler-diff` from the repository root.
+The [project guide](tools/compiler-diff/README.md) covers local standard-JSON
+imports, Sourcify sync, compiler commands, comparison policies, and replay.
+`scripts/sourcify.py` remains a compatibility entry point. Run `self-test` for the
+package's embedded tests.
+
+Start a corpus with `sync` for Sourcify, `import-input input.json --target SOURCE:CONTRACT`
+for an inline standard-JSON repro, or `import-directory` for a source tree. Then use
+`run` to compile and `compare` to check saved outputs; `status` shows corpus progress.
+`--version` selects the corpus partition and Sourcify release, not a compiler binary:
+provide the intended executables with `--compiler NAME='COMMAND ARGS'`.
+
+Use `fuzz --seed N --count N` for [Fandango source campaigns](tools/compiler-diff/README.md#fandango-campaigns).
+Repeat `--compiler NAME='COMMAND ARGS'` to select compilers; each candidate is
+compared with the reference. Campaigns snapshot the grammar and generated inputs,
+reuse completed attempts, and stop at the first failure. Add
+`--symbolic-signature` for bounded execution checks of a function present in every
+case. Add `--initial-population DIR` for grammar-compatible `.sol` seeds and
+`--rounds N` for bounded batches with consecutive seeds. Mutation controls and seed
+snapshots are documented in the project guide. Preserve the campaign report and
+generator provenance when reducing failures.
+
+Use `import-directory DIR --format solc` for upstream fixtures or `--format solidity`
+for ordinary source directories, then `run` and `compare`. Inspect the import report:
+intentional compiler-error tests and unsupported settings are skipped, never counted
+as passing. `--allow-skips` only changes the import exit status; it does not expand
+coverage. This importer does not execute upstream runtime expectations.
+
+`run` records compilation attempts; `compare` checks saved ABI and method
+identifiers without recompiling. Add `--check userdoc` or `--check devdoc` for
+JSON documentation. ABI `--policy interface` ignores parameter names and
+`internalType`; `--policy exact` preserves them. Neither policy establishes
+runtime equivalence. Use `compare --full` for complete field-level differences.
+Select named compilers with `compare --reference NAME --candidate NAME`, or pass
+`--left ATTEMPT_DIR --right ATTEMPT_DIR` for specific saved attempts. Comparisons
+use the latest attempts, including failures; unrun inputs do not count as covered.
+
+For execution behavior, use `runtime --` with the
+[curated runtime suite](benches/runtime/README.md), or `symbolic --` for a
+[bounded, replay-confirmed differential](fuzz/fandango/README.md#symbolic-solc-vs-solar-differential).
+Runtime calls require `--gas`; add `--start-anvil` to start a local node.
+Saved symbolic attempts require identical inputs, an explicit `evmVersion`,
+and immutable/link reference outputs. Retain the engine's bounds and incomplete
+status when reporting results.
+
+Put `--dir` and `--version` before the subcommand. See `compiler-diff --help`
+for their defaults; each version has its own DuckDB database.
+`runs/`, `failures/`, `comparisons/`, and `engines/` under that version directory
+hold inputs, outputs, diagnostics and reports. Mismatch bundles include
+`compare.sh`; compiler `replay.sh` uses the recorded executable path, so keep
+the required binaries available. Use a persistent `--dir` for retained evidence;
+set `UV_CACHE_DIR` and `UV_PROJECT_ENVIRONMENT` to subdirectories there for uv's files.
+Directory imports write coverage and skip reasons to `imports/<id>/report.json`.
+Fandango writes `<dir>/<version>/fuzz/<id>/report.json`; its database and attempts
+live in that campaign's `<version>/` subdirectory. Use the printed campaign path as
+`--dir` to inspect it with `status`, `run`, or `compare`.
+
+Runs and comparisons stop on the first failure unless `--continue-on-failure`
+is set. Successful compiler jobs are reused; add `--retry-failures` to retry cached
+failures and change `--tag` when wrapper dependencies or environment change. Inputs
+retain settings except `outputSelection`, which requests the comparison artifacts.
+Review differences before using `--expectations FILE` with exact rules and a reason;
+never hide errors or unsupported checks. Report coverage counts, and reduce new
+compiler failures into regression tests. Record accepted intentional differences
+in [SOLC_DIVERGENCE.md](docs/SOLC_DIVERGENCE.md).
+
 ### Codegen / MIR Pass Tests
 
 Every MIR and EVM IR pass module must start with module documentation that explains the pass in
@@ -481,7 +570,9 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 
 ## PR Descriptions
 
-- Explain what and why in flowing prose
+- Explain what and why in flowing prose. Self-review the final diff and recheck
+  fixes; repeat a full review only for substantial changes or unresolved risks.
+  After publishing, inspect CI/review status once; do not poll unless requested.
 - Include real measurements only
 - Do not include validation/testing boilerplate like "Validated with", "Tested with", or command lists unless explicitly requested.
 - Link related issues/PRs
@@ -492,7 +583,7 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 
 - Comments end with periods (except URLs)
 - Files end with LF and trailing newline
-- Follow existing patterns
+- Follow existing patterns; fix the existing path before adding infrastructure.
 - Never expose secrets
 
 ### Rust
@@ -549,24 +640,23 @@ Prioritize correctness and `-Ogas` runtime gas, then bytecode size in `-Ogas`
 and `-Osize`, then compiler time and memory. Reject changes whose only benefit
 is faster compilation.
 
-Run the baseline before editing, then rebuild and run the candidate in the same
-checkout with the same flags. Use a fresh pair of output directories for each
-experiment. This full loop captures gas and artifacts, includes whole-project
-compile benches, and records wall time excluding the build. Set `BENCH_SOLC`
-to the binary for `SOLC_VERSION` in `.github/workflows/bench.yml`; install Foundry
-for `cast` and `anvil`.
+Compare our compiler's base and candidate builds locally; do not install or run
+solc/solx unless explicitly requested. Record the baseline before editing and
+reuse it while the commit, toolchain, flags, and corpus match. During iteration,
+run affected cases with one compile sample; replace `counter factorial` below
+with their IDs. Use Foundry's `cast` and `anvil` for execution.
 
 ```bash
-BENCH_SOLC=/path/to/pinned/solc
 bench_run() {
   cargo build -p solar-compiler --bin solar &&
-  mkdir -p "$1" &&
+  mkdir -p "$1/debug" &&
+  cp target/debug/solar "$1/debug/solar" &&
   /usr/bin/time -p -o "$1/time.txt" \
     uv run benches/runtime/benchmark.py \
-    --solar target/debug/solar --solc "$BENCH_SOLC" \
-    --mode runtime compile-time --suite all --compile-repeats 5 \
-    --gas --gas-profile hot --start-anvil --verbose \
-    --output "$1/results.json" --artifacts "$1/artifacts"
+    --solar "$1/debug/solar" \
+    --mode runtime --suite all --tests counter factorial --compile-repeats 1 \
+    --gas --gas-profile hot --start-anvil \
+    --output "$1/results.json"
 }
 bench_run target/codegen-bench/baseline
 
@@ -575,9 +665,7 @@ bench_run target/codegen-bench/candidate
 uv run benches/runtime/benchmark-compare.py \
   target/codegen-bench/baseline target/codegen-bench/candidate \
   --report-output target/codegen-bench/comparison.md \
-  --json-output target/codegen-bench/comparison.json \
-  --artifact mir evm-ir disasm bytecode \
-  --diff-output target/codegen-bench/changes.patch
+  --json-output target/codegen-bench/comparison.json
 ```
 
 The comparison prints agent-readable Markdown to stdout by default; no output
@@ -586,25 +674,33 @@ The summary weights each benchmark equally using geometric-mean ratios, separate
 for gas, size, time, and RSS; it does not weight large contracts more heavily.
 Read the report's failures, missing cases, and excluded comparisons first.
 Compare per-case bytecode sizes and gas, including per-call gas deltas; aggregate
-wins must not hide regressions or missing results. Investigate changes by
-diffing MIR (`mir.mir`), EVM IR (`creation.evmir`, `runtime.evmir`), disassembly,
-and bytecode in `changes.patch`. Equal byte counts do not prove equal bytecode.
+wins must not hide regressions or missing results. Capture artifacts from both
+saved builds for changed gas, size, behavior, or output fingerprints; capture
+recompiles cases outside the timed samples. Diff MIR (`mir.mir`), EVM IR
+(`creation.evmir`, `runtime.evmir`), disassembly, and bytecode with
+`--diff-output target/codegen-bench/changes.patch`. Equal byte counts do not prove
+equal bytecode.
 The JSON retains exact values, compile samples, comparison exclusions, and
 artifact paths/hashes. Add `--tests NAME...` to the comparison to focus on
 affected cases, or `--artifact mir evm-ir` to narrow the patch.
 
-Solc skips cases outside its version range. Whole-project cases measure
-compilation only and do not capture artifact trees. Inputs and upstream commits
-are pinned in `testdata/projects/README.md` and `benches/runtime/README.md`.
+Whole-project cases measure compilation only and do not capture artifact trees.
+Inputs and upstream commits are pinned in `testdata/projects/README.md` and `benches/runtime/README.md`.
 CI uses the same comparison script to produce its Markdown and shared JSON.
 
-Keep baseline results and artifacts. Use debug builds in this checkout; do not
-create extra worktrees or target directories for routine comparisons. Timing
-and RSS require matching build profiles and comparable machines; inspect samples
-and repeat suspected timing regressions.
+Keep baseline binaries, results, and artifacts immutable; use fresh candidate
+directories. Use debug builds and the existing target directory. Preserve evidence
+outside directories scheduled for cleanup, then remove requested temporary
+worktrees with `git worktree remove`; never clean another task's files. Measure
+compiler timing separately with repeated samples, matching build profiles, and
+no concurrent benchmarks or heavy builds. A single sample does not establish a
+compiler-speed change; repeat only affected cases and suspected regressions.
 
-Use both corpora for codegen changes: UI codegen fixtures for size checks and
-`-Osize` coverage, and the shared runtime/project corpus for gas and execution.
+Once a codegen change settles, run both corpora once: UI fixtures for size and
+`-Osize` coverage, and the full runtime/project corpus with
+`--mode runtime compile-time --suite all --compile-repeats 1` and no `--tests`
+filter. Reuse the matching baseline; repeat affected checks after fixes, and
+broaden only when changes or failures invalidate earlier coverage.
 When tuning a pipeline, move or remove one pass group at a time, record its
 ordering and both corpora's results under `target/codegen-bench/`, and keep IR
 snapshots canonical. Use `-Ztime-passes` on a large contract to find repeated

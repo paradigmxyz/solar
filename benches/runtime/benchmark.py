@@ -22,6 +22,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import cache, lru_cache
 from pathlib import Path, PureWindowsPath
+from typing import Any
 from urllib.parse import quote
 
 from cases import (
@@ -66,19 +67,86 @@ ARTIFACT_DUMP_KINDS = (
 )
 
 EVM_OPCODES = {
-    0x00: "STOP", 0x01: "ADD", 0x02: "MUL", 0x03: "SUB", 0x04: "DIV", 0x05: "SDIV",
-    0x06: "MOD", 0x07: "SMOD", 0x08: "ADDMOD", 0x09: "MULMOD", 0x0A: "EXP", 0x0B: "SIGNEXTEND",
-    0x10: "LT", 0x11: "GT", 0x12: "SLT", 0x13: "SGT", 0x14: "EQ", 0x15: "ISZERO",
-    0x16: "AND", 0x17: "OR", 0x18: "XOR", 0x19: "NOT", 0x1A: "BYTE", 0x1B: "SHL", 0x1C: "SHR", 0x1D: "SAR",
+    0x00: "STOP",
+    0x01: "ADD",
+    0x02: "MUL",
+    0x03: "SUB",
+    0x04: "DIV",
+    0x05: "SDIV",
+    0x06: "MOD",
+    0x07: "SMOD",
+    0x08: "ADDMOD",
+    0x09: "MULMOD",
+    0x0A: "EXP",
+    0x0B: "SIGNEXTEND",
+    0x10: "LT",
+    0x11: "GT",
+    0x12: "SLT",
+    0x13: "SGT",
+    0x14: "EQ",
+    0x15: "ISZERO",
+    0x16: "AND",
+    0x17: "OR",
+    0x18: "XOR",
+    0x19: "NOT",
+    0x1A: "BYTE",
+    0x1B: "SHL",
+    0x1C: "SHR",
+    0x1D: "SAR",
     0x20: "KECCAK256",
-    0x30: "ADDRESS", 0x31: "BALANCE", 0x32: "ORIGIN", 0x33: "CALLER", 0x34: "CALLVALUE", 0x35: "CALLDATALOAD",
-    0x36: "CALLDATASIZE", 0x37: "CALLDATACOPY", 0x38: "CODESIZE", 0x39: "CODECOPY", 0x3A: "GASPRICE",
-    0x3B: "EXTCODESIZE", 0x3C: "EXTCODECOPY", 0x3D: "RETURNDATASIZE", 0x3E: "RETURNDATACOPY", 0x3F: "EXTCODEHASH",
-    0x40: "BLOCKHASH", 0x41: "COINBASE", 0x42: "TIMESTAMP", 0x43: "NUMBER", 0x44: "PREVRANDAO", 0x45: "GASLIMIT",
-    0x46: "CHAINID", 0x47: "SELFBALANCE", 0x48: "BASEFEE", 0x49: "BLOBHASH", 0x4A: "BLOBBASEFEE",
-    0x50: "POP", 0x51: "MLOAD", 0x52: "MSTORE", 0x53: "MSTORE8", 0x54: "SLOAD", 0x55: "SSTORE",
-    0x56: "JUMP", 0x57: "JUMPI", 0x58: "PC", 0x59: "MSIZE", 0x5A: "GAS", 0x5B: "JUMPDEST", 0x5C: "TLOAD", 0x5D: "TSTORE", 0x5E: "MCOPY", 0x5F: "PUSH0",
-    0xF0: "CREATE", 0xF1: "CALL", 0xF2: "CALLCODE", 0xF3: "RETURN", 0xF4: "DELEGATECALL", 0xF5: "CREATE2", 0xFA: "STATICCALL", 0xFD: "REVERT", 0xFE: "INVALID", 0xFF: "SELFDESTRUCT",
+    0x30: "ADDRESS",
+    0x31: "BALANCE",
+    0x32: "ORIGIN",
+    0x33: "CALLER",
+    0x34: "CALLVALUE",
+    0x35: "CALLDATALOAD",
+    0x36: "CALLDATASIZE",
+    0x37: "CALLDATACOPY",
+    0x38: "CODESIZE",
+    0x39: "CODECOPY",
+    0x3A: "GASPRICE",
+    0x3B: "EXTCODESIZE",
+    0x3C: "EXTCODECOPY",
+    0x3D: "RETURNDATASIZE",
+    0x3E: "RETURNDATACOPY",
+    0x3F: "EXTCODEHASH",
+    0x40: "BLOCKHASH",
+    0x41: "COINBASE",
+    0x42: "TIMESTAMP",
+    0x43: "NUMBER",
+    0x44: "PREVRANDAO",
+    0x45: "GASLIMIT",
+    0x46: "CHAINID",
+    0x47: "SELFBALANCE",
+    0x48: "BASEFEE",
+    0x49: "BLOBHASH",
+    0x4A: "BLOBBASEFEE",
+    0x50: "POP",
+    0x51: "MLOAD",
+    0x52: "MSTORE",
+    0x53: "MSTORE8",
+    0x54: "SLOAD",
+    0x55: "SSTORE",
+    0x56: "JUMP",
+    0x57: "JUMPI",
+    0x58: "PC",
+    0x59: "MSIZE",
+    0x5A: "GAS",
+    0x5B: "JUMPDEST",
+    0x5C: "TLOAD",
+    0x5D: "TSTORE",
+    0x5E: "MCOPY",
+    0x5F: "PUSH0",
+    0xF0: "CREATE",
+    0xF1: "CALL",
+    0xF2: "CALLCODE",
+    0xF3: "RETURN",
+    0xF4: "DELEGATECALL",
+    0xF5: "CREATE2",
+    0xFA: "STATICCALL",
+    0xFD: "REVERT",
+    0xFE: "INVALID",
+    0xFF: "SELFDESTRUCT",
 }
 
 
@@ -125,10 +193,13 @@ def disassemble_evm(bytecode: bytes) -> str:
             if instructions[index + 1][1] in {"JUMP", "JUMPI"}:
                 target = int.from_bytes(data, "big") if data else 0
                 line += f" ; bb{labels[target]}" if target in labels else " ; unknown"
-        elif name in {"JUMP", "JUMPI"} and (not index or not instructions[index - 1][1].startswith("PUSH")):
+        elif name in {"JUMP", "JUMPI"} and (
+            not index or not instructions[index - 1][1].startswith("PUSH")
+        ):
             line += " ; unknown"
         output.append(line)
     return "\n".join(output) + "\n"
+
 
 RESET = "\033[0m"
 YELLOW = "\033[33m"
@@ -227,16 +298,20 @@ def parse_version_tuple(version: str) -> tuple[int, int, int] | None:
     match = re.match(r"(\d+)\.(\d+)\.(\d+)", version)
     if not match:
         return None
-    return tuple(int(part) for part in match.groups())
+    return int(match[1]), int(match[2]), int(match[3])
 
 
 def version_in_range(version: str, minimum: str | None, maximum: str | None) -> bool:
     parsed = parse_version_tuple(version)
     if parsed is None:
         return True
-    if minimum and parsed < parse_version_tuple(minimum):
+    lower = parse_version_tuple(minimum) if minimum else None
+    upper = parse_version_tuple(maximum) if maximum else None
+    if minimum and lower is None or maximum and upper is None:
+        raise ValueError("invalid compiler version bound")
+    if lower is not None and parsed < lower:
         return False
-    return not (maximum and parsed > parse_version_tuple(maximum))
+    return not (upper is not None and parsed > upper)
 
 
 @dataclass(frozen=True)
@@ -317,6 +392,7 @@ def compiler_input(
     optimizer_runs: int | None = None,
 ) -> tuple[str, int, str]:
     if test_case.project is not None:
+        assert test_case.project_file is not None
         if test_case.whole_project:
             input_text = project_full_standard_json_input(test_case.project_file)
             timeout = 900
@@ -399,8 +475,8 @@ def split_solar_artifact_output(
 
 
 def selected_contract_output(
-    output: dict[str, object], test_case: TestCase
-) -> dict[str, object]:
+    output: dict[str, Any], test_case: TestCase
+) -> dict[str, Any]:
     contracts = output.get("contracts") or {}
     for source_contracts in contracts.values():
         if test_case.contract_name in source_contracts:
@@ -558,7 +634,7 @@ def compile_case(
     prepared_input: tuple[str, int, str] | None,
     compile_repeats: int = 1,
     repeat_long_compiles: bool = False,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     result = {
         "compiler_id": spec.compiler_id,
         "label": spec.label,
@@ -612,6 +688,7 @@ def compile_case(
         # minute-scale solc run per repeat would dominate the whole benchmark.
         if not repeat_long_compiles and samples[-1] >= LONG_COMPILE_CUTOFF_SECONDS:
             break
+    assert proc is not None
     result["compile_time_seconds"] = statistics.median(samples)
     result["compile_time_samples"] = samples
     result["peak_rss_bytes"] = proc.peak_rss_bytes
@@ -621,6 +698,7 @@ def compile_case(
         result["error"] = (proc.stderr or proc.stdout or "compiler failed")[:1000]
         return result
 
+    assert reference_output is not None
     result["output_fingerprint"] = output_fingerprint or compiler_output_fingerprint(
         reference_output
     )
@@ -725,7 +803,7 @@ def parse_standard_json_output(
 
 @cache
 def compile_runtime_fixture(
-    solc_path: str, contract_name: str
+    fixture_compiler_path: str, contract_name: str
 ) -> tuple[str | None, str]:
     source_name = str(RUNTIME_FIXTURES.relative_to(ROOT))
     payload = {
@@ -737,7 +815,9 @@ def compile_runtime_fixture(
         },
     }
     proc = run(
-        [solc_path, "--standard-json"], input_text=json.dumps(payload), timeout=120
+        [fixture_compiler_path, "--standard-json"],
+        input_text=json.dumps(payload),
+        timeout=120,
     )
     if proc.returncode != 0:
         return None, (proc.stderr or proc.stdout or "fixture compiler failed")[:1000]
@@ -889,7 +969,7 @@ def private_key_address(private_key: str) -> tuple[str | None, str]:
 
 
 def parse_deploy_receipt(
-    data: dict[str, object],
+    data: dict[str, Any],
 ) -> tuple[str | None, int | None, str]:
     status = parse_receipt_int(data.get("status"))
     gas = data.get("gasUsed")
@@ -1104,15 +1184,15 @@ def eth_call_raw(
     return None, None, message[:1000]
 
 
-def runtime_ok(label: str, value: object) -> dict[str, object]:
+def runtime_ok(label: str, value: object) -> dict[str, Any]:
     return {"label": label, "status": "ok", "value": str(value)}
 
 
-def runtime_error(label: str, error: str) -> dict[str, object]:
+def runtime_error(label: str, error: str) -> dict[str, Any]:
     return {"label": label, "status": "failed", "error": error}
 
 
-def checked_value(label: str, actual: object, expected: object) -> dict[str, object]:
+def checked_value(label: str, actual: object, expected: object) -> dict[str, Any]:
     actual_text = str(actual)
     expected_text = str(expected)
     if actual_text != expected_text:
@@ -1131,7 +1211,7 @@ def read_uint(
         return None, error
     try:
         return int(value.split()[0], 0), ""
-    except (ValueError, IndexError):
+    except ValueError, IndexError:
         return None, f"invalid uint result: {value}"
 
 
@@ -1161,10 +1241,10 @@ def decode_words(data: str) -> list[int]:
 
 def run_vesting_cold_paths(
     address: str,
-    solc_path: Path,
+    fixture_compiler_path: Path,
     rpc_url: str,
     private_key: str,
-) -> list[dict[str, object]]:
+) -> list[dict[str, Any]]:
     error = send_value(address, "1000", rpc_url, private_key)
     if error:
         return [runtime_error("cold-vesting-eth-setup", error)]
@@ -1172,7 +1252,9 @@ def run_vesting_cold_paths(
     if error:
         return [runtime_error("cold-vesting-eth-release", error)]
 
-    token_bytecode, error = compile_runtime_fixture(str(solc_path), "RuntimeERC20")
+    token_bytecode, error = compile_runtime_fixture(
+        str(fixture_compiler_path), "RuntimeERC20"
+    )
     if token_bytecode is None:
         return [runtime_error("cold-vesting-token-compile", error)]
     token, _, error = deploy_creation_code(
@@ -1242,11 +1324,13 @@ def run_vesting_cold_paths(
 
 def run_fractional_cold_paths(
     address: str,
-    solc_path: Path,
+    fixture_compiler_path: Path,
     rpc_url: str,
     private_key: str,
-) -> list[dict[str, object]]:
-    nft_bytecode, error = compile_runtime_fixture(str(solc_path), "RuntimeNFT")
+) -> list[dict[str, Any]]:
+    nft_bytecode, error = compile_runtime_fixture(
+        str(fixture_compiler_path), "RuntimeNFT"
+    )
     if nft_bytecode is None:
         return [runtime_error("cold-fractional-nft-compile", error)]
     nft, _, error = deploy_creation_code(nft_bytecode, (), None, rpc_url, private_key)
@@ -1406,7 +1490,7 @@ def nitro_dispatch_vector(opcode: int) -> tuple[str, str]:
     return "0x" + before_hash.hex(), "0x" + proof.hex()
 
 
-def run_nitro_cold_paths(address: str, rpc_url: str) -> list[dict[str, object]]:
+def run_nitro_cold_paths(address: str, rpc_url: str) -> list[dict[str, Any]]:
     dispatches = (
         ("prover0", 0x01, DEFAULT_SENDER, 1),
         ("prover-mem", 0x28, DEFAULT_SPENDER, 2),
@@ -1453,21 +1537,25 @@ def run_nitro_cold_paths(address: str, rpc_url: str) -> list[dict[str, object]]:
 def run_cold_path_checks(
     test_case: TestCase,
     address: str,
-    solc_path: Path,
+    fixture_compiler_path: Path,
     rpc_url: str,
     private_key: str,
-) -> list[dict[str, object]]:
+) -> list[dict[str, Any]]:
     if test_case.test_id == "openzeppelin-vesting-wallet":
-        return run_vesting_cold_paths(address, solc_path, rpc_url, private_key)
+        return run_vesting_cold_paths(
+            address, fixture_compiler_path, rpc_url, private_key
+        )
     if test_case.test_id == "lilweb3-fractional":
-        return run_fractional_cold_paths(address, solc_path, rpc_url, private_key)
+        return run_fractional_cold_paths(
+            address, fixture_compiler_path, rpc_url, private_key
+        )
     if test_case.test_id == "nitro-one-step-proof":
         return run_nitro_cold_paths(address, rpc_url)
     return []
 
 
 def compare_runtime_results(
-    entry: dict[str, object], specs: Sequence[CompilerSpec]
+    entry: dict[str, Any], specs: Sequence[CompilerSpec]
 ) -> None:
     labels = []
     values_by_compiler: dict[str, dict[str, str]] = {}
@@ -1517,11 +1605,11 @@ def compare_runtime_results(
         entry["runtime_status"] = "ok"
 
 
-def result_key(result: dict[str, object]) -> tuple[str, str]:
+def result_key(result: dict[str, Any]) -> tuple[str, str]:
     return str(result.get("suite", "repository")), str(result.get("test_id", ""))
 
 
-def load_reference_results(path: Path) -> dict[tuple[str, str], dict[str, object]]:
+def load_reference_results(path: Path) -> dict[tuple[str, str], dict[str, Any]]:
     document = json.loads(path.read_text())
     results = document.get("results") if isinstance(document, dict) else None
     if not isinstance(results, list):
@@ -1531,7 +1619,7 @@ def load_reference_results(path: Path) -> dict[tuple[str, str], dict[str, object
     }
 
 
-def workload_signature(data: dict[str, object]) -> tuple[object, ...]:
+def workload_signature(data: dict[str, Any]) -> tuple[object, ...]:
     signature = []
     for field in ("gas_results", "runtime_results"):
         observations = data.get(field)
@@ -1555,8 +1643,8 @@ def workload_signature(data: dict[str, object]) -> tuple[object, ...]:
 
 
 def merge_reference_compiler(
-    entry: dict[str, object],
-    references: dict[tuple[str, str], dict[str, object]],
+    entry: dict[str, Any],
+    references: dict[tuple[str, str], dict[str, Any]],
     compiler_id: str,
 ) -> bool:
     reference = references.get(result_key(entry))
@@ -1648,9 +1736,9 @@ def failed_test_result(
     specs: Sequence[CompilerSpec],
     gas_profile: str,
     error: Exception,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     message = f"unexpected benchmark failure: {type(error).__name__}: {error}"[:1000]
-    entry: dict[str, object] = {
+    entry: dict[str, Any] = {
         "test_id": test_case.test_id,
         "description": test_case.description,
         "contract_name": test_case.contract_name,
@@ -1678,12 +1766,11 @@ def run_test_case(
     verbose: bool = False,
     compile_repeats: int = 1,
     evm_version: str | None = None,
-    reference_solc_path: Path | None = None,
     repeat_long_compiles: bool = False,
     artifact_root: Path | None = None,
     optimizer_runs: int | None = None,
-) -> dict[str, object]:
-    entry: dict[str, object] = {
+) -> dict[str, Any]:
+    entry: dict[str, Any] = {
         "test_id": test_case.test_id,
         "description": test_case.description,
         "contract_name": test_case.contract_name,
@@ -1695,9 +1782,7 @@ def run_test_case(
     if test_case.project is not None:
         entry["project"] = test_case.project.name
         entry["source"] = test_case.source
-    reference_solc = next(
-        (spec.path for spec in specs if spec.kind == "solc"), reference_solc_path
-    )
+    reference_solc = next((spec.path for spec in specs if spec.kind == "solc"), None)
     prepared_input = (
         None
         if test_case.project_file is not None and not test_case.project_path.exists()
@@ -1831,22 +1916,17 @@ def run_test_case(
                 }
             )
         if has_cold_paths:
-            if reference_solc is None:
-                cold_results = [
-                    runtime_error("cold-path-setup", "reference solc is required")
-                ]
-            else:
-                verbose_log(
-                    verbose,
-                    f"[{test_case.test_id}] {spec.compiler_id} cold-path differential",
-                )
-                cold_results = run_cold_path_checks(
-                    test_case,
-                    address,
-                    reference_solc,
-                    rpc_url,
-                    private_key,
-                )
+            verbose_log(
+                verbose,
+                f"[{test_case.test_id}] {spec.compiler_id} cold-path checks",
+            )
+            cold_results = run_cold_path_checks(
+                test_case,
+                address,
+                reference_solc or spec.path,
+                rpc_url,
+                private_key,
+            )
             runtime_results.extend(cold_results)
             runtime_failed |= any(
                 result.get("status") != "ok" for result in cold_results
@@ -1877,15 +1957,15 @@ def select_tests(modes: Sequence[str], suite: str) -> Sequence[TestCase]:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Benchmark solc vs Solar codegen on inline and repository contracts"
+        description="Benchmark Solar codegen; reference compilers are opt-in"
     )
     parser.add_argument(
         "--solc",
-        help="Path to solc binary; enables solc comparison unless --solar-only is set",
+        help="Also benchmark solc using this binary (default: disabled)",
     )
     parser.add_argument(
         "--solx",
-        help="Path to solx binary; enables solx comparison unless --solar-only is set",
+        help="Also benchmark solx using this binary (default: disabled)",
     )
     parser.add_argument(
         "--solar",
@@ -1925,14 +2005,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Override Standard JSON `optimizer.runs` for every benchmark case; below 200 Solar optimizes for size",
     )
     parser.add_argument(
-        "--solar-only",
-        action="store_true",
-        help="Skip reference compiler compilation even when --solc or --solx is supplied",
-    )
-    parser.add_argument(
         "--reference-results",
         type=Path,
-        help="Reuse matching solc and solx results from another benchmark result document",
+        help="Compare with saved solc/solx results without running reference compilers",
     )
     parser.add_argument("--tests", nargs="*", help="Subset of test IDs to run")
     parser.add_argument(
@@ -1985,10 +2060,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Exit successfully even if a compiler fails for one or more tests",
     )
     args = parser.parse_args(argv)
-    args.solar_only = args.solar_only or (args.solc is None and args.solx is None)
-
-    if args.reference_results and not args.solar_only:
-        parser.error("--reference-results with --solc or --solx requires --solar-only")
+    if args.reference_results and (args.solc or args.solx):
+        parser.error("--reference-results cannot be combined with --solc or --solx")
     try:
         reference_results = (
             load_reference_results(args.reference_results)
@@ -2021,8 +2094,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
         return 0
 
-    solc = find_binary(args.solc, ["solc"])
-    if not solc and ((args.solc and not args.solar_only) or args.reference_results):
+    solc = find_binary(args.solc, []) if args.solc else None
+    if args.solc and solc is None:
         print(_color(f"solc not found: {args.solc}", RED), file=sys.stderr)
         return 1
 
@@ -2051,19 +2124,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 1
 
-    use_reference_solc = bool(args.reference_results)
     solc_version, solc_version_error = (
-        binary_version(solc)
-        if solc and (not args.solar_only or use_reference_solc)
-        else ("unavailable", "")
+        binary_version(solc) if solc else ("unavailable", "")
     )
     solar_version, solar_version_error = binary_version(solar)
 
     specs = []
-    if args.solc and not args.solar_only:
+    if args.solc:
         assert solc is not None
         specs.append(CompilerSpec("solc", f"solc {solc_version}", solc, "solc"))
-    if args.solx and not args.solar_only:
+    if args.solx:
         solx = find_binary(args.solx, ["solx"])
         if solx is None:
             parser.error(f"solx not found: {args.solx}")
@@ -2090,9 +2160,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         tests = list(suite_tests)
 
     skipped = []
-    if (
-        (args.solc and not args.solar_only) or use_reference_solc
-    ) and not args.include_incompatible:
+    if args.solc and not args.include_incompatible:
         compatible_tests = []
         for test in tests:
             if test.project_file is not None and not version_in_range(
@@ -2129,7 +2197,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Using {spec.label}")
     if args.reference_results:
         print(f"Reusing reference results from {display_path(args.reference_results)}")
-    if (not args.solar_only or use_reference_solc) and solc_version_error:
+    if solc_version_error:
         print(
             _color(
                 "Warning: `solc --version` failed. If this is solc-select, run "
@@ -2155,7 +2223,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Forcing EVM version {args.evm_version}")
     if args.optimizer_runs is not None:
         objective = "size" if args.optimizer_runs < 200 else "gas"
-        print(f"Forcing optimizer runs {args.optimizer_runs} ({objective} objective for Solar)")
+        print(
+            f"Forcing optimizer runs {args.optimizer_runs} ({objective} objective for Solar)"
+        )
     print(f"Running {len(tests)} tests")
 
     results = []
@@ -2197,7 +2267,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.verbose,
                     args.compile_repeats,
                     args.evm_version,
-                    solc,
                     args.repeat_long_compiles,
                     args.artifacts,
                     args.optimizer_runs,

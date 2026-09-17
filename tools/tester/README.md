@@ -17,6 +17,13 @@ cargo tq foundry
 
 Set `SOLAR_FOUNDRY_PROJECT` to run one discovered project while debugging.
 
+## Compiler artifact comparisons
+
+Use [compiler-diff](../compiler-diff/README.md) for local or Sourcify standard-JSON
+inputs, saved ABI/JSON comparisons, and runtime or symbolic checks. Its reports
+and replay bundles help reduce failures into the UI or Foundry regression suites
+in this crate.
+
 ## Debug-info differential suite
 
 `SOLDB=/path/to/soldb/target/debug/soldb cargo tq debug-diff` compiles and

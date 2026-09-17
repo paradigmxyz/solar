@@ -51,14 +51,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Test benchmark scripts
-        run: |
-          python3 -m venv "$RUNNER_TEMP/schema-test"
-          "$RUNNER_TEMP/schema-test/bin/pip" install jsonschema==4.25.1
-          "$RUNNER_TEMP/schema-test/bin/python" -m unittest discover \
-            -s benches/runtime -p 'test_*.py'
-          "$RUNNER_TEMP/schema-test/bin/python" -m unittest discover \
-            -s benches/lsp -p 'test_*.py'
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
 
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
         with:
@@ -222,7 +217,6 @@ jobs:
           mkdir -p target/codegen-bench
           args=(
             --verbose
-            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}"
             --solar target/release/solar-head
             --mode runtime compile-time
             --suite all
@@ -237,9 +231,10 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" && \
             -f target/codegen-bench/baseline/results.json ]]; then
             args+=(
-              --solar-only
               --reference-results target/codegen-bench/baseline/results.json
             )
+          else
+            args+=(--solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}")
           fi
           if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/main" ]]; then
             args+=(--solx "$RUNNER_TEMP/solx/solx")

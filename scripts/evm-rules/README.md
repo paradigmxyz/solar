@@ -3,7 +3,7 @@
 This is an offline search and SMT verification lane for the **actual ISLE source
 compiled into the optimizer**. It currently gates `word.isle`, `word_sequence.isle` and
 `stack_select.isle`, plus the physical rules in `stack_peephole.isle` and
-`late_word.isle`. CI also explicitly verifies and replays `egraph.isle` with
+`late_word.isle`. CI also verifies `egraph.isle` with
 the larger budgets described below. The compiler itself has no solver dependency.
 
 ```sh
@@ -60,9 +60,64 @@ and the solver version are recorded. SAT, exhausted time limits, parse errors,
 and process failures exit nonzero; SAT is a solver disagreement until separately
 replayed in the concrete model. This checks the exported formulas with another
 solver, not the semantics that generated them or an independent proof
-certificate. The proof job runs on native Linux ARM64, downloads the matching
-cvc5 1.2.0 release with a pinned SHA-256, exports exhaustive partitions, and
-requires both Z3 verification and complete cvc5 replay to pass.
+certificate.
+
+## CI and local cache
+
+CI runs one proof job on a larger Depot runner. On pull requests it runs the
+solvers only when codegen, proof tooling, or their CI/dependency inputs change;
+main pushes always run it. The exact paths and schedule live in
+[ci.yml](../../.github/workflows/ci.yml). Unrelated pull requests keep the cheap
+Python checks without solving the full rule set.
+
+The [proof runner](../../.github/scripts/run_evm_proofs.sh) launches independent
+workers within that machine. Normal runs verify every selected rule using Z3,
+with cvc5 as an explicit fallback for incomplete e-graph proofs. They split
+queries only when needed and do not replay successful proofs with another solver.
+Reports, logs, and SMT artifacts live under
+`target/evm-rules/<suite>-<shard>/`. Every worker must succeed.
+
+```sh
+# Verify all selected rules, reusing successful queries.
+bash .github/scripts/run_evm_proofs.sh
+
+# Fresh proofs, exhaustive replay partitions, then complete cvc5 replay.
+PROOF_AUDIT=true bash .github/scripts/run_evm_proofs.sh target/evm-audit
+
+# Reuse the same cache for a selected file or shard.
+uv run scripts/evm-rules/verify.py verify crates/codegen/isle/word.isle \
+  --cache-dir target/evm-proof-cache --shard-index 0 --shard-count 4 \
+  --output target/evm-rules/selected.json --artifacts target/evm-rules/selected
+```
+
+The scheduled run performs only the fresh audit. Manual workflow dispatch has a
+`proof-audit` option, enabled by default; disable it to exercise normal cached
+verification. Audits bypass the query cache for both verification and replay.
+
+The cache stores only UNSAT results, keyed by the complete solver query and
+solver identity. Applicability checks, counterexamples, timeouts, and errors are
+never reused. Changed rules regenerate queries and retain fresh source hashes
+and artifacts; unchanged queries can reuse their previous answers. Malformed
+cache entries are misses. Cached answers remain trusted solver results, not
+proof certificates. The full audit checks without that trust in cached answers.
+
+Normal CI restores the latest compatible query cache and saves successful runs
+under immutable keys. Successful runs also publish an `evm-proof-cache` artifact.
+Download it with
+`gh run download RUN_ID --name evm-proof-cache --dir target/evm-proof-cache`.
+The runner uses that directory by default; set `PROOF_CACHE_DIR` to share another
+location. `verify --cache-dir` passes its location to spawned workers through
+`SOLAR_PROOF_CACHE`. For a standalone fresh verification, omit `--cache-dir`
+and unset that environment variable. Use `PROOF_AUDIT=true` for the complete
+fresh audit; it clears the variable itself.
+
+Use `verify --shard-index N --shard-count M` (zero-based) to reproduce one
+worker. Reports retain the full source hash, total rule count, and selection.
+
+The shared `Python` CI job runs this project's unit tests alongside all other
+Python suites, with cvc5 installed. Run `bash scripts/check-python.sh` from the
+repository root for the same formatting, lint, type checks, and tests. See
+[Python tooling](../../AGENTS.md#python-tooling) for prerequisites.
 
 The CLZ model selects the half containing the highest set bit in eight steps
 and constructs a nine-bit count before extending it to an EVM word. Zero
@@ -111,9 +166,9 @@ limits fail closed. The legacy audit can have incomplete shift proofs, so this c
 nonzero. It does not waive them or add them to the default five-file CI gate.
 CI also exercises selected legacy division, remainder and comparison rules
 from the actual source in regression tests using the installed cvc5; local runs skip only that optional integration
-test when cvc5 is absent. The five-file gate still requires Z3 followed by cvc5
-replay for all its rules; the additional e-graph gate uses the explicit fallback
-and bit budget and also requires complete cvc5 replay.
+test when cvc5 is absent. Normal verification uses the explicit fallback and
+bit budget for e-graph rules. Scheduled and manual audits additionally require
+complete cvc5 replay for every selected file.
 
 For word queries that remain incomplete, opt into an additional budget for
 proving every output bit separately:
@@ -140,21 +195,20 @@ the fixed list of output positions is exactly 0 through 255.
 
 `--bit-partition-jobs` checks independent output bits in isolated solver
 processes. They share the same wall-clock budget and produce the same ordered
-queries as the single-process path. CI uses four processes so proof completion
-does not depend on the speed of one runner core.
+queries as the single-process path. The proof runner configures worker counts
+and budgets for the selected CI machine.
 
 This option runs only after satisfiable applicability and incomplete earlier
 proof attempts. It cannot override an inapplicable rule, a counterexample, or
 cvc5's SAT or process-error result. Failed cvc5 timeout attempts remain recorded
-when bit proofs subsequently succeed. The default gate and solver time limits
-are unchanged. The e-graph audit is a separate required step in the same CI job,
-which has a twenty-minute wall-time limit for both proof and replay lanes.
+when bit proofs subsequently succeed. The runner verifies e-graph rules
+alongside the other selected files in the same CI job.
 
 Only UNSAT establishes equivalence. SAT must replay as different outputs in a
 separate Python integer evaluator. Timeouts, unsupported terms and unsatisfiable
 preconditions are distinct failures, never proofs. Verification exits nonzero
 unless every selected rule is proved. Empty rule files fail too. CI runs the
-checker's regression tests and verifies every rule in all five gated files.
+checker's regression tests and verifies every rule in all selected files.
 Failures also print the source file, rule line, status and reason in the job log.
 Applicability and equality use separate solver queries so the satisfiability
 check does not disable Z3's one-shot bitvector preprocessing. Both queries retain
@@ -309,8 +363,8 @@ budget described above; use `--partition-shifts` to export exhaustive input
 partitions for cross-solver replay. The three address projections and the local
 balance rule now have explicit models with the trusted boundaries documented
 above. Every selected rule must prove, and every exported query must replay;
-do not ignore unknown or unsupported results. CI runs this file separately
-from the default five-file selection and requires both lanes to pass.
+do not ignore unknown or unsupported results. The CI runner includes this file
+alongside the default five-file selection.
 
 ## Discovering candidates
 

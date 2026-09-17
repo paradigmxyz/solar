@@ -11,6 +11,24 @@ Indexing exclusions still apply. Foundry settings supply import resolution, comp
 and build entry points for flycheck. Explicitly configured source directories remain included,
 including directories outside the project root.
 
+## Source change debounce
+
+The server waits 150 ms after the latest source change before starting analysis. Each new
+change restarts the wait. This applies to document edits, closes, and watched source-file
+changes; opening a document starts analysis without this delay.
+
+Set `initializationOptions.sourceChangeDebounce` to a non-negative integer in milliseconds
+when starting the server. Use `0` to disable the wait. Missing or invalid values use 150 ms.
+Restart the server to apply a new value.
+
+```json
+{
+  "initializationOptions": {
+    "sourceChangeDebounce": 150
+  }
+}
+```
+
 ## Embedding
 
 Use the public `solar_lsp::launch` entry point to run the same language server implementation
