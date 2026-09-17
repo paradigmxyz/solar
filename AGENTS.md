@@ -294,6 +294,10 @@ Node.js and cvc5 1.2.0 must be on PATH for the workflow and proof unit tests.
 These checks do not build the compilers or run live Fandango/Foundry differentials.
 Use `uv run --all-packages ruff format .` to format Python files.
 
+The separate proof CI matrix verifies and replays every rule in parallel shards,
+with exact-input caches for successful runs. See the
+[proof guide](scripts/evm-rules/README.md) for shard replay and cache inputs.
+
 ### Compiler comparisons
 
 Use `uv run --project tools/compiler-diff compiler-diff` from the repository root.

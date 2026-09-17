@@ -40,6 +40,8 @@ def main():
         ],
     )
     verify.add_argument("--timeout-ms", type=int, default=5000)
+    verify.add_argument("--shard-index", type=int, default=0)
+    verify.add_argument("--shard-count", type=int, default=1)
     verify.add_argument("--output", type=Path, required=True)
     verify.add_argument("--artifacts", type=Path)
     verify.add_argument(
@@ -169,6 +171,13 @@ def main():
             )
         except (OSError, ValueError) as error:
             parser.error(str(error))
+        if not 0 <= args.shard_index < args.shard_count:
+            parser.error("shards must satisfy 0 <= index < count")
+        if args.shard_count > 1 and any(
+            path.name in ("stack_peephole.isle", "late_word.isle")
+            for path in args.files
+        ):
+            parser.error("physical-stack and late-word files must run without sharding")
         files = []
         for path in args.files:
             if path.name == "stack_peephole.isle":
@@ -185,6 +194,8 @@ def main():
                     args.bit_partition_timeout_ms,
                     args.index_partition_timeout_ms,
                     args.bit_partition_jobs,
+                    args.shard_index,
+                    args.shard_count,
                 )
             files.append(file)
         for file in files:

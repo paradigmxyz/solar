@@ -1012,6 +1012,37 @@ class RuleTests(unittest.TestCase):
             path.write_text(source)
             return verify_file(path, 5000)
 
+    def test_shards_cover_every_rule_once_and_keep_failures(self):
+        source = """(rule (rewrite (Op.Sub (bnot x) (bnot y))) (Op.Sub y x))
+(rule (rewrite (Op.Sub (bnot x) (bnot y))) (Op.Sub x y))
+(rule (rewrite (Op.And x x)) (Op.Add x (imm (u256 0))))"""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rules.isle"
+            path.write_text(source)
+            whole = verify_file(path, 5000)
+            shards = [
+                verify_file(path, 5000, shard_index=i, shard_count=2) for i in range(2)
+            ]
+            identify = lambda rows: sorted(
+                (r["line"], r["rule_sha256"], r["status"]) for r in rows
+            )
+            self.assertEqual(
+                identify(whole["rules"]),
+                identify([r for s in shards for r in s["rules"]]),
+            )
+            self.assertEqual(shards[1]["rules"][0]["status"], "counterexample")
+            for i, shard in enumerate(shards):
+                self.assertEqual(
+                    shard["shard"], {"index": i, "count": 2, "total_rules": 3}
+                )
+                self.assertEqual(shard["source_sha256"], whole["source_sha256"])
+            for index, count in [(-1, 2), (2, 2), (0, 0), (0, 4)]:
+                with (
+                    self.subTest(index=index, count=count),
+                    self.assertRaises(ValueError),
+                ):
+                    verify_file(path, 5000, shard_index=index, shard_count=count)
+
     def test_actual_source_is_checked_after_edit(self):
         before = self.verify("(rule (rewrite (Op.Sub (bnot x) (bnot y))) (Op.Sub y x))")
         after = self.verify("(rule (rewrite (Op.Sub (bnot x) (bnot y))) (Op.Sub x y))")

@@ -409,6 +409,8 @@ def verify_file(
     bit_partition_timeout_ms=0,
     index_partition_timeout_ms=0,
     bit_partition_jobs=1,
+    shard_index=0,
+    shard_count=1,
 ):
     source = path.read_text()
     rules = [
@@ -416,8 +418,12 @@ def verify_file(
     ]
     if not rules:
         raise ValueError(f"no rules in {path}")
+    if not 0 <= shard_index < shard_count <= len(rules):
+        raise ValueError(
+            "shards must be nonempty and satisfy 0 <= index < count <= rules"
+        )
     results = []
-    for rule in rules:
+    for rule in rules[shard_index::shard_count]:
         context = Context()
         result: dict[str, Any]
         query = ""
@@ -517,5 +523,10 @@ def verify_file(
     return {
         "source": str(path),
         "source_sha256": hashlib.sha256(source.encode()).hexdigest(),
+        "shard": {
+            "index": shard_index,
+            "count": shard_count,
+            "total_rules": len(rules),
+        },
         "rules": results,
     }
