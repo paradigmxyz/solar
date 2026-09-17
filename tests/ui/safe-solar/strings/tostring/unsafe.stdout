@@ -1,0 +1,77 @@
+// === ROOT/tests/ui/safe-solar/strings/tostring/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase lowered
+fn @decimal() [selector=0xf371efa4, abi_wrapper, pure] {
+  bb0:
+    v1 = calldatasize
+    v2 = lt v1, 36
+    jumpi v2, bb1, bb2
+  bb2:
+    v0 = icall @_toString, arg0
+    v6 = mload 64 !metadata(memory=scratch)
+    v7 = add v6, 32
+    mstore v6, 32
+    v10 = iszero v0
+    v11 = iszero v10
+    v9 = mload v0
+    v12 = mul v9, v11
+    v14 = add v12, 31
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v16 = add v7, 32
+    v17 = add v7, v15
+    mstore v17, 0
+    mstore v7, v12
+    v19 = add v16, v15
+    v18 = add v0, 32
+    mcopy v16, v18, v12 !metadata(memory=heap)
+    v20 = sub v19, v6
+    v22 = add v20, 31
+    v24 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v25 = mload 64 !metadata(memory=scratch)
+    v27 = add v25, v24
+    mstore 64, v27 !metadata(memory=scratch)
+    returndata v25, v20
+  bb1:
+    revert 0, 0
+}
+
+fn @_toString(arg0: u256) -> memptr [pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = add v0, 128
+    v2 = add v1, 32
+    mstore 64, v2 !metadata(memory=scratch)
+    mstore v1, 0
+    jump bb1
+  bb1:
+    v4 = phi [bb0: v1], [bb3: v11]
+    v8 = phi [bb0: arg0], [bb3: v14]
+    v11 = add v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v12 = mod v8, 10
+    v13 = add v12, 48
+    mstore8 v11, v13
+    v14 = div v8, 10
+    jumpi v14, bb3, bb2
+  bb2:
+    v20 = sub v1, v11
+    v23 = sub v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v21 = add v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffdf
+    mstore v21, v20
+    ret v21
+  bb3:
+    jump bb1
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0xf371efa4 => bb2]
+  bb2:
+    tail_call @decimal
+  bb3:
+    revert 0, 0
+}

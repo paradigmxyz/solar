@@ -1,0 +1,154 @@
+// === ROOT/tests/ui/safe-solar/codecs/base64decode/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase lowered
+fn @decode() [selector=0x49145c91, abi_wrapper, pure] {
+  bb0:
+    v1 = calldatasize
+    v2 = lt v1, 36
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = calldataload 4
+    v4 = add v3, 4
+    v5 = add v4, 32
+    v6 = gt v3, 0xffffffffffffffff
+    v7 = gt v5, v1
+    v8 = or v6, v7
+    jumpi v8, bb1, bb3
+  bb3:
+    v9 = calldataload v4
+    v11 = add v9, 63
+    v12 = lt v11, v9
+    jumpi v12, bb4, bb5
+  bb5:
+    v14 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = mload 64 !metadata(memory=scratch)
+    v46 = add v15, v14
+    v47 = lt v46, v15
+    v48 = gt v46, 0xffffffffffffffff
+    v49 = or v47, v48
+    jumpi v49, bb4, bb7
+  bb7:
+    mstore 64, v46 !metadata(memory=scratch)
+    mstore v15, v9
+    v16 = sub v1, v5
+    v17 = gt v9, v16
+    jumpi v17, bb1, bb6
+  bb6:
+    v43 = add v15, 32
+    calldatacopy v43, v5, v9
+    v0 = icall @_decode, v15
+    v22 = mload 64 !metadata(memory=scratch)
+    v23 = add v22, 32
+    mstore v22, 32
+    v26 = iszero v0
+    v27 = iszero v26
+    v25 = mload v0
+    v28 = mul v25, v27
+    v30 = add v28, 31
+    v31 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v32 = add v23, 32
+    v33 = add v23, v31
+    mstore v33, 0
+    mstore v23, v28
+    v35 = add v32, v31
+    v34 = add v0, 32
+    mcopy v32, v34, v28 !metadata(memory=heap)
+    v36 = sub v35, v22
+    v38 = add v36, 31
+    v40 = and v38, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v41 = mload 64 !metadata(memory=scratch)
+    v50 = add v41, v40
+    mstore 64, v50 !metadata(memory=scratch)
+    returndata v41, v36
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @_decode(arg0: memptr) -> memptr [pure] {
+  bb0:
+    v0 = mload arg0
+    jumpi v0, bb1, bb2
+  bb1:
+    v3 = shr 2, v0
+    v4 = mul v3, 3
+    v11 = and v0, 3
+    jumpi v11, bb5, bb4
+  bb4:
+    v15 = add arg0, v0
+    v16 = mload v15
+    v17 = xor v16, 0x3d3d
+    v18 = byte 31, v17
+    v19 = iszero v18
+    v20 = byte 30, v17
+    v21 = iszero v20
+    v22 = add v21, v19
+    v23 = sub v4, v22
+    jump bb3
+  bb5:
+    v25 = sub v11, 1
+    v26 = add v4, v25
+    jump bb3
+  bb3:
+    v27 = phi [bb4: v23], [bb5: v26]
+    v28 = mload 64 !metadata(memory=scratch)
+    mstore v28, v27
+    v29 = add v28, 32
+    v30 = add v29, v27
+    mstore 91, 0xfc000000fc00686c7074787c8084888c9094989ca0a4a8acb0b4b8bcc0c4c8cc !metadata(memory=scratch)
+    mstore 59, 0x4080c1014181c2024282c3034383c4044484c5054585c6064 !metadata(memory=scratch)
+    mstore 26, 0xf8fcf800fcd0d4d8dce0e4e8ecf0f4 !metadata(memory=scratch)
+    jump bb6
+  bb6:
+    v33 = phi [bb3: v29], [bb6: v59]
+    v35 = phi [bb3: arg0], [bb6: v40]
+    v40 = add v35, 4
+    v41 = mload v40
+    v42 = byte 31, v41
+    v43 = mload v42
+    v44 = shr 6, v43
+    v45 = byte 30, v41
+    v46 = mload v45
+    v47 = and v46, 0xfc000000fc00686c7074787c8084888c9094989ca0a4a8acb0b4b8bcc0c4c8cc
+    v48 = or v47, v44
+    v49 = shr 6, v48
+    v50 = byte 29, v41
+    v51 = mload v50
+    v52 = and v51, 0xfc000000fc00686c7074787c8084888c9094989ca0a4a8acb0b4b8bcc0c4c8cc
+    v53 = or v52, v49
+    v54 = shr 6, v53
+    v55 = byte 28, v41
+    v56 = mload v55
+    v57 = and v56, 0xfc000000fc00686c7074787c8084888c9094989ca0a4a8acb0b4b8bcc0c4c8cc
+    v58 = or v57, v54
+    mstore v33, v58
+    v59 = add v33, 3
+    v60 = lt v59, v30
+    jumpi v60, bb6, bb7
+  bb7:
+    v66 = add v30, 32
+    mstore 64, v66 !metadata(memory=scratch)
+    mstore v30, 0
+    mstore 96, 0 !metadata(memory=scratch)
+    jump bb2
+  bb2:
+    v69 = phi [bb7: v28], [bb0: memptr 96]
+    ret v69
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0x49145c91 => bb2]
+  bb2:
+    tail_call @decode
+  bb3:
+    revert 0, 0
+}

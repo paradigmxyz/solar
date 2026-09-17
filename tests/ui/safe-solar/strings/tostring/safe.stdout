@@ -1,0 +1,169 @@
+// === <solar:core/v1/Arrays.sol>:Arrays ===
+@module Arrays
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/v1/Bytes.sol>:Bytes ===
+@module Bytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/v1/Buffers.sol>:Buffers ===
+@module Buffers
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/v1/Strings.sol>:Strings ===
+@module Strings
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/safe-solar/strings/tostring/safe.sol:Safe ===
+@module Safe
+@phase lowered
+fn @decimal() [selector=0xf371efa4, abi_wrapper, pure] {
+  bb0:
+    v1 = calldatasize
+    v2 = lt v1, 36
+    jumpi v2, bb1, bb2
+  bb2:
+    v0 = icall @toString, arg0
+    v7 = iszero v0
+    v8 = iszero v7
+    v6 = mload v0
+    v9 = mul v6, v8
+    v10 = add v0, 32
+    v11 = add v9, 31
+    v13 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v14 = add v10, v13
+    mstore v14, 0
+    v15 = add v10, 32
+    mcopy v15, v10, v9
+    mstore v0, 32
+    mstore v10, v9
+    v16 = add v13, 64
+    returndata v0, v16
+  bb1:
+    revert 0, 0
+}
+
+fn @toString(arg0: u256) -> memptr [pure] {
+  bb0:
+    v0 = lt arg0, 0x184f03e93ff9f4daa797ed6e38ed64bf6a1f010000000000000000
+    jumpi v0, bb1, bb9
+  bb9:
+    v63 = div arg0, 0x184f03e93ff9f4daa797ed6e38ed64bf6a1f010000000000000000
+    jump bb1
+  bb1:
+    v4 = phi [bb9: v63], [bb0: arg0]
+    v5 = phi [bb9: 65], [bb0: 1]
+    v6 = lt v4, 0x4ee2d6d415b85acef8100000000
+    jumpi v6, bb2, bb10
+  bb10:
+    v64 = div v4, 0x4ee2d6d415b85acef8100000000
+    v65 = add v5, 32
+    jump bb2
+  bb2:
+    v10 = phi [bb10: v64], [bb1: v4]
+    v11 = phi [bb10: v65], [bb1: v5]
+    v12 = lt v10, 0x2386f26fc10000
+    jumpi v12, bb3, bb11
+  bb11:
+    v67 = div v10, 0x2386f26fc10000
+    v68 = add v11, 16
+    jump bb3
+  bb3:
+    v16 = phi [bb11: v67], [bb2: v10]
+    v17 = phi [bb11: v68], [bb2: v11]
+    v18 = lt v16, 0x5f5e100
+    jumpi v18, bb4, bb12
+  bb12:
+    v70 = div v16, 0x5f5e100
+    v71 = add v17, 8
+    jump bb4
+  bb4:
+    v22 = phi [bb12: v70], [bb3: v16]
+    v23 = phi [bb12: v71], [bb3: v17]
+    v24 = lt v22, 0x2710
+    jumpi v24, bb5, bb13
+  bb13:
+    v73 = div v22, 0x2710
+    v74 = add v23, 4
+    jump bb5
+  bb5:
+    v28 = phi [bb13: v73], [bb4: v22]
+    v29 = phi [bb13: v74], [bb4: v23]
+    v30 = lt v28, 100
+    jumpi v30, bb6, bb14
+  bb14:
+    v76 = div v28, 100
+    v77 = add v29, 2
+    jump bb6
+  bb6:
+    v34 = phi [bb14: v76], [bb5: v28]
+    v35 = phi [bb14: v77], [bb5: v29]
+    v36 = lt v34, 10
+    v87 = iszero v36
+    v89 = add v35, v87
+    v40 = add v89, 63
+    v43 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v44 = mload 64 !metadata(memory=scratch)
+    v92 = add v44, v43
+    v93 = lt v92, v44
+    v94 = gt v92, 0xffffffffffffffff
+    v95 = or v93, v94
+    jumpi v95, bb16, bb15
+  bb15:
+    mstore 64, v92 !metadata(memory=scratch)
+    v96 = calldatasize
+    calldatacopy v44, v96, v43
+    mstore v44, v89
+    v90 = add v44, 32
+    jump bb7
+  bb7:
+    v47 = phi [bb15: arg0], [bb7: v86]
+    v48 = phi [bb15: v89], [bb7: v81]
+    v81 = sub v48, 1
+    v83 = mod v47, 10
+    v84 = add v83, 48
+    v91 = add v90, v81
+    mstore8 v91, v84
+    v86 = div v47, 10
+    jumpi v81, bb7, bb8
+  bb8:
+    ret v44
+  bb16:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0xf371efa4 => bb2]
+  bb2:
+    tail_call @decimal
+  bb3:
+    revert 0, 0
+}

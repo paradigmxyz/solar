@@ -1,0 +1,63 @@
+// === <solar:core/v1/CalldataBytes.sol>:CalldataBytes ===
+@module CalldataBytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/safe-solar/calldata/tryread/safe.sol:Safe ===
+@module Safe
+@phase lowered
+types:
+  struct0: {u256, u256}
+
+fn @peek() [selector=0xa230438f, abi_wrapper, pure] {
+  bb0:
+    v18 = calldatasize
+    v19 = lt v18, 68
+    jumpi v19, bb1, bb2
+  bb2:
+    v20 = calldataload 4
+    v21 = add v20, 4
+    v22 = add v21, 32
+    v23 = gt v20, 0xffffffffffffffff
+    v24 = gt v22, v18
+    v25 = or v23, v24
+    v26 = calldataload v21
+    v28 = sub v18, v22
+    v29 = gt v26, v28
+    v30 = or v25, v29
+    jumpi v30, bb1, bb3
+  bb3:
+    v1 = add arg1, 4
+    v2 = lt v1, arg1
+    v3 = gt v1, v26
+    v4 = or v2, v3
+    v5 = iszero v4
+    v6 = mul v5, arg1
+    v8 = add v22, v6
+    v9 = calldataload v8
+    v10 = mul v5, v9
+    v11 = and v10, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 128, v5
+    mstore 160, v11
+    returndata 128, 64
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0xa230438f => bb2]
+  bb2:
+    tail_call @peek
+  bb3:
+    revert 0, 0
+}
