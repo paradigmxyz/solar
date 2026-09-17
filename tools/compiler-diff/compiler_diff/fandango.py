@@ -13,7 +13,6 @@ from unittest.mock import patch
 from . import corpus
 
 VERSION = "1.1.1"
-PYTHON = "3.14.7"
 
 
 def prepare(root, args):
@@ -25,7 +24,9 @@ def prepare(root, args):
     config = {
         "format_version": 1,
         "fandango_version": VERSION,
-        "python": PYTHON,
+        "python": (Path(__file__).resolve().parents[3] / ".python-version")
+        .read_text()
+        .strip(),
         "grammar_sha256": hashlib.sha256(grammar).hexdigest(),
         "seed": args.seed,
         "count": args.count,
@@ -107,7 +108,7 @@ def generate(campaign, config, grammar, timeout):
         "run",
         "--managed-python",
         "--python",
-        PYTHON,
+        config["python"],
         "--quiet",
         "--from",
         "fandango-fuzzer==" + VERSION,
@@ -208,6 +209,7 @@ class Tests(unittest.TestCase):
     def test_generation_resume_and_tamper(self):
         grammar = b"<start> ::= 'contract C {}'\n"
         config = {
+            "python": "recorded-python",
             "count": 2,
             "seed": 1,
             "population_size": 24,
@@ -219,6 +221,7 @@ class Tests(unittest.TestCase):
 
         def fake_generate(command, directory, timeout, *, env):
             self.assertEqual(env["PYTHONHASHSEED"], "1")
+            self.assertEqual(command[command.index("--python") + 1], config["python"])
             self.assertEqual(
                 command[command.index("--initial-population") + 1],
                 str(campaign / "population"),
@@ -246,5 +249,10 @@ class Tests(unittest.TestCase):
             ),
             self.assertRaisesRegex(RuntimeError, "0/2 sources"),
         ):
-            generate(campaign, {"count": 2, "seed": 1}, b"grammar", 20)
+            generate(
+                campaign,
+                {"count": 2, "seed": 1, "python": "recorded-python"},
+                b"grammar",
+                20,
+            )
         self.assertFalse((campaign / "generation.json").exists())
