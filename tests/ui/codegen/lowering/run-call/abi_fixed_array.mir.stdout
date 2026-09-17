@@ -34,7 +34,7 @@ fn @read(arg0: calldataslice, arg1: i256) -> i256 [selector=0x8f65cc66, pure, ab
     v6 = div v4, 32
     v7 = eq v6, arg1
     v8 = or v5, v7
-    v9 = word_cast v8
+    v9 = zext i1 v8 to i256
     v10 = eq v9, 0
     icall panic_if<0x41>, v10
     v11 = add v3, v4
@@ -64,7 +64,7 @@ fn @readDynamicCalldata(arg0: calldataslice, arg1: i256) -> i256 [selector=0x55c
     v6 = div v4, 32
     v7 = eq v6, arg1
     v8 = or v5, v7
-    v9 = word_cast v8
+    v9 = zext i1 v8 to i256
     v10 = eq v9, 0
     icall panic_if<0x41>, v10
     v11 = add v3, v4
@@ -107,7 +107,7 @@ fn @readDynamicPair(arg0: memorystruct) -> i256 [selector=0x96a23d6f, pure, abi_
   bb0:
     v0 = memory_object_load_field memorystruct<2>, arg0, 0
     v1 = memory_object_load_field memorystruct<2>, arg0, 1
-    v2 = memory_object_from_ptr memorybytes, v1
+    v2 = inttoptr i256 v1 to memorybytes
     v3 = memory_object_len memorybytes, v2
     v4 = checked_add u256, v0, v3
     ret v4
@@ -116,7 +116,7 @@ fn @readDynamicPair(arg0: memorystruct) -> i256 [selector=0x96a23d6f, pure, abi_
 fn @readWordList(arg0: memorystruct) -> i256 [selector=0xb5e6ddb8, pure, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_load_field memorystruct<2>, arg0, 0
-    v1 = memory_object_from_ptr memoryarray, v0
+    v1 = inttoptr i256 v0 to memoryarray
     v2 = memory_object_len memoryarray, v1
     v3 = memory_object_load_field memorystruct<2>, arg0, 1
     v4 = checked_add u256, v2, v3
@@ -126,7 +126,7 @@ fn @readWordList(arg0: memorystruct) -> i256 [selector=0xb5e6ddb8, pure, abi_par
 fn @readSignedList(arg0: memorystruct) -> i256 [selector=0xa15ab30e, pure, abi_params=[tuple<array<_, i256>, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_load_field memorystruct<2>, arg0, 0
-    v1 = memory_object_from_ptr memoryarray, v0
+    v1 = inttoptr i256 v0 to memoryarray
     v2 = memory_object_len memoryarray, v1
     v3 = memory_object_load_field memorystruct<2>, arg0, 1
     v4 = checked_add u256, v2, v3
@@ -136,17 +136,17 @@ fn @readSignedList(arg0: memorystruct) -> i256 [selector=0xa15ab30e, pure, abi_p
 fn @readNestedList(arg0: memorystruct) -> i256 [selector=0x2fc71376, pure, abi_params=[tuple<array<_, array<_, u256>>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_load_field memorystruct<1>, arg0, 0
-    v1 = memory_object_from_ptr memoryarray, v0
+    v1 = inttoptr i256 v0 to memoryarray
     v2 = memory_object_len memoryarray, v1
     v3 = memory_object_load_field memorystruct<1>, arg0, 0
-    v4 = memory_object_from_ptr memoryarray, v3
+    v4 = inttoptr i256 v3 to memoryarray
     v5 = memory_object_len memoryarray, v4
     v6 = lt 0, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = memory_object_load_element memoryarray<1>, v4, 0
-    v9 = memory_object_from_ptr memoryarray, v8
-    v10 = word_cast v9
+    v9 = inttoptr i256 v8 to memoryarray
+    v10 = ptrtoint memoryarray v9 to i256
     v11 = eq v10, 0
     jumpi v11, bb1, bb2
   bb1:
@@ -195,7 +195,7 @@ fn @readMode(arg0: i256) -> i256 [selector=0x1bcfbcf9, pure, abi_params=[enum<2,
 fn @readNestedArray(arg0: memorystruct) -> i256 [selector=0x8a855eb4, pure, abi_params=[tuple<array<2, u256>, u8>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_load_field memorystruct<2>, arg0, 0
-    v1 = memory_object_from_ptr memoryfixedarray, v0
+    v1 = inttoptr i256 v0 to memoryfixedarray
     v2 = lt 1, 2
     v3 = eq v2, false
     icall panic_if<0x32>, v3
@@ -209,13 +209,13 @@ fn @readNestedArray(arg0: memorystruct) -> i256 [selector=0x8a855eb4, pure, abi_
 fn @readNestedBytes(arg0: memorystruct) -> i256 [selector=0x8516eaf9, pure, abi_params=[tuple<array<2, bytes>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_load_field memorystruct<1>, arg0, 0
-    v1 = memory_object_from_ptr memoryfixedarray, v0
+    v1 = inttoptr i256 v0 to memoryfixedarray
     v2 = lt 0, 2
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = memory_object_load_element memoryfixedarray<2, 1>, v1, 0
-    v5 = memory_object_from_ptr memorybytes, v4
-    v6 = word_cast v5
+    v5 = inttoptr i256 v4 to memorybytes
+    v6 = ptrtoint memorybytes v5 to i256
     v7 = eq v6, 0
     jumpi v7, bb1, bb2
   bb1:
@@ -227,13 +227,13 @@ fn @readNestedBytes(arg0: memorystruct) -> i256 [selector=0x8516eaf9, pure, abi_
     v9 = phi [bb0: v5], [bb1: v8]
     v10 = memory_object_len memorybytes, v9
     v11 = memory_object_load_field memorystruct<1>, arg0, 0
-    v12 = memory_object_from_ptr memoryfixedarray, v11
+    v12 = inttoptr i256 v11 to memoryfixedarray
     v13 = lt 1, 2
     v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = memory_object_load_element memoryfixedarray<2, 1>, v12, 1
-    v16 = memory_object_from_ptr memorybytes, v15
-    v17 = word_cast v16
+    v16 = inttoptr i256 v15 to memorybytes
+    v17 = ptrtoint memorybytes v16 to i256
     v18 = eq v17, 0
     jumpi v18, bb3, bb4
   bb3:
@@ -272,8 +272,8 @@ fn @constructor(arg0: memoryfixedarray, arg1: i256) [constructor, abi_params=[ar
     v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 1
-    v3 = memory_object_from_ptr memoryfixedarray, v2
-    v4 = word_cast v3
+    v3 = inttoptr i256 v2 to memoryfixedarray
+    v4 = ptrtoint memoryfixedarray v3 to i256
     v5 = eq v4, 0
     jumpi v5, bb1, bb2
   bb1:
@@ -359,7 +359,7 @@ fn @constructor(arg0: memorystruct) [constructor, abi_params=[tuple<u256, bytes>
   bb0:
     v0 = memory_object_load_field memorystruct<2>, arg0, 0
     v1 = memory_object_load_field memorystruct<2>, arg0, 1
-    v2 = memory_object_from_ptr memorybytes, v1
+    v2 = inttoptr i256 v1 to memorybytes
     v3 = memory_object_len memorybytes, v2
     v4 = checked_add u256, v0, v3
     sstore 0, v4 !metadata(storage=slot(0))

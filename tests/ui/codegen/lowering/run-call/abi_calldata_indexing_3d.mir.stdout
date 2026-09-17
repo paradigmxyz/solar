@@ -16,7 +16,7 @@ fn @f(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selec
     v7 = div v5, 32
     v8 = eq v7, arg1
     v9 = or v6, v8
-    v10 = word_cast v9
+    v10 = zext i1 v9 to i256
     v11 = eq v10, 0
     icall panic_if<0x41>, v11
     v12 = add v4, v5
@@ -43,7 +43,7 @@ fn @f(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selec
     v30 = div v28, 32
     v31 = eq v30, arg1
     v32 = or v29, v31
-    v33 = word_cast v32
+    v33 = zext i1 v32 to i256
     v34 = eq v33, 0
     icall panic_if<0x41>, v34
     v35 = add v27, v28
@@ -70,7 +70,7 @@ fn @f(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selec
     v53 = div v51, 32
     v54 = eq v53, arg2
     v55 = or v52, v54
-    v56 = word_cast v55
+    v56 = zext i1 v55 to i256
     v57 = eq v56, 0
     icall panic_if<0x41>, v57
     v58 = add v50, v51
@@ -108,7 +108,7 @@ fn @f(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selec
     v85 = div v83, 32
     v86 = eq v85, arg1
     v87 = or v84, v86
-    v88 = word_cast v87
+    v88 = zext i1 v87 to i256
     v89 = eq v88, 0
     icall panic_if<0x41>, v89
     v90 = add v82, v83
@@ -135,7 +135,7 @@ fn @f(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selec
     v108 = div v106, 32
     v109 = eq v108, arg2
     v110 = or v107, v109
-    v111 = word_cast v110
+    v111 = zext i1 v110 to i256
     v112 = eq v111, 0
     icall panic_if<0x41>, v112
     v113 = add v105, v106
@@ -172,7 +172,7 @@ fn @f(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selec
     v139 = div v137, 32
     v140 = eq v139, arg3
     v141 = or v138, v140
-    v142 = word_cast v141
+    v142 = zext i1 v141 to i256
     v143 = eq v142, 0
     icall panic_if<0x41>, v143
     v144 = add v136, v137

@@ -30,12 +30,12 @@ bb0:
   shr
   push bb3
   jumpi
+  push 4
+  calldataload
   push 0
   not
   push 96
   shr
-  push 4
-  calldataload
   and
   push 0
   mstore

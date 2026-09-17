@@ -1,64 +1,84 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_structs.sol:AbiDecodeStructsRunCall ===
 @module AbiDecodeStructsRunCall
 types:
-  struct0: {i256, i256, i256}
-  struct1: {i256, memorybytes, i256}
-  struct2: {i256, memorybytes, memoryarray}
-  struct3: {i256, i256, i256, i256}
-  struct4: {i256, i256}
-  struct5: {i256, i256, i256, i256, i256, i256}
-  struct6: {i256, i256, i256, i256, i256}
-  struct7: {memoryarray, memoryarray}
+  struct0: {i160, memorybytes}
+  struct1: {i256, i256, i256}
+  struct2: {i256, memorybytes, i256}
+  struct3: {i256, memorybytes, memoryarray}
+  struct4: {i256, i256, i256, i256}
+  struct5: {i256, i256}
+  struct6: {i256, i256, i256, i256, i256, i256}
+  struct7: {i256, i256, i256, i256, i256}
+  struct8: {memoryarray, memoryarray}
 
-fn @dFlat(arg0: memorybytes) -> struct0 [selector=0x6644232b, pure, abi_params=[bytes], abi_returns=[word, word<u160>, word<bool>], abi_return_params=[u256, address, bool]] {
+fn @dAddress(arg0: memorybytes) -> i256 [selector=0xd6ff3ab5, pure, abi_params=[bytes], abi_returns=[word<u160>], abi_return_params=[address]] {
+  bb0:
+    v0 = abi_decode [address, bytes], arg0
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = zext i160 v1 to i256
+    ret v3
+}
+
+fn @dAddressLength(arg0: memorybytes) -> i256 [selector=0xcdb9aa25, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = abi_decode [address, bytes], arg0
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = memory_object_len memorybytes, v2
+    ret v3
+}
+
+fn @dFlat(arg0: memorybytes) -> struct1 [selector=0x6644232b, pure, abi_params=[bytes], abi_returns=[word, word<u160>, word<bool>], abi_return_params=[u256, address, bool]] {
   bb0:
     v0 = abi_decode [tuple<u256, address, bool>], arg0
     v1 = memory_object_load_field memorystruct<3>, v0, 0
     v2 = memory_object_load_field memorystruct<3>, v0, 1
-    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = trunc i256 v2 to i160
     v4 = memory_object_load_field memorystruct<3>, v0, 2
     v5 = eq v4, 0
     v6 = eq v5, false
-    v7 = word_cast v6
-    v8 = insert_value struct0, undef struct0, 0, v1
-    v9 = insert_value struct0, v8, 1, v3
-    v10 = insert_value struct0, v9, 2, v7
-    ret v10
+    v7 = zext i160 v3 to i256
+    v8 = zext i1 v6 to i256
+    v9 = insert_value struct1, undef struct1, 0, v1
+    v10 = insert_value struct1, v9, 1, v7
+    v11 = insert_value struct1, v10, 2, v8
+    ret v11
 }
 
-fn @dMixed(arg0: memorybytes) -> struct1 [selector=0x1be4db0e, pure, abi_params=[bytes], abi_returns=[word, memory_bytes, word], abi_return_params=[u256, bytes, u256]] {
+fn @dMixed(arg0: memorybytes) -> struct2 [selector=0x1be4db0e, pure, abi_params=[bytes], abi_returns=[word, memory_bytes, word], abi_return_params=[u256, bytes, u256]] {
   bb0:
     v0 = abi_decode [u256, bytes, array<_, u256>], arg0
-    v1 = extract_value struct2, v0, 0
-    v2 = extract_value struct2, v0, 1
-    v3 = extract_value struct2, v0, 2
+    v1 = extract_value struct3, v0, 0
+    v2 = extract_value struct3, v0, 1
+    v3 = extract_value struct3, v0, 2
     v4 = memory_object_len memoryarray, v3
-    v5 = insert_value struct1, undef struct1, 0, v1
-    v6 = insert_value struct1, v5, 1, v2
-    v7 = insert_value struct1, v6, 2, v4
+    v5 = insert_value struct2, undef struct2, 0, v1
+    v6 = insert_value struct2, v5, 1, v2
+    v7 = insert_value struct2, v6, 2, v4
     ret v7
 }
 
-fn @dNested(arg0: memorybytes) -> struct1 [selector=0xfc7ec666, pure, abi_params=[bytes], abi_returns=[word, memory_bytes, word], abi_return_params=[u256, bytes, u256]] {
+fn @dNested(arg0: memorybytes) -> struct2 [selector=0xfc7ec666, pure, abi_params=[bytes], abi_returns=[word, memory_bytes, word], abi_return_params=[u256, bytes, u256]] {
   bb0:
     v0 = abi_decode [tuple<tuple<u256, address, bool>, tuple<u256, bytes, array<_, u256>>, bytes>], arg0
     v1 = memory_object_load_field memorystruct<3>, v0, 0
-    v2 = memory_object_from_ptr memorystruct, v1
+    v2 = inttoptr i256 v1 to memorystruct
     v3 = memory_object_load_field memorystruct<3>, v2, 0
     v4 = memory_object_load_field memorystruct<3>, v0, 1
-    v5 = memory_object_from_ptr memorystruct, v4
+    v5 = inttoptr i256 v4 to memorystruct
     v6 = memory_object_load_field memorystruct<3>, v5, 1
-    v7 = memory_object_from_ptr memorybytes, v6
+    v7 = inttoptr i256 v6 to memorybytes
     v8 = memory_object_load_field memorystruct<3>, v0, 2
-    v9 = memory_object_from_ptr memorybytes, v8
+    v9 = inttoptr i256 v8 to memorybytes
     v10 = memory_object_len memorybytes, v9
-    v11 = insert_value struct1, undef struct1, 0, v3
-    v12 = insert_value struct1, v11, 1, v7
-    v13 = insert_value struct1, v12, 2, v10
+    v11 = insert_value struct2, undef struct2, 0, v3
+    v12 = insert_value struct2, v11, 1, v7
+    v13 = insert_value struct2, v12, 2, v10
     ret v13
 }
 
-fn @dDynArr(arg0: memorybytes) -> struct3 [selector=0xaca542ca, pure, abi_params=[bytes], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @dDynArr(arg0: memorybytes) -> struct4 [selector=0xaca542ca, pure, abi_params=[bytes], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = abi_decode [array<_, tuple<u256, bytes, array<_, u256>>>], arg0
     v1 = memory_object_len memoryarray, v0
@@ -67,8 +87,8 @@ fn @dDynArr(arg0: memorybytes) -> struct3 [selector=0xaca542ca, pure, abi_params
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = memory_object_load_element memoryarray<1>, v0, 0
-    v6 = memory_object_from_ptr memorystruct, v5
-    v7 = word_cast v6
+    v6 = inttoptr i256 v5 to memorystruct
+    v7 = ptrtoint memorystruct v6 to i256
     v8 = eq v7, 0
     jumpi v8, bb1, bb2
   bb1:
@@ -90,8 +110,8 @@ fn @dDynArr(arg0: memorybytes) -> struct3 [selector=0xaca542ca, pure, abi_params
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = memory_object_load_element memoryarray<1>, v0, 1
-    v18 = memory_object_from_ptr memorystruct, v17
-    v19 = word_cast v18
+    v18 = inttoptr i256 v17 to memorystruct
+    v19 = ptrtoint memorystruct v18 to i256
     v20 = eq v19, 0
     jumpi v20, bb3, bb4
   bb3:
@@ -113,8 +133,8 @@ fn @dDynArr(arg0: memorybytes) -> struct3 [selector=0xaca542ca, pure, abi_params
     v28 = eq v27, false
     icall panic_if<0x32>, v28
     v29 = memory_object_load_element memoryarray<1>, v0, 0
-    v30 = memory_object_from_ptr memorystruct, v29
-    v31 = word_cast v30
+    v30 = inttoptr i256 v29 to memorystruct
+    v31 = ptrtoint memorystruct v30 to i256
     v32 = eq v31, 0
     jumpi v32, bb5, bb6
   bb5:
@@ -131,24 +151,24 @@ fn @dDynArr(arg0: memorybytes) -> struct3 [selector=0xaca542ca, pure, abi_params
   bb6:
     v36 = phi [bb4: v30], [bb5: v33]
     v37 = memory_object_load_field memorystruct<3>, v36, 2
-    v38 = memory_object_from_ptr memoryarray, v37
+    v38 = inttoptr i256 v37 to memoryarray
     v39 = memory_object_len memoryarray, v38
-    v40 = insert_value struct3, undef struct3, 0, v1
-    v41 = insert_value struct3, v40, 1, v13
-    v42 = insert_value struct3, v41, 2, v25
-    v43 = insert_value struct3, v42, 3, v39
+    v40 = insert_value struct4, undef struct4, 0, v1
+    v41 = insert_value struct4, v40, 1, v13
+    v42 = insert_value struct4, v41, 2, v25
+    v43 = insert_value struct4, v42, 3, v39
     ret v43
 }
 
-fn @dFixedDyn(arg0: memorybytes) -> struct4 [selector=0x94edd832, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @dFixedDyn(arg0: memorybytes) -> struct5 [selector=0x94edd832, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_decode [array<2, bytes>], arg0
     v1 = lt 0, 2
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v4 = memory_object_from_ptr memorybytes, v3
-    v5 = word_cast v4
+    v4 = inttoptr i256 v3 to memorybytes
+    v5 = ptrtoint memorybytes v4 to i256
     v6 = eq v5, 0
     jumpi v6, bb1, bb2
   bb1:
@@ -163,8 +183,8 @@ fn @dFixedDyn(arg0: memorybytes) -> struct4 [selector=0x94edd832, pure, abi_para
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
-    v13 = memory_object_from_ptr memorybytes, v12
-    v14 = word_cast v13
+    v13 = inttoptr i256 v12 to memorybytes
+    v14 = ptrtoint memorybytes v13 to i256
     v15 = eq v14, 0
     jumpi v15, bb3, bb4
   bb3:
@@ -175,12 +195,12 @@ fn @dFixedDyn(arg0: memorybytes) -> struct4 [selector=0x94edd832, pure, abi_para
   bb4:
     v17 = phi [bb2: v13], [bb3: v16]
     v18 = memory_object_len memorybytes, v17
-    v19 = insert_value struct4, undef struct4, 0, v9
-    v20 = insert_value struct4, v19, 1, v18
+    v19 = insert_value struct5, undef struct5, 0, v9
+    v20 = insert_value struct5, v19, 1, v18
     ret v20
 }
 
-fn @typedDynArray(arg0: calldataslice) -> struct0 [selector=0xa00a84db, pure, abi_params=[array<_, tuple<u256, bytes, array<_, u256>>>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @typedDynArray(arg0: calldataslice) -> struct1 [selector=0xa00a84db, pure, abi_params=[array<_, tuple<u256, bytes, array<_, u256>>>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_len arg0
@@ -227,13 +247,13 @@ fn @typedDynArray(arg0: calldataslice) -> struct0 [selector=0xa00a84db, pure, ab
     v36 = slice_ptr v35
     v37 = add v36, 0
     v38 = calldataload v37
-    v39 = insert_value struct0, undef struct0, 0, v0
-    v40 = insert_value struct0, v39, 1, v19
-    v41 = insert_value struct0, v40, 2, v38
+    v39 = insert_value struct1, undef struct1, 0, v0
+    v40 = insert_value struct1, v39, 1, v19
+    v41 = insert_value struct1, v40, 2, v38
     ret v41
 }
 
-fn @nestedRoundtrip() -> struct1 [selector=0x07f0bc21, pure, abi_params=[], abi_returns=[word, memory_bytes, word], abi_return_params=[u256, bytes, u256]] {
+fn @nestedRoundtrip() -> struct2 [selector=0x07f0bc21, pure, abi_params=[], abi_returns=[word, memory_bytes, word], abi_return_params=[u256, bytes, u256]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     v1 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
@@ -248,60 +268,63 @@ fn @nestedRoundtrip() -> struct1 [selector=0x07f0bc21, pure, abi_params=[], abi_
     memory_object_store_field memorystruct<3>, v0, 1, v2
     memory_object_store_field memorystruct<3>, v0, 2, memorybytes 96
     v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v4 = trunc i256 1 to i160
     memory_object_store_field memorystruct<3>, v3, 0, 7
-    memory_object_store_field memorystruct<3>, v3, 1, 1
+    memory_object_store_field memorystruct<3>, v3, 1, v4
     memory_object_store_field memorystruct<3>, v3, 2, true
     memory_object_store_field memorystruct<3>, v0, 0, v3
-    v4 = memory_object_load_field memorystruct<3>, v0, 1
-    v5 = memory_object_from_ptr memorystruct, v4
-    memory_object_store_field memorystruct<3>, v5, 0, 42
-    v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v6, 2
-    v7 = memory_object_data memorybytes, v6
-    mstore v7, 0x6869000000000000000000000000000000000000000000000000000000000000
-    v8 = memory_object_load_field memorystruct<3>, v0, 1
-    v9 = memory_object_from_ptr memorystruct, v8
-    memory_object_store_field memorystruct<3>, v9, 1, v6
-    v10 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    set_memory_object_len memoryarray, v10, 2
-    v11 = memory_object_load_field memorystruct<3>, v0, 1
-    v12 = memory_object_from_ptr memorystruct, v11
-    memory_object_store_field memorystruct<3>, v12, 2, v10
+    v5 = memory_object_load_field memorystruct<3>, v0, 1
+    v6 = inttoptr i256 v5 to memorystruct
+    memory_object_store_field memorystruct<3>, v6, 0, 42
+    v7 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v7, 2
+    v8 = memory_object_data memorybytes, v7
+    v9 = ptrtoint memptr v8 to i256
+    mstore v9, 0x6869000000000000000000000000000000000000000000000000000000000000
+    v10 = memory_object_load_field memorystruct<3>, v0, 1
+    v11 = inttoptr i256 v10 to memorystruct
+    memory_object_store_field memorystruct<3>, v11, 1, v7
+    v12 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    set_memory_object_len memoryarray, v12, 2
     v13 = memory_object_load_field memorystruct<3>, v0, 1
-    v14 = memory_object_from_ptr memorystruct, v13
-    v15 = memory_object_load_field memorystruct<3>, v14, 2
-    v16 = memory_object_from_ptr memoryarray, v15
-    v17 = memory_object_len memoryarray, v16
-    v18 = lt 0, v17
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    memory_object_store_element memoryarray<1>, v16, 0, 4
-    v20 = memory_object_load_field memorystruct<3>, v0, 1
-    v21 = memory_object_from_ptr memorystruct, v20
-    v22 = memory_object_load_field memorystruct<3>, v21, 2
-    v23 = memory_object_from_ptr memoryarray, v22
-    v24 = memory_object_len memoryarray, v23
-    v25 = lt 1, v24
-    v26 = eq v25, false
-    icall panic_if<0x32>, v26
-    memory_object_store_element memoryarray<1>, v23, 1, 5
-    v27 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v27, 3
-    v28 = memory_object_data memorybytes, v27
-    mstore v28, 0x78797a0000000000000000000000000000000000000000000000000000000000
-    memory_object_store_field memorystruct<3>, v0, 2, v27
-    v29 = abi_encode [tuple<tuple<word, word<u160>, word<bool>>, tuple<word, memory_bytes, memory_array<word>>, memory_bytes>], object, args v0
-    v30 = icall @dNested, v29
-    v31 = extract_value struct1, v30, 0
-    v32 = extract_value struct1, v30, 1
-    v33 = extract_value struct1, v30, 2
-    v34 = insert_value struct1, undef struct1, 0, v31
-    v35 = insert_value struct1, v34, 1, v32
-    v36 = insert_value struct1, v35, 2, v33
-    ret v36
+    v14 = inttoptr i256 v13 to memorystruct
+    memory_object_store_field memorystruct<3>, v14, 2, v12
+    v15 = memory_object_load_field memorystruct<3>, v0, 1
+    v16 = inttoptr i256 v15 to memorystruct
+    v17 = memory_object_load_field memorystruct<3>, v16, 2
+    v18 = inttoptr i256 v17 to memoryarray
+    v19 = memory_object_len memoryarray, v18
+    v20 = lt 0, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    memory_object_store_element memoryarray<1>, v18, 0, 4
+    v22 = memory_object_load_field memorystruct<3>, v0, 1
+    v23 = inttoptr i256 v22 to memorystruct
+    v24 = memory_object_load_field memorystruct<3>, v23, 2
+    v25 = inttoptr i256 v24 to memoryarray
+    v26 = memory_object_len memoryarray, v25
+    v27 = lt 1, v26
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    memory_object_store_element memoryarray<1>, v25, 1, 5
+    v29 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v29, 3
+    v30 = memory_object_data memorybytes, v29
+    v31 = ptrtoint memptr v30 to i256
+    mstore v31, 0x78797a0000000000000000000000000000000000000000000000000000000000
+    memory_object_store_field memorystruct<3>, v0, 2, v29
+    v32 = abi_encode [tuple<tuple<word, word<u160>, word<bool>>, tuple<word, memory_bytes, memory_array<word>>, memory_bytes>], object, args v0
+    v33 = icall @dNested, v32
+    v34 = extract_value struct2, v33, 0
+    v35 = extract_value struct2, v33, 1
+    v36 = extract_value struct2, v33, 2
+    v37 = insert_value struct2, undef struct2, 0, v34
+    v38 = insert_value struct2, v37, 1, v35
+    v39 = insert_value struct2, v38, 2, v36
+    ret v39
 }
 
-fn @dynamicArrayRoundtrip() -> struct3 [selector=0x533c608a, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @dynamicArrayRoundtrip() -> struct4 [selector=0x533c608a, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -319,66 +342,68 @@ fn @dynamicArrayRoundtrip() -> struct3 [selector=0x533c608a, pure, abi_params=[]
     v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v6, 2
     v7 = memory_object_data memorybytes, v6
-    mstore v7, 0x6869000000000000000000000000000000000000000000000000000000000000
+    v8 = ptrtoint memptr v7 to i256
+    mstore v8, 0x6869000000000000000000000000000000000000000000000000000000000000
     memory_object_store_field memorystruct<3>, v5, 1, v6
-    v8 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    set_memory_object_len memoryarray, v8, 2
-    memory_object_store_field memorystruct<3>, v5, 2, v8
-    v9 = memory_object_load_field memorystruct<3>, v5, 2
-    v10 = memory_object_from_ptr memoryarray, v9
-    v11 = memory_object_len memoryarray, v10
-    v12 = lt 0, v11
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    memory_object_store_element memoryarray<1>, v10, 0, 4
-    v14 = memory_object_load_field memorystruct<3>, v5, 2
-    v15 = memory_object_from_ptr memoryarray, v14
-    v16 = memory_object_len memoryarray, v15
-    v17 = lt 1, v16
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    memory_object_store_element memoryarray<1>, v15, 1, 5
-    v19 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<3>, v19, 0, 0
-    memory_object_store_field memorystruct<3>, v19, 1, memorybytes 96
-    memory_object_store_field memorystruct<3>, v19, 2, memoryarray 96
-    memory_object_store_field memorystruct<3>, v19, 0, 43
-    v20 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v20, 3
-    v21 = memory_object_data memorybytes, v20
-    mstore v21, 0x6279650000000000000000000000000000000000000000000000000000000000
-    memory_object_store_field memorystruct<3>, v19, 1, v20
-    v22 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v22, 1
-    memory_object_store_field memorystruct<3>, v19, 2, v22
-    v23 = memory_object_load_field memorystruct<3>, v19, 2
-    v24 = memory_object_from_ptr memoryarray, v23
-    v25 = memory_object_len memoryarray, v24
-    v26 = lt 0, v25
-    v27 = eq v26, false
-    icall panic_if<0x32>, v27
-    memory_object_store_element memoryarray<1>, v24, 0, 6
-    v28 = memory_object_len memoryarray, v0
-    v29 = lt 0, v28
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
+    v9 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    set_memory_object_len memoryarray, v9, 2
+    memory_object_store_field memorystruct<3>, v5, 2, v9
+    v10 = memory_object_load_field memorystruct<3>, v5, 2
+    v11 = inttoptr i256 v10 to memoryarray
+    v12 = memory_object_len memoryarray, v11
+    v13 = lt 0, v12
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    memory_object_store_element memoryarray<1>, v11, 0, 4
+    v15 = memory_object_load_field memorystruct<3>, v5, 2
+    v16 = inttoptr i256 v15 to memoryarray
+    v17 = memory_object_len memoryarray, v16
+    v18 = lt 1, v17
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    memory_object_store_element memoryarray<1>, v16, 1, 5
+    v20 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
+    memory_object_store_field memorystruct<3>, v20, 0, 0
+    memory_object_store_field memorystruct<3>, v20, 1, memorybytes 96
+    memory_object_store_field memorystruct<3>, v20, 2, memoryarray 96
+    memory_object_store_field memorystruct<3>, v20, 0, 43
+    v21 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v21, 3
+    v22 = memory_object_data memorybytes, v21
+    v23 = ptrtoint memptr v22 to i256
+    mstore v23, 0x6279650000000000000000000000000000000000000000000000000000000000
+    memory_object_store_field memorystruct<3>, v20, 1, v21
+    v24 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v24, 1
+    memory_object_store_field memorystruct<3>, v20, 2, v24
+    v25 = memory_object_load_field memorystruct<3>, v20, 2
+    v26 = inttoptr i256 v25 to memoryarray
+    v27 = memory_object_len memoryarray, v26
+    v28 = lt 0, v27
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    memory_object_store_element memoryarray<1>, v26, 0, 6
+    v30 = memory_object_len memoryarray, v0
+    v31 = lt 0, v30
+    v32 = eq v31, false
+    icall panic_if<0x32>, v32
     memory_object_store_element memoryarray<1>, v0, 0, v5
-    v31 = memory_object_len memoryarray, v0
-    v32 = lt 1, v31
-    v33 = eq v32, false
-    icall panic_if<0x32>, v33
-    memory_object_store_element memoryarray<1>, v0, 1, v19
-    v34 = abi_encode [memory_array<tuple<word, memory_bytes, memory_array<word>>>], object, args v0
-    v35 = icall @dDynArr, v34
-    v36 = extract_value struct3, v35, 0
-    v37 = extract_value struct3, v35, 1
-    v38 = extract_value struct3, v35, 2
-    v39 = extract_value struct3, v35, 3
-    v40 = insert_value struct3, undef struct3, 0, v36
-    v41 = insert_value struct3, v40, 1, v37
-    v42 = insert_value struct3, v41, 2, v38
-    v43 = insert_value struct3, v42, 3, v39
-    ret v43
+    v33 = memory_object_len memoryarray, v0
+    v34 = lt 1, v33
+    v35 = eq v34, false
+    icall panic_if<0x32>, v35
+    memory_object_store_element memoryarray<1>, v0, 1, v20
+    v36 = abi_encode [memory_array<tuple<word, memory_bytes, memory_array<word>>>], object, args v0
+    v37 = icall @dDynArr, v36
+    v38 = extract_value struct4, v37, 0
+    v39 = extract_value struct4, v37, 1
+    v40 = extract_value struct4, v37, 2
+    v41 = extract_value struct4, v37, 3
+    v42 = insert_value struct4, undef struct4, 0, v38
+    v43 = insert_value struct4, v42, 1, v39
+    v44 = insert_value struct4, v43, 2, v40
+    v45 = insert_value struct4, v44, 3, v41
+    ret v45
   bb2:
     v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v3, 0, 0
@@ -389,7 +414,7 @@ fn @dynamicArrayRoundtrip() -> struct3 [selector=0x533c608a, pure, abi_params=[]
     jump bb1
 }
 
-fn @fixedDynamicRoundtrip() -> struct4 [selector=0x273ceef0, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @fixedDynamicRoundtrip() -> struct5 [selector=0x273ceef0, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     jump bb1
@@ -401,63 +426,65 @@ fn @fixedDynamicRoundtrip() -> struct4 [selector=0x273ceef0, pure, abi_params=[]
     v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v4, 1
     v5 = memory_object_data memorybytes, v4
-    mstore v5, 0x100000000000000000000000000000000000000000000000000000000000000
-    v6 = lt 0, 2
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
+    v6 = ptrtoint memptr v5 to i256
+    mstore v6, 0x100000000000000000000000000000000000000000000000000000000000000
+    v7 = lt 0, 2
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v4
-    v8 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v8, 2
-    v9 = memory_object_data memorybytes, v8
-    mstore v9, 0x203000000000000000000000000000000000000000000000000000000000000
-    v10 = lt 1, 2
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v8
-    v12 = abi_encode [array<2, memory_bytes>], object, args v0
-    v13 = abi_decode [array<2, bytes>], v12
-    v14 = lt 0, 2
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = memory_object_load_element memoryfixedarray<2, 1>, v13, 0
-    v17 = memory_object_from_ptr memorybytes, v16
-    v18 = word_cast v17
-    v19 = eq v18, 0
-    jumpi v19, bb4, bb5
+    v9 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v9, 2
+    v10 = memory_object_data memorybytes, v9
+    v11 = ptrtoint memptr v10 to i256
+    mstore v11, 0x203000000000000000000000000000000000000000000000000000000000000
+    v12 = lt 1, 2
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v9
+    v14 = abi_encode [array<2, memory_bytes>], object, args v0
+    v15 = abi_decode [array<2, bytes>], v14
+    v16 = lt 0, 2
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = memory_object_load_element memoryfixedarray<2, 1>, v15, 0
+    v19 = inttoptr i256 v18 to memorybytes
+    v20 = ptrtoint memorybytes v19 to i256
+    v21 = eq v20, 0
+    jumpi v21, bb4, bb5
   bb4:
-    v20 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v20, 0
-    memory_object_store_element memoryfixedarray<2, 1>, v13, 0, v20
+    v22 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v22, 0
+    memory_object_store_element memoryfixedarray<2, 1>, v15, 0, v22
     jump bb5
   bb5:
-    v21 = phi [bb3: v17], [bb4: v20]
-    v22 = memory_object_len memorybytes, v21
-    v23 = lt 1, 2
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = memory_object_load_element memoryfixedarray<2, 1>, v13, 1
-    v26 = memory_object_from_ptr memorybytes, v25
-    v27 = word_cast v26
-    v28 = eq v27, 0
-    jumpi v28, bb6, bb7
+    v23 = phi [bb3: v19], [bb4: v22]
+    v24 = memory_object_len memorybytes, v23
+    v25 = lt 1, 2
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = memory_object_load_element memoryfixedarray<2, 1>, v15, 1
+    v28 = inttoptr i256 v27 to memorybytes
+    v29 = ptrtoint memorybytes v28 to i256
+    v30 = eq v29, 0
+    jumpi v30, bb6, bb7
   bb6:
-    v29 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v29, 0
-    memory_object_store_element memoryfixedarray<2, 1>, v13, 1, v29
+    v31 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v31, 0
+    memory_object_store_element memoryfixedarray<2, 1>, v15, 1, v31
     jump bb7
   bb7:
-    v30 = phi [bb5: v26], [bb6: v29]
-    v31 = memory_object_len memorybytes, v30
-    v32 = insert_value struct4, undef struct4, 0, v22
-    v33 = insert_value struct4, v32, 1, v31
-    ret v33
+    v32 = phi [bb5: v28], [bb6: v31]
+    v33 = memory_object_len memorybytes, v32
+    v34 = insert_value struct5, undef struct5, 0, v24
+    v35 = insert_value struct5, v34, 1, v33
+    ret v35
   bb2:
     memory_object_store_element memoryfixedarray<2, 1>, v0, v1, memorybytes 96
     v3 = add v1, 1
     jump bb1
 }
 
-fn @dStaticNested(arg0: calldataslice) -> struct5 [selector=0xf634a16d, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
+fn @dStaticNested(arg0: calldataslice) -> struct6 [selector=0xf634a16d, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -481,8 +508,8 @@ fn @dStaticNested(arg0: calldataslice) -> struct5 [selector=0xf634a16d, pure, ab
     v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = memory_object_load_element memoryfixedarray<3, 1>, v12, 0
-    v16 = memory_object_from_ptr memoryfixedarray, v15
-    v17 = word_cast v16
+    v16 = inttoptr i256 v15 to memoryfixedarray
+    v17 = ptrtoint memoryfixedarray v16 to i256
     v18 = eq v17, 0
     jumpi v18, bb1, bb2
   bb1:
@@ -500,8 +527,8 @@ fn @dStaticNested(arg0: calldataslice) -> struct5 [selector=0xf634a16d, pure, ab
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = memory_object_load_element memoryfixedarray<3, 1>, v12, 0
-    v27 = memory_object_from_ptr memoryfixedarray, v26
-    v28 = word_cast v27
+    v27 = inttoptr i256 v26 to memoryfixedarray
+    v28 = ptrtoint memoryfixedarray v27 to i256
     v29 = eq v28, 0
     jumpi v29, bb3, bb4
   bb3:
@@ -519,8 +546,8 @@ fn @dStaticNested(arg0: calldataslice) -> struct5 [selector=0xf634a16d, pure, ab
     v36 = eq v35, false
     icall panic_if<0x32>, v36
     v37 = memory_object_load_element memoryfixedarray<3, 1>, v12, 1
-    v38 = memory_object_from_ptr memoryfixedarray, v37
-    v39 = word_cast v38
+    v38 = inttoptr i256 v37 to memoryfixedarray
+    v39 = ptrtoint memoryfixedarray v38 to i256
     v40 = eq v39, 0
     jumpi v40, bb5, bb6
   bb5:
@@ -538,8 +565,8 @@ fn @dStaticNested(arg0: calldataslice) -> struct5 [selector=0xf634a16d, pure, ab
     v47 = eq v46, false
     icall panic_if<0x32>, v47
     v48 = memory_object_load_element memoryfixedarray<3, 1>, v12, 1
-    v49 = memory_object_from_ptr memoryfixedarray, v48
-    v50 = word_cast v49
+    v49 = inttoptr i256 v48 to memoryfixedarray
+    v50 = ptrtoint memoryfixedarray v49 to i256
     v51 = eq v50, 0
     jumpi v51, bb7, bb8
   bb7:
@@ -557,8 +584,8 @@ fn @dStaticNested(arg0: calldataslice) -> struct5 [selector=0xf634a16d, pure, ab
     v58 = eq v57, false
     icall panic_if<0x32>, v58
     v59 = memory_object_load_element memoryfixedarray<3, 1>, v12, 2
-    v60 = memory_object_from_ptr memoryfixedarray, v59
-    v61 = word_cast v60
+    v60 = inttoptr i256 v59 to memoryfixedarray
+    v61 = ptrtoint memoryfixedarray v60 to i256
     v62 = eq v61, 0
     jumpi v62, bb9, bb10
   bb9:
@@ -576,8 +603,8 @@ fn @dStaticNested(arg0: calldataslice) -> struct5 [selector=0xf634a16d, pure, ab
     v69 = eq v68, false
     icall panic_if<0x32>, v69
     v70 = memory_object_load_element memoryfixedarray<3, 1>, v12, 2
-    v71 = memory_object_from_ptr memoryfixedarray, v70
-    v72 = word_cast v71
+    v71 = inttoptr i256 v70 to memoryfixedarray
+    v72 = ptrtoint memoryfixedarray v71 to i256
     v73 = eq v72, 0
     jumpi v73, bb11, bb12
   bb11:
@@ -591,16 +618,16 @@ fn @dStaticNested(arg0: calldataslice) -> struct5 [selector=0xf634a16d, pure, ab
     v77 = eq v76, false
     icall panic_if<0x32>, v77
     v78 = memory_object_load_element memoryfixedarray<2, 1>, v75, 1
-    v79 = insert_value struct5, undef struct5, 0, v23
-    v80 = insert_value struct5, v79, 1, v34
-    v81 = insert_value struct5, v80, 2, v45
-    v82 = insert_value struct5, v81, 3, v56
-    v83 = insert_value struct5, v82, 4, v67
-    v84 = insert_value struct5, v83, 5, v78
+    v79 = insert_value struct6, undef struct6, 0, v23
+    v80 = insert_value struct6, v79, 1, v34
+    v81 = insert_value struct6, v80, 2, v45
+    v82 = insert_value struct6, v81, 3, v56
+    v83 = insert_value struct6, v82, 4, v67
+    v84 = insert_value struct6, v83, 5, v78
     ret v84
 }
 
-fn @dNestedArrays(arg0: memorybytes) -> struct3 [selector=0xa8c86b4a, pure, abi_params=[bytes], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @dNestedArrays(arg0: memorybytes) -> struct4 [selector=0xa8c86b4a, pure, abi_params=[bytes], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = abi_decode [array<_, array<_, u256>>], arg0
     v1 = memory_object_len memoryarray, v0
@@ -609,8 +636,8 @@ fn @dNestedArrays(arg0: memorybytes) -> struct3 [selector=0xa8c86b4a, pure, abi_
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = memory_object_load_element memoryarray<1>, v0, 0
-    v6 = memory_object_from_ptr memoryarray, v5
-    v7 = word_cast v6
+    v6 = inttoptr i256 v5 to memoryarray
+    v7 = ptrtoint memoryarray v6 to i256
     v8 = eq v7, 0
     jumpi v8, bb1, bb2
   bb1:
@@ -626,8 +653,8 @@ fn @dNestedArrays(arg0: memorybytes) -> struct3 [selector=0xa8c86b4a, pure, abi_
     v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = memory_object_load_element memoryarray<1>, v0, 0
-    v16 = memory_object_from_ptr memoryarray, v15
-    v17 = word_cast v16
+    v16 = inttoptr i256 v15 to memoryarray
+    v17 = ptrtoint memoryarray v16 to i256
     v18 = eq v17, 0
     jumpi v18, bb3, bb4
   bb3:
@@ -647,8 +674,8 @@ fn @dNestedArrays(arg0: memorybytes) -> struct3 [selector=0xa8c86b4a, pure, abi_
     v27 = eq v26, false
     icall panic_if<0x32>, v27
     v28 = memory_object_load_element memoryarray<1>, v0, 1
-    v29 = memory_object_from_ptr memoryarray, v28
-    v30 = word_cast v29
+    v29 = inttoptr i256 v28 to memoryarray
+    v30 = ptrtoint memoryarray v29 to i256
     v31 = eq v30, 0
     jumpi v31, bb5, bb6
   bb5:
@@ -663,14 +690,14 @@ fn @dNestedArrays(arg0: memorybytes) -> struct3 [selector=0xa8c86b4a, pure, abi_
     v36 = eq v35, false
     icall panic_if<0x32>, v36
     v37 = memory_object_load_element memoryarray<1>, v33, 0
-    v38 = insert_value struct3, undef struct3, 0, v1
-    v39 = insert_value struct3, v38, 1, v11
-    v40 = insert_value struct3, v39, 2, v24
-    v41 = insert_value struct3, v40, 3, v37
+    v38 = insert_value struct4, undef struct4, 0, v1
+    v39 = insert_value struct4, v38, 1, v11
+    v40 = insert_value struct4, v39, 2, v24
+    v41 = insert_value struct4, v40, 3, v37
     ret v41
 }
 
-fn @dArrayFixed(arg0: memorybytes) -> struct6 [selector=0x11d9968b, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
+fn @dArrayFixed(arg0: memorybytes) -> struct7 [selector=0x11d9968b, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
   bb0:
     v0 = abi_decode [array<_, array<2, u256>>], arg0
     v1 = memory_object_len memoryarray, v0
@@ -679,8 +706,8 @@ fn @dArrayFixed(arg0: memorybytes) -> struct6 [selector=0x11d9968b, pure, abi_pa
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = memory_object_load_element memoryarray<1>, v0, 0
-    v6 = memory_object_from_ptr memoryfixedarray, v5
-    v7 = word_cast v6
+    v6 = inttoptr i256 v5 to memoryfixedarray
+    v7 = ptrtoint memoryfixedarray v6 to i256
     v8 = eq v7, 0
     jumpi v8, bb1, bb2
   bb1:
@@ -699,8 +726,8 @@ fn @dArrayFixed(arg0: memorybytes) -> struct6 [selector=0x11d9968b, pure, abi_pa
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = memory_object_load_element memoryarray<1>, v0, 0
-    v18 = memory_object_from_ptr memoryfixedarray, v17
-    v19 = word_cast v18
+    v18 = inttoptr i256 v17 to memoryfixedarray
+    v19 = ptrtoint memoryfixedarray v18 to i256
     v20 = eq v19, 0
     jumpi v20, bb3, bb4
   bb3:
@@ -719,8 +746,8 @@ fn @dArrayFixed(arg0: memorybytes) -> struct6 [selector=0x11d9968b, pure, abi_pa
     v28 = eq v27, false
     icall panic_if<0x32>, v28
     v29 = memory_object_load_element memoryarray<1>, v0, 1
-    v30 = memory_object_from_ptr memoryfixedarray, v29
-    v31 = word_cast v30
+    v30 = inttoptr i256 v29 to memoryfixedarray
+    v31 = ptrtoint memoryfixedarray v30 to i256
     v32 = eq v31, 0
     jumpi v32, bb5, bb6
   bb5:
@@ -739,8 +766,8 @@ fn @dArrayFixed(arg0: memorybytes) -> struct6 [selector=0x11d9968b, pure, abi_pa
     v40 = eq v39, false
     icall panic_if<0x32>, v40
     v41 = memory_object_load_element memoryarray<1>, v0, 1
-    v42 = memory_object_from_ptr memoryfixedarray, v41
-    v43 = word_cast v42
+    v42 = inttoptr i256 v41 to memoryfixedarray
+    v43 = ptrtoint memoryfixedarray v42 to i256
     v44 = eq v43, 0
     jumpi v44, bb7, bb8
   bb7:
@@ -754,23 +781,23 @@ fn @dArrayFixed(arg0: memorybytes) -> struct6 [selector=0x11d9968b, pure, abi_pa
     v48 = eq v47, false
     icall panic_if<0x32>, v48
     v49 = memory_object_load_element memoryfixedarray<2, 1>, v46, 1
-    v50 = insert_value struct6, undef struct6, 0, v1
-    v51 = insert_value struct6, v50, 1, v13
-    v52 = insert_value struct6, v51, 2, v25
-    v53 = insert_value struct6, v52, 3, v37
-    v54 = insert_value struct6, v53, 4, v49
+    v50 = insert_value struct7, undef struct7, 0, v1
+    v51 = insert_value struct7, v50, 1, v13
+    v52 = insert_value struct7, v51, 2, v25
+    v53 = insert_value struct7, v52, 3, v37
+    v54 = insert_value struct7, v53, 4, v49
     ret v54
 }
 
-fn @dFixedNestedDyn(arg0: memorybytes) -> struct6 [selector=0xf648fcec, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
+fn @dFixedNestedDyn(arg0: memorybytes) -> struct7 [selector=0xf648fcec, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
   bb0:
     v0 = abi_decode [array<2, array<_, u256>>], arg0
     v1 = lt 0, 2
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v4 = memory_object_from_ptr memoryarray, v3
-    v5 = word_cast v4
+    v4 = inttoptr i256 v3 to memoryarray
+    v5 = ptrtoint memoryarray v4 to i256
     v6 = eq v5, 0
     jumpi v6, bb1, bb2
   bb1:
@@ -785,8 +812,8 @@ fn @dFixedNestedDyn(arg0: memorybytes) -> struct6 [selector=0xf648fcec, pure, ab
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v13 = memory_object_from_ptr memoryarray, v12
-    v14 = word_cast v13
+    v13 = inttoptr i256 v12 to memoryarray
+    v14 = ptrtoint memoryarray v13 to i256
     v15 = eq v14, 0
     jumpi v15, bb3, bb4
   bb3:
@@ -805,8 +832,8 @@ fn @dFixedNestedDyn(arg0: memorybytes) -> struct6 [selector=0xf648fcec, pure, ab
     v23 = eq v22, false
     icall panic_if<0x32>, v23
     v24 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v25 = memory_object_from_ptr memoryarray, v24
-    v26 = word_cast v25
+    v25 = inttoptr i256 v24 to memoryarray
+    v26 = ptrtoint memoryarray v25 to i256
     v27 = eq v26, 0
     jumpi v27, bb5, bb6
   bb5:
@@ -825,8 +852,8 @@ fn @dFixedNestedDyn(arg0: memorybytes) -> struct6 [selector=0xf648fcec, pure, ab
     v35 = eq v34, false
     icall panic_if<0x32>, v35
     v36 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
-    v37 = memory_object_from_ptr memoryarray, v36
-    v38 = word_cast v37
+    v37 = inttoptr i256 v36 to memoryarray
+    v38 = ptrtoint memoryarray v37 to i256
     v39 = eq v38, 0
     jumpi v39, bb7, bb8
   bb7:
@@ -841,8 +868,8 @@ fn @dFixedNestedDyn(arg0: memorybytes) -> struct6 [selector=0xf648fcec, pure, ab
     v44 = eq v43, false
     icall panic_if<0x32>, v44
     v45 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
-    v46 = memory_object_from_ptr memoryarray, v45
-    v47 = word_cast v46
+    v46 = inttoptr i256 v45 to memoryarray
+    v47 = ptrtoint memoryarray v46 to i256
     v48 = eq v47, 0
     jumpi v48, bb9, bb10
   bb9:
@@ -857,15 +884,15 @@ fn @dFixedNestedDyn(arg0: memorybytes) -> struct6 [selector=0xf648fcec, pure, ab
     v53 = eq v52, false
     icall panic_if<0x32>, v53
     v54 = memory_object_load_element memoryarray<1>, v50, 0
-    v55 = insert_value struct6, undef struct6, 0, v9
-    v56 = insert_value struct6, v55, 1, v21
-    v57 = insert_value struct6, v56, 2, v33
-    v58 = insert_value struct6, v57, 3, v42
-    v59 = insert_value struct6, v58, 4, v54
+    v55 = insert_value struct7, undef struct7, 0, v9
+    v56 = insert_value struct7, v55, 1, v21
+    v57 = insert_value struct7, v56, 2, v33
+    v58 = insert_value struct7, v57, 3, v42
+    v59 = insert_value struct7, v58, 4, v54
     ret v59
 }
 
-fn @dCalldataDyn(arg0: calldataslice) -> struct0 [selector=0xe931c6df, pure, abi_params=[bytes], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @dCalldataDyn(arg0: calldataslice) -> struct1 [selector=0xe931c6df, pure, abi_params=[bytes], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -896,27 +923,27 @@ fn @dCalldataDyn(arg0: calldataslice) -> struct0 [selector=0xe931c6df, pure, abi
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = memory_object_load_element memoryarray<1>, v12, 1
-    v22 = insert_value struct0, undef struct0, 0, v13
-    v23 = insert_value struct0, v22, 1, v17
-    v24 = insert_value struct0, v23, 2, v21
+    v22 = insert_value struct1, undef struct1, 0, v13
+    v23 = insert_value struct1, v22, 1, v17
+    v24 = insert_value struct1, v23, 2, v21
     ret v24
 }
 
-fn @dOverlap(arg0: memorybytes) -> struct4 [selector=0x9297ba94, pure, abi_params=[bytes], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
+fn @dOverlap(arg0: memorybytes) -> struct5 [selector=0x9297ba94, pure, abi_params=[bytes], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
   bb0:
     v0 = abi_decode [array<_, u256>, array<_, u256>], arg0
-    v1 = extract_value struct7, v0, 0
-    v2 = extract_value struct7, v0, 1
-    v3 = word_cast v1
-    v4 = word_cast v2
+    v1 = extract_value struct8, v0, 0
+    v2 = extract_value struct8, v0, 1
+    v3 = ptrtoint memoryarray v1 to i256
+    v4 = ptrtoint memoryarray v2 to i256
     v5 = eq v3, v4
-    v6 = word_cast v5
-    v7 = word_cast arg0
+    v6 = zext i1 v5 to i256
+    v7 = ptrtoint memorybytes arg0 to i256
     v8 = add v7, 96
-    v9 = word_cast v1
+    v9 = ptrtoint memoryarray v1 to i256
     v10 = eq v9, v8
-    v11 = word_cast v10
-    v12 = insert_value struct4, undef struct4, 0, v6
-    v13 = insert_value struct4, v12, 1, v11
+    v11 = zext i1 v10 to i256
+    v12 = insert_value struct5, undef struct5, 0, v6
+    v13 = insert_value struct5, v12, 1, v11
     ret v13
 }

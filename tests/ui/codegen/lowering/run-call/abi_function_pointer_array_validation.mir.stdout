@@ -55,35 +55,36 @@ fn @invoke(arg0: i256, arg1: i256, arg2: i256) -> i256 [view] {
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
     v1 = address
-    v2 = shl 32, v1
-    v3 = or v2, 0xd4b83992
-    v4 = memory_object_len memoryarray, v0
-    v5 = lt 0, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    v7 = shl 64, v3
-    memory_object_store_element memoryarray<1>, v0, 0, v7
-    v8 = abi_encode [memory_array<function>], object, selector arg0, args v0
-    v9 = ne arg1, 0
-    jumpi v9, bb1, bb2
+    v2 = zext i160 v1 to i256
+    v3 = shl 32, v2
+    v4 = or v3, 0xd4b83992
+    v5 = memory_object_len memoryarray, v0
+    v6 = lt 0, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = shl 64, v4
+    memory_object_store_element memoryarray<1>, v0, 0, v8
+    v9 = abi_encode [memory_array<function>], object, selector arg0, args v0
+    v10 = ne arg1, 0
+    jumpi v10, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v10 = word_cast v8
-    v11 = add v10, 32
-    v12 = add v11, 92
-    mstore8 v12, 88
+    v11 = ptrtoint memorybytes v9 to i256
+    v12 = add v11, 32
+    v13 = add v12, 92
+    mstore8 v13, 88
     jump bb3
   bb3:
-    v13 = address
-    v14 = gas
-    v15 = address_staticcall v13, v8, gas v14
-    v16 = icall returndata_bytes<>
-    v17 = eq v15, false
-    icall revert_if<empty>, v17
-    v18 = abi_decode [u256], v16
-    v19 = eq v18, arg2
-    v20 = eq v19, false
-    icall revert_if<empty>, v20
-    ret v18
+    v14 = address
+    v15 = gas
+    v16 = address_staticcall v14, v9, gas v15
+    v17 = icall returndata_bytes<>
+    v18 = eq v16, false
+    icall revert_if<empty>, v18
+    v19 = abi_decode [u256], v17
+    v20 = eq v19, arg2
+    v21 = eq v20, false
+    icall revert_if<empty>, v21
+    ret v19
 }

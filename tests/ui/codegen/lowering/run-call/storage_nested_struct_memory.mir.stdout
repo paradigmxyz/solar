@@ -103,8 +103,8 @@ fn @copy(arg0: memoryarray) -> i256 [selector=0xc58b68ae, abi_params=[array<_, a
     ret v218
   bb13:
     v29 = memory_object_load_element memoryarray<1>, arg0, v27
-    v30 = memory_object_from_ptr memoryarray, v29
-    v31 = word_cast v30
+    v30 = inttoptr i256 v29 to memoryarray
+    v31 = ptrtoint memoryarray v30 to i256
     v32 = eq v31, 0
     jumpi v32, bb15, bb16
   bb15:
@@ -140,8 +140,8 @@ fn @copy(arg0: memoryarray) -> i256 [selector=0xc58b68ae, abi_params=[array<_, a
     jump bb12
   bb26:
     v60 = memory_object_load_element memoryarray<1>, v34, v58
-    v61 = memory_object_from_ptr memorystruct, v60
-    v62 = word_cast v61
+    v61 = inttoptr i256 v60 to memorystruct
+    v62 = ptrtoint memorystruct v61 to i256
     v63 = eq v62, 0
     jumpi v63, bb28, bb29
   bb28:
@@ -160,7 +160,7 @@ fn @copy(arg0: memoryarray) -> i256 [selector=0xc58b68ae, abi_params=[array<_, a
     v69 = mul v58, 2
     v70 = add v68, v69
     v71 = memory_object_load_field memorystruct<2>, v67, 0
-    v72 = memory_object_from_ptr memoryarray, v71
+    v72 = inttoptr i256 v71 to memoryarray
     v73 = memory_object_len memoryarray, v72
     v74 = sload v70 !metadata(storage=symbolic(v70))
     v75 = gt v74, v73
@@ -225,7 +225,7 @@ fn @copy(arg0: memoryarray) -> i256 [selector=0xc58b68ae, abi_params=[array<_, a
     sstore v125, v146 !metadata(storage=symbolic(v125))
     jump bb45
   bb43:
-    v129 = memory_object_from_ptr memoryfixedarray, v121
+    v129 = inttoptr i256 v121 to memoryfixedarray
     v130 = memory_object_load_element memoryfixedarray<2, 1>, v129, v122
     v131 = mul v127, 8
     v132 = shl v131, 255
@@ -241,7 +241,7 @@ fn @copy(arg0: memoryarray) -> i256 [selector=0xc58b68ae, abi_params=[array<_, a
     v147 = add v122, 1
     jump bb40
   bb36:
-    v94 = memory_object_from_ptr memoryarray, v71
+    v94 = inttoptr i256 v71 to memoryarray
     v95 = memory_object_load_element memoryarray<1>, v94, v92
     v96 = storage_array_data_slot v70
     v97 = div v92, 32
@@ -286,7 +286,7 @@ fn @copy(arg0: memoryarray) -> i256 [selector=0xc58b68ae, abi_params=[array<_, a
     v47 = mod v45, 32
     v48 = eq v47, 0
     v49 = eq v48, false
-    v50 = word_cast v49
+    v50 = zext i1 v49 to i256
     v51 = add v46, v50
     clear_storage_words v44, 0, v51
     v52 = add v44, 1
@@ -326,7 +326,7 @@ fn @copy(arg0: memoryarray) -> i256 [selector=0xc58b68ae, abi_params=[array<_, a
     v15 = mod v13, 32
     v16 = eq v15, 0
     v17 = eq v16, false
-    v18 = word_cast v17
+    v18 = zext i1 v17 to i256
     v19 = add v14, v18
     clear_storage_words v12, 0, v19
     v20 = add v12, 1
@@ -456,8 +456,8 @@ fn @copyFixed(arg0: memoryfixedarray) -> i256 [selector=0x39bd9a66, abi_params=[
     jump bb6
   bb45:
     v144 = memory_object_load_element memoryarray<1>, v120, v142
-    v145 = memory_object_from_ptr memorystruct, v144
-    v146 = word_cast v145
+    v145 = inttoptr i256 v144 to memorystruct
+    v146 = ptrtoint memorystruct v145 to i256
     v147 = eq v146, 0
     jumpi v147, bb47, bb48
   bb47:
@@ -476,7 +476,7 @@ fn @copyFixed(arg0: memoryfixedarray) -> i256 [selector=0x39bd9a66, abi_params=[
     v153 = mul v142, 2
     v154 = add v152, v153
     v155 = memory_object_load_field memorystruct<2>, v151, 0
-    v156 = memory_object_from_ptr memoryarray, v155
+    v156 = inttoptr i256 v155 to memoryarray
     v157 = memory_object_len memoryarray, v156
     v158 = sload v154 !metadata(storage=symbolic(v154))
     v159 = gt v158, v157
@@ -541,7 +541,7 @@ fn @copyFixed(arg0: memoryfixedarray) -> i256 [selector=0x39bd9a66, abi_params=[
     sstore v209, v230 !metadata(storage=symbolic(v209))
     jump bb64
   bb62:
-    v213 = memory_object_from_ptr memoryfixedarray, v205
+    v213 = inttoptr i256 v205 to memoryfixedarray
     v214 = memory_object_load_element memoryfixedarray<2, 1>, v213, v206
     v215 = mul v211, 8
     v216 = shl v215, 255
@@ -557,7 +557,7 @@ fn @copyFixed(arg0: memoryfixedarray) -> i256 [selector=0x39bd9a66, abi_params=[
     v231 = add v206, 1
     jump bb59
   bb55:
-    v178 = memory_object_from_ptr memoryarray, v155
+    v178 = inttoptr i256 v155 to memoryarray
     v179 = memory_object_load_element memoryarray<1>, v178, v176
     v180 = storage_array_data_slot v154
     v181 = div v176, 32
@@ -602,7 +602,7 @@ fn @copyFixed(arg0: memoryfixedarray) -> i256 [selector=0x39bd9a66, abi_params=[
     v131 = mod v129, 32
     v132 = eq v131, 0
     v133 = eq v132, false
-    v134 = word_cast v133
+    v134 = zext i1 v133 to i256
     v135 = add v130, v134
     clear_storage_words v128, 0, v135
     v136 = add v128, 1
@@ -621,7 +621,7 @@ fn @copyFixed(arg0: memoryfixedarray) -> i256 [selector=0x39bd9a66, abi_params=[
     jump bb41
   bb4:
     v4 = memory_object_load_element memoryfixedarray<1, 1>, arg0, v0
-    v5 = memory_object_from_ptr memoryarray, v4
+    v5 = inttoptr i256 v4 to memoryarray
     v6 = memory_object_len memoryarray, v5
     v7 = sload v2 !metadata(storage=offset(v0, 1))
     v8 = gt v7, v6
@@ -647,10 +647,10 @@ fn @copyFixed(arg0: memoryfixedarray) -> i256 [selector=0x39bd9a66, abi_params=[
     v233 = add v0, 1
     jump bb1
   bb16:
-    v29 = memory_object_from_ptr memoryarray, v4
+    v29 = inttoptr i256 v4 to memoryarray
     v30 = memory_object_load_element memoryarray<1>, v29, v27
-    v31 = memory_object_from_ptr memorystruct, v30
-    v32 = word_cast v31
+    v31 = inttoptr i256 v30 to memorystruct
+    v32 = ptrtoint memorystruct v31 to i256
     v33 = eq v32, 0
     jumpi v33, bb18, bb19
   bb18:
@@ -661,7 +661,7 @@ fn @copyFixed(arg0: memoryfixedarray) -> i256 [selector=0x39bd9a66, abi_params=[
     v36 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_zero v36, 64
     memory_object_store_field memorystruct<2>, v34, 1, v36
-    v37 = memory_object_from_ptr memoryarray, v4
+    v37 = inttoptr i256 v4 to memoryarray
     memory_object_store_element memoryarray<1>, v37, v27, v34
     jump bb19
   bb19:
@@ -670,7 +670,7 @@ fn @copyFixed(arg0: memoryfixedarray) -> i256 [selector=0x39bd9a66, abi_params=[
     v40 = mul v27, 2
     v41 = add v39, v40
     v42 = memory_object_load_field memorystruct<2>, v38, 0
-    v43 = memory_object_from_ptr memoryarray, v42
+    v43 = inttoptr i256 v42 to memoryarray
     v44 = memory_object_len memoryarray, v43
     v45 = sload v41 !metadata(storage=symbolic(v41))
     v46 = gt v45, v44
@@ -735,7 +735,7 @@ fn @copyFixed(arg0: memoryfixedarray) -> i256 [selector=0x39bd9a66, abi_params=[
     sstore v96, v117 !metadata(storage=symbolic(v96))
     jump bb35
   bb33:
-    v100 = memory_object_from_ptr memoryfixedarray, v92
+    v100 = inttoptr i256 v92 to memoryfixedarray
     v101 = memory_object_load_element memoryfixedarray<2, 1>, v100, v93
     v102 = mul v98, 8
     v103 = shl v102, 255
@@ -751,7 +751,7 @@ fn @copyFixed(arg0: memoryfixedarray) -> i256 [selector=0x39bd9a66, abi_params=[
     v118 = add v93, 1
     jump bb30
   bb26:
-    v65 = memory_object_from_ptr memoryarray, v42
+    v65 = inttoptr i256 v42 to memoryarray
     v66 = memory_object_load_element memoryarray<1>, v65, v63
     v67 = storage_array_data_slot v41
     v68 = div v63, 32
@@ -796,7 +796,7 @@ fn @copyFixed(arg0: memoryfixedarray) -> i256 [selector=0x39bd9a66, abi_params=[
     v16 = mod v14, 32
     v17 = eq v16, 0
     v18 = eq v17, false
-    v19 = word_cast v18
+    v19 = zext i1 v18 to i256
     v20 = add v15, v19
     clear_storage_words v13, 0, v20
     v21 = add v13, 1
@@ -915,8 +915,8 @@ fn @copyDynamicFixed(arg0: memoryarray) -> i256 [selector=0x62d70355, abi_params
     ret v275
   bb13:
     v28 = memory_object_load_element memoryarray<1>, arg0, v26
-    v29 = memory_object_from_ptr memoryfixedarray, v28
-    v30 = word_cast v29
+    v29 = inttoptr i256 v28 to memoryfixedarray
+    v30 = ptrtoint memoryfixedarray v29 to i256
     v31 = eq v30, 0
     jumpi v31, bb15, bb16
   bb15:
@@ -956,7 +956,7 @@ fn @copyDynamicFixed(arg0: memoryarray) -> i256 [selector=0x62d70355, abi_params
     memory_zero v130, 64
     memory_object_store_field memorystruct<2>, v128, 1, v130
     v131 = memory_object_load_field memorystruct<2>, v128, 0
-    v132 = memory_object_from_ptr memoryarray, v131
+    v132 = inttoptr i256 v131 to memoryarray
     v133 = memory_object_len memoryarray, v132
     v134 = sload v46 !metadata(storage=symbolic(v46))
     v135 = gt v134, v133
@@ -1020,7 +1020,7 @@ fn @copyDynamicFixed(arg0: memoryarray) -> i256 [selector=0x62d70355, abi_params
     sstore v185, v206 !metadata(storage=symbolic(v185))
     jump bb57
   bb55:
-    v189 = memory_object_from_ptr memoryfixedarray, v181
+    v189 = inttoptr i256 v181 to memoryfixedarray
     v190 = memory_object_load_element memoryfixedarray<2, 1>, v189, v182
     v191 = mul v187, 8
     v192 = shl v191, 255
@@ -1036,7 +1036,7 @@ fn @copyDynamicFixed(arg0: memoryarray) -> i256 [selector=0x62d70355, abi_params
     v207 = add v182, 1
     jump bb52
   bb48:
-    v154 = memory_object_from_ptr memoryarray, v131
+    v154 = inttoptr i256 v131 to memoryarray
     v155 = memory_object_load_element memoryarray<1>, v154, v152
     v156 = storage_array_data_slot v46
     v157 = div v152, 32
@@ -1073,9 +1073,9 @@ fn @copyDynamicFixed(arg0: memoryarray) -> i256 [selector=0x62d70355, abi_params
     jump bb44
   bb23:
     v48 = memory_object_load_element memoryfixedarray<1, 1>, v39, v43
-    v49 = memory_object_from_ptr memorystruct, v48
+    v49 = inttoptr i256 v48 to memorystruct
     v50 = memory_object_load_field memorystruct<2>, v49, 0
-    v51 = memory_object_from_ptr memoryarray, v50
+    v51 = inttoptr i256 v50 to memoryarray
     v52 = memory_object_len memoryarray, v51
     v53 = sload v46 !metadata(storage=symbolic(v46))
     v54 = gt v53, v52
@@ -1112,7 +1112,7 @@ fn @copyDynamicFixed(arg0: memoryarray) -> i256 [selector=0x62d70355, abi_params
     jump bb35
   bb35:
     v99 = add v46, 1
-    v100 = memory_object_from_ptr memorystruct, v48
+    v100 = inttoptr i256 v48 to memorystruct
     v101 = memory_object_load_field memorystruct<2>, v100, 1
     jump bb36
   bb36:
@@ -1143,7 +1143,7 @@ fn @copyDynamicFixed(arg0: memoryarray) -> i256 [selector=0x62d70355, abi_params
     sstore v105, v126 !metadata(storage=symbolic(v105))
     jump bb41
   bb39:
-    v109 = memory_object_from_ptr memoryfixedarray, v101
+    v109 = inttoptr i256 v101 to memoryfixedarray
     v110 = memory_object_load_element memoryfixedarray<2, 1>, v109, v102
     v111 = mul v107, 8
     v112 = shl v111, 255
@@ -1159,7 +1159,7 @@ fn @copyDynamicFixed(arg0: memoryarray) -> i256 [selector=0x62d70355, abi_params
     v127 = add v102, 1
     jump bb36
   bb32:
-    v73 = memory_object_from_ptr memoryarray, v50
+    v73 = inttoptr i256 v50 to memoryarray
     v74 = memory_object_load_element memoryarray<1>, v73, v71
     v75 = storage_array_data_slot v46
     v76 = div v71, 32
@@ -1226,7 +1226,7 @@ fn @copyDynamicFixed(arg0: memoryarray) -> i256 [selector=0x62d70355, abi_params
     v14 = mod v12, 32
     v15 = eq v14, 0
     v16 = eq v15, false
-    v17 = word_cast v16
+    v17 = zext i1 v16 to i256
     v18 = add v13, v17
     clear_storage_words v11, 0, v18
     v19 = add v11, 1

@@ -14,7 +14,7 @@ fn @tail(arg0: calldataslice) -> calldataslice [selector=0xba5a0763, pure, abi_p
     v3 = gt v2, v2
     v4 = lt v2, 4
     v5 = or v3, v4
-    v6 = word_cast v5
+    v6 = zext i1 v5 to i256
     icall revert_if<empty>, v6
     v7 = sub v2, 4
     v8 = add v1, 4

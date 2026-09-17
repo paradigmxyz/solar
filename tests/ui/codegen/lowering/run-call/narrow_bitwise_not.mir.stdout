@@ -58,7 +58,7 @@ fn @compareBytes1(arg0: i256) -> i256 [selector=0x2488ff80, pure, abi_params=[by
     v1 = shr 4, v0
     v2 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
     v3 = eq v2, 0xf00000000000000000000000000000000000000000000000000000000000000
-    v4 = word_cast v3
+    v4 = zext i1 v3 to i256
     ret v4
 }
 
@@ -79,6 +79,6 @@ fn @notLiteralEqualsNegativeOne() -> i256 [selector=0x5055348d, pure, abi_params
     v0 = not 0
     v1 = sub 0, 1
     v2 = eq v0, v1
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     ret v3
 }

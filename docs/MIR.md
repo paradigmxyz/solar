@@ -8,25 +8,43 @@ is a late lowering decision.
 
 ## Value types and conversions
 
-SSA values use `i256`, `i1`, structs, slices, or memory-object references.
+SSA values use integers (`iN`), raw memory pointers (`memptr`), structs, slices,
+or memory-object references. A `memptr` carries a 256-bit memory address without
+implying validity, heap provenance, or non-wrapping pointer arithmetic.
 An `i256` carries 256 bits; source widths, signedness, and ABI encoding rules
-belong to operation and layout metadata. `void` denotes no function result.
+belong to operation and layout metadata. An `i256` argument does not imply
+heap provenance or non-wrapping address arithmetic. `void` denotes no function result.
 
-Integer type names follow `iN`, where `N` is the bit width. Only `i1` and
-`i256` are supported for now. Future integer widths should remain explicit in
-MIR and lower to the EVM's `i256` representation at the EVM IR boundary.
+Integer type names follow `iN`, where `N` ranges from 1 to 4294967295. All
+widths can appear in MIR text; typed literals currently hold at most 256 bits.
+Only `i1`, `i160`, and `i256` have codegen support and are emitted by source
+lowering. Other widths are syntax-only for now; their eventual lowering belongs
+at the EVM IR boundary.
 Signedness belongs to operations, not integer types.
 
 Every `i1` is zero or one. Branches and select conditions require `i1`;
 compare a word with zero using `eq value, 0` or `ne value, 0` before branching.
 These are the canonical MIR zero tests. `ISZERO` exists only in EVM IR.
-Use `word_cast` to preserve a boolean or object reference's bits as a word,
-and `memory_object_from_ptr` to give a word an object-reference type. Phi
+Addresses use `i160`; every value fits in 160 bits. Conversions follow
+[LLVM's integer and pointer cast semantics](https://llvm.org/docs/LangRef.html#conversion-operations)
+and use `opcode source-type value to destination-type`:
+
+- `trunc i256 value to i160` keeps the low 160 bits.
+- `zext i160 value to i256` widens with zero bits.
+- `sext i160 value to i256` widens by copying the sign bit.
+- `ptrtoint memptr value to i256` exposes a pointer's bits; narrower results truncate.
+- `inttoptr i256 value to memptr` interprets integer bits as a pointer.
+- `bitcast memptr value to memorybytes` changes a pointer's nominal type.
+
+`trunc i256 value to i1` keeps only the low bit. Use `ne value, 0` for
+nonzero truth conversion. Pointer casts establish no validity or ownership. Phi
 inputs, struct fields, arguments, and results must match their declared types;
 equal storage width does not permit an implicit conversion.
 
-Solidity booleans whose raw bits can be observed by assembly travel as words
-across source-function calls. Logical operations convert those words to
+Solidity booleans and addresses whose raw bits can be observed by assembly travel as words
+across source-function calls and source-variable joins, including loop phis.
+Mixed narrow-integer/`i256` joins widen the narrow input without normalizing the word.
+Logical operations convert those words to
 canonical booleans. This keeps the MIR invariant without changing the bits
 that source assembly can observe.
 
@@ -46,7 +64,7 @@ or types a module may contain.
 | Representation | Contract | Main work |
 | --- | --- | --- |
 | Semantic MIR | Typed SSA, structs, slices, object references, semantic builtins, ordinary function calls; ABI and storage layouts remain explicit data. | Inline and specialize small functions, propagate constants, promote frame slots, simplify aggregates, remove redundant checks and memory/storage work. |
-| Lowered MIR | `i256` and `i1` SSA, explicit routing and ABI code, physical memory accesses, lowered call signatures, backend-supported operations. No semantic builtin or unresolved layout remains. | Simplify exposed scalar code, remove redundant loads/stores, optimize generated loops where profitable, prepare scheduling. |
+| Lowered MIR | `i256`, `i160`, `i1`, and `memptr` SSA, explicit routing and ABI code, physical memory accesses, lowered call signatures, backend-supported operations. No semantic builtin or unresolved layout remains. | Simplify exposed scalar code, remove redundant loads/stores, optimize generated loops where profitable, prepare scheduling. |
 | EVM IR | Scheduled blocks with physical stack operations and explicit control transfers. | Target peepholes, sharing, outlining, layout, then assembly. |
 
 `lowered` does not mean scheduled: SSA values, phis, functions, and calls survive
@@ -466,10 +484,10 @@ carries its pointer and length; a memory-object field carries a typed reference,
 not a copy of the referenced object.
 
 A raw `i256` field can carry all bits of a nominal object reference. Keep that
-loss of type information explicit: `word_cast` preserves the bits and yields a
-raw word; `memory_object_from_ptr` gives a word an object type without proving
+loss of type information explicit: `ptrtoint` exposes pointer bits as an
+integer; `inttoptr` gives an integer an object type without proving
 validity or ownership. Neither operation allocates or copies memory. Aggregate
-lowering inserts `word_cast` when a raw field contains a nominal reference;
+lowering inserts `ptrtoint` when a raw field contains a nominal reference;
 memory-object lowering erases object types, and later simplification removes
 redundant word casts. Alias analysis follows their unchanged addresses.
 

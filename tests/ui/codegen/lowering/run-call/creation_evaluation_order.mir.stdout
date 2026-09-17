@@ -43,20 +43,26 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v4 = not 31
     v5 = and 158, v4
     v6 = alloc raw, exact, uninitialized, infallible, v5
-    mstore v6, 0x605f380380605f60c03960c001601f017fffffffffffffffffffffffffffffff
-    v7 = add v6, 32
-    mstore v7, 0xffffffffffffffffffffffffffffffffe01660405260c060c0605f3803016020
-    v8 = add v6, 64
-    mstore v8, 0x8201915081119050604e576052565b5f5ffd5b600380605c5f395ff35f5ffd00
-    v9 = slice_ptr v3
-    v10 = add v6, 95
-    mcopy v10, v9, 32 !metadata(memory=heap)
-    v11 = create2 v0, v6, 127, v1
-    v12 = ne v11, 0
-    jumpi v12, bb2, bb1
+    v7 = ptrtoint memptr v6 to i256
+    mstore v7, 0x605f380380605f60c03960c001601f017fffffffffffffffffffffffffffffff
+    v8 = ptrtoint memptr v6 to i256
+    v9 = add v8, 32
+    mstore v9, 0xffffffffffffffffffffffffffffffffe01660405260c060c0605f3803016020
+    v10 = ptrtoint memptr v6 to i256
+    v11 = add v10, 64
+    mstore v11, 0x8201915081119050604e576052565b5f5ffd5b600380605c5f395ff35f5ffd00
+    v12 = slice_ptr v3
+    v13 = ptrtoint memptr v6 to i256
+    v14 = add v13, 95
+    mcopy v14, v12, 32 !metadata(memory=heap)
+    v15 = ptrtoint memptr v6 to i256
+    v16 = create2 v0, v15, 127, v1
+    v17 = zext i160 v16 to i256
+    v18 = ne v17, 0
+    jumpi v18, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = sload 0 !metadata(storage=slot(0))
-    ret v13
+    v19 = sload 0 !metadata(storage=slot(0))
+    ret v19
 }

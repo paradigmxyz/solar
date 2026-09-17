@@ -43,7 +43,8 @@ fn @acyclic_shared_exit(arg0: i256, arg1: i256) -> i256 {
   bb1:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 39
-    v1 = memory_object_data memorybytes, v0
+    v5 = memory_object_data memorybytes, v0
+    v1 = ptrtoint memptr v5 to i256
     mstore v1, 7
     v2 = memory_object_len memorybytes, v0
     v4 = ne arg1, 0

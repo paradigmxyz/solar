@@ -53,8 +53,8 @@ fn @nestedWordsRoundtrip(arg0: memoryarray) -> i256 [selector=0xd8828f2f, pure, 
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = memory_object_load_element memoryarray<1>, v1, 1
-    v6 = memory_object_from_ptr memoryarray, v5
-    v7 = word_cast v6
+    v6 = inttoptr i256 v5 to memoryarray
+    v7 = ptrtoint memoryarray v6 to i256
     v8 = eq v7, 0
     jumpi v8, bb1, bb2
   bb1:
@@ -87,22 +87,23 @@ fn @mixedRoundtrip() -> struct0 [selector=0xb3f929db, pure, abi_params=[], abi_r
     v5 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v5, 3
     v6 = memory_object_data memorybytes, v5
-    mstore v6, 0x102030000000000000000000000000000000000000000000000000000000000
-    v7 = and 3, 255
-    v8 = abi_encode [array<2, word>, memory_bytes, word<u8>], object, args v0, v5, v7
-    v9 = abi_decode [array<2, u256>, bytes, u8], v8
-    v10 = extract_value struct1, v9, 0
-    v11 = extract_value struct1, v9, 1
-    v12 = extract_value struct1, v9, 2
-    v13 = lt 1, 2
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = memory_object_load_element memoryfixedarray<2, 1>, v10, 1
-    v16 = memory_object_len memorybytes, v11
-    v17 = insert_value struct0, undef struct0, 0, v15
-    v18 = insert_value struct0, v17, 1, v16
-    v19 = insert_value struct0, v18, 2, v12
-    ret v19
+    v7 = ptrtoint memptr v6 to i256
+    mstore v7, 0x102030000000000000000000000000000000000000000000000000000000000
+    v8 = and 3, 255
+    v9 = abi_encode [array<2, word>, memory_bytes, word<u8>], object, args v0, v5, v8
+    v10 = abi_decode [array<2, u256>, bytes, u8], v9
+    v11 = extract_value struct1, v10, 0
+    v12 = extract_value struct1, v10, 1
+    v13 = extract_value struct1, v10, 2
+    v14 = lt 1, 2
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = memory_object_load_element memoryfixedarray<2, 1>, v11, 1
+    v17 = memory_object_len memorybytes, v12
+    v18 = insert_value struct0, undef struct0, 0, v16
+    v19 = insert_value struct0, v18, 1, v17
+    v20 = insert_value struct0, v19, 2, v13
+    ret v20
 }
 
 fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
@@ -127,8 +128,8 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = memory_object_load_element memoryarray<1>, v0, 0
-    v12 = memory_object_from_ptr memoryarray, v11
-    v13 = word_cast v12
+    v12 = inttoptr i256 v11 to memoryarray
+    v13 = ptrtoint memoryarray v12 to i256
     v14 = eq v13, 0
     jumpi v14, bb4, bb5
   bb4:
@@ -148,8 +149,8 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v22 = eq v21, false
     icall panic_if<0x32>, v22
     v23 = memory_object_load_element memoryarray<1>, v0, 0
-    v24 = memory_object_from_ptr memoryarray, v23
-    v25 = word_cast v24
+    v24 = inttoptr i256 v23 to memoryarray
+    v25 = ptrtoint memoryarray v24 to i256
     v26 = eq v25, 0
     jumpi v26, bb6, bb7
   bb6:
@@ -176,8 +177,8 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v38 = eq v37, false
     icall panic_if<0x32>, v38
     v39 = memory_object_load_element memoryarray<1>, v0, 1
-    v40 = memory_object_from_ptr memoryarray, v39
-    v41 = word_cast v40
+    v40 = inttoptr i256 v39 to memoryarray
+    v41 = ptrtoint memoryarray v40 to i256
     v42 = eq v41, 0
     jumpi v42, bb8, bb9
   bb8:
@@ -195,60 +196,61 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v48 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v48, 4
     v49 = memory_object_data memorybytes, v48
-    mstore v49, 0x102030400000000000000000000000000000000000000000000000000000000
-    v50 = abi_encode [memory_array<memory_array<word>>, memory_bytes], object, args v0, v48
-    v51 = abi_decode [array<_, array<_, u256>>, bytes], v50
-    v52 = extract_value struct3, v51, 0
-    v53 = extract_value struct3, v51, 1
-    v54 = memory_object_len memoryarray, v52
-    v55 = memory_object_len memoryarray, v52
-    v56 = lt 0, v55
-    v57 = eq v56, false
-    icall panic_if<0x32>, v57
-    v58 = memory_object_load_element memoryarray<1>, v52, 0
-    v59 = memory_object_from_ptr memoryarray, v58
-    v60 = word_cast v59
-    v61 = eq v60, 0
-    jumpi v61, bb10, bb11
+    v50 = ptrtoint memptr v49 to i256
+    mstore v50, 0x102030400000000000000000000000000000000000000000000000000000000
+    v51 = abi_encode [memory_array<memory_array<word>>, memory_bytes], object, args v0, v48
+    v52 = abi_decode [array<_, array<_, u256>>, bytes], v51
+    v53 = extract_value struct3, v52, 0
+    v54 = extract_value struct3, v52, 1
+    v55 = memory_object_len memoryarray, v53
+    v56 = memory_object_len memoryarray, v53
+    v57 = lt 0, v56
+    v58 = eq v57, false
+    icall panic_if<0x32>, v58
+    v59 = memory_object_load_element memoryarray<1>, v53, 0
+    v60 = inttoptr i256 v59 to memoryarray
+    v61 = ptrtoint memoryarray v60 to i256
+    v62 = eq v61, 0
+    jumpi v62, bb10, bb11
   bb10:
-    v62 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v62, 0
-    memory_object_store_element memoryarray<1>, v52, 0, v62
+    v63 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v63, 0
+    memory_object_store_element memoryarray<1>, v53, 0, v63
     jump bb11
   bb11:
-    v63 = phi [bb9: v59], [bb10: v62]
-    v64 = memory_object_len memoryarray, v63
-    v65 = lt 1, v64
-    v66 = eq v65, false
-    icall panic_if<0x32>, v66
-    v67 = memory_object_load_element memoryarray<1>, v63, 1
-    v68 = memory_object_len memoryarray, v52
-    v69 = lt 1, v68
-    v70 = eq v69, false
-    icall panic_if<0x32>, v70
-    v71 = memory_object_load_element memoryarray<1>, v52, 1
-    v72 = memory_object_from_ptr memoryarray, v71
-    v73 = word_cast v72
-    v74 = eq v73, 0
-    jumpi v74, bb12, bb13
+    v64 = phi [bb9: v60], [bb10: v63]
+    v65 = memory_object_len memoryarray, v64
+    v66 = lt 1, v65
+    v67 = eq v66, false
+    icall panic_if<0x32>, v67
+    v68 = memory_object_load_element memoryarray<1>, v64, 1
+    v69 = memory_object_len memoryarray, v53
+    v70 = lt 1, v69
+    v71 = eq v70, false
+    icall panic_if<0x32>, v71
+    v72 = memory_object_load_element memoryarray<1>, v53, 1
+    v73 = inttoptr i256 v72 to memoryarray
+    v74 = ptrtoint memoryarray v73 to i256
+    v75 = eq v74, 0
+    jumpi v75, bb12, bb13
   bb12:
-    v75 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v75, 0
-    memory_object_store_element memoryarray<1>, v52, 1, v75
+    v76 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v76, 0
+    memory_object_store_element memoryarray<1>, v53, 1, v76
     jump bb13
   bb13:
-    v76 = phi [bb11: v72], [bb12: v75]
-    v77 = memory_object_len memoryarray, v76
-    v78 = lt 0, v77
-    v79 = eq v78, false
-    icall panic_if<0x32>, v79
-    v80 = memory_object_load_element memoryarray<1>, v76, 0
-    v81 = memory_object_len memorybytes, v53
-    v82 = insert_value struct2, undef struct2, 0, v54
-    v83 = insert_value struct2, v82, 1, v67
-    v84 = insert_value struct2, v83, 2, v80
-    v85 = insert_value struct2, v84, 3, v81
-    ret v85
+    v77 = phi [bb11: v73], [bb12: v76]
+    v78 = memory_object_len memoryarray, v77
+    v79 = lt 0, v78
+    v80 = eq v79, false
+    icall panic_if<0x32>, v80
+    v81 = memory_object_load_element memoryarray<1>, v77, 0
+    v82 = memory_object_len memorybytes, v54
+    v83 = insert_value struct2, undef struct2, 0, v55
+    v84 = insert_value struct2, v83, 1, v68
+    v85 = insert_value struct2, v84, 2, v81
+    v86 = insert_value struct2, v85, 3, v82
+    ret v86
   bb2:
     memory_object_store_element memoryarray<1>, v0, v1, memoryarray 96
     v3 = add v1, 1

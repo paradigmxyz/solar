@@ -99,7 +99,8 @@ contract ShortReturns {
     // The word above this output area is written before the arguments are encoded and the gas is
     // read, so the call is not charged the expansion out of what it withholds.
     // HOMESTEAD-LABEL: fn @emptyFour
-    // HOMESTEAD: [[AREA:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 128
     // HOMESTEAD: mstore [[ABOVE]], 0
     // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
@@ -114,7 +115,8 @@ contract ShortReturns {
     // the overlaid area cannot run into memory the decoding allocates above it.
     // HOMESTEAD-LABEL: fn @emptyAgg
     // HOMESTEAD: [[BUFFER:v[0-9]+]] = alloc memorybytes
-    // HOMESTEAD: [[DATA:v[0-9]+]] = memory_object_data memorybytes, [[BUFFER]]
+    // HOMESTEAD: [[DATA_PTR:v[0-9]+]] = memory_object_data memorybytes, [[BUFFER]]
+    // HOMESTEAD: [[DATA:v[0-9]+]] = ptrtoint memptr [[DATA_PTR]] to i256
     // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
     // HOMESTEAD: call {{v[0-9]+}}, {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64
     // HOMESTEAD: mcopy [[DATA]], [[INPUT]], 64
@@ -143,7 +145,8 @@ contract ShortReturns {
     // pointer already held, which is what the touch above the output area preserves: a store
     // inside the area would hand back zeros where solc hands back the assembly's writes.
     // HOMESTEAD-LABEL: fn @dirtyFour
-    // HOMESTEAD: [[AREA:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 128
     // HOMESTEAD: mstore [[ABOVE]], 0
     // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr

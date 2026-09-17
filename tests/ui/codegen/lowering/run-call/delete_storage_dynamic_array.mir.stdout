@@ -31,7 +31,7 @@ fn @clearAndPush() -> struct0 [selector=0x1698ee0c, abi_params=[], abi_returns=[
     v18 = mod v16, 10
     v19 = eq v18, 0
     v20 = eq v19, false
-    v21 = word_cast v20
+    v21 = zext i1 v20 to i256
     v22 = add v17, v21
     clear_storage_words 0, 0, v22
     v23 = sload 0 !metadata(storage=slot(0))

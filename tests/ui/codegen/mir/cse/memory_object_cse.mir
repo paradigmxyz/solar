@@ -8,19 +8,25 @@
 // CHECK: - {{v[0-9]+}} = memory_object_element_addr memoryarray<2>, arg2, arg3
 fn @reuse_projections(arg0: memorybytes, arg1: memorystruct, arg2: memoryarray, arg3: i256) -> i256 {
   bb0:
-    v4 = memory_object_data memorybytes, arg0
-    v5 = memory_object_data memorybytes, arg0
-    v6 = memory_object_field_addr memorystruct<3>, arg1, 2
-    v7 = memory_object_field_addr memorystruct<3>, arg1, 2
-    v8 = memory_object_element_addr memoryarray<2>, arg2, arg3
-    v9 = memory_object_element_addr memoryarray<2>, arg2, arg3
+    v18 = memory_object_data memorybytes, arg0
+    v4 = ptrtoint memptr v18 to i256
+    v19 = memory_object_data memorybytes, arg0
+    v5 = ptrtoint memptr v19 to i256
+    v20 = memory_object_field_addr memorystruct<3>, arg1, 2
+    v6 = ptrtoint memptr v20 to i256
+    v21 = memory_object_field_addr memorystruct<3>, arg1, 2
+    v7 = ptrtoint memptr v21 to i256
+    v22 = memory_object_element_addr memoryarray<2>, arg2, arg3
+    v8 = ptrtoint memptr v22 to i256
+    v23 = memory_object_element_addr memoryarray<2>, arg2, arg3
+    v9 = ptrtoint memptr v23 to i256
     v10 = eq v4, v5
     v11 = eq v6, v7
     v12 = eq v8, v9
-    v15 = word_cast v10
-    v16 = word_cast v11
+    v15 = zext i1 v10 to i256
+    v16 = zext i1 v11 to i256
     v13 = add v15, v16
-    v17 = word_cast v12
+    v17 = zext i1 v12 to i256
     v14 = add v13, v17
     ret v14
 }
@@ -80,7 +86,8 @@ fn @reuse_live_length() -> i256 {
 fn @reuse_struct_field() -> i256 {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v1 = memory_object_field_addr memorystruct<1>, v0, 0
+    v24 = memory_object_field_addr memorystruct<1>, v0, 0
+    v1 = ptrtoint memptr v24 to i256
     v2 = mload v1
     v5 = ne v2, 0
     jumpi v5, bb1, bb2
@@ -99,7 +106,8 @@ fn @forward_initialized_length() -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 3
-    v1 = memory_object_data memorybytes, v0
+    v25 = memory_object_data memorybytes, v0
+    v1 = ptrtoint memptr v25 to i256
     mstore v1, 0
     jump bb1
   bb1:
@@ -113,7 +121,7 @@ fn @forward_initialized_length() -> i256 {
 fn @raw_header_clobber(arg0: memorybytes, arg1: i256) -> i256 {
   bb0:
     set_memory_object_len memorybytes, arg0, 3
-    v2 = word_cast arg0
+    v2 = ptrtoint memorybytes arg0 to i256
     mstore v2, arg1
     v3 = memory_object_len memorybytes, arg0
     ret v3
@@ -165,7 +173,7 @@ fn @recycled_header_clobber() -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 3
-    v1 = word_cast v0
+    v1 = ptrtoint memorybytes v0 to i256
     set_fmp v1
     v2 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v2, 4

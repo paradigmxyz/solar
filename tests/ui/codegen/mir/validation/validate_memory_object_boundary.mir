@@ -21,3 +21,9 @@ fn @typed_immediate() -> memorybytes {
   bb0:
     ret memorybytes 96
 }
+
+//~? ERROR: [fn2] non-word type `i8` survives the `lowered` phase boundary
+fn @syntax_only_integer(arg0: i8) -> i8 {
+  bb0:
+    ret arg0
+}

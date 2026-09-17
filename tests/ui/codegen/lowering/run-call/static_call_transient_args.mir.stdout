@@ -9,15 +9,14 @@ fn @constructor() [constructor] {
   bb0:
     v0 = mapping_slot 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0
     v1 = caller
-    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = mapping_slot v2, v0
-    v4 = sload v3 !metadata(storage=symbolic(v3))
-    v5 = not 255
-    v6 = and v4, v5
-    v7 = word_cast true
-    v8 = and v7, 255
-    v9 = or v6, v8
-    sstore v3, v9 !metadata(storage=symbolic(v3))
+    v2 = mapping_slot v1, v0
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    v4 = not 255
+    v5 = and v3, v4
+    v6 = zext i1 1 to i256
+    v7 = and v6, 255
+    v8 = or v5, v7
+    sstore v2, v8 !metadata(storage=symbolic(v2))
     sstore 2, 1 !metadata(storage=slot(2))
     ret
 }
@@ -33,7 +32,7 @@ fn @isOperation(arg0: i256) -> i256 [selector=0x31d50750, view, abi_params=[byte
     v0 = mapping_slot arg0, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))
     v2 = gt v1, 0
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     ret v3
 }
 
@@ -50,165 +49,163 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
   bb0:
     v0 = mapping_slot 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0
     v1 = caller
-    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = mapping_slot v2, v0
-    v4 = sload v3 !metadata(storage=symbolic(v3))
-    v5 = and v4, 255
-    v6 = eq v5, 0
-    jumpi v6, bb2, bb3
+    v2 = mapping_slot v1, v0
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    v4 = and v3, 255
+    v5 = eq v4, 0
+    jumpi v5, bb2, bb3
   bb3:
     jump bb4
   bb4:
-    v9 = slice_len arg0
-    v10 = slice_len arg1
-    v11 = ne v9, v10
-    jumpi v11, bb7, bb6
+    v7 = slice_len arg0
+    v8 = slice_len arg1
+    v9 = ne v7, v8
+    jumpi v9, bb7, bb6
   bb6:
-    v12 = slice_len arg0
-    v13 = slice_len arg2
-    v14 = ne v12, v13
+    v10 = slice_len arg0
+    v11 = slice_len arg2
+    v12 = ne v10, v11
     jump bb8
   bb7:
     jump bb8
   bb8:
-    v15 = phi [bb6: v14], [bb7: true]
-    jumpi v15, bb9, bb10
+    v13 = phi [bb6: v12], [bb7: true]
+    jumpi v13, bb9, bb10
   bb10:
     jump bb11
   bb11:
-    v19 = icall @hashOperationBatch, arg0, arg1, arg2, arg3, arg4
-    icall @_schedule, v19, arg5
+    v17 = icall @hashOperationBatch, arg0, arg1, arg2, arg3, arg4
+    icall @_schedule, v17, arg5
     jump bb12
   bb12:
-    v20 = phi [bb11: arg5], [bb14: v20]
-    v21 = phi [bb11: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1], [bb14: v21]
-    v22 = phi [bb11: arg2], [bb14: v22]
-    v23 = phi [bb11: v19], [bb14: v23]
-    v24 = phi [bb11: arg3], [bb14: v24]
-    v25 = phi [bb11: 0], [bb14: v100]
-    v26 = phi [bb11: arg0], [bb14: v26]
-    v27 = phi [bb11: arg4], [bb14: v27]
-    v28 = phi [bb11: arg1], [bb14: v28]
-    v29 = slice_len v26
-    v30 = lt v25, v29
-    jumpi v30, bb15, bb16
+    v18 = phi [bb11: arg5], [bb14: v18]
+    v19 = phi [bb11: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1], [bb14: v19]
+    v20 = phi [bb11: arg2], [bb14: v20]
+    v21 = phi [bb11: v17], [bb14: v21]
+    v22 = phi [bb11: arg3], [bb14: v22]
+    v23 = phi [bb11: 0], [bb14: v98]
+    v24 = phi [bb11: arg0], [bb14: v24]
+    v25 = phi [bb11: arg4], [bb14: v25]
+    v26 = phi [bb11: arg1], [bb14: v26]
+    v27 = slice_len v24
+    v28 = lt v23, v27
+    jumpi v28, bb15, bb16
   bb16:
     jump bb13
   bb13:
-    v101 = ne v27, 0
-    jumpi v101, bb18, bb19
+    v99 = ne v25, 0
+    jumpi v99, bb18, bb19
   bb19:
     jump bb20
   bb18:
-    mstore 0, v27 !metadata(memory=scratch)
-    log2 0, 32, 0x20fda5fd27a1ea7bf5b9567f143ac5470bb059374a27e8f67cb44f946f6d0387, v23
+    mstore 0, v25 !metadata(memory=scratch)
+    log2 0, 32, 0x20fda5fd27a1ea7bf5b9567f143ac5470bb059374a27e8f67cb44f946f6d0387, v21
     jump bb20
   bb20:
     jump bb5
   bb5:
     jump bb1
   bb1:
-    ret v23
+    ret v21
   bb15:
-    v31 = slice_len v26
-    v32 = lt v25, v31
-    v33 = eq v32, false
-    icall panic_if<0x32>, v33
-    v34 = slice_ptr v26
-    v35 = mul v25, 32
-    v36 = eq 32, 0
-    v37 = div v35, 32
-    v38 = eq v37, v25
-    v39 = or v36, v38
-    v40 = word_cast v39
-    v41 = eq v40, 0
-    icall panic_if<0x41>, v41
-    v42 = add v34, v35
-    v43 = calldataload v42
-    v44 = and v43, 0xffffffffffffffffffffffffffffffffffffffff
-    v45 = eq v43, v44
-    v46 = eq v45, false
-    icall revert_if<empty>, v46
-    v47 = slice_len v28
-    v48 = lt v25, v47
-    v49 = eq v48, false
-    icall panic_if<0x32>, v49
-    v50 = slice_ptr v28
-    v51 = mul v25, 32
-    v52 = eq 32, 0
-    v53 = div v51, 32
-    v54 = eq v53, v25
-    v55 = or v52, v54
-    v56 = word_cast v55
-    v57 = eq v56, 0
-    icall panic_if<0x41>, v57
-    v58 = add v50, v51
-    v59 = calldataload v58
-    v60 = slice_len v22
-    v61 = lt v25, v60
-    v62 = eq v61, false
-    icall panic_if<0x32>, v62
-    v63 = slice_ptr v22
-    v64 = mul v25, 32
-    v65 = eq 32, 0
-    v66 = div v64, 32
-    v67 = eq v66, v25
-    v68 = or v65, v67
-    v69 = word_cast v68
-    v70 = eq v69, 0
-    icall panic_if<0x41>, v70
-    v71 = add v63, v64
-    v72 = calldatasize
-    v73 = sub v72, v71
-    v74 = slt v73, 32
-    icall revert_if<calldata_tail_too_short>, v74
-    v75 = calldataload v71
-    v76 = add v63, v75
-    v77 = calldatasize
-    v78 = sub v77, v63
-    v79 = sub v78, 31
-    v80 = slt v75, v79
-    v81 = eq v80, false
-    icall revert_if<invalid_calldata_tail_offset>, v81
-    v82 = calldataload v76
-    v83 = gt v82, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v83
-    v84 = mul v82, 1
-    v85 = add v76, 32
-    v86 = calldatasize
-    v87 = sub v86, v84
-    v88 = sgt v85, v87
-    icall revert_if<calldata_tail_too_short>, v88
-    v89 = add v76, 32
-    v90 = make_calldata_slice v89, v82
-    v91 = slice_ptr v90
-    v92 = slice_len v90
-    v93 = gt v92, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v93
-    v94 = calldatasize
-    v95 = sub v94, v92
-    v96 = sgt v91, v95
-    icall revert_if<calldata_tail_too_short>, v96
-    v97 = abi_encode [word<u160>, word, calldata_bytes, word, word], args v43, v59, v90, v24, v20
-    v98 = slice_ptr v97
-    v99 = slice_len v97
-    log3 v98, v99, 0x4cf4410cc57040e44862ef0f45f3dd5a5e02db8eb8add648d4b0e236f1d07dca, v23, v25
+    v29 = slice_len v24
+    v30 = lt v23, v29
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = slice_ptr v24
+    v33 = mul v23, 32
+    v34 = eq 32, 0
+    v35 = div v33, 32
+    v36 = eq v35, v23
+    v37 = or v34, v36
+    v38 = zext i1 v37 to i256
+    v39 = eq v38, 0
+    icall panic_if<0x41>, v39
+    v40 = add v32, v33
+    v41 = calldataload v40
+    v42 = and v41, 0xffffffffffffffffffffffffffffffffffffffff
+    v43 = eq v41, v42
+    v44 = eq v43, false
+    icall revert_if<empty>, v44
+    v45 = slice_len v26
+    v46 = lt v23, v45
+    v47 = eq v46, false
+    icall panic_if<0x32>, v47
+    v48 = slice_ptr v26
+    v49 = mul v23, 32
+    v50 = eq 32, 0
+    v51 = div v49, 32
+    v52 = eq v51, v23
+    v53 = or v50, v52
+    v54 = zext i1 v53 to i256
+    v55 = eq v54, 0
+    icall panic_if<0x41>, v55
+    v56 = add v48, v49
+    v57 = calldataload v56
+    v58 = slice_len v20
+    v59 = lt v23, v58
+    v60 = eq v59, false
+    icall panic_if<0x32>, v60
+    v61 = slice_ptr v20
+    v62 = mul v23, 32
+    v63 = eq 32, 0
+    v64 = div v62, 32
+    v65 = eq v64, v23
+    v66 = or v63, v65
+    v67 = zext i1 v66 to i256
+    v68 = eq v67, 0
+    icall panic_if<0x41>, v68
+    v69 = add v61, v62
+    v70 = calldatasize
+    v71 = sub v70, v69
+    v72 = slt v71, 32
+    icall revert_if<calldata_tail_too_short>, v72
+    v73 = calldataload v69
+    v74 = add v61, v73
+    v75 = calldatasize
+    v76 = sub v75, v61
+    v77 = sub v76, 31
+    v78 = slt v73, v77
+    v79 = eq v78, false
+    icall revert_if<invalid_calldata_tail_offset>, v79
+    v80 = calldataload v74
+    v81 = gt v80, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v81
+    v82 = mul v80, 1
+    v83 = add v74, 32
+    v84 = calldatasize
+    v85 = sub v84, v82
+    v86 = sgt v83, v85
+    icall revert_if<calldata_tail_too_short>, v86
+    v87 = add v74, 32
+    v88 = make_calldata_slice v87, v80
+    v89 = slice_ptr v88
+    v90 = slice_len v88
+    v91 = gt v90, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v91
+    v92 = calldatasize
+    v93 = sub v92, v90
+    v94 = sgt v89, v93
+    icall revert_if<calldata_tail_too_short>, v94
+    v95 = abi_encode [word<u160>, word, calldata_bytes, word, word], args v41, v57, v88, v22, v18
+    v96 = slice_ptr v95
+    v97 = slice_len v95
+    log3 v96, v97, 0x4cf4410cc57040e44862ef0f45f3dd5a5e02db8eb8add648d4b0e236f1d07dca, v21, v23
     jump bb17
   bb17:
     jump bb14
   bb14:
-    v100 = checked_add u256, v25, 1
+    v98 = checked_add u256, v23, 1
     jump bb12
   bb9:
-    v16 = slice_len arg0
-    v17 = slice_len arg2
-    v18 = slice_len arg1
-    icall require<custom_error [word, word, word]>, false, 0x679057600000000000000000000000000000000000000000000000000000000, v16, v17, v18
+    v14 = slice_len arg0
+    v15 = slice_len arg2
+    v16 = slice_len arg1
+    icall require<custom_error [word, word, word]>, false, 0x679057600000000000000000000000000000000000000000000000000000000, v14, v15, v16
     invalid
   bb2:
-    v7 = caller
-    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    icall require<custom_error [word<u160>, word]>, false, 0x161a64a00000000000000000000000000000000000000000000000000000000, v8, 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
+    v6 = caller
+    icall require<custom_error [word<u160>, word]>, false, 0x161a64a00000000000000000000000000000000000000000000000000000000, v6, 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
     invalid
 }
 

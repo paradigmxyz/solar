@@ -31,7 +31,7 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x59862edc, abi_params=[tupl
     v22 = div v20, 32
     v23 = eq v22, v12
     v24 = or v21, v23
-    v25 = word_cast v24
+    v25 = zext i1 v24 to i256
     v26 = eq v25, 0
     icall panic_if<0x41>, v26
     v27 = add 32, v20
@@ -79,7 +79,7 @@ fn @g(arg0: calldataslice) -> memorybytes [selector=0x397cf2ca, abi_params=[tupl
     v24 = div v22, 32
     v25 = eq v24, v14
     v26 = or v23, v25
-    v27 = word_cast v26
+    v27 = zext i1 v26 to i256
     v28 = eq v27, 0
     icall panic_if<0x41>, v28
     v29 = add 32, v22

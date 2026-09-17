@@ -9,7 +9,7 @@ fn @sharedXor(arg0: i256, arg1: i256) -> struct0 [selector=0x1a49b55c, pure, abi
     v0 = xor arg0, arg1
     v1 = add v0, 1
     v2 = eq arg0, arg1
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     v4 = insert_value struct0, undef struct0, 0, v0
     v5 = insert_value struct0, v4, 1, v1
     v6 = insert_value struct0, v5, 2, v3
@@ -21,7 +21,7 @@ fn @sharedReverse(arg0: i256, arg1: i256) -> struct0 [selector=0x8552b9c1, pure,
     v0 = sub arg1, arg0
     v1 = add v0, 1
     v2 = eq arg0, arg1
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     v4 = insert_value struct0, undef struct0, 0, v0
     v5 = insert_value struct0, v4, 1, v1
     v6 = insert_value struct0, v5, 2, v3
@@ -33,7 +33,7 @@ fn @sharedDifference(arg0: i256, arg1: i256) -> struct0 [selector=0x10fe2b84, pu
     v0 = sub arg0, arg1
     v1 = add v0, 1
     v2 = eq arg0, arg1
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     v4 = insert_value struct0, undef struct0, 0, v0
     v5 = insert_value struct0, v4, 1, v1
     v6 = insert_value struct0, v5, 2, v3
@@ -44,7 +44,7 @@ fn @difference(arg0: i256, arg1: i256) -> struct1 [selector=0xa95cb7f7, pure, ab
   bb0:
     v0 = sub arg0, arg1
     v1 = eq arg0, arg1
-    v2 = word_cast v1
+    v2 = zext i1 v1 to i256
     v3 = insert_value struct1, undef struct1, 0, v0
     v4 = insert_value struct1, v3, 1, v2
     ret v4
@@ -54,7 +54,7 @@ fn @reverseDifference(arg0: i256, arg1: i256) -> struct1 [selector=0x132a45fc, p
   bb0:
     v0 = sub arg1, arg0
     v1 = eq arg0, arg1
-    v2 = word_cast v1
+    v2 = zext i1 v1 to i256
     v3 = insert_value struct1, undef struct1, 0, v0
     v4 = insert_value struct1, v3, 1, v2
     ret v4
@@ -64,7 +64,7 @@ fn @xorDifference(arg0: i256, arg1: i256) -> struct1 [selector=0x30ca6808, pure,
   bb0:
     v0 = xor arg0, arg1
     v1 = eq arg0, arg1
-    v2 = word_cast v1
+    v2 = zext i1 v1 to i256
     v3 = insert_value struct1, undef struct1, 0, v0
     v4 = insert_value struct1, v3, 1, v2
     ret v4

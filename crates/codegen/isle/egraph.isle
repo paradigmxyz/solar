@@ -35,8 +35,6 @@
 (decl all_ones () Value)
 (extern extractor all_ones all_ones)
 ;; A value whose definition bounds it to zero or one.
-(decl cast_word (Value) Value)
-(extern extractor cast_word cast_word)
 (decl bool_value () Value)
 (extern extractor bool_value bool_value)
 ;; The `address` opcode.
@@ -725,15 +723,15 @@
 (rule 1 (simplify (Op.Select (and cond (bool_value)) (one) (zero))) cond)
 
 ;; memory_object_data(object, kind) => object, when kind has zero data offset
-(rule (rewrite (Op.MemoryObjectData object kind)) (if-let 0 (object_data_offset kind)) (Op.WordCast object))
+(rule (rewrite (Op.MemoryObjectData object kind)) (if-let 0 (object_data_offset kind)) (Op.Bitcast object))
 ;; memory_object_field_addr(object, layout, field) => object, when the field offset is zero
 (rule (rewrite (Op.MemoryObjectFieldAddr object layout field))
       (if-let 0 (field_offset layout field))
-      (Op.WordCast object))
+      (Op.Bitcast object))
 ;; memory_object_element_addr(object, layout, 0) => object, when the layout has zero data offset
 (rule (rewrite (Op.MemoryObjectElementAddr object layout (zero)))
       (if-let 0 (object_data_offset (layout_kind layout)))
-      (Op.WordCast object))
+      (Op.Bitcast object))
 
 ;; Canonical zero tests preserve the operand's scalar type.
 (rule (rewrite (Op.Gt x (zero))) (Op.Ne x (imm (u256 0))))
@@ -742,11 +740,65 @@
 (rule (rewrite (Op.Eq (ne a b) (zero))) (Op.Eq a b))
 (rule (rewrite (Op.Ne (eq a b) (zero))) (Op.Eq a b))
 (rule (rewrite (Op.Ne (ne a b) (zero))) (Op.Ne a b))
-(rule (rewrite (Op.Eq (wordcast (and x (bool_value))) (zero))) (Op.Eq x (imm_bool false)))
-(rule (rewrite (Op.Ne (wordcast (and x (bool_value))) (zero))) (Op.Ne x (imm_bool false)))
+(rule (rewrite (Op.Eq (zext (and x (bool_value))) (zero))) (Op.Eq x (imm_bool false)))
+(rule (rewrite (Op.Ne (zext (and x (bool_value))) (zero))) (Op.Ne x (imm_bool false)))
 (rule 10 (simplify (Op.Ne a a)) (imm_bool false))
 (rule 9 (simplify (Op.Ne (and x (bool_value)) (zero))) x)
 (rule 8 (simplify (Op.Ne (zero) (and x (bool_value)))) x)
+(decl integer_bits (u32) Value)
+(extern extractor integer_bits integer_bits)
+(decl pure u32_lt (u32 u32) bool)
+(extern constructor u32_lt u32_lt)
+(decl pure u32_le (u32 u32) bool)
+(extern constructor u32_le u32_le)
 
-;; word_cast(word) => word; word_cast(memory_object_from_ptr(ptr)) => ptr.
-(rule (simplify (Op.WordCast (cast_word value))) value)
+;; Identity casts require the result type to match before their values merge.
+(rule (simplify (Op.Bitcast value)) value)
+(rule (simplify (Op.Trunc (zext (and value (integer_bits bits))) bits)) value)
+(rule (simplify (Op.Trunc (sext (and value (integer_bits bits)) bits middle) bits))
+      (if-let true (u32_lt bits middle)) value)
+
+;; Successive extensions and truncations retain only their outer boundary.
+(rule (rewrite (Op.Zext (zext value))) (Op.Zext value))
+(rule (rewrite (Op.Sext (sext value from middle) middle to))
+      (if-let true (u32_lt from middle))
+      (if-let true (u32_lt middle to)) (Op.Sext value from to))
+(rule (rewrite (Op.Trunc (trunc value middle) to))
+      (if-let true (u32_lt to middle)) (Op.Trunc value to))
+(rule (rewrite (Op.Sext (zext (and value (integer_bits bits))) from to))
+      (if-let true (u32_lt bits from))
+      (if-let true (u32_lt from to)) (Op.Zext value))
+
+;; Truncating an extension either narrows the source or keeps a shorter extension.
+(rule (rewrite (Op.Trunc (zext (and value (integer_bits from))) to))
+      (if-let true (u32_lt to from)) (Op.Trunc value to))
+(rule (rewrite (Op.Trunc (zext (and value (integer_bits from))) to))
+      (if-let true (u32_lt from to)) (Op.Zext value))
+(rule (rewrite (Op.Trunc (sext value from middle) to))
+      (if-let true (u32_lt from middle))
+      (if-let true (u32_lt to from)) (Op.Trunc value to))
+(rule (rewrite (Op.Trunc (sext value from middle) to))
+      (if-let true (u32_lt to middle))
+      (if-let true (u32_lt from to)) (Op.Sext value from to))
+
+;; Equal zero extensions can be compared in their original integer type.
+(rule (rewrite (Op.Eq (zext a) (zext b))) (Op.Eq a b))
+(rule (rewrite (Op.Ne (zext a) (zext b))) (Op.Ne a b))
+
+;; Pointer casts preserve bits across changes of nominal pointer type.
+(rule (rewrite (Op.PtrToInt (bitcast value) bits)) (Op.PtrToInt value bits))
+(rule (rewrite (Op.Bitcast (bitcast value))) (Op.Bitcast value))
+(rule (rewrite (Op.Bitcast (inttoptr value))) (Op.IntToPtr value))
+(rule (rewrite (Op.IntToPtr (zext value))) (Op.IntToPtr value))
+(rule (rewrite (Op.IntToPtr (trunc value bits)))
+      (if-let true (u32_le 256 bits)) (Op.IntToPtr value))
+(rule (rewrite (Op.IntToPtr (ptrtoint value bits)))
+      (if-let true (u32_le 256 bits)) (Op.Bitcast value))
+(rule (rewrite (Op.Trunc (ptrtoint value middle) bits))
+      (if-let true (u32_lt bits middle)) (Op.PtrToInt value bits))
+(rule (simplify (Op.IntToPtr (ptrtoint value 256))) value)
+(rule (simplify (Op.PtrToInt (inttoptr (and value (integer_bits bits))) bits)) value)
+(rule (rewrite (Op.PtrToInt (inttoptr (and value (integer_bits from))) to))
+      (if-let true (u32_lt from to)) (Op.Zext value))
+(rule (rewrite (Op.PtrToInt (inttoptr (and value (integer_bits from))) to))
+      (if-let true (u32_lt to from)) (Op.Trunc value to))

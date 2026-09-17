@@ -15,16 +15,17 @@ fn @targetContract(arg0: i256) {
     v5 = add v3, v4
     v6 = mod v0, 1
     v7 = mul v6, 20
-    v8 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = trunc i256 arg0 to i160
     v9 = mul v7, 8
     v10 = shl v9, 0xffffffffffffffffffffffffffffffffffffffff
     v11 = sload v5 !metadata(storage=symbolic(v5))
     v12 = not v10
     v13 = and v11, v12
-    v14 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
-    v15 = shl v9, v14
-    v16 = or v13, v15
-    sstore v5, v16 !metadata(storage=symbolic(v5))
+    v14 = zext i160 v8 to i256
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = shl v9, v15
+    v17 = or v13, v16
+    sstore v5, v17 !metadata(storage=symbolic(v5))
     sstore 0, v2 !metadata(storage=slot(0))
     ret
 }
@@ -47,7 +48,7 @@ fn @targetSelector(arg0: memorystruct) {
     sstore v5, v11 !metadata(storage=symbolic(v5))
     v12 = add v5, 1
     v13 = memory_object_load_field memorystruct<2>, arg0, 1
-    v14 = memory_object_from_ptr memoryarray, v13
+    v14 = inttoptr i256 v13 to memoryarray
     v15 = memory_object_len memoryarray, v14
     v16 = sload v12 !metadata(storage=offset(v5, 1))
     v17 = gt v16, v15
@@ -86,7 +87,7 @@ fn @targetSelector(arg0: memorystruct) {
     sstore 1, v2 !metadata(storage=slot(1))
     ret
   bb7:
-    v37 = memory_object_from_ptr memoryarray, v13
+    v37 = inttoptr i256 v13 to memoryarray
     v38 = memory_object_load_element memoryarray<1>, v37, v35
     v39 = storage_array_data_slot v12
     v40 = div v35, 8
@@ -139,31 +140,35 @@ fn @targetSelectors() -> memoryarray [selector=0x916a17c6, view, abi_params=[], 
 
 fn @pushAndReadContracts() -> struct0 [selector=0x4a1b3b99, abi_params=[], abi_returns=[word, word<u160>], abi_return_params=[u256, address]] {
   bb0:
-    icall @targetContract, 170
-    v0 = address
-    icall @targetContract, v0
-    v1 = address
-    v2 = gas
-    v3 = abi_encode [], selector 0x3f7286f400000000000000000000000000000000000000000000000000000000
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    v6 = staticcall v2, v1, v4, v5, 0, 0
-    jumpi v6, bb2, bb1
+    v0 = trunc i256 170 to i160
+    v1 = zext i160 v0 to i256
+    icall @targetContract, v1
+    v2 = address
+    v3 = zext i160 v2 to i256
+    icall @targetContract, v3
+    v4 = address
+    v5 = gas
+    v6 = abi_encode [], selector 0x3f7286f400000000000000000000000000000000000000000000000000000000
+    v7 = slice_ptr v6
+    v8 = slice_len v6
+    v9 = staticcall v5, v4, v7, v8, 0, 0
+    jumpi v9, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [array<_, address>], v7
-    v9 = memory_object_len memoryarray, v8
-    v10 = memory_object_len memoryarray, v8
-    v11 = lt 0, v10
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = memory_object_load_element memoryarray<1>, v8, 0
-    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
-    v15 = insert_value struct0, undef struct0, 0, v9
-    v16 = insert_value struct0, v15, 1, v14
-    ret v16
+    v10 = icall returndata_bytes<>
+    v11 = abi_decode [array<_, address>], v10
+    v12 = memory_object_len memoryarray, v11
+    v13 = memory_object_len memoryarray, v11
+    v14 = lt 0, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = memory_object_load_element memoryarray<1>, v11, 0
+    v17 = trunc i256 v16 to i160
+    v18 = zext i160 v17 to i256
+    v19 = insert_value struct0, undef struct0, 0, v12
+    v20 = insert_value struct0, v19, 1, v18
+    ret v20
 }
 
 fn @pushAndReadSelectors() -> struct1 [selector=0x5c0d845c, abi_params=[], abi_returns=[word, word, word<bytes4>], abi_return_params=[u256, u256, bytes4]] {
@@ -203,8 +208,8 @@ fn @pushAndReadSelectors() -> struct1 [selector=0x5c0d845c, abi_params=[], abi_r
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = memory_object_load_element memoryarray<1>, v16, 0
-    v22 = memory_object_from_ptr memorystruct, v21
-    v23 = word_cast v22
+    v22 = inttoptr i256 v21 to memorystruct
+    v23 = ptrtoint memorystruct v22 to i256
     v24 = eq v23, 0
     jumpi v24, bb3, bb4
   bb3:
@@ -218,15 +223,15 @@ fn @pushAndReadSelectors() -> struct1 [selector=0x5c0d845c, abi_params=[], abi_r
   bb4:
     v27 = phi [bb2: v22], [bb3: v25]
     v28 = memory_object_load_field memorystruct<2>, v27, 1
-    v29 = memory_object_from_ptr memoryarray, v28
+    v29 = inttoptr i256 v28 to memoryarray
     v30 = memory_object_len memoryarray, v29
     v31 = memory_object_len memoryarray, v16
     v32 = lt 0, v31
     v33 = eq v32, false
     icall panic_if<0x32>, v33
     v34 = memory_object_load_element memoryarray<1>, v16, 0
-    v35 = memory_object_from_ptr memorystruct, v34
-    v36 = word_cast v35
+    v35 = inttoptr i256 v34 to memorystruct
+    v36 = ptrtoint memorystruct v35 to i256
     v37 = eq v36, 0
     jumpi v37, bb5, bb6
   bb5:
@@ -240,7 +245,7 @@ fn @pushAndReadSelectors() -> struct1 [selector=0x5c0d845c, abi_params=[], abi_r
   bb6:
     v40 = phi [bb4: v35], [bb5: v38]
     v41 = memory_object_load_field memorystruct<2>, v40, 1
-    v42 = memory_object_from_ptr memoryarray, v41
+    v42 = inttoptr i256 v41 to memoryarray
     v43 = memory_object_len memoryarray, v42
     v44 = lt 0, v43
     v45 = eq v44, false
@@ -270,7 +275,7 @@ fn @load_storage_struct_array_0(arg0: i256) -> memoryarray {
     v5 = div v3, 32
     v6 = eq v5, v1
     v7 = or v4, v6
-    v8 = word_cast v7
+    v8 = zext i1 v7 to i256
     v9 = eq v8, 0
     icall panic_if<0x41>, v9
     v10 = alloc memoryarray<1>, exact, uninitialized, panic, v3

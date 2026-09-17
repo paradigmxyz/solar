@@ -5,7 +5,7 @@
     bb0:
       v0 = ne arg0, 0
 -     v1 = select v0, arg1, 0
-+     v2 = word_cast v0
++     v2 = zext i1 v0 to i256
 +     v1 = mul v2, arg1
       ret v1
   }
@@ -14,9 +14,9 @@
     bb0:
       v0 = ne arg0, 0
 -     v1 = select v0, 0, arg1
-+     v2 = word_cast v0
++     v2 = zext i1 v0 to i256
 +     v3 = eq v2, 0
-+     v4 = word_cast v3
++     v4 = zext i1 v3 to i256
 +     v1 = mul v4, arg1
       ret v1
   }
@@ -25,7 +25,7 @@
     bb0:
       v0 = ne arg0, 0
 -     v1 = select v0, arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-+     v2 = word_cast v0
++     v2 = zext i1 v0 to i256
 +     v3 = sub v2, 1
 +     v1 = or arg1, v3
       ret v1
@@ -35,9 +35,9 @@
     bb0:
       v0 = ne arg0, 0
 -     v1 = select v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1
-+     v2 = word_cast v0
++     v2 = zext i1 v0 to i256
 +     v3 = eq v2, 0
-+     v4 = word_cast v3
++     v4 = zext i1 v3 to i256
 +     v5 = sub v4, 1
 +     v1 = or arg1, v5
       ret v1
@@ -75,7 +75,7 @@
     bb0:
       v0 = ne arg0, 0
 -     v1 = select v0, 42, 7
-+     v2 = word_cast v0
++     v2 = zext i1 v0 to i256
 +     v3 = mul v2, 35
 +     v1 = add 7, v3
       ret v1
@@ -92,7 +92,7 @@
     bb0:
       v0 = ne arg0, 0
 -     v1 = select v0, 0x8000000000000000000000000000000000000000000000000000000000000000, 7
-+     v2 = word_cast v0
++     v2 = zext i1 v0 to i256
 +     v3 = mul v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9
 +     v1 = add 7, v3
       ret v1
@@ -109,7 +109,7 @@
     bb0:
       v0 = eq arg0, 0
 -     v1 = select v0, arg1, 0
-+     v2 = word_cast v0
++     v2 = zext i1 v0 to i256
 +     v1 = mul v2, arg1
       ret v1
   }
@@ -118,9 +118,9 @@
     bb0:
       v0 = eq arg0, 0
 -     v1 = select v0, 0, arg1
-+     v2 = word_cast v0
++     v2 = zext i1 v0 to i256
 +     v3 = eq v2, 0
-+     v4 = word_cast v3
++     v4 = zext i1 v3 to i256
 +     v1 = mul v4, arg1
       ret v1
   }
@@ -129,7 +129,7 @@
     bb0:
       v0 = eq arg0, 0
 -     v1 = select v0, arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-+     v2 = word_cast v0
++     v2 = zext i1 v0 to i256
 +     v3 = sub v2, 1
 +     v1 = or arg1, v3
       ret v1
@@ -139,9 +139,9 @@
     bb0:
       v0 = eq arg0, 0
 -     v1 = select v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1
-+     v2 = word_cast v0
++     v2 = zext i1 v0 to i256
 +     v3 = eq v2, 0
-+     v4 = word_cast v3
++     v4 = zext i1 v3 to i256
 +     v5 = sub v4, 1
 +     v1 = or arg1, v5
       ret v1
@@ -179,7 +179,7 @@
     bb0:
       v0 = eq arg0, 0
 -     v1 = select v0, 42, 7
-+     v2 = word_cast v0
++     v2 = zext i1 v0 to i256
 +     v3 = mul v2, 35
 +     v1 = add 7, v3
       ret v1
@@ -196,7 +196,7 @@
     bb0:
       v0 = eq arg0, 0
 -     v1 = select v0, 0x8000000000000000000000000000000000000000000000000000000000000000, 7
-+     v2 = word_cast v0
++     v2 = zext i1 v0 to i256
 +     v3 = mul v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9
 +     v1 = add 7, v3
       ret v1
@@ -212,7 +212,7 @@
   fn @canonical_bool(arg0: i1, arg1: i256) -> i256 {
     bb0:
 -     v0 = select arg0, arg1, 0
-+     v1 = word_cast arg0
++     v1 = zext i1 arg0 to i256
 +     v0 = mul v1, arg1
       ret v0
   }
@@ -227,7 +227,7 @@
     bb0:
 -     v0 = add arg1, arg2
 -     v1 = select arg0, v0, arg2
-+     v2 = word_cast arg0
++     v2 = zext i1 arg0 to i256
 +     v3 = mul v2, arg1
 +     v1 = add arg2, v3
       ret v1
@@ -238,9 +238,9 @@
       v0 = ne arg0, 0
 -     v1 = add arg2, arg1
 -     v2 = select v0, arg2, v1
-+     v3 = word_cast v0
++     v3 = zext i1 v0 to i256
 +     v4 = eq v3, 0
-+     v5 = word_cast v4
++     v5 = zext i1 v4 to i256
 +     v6 = mul v5, arg1
 +     v2 = add arg2, v6
       ret v2
@@ -251,7 +251,7 @@
       v0 = ne arg0, 0
 -     v1 = sub arg2, arg1
 -     v2 = select v0, v1, arg2
-+     v3 = word_cast v0
++     v3 = zext i1 v0 to i256
 +     v4 = mul v3, arg1
 +     v2 = sub arg2, v4
       ret v2
@@ -262,7 +262,7 @@
       v0 = ne arg0, 0
 -     v1 = or arg1, arg2
 -     v2 = select v0, v1, arg2
-+     v3 = word_cast v0
++     v3 = zext i1 v0 to i256
 +     v4 = mul v3, arg1
 +     v2 = or arg2, v4
       ret v2
@@ -272,7 +272,7 @@
     bb0:
 -     v0 = xor arg2, arg1
 -     v1 = select arg0, v0, arg2
-+     v2 = word_cast arg0
++     v2 = zext i1 arg0 to i256
 +     v3 = mul v2, arg1
 +     v1 = xor arg2, v3
       ret v1
@@ -284,7 +284,7 @@
 -     v1 = and arg1, arg2
 -     v2 = select v0, v1, arg2
 +     v3 = not arg1
-+     v4 = word_cast v0
++     v4 = zext i1 v0 to i256
 +     v5 = mul v4, v3
 +     v6 = not v5
 +     v2 = and arg2, v6

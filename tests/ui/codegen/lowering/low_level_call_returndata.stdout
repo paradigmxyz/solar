@@ -3,7 +3,7 @@
 fn @safeTransfer(arg0: i256, arg1: i256, arg2: i256) [selector=0xd1660f99, abi_params=[address, address, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = gas
-    v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = trunc i256 arg1 to i160
     v2 = abi_encode [word<u160>, word], object, selector 0xa9059cbb00000000000000000000000000000000000000000000000000000000, args v1, arg2
     v3 = address_call arg0, v2, gas v0
     v4 = icall returndata_bytes<>
@@ -32,14 +32,13 @@ fn @balanceOf(arg0: i256) -> i256 [selector=0x70a08231, view, abi_params=[addres
   bb0:
     v0 = gas
     v1 = address
-    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = abi_encode [word<u160>], object, selector 0x70a0823100000000000000000000000000000000000000000000000000000000, args v2
-    v4 = address_staticcall arg0, v3, gas v0
-    v5 = icall returndata_bytes<>
-    v6 = eq v4, false
-    icall revert_if<empty>, v6
-    v7 = abi_decode [u256], v5
-    ret v7
+    v2 = abi_encode [word<u160>], object, selector 0x70a0823100000000000000000000000000000000000000000000000000000000, args v1
+    v3 = address_staticcall arg0, v2, gas v0
+    v4 = icall returndata_bytes<>
+    v5 = eq v3, false
+    icall revert_if<empty>, v5
+    v6 = abi_decode [u256], v4
+    ret v6
 }
 
 fn @forward(arg0: i256, arg1: memorybytes) -> memorybytes [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

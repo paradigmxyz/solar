@@ -15,7 +15,7 @@ fn @storeLong() -> struct0 [selector=0xc4a6ec73, abi_params=[], abi_returns=[wor
     mstore v3, v2
     v4 = add v0, 96
     mstore 64, v4 !metadata(memory=scratch)
-    v5 = memory_object_from_ptr memorybytes, v0
+    v5 = inttoptr i256 v0 to memorybytes
     icall @store_storage_bytes, 0, v5
     mstore 0, 0 !metadata(memory=scratch)
     v6 = keccak256 0, 32 !metadata(memory=scratch)
@@ -45,7 +45,7 @@ fn @storeShort() -> struct1 [selector=0x5296e6c1, abi_params=[], abi_returns=[wo
     mstore v2, v1
     v3 = add v0, 64
     mstore 64, v3 !metadata(memory=scratch)
-    v4 = memory_object_from_ptr memorybytes, v0
+    v4 = inttoptr i256 v0 to memorybytes
     icall @store_storage_bytes, 0, v4
     v5 = sload 0 !metadata(storage=slot(0))
     v6 = sload 0 !metadata(storage=slot(0))

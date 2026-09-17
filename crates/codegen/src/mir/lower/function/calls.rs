@@ -1,7 +1,7 @@
 //! Function calls, conversions, and call-target resolution.
 
 use super::*;
-use crate::link::Library;
+use crate::{link::Library, mir::Immediate};
 
 #[derive(Clone, Copy)]
 pub(super) struct ExternalReturnPlan {
@@ -98,7 +98,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let result_ty = types::TypeLowerer::mir_return_type(
             self.cx.gcx.type_of_item(function.returns[0].into()),
         );
-        let result = self.builder.icall(mir_id, values.to_vec(), result_ty);
+        // argument = cast operand to the operator's declared carrier type
+        // result = icall operator, arguments
+        let values = values
+            .iter()
+            .zip(function.parameters)
+            .map(|(&value, &parameter)| {
+                let ty = self.cx.gcx.type_of_item(parameter.into());
+                self.builder.cast(value, types::TypeLowerer::mir_signature_type(ty))
+            })
+            .collect();
+        let result = self.builder.icall(mir_id, values, result_ty);
         self.dirty_values.insert(result);
         Some(result)
     }
@@ -641,6 +651,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             value
         };
+        if from.peel_refs() != to.peel_refs() && types::TypeLowerer::mir_type(to) == MirType::I160 {
+            // address = trunc i160, value
+            return self.builder.cast(value, MirType::I160);
+        }
         let integer_conversion_needs_cleanup = match (from.peel_refs().kind, to.peel_refs().kind) {
             (
                 TyKind::Elementary(ElementaryType::UInt(from_size)),
@@ -716,6 +730,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let zero = self.builder.imm(U256::ZERO);
                 let is_zero = self.builder.eq(value, zero);
                 self.builder.eq_zero(is_zero)
+            }
+            // address = trunc i160, value
+            _ if types::TypeLowerer::mir_type(ty) == MirType::I160 => {
+                self.builder.cast(value, MirType::I160)
             }
             _ => AbiWordValidator::from_layout(types::TypeLowerer::value_layout(ty))
                 .map_or(value, |validator| validator.cleanup(&mut self.builder, value)),
@@ -1084,7 +1102,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn library_contract_address(&mut self, contract_id: hir::ContractId) -> ValueId {
         if let Some(address) = self.linked_library_address(contract_id) {
-            return self.builder.imm(address);
+            return self
+                .builder
+                .alloc_value(Value::Immediate(Immediate::for_type(Some(MirType::I160), address)));
         }
         let contract = self.cx.gcx.hir.contract(contract_id);
         let source = self.cx.gcx.hir.source(contract.source).file.name.display().to_string();

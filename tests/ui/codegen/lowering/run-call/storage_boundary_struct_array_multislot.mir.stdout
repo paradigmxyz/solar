@@ -128,15 +128,15 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     jump bb15
   bb13:
     v53 = memory_object_load_element memoryfixedarray<3, 1>, v32, v48
-    v54 = memory_object_from_ptr memorystruct, v53
+    v54 = inttoptr i256 v53 to memorystruct
     v55 = memory_object_load_field memorystruct<3>, v54, 0
     sstore v51, v55 !metadata(storage=symbolic(v51))
     v56 = add v51, 1
-    v57 = memory_object_from_ptr memorystruct, v53
+    v57 = inttoptr i256 v53 to memorystruct
     v58 = memory_object_load_field memorystruct<3>, v57, 1
     sstore v56, v58 !metadata(storage=offset(v51, 1))
     v59 = add v51, 2
-    v60 = memory_object_from_ptr memorystruct, v53
+    v60 = inttoptr i256 v53 to memorystruct
     v61 = memory_object_load_field memorystruct<3>, v60, 2
     sstore v59, v61 !metadata(storage=offset(v51, 2))
     jump bb15

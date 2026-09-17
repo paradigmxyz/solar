@@ -136,8 +136,9 @@
     bb3:
       v3 = load_storage_bytes 0
       v4 = memory_object_data memorybytes, v3
-      v5 = memory_object_len memorybytes, v3
-      revert v4, v5
+      v5 = ptrtoint memptr v4 to i256
+      v6 = memory_object_len memorybytes, v3
+      revert v5, v6
     bb4:
       jump bb1
   }

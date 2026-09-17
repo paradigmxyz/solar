@@ -33,7 +33,7 @@ fn @transientRead(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd51942
     jump bb1
   bb3:
     v0 = eq arg1, 0
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     v2 = ne v1, 0
     jumpi v2, bb4, bb5
   bb5:

@@ -104,7 +104,7 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = calldatasize
     v2 = lt v1, 36
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
@@ -154,22 +154,22 @@ fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
     v20 = lt v19, 32
     jumpi v20, bb1, bb5
   bb5:
-    v21 = mload 64 !metadata(memory=scratch)
-    v59 = add v21, v19
-    mstore 64, v59 !metadata(memory=scratch)
-    mstore v21, v33
-    v56 = add v21, 32
-    calldatacopy v56, v27, v2
-    v46 = ne v21, 0
-    v47 = word_cast v46
+    v67 = mload 64 !metadata(memory=scratch)
+    v69 = add v67, v19
+    mstore 64, v69 !metadata(memory=scratch)
+    mstore v67, v33
+    v60 = add v67, 32
+    calldatacopy v60, v27, v2
+    v46 = ne v67, 0
+    v47 = zext i1 v46 to i256
     v48 = mul v33, v47
     v50 = shl 5, v48
-    v51 = add v21, 64
-    mcopy v51, v56, v50
-    mstore v21, 32
-    mstore v56, v48
-    v53 = add v50, 64
-    returndata v21, v53
+    v52 = add v67, 64
+    mcopy v52, v60, v50
+    mstore v67, 32
+    mstore v60, v48
+    v56 = add v50, 64
+    returndata v67, v56
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
@@ -198,7 +198,7 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = calldatasize
     v2 = lt v1, 36
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
@@ -251,7 +251,7 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = calldatasize
     v2 = lt v1, 36
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2

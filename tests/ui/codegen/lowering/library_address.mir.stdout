@@ -10,7 +10,8 @@ fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[u256], abi_ret
 @module C
 fn @addr() -> i256 [selector=0x767800de, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
-    ret 0x1111111111111111111111111111111111111111
+    v0 = zext i160 0x1111111111111111111111111111111111111111 to i256
+    ret v0
 }
 
 fn @sel() -> i256 [selector=0x41c910e1, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {

@@ -10,7 +10,7 @@
       ret v0
   }
   
-  fn @library() -> i256 {
+  fn @library() -> i160 {
     bb0:
       v0 = library_address "A.sol":"L"
       ret v0

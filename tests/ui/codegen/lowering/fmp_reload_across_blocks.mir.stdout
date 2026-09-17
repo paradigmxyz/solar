@@ -51,7 +51,7 @@ fn @ln(arg0: i256) -> i256 [pure] {
     v31 = mload v30
     v32 = div v31, 0x100000000000000000000000000000000000000000000000000000000000000
     v33 = gt arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v34 = word_cast v33
+    v34 = zext i1 v33 to i256
     v35 = mul 256, v34
     v36 = add v32, v35
     v37 = mul v36, 0x2386f26fc10000
@@ -62,7 +62,7 @@ fn @ln(arg0: i256) -> i256 [pure] {
 fn @sqrt(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = gt arg0, 3
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     switch v1, default bb1, [1 => bb2, 0 => bb3]
   bb3:
     jump bb1
@@ -75,7 +75,7 @@ fn @sqrt(arg0: i256) -> i256 [pure] {
     v5 = phi [bb2: arg0], [bb8: v5]
     v6 = phi [bb2: arg0], [bb8: v4]
     v7 = lt v4, v6
-    v8 = word_cast v7
+    v8 = zext i1 v7 to i256
     v9 = ne v8, 0
     jumpi v9, bb6, bb7
   bb7:

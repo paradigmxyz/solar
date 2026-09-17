@@ -3,20 +3,20 @@
 fn @eq(arg0: i256, arg1: i256) -> i256 [selector=0x32148d73, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg0, arg1
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     ret v1
 }
 
 fn @lt(arg0: i256, arg1: i256) -> i256 [selector=0x118fc88c, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = lt arg0, arg1
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     ret v1
 }
 
 fn @is_zero(arg0: i256) -> i256 [selector=0xe9b4cfc4, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg0, 0
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     ret v1
 }

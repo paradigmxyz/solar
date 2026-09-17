@@ -20,7 +20,7 @@ fn @makeArray(arg0: i256) -> i256 [selector=0x9510f212, pure, abi_params=[u256],
     v2 = div v0, 1
     v3 = eq v2, arg0
     v4 = or v1, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     v6 = eq v5, 0
     icall panic_if<0x41>, v6
     v7 = add v0, 1
@@ -31,7 +31,7 @@ fn @makeArray(arg0: i256) -> i256 [selector=0x9510f212, pure, abi_params=[u256],
     v11 = div v9, 32
     v12 = eq v11, v7
     v13 = or v10, v12
-    v14 = word_cast v13
+    v14 = zext i1 v13 to i256
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
@@ -73,7 +73,7 @@ fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[
     v6 = div v4, 1
     v7 = eq v6, arg0
     v8 = or v5, v7
-    v9 = word_cast v8
+    v9 = zext i1 v8 to i256
     v10 = eq v9, 0
     icall panic_if<0x41>, v10
     v11 = add v4, 1
@@ -84,7 +84,7 @@ fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[
     v15 = div v13, 32
     v16 = eq v15, v11
     v17 = or v14, v16
-    v18 = word_cast v17
+    v18 = zext i1 v17 to i256
     v19 = eq v18, 0
     icall panic_if<0x41>, v19
     v20 = alloc memoryarray<1>, exact, zeroed, panic, v13
@@ -99,8 +99,8 @@ fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[
     v26 = eq v25, false
     icall panic_if<0x32>, v26
     v27 = memory_object_load_element memoryarray<1>, v0, 0
-    v28 = memory_object_from_ptr memoryarray, v27
-    v29 = word_cast v28
+    v28 = inttoptr i256 v27 to memoryarray
+    v29 = ptrtoint memoryarray v28 to i256
     v30 = eq v29, 0
     jumpi v30, bb4, bb5
   bb4:
@@ -125,7 +125,7 @@ fn @makeStructArray(arg0: i256) -> i256 [selector=0x4273d03f, pure, abi_params=[
     v2 = div v0, 1
     v3 = eq v2, arg0
     v4 = or v1, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     v6 = eq v5, 0
     icall panic_if<0x41>, v6
     v7 = add v0, 1
@@ -136,7 +136,7 @@ fn @makeStructArray(arg0: i256) -> i256 [selector=0x4273d03f, pure, abi_params=[
     v11 = div v9, 32
     v12 = eq v11, v7
     v13 = or v10, v12
-    v14 = word_cast v13
+    v14 = zext i1 v13 to i256
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = alloc memoryarray<1>, exact, zeroed, panic, v9

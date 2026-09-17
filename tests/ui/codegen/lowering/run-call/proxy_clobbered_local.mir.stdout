@@ -41,30 +41,36 @@ fn @forwards() -> i256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word], 
     v3 = alloc raw, exact, uninitialized, infallible, v2
     data_copy Impl_initcode_0, v3, 79
     v4 = slice_ptr v0
-    v5 = add v3, 79
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 79
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v5 = ptrtoint memptr v3 to i256
+    v6 = add v5, 79
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = ptrtoint memptr v3 to i256
+    v8 = create 0, v7, 79
+    v9 = zext i160 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = abi_encode [word], object, selector 0x6279e43c00000000000000000000000000000000000000000000000000000000, args 7
-    v9 = mload 64 !metadata(memory=scratch)
-    v10 = calldatasize
-    calldatacopy 0, 0, v10 !metadata(memory=scratch)
-    v11 = word_cast v8
-    v12 = mload v11
-    v13 = word_cast v8
-    v14 = add v13, 32
-    v15 = gas
-    v16 = delegatecall v15, v6, v14, v12, 0, 32
-    v17 = word_cast v16
-    v18 = mload 0 !metadata(memory=scratch)
-    v19 = eq v18, 7
-    v20 = word_cast v19
-    v21 = and v17, v20
-    v22 = eq v21, 1
-    icall require<short_string>, v22, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
+    v11 = zext i160 v8 to i256
+    v12 = trunc i256 v11 to i160
+    v13 = zext i160 v12 to i256
+    v14 = abi_encode [word], object, selector 0x6279e43c00000000000000000000000000000000000000000000000000000000, args 7
+    v15 = mload 64 !metadata(memory=scratch)
+    v16 = calldatasize
+    calldatacopy 0, 0, v16 !metadata(memory=scratch)
+    v17 = ptrtoint memorybytes v14 to i256
+    v18 = mload v17
+    v19 = ptrtoint memorybytes v14 to i256
+    v20 = add v19, 32
+    v21 = gas
+    v22 = delegatecall v21, v13, v20, v18, 0, 32
+    v23 = zext i1 v22 to i256
+    v24 = mload 0 !metadata(memory=scratch)
+    v25 = eq v24, 7
+    v26 = zext i1 v25 to i256
+    v27 = and v23, v26
+    v28 = eq v27, 1
+    icall require<short_string>, v28, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
     ret 1
 }

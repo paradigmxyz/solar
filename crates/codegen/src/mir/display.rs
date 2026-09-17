@@ -422,14 +422,23 @@ fn display_inst_kind<'a>(
             ty.index(),
             display_val(*aggregate, func)
         ),
-        InstKind::WordCast(value) => write!(f, "word_cast {}", display_val(*value, func)),
-        InstKind::MemoryObjectFromPtr { ptr, kind } => {
-            write!(
-                f,
-                "memory_object_from_ptr {}, {}",
-                MirType::MemoryObject(*kind),
-                display_val(*ptr, func)
-            )
+        InstKind::Trunc(value, _)
+        | InstKind::Zext(value)
+        | InstKind::Sext(value, _, _)
+        | InstKind::PtrToInt(value, _)
+        | InstKind::IntToPtr(value)
+        | InstKind::Bitcast(value) => {
+            let from = func.value_ty(*value).unwrap_or(MirType::I256);
+            let to = result_ty.unwrap_or(MirType::I256);
+            write!(f, "{} {from} ", kind.mnemonic())?;
+            if let Value::Immediate(immediate) = func.value(*value) {
+                write!(f, "{}", display_u256(immediate.as_u256().unwrap()))?;
+            } else if matches!(func.value(*value), Value::Undef(_)) {
+                f.write_str("undef")?;
+            } else {
+                write!(f, "{}", display_val(*value, func))?;
+            }
+            write!(f, " to {to}")
         }
         InstKind::StoreImmutable(id, value) => {
             write!(f, "storeimmutable {}", display_immutable_ref(*id, module))?;

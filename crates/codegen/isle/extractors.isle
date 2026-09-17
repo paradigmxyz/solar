@@ -12,11 +12,23 @@
 (decl extractvalue (StructId Value u32) Value)
 (extractor (extractvalue ty aggregate index) (inst (Op.ExtractValue ty aggregate index)))
 
-(decl memoryobjectfromptr (Value MemoryObjectKind) Value)
-(extractor (memoryobjectfromptr ptr kind) (inst (Op.MemoryObjectFromPtr ptr kind)))
+(decl zext (Value) Value)
+(extractor (zext operand0) (inst (Op.Zext operand0)))
 
-(decl wordcast (Value) Value)
-(extractor (wordcast operand0) (inst (Op.WordCast operand0)))
+(decl trunc (Value u32) Value)
+(extractor (trunc operand0 bits) (inst (Op.Trunc operand0 bits)))
+
+(decl sext (Value u32 u32) Value)
+(extractor (sext operand0 from_bits to_bits) (inst (Op.Sext operand0 from_bits to_bits)))
+
+(decl ptrtoint (Value u32) Value)
+(extractor (ptrtoint operand0 bits) (inst (Op.PtrToInt operand0 bits)))
+
+(decl inttoptr (Value) Value)
+(extractor (inttoptr operand0) (inst (Op.IntToPtr operand0)))
+
+(decl bitcast (Value) Value)
+(extractor (bitcast operand0) (inst (Op.Bitcast operand0)))
 
 (decl checkedbinary (CheckedOp ArithmeticKind Value Value) Value)
 (extractor (checkedbinary op arithmetic lhs rhs) (inst (Op.CheckedBinary op arithmetic lhs rhs)))

@@ -5,27 +5,28 @@ fn @patch(arg0: i256) -> i256 [selector=0x7f603a02, pure, abi_params=[bool], abi
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 2
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x4142000000000000000000000000000000000000000000000000000000000000
-    v2 = ne arg0, 0
-    jumpi v2, bb1, bb2
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x4142000000000000000000000000000000000000000000000000000000000000
+    v3 = ne arg0, 0
+    jumpi v3, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v3 = memory_object_len memorybytes, v0
-    v4 = lt 0, v3
-    v5 = eq v4, false
-    icall panic_if<0x32>, v5
-    v6 = byte 0, 0x2d00000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_byte memorybytes, v0, 0, v6
+    v4 = memory_object_len memorybytes, v0
+    v5 = lt 0, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = byte 0, 0x2d00000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_byte memorybytes, v0, 0, v7
     jump bb3
   bb3:
-    v7 = memory_object_len memorybytes, v0
-    v8 = lt 0, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = memory_object_load_byte memorybytes, v0, 0
-    v11 = shl 248, v10
-    ret v11
+    v8 = memory_object_len memorybytes, v0
+    v9 = lt 0, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = memory_object_load_byte memorybytes, v0, 0
+    v12 = shl 248, v11
+    ret v12
 }
 
 fn @store() -> i256 [selector=0x975057e7, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {

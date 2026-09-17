@@ -9,40 +9,43 @@ fn @assign() -> struct0 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x3000000000000000000000000000000000000000000000000000000000000000
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v2, 1
-    v3 = memory_object_data memorybytes, v2
-    mstore v3, 0x3100000000000000000000000000000000000000000000000000000000000000
-    v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v4, 1
-    v5 = memory_object_data memorybytes, v4
-    mstore v5, 0x3200000000000000000000000000000000000000000000000000000000000000
-    v6 = memory_object_len memorybytes, v0
-    v7 = lt 0, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    v9 = memory_object_load_byte memorybytes, v0, 0
-    v10 = shl 248, v9
-    v11 = shr 248, v10
-    v12 = memory_object_len memorybytes, v2
-    v13 = lt 0, v12
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = memory_object_load_byte memorybytes, v2, 0
-    v16 = shl 248, v15
-    v17 = shr 248, v16
-    v18 = memory_object_len memorybytes, v4
-    v19 = lt 0, v18
-    v20 = eq v19, false
-    icall panic_if<0x32>, v20
-    v21 = memory_object_load_byte memorybytes, v4, 0
-    v22 = shl 248, v21
-    v23 = shr 248, v22
-    v24 = insert_value struct0, undef struct0, 0, v11
-    v25 = insert_value struct0, v24, 1, v17
-    v26 = insert_value struct0, v25, 2, v23
-    ret v26
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x3000000000000000000000000000000000000000000000000000000000000000
+    v3 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v3, 1
+    v4 = memory_object_data memorybytes, v3
+    v5 = ptrtoint memptr v4 to i256
+    mstore v5, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v6, 1
+    v7 = memory_object_data memorybytes, v6
+    v8 = ptrtoint memptr v7 to i256
+    mstore v8, 0x3200000000000000000000000000000000000000000000000000000000000000
+    v9 = memory_object_len memorybytes, v0
+    v10 = lt 0, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = memory_object_load_byte memorybytes, v0, 0
+    v13 = shl 248, v12
+    v14 = shr 248, v13
+    v15 = memory_object_len memorybytes, v3
+    v16 = lt 0, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = memory_object_load_byte memorybytes, v3, 0
+    v19 = shl 248, v18
+    v20 = shr 248, v19
+    v21 = memory_object_len memorybytes, v6
+    v22 = lt 0, v21
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    v24 = memory_object_load_byte memorybytes, v6, 0
+    v25 = shl 248, v24
+    v26 = shr 248, v25
+    v27 = insert_value struct0, undef struct0, 0, v14
+    v28 = insert_value struct0, v27, 1, v20
+    v29 = insert_value struct0, v28, 2, v26
+    ret v29
 }
 
 fn @swap() -> struct1 [selector=0x8119c065, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {

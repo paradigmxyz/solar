@@ -11,7 +11,7 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     v3 = gt 1, v2
     v4 = lt 1, 0
     v5 = or v3, v4
-    v6 = word_cast v5
+    v6 = zext i1 v5 to i256
     icall revert_if<empty>, v6
     v7 = sub 1, 0
     v8 = add v1, 0
@@ -23,7 +23,7 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     v14 = div v12, 32
     v15 = eq v14, v10
     v16 = or v13, v15
-    v17 = word_cast v16
+    v17 = zext i1 v16 to i256
     v18 = eq v17, 0
     icall panic_if<0x41>, v18
     v19 = calldatasize
@@ -35,7 +35,7 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     v24 = div v22, 32
     v25 = eq v24, v10
     v26 = or v23, v25
-    v27 = word_cast v26
+    v27 = zext i1 v26 to i256
     v28 = eq v27, 0
     icall panic_if<0x41>, v28
     v29 = add 32, v22
@@ -51,7 +51,7 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     v35 = gt 3, v34
     v36 = lt 3, 1
     v37 = or v35, v36
-    v38 = word_cast v37
+    v38 = zext i1 v37 to i256
     icall revert_if<empty>, v38
     v39 = sub 3, 1
     v40 = add v33, 32
@@ -63,7 +63,7 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     v46 = div v44, 32
     v47 = eq v46, v42
     v48 = or v45, v47
-    v49 = word_cast v48
+    v49 = zext i1 v48 to i256
     v50 = eq v49, 0
     icall panic_if<0x41>, v50
     v51 = calldatasize
@@ -75,7 +75,7 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     v56 = div v54, 32
     v57 = eq v56, v42
     v58 = or v55, v57
-    v59 = word_cast v58
+    v59 = zext i1 v58 to i256
     v60 = eq v59, 0
     icall panic_if<0x41>, v60
     v61 = add 32, v54
@@ -172,7 +172,7 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     jump bb17
   bb4:
     v69 = memory_object_load_element memoryfixedarray<2, 1>, v0, v65
-    v70 = memory_object_from_ptr memoryarray, v69
+    v70 = inttoptr i256 v69 to memoryarray
     v71 = memory_object_len memoryarray, v70
     v72 = sload v67 !metadata(storage=symbolic(v65))
     v73 = gt v72, v71
@@ -198,7 +198,7 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     v101 = add v65, 1
     jump bb1
   bb13:
-    v81 = memory_object_from_ptr memoryarray, v69
+    v81 = inttoptr i256 v69 to memoryarray
     v82 = memory_object_load_element memoryarray<1>, v81, v79
     v83 = storage_array_data_slot v67
     v84 = add v83, v79

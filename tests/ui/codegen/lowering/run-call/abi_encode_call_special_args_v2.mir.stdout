@@ -51,6 +51,6 @@ fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<
     jump bb6
   bb6:
     v16 = phi [bb4: v15], [bb5: false]
-    v17 = word_cast v16
+    v17 = zext i1 v16 to i256
     ret v17
 }

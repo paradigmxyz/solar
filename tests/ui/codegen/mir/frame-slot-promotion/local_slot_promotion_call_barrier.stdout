@@ -4,40 +4,48 @@
   fn @promote_across_unrelated_staticcall(arg0: i256) -> i256 {
     bb0:
       v0 = internal_frame_addr 128
--     mstore v0, 9
-      v1 = staticcall 0x186a0, arg0, 0, 0, 0, 0
-      v2 = internal_frame_addr 128
--     v3 = mload v2
-      v4 = word_cast v1
--     v5 = add v3, v4
-+     v5 = add 9, v4
-      ret v5
+      v1 = ptrtoint memptr v0 to i256
+-     mstore v1, 9
+      v2 = staticcall 0x186a0, arg0, 0, 0, 0, 0
+      v3 = internal_frame_addr 128
+      v4 = ptrtoint memptr v3 to i256
+-     v5 = mload v4
+      v6 = zext i1 v2 to i256
+-     v7 = add v5, v6
++     v7 = add 9, v6
+      ret v7
   }
   
   fn @keep_msize_observation() -> i256 {
     bb0:
       v0 = internal_frame_addr 128
-      mstore v0, 9
-      v1 = msize
-      v2 = internal_frame_addr 128
-      v3 = mload v2
-      v4 = add v3, v1
-      ret v4
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 9
+      v2 = msize
+      v3 = internal_frame_addr 128
+      v4 = ptrtoint memptr v3 to i256
+      v5 = mload v4
+      v6 = add v5, v2
+      ret v6
   }
   
   fn @promote_slot_with_unrelated_frame_hash() -> i256 {
     bb0:
       v0 = internal_frame_addr 128
--     mstore v0, 9
-      v1 = internal_frame_addr 192
-      mstore v1, 1
+      v1 = ptrtoint memptr v0 to i256
+-     mstore v1, 9
       v2 = internal_frame_addr 192
-      v3 = keccak256 v2, 32
-      v4 = internal_frame_addr 128
--     v5 = mload v4
--     v6 = add v5, v3
-+     v6 = add 9, v3
-      ret v6
+      v3 = ptrtoint memptr v2 to i256
+      mstore v3, 1
+      v4 = internal_frame_addr 192
+      v5 = ptrtoint memptr v4 to i256
+      v6 = keccak256 v5, 32
+      v7 = internal_frame_addr 128
+      v8 = ptrtoint memptr v7 to i256
+-     v9 = mload v8
+-     v10 = add v9, v6
++     v10 = add 9, v6
+      ret v10
   }
   
 - // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion_call_barrier.mir (before dce) ===
@@ -46,33 +54,41 @@
   fn @promote_across_unrelated_staticcall(arg0: i256) -> i256 {
     bb0:
 -     v0 = internal_frame_addr 128
-      v1 = staticcall 0x186a0, arg0, 0, 0, 0, 0
--     v2 = internal_frame_addr 128
-      v4 = word_cast v1
-      v5 = add 9, v4
-      ret v5
+-     v1 = ptrtoint memptr v0 to i256
+      v2 = staticcall 0x186a0, arg0, 0, 0, 0, 0
+-     v3 = internal_frame_addr 128
+-     v4 = ptrtoint memptr v3 to i256
+      v6 = zext i1 v2 to i256
+      v7 = add 9, v6
+      ret v7
   }
   
   fn @keep_msize_observation() -> i256 {
     bb0:
       v0 = internal_frame_addr 128
-      mstore v0, 9
-      v1 = msize
-      v2 = internal_frame_addr 128
-      v3 = mload v2
-      v4 = add v3, v1
-      ret v4
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 9
+      v2 = msize
+      v3 = internal_frame_addr 128
+      v4 = ptrtoint memptr v3 to i256
+      v5 = mload v4
+      v6 = add v5, v2
+      ret v6
   }
   
   fn @promote_slot_with_unrelated_frame_hash() -> i256 {
     bb0:
 -     v0 = internal_frame_addr 128
-      v1 = internal_frame_addr 192
-      mstore v1, 1
+-     v1 = ptrtoint memptr v0 to i256
       v2 = internal_frame_addr 192
-      v3 = keccak256 v2, 32
--     v4 = internal_frame_addr 128
-      v6 = add 9, v3
-      ret v6
+      v3 = ptrtoint memptr v2 to i256
+      mstore v3, 1
+      v4 = internal_frame_addr 192
+      v5 = ptrtoint memptr v4 to i256
+      v6 = keccak256 v5, 32
+-     v7 = internal_frame_addr 128
+-     v8 = ptrtoint memptr v7 to i256
+      v10 = add 9, v6
+      ret v10
   }
   

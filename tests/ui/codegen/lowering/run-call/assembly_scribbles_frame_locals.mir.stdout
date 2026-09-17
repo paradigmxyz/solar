@@ -8,7 +8,7 @@ fn @fallback() [fallback] {
     v1 = phi [bb0: 0], [bb5: v8]
     v2 = calldatasize
     v3 = lt v0, v2
-    v4 = word_cast v3
+    v4 = zext i1 v3 to i256
     v5 = ne v4, 0
     jumpi v5, bb3, bb4
   bb4:

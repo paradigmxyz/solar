@@ -5,7 +5,7 @@ fn @setFlag() {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 255
     v2 = and v0, v1
-    v3 = word_cast true
+    v3 = zext i1 1 to i256
     v4 = and v3, 255
     v5 = or v2, v4
     sstore 0, v5 !metadata(storage=slot(0))

@@ -200,7 +200,7 @@ fn arm_join(
         || body
             .instructions
             .iter()
-            .filter(|&&inst| !matches!(func.inst(inst).kind, InstKind::WordCast(_)))
+            .filter(|&&inst| !matches!(func.inst(inst).kind, InstKind::Zext(_)))
             .count()
             > MAX_ARM_INSTRUCTIONS
     {
@@ -305,7 +305,7 @@ fn binary_operands(
 /// `a <= b`, and `x > a` implies `x > b` when `a >= b`).
 fn implies(func: &Function, first: ValueId, mut second: ValueId) -> bool {
     if let Value::Inst(inst) = func.value(second)
-        && let InstKind::WordCast(value) = func.inst(*inst).kind
+        && let InstKind::Zext(value) = func.inst(*inst).kind
     {
         second = value;
     }
@@ -614,7 +614,7 @@ fn literal(func: &mut Function, value: U256) -> ValueId {
 }
 
 fn append(func: &mut Function, block: BlockId, kind: InstKind, ty: Option<MirType>) -> ValueId {
-    // operands = word_cast boolean_operands
+    // operands = zext i1 boolean_operands to i256
     // result = op operands
     // typed_result = cast result
     let start = func.blocks[block].instructions.len();

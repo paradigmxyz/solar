@@ -8,19 +8,23 @@
 // CHECK-NOT: invalid
 fn @fold_phi_after_promotion(arg0: i1) -> i256 {
   bb0:
-    v1 = internal_frame_addr 128
+    v6 = internal_frame_addr 128
+    v1 = ptrtoint memptr v6 to i256
     mstore v1, 1
     jumpi arg0, bb1, bb2
   bb1:
-    v2 = internal_frame_addr 128
+    v7 = internal_frame_addr 128
+    v2 = ptrtoint memptr v7 to i256
     mstore v2, 1
     jump bb3
   bb2:
-    v3 = internal_frame_addr 128
+    v8 = internal_frame_addr 128
+    v3 = ptrtoint memptr v8 to i256
     mstore v3, 1
     jump bb3
   bb3:
-    v4 = internal_frame_addr 128
+    v9 = internal_frame_addr 128
+    v4 = ptrtoint memptr v9 to i256
     v5 = mload v4
     ret v5
 }

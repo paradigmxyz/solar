@@ -604,11 +604,15 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 
 ### IR construction and rewrites
 
-- MIR scalar SSA values use `i1` or `i256`; structs, slices, and memory-object
+- Generated MIR scalar SSA values use `i1`, `i160`, `i256`, or `memptr`; structs, slices, and memory-object
   references retain their own types. Keep source widths, signedness, and ABI
   encodings in operation or layout metadata.
-- Name MIR integer types `iN` by bit width. Only `i1` and `i256` are supported
-  for now; future widths should lower to `i256` at the EVM IR boundary.
+- Name MIR integer types `iN` by bit width. Accept any positive 32-bit width in
+  MIR syntax, but emit only `i1`, `i160`, and `i256` from source lowering for now.
+  Other widths have no codegen support yet; lower them at the EVM IR boundary
+  when that support is added.
+- Address values use `i160` and must fit in 160 bits. Narrow with `trunc i256 value to i160`
+  and widen with `zext i160 value to i256`; retain the width until EVM IR lowering.
 - Every `i1` value must be exactly zero or one, including arguments, loads,
   call results, phi inputs, and values produced by inline assembly. Normalize
   raw words with `ne value, 0` before treating them as booleans.
@@ -616,8 +620,13 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
   between value types; never retag an SSA value or rely on equal storage width.
 - Use `eq value, 0` and `ne value, 0` as the canonical MIR zero tests. `ISZERO`
   belongs in EVM IR, not MIR. Rewrites must preserve both value and type;
-  boolean-to-word conversions require `word_cast`.
-- Preserve raw Solidity boolean bits as `i256` when assembly can observe them;
+  boolean-to-word conversions require `zext i1 value to i256`.
+- Use LLVM cast names and semantics: `trunc`, `zext`, `sext`, `ptrtoint`,
+  `inttoptr`, and `bitcast`, with `source-type value to destination-type` syntax.
+  `trunc` to `i1` keeps the low bit; it does not test for nonzero.
+- Keep `memptr` distinct from integers. Pointer casts do not establish validity,
+  heap provenance, ownership, or non-wrapping arithmetic.
+- Preserve raw Solidity boolean and address bits as `i256` when assembly can observe them;
   convert to `i1` for logical operations and branches.
 
 - Add an IR or pseudo-IR comment above lowering code and every transformation or rewrite that writes, moves, or rearranges IR. This includes builder sequences and helper bodies.

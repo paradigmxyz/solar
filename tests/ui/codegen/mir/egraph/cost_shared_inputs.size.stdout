@@ -11,7 +11,7 @@
       v1 = shl 248, v0
 -     v2 = eq v1, 0x700000000000000000000000000000000000000000000000000000000000000
 +     v2 = eq v0, 7
-      v3 = word_cast v2
+      v3 = zext i1 v2 to i256
       ret v1, v3
   }
   
@@ -25,9 +25,9 @@
 +     v2 = eq v0, 7
 +     v3 = lt v0, 8
 +     v4 = gt v0, 6
-      v5 = word_cast v2
-      v6 = word_cast v3
-      v7 = word_cast v4
+      v5 = zext i1 v2 to i256
+      v6 = zext i1 v3 to i256
+      v7 = zext i1 v4 to i256
       ret v5, v6, v7
   }
   
@@ -61,7 +61,7 @@
       v0 = byte 31, arg0
       v1 = shl 248, v0
       v2 = eq v0, 7
-      v3 = word_cast v2
+      v3 = zext i1 v2 to i256
       ret v1, v3
   }
   
@@ -72,9 +72,9 @@
       v2 = eq v0, 7
       v3 = lt v0, 8
       v4 = gt v0, 6
-      v5 = word_cast v2
-      v6 = word_cast v3
-      v7 = word_cast v4
+      v5 = zext i1 v2 to i256
+      v6 = zext i1 v3 to i256
+      v7 = zext i1 v4 to i256
       ret v5, v6, v7
   }
   

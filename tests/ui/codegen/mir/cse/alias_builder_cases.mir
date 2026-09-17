@@ -25,10 +25,12 @@ fn @canonical_arg_offset(arg0: i256) -> i256 {
 // CHECK: ret [[SUM]]
 fn @canonical_frame_offset() -> i256 {
   bb0:
-    v0 = internal_frame_addr 32
+    v7 = internal_frame_addr 32
+    v0 = ptrtoint memptr v7 to i256
     v1 = add v0, 64
     v2 = mload v1
-    v3 = internal_frame_addr 96
+    v8 = internal_frame_addr 96
+    v3 = ptrtoint memptr v8 to i256
     v4 = mload v3
     v5 = add v2, v4
     ret v5
@@ -41,10 +43,12 @@ fn @canonical_frame_offset() -> i256 {
 // CHECK: ret [[SUM]]
 fn @canonical_heap_offset() -> i256 {
   bb0:
-    v0 = fmp
+    v9 = fmp
+    v0 = ptrtoint memptr v9 to i256
     v1 = add v0, 64
     v2 = mload v1
-    v3 = fmp
+    v10 = fmp
+    v3 = ptrtoint memptr v10 to i256
     v4 = add 64, v3
     v5 = mload v4
     v6 = add v2, v5
@@ -58,7 +62,8 @@ fn @canonical_heap_offset() -> i256 {
 // CHECK: ret [[SUM]]
 fn @same_select(arg0: i1) -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v11 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v11 to i256
     v1 = mload v0
     v2 = select arg0, v0, v0
     v3 = mload v2
@@ -74,8 +79,10 @@ fn @same_select(arg0: i1) -> i256 {
 // CHECK: +     {{v[0-9]+}} = add 1, [[AFTER]]
 fn @joined_select(arg0: i1) -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
-    v1 = alloc raw, exact, uninitialized, infallible, 32
+    v12 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v12 to i256
+    v13 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = ptrtoint memptr v13 to i256
     mstore v0, 1
     v2 = mload v0
     v3 = select arg0, v0, v1
@@ -86,8 +93,10 @@ fn @joined_select(arg0: i1) -> i256 {
 }
 
 // CHECK-LABEL: @distinct_loop_allocations
-// CHECK: [[FIRST:v[0-9]+]] = alloc
-// CHECK: [[SECOND:v[0-9]+]] = alloc
+// CHECK: [[FIRST_PTR:v[0-9]+]] = alloc
+// CHECK: [[FIRST:v[0-9]+]] = ptrtoint memptr [[FIRST_PTR]] to i256
+// CHECK: [[SECOND_PTR:v[0-9]+]] = alloc
+// CHECK: [[SECOND:v[0-9]+]] = ptrtoint memptr [[SECOND_PTR]] to i256
 // CHECK: mstore [[FIRST]], 7
 // CHECK: -     {{v[0-9]+}} = mload [[FIRST]]
 // CHECK: mstore [[SECOND]]
@@ -97,8 +106,10 @@ fn @distinct_loop_allocations(arg0: i1) -> i256 {
   bb0:
     jump bb1
   bb1:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
-    v1 = alloc raw, exact, uninitialized, infallible, 32
+    v14 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v14 to i256
+    v15 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = ptrtoint memptr v15 to i256
     mstore v0, 7
     v2 = mload v0
     mstore v1, 9

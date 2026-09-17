@@ -35,6 +35,27 @@
 +     ret 42
   }
   
+  fn @pointer_constant() -> memptr {
+    bb0:
+-     v0 = inttoptr i256 7 to memptr
+-     ret v0
++     ret memptr 7
+  }
+  
+  fn @low_bit_constant() -> i1 {
+    bb0:
+-     v0 = trunc i256 2 to i1
+-     ret v0
++     ret false
+  }
+  
+  fn @sign_extended_constant() -> i160 {
+    bb0:
+-     v0 = sext i1 1 to i160
+-     ret v0
++     ret i160 0xffffffffffffffffffffffffffffffffffffffff
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (before branch-simplify) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (after branch-simplify) ===
   @module PhasePipelineResume
@@ -67,6 +88,21 @@
       ret 42
   }
   
+  fn @pointer_constant() -> memptr {
+    bb0:
+      ret memptr 7
+  }
+  
+  fn @low_bit_constant() -> i1 {
+    bb0:
+      ret false
+  }
+  
+  fn @sign_extended_constant() -> i160 {
+    bb0:
+      ret i160 0xffffffffffffffffffffffffffffffffffffffff
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (after dce) ===
   @module PhasePipelineResume
@@ -94,5 +130,20 @@
       jump bb3
     bb3:
       ret 42
+  }
+  
+  fn @pointer_constant() -> memptr {
+    bb0:
+      ret memptr 7
+  }
+  
+  fn @low_bit_constant() -> i1 {
+    bb0:
+      ret false
+  }
+  
+  fn @sign_extended_constant() -> i160 {
+    bb0:
+      ret i160 0xffffffffffffffffffffffffffffffffffffffff
   }
   

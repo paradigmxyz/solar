@@ -101,16 +101,17 @@ fn @mutatedInput() -> memorybytes [selector=0x7d98764f, pure, abi_params=[], abi
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 3
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x102030000000000000000000000000000000000000000000000000000000000
-    v2 = icall @shorten, v0
-    v3 = and v2, 255
-    v4 = abi_encode_packed (bytes v0, u8 v3)
-    ret v4
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x102030000000000000000000000000000000000000000000000000000000000
+    v3 = icall @shorten, v0
+    v4 = and v3, 255
+    v5 = abi_encode_packed (bytes v0, u8 v4)
+    ret v5
 }
 
 fn @shorten(arg0: memorybytes) -> i256 [pure] {
   bb0:
-    v0 = word_cast arg0
+    v0 = ptrtoint memorybytes arg0 to i256
     mstore v0, 1
     ret 9
 }

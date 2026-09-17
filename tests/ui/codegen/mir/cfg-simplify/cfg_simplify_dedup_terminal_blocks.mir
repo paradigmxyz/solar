@@ -205,7 +205,7 @@ fn @keep_distinct_storage_literals(arg0: i1, arg1: i256) {
 // CHECK: {{^[ +].*}}jumpi arg0, bb1, bb2
 // CHECK: library_address "B.sol":"L"
 // CHECK: library_address "A.sol":"L"
-fn @keep_distinct_libraries(arg0: i1) -> i256 {
+fn @keep_distinct_libraries(arg0: i1) -> i160 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:

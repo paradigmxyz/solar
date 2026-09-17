@@ -5,7 +5,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @storage_to_memory{{[( ]}}
 // CHECK: - storage_to_memory
 // CHECK: + [[VALUE:v[0-9]+]] = sload arg0
-// CHECK: + [[OBJECT:v[0-9]+]] = memory_object_from_ptr memorystruct, arg1
+// CHECK: + [[OBJECT:v[0-9]+]] = inttoptr i256 arg1 to memorystruct
 // CHECK: + memory_object_store_field memorystruct<3>, [[OBJECT]], 0, [[VALUE]]
 fn @storage_to_memory(arg0: i256, arg1: i256) {
   bb0:
@@ -15,7 +15,7 @@ fn @storage_to_memory(arg0: i256, arg1: i256) {
 
 // CHECK-LABEL: {{^[ +].*}}fn @memory_to_storage{{[( ]}}
 // CHECK: - memory_to_storage
-// CHECK: + [[OBJECT:v[0-9]+]] = memory_object_from_ptr memorystruct, arg0
+// CHECK: + [[OBJECT:v[0-9]+]] = inttoptr i256 arg0 to memorystruct
 // CHECK: + [[VALUE:v[0-9]+]] = memory_object_load_field memorystruct<3>, [[OBJECT]], 0
 // CHECK: + sstore arg1, [[VALUE]]
 fn @memory_to_storage(arg0: i256, arg1: i256) {

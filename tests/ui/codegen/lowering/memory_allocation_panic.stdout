@@ -20,7 +20,7 @@ fn @makeArray(arg0: i256) -> i256 [selector=0x9510f212, pure, abi_params=[u256],
     v2 = div v0, 1
     v3 = eq v2, arg0
     v4 = or v1, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     v6 = eq v5, 0
     icall panic_if<0x41>, v6
     v7 = add v0, 1
@@ -31,7 +31,7 @@ fn @makeArray(arg0: i256) -> i256 [selector=0x9510f212, pure, abi_params=[u256],
     v11 = div v9, 32
     v12 = eq v11, v7
     v13 = or v10, v12
-    v14 = word_cast v13
+    v14 = zext i1 v13 to i256
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = alloc memoryarray<1>, exact, zeroed, panic, v9

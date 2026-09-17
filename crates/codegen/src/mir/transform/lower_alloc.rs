@@ -200,10 +200,8 @@ fn initialize(
 fn rewrite_as_fmp_load(builder: &mut FunctionBuilder<'_>, inst: crate::mir::InstId) {
     let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
     // ptr = mload 64
-    // object = memory_object_from_ptr ptr
-    let kind = if let Some(crate::mir::MirType::MemoryObject(kind)) =
-        builder.func().inst(inst).result_ty
-    {
+    // object = inttoptr ptr
+    let kind = if builder.func().inst(inst).result_ty.is_some_and(crate::mir::MirType::is_pointer) {
         let block = builder.current_block();
         let attached = builder.func().blocks[block].instructions.last() == Some(&inst);
         if attached {
@@ -213,7 +211,7 @@ fn rewrite_as_fmp_load(builder: &mut FunctionBuilder<'_>, inst: crate::mir::Inst
         if attached {
             builder.func_mut().blocks[block].instructions.push(inst);
         }
-        InstKind::MemoryObjectFromPtr { ptr, kind }
+        InstKind::IntToPtr(ptr)
     } else {
         InstKind::MLoad(slot)
     };

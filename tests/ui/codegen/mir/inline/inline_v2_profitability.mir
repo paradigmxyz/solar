@@ -53,7 +53,7 @@ fn @multi_return_caller(arg0: i256) -> i256 {
   bb0:
     v1 = icall fn3, arg0
     v2 = mload 32
-    v4 = word_cast v1
+    v4 = bitcast i256 v1 to i256
     v3 = add v4, v2
     ret v3
 }

@@ -4,27 +4,31 @@
   fn @fixed_payload(arg0: memoryslice) -> i256 {
     bb0:
       v0 = memory_object_data memorystruct, arg0
-      ret v0
+      v1 = ptrtoint memptr v0 to i256
+      ret v1
   }
   
   fn @dynamic_payload(arg0: memoryslice) -> i256 {
     bb0:
       v0 = memory_object_data memorybytes, arg0
-      ret v0
+      v1 = ptrtoint memptr v0 to i256
+      ret v1
   }
   
   fn @memory_field(arg0: memoryslice) -> i256 {
     bb0:
       v0 = memory_object_field_addr memorystruct<2>, arg0, 0
-      v1 = mload v0
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      v2 = mload v1
+      ret v2
   }
   
   fn @calldata_field(arg0: calldataslice) -> i256 {
     bb0:
       v0 = memory_object_field_addr memorystruct<2>, arg0, 0
-      v1 = mload v0
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      v2 = mload v1
+      ret v2
   }
   
 - // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (before lower-memory-objects) ===
@@ -34,37 +38,44 @@
 + fn @fixed_payload(arg0: memoryslice) -> i256 [may_return_memory] {
     bb0:
 -     v0 = memory_object_data memorystruct, arg0
--     ret v0
-+     v1 = slice_ptr arg0
-+     ret v1
+-     v1 = ptrtoint memptr v0 to i256
++     v2 = slice_ptr arg0
++     v3 = inttoptr i256 v2 to memptr
++     v1 = ptrtoint memptr v3 to i256
+      ret v1
   }
   
 - fn @dynamic_payload(arg0: memoryslice) -> i256 {
 + fn @dynamic_payload(arg0: memoryslice) -> i256 [may_return_memory] {
     bb0:
 -     v0 = memory_object_data memorybytes, arg0
--     ret v0
-+     v1 = slice_ptr arg0
-+     ret v1
+-     v1 = ptrtoint memptr v0 to i256
++     v2 = slice_ptr arg0
++     v3 = inttoptr i256 v2 to memptr
++     v1 = ptrtoint memptr v3 to i256
+      ret v1
   }
   
 - fn @memory_field(arg0: memoryslice) -> i256 {
 + fn @memory_field(arg0: memoryslice) -> i256 [may_return_memory] {
     bb0:
 -     v0 = memory_object_field_addr memorystruct<2>, arg0, 0
--     v1 = mload v0
-+     v2 = slice_ptr arg0
-+     v1 = mload v2
-      ret v1
+-     v1 = ptrtoint memptr v0 to i256
++     v3 = slice_ptr arg0
++     v4 = inttoptr i256 v3 to memptr
++     v1 = ptrtoint memptr v4 to i256
+      v2 = mload v1
+      ret v2
   }
   
   fn @calldata_field(arg0: calldataslice) -> i256 {
     bb0:
 -     v0 = memory_object_field_addr memorystruct<2>, arg0, 0
--     v1 = mload v0
-+     v2 = slice_ptr arg0
-+     v1 = calldataload v2
-      ret v1
+-     v1 = ptrtoint memptr v0 to i256
+-     v2 = mload v1
++     v3 = slice_ptr arg0
++     v2 = calldataload v3
+      ret v2
   }
   
 - // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (before lower-slices) ===
@@ -73,34 +84,102 @@
 - fn @fixed_payload(arg0: memoryslice) -> i256 [may_return_memory] {
 + fn @fixed_payload(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     bb0:
--     v1 = slice_ptr arg0
--     ret v1
-+     ret arg0
+-     v2 = slice_ptr arg0
+-     v3 = inttoptr i256 v2 to memptr
++     v3 = inttoptr i256 arg0 to memptr
+      v1 = ptrtoint memptr v3 to i256
+      ret v1
   }
   
 - fn @dynamic_payload(arg0: memoryslice) -> i256 [may_return_memory] {
 + fn @dynamic_payload(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     bb0:
--     v1 = slice_ptr arg0
--     ret v1
-+     ret arg0
+-     v2 = slice_ptr arg0
+-     v3 = inttoptr i256 v2 to memptr
++     v3 = inttoptr i256 arg0 to memptr
+      v1 = ptrtoint memptr v3 to i256
+      ret v1
   }
   
 - fn @memory_field(arg0: memoryslice) -> i256 [may_return_memory] {
 + fn @memory_field(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     bb0:
--     v2 = slice_ptr arg0
--     v1 = mload v2
-+     v1 = mload arg0
-      ret v1
+-     v3 = slice_ptr arg0
+-     v4 = inttoptr i256 v3 to memptr
++     v4 = inttoptr i256 arg0 to memptr
+      v1 = ptrtoint memptr v4 to i256
+      v2 = mload v1
+      ret v2
   }
   
 - fn @calldata_field(arg0: calldataslice) -> i256 {
 + fn @calldata_field(arg0: i256, arg1: i256) -> i256 {
     bb0:
--     v2 = slice_ptr arg0
--     v1 = calldataload v2
-+     v1 = calldataload arg0
-      ret v1
+-     v3 = slice_ptr arg0
+-     v2 = calldataload v3
++     v2 = calldataload arg0
+      ret v2
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (after egraph) ===
+  @module MemoryObjectSliceProjections
+  fn @fixed_payload(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
+    bb0:
+      v3 = inttoptr i256 arg0 to memptr
+-     v1 = ptrtoint memptr v3 to i256
+-     ret v1
++     ret arg0
+  }
+  
+  fn @dynamic_payload(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
+    bb0:
+      v3 = inttoptr i256 arg0 to memptr
+-     v1 = ptrtoint memptr v3 to i256
+-     ret v1
++     ret arg0
+  }
+  
+  fn @memory_field(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
+    bb0:
+      v4 = inttoptr i256 arg0 to memptr
+-     v1 = ptrtoint memptr v4 to i256
+-     v2 = mload v1
++     v2 = mload arg0
+      ret v2
+  }
+  
+  fn @calldata_field(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v2 = calldataload arg0
+      ret v2
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (after dce) ===
+  @module MemoryObjectSliceProjections
+  fn @fixed_payload(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
+    bb0:
+-     v3 = inttoptr i256 arg0 to memptr
+      ret arg0
+  }
+  
+  fn @dynamic_payload(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
+    bb0:
+-     v3 = inttoptr i256 arg0 to memptr
+      ret arg0
+  }
+  
+  fn @memory_field(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
+    bb0:
+-     v4 = inttoptr i256 arg0 to memptr
+      v2 = mload arg0
+      ret v2
+  }
+  
+  fn @calldata_field(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v2 = calldataload arg0
+      ret v2
   }
   

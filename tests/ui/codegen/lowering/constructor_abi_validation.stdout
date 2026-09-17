@@ -22,7 +22,7 @@ fn @constructor(arg0: i256, arg1: memoryfixedarray) [constructor, abi_params=[bo
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = not 255
     v4 = and v2, v3
-    v5 = word_cast v1
+    v5 = zext i1 v1 to i256
     v6 = and v5, 255
     v7 = or v4, v6
     sstore 0, v7 !metadata(storage=slot(0))
@@ -36,7 +36,7 @@ fn @constructor(arg0: i256, arg1: memoryfixedarray) [constructor, abi_params=[bo
     v14 = sload 0 !metadata(storage=slot(0))
     v15 = not v13
     v16 = and v14, v15
-    v17 = word_cast v12
+    v17 = zext i1 v12 to i256
     v18 = and v17, 255
     v19 = shl 8, v18
     v20 = or v16, v19

@@ -14,7 +14,7 @@ fn @storageLoopMemory(arg0: i256) -> i256 [selector=0xb09bad66, abi_params=[u256
     v3 = phi [bb0: arg0], [bb3: v3]
     v4 = phi [bb0: v0], [bb3: v4]
     v5 = lt v2, v3
-    v6 = word_cast v5
+    v6 = zext i1 v5 to i256
     v7 = ne v6, 0
     jumpi v7, bb4, bb5
   bb5:

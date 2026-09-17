@@ -15,18 +15,20 @@ fn @h(arg0: i256) -> i256 [selector=0x05a0581e, view, abi_params=[bool], abi_ret
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
   bb2:
-    v4 = address
-    v5 = shl 32, v4
-    v6 = or v5, 0xe2179b8e
+    v5 = address
+    v6 = zext i160 v5 to i256
+    v7 = shl 32, v6
+    v8 = or v7, 0xe2179b8e
     jump bb3
   bb1:
     v1 = address
-    v2 = shl 32, v1
-    v3 = or v2, 0x26121ff0
+    v2 = zext i160 v1 to i256
+    v3 = shl 32, v2
+    v4 = or v3, 0x26121ff0
     jump bb3
   bb3:
-    v7 = phi [bb1: v3], [bb2: v6]
-    v8 = and v7, 0xffffffff
-    v9 = shl 224, v8
-    ret v9
+    v9 = phi [bb1: v4], [bb2: v8]
+    v10 = and v9, 0xffffffff
+    v11 = shl 224, v10
+    ret v11
 }

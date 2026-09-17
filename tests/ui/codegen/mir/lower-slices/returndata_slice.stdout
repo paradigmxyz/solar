@@ -13,10 +13,11 @@
 -     set_memory_object_len memorybytes, v5, v3
 +     set_memory_object_len memorybytes, v5, v0
       v6 = memory_object_data memorybytes, v5
--     returndatacopy v6, v2, v3
-+     returndatacopy v6, 0, v0
-      v7 = word_cast v5
-      ret v7
+      v7 = ptrtoint memptr v6 to i256
+-     returndatacopy v7, v2, v3
++     returndatacopy v7, 0, v0
+      v8 = ptrtoint memorybytes v5 to i256
+      ret v8
   }
   
 - fn @consume_returndata(arg0: returndataslice) -> i256 {

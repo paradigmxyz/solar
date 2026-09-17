@@ -13,17 +13,18 @@ fn @bal(arg0: i256) -> i256 [selector=0x5580f72a, pure, abi_params=[address], ab
 
 fn @delta(arg0: i256) -> i256 [selector=0x0acaa1fa, pure, abi_params=[address], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
-    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    v1 = eq v0, 1
-    jumpi v1, bb1, bb2
+    v0 = trunc i256 arg0 to i160
+    v1 = trunc i256 1 to i160
+    v2 = eq v0, v1
+    jumpi v2, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v2 = sub 0, 202
+    v3 = sub 0, 202
     jump bb3
   bb3:
-    v3 = phi [bb1: v2], [bb2: 100]
-    ret v3
+    v4 = phi [bb1: v3], [bb2: 100]
+    ret v4
 }
 
 fn @phasedDelta(arg0: i256) -> i256 [selector=0xf6e32b8b, view, abi_params=[address], abi_returns=[word], abi_return_params=[i256]] {
@@ -35,17 +36,18 @@ fn @phasedDelta(arg0: i256) -> i256 [selector=0xf6e32b8b, view, abi_params=[addr
   bb2:
     jump bb3
   bb3:
-    v3 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    v4 = eq v3, 1
-    jumpi v4, bb4, bb5
+    v3 = trunc i256 arg0 to i160
+    v4 = trunc i256 1 to i160
+    v5 = eq v3, v4
+    jumpi v5, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v5 = sub 0, 202
+    v6 = sub 0, 202
     jump bb6
   bb6:
-    v6 = phi [bb4: v5], [bb5: 100]
-    ret v6
+    v7 = phi [bb4: v6], [bb5: 100]
+    ret v7
   bb1:
     ret 0
 }
@@ -66,7 +68,7 @@ fn @advance(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice) -> i2
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = not 255
     v2 = and v0, v1
-    v3 = word_cast true
+    v3 = zext i1 1 to i256
     v4 = and v3, 255
     v5 = or v2, v4
     sstore 1, v5 !metadata(storage=slot(1))
@@ -100,7 +102,7 @@ types:
   struct0: {i256, i256, i256}
 
 data:
-  Mgr_initcode_0: hex"34600e576102e48060125f395ff35b5f5ffd3415156074575f3560e01c80630acaa1fa1460705780632360a5fc14606b57806347799da8146067578063483f31ab1460625780635580f72a14605e578063a5841194146059578063f6e32b8b146054576074565b610109565b610192565b608a565b61017f565b6078565b6101ac565b60b2565b5f5ffd5b5f546080526020608001608090036080f35b6024361060ae5760043560a01c151560ae5760076080526020608001608090036080f35b5f5ffd5b602436106101055760043560a01c15156101055773ffffffffffffffffffffffffffffffffffffffff600435166001901460ec57606460f1565b60ca5f035b8060a0526080526020608001608090036080f35b5f5ffd5b6024361061017b5760043560a01c151561017b5760015460ff90161561016a5773ffffffffffffffffffffffffffffffffffffffff6004351660019014610151576064610156565b60ca5f035b8060a0526080526020608001608090036080f35b5f6080526020608001608090036080f35b5f5ffd5b6024361061018e576004355f55005b5f5ffd5b602436106101a85760043560a01c15156101a857005b5f5ffd5b61012436106102e0576101043580610100526004016020810167ffffffffffffffff6101005111368061016052821191501781358060c0528060c052602083019250823603925082811192508292508282179150915015156102dc5760015460ff1981169050600160ff9016811790506001556040600401358060e0528060e05262ffffff81168114156102d857604060a401358061012052806101205273ffffffffffffffffffffffffffffffffffffffff81168114156102d8578061012052818060e052018060a0528060a052818060e052811091508260c0525090506102c65760c0518060c05260a051018061014052806101405260a0518060a05281106102c65780610140526080526020608001608090036080f35b634e487b715f5260116020526024601cfd5b5f5ffd5b5f5ffd5b5f5ffd"
+  Mgr_initcode_0: hex"34600e576103168060125f395ff35b5f5ffd3415156074575f3560e01c80630acaa1fa1460705780632360a5fc14606b57806347799da8146067578063483f31ab1460625780635580f72a14605e578063a5841194146059578063f6e32b8b146054576074565b610123565b6101c4565b608a565b6101b1565b6078565b6101de565b60b2565b5f5ffd5b5f546080526020608001608090036080f35b6024361060ae5760043560a01c151560ae5760076080526020608001608090036080f35b5f5ffd5b6024361061011f5760043560a01c151561011f5760043573ffffffffffffffffffffffffffffffffffffffff16600173ffffffffffffffffffffffffffffffffffffffff168114905061010657606461010b565b60ca5f035b8060a0526080526020608001608090036080f35b5f5ffd5b602436106101ad5760043560a01c15156101ad5760015460ff90161561019c5760043573ffffffffffffffffffffffffffffffffffffffff16600173ffffffffffffffffffffffffffffffffffffffff1681149050610183576064610188565b60ca5f035b8060a0526080526020608001608090036080f35b5f6080526020608001608090036080f35b5f5ffd5b602436106101c0576004355f55005b5f5ffd5b602436106101da5760043560a01c15156101da57005b5f5ffd5b6101243610610312576101043580610100526004016020810167ffffffffffffffff6101005111368061016052821191501781358060c0528060c0526020830192508236039250828111925082925082821791509150151561030e5760015460ff1981169050600160ff9016811790506001556040600401358060e0528060e05262ffffff811681141561030a57604060a401358061012052806101205273ffffffffffffffffffffffffffffffffffffffff811681141561030a578061012052818060e052018060a0528060a052818060e052811091508260c0525090506102f85760c0518060c05260a051018061014052806101405260a0518060a05281106102f85780610140526080526020608001608090036080f35b634e487b715f5260116020526024601cfd5b5f5ffd5b5f5ffd5b5f5ffd"
 
 fn @constructor() [constructor] {
   bb0:
@@ -108,7 +110,7 @@ fn @constructor() [constructor] {
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = not v0
     v3 = and v1, v2
-    v4 = word_cast true
+    v4 = zext i1 1 to i256
     v5 = and v4, 255
     v6 = shl 160, v5
     v7 = or v3, v6
@@ -117,31 +119,35 @@ fn @constructor() [constructor] {
     v9 = sload 0 !metadata(storage=slot(0))
     v10 = not v8
     v11 = and v9, v10
-    v12 = word_cast false
+    v12 = zext i1 0 to i256
     v13 = and v12, 255
     v14 = shl 168, v13
     v15 = or v11, v14
     sstore 0, v15 !metadata(storage=slot(0))
     v16 = abi_encode []
     v17 = not 31
-    v18 = and 789, v17
+    v18 = and 839, v17
     v19 = alloc raw, exact, uninitialized, infallible, v18
-    data_copy Mgr_initcode_0, v19, 758
+    data_copy Mgr_initcode_0, v19, 808
     v20 = slice_ptr v16
-    v21 = add v19, 758
-    mcopy v21, v20, 0 !metadata(memory=heap)
-    v22 = create 0, v19, 758
-    v23 = ne v22, 0
-    jumpi v23, bb2, bb1
+    v21 = ptrtoint memptr v19 to i256
+    v22 = add v21, 808
+    mcopy v22, v20, 0 !metadata(memory=heap)
+    v23 = ptrtoint memptr v19 to i256
+    v24 = create 0, v23, 808
+    v25 = zext i160 v24 to i256
+    v26 = ne v25, 0
+    jumpi v26, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v24 = sload 0 !metadata(storage=slot(0))
-    v25 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v26 = and v24, v25
-    v27 = and v22, 0xffffffffffffffffffffffffffffffffffffffff
-    v28 = or v26, v27
-    sstore 0, v28 !metadata(storage=slot(0))
+    v27 = sload 0 !metadata(storage=slot(0))
+    v28 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v29 = and v27, v28
+    v30 = zext i160 v24 to i256
+    v31 = and v30, 0xffffffffffffffffffffffffffffffffffffffff
+    v32 = or v29, v31
+    sstore 0, v32 !metadata(storage=slot(0))
     ret
 }
 
@@ -150,7 +156,7 @@ fn @fetch(arg0: i256) -> struct0 [view] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = gas
-    v3 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = trunc i256 arg0 to i160
     v4 = abi_encode [word<u160>], selector 0x5580f72a00000000000000000000000000000000000000000000000000000000, args v3
     v5 = slice_ptr v4
     v6 = slice_len v4
@@ -170,45 +176,44 @@ fn @fetch(arg0: i256) -> struct0 [view] {
     v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
     v16 = gas
     v17 = address
-    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffff
-    v19 = abi_encode [word<u160>], selector 0x5580f72a00000000000000000000000000000000000000000000000000000000, args v18
-    v20 = slice_ptr v19
-    v21 = slice_len v19
-    v22 = staticcall v16, v15, v20, v21, 0, 32
-    jumpi v22, bb4, bb3
+    v18 = abi_encode [word<u160>], selector 0x5580f72a00000000000000000000000000000000000000000000000000000000, args v17
+    v19 = slice_ptr v18
+    v20 = slice_len v18
+    v21 = staticcall v16, v15, v19, v20, 0, 32
+    jumpi v21, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v23 = returndatasize
-    v24 = lt v23, 32
-    icall revert_if<tuple_data_too_short>, v24
-    v25 = add 0, 0
-    v26 = mload v25
-    v27 = add 0, 0
-    v28 = mload v27
-    v29 = sload 0 !metadata(storage=slot(0))
-    v30 = and v29, 0xffffffffffffffffffffffffffffffffffffffff
-    v31 = gas
-    v32 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    v33 = abi_encode [word<u160>], selector 0xacaa1fa00000000000000000000000000000000000000000000000000000000, args v32
-    v34 = slice_ptr v33
-    v35 = slice_len v33
-    v36 = staticcall v31, v30, v34, v35, 0, 32
-    jumpi v36, bb6, bb5
+    v22 = returndatasize
+    v23 = lt v22, 32
+    icall revert_if<tuple_data_too_short>, v23
+    v24 = add 0, 0
+    v25 = mload v24
+    v26 = add 0, 0
+    v27 = mload v26
+    v28 = sload 0 !metadata(storage=slot(0))
+    v29 = and v28, 0xffffffffffffffffffffffffffffffffffffffff
+    v30 = gas
+    v31 = trunc i256 arg0 to i160
+    v32 = abi_encode [word<u160>], selector 0xacaa1fa00000000000000000000000000000000000000000000000000000000, args v31
+    v33 = slice_ptr v32
+    v34 = slice_len v32
+    v35 = staticcall v30, v29, v33, v34, 0, 32
+    jumpi v35, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v37 = returndatasize
-    v38 = lt v37, 32
-    icall revert_if<tuple_data_too_short>, v38
-    v39 = add 0, 0
-    v40 = mload v39
-    v41 = add 0, 0
-    v42 = mload v41
-    v43 = insert_value struct0, undef struct0, 0, v13
-    v44 = insert_value struct0, v43, 1, v28
-    v45 = insert_value struct0, v44, 2, v42
-    ret v45
+    v36 = returndatasize
+    v37 = lt v36, 32
+    icall revert_if<tuple_data_too_short>, v37
+    v38 = add 0, 0
+    v39 = mload v38
+    v40 = add 0, 0
+    v41 = mload v40
+    v42 = insert_value struct0, undef struct0, 0, v13
+    v43 = insert_value struct0, v42, 1, v27
+    v44 = insert_value struct0, v43, 2, v41
+    ret v44
 }
 
 fn @fetchRich(arg0: i256) -> struct0 [view] {
@@ -216,7 +221,7 @@ fn @fetchRich(arg0: i256) -> struct0 [view] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = gas
-    v3 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = trunc i256 arg0 to i160
     v4 = abi_encode [word<u160>], selector 0x5580f72a00000000000000000000000000000000000000000000000000000000, args v3
     v5 = slice_ptr v4
     v6 = slice_len v4
@@ -236,385 +241,400 @@ fn @fetchRich(arg0: i256) -> struct0 [view] {
     v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
     v16 = gas
     v17 = address
-    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffff
-    v19 = abi_encode [word<u160>], selector 0x5580f72a00000000000000000000000000000000000000000000000000000000, args v18
-    v20 = slice_ptr v19
-    v21 = slice_len v19
-    v22 = staticcall v16, v15, v20, v21, 0, 32
-    jumpi v22, bb4, bb3
+    v18 = abi_encode [word<u160>], selector 0x5580f72a00000000000000000000000000000000000000000000000000000000, args v17
+    v19 = slice_ptr v18
+    v20 = slice_len v18
+    v21 = staticcall v16, v15, v19, v20, 0, 32
+    jumpi v21, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v23 = returndatasize
-    v24 = lt v23, 32
-    icall revert_if<tuple_data_too_short>, v24
-    v25 = add 0, 0
-    v26 = mload v25
-    v27 = add 0, 0
-    v28 = mload v27
-    v29 = sload 0 !metadata(storage=slot(0))
-    v30 = and v29, 0xffffffffffffffffffffffffffffffffffffffff
-    v31 = gas
-    v32 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    v33 = abi_encode [word<u160>], selector 0xf6e32b8b00000000000000000000000000000000000000000000000000000000, args v32
-    v34 = slice_ptr v33
-    v35 = slice_len v33
-    v36 = staticcall v31, v30, v34, v35, 0, 32
-    jumpi v36, bb6, bb5
+    v22 = returndatasize
+    v23 = lt v22, 32
+    icall revert_if<tuple_data_too_short>, v23
+    v24 = add 0, 0
+    v25 = mload v24
+    v26 = add 0, 0
+    v27 = mload v26
+    v28 = sload 0 !metadata(storage=slot(0))
+    v29 = and v28, 0xffffffffffffffffffffffffffffffffffffffff
+    v30 = gas
+    v31 = trunc i256 arg0 to i160
+    v32 = abi_encode [word<u160>], selector 0xf6e32b8b00000000000000000000000000000000000000000000000000000000, args v31
+    v33 = slice_ptr v32
+    v34 = slice_len v32
+    v35 = staticcall v30, v29, v33, v34, 0, 32
+    jumpi v35, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v37 = returndatasize
-    v38 = lt v37, 32
-    icall revert_if<tuple_data_too_short>, v38
-    v39 = add 0, 0
-    v40 = mload v39
-    v41 = add 0, 0
-    v42 = mload v41
-    v43 = insert_value struct0, undef struct0, 0, v13
-    v44 = insert_value struct0, v43, 1, v28
-    v45 = insert_value struct0, v44, 2, v42
-    ret v45
+    v36 = returndatasize
+    v37 = lt v36, 32
+    icall revert_if<tuple_data_too_short>, v37
+    v38 = add 0, 0
+    v39 = mload v38
+    v40 = add 0, 0
+    v41 = mload v40
+    v42 = insert_value struct0, undef struct0, 0, v13
+    v43 = insert_value struct0, v42, 1, v27
+    v44 = insert_value struct0, v43, 2, v41
+    ret v44
 }
 
 fn @go() -> i256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = icall @fetch, 1
-    v1 = extract_value struct0, v0, 0
-    v2 = extract_value struct0, v0, 1
-    v3 = extract_value struct0, v0, 2
-    v4 = icall @fetch, 2
-    v5 = extract_value struct0, v4, 0
-    v6 = extract_value struct0, v4, 1
-    v7 = extract_value struct0, v4, 2
-    v8 = sub 0, 202
-    v9 = eq v3, v8
-    icall require<short_string>, v9, 2, 0x6430000000000000000000000000000000000000000000000000000000000000
-    v10 = sload 0 !metadata(storage=slot(0))
-    v11 = shr 160, v10
-    v12 = and v11, 255
-    v13 = ne v12, 0
-    jumpi v13, bb1, bb2
+    v0 = trunc i256 1 to i160
+    v1 = zext i160 v0 to i256
+    v2 = icall @fetch, v1
+    v3 = extract_value struct0, v2, 0
+    v4 = extract_value struct0, v2, 1
+    v5 = extract_value struct0, v2, 2
+    v6 = trunc i256 2 to i160
+    v7 = zext i160 v6 to i256
+    v8 = icall @fetch, v7
+    v9 = extract_value struct0, v8, 0
+    v10 = extract_value struct0, v8, 1
+    v11 = extract_value struct0, v8, 2
+    v12 = sub 0, 202
+    v13 = eq v5, v12
+    icall require<short_string>, v13, 2, 0x6430000000000000000000000000000000000000000000000000000000000000
+    v14 = sload 0 !metadata(storage=slot(0))
+    v15 = shr 160, v14
+    v16 = and v15, 255
+    v17 = ne v16, 0
+    jumpi v17, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v14 = sload 0 !metadata(storage=slot(0))
-    v15 = shr 168, v14
-    v16 = and v15, 255
-    v17 = ne v16, 0
-    jumpi v17, bb4, bb5
+    v18 = sload 0 !metadata(storage=slot(0))
+    v19 = shr 168, v18
+    v20 = and v19, 255
+    v21 = ne v20, 0
+    jumpi v21, bb4, bb5
   bb5:
-    v20 = sgt v7, 100
-    v21 = eq v20, false
-    icall require<short_string>, v21, 4, 0x6f76657200000000000000000000000000000000000000000000000000000000
+    v24 = sgt v11, 100
+    v25 = eq v24, false
+    icall require<short_string>, v25, 4, 0x6f76657200000000000000000000000000000000000000000000000000000000
     jump bb6
   bb4:
-    v18 = slt v7, 0
-    v19 = eq v18, false
-    icall require<short_string>, v19, 1, 0x7800000000000000000000000000000000000000000000000000000000000000
+    v22 = slt v11, 0
+    v23 = eq v22, false
+    icall require<short_string>, v23, 1, 0x7800000000000000000000000000000000000000000000000000000000000000
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v22 = slt v3, 0
-    jumpi v22, bb7, bb8
+    v26 = slt v5, 0
+    jumpi v26, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v23 = sload 0 !metadata(storage=slot(0))
-    v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffff
-    v25 = caller
-    v26 = checked_sub i256, 0, v3
-    icall @settle, v24, v25, v26
+    v27 = sload 0 !metadata(storage=slot(0))
+    v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffff
+    v29 = caller
+    v30 = zext i160 v29 to i256
+    v31 = checked_sub i256, 0, v5
+    icall @settle, v28, v30, v31
     jump bb9
   bb9:
-    v27 = slt v7, 0
-    jumpi v27, bb10, bb11
+    v32 = slt v11, 0
+    jumpi v32, bb10, bb11
   bb11:
     jump bb12
   bb10:
-    v28 = sload 0 !metadata(storage=slot(0))
-    v29 = and v28, 0xffffffffffffffffffffffffffffffffffffffff
-    v30 = caller
-    v31 = checked_sub i256, 0, v7
-    icall @settle, v29, v30, v31
+    v33 = sload 0 !metadata(storage=slot(0))
+    v34 = and v33, 0xffffffffffffffffffffffffffffffffffffffff
+    v35 = caller
+    v36 = zext i160 v35 to i256
+    v37 = checked_sub i256, 0, v11
+    icall @settle, v34, v36, v37
     jump bb12
   bb12:
-    v32 = sgt v3, 0
-    jumpi v32, bb13, bb14
+    v38 = sgt v5, 0
+    jumpi v38, bb13, bb14
   bb14:
     jump bb15
   bb13:
-    v33 = sload 0 !metadata(storage=slot(0))
-    v34 = and v33, 0xffffffffffffffffffffffffffffffffffffffff
-    v35 = gas
-    v36 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v3
-    v37 = slice_ptr v36
-    v38 = slice_len v36
-    v39 = extcodesize v34
-    v40 = eq v39, 0
-    icall revert_if<target_contract_has_no_code>, v40
-    v41 = call v35, v34, 0, v37, v38, 0, 0
-    jumpi v41, bb17, bb16
+    v39 = sload 0 !metadata(storage=slot(0))
+    v40 = and v39, 0xffffffffffffffffffffffffffffffffffffffff
+    v41 = gas
+    v42 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v5
+    v43 = slice_ptr v42
+    v44 = slice_len v42
+    v45 = extcodesize v40
+    v46 = eq v45, 0
+    icall revert_if<target_contract_has_no_code>, v46
+    v47 = call v41, v40, 0, v43, v44, 0, 0
+    jumpi v47, bb17, bb16
   bb16:
     revert_returndata
   bb17:
     jump bb15
   bb15:
-    v42 = sgt v7, 0
-    jumpi v42, bb18, bb19
+    v48 = sgt v11, 0
+    jumpi v48, bb18, bb19
   bb19:
     jump bb20
   bb18:
-    v43 = sload 0 !metadata(storage=slot(0))
-    v44 = and v43, 0xffffffffffffffffffffffffffffffffffffffff
-    v45 = gas
-    v46 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v7
-    v47 = slice_ptr v46
-    v48 = slice_len v46
-    v49 = extcodesize v44
-    v50 = eq v49, 0
-    icall revert_if<target_contract_has_no_code>, v50
-    v51 = call v45, v44, 0, v47, v48, 0, 0
-    jumpi v51, bb22, bb21
+    v49 = sload 0 !metadata(storage=slot(0))
+    v50 = and v49, 0xffffffffffffffffffffffffffffffffffffffff
+    v51 = gas
+    v52 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v11
+    v53 = slice_ptr v52
+    v54 = slice_len v52
+    v55 = extcodesize v50
+    v56 = eq v55, 0
+    icall revert_if<target_contract_has_no_code>, v56
+    v57 = call v51, v50, 0, v53, v54, 0, 0
+    jumpi v57, bb22, bb21
   bb21:
     revert_returndata
   bb22:
     jump bb20
   bb20:
-    v52 = sload 0 !metadata(storage=slot(0))
-    v53 = and v52, 0xffffffffffffffffffffffffffffffffffffffff
-    v54 = gas
-    v55 = abi_encode [], selector 0x47799da800000000000000000000000000000000000000000000000000000000
-    v56 = slice_ptr v55
-    v57 = slice_len v55
-    v58 = staticcall v54, v53, v56, v57, 0, 32
-    jumpi v58, bb24, bb23
+    v58 = sload 0 !metadata(storage=slot(0))
+    v59 = and v58, 0xffffffffffffffffffffffffffffffffffffffff
+    v60 = gas
+    v61 = abi_encode [], selector 0x47799da800000000000000000000000000000000000000000000000000000000
+    v62 = slice_ptr v61
+    v63 = slice_len v61
+    v64 = staticcall v60, v59, v62, v63, 0, 32
+    jumpi v64, bb24, bb23
   bb23:
     revert_returndata
   bb24:
-    v59 = returndatasize
-    v60 = lt v59, 32
-    icall revert_if<tuple_data_too_short>, v60
-    v61 = add 0, 0
-    v62 = mload v61
-    v63 = add 0, 0
-    v64 = mload v63
-    v65 = eq v64, 100
-    icall require<short_string>, v65, 17, 0x746f6f6b2077726f6e6720616d6f756e74000000000000000000000000000000
+    v65 = returndatasize
+    v66 = lt v65, 32
+    icall revert_if<tuple_data_too_short>, v66
+    v67 = add 0, 0
+    v68 = mload v67
+    v69 = add 0, 0
+    v70 = mload v69
+    v71 = eq v70, 100
+    icall require<short_string>, v71, 17, 0x746f6f6b2077726f6e6720616d6f756e74000000000000000000000000000000
     ret 1
 }
 
 fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
-    memory_object_store_field memorystruct<5>, v0, 0, 1
-    memory_object_store_field memorystruct<5>, v0, 1, 2
+    v1 = trunc i256 1 to i160
+    v2 = trunc i256 2 to i160
+    v3 = trunc i256 3 to i160
+    memory_object_store_field memorystruct<5>, v0, 0, v1
+    memory_object_store_field memorystruct<5>, v0, 1, v2
     memory_object_store_field memorystruct<5>, v0, 2, 0xbb8
     memory_object_store_field memorystruct<5>, v0, 3, 60
-    memory_object_store_field memorystruct<5>, v0, 4, 3
-    v1 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v1, 0, true
-    memory_object_store_field memorystruct<3>, v1, 1, 101
-    memory_object_store_field memorystruct<3>, v1, 2, 99
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v2, 4
-    v3 = memory_object_data memorybytes, v2
-    mstore v3, 0x1234567800000000000000000000000000000000000000000000000000000000
-    v4 = memory_object_load_field memorystruct<5>, v0, 0
-    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = icall @fetchRich, v5
-    v7 = extract_value struct0, v6, 0
-    v8 = extract_value struct0, v6, 1
-    v9 = extract_value struct0, v6, 2
-    v10 = memory_object_load_field memorystruct<5>, v0, 1
-    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
-    v12 = icall @fetchRich, v11
-    v13 = extract_value struct0, v12, 0
-    v14 = extract_value struct0, v12, 1
-    v15 = extract_value struct0, v12, 2
-    v16 = eq v9, 0
-    icall require<short_string>, v16, 7, 0x6265666f72653000000000000000000000000000000000000000000000000000
-    v17 = eq v15, 0
-    icall require<short_string>, v17, 7, 0x6265666f72653100000000000000000000000000000000000000000000000000
-    v18 = sload 0 !metadata(storage=slot(0))
-    v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffff
-    v20 = gas
-    v21 = abi_encode [tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, tuple<word<bool>, word, word<u160>>, memory_bytes], selector 0x2360a5fc00000000000000000000000000000000000000000000000000000000, args v0, v1, v2
-    v22 = slice_ptr v21
-    v23 = slice_len v21
-    v24 = call v20, v19, 0, v22, v23, 0, 32
-    jumpi v24, bb2, bb1
+    memory_object_store_field memorystruct<5>, v0, 4, v3
+    v4 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    memory_object_store_field memorystruct<3>, v4, 0, true
+    memory_object_store_field memorystruct<3>, v4, 1, 101
+    memory_object_store_field memorystruct<3>, v4, 2, 99
+    v5 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v5, 4
+    v6 = memory_object_data memorybytes, v5
+    v7 = ptrtoint memptr v6 to i256
+    mstore v7, 0x1234567800000000000000000000000000000000000000000000000000000000
+    v8 = memory_object_load_field memorystruct<5>, v0, 0
+    v9 = trunc i256 v8 to i160
+    v10 = zext i160 v9 to i256
+    v11 = icall @fetchRich, v10
+    v12 = extract_value struct0, v11, 0
+    v13 = extract_value struct0, v11, 1
+    v14 = extract_value struct0, v11, 2
+    v15 = memory_object_load_field memorystruct<5>, v0, 1
+    v16 = trunc i256 v15 to i160
+    v17 = zext i160 v16 to i256
+    v18 = icall @fetchRich, v17
+    v19 = extract_value struct0, v18, 0
+    v20 = extract_value struct0, v18, 1
+    v21 = extract_value struct0, v18, 2
+    v22 = eq v14, 0
+    icall require<short_string>, v22, 7, 0x6265666f72653000000000000000000000000000000000000000000000000000
+    v23 = eq v21, 0
+    icall require<short_string>, v23, 7, 0x6265666f72653100000000000000000000000000000000000000000000000000
+    v24 = sload 0 !metadata(storage=slot(0))
+    v25 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
+    v26 = gas
+    v27 = abi_encode [tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, tuple<word<bool>, word, word<u160>>, memory_bytes], selector 0x2360a5fc00000000000000000000000000000000000000000000000000000000, args v0, v4, v5
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = call v26, v25, 0, v28, v29, 0, 32
+    jumpi v30, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v25 = returndatasize
-    v26 = lt v25, 32
-    icall revert_if<tuple_data_too_short>, v26
-    v27 = add 0, 0
-    v28 = mload v27
-    v29 = add 0, 0
-    v30 = mload v29
-    v31 = memory_object_load_field memorystruct<5>, v0, 0
-    v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffff
-    v33 = icall @fetchRich, v32
-    v34 = extract_value struct0, v33, 0
-    v35 = extract_value struct0, v33, 1
-    v36 = extract_value struct0, v33, 2
-    v37 = memory_object_load_field memorystruct<5>, v0, 1
-    v38 = and v37, 0xffffffffffffffffffffffffffffffffffffffff
-    v39 = icall @fetchRich, v38
-    v40 = extract_value struct0, v39, 0
-    v41 = extract_value struct0, v39, 1
-    v42 = extract_value struct0, v39, 2
-    v43 = memory_object_load_field memorystruct<3>, v1, 0
-    v44 = eq v43, 0
-    v45 = eq v44, false
-    jumpi v45, bb3, bb4
+    v31 = returndatasize
+    v32 = lt v31, 32
+    icall revert_if<tuple_data_too_short>, v32
+    v33 = add 0, 0
+    v34 = mload v33
+    v35 = add 0, 0
+    v36 = mload v35
+    v37 = memory_object_load_field memorystruct<5>, v0, 0
+    v38 = trunc i256 v37 to i160
+    v39 = zext i160 v38 to i256
+    v40 = icall @fetchRich, v39
+    v41 = extract_value struct0, v40, 0
+    v42 = extract_value struct0, v40, 1
+    v43 = extract_value struct0, v40, 2
+    v44 = memory_object_load_field memorystruct<5>, v0, 1
+    v45 = trunc i256 v44 to i160
+    v46 = zext i160 v45 to i256
+    v47 = icall @fetchRich, v46
+    v48 = extract_value struct0, v47, 0
+    v49 = extract_value struct0, v47, 1
+    v50 = extract_value struct0, v47, 2
+    v51 = memory_object_load_field memorystruct<3>, v4, 0
+    v52 = eq v51, 0
+    v53 = eq v52, false
+    jumpi v53, bb3, bb4
   bb4:
-    v58 = memory_object_load_field memorystruct<3>, v1, 1
-    v59 = slt v58, 0
-    jumpi v59, bb9, bb10
+    v66 = memory_object_load_field memorystruct<3>, v4, 1
+    v67 = slt v66, 0
+    jumpi v67, bb9, bb10
   bb10:
-    v65 = memory_object_load_field memorystruct<3>, v1, 1
-    v66 = sgt v42, v65
-    v67 = eq v66, false
-    icall require<short_string>, v67, 1, 0x6700000000000000000000000000000000000000000000000000000000000000
-    v68 = sgt v36, 0
-    v69 = eq v68, false
-    icall require<short_string>, v69, 1, 0x6800000000000000000000000000000000000000000000000000000000000000
+    v73 = memory_object_load_field memorystruct<3>, v4, 1
+    v74 = sgt v50, v73
+    v75 = eq v74, false
+    icall require<short_string>, v75, 1, 0x6700000000000000000000000000000000000000000000000000000000000000
+    v76 = sgt v43, 0
+    v77 = eq v76, false
+    icall require<short_string>, v77, 1, 0x6800000000000000000000000000000000000000000000000000000000000000
     jump bb11
   bb9:
-    v60 = memory_object_load_field memorystruct<3>, v1, 1
-    v61 = slt v42, v60
-    v62 = eq v61, false
-    icall require<short_string>, v62, 1, 0x6500000000000000000000000000000000000000000000000000000000000000
-    v63 = slt v36, 0
-    v64 = eq v63, false
-    icall require<short_string>, v64, 1, 0x6600000000000000000000000000000000000000000000000000000000000000
+    v68 = memory_object_load_field memorystruct<3>, v4, 1
+    v69 = slt v50, v68
+    v70 = eq v69, false
+    icall require<short_string>, v70, 1, 0x6500000000000000000000000000000000000000000000000000000000000000
+    v71 = slt v43, 0
+    v72 = eq v71, false
+    icall require<short_string>, v72, 1, 0x6600000000000000000000000000000000000000000000000000000000000000
     jump bb11
   bb11:
     jump bb5
   bb3:
-    v46 = memory_object_load_field memorystruct<3>, v1, 1
-    v47 = slt v46, 0
-    jumpi v47, bb6, bb7
+    v54 = memory_object_load_field memorystruct<3>, v4, 1
+    v55 = slt v54, 0
+    jumpi v55, bb6, bb7
   bb7:
-    v53 = sgt v36, 0
-    v54 = eq v53, false
-    icall require<short_string>, v54, 1, 0x6300000000000000000000000000000000000000000000000000000000000000
-    v55 = memory_object_load_field memorystruct<3>, v1, 1
-    v56 = sgt v42, v55
-    v57 = eq v56, false
-    icall require<short_string>, v57, 1, 0x6400000000000000000000000000000000000000000000000000000000000000
+    v61 = sgt v43, 0
+    v62 = eq v61, false
+    icall require<short_string>, v62, 1, 0x6300000000000000000000000000000000000000000000000000000000000000
+    v63 = memory_object_load_field memorystruct<3>, v4, 1
+    v64 = sgt v50, v63
+    v65 = eq v64, false
+    icall require<short_string>, v65, 1, 0x6400000000000000000000000000000000000000000000000000000000000000
     jump bb8
   bb6:
-    v48 = memory_object_load_field memorystruct<3>, v1, 1
-    v49 = slt v36, v48
-    v50 = eq v49, false
-    icall require<short_string>, v50, 1, 0x6100000000000000000000000000000000000000000000000000000000000000
-    v51 = slt v42, 0
-    v52 = eq v51, false
-    icall require<short_string>, v52, 1, 0x6200000000000000000000000000000000000000000000000000000000000000
+    v56 = memory_object_load_field memorystruct<3>, v4, 1
+    v57 = slt v43, v56
+    v58 = eq v57, false
+    icall require<short_string>, v58, 1, 0x6100000000000000000000000000000000000000000000000000000000000000
+    v59 = slt v50, 0
+    v60 = eq v59, false
+    icall require<short_string>, v60, 1, 0x6200000000000000000000000000000000000000000000000000000000000000
     jump bb8
   bb8:
     jump bb5
   bb5:
-    v70 = slt v36, 0
-    jumpi v70, bb12, bb13
+    v78 = slt v43, 0
+    jumpi v78, bb12, bb13
   bb13:
     jump bb14
   bb12:
-    v71 = sload 0 !metadata(storage=slot(0))
-    v72 = and v71, 0xffffffffffffffffffffffffffffffffffffffff
-    v73 = caller
-    v74 = checked_sub i256, 0, v36
-    icall @settle, v72, v73, v74
+    v79 = sload 0 !metadata(storage=slot(0))
+    v80 = and v79, 0xffffffffffffffffffffffffffffffffffffffff
+    v81 = caller
+    v82 = zext i160 v81 to i256
+    v83 = checked_sub i256, 0, v43
+    icall @settle, v80, v82, v83
     jump bb14
   bb14:
-    v75 = slt v42, 0
-    jumpi v75, bb15, bb16
+    v84 = slt v50, 0
+    jumpi v84, bb15, bb16
   bb16:
     jump bb17
   bb15:
-    v76 = sload 0 !metadata(storage=slot(0))
-    v77 = and v76, 0xffffffffffffffffffffffffffffffffffffffff
-    v78 = caller
-    v79 = checked_sub i256, 0, v42
-    icall @settle, v77, v78, v79
+    v85 = sload 0 !metadata(storage=slot(0))
+    v86 = and v85, 0xffffffffffffffffffffffffffffffffffffffff
+    v87 = caller
+    v88 = zext i160 v87 to i256
+    v89 = checked_sub i256, 0, v50
+    icall @settle, v86, v88, v89
     jump bb17
   bb17:
-    v80 = sgt v36, 0
-    jumpi v80, bb18, bb19
+    v90 = sgt v43, 0
+    jumpi v90, bb18, bb19
   bb19:
     jump bb20
   bb18:
-    v81 = sload 0 !metadata(storage=slot(0))
-    v82 = and v81, 0xffffffffffffffffffffffffffffffffffffffff
-    v83 = gas
-    v84 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v36
-    v85 = slice_ptr v84
-    v86 = slice_len v84
-    v87 = extcodesize v82
-    v88 = eq v87, 0
-    icall revert_if<target_contract_has_no_code>, v88
-    v89 = call v83, v82, 0, v85, v86, 0, 0
-    jumpi v89, bb22, bb21
-  bb21:
-    revert_returndata
-  bb22:
-    jump bb20
-  bb20:
-    v90 = sgt v42, 0
-    jumpi v90, bb23, bb24
-  bb24:
-    jump bb25
-  bb23:
     v91 = sload 0 !metadata(storage=slot(0))
     v92 = and v91, 0xffffffffffffffffffffffffffffffffffffffff
     v93 = gas
-    v94 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v42
+    v94 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v43
     v95 = slice_ptr v94
     v96 = slice_len v94
     v97 = extcodesize v92
     v98 = eq v97, 0
     icall revert_if<target_contract_has_no_code>, v98
     v99 = call v93, v92, 0, v95, v96, 0, 0
-    jumpi v99, bb27, bb26
+    jumpi v99, bb22, bb21
+  bb21:
+    revert_returndata
+  bb22:
+    jump bb20
+  bb20:
+    v100 = sgt v50, 0
+    jumpi v100, bb23, bb24
+  bb24:
+    jump bb25
+  bb23:
+    v101 = sload 0 !metadata(storage=slot(0))
+    v102 = and v101, 0xffffffffffffffffffffffffffffffffffffffff
+    v103 = gas
+    v104 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v50
+    v105 = slice_ptr v104
+    v106 = slice_len v104
+    v107 = extcodesize v102
+    v108 = eq v107, 0
+    icall revert_if<target_contract_has_no_code>, v108
+    v109 = call v103, v102, 0, v105, v106, 0, 0
+    jumpi v109, bb27, bb26
   bb26:
     revert_returndata
   bb27:
     jump bb25
   bb25:
-    v100 = eq v30, 0xc1f
-    icall require<short_string>, v100, 17, 0x77726f6e672063616c6c20726573756c74000000000000000000000000000000
-    v101 = sload 0 !metadata(storage=slot(0))
-    v102 = and v101, 0xffffffffffffffffffffffffffffffffffffffff
-    v103 = gas
-    v104 = abi_encode [], selector 0x47799da800000000000000000000000000000000000000000000000000000000
-    v105 = slice_ptr v104
-    v106 = slice_len v104
-    v107 = staticcall v103, v102, v105, v106, 0, 32
-    jumpi v107, bb29, bb28
+    v110 = eq v36, 0xc1f
+    icall require<short_string>, v110, 17, 0x77726f6e672063616c6c20726573756c74000000000000000000000000000000
+    v111 = sload 0 !metadata(storage=slot(0))
+    v112 = and v111, 0xffffffffffffffffffffffffffffffffffffffff
+    v113 = gas
+    v114 = abi_encode [], selector 0x47799da800000000000000000000000000000000000000000000000000000000
+    v115 = slice_ptr v114
+    v116 = slice_len v114
+    v117 = staticcall v113, v112, v115, v116, 0, 32
+    jumpi v117, bb29, bb28
   bb28:
     revert_returndata
   bb29:
-    v108 = returndatasize
-    v109 = lt v108, 32
-    icall revert_if<tuple_data_too_short>, v109
-    v110 = add 0, 0
-    v111 = mload v110
-    v112 = add 0, 0
-    v113 = mload v112
-    v114 = eq v113, 100
-    icall require<short_string>, v114, 22, 0x746f6f6b2077726f6e67207269636820616d6f756e7400000000000000000000
+    v118 = returndatasize
+    v119 = lt v118, 32
+    icall revert_if<tuple_data_too_short>, v119
+    v120 = add 0, 0
+    v121 = mload v120
+    v122 = add 0, 0
+    v123 = mload v122
+    v124 = eq v123, 100
+    icall require<short_string>, v124, 22, 0x746f6f6b2077726f6e67207269636820616d6f756e7400000000000000000000
     ret 2
 }
 
 fn @settle(arg0: i256, arg1: i256, arg2: i256) {
   bb0:
     v0 = gas
-    v1 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = trunc i256 0x1234 to i160
     v2 = abi_encode [word<u160>], selector 0xa584119400000000000000000000000000000000000000000000000000000000, args v1
     v3 = slice_ptr v2
     v4 = slice_len v2

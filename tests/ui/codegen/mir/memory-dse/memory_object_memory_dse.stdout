@@ -33,12 +33,13 @@
       v1 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v1, 39
       v2 = memory_object_data memorybytes, v1
-      mstore v2, 7
--     v3 = memory_object_len memorybytes, v1
-      v4 = ne arg1, 0
-      jumpi v4, bb3, bb2
+      v3 = ptrtoint memptr v2 to i256
+      mstore v3, 7
+-     v4 = memory_object_len memorybytes, v1
+      v5 = ne arg1, 0
+      jumpi v5, bb3, bb2
     bb2:
--     ret v3
+-     ret v4
 +     ret 39
     bb3:
       ret 0
@@ -77,9 +78,10 @@
       v1 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v1, 39
       v2 = memory_object_data memorybytes, v1
-      mstore v2, 7
-      v4 = ne arg1, 0
-      jumpi v4, bb3, bb2
+      v3 = ptrtoint memptr v2 to i256
+      mstore v3, 7
+      v5 = ne arg1, 0
+      jumpi v5, bb3, bb2
     bb2:
       ret 39
     bb3:

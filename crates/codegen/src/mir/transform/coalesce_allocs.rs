@@ -44,8 +44,9 @@ impl MirPass for CoalesceAllocs {
     ) -> bool {
         let mut changed = false;
         for func in module.functions.iter_mut() {
-            if !func.blocks.is_empty() {
-                changed |= coalesce_function(func);
+            if !func.blocks.is_empty() && coalesce_function(func) {
+                super::lower_memory_objects::normalize_pointer_operands(func);
+                changed = true;
             }
         }
         changed

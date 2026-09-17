@@ -161,7 +161,7 @@
       ret
   }
   
-  fn @keep_distinct_libraries(arg0: i1) -> i256 {
+  fn @keep_distinct_libraries(arg0: i1) -> i160 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:

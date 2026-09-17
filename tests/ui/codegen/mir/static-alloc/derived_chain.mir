@@ -7,12 +7,14 @@
 // CHECK-LABEL: + // === {{.*}} (after static-alloc) ===
 // CHECK:   fn @derived_chain{{.*}}
 // CHECK: -     {{v[0-9]+}} = alloc raw, exact, uninitialized, infallible, 32
-// CHECK: +     {{v[0-9]+}} = add 128, 0
+// CHECK: +     [[BASE:v[0-9]+]] = ptrtoint memptr 128 to i256
+// CHECK:       {{v[0-9]+}} = add [[BASE]], 0
 // CHECK:       [[LOAD:v[0-9]+]] = mload {{v[0-9]+}}
 // CHECK:       ret [[LOAD]]
 fn @derived_chain() -> i256 [selector=0x01020304] {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v7 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v7 to i256
     jump bb5
   bb1:
     v5 = add v4, 0

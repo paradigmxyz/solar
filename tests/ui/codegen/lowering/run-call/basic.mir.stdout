@@ -21,7 +21,7 @@ fn @negate(arg0: i256) -> i256 [selector=0xb9225c15, pure, abi_params=[bool], ab
     v0 = eq arg0, 0
     v1 = eq v0, false
     v2 = eq v1, false
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     ret v3
 }
 
@@ -31,7 +31,7 @@ fn @pair(arg0: i256, arg1: i256) -> struct0 [selector=0xedaceefe, pure, abi_para
     v1 = eq arg1, 0
     v2 = eq v1, false
     v3 = eq v2, false
-    v4 = word_cast v3
+    v4 = zext i1 v3 to i256
     v5 = insert_value struct0, undef struct0, 0, v0
     v6 = insert_value struct0, v5, 1, v4
     ret v6
@@ -62,7 +62,7 @@ fn @sum(arg0: calldataslice) -> i256 [selector=0x0194db8e, pure, abi_params=[arr
     v11 = div v9, 32
     v12 = eq v11, v0
     v13 = or v10, v12
-    v14 = word_cast v13
+    v14 = zext i1 v13 to i256
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = add v8, v9
@@ -167,7 +167,7 @@ fn @fill(arg0: i256) -> memoryfixedarray [selector=0x3fda5389, pure, abi_params=
   bb4:
     v8 = add v5, 7
     v9 = shl 5, v5
-    v10 = word_cast v6
+    v10 = ptrtoint memoryfixedarray v6 to i256
     v11 = add v10, v9
     mstore v11, v8
     jump bb6

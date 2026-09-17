@@ -18,20 +18,24 @@
   fn @require_reads_children(arg0: i1) {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 7
-      mstore v1, v0
-      icall require<custom_error [array<1, memory_bytes>]>, arg0, 0, v1
+      v1 = ptrtoint memptr v0 to i256
+      v2 = alloc raw, exact, uninitialized, infallible, 32
+      v3 = ptrtoint memptr v2 to i256
+      mstore v1, 7
+      mstore v3, v1
+      icall require<custom_error [array<1, memory_bytes>]>, arg0, 0, v3
       ret
   }
   
   fn @packed_reads_children() -> memorybytes {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 7
-      mstore v1, v0
-      v2 = abi_encode_packed (array<array<1, word>> memoryfixedarray<1, 1> v1)
-      ret v2
+      v1 = ptrtoint memptr v0 to i256
+      v2 = alloc raw, exact, uninitialized, infallible, 32
+      v3 = ptrtoint memptr v2 to i256
+      mstore v1, 7
+      mstore v3, v1
+      v4 = abi_encode_packed (array<array<1, word>> memoryfixedarray<1, 1> v3)
+      ret v4
   }
   

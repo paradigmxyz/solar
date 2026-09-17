@@ -62,17 +62,18 @@ fn @doubleProbe() -> i256 [selector=0xf770a1a3, pure, abi_params=[], abi_returns
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 3
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x2222330000000000000000000000000000000000000000000000000000000000
-    v2 = icall @copy, v0, 34
-    v3 = icall @copy, v2, 221
-    v4 = memory_object_len memorybytes, v3
-    v5 = lt 1, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    v7 = memory_object_load_byte memorybytes, v3, 1
-    v8 = shl 248, v7
-    v9 = shr 248, v8
-    ret v9
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x2222330000000000000000000000000000000000000000000000000000000000
+    v3 = icall @copy, v0, 34
+    v4 = icall @copy, v3, 221
+    v5 = memory_object_len memorybytes, v4
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = memory_object_load_byte memorybytes, v4, 1
+    v9 = shl 248, v8
+    v10 = shr 248, v9
+    ret v10
 }
 
 fn @run(arg0: memorybytes, arg1: i256) -> memorybytes [selector=0x194e10ce, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -91,12 +92,12 @@ fn @twice(arg0: memorybytes, arg1: i256) -> memorybytes [selector=0x5a2aaa96, pu
 fn @copy(arg0: memorybytes, arg1: i256) -> memorybytes [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
-    v1 = word_cast arg0
+    v1 = ptrtoint memorybytes arg0 to i256
     v2 = add v1, 32
-    v3 = word_cast arg0
+    v3 = ptrtoint memorybytes arg0 to i256
     v4 = mload v3
     v5 = add v2, v4
-    v6 = word_cast arg0
+    v6 = ptrtoint memorybytes arg0 to i256
     v7 = sub v0, v6
     jump bb1
   bb1:
@@ -107,7 +108,7 @@ fn @copy(arg0: memorybytes, arg1: i256) -> memorybytes [pure] {
     v12 = phi [bb0: v0], [bb5: v12], [bb11: v12]
     v13 = phi [bb0: v5], [bb5: v13], [bb11: v13]
     v14 = lt v9, v13
-    v15 = word_cast v14
+    v15 = zext i1 v14 to i256
     v16 = ne v15, 0
     jumpi v16, bb3, bb4
   bb4:
@@ -116,7 +117,7 @@ fn @copy(arg0: memorybytes, arg1: i256) -> memorybytes [pure] {
     v17 = mload v9
     v18 = byte 0, v17
     v19 = eq v18, v8
-    v20 = word_cast v19
+    v20 = zext i1 v19 to i256
     v21 = ne v20, 0
     jumpi v21, bb6, bb7
   bb7:
@@ -134,9 +135,9 @@ fn @copy(arg0: memorybytes, arg1: i256) -> memorybytes [pure] {
     mstore v23, v22
     v24 = add v9, 1
     v25 = lt v24, v13
-    v26 = word_cast v25
+    v26 = zext i1 v25 to i256
     v27 = eq v26, 0
-    v28 = word_cast v27
+    v28 = zext i1 v27 to i256
     v29 = ne v28, 0
     jumpi v29, bb9, bb10
   bb10:
@@ -147,7 +148,7 @@ fn @copy(arg0: memorybytes, arg1: i256) -> memorybytes [pure] {
     jump bb2
   bb2:
     v32 = phi [bb9: v24], [bb4: v9]
-    v33 = word_cast v11
+    v33 = ptrtoint memorybytes v11 to i256
     v34 = add v33, 32
     v35 = sub v32, v34
     mstore v12, v35
@@ -157,6 +158,6 @@ fn @copy(arg0: memorybytes, arg1: i256) -> memorybytes [pure] {
     v38 = add v12, 64
     v39 = add v38, v35
     mstore 64, v39 !metadata(memory=scratch)
-    v40 = memory_object_from_ptr memorybytes, v12
+    v40 = inttoptr i256 v12 to memorybytes
     ret v40
 }

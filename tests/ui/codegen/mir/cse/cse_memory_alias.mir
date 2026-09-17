@@ -59,7 +59,7 @@ fn @reuse_mload_after_disjoint_call_return(arg0: i256) -> i256 {
     v2 = call 100000, arg0, 0, 0, 0, 96, 32
     v3 = mload 64
     v4 = add v1, v3
-    v6 = word_cast v2
+    v6 = zext i1 v2 to i256
     v5 = add v4, v6
     ret v5
 }
@@ -73,7 +73,7 @@ fn @keep_mload_after_overlapping_call_return(arg0: i256) -> i256 {
     v2 = call 100000, arg0, 0, 0, 0, 96, 32
     v3 = mload 96
     v4 = add v1, v3
-    v6 = word_cast v2
+    v6 = zext i1 v2 to i256
     v5 = add v4, v6
     ret v5
 }

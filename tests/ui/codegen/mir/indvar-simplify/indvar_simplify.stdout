@@ -3,14 +3,11 @@
   @module IndVarSimplify
   fn @strength_reduce_shifted_address(arg0: i256) -> i256 {
     bb0:
-+     v11 = shl 5, 4
-+     v12 = add arg0, v11
       jump bb1
     bb1:
--     v0 = phi [bb0: 0], [bb2: v8]
--     v1 = lt v0, 4
+      v0 = phi [bb0: 0], [bb2: v8]
 +     v9 = phi [bb0: arg0], [bb2: v10]
-+     v1 = lt v9, v12
+      v1 = lt v0, 4
       jumpi v1, bb2, bb3
     bb3:
       ret 0
@@ -23,8 +20,8 @@
 +     v4 = mload v9
       v7 = add v4, 1
 -     mstore v6, v7
--     v8 = add v0, 1
 +     mstore v9, v7
+      v8 = add v0, 1
 +     v10 = add v9, 32
       jump bb1
   }

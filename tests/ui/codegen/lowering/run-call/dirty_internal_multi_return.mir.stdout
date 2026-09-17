@@ -22,7 +22,7 @@ fn @multipleReturns() -> i256 [selector=0xd40a8f12, pure, abi_params=[], abi_ret
     v2 = extract_value struct0, v0, 1
     v3 = and v2, 255
     v4 = eq v3, 1
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     ret v5
 }
 
@@ -31,7 +31,7 @@ fn @functionPointer() -> i256 [selector=0xbd108928, pure, abi_params=[], abi_ret
     v0 = icall @internal_dispatcher_p_u8_r_u8, 2, 1
     v1 = and v0, 255
     v2 = eq v1, 1
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     ret v3
 }
 

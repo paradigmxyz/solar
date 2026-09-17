@@ -12,7 +12,7 @@ fn @packed(arg0: i256, arg1: i256) -> i256 [selector=0xaf080e88, pure, abi_param
     v2 = phi [bb0: 0], [bb3: v9]
     v3 = phi [bb0: arg1], [bb3: v3]
     v4 = lt v0, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     v6 = ne v5, 0
     jumpi v6, bb4, bb5
   bb5:
@@ -43,7 +43,7 @@ fn @complement(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x82829e9f,
     v3 = phi [bb0: arg2], [bb3: v3]
     v4 = phi [bb0: 0], [bb3: v10]
     v5 = lt v4, v3
-    v6 = word_cast v5
+    v6 = zext i1 v5 to i256
     v7 = ne v6, 0
     jumpi v7, bb4, bb5
   bb5:
@@ -74,7 +74,7 @@ fn @rotate(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=
     v6 = phi [bb0: 0], [bb3: v6]
     v7 = phi [bb0: arg3], [bb3: v7]
     v8 = lt v0, v7
-    v9 = word_cast v8
+    v9 = zext i1 v8 to i256
     v10 = ne v9, 0
     jumpi v10, bb4, bb5
   bb5:

@@ -8,7 +8,8 @@
   fn @escape() -> i256 {
     bb0:
       v0 = fmp
-      ret v0
+      v1 = ptrtoint memptr v0 to i256
+      ret v1
   }
   
   fn @entry() [selector=0x01020304] {

@@ -23,7 +23,7 @@ fn @decimal(arg0: i256) -> memorybytes [selector=0xf371efa4, pure, abi_params=[u
     mstore8 v7, v9
     v10 = div v5, 10
     v11 = eq v10, 0
-    v12 = word_cast v11
+    v12 = zext i1 v11 to i256
     v13 = ne v12, 0
     jumpi v13, bb6, bb7
   bb7:
@@ -40,6 +40,6 @@ fn @decimal(arg0: i256) -> memorybytes [selector=0xf371efa4, pure, abi_params=[u
     v16 = sub v3, v14
     v17 = sub v14, 32
     mstore v17, v16
-    v18 = memory_object_from_ptr memorybytes, v17
+    v18 = inttoptr i256 v17 to memorybytes
     ret v18
 }

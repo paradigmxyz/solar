@@ -1,7 +1,7 @@
 //! MIR type system.
 
 use super::StructId;
-use std::fmt;
+use std::{fmt, num::NonZeroU32};
 
 pub(crate) use solar_ast::TypeSize;
 
@@ -200,10 +200,10 @@ pub(crate) struct StructType {
 /// SSA value types. Integers have a bit width but no signedness.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum MirType {
-    /// A 256-bit integer.
-    I256,
-    /// A one-bit integer: zero or one.
-    I1,
+    /// An integer with a nonzero bit width.
+    Int(NonZeroU32),
+    /// A raw memory pointer, with no implied validity or heap provenance.
+    MemPtr,
     /// Reference to a semantically shaped memory object.
     MemoryObject(MemoryObjectKind),
     /// A pointer/length pair in the given address space.
@@ -215,11 +215,20 @@ pub(crate) enum MirType {
 }
 
 impl MirType {
+    /// A one-bit integer: zero or one.
+    pub(crate) const I1: Self = Self::Int(NonZeroU32::new(1).unwrap());
+    /// A 160-bit integer, used for addresses.
+    pub(crate) const I160: Self = Self::Int(NonZeroU32::new(160).unwrap());
+    /// A 256-bit integer.
+    pub(crate) const I256: Self = Self::Int(NonZeroU32::new(256).unwrap());
+
     /// Returns the full-width layout when no narrower source contract was supplied.
     pub(crate) const fn value_layout(self) -> ValueLayout {
         match self {
-            Self::I256 => ValueLayout::uint256(),
             Self::I1 => ValueLayout::Bool,
+            Self::I160 => ValueLayout::Address,
+            Self::Int(_) => ValueLayout::uint256(),
+            Self::MemPtr => ValueLayout::MemPtr,
             Self::MemoryObject(kind) => ValueLayout::MemoryObject(kind),
             Self::Slice(location) => ValueLayout::Slice(location),
             Self::Struct(id) => ValueLayout::Struct(id),
@@ -227,20 +236,24 @@ impl MirType {
         }
     }
 
+    pub(crate) const fn is_pointer(self) -> bool {
+        matches!(self, Self::MemPtr | Self::MemoryObject(_))
+    }
+
     pub(crate) const fn is_word(self) -> bool {
-        matches!(self, Self::I256 | Self::I1 | Self::MemoryObject(_))
+        matches!(self, Self::I256 | Self::I160 | Self::I1 | Self::MemPtr | Self::MemoryObject(_))
     }
 
     pub(crate) const fn is_memory_reference(self) -> bool {
-        matches!(self, Self::MemoryObject(_) | Self::Slice(SliceLocation::Memory))
+        matches!(self, Self::MemPtr | Self::MemoryObject(_) | Self::Slice(SliceLocation::Memory))
     }
 }
 
 impl fmt::Display for MirType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::I256 => f.write_str("i256"),
-            Self::I1 => f.write_str("i1"),
+            Self::Int(bits) => write!(f, "i{bits}"),
+            Self::MemPtr => f.write_str("memptr"),
             Self::MemoryObject(kind) => write!(f, "{kind}"),
             Self::Slice(location) => write!(f, "{location}slice"),
             Self::Struct(id) => write!(f, "struct{}", id.index()),
@@ -368,6 +381,8 @@ impl ValueLayout {
     pub(crate) const fn mir_type(self) -> MirType {
         match self {
             Self::Bool => MirType::I1,
+            Self::Address => MirType::I160,
+            Self::MemPtr => MirType::MemPtr,
             Self::MemoryObject(kind) => MirType::MemoryObject(kind),
             Self::Slice(location) => MirType::Slice(location),
             Self::Struct(id) => MirType::Struct(id),

@@ -9,7 +9,7 @@ fn @g(arg0: calldataslice) -> memoryarray [selector=0xc12c508e, pure, abi_params
     v4 = div v2, 32
     v5 = eq v4, v0
     v6 = or v3, v5
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     v8 = eq v7, 0
     icall panic_if<0x41>, v8
     v9 = calldatasize
@@ -21,7 +21,7 @@ fn @g(arg0: calldataslice) -> memoryarray [selector=0xc12c508e, pure, abi_params
     v14 = div v12, 32
     v15 = eq v14, v0
     v16 = or v13, v15
-    v17 = word_cast v16
+    v17 = zext i1 v16 to i256
     v18 = eq v17, 0
     icall panic_if<0x41>, v18
     v19 = add 32, v12
@@ -66,7 +66,7 @@ fn @g(arg0: calldataslice) -> memoryarray [selector=0xc12c508e, pure, abi_params
     v46 = div v44, 32
     v47 = eq v46, v36
     v48 = or v45, v47
-    v49 = word_cast v48
+    v49 = zext i1 v48 to i256
     v50 = eq v49, 0
     icall panic_if<0x41>, v50
     v51 = add 32, v44
@@ -113,7 +113,7 @@ fn @g(arg0: calldataslice) -> memoryarray [selector=0xc12c508e, pure, abi_params
     v78 = div v76, 32
     v79 = eq v78, v68
     v80 = or v77, v79
-    v81 = word_cast v80
+    v81 = zext i1 v80 to i256
     v82 = eq v81, 0
     icall panic_if<0x41>, v82
     v83 = add 32, v76
@@ -137,7 +137,7 @@ fn @h(arg0: calldataslice) -> memoryarray [selector=0xba9ef85f, pure, abi_params
     v4 = div v2, 32
     v5 = eq v4, v0
     v6 = or v3, v5
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     v8 = eq v7, 0
     icall panic_if<0x41>, v8
     v9 = calldatasize
@@ -149,7 +149,7 @@ fn @h(arg0: calldataslice) -> memoryarray [selector=0xba9ef85f, pure, abi_params
     v14 = div v12, 32
     v15 = eq v14, v0
     v16 = or v13, v15
-    v17 = word_cast v16
+    v17 = zext i1 v16 to i256
     v18 = eq v17, 0
     icall panic_if<0x41>, v18
     v19 = add 32, v12
@@ -194,7 +194,7 @@ fn @h(arg0: calldataslice) -> memoryarray [selector=0xba9ef85f, pure, abi_params
     v46 = div v44, 32
     v47 = eq v46, v36
     v48 = or v45, v47
-    v49 = word_cast v48
+    v49 = zext i1 v48 to i256
     v50 = eq v49, 0
     icall panic_if<0x41>, v50
     v51 = add 32, v44
@@ -217,7 +217,7 @@ fn @h(arg0: calldataslice) -> memoryarray [selector=0xba9ef85f, pure, abi_params
     v58 = div v56, 64
     v59 = eq v58, v54
     v60 = or v57, v59
-    v61 = word_cast v60
+    v61 = zext i1 v60 to i256
     v62 = eq v61, 0
     icall panic_if<0x41>, v62
     v63 = add v43, v56

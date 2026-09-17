@@ -87,7 +87,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v71 = keccak256_bytes v70
     v72 = abi_encode_packed (array<word<u120>> memoryarray<1> v0)
     v73 = keccak256_bytes v72
-    v74 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
+    v74 = trunc i256 0x1234 to i160
     v75 = keccak256_packed (u160 v74)
     v76 = insert_value struct0, undef struct0, 0, v71
     v77 = insert_value struct0, v76, 1, v73
@@ -156,8 +156,8 @@ fn @hashNestedAbi() -> i256 [selector=0x821258ba, pure, abi_params=[], abi_retur
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = memory_object_load_element memoryarray<1>, v0, 0
-    v11 = memory_object_from_ptr memoryfixedarray, v10
-    v12 = word_cast v11
+    v11 = inttoptr i256 v10 to memoryfixedarray
+    v12 = ptrtoint memoryfixedarray v11 to i256
     v13 = eq v12, 0
     jumpi v13, bb4, bb5
   bb4:
@@ -178,8 +178,8 @@ fn @hashNestedAbi() -> i256 [selector=0x821258ba, pure, abi_params=[], abi_retur
     v22 = eq v21, false
     icall panic_if<0x32>, v22
     v23 = memory_object_load_element memoryarray<1>, v0, 0
-    v24 = memory_object_from_ptr memoryfixedarray, v23
-    v25 = word_cast v24
+    v24 = inttoptr i256 v23 to memoryfixedarray
+    v25 = ptrtoint memoryfixedarray v24 to i256
     v26 = eq v25, 0
     jumpi v26, bb6, bb7
   bb6:
@@ -219,7 +219,7 @@ fn @hashStructAbi() -> i256 [selector=0x46dfc0fe, pure, abi_params=[], abi_retur
     v4 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
     v5 = and v4, 0xffffffffffffffffffffffffffffff
     v6 = memory_object_load_field memorystruct<2>, v0, 1
-    v7 = memory_object_from_ptr memoryfixedarray, v6
+    v7 = inttoptr i256 v6 to memoryfixedarray
     v8 = lt 0, 2
     v9 = eq v8, false
     icall panic_if<0x32>, v9
@@ -227,7 +227,7 @@ fn @hashStructAbi() -> i256 [selector=0x46dfc0fe, pure, abi_params=[], abi_retur
     v10 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3
     v11 = and v10, 0xffffffffffffffffffffffffffffff
     v12 = memory_object_load_field memorystruct<2>, v0, 1
-    v13 = memory_object_from_ptr memoryfixedarray, v12
+    v13 = inttoptr i256 v12 to memoryfixedarray
     v14 = lt 1, 2
     v15 = eq v14, false
     icall panic_if<0x32>, v15

@@ -56,7 +56,7 @@ fn @lessThan() -> i256 [selector=0x5ba0b6e8, pure, abi_params=[], abi_returns=[w
     v0 = sub 0, 15
     v1 = sub 0, 10
     v2 = slt v0, v1
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     ret v3
 }
 
@@ -65,7 +65,7 @@ fn @greaterThan() -> i256 [selector=0xe1ad5fbb, pure, abi_params=[], abi_returns
     v0 = sub 0, 15
     v1 = sub 0, 10
     v2 = sgt v0, v1
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     ret v3
 }
 
@@ -73,7 +73,7 @@ fn @literalLessThan(arg0: i256) -> i256 [selector=0xa9431753, pure, abi_params=[
   bb0:
     v0 = sub 0, 15
     v1 = slt v0, arg0
-    v2 = word_cast v1
+    v2 = zext i1 v1 to i256
     ret v2
 }
 
@@ -81,7 +81,7 @@ fn @parameterLessThan(arg0: i256) -> i256 [selector=0xdf852757, pure, abi_params
   bb0:
     v0 = sub 0, 15
     v1 = slt arg0, v0
-    v2 = word_cast v1
+    v2 = zext i1 v1 to i256
     ret v2
 }
 
@@ -106,6 +106,6 @@ fn @largePositiveRightShift(arg0: i256) -> i256 [selector=0xba4becb8, pure, abi_
 fn @largePositiveGreaterThan() -> i256 [selector=0x2fc0cb82, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gt 0x8000000000000000000000000000000000000000000000000000000000000000, 1
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     ret v1
 }

@@ -7,8 +7,8 @@
 -     v1 = eq v0, 0
 -     v2 = eq arg0, arg1
 +     v1 = eq arg0, arg1
-      v3 = word_cast v1
--     v4 = word_cast v2
+      v3 = zext i1 v1 to i256
+-     v4 = zext i1 v2 to i256
 -     v5 = add v3, v4
 +     v5 = add v3, v3
       ret v5
@@ -29,7 +29,7 @@
       jump bb3
     bb3:
       v4 = phi [bb1: v1], [bb2: v3]
-      v5 = word_cast v4
+      v5 = zext i1 v4 to i256
       ret v5
   }
   

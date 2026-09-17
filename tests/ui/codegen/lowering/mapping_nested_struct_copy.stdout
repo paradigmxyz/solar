@@ -17,11 +17,11 @@ fn @set(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [selector=0x
     sstore v2, v3 !metadata(storage=symbolic(v2))
     v4 = add v2, 1
     v5 = memory_object_load_field memorystruct<3>, v0, 1
-    v6 = memory_object_from_ptr memorystruct, v5
+    v6 = inttoptr i256 v5 to memorystruct
     v7 = memory_object_load_field memorystruct<2>, v6, 0
     sstore v4, v7 !metadata(storage=offset(v2, 1))
     v8 = add v4, 1
-    v9 = memory_object_from_ptr memorystruct, v5
+    v9 = inttoptr i256 v5 to memorystruct
     v10 = memory_object_load_field memorystruct<2>, v9, 1
     sstore v8, v10 !metadata(storage=offset(v2, 2))
     v11 = add v2, 3
@@ -49,10 +49,10 @@ fn @get(arg0: i256) -> struct0 [selector=0x9507d39a, view, abi_params=[u256], ab
     memory_object_store_field memorystruct<3>, v1, 2, v9
     v10 = memory_object_load_field memorystruct<3>, v1, 0
     v11 = memory_object_load_field memorystruct<3>, v1, 1
-    v12 = memory_object_from_ptr memorystruct, v11
+    v12 = inttoptr i256 v11 to memorystruct
     v13 = memory_object_load_field memorystruct<2>, v12, 0
     v14 = memory_object_load_field memorystruct<3>, v1, 1
-    v15 = memory_object_from_ptr memorystruct, v14
+    v15 = inttoptr i256 v14 to memorystruct
     v16 = memory_object_load_field memorystruct<2>, v15, 1
     v17 = memory_object_load_field memorystruct<3>, v1, 2
     v18 = insert_value struct0, undef struct0, 0, v10

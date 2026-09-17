@@ -7,7 +7,7 @@ fn @copy(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0xaabf50
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     icall revert_if<empty>, v5
     v6 = sub arg2, arg1
     v7 = mul arg1, 32
@@ -15,7 +15,7 @@ fn @copy(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0xaabf50
     v9 = div v7, 32
     v10 = eq v9, arg1
     v11 = or v8, v10
-    v12 = word_cast v11
+    v12 = zext i1 v11 to i256
     v13 = eq v12, 0
     icall panic_if<0x41>, v13
     v14 = add v0, v7
@@ -27,7 +27,7 @@ fn @copy(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0xaabf50
     v20 = div v18, 32
     v21 = eq v20, v16
     v22 = or v19, v21
-    v23 = word_cast v22
+    v23 = zext i1 v22 to i256
     v24 = eq v23, 0
     icall panic_if<0x41>, v24
     v25 = calldatasize
@@ -39,7 +39,7 @@ fn @copy(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0xaabf50
     v30 = div v28, 32
     v31 = eq v30, v16
     v32 = or v29, v31
-    v33 = word_cast v32
+    v33 = zext i1 v32 to i256
     v34 = eq v33, 0
     icall panic_if<0x41>, v34
     v35 = add 32, v28
@@ -79,8 +79,8 @@ fn @copy(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0xaabf50
     ret v64
   bb7:
     v49 = memory_object_load_element memoryarray<1>, v37, v47
-    v50 = memory_object_from_ptr memoryarray, v49
-    v51 = word_cast v50
+    v50 = inttoptr i256 v49 to memoryarray
+    v51 = ptrtoint memoryarray v50 to i256
     v52 = eq v51, 0
     jumpi v52, bb9, bb10
   bb9:
@@ -92,7 +92,7 @@ fn @copy(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0xaabf50
     v54 = phi [bb7: v50], [bb9: v53]
     v55 = storage_array_data_slot 0
     v56 = add v55, v47
-    v57 = word_cast v54
+    v57 = ptrtoint memoryarray v54 to i256
     sstore v56, v57 !metadata(storage=symbolic(v56))
     v58 = add v47, 1
     jump bb6

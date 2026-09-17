@@ -2,14 +2,14 @@
 @module Test
 fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
-    v0 = word_cast arg0
+    v0 = ptrtoint memoryarray arg0 to i256
     v1 = mload v0
-    v2 = word_cast arg0
+    v2 = ptrtoint memoryarray arg0 to i256
     mstore v2, 0
     v3 = shl 5, v1
-    v4 = word_cast arg0
+    v4 = ptrtoint memoryarray arg0 to i256
     v5 = add v4, v3
-    v6 = word_cast arg0
+    v6 = ptrtoint memoryarray arg0 to i256
     v7 = add v6, 32
     jump bb1
   bb1:
@@ -25,7 +25,7 @@ fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_param
   bb3:
     v14 = add v11, 32
     v15 = gt v14, v8
-    v16 = word_cast v15
+    v16 = zext i1 v15 to i256
     v17 = ne v16, 0
     jumpi v17, bb6, bb7
   bb7:
@@ -35,9 +35,9 @@ fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_param
     v19 = sub v14, 32
     v20 = mload v19
     v21 = gt v20, v18
-    v22 = word_cast v21
+    v22 = zext i1 v21 to i256
     v23 = eq v22, 0
-    v24 = word_cast v23
+    v24 = zext i1 v23 to i256
     v25 = ne v24, 0
     jumpi v25, bb9, bb10
   bb10:
@@ -63,9 +63,9 @@ fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_param
     v36 = sub v28, 32
     v37 = mload v36
     v38 = gt v37, v26
-    v39 = word_cast v38
+    v39 = zext i1 v38 to i256
     v40 = eq v39, 0
-    v41 = word_cast v40
+    v41 = zext i1 v40 to i256
     v42 = ne v41, 0
     jumpi v42, bb17, bb18
   bb18:
@@ -90,7 +90,7 @@ fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_param
     jump bb2
   bb2:
     v46 = phi [bb6: v14], [bb4: v11]
-    v47 = word_cast v9
+    v47 = ptrtoint memoryarray v9 to i256
     mstore v47, v10
     ret v9
 }

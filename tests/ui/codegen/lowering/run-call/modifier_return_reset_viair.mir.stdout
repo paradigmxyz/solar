@@ -17,7 +17,7 @@ fn @foo() -> i256 [selector=0xc2985578, abi_params=[], abi_returns=[word], abi_r
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = not 255
     v6 = and v4, v5
-    v7 = word_cast false
+    v7 = zext i1 0 to i256
     v8 = and v7, 255
     v9 = or v6, v8
     sstore 0, v9 !metadata(storage=slot(0))
@@ -43,7 +43,7 @@ fn @constructor() [constructor] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 255
     v2 = and v0, v1
-    v3 = word_cast true
+    v3 = zext i1 1 to i256
     v4 = and v3, 255
     v5 = or v2, v4
     sstore 0, v5 !metadata(storage=slot(0))

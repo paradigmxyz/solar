@@ -63,21 +63,21 @@ fn @returndataSignature(arg0: returndataslice) -> returndataslice {
     ret arg0
 }
 
-fn @unloweredWordCast(arg0: i256) -> i256 {
+fn @integer_bitcast(arg0: i256) -> i256 {
   bb0:
-    v0 = word_cast arg0
+    v0 = bitcast i256 arg0 to i256
     ret v0
 }
 
 //~? ERROR: [fn8] [bb0, inst0] abstract allocation instruction `alloc` survives the `lowered` phase boundary
-fn @checked_deferred() -> i256 {
+fn @checked_deferred() -> memptr {
   bb0:
     v0 = alloc raw, exact, zeroed, panic, 32 !metadata(deferred_alloc)
     ret v0
 }
 
 //~? ERROR: [fn9] [bb0, inst0] deferred allocation requires a constant size
-fn @dynamic_deferred(arg0: i256) -> i256 {
+fn @dynamic_deferred(arg0: i256) -> memptr {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, arg0 !metadata(deferred_alloc)
     ret v0

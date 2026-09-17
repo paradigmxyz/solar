@@ -27,7 +27,7 @@ contract AbiCalldataNestedDynamicMemory {
     // SEMANTIC-NEXT: [[QUOTIENT:v[0-9]+]] = div [[OFFSET]], 64
     // SEMANTIC-NEXT: [[FITS:v[0-9]+]] = eq [[QUOTIENT]], [[ELEMENT]]
     // SEMANTIC-NEXT: [[VALID:v[0-9]+]] = or [[ZERO]], [[FITS]]
-    // SEMANTIC-NEXT: [[WORD:v[0-9]+]] = word_cast [[VALID]]
+    // SEMANTIC-NEXT: [[WORD:v[0-9]+]] = zext {{i(1|160)}} [[VALID]]
     // SEMANTIC-NEXT: [[OVERFLOW:v[0-9]+]] = eq [[WORD]], {{(0|false)}}
     // SEMANTIC-NEXT: icall panic_if<0x41>, [[OVERFLOW]]
     function h(uint256[2][][] calldata values)

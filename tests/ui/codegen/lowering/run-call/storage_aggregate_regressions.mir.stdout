@@ -53,8 +53,8 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v41 = eq v40, false
     icall panic_if<0x32>, v41
     v42 = memory_object_load_element memoryfixedarray<2, 1>, v28, 0
-    v43 = memory_object_from_ptr memoryfixedarray, v42
-    v44 = word_cast v43
+    v43 = inttoptr i256 v42 to memoryfixedarray
+    v44 = ptrtoint memoryfixedarray v43 to i256
     v45 = eq v44, 0
     jumpi v45, bb7, bb8
   bb7:
@@ -77,8 +77,8 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v53 = eq v52, false
     icall panic_if<0x32>, v53
     v54 = memory_object_load_element memoryfixedarray<2, 1>, v28, 1
-    v55 = memory_object_from_ptr memoryfixedarray, v54
-    v56 = word_cast v55
+    v55 = inttoptr i256 v54 to memoryfixedarray
+    v56 = ptrtoint memoryfixedarray v55 to i256
     v57 = eq v56, 0
     jumpi v57, bb12, bb13
   bb12:
@@ -452,7 +452,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v332 = mod v330, 10
     v333 = eq v332, 0
     v334 = eq v333, false
-    v335 = word_cast v334
+    v335 = zext i1 v334 to i256
     v336 = add v331, v335
     clear_storage_words 8, 0, v336
     v337 = sload 9 !metadata(storage=slot(9))

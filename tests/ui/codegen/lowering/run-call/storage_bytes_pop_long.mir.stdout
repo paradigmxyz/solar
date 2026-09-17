@@ -23,7 +23,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
   bb16:
     jump bb13
   bb13:
-    v133 = word_cast true
+    v133 = zext i1 1 to i256
     ret v133
   bb15:
     v53 = sload 0 !metadata(storage=slot(0))

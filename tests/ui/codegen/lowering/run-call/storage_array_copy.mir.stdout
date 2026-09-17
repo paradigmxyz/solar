@@ -115,8 +115,8 @@ fn @copyAggregate() -> struct0 [selector=0x515a112e, abi_params=[], abi_returns=
     v22 = eq v21, false
     icall panic_if<0x32>, v22
     v23 = memory_object_load_element memoryarray<1>, v19, 0
-    v24 = memory_object_from_ptr memorystruct, v23
-    v25 = word_cast v24
+    v24 = inttoptr i256 v23 to memorystruct
+    v25 = ptrtoint memorystruct v24 to i256
     v26 = eq v25, 0
     jumpi v26, bb1, bb2
   bb1:
@@ -133,8 +133,8 @@ fn @copyAggregate() -> struct0 [selector=0x515a112e, abi_params=[], abi_returns=
     v32 = eq v31, false
     icall panic_if<0x32>, v32
     v33 = memory_object_load_element memoryarray<1>, v19, 0
-    v34 = memory_object_from_ptr memorystruct, v33
-    v35 = word_cast v34
+    v34 = inttoptr i256 v33 to memorystruct
+    v35 = ptrtoint memorystruct v34 to i256
     v36 = eq v35, 0
     jumpi v36, bb3, bb4
   bb3:
@@ -164,7 +164,7 @@ fn @load_storage_struct_array_0(arg0: i256) -> memoryarray {
     v5 = div v3, 32
     v6 = eq v5, v1
     v7 = or v4, v6
-    v8 = word_cast v7
+    v8 = zext i1 v7 to i256
     v9 = eq v8, 0
     icall panic_if<0x41>, v9
     v10 = alloc memoryarray<1>, exact, uninitialized, panic, v3

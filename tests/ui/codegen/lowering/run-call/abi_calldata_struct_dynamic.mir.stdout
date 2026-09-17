@@ -9,7 +9,7 @@ fn @hash(arg0: calldataslice) -> i256 [selector=0x43298469, pure, abi_params=[ar
     v4 = div v2, 32
     v5 = eq v4, v0
     v6 = or v3, v5
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     v8 = eq v7, 0
     icall panic_if<0x41>, v8
     v9 = calldatasize
@@ -21,7 +21,7 @@ fn @hash(arg0: calldataslice) -> i256 [selector=0x43298469, pure, abi_params=[ar
     v14 = div v12, 32
     v15 = eq v14, v0
     v16 = or v13, v15
-    v17 = word_cast v16
+    v17 = zext i1 v16 to i256
     v18 = eq v17, 0
     icall panic_if<0x41>, v18
     v19 = add 32, v12
@@ -83,7 +83,7 @@ fn @hash(arg0: calldataslice) -> i256 [selector=0x43298469, pure, abi_params=[ar
     v57 = div v55, 32
     v58 = eq v57, v47
     v59 = or v56, v58
-    v60 = word_cast v59
+    v60 = zext i1 v59 to i256
     v61 = eq v60, 0
     icall panic_if<0x41>, v61
     v62 = add 32, v55

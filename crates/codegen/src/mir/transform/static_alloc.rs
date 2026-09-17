@@ -312,6 +312,9 @@ fn candidate_uses_are_safe(
             }
             let kind = func.inst(inst_id).kind.clone();
             let offset = match kind {
+                InstKind::PtrToInt(base, 256)
+                | InstKind::IntToPtr(base)
+                | InstKind::Bitcast(base) => derived.get(&base).copied(),
                 InstKind::Add(a, b) => {
                     let (base, offset) = if derived.contains_key(&a) { (a, b) } else { (b, a) };
                     let (Some(base_offset), Some(offset)) =
@@ -382,7 +385,10 @@ fn candidate_uses_are_safe(
                 }
                 // In-bounds derivations were collected above; anything
                 // else consuming an address is an escape.
-                InstKind::Add(_, _) => {
+                InstKind::Add(_, _)
+                | InstKind::PtrToInt(_, 256)
+                | InstKind::IntToPtr(_)
+                | InstKind::Bitcast(_) => {
                     func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r))
                 }
                 InstKind::MemoryObjectData(_, _)
@@ -525,7 +531,10 @@ fn apply_candidate(func: &mut Function, cand: &StaticAllocCandidate, shadow: u64
         return false;
     }
     func.internal_frame_size = (base - EvmMemoryLayout::HEAP_START) + cand.size;
-    let replacement = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(base))));
+    let replacement = func.alloc_value(Value::Immediate(Immediate::for_type(
+        func.value_ty(cand.ptr),
+        U256::from(base),
+    )));
     let mut replacements = FxHashMap::default();
     replacements.insert(cand.ptr, replacement);
     func.replace_uses_canonicalized(&replacements);

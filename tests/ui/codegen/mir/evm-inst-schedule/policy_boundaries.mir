@@ -146,7 +146,8 @@ fn @disconnected_root_is_retained(arg0: i256, arg1: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @read_effects_are_movable{{[( ]}}
 // CHECK: - [[MEMORY:v[0-9]+]] = mload arg0
 // CHECK-NEXT: - [[TRANSIENT:v[0-9]+]] = tload arg1
-// CHECK-NEXT: [[CALLER:v[0-9]+]] = caller
+// CHECK-NEXT: [[ADDRESS:v[0-9]+]] = caller
+// CHECK-NEXT: [[CALLER:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[ADDRESS]]
 // CHECK-NEXT: + [[TRANSIENT]] = tload arg1
 // CHECK-NEXT: + [[MEMORY]] = mload arg0
 // CHECK-NEXT: [[SUB:v[0-9]+]] = sub [[MEMORY]], [[TRANSIENT]]
@@ -155,7 +156,8 @@ fn @read_effects_are_movable(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = mload arg0
     v3 = tload arg1
-    v4 = caller
+    v14 = caller
+    v4 = zext i160 v14 to i256
     v5 = sub v2, v3
     v6 = div v5, v4
     ret v6

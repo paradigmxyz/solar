@@ -27,15 +27,16 @@ fn @literal() -> i256 [selector=0x1373185e, pure, abi_params=[], abi_returns=[wo
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 10
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x1020304050607080900000000000000000000000000000000000000000000
-    v2 = memory_object_len memorybytes, v0
-    v3 = lt 5, v2
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    v5 = byte 0, 0xaa00000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_byte memorybytes, v0, 5, v5
-    v6 = keccak256_bytes v0
-    ret v6
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x1020304050607080900000000000000000000000000000000000000000000
+    v3 = memory_object_len memorybytes, v0
+    v4 = lt 5, v3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = byte 0, 0xaa00000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_byte memorybytes, v0, 5, v6
+    v7 = keccak256_bytes v0
+    ret v7
 }
 
 fn @allocDynamic(arg0: i256) -> i256 [selector=0x2ab2abe8, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {

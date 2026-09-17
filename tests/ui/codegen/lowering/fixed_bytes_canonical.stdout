@@ -22,7 +22,7 @@ fn @compareElement(arg0: memorybytes) -> i256 [selector=0x6c07068b, pure, abi_pa
     v4 = shl 248, v3
     v5 = shl 248, 1
     v6 = eq v4, v5
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     ret v7
 }
 

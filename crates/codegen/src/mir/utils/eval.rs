@@ -21,8 +21,26 @@ pub(crate) fn eval_inst<E>(
     kind: &InstKind,
     mut get: impl FnMut(ValueId) -> Result<U256, E>,
 ) -> Result<Option<U256>, E> {
-    if let InstKind::WordCast(value) = *kind {
-        return Ok(Some(get(value)?));
+    match *kind {
+        InstKind::Trunc(value, bits) | InstKind::PtrToInt(value, bits) => {
+            if bits == 0 || bits > 256 {
+                return Ok(None);
+            }
+            return Ok(Some(get(value)? & (U256::MAX >> (256 - bits))));
+        }
+        InstKind::Zext(value) | InstKind::IntToPtr(value) | InstKind::Bitcast(value) => {
+            return Ok(Some(get(value)?));
+        }
+        InstKind::Sext(value, from, to) => {
+            if from == 0 || from >= to || to > 256 {
+                return Ok(None);
+            }
+            let value = get(value)?;
+            let value =
+                if value.bit((from - 1) as usize) { value | (U256::MAX << from) } else { value };
+            return Ok(Some(value & (U256::MAX >> (256 - to))));
+        }
+        _ => {}
     }
     if let InstKind::Ne(a, b) = *kind {
         return Ok(Some(U256::from(get(a)? != get(b)?)));
@@ -305,4 +323,30 @@ fn i256_mod(mut first: Word, mut second: Word) -> Word {
     u256_remove_sign(&mut remainder);
 
     if first_sign == Sign::Minus { two_compl(remainder) } else { remainder }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn llvm_integer_and_pointer_casts() {
+        let value = ValueId::new(0);
+        let address_mask = U256::MAX >> 96;
+        for (kind, input, expected) in [
+            (InstKind::Trunc(value, 1), U256::from(2), U256::ZERO),
+            (InstKind::Trunc(value, 1), U256::from(3), U256::ONE),
+            (InstKind::Trunc(value, 160), U256::MAX, address_mask),
+            (InstKind::Zext(value), U256::ONE, U256::ONE),
+            (InstKind::Sext(value, 1, 256), U256::ONE, U256::MAX),
+            (InstKind::Sext(value, 1, 160), U256::ONE, address_mask),
+            (InstKind::Sext(value, 160, 256), address_mask, U256::MAX),
+            (InstKind::Sext(value, 160, 256), U256::ONE, U256::ONE),
+            (InstKind::PtrToInt(value, 160), U256::MAX, address_mask),
+            (InstKind::IntToPtr(value), U256::MAX, U256::MAX),
+            (InstKind::Bitcast(value), U256::MAX, U256::MAX),
+        ] {
+            assert_eq!(eval_inst(&kind, |_| Ok::<_, ()>(input)), Ok(Some(expected)), "{kind:?}");
+        }
+    }
 }

@@ -441,7 +441,42 @@ impl Target {
         immediate: impl Fn(ValueId) -> Option<U256>,
         warmth: Warmth,
     ) -> Cost {
-        if matches!(op, Op::WordCast { .. }) {
+        if let Op::Trunc { bits, .. } | Op::PtrToInt { bits, .. } = *op {
+            return if bits < 256 {
+                self.push(U256::MAX >> (256 - bits)) + self.opcode(op::AND)
+            } else {
+                Cost::ZERO
+            };
+        }
+        if let Op::Sext { from_bits, to_bits, .. } = *op {
+            if from_bits == 1 {
+                return if to_bits == 256 {
+                    self.push(U256::ZERO) + self.opcode(op::SUB)
+                } else if to_bits == 160 && self.evm_version.has_bitwise_shifting() {
+                    self.push(U256::ZERO)
+                        + self.opcode(op::SUB)
+                        + self.push(U256::from(96))
+                        + self.opcode(op::SHR)
+                } else if to_bits < 256 {
+                    self.push(U256::MAX >> (256 - to_bits)) + self.opcode(op::MUL)
+                } else {
+                    self.push(U256::MAX) + self.opcode(op::MUL)
+                };
+            }
+            let extension = if from_bits != 0 && from_bits.is_multiple_of(8) && from_bits <= 256 {
+                self.push(U256::from(from_bits / 8 - 1)) + self.opcode(op::SIGNEXTEND)
+            } else {
+                let shift = self.push(U256::from(256_u32.saturating_sub(from_bits)));
+                shift + shift + self.opcode(op::SHL) + self.opcode(op::SAR)
+            };
+            return extension
+                + if to_bits < 256 {
+                    self.push(U256::MAX >> (256 - to_bits)) + self.opcode(op::AND)
+                } else {
+                    Cost::ZERO
+                };
+        }
+        if matches!(op, Op::Zext { .. } | Op::IntToPtr { .. } | Op::Bitcast { .. }) {
             return Cost::ZERO;
         }
         if let Op::Ne { a, b } = *op {

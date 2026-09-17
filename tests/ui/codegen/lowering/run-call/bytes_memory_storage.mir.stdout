@@ -5,47 +5,48 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 4
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x6162636400000000000000000000000000000000000000000000000000000000
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x6162636400000000000000000000000000000000000000000000000000000000
     icall @store_storage_bytes, 0, v0
-    v2 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v2
-    v3 = and v2, 1
-    v4 = eq v3, 1
-    v5 = sub 0, v3
-    v6 = or 127, v5
-    v7 = shr 1, v2
-    v8 = and v7, v6
-    v9 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v9
-    v10 = and v9, 1
-    v11 = eq v10, 1
-    v12 = sub 0, v10
-    v13 = or 127, v12
-    v14 = shr 1, v9
-    v15 = and v14, v13
-    v16 = lt 0, v15
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    jumpi v11, bb1, bb2
+    v3 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v3
+    v4 = and v3, 1
+    v5 = eq v4, 1
+    v6 = sub 0, v4
+    v7 = or 127, v6
+    v8 = shr 1, v3
+    v9 = and v8, v7
+    v10 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v10
+    v11 = and v10, 1
+    v12 = eq v11, 1
+    v13 = sub 0, v11
+    v14 = or 127, v13
+    v15 = shr 1, v10
+    v16 = and v15, v14
+    v17 = lt 0, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    jumpi v12, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v18 = storage_array_data_slot 0
-    v19 = shr 5, 0
-    v20 = add v18, v19
+    v19 = storage_array_data_slot 0
+    v20 = shr 5, 0
+    v21 = add v19, v20
     jump bb3
   bb3:
-    v21 = phi [bb1: v20], [bb2: 0]
-    v22 = and 0, 31
-    v23 = sub 31, v22
-    v24 = sload v21 !metadata(storage=symbolic(v21))
-    v25 = mul v23, 8
-    v26 = shr v25, v24
-    v27 = and v26, 255
-    v28 = shl 248, v27
-    v29 = shr 248, v28
-    v30 = checked_add u256, v8, v29
-    ret v30
+    v22 = phi [bb1: v21], [bb2: 0]
+    v23 = and 0, 31
+    v24 = sub 31, v23
+    v25 = sload v22 !metadata(storage=symbolic(v22))
+    v26 = mul v24, 8
+    v27 = shr v26, v25
+    v28 = and v27, 255
+    v29 = shl 248, v28
+    v30 = shr 248, v29
+    v31 = checked_add u256, v9, v30
+    ret v31
 }
 
 fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -55,7 +56,7 @@ fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 3
     v3 = not 0
-    v4 = word_cast v2
+    v4 = ptrtoint memorybytes v2 to i256
     v5 = add v4, 32
     mstore v5, v3
     icall @store_storage_bytes, 0, v2

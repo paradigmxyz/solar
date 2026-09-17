@@ -6,7 +6,7 @@ types:
 
 fn @assemblyValues() -> struct0 [selector=0x5fa26448, pure, abi_params=[], abi_returns=[word, word<bytes2>, word<bytes3>, word<bool>, word<u160>], abi_return_params=[u256, bytes2, bytes3, bool, address]] {
   bb0:
-    v0 = word_cast true
+    v0 = zext i1 1 to i256
     v1 = insert_value struct0, undef struct0, 0, 2
     v2 = insert_value struct0, v1, 1, 0xabcd000000000000000000000000000000000000000000000000000000000000
     v3 = insert_value struct0, v2, 2, 0x6162630000000000000000000000000000000000000000000000000000000000

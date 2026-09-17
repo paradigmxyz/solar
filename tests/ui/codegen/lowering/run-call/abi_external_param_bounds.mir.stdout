@@ -27,7 +27,7 @@ fn @wordsCalldata(arg0: calldataslice) -> i256 [selector=0x6918e29e, pure, abi_p
 fn @dynamicStruct(arg0: memorystruct) -> i256 [selector=0xb47f1a21, pure, abi_params=[tuple<bytes>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_load_field memorystruct<1>, arg0, 0
-    v1 = memory_object_from_ptr memorybytes, v0
+    v1 = inttoptr i256 v0 to memorybytes
     v2 = memory_object_len memorybytes, v1
     ret v2
 }
@@ -35,7 +35,7 @@ fn @dynamicStruct(arg0: memorystruct) -> i256 [selector=0xb47f1a21, pure, abi_pa
 fn @wideDynamic(arg0: memorystruct) -> i256 [selector=0xe16c8534, pure, abi_params=[tuple<u256, bytes>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_load_field memorystruct<2>, arg0, 1
-    v1 = memory_object_from_ptr memorybytes, v0
+    v1 = inttoptr i256 v0 to memorybytes
     v2 = memory_object_len memorybytes, v1
     ret v2
 }
@@ -48,8 +48,8 @@ fn @staticStructs(arg0: memoryarray) -> i256 [selector=0xb2bb789c, pure, abi_par
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = memory_object_load_element memoryarray<1>, arg0, 0
-    v5 = memory_object_from_ptr memorystruct, v4
-    v6 = word_cast v5
+    v5 = inttoptr i256 v4 to memorystruct
+    v6 = ptrtoint memorystruct v5 to i256
     v7 = eq v6, 0
     jumpi v7, bb1, bb2
   bb1:
@@ -67,8 +67,8 @@ fn @staticStructs(arg0: memoryarray) -> i256 [selector=0xb2bb789c, pure, abi_par
     v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = memory_object_load_element memoryarray<1>, arg0, 1
-    v16 = memory_object_from_ptr memorystruct, v15
-    v17 = word_cast v16
+    v16 = inttoptr i256 v15 to memorystruct
+    v17 = ptrtoint memorystruct v16 to i256
     v18 = eq v17, 0
     jumpi v18, bb3, bb4
   bb3:

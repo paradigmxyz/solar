@@ -12,7 +12,7 @@ fn @compact() -> i256 { bb0: v0 = add 1, 2 ret v0 }
 
 // CHECK-LABEL: @library
 // CHECK: library_address "A.sol":"L"
-fn @library() -> i256 {
+fn @library() -> i160 {
   bb0:
     v0 = library_address "A.sol":"L"
     ret v0

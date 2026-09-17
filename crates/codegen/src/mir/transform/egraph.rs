@@ -41,11 +41,11 @@
 //! stay in place and see their operands canonicalized; `rewrite` rules still
 //! apply to them in place. Phis over one value merge into it, phis of one
 //! block with equal incoming values merge into one, copies of zero bytes are
-//! deleted, and branches on boolean zero tests or a nonzero test branch on the tested
-//! value directly. Nontrapping checked constants and passing checks disappear during
-//! the walk. Fixed aggregate projections follow bounded insertion chains without
-//! changing memory-object types. Late `const-fold` reuses the same evaluator and
-//! scalar identities but accepts only immediate results.
+//! deleted, and branches on boolean zero tests branch on the tested value directly.
+//! Nontrapping checked constants and passing checks disappear during the walk.
+//! Fixed aggregate projections follow bounded insertion chains while preserving types.
+//! Late `const-fold` reuses the same evaluator and scalar identities but accepts
+//! only immediate results.
 //! A balance read can bypass a mask that preserves all address bits. Since
 //! effectful roots do not participate in cost extraction, this rule requires
 //! one original use of the mask in the same block. The account read remains
@@ -794,11 +794,7 @@ impl<'a> Builder<'a> {
             if field == index {
                 let value = self.resolve(value);
                 let value_ty = self.func.value_ty(value);
-                if result_ty != value_ty
-                    && [result_ty, value_ty]
-                        .iter()
-                        .any(|ty| matches!(ty, Some(MirType::MemoryObject(_))))
-                {
+                if result_ty != value_ty {
                     return None;
                 }
                 return Some(value);
@@ -828,7 +824,7 @@ impl<'a> Builder<'a> {
             changed = true;
         }
         if changed {
-            // check (condition == false), polarity => check condition, !polarity
+            // check eq(condition, false), polarity => check condition, !polarity
             self.func
                 .inst_mut(inst_id)
                 .replace_kind(InstKind::builtin(Builtin::Check { is_zero, failure }, [condition]));
@@ -1242,11 +1238,7 @@ fn const_fold(func: &mut Function, kind: &InstKind, ty: Option<MirType>) -> Opti
         return Some(if condition.is_zero() { else_value } else { then_value });
     }
     let value = eval::eval_inst(kind, |value| func.value_u256(value).ok_or(())).ok().flatten()?;
-    let immediate = if ty == Some(MirType::I1) {
-        Immediate::bool(!value.is_zero())
-    } else {
-        Immediate::uint256(value)
-    };
+    let immediate = Immediate::for_type(ty, value);
     Some(func.alloc_value(Value::Immediate(immediate)))
 }
 
@@ -1254,8 +1246,8 @@ fn const_fold(func: &mut Function, kind: &InstKind, ty: Option<MirType>) -> Opti
 pub(super) fn fold_constant(
     func: &mut Function,
     kind: &InstKind,
-    evm: EvmVersion,
     ty: Option<MirType>,
+    evm: EvmVersion,
 ) -> Option<ValueId> {
     if let InstKind::Phi(incoming) = kind
         && let Some(&(_, first)) = incoming.first()
@@ -1271,7 +1263,9 @@ pub(super) fn fold_constant(
             None
         }
     })?;
-    func.value(value).as_immediate().map(|_| value)
+    (func.value_ty(value) == ty)
+        .then_some(value)
+        .filter(|&value| func.value(value).as_immediate().is_some())
 }
 
 /// Recognizes passing checks and copies with no effects, including no bounds failure.

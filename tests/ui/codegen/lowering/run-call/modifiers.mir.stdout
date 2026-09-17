@@ -28,7 +28,8 @@ fn @literalString() -> memorybytes [selector=0x660cf51a, pure, abi_params=[], ab
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v1, 3
     v2 = memory_object_data memorybytes, v1
-    mstore v2, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v3 = ptrtoint memptr v2 to i256
+    mstore v3, 0x6162630000000000000000000000000000000000000000000000000000000000
     jump bb2
   bb2:
     jump bb1
@@ -123,7 +124,7 @@ fn @maybe(arg0: i256) -> i256 [selector=0xe13e4d4f, pure, abi_params=[bool], abi
   bb0:
     v0 = eq arg0, 0
     v1 = eq v0, false
-    v2 = word_cast v1
+    v2 = zext i1 v1 to i256
     v3 = ne v2, 0
     jumpi v3, bb2, bb3
   bb3:
@@ -161,7 +162,7 @@ fn @lazy(arg0: i256) -> i256 [selector=0x90bca39b, abi_params=[bool], abi_return
   bb0:
     v0 = eq arg0, 0
     v1 = eq v0, false
-    v2 = word_cast v1
+    v2 = zext i1 v1 to i256
     v3 = ne v2, 0
     jumpi v3, bb3, bb4
   bb4:

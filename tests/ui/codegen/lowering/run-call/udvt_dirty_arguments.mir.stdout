@@ -57,6 +57,6 @@ fn @eqSmall(arg0: i256, arg1: i256) -> i256 [pure] {
     v0 = and arg0, 255
     v1 = and arg1, 255
     v2 = eq v0, v1
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     ret v3
 }

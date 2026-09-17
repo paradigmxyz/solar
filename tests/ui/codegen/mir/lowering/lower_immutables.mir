@@ -9,7 +9,7 @@ immutables:
 // CHECK: -     storeimmutable first, arg0
 // CHECK-NEXT: -     storeimmutable second, arg1
 // CHECK-NEXT: +     mstore 192, arg0
-// CHECK-NEXT: +     [[WORD:v[0-9]+]] = word_cast arg1
+// CHECK-NEXT: +     [[WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} arg1
 // CHECK-NEXT: +     mstore 224, [[WORD]]
 // CHECK-NEXT:       [[LOAD:v[0-9]+]] = loadimmutable first
 // CHECK-NEXT:       ret [[LOAD]]

@@ -343,7 +343,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 && self.builder.func().value_ty(value) != Some(MirType::MemoryObject(kind))
                 && self.builder.func().value_slice_location(value).is_none()
             {
-                // object = memory_object_from_ptr value
+                // object = inttoptr value
                 Some(self.builder.memory_object_from_ptr(value, kind))
             } else if self.builder.func().value_slice_location(value).is_none() {
                 // argument = cast value to the declared parameter type

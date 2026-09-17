@@ -20,7 +20,7 @@ use self::{
         layout::{
             GlobalStackPlan, StackPhiBranch, StackPhiEdge, StackPhiPlan, planned_entry_carries,
         },
-        rematerializable_nullary_opcode, rematerializable_nullary_value,
+        rematerializable_nullary_value,
     },
     switch::MAX_GAS_CODE_GROWTH,
 };
@@ -649,7 +649,7 @@ mod tests {
         *,
     };
     use crate::{
-        backend::Backend,
+        backend::{Backend, evm::disasm::disassemble},
         mir::{
             Callee, DataRef, FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value,
             utils as mir_utils,
@@ -714,6 +714,319 @@ mod tests {
     fn with_codegen<T: Send>(opts: CompileOpts, f: impl FnOnce(EvmCodegen<'_>) -> T + Send) -> T {
         let compiler = Compiler::new(Session::builder().opts(opts).build());
         compiler.enter(|c| f(EvmCodegen::new(c.gcx())))
+    }
+
+    #[test]
+    fn llvm_cast_opcodes() {
+        let mut output = String::new();
+        for evm_version in [EvmVersion::Byzantium, EvmVersion::Osaka] {
+            output.push_str(&format!("{evm_version:?}\n"));
+            for (name, source, destination, cast) in [
+                (
+                    "sext_i1_i256",
+                    MirType::I1,
+                    MirType::I256,
+                    InstKind::Sext(ValueId::from_usize(0), 1, 256),
+                ),
+                (
+                    "sext_i1_i160",
+                    MirType::I1,
+                    MirType::I160,
+                    InstKind::Sext(ValueId::from_usize(0), 1, 160),
+                ),
+                (
+                    "sext_i160_i256",
+                    MirType::I160,
+                    MirType::I256,
+                    InstKind::Sext(ValueId::from_usize(0), 160, 256),
+                ),
+                (
+                    "trunc_i256_i1",
+                    MirType::I256,
+                    MirType::I1,
+                    InstKind::Trunc(ValueId::from_usize(0), 1),
+                ),
+                (
+                    "trunc_i256_i160",
+                    MirType::I256,
+                    MirType::I160,
+                    InstKind::Trunc(ValueId::from_usize(0), 160),
+                ),
+                (
+                    "zext_i160_i256",
+                    MirType::I160,
+                    MirType::I256,
+                    InstKind::Zext(ValueId::from_usize(0)),
+                ),
+                (
+                    "ptrtoint_i1",
+                    MirType::MemPtr,
+                    MirType::I1,
+                    InstKind::PtrToInt(ValueId::from_usize(0), 1),
+                ),
+                (
+                    "ptrtoint_i160",
+                    MirType::MemPtr,
+                    MirType::I160,
+                    InstKind::PtrToInt(ValueId::from_usize(0), 160),
+                ),
+                (
+                    "ptrtoint_i256",
+                    MirType::MemPtr,
+                    MirType::I256,
+                    InstKind::PtrToInt(ValueId::from_usize(0), 256),
+                ),
+                (
+                    "inttoptr",
+                    MirType::I256,
+                    MirType::MemPtr,
+                    InstKind::IntToPtr(ValueId::from_usize(0)),
+                ),
+                (
+                    "bitcast",
+                    MirType::MemPtr,
+                    MirType::MemPtr,
+                    InstKind::Bitcast(ValueId::from_usize(0)),
+                ),
+            ] {
+                output.push_str(name);
+                output.push('\n');
+                output.push_str(&with_codegen(
+                    CompileOpts { evm_version, ..Default::default() },
+                    |mut codegen| {
+                        let mut function = Function::new(Ident::DUMMY);
+                        let mut builder = FunctionBuilder::new(&mut function);
+                        let argument = builder.add_param(source);
+                        let result = builder.emit_inst(cast.clone(), Some(destination));
+                        builder.set_return_type(destination);
+                        builder.ret([result]);
+                        let index = function.blocks[BlockId::ENTRY].instructions.len() - 1;
+                        let instruction = function.blocks[BlockId::ENTRY].instructions[index];
+                        let liveness = Liveness::compute(&function);
+                        // CALLVALUE; cast argument
+                        codegen.asm.emit_op(op::CALLVALUE);
+                        codegen.scheduler.stack.push(argument);
+                        codegen.generate_inst(
+                            FunctionId::from_usize(0),
+                            instruction,
+                            &function,
+                            &cast,
+                            &liveness,
+                            BlockId::ENTRY,
+                            index,
+                            Some(result),
+                        );
+                        // MSTORE 0, result; RETURN 0, 32
+                        codegen.asm.emit_push(U256::ZERO);
+                        codegen.asm.emit_op(op::MSTORE);
+                        codegen.asm.emit_push(U256::from(32));
+                        codegen.asm.emit_push(U256::ZERO);
+                        codegen.asm.emit_op(op::RETURN);
+                        let bytecode = codegen.asm.assemble().bytecode;
+                        assert_eq!(codegen.gcx.dcx().err_count(), 0);
+                        disassemble(&bytecode, evm_version)
+                    },
+                ));
+            }
+        }
+        snapbox::assert_data_eq!(
+            output,
+            snapbox::str![[r#"
+Byzantium
+sext_i1_i256
+CALLVALUE
+PUSH1 0x00
+SUB
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+sext_i1_i160
+CALLVALUE
+PUSH20 0xffffffffffffffffffffffffffffffffffffffff
+MUL
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+sext_i160_i256
+CALLVALUE
+PUSH1 0x13
+SIGNEXTEND
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+trunc_i256_i1
+CALLVALUE
+PUSH1 0x01
+AND
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+trunc_i256_i160
+CALLVALUE
+PUSH20 0xffffffffffffffffffffffffffffffffffffffff
+AND
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+zext_i160_i256
+CALLVALUE
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+ptrtoint_i1
+CALLVALUE
+PUSH1 0x01
+AND
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+ptrtoint_i160
+CALLVALUE
+PUSH20 0xffffffffffffffffffffffffffffffffffffffff
+AND
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+ptrtoint_i256
+CALLVALUE
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+inttoptr
+CALLVALUE
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+bitcast
+CALLVALUE
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+Osaka
+sext_i1_i256
+CALLVALUE
+PUSH0
+SUB
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+sext_i1_i160
+CALLVALUE
+PUSH0
+SUB
+PUSH1 0x60
+SHR
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+sext_i160_i256
+CALLVALUE
+PUSH1 0x13
+SIGNEXTEND
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+trunc_i256_i1
+CALLVALUE
+PUSH1 0x01
+AND
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+trunc_i256_i160
+CALLVALUE
+PUSH0
+NOT
+PUSH1 0x60
+SHR
+AND
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+zext_i160_i256
+CALLVALUE
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+ptrtoint_i1
+CALLVALUE
+PUSH1 0x01
+AND
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+ptrtoint_i160
+CALLVALUE
+PUSH0
+NOT
+PUSH1 0x60
+SHR
+AND
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+ptrtoint_i256
+CALLVALUE
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+inttoptr
+CALLVALUE
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+bitcast
+CALLVALUE
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+
+"#]]
+        );
     }
 
     #[test]

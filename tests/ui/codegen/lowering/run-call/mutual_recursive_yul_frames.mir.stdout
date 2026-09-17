@@ -21,7 +21,7 @@ fn @encode(arg0: i256) -> struct0 [selector=0xdeb21fa2, pure, abi_params=[u256],
 fn @walk(arg0: i256, arg1: i256) -> struct1 {
   bb0:
     v0 = eq arg0, 0
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     v2 = ne v1, 0
     jumpi v2, bb1, bb2
   bb2:

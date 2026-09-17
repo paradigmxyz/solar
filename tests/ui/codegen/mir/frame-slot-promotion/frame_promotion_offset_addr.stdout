@@ -4,12 +4,14 @@
   fn @offset_addr() -> i256 {
     bb0:
       v0 = internal_frame_addr 128
-      v1 = add v0, 32
--     mstore v1, 99
-      v2 = internal_frame_addr 128
-      v3 = add v2, 32
--     v4 = mload v3
--     ret v4
+      v1 = ptrtoint memptr v0 to i256
+      v2 = add v1, 32
+-     mstore v2, 99
+      v3 = internal_frame_addr 128
+      v4 = ptrtoint memptr v3 to i256
+      v5 = add v4, 32
+-     v6 = mload v5
+-     ret v6
 +     ret 99
   }
   
@@ -19,9 +21,11 @@
   fn @offset_addr() -> i256 {
     bb0:
 -     v0 = internal_frame_addr 128
--     v1 = add v0, 32
--     v2 = internal_frame_addr 128
--     v3 = add v2, 32
+-     v1 = ptrtoint memptr v0 to i256
+-     v2 = add v1, 32
+-     v3 = internal_frame_addr 128
+-     v4 = ptrtoint memptr v3 to i256
+-     v5 = add v4, 32
       ret 99
   }
   

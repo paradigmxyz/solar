@@ -226,7 +226,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v175 = div v173, 1
     v176 = eq v175, v172
     v177 = or v174, v176
-    v178 = word_cast v177
+    v178 = zext i1 v177 to i256
     v179 = eq v178, 0
     icall panic_if<0x41>, v179
     v180 = add v173, 1
@@ -237,7 +237,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v184 = div v182, 32
     v185 = eq v184, v180
     v186 = or v183, v185
-    v187 = word_cast v186
+    v187 = zext i1 v186 to i256
     v188 = eq v187, 0
     icall panic_if<0x41>, v188
     v189 = alloc memoryarray<1>, exact, uninitialized, panic, v182
@@ -253,8 +253,8 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v212 = eq v211, false
     icall panic_if<0x32>, v212
     v213 = memory_object_load_element memoryarray<1>, v189, 0
-    v214 = memory_object_from_ptr memoryfixedarray, v213
-    v215 = word_cast v214
+    v214 = inttoptr i256 v213 to memoryfixedarray
+    v215 = ptrtoint memoryfixedarray v214 to i256
     v216 = eq v215, 0
     jumpi v216, bb7, bb8
   bb7:
@@ -273,8 +273,8 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v225 = eq v224, false
     icall panic_if<0x32>, v225
     v226 = memory_object_load_element memoryfixedarray<3, 1>, v223, 1
-    v227 = memory_object_from_ptr memorystruct, v226
-    v228 = word_cast v227
+    v227 = inttoptr i256 v226 to memorystruct
+    v228 = ptrtoint memorystruct v227 to i256
     v229 = eq v228, 0
     jumpi v229, bb12, bb13
   bb12:
@@ -295,8 +295,8 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v237 = eq v236, false
     icall panic_if<0x32>, v237
     v238 = memory_object_load_element memoryarray<1>, v189, 0
-    v239 = memory_object_from_ptr memoryfixedarray, v238
-    v240 = word_cast v239
+    v239 = inttoptr i256 v238 to memoryfixedarray
+    v240 = ptrtoint memoryfixedarray v239 to i256
     v241 = eq v240, 0
     jumpi v241, bb14, bb15
   bb14:
@@ -315,8 +315,8 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v250 = eq v249, false
     icall panic_if<0x32>, v250
     v251 = memory_object_load_element memoryfixedarray<3, 1>, v248, 1
-    v252 = memory_object_from_ptr memorystruct, v251
-    v253 = word_cast v252
+    v252 = inttoptr i256 v251 to memorystruct
+    v253 = ptrtoint memorystruct v252 to i256
     v254 = eq v253, 0
     jumpi v254, bb19, bb20
   bb19:
@@ -338,8 +338,8 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v263 = eq v262, false
     icall panic_if<0x32>, v263
     v264 = memory_object_load_element memoryarray<1>, v189, 0
-    v265 = memory_object_from_ptr memoryfixedarray, v264
-    v266 = word_cast v265
+    v265 = inttoptr i256 v264 to memoryfixedarray
+    v266 = ptrtoint memoryfixedarray v265 to i256
     v267 = eq v266, 0
     jumpi v267, bb21, bb22
   bb21:
@@ -358,8 +358,8 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v276 = eq v275, false
     icall panic_if<0x32>, v276
     v277 = memory_object_load_element memoryfixedarray<3, 1>, v274, 1
-    v278 = memory_object_from_ptr memorystruct, v277
-    v279 = word_cast v278
+    v278 = inttoptr i256 v277 to memorystruct
+    v279 = ptrtoint memorystruct v278 to i256
     v280 = eq v279, 0
     jumpi v280, bb26, bb27
   bb26:
@@ -374,7 +374,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
   bb27:
     v283 = phi [bb22: v278], [bb26: v281]
     v284 = memory_object_load_field memorystruct<3>, v283, 2
-    v285 = memory_object_from_ptr memoryarray, v284
+    v285 = inttoptr i256 v284 to memoryarray
     v286 = memory_object_len memoryarray, v285
     v287 = lt 0, v286
     v288 = eq v287, false
@@ -386,8 +386,8 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v293 = eq v292, false
     icall panic_if<0x32>, v293
     v294 = memory_object_load_element memoryarray<1>, v189, 1
-    v295 = memory_object_from_ptr memoryfixedarray, v294
-    v296 = word_cast v295
+    v295 = inttoptr i256 v294 to memoryfixedarray
+    v296 = ptrtoint memoryfixedarray v295 to i256
     v297 = eq v296, 0
     jumpi v297, bb28, bb29
   bb28:
@@ -406,8 +406,8 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v306 = eq v305, false
     icall panic_if<0x32>, v306
     v307 = memory_object_load_element memoryfixedarray<3, 1>, v304, 2
-    v308 = memory_object_from_ptr memorystruct, v307
-    v309 = word_cast v308
+    v308 = inttoptr i256 v307 to memorystruct
+    v309 = ptrtoint memorystruct v308 to i256
     v310 = eq v309, 0
     jumpi v310, bb33, bb34
   bb33:
@@ -429,8 +429,8 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v319 = eq v318, false
     icall panic_if<0x32>, v319
     v320 = memory_object_load_element memoryarray<1>, v189, 1
-    v321 = memory_object_from_ptr memoryfixedarray, v320
-    v322 = word_cast v321
+    v321 = inttoptr i256 v320 to memoryfixedarray
+    v322 = ptrtoint memoryfixedarray v321 to i256
     v323 = eq v322, 0
     jumpi v323, bb35, bb36
   bb35:
@@ -449,8 +449,8 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v332 = eq v331, false
     icall panic_if<0x32>, v332
     v333 = memory_object_load_element memoryfixedarray<3, 1>, v330, 2
-    v334 = memory_object_from_ptr memorystruct, v333
-    v335 = word_cast v334
+    v334 = inttoptr i256 v333 to memorystruct
+    v335 = ptrtoint memorystruct v334 to i256
     v336 = eq v335, 0
     jumpi v336, bb40, bb41
   bb40:
@@ -472,8 +472,8 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v345 = eq v344, false
     icall panic_if<0x32>, v345
     v346 = memory_object_load_element memoryarray<1>, v189, 1
-    v347 = memory_object_from_ptr memoryfixedarray, v346
-    v348 = word_cast v347
+    v347 = inttoptr i256 v346 to memoryfixedarray
+    v348 = ptrtoint memoryfixedarray v347 to i256
     v349 = eq v348, 0
     jumpi v349, bb42, bb43
   bb42:
@@ -492,8 +492,8 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v358 = eq v357, false
     icall panic_if<0x32>, v358
     v359 = memory_object_load_element memoryfixedarray<3, 1>, v356, 2
-    v360 = memory_object_from_ptr memorystruct, v359
-    v361 = word_cast v360
+    v360 = inttoptr i256 v359 to memorystruct
+    v361 = ptrtoint memorystruct v360 to i256
     v362 = eq v361, 0
     jumpi v362, bb47, bb48
   bb47:
@@ -508,7 +508,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
   bb48:
     v365 = phi [bb43: v360], [bb47: v363]
     v366 = memory_object_load_field memorystruct<3>, v365, 2
-    v367 = memory_object_from_ptr memoryarray, v366
+    v367 = inttoptr i256 v366 to memoryarray
     v368 = memory_object_len memoryarray, v367
     v369 = lt 0, v368
     v370 = eq v369, false

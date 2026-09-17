@@ -56,12 +56,12 @@ fn @diamond(arg0: i256) -> i256 [selector=0xdf460a0e, view, abi_params=[bool], a
     v5 = gas
     v6 = sub v3, v5
     v7 = gt v6, 80
-    v8 = word_cast v7
+    v8 = zext i1 v7 to i256
     v9 = eq arg0, 0
-    v10 = word_cast v9
+    v10 = zext i1 v9 to i256
     v11 = or v10, v8
     v12 = eq v0, v4
-    v13 = word_cast v12
+    v13 = zext i1 v12 to i256
     v14 = and v13, v11
     ret v14
 }
@@ -76,7 +76,7 @@ fn @loop() -> i256 [selector=0xa92100cb, view, abi_params=[], abi_returns=[word<
     v3 = phi [bb0: v0], [bb3: v3]
     v4 = phi [bb0: 0], [bb3: v20]
     v5 = lt v4, 3
-    v6 = word_cast v5
+    v6 = zext i1 v5 to i256
     v7 = ne v6, 0
     jumpi v7, bb4, bb5
   bb5:
@@ -93,13 +93,13 @@ fn @loop() -> i256 [selector=0xa92100cb, view, abi_params=[], abi_returns=[word<
   bb7:
     v11 = sub v1, v9
     v12 = gt v11, 80
-    v13 = word_cast v12
+    v13 = zext i1 v12 to i256
     v14 = and v2, v13
     jump bb9
   bb9:
     v15 = phi [bb7: v14], [bb8: v2]
     v16 = eq v3, v8
-    v17 = word_cast v16
+    v17 = zext i1 v16 to i256
     v18 = and v15, v17
     v19 = gas
     jump bb6

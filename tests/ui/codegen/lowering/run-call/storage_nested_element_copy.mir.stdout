@@ -487,8 +487,8 @@ fn @constructor() [constructor] {
     ret
   bb117:
     v462 = memory_object_load_element memoryarray<1>, v438, v460
-    v463 = memory_object_from_ptr memoryarray, v462
-    v464 = word_cast v463
+    v463 = inttoptr i256 v462 to memoryarray
+    v464 = ptrtoint memoryarray v463 to i256
     v465 = eq v464, 0
     jumpi v465, bb119, bb120
   bb119:
@@ -581,7 +581,7 @@ fn @constructor() [constructor] {
     v454 = mod v452, 32
     v455 = eq v454, 0
     v456 = eq v455, false
-    v457 = word_cast v456
+    v457 = zext i1 v456 to i256
     v458 = add v453, v457
     clear_storage_words v451, 0, v458
     v459 = add v448, 1
@@ -592,8 +592,8 @@ fn @constructor() [constructor] {
     jump bb108
   bb94:
     v279 = memory_object_load_element memoryarray<1>, v253, v277
-    v280 = memory_object_from_ptr memoryarray, v279
-    v281 = word_cast v280
+    v280 = inttoptr i256 v279 to memoryarray
+    v281 = ptrtoint memoryarray v280 to i256
     v282 = eq v281, 0
     jumpi v282, bb96, bb97
   bb96:
@@ -686,7 +686,7 @@ fn @constructor() [constructor] {
     v271 = mod v269, 32
     v272 = eq v271, 0
     v273 = eq v272, false
-    v274 = word_cast v273
+    v274 = zext i1 v273 to i256
     v275 = add v270, v274
     clear_storage_words v268, 0, v275
     v276 = add v265, 1
@@ -697,8 +697,8 @@ fn @constructor() [constructor] {
     jump bb85
   bb61:
     v172 = memory_object_load_element memoryarray<1>, v145, v170
-    v173 = memory_object_from_ptr memoryarray, v172
-    v174 = word_cast v173
+    v173 = inttoptr i256 v172 to memoryarray
+    v174 = ptrtoint memoryarray v173 to i256
     v175 = eq v174, 0
     jumpi v175, bb63, bb64
   bb63:
@@ -734,8 +734,8 @@ fn @constructor() [constructor] {
     jump bb60
   bb71:
     v197 = memory_object_load_element memoryarray<1>, v177, v195
-    v198 = memory_object_from_ptr memoryarray, v197
-    v199 = word_cast v198
+    v198 = inttoptr i256 v197 to memoryarray
+    v199 = ptrtoint memoryarray v198 to i256
     v200 = eq v199, 0
     jumpi v200, bb73, bb74
   bb73:
@@ -828,7 +828,7 @@ fn @constructor() [constructor] {
     v189 = mod v187, 32
     v190 = eq v189, 0
     v191 = eq v190, false
-    v192 = word_cast v191
+    v192 = zext i1 v191 to i256
     v193 = add v188, v192
     clear_storage_words v186, 0, v193
     v194 = add v183, 1
@@ -855,7 +855,7 @@ fn @constructor() [constructor] {
     v163 = mod v161, 32
     v164 = eq v163, 0
     v165 = eq v164, false
-    v166 = word_cast v165
+    v166 = zext i1 v165 to i256
     v167 = add v162, v166
     clear_storage_words v160, 0, v167
     v168 = add v157, 1
@@ -866,8 +866,8 @@ fn @constructor() [constructor] {
     jump bb49
   bb16:
     v30 = memory_object_load_element memoryarray<1>, v0, v28
-    v31 = memory_object_from_ptr memoryfixedarray, v30
-    v32 = word_cast v31
+    v31 = inttoptr i256 v30 to memoryfixedarray
+    v32 = ptrtoint memoryfixedarray v31 to i256
     v33 = eq v32, 0
     jumpi v33, bb18, bb19
   bb18:
@@ -973,7 +973,7 @@ fn @constructor() [constructor] {
     jump bb41
   bb26:
     v47 = memory_object_load_element memoryfixedarray<2, 1>, v39, v43
-    v48 = memory_object_from_ptr memoryarray, v47
+    v48 = inttoptr i256 v47 to memoryarray
     v49 = memory_object_len memoryarray, v48
     v50 = sload v45 !metadata(storage=symbolic(v45))
     v51 = gt v50, v49
@@ -1014,7 +1014,7 @@ fn @constructor() [constructor] {
     v143 = add v43, 1
     jump bb23
   bb35:
-    v70 = memory_object_from_ptr memoryarray, v47
+    v70 = inttoptr i256 v47 to memoryarray
     v71 = memory_object_load_element memoryarray<1>, v70, v68
     v72 = storage_array_data_slot v45
     v73 = div v68, 32
@@ -1075,7 +1075,7 @@ fn @constructor() [constructor] {
     v21 = mod v19, 32
     v22 = eq v21, 0
     v23 = eq v22, false
-    v24 = word_cast v23
+    v24 = zext i1 v23 to i256
     v25 = add v20, v24
     clear_storage_words v18, 0, v25
     v26 = add v16, 1
@@ -1111,7 +1111,7 @@ fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
     v8 = div v6, 1
     v9 = eq v8, v5
     v10 = or v7, v9
-    v11 = word_cast v10
+    v11 = zext i1 v10 to i256
     v12 = eq v11, 0
     icall panic_if<0x41>, v12
     v13 = add v6, 1
@@ -1122,7 +1122,7 @@ fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
     v17 = div v15, 32
     v18 = eq v17, v13
     v19 = or v16, v18
-    v20 = word_cast v19
+    v20 = zext i1 v19 to i256
     v21 = eq v20, 0
     icall panic_if<0x41>, v21
     v22 = alloc memoryarray<1>, exact, uninitialized, panic, v15
@@ -1235,8 +1235,8 @@ fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
     ret v171
   bb10:
     v46 = memory_object_load_element memoryarray<1>, v22, v44
-    v47 = memory_object_from_ptr memoryarray, v46
-    v48 = word_cast v47
+    v47 = inttoptr i256 v46 to memoryarray
+    v48 = ptrtoint memoryarray v47 to i256
     v49 = eq v48, 0
     jumpi v49, bb12, bb13
   bb12:
@@ -1329,7 +1329,7 @@ fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
     v38 = mod v36, 32
     v39 = eq v38, 0
     v40 = eq v39, false
-    v41 = word_cast v40
+    v41 = zext i1 v40 to i256
     v42 = add v37, v41
     clear_storage_words v35, 0, v42
     v43 = add v32, 1
@@ -1355,7 +1355,7 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
     v6 = div v4, 1
     v7 = eq v6, v3
     v8 = or v5, v7
-    v9 = word_cast v8
+    v9 = zext i1 v8 to i256
     v10 = eq v9, 0
     icall panic_if<0x41>, v10
     v11 = add v4, 1
@@ -1366,7 +1366,7 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
     v15 = div v13, 32
     v16 = eq v15, v11
     v17 = or v14, v16
-    v18 = word_cast v17
+    v18 = zext i1 v17 to i256
     v19 = eq v18, 0
     icall panic_if<0x41>, v19
     v20 = alloc memoryarray<1>, exact, uninitialized, panic, v13
@@ -1479,8 +1479,8 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
     ret v169
   bb10:
     v44 = memory_object_load_element memoryarray<1>, v20, v42
-    v45 = memory_object_from_ptr memoryarray, v44
-    v46 = word_cast v45
+    v45 = inttoptr i256 v44 to memoryarray
+    v46 = ptrtoint memoryarray v45 to i256
     v47 = eq v46, 0
     jumpi v47, bb12, bb13
   bb12:
@@ -1573,7 +1573,7 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
     v36 = mod v34, 32
     v37 = eq v36, 0
     v38 = eq v37, false
-    v39 = word_cast v38
+    v39 = zext i1 v38 to i256
     v40 = add v35, v39
     clear_storage_words v33, 0, v40
     v41 = add v30, 1
@@ -1761,7 +1761,7 @@ fn @copyMixed() -> i256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word],
     jump bb22
   bb7:
     v16 = memory_object_load_element memoryfixedarray<2, 1>, v6, v12
-    v17 = memory_object_from_ptr memoryarray, v16
+    v17 = inttoptr i256 v16 to memoryarray
     v18 = memory_object_len memoryarray, v17
     v19 = sload v14 !metadata(storage=offset(v12, 5))
     v20 = gt v19, v18
@@ -1802,7 +1802,7 @@ fn @copyMixed() -> i256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word],
     v112 = add v12, 1
     jump bb4
   bb16:
-    v39 = memory_object_from_ptr memoryarray, v16
+    v39 = inttoptr i256 v16 to memoryarray
     v40 = memory_object_load_element memoryarray<1>, v39, v37
     v41 = storage_array_data_slot v14
     v42 = div v37, 32

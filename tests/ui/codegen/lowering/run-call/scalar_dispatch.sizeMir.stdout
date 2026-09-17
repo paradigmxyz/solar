@@ -6,7 +6,7 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = calldatasize
     v2 = lt v1, 100
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2

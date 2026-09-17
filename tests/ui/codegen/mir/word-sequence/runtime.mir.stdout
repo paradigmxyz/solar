@@ -130,7 +130,7 @@ fn @boundary(arg0: i256) -> i256 [selector=0xa2c54a38, pure, abi_params=[u256], 
   bb0:
     v0 = shl 160, 1
     v1 = lt arg0, v0
-    v2 = word_cast v1
+    v2 = zext i1 v1 to i256
     ret v2
 }
 

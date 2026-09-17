@@ -22,7 +22,7 @@ fn @set(arg0: i256, arg1: i256) [selector=0xf907191a, abi_params=[bool, bool], a
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = not 255
     v4 = and v2, v3
-    v5 = word_cast v1
+    v5 = zext i1 v1 to i256
     v6 = and v5, 255
     v7 = or v4, v6
     sstore 0, v7 !metadata(storage=slot(0))
@@ -32,7 +32,7 @@ fn @set(arg0: i256, arg1: i256) [selector=0xf907191a, abi_params=[bool, bool], a
     v11 = sload 0 !metadata(storage=slot(0))
     v12 = not v10
     v13 = and v11, v12
-    v14 = word_cast v9
+    v14 = zext i1 v9 to i256
     v15 = and v14, 255
     v16 = shl 8, v15
     v17 = or v13, v16
@@ -47,7 +47,7 @@ fn @both() -> i256 [selector=0x35f2e0a7, view, abi_params=[], abi_returns=[word<
     v2 = ne v1, 0
     jumpi v2, bb1, bb2
   bb2:
-    v6 = word_cast false
+    v6 = zext i1 0 to i256
     jump bb3
   bb1:
     v3 = sload 0 !metadata(storage=slot(0))

@@ -2,7 +2,7 @@
 @module MemoryBytesToFixed
 fn @shorten(arg0: memorybytes, arg1: i256) -> i256 [selector=0xe05b43e0, pure, abi_params=[bytes, u256], abi_returns=[word<bytes16>], abi_return_params=[bytes16]] {
   bb0:
-    v0 = word_cast arg0
+    v0 = ptrtoint memorybytes arg0 to i256
     mstore v0, arg1
     v1 = memory_object_load_element memorybytes, arg0, 0
     v2 = memory_object_len memorybytes, arg0

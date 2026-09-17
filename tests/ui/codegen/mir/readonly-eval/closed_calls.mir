@@ -101,7 +101,8 @@ fn @recursive(arg0: i256) {
 // CHECK: + ret 19
 fn @known_memory() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v2 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v2 to i256
     mstore v0, 19
     icall @guard, 42
     v1 = icall @read, v0

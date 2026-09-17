@@ -142,7 +142,10 @@ pub(crate) fn rematerializable_nullary_opcode(kind: &InstKind) -> Option<u8> {
 /// Returns the opcode for a stable nullary MIR value that is cheaper to re-emit than preserve.
 pub(crate) fn rematerializable_nullary_value(func: &Function, value: ValueId) -> Option<u8> {
     let Value::Inst(inst_id) = func.value(value) else { return None };
-    rematerializable_nullary_opcode(&func.inst(*inst_id).kind)
+    match func.inst(*inst_id).kind {
+        InstKind::Zext(inner) => rematerializable_nullary_value(func, inner),
+        _ => rematerializable_nullary_opcode(&func.inst(*inst_id).kind),
+    }
 }
 
 /// Returns whether an instruction result can be rebuilt across basic blocks.

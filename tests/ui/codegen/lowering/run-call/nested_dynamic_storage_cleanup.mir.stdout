@@ -81,8 +81,8 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v50 = eq v49, false
     icall panic_if<0x32>, v50
     v51 = memory_object_load_element memoryarray<1>, v40, 0
-    v52 = memory_object_from_ptr memoryarray, v51
-    v53 = word_cast v52
+    v52 = inttoptr i256 v51 to memoryarray
+    v53 = ptrtoint memoryarray v52 to i256
     v54 = eq v53, 0
     jumpi v54, bb4, bb5
   bb4:
@@ -131,8 +131,8 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     ret v106
   bb15:
     v76 = memory_object_load_element memoryarray<1>, v40, v74
-    v77 = memory_object_from_ptr memoryarray, v76
-    v78 = word_cast v77
+    v77 = inttoptr i256 v76 to memoryarray
+    v78 = ptrtoint memoryarray v77 to i256
     v79 = eq v78, 0
     jumpi v79, bb17, bb18
   bb17:

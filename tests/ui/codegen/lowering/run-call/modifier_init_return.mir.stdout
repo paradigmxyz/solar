@@ -6,7 +6,7 @@ fn @f(arg0: i256) -> memoryfixedarray [selector=0xb3de648b, pure, abi_params=[u2
     memory_zero v0, 160
     v1 = lt arg0, 10
     v2 = eq v1, false
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     v4 = ne v3, 0
     jumpi v4, bb2, bb3
   bb3:

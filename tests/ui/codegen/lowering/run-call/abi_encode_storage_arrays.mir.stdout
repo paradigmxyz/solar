@@ -12,7 +12,7 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memorybytes [selector=0x199f835c
     v4 = div v2, 64
     v5 = eq v4, v0
     v6 = or v3, v5
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     v8 = eq v7, 0
     icall panic_if<0x41>, v8
     v9 = calldatasize
@@ -24,7 +24,7 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memorybytes [selector=0x199f835c
     v14 = div v12, 32
     v15 = eq v14, v0
     v16 = or v13, v15
-    v17 = word_cast v16
+    v17 = zext i1 v16 to i256
     v18 = eq v17, 0
     icall panic_if<0x41>, v18
     v19 = add 32, v12
@@ -64,7 +64,7 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memorybytes [selector=0x199f835c
     v69 = div v67, 1
     v70 = eq v69, v66
     v71 = or v68, v70
-    v72 = word_cast v71
+    v72 = zext i1 v71 to i256
     v73 = eq v72, 0
     icall panic_if<0x41>, v73
     v74 = add v67, 1
@@ -75,7 +75,7 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memorybytes [selector=0x199f835c
     v78 = div v76, 32
     v79 = eq v78, v74
     v80 = or v77, v79
-    v81 = word_cast v80
+    v81 = zext i1 v80 to i256
     v82 = eq v81, 0
     icall panic_if<0x41>, v82
     v83 = alloc memoryarray<1>, exact, uninitialized, panic, v76
@@ -110,8 +110,8 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memorybytes [selector=0x199f835c
     jump bb26
   bb13:
     v50 = memory_object_load_element memoryarray<1>, v21, v48
-    v51 = memory_object_from_ptr memoryfixedarray, v50
-    v52 = word_cast v51
+    v51 = inttoptr i256 v50 to memoryfixedarray
+    v52 = ptrtoint memoryfixedarray v51 to i256
     v53 = eq v52, 0
     jumpi v53, bb15, bb16
   bb15:
@@ -169,7 +169,7 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memorybytes [selector=0x199f835c
     v26 = div v24, 64
     v27 = eq v26, v22
     v28 = or v25, v27
-    v29 = word_cast v28
+    v29 = zext i1 v28 to i256
     v30 = eq v29, 0
     icall panic_if<0x41>, v30
     v31 = add v1, v24
@@ -190,7 +190,7 @@ fn @readDynamicStorage(arg0: calldataslice) -> struct0 [selector=0x26153afa, abi
     v4 = div v2, 64
     v5 = eq v4, v0
     v6 = or v3, v5
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     v8 = eq v7, 0
     icall panic_if<0x41>, v8
     v9 = calldatasize
@@ -202,7 +202,7 @@ fn @readDynamicStorage(arg0: calldataslice) -> struct0 [selector=0x26153afa, abi
     v14 = div v12, 32
     v15 = eq v14, v0
     v16 = or v13, v15
-    v17 = word_cast v16
+    v17 = zext i1 v16 to i256
     v18 = eq v17, 0
     icall panic_if<0x41>, v18
     v19 = add 32, v12
@@ -317,8 +317,8 @@ fn @readDynamicStorage(arg0: calldataslice) -> struct0 [selector=0x26153afa, abi
     ret v131
   bb13:
     v50 = memory_object_load_element memoryarray<1>, v21, v48
-    v51 = memory_object_from_ptr memoryfixedarray, v50
-    v52 = word_cast v51
+    v51 = inttoptr i256 v50 to memoryfixedarray
+    v52 = ptrtoint memoryfixedarray v51 to i256
     v53 = eq v52, 0
     jumpi v53, bb15, bb16
   bb15:
@@ -376,7 +376,7 @@ fn @readDynamicStorage(arg0: calldataslice) -> struct0 [selector=0x26153afa, abi
     v26 = div v24, 64
     v27 = eq v26, v22
     v28 = or v25, v27
-    v29 = word_cast v28
+    v29 = zext i1 v28 to i256
     v30 = eq v29, 0
     icall panic_if<0x41>, v30
     v31 = add v1, v24
@@ -485,7 +485,7 @@ fn @encodeStaticStatic(arg0: calldataslice) -> memorybytes [selector=0x60e1923b,
     sstore v20, 0 !metadata(storage=symbolic(v20))
     jump bb15
   bb13:
-    v22 = memory_object_from_ptr memoryfixedarray, v17
+    v22 = inttoptr i256 v17 to memoryfixedarray
     v23 = memory_object_load_element memoryfixedarray<2, 1>, v22, v18
     sstore v20, v23 !metadata(storage=symbolic(v20))
     jump bb15

@@ -7,7 +7,7 @@ fn @bytesChain(arg0: calldataslice) -> memorybytes [selector=0x2007c472, pure, a
     v2 = gt v1, v1
     v3 = lt v1, 1
     v4 = or v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     icall revert_if<empty>, v5
     v6 = sub v1, 1
     v7 = add v0, 1
@@ -17,7 +17,7 @@ fn @bytesChain(arg0: calldataslice) -> memorybytes [selector=0x2007c472, pure, a
     v11 = gt v10, v10
     v12 = lt v10, 1
     v13 = or v11, v12
-    v14 = word_cast v13
+    v14 = zext i1 v13 to i256
     icall revert_if<empty>, v14
     v15 = sub v10, 1
     v16 = add v9, 1
@@ -49,7 +49,7 @@ fn @arrChain(arg0: calldataslice) -> i256 [selector=0x65df4193, pure, abi_params
     v2 = gt v1, v1
     v3 = lt v1, 1
     v4 = or v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     icall revert_if<empty>, v5
     v6 = sub v1, 1
     v7 = add v0, 32
@@ -59,7 +59,7 @@ fn @arrChain(arg0: calldataslice) -> i256 [selector=0x65df4193, pure, abi_params
     v11 = gt v10, v10
     v12 = lt v10, 1
     v13 = or v11, v12
-    v14 = word_cast v13
+    v14 = zext i1 v13 to i256
     icall revert_if<empty>, v14
     v15 = sub v10, 1
     v16 = add v9, 32

@@ -8,12 +8,14 @@ fn @g() [selector=0xe2179b8e, abi_params=[], abi_returns=[], abi_return_params=[
 fn @f() -> i256 [selector=0x26121ff0, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
-    v1 = shl 32, v0
-    v2 = or v1, 0xe2179b8e
-    v3 = shr 32, v2
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = address
-    v6 = eq v4, v5
-    v7 = word_cast v6
-    ret v7
+    v1 = zext i160 v0 to i256
+    v2 = shl 32, v1
+    v3 = or v2, 0xe2179b8e
+    v4 = shr 32, v3
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = address
+    v7 = zext i160 v6 to i256
+    v8 = eq v5, v7
+    v9 = zext i1 v8 to i256
+    ret v9
 }

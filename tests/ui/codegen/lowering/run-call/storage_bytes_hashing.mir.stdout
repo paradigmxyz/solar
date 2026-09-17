@@ -13,7 +13,7 @@ fn @mappingEmpty() -> i256 [selector=0x20f98002, abi_params=[], abi_returns=[wor
     v6 = keccak256_bytes v5
     v7 = keccak256_bytes v2
     v8 = eq v6, v7
-    v9 = word_cast v8
+    v9 = zext i1 v8 to i256
     ret v9
 }
 
@@ -28,7 +28,7 @@ fn @mappingLong(arg0: i256, arg1: i256) -> i256 [selector=0xa4972bce, abi_params
     v5 = keccak256_bytes v4
     v6 = keccak256_bytes v1
     v7 = eq v5, v6
-    v8 = word_cast v7
+    v8 = zext i1 v7 to i256
     ret v8
 }
 
@@ -43,7 +43,7 @@ fn @mappingShort(arg0: i256) -> i256 [selector=0xd17dedff, abi_params=[bytes31],
     v5 = keccak256_bytes v4
     v6 = keccak256_bytes v1
     v7 = eq v5, v6
-    v8 = word_cast v7
+    v8 = zext i1 v7 to i256
     ret v8
 }
 
@@ -57,7 +57,7 @@ fn @mappingWord(arg0: i256) -> i256 [selector=0x95027de5, abi_params=[bytes32], 
     v4 = keccak256_bytes v3
     v5 = keccak256_bytes v0
     v6 = eq v4, v5
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     ret v7
 }
 
@@ -72,7 +72,7 @@ fn @mappingTwoWords(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb0ef
     v5 = keccak256_bytes v4
     v6 = keccak256_bytes v1
     v7 = eq v5, v6
-    v8 = word_cast v7
+    v8 = zext i1 v7 to i256
     ret v8
 }
 
@@ -87,7 +87,7 @@ fn @mappingReference(arg0: i256, arg1: i256) -> i256 [selector=0xe1bd71bc, abi_p
     v5 = keccak256_bytes v4
     v6 = keccak256_bytes v1
     v7 = eq v5, v6
-    v8 = word_cast v7
+    v8 = zext i1 v7 to i256
     ret v8
 }
 
@@ -104,7 +104,7 @@ fn @nestedMapping(arg0: i256, arg1: i256) -> i256 [selector=0x9670c676, abi_para
     v7 = keccak256_bytes v6
     v8 = keccak256_bytes v1
     v9 = eq v7, v8
-    v10 = word_cast v9
+    v10 = zext i1 v9 to i256
     ret v10
 }
 
@@ -117,7 +117,7 @@ fn @structField(arg0: i256, arg1: i256) -> i256 [selector=0xc85878d4, abi_params
     v3 = keccak256_bytes v2
     v4 = keccak256_bytes v1
     v5 = eq v3, v4
-    v6 = word_cast v5
+    v6 = zext i1 v5 to i256
     ret v6
 }
 
@@ -130,7 +130,7 @@ fn @directValue(arg0: i256, arg1: i256) -> i256 [selector=0xdb5536af, abi_params
     v3 = keccak256_bytes v2
     v4 = keccak256_bytes v1
     v5 = eq v3, v4
-    v6 = word_cast v5
+    v6 = zext i1 v5 to i256
     ret v6
 }
 
@@ -144,7 +144,7 @@ fn @internalReference(arg0: i256, arg1: i256) -> i256 [selector=0xd14b1bf5, abi_
     v4 = icall @hashStorageBytes, v3
     v5 = keccak256_bytes v1
     v6 = eq v4, v5
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     ret v7
 }
 
@@ -166,7 +166,7 @@ fn @mappingString(arg0: i256, arg1: i256) -> i256 [selector=0x4cbcb134, abi_para
     v5 = keccak256_bytes v4
     v6 = keccak256_bytes v1
     v7 = eq v5, v6
-    v8 = word_cast v7
+    v8 = zext i1 v7 to i256
     ret v8
 }
 
@@ -181,7 +181,7 @@ fn @mappingStringErc7201(arg0: i256, arg1: i256) -> i256 [selector=0x55edb0fc, a
     v5 = icall erc7201<>, v4
     v6 = icall erc7201<>, v1
     v7 = eq v5, v6
-    v8 = word_cast v7
+    v8 = zext i1 v7 to i256
     ret v8
 }
 

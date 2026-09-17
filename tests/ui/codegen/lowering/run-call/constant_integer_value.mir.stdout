@@ -44,13 +44,13 @@ fn @mulDivDown(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
   bb0:
     v0 = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1
     v1 = gt arg0, v0
-    v2 = word_cast v1
+    v2 = zext i1 v1 to i256
     v3 = mul arg1, v2
     v4 = eq v3, 0
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     v6 = mul arg2, v5
     v7 = eq v6, 0
-    v8 = word_cast v7
+    v8 = zext i1 v7 to i256
     v9 = ne v8, 0
     jumpi v9, bb1, bb2
   bb2:
@@ -67,6 +67,6 @@ fn @isMinTick(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = signextend 2, arg0
     v1 = eq v0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffff27618
-    v2 = word_cast v1
+    v2 = zext i1 v1 to i256
     ret v2
 }

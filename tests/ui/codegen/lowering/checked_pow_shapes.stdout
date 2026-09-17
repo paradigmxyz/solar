@@ -18,9 +18,9 @@ fn @upow(arg0: i256, arg1: i256) -> i256 [selector=0x11698b2f, pure, abi_params=
     v8 = div v6, v2
     v9 = eq v8, v1
     v10 = or v7, v9
-    v11 = word_cast v10
+    v11 = zext i1 v10 to i256
     v12 = eq v11, 0
-    v13 = word_cast v12
+    v13 = zext i1 v12 to i256
     v14 = and v5, v13
     v15 = ne v14, 0
     jumpi v15, bb4, bb5
@@ -33,11 +33,11 @@ fn @upow(arg0: i256, arg1: i256) -> i256 [selector=0x11698b2f, pure, abi_params=
     v21 = div v19, v2
     v22 = eq v21, v2
     v23 = or v20, v22
-    v24 = word_cast v23
+    v24 = zext i1 v23 to i256
     v25 = eq v24, 0
     v26 = gt v18, 0
     v27 = and v26, v25
-    v28 = word_cast v27
+    v28 = zext i1 v27 to i256
     v29 = ne v28, 0
     jumpi v29, bb4, bb6
   bb6:
@@ -66,13 +66,13 @@ fn @spow(arg0: i256, arg1: i256) -> i256 [selector=0x8c0da14f, pure, abi_params=
     v8 = sdiv v6, v2
     v9 = eq v8, v1
     v10 = or v7, v9
-    v11 = word_cast v10
+    v11 = zext i1 v10 to i256
     v12 = eq v11, 0
     v13 = eq v1, 0x8000000000000000000000000000000000000000000000000000000000000000
     v14 = slt v2, 0
     v15 = and v13, v14
-    v16 = word_cast v15
-    v17 = word_cast v12
+    v16 = zext i1 v15 to i256
+    v17 = zext i1 v12 to i256
     v18 = or v17, v16
     v19 = and v5, v18
     v20 = ne v19, 0
@@ -86,16 +86,16 @@ fn @spow(arg0: i256, arg1: i256) -> i256 [selector=0x8c0da14f, pure, abi_params=
     v26 = sdiv v24, v2
     v27 = eq v26, v2
     v28 = or v25, v27
-    v29 = word_cast v28
+    v29 = zext i1 v28 to i256
     v30 = eq v29, 0
     v31 = eq v2, 0x8000000000000000000000000000000000000000000000000000000000000000
     v32 = slt v2, 0
     v33 = and v31, v32
-    v34 = word_cast v33
-    v35 = word_cast v30
+    v34 = zext i1 v33 to i256
+    v35 = zext i1 v30 to i256
     v36 = or v35, v34
     v37 = gt v23, 0
-    v38 = word_cast v37
+    v38 = zext i1 v37 to i256
     v39 = and v38, v36
     v40 = ne v39, 0
     jumpi v40, bb4, bb6
@@ -127,11 +127,11 @@ fn @upow8(arg0: i256, arg1: i256) -> i256 [selector=0x3f7ced5f, pure, abi_params
     v10 = div v8, v4
     v11 = eq v10, v3
     v12 = or v9, v11
-    v13 = word_cast v12
+    v13 = zext i1 v12 to i256
     v14 = eq v13, 0
     v15 = gt v8, 255
     v16 = or v14, v15
-    v17 = word_cast v16
+    v17 = zext i1 v16 to i256
     v18 = and v7, v17
     v19 = ne v18, 0
     jumpi v19, bb4, bb5
@@ -144,13 +144,13 @@ fn @upow8(arg0: i256, arg1: i256) -> i256 [selector=0x3f7ced5f, pure, abi_params
     v25 = div v23, v4
     v26 = eq v25, v4
     v27 = or v24, v26
-    v28 = word_cast v27
+    v28 = zext i1 v27 to i256
     v29 = eq v28, 0
     v30 = gt v23, 255
     v31 = or v29, v30
-    v32 = word_cast v31
+    v32 = zext i1 v31 to i256
     v33 = gt v22, 0
-    v34 = word_cast v33
+    v34 = zext i1 v33 to i256
     v35 = and v34, v32
     v36 = ne v35, 0
     jumpi v36, bb4, bb6
@@ -182,18 +182,18 @@ fn @spow8(arg0: i256, arg1: i256) -> i256 [selector=0xd44642ed, pure, abi_params
     v10 = sdiv v8, v4
     v11 = eq v10, v3
     v12 = or v9, v11
-    v13 = word_cast v12
+    v13 = zext i1 v12 to i256
     v14 = eq v13, 0
     v15 = slt v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
     v16 = sgt v8, 127
     v17 = or v15, v16
-    v18 = word_cast v17
-    v19 = word_cast v14
+    v18 = zext i1 v17 to i256
+    v19 = zext i1 v14 to i256
     v20 = or v19, v18
     v21 = eq v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
     v22 = slt v4, 0
     v23 = and v21, v22
-    v24 = word_cast v23
+    v24 = zext i1 v23 to i256
     v25 = or v20, v24
     v26 = and v7, v25
     v27 = ne v26, 0
@@ -207,21 +207,21 @@ fn @spow8(arg0: i256, arg1: i256) -> i256 [selector=0xd44642ed, pure, abi_params
     v33 = sdiv v31, v4
     v34 = eq v33, v4
     v35 = or v32, v34
-    v36 = word_cast v35
+    v36 = zext i1 v35 to i256
     v37 = eq v36, 0
     v38 = slt v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
     v39 = sgt v31, 127
     v40 = or v38, v39
-    v41 = word_cast v40
-    v42 = word_cast v37
+    v41 = zext i1 v40 to i256
+    v42 = zext i1 v37 to i256
     v43 = or v42, v41
     v44 = eq v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
     v45 = slt v4, 0
     v46 = and v44, v45
-    v47 = word_cast v46
+    v47 = zext i1 v46 to i256
     v48 = or v43, v47
     v49 = gt v30, 0
-    v50 = word_cast v49
+    v50 = zext i1 v49 to i256
     v51 = and v50, v48
     v52 = ne v51, 0
     jumpi v52, bb4, bb6
@@ -251,9 +251,9 @@ fn @const2(arg0: i256) -> i256 [selector=0xb253ebfa, pure, abi_params=[u256], ab
     v8 = div v6, v2
     v9 = eq v8, v1
     v10 = or v7, v9
-    v11 = word_cast v10
+    v11 = zext i1 v10 to i256
     v12 = eq v11, 0
-    v13 = word_cast v12
+    v13 = zext i1 v12 to i256
     v14 = and v5, v13
     v15 = ne v14, 0
     jumpi v15, bb4, bb5
@@ -266,11 +266,11 @@ fn @const2(arg0: i256) -> i256 [selector=0xb253ebfa, pure, abi_params=[u256], ab
     v21 = div v19, v2
     v22 = eq v21, v2
     v23 = or v20, v22
-    v24 = word_cast v23
+    v24 = zext i1 v23 to i256
     v25 = eq v24, 0
     v26 = gt v18, 0
     v27 = and v26, v25
-    v28 = word_cast v27
+    v28 = zext i1 v27 to i256
     v29 = ne v28, 0
     jumpi v29, bb4, bb6
   bb6:
@@ -299,9 +299,9 @@ fn @const10(arg0: i256) -> i256 [selector=0xd325f19a, pure, abi_params=[u256], a
     v8 = div v6, v2
     v9 = eq v8, v1
     v10 = or v7, v9
-    v11 = word_cast v10
+    v11 = zext i1 v10 to i256
     v12 = eq v11, 0
-    v13 = word_cast v12
+    v13 = zext i1 v12 to i256
     v14 = and v5, v13
     v15 = ne v14, 0
     jumpi v15, bb4, bb5
@@ -314,11 +314,11 @@ fn @const10(arg0: i256) -> i256 [selector=0xd325f19a, pure, abi_params=[u256], a
     v21 = div v19, v2
     v22 = eq v21, v2
     v23 = or v20, v22
-    v24 = word_cast v23
+    v24 = zext i1 v23 to i256
     v25 = eq v24, 0
     v26 = gt v18, 0
     v27 = and v26, v25
-    v28 = word_cast v27
+    v28 = zext i1 v27 to i256
     v29 = ne v28, 0
     jumpi v29, bb4, bb6
   bb6:
@@ -348,13 +348,13 @@ fn @const_neg2(arg0: i256) -> i256 [selector=0xf3adabf1, pure, abi_params=[u256]
     v9 = sdiv v7, v3
     v10 = eq v9, v2
     v11 = or v8, v10
-    v12 = word_cast v11
+    v12 = zext i1 v11 to i256
     v13 = eq v12, 0
     v14 = eq v2, 0x8000000000000000000000000000000000000000000000000000000000000000
     v15 = slt v3, 0
     v16 = and v14, v15
-    v17 = word_cast v16
-    v18 = word_cast v13
+    v17 = zext i1 v16 to i256
+    v18 = zext i1 v13 to i256
     v19 = or v18, v17
     v20 = and v6, v19
     v21 = ne v20, 0
@@ -368,16 +368,16 @@ fn @const_neg2(arg0: i256) -> i256 [selector=0xf3adabf1, pure, abi_params=[u256]
     v27 = sdiv v25, v3
     v28 = eq v27, v3
     v29 = or v26, v28
-    v30 = word_cast v29
+    v30 = zext i1 v29 to i256
     v31 = eq v30, 0
     v32 = eq v3, 0x8000000000000000000000000000000000000000000000000000000000000000
     v33 = slt v3, 0
     v34 = and v32, v33
-    v35 = word_cast v34
-    v36 = word_cast v31
+    v35 = zext i1 v34 to i256
+    v36 = zext i1 v31 to i256
     v37 = or v36, v35
     v38 = gt v24, 0
-    v39 = word_cast v38
+    v39 = zext i1 v38 to i256
     v40 = and v39, v37
     v41 = ne v40, 0
     jumpi v41, bb4, bb6

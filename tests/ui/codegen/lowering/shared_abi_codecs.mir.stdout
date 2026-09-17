@@ -22,7 +22,7 @@ fn @roundTrip(arg0: i256, arg1: calldataslice) -> i256 [selector=0x00746047, pur
     v5 = div v3, 32
     v6 = eq v5, v1
     v7 = or v4, v6
-    v8 = word_cast v7
+    v8 = zext i1 v7 to i256
     v9 = eq v8, 0
     icall panic_if<0x41>, v9
     v10 = calldatasize
@@ -34,7 +34,7 @@ fn @roundTrip(arg0: i256, arg1: calldataslice) -> i256 [selector=0x00746047, pur
     v15 = div v13, 32
     v16 = eq v15, v1
     v17 = or v14, v16
-    v18 = word_cast v17
+    v18 = zext i1 v17 to i256
     v19 = eq v18, 0
     icall panic_if<0x41>, v19
     v20 = add 32, v13
@@ -54,14 +54,14 @@ fn @roundTrip(arg0: i256, arg1: calldataslice) -> i256 [selector=0x00746047, pur
     v58 = abi_decode [tuple<u256, array<_, array<_, u256>>>], v57
     v59 = memory_object_load_field memorystruct<2>, v58, 0
     v60 = memory_object_load_field memorystruct<2>, v58, 1
-    v61 = memory_object_from_ptr memoryarray, v60
+    v61 = inttoptr i256 v60 to memoryarray
     v62 = memory_object_len memoryarray, v61
     v63 = lt 0, v62
     v64 = eq v63, false
     icall panic_if<0x32>, v64
     v65 = memory_object_load_element memoryarray<1>, v61, 0
-    v66 = memory_object_from_ptr memoryarray, v65
-    v67 = word_cast v66
+    v66 = inttoptr i256 v65 to memoryarray
+    v67 = ptrtoint memoryarray v66 to i256
     v68 = eq v67, 0
     jumpi v68, bb4, bb5
   bb4:
@@ -78,14 +78,14 @@ fn @roundTrip(arg0: i256, arg1: calldataslice) -> i256 [selector=0x00746047, pur
     v74 = memory_object_load_element memoryarray<1>, v70, 0
     v75 = checked_add u256, v59, v74
     v76 = memory_object_load_field memorystruct<2>, v58, 1
-    v77 = memory_object_from_ptr memoryarray, v76
+    v77 = inttoptr i256 v76 to memoryarray
     v78 = memory_object_len memoryarray, v77
     v79 = lt 1, v78
     v80 = eq v79, false
     icall panic_if<0x32>, v80
     v81 = memory_object_load_element memoryarray<1>, v77, 1
-    v82 = memory_object_from_ptr memoryarray, v81
-    v83 = word_cast v82
+    v82 = inttoptr i256 v81 to memoryarray
+    v83 = ptrtoint memoryarray v82 to i256
     v84 = eq v83, 0
     jumpi v84, bb6, bb7
   bb6:
@@ -132,7 +132,7 @@ fn @roundTrip(arg0: i256, arg1: calldataslice) -> i256 [selector=0x00746047, pur
     v47 = div v45, 32
     v48 = eq v47, v37
     v49 = or v46, v48
-    v50 = word_cast v49
+    v50 = zext i1 v49 to i256
     v51 = eq v50, 0
     icall panic_if<0x41>, v51
     v52 = add 32, v45

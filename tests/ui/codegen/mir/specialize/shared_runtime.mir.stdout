@@ -2,21 +2,21 @@
 @module SharedConstants
 fn @first(arg0: i256) -> i256 [selector=0x0b3f62f5, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = word_cast false
+    v0 = zext i1 0 to i256
     v1 = icall @helper, v0, arg0
     ret v1
 }
 
 fn @second(arg0: i256) -> i256 [selector=0x7896dfe3, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = word_cast false
+    v0 = zext i1 0 to i256
     v1 = icall @helper, v0, arg0
     ret v1
 }
 
 fn @third(arg0: i256) -> i256 [selector=0xf1680ae6, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = word_cast false
+    v0 = zext i1 0 to i256
     v1 = icall @helper, v0, arg0
     ret v1
 }

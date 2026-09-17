@@ -30,7 +30,7 @@
 +   bb4:
 +     jump bb1
 +   bb1:
-      v0 = word_cast arg0
+      v0 = zext i1 arg0 to i256
       mstore 128, v0
       returndata 128, 32
 +   bb2:

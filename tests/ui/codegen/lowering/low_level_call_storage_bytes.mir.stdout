@@ -18,31 +18,32 @@ fn @target() -> i256 [selector=0xd4b83992, view, abi_params=[], abi_returns=[wor
 
 fn @prepare(arg0: i256, arg1: calldataslice) [selector=0xaacd9878, abi_params=[address, bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v0 = trunc i256 arg0 to i160
     v1 = sload 1 !metadata(storage=slot(1))
     v2 = not 0xffffffffffffffffffffffffffffffffffffffff
     v3 = and v1, v2
-    v4 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = or v3, v4
-    sstore 1, v5 !metadata(storage=slot(1))
-    v6 = slice_ptr arg1
-    v7 = slice_len arg1
-    v8 = gt v7, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v8
-    v9 = calldatasize
-    v10 = sub v9, v7
-    v11 = sgt v6, v10
-    icall revert_if<calldata_tail_too_short>, v11
-    v12 = slice_len arg1
-    v13 = add v12, 63
-    v14 = lt v13, v12
-    icall panic_if<0x41>, v14
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
-    set_memory_object_len memorybytes, v17, v12
-    memory_object_copy_from_slice memorybytes, v17, arg1
-    icall @store_storage_bytes, 0, v17
+    v4 = zext i160 v0 to i256
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = or v3, v5
+    sstore 1, v6 !metadata(storage=slot(1))
+    v7 = slice_ptr arg1
+    v8 = slice_len arg1
+    v9 = gt v8, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v9
+    v10 = calldatasize
+    v11 = sub v10, v8
+    v12 = sgt v7, v11
+    icall revert_if<calldata_tail_too_short>, v12
+    v13 = slice_len arg1
+    v14 = add v13, 63
+    v15 = lt v14, v13
+    icall panic_if<0x41>, v15
+    v16 = not 31
+    v17 = and v14, v16
+    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
+    set_memory_object_len memorybytes, v18, v13
+    memory_object_copy_from_slice memorybytes, v18, arg1
+    icall @store_storage_bytes, 0, v18
     ret
 }
 
@@ -54,7 +55,7 @@ fn @fire() -> struct0 [selector=0x457094cc, abi_params=[], abi_returns=[word<boo
     v3 = load_storage_bytes 0
     v4 = address_call v1, v3, gas v2
     v5 = icall returndata_bytes<>
-    v6 = word_cast v4
+    v6 = zext i1 v4 to i256
     v7 = insert_value struct0, undef struct0, 0, v6
     v8 = insert_value struct0, v7, 1, v5
     ret v8

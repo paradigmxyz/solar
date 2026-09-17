@@ -44,12 +44,12 @@ fn @comparisons() -> struct0 [selector=0x6cf2b655, pure, abi_params=[], abi_retu
     v11 = gt v10, 0
     v12 = and 257, 255
     v13 = lt v12, 1
-    v14 = word_cast v1
-    v15 = word_cast v3
-    v16 = word_cast v6
-    v17 = word_cast v9
-    v18 = word_cast v11
-    v19 = word_cast v13
+    v14 = zext i1 v1 to i256
+    v15 = zext i1 v3 to i256
+    v16 = zext i1 v6 to i256
+    v17 = zext i1 v9 to i256
+    v18 = zext i1 v11 to i256
+    v19 = zext i1 v13 to i256
     v20 = insert_value struct0, undef struct0, 0, v14
     v21 = insert_value struct0, v20, 1, v15
     v22 = insert_value struct0, v21, 2, v16
@@ -136,7 +136,7 @@ fn @storageAssignment() -> i256 [selector=0x7bae1f27, abi_params=[], abi_returns
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = not 255
     v4 = and v2, v3
-    v5 = word_cast v1
+    v5 = zext i1 v1 to i256
     v6 = and v5, 255
     v7 = or v4, v6
     sstore 0, v7 !metadata(storage=slot(0))

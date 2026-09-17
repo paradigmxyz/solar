@@ -64,34 +64,39 @@ fn @t() -> i256 [selector=0x92d0d153, abi_params=[], abi_returns=[word], abi_ret
     v10 = alloc raw, exact, uninitialized, infallible, v9
     data_copy ExternalFunctionPointerHigherOrderTarget_initcode_0, v10, 120
     v11 = slice_ptr v7
-    v12 = add v10, 120
-    mcopy v12, v11, 0 !metadata(memory=heap)
-    v13 = create 0, v10, 120
-    v14 = ne v13, 0
-    jumpi v14, bb2, bb1
+    v12 = ptrtoint memptr v10 to i256
+    v13 = add v12, 120
+    mcopy v13, v11, 0 !metadata(memory=heap)
+    v14 = ptrtoint memptr v10 to i256
+    v15 = create 0, v14, 120
+    v16 = zext i160 v15 to i256
+    v17 = ne v16, 0
+    jumpi v17, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v15 = shl 32, v13
-    v16 = or v15, 0xcae57913
-    v17 = abi_encode [function], selector 0xf018a0a700000000000000000000000000000000000000000000000000000000, args v16
-    v18 = slice_ptr v17
-    v19 = slice_len v17
-    v20 = extcodesize v5
-    v21 = eq v20, 0
-    icall revert_if<target_contract_has_no_code>, v21
-    v22 = call v6, v5, 0, v18, v19, 0, 0
-    jumpi v22, bb4, bb3
+    v18 = zext i160 v15 to i256
+    v19 = shl 32, v18
+    v20 = or v19, 0xcae57913
+    v21 = abi_encode [function], selector 0xf018a0a700000000000000000000000000000000000000000000000000000000, args v20
+    v22 = slice_ptr v21
+    v23 = slice_len v21
+    v24 = zext i160 v5 to i256
+    v25 = extcodesize v24
+    v26 = eq v25, 0
+    icall revert_if<target_contract_has_no_code>, v26
+    v27 = call v6, v5, 0, v22, v23, 0, 0
+    jumpi v27, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v23 = sload 0 !metadata(storage=slot(0))
-    v24 = and v23, 0xffffffffffffffff
-    v25 = sload 0 !metadata(storage=slot(0))
-    v26 = shr 64, v25
-    v27 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v28 = icall @internal_dispatcher_p_function_r_u256, v24, v27
-    ret v28
+    v28 = sload 0 !metadata(storage=slot(0))
+    v29 = and v28, 0xffffffffffffffff
+    v30 = sload 0 !metadata(storage=slot(0))
+    v31 = shr 64, v30
+    v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v33 = icall @internal_dispatcher_p_function_r_u256, v29, v32
+    ret v33
 }
 
 fn @internal_dispatcher_p_function_r_u256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {

@@ -19,9 +19,10 @@ fn @copy_returndata() -> i256 {
     v4 = add v3, 32
     v5 = alloc memorybytes, exact, uninitialized, infallible, v4
     set_memory_object_len memorybytes, v5, v3
-    v6 = memory_object_data memorybytes, v5
+    v8 = memory_object_data memorybytes, v5
+    v6 = ptrtoint memptr v8 to i256
     returndatacopy v6, v2, v3
-    v7 = word_cast v5
+    v7 = ptrtoint memorybytes v5 to i256
     ret v7
 }
 

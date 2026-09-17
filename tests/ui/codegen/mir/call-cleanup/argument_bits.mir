@@ -29,7 +29,8 @@ fn @leaf(arg0: i256) -> i256 {
 
 fn @clean_caller() -> i256 {
   bb0:
-    v0 = caller
+    v3 = caller
+    v0 = zext i160 v3 to i256
     v1 = icall @mixed, v0
     ret v1
 }
@@ -102,12 +103,12 @@ fn @bool_root(arg0: i256) -> i256 {
 }
 
 // CHECK-LABEL: fn @bool_leaf
-// CHECK: [[WORD:v[0-9]+]] = word_cast arg0
+// CHECK: [[WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} arg0
 // CHECK-NOT: {{^[ +].*}}= and
 // CHECK: ret [[WORD]]
 fn @bool_leaf(arg0: i1) -> i256 {
   bb0:
-    v1 = word_cast arg0
+    v1 = zext i1 arg0 to i256
     v0 = and v1, 1
     ret v0
 }
@@ -138,7 +139,8 @@ fn @frame_caller() -> i256 {
 // CHECK: = and arg0, 255
 fn @frame_input(arg0: i256) -> i256 {
   bb0:
-    v0 = internal_frame_addr 64
+    v4 = internal_frame_addr 64
+    v0 = ptrtoint memptr v4 to i256
     mstore v0, 511
     v1 = and arg0, 255
     ret v1

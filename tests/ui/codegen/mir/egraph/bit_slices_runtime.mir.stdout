@@ -31,13 +31,15 @@ fn @offsets(arg0: i256) -> i256 [selector=0x81914619, pure, abi_params=[u256], a
 fn @addressRoundtrip() -> i256 [selector=0xe6132fae, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
-    v1 = address
-    v2 = shl 96, v1
-    v3 = or v2, 7
-    v4 = shr 96, v3
-    v5 = eq v4, v0
-    v6 = word_cast v5
-    ret v6
+    v1 = zext i160 v0 to i256
+    v2 = address
+    v3 = zext i160 v2 to i256
+    v4 = shl 96, v3
+    v5 = or v4, 7
+    v6 = shr 96, v5
+    v7 = eq v6, v1
+    v8 = zext i1 v7 to i256
+    ret v8
 }
 
 fn @repeated(arg0: i256, arg1: i256) -> i256 [selector=0x6196485c, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {

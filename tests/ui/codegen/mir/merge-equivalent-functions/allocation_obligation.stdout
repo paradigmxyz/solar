@@ -4,13 +4,15 @@
   fn @movable() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64
-      ret v0
+      v1 = ptrtoint memptr v0 to i256
+      ret v1
   }
   
   fn @reserved() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-      ret v0
+      v1 = ptrtoint memptr v0 to i256
+      ret v1
   }
   
   fn @entry() [selector=0x01020304] {

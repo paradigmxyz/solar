@@ -252,7 +252,7 @@ fn evaluate(
         || func
             .return_components()
             .first()
-            .is_some_and(|ty| !matches!(ty, MirType::I256 | MirType::I1))
+            .is_some_and(|ty| !matches!(*ty, MirType::I256 | MirType::I160 | MirType::I1))
     {
         return None;
     }

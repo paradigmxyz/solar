@@ -46,7 +46,7 @@ fn @sliced(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0x183e
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     icall revert_if<empty>, v5
     v6 = sub arg2, arg1
     v7 = add v0, arg1

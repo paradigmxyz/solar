@@ -22,38 +22,40 @@ fn @h() -> i256 [selector=0xb8c9d365, payable, abi_params=[], abi_returns=[word]
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v1 = address
-    v2 = shl 32, v1
-    v3 = or v2, 0x26121ff0
-    v4 = shl 64, v3
-    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v4
-    v5 = address
-    v6 = shl 32, v5
-    v7 = or v6, 0xe2179b8e
-    v8 = shl 64, v7
-    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v8
-    v9 = lt 0, 2
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v12 = shr 64, v11
-    v13 = and v12, 0xffffffff
-    v14 = shl 224, v13
-    v15 = shr 32, v12
-    v16 = gas
-    v17 = abi_encode [], selector v14
-    v18 = slice_ptr v17
-    v19 = slice_len v17
-    v20 = call v16, v15, 1, v18, v19, 0, 32
-    jumpi v20, bb2, bb1
+    v2 = zext i160 v1 to i256
+    v3 = shl 32, v2
+    v4 = or v3, 0x26121ff0
+    v5 = shl 64, v4
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v5
+    v6 = address
+    v7 = zext i160 v6 to i256
+    v8 = shl 32, v7
+    v9 = or v8, 0xe2179b8e
+    v10 = shl 64, v9
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v10
+    v11 = lt 0, 2
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
+    v14 = shr 64, v13
+    v15 = and v14, 0xffffffff
+    v16 = shl 224, v15
+    v17 = shr 32, v14
+    v18 = gas
+    v19 = abi_encode [], selector v16
+    v20 = slice_ptr v19
+    v21 = slice_len v19
+    v22 = call v18, v17, 1, v20, v21, 0, 32
+    jumpi v22, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v21 = returndatasize
-    v22 = lt v21, 32
-    icall revert_if<tuple_data_too_short>, v22
-    v23 = add 0, 0
-    v24 = mload v23
+    v23 = returndatasize
+    v24 = lt v23, 32
+    icall revert_if<tuple_data_too_short>, v24
     v25 = add 0, 0
     v26 = mload v25
-    ret v26
+    v27 = add 0, 0
+    v28 = mload v27
+    ret v28
 }

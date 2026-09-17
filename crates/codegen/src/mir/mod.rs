@@ -169,12 +169,41 @@ mod round_trip {
     }
 
     #[test]
+    fn cast_source_types() {
+        for (cast, valid) in [
+            ("zext i1 0 to i256", true),
+            ("zext i1 1 to i256", true),
+            ("zext i1 2 to i256", false),
+            ("zext i1 arg0 to i256", true),
+            ("zext i160 arg0 to i256", false),
+            ("zext i1 undef to i256", true),
+            ("ptrtoint memptr arg0 to i256", false),
+        ] {
+            let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+            sess.enter(|| {
+                let input = format!(
+                    "@module Casts\nfn @f(arg0: i1) -> i256 {{\n  bb0:\n    v0 = {cast}\n    ret v0\n}}\n"
+                );
+                assert_eq!(parse_module(&sess, &input).is_ok(), valid, "{cast}");
+            });
+        }
+    }
+
+    #[test]
     fn scalar_integer_types() {
         for (ty, valid) in [
             ("i1", true),
             ("i256", true),
-            ("i8", false),
-            ("i128", false),
+            ("i8", true),
+            ("i128", true),
+            ("i160", true),
+            ("i7", true),
+            ("i512", true),
+            ("i4294967295", true),
+            ("i0", false),
+            ("i4294967296", false),
+            ("i", false),
+            ("iabc", false),
             ("bool", false),
             ("word", false),
             ("u256", false),
@@ -185,6 +214,27 @@ mod round_trip {
                     "@module IntegerTypes\nfn @f(arg0: {ty}) -> {ty} {{\n  bb0:\n    ret arg0\n}}\n"
                 );
                 assert_eq!(parse_module(&sess, &input).is_ok(), valid, "{ty}");
+            });
+        }
+    }
+
+    #[test]
+    fn integer_literals_fit_their_width() {
+        for (ty, literal, valid) in [
+            ("i7", "127", true),
+            ("i7", "128", false),
+            ("i8", "255", true),
+            ("i8", "256", false),
+            ("i160", "0xffffffffffffffffffffffffffffffffffffffff", true),
+            ("i160", "0x10000000000000000000000000000000000000000", false),
+            ("i512", "42", true),
+        ] {
+            let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+            sess.enter(|| {
+                let input = format!(
+                    "@module IntegerLiterals\nfn @f() -> {ty} {{\n  bb0:\n    ret {ty} {literal}\n}}\n"
+                );
+                assert_eq!(parse_module(&sess, &input).is_ok(), valid, "{ty} {literal}");
             });
         }
     }

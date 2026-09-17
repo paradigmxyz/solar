@@ -7,6 +7,7 @@
       v1 = mload 64 !metadata(memory=scratch, unchecked)
       v2 = add v0, v1
       v3 = alloc raw, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+      v4 = ptrtoint memptr v3 to i256
       ret v2
   }
   

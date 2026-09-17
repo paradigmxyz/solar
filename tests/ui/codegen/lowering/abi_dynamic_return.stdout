@@ -5,7 +5,8 @@ fn @bytesLiteral() -> memorybytes [selector=0x96115be7, pure, abi_params=[], abi
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 3
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x102030000000000000000000000000000000000000000000000000000000000
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x102030000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -14,6 +15,7 @@ fn @stringLiteral() -> memorybytes [selector=0xb5d549e9, pure, abi_params=[], ab
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 5
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     ret v0
 }

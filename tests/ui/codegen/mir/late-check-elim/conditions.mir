@@ -8,7 +8,7 @@
 // Memory lowering makes both lengths the same load. The second check is redundant.
 fn @same_length(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v4 = memory_object_from_ptr memorybytes, arg0
+    v4 = inttoptr i256 arg0 to memorybytes
     v0 = memory_object_len memorybytes, v4
     v1 = lt arg1, v0
     jumpi v1, bb1, bb2
@@ -25,7 +25,7 @@ fn @same_length(arg0: i256, arg1: i256) -> i256 {
 // A write to the header invalidates the first length, even with the same address.
 fn @changed_length(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v4 = memory_object_from_ptr memorybytes, arg0
+    v4 = inttoptr i256 arg0 to memorybytes
     v0 = memory_object_len memorybytes, v4
     v1 = lt arg1, v0
     jumpi v1, bb1, bb2
@@ -46,7 +46,7 @@ fn @loop_length(arg0: i256) -> i256 {
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb3: v5]
-    v6 = memory_object_from_ptr memorybytes, arg0
+    v6 = inttoptr i256 arg0 to memorybytes
     v1 = memory_object_len memorybytes, v6
     v2 = lt v0, v1
     jumpi v2, bb2, bb4
@@ -69,7 +69,7 @@ fn @loop_exit(arg0: i256) -> i256 {
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb3: v5]
-    v6 = memory_object_from_ptr memorybytes, arg0
+    v6 = inttoptr i256 arg0 to memorybytes
     v1 = memory_object_len memorybytes, v6
     v2 = lt v0, v1
     jumpi v2, bb2, bb4
@@ -92,7 +92,7 @@ fn @outlined_failure(arg0: i256) -> i256 {
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb3: v5]
-    v6 = memory_object_from_ptr memorybytes, arg0
+    v6 = inttoptr i256 arg0 to memorybytes
     v1 = memory_object_len memorybytes, v6
     v2 = lt v0, v1
     jumpi v2, bb2, bb4

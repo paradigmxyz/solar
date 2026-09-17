@@ -7,7 +7,7 @@ fn @slice(arg0: calldataslice, arg1: i256) -> memorybytes [selector=0x8b150516, 
     v2 = gt arg1, v1
     v3 = lt arg1, 0
     v4 = or v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     icall revert_if<empty>, v5
     v6 = sub arg1, 0
     v7 = add v0, 0
@@ -34,7 +34,7 @@ fn @slice(arg0: calldataslice, arg1: i256) -> memorybytes [selector=0x8b150516, 
     v23 = gt v22, v22
     v24 = lt v22, arg1
     v25 = or v23, v24
-    v26 = word_cast v25
+    v26 = zext i1 v25 to i256
     icall revert_if<empty>, v26
     v27 = sub v22, arg1
     v28 = add v21, arg1
@@ -67,7 +67,7 @@ fn @segment(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [selecto
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     icall revert_if<empty>, v5
     v6 = sub arg2, arg1
     v7 = add v0, arg1
@@ -99,7 +99,7 @@ fn @nested(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256, arg4: i256) 
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     icall revert_if<empty>, v5
     v6 = sub arg2, arg1
     v7 = add v0, arg1
@@ -109,7 +109,7 @@ fn @nested(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256, arg4: i256) 
     v11 = gt arg4, v10
     v12 = lt arg4, arg3
     v13 = or v11, v12
-    v14 = word_cast v13
+    v14 = zext i1 v13 to i256
     icall revert_if<empty>, v14
     v15 = sub arg4, arg3
     v16 = add v9, arg3

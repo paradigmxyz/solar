@@ -48,7 +48,7 @@ fn @memDyn(arg0: i256, arg1: i256) -> i256 [selector=0x24828414, pure, abi_param
     v2 = div v0, 1
     v3 = eq v2, arg0
     v4 = or v1, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     v6 = eq v5, 0
     icall panic_if<0x41>, v6
     v7 = add v0, 1
@@ -59,7 +59,7 @@ fn @memDyn(arg0: i256, arg1: i256) -> i256 [selector=0x24828414, pure, abi_param
     v11 = div v9, 32
     v12 = eq v11, v7
     v13 = or v10, v12
-    v14 = word_cast v13
+    v14 = zext i1 v13 to i256
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
@@ -118,7 +118,7 @@ fn @cdDyn(arg0: calldataslice, arg1: i256) -> i256 [selector=0x1406a581, pure, a
     v6 = div v4, 32
     v7 = eq v6, arg1
     v8 = or v5, v7
-    v9 = word_cast v8
+    v9 = zext i1 v8 to i256
     v10 = eq v9, 0
     icall panic_if<0x41>, v10
     v11 = add v3, v4
@@ -138,7 +138,7 @@ fn @cdFix(arg0: calldataslice, arg1: i256) -> i256 [selector=0xe21341a4, pure, a
     v6 = div v4, 32
     v7 = eq v6, arg1
     v8 = or v5, v7
-    v9 = word_cast v8
+    v9 = zext i1 v8 to i256
     v10 = eq v9, 0
     icall panic_if<0x41>, v10
     v11 = add v3, v4

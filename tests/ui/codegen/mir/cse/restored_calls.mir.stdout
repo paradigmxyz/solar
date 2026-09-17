@@ -14,16 +14,16 @@ fn @same(arg0: i256, arg1: i256) -> struct0 [selector=0xc32c70b1, pure, abi_para
     v4 = and 127, v3
     v5 = alloc memorybytes, exact, zeroed, panic, v4
     set_memory_object_len memorybytes, v5, 64
-    v6 = word_cast v5
+    v6 = ptrtoint memorybytes v5 to i256
     v7 = add v6, 32
     mstore v7, arg0
-    v8 = word_cast v5
+    v8 = ptrtoint memorybytes v5 to i256
     v9 = add v8, 64
     mstore v9, 1
     v10 = icall @scan, v5, arg1
     v11 = icall @scan, v5, arg1
     v12 = checked_add u256, v10, v11
-    v13 = word_cast v5
+    v13 = ptrtoint memorybytes v5 to i256
     v14 = add v13, 32
     v15 = mload v14
     v16 = insert_value struct0, undef struct0, 0, v12
@@ -41,10 +41,10 @@ fn @repeated(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0xd6d01539
     v4 = and 127, v3
     v5 = alloc memorybytes, exact, zeroed, panic, v4
     set_memory_object_len memorybytes, v5, 64
-    v6 = word_cast v5
+    v6 = ptrtoint memorybytes v5 to i256
     v7 = add v6, 32
     mstore v7, arg0
-    v8 = word_cast v5
+    v8 = ptrtoint memorybytes v5 to i256
     v9 = add v8, 64
     mstore v9, 1
     v10 = icall @scan, v5, arg1
@@ -53,13 +53,13 @@ fn @repeated(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0xd6d01539
   bb2:
     jump bb3
   bb1:
-    v12 = word_cast v5
+    v12 = ptrtoint memorybytes v5 to i256
     v13 = add v12, 95
     mstore8 v13, 0
     jump bb3
   bb3:
     v14 = icall @scan, v5, arg1
-    v15 = word_cast v5
+    v15 = ptrtoint memorybytes v5 to i256
     v16 = add v15, 32
     v17 = mload v16
     v18 = insert_value struct1, undef struct1, 0, v10
@@ -70,7 +70,7 @@ fn @repeated(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0xd6d01539
 
 fn @scan(arg0: memorybytes, arg1: i256) -> i256 [pure] {
   bb0:
-    v0 = word_cast arg0
+    v0 = ptrtoint memorybytes arg0 to i256
     v1 = add v0, 32
     v2 = mload v1
     mstore v1, 0
@@ -83,7 +83,7 @@ fn @scan(arg0: memorybytes, arg1: i256) -> i256 [pure] {
     v7 = phi [bb0: 0], [bb3: v15]
     v8 = phi [bb0: arg0], [bb3: v8]
     v9 = lt v7, v5
-    v10 = word_cast v9
+    v10 = zext i1 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb4, bb5
   bb5:
@@ -113,11 +113,11 @@ fn @restored(arg0: i256, arg1: i256) -> struct0 [selector=0x70ef4778, pure, abi_
     v4 = and 95, v3
     v5 = alloc memorybytes, exact, zeroed, panic, v4
     set_memory_object_len memorybytes, v5, 32
-    v6 = word_cast v5
+    v6 = ptrtoint memorybytes v5 to i256
     v7 = add v6, 32
     mstore v7, arg0
     v8 = icall @temporary, v5, arg1
-    v9 = word_cast v5
+    v9 = ptrtoint memorybytes v5 to i256
     v10 = add v9, 32
     v11 = mload v10
     v12 = insert_value struct0, undef struct0, 0, v8
@@ -127,7 +127,7 @@ fn @restored(arg0: i256, arg1: i256) -> struct0 [selector=0x70ef4778, pure, abi_
 
 fn @temporary(arg0: memorybytes, arg1: i256) -> i256 [pure] {
   bb0:
-    v0 = word_cast arg0
+    v0 = ptrtoint memorybytes arg0 to i256
     v1 = add v0, 32
     v2 = mload v1
     mstore v1, 17
@@ -140,7 +140,7 @@ fn @temporary(arg0: memorybytes, arg1: i256) -> i256 [pure] {
     v7 = phi [bb0: 0], [bb3: v14]
     v8 = phi [bb0: arg0], [bb3: v8]
     v9 = lt v7, v5
-    v10 = word_cast v9
+    v10 = zext i1 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb4, bb5
   bb5:
@@ -165,11 +165,11 @@ fn @dirty(arg0: i256, arg1: i256) -> i256 [selector=0xd5f2e1b7, pure, abi_params
     v1 = and 95, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 32
-    v3 = word_cast v2
+    v3 = ptrtoint memorybytes v2 to i256
     v4 = add v3, 32
     mstore v4, arg0
     icall @conditional, v2, arg1
-    v5 = word_cast v2
+    v5 = ptrtoint memorybytes v2 to i256
     v6 = add v5, 32
     v7 = mload v6
     ret v7
@@ -177,7 +177,7 @@ fn @dirty(arg0: i256, arg1: i256) -> i256 [selector=0xd5f2e1b7, pure, abi_params
 
 fn @conditional(arg0: memorybytes, arg1: i256) [pure] {
   bb0:
-    v0 = word_cast arg0
+    v0 = ptrtoint memorybytes arg0 to i256
     v1 = add v0, 32
     v2 = mload v1
     mstore v1, 17

@@ -528,7 +528,7 @@ impl<'a> FunctionBuilder<'a> {
     fn cast_memory_operands(&mut self, kind: &mut InstKind) {
         let mut cast_object = |value: &mut ValueId, kind| {
             if self.func.value_slice_location(*value).is_none() {
-                // object = memory_object_from_ptr word
+                // object = inttoptr word
                 *value = self.cast(*value, MirType::MemoryObject(kind));
             }
         };
@@ -590,13 +590,16 @@ impl<'a> FunctionBuilder<'a> {
                     .operands()
                     .iter()
                     .all(|&value| self.func.value_ty(value) == Some(MirType::I1));
-        let boolean_equality = matches!(kind, InstKind::Eq(..) | InstKind::Ne(..))
-            && kind.operands().iter().all(|&value| self.func.value_ty(value) == Some(MirType::I1));
+        let typed_equality = matches!(kind, InstKind::Eq(..) | InstKind::Ne(..))
+            && kind.operands().iter().all(|&value| {
+                self.func.value_ty(value) == self.func.value_ty(kind.operands()[0])
+                    && matches!(self.func.value_ty(value), Some(MirType::I1 | MirType::I160))
+            });
         if (kind.evm_opcode().is_some() || matches!(kind, InstKind::Ne(..)))
             && !boolean_bitwise
-            && !boolean_equality
+            && !typed_equality
         {
-            // operand = word_cast operand
+            // operand = zext integer or ptrtoint pointer to i256
             kind.visit_operands_mut(|value| *value = self.cast(*value, MirType::I256));
         }
         let produced = if boolean_bitwise {
@@ -619,20 +622,24 @@ impl<'a> FunctionBuilder<'a> {
         if self.func.value_ty(value) == Some(ty) {
             return value;
         }
-        let kind = match ty {
+        let from = self.func.value_ty(value).unwrap_or(MirType::I256);
+        let kind = match (from, ty) {
             // boolean = ne word, 0
-            MirType::I1 => {
+            (_, MirType::I1) => {
                 let value = self.cast(value, MirType::I256);
                 let zero = self.imm(0);
                 InstKind::Ne(value, zero)
             }
-            // word = word_cast value
-            MirType::I256 => InstKind::WordCast(value),
-            // object = memory_object_from_ptr word
-            MirType::MemoryObject(kind) => {
-                let ptr = self.cast(value, MirType::I256);
-                InstKind::MemoryObjectFromPtr { ptr, kind }
-            }
+            // narrow = trunc integer to destination
+            (MirType::Int(from), MirType::Int(to)) if from > to => InstKind::Trunc(value, to.get()),
+            // wide = zext integer to destination
+            (MirType::Int(_), MirType::Int(_)) => InstKind::Zext(value),
+            // integer = ptrtoint pointer to destination
+            (from, MirType::Int(to)) if from.is_pointer() => InstKind::PtrToInt(value, to.get()),
+            // pointer = inttoptr integer to destination
+            (MirType::Int(_), to) if to.is_pointer() => InstKind::IntToPtr(value),
+            // pointer = bitcast pointer to destination
+            (from, to) if from.is_pointer() && to.is_pointer() => InstKind::Bitcast(value),
             _ => return value,
         };
         let inst = self.make_inst(kind, Some(ty));
@@ -646,7 +653,7 @@ impl<'a> FunctionBuilder<'a> {
     pub(in crate::mir) fn emit_void_inst(&mut self, mut kind: InstKind) {
         self.cast_memory_operands(&mut kind);
         if kind.evm_opcode().is_some() {
-            // operand = word_cast operand
+            // operand = zext integer or ptrtoint pointer to i256
             kind.visit_operands_mut(|value| *value = self.cast(*value, MirType::I256));
         }
         let inst = self.make_inst(kind, None);
@@ -654,7 +661,11 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits a void memory instruction with a proven destination region.
-    fn emit_void_inst_in_region(&mut self, kind: InstKind, region: MemoryRegion) {
+    fn emit_void_inst_in_region(&mut self, mut kind: InstKind, region: MemoryRegion) {
+        if kind.evm_opcode().is_some() {
+            // operand = zext integer or ptrtoint pointer to i256
+            kind.visit_operands_mut(|value| *value = self.cast(*value, MirType::I256));
+        }
         let mut inst = self.make_inst(kind, None);
         inst.metadata.set_memory_region(Some(region));
         self.append_instruction(inst);
@@ -842,7 +853,7 @@ impl<'a> FunctionBuilder<'a> {
         object: ValueId,
         kind: crate::mir::MemoryObjectKind,
     ) -> ValueId {
-        self.emit_inst(InstKind::MemoryObjectData(object, kind), Some(MirType::I256))
+        self.emit_inst(InstKind::MemoryObjectData(object, kind), Some(MirType::MemPtr))
     }
 
     /// Loads a direct struct field through the semantic object layout.
@@ -1077,8 +1088,8 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Preserves all bits while forgetting a value's nominal one-word type.
-    pub(crate) fn word_cast(&mut self, value: ValueId) -> ValueId {
-        // word = word_cast value
+    pub(crate) fn cast_word(&mut self, value: ValueId) -> ValueId {
+        // word = zext integer or ptrtoint pointer to i256
         self.cast(value, MirType::I256)
     }
 
@@ -1173,13 +1184,8 @@ impl<'a> FunctionBuilder<'a> {
         ptr: ValueId,
         kind: MemoryObjectKind,
     ) -> ValueId {
-        // ptr = word_cast ptr
-        // object = memory_object_from_ptr ptr
-        let ptr = self.cast(ptr, MirType::I256);
-        self.emit_inst(
-            InstKind::MemoryObjectFromPtr { ptr, kind },
-            Some(MirType::MemoryObject(kind)),
-        )
+        // object = inttoptr word to object, or bitcast pointer to object
+        self.cast(ptr, MirType::MemoryObject(kind))
     }
 
     /// Builds a struct from its ordered field values.
@@ -1204,7 +1210,7 @@ impl<'a> FunctionBuilder<'a> {
         data: ValueId,
         result_ty: MirType,
     ) -> ValueId {
-        let data = if self.func.value_ty(data) == Some(MirType::I256) {
+        let data = if matches!(self.func.value_ty(data), Some(MirType::I256 | MirType::MemPtr)) {
             // object = alloc_bytes static_head_size
             // memory_object_copy_from_slice object, make_memory_slice(data, static_head_size)
             let size = self.imm(layout.checked_head_size().expect("static ABI layout"));
@@ -1231,6 +1237,9 @@ impl<'a> FunctionBuilder<'a> {
         len: ValueId,
         location: SliceLocation,
     ) -> ValueId {
+        // raw_pointer = ptrtoint pointer to i256
+        // slice = make_slice raw_pointer, length
+        let ptr = self.cast(ptr, MirType::I256);
         self.emit_inst(InstKind::MakeSlice { ptr, len, location }, Some(MirType::Slice(location)))
     }
 
@@ -1249,7 +1258,7 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits an opaque library address supplied by the linker.
     pub(crate) fn library_address(&mut self, library: LibraryId) -> ValueId {
         // result = library_address source:library
-        self.emit_inst(InstKind::LibraryAddress(library), Some(MirType::I256))
+        self.emit_inst(InstKind::LibraryAddress(library), Some(MirType::I160))
     }
 
     /// Emits a loadimmutable instruction.
@@ -1348,7 +1357,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Emits an address inside the current internal-call frame.
     pub(crate) fn internal_frame_addr(&mut self, offset: u64) -> ValueId {
-        self.emit_inst(InstKind::InternalFrameAddr(offset), Some(MirType::I256))
+        self.emit_inst(InstKind::InternalFrameAddr(offset), Some(MirType::MemPtr))
     }
 
     /// Loads a mutable local through its logical frame slot.
@@ -1549,9 +1558,15 @@ impl<'a> FunctionBuilder<'a> {
         else_val: ValueId,
     ) -> ValueId {
         let cond = self.cast(cond, MirType::I1);
-        let ty = self.func.value_ty(then_val).unwrap();
-        let else_val = self.cast(else_val, ty);
+        let mut ty = self.func.value_ty(then_val).unwrap();
+        if matches!(ty, MirType::I1 | MirType::I160) && self.func.value_ty(else_val) != Some(ty) {
+            ty = MirType::I256;
+        }
+        // then_val = cast then_val to the select type
+        // else_val = cast else_val to the select type
         // result = select cond, then_val, else_val
+        let then_val = self.cast(then_val, ty);
+        let else_val = self.cast(else_val, ty);
         self.emit_inst(InstKind::Select(cond, then_val, else_val), Some(ty))
     }
 
@@ -1559,10 +1574,16 @@ impl<'a> FunctionBuilder<'a> {
     /// current block with the value the phi takes when control arrives from
     /// that block. Emit phis before any other instruction in their block.
     pub(crate) fn phi(&mut self, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
-        let ty = incoming
+        let mut ty = incoming
             .first()
             .and_then(|(_, value)| self.func.value_ty(*value))
             .unwrap_or(MirType::I256);
+        if matches!(ty, MirType::I1 | MirType::I160)
+            && incoming.iter().any(|(_, value)| self.func.value_ty(*value) != Some(ty))
+        {
+            ty = MirType::I256;
+        }
+        // result = phi [predecessor: cast value to the phi type, ...]
         self.emit_inst(InstKind::Phi(incoming), Some(ty))
     }
 

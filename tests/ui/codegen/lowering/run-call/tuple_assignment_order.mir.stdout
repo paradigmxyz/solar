@@ -261,7 +261,8 @@ fn @constructor() [constructor] {
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 2
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x7a7a000000000000000000000000000000000000000000000000000000000000
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x7a7a000000000000000000000000000000000000000000000000000000000000
     icall @store_storage_bytes, 3, v0
     ret
 }

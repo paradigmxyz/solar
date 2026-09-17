@@ -6,7 +6,9 @@
 //~? ERROR: [fn4] [bb0] branch condition must have type `i1`; compare words with zero
 //~? ERROR: [fn5] [bb0] tail-call arguments do not match the signature
 //~? ERROR: [fn6] internal return ABI does not match the function's result type
-//~? ERROR: [fn7] [bb0, inst0] memory object pointer conversion requires a word and matching object result
+//~? ERROR: [fn7] [bb0, inst0] `inttoptr` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn16] [bb0] return values do not match the signature
+//~? ERROR: [fn17] [bb0, inst0] `trunc` has incompatible scalar types; use an explicit cast
 @module InvalidStructValues
 
 types:
@@ -57,7 +59,7 @@ fn @mixed_return(arg0: struct0, arg1: i256) -> struct1 [return_abi=[struct0, i25
 
 fn @invalid_object_pointer(arg0: struct0) -> memorybytes {
   bb0:
-    v0 = memory_object_from_ptr memorybytes, arg0
+    v0 = inttoptr struct0 arg0 to memorybytes
     ret v0
 }
 
@@ -72,14 +74,15 @@ fn @wrong_object_kind(arg0: memorystruct) -> i256 {
 fn @wrong_element_layout(arg0: memorybytes) -> i256 {
   bb0:
     v0 = memory_object_element_addr memoryfixedarray<4, 1>, arg0, 0
-    v1 = mload v0
+    v2 = ptrtoint memptr v0 to i256
+    v1 = mload v2
     ret v1
 }
 
-//~? ERROR: [fn10] [bb0, inst0] `word_cast` has incompatible scalar types; use an explicit cast
-fn @invalid_word_cast(arg0: calldataslice) -> i256 {
+//~? ERROR: [fn10] [bb0, inst0] `zext` has incompatible scalar types; use an explicit cast
+fn @invalid_integer_extension(arg0: calldataslice) -> i256 {
   bb0:
-    v0 = word_cast arg0
+    v0 = zext calldataslice arg0 to i256
     ret v0
 }
 
@@ -115,5 +118,37 @@ fn @bool_parameter(arg0: i1) -> i1 {
 fn @implicit_call_argument(arg0: i256) -> i1 {
   bb0:
     v0 = icall @bool_parameter, arg0
+    ret v0
+}
+
+fn @implicit_address_word(arg0: i160) -> i256 {
+  bb0:
+    ret arg0
+}
+
+fn @invalid_address_trunc(arg0: i160) -> i160 {
+  bb0:
+    v0 = trunc i160 arg0 to i160
+    ret v0
+}
+
+//~? ERROR: [fn18] [bb0, inst0] `zext` has incompatible scalar types; use an explicit cast
+fn @narrowing_zext(arg0: i256) -> i160 {
+  bb0:
+    v0 = zext i256 arg0 to i160
+    ret v0
+}
+
+//~? ERROR: [fn19] [bb0, inst0] `ptrtoint` has incompatible scalar types; use an explicit cast
+fn @integer_ptrtoint(arg0: i256) -> i256 {
+  bb0:
+    v0 = ptrtoint i256 arg0 to i256
+    ret v0
+}
+
+//~? ERROR: [fn20] [bb0, inst0] `bitcast` has incompatible scalar types; use an explicit cast
+fn @integer_pointer_bitcast(arg0: i256) -> memptr {
+  bb0:
+    v0 = bitcast i256 arg0 to memptr
     ret v0
 }

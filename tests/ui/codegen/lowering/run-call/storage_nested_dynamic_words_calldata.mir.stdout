@@ -9,7 +9,7 @@ fn @copyDynamic(arg0: calldataslice) -> i256 [selector=0x2662f0b3, abi_params=[a
     v4 = div v2, 32
     v5 = eq v4, v0
     v6 = or v3, v5
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     v8 = eq v7, 0
     icall panic_if<0x41>, v8
     v9 = calldatasize
@@ -21,7 +21,7 @@ fn @copyDynamic(arg0: calldataslice) -> i256 [selector=0x2662f0b3, abi_params=[a
     v14 = div v12, 32
     v15 = eq v14, v0
     v16 = or v13, v15
-    v17 = word_cast v16
+    v17 = zext i1 v16 to i256
     v18 = eq v17, 0
     icall panic_if<0x41>, v18
     v19 = add 32, v12
@@ -87,8 +87,8 @@ fn @copyDynamic(arg0: calldataslice) -> i256 [selector=0x2662f0b3, abi_params=[a
     ret v119
   bb13:
     v72 = memory_object_load_element memoryarray<1>, v21, v70
-    v73 = memory_object_from_ptr memoryarray, v72
-    v74 = word_cast v73
+    v73 = inttoptr i256 v72 to memoryarray
+    v74 = ptrtoint memoryarray v73 to i256
     v75 = eq v74, 0
     jumpi v75, bb15, bb16
   bb15:
@@ -184,7 +184,7 @@ fn @copyDynamic(arg0: calldataslice) -> i256 [selector=0x2662f0b3, abi_params=[a
     v46 = div v44, 32
     v47 = eq v46, v36
     v48 = or v45, v47
-    v49 = word_cast v48
+    v49 = zext i1 v48 to i256
     v50 = eq v49, 0
     icall panic_if<0x41>, v50
     v51 = add 32, v44
@@ -292,7 +292,7 @@ fn @copyFixedDynamic(arg0: calldataslice) -> i256 [selector=0x8b16421b, abi_para
     jump bb20
   bb7:
     v43 = memory_object_load_element memoryfixedarray<2, 1>, v4, v39
-    v44 = memory_object_from_ptr memoryarray, v43
+    v44 = inttoptr i256 v43 to memoryarray
     v45 = memory_object_len memoryarray, v44
     v46 = sload v41 !metadata(storage=offset(v39, 1))
     v47 = gt v46, v45
@@ -318,7 +318,7 @@ fn @copyFixedDynamic(arg0: calldataslice) -> i256 [selector=0x8b16421b, abi_para
     v75 = add v39, 1
     jump bb4
   bb16:
-    v55 = memory_object_from_ptr memoryarray, v43
+    v55 = inttoptr i256 v43 to memoryarray
     v56 = memory_object_load_element memoryarray<1>, v55, v53
     v57 = storage_array_data_slot v41
     v58 = add v57, v53
@@ -361,7 +361,7 @@ fn @copyFixedDynamic(arg0: calldataslice) -> i256 [selector=0x8b16421b, abi_para
     v29 = div v27, 32
     v30 = eq v29, v19
     v31 = or v28, v30
-    v32 = word_cast v31
+    v32 = zext i1 v31 to i256
     v33 = eq v32, 0
     icall panic_if<0x41>, v33
     v34 = add 32, v27
@@ -385,7 +385,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0xde674e0a, abi_para
     v4 = div v2, 64
     v5 = eq v4, v0
     v6 = or v3, v5
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     v8 = eq v7, 0
     icall panic_if<0x41>, v8
     v9 = calldatasize
@@ -397,7 +397,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0xde674e0a, abi_para
     v14 = div v12, 32
     v15 = eq v14, v0
     v16 = or v13, v15
-    v17 = word_cast v16
+    v17 = zext i1 v16 to i256
     v18 = eq v17, 0
     icall panic_if<0x41>, v18
     v19 = add 32, v12
@@ -461,8 +461,8 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0xde674e0a, abi_para
     ret v88
   bb13:
     v50 = memory_object_load_element memoryarray<1>, v21, v48
-    v51 = memory_object_from_ptr memoryfixedarray, v50
-    v52 = word_cast v51
+    v51 = inttoptr i256 v50 to memoryfixedarray
+    v52 = ptrtoint memoryfixedarray v51 to i256
     v53 = eq v52, 0
     jumpi v53, bb15, bb16
   bb15:
@@ -520,7 +520,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0xde674e0a, abi_para
     v26 = div v24, 64
     v27 = eq v26, v22
     v28 = or v25, v27
-    v29 = word_cast v28
+    v29 = zext i1 v28 to i256
     v30 = eq v29, 0
     icall panic_if<0x41>, v30
     v31 = add v1, v24
@@ -541,7 +541,7 @@ fn @copyDynamicFixedWiden(arg0: calldataslice) -> i256 [selector=0x48878fa6, abi
     v4 = div v2, 64
     v5 = eq v4, v0
     v6 = or v3, v5
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     v8 = eq v7, 0
     icall panic_if<0x41>, v8
     v9 = calldatasize
@@ -553,7 +553,7 @@ fn @copyDynamicFixedWiden(arg0: calldataslice) -> i256 [selector=0x48878fa6, abi
     v14 = div v12, 32
     v15 = eq v14, v0
     v16 = or v13, v15
-    v17 = word_cast v16
+    v17 = zext i1 v16 to i256
     v18 = eq v17, 0
     icall panic_if<0x41>, v18
     v19 = add 32, v12
@@ -643,8 +643,8 @@ fn @copyDynamicFixedWiden(arg0: calldataslice) -> i256 [selector=0x48878fa6, abi
     ret v110
   bb13:
     v50 = memory_object_load_element memoryarray<1>, v21, v48
-    v51 = memory_object_from_ptr memoryfixedarray, v50
-    v52 = word_cast v51
+    v51 = inttoptr i256 v50 to memoryfixedarray
+    v52 = ptrtoint memoryfixedarray v51 to i256
     v53 = eq v52, 0
     jumpi v53, bb15, bb16
   bb15:
@@ -702,7 +702,7 @@ fn @copyDynamicFixedWiden(arg0: calldataslice) -> i256 [selector=0x48878fa6, abi
     v26 = div v24, 64
     v27 = eq v26, v22
     v28 = or v25, v27
-    v29 = word_cast v28
+    v29 = zext i1 v28 to i256
     v30 = eq v29, 0
     icall panic_if<0x41>, v30
     v31 = add v1, v24
@@ -805,7 +805,7 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x4ae52609, abi_params=[arr
     sstore v20, 0 !metadata(storage=symbolic(v20))
     jump bb15
   bb13:
-    v22 = memory_object_from_ptr memoryfixedarray, v17
+    v22 = inttoptr i256 v17 to memoryfixedarray
     v23 = memory_object_load_element memoryfixedarray<2, 1>, v22, v18
     sstore v20, v23 !metadata(storage=symbolic(v20))
     jump bb15

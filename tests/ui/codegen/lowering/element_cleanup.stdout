@@ -8,8 +8,9 @@
       v2 = eq v1, false
       icall panic_if<0x32>, v2
       v3 = memory_object_load_element memoryarray<1>, arg0, 0
--     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
--     ret v4
+-     v4 = trunc i256 v3 to i160
+-     v5 = zext i160 v4 to i256
+-     ret v5
 +     ret v3
   }
   
@@ -20,7 +21,7 @@
       v2 = div v0, 1
       v3 = eq v2, arg0
       v4 = or v1, v3
-      v5 = word_cast v4
+      v5 = zext i1 v4 to i256
       v6 = eq v5, 0
       icall panic_if<0x41>, v6
       v7 = add v0, 1
@@ -31,7 +32,7 @@
       v11 = div v9, 32
       v12 = eq v11, v7
       v13 = or v10, v12
-      v14 = word_cast v13
+      v14 = zext i1 v13 to i256
       v15 = eq v14, 0
       icall panic_if<0x41>, v15
       v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
@@ -41,20 +42,20 @@
       v19 = eq v18, false
       icall panic_if<0x32>, v19
       v20 = memory_object_load_element memoryarray<1>, v16, 1
--     v21 = and v20, 0xffffffffffffffffffffffffffffffffffffffff
+      v21 = trunc i256 v20 to i160
       v22 = memory_object_len memoryarray, v16
       v23 = lt 0, v22
       v24 = eq v23, false
       icall panic_if<0x32>, v24
--     memory_object_store_element memoryarray<1>, v16, 0, v21
-+     memory_object_store_element memoryarray<1>, v16, 0, v20
+      memory_object_store_element memoryarray<1>, v16, 0, v21
       v25 = memory_object_len memoryarray, v16
       v26 = lt 2, v25
       v27 = eq v26, false
       icall panic_if<0x32>, v27
       v28 = memory_object_load_element memoryarray<1>, v16, 2
--     v29 = and v28, 0xffffffffffffffffffffffffffffffffffffffff
--     ret v29
+-     v29 = trunc i256 v28 to i160
+-     v30 = zext i160 v29 to i256
+-     ret v30
 +     ret v28
   }
   
@@ -67,17 +68,18 @@
     bb2:
       jump bb3
     bb3:
-      v8 = checked_add u256, arg1, 1
-      v9 = icall @last, arg0, v8
-      ret v9
+      v9 = checked_add u256, arg1, 1
+      v10 = icall @last, arg0, v9
+      ret v10
     bb1:
       v3 = memory_object_len memoryarray, arg0
       v4 = lt arg1, v3
       v5 = eq v4, false
       icall panic_if<0x32>, v5
       v6 = memory_object_load_element memoryarray<1>, arg0, arg1
--     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
--     ret v7
+-     v7 = trunc i256 v6 to i160
+-     v8 = zext i160 v7 to i256
+-     ret v8
 +     ret v6
   }
   
@@ -89,7 +91,7 @@
   
   fn @dirty(arg0: memoryarray) -> i256 [selector=0x74016a59, pure, abi_params=[array<_, address>], abi_returns=[word<u160>], abi_return_params=[address]] {
     bb0:
-      v0 = word_cast arg0
+      v0 = ptrtoint memoryarray arg0 to i256
       v1 = add v0, 32
       mstore v1, 0x123456789abcdef0123456789abcdef0123456789abcdef
       v2 = memory_object_len memoryarray, arg0
@@ -97,8 +99,9 @@
       v4 = eq v3, false
       icall panic_if<0x32>, v4
       v5 = memory_object_load_element memoryarray<1>, arg0, 0
-      v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
-      ret v6
+      v6 = trunc i256 v5 to i160
+      v7 = zext i160 v6 to i256
+      ret v7
   }
   
   fn @fill(arg0: memoryarray, arg1: i256) [pure] {
@@ -107,7 +110,7 @@
       v1 = lt 0, v0
       v2 = eq v1, false
       icall panic_if<0x32>, v2
-      v3 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+      v3 = trunc i256 arg1 to i160
       memory_object_store_element memoryarray<1>, arg0, 0, v3
       ret
   }
@@ -120,8 +123,9 @@
       v2 = eq v1, false
       icall panic_if<0x32>, v2
       v3 = memory_object_load_element memoryarray<1>, arg0, 0
--     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
--     ret v4
+-     v4 = trunc i256 v3 to i160
+-     v5 = zext i160 v4 to i256
+-     ret v5
 +     ret v3
   }
   

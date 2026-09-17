@@ -99,6 +99,10 @@ pub(crate) enum ResultKind {
     None,
     /// A 256-bit word.
     Word,
+    /// A raw memory pointer.
+    MemPtr,
+    /// A 160-bit integer.
+    I160,
     /// A canonical boolean.
     Bool,
     /// A value whose type depends on the operation's attributes.
@@ -112,6 +116,8 @@ impl ResultKind {
         match self {
             Self::None | Self::Custom => None,
             Self::Word => Some(MirType::I256),
+            Self::MemPtr => Some(MirType::MemPtr),
+            Self::I160 => Some(MirType::I160),
             Self::Bool => Some(MirType::I1),
         }
     }
@@ -863,12 +869,24 @@ define_mir_ops! {
     #[mir_op(mnemonic = "extract_value", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some("semantic operation"))]
     ExtractValue { ty: StructId, aggregate: ValueId, index: u32 },
-    #[mir_op(mnemonic = "memory_object_from_ptr", result = Custom, phases = PhaseSet::SEMANTIC,
-        effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some("semantic operation"))]
-    MemoryObjectFromPtr { ptr: ValueId, kind: MemoryObjectKind },
-    #[mir_op(mnemonic = "word_cast", result = Word, phases = PhaseSet::ALL,
+    #[mir_op(mnemonic = "zext", result = Custom, phases = PhaseSet::ALL,
         effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
-    WordCast(operand0: ValueId),
+    Zext(operand0: ValueId),
+    #[mir_op(mnemonic = "trunc", result = Custom, phases = PhaseSet::ALL,
+        effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
+    Trunc(operand0: ValueId, bits: u32),
+    #[mir_op(mnemonic = "sext", result = Custom, phases = PhaseSet::ALL,
+        effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
+    Sext(operand0: ValueId, from_bits: u32, to_bits: u32),
+    #[mir_op(mnemonic = "ptrtoint", result = Custom, phases = PhaseSet::ALL,
+        effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
+    PtrToInt(operand0: ValueId, bits: u32),
+    #[mir_op(mnemonic = "inttoptr", result = Custom, phases = PhaseSet::ALL,
+        effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
+    IntToPtr(operand0: ValueId),
+    #[mir_op(mnemonic = "bitcast", result = Custom, phases = PhaseSet::ALL,
+        effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
+    Bitcast(operand0: ValueId),
     #[mir_op(mnemonic = "checked_binary", result = Word, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
     CheckedBinary {
@@ -1290,7 +1308,7 @@ define_mir_ops! {
     /// Read the free-memory pointer.
     #[mir_op(
         mnemonic = "fmp",
-        result = Word,
+        result = MemPtr,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::NONE,
@@ -1353,7 +1371,7 @@ define_mir_ops! {
     /// Project the address of the first payload byte from an object.
     #[mir_op(
         mnemonic = "memory_object_data",
-        result = Word,
+        result = MemPtr,
         phases = PhaseSet::SEMANTIC,
         effect = Pure,
         traits = OpTraits::MEMORY_OBJECT.union(OpTraits::EGRAPH_REWRITE),
@@ -1364,7 +1382,7 @@ define_mir_ops! {
     /// Address a direct field of a struct object.
     #[mir_op(
         mnemonic = "memory_object_field_addr",
-        result = Word,
+        result = MemPtr,
         phases = PhaseSet::SEMANTIC,
         effect = Pure,
         traits = OpTraits::MEMORY_OBJECT.union(OpTraits::EGRAPH_REWRITE),
@@ -1382,7 +1400,7 @@ define_mir_ops! {
     /// Address an array element under the semantic object layout.
     #[mir_op(
         mnemonic = "memory_object_element_addr",
-        result = Word,
+        result = MemPtr,
         phases = PhaseSet::SEMANTIC,
         effect = Pure,
         traits = OpTraits::MEMORY_OBJECT.union(OpTraits::EGRAPH_REWRITE),
@@ -1858,7 +1876,7 @@ define_mir_ops! {
     /// Address inside the current internal-call frame.
     #[mir_op(
         mnemonic = "internal_frame_addr",
-        result = Word,
+        result = MemPtr,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::NONE,
@@ -2035,7 +2053,7 @@ define_mir_ops! {
     /// A library address whose value is supplied by the linker.
     #[mir_op(
         mnemonic = "library_address",
-        result = Word,
+        result = I160,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::NONE,
@@ -2076,7 +2094,7 @@ define_mir_ops! {
     /// Get caller address: `caller()`
     #[mir_op(
         mnemonic = "caller",
-        result = Word,
+        result = I160,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2100,7 +2118,7 @@ define_mir_ops! {
     /// Get origin address: `origin()`
     #[mir_op(
         mnemonic = "origin",
-        result = Word,
+        result = I160,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2136,7 +2154,7 @@ define_mir_ops! {
     /// Get coinbase address: `coinbase()`
     #[mir_op(
         mnemonic = "coinbase",
-        result = Word,
+        result = I160,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2219,7 +2237,7 @@ define_mir_ops! {
     /// Get this contract's address: `address()`
     #[mir_op(
         mnemonic = "address",
-        result = Word,
+        result = I160,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2528,7 +2546,7 @@ define_mir_ops! {
     /// Create contract: `create(value, offset, size)`
     #[mir_op(
         mnemonic = "create",
-        result = Word,
+        result = I160,
         phases = PhaseSet::ALL,
         effect = Create,
         traits = OpTraits::NONE,
@@ -2540,7 +2558,7 @@ define_mir_ops! {
     /// Create2 contract: `create2(value, offset, size, salt)`
     #[mir_op(
         mnemonic = "create2",
-        result = Word,
+        result = I160,
         phases = PhaseSet::ALL,
         effect = Create,
         traits = OpTraits::NONE,

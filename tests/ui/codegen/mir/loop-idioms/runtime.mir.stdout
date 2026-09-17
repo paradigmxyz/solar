@@ -13,7 +13,7 @@ fn @ascii(arg0: memorybytes) -> i256 [selector=0x6f11c5d5, pure, abi_params=[byt
   bb5:
     jump bb2
   bb2:
-    v13 = word_cast true
+    v13 = zext i1 1 to i256
     ret v13
   bb4:
     v5 = memory_object_len memorybytes, v2
@@ -34,7 +34,7 @@ fn @ascii(arg0: memorybytes) -> i256 [selector=0x6f11c5d5, pure, abi_params=[byt
     v12 = checked_add u256, v0, 1
     jump bb1
   bb7:
-    v11 = word_cast false
+    v11 = zext i1 0 to i256
     ret v11
 }
 

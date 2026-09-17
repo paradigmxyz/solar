@@ -13,7 +13,7 @@ fn @indexOf.0(arg0: memorybytes, arg1: memorybytes, arg2: i256) -> i256 [selecto
 fn @indexOf.1(arg0: memorybytes, arg1: memorybytes, arg2: i256) -> i256 [pure] {
   bb0:
     v0 = not 0
-    v1 = word_cast arg0
+    v1 = ptrtoint memorybytes arg0 to i256
     v2 = mload v1
     jump bb1
   bb1:
@@ -27,18 +27,18 @@ fn @indexOf.1(arg0: memorybytes, arg1: memorybytes, arg2: i256) -> i256 [pure] {
   bb4:
     jump bb2
   bb3:
-    v9 = word_cast v7
+    v9 = ptrtoint memorybytes v7 to i256
     v10 = mload v9
     v11 = eq v10, 0
-    v12 = word_cast v11
+    v12 = zext i1 v11 to i256
     v13 = ne v12, 0
     jumpi v13, bb6, bb7
   bb7:
     jump bb8
   bb8:
-    v19 = word_cast v7
+    v19 = ptrtoint memorybytes v7 to i256
     v20 = mload v19
-    v21 = word_cast v4
+    v21 = ptrtoint memorybytes v4 to i256
     v22 = add v21, 32
     v23 = add v22, v5
     v24 = add v22, v6
@@ -47,25 +47,25 @@ fn @indexOf.1(arg0: memorybytes, arg1: memorybytes, arg2: i256) -> i256 [pure] {
     v27 = and v20, 31
     v28 = sub 32, v27
     v29 = shl 3, v28
-    v30 = word_cast v7
+    v30 = ptrtoint memorybytes v7 to i256
     v31 = add v30, 32
     v32 = mload v31
     v33 = lt v5, v6
-    v34 = word_cast v33
+    v34 = zext i1 v33 to i256
     v35 = lt v23, v26
-    v36 = word_cast v35
+    v36 = zext i1 v35 to i256
     v37 = and v36, v34
     v38 = eq v37, 0
-    v39 = word_cast v38
+    v39 = zext i1 v38 to i256
     v40 = ne v39, 0
     jumpi v40, bb12, bb13
   bb13:
     jump bb14
   bb14:
     v41 = lt v20, 32
-    v42 = word_cast v41
+    v42 = zext i1 v41 to i256
     v43 = eq v42, 0
-    v44 = word_cast v43
+    v44 = zext i1 v43 to i256
     v45 = ne v44, 0
     jumpi v45, bb15, bb16
   bb16:
@@ -92,7 +92,7 @@ fn @indexOf.1(arg0: memorybytes, arg1: memorybytes, arg2: i256) -> i256 [pure] {
     v92 = xor v91, v81
     v93 = shr v88, v92
     v94 = eq v93, 0
-    v95 = word_cast v94
+    v95 = zext i1 v94 to i256
     v96 = ne v95, 0
     jumpi v96, bb37, bb38
   bb38:
@@ -100,9 +100,9 @@ fn @indexOf.1(arg0: memorybytes, arg1: memorybytes, arg2: i256) -> i256 [pure] {
   bb39:
     v98 = add v86, 1
     v99 = lt v98, v85
-    v100 = word_cast v99
+    v100 = zext i1 v99 to i256
     v101 = eq v100, 0
-    v102 = word_cast v101
+    v102 = zext i1 v101 to i256
     v103 = ne v102, 0
     jumpi v103, bb40, bb41
   bb41:
@@ -119,10 +119,10 @@ fn @indexOf.1(arg0: memorybytes, arg1: memorybytes, arg2: i256) -> i256 [pure] {
   bb33:
     v104 = phi [bb37: v97], [bb40: v84], [bb35: v84]
     v105 = phi [bb37: v86], [bb40: v98], [bb35: v86]
-    v109 = memory_object_from_ptr memorybytes, v105
+    v109 = inttoptr i256 v105 to memorybytes
     jump bb2
   bb15:
-    v46 = word_cast v7
+    v46 = ptrtoint memorybytes v7 to i256
     v47 = add v46, 32
     v48 = keccak256 v47, v20
     jump bb18
@@ -147,7 +147,7 @@ fn @indexOf.1(arg0: memorybytes, arg1: memorybytes, arg2: i256) -> i256 [pure] {
     v62 = xor v61, v50
     v63 = shr v58, v62
     v64 = eq v63, 0
-    v65 = word_cast v64
+    v65 = zext i1 v64 to i256
     v66 = ne v65, 0
     jumpi v66, bb23, bb24
   bb24:
@@ -155,7 +155,7 @@ fn @indexOf.1(arg0: memorybytes, arg1: memorybytes, arg2: i256) -> i256 [pure] {
   bb23:
     v67 = keccak256 v56, v49
     v68 = eq v67, v53
-    v69 = word_cast v68
+    v69 = zext i1 v68 to i256
     v70 = ne v69, 0
     jumpi v70, bb26, bb27
   bb27:
@@ -165,9 +165,9 @@ fn @indexOf.1(arg0: memorybytes, arg1: memorybytes, arg2: i256) -> i256 [pure] {
   bb25:
     v72 = add v56, 1
     v73 = lt v72, v55
-    v74 = word_cast v73
+    v74 = zext i1 v73 to i256
     v75 = eq v74, 0
-    v76 = word_cast v75
+    v76 = zext i1 v75 to i256
     v77 = ne v76, 0
     jumpi v77, bb29, bb30
   bb30:
@@ -184,16 +184,16 @@ fn @indexOf.1(arg0: memorybytes, arg1: memorybytes, arg2: i256) -> i256 [pure] {
   bb19:
     v78 = phi [bb26: v71], [bb29: v54], [bb21: v54]
     v79 = phi [bb26: v56], [bb29: v72], [bb21: v56]
-    v108 = memory_object_from_ptr memorybytes, v79
+    v108 = inttoptr i256 v79 to memorybytes
     jump bb2
   bb12:
-    v107 = memory_object_from_ptr memorybytes, v23
+    v107 = inttoptr i256 v23 to memorybytes
     jump bb2
   bb6:
     v14 = gt v5, v6
-    v15 = word_cast v14
+    v15 = zext i1 v14 to i256
     v16 = eq v15, 0
-    v17 = word_cast v16
+    v17 = zext i1 v16 to i256
     v18 = ne v17, 0
     jumpi v18, bb9, bb10
   bb10:

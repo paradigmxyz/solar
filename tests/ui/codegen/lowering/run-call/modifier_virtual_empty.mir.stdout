@@ -6,7 +6,7 @@ fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word<boo
   bb3:
     jump bb4
   bb2:
-    v0 = word_cast true
+    v0 = zext i1 1 to i256
     jump bb5
   bb5:
     jump bb4
