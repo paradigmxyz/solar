@@ -1,3 +1,12 @@
+// === <solar:core/v1/Bits.sol>:Bits ===
+@module Bits
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
 // === <solar:core/v1/Math.sol>:Math ===
 @module Math
 @phase lowered
