@@ -75,7 +75,7 @@ fn @spent(arg0: memorybytes, arg1: memorybytes) -> struct1 [selector=0x68f75a92,
 fn @neighbour(arg0: memorybytes, arg1: memorybytes) -> struct2 [selector=0x5409b789, pure, abi_params=[bytes, bytes], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
     v0 = icall @create, 4
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v1, 4
     v2 = memory_object_data memorybytes, v1
     mstore v2, 0x1122334400000000000000000000000000000000000000000000000000000000
@@ -389,7 +389,7 @@ fn @finish(arg0: memorystruct) -> memorybytes [pure] {
     v3 = gt v1, v2
     icall panic_if<0x32>, v3
     set_memory_object_len memorybytes, v0, v1
-    v4 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v4 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v4, 0
     v5 = memory_object_data memorybytes, v4
     memory_object_store_field memorystruct<2>, arg0, 0, v4
