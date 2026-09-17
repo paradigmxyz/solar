@@ -23,10 +23,8 @@ struct TryCatchData {
     data: ValueId,
     /// The data's length in bytes.
     len: ValueId,
-    /// Whether the data is an `Error(string)` payload a `catch Error` clause can decode.
-    error_matches: ValueId,
-    /// Whether the data is a `Panic(uint256)` payload a `catch Panic` clause can decode.
-    panic_matches: ValueId,
+    /// The leading selector word; each typed clause checks the required payload length.
+    selector: ValueId,
 }
 
 struct TryTarget<'a, 'gcx> {
@@ -516,42 +514,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.values = before.clone();
         self.storage_refs = before_storage_refs.clone();
         self.builder.switch_to_block(catch_block);
-        // Only from Byzantium on; before it the bare clause matches unconditionally and there is
-        // no data to bind or forward.
+        let needs_data =
+            catch_clauses.iter().any(|clause| clause.name.is_some() || !clause.args.is_empty());
         // data = returndata()
-        // selector = data.length >= 4 ? mload(data) >> 224 : 0
-        // error_matches = selector == Error(string) && valid_error_payload(data)
-        // panic_matches = selector == Panic(uint256) && data.length >= 36
-        let catch_data = supports_returndata.then(|| {
+        // selector = mload(data) >> 224
+        let catch_data = (supports_returndata && needs_data).then(|| {
             let object = self.materialize_returndata_bytes();
             let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
             let len = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
             let zero = self.builder.imm(U256::ZERO);
             let selector_slice = self.builder.make_slice(data, len, SliceLocation::Memory);
             let selector_word = self.builder.memory_slice_load_word(selector_slice, zero);
-            let four = self.builder.imm(4);
-            let selector_short = self.builder.lt(len, four);
-            let has_selector = self.builder.iszero(selector_short);
             let selector_shift = self.builder.imm(224);
             let selector = self.builder.shr(selector_shift, selector_word);
-            let error_selector =
-                self.builder.imm(U256::from_be_slice(&keccak256("Error(string)")[..4]));
-            let panic_selector = self.builder.imm(0x4e48_7b71_u64);
-            let error_selector_matches = self.builder.eq(selector, error_selector);
-            let error_matches = if catch_clauses
-                .iter()
-                .any(|clause| clause.name.is_some_and(|name| name.name == sym::Error))
-            {
-                self.lower_error_catch_match(data, len, error_selector_matches)
-            } else {
-                self.builder.and(has_selector, error_selector_matches)
-            };
-            let panic_size = self.builder.imm(36);
-            let panic_short = self.builder.lt(len, panic_size);
-            let panic_has_payload = self.builder.iszero(panic_short);
-            let panic_selector_matches = self.builder.eq(selector, panic_selector);
-            let panic_matches = self.builder.and(panic_has_payload, panic_selector_matches);
-            TryCatchData { object, data, len, error_matches, panic_matches }
+            TryCatchData { object, data, len, selector }
         });
         // Solidity matches the typed clauses before the low-level one, whichever order they are
         // written in: `catch Error(string)` first, then `catch Panic(uint256)`, and the bare or
@@ -569,18 +545,31 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for catch_clause in ordered_clauses {
             // if catch_matches(clause, data) { lower(clause) } else { next_catch }
             self.builder.switch_to_block(next_catch);
-            let clause_block = self.builder.create_block();
-            let next_block = self.builder.create_block();
             let catch_error = catch_clause.name.is_some_and(|name| name.name == sym::Error);
             let catch_panic = catch_clause.name.is_some_and(|name| name.name == sym::Panic);
             // A typed clause is rejected before Byzantium, so its data is always there.
             let condition = if catch_error {
-                catch_data?.error_matches
+                // selector_matches = selector == Error(string)
+                // valid = selector_matches ? try_decode_error_message(data) : false
+                let data = catch_data?;
+                let expected =
+                    self.builder.imm(U256::from_be_slice(&keccak256("Error(string)")[..4]));
+                let matches = self.builder.eq(data.selector, expected);
+                self.lower_error_catch_match(data.data, data.len, matches)
             } else if catch_panic {
-                catch_data?.panic_matches
+                // valid = data.length >= 36 && selector == Panic(uint256)
+                let data = catch_data?;
+                let expected = self.builder.imm(0x4e48_7b71_u64);
+                let matches = self.builder.eq(data.selector, expected);
+                let size = self.builder.imm(36);
+                let short = self.builder.lt(data.len, size);
+                let has_payload = self.builder.iszero(short);
+                self.builder.and(matches, has_payload)
             } else {
                 self.builder.imm_bool(true)
             };
+            let clause_block = self.builder.create_block();
+            let next_block = self.builder.create_block();
             self.builder.branch(condition, clause_block, next_block);
 
             self.values = before.clone();
@@ -614,7 +603,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match catch_data {
             // revert(data.data, data.length)
             Some(data) => self.builder.revert(data.data, data.len),
-            // Unreachable: a pre-Byzantium `try` only has a bare clause, which always matches.
+            // Unreachable: a bare catch matches unconditionally.
             // revert(0, 0)
             None => {
                 self.builder.revert_with(RevertReason::Empty);

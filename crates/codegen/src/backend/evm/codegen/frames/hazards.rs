@@ -8,6 +8,7 @@ use super::{
     },
     SPILL_HAZARD_BOUND,
 };
+use crate::mir::Callee;
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Returns the destination of a symbolic memory write that can cover a
@@ -63,8 +64,32 @@ impl<'gcx> EvmCodegen<'gcx> {
             {
                 dynamic_range(dest, size)
             }
+            // A fixed-width store through a loop-carried pointer that starts below the spill
+            // area sweeps every slot the loop reaches; across the iterations it is as unbounded
+            // as a variable-length copy.
+            InstKind::MStore(dest, _) | InstKind::MStore8(dest, _)
+                if Self::is_low_sweeping_pointer(func, dest) =>
+            {
+                Some(dest)
+            }
             _ => None,
         }
+    }
+
+    /// Whether `pointer` is a phi that enters from an address below the spill area and is
+    /// advanced by its own increment on another edge.
+    fn is_low_sweeping_pointer(func: &Function, pointer: ValueId) -> bool {
+        let Value::Inst(inst_id) = func.value(pointer) else { return false };
+        let InstKind::Phi(incoming) = &func.inst(*inst_id).kind else { return false };
+        let starts_low = incoming.iter().any(|&(_, value)| {
+            func.value_u64(value).is_some_and(|address| address < EvmMemoryLayout::HEAP_START)
+        });
+        let advances = incoming.iter().any(|&(_, value)| {
+            matches!(func.value(value), Value::Inst(step)
+                if matches!(func.inst(*step).kind, InstKind::Add(lhs, rhs)
+                    if lhs == pointer || rhs == pointer))
+        });
+        starts_low && advances
     }
 
     /// Returns a conservative upper bound for a small integer expression.
@@ -96,9 +121,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Collects symbolic low-memory clobbers that can overwrite the spill
     /// area. This includes variable-length copy opcodes and call return
     /// buffers. Alias analysis excludes destinations rooted at the free-memory
-    /// pointer, allocations, or internal frames. Single-word stores do not
-    /// need the forwarding-buffer protocol: their exact runtime address does
-    /// not create an unbounded clobber range.
+    /// pointer, allocations, or internal frames. A single-word store does not
+    /// need the forwarding-buffer protocol: its exact runtime address does
+    /// not create an unbounded clobber range, unless it is repeated through a
+    /// loop-carried pointer that starts below the spill area and sweeps it.
     pub(in crate::backend::evm::codegen) fn compute_spill_hazard_insts(
         &self,
         func: &Function,
@@ -142,6 +168,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         match address.base {
             MemoryBase::Allocation(_)
             | MemoryBase::DynamicAllocation(_)
+            | MemoryBase::Param(_)
             | MemoryBase::InternalFrame => false,
             MemoryBase::Absolute => {
                 address.offset < EvmMemoryLayout::HEAP_START.saturating_add(SPILL_HAZARD_BOUND)
@@ -277,7 +304,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     {
                         Some(true)
                     }
-                    InstKind::ICall { function, returns: 1, .. }
+                    InstKind::ICall { function: Callee::Function(function), .. }
                         if helper_returns.contains(*function) =>
                     {
                         Some(true)
@@ -360,7 +387,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             | InstKind::Log3(offset, size, _, _, _)
             | InstKind::Log4(offset, size, _, _, _, _) => overlaps(*offset, *size),
             InstKind::MSize | InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. } => true,
-            // These semantic memory operations are normally gone by the `evm-shaped` phase. If
+            // These semantic memory operations are normally gone by the `lowered` phase. If
             // one remains, its complete accessed range is not represented as physical operands
             // here, so retain the Solidity memory invariant conservatively.
             InstKind::MemoryObjectLen(_, _)

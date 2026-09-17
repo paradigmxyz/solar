@@ -1,0 +1,27 @@
+- // === ROOT/tests/ui/codegen/evm-ir/loop-layout/latch.evmir (before loop-layout) ===
++ // === ROOT/tests/ui/codegen/evm-ir/loop-layout/latch.evmir (after loop-layout) ===
+  @module Loop
+  bb0:
+    push 3
+    push 0
+    jump bb1
++ bb3:
++   push 1
++   add
++   jump bb1
+  bb1:
+    dup 2
+    dup 2
+    lt
+    push bb3
+    jumpi
+    jump bb2
+  bb2:
+    pop
+    pop
+    stop
+- bb3:
+-   push 1
+-   add
+-   jump bb1
+  

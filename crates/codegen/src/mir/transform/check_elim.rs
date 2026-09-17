@@ -21,16 +21,95 @@
 //! recorded facts with checked 256-bit arithmetic; a condition that is
 //! provably constant folds the branch to an unconditional jump, and the dead
 //! panic block is cleaned up by the existing CFG passes. Anything that is
-//! not provable is left untouched.
+//! not provable is left untouched. Semantic checks use the same facts in instruction order:
+//! a passing check refines all later execution, and a proven passing check can be removed before
+//! expansion. Facts roll back on leaving each dominator subtree, so a check on one conditional
+//! path cannot justify removing a check on another.
+//!
+//! Before the dominator walk, a bounded forward analysis carries the intersection
+//! of relational facts and the union of ranges across predecessor edges. Phi
+//! ranges are evaluated in their incoming edge contexts. All states start at
+//! unknown; every round is sound even if the iteration budget expires. Facts
+//! about definitions executed again in a loop are killed at block entry. This
+//! discovers bounded induction ranges without assuming a loop executes or
+//! converges, and preserves the existing dominator-scoped reasoning.
+//! Only transitive inputs of branch conditions need derived range facts. The
+//! analysis follows their SSA operands, including phi inputs, and ignores other
+//! computations. A block is revisited only after a predecessor's exit facts
+//! change, preserving the original reverse-postorder and eight-round bound.
+//! After an edge consumes a single-use predicate, its own range and single-use
+//! negations are discarded. Operand ranges and relations remain available;
+//! predicates referenced by instructions, phis, or other terminators stay live.
+//!
+//! Loop header phis of the form `p = phi [pre: init], [latch: p - c]` with a
+//! constant nonzero step are monotone when the update provably cannot wrap at
+//! its definition: `p <= init` then holds on every iteration, and `p >= init`
+//! for the additive form. The walk first proves wrap freedom in the update's
+//! scope without assuming the invariant, then adds the relation to the header's
+//! entry facts and walks again. This establishes `j <= i < length` for a
+//! descending inner index initialized from a bounded outer counter.
+//!
+//! When both the start and the step of such a phi are constants, the phi also
+//! carries a range bound from the target's trip-count limit: a counter cannot
+//! travel further than `step << MAX_TRIP_COUNT_BITS` because every iteration
+//! burns gas that fits in 64 bits. That bound is intersected into every range
+//! query for the phi, so `i + 2` and `i + 4` never wrap for a counter that
+//! starts at zero even when the loop bound is an arbitrary word. The revert
+//! path such a check guards is unreachable by any transaction, not merely
+//! unlikely, so removing it preserves the checked semantics.
+//!
+//! Transitive relational queries lazily index candidate edges once per function,
+//! when a query needs to combine facts. An edge is followed only
+//! when its fact is present in the current scope; the index itself proves
+//! nothing. Derived values that never exceed their source (right shifts, masks,
+//! remainders, divisions by a nonzero constant) contribute universal `<=` edges
+//! that hold in every scope, so `i < length / 2` reaches `i < length`. A value
+//! with a strict path below it in the current scope is at least one, which
+//! folds `length == 0` guards and the `length - 1` underflow check that follow
+//! `i < length / 2`; differences inherit the strict bound of their minuend. Search follows at most
+//! 128 states in stable block and operand order, carrying whether an unsigned ordering path
+//! contains a strict edge. Exhausting this bound leaves the check in place; disequality is never
+//! treated as transitive.
+//!
+//! Runtime-only functions also use bounds from zero-extended immutable encodings.
+//! These bounds follow the target's actual immediate width, not the result's
+//! nominal type. Constructor-reachable functions, including helpers shared with
+//! runtime code, are excluded: constructor loads read full staging words. Signed
+//! and left-aligned encodings remain unknown. The bounds are immutable facts and
+//! are available to both the forward analysis and the dominator walk.
+//! The separate `immutable-check-elim` adapter runs after ABI getter inlining,
+//! selecting only runtime functions that load bounded immutables. This exposes
+//! facts hidden behind getter calls during the ordinary earlier check passes.
 
-use crate::mir::{
-    BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
-    analysis::CfgInfo,
-    pass::{MirPass, run_function_pass},
-    utils::repair_reachability_phis,
+//! The `late-check-elim` adapter revisits conditions unified by CSE after memory
+//! lowering. Gas mode only removes redundant failure edges from blocks on a CFG
+//! cycle: repeated checks repay their removal each iteration, while other changes can disrupt
+//! shared ABI encoder tails and increase both size and gas. Size mode uses the
+//! full cleanup. Cycle membership is only a profitability filter. Gas mode uses
+//! dominator-scoped facts, sufficient for conditions unified by CSE, and leaves
+//! fixed-point range propagation to the earlier check passes. Size mode retains
+//! the full forward analysis. Both use the existing conservative proof logic.
+//! Run it after the post-memory CSE. Only functions with removed checks receive
+//! CFG cleanup, avoiding unrelated late block merges in other functions.
+
+use super::cfg_simplify::simplify_function;
+use crate::{
+    mir::{
+        BlockId, Builtin, Callee, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
+        InstKind, Module, Terminator, Value, ValueId,
+        analysis::{CallGraphInfo, CfgInfo},
+        immutable::immutable_push_type_size,
+        pass::{
+            MirPass, run_function_pass, run_function_pass_with_cfg, run_selected_function_pass,
+        },
+        utils::fold_terminator_to_jump,
+    },
+    target::Target,
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_data_structures::{
+    bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
@@ -50,14 +129,146 @@ impl MirPass for CheckElim {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
-            let mut eliminator = CheckEliminator::new();
-            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
-            let changed = eliminator.run(func) != 0;
-            let repaired = repair_reachability_phis(func);
-            changed || repaired
+        run_function_pass(module, analyses, |func, _| {
+            let mut eliminator = CheckEliminator::new(None);
+            eliminator.run(func) != 0
         })
     }
+}
+
+/// Revisits checks exposed by physical memory lowering and CSE.
+pub(crate) struct LateCheckElim;
+
+impl MirPass for LateCheckElim {
+    fn name(&self) -> &'static str {
+        "late-check-elim"
+    }
+
+    fn run_pass(
+        &self,
+        gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        let reverting = module
+            .functions
+            .iter_enumerated()
+            .filter_map(|(id, func)| {
+                leads_to_revert(func, BlockId::ENTRY, &FxHashSet::default()).then_some(id)
+            })
+            .collect::<FxHashSet<_>>();
+        run_function_pass_with_cfg(module, analyses, |func, analyses| {
+            let selected =
+                gcx.sess.opts.optimization.is_gas().then(|| analyses.cfg().cyclic_blocks());
+            if selected.is_some_and(DenseBitSet::is_empty) {
+                return false;
+            }
+            let mut eliminator = CheckEliminator::new(None);
+            eliminator.cfg = Some(Rc::clone(analyses.cfg()));
+            let changed =
+                eliminator.run_in_blocks(func, selected.map(|blocks| (blocks, &reverting))) != 0;
+            if changed {
+                // branch proven_condition, checked, panic => jump checked
+                // Remove unreachable panic blocks and merge the successful continuation.
+                let _ = simplify_function(func);
+            }
+            changed
+        })
+    }
+}
+
+/// Recognizes short unconditional failure paths, including outlined revert helpers.
+/// This only selects profitable candidates; range analysis proves the edge unreachable.
+fn leads_to_revert(func: &Function, mut block: BlockId, reverting: &FxHashSet<FunctionId>) -> bool {
+    // Bound classification work and leave cycles or longer paths unclassified.
+    for _ in 0..8 {
+        match func.blocks[block].terminator {
+            Some(Terminator::Revert { .. } | Terminator::RevertReturndata) => return true,
+            Some(Terminator::TailCall { function, .. }) => return reverting.contains(&function),
+            Some(Terminator::Jump(next)) => block = next,
+            _ => return false,
+        }
+    }
+    false
+}
+
+/// Applies runtime immutable bounds after getter inlining exposes their loads.
+pub(crate) struct ImmutableCheckElim;
+
+impl MirPass for ImmutableCheckElim {
+    fn name(&self) -> &'static str {
+        "immutable-check-elim"
+    }
+
+    fn run_pass(
+        &self,
+        gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        let bounds = module
+            .iter_immutables()
+            .filter_map(|(id, immutable)| {
+                let encoding @ ImmutableEncoding::Unsigned(_) =
+                    immutable.ty.immutable_encoding()?
+                else {
+                    return None;
+                };
+                let width = immutable_push_type_size(
+                    encoding,
+                    gcx.sess.opts.optimization,
+                    gcx.sess.opts.evm_version.has_bitwise_shifting(),
+                )
+                .bits();
+                (width < 256).then(|| (id, Range::new(U256::ZERO, U256::MAX >> (256 - width))))
+            })
+            .collect::<FxHashMap<_, _>>();
+        if bounds.is_empty() {
+            return false;
+        }
+        let mut runtime_only = runtime_only_functions(module);
+        for id in runtime_only.iter().collect::<Vec<_>>() {
+            if !module.function(id).instructions().any(|inst| {
+                matches!(module.function(id).inst(inst).kind,
+                    InstKind::LoadImmutable(immutable) if bounds.contains_key(&immutable))
+            }) {
+                runtime_only.remove(id);
+            }
+        }
+        run_selected_function_pass(module, analyses, &runtime_only, |func, analyses| {
+            let mut eliminator = CheckEliminator::new(Some(&bounds));
+            eliminator.cfg = Some(Rc::clone(analyses.cfg()));
+            eliminator.run(func) != 0
+        })
+    }
+}
+
+/// Excludes every constructor-reachable helper, including recursive and tail-call edges.
+fn runtime_only_functions(module: &Module) -> DenseBitSet<FunctionId> {
+    let graph = CallGraphInfo::new(module);
+    let roots = |constructor| {
+        module.functions.iter_enumerated().filter_map(move |(id, func)| {
+            let selected = if constructor {
+                func.attributes.is_constructor
+            } else {
+                func.selector.is_some()
+                    || func.attributes.is_receive
+                    || func.attributes.is_fallback
+                    || module.dispatch_entry() == Some(id)
+            };
+            selected.then_some(id)
+        })
+    };
+    let mut runtime = graph.reachable_callees_from(roots(false));
+    for root in roots(false) {
+        runtime.insert(root);
+    }
+    let mut constructor = graph.reachable_callees_from(roots(true));
+    for root in roots(true) {
+        constructor.insert(root);
+    }
+    runtime.subtract(&constructor);
+    runtime
 }
 
 /// Maximum recursion depth when evaluating value ranges and conditions.
@@ -68,6 +279,7 @@ const MAX_DEPTH: usize = 12;
 struct CheckElimStats {
     /// Number of branches folded to unconditional jumps.
     branches_folded: usize,
+    checks_removed: usize,
 }
 
 /// An inclusive unsigned 256-bit interval.
@@ -105,6 +317,10 @@ impl Range {
     }
 }
 
+/// Differences indexed under their subtrahend, each entry a minuend and the
+/// value holding their difference.
+type DifferenceIndex = FxHashMap<ValueId, SmallVec<[(ValueId, ValueId); 2]>>;
+
 /// A relational predicate between two SSA values.
 ///
 /// `Lt(a, b)` means `a < b` and `Le(a, b)` means `a <= b`, both unsigned.
@@ -117,35 +333,130 @@ enum Relation {
     Ne(ValueId, ValueId),
 }
 
+impl Relation {
+    fn operands(self) -> (ValueId, ValueId) {
+        match self {
+            Self::Lt(a, b) | Self::Le(a, b) | Self::Eq(a, b) | Self::Ne(a, b) => (a, b),
+        }
+    }
+}
+
+#[derive(Clone, Default, PartialEq, Eq)]
+struct Facts {
+    ranges: FxHashMap<ValueId, Range>,
+    relations: FxHashSet<Relation>,
+}
+
 fn ordered(a: ValueId, b: ValueId) -> (ValueId, ValueId) {
     if a.index() <= b.index() { (a, b) } else { (b, a) }
 }
 
+/// A loop header phi whose backedge update moves away from its initial value
+/// by a constant step, pending a proof that the update cannot wrap.
+#[derive(Clone, Copy, Debug)]
+struct MonotonePhi {
+    /// The loop header holding the phi.
+    header: BlockId,
+    /// The phi result.
+    value: ValueId,
+    /// The incoming value from outside the loop.
+    initial: ValueId,
+    /// The backedge update result, `value - step` or `value + step`.
+    next: ValueId,
+    /// The constant step operand.
+    step: ValueId,
+    /// The block defining `next`, whose facts decide wrap freedom.
+    home: BlockId,
+    /// Whether the update subtracts the step.
+    decreasing: bool,
+}
+
+impl MonotonePhi {
+    /// The invariant that holds once the update is known not to wrap.
+    fn relation(&self) -> Relation {
+        if self.decreasing {
+            Relation::Le(self.value, self.initial)
+        } else {
+            Relation::Le(self.initial, self.value)
+        }
+    }
+}
+
 /// Range-based overflow-check eliminator.
 #[derive(Default)]
-struct CheckEliminator {
+struct CheckEliminator<'a> {
+    /// Context-independent bounds for runtime-only immutable loads.
+    immutable_ranges: Option<&'a FxHashMap<ImmutableId, Range>>,
     /// Shared CFG snapshot taken at entry, matching the previous fresh build.
     cfg: Option<Rc<CfgInfo>>,
     /// Statistics from the last run.
     stats: CheckElimStats,
     ranges: FxHashMap<ValueId, Range>,
     relations: FxHashSet<Relation>,
+    /// Possible outgoing facts; each candidate still requires a scoped membership check.
+    relation_index: Option<FxHashMap<ValueId, SmallVec<[Relation; 2]>>>,
+    /// Proven header phi invariants, indexed alongside the branch-derived candidates.
+    monotone_relations: Vec<Relation>,
+    /// Orderings between a derived value and its source that hold wherever the
+    /// value exists: shifts, masks, and constant divisions never grow.
+    universal_relations: FxHashSet<Relation>,
+    /// Relations indexed under their right operand, for lower-bound searches.
+    reverse_index: Option<FxHashMap<ValueId, SmallVec<[Relation; 2]>>>,
+    /// Differences indexed under their subtrahend: `b` maps to every `(a, a - b)`.
+    difference_index: Option<DifferenceIndex>,
+    /// Depth of the sum-bound lemma, which asks relational questions of its own.
+    sum_depth: usize,
+    /// Counting header phis with constant start and step, bounded by the
+    /// distance any affordable number of iterations can travel.
+    trip_bounds: FxHashMap<ValueId, Range>,
     range_undo: Vec<(ValueId, Option<Range>)>,
     relation_undo: Vec<Relation>,
 }
 
-impl CheckEliminator {
+impl<'a> CheckEliminator<'a> {
     /// Creates a new check eliminator.
     #[must_use]
-    fn new() -> Self {
-        Self::default()
+    fn new(immutable_ranges: Option<&'a FxHashMap<ImmutableId, Range>>) -> Self {
+        Self { immutable_ranges, ..Self::default() }
     }
 
     /// Runs check elimination on a function. Returns the number of folded
     /// branches.
     fn run(&mut self, func: &mut Function) -> usize {
+        self.run_in_blocks(func, None)
+    }
+
+    /// Restricts the rewritten blocks while retaining all facts needed to prove their checks.
+    fn run_in_blocks(
+        &mut self,
+        func: &mut Function,
+        selected: Option<(&DenseBitSet<BlockId>, &FxHashSet<FunctionId>)>,
+    ) -> usize {
         self.stats = CheckElimStats::default();
+        self.relation_index = None;
+        self.reverse_index = None;
+        self.monotone_relations.clear();
+        self.universal_relations.clear();
+        self.trip_bounds.clear();
+        if !func.blocks.iter().any(|block| {
+            matches!(
+                block.terminator,
+                Some(Terminator::Branch { then_block, else_block, .. }) if then_block != else_block
+            ) || block.instructions.iter().any(|&inst| {
+                matches!(
+                    func.inst(inst).kind,
+                    InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. }
+                )
+            })
+        }) {
+            return 0;
+        }
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
+        let relevant = branch_inputs(func, &cfg);
+        if relevant.is_empty() {
+            return 0;
+        }
+        self.universal_relations = universal_relations(func, &relevant);
 
         // Predecessors recomputed from reachable terminators: facts must only
         // come from edges that can actually execute.
@@ -156,36 +467,107 @@ impl CheckEliminator {
             }
         }
 
-        let folds = self.collect_folds(func, &cfg, &preds);
+        const MAX_ACYCLIC_JOIN_INSTRUCTIONS: usize = 128;
+        let bounded_acyclic_join = cfg.cyclic_blocks().is_empty()
+            && func.instructions().take(MAX_ACYCLIC_JOIN_INSTRUCTIONS + 1).count()
+                > MAX_ACYCLIC_JOIN_INSTRUCTIONS;
+        let mut facts = if selected.is_some() || bounded_acyclic_join {
+            // Bound the additional search in large acyclic functions, where
+            // copying fact sets through long chains is quadratic; the ordinary
+            // dominator proof still runs. Cyclic functions retain fixed-point
+            // propagation for induction ranges.
+            index_vec![Facts::default(); func.blocks.len()]
+        } else {
+            self.join_facts(func, &cfg, &preds, &relevant)
+        };
+        let candidates = monotone_phi_candidates(func, &cfg, &preds, &relevant);
+        for phi in &candidates {
+            if let Some(bound) = trip_count_bound(func, phi) {
+                self.trip_bounds.insert(phi.value, bound);
+            }
+        }
+        let mut proven = Vec::new();
+        let (mut folds, mut checks) =
+            self.collect_folds(func, &cfg, &preds, &facts, &candidates, &mut proven);
+        if !proven.is_empty() {
+            // The invariant is available wherever the phi is: attach it to the
+            // header's entry facts and index it for transitive queries.
+            for phi in &proven {
+                facts[phi.header].relations.insert(phi.relation());
+                if let Some(initial) = const_of(func, phi.initial) {
+                    let bound = if phi.decreasing {
+                        Range::new(U256::ZERO, initial)
+                    } else {
+                        Range::new(initial, U256::MAX)
+                    };
+                    let ranges = &mut facts[phi.header].ranges;
+                    let narrowed = ranges
+                        .get(&phi.value)
+                        .map_or(bound, |range| range.intersect(bound).unwrap_or(*range));
+                    ranges.insert(phi.value, narrowed);
+                }
+                self.monotone_relations.push(phi.relation());
+            }
+            self.relation_index = None;
+            (folds, checks) = self.collect_folds(func, &cfg, &preds, &facts, &[], &mut Vec::new());
+        }
+        if let Some((selected, reverting)) = selected {
+            folds.retain(|&(block, keep)| {
+                if selected.contains(block)
+                    && let Some(Terminator::Branch { then_block, else_block, .. }) =
+                        func.blocks[block].terminator
+                {
+                    let discarded = if keep == then_block { else_block } else { then_block };
+                    leads_to_revert(func, discarded, reverting)
+                } else {
+                    false
+                }
+            });
+        }
         self.ranges.clear();
         self.relations.clear();
         self.range_undo.clear();
         self.relation_undo.clear();
 
-        if folds.is_empty() {
+        if folds.is_empty() && checks.is_empty() {
             return 0;
         }
+        // branch proven_condition, keep, discard => jump keep
         for &(block, keep) in &folds {
-            func.blocks[block].terminator = Some(Terminator::Jump(keep));
+            // jumpi condition, ..., keep -> jump keep
+            fold_terminator_to_jump(func, block, keep);
+        }
+        if !checks.is_empty() {
+            // check a proven passing condition -> nothing
+            for block in func.blocks.iter_mut() {
+                block.instructions.retain(|&id| !checks.contains(id));
+            }
         }
         self.stats.branches_folded = folds.len();
-        folds.len()
+        self.stats.checks_removed = checks.count();
+        self.stats.branches_folded + self.stats.checks_removed
     }
 
-    /// Walks the dominator tree, recording edge facts and evaluating branch
-    /// conditions. Returns `(block, kept_target)` folds to apply.
+    /// Walks the dominator tree, recording edge and check facts. Returns branch folds and
+    /// proven passing checks to remove.
+    /// `candidates` whose update is proven wrap-free in its defining block's
+    /// scope are appended to `proven`.
     fn collect_folds(
         &mut self,
         func: &Function,
         cfg: &CfgInfo,
         preds: &IndexVec<BlockId, Vec<BlockId>>,
-    ) -> Vec<(BlockId, BlockId)> {
+        facts: &IndexVec<BlockId, Facts>,
+        candidates: &[MonotonePhi],
+        proven: &mut Vec<MonotonePhi>,
+    ) -> (Vec<(BlockId, BlockId)>, DenseBitSet<InstId>) {
         enum Walk {
             Enter(BlockId),
             Exit { range_mark: usize, relation_mark: usize },
         }
 
         let mut folds = Vec::new();
+        let mut checks = DenseBitSet::new_empty(func.num_insts());
         let mut stack = vec![Walk::Enter(BlockId::ENTRY)];
         while let Some(item) = stack.pop() {
             match item {
@@ -208,8 +590,39 @@ impl CheckEliminator {
                         relation_mark: self.relation_undo.len(),
                     });
 
+                    for (&value, &range) in &facts[block].ranges {
+                        self.narrow(value, range);
+                    }
+                    for &relation in &facts[block].relations {
+                        self.add_relation(relation);
+                    }
                     if let Some((condition, is_true)) = dominating_edge_fact(func, preds, block) {
                         self.assume(func, condition, is_true, MAX_DEPTH);
+                    }
+                    for candidate in candidates.iter().filter(|candidate| candidate.home == block) {
+                        if self.update_cannot_wrap(func, candidate) {
+                            proven.push(*candidate);
+                        }
+                    }
+
+                    for &id in &func.blocks[block].instructions {
+                        let fact = match &func.inst(id).kind {
+                            InstKind::ICall {
+                                function: Callee::Builtin(Builtin::Check { is_zero, .. }),
+                                args,
+                            } => Some((args[0], *is_zero)),
+                            InstKind::ICall {
+                                function: Callee::Builtin(Builtin::Require(_)),
+                                args,
+                            } => Some((args[0], true)),
+                            _ => None,
+                        };
+                        if let Some((condition, passing)) = fact {
+                            if self.eval_truth(func, condition, MAX_DEPTH) == Some(passing) {
+                                checks.insert(id);
+                            }
+                            self.assume(func, condition, passing, MAX_DEPTH);
+                        }
                     }
 
                     if let Some(Terminator::Branch { condition, then_block, else_block }) =
@@ -226,7 +639,171 @@ impl CheckEliminator {
                 }
             }
         }
-        folds
+        (folds, checks)
+    }
+
+    /// Decides in the current scope whether a monotone phi's update cannot
+    /// wrap, without assuming the invariant it would establish.
+    fn update_cannot_wrap(&mut self, func: &Function, phi: &MonotonePhi) -> bool {
+        if phi.decreasing {
+            // `p - c` wraps exactly when `p < c`.
+            self.eval_lt(func, phi.value, phi.step, MAX_DEPTH) == Some(false)
+        } else {
+            // `lt (add p, c), p` is the wrap flag of `p + c`.
+            self.eval_lt(func, phi.next, phi.value, MAX_DEPTH) == Some(false)
+        }
+    }
+
+    /// Transfers edge facts from unknown, retaining only definitions available
+    /// at the join and evaluating relevant phis in each predecessor's context.
+    fn join_facts(
+        &mut self,
+        func: &Function,
+        cfg: &CfgInfo,
+        preds: &IndexVec<BlockId, Vec<BlockId>>,
+        relevant: &DenseBitSet<ValueId>,
+    ) -> IndexVec<BlockId, Facts> {
+        const MAX_ROUNDS: usize = 8;
+        let definitions = func.inst_blocks();
+        // A predicate consumed only by this branch cannot be queried after the edge.
+        // Preserve its operand facts, but do not copy the dead predicate's own range
+        // through every later block. Single-use ISZERO chains have the same property.
+        let mut uses = index_vec![0usize; func.num_values()];
+        for block in &func.blocks {
+            for &inst in &block.instructions {
+                for value in func.inst(inst).operands() {
+                    uses[value] += 1;
+                }
+            }
+            if let Some(term) = &block.terminator {
+                term.for_each_operand(|value| uses[value] += 1);
+            }
+        }
+        let mut consumed_conditions = FxHashMap::<BlockId, SmallVec<[ValueId; 2]>>::default();
+        for &block in cfg.rpo() {
+            if let Some(Terminator::Branch { condition, .. }) = func.blocks[block].terminator {
+                let mut value = condition;
+                while uses[value] == 1 {
+                    consumed_conditions.entry(block).or_default().push(value);
+                    let Some(InstKind::IsZero(inner)) = inst_kind(func, value) else { break };
+                    value = *inner;
+                }
+            }
+        }
+        let mut entries = index_vec![Facts::default(); func.blocks.len()];
+        let mut exits = entries.clone();
+        let mut cx = Self::new(self.immutable_ranges);
+        cx.universal_relations.clone_from(&self.universal_relations);
+        let mut pending = cfg.reachable().clone();
+        for _ in 0..MAX_ROUNDS {
+            let mut changed = false;
+            for &block in cfg.rpo() {
+                if !pending.remove(block) {
+                    continue;
+                }
+                let mut merged: Option<Facts> = None;
+                if block != BlockId::ENTRY {
+                    for &pred in &preds[block] {
+                        cx.ranges.clone_from(&exits[pred].ranges);
+                        cx.relations.clone_from(&exits[pred].relations);
+                        cx.range_undo.clear();
+                        cx.relation_undo.clear();
+                        if let Some(Terminator::Branch { condition, then_block, else_block }) =
+                            func.blocks[pred].terminator
+                            && then_block != else_block
+                        {
+                            cx.assume(func, condition, then_block == block, MAX_DEPTH);
+                        }
+                        // Evaluate all inputs before assigning any phi: loop
+                        // phis describe a simultaneous parallel assignment.
+                        let phi_ranges: Vec<_> = func.blocks[block]
+                            .instructions
+                            .iter()
+                            .filter_map(|&inst| {
+                                let InstKind::Phi(incoming) = &func.inst(inst).kind else {
+                                    return None;
+                                };
+                                let value = func.inst_result_value(inst)?;
+                                if !relevant.contains(value) {
+                                    return None;
+                                }
+                                let &(_, input) =
+                                    incoming.iter().find(|&&(from, _)| from == pred)?;
+                                Some((value, cx.range_of(func, input, MAX_DEPTH)))
+                            })
+                            .collect();
+                        for value in consumed_conditions.get(&pred).into_iter().flatten() {
+                            cx.ranges.remove(value);
+                        }
+                        let available = |value| match func.value(value) {
+                            Value::Inst(inst) => definitions.get(inst).is_some_and(|&home| {
+                                home != block && cfg.dominators().dominates(home, block)
+                            }),
+                            _ => true,
+                        };
+                        cx.ranges.retain(|&value, _| available(value));
+                        cx.relations.retain(|relation| {
+                            let (a, b) = relation.operands();
+                            available(a) && available(b)
+                        });
+                        for (value, range) in phi_ranges {
+                            if range != Range::FULL {
+                                cx.ranges.insert(value, range);
+                            }
+                        }
+                        if let Some(merged) = &mut merged {
+                            merged.ranges.retain(|value, range| {
+                                if let Some(other) = cx.ranges.get(value) {
+                                    *range = range.union(*other);
+                                    *range != Range::FULL
+                                } else {
+                                    false
+                                }
+                            });
+                            merged.relations.retain(|relation| cx.relations.contains(relation));
+                        } else {
+                            merged = Some(Facts {
+                                ranges: std::mem::take(&mut cx.ranges),
+                                relations: std::mem::take(&mut cx.relations),
+                            });
+                        }
+                    }
+                }
+                let entry = merged.unwrap_or_default();
+                cx.ranges.clone_from(&entry.ranges);
+                cx.relations.clone_from(&entry.relations);
+                cx.range_undo.clear();
+                cx.relation_undo.clear();
+                for &inst in &func.blocks[block].instructions {
+                    if let Some(value) = func.inst_result_value(inst)
+                        && relevant.contains(value)
+                    {
+                        let range = cx.range_of(func, value, MAX_DEPTH);
+                        if range != Range::FULL {
+                            cx.ranges.insert(value, range);
+                        }
+                    }
+                }
+                let exit = Facts {
+                    ranges: std::mem::take(&mut cx.ranges),
+                    relations: std::mem::take(&mut cx.relations),
+                };
+                if exits[block] != exit {
+                    for &successor in cfg.successors(block) {
+                        pending.insert(successor);
+                    }
+                }
+                changed |= entries[block] != entry || exits[block] != exit;
+                entries[block] = entry;
+                exits[block] = exit;
+            }
+            if !changed {
+                break;
+            }
+        }
+        self.relation_index = cx.relation_index;
+        self.reverse_index = cx.reverse_index;
+        entries
     }
 
     // === Fact recording ===
@@ -328,7 +905,9 @@ impl CheckEliminator {
     fn narrow(&mut self, value: ValueId, range: Range) {
         let old = self.ranges.get(&value).copied();
         let Some(new) = old.unwrap_or(Range::FULL).intersect(range) else { return };
-        if Some(new) == old {
+        // A missing entry already denotes FULL. Materializing that sentinel
+        // makes long check chains copy facts that convey no restriction.
+        if new == old.unwrap_or(Range::FULL) {
             return;
         }
         self.range_undo.push((value, old));
@@ -341,8 +920,224 @@ impl CheckEliminator {
         }
     }
 
-    fn has_relation(&self, relation: Relation) -> bool {
-        self.relations.contains(&relation)
+    /// Builds the forward and reverse relation indexes on first use.
+    fn ensure_relation_index(&mut self, func: &Function) {
+        if self.relation_index.is_some() {
+            return;
+        }
+        let mut index = relation_candidates(func);
+        for &relation in &self.monotone_relations {
+            index_relation(&mut index, relation);
+        }
+        for &relation in &self.universal_relations {
+            index_relation(&mut index, relation);
+        }
+        let mut reverse = FxHashMap::<_, SmallVec<[Relation; 2]>>::default();
+        for relation in index.values().flatten() {
+            let (a, b) = relation.operands();
+            for key in if matches!(relation, Relation::Eq(..)) { [a, b] } else { [b, b] } {
+                let entry = reverse.entry(key).or_default();
+                if !entry.contains(relation) {
+                    entry.push(*relation);
+                }
+            }
+        }
+        let mut differences = FxHashMap::<_, SmallVec<[(ValueId, ValueId); 2]>>::default();
+        for inst_id in func.instructions() {
+            let Some(value) = func.inst_result_value(inst_id) else { continue };
+            if let InstKind::Sub(minuend, subtrahend) = func.inst(inst_id).kind {
+                let entry = differences.entry(subtrahend).or_default();
+                if !entry.contains(&(minuend, value)) {
+                    entry.push((minuend, value));
+                }
+            }
+        }
+        self.relation_index = Some(index);
+        self.reverse_index = Some(reverse);
+        self.difference_index = Some(differences);
+    }
+
+    /// Whether `base + offset` stays below some value the scope relates to
+    /// `limit`, which also proves the sum cannot wrap.
+    ///
+    /// A checked slice bounds its index by a difference: `k < end - start`
+    /// with `start <= end` puts `start + k` below `end`, because the scope
+    /// computing `end - start` without wrapping makes the difference exact.
+    /// The sum stays below `end`, so it cannot wrap either. Passing `None` for
+    /// `limit` asks only for wrap freedom.
+    fn sum_stays_below(&mut self, func: &Function, sum: ValueId, limit: Option<ValueId>) -> bool {
+        const MAX_SUM_DEPTH: usize = 2;
+        if self.sum_depth >= MAX_SUM_DEPTH {
+            return false;
+        }
+        let Some(&InstKind::Add(first, second)) = inst_kind(func, sum) else { return false };
+        self.ensure_relation_index(func);
+        self.sum_depth += 1;
+        let found = [(first, second), (second, first)].into_iter().any(|(base, offset)| {
+            let candidates = self
+                .difference_index
+                .as_ref()
+                .and_then(|index| index.get(&base))
+                .cloned()
+                .unwrap_or_default();
+            candidates.into_iter().any(|(minuend, difference)| {
+                self.has_relation(func, Relation::Lt(offset, difference))
+                    && self.has_relation(func, Relation::Le(base, minuend))
+                    && limit.is_none_or(|limit| {
+                        minuend == limit || self.has_relation(func, Relation::Le(minuend, limit))
+                    })
+            })
+        });
+        self.sum_depth -= 1;
+        found
+    }
+
+    /// Whether `base + amount < bound` holds in the current scope for a
+    /// literal `amount` of at least `offset` such that `base + amount`
+    /// cannot wrap.
+    fn has_larger_offset_bound(
+        &mut self,
+        func: &Function,
+        base: ValueId,
+        offset: U256,
+        bound: ValueId,
+        depth: usize,
+    ) -> bool {
+        self.ensure_relation_index(func);
+        let reverse = self.reverse_index.as_ref().expect("relation index was just built");
+        let mut amounts = SmallVec::<[U256; 4]>::new();
+        for &fact in reverse.get(&bound).into_iter().flatten() {
+            let Relation::Lt(index, limit) = fact else { continue };
+            if limit != bound
+                || !(self.relations.contains(&fact) || self.universal_relations.contains(&fact))
+            {
+                continue;
+            }
+            let amount = match inst_kind(func, index) {
+                Some(&InstKind::Add(x, c)) if x == base => const_of(func, c),
+                Some(&InstKind::Add(c, x)) if x == base => const_of(func, c),
+                _ => None,
+            };
+            if let Some(amount) = amount
+                && amount >= offset
+            {
+                amounts.push(amount);
+            }
+        }
+        if amounts.is_empty() {
+            return false;
+        }
+        let hi = self.range_of(func, base, depth).hi;
+        amounts.into_iter().any(|amount| hi.checked_add(amount).is_some())
+    }
+
+    /// Whether some value is provably below `value` in the current scope,
+    /// which puts `value` at one or more: every word is at least zero.
+    fn has_strict_lower_bound(&mut self, func: &Function, value: ValueId) -> bool {
+        self.ensure_relation_index(func);
+        let reverse = self.reverse_index.as_ref().expect("relation index was just built");
+        if !reverse.contains_key(&value) {
+            return false;
+        }
+        const MAX_RELATION_STATES: usize = 128;
+        let mut pending = SmallVec::<[_; 8]>::new();
+        pending.push(value);
+        let mut seen = FxHashSet::default();
+        while let Some(current) = pending.pop() {
+            if !seen.insert(current) {
+                continue;
+            }
+            if seen.len() >= MAX_RELATION_STATES {
+                return false;
+            }
+            for &fact in reverse.get(&current).into_iter().flatten() {
+                if !self.relations.contains(&fact) && !self.universal_relations.contains(&fact) {
+                    continue;
+                }
+                match fact {
+                    Relation::Lt(_, b) if b == current => return true,
+                    Relation::Le(a, b) if b == current => pending.push(a),
+                    Relation::Eq(a, b) if a == current => pending.push(b),
+                    Relation::Eq(a, b) if b == current => pending.push(a),
+                    _ => {}
+                }
+            }
+        }
+        false
+    }
+
+    fn has_relation(&mut self, func: &Function, relation: Relation) -> bool {
+        if self.relations.contains(&relation) || self.universal_relations.contains(&relation) {
+            return true;
+        }
+        let (start, end, needs_strict, equality_only) = match relation {
+            Relation::Lt(a, b) => (a, b, true, false),
+            Relation::Le(a, b) => (a, b, false, false),
+            Relation::Eq(a, b) => (a, b, false, true),
+            Relation::Ne(..) => return false,
+        };
+        if start == end && !needs_strict {
+            return true;
+        }
+        if self.relations.len() <= 1 && self.universal_relations.is_empty() {
+            // A single strict/equal edge also proves a non-strict comparison.
+            // Every other single-edge implication was covered by direct lookup.
+            return self.relations.iter().any(|fact| match *fact {
+                Relation::Lt(a, b) => !equality_only && !needs_strict && a == start && b == end,
+                Relation::Eq(a, b) => !needs_strict && ordered(start, end) == (a, b),
+                Relation::Le(..) | Relation::Ne(..) => false,
+            });
+        }
+        self.ensure_relation_index(func);
+        let index = self.relation_index.as_ref().expect("relation index was just built");
+        if !index.contains_key(&start) {
+            return false;
+        }
+        // A bounded implication search: equality is bidirectional, <= carries
+        // order, and one strict edge makes the complete path strict. Disequality
+        // is not transitive. Exhausting the budget only misses an optimization.
+        const MAX_RELATION_STATES: usize = 128;
+        let mut pending = SmallVec::<[_; 8]>::new();
+        pending.push((start, false));
+        let mut seen = FxHashSet::default();
+        while let Some((value, strict)) = pending.pop() {
+            if value == end && (!needs_strict || strict) {
+                return true;
+            }
+            if !seen.insert((value, strict)) {
+                continue;
+            }
+            if seen.len() >= MAX_RELATION_STATES {
+                return false;
+            }
+            for &fact in index.get(&value).into_iter().flatten() {
+                if !self.relations.contains(&fact) && !self.universal_relations.contains(&fact) {
+                    continue;
+                }
+                let next = match fact {
+                    Relation::Eq(a, b) if a == value => Some((b, strict)),
+                    Relation::Eq(a, b) if b == value => Some((a, strict)),
+                    Relation::Le(a, b) if a == value && !equality_only => Some((b, strict)),
+                    Relation::Lt(a, b) if a == value && !equality_only => Some((b, true)),
+                    _ => None,
+                };
+                if let Some(next) = next {
+                    pending.push(next);
+                }
+            }
+        }
+        // A sum bounded by a difference is below that difference's minuend,
+        // which the edges above could not express because the difference
+        // relates the offset rather than the sum.
+        match relation {
+            Relation::Lt(sum, limit) => self.sum_stays_below(func, sum, Some(limit)),
+            // `a <= a + b` needs only that the sum cannot wrap.
+            Relation::Le(base, sum) => {
+                matches!(inst_kind(func, sum), Some(&InstKind::Add(x, y)) if x == base || y == base)
+                    && self.sum_stays_below(func, sum, None)
+            }
+            Relation::Eq(..) | Relation::Ne(..) => false,
+        }
     }
 
     // === Evaluation ===
@@ -354,9 +1149,20 @@ impl CheckEliminator {
             return Range::singleton(constant);
         }
         let mut range = self.ranges.get(&value).copied().unwrap_or(Range::FULL);
+        if let Some(bound) = self.trip_bounds.get(&value) {
+            range = range.intersect(*bound).unwrap_or(range);
+        }
+        if range.lo.is_zero() && self.has_strict_lower_bound(func, value) {
+            range.lo = U256::ONE;
+        }
         let Some(depth) = depth.checked_sub(1) else { return range };
         let Some(kind) = inst_kind(func, value) else { return range };
         let derived = match *kind {
+            InstKind::LoadImmutable(id) => self
+                .immutable_ranges
+                .and_then(|ranges| ranges.get(&id))
+                .copied()
+                .unwrap_or(Range::FULL),
             InstKind::Add(a, b) => {
                 let ra = self.range_of(func, a, depth);
                 let rb = self.range_of(func, b, depth);
@@ -398,6 +1204,30 @@ impl CheckEliminator {
                 let ra = self.range_of(func, a, depth);
                 let rb = self.range_of(func, b, depth);
                 Range::new(U256::ZERO, ra.hi.min(rb.hi))
+            }
+            // EVM shifts take the count first. A constant right shift maps both
+            // bounds; a constant left shift keeps them when the top cannot spill.
+            InstKind::Shr(shift, value) => {
+                let rv = self.range_of(func, value, depth);
+                match shift_amount(self, func, shift, depth) {
+                    Some(bits) => Range::new(rv.lo >> bits, rv.hi >> bits),
+                    None => Range::new(U256::ZERO, rv.hi),
+                }
+            }
+            InstKind::Shl(shift, value) => {
+                let rv = self.range_of(func, value, depth);
+                match shift_amount(self, func, shift, depth) {
+                    Some(bits) if rv.hi.leading_zeros() >= bits => {
+                        Range::new(rv.lo << bits, rv.hi << bits)
+                    }
+                    _ => Range::FULL,
+                }
+            }
+            // `byte` extracts one byte and yields zero past the word.
+            InstKind::Byte(..) => Range::new(U256::ZERO, U256::from(255)),
+            InstKind::Not(a) => {
+                let ra = self.range_of(func, a, depth);
+                Range::new(!ra.hi, !ra.lo)
             }
             InstKind::Lt(..)
             | InstKind::Gt(..)
@@ -442,6 +1272,9 @@ impl CheckEliminator {
                 return Some(false);
             }
         }
+        if self.has_strict_lower_bound(func, value) {
+            return Some(true);
+        }
         let depth = depth.checked_sub(1)?;
         let kind = inst_kind(func, value)?;
         match *kind {
@@ -466,6 +1299,11 @@ impl CheckEliminator {
                 None
             }
             InstKind::Or(a, b) => {
+                if self.doubling_check_holds(func, a, b, depth)
+                    || self.doubling_check_holds(func, b, a, depth)
+                {
+                    return Some(true);
+                }
                 let ta = self.eval_truth(func, a, depth);
                 let tb = self.eval_truth(func, b, depth);
                 if ta == Some(true) || tb == Some(true) {
@@ -494,29 +1332,11 @@ impl CheckEliminator {
         if a == b {
             return Some(false);
         }
-        let (x, y) = ordered(a, b);
-        if self.has_relation(Relation::Lt(a, b)) {
-            return Some(true);
-        }
-        if self.has_relation(Relation::Lt(b, a))
-            || self.has_relation(Relation::Le(b, a))
-            || self.has_relation(Relation::Eq(x, y))
-        {
-            return Some(false);
-        }
-
-        let ra = self.range_of(func, a, depth);
-        let rb = self.range_of(func, b, depth);
-        if ra.hi < rb.lo {
-            return Some(true);
-        }
-        if ra.lo >= rb.hi {
-            return Some(false);
-        }
 
         // Overflow check for checked add: `lt (add x, y), x` is the wrap
-        // flag of `x + y`. If the maximum bounds cannot wrap the check is
-        // false; if even the minimum bounds wrap it is true.
+        // flag of `x + y`. Test it before the general relation and range path:
+        // expanding the result range would recursively derive the same input
+        // bounds and discard it once wrapping remains possible.
         if let Some(&InstKind::Add(x, y)) = inst_kind(func, a)
             && (b == x || b == y)
         {
@@ -539,6 +1359,85 @@ impl CheckEliminator {
             return self.eval_lt(func, x, y, reduced_depth);
         }
 
+        // A doubled index stays below a doubled bound its source respects:
+        // `2x < 2y` and `2x + 1 < 2y` follow from `x < y` when `2y` cannot wrap,
+        // which covers `out[2 * i]` and `out[2 * i + 1]` against `2 * n`.
+        if let (Some((x, _)), Some((y, false))) = (doubled(func, a), doubled(func, b))
+            && self.range_of(func, y, depth).hi.leading_zeros() >= 1
+            && self.has_relation(func, Relation::Lt(x, y))
+        {
+            return Some(true);
+        }
+
+        // A decremented index stays below a bound its source respects:
+        // `x - c < b` follows from `x <= b` when `c >= 1` and `x - c` cannot
+        // wrap, which covers `a[j - 1]` after `j <= i < a.length`.
+        if let Some(&InstKind::Sub(x, c)) = inst_kind(func, a)
+            && let Some(step) = const_of(func, c)
+            && !step.is_zero()
+            && self.range_of(func, x, depth).lo >= step
+            && self.has_relation(func, Relation::Le(x, b))
+        {
+            return Some(true);
+        }
+
+        // A difference stays below whatever its minuend stays below:
+        // `x - y < b` follows from `y <= x` (no wrap) and `x < b`, which
+        // covers `a[length - 1 - i]` once `i <= length - 1 < length`.
+        if let Some(&InstKind::Sub(x, y)) = inst_kind(func, a)
+            && let Some(reduced_depth) = depth.checked_sub(1)
+            && (self.has_relation(func, Relation::Le(y, x))
+                || self.range_of(func, x, depth).lo >= self.range_of(func, y, depth).hi)
+            && self.eval_lt(func, x, b, reduced_depth) == Some(true)
+        {
+            return Some(true);
+        }
+
+        // `x - 1 < b` is false when `b < x` and `x` is nonzero: `b < x` means
+        // `b <= x - 1`, which covers `length - 1 < i` after `i < length`.
+        if let Some(&InstKind::Sub(x, c)) = inst_kind(func, a)
+            && const_of(func, c) == Some(U256::ONE)
+            && self.range_of(func, x, depth).lo >= U256::ONE
+            && self.has_relation(func, Relation::Lt(b, x))
+        {
+            return Some(false);
+        }
+
+        // A smaller constant offset stays below whatever a larger one stays
+        // below: `x + b < n` follows from `x + a < n` when `b <= a` and
+        // `x + a` cannot wrap, which covers the lookahead guards and the
+        // original bound of a loop split to run while `i + K < n`.
+        let (base, offset) = match inst_kind(func, a) {
+            Some(&InstKind::Add(x, c)) if const_of(func, c).is_some() => (x, const_of(func, c)),
+            Some(&InstKind::Add(c, x)) if const_of(func, c).is_some() => (x, const_of(func, c)),
+            _ => (a, Some(U256::ZERO)),
+        };
+        if let Some(offset) = offset
+            && self.has_larger_offset_bound(func, base, offset, b, depth)
+        {
+            return Some(true);
+        }
+
+        let (x, y) = ordered(a, b);
+        if self.has_relation(func, Relation::Lt(a, b)) {
+            return Some(true);
+        }
+        if self.has_relation(func, Relation::Lt(b, a))
+            || self.has_relation(func, Relation::Le(b, a))
+            || self.has_relation(func, Relation::Eq(x, y))
+        {
+            return Some(false);
+        }
+
+        let ra = self.range_of(func, a, depth);
+        let rb = self.range_of(func, b, depth);
+        if ra.hi < rb.lo {
+            return Some(true);
+        }
+        if ra.lo >= rb.hi {
+            return Some(false);
+        }
+
         None
     }
 
@@ -547,13 +1446,34 @@ impl CheckEliminator {
         if a == b {
             return Some(true);
         }
+
+        // Overflow check for checked mul: `eq (div (mul x, y), y), x` holds
+        // iff `x * y` did not wrap, provided the divisor is nonzero. Recognize
+        // it before deriving the complete ranges of both expression trees.
+        if let Some(truth) = self.eval_muldiv_roundtrip(func, a, b, depth) {
+            return Some(truth);
+        }
+        if let Some(truth) = self.eval_muldiv_roundtrip(func, b, a, depth) {
+            return Some(truth);
+        }
+        // Its doubling form `eq (shr 1, (add x, x)), x` holds iff `x + x` did not wrap.
+        for (shifted, expected) in [(a, b), (b, a)] {
+            if let Some(&InstKind::Shr(count, sum)) = inst_kind(func, shifted)
+                && const_of(func, count) == Some(U256::from(1))
+                && doubled(func, sum) == Some((expected, false))
+                && self.range_of(func, expected, depth).hi.leading_zeros() >= 1
+            {
+                return Some(true);
+            }
+        }
+
         let (x, y) = ordered(a, b);
-        if self.has_relation(Relation::Eq(x, y)) {
+        if self.has_relation(func, Relation::Eq(x, y)) {
             return Some(true);
         }
-        if self.has_relation(Relation::Ne(x, y))
-            || self.has_relation(Relation::Lt(a, b))
-            || self.has_relation(Relation::Lt(b, a))
+        if self.has_relation(func, Relation::Ne(x, y))
+            || self.has_relation(func, Relation::Lt(a, b))
+            || self.has_relation(func, Relation::Lt(b, a))
         {
             return Some(false);
         }
@@ -567,16 +1487,34 @@ impl CheckEliminator {
             return Some(true);
         }
 
-        // Overflow check for checked mul: `eq (div (mul x, y), y), x` holds
-        // iff `x * y` did not wrap, provided the divisor is nonzero.
-        if let Some(truth) = self.eval_muldiv_roundtrip(func, a, b, depth) {
-            return Some(truth);
-        }
-        if let Some(truth) = self.eval_muldiv_roundtrip(func, b, a, depth) {
-            return Some(truth);
-        }
-
         None
+    }
+
+    /// Recognizes the checked doubling `or (iszero x), (eq (div (add x, x), x), 2)`,
+    /// which holds whenever `x + x` cannot wrap: a zero `x` satisfies the first
+    /// disjunct and any other `x` divides its doubling back to two.
+    fn doubling_check_holds(
+        &mut self,
+        func: &Function,
+        zero_test: ValueId,
+        roundtrip: ValueId,
+        depth: usize,
+    ) -> bool {
+        let Some(&InstKind::IsZero(x)) = inst_kind(func, zero_test) else { return false };
+        let Some(&InstKind::Eq(lhs, rhs)) = inst_kind(func, roundtrip) else { return false };
+        let (quotient, two) = if const_of(func, rhs) == Some(U256::from(2)) {
+            (lhs, rhs)
+        } else if const_of(func, lhs) == Some(U256::from(2)) {
+            (rhs, lhs)
+        } else {
+            return false;
+        };
+        debug_assert!(const_of(func, two).is_some());
+        let Some(&InstKind::Div(sum, divisor)) = inst_kind(func, quotient) else { return false };
+        if divisor != x || doubled(func, sum) != Some((x, false)) {
+            return false;
+        }
+        self.range_of(func, x, depth).hi.leading_zeros() >= 1
     }
 
     /// Recognizes `div (mul x, y), d == x` with `d == y` and proves it true
@@ -607,6 +1545,215 @@ impl CheckEliminator {
     }
 }
 
+/// Values whose ranges can affect a branch, closed over all SSA operands.
+/// Phi inputs keep loop-carried dependencies in the set. Memory and call
+/// operands are included conservatively even when range evaluation stops there.
+fn branch_inputs(func: &Function, cfg: &CfgInfo) -> DenseBitSet<ValueId> {
+    let mut relevant = DenseBitSet::new_empty(func.num_values());
+    let mut pending = cfg
+        .rpo()
+        .iter()
+        .filter_map(|&block| match func.blocks[block].terminator {
+            Some(Terminator::Branch { condition, then_block, else_block })
+                if then_block != else_block =>
+            {
+                Some(condition)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for &block in cfg.rpo() {
+        for &inst in &func.blocks[block].instructions {
+            if let InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), args } =
+                &func.inst(inst).kind
+            {
+                pending.push(args[0]);
+            }
+        }
+    }
+    while let Some(value) = pending.pop() {
+        if relevant.insert(value)
+            && let Value::Inst(inst) = func.value(value)
+        {
+            pending.extend(func.inst(*inst).operands());
+        }
+    }
+    relevant
+}
+
+/// Follows the boolean operations that `assume` can inspect, in stable block
+/// and operand order. Other computations cannot introduce a relational fact.
+/// Conditions outside the current scope are harmless: every candidate still
+/// requires membership in the current fact set. No IR changes during analysis.
+/// Orderings that hold wherever their operands do: a right shift, a division
+/// by a nonzero constant, a mask, or a remainder never exceeds the value it
+/// derives from. Only values feeding branches are indexed.
+fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHashSet<Relation> {
+    let mut relations = FxHashSet::default();
+    for inst_id in func.instructions() {
+        let Some(value) = func.inst_result_value(inst_id) else { continue };
+        if !relevant.contains(value) {
+            continue;
+        }
+        match func.inst(inst_id).kind {
+            InstKind::Shr(_, x) | InstKind::Mod(x, _) => {
+                relations.insert(Relation::Le(value, x));
+            }
+            InstKind::Div(x, divisor) if const_of(func, divisor).is_some_and(|c| !c.is_zero()) => {
+                relations.insert(Relation::Le(value, x));
+            }
+            InstKind::And(x, y) => {
+                relations.insert(Relation::Le(value, x));
+                relations.insert(Relation::Le(value, y));
+            }
+            // If conversion rewrites `if (x > limit) x = limit` to
+            // `x + (x > limit) * (limit - x)`, which is `limit` when the test
+            // holds and `x` otherwise, so it never exceeds `limit`.
+            InstKind::Add(x, adjustment) => {
+                for (x, adjustment) in [(x, adjustment), (adjustment, x)] {
+                    if let Some(limit) = clamp_limit(func, x, adjustment) {
+                        relations.insert(Relation::Le(value, limit));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    relations
+}
+
+/// The upper limit of a clamp written as `x + (x > limit) * (limit - x)`.
+///
+/// The product is zero when the test fails, leaving `x`, and `limit - x` when
+/// it holds, leaving exactly `limit` under wrapping addition. Either way the
+/// sum is at most `limit`.
+fn clamp_limit(func: &Function, x: ValueId, adjustment: ValueId) -> Option<ValueId> {
+    let &InstKind::Mul(first, second) = inst_kind(func, adjustment)? else { return None };
+    for (condition, difference) in [(first, second), (second, first)] {
+        let Some(&InstKind::Gt(tested, limit)) = inst_kind(func, condition) else { continue };
+        if tested != x {
+            continue;
+        }
+        if let Some(&InstKind::Sub(minuend, subtrahend)) = inst_kind(func, difference)
+            && minuend == limit
+            && subtrahend == x
+        {
+            return Some(limit);
+        }
+    }
+    None
+}
+
+fn relation_candidates(func: &Function) -> FxHashMap<ValueId, SmallVec<[Relation; 2]>> {
+    let mut index = FxHashMap::<_, SmallVec<[Relation; 2]>>::default();
+    let mut seen = FxHashSet::default();
+    let mut add = |relation: Relation| {
+        if seen.insert(relation) {
+            index_relation(&mut index, relation);
+        }
+    };
+    let mut visited = DenseBitSet::new_empty(func.num_values());
+    let mut pending = Vec::new();
+    for block in &func.blocks {
+        if let Some(Terminator::Branch { condition, then_block, else_block }) = block.terminator
+            && then_block != else_block
+        {
+            pending.push(condition);
+        }
+        while let Some(value) = pending.pop() {
+            if !visited.insert(value) {
+                continue;
+            }
+            match inst_kind(func, value) {
+                Some(&InstKind::Lt(a, b)) | Some(&InstKind::Gt(b, a)) => {
+                    add(Relation::Lt(a, b));
+                    add(Relation::Le(b, a));
+                }
+                Some(&InstKind::Eq(a, b) | &InstKind::Sub(a, b) | &InstKind::Xor(a, b)) => {
+                    let (x, y) = ordered(a, b);
+                    add(Relation::Eq(x, y));
+                }
+                Some(&InstKind::IsZero(a)) => pending.push(a),
+                Some(&InstKind::And(a, b) | &InstKind::Or(a, b)) => {
+                    pending.extend([b, a]);
+                }
+                _ => {}
+            }
+        }
+    }
+    index
+}
+
+/// Indexes `relation` under its left operand, and under both operands for an
+/// equality, so transitive searches can leave from either side.
+fn index_relation(index: &mut FxHashMap<ValueId, SmallVec<[Relation; 2]>>, relation: Relation) {
+    let (a, b) = relation.operands();
+    let entry = index.entry(a).or_default();
+    if !entry.contains(&relation) {
+        entry.push(relation);
+    }
+    if matches!(relation, Relation::Eq(..)) && a != b {
+        let entry = index.entry(b).or_default();
+        if !entry.contains(&relation) {
+            entry.push(relation);
+        }
+    }
+}
+
+/// Finds header phis `p = phi [pre: init], [latch: p - c]` or `[latch: p + c]`
+/// with a constant nonzero step whose header dominates the latch but not the
+/// outside predecessor. Only phis that can influence a branch are considered.
+fn monotone_phi_candidates(
+    func: &Function,
+    cfg: &CfgInfo,
+    preds: &IndexVec<BlockId, Vec<BlockId>>,
+    relevant: &DenseBitSet<ValueId>,
+) -> Vec<MonotonePhi> {
+    let mut candidates = Vec::new();
+    let cyclic = cfg.cyclic_blocks();
+    if cyclic.is_empty() {
+        return candidates;
+    }
+    let definitions = func.inst_blocks();
+    let dominators = cfg.dominators();
+    for header in cyclic.iter() {
+        for &inst in &func.blocks[header].instructions {
+            let InstKind::Phi(incoming) = &func.inst(inst).kind else { continue };
+            let Some(value) = func.inst_result_value(inst) else { continue };
+            if !relevant.contains(value) {
+                continue;
+            }
+            let [(first_block, first), (second_block, second)] = incoming.as_slice() else {
+                continue;
+            };
+            let (pre, initial, latch, next) = match (
+                dominators.dominates(header, *first_block),
+                dominators.dominates(header, *second_block),
+            ) {
+                (false, true) => (*first_block, *first, *second_block, *second),
+                (true, false) => (*second_block, *second, *first_block, *first),
+                _ => continue,
+            };
+            if !preds[header].contains(&pre) || !preds[header].contains(&latch) {
+                continue;
+            }
+            let Value::Inst(next_inst) = func.value(next) else { continue };
+            let (step, decreasing) = match func.inst(*next_inst).kind {
+                InstKind::Sub(base, step) if base == value => (step, true),
+                InstKind::Add(base, step) if base == value => (step, false),
+                InstKind::Add(step, base) if base == value => (step, false),
+                _ => continue,
+            };
+            if !const_of(func, step).is_some_and(|step| !step.is_zero()) {
+                continue;
+            }
+            let Some(&home) = definitions.get(next_inst) else { continue };
+            candidates.push(MonotonePhi { header, value, initial, next, step, home, decreasing });
+        }
+    }
+    candidates
+}
+
 /// Returns the fact implied on the unique dominating edge into `block`:
 /// the branch condition of its sole predecessor and whether it is true.
 fn dominating_edge_fact(
@@ -634,6 +1781,55 @@ fn dominating_edge_fact(
         Some((*condition, false))
     } else {
         None
+    }
+}
+
+/// The constant shift count of a shift operand below the word width, if known.
+fn shift_amount(
+    eliminator: &mut CheckEliminator<'_>,
+    func: &Function,
+    shift: ValueId,
+    depth: usize,
+) -> Option<usize> {
+    let range = eliminator.range_of(func, shift, depth);
+    (range.is_singleton() && range.lo < U256::from(256)).then(|| range.lo.to::<usize>())
+}
+
+/// Recognizes `x + x` and `x + x + 1`, the shapes a checked multiplication by
+/// two takes after canonicalization, as `(x, adds_one)`.
+fn doubled(func: &Function, value: ValueId) -> Option<(ValueId, bool)> {
+    match *inst_kind(func, value)? {
+        InstKind::Add(a, b) if a == b => Some((a, false)),
+        InstKind::Add(a, b) => {
+            let (inner, one) = if const_of(func, b) == Some(U256::from(1)) {
+                (a, b)
+            } else if const_of(func, a) == Some(U256::from(1)) {
+                (b, a)
+            } else {
+                return None;
+            };
+            debug_assert!(const_of(func, one).is_some());
+            match *inst_kind(func, inner)? {
+                InstKind::Add(x, y) if x == y => Some((x, true)),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+/// The values a counting header phi can take within the target's trip bound:
+/// `initial + k * step` (or `initial - k * step`) for at most
+/// `2^MAX_TRIP_COUNT_BITS` latch executions, when both constants are known
+/// and the far end fits in a word.
+fn trip_count_bound(func: &Function, phi: &MonotonePhi) -> Option<Range> {
+    let initial = const_of(func, phi.initial)?;
+    let step = const_of(func, phi.step)?;
+    let travel = step.checked_shl(Target::MAX_TRIP_COUNT_BITS)?;
+    if phi.decreasing {
+        Some(Range::new(initial.checked_sub(travel)?, initial))
+    } else {
+        Some(Range::new(initial, initial.checked_add(travel)?))
     }
 }
 

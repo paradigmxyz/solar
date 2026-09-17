@@ -1,20 +1,83 @@
 //! Function inlining optimization pass.
 //!
 //! This module inlines profitable MIR internal calls to remove their call
-//! protocol and expose further optimization opportunities.
+//! protocol and expose further optimization opportunities. The dedicated single-use pass only
+//! consumes one-call-site, frameless scalar helpers without reference returns. The
+//! original body disappears through function DCE, so this avoids duplicating shared bodies.
+//! Recursive calls, explicit no-inline functions, large helpers, and aggregate allocation
+//! semantics stay with the existing call convention. It runs before late scalar cleanup.
+//! For gas-oriented lifetime decisions, statically counted loops weight call-protocol
+//! savings by their iteration count. Only blocks that dominate every latch in a loop
+//! with a header guard and no other exit receive that weight. Conditional calls and
+//! unknown loop bounds retain the ordinary per-invocation estimate; size mode keeps
+//! its existing growth policy. These are profitability estimates, never legality facts.
+//! Tiny forwarding wrappers may return one call result or forward a void call.
+//! Both forms contain only that call and its internal return, so inlining exposes
+//! the original call exactly once without cloning the callee body. Shared void
+//! forwarders that add arguments stay shared: cloning their extra setup can
+//! outweigh the removed wrapper and increase stack pressure at every caller.
+//! Frameless one-word literal initializers also inline when each emitted artifact
+//! contains at most one call site. Creation and runtime reachability are counted
+//! separately, including tail calls and conservative roots for unrooted MIR.
+//! Cloning retains each allocation and its initialization at the original call
+//! site; arbitrary reference-returning helpers remain excluded.
+//! Slice-only helpers are also transparent: constructing and projecting a slice
+//! copies its pointer, length and address space without reading the payload or
+//! allocating memory. Inlining exposes these components before slice lowering
+//! expands a returned slice into the internal multi-word return convention.
+//! The existing leaf-size and lifetime-cost limits still apply.
+//! A targeted late adapter revisits argument-free immutable word helpers after
+//! range checks and CFG cleanup make them straight-line leaves. It admits only
+//! immutable loads and pure single-opcode computations, retaining the ordinary
+//! tiny-leaf size and lifetime-cost limits. Inlining stays at the original call
+//! site, including constructor calls; no runtime immutable bounds are assumed.
+//! Small scalar helpers with phis may also inline at their sole call site.
+//! Backward liveness estimates the callee's peak live words and the caller values
+//! surviving the call. Their sum must fit twelve words, leaving stack-addressing
+//! headroom for operand staging. The gas-only hot-leaf pass reuses that estimate
+//! for bounded acyclic scalar helpers called from inside loops, under the same
+//! twelve-word budget now that the loop's carried words stay resident through
+//! every join a clone adds: each such site is cloned when the call protocol it removes, weighed
+//! over the loop's trip count (ten iterations when none is computable) and the
+//! expected executions, repays the deposited copy; sites outside loops and
+//! callees shared by more than eight sites keep the call. Read-only loops are eligible after
+//! loop-idiom lowering when their bounded MIR shape replaces the original scalar loop;
+//! writes and shared phi helpers remain excluded. This is a bounded profitability
+//! estimate, not a promise that the scheduler will emit no spills.
+//! A separate gas-only late adapter accepts frameless wrappers with one returning
+//! call followed by at most five physical address/load/store operations. It clones
+//! the call and subsequent memory operations in order, without moving accesses
+//! across the call or assuming alias freedom. Both caller live words and wrapper
+//! peak words must fit the same twelve-word budget, and lifetime gas must pay for
+//! code growth. General allocators, branches, and larger memory helpers stay shared.
+//! After inlining a multi-word return, immediate reads of the published return
+//! buffer can use the returned SSA words directly. Only scalar word loads at
+//! constant offsets before the next memory/effect barrier qualify. Publication
+//! stores remain intact so later observers of the buffer retain their behavior;
+//! ordinary memory DSE decides whether those stores are removable.
 
-use crate::mir::{
-    AbiLayout, AbiType, BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder,
-    FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId, InstKind, Instruction,
-    MirType, Module, Terminator, Value, ValueId,
-    analysis::{CallGraphInfo, LoopAnalyzer},
-    immutable::immutable_push_type_size,
-    memory::{EvmMemoryLayout, MemoryLayoutPolicy},
-    pass::MirPass,
+use crate::{
+    backend::evm::{op, select},
+    mir::{
+        AbiLayout, AbiType, AllocationSemantics, BlockId, Builtin, Callee, EffectKind, FrameMode,
+        FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate,
+        ImmutableEncoding, InstId, InstKind, Instruction, MemoryObjectKind, MirPhase, MirType,
+        Module, Terminator, Value, ValueId,
+        analysis::{CallGraphInfo, Liveness, LoopAnalyzer},
+        immutable::immutable_push_type_size,
+        memory::{EvmMemoryLayout, MemoryLayoutPolicy},
+        pass::MirPass,
+        utils::{replace_terminator_uses_canonicalized, resolve_replacement},
+    },
+    target::{Cost, Target},
 };
 use smallvec::SmallVec;
 use solar_ast::StateMutability;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    index::IndexVec,
+    map::FxHashMap,
+};
 use solar_sema::Gcx;
 
 /// Module pass for metadata-backed MIR inlining.
@@ -56,6 +119,126 @@ impl MirPass for InlineTinyLeaves {
     ) -> bool {
         let mut inliner = MirInliner::for_tiny_leaves();
         inliner.run(gcx, module).inlined != 0
+    }
+}
+
+/// Revisits small immutable computations exposed by late check elimination.
+pub(crate) struct InlineImmutableLeaves;
+
+impl MirPass for InlineImmutableLeaves {
+    fn name(&self) -> &'static str {
+        "inline-immutable-leaves"
+    }
+
+    fn run_pass(
+        &self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        if !module.functions.iter().any(is_immutable_word_leaf) {
+            return false;
+        }
+        MirInliner { immutable_leaves_only: true, ..MirInliner::for_tiny_leaves() }
+            .run(gcx, module)
+            .inlined
+            != 0
+    }
+}
+
+/// Inlines small post-call memory wrappers after physical memory lowering.
+pub(crate) struct InlineMemoryWrappers;
+
+impl MirPass for InlineMemoryWrappers {
+    fn name(&self) -> &'static str {
+        "inline-memory-wrappers"
+    }
+
+    fn run_pass(
+        &self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        if !gcx.sess.opts.optimization.is_gas() || !module.functions.iter().any(is_memory_wrapper) {
+            return false;
+        }
+        MirInliner {
+            memory_wrappers_only: true,
+            max_instructions: 6,
+            max_single_call_sanity_instructions: 6,
+            ..MirInliner::for_tiny_leaves()
+        }
+        .run(gcx, module)
+        .inlined
+            != 0
+    }
+}
+
+/// Clones bounded scalar helpers into the loops that call them in gas mode.
+pub(crate) struct InlineHotLeaves;
+
+impl MirPass for InlineHotLeaves {
+    fn name(&self) -> &'static str {
+        "inline-hot-leaves"
+    }
+
+    fn run_pass(
+        &self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        if !gcx.sess.opts.optimization.is_gas() {
+            return false;
+        }
+        MirInliner {
+            mode: InlineMode::HotLeaves,
+            max_shared_callee_blocks: 16,
+            max_caller_inlined_instructions: 128,
+            ..MirInliner::default()
+        }
+        .run(gcx, module)
+        .inlined
+            != 0
+    }
+}
+
+/// Module pass for consuming a single-use helper without duplicating its body.
+pub(crate) enum InlineSingleUse {
+    /// May introduce frame staging before memory lowering.
+    Semantic,
+    /// Must not introduce semantic frame operations after memory lowering.
+    Physical,
+}
+
+impl MirPass for InlineSingleUse {
+    fn name(&self) -> &'static str {
+        "inline-single-use"
+    }
+
+    fn run_pass(
+        &self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        let stats = MirInliner {
+            mode: InlineMode::SingleUse,
+            max_single_call_sanity_instructions: 256,
+            frame_staging_allowed: matches!(self, Self::Semantic)
+                && module.phase < MirPhase::Lowered,
+            ..MirInliner::default()
+        }
+        .run(gcx, module);
+        // The consumed bodies are dead now. Remove exactly those instead of a
+        // module-wide dead-function sweep, which would also delete uncalled
+        // functions that were never reachable, such as the subjects of
+        // pipeline tests.
+        if !stats.consumed.is_empty() {
+            super::cfg_simplify::remove_unreferenced_functions(module, &stats.consumed);
+        }
+        stats.inlined != 0
     }
 }
 
@@ -120,10 +303,20 @@ struct MirInliner {
     /// Expected executions per deployment. This is supplied by Standard JSON
     /// optimizer runs and defaults to solc's 200-run convention.
     expected_executions_per_deployment: u64,
+    /// The cost model pricing call protocol against deposited bytes.
+    target: Target,
     /// Optional hard ceiling for the module size estimator. Normal gas-mode
     /// profitability is governed by lifetime cost instead of this ceiling;
     /// zero remains the explicit off switch used by size mode.
     max_module_code_size: usize,
+    /// Restricts late expansion to argument-free immutable word computations.
+    immutable_leaves_only: bool,
+    /// Restricts late expansion to small post-call memory wrappers.
+    memory_wrappers_only: bool,
+    /// Whether multi-value returns may stage through semantic frame slots. Once
+    /// frame slots are lowered to physical memory, a late run must leave such
+    /// callees alone: the staging instructions would survive the phase boundary.
+    frame_staging_allowed: bool,
     mode: InlineMode,
 }
 
@@ -132,6 +325,19 @@ enum InlineMode {
     Normal,
     TinyLeaves,
     ConstantLeaves,
+    SingleUse,
+    HotLeaves,
+}
+
+/// Which callees get a stack-peak estimate when the module is summarized.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PeakAnalysis {
+    /// No estimate; phi-carrying callees stay shared.
+    None,
+    /// Bounded scalar helpers with phis, for their sole call site.
+    Phis,
+    /// Every bounded scalar helper, for loop call sites.
+    Scalars,
 }
 
 impl Default for MirInliner {
@@ -143,14 +349,50 @@ impl Default for MirInliner {
             max_shared_callee_blocks: 10,
             inline_single_call: true,
             max_caller_inlined_instructions: 64,
-            expected_executions_per_deployment: 200,
+            expected_executions_per_deployment: Target::DEFAULT_EXPECTED_EXECUTIONS,
+            target: Target::with(
+                solar_config::EvmVersion::default(),
+                solar_config::OptimizationMode::Gas,
+                Target::DEFAULT_EXPECTED_EXECUTIONS,
+            ),
             max_module_code_size: usize::MAX,
+            immutable_leaves_only: false,
+            memory_wrappers_only: false,
+            frame_staging_allowed: true,
             mode: InlineMode::Normal,
         }
     }
 }
 
 impl MirInliner {
+    /// How many times a loop without a computable trip count is assumed to
+    /// run per invocation when a hot leaf is weighed: GCC's estimate for such
+    /// loops. Counted loops use their real trip count instead.
+    const UNCOUNTED_LOOP_EXECUTIONS: u64 = 10;
+    /// A hot leaf shared by more call sites than this stays a call: every
+    /// clone deposits the whole body again.
+    const MAX_HOT_LEAF_CALL_SITES: usize = 8;
+    /// Live words a caller may hold across an inlined body plus the body's own
+    /// peak, leaving stack-addressing headroom for operand staging.
+    const STACK_BUDGET: usize = 12;
+    /// The budget for hot leaves: a clone inside a loop body also keeps the
+    /// loop's carried words resident through every join it adds. It matched the
+    /// general budget once the backend carried twelve words through a loop's
+    /// joins; at ten, two of the Base64 decoder's four lookups stayed calls
+    /// that drained every carried word, and lifting it took 15% off decoding.
+    const HOT_LEAF_STACK_BUDGET: usize = 12;
+
+    /// The live-word budget for inlining at the current mode's sites.
+    const fn stack_budget(&self) -> usize {
+        match self.mode {
+            InlineMode::HotLeaves => Self::HOT_LEAF_STACK_BUDGET,
+            InlineMode::Normal
+            | InlineMode::TinyLeaves
+            | InlineMode::ConstantLeaves
+            | InlineMode::SingleUse => Self::STACK_BUDGET,
+        }
+    }
+
     /// Creates the `-O size` inliner: a module budget of zero disables all MIR
     /// inlining, which only ever grows emitted code on real contracts (both
     /// multi-use duplication and the cascades that single-call inlining sets
@@ -188,7 +430,7 @@ impl MirInliner {
 }
 
 /// Statistics for MIR-level inlining.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct MirInlineStats {
     /// Number of internal call sites considered.
     call_sites: usize,
@@ -196,6 +438,8 @@ struct MirInlineStats {
     inlined: usize,
     /// Number of call sites skipped because the callee was not inlineable.
     skipped: usize,
+    /// Callees whose only call site was inlined; nothing calls them afterwards.
+    consumed: Vec<MirFunctionId>,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -203,22 +447,31 @@ struct MirInlineSummary {
     instruction_count: usize,
     block_count: usize,
     return_count: usize,
+    /// Number of values one return delivers; two or more stage through a frame buffer.
+    return_values: usize,
     param_count: usize,
     estimated_code_size: usize,
-    estimated_runtime_gas: u64,
     internal_frame_size: u64,
     has_icall: bool,
     has_phi: bool,
+    phi_stack_peak: Option<usize>,
     has_external_call: bool,
     has_storage_write: bool,
     has_immutable_write: bool,
     has_log: bool,
     has_control_flow: bool,
+    /// Whether the body contains a back edge; a loop cloned into a loop nests
+    /// its carried words inside the caller's.
+    has_loop: bool,
     has_unsupported_terminator: bool,
     has_reference_return: bool,
-    /// A one-block helper that only returns an argument or forwards an internal call's result.
+    /// A one-block helper that forwards an argument, slice components, or one internal call.
     /// Such wrappers are safe to inline even when the value is memory-backed.
     is_transparent_forwarder: bool,
+    /// Whether a void forwarder adds arguments whose setup benefits from sharing.
+    void_forwarder_adds_args: bool,
+    /// A frameless initializer returning at most one word of literal bytes.
+    is_small_literal_return: bool,
     is_entry_point: bool,
     is_constructor: bool,
     is_function_pointer_dispatcher: bool,
@@ -230,12 +483,32 @@ impl MirInliner {
     /// Runs the inliner over the whole module.
     fn run(&mut self, gcx: Gcx<'_>, module: &mut Module) -> MirInlineStats {
         let mut stats = MirInlineStats::default();
-        self.expected_executions_per_deployment = gcx.sess.opts.optimizer_runs.unwrap_or(200);
+        self.target = Target::new(gcx);
+        self.expected_executions_per_deployment = self.target.expected_executions();
 
         // A zero budget is an explicit off switch (used by `-O size`). Avoid
         // summarizing the module or building its call graph when no call site
         // can be accepted.
         if self.max_module_code_size == 0 {
+            return stats;
+        }
+
+        let mut call_counts = self.call_counts(module);
+        // Keep the initial candidate set stable as inlining removes call sites.
+        let memory_wrappers = if self.memory_wrappers_only {
+            module
+                .functions
+                .iter_enumerated()
+                .filter(|(id, func)| {
+                    call_counts.get(id).copied().unwrap_or(0) > 0 && is_memory_wrapper(func)
+                })
+                .map(|(id, func)| (id, scalar_stack_peak(func)))
+                .collect::<FxHashMap<_, _>>()
+        } else {
+            FxHashMap::default()
+        };
+
+        if self.memory_wrappers_only && memory_wrappers.is_empty() {
             return stats;
         }
 
@@ -248,8 +521,10 @@ impl MirInliner {
             return stats;
         }
 
-        let mut call_counts = self.call_counts(module);
         let call_graph = CallGraphInfo::new(module);
+        let mut artifact_calls = (self.mode == InlineMode::TinyLeaves
+            && summaries.values().any(|summary| summary.is_small_literal_return))
+        .then(|| ArtifactCallCounts::new(module, &call_graph));
         let preferred_large_call_sites = self.preferred_large_call_sites(module, &summaries);
 
         // Specialize dispatcher calls before helper-local inlining introduces phis.
@@ -260,15 +535,21 @@ impl MirInliner {
             })
         });
         for caller_id in caller_ids {
-            let loop_depths = block_loop_depths(module.function(caller_id));
+            // Leaf bodies cannot contain an inline candidate. Keep their summary for
+            // callers, but avoid rebuilding loop analysis for every inlining mode.
+            if !summaries.get(&caller_id).is_some_and(|summary| summary.has_icall) {
+                continue;
+            }
+            let mut loop_costs = block_loop_costs(module.function(caller_id));
             // Bound how much each caller may grow from inlining so a function
             // calling many internal helpers (e.g. a large verifier) cannot
             // balloon past the deployable code-size limit.
             let base_instructions =
                 summaries.get(&caller_id).map(|s| s.instruction_count).unwrap_or_default();
             let mut cursor = (0, 0);
+            let mut caller_liveness = None;
             while let Some(site) =
-                self.find_next_call(module.function(caller_id), cursor, &loop_depths)
+                self.find_next_call(module, module.function(caller_id), cursor, &loop_costs)
             {
                 stats.call_sites += 1;
                 cursor = (site.block.index(), site.inst_index + 1);
@@ -277,7 +558,15 @@ impl MirInliner {
                     stats.skipped += 1;
                     continue;
                 };
-                let call_count = call_counts.get(&site.callee).copied().unwrap_or_default();
+                let call_count = if summary.is_small_literal_return {
+                    artifact_calls
+                        .as_ref()
+                        .and_then(|calls| calls.counts.get(&site.callee))
+                        .map(|counts| counts[0].max(counts[1]))
+                } else {
+                    None
+                }
+                .unwrap_or_else(|| call_counts.get(&site.callee).copied().unwrap_or_default());
                 let grew_too_much = summaries.get(&caller_id).is_some_and(|s| {
                     s.instruction_count.saturating_sub(base_instructions)
                         > self.max_caller_inlined_instructions
@@ -289,6 +578,11 @@ impl MirInliner {
                     || grew_too_much
                     || framed_constructor_call
                     || call_graph.is_recursive(site.callee)
+                    || (self.immutable_leaves_only
+                        && !is_immutable_word_leaf(module.function(site.callee)))
+                    || (self.memory_wrappers_only && !memory_wrappers.contains_key(&site.callee))
+                    || (self.mode == InlineMode::SingleUse
+                        && module.function(site.callee).attributes.no_inline)
                     || !self.is_inlineable(
                         caller_id,
                         site,
@@ -301,22 +595,61 @@ impl MirInliner {
                     continue;
                 }
 
+                if let Some(peak) =
+                    summary.phi_stack_peak.or_else(|| memory_wrappers.get(&site.callee).copied())
+                {
+                    let caller = module.function(caller_id);
+                    let liveness = caller_liveness.get_or_insert_with(|| Liveness::compute(caller));
+                    if surviving_call_words(caller, liveness, site).saturating_add(peak)
+                        > self.stack_budget()
+                    {
+                        stats.skipped += 1;
+                        continue;
+                    }
+                }
+
                 let callee = module.function(site.callee).clone();
                 let old_size =
                     summaries.get(&caller_id).map(|s| s.estimated_code_size).unwrap_or_default();
                 let caller = module.function_mut(caller_id);
                 if inline_call(caller, site.block, site.inst_index, &callee) {
                     stats.inlined += 1;
-                    let new_summary = summarize_function(gcx, module, module.function(caller_id));
+                    if self.mode == InlineMode::SingleUse && call_count == 1 {
+                        stats.consumed.push(site.callee);
+                    }
+                    caller_liveness = None;
+                    // The clone split the call block, so the loop membership
+                    // of the calls that followed it must be recomputed before
+                    // they are weighed.
+                    if self.mode == InlineMode::HotLeaves {
+                        loop_costs = block_loop_costs(module.function(caller_id));
+                    }
+                    let new_summary = summarize_function(
+                        gcx,
+                        module,
+                        module.function(caller_id),
+                        self.peak_analysis(),
+                    );
                     module_code_size = module_code_size
                         .saturating_sub(old_size)
                         .saturating_add(new_summary.estimated_code_size);
                     summaries.insert(caller_id, new_summary);
                     if self.mode == InlineMode::TinyLeaves {
-                        // Tiny-leaf candidates cannot contain internal calls, so inlining removes
-                        // exactly one call to the callee and cannot introduce another call site.
+                        // Remove this call site and count the forwarded calls cloned into its
+                        // caller. The original callee remains until function DCE runs.
                         if let Some(count) = call_counts.get_mut(&site.callee) {
                             *count = count.saturating_sub(1);
+                        }
+                        for inst in callee.instructions() {
+                            if let InstKind::ICall {
+                                function: Callee::Function(function), ..
+                            } = callee.inst(inst).kind
+                            {
+                                *call_counts.entry(function).or_default() += 1;
+                            }
+                        }
+                        if let Some(calls) = &mut artifact_calls {
+                            calls.inline(caller_id, site.callee, &callee);
                         }
                     } else {
                         call_counts = self.call_counts(module);
@@ -339,15 +672,28 @@ impl MirInliner {
         module
             .functions
             .iter_enumerated()
-            .map(|(id, func)| (id, summarize_function(gcx, module, func)))
+            .map(|(id, func)| (id, summarize_function(gcx, module, func, self.peak_analysis())))
             .collect()
+    }
+
+    /// The stack-peak estimate the current mode needs from callee summaries.
+    fn peak_analysis(&self) -> PeakAnalysis {
+        match self.mode {
+            InlineMode::SingleUse => PeakAnalysis::Phis,
+            InlineMode::HotLeaves => PeakAnalysis::Scalars,
+            InlineMode::Normal | InlineMode::TinyLeaves | InlineMode::ConstantLeaves => {
+                PeakAnalysis::None
+            }
+        }
     }
 
     fn call_counts(&self, module: &Module) -> FxHashMap<MirFunctionId, usize> {
         let mut counts = FxHashMap::default();
         for func in module.functions.iter() {
             for inst_id in func.instructions() {
-                if let InstKind::ICall { function, .. } = func.inst(inst_id).kind {
+                if let InstKind::ICall { function: Callee::Function(function), .. } =
+                    func.inst(inst_id).kind
+                {
                     *counts.entry(function).or_default() += 1;
                 }
             }
@@ -378,7 +724,9 @@ impl MirInliner {
                 summaries.get(&caller).map(|summary| summary.instruction_count).unwrap_or_default();
             for (block_index, block) in func.blocks.iter().enumerate() {
                 for (inst_index, &inst_id) in block.instructions.iter().enumerate() {
-                    let InstKind::ICall { function, ref args, .. } = func.inst(inst_id).kind else {
+                    let InstKind::ICall { function: Callee::Function(function), ref args, .. } =
+                        func.inst(inst_id).kind
+                    else {
                         continue;
                     };
                     if !summaries.get(&function).is_some_and(|summary| {
@@ -414,22 +762,27 @@ impl MirInliner {
 
     fn find_next_call(
         &self,
+        module: &Module,
         func: &Function,
         start: (usize, usize),
-        loop_depths: &FxHashMap<BlockId, usize>,
+        loop_costs: &FxHashMap<BlockId, LoopCost>,
     ) -> Option<CallSite> {
         for (block, bb) in func.blocks.iter_enumerated().skip(start.0) {
             let start_inst = if block.index() == start.0 { start.1 } else { 0 };
             for (inst_index, &inst_id) in bb.instructions.iter().enumerate().skip(start_inst) {
-                if let InstKind::ICall { function, ref args, returns } = func.inst(inst_id).kind {
+                if let InstKind::ICall { function: Callee::Function(function), ref args } =
+                    func.inst(inst_id).kind
+                {
                     return Some(CallSite {
                         block,
                         inst_index,
                         inst: inst_id,
                         callee: function,
                         args_len: args.len(),
-                        returns: returns as usize,
-                        loop_depth: loop_depths.get(&block).copied().unwrap_or_default(),
+                        returns: module.function(function).return_components().len(),
+                        loop_depth: loop_costs.get(&block).map_or(0, |cost| cost.depth),
+                        loop_executions: loop_costs.get(&block).map_or(1, |cost| cost.executions),
+                        loop_counted: loop_costs.get(&block).is_none_or(|cost| cost.counted),
                         has_constant_function_selector: args
                             .first()
                             .is_some_and(|&arg| func.value(arg).as_immediate().is_some()),
@@ -452,6 +805,36 @@ impl MirInliner {
         preferred_large_call_site: Option<(MirFunctionId, InstId)>,
     ) -> bool {
         let single_call = self.inline_single_call && call_count == 1;
+        let bounded_phi = summary.phi_stack_peak.is_some()
+            && match self.mode {
+                InlineMode::SingleUse => single_call,
+                InlineMode::HotLeaves => true,
+                InlineMode::Normal | InlineMode::TinyLeaves | InlineMode::ConstantLeaves => false,
+            };
+        if self.mode == InlineMode::SingleUse
+            && (!single_call
+                || summary.internal_frame_size != 0
+                || summary.has_reference_return
+                || (summary.has_phi && !bounded_phi)
+                || (!self.frame_staging_allowed && summary.return_values > 1))
+        {
+            return false;
+        }
+
+        // A hot leaf is a bounded scalar helper called from inside a loop. Its
+        // other call sites keep the shared body; the lifetime check below
+        // weighs each clone against the call protocol it removes per iteration.
+        if self.mode == InlineMode::HotLeaves
+            && (site.loop_depth == 0
+                || summary.phi_stack_peak.is_none()
+                || summary.has_loop
+                || summary.has_icall
+                || summary.internal_frame_size != 0
+                || summary.has_reference_return
+                || call_count > Self::MAX_HOT_LEAF_CALL_SITES)
+        {
+            return false;
+        }
 
         // Keep shared helpers intact unless a constant function selector lets
         // later passes discard all but one dispatcher arm.
@@ -464,7 +847,7 @@ impl MirInliner {
                 && !can_specialize_dispatcher)
             || summary.is_entry_point
             || summary.is_constructor
-            || summary.has_phi
+            || (summary.has_phi && !bounded_phi)
             || summary.has_unsupported_terminator
             || summary.return_count == 0
         {
@@ -480,8 +863,14 @@ impl MirInliner {
                         self.max_instructions
                     }
                 || summary.return_count != 1
-                || (summary.has_reference_return && !summary.is_transparent_forwarder)
-                || (summary.has_icall && !summary.is_transparent_forwarder)
+                || (summary.has_reference_return
+                    && !summary.is_transparent_forwarder
+                    && !self.memory_wrappers_only
+                    && !(single_call && summary.is_small_literal_return))
+                || (summary.has_icall
+                    && !summary.is_transparent_forwarder
+                    && !self.memory_wrappers_only)
+                || (!single_call && summary.void_forwarder_adds_args)
                 || summary.has_control_flow)
         {
             return false;
@@ -532,8 +921,8 @@ impl MirInliner {
                 || summary.has_external_call
                 || summary.has_log)
             && summary.estimated_code_size
-                > estimated_icall_code_size(site)
-                    + estimated_internal_return_code_size(summary, site)
+                > estimated_icall_code_size(self.target, site)
+                    + estimated_internal_return_code_size(self.target, summary, site)
         {
             return false;
         }
@@ -551,13 +940,14 @@ impl MirInliner {
         site: CallSite,
         single_call: bool,
     ) -> bool {
-        const CODE_DEPOSIT_GAS_PER_BYTE: u128 = 200;
+        const CODE_DEPOSIT_GAS_PER_BYTE: u128 = Target::CODE_DEPOSIT_GAS_PER_BYTE as u128;
 
         let inlined_bytes = summary.estimated_code_size;
-        let mut removed_bytes = estimated_icall_code_size(site);
+        let mut removed_bytes = estimated_icall_code_size(self.target, site);
         if single_call {
             removed_bytes = removed_bytes.saturating_add(
-                summary.estimated_code_size + estimated_internal_return_code_size(summary, site),
+                summary.estimated_code_size
+                    + estimated_internal_return_code_size(self.target, summary, site),
             );
         }
         if inlined_bytes <= removed_bytes {
@@ -566,8 +956,16 @@ impl MirInliner {
 
         let added_deposit_cost =
             (inlined_bytes - removed_bytes) as u128 * CODE_DEPOSIT_GAS_PER_BYTE;
-        let execution_savings = u128::from(estimated_icall_savings(site, summary))
-            * u128::from(self.expected_executions_per_deployment);
+        let loop_executions = if !self.target.optimization().is_gas() {
+            1
+        } else if self.mode == InlineMode::HotLeaves && site.loop_depth > 0 && !site.loop_counted {
+            Self::UNCOUNTED_LOOP_EXECUTIONS
+        } else {
+            site.loop_executions
+        };
+        let execution_savings = u128::from(estimated_icall_savings(self.target, site, summary))
+            .saturating_mul(u128::from(self.expected_executions_per_deployment))
+            .saturating_mul(u128::from(loop_executions));
         execution_savings > added_deposit_cost
     }
 }
@@ -581,20 +979,163 @@ struct CallSite {
     args_len: usize,
     returns: usize,
     loop_depth: usize,
+    loop_executions: u64,
+    /// Whether every enclosing loop has a computed trip count.
+    loop_counted: bool,
     has_constant_function_selector: bool,
     has_constant_argument: bool,
 }
 
-fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInlineSummary {
+/// Counts physical call sites separately in creation and runtime code.
+/// Reachability is an upper bound throughout inlining: cloning a callee into a
+/// caller cannot make either artifact reach a previously unreachable function.
+/// Functions retained until DCE may therefore overcount, but never undercount.
+struct ArtifactCallCounts {
+    creation: DenseBitSet<MirFunctionId>,
+    runtime: DenseBitSet<MirFunctionId>,
+    counts: FxHashMap<MirFunctionId, [usize; 2]>,
+}
+
+impl ArtifactCallCounts {
+    fn new(module: &Module, graph: &CallGraphInfo) -> Self {
+        let roots = |creation| {
+            module.functions.iter_enumerated().filter_map(move |(id, func)| {
+                let selected = if creation {
+                    func.attributes.is_constructor
+                } else {
+                    func.selector.is_some()
+                        || func.attributes.is_fallback
+                        || func.attributes.is_receive
+                        || module.dispatch_entry() == Some(id)
+                };
+                selected.then_some(id)
+            })
+        };
+        let mut creation = graph.reachable_callees_from(roots(true));
+        let mut runtime = graph.reachable_callees_from(roots(false));
+        for root in roots(true) {
+            creation.insert(root);
+        }
+        for root in roots(false) {
+            runtime.insert(root);
+        }
+        // Unrooted ad-hoc MIR and address-exposed functions get the conservative
+        // shared classification, rather than zero incoming artifact counts.
+        let unknown = module
+            .functions
+            .indices()
+            .filter(|&id| !creation.contains(id) && !runtime.contains(id))
+            .collect::<Vec<_>>();
+        let unknown_callees = graph.reachable_callees_from(unknown.iter().copied());
+        for id in unknown.into_iter().chain(unknown_callees.iter()) {
+            creation.insert(id);
+            runtime.insert(id);
+        }
+        let mut result = Self { creation, runtime, counts: FxHashMap::default() };
+        for (caller, func) in module.functions.iter_enumerated() {
+            for inst in func.instructions() {
+                if let InstKind::ICall { function: Callee::Function(function), .. } =
+                    func.inst(inst).kind
+                {
+                    result.add(caller, function);
+                }
+            }
+            for block in &func.blocks {
+                if let Some(Terminator::TailCall { function, .. }) = block.terminator {
+                    result.add(caller, function);
+                }
+            }
+        }
+        result
+    }
+
+    fn add(&mut self, caller: MirFunctionId, callee: MirFunctionId) {
+        let counts = self.counts.entry(callee).or_default();
+        counts[0] += usize::from(self.creation.contains(caller));
+        counts[1] += usize::from(self.runtime.contains(caller));
+    }
+
+    fn inline(&mut self, caller: MirFunctionId, callee_id: MirFunctionId, callee: &Function) {
+        if let Some(counts) = self.counts.get_mut(&callee_id) {
+            counts[0] -= usize::from(self.creation.contains(caller));
+            counts[1] -= usize::from(self.runtime.contains(caller));
+        }
+        for inst in callee.instructions() {
+            if let InstKind::ICall { function: Callee::Function(function), .. } =
+                callee.inst(inst).kind
+            {
+                self.add(caller, function);
+            }
+        }
+    }
+}
+
+/// Recognizes a complete constant bytes initializer without relaxing the
+/// general reference-return guard. Inlining preserves the allocation and every
+/// store at the call site; separate calls still produce separate objects.
+fn is_small_literal_return(func: &Function) -> bool {
+    if func.attributes.no_inline
+        || func.internal_frame_size != 0
+        || func.blocks.len() != 1
+        || func.return_components() != [MirType::MemoryObject(MemoryObjectKind::Bytes)]
+    {
+        return false;
+    }
+    let block = &func.blocks[BlockId::ENTRY];
+    let [alloc, len, rest @ ..] = block.instructions.as_slice() else { return false };
+    if func.inst(*alloc).metadata.preserves_fmp() {
+        return false;
+    }
+    let InstKind::Alloc { size, semantics: AllocationSemantics::INTERNAL, .. } =
+        func.inst(*alloc).kind
+    else {
+        return false;
+    };
+    let Some(object) = func.inst_result_value(*alloc) else { return false };
+    let InstKind::SetMemoryObjectLen(value, length, MemoryObjectKind::Bytes) = func.inst(*len).kind
+    else {
+        return false;
+    };
+    if value != object
+        || !matches!(&block.terminator, Some(Terminator::Return { values }) if values.as_slice() == [object])
+    {
+        return false;
+    }
+    let Some(length) = func.value_u64(length) else { return false };
+    if length > 32 || func.value_u64(size) != Some(32 + length.next_multiple_of(32)) {
+        return false;
+    }
+    match rest {
+        [] => length == 0,
+        [store] => matches!(func.inst(*store).kind,
+            InstKind::MemoryObjectStoreWord { object: value, offset, value: word }
+            if length != 0 && value == object && func.value_u64(offset) == Some(0)
+                && func.value_u256(word).is_some()),
+        [data, store] => matches!((&func.inst(*data).kind, &func.inst(*store).kind),
+            (InstKind::MemoryObjectData(value, MemoryObjectKind::Bytes), InstKind::MStore(ptr, word))
+            if length != 0 && *value == object && func.inst_result_value(*data) == Some(*ptr)
+                && func.value_u256(*word).is_some()),
+        _ => false,
+    }
+}
+
+fn summarize_function(
+    gcx: Gcx<'_>,
+    module: &Module,
+    func: &Function,
+    peak: PeakAnalysis,
+) -> MirInlineSummary {
+    let target = Target::new(gcx);
     let mut summary = MirInlineSummary {
         block_count: func.blocks.len(),
+        return_values: func.return_components().len(),
         param_count: func.params.len(),
         internal_frame_size: func.internal_frame_size,
         is_entry_point: func.attributes.is_fallback
             || func.attributes.is_receive
             || func.selector.is_some(),
         is_constructor: func.attributes.is_constructor,
-        has_reference_return: func.returns.iter().any(|ty| {
+        has_reference_return: func.return_components().iter().any(|ty| {
             matches!(
                 ty,
                 MirType::MemPtr
@@ -604,10 +1145,12 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                     | MirType::Slice(_)
             )
         }),
-        is_transparent_forwarder: is_transparent_forwarder(func),
+        is_transparent_forwarder: is_transparent_forwarder(module, func),
+        is_small_literal_return: is_small_literal_return(func),
         is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
         has_function_selector: func.params.first() == Some(&MirType::Function),
         is_pure: func.attributes.state_mutability == StateMutability::Pure,
+        has_loop: has_back_edge(func),
         ..MirInlineSummary::default()
     };
 
@@ -616,18 +1159,55 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
             let kind = &func.inst(inst_id).kind;
             let (inst_cost, instructions) = estimate_inst_cost(gcx, module, kind);
             summary.instruction_count += instructions;
-            summary.estimated_code_size += inst_cost.code_size;
-            summary.estimated_runtime_gas += inst_cost.runtime_gas;
+            summary.estimated_code_size += inst_cost.bytes as usize;
             match kind {
-                InstKind::ICall { .. } => summary.has_icall = true,
+                InstKind::ICall { function: Callee::Function(_), args } => {
+                    summary.has_icall = true;
+                    if summary.is_transparent_forwarder && func.return_components().is_empty() {
+                        summary.void_forwarder_adds_args = args.len() > func.params.len();
+                    }
+                }
                 InstKind::Phi(_) => summary.has_phi = true,
                 // ABI decoding validates its input through branches, and dynamic encoding
                 // emits copy loops and padding branches, so neither operation is a tiny leaf.
-                InstKind::AbiDecode { .. } => summary.has_control_flow = true,
+                InstKind::AbiDecode { .. }
+                | InstKind::ValidateStorageBytes(..)
+                | InstKind::StorageBytesLoad(..)
+                | InstKind::StorageArrayLoad { .. }
+                | InstKind::StorageBytesStore(..)
+                | InstKind::StorageBytesStoreLiteral { .. }
+                | InstKind::StorageClearWords(..)
+                | InstKind::ICall {
+                    function: Callee::Builtin(Builtin::CheckedAddMod | Builtin::CheckedMulMod),
+                    ..
+                }
+                | InstKind::CheckedBinary { .. }
+                | InstKind::ICall {
+                    function: Callee::Builtin(Builtin::Check { .. } | Builtin::Require(_)),
+                    ..
+                } => {
+                    summary.has_control_flow = true;
+                }
+                InstKind::AbiEncodePacked { parts, hash: false }
+                    if parts.iter().any(|part| {
+                        matches!(
+                            part,
+                            crate::mir::PackedPart::Bytes(_) | crate::mir::PackedPart::Array { .. }
+                        )
+                    }) =>
+                {
+                    summary.has_control_flow = true;
+                }
                 InstKind::AbiEncode { layout, .. } if abi_layout_has_loops(layout) => {
                     summary.has_control_flow = true;
                 }
-                InstKind::Call { .. }
+                InstKind::ICall { function: Callee::Builtin(Builtin::Transfer), .. } => {
+                    summary.has_control_flow = true;
+                    summary.has_external_call = true;
+                }
+                InstKind::AddressCall { .. }
+                | InstKind::ICall { function: Callee::Builtin(Builtin::Send), .. }
+                | InstKind::Call { .. }
                 | InstKind::CallCode { .. }
                 | InstKind::StaticCall { .. }
                 | InstKind::DelegateCall { .. }
@@ -651,33 +1231,24 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
         match block.terminator.as_ref() {
             Some(term @ Terminator::Return { .. }) => {
                 summary.return_count += 1;
-                let term_cost = estimate_terminator_cost(term);
-                summary.estimated_code_size += term_cost.code_size;
-                summary.estimated_runtime_gas += term_cost.runtime_gas;
+                summary.estimated_code_size +=
+                    estimate_terminator_cost(target, term).bytes as usize;
             }
             Some(term @ Terminator::Revert { .. }) => {
-                let term_cost = estimate_terminator_cost(term);
-                summary.estimated_code_size += term_cost.code_size;
-                summary.estimated_runtime_gas += term_cost.runtime_gas;
+                summary.estimated_code_size +=
+                    estimate_terminator_cost(target, term).bytes as usize;
             }
             Some(term @ Terminator::RevertReturndata) => {
-                let term_cost = estimate_terminator_cost(term);
-                summary.estimated_code_size += term_cost.code_size;
-                summary.estimated_runtime_gas += term_cost.runtime_gas;
-            }
-            // A void internal function returns via `Stop` (the backend lowers it
-            // to an internal return). Treat it as a return point so void callees
-            // can be inlined.
-            Some(Terminator::Stop) if func.returns.is_empty() => {
-                summary.return_count += 1;
+                summary.estimated_code_size +=
+                    estimate_terminator_cost(target, term).bytes as usize;
             }
             Some(Terminator::Jump(_))
             | Some(Terminator::Branch { .. })
             | Some(Terminator::Switch { .. }) => {
                 summary.has_control_flow = true;
-                let term_cost = estimate_terminator_cost(block.terminator.as_ref().unwrap());
-                summary.estimated_code_size += term_cost.code_size;
-                summary.estimated_runtime_gas += term_cost.runtime_gas;
+                summary.estimated_code_size +=
+                    estimate_terminator_cost(target, block.terminator.as_ref().unwrap()).bytes
+                        as usize;
             }
             Some(Terminator::ReturnData { .. })
             | Some(Terminator::Stop)
@@ -688,10 +1259,169 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
         }
     }
 
+    if (peak == PeakAnalysis::Scalars || (peak == PeakAnalysis::Phis && summary.has_phi))
+        && summary.block_count <= 16
+        && summary.instruction_count <= 112
+        && summary.param_count <= 4
+        && !func.params.iter().any(|ty| matches!(ty, MirType::Slice(_)))
+        && summary.return_count <= 3
+        && summary.return_count != 0
+        && summary.internal_frame_size == 0
+        && !summary.has_reference_return
+        && !summary.has_icall
+        && func.instructions().all(|inst| {
+            matches!(
+                func.inst(inst).kind.effect_kind(),
+                EffectKind::Pure | EffectKind::MemoryRead | EffectKind::EnvironmentRead
+            )
+        })
+    {
+        summary.phi_stack_peak = Some(scalar_stack_peak(func));
+    }
     summary
 }
 
-fn is_transparent_forwarder(func: &Function) -> bool {
+/// Whether the control-flow graph has a back edge, found by a depth-first walk
+/// from the entry block that tracks the blocks on the current path.
+fn has_back_edge(func: &Function) -> bool {
+    let mut on_path = DenseBitSet::new_empty(func.blocks.len());
+    let mut finished = DenseBitSet::new_empty(func.blocks.len());
+    let mut stack = vec![(BlockId::ENTRY, 0)];
+    on_path.insert(BlockId::ENTRY);
+    while let Some(top) = stack.last_mut() {
+        let (block, next) = *top;
+        let successors = func.blocks[block]
+            .terminator
+            .as_ref()
+            .map(|term| term.successors())
+            .unwrap_or_default();
+        let Some(&successor) = successors.get(next) else {
+            on_path.remove(block);
+            stack.pop();
+            continue;
+        };
+        top.1 += 1;
+        if on_path.contains(successor) {
+            return true;
+        }
+        if finished.insert(successor) {
+            on_path.insert(successor);
+            stack.push((successor, 0));
+        }
+    }
+    false
+}
+
+/// Peak SSA live words in a small scalar helper; immediates are rematerialized.
+fn scalar_stack_peak(func: &Function) -> usize {
+    let liveness = Liveness::compute(func);
+    let mut peak = 0;
+    for (block, body) in func.blocks.iter_enumerated() {
+        let mut live = liveness.live_out(block).clone();
+        if let Some(term) = &body.terminator {
+            term.for_each_operand(|value| {
+                live.insert(value);
+            });
+        }
+        peak = peak.max(live_word_count(func, &live));
+        for &inst in body.instructions.iter().rev() {
+            if let Some(result) = func.inst_result_value(inst) {
+                live.remove(result);
+            }
+            if !matches!(func.inst(inst).kind, InstKind::Phi(_)) {
+                for value in func.inst(inst).operands() {
+                    live.insert(value);
+                }
+            }
+            peak = peak.max(live_word_count(func, &live));
+        }
+    }
+    peak
+}
+
+/// Caller words that survive the internal call and overlap an inline expansion.
+fn surviving_call_words(func: &Function, liveness: &Liveness, site: CallSite) -> usize {
+    let body = &func.blocks[site.block];
+    let mut live = liveness.live_out(site.block).clone();
+    if let Some(term) = &body.terminator {
+        term.for_each_operand(|value| {
+            live.insert(value);
+        });
+    }
+    for &inst in body.instructions[site.inst_index + 1..].iter().rev() {
+        if let Some(result) = func.inst_result_value(inst) {
+            live.remove(result);
+        }
+        for value in func.inst(inst).operands() {
+            live.insert(value);
+        }
+    }
+    if let Some(result) = func.inst_result_value(site.inst) {
+        live.remove(result);
+    }
+    live_word_count(func, &live)
+}
+
+fn live_word_count(func: &Function, live: &GrowableBitSet<ValueId>) -> usize {
+    live.iter().filter(|&value| matches!(func.value(value), Value::Arg(_) | Value::Inst(_))).count()
+}
+
+/// A call followed by bounded physical word operations, with no allocation or frame locals.
+fn is_memory_wrapper(func: &Function) -> bool {
+    if func.attributes.no_inline
+        || func.internal_frame_size != 0
+        || func.blocks.len() != 1
+        || func.params.len() > 2
+        || func.return_components() != [MirType::MemPtr]
+    {
+        return false;
+    }
+    let block = &func.blocks[BlockId::ENTRY];
+    let [call, rest @ ..] = block.instructions.as_slice() else { return false };
+    rest.len() <= 5
+        && matches!(func.inst(*call).kind, InstKind::ICall { function: Callee::Function(_), .. })
+        && rest.iter().any(|&inst| {
+            matches!(func.inst(inst).kind, InstKind::MStore(..) | InstKind::MStore8(..))
+        })
+        && rest.iter().all(|&inst| {
+            matches!(
+                func.inst(inst).kind,
+                InstKind::Add(..)
+                    | InstKind::Sub(..)
+                    | InstKind::MLoad(..)
+                    | InstKind::MStore(..)
+                    | InstKind::MStore8(..)
+            )
+        })
+        && matches!(&block.terminator, Some(Terminator::Return { values }) if values.len() == 1)
+}
+
+/// Recognizes immutable loads combined without calls, memory access, or control flow.
+fn is_immutable_word_leaf(func: &Function) -> bool {
+    if func.attributes.no_inline
+        || !func.params.is_empty()
+        || func.internal_frame_size != 0
+        || func.blocks.len() != 1
+        || func.return_components().len() != 1
+        || func.blocks[BlockId::ENTRY].instructions.len() > 12
+        || !matches!(func.blocks[BlockId::ENTRY].terminator.as_ref(),
+            Some(Terminator::Return { values }) if values.len() == 1)
+    {
+        return false;
+    }
+    let mut has_immutable = false;
+    for inst in func.instructions() {
+        let kind = &func.inst(inst).kind;
+        if matches!(kind, InstKind::LoadImmutable(_)) {
+            has_immutable = true;
+        } else if kind.effect_kind() != EffectKind::Pure || kind.evm_opcode().is_none() {
+            return false;
+        }
+    }
+    has_immutable
+}
+
+fn is_transparent_forwarder(module: &Module, func: &Function) -> bool {
     if func.attributes.no_inline
         || func.selector.is_some()
         || func.attributes.is_constructor
@@ -699,7 +1429,7 @@ fn is_transparent_forwarder(func: &Function) -> bool {
         || func.attributes.is_receive
         || func.blocks.len() != 1
         || func.internal_frame_size != 0
-        || func.returns.len() != 1
+        || func.return_components().len() > 1
     {
         return false;
     }
@@ -708,18 +1438,41 @@ fn is_transparent_forwarder(func: &Function) -> bool {
         return true;
     }
 
+    if matches!(func.return_components(), [MirType::Slice(_)])
+        && matches!(func.blocks[BlockId::ENTRY].terminator.as_ref(),
+            Some(Terminator::Return { values }) if values.len() == 1)
+        && func.instructions().all(|inst| {
+            matches!(
+                func.inst(inst).kind,
+                InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_)
+            )
+        })
+    {
+        return true;
+    }
+
     let [call] = func.blocks[BlockId::ENTRY].instructions.as_slice() else { return false };
-    let InstKind::ICall { returns: 1, .. } = func.inst(*call).kind else { return false };
-    let Some(result) = func.inst_result_value(*call) else { return false };
-    matches!(
+    let InstKind::ICall { function: Callee::Function(function), .. } = func.inst(*call).kind else {
+        return false;
+    };
+    match (
+        module.function(function).return_components().len(),
         func.blocks[BlockId::ENTRY].terminator.as_ref(),
-        Some(Terminator::Return { values }) if values.as_slice() == [result]
-    )
+    ) {
+        (0, Some(Terminator::Return { values })) => {
+            func.return_components().is_empty() && values.is_empty()
+        }
+        (1, Some(Terminator::Return { values })) => {
+            func.return_components().len() == 1
+                && func.inst_result_value(*call).is_some_and(|result| values.as_slice() == [result])
+        }
+        _ => false,
+    }
 }
 
 fn is_identity_function(func: &Function) -> bool {
     let [param] = func.params.raw.as_slice() else { return false };
-    let [return_ty] = func.returns.as_slice() else { return false };
+    let [return_ty] = func.return_components() else { return false };
     if param != return_ty || func.blocks.len() != 1 {
         return false;
     }
@@ -734,7 +1487,7 @@ fn is_identity_function(func: &Function) -> bool {
 
 fn is_transparent_function_pointer_cast(func: &Function) -> bool {
     func.params == [MirType::Function]
-        && func.returns == [MirType::Function]
+        && func.return_components() == [MirType::Function]
         && is_identity_function(func)
 }
 
@@ -765,128 +1518,130 @@ fn abi_layout_has_loops(layout: &AbiLayout) -> bool {
     layout.types.iter().any(AbiType::is_dynamic)
 }
 
-#[derive(Clone, Copy, Debug)]
-struct MirCost {
-    runtime_gas: u64,
-    code_size: usize,
-}
-
-fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCost, usize) {
-    let (runtime_gas, code_size) = match kind {
-        InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => (0, 0),
+/// Estimated code of an operation the later lowerings expand, as the opcode sequence they
+/// emit priced by the target, with the number of MIR instructions the expansion produces.
+/// An operation that lowers to one opcode is priced by the target directly; immediates are
+/// left out throughout, as they are for those.
+fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, usize) {
+    let target = Target::new(gcx);
+    let seq =
+        |codes: &[u8]| codes.iter().map(|&code| target.opcode(code)).fold(Cost::ZERO, Cost::plus);
+    if select::opcode_lowering(&kind.op()).is_some()
+        && !matches!(kind, InstKind::ICall { .. } | InstKind::LoadImmutable(_))
+    {
+        return (target.op(&kind.op(), |_| None), 1);
+    }
+    let code = match kind {
+        InstKind::InsertValue { .. }
+        | InstKind::ExtractValue { .. }
+        | InstKind::MemoryObjectFromPtr { .. }
+        | InstKind::WordCast(_) => Cost::ZERO,
+        InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => Cost::ZERO,
         InstKind::MemoryObjectData(_, kind) => {
             if EvmMemoryLayout::object_data_offset(*kind) == 0 {
-                (0, 0)
+                Cost::ZERO
             } else {
-                (3, 1)
+                seq(&[op::ADD])
             }
         }
         InstKind::MemoryObjectFieldAddr { layout, field, .. } => {
-            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) { (0, 0) } else { (3, 1) }
+            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) {
+                Cost::ZERO
+            } else {
+                seq(&[op::ADD])
+            }
         }
         InstKind::MemoryObjectElementAddr { layout, .. } => {
-            let base_cost = u64::from(EvmMemoryLayout::object_data_offset(layout.kind()) != 0);
-            (8 + base_cost * 3, 2 + base_cost as usize)
+            let base = EvmMemoryLayout::object_data_offset(layout.kind()) != 0;
+            seq(&[op::MUL, op::ADD]).plus(if base { seq(&[op::ADD]) } else { Cost::ZERO })
         }
-        InstKind::MemoryObjectLoadField { layout, field, .. }
-        | InstKind::MemoryObjectStoreField { layout, field, .. } => {
-            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) { (3, 1) } else { (6, 2) }
+        InstKind::MemoryObjectLoadField { layout, field, .. } => {
+            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) {
+                seq(&[op::MLOAD])
+            } else {
+                seq(&[op::ADD, op::MLOAD])
+            }
         }
-        InstKind::MemoryObjectLoadElement { layout, .. }
-        | InstKind::MemoryObjectStoreElement { layout, .. } => {
-            let base_cost = u64::from(EvmMemoryLayout::object_data_offset(layout.kind()) != 0);
-            (11 + base_cost * 3, 3 + base_cost as usize)
+        InstKind::MemoryObjectStoreField { layout, field, .. } => {
+            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) {
+                seq(&[op::MSTORE])
+            } else {
+                seq(&[op::ADD, op::MSTORE])
+            }
         }
-        InstKind::MemoryObjectLoadByte { .. } => (8, 2),
-        InstKind::MemoryObjectStoreByte { .. } => (8, 2),
-        InstKind::MemoryObjectStoreWord { .. } => (8, 2),
-        InstKind::MemorySliceLoadWord { .. } => (6, 1),
-        InstKind::CalldataSliceLoadWord { .. } => (6, 1),
-        InstKind::MemoryObjectCopyFromSlice { .. } => (12, 1),
-        InstKind::MemoryObjectCopyFromSliceAt { .. } => (12, 1),
-        InstKind::MemoryObjectCopy { .. } => (12, 1),
-        InstKind::MemoryObjectLen(_, _) | InstKind::SetMemoryObjectLen(_, _, _) => (3, 1),
-        InstKind::Fmp | InstKind::SetFmp(_) => (3, 1),
-        InstKind::Alloc { .. } => (9, 3),
-        InstKind::AbiEncode { args, layout, .. } => {
-            let words = layout.head_size() / 32;
-            (30 + words * 12, 8 + args.len() * 3 + abi_layout_expansion(layout))
+        InstKind::MemoryObjectLoadElement { layout, .. } => {
+            let base = EvmMemoryLayout::object_data_offset(layout.kind()) != 0;
+            seq(&[op::MUL, op::ADD, op::MLOAD]).plus(if base {
+                seq(&[op::ADD])
+            } else {
+                Cost::ZERO
+            })
         }
-        InstKind::AbiDecode { layout, .. } => {
-            let words = layout.checked_head_size().expect("ABI head size exceeds u64 range") / 32;
-            (30 + words * 12, 8 + layout.types.len() * 3)
+        InstKind::MemoryObjectStoreElement { layout, .. } => {
+            let base = EvmMemoryLayout::object_data_offset(layout.kind()) != 0;
+            seq(&[op::MUL, op::ADD, op::MSTORE]).plus(if base {
+                seq(&[op::ADD])
+            } else {
+                Cost::ZERO
+            })
         }
-        InstKind::StorageToMemory { layout, .. } => {
-            let slots = layout.storage_slots();
-            (slots * 103, slots as usize * 2)
+        InstKind::MemoryObjectLoadByte { .. } => seq(&[op::MLOAD, op::BYTE]),
+        InstKind::MemoryObjectStoreByte { .. } => seq(&[op::ADD, op::MSTORE8]),
+        InstKind::MemoryObjectStoreWord { .. } => seq(&[op::ADD, op::MSTORE]),
+        InstKind::MemorySliceLoadWord { .. } => seq(&[op::MLOAD]),
+        InstKind::CalldataSliceLoadWord { .. } => seq(&[op::CALLDATALOAD]),
+        InstKind::MemoryObjectCopyFromSlice { .. }
+        | InstKind::MemoryObjectCopyFromSliceAt { .. }
+        | InstKind::MemoryObjectCopy { .. } => seq(&[op::MCOPY]),
+        InstKind::MemoryObjectLen(_, _) | InstKind::Fmp | InstKind::FrameLoad { .. } => {
+            seq(&[op::MLOAD])
         }
+        InstKind::SetMemoryObjectLen(_, _, _)
+        | InstKind::SetFmp(_)
+        | InstKind::FrameStore { .. } => seq(&[op::MSTORE]),
+        // Bump the free-memory pointer past the allocation.
+        InstKind::Alloc { .. } => seq(&[op::MLOAD, op::ADD, op::MSTORE]),
+        // Reserve the buffer, store the selector, produce the slice, store every argument's
+        // head, and expand every dynamic value.
+        InstKind::AbiEncode { args, layout, .. } => seq(&[
+            op::MLOAD,
+            op::ADD,
+            op::MSTORE,
+            op::MSTORE,
+            op::DUP1,
+            op::DUP2,
+            op::SWAP1,
+            op::SWAP2,
+        ])
+        .plus(seq(&[op::DUP1, op::ADD, op::MSTORE]).times(args.len() as u32))
+        .plus(seq(&[op::DUP1]).times(abi_layout_expansion(layout) as u32)),
+        // Check the calldata bound, then load and validate every head word.
+        InstKind::AbiDecode { layout, .. } => seq(&[
+            op::CALLDATASIZE,
+            op::SUB,
+            op::LT,
+            op::JUMPI,
+            op::CALLDATALOAD,
+            op::ADD,
+            op::MSTORE,
+            op::SWAP1,
+        ])
+        .plus(seq(&[op::CALLDATALOAD, op::DUP1, op::MSTORE]).times(layout.types.len() as u32)),
+        InstKind::StorageToMemory { layout, .. } => seq(&[op::SLOAD, op::MSTORE])
+            .times(u32::try_from(layout.storage_slots()).unwrap_or(u32::MAX)),
         InstKind::MemoryToStorage { layout, .. } | InstKind::ClearStorage { layout, .. } => {
-            let slots = layout.storage_slots();
-            (slots * 5_000, slots as usize * 2)
+            seq(&[op::MLOAD, op::SSTORE])
+                .times(u32::try_from(layout.storage_slots()).unwrap_or(u32::MAX))
         }
-        InstKind::Add(..)
-        | InstKind::Sub(..)
-        | InstKind::Lt(..)
-        | InstKind::Gt(..)
-        | InstKind::SLt(..)
-        | InstKind::SGt(..)
-        | InstKind::Eq(..)
-        | InstKind::IsZero(..)
-        | InstKind::And(..)
-        | InstKind::Or(..)
-        | InstKind::Xor(..)
-        | InstKind::Not(..)
-        | InstKind::Byte(..)
-        | InstKind::Shl(..)
-        | InstKind::Shr(..)
-        | InstKind::Sar(..)
-        | InstKind::SignExtend(..)
-        | InstKind::MLoad(..)
-        | InstKind::FrameLoad { .. }
-        | InstKind::MStore(..)
-        | InstKind::FrameStore { .. }
-        | InstKind::MStore8(..)
-        | InstKind::CalldataLoad(..)
-        | InstKind::CalldataSize
-        | InstKind::Caller
-        | InstKind::CallValue
-        | InstKind::Origin
-        | InstKind::GasPrice
-        | InstKind::Coinbase
-        | InstKind::Timestamp
-        | InstKind::BlockNumber
-        | InstKind::PrevRandao
-        | InstKind::GasLimit
-        | InstKind::SlotNum
-        | InstKind::ChainId
-        | InstKind::Address
-        | InstKind::SelfBalance
-        | InstKind::Gas
-        | InstKind::BaseFee
-        | InstKind::BlobBaseFee => (3, 1),
-        InstKind::Clz(..)
-        | InstKind::Mul(..)
-        | InstKind::Div(..)
-        | InstKind::SDiv(..)
-        | InstKind::Mod(..)
-        | InstKind::SMod(..) => (5, 1),
-        InstKind::Exp(..) => (50, 1),
-        InstKind::AddMod(..) | InstKind::MulMod(..) => (8, 1),
-        InstKind::SLoad(..) | InstKind::TLoad(..) => (100, 1),
-        InstKind::SStore(..) | InstKind::TStore(..) => (5_000, 1),
-        InstKind::StoreImmutable(..) => (6, 4),
-        InstKind::DataCopy(..)
-        | InstKind::MCopy(..)
-        | InstKind::CalldataCopy(..)
-        | InstKind::CodeCopy(..)
-        | InstKind::ExtCodeCopy(..)
-        | InstKind::ReturnDataCopy(..) => (12, 1),
-        InstKind::MemoryZero(..) => (15, 2),
-        InstKind::MSize | InstKind::CodeSize | InstKind::ReturnDataSize => (2, 1),
-        InstKind::ConstructorArgsBase => (3, 3),
-        InstKind::ConstructorArgsEnd => (9, 8),
-        InstKind::InternalFrameAddr(_) => (6, 3),
-        // Typed PUSH<N> placeholder patched at deploy time.
+        // A pushed offset into the immutables area and the store.
+        InstKind::StoreImmutable(..) => seq(&[op::PUSH2, op::MSTORE]),
+        InstKind::DataCopy(..) => seq(&[op::CODECOPY]),
+        // Zero by copying from beyond the end of calldata.
+        InstKind::MemoryZero(..) => seq(&[op::CALLDATASIZE, op::CALLDATACOPY]),
+        InstKind::ConstructorArgsBase => seq(&[op::PUSH2]),
+        InstKind::ConstructorArgsEnd => seq(&[op::PUSH2, op::PUSH2, op::SUB, op::CODESIZE]),
+        InstKind::InternalFrameAddr(_) => seq(&[op::PUSH1, op::ADD]),
+        // Typed PUSH<N> placeholder patched at deploy time, cleaned for the narrower types.
         InstKind::LoadImmutable(id) => {
             let ty = module.immutable_type(*id);
             let encoding = ty.immutable_encoding().expect("validated immutable declaration");
@@ -895,50 +1650,107 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
                 gcx.sess.opts.optimization,
                 gcx.sess.opts.evm_version.has_bitwise_shifting(),
             );
-            let width = usize::from(type_size.bytes());
-            if width == 32 {
-                (3, 33)
+            let push = op::PUSH1 + (type_size.bytes() - 1);
+            if type_size.bytes() == 32 {
+                seq(&[push])
             } else {
                 match encoding {
-                    ImmutableEncoding::Unsigned(_) => (3, width + 1),
-                    ImmutableEncoding::Signed(_) => (11, width + 4),
-                    ImmutableEncoding::LeftAligned(_) => (9, width + 4),
+                    ImmutableEncoding::Unsigned(_) => seq(&[push]),
+                    ImmutableEncoding::Signed(_) => seq(&[push, op::PUSH1, op::SIGNEXTEND]),
+                    ImmutableEncoding::LeftAligned(_) => seq(&[push, op::PUSH1, op::SHL]),
                 }
             }
         }
-        InstKind::ExtCodeSize(..)
-        | InstKind::ExtCodeHash(..)
-        | InstKind::Balance(..)
-        | InstKind::BlockHash(..)
-        | InstKind::BlobHash(..)
-        | InstKind::Keccak256(..) => (30, 1),
         // Expands to length load + data pointer + physical keccak.
-        InstKind::Keccak256Bytes(_) => (36, 5),
-        InstKind::MappingSlot(..) => (36, 3),
-        InstKind::MappingSlotMemory(..) => (60, 8),
-        InstKind::MappingSlotCalldata(..) => (63, 9),
-        InstKind::StorageArrayDataSlot(..) => (36, 3),
-        InstKind::StorageArrayElementSlot { element_slots, .. } => {
-            (36 + u64::from(*element_slots > 1) * 5, 4)
+        // Includes allocation, argument packing, the precompile call, and result extraction.
+        InstKind::ValidateStorageBytes(_) => Cost::new(80, 40),
+        InstKind::StorageBytesLoad(_) => Cost::new(400, 150),
+        InstKind::StorageArrayLoad { .. } => Cost::new(400, 150),
+        InstKind::StorageBytesStore(..) => Cost::new(500, 180),
+        InstKind::StorageBytesStoreLiteral { bytes, .. } => {
+            Cost::new(500, 180 + bytes.len() as u32)
         }
+        InstKind::StorageClearWords(..) => Cost::new(120, 32),
+        InstKind::ICall { function: Callee::Builtin(Builtin::Erc7201), .. } => Cost::new(90, 30),
+        InstKind::ICall {
+            function: Callee::Builtin(Builtin::CheckedAddMod | Builtin::CheckedMulMod),
+            ..
+        } => Cost::new(32, 9),
+        InstKind::ICall {
+            function: Callee::Builtin(Builtin::Sha256 | Builtin::Ripemd160), ..
+        } => Cost::new(800, 64),
+        InstKind::ICall { function: Callee::Builtin(Builtin::EcRecover), .. } => {
+            Cost::new(900, 100)
+        }
+        InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. } => {
+            Cost::new(24, 8)
+        }
+        InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => Cost::new(40, 24),
+        InstKind::ValidateAbi(_) => Cost::new(0, 0),
+        InstKind::CheckedBinary { op: crate::mir::CheckedOp::Pow, .. } => Cost::new(300, 128),
+        InstKind::CheckedBinary { .. } => Cost::new(30, 20),
+        InstKind::AbiEncodePacked { parts, .. } => {
+            Cost::new(60 + parts.len() as u32 * 20, 24 + parts.len() as u32 * 12)
+        }
+        InstKind::ICall { function: Callee::Builtin(Builtin::Concat(_)), args: parts } => {
+            Cost::new(60 + parts.len() as u32 * 20, 24 + parts.len() as u32 * 12)
+        }
+        InstKind::Keccak256Bytes(_) => {
+            seq(&[op::DUP1, op::MLOAD, op::SWAP1, op::ADD, op::KECCAK256])
+        }
+        InstKind::MappingSlot(..) => seq(&[op::MSTORE, op::MSTORE, op::KECCAK256]),
+        InstKind::MappingSlotMemory(..) => seq(&[
+            op::MLOAD,
+            op::ADD,
+            op::MSTORE,
+            op::MLOAD,
+            op::ADD,
+            op::MSTORE,
+            op::ADD,
+            op::KECCAK256,
+        ]),
+        InstKind::MappingSlotCalldata(..) => seq(&[
+            op::CALLDATALOAD,
+            op::ADD,
+            op::MSTORE,
+            op::CALLDATALOAD,
+            op::ADD,
+            op::MSTORE,
+            op::ADD,
+            op::ADD,
+            op::KECCAK256,
+        ]),
+        InstKind::StorageArrayDataSlot(..) => seq(&[op::MSTORE, op::MSTORE, op::KECCAK256]),
+        InstKind::StorageArrayElementSlot { element_slots, .. } => {
+            seq(&[op::MSTORE, op::MSTORE, op::KECCAK256, op::ADD]).plus(if *element_slots > 1 {
+                seq(&[op::MUL])
+            } else {
+                Cost::ZERO
+            })
+        }
+        InstKind::AddressCall { .. } => Cost::new(720, 12),
+        InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. } => {
+            Cost::new(60, 24)
+        }
+        InstKind::ICall { function: Callee::Builtin(Builtin::Send), .. } => Cost::new(720, 12),
+        InstKind::ICall { function: Callee::Builtin(Builtin::Transfer), .. } => Cost::new(740, 20),
         InstKind::Call { .. }
         | InstKind::CallCode { .. }
         | InstKind::StaticCall { .. }
         | InstKind::DelegateCall { .. }
         | InstKind::ExtCall { .. }
         | InstKind::ExtDelegateCall { .. }
-        | InstKind::ExtStaticCall { .. } => (700, 1),
-        InstKind::ICall { args, returns, .. } => {
-            let returns = *returns as usize;
-            (80 + ((args.len() + returns) as u64) * 20, 16 + (args.len() + returns) * 4)
+        | InstKind::ExtStaticCall { .. } => seq(&[op::CALL]),
+        InstKind::ICall { function: Callee::Function(function), args } => {
+            target.icall(args.len(), module.function(*function).return_components().len(), 0)
         }
-        InstKind::Create(..) | InstKind::Create2(..) => (32_000, 1),
-        InstKind::Log0(..) => (375, 1),
-        InstKind::Log1(..) => (750, 1),
-        InstKind::Log2(..) => (1_125, 1),
-        InstKind::Log3(..) => (1_500, 1),
-        InstKind::Log4(..) => (1_875, 1),
-        InstKind::Phi(_) | InstKind::Select(..) => (3, 1),
+        // A phi or a select is a stack move at the join.
+        InstKind::Phi(_) | InstKind::Select(..) => seq(&[op::DUP1]),
+        // Every other operation lowers to one opcode and was priced above.
+        _ => {
+            debug_assert!(false, "operation without a single opcode is not priced: {kind}");
+            seq(&[op::ADD])
+        }
     };
     let instructions = match kind {
         InstKind::MappingSlot(..) | InstKind::StorageArrayDataSlot(..) => 3,
@@ -948,54 +1760,95 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         InstKind::AbiEncode { layout, .. } => abi_layout_expansion(layout),
         _ => 1,
     };
-    (MirCost { runtime_gas, code_size }, instructions)
+    (code, instructions)
 }
 
-fn estimate_terminator_cost(term: &Terminator) -> MirCost {
-    let (runtime_gas, code_size) = match term {
-        Terminator::Jump(_) => (8, 3),
-        Terminator::Branch { .. } => (13, 4),
-        Terminator::Switch { cases, .. } => (13 + (cases.len() as u64) * 10, 4 + cases.len() * 4),
-        Terminator::Return { values } => (20 + (values.len() as u64) * 12, 8),
-        Terminator::Revert { .. }
-        | Terminator::RevertReturndata
-        | Terminator::ReturnData { .. } => (20, 4),
-        Terminator::Stop => (0, 1),
-        Terminator::SelfDestruct { .. } => (5_000, 1),
-        Terminator::TailCall { args, .. } => (8 + 3 * args.len() as u64, 4 + args.len()),
-        Terminator::Invalid => (0, 1),
-    };
-    MirCost { runtime_gas, code_size }
+/// Estimated code of a terminator, as the opcode sequence it emits priced by the target.
+fn estimate_terminator_cost(target: Target, term: &Terminator) -> Cost {
+    let seq =
+        |codes: &[u8]| codes.iter().map(|&code| target.opcode(code)).fold(Cost::ZERO, Cost::plus);
+    match term {
+        Terminator::Jump(_) => seq(&[op::PUSH2, op::JUMP]),
+        Terminator::Branch { .. } => seq(&[op::PUSH2, op::JUMPI]),
+        // The dispatch on the value, then a compare and a jump per case.
+        Terminator::Switch { cases, .. } => seq(&[op::PUSH2, op::JUMPI])
+            .plus(seq(&[op::DUP1, op::PUSH1, op::EQ]).times(cases.len() as u32)),
+        // The values are staged by the instructions above; the return is the protocol's jump.
+        Terminator::Return { .. } => target.internal_return(0, 0),
+        Terminator::Revert { .. } | Terminator::RevertReturndata => {
+            seq(&[op::PUSH1, op::DUP1, op::REVERT])
+        }
+        Terminator::ReturnData { .. } => seq(&[op::PUSH1, op::DUP1, op::RETURN]),
+        Terminator::Stop => seq(&[op::STOP]),
+        Terminator::SelfDestruct { .. } => seq(&[op::SELFDESTRUCT]),
+        // A jump with every argument staged.
+        Terminator::TailCall { args, .. } => {
+            seq(&[op::PUSH2, op::JUMP]).plus(seq(&[op::DUP1]).times(args.len() as u32))
+        }
+        Terminator::Invalid => seq(&[op::INVALID]),
+    }
 }
 
-fn estimated_icall_savings(site: CallSite, summary: MirInlineSummary) -> u64 {
+fn estimated_icall_savings(target: Target, site: CallSite, summary: MirInlineSummary) -> u64 {
     let frame_words = (summary.internal_frame_size / EvmMemoryLayout::WORD_SIZE)
         + (EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE / EvmMemoryLayout::WORD_SIZE)
         + (site.args_len + site.returns) as u64;
-    let protocol = 90 + ((site.args_len + site.returns) as u64) * 24 + frame_words * 6;
-    let return_protocol = 24 + (summary.param_count as u64 + site.returns as u64) * 8;
+    let protocol = target.icall(site.args_len, site.returns, frame_words).gas;
+    let return_protocol = target.internal_return(summary.param_count, site.returns).gas;
     let loop_multiplier = (site.loop_depth as u64).saturating_add(1);
-    (protocol + return_protocol) * loop_multiplier
+    u64::from(protocol + return_protocol) * loop_multiplier
 }
 
-fn estimated_icall_code_size(site: CallSite) -> usize {
-    18 + (site.args_len + site.returns) * 5
+fn estimated_icall_code_size(target: Target, site: CallSite) -> usize {
+    target.icall(site.args_len, site.returns, 0).bytes as usize
 }
 
-fn estimated_internal_return_code_size(summary: MirInlineSummary, site: CallSite) -> usize {
-    8 + (summary.param_count + site.returns) * 4
+fn estimated_internal_return_code_size(
+    target: Target,
+    summary: MirInlineSummary,
+    site: CallSite,
+) -> usize {
+    target.internal_return(summary.param_count, site.returns).bytes as usize
 }
 
-fn block_loop_depths(func: &Function) -> FxHashMap<BlockId, usize> {
+struct LoopCost {
+    depth: usize,
+    executions: u64,
+    /// Whether every enclosing loop contributed a computed trip count.
+    counted: bool,
+}
+
+fn block_loop_costs(func: &Function) -> FxHashMap<BlockId, LoopCost> {
     let mut analyzer = LoopAnalyzer::new();
     let loop_info = analyzer.analyze(func);
-    let mut depths = FxHashMap::default();
+    let mut costs = FxHashMap::default();
     for loop_data in loop_info.all_loops() {
+        let counted = loop_data.trip_count.filter(|_| {
+            loop_data.trip_guard_is_header
+                && loop_data.blocks.iter().all(|block| {
+                    block == loop_data.header
+                        || func.blocks[block].terminator.as_ref().is_some_and(|term| {
+                            let successors = term.successors();
+                            !successors.is_empty()
+                                && successors.iter().all(|&next| loop_data.blocks.contains(next))
+                        })
+                })
+        });
         for block in &loop_data.blocks {
-            *depths.entry(block).or_default() += 1;
+            let cost =
+                costs.entry(block).or_insert(LoopCost { depth: 0, executions: 1, counted: true });
+            cost.depth += 1;
+            if let Some(count) = counted
+                && loop_data.back_edges.iter().all(|&latch| analyzer.dominates(block, latch))
+            {
+                let count = count.saturating_add(u64::from(block == loop_data.header));
+                cost.executions = cost.executions.saturating_mul(count);
+            } else {
+                cost.counted = false;
+            }
         }
     }
-    depths
+    costs
 }
 
 fn specialize_function_pointers(module: &mut Module) -> usize {
@@ -1036,7 +1889,7 @@ fn specialize_function_pointers(module: &mut Module) -> usize {
             }
 
             let dispatcher = module.function(callee).clone();
-            if let Some(target) = direct_dispatch_target(&dispatcher, &selector) {
+            if let Some(target) = direct_dispatch_target(module, &dispatcher, &selector) {
                 if rewrite_dispatch_call(module.function_mut(caller), block, inst_index, target) {
                     specialized += 1;
                 }
@@ -1064,7 +1917,8 @@ fn find_next_constant_function_call(
     for (block, bb) in func.blocks.iter_enumerated().skip(start.0) {
         let start_inst = if block.index() == start.0 { start.1 } else { 0 };
         for (inst_index, &inst_id) in bb.instructions.iter().enumerate().skip(start_inst) {
-            if let InstKind::ICall { function, ref args, .. } = func.inst(inst_id).kind
+            if let InstKind::ICall { function: Callee::Function(function), ref args, .. } =
+                func.inst(inst_id).kind
                 && let Some(selector) =
                     args.first().and_then(|&arg| func.value(arg).as_immediate()).cloned()
             {
@@ -1075,7 +1929,11 @@ fn find_next_constant_function_call(
     None
 }
 
-fn direct_dispatch_target(dispatcher: &Function, selector: &Immediate) -> Option<MirFunctionId> {
+fn direct_dispatch_target(
+    module: &Module,
+    dispatcher: &Function,
+    selector: &Immediate,
+) -> Option<MirFunctionId> {
     let selector = selector.as_u256()?;
     for block in dispatcher.blocks.iter() {
         let Terminator::Branch { condition, then_block, .. } = block.terminator.as_ref()? else {
@@ -1094,18 +1952,24 @@ fn direct_dispatch_target(dispatcher: &Function, selector: &Immediate) -> Option
                     == Some(selector)
         });
         if matches_selector {
-            return direct_dispatch_case_target(dispatcher, *then_block);
+            return direct_dispatch_case_target(module, dispatcher, *then_block);
         }
     }
     None
 }
 
-fn direct_dispatch_case_target(dispatcher: &Function, block: BlockId) -> Option<MirFunctionId> {
+fn direct_dispatch_case_target(
+    module: &Module,
+    dispatcher: &Function,
+    block: BlockId,
+) -> Option<MirFunctionId> {
     let block = &dispatcher.blocks[block];
     let [call] = block.instructions.as_slice() else {
         return None;
     };
-    let InstKind::ICall { function, args, returns } = &dispatcher.inst(*call).kind else {
+    let InstKind::ICall { function: Callee::Function(function), args } =
+        &dispatcher.inst(*call).kind
+    else {
         return None;
     };
     if !args.iter().enumerate().all(|(index, &arg)| {
@@ -1120,7 +1984,7 @@ fn direct_dispatch_case_target(dispatcher: &Function, block: BlockId) -> Option<
     let Some(Terminator::Return { values }) = &block.terminator else {
         return None;
     };
-    match *returns {
+    match module.function(*function).return_components().len() {
         0 if values.is_empty() => Some(*function),
         1 if values.as_slice() == [dispatcher.inst_result_value(*call)?] => Some(*function),
         _ => None,
@@ -1136,7 +2000,9 @@ fn rewrite_dispatch_call(
     let Some(&call) = caller.blocks[call_block].instructions.get(call_inst_index) else {
         return false;
     };
-    let InstKind::ICall { function, args, .. } = &mut caller.inst_mut(call).kind else {
+    let InstKind::ICall { function: Callee::Function(function), args, .. } =
+        &mut caller.inst_mut(call).kind
+    else {
         return false;
     };
     if args.is_empty() {
@@ -1155,7 +2021,7 @@ fn propagate_function_pointer_cast(
     let Some(&call_inst) = caller.blocks[call_block].instructions.get(call_inst_index) else {
         return false;
     };
-    let InstKind::ICall { ref args, returns: 1, .. } = caller.inst(call_inst).kind else {
+    let InstKind::ICall { ref args, .. } = caller.inst(call_inst).kind else {
         return false;
     };
     let Some(&arg) = args.first() else {
@@ -1192,17 +2058,47 @@ fn inline_call_impl(
     callee: &Function,
 ) -> Option<()> {
     let call_inst = caller.blocks[call_block].instructions[call_inst_index];
-    let InstKind::ICall { args, returns, .. } = caller.inst(call_inst).kind.clone() else {
+    let InstKind::ICall { args, .. } = caller.inst(call_inst).kind.clone() else {
         return None;
     };
-    let returns = returns as usize;
-    if returns != callee.returns.len() {
-        return None;
-    }
+    let returns = callee.return_components().len();
 
     let call_result = caller.inst_result_value(call_inst);
     if returns > 0 && call_result.is_none() {
         return None;
+    }
+
+    if is_small_literal_return(callee) {
+        return inline_literal_call(
+            caller,
+            call_block,
+            call_inst_index,
+            callee,
+            args,
+            call_result?,
+        );
+    }
+
+    // object_arg = memory_object_from_ptr raw_arg
+    // jump cloned_entry(object_arg)
+    // Calls can carry raw pointer words; cloned semantic operations still require
+    // the callee's object types. Materialize the zero-cost view at the cloned entry.
+    let mut args = args;
+    let mut argument_views = Vec::new();
+    for (arg, &ty) in args.iter_mut().zip(&callee.params) {
+        if let MirType::MemoryObject(kind) = ty
+            && caller.value_ty(*arg) != Some(ty)
+        {
+            if !caller.value_ty(*arg).is_some_and(MirType::is_word) {
+                return None;
+            }
+            let (inst, value) = caller.alloc_value_inst(
+                Instruction::new(InstKind::MemoryObjectFromPtr { ptr: *arg, kind }, Some(ty))
+                    .with_debug_info_dropped(),
+            );
+            argument_views.push(inst);
+            *arg = value;
+        }
     }
 
     let continuation = caller.alloc_block();
@@ -1227,13 +2123,14 @@ fn inline_call_impl(
     let caller_frame_prefix = if caller_is_external {
         0
     } else {
-        let signature_slots = caller.params.len().checked_add(caller.returns.len())?;
+        let signature_slots = caller.params.len().checked_add(caller.return_components().len())?;
         let signature_size =
             u64::try_from(signature_slots).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
         EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE.checked_add(signature_size)?
     };
     let frame_base = caller_frame_prefix.checked_add(caller.internal_frame_size)?;
-    let callee_signature_slots = callee.params.len().checked_add(callee.returns.len())?;
+    let callee_signature_slots =
+        callee.params.len().checked_add(callee.return_components().len())?;
     let callee_signature_size =
         u64::try_from(callee_signature_slots).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
     let callee_frame_prefix =
@@ -1243,6 +2140,9 @@ fn inline_call_impl(
 
     let mut cloner = InlineCloner::new(caller, callee, frame_base, callee_frame_prefix, args);
     let cloned_entry = cloner.clone_blocks(continuation)?;
+    // cloned_entry: object argument views; cloned callee body
+    cloner.caller.blocks[cloned_entry].instructions.splice(0..0, argument_views);
+
     // icall @callee !metadata(call) => jump cloned_entry !metadata(call)
     cloner.caller.blocks[call_block].terminator = Some(Terminator::Jump(cloned_entry));
     cloner.caller.blocks[call_block].terminator_metadata =
@@ -1253,7 +2153,7 @@ fn inline_call_impl(
         let return_values = build_return_values(
             cloner.caller,
             continuation,
-            &callee.returns,
+            callee.return_components(),
             &cloner.return_edges,
         )?;
         replacements.insert(call_result?, return_values[0]);
@@ -1261,7 +2161,7 @@ fn inline_call_impl(
             cloner.caller,
             continuation,
             &return_values,
-            &callee.returns,
+            callee.return_components(),
             caller_is_external,
             caller_frame_prefix,
         )?;
@@ -1270,6 +2170,87 @@ fn inline_call_impl(
     cloner.caller.replace_uses(&replacements);
     recompute_cfg(cloner.caller);
     prune_phi_incoming_to_predecessors(cloner.caller);
+    Some(())
+}
+
+/// Splices a literal initializer into the call block so ABI lowering can see
+/// the object directly, without an intermediate single-edge phi. The checked
+/// initializer shape is frameless and cannot require control-flow remapping.
+fn inline_literal_call(
+    caller: &mut Function,
+    block: BlockId,
+    index: usize,
+    callee: &Function,
+    args: Box<[ValueId]>,
+    result: ValueId,
+) -> Option<()> {
+    let mut cloner = InlineCloner::new(caller, callee, 0, 0, args);
+    let mut instructions = Vec::new();
+    // object = icall @literal
+    //   => object = alloc memorybytes, size
+    //      set_memory_object_len object, length
+    //      memory_object_store_word object, 0, word
+    for &inst in &callee.blocks[BlockId::ENTRY].instructions {
+        let source = callee.inst(inst);
+        let kind = cloner.clone_inst_kind(source.kind.clone())?;
+        let mut instruction = Instruction::new(kind, source.result_ty);
+        instruction.metadata.copy_debug_context(&source.metadata);
+        if matches!(instruction.kind, InstKind::Alloc { .. }) {
+            // object = alloc memorybytes, size
+            //   => object = alloc memorybytes, size !metadata(preserves_fmp)
+            //
+            // The inlined result escapes the call. Preserve its heap reservation even when a
+            // later ABI encoding embeds the literal bytes and removes its initialization stores.
+            instruction.metadata.set_preserves_fmp(true);
+        }
+        if let InstKind::MStore(ptr, value) = instruction.kind
+            && let Value::Inst(data) = cloner.caller.value(ptr)
+            && let InstKind::MemoryObjectData(object, MemoryObjectKind::Bytes) =
+                cloner.caller.inst(*data).kind
+        {
+            // mstore memory_object_data(object), word
+            //   => memory_object_store_word object, 0, word
+            let offset =
+                cloner.caller.alloc_value(Value::Immediate(Immediate::uint256(Default::default())));
+            instruction.kind = InstKind::MemoryObjectStoreWord { object, offset, value };
+        }
+        let new_inst = if let Some(value) = callee.inst_result_value(inst) {
+            let (new_inst, new_value) = cloner.caller.alloc_value_inst(instruction);
+            cloner.value_map.insert(value, new_value);
+            new_inst
+        } else {
+            cloner.caller.alloc_inst(instruction)
+        };
+        instructions.push(new_inst);
+    }
+    let Terminator::Return { values } = callee.blocks[BlockId::ENTRY].terminator.as_ref()? else {
+        return None;
+    };
+    let replacement = cloner.clone_value(values[0])?;
+    // prefix; icall @literal; suffix => prefix; initializer; suffix[object/result]
+    cloner.caller.blocks[block].instructions.splice(index..=index, instructions);
+    cloner.caller.replace_uses(&FxHashMap::from_iter([(result, replacement)]));
+    Some(())
+}
+
+/// Splices an externally terminating wrapper into one dispatcher route.
+/// The caller owns rollback if cloning fails; eligibility and frame exclusion
+/// are checked by the dispatcher pass before any module mutation.
+pub(super) fn inline_dispatch_route(
+    caller: &mut Function,
+    block: BlockId,
+    callee: &Function,
+    args: Box<[ValueId]>,
+) -> Option<()> {
+    let mut cloner = InlineCloner::new(caller, callee, 0, 0, args);
+    cloner.external_exit = true;
+    let entry = cloner.clone_blocks(BlockId::ENTRY)?;
+    // tail_call @wrapper => jump cloned_entry
+    // cloned exits retain returndata/revert/stop rather than returning to a caller
+    // NOTE: The wrapper call boundary disappears; its source checkpoint cannot
+    // describe this generated jump. Cloned body instructions keep their origins.
+    cloner.caller.blocks[block].set_generated_terminator(Terminator::Jump(entry));
+    recompute_cfg(cloner.caller);
     Some(())
 }
 
@@ -1282,6 +2263,7 @@ struct InlineCloner<'a> {
     value_map: FxHashMap<ValueId, ValueId>,
     block_map: IndexVec<BlockId, BlockId>,
     return_edges: Vec<(BlockId, SmallVec<[ValueId; 2]>)>,
+    external_exit: bool,
 }
 
 impl<'a> InlineCloner<'a> {
@@ -1301,6 +2283,7 @@ impl<'a> InlineCloner<'a> {
             value_map: FxHashMap::default(),
             block_map: IndexVec::with_capacity(callee.blocks.len()),
             return_edges: Vec::new(),
+            external_exit: false,
         }
     }
 
@@ -1418,17 +2401,23 @@ impl<'a> InlineCloner<'a> {
                     })
                     .collect::<Option<Vec<_>>>()?,
             },
+            // returndata offset, size => returndata cloned(offset), cloned(size)
+            Terminator::ReturnData { offset, size } if self.external_exit => {
+                Terminator::ReturnData {
+                    offset: self.clone_value(*offset)?,
+                    size: self.clone_value(*size)?,
+                }
+            }
+            Terminator::Stop if self.external_exit => Terminator::Stop,
+            Terminator::Return { values } if self.external_exit && values.is_empty() => {
+                Terminator::Stop
+            }
             Terminator::Return { values } => {
                 let mapped = values
                     .iter()
                     .map(|value| self.clone_value(*value))
                     .collect::<Option<SmallVec<[ValueId; 2]>>>()?;
                 self.return_edges.push((cloned_block, mapped));
-                Terminator::Jump(continuation)
-            }
-            // A void callee's `Stop` is an internal return with no values.
-            Terminator::Stop if self.callee.returns.is_empty() => {
-                self.return_edges.push((cloned_block, SmallVec::new()));
                 Terminator::Jump(continuation)
             }
             Terminator::Revert { offset, size } => Terminator::Revert {
@@ -1534,8 +2523,87 @@ fn insert_return_buffer_stores(
             .drain(existing_len..)
             .collect::<Vec<_>>()
     };
+    let consumer_start = phi_count + instructions.len();
     caller.blocks[continuation].instructions.splice(phi_count..phi_count, instructions);
+    if return_tys.iter().all(|ty| !matches!(ty, MirType::Slice(_) | MirType::MemoryObject(_))) {
+        forward_inline_return_loads(caller, continuation, consumer_start, values);
+    }
     Some(())
+}
+
+/// Forward scalar return-buffer loads before any instruction can overwrite its contents.
+fn forward_inline_return_loads(
+    func: &mut Function,
+    block: BlockId,
+    start: usize,
+    returned: &[ValueId],
+) {
+    let mut offsets = FxHashMap::default();
+    let mut replacements = FxHashMap::default();
+    let mut removed = Vec::new();
+    for &inst in &func.blocks[block].instructions[start..] {
+        let instruction = func.inst(inst);
+        if instruction
+            .metadata
+            .effect()
+            .is_some_and(|effect| effect != instruction.kind.effect_kind())
+        {
+            break;
+        }
+        match instruction.kind {
+            InstKind::FrameLoad {
+                offset: 0,
+                mode: FrameMode::MultiReturn,
+                kind: FrameSlotKind::Word,
+            } => {
+                if let Some(value) = func.inst_result_value(inst) {
+                    offsets.insert(value, 0u64);
+                }
+            }
+            InstKind::Add(a, b) => {
+                if let Some(offset) = offsets
+                    .get(&a)
+                    .and_then(|&offset| func.value_u64(b)?.checked_add(offset))
+                    .or_else(|| {
+                        offsets.get(&b).and_then(|&offset| func.value_u64(a)?.checked_add(offset))
+                    })
+                    && let Some(value) = func.inst_result_value(inst)
+                {
+                    offsets.insert(value, offset);
+                }
+            }
+            InstKind::MLoad(address) => {
+                if let Some(&offset) = offsets.get(&address)
+                    && offset >= 32
+                    && offset % 32 == 0
+                    && let Some(&value) =
+                        returned.get(usize::try_from(offset / 32).unwrap_or(usize::MAX))
+                    && let Some(result) = func.inst_result_value(inst)
+                    && func.value_ty(value) == instruction.result_ty
+                {
+                    replacements.insert(result, value);
+                    removed.push(inst);
+                }
+            }
+            _ if instruction.kind.effect_kind() == EffectKind::Pure => {}
+            _ => break,
+        }
+    }
+    if !replacements.is_empty() {
+        // publish [_, result1, ...]; ptr = frame_load multi-return
+        // load(ptr + 32 * n) => resultN
+        func.for_each_instruction_mut(|_, instruction| {
+            instruction.rewrite_operands(|value| {
+                *value = resolve_replacement(*value, &replacements);
+            });
+        });
+        for block in &mut func.blocks {
+            if let Some(term) = &mut block.terminator {
+                replace_terminator_uses_canonicalized(term, &replacements);
+            }
+        }
+        func.blocks[block].instructions.retain(|inst| !removed.contains(inst));
+    }
 }
 
 fn redirect_phi_predecessors(
@@ -1608,7 +2676,7 @@ mod tests {
 
         let mut ordinary = Function::new(Ident::DUMMY);
         let mut builder = FunctionBuilder::new(&mut ordinary);
-        builder.icall_void(callee, Vec::new(), 0);
+        builder.icall_void(callee, Vec::new());
         builder.stop();
         module.add_function(ordinary);
 
@@ -1628,7 +2696,7 @@ mod tests {
         let mut caller = Function::new(Ident::DUMMY);
         caller.internal_frame_size = u64::MAX;
         let mut builder = FunctionBuilder::new(&mut caller);
-        builder.icall_void(callee_id, Vec::new(), 0);
+        builder.icall_void(callee_id, Vec::new());
         builder.stop();
         let call = caller.blocks[BlockId::ENTRY].instructions[0];
         let call_index = caller.blocks[BlockId::ENTRY]

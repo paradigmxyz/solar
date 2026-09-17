@@ -1,0 +1,4 @@
+error: `lower-structs` cannot lower this module: slice producers or returns do not provide pointer/length pairs
+
+error: aborting due to 1 previous error
+

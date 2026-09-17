@@ -17,6 +17,31 @@
       ret v0
   }
   
+  fn @store_bytes_reads_memory(arg0: u256, arg1: memorybytes) {
+    bb0:
+      set_memory_object_len memorybytes, arg1, 32
+      memory_object_store_word memorybytes, arg1, 0, 7
+      store_storage_bytes arg0, arg1
+      ret
+  }
+  
+  fn @acyclic_shared_exit(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb3, bb1
+    bb1:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      set_memory_object_len memorybytes, v0, 39
+      v1 = memory_object_data memorybytes, v0
+      mstore v1, 7
+-     v2 = memory_object_len memorybytes, v0
+      jumpi arg1, bb3, bb2
+    bb2:
+-     ret v2
++     ret 39
+    bb3:
+      ret 0
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (after dce) ===
   @module MemoryObjectMemoryDse
@@ -32,5 +57,28 @@
       mstore arg1, 7
       v0 = memory_object_len memorybytes, arg0
       ret v0
+  }
+  
+  fn @store_bytes_reads_memory(arg0: u256, arg1: memorybytes) {
+    bb0:
+      set_memory_object_len memorybytes, arg1, 32
+      memory_object_store_word memorybytes, arg1, 0, 7
+      store_storage_bytes arg0, arg1
+      ret
+  }
+  
+  fn @acyclic_shared_exit(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb3, bb1
+    bb1:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      set_memory_object_len memorybytes, v0, 39
+      v1 = memory_object_data memorybytes, v0
+      mstore v1, 7
+      jumpi arg1, bb3, bb2
+    bb2:
+      ret 39
+    bb3:
+      ret 0
   }
   

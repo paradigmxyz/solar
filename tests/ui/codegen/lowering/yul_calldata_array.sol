@@ -9,7 +9,9 @@ contract C {
     // CHECK: {{v[0-9]+}} = slice_len arg0
     // CHECK: [[PTR:v[0-9]+]] = slice_ptr arg0
     // CHECK: {{v[0-9]+}} = calldataload [[PTR]]
-    // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK: [[RET_0:v[0-9]+]] = insert_value [[RET_TY:struct[0-9]+]], undef [[RET_TY]], 0, {{v[0-9]+}}
+    // CHECK: [[RET_1:v[0-9]+]] = insert_value [[RET_TY]], [[RET_0]], 1, {{v[0-9]+}}
+    // CHECK: ret [[RET_1]]
     function probe(uint256[] calldata a) external pure returns (uint256 len, uint256 first) {
         assembly {
             len := a.length

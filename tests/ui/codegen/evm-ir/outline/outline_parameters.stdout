@@ -107,12 +107,12 @@
     not
     pop
 +   jump
-+ bb5:
++ bb5 [continuation]:
 +   jump bb1
-+ bb6:
++ bb6 [continuation]:
 +   jump bb2
-+ bb7:
++ bb7 [continuation]:
 +   jump bb3
-+ bb8:
++ bb8 [continuation]:
     stop
   

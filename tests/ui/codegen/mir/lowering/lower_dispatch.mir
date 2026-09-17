@@ -5,7 +5,7 @@
 // external wrapper, defaulting to a revert. It requires the `abi` phase, whose
 // wrappers are already argument-free.
 @module LowerDispatch
-@phase abi
+@phase semantic
 // CHECK-LABEL: after lower-dispatch
 // CHECK: + fn @entry{{[( ]}}
 // CHECK: + [[SIZE:v[0-9]+]] = calldatasize
@@ -15,11 +15,11 @@
 // CHECK: + switch [[SELECTOR]], default {{.*}}[0x12000000 =>
 // CHECK: + tail_call @pong
 // CHECK: + tail_call @ping
-fn @ping() [selector=0x12000000] {
+fn @ping() [selector=0x12000000, abi_wrapper] {
   bb0:
     stop
 }
-fn @pong() [selector=0x8d3a3e57] {
+fn @pong() [selector=0x8d3a3e57, abi_wrapper] {
   bb0:
     stop
 }

@@ -120,10 +120,11 @@ pub(crate) struct Assembler<'gcx> {
     /// Labels whose blocks run once per loop iteration.
     pub(in crate::backend) loop_labels: GrowableBitSet<Label>,
     /// Unresolved block references emitted as push operands.
+    /// Ordered by (block, instruction); EVM IR construction uses binary search.
     pub(in crate::backend) label_relocations: Vec<(ir::BlockId, usize, Label)>,
     /// Unresolved deferred constants emitted as push operands.
     pub(in crate::backend) deferred_relocations: Vec<(ir::BlockId, usize, DeferredConst)>,
-    /// Indexed jumps whose possible targets are assembler labels.
+    /// Indexed jumps whose possible targets are assembler labels, ordered by source block.
     pub(in crate::backend) indexed_jump_relocations: Vec<(ir::BlockId, Vec<Label>, ir::Metadata)>,
     /// Interned push immediates too large for inline storage.
     pub(in crate::backend) push_values: LocalInterner<U256, PushValueId>,
@@ -208,6 +209,8 @@ impl<'gcx> Assembler<'gcx> {
     /// Sets the artifact context used by conservative layout estimates.
     pub(crate) fn set_artifact_kind(&mut self, kind: ArtifactKind) {
         self.artifact_kind = kind;
+        // Creation code is followed by the runtime artifact it deploys.
+        self.program.code_follows = matches!(kind, ArtifactKind::Constructor);
     }
 
     /// Sets the source module name carried by emitted EVM IR.

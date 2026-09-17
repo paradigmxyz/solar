@@ -12,5 +12,5 @@ fn @get() -> bytes32 [selector=0x6d4ce63c, view, abi_params=[], abi_returns=[wor
 fn @constructor() [constructor] {
   bb0:
     storeimmutable value, 0x31e1c5bf9da84811147b2cab01421da1659d9baff618fb99b976b2c0901cba01
-    stop
+    ret
 }

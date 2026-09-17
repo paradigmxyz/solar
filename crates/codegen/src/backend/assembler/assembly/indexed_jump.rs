@@ -807,6 +807,7 @@ fn estimated_block_size(
         size = size.saturating_add(estimated_terminator_size(
             &term.kind,
             module.next_block(block_id),
+            module.code_follows,
             block_target_width,
             packed_table,
             evm_version,
@@ -818,6 +819,7 @@ fn estimated_block_size(
 fn estimated_terminator_size(
     kind: &ir::TerminatorKind,
     next: Option<BlockId>,
+    code_follows: bool,
     width: u8,
     packed_table: Option<PackedTableEstimate>,
     evm_version: EvmVersion,
@@ -837,7 +839,7 @@ fn estimated_terminator_size(
         ir::TerminatorKind::IndexedJump(_) => {
             packed_table.map_or(push + 5, |table| packed_indexed_jump_len(table, evm_version))
         }
-        ir::TerminatorKind::Op(op::STOP) => usize::from(next.is_some()),
+        ir::TerminatorKind::Op(op::STOP) => usize::from(next.is_some() || code_follows),
         ir::TerminatorKind::Op(_) => 1,
     }
 }

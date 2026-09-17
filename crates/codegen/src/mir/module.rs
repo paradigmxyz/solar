@@ -2,12 +2,13 @@
 
 use super::{
     AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, DataId, DataRef, Disambiguator,
-    Function, FunctionId, ImmutableId, MangledSymbol, MirType,
+    Function, FunctionId, ImmutableId, MangledSymbol, MirType, StructId, StructType, Terminator,
 };
 use alloy_primitives::Bytes;
 use solar_data_structures::{
+    bit_set::DenseBitSet,
     fmt::{self, FmtIteratorExt},
-    index::IndexVec,
+    index::{IndexVec, index_vec},
     map::FxHashMap,
 };
 use solar_interface::{Ident, Symbol, sym};
@@ -43,43 +44,19 @@ struct Data {
     emit_in_runtime: bool,
 }
 
-/// The lowering phase a [`Module`] is in.
+/// The representation contract of a MIR module.
 ///
-/// MIR is a phased IR, like rustc's MIR: the same data structures pass through
-/// well-defined phases, and passes declare what phase they expect and produce.
-/// Phases only move forward. The enum order is the lowering order, so
-/// [`MirPhase`] derives `Ord` and `Module::advance_phase` can assert monotonicity.
-///
-/// Optimization runs on the compact high-level form first; the progressive
-/// lowering phases then rewrite high-level constructs into MIR itself instead
-/// of leaving them as backend special cases. The codegen pipeline runs ABI,
-/// dispatch, memory-object, allocation, and EVM-shape lowering by default. The
-/// backend only consumes an `evm-shaped` module; a lowering pass that cannot
-/// complete leaves the module at an earlier phase and codegen reports it.
+/// Semantic MIR retains typed operations through optimization. Lowered MIR contains only
+/// backend-supported word operations, with ABI routing and memory layouts made explicit.
+/// Individual conversion passes may mix representations; only checked completion advances
+/// the phase. Optimization history is not part of the representation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MirPhase {
-    /// Fresh from HIR lowering: typed values, internal calls by function id,
-    /// dispatch and ABI handling not yet materialized as MIR.
+    /// Typed SSA with semantic operations and layouts.
     #[default]
-    Built,
-    /// The canonical optimization pipeline has run.
-    Optimized,
-    /// Every external function has been rewritten into a self-decoding wrapper:
-    /// it decodes calldata into typed arguments and calls the original body as
-    /// an internal function; the body keeps its fused external termination.
-    /// The wrapper keeps its selector but takes no MIR arguments.
-    Abi,
-    /// The selector switch has been materialized as an ordinary MIR `entry`
-    /// function that routes to the ABI wrappers.
-    Dispatch,
-    /// Semantic memory objects have been lowered to physical pointer and word
-    /// operations. Produced by the `lower-memory-objects` pass.
-    MemoryLowered,
-    /// Functions take the shape the backend expects: every call edge either
-    /// returns or is an explicit `tail_call` (a call to a callee that cannot
-    /// return is rewritten into one, arguments included). Produced by the
-    /// `lower-evm-shaped` pass after all required representation lowering.
-    EvmShaped,
+    Semantic,
+    /// Word SSA with explicit ABI, memory, and backend calling conventions.
+    Lowered,
 }
 
 impl MirPhase {
@@ -87,12 +64,8 @@ impl MirPhase {
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
-            Self::Built => "built",
-            Self::Optimized => "optimized",
-            Self::Abi => "abi",
-            Self::Dispatch => "dispatch",
-            Self::MemoryLowered => "memory-lowered",
-            Self::EvmShaped => "evm-shaped",
+            Self::Semantic => "semantic",
+            Self::Lowered => "lowered",
         }
     }
 
@@ -100,14 +73,21 @@ impl MirPhase {
     #[must_use]
     pub(crate) fn by_name(name: Symbol) -> Option<Self> {
         Some(match name {
-            sym::built => Self::Built,
-            sym::optimized => Self::Optimized,
-            sym::abi => Self::Abi,
-            sym::dispatch => Self::Dispatch,
-            sym::memory_dash_lowered => Self::MemoryLowered,
-            sym::evm_dash_shaped => Self::EvmShaped,
+            sym::semantic => Self::Semantic,
+            sym::lowered => Self::Lowered,
             _ => return None,
         })
+    }
+}
+
+/// An immutable MIR view whose backend representation has been checked.
+pub(crate) struct LoweredModule<'a>(&'a Module);
+
+impl std::ops::Deref for LoweredModule<'_> {
+    type Target = Module;
+
+    fn deref(&self) -> &Module {
+        self.0
     }
 }
 
@@ -116,6 +96,8 @@ impl MirPhase {
 pub struct Module {
     /// Module/contract name.
     pub(crate) name: Ident,
+    /// Fixed aggregate types, with nested types declared before their users.
+    pub(crate) struct_types: IndexVec<StructId, StructType>,
     /// All functions in this module.
     pub(crate) functions: IndexVec<FunctionId, Function>,
     /// The synthesized runtime dispatch entry, if this module has one.
@@ -143,12 +125,45 @@ pub struct Module {
     /// [`Self::library_deploy_address`].
     pub(crate) is_library: bool,
     /// The lowering phase this module is in.
-    pub(crate) phase: MirPhase,
+    pub(super) phase: MirPhase,
     /// Whether passes must account for every instruction's source debug information.
     debug_info_tracked: bool,
 }
 
 impl Module {
+    /// Interns a structural value type within this module.
+    pub(crate) fn intern_struct(&mut self, fields: impl Into<Box<[MirType]>>) -> MirType {
+        let fields = fields.into();
+        if let Some((id, _)) =
+            self.struct_types.iter_enumerated().find(|(_, ty)| ty.fields == fields)
+        {
+            return MirType::Struct(id);
+        }
+        MirType::Struct(self.struct_types.push(StructType { fields }))
+    }
+
+    /// Represents a function's logical outputs as zero, one, or one struct value.
+    pub(crate) fn intern_return_type(&mut self, fields: Vec<MirType>) -> Option<MirType> {
+        match fields.as_slice() {
+            [] => None,
+            [ty] => Some(*ty),
+            _ => Some(self.intern_struct(
+                fields.into_iter().map(MirType::return_field_type).collect::<Vec<_>>(),
+            )),
+        }
+    }
+
+    /// Returns whether a value can contain a reference to caller-visible memory.
+    pub(crate) fn type_may_reference_memory(&self, ty: MirType) -> bool {
+        match ty {
+            MirType::Struct(id) => self.struct_types[id]
+                .fields
+                .iter()
+                .any(|&field| self.type_may_reference_memory(field)),
+            _ => ty.is_memory_reference(),
+        }
+    }
+
     /// Parses textual MIR.
     pub fn parse(
         sess: &solar_interface::Session,
@@ -163,6 +178,7 @@ impl Module {
         Self {
             name,
             functions: IndexVec::new(),
+            struct_types: IndexVec::new(),
             dispatch_entry: None,
             function_name_index: FxHashMap::default(),
             abi_layouts: Vec::new(),
@@ -173,7 +189,7 @@ impl Module {
             library_links: Vec::new(),
             is_interface: false,
             is_library: false,
-            phase: MirPhase::Built,
+            phase: MirPhase::Semantic,
             debug_info_tracked: false,
         }
     }
@@ -189,18 +205,100 @@ impl Module {
         self.debug_info_tracked
     }
 
-    /// Advances this module to a later phase.
-    ///
-    /// Phases only move forward; a pipeline that would regress the phase is a
-    /// bug in pass scheduling.
-    pub(crate) fn advance_phase(&mut self, phase: MirPhase) {
-        debug_assert!(
-            phase >= self.phase,
-            "MIR phase cannot regress: {} -> {}",
-            self.phase.name(),
-            phase.name()
-        );
+    /// Returns the verified representation phase.
+    #[must_use]
+    pub const fn phase(&self) -> MirPhase {
+        self.phase
+    }
+
+    /// Checks the destination representation before advancing the phase.
+    pub(crate) fn advance_phase(
+        &mut self,
+        dcx: &solar_interface::diagnostics::DiagCtxt,
+        phase: MirPhase,
+    ) -> solar_interface::Result<()> {
+        assert!(phase >= self.phase, "MIR phase cannot regress");
+        crate::mir::analysis::validate_phase(dcx, self, phase)?;
         self.phase = phase;
+        Ok(())
+    }
+
+    /// Checks backend legality and borrows the module without permitting further rewrites.
+    pub(crate) fn as_lowered(
+        &self,
+        dcx: &solar_interface::diagnostics::DiagCtxt,
+    ) -> solar_interface::Result<LoweredModule<'_>> {
+        if self.phase != MirPhase::Lowered {
+            return Err(dcx
+                .err(format!(
+                    "EVM codegen requires MIR in the `lowered` phase, stopped at `{}`",
+                    self.phase.name(),
+                ))
+                .span(self.name.span)
+                .emit());
+        }
+        crate::mir::analysis::validate_phase(dcx, self, MirPhase::Lowered)?;
+        Ok(LoweredModule(self))
+    }
+
+    /// Returns whether all external entries have an explicit ABI implementation.
+    pub(crate) fn has_explicit_abi(&self) -> bool {
+        self.functions
+            .iter()
+            .all(|func| !func.is_external_entry() || func.attributes.is_abi_wrapper)
+    }
+
+    /// Returns whether a live value or function signature still uses an SSA struct.
+    pub(crate) fn has_struct_values(&self) -> bool {
+        self.has_value_type(|ty| matches!(ty, MirType::Struct(_)))
+    }
+
+    fn has_value_type(&self, predicate: impl Fn(MirType) -> bool) -> bool {
+        self.functions.iter().any(|func| {
+            func.arg_indices()
+                .map(|index| func.arg_ty(index))
+                .chain(func.return_components().iter().copied())
+                .chain(func.live_values().filter_map(|value| func.value_ty(value)))
+                .any(&predicate)
+        })
+    }
+
+    /// Finds functions that may return to their caller, directly or through tail calls.
+    ///
+    /// Propagate direct returns backwards over tail-call edges. Cycles without a return stay
+    /// nonreturning. Unreachable returns and invalid tail targets count conservatively; this
+    /// query does not prove reachability or replace validation of call targets.
+    pub(crate) fn returning_functions(&self) -> DenseBitSet<FunctionId> {
+        let mut callers = index_vec![Vec::new(); self.functions.len()];
+        let mut returning = DenseBitSet::new_empty(self.functions.len());
+        let mut worklist = Vec::new();
+        for (id, func) in self.iter_functions() {
+            for block in &func.blocks {
+                let may_return = match &block.terminator {
+                    Some(Terminator::Return { .. }) => true,
+                    Some(Terminator::TailCall { function, .. }) => {
+                        if let Some(callers) = callers.get_mut(*function) {
+                            callers.push(id);
+                            false
+                        } else {
+                            true
+                        }
+                    }
+                    _ => false,
+                };
+                if may_return && returning.insert(id) {
+                    worklist.push(id);
+                }
+            }
+        }
+        while let Some(callee) = worklist.pop() {
+            for &caller in &callers[callee] {
+                if returning.insert(caller) {
+                    worklist.push(caller);
+                }
+            }
+        }
+        returning
     }
 
     /// Adds a function to the module.
@@ -419,6 +517,13 @@ impl Module {
             }
             if self.is_library {
                 writeln!(f, "@library")?;
+            }
+            if !self.struct_types.is_empty() {
+                writeln!(f, "types:")?;
+                for (id, ty) in self.struct_types.iter_enumerated() {
+                    writeln!(f, "  struct{}: {{{}}}", id.index(), ty.fields.iter().format(", "))?;
+                }
+                writeln!(f)?;
             }
             if !self.data.is_empty() {
                 writeln!(f, "data:")?;

@@ -56,6 +56,7 @@ fn @top_tested_control() -> u256 {
   bb0:
     jump bb1
   bb1:
+    v10 = phi [bb0: 0], [bb2: v3]
     v1 = phi [bb0: 0], [bb2: v9]
     v2 = lt v1, 10
     jumpi v2, bb2, bb3
@@ -66,7 +67,7 @@ fn @top_tested_control() -> u256 {
     v9 = add v1, 1
     jump bb1
   bb3:
-    ret v3
+    ret v10
 }
 
 // Stores in the header observe the post-increment value of the exiting

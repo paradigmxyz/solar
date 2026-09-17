@@ -1,0 +1,295 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/power_of_two_mul.sol:PowerOfTwoMul (runtime) ===
+@module PowerOfTwoMul_runtime
+bb0:
+  callvalue
+  push bb8
+  jumpi
+  push 0x100000000000000000000000000000000000000000000000000000000
+  push 0
+  calldataload
+  div
+  dup 1
+  push 0x25ee2d76
+  eq
+  push bb26
+  jumpi
+  dup 1
+  push 0xa75826ae
+  eq
+  push bb9
+  jumpi
+  dup 1
+  push 0xb10b60bd
+  eq
+  push bb15
+  jumpi
+  dup 1
+  push 0xc78126ad
+  eq
+  push bb29
+  jumpi
+  dup 1
+  push 0xde1efc56
+  eq
+  push bb23
+  jumpi
+  dup 1
+  push 0xe4bb44bc
+  eq
+  push bb9
+  jumpi
+  jump bb8
+bb8 [cold]:
+  push 0
+  dup 1
+  revert
+bb9:
+  push 36
+  calldatasize
+  lt
+  push bb8
+  jumpi
+  push 4
+  calldataload
+  push 2
+  exp
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb38 [cold]:
+  push 0x4e487b71
+  push 0
+  mstore
+  push 65
+  jump bb40
+bb40 [cold]:
+  push 32
+  mstore
+  push 36
+  push 28
+  revert
+bb15:
+  push 36
+  calldatasize
+  lt
+  push bb8
+  jumpi
+  push 1
+  push 2
+  push 4
+  calldataload
+  swap 2
+  jump bb17
+bb17 [loop]:
+  dup 3
+  push bb19
+  jumpi
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb19 [loop]:
+  push 1
+  dup 4
+  and
+  dup 3
+  dup 3
+  mul
+  dup 4
+  iszero
+  dup 5
+  dup 3
+  div
+  dup 5
+  eq
+  dup 2
+  or
+  iszero
+  dup 4
+  and
+  push bb21
+  jumpi
+  swap 3
+  swap 2
+  dup 3
+  dup 3
+  sub
+  mul
+  swap 1
+  pop
+  add
+  swap 3
+  push 1
+  push 2
+  exp
+  swap 1
+  div
+  dup 3
+  dup 1
+  mul
+  dup 4
+  dup 2
+  div
+  swap 1
+  swap 4
+  eq
+  swap 1
+  swap 2
+  or
+  iszero
+  push 0
+  dup 3
+  gt
+  and
+  exchange 1, 3
+  iszero
+  push bb17
+  jumpi
+  jump bb21
+bb21 [cold]:
+  push 0x4e487b71
+  push 0
+  mstore
+  push 17
+  jump bb40
+bb23:
+  push 36
+  calldatasize
+  lt
+  push bb8
+  jumpi
+  push 32
+  push 4
+  calldataload
+  mul
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb26:
+  push 36
+  calldatasize
+  lt
+  push bb8
+  jumpi
+  push 0x8000000000000000000000000000000000000000000000000000000000000000
+  push 4
+  calldataload
+  mul
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb29:
+  push 160
+  push 64
+  mstore
+  push 68
+  calldatasize
+  lt
+  push bb8
+  jumpi
+  push 4
+  calldataload
+  push 4
+  dup 2
+  add
+  push 32
+  dup 2
+  add
+  swap 2
+  push 0xffffffffffffffff
+  lt
+  calldatasize
+  dup 4
+  gt
+  or
+  push bb8
+  jumpi
+  calldataload
+  push 32
+  dup 2
+  mul
+  push 32
+  dup 2
+  div
+  dup 3
+  sub
+  push bb38
+  jumpi
+  push 32
+  dup 2
+  add
+  dup 2
+  dup 2
+  lt
+  push bb38
+  jumpi
+  push 64
+  mload
+  swap 1
+  dup 2
+  add
+  dup 2
+  dup 2
+  lt
+  push 0xffffffffffffffff
+  dup 3
+  gt
+  or
+  push bb38
+  jumpi
+  push 64
+  mstore
+  dup 3
+  dup 2
+  mstore
+  dup 4
+  calldatasize
+  sub
+  push 5
+  push 2
+  exp
+  swap 1
+  div
+  dup 4
+  gt
+  push bb8
+  jumpi
+  push 32
+  add
+  dup 2
+  dup 5
+  dup 3
+  calldatacopy
+  swap 3
+  pop
+  pop
+  push 36
+  calldataload
+  lt
+  iszero
+  push bb37
+  jumpi
+  push 32
+  push 36
+  calldataload
+  mul
+  add
+  mload
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb37 [cold]:
+  push 0x4e487b71
+  push 0
+  mstore
+  push 50
+  jump bb40

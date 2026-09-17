@@ -6,21 +6,26 @@
 //@ run-call: carry 42 => 65
 //@ run-call: carryAcrossUnevenEdges 14 => 19
 //@ run-call: carryAcrossUnevenEdges 15 => 21
+//@ run-call: carryWithoutPhi 42 => 12
+//@ run-call: carryWithoutPhi 43 => 12
 
 contract CrossBlockStackJoin {
-    // `kept` is defined before the diamond and reused after its join. Reserve its ordinary spill
-    // slot as fallback, but carry the live copy through both predecessors without storing it.
+    // Both predecessors carry `kept` and the selected phi through the join without reloading.
     // CHECK-LABEL: @module CrossBlockStackJoin_runtime
     // CHECK: div
     // CHECK-NEXT: push 1
-    // CHECK: jump [[JOIN:bb[0-9]+]]
-    // CHECK: jump [[JOIN]]
-    // CHECK: [[JOIN]]:
-    // The selected phi reloads, but `kept` remains immediately below it instead of loading its
-    // own spill slot.
-    // CHECK-NEXT: push {{[0-9]+}}
-    // CHECK-NEXT: mload
+    // CHECK-NOT: mstore
+    // CHECK: sub
+    // CHECK-NEXT: swap 1
+    // CHECK-NEXT: swap 2
+    // CHECK-NEXT: iszero
+    // CHECK-NEXT: push [[OVERFLOW:bb[0-9]+]]
+    // CHECK-NEXT: jumpi
+    // CHECK-NEXT: jump [[JOIN:bb[0-9]+]]
+    // CHECK-NEXT: [[JOIN]]:
     // CHECK-NEXT: dup 2
+    // CHECK-NEXT: dup 1
+    // CHECK-NEXT: add
     function carry(uint256 x) external pure returns (uint256 result) {
         uint256 kept;
         assembly {
@@ -54,6 +59,21 @@ contract CrossBlockStackJoin {
         }
         assembly {
             result := add(result, mul(kept, 9))
+        }
+    }
+}
+
+contract PhiFreeStackJoin {
+    // Carry the quotient through both edges without introducing a phi or a spill slot.
+    // CHECK-LABEL: @module PhiFreeStackJoin_runtime
+    // CHECK-NOT: mload
+    // CHECK: return
+    // CHECK-NOT: mload
+    function carryWithoutPhi(uint256 x) external returns (uint256 result) {
+        assembly {
+            let kept := div(x, 7)
+            if and(x, 1) { sstore(0, kept) }
+            result := add(kept, kept)
         }
     }
 }

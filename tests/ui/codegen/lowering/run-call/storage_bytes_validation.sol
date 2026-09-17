@@ -1,6 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
+//@ run-call-fail: unusedInvalidLength => Panic(0x22)
+//@ run-call-fail: unusedInvalidCopy => Panic(0x22)
 //@ run-call-fail: invalidShort => Panic(0x22)
 //@ run-call-fail: invalidLong => Panic(0x22)
 //@ run-call-fail: invalidShortDelete => Panic(0x22)
@@ -29,6 +31,16 @@
 
 contract StorageBytesValidation {
     bytes private data;
+
+    function unusedInvalidLength() external {
+        assembly { sstore(data.slot, 0x40) }
+        uint256 unused = data.length;
+    }
+
+    function unusedInvalidCopy() external {
+        assembly { sstore(data.slot, 0x40) }
+        bytes memory unused = data;
+    }
 
     function invalidShort() external returns (bytes memory) {
         assembly {

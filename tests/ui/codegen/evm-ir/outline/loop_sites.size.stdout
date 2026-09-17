@@ -1,0 +1,27 @@
+- // === ROOT/tests/ui/codegen/evm-ir/outline/loop_sites.evmir (before outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/loop_sites.evmir (after outline) ===
+  @module LoopOutline
+  bb0 [loop]:
+-   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+-   not
+-   not
+-   not
+-   pop
+-   jump bb1
++   push bb3
++   jump bb2
+  bb1 [loop]:
++   push bb4
++   jump bb2
++ bb2:
+    push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    not
+    not
+    not
+    pop
++   jump
++ bb3 [loop] [continuation]:
++   jump bb1
++ bb4 [loop] [continuation]:
+    stop
+  

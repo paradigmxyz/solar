@@ -1,10 +1,10 @@
 //@ revisions: explicit default default_size
 //@[explicit] compile-flags: -Ogas -Zevm-ir-pipeline=reorder-pushes,compact-pushes
-//@[explicit] filecheck: --check-prefixes=EXPLICIT,COMMON
+//@[explicit] filecheck: --check-prefix=EXPLICIT
 //@[default] compile-flags: -Ogas -Zevm-ir-pipeline=default
-//@[default] filecheck: --check-prefixes=DEFAULT,COMMON
+//@[default] filecheck: --check-prefix=DEFAULT
 //@[default_size] compile-flags: -Osize -Zevm-ir-pipeline=default
-//@[default_size] filecheck: --check-prefixes=DEFAULT,COMMON
+//@[default_size] filecheck: --check-prefix=DEFAULT
 @module CompactedPush
 
 bb0:
@@ -20,7 +20,8 @@ bb0:
   jump
 // EXPLICIT-LABEL: after compact-pushes
 // DEFAULT-LABEL: after pipeline-default
-// COMMON: bb1:
+// EXPLICIT: bb1:
+// DEFAULT: bb0:
 // EXPLICIT: push 1
 // EXPLICIT-NEXT: push 128
 // EXPLICIT-NEXT: shl

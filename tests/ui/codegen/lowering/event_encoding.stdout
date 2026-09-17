@@ -6,7 +6,7 @@ fn @emitArray(arg0: memoryfixedarray) [selector=0x86cb3475, abi_params=[array<2,
     v1 = slice_ptr v0
     v2 = slice_len v0
     log1 v1, v2, 0x625921711aa49386aa5b640487cbc3efdcbda2656254ae2c5ad71b2ede1efcf4
-    stop
+    ret
 }
 
 fn @emitAnonymous(arg0: address, arg1: u256) [selector=0xb834ce50, abi_params=[address, u256], abi_returns=[]] {
@@ -14,27 +14,27 @@ fn @emitAnonymous(arg0: address, arg1: u256) [selector=0xb834ce50, abi_params=[a
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 0, arg1 !metadata(memory=scratch)
     log1 0, 32, v0
-    stop
+    ret
 }
 
 fn @emitIndexedBytes(arg0: memorybytes) [selector=0xcc07e605, abi_params=[bytes], abi_returns=[]] {
   bb0:
     v0 = keccak256_bytes arg0
     log2 0, 0, 0x302971c456dab97076d583d969187faf914418423e0641b0c0f01537060f04e7, v0
-    stop
+    ret
 }
 
 fn @emitIndexedFixedBytes() [selector=0x25daad67, abi_params=[], abi_returns=[]] {
   bb0:
     log2 0, 0, 0xd6843e74884f95c39ee4c0ac08d559101bead98aa590038d667afad12f9006bb, 0x6162630000000000000000000000000000000000000000000000000000000000
-    stop
+    ret
 }
 
 fn @emitIndexedDirtyFixedBytes() [selector=0xf989586c, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = and 0x3131313131313131313131313131313131313131313131313131313131313131, 0xff00000000000000000000000000000000000000000000000000000000000000
     log2 0, 0, 0xa1b9025fec76aacfc164a8b852a67542854b624636617444b5004cf6019753b7, v0
-    stop
+    ret
 }
 
 fn @emitIndexedExternalFunction() [selector=0x208d2555, abi_params=[], abi_returns=[]] {
@@ -44,12 +44,12 @@ fn @emitIndexedExternalFunction() [selector=0x208d2555, abi_params=[], abi_retur
     v2 = or v1, 0xd4b83992
     v3 = shl 64, v2
     log2 0, 0, 0xefb12970329680bd50d7b95a4e501f38356ac11483b41fd330311f90226d742b, v3
-    stop
+    ret
 }
 
 fn @target() [selector=0xd4b83992, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @emitNamed() [selector=0x4135d839, abi_params=[], abi_returns=[]] {
@@ -58,5 +58,5 @@ fn @emitNamed() [selector=0x4135d839, abi_params=[], abi_returns=[]] {
     v1 = slice_ptr v0
     v2 = slice_len v0
     log1 v1, v2, 0x7d268c864ab74dc3ecd16b07321ad677da79fbcb3fd2c22d5bfe5d4b81c67d23
-    stop
+    ret
 }

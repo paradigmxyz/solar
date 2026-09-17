@@ -56,7 +56,7 @@ fn @extended_evm_ops() -> u256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @signed_return{{[( ]}}
-// CHECK: + ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
+// CHECK: + ret i256 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
 fn @signed_return() -> i256 {
   bb0:
     v0 = sdiv 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 2
@@ -64,7 +64,7 @@ fn @signed_return() -> i256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @bool_return{{[( ]}}
-// CHECK: + ret 1
+// CHECK: + ret true
 fn @bool_return() -> bool {
   bb0:
     v0 = slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0

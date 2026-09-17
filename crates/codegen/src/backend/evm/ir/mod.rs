@@ -27,6 +27,7 @@ pub(in crate::backend) mod builder;
 mod display;
 mod parse;
 mod passes;
+pub(crate) use passes::compact_pushes;
 pub(in crate::backend) mod verify;
 
 pub(crate) use passes::compact_pushes::immediate_materialization_cost;
@@ -91,6 +92,10 @@ pub struct Module {
     pub(crate) data: IndexVec<DataId, Data>,
     /// Whether gas mode is rescuing a runtime that exceeds EIP-170.
     pub(crate) enable_size_outlining: bool,
+    /// Whether bytes that execution must not fall into follow this code: the runtime
+    /// artifact after creation code. A final `STOP` is then kept instead of being
+    /// left implicit at the end of the bytecode.
+    pub(crate) code_follows: bool,
     /// Whether passes must account for every operation's source debug information.
     debug_info_tracked: bool,
 }
@@ -120,6 +125,7 @@ impl Module {
             blocks: IndexVec::new(),
             data: IndexVec::new(),
             enable_size_outlining: false,
+            code_follows: false,
             debug_info_tracked: false,
         }
     }
@@ -129,6 +135,7 @@ impl Module {
         self.blocks.clear();
         self.data.clear();
         self.enable_size_outlining = false;
+        self.code_follows = false;
         self.debug_info_tracked = false;
     }
 
@@ -204,8 +211,14 @@ impl Block {
 pub(crate) struct BlockMetadata {
     /// Estimated block hotness for layout decisions.
     pub(crate) hotness: Hotness,
-    /// Whether the block belongs to a natural loop.
+    /// Whether the block contains code from a known natural loop.
     pub(crate) in_loop: bool,
+    /// This label's address is used only for control transfer, never as an observable word.
+    /// Hidden return targets and branches separated from their pushed labels by sharing carry
+    /// this property. References may be redirected to an
+    /// equivalent continuation, unlike ordinary address-taken labels whose identity is opaque.
+    /// This is an executable-code property, independent of optional debug information.
+    pub(crate) is_continuation: bool,
     /// Source function entered by this block's leading `JUMPDEST`.
     pub(crate) function_invoke: Option<DebugFunction>,
 }
@@ -418,14 +431,17 @@ impl Instruction {
         }
     }
 
+    /// Returns the generated opcode definition for this instruction.
+    #[must_use]
+    pub(crate) const fn definition(&self) -> Option<&'static op::OpDef> {
+        op::definition(self.opcode)
+    }
+
     /// Returns the instruction mnemonic as printed in EVM IR.
     #[must_use]
     pub(crate) fn mnemonic(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| match self.stack_op {
-            Some(StackOp::Dup(_)) => f.write_str("dup"),
-            Some(StackOp::Swap(_)) => f.write_str("swap"),
-            Some(StackOp::Exchange(_, _)) => f.write_str("exchange"),
-            Some(StackOp::Pop) => f.write_str("pop"),
+            Some(stack_op) => f.write_str(stack_op.definition().mnemonic),
             None => match self.encoding {
                 Self::ENCODED_PUSH => f.write_str("push"),
                 encoding if encoding == Self::ENCODED_PUSH | Self::DEFERRED => {
@@ -597,6 +613,16 @@ impl TerminatorKind {
         }
     }
 
+    /// Returns the number of stack items consumed and produced, when fixed.
+    #[must_use]
+    pub(crate) const fn stack_io(&self) -> Option<(u8, u8)> {
+        match self {
+            Self::Jump(_) => Some((0, 0)),
+            Self::JumpI { .. } | Self::IndexedJump(_) => Some((1, 0)),
+            Self::Op(opcode) => op::stack_io(*opcode),
+        }
+    }
+
     /// Visits every basic block target.
     pub(crate) fn visit_targets(&self, mut visit: impl FnMut(BlockId)) {
         match self {
@@ -704,6 +730,11 @@ pub(crate) struct Metadata {
     debug_info_handled: bool,
 }
 
+fn common_debug_event<T: Eq>(mut events: impl Iterator<Item = T>) -> Option<T> {
+    let first = events.next()?;
+    events.all(|event| event == first).then_some(first)
+}
+
 impl Metadata {
     /// Returns the source span associated with this operation.
     #[must_use]
@@ -796,23 +827,24 @@ impl Metadata {
         self.debug_info_handled |= other.debug_info_handled;
     }
 
-    /// Merges all compatible debug information from an equivalent operation.
-    pub(crate) fn merge_equivalent_debug_info(&mut self, other: &Self) {
-        self.merge_source_spans(other);
-        debug_assert!(
-            self.function_invoke.is_none()
-                || other.function_invoke.is_none()
-                || self.function_invoke == other.function_invoke,
-            "cannot merge different function invocations"
+    /// Merges source origins and function events across equivalent operations.
+    pub(crate) fn merge_equivalent_debug_info<'a>(
+        &mut self,
+        others: impl Iterator<Item = &'a Self> + Clone,
+    ) {
+        // NOTE: Missing events do not conflict with known ones. Conflicting events become
+        // unknown across the whole group; a later known event must not resurrect them.
+        self.function_invoke = common_debug_event(
+            self.function_invoke
+                .into_iter()
+                .chain(others.clone().filter_map(Self::function_invoke)),
         );
-        debug_assert!(
-            self.function_exit.is_none()
-                || other.function_exit.is_none()
-                || self.function_exit == other.function_exit,
-            "cannot merge different function exits"
+        self.function_exit = common_debug_event(
+            self.function_exit.into_iter().chain(others.clone().filter_map(Self::function_exit)),
         );
-        self.function_invoke = self.function_invoke.or(other.function_invoke);
-        self.function_exit = self.function_exit.or(other.function_exit);
+        for other in others {
+            self.merge_source_spans(other);
+        }
     }
 
     /// Returns the function entered after this operation.
@@ -877,7 +909,7 @@ impl StackEffect {
 pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> Option<StackEffect> {
     if inst.is_encoded_push() {
         Some(StackEffect::new(0, 1))
-    } else if let Some((inputs, outputs)) = op::stack_io(inst.opcode) {
+    } else if let Some((inputs, outputs)) = inst.definition().and_then(|def| def.stack_io) {
         Some(StackEffect::new(inputs, outputs))
     } else {
         None
@@ -885,12 +917,28 @@ pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> Option<Sta
 }
 
 pub(super) fn default_terminator_stack_effect(kind: &TerminatorKind) -> Option<StackEffect> {
-    match kind {
-        TerminatorKind::JumpI { .. } => Some(StackEffect::new(1, 0)),
-        TerminatorKind::IndexedJump(_) => Some(StackEffect::new(1, 0)),
-        TerminatorKind::Jump(_) => Some(StackEffect::new(0, 0)),
-        TerminatorKind::Op(opcode) => {
-            op::stack_io(*opcode).map(|(inputs, outputs)| StackEffect::new(inputs, outputs))
-        }
+    let (inputs, outputs) = kind.stack_io()?;
+    Some(StackEffect::new(inputs, outputs))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn terminators_describe_control_flow() {
+        let add = Instruction::opcode(op::ADD);
+        assert_eq!(add.definition().map(|def| def.mnemonic), Some("add"));
+        assert_eq!(default_instruction_stack_effect(&add), Some(StackEffect::new(2, 1)));
+
+        let jump = TerminatorKind::Jump(BlockId::ENTRY);
+        assert_eq!(jump.stack_io(), Some((0, 0)));
+
+        let branch =
+            TerminatorKind::JumpI { then_block: BlockId::ENTRY, else_block: BlockId::ENTRY };
+        assert_eq!(default_terminator_stack_effect(&branch), Some(StackEffect::new(1, 0)));
+
+        let terminal = TerminatorKind::Op(op::RETURN);
+        assert_eq!(default_terminator_stack_effect(&terminal), Some(StackEffect::new(2, 0)));
     }
 }

@@ -1,0 +1,43 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/streaming.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/streaming.evmir (after peephole) ===
+  @module streaming
+  bb0:
+    calldatasize
+    push 0
+    mstore
+    stop
+  bb1:
+-   push 7
+-   pop
+    calldatasize
+    push 0
+-   add
+-   push 0
+    mstore
+    stop
+  bb2:
+    calldatasize
+    push 0
+    mstore
+-   push 1
+-   push 0
+-   add
+-   pop
+-   push 2
+-   push 0
+-   add
+-   pop
+    stop
+  bb3:
+    calldatasize
+    push 0
+    mstore
+-   push 3
+-   pop
+    stop
+  bb4:
+    push 4
+    push_deferred 0
+    pop
+    stop
+  

@@ -6,6 +6,10 @@
 //! REVERT` spelling. It preserves the original layout when moving a frequently referenced shared
 //! revert could widen its target push and lose more bytes than the removed jump saves.
 //!
+//! An adjacent cold revert with a payload can use the same rewrite when inversion removes an
+//! existing `ISZERO`. Keep its own target and payload; successful execution then falls through
+//! without the inversion or a continuation label after block layout.
+//!
 //! Inverting the branch can need an extra `ISZERO` before the branch target, which runs between
 //! the condition and the jump. That boundary must be one `keep_with_next` allows to be disturbed,
 //! so a sequence whose intervening gas is observable is left alone.
@@ -36,11 +40,20 @@ fn share_reverts(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     for block in module.blocks.indices().filter(|&block| is_empty_revert(module, block)) {
         empty_reverts.insert(block);
     }
-    let Some(shared) = empty_reverts.iter().next() else {
-        return false;
-    };
-    if preserves_shared_revert_low_address(module, shared) {
-        return false;
+    let shared = empty_reverts
+        .iter()
+        .next()
+        .filter(|&shared| !preserves_shared_revert_low_address(module, shared));
+    let mut cold_reverts = DenseBitSet::new_empty(module.blocks.len());
+    for (id, block) in module.blocks.iter_enumerated() {
+        if block.metadata.hotness.is_cold()
+            && matches!(
+                block.terminator.as_ref().map(|term| &term.kind),
+                Some(TerminatorKind::Op(op::REVERT))
+            )
+        {
+            cold_reverts.insert(id);
+        }
     }
     let mut changed = false;
     for (index, block) in module.blocks.iter_mut().enumerate() {
@@ -53,9 +66,12 @@ fn share_reverts(_gcx: Gcx<'_>, module: &mut Module) -> bool {
         else {
             continue;
         };
-        if !empty_reverts.contains(revert) {
-            continue;
-        }
+        let target_revert = if empty_reverts.contains(revert) {
+            shared
+        } else {
+            cold_reverts.contains(revert).then_some(revert)
+        };
+        let Some(target_revert) = target_revert else { continue };
         let [.., target, jumpi] = block.instructions.as_slice() else { continue };
         let Some(PushValue::Block(continuation)) = target.value else { continue };
         if jumpi.opcode != op::JUMPI
@@ -74,6 +90,9 @@ fn share_reverts(_gcx: Gcx<'_>, module: &mut Module) -> bool {
         let condition_end = block.instructions.len() - 2;
         let condition =
             block.instructions.get(condition_end.wrapping_sub(1)).map(|inst| inst.opcode);
+        if !empty_reverts.contains(revert) && condition != Some(op::ISZERO) {
+            continue;
+        }
         let boundary =
             if condition == Some(op::ISZERO) { condition_end - 1 } else { condition_end };
         if condition != Some(op::EQ) && !is_split_point(&block.instructions, boundary) {
@@ -83,7 +102,7 @@ fn share_reverts(_gcx: Gcx<'_>, module: &mut Module) -> bool {
         // iszero
         // push <shared>
         // jump <continuation>
-        block.instructions[condition_end] = Instruction::push_block(shared);
+        block.instructions[condition_end] = Instruction::push_block(target_revert);
         block.instructions[condition_end].metadata.copy_source_debug_from(&target_metadata);
         let mut terminator = Terminator::new(TerminatorKind::Jump(continuation));
         terminator.metadata.copy_source_debug_from(&terminator_metadata);

@@ -114,6 +114,7 @@ class GasCall:
     signature: str
     args: Sequence[str] = field(default_factory=tuple)
     repeat: int = 1
+    comparison_exclusion_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -378,7 +379,7 @@ TEST_CASES: Sequence[TestCase] = (
     ),
     TestCase(
         test_id="word-recipes",
-        description="Synthetic arithmetic, factoring, byte extraction and bounded comparisons",
+        description="Synthetic arithmetic, exponentiation, factoring, byte extraction and bounded comparisons",
         source_code=(TESTDATA_ROOT / "runtime/WordRecipes.sol").read_text(),
         source_path="testdata/runtime/WordRecipes.sol",
         source_name="WordRecipes.sol",
@@ -387,12 +388,18 @@ TEST_CASES: Sequence[TestCase] = (
             GasCall("mixed", "mixed(uint256,uint256,uint256)", ("32769", "65408", "64")),
             GasCall("factored", "factored(uint256,uint256,uint256,uint256)", ("32769", "65408", MAX_UINT256, "64")),
             GasCall("packed", "packed(uint256,uint256)", (MAX_UINT256, "64")),
+            GasCall("exp2-small", "exp2(uint256,uint256)", ("0", "64")),
+            GasCall("exp2-boundary", "exp2(uint256,uint256)", ("224", "64")),
+            GasCall("exp2-large", "exp2(uint256,uint256)", (MAX_UINT256, "64")),
             GasCall("bounded", "bounded(uint256)", (str((1 << 160) - 1),)),
         ),
         runtime_checks=(
             RuntimeCheck("mixed", "mixed(uint256,uint256,uint256)(uint256)", ("32769", "65408", "64")),
             RuntimeCheck("factored", "factored(uint256,uint256,uint256,uint256)(uint256)", ("32769", "65408", MAX_UINT256, "64")),
             RuntimeCheck("packed", "packed(uint256,uint256)(uint256)", (MAX_UINT256, "64")),
+            RuntimeCheck("exp2-small", "exp2(uint256,uint256)(uint256)", ("0", "64")),
+            RuntimeCheck("exp2-boundary", "exp2(uint256,uint256)(uint256)", ("224", "64")),
+            RuntimeCheck("exp2-large", "exp2(uint256,uint256)(uint256)", (MAX_UINT256, "64")),
             RuntimeCheck("bounded-max", "bounded(uint256)(bool)", (str((1 << 160) - 1),)),
             RuntimeCheck("bounded-overflow", "bounded(uint256)(bool)", (str(1 << 160),)),
         ),
@@ -1148,15 +1155,30 @@ TEST_CASES: Sequence[TestCase] = (
             GasCall("hex-bytes", "testBytesToHexString()", repeat=3),
             GasCall("ascii-all-bytes", "testStringIs7BitASCII()", repeat=3),
             *(
-                GasCall(f"hex-tail-{length}", "testBytesToHexStringNoPrefix(bytes)", ("0x" + "42" * length,))
+                GasCall(
+                    f"hex-tail-{length}",
+                    "testBytesToHexStringNoPrefix(bytes)",
+                    ("0x" + "42" * length,),
+                    comparison_exclusion_reason="Memory brutalizer workload depends on gas and contract bytecode.",
+                )
                 for length in (0, 1, 31, 32, 33, 64, 65)
             ),
             *(
-                GasCall(f"hex-prefixed-tail-{length}", "testBytesToHexString(bytes)", ("0x" + "ff" * length,))
+                GasCall(
+                    f"hex-prefixed-tail-{length}",
+                    "testBytesToHexString(bytes)",
+                    ("0x" + "ff" * length,),
+                    comparison_exclusion_reason="Memory brutalizer workload depends on gas and contract bytecode.",
+                )
                 for length in (0, 1, 31, 32, 33, 64, 65)
             ),
             *(
-                GasCall(label, "testStringIs7BitASCIIDifferential(bytes)", (value,))
+                GasCall(
+                    label,
+                    "testStringIs7BitASCIIDifferential(bytes)",
+                    (value,),
+                    comparison_exclusion_reason="Memory brutalizer workload depends on gas and contract bytecode.",
+                )
                 for label, value in (
                     ("ascii-empty", "0x"),
                     ("ascii-31", "0x" + "41" * 31),

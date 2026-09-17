@@ -16,7 +16,7 @@ use solar_interface::{
 };
 use std::{collections::HashMap, sync::Arc};
 
-pub(super) fn validated_rename_workspace_edit(
+pub(crate) fn validated_rename_workspace_edit(
     candidate: RenameCandidate,
     new_name: String,
     vfs: Arc<RwLock<Vfs>>,
@@ -33,7 +33,7 @@ pub(super) fn validated_import_workspace_edit(
     Ok(validate_import_edits(plan, vfs)?.into_workspace_edit(document_changes))
 }
 
-pub(super) fn validated_code_actions(
+pub(crate) fn validated_code_actions(
     params: CodeActionParams,
     diagnostics: Vec<lsp_types::Diagnostic>,
     vfs: Arc<RwLock<Vfs>>,

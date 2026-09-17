@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_named_return.sol:CalldataSliceNamedReturn ===
 @module CalldataSliceNamedReturn
-@phase evm-shaped
-fn @unwrap(arg0: calldataptr, arg1: u256) -> (calldataptr, u256) [pure] {
+@phase lowered
+fn @unwrap(arg0: calldataptr, arg1: u256) -> calldataslice [pure, return_abi=[calldataptr, u256]] {
   bb0:
     v1 = sub arg1, 32
     v3 = add arg0, v1
@@ -10,12 +10,11 @@ fn @unwrap(arg0: calldataptr, arg1: u256) -> (calldataptr, u256) [pure] {
   bb1:
     jump bb2
   bb2:
-    v17 = phi [bb1: arg0], [bb0: arg0]
     v18 = phi [bb1: v1], [bb0: arg1]
-    ret v17, v18
+    ret arg0, v18
 }
 
-fn @use() [selector=0x01bd03f7, pure] {
+fn @use() [selector=0x01bd03f7, abi_wrapper, pure] {
   bb0:
     v2 = calldatasize
     v3 = lt v2, 36
@@ -23,7 +22,7 @@ fn @use() [selector=0x01bd03f7, pure] {
   bb2:
     v4 = calldataload 4
     v5 = add v4, 4
-    v6 = add v4, 36
+    v6 = add v5, 32
     v7 = gt v4, 0xffffffffffffffff
     v8 = gt v6, v2
     v9 = or v7, v8
@@ -33,7 +32,7 @@ fn @use() [selector=0x01bd03f7, pure] {
     v14 = or v9, v13
     jumpi v14, bb1, bb3
   bb3:
-    v0 = icall @unwrap, 2, v6, v10
+    v0 = icall @unwrap, v6, v10
     v20 = mload 32 !metadata(memory=scratch)
     v21 = add v20, 32
     v22 = mload v21

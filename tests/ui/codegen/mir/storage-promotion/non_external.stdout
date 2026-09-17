@@ -6,7 +6,7 @@
       sstore 0, 1
       jump bb1
     bb1:
-      jumpi 1, bb2, bb4
+      jumpi true, bb2, bb4
     bb4:
       stop
     bb2:

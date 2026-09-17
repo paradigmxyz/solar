@@ -1,0 +1,24 @@
+error: [fn0] [bb0, inst0] aggregate operand does not match its declared struct type
+
+error: [fn1] [bb0, inst0] inserted value must have type `bool`
+
+error: [fn2] [bb0] return values do not match the struct signature
+
+error: [fn3] [bb0, inst0] struct value does not match the required type
+
+error: [fn4] [bb0] terminator cannot consume a struct value
+
+error: [fn5] [bb0] tail-call arguments do not match the struct signature
+
+error: [fn6] internal return ABI does not match the function's result type
+
+error: [fn7] [bb0, inst0] memory object pointer conversion requires a word and matching object result
+
+error: [fn8] [bb0, inst0] memory object has type `memorystruct`, expected `memorybytes`
+
+error: [fn9] [bb0, inst0] memory object has type `memorybytes`, expected `memoryfixedarray`
+
+error: [fn10] [bb0, inst0] word cast requires a one-word operand and u256 result
+
+error: aborting due to 11 previous errors
+

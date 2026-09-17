@@ -8,3 +8,31 @@
       stop
   }
   
+  fn @observed_load(arg0: bool) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb1:
+      v0 = mload 0x1000
+      jump bb2
+    bb2:
+      v1 = msize
+      ret v1
+  }
+  
+  fn @callee_observes_memory(arg0: bool) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb1:
+      v0 = mload 0x1000
+      jump bb2
+    bb2:
+      v1 = icall @observe_memory
+      ret v1
+  }
+  
+  fn @observe_memory() -> u256 {
+    bb0:
+      v0 = msize
+      ret v0
+  }
+  

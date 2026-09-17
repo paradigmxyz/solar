@@ -163,3 +163,26 @@ fn @promote_same_base_distinct_offsets(arg0: u256) [selector=0x01020304] {
   bb4:
     stop
 }
+
+// CHECK-LABEL: @reject_hidden_storage_read
+// CHECK: {{^[ +].*}}sload 0
+// CHECK: {{^[ +].*}}sstore 0, {{v[0-9]+}}
+// CHECK: {{^[ +].*}}load_storage_bytes 0
+fn @reject_hidden_storage_read(arg0: u256) [selector=0x01020309] {
+  bb0:
+    sstore 0, 2
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v5]
+    v1 = lt v0, arg0
+    jumpi v1, bb2, bb3
+  bb2:
+    v2 = sload 0
+    v3 = add v2, 2
+    sstore 0, v3
+    v4 = load_storage_bytes 0
+    v5 = add v0, 1
+    jump bb1
+  bb3:
+    ret
+}

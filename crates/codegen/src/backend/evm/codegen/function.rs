@@ -1,11 +1,16 @@
 //! Function emission, phi edge splitting, and cold-block layout.
+//!
+//! Gas mode places the false arm first when both branch arms terminate normally,
+//! so the existing condition can drive the jump without an inversion.
 
 use super::{
     BlockId, CfgInfo, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap,
-    FxHashSet, GlobalStackPlan, GrowableBitSet, InstId, InstKind, Label, Liveness, Module,
-    OnceCell, OptimizationMode, PhiEliminator, STACK_PHI_LAYOUT_LIMIT, StackModel, StackPhiPlan,
+    FxHashSet, GlobalStackPlan, GrowableBitSet, InstId, InstKind, Label, Liveness, LoopAnalyzer,
+    Module, OnceCell, OptimizationMode, PhiEliminator, StackModel, StackOp, StackPhiPlan,
     Terminator, Value, ValueId, cross_block_values, planned_entry_carries,
+    stack::layout::LIVE_JOIN_LAYOUT_LIMIT,
 };
+use crate::{mir::Callee, target::Target};
 use std::rc::Rc;
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -113,6 +118,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let liveness = block_local_liveness.unwrap_or_else(|| Liveness::compute(func));
         let liveness = &liveness;
         let cross_block_live = OnceCell::new();
+        let mut function_returns = FxHashSet::default();
 
         self.spill_hazard_insts = self.compute_spill_hazard_insts(func);
 
@@ -121,20 +127,23 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.elided_insts.clear();
         self.collect_late_gas_operands(func);
         let phi_result = PhiEliminator::analyze(func);
-        let has_phis = !phi_result.block_copies.is_empty();
         for (block_id, copies) in phi_result.block_copies {
             self.block_copies.insert(block_id, copies.copies);
         }
-        // Stack-phi planning starts with loop analysis, but cannot produce a
-        // plan without a phi. Avoid that analysis for the overwhelmingly
-        // common phi-free function.
+        // Ordinary joins can carry live values even when no phi remains.
+        // Functions without joins need no inter-block layout analysis.
         // The cached plan is keyed on whole-function liveness; a block-local entry gets its own.
-        let phi_plan = if !has_phis {
+        let phi_plan = if !func.blocks.iter().any(|block| block.predecessors.len() >= 2) {
             None
         } else if whole_function_liveness {
             Some(self.stack_phi_plan(func_id, func, liveness))
         } else {
-            Some(Rc::new(StackPhiPlan::analyze(func, liveness, &self.cold_functions)))
+            Some(Rc::new(StackPhiPlan::analyze(
+                func,
+                liveness,
+                &self.cold_functions,
+                Target::new(self.gcx),
+            )))
         };
         let mut stack_phi_plan =
             phi_plan.as_deref().map_or_else(StackPhiPlan::default, StackPhiPlan::clone);
@@ -189,10 +198,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             });
         let has_hazard_stack_plan = hazard_stack_plan.is_some();
         let required_stack_plan = resident_stack_plan.is_some() || hazard_stack_plan.is_some();
-        let mut global_stack_plan = hazard_stack_plan
-            .clone()
-            .or(resident_stack_plan)
-            .unwrap_or_else(|| GlobalStackPlan::analyze(func, liveness, &stack_phi_plan));
+        let mut global_stack_plan =
+            hazard_stack_plan.clone().or(resident_stack_plan).unwrap_or_else(|| {
+                GlobalStackPlan::analyze(
+                    func,
+                    liveness,
+                    &stack_phi_plan,
+                    self.gcx.sess.opts.optimization,
+                )
+            });
         let mut stack_phi_sources = stack_phi_plan.edge_sources();
         if required_stack_plan {
             if !stack_phi_plan.merge_resident(func, &global_stack_plan) {
@@ -211,6 +225,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     &cross_block_live,
                     phi_plan,
                 )
+                .or_else(|| self.compute_loop_bound_stack_layout(func, liveness, &stack_phi_plan))
             // Phi layouts own their incoming stack on planned joins. Adopt the layout only when
             // that composition is proven, mirroring the resident arm.
             && stack_phi_plan.merge_resident(func, &plan)
@@ -305,7 +320,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.spill_stores.clear();
         self.spill_loads.clear();
         self.early_spill_removals.clear();
-        self.function_ir_block_start = self.asm.block_count();
+        // The caller already opened the entry block for the function prologue. Include it
+        // in spill liveness so entry stores without reachable reloads are removed too.
+        self.function_ir_block_start = self.asm.next_instruction_position().0.index();
 
         // Cross-block rematerialization is selected during spill preallocation. Record every
         // argument without a frame home before that analysis so an expression depending on one is
@@ -317,6 +334,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.preallocate_cross_block_spills(func, liveness, &cross_block_live);
 
         self.cold_blocks = self.collect_cold_blocks(func);
+        let mut loop_analyzer = LoopAnalyzer::new();
+        let loop_info = loop_analyzer.analyze(func);
+        let mut loop_blocks = DenseBitSet::new_empty(func.blocks.len());
+        for loop_data in loop_info.all_loops() {
+            loop_blocks.union(&loop_data.blocks);
+        }
 
         // Create labels for each block
         self.block_labels.clear();
@@ -325,11 +348,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             if self.block_is_cold(block_id) {
                 self.asm.mark_label_cold(label);
             }
+            if loop_blocks.contains(block_id) {
+                self.asm.mark_label_loop(label);
+            }
             self.block_labels.insert(block_id, label);
         }
 
         // Generate each block.
-        let block_order = self.block_layout_order(func);
+        let store_cfg = CfgInfo::new(func);
+        let block_order = self.block_layout_order(func, &store_cfg);
         let block_pos: FxHashMap<BlockId, usize> =
             block_order.iter().enumerate().map(|(pos, &b)| (b, pos)).collect();
         // Stack layout a block must start with when it is reached by a stack-
@@ -343,11 +370,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         // at a block only when every forward predecessor makes it available —
         // and drop the scheduler's stored guarantee where a live value is not
         // available, so that path stores again before any reload.
-        let store_cfg = CfgInfo::new(func);
         let mut spill_avail_out: FxHashMap<BlockId, FxHashSet<ValueId>> = FxHashMap::default();
         for (pos, &block_id) in block_order.iter().enumerate() {
             let block = &func.blocks[block_id];
             let fallthrough = block_order.get(pos + 1).copied();
+            let self_tail_call = self.void_self_tail_call(func_id, func, block_id);
+            let tail_call = self.void_tail_call(func_id, func, block_id);
             if self.capture_debug_info {
                 let modifier_depth = block
                     .instructions
@@ -468,6 +496,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             let mut pinned_hazard_values = FxHashSet::<ValueId>::default();
             for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
                 let inst = func.inst(inst_id);
+
+                // icall callee(args); return -> forward_return_address callee(args)
+                if (self_tail_call.is_some() || tail_call.is_some())
+                    && inst_idx + 1 == block.instructions.len()
+                {
+                    continue;
+                }
 
                 // Skip phi instructions (they're handled by copies)
                 if matches!(inst.kind, InstKind::Phi(_)) {
@@ -747,10 +782,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .flatten()
                 .filter(|target| block_pos.get(target).copied() > Some(pos));
 
-            // A conditional branch whose other arm is a cold revert can carry
-            // its single freshly-computed live-out on the stack into the hot
-            // arm, which restores it as its recorded entry layout.
-            let preserve_branch_targets = if !has_edge_specific_global
+            // A private successor restores its recorded entry stack, so keep live values there
+            // before imposing a global argument layout that would spill them. A cold terminal
+            // sibling can receive the same stack when it does not need the carried values.
+            // Leave a condition that must survive its branch to the global planner.
+            let preserve_branch_targets = if (!has_edge_specific_global
+                || block.terminator.as_ref().is_some_and(|term| {
+                    matches!(term, Terminator::Branch { condition, .. }
+                        if !liveness.live_out(block_id).contains(*condition))
+                }))
                 && !preserve_stack_to_fallthrough
                 && preserve_jump_target.is_none()
                 && !stack_phi_branch_preserved
@@ -762,13 +802,35 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !preserve_branch_targets.is_empty()
                 && let Some(Terminator::Branch { condition, .. }) = block.terminator.as_ref()
                 && liveness.live_out(block_id).contains(*condition)
+                && !self.scheduler.stack.iter().skip(1).any(|value| value == Some(*condition))
             {
-                // JUMPI consumes the condition while the preserved successor layout omits it.
-                // Save an instruction result that remains live so either successor can reload
-                // the same definition instead of observing an unwritten reserved spill slot.
-                self.spill_value_if_needed(func, *condition);
+                if self.scheduler.stack.depth() == 1 {
+                    // dup1 condition
+                    // jumpi condition, then, else
+                    // Keep a second copy for the recorded successor layouts. Saving the condition
+                    // to memory instead would turn a checked increment into a store/load pair.
+                    self.emit_stack_op(StackOp::Dup(1));
+                } else {
+                    // dup depth(condition)
+                    // mstore slot(condition), condition
+                    // Keep the established spill plan when other values already cross the edge;
+                    // inserting another carried word can increase their shuffle and spill costs.
+                    self.spill_value_if_needed(func, *condition);
+                }
             }
             if !preserve_branch_targets.is_empty() {
+                // Junk-terminal siblings may have argument padding in their global plan,
+                // but every planned value must be dead here; no phi layout may be bypassed.
+                debug_assert!(block.terminator.as_ref().is_none_or(|term| {
+                    term.successors().iter().all(|target| {
+                        preserve_branch_targets.contains(target)
+                            || (global_stack_plan.entry(*target).is_none_or(|entry| {
+                                entry
+                                    .iter()
+                                    .all(|value| !liveness.live_in(*target).contains(*value))
+                            }) && stack_phi_plan.entries.get(target).is_none_or(Vec::is_empty))
+                    })
+                }));
                 self.remove_dead_carried_spill_stores(
                     func,
                     liveness,
@@ -779,6 +841,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             let global_branch_preserved = if !stack_phi_preserved
                 && !stack_phi_branch_preserved
+                && preserve_branch_targets.is_empty()
                 && let Some((then_layout, else_layout)) = &global_branch_layouts
                 && let Some(Terminator::Branch { condition, .. }) = block.terminator.as_ref()
             {
@@ -818,6 +881,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                 false
             };
 
+            tracing::trace!(
+                block = ?block_id,
+                has_edge_specific_global,
+                preserve_stack_to_fallthrough,
+                ?preserve_jump_target,
+                ?preserve_branch_targets,
+                stack_phi_preserved,
+                stack_phi_branch_preserved,
+                "block exit"
+            );
             let preserve_stack = preserve_stack_to_fallthrough
                 || preserve_jump_target.is_some()
                 || !preserve_branch_targets.is_empty()
@@ -856,7 +929,18 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.set_source_spans(metadata.source_spans());
                 self.asm.set_modifier_depth(metadata.modifier_depth());
             }
-            if let (
+            let emitted_return = if let Some(args) = self_tail_call {
+                // [inherited_return, caller_words], frame(args...)
+                // => [inherited_return], frame(new_args...)
+                // jump self
+                self.emit_void_self_tail_call(func_id, func, args);
+                None
+            } else if let Some((callee, args)) = tail_call {
+                // [inherited_return, caller_words] -> [inherited_return, callee_args]
+                // jump callee
+                self.emit_void_tail_call(func_id, func, callee, args);
+                None
+            } else if let (
                 Some(union),
                 Some((then_layout, else_layout)),
                 Some(Terminator::Branch { condition, then_block, else_block }),
@@ -872,6 +956,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     union,
                     fallthrough,
                 );
+                None
             } else if let (
                 Some(union),
                 Some(layouts),
@@ -879,6 +964,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             ) = (&global_switch_preserved, &global_switch_layouts, &block.terminator)
             {
                 self.emit_global_stack_switch(func, *value, *default, cases, layouts, union);
+                None
             } else if stack_phi_branch_preserved
                 && let Some(Terminator::Branch { condition, then_block, else_block }) =
                     block.terminator.as_ref()
@@ -892,8 +978,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                     branch,
                     fallthrough,
                 );
+                None
             } else if let Some(term) = &block.terminator {
-                self.generate_terminator(func, term, fallthrough, preserve_stack);
+                self.generate_terminator(func, term, fallthrough, preserve_stack)
+            } else {
+                None
+            };
+            if let Some(position) = emitted_return {
+                function_returns.insert(position);
             }
             if self.capture_debug_info {
                 self.asm.set_source_span(None);
@@ -934,7 +1026,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             peak = peak.max(mask.count());
         }
         self.function_stack_peaks.insert(func_id, peak);
-        self.remove_dead_spill_stores();
+        self.remove_dead_spill_stores(&function_returns);
         self.assign_ranked_spill_addrs(func_id);
     }
 
@@ -968,7 +1060,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// computes the branch condition while the carried phi values remain below
     /// it. If both successors are private, later blocks, we can leave those
     /// values on the stack for both edges instead of spilling them before every
-    /// loop condition.
+    /// loop condition. The condition may also be a carried loop invariant below
+    /// the top, which the terminator duplicates for `JUMPI`. Every word must be
+    /// live out of the block, and at most `LIVE_JOIN_LAYOUT_LIMIT` words are
+    /// carried, matching what the live-join planner delivers into a block.
     fn branch_preserve_targets(
         &self,
         func: &Function,
@@ -983,31 +1078,68 @@ impl<'gcx> EvmCodegen<'gcx> {
             return Vec::new();
         };
 
-        if self.scheduler.stack.depth() <= 1 || self.scheduler.stack.top() != Some(*condition) {
+        // A freshly computed condition is the top word and JUMPI consumes it. A condition
+        // carried below the top is a loop invariant the successors still read; the terminator
+        // duplicates it for JUMPI, so the whole stack survives the branch.
+        let condition_on_top = self.scheduler.stack.top() == Some(*condition);
+        if !condition_on_top
+            && !(liveness.live_out(block_id).contains(*condition)
+                && self
+                    .scheduler
+                    .stack
+                    .find(*condition)
+                    .is_some_and(|depth| depth < self.stack_access_limit()))
+        {
+            tracing::trace!(
+                block = ?block_id,
+                "branch preserve: condition neither on top nor carried"
+            );
             return Vec::new();
         }
 
-        let Some(carried) = self
+        let Some(mut carried) = self
             .scheduler
             .stack
             .iter()
-            .skip(1)
+            .skip(usize::from(condition_on_top))
             .map(|slot| {
                 let value = slot?;
                 liveness.live_out(block_id).contains(value).then_some(value)
             })
             .collect::<Option<Vec<_>>>()
         else {
+            tracing::trace!(
+                block = ?block_id,
+                stack = ?self.scheduler.stack,
+                "branch preserve: dead word below condition"
+            );
             return Vec::new();
         };
-        if carried.len() > STACK_PHI_LAYOUT_LIMIT {
+        // Unit-increment overflow checks use the sum itself as their condition. Keep that
+        // sole word resident; other condition shapes retain the existing preservation policy.
+        if carried.is_empty()
+            && liveness.live_out(block_id).contains(*condition)
+            && matches!(func.value(*condition), Value::Inst(inst)
+                if matches!(func.inst(*inst).kind, InstKind::Add(lhs, rhs)
+                    if func.value_u64(lhs) == Some(1) || func.value_u64(rhs) == Some(1)))
+        {
+            carried.push(*condition);
+        }
+        // The live-join planner carries up to `LIVE_JOIN_LAYOUT_LIMIT` words into a block; a
+        // branch that cannot keep that many drops every one of them to memory on both arms.
+        if carried.is_empty() || carried.len() > LIVE_JOIN_LAYOUT_LIMIT {
+            tracing::trace!(
+                block = ?block_id,
+                carried = carried.len(),
+                "branch preserve: too many carried words"
+            );
             return Vec::new();
         }
 
         // Consuming the branch condition removes the top stack word. A resident argument has no
-        // frame fallback, so every stack-only live-out must already have another carried copy
-        // below the condition. Otherwise let the global stack-edge planner duplicate and arrange
-        // the condition together with the successor layout.
+        // frame fallback, so every stack-only live-out must have a carried copy. The caller
+        // duplicates a live condition before emitting JUMPI; other missing values still need
+        // the global stack-edge planner to materialize and arrange the successor layout.
         if liveness
             .live_out(block_id)
             .iter()
@@ -1024,6 +1156,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         if carried.iter().any(|&value| !live_in_any_target.contains(value)) {
+            tracing::trace!(
+                block = ?block_id,
+                ?carried,
+                "branch preserve: carried word dead in both targets"
+            );
             return Vec::new();
         }
 
@@ -1032,6 +1169,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             if target == block_id {
                 return Vec::new();
             }
+            tracing::trace!(
+                block = ?block_id,
+                ?target,
+                pos,
+                target_pos = ?block_pos.get(&target),
+                preds = ?func.blocks[target].predecessors,
+                "branch preserve: target"
+            );
             let has_phi = func.blocks[target]
                 .instructions
                 .iter()
@@ -1097,7 +1242,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     if block.instructions.iter().any(|&inst_id| {
                         matches!(
                             func.inst(inst_id).kind,
-                            InstKind::ICall { function, .. } if cold.contains(function)
+                            InstKind::ICall { function: Callee::Function(function), .. } if cold.contains(function)
                         )
                     }) {
                         saw_exit = true;
@@ -1185,7 +1330,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         ) || block.instructions.iter().any(|&inst_id| {
             matches!(
                 func.inst(inst_id).kind,
-                InstKind::ICall { function, .. }
+                InstKind::ICall { function: Callee::Function(function), .. }
                     if self.cold_functions.contains(function)
             )
         })
@@ -1203,19 +1348,58 @@ impl<'gcx> EvmCodegen<'gcx> {
         label
     }
 
-    fn block_layout_order(&self, func: &Function) -> Vec<BlockId> {
-        // Layout only initializes reachability; RPO, dominators, and
-        // transitive reachability remain unevaluated.
-        let cfg = CfgInfo::new(func);
+    fn block_layout_order(&self, func: &Function, cfg: &CfgInfo) -> Vec<BlockId> {
+        // Visit predecessors before private continuations, including blocks appended by lowering.
         let reachable = cfg.reachable();
         let mut order = Vec::with_capacity(func.blocks.len());
         let mut placed = DenseBitSet::new_empty(func.blocks.len());
 
         self.append_layout_chain(func, BlockId::ENTRY, reachable, &mut placed, &mut order);
-        for block_id in func.blocks.indices() {
-            if reachable.contains(block_id) {
-                self.append_layout_chain(func, block_id, reachable, &mut placed, &mut order);
+        // Reverse postorder emits every block after its forward predecessors. A block with one
+        // predecessor is then always emitted after it, so the predecessor's exit stack can be
+        // recorded as the block's entry layout instead of spilled; block-index order emitted
+        // a loop's latch before the body join that feeds it, and every value the join carried
+        // went through memory once per iteration. The search enters a loop's own blocks before
+        // its exits: the successor a search leaves last is the first one emitted after the
+        // block, so a header is followed by its exit and its body comes later. The header's
+        // branch is then shaped toward the exit fallthrough and jumps into the body, and the
+        // EVM IR loop layout places the latch before the header; a header followed by its body
+        // folds the body into a self-loop that pays a jump on every iteration. The physical
+        // order is chosen later by the EVM IR layout passes, so this order only decides which
+        // edges may carry a stack and which arm each branch is shaped toward.
+        let mut loop_analyzer = LoopAnalyzer::new();
+        let loop_info = loop_analyzer.analyze(func);
+        let stays_in_loop = |block: BlockId, successor: BlockId| {
+            loop_info
+                .block_to_loop
+                .get(&block)
+                .and_then(|header| loop_info.loops.get(header))
+                .is_some_and(|loop_data| loop_data.blocks.contains(successor))
+        };
+        // Successors are popped from the end, so a loop's own blocks go last.
+        let search_order = |block: BlockId| {
+            let successors = cfg.successors(block);
+            let mut ordered = Vec::with_capacity(successors.len());
+            ordered.extend(successors.iter().rev().filter(|&&succ| !stays_in_loop(block, succ)));
+            ordered.extend(successors.iter().rev().filter(|&&succ| stays_in_loop(block, succ)));
+            ordered
+        };
+        let mut visited = DenseBitSet::new_empty(func.blocks.len());
+        let mut postorder = Vec::with_capacity(func.blocks.len());
+        let mut search = vec![(BlockId::ENTRY, search_order(BlockId::ENTRY))];
+        visited.insert(BlockId::ENTRY);
+        while let Some((block, successors)) = search.last_mut() {
+            if let Some(succ) = successors.pop() {
+                if visited.insert(succ) {
+                    search.push((succ, search_order(succ)));
+                }
+            } else {
+                postorder.push(*block);
+                search.pop();
             }
+        }
+        for &block_id in postorder.iter().rev() {
+            self.append_layout_chain(func, block_id, reachable, &mut placed, &mut order);
         }
 
         order
@@ -1247,6 +1431,18 @@ impl<'gcx> EvmCodegen<'gcx> {
                     match (self.block_is_cold(*then_block), self.block_is_cold(*else_block)) {
                         (true, false) => *else_block,
                         (false, true) => *then_block,
+                        // jumpi condition, then; else ... exit; then ... exit
+                        (false, false)
+                            if self.gcx.sess.opts.optimization.is_gas()
+                                && [*then_block, *else_block].into_iter().all(|target| {
+                                    func.blocks[target]
+                                        .terminator
+                                        .as_ref()
+                                        .is_some_and(|term| term.successors().is_empty())
+                                }) =>
+                        {
+                            *else_block
+                        }
                         _ => return,
                     }
                 }
