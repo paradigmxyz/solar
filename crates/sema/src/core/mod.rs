@@ -16,7 +16,7 @@
 
 use crate::hir;
 use solar_data_structures::map::FxHashMap;
-use solar_interface::{Symbol, source_map::FileName};
+use solar_interface::{Symbol, source_map::FileName, sym};
 use std::sync::OnceLock;
 
 /// The import prefix reserved for compiler-owned modules.
@@ -41,6 +41,17 @@ pub const MODULES: &[CoreModule] = &[
     CoreModule { path: "solar:core/v1/Code.sol", source: include_str!("v1/Code.sol") },
     CoreModule { path: "solar:core/v1/Calls.sol", source: include_str!("v1/Calls.sol") },
     CoreModule { path: "solar:core/v1/Bits.sol", source: include_str!("v1/Bits.sol") },
+    CoreModule { path: "solar:core/v1/Math.sol", source: include_str!("v1/Math.sol") },
+    CoreModule { path: "solar:core/v1/Cast.sol", source: include_str!("v1/Cast.sol") },
+    CoreModule {
+        path: "solar:core/v1/Precompiles.sol",
+        source: include_str!("v1/Precompiles.sol"),
+    },
+    CoreModule { path: "solar:core/v1/Buffers.sol", source: include_str!("v1/Buffers.sol") },
+    CoreModule {
+        path: "solar:core/v1/CalldataBytes.sol",
+        source: include_str!("v1/CalldataBytes.sol"),
+    },
 ];
 
 /// Whether `path` lies under the reserved prefix.
@@ -93,6 +104,36 @@ pub enum CoreIntrinsic {
     CodeCopyInto,
     /// `Bits.leadingZeros(x)`: `clz`, on targets that have it.
     LeadingZeros,
+    /// `Calls.callInto(target, value, gasLimit, payload, output)`.
+    CallInto,
+    /// `Calls.staticCallInto(target, gasLimit, payload, output)`.
+    StaticCallInto,
+    /// `Calls.delegateCallInto(target, gasLimit, payload, output)`.
+    DelegateCallInto,
+    /// `Bytes.tryReadBytesN(b, offset)`: a read that answers instead of
+    /// reverting. The payload is `N`.
+    TryReadBytes(u8),
+    /// `Bytes.tryReadUint256BE(b, offset)`.
+    TryReadUint256Be,
+    /// `CalldataBytes.readBytesN(b, offset)`: a checked load of `N` bytes
+    /// from a calldata slice. The payload is `N`.
+    CalldataReadBytes(u8),
+    /// `CalldataBytes.readUint256BE(b, offset)`.
+    CalldataReadUint256Be,
+    /// `CalldataBytes.copyInto(dst, dstOffset, src, srcOffset, count)`.
+    CalldataCopyInto,
+    /// `Create.tryDeploy(initcode, value)`: create, reporting failure.
+    TryDeploy,
+    /// `Create.tryDeploy2(initcode, salt, value)`: create2, reporting failure.
+    TryDeploy2,
+    /// `Math.mul512(x, y)`: both words of the product.
+    Mul512,
+    /// `Math.wrappingAdd(x, y)`.
+    WrappingAdd,
+    /// `Math.wrappingSub(x, y)`.
+    WrappingSub,
+    /// `Math.wrappingMul(x, y)`.
+    WrappingMul,
 }
 
 /// Returns the intrinsic `function` names, if it is one.
@@ -119,10 +160,13 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
     static CREATE: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static CODE: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static BITS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static CALLS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static CALLDATA_BYTES: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static MATH: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     match path {
         "solar:core/v1/Bytes.sol" => Some(BYTES.get_or_init(|| {
-            // The names are built here, so the whole family shares one
-            // definition instead of sixty-eight symbols.
+            // The names are built here, so each family shares one
+            // definition instead of a symbol per width.
             let mut table = FxHashMap::default();
             for width in 1..=32u8 {
                 table.insert(
@@ -133,44 +177,75 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                     Symbol::intern(&format!("writeBytes{width}")),
                     CoreIntrinsic::WriteBytes(width),
                 );
+                table.insert(
+                    Symbol::intern(&format!("tryReadBytes{width}")),
+                    CoreIntrinsic::TryReadBytes(width),
+                );
             }
-            table.insert(Symbol::intern("readUint256BE"), CoreIntrinsic::ReadUint256Be);
-            table.insert(Symbol::intern("writeUint256BE"), CoreIntrinsic::WriteUint256Be);
-            table.insert(Symbol::intern("copyInto"), CoreIntrinsic::CopyInto);
-            table.insert(Symbol::intern("fill"), CoreIntrinsic::Fill);
+            table.insert(sym::readUint256BE, CoreIntrinsic::ReadUint256Be);
+            table.insert(sym::writeUint256BE, CoreIntrinsic::WriteUint256Be);
+            table.insert(sym::tryReadUint256BE, CoreIntrinsic::TryReadUint256Be);
+            table.insert(sym::copyInto, CoreIntrinsic::CopyInto);
+            table.insert(sym::fill, CoreIntrinsic::Fill);
             table
         })),
         "solar:core/v1/Arrays.sol" => Some(ARRAYS.get_or_init(|| {
             // Every overload shares the name; the lowering reads the array
             // kind off the declared parameter type.
-            FxHashMap::from_iter([(Symbol::intern("truncate"), CoreIntrinsic::Truncate)])
+            FxHashMap::from_iter([(sym::truncate, CoreIntrinsic::Truncate)])
         })),
-        "solar:core/v1/Revert.sol" => Some(REVERT.get_or_init(|| {
-            FxHashMap::from_iter([(Symbol::intern("raw"), CoreIntrinsic::RevertRaw)])
-        })),
+        "solar:core/v1/Revert.sol" => Some(
+            REVERT.get_or_init(|| FxHashMap::from_iter([(sym::raw, CoreIntrinsic::RevertRaw)])),
+        ),
         "solar:core/v1/Hash.sol" => Some(HASH.get_or_init(|| {
-            FxHashMap::from_iter([(
-                Symbol::intern("keccak256Range"),
-                CoreIntrinsic::Keccak256Range,
-            )])
+            FxHashMap::from_iter([(sym::keccak256Range, CoreIntrinsic::Keccak256Range)])
         })),
         "solar:core/v1/Create.sol" => Some(CREATE.get_or_init(|| {
             // `predict2` is arithmetic and stays a call to its body.
             FxHashMap::from_iter([
-                (Symbol::intern("deploy"), CoreIntrinsic::Deploy),
-                (Symbol::intern("deploy2"), CoreIntrinsic::Deploy2),
+                (sym::deploy, CoreIntrinsic::Deploy),
+                (sym::deploy2, CoreIntrinsic::Deploy2),
+                (sym::tryDeploy, CoreIntrinsic::TryDeploy),
+                (sym::tryDeploy2, CoreIntrinsic::TryDeploy2),
             ])
         })),
         "solar:core/v1/Code.sol" => Some(CODE.get_or_init(|| {
             // `read` is library code over `copyInto`.
-            FxHashMap::from_iter([(Symbol::intern("copyInto"), CoreIntrinsic::CodeCopyInto)])
+            FxHashMap::from_iter([(sym::copyInto, CoreIntrinsic::CodeCopyInto)])
         })),
         "solar:core/v1/Bits.sol" => Some(BITS.get_or_init(|| {
             // `trailingZeros` and `popCount` have no instruction to lower to.
-            FxHashMap::from_iter([(Symbol::intern("leadingZeros"), CoreIntrinsic::LeadingZeros)])
+            FxHashMap::from_iter([(sym::leadingZeros, CoreIntrinsic::LeadingZeros)])
         })),
-        // `Calls` returns three values, which the lowering does not build
-        // yet; its bodies are single assembly calls.
+        "solar:core/v1/Calls.sol" => Some(CALLS.get_or_init(|| {
+            FxHashMap::from_iter([
+                (sym::callInto, CoreIntrinsic::CallInto),
+                (sym::staticCallInto, CoreIntrinsic::StaticCallInto),
+                (sym::delegateCallInto, CoreIntrinsic::DelegateCallInto),
+            ])
+        })),
+        "solar:core/v1/CalldataBytes.sol" => Some(CALLDATA_BYTES.get_or_init(|| {
+            let mut table = FxHashMap::default();
+            for width in 1..=32u8 {
+                table.insert(
+                    Symbol::intern(&format!("readBytes{width}")),
+                    CoreIntrinsic::CalldataReadBytes(width),
+                );
+            }
+            table.insert(sym::readUint256BE, CoreIntrinsic::CalldataReadUint256Be);
+            table.insert(sym::copyInto, CoreIntrinsic::CalldataCopyInto);
+            table
+        })),
+        "solar:core/v1/Math.sol" => Some(MATH.get_or_init(|| {
+            // `mulDiv` is a long division and stays a call to its body.
+            FxHashMap::from_iter([
+                (sym::mul512, CoreIntrinsic::Mul512),
+                (sym::wrappingAdd, CoreIntrinsic::WrappingAdd),
+                (sym::wrappingSub, CoreIntrinsic::WrappingSub),
+                (sym::wrappingMul, CoreIntrinsic::WrappingMul),
+            ])
+        })),
+        // `Cast`, `Precompiles` and `Buffers` are library code throughout.
         _ => None,
     }
 }

@@ -31,6 +31,30 @@ library Create {
         if (deployed == address(0)) revert DeploymentFailed();
     }
 
+    /// @dev Like `deploy`, but a creation that returns no address is `false`
+    /// and the zero address, not a revert.
+    function tryDeploy(bytes memory initcode, uint256 value)
+        internal
+        returns (bool success, address deployed)
+    {
+        assembly ("memory-safe") {
+            deployed := create(value, add(initcode, 0x20), mload(initcode))
+        }
+        success = deployed != address(0);
+    }
+
+    /// @dev Like `deploy2`, but a creation that returns no address is `false`
+    /// and the zero address, not a revert.
+    function tryDeploy2(bytes memory initcode, bytes32 salt, uint256 value)
+        internal
+        returns (bool success, address deployed)
+    {
+        assembly ("memory-safe") {
+            deployed := create2(value, add(initcode, 0x20), mload(initcode), salt)
+        }
+        success = deployed != address(0);
+    }
+
     /// @dev The address `deploy2` gives `deployer` for `salt` and initcode
     /// hashing to `initcodeHash`. Computes only; deploys nothing.
     function predict2(address deployer, bytes32 salt, bytes32 initcodeHash)
