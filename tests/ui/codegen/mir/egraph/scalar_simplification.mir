@@ -1,6 +1,6 @@
 //@compile-flags: -Zmir-pipeline=egraph
 //@filecheck:
-@module InstSimplify
+@module ScalarSimplification
 // CHECK-LABEL: {{^[ +].*}}fn @strength_reduce_arithmetic{{[( ]}}
 // CHECK: {{^[ +].*}}[[SHIFTED:v[0-9]+]] = shl 5, arg0
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = shr 3, [[SHIFTED]]
@@ -269,9 +269,9 @@ fn @checked_modular_zero(arg0: i256) {
 // CHECK: + icall panic_if_zero<0x1>, arg0
 // CHECK: + icall panic_if<0x11>, arg0
 // CHECK: + icall revert_if_zero<tuple_data_too_short>, arg0
-fn @check_polarity(arg0: i256) {
+fn @check_polarity(arg0: i1) {
   bb0:
-    v0 = eq arg0, 0
+    v0 = eq arg0, false
     icall panic_if<0x1>, v0
     icall panic_if_zero<0x11>, v0
     icall revert_if<tuple_data_too_short>, v0

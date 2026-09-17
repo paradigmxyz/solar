@@ -1,4 +1,10 @@
-//! Benchmark-only, in-memory LSP analysis support.
+//! Benchmark-only LSP analysis and request support.
+//!
+//! Compiler sessions use one thread, including repeated workspace-analysis epochs. Rayon pool
+//! shutdown does not join worker threads, so teardown from fixture setup can otherwise enter the
+//! next measured operation. Rename and quick-fix workloads call the production validation and
+//! edit-building functions synchronously; these CPU benchmarks exclude Tokio task scheduling.
+//! End-to-end request latency belongs in the session benchmarks under `benches/lsp/`.
 
 use super::{
     AnalysisBatch, AnalysisResult, AnalysisResultAccumulator, AnalysisTaskOutcome, DiagnosticMap,
@@ -588,6 +594,12 @@ impl BenchmarkRepeatedAnalysis {
         Self { state }
     }
 
+    fn snapshot(&self) -> super::GlobalStateSnapshot {
+        let mut snapshot = self.state.snapshot();
+        snapshot.benchmark_threads = Some(Threads::resolve(1));
+        snapshot
+    }
+
     /// Check that the published workspace has no compiler diagnostics.
     pub fn assert_no_diagnostics(&self) {
         for report in self.state.diagnostics.read().workspace_pull_reports(Vec::new()) {
@@ -625,7 +637,7 @@ impl BenchmarkRepeatedAnalysis {
             Vec::new(),
             false,
         );
-        let mut snapshot = self.state.snapshot();
+        let mut snapshot = self.snapshot();
         let progress = self.state.analysis_progress.reserve(version);
         matches!(
             run_analysis(
@@ -662,7 +674,7 @@ impl BenchmarkRepeatedAnalysis {
     /// Run one production analysis epoch, returning whether it published successfully.
     #[inline(never)]
     pub fn run(&mut self) -> bool {
-        let mut snapshot = self.state.snapshot();
+        let mut snapshot = self.snapshot();
         let progress = self.state.analysis_progress.reserve(1);
         matches!(
             run_analysis(&mut snapshot, 1, Vec::new(), &progress, &IndexingCancellation::default()),
@@ -749,7 +761,7 @@ impl BenchmarkCallHierarchyRequests {
     /// Prepare a callable through the production handler, including analysis snapshot lookup.
     #[inline(never)]
     pub fn prepare(&mut self, uri: &Url, position: Position) -> Option<Vec<CallHierarchyItem>> {
-        Self::complete(handlers::prepare_call_hierarchy(
+        complete_request(handlers::prepare_call_hierarchy(
             &mut self.state,
             CallHierarchyPrepareParams {
                 text_document_position_params: TextDocumentPositionParams {
@@ -764,7 +776,7 @@ impl BenchmarkCallHierarchyRequests {
     /// Expand one incoming-call item through the production handler.
     #[inline(never)]
     pub fn incoming(&mut self, item: &CallHierarchyItem) -> Option<Vec<CallHierarchyIncomingCall>> {
-        Self::complete(handlers::call_hierarchy_incoming(
+        complete_request(handlers::call_hierarchy_incoming(
             &mut self.state,
             CallHierarchyIncomingCallsParams {
                 item: item.clone(),
@@ -777,7 +789,7 @@ impl BenchmarkCallHierarchyRequests {
     /// Expand one outgoing-call item through the production handler.
     #[inline(never)]
     pub fn outgoing(&mut self, item: &CallHierarchyItem) -> Option<Vec<CallHierarchyOutgoingCall>> {
-        Self::complete(handlers::call_hierarchy_outgoing(
+        complete_request(handlers::call_hierarchy_outgoing(
             &mut self.state,
             CallHierarchyOutgoingCallsParams {
                 item: item.clone(),
@@ -786,15 +798,15 @@ impl BenchmarkCallHierarchyRequests {
             },
         ))
     }
+}
 
-    fn complete<T>(request: impl Future<Output = Result<T, ResponseError>>) -> T {
-        let mut request = std::pin::pin!(request);
-        let mut context = Context::from_waker(Waker::noop());
-        let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
-            panic!("call-hierarchy benchmark request should complete immediately");
-        };
-        response.expect("call-hierarchy benchmark request should succeed")
-    }
+fn complete_request<T>(request: impl Future<Output = Result<T, ResponseError>>) -> T {
+    let mut request = std::pin::pin!(request);
+    let mut context = Context::from_waker(Waker::noop());
+    let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
+        panic!("benchmark request should complete immediately");
+    };
+    response.expect("benchmark request should succeed")
 }
 
 /// A prepared quick-fix request using diagnostics from a real compiler analysis.
@@ -802,7 +814,6 @@ impl BenchmarkCallHierarchyRequests {
 pub struct BenchmarkCodeActionRequests {
     state: super::GlobalState,
     params: lsp_types::CodeActionParams,
-    runtime: tokio::runtime::Runtime,
 }
 
 impl BenchmarkCodeActionRequests {
@@ -853,17 +864,24 @@ impl BenchmarkCodeActionRequests {
             work_done_progress_params: Default::default(),
             partial_result_params: Default::default(),
         };
-        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-        Self { state, params, runtime }
+        Self { state, params }
     }
 
-    /// Execute the production handler, including source validation and blocking-task dispatch.
+    /// Retrieve diagnostics, validate sources, and build quick fixes without task dispatch.
     #[inline(never)]
     pub fn run(&mut self) -> lsp_types::CodeActionResponse {
-        self.runtime
-            .block_on(handlers::code_actions(&mut self.state, self.params.clone()))
-            .expect("code-action benchmark request should succeed")
-            .unwrap()
+        let diagnostics = complete_request(
+            self.state
+                .code_action_diagnostics(self.params.text_document.uri.clone(), self.params.range),
+        );
+        handlers::validated_code_actions(
+            self.params.clone(),
+            diagnostics,
+            self.state.vfs.clone(),
+            self.state.config.supports_workspace_edit_document_changes(),
+            self.state.config.supports_code_action_is_preferred(),
+            self.state.config.supports_code_action_diagnostic_data(),
+        )
     }
 }
 
@@ -872,7 +890,6 @@ impl BenchmarkCodeActionRequests {
 pub struct BenchmarkRenameRequests {
     state: super::GlobalState,
     params: RenameParams,
-    runtime: tokio::runtime::Runtime,
 }
 
 impl BenchmarkRenameRequests {
@@ -895,16 +912,29 @@ impl BenchmarkRenameRequests {
             new_name: "renamed".into(),
             work_done_progress_params: Default::default(),
         };
-        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-        Self { state, params, runtime }
+        Self { state, params }
     }
 
-    /// Execute a complete rename through the production handler and blocking validation task.
+    /// Resolve the target, validate sources, and build rename edits without task dispatch.
+    ///
+    /// The fixture supplies a valid replacement name and a published analysis snapshot.
     #[inline(never)]
     pub fn run(&mut self) -> Option<WorkspaceEdit> {
-        self.runtime
-            .block_on(handlers::rename(&mut self.state, self.params.clone()))
-            .expect("rename benchmark request should succeed")
+        let position = &self.params.text_document_position;
+        let candidate = self
+            .state
+            .symbol_tables
+            .load()
+            .rename_candidate(&position.text_document.uri, position.position)?;
+        Some(
+            handlers::validated_rename_workspace_edit(
+                candidate,
+                self.params.new_name.clone(),
+                self.state.vfs.clone(),
+                self.state.config.supports_workspace_edit_document_changes(),
+            )
+            .expect("rename benchmark request should succeed"),
+        )
     }
 }
 
@@ -1559,6 +1589,65 @@ mod tests {
 
     #[cfg(unix)]
     use std::os::unix::fs::symlink;
+
+    #[tokio::test]
+    async fn rename_workload_matches_handler() {
+        for reference_count in [0, 64] {
+            let source = format!(
+                "contract C {{ function target() internal pure {{}} function caller() public pure {{ {} }} }}",
+                "target();".repeat(reference_count),
+            );
+            let project = BenchmarkProject::from_source(source);
+            let (uri, position) =
+                project.unique_anchor("benchmark.sol", "target() internal").unwrap();
+            let mut requests = BenchmarkRenameRequests::new(project, uri, position);
+            let expected =
+                handlers::rename(&mut requests.state, requests.params.clone()).await.unwrap();
+            assert!(expected.is_some());
+            assert_eq!(requests.run(), expected);
+        }
+    }
+
+    #[tokio::test]
+    async fn code_action_workload_matches_handler() {
+        let source = "contract C { function first() public returns (uint) { return 1; } function second() public returns (uint) { return 2; } }";
+        for whole_document in [false, true] {
+            let mut requests = BenchmarkCodeActionRequests::new(source.into(), whole_document);
+            let expected = handlers::code_actions(&mut requests.state, requests.params.clone())
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(expected.len(), if whole_document { 2 } else { 1 });
+            assert_eq!(requests.run(), expected);
+        }
+    }
+
+    #[test]
+    fn repeated_analysis_limits_only_benchmark_snapshot_threads() {
+        let source = "contract C {}";
+        let temp = tempfile::tempdir().unwrap();
+        let roots = (0..2)
+            .map(|index| {
+                let root = temp.path().join(format!("workspace-{index}"));
+                fs::create_dir(&root).unwrap();
+                fs::write(root.join("Main.sol"), source).unwrap();
+                root
+            })
+            .collect::<Vec<_>>();
+        for analysis in [
+            BenchmarkRepeatedAnalysis::new(source.into()),
+            BenchmarkRepeatedAnalysis::from_workspaces(&roots[..1], source),
+            BenchmarkRepeatedAnalysis::from_workspaces(&roots, source),
+        ] {
+            let batches = analysis.snapshot().analysis_batches(Vec::new());
+            assert!(!batches.is_empty());
+            assert!(batches.iter().all(|batch| batch.opts.threads().get() == 1));
+            let production_batches = analysis.state.snapshot().analysis_batches(Vec::new());
+            assert!(
+                production_batches.iter().all(|batch| batch.opts.threads() == Threads::default().0)
+            );
+        }
+    }
 
     #[cfg(unix)]
     #[test]

@@ -1636,6 +1636,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         InstKind::ConstructorArgsBase => seq(&[op::PUSH2]),
         InstKind::ConstructorArgsEnd => seq(&[op::PUSH2, op::PUSH2, op::SUB, op::CODESIZE]),
         InstKind::InternalFrameAddr(_) => seq(&[op::PUSH1, op::ADD]),
+        InstKind::LibraryAddress(_) => seq(&[op::PUSH20]),
         // Typed PUSH<N> placeholder patched at deploy time, cleaned for the narrower types.
         InstKind::LoadImmutable(id) => {
             let ty = module.immutable_type(*id);

@@ -29,6 +29,19 @@ updates to `main`. CodSpeed simulates the single-file and whole-project benchmar
 codegen for selected projects. The workflow can also be dispatched for codegen runtime comparisons,
 CodSpeed, or both, and can override the pinned solc release.
 
+LSP benchmark fixtures explicitly use single-threaded compiler sessions, including repeated
+workspace analysis. This prevents Rayon worker scheduling and teardown from leaking into later
+samples. Rename and quick-fix microbenchmarks call the production validation and edit-building
+functions synchronously, excluding Tokio task dispatch. Use the
+[LSP session benchmarks](lsp/README.md) to measure end-to-end request latency.
+
+All LSP microbenchmarks use `lsp/<operation>[<scenario>]` display names. Register each case
+with `BenchmarkId::from_parameter` inside an `lsp/<operation>` group: string IDs and
+`BenchmarkId::new` create a separate name that hides the operation in CodSpeed. Scenarios
+must identify the corpus or workload size with units (`256-functions`, `64-member-accesses`),
+and distinguish cache state, cursor position, or edit type where those vary. Avoid bare counts
+and compressed dimensions such as `4x256`. This applies to both `lsp` and `lsp_diagnostic`.
+
 The codegen runtime job compiles a vendored corpus with both compilers, deploys both artifacts to
 Anvil, executes ordered stateful workloads, and requires normalized return values and cold-path
 observations to match. The corpus contains four micro contracts, including the shared

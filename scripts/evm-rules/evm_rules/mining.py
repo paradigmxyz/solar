@@ -7,14 +7,13 @@ inputs; we never credit deletion of a shared producer. The resulting identities
 still require SMT proof and scheduled-code benchmarks before integration.
 """
 
-from collections import Counter
 import hashlib
 import re
+from collections import Counter
 
 from .discovery import Prices, pseudocode
 from .isle import ISLE, opcode_bindings
-from .semantics import Expr, MASK, Model, Unsupported
-
+from .semantics import MASK, Expr, Model, Unsupported
 
 VALUE = r"(?:v\d+|arg\d+)"
 INSTRUCTION = re.compile(r"\s*(v\d+) = ([a-z]+)(?: (.*))?")
@@ -50,7 +49,7 @@ def abstract_patterns(expr):
     for subtree in sorted(subtrees, key=Expr.text):
         variables = {}
 
-        def replace(node):
+        def replace(node, subtree=subtree, variables=variables):
             if node == subtree:
                 node = Expr.var("@abstract")
             if node.op == "var":
@@ -72,16 +71,28 @@ def abstract_patterns(expr):
             yield pattern
 
 
-def mine(paths, *, fork="osaka", objective="gas", runs=200, max_ops=8, max_seeds=128,
-         abstract_subtrees=False):
+def mine(
+    paths,
+    *,
+    fork="osaka",
+    objective="gas",
+    runs=200,
+    max_ops=8,
+    max_seeds=128,
+    abstract_subtrees=False,
+):
     if not 2 <= max_ops <= 16 or not 1 <= max_seeds <= 128:
         raise ValueError("mining requires two to 16 operations and one to 128 seeds")
     prices = Prices(fork, objective, runs)
     bindings = opcode_bindings((ISLE / "select.isle").read_text())
     supported = {}
     for name, (opcode, arity, shape, direct) in bindings.items():
-        if (direct and opcode in prices.ops and name[3:].lower() == opcode
-                and shape in ("OpcodeLowering.Unary", "OpcodeLowering.Binary")):
+        if (
+            direct
+            and opcode in prices.ops
+            and name[3:].lower() == opcode
+            and shape in ("OpcodeLowering.Unary", "OpcodeLowering.Binary")
+        ):
             try:
                 Model().eval(Expr(opcode, (Expr.var("x"),) * arity))
             except Unsupported:
@@ -91,7 +102,7 @@ def mine(paths, *, fork="osaka", objective="gas", runs=200, max_ops=8, max_seeds
     skipped = Counter()
     for path in sorted(set(paths)):
         data = path.read_bytes()
-        sources.append(dict(path=str(path), sha256=hashlib.sha256(data).hexdigest()))
+        sources.append({"path": str(path), "sha256": hashlib.sha256(data).hexdigest()})
         lines = data.decode().splitlines()
         # Value IDs are function-local. Count every textual use, including
         # terminators and unsupported instructions, before choosing tree edges.
@@ -116,15 +127,24 @@ def mine(paths, *, fork="osaka", objective="gas", runs=200, max_ops=8, max_seeds
                     continue
                 value, opcode, operands = match.groups()
                 operands = tuple((operands or "").split(", "))
-                if (len(operands) != supported[opcode]
-                        or any(not OPERAND.fullmatch(operand) for operand in operands)):
+                if len(operands) != supported[opcode] or any(
+                    not OPERAND.fullmatch(operand) for operand in operands
+                ):
                     definitions.clear()
                     skipped["unrecognized_operands"] += 1
                     continue
                 definitions[value] = opcode, operands
                 variables, budget = {}, [max_ops]
 
-                def expand(value, root=False):
+                def expand(
+                    value,
+                    root=False,
+                    *,
+                    definitions=definitions,
+                    uses=uses,
+                    budget=budget,
+                    variables=variables,
+                ):
                     if value in definitions and (root or uses[value] == 1):
                         budget[0] -= 1
                         if budget[0] < 0:
@@ -150,28 +170,61 @@ def mine(paths, *, fork="osaka", objective="gas", runs=200, max_ops=8, max_seeds
                     continue
                 patterns = [(expr, False)]
                 if abstract_subtrees:
-                    patterns.extend((pattern, True) for pattern in abstract_patterns(expr))
+                    patterns.extend(
+                        (pattern, True) for pattern in abstract_patterns(expr)
+                    )
                 for pattern, abstracted in patterns:
-                    entry = candidates.setdefault(pattern, dict(
-                        tree=tree_json(pattern), pattern=pseudocode(pattern), occurrences=0,
-                        abstract_occurrences=0,
-                        estimated_cost=prices.cost(pattern).__dict__, examples=[]))
+                    entry = candidates.setdefault(
+                        pattern,
+                        {
+                            "tree": tree_json(pattern),
+                            "pattern": pseudocode(pattern),
+                            "occurrences": 0,
+                            "abstract_occurrences": 0,
+                            "estimated_cost": prices.cost(pattern).__dict__,
+                            "examples": [],
+                        },
+                    )
                     entry["occurrences"] += 1
                     entry["abstract_occurrences"] += abstracted
                     if len(entry["examples"]) < 4:
-                        entry["examples"].append(dict(source=str(path), function=function,
-                                                      block=block, line=line_number, value=value,
-                                                      abstracted=abstracted))
-    ranked = sorted(candidates.values(), key=lambda row: (
-        -row["occurrences"] * prices.key(prices.cost(_expr(row["tree"])))[0],
-        -row["occurrences"], row["pattern"]))
-    return dict(sources=sources, candidates=ranked[:max_seeds],
-                summary=dict(unique_trees=len(ranked), selected=min(len(ranked), max_seeds),
-                             skipped=dict(skipped)),
-                bounds=dict(max_ops=max_ops, max_seeds=max_seeds, max_variables=3,
-                            max_subtree_cuts=int(abstract_subtrees)),
-                fork=fork, objective=objective, expected_executions=runs,
-                pricing="Occurrence-weighted tree cost, not measured dynamic frequency or scheduled savings")
+                        entry["examples"].append(
+                            {
+                                "source": str(path),
+                                "function": function,
+                                "block": block,
+                                "line": line_number,
+                                "value": value,
+                                "abstracted": abstracted,
+                            }
+                        )
+    ranked = sorted(
+        candidates.values(),
+        key=lambda row: (
+            -row["occurrences"] * prices.key(prices.cost(_expr(row["tree"])))[0],
+            -row["occurrences"],
+            row["pattern"],
+        ),
+    )
+    return {
+        "sources": sources,
+        "candidates": ranked[:max_seeds],
+        "summary": {
+            "unique_trees": len(ranked),
+            "selected": min(len(ranked), max_seeds),
+            "skipped": dict(skipped),
+        },
+        "bounds": {
+            "max_ops": max_ops,
+            "max_seeds": max_seeds,
+            "max_variables": 3,
+            "max_subtree_cuts": int(abstract_subtrees),
+        },
+        "fork": fork,
+        "objective": objective,
+        "expected_executions": runs,
+        "pricing": "Occurrence-weighted tree cost, not measured dynamic frequency or scheduled savings",
+    }
 
 
 def _expr(tree):

@@ -17,6 +17,7 @@ use super::{
 };
 use crate::{
     backend::assembler::{self, assembly},
+    link::{LibraryId, LibraryRelocation, LibraryTable, RelocatableBytecode},
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::{Bytes, U256};
@@ -68,6 +69,8 @@ pub(crate) struct Data {
     pub(crate) bytes: Bytes,
     pub(crate) name: Option<Symbol>,
     pub(crate) emit_in_runtime: bool,
+    /// Identities and byte offsets of unresolved library addresses in this data.
+    pub(crate) library_relocations: Vec<LibraryRelocation>,
 }
 
 impl DataRef {
@@ -84,6 +87,7 @@ impl BlockId {
 /// An EVM IR module.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Module {
+    pub(crate) libraries: LibraryTable,
     /// Program name used by tools and diagnostics.
     pub(crate) name: Symbol,
     /// Basic blocks in layout order.
@@ -101,12 +105,19 @@ pub struct Module {
 }
 
 impl Module {
-    /// Lowers this EVM IR module to bytecode.
-    pub fn into_bytecode(self, gcx: solar_sema::Gcx<'_>) -> solar_interface::Result<Vec<u8>> {
+    /// Lowers this EVM IR module to bytecode, retaining unresolved library addresses.
+    pub fn into_bytecode(
+        self,
+        gcx: solar_sema::Gcx<'_>,
+    ) -> solar_interface::Result<RelocatableBytecode> {
         let mut assembler = assembler::Assembler::from_evm_ir(gcx, self)?;
         let result = assembler.assemble_with_evm_ir(true);
         gcx.dcx().has_errors()?;
-        Ok(result.bytecode)
+        Ok(RelocatableBytecode {
+            libraries: result.evm_ir.expect("EVM IR capture requested").libraries,
+            bytes: result.bytecode.into(),
+            relocations: result.library_relocations,
+        })
     }
 
     /// Parses textual EVM IR.
@@ -122,6 +133,7 @@ impl Module {
     pub(crate) fn new(name: Symbol) -> Self {
         Self {
             name,
+            libraries: LibraryTable::default(),
             blocks: IndexVec::new(),
             data: IndexVec::new(),
             enable_size_outlining: false,
@@ -134,6 +146,7 @@ impl Module {
     pub(in crate::backend) fn clear(&mut self) {
         self.blocks.clear();
         self.data.clear();
+        self.libraries.clear();
         self.enable_size_outlining = false;
         self.code_follows = false;
         self.debug_info_tracked = false;
@@ -326,6 +339,12 @@ impl Instruction {
         Self::encoded_push(PushValue::Immediate(value), Self::ENCODED_PUSH)
     }
 
+    /// Creates an opaque library-address push instruction.
+    #[must_use]
+    pub(crate) fn push_library(value: LibraryId) -> Self {
+        Self::encoded_push(PushValue::Library(value), Self::ENCODED_PUSH)
+    }
+
     /// Creates an encoded block-address push instruction.
     #[must_use]
     pub(crate) fn push_block(block: BlockId) -> Self {
@@ -401,6 +420,14 @@ impl Instruction {
         }
     }
 
+    /// Returns the source-qualified library identity, if any.
+    pub(in crate::backend) const fn pushed_library(&self) -> Option<LibraryId> {
+        match self.value {
+            Some(PushValue::Library(value)) => Some(value),
+            _ => None,
+        }
+    }
+
     /// Returns a literal runtime word carried by an ordinary immediate push.
     ///
     /// Deferred and immutable pushes encode internal IDs in the same payload variant, but their
@@ -443,6 +470,9 @@ impl Instruction {
         fmt::from_fn(move |f| match self.stack_op {
             Some(stack_op) => f.write_str(stack_op.definition().mnemonic),
             None => match self.encoding {
+                Self::ENCODED_PUSH if self.pushed_library().is_some() => {
+                    f.write_str("push_library")
+                }
                 Self::ENCODED_PUSH => f.write_str("push"),
                 encoding if encoding == Self::ENCODED_PUSH | Self::DEFERRED => {
                     f.write_str("push_deferred")
@@ -693,6 +723,8 @@ impl fmt::Display for TerminatorKind {
 enum PushValue {
     /// Immediate EVM word.
     Immediate(U256),
+    /// Opaque library address supplied by the linker.
+    Library(LibraryId),
     /// Basic block reference.
     Block(BlockId),
     /// Constant program-data reference.

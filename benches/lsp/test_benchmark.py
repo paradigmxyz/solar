@@ -127,7 +127,7 @@ class RawArtifact:
         self.root = root
         self.configs: dict[tuple[str, int], dict[str, Any]] = {}
         self.results: dict[tuple[str, int], dict[str, Any]] = {}
-        self.manifest = {
+        self.manifest: dict[str, Any] = {
             "schema_version": benchmark.RAW_SCHEMA_VERSION,
             "kind": benchmark.RAW_KIND,
             "context": {
@@ -1059,12 +1059,8 @@ class StatisticsTests(unittest.TestCase):
         self.assertEqual(weights[(2, 2, 1, 0, 0)], 30)
 
     def test_paired_bootstrap_matches_ordered_resample_reference(self) -> None:
-        base = tuple(
-            Decimal(value) for value in ("1.1", "1.1", "2.2", "4.4", "4.4")
-        )
-        head = tuple(
-            Decimal(value) for value in ("1.4", "1.4", "2.0", "5.1", "5.1")
-        )
+        base = tuple(Decimal(value) for value in ("1.1", "1.1", "2.2", "4.4", "4.4"))
+        head = tuple(Decimal(value) for value in ("1.4", "1.4", "2.0", "5.1", "5.1"))
         absolute_deltas = []
         percent_deltas = []
         for indices in itertools.product(range(len(base)), repeat=len(base)):
@@ -1098,12 +1094,8 @@ class StatisticsTests(unittest.TestCase):
     def test_paired_bootstrap_falls_back_when_grouped_sums_could_round(
         self,
     ) -> None:
-        base = tuple(
-            Decimal(value) for value in ("1.1", "1.2", "1.3", "1.4", "1.5")
-        )
-        head = tuple(
-            Decimal(value) for value in ("1.2", "1.3", "1.4", "1.5", "1.6")
-        )
+        base = tuple(Decimal(value) for value in ("1.1", "1.2", "1.3", "1.4", "1.5"))
+        head = tuple(Decimal(value) for value in ("1.2", "1.3", "1.4", "1.5", "1.6"))
         benchmark._paired_bootstrap_interval.cache_clear()
         self.addCleanup(benchmark._paired_bootstrap_interval.cache_clear)
 
@@ -1121,13 +1113,13 @@ class StatisticsTests(unittest.TestCase):
         self.assertEqual(actual, expected)
 
     def test_weighted_decimal_percentile_uses_nearest_rank(self) -> None:
-        samples = ((Decimal("1"), 3), (Decimal("2"), 2))
+        samples = ((Decimal(1), 3), (Decimal(2), 2))
 
         self.assertEqual(
-            benchmark._weighted_decimal_percentile(samples, 50), Decimal("1")
+            benchmark._weighted_decimal_percentile(samples, 50), Decimal(1)
         )
         self.assertEqual(
-            benchmark._weighted_decimal_percentile(samples, 95), Decimal("2")
+            benchmark._weighted_decimal_percentile(samples, 95), Decimal(2)
         )
 
     def test_method_verdict_requires_both_order_strata(self) -> None:

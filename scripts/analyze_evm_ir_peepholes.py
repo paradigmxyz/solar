@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run
 # /// script
-# requires-python = ">=3.11"
+# requires-python = ">=3.14"
 # dependencies = ["tabulate>=0.9"]
 # ///
 """Capture and analyze EVM IR peephole tracing output.

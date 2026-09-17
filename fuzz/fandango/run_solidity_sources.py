@@ -48,6 +48,7 @@ def main() -> int:
 
     if args.source_dir is not None:
         for index, (path, source) in enumerate(sources):
+            assert path is not None
             solc_result, solar_result = _check_source(args, index, len(sources), path)
             valid, invalid = _update_counts(valid, invalid, solc_result)
             if solc_result["status"] != solar_result["status"]:

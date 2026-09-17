@@ -630,6 +630,10 @@ jobs:
           path: lsp-bench/trusted
           persist-credentials: false
 
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: lsp-bench/trusted/.python-version
+
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
         with:
           toolchain: "1.96"
@@ -766,6 +770,10 @@ jobs:
           path: lsp-bench/trusted
           clean: true
           persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: lsp-bench/trusted/.python-version
 
       - name: Download raw benchmark artifact
         id: download

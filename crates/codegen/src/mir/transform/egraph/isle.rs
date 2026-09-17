@@ -284,6 +284,18 @@ impl generated::Context for RuleContext<'_> {
         self.has_const(value, U256::MAX).then_some(())
     }
 
+    fn cast_word(&mut self, value: Value) -> Option<Value> {
+        if self.func.value_ty(value) == Some(crate::mir::MirType::I256) {
+            Some(value)
+        } else if let Some(InstKind::MemoryObjectFromPtr { ptr, .. }) =
+            defining_kind(self.func, value)
+        {
+            Some(*ptr)
+        } else {
+            None
+        }
+    }
+
     fn bool_value(&mut self, value: Value) -> Option<()> {
         is_bool_value(self.func, value).then_some(())
     }

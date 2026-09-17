@@ -7,7 +7,10 @@ use super::{
     RevertKind, RevertPayload, RevertReason, SliceLocation, StorageAlias, StructId, Terminator,
     Value, ValueId,
 };
-use crate::mir::{Callee, memory::EvmMemoryLayout};
+use crate::{
+    link::LibraryId,
+    mir::{Callee, memory::EvmMemoryLayout},
+};
 use alloy_primitives::{Bytes, U256};
 use smallvec::SmallVec;
 use solar_config::RevertStrings;
@@ -1241,6 +1244,12 @@ impl<'a> FunctionBuilder<'a> {
             InstKind::CalldataCopy(dest, offset, size),
             MemoryRegion::Heap,
         )
+    }
+
+    /// Emits an opaque library address supplied by the linker.
+    pub(crate) fn library_address(&mut self, library: LibraryId) -> ValueId {
+        // result = library_address source:library
+        self.emit_inst(InstKind::LibraryAddress(library), Some(MirType::I256))
     }
 
     /// Emits a loadimmutable instruction.

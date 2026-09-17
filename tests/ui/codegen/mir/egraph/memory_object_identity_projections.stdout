@@ -1,6 +1,6 @@
-- // === ROOT/tests/ui/codegen/mir/egraph/memory_object_inst_simplify.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/memory_object_inst_simplify.mir (after egraph) ===
-  @module MemoryObjectInstSimplify
+- // === ROOT/tests/ui/codegen/mir/egraph/memory_object_identity_projections.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/memory_object_identity_projections.mir (after egraph) ===
+  @module MemoryObjectIdentityProjections
   fn @fold_identity_projections(arg0: memorystruct, arg1: memoryfixedarray) -> i256 {
     bb0:
 -     v0 = memory_object_data memorystruct, arg0
@@ -18,9 +18,9 @@
       ret v7
   }
   
-- // === ROOT/tests/ui/codegen/mir/egraph/memory_object_inst_simplify.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/memory_object_inst_simplify.mir (after dce) ===
-  @module MemoryObjectInstSimplify
+- // === ROOT/tests/ui/codegen/mir/egraph/memory_object_identity_projections.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/memory_object_identity_projections.mir (after dce) ===
+  @module MemoryObjectIdentityProjections
   fn @fold_identity_projections(arg0: memorystruct, arg1: memoryfixedarray) -> i256 {
     bb0:
       v0 = word_cast arg0

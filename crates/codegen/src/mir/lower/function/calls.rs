@@ -1,6 +1,7 @@
 //! Function calls, conversions, and call-target resolution.
 
 use super::*;
+use crate::link::Library;
 
 #[derive(Clone, Copy)]
 pub(super) struct ExternalReturnPlan {
@@ -128,6 +129,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(arg) = args.exprs().next() else {
                 return self.cx.report_unsupported(expr.span, "type conversion");
             };
+            if let Some(hir::Res::Item(hir::ItemId::Contract(id))) = self.cx.gcx.resolved_expr(arg)
+                && self.cx.gcx.hir.contract(id).kind == hir::ContractKind::Library
+            {
+                // address(L) => library_address(L)
+                let address = self.library_contract_address(id);
+                return Some(address);
+            }
             let source_ty = self.cx.gcx.type_of_expr(arg.id)?;
             let target_ty = self.cx.gcx.type_of_expr(expr.id).or_else(|| {
                 self.cx.gcx.resolved_expr(callee).and_then(|res| match res {
@@ -332,7 +340,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.imm(layout.head_size())
         };
 
-        let bytecode_len = u64::try_from(bytecode.len()).ok()?;
+        let bytecode_len = u64::try_from(bytecode.bytes.len()).ok()?;
         let bytecode_len_value = self.builder.imm(bytecode_len);
         let total_len = self.builder.checked_add(bytecode_len_value, encoded_len);
         // CREATE consumes a raw byte range, so do not reserve a semantic bytes
@@ -343,14 +351,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let allocation_size = self.builder.and(rounded_len, mask);
         let data = self.builder.alloc_raw(allocation_size, AllocationSemantics::INTERNAL);
 
-        super::super::data::copy_data_to_memory(
+        super::super::data::copy_bytecode_to_memory(
             self.cx.gcx,
             self.cx.module,
             &mut self.builder,
             data,
             bytecode,
-            bytecode.len(),
-            Some(super::super::data::contract_bytecode_data_name(self.cx.gcx, contract_id, true)),
+            bytecode.bytes.len(),
+            super::super::data::contract_bytecode_data_name(self.cx.gcx, contract_id, true),
         );
         let encoded_ptr = self.builder.slice_ptr(encoded);
         let copy_dest = self.builder.add(data, bytecode_len_value);
@@ -1048,14 +1056,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some((values, types))
     }
 
-    fn linked_library_address(&self, function_id: hir::FunctionId) -> Option<U256> {
-        let contract_id = self
-            .cx
-            .gcx
-            .hir
-            .function(function_id)
-            .contract
-            .expect("library function must have a contract");
+    fn linked_library_address(&self, contract_id: hir::ContractId) -> Option<U256> {
         let contract = self.cx.gcx.hir.contract(contract_id);
         assert_eq!(contract.kind, hir::ContractKind::Library);
         let source = self.cx.gcx.hir.source(contract.source).file.name.display().to_string();
@@ -1070,11 +1071,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|library| U256::from_be_slice(library.address.as_slice()))
     }
 
-    pub(super) fn library_address(&mut self, function_id: hir::FunctionId) -> U256 {
-        if let Some(address) = self.linked_library_address(function_id) {
-            return address;
-        }
-
+    pub(super) fn library_address(&mut self, function_id: hir::FunctionId) -> ValueId {
         let contract_id = self
             .cx
             .gcx
@@ -1082,25 +1079,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .function(function_id)
             .contract
             .expect("library function must have a contract");
+        self.library_contract_address(contract_id)
+    }
+
+    pub(super) fn library_contract_address(&mut self, contract_id: hir::ContractId) -> ValueId {
+        if let Some(address) = self.linked_library_address(contract_id) {
+            return self.builder.imm(address);
+        }
         let contract = self.cx.gcx.hir.contract(contract_id);
         let source = self.cx.gcx.hir.source(contract.source).file.name.display().to_string();
 
-        let name = contract.name.as_str_in(self.cx.gcx.sess).to_string();
-        // The source map keeps absolute file names under `-Zui-testing` (the UI runner relies
-        // on them), so hash only the file name there; otherwise the placeholder would change
-        // with the checkout path and no blessed output could pin it.
-        let hashed_source = if self.cx.gcx.sess.opts.unstable.ui_testing
-            && let Some(file_name) = std::path::Path::new(&source).file_name()
-        {
-            file_name.to_string_lossy().into_owned()
-        } else {
-            source.clone()
-        };
-        let hash = keccak256(format!("{hashed_source}:{name}"));
-        let mut placeholder = <[u8; 20]>::try_from(&hash[..20]).unwrap();
-        placeholder[0] |= 0x80;
-        self.cx.module.add_library_link(LibraryLink { source, name, placeholder });
-        U256::from_be_slice(&placeholder)
+        let library = self
+            .cx
+            .module
+            .libraries
+            .intern(Library { source: Symbol::intern(&source), name: contract.name.name });
+        // result = library_address source:library
+        self.builder.library_address(library)
     }
 
     pub(super) fn lower_library_call(
@@ -1109,7 +1104,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         function_id: hir::FunctionId,
         receiver: Option<&hir::Expr<'_>>,
         args: hir::CallArgs<'_>,
-        address: U256,
+        address: ValueId,
     ) -> Option<ValueId> {
         let function = self.cx.gcx.hir.function(function_id);
         let receiver_count = usize::from(receiver.is_some());
@@ -1151,7 +1146,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|&ret| self.cx.gcx.type_of_item(ret.into()))
             .collect::<Vec<_>>();
         let return_types = self.external_return_types(&return_types);
-        let address = self.builder.imm(address);
         // buffer = alloc_overlay_return_buffer(returns)
         // input = abi_encode(selector, args)
         let overlay_buffer = self.alloc_overlay_return_buffer(&return_types);

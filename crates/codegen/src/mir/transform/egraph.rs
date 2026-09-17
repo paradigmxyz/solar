@@ -42,7 +42,10 @@
 //! apply to them in place. Phis over one value merge into it, phis of one
 //! block with equal incoming values merge into one, copies of zero bytes are
 //! deleted, and branches on boolean zero tests or a nonzero test branch on the tested
-//! value directly.
+//! value directly. Nontrapping checked constants and passing checks disappear during
+//! the walk. Fixed aggregate projections follow bounded insertion chains without
+//! changing memory-object types. Late `const-fold` reuses the same evaluator and
+//! scalar identities but accepts only immediate results.
 //! A balance read can bypass a mask that preserves all address bits. Since
 //! effectful roots do not participate in cost extraction, this rule requires
 //! one original use of the mask in the same block. The account read remains
@@ -74,6 +77,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
+use solar_config::EvmVersion;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::IndexVec,
@@ -152,21 +156,13 @@ impl MirPass for Egraph {
             module,
             analyses,
             &flat,
-            |func, _| {
-                let semantic =
-                    super::inst_simplify::simplify_before_egraph(func, gcx.sess.opts.evm_version);
-                Builder::new(func, target, None).run() + semantic != 0
-            },
+            |func, _| Builder::new(func, target, None).run() != 0,
         );
         changed |= run_selected_function_pass_cached::<CfgEgraph>(
             module,
             analyses,
             &with_cfg,
-            |func, analyses| {
-                let semantic =
-                    super::inst_simplify::simplify_before_egraph(func, gcx.sess.opts.evm_version);
-                Builder::new(func, target, Some(Rc::clone(analyses.cfg()))).run() + semantic != 0
-            },
+            |func, analyses| Builder::new(func, target, Some(Rc::clone(analyses.cfg()))).run() != 0,
         );
         // Eligibility depends on module-wide callers, so do not cache it by body alone.
         changed |= run_selected_function_pass(
@@ -174,11 +170,9 @@ impl MirPass for Egraph {
             analyses,
             &fresh_mapping_entries,
             |func, analyses| {
-                let semantic =
-                    super::inst_simplify::simplify_before_egraph(func, gcx.sess.opts.evm_version);
                 let mut builder = Builder::new(func, target, Some(Rc::clone(analyses.cfg())));
                 builder.fresh_mapping_arguments = true;
-                builder.run() + semantic != 0
+                builder.run() != 0
             },
         );
         changed
@@ -480,12 +474,20 @@ impl<'a> Builder<'a> {
     }
 
     fn visit_inst(&mut self, inst_id: InstId, block: BlockId, index: usize) {
-        if self.is_dead_noop(inst_id) {
+        if is_dead_noop(self.func, &self.func.inst(inst_id).kind, |value| {
+            resolve_replacement(value, &self.merged)
+        }) {
             self.dead.insert(inst_id);
             self.changed += 1;
             return;
         }
+        self.rewrite_check(inst_id);
         let Some(result) = self.func.inst_result_value(inst_id) else { return };
+        if let Some(value) = self.aggregate_field(inst_id) {
+            // extract_value(insert_value aggregate, index, value), index => value
+            self.merge(result, value, inst_id);
+            return;
+        }
         let inst = self.func.inst(inst_id);
         let ty = inst.result_ty;
         if let InstKind::Phi(incoming) = &inst.kind {
@@ -497,7 +499,14 @@ impl<'a> Builder<'a> {
             || (self.fresh_mapping_arguments
                 && matches!(inst.kind, InstKind::MappingSlotMemory(..))))
         {
-            self.rewrite_in_place(inst_id, block);
+            let mut kind = inst.kind.clone();
+            kind.visit_operands_mut(|value| *value = self.resolve(*value));
+            if let Some(value) = const_fold(self.func, &kind) {
+                // %result = <nontrapping constant expression> => constant
+                self.merge(result, value, inst_id);
+            } else {
+                self.rewrite_in_place(inst_id, block);
+            }
             return;
         }
         let kind = inst.kind.op();
@@ -767,26 +776,63 @@ impl<'a> Builder<'a> {
         self.changed += 1;
     }
 
-    /// Returns whether an instruction copies zero bytes and can be deleted.
-    fn is_dead_noop(&mut self, inst_id: InstId) -> bool {
-        let (offset, size) = match self.func.inst(inst_id).kind {
-            InstKind::MCopy(_, _, size)
-            | InstKind::CalldataCopy(_, _, size)
-            | InstKind::DataCopy(_, _, size)
-            | InstKind::CodeCopy(_, _, size) => (None, size),
-            InstKind::ReturnDataCopy(_, offset, size) => (Some(offset), size),
-            _ => return false,
-        };
-        let size = self.resolve(size);
-        if !is_zero(self.func, size) {
-            return false;
-        }
-        match offset {
-            Some(offset) => {
-                let offset = self.resolve(offset);
-                is_zero(self.func, offset)
+    /// Follows bounded insertion chains while preserving memory-object types.
+    fn aggregate_field(&mut self, inst_id: InstId) -> Option<ValueId> {
+        let inst = self.func.inst(inst_id);
+        let InstKind::ExtractValue { ty, aggregate, index } = inst.kind else { return None };
+        let result_ty = inst.result_ty;
+        let mut aggregate = self.resolve(aggregate);
+        for _ in 0..16 {
+            let InstKind::InsertValue { ty: inserted_ty, aggregate: base, index: field, value } =
+                *defining_kind(self.func, aggregate)?
+            else {
+                return None;
+            };
+            if inserted_ty != ty {
+                return None;
             }
-            None => true,
+            if field == index {
+                let value = self.resolve(value);
+                let value_ty = self.func.value_ty(value);
+                if result_ty != value_ty
+                    && [result_ty, value_ty]
+                        .iter()
+                        .any(|ty| matches!(ty, Some(MirType::MemoryObject(_))))
+                {
+                    return None;
+                }
+                return Some(value);
+            }
+            aggregate = self.resolve(base);
+        }
+        None
+    }
+
+    /// Canonicalizes a check's polarity without moving its failure edge.
+    fn rewrite_check(&mut self, inst_id: InstId) {
+        let InstKind::ICall {
+            function: Callee::Builtin(Builtin::Check { is_zero, failure }),
+            args,
+        } = &self.func.inst(inst_id).kind
+        else {
+            return;
+        };
+        let (mut is_zero, failure, condition) = (*is_zero, *failure, args[0]);
+        let mut condition = self.resolve(condition);
+        let mut changed = false;
+        while let Some(inner) = zero_test_operand(self.func, condition)
+            && self.func.value_ty(inner) == Some(MirType::I1)
+        {
+            condition = self.resolve(inner);
+            is_zero = !is_zero;
+            changed = true;
+        }
+        if changed {
+            // check (condition == false), polarity => check condition, !polarity
+            self.func
+                .inst_mut(inst_id)
+                .replace_kind(InstKind::builtin(Builtin::Check { is_zero, failure }, [condition]));
+            self.changed += 1;
         }
     }
 
@@ -1206,6 +1252,53 @@ fn const_fold(func: &mut Function, kind: &InstKind) -> Option<ValueId> {
         _ => Immediate::uint256(value),
     };
     Some(func.alloc_value(Value::Immediate(immediate)))
+}
+
+/// Folds only immediate results using the same identities as full extraction.
+pub(super) fn fold_constant(
+    func: &mut Function,
+    kind: &InstKind,
+    evm: EvmVersion,
+) -> Option<ValueId> {
+    if let InstKind::Phi(incoming) = kind
+        && let Some(&(_, first)) = incoming.first()
+        && func.value(first).as_immediate().is_some()
+        && incoming.iter().all(|&(_, value)| same_value(func, value, first))
+    {
+        return Some(first);
+    }
+    let value = const_fold(func, kind).or_else(|| {
+        if is_node(kind) && kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
+            isle::RuleContext::new(func, evm).simplify(&kind.op())
+        } else {
+            None
+        }
+    })?;
+    func.value(value).as_immediate().map(|_| value)
+}
+
+/// Recognizes passing checks and copies with no effects, including no bounds failure.
+pub(super) fn is_dead_noop(
+    func: &Function,
+    kind: &InstKind,
+    resolve: impl Fn(ValueId) -> ValueId,
+) -> bool {
+    match kind {
+        InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), args } => {
+            func.value_u256(resolve(args[0])).is_some_and(|value| !value.is_zero())
+        }
+        InstKind::ICall { function: Callee::Builtin(Builtin::Check { is_zero, .. }), args } => {
+            func.value_u256(resolve(args[0])).is_some_and(|value| value.is_zero() != *is_zero)
+        }
+        InstKind::MCopy(_, _, size)
+        | InstKind::CalldataCopy(_, _, size)
+        | InstKind::DataCopy(_, _, size)
+        | InstKind::CodeCopy(_, _, size) => is_zero(func, resolve(*size)),
+        InstKind::ReturnDataCopy(_, offset, size) => {
+            is_zero(func, resolve(*offset)) && is_zero(func, resolve(*size))
+        }
+        _ => false,
+    }
 }
 
 fn is_zero(func: &Function, value: ValueId) -> bool {

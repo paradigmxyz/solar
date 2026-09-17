@@ -223,13 +223,8 @@ bb60 [loop]:
   mload
   push 0
   byte
-  push 248
-  shl
   dup 1
-  push 248
-  shr
-  swap 1
-  push 252
+  push 4
   shr
   push 0x30313233343536373839616263646566
   push 128

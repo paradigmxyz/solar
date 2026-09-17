@@ -61,14 +61,14 @@ mod function;
 pub(crate) use function::{Function, FunctionAttributes};
 
 mod module;
-pub(crate) use module::{LibraryLink, LoweredModule};
+pub(crate) use module::LoweredModule;
 pub use module::{MirPhase, Module};
 
 mod builtin;
 pub(crate) use builtin::{Builtin, Callee, RequireKind};
 
 mod builder;
-pub(crate) use builder::{ERROR_SELECTOR, FunctionBuilder, ToUint};
+pub(crate) use builder::{ERROR_SELECTOR, FunctionBuilder};
 
 mod display;
 

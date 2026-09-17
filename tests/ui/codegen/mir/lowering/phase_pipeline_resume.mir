@@ -34,3 +34,18 @@ fn @constants(arg0: i256) -> i256 {
   bb2:
     ret 999
 }
+
+// FOLD-LABEL: {{^[ +].*}}fn @constant_phi
+// FOLD: - {{v[0-9]+}} = phi [bb1: 42], [bb2: 42]
+// FOLD: + ret 42
+fn @constant_phi(arg0: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: 42], [bb2: 42]
+    ret v0
+}

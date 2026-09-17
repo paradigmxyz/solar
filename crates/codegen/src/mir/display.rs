@@ -435,6 +435,13 @@ fn display_inst_kind<'a>(
             write!(f, "storeimmutable {}", display_immutable_ref(*id, module))?;
             write!(f, ", {}", display_val(*value, func))
         }
+        InstKind::LibraryAddress(id) => {
+            if let Some(library) = module.and_then(|module| module.libraries.get(*id)) {
+                write!(f, "library_address {library}")
+            } else {
+                write!(f, "library_address {id:?}")
+            }
+        }
         InstKind::LoadImmutable(id) => {
             write!(f, "loadimmutable {}", display_immutable_ref(*id, module))
         }

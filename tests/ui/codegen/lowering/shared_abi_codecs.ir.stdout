@@ -110,34 +110,34 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
 
 fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
   bb0:
-    v183 = calldatasize
-    v184 = lt v183, 68
-    jumpi v184, bb10, bb42
+    v181 = calldatasize
+    v182 = lt v181, 68
+    jumpi v182, bb10, bb42
   bb42:
-    v185 = calldataload 36
-    v186 = add v185, 4
-    v187 = add v186, 32
-    v188 = gt v185, 0xffffffffffffffff
-    v189 = gt v187, v183
-    v190 = or v188, v189
-    jumpi v190, bb10, bb43
+    v183 = calldataload 36
+    v184 = add v183, 4
+    v185 = add v184, 32
+    v186 = gt v183, 0xffffffffffffffff
+    v187 = gt v185, v181
+    v188 = or v186, v187
+    jumpi v188, bb10, bb43
   bb43:
-    v193 = calldataload v186
-    v195 = sub v183, v187
-    v196 = shr 5, v195
-    v197 = gt v193, v196
-    jumpi v197, bb10, bb44
+    v191 = calldataload v184
+    v193 = sub v181, v185
+    v194 = shr 5, v193
+    v195 = gt v191, v194
+    jumpi v195, bb10, bb44
   bb44:
     v0 = mload 64
-    v254 = add v0, 64
-    mstore 64, v254
-    v3 = shl 5, v193
+    v252 = add v0, 64
+    mstore 64, v252
+    v3 = shl 5, v191
     v5 = shr 5, v3
-    v6 = eq v5, v193
-    jumpi v6, bb9, bb8
+    v9 = ne v5, v191
+    jumpi v9, bb8, bb9
   bb9:
     v10 = calldatasize
-    v11 = sub v10, v187
+    v11 = sub v10, v185
     v12 = slt v11, v3
     jumpi v12, bb10, bb11
   bb11:
@@ -146,104 +146,104 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     jumpi v21, bb8, bb12
   bb12:
     v22 = mload 64
-    v251 = add v22, v20
-    mstore 64, v251
-    mstore v22, v193
+    v249 = add v22, v20
+    mstore 64, v249
+    mstore v22, v191
     jump bb1
   bb1:
     v23 = phi [bb12: 0], [bb17: v56]
-    v24 = lt v23, v193
+    v24 = lt v23, v191
     jumpi v24, bb2, bb3
   bb3:
     mstore v0, arg0
-    v202 = add v0, 32
-    mstore v202, v22
+    v200 = add v0, 32
+    mstore v200, v22
     v57 = icall @encodeFirst.body, v0
-    v98 = add v57, 32
-    v99 = mload v57
-    v100 = add v98, v99
-    v101 = lt v100, v98
-    v102 = lt v99, 32
-    v103 = or v101, v102
-    jumpi v103, bb10, bb26
+    v96 = add v57, 32
+    v97 = mload v57
+    v98 = add v96, v97
+    v99 = lt v98, v96
+    v100 = lt v97, 32
+    v101 = or v99, v100
+    jumpi v101, bb10, bb26
   bb26:
-    v106 = mload v98
-    v107 = add v98, v106
-    v109 = gt v106, v99
-    jumpi v109, bb10, bb27
+    v104 = mload v96
+    v105 = add v96, v104
+    v107 = gt v104, v97
+    jumpi v107, bb10, bb27
   bb27:
-    v110 = sub v100, v107
-    v111 = gt 64, v110
-    jumpi v111, bb10, bb28
+    v108 = sub v98, v105
+    v109 = gt 64, v108
+    jumpi v109, bb10, bb28
   bb28:
-    v112 = mload 64
-    v253 = add v112, 64
-    mstore 64, v253
-    v113 = mload v107
-    mstore v112, v113
-    v114 = add v107, 32
-    v115 = mload v114
-    v116 = add v107, v115
-    v117 = add v116, 32
-    v118 = gt v115, 0xffffffffffffffff
-    v119 = gt v117, v100
-    v120 = or v118, v119
-    jumpi v120, bb10, bb29
+    v110 = mload 64
+    v251 = add v110, 64
+    mstore 64, v251
+    v111 = mload v105
+    mstore v110, v111
+    v112 = add v105, 32
+    v113 = mload v112
+    v114 = add v105, v113
+    v115 = add v114, 32
+    v116 = gt v113, 0xffffffffffffffff
+    v117 = gt v115, v98
+    v118 = or v116, v117
+    jumpi v118, bb10, bb29
   bb29:
-    v123 = mload v116
-    v125 = add v123, 1
-    v126 = eq v125, 0
-    jumpi v126, bb8, bb30
+    v121 = mload v114
+    v123 = add v121, 1
+    v124 = eq v123, 0
+    jumpi v124, bb8, bb30
   bb30:
-    v127 = shl 5, v125
-    v129 = shr 5, v127
-    v133 = ne v129, v125
-    jumpi v133, bb8, bb31
+    v125 = shl 5, v123
+    v127 = shr 5, v125
+    v131 = ne v127, v123
+    jumpi v131, bb8, bb31
   bb31:
-    v134 = mload 64
-    v237 = add v134, v127
-    v238 = lt v237, v134
-    v239 = gt v237, 0xffffffffffffffff
-    v240 = or v238, v239
-    jumpi v240, bb8, bb45
+    v132 = mload 64
+    v235 = add v132, v125
+    v236 = lt v235, v132
+    v237 = gt v235, 0xffffffffffffffff
+    v238 = or v236, v237
+    jumpi v238, bb8, bb45
   bb45:
-    mstore 64, v237
-    mstore v134, v123
-    v135 = shl 5, v123
-    v137 = shr 5, v135
-    v141 = ne v137, v123
-    jumpi v141, bb8, bb32
+    mstore 64, v235
+    mstore v132, v121
+    v133 = shl 5, v121
+    v135 = shr 5, v133
+    v139 = ne v135, v121
+    jumpi v139, bb8, bb32
   bb32:
-    v142 = sub v100, v117
-    v143 = shr 5, v142
-    v144 = gt v123, v143
-    jumpi v144, bb10, bb33
+    v140 = sub v98, v115
+    v141 = shr 5, v140
+    v142 = gt v121, v141
+    jumpi v142, bb10, bb33
   bb33:
     jump bb34
   bb34:
-    v145 = phi [bb33: v123], [bb41: v180]
-    v146 = phi [bb33: v117], [bb41: v181]
-    v147 = phi [bb33: 0], [bb41: v182]
-    v148 = gt v145, 0
-    jumpi v148, bb35, bb36
+    v143 = phi [bb33: v121], [bb41: v178]
+    v144 = phi [bb33: v115], [bb41: v179]
+    v145 = phi [bb33: 0], [bb41: v180]
+    v146 = gt v143, 0
+    jumpi v146, bb35, bb36
   bb36:
-    v226 = add v112, 32
-    mstore v226, v134
-    v59 = mload v112
-    v62 = mload v134
+    v224 = add v110, 32
+    mstore v224, v132
+    v59 = mload v110
+    v62 = mload v132
     v63 = lt 0, v62
     jumpi v63, bb19, bb18
   bb19:
-    v216 = add v134, 32
-    v65 = mload v216
+    v214 = add v132, 32
+    v65 = mload v214
     v68 = eq v65, 0
     jumpi v68, bb4, bb5
   bb4:
     v69 = mload 64 !metadata(memory=scratch)
-    v249 = add v69, 32
-    mstore 64, v249
+    v247 = add v69, 32
+    mstore 64, v247
     mstore v69, 0
-    mstore v216, v69
+    mstore v214, v69
     jump bb5
   bb5:
     v70 = phi [bb19: v65], [bb4: v69]
@@ -251,27 +251,27 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v72 = lt 0, v71
     jumpi v72, bb20, bb18
   bb20:
-    v218 = add v70, 32
-    v74 = mload v218
-    v94 = add v59, v74
-    v95 = lt v94, v59
-    jumpi v95, bb23, bb24
+    v216 = add v70, 32
+    v74 = mload v216
+    v92 = add v59, v74
+    v93 = lt v92, v59
+    jumpi v93, bb23, bb24
   bb24:
-    v76 = mload v226
+    v76 = mload v224
     v78 = mload v76
     v79 = lt 1, v78
     jumpi v79, bb21, bb18
   bb21:
-    v220 = add v76, 64
-    v81 = mload v220
+    v218 = add v76, 64
+    v81 = mload v218
     v84 = eq v81, 0
     jumpi v84, bb6, bb7
   bb6:
     v85 = mload 64
-    v250 = add v85, 32
-    mstore 64, v250
+    v248 = add v85, 32
+    mstore 64, v248
     mstore v85, 0
-    mstore v220, v85
+    mstore v218, v85
     jump bb7
   bb7:
     v86 = phi [bb21: v81], [bb6: v85]
@@ -283,76 +283,76 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     mstore 32, 50
     revert 28, 36
   bb22:
-    v222 = add v86, 32
-    v90 = mload v222
-    v96 = add v94, v90
-    v97 = lt v96, v94
-    jumpi v97, bb23, bb25
+    v220 = add v86, 32
+    v90 = mload v220
+    v94 = add v92, v90
+    v95 = lt v94, v92
+    jumpi v95, bb23, bb25
   bb25:
-    mstore 128, v96
+    mstore 128, v94
     returndata 128, 32
   bb23:
     tail_call @revert_stub
   bb35:
-    v149 = mload v146
-    v150 = add v117, v149
-    v151 = add v150, 32
-    v152 = gt v149, 0xffffffffffffffff
-    v153 = gt v151, v100
-    v154 = or v152, v153
-    jumpi v154, bb10, bb37
+    v147 = mload v144
+    v148 = add v115, v147
+    v149 = add v148, 32
+    v150 = gt v147, 0xffffffffffffffff
+    v151 = gt v149, v98
+    v152 = or v150, v151
+    jumpi v152, bb10, bb37
   bb37:
-    v157 = mload v150
-    v159 = add v157, 1
-    v160 = eq v159, 0
-    jumpi v160, bb8, bb38
+    v155 = mload v148
+    v157 = add v155, 1
+    v158 = eq v157, 0
+    jumpi v158, bb8, bb38
   bb38:
-    v161 = shl 5, v159
-    v163 = shr 5, v161
-    v167 = ne v163, v159
-    jumpi v167, bb8, bb39
+    v159 = shl 5, v157
+    v161 = shr 5, v159
+    v165 = ne v161, v157
+    jumpi v165, bb8, bb39
   bb39:
-    v168 = mload 64
-    v243 = add v168, v161
-    v244 = lt v243, v168
-    v245 = gt v243, 0xffffffffffffffff
-    v246 = or v244, v245
-    jumpi v246, bb8, bb46
+    v166 = mload 64
+    v241 = add v166, v159
+    v242 = lt v241, v166
+    v243 = gt v241, 0xffffffffffffffff
+    v244 = or v242, v243
+    jumpi v244, bb8, bb46
   bb46:
-    mstore 64, v243
-    mstore v168, v157
-    v169 = shl 5, v157
-    v171 = shr 5, v169
-    v175 = ne v171, v157
-    jumpi v175, bb8, bb40
+    mstore 64, v241
+    mstore v166, v155
+    v167 = shl 5, v155
+    v169 = shr 5, v167
+    v173 = ne v169, v155
+    jumpi v173, bb8, bb40
   bb40:
-    v176 = sub v100, v151
-    v177 = shr 5, v176
-    v178 = gt v157, v177
-    jumpi v178, bb10, bb41
+    v174 = sub v98, v149
+    v175 = shr 5, v174
+    v176 = gt v155, v175
+    jumpi v176, bb10, bb41
   bb41:
-    v230 = add v168, 32
-    mcopy v230, v151, v169
-    v234 = add v134, 32
-    v235 = shl 5, v147
-    v236 = add v234, v235
-    mstore v236, v168
-    v180 = sub v145, 1
-    v181 = add v146, 32
-    v182 = add v147, 1
+    v228 = add v166, 32
+    mcopy v228, v149, v167
+    v232 = add v132, 32
+    v233 = shl 5, v145
+    v234 = add v232, v233
+    mstore v234, v166
+    v178 = sub v143, 1
+    v179 = add v144, 32
+    v180 = add v145, 1
     jump bb34
   bb2:
     v25 = shl 5, v23
-    v26 = add v187, v25
+    v26 = add v185, v25
     v27 = calldatasize
     v28 = sub v27, v26
     v29 = slt v28, 32
     jumpi v29, bb10, bb13
   bb13:
     v30 = calldataload v26
-    v31 = add v187, v30
+    v31 = add v185, v30
     v32 = calldatasize
-    v33 = sub v32, v187
+    v33 = sub v32, v185
     v34 = sub v33, 31
     v35 = slt v30, v34
     jumpi v35, bb14, bb10
@@ -369,20 +369,20 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     jumpi v43, bb10, bb16
   bb16:
     v47 = shr 5, v39
-    v48 = eq v47, v37
-    jumpi v48, bb17, bb8
+    v51 = ne v47, v37
+    jumpi v51, bb8, bb17
   bb17:
     v52 = add v39, 32
     v54 = mload 64
-    v252 = add v54, v52
-    mstore 64, v252
+    v250 = add v54, v52
+    mstore 64, v250
     mstore v54, v37
-    v208 = add v54, 32
-    calldatacopy v208, v40, v39
-    v212 = add v22, 32
-    v213 = shl 5, v23
-    v214 = add v212, v213
-    mstore v214, v54
+    v206 = add v54, 32
+    calldatacopy v206, v40, v39
+    v210 = add v22, 32
+    v211 = shl 5, v23
+    v212 = add v210, v211
+    mstore v212, v54
     v56 = add v23, 1
     jump bb1
   bb8:

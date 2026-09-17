@@ -22,19 +22,20 @@ fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]
 
 fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = fmp
-    v1 = add v0, 32
-    mstore v1, 0
-    v2 = abi_encode [word], selector 0xeee9720600000000000000000000000000000000000000000000000000000000, args arg0
-    v3 = slice_ptr v2
-    v4 = slice_len v2
-    v5 = extcodesize 0xc0eda96c2648cd3a6a6e9ddfea8fc5f701ed980d
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = gas
-    v8 = sub v7, 50
-    v9 = delegatecall v8, 0xc0eda96c2648cd3a6a6e9ddfea8fc5f701ed980d, v3, v4, v3, 32
-    jumpi v9, bb1, bb2
+    v0 = library_address "ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol":"TryLib"
+    v1 = fmp
+    v2 = add v1, 32
+    mstore v2, 0
+    v3 = abi_encode [word], selector 0xeee9720600000000000000000000000000000000000000000000000000000000, args arg0
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = extcodesize v0
+    v7 = eq v6, 0
+    icall revert_if<target_contract_has_no_code>, v7
+    v8 = gas
+    v9 = sub v8, 50
+    v10 = delegatecall v9, v0, v4, v5, v4, 32
+    jumpi v10, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -43,29 +44,30 @@ fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[u256], abi_ret
   bb4:
     jump bb3
   bb1:
-    v10 = add v3, 0
-    v11 = mload v10
-    v12 = add v3, 0
-    v13 = mload v12
-    sstore 0, v13 !metadata(storage=slot(0))
+    v11 = add v4, 0
+    v12 = mload v11
+    v13 = add v4, 0
+    v14 = mload v13
+    sstore 0, v14 !metadata(storage=slot(0))
     jump bb3
   bb3:
-    v14 = phi [bb1: v13], [bb4: 7]
-    ret v14
+    v15 = phi [bb1: v14], [bb4: 7]
+    ret v15
 }
 
 fn @libNoReturn(arg0: i256) -> i256 [selector=0x364676bf, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = abi_encode [word], selector 0x6719039500000000000000000000000000000000000000000000000000000000, args arg0
-    v1 = slice_ptr v0
-    v2 = slice_len v0
-    v3 = extcodesize 0xc0eda96c2648cd3a6a6e9ddfea8fc5f701ed980d
-    v4 = eq v3, 0
-    icall revert_if<target_contract_has_no_code>, v4
-    v5 = gas
-    v6 = sub v5, 50
-    v7 = delegatecall v6, 0xc0eda96c2648cd3a6a6e9ddfea8fc5f701ed980d, v1, v2, v1, 0
-    jumpi v7, bb1, bb2
+    v0 = library_address "ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol":"TryLib"
+    v1 = abi_encode [word], selector 0x6719039500000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = extcodesize v0
+    v5 = eq v4, 0
+    icall revert_if<target_contract_has_no_code>, v5
+    v6 = gas
+    v7 = sub v6, 50
+    v8 = delegatecall v7, v0, v2, v3, v2, 0
+    jumpi v8, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -77,6 +79,6 @@ fn @libNoReturn(arg0: i256) -> i256 [selector=0x364676bf, abi_params=[u256], abi
     sstore 0, 1 !metadata(storage=slot(0))
     jump bb3
   bb3:
-    v8 = phi [bb1: 1], [bb4: 7]
-    ret v8
+    v9 = phi [bb1: 1], [bb4: 7]
+    ret v9
 }

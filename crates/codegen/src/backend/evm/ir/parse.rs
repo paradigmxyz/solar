@@ -84,6 +84,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
             }
         }
+        module.libraries = std::mem::take(&mut self.parser.libraries);
         Ok(module)
     }
 
@@ -129,7 +130,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 .error(format!("expected program data ID {}, found {id}", module.data.len())));
         }
         let bytes = self.parser.parse_data_bytes()?;
-        module.data.push(Data { bytes, name, emit_in_runtime: false });
+        let library_relocations = self.parser.parse_data_library_relocations(&bytes)?;
+        module.data.push(Data { bytes, name, emit_in_runtime: false, library_relocations });
         Ok(())
     }
 
@@ -261,8 +263,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::push => match self.parse_push_value(module)? {
                 PushValue::Immediate(value) => Instruction::push_value(value),
                 PushValue::Block(block) => Instruction::push_block(block),
-                PushValue::Data(_) => unreachable!("ordinary push parser does not produce data"),
+                PushValue::Data(_) | PushValue::Library(_) => {
+                    unreachable!("ordinary push parser only produces immediates and blocks")
+                }
             },
+            sym::push_library => Instruction::push_library(self.parser.parse_library()?),
             sym::push_data => {
                 let span = self.parser.token().span;
                 let (id, offset, _) = self.parser.parse_data_ref()?;
@@ -557,6 +562,7 @@ mod tests {
     use super::*;
     use snapbox::{assert_data_eq, str};
     use solar_interface::{ColorChoice, source_map::FileName};
+    use solar_sema::Compiler;
     use std::path::{Path, PathBuf};
 
     fn parse_module(sess: &Session, input: &str) -> Result<Module> {
@@ -573,6 +579,45 @@ mod tests {
             .join("ui")
             .join("codegen")
             .join("evm-ir")
+    }
+
+    #[test]
+    fn bytecode_retains_library_identities() {
+        let compiler = Compiler::new(Session::builder().opts(Default::default()).build());
+        compiler.enter(|c| {
+            let gcx = c.gcx();
+            let module = parse_module(
+                gcx.sess,
+                r#"
+@module libraries
+bb0:
+  push_library "a.sol":"L"
+  push 0
+  mstore
+  push_library "b.sol":"L"
+  push 32
+  mstore
+  push 64
+  push 0
+  return
+"#,
+            )
+            .unwrap();
+            let bytecode = module.into_bytecode(gcx).unwrap();
+            let relocations = bytecode
+                .relocations
+                .iter()
+                .map(|relocation| relocation.display(&bytecode.libraries).to_string())
+                .collect::<Vec<_>>()
+                .join("\n");
+            assert_data_eq!(
+                relocations,
+                str![[r#"
+1: "a.sol":"L"
+24: "b.sol":"L"
+"#]]
+            );
+        });
     }
 
     #[test]
