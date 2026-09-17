@@ -16,7 +16,7 @@ fn @constructor() [constructor] {
 
 fn @version() -> memorybytes [selector=0x54fd4d50, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
@@ -30,7 +30,7 @@ fn @consume(arg0: memorybytes) -> memorybytes [pure] {
 
 fn @direct() -> u256 [selector=0x222b1407, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 5
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x68656c6c6f000000000000000000000000000000000000000000000000000000

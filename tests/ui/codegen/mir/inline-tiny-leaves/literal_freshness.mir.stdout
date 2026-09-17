@@ -90,7 +90,7 @@ fn @encoded(arg0: u256) -> memorybytes [selector=0xdbafcb80, pure, abi_params=[u
   bb0:
     v0 = shl 224, 0x12345678
     v1 = icall @encodedWord
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, 0
     v3 = memory_object_data memorybytes, v2
     v4 = abi_encode [memory_bytes, word, memory_bytes], object, selector v0, args v1, arg0, v2
@@ -99,7 +99,7 @@ fn @encoded(arg0: u256) -> memorybytes [selector=0xdbafcb80, pure, abi_params=[u
 
 fn @literal() -> memorybytes [pure] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
@@ -108,7 +108,7 @@ fn @literal() -> memorybytes [pure] {
 
 fn @empty() -> memorybytes [pure] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 0
     v1 = memory_object_data memorybytes, v0
     ret v0
@@ -116,7 +116,7 @@ fn @empty() -> memorybytes [pure] {
 
 fn @encodedWord() -> memorybytes [pure] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x3200000000000000000000000000000000000000000000000000000000000000

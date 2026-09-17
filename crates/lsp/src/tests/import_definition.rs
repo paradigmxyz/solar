@@ -164,7 +164,7 @@ fn import_definition_discards_a_fallback_from_an_old_analysis_epoch() {
     let std::task::Poll::Ready(response) = request.as_mut().poll(&mut context) else {
         panic!("definition request should complete after analysis is published");
     };
-    assert_eq!(response.unwrap(), None);
+    assert_eq!(response.unwrap_err().code, async_lsp::ErrorCode::CONTENT_MODIFIED);
 }
 
 #[tokio::test(flavor = "current_thread")]

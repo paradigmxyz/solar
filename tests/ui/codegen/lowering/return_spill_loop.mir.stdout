@@ -61,7 +61,7 @@ fn @probe(arg0: u256) -> struct0 [selector=0xdb082440, pure, abi_params=[u256], 
 
 fn @doubleProbe() -> u256 [selector=0xf770a1a3, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 3
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x2222330000000000000000000000000000000000000000000000000000000000

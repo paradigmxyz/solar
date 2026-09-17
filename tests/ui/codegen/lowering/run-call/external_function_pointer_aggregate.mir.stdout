@@ -5,7 +5,7 @@ types:
 
 fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 2
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x6f6b000000000000000000000000000000000000000000000000000000000000
@@ -113,7 +113,7 @@ fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_re
     v12 = shl 224, v11
     v13 = shr 32, v3
     v14 = gas
-    v15 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v15 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v15, 2
     v16 = memory_object_data memorybytes, v15
     mstore v16, 0x6f6b000000000000000000000000000000000000000000000000000000000000
@@ -366,7 +366,7 @@ fn @calldataPointerRoundtrip() -> bool [selector=0x1d9b1866, abi_params=[], abi_
     v4 = shl 224, v3
     v5 = shr 32, v2
     v6 = gas
-    v7 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v7 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v7, 10
     v8 = memory_object_data memorybytes, v7
     mstore v8, 0x74657374537472696e6700000000000000000000000000000000000000000000

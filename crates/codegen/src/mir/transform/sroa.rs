@@ -181,6 +181,18 @@ impl SroaCx {
             return None;
         }
 
+        // Non-capturing terminators can still read the object's memory.
+        if func.blocks.iter().any(|block| {
+            block.terminator.as_ref().is_some_and(|terminator| {
+                terminator
+                    .operands()
+                    .iter()
+                    .any(|value| *value == object || slot_of.contains_key(value))
+            })
+        }) {
+            return None;
+        }
+
         // Every field address must be used only as the address of an
         // `MStore`/`MLoad`.
         for inst_id in func.instructions() {

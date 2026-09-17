@@ -146,7 +146,7 @@ fn @returnedEncoded() -> memorybytes [selector=0xb62b7ad3, abi_params=[], abi_re
 
 fn @literal_bytes_word(arg0: bytes32, arg1: u256) -> memorybytes {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, arg1
     memory_object_store_word memorybytes, v0, 0, arg0
     ret v0

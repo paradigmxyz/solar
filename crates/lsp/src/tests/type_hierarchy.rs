@@ -6,7 +6,7 @@ use crate::test_support::{
     TestProject, type_hierarchy_prepare_params, type_hierarchy_subtypes_params,
     type_hierarchy_supertypes_params,
 };
-use async_lsp::ClientSocket;
+use async_lsp::{ClientSocket, ErrorCode};
 use lsp_types::{Position, Range, SymbolKind, SymbolTag, TypeHierarchyItem, Url};
 use serde_json::json;
 use solar_config::{CompileOpts, ImportRemapping};
@@ -275,7 +275,7 @@ fn validates_the_full_echoed_item_and_opaque_data() {
         r#"
         //- /Validation.sol
         contract $1Base {}
-        contract Child is Base {}
+        contract $2Child is Base {}
         "#,
         "/Validation.sol",
     );
@@ -294,6 +294,9 @@ fn validates_the_full_echoed_item_and_opaque_data() {
     );
 
     let mut tampered = Vec::new();
+    let mut changed = prepared(&fixture, "$2");
+    changed.data = item.data.clone();
+    tampered.push(changed);
     let mut changed = item.clone();
     changed.name.push_str("Changed");
     tampered.push(changed);
@@ -315,6 +318,24 @@ fn validates_the_full_echoed_item_and_opaque_data() {
     let mut changed = item.clone();
     changed.selection_range.end.character += 1;
     tampered.push(changed);
+
+    // URL parsing normalizes the scheme, but echoed data must keep the exact serialized spelling.
+    let normalized_uri = item.uri.as_str().replacen("file:", "FILE:", 1);
+    assert_eq!(Url::parse(&normalized_uri).unwrap(), item.uri);
+    let mut changed = item.clone();
+    changed.data.as_mut().unwrap()[1] = json!(normalized_uri);
+    tampered.push(changed);
+    for index in [0, 2, 3, 4, 5] {
+        // JSON floats and strings must not be accepted as integer version or position fields.
+        for value in [
+            json!(item.data.as_ref().unwrap()[index].as_u64().unwrap() as f64),
+            json!(item.data.as_ref().unwrap()[index].to_string()),
+        ] {
+            let mut changed = item.clone();
+            changed.data.as_mut().unwrap()[index] = value;
+            tampered.push(changed);
+        }
+    }
 
     for data in [
         None,
@@ -682,7 +703,7 @@ fn conflicting_request_files_cannot_leak_external_targets() {
 }
 
 #[test]
-fn requests_read_the_latest_published_analysis() {
+fn requests_reject_a_different_published_analysis_epoch() {
     let project = TestProject::from_fixture(
         r#"
         //- /Hierarchy.sol
@@ -731,13 +752,20 @@ fn requests_read_the_latest_published_analysis() {
     assert!(snapshot.publish_symbol_tables(2, Arc::new(new_tables)));
     assert!(!snapshot.publish_symbol_tables(1, Default::default()));
 
-    assert_eq!(ready_names(prepare.as_mut().poll(&mut context)), ["New"]);
-    assert_eq!(ready_names(supertypes.as_mut().poll(&mut context)), ["SuperNew"]);
-    assert_eq!(ready_names(subtypes.as_mut().poll(&mut context)), ["SubNew"]);
+    for response in [
+        prepare.as_mut().poll(&mut context),
+        supertypes.as_mut().poll(&mut context),
+        subtypes.as_mut().poll(&mut context),
+    ] {
+        let Poll::Ready(Err(error)) = response else {
+            panic!("a new publication must not retarget an old request");
+        };
+        assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
+    }
 }
 
 #[test]
-fn requests_capture_the_analysis_epoch_when_created() {
+fn requests_reject_analysis_superseded_before_they_are_polled() {
     let project = TestProject::from_fixture(
         r#"
         //- /Hierarchy.sol
@@ -770,9 +798,16 @@ fn requests_capture_the_analysis_epoch_when_created() {
 
     let waker = Waker::noop();
     let mut context = Context::from_waker(waker);
-    assert_eq!(ready_names(prepare.as_mut().poll(&mut context)), ["Base"]);
-    assert_eq!(ready_names(supertypes.as_mut().poll(&mut context)), ["Base"]);
-    assert_eq!(ready_names(subtypes.as_mut().poll(&mut context)), ["Child"]);
+    for response in [
+        prepare.as_mut().poll(&mut context),
+        supertypes.as_mut().poll(&mut context),
+        subtypes.as_mut().poll(&mut context),
+    ] {
+        let Poll::Ready(Err(error)) = response else {
+            panic!("superseded requests should return an error");
+        };
+        assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
+    }
 }
 
 #[test]
@@ -847,11 +882,4 @@ fn analyze_tables(path: &std::path::Path, source: &str) -> SymbolTables {
         [(path.to_path_buf(), source.to_owned())],
     ))
     .symbol_tables
-}
-
-fn ready_names(
-    poll: Poll<Result<Option<Vec<TypeHierarchyItem>>, async_lsp::ResponseError>>,
-) -> Vec<String> {
-    let Poll::Ready(response) = poll else { panic!("request should be ready") };
-    names(response.unwrap())
 }

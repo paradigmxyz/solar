@@ -11,7 +11,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[memory_byte
     memory_object_store_field memorystruct<4>, v0, 3, memorybytes 96
     v1 = and 7, 0xffff
     memory_object_store_field memorystruct<4>, v0, 0, v1
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 128
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, 73
     v3 = memory_object_data memorybytes, v2
     mstore v3, 0x3132333435363738393031323334353637383930313233343536373839303120
@@ -20,7 +20,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[memory_byte
     v5 = add v3, 64
     mstore v5, 0x3132333435363738390000000000000000000000000000000000000000000000
     memory_object_store_field memorystruct<4>, v0, 3, v2
-    v6 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v6, 6
     v7 = memory_object_data memorybytes, v6
     mstore v7, 0x6162636465660000000000000000000000000000000000000000000000000000
@@ -65,12 +65,12 @@ fn @g() -> struct0 [selector=0xe2179b8e, abi_params=[], abi_returns=[memory_byte
     memory_object_store_field memorystruct<4>, v0, 3, memorybytes 96
     v1 = and 7, 0xffff
     memory_object_store_field memorystruct<4>, v0, 0, v1
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, 17
     v3 = memory_object_data memorybytes, v2
     mstore v3, 0x3132333435363738393233343536373839000000000000000000000000000000
     memory_object_store_field memorystruct<4>, v0, 3, v2
-    v4 = alloc memorybytes, exact, uninitialized, infallible, 128
+    v4 = alloc memorybytes, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v4, 73
     v5 = memory_object_data memorybytes, v4
     mstore v5, 0x3132333435363738393031323334353637383930313233343536373839303120

@@ -12,7 +12,7 @@ fn @value(arg0: bool) -> struct0 [selector=0xc4d47ed1, pure, abi_params=[bool], 
   bb2:
     jump bb3
   bb3:
-    v3 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v3 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v3, 2
     v4 = memory_object_data memorybytes, v3
     mstore v4, 0x6f6b000000000000000000000000000000000000000000000000000000000000

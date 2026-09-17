@@ -659,6 +659,24 @@ impl<'gcx> Gcx<'gcx> {
         self.symbol_resolver.source_path_resolutions(segments, source, contract)
     }
 
+    /// Iterates declarations in an existing contract scope.
+    pub fn contract_scope_declarations(
+        self,
+        contract: hir::ContractId,
+    ) -> impl Iterator<Item = hir::Res> + 'gcx {
+        self.symbol_resolver.contract_scopes[contract]
+            .iter()
+            .flat_map(|(_, declarations)| declarations.iter().map(|declaration| declaration.res))
+    }
+
+    /// Returns symbol references in validated local NatSpec tags.
+    pub fn natspec_references(
+        self,
+        item: hir::ItemId,
+    ) -> impl Iterator<Item = (Span, SmallVec<[hir::Res; 1]>)> + 'gcx {
+        crate::natspec::references(self, item)
+    }
+
     /// Resolves a contract name within a source's scope for NatSpec `@inheritdoc`.
     pub fn natspec_contract(self, name: Symbol, source: hir::SourceId) -> Option<hir::ContractId> {
         self.natspec_contract_in_source((name, source))

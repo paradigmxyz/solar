@@ -8,6 +8,8 @@
 //! - promote only exact storage aliases that are loop-invariant
 //! - promote multiple slots only when they are pairwise provably disjoint
 //! - reject loops with calls, storage accesses the rewrite cannot update, or non-isolated exits
+//! - skip functions that observe memory size, including through callees, because temporaries can
+//!   expand memory even when the loop body never executes.
 //! - use shared read/write effects to detect storage traffic inside semantic operations
 //! - flush dirty promoted values before any clean observable exit
 //! - skip the flush on revert exits: `revert`/`invalid` roll back every storage write of the frame,
@@ -19,7 +21,7 @@
 use crate::mir::{
     BlockId, Callee, EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType,
     Module, StorageAlias, Terminator, Value, ValueId,
-    analysis::{AddressSpace, AliasAnalysis, Loop, LoopAnalyzer},
+    analysis::{AddressSpace, AliasAnalysis, Loop, LoopAnalyzer, may_observe_msize},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
     utils as mir_utils,
@@ -41,7 +43,11 @@ impl MirPass for StorageScalarPromotion {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let summaries = analyses.call_summaries(module);
         run_function_pass(module, analyses, |func, _| {
+            if may_observe_msize(func, Some(&summaries)) {
+                return false;
+            }
             let mut promoter = StorageScalarPromoter::new();
             let stats = promoter.run(func);
             stats.loops_promoted + stats.loads_promoted + stats.stores_promoted != 0

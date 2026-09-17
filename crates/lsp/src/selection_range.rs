@@ -4,7 +4,11 @@ use crate::proto;
 use crop::Rope;
 use lsp_types::{Position, Range, SelectionRange};
 use solar_config::CompileOpts;
-use solar_interface::{Session, SourceMap, Span, data_structures::Never, source_map::FileName};
+use solar_interface::{
+    Session, Span,
+    data_structures::Never,
+    source_map::{FileName, SourceFile},
+};
 use solar_parse::{
     Parser,
     ast::{self, visit::Visit},
@@ -29,7 +33,7 @@ pub(crate) fn selection_ranges(
     if cursors.is_empty() {
         return Some(Vec::new());
     }
-    let candidates = collect_ranges(SourceCode::Owned(source), &rope);
+    let candidates = collect_ranges(SourceCode::Owned(source));
     selection_ranges_for_cursors(&index, &candidates, cursors)
 }
 
@@ -53,10 +57,7 @@ impl SelectionRangeIndex {
         }
 
         let candidates = self.candidates.get_or_init(|| {
-            CandidateRanges::new(collect_ranges(
-                SourceCode::Shared(self.source.clone()),
-                index.rope(),
-            ))
+            CandidateRanges::new(collect_ranges(SourceCode::Shared(self.source.clone())))
         });
         cursors
             .into_iter()
@@ -68,16 +69,19 @@ impl SelectionRangeIndex {
 /// Syntax ranges grouped by traversal order, with a bounding interval for each block.
 ///
 /// AST traversal keeps most neighboring ranges close in the source, so point queries can
-/// skip unrelated blocks. Blocks are indexed by start offset and a prefix maximum end allows a
-/// point query to stop once all earlier blocks end before the cursor; individual ranges are still
-/// checked for exact containment.
+/// skip unrelated blocks. An implicit balanced interval tree orders blocks by start offset and
+/// tracks each subtree's maximum end; individual ranges are still checked for exact containment.
 struct CandidateRanges {
     ranges: Vec<ByteRange<usize>>,
     bounds: Vec<ByteRange<usize>>,
     /// Blocks ordered by start offset for logarithmic point-query narrowing.
     block_order: Vec<usize>,
-    /// Maximum end offset of each prefix in `block_order`, used to stop scanning old blocks.
-    prefix_max_end: Vec<usize>,
+    /// Maximum end offset in each implicit subtree of `block_order`.
+    ///
+    /// A prefix maximum cannot prune when an early, broad AST range (such as a contract) spans
+    /// the whole file. Subtree maxima let queries skip disjoint branches while retaining those
+    /// broad ranges in their original blocks.
+    subtree_max_end: Vec<usize>,
 }
 
 impl CandidateRanges {
@@ -94,35 +98,63 @@ impl CandidateRanges {
             .collect();
         let mut block_order = (0..bounds.len()).collect::<Vec<_>>();
         block_order.sort_unstable_by_key(|&index| bounds[index].start);
-        let mut max_end = 0;
-        let prefix_max_end = block_order
-            .iter()
-            .map(|&index| {
-                max_end = max_end.max(bounds[index].end);
-                max_end
-            })
-            .collect();
-        Self { ranges, bounds, block_order, prefix_max_end }
+        let subtree_max_end = vec![0; bounds.len()];
+        let mut index = Self { ranges, bounds, block_order, subtree_max_end };
+        if !index.block_order.is_empty() {
+            index.build_subtree_max_end(0, index.block_order.len());
+        }
+        index
     }
 
     fn at(&self, cursor: usize) -> Vec<ByteRange<usize>> {
-        let block_count =
-            self.block_order.partition_point(|&index| self.bounds[index].start <= cursor);
         let mut candidates = Vec::new();
-        for order_index in (0..block_count).rev() {
-            // All blocks in this prefix end before the cursor, so older blocks cannot match.
-            if self.prefix_max_end[order_index] <= cursor {
-                break;
-            }
-            let block_index = self.block_order[order_index];
-            let bounds = &self.bounds[block_index];
-            if bounds.contains(&cursor) {
-                let block = &self.ranges[block_index * Self::BLOCK_SIZE
-                    ..((block_index + 1) * Self::BLOCK_SIZE).min(self.ranges.len())];
-                candidates.extend(block.iter().filter(|range| range.contains(&cursor)).cloned());
-            }
-        }
+        self.collect_candidates(0, self.block_order.len(), cursor, &mut candidates);
         candidates
+    }
+
+    fn build_subtree_max_end(&mut self, start: usize, end: usize) -> usize {
+        let mid = start + (end - start) / 2;
+        let block_index = self.block_order[mid];
+        let mut max_end = self.bounds[block_index].end;
+        if start < mid {
+            max_end = max_end.max(self.build_subtree_max_end(start, mid));
+        }
+        if mid + 1 < end {
+            max_end = max_end.max(self.build_subtree_max_end(mid + 1, end));
+        }
+        self.subtree_max_end[mid] = max_end;
+        max_end
+    }
+
+    fn collect_candidates(
+        &self,
+        start: usize,
+        end: usize,
+        cursor: usize,
+        candidates: &mut Vec<ByteRange<usize>>,
+    ) {
+        if start >= end {
+            return;
+        }
+        let mid = start + (end - start) / 2;
+        if self.subtree_max_end[mid] <= cursor {
+            return;
+        }
+        let block_index = self.block_order[mid];
+        let bounds = &self.bounds[block_index];
+        if bounds.start <= cursor && bounds.end > cursor {
+            let block = &self.ranges[block_index * Self::BLOCK_SIZE
+                ..((block_index + 1) * Self::BLOCK_SIZE).min(self.ranges.len())];
+            candidates.extend(block.iter().filter(|range| range.contains(&cursor)).cloned());
+        }
+        // Blocks are sorted by start; once a node starts after the cursor, its right subtree
+        // cannot contain a match, while a left subtree may still contain earlier broad ranges.
+        if start < mid {
+            self.collect_candidates(start, mid, cursor, candidates);
+        }
+        if bounds.start <= cursor && mid + 1 < end {
+            self.collect_candidates(mid + 1, end, cursor, candidates);
+        }
     }
 }
 
@@ -131,7 +163,7 @@ enum SourceCode {
     Shared(Arc<String>),
 }
 
-fn collect_ranges(source: SourceCode, rope: &Rope) -> Vec<ByteRange<usize>> {
+fn collect_ranges(source: SourceCode) -> Vec<ByteRange<usize>> {
     let mut opts = CompileOpts::default();
     opts.unstable.recover_incomplete_input = true;
     let sess = Session::builder().opts(opts).with_silent_emitter(None).single_threaded().build();
@@ -158,7 +190,7 @@ fn collect_ranges(source: SourceCode, rope: &Rope) -> Vec<ByteRange<usize>> {
         };
         drop(parser);
 
-        let mut collector = RangeCollector::new(sess.source_map(), rope);
+        let mut collector = RangeCollector::new(&source_file);
         let _ = collector.visit_source_unit(&source_unit);
         collector.ranges
     })
@@ -240,25 +272,28 @@ fn strictly_contains(outer: &ByteRange<usize>, inner: &ByteRange<usize>) -> bool
 }
 
 struct RangeCollector<'a> {
-    source_map: &'a SourceMap,
-    rope: &'a Rope,
+    file: &'a SourceFile,
     ranges: Vec<ByteRange<usize>>,
 }
 
 impl<'a> RangeCollector<'a> {
-    fn new(source_map: &'a SourceMap, rope: &'a Rope) -> Self {
-        Self { source_map, rope, ranges: Vec::new() }
+    fn new(file: &'a SourceFile) -> Self {
+        Self { file, ranges: Vec::new() }
     }
 
     fn push(&mut self, span: Span) {
-        if span.is_dummy() {
+        // All syntax comes from this parsed file. Validate directly against its source to avoid
+        // source-map lookups and rope traversals for every AST node, including duplicate spans.
+        if span.is_dummy()
+            || span.lo() >= span.hi()
+            || !self.file.contains(span.lo())
+            || !self.file.contains(span.hi())
+        {
             return;
         }
-        let Ok(range) = self.source_map.span_to_range(span) else { return };
-        if !range.is_empty()
-            && range.end <= self.rope.byte_len()
-            && self.rope.is_char_boundary(range.start)
-            && self.rope.is_char_boundary(range.end)
+        let range = self.file.relative_position(span.lo()).to_usize()
+            ..self.file.relative_position(span.hi()).to_usize();
+        if self.file.src.is_char_boundary(range.start) && self.file.src.is_char_boundary(range.end)
         {
             self.ranges.push(range);
         }

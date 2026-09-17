@@ -124,7 +124,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     revert_returndata
   bb4:
     v24 = gas
-    v25 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v25 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v25, 16
     v26 = memory_object_data memorybytes, v25
     mstore v26, 0xdeadbeefdeadbeefdeadbeefdeadbeef00000000000000000000000000000000

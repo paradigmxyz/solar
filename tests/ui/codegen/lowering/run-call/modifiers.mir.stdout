@@ -25,7 +25,7 @@ fn @literalString() -> memorybytes [selector=0x660cf51a, pure, abi_params=[], ab
   bb0:
     v0 = lt 0, 10
     icall require<short_string>, v0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v1, 3
     v2 = memory_object_data memorybytes, v1
     mstore v2, 0x6162630000000000000000000000000000000000000000000000000000000000
