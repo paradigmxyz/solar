@@ -267,8 +267,6 @@
 (rule (rewrite (Op.SignExtend (iconst outer) (signextend (iconst inner) value)))
       (Op.SignExtend (imm (u256_min outer inner)) value))
 
-;; a == b => b == 0, when a is a known zero and a and b have distinct value IDs
-;; a == b => a == 0, when b is a known zero and a and b have distinct value IDs
 ;; clz(input) == 255 => input == 1
 (rule (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c 255)) (Op.Eq input (imm (u256 1))))
 ;; clz(input) == 256 => input == 0
@@ -547,7 +545,6 @@
 ;; byte(index, clz(_)) => 0, when index < 30
 (rule 1 (simplify (Op.Byte (iconst index) (clz _))) (if-let true (u256_lt index 30)) (imm (u256 0)))
 
-;; c == 0 => constant(c == 0)
 ;; (inner == 0) == 0 => inner, when inner is boolean
 (rule 20 (simplify (Op.Eq (eq (and inner (bool_value)) (zero)) (zero))) inner)
 

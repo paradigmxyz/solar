@@ -48,10 +48,10 @@ pub(crate) enum Immediate {
 }
 
 impl Immediate {
-    /// Creates an immediate carrying `value` with the given integer type.
+    /// Creates a scalar or pointer immediate carrying `value`.
     ///
-    /// Falls back to `uint256` when the type has no plain integer payload or
-    /// cannot represent the value.
+    /// Boolean values must be zero or one. Types without a scalar or pointer
+    /// payload use `i256`.
     #[must_use]
     pub(crate) fn for_type(ty: Option<MirType>, value: U256) -> Self {
         match ty {
