@@ -43,14 +43,15 @@ runs it only on pushes to main. Its measurements appear alongside solc in the Ma
 Reference compiler failures remain in the raw results but do not produce report warnings or
 trigger PR comments. Failures from our compiler and result mismatches involving it still do.
 
-The default does not discover or run solc. `--solar-only` is only needed to override
-explicit `--solc` or `--solx` options; `--reference-results` opts into reference validation.
-Runtime helper contracts use the compiler under test when no reference solc is selected.
-A one-compiler run retains compilation, gas measurements, and runtime failure checks, but cannot make differential runtime claims, so
-successful runtime comparisons are marked as skipped unless a matching reference result is supplied.
+The default does not discover or run reference compilers. A one-compiler run retains
+compilation, gas measurements, and runtime failure checks, but cannot make differential
+runtime claims, so successful runtime comparisons are marked as skipped unless a
+matching reference result is supplied. Runtime helpers use our compiler unless a live
+solc comparison is explicitly selected.
 
 Pass `--reference-results PATH` to reuse matching solc and solx results from a prior
-run. This opt-in mode still requires solc for version checks and shared runtime helper contracts.
+run without discovering or running either compiler. This option cannot be combined
+with `--solc` or `--solx`; choose saved results or live reference compilers.
 The benchmark copies reference compile, gas, and runtime data only when the input fingerprint
 matches, then performs the normal cross-compiler runtime checks. PR CI uses the exact-base result
 as the reference, so solc runs on the base revision instead of repeating unchanged work on the PR.

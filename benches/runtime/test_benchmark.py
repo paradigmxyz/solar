@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import json
 import sys
 import tempfile
@@ -335,15 +336,83 @@ class FailureHandlingTests(unittest.TestCase):
     def test_unexpected_test_error_is_written_as_a_failure(self) -> None:
         for flags, compilers in (
             ([], {"solar"}),
-            (["--solar-only"], {"solar"}),
             (["--solc", "solc"], {"solar", "solc"}),
-            (["--solc", "solc", "--solar-only"], {"solar"}),
             (["--solx", "solx"], {"solar", "solx"}),
             (["--solc", "solc", "--solx", "solx"], {"solar", "solc", "solx"}),
-            (["--solx", "solx", "--solar-only"], {"solar"}),
         ):
             with self.subTest(flags=flags):
                 self.check_unexpected_test_error(flags, compilers)
+
+    def test_saved_reference_results_do_not_discover_or_run_reference_compilers(
+        self,
+    ) -> None:
+        case = benchmark.TEST_CASES[0]
+        entry = {
+            "test_id": case.test_id,
+            "suite": case.suite,
+            "gas_profile": "smoke",
+            "compilers": {"solar": {"status": "ok", "input_fingerprint": "same"}},
+        }
+        reference = {
+            **entry,
+            "compilers": {"solc": {"status": "ok", "input_fingerprint": "same"}},
+        }
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(
+                benchmark, "find_binary", return_value=Path("solar")
+            ) as find_binary,
+            mock.patch.object(
+                benchmark, "binary_version", return_value=("0.2.0", "")
+            ) as binary_version,
+            mock.patch.object(
+                benchmark, "run_test_case", return_value=entry
+            ) as run_case,
+        ):
+            reference_path = Path(directory) / "reference.json"
+            reference_path.write_text(json.dumps({"results": [reference]}))
+            output = Path(directory) / "results.json"
+            return_code = benchmark.main(
+                [
+                    "--solar",
+                    "solar",
+                    "--reference-results",
+                    str(reference_path),
+                    "--tests",
+                    case.test_id,
+                    "--output",
+                    str(output),
+                ]
+            )
+            document = json.loads(output.read_text())
+        self.assertEqual(return_code, 0)
+        self.assertEqual(
+            [call.args[0] for call in find_binary.call_args_list], ["solar"]
+        )
+        binary_version.assert_called_once_with(Path("solar"))
+        self.assertEqual(
+            [spec.compiler_id for spec in run_case.call_args.args[1]], ["solar"]
+        )
+        self.assertEqual(set(document["results"][0]["compilers"]), {"solar", "solc"})
+
+    def test_saved_results_reject_live_reference_options(self) -> None:
+        for flag in ("--solc", "--solx"):
+            with (
+                self.subTest(flag=flag),
+                mock.patch("sys.stderr", new_callable=io.StringIO) as stderr,
+                mock.patch.object(benchmark, "find_binary") as find_binary,
+                self.assertRaises(SystemExit) as error,
+            ):
+                benchmark.main(
+                    [flag, "compiler", "--reference-results", "results.json"]
+                )
+            self.assertEqual(error.exception.code, 2)
+            self.assertTrue(
+                stderr.getvalue().endswith(
+                    "error: --reference-results cannot be combined with --solc or --solx\n"
+                )
+            )
+            find_binary.assert_not_called()
 
     def check_unexpected_test_error(self, flags, compilers) -> None:
         test_id = benchmark.TEST_CASES[0].test_id
@@ -441,22 +510,38 @@ class RuntimeComparisonTests(unittest.TestCase):
                     ):
                         result = benchmark.run_test_case(
                             case,
-                            [spec],
+                            [
+                                benchmark.CompilerSpec(
+                                    "solc", "solc", reference, "solc"
+                                ),
+                                spec,
+                            ]
+                            if reference
+                            else [spec],
                             True,
                             "hot",
                             "rpc",
                             "key",
-                            reference_solc_path=reference,
                         )
-                    cold_checks.assert_called_once_with(
-                        case, "address", reference or spec.path, "rpc", "key"
+                    self.assertEqual(
+                        cold_checks.call_args_list,
+                        [
+                            mock.call(
+                                case, "address", reference or spec.path, "rpc", "key"
+                            )
+                        ]
+                        * (2 if reference else 1),
                     )
                     self.assertEqual(
                         result["compilers"]["solar"]["runtime_status"], status
                     )
                     self.assertEqual(
                         result["runtime_status"],
-                        "failed" if status == "failed" else "skipped",
+                        "failed"
+                        if status == "failed"
+                        else "ok"
+                        if reference
+                        else "skipped",
                     )
 
     def test_single_compiler_is_not_a_semantic_oracle(self) -> None:

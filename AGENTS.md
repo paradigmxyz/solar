@@ -660,7 +660,7 @@ and `-Osize`, then compiler time and memory. Reject changes whose only benefit
 is faster compilation.
 
 Local benchmarks compare our compiler's base and candidate builds. Running only
-our compiler is the default; no `--solar-only` flag is needed. Do not pass
+our compiler is the default. Do not pass
 `--solc`, `--solx`, or `--reference-results`, install a reference compiler, or
 repeat its corpus locally. Reference comparisons belong
 in CI unless the user explicitly asks for them.

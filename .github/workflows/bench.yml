@@ -217,7 +217,6 @@ jobs:
           mkdir -p target/codegen-bench
           args=(
             --verbose
-            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}"
             --solar target/release/solar-head
             --mode runtime compile-time
             --suite all
@@ -232,9 +231,10 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" && \
             -f target/codegen-bench/baseline/results.json ]]; then
             args+=(
-              --solar-only
               --reference-results target/codegen-bench/baseline/results.json
             )
+          else
+            args+=(--solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}")
           fi
           if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/main" ]]; then
             args+=(--solx "$RUNNER_TEMP/solx/solx")
