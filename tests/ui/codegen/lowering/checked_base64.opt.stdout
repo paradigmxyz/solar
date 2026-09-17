@@ -261,7 +261,7 @@ fn @encode.4(arg0: memptr, arg1: bool, arg2: bool) -> memptr [pure] {
     v227 = lt v89, 32
     jumpi v227, bb52, bb53
   bb53:
-    v230 = and v56, 31
+    v230 = and v89, 31
     v231 = byte v230, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
     v232 = shl 248, v231
     jump bb54
@@ -366,7 +366,7 @@ fn @encode.4(arg0: memptr, arg1: bool, arg2: bool) -> memptr [pure] {
     v279 = lt v192, 32
     jumpi v279, bb80, bb81
   bb81:
-    v282 = and v191, 31
+    v282 = and v192, 31
     v283 = byte v282, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
     v284 = shl 248, v283
     jump bb82
@@ -406,7 +406,7 @@ fn @encode.4(arg0: memptr, arg1: bool, arg2: bool) -> memptr [pure] {
     v240 = lt v161, 32
     jumpi v240, bb59, bb60
   bb60:
-    v243 = and v160, 31
+    v243 = and v161, 31
     v244 = byte v243, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
     v245 = shl 248, v244
     jump bb61
@@ -446,7 +446,7 @@ fn @encode.4(arg0: memptr, arg1: bool, arg2: bool) -> memptr [pure] {
     v253 = lt v170, 32
     jumpi v253, bb66, bb67
   bb67:
-    v256 = and v189, 31
+    v256 = and v170, 31
     v257 = byte v256, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
     v258 = shl 248, v257
     jump bb68

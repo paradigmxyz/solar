@@ -6,6 +6,7 @@ pub(crate) mod call_cleanup;
 pub(crate) mod cfg_simplify;
 pub(crate) mod check_elim;
 pub(crate) mod coalesce_allocs;
+pub(super) mod const_fold;
 pub(crate) mod copy_elision;
 pub(crate) mod cse;
 pub(crate) mod dce;
@@ -60,5 +61,4 @@ pub(crate) mod storage_load_cse;
 pub(crate) mod storage_promotion;
 mod utils;
 
-pub(super) mod inst_simplify;
 pub(crate) mod word_sequence;
