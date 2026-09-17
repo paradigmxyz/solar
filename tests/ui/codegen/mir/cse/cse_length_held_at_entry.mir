@@ -1,0 +1,74 @@
+//@compile-flags: -Zmir-pipeline=cse
+//@filecheck:
+@module CseLengthHeldAtEntry
+
+// A word at an allocation's base is reloaded in a dominated block rather than carried there,
+// unless carrying costs nothing. The length stored at allocation bounds the first loop, so it
+// is on the stack at both of that loop's exits. The second loop's preheader reads it again
+// for its own bound and would carry that read around the loop, so reuse takes over the
+// read's place; past the second loop the same holds for the result.
+// CHECK-LABEL: fn @reuse_length_after_the_filling_loop(
+// CHECK: {{^ +}}[[LEN:v[0-9]+]] = add arg0, arg1
+// CHECK: -     {{v[0-9]+}} = memory_object_len memoryarray,
+// CHECK: -     {{v[0-9]+}} = lt {{v[0-9]+}},
+// CHECK: +     {{v[0-9]+}} = lt {{v[0-9]+}}, [[LEN]]
+// CHECK: -     {{v[0-9]+}} = memory_object_len memoryarray,
+// CHECK-NEXT: -     ret
+// CHECK-NEXT: +     ret [[LEN]]
+fn @reuse_length_after_the_filling_loop(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v1, v0
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 0], [bb3: v5]
+    v3 = lt v2, arg0
+    jumpi v3, bb2, bb4
+  bb2:
+    v4 = lt v2, v0
+    jumpi v4, bb3, bb4
+  bb3:
+    memory_object_store_element memoryarray<1>, v1, v2, arg1
+    v5 = add v2, 1
+    jump bb1
+  bb4:
+    v6 = memory_object_len memoryarray, v1
+    jump bb5
+  bb5:
+    v7 = phi [bb4: 0], [bb6: v9]
+    v8 = lt v7, v6
+    jumpi v8, bb6, bb7
+  bb6:
+    memory_object_store_element memoryarray<1>, v1, v7, arg0
+    v9 = add v7, 1
+    jump bb5
+  bb7:
+    v10 = memory_object_len memoryarray, v1
+    ret v10
+}
+
+// The stored length is used on one arm only, so the other reaches the join without it and
+// the join reloads: carrying it there would lengthen its life across that whole arm.
+// CHECK-LABEL: fn @reload_length_past_an_arm_without_it(
+// CHECK: bb3:
+// CHECK-NEXT: {{^ +}}[[LEN:v[0-9]+]] = memory_object_len memoryarray,
+// CHECK-NEXT: {{^ +}}ret [[LEN]]
+fn @reload_length_past_an_arm_without_it(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v1, v0
+    jumpi arg0, bb1, bb2
+  bb1:
+    v2 = lt arg1, v0
+    jumpi v2, bb3, bb4
+  bb2:
+    memory_object_store_element memoryarray<1>, v1, 0, arg1
+    jump bb3
+  bb3:
+    v3 = memory_object_len memoryarray, v1
+    ret v3
+  bb4:
+    revert 0, 0
+}
