@@ -48,7 +48,9 @@ fn @peek() [selector=0xa230438f, abi_wrapper, pure] {
   bb6:
     v43 = add v34, 32
     calldatacopy v43, v24, v28
-    v0 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
+    v0 = mload 64 !metadata(memory=scratch)
+    v50 = add v0, 64
+    mstore 64, v50 !metadata(memory=scratch)
     mstore v0, 4
     v1 = add v0, 32
     mstore v1, 0x1122334400000000000000000000000000000000000000000000000000000000
