@@ -23,7 +23,7 @@ from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, getcontext
 from enum import Enum
 from functools import cache
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlsplit
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -1071,11 +1071,11 @@ def _validate_results(
 
     if set(by_method) != set(METHODS):
         raise ValidationError("results do not contain exactly the core method set")
-    samples = {
+    role_samples = {
         role: {method: by_method[method][role] for method in METHODS}
         for role in server_order
     }
-    return samples, versions
+    return role_samples, versions
 
 
 def _run_pass(
@@ -1403,7 +1403,9 @@ def _can_group_bootstrap(base: Sequence[Decimal], head: Sequence[Decimal]) -> bo
     if not nonzero_values:
         return False
 
-    minimum_exponent = min(value.as_tuple().exponent for value in nonzero_values)
+    minimum_exponent = min(
+        cast(int, value.as_tuple().exponent) for value in nonzero_values
+    )
     maximum_adjusted = max(value.adjusted() for value in nonzero_values)
     carry_digits = len(str(len(base)))
     context = getcontext()

@@ -206,7 +206,8 @@ class CorpusTests(unittest.TestCase):
 
         self.assertEqual(json.loads(original)["settings"]["optimizer"]["runs"], 1000)
         self.assertEqual(
-            json.loads(overridden)["settings"]["optimizer"], {"enabled": True, "runs": 1}
+            json.loads(overridden)["settings"]["optimizer"],
+            {"enabled": True, "runs": 1},
         )
         self.assertEqual(benchmark.with_optimizer_runs(original, None), original)
 

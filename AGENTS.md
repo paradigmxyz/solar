@@ -8,9 +8,9 @@ Solar is a blazingly fast, modular Solidity compiler written in Rust, aiming to 
 
 For testing and comparing behavior and semantics, the current tracked solc version (usually the latest stable release) is always available as a submodule `./testdata/solidity`.
 
-When comparing compiler semantics with solc, use `fuzz/bin/solsymdiff` to obtain
-a replay-confirmed differential; see the
-[symbolic differential guide](fuzz/fandango/README.md#symbolic-solc-vs-solar-differential).
+For comparisons with solc, use the [compiler-diff project](tools/compiler-diff/README.md)
+for saved artifacts, Sourcify corpora, and runtime or symbolic checks. See
+[Compiler comparisons](#compiler-comparisons) for choosing a check.
 
 ## Commands
 
@@ -282,6 +282,92 @@ UI test using `//@ revisions:` and revision-scoped directives over multiple file
 with a common prefix. Keep separate files when the source text itself is the
 behavior under test or combining the cases would hide materially different
 programs or purposes.
+
+### Python tooling
+
+Python tooling uses the version in `.python-version`.
+Use uv from the repository root; the workspace shares `uv.lock` across
+`tools/compiler-diff` and `benches/analyze`.
+Run `bash scripts/check-python.sh` for formatting, lint, type checks, and all
+Python unit tests. The required `Python` CI job runs the same command.
+Node.js and cvc5 must be on PATH for the workflow and proof unit tests;
+use the versions configured in `.github/workflows/ci.yml`.
+These checks do not build the compilers or run live Fandango/Foundry differentials.
+Use `uv run --all-packages ruff format .` to format Python files.
+
+The proof CI job runs for changes to codegen or proof inputs, and on main.
+It checks all selected rules with parallel workers and reuses cached UNSAT
+queries. Scheduled and manual audits bypass the cache and replay with cvc5.
+See the [proof guide](scripts/evm-rules/README.md) for local commands, cache
+sharing, audit controls, and failure artifacts.
+
+### Compiler comparisons
+
+Use `uv run --project tools/compiler-diff compiler-diff` from the repository root.
+The [project guide](tools/compiler-diff/README.md) covers local standard-JSON
+imports, Sourcify sync, compiler commands, comparison policies, and replay.
+`scripts/sourcify.py` remains a compatibility entry point. Run `self-test` for the
+package's embedded tests.
+
+Start a corpus with `sync` for Sourcify, `import-input input.json --target SOURCE:CONTRACT`
+for an inline standard-JSON repro, or `import-directory` for a source tree. Then use
+`run` to compile and `compare` to check saved outputs; `status` shows corpus progress.
+`--version` selects the corpus partition and Sourcify release, not a compiler binary:
+provide the intended executables with `--compiler NAME='COMMAND ARGS'`.
+
+Use `fuzz --seed N --count N` for [Fandango source campaigns](tools/compiler-diff/README.md#fandango-campaigns).
+Repeat `--compiler NAME='COMMAND ARGS'` to select compilers; each candidate is
+compared with the reference. Campaigns snapshot the grammar and generated inputs,
+reuse completed attempts, and stop at the first failure. Add
+`--symbolic-signature` for bounded execution checks of a function present in every
+case. Add `--initial-population DIR` for grammar-compatible `.sol` seeds and
+`--rounds N` for bounded batches with consecutive seeds. Mutation controls and seed
+snapshots are documented in the project guide. Preserve the campaign report and
+generator provenance when reducing failures.
+
+Use `import-directory DIR --format solc` for upstream fixtures or `--format solidity`
+for ordinary source directories, then `run` and `compare`. Inspect the import report:
+intentional compiler-error tests and unsupported settings are skipped, never counted
+as passing. `--allow-skips` only changes the import exit status; it does not expand
+coverage. This importer does not execute upstream runtime expectations.
+
+`run` records compilation attempts; `compare` checks saved ABI and method
+identifiers without recompiling. Add `--check userdoc` or `--check devdoc` for
+JSON documentation. ABI `--policy interface` ignores parameter names and
+`internalType`; `--policy exact` preserves them. Neither policy establishes
+runtime equivalence. Use `compare --full` for complete field-level differences.
+Select named compilers with `compare --reference NAME --candidate NAME`, or pass
+`--left ATTEMPT_DIR --right ATTEMPT_DIR` for specific saved attempts. Comparisons
+use the latest attempts, including failures; unrun inputs do not count as covered.
+
+For execution behavior, use `runtime --` with the
+[curated runtime suite](benches/runtime/README.md), or `symbolic --` for a
+[bounded, replay-confirmed differential](fuzz/fandango/README.md#symbolic-solc-vs-solar-differential).
+Runtime calls require `--gas`; add `--start-anvil` to start a local node.
+Saved symbolic attempts require identical inputs, an explicit `evmVersion`,
+and immutable/link reference outputs. Retain the engine's bounds and incomplete
+status when reporting results.
+
+Put `--dir` and `--version` before the subcommand. See `compiler-diff --help`
+for their defaults; each version has its own DuckDB database.
+`runs/`, `failures/`, `comparisons/`, and `engines/` under that version directory
+hold inputs, outputs, diagnostics and reports. Mismatch bundles include
+`compare.sh`; compiler `replay.sh` uses the recorded executable path, so keep
+the required binaries available. Use a persistent `--dir` for retained evidence;
+set `UV_CACHE_DIR` and `UV_PROJECT_ENVIRONMENT` to subdirectories there for uv's files.
+Directory imports write coverage and skip reasons to `imports/<id>/report.json`.
+Fandango writes `<dir>/<version>/fuzz/<id>/report.json`; its database and attempts
+live in that campaign's `<version>/` subdirectory. Use the printed campaign path as
+`--dir` to inspect it with `status`, `run`, or `compare`.
+
+Runs and comparisons stop on the first failure unless `--continue-on-failure`
+is set. Successful compiler jobs are reused; add `--retry-failures` to retry cached
+failures and change `--tag` when wrapper dependencies or environment change. Inputs
+retain settings except `outputSelection`, which requests the comparison artifacts.
+Review differences before using `--expectations FILE` with exact rules and a reason;
+never hide errors or unsupported checks. Report coverage counts, and reduce new
+compiler failures into regression tests. Record accepted intentional differences
+in [SOLC_DIVERGENCE.md](docs/SOLC_DIVERGENCE.md).
 
 ### Codegen / MIR Pass Tests
 
