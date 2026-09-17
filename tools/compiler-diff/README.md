@@ -68,9 +68,22 @@ side are differences. Failed compilation or malformed outputs are errors. Unrun
 corpus entries are excluded; reports include total corpus size and available and
 processed pair counts so a partial run cannot be mistaken for full coverage.
 
+The CLI prints PASS, FAIL or KNOWN for each pair. Failures show compiler commands,
+versions and hashes, the affected JSON paths, both values, and replay commands.
+Default output limits each check to five differences and shortens large values;
+`compare --full` prints all differences and complete values. Reports always retain
+the full data. The final summary shows processed/available pairs and corpus size.
+
 Reports and mismatch bundles live under `comparisons/<id>/`, indexed by the local
 DuckDB database. Bundles copy the original attempt files for both sides and include
-JSON-pointer differences with both values. Reports group differences by comparator
+JSON-pointer differences with both values. When both sides are available, each
+bundle also contains `compare.sh` and a snapshot of its expectation rules. Run
+`sh /path/to/bundle/compare.sh` to repeat the comparison from the copied artifacts.
+The replay needs this checkout and uv; it creates a new report. Compiler replay
+scripts use the recorded executable paths, not bundled binaries. Standard-JSON
+compilers may exit 0 while emitting error diagnostics; inspect `replay.stdout.txt`
+or pass the outputs to `compare`, which rejects compiler errors.
+Reports group differences by comparator
 and path. Comparisons stop on the first unexpected difference or incomplete check
 unless `--continue-on-failure` is set. Both modes return 1 on such results.
 

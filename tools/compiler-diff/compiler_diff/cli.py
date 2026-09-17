@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import shlex
 import shutil
 import subprocess
 import sys
@@ -14,7 +15,7 @@ from pathlib import Path
 
 import duckdb
 
-from . import compare, corpus
+from . import compare, corpus, display
 from .artifacts import read_attempt
 
 
@@ -201,6 +202,7 @@ def compare_saved(db, root, args):
         if any(r["status"] != "equal" for r in pair["results"]):
             bundle = directory / str(len(report["pairs"]))
             bundle.mkdir()
+            copied = []
             for label, source in (("left", left), ("right", right)):
                 if source is not None and source.exists():
                     if source.is_dir():
@@ -218,14 +220,46 @@ def compare_saved(db, root, args):
                             if (source / name).is_file():
                                 shutil.copyfile(source / name, destination / name)
                     else:
-                        shutil.copyfile(source, bundle / (label + ".json"))
+                        destination = bundle / (label + ".json")
+                        shutil.copyfile(source, destination)
+                    copied.append(destination)
             pair["bundle"] = str(bundle)
+            if len(copied) == 2:
+                corpus.write_json(bundle / "expectations.json", rules)
+                command = [
+                    "uv",
+                    "run",
+                    str(Path(__file__).resolve().parents[3] / "scripts/sourcify.py"),
+                    "--dir",
+                    str(root.parent),
+                    "--version",
+                    root.name,
+                    "compare",
+                    "--left",
+                    str(copied[0]),
+                    "--right",
+                    str(copied[1]),
+                    "--reference",
+                    args.reference,
+                    "--candidate",
+                    args.candidate,
+                    "--policy",
+                    args.policy,
+                    "--expectations",
+                    str(bundle / "expectations.json"),
+                ]
+                for check in selected:
+                    command.extend(["--check", check])
+                if getattr(args, "full", False):
+                    command.append("--full")
+                replay = bundle / "compare.sh"
+                replay.write_text(
+                    "#!/bin/sh\nset -eu\nexec " + shlex.join(command) + "\n",
+                    encoding="utf-8",
+                )
+                pair["replay"] = str(replay)
             corpus.write_json(bundle / "comparison.json", pair)
-        print(
-            f"{identifier}: "
-            + ", ".join(r["comparator"] + "=" + r["status"] for r in pair["results"]),
-            flush=True,
-        )
+        display.show_pair(pair, getattr(args, "full", False))
         if pair["failed"] and not args.continue_on_failure:
             break
     report["summary"] = dict(counts)
@@ -249,7 +283,15 @@ def compare_saved(db, root, args):
             time.time(),
         ],
     )
-    print(json.dumps(report["summary"], sort_keys=True))
+    failed = sum(bool(pair["failed"]) for pair in report["pairs"])
+    print(
+        f"\n{'FAIL' if failed else 'PASS'}: {len(report['pairs'])}/{len(pairs)} pairs compared; {failed} failed; corpus contains {report['compilations']} compilations"
+    )
+    print(
+        "Checks: "
+        + ", ".join(f"{key}={count}" for key, count in sorted(counts.items()))
+    )
+    print(f"Policy: {args.policy}; comparator version: {compare.VERSION}")
     print(f"report: {directory / 'report.json'}")
     if report["unused_expectations"]:
         print(f"unused expectations: {report['unused_expectations']}")
@@ -338,6 +380,11 @@ def main(argv=None):
     comparer.add_argument(
         "--policy", choices=("interface", "exact"), default="interface"
     )
+    comparer.add_argument(
+        "--full",
+        action="store_true",
+        help="Print every difference and complete JSON values",
+    )
     comparer.add_argument("--expectations", type=Path)
     comparer.add_argument("--continue-on-failure", action="store_true")
     args, rest = parser.parse_known_args(argv)
@@ -346,7 +393,7 @@ def main(argv=None):
             parser.error("unrecognized arguments: " + " ".join(rest))
         suite = unittest.TestSuite(
             unittest.defaultTestLoader.loadTestsFromTestCase(t)
-            for t in (compare.Tests, Tests)
+            for t in (compare.Tests, display.Tests, Tests)
         )
         return int(not unittest.TextTestRunner().run(suite).wasSuccessful())
     if args.action in {"sync", "run", "status"}:

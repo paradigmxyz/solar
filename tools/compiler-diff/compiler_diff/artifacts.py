@@ -9,8 +9,16 @@ def contract_outputs(output):
     errors = output.get("errors", [])
     if not isinstance(errors, list) or any(not isinstance(e, dict) for e in errors):
         raise ValueError("malformed standard JSON errors")
-    if any(e.get("severity") == "error" for e in errors):
-        raise ValueError("compiler error diagnostics")
+    failures = [e for e in errors if e.get("severity") == "error"]
+    if failures:
+        messages = [
+            str(e.get("formattedMessage") or e.get("message") or e)
+            for e in failures[:3]
+        ]
+        detail = "\n".join(messages)
+        if len(failures) > 3:
+            detail += f"\n... {len(failures) - 3} more errors in stdout.txt"
+        raise ValueError("compiler error diagnostics:\n" + detail)
     contracts = output.get("contracts")
     if not isinstance(contracts, dict) or not contracts:
         raise ValueError("missing contract outputs")

@@ -87,6 +87,7 @@ from unittest.mock import patch
 import duckdb
 
 from .artifacts import contract_outputs
+from .display import show_attempt
 
 EXPORT = "https://export.sourcify.dev"
 DEFAULT_VERSION = "0.8.36"
@@ -470,7 +471,8 @@ def run(db, root, args):
                     continue
                 if previous and previous[0] == "failure" and not args.retry_failures:
                     failures += 1
-                    print(f"cached failure: {previous[1]}", flush=True)
+                    print(f"[FAIL] cached failure: {compilation_id}", flush=True)
+                    show_attempt(previous[1], compiler["name"])
                     if not args.continue_on_failure:
                         return 1
                     continue
@@ -549,6 +551,8 @@ def run(db, root, args):
                     f"{compiler['name']} {compilation_id}: {outcome}: {directory}",
                     flush=True,
                 )
+                if reason:
+                    show_attempt(directory, compiler["name"])
                 if result["error"] == "KeyboardInterrupt":
                     return 130
                 if result["error"] == "CompilerChanged":
