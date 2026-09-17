@@ -17,7 +17,7 @@ use super::{
 };
 use crate::{
     backend::assembler::{self, assembly},
-    link::{LibraryId, LibraryRelocation, LibraryTable},
+    link::{LibraryId, LibraryRelocation, LibraryTable, RelocatableBytecode},
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::{Bytes, U256};
@@ -105,12 +105,19 @@ pub struct Module {
 }
 
 impl Module {
-    /// Lowers this EVM IR module to bytecode.
-    pub fn into_bytecode(self, gcx: solar_sema::Gcx<'_>) -> solar_interface::Result<Vec<u8>> {
+    /// Lowers this EVM IR module to bytecode, retaining unresolved library addresses.
+    pub fn into_bytecode(
+        self,
+        gcx: solar_sema::Gcx<'_>,
+    ) -> solar_interface::Result<RelocatableBytecode> {
         let mut assembler = assembler::Assembler::from_evm_ir(gcx, self)?;
         let result = assembler.assemble_with_evm_ir(true);
         gcx.dcx().has_errors()?;
-        Ok(result.bytecode)
+        Ok(RelocatableBytecode {
+            libraries: result.evm_ir.expect("EVM IR capture requested").libraries,
+            bytes: result.bytecode.into(),
+            relocations: result.library_relocations,
+        })
     }
 
     /// Parses textual EVM IR.

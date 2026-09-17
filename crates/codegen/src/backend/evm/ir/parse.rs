@@ -562,6 +562,7 @@ mod tests {
     use super::*;
     use snapbox::{assert_data_eq, str};
     use solar_interface::{ColorChoice, source_map::FileName};
+    use solar_sema::Compiler;
     use std::path::{Path, PathBuf};
 
     fn parse_module(sess: &Session, input: &str) -> Result<Module> {
@@ -578,6 +579,45 @@ mod tests {
             .join("ui")
             .join("codegen")
             .join("evm-ir")
+    }
+
+    #[test]
+    fn bytecode_retains_library_identities() {
+        let compiler = Compiler::new(Session::builder().opts(Default::default()).build());
+        compiler.enter(|c| {
+            let gcx = c.gcx();
+            let module = parse_module(
+                gcx.sess,
+                r#"
+@module libraries
+bb0:
+  push_library "a.sol":"L"
+  push 0
+  mstore
+  push_library "b.sol":"L"
+  push 32
+  mstore
+  push 64
+  push 0
+  return
+"#,
+            )
+            .unwrap();
+            let bytecode = module.into_bytecode(gcx).unwrap();
+            let relocations = bytecode
+                .relocations
+                .iter()
+                .map(|relocation| relocation.display(&bytecode.libraries).to_string())
+                .collect::<Vec<_>>()
+                .join("\n");
+            assert_data_eq!(
+                relocations,
+                str![[r#"
+1: "a.sol":"L"
+24: "b.sol":"L"
+"#]]
+            );
+        });
     }
 
     #[test]

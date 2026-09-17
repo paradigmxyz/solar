@@ -206,7 +206,7 @@ fn dump_evm_ir_input_disassembly(gcx: Gcx<'_>, module: ir::Module) -> Result {
             .and_then(|()| {
                 write_highlighted(
                     &mut writer,
-                    evm::disassemble(&bytecode, gcx.sess.opts.evm_version),
+                    evm::disassemble(&bytecode.bytes, gcx.sess.opts.evm_version),
                     Syntax::Disasm,
                 )
             })
@@ -217,7 +217,7 @@ fn dump_evm_ir_input_disassembly(gcx: Gcx<'_>, module: ir::Module) -> Result {
             .and_then(|()| {
                 write_highlighted(
                     &mut writer,
-                    evm::disassemble(&bytecode, gcx.sess.opts.evm_version),
+                    evm::disassemble(&bytecode.bytes, gcx.sess.opts.evm_version),
                     Syntax::Disasm,
                 )
             })

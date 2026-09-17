@@ -15,16 +15,6 @@ struct PreparedDeploymentPrefix {
 }
 
 impl<'gcx> EvmCodegen<'gcx> {
-    /// Generates deployment bytecode for a module.
-    /// Returns (deployment_bytecode, runtime_bytecode).
-    /// Returns empty bytecodes for interfaces (they have no implementation).
-    ///
-    /// This runs optimization passes (including DCE) on the module before codegen unless disabled.
-    pub fn generate_deployment_bytecode(&mut self, module: &mut Module) -> (Vec<u8>, Vec<u8>) {
-        let artifact = self.generate_deployment_artifact(module);
-        (artifact.deployment, artifact.runtime)
-    }
-
     #[tracing::instrument(
         name = "evm_codegen",
         level = "debug",

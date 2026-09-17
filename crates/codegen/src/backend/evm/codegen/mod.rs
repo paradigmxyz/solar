@@ -648,9 +648,12 @@ mod tests {
         stack::spills::{SpillColor, SpillLiveRange},
         *,
     };
-    use crate::mir::{
-        Callee, DataRef, FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value,
-        utils as mir_utils,
+    use crate::{
+        backend::Backend,
+        mir::{
+            Callee, DataRef, FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value,
+            utils as mir_utils,
+        },
     };
     use solar_config::{CompileOpts, EvmVersion};
     use solar_interface::{Ident, Session, sym};
@@ -724,11 +727,15 @@ mod tests {
             module.advance_phase(codegen.gcx.dcx(), MirPhase::Lowered).unwrap();
 
             let mut first_module = module.clone();
-            let first = codegen.generate_deployment_bytecode(&mut first_module);
+            let first = codegen.lower_module(&mut first_module);
             let mut second_module = module.clone();
-            let second = codegen.generate_deployment_bytecode(&mut second_module);
+            let second = codegen.lower_module(&mut second_module);
 
-            assert_eq!(second, first);
+            assert_eq!(second.deployment, first.deployment);
+            assert_eq!(second.runtime, first.runtime);
+            assert_eq!(second.libraries, first.libraries);
+            assert_eq!(second.deployment_library_relocations, first.deployment_library_relocations);
+            assert_eq!(second.runtime_library_relocations, first.runtime_library_relocations);
         });
     }
 
