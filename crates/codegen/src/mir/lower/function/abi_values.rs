@@ -457,6 +457,58 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         )
     }
 
+    /// `keccak256(abi.encode(a))` and `keccak256(abi.encode(a, b))` over value
+    /// types. Each such argument encodes as exactly its cleaned word, which is
+    /// what the packed encoder writes for a full-width scalar, so the hash is
+    /// built in scratch space the way the packed form already is, with no
+    /// free-pointer traffic. Anything else keeps the general encoder.
+    pub(super) fn lower_keccak_abi_encode_words(
+        &mut self,
+        exprs: &[hir::Expr<'_>],
+    ) -> Option<ValueId> {
+        if !(1..=2).contains(&exprs.len()) {
+            return None;
+        }
+        let tys = exprs
+            .iter()
+            .map(|expr| self.cx.gcx.type_of_expr(expr.id))
+            .collect::<Option<Vec<_>>>()?;
+        if !tys.iter().all(|&ty| Self::is_abi_word_value_type(ty)) {
+            return None;
+        }
+        let mut parts = Vec::with_capacity(exprs.len());
+        // words = clean(evaluate_arguments_in_order(args))
+        for (expr, &ty) in exprs.iter().zip(&tys) {
+            let value = self.lower_typed_expr(expr, ty)?;
+            let value = self.normalize_abi_scalar(value, ty);
+            parts.push(PackedPart::Scalar { value, ty: MirType::uint256() });
+        }
+        // hash = keccak256_packed(words)
+        Some(self.builder.emit_inst(
+            InstKind::AbiEncodePacked { parts: parts.into_boxed_slice(), hash: true },
+            Some(MirType::bytes32()),
+        ))
+    }
+
+    /// Whether `abi.encode` of a `ty` value is its one cleaned word. External
+    /// function values and literals without a concrete type are left to the
+    /// general encoder.
+    fn is_abi_word_value_type(ty: Ty<'gcx>) -> bool {
+        match ty.kind {
+            TyKind::Elementary(elementary) => matches!(
+                elementary,
+                solar_sema::hir::ElementaryType::Bool
+                    | solar_sema::hir::ElementaryType::Address(_)
+                    | solar_sema::hir::ElementaryType::Int(_)
+                    | solar_sema::hir::ElementaryType::UInt(_)
+                    | solar_sema::hir::ElementaryType::FixedBytes(_)
+            ),
+            TyKind::Contract(_) | TyKind::Enum(_) => true,
+            TyKind::Udvt(inner, _) => Self::is_abi_word_value_type(inner),
+            _ => false,
+        }
+    }
+
     pub(super) fn is_scratch_packed_expr(&self, expr: &hir::Expr<'_>) -> bool {
         if matches!(
             self.peel_bytes_conversion(expr).peel_parens().kind,
