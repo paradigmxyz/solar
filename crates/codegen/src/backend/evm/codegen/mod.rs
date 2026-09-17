@@ -617,9 +617,9 @@ pub struct EvmArtifact {
     /// Runtime bytecode, i.e. the code stored on-chain.
     pub runtime: Vec<u8>,
     /// Library address offsets in the deployment bytecode.
-    pub(crate) deployment_library_relocations: Vec<LibraryRelocation>,
+    pub deployment_library_relocations: Vec<LibraryRelocation>,
     /// Library address offsets in the runtime bytecode.
-    pub(crate) runtime_library_relocations: Vec<LibraryRelocation>,
+    pub runtime_library_relocations: Vec<LibraryRelocation>,
     /// Immutable placeholders in the runtime bytecode.
     pub(crate) immutable_references: Vec<ImmutableRef>,
     /// Final deployment-prefix EVM IR immediately before byte emission.

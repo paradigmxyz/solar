@@ -6,9 +6,9 @@ use std::fmt;
 
 /// A source-qualified library identity, shared across embedded contracts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct LibraryId {
-    pub(crate) source: Symbol,
-    pub(crate) name: Symbol,
+pub struct LibraryId {
+    pub source: Symbol,
+    pub name: Symbol,
 }
 
 impl fmt::Display for LibraryId {
@@ -24,9 +24,9 @@ impl fmt::Display for LibraryId {
 
 /// A linker-supplied address at a byte offset in code or program data.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct LibraryRelocation {
-    pub(crate) offset: usize,
-    pub(crate) library: LibraryId,
+pub struct LibraryRelocation {
+    pub offset: usize,
+    pub library: LibraryId,
 }
 
 impl fmt::Display for LibraryRelocation {
@@ -37,9 +37,9 @@ impl fmt::Display for LibraryRelocation {
 
 /// Bytecode and the library addresses that must be linked before execution.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub(crate) struct RelocatableBytecode {
-    pub(crate) bytes: Bytes,
-    pub(crate) relocations: Vec<LibraryRelocation>,
+pub struct RelocatableBytecode {
+    pub bytes: Bytes,
+    pub relocations: Vec<LibraryRelocation>,
 }
 
 impl From<Bytes> for RelocatableBytecode {

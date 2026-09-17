@@ -21,8 +21,10 @@ pub use contract::{
     generate_contract_bytecodes,
 };
 
-mod ir_parse;
 mod link;
+pub use link::{LibraryId, LibraryRelocation, RelocatableBytecode};
+
+mod ir_parse;
 mod source_info;
 
 pub(crate) mod target;

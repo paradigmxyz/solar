@@ -357,7 +357,7 @@ fn generate_contract_bytecode(
                 .expect("dependency artifact should have been generated");
             (
                 dependency,
-                lower::ContractBytecodes::with_relocations(
+                lower::ContractBytecodes::new(
                     RelocatableBytecode {
                         bytes: artifact.deployment.clone(),
                         relocations: library_relocations(&artifact.deployment_link_references),

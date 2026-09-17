@@ -2,7 +2,7 @@
 
 use flate2::read::GzDecoder;
 use solar::{
-    codegen::{self, Backend, EvmCodegen},
+    codegen::{self, Backend, EvmCodegen, RelocatableBytecode},
     data_structures::map::FxHashMap,
     parse::interface::{Result, Session},
     sema::{Compiler as SemaCompiler, CompilerRef},
@@ -229,8 +229,14 @@ fn ensure_contract_bytecode(
     bytecodes.insert(
         contract_id,
         codegen::mir::lower::ContractBytecodes::new(
-            artifact.deployment.clone().into(),
-            artifact.runtime.clone().into(),
+            RelocatableBytecode {
+                bytes: artifact.deployment.clone().into(),
+                relocations: artifact.deployment_library_relocations.clone(),
+            },
+            RelocatableBytecode {
+                bytes: artifact.runtime.clone().into(),
+                relocations: artifact.runtime_library_relocations.clone(),
+            },
         ),
     );
     black_box(artifact);

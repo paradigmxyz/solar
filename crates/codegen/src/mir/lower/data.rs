@@ -8,7 +8,7 @@ use crate::{
     link::RelocatableBytecode,
     mir::{FunctionBuilder, Module, ValueId, memory::EvmMemoryLayout},
 };
-use alloy_primitives::{Bytes, U256};
+use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_interface::Symbol;
 use solar_sema::{Gcx, hir::ContractId};
@@ -42,16 +42,8 @@ pub struct ContractBytecodes {
 }
 
 impl ContractBytecodes {
-    /// Creates bytecode metadata without unresolved library addresses.
-    pub fn new(deployment: Bytes, runtime: Bytes) -> Self {
-        Self::with_relocations(deployment.into(), runtime.into())
-    }
-
     /// Creates bytecode metadata from a generated artifact and its relocations.
-    pub(crate) fn with_relocations(
-        deployment: RelocatableBytecode,
-        runtime: RelocatableBytecode,
-    ) -> Self {
+    pub fn new(deployment: RelocatableBytecode, runtime: RelocatableBytecode) -> Self {
         Self {
             deployment: (!deployment.bytes.is_empty()).then_some(deployment),
             runtime: (!runtime.bytes.is_empty()).then_some(runtime),
