@@ -13,7 +13,7 @@ use the [compiler-diff CLI](../../tools/compiler-diff/README.md#execution-engine
 
 ```sh
 uv run --project tools/compiler-diff compiler-diff runtime -- \
-  --solc /absolute/path/to/solc --solar /absolute/path/to/solar \
+  --solar /absolute/path/to/solar \
   --mode runtime --suite micro --tests counter --gas --start-anvil
 ```
 
@@ -28,8 +28,8 @@ Keeping the inputs here makes the benchmark reproducible from this checkout and 
 dependency on a second repository and its recursive submodules.
 
 Pass `--evm-version VERSION` to replace every archived Standard JSON target and benchmark a whole
-corpus against one EVM version. Use `--solar-only` when the selected target is not supported by the
-installed solc. When available, solc still provides helper contracts for cold-path runtime checks.
+corpus against one EVM version. The default needs no solc and builds cold-path helper
+contracts with our compiler.
 
 Pass `--optimizer-runs N` to replace every case's `optimizer.runs`. We optimize for size below
 200 runs and for gas from 200 up, so `--optimizer-runs 1` turns the same corpus into a size
@@ -43,13 +43,16 @@ runs it only on pushes to main. Its measurements appear alongside solc in the Ma
 Reference compiler failures remain in the raw results but do not produce report warnings or
 trigger PR comments. Failures from our compiler and result mismatches involving it still do.
 
-Use `--solar-only` to skip solc and solx benchmark compilation even when `--solc PATH` supplies a binary
-for reference validation or helper contracts. A one-compiler run retains compilation, gas
-measurements, and runtime failure checks, but cannot make differential runtime claims, so
-successful runtime comparisons are marked as skipped unless a matching reference result is supplied.
+The default does not discover or run reference compilers. A one-compiler run retains
+compilation, gas measurements, and runtime failure checks, but cannot make differential
+runtime claims, so successful runtime comparisons are marked as skipped unless a
+matching reference result is supplied. Runtime helpers use our compiler unless a live
+solc comparison is explicitly selected.
 
 Pass `--reference-results PATH` to reuse matching solc and solx results from a prior
-run. The benchmark copies reference compile, gas, and runtime data only when the input fingerprint
+run without discovering or running either compiler. This option cannot be combined
+with `--solc` or `--solx`; choose saved results or live reference compilers.
+The benchmark copies reference compile, gas, and runtime data only when the input fingerprint
 matches, then performs the normal cross-compiler runtime checks. PR CI uses the exact-base result
 as the reference, so solc runs on the base revision instead of repeating unchanged work on the PR.
 PR jobs never run solx, including when they must rebuild a missing baseline; solx columns appear

@@ -803,7 +803,7 @@ def parse_standard_json_output(
 
 @cache
 def compile_runtime_fixture(
-    solc_path: str, contract_name: str
+    fixture_compiler_path: str, contract_name: str
 ) -> tuple[str | None, str]:
     source_name = str(RUNTIME_FIXTURES.relative_to(ROOT))
     payload = {
@@ -815,7 +815,9 @@ def compile_runtime_fixture(
         },
     }
     proc = run(
-        [solc_path, "--standard-json"], input_text=json.dumps(payload), timeout=120
+        [fixture_compiler_path, "--standard-json"],
+        input_text=json.dumps(payload),
+        timeout=120,
     )
     if proc.returncode != 0:
         return None, (proc.stderr or proc.stdout or "fixture compiler failed")[:1000]
@@ -1239,7 +1241,7 @@ def decode_words(data: str) -> list[int]:
 
 def run_vesting_cold_paths(
     address: str,
-    solc_path: Path,
+    fixture_compiler_path: Path,
     rpc_url: str,
     private_key: str,
 ) -> list[dict[str, Any]]:
@@ -1250,7 +1252,9 @@ def run_vesting_cold_paths(
     if error:
         return [runtime_error("cold-vesting-eth-release", error)]
 
-    token_bytecode, error = compile_runtime_fixture(str(solc_path), "RuntimeERC20")
+    token_bytecode, error = compile_runtime_fixture(
+        str(fixture_compiler_path), "RuntimeERC20"
+    )
     if token_bytecode is None:
         return [runtime_error("cold-vesting-token-compile", error)]
     token, _, error = deploy_creation_code(
@@ -1320,11 +1324,13 @@ def run_vesting_cold_paths(
 
 def run_fractional_cold_paths(
     address: str,
-    solc_path: Path,
+    fixture_compiler_path: Path,
     rpc_url: str,
     private_key: str,
 ) -> list[dict[str, Any]]:
-    nft_bytecode, error = compile_runtime_fixture(str(solc_path), "RuntimeNFT")
+    nft_bytecode, error = compile_runtime_fixture(
+        str(fixture_compiler_path), "RuntimeNFT"
+    )
     if nft_bytecode is None:
         return [runtime_error("cold-fractional-nft-compile", error)]
     nft, _, error = deploy_creation_code(nft_bytecode, (), None, rpc_url, private_key)
@@ -1531,14 +1537,18 @@ def run_nitro_cold_paths(address: str, rpc_url: str) -> list[dict[str, Any]]:
 def run_cold_path_checks(
     test_case: TestCase,
     address: str,
-    solc_path: Path,
+    fixture_compiler_path: Path,
     rpc_url: str,
     private_key: str,
 ) -> list[dict[str, Any]]:
     if test_case.test_id == "openzeppelin-vesting-wallet":
-        return run_vesting_cold_paths(address, solc_path, rpc_url, private_key)
+        return run_vesting_cold_paths(
+            address, fixture_compiler_path, rpc_url, private_key
+        )
     if test_case.test_id == "lilweb3-fractional":
-        return run_fractional_cold_paths(address, solc_path, rpc_url, private_key)
+        return run_fractional_cold_paths(
+            address, fixture_compiler_path, rpc_url, private_key
+        )
     if test_case.test_id == "nitro-one-step-proof":
         return run_nitro_cold_paths(address, rpc_url)
     return []
@@ -1756,7 +1766,6 @@ def run_test_case(
     verbose: bool = False,
     compile_repeats: int = 1,
     evm_version: str | None = None,
-    reference_solc_path: Path | None = None,
     repeat_long_compiles: bool = False,
     artifact_root: Path | None = None,
     optimizer_runs: int | None = None,
@@ -1773,9 +1782,7 @@ def run_test_case(
     if test_case.project is not None:
         entry["project"] = test_case.project.name
         entry["source"] = test_case.source
-    reference_solc = next(
-        (spec.path for spec in specs if spec.kind == "solc"), reference_solc_path
-    )
+    reference_solc = next((spec.path for spec in specs if spec.kind == "solc"), None)
     prepared_input = (
         None
         if test_case.project_file is not None and not test_case.project_path.exists()
@@ -1909,22 +1916,17 @@ def run_test_case(
                 }
             )
         if has_cold_paths:
-            if reference_solc is None:
-                cold_results = [
-                    runtime_error("cold-path-setup", "reference solc is required")
-                ]
-            else:
-                verbose_log(
-                    verbose,
-                    f"[{test_case.test_id}] {spec.compiler_id} cold-path differential",
-                )
-                cold_results = run_cold_path_checks(
-                    test_case,
-                    address,
-                    reference_solc,
-                    rpc_url,
-                    private_key,
-                )
+            verbose_log(
+                verbose,
+                f"[{test_case.test_id}] {spec.compiler_id} cold-path checks",
+            )
+            cold_results = run_cold_path_checks(
+                test_case,
+                address,
+                reference_solc or spec.path,
+                rpc_url,
+                private_key,
+            )
             runtime_results.extend(cold_results)
             runtime_failed |= any(
                 result.get("status") != "ok" for result in cold_results
@@ -1955,15 +1957,15 @@ def select_tests(modes: Sequence[str], suite: str) -> Sequence[TestCase]:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Benchmark solc vs Solar codegen on inline and repository contracts"
+        description="Benchmark Solar codegen; reference compilers are opt-in"
     )
     parser.add_argument(
         "--solc",
-        help="Path to solc binary; enables solc comparison unless --solar-only is set",
+        help="Also benchmark solc using this binary (default: disabled)",
     )
     parser.add_argument(
         "--solx",
-        help="Path to solx binary; enables solx comparison unless --solar-only is set",
+        help="Also benchmark solx using this binary (default: disabled)",
     )
     parser.add_argument(
         "--solar",
@@ -2003,14 +2005,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Override Standard JSON `optimizer.runs` for every benchmark case; below 200 Solar optimizes for size",
     )
     parser.add_argument(
-        "--solar-only",
-        action="store_true",
-        help="Skip reference compiler compilation even when --solc or --solx is supplied",
-    )
-    parser.add_argument(
         "--reference-results",
         type=Path,
-        help="Reuse matching solc and solx results from another benchmark result document",
+        help="Compare with saved solc/solx results without running reference compilers",
     )
     parser.add_argument("--tests", nargs="*", help="Subset of test IDs to run")
     parser.add_argument(
@@ -2063,10 +2060,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Exit successfully even if a compiler fails for one or more tests",
     )
     args = parser.parse_args(argv)
-    args.solar_only = args.solar_only or (args.solc is None and args.solx is None)
-
-    if args.reference_results and not args.solar_only:
-        parser.error("--reference-results with --solc or --solx requires --solar-only")
+    if args.reference_results and (args.solc or args.solx):
+        parser.error("--reference-results cannot be combined with --solc or --solx")
     try:
         reference_results = (
             load_reference_results(args.reference_results)
@@ -2099,8 +2094,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
         return 0
 
-    solc = find_binary(args.solc, ["solc"])
-    if not solc and ((args.solc and not args.solar_only) or args.reference_results):
+    solc = find_binary(args.solc, []) if args.solc else None
+    if args.solc and solc is None:
         print(_color(f"solc not found: {args.solc}", RED), file=sys.stderr)
         return 1
 
@@ -2129,19 +2124,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 1
 
-    use_reference_solc = bool(args.reference_results)
     solc_version, solc_version_error = (
-        binary_version(solc)
-        if solc and (not args.solar_only or use_reference_solc)
-        else ("unavailable", "")
+        binary_version(solc) if solc else ("unavailable", "")
     )
     solar_version, solar_version_error = binary_version(solar)
 
     specs = []
-    if args.solc and not args.solar_only:
+    if args.solc:
         assert solc is not None
         specs.append(CompilerSpec("solc", f"solc {solc_version}", solc, "solc"))
-    if args.solx and not args.solar_only:
+    if args.solx:
         solx = find_binary(args.solx, ["solx"])
         if solx is None:
             parser.error(f"solx not found: {args.solx}")
@@ -2168,9 +2160,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         tests = list(suite_tests)
 
     skipped = []
-    if (
-        (args.solc and not args.solar_only) or use_reference_solc
-    ) and not args.include_incompatible:
+    if args.solc and not args.include_incompatible:
         compatible_tests = []
         for test in tests:
             if test.project_file is not None and not version_in_range(
@@ -2207,7 +2197,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Using {spec.label}")
     if args.reference_results:
         print(f"Reusing reference results from {display_path(args.reference_results)}")
-    if (not args.solar_only or use_reference_solc) and solc_version_error:
+    if solc_version_error:
         print(
             _color(
                 "Warning: `solc --version` failed. If this is solc-select, run "
@@ -2277,7 +2267,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.verbose,
                     args.compile_repeats,
                     args.evm_version,
-                    solc,
                     args.repeat_long_compiles,
                     args.artifacts,
                     args.optimizer_runs,
