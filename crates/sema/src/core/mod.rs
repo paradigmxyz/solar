@@ -52,6 +52,12 @@ pub const MODULES: &[CoreModule] = &[
         path: "solar:core/v1/CalldataBytes.sol",
         source: include_str!("v1/CalldataBytes.sol"),
     },
+    CoreModule { path: "solar:core/v1/Strings.sol", source: include_str!("v1/Strings.sol") },
+    CoreModule {
+        path: "solar:core/v1/codecs/Base64.sol",
+        source: include_str!("v1/codecs/Base64.sol"),
+    },
+    CoreModule { path: "solar:core/v1/codecs/Hex.sol", source: include_str!("v1/codecs/Hex.sol") },
 ];
 
 /// Whether `path` lies under the reserved prefix.
@@ -126,6 +132,10 @@ pub enum CoreIntrinsic {
     CalldataReadUint256Be,
     /// `CalldataBytes.copyInto(dst, dstOffset, src, srcOffset, count)`.
     CalldataCopyInto,
+    /// `CalldataBytes.tryReadBytesN(b, offset)`. The payload is `N`.
+    CalldataTryReadBytes(u8),
+    /// `CalldataBytes.tryReadUint256BE(b, offset)`.
+    CalldataTryReadUint256Be,
     /// `Create.tryDeploy(initcode, value)`: create, reporting failure.
     TryDeploy,
     /// `Create.tryDeploy2(initcode, salt, value)`: create2, reporting failure.
@@ -239,8 +249,13 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                     Symbol::intern(&format!("readBytes{width}")),
                     CoreIntrinsic::CalldataReadBytes(width),
                 );
+                table.insert(
+                    Symbol::intern(&format!("tryReadBytes{width}")),
+                    CoreIntrinsic::CalldataTryReadBytes(width),
+                );
             }
             table.insert(sym::readUint256BE, CoreIntrinsic::CalldataReadUint256Be);
+            table.insert(sym::tryReadUint256BE, CoreIntrinsic::CalldataTryReadUint256Be);
             table.insert(sym::copyInto, CoreIntrinsic::CalldataCopyInto);
             table
         })),
@@ -253,7 +268,8 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (sym::wrappingMul, CoreIntrinsic::WrappingMul),
             ])
         })),
-        // `Cast`, `Precompiles` and `Buffers` are library code throughout.
+        // `Cast`, `Precompiles`, `Buffers`, `Strings` and the codecs are library
+        // code throughout.
         _ => None,
     }
 }
