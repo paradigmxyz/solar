@@ -40,6 +40,8 @@ use std::{
 };
 use tracing::{info, warn};
 
+const DEFAULT_SOURCE_CHANGE_DEBOUNCE: Duration = Duration::from_millis(350);
+
 /// The LSP config.
 ///
 /// This struct is internal only and should not be serialized or deserialized. Instead, values in
@@ -160,7 +162,7 @@ impl Default for Config {
             hierarchical_document_symbol_support: false,
             completion: CompletionClientOptions::default(),
             signature_help: SignatureHelpClientOptions::default(),
-            source_change_debounce: Duration::from_millis(250),
+            source_change_debounce: DEFAULT_SOURCE_CHANGE_DEBOUNCE,
             progress_delay: Duration::from_millis(250),
             progress_create_timeout: Duration::from_secs(1),
             formatter_timeout: Duration::from_secs(30),
@@ -1044,6 +1046,12 @@ pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
     let flycheck_options = FlycheckInitializationOptions::from_json(initialization_options.clone());
     let indexing_options = IndexingOptions::from_json(initialization_options.clone());
     let index_policy = WorkspaceIndexPolicy::new(indexing_options);
+    let source_change_debounce = initialization_options
+        .as_ref()
+        .and_then(|options| options.get("sourceChangeDebounce"))
+        .and_then(serde_json::Value::as_u64)
+        .map(Duration::from_millis)
+        .unwrap_or(DEFAULT_SOURCE_CHANGE_DEBOUNCE);
     let code_lens = CodeLensConfig::from_json(initialization_options);
 
     // The latest LSP spec mandates clients report `workspace_folders`, but some might still report
@@ -1271,6 +1279,7 @@ pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
             completion,
             signature_help,
             code_lens,
+            source_change_debounce,
             ..Default::default()
         },
     )
@@ -1302,6 +1311,27 @@ mod tests {
         TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WindowClientCapabilities,
         WorkspaceClientCapabilities, WorkspaceEditClientCapabilities,
     };
+
+    #[test]
+    fn source_change_debounce_initialization_options() {
+        assert_eq!(Config::default().source_change_debounce(), Duration::from_millis(350));
+        for (options, expected_ms) in [
+            (None, 350),
+            (Some(serde_json::json!({})), 350),
+            (Some(serde_json::json!({ "sourceChangeDebounce": 500 })), 500),
+            (Some(serde_json::json!({ "sourceChangeDebounce": 0 })), 0),
+            (Some(serde_json::json!({ "sourceChangeDebounce": -1 })), 350),
+            (Some(serde_json::json!({ "sourceChangeDebounce": 1.5 })), 350),
+            (Some(serde_json::json!({ "sourceChangeDebounce": "500" })), 350),
+            (Some(serde_json::json!({ "sourceChangeDebounce": null })), 350),
+        ] {
+            let (_, config) = negotiate_capabilities(InitializeParams {
+                initialization_options: options,
+                ..Default::default()
+            });
+            assert_eq!(config.source_change_debounce(), Duration::from_millis(expected_ms));
+        }
+    }
 
     #[test]
     fn workspace_folders_skip_root_fallback() {
