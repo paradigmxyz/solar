@@ -11,6 +11,13 @@ struct ByteBuilder {
     uint256 used;
 }
 
+/// @notice Words being assembled into a `uint256[]`. Its fields belong to
+/// `Buffers`; read the result through `finish`.
+struct WordBuilder {
+    uint256[] data;
+    uint256 used;
+}
+
 /// @notice Builders for output whose length is not known until it is written.
 /// @dev Compiler-owned module, imported as `solar:core/v1/Buffers.sol`. The
 /// capacity given to `create` is a hint: an append that does not fit
@@ -18,8 +25,9 @@ struct ByteBuilder {
 /// never write outside the builder and never fail for lack of room. `finish`
 /// shortens the backing bytes to what was written and returns them without a
 /// copy, then empties the builder, so nothing appended afterwards can reach
-/// the bytes that were returned. This is library code over `Bytes.copyInto`
-/// and `Arrays.truncate`.
+/// the bytes that were returned. A `WordBuilder` is the same over a
+/// `uint256[]`. This is library code over `Bytes.copyInto` and
+/// `Arrays.truncate`.
 library Buffers {
     /// @dev A builder with room for `capacity` bytes before it first grows.
     function create(uint256 capacity) internal pure returns (ByteBuilder memory builder) {
@@ -54,6 +62,44 @@ library Buffers {
         Arrays.truncate(result, builder.used);
         builder.data = "";
         builder.used = 0;
+    }
+
+    /// @dev A word builder with room for `capacity` words before it first
+    /// grows.
+    function createWords(uint256 capacity) internal pure returns (WordBuilder memory builder) {
+        builder.data = new uint256[](capacity);
+    }
+
+    /// @dev How many words have been appended.
+    function length(WordBuilder memory builder) internal pure returns (uint256) {
+        return builder.used;
+    }
+
+    /// @dev Appends one word.
+    function append(WordBuilder memory builder, uint256 value) internal pure {
+        uint256 used = builder.used;
+        if (used == builder.data.length) _growWords(builder, used + 1);
+        builder.data[used] = value;
+        builder.used = used + 1;
+    }
+
+    /// @dev The words appended so far. The builder is empty afterwards.
+    function finish(WordBuilder memory builder) internal pure returns (uint256[] memory result) {
+        result = builder.data;
+        Arrays.truncate(result, builder.used);
+        builder.data = new uint256[](0);
+        builder.used = 0;
+    }
+
+    /// @dev Moves the written words into an allocation of at least `needed`.
+    function _growWords(WordBuilder memory builder, uint256 needed) private pure {
+        uint256 capacity = builder.data.length * 2;
+        if (capacity < needed) capacity = needed;
+        uint256[] memory grown = new uint256[](capacity);
+        for (uint256 i; i < builder.used; ++i) {
+            grown[i] = builder.data[i];
+        }
+        builder.data = grown;
     }
 
     /// @dev Moves the written bytes into an allocation of at least `needed`.
