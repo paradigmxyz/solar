@@ -10,7 +10,31 @@
 //@ run-call: repeated 0x80, 0 => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
 //@ run-call: repeated 0x8080, 1 => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8080
 //@ run-call: repeated 0x8080, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x8080
+//@ run-call: masked 0 => 0x12345678, 0x1200000000000000000000000000000000000000000000000000000000000000
+//@ run-call: masked 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x12345678, 0x1200000000000000000000000000000000000000000000000000000000000000
+//@ run-call: offsets 0 => 40
+//@ run-call: offsets 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 40
+//@ run-call: addressRoundtrip => true
 contract BitSlices {
+    function masked(uint256 x) external pure returns (uint256 low, uint256 high) {
+        assembly {
+            low := and(or(shl(32, x), 0x12345678), 0xffffffff)
+            high := and(or(shr(8, x), shl(248, 0x12)), shl(248, 0xff))
+        }
+    }
+
+    function offsets(uint256 x) external pure returns (uint256 result) {
+        assembly {
+            result := sub(add(x, 32), sub(x, 8))
+        }
+    }
+
+    function addressRoundtrip() external view returns (bool result) {
+        assembly {
+            result := eq(shr(96, or(shl(96, address()), 7)), address())
+        }
+    }
+
     function repeated(uint256 x, uint256 index) external pure returns (uint256 result) {
         assembly {
             result := signextend(index, signextend(index, x))

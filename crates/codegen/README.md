@@ -68,6 +68,11 @@ scheduling, complex lowering, and assembly remain in Rust. The schema snapshot
 tests check the generated vocabularies, and the selector snapshot checks its
 opcode mappings and stack contracts against both operation tables.
 
+The e-graph owns scalar identities, checked constant evaluation, passing-check
+removal, and fixed aggregate projection folding. Late `const-fold` shares its
+rules but accepts only immediate results, so it cannot extend nonconstant live
+ranges before stack scheduling.
+
 The e-graph overlaps pure-expression CSE, but it does not replace the `cse`
 pass's alias-sensitive memory, storage, and call reuse. SCCP still propagates
 constants over executable CFG edges; range analysis, PRE, and LICM still supply

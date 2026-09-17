@@ -1,6 +1,6 @@
 //@compile-flags: -Zmir-pipeline=egraph
 //@filecheck:
-@module InstSimplify
+@module ScalarSimplification
 // CHECK-LABEL: {{^[ +].*}}fn @strength_reduce_arithmetic{{[( ]}}
 // CHECK: {{^[ +].*}}[[SHIFTED:v[0-9]+]] = shl 5, arg0
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = shr 3, [[SHIFTED]]

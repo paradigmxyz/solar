@@ -346,6 +346,42 @@
 ;; 0 + b => b
 (rule 1 (simplify (Op.Add (zero) b)) b)
 
+;; (base + offset_a) - (base + offset_b) => offset_a - offset_b
+(rule 13 (simplify (Op.Sub (sub base (iconst a)) (sub base (iconst b))))
+      (imm (u256_sub (u256_neg a) (u256_neg b))))
+
+;; (base + offset_a) - (base + offset_b) => offset_a - offset_b
+(rule 12 (simplify (Op.Sub (sub base (iconst a)) (add (iconst b) base)))
+      (imm (u256_sub (u256_neg a) b)))
+
+;; (base + offset_a) - (base + offset_b) => offset_a - offset_b
+(rule 11 (simplify (Op.Sub (sub base (iconst a)) (add base (iconst b))))
+      (imm (u256_sub (u256_neg a) b)))
+
+;; (base + offset_a) - (base + offset_b) => offset_a - offset_b
+(rule 10 (simplify (Op.Sub (add (iconst a) base) (sub base (iconst b))))
+      (imm (u256_sub a (u256_neg b))))
+
+;; (base + offset_a) - (base + offset_b) => offset_a - offset_b
+(rule 9 (simplify (Op.Sub (add (iconst a) base) (add (iconst b) base)))
+      (imm (u256_sub a b)))
+
+;; (base + offset_a) - (base + offset_b) => offset_a - offset_b
+(rule 8 (simplify (Op.Sub (add (iconst a) base) (add base (iconst b))))
+      (imm (u256_sub a b)))
+
+;; (base + offset_a) - (base + offset_b) => offset_a - offset_b
+(rule 7 (simplify (Op.Sub (add base (iconst a)) (sub base (iconst b))))
+      (imm (u256_sub a (u256_neg b))))
+
+;; (base + offset_a) - (base + offset_b) => offset_a - offset_b
+(rule 6 (simplify (Op.Sub (add base (iconst a)) (add (iconst b) base)))
+      (imm (u256_sub a b)))
+
+;; (base + offset_a) - (base + offset_b) => offset_a - offset_b
+(rule 5 (simplify (Op.Sub (add base (iconst a)) (add base (iconst b))))
+      (imm (u256_sub a b)))
+
 ;; (a + b) - b => a
 (rule 4 (simplify (Op.Sub (add a b) b)) a)
 ;; (a + b) - a => b
@@ -442,6 +478,54 @@
         (if-let true (u256_ge byte 1))
         value)
 
+;; ((value >> shift) | constant) & mask => constant & mask
+;; Every selected bit outside constant is shifted out of the word.
+(rule 46 (simplify (Op.And (iconst mask) (bor (iconst constant) (shr (iconst shift) value))))
+      (if-let true (u256_is_zero (u256_shl shift (u256_and mask (u256_not constant)))))
+      (imm (u256_and constant mask)))
+
+;; ((value >> shift) | constant) & mask => constant & mask
+;; Every selected bit outside constant is shifted out of the word.
+(rule 45 (simplify (Op.And (bor (iconst constant) (shr (iconst shift) value)) (iconst mask)))
+      (if-let true (u256_is_zero (u256_shl shift (u256_and mask (u256_not constant)))))
+      (imm (u256_and constant mask)))
+
+;; ((value >> shift) | constant) & mask => constant & mask
+;; Every selected bit outside constant is shifted out of the word.
+(rule 44 (simplify (Op.And (iconst mask) (bor (shr (iconst shift) value) (iconst constant))))
+      (if-let true (u256_is_zero (u256_shl shift (u256_and mask (u256_not constant)))))
+      (imm (u256_and constant mask)))
+
+;; ((value >> shift) | constant) & mask => constant & mask
+;; Every selected bit outside constant is shifted out of the word.
+(rule 43 (simplify (Op.And (bor (shr (iconst shift) value) (iconst constant)) (iconst mask)))
+      (if-let true (u256_is_zero (u256_shl shift (u256_and mask (u256_not constant)))))
+      (imm (u256_and constant mask)))
+
+;; ((value << shift) | constant) & mask => constant & mask
+;; Every selected bit outside constant is shifted out of the word.
+(rule 42 (simplify (Op.And (iconst mask) (bor (iconst constant) (shl (iconst shift) value))))
+      (if-let true (u256_is_zero (u256_shr shift (u256_and mask (u256_not constant)))))
+      (imm (u256_and constant mask)))
+
+;; ((value << shift) | constant) & mask => constant & mask
+;; Every selected bit outside constant is shifted out of the word.
+(rule 41 (simplify (Op.And (bor (iconst constant) (shl (iconst shift) value)) (iconst mask)))
+      (if-let true (u256_is_zero (u256_shr shift (u256_and mask (u256_not constant)))))
+      (imm (u256_and constant mask)))
+
+;; ((value << shift) | constant) & mask => constant & mask
+;; Every selected bit outside constant is shifted out of the word.
+(rule 40 (simplify (Op.And (iconst mask) (bor (shl (iconst shift) value) (iconst constant))))
+      (if-let true (u256_is_zero (u256_shr shift (u256_and mask (u256_not constant)))))
+      (imm (u256_and constant mask)))
+
+;; ((value << shift) | constant) & mask => constant & mask
+;; Every selected bit outside constant is shifted out of the word.
+(rule 39 (simplify (Op.And (bor (shl (iconst shift) value) (iconst constant)) (iconst mask)))
+      (if-let true (u256_is_zero (u256_shr shift (u256_and mask (u256_not constant)))))
+      (imm (u256_and constant mask)))
+
 ;; a & (a | _) => a
 (rule 18 (simplify (Op.And a (bor a _))) a)
 ;; a & (_ | a) => a
@@ -525,6 +609,22 @@
 (rule 2 (simplify (Op.Shl _ (and value (zero)))) value)
 ;; _ << shift => 0, when shift >= 256
 (rule 1 (simplify (Op.Shl (iconst shift) _)) (if-let true (u256_ge shift 256)) (imm (u256 0)))
+
+;; (address << shift | constant) >> shift => address
+;; No address bits are lost, and constant fits below the shift.
+(rule 31 (simplify (Op.Shr (iconst shift) (bor (iconst constant) (shl (iconst shift) address))))
+      (if-let true (u256_lt shift 97))
+      (if-let true (u256_is_zero (u256_shr shift constant)))
+      (if-let true (masks_clean_address (u256_from_limbs 18446744073709551615 18446744073709551615 4294967295 0) address))
+      address)
+
+;; (address << shift | constant) >> shift => address
+;; No address bits are lost, and constant fits below the shift.
+(rule 30 (simplify (Op.Shr (iconst shift) (bor (shl (iconst shift) address) (iconst constant))))
+      (if-let true (u256_lt shift 97))
+      (if-let true (u256_is_zero (u256_shr shift constant)))
+      (if-let true (masks_clean_address (u256_from_limbs 18446744073709551615 18446744073709551615 4294967295 0) address))
+      address)
 
 ;; value >> shift => 0, when shift removes every possible set bit of value
 (rule 5 (simplify (Op.Shr (iconst shift) value)) (if-let true (shifted_out shift value)) (imm (u256 0)))
