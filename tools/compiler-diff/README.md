@@ -3,7 +3,9 @@
 Import Solidity inputs, run standard-JSON compilers, and compare their saved
 artifacts. Compilation and comparison have separate records: changing comparison
 rules does not rerun compilers. The Sourcify database from `scripts/sourcify.py`
-is reused without migration. That script remains a compatible entry point.
+is reused without migration. `uv run scripts/sourcify.py` remains a compatible
+entry point. Run the commands below from the repository root. Agents should also
+follow the [repository guidance](../../AGENTS.md#compiler-comparisons).
 
 ```sh
 export UV_CACHE_DIR=/tmp/solar-sourcify/uv-cache
@@ -19,15 +21,16 @@ Use the environment variables above to keep uv's cache and environment there too
 ## Inputs and compilation
 
 ```sh
-uv run scripts/sourcify.py --version 0.8.36 sync
-uv run scripts/sourcify.py run \
+uv run --project tools/compiler-diff compiler-diff --version 0.8.36 sync
+uv run --project tools/compiler-diff compiler-diff run \
   --compiler 'solc=/path/to/solc --standard-json' \
   --compiler 'solar=/path/to/solar --standard-json' --limit 20
 
 # Use a separate directory for local repros.
-uv run scripts/sourcify.py --dir /tmp/compiler-repro import-input input.json \
+uv run --project tools/compiler-diff compiler-diff \
+  --dir /tmp/compiler-repro import-input input.json \
   --target 'C.sol:C'
-uv run scripts/sourcify.py --dir /tmp/compiler-repro run
+uv run --project tools/compiler-diff compiler-diff --dir /tmp/compiler-repro run
 ```
 
 Local imports require Solidity standard JSON with inline source content. Settings
@@ -47,12 +50,12 @@ timing, diagnostics and `replay.sh`; replay uses the recorded executable path.
 
 ```sh
 # Compare the latest attempt from each compiler for every attempted compilation.
-uv run scripts/sourcify.py compare --continue-on-failure
-uv run scripts/sourcify.py compare --check abi --policy exact
-uv run scripts/sourcify.py compare --check userdoc --check devdoc
+uv run --project tools/compiler-diff compiler-diff compare --continue-on-failure
+uv run --project tools/compiler-diff compiler-diff compare --check abi --policy exact
+uv run --project tools/compiler-diff compiler-diff compare --check userdoc --check devdoc
 
 # Compare particular attempts or raw standard-JSON output files.
-uv run scripts/sourcify.py compare --left /path/to/solc-attempt \
+uv run --project tools/compiler-diff compiler-diff compare --left /path/to/solc-attempt \
   --right /path/to/solar-attempt --check abi --check methods
 ```
 
@@ -83,9 +86,8 @@ The replay needs this checkout and uv; it creates a new report. Compiler replay
 scripts use the recorded executable paths, not bundled binaries. Standard-JSON
 compilers may exit 0 while emitting error diagnostics; inspect `replay.stdout.txt`
 or pass the outputs to `compare`, which rejects compiler errors.
-Reports group differences by comparator
-and path. Comparisons stop on the first unexpected difference or incomplete check
-unless `--continue-on-failure` is set. Both modes return 1 on such results.
+Reports group differences by comparator and path. Comparisons stop on the first
+unexpected difference or incomplete check unless `--continue-on-failure` is set. Both modes return 1 on such results.
 
 | Check | Rules |
 | --- | --- |
@@ -139,13 +141,14 @@ the child process runs in its artifact directory. Reports and logs stay under
 process, while engine-specific timeout flags retain their own meaning.
 
 ```sh
-uv run scripts/sourcify.py symbolic -- --help
-uv run scripts/sourcify.py runtime -- --help
-uv run scripts/sourcify.py runtime -- --solc /path/to/solc --solar /path/to/solar \
+uv run --project tools/compiler-diff compiler-diff symbolic -- --help
+uv run --project tools/compiler-diff compiler-diff runtime -- --help
+uv run --project tools/compiler-diff compiler-diff \
+  runtime -- --solc /path/to/solc --solar /path/to/solar \
   --mode runtime --suite micro --tests counter --gas --start-anvil
 
 # Reuse saved artifacts without recompiling the target.
-uv run scripts/sourcify.py symbolic -- --source C.sol --contract C \
+uv run --project tools/compiler-diff compiler-diff symbolic -- --source C.sol --contract C \
   --signature 'f(uint256)' --solc /path/to/solc \
   --solc-attempt /absolute/solc-attempt --solar-attempt /absolute/solar-attempt
 ```
@@ -164,3 +167,8 @@ Use `--gas --start-anvil` to execute runtime checks; selecting `--mode runtime`
 alone only compiles the runtime corpus. This engine owns its suite-specific
 compilation and execution setup; it does not accept arbitrary Sourcify bytecode.
 Neither engine's bounded checks are a proof of unrestricted program equivalence.
+
+See the [symbolic guide](../../fuzz/fandango/README.md#symbolic-solc-vs-solar-differential)
+for execution bounds and the [runtime guide](../../benches/runtime/README.md) for
+suite inputs, benchmarks and result comparisons. [Debug-info comparisons](../../tests/debug-diff/README.md)
+use their own execution-trace workflow.

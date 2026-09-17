@@ -284,8 +284,9 @@ test compares return bytes, revert behavior, logs, and normalized state diffs.
 
 ### Symbolic Solc-vs-Solar differential
 
-`solsymdiff` uses Foundry's symbolic executor to compare one explicitly chosen
-function over bounded symbolic inputs:
+The [compiler-diff CLI](../../tools/compiler-diff/README.md#execution-engines)
+exposes Foundry's symbolic executor to compare one explicitly chosen function
+over bounded symbolic inputs. `fuzz/bin/solsymdiff` remains a direct entry point.
 
 Agents using this workflow should also follow the repository's
 [agent guidance](../../AGENTS.md).
@@ -293,8 +294,9 @@ Agents using this workflow should also follow the repository's
 ```bash
 cargo build -p solar-compiler --bin solar
 
-fuzz/bin/solsymdiff \
-  --source path/to/Target.sol \
+uv run --project tools/compiler-diff compiler-diff symbolic -- \
+  --source /absolute/path/to/Target.sol \
+  --solar "$PWD/target/debug/solar" \
   --contract Target \
   --signature 'probe(uint256,bytes)'
 ```
@@ -311,7 +313,16 @@ blobs and is recorded in `result.json`.
 A symbolic suffix mismatch is reported only after Foundry concretely replays
 the counterexample. A prefix mismatch already comes from executing the supplied
 concrete calls. The generated project, compiler input, and `result.json` are
-kept under `target/solsymdiff/`.
+kept under `/tmp/solar-sourcify/<version>/engines/symbolic/<id>/` through the
+unified CLI; select another base directory with `--dir` before `symbolic`.
+The direct `fuzz/bin/solsymdiff` entry point defaults to `target/solsymdiff/`
+and accepts `--output-root`.
+
+To reuse recorded compilations, pass `--solc-attempt` and `--solar-attempt` with
+absolute attempt-directory paths. In this mode, `--source` names a source unit
+in the saved input, such as `src/Target.sol`. Both attempts must contain identical
+inputs, an explicit `evmVersion`, and runtime immutable/link reference outputs.
+Solc still compiles the harness. See the [saved-artifact example](../../tools/compiler-diff/README.md#execution-engines).
 
 Pure functions are enabled by default. `--include-view` allows a selected view
 function with zero-initialized storage. `--include-stateful` allows a selected

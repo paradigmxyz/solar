@@ -8,6 +8,22 @@ omits the heavy full-project cases. The `compile-time` mode measures those cases
 archived Standard JSON inputs to each compiler without deployment or runtime workloads. CI runs
 both modes with `--mode runtime compile-time`.
 
+For one entry point shared with Sourcify, ABI/JSON, and symbolic comparisons,
+use the [compiler-diff CLI](../../tools/compiler-diff/README.md#execution-engines):
+
+```sh
+uv run --project tools/compiler-diff compiler-diff runtime -- \
+  --solc /absolute/path/to/solc --solar /absolute/path/to/solar \
+  --mode runtime --suite micro --tests counter --gas --start-anvil
+```
+
+The adapter stores logs, results, and artifacts under
+`/tmp/solar-sourcify/<version>/engines/runtime/<id>/`; put `--dir` before `runtime`
+to select another location. Pass engine options after `--` and use absolute paths.
+`--mode runtime` selects the corpus; `--gas` enables execution checks and
+`--start-anvil` starts a local node. The direct runner and benchmark comparison
+commands below remain the entry points used by CI and performance experiments.
+
 Keeping the inputs here makes the benchmark reproducible from this checkout and removes the CI
 dependency on a second repository and its recursive submodules.
 

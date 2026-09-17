@@ -8,9 +8,9 @@ Solar is a blazingly fast, modular Solidity compiler written in Rust, aiming to 
 
 For testing and comparing behavior and semantics, the current tracked solc version (usually the latest stable release) is always available as a submodule `./testdata/solidity`.
 
-When comparing compiler semantics with solc, use `fuzz/bin/solsymdiff` to obtain
-a replay-confirmed differential; see the
-[symbolic differential guide](fuzz/fandango/README.md#symbolic-solc-vs-solar-differential).
+For comparisons with solc, use the [compiler-diff project](tools/compiler-diff/README.md)
+for saved artifacts, Sourcify corpora, and runtime or symbolic checks. See
+[Compiler comparisons](#compiler-comparisons) for choosing a check.
 
 ## Commands
 
@@ -159,6 +159,41 @@ UI test using `//@ revisions:` and revision-scoped directives over multiple file
 with a common prefix. Keep separate files when the source text itself is the
 behavior under test or combining the cases would hide materially different
 programs or purposes.
+
+### Compiler comparisons
+
+Use `uv run --project tools/compiler-diff compiler-diff` from the repository root.
+The [project guide](tools/compiler-diff/README.md) covers local standard-JSON
+imports, Sourcify sync, compiler commands, comparison policies, and replay.
+`scripts/sourcify.py` remains a compatibility entry point.
+
+`run` records compilation attempts; `compare` checks saved ABI and method
+identifiers without recompiling. Add `--check userdoc` or `--check devdoc` for
+JSON documentation. ABI `--policy interface` ignores parameter names and
+`internalType`; `--policy exact` preserves them. Neither policy establishes
+runtime equivalence. Use `compare --full` for complete field-level differences.
+
+For execution behavior, use `runtime --` with the
+[curated runtime suite](benches/runtime/README.md), or `symbolic --` for a
+[bounded, replay-confirmed differential](fuzz/fandango/README.md#symbolic-solc-vs-solar-differential).
+Runtime calls require `--gas`; add `--start-anvil` to start a local node.
+Saved symbolic attempts require identical inputs, an explicit `evmVersion`,
+and immutable/link reference outputs. Retain the engine's bounds and incomplete
+status when reporting results.
+
+Put `--dir` and `--version` before the subcommand. Defaults are
+`/tmp/solar-sourcify` and `0.8.36`; each version has its own DuckDB database.
+`runs/`, `failures/`, `comparisons/`, and `engines/` under that version directory
+hold inputs, outputs, diagnostics and reports. Mismatch bundles include
+`compare.sh`; compiler `replay.sh` uses the recorded executable path, so keep
+the required binaries available. Use a persistent `--dir` for retained evidence;
+set `UV_CACHE_DIR` and `UV_PROJECT_ENVIRONMENT` to subdirectories there for uv's files.
+
+Runs and comparisons stop on the first failure unless `--continue-on-failure`
+is set. Review differences before adding exact expectation rules with a reason;
+never hide errors or unsupported checks. Report coverage counts, and reduce new
+compiler failures into regression tests. Record accepted intentional differences
+in [SOLC_DIVERGENCE.md](docs/SOLC_DIVERGENCE.md).
 
 ### Codegen / MIR Pass Tests
 
