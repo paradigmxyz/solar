@@ -13,7 +13,7 @@ use the [compiler-diff CLI](../../tools/compiler-diff/README.md#execution-engine
 
 ```sh
 uv run --project tools/compiler-diff compiler-diff runtime -- \
-  --solar /absolute/path/to/solar --solar-only \
+  --solar /absolute/path/to/solar \
   --mode runtime --suite micro --tests counter --gas --start-anvil
 ```
 
@@ -28,8 +28,8 @@ Keeping the inputs here makes the benchmark reproducible from this checkout and 
 dependency on a second repository and its recursive submodules.
 
 Pass `--evm-version VERSION` to replace every archived Standard JSON target and benchmark a whole
-corpus against one EVM version. Use `--solar-only` when the selected target is not supported by the
-installed solc. Compiler-only runs build cold-path helper contracts with our compiler.
+corpus against one EVM version. The default needs no solc and builds cold-path helper
+contracts with our compiler.
 
 Pass `--optimizer-runs N` to replace every case's `optimizer.runs`. We optimize for size below
 200 runs and for gas from 200 up, so `--optimizer-runs 1` turns the same corpus into a size
@@ -43,8 +43,8 @@ runs it only on pushes to main. Its measurements appear alongside solc in the Ma
 Reference compiler failures remain in the raw results but do not produce report warnings or
 trigger PR comments. Failures from our compiler and result mismatches involving it still do.
 
-Use `--solar-only` to skip solc and solx benchmark compilation. Without
-`--reference-results`, it also ignores reference compiler paths and does not discover or run solc.
+The default does not discover or run solc. `--solar-only` is only needed to override
+explicit `--solc` or `--solx` options; `--reference-results` opts into reference validation.
 Runtime helper contracts use the compiler under test when no reference solc is selected.
 A one-compiler run retains compilation, gas measurements, and runtime failure checks, but cannot make differential runtime claims, so
 successful runtime comparisons are marked as skipped unless a matching reference result is supplied.

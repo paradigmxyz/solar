@@ -659,9 +659,10 @@ Prioritize correctness and `-Ogas` runtime gas, then bytecode size in `-Ogas`
 and `-Osize`, then compiler time and memory. Reject changes whose only benefit
 is faster compilation.
 
-Local benchmarks compare our compiler's base and candidate builds. Use
-`--solar-only`; do not pass `--solc`, `--solx`, or `--reference-results`, install a
-reference compiler, or repeat its corpus locally. Reference comparisons belong
+Local benchmarks compare our compiler's base and candidate builds. Running only
+our compiler is the default; no `--solar-only` flag is needed. Do not pass
+`--solc`, `--solx`, or `--reference-results`, install a reference compiler, or
+repeat its corpus locally. Reference comparisons belong
 in CI unless the user explicitly asks for them.
 
 Record the baseline before editing, then rebuild the candidate with the same
@@ -679,7 +680,7 @@ bench_run() {
   cp target/debug/solar "$1/debug/solar" &&
   /usr/bin/time -p -o "$1/time.txt" \
     uv run benches/runtime/benchmark.py \
-    --solar "$1/debug/solar" --solar-only \
+    --solar "$1/debug/solar" \
     --mode runtime --suite all --tests counter factorial --compile-repeats 1 \
     --gas --gas-profile hot --start-anvil \
     --output "$1/results.json"
