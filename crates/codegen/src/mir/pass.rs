@@ -77,6 +77,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
     &loop_opt::Licm,
+    &checked_aggregate::CheckedAggregate,
     &check_elim::CheckElim,
     &check_elim::LateCheckElim,
     &check_elim::ImmutableCheckElim,
@@ -261,6 +262,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &word_sequence::WordSequence,
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
+    &GasOnly::new(checked_aggregate::CheckedAggregate),
     &cfg_simplify::CfgSimplify,
     // Small pure diamonds become selects once folded conditions are gone, so
     // bit searches lose their branches and lookup helpers arrive branch-free
