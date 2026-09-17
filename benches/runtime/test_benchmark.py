@@ -632,7 +632,65 @@ class ArtifactTests(unittest.TestCase):
         self.assertNotIn("ir", solar_outputs)
         self.assertIn("ir", solc_outputs)
         self.assertIn("irOptimized", solc_outputs)
-        self.assertEqual(solx_outputs, solc_outputs)
+        self.assertEqual(
+            solx_outputs,
+            solc_outputs
+            + [
+                "evm.bytecode.llvmIrUnoptimized",
+                "evm.bytecode.llvmIr",
+                "evm.deployedBytecode.llvmIrUnoptimized",
+                "evm.deployedBytecode.llvmIr",
+            ],
+        )
+
+    def test_solx_llvm_artifacts(self) -> None:
+        test_case = benchmark.TEST_CASES[0]
+        output = {
+            "contracts": {
+                "test.sol": {
+                    test_case.contract_name: {
+                        "evm": {
+                            "bytecode": {
+                                "llvmIrUnoptimized": "; creation before\n",
+                                "llvmIr": "; creation after\n",
+                            },
+                            "deployedBytecode": {
+                                "llvmIrUnoptimized": "; runtime before\n",
+                                "llvmIr": "; runtime after\n",
+                            },
+                        }
+                    }
+                }
+            }
+        }
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(
+                benchmark,
+                "run",
+                return_value=mock.Mock(returncode=0, stdout=json.dumps(output)),
+            ),
+        ):
+            root = Path(directory)
+            error = benchmark.write_artifacts(
+                root,
+                benchmark.CompilerSpec("solx", "solx", Path("solx"), "solx"),
+                test_case,
+                benchmark.compiler_input(test_case, None),
+            )
+            self.assertEqual(error, "")
+            self.assertEqual(
+                {
+                    path.name: path.read_text()
+                    for path in (root / test_case.test_id / "solx").glob("*.ll")
+                },
+                {
+                    "creation.unoptimized.ll": "; creation before\n",
+                    "creation.optimized.ll": "; creation after\n",
+                    "runtime.unoptimized.ll": "; runtime before\n",
+                    "runtime.optimized.ll": "; runtime after\n",
+                },
+            )
 
     def test_disassemble_evm_matches_solar_dump_style(self) -> None:
         self.assertEqual(
