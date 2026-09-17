@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/loop-idioms/byte_copy_loop.mir (after loop-idioms) ===
   @module ByteCopyLoop
   @phase lowered
-  fn @copy(arg0: memptr, arg1: u256) -> memptr {
+  fn @copy(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = mload 64
       v1 = add arg1, 32

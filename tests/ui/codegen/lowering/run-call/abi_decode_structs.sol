@@ -1,3 +1,5 @@
+//@ run-call: dAddress 0x000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000 => 0x0000000000000000000000000000000000000002
+//@ run-call: dAddressLength 0x000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000 => 0
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard amsterdamNone amsterdamGas amsterdamSize
@@ -26,6 +28,16 @@
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_decode_overlapping_dynamic_arrays.sol
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_decode_from_calldata_static_array.sol
 contract AbiDecodeStructsRunCall {
+    function dAddress(bytes memory encoded) external pure returns (address) {
+        (address account,) = abi.decode(encoded, (address, bytes));
+        return account;
+    }
+
+    function dAddressLength(bytes memory encoded) external pure returns (uint256) {
+        (,bytes memory payload) = abi.decode(encoded, (address, bytes));
+        return payload.length;
+    }
+
     struct Flat {
         uint256 a;
         address b;

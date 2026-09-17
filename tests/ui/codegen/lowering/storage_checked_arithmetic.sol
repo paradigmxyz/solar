@@ -11,7 +11,7 @@ contract StorageCheckedArithmetic {
     mapping(address => Account) accounts;
 
     // CHECK-LABEL: fn @storage_sub{{[( ]}}
-    // CHECK: [[KEY:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[KEY:v[0-9]+]] = trunc i256 arg0 to i160
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot [[KEY]], 0
     // CHECK: [[OLD:v[0-9]+]] = sload [[SLOT]]
     // CHECK: [[NEW:v[0-9]+]] = sub [[OLD]], arg1
@@ -22,7 +22,7 @@ contract StorageCheckedArithmetic {
     }
 
     // CHECK-LABEL: fn @storage_binary_sub{{[( ]}}
-    // CHECK: [[KEY:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[KEY:v[0-9]+]] = trunc i256 arg0 to i160
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot [[KEY]], 0
     // CHECK: [[OLD:v[0-9]+]] = sload [[SLOT]]
     // CHECK: [[NEW:v[0-9]+]] = sub [[OLD]], arg1
@@ -33,7 +33,7 @@ contract StorageCheckedArithmetic {
     }
 
     // CHECK-LABEL: fn @storage_struct_add{{[( ]}}
-    // CHECK: [[KEY:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[KEY:v[0-9]+]] = trunc i256 arg0 to i160
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot [[KEY]], 1
     // CHECK: [[WORD:v[0-9]+]] = sload [[SLOT]]
     // CHECK: [[OLD:v[0-9]+]] = and [[WORD]], 0xffffffffffffffffffffffffffffffff
@@ -51,7 +51,7 @@ contract StorageCheckedArithmetic {
     }
 
     // CHECK-LABEL: fn @storage_struct_signed_sub{{[( ]}}
-    // CHECK: [[KEY:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[KEY:v[0-9]+]] = trunc i256 arg0 to i160
     // CHECK: [[BASE:v[0-9]+]] = mapping_slot [[KEY]], 1
     // CHECK: [[WORD:v[0-9]+]] = sload [[BASE]]
     // CHECK: [[SHIFTED:v[0-9]+]] = shr 128, [[WORD]]

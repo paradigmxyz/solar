@@ -30,12 +30,14 @@
 +     v0 = callvalue
 +     v1 = calldatasize
 +     v2 = lt v1, 36
-+     v3 = or v0, v2
-+     jumpi v3, bb1, bb2
++     v3 = zext i1 v2 to i256
++     v4 = or v0, v3
++     v5 = ne v4, 0
++     jumpi v5, bb1, bb2
 +   bb2:
-+     v4 = calldataload 0
-+     v5 = shr 224, v4
-+     switch v5, default bb1, [1 => bb3, 2 => bb4]
++     v6 = calldataload 0
++     v7 = shr 224, v6
++     switch v7, default bb1, [1 => bb3, 2 => bb4]
 +   bb4:
 +     tail_call @b
 +   bb3:
@@ -76,12 +78,14 @@
       v0 = callvalue
       v1 = calldatasize
       v2 = lt v1, 36
-      v3 = or v0, v2
-      jumpi v3, bb1, bb2
+      v3 = zext i1 v2 to i256
+      v4 = or v0, v3
+      v5 = ne v4, 0
+      jumpi v5, bb1, bb2
     bb2:
-      v4 = calldataload 0
-      v5 = shr 224, v4
-      switch v5, default bb1, [1 => bb3, 2 => bb4]
+      v6 = calldataload 0
+      v7 = shr 224, v6
+      switch v7, default bb1, [1 => bb3, 2 => bb4]
     bb4:
       tail_call @b
     bb3:

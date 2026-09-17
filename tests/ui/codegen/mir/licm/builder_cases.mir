@@ -9,7 +9,7 @@
 // CHECK-NEXT: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
 // CHECK: {{^ +}}[[BODY]]:
 // CHECK: -     [[MUL]] = mul arg0, 7
-fn @hoist_mul(arg0: u256) {
+fn @hoist_mul(arg0: i256) {
   bb0:
     jump bb1
   bb1:
@@ -28,7 +28,7 @@ fn @hoist_mul(arg0: u256) {
 // CHECK-NEXT: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
 // CHECK: {{^ +}}[[BODY]]:
 // CHECK: -     [[CLZ]] = clz arg0
-fn @hoist_clz(arg0: u256) {
+fn @hoist_clz(arg0: i256) {
   bb0:
     jump bb1
   bb1:
@@ -46,7 +46,7 @@ fn @hoist_clz(arg0: u256) {
 // CHECK: [[RESULT:v[0-9]+]] = phi [bb0: 0], [bb2: [[LOAD]]]
 // CHECK: ret [[RESULT]]
 // CHECK: -     [[LOAD]] = sload [[SLOT]]
-fn @hoist_non_aliasing_sload() -> u256 {
+fn @hoist_non_aliasing_sload() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -65,7 +65,7 @@ fn @hoist_non_aliasing_sload() -> u256 {
 // CHECK: {{^ +}}[[BODY]]:
 // CHECK: +     {{v[0-9]+}} = sload [[SLOT:[0-9]+]]
 // CHECK: +     sstore [[SLOT]], 1
-fn @keep_aliasing_sload() -> u256 {
+fn @keep_aliasing_sload() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -86,7 +86,7 @@ fn @keep_aliasing_sload() -> u256 {
 // CHECK: {{^ +}}{{v[0-9]+}} = gas
 // CHECK: {{^ +}}{{v[0-9]+}} = mul arg0, 7
 // CHECK: {{^ +}}jump
-fn @keep_work_after_gas(arg0: u256) -> u256 {
+fn @keep_work_after_gas(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:

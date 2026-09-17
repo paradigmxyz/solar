@@ -9,8 +9,8 @@ use super::{OperandViews, same_value};
 use crate::{
     backend::evm::op,
     mir::{
-        ArgIdx, BlockId, Function, Immediate, InstKind, MemoryObjectKind, MemoryObjectLayout, Op,
-        Value as MirValue, ValueId,
+        ArgIdx, BlockId, Function, Immediate, InstKind, MemoryObjectKind, MemoryObjectLayout,
+        MirType, Op, Value as MirValue, ValueId,
         memory::{EvmMemoryLayout, MemoryLayoutPolicy},
         utils::eval::eval_opcode,
     },
@@ -124,6 +124,12 @@ pub(in crate::mir::transform) fn max_bits_with_args(
     depth: u32,
     argument_bits: &impl Fn(ArgIdx) -> u32,
 ) -> u32 {
+    if func.value_ty(value) == Some(crate::mir::MirType::I1) {
+        return 1;
+    }
+    if func.value_ty(value) == Some(crate::mir::MirType::I160) {
+        return 160;
+    }
     if let Some(constant) = func.value_u256(value) {
         return constant.bit_len() as u32;
     }
@@ -137,7 +143,8 @@ pub(in crate::mir::transform) fn max_bits_with_args(
     let bits = |value| max_bits_with_args(func, value, depth - 1, argument_bits);
     let shift = |shift| func.value_u256(shift).map(|shift| shift.min(U256::from(256)).to::<u32>());
     match *kind {
-        InstKind::IsZero(_)
+        InstKind::Zext(value) => bits(value),
+        InstKind::Ne(..)
         | InstKind::Lt(..)
         | InstKind::Gt(..)
         | InstKind::SLt(..)
@@ -213,28 +220,16 @@ fn at_most(func: &Function, value: ValueId, bound: U256) -> bool {
     bits < 256 && bound >= (U256::ONE << bits) - U256::ONE
 }
 
-/// Returns whether `value` is known to be exactly zero or one.
-///
-/// Solidity's `bool` type does not prove that the EVM word is canonical:
-/// inline assembly can assign dirty words to variables, arguments, and return
-/// values. Only values whose definition bounds them to one bit qualify.
+/// Returns whether the value carries the canonical boolean invariant.
 pub(in crate::mir::transform) fn is_bool_value(func: &Function, value: ValueId) -> bool {
-    max_bits(func, value, MAX_BITS_DEPTH) <= 1
+    func.value_ty(value) == Some(crate::mir::MirType::I1)
 }
 
-/// Returns whether `value` is an address produced by an EVM opcode.
+/// Returns whether `value` fits in an address, including a widened i160.
 fn is_clean_address(func: &Function, value: ValueId) -> bool {
-    matches!(
-        defining_kind(func, value),
-        Some(
-            InstKind::Address
-                | InstKind::Caller
-                | InstKind::Origin
-                | InstKind::Coinbase
-                | InstKind::Create(..)
-                | InstKind::Create2(..)
-        )
-    )
+    func.value_ty(value) == Some(crate::mir::MirType::I160)
+        || matches!(defining_kind(func, value), Some(InstKind::Zext(inner))
+            if func.value_ty(*inner) == Some(crate::mir::MirType::I160))
 }
 
 fn has_known_sign_bit(func: &Function, value: ValueId) -> bool {
@@ -288,7 +283,24 @@ impl generated::Context for RuleContext<'_> {
         is_bool_value(self.func, value).then_some(())
     }
 
+    fn integer_bits(&mut self, value: Value) -> Option<u32> {
+        let MirType::Int(bits) = self.func.value_ty(value)? else { return None };
+        (bits.get() <= 256).then_some(bits.get())
+    }
+
+    fn u32_lt(&mut self, a: u32, b: u32) -> bool {
+        a < b
+    }
+
+    fn u32_le(&mut self, a: u32, b: u32) -> bool {
+        a <= b
+    }
+
     fn current_address(&mut self, value: Value) -> Option<()> {
+        let value = match defining_kind(self.func, value) {
+            Some(InstKind::Zext(inner)) => *inner,
+            _ => value,
+        };
         matches!(defining_kind(self.func, value), Some(InstKind::Address)).then_some(())
     }
 
@@ -341,11 +353,11 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn imm(&mut self, value: U256) -> Value {
-        self.func.alloc_value(MirValue::Immediate(Immediate::uint256(value)))
+        self.func.alloc_value(MirValue::Immediate(Immediate::I256(value)))
     }
 
     fn imm_bool(&mut self, value: bool) -> Value {
-        self.func.alloc_value(MirValue::Immediate(Immediate::bool(value)))
+        self.func.alloc_value(MirValue::Immediate(Immediate::I1(value)))
     }
 
     fn u256(&mut self, value: u64) -> U256 {

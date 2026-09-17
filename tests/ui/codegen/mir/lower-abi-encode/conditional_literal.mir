@@ -8,11 +8,12 @@
 // CHECK: fn @encode
 // CHECK: memory_object_len memorybytes, v0
 // CHECK: memory_object_data memorybytes, v0
-fn @encode(arg0: u256) -> memoryslice {
+fn @encode(arg0: i256) -> memoryslice {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 1
-    jumpi arg0, bb1, bb2
+    v2 = ne arg0, 0
+    jumpi v2, bb1, bb2
   bb1:
     memory_object_store_word memorybytes, v0, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
     jump bb2
@@ -25,7 +26,7 @@ fn @encode(arg0: u256) -> memoryslice {
 // CHECK: fn @overlapping
 // CHECK: memory_object_len memorybytes, v0
 // CHECK: memory_object_data memorybytes, v0
-fn @overlapping(arg0: u256) -> memoryslice {
+fn @overlapping(arg0: i256) -> memoryslice {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 1

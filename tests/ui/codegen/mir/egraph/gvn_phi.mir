@@ -6,7 +6,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @congruent_phis_collapse{{[( ]}}
 // CHECK: - {{v[0-9]+}} = phi [bb1: arg0], [bb2: arg1]
 // CHECK: + {{v[0-9]+}} = add [[PHI:v[0-9]+]], [[PHI]]
-fn @congruent_phis_collapse(arg0: u256, arg1: u256, arg2: bool) -> u256 {
+fn @congruent_phis_collapse(arg0: i256, arg1: i256, arg2: i1) -> i256 {
   bb0:
     jumpi arg2, bb1, bb2
   bb1:
@@ -25,7 +25,7 @@ fn @congruent_phis_collapse(arg0: u256, arg1: u256, arg2: bool) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @phi_of_same_folds_to_dominating_operand{{[( ]}}
 // CHECK: - {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}]
 // CHECK: + {{v[0-9]+}} = add [[VALUE:v[0-9]+]], [[VALUE]]
-fn @phi_of_same_folds_to_dominating_operand(arg0: u256, arg1: bool) -> u256 {
+fn @phi_of_same_folds_to_dominating_operand(arg0: i256, arg1: i1) -> i256 {
   bb0:
     v2 = add arg0, 1
     jumpi arg1, bb1, bb2
@@ -44,7 +44,7 @@ fn @phi_of_same_folds_to_dominating_operand(arg0: u256, arg1: bool) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @phi_of_congruent_incoming{{[( ]}}
 // CHECK: - {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}]
 // CHECK: + ret {{v[0-9]+}}
-fn @phi_of_congruent_incoming(arg0: u256, arg1: bool) -> u256 {
+fn @phi_of_congruent_incoming(arg0: i256, arg1: i1) -> i256 {
   bb0:
     v2 = add arg0, 1
     jumpi arg1, bb1, bb2
@@ -61,7 +61,7 @@ fn @phi_of_congruent_incoming(arg0: u256, arg1: bool) -> u256 {
 // Phi-of-same over equal immediates folds onto the constant.
 // CHECK-LABEL: {{^[ +].*}}fn @phi_of_equal_immediates{{[( ]}}
 // CHECK: + ret 7
-fn @phi_of_equal_immediates(arg0: bool) -> u256 {
+fn @phi_of_equal_immediates(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:

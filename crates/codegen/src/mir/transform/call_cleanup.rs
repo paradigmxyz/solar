@@ -10,8 +10,7 @@
 //! External lazy arguments have the canonicality invariant established by ABI
 //! lowering: validation loads the raw calldata word separately before the body
 //! can use `Value::Arg`. Only after that phase may their retained unsigned or
-//! boolean input type seed a bound. Internal nominal types never seed facts;
-//! assembly can pass dirty values through those signatures. Public functions,
+//! input metadata seed a bound. Booleans always carry the one-bit bound. Public functions,
 //! constructors, and dispatch entries cannot be specialized from direct callers.
 //!
 //! A contiguous low-bit mask disappears only when the proved bound fits inside
@@ -24,10 +23,7 @@
 //! are retained for profitability, since replacing their materialized result
 //! with an argument changes which values the stack ABI must preserve or spill.
 //!
-//! A separate bounded fixed point proves helpers that return only zero or one
-//! for every input. Double boolean normalization of their results can disappear
-//! without trusting a nominal `bool` return type. Unknown and recursive return
-//! dependencies start unproved; phis require every incoming value to be clean.
+//! Boolean values are canonical by type, so double negation needs no call-graph proof.
 
 use super::egraph::max_bits_with_args;
 use crate::mir::{
@@ -65,22 +61,21 @@ impl MirPass for CallCleanup {
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
         let facts = infer_arguments(module);
-        let boolean_returns = infer_boolean_returns(module);
         let mut changed = false;
         for (id, func) in module.functions.iter_mut_enumerated() {
             let argument_bits = |index| argument_bits(func, id, index, &facts);
             let mut replacements = FxHashMap::default();
             let mut dead = DenseBitSet::<InstId>::new_empty(func.num_insts());
             for inst in func.instructions() {
-                if let InstKind::IsZero(inner) = func.inst(inst).kind
+                if let Some(inner) = func.inst(inst).kind.zero_test_operand(func)
                     && func
                         .inst(inst)
                         .metadata
                         .effect()
                         .is_none_or(|effect| effect == func.inst(inst).kind.effect_kind())
                     && let Value::Inst(inner) = func.value(inner)
-                    && let InstKind::IsZero(value) = func.inst(*inner).kind
-                    && is_boolean(func, value, &boolean_returns, MAX_VALUE_DEPTH, &argument_bits)
+                    && let Some(value) = func.inst(*inner).kind.zero_test_operand(func)
+                    && func.value_ty(value) == Some(crate::mir::MirType::I1)
                     && let Some(result) = func.inst_result_value(inst)
                 {
                     replacements.insert(result, value);
@@ -111,7 +106,7 @@ impl MirPass for CallCleanup {
             }
             if !replacements.is_empty() {
                 // result = and value, low_mask; use result -> use value
-                // result = iszero(iszero(boolean)); use result -> use boolean
+                // result = eq (eq boolean, false), false; use result -> use boolean
                 // NOTE: Removed cleanup instructions lose their debug checkpoints;
                 // their source locations must not be assigned to the replacement value.
                 func.for_each_instruction_mut(|_, inst| {
@@ -129,75 +124,6 @@ impl MirPass for CallCleanup {
             }
         }
         changed
-    }
-}
-
-fn infer_boolean_returns(module: &Module) -> DenseBitSet<FunctionId> {
-    let mut known = DenseBitSet::new_empty(module.functions.len());
-    for _ in 0..MAX_ROUNDS {
-        let mut changed = false;
-        for (id, func) in module.functions.iter_enumerated() {
-            if known.contains(id) || func.return_components().len() != 1 {
-                continue;
-            }
-            let mut has_return = false;
-            let clean = func.blocks.iter().all(|block| match &block.terminator {
-                Some(Terminator::Return { values }) => {
-                    has_return = true;
-                    values.len() == 1
-                        && is_boolean(func, values[0], &known, MAX_VALUE_DEPTH, &|_| 256)
-                }
-                Some(
-                    Terminator::TailCall { .. } | Terminator::Stop | Terminator::ReturnData { .. },
-                )
-                | None => false,
-                _ => true,
-            });
-            if has_return && clean {
-                known.insert(id);
-                changed = true;
-            }
-        }
-        if !changed {
-            break;
-        }
-    }
-    known
-}
-
-fn is_boolean(
-    func: &Function,
-    value: ValueId,
-    returns: &DenseBitSet<FunctionId>,
-    depth: u32,
-    args: &impl Fn(ArgIdx) -> u32,
-) -> bool {
-    if let Some(value) = func.value_u256(value) {
-        return value <= U256::ONE;
-    }
-    let Some(depth) = depth.checked_sub(1) else { return false };
-    let Value::Inst(inst) = func.value(value) else {
-        return matches!(func.value(value), Value::Arg(index) if args(*index) <= 1);
-    };
-    let clean = |value| is_boolean(func, value, returns, depth, args);
-    match &func.inst(*inst).kind {
-        InstKind::Eq(..)
-        | InstKind::Lt(..)
-        | InstKind::Gt(..)
-        | InstKind::SLt(..)
-        | InstKind::SGt(..)
-        | InstKind::IsZero(..) => true,
-        InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
-            returns.contains(*function)
-        }
-        InstKind::Phi(incoming) => {
-            !incoming.is_empty() && incoming.iter().all(|&(_, value)| clean(value))
-        }
-        InstKind::Select(_, a, b) | InstKind::Or(a, b) | InstKind::Xor(a, b) => {
-            clean(*a) && clean(*b)
-        }
-        InstKind::And(a, b) => clean(*a) || clean(*b),
-        _ => false,
     }
 }
 
@@ -273,10 +199,18 @@ fn infer_arguments(module: &Module) -> ArgumentBits {
 }
 
 fn argument_bits(func: &Function, id: FunctionId, index: ArgIdx, facts: &ArgumentBits) -> u32 {
+    if func.params.get(index) == Some(&crate::mir::MirType::I1) {
+        return 1;
+    }
     if func.attributes.is_abi_wrapper && func.selector.is_some() && func.params.is_empty() {
         // ABI validation establishes this bound on the lazy argument. Raw
         // calldata loads used by the validation itself do not enter this arm.
-        return match AbiWordValidator::from_mir_type(func.arg_ty(index)) {
+        return match func
+            .abi_params
+            .as_ref()
+            .and_then(|layout| layout.types.get(index.index()))
+            .and_then(crate::mir::AbiParamType::word_validator)
+        {
             Some(AbiWordValidator::Unsigned(bits)) => u32::from(bits),
             Some(AbiWordValidator::Bool) => 1,
             _ => 256,

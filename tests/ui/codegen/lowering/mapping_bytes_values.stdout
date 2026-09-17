@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/mapping_bytes_values.sol:MappingBytesValues ===
 @module MappingBytesValues
-fn @set(arg0: u256, arg1: memorybytes) [selector=0x8b282947, abi_params=[u256, bytes], abi_returns=[]] {
+fn @set(arg0: i256, arg1: memorybytes) [selector=0x8b282947, abi_params=[u256, bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = mapping_slot arg0, 0
     icall @store_storage_bytes, v0, arg1
     ret
 }
 
-fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) [selector=0x82c2cb5e, abi_params=[u256, u256, bytes], abi_returns=[]] {
+fn @setNested(arg0: i256, arg1: i256, arg2: memorybytes) [selector=0x82c2cb5e, abi_params=[u256, u256, bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = mapping_slot arg0, 1
     v1 = mapping_slot arg1, v0
@@ -15,14 +15,14 @@ fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) [selector=0x82c2cb5e, a
     ret
 }
 
-fn @get(arg0: u256) -> memorybytes [selector=0x9507d39a, view, abi_params=[u256], abi_returns=[memory_bytes]] {
+fn @get(arg0: i256) -> memorybytes [selector=0x9507d39a, view, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = icall @load_storage_bytes, v0
     ret v1
 }
 
-fn @getNested(arg0: u256, arg1: u256) -> memorybytes [selector=0xf7c930ae, view, abi_params=[u256, u256], abi_returns=[memory_bytes]] {
+fn @getNested(arg0: i256, arg1: i256) -> memorybytes [selector=0xf7c930ae, view, abi_params=[u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mapping_slot arg0, 1
     v1 = mapping_slot arg1, v0
@@ -30,13 +30,13 @@ fn @getNested(arg0: u256, arg1: u256) -> memorybytes [selector=0xf7c930ae, view,
     ret v2
 }
 
-fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
 }
 
-fn @load_storage_bytes(arg0: u256) -> memorybytes {
+fn @load_storage_bytes(arg0: i256) -> memorybytes {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0

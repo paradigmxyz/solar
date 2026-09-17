@@ -1,25 +1,27 @@
 // === ROOT/tests/ui/codegen/lowering/builtin_addmod_mulmod.sol:AddmodMulmod ===
 @module AddmodMulmod
-fn @am(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xc1013215, pure, abi_params=[u256, u256, u256], abi_returns=[word]] {
+fn @am(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xc1013215, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    jumpi arg2, bb2, bb1
+    v1 = ne arg2, 0
+    jumpi v1, bb2, bb1
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 18 !metadata(memory=scratch)
     revert 28, 36
   bb2:
-    v1 = addmod arg0, arg1, arg2
-    ret v1
+    v2 = addmod arg0, arg1, arg2
+    ret v2
 }
 
-fn @mm(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x91b121df, pure, abi_params=[u256, u256, u256], abi_returns=[word]] {
+fn @mm(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x91b121df, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    jumpi arg2, bb2, bb1
+    v1 = ne arg2, 0
+    jumpi v1, bb2, bb1
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 18 !metadata(memory=scratch)
     revert 28, 36
   bb2:
-    v1 = mulmod arg0, arg1, arg2
-    ret v1
+    v2 = mulmod arg0, arg1, arg2
+    ret v2
 }

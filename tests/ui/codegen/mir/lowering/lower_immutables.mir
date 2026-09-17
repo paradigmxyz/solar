@@ -3,16 +3,17 @@
 @module LowerImmutables
 immutables:
   first: u8
-  second: bytes20
+  second: bool
 
 // CHECK-LABEL: @constructor
 // CHECK: -     storeimmutable first, arg0
 // CHECK-NEXT: -     storeimmutable second, arg1
 // CHECK-NEXT: +     mstore 192, arg0
-// CHECK-NEXT: +     mstore 224, arg1
+// CHECK-NEXT: +     [[WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} arg1
+// CHECK-NEXT: +     mstore 224, [[WORD]]
 // CHECK-NEXT:       [[LOAD:v[0-9]+]] = loadimmutable first
 // CHECK-NEXT:       ret [[LOAD]]
-fn @constructor(arg0: u8, arg1: bytes20) -> u8 {
+fn @constructor(arg0: i256, arg1: i1) -> i256 {
   bb0:
     storeimmutable first, arg0
     storeimmutable second, arg1

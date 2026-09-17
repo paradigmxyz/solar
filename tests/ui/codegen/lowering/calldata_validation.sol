@@ -27,7 +27,7 @@ contract CalldataValidation {
     // CHECK-LABEL: fn @vUint8{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
     // CHECK: [[HIGH:v[0-9]+]] = shr 8, [[RAW]]
-    // CHECK: iszero [[HIGH]]
+    // CHECK: eq [[HIGH]], {{(0|false)}}
     function vUint8(uint8 x) external pure returns (uint8) {
         return x;
     }
@@ -50,7 +50,7 @@ contract CalldataValidation {
     // CHECK-LABEL: fn @vAddress{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
     // CHECK: [[HIGH:v[0-9]+]] = shr 160, [[RAW]]
-    // CHECK: iszero [[HIGH]]
+    // CHECK: eq [[HIGH]], {{(0|false)}}
     function vAddress(address x) external pure returns (address) {
         return x;
     }
@@ -58,7 +58,7 @@ contract CalldataValidation {
     // CHECK-LABEL: fn @vBytes4{{[( ]}}
     // CHECK: [[RAW:v[0-9]+]] = calldataload 4
     // CHECK: [[LOW:v[0-9]+]] = shl 32, [[RAW]]
-    // CHECK: iszero [[LOW]]
+    // CHECK: eq [[LOW]], {{(0|false)}}
     function vBytes4(bytes4 x) external pure returns (bytes4) {
         return x;
     }

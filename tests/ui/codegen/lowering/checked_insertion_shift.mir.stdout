@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/checked_insertion_shift.sol:CheckedInsertionShift ===
 @module CheckedInsertionShift
-fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>]] {
+fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 1], [bb3: v35]
+    v0 = phi [bb0: 1], [bb3: v34]
     v1 = phi [bb0: memoryarray 96], [bb3: v13]
     v2 = phi [bb0: arg0], [bb3: v10]
     v3 = memory_object_len memoryarray, v2
@@ -17,7 +17,7 @@ fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_param
   bb4:
     v5 = memory_object_len memoryarray, v2
     v6 = lt v0, v5
-    v7 = iszero v6
+    v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = memory_object_load_element memoryarray<1>, v2, v0
     jump bb7
@@ -25,76 +25,74 @@ fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_param
     v9 = phi [bb4: v8], [bb14: v9]
     v10 = phi [bb4: v2], [bb14: v10]
     v11 = phi [bb4: v0], [bb14: v11]
-    v12 = phi [bb4: v0], [bb14: v31]
+    v12 = phi [bb4: v0], [bb14: v30]
     v13 = phi [bb4: v1], [bb14: v13]
-    v14 = eq v12, 0
-    v15 = iszero v14
-    jumpi v15, bb9, bb10
+    v14 = ne v12, 0
+    jumpi v14, bb9, bb10
   bb10:
     jump bb11
   bb9:
-    v16 = checked_sub u256, v12, 1
-    v17 = memory_object_len memoryarray, v10
-    v18 = lt v16, v17
-    v19 = iszero v18
-    icall panic_if<0x32>, v19
-    v20 = memory_object_load_element memoryarray<1>, v10, v16
-    v21 = gt v20, v9
+    v15 = checked_sub u256, v12, 1
+    v16 = memory_object_len memoryarray, v10
+    v17 = lt v15, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = memory_object_load_element memoryarray<1>, v10, v15
+    v20 = gt v19, v9
     jump bb11
   bb11:
-    v22 = phi [bb9: v21], [bb10: false]
-    jumpi v22, bb12, bb13
+    v21 = phi [bb9: v20], [bb10: false]
+    jumpi v21, bb12, bb13
   bb13:
     jump bb8
   bb8:
-    v32 = memory_object_len memoryarray, v10
-    v33 = lt v12, v32
-    v34 = iszero v33
-    icall panic_if<0x32>, v34
+    v31 = memory_object_len memoryarray, v10
+    v32 = lt v12, v31
+    v33 = eq v32, false
+    icall panic_if<0x32>, v33
     memory_object_store_element memoryarray<1>, v10, v12, v9
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v35 = checked_add u256, v11, 1
+    v34 = checked_add u256, v11, 1
     jump bb1
   bb12:
-    v23 = checked_sub u256, v12, 1
-    v24 = memory_object_len memoryarray, v10
-    v25 = lt v23, v24
-    v26 = iszero v25
-    icall panic_if<0x32>, v26
-    v27 = memory_object_load_element memoryarray<1>, v10, v23
-    v28 = memory_object_len memoryarray, v10
-    v29 = lt v12, v28
-    v30 = iszero v29
-    icall panic_if<0x32>, v30
-    memory_object_store_element memoryarray<1>, v10, v12, v27
-    v31 = checked_sub u256, v12, 1
+    v22 = checked_sub u256, v12, 1
+    v23 = memory_object_len memoryarray, v10
+    v24 = lt v22, v23
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = memory_object_load_element memoryarray<1>, v10, v22
+    v27 = memory_object_len memoryarray, v10
+    v28 = lt v12, v27
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    memory_object_store_element memoryarray<1>, v10, v12, v26
+    v30 = checked_sub u256, v12, 1
     jump bb14
   bb14:
     jump bb7
 }
 
-fn @shiftAt(arg0: memoryarray, arg1: u256) -> memoryarray [selector=0xa227bfd8, pure, abi_params=[array<_, u256>, u256], abi_returns=[memory_array<word>]] {
+fn @shiftAt(arg0: memoryarray, arg1: i256) -> memoryarray [selector=0xa227bfd8, pure, abi_params=[array<_, u256>, u256], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
-    v0 = eq arg1, 0
-    v1 = iszero v0
-    jumpi v1, bb1, bb2
+    v0 = ne arg1, 0
+    jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v2 = checked_sub u256, arg1, 1
-    v3 = memory_object_len memoryarray, arg0
-    v4 = lt v2, v3
-    v5 = iszero v4
-    icall panic_if<0x32>, v5
-    v6 = memory_object_load_element memoryarray<1>, arg0, v2
-    v7 = memory_object_len memoryarray, arg0
-    v8 = lt arg1, v7
-    v9 = iszero v8
-    icall panic_if<0x32>, v9
-    memory_object_store_element memoryarray<1>, arg0, arg1, v6
+    v1 = checked_sub u256, arg1, 1
+    v2 = memory_object_len memoryarray, arg0
+    v3 = lt v1, v2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = memory_object_load_element memoryarray<1>, arg0, v1
+    v6 = memory_object_len memoryarray, arg0
+    v7 = lt arg1, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    memory_object_store_element memoryarray<1>, arg0, arg1, v5
     jump bb3
   bb3:
     ret arg0

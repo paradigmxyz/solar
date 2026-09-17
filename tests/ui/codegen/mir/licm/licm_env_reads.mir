@@ -7,7 +7,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @keep_balance_with_call{{[( ]}}
 // CHECK: {{^[ +].*}}[[BALANCE:v[0-9]+]] = balance 0xbeef
 // CHECK: {{^[ +].*[ =]call[[:space:]]}}
-fn @keep_balance_with_call() -> u256 {
+fn @keep_balance_with_call() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -27,7 +27,7 @@ fn @keep_balance_with_call() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_balance_with_callcode{{[( ]}}
 // CHECK: {{^[ +].*}}[[BALANCE:v[0-9]+]] = balance 0xbeef
 // CHECK: {{^[ +].*[ =]callcode[[:space:]]}}
-fn @keep_balance_with_callcode() -> u256 {
+fn @keep_balance_with_callcode() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -47,7 +47,7 @@ fn @keep_balance_with_callcode() -> u256 {
 // CHECK: + [[BALANCE:v[0-9]+]] = balance 0xbeef
 // CHECK: + {{v[0-9]+}} = mul [[BALANCE]], 3
 // CHECK: - [[BALANCE]] = balance 0xbeef
-fn @hoist_balance_without_calls() -> u256 {
+fn @hoist_balance_without_calls() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -65,7 +65,7 @@ fn @hoist_balance_without_calls() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_extcodesize_with_create{{[( ]}}
 // CHECK: {{^[ +].*}}extcodesize
 // CHECK: {{^[ +].*}}create
-fn @keep_extcodesize_with_create() -> u256 {
+fn @keep_extcodesize_with_create() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -84,7 +84,7 @@ fn @keep_extcodesize_with_create() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_returndatasize_with_staticcall{{[( ]}}
 // CHECK: {{^[ +].*}}returndatasize
 // CHECK: {{^[ +].*}}staticcall
-fn @keep_returndatasize_with_staticcall() -> u256 {
+fn @keep_returndatasize_with_staticcall() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -102,7 +102,7 @@ fn @keep_returndatasize_with_staticcall() -> u256 {
 // msize observes memory expansion and must never move.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_msize{{[( ]}}
 // CHECK: {{^[ +].*}}msize
-fn @keep_msize() -> u256 {
+fn @keep_msize() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -120,7 +120,7 @@ fn @keep_msize() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_returndatasize_with_sha256{{[( ]}}
 // CHECK: {{^[ +] *}}bb2:
 // CHECK-NEXT: {{^[ +].*}}v{{[0-9]+}} = returndatasize
-fn @keep_returndatasize_with_sha256(arg0: memorybytes) -> u256 {
+fn @keep_returndatasize_with_sha256(arg0: memorybytes) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -139,7 +139,7 @@ fn @keep_returndatasize_with_sha256(arg0: memorybytes) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_returndatasize_with_ripemd160{{[( ]}}
 // CHECK: {{^[ +] *}}bb2:
 // CHECK-NEXT: {{^[ +].*}}v{{[0-9]+}} = returndatasize
-fn @keep_returndatasize_with_ripemd160(arg0: memorybytes) -> u256 {
+fn @keep_returndatasize_with_ripemd160(arg0: memorybytes) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -158,7 +158,7 @@ fn @keep_returndatasize_with_ripemd160(arg0: memorybytes) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_returndatasize_with_ecrecover{{[( ]}}
 // CHECK: {{^[ +] *}}bb2:
 // CHECK-NEXT: {{^[ +].*}}v{{[0-9]+}} = returndatasize
-fn @keep_returndatasize_with_ecrecover() -> u256 {
+fn @keep_returndatasize_with_ecrecover() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -177,7 +177,7 @@ fn @keep_returndatasize_with_ecrecover() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @gas_precompile{{[( ]}}
 // CHECK: {{^[ +] *}}bb2:
 // CHECK-NEXT: {{^[ +].*}}v{{[0-9]+}} = mul arg0, 3
-fn @gas_precompile(arg0: u256, arg1: memorybytes) -> u256 {
+fn @gas_precompile(arg0: i256, arg1: memorybytes) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -195,7 +195,7 @@ fn @gas_precompile(arg0: u256, arg1: memorybytes) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @gas_default_call{{[( ]}}
 // CHECK: {{^[ +] *}}bb2:
 // CHECK-NEXT: {{^[ +].*}}v{{[0-9]+}} = mul arg0, 3
-fn @gas_default_call(arg0: u256, arg1: memorybytes) -> u256 {
+fn @gas_default_call(arg0: i256, arg1: memorybytes) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -212,7 +212,7 @@ fn @gas_default_call(arg0: u256, arg1: memorybytes) -> u256 {
 // Gas reads introduced by builtin expansion must already constrain motion.
 // CHECK-LABEL: {{^[ +].*}}fn @gas_explicit_call{{[( ]}}
 // CHECK: + {{v[0-9]+}} = mul arg0, 3
-fn @gas_explicit_call(arg0: u256, arg1: memorybytes) -> u256 {
+fn @gas_explicit_call(arg0: i256, arg1: memorybytes) -> i256 {
   bb0:
     jump bb1
   bb1:

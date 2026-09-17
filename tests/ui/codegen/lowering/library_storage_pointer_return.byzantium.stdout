@@ -2,35 +2,35 @@
 @module Lib
 @library
 types:
-  struct0: {u256, memoryfixedarray}
-  struct1: {u256, u256}
+  struct0: {i256, memoryfixedarray}
+  struct1: {i256, i256}
 
-fn @arrRef(arg0: storageptr) -> storageptr [selector=0x1fbd3e50, pure, abi_params=[storageptr], abi_returns=[word]] {
+fn @arrRef(arg0: i256) -> i256 [selector=0x1fbd3e50, pure, abi_params=[storageptr], abi_returns=[word], abi_return_params=[storageptr]] {
   bb0:
     ret arg0
 }
 
-fn @bytesRef(arg0: storageptr) -> storageptr [selector=0x4d5b8d56, pure, abi_params=[storageptr], abi_returns=[word]] {
+fn @bytesRef(arg0: i256) -> i256 [selector=0x4d5b8d56, pure, abi_params=[storageptr], abi_returns=[word], abi_return_params=[storageptr]] {
   bb0:
     ret arg0
 }
 
-fn @plainRef(arg0: storageptr) -> storageptr [selector=0xd4ba1053, pure, abi_params=[storageptr], abi_returns=[word]] {
+fn @plainRef(arg0: i256) -> i256 [selector=0xd4ba1053, pure, abi_params=[storageptr], abi_returns=[word], abi_return_params=[storageptr]] {
   bb0:
     ret arg0
 }
 
-fn @fixedRef(arg0: storageptr) -> storageptr [selector=0x23fe6d5e, pure, abi_params=[storageptr], abi_returns=[word]] {
+fn @fixedRef(arg0: i256) -> i256 [selector=0x23fe6d5e, pure, abi_params=[storageptr], abi_returns=[word], abi_return_params=[storageptr]] {
   bb0:
     ret arg0
 }
 
-fn @mapRef(arg0: storageptr) -> storageptr [selector=0xca34aaa5, pure, abi_params=[storageptr], abi_returns=[word]] {
+fn @mapRef(arg0: i256) -> i256 [selector=0xca34aaa5, pure, abi_params=[storageptr], abi_returns=[word], abi_return_params=[storageptr]] {
   bb0:
     ret arg0
 }
 
-fn @aggRef(arg0: storageptr) -> struct0 [selector=0xed18bf21, pure, abi_params=[storageptr], abi_returns=[word, array<2, word>], abi_return_params=[storageptr, array<2, u256>]] {
+fn @aggRef(arg0: i256) -> struct0 [selector=0xed18bf21, pure, abi_params=[storageptr], abi_returns=[word, array<2, word>], abi_return_params=[storageptr, array<2, u256>]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v0, 64
@@ -42,7 +42,7 @@ fn @aggRef(arg0: storageptr) -> struct0 [selector=0xed18bf21, pure, abi_params=[
     ret v3
 }
 
-fn @pairRef(arg0: storageptr) -> struct1 [selector=0x4a3c24da, view, abi_params=[storageptr], abi_returns=[word, word], abi_return_params=[u256, storageptr]] {
+fn @pairRef(arg0: i256) -> struct1 [selector=0x4a3c24da, view, abi_params=[storageptr], abi_returns=[word, word], abi_return_params=[u256, storageptr]] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = insert_value struct1, undef struct1, 0, v0
@@ -53,16 +53,16 @@ fn @pairRef(arg0: storageptr) -> struct1 [selector=0x4a3c24da, view, abi_params=
 // === ROOT/tests/ui/codegen/lowering/library_storage_pointer_return.sol:C ===
 @module C
 types:
-  struct0: {u256, u256}
-  struct1: {u256, memoryfixedarray}
+  struct0: {i256, i256}
+  struct1: {i256, memoryfixedarray}
 
-fn @len() -> u256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word]] {
+fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], selector 0x1fbd3e5000000000000000000000000000000000000000000000000000000000, args 0
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    v4 = delegatecall v3, i160 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
     jumpi v4, bb2, bb1
   bb1:
     revert_returndata
@@ -73,13 +73,13 @@ fn @len() -> u256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word]]
     ret v7
 }
 
-fn @bytesLen() -> u256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[word]] {
+fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], selector 0x4d5b8d5600000000000000000000000000000000000000000000000000000000, args 1
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    v4 = delegatecall v3, i160 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
     jumpi v4, bb2, bb1
   bb1:
     revert_returndata
@@ -97,13 +97,13 @@ fn @bytesLen() -> u256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
     ret v13
 }
 
-fn @member() -> u256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[word]] {
+fn @member() -> i256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], selector 0xd4ba105300000000000000000000000000000000000000000000000000000000, args 2
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    v4 = delegatecall v3, i160 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
     jumpi v4, bb2, bb1
   bb1:
     revert_returndata
@@ -120,7 +120,7 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    v4 = delegatecall v3, i160 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
     jumpi v4, bb2, bb1
   bb1:
     revert_returndata
@@ -139,13 +139,13 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
     ret v15
 }
 
-fn @fixedLast() -> u256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[word]] {
+fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], selector 0x23fe6d5e00000000000000000000000000000000000000000000000000000000, args 3
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    v4 = delegatecall v3, i160 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
     jumpi v4, bb2, bb1
   bb1:
     revert_returndata
@@ -153,20 +153,20 @@ fn @fixedLast() -> u256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
     v5 = icall returndata_bytes<>
     v6 = abi_decode [storageptr], v5
     v7 = lt 2, 3
-    v8 = iszero v7
+    v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = add v6, 2
     v10 = sload v9 !metadata(storage=offset(v6, 2))
     ret v10
 }
 
-fn @mapValue(arg0: u256) -> u256 [selector=0x152381f4, view, abi_params=[u256], abi_returns=[word]] {
+fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], selector 0xca34aaa500000000000000000000000000000000000000000000000000000000, args 6
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    v4 = delegatecall v3, i160 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
     jumpi v4, bb2, bb1
   bb1:
     revert_returndata
@@ -184,7 +184,7 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    v4 = delegatecall v3, i160 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
     jumpi v4, bb2, bb1
   bb1:
     revert_returndata
@@ -199,7 +199,7 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     v12 = extract_value struct1, v10, 1
     v13 = sload v11 !metadata(storage=symbolic(v11))
     v14 = lt 1, 2
-    v15 = iszero v14
+    v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = memory_object_load_element memoryfixedarray<2, 1>, v12, 1
     v17 = insert_value struct0, undef struct0, 0, v13
@@ -207,13 +207,13 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     ret v18
 }
 
-fn @attached() -> u256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word]] {
+fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], selector 0x1fbd3e5000000000000000000000000000000000000000000000000000000000, args 0
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    v4 = delegatecall v3, i160 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
     jumpi v4, bb2, bb1
   bb1:
     revert_returndata

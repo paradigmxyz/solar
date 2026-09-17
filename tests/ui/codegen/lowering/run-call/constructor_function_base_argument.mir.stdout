@@ -1,19 +1,19 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_base_argument.sol:ConstructorFunctionBaseBase ===
 @module ConstructorFunctionBaseBase
-fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     ret
 }
 
-fn @two() -> u256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word]] {
+fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 2
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_base_argument.sol:ConstructorFunctionBase ===
 @module ConstructorFunctionBase
-fn @two() -> u256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word]] {
+fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 2
 }
@@ -29,13 +29,13 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_base_argument.sol:ConstructorFunctionBaseDerived ===
 @module ConstructorFunctionBaseDerived
-fn @getA() -> u256 [selector=0xd46300fd, view, abi_params=[], abi_returns=[word]] {
+fn @getA() -> i256 [selector=0xd46300fd, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @two() -> u256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word]] {
+fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 2
 }

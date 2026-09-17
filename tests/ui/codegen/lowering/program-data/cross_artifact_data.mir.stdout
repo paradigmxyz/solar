@@ -17,7 +17,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @runtimeData() -> memorybytes [selector=0x69ad4ffa, pure, abi_params=[], abi_returns=[memory_bytes]] {
+fn @runtimeData() -> memorybytes [selector=0x69ad4ffa, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 160

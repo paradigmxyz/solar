@@ -5,13 +5,14 @@ fn @setFlag() {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 255
     v2 = and v0, v1
-    v3 = and true, 255
-    v4 = or v2, v3
-    sstore 0, v4 !metadata(storage=slot(0))
+    v3 = zext i1 1 to i256
+    v4 = and v3, 255
+    v5 = or v2, v4
+    sstore 0, v5 !metadata(storage=slot(0))
     ret
 }
 
-fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     icall @internal_dispatcher_p_none_r_none, 1
     v0 = sload 0 !metadata(storage=slot(0))
@@ -19,7 +20,7 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     ret v1
 }
 
-fn @internal_dispatcher_p_none_r_none(arg0: function) [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_none_r_none(arg0: i256) [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2

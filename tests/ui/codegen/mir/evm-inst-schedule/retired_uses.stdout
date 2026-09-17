@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/retired_uses.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/retired_uses.mir (after dce) ===
   @module EvmInstScheduleRetiredUses
-  fn @retired_use_does_not_block_scheduling(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+  fn @retired_use_does_not_block_scheduling(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 {
     bb0:
       v0 = add arg0, arg1
 -     v1 = mul v0, arg2
@@ -13,7 +13,7 @@
 - // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/retired_uses.mir (before evm-inst-schedule) ===
 + // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/retired_uses.mir (after evm-inst-schedule) ===
   @module EvmInstScheduleRetiredUses
-  fn @retired_use_does_not_block_scheduling(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+  fn @retired_use_does_not_block_scheduling(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 {
     bb0:
 -     v0 = add arg0, arg1
       v2 = div arg2, arg3

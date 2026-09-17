@@ -19,6 +19,7 @@ bb0:
   push_immutable 3, 20
   push_immutable 4, 32
   push_immutable 5, 2
+  swap 2
   swap 4
   push 1
   signextend
@@ -31,6 +32,7 @@ bb0:
   swap 1
   push 192
   mstore
+  swap 1
   push 224
   mstore
   swap 1

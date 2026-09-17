@@ -1,26 +1,26 @@
 // === ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol:TryLib ===
 @module TryLib
 @library
-fn @double(arg0: u256) -> u256 [selector=0xeee97206, pure, abi_params=[u256], abi_returns=[word]] {
+fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_mul u256, 2, arg0
     ret v0
 }
 
-fn @noop(arg0: u256) [selector=0x67190395, pure, abi_params=[u256], abi_returns=[]] {
+fn @noop(arg0: i256) [selector=0x67190395, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol:TryLibraryCall ===
 @module TryLibraryCall
-fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
+fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @libCall(arg0: u256) -> u256 [selector=0x34ea0c3e, abi_params=[u256], abi_returns=[word]] {
+fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = library_address "ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol":"TryLib"
     v1 = gas
@@ -46,18 +46,19 @@ fn @libCall(arg0: u256) -> u256 [selector=0x34ea0c3e, abi_params=[u256], abi_ret
     ret v8
 }
 
-fn @libNoReturn(arg0: u256) -> u256 [selector=0x364676bf, abi_params=[u256], abi_returns=[word]] {
+fn @libNoReturn(arg0: i256) -> i256 [selector=0x364676bf, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = library_address "ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol":"TryLib"
     v1 = gas
     v2 = abi_encode [word], selector 0x6719039500000000000000000000000000000000000000000000000000000000, args arg0
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = extcodesize v0
-    v6 = iszero v5
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = delegatecall v1, v0, v3, v4, 0, 0
-    jumpi v7, bb1, bb2
+    v5 = zext i160 v0 to i256
+    v6 = extcodesize v5
+    v7 = eq v6, 0
+    icall revert_if<target_contract_has_no_code>, v7
+    v8 = delegatecall v1, v0, v3, v4, 0, 0
+    jumpi v8, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -69,6 +70,6 @@ fn @libNoReturn(arg0: u256) -> u256 [selector=0x364676bf, abi_params=[u256], abi
     sstore 0, 1 !metadata(storage=slot(0))
     jump bb3
   bb3:
-    v8 = phi [bb1: 1], [bb4: 7]
-    ret v8
+    v9 = phi [bb1: 1], [bb4: 7]
+    ret v9
 }

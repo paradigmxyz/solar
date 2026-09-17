@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_boundary_array_packing_not_overlapping_variable.sol:StorageBoundaryArrayPacking ===
 @module StorageBoundaryArrayPacking
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
-fn @getArray() -> storageptr [pure] {
+fn @getArray() -> i256 [pure] {
   bb0:
     v0 = sub 0, 1
     ret v0
 }
 
-fn @getCanary() -> storageptr [pure] {
+fn @getCanary() -> i256 [pure] {
   bb0:
     ret 2
 }
@@ -31,7 +31,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     memory_object_store_element memoryfixedarray<10, 1>, v2, 8, 9
     memory_object_store_element memoryfixedarray<10, 1>, v2, 9, 10
     v3 = lt 0, 1
-    v4 = iszero v3
+    v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = mul 0, 3
     v6 = add v1, v5
@@ -48,7 +48,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     memory_object_store_element memoryfixedarray<5, 1>, v32, 3, 14
     memory_object_store_element memoryfixedarray<5, 1>, v32, 4, 15
     v33 = lt 0, 1
-    v34 = iszero v33
+    v34 = eq v33, false
     icall panic_if<0x32>, v34
     v35 = mul 0, 3
     v36 = add v1, v35
@@ -66,7 +66,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v65 = phi [bb9: v0], [bb15: v65]
     v66 = phi [bb9: v1], [bb15: v66]
     v67 = lt 0, 1
-    v68 = iszero v67
+    v68 = eq v67, false
     icall panic_if<0x32>, v68
     v69 = mul 0, 3
     v70 = add v66, v69
@@ -81,12 +81,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     ret v90
   bb16:
     v72 = lt 0, 1
-    v73 = iszero v72
+    v73 = eq v72, false
     icall panic_if<0x32>, v73
     v74 = mul 0, 3
     v75 = add v66, v74
     v76 = lt v63, 10
-    v77 = iszero v76
+    v77 = eq v76, false
     icall panic_if<0x32>, v77
     v78 = div v63, 4
     v79 = add v75, v78

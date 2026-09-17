@@ -6,11 +6,10 @@
 //! only after those optimizations have finished.
 
 use crate::mir::{
-    Callee, EffectKind, FunctionId, Immediate, InstKind, MemoryRegion, Module, Terminator, Value,
+    Callee, EffectKind, FunctionBuilder, FunctionId, InstKind, MemoryRegion, Module, Terminator,
     immutable::{immutable_staging_addr, immutable_staging_base},
     pass::MirPass,
 };
-use alloy_primitives::U256;
 use solar_data_structures::bit_set::DenseBitSet;
 use std::collections::VecDeque;
 
@@ -39,24 +38,27 @@ impl MirPass for LowerImmutables {
             if runtime_reachable.contains(func_id) {
                 continue;
             }
-            let stores: Vec<_> = func
-                .instructions()
-                .filter_map(|inst_id| match func.inst(inst_id).kind {
-                    InstKind::StoreImmutable(id, value) => Some((inst_id, id, value)),
-                    _ => None,
-                })
-                .collect();
-
-            for &(inst_id, id, value) in &stores {
-                let addr = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(
-                    immutable_staging_addr(staging_base, id),
-                ))));
-                let inst = func.inst_mut(inst_id);
-                inst.kind = InstKind::MStore(addr, value);
-                inst.metadata.set_effect(Some(EffectKind::MemoryWrite));
-                inst.metadata.set_memory_region(Some(MemoryRegion::Unknown));
+            for block in func.blocks.indices() {
+                let instructions = std::mem::take(&mut func.blocks[block].instructions);
+                let mut builder = FunctionBuilder::new(func);
+                builder.switch_to_block(block);
+                for inst_id in instructions {
+                    if let InstKind::StoreImmutable(id, value) = builder.func().inst(inst_id).kind {
+                        // word = zext integer or ptrtoint pointer to i256
+                        // mstore staging_address, word
+                        let metadata = builder.func().inst(inst_id).metadata.debug_context();
+                        builder.set_debug_context(&metadata);
+                        let value = builder.cast_word(value);
+                        let addr = builder.imm(immutable_staging_addr(staging_base, id));
+                        let inst = builder.func_mut().inst_mut(inst_id);
+                        inst.kind = InstKind::MStore(addr, value);
+                        inst.metadata.set_effect(Some(EffectKind::MemoryWrite));
+                        inst.metadata.set_memory_region(Some(MemoryRegion::Unknown));
+                        changed = true;
+                    }
+                    builder.func_mut().blocks[block].instructions.push(inst_id);
+                }
             }
-            changed |= !stores.is_empty();
         }
         changed
     }

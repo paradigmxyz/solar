@@ -3,10 +3,10 @@
 
 // Constant shift chains saturate at 256, including addition overflow.
 types:
-  struct0: {u256, u256, u256}
-  struct1: {u256, u256}
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256}
 
-fn @shift_chains(arg0: u256) -> struct0 [return_abi=[u256, u256, u256]] {
+fn @shift_chains(arg0: i256) -> struct0 [return_abi=[i256, i256, i256]] {
   bb0:
     v1 = shl 8, arg0
     v2 = shl 16, v1
@@ -17,7 +17,7 @@ fn @shift_chains(arg0: u256) -> struct0 [return_abi=[u256, u256, u256]] {
     ret v2, v4, v6
 }
 
-fn @shift_overflow(arg0: u256) -> struct0 [return_abi=[u256, u256, u256]] {
+fn @shift_overflow(arg0: i256) -> struct0 [return_abi=[i256, i256, i256]] {
   bb0:
     v1 = shl 1, arg0
     v2 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v1
@@ -29,14 +29,14 @@ fn @shift_overflow(arg0: u256) -> struct0 [return_abi=[u256, u256, u256]] {
 }
 
 // Opposite logical shifts stay intact to avoid expensive mask materialization.
-fn @low_byte(arg0: u256) -> u256 {
+fn @low_byte(arg0: i256) -> i256 {
   bb0:
     v1 = shl 248, arg0
     v2 = shr 248, v1
     ret v2
 }
 
-fn @high_bits(arg0: u256) -> u256 {
+fn @high_bits(arg0: i256) -> i256 {
   bb0:
     v1 = shr 8, arg0
     v2 = shl 8, v1
@@ -44,21 +44,21 @@ fn @high_bits(arg0: u256) -> u256 {
 }
 
 // Arithmetic shift pairs must preserve the sign, not zero extend.
-fn @signed_byte(arg0: u256) -> u256 {
+fn @signed_byte(arg0: i256) -> i256 {
   bb0:
     v1 = shl 248, arg0
     v2 = sar 248, v1
     ret v2
 }
 
-fn @unaligned_signed_bits(arg0: u256) -> u256 {
+fn @unaligned_signed_bits(arg0: i256) -> i256 {
   bb0:
     v1 = shl 249, arg0
     v2 = sar 249, v1
     ret v2
 }
 
-fn @nested_sign_extension(arg0: u256) -> struct1 [return_abi=[u256, u256]] {
+fn @nested_sign_extension(arg0: i256) -> struct1 [return_abi=[i256, i256]] {
   bb0:
     v1 = signextend 0, arg0
     v2 = signextend 2, v1
@@ -67,7 +67,7 @@ fn @nested_sign_extension(arg0: u256) -> struct1 [return_abi=[u256, u256]] {
     ret v2, v4
 }
 
-fn @unbounded_sign_extension(arg0: u256) -> u256 {
+fn @unbounded_sign_extension(arg0: i256) -> i256 {
   bb0:
     v1 = signextend 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
     v2 = signextend 31, v1
@@ -75,14 +75,14 @@ fn @unbounded_sign_extension(arg0: u256) -> u256 {
 }
 
 // Dynamic counts and unequal opposite shifts are not fused.
-fn @dynamic_shifts(arg0: u256, arg1: u256) -> u256 {
+fn @dynamic_shifts(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = shl arg1, arg0
     v3 = shl arg1, v2
     ret v3
 }
 
-fn @unequal_shifts(arg0: u256) -> u256 {
+fn @unequal_shifts(arg0: i256) -> i256 {
   bb0:
     v1 = shl 248, arg0
     v2 = shr 249, v1
@@ -91,7 +91,7 @@ fn @unequal_shifts(arg0: u256) -> u256 {
 
 // Repeating the same dynamic extension is also idempotent, even when its
 // index is above 30 and both operations are identities.
-fn @repeated_dynamic_extension(arg0: u256, arg1: u256) -> u256 {
+fn @repeated_dynamic_extension(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = signextend arg1, arg0
     v3 = signextend arg1, v2

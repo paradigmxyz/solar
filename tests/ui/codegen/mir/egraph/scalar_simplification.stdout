@@ -2,14 +2,14 @@
 + // === ROOT/tests/ui/codegen/mir/egraph/scalar_simplification.mir (after egraph) ===
   @module ScalarSimplification
   types:
-    struct0: {u256, u256, u256, u256, u256}
-    struct1: {u256, u256, u256, u256, u256, u256, u256, u256, u256, bool, bool, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256}
-    struct2: {u256, u256}
-    struct3: {u256, u256, u256, u256, bool, bool, bool, bool, u256, u256}
-    struct4: {u256, u256, bool, bool, bool, u256, u256, u256, u256}
-    struct5: {bool, bool, u256, bool, bool}
+    struct0: {i256, i256, i256, i256, i256}
+    struct1: {i256, i256, i256, i256, i256, i256, i256, i256, i256, i1, i1, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256}
+    struct2: {i256, i256}
+    struct3: {i256, i256, i256, i256, i1, i1, i1, i1, i256, i256}
+    struct4: {i256, i256, i1, i1, i1, i256, i256, i256, i256}
+    struct5: {i1, i1, i256, i1, i1}
   
-  fn @strength_reduce_arithmetic(arg0: u256) -> u256 {
+  fn @strength_reduce_arithmetic(arg0: i256) -> i256 {
     bb0:
 -     v0 = mul arg0, 32
 -     v1 = div v0, 8
@@ -32,19 +32,18 @@
       ret v11
   }
   
-  fn @simplify_booleans(arg0: bool, arg1: u256, arg2: u256) -> struct5 [return_abi=[bool, bool, u256, bool, bool]] {
+  fn @simplify_booleans(arg0: i1, arg1: i256, arg2: i256) -> struct5 [return_abi=[i1, i1, i256, i1, i1]] {
     bb0:
-      v0 = eq arg0, true
--     v1 = eq arg0, false
+-     v0 = eq arg0, true
+      v1 = eq arg0, false
 -     v2 = select true, arg1, arg2
-+     v1 = iszero arg0
-      v3 = select arg0, true, false
+-     v3 = select arg0, true, false
       v4 = select arg0, false, true
 -     ret v0, v1, v2, v3, v4
-+     ret v0, v1, arg1, v3, v4
++     ret arg0, v1, arg1, arg0, v4
   }
   
-  fn @remove_zero_length_copies(arg0: u256) -> u256 {
+  fn @remove_zero_length_copies(arg0: i256) -> i256 {
     bb0:
 -     mcopy 64, 96, 0
 -     calldatacopy 128, 0, 0
@@ -53,19 +52,19 @@
       ret arg0
   }
   
-  fn @stop_zero_length_external_return(arg0: u256) [selector=0x01020304] {
+  fn @stop_zero_length_external_return(arg0: i256) [selector=0x01020304] {
     bb0:
 -     v0 = xor arg0, arg0
 -     returndata arg0, v0
 +     stop
   }
   
-  fn @preserve_zero_length_internal_return(arg0: u256) {
+  fn @preserve_zero_length_internal_return(arg0: i256) {
     bb0:
       returndata arg0, 0
   }
   
-  fn @fold_modular_helpers(arg0: u256) -> u256 {
+  fn @fold_modular_helpers(arg0: i256) -> i256 {
     bb0:
 -     v0 = addmod arg0, 0, 0
 -     v1 = mulmod arg0, 0, 97
@@ -74,40 +73,46 @@
 +     ret 0
   }
   
-  fn @complete_word_identities(arg0: u256, arg1: bool) -> struct4 [return_abi=[u256, u256, bool, bool, bool, u256, u256, u256, u256]] {
+  fn @complete_word_identities(arg0: i256, arg1: i1) -> struct4 [return_abi=[i256, i256, i1, i1, i1, i256, i256, i256, i256]] {
     bb0:
 -     v0 = or arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -     v1 = xor arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     v1 = not arg0
-      v2 = iszero arg1
-      v3 = iszero v2
-      v4 = lt 0, arg1
--     v5 = gt arg1, 0
--     v6 = shl 256, arg0
--     v7 = shr 300, arg0
--     v8 = byte 32, arg0
--     v9 = signextend 32, arg0
--     ret v0, v1, v3, v4, v5, v6, v7, v8, v9
-+     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v1, v3, v4, v4, 0, 0, 0, arg0
+      v2 = eq arg1, false
+-     v3 = eq v2, false
+      v4 = zext i1 arg1 to i256
+-     v5 = lt 0, v4
+-     v6 = zext i1 arg1 to i256
+-     v7 = gt v6, 0
+-     v8 = shl 256, arg0
+-     v9 = shr 300, arg0
+-     v10 = byte 32, arg0
+-     v11 = signextend 32, arg0
+-     ret v0, v1, v3, v5, v7, v8, v9, v10, v11
++     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v1, arg1, arg1, arg1, 0, 0, 0, arg0
   }
   
-  fn @complete_exact_identities(arg0: u256, arg1: bool) -> struct3 [return_abi=[u256, u256, u256, u256, bool, bool, bool, bool, u256, u256]] {
+  fn @complete_exact_identities(arg0: i256, arg1: i1) -> struct3 [return_abi=[i256, i256, i256, i256, i1, i1, i1, i1, i256, i256]] {
     bb0:
       v0 = not arg0
 -     v1 = and arg0, v0
 -     v2 = or arg0, v0
 -     v3 = xor arg0, v0
-      v4 = lt arg1, 2
-      v5 = lt 1, arg1
--     v6 = gt 2, arg1
--     v7 = gt arg1, 1
--     v8 = byte 0, 0
--     v9 = signextend 3, 0
--     ret v0, v1, v2, v3, v4, v5, v6, v7, v8, v9
-+     ret v0, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v4, v5, v4, v5, 0, 0
+      v4 = zext i1 arg1 to i256
+-     v5 = lt v4, 2
+-     v6 = zext i1 arg1 to i256
+-     v7 = lt 1, v6
+-     v8 = zext i1 arg1 to i256
+-     v9 = gt 2, v8
+-     v10 = zext i1 arg1 to i256
+-     v11 = gt v10, 1
+-     v12 = byte 0, 0
+-     v13 = signextend 3, 0
+-     ret v0, v1, v2, v3, v5, v7, v9, v11, v12, v13
++     ret v0, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, true, false, true, false, 0, 0
   }
   
-  fn @fold_modular_mod_one(arg0: u256, arg1: u256) -> u256 {
+  fn @fold_modular_mod_one(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = addmod arg0, arg1, 1
 -     v1 = mulmod arg0, arg1, 1
@@ -116,13 +121,13 @@
 +     ret 0
   }
   
-  fn @keep_exp_zero_base_with_unknown_exponent(arg0: u256) -> u256 {
+  fn @keep_exp_zero_base_with_unknown_exponent(arg0: i256) -> i256 {
     bb0:
       v0 = exp 0, arg0
       ret v0
   }
   
-  fn @fold_wide_modular_constants() -> struct2 [return_abi=[u256, u256]] {
+  fn @fold_wide_modular_constants() -> struct2 [return_abi=[i256, i256]] {
     bb0:
 -     v0 = addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 3
 -     v1 = mulmod 0x100000000000000000000000000000000, 0x100000000000000000000000000000000, 7
@@ -130,7 +135,7 @@
 +     ret 2, 2
   }
   
-  fn @fold_constant_ops() -> struct1 [return_abi=[u256, u256, u256, u256, u256, u256, u256, u256, u256, bool, bool, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256]] {
+  fn @fold_constant_ops() -> struct1 [return_abi=[i256, i256, i256, i256, i256, i256, i256, i256, i256, i1, i1, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256]] {
     bb0:
 -     v0 = add 7, 5
 -     v1 = sub 7, 9
@@ -159,7 +164,7 @@
 +     ret 12, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 42, 8, 0, 2, 256, 2, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, true, true, 15, 17, 12, 256, 16, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc, 255, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 5
   }
   
-  fn @fold_clz_constants() -> struct0 [return_abi=[u256, u256, u256, u256, u256]] {
+  fn @fold_clz_constants() -> struct0 [return_abi=[i256, i256, i256, i256, i256]] {
     bb0:
 -     v0 = clz 0
 -     v1 = clz 1
@@ -170,7 +175,7 @@
 +     ret 256, 255, 248, 1, 0
   }
   
-  fn @checked_constants() -> u256 {
+  fn @checked_constants() -> i256 {
     bb0:
       v0 = checked_add u8, 255, 1
       v1 = checked_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -180,14 +185,14 @@
 +     ret 243
   }
   
-  fn @wrapping_signed_division() -> u256 {
+  fn @wrapping_signed_division() -> i256 {
     bb0:
 -     v0 = wrapping_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -     ret v0
 +     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
   }
   
-  fn @constant_checks(arg0: u256) {
+  fn @constant_checks(arg0: i256) {
     bb0:
 -     icall panic_if<0x1>, false
 -     icall panic_if_zero<0x12>, true
@@ -205,7 +210,7 @@
       ret
   }
   
-  fn @checked_modular() -> u256 {
+  fn @checked_modular() -> i256 {
     bb0:
 -     v0 = icall checked_addmod<>, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 3
 -     v1 = icall checked_mulmod<>, 5, 5, 7
@@ -214,16 +219,16 @@
 +     ret 6
   }
   
-  fn @checked_modular_zero(arg0: u256) {
+  fn @checked_modular_zero(arg0: i256) {
     bb0:
       v0 = icall checked_addmod<>, arg0, 0, 0
       v1 = icall checked_mulmod<>, 0, arg0, 0
       ret
   }
   
-  fn @check_polarity(arg0: u256) {
+  fn @check_polarity(arg0: i1) {
     bb0:
-      v0 = iszero arg0
+      v0 = eq arg0, false
 -     icall panic_if<0x1>, v0
 -     icall panic_if_zero<0x11>, v0
 -     icall revert_if<tuple_data_too_short>, v0
@@ -231,5 +236,153 @@
 +     icall panic_if<0x11>, arg0
 +     icall revert_if_zero<tuple_data_too_short>, arg0
       ret
+  }
+  
+  fn @word_check_polarity(arg0: i256) {
+    bb0:
+      v0 = eq arg0, 0
+      icall panic_if<0x1>, v0
+      ret
+  }
+  
+  fn @sext_chain(arg0: i1) -> i256 {
+    bb0:
+      v0 = sext i1 arg0 to i160
+-     v1 = sext i160 v0 to i256
++     v1 = sext i1 arg0 to i256
+      ret v1
+  }
+  
+  fn @zext_chain(arg0: i1) -> i256 {
+    bb0:
+      v0 = zext i1 arg0 to i160
+-     v1 = zext i160 v0 to i256
++     v1 = zext i1 arg0 to i256
+      ret v1
+  }
+  
+  fn @sext_zext(arg0: i1) -> i256 {
+    bb0:
+      v0 = zext i1 arg0 to i160
+-     v1 = sext i160 v0 to i256
++     v1 = zext i1 arg0 to i256
+      ret v1
+  }
+  
+  fn @trunc_chain(arg0: i256) -> i1 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+-     v1 = trunc i160 v0 to i1
++     v1 = trunc i256 arg0 to i1
+      ret v1
+  }
+  
+  fn @trunc_zext_identity(arg0: i160) -> i160 {
+    bb0:
+      v0 = zext i160 arg0 to i256
+-     v1 = trunc i256 v0 to i160
+-     ret v1
++     ret arg0
+  }
+  
+  fn @trunc_sext_identity(arg0: i160) -> i160 {
+    bb0:
+      v0 = sext i160 arg0 to i256
+-     v1 = trunc i256 v0 to i160
+-     ret v1
++     ret arg0
+  }
+  
+  fn @trunc_zext_shorter(arg0: i1) -> i160 {
+    bb0:
+      v0 = zext i1 arg0 to i256
+-     v1 = trunc i256 v0 to i160
++     v1 = zext i1 arg0 to i160
+      ret v1
+  }
+  
+  fn @trunc_sext_shorter(arg0: i1) -> i160 {
+    bb0:
+      v0 = sext i1 arg0 to i256
+-     v1 = trunc i256 v0 to i160
++     v1 = sext i1 arg0 to i160
+      ret v1
+  }
+  
+  fn @trunc_zext_narrower(arg0: i160) -> i1 {
+    bb0:
+      v0 = zext i160 arg0 to i256
+-     v1 = trunc i256 v0 to i1
++     v1 = trunc i160 arg0 to i1
+      ret v1
+  }
+  
+  fn @trunc_sext_narrower(arg0: i160) -> i1 {
+    bb0:
+      v0 = sext i160 arg0 to i256
+-     v1 = trunc i256 v0 to i1
++     v1 = trunc i160 arg0 to i1
+      ret v1
+  }
+  
+  fn @ptr_roundtrip(arg0: memptr) -> memptr {
+    bb0:
+      v0 = ptrtoint memptr arg0 to i256
+-     v1 = inttoptr i256 v0 to memptr
+-     ret v1
++     ret arg0
+  }
+  
+  fn @int_ptr_roundtrip(arg0: i160) -> i160 {
+    bb0:
+      v0 = inttoptr i160 arg0 to memptr
+-     v1 = ptrtoint memptr v0 to i160
+-     ret v1
++     ret arg0
+  }
+  
+  fn @int_ptr_widen(arg0: i160) -> i256 {
+    bb0:
+      v0 = inttoptr i160 arg0 to memptr
+-     v1 = ptrtoint memptr v0 to i256
++     v1 = zext i160 arg0 to i256
+      ret v1
+  }
+  
+  fn @int_ptr_narrow(arg0: i160) -> i1 {
+    bb0:
+      v0 = inttoptr i160 arg0 to memptr
+-     v1 = ptrtoint memptr v0 to i1
++     v1 = trunc i160 arg0 to i1
+      ret v1
+  }
+  
+  fn @ptr_trunc(arg0: memptr) -> i1 {
+    bb0:
+      v0 = ptrtoint memptr arg0 to i160
+-     v1 = trunc i160 v0 to i1
++     v1 = ptrtoint memptr arg0 to i1
+      ret v1
+  }
+  
+  fn @ptr_narrow_preserved(arg0: memptr) -> memptr {
+    bb0:
+      v0 = ptrtoint memptr arg0 to i160
+      v1 = inttoptr i160 v0 to memptr
+      ret v1
+  }
+  
+  fn @wide_ptr_roundtrip_preserved(arg0: i512) -> i512 {
+    bb0:
+      v0 = inttoptr i512 arg0 to memptr
+      v1 = ptrtoint memptr v0 to i512
+      ret v1
+  }
+  
+  fn @sext_then_zext_preserved(arg0: i1) -> i256 {
+    bb0:
+      v0 = sext i1 arg0 to i160
+      v1 = zext i160 v0 to i256
+      ret v1
   }
   

@@ -7,7 +7,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @transitive_congruence{{[( ]}}
 // CHECK: - {{v[0-9]+}} = add arg0, arg1
 // CHECK: + {{v[0-9]+}} = add [[VALUE:v[0-9]+]], [[VALUE]]
-fn @transitive_congruence(arg0: u256, arg1: u256) -> u256 {
+fn @transitive_congruence(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = add arg0, arg1
     v3 = add arg0, arg1
@@ -22,7 +22,7 @@ fn @transitive_congruence(arg0: u256, arg1: u256) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @equal_immediates_unify{{[( ]}}
 // CHECK: - {{v[0-9]+}} = add 16, arg0
 // CHECK: + {{v[0-9]+}} = add [[IMMEDIATE:v[0-9]+]], [[IMMEDIATE]]
-fn @equal_immediates_unify(arg0: u256) -> u256 {
+fn @equal_immediates_unify(arg0: i256) -> i256 {
   bb0:
     v1 = add arg0, 16
     v2 = add 16, arg0
@@ -35,7 +35,7 @@ fn @equal_immediates_unify(arg0: u256) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @swapped_comparison_feeds_arithmetic{{[( ]}}
 // CHECK: - {{v[0-9]+}} = gt arg1, arg0
 // CHECK: + {{v[0-9]+}} = add [[SELECT:v[0-9]+]], [[SELECT]]
-fn @swapped_comparison_feeds_arithmetic(arg0: u256, arg1: u256) -> u256 {
+fn @swapped_comparison_feeds_arithmetic(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = lt arg0, arg1
     v3 = gt arg1, arg0
@@ -50,7 +50,7 @@ fn @swapped_comparison_feeds_arithmetic(arg0: u256, arg1: u256) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_state_dependent_reads{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = sload arg0
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = sload arg0
-fn @keep_state_dependent_reads(arg0: u256) -> u256 {
+fn @keep_state_dependent_reads(arg0: i256) -> i256 {
   bb0:
     v1 = sload arg0
     v2 = sload arg0
@@ -71,7 +71,7 @@ fn @keep_state_dependent_reads(arg0: u256) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @no_replacement_across_siblings{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = add arg0, 1
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = add arg0, 1
-fn @no_replacement_across_siblings(arg0: u256, arg1: bool) -> u256 {
+fn @no_replacement_across_siblings(arg0: i256, arg1: i1) -> i256 {
   bb0:
     jumpi arg1, bb1, bb2
   bb1:
@@ -91,7 +91,7 @@ fn @no_replacement_across_siblings(arg0: u256, arg1: bool) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @fresh_mapping_entry{{[( ]}}
 // CHECK-DAG: - {{v[0-9]+}} = mapping_slot_memory arg0, 0
 // CHECK-DAG: + {{v[0-9]+}} = add [[MAPPING:v[0-9]+]], [[MAPPING]]
-fn @fresh_mapping_entry(arg0: memorybytes) -> u256 [selector=0x10000001, abi_params=[bytes], abi_returns=[word]] {
+fn @fresh_mapping_entry(arg0: memorybytes) -> i256 [selector=0x10000001, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v1 = mapping_slot_memory arg0, 0
     v2 = sload v1
@@ -109,7 +109,7 @@ fn @fresh_mapping_entry(arg0: memorybytes) -> u256 [selector=0x10000001, abi_par
 // CHECK-LABEL: {{^[ +].*}}fn @mapping_internal_target{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
-fn @mapping_internal_target(arg0: memorybytes) -> u256 [selector=0x10000002, abi_params=[bytes], abi_returns=[word]] {
+fn @mapping_internal_target(arg0: memorybytes) -> i256 [selector=0x10000002, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v1 = mapping_slot_memory arg0, 0
     v2 = mapping_slot_memory arg0, 0
@@ -120,7 +120,7 @@ fn @mapping_internal_target(arg0: memorybytes) -> u256 [selector=0x10000002, abi
 // CHECK-LABEL: {{^[ +].*}}fn @mapping_tail_target{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
-fn @mapping_tail_target(arg0: memorybytes) -> u256 [selector=0x10000003, abi_params=[bytes], abi_returns=[word]] {
+fn @mapping_tail_target(arg0: memorybytes) -> i256 [selector=0x10000003, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v1 = mapping_slot_memory arg0, 0
     v2 = mapping_slot_memory arg0, 0
@@ -131,7 +131,7 @@ fn @mapping_tail_target(arg0: memorybytes) -> u256 [selector=0x10000003, abi_par
 // CHECK-LABEL: {{^[ +].*}}fn @mapping_fmp_reset{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
-fn @mapping_fmp_reset(arg0: memorybytes) -> u256 [selector=0x10000004, abi_params=[bytes], abi_returns=[word]] {
+fn @mapping_fmp_reset(arg0: memorybytes) -> i256 [selector=0x10000004, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v1 = mapping_slot_memory arg0, 0
     set_fmp 0
@@ -143,7 +143,7 @@ fn @mapping_fmp_reset(arg0: memorybytes) -> u256 [selector=0x10000004, abi_param
 // CHECK-LABEL: {{^[ +].*}}fn @mapping_raw_read{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
-fn @mapping_raw_read(arg0: memorybytes) -> u256 [selector=0x10000005, abi_params=[bytes], abi_returns=[word]] {
+fn @mapping_raw_read(arg0: memorybytes) -> i256 [selector=0x10000005, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v1 = mapping_slot_memory arg0, 0
     v4 = mload 128
@@ -155,7 +155,7 @@ fn @mapping_raw_read(arg0: memorybytes) -> u256 [selector=0x10000005, abi_params
 // CHECK-LABEL: {{^[ +].*}}fn @mapping_size_observer{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mapping_slot_memory arg0, 0
-fn @mapping_size_observer(arg0: memorybytes) -> u256 [selector=0x10000006, abi_params=[bytes], abi_returns=[word]] {
+fn @mapping_size_observer(arg0: memorybytes) -> i256 [selector=0x10000006, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v1 = mapping_slot_memory arg0, 0
     v4 = msize
@@ -164,13 +164,13 @@ fn @mapping_size_observer(arg0: memorybytes) -> u256 [selector=0x10000006, abi_p
     ret v3
 }
 
-fn @call_mapping_entry(arg0: memorybytes) -> u256 {
+fn @call_mapping_entry(arg0: memorybytes) -> i256 {
   bb0:
     v1 = icall @mapping_internal_target, arg0
     ret v1
 }
 
-fn @tailcall_mapping_entry(arg0: memorybytes) -> u256 {
+fn @tailcall_mapping_entry(arg0: memorybytes) -> i256 {
   bb0:
     tail_call @mapping_tail_target, arg0
 }

@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_return_pointer_mixed.sol:StorageReturnPointerMixed ===
 @module StorageReturnPointerMixed
 types:
-  struct0: {u256, u256, u256}
-  struct1: {u256, u256}
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256}
 
 fn @g() -> struct0 [view] {
   bb0:
@@ -19,7 +19,7 @@ fn @h() -> struct1 [selector=0xb8c9d365, pure, abi_params=[], abi_returns=[word,
     ret v1
 }
 
-fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -54,83 +54,74 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     v22 = insert_value struct1, v21, 1, v20
     v23 = extract_value struct1, v22, 0
     v24 = extract_value struct1, v22, 1
-    v25 = eq v23, 5
-    v26 = iszero v25
-    jumpi v26, bb4, bb3
+    v25 = ne v23, 5
+    jumpi v25, bb4, bb3
   bb3:
-    v27 = eq v24, 6
-    v28 = iszero v27
+    v26 = ne v24, 6
     jump bb5
   bb4:
     jump bb5
   bb5:
-    v29 = phi [bb3: v28], [bb4: true]
-    jumpi v29, bb6, bb7
+    v27 = phi [bb3: v26], [bb4: true]
+    jumpi v27, bb6, bb7
   bb7:
     jump bb8
   bb8:
-    v30 = icall @g
-    v31 = extract_value struct0, v30, 0
-    v32 = extract_value struct0, v30, 1
-    v33 = extract_value struct0, v30, 2
-    v34 = eq v31, 1
-    v35 = iszero v34
-    jumpi v35, bb10, bb9
+    v28 = icall @g
+    v29 = extract_value struct0, v28, 0
+    v30 = extract_value struct0, v28, 1
+    v31 = extract_value struct0, v28, 2
+    v32 = ne v29, 1
+    jumpi v32, bb10, bb9
   bb9:
-    v36 = eq v32, 2
-    v37 = iszero v36
+    v33 = ne v30, 2
     jump bb11
   bb10:
     jump bb11
   bb11:
-    v38 = phi [bb9: v37], [bb10: true]
-    jumpi v38, bb13, bb12
+    v34 = phi [bb9: v33], [bb10: true]
+    jumpi v34, bb13, bb12
   bb12:
-    v39 = sload v33 !metadata(storage=symbolic(v33))
-    v40 = lt 0, v39
-    v41 = iszero v40
-    icall panic_if<0x32>, v41
-    v42 = storage_array_data_slot v33
-    v43 = add v42, 0
-    v44 = sload v43 !metadata(storage=symbolic(v42))
-    v45 = eq v44, 3
-    v46 = iszero v45
+    v35 = sload v31 !metadata(storage=symbolic(v31))
+    v36 = lt 0, v35
+    v37 = eq v36, false
+    icall panic_if<0x32>, v37
+    v38 = storage_array_data_slot v31
+    v39 = add v38, 0
+    v40 = sload v39 !metadata(storage=symbolic(v38))
+    v41 = ne v40, 3
     jump bb14
   bb13:
     jump bb14
   bb14:
-    v47 = phi [bb12: v46], [bb13: true]
-    jumpi v47, bb15, bb16
+    v42 = phi [bb12: v41], [bb13: true]
+    jumpi v42, bb15, bb16
   bb16:
     jump bb17
   bb17:
-    v48 = eq v32, 2
-    v49 = iszero v48
-    jumpi v49, bb19, bb18
+    v43 = ne v30, 2
+    jumpi v43, bb19, bb18
   bb18:
-    v50 = eq v31, 1
-    v51 = iszero v50
+    v44 = ne v29, 1
     jump bb20
   bb19:
     jump bb20
   bb20:
-    v52 = phi [bb18: v51], [bb19: true]
-    jumpi v52, bb21, bb22
+    v45 = phi [bb18: v44], [bb19: true]
+    jumpi v45, bb21, bb22
   bb22:
     jump bb23
   bb23:
-    v53 = eq 8, 8
-    v54 = iszero v53
-    jumpi v54, bb25, bb24
+    v46 = ne 8, 8
+    jumpi v46, bb25, bb24
   bb24:
-    v55 = eq 10, 10
-    v56 = iszero v55
+    v47 = ne 10, 10
     jump bb26
   bb25:
     jump bb26
   bb26:
-    v57 = phi [bb24: v56], [bb25: true]
-    jumpi v57, bb27, bb28
+    v48 = phi [bb24: v47], [bb25: true]
+    jumpi v48, bb27, bb28
   bb28:
     jump bb29
   bb29:

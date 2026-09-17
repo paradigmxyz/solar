@@ -1,178 +1,192 @@
 // === ROOT/tests/ui/codegen/mir/cse/restored_calls.sol:RestoredCalls ===
 @module RestoredCalls
 types:
-  struct0: {u256, u256}
-  struct1: {u256, u256, u256}
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256}
 
-fn @same(arg0: u256, arg1: u256) -> struct0 [selector=0xc32c70b1, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @same(arg0: i256, arg1: i256) -> struct0 [selector=0xc32c70b1, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = gt arg1, 8
-    v1 = iszero v0
-    v2 = iszero v1
+    v1 = eq v0, false
+    v2 = eq v1, false
     icall revert_if<empty>, v2
     v3 = not 31
     v4 = and 127, v3
     v5 = alloc memorybytes, exact, zeroed, panic, v4
     set_memory_object_len memorybytes, v5, 64
-    v6 = add v5, 32
-    mstore v6, arg0
-    v7 = add v5, 64
-    mstore v7, 1
-    v8 = icall @scan, v5, arg1
-    v9 = icall @scan, v5, arg1
-    v10 = checked_add u256, v8, v9
-    v11 = add v5, 32
-    v12 = mload v11
-    v13 = insert_value struct0, undef struct0, 0, v10
-    v14 = insert_value struct0, v13, 1, v12
-    ret v14
+    v6 = ptrtoint memorybytes v5 to i256
+    v7 = add v6, 32
+    mstore v7, arg0
+    v8 = ptrtoint memorybytes v5 to i256
+    v9 = add v8, 64
+    mstore v9, 1
+    v10 = icall @scan, v5, arg1
+    v11 = icall @scan, v5, arg1
+    v12 = checked_add u256, v10, v11
+    v13 = ptrtoint memorybytes v5 to i256
+    v14 = add v13, 32
+    v15 = mload v14
+    v16 = insert_value struct0, undef struct0, 0, v12
+    v17 = insert_value struct0, v16, 1, v15
+    ret v17
 }
 
-fn @repeated(arg0: u256, arg1: u256, arg2: bool) -> struct1 [selector=0xd6d01539, pure, abi_params=[u256, u256, bool], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @repeated(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0xd6d01539, pure, abi_params=[u256, u256, bool], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = gt arg1, 8
-    v1 = iszero v0
-    v2 = iszero v1
+    v1 = eq v0, false
+    v2 = eq v1, false
     icall revert_if<empty>, v2
     v3 = not 31
     v4 = and 127, v3
     v5 = alloc memorybytes, exact, zeroed, panic, v4
     set_memory_object_len memorybytes, v5, 64
-    v6 = add v5, 32
-    mstore v6, arg0
-    v7 = add v5, 64
-    mstore v7, 1
-    v8 = icall @scan, v5, arg1
-    jumpi arg2, bb1, bb2
+    v6 = ptrtoint memorybytes v5 to i256
+    v7 = add v6, 32
+    mstore v7, arg0
+    v8 = ptrtoint memorybytes v5 to i256
+    v9 = add v8, 64
+    mstore v9, 1
+    v10 = icall @scan, v5, arg1
+    v11 = ne arg2, 0
+    jumpi v11, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v9 = add v5, 95
-    mstore8 v9, 0
+    v12 = ptrtoint memorybytes v5 to i256
+    v13 = add v12, 95
+    mstore8 v13, 0
     jump bb3
   bb3:
-    v10 = icall @scan, v5, arg1
-    v11 = add v5, 32
-    v12 = mload v11
-    v13 = insert_value struct1, undef struct1, 0, v8
-    v14 = insert_value struct1, v13, 1, v10
-    v15 = insert_value struct1, v14, 2, v12
-    ret v15
+    v14 = icall @scan, v5, arg1
+    v15 = ptrtoint memorybytes v5 to i256
+    v16 = add v15, 32
+    v17 = mload v16
+    v18 = insert_value struct1, undef struct1, 0, v10
+    v19 = insert_value struct1, v18, 1, v14
+    v20 = insert_value struct1, v19, 2, v17
+    ret v20
 }
 
-fn @scan(arg0: memorybytes, arg1: u256) -> u256 [pure] {
+fn @scan(arg0: memorybytes, arg1: i256) -> i256 [pure] {
   bb0:
-    v0 = add arg0, 32
-    v1 = mload v0
-    mstore v0, 0
+    v0 = ptrtoint memorybytes arg0 to i256
+    v1 = add v0, 32
+    v2 = mload v1
+    mstore v1, 0
     jump bb1
   bb1:
-    v2 = phi [bb0: v1], [bb3: v2]
-    v3 = phi [bb0: 0], [bb3: v13]
-    v4 = phi [bb0: arg1], [bb3: v4]
-    v5 = phi [bb0: v0], [bb3: v5]
-    v6 = phi [bb0: 0], [bb3: v14]
-    v7 = phi [bb0: arg0], [bb3: v7]
-    v8 = lt v6, v4
-    v9 = eq v8, 0
-    v10 = iszero v9
-    jumpi v10, bb4, bb5
+    v3 = phi [bb0: v2], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v14]
+    v5 = phi [bb0: arg1], [bb3: v5]
+    v6 = phi [bb0: v1], [bb3: v6]
+    v7 = phi [bb0: 0], [bb3: v15]
+    v8 = phi [bb0: arg0], [bb3: v8]
+    v9 = lt v7, v5
+    v10 = zext i1 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    mstore v5, v2
-    ret v3
+    mstore v6, v3
+    ret v4
   bb4:
-    v11 = add v5, 32
-    v12 = mload v11
-    v13 = add v3, v12
+    v12 = add v6, 32
+    v13 = mload v12
+    v14 = add v4, v13
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v14 = add v6, 1
+    v15 = add v7, 1
     jump bb1
 }
 
-fn @restored(arg0: u256, arg1: u256) -> struct0 [selector=0x70ef4778, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @restored(arg0: i256, arg1: i256) -> struct0 [selector=0x70ef4778, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = gt arg1, 8
-    v1 = iszero v0
-    v2 = iszero v1
+    v1 = eq v0, false
+    v2 = eq v1, false
     icall revert_if<empty>, v2
     v3 = not 31
     v4 = and 95, v3
     v5 = alloc memorybytes, exact, zeroed, panic, v4
     set_memory_object_len memorybytes, v5, 32
-    v6 = add v5, 32
-    mstore v6, arg0
-    v7 = icall @temporary, v5, arg1
-    v8 = add v5, 32
-    v9 = mload v8
-    v10 = insert_value struct0, undef struct0, 0, v7
-    v11 = insert_value struct0, v10, 1, v9
-    ret v11
+    v6 = ptrtoint memorybytes v5 to i256
+    v7 = add v6, 32
+    mstore v7, arg0
+    v8 = icall @temporary, v5, arg1
+    v9 = ptrtoint memorybytes v5 to i256
+    v10 = add v9, 32
+    v11 = mload v10
+    v12 = insert_value struct0, undef struct0, 0, v8
+    v13 = insert_value struct0, v12, 1, v11
+    ret v13
 }
 
-fn @temporary(arg0: memorybytes, arg1: u256) -> u256 [pure] {
+fn @temporary(arg0: memorybytes, arg1: i256) -> i256 [pure] {
   bb0:
-    v0 = add arg0, 32
-    v1 = mload v0
-    mstore v0, 17
+    v0 = ptrtoint memorybytes arg0 to i256
+    v1 = add v0, 32
+    v2 = mload v1
+    mstore v1, 17
     jump bb1
   bb1:
-    v2 = phi [bb0: v1], [bb3: v2]
-    v3 = phi [bb0: 0], [bb3: v12]
-    v4 = phi [bb0: arg1], [bb3: v4]
-    v5 = phi [bb0: v0], [bb3: v5]
-    v6 = phi [bb0: 0], [bb3: v13]
-    v7 = phi [bb0: arg0], [bb3: v7]
-    v8 = lt v6, v4
-    v9 = eq v8, 0
-    v10 = iszero v9
-    jumpi v10, bb4, bb5
+    v3 = phi [bb0: v2], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v13]
+    v5 = phi [bb0: arg1], [bb3: v5]
+    v6 = phi [bb0: v1], [bb3: v6]
+    v7 = phi [bb0: 0], [bb3: v14]
+    v8 = phi [bb0: arg0], [bb3: v8]
+    v9 = lt v7, v5
+    v10 = zext i1 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    mstore v5, v2
-    ret v3
+    mstore v6, v3
+    ret v4
   bb4:
-    v11 = mload v5
-    v12 = add v3, v11
+    v12 = mload v6
+    v13 = add v4, v12
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v13 = add v6, 1
+    v14 = add v7, 1
     jump bb1
 }
 
-fn @dirty(arg0: u256, arg1: bool) -> u256 [selector=0xd5f2e1b7, pure, abi_params=[u256, bool], abi_returns=[word]] {
+fn @dirty(arg0: i256, arg1: i256) -> i256 [selector=0xd5f2e1b7, pure, abi_params=[u256, bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 32
-    v3 = add v2, 32
-    mstore v3, arg0
+    v3 = ptrtoint memorybytes v2 to i256
+    v4 = add v3, 32
+    mstore v4, arg0
     icall @conditional, v2, arg1
-    v4 = add v2, 32
-    v5 = mload v4
-    ret v5
+    v5 = ptrtoint memorybytes v2 to i256
+    v6 = add v5, 32
+    v7 = mload v6
+    ret v7
 }
 
-fn @conditional(arg0: memorybytes, arg1: bool) [pure] {
+fn @conditional(arg0: memorybytes, arg1: i256) [pure] {
   bb0:
-    v0 = add arg0, 32
-    v1 = mload v0
-    mstore v0, 17
-    v2 = eq arg1, 0
-    v3 = iszero v2
+    v0 = ptrtoint memorybytes arg0 to i256
+    v1 = add v0, 32
+    v2 = mload v1
+    mstore v1, 17
+    v3 = ne arg1, 0
     jumpi v3, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    mstore v0, v1
+    mstore v1, v2
     jump bb3
   bb3:
     ret

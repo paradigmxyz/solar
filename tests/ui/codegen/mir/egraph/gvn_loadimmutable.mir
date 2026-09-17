@@ -9,7 +9,7 @@ immutables:
 // CHECK-LABEL: {{^[ +].*}}fn @same_immutable_stays{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = loadimmutable first
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = loadimmutable first
-fn @same_immutable_stays() -> u256 {
+fn @same_immutable_stays() -> i256 {
   bb0:
     v0 = loadimmutable first
     v1 = loadimmutable first
@@ -21,7 +21,7 @@ fn @same_immutable_stays() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @different_immutables_stay{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = loadimmutable first
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = loadimmutable second
-fn @different_immutables_stay(arg0: u256) -> u256 {
+fn @different_immutables_stay(arg0: i256) -> i256 {
   bb0:
     v0 = loadimmutable first
     v1 = loadimmutable second
@@ -35,7 +35,7 @@ fn @different_immutables_stay(arg0: u256) -> u256 {
 // CHECK: {{^[ +].*}}storeimmutable first, arg0
 // CHECK: {{^[ +].*}}[[AFTER:v[0-9]+]] = loadimmutable first
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = add [[BEFORE]], [[AFTER]]
-fn @store_prevents_merge(arg0: u256) -> u256 {
+fn @store_prevents_merge(arg0: i256) -> i256 {
   bb0:
     v1 = loadimmutable first
     storeimmutable first, arg0

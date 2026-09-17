@@ -1,7 +1,7 @@
 //@ compile-flags: -Zmir-pipeline=cse,dce
 @module AddressCallEffects
 
-fn @calls(arg0: address, arg1: memorybytes) -> u256 {
+fn @calls(arg0: i256, arg1: memorybytes) -> i256 {
   bb0:
     v0 = sload 0
     v1 = balance arg0
@@ -24,7 +24,7 @@ fn @calls(arg0: address, arg1: memorybytes) -> u256 {
     ret v17
 }
 
-fn @capture(arg0: address, arg1: memorybytes) -> u256 {
+fn @capture(arg0: i256, arg1: memorybytes) -> i256 {
   bb0:
     v0 = address_call arg0, arg1
     v1 = icall returndata_bytes<>

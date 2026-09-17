@@ -21,7 +21,7 @@ fn @ping() [selector=0x5c36b186, abi_wrapper] {
 // FOLD-NEXT: {{^[ +].*}}[[PRODUCT:v[0-9]+]] = mul [[ALIAS]], 8
 // FOLD: + sstore 0, 0
 // FOLD: + jumpi true, bb1, bb2
-fn @constants(arg0: u256) -> u256 {
+fn @constants(arg0: i256) -> i256 {
   bb0:
     v1 = sub arg0, arg0
     v2 = eq v1, 0
@@ -38,7 +38,7 @@ fn @constants(arg0: u256) -> u256 {
 // FOLD-LABEL: {{^[ +].*}}fn @constant_phi
 // FOLD: - {{v[0-9]+}} = phi [bb1: 42], [bb2: 42]
 // FOLD: + ret 42
-fn @constant_phi(arg0: bool) -> u256 {
+fn @constant_phi(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -47,5 +47,29 @@ fn @constant_phi(arg0: bool) -> u256 {
     jump bb3
   bb3:
     v0 = phi [bb1: 42], [bb2: 42]
+    ret v0
+}
+
+// FOLD-LABEL: {{^[ +].*}}fn @pointer_constant
+// FOLD: + ret memptr 7
+fn @pointer_constant() -> memptr {
+  bb0:
+    v0 = inttoptr i256 7 to memptr
+    ret v0
+}
+
+// FOLD-LABEL: {{^[ +].*}}fn @low_bit_constant
+// FOLD: + ret false
+fn @low_bit_constant() -> i1 {
+  bb0:
+    v0 = trunc i256 2 to i1
+    ret v0
+}
+
+// FOLD-LABEL: {{^[ +].*}}fn @sign_extended_constant
+// FOLD: + ret i160 0xffffffffffffffffffffffffffffffffffffffff
+fn @sign_extended_constant() -> i160 {
+  bb0:
+    v0 = sext i1 1 to i160
     ret v0
 }

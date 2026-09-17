@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mapping_struct_dynamic_getter.sol:MappingDynamicGetter ===
 @module MappingDynamicGetter
 types:
-  struct0: {u256, memorybytes}
+  struct0: {i256, memorybytes}
 
-fn @m(arg0: u256) -> struct0 [selector=0x6e9410b6, view, abi_params=[u256], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @m(arg0: i256) -> struct0 [selector=0x6e9410b6, view, abi_params=[u256], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))

@@ -4,18 +4,20 @@
 
 // Two structurally identical panic blocks collapse into one shared block.
 // CHECK-LABEL: {{^[ +].*}}fn @dedup_identical_panics{{[( ]}}
-// CHECK: {{^[ +].*}}jumpi arg0, [[PANIC:bb[0-9]+]], {{bb[0-9]+}}
-// CHECK: - jumpi arg1, bb3, bb4
-// CHECK: + jumpi arg1, [[PANIC]], {{bb[0-9]+}}
-fn @dedup_identical_panics(arg0: u256, arg1: u256) {
+// CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, [[PANIC:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb4
+// CHECK: + jumpi {{(arg[0-9]+|v[0-9]+)}}, [[PANIC]], {{bb[0-9]+}}
+fn @dedup_identical_panics(arg0: i256, arg1: i256) {
   bb0:
-    jumpi arg0, bb1, bb2
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
     mstore 4, 17
     revert 0, 36
   bb2:
-    jumpi arg1, bb3, bb4
+    v1 = ne arg1, 0
+    jumpi v1, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
     mstore 4, 17
@@ -26,16 +28,18 @@ fn @dedup_identical_panics(arg0: u256, arg1: u256) {
 
 // Panic blocks with different panic codes must NOT merge.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_panic_codes{{[( ]}}
-// CHECK: {{^[ +].*}}jumpi arg1, bb3, bb4
-fn @keep_distinct_panic_codes(arg0: u256, arg1: u256) {
+// CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb4
+fn @keep_distinct_panic_codes(arg0: i256, arg1: i256) {
   bb0:
-    jumpi arg0, bb1, bb2
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
     mstore 4, 17
     revert 0, 36
   bb2:
-    jumpi arg1, bb3, bb4
+    v1 = ne arg1, 0
+    jumpi v1, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
     mstore 4, 18
@@ -46,16 +50,18 @@ fn @keep_distinct_panic_codes(arg0: u256, arg1: u256) {
 
 // Identical instructions but different terminator operands must NOT merge.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_revert_sizes{{[( ]}}
-// CHECK: {{^[ +].*}}jumpi arg1, bb3, bb4
-fn @keep_distinct_revert_sizes(arg0: u256, arg1: u256) {
+// CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb4
+fn @keep_distinct_revert_sizes(arg0: i256, arg1: i256) {
   bb0:
-    jumpi arg0, bb1, bb2
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
     mstore 4, 17
     revert 0, 36
   bb2:
-    jumpi arg1, bb3, bb4
+    v1 = ne arg1, 0
+    jumpi v1, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
     mstore 4, 17
@@ -67,18 +73,20 @@ fn @keep_distinct_revert_sizes(arg0: u256, arg1: u256) {
 // Block-local values compare by definition position, so alpha-equivalent
 // computations merge.
 // CHECK-LABEL: {{^[ +].*}}fn @dedup_local_computations{{[( ]}}
-// CHECK: {{^[ +].*}}jumpi arg0, [[COMPUTATION:bb[0-9]+]], {{bb[0-9]+}}
-// CHECK: - jumpi arg1, bb3, bb4
-// CHECK: + jumpi arg1, [[COMPUTATION]], {{bb[0-9]+}}
-fn @dedup_local_computations(arg0: u256, arg1: u256) {
+// CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, [[COMPUTATION:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb4
+// CHECK: + jumpi {{(arg[0-9]+|v[0-9]+)}}, [[COMPUTATION]], {{bb[0-9]+}}
+fn @dedup_local_computations(arg0: i256, arg1: i256) {
   bb0:
-    jumpi arg0, bb1, bb2
+    v21 = ne arg0, 0
+    jumpi v21, bb1, bb2
   bb1:
     v10 = add arg0, 1
     mstore 0, v10
     revert 0, 32
   bb2:
-    jumpi arg1, bb3, bb4
+    v22 = ne arg1, 0
+    jumpi v22, bb3, bb4
   bb3:
     v20 = add arg0, 1
     mstore 0, v20
@@ -89,15 +97,17 @@ fn @dedup_local_computations(arg0: u256, arg1: u256) {
 
 // Blocks reading different outside values must NOT merge.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_outside_operands{{[( ]}}
-// CHECK: {{^[ +].*}}jumpi arg1, bb3, bb4
-fn @keep_distinct_outside_operands(arg0: u256, arg1: u256) {
+// CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb4
+fn @keep_distinct_outside_operands(arg0: i256, arg1: i256) {
   bb0:
-    jumpi arg0, bb1, bb2
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
   bb1:
     mstore 0, arg0
     revert 0, 32
   bb2:
-    jumpi arg1, bb3, bb4
+    v1 = ne arg1, 0
+    jumpi v1, bb3, bb4
   bb3:
     mstore 0, arg1
     revert 0, 32
@@ -108,16 +118,18 @@ fn @keep_distinct_outside_operands(arg0: u256, arg1: u256) {
 // Semantic memory layouts are payload, not operands, so blocks using different
 // fields must stay separate.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_memory_fields{{[( ]}}
-// CHECK: {{^[ +].*}}jumpi arg1, bb3, bb4
-fn @keep_distinct_memory_fields(arg0: u256, arg1: u256, arg2: memorystruct) {
+// CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb4
+fn @keep_distinct_memory_fields(arg0: i256, arg1: i256, arg2: memorystruct) {
   bb0:
-    jumpi arg0, bb1, bb2
+    v2 = ne arg0, 0
+    jumpi v2, bb1, bb2
   bb1:
     v0 = memory_object_load_field memorystruct<2>, arg2, 0
     mstore 0, v0
     revert 0, 32
   bb2:
-    jumpi arg1, bb3, bb4
+    v3 = ne arg1, 0
+    jumpi v3, bb3, bb4
   bb3:
     v1 = memory_object_load_field memorystruct<2>, arg2, 1
     mstore 0, v1
@@ -128,10 +140,10 @@ fn @keep_distinct_memory_fields(arg0: u256, arg1: u256, arg2: memorystruct) {
 
 // Packed literals are part of the operation, even though they are not SSA operands.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_packed_literals{{[( ]}}
-// CHECK: {{^[ +].*}}jumpi arg0, bb1, bb2
+// CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
 // CHECK-DAG: {{^[ +].*}}keccak256_packed (data hex"61")
 // CHECK-DAG: {{^[ +].*}}keccak256_packed (data hex"62")
-fn @keep_distinct_packed_literals(arg0: bool) -> bytes32 {
+fn @keep_distinct_packed_literals(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -144,10 +156,10 @@ fn @keep_distinct_packed_literals(arg0: bool) -> bytes32 {
 
 // Enum bounds remain distinct even when the array type and slot are identical.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_enum_bounds{{[( ]}}
-// CHECK: {{^[ +].*}}jumpi arg0, bb1, bb2
+// CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
 // CHECK: {{^[ +].*}}load_storage_array enum<3>, arg1
 // CHECK: {{^[ +].*}}load_storage_array enum<2>, arg1
-fn @keep_distinct_enum_bounds(arg0: bool, arg1: u256) -> memoryarray {
+fn @keep_distinct_enum_bounds(arg0: i1, arg1: i256) -> memoryarray {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -160,9 +172,9 @@ fn @keep_distinct_enum_bounds(arg0: bool, arg1: u256) -> memoryarray {
 
 // Identical payloads still allow alpha-equivalent terminal blocks to merge.
 // CHECK-LABEL: {{^[ +].*}}fn @merge_equal_packed_literals{{[( ]}}
-// CHECK: - jumpi arg0, bb1, bb2
+// CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
 // CHECK: {{^[ +].*}}keccak256_packed (data hex"61")
-fn @merge_equal_packed_literals(arg0: bool) -> bytes32 {
+fn @merge_equal_packed_literals(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -174,10 +186,10 @@ fn @merge_equal_packed_literals(arg0: bool) -> bytes32 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_storage_literals{{[( ]}}
-// CHECK: {{^[ +].*}}jumpi arg0, bb1, bb2
+// CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
 // CHECK-DAG: {{^[ +].*}}store_storage_bytes_literal arg1, hex"61"
 // CHECK-DAG: {{^[ +].*}}store_storage_bytes_literal arg1, hex"62"
-fn @keep_distinct_storage_literals(arg0: bool, arg1: u256) {
+fn @keep_distinct_storage_literals(arg0: i1, arg1: i256) {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -193,7 +205,7 @@ fn @keep_distinct_storage_literals(arg0: bool, arg1: u256) {
 // CHECK: {{^[ +].*}}jumpi arg0, bb1, bb2
 // CHECK: library_address "B.sol":"L"
 // CHECK: library_address "A.sol":"L"
-fn @keep_distinct_libraries(arg0: bool) -> u256 {
+fn @keep_distinct_libraries(arg0: i1) -> i160 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:

@@ -9,7 +9,7 @@
 @module LowerEvmShapedCleanup
 @phase semantic
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 fn @entry() {
   bb0:
     tail_call fn1
@@ -43,7 +43,7 @@ fn @pair_caller() -> struct0 {
     ret v0
 }
 
-fn @pair_fail(arg0: u256) -> struct0 {
+fn @pair_fail(arg0: i256) -> struct0 {
   bb0:
     mstore 0, arg0
     revert 0, 32

@@ -1,25 +1,25 @@
 // === ROOT/tests/ui/codegen/lowering/revert_payloads.sol:RevertPayloads ===
 @module RevertPayloads
-fn @assert_panic(arg0: bool) [selector=0x727ee374, pure, abi_params=[bool], abi_returns=[]] {
+fn @assert_panic(arg0: i256) [selector=0x727ee374, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     icall panic_if<0x1>, v0
     ret
 }
 
-fn @require_message(arg0: bool) [selector=0x79cfb63f, pure, abi_params=[bool], abi_returns=[]] {
+fn @require_message(arg0: i256) [selector=0x79cfb63f, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall require<short_string>, arg0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
     ret
 }
 
-fn @revert_message() [selector=0x0900437f, pure, abi_params=[], abi_returns=[]] {
+fn @revert_message() [selector=0x0900437f, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall require<short_string>, false, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
     invalid
 }
 
-fn @revert_hex_message() [selector=0x36440c33, pure, abi_params=[], abi_returns=[]] {
+fn @revert_hex_message() [selector=0x36440c33, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall require<short_string>, false, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
     invalid

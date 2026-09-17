@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/checked_loop_stack.sol:CheckedLoopStorage ===
 @module CheckedLoopStorage
-fn @result() -> u256 [selector=0x65372147, view, abi_params=[], abi_returns=[word]] {
+fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @compute(arg0: u256) [selector=0x5ed86d5c, abi_params=[u256], abi_returns=[]] {
+fn @compute(arg0: i256) [selector=0x5ed86d5c, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     jump bb1
@@ -14,7 +14,7 @@ fn @compute(arg0: u256) [selector=0x5ed86d5c, abi_params=[u256], abi_returns=[]]
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 2], [bb3: v6]
     v2 = gt v1, v0
-    v3 = iszero v2
+    v3 = eq v2, false
     jumpi v3, bb4, bb5
   bb5:
     jump bb2
@@ -34,7 +34,7 @@ fn @compute(arg0: u256) [selector=0x5ed86d5c, abi_params=[u256], abi_returns=[]]
 
 // === ROOT/tests/ui/codegen/lowering/checked_loop_stack.sol:CheckedLoopStack ===
 @module CheckedLoopStack
-fn @factorial(arg0: u256) -> u256 [selector=0x83714834, pure, abi_params=[u256], abi_returns=[word]] {
+fn @factorial(arg0: i256) -> i256 [selector=0x83714834, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -42,7 +42,7 @@ fn @factorial(arg0: u256) -> u256 [selector=0x83714834, pure, abi_params=[u256],
     v1 = phi [bb0: 1], [bb3: v5]
     v2 = phi [bb0: 2], [bb3: v6]
     v3 = gt v2, v0
-    v4 = iszero v3
+    v4 = eq v3, false
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
@@ -58,7 +58,7 @@ fn @factorial(arg0: u256) -> u256 [selector=0x83714834, pure, abi_params=[u256],
     jump bb1
 }
 
-fn @checkedLatch(arg0: u256, arg1: u256) -> u256 [selector=0x3ed7bb22, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @checkedLatch(arg0: i256, arg1: i256) -> i256 [selector=0x3ed7bb22, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -67,7 +67,7 @@ fn @checkedLatch(arg0: u256, arg1: u256) -> u256 [selector=0x3ed7bb22, pure, abi
     v2 = phi [bb0: arg1], [bb3: v2]
     v3 = phi [bb0: arg0], [bb3: v7]
     v4 = gt v3, v2
-    v5 = iszero v4
+    v5 = eq v4, false
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
@@ -83,7 +83,7 @@ fn @checkedLatch(arg0: u256, arg1: u256) -> u256 [selector=0x3ed7bb22, pure, abi
     jump bb1
 }
 
-fn @diagnostic(arg0: u256, arg1: u256) -> u256 [selector=0x6f25cb96, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @diagnostic(arg0: i256, arg1: i256) -> i256 [selector=0x6f25cb96, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -92,7 +92,7 @@ fn @diagnostic(arg0: u256, arg1: u256) -> u256 [selector=0x6f25cb96, pure, abi_p
     v2 = phi [bb0: arg0], [bb5: v2]
     v3 = phi [bb0: 0], [bb5: v6]
     v4 = gt v1, v0
-    v5 = iszero v4
+    v5 = eq v4, false
     jumpi v5, bb3, bb4
   bb4:
     jump bb2

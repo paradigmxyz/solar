@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_storage_invalid.sol:AbiDecodeStorageInvalid ===
 @module AbiDecodeStorageInvalid
-fn @decode(arg0: memorybytes) -> u256 [selector=0xe5c5e9a3, abi_params=[bytes], abi_returns=[word]] {
+fn @decode(arg0: memorybytes) -> i256 [selector=0xe5c5e9a3, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall @store_storage_bytes, 0, arg0
     v0 = load_storage_bytes 0
@@ -9,7 +9,7 @@ fn @decode(arg0: memorybytes) -> u256 [selector=0xe5c5e9a3, abi_params=[bytes], 
     ret v2
 }
 
-fn @decodeNarrow(arg0: memorybytes) -> u256 [selector=0x3964f0f9, abi_params=[bytes], abi_returns=[word]] {
+fn @decodeNarrow(arg0: memorybytes) -> i256 [selector=0x3964f0f9, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall @store_storage_bytes, 0, arg0
     v0 = load_storage_bytes 0
@@ -22,7 +22,7 @@ fn @decodeNarrow(arg0: memorybytes) -> u256 [selector=0x3964f0f9, abi_params=[by
     ret v6
 }
 
-fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

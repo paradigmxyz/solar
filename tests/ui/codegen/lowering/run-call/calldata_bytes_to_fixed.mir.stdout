@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_bytes_to_fixed.sol:CalldataBytesToFixed ===
 @module CalldataBytesToFixed
-fn @first(arg0: calldataslice) -> bytes1 [selector=0x936fc730, pure, abi_params=[bytes], abi_returns=[word<bytes1>]] {
+fn @first(arg0: calldataslice) -> i256 [selector=0x936fc730, pure, abi_params=[bytes], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = calldata_slice_load_word calldata, arg0, 0
     v1 = slice_len arg0
@@ -13,7 +13,7 @@ fn @first(arg0: calldataslice) -> bytes1 [selector=0x936fc730, pure, abi_params=
     ret v7
 }
 
-fn @half(arg0: calldataslice) -> bytes16 [selector=0xf67e1bfb, pure, abi_params=[bytes], abi_returns=[word<bytes16>]] {
+fn @half(arg0: calldataslice) -> i256 [selector=0xf67e1bfb, pure, abi_params=[bytes], abi_returns=[word<bytes16>], abi_return_params=[bytes16]] {
   bb0:
     v0 = calldata_slice_load_word calldata, arg0, 0
     v1 = slice_len arg0
@@ -26,7 +26,7 @@ fn @half(arg0: calldataslice) -> bytes16 [selector=0xf67e1bfb, pure, abi_params=
     ret v7
 }
 
-fn @word(arg0: calldataslice) -> bytes32 [selector=0xc22ee0b0, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @word(arg0: calldataslice) -> i256 [selector=0xc22ee0b0, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = calldata_slice_load_word calldata, arg0, 0
     v1 = slice_len arg0
@@ -39,24 +39,25 @@ fn @word(arg0: calldataslice) -> bytes32 [selector=0xc22ee0b0, pure, abi_params=
     ret v7
 }
 
-fn @sliced(arg0: calldataslice, arg1: u256, arg2: u256) -> bytes16 [selector=0x183ecf01, pure, abi_params=[bytes, u256, u256], abi_returns=[word<bytes16>]] {
+fn @sliced(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0x183ecf01, pure, abi_params=[bytes, u256, u256], abi_returns=[word<bytes16>], abi_return_params=[bytes16]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    icall revert_if<empty>, v4
-    v5 = sub arg2, arg1
-    v6 = add v0, arg1
-    v7 = make_calldata_slice v6, v5
-    v8 = calldata_slice_load_word calldata, v7, 0
-    v9 = slice_len v7
-    v10 = lt v9, 16
-    v11 = sub 16, v9
-    v12 = mul 8, v11
-    v13 = shl v12, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
-    v14 = select v10, v13, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
-    v15 = and v8, v14
-    ret v15
+    v5 = zext i1 v4 to i256
+    icall revert_if<empty>, v5
+    v6 = sub arg2, arg1
+    v7 = add v0, arg1
+    v8 = make_calldata_slice v7, v6
+    v9 = calldata_slice_load_word calldata, v8, 0
+    v10 = slice_len v8
+    v11 = lt v10, 16
+    v12 = sub 16, v10
+    v13 = mul 8, v12
+    v14 = shl v13, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v15 = select v11, v14, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v16 = and v9, v15
+    ret v16
 }

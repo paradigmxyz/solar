@@ -5,9 +5,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/multi_return_repeated.sol:MultiReturnRepeated ===
 @module MultiReturnRepeated
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
-fn @test() -> u256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word]] {
+fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @sort, 2, 1
     v1 = extract_value struct0, v0, 0
@@ -50,7 +50,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word]
     ret v13
 }
 
-fn @sort(arg0: u256, arg1: u256) -> struct0 [pure] {
+fn @sort(arg0: i256, arg1: i256) -> struct0 [pure] {
   bb0:
     v0 = lt arg0, arg1
     jumpi v0, bb1, bb2

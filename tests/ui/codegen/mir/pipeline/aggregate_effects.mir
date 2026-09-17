@@ -22,14 +22,14 @@
 // CHECK: {{^[ +].*}}fn @clobbers_stored_value{{[( ]}}
 // CHECK: - sstore 0, 1 !metadata(storage=slot(0))
 
-fn @reads_memory(arg0: memptr) {
+fn @reads_memory(arg0: i256) {
   bb0:
     mstore arg0, 7
     memory_to_storage struct<word>, arg0, 0
     stop
 }
 
-fn @overwrites_memory(arg0: memptr) -> u256 {
+fn @overwrites_memory(arg0: i256) -> i256 {
   bb0:
     mstore arg0, 7
     storage_to_memory struct<word>, 0, arg0
@@ -37,7 +37,7 @@ fn @overwrites_memory(arg0: memptr) -> u256 {
     ret v0
 }
 
-fn @flat_memory_write_is_precise() -> u256 {
+fn @flat_memory_write_is_precise() -> i256 {
   bb0:
     v0 = mload 128
     storage_to_memory struct<word>, 0, 256
@@ -46,7 +46,7 @@ fn @flat_memory_write_is_precise() -> u256 {
     ret v2
 }
 
-fn @nested_memory_write_is_barrier() -> u256 {
+fn @nested_memory_write_is_barrier() -> i256 {
   bb0:
     v0 = mload 128
     storage_to_memory struct<struct<word>>, 0, 256
@@ -55,7 +55,7 @@ fn @nested_memory_write_is_barrier() -> u256 {
     ret v2
 }
 
-fn @disjoint_storage() -> u256 {
+fn @disjoint_storage() -> i256 {
   bb0:
     v0 = sload 0
     clear_storage struct<word, word>, 10
@@ -64,7 +64,7 @@ fn @disjoint_storage() -> u256 {
     ret v2
 }
 
-fn @overlapping_storage() -> u256 {
+fn @overlapping_storage() -> i256 {
   bb0:
     v0 = sload 0
     clear_storage struct<word, word>, 0
@@ -73,7 +73,7 @@ fn @overlapping_storage() -> u256 {
     ret v2
 }
 
-fn @observes_storage(arg0: memptr) {
+fn @observes_storage(arg0: i256) {
   bb0:
     sstore 0, 1
     storage_to_memory struct<word>, 0, arg0

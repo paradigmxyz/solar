@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_fields.sol:SliceFields ===
 @module SliceFields
-fn @first(arg0: calldataslice) -> u256 [selector=0xa355ea34, pure, abi_params=[tuple<u256, u256>], abi_returns=[word]] {
+fn @first(arg0: calldataslice) -> i256 [selector=0xa355ea34, pure, abi_params=[tuple<u256, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
@@ -8,7 +8,7 @@ fn @first(arg0: calldataslice) -> u256 [selector=0xa355ea34, pure, abi_params=[t
     ret v2
 }
 
-fn @second(arg0: calldataslice) -> u256 [selector=0x8516528b, pure, abi_params=[tuple<u256, u256>], abi_returns=[word]] {
+fn @second(arg0: calldataslice) -> i256 [selector=0x8516528b, pure, abi_params=[tuple<u256, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 32
@@ -16,24 +16,25 @@ fn @second(arg0: calldataslice) -> u256 [selector=0x8516528b, pure, abi_params=[
     ret v2
 }
 
-fn @choose(arg0: calldataslice, arg1: bool) -> u256 [selector=0x1fae9324, pure, abi_params=[tuple<u256, u256>, bool], abi_returns=[word]] {
+fn @choose(arg0: calldataslice, arg1: i256) -> i256 [selector=0x1fae9324, pure, abi_params=[tuple<u256, u256>, bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    jumpi arg1, bb1, bb2
+    v0 = ne arg1, 0
+    jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v3 = slice_ptr arg0
-    v4 = add v3, 32
-    v5 = calldataload v4
-    ret v5
+    v4 = slice_ptr arg0
+    v5 = add v4, 32
+    v6 = calldataload v5
+    ret v6
   bb1:
-    v0 = slice_ptr arg0
-    v1 = add v0, 0
-    v2 = calldataload v1
-    ret v2
+    v1 = slice_ptr arg0
+    v2 = add v1, 0
+    v3 = calldataload v2
+    ret v3
 }
 
-fn @memoryFirst(arg0: memorystruct) -> u256 [selector=0xfd428e4b, pure, abi_params=[tuple<u256, u256>], abi_returns=[word]] {
+fn @memoryFirst(arg0: memorystruct) -> i256 [selector=0xfd428e4b, pure, abi_params=[tuple<u256, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_load_field memorystruct<2>, arg0, 0
     ret v0

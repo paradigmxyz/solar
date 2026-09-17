@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_dirty_tail.sol:StorageBytesDirtyTail ===
 @module StorageBytesDirtyTail
 types:
-  struct0: {u256, u256, u256}
-  struct1: {u256, u256}
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256}
 
 fn @storeLong() -> struct0 [selector=0xc4a6ec73, abi_params=[], abi_returns=[word, word, word], abi_return_params=[bytes32, bytes32, u256]] {
   bb0:
@@ -15,24 +15,25 @@ fn @storeLong() -> struct0 [selector=0xc4a6ec73, abi_params=[], abi_returns=[wor
     mstore v3, v2
     v4 = add v0, 96
     mstore 64, v4 !metadata(memory=scratch)
-    icall @store_storage_bytes, 0, v0
+    v5 = inttoptr i256 v0 to memorybytes
+    icall @store_storage_bytes, 0, v5
     mstore 0, 0 !metadata(memory=scratch)
-    v5 = keccak256 0, 32 !metadata(memory=scratch)
-    v6 = sload v5 !metadata(storage=symbolic(v5))
-    v7 = add v5, 1
-    v8 = sload v7 !metadata(storage=offset(v5, 1))
-    v9 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v9
-    v10 = and v9, 1
-    v11 = eq v10, 1
-    v12 = sub 0, v10
-    v13 = or 127, v12
-    v14 = shr 1, v9
-    v15 = and v14, v13
-    v16 = insert_value struct0, undef struct0, 0, v6
-    v17 = insert_value struct0, v16, 1, v8
-    v18 = insert_value struct0, v17, 2, v15
-    ret v18
+    v6 = keccak256 0, 32 !metadata(memory=scratch)
+    v7 = sload v6 !metadata(storage=symbolic(v6))
+    v8 = add v6, 1
+    v9 = sload v8 !metadata(storage=offset(v6, 1))
+    v10 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v10
+    v11 = and v10, 1
+    v12 = eq v11, 1
+    v13 = sub 0, v11
+    v14 = or 127, v13
+    v15 = shr 1, v10
+    v16 = and v15, v14
+    v17 = insert_value struct0, undef struct0, 0, v7
+    v18 = insert_value struct0, v17, 1, v9
+    v19 = insert_value struct0, v18, 2, v16
+    ret v19
 }
 
 fn @storeShort() -> struct1 [selector=0x5296e6c1, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, u256]] {
@@ -44,22 +45,23 @@ fn @storeShort() -> struct1 [selector=0x5296e6c1, abi_params=[], abi_returns=[wo
     mstore v2, v1
     v3 = add v0, 64
     mstore 64, v3 !metadata(memory=scratch)
-    icall @store_storage_bytes, 0, v0
-    v4 = sload 0 !metadata(storage=slot(0))
+    v4 = inttoptr i256 v0 to memorybytes
+    icall @store_storage_bytes, 0, v4
     v5 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v5
-    v6 = and v5, 1
-    v7 = eq v6, 1
-    v8 = sub 0, v6
-    v9 = or 127, v8
-    v10 = shr 1, v5
-    v11 = and v10, v9
-    v12 = insert_value struct1, undef struct1, 0, v4
-    v13 = insert_value struct1, v12, 1, v11
-    ret v13
+    v6 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v6
+    v7 = and v6, 1
+    v8 = eq v7, 1
+    v9 = sub 0, v7
+    v10 = or 127, v9
+    v11 = shr 1, v6
+    v12 = and v11, v10
+    v13 = insert_value struct1, undef struct1, 0, v5
+    v14 = insert_value struct1, v13, 1, v12
+    ret v14
 }
 
-fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

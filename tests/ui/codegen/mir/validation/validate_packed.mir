@@ -4,7 +4,7 @@
 //~? ERROR: [fn2] [bb0, inst0] packed encoding input has an incompatible shape
 @module InvalidPacked
 
-fn @hash_array(arg0: memoryarray) -> bytes32 {
+fn @hash_array(arg0: memoryarray) -> i256 {
   bb0:
     v0 = keccak256_packed (array<word> memoryarray<1> arg0)
     ret v0

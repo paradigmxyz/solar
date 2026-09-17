@@ -2,16 +2,16 @@
 + // === ROOT/tests/ui/codegen/mir/egraph/rewrite_metadata.mir (after egraph) ===
   @module RewriteMetadata
   types:
-    struct0: {u256, u256}
+    struct0: {i256, i256}
   
-  fn @arithmetic(arg0: u256) -> u256 {
+  fn @arithmetic(arg0: i256) -> i256 {
     bb0:
 -     v0 = mul arg0, 8 !metadata(hir=42, span=1..5, modifier_depth=3, unchecked, loop_depth=2, effect=memory_read)
 +     v0 = shl 3, arg0 !metadata(hir=42, span=1..5, modifier_depth=3, unchecked, loop_depth=2)
       ret v0
   }
   
-  fn @operands(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
+  fn @operands(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
 -     v0 = add arg0, 0
 -     v1 = sload v0 !metadata(storage=symbolic(v0), span=5..9)
@@ -21,7 +21,7 @@
       ret v1, v2
   }
   
-  fn @unchanged(arg0: memptr) -> u256 {
+  fn @unchanged(arg0: i256) -> i256 {
     bb0:
       v0 = mload arg0 !metadata(memory=heap, span=13..17)
       ret v0

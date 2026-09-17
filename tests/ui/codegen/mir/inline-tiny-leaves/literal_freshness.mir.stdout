@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/literal_freshness.sol:LiteralFreshness ===
 @module LiteralFreshness
-fn @freshInLoop(arg0: bytes1) -> bool [selector=0x533a7d1b, pure, abi_params=[bytes1], abi_returns=[word<bool>]] {
+fn @freshInLoop(arg0: i256) -> i256 [selector=0x533a7d1b, pure, abi_params=[bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v32]
+    v0 = phi [bb0: 0], [bb3: v30]
     v1 = phi [bb0: arg0], [bb3: v1]
     v2 = phi [bb0: memorybytes 96], [bb3: v5]
     v3 = phi [bb0: 0], [bb3: v3]
@@ -13,79 +13,78 @@ fn @freshInLoop(arg0: bytes1) -> bool [selector=0x533a7d1b, pure, abi_params=[by
   bb5:
     jump bb2
   bb2:
-    ret true
+    v31 = zext i1 1 to i256
+    ret v31
   bb4:
     v5 = icall @literal
     v6 = memory_object_len memorybytes, v5
-    v7 = eq v6, 1
-    v8 = iszero v7
-    jumpi v8, bb8, bb7
+    v7 = ne v6, 1
+    jumpi v7, bb8, bb7
   bb7:
-    v9 = memory_object_len memorybytes, v5
-    v10 = lt 0, v9
-    v11 = iszero v10
-    icall panic_if<0x32>, v11
-    v12 = memory_object_load_byte memorybytes, v5, 0
-    v13 = shl 248, v12
-    v14 = eq v13, 0x3100000000000000000000000000000000000000000000000000000000000000
-    v15 = iszero v14
+    v8 = memory_object_len memorybytes, v5
+    v9 = lt 0, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = memory_object_load_byte memorybytes, v5, 0
+    v12 = shl 248, v11
+    v13 = ne v12, 0x3100000000000000000000000000000000000000000000000000000000000000
     jump bb9
   bb8:
     jump bb9
   bb9:
-    v16 = phi [bb7: v15], [bb8: true]
-    jumpi v16, bb10, bb11
+    v14 = phi [bb7: v13], [bb8: true]
+    jumpi v14, bb10, bb11
   bb11:
     jump bb12
   bb12:
-    v17 = eq v0, 0
-    v18 = iszero v17
-    jumpi v18, bb13, bb14
+    v16 = ne v0, 0
+    jumpi v16, bb13, bb14
   bb14:
     jump bb15
   bb13:
-    v19 = memory_object_len memorybytes, v2
-    v20 = lt 0, v19
-    v21 = iszero v20
-    icall panic_if<0x32>, v21
-    v22 = memory_object_load_byte memorybytes, v2, 0
-    v23 = shl 248, v22
-    v24 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v25 = eq v23, v24
-    v26 = iszero v25
+    v17 = memory_object_len memorybytes, v2
+    v18 = lt 0, v17
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = memory_object_load_byte memorybytes, v2, 0
+    v21 = shl 248, v20
+    v22 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v23 = ne v21, v22
     jump bb15
   bb15:
-    v27 = phi [bb13: v26], [bb14: false]
-    jumpi v27, bb16, bb17
+    v24 = phi [bb13: v23], [bb14: false]
+    jumpi v24, bb16, bb17
   bb17:
     jump bb18
   bb18:
-    v28 = memory_object_len memorybytes, v5
-    v29 = lt 0, v28
-    v30 = iszero v29
-    icall panic_if<0x32>, v30
-    v31 = byte 0, v1
-    memory_object_store_byte memorybytes, v5, 0, v31
+    v26 = memory_object_len memorybytes, v5
+    v27 = lt 0, v26
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = byte 0, v1
+    memory_object_store_byte memorybytes, v5, 0, v29
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v32 = checked_add u256, v0, 1
+    v30 = checked_add u256, v0, 1
     jump bb1
   bb16:
-    ret false
+    v25 = zext i1 0 to i256
+    ret v25
   bb10:
-    ret false
+    v15 = zext i1 0 to i256
+    ret v15
 }
 
-fn @emptyLiteral() -> u256 [selector=0x298b653f, pure, abi_params=[], abi_returns=[word]] {
+fn @emptyLiteral() -> i256 [selector=0x298b653f, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @empty
     v1 = memory_object_len memorybytes, v0
     ret v1
 }
 
-fn @encoded(arg0: u256) -> memorybytes [selector=0xdbafcb80, pure, abi_params=[u256], abi_returns=[memory_bytes]] {
+fn @encoded(arg0: i256) -> memorybytes [selector=0xdbafcb80, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = shl 224, 0x12345678
     v1 = icall @encodedWord
@@ -101,7 +100,8 @@ fn @literal() -> memorybytes [pure] {
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -118,6 +118,7 @@ fn @encodedWord() -> memorybytes [pure] {
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x3200000000000000000000000000000000000000000000000000000000000000
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x3200000000000000000000000000000000000000000000000000000000000000
     ret v0
 }

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/getter_array_bounds.sol:GetterArrayBounds ===
 @module GetterArrayBounds
-fn @dynamicArray(arg0: u256) -> u256 [selector=0x9a9bdca7, view, abi_params=[u256], abi_returns=[word]] {
+fn @dynamicArray(arg0: i256) -> i256 [selector=0x9a9bdca7, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = lt arg0, v0
@@ -11,7 +11,7 @@ fn @dynamicArray(arg0: u256) -> u256 [selector=0x9a9bdca7, view, abi_params=[u25
     ret v4
 }
 
-fn @fixedArray(arg0: u256) -> u256 [selector=0x9a5009ac, view, abi_params=[u256], abi_returns=[word]] {
+fn @fixedArray(arg0: i256) -> i256 [selector=0x9a5009ac, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = lt arg0, 2
     icall revert_if_zero<empty>, v0

@@ -101,7 +101,7 @@ impl ArithmeticLowerer<'_, '_> {
         let result_negative = self.builder.slt(result, zero);
         let signs_differ = self.builder.xor(lhs_negative, rhs_negative);
         let result_changed_sign = self.builder.xor(result_negative, lhs_negative);
-        let sign_condition = if is_add { self.builder.iszero(signs_differ) } else { signs_differ };
+        let sign_condition = if is_add { self.builder.eq_zero(signs_differ) } else { signs_differ };
         let mut overflow = self.builder.and(sign_condition, result_changed_sign);
         if bits < 256 {
             // overflow |= result < min || result > max
@@ -120,14 +120,14 @@ impl ArithmeticLowerer<'_, '_> {
     ) -> ValueId {
         // valid = rhs == 0 || (signed ? sdiv : div)(result, rhs) == lhs
         // overflow = !valid
-        let rhs_zero = self.builder.iszero(rhs);
+        let rhs_zero = self.builder.eq_zero(rhs);
         let quotient = match kind {
             ArithmeticKind::Unsigned(_) => self.builder.div(result, rhs),
             ArithmeticKind::Signed(_) => self.builder.sdiv(result, rhs),
         };
         let exact = self.builder.eq(quotient, lhs);
         let valid = self.builder.or(rhs_zero, exact);
-        let mut overflow = self.builder.iszero(valid);
+        let mut overflow = self.builder.eq_zero(valid);
         if let ArithmeticKind::Signed(bits) = kind {
             let (min, max) = signed_bounds(bits, self.builder);
             if bits < 256 {

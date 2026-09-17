@@ -2,68 +2,68 @@
 + // === ROOT/tests/ui/codegen/mir/word-sequence/mined_masks.mir (after word-sequence) ===
   @module MinedMasks
   types:
-    struct0: {u256, u256}
-    struct1: {u256, u256, bool}
+    struct0: {i256, i256}
+    struct1: {i256, i256, i1}
   
-  fn @low_mask(arg0: u256) -> u256 {
+  fn @low_mask(arg0: i256) -> i256 {
     bb0:
       v0 = shl arg0, 1
       v1 = sub v0, 1
       ret v1
   }
   
-  fn @shared_shift(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
+  fn @shared_shift(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = shl arg0, 1
       v1 = sub v0, 1
       ret v0, v1
   }
   
-  fn @masked_eq_0(arg0: u256, arg1: u256, arg2: u256) -> bool {
+  fn @masked_eq_0(arg0: i256, arg1: i256, arg2: i256) -> i1 {
     bb0:
 -     v0 = and arg0, arg2
 -     v1 = and arg2, arg1
 -     v2 = eq v0, v1
 +     v3 = xor arg0, arg1
 +     v4 = and v3, arg2
-+     v2 = iszero v4
++     v2 = eq v4, 0
       ret v2
   }
   
-  fn @masked_eq_1(arg0: u256, arg1: u256, arg2: u256) -> bool {
+  fn @masked_eq_1(arg0: i256, arg1: i256, arg2: i256) -> i1 {
     bb0:
 -     v0 = and arg0, arg2
 -     v1 = and arg1, arg2
 -     v2 = eq v0, v1
 +     v3 = xor arg0, arg1
 +     v4 = and v3, arg2
-+     v2 = iszero v4
++     v2 = eq v4, 0
       ret v2
   }
   
-  fn @masked_eq_2(arg0: u256, arg1: u256, arg2: u256) -> bool {
+  fn @masked_eq_2(arg0: i256, arg1: i256, arg2: i256) -> i1 {
     bb0:
 -     v0 = and arg2, arg0
 -     v1 = and arg2, arg1
 -     v2 = eq v0, v1
 +     v3 = xor arg0, arg1
 +     v4 = and v3, arg2
-+     v2 = iszero v4
++     v2 = eq v4, 0
       ret v2
   }
   
-  fn @masked_eq_3(arg0: u256, arg1: u256, arg2: u256) -> bool {
+  fn @masked_eq_3(arg0: i256, arg1: i256, arg2: i256) -> i1 {
     bb0:
 -     v0 = and arg2, arg0
 -     v1 = and arg1, arg2
 -     v2 = eq v0, v1
 +     v3 = xor arg0, arg1
 +     v4 = and v3, arg2
-+     v2 = iszero v4
++     v2 = eq v4, 0
       ret v2
   }
   
-  fn @shared_masked_values(arg0: u256, arg1: u256, arg2: u256) -> struct1 [return_abi=[u256, u256, bool]] {
+  fn @shared_masked_values(arg0: i256, arg1: i256, arg2: i256) -> struct1 [return_abi=[i256, i256, i1]] {
     bb0:
       v0 = and arg0, arg2
       v1 = and arg1, arg2
@@ -71,7 +71,7 @@
       ret v0, v1, v2
   }
   
-  fn @different_masks(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> bool {
+  fn @different_masks(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i1 {
     bb0:
       v0 = and arg0, arg2
       v1 = and arg1, arg3
@@ -79,7 +79,7 @@
       ret v2
   }
   
-  fn @effect_barrier(arg0: u256, arg1: u256, arg2: u256) -> bool {
+  fn @effect_barrier(arg0: i256, arg1: i256, arg2: i256) -> i1 {
     bb0:
       v0 = and arg0, arg2
       v1 = and arg1, arg2
@@ -92,56 +92,56 @@
 + // === ROOT/tests/ui/codegen/mir/word-sequence/mined_masks.mir (after dce) ===
   @module MinedMasks
   types:
-    struct0: {u256, u256}
-    struct1: {u256, u256, bool}
+    struct0: {i256, i256}
+    struct1: {i256, i256, i1}
   
-  fn @low_mask(arg0: u256) -> u256 {
+  fn @low_mask(arg0: i256) -> i256 {
     bb0:
       v0 = shl arg0, 1
       v1 = sub v0, 1
       ret v1
   }
   
-  fn @shared_shift(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
+  fn @shared_shift(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = shl arg0, 1
       v1 = sub v0, 1
       ret v0, v1
   }
   
-  fn @masked_eq_0(arg0: u256, arg1: u256, arg2: u256) -> bool {
+  fn @masked_eq_0(arg0: i256, arg1: i256, arg2: i256) -> i1 {
     bb0:
       v3 = xor arg0, arg1
       v4 = and v3, arg2
-      v2 = iszero v4
+      v2 = eq v4, 0
       ret v2
   }
   
-  fn @masked_eq_1(arg0: u256, arg1: u256, arg2: u256) -> bool {
+  fn @masked_eq_1(arg0: i256, arg1: i256, arg2: i256) -> i1 {
     bb0:
       v3 = xor arg0, arg1
       v4 = and v3, arg2
-      v2 = iszero v4
+      v2 = eq v4, 0
       ret v2
   }
   
-  fn @masked_eq_2(arg0: u256, arg1: u256, arg2: u256) -> bool {
+  fn @masked_eq_2(arg0: i256, arg1: i256, arg2: i256) -> i1 {
     bb0:
       v3 = xor arg0, arg1
       v4 = and v3, arg2
-      v2 = iszero v4
+      v2 = eq v4, 0
       ret v2
   }
   
-  fn @masked_eq_3(arg0: u256, arg1: u256, arg2: u256) -> bool {
+  fn @masked_eq_3(arg0: i256, arg1: i256, arg2: i256) -> i1 {
     bb0:
       v3 = xor arg0, arg1
       v4 = and v3, arg2
-      v2 = iszero v4
+      v2 = eq v4, 0
       ret v2
   }
   
-  fn @shared_masked_values(arg0: u256, arg1: u256, arg2: u256) -> struct1 [return_abi=[u256, u256, bool]] {
+  fn @shared_masked_values(arg0: i256, arg1: i256, arg2: i256) -> struct1 [return_abi=[i256, i256, i1]] {
     bb0:
       v0 = and arg0, arg2
       v1 = and arg1, arg2
@@ -149,7 +149,7 @@
       ret v0, v1, v2
   }
   
-  fn @different_masks(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> bool {
+  fn @different_masks(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i1 {
     bb0:
       v0 = and arg0, arg2
       v1 = and arg1, arg3
@@ -157,7 +157,7 @@
       ret v2
   }
   
-  fn @effect_barrier(arg0: u256, arg1: u256, arg2: u256) -> bool {
+  fn @effect_barrier(arg0: i256, arg1: i256, arg2: i256) -> i1 {
     bb0:
       v0 = and arg0, arg2
       v1 = and arg1, arg2

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_index_reference.sol:CalldataIndexReference ===
 @module CalldataIndexReference
 types:
-  struct0: {u256, u256, u256}
+  struct0: {i256, i256, i256}
 
 fn @dynamicFixed(arg0: calldataslice) -> struct0 [selector=0x71cafd78, pure, abi_params=[array<_, array<2, u256>>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
@@ -9,7 +9,7 @@ fn @dynamicFixed(arg0: calldataslice) -> struct0 [selector=0x71cafd78, pure, abi
     v1 = slice_len arg0
     v2 = slice_len arg0
     v3 = lt 1, v2
-    v4 = iszero v3
+    v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = slice_ptr arg0
     v6 = add v5, 64
@@ -25,7 +25,7 @@ fn @staticFixed(arg0: calldataslice) -> struct0 [selector=0xc2cb46f3, pure, abi_
   bb0:
     v0 = slice_len arg0
     v1 = lt 1, v0
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 64
@@ -33,14 +33,14 @@ fn @staticFixed(arg0: calldataslice) -> struct0 [selector=0xc2cb46f3, pure, abi_
     v6 = slice_ptr v5
     v7 = slice_len v5
     v8 = lt 0, v7
-    v9 = iszero v8
+    v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = slice_ptr v5
     v11 = add v10, 0
     v12 = calldataload v11
     v13 = slice_len v5
     v14 = lt 1, v13
-    v15 = iszero v14
+    v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = slice_ptr v5
     v17 = add v16, 32
@@ -55,7 +55,7 @@ fn @nestedDynamic(arg0: calldataslice) -> struct0 [selector=0xd5de94f6, pure, ab
   bb0:
     v0 = slice_len arg0
     v1 = lt 1, v0
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 32
@@ -69,7 +69,7 @@ fn @nestedDynamic(arg0: calldataslice) -> struct0 [selector=0xd5de94f6, pure, ab
     v11 = sub v10, v3
     v12 = sub v11, 31
     v13 = slt v8, v12
-    v14 = iszero v13
+    v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = calldataload v9
     v16 = gt v15, 0xffffffffffffffff
@@ -86,7 +86,7 @@ fn @nestedDynamic(arg0: calldataslice) -> struct0 [selector=0xd5de94f6, pure, ab
     v25 = slice_len v23
     v26 = slice_len v23
     v27 = lt 1, v26
-    v28 = iszero v27
+    v28 = eq v27, false
     icall panic_if<0x32>, v28
     v29 = slice_ptr v23
     v30 = add v29, 32
@@ -101,7 +101,7 @@ fn @dynamicBytes(arg0: calldataslice) -> struct0 [selector=0x925ccb10, pure, abi
   bb0:
     v0 = slice_len arg0
     v1 = lt 1, v0
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 32
@@ -115,7 +115,7 @@ fn @dynamicBytes(arg0: calldataslice) -> struct0 [selector=0x925ccb10, pure, abi
     v11 = sub v10, v3
     v12 = sub v11, 31
     v13 = slt v8, v12
-    v14 = iszero v13
+    v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = calldataload v9
     v16 = gt v15, 0xffffffffffffffff
@@ -132,7 +132,7 @@ fn @dynamicBytes(arg0: calldataslice) -> struct0 [selector=0x925ccb10, pure, abi
     v25 = slice_len v23
     v26 = slice_len v23
     v27 = lt 1, v26
-    v28 = iszero v27
+    v28 = eq v27, false
     icall panic_if<0x32>, v28
     v29 = slice_ptr v23
     v30 = calldata_slice_load_word calldata, v23, 1

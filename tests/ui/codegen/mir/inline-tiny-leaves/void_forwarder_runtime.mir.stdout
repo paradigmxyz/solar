@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/void_forwarder_runtime.sol:VoidForwarder ===
 @module VoidForwarder
-fn @once(arg0: u256, arg1: u256) -> u256 [selector=0x4c579d9d, abi_params=[u256, u256], abi_returns=[word]] {
+fn @once(arg0: i256, arg1: i256) -> i256 [selector=0x4c579d9d, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall @forward, arg0, arg1, 7
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @twice(arg0: u256, arg1: u256) -> u256 [selector=0x09d3ef31, abi_params=[u256, u256], abi_returns=[word]] {
+fn @twice(arg0: i256, arg1: i256) -> i256 [selector=0x09d3ef31, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall @forward, arg0, arg1, 7
     icall @forward, arg1, arg0, 7
@@ -15,43 +15,42 @@ fn @twice(arg0: u256, arg1: u256) -> u256 [selector=0x09d3ef31, abi_params=[u256
     ret v0
 }
 
-fn @wrap(arg0: u256) -> u256 [selector=0xea598cb0, abi_params=[u256], abi_returns=[word]] {
+fn @wrap(arg0: i256) -> i256 [selector=0xea598cb0, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall @wrappingForward, arg0
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @forward(arg0: u256, arg1: u256, arg2: u256) {
+fn @forward(arg0: i256, arg1: i256, arg2: i256) {
   bb0:
     icall @sink, arg1, arg0, arg2
     ret
 }
 
-fn @wrappingForward(arg0: u256) {
+fn @wrappingForward(arg0: i256) {
   bb0:
     icall @uncheckedSink, arg0, 4
     ret
 }
 
-fn @sink(arg0: u256, arg1: u256, arg2: u256) {
+fn @sink(arg0: i256, arg1: i256, arg2: i256) {
   bb0:
-    v0 = eq arg0, 0
-    v1 = iszero v0
-    v2 = iszero v1
-    icall revert_if<empty>, v2
-    v3 = sload 0 !metadata(storage=slot(0))
-    v4 = checked_mul u256, v3, 100
-    v5 = checked_mul u256, arg1, 0x3e8
-    v6 = checked_add u256, v4, v5
-    v7 = checked_mul u256, arg0, 10
-    v8 = checked_add u256, v6, v7
-    v9 = checked_add u256, v8, arg2
-    sstore 0, v9 !metadata(storage=slot(0))
+    v0 = ne arg0, 0
+    v1 = eq v0, false
+    icall revert_if<empty>, v1
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = checked_mul u256, v2, 100
+    v4 = checked_mul u256, arg1, 0x3e8
+    v5 = checked_add u256, v3, v4
+    v6 = checked_mul u256, arg0, 10
+    v7 = checked_add u256, v5, v6
+    v8 = checked_add u256, v7, arg2
+    sstore 0, v8 !metadata(storage=slot(0))
     ret
 }
 
-fn @uncheckedSink(arg0: u256, arg1: u256) {
+fn @uncheckedSink(arg0: i256, arg1: i256) {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2

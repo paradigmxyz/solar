@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_allocation_panic.sol:MemoryAllocationPanicRuntime ===
 @module MemoryAllocationPanicRuntime
-fn @makeBytes(arg0: u256) -> u256 [selector=0xd90fd4da, pure, abi_params=[u256], abi_returns=[word]] {
+fn @makeBytes(arg0: i256) -> i256 [selector=0xd90fd4da, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = add arg0, 63
     v1 = lt v0, arg0
@@ -13,50 +13,52 @@ fn @makeBytes(arg0: u256) -> u256 [selector=0xd90fd4da, pure, abi_params=[u256],
     ret v5
 }
 
-fn @makeArray(arg0: u256) -> u256 [selector=0x9510f212, pure, abi_params=[u256], abi_returns=[word]] {
+fn @makeArray(arg0: i256) -> i256 [selector=0x9510f212, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mul arg0, 1
-    v1 = iszero 1
+    v1 = eq 1, 0
     v2 = div v0, 1
     v3 = eq v2, arg0
     v4 = or v1, v3
-    v5 = iszero v4
-    icall panic_if<0x41>, v5
-    v6 = add v0, 1
-    v7 = lt v6, v0
-    icall panic_if<0x41>, v7
-    v8 = mul v6, 32
-    v9 = iszero 32
-    v10 = div v8, 32
-    v11 = eq v10, v6
-    v12 = or v9, v11
-    v13 = iszero v12
-    icall panic_if<0x41>, v13
-    v14 = alloc memoryarray<1>, exact, zeroed, panic, v8
-    set_memory_object_len memoryarray, v14, arg0
-    v15 = memory_object_len memoryarray, v14
-    ret v15
+    v5 = zext i1 v4 to i256
+    v6 = eq v5, 0
+    icall panic_if<0x41>, v6
+    v7 = add v0, 1
+    v8 = lt v7, v0
+    icall panic_if<0x41>, v8
+    v9 = mul v7, 32
+    v10 = eq 32, 0
+    v11 = div v9, 32
+    v12 = eq v11, v7
+    v13 = or v10, v12
+    v14 = zext i1 v13 to i256
+    v15 = eq v14, 0
+    icall panic_if<0x41>, v15
+    v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
+    set_memory_object_len memoryarray, v16, arg0
+    v17 = memory_object_len memoryarray, v16
+    ret v17
 }
 
-fn @makeArrayTooLarge() -> u256 [selector=0x821e5729, pure, abi_params=[], abi_returns=[word]] {
+fn @makeArrayTooLarge() -> i256 [selector=0x821e5729, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall panic_if<0x41>, true
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 32
     set_memory_object_len memoryarray, v0, 0x800000000000000000000000000000000000000000000000000000000000000
     v1 = memory_object_len memoryarray, v0
     v2 = lt 1, v1
-    v3 = iszero v2
+    v3 = eq v2, false
     icall panic_if<0x32>, v3
     memory_object_store_element memoryarray<1>, v0, 1, 42
     v4 = memory_object_len memoryarray, v0
     v5 = lt 1, v4
-    v6 = iszero v5
+    v6 = eq v5, false
     icall panic_if<0x32>, v6
     v7 = memory_object_load_element memoryarray<1>, v0, 1
     ret v7
 }
 
-fn @makeNestedArray(arg0: u256) -> u256 [selector=0x95572958, pure, abi_params=[u256], abi_returns=[word]] {
+fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -67,86 +69,91 @@ fn @makeNestedArray(arg0: u256) -> u256 [selector=0x95572958, pure, abi_params=[
     jumpi v2, bb2, bb3
   bb3:
     v4 = mul arg0, 1
-    v5 = iszero 1
+    v5 = eq 1, 0
     v6 = div v4, 1
     v7 = eq v6, arg0
     v8 = or v5, v7
-    v9 = iszero v8
-    icall panic_if<0x41>, v9
-    v10 = add v4, 1
-    v11 = lt v10, v4
-    icall panic_if<0x41>, v11
-    v12 = mul v10, 32
-    v13 = iszero 32
-    v14 = div v12, 32
-    v15 = eq v14, v10
-    v16 = or v13, v15
-    v17 = iszero v16
-    icall panic_if<0x41>, v17
-    v18 = alloc memoryarray<1>, exact, zeroed, panic, v12
-    set_memory_object_len memoryarray, v18, arg0
-    v19 = memory_object_len memoryarray, v0
-    v20 = lt 0, v19
-    v21 = iszero v20
-    icall panic_if<0x32>, v21
-    memory_object_store_element memoryarray<1>, v0, 0, v18
-    v22 = memory_object_len memoryarray, v0
-    v23 = lt 0, v22
-    v24 = iszero v23
-    icall panic_if<0x32>, v24
-    v25 = memory_object_load_element memoryarray<1>, v0, 0
-    v26 = memory_object_from_ptr memoryarray, v25
-    v27 = eq v26, 0
-    jumpi v27, bb4, bb5
+    v9 = zext i1 v8 to i256
+    v10 = eq v9, 0
+    icall panic_if<0x41>, v10
+    v11 = add v4, 1
+    v12 = lt v11, v4
+    icall panic_if<0x41>, v12
+    v13 = mul v11, 32
+    v14 = eq 32, 0
+    v15 = div v13, 32
+    v16 = eq v15, v11
+    v17 = or v14, v16
+    v18 = zext i1 v17 to i256
+    v19 = eq v18, 0
+    icall panic_if<0x41>, v19
+    v20 = alloc memoryarray<1>, exact, zeroed, panic, v13
+    set_memory_object_len memoryarray, v20, arg0
+    v21 = memory_object_len memoryarray, v0
+    v22 = lt 0, v21
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    memory_object_store_element memoryarray<1>, v0, 0, v20
+    v24 = memory_object_len memoryarray, v0
+    v25 = lt 0, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = memory_object_load_element memoryarray<1>, v0, 0
+    v28 = inttoptr i256 v27 to memoryarray
+    v29 = ptrtoint memoryarray v28 to i256
+    v30 = eq v29, 0
+    jumpi v30, bb4, bb5
   bb4:
-    v28 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v28, 0
-    memory_object_store_element memoryarray<1>, v0, 0, v28
+    v31 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v31, 0
+    memory_object_store_element memoryarray<1>, v0, 0, v31
     jump bb5
   bb5:
-    v29 = phi [bb3: v26], [bb4: v28]
-    v30 = memory_object_len memoryarray, v29
-    ret v30
+    v32 = phi [bb3: v28], [bb4: v31]
+    v33 = memory_object_len memoryarray, v32
+    ret v33
   bb2:
     memory_object_store_element memoryarray<1>, v0, v1, memoryarray 96
     v3 = add v1, 1
     jump bb1
 }
 
-fn @makeStructArray(arg0: u256) -> u256 [selector=0x4273d03f, pure, abi_params=[u256], abi_returns=[word]] {
+fn @makeStructArray(arg0: i256) -> i256 [selector=0x4273d03f, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mul arg0, 1
-    v1 = iszero 1
+    v1 = eq 1, 0
     v2 = div v0, 1
     v3 = eq v2, arg0
     v4 = or v1, v3
-    v5 = iszero v4
-    icall panic_if<0x41>, v5
-    v6 = add v0, 1
-    v7 = lt v6, v0
-    icall panic_if<0x41>, v7
-    v8 = mul v6, 32
-    v9 = iszero 32
-    v10 = div v8, 32
-    v11 = eq v10, v6
-    v12 = or v9, v11
-    v13 = iszero v12
-    icall panic_if<0x41>, v13
-    v14 = alloc memoryarray<1>, exact, zeroed, panic, v8
-    set_memory_object_len memoryarray, v14, arg0
+    v5 = zext i1 v4 to i256
+    v6 = eq v5, 0
+    icall panic_if<0x41>, v6
+    v7 = add v0, 1
+    v8 = lt v7, v0
+    icall panic_if<0x41>, v8
+    v9 = mul v7, 32
+    v10 = eq 32, 0
+    v11 = div v9, 32
+    v12 = eq v11, v7
+    v13 = or v10, v12
+    v14 = zext i1 v13 to i256
+    v15 = eq v14, 0
+    icall panic_if<0x41>, v15
+    v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
+    set_memory_object_len memoryarray, v16, arg0
     jump bb1
   bb1:
-    v15 = phi [bb0: 0], [bb2: v18]
-    v16 = lt v15, arg0
-    jumpi v16, bb2, bb3
+    v17 = phi [bb0: 0], [bb2: v20]
+    v18 = lt v17, arg0
+    jumpi v18, bb2, bb3
   bb3:
-    v19 = memory_object_len memoryarray, v14
-    ret v19
+    v21 = memory_object_len memoryarray, v16
+    ret v21
   bb2:
-    v17 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<2>, v17, 0, 0
-    memory_object_store_field memorystruct<2>, v17, 1, memorybytes 96
-    memory_object_store_element memoryarray<1>, v14, v15, v17
-    v18 = add v15, 1
+    v19 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    memory_object_store_field memorystruct<2>, v19, 0, 0
+    memory_object_store_field memorystruct<2>, v19, 1, memorybytes 96
+    memory_object_store_element memoryarray<1>, v16, v17, v19
+    v20 = add v17, 1
     jump bb1
 }

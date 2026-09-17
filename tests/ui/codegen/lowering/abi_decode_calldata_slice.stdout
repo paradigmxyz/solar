@@ -1,33 +1,34 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_calldata_slice.sol:AbiDecodeCalldataSlice ===
 @module AbiDecodeCalldataSlice
-fn @decode(arg0: calldataslice) -> u256 [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @decode(arg0: calldataslice) -> i256 [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt v1, v1
     v3 = lt v1, 4
     v4 = or v2, v3
-    icall revert_if<empty>, v4
-    v5 = sub v1, 4
-    v6 = add v0, 4
-    v7 = make_calldata_slice v6, v5
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = gt v9, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v10
-    v11 = calldatasize
-    v12 = sub v11, v9
-    v13 = sgt v8, v12
-    icall revert_if<calldata_tail_too_short>, v13
-    v14 = slice_len v7
-    v15 = add v14, 63
-    v16 = lt v15, v14
-    icall panic_if<0x41>, v16
-    v17 = not 31
-    v18 = and v15, v17
-    v19 = alloc memorybytes, exact, uninitialized, infallible, v18
-    set_memory_object_len memorybytes, v19, v14
-    memory_object_copy_from_slice memorybytes, v19, v7
-    v20 = abi_decode [u256], v19
-    ret v20
+    v5 = zext i1 v4 to i256
+    icall revert_if<empty>, v5
+    v6 = sub v1, 4
+    v7 = add v0, 4
+    v8 = make_calldata_slice v7, v6
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = gt v10, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v11
+    v12 = calldatasize
+    v13 = sub v12, v10
+    v14 = sgt v9, v13
+    icall revert_if<calldata_tail_too_short>, v14
+    v15 = slice_len v8
+    v16 = add v15, 63
+    v17 = lt v16, v15
+    icall panic_if<0x41>, v17
+    v18 = not 31
+    v19 = and v16, v18
+    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
+    set_memory_object_len memorybytes, v20, v15
+    memory_object_copy_from_slice memorybytes, v20, v8
+    v21 = abi_decode [u256], v20
+    ret v21
 }

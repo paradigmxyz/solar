@@ -839,8 +839,9 @@ impl AliasAnalysis {
                     propagate(*second);
                 }
                 InstKind::SlicePtr(predecessor)
-                | InstKind::MemoryObjectFromPtr { ptr: predecessor, .. }
-                | InstKind::WordCast(predecessor)
+                | InstKind::IntToPtr(predecessor)
+                | InstKind::PtrToInt(predecessor, 256)
+                | InstKind::Bitcast(predecessor)
                 | InstKind::MemoryObjectData(predecessor, _)
                 | InstKind::MemoryObjectFieldAddr { object: predecessor, .. } => {
                     propagate(*predecessor);
@@ -880,8 +881,8 @@ impl AliasAnalysis {
             | InstKind::Select(_, _, _)
             | InstKind::MakeSlice { .. }
             | InstKind::SlicePtr(_)
-            | InstKind::MemoryObjectFromPtr { .. }
-            | InstKind::WordCast(_)
+            | InstKind::IntToPtr(..)
+            | InstKind::PtrToInt(_, 256) | InstKind::Bitcast(_)
             | InstKind::MemoryObjectData(_, _)
             | InstKind::MemoryObjectFieldAddr { .. }
             | InstKind::MemoryObjectElementAddr { .. }
@@ -1770,7 +1771,7 @@ impl AliasAnalysis {
                         Some(MemoryAddress::symbolic(value, self.pointer_region(func, value, 0)))
                     })
                 }
-                InstKind::MemoryObjectFromPtr { ptr, .. } | InstKind::WordCast(ptr) => {
+                InstKind::IntToPtr(ptr) | InstKind::PtrToInt(ptr, 256) | InstKind::Bitcast(ptr) => {
                     self.memory_address_with_depth(func, ptr, depth + 1)
                 }
                 InstKind::SlicePtr(slice) => self.slice_pointer_address(func, slice, depth),
@@ -1919,8 +1920,9 @@ impl AliasAnalysis {
                 }
             }
             InstKind::Sub(base, _)
-            | InstKind::MemoryObjectFromPtr { ptr: base, .. }
-            | InstKind::WordCast(base)
+            | InstKind::IntToPtr(base)
+            | InstKind::PtrToInt(base, 256)
+            | InstKind::Bitcast(base)
             | InstKind::MemoryObjectData(base, _)
             | InstKind::MemoryObjectFieldAddr { object: base, .. }
             | InstKind::MemoryObjectElementAddr { object: base, .. } => {
@@ -2069,6 +2071,9 @@ impl AliasAnalysis {
             {
                 Some(EvmMemoryLayout::HEAP_START)
             }
+            InstKind::PtrToInt(value, 256)
+            | InstKind::Bitcast(value)
+            | InstKind::IntToPtr(value) => Self::pointer_lower_bound(func, *value, depth + 1),
             InstKind::InternalFrameAddr(offset) => EvmMemoryLayout::HEAP_START.checked_add(*offset),
             InstKind::MemoryObjectData(object, kind) => {
                 Self::pointer_lower_bound(func, *object, depth + 1)?
@@ -2155,7 +2160,7 @@ enum SizeOperand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{FunctionBuilder, Instruction, MirType, Module, TypeSize};
+    use crate::mir::{FunctionBuilder, Instruction, MirType, Module};
     use alloy_primitives::U256;
     use solar_interface::Ident;
     use std::sync::Arc;
@@ -2169,7 +2174,7 @@ mod tests {
         let mut func = function();
         let cases = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let slot = builder.add_param(MirType::uint256());
+            let slot = builder.add_param(MirType::I256);
             let object = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
             let calldata = builder.add_param(MirType::Slice(SliceLocation::Calldata));
             let cases = [
@@ -2192,7 +2197,7 @@ mod tests {
             ];
             cases.map(|(kind, size, has_result)| {
                 // semantic hash/store operands
-                let inst = Instruction::new(kind, has_result.then_some(MirType::uint256()));
+                let inst = Instruction::new(kind, has_result.then_some(MirType::I256));
                 (builder.append_instruction(inst).0, size)
             })
         };
@@ -2358,8 +2363,8 @@ mod tests {
         let mut func = function();
         let (local, captured) = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let local = builder.add_param(MirType::uint256());
-            let captured = builder.add_param(MirType::uint256());
+            let local = builder.add_param(MirType::I256);
+            let captured = builder.add_param(MirType::I256);
             let offset = builder.imm(32);
             let local_address = builder.add(local, offset);
             let captured_address = builder.add(captured, offset);
@@ -2381,7 +2386,7 @@ mod tests {
         let mut func = function();
         let allocation = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let condition = builder.add_param(MirType::Bool);
+            let condition = builder.add_param(MirType::I1);
             let header = builder.create_block();
             let exit = builder.create_block();
             builder.jump(header);
@@ -2406,8 +2411,8 @@ mod tests {
         let mut func = function();
         let allocation = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let pointer = builder.add_param(MirType::MemPtr);
-            let condition = builder.add_param(MirType::Bool);
+            let pointer = builder.add_param(MirType::I256);
+            let condition = builder.add_param(MirType::I1);
             let header = builder.create_block();
             let exit = builder.create_block();
             // jump header
@@ -2459,9 +2464,9 @@ mod tests {
         let id = ImmutableId::new(3);
         {
             let mut builder = FunctionBuilder::new(&mut func);
-            let value = builder.add_param(MirType::UInt(TypeSize::new_int_bits(8)));
+            let value = builder.add_param(MirType::I256);
             builder.store_immutable(id, value);
-            let _value = builder.load_immutable(id, MirType::UInt(TypeSize::new_int_bits(8)));
+            let _value = builder.load_immutable(id, MirType::I256);
             builder.stop();
         }
         let [store, load] = func.blocks[BlockId::ENTRY].instructions.as_slice() else {
@@ -2549,7 +2554,7 @@ mod tests {
             let size = builder.msize();
             builder.ret([size]);
         }
-        observer.set_return_type(MirType::uint256());
+        observer.set_return_type(MirType::I256);
         let observer = module.add_function(observer);
 
         let mut caller = function();
@@ -2561,7 +2566,7 @@ mod tests {
             let destination = builder.imm(0x1000);
             let value = builder.imm(1);
             builder.mstore(destination, value);
-            let _ = builder.icall(observer, vec![], MirType::uint256());
+            let _ = builder.icall(observer, vec![], MirType::I256);
             builder.ret([]);
             *builder.func().blocks[builder.current_block()].instructions.last().unwrap()
         };

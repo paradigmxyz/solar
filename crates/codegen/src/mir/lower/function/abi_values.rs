@@ -237,8 +237,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let data = self.materialize_memory_argument(memory_ty, data, data_expr.span)?;
         let (data, layout) = self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?;
         let layout = self.cx.module.intern_abi_param_layout(layout);
-        let fields =
-            decoded_types.iter().map(|&ty| types::TypeLowerer::mir_return_type(ty)).collect();
+        let fields = decoded_types.iter().map(|&ty| types::TypeLowerer::mir_type(ty)).collect();
         let result_ty = self.cx.module.intern_return_type(fields)?;
         Some(self.builder.abi_decode(layout, data, result_ty))
     }
@@ -276,8 +275,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .collect::<Vec<_>>();
         let (data, layout) = self.lower_abi_decode_layout(data, &decoded_types, span)?;
         let layout = self.cx.module.intern_abi_param_layout(layout);
-        let fields =
-            decoded_types.iter().map(|&ty| types::TypeLowerer::mir_return_type(ty)).collect();
+        let fields = decoded_types.iter().map(|&ty| types::TypeLowerer::mir_type(ty)).collect();
         let result_ty = self.cx.module.intern_return_type(fields)?;
         // result = abi_decode(layout, data)
         // fields = extract_value result, 0; ...
@@ -355,7 +353,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         self.builder.switch_to_block(validate);
         let helper = self.ensure_error_catch_match_helper();
-        let valid = self.builder.icall(helper, vec![data_ptr, data_len], MirType::Bool);
+        // pointer = ptrtoint data to i256
+        // valid = icall try_decode_error_message, pointer, length
+        let data_ptr = self.builder.cast(data_ptr, MirType::I256);
+        let valid = self.builder.icall(helper, vec![data_ptr, data_len], MirType::I1);
         let valid_block = self.builder.current_block();
         self.builder.jump(done);
 
@@ -379,9 +380,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // valid &= msg_len <= u64::MAX && msg_len <= len - (offset + 36)
         self.lazy_helper(sym::try_decode_error_message, |_, function| {
             let mut builder = FunctionBuilder::new_semantic(function);
-            let data_ptr = builder.add_param(MirType::MemPtr);
-            let data_len = builder.add_param(MirType::uint256());
-            builder.set_return_type(MirType::Bool);
+            let data_ptr = builder.add_param(MirType::I256);
+            let data_len = builder.add_param(MirType::I256);
+            builder.set_return_type(MirType::I1);
 
             let check_offset = builder.create_block();
             let check_length = builder.create_block();
@@ -389,7 +390,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
             let min_size = builder.imm(68);
             let short = builder.lt(data_len, min_size);
-            let has_head = builder.iszero(short);
+            let has_head = builder.eq_zero(short);
             builder.branch(has_head, check_offset, no_match);
 
             builder.switch_to_block(check_offset);
@@ -409,7 +410,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let remaining = builder.sub(data_len, message_data_offset);
             let data_out_of_range = builder.gt(length, remaining);
             let invalid_length = builder.or(length_too_large, data_out_of_range);
-            let valid = builder.iszero(invalid_length);
+            let valid = builder.eq_zero(invalid_length);
             builder.ret([valid]);
 
             builder.switch_to_block(no_match);
@@ -450,10 +451,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let parts = self.lower_packed_parts(exprs)?;
         // hash = keccak256_packed(parts)
         Some(
-            self.builder.emit_inst(
-                InstKind::AbiEncodePacked { parts, hash: true },
-                Some(MirType::bytes32()),
-            ),
+            self.builder
+                .emit_inst(InstKind::AbiEncodePacked { parts, hash: true }, Some(MirType::I256)),
         )
     }
 
@@ -519,11 +518,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value = self.normalize_abi_scalar(value, ty);
                 let size = TypeSize::new_int_bits((length * 8) as u16);
                 let ty = if fixed_bytes {
-                    MirType::FixedBytes(size)
+                    crate::mir::ValueLayout::FixedBytes(size)
                 } else if is_signed_packed_scalar(ty) {
-                    MirType::Int(size)
+                    crate::mir::ValueLayout::Int(size)
                 } else {
-                    MirType::UInt(size)
+                    crate::mir::ValueLayout::UInt(size)
                 };
                 parts.push(PackedPart::Scalar { value, ty });
             }
@@ -551,11 +550,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(MirType::Slice(location @ (SliceLocation::Memory | SliceLocation::Calldata))) => {
                 PackedArraySource::Slice(location)
             }
-            Some(MirType::UInt(size))
+            Some(MirType::I256)
                 if matches!(
                     layout,
                     MemoryObjectLayout::DynamicArray { .. } | MemoryObjectLayout::FixedArray { .. }
-                ) && size.bits() == 256 =>
+                ) =>
             {
                 PackedArraySource::Memory { layout }
             }
@@ -640,8 +639,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !nullable_memory {
             return None;
         }
-        let is_null = self.builder.iszero(value);
-        Some(self.builder.iszero(is_null))
+        let is_null = self.builder.eq_zero(value);
+        Some(self.builder.eq_zero(is_null))
     }
 
     fn inplace_memory_object_len(
@@ -797,7 +796,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             TyKind::Tuple(_) | TyKind::Slice(_) => return None,
             TyKind::Fn(function) if function.is_external() => {
-                AbiWordValidator::from_mir_type(MirType::Function)
+                AbiWordValidator::from_layout(crate::mir::ValueLayout::Function)
                     .expect("function words always require cleanup")
                     .cleanup(&mut self.builder, value)
             }
@@ -890,7 +889,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let rounded = self.builder.checked_add(length, thirty_one);
         let mask = self.builder.not(thirty_one);
         let padded = self.builder.and(rounded, mask);
-        let empty = self.builder.iszero(padded);
+        let empty = self.builder.eq_zero(padded);
         let zero_block = self.builder.create_block();
         let copy_block = self.builder.create_block();
         self.builder.branch(empty, copy_block, zero_block);
@@ -963,7 +962,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             InstKind::builtin(crate::mir::Builtin::Ripemd160, [input])
         };
-        Some(self.builder.emit_inst(kind, Some(MirType::uint256())))
+        Some(self.builder.emit_inst(kind, Some(MirType::I256)))
     }
 
     pub(super) fn lower_ecrecover_call(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
@@ -980,7 +979,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // result = ecrecover(hash, v, r, s)
         Some(self.builder.emit_inst(
             InstKind::builtin(crate::mir::Builtin::EcRecover, [hash, v, r, s]),
-            Some(MirType::uint256()),
+            Some(MirType::I256),
         ))
     }
 }

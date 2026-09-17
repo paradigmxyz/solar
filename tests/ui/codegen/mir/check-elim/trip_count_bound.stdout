@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/check-elim/trip_count_bound.mir (before check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/check-elim/trip_count_bound.mir (after check-elim) ===
   @module TripCountBound
-  fn @constant_start_and_step(arg0: memorybytes) -> u256 {
+  fn @constant_start_and_step(arg0: memorybytes) -> i256 {
     bb0:
       v0 = memory_object_len memorybytes, arg0
       jump bb1
@@ -23,7 +23,7 @@
       revert 0, 0
   }
   
-  fn @unknown_start(arg0: memorybytes, arg1: u256) -> u256 {
+  fn @unknown_start(arg0: memorybytes, arg1: i256) -> i256 {
     bb0:
       v0 = memory_object_len memorybytes, arg0
       jump bb1

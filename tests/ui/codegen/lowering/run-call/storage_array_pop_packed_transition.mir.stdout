@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_pop_packed_transition.sol:StorageArrayPopPackedTransition ===
 @module StorageArrayPopPackedTransition
 types:
-  struct0: {u256, u256, u256}
+  struct0: {i256, i256, i256}
 
 fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16>, word<u16>, word<u16>], abi_return_params=[u16, u16, u16]] {
   bb0:
@@ -12,7 +12,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     v2 = phi [bb0: 0], [bb3: v2]
     v3 = phi [bb0: 0], [bb3: v3]
     v4 = gt v1, 48
-    v5 = iszero v4
+    v5 = eq v4, false
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
@@ -25,7 +25,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     v27 = phi [bb2: v2], [bb9: v27]
     v28 = phi [bb2: v3], [bb9: v28]
     v29 = gt v25, 10
-    v30 = iszero v29
+    v30 = eq v29, false
     jumpi v30, bb10, bb11
   bb11:
     jump bb8
@@ -34,7 +34,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     v49 = checked_sub u256, v48, 1
     v50 = sload 0 !metadata(storage=slot(0))
     v51 = lt v49, v50
-    v52 = iszero v51
+    v52 = eq v51, false
     icall panic_if<0x32>, v52
     v53 = storage_array_data_slot 0
     v54 = div v49, 16
@@ -54,7 +54,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     v66 = phi [bb8: 1], [bb15: v86]
     v67 = phi [bb8: v61], [bb15: v67]
     v68 = gt v66, 10
-    v69 = iszero v68
+    v69 = eq v68, false
     jumpi v69, bb16, bb17
   bb17:
     jump bb14
@@ -63,7 +63,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     v88 = checked_sub u256, v87, 1
     v89 = sload 0 !metadata(storage=slot(0))
     v90 = lt v88, v89
-    v91 = iszero v90
+    v91 = eq v90, false
     icall panic_if<0x32>, v91
     v92 = storage_array_data_slot 0
     v93 = div v88, 16
@@ -84,7 +84,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     v106 = phi [bb14: v66], [bb21: v106]
     v107 = phi [bb14: v67], [bb21: v107]
     v108 = gt v103, 10
-    v109 = iszero v108
+    v109 = eq v108, false
     jumpi v109, bb22, bb23
   bb23:
     jump bb20
@@ -93,7 +93,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     v128 = checked_sub u256, v127, 1
     v129 = sload 0 !metadata(storage=slot(0))
     v130 = lt v128, v129
-    v131 = iszero v130
+    v131 = eq v130, false
     icall panic_if<0x32>, v131
     v132 = storage_array_data_slot 0
     v133 = div v128, 16
@@ -115,7 +115,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     v147 = phi [bb20: 1], [bb27: v167]
     v148 = phi [bb20: v107], [bb27: v148]
     v149 = gt v147, 18
-    v150 = iszero v149
+    v150 = eq v149, false
     jumpi v150, bb28, bb29
   bb29:
     jump bb26

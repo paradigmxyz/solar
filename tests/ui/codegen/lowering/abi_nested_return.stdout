@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_nested_return.sol:AbiNestedReturn ===
 @module AbiNestedReturn
-fn @structArray(arg0: u256) -> memoryarray [selector=0x0f634b74, pure, abi_params=[u256], abi_returns=[memory_array<tuple<word, word>>]] {
+fn @structArray(arg0: i256) -> memoryarray [selector=0x0f634b74, pure, abi_params=[u256], abi_returns=[memory_array<tuple<word, word>>], abi_return_params=[array<_, tuple<u256, u256>>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -16,7 +16,7 @@ fn @structArray(arg0: u256) -> memoryarray [selector=0x0f634b74, pure, abi_param
     memory_object_store_field memorystruct<2>, v5, 1, v6
     v7 = memory_object_len memoryarray, v0
     v8 = lt 0, v7
-    v9 = iszero v8
+    v9 = eq v8, false
     icall panic_if<0x32>, v9
     memory_object_store_element memoryarray<1>, v0, 0, v5
     ret v0
@@ -29,7 +29,7 @@ fn @structArray(arg0: u256) -> memoryarray [selector=0x0f634b74, pure, abi_param
     jump bb1
 }
 
-fn @nestedArray(arg0: u256) -> memoryarray [selector=0x5abcbd75, pure, abi_params=[u256], abi_returns=[memory_array<memory_array<word>>]] {
+fn @nestedArray(arg0: i256) -> memoryarray [selector=0x5abcbd75, pure, abi_params=[u256], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, u256>>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -40,29 +40,31 @@ fn @nestedArray(arg0: u256) -> memoryarray [selector=0x5abcbd75, pure, abi_param
     jumpi v2, bb2, bb3
   bb3:
     v4 = mul arg0, 1
-    v5 = iszero 1
+    v5 = eq 1, 0
     v6 = div v4, 1
     v7 = eq v6, arg0
     v8 = or v5, v7
-    v9 = iszero v8
-    icall panic_if<0x41>, v9
-    v10 = add v4, 1
-    v11 = lt v10, v4
-    icall panic_if<0x41>, v11
-    v12 = mul v10, 32
-    v13 = iszero 32
-    v14 = div v12, 32
-    v15 = eq v14, v10
-    v16 = or v13, v15
-    v17 = iszero v16
-    icall panic_if<0x41>, v17
-    v18 = alloc memoryarray<1>, exact, zeroed, panic, v12
-    set_memory_object_len memoryarray, v18, arg0
-    v19 = memory_object_len memoryarray, v0
-    v20 = lt 0, v19
-    v21 = iszero v20
-    icall panic_if<0x32>, v21
-    memory_object_store_element memoryarray<1>, v0, 0, v18
+    v9 = zext i1 v8 to i256
+    v10 = eq v9, 0
+    icall panic_if<0x41>, v10
+    v11 = add v4, 1
+    v12 = lt v11, v4
+    icall panic_if<0x41>, v12
+    v13 = mul v11, 32
+    v14 = eq 32, 0
+    v15 = div v13, 32
+    v16 = eq v15, v11
+    v17 = or v14, v16
+    v18 = zext i1 v17 to i256
+    v19 = eq v18, 0
+    icall panic_if<0x41>, v19
+    v20 = alloc memoryarray<1>, exact, zeroed, panic, v13
+    set_memory_object_len memoryarray, v20, arg0
+    v21 = memory_object_len memoryarray, v0
+    v22 = lt 0, v21
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    memory_object_store_element memoryarray<1>, v0, 0, v20
     ret v0
   bb2:
     memory_object_store_element memoryarray<1>, v0, v1, memoryarray 96

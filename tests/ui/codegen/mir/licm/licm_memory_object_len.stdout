@@ -51,7 +51,7 @@
       jump bb1
   }
   
-  fn @keep_len_under_unknown_store(arg0: memoryarray, arg1: u256) {
+  fn @keep_len_under_unknown_store(arg0: memoryarray, arg1: i256) {
     bb0:
       jump bb1
     bb1:
@@ -88,7 +88,7 @@
       jump bb1
   }
   
-  fn @mask_low(arg0: u256) -> u256 {
+  fn @mask_low(arg0: i256) -> i256 {
     bb0:
       v0 = and arg0, 31
       ret v0

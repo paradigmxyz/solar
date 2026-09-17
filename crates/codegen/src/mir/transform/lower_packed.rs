@@ -10,8 +10,8 @@
 
 use crate::mir::{
     AbiType, AbiWordValidator, AllocationSemantics, FunctionBuilder, MemoryObjectKind,
-    MemoryObjectLayout, MirType, PackedArraySource, PackedPart, PanicCode, SliceLocation, Value,
-    ValueId, memory::EvmMemoryLayout, packed_element_bytes,
+    MemoryObjectLayout, PackedArraySource, PackedPart, PanicCode, SliceLocation, Value, ValueId,
+    ValueLayout, memory::EvmMemoryLayout, packed_element_bytes,
 };
 use alloy_primitives::{Bytes, U256};
 
@@ -58,8 +58,8 @@ impl PackedEncoder<'_, '_> {
                         PackedPiece::Static {
                             value,
                             length,
-                            fixed_bytes: matches!(ty, MirType::FixedBytes(_)),
-                            signed: matches!(ty, MirType::Int(_)),
+                            fixed_bytes: matches!(ty, ValueLayout::FixedBytes(_)),
+                            signed: matches!(ty, ValueLayout::Int(_)),
                         },
                         self.builder.imm(length),
                     )
@@ -385,7 +385,7 @@ impl PackedEncoder<'_, '_> {
                 let element_value = if matches!(element, AbiType::Function)
                     && matches!(source, PackedArraySource::Memory { .. })
                 {
-                    AbiWordValidator::from_mir_type(MirType::Function)
+                    AbiWordValidator::from_layout(ValueLayout::Function)
                         .expect("function words always require cleanup")
                         .cleanup(self.builder, element_value)
                 } else {

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_validation.sol:StorageBytesValidation ===
 @module StorageBytesValidation
-fn @unusedInvalidLength() [selector=0x200cc212, abi_params=[], abi_returns=[]] {
+fn @unusedInvalidLength() [selector=0x200cc212, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -14,28 +14,28 @@ fn @unusedInvalidLength() [selector=0x200cc212, abi_params=[], abi_returns=[]] {
     ret
 }
 
-fn @unusedInvalidCopy() [selector=0x6ec2db3e, abi_params=[], abi_returns=[]] {
+fn @unusedInvalidCopy() [selector=0x6ec2db3e, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = load_storage_bytes 0
     ret
 }
 
-fn @invalidShort() -> memorybytes [selector=0xa647fa44, abi_params=[], abi_returns=[memory_bytes]] {
+fn @invalidShort() -> memorybytes [selector=0xa647fa44, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = load_storage_bytes 0
     ret v0
 }
 
-fn @invalidLong() -> memorybytes [selector=0x540f7c10, abi_params=[], abi_returns=[memory_bytes]] {
+fn @invalidLong() -> memorybytes [selector=0x540f7c10, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = load_storage_bytes 0
     ret v0
 }
 
-fn @invalidShortDelete() [selector=0x1cba07c2, abi_params=[], abi_returns=[]] {
+fn @invalidShortDelete() [selector=0x1cba07c2, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -57,7 +57,7 @@ fn @invalidShortDelete() [selector=0x1cba07c2, abi_params=[], abi_returns=[]] {
     ret
 }
 
-fn @invalidLongDelete() [selector=0x7dd42e48, abi_params=[], abi_returns=[]] {
+fn @invalidLongDelete() [selector=0x7dd42e48, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -79,7 +79,7 @@ fn @invalidLongDelete() [selector=0x7dd42e48, abi_params=[], abi_returns=[]] {
     ret
 }
 
-fn @invalidShortLength() -> u256 [selector=0xe7a318a7, abi_params=[], abi_returns=[word]] {
+fn @invalidShortLength() -> i256 [selector=0xe7a318a7, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -93,7 +93,7 @@ fn @invalidShortLength() -> u256 [selector=0xe7a318a7, abi_params=[], abi_return
     ret v6
 }
 
-fn @invalidLongLength() -> u256 [selector=0xc14ec391, abi_params=[], abi_returns=[word]] {
+fn @invalidLongLength() -> i256 [selector=0xc14ec391, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -107,7 +107,7 @@ fn @invalidLongLength() -> u256 [selector=0xc14ec391, abi_params=[], abi_returns
     ret v6
 }
 
-fn @invalidShortIndex() -> bytes1 [selector=0x94523747, abi_params=[], abi_returns=[word<bytes1>]] {
+fn @invalidShortIndex() -> i256 [selector=0x94523747, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -119,7 +119,7 @@ fn @invalidShortIndex() -> bytes1 [selector=0x94523747, abi_params=[], abi_retur
     v5 = shr 1, v0
     v6 = and v5, v4
     v7 = lt 0, v6
-    v8 = iszero v7
+    v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
@@ -141,7 +141,7 @@ fn @invalidShortIndex() -> bytes1 [selector=0x94523747, abi_params=[], abi_retur
     ret v19
 }
 
-fn @invalidLongIndex() -> bytes1 [selector=0xb45f5bca, abi_params=[], abi_returns=[word<bytes1>]] {
+fn @invalidLongIndex() -> i256 [selector=0xb45f5bca, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -153,7 +153,7 @@ fn @invalidLongIndex() -> bytes1 [selector=0xb45f5bca, abi_params=[], abi_return
     v5 = shr 1, v0
     v6 = and v5, v4
     v7 = lt 0, v6
-    v8 = iszero v7
+    v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
@@ -175,7 +175,7 @@ fn @invalidLongIndex() -> bytes1 [selector=0xb45f5bca, abi_params=[], abi_return
     ret v19
 }
 
-fn @invalidShortIndexWrite() [selector=0x9cb6505e, abi_params=[], abi_returns=[]] {
+fn @invalidShortIndexWrite() [selector=0x9cb6505e, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -187,7 +187,7 @@ fn @invalidShortIndexWrite() [selector=0x9cb6505e, abi_params=[], abi_returns=[]
     v5 = shr 1, v0
     v6 = and v5, v4
     v7 = lt 0, v6
-    v8 = iszero v7
+    v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
@@ -214,7 +214,7 @@ fn @invalidShortIndexWrite() [selector=0x9cb6505e, abi_params=[], abi_returns=[]
     ret
 }
 
-fn @invalidLongIndexWrite() [selector=0x31e8b582, abi_params=[], abi_returns=[]] {
+fn @invalidLongIndexWrite() [selector=0x31e8b582, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -226,7 +226,7 @@ fn @invalidLongIndexWrite() [selector=0x31e8b582, abi_params=[], abi_returns=[]]
     v5 = shr 1, v0
     v6 = and v5, v4
     v7 = lt 0, v6
-    v8 = iszero v7
+    v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
@@ -253,7 +253,7 @@ fn @invalidLongIndexWrite() [selector=0x31e8b582, abi_params=[], abi_returns=[]]
     ret
 }
 
-fn @invalidShortIndexDelete() [selector=0x5a79d84c, abi_params=[], abi_returns=[]] {
+fn @invalidShortIndexDelete() [selector=0x5a79d84c, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -265,7 +265,7 @@ fn @invalidShortIndexDelete() [selector=0x5a79d84c, abi_params=[], abi_returns=[
     v5 = shr 1, v0
     v6 = and v5, v4
     v7 = lt 0, v6
-    v8 = iszero v7
+    v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
@@ -292,7 +292,7 @@ fn @invalidShortIndexDelete() [selector=0x5a79d84c, abi_params=[], abi_returns=[
     ret
 }
 
-fn @invalidLongIndexDelete() [selector=0x3cb34688, abi_params=[], abi_returns=[]] {
+fn @invalidLongIndexDelete() [selector=0x3cb34688, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -304,7 +304,7 @@ fn @invalidLongIndexDelete() [selector=0x3cb34688, abi_params=[], abi_returns=[]
     v5 = shr 1, v0
     v6 = and v5, v4
     v7 = lt 0, v6
-    v8 = iszero v7
+    v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
@@ -331,7 +331,7 @@ fn @invalidLongIndexDelete() [selector=0x3cb34688, abi_params=[], abi_returns=[]
     ret
 }
 
-fn @encodingCheckedBeforeBounds() -> bytes1 [selector=0x4f384528, abi_params=[], abi_returns=[word<bytes1>]] {
+fn @encodingCheckedBeforeBounds() -> i256 [selector=0x4f384528, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -343,7 +343,7 @@ fn @encodingCheckedBeforeBounds() -> bytes1 [selector=0x4f384528, abi_params=[],
     v5 = shr 1, v0
     v6 = and v5, v4
     v7 = lt 100, v6
-    v8 = iszero v7
+    v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
@@ -365,7 +365,7 @@ fn @encodingCheckedBeforeBounds() -> bytes1 [selector=0x4f384528, abi_params=[],
     ret v19
 }
 
-fn @encodingCheckedBeforeBoundsWrite() [selector=0xc6da2038, abi_params=[], abi_returns=[]] {
+fn @encodingCheckedBeforeBoundsWrite() [selector=0xc6da2038, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -377,7 +377,7 @@ fn @encodingCheckedBeforeBoundsWrite() [selector=0xc6da2038, abi_params=[], abi_
     v5 = shr 1, v0
     v6 = and v5, v4
     v7 = lt 100, v6
-    v8 = iszero v7
+    v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:
@@ -404,7 +404,7 @@ fn @encodingCheckedBeforeBoundsWrite() [selector=0xc6da2038, abi_params=[], abi_
     ret
 }
 
-fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[]] {
+fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -416,7 +416,7 @@ fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[]] {
     v5 = shr 1, v0
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
-    v8 = iszero v7
+    v8 = eq v7, false
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
@@ -467,7 +467,7 @@ fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[]] {
     ret
 }
 
-fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[]] {
+fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -479,7 +479,7 @@ fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[]] {
     v5 = shr 1, v0
     v6 = and v5, v4
     v7 = lt v6, 0x10000000000000000
-    v8 = iszero v7
+    v8 = eq v7, false
     icall panic_if<0x41>, v8
     v9 = gt v6, 31
     jumpi v9, bb2, bb1
@@ -530,7 +530,7 @@ fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[]] {
     ret
 }
 
-fn @invalidShortPushZero() [selector=0xcba0ded0, abi_params=[], abi_returns=[]] {
+fn @invalidShortPushZero() [selector=0xcba0ded0, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -589,7 +589,7 @@ fn @invalidShortPushZero() [selector=0xcba0ded0, abi_params=[], abi_returns=[]] 
     ret
 }
 
-fn @invalidLongPushZero() [selector=0xe8ec99d3, abi_params=[], abi_returns=[]] {
+fn @invalidLongPushZero() [selector=0xe8ec99d3, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -648,7 +648,7 @@ fn @invalidLongPushZero() [selector=0xe8ec99d3, abi_params=[], abi_returns=[]] {
     ret
 }
 
-fn @invalidShortPushAssign() [selector=0xa1663e71, abi_params=[], abi_returns=[]] {
+fn @invalidShortPushAssign() [selector=0xa1663e71, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -712,7 +712,7 @@ fn @invalidShortPushAssign() [selector=0xa1663e71, abi_params=[], abi_returns=[]
     ret
 }
 
-fn @invalidLongPushAssign() [selector=0x666fac34, abi_params=[], abi_returns=[]] {
+fn @invalidLongPushAssign() [selector=0x666fac34, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -776,7 +776,7 @@ fn @invalidLongPushAssign() [selector=0x666fac34, abi_params=[], abi_returns=[]]
     ret
 }
 
-fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[]] {
+fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -843,7 +843,7 @@ fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[]] {
     ret
 }
 
-fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[]] {
+fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -910,7 +910,7 @@ fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[]] {
     ret
 }
 
-fn @pushAtMaxLength() -> u256 [selector=0x35078c3f, abi_params=[], abi_returns=[word]] {
+fn @pushAtMaxLength() -> i256 [selector=0x35078c3f, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = shl 64, 1
     v1 = sub v0, 1
@@ -926,7 +926,7 @@ fn @pushAtMaxLength() -> u256 [selector=0x35078c3f, abi_params=[], abi_returns=[
     v9 = shr 1, v4
     v10 = and v9, v8
     v11 = lt v10, 0x10000000000000000
-    v12 = iszero v11
+    v12 = eq v11, false
     icall panic_if<0x41>, v12
     v13 = gt v10, 31
     jumpi v13, bb2, bb1
@@ -978,7 +978,7 @@ fn @pushAtMaxLength() -> u256 [selector=0x35078c3f, abi_params=[], abi_returns=[
     ret v44
 }
 
-fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[]] {
+fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = shl 64, 1
     v1 = mul v0, 2
@@ -993,7 +993,7 @@ fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[]] {
     v8 = shr 1, v3
     v9 = and v8, v7
     v10 = lt v9, 0x10000000000000000
-    v11 = iszero v10
+    v11 = eq v10, false
     icall panic_if<0x41>, v11
     v12 = gt v9, 31
     jumpi v12, bb2, bb1
@@ -1044,7 +1044,7 @@ fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[]] {
     ret
 }
 
-fn @pushZeroPastMaxLength() [selector=0x65c6159f, abi_params=[], abi_returns=[]] {
+fn @pushZeroPastMaxLength() [selector=0x65c6159f, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = shl 64, 1
     v1 = mul v0, 2

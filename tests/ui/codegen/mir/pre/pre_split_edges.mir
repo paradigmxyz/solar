@@ -10,7 +10,7 @@
 // CHECK: + switch arg1, default bb4, [2 => bb5, 3 => bb5]
 // CHECK: + [[INSERTED:v[0-9]+]] = add arg0, 7
 // CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb5: [[INSERTED]]]
-fn @switch_pred_two_cases(arg0: u256, arg1: u256) -> u256 {
+fn @switch_pred_two_cases(arg0: i256, arg1: i256) -> i256 {
   bb0:
     switch arg1, default bb1, [1 => bb2]
   bb1:
@@ -28,10 +28,10 @@ fn @switch_pred_two_cases(arg0: u256, arg1: u256) -> u256 {
 // bb2 branches to the join on both arms: one logical edge, one split block,
 // one phi entry.
 // CHECK-LABEL: {{^[ +].*}}fn @branch_both_arms_to_join{{[( ]}}
-// CHECK: + jumpi arg1, bb4, bb4
+// CHECK: + jumpi {{(arg[0-9]+|v[0-9]+)}}, bb4, bb4
 // CHECK: + [[INSERTED:v[0-9]+]] = add arg0, 7
 // CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb4: [[INSERTED]]]
-fn @branch_both_arms_to_join(arg0: u256, arg1: bool) -> u256 {
+fn @branch_both_arms_to_join(arg0: i256, arg1: i1) -> i256 {
   bb0:
     jumpi arg1, bb1, bb2
   bb1:
@@ -50,7 +50,7 @@ fn @branch_both_arms_to_join(arg0: u256, arg1: bool) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @self_loop_backedge_insertion{{[( ]}}
 // CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb4: [[INSERTED:v[0-9]+]]]
 // CHECK: + [[INSERTED]] = add {{v[0-9]+}}, 7
-fn @self_loop_backedge_insertion(arg0: u256, arg1: u256) -> u256 {
+fn @self_loop_backedge_insertion(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -69,10 +69,10 @@ fn @self_loop_backedge_insertion(arg0: u256, arg1: u256) -> u256 {
 // Loop-invariant PRE through a branch-terminated preheader: the entry edge
 // into the header is split and the hoisted computation lands on it.
 // CHECK-LABEL: {{^[ +].*}}fn @hoist_through_branch_preheader{{[( ]}}
-// CHECK: + jumpi {{v[0-9]+}}, bb5, bb4
+// CHECK: + jumpi {{(arg[0-9]+|v[0-9]+)}}, bb5, bb4
 // CHECK: + [[HOISTED:v[0-9]+]] = add arg0, 7
 // CHECK: + {{v[0-9]+}} = phi [bb2: {{v[0-9]+}}], [bb5: [[HOISTED]]]
-fn @hoist_through_branch_preheader(arg0: u256, arg1: u256) -> u256 {
+fn @hoist_through_branch_preheader(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = lt arg0, arg1
     jumpi v2, bb1, bb4

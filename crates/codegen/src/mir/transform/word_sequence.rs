@@ -20,7 +20,8 @@
 use crate::{
     backend::evm::{op, select},
     mir::{
-        EffectKind, Function, Immediate, InstId, Instruction, MirType, Module, Op, Value, ValueId,
+        EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, Op, Value,
+        ValueId,
         pass::{MirPass, run_function_pass},
     },
     target::{Cost, Target},
@@ -78,20 +79,9 @@ fn legal(op: &Op, target: Target) -> bool {
 fn removable(func: &Function, inst: &Instruction, target: Target) -> bool {
     let scalar_select = match inst.kind.op() {
         Op::Select { true_val, false_val, .. } => {
-            [inst.result_ty, func.value_ty(true_val), func.value_ty(false_val)].into_iter().all(
-                |ty| {
-                    matches!(
-                        ty,
-                        Some(
-                            MirType::UInt(_)
-                                | MirType::Int(_)
-                                | MirType::Bool
-                                | MirType::Address
-                                | MirType::FixedBytes(_)
-                        )
-                    )
-                },
-            )
+            [inst.result_ty, func.value_ty(true_val), func.value_ty(false_val)]
+                .into_iter()
+                .all(|ty| matches!(ty, Some(MirType::I256 | MirType::I1)))
         }
         _ => false,
     };
@@ -172,7 +162,17 @@ impl Recipe {
         });
         // %temporary = recipe_child(...)
         // %original_result = recipe_root(%temporary, ...)
-        func.inst_mut(root).replace_kind(op.into_kind().expect("legal recipe root"));
+        let result = emit_recipe(
+            func,
+            root,
+            op.into_kind().expect("legal recipe root"),
+            func.inst(root).result_ty.unwrap(),
+            &mut inserted,
+        );
+        let Value::Inst(last) = *func.value(result) else { unreachable!() };
+        let kind = func.inst(last).kind.clone();
+        inserted.retain(|&id| id != last);
+        func.inst_mut(root).replace_kind(kind);
         inserted
     }
 
@@ -190,26 +190,44 @@ impl Recipe {
         let Some(temporary) = self.temporaries.get(&value) else { return value };
         let actual = match temporary {
             Temporary::Constant(value) => {
-                func.alloc_value(Value::Immediate(Immediate::uint256(*value)))
+                func.alloc_value(Value::Immediate(Immediate::I256(*value)))
             }
             Temporary::Operation(op) => {
                 let op = op.map_values(|value| {
                     self.materialize_value(func, root, value, values, inserted)
                 });
                 // %temporary = recipe_child(earlier_values)
-                let mut inst = Instruction::new(
-                    op.into_kind().expect("legal recipe child"),
-                    Some(MirType::uint256()),
-                );
-                inst.metadata = func.inst(root).metadata.debug_context();
-                let (inst, value) = func.alloc_value_inst(inst);
-                inserted.push(inst);
-                value
+                let kind = op.into_kind().expect("legal recipe child");
+                let ty = kind.op_def().result.default_type().unwrap_or(MirType::I256);
+                emit_recipe(func, root, kind, ty, inserted)
             }
         };
         values.insert(value, actual);
         actual
     }
+}
+
+/// Emits a recipe with explicit scalar conversions, returning its detached instruction list.
+fn emit_recipe(
+    func: &mut Function,
+    root: InstId,
+    kind: InstKind,
+    ty: MirType,
+    inserted: &mut Vec<InstId>,
+) -> ValueId {
+    let metadata = func.inst(root).metadata.debug_context();
+    let block = crate::mir::BlockId::ENTRY;
+    let start = func.blocks[block].instructions.len();
+    // operands = zext i1 boolean_operands to i256
+    // result = op operands
+    // typed_result = cast result
+    let result = crate::mir::FunctionBuilder::new(func).emit_inst(kind, Some(ty));
+    let generated = func.blocks[block].instructions.split_off(start);
+    for &inst in &generated {
+        func.inst_mut(inst).metadata = metadata.clone();
+    }
+    inserted.extend(generated);
+    result
 }
 
 fn run(func: &mut Function, target: Target) -> bool {

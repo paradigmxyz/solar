@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_pop.sol:StorageArrayPop ===
 @module StorageArrayPop
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
 fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:

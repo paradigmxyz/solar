@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/dead-arg-elim/effectful_dependencies.mir (before dead-arg-elim) ===
 + // === ROOT/tests/ui/codegen/mir/dead-arg-elim/effectful_dependencies.mir (after dead-arg-elim) ===
   @module EffectfulDependencies
-  fn @read() -> u256 {
+  fn @read() -> i256 {
     bb0:
       v0 = mload 0x10000 !metadata(effect=pure)
       ret v0
@@ -13,7 +13,7 @@
       ret
   }
   
-  fn @unused(arg0: u256) {
+  fn @unused(arg0: i256) {
     bb0:
       ret
   }
@@ -25,7 +25,7 @@
       ret
   }
   
-  fn @mapping_slot() -> bytes32 {
+  fn @mapping_slot() -> i256 {
     bb0:
       v0 = mapping_slot 1, 2
       ret v0

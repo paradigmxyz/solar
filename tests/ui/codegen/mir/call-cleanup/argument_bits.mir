@@ -2,7 +2,7 @@
 //@ filecheck:
 @module ArgumentBits
 
-fn @root(arg0: u256) -> u256 {
+fn @root(arg0: i256) -> i256 {
   bb0:
     v0 = and arg0, 255
     v1 = icall @forward, v0
@@ -12,7 +12,7 @@ fn @root(arg0: u256) -> u256 {
 // CHECK-LABEL: fn @forward
 // CHECK-NOT: {{^[ +].*}}= and
 // CHECK: tail_call @leaf, arg0
-fn @forward(arg0: u256) -> u256 {
+fn @forward(arg0: i256) -> i256 {
   bb0:
     v0 = and arg0, 255
     tail_call @leaf, v0
@@ -21,20 +21,21 @@ fn @forward(arg0: u256) -> u256 {
 // CHECK-LABEL: fn @leaf
 // CHECK-NOT: {{^[ +].*}}= and
 // CHECK: ret arg0
-fn @leaf(arg0: u256) -> u256 {
+fn @leaf(arg0: i256) -> i256 {
   bb0:
     v0 = and arg0, 255
     ret v0
 }
 
-fn @clean_caller() -> u256 {
+fn @clean_caller() -> i256 {
   bb0:
-    v0 = caller
+    v3 = caller
+    v0 = zext i160 v3 to i256
     v1 = icall @mixed, v0
     ret v1
 }
 
-fn @dirty_caller(arg0: address) -> u256 {
+fn @dirty_caller(arg0: i256) -> i256 {
   bb0:
     v0 = icall @mixed, arg0
     ret v0
@@ -43,13 +44,13 @@ fn @dirty_caller(arg0: address) -> u256 {
 // One dirty caller prevents cleanup removal, regardless of the signature.
 // CHECK-LABEL: fn @mixed
 // CHECK: = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-fn @mixed(arg0: address) -> u256 {
+fn @mixed(arg0: i256) -> i256 {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     ret v0
 }
 
-fn @recursive_root(arg0: u256) -> u256 {
+fn @recursive_root(arg0: i256) -> i256 {
   bb0:
     v0 = and arg0, 255
     v1 = icall @recursive, v0
@@ -59,9 +60,10 @@ fn @recursive_root(arg0: u256) -> u256 {
 // A recursive identity edge does not bootstrap its own argument fact.
 // CHECK-LABEL: fn @recursive
 // CHECK: = and arg0, 255
-fn @recursive(arg0: u256) -> u256 {
+fn @recursive(arg0: i256) -> i256 {
   bb0:
-    jumpi arg0, bb1, bb2
+    v2 = ne arg0, 0
+    jumpi v2, bb1, bb2
   bb1:
     v0 = icall @recursive, arg0
     ret v0
@@ -70,7 +72,7 @@ fn @recursive(arg0: u256) -> u256 {
     ret v1
 }
 
-fn @sanitized_root(arg0: u256) -> u256 {
+fn @sanitized_root(arg0: i256) -> i256 {
   bb0:
     v0 = and arg0, 255
     v1 = icall @sanitized_recursive, v0
@@ -81,10 +83,11 @@ fn @sanitized_root(arg0: u256) -> u256 {
 // CHECK-LABEL: fn @sanitized_recursive
 // CHECK-NOT: {{^[ +].*}}= and
 // CHECK: icall @sanitized_recursive, arg0
-fn @sanitized_recursive(arg0: u256) -> u256 {
+fn @sanitized_recursive(arg0: i256) -> i256 {
   bb0:
     v0 = and arg0, 255
-    jumpi v0, bb1, bb2
+    v2 = ne v0, 0
+    jumpi v2, bb1, bb2
   bb1:
     v1 = icall @sanitized_recursive, v0
     ret v1
@@ -92,23 +95,25 @@ fn @sanitized_recursive(arg0: u256) -> u256 {
     ret v0
 }
 
-fn @bool_root(arg0: u256) -> u256 {
+fn @bool_root(arg0: i256) -> i256 {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     v1 = icall @bool_leaf, v0
     ret v1
 }
 
 // CHECK-LABEL: fn @bool_leaf
+// CHECK: [[WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} arg0
 // CHECK-NOT: {{^[ +].*}}= and
-// CHECK: ret arg0
-fn @bool_leaf(arg0: bool) -> u256 {
+// CHECK: ret [[WORD]]
+fn @bool_leaf(arg0: i1) -> i256 {
   bb0:
-    v0 = and arg0, 1
+    v1 = zext i1 arg0 to i256
+    v0 = and v1, 1
     ret v0
 }
 
-fn @public_caller() -> u256 {
+fn @public_caller() -> i256 {
   bb0:
     v0 = icall @public_input, 1
     ret v0
@@ -117,13 +122,13 @@ fn @public_caller() -> u256 {
 // A direct internal call does not constrain an external entry's inputs.
 // CHECK-LABEL: fn @public_input
 // CHECK: = and arg0, 255
-fn @public_input(arg0: u256) -> u256 [selector=0x01020304] {
+fn @public_input(arg0: i256) -> i256 [selector=0x01020304] {
   bb0:
     v0 = and arg0, 255
     ret v0
 }
 
-fn @frame_caller() -> u256 {
+fn @frame_caller() -> i256 {
   bb0:
     v0 = icall @frame_input, 1
     ret v0
@@ -132,15 +137,16 @@ fn @frame_caller() -> u256 {
 // Explicit frame addresses can write an argument home after the call boundary.
 // CHECK-LABEL: fn @frame_input
 // CHECK: = and arg0, 255
-fn @frame_input(arg0: u256) -> u256 {
+fn @frame_input(arg0: i256) -> i256 {
   bb0:
-    v0 = internal_frame_addr 64
+    v4 = internal_frame_addr 64
+    v0 = ptrtoint memptr v4 to i256
     mstore v0, 511
     v1 = and arg0, 255
     ret v1
 }
 
-fn @across_caller() -> u256 {
+fn @across_caller() -> i256 {
   bb0:
     v0 = icall @across_call, 1
     ret v0
@@ -151,7 +157,7 @@ fn @across_caller() -> u256 {
 // CHECK: [[MASK:v[0-9]+]] = and arg0, 255
 // CHECK: icall @clobber
 // CHECK: ret [[MASK]]
-fn @across_call(arg0: u256) -> u256 {
+fn @across_call(arg0: i256) -> i256 {
   bb0:
     v0 = and arg0, 255
     icall @clobber

@@ -1,60 +1,61 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_v2.sol:AbiEncodeV2 ===
 @module AbiEncodeV2
-fn @f0() -> memorybytes [selector=0xa5850475, pure, abi_params=[], abi_returns=[memory_bytes]] {
+fn @f0() -> memorybytes [selector=0xa5850475, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_encode [], object
     ret v0
 }
 
-fn @f1() -> memorybytes [selector=0xc27fc305, pure, abi_params=[], abi_returns=[memory_bytes]] {
+fn @f1() -> memorybytes [selector=0xc27fc305, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_encode [word, word], object, args 1, 2
     ret v0
 }
 
-fn @f2() -> memorybytes [selector=0x9942ec6f, pure, abi_params=[], abi_returns=[memory_bytes]] {
+fn @f2() -> memorybytes [selector=0x9942ec6f, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = abi_encode [word, memory_bytes, word], object, args 1, v0, 2
     ret v1
 }
 
-fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[memory_bytes]] {
+fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = abi_encode [word, memory_bytes, word], object, args 1, v0, 2
     v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, 3
     v3 = memory_object_data memorybytes, v2
-    mstore v3, 0x6465660000000000000000000000000000000000000000000000000000000000
-    v4 = memory_object_len memorybytes, v2
-    v5 = lt 0, v4
-    v6 = iszero v5
-    icall panic_if<0x32>, v6
-    v7 = memory_object_load_byte memorybytes, v2, 0
-    v8 = shl 248, v7
-    v9 = eq v8, 0x6400000000000000000000000000000000000000000000000000000000000000
-    v10 = iszero v9
-    icall revert_if<empty>, v10
-    v11 = memory_object_len memorybytes, v2
-    v12 = lt 0, v11
-    v13 = iszero v12
-    icall panic_if<0x32>, v13
-    v14 = byte 0, 0x6500000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_byte memorybytes, v2, 0, v14
-    v15 = memory_object_len memorybytes, v2
-    v16 = lt 0, v15
-    v17 = iszero v16
-    icall panic_if<0x32>, v17
-    v18 = memory_object_load_byte memorybytes, v2, 0
-    v19 = shl 248, v18
-    v20 = eq v19, 0x6500000000000000000000000000000000000000000000000000000000000000
-    v21 = iszero v20
-    icall revert_if<empty>, v21
+    v4 = ptrtoint memptr v3 to i256
+    mstore v4, 0x6465660000000000000000000000000000000000000000000000000000000000
+    v5 = memory_object_len memorybytes, v2
+    v6 = lt 0, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = memory_object_load_byte memorybytes, v2, 0
+    v9 = shl 248, v8
+    v10 = eq v9, 0x6400000000000000000000000000000000000000000000000000000000000000
+    v11 = eq v10, false
+    icall revert_if<empty>, v11
+    v12 = memory_object_len memorybytes, v2
+    v13 = lt 0, v12
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = byte 0, 0x6500000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_byte memorybytes, v2, 0, v15
+    v16 = memory_object_len memorybytes, v2
+    v17 = lt 0, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = memory_object_load_byte memorybytes, v2, 0
+    v20 = shl 248, v19
+    v21 = eq v20, 0x6500000000000000000000000000000000000000000000000000000000000000
+    v22 = eq v21, false
+    icall revert_if<empty>, v22
     ret v1
 }
 
-fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory_bytes]] {
+fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     sstore 0, 7 !metadata(storage=slot(0))
@@ -86,35 +87,36 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     v18 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v18, 3
     v19 = memory_object_data memorybytes, v18
-    mstore v19, 0x6465660000000000000000000000000000000000000000000000000000000000
-    v20 = memory_object_len memorybytes, v18
-    v21 = lt 0, v20
-    v22 = iszero v21
-    icall panic_if<0x32>, v22
-    v23 = memory_object_load_byte memorybytes, v18, 0
-    v24 = shl 248, v23
-    v25 = eq v24, 0x6400000000000000000000000000000000000000000000000000000000000000
-    v26 = iszero v25
-    icall revert_if<empty>, v26
-    v27 = memory_object_len memorybytes, v18
-    v28 = lt 0, v27
-    v29 = iszero v28
-    icall panic_if<0x32>, v29
-    v30 = byte 0, 0x6500000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_byte memorybytes, v18, 0, v30
-    v31 = memory_object_len memorybytes, v18
-    v32 = lt 0, v31
-    v33 = iszero v32
-    icall panic_if<0x32>, v33
-    v34 = memory_object_load_byte memorybytes, v18, 0
-    v35 = shl 248, v34
-    v36 = eq v35, 0x6500000000000000000000000000000000000000000000000000000000000000
-    v37 = iszero v36
-    icall revert_if<empty>, v37
+    v20 = ptrtoint memptr v19 to i256
+    mstore v20, 0x6465660000000000000000000000000000000000000000000000000000000000
+    v21 = memory_object_len memorybytes, v18
+    v22 = lt 0, v21
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    v24 = memory_object_load_byte memorybytes, v18, 0
+    v25 = shl 248, v24
+    v26 = eq v25, 0x6400000000000000000000000000000000000000000000000000000000000000
+    v27 = eq v26, false
+    icall revert_if<empty>, v27
+    v28 = memory_object_len memorybytes, v18
+    v29 = lt 0, v28
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = byte 0, 0x6500000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_byte memorybytes, v18, 0, v31
+    v32 = memory_object_len memorybytes, v18
+    v33 = lt 0, v32
+    v34 = eq v33, false
+    icall panic_if<0x32>, v34
+    v35 = memory_object_load_byte memorybytes, v18, 0
+    v36 = shl 248, v35
+    v37 = eq v36, 0x6500000000000000000000000000000000000000000000000000000000000000
+    v38 = eq v37, false
+    icall revert_if<empty>, v38
     ret v17
 }
 
-fn @literalRemainsLive() -> bool [selector=0x8eddb2e8, pure, abi_params=[], abi_returns=[word<bool>]] {
+fn @literalRemainsLive() -> i256 [selector=0x8eddb2e8, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = abi_encode [memory_bytes], object, args v0
@@ -125,15 +127,15 @@ fn @literalRemainsLive() -> bool [selector=0x8eddb2e8, pure, abi_params=[], abi_
     jump bb3
   bb1:
     v4 = memory_object_len memorybytes, v1
-    v5 = eq v4, 0
-    v6 = iszero v5
+    v5 = ne v4, 0
     jump bb3
   bb3:
-    v7 = phi [bb1: v6], [bb2: false]
+    v6 = phi [bb1: v5], [bb2: false]
+    v7 = zext i1 v6 to i256
     ret v7
 }
 
-fn @literal_bytes_word(arg0: bytes32, arg1: u256) -> memorybytes {
+fn @literal_bytes_word(arg0: i256, arg1: i256) -> memorybytes {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, arg1
@@ -141,7 +143,7 @@ fn @literal_bytes_word(arg0: bytes32, arg1: u256) -> memorybytes {
     ret v0
 }
 
-fn @load_storage_word_array(arg0: u256) -> memoryarray {
+fn @load_storage_word_array(arg0: i256) -> memoryarray {
   bb0:
     v0 = load_storage_array u256, arg0
     ret v0

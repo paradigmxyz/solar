@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_index_guard.mir (before check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_index_guard.mir (after check-elim) ===
   @module CheckElimIndexGuard
-  fn @fold_const_len_check(arg0: u256) -> u256 {
+  fn @fold_const_len_check(arg0: i256) -> i256 {
     bb0:
       v0 = lt arg0, 3
       jumpi v0, bb1, bb4
@@ -25,7 +25,7 @@
 +     revert 0, 36
   }
   
-  fn @fold_dyn_len_check(arg0: u256) -> u256 {
+  fn @fold_dyn_len_check(arg0: i256) -> i256 {
     bb0:
       v0 = sload 0
       v1 = lt arg0, v0
@@ -50,7 +50,7 @@
 +     revert 0, 36
   }
   
-  fn @keep_weaker_guard(arg0: u256) -> u256 {
+  fn @keep_weaker_guard(arg0: i256) -> i256 {
     bb0:
       v0 = lt arg0, 5
       jumpi v0, bb1, bb4
@@ -69,7 +69,7 @@
       ret v3
   }
   
-  fn @semantic_guards(arg0: bool, arg1: u256) {
+  fn @semantic_guards(arg0: i1, arg1: i256) {
     bb0:
       icall revert_if_zero<empty>, arg0
 -     icall panic_if_zero<0x1>, arg0
@@ -79,7 +79,7 @@
       ret
   }
   
-  fn @conditional_guard(arg0: bool, arg1: bool) {
+  fn @conditional_guard(arg0: i1, arg1: i1) {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:

@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_boundary_array_overlap.sol:StorageBoundaryArrayOverlap ===
 @module StorageBoundaryArrayOverlap
 types:
-  struct0: {u256, u256, u256}
+  struct0: {i256, i256, i256}
 
-fn @y() -> u256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word]] {
+fn @y() -> i256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @getArray() -> storageptr [pure] {
+fn @getArray() -> i256 [pure] {
   bb0:
     v0 = sub 0, 5
     ret v0
@@ -19,12 +19,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb0:
     v0 = icall @getArray
     v1 = lt 0, 1
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = mul 0, 10
     v4 = add v0, v3
     v5 = lt 5, 10
-    v6 = iszero v5
+    v6 = eq v5, false
     icall panic_if<0x32>, v6
     v7 = add v4, 5
     v8 = sload v7 !metadata(storage=offset(v4, 5))
@@ -42,7 +42,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb2:
     v23 = sload 0 !metadata(storage=slot(0))
     v24 = lt 0, 1
-    v25 = iszero v24
+    v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = mul 0, 10
     v27 = add v13, v26
@@ -64,12 +64,12 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb7
   bb4:
     v15 = lt 0, 1
-    v16 = iszero v15
+    v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = mul 0, 10
     v18 = add v13, v17
     v19 = lt v10, 10
-    v20 = iszero v19
+    v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = add v18, v10
     sstore v21, v10 !metadata(storage=symbolic(v21))

@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/mir/egraph/word_rules_runtime.sol:WordRules ===
 @module WordRules
 types:
-  struct0: {u256, u256, u256, u256, u256, u256, u256, u256, u256}
-  struct1: {u256, u256, u256, u256, u256}
+  struct0: {i256, i256, i256, i256, i256, i256, i256, i256, i256}
+  struct1: {i256, i256, i256, i256, i256}
 
-fn @mixed(arg0: u256, arg1: u256) -> struct0 [selector=0xce4cbe4b, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256, u256, u256, u256]] {
+fn @mixed(arg0: i256, arg1: i256) -> struct0 [selector=0xce4cbe4b, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256, u256, u256, u256]] {
   bb0:
     v0 = xor arg0, arg1
     v1 = and arg0, arg1
@@ -45,7 +45,7 @@ fn @mixed(arg0: u256, arg1: u256) -> struct0 [selector=0xce4cbe4b, pure, abi_par
     ret v35
 }
 
-fn @arithmetic(arg0: u256, arg1: u256) -> struct1 [selector=0x6cbb5ae3, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
+fn @arithmetic(arg0: i256, arg1: i256) -> struct1 [selector=0x6cbb5ae3, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
   bb0:
     v0 = not 0
     v1 = mul arg0, v0
@@ -67,7 +67,7 @@ fn @arithmetic(arg0: u256, arg1: u256) -> struct1 [selector=0x6cbb5ae3, pure, ab
     ret v16
 }
 
-fn @guards(arg0: u256, arg1: u256) -> struct1 [selector=0x98aa2c32, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
+fn @guards(arg0: i256, arg1: i256) -> struct1 [selector=0x98aa2c32, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
   bb0:
     v0 = mul arg0, 2
     v1 = div v0, 2

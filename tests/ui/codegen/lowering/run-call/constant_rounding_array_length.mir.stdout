@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constant_rounding_array_length.sol:ConstantRoundingArrayLength ===
 @module ConstantRoundingArrayLength
 types:
-  struct0: {u256, u256, u256, u256}
+  struct0: {i256, i256, i256, i256}
 
 fn @f() -> struct0 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, i256, u256, i256]] {
   bb0:

@@ -6,7 +6,7 @@
     duration: u64
     initial: u256
   
-  fn @entry() -> u256 [selector=0x00000001] {
+  fn @entry() -> i256 [selector=0x00000001] {
     bb0:
 -     v0 = icall @end
 +     jump bb2
@@ -28,7 +28,7 @@
       ret v6
   }
   
-  fn @constructor(arg0: u64, arg1: u64) [constructor] {
+  fn @constructor(arg0: i256, arg1: i256) [constructor] {
     bb0:
       storeimmutable start, arg0
       storeimmutable duration, arg1
@@ -46,7 +46,7 @@
       stop
   }
   
-  fn @end() -> u256 {
+  fn @end() -> i256 {
     bb0:
       v0 = loadimmutable start
       v1 = loadimmutable duration
@@ -54,7 +54,7 @@
       ret v2
   }
   
-  fn @memory() -> u256 {
+  fn @memory() -> i256 {
     bb0:
       v0 = mload 0
       v1 = loadimmutable start
@@ -62,13 +62,13 @@
       ret v2
   }
   
-  fn @ordinary() -> u256 {
+  fn @ordinary() -> i256 {
     bb0:
       v0 = add 1, 2
       ret v0
   }
   
-  fn @argument(arg0: u256) -> u256 {
+  fn @argument(arg0: i256) -> i256 {
     bb0:
       v0 = loadimmutable start
       v1 = add v0, arg0
@@ -83,7 +83,7 @@
     duration: u64
     initial: u256
   
-  fn @entry() -> u256 [selector=0x00000001] {
+  fn @entry() -> i256 [selector=0x00000001] {
     bb0:
 -     jump bb2
 -   bb2:
@@ -104,7 +104,7 @@
       ret v6
   }
   
-  fn @constructor(arg0: u64, arg1: u64) [constructor] {
+  fn @constructor(arg0: i256, arg1: i256) [constructor] {
     bb0:
       storeimmutable start, arg0
       storeimmutable duration, arg1
@@ -121,7 +121,7 @@
       stop
   }
   
-  fn @end() -> u256 {
+  fn @end() -> i256 {
     bb0:
       v0 = loadimmutable start
       v1 = loadimmutable duration
@@ -129,7 +129,7 @@
       ret v2
   }
   
-  fn @memory() -> u256 {
+  fn @memory() -> i256 {
     bb0:
       v0 = mload 0
       v1 = loadimmutable start
@@ -137,13 +137,13 @@
       ret v2
   }
   
-  fn @ordinary() -> u256 {
+  fn @ordinary() -> i256 {
     bb0:
       v0 = add 1, 2
       ret v0
   }
   
-  fn @argument(arg0: u256) -> u256 {
+  fn @argument(arg0: i256) -> i256 {
     bb0:
       v0 = loadimmutable start
       v1 = add v0, arg0
@@ -158,7 +158,7 @@
     duration: u64
     initial: u256
   
-  fn @entry() -> u256 [selector=0x00000001] {
+  fn @entry() -> i256 [selector=0x00000001] {
     bb0:
       v7 = loadimmutable start
       v8 = loadimmutable duration
@@ -172,7 +172,7 @@
       ret v6
   }
   
-  fn @constructor(arg0: u64, arg1: u64) [constructor] {
+  fn @constructor(arg0: i256, arg1: i256) [constructor] {
     bb0:
       storeimmutable start, arg0
       storeimmutable duration, arg1
@@ -183,7 +183,7 @@
       stop
   }
   
-  fn @end() -> u256 {
+  fn @end() -> i256 {
     bb0:
       v0 = loadimmutable start
       v1 = loadimmutable duration
@@ -191,7 +191,7 @@
       ret v2
   }
   
-  fn @memory() -> u256 {
+  fn @memory() -> i256 {
     bb0:
       v0 = mload 0
       v1 = loadimmutable start
@@ -199,13 +199,13 @@
       ret v2
   }
   
-  fn @ordinary() -> u256 {
+  fn @ordinary() -> i256 {
     bb0:
       v0 = add 1, 2
       ret v0
   }
   
-  fn @argument(arg0: u256) -> u256 {
+  fn @argument(arg0: i256) -> i256 {
     bb0:
       v0 = loadimmutable start
       v1 = add v0, arg0

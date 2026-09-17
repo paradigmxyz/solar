@@ -1,23 +1,25 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/checked_constant_expressions.sol:CheckedConstants ===
 @module CheckedConstants
-fn @underflow() -> u256 [selector=0xdc75bec7, pure, abi_params=[], abi_returns=[word]] {
+fn @underflow() -> i256 [selector=0xdc75bec7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_sub u256, 100, 150
     ret v0
 }
 
-fn @uncheckedNarrow() -> bool [selector=0x005e3fdf, pure, abi_params=[], abi_returns=[word<bool>]] {
+fn @uncheckedNarrow() -> i256 [selector=0x005e3fdf, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = add 250, 10
     v1 = and v0, 255
     v2 = eq v1, 4
-    ret v2
+    v3 = zext i1 v2 to i256
+    ret v3
 }
 
-fn @narrowShift() -> bool [selector=0xca932146, pure, abi_params=[], abi_returns=[word<bool>]] {
+fn @narrowShift() -> i256 [selector=0xca932146, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = shl 8, 1
     v1 = and v0, 255
     v2 = eq v1, 0
-    ret v2
+    v3 = zext i1 v2 to i256
+    ret v3
 }

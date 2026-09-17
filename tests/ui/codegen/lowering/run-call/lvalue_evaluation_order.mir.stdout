@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/lvalue_evaluation_order.sol:LValueEvaluationOrder ===
 @module LValueEvaluationOrder
 types:
-  struct0: {u256, u256, u256}
+  struct0: {i256, i256, i256}
 
 fn @constructor() [constructor] {
   bb0:
@@ -31,7 +31,7 @@ fn @compound() -> struct0 [selector=0xf69e2046, abi_params=[], abi_returns=[word
     sstore 1, v1 !metadata(storage=slot(1))
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = lt v0, v2
-    v4 = iszero v3
+    v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = storage_array_data_slot 0
     v6 = add v5, v0
@@ -41,14 +41,14 @@ fn @compound() -> struct0 [selector=0xf69e2046, abi_params=[], abi_returns=[word
     v9 = sload 1 !metadata(storage=slot(1))
     v10 = sload 0 !metadata(storage=slot(0))
     v11 = lt 0, v10
-    v12 = iszero v11
+    v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = storage_array_data_slot 0
     v14 = add v13, 0
     v15 = sload v14 !metadata(storage=symbolic(v13))
     v16 = sload 0 !metadata(storage=slot(0))
     v17 = lt 1, v16
-    v18 = iszero v17
+    v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = storage_array_data_slot 0
     v20 = add v19, 1
@@ -66,7 +66,7 @@ fn @postIncrement() -> struct0 [selector=0x016e4842, abi_params=[], abi_returns=
     sstore 1, v1 !metadata(storage=slot(1))
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = lt v0, v2
-    v4 = iszero v3
+    v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = storage_array_data_slot 0
     v6 = add v5, v0
@@ -76,14 +76,14 @@ fn @postIncrement() -> struct0 [selector=0x016e4842, abi_params=[], abi_returns=
     v9 = sload 1 !metadata(storage=slot(1))
     v10 = sload 0 !metadata(storage=slot(0))
     v11 = lt 0, v10
-    v12 = iszero v11
+    v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = storage_array_data_slot 0
     v14 = add v13, 0
     v15 = sload v14 !metadata(storage=symbolic(v13))
     v16 = sload 0 !metadata(storage=slot(0))
     v17 = lt 1, v16
-    v18 = iszero v17
+    v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = storage_array_data_slot 0
     v20 = add v19, 1
@@ -94,7 +94,7 @@ fn @postIncrement() -> struct0 [selector=0x016e4842, abi_params=[], abi_returns=
     ret v24
 }
 
-fn @value() -> u256 [selector=0x3fa4f245, abi_params=[], abi_returns=[word]] {
+fn @value() -> i256 [selector=0x3fa4f245, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     v1 = gt v0, 0xffffffffffffffff
@@ -137,14 +137,14 @@ fn @pushSideEffect() -> struct0 [selector=0x0753e3a7, abi_params=[], abi_returns
     v17 = sload 2 !metadata(storage=slot(2))
     v18 = sload 2 !metadata(storage=slot(2))
     v19 = lt 0, v18
-    v20 = iszero v19
+    v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = storage_array_data_slot 2
     v22 = add v21, 0
     v23 = sload v22 !metadata(storage=symbolic(v21))
     v24 = sload 2 !metadata(storage=slot(2))
     v25 = lt 1, v24
-    v26 = iszero v25
+    v26 = eq v25, false
     icall panic_if<0x32>, v26
     v27 = storage_array_data_slot 2
     v28 = add v27, 1

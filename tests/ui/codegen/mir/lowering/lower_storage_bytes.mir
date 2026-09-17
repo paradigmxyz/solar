@@ -17,7 +17,7 @@
 // CHECK-NEXT: [[SHORT:v[0-9]+]] = lt [[LENGTH]], 32
 // CHECK-NEXT: [[INVALID:v[0-9]+]] = eq [[LONG]], [[SHORT]]
 // CHECK-NEXT: jumpi [[INVALID]],
-fn @header(arg0: u256) -> u256 {
+fn @header(arg0: i256) -> i256 {
   bb0:
     v0 = sload arg0
     validate_storage_bytes v0 !metadata(span=10..20, modifier_depth=1)
@@ -31,13 +31,13 @@ fn @header(arg0: u256) -> u256 {
 // SIZE-NEXT: [[MORE:v[0-9]+]] = lt [[INDEX]], {{v[0-9]+}}
 // SIZE: sload [[ADDRESS]]
 // SIZE: [[NEXT]] = add [[ADDRESS]], 1
-fn @load(arg0: u256) -> memorybytes {
+fn @load(arg0: i256) -> memorybytes {
   bb0:
     v0 = load_storage_bytes arg0 !metadata(span=20..30, modifier_depth=2)
     ret v0
 }
 
-fn @edge(arg0: bool, arg1: u256, arg2: memorybytes) -> memorybytes {
+fn @edge(arg0: i1, arg1: i256, arg2: memorybytes) -> memorybytes {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -50,7 +50,7 @@ fn @edge(arg0: bool, arg1: u256, arg2: memorybytes) -> memorybytes {
     ret v1
 }
 
-fn @clear(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+fn @clear(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -63,7 +63,7 @@ fn @clear(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> u256 {
     ret v0
 }
 
-fn @store(arg0: bool, arg1: u256, arg2: memorybytes) -> u256 {
+fn @store(arg0: i1, arg1: i256, arg2: memorybytes) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -76,7 +76,7 @@ fn @store(arg0: bool, arg1: u256, arg2: memorybytes) -> u256 {
     ret v0
 }
 
-fn @store_literal(arg0: bool, arg1: u256) -> u256 {
+fn @store_literal(arg0: i1, arg1: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -94,7 +94,7 @@ fn @store_literal(arg0: bool, arg1: u256) -> u256 {
 // CHECK-LABEL: fn @shared_literal_first(
 // CHECK: [[FIRST_HEADER:v[0-9]+]] = sload arg0
 // CHECK: icall @store_storage_bytes_literal, arg0, [[FIRST_HEADER]] !metadata(span=60..70)
-fn @shared_literal_first(arg0: u256) {
+fn @shared_literal_first(arg0: i256) {
   bb0:
     store_storage_bytes_literal arg0, hex"78" !metadata(span=60..70)
     ret
@@ -103,7 +103,7 @@ fn @shared_literal_first(arg0: u256) {
 // CHECK-LABEL: fn @shared_literal_second(
 // CHECK: [[SECOND_HEADER:v[0-9]+]] = sload arg0
 // CHECK: icall @store_storage_bytes_literal, arg0, [[SECOND_HEADER]] !metadata(span=70..80)
-fn @shared_literal_second(arg0: u256) {
+fn @shared_literal_second(arg0: i256) {
   bb0:
     store_storage_bytes_literal arg0, hex"78" !metadata(span=70..80)
     ret

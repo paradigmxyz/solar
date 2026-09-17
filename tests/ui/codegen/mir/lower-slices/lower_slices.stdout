@@ -17,13 +17,13 @@
 +     revert 0, 0
   }
   
-  fn @len(arg0: calldataslice) -> u256 {
+  fn @len(arg0: calldataslice) -> i256 {
     bb0:
       v0 = slice_len arg0
       ret v0
   }
   
-  fn @tail(arg0: calldataslice, arg1: u256) -> u256 {
+  fn @tail(arg0: calldataslice, arg1: i256) -> i256 {
     bb0:
       v0 = slice_ptr arg0
       v1 = slice_len arg0
@@ -34,13 +34,13 @@
       ret v5
   }
   
-  fn @pair_len(arg0: calldataslice) -> u256 {
+  fn @pair_len(arg0: calldataslice) -> i256 {
     bb0:
       v0 = slice_len arg0
       ret v0
   }
   
-  fn @memory(arg0: memptr, arg1: u256) -> u256 {
+  fn @memory(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = make_memory_slice arg0, arg1
       v1 = slice_ptr v0
@@ -67,8 +67,8 @@
       revert 0, 0
   }
   
-- fn @len(arg0: calldataslice) -> u256 {
-+ fn @len(arg0: u256) -> u256 {
+- fn @len(arg0: calldataslice) -> i256 {
++ fn @len(arg0: i256) -> i256 {
     bb0:
 -     v0 = slice_len arg0
 -     ret v0
@@ -77,8 +77,8 @@
 +     ret v2
   }
   
-- fn @tail(arg0: calldataslice, arg1: u256) -> u256 {
-+ fn @tail(arg0: calldataptr, arg1: u256, arg2: u256) -> u256 {
+- fn @tail(arg0: calldataslice, arg1: i256) -> i256 {
++ fn @tail(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
 -     v0 = slice_ptr arg0
 -     v1 = slice_len arg0
@@ -92,15 +92,15 @@
       ret v5
   }
   
-- fn @pair_len(arg0: calldataslice) -> u256 {
-+ fn @pair_len(arg0: calldataptr, arg1: u256) -> u256 {
+- fn @pair_len(arg0: calldataslice) -> i256 {
++ fn @pair_len(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = slice_len arg0
 -     ret v0
 +     ret arg1
   }
   
-  fn @memory(arg0: memptr, arg1: u256) -> u256 {
+  fn @memory(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = make_memory_slice arg0, arg1
 -     v1 = slice_ptr v0

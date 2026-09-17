@@ -9,10 +9,12 @@
 // CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
 // CHECK: +     [[SUM:v[0-9]+]] = add arg0, arg0
 // CHECK:       ret [[SUM]]
-fn @fresh(arg0: u256, arg1: u256) -> u256 {
+fn @fresh(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v2 = alloc raw, exact, uninitialized, infallible, 32
-    v3 = alloc raw, exact, uninitialized, infallible, 32
+    v10 = alloc raw, exact, uninitialized, infallible, 32
+    v2 = ptrtoint memptr v10 to i256
+    v11 = alloc raw, exact, uninitialized, infallible, 32
+    v3 = ptrtoint memptr v11 to i256
     mstore v2, arg0
     v5 = mload v2
     mstore v3, arg1
@@ -28,13 +30,15 @@ fn @fresh(arg0: u256, arg1: u256) -> u256 {
 // CHECK: {{^ +}}[[SECOND:v[0-9]+]] = mload [[ADDR]]
 // CHECK: +     [[SUM:v[0-9]+]] = add arg0, [[SECOND]]
 // CHECK: {{^ +}}ret [[SUM]]
-fn @reset(arg0: u256, arg1: u256) -> u256 {
+fn @reset(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v2 = alloc raw, exact, uninitialized, infallible, 32
+    v12 = alloc raw, exact, uninitialized, infallible, 32
+    v2 = ptrtoint memptr v12 to i256
     mstore v2, arg0
     v4 = mload v2
     set_fmp v2
-    v6 = alloc raw, exact, uninitialized, infallible, 32
+    v13 = alloc raw, exact, uninitialized, infallible, 32
+    v6 = ptrtoint memptr v13 to i256
     mstore v6, arg1
     v8 = mload v2
     v9 = add v4, v8
@@ -46,9 +50,10 @@ fn @reset(arg0: u256, arg1: u256) -> u256 {
 // CHECK: {{^ +}}mcopy
 // CHECK: {{^ +}}[[SECOND:v[0-9]+]] = mload 96
 // CHECK: {{^ +}}{{v[0-9]+}} = add [[FIRST]], [[SECOND]]
-fn @unbounded_heap_copy_keeps_reserved_load(arg0: u256) -> u256 {
+fn @unbounded_heap_copy_keeps_reserved_load(arg0: i256) -> i256 {
   bb0:
-    v1 = alloc raw, exact, uninitialized, infallible, 32
+    v14 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = ptrtoint memptr v14 to i256
     v2 = mload 96
     mcopy v1, 0, arg0
     v3 = mload 96
@@ -61,10 +66,12 @@ fn @unbounded_heap_copy_keeps_reserved_load(arg0: u256) -> u256 {
 // CHECK: {{^ +}}mcopy
 // CHECK: {{^ +}}[[SECOND:v[0-9]+]] = mload [[OTHER]]
 // CHECK: {{^ +}}{{v[0-9]+}} = add [[FIRST]], [[SECOND]]
-fn @unbounded_heap_copy_can_reach_other_allocation(arg0: u256) -> u256 {
+fn @unbounded_heap_copy_can_reach_other_allocation(arg0: i256) -> i256 {
   bb0:
-    v1 = alloc raw, exact, uninitialized, infallible, 32
-    v2 = alloc raw, exact, uninitialized, infallible, 32
+    v15 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = ptrtoint memptr v15 to i256
+    v16 = alloc raw, exact, uninitialized, infallible, 32
+    v2 = ptrtoint memptr v16 to i256
     v3 = mload v2
     mcopy v1, 0, arg0
     v4 = mload v2
@@ -77,12 +84,13 @@ fn @unbounded_heap_copy_can_reach_other_allocation(arg0: u256) -> u256 {
 // CHECK: {{^ +}}mcopy
 // CHECK: {{^ +}}[[AFTER:v[0-9]+]] = mload 96
 // CHECK: {{^ +}}{{v[0-9]+}} = add [[BEFORE]], [[AFTER]]
-fn @loop_allocation_after_fmp_reset(arg0: bool) -> u256 {
+fn @loop_allocation_after_fmp_reset(arg0: i1) -> i256 {
   bb0:
     jump bb1
   bb1:
     set_fmp 0
-    v1 = alloc raw, exact, uninitialized, infallible, 32
+    v17 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = ptrtoint memptr v17 to i256
     v2 = mload 96
     mcopy v1, 128, 128
     v3 = mload 96
@@ -99,7 +107,7 @@ fn @loop_allocation_after_fmp_reset(arg0: bool) -> u256 {
 // CHECK: {{^ +}}memory_object_store_byte
 // CHECK: -     {{v[0-9]+}} = memory_object_len memorybytes, arg0
 // CHECK: +     {{v[0-9]+}} = add [[LEN]], [[LEN]]
-fn @argument_header(arg0: memorybytes) -> u256 {
+fn @argument_header(arg0: memorybytes) -> i256 {
   bb0:
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64
     v0 = memory_object_len memorybytes, arg0

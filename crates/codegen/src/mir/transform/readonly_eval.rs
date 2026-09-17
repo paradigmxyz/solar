@@ -249,17 +249,10 @@ fn evaluate(
     if depth >= MAX_DEPTH
         || args.len() != func.params.len()
         || func.return_components().len() > 1
-        || func.return_components().first().is_some_and(|ty| {
-            !matches!(
-                ty,
-                MirType::UInt(_)
-                    | MirType::Int(_)
-                    | MirType::Bool
-                    | MirType::Address
-                    | MirType::FixedBytes(_)
-                    | MirType::Function
-            )
-        })
+        || func
+            .return_components()
+            .first()
+            .is_some_and(|ty| !matches!(*ty, MirType::I256 | MirType::I160 | MirType::I1))
     {
         return None;
     }

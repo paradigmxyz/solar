@@ -1,49 +1,50 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/selection_mir.sol:FunctionPointerSelection ===
 @module FunctionPointerSelection
-fn @choose(arg0: bool, arg1: u256) -> u256 [selector=0xced8609d, abi_params=[bool, u256], abi_returns=[word]] {
+fn @choose(arg0: i256, arg1: i256) -> i256 [selector=0xced8609d, abi_params=[bool, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    jumpi arg0, bb1, bb2
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v0 = phi [bb1: 2], [bb2: 3]
-    v1 = icall @internal_dispatcher_p_u256_r_u256, v0, arg1
-    ret v1
+    v1 = phi [bb1: 2], [bb2: 3]
+    v2 = icall @internal_dispatcher_p_u256_r_u256, v1, arg1
+    ret v2
 }
 
-fn @increment(arg0: u256) -> u256 [pure] {
+fn @increment(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = checked_add u256, arg0, 1
     ret v0
 }
 
-fn @decrement(arg0: u256) -> u256 [pure] {
+fn @decrement(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = checked_sub u256, arg0, 1
     ret v0
 }
 
-fn @callConstant(arg0: u256) -> u256 [selector=0x0560cf94, abi_params=[u256], abi_returns=[word]] {
+fn @callConstant(arg0: i256) -> i256 [selector=0x0560cf94, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @internal_dispatcher_p_u256_r_u256, 2, arg0
     ret v0
 }
 
-fn @throughCast(arg0: u256) -> u256 [selector=0x090ff363, pure, abi_params=[u256], abi_returns=[word]] {
+fn @throughCast(arg0: i256) -> i256 [selector=0x090ff363, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @castViewToPure, 7
     v1 = icall @internal_dispatcher_p_u256_r_u256, v0, arg0
     ret v1
 }
 
-fn @castViewToPure(arg0: function) -> function [pure] {
+fn @castViewToPure(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
 
-fn @incrementView(arg0: u256) -> u256 [view] {
+fn @incrementView(arg0: i256) -> i256 [view] {
   bb0:
     v0 = number
     v1 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -57,7 +58,7 @@ fn @incrementView(arg0: u256) -> u256 [view] {
     ret arg0
 }
 
-fn @internal_dispatcher_p_u256_r_u256(arg0: function, arg1: u256) -> u256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_u256_r_u256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2

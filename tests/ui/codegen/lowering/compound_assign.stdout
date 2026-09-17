@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/compound_assign.sol:CompoundAssign ===
 @module CompoundAssign
-fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @add_to_value(arg0: u256) [selector=0x7ca7a078, abi_params=[u256], abi_returns=[]] {
+fn @add_to_value(arg0: i256) [selector=0x7ca7a078, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, arg0
@@ -14,7 +14,7 @@ fn @add_to_value(arg0: u256) [selector=0x7ca7a078, abi_params=[u256], abi_return
     ret
 }
 
-fn @sub_from_value(arg0: u256) [selector=0x9cf8179d, abi_params=[u256], abi_returns=[]] {
+fn @sub_from_value(arg0: i256) [selector=0x9cf8179d, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_sub u256, v0, arg0
@@ -22,7 +22,7 @@ fn @sub_from_value(arg0: u256) [selector=0x9cf8179d, abi_params=[u256], abi_retu
     ret
 }
 
-fn @mul_value(arg0: u256) [selector=0xb91f0c8b, abi_params=[u256], abi_returns=[]] {
+fn @mul_value(arg0: i256) [selector=0xb91f0c8b, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, arg0
@@ -30,7 +30,7 @@ fn @mul_value(arg0: u256) [selector=0xb91f0c8b, abi_params=[u256], abi_returns=[
     ret
 }
 
-fn @bump_post() -> u256 [selector=0xf05c34d1, abi_params=[], abi_returns=[word]] {
+fn @bump_post() -> i256 [selector=0xf05c34d1, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
@@ -38,7 +38,7 @@ fn @bump_post() -> u256 [selector=0xf05c34d1, abi_params=[], abi_returns=[word]]
     ret v0
 }
 
-fn @bump_pre() -> u256 [selector=0xe9063fd9, abi_params=[], abi_returns=[word]] {
+fn @bump_pre() -> i256 [selector=0xe9063fd9, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1

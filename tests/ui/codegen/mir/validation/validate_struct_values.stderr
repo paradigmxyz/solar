@@ -1,24 +1,42 @@
 error: [fn0] [bb0, inst0] aggregate operand does not match its declared struct type
 
-error: [fn1] [bb0, inst0] inserted value must have type `bool`
+error: [fn1] [bb0, inst0] inserted value must have type `i1`
 
-error: [fn2] [bb0] return values do not match the struct signature
+error: [fn2] [bb0] return values do not match the signature
 
-error: [fn3] [bb0, inst0] struct value does not match the required type
+error: [fn3] [bb0, inst0] value has type `struct0`, expected `i1`; use an explicit cast
 
-error: [fn4] [bb0] terminator cannot consume a struct value
+error: [fn4] [bb0] branch condition must have type `i1`; compare words with zero
 
-error: [fn5] [bb0] tail-call arguments do not match the struct signature
+error: [fn5] [bb0] tail-call arguments do not match the signature
 
 error: [fn6] internal return ABI does not match the function's result type
 
-error: [fn7] [bb0, inst0] memory object pointer conversion requires a word and matching object result
+error: [fn7] [bb0, inst0] `inttoptr` has incompatible scalar types; use an explicit cast
 
 error: [fn8] [bb0, inst0] memory object has type `memorystruct`, expected `memorybytes`
 
 error: [fn9] [bb0, inst0] memory object has type `memorybytes`, expected `memoryfixedarray`
 
-error: [fn10] [bb0, inst0] word cast requires a one-word operand and u256 result
+error: [fn10] [bb0, inst0] `zext` has incompatible scalar types; use an explicit cast
 
-error: aborting due to 11 previous errors
+error: [fn11] [bb0] branch condition must have type `i1`; compare words with zero
+
+error: [fn12] [bb0] return values do not match the signature
+
+error: [fn13] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
+
+error: [fn15] [bb0, inst0] value has type `i256`, expected `i1`; use an explicit cast
+
+error: [fn16] [bb0] return values do not match the signature
+
+error: [fn17] [bb0, inst0] `trunc` has incompatible scalar types; use an explicit cast
+
+error: [fn18] [bb0, inst0] `zext` has incompatible scalar types; use an explicit cast
+
+error: [fn19] [bb0, inst0] `ptrtoint` has incompatible scalar types; use an explicit cast
+
+error: [fn20] [bb0, inst0] `bitcast` has incompatible scalar types; use an explicit cast
+
+error: aborting due to 20 previous errors
 

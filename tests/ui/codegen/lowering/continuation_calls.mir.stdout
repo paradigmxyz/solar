@@ -1,27 +1,27 @@
 // === ROOT/tests/ui/codegen/lowering/continuation_calls.sol:ContinuationCalls ===
 @module ContinuationCalls
-fn @first(arg0: u256) -> u256 [selector=0x0b3f62f5, pure, abi_params=[u256], abi_returns=[word]] {
+fn @first(arg0: i256) -> i256 [selector=0x0b3f62f5, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @sum, arg0, 1
     v1 = checked_add u256, v0, 5
     ret v1
 }
 
-fn @second(arg0: u256) -> u256 [selector=0x7896dfe3, pure, abi_params=[u256], abi_returns=[word]] {
+fn @second(arg0: i256) -> i256 [selector=0x7896dfe3, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @sum, arg0, 2
     v1 = checked_add u256, v0, 5
     ret v1
 }
 
-fn @third(arg0: u256) -> u256 [selector=0xf1680ae6, pure, abi_params=[u256], abi_returns=[word]] {
+fn @third(arg0: i256) -> i256 [selector=0xf1680ae6, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @sum, arg0, 3
     v1 = checked_add u256, v0, 5
     ret v1
 }
 
-fn @combined(arg0: u256) -> u256 [selector=0xacb6e042, pure, abi_params=[u256], abi_returns=[word]] {
+fn @combined(arg0: i256) -> i256 [selector=0xacb6e042, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @sum, arg0, 1
     v1 = checked_add u256, arg0, v0
@@ -31,7 +31,7 @@ fn @combined(arg0: u256) -> u256 [selector=0xacb6e042, pure, abi_params=[u256], 
     ret v4
 }
 
-fn @bounded(arg0: u256) -> u256 [selector=0xeadcc0c3, pure, abi_params=[u256], abi_returns=[word]] {
+fn @bounded(arg0: i256) -> i256 [selector=0xeadcc0c3, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and arg0, 3
     v1 = icall @sum, v0, 1
@@ -42,7 +42,7 @@ fn @bounded(arg0: u256) -> u256 [selector=0xeadcc0c3, pure, abi_params=[u256], a
     ret v5
 }
 
-fn @sum(arg0: u256, arg1: u256) -> u256 [pure] {
+fn @sum(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     jump bb1
   bb1:

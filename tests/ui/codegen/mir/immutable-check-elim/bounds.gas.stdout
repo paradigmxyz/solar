@@ -6,7 +6,7 @@
     signed: i64
     wide: u256
   
-  fn @runtime() -> u256 [selector=0x00000001] {
+  fn @runtime() -> i256 [selector=0x00000001] {
     bb0:
       v0 = icall @bounded
       icall @shared
@@ -17,7 +17,7 @@
       ret v4
   }
   
-  fn @bounded() -> u256 {
+  fn @bounded() -> i256 {
     bb0:
       v0 = loadimmutable small
       v1 = add v0, 1
@@ -30,7 +30,7 @@
       revert 0, 0
   }
   
-  fn @constructor(arg0: u64) [constructor] {
+  fn @constructor(arg0: i256) [constructor] {
     bb0:
       storeimmutable small, arg0
       icall @bridge
@@ -54,7 +54,7 @@
       revert 0, 0
   }
   
-  fn @signed_value() -> u256 {
+  fn @signed_value() -> i256 {
     bb0:
       v0 = loadimmutable signed
       v1 = add v0, 1
@@ -66,7 +66,7 @@
       revert 0, 0
   }
   
-  fn @wide_value() -> u256 {
+  fn @wide_value() -> i256 {
     bb0:
       v0 = loadimmutable wide
       v1 = add v0, 1
@@ -78,7 +78,7 @@
       revert 0, 0
   }
   
-  fn @unrooted() -> u256 {
+  fn @unrooted() -> i256 {
     bb0:
       v0 = loadimmutable small
       v1 = add v0, 1

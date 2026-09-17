@@ -9,9 +9,9 @@
 // CHECK: - {{v[0-9]+}} = addmod arg1, arg0, 97
 // CHECK: - {{v[0-9]+}} = select arg2, arg0, arg1
 types:
-  struct0: {u256, u256, u256, u256, u256, bool}
+  struct0: {i256, i256, i256, i256, i256, i1}
 
-fn @extended_pure_ops(arg0: u256, arg1: u256, arg2: bool) -> struct0 [return_abi=[u256, u256, u256, u256, u256, bool]] {
+fn @extended_pure_ops(arg0: i256, arg1: i256, arg2: i1) -> struct0 [return_abi=[i256, i256, i256, i256, i256, i1]] {
   bb0:
     v3 = sdiv arg0, arg1
     v4 = sdiv arg0, arg1
@@ -25,12 +25,13 @@ fn @extended_pure_ops(arg0: u256, arg1: u256, arg2: bool) -> struct0 [return_abi
     v12 = addmod arg1, arg0, 97
     v13 = select arg2, arg0, arg1
     v14 = select arg2, arg0, arg1
-    ret v4, v6, v8, v10, v12, v14
+    v15 = ne v14, 0
+    ret v4, v6, v8, v10, v12, v15
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @calldata_reads{{[( ]}}
 // CHECK: - {{v[0-9]+}} = calldataload arg0
-fn @calldata_reads(arg0: u256) -> u256 {
+fn @calldata_reads(arg0: i256) -> i256 {
   bb0:
     v1 = calldataload arg0
     v2 = calldataload arg0
@@ -39,7 +40,7 @@ fn @calldata_reads(arg0: u256) -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @clz{{[( ]}}
 // CHECK: - {{v[0-9]+}} = clz arg0
-fn @clz(arg0: u256) -> u256 {
+fn @clz(arg0: i256) -> i256 {
   bb0:
     v1 = clz arg0
     v2 = clz arg0

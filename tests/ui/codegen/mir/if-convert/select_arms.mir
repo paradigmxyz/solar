@@ -6,16 +6,18 @@
 // the triangle becomes a scaled shift and a scaled or with no branch.
 // CHECK-LABEL: {{^[ +].*}}fn @search_step{{[( ]}}
 // CHECK: - jumpi
-// CHECK: + [[SCALED:v[0-9]+]] = mul [[COND:v[0-9]+]], 128
+// CHECK: + [[COND:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[BOOL:v[0-9]+]]
+// CHECK: + [[SCALED:v[0-9]+]] = mul [[COND]], 128
 // CHECK: + {{v[0-9]+}} = shr [[SCALED]], arg0
-// CHECK: + [[SCALED2:v[0-9]+]] = mul [[COND]], 128
+// CHECK: + [[COND2:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[BOOL]]
+// CHECK: + [[SCALED2:v[0-9]+]] = mul [[COND2]], 128
 // CHECK: + {{v[0-9]+}} = or arg1, [[SCALED2]]
 // CHECK-NOT: {{^[ +].*}}phi
-fn @search_step(arg0: u256, arg1: u256) -> u256 {
+fn @search_step(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = shr 128, arg0
-    v1 = iszero v0
-    v2 = iszero v1
+    v1 = eq v0, 0
+    v2 = eq v1, false
     jumpi v2, bb1, bb2
   bb1:
     v3 = shr 128, arg0
@@ -32,14 +34,14 @@ fn @search_step(arg0: u256, arg1: u256) -> u256 {
 // general select is cheaper than the branch, so it becomes `f + c * (t - f)`.
 // CHECK-LABEL: {{^[ +].*}}fn @cheap_diamond{{[( ]}}
 // CHECK: - jumpi
-// CHECK: + [[Z:v[0-9]+]] = iszero arg0
-// CHECK: + [[C:v[0-9]+]] = iszero [[Z]]
 // CHECK: + [[D:v[0-9]+]] = sub [[T:v[0-9]+]], [[F:v[0-9]+]]
+// CHECK: + [[C:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} {{(arg[0-9]+|v[0-9]+)}}
 // CHECK: + [[S:v[0-9]+]] = mul [[C]], [[D]]
 // CHECK: + {{v[0-9]+}} = add [[F]], [[S]]
-fn @cheap_diamond(arg0: u256, arg1: u256) -> u256 {
+fn @cheap_diamond(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    jumpi arg0, bb1, bb2
+    v3 = ne arg0, 0
+    jumpi v3, bb1, bb2
   bb1:
     v0 = mul arg1, 3
     jump bb3
@@ -54,11 +56,13 @@ fn @cheap_diamond(arg0: u256, arg1: u256) -> u256 {
 // A diamond of three-instruction arms: speculating both costs more than
 // the branch saves, so the branch stays.
 // CHECK-LABEL: {{^[ +].*}}fn @diamond{{[( ]}}
-// CHECK: {{^ +}}jumpi arg0
+// CHECK: {{^ +}}[[COND:v[0-9]+]] = ne arg0, 0
+// CHECK: {{^ +}}jumpi [[COND]]
 // CHECK-NOT: select
-fn @diamond(arg0: u256, arg1: u256) -> u256 {
+fn @diamond(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    jumpi arg0, bb1, bb2
+    v7 = ne arg0, 0
+    jumpi v7, bb1, bb2
   bb1:
     v0 = mul arg1, 3
     v1 = add v0, 1
@@ -78,7 +82,7 @@ fn @diamond(arg0: u256, arg1: u256) -> u256 {
 // branch stays.
 // CHECK-LABEL: {{^[ +].*}}fn @memory_arm{{[( ]}}
 // CHECK: {{^ +}}jumpi
-fn @memory_arm(arg0: bool, arg1: u256) -> u256 {
+fn @memory_arm(arg0: i1, arg1: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -93,7 +97,7 @@ fn @memory_arm(arg0: bool, arg1: u256) -> u256 {
 // it would remove: the branch stays.
 // CHECK-LABEL: {{^[ +].*}}fn @wide_arm{{[( ]}}
 // CHECK: {{^ +}}jumpi
-fn @wide_arm(arg0: bool, arg1: u256) -> u256 {
+fn @wide_arm(arg0: i1, arg1: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -109,13 +113,13 @@ fn @wide_arm(arg0: bool, arg1: u256) -> u256 {
 
 // A word condition is normalized to zero or one before it scales the step.
 // CHECK-LABEL: {{^[ +].*}}fn @word_condition{{[( ]}}
-// CHECK: + [[Z:v[0-9]+]] = iszero arg0
-// CHECK: + [[C:v[0-9]+]] = iszero [[Z]]
+// CHECK: + [[C:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} {{v[0-9]+}}
 // CHECK: + [[S:v[0-9]+]] = mul [[C]], 5
 // CHECK: + {{v[0-9]+}} = add arg1, [[S]]
-fn @word_condition(arg0: u256, arg1: u256) -> u256 {
+fn @word_condition(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    jumpi arg0, bb1, bb2
+    v2 = ne arg0, 0
+    jumpi v2, bb1, bb2
   bb1:
     v0 = add arg1, 5
     jump bb2
@@ -128,12 +132,11 @@ fn @word_condition(arg0: u256, arg1: u256) -> u256 {
 // times the folded difference, with no branch.
 // CHECK-LABEL: {{^[ +].*}}fn @literal_arms{{[( ]}}
 // CHECK: - jumpi
-// CHECK: + [[Z:v[0-9]+]] = iszero arg0
-// CHECK: + [[C:v[0-9]+]] = iszero [[Z]]
+// CHECK: + [[C:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} arg0
 // CHECK: + [[S:v[0-9]+]] = mul [[C]], 0x1200000000000000000000000000000000000000000000000000000000000000
 // CHECK: + {{v[0-9]+}} = add 0x5f00000000000000000000000000000000000000000000000000000000000000, [[S]]
 // CHECK-NOT: {{^[ +].*}}phi
-fn @literal_arms(arg0: bool) -> bytes32 {
+fn @literal_arms(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -148,12 +151,11 @@ fn @literal_arms(arg0: bool) -> bytes32 {
 // A literal over a value computed before the branch: `f + c * (t - f)`.
 // CHECK-LABEL: {{^[ +].*}}fn @literal_or_value{{[( ]}}
 // CHECK: - jumpi
-// CHECK: + [[Z:v[0-9]+]] = iszero arg0
-// CHECK: + [[C:v[0-9]+]] = iszero [[Z]]
 // CHECK: + [[D:v[0-9]+]] = sub 7, arg1
+// CHECK: + [[C:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} {{(arg[0-9]+|v[0-9]+)}}
 // CHECK: + [[S:v[0-9]+]] = mul [[C]], [[D]]
 // CHECK: + {{v[0-9]+}} = add arg1, [[S]]
-fn @literal_or_value(arg0: bool, arg1: u256) -> u256 {
+fn @literal_or_value(arg0: i1, arg1: i256) -> i256 {
   bb0:
     jumpi arg0, bb2, bb1
   bb1:
@@ -169,13 +171,15 @@ fn @literal_or_value(arg0: bool, arg1: u256) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @table_ladder{{[( ]}}
 // CHECK: {{^ +}}[[C1:v[0-9]+]] = lt arg0, 64
 // CHECK: {{^ +}}[[C2:v[0-9]+]] = lt arg0, 96
-// CHECK: + [[S2:v[0-9]+]] = mul [[C2]], 0x{{[0-9a-f]+}}
+// CHECK: + [[W2:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[C2]]
+// CHECK: + [[S2:v[0-9]+]] = mul [[W2]], 0x{{[0-9a-f]+}}
 // CHECK: + [[E:v[0-9]+]] = add 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000, [[S2]]
-// CHECK: + [[S1:v[0-9]+]] = mul [[C1]], 0x{{[0-9a-f]+}}
+// CHECK: + [[W1:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[C1]]
+// CHECK: + [[S1:v[0-9]+]] = mul [[W1]], 0x{{[0-9a-f]+}}
 // CHECK: + {{v[0-9]+}} = add [[E]], [[S1]]
 // CHECK-NOT: {{^[ +].*}}phi
 // CHECK-NOT: {{^[ +].*}}jumpi
-fn @table_ladder(arg0: u256) -> u256 {
+fn @table_ladder(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 64
     jumpi v0, bb4, bb1
@@ -198,13 +202,14 @@ fn @table_ladder(arg0: u256) -> u256 {
 // allocation provenance later passes rely on.
 // CHECK-LABEL: {{^[ +].*}}fn @pointer_arms{{[( ]}}
 // CHECK: {{^ +}}jumpi
-fn @pointer_arms(arg0: bool, arg1: memptr, arg2: memptr) -> u256 {
+fn @pointer_arms(arg0: i1, arg1: memorystruct, arg2: memorystruct) -> i256 {
   bb0:
     jumpi arg0, bb2, bb1
   bb1:
     jump bb2
   bb2:
     v0 = phi [bb0: arg1], [bb1: arg2]
-    v1 = mload v0
+    v2 = ptrtoint memorystruct v0 to i256
+    v1 = mload v2
     ret v1
 }

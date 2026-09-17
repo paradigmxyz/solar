@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/mir/lower-abi-encode/byte_padding_runtime.sol:BytePadding ===
 @module BytePadding
-fn @check(arg0: u256) -> bool [selector=0x5f72f450, pure, abi_params=[u256], abi_returns=[word<bool>]] {
+fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gt arg0, 65
-    v1 = iszero v0
-    v2 = iszero v1
+    v1 = eq v0, false
+    v2 = eq v1, false
     icall revert_if<empty>, v2
     v3 = add arg0, 63
     v4 = lt v3, arg0
@@ -36,8 +36,8 @@ fn @check(arg0: u256) -> bool [selector=0x5f72f450, pure, abi_params=[u256], abi
     v29 = phi [bb2: v23], [bb9: v29]
     v30 = phi [bb2: v11], [bb9: v30]
     v31 = lt v26, v29
-    v32 = eq v31, 0
-    v33 = iszero v32
+    v32 = zext i1 v31 to i256
+    v33 = ne v32, 0
     jumpi v33, bb10, bb11
   bb11:
     jump bb8
@@ -50,76 +50,80 @@ fn @check(arg0: u256) -> bool [selector=0x5f72f450, pure, abi_params=[u256], abi
     v41 = checked_mul u256, v39, 2
     v42 = checked_add u256, 128, v41
     v43 = eq v40, v42
-    v44 = iszero v43
+    v44 = eq v43, false
     icall revert_if<empty>, v44
-    v45 = add v36, 32
-    v46 = mload v45
-    v47 = add v36, 64
-    v48 = mload v47
-    v49 = eq v46, 64
-    jumpi v49, bb13, bb14
+    v45 = ptrtoint memorybytes v36 to i256
+    v46 = add v45, 32
+    v47 = mload v46
+    v48 = ptrtoint memorybytes v36 to i256
+    v49 = add v48, 64
+    v50 = mload v49
+    v51 = eq v47, 64
+    jumpi v51, bb13, bb14
   bb14:
     jump bb15
   bb13:
-    v50 = checked_add u256, 96, v39
-    v51 = eq v48, v50
+    v52 = checked_add u256, 96, v39
+    v53 = eq v50, v52
     jump bb15
   bb15:
-    v52 = phi [bb13: v51], [bb14: false]
-    v53 = iszero v52
-    icall revert_if<empty>, v53
+    v54 = phi [bb13: v53], [bb14: false]
+    v55 = eq v54, false
+    icall revert_if<empty>, v55
     jump bb16
   bb16:
-    v54 = phi [bb15: v26], [bb18: v74]
-    v55 = phi [bb15: v48], [bb18: v75]
-    v56 = phi [bb15: v28], [bb18: v77]
-    v57 = phi [bb15: v36], [bb18: v78]
-    v58 = phi [bb15: 0], [bb18: v105]
-    v59 = phi [bb15: v25], [bb18: v80]
-    v60 = phi [bb15: v39], [bb18: v81]
-    v61 = phi [bb15: v27], [bb18: v82]
-    v62 = phi [bb15: v29], [bb18: v83]
-    v63 = phi [bb15: v46], [bb18: v85]
-    v64 = phi [bb15: v30], [bb18: v86]
-    v65 = lt v58, 2
-    jumpi v65, bb19, bb20
+    v56 = phi [bb15: v26], [bb18: v77]
+    v57 = phi [bb15: v50], [bb18: v78]
+    v58 = phi [bb15: v28], [bb18: v80]
+    v59 = phi [bb15: v36], [bb18: v81]
+    v60 = phi [bb15: 0], [bb18: v108]
+    v61 = phi [bb15: v25], [bb18: v83]
+    v62 = phi [bb15: v39], [bb18: v84]
+    v63 = phi [bb15: v27], [bb18: v85]
+    v64 = phi [bb15: v29], [bb18: v86]
+    v65 = phi [bb15: v47], [bb18: v88]
+    v66 = phi [bb15: v30], [bb18: v89]
+    v67 = lt v60, 2
+    jumpi v67, bb19, bb20
   bb20:
     jump bb17
   bb17:
-    ret true
+    v109 = zext i1 1 to i256
+    ret v109
   bb19:
-    v66 = eq v58, 0
-    jumpi v66, bb22, bb23
+    v68 = eq v60, 0
+    jumpi v68, bb22, bb23
   bb23:
     jump bb24
   bb22:
     jump bb24
   bb24:
-    v67 = phi [bb22: v63], [bb23: v55]
-    v68 = add v57, 32
-    v69 = add v68, v67
-    v70 = mload v69
-    v71 = eq v70, v61
-    v72 = iszero v71
-    icall revert_if<empty>, v72
+    v69 = phi [bb22: v65], [bb23: v57]
+    v70 = ptrtoint memorybytes v59 to i256
+    v71 = add v70, 32
+    v72 = add v71, v69
+    v73 = mload v72
+    v74 = eq v73, v63
+    v75 = eq v74, false
+    icall revert_if<empty>, v75
     jump bb25
   bb25:
-    v73 = phi [bb24: v70], [bb27: v73]
-    v74 = phi [bb24: v54], [bb27: v74]
-    v75 = phi [bb24: v55], [bb27: v75]
-    v76 = phi [bb24: 0], [bb27: v104]
+    v76 = phi [bb24: v73], [bb27: v76]
     v77 = phi [bb24: v56], [bb27: v77]
     v78 = phi [bb24: v57], [bb27: v78]
-    v79 = phi [bb24: v58], [bb27: v79]
-    v80 = phi [bb24: v59], [bb27: v80]
-    v81 = phi [bb24: v60], [bb27: v81]
-    v82 = phi [bb24: v61], [bb27: v82]
-    v83 = phi [bb24: v62], [bb27: v83]
-    v84 = phi [bb24: v67], [bb27: v84]
+    v79 = phi [bb24: 0], [bb27: v107]
+    v80 = phi [bb24: v58], [bb27: v80]
+    v81 = phi [bb24: v59], [bb27: v81]
+    v82 = phi [bb24: v60], [bb27: v82]
+    v83 = phi [bb24: v61], [bb27: v83]
+    v84 = phi [bb24: v62], [bb27: v84]
     v85 = phi [bb24: v63], [bb27: v85]
     v86 = phi [bb24: v64], [bb27: v86]
-    v87 = lt v76, v81
-    jumpi v87, bb28, bb29
+    v87 = phi [bb24: v69], [bb27: v87]
+    v88 = phi [bb24: v65], [bb27: v88]
+    v89 = phi [bb24: v66], [bb27: v89]
+    v90 = lt v79, v84
+    jumpi v90, bb28, bb29
   bb29:
     jump bb26
   bb26:
@@ -127,39 +131,39 @@ fn @check(arg0: u256) -> bool [selector=0x5f72f450, pure, abi_params=[u256], abi
   bb21:
     jump bb18
   bb18:
-    v105 = checked_add u256, v79, 1
+    v108 = checked_add u256, v82, 1
     jump bb16
   bb28:
-    v88 = checked_add u256, v84, 32
-    v89 = checked_add u256, v88, v76
-    v90 = memory_object_len memorybytes, v78
-    v91 = lt v89, v90
-    v92 = iszero v91
-    icall panic_if<0x32>, v92
-    v93 = memory_object_load_byte memorybytes, v78, v89
-    v94 = shl 248, v93
-    v95 = lt v76, v82
-    jumpi v95, bb31, bb32
+    v91 = checked_add u256, v87, 32
+    v92 = checked_add u256, v91, v79
+    v93 = memory_object_len memorybytes, v81
+    v94 = lt v92, v93
+    v95 = eq v94, false
+    icall panic_if<0x32>, v95
+    v96 = memory_object_load_byte memorybytes, v81, v92
+    v97 = shl 248, v96
+    v98 = lt v79, v85
+    jumpi v98, bb31, bb32
   bb32:
     jump bb33
   bb31:
-    v96 = memory_object_len memorybytes, v77
-    v97 = lt v76, v96
-    v98 = iszero v97
-    icall panic_if<0x32>, v98
-    v99 = memory_object_load_byte memorybytes, v77, v76
-    v100 = shl 248, v99
+    v99 = memory_object_len memorybytes, v80
+    v100 = lt v79, v99
+    v101 = eq v100, false
+    icall panic_if<0x32>, v101
+    v102 = memory_object_load_byte memorybytes, v80, v79
+    v103 = shl 248, v102
     jump bb33
   bb33:
-    v101 = phi [bb31: v100], [bb32: 0]
-    v102 = eq v94, v101
-    v103 = iszero v102
-    icall revert_if<empty>, v103
+    v104 = phi [bb31: v103], [bb32: 0]
+    v105 = eq v97, v104
+    v106 = eq v105, false
+    icall revert_if<empty>, v106
     jump bb30
   bb30:
     jump bb27
   bb27:
-    v104 = checked_add u256, v76, 1
+    v107 = checked_add u256, v79, 1
     jump bb25
   bb10:
     v34 = not 0
@@ -177,7 +181,7 @@ fn @check(arg0: u256) -> bool [selector=0x5f72f450, pure, abi_params=[u256], abi
     v16 = shl 248, v15
     v17 = memory_object_len memorybytes, v10
     v18 = lt v8, v17
-    v19 = iszero v18
+    v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = byte 0, v16
     memory_object_store_byte memorybytes, v10, v8, v20

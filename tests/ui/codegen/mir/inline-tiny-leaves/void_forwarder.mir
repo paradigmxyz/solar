@@ -4,42 +4,43 @@
 @module VoidForwarder
 
 // Both callers retain exactly one sink call, with reordered arguments and the callers' constants.
-fn @caller(arg0: u256, arg1: u256) -> u256 {
+fn @caller(arg0: i256, arg1: i256) -> i256 {
   bb0:
     icall @forward_void, arg0, arg1, 7
     v0 = sload 0
     ret v0
 }
 
-fn @other(arg0: u256, arg1: u256) -> u256 {
+fn @other(arg0: i256, arg1: i256) -> i256 {
   bb0:
     icall @forward_void, arg1, arg0, 9
     v0 = sload 0
     ret v0
 }
 
-fn @forward_void(arg0: u256, arg1: u256, arg2: u256) {
+fn @forward_void(arg0: i256, arg1: i256, arg2: i256) {
   bb0:
     icall @sink, arg1, arg0, arg2
     ret
 }
 
-fn @explicit_return(arg0: u256, arg1: u256) {
+fn @explicit_return(arg0: i256, arg1: i256) {
   bb0:
     icall @forward_return, arg0, arg1
     ret
 }
 
-fn @forward_return(arg0: u256, arg1: u256) {
+fn @forward_return(arg0: i256, arg1: i256) {
   bb0:
     icall @sink, arg0, arg1, 9
     ret
 }
 
 // The branched sink must stay shared rather than becoming a tiny leaf.
-fn @sink(arg0: u256, arg1: u256, arg2: u256) {
+fn @sink(arg0: i256, arg1: i256, arg2: i256) {
   bb0:
-    jumpi arg0, bb1, bb2
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
   bb1:
     sstore 0, arg1
     sstore 1, arg2
@@ -49,21 +50,22 @@ fn @sink(arg0: u256, arg1: u256, arg2: u256) {
 }
 
 // A wrapper that drops a result is not a void-call forwarder.
-fn @discard_caller(arg0: u256) {
+fn @discard_caller(arg0: i256) {
   bb0:
     icall @discard, arg0
     ret
 }
 
-fn @discard(arg0: u256) {
+fn @discard(arg0: i256) {
   bb0:
     v0 = icall @value_sink, arg0
     ret
 }
 
-fn @value_sink(arg0: u256) -> u256 {
+fn @value_sink(arg0: i256) -> i256 {
   bb0:
-    jumpi arg0, bb1, bb2
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
   bb1:
     sstore 0, arg0
     ret arg0
@@ -72,13 +74,13 @@ fn @value_sink(arg0: u256) -> u256 {
 }
 
 // Extra effects prevent forwarding even when they follow a void call.
-fn @effect_caller(arg0: u256, arg1: u256) {
+fn @effect_caller(arg0: i256, arg1: i256) {
   bb0:
     icall @effect, arg0, arg1
     ret
 }
 
-fn @effect(arg0: u256, arg1: u256) {
+fn @effect(arg0: i256, arg1: i256) {
   bb0:
     icall @sink, arg0, arg1, 11
     sstore 2, arg0
@@ -86,14 +88,14 @@ fn @effect(arg0: u256, arg1: u256) {
 }
 
 // Keep extra argument setup shared across multiple callers.
-fn @shared_extra_caller(arg0: u256, arg1: u256) {
+fn @shared_extra_caller(arg0: i256, arg1: i256) {
   bb0:
     icall @shared_extra, arg0, arg1
     icall @shared_extra, arg1, arg0
     ret
 }
 
-fn @shared_extra(arg0: u256, arg1: u256) {
+fn @shared_extra(arg0: i256, arg1: i256) {
   bb0:
     icall @sink, arg0, arg1, 13
     ret

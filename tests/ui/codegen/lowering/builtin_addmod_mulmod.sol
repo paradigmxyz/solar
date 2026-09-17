@@ -8,7 +8,7 @@ contract AddmodMulmod {
     // SEM-LABEL: fn @am
     // SEM: icall checked_addmod<>, arg0, arg1, arg2
     // CHECK-LABEL: fn @am{{[( ]}}
-    // CHECK: jumpi arg2,
+    // CHECK: jumpi {{(arg[0-9]+|v[0-9]+)}},
     // CHECK: mstore 32, 18
     // CHECK: {{v[0-9]+}} = addmod arg0, arg1, arg2
     function am(uint x, uint y, uint n) public pure returns (uint) {
@@ -18,7 +18,7 @@ contract AddmodMulmod {
     // SEM-LABEL: fn @mm
     // SEM: icall checked_mulmod<>, arg0, arg1, arg2
     // CHECK-LABEL: fn @mm{{[( ]}}
-    // CHECK: jumpi arg2,
+    // CHECK: jumpi {{(arg[0-9]+|v[0-9]+)}},
     // CHECK: mstore 32, 18
     // CHECK: {{v[0-9]+}} = mulmod arg0, arg1, arg2
     function mm(uint x, uint y, uint n) public pure returns (uint) {

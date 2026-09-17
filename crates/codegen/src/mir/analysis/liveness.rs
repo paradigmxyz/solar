@@ -465,7 +465,7 @@ mod tests {
         // bb0: v2 = add v0, v1; ret v2
         let mut func = make_func();
         let mut b = FunctionBuilder::new(&mut func);
-        let x = b.add_param(MirType::uint256());
+        let x = b.add_param(MirType::I256);
         let one = b.imm(1);
         let sum = b.add(x, one);
         b.ret([sum]);
@@ -490,8 +490,8 @@ mod tests {
         // merge: ret x  (x used across branches)
         let mut func = make_func();
         let mut b = FunctionBuilder::new(&mut func);
-        let x = b.add_param(MirType::uint256());
-        let cond = b.add_param(MirType::Bool);
+        let x = b.add_param(MirType::I256);
+        let cond = b.add_param(MirType::I1);
 
         let then_bb = b.create_block();
         let else_bb = b.create_block();
@@ -536,7 +536,7 @@ mod tests {
         // Note: without phis, i is the param. This tests cross-block liveness.
         let mut func = make_func();
         let mut b = FunctionBuilder::new(&mut func);
-        let i = b.add_param(MirType::uint256());
+        let i = b.add_param(MirType::I256);
         let limit = b.imm(10);
 
         let header = b.create_block();
@@ -574,8 +574,8 @@ mod tests {
         // beyond its definition point.
         let mut func = make_func();
         let mut b = FunctionBuilder::new(&mut func);
-        let x = b.add_param(MirType::uint256());
-        let y = b.add_param(MirType::uint256());
+        let x = b.add_param(MirType::I256);
+        let y = b.add_param(MirType::I256);
         let dead = b.add(x, y); // result never used
         b.ret([x]);
 
@@ -593,8 +593,8 @@ mod tests {
     fn test_unused_param() {
         let mut func = make_func();
         let mut b = FunctionBuilder::new(&mut func);
-        let _x = b.add_param(MirType::uint256()); // Unused.
-        let y = b.add_param(MirType::uint256());
+        let _x = b.add_param(MirType::I256); // Unused.
+        let y = b.add_param(MirType::I256);
         b.ret([y]);
 
         let liveness = Liveness::compute(&func);
@@ -608,7 +608,7 @@ mod tests {
     fn block_local_codegen_ignores_unused_param() {
         let mut func = make_func();
         let mut b = FunctionBuilder::new(&mut func);
-        let _unused = b.add_param(MirType::uint256());
+        let _unused = b.add_param(MirType::I256);
         let one = b.imm(1);
         let two = b.imm(2);
         let sum = b.add(one, two);
@@ -624,8 +624,8 @@ mod tests {
         // right: ret x
         let mut func = make_func();
         let mut b = FunctionBuilder::new(&mut func);
-        let x = b.add_param(MirType::uint256());
-        let cond = b.add_param(MirType::Bool);
+        let x = b.add_param(MirType::I256);
+        let cond = b.add_param(MirType::I1);
 
         let left = b.create_block();
         let right = b.create_block();
@@ -661,8 +661,8 @@ mod tests {
         // sstore(slot, val); loaded = sload(slot); ret loaded
         let mut func = make_func();
         let mut b = FunctionBuilder::new(&mut func);
-        let slot = b.add_param(MirType::uint256());
-        let val = b.add_param(MirType::uint256());
+        let slot = b.add_param(MirType::I256);
+        let val = b.add_param(MirType::I256);
         b.sstore(slot, val);
         let loaded = b.sload(slot);
         b.ret([loaded]);
@@ -686,8 +686,8 @@ mod tests {
         // bb0: v2 = add v0, v1; v3 = mul v2, v0; ret v3
         let mut func = make_func();
         let mut b = FunctionBuilder::new(&mut func);
-        let v0 = b.add_param(MirType::uint256());
-        let v1 = b.add_param(MirType::uint256());
+        let v0 = b.add_param(MirType::I256);
+        let v1 = b.add_param(MirType::I256);
         let v2 = b.add(v0, v1);
         let v3 = b.mul(v2, v0);
         b.ret([v3]);
@@ -723,8 +723,8 @@ mod tests {
         // bb0: v2 = add v0, v1; ret v2
         let mut func = make_func();
         let mut b = FunctionBuilder::new(&mut func);
-        let v0 = b.add_param(MirType::uint256());
-        let v1 = b.add_param(MirType::uint256());
+        let v0 = b.add_param(MirType::I256);
+        let v1 = b.add_param(MirType::I256);
         let v2 = b.add(v0, v1);
         b.ret([v2]);
 
@@ -743,8 +743,8 @@ mod tests {
         // bb0: v2 = add v0, v1; v3 = mul v2, v0; ret v3
         let mut func = make_func();
         let mut b = FunctionBuilder::new(&mut func);
-        let v0 = b.add_param(MirType::uint256());
-        let v1 = b.add_param(MirType::uint256());
+        let v0 = b.add_param(MirType::I256);
+        let v1 = b.add_param(MirType::I256);
         let _v2 = b.add(v0, v1);
         let v3 = b.mul(_v2, v0);
         b.ret([v3]);
@@ -767,8 +767,8 @@ mod tests {
         // bb2: ret v0  (v0 must be live through bb1 and into bb2)
         let mut func = make_func();
         let mut b = FunctionBuilder::new(&mut func);
-        let v0 = b.add_param(MirType::uint256());
-        let v1 = b.add_param(MirType::uint256());
+        let v0 = b.add_param(MirType::I256);
+        let v1 = b.add_param(MirType::I256);
 
         let bb1 = b.create_block();
         let bb2 = b.create_block();
@@ -799,9 +799,9 @@ mod tests {
         // right: ret v1
         let mut func = make_func();
         let mut b = FunctionBuilder::new(&mut func);
-        let v0 = b.add_param(MirType::uint256());
-        let v1 = b.add_param(MirType::uint256());
-        let cond = b.add_param(MirType::Bool);
+        let v0 = b.add_param(MirType::I256);
+        let v1 = b.add_param(MirType::I256);
+        let cond = b.add_param(MirType::I1);
 
         let left = b.create_block();
         let right = b.create_block();
@@ -857,7 +857,7 @@ mod tests {
 
             b.switch_to_block(header);
             // Allocate a placeholder for the phi result (an undef that we'll replace).
-            phi_placeholder = b.undef(MirType::uint256());
+            phi_placeholder = b.undef(MirType::I256);
             let limit = b.imm(10);
             let cond = b.lt(phi_placeholder, limit);
             b.branch(cond, body, exit);
@@ -877,7 +877,7 @@ mod tests {
         let phi_inst = func.alloc_inst_with_result(
             crate::mir::Instruction::new(
                 crate::mir::InstKind::Phi(vec![(entry, init), (body, updated)]),
-                Some(MirType::uint256()),
+                Some(MirType::I256),
             ),
             phi_val,
         );

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_storage_arrays.mir (before lower-builtins) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_storage_arrays.mir (after lower-builtins) ===
   @module StorageArrays
-  fn @words(arg0: u256) -> memoryarray {
+  fn @words(arg0: i256) -> memoryarray {
     bb0:
 -     v0 = load_storage_array u256, arg0
 -     ret v0
@@ -11,29 +11,30 @@
 +     jumpi v3, bb1, bb2
 +   bb2:
 +     v4 = mul v2, 32
-+     v5 = iszero 32
++     v5 = eq 32, 0
 +     v6 = div v4, 32
 +     v7 = eq v6, v2
 +     v8 = or v5, v7
-+     v9 = iszero v8
-+     jumpi v9, bb1, bb3
++     v9 = zext i1 v8 to i256
++     v10 = eq v9, 0
++     jumpi v10, bb1, bb3
 +   bb3:
-+     v10 = alloc memoryarray<1>, exact, uninitialized, panic, v4
-+     set_memory_object_len memoryarray, v10, v1
-+     v11 = storage_array_data_slot arg0
++     v11 = alloc memoryarray<1>, exact, uninitialized, panic, v4
++     set_memory_object_len memoryarray, v11, v1
++     v12 = storage_array_data_slot arg0
 +     jump bb4
 +   bb4:
-+     v12 = phi [bb3: 0], [bb5: v17]
-+     v13 = lt v12, v1
-+     jumpi v13, bb5, bb6
++     v13 = phi [bb3: 0], [bb5: v18]
++     v14 = lt v13, v1
++     jumpi v14, bb5, bb6
 +   bb6:
-+     ret v10
++     ret v11
 +   bb5:
-+     v14 = div v12, 1
-+     v15 = add v11, v14
-+     v16 = sload v15 !metadata(storage=symbolic(v15))
-+     memory_object_store_element memoryarray<1>, v10, v12, v16
-+     v17 = add v12, 1
++     v15 = div v13, 1
++     v16 = add v12, v15
++     v17 = sload v16 !metadata(storage=symbolic(v16))
++     memory_object_store_element memoryarray<1>, v11, v13, v17
++     v18 = add v13, 1
 +     jump bb4
 +   bb1:
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -41,7 +42,7 @@
 +     revert 28, 36
   }
   
-  fn @signed(arg0: u256) -> memoryarray {
+  fn @signed(arg0: i256) -> memoryarray {
     bb0:
 -     v0 = load_storage_array i24, arg0
 -     ret v0
@@ -51,34 +52,35 @@
 +     jumpi v3, bb1, bb2
 +   bb2:
 +     v4 = mul v2, 32
-+     v5 = iszero 32
++     v5 = eq 32, 0
 +     v6 = div v4, 32
 +     v7 = eq v6, v2
 +     v8 = or v5, v7
-+     v9 = iszero v8
-+     jumpi v9, bb1, bb3
++     v9 = zext i1 v8 to i256
++     v10 = eq v9, 0
++     jumpi v10, bb1, bb3
 +   bb3:
-+     v10 = alloc memoryarray<1>, exact, uninitialized, panic, v4
-+     set_memory_object_len memoryarray, v10, v1
-+     v11 = storage_array_data_slot arg0
++     v11 = alloc memoryarray<1>, exact, uninitialized, panic, v4
++     set_memory_object_len memoryarray, v11, v1
++     v12 = storage_array_data_slot arg0
 +     jump bb4
 +   bb4:
-+     v12 = phi [bb3: 0], [bb5: v22]
-+     v13 = lt v12, v1
-+     jumpi v13, bb5, bb6
++     v13 = phi [bb3: 0], [bb5: v23]
++     v14 = lt v13, v1
++     jumpi v14, bb5, bb6
 +   bb6:
-+     ret v10
++     ret v11
 +   bb5:
-+     v14 = div v12, 10
-+     v15 = add v11, v14
-+     v16 = sload v15 !metadata(storage=symbolic(v15))
-+     v17 = mod v12, 10
-+     v18 = mul v17, 24
-+     v19 = shr v18, v16
-+     v20 = and v19, 0xffffff
-+     v21 = signextend 2, v20
-+     memory_object_store_element memoryarray<1>, v10, v12, v21
-+     v22 = add v12, 1
++     v15 = div v13, 10
++     v16 = add v12, v15
++     v17 = sload v16 !metadata(storage=symbolic(v16))
++     v18 = mod v13, 10
++     v19 = mul v18, 24
++     v20 = shr v19, v17
++     v21 = and v20, 0xffffff
++     v22 = signextend 2, v21
++     memory_object_store_element memoryarray<1>, v11, v13, v22
++     v23 = add v13, 1
 +     jump bb4
 +   bb1:
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -86,7 +88,7 @@
 +     revert 28, 36
   }
   
-  fn @fixed(arg0: u256) -> memoryarray {
+  fn @fixed(arg0: i256) -> memoryarray {
     bb0:
 -     v0 = load_storage_array bytes9, arg0
 -     ret v0
@@ -96,34 +98,35 @@
 +     jumpi v3, bb1, bb2
 +   bb2:
 +     v4 = mul v2, 32
-+     v5 = iszero 32
++     v5 = eq 32, 0
 +     v6 = div v4, 32
 +     v7 = eq v6, v2
 +     v8 = or v5, v7
-+     v9 = iszero v8
-+     jumpi v9, bb1, bb3
++     v9 = zext i1 v8 to i256
++     v10 = eq v9, 0
++     jumpi v10, bb1, bb3
 +   bb3:
-+     v10 = alloc memoryarray<1>, exact, uninitialized, panic, v4
-+     set_memory_object_len memoryarray, v10, v1
-+     v11 = storage_array_data_slot arg0
++     v11 = alloc memoryarray<1>, exact, uninitialized, panic, v4
++     set_memory_object_len memoryarray, v11, v1
++     v12 = storage_array_data_slot arg0
 +     jump bb4
 +   bb4:
-+     v12 = phi [bb3: 0], [bb5: v22]
-+     v13 = lt v12, v1
-+     jumpi v13, bb5, bb6
++     v13 = phi [bb3: 0], [bb5: v23]
++     v14 = lt v13, v1
++     jumpi v14, bb5, bb6
 +   bb6:
-+     ret v10
++     ret v11
 +   bb5:
-+     v14 = div v12, 3
-+     v15 = add v11, v14
-+     v16 = sload v15 !metadata(storage=symbolic(v15))
-+     v17 = mod v12, 3
-+     v18 = mul v17, 72
-+     v19 = shr v18, v16
-+     v20 = and v19, 0xffffffffffffffffff
-+     v21 = shl 184, v20
-+     memory_object_store_element memoryarray<1>, v10, v12, v21
-+     v22 = add v12, 1
++     v15 = div v13, 3
++     v16 = add v12, v15
++     v17 = sload v16 !metadata(storage=symbolic(v16))
++     v18 = mod v13, 3
++     v19 = mul v18, 72
++     v20 = shr v19, v17
++     v21 = and v20, 0xffffffffffffffffff
++     v22 = shl 184, v21
++     memory_object_store_element memoryarray<1>, v11, v13, v22
++     v23 = add v13, 1
 +     jump bb4
 +   bb1:
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -131,7 +134,7 @@
 +     revert 28, 36
   }
   
-  fn @enums(arg0: u256) -> memoryarray {
+  fn @enums(arg0: i256) -> memoryarray {
     bb0:
 -     v0 = load_storage_array enum<3>, arg0
 -     ret v0
@@ -141,37 +144,38 @@
 +     jumpi v3, bb1, bb2
 +   bb2:
 +     v4 = mul v2, 32
-+     v5 = iszero 32
++     v5 = eq 32, 0
 +     v6 = div v4, 32
 +     v7 = eq v6, v2
 +     v8 = or v5, v7
-+     v9 = iszero v8
-+     jumpi v9, bb1, bb3
++     v9 = zext i1 v8 to i256
++     v10 = eq v9, 0
++     jumpi v10, bb1, bb3
 +   bb3:
-+     v10 = alloc memoryarray<1>, exact, uninitialized, panic, v4
-+     set_memory_object_len memoryarray, v10, v1
-+     v11 = storage_array_data_slot arg0
++     v11 = alloc memoryarray<1>, exact, uninitialized, panic, v4
++     set_memory_object_len memoryarray, v11, v1
++     v12 = storage_array_data_slot arg0
 +     jump bb4
 +   bb4:
-+     v12 = phi [bb3: 0], [bb8: v23]
-+     v13 = lt v12, v1
-+     jumpi v13, bb5, bb6
++     v13 = phi [bb3: 0], [bb8: v24]
++     v14 = lt v13, v1
++     jumpi v14, bb5, bb6
 +   bb6:
-+     ret v10
++     ret v11
 +   bb5:
-+     v14 = div v12, 32
-+     v15 = add v11, v14
-+     v16 = sload v15 !metadata(storage=symbolic(v15))
-+     v17 = mod v12, 32
-+     v18 = mul v17, 8
-+     v19 = shr v18, v16
-+     v20 = and v19, 255
-+     v21 = lt v20, 3
-+     v22 = iszero v21
-+     jumpi v22, bb7, bb8
++     v15 = div v13, 32
++     v16 = add v12, v15
++     v17 = sload v16 !metadata(storage=symbolic(v16))
++     v18 = mod v13, 32
++     v19 = mul v18, 8
++     v20 = shr v19, v17
++     v21 = and v20, 255
++     v22 = lt v21, 3
++     v23 = eq v22, false
++     jumpi v23, bb7, bb8
 +   bb8:
-+     memory_object_store_element memoryarray<1>, v10, v12, v20
-+     v23 = add v12, 1
++     memory_object_store_element memoryarray<1>, v11, v13, v21
++     v24 = add v13, 1
 +     jump bb4
 +   bb7:
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -183,7 +187,7 @@
 +     revert 28, 36
   }
   
-  fn @bytes(arg0: bool, arg1: u256, arg2: memoryarray) -> memoryarray {
+  fn @bytes(arg0: i1, arg1: i256, arg2: memoryarray) -> memoryarray {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -196,32 +200,33 @@
 +     jumpi v4, bb4, bb5 !metadata(span=50..60, modifier_depth=5)
 +   bb5:
 +     v5 = mul v3, 32 !metadata(span=50..60, modifier_depth=5)
-+     v6 = iszero 32 !metadata(span=50..60, modifier_depth=5)
++     v6 = eq 32, 0 !metadata(span=50..60, modifier_depth=5)
 +     v7 = div v5, 32 !metadata(span=50..60, modifier_depth=5)
 +     v8 = eq v7, v3 !metadata(span=50..60, modifier_depth=5)
 +     v9 = or v6, v8 !metadata(span=50..60, modifier_depth=5)
-+     v10 = iszero v9 !metadata(span=50..60, modifier_depth=5)
-+     jumpi v10, bb4, bb6 !metadata(span=50..60, modifier_depth=5)
++     v10 = zext i1 v9 to i256 !metadata(span=50..60, modifier_depth=5)
++     v11 = eq v10, 0 !metadata(span=50..60, modifier_depth=5)
++     jumpi v11, bb4, bb6 !metadata(span=50..60, modifier_depth=5)
 +   bb6:
-+     v11 = alloc memoryarray<1>, exact, uninitialized, panic, v5 !metadata(span=50..60, modifier_depth=5)
-+     set_memory_object_len memoryarray, v11, v2 !metadata(span=50..60, modifier_depth=5)
-+     v12 = storage_array_data_slot arg1 !metadata(span=50..60, modifier_depth=5)
++     v12 = alloc memoryarray<1>, exact, uninitialized, panic, v5 !metadata(span=50..60, modifier_depth=5)
++     set_memory_object_len memoryarray, v12, v2 !metadata(span=50..60, modifier_depth=5)
++     v13 = storage_array_data_slot arg1 !metadata(span=50..60, modifier_depth=5)
 +     jump bb7 !metadata(span=50..60, modifier_depth=5)
 +   bb7:
-+     v13 = phi [bb6: 0], [bb8: v17] !metadata(span=50..60, modifier_depth=5)
-+     v14 = lt v13, v2 !metadata(span=50..60, modifier_depth=5)
-+     jumpi v14, bb8, bb9 !metadata(span=50..60, modifier_depth=5)
++     v14 = phi [bb6: 0], [bb8: v18] !metadata(span=50..60, modifier_depth=5)
++     v15 = lt v14, v2 !metadata(span=50..60, modifier_depth=5)
++     jumpi v15, bb8, bb9 !metadata(span=50..60, modifier_depth=5)
 +   bb9:
       jump bb3
     bb3:
 -     v1 = phi [bb1: v0], [bb2: arg2]
-+     v1 = phi [bb9: v11], [bb2: arg2]
++     v1 = phi [bb9: v12], [bb2: arg2]
       ret v1
 +   bb8:
-+     v15 = add v12, v13 !metadata(span=50..60, modifier_depth=5)
-+     v16 = icall @load_storage_bytes, v15 !metadata(span=50..60, modifier_depth=5)
-+     memory_object_store_element memoryarray<1>, v11, v13, v16 !metadata(span=50..60, modifier_depth=5)
-+     v17 = add v13, 1 !metadata(span=50..60, modifier_depth=5)
++     v16 = add v13, v14 !metadata(span=50..60, modifier_depth=5)
++     v17 = icall @load_storage_bytes, v16 !metadata(span=50..60, modifier_depth=5)
++     memory_object_store_element memoryarray<1>, v12, v14, v17 !metadata(span=50..60, modifier_depth=5)
++     v18 = add v14, 1 !metadata(span=50..60, modifier_depth=5)
 +     jump bb7 !metadata(span=50..60, modifier_depth=5)
 +   bb4:
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=50..60, modifier_depth=5)
@@ -229,7 +234,7 @@
 +     revert 28, 36 !metadata(span=50..60, modifier_depth=5)
 + }
 + 
-+ fn @load_storage_bytes(arg0: u256) -> memorybytes {
++ fn @load_storage_bytes(arg0: i256) -> memorybytes {
 +   bb0:
 +     v1 = sload arg0 !metadata(storage=symbolic(arg0))
 +     v2 = and v1, 1

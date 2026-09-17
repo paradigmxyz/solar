@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/cse/payable_calls.mir (before cse) ===
 + // === ROOT/tests/ui/codegen/mir/cse/payable_calls.mir (after cse) ===
   @module PayableCallEffects
-  fn @observe(arg0: address) -> u256 {
+  fn @observe(arg0: i256) -> i256 {
     bb0:
       v0 = balance arg0
       v1 = selfbalance
@@ -34,7 +34,7 @@
 - // === ROOT/tests/ui/codegen/mir/cse/payable_calls.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/cse/payable_calls.mir (after dce) ===
   @module PayableCallEffects
-  fn @observe(arg0: address) -> u256 {
+  fn @observe(arg0: i256) -> i256 {
     bb0:
       v0 = balance arg0
       v1 = selfbalance

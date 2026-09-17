@@ -222,14 +222,14 @@ impl<'a> FunctionBuilder<'a> {
         self.func.set_return_type(ty);
     }
 
-    /// Creates a uint256 immediate value.
+    /// Creates an i256 immediate value.
     pub(crate) fn imm(&mut self, value: impl ToUint) -> ValueId {
-        self.alloc_value(Value::Immediate(Immediate::uint256(value.to_uint())))
+        self.alloc_value(Value::Immediate(Immediate::I256(value.to_uint())))
     }
 
     /// Creates a boolean immediate.
     pub(crate) fn imm_bool(&mut self, value: bool) -> ValueId {
-        self.alloc_value(Value::Immediate(Immediate::bool(value)))
+        self.alloc_value(Value::Immediate(Immediate::I1(value)))
     }
 
     /// Adds a constant byte offset, folding zero offsets.
@@ -404,14 +404,14 @@ impl<'a> FunctionBuilder<'a> {
     pub(crate) fn validate_enum_value(&mut self, variants: u64, value: ValueId) {
         let limit = self.imm(variants);
         let valid = self.lt(value, limit);
-        let invalid = self.iszero(valid);
+        let invalid = self.eq_zero(valid);
         self.panic_if(invalid, PanicCode::EnumConversion);
     }
 
     /// Reverts with `PanicCode::ArrayOutOfBounds` when `index` is not below `length`.
     pub(crate) fn bounds_check(&mut self, index: ValueId, length: ValueId) {
         let in_range = self.lt(index, length);
-        let invalid = self.iszero(in_range);
+        let invalid = self.eq_zero(in_range);
         self.panic_if(invalid, PanicCode::ArrayOutOfBounds);
     }
 
@@ -446,11 +446,11 @@ impl<'a> FunctionBuilder<'a> {
             return self.imm(lhs.wrapping_mul(rhs));
         }
         let result = self.mul(lhs, rhs);
-        let rhs_zero = self.iszero(rhs);
+        let rhs_zero = self.eq_zero(rhs);
         let quotient = self.div(result, rhs);
         let exact = self.eq(quotient, lhs);
         let valid = self.or(rhs_zero, exact);
-        let overflow = self.iszero(valid);
+        let overflow = self.eq_zero(valid);
         self.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
         result
     }
@@ -525,24 +525,147 @@ impl<'a> FunctionBuilder<'a> {
         inst_id
     }
 
+    fn cast_memory_operands(&mut self, kind: &mut InstKind) {
+        let mut cast_object = |value: &mut ValueId, kind| {
+            if self.func.value_slice_location(*value).is_none() {
+                // object = inttoptr word
+                *value = self.cast(*value, MirType::MemoryObject(kind));
+            }
+        };
+        match kind {
+            InstKind::MemoryObjectLen(object, kind)
+            | InstKind::SetMemoryObjectLen(object, _, kind)
+            | InstKind::MemoryObjectData(object, kind)
+            | InstKind::MemoryObjectCopyFromSlice { object, kind, .. }
+            | InstKind::MemoryObjectCopyFromSliceAt { object, kind, .. } => {
+                cast_object(object, *kind)
+            }
+            InstKind::MemoryObjectFieldAddr { object, layout, .. }
+            | InstKind::MemoryObjectElementAddr { object, layout, .. }
+            | InstKind::MemoryObjectLoadField { object, layout, .. }
+            | InstKind::MemoryObjectStoreField { object, layout, .. }
+            | InstKind::MemoryObjectLoadElement { object, layout, .. }
+            | InstKind::MemoryObjectStoreElement { object, layout, .. } => {
+                cast_object(object, layout.kind())
+            }
+            InstKind::MemoryObjectLoadByte { object, .. }
+            | InstKind::MemoryObjectStoreByte { object, .. }
+            | InstKind::MemoryObjectStoreWord { object, .. }
+            | InstKind::AddressCall { input: object, .. }
+            | InstKind::StorageBytesStore(_, object) => {
+                cast_object(object, MemoryObjectKind::Bytes)
+            }
+            InstKind::MemoryObjectCopy {
+                destination,
+                destination_kind,
+                source,
+                source_kind,
+                ..
+            } => {
+                cast_object(destination, *destination_kind);
+                cast_object(source, *source_kind);
+            }
+            _ => {}
+        }
+    }
+
     /// Emits a typed value-producing instruction with the current source and effect metadata.
-    pub(crate) fn emit_inst(&mut self, kind: InstKind, result_ty: Option<MirType>) -> ValueId {
+    pub(crate) fn emit_inst(&mut self, mut kind: InstKind, result_ty: Option<MirType>) -> ValueId {
         debug_assert!(result_ty.is_some(), "value-producing instructions must have a result type");
-        let inst = self.make_inst(kind, result_ty);
-        self.append_instruction(inst).1.expect("value-producing instruction must have a result")
+        self.cast_memory_operands(&mut kind);
+        let requested = result_ty.unwrap();
+        if let InstKind::Phi(incoming) = &mut kind {
+            let current = self.current_block;
+            for (predecessor, value) in incoming {
+                self.switch_to_block(*predecessor);
+                // incoming = cast value to the phi type
+                *value = self.cast(*value, requested);
+            }
+            self.switch_to_block(current);
+        }
+
+        let boolean_bitwise =
+            matches!(kind, InstKind::And(..) | InstKind::Or(..) | InstKind::Xor(..))
+                && kind
+                    .operands()
+                    .iter()
+                    .all(|&value| self.func.value_ty(value) == Some(MirType::I1));
+        let typed_equality = matches!(kind, InstKind::Eq(..) | InstKind::Ne(..))
+            && kind.operands().iter().all(|&value| {
+                self.func.value_ty(value) == self.func.value_ty(kind.operands()[0])
+                    && matches!(self.func.value_ty(value), Some(MirType::I1 | MirType::I160))
+            });
+        if (kind.evm_opcode().is_some() || matches!(kind, InstKind::Ne(..)))
+            && !boolean_bitwise
+            && !typed_equality
+        {
+            // operand = zext integer or ptrtoint pointer to i256
+            kind.visit_operands_mut(|value| *value = self.cast(*value, MirType::I256));
+        }
+        let produced = if boolean_bitwise {
+            MirType::I1
+        } else {
+            kind.op_def().result.default_type().unwrap_or(requested)
+        };
+        // result = op operands
+        // requested = cast result
+        let inst = self.make_inst(kind, Some(produced));
+        let result = self
+            .append_instruction(inst)
+            .1
+            .expect("value-producing instruction must have a result");
+        self.cast(result, requested)
+    }
+
+    /// Emits an explicit conversion between scalar carriers and memory references.
+    pub(crate) fn cast(&mut self, value: ValueId, ty: MirType) -> ValueId {
+        if self.func.value_ty(value) == Some(ty) {
+            return value;
+        }
+        let from = self.func.value_ty(value).unwrap_or(MirType::I256);
+        let kind = match (from, ty) {
+            // boolean = ne word, 0
+            (_, MirType::I1) => {
+                let value = self.cast(value, MirType::I256);
+                let zero = self.imm(0);
+                InstKind::Ne(value, zero)
+            }
+            // narrow = trunc integer to destination
+            (MirType::Int(from), MirType::Int(to)) if from > to => InstKind::Trunc(value, to.get()),
+            // wide = zext integer to destination
+            (MirType::Int(_), MirType::Int(_)) => InstKind::Zext(value),
+            // integer = ptrtoint pointer to destination
+            (from, MirType::Int(to)) if from.is_pointer() => InstKind::PtrToInt(value, to.get()),
+            // pointer = inttoptr integer to destination
+            (MirType::Int(_), to) if to.is_pointer() => InstKind::IntToPtr(value),
+            // pointer = bitcast pointer to destination
+            (from, to) if from.is_pointer() && to.is_pointer() => InstKind::Bitcast(value),
+            _ => return value,
+        };
+        let inst = self.make_inst(kind, Some(ty));
+        self.append_instruction(inst).1.unwrap()
     }
 
     /// Emits an instruction that produces no value, such as a store or a log.
     ///
     /// No result [`Value`] is allocated: only value-producing instructions get
     /// an entry in the function's value table.
-    pub(in crate::mir) fn emit_void_inst(&mut self, kind: InstKind) {
+    pub(in crate::mir) fn emit_void_inst(&mut self, mut kind: InstKind) {
+        self.cast_memory_operands(&mut kind);
+        if kind.evm_opcode().is_some() {
+            // operand = zext integer or ptrtoint pointer to i256
+            kind.visit_operands_mut(|value| *value = self.cast(*value, MirType::I256));
+        }
         let inst = self.make_inst(kind, None);
         self.append_instruction(inst);
     }
 
     /// Emits a void memory instruction with a proven destination region.
-    fn emit_void_inst_in_region(&mut self, kind: InstKind, region: MemoryRegion) {
+    fn emit_void_inst_in_region(&mut self, mut kind: InstKind, region: MemoryRegion) {
+        if kind.evm_opcode().is_some() {
+            // operand = zext integer or ptrtoint pointer to i256
+            kind.visit_operands_mut(|value| *value = self.cast(*value, MirType::I256));
+        }
         let mut inst = self.make_inst(kind, None);
         inst.metadata.set_memory_region(Some(region));
         self.append_instruction(inst);
@@ -711,7 +834,7 @@ impl<'a> FunctionBuilder<'a> {
         object: ValueId,
         kind: crate::mir::MemoryObjectKind,
     ) -> ValueId {
-        self.emit_inst(InstKind::MemoryObjectLen(object, kind), Some(MirType::uint256()))
+        self.emit_inst(InstKind::MemoryObjectLen(object, kind), Some(MirType::I256))
     }
 
     /// Sets the logical length of a dynamic memory object.
@@ -742,7 +865,7 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         self.emit_inst(
             InstKind::MemoryObjectLoadField { object, layout, field },
-            Some(MirType::uint256()),
+            Some(MirType::I256),
         )
     }
 
@@ -781,7 +904,7 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         self.emit_inst(
             InstKind::MemoryObjectLoadElement { object, layout, index },
-            Some(MirType::uint256()),
+            Some(MirType::I256),
         )
     }
 
@@ -801,7 +924,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Loads one byte from a bytes object through its semantic layout.
     pub(crate) fn memory_object_load_byte(&mut self, object: ValueId, index: ValueId) -> ValueId {
-        self.emit_inst(InstKind::MemoryObjectLoadByte { object, index }, Some(MirType::uint256()))
+        self.emit_inst(InstKind::MemoryObjectLoadByte { object, index }, Some(MirType::I256))
     }
 
     /// Stores an array element through the semantic object layout.
@@ -841,7 +964,7 @@ impl<'a> FunctionBuilder<'a> {
     pub(crate) fn memory_slice_load_word(&mut self, slice: ValueId, offset: ValueId) -> ValueId {
         self.emit_inst(
             InstKind::MemorySliceLoadWord { slice, offset },
-            Some(crate::mir::MirType::uint256()),
+            Some(crate::mir::MirType::I256),
         )
     }
 
@@ -850,7 +973,7 @@ impl<'a> FunctionBuilder<'a> {
     pub(crate) fn calldata_slice_load_word(&mut self, slice: ValueId, offset: ValueId) -> ValueId {
         self.emit_inst(
             InstKind::CalldataSliceLoadWord { slice, offset },
-            Some(crate::mir::MirType::uint256()),
+            Some(crate::mir::MirType::I256),
         )
     }
 
@@ -954,10 +1077,20 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::ExtractValue { ty, aggregate, index }, Some(field))
     }
 
+    /// Compares a value with zero.
+    pub(crate) fn eq_zero(&mut self, value: ValueId) -> ValueId {
+        let zero = self.func.alloc_value(Value::Immediate(Immediate::for_type(
+            self.func.value_ty(value),
+            U256::ZERO,
+        )));
+        // result = eq value, 0
+        self.eq(value, zero)
+    }
+
     /// Preserves all bits while forgetting a value's nominal one-word type.
-    pub(crate) fn word_cast(&mut self, value: ValueId) -> ValueId {
-        // word = word_cast value
-        self.emit_inst(InstKind::WordCast(value), Some(MirType::uint256()))
+    pub(crate) fn cast_word(&mut self, value: ValueId) -> ValueId {
+        // word = zext integer or ptrtoint pointer to i256
+        self.cast(value, MirType::I256)
     }
 
     /// Preserve a source ABI validation obligation until interface lowering discharges it.
@@ -1051,11 +1184,8 @@ impl<'a> FunctionBuilder<'a> {
         ptr: ValueId,
         kind: MemoryObjectKind,
     ) -> ValueId {
-        // object = memory_object_from_ptr ptr
-        self.emit_inst(
-            InstKind::MemoryObjectFromPtr { ptr, kind },
-            Some(MirType::MemoryObject(kind)),
-        )
+        // object = inttoptr word to object, or bitcast pointer to object
+        self.cast(ptr, MirType::MemoryObject(kind))
     }
 
     /// Builds a struct from its ordered field values.
@@ -1080,6 +1210,18 @@ impl<'a> FunctionBuilder<'a> {
         data: ValueId,
         result_ty: MirType,
     ) -> ValueId {
+        let data = if matches!(self.func.value_ty(data), Some(MirType::I256 | MirType::MemPtr)) {
+            // object = alloc_bytes static_head_size
+            // memory_object_copy_from_slice object, make_memory_slice(data, static_head_size)
+            let size = self.imm(layout.checked_head_size().expect("static ABI layout"));
+            let object = self.alloc_bytes_object(size, AllocationSemantics::INTERNAL);
+            let source = self.make_slice(data, size, SliceLocation::Memory);
+            self.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
+            object
+        } else {
+            data
+        };
+        // result = abi_decode data
         self.emit_inst(InstKind::AbiDecode { data, layout }, Some(result_ty))
     }
 
@@ -1095,6 +1237,9 @@ impl<'a> FunctionBuilder<'a> {
         len: ValueId,
         location: SliceLocation,
     ) -> ValueId {
+        // raw_pointer = ptrtoint pointer to i256
+        // slice = make_slice raw_pointer, length
+        let ptr = self.cast(ptr, MirType::I256);
         self.emit_inst(InstKind::MakeSlice { ptr, len, location }, Some(MirType::Slice(location)))
     }
 
@@ -1113,7 +1258,7 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits an opaque library address supplied by the linker.
     pub(crate) fn library_address(&mut self, library: LibraryId) -> ValueId {
         // result = library_address source:library
-        self.emit_inst(InstKind::LibraryAddress(library), Some(MirType::uint256()))
+        self.emit_inst(InstKind::LibraryAddress(library), Some(MirType::I160))
     }
 
     /// Emits a loadimmutable instruction.
@@ -1237,7 +1382,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     pub(crate) fn slotnum(&mut self) -> ValueId {
-        self.emit_inst(InstKind::SlotNum, Some(MirType::uint256()))
+        self.emit_inst(InstKind::SlotNum, Some(MirType::I256))
     }
 
     /// Emits a low-level address call over a bytes object.
@@ -1252,7 +1397,7 @@ impl<'a> FunctionBuilder<'a> {
         // success = address_call(address, input, gas?, value?)
         self.emit_inst(
             InstKind::AddressCall { kind, address, input, gas, value },
-            Some(MirType::uint256()),
+            Some(MirType::I1),
         )
     }
 
@@ -1270,7 +1415,7 @@ impl<'a> FunctionBuilder<'a> {
         // success = send address, amount
         self.emit_inst(
             InstKind::builtin(crate::mir::Builtin::Send, [address, amount]),
-            Some(MirType::uint256()),
+            Some(MirType::I256),
         )
     }
 
@@ -1294,7 +1439,7 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         self.emit_inst(
             InstKind::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size },
-            Some(MirType::uint256()),
+            Some(MirType::I1),
         )
     }
 
@@ -1312,7 +1457,7 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         self.emit_inst(
             InstKind::CallCode { gas, addr, value, args_offset, args_size, ret_offset, ret_size },
-            Some(MirType::uint256()),
+            Some(MirType::I1),
         )
     }
 
@@ -1328,7 +1473,7 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         self.emit_inst(
             InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size },
-            Some(MirType::uint256()),
+            Some(MirType::I1),
         )
     }
 
@@ -1344,7 +1489,7 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         self.emit_inst(
             InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size },
-            Some(MirType::uint256()),
+            Some(MirType::I1),
         )
     }
 
@@ -1356,7 +1501,7 @@ impl<'a> FunctionBuilder<'a> {
         size: ValueId,
         salt: ValueId,
     ) -> ValueId {
-        self.emit_inst(InstKind::Create2(value, offset, size, salt), Some(MirType::Address))
+        self.emit_inst(InstKind::Create2(value, offset, size, salt), Some(MirType::I256))
     }
 
     /// Emits a log0 instruction (event with no topics).
@@ -1412,17 +1557,33 @@ impl<'a> FunctionBuilder<'a> {
         then_val: ValueId,
         else_val: ValueId,
     ) -> ValueId {
-        self.emit_inst(InstKind::Select(cond, then_val, else_val), Some(MirType::uint256()))
+        let cond = self.cast(cond, MirType::I1);
+        let mut ty = self.func.value_ty(then_val).unwrap();
+        if matches!(ty, MirType::I1 | MirType::I160) && self.func.value_ty(else_val) != Some(ty) {
+            ty = MirType::I256;
+        }
+        // then_val = cast then_val to the select type
+        // else_val = cast else_val to the select type
+        // result = select cond, then_val, else_val
+        let then_val = self.cast(then_val, ty);
+        let else_val = self.cast(else_val, ty);
+        self.emit_inst(InstKind::Select(cond, then_val, else_val), Some(ty))
     }
 
     /// Emits a phi instruction. `incoming` pairs each predecessor block of the
     /// current block with the value the phi takes when control arrives from
     /// that block. Emit phis before any other instruction in their block.
     pub(crate) fn phi(&mut self, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
-        let ty = incoming
+        let mut ty = incoming
             .first()
             .and_then(|(_, value)| self.func.value_ty(*value))
-            .unwrap_or(MirType::uint256());
+            .unwrap_or(MirType::I256);
+        if matches!(ty, MirType::I1 | MirType::I160)
+            && incoming.iter().any(|(_, value)| self.func.value_ty(*value) != Some(ty))
+        {
+            ty = MirType::I256;
+        }
+        // result = phi [predecessor: cast value to the phi type, ...]
         self.emit_inst(InstKind::Phi(incoming), Some(ty))
     }
 
@@ -1437,6 +1598,11 @@ impl<'a> FunctionBuilder<'a> {
         let Value::Inst(inst_id) = *self.func.value(phi) else {
             panic!("add_phi_incoming: value is not an instruction result");
         };
+        let current = self.current_block;
+        self.switch_to_block(block);
+        // incoming = cast value to the phi type
+        let value = self.cast(value, self.func.inst(inst_id).result_ty.unwrap());
+        self.switch_to_block(current);
         let InstKind::Phi(incoming) = &mut self.func.inst_mut(inst_id).kind else {
             panic!("add_phi_incoming: instruction is not a phi");
         };
@@ -1450,6 +1616,8 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Sets a branch terminator.
     pub(crate) fn branch(&mut self, condition: ValueId, then_block: BlockId, else_block: BlockId) {
+        let condition = self.cast(condition, MirType::I1);
+        // branch condition, then_block, else_block
         self.set_terminator(Terminator::Branch { condition, then_block, else_block });
     }
 
@@ -1473,6 +1641,10 @@ impl<'a> FunctionBuilder<'a> {
             // ret result
             let result = self.make_struct(*ty, values);
             values = smallvec::smallvec![result];
+        }
+        for (value, ty) in values.iter_mut().zip(self.func.return_components().to_vec()) {
+            // value = cast value to the declared return type
+            *value = self.cast(*value, ty);
         }
         self.set_terminator(Terminator::Return { values });
     }

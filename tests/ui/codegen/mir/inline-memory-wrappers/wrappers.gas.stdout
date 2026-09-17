@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/inline-memory-wrappers/wrappers.mir (before inline-memory-wrappers) ===
 + // === ROOT/tests/ui/codegen/mir/inline-memory-wrappers/wrappers.mir (after inline-memory-wrappers) ===
   @module MemoryWrappers
-  fn @entry(arg0: memptr) -> memptr [selector=0x00000001] {
+  fn @entry(arg0: i256) -> i256 [selector=0x00000001] {
     bb0:
 -     v0 = icall @wrap, arg0
 -     v1 = icall @wrap, v0
@@ -37,7 +37,7 @@
       ret v3
   }
   
-  fn @wrap(arg0: memptr) -> memptr {
+  fn @wrap(arg0: i256) -> i256 {
     bb0:
       v0 = icall @base, arg0
       v1 = mload v0
@@ -46,7 +46,7 @@
       ret v0
   }
   
-  fn @single(arg0: memptr) -> memptr {
+  fn @single(arg0: i256) -> i256 {
     bb0:
       v0 = icall @base, arg0
       v1 = mload v0
@@ -54,7 +54,7 @@
       ret v0
   }
   
-  fn @effects(arg0: memptr) -> memptr {
+  fn @effects(arg0: i256) -> i256 {
     bb0:
       v0 = icall @base, arg0
       mstore v0, 5
@@ -62,12 +62,12 @@
       ret v0
   }
   
-  fn @base(arg0: memptr) -> memptr {
+  fn @base(arg0: i256) -> i256 {
     bb0:
       ret arg0
   }
   
-  fn @pressure(arg0: memptr, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: u256, arg8: u256, arg9: u256, arg10: u256, arg11: u256, arg12: u256) -> u256 [selector=0x00000002] {
+  fn @pressure(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256) -> i256 [selector=0x00000002] {
     bb0:
       v0 = icall @wrap, arg0
       v1 = add arg1, arg2
@@ -88,7 +88,7 @@
 - // === ROOT/tests/ui/codegen/mir/inline-memory-wrappers/wrappers.mir (before cfg-simplify) ===
 + // === ROOT/tests/ui/codegen/mir/inline-memory-wrappers/wrappers.mir (after cfg-simplify) ===
   @module MemoryWrappers
-  fn @entry(arg0: memptr) -> memptr [selector=0x00000001] {
+  fn @entry(arg0: i256) -> i256 [selector=0x00000001] {
     bb0:
 -     jump bb2
 -   bb2:
@@ -123,7 +123,7 @@
       ret v3
   }
   
-  fn @wrap(arg0: memptr) -> memptr {
+  fn @wrap(arg0: i256) -> i256 {
     bb0:
       v0 = icall @base, arg0
       v1 = mload v0
@@ -132,7 +132,7 @@
       ret v0
   }
   
-  fn @single(arg0: memptr) -> memptr {
+  fn @single(arg0: i256) -> i256 {
     bb0:
       v0 = icall @base, arg0
       v1 = mload v0
@@ -140,7 +140,7 @@
       ret v0
   }
   
-  fn @effects(arg0: memptr) -> memptr {
+  fn @effects(arg0: i256) -> i256 {
     bb0:
       v0 = icall @base, arg0
       mstore v0, 5
@@ -148,12 +148,12 @@
       ret v0
   }
   
-  fn @base(arg0: memptr) -> memptr {
+  fn @base(arg0: i256) -> i256 {
     bb0:
       ret arg0
   }
   
-  fn @pressure(arg0: memptr, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: u256, arg8: u256, arg9: u256, arg10: u256, arg11: u256, arg12: u256) -> u256 [selector=0x00000002] {
+  fn @pressure(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256) -> i256 [selector=0x00000002] {
     bb0:
       v0 = icall @wrap, arg0
       v1 = add arg1, arg2
@@ -174,7 +174,7 @@
 - // === ROOT/tests/ui/codegen/mir/inline-memory-wrappers/wrappers.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/inline-memory-wrappers/wrappers.mir (after dce) ===
   @module MemoryWrappers
-  fn @entry(arg0: memptr) -> memptr [selector=0x00000001] {
+  fn @entry(arg0: i256) -> i256 [selector=0x00000001] {
     bb0:
       v4 = icall @base, arg0
       v5 = mload v4
@@ -191,7 +191,7 @@
       ret v3
   }
   
-  fn @wrap(arg0: memptr) -> memptr {
+  fn @wrap(arg0: i256) -> i256 {
     bb0:
       v0 = icall @base, arg0
       v1 = mload v0
@@ -200,7 +200,7 @@
       ret v0
   }
   
-  fn @single(arg0: memptr) -> memptr {
+  fn @single(arg0: i256) -> i256 {
     bb0:
       v0 = icall @base, arg0
       v1 = mload v0
@@ -208,7 +208,7 @@
       ret v0
   }
   
-  fn @effects(arg0: memptr) -> memptr {
+  fn @effects(arg0: i256) -> i256 {
     bb0:
       v0 = icall @base, arg0
       mstore v0, 5
@@ -216,12 +216,12 @@
       ret v0
   }
   
-  fn @base(arg0: memptr) -> memptr {
+  fn @base(arg0: i256) -> i256 {
     bb0:
       ret arg0
   }
   
-  fn @pressure(arg0: memptr, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: u256, arg8: u256, arg9: u256, arg10: u256, arg11: u256, arg12: u256) -> u256 [selector=0x00000002] {
+  fn @pressure(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256) -> i256 [selector=0x00000002] {
     bb0:
       v0 = icall @wrap, arg0
       v1 = add arg1, arg2
