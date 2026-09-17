@@ -659,7 +659,11 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits a void memory instruction with a proven destination region.
-    fn emit_void_inst_in_region(&mut self, kind: InstKind, region: MemoryRegion) {
+    fn emit_void_inst_in_region(&mut self, mut kind: InstKind, region: MemoryRegion) {
+        if kind.evm_opcode().is_some() {
+            // operand = word_cast operand
+            kind.visit_operands_mut(|value| *value = self.cast(*value, MirType::I256));
+        }
         let mut inst = self.make_inst(kind, None);
         inst.metadata.set_memory_region(Some(region));
         self.append_instruction(inst);

@@ -1,5 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dirty_internal_named_return.sol:DirtyInternalNamedReturn ===
 @module DirtyInternalNamedReturn
+fn @dispatchAddress(arg0: i256) -> i256 [selector=0x58955a9d, pure, abi_params=[address], abi_returns=[word<u160>], abi_return_params=[address]] {
+  bb0:
+    v0 = icall @internal_dispatcher_p_address_r_address, 5, arg0
+    ret v0
+}
+
 fn @narrowAddress(arg0: i256) -> i256 [selector=0x44c29f35, pure, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -84,7 +90,7 @@ fn @bytesBits() -> i256 [selector=0x92ad518d, pure, abi_params=[], abi_returns=[
     ret v4
 }
 
-fn @same.9(arg0: i256, arg1: i256) -> i256 [pure] {
+fn @same.10(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = trunc i160, arg0
     v1 = trunc i160, arg1
@@ -93,7 +99,7 @@ fn @same.9(arg0: i256, arg1: i256) -> i256 [pure] {
     ret v3
 }
 
-fn @same.10(arg0: i256, arg1: i256) -> i256 [pure] {
+fn @same.11(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
@@ -125,14 +131,14 @@ fn @typedCallCleans() -> i256 [selector=0x27e15135, pure, abi_params=[], abi_ret
     v4 = icall @dirtyUint8, 3
     v5 = trunc i160, 2
     v6 = word_cast v5
-    v7 = icall @same.9, v2, v6
+    v7 = icall @same.10, v2, v6
     v8 = ne v7, 0
     jumpi v8, bb1, bb2
   bb2:
     v10 = word_cast false
     jump bb3
   bb1:
-    v9 = icall @same.10, v3, 0x4200000000000000000000000000000000000000000000000000000000000000
+    v9 = icall @same.11, v3, 0x4200000000000000000000000000000000000000000000000000000000000000
     jump bb3
   bb3:
     v11 = phi [bb1: v9], [bb2: v10]
@@ -168,7 +174,7 @@ fn @directTypedCallCleans() -> i256 [selector=0x39703d9f, pure, abi_params=[], a
     v2 = icall @dirtyAddress, v1
     v3 = trunc i160, 2
     v4 = word_cast v3
-    v5 = icall @same.9, v2, v4
+    v5 = icall @same.10, v2, v4
     v6 = ne v5, 0
     jumpi v6, bb1, bb2
   bb2:
@@ -176,7 +182,7 @@ fn @directTypedCallCleans() -> i256 [selector=0x39703d9f, pure, abi_params=[], a
     jump bb3
   bb1:
     v7 = icall @dirtyBytes, 0x4200000000000000000000000000000000000000000000000000000000000000
-    v8 = icall @same.10, v7, 0x4200000000000000000000000000000000000000000000000000000000000000
+    v8 = icall @same.11, v7, 0x4200000000000000000000000000000000000000000000000000000000000000
     jump bb3
   bb3:
     v10 = phi [bb1: v8], [bb2: v9]
@@ -234,4 +240,16 @@ fn @boolBits() -> i256 [selector=0xc674afd7, pure, abi_params=[], abi_returns=[w
     v2 = eq v1, 2
     v3 = word_cast v2
     ret v3
+}
+
+fn @internal_dispatcher_p_address_r_address(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 5
+    jumpi v0, bb1, bb2
+  bb2:
+    icall panic_if<0x51>, true
+    invalid
+  bb1:
+    v1 = icall @dirtyAddress, arg1
+    ret v1
 }

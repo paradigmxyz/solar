@@ -1,5 +1,25 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/user_defined_operators.sol:UserDefinedOperators ===
 @module UserDefinedOperators
+fn @addressEq(arg0: memoryarray) -> i256 [selector=0x83ede5a4, pure, abi_params=[array<_, address>], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    v1 = lt 0, v0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = memory_object_load_element memoryarray<1>, arg0, 0
+    v4 = trunc i160, v3
+    v5 = memory_object_len memoryarray, arg0
+    v6 = lt 1, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = memory_object_load_element memoryarray<1>, arg0, 1
+    v9 = trunc i160, v8
+    v10 = word_cast v4
+    v11 = word_cast v9
+    v12 = icall @sameAccount, v10, v11
+    ret v12
+}
+
 fn @add_(arg0: i256, arg1: i256) -> i256 [selector=0xd1cbf1c5, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @add, arg0, arg1
@@ -16,6 +36,15 @@ fn @eq_(arg0: i256, arg1: i256) -> i256 [selector=0xd8a1aad7, pure, abi_params=[
   bb0:
     v0 = icall @eq, arg0, arg1
     ret v0
+}
+
+fn @sameAccount(arg0: i256, arg1: i256) -> i256 [pure] {
+  bb0:
+    v0 = trunc i160, arg0
+    v1 = trunc i160, arg1
+    v2 = eq v0, v1
+    v3 = word_cast v2
+    ret v3
 }
 
 fn @add(arg0: i256, arg1: i256) -> i256 [pure] {

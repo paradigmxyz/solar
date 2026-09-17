@@ -97,7 +97,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let result_ty = types::TypeLowerer::mir_return_type(
             self.cx.gcx.type_of_item(function.returns[0].into()),
         );
-        let result = self.builder.icall(mir_id, values.to_vec(), result_ty);
+        // argument = cast operand to the operator's declared carrier type
+        // result = icall operator, arguments
+        let values = values
+            .iter()
+            .zip(function.parameters)
+            .map(|(&value, &parameter)| {
+                let ty = self.cx.gcx.type_of_item(parameter.into());
+                self.builder.cast(value, types::TypeLowerer::mir_signature_type(ty))
+            })
+            .collect();
+        let result = self.builder.icall(mir_id, values, result_ty);
         self.dirty_values.insert(result);
         Some(result)
     }

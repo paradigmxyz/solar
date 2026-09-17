@@ -865,6 +865,13 @@ impl LowerAbiCx {
                 self.has_bitwise_shifting,
             )
             .expect("checked ABI layout");
+            // field = cast decoded word to the declared field type
+            // ret insert_value(undef, field0), ...
+            let values = values
+                .into_iter()
+                .zip(&layout.types)
+                .map(|(value, ty)| builder.cast(value, ty.mir_type()))
+                .collect::<Vec<_>>();
             builder.ret(values);
         }
         module.add_function(function)
@@ -1430,9 +1437,9 @@ impl LowerAbiCx {
             for (logical, value) in logical_values.iter_mut().enumerate() {
                 if let Some(raw) = *value
                     && let Some(&ty) = arg_types.get(logical)
-                    && ty == MirType::I1
+                    && matches!(ty, MirType::I1 | MirType::I160)
                 {
-                    // value = ne raw, 0
+                    // value = cast raw to the declared scalar type
                     let normalized = builder.cast(raw, ty);
                     *value = Some(normalized);
                     for &use_value in

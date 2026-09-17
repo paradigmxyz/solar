@@ -971,11 +971,16 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                 .iter()
                 .copied()
                 .map(|ty| {
-                    builder.add_param(if ty == crate::mir::ValueLayout::Bool {
-                        MirType::I256
-                    } else {
-                        ty.mir_type()
-                    })
+                    builder.add_param(
+                        if matches!(
+                            ty,
+                            crate::mir::ValueLayout::Bool | crate::mir::ValueLayout::Address
+                        ) {
+                            MirType::I256
+                        } else {
+                            ty.mir_type()
+                        },
+                    )
                 })
                 .collect::<Vec<_>>();
             if let Some(ty) = module.intern_return_type(
@@ -983,7 +988,10 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     .returns
                     .iter()
                     .map(|ty| {
-                        if *ty == crate::mir::ValueLayout::Bool {
+                        if matches!(
+                            ty,
+                            crate::mir::ValueLayout::Bool | crate::mir::ValueLayout::Address
+                        ) {
                             MirType::I256
                         } else {
                             ty.mir_type()

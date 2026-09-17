@@ -1,3 +1,4 @@
+//@ run-call: DirtyInternalNamedReturn::dispatchAddress 0x0000000000000000000000000000000000000002 => 0x0000000000000000000000000000000000000002
 //@ run-call: DirtyInternalNamedReturn::narrowAddress 0x10000000000000000000000000000000000000002 => 0x0000000000000000000000000000000000000002
 //@ run-call: DirtyInternalNamedReturn::bytesAddress 0x1234567890123456789012345678901234567890 => 0x1234567890123456789012345678901234567890
 //@ run-call: DirtyInternalNamedReturn::joinAddress true => 2
@@ -11,6 +12,11 @@
 //@ run-call: DirtyInternalNamedReturn::boolBits => true
 
 contract DirtyInternalNamedReturn {
+    function dispatchAddress(address value) external pure returns (address) {
+        function(address) internal pure returns (address) callback = dirtyAddress;
+        return callback(value);
+    }
+
     function narrowAddress(uint256 bits) external pure returns (address) {
         return address(uint160(bits));
     }
