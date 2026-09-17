@@ -95,10 +95,10 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, pure] {
     mstore v16, v11
     jump bb2
   bb2:
-    v20 = phi [bb52: 0], [bb22: v172]
-    v22 = phi [bb52: 0], [bb22: v40]
-    v172 = add v20, 24
-    v173 = lt v172, v20
+    v18 = phi [bb52: 0], [bb22: v40]
+    v24 = phi [bb52: 0], [bb22: v172]
+    v172 = add v24, 24
+    v173 = lt v172, v24
     v26 = gt v172, v216
     jumpi v26, bb3, bb4
   bb4:
@@ -107,7 +107,7 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, pure] {
     v32 = or v173, v31
     jumpi v32, bb20, bb21
   bb21:
-    v34 = add v281, v20
+    v34 = add v281, v24
     v35 = mload v34
     v37 = shr 64, v35
     jump bb55
@@ -215,14 +215,14 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, pure] {
   bb54:
     v369 = phi [bb68: v367]
     v39 = mload v16
-    v40 = add v22, 32
-    v41 = lt v40, v22
+    v40 = add v18, 32
+    v41 = lt v40, v18
     v42 = gt v40, v39
     v43 = or v41, v42
     jumpi v43, bb20, bb22
   bb22:
     v44 = add v16, 32
-    v45 = add v44, v22
+    v45 = add v44, v18
     mstore v45, v369
     jump bb2
   bb56:
@@ -248,9 +248,9 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, pure] {
     v106 = mload v16
     jump bb7
   bb7:
-    v64 = phi [bb6: v20], [bb15: v188]
-    v66 = phi [bb6: v22], [bb15: v190]
-    v69 = lt v64, v216
+    v61 = phi [bb6: v18], [bb15: v190]
+    v68 = phi [bb6: v24], [bb15: v188]
+    v69 = lt v68, v216
     jumpi v69, bb9, bb8
   bb8:
     v230 = iszero v16
@@ -269,14 +269,14 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, pure] {
     v239 = add v236, 64
     returndata v16, v239
   bb9:
-    v71 = lt v64, v70
+    v71 = lt v68, v70
     jumpi v71, bb23, bb20
   bb23:
-    v246 = add v281, v64
+    v246 = add v281, v68
     v247 = mload v246
     v248 = byte 0, v247
     v76 = shl 16, v248
-    v198 = add v64, 1
+    v198 = add v68, 1
     v78 = lt v198, v216
     jumpi v78, bb39, bb10
   bb39:
@@ -291,7 +291,7 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, pure] {
     jump bb10
   bb10:
     v88 = phi [bb24: v87], [bb23: v76]
-    v176 = add v64, 2
+    v176 = add v68, 2
     v90 = lt v176, v216
     jumpi v90, bb40, bb11
   bb40:
@@ -313,11 +313,11 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, pure] {
     v258 = add v49, v100
     v259 = mload v258
     v260 = byte 0, v259
-    v107 = lt v66, v106
+    v107 = lt v61, v106
     jumpi v107, bb27, bb20
   bb27:
     v261 = add v16, 32
-    v262 = add v261, v66
+    v262 = add v261, v61
     mstore8 v262, v260
     v110 = shr 12, v99
     v111 = and v110, 63
@@ -328,14 +328,14 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, pure] {
     v264 = add v49, v111
     v265 = mload v264
     v266 = byte 0, v265
-    v200 = add v66, 1
+    v200 = add v61, 1
     v119 = lt v200, v106
     jumpi v119, bb29, bb20
   bb29:
     v268 = add v261, v200
     mstore8 v268, v266
-    v202 = add v66, 2
-    v203 = lt v202, v66
+    v202 = add v61, 2
+    v203 = lt v202, v61
     jumpi v203, bb34, bb44
   bb44:
     v123 = lt v202, v11
@@ -364,8 +364,8 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, pure] {
     mstore8 v274, v138
     jump bb12
   bb12:
-    v182 = add v66, 3
-    v183 = lt v182, v66
+    v182 = add v61, 3
+    v183 = lt v182, v61
     jumpi v183, bb34, bb42
   bb42:
     v140 = lt v182, v11
@@ -397,9 +397,9 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, pure] {
     mstore8 v280, v154
     jump bb15
   bb15:
-    v188 = add v64, 3
-    v190 = add v66, 4
-    v191 = lt v190, v66
+    v188 = add v68, 3
+    v190 = add v61, 4
+    v191 = lt v190, v61
     jumpi v191, bb34, bb7
   bb34:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

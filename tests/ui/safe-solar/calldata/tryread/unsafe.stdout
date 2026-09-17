@@ -1,0 +1,47 @@
+// === ROOT/tests/ui/safe-solar/calldata/tryread/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase lowered
+types:
+  struct0: {u256, u256}
+
+fn @peek() [selector=0xa230438f, abi_wrapper, pure] {
+  bb0:
+    v5 = calldatasize
+    v6 = lt v5, 68
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = calldataload 4
+    v8 = add v7, 4
+    v9 = add v8, 32
+    v10 = gt v7, 0xffffffffffffffff
+    v11 = gt v9, v5
+    v12 = or v10, v11
+    v13 = calldataload v8
+    v15 = sub v5, v9
+    v16 = gt v13, v15
+    v17 = or v12, v16
+    jumpi v17, bb1, bb3
+  bb3:
+    v1 = add v9, arg1
+    v2 = calldataload v1
+    v21 = and v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 128, true
+    mstore 160, v21
+    returndata 128, 64
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0xa230438f => bb2]
+  bb2:
+    tail_call @peek
+  bb3:
+    revert 0, 0
+}
