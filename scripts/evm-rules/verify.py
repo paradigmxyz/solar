@@ -7,6 +7,7 @@
 import argparse
 import hashlib
 import json
+import os
 import sys
 from collections import Counter
 from pathlib import Path
@@ -44,6 +45,11 @@ def main():
     verify.add_argument("--shard-count", type=int, default=1)
     verify.add_argument("--output", type=Path, required=True)
     verify.add_argument("--artifacts", type=Path)
+    verify.add_argument(
+        "--cache-dir",
+        type=Path,
+        help="reuse UNSAT queries in this directory (also set by SOLAR_PROOF_CACHE)",
+    )
     verify.add_argument(
         "--fallback-solver", help="explicit cvc5 executable for incomplete word proofs"
     )
@@ -163,6 +169,8 @@ def main():
         report = discover_rules(args)
         exit_code = 0 if report.get("accepted", True) else 1
     else:
+        if args.cache_dir is not None:
+            os.environ["SOLAR_PROOF_CACHE"] = str(args.cache_dir.resolve())
         try:
             fallback = (
                 Cvc5(args.fallback_solver, args.timeout_ms)
@@ -208,6 +216,11 @@ def main():
                     )
         counts = Counter(rule["status"] for file in files for rule in file["rules"])
         report = {"files": files, "counts": dict(counts)}
+        if cache_dir := os.environ.get("SOLAR_PROOF_CACHE"):
+            report["query_cache"] = {
+                "directory": str(Path(cache_dir).resolve()),
+                "policy": "unsat-only",
+            }
         if fallback is not None:
             report["fallback_solver"] = fallback.metadata
         report["query_sha256"] = query_manifest(report)

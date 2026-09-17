@@ -7,6 +7,13 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      proof-audit:
+        description: Bypass the proof cache and replay every query with cvc5
+        type: boolean
+        default: true
+  schedule:
+    - cron: '0 4 * * 0'
 
 env:
   CARGO_TERM_COLOR: always
@@ -23,15 +30,34 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
-        id: proofs
         with:
-          path: target/evm-rules
-          key: proofs-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/scripts/run_evm_proofs.sh', 'scripts/evm-rules/**', 'crates/codegen/**', '.github/workflows/ci.yml', '.python-version', 'uv.lock') }}
+          fetch-depth: 2
+      - name: Select proof checks
+        id: select
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT_NAME" != pull_request ]]; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          else
+            changed=$(git diff --name-only HEAD^1 HEAD -- crates/codegen scripts/evm-rules .github/scripts/run_evm_proofs.sh .github/workflows/ci.yml .python-version pyproject.toml uv.lock)
+            if [[ -n "$changed" ]]; then
+              echo 'run=true' >> "$GITHUB_OUTPUT"
+            else
+              echo 'Proof inputs unchanged; skipping solver checks.'
+            fi
+          fi
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        if: steps.select.outputs.run == 'true' && github.event_name != 'schedule' && !inputs.proof-audit
+        with:
+          path: target/evm-proof-cache
+          key: proof-queries-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/evm-rules/evm_rules/solver.py', '.python-version', 'uv.lock') }}-${{ github.sha }}
+          restore-keys: |
+            proof-queries-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/evm-rules/evm_rules/solver.py', '.python-version', 'uv.lock') }}-
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        if: steps.proofs.outputs.cache-hit != 'true'
+        if: steps.select.outputs.run == 'true'
       - name: Install cvc5 1.2.0
-        if: steps.proofs.outputs.cache-hit != 'true'
+        if: steps.select.outputs.run == 'true'
         run: |
           curl --fail --location --retry 3 --silent --show-error \
             https://github.com/cvc5/cvc5/releases/download/cvc5-1.2.0/cvc5-Linux-arm64-static.zip \
@@ -39,9 +65,19 @@ jobs:
           echo "142ac177af1ce37922308f69fe519d06e6cb4d0a62a312f28c25001e94c2fb56  $RUNNER_TEMP/cvc5.zip" | sha256sum --check
           unzip -q "$RUNNER_TEMP/cvc5.zip" -d "$RUNNER_TEMP/cvc5"
           echo "$RUNNER_TEMP/cvc5/cvc5-Linux-arm64-static/bin" >> "$GITHUB_PATH"
-      - name: Verify and replay all rules
-        if: steps.proofs.outputs.cache-hit != 'true'
+      - name: Verify rules
+        if: steps.select.outputs.run == 'true'
+        env:
+          PROOF_AUDIT: ${{ (github.event_name == 'schedule' || inputs.proof-audit) && 'true' || 'false' }}
         run: bash .github/scripts/run_evm_proofs.sh
+      - name: Share successful query cache
+        if: steps.select.outputs.run == 'true' && github.event_name != 'schedule' && !inputs.proof-audit
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: evm-proof-cache
+          path: target/evm-proof-cache
+          if-no-files-found: error
+          retention-days: 7
       - name: Upload failed proof diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -52,6 +88,7 @@ jobs:
           retention-days: 7
 
   test:
+    if: github.event_name != 'schedule'
     name: test ${{ matrix.os }} ${{ matrix.rust }}
     runs-on: depot-${{ matrix.os }}
     timeout-minutes: 30
@@ -129,6 +166,7 @@ jobs:
         run: cargo test --doc --workspace
 
   python:
+    if: github.event_name != 'schedule'
     name: Python
     runs-on: depot-ubuntu-24.04-arm
     timeout-minutes: 15
@@ -153,6 +191,7 @@ jobs:
         run: bash scripts/check-python.sh
 
   fandango:
+    if: github.event_name != 'schedule'
     name: fandango
     runs-on: depot-ubuntu-latest
     timeout-minutes: 30
@@ -203,6 +242,7 @@ jobs:
           if-no-files-found: ignore
 
   feature-checks:
+    if: github.event_name != 'schedule'
     name: features
     runs-on: depot-ubuntu-latest-4
     timeout-minutes: 30
@@ -225,6 +265,7 @@ jobs:
         run: cargo hack check --feature-powerset --depth 1
 
   wasm:
+    if: github.event_name != 'schedule'
     runs-on: depot-ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -246,6 +287,7 @@ jobs:
         run: node crates/capi/tests/soljson.js
 
   typos:
+    if: github.event_name != 'schedule'
     runs-on: depot-ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -255,6 +297,7 @@ jobs:
       - uses: crate-ci/typos@d43b6c087ac471e2ea7b8af622ff15f05c0c365b # v1.50.1
 
   clippy:
+    if: github.event_name != 'schedule'
     runs-on: depot-ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -275,6 +318,7 @@ jobs:
           RUSTFLAGS: -Dwarnings
 
   docs:
+    if: github.event_name != 'schedule'
     runs-on: depot-ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -295,6 +339,7 @@ jobs:
           RUSTDOCFLAGS: --cfg docsrs -D warnings -Zunstable-options --show-type-layout --generate-link-to-definition
 
   fmt:
+    if: github.event_name != 'schedule'
     runs-on: depot-ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -308,6 +353,7 @@ jobs:
       - run: cargo fmt --all --check
 
   codeql:
+    if: github.event_name != 'schedule'
     name: analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
     permissions:
@@ -336,6 +382,7 @@ jobs:
           category: "/language:${{matrix.language}}"
 
   deny:
+    if: github.event_name != 'schedule'
     uses: tempoxyz/ci/.github/workflows/deny.yml@934b6a6317ac26272eaecf0d265472f4105c99d6 # main
     permissions:
       contents: read
@@ -343,7 +390,7 @@ jobs:
   ci-success:
     name: ci success
     runs-on: ubuntu-latest
-    if: always()
+    if: always() && github.event_name != 'schedule'
     permissions: {}
     needs:
       - evm-rules

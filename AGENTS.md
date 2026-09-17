@@ -295,9 +295,11 @@ use the versions configured in `.github/workflows/ci.yml`.
 These checks do not build the compilers or run live Fandango/Foundry differentials.
 Use `uv run --all-packages ruff format .` to format Python files.
 
-The separate proof CI job verifies and replays every rule with parallel workers,
-with exact-input caches for successful runs. See the
-[proof guide](scripts/evm-rules/README.md) for shard replay and cache inputs.
+The proof CI job runs for changes to codegen or proof inputs, and on main.
+It checks all selected rules with parallel workers and reuses cached UNSAT
+queries. Scheduled and manual audits bypass the cache and replay with cvc5.
+See the [proof guide](scripts/evm-rules/README.md) for local commands, cache
+sharing, audit controls, and failure artifacts.
 
 ### Compiler comparisons
 

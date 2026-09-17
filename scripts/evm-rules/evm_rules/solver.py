@@ -6,9 +6,60 @@ timeouts and UNKNOWN; never retry SAT or protocol errors.
 """
 
 import hashlib
+import json
+import os
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
+
+
+class QueryCache:
+    """Reuse only UNSAT for identical queries and solver identities.
+
+    The directory comes from the CLI through the environment so spawned bit
+    workers use the same cache. Entries are atomic and contain their full key;
+    malformed or incomplete entries are misses. Cached results are trusted
+    solver answers, not independently checked proof certificates.
+    """
+
+    def __init__(self, query, solver):
+        directory = os.environ.get("SOLAR_PROOF_CACHE")
+        self.path = None
+        self.entry = {
+            "schema": 1,
+            "solver": solver,
+            "query_sha256": hashlib.sha256(query.encode()).hexdigest(),
+            "status": "unsat",
+        }
+        if directory:
+            key = hashlib.sha256(
+                json.dumps(self.entry, sort_keys=True).encode()
+            ).hexdigest()
+            self.path = Path(directory) / key[:2] / f"{key}.json"
+
+    def hit(self):
+        if self.path is None:
+            return False
+        try:
+            return json.loads(self.path.read_text()) == self.entry
+        except OSError, ValueError:
+            return False
+
+    def save(self):
+        if self.path is None:
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            mode="w", dir=self.path.parent, delete=False
+        ) as file:
+            temporary = Path(file.name)
+            try:
+                file.write(json.dumps(self.entry, sort_keys=True) + "\n")
+                file.close()
+                temporary.replace(self.path)
+            finally:
+                temporary.unlink(missing_ok=True)
 
 
 def solve_query(data, solver, timeout_ms):
@@ -85,10 +136,27 @@ class Cvc5:
             "version": version.stdout.strip(),
             "executable": executable,
             "timeout_ms_per_strategy": timeout_ms,
+            "executable_sha256": hashlib.sha256(
+                Path(executable).read_bytes()
+            ).hexdigest(),
         }
 
     def solve(self, query):
         data = query.encode()
+        cache = QueryCache(
+            query,
+            {
+                key: self.metadata[key]
+                for key in ("name", "version", "executable_sha256")
+            },
+        )
+        if cache.hit():
+            return {
+                "status": "unsat",
+                "cache_hit": True,
+                "solver": self.metadata,
+                "query_sha256": hashlib.sha256(data).hexdigest(),
+            }
         try:
             result = solve_query(
                 data,
@@ -97,6 +165,8 @@ class Cvc5:
             )
         except OSError as error:
             result = {"status": "error", "reason": str(error)}
+        if result["status"] == "unsat":
+            cache.save()
         return {
             **result,
             "solver": self.metadata,

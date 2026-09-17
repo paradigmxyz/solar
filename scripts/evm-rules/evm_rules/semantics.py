@@ -7,10 +7,13 @@ Unsupported operations raise: they are never unconstrained functions.
 
 import json
 import multiprocessing
+import os
 import time
 from dataclasses import dataclass
 
 import z3
+
+from .solver import QueryCache
 
 WIDTH = 256
 MODULUS = 1 << WIDTH
@@ -414,7 +417,14 @@ def portable_query(solver):
             for assertion in assertions
         )
     )
-    return f"(set-logic {logic})\n" + "\n".join(comments) + "\n" + portable.to_smt2()
+    # sexpr uses stable local let names; to_smt2 embeds transient Z3 AST IDs.
+    return (
+        f"(set-logic {logic})\n"
+        + "\n".join(comments)
+        + "\n"
+        + portable.sexpr()
+        + "\n(check-sat)\n"
+    )
 
 
 def guarded_constants(assumptions):
@@ -440,6 +450,22 @@ def guarded_constants(assumptions):
                 ):
                     constants[str(variable.decl().name())] = literal.as_long()
     return constants
+
+
+def check_z3(solver, query=None):
+    # SAT needs a live model, and incomplete answers must be retried.
+    if not os.environ.get("SOLAR_PROOF_CACHE"):
+        return solver.check()
+    cache = QueryCache(
+        query if query is not None else solver.sexpr(),
+        {"name": "z3", "version": z3.get_full_version()},
+    )
+    if cache.hit():
+        return z3.unsat
+    result = solver.check()
+    if result == z3.unsat:
+        cache.save()
+    return result
 
 
 def check(lhs, rhs, assumptions=(), timeout_ms=5000, model=None):
@@ -478,7 +504,7 @@ def check(lhs, rhs, assumptions=(), timeout_ms=5000, model=None):
     solver.reset()
     solver.add(*assumptions, model.difference(left, right))
     query = portable_query(solver)
-    result = solver.check()
+    result = check_z3(solver, query)
     if result == z3.unsat:
         return {"status": "proved", **details}, query
     if result == z3.unknown:
@@ -541,7 +567,7 @@ def _check_bit_query(task):
     solver = z3.SolverFor(logic)
     solver.set(timeout=timeout_ms)
     solver.add(*z3.parse_smt2_string(query))
-    result = solver.check()
+    result = check_z3(solver, query)
     return index, str(result), solver.reason_unknown() if result == z3.unknown else ""
 
 
@@ -583,7 +609,7 @@ def partition_bits(lhs, rhs, assumptions, timeout_ms, model, jobs=1):
         )
         if jobs > 1:
             continue
-        result = solver.check()
+        result = check_z3(solver, query)
         if result == z3.sat:
             return replay_counterexample(lhs, rhs, model, solver.model()), queries
         if result != z3.unsat:
@@ -731,7 +757,7 @@ def partition_shift(lhs, rhs, assumptions, timeout_ms, model):
             # another solver checks its own preprocessing as well.
             solver.add(obligation)
         query = portable_query(solver)
-        result = solver.check()
+        result = check_z3(solver, query)
         queries.append((f"case-{index + 1}", query))
         if result == z3.sat:
             if index == -1:

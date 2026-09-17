@@ -3,12 +3,23 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 output="${1:-target/evm-rules}"
+audit="${PROOF_AUDIT:-false}"
+if [[ "$audit" != true && "$audit" != false ]]; then
+  echo "PROOF_AUDIT must be true or false" >&2
+  exit 1
+fi
+unset SOLAR_PROOF_CACHE
 uv run scripts/evm-rules/verify.py --help >/dev/null
 
 prove() {
   local suite="$1" shard="$2" shards="$3" directory="$4"
   local files=("$suite")
-  local options=(--partition-shifts --index-partition-timeout-ms 30000)
+  local options=(--index-partition-timeout-ms 30000)
+  if [[ "$audit" == true ]]; then
+    options+=(--partition-shifts)
+  else
+    options+=(--cache-dir "${PROOF_CACHE_DIR:-target/evm-proof-cache}")
+  fi
   if [[ "$suite" == other ]]; then
     files=(word_sequence stack_select stack_peephole late_word)
   elif [[ "$suite" == egraph ]]; then
@@ -22,8 +33,10 @@ prove() {
   uv run scripts/evm-rules/verify.py verify "${inputs[@]}" \
     --shard-index "$shard" --shard-count "$shards" "${options[@]}" \
     --output "$directory/proofs.json" --artifacts "$directory/smt"
-  uv run scripts/evm-rules/replay.py "$directory/proofs.json" \
-    --jobs 2 --output "$directory/cvc5.json"
+  if [[ "$audit" == true ]]; then
+    uv run scripts/evm-rules/replay.py "$directory/proofs.json" \
+      --jobs 2 --output "$directory/cvc5.json"
+  fi
 }
 
 pids=()

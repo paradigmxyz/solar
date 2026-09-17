@@ -7,6 +7,7 @@
 import hashlib
 import io
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -39,12 +40,13 @@ from evm_rules.semantics import (
     Model,
     Unsupported,
     check,
+    check_z3,
     concrete,
     partition_bits,
     partition_shift,
     portable_query,
 )
-from evm_rules.solver import Cvc5, solve_query
+from evm_rules.solver import Cvc5, QueryCache, solve_query
 from evm_rules.stack import verify_stack_file
 from replay import main as replay_main
 from replay import replay_query, replay_report
@@ -1488,6 +1490,111 @@ class ProofArtifactTests(unittest.TestCase):
                     code = replay_main()
                 self.assertEqual(code, 0 if status == "unsat" else 1)
                 self.assertEqual(json.loads(output.read_text())["counts"], {status: 1})
+
+
+class QueryCacheTests(unittest.TestCase):
+    def test_exported_queries_ignore_solver_allocation_history(self):
+        x, y = z3.BitVecs("cache_x cache_y", 256)
+        solver = z3.SolverFor("QF_BV")
+        solver.add(z3.If(y == 0, z3.BitVecVal(0, 256), z3.URem(x, y)) != x & (y - 1))
+        first = portable_query(solver)
+        # Keep unrelated ASTs alive so the second export allocates different IDs.
+        noise = [z3.BitVec(f"unrelated_{i}", 256) + i for i in range(100)]
+        self.assertEqual(portable_query(solver), first)
+        self.assertEqual(len(noise), 100)
+
+    def test_reuse_invalidates_query_solver_and_corruption(self):
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.dict(os.environ, SOLAR_PROOF_CACHE=directory),
+        ):
+            cache = QueryCache("query", {"name": "solver", "version": "one"})
+            self.assertFalse(cache.hit())
+            cache.save()
+            self.assertTrue(cache.hit())
+            self.assertFalse(
+                QueryCache("changed", {"name": "solver", "version": "one"}).hit()
+            )
+            self.assertFalse(
+                QueryCache("query", {"name": "solver", "version": "two"}).hit()
+            )
+            assert cache.path is not None
+            for content in ("{", "null", "{}", '{"status":"sat"}'):
+                cache.path.write_text(content)
+                self.assertFalse(cache.hit())
+            cache.save()
+            self.assertTrue(cache.hit())
+
+    def test_z3_reuses_unsat_but_keeps_live_counterexamples(self):
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.dict(os.environ, SOLAR_PROOF_CACHE=directory),
+        ):
+            x = z3.BitVec("cache_x", 256)
+            solver = z3.SolverFor("QF_BV")
+            solver.add(x + 1 != 1 + x)
+            self.assertEqual(check_z3(solver), z3.unsat)
+            with patch.object(
+                solver, "check", side_effect=AssertionError("cached query reached Z3")
+            ):
+                self.assertEqual(check_z3(solver), z3.unsat)
+            solver.reset()
+            solver.add(x == 1)
+            for _ in range(2):
+                self.assertEqual(check_z3(solver), z3.sat)
+                self.assertEqual(solver.model().eval(x).as_long(), 1)
+            self.assertEqual(len(list(Path(directory).rglob("*.json"))), 1)
+
+    def test_unknown_and_process_failures_are_never_cached(self):
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.dict(os.environ, SOLAR_PROOF_CACHE=directory),
+        ):
+            solver = z3.SolverFor("QF_BV")
+            solver.add(z3.Bool("unknown_query"))
+            with patch.object(solver, "check", return_value=z3.unknown) as run:
+                for _ in range(2):
+                    self.assertEqual(check_z3(solver), z3.unknown)
+                self.assertEqual(run.call_count, 2)
+            # Exercise the cvc5 adapter without requiring a local executable.
+            fallback = Cvc5.__new__(Cvc5)
+            fallback.metadata = {
+                "name": "cvc5",
+                "version": "test",
+                "executable": "unused",
+                "executable_sha256": "test",
+                "timeout_ms_per_strategy": 1,
+            }
+            for status in ("sat", "unknown", "timeout", "error"):
+                with patch(
+                    "evm_rules.solver.solve_query", return_value={"status": status}
+                ) as run:
+                    for _ in range(2):
+                        self.assertEqual(fallback.solve("query")["status"], status)
+                    self.assertEqual(run.call_count, 2)
+            with patch(
+                "evm_rules.solver.solve_query", return_value={"status": "unsat"}
+            ) as run:
+                self.assertEqual(fallback.solve("query")["status"], "unsat")
+                self.assertTrue(fallback.solve("query")["cache_hit"])
+                run.assert_called_once()
+            self.assertEqual(len(list(Path(directory).rglob("*.json"))), 1)
+
+    def test_cached_rule_edit_still_finds_counterexample(self):
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.dict(os.environ, SOLAR_PROOF_CACHE=str(Path(directory) / "cache")),
+        ):
+            path = Path(directory) / "rules.isle"
+            source = "(rule (simplify (Op.Add a (zero))) a)"
+            path.write_text(source)
+            first = verify_file(path, 1000)["rules"][0]
+            self.assertEqual(first["status"], "proved")
+            self.assertEqual(verify_file(path, 1000)["rules"][0], first)
+            path.write_text("(rule (simplify (Op.Add a (one))) a)")
+            result = verify_file(path, 1000)["rules"][0]
+            self.assertEqual(result["status"], "counterexample")
+            self.assertTrue(result["replayed"])
 
 
 class SolverFallbackTests(unittest.TestCase):
