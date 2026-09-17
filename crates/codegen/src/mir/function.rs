@@ -670,9 +670,9 @@ pub(crate) struct FunctionAttributes {
     pub(crate) is_yul: bool,
     /// Whether the original signature may reference caller-visible memory.
     ///
-    /// Dead-result elimination and memory lowering can erase reference types, but must preserve the
-    /// original signature's frame-lifetime constraint. The backend uses this sticky bit to avoid
-    /// reclaiming memory that may have escaped through inline assembly.
+    /// Dead-result elimination and memory lowering can erase reference types, but must preserve
+    /// the original signature's frame-lifetime constraint. The backend uses this sticky bit to
+    /// avoid reclaiming memory that may have escaped through inline assembly.
     pub(crate) may_return_memory: bool,
     /// Whether this function dispatches an internal function-pointer shape.
     pub(crate) is_function_pointer_dispatcher: bool,

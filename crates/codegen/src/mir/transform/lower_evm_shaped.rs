@@ -23,7 +23,6 @@
 //! The backend also eliminates phis by copying each incoming value at the end of its predecessor.
 //! When a phi's previous value remains live on a sibling edge, that copy must run after the branch
 //! selects the phi successor. This pass isolates only those copies in a single-successor block.
-//!
 
 use crate::mir::{
     Callee, Function, InstKind, MirPhase, Module, Terminator,
