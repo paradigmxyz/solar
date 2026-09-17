@@ -697,9 +697,17 @@ impl AliasAnalysis {
         size: LocationSize,
     ) -> Option<MemoryLocation> {
         if let MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) = address.base {
-            let bound = match func.inst(inst).kind {
-                InstKind::Alloc { size, .. } => func.value_u64(size),
-                _ => None,
+            let (bound, has_length_word) = match func.inst(inst).kind {
+                InstKind::Alloc { size, kind, .. } => (
+                    func.value_u64(size),
+                    matches!(
+                        kind,
+                        crate::mir::AllocationKind::Object(
+                            MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. }
+                        )
+                    ),
+                ),
+                _ => (None, false),
             };
             let within_bounds = size.as_const().is_some_and(|size| {
                 size == 0
@@ -708,6 +716,14 @@ impl AliasAnalysis {
                         .checked_add(size)
                         .zip(bound)
                         .is_some_and(|(end, bound)| end <= bound)
+                    // A dynamic memory object keeps its length in its first
+                    // word, so that word belongs to the allocation whatever
+                    // size was requested. Without this every `new bytes(n)`
+                    // turns the store of its own length into a write through
+                    // an unknown pointer.
+                    || (has_length_word
+                        && address.offset == 0
+                        && size == EvmMemoryLayout::WORD_SIZE)
             });
             if !within_bounds {
                 // A fresh allocation's nonnegative offsets can reach other heap objects while
@@ -1238,7 +1254,23 @@ impl AliasAnalysis {
                             .and_then(EvmMemoryLayout::align_word)
                             .map_or(SizeOperand::Unknown, SizeOperand::Const),
                     };
-                    write_memory(&mut effects, ptr, size);
+                    // The fill is the allocation's own extent, so it fits the
+                    // allocation whatever its size. Going through the bounds
+                    // test would demote a fill of dynamic size to a write
+                    // through an unknown pointer, which may alias everything.
+                    match size {
+                        SizeOperand::Unknown => write_memory(&mut effects, ptr, size),
+                        _ => {
+                            let size = self.resolved_location_size(func, size, replacements);
+                            match self.memory_address(func, resolve(ptr)) {
+                                Some(address) => {
+                                    let location = MemoryLocation::new(address, size);
+                                    effects.write(Access::Location(Location::Memory(location)));
+                                }
+                                None => effects.write_any(AddressSpace::Memory),
+                            }
+                        }
+                    }
                 }
             }
             InstKind::StorageBytesLoad(..) | InstKind::StorageArrayLoad { .. } => {

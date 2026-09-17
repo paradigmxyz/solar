@@ -73,72 +73,46 @@ fn @_slice(arg0: memptr, arg1: u256, arg2: u256) -> memptr [pure] {
   bb0:
     v0 = mload arg0
     v1 = gt arg2, v0
-    v42 = sub v0, arg2
-    v43 = mul v1, v42
-    v44 = add arg2, v43
+    v43 = sub v0, arg2
+    v44 = mul v1, v43
+    v45 = add arg2, v44
+    v46 = sub v0, arg1
     v5 = gt arg1, v0
-    v45 = sub v0, arg1
-    v46 = mul v5, v45
-    v47 = add arg1, v46
-    v8 = lt v47, v44
+    v47 = mul v5, v46
+    v48 = add arg1, v47
+    v8 = lt v48, v45
     jumpi v8, bb2, bb1
   bb1:
     v10 = mload 64 !metadata(memory=scratch)
-    v58 = add v10, 32
-    mstore 64, v58 !metadata(memory=scratch)
+    v59 = add v10, 32
+    mstore 64, v59 !metadata(memory=scratch)
     mstore v10, 0
     ret v10
   bb2:
-    v36 = sub v44, v47
-    v13 = add v36, 63
-    v14 = lt v13, v36
-    jumpi v14, bb6, bb7
-  bb7:
+    v37 = sub v45, v48
+    v13 = add v37, 63
+    v14 = lt v13, v37
+    jumpi v14, bb3, bb4
+  bb4:
     v16 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v17 = mload 64 !metadata(memory=scratch)
-    v54 = add v17, v16
-    v55 = lt v54, v17
-    v56 = gt v54, 0xffffffffffffffff
-    v57 = or v55, v56
-    jumpi v57, bb6, bb12
-  bb12:
-    mstore 64, v54 !metadata(memory=scratch)
-    v59 = calldatasize
-    calldatacopy v17, v59, v16
-    mstore v17, v36
-    v26 = mload arg0
-    v48 = add arg0, 32
-    jump bb3
-  bb3:
-    v22 = phi [bb12: 0], [bb9: v40]
-    v23 = mload v17
-    v24 = lt v22, v23
-    jumpi v24, bb5, bb4
-  bb4:
-    ret v17
+    v55 = add v17, v16
+    v56 = lt v55, v17
+    v57 = gt v55, 0xffffffffffffffff
+    v58 = or v56, v57
+    jumpi v58, bb3, bb5
   bb5:
-    v38 = add v47, v22
-    v39 = lt v38, v47
-    jumpi v39, bb10, bb11
-  bb11:
-    v27 = lt v38, v26
-    jumpi v27, bb9, bb8
-  bb8:
-    tail_call @revert_stub
-  bb9:
-    v49 = add v48, v38
-    v50 = mload v49
-    v51 = byte 0, v50
-    v52 = add v17, 32
-    v53 = add v52, v22
-    mstore8 v53, v51
-    v40 = add v22, 1
-    jump bb3
-  bb10:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    mstore 32, 17 !metadata(memory=scratch)
-    revert 28, 36
-  bb6:
+    mstore 64, v55 !metadata(memory=scratch)
+    v60 = calldatasize
+    calldatacopy v17, v60, v16
+    mstore v17, v37
+    v61 = add v47, arg1
+    v62 = add v61, arg0
+    v63 = add v62, 32
+    v64 = add v17, 32
+    mcopy v64, v63, v37
+    ret v17
+  bb3:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36

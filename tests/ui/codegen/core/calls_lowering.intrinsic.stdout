@@ -35,178 +35,163 @@ types:
 
 fn @probe() [selector=0xbed1a1cc, abi_wrapper] {
   bb0:
-    v36 = calldatasize
-    v37 = lt v36, 36
-    jumpi v37, bb5, bb6
-  bb6:
-    v38 = icall @decode_calldata_type, 4
-    v0 = mload v38
-    v1 = add v38, 32
+    v38 = calldatasize
+    v39 = lt v38, 36
+    jumpi v39, bb3, bb4
+  bb4:
+    v40 = icall @decode_calldata_type, 4
+    v0 = mload v40
+    v1 = add v40, 32
     v2 = create 0, v1, v0
     jumpi v2, bb2, bb1
   bb1:
     tail_call @revert_stub.5
   bb2:
     v6 = mload 64 !metadata(memory=scratch)
-    v46 = add v6, 64
-    v47 = lt v46, v6
-    v48 = gt v46, 0xffffffffffffffff
-    v49 = or v47, v48
-    jumpi v49, bb8, bb7
-  bb7:
-    mstore 64, v46 !metadata(memory=scratch)
-    v51 = calldatasize
-    calldatacopy v6, v51, 64
+    v48 = add v6, 64
+    v49 = lt v48, v6
+    v50 = gt v48, 0xffffffffffffffff
+    v51 = or v49, v50
+    jumpi v51, bb6, bb5
+  bb5:
+    mstore 64, v48 !metadata(memory=scratch)
+    v53 = calldatasize
+    calldatacopy v6, v53, 64
     mstore v6, 32
     v7 = gas
     v8 = mload 64 !metadata(memory=scratch)
-    v50 = add v8, 32
-    mstore 64, v50 !metadata(memory=scratch)
+    v52 = add v8, 32
+    mstore 64, v52 !metadata(memory=scratch)
     mstore v8, 0
     v9 = add v8, 32
-    v12 = mload v6
     v13 = add v6, 32
-    v14 = call v7, v2, 0, v9, 0, v13, v12
+    v14 = call v7, v2, 0, v9, 0, v13, 32
     v15 = returndatasize
-    v16 = lt v15, v12
-    v17 = select v16, v15, v12
-    v24 = mload v6
-    v27 = gt 32, v24
-    jumpi v27, bb3, bb4
-  bb4:
+    v16 = lt v15, 32
+    v36 = sub v15, 32
+    v37 = mul v16, v36
+    v17 = add v37, 32
     v31 = mload v13
-    v39 = iszero v14
-    v40 = iszero v39
-    mstore 128, v40
+    v41 = iszero v14
+    v42 = iszero v41
+    mstore 128, v42
     mstore 160, v17
     mstore 192, v15
     mstore 224, v31
     returndata 128, 128
-  bb3:
-    tail_call @revert_stub.6
-  bb8:
+  bb6:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36
-  bb5:
+  bb3:
     revert 0, 0
 }
 
 fn @probeStatic() [selector=0x2151f594, abi_wrapper] {
   bb0:
-    v36 = calldatasize
-    v37 = lt v36, 36
-    jumpi v37, bb5, bb6
-  bb6:
-    v38 = icall @decode_calldata_type, 4
-    v0 = mload v38
-    v1 = add v38, 32
+    v38 = calldatasize
+    v39 = lt v38, 36
+    jumpi v39, bb3, bb4
+  bb4:
+    v40 = icall @decode_calldata_type, 4
+    v0 = mload v40
+    v1 = add v40, 32
     v2 = create 0, v1, v0
     jumpi v2, bb2, bb1
   bb1:
     tail_call @revert_stub.5
   bb2:
     v6 = mload 64 !metadata(memory=scratch)
-    v46 = add v6, 64
-    v47 = lt v46, v6
-    v48 = gt v46, 0xffffffffffffffff
-    v49 = or v47, v48
-    jumpi v49, bb8, bb7
-  bb7:
-    mstore 64, v46 !metadata(memory=scratch)
-    v51 = calldatasize
-    calldatacopy v6, v51, 64
+    v48 = add v6, 64
+    v49 = lt v48, v6
+    v50 = gt v48, 0xffffffffffffffff
+    v51 = or v49, v50
+    jumpi v51, bb6, bb5
+  bb5:
+    mstore 64, v48 !metadata(memory=scratch)
+    v53 = calldatasize
+    calldatacopy v6, v53, 64
     mstore v6, 32
     v7 = gas
     v8 = mload 64 !metadata(memory=scratch)
-    v50 = add v8, 32
-    mstore 64, v50 !metadata(memory=scratch)
+    v52 = add v8, 32
+    mstore 64, v52 !metadata(memory=scratch)
     mstore v8, 0
     v9 = add v8, 32
-    v12 = mload v6
     v13 = add v6, 32
-    v14 = staticcall v7, v2, v9, 0, v13, v12
+    v14 = staticcall v7, v2, v9, 0, v13, 32
     v15 = returndatasize
-    v16 = lt v15, v12
-    v17 = select v16, v15, v12
-    v24 = mload v6
-    v27 = gt 32, v24
-    jumpi v27, bb3, bb4
-  bb4:
+    v16 = lt v15, 32
+    v36 = sub v15, 32
+    v37 = mul v16, v36
+    v17 = add v37, 32
     v31 = mload v13
-    v39 = iszero v14
-    v40 = iszero v39
-    mstore 128, v40
+    v41 = iszero v14
+    v42 = iszero v41
+    mstore 128, v42
     mstore 160, v17
     mstore 192, v15
     mstore 224, v31
     returndata 128, 128
-  bb3:
-    tail_call @revert_stub.6
-  bb8:
+  bb6:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36
-  bb5:
+  bb3:
     revert 0, 0
 }
 
 fn @probeDelegate() [selector=0xc0e324b4, abi_wrapper] {
   bb0:
-    v36 = calldatasize
-    v37 = lt v36, 36
-    jumpi v37, bb5, bb6
-  bb6:
-    v38 = icall @decode_calldata_type, 4
-    v0 = mload v38
-    v1 = add v38, 32
+    v38 = calldatasize
+    v39 = lt v38, 36
+    jumpi v39, bb3, bb4
+  bb4:
+    v40 = icall @decode_calldata_type, 4
+    v0 = mload v40
+    v1 = add v40, 32
     v2 = create 0, v1, v0
     jumpi v2, bb2, bb1
   bb1:
     tail_call @revert_stub.5
   bb2:
     v6 = mload 64 !metadata(memory=scratch)
-    v46 = add v6, 64
-    v47 = lt v46, v6
-    v48 = gt v46, 0xffffffffffffffff
-    v49 = or v47, v48
-    jumpi v49, bb8, bb7
-  bb7:
-    mstore 64, v46 !metadata(memory=scratch)
-    v51 = calldatasize
-    calldatacopy v6, v51, 64
+    v48 = add v6, 64
+    v49 = lt v48, v6
+    v50 = gt v48, 0xffffffffffffffff
+    v51 = or v49, v50
+    jumpi v51, bb6, bb5
+  bb5:
+    mstore 64, v48 !metadata(memory=scratch)
+    v53 = calldatasize
+    calldatacopy v6, v53, 64
     mstore v6, 32
     v7 = gas
     v8 = mload 64 !metadata(memory=scratch)
-    v50 = add v8, 32
-    mstore 64, v50 !metadata(memory=scratch)
+    v52 = add v8, 32
+    mstore 64, v52 !metadata(memory=scratch)
     mstore v8, 0
     v9 = add v8, 32
-    v12 = mload v6
     v13 = add v6, 32
-    v14 = delegatecall v7, v2, v9, 0, v13, v12
+    v14 = delegatecall v7, v2, v9, 0, v13, 32
     v15 = returndatasize
-    v16 = lt v15, v12
-    v17 = select v16, v15, v12
-    v24 = mload v6
-    v27 = gt 32, v24
-    jumpi v27, bb3, bb4
-  bb4:
+    v16 = lt v15, 32
+    v36 = sub v15, 32
+    v37 = mul v16, v36
+    v17 = add v37, 32
     v31 = mload v13
-    v39 = iszero v14
-    v40 = iszero v39
-    mstore 128, v40
+    v41 = iszero v14
+    v42 = iszero v41
+    mstore 128, v42
     mstore 160, v17
     mstore 192, v15
     mstore 224, v31
     returndata 128, 128
-  bb3:
-    tail_call @revert_stub.6
-  bb8:
+  bb6:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36
-  bb5:
+  bb3:
     revert 0, 0
 }
 

@@ -62,8 +62,7 @@ fn @power() [selector=0x2e894bdf, abi_wrapper, view] {
     mcopy v103, v28, v7
     v107 = add v92, v30
     mcopy v107, v33, v8
-    v49 = mload v41
-    v50 = staticcall v5, 5, v92, v49, 0, 0
+    v50 = staticcall v5, 5, v92, v35, 0, 0
     v51 = returndatasize
     v52 = add v51, 63
     v53 = lt v52, v51
