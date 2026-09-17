@@ -34,79 +34,79 @@ types:
 
 fn @probe() [selector=0xbed1a1cc, abi_wrapper] {
   bb0:
-    v26 = calldatasize
-    v27 = lt v26, 36
-    jumpi v27, bb5, bb6
+    v36 = calldatasize
+    v37 = lt v36, 36
+    jumpi v37, bb5, bb6
   bb6:
-    v28 = calldataload 4
-    v29 = add v28, 4
-    v30 = add v29, 32
-    v31 = gt v28, 0xffffffffffffffff
-    v32 = gt v30, v26
-    v33 = or v31, v32
-    jumpi v33, bb5, bb7
+    v38 = calldataload 4
+    v39 = add v38, 4
+    v40 = add v39, 32
+    v41 = gt v38, 0xffffffffffffffff
+    v42 = gt v40, v36
+    v43 = or v41, v42
+    jumpi v43, bb5, bb7
   bb7:
-    v34 = calldataload v29
-    v36 = add v34, 63
-    v37 = lt v36, v34
-    jumpi v37, bb8, bb9
+    v44 = calldataload v39
+    v46 = add v44, 63
+    v47 = lt v46, v44
+    jumpi v47, bb8, bb9
   bb9:
-    v39 = and v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v40 = mload 64 !metadata(memory=scratch)
-    v65 = add v40, v39
-    v66 = lt v65, v40
-    v67 = gt v65, 0xffffffffffffffff
-    v68 = or v66, v67
-    jumpi v68, bb8, bb12
+    v49 = and v46, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v50 = mload 64 !metadata(memory=scratch)
+    v68 = add v50, v49
+    v69 = lt v68, v50
+    v70 = gt v68, 0xffffffffffffffff
+    v71 = or v69, v70
+    jumpi v71, bb8, bb12
   bb12:
-    mstore 64, v65 !metadata(memory=scratch)
-    mstore v40, v34
-    v41 = sub v26, v30
-    v42 = gt v34, v41
-    jumpi v42, bb5, bb10
+    mstore 64, v68 !metadata(memory=scratch)
+    mstore v50, v44
+    v51 = sub v36, v40
+    v52 = gt v44, v51
+    jumpi v52, bb5, bb10
   bb10:
-    v58 = add v40, 32
-    calldatacopy v58, v30, v34
-    v2 = create 0, v58, v34
+    v61 = add v50, 32
+    calldatacopy v61, v40, v44
+    v2 = create 0, v61, v44
     jumpi v2, bb2, bb1
   bb1:
     mstore 0, 0x3011642500000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     revert 0, 4
   bb2:
     v6 = mload 64 !metadata(memory=scratch)
-    v61 = add v6, 64
-    v62 = lt v61, v6
-    v63 = gt v61, 0xffffffffffffffff
-    v64 = or v62, v63
-    jumpi v64, bb8, bb11
+    v64 = add v6, 64
+    v65 = lt v64, v6
+    v66 = gt v64, 0xffffffffffffffff
+    v67 = or v65, v66
+    jumpi v67, bb8, bb11
   bb11:
-    mstore 64, v61 !metadata(memory=scratch)
-    v70 = calldatasize
-    calldatacopy v6, v70, 64
+    mstore 64, v64 !metadata(memory=scratch)
+    v73 = calldatasize
+    calldatacopy v6, v73, 64
     mstore v6, 32
     v7 = gas
     v8 = mload 64 !metadata(memory=scratch)
-    v69 = add v8, 32
-    mstore 64, v69 !metadata(memory=scratch)
+    v72 = add v8, 32
+    mstore 64, v72 !metadata(memory=scratch)
     mstore v8, 0
-    v51 = icall @callInto, v2, 0, v7, v8, v6
-    v57 = mload 32 !metadata(memory=scratch)
-    v53 = add v57, 32
-    v54 = mload v53
-    v55 = add v57, 64
-    v56 = mload v55
-    v14 = mload v6
-    v17 = gt 32, v14
-    jumpi v17, bb3, bb4
+    v9 = add v8, 32
+    v12 = mload v6
+    v13 = add v6, 32
+    v14 = call v7, v2, 0, v9, 0, v13, v12
+    v15 = returndatasize
+    v16 = lt v15, v12
+    v17 = select v16, v15, v12
+    v24 = mload v6
+    v27 = gt 32, v24
+    jumpi v27, bb3, bb4
   bb4:
-    v19 = add v6, 32
-    v21 = mload v19
-    v44 = iszero v51
-    v45 = iszero v44
-    mstore 128, v45
-    mstore 160, v54
-    mstore 192, v56
-    mstore 224, v21
+    v31 = mload v13
+    v54 = iszero v14
+    v55 = iszero v54
+    mstore 128, v55
+    mstore 160, v17
+    mstore 192, v15
+    mstore 224, v31
     returndata 128, 128
   bb3:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -118,21 +118,6 @@ fn @probe() [selector=0xbed1a1cc, abi_wrapper] {
     revert 28, 36
   bb5:
     revert 0, 0
-}
-
-fn @callInto(arg0: address, arg1: u256, arg2: u256, arg3: memptr, arg4: memptr) -> struct1 [return_abi=[u256, u256, u256]] {
-  bb0:
-    v0 = mload arg4
-    v1 = add arg4, 32
-    v2 = mload arg3
-    v3 = add arg3, 32
-    v4 = call arg2, arg0, arg1, v3, v2, v1, v0
-    v5 = returndatasize
-    v7 = gt v5, v0
-    v15 = sub v0, v5
-    v16 = mul v7, v15
-    v17 = add v5, v16
-    ret v4, v17, v5
 }
 
 fn @entry() [entry] {

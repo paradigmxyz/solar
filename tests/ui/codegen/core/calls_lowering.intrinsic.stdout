@@ -31,150 +31,325 @@ fn @entry() [entry] {
 types:
   struct0: {u256, u256, u256, u256}
   struct1: {u256, u256, u256}
+  struct2: {u256, u256, u256, u256, u256}
 
 fn @probe() [selector=0xbed1a1cc, abi_wrapper] {
   bb0:
-    v28 = icall @decode_calldata_type, 4
-    v0 = mload v28
-    v1 = add v28, 32
+    v36 = calldatasize
+    v37 = lt v36, 36
+    jumpi v37, bb5, bb6
+  bb6:
+    v38 = icall @decode_calldata_type, 4
+    v0 = mload v38
+    v1 = add v38, 32
     v2 = create 0, v1, v0
     jumpi v2, bb2, bb1
   bb1:
-    tail_call @revert_stub.4
+    tail_call @revert_stub.5
   bb2:
     v6 = mload 64 !metadata(memory=scratch)
-    v43 = add v6, 64
-    v44 = lt v43, v6
-    v45 = gt v43, 0xffffffffffffffff
-    v46 = or v44, v45
-    jumpi v46, bb6, bb5
-  bb5:
-    mstore 64, v43 !metadata(memory=scratch)
-    v48 = calldatasize
-    calldatacopy v6, v48, 64
+    v46 = add v6, 64
+    v47 = lt v46, v6
+    v48 = gt v46, 0xffffffffffffffff
+    v49 = or v47, v48
+    jumpi v49, bb8, bb7
+  bb7:
+    mstore 64, v46 !metadata(memory=scratch)
+    v51 = calldatasize
+    calldatacopy v6, v51, 64
     mstore v6, 32
     v7 = gas
     v8 = mload 64 !metadata(memory=scratch)
-    v47 = add v8, 32
-    mstore 64, v47 !metadata(memory=scratch)
+    v50 = add v8, 32
+    mstore 64, v50 !metadata(memory=scratch)
     mstore v8, 0
-    v36 = icall @callInto, v2, 0, v7, v8, v6
-    v42 = mload 32 !metadata(memory=scratch)
-    v38 = add v42, 32
-    v39 = mload v38
-    v40 = add v42, 64
-    v41 = mload v40
-    v14 = mload v6
-    v17 = gt 32, v14
-    jumpi v17, bb3, bb4
+    v9 = add v8, 32
+    v12 = mload v6
+    v13 = add v6, 32
+    v14 = call v7, v2, 0, v9, 0, v13, v12
+    v15 = returndatasize
+    v16 = lt v15, v12
+    v17 = select v16, v15, v12
+    v24 = mload v6
+    v27 = gt 32, v24
+    jumpi v27, bb3, bb4
   bb4:
-    v19 = add v6, 32
-    v21 = mload v19
-    v29 = iszero v36
-    v30 = iszero v29
-    mstore 128, v30
-    mstore 160, v39
-    mstore 192, v41
-    mstore 224, v21
+    v31 = mload v13
+    v39 = iszero v14
+    v40 = iszero v39
+    mstore 128, v40
+    mstore 160, v17
+    mstore 192, v15
+    mstore 224, v31
     returndata 128, 128
   bb3:
-    tail_call @revert_stub.5
-  bb6:
+    tail_call @revert_stub.6
+  bb8:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36
+  bb5:
+    revert 0, 0
 }
 
 fn @probeStatic() [selector=0x2151f594, abi_wrapper] {
   bb0:
-    v28 = icall @decode_calldata_type, 4
-    v0 = mload v28
-    v1 = add v28, 32
+    v36 = calldatasize
+    v37 = lt v36, 36
+    jumpi v37, bb5, bb6
+  bb6:
+    v38 = icall @decode_calldata_type, 4
+    v0 = mload v38
+    v1 = add v38, 32
     v2 = create 0, v1, v0
     jumpi v2, bb2, bb1
   bb1:
-    tail_call @revert_stub.4
+    tail_call @revert_stub.5
   bb2:
     v6 = mload 64 !metadata(memory=scratch)
-    v43 = add v6, 64
-    v44 = lt v43, v6
-    v45 = gt v43, 0xffffffffffffffff
-    v46 = or v44, v45
-    jumpi v46, bb6, bb5
-  bb5:
-    mstore 64, v43 !metadata(memory=scratch)
-    v48 = calldatasize
-    calldatacopy v6, v48, 64
+    v46 = add v6, 64
+    v47 = lt v46, v6
+    v48 = gt v46, 0xffffffffffffffff
+    v49 = or v47, v48
+    jumpi v49, bb8, bb7
+  bb7:
+    mstore 64, v46 !metadata(memory=scratch)
+    v51 = calldatasize
+    calldatacopy v6, v51, 64
     mstore v6, 32
     v7 = gas
     v8 = mload 64 !metadata(memory=scratch)
-    v47 = add v8, 32
-    mstore 64, v47 !metadata(memory=scratch)
+    v50 = add v8, 32
+    mstore 64, v50 !metadata(memory=scratch)
     mstore v8, 0
-    v36 = icall @staticCallInto, v2, v7, v8, v6
-    v42 = mload 32 !metadata(memory=scratch)
-    v38 = add v42, 32
-    v39 = mload v38
-    v40 = add v42, 64
-    v41 = mload v40
-    v14 = mload v6
-    v17 = gt 32, v14
-    jumpi v17, bb3, bb4
+    v9 = add v8, 32
+    v12 = mload v6
+    v13 = add v6, 32
+    v14 = staticcall v7, v2, v9, 0, v13, v12
+    v15 = returndatasize
+    v16 = lt v15, v12
+    v17 = select v16, v15, v12
+    v24 = mload v6
+    v27 = gt 32, v24
+    jumpi v27, bb3, bb4
   bb4:
-    v19 = add v6, 32
-    v21 = mload v19
-    v29 = iszero v36
-    v30 = iszero v29
-    mstore 128, v30
-    mstore 160, v39
-    mstore 192, v41
-    mstore 224, v21
+    v31 = mload v13
+    v39 = iszero v14
+    v40 = iszero v39
+    mstore 128, v40
+    mstore 160, v17
+    mstore 192, v15
+    mstore 224, v31
     returndata 128, 128
   bb3:
-    tail_call @revert_stub.5
+    tail_call @revert_stub.6
+  bb8:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb5:
+    revert 0, 0
+}
+
+fn @probeDelegate() [selector=0xc0e324b4, abi_wrapper] {
+  bb0:
+    v36 = calldatasize
+    v37 = lt v36, 36
+    jumpi v37, bb5, bb6
   bb6:
+    v38 = icall @decode_calldata_type, 4
+    v0 = mload v38
+    v1 = add v38, 32
+    v2 = create 0, v1, v0
+    jumpi v2, bb2, bb1
+  bb1:
+    tail_call @revert_stub.5
+  bb2:
+    v6 = mload 64 !metadata(memory=scratch)
+    v46 = add v6, 64
+    v47 = lt v46, v6
+    v48 = gt v46, 0xffffffffffffffff
+    v49 = or v47, v48
+    jumpi v49, bb8, bb7
+  bb7:
+    mstore 64, v46 !metadata(memory=scratch)
+    v51 = calldatasize
+    calldatacopy v6, v51, 64
+    mstore v6, 32
+    v7 = gas
+    v8 = mload 64 !metadata(memory=scratch)
+    v50 = add v8, 32
+    mstore 64, v50 !metadata(memory=scratch)
+    mstore v8, 0
+    v9 = add v8, 32
+    v12 = mload v6
+    v13 = add v6, 32
+    v14 = delegatecall v7, v2, v9, 0, v13, v12
+    v15 = returndatasize
+    v16 = lt v15, v12
+    v17 = select v16, v15, v12
+    v24 = mload v6
+    v27 = gt 32, v24
+    jumpi v27, bb3, bb4
+  bb4:
+    v31 = mload v13
+    v39 = iszero v14
+    v40 = iszero v39
+    mstore 128, v40
+    mstore 160, v17
+    mstore 192, v15
+    mstore 224, v31
+    returndata 128, 128
+  bb3:
+    tail_call @revert_stub.6
+  bb8:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb5:
+    revert 0, 0
+}
+
+fn @probeWide() [selector=0x9ac072a4, abi_wrapper] {
+  bb0:
+    v74 = calldatasize
+    v75 = lt v74, 36
+    jumpi v75, bb9, bb10
+  bb10:
+    v76 = icall @decode_calldata_type, 4
+    v0 = mload v76
+    v1 = add v76, 32
+    v2 = create 0, v1, v0
+    jumpi v2, bb2, bb1
+  bb1:
+    tail_call @revert_stub.5
+  bb2:
+    v6 = mload 64 !metadata(memory=scratch)
+    v85 = add v6, 128
+    v86 = lt v85, v6
+    v87 = gt v85, 0xffffffffffffffff
+    v88 = or v86, v87
+    jumpi v88, bb12, bb11
+  bb11:
+    mstore 64, v85 !metadata(memory=scratch)
+    v90 = calldatasize
+    calldatacopy v6, v90, 128
+    mstore v6, 96
+    v12 = add v6, 32
+    v73 = add v12, 96
+    jump bb3
+  bb3:
+    v70 = phi [bb11: v12], [bb4: v71]
+    v18 = lt v70, v73
+    jumpi v18, bb4, bb5
+  bb5:
+    v32 = gas
+    v33 = mload 64 !metadata(memory=scratch)
+    v89 = add v33, 32
+    mstore 64, v89 !metadata(memory=scratch)
+    mstore v33, 0
+    v34 = add v33, 32
+    v37 = mload v6
+    v39 = call v32, v2, 0, v34, 0, v12, v37
+    v40 = returndatasize
+    v41 = lt v40, v37
+    v42 = select v41, v40, v37
+    v49 = mload v6
+    v52 = gt 64, v49
+    jumpi v52, bb6, bb7
+  bb7:
+    v55 = add v12, 32
+    v56 = mload v55
+    v60 = gt 96, v49
+    jumpi v60, bb6, bb8
+  bb8:
+    v63 = add v12, 64
+    v64 = mload v63
+    v77 = iszero v39
+    v78 = iszero v77
+    mstore 128, v78
+    mstore 160, v42
+    mstore 192, v40
+    mstore 224, v56
+    mstore 256, v64
+    returndata 128, 160
+  bb6:
+    tail_call @revert_stub.6
+  bb4:
+    mstore v70, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v71 = add v70, 32
+    jump bb3
+  bb12:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb9:
+    revert 0, 0
+}
+
+fn @probeEmpty() [selector=0x58eb6d8a, abi_wrapper] {
+  bb0:
+    v2 = mload 64 !metadata(memory=scratch)
+    v64 = add v2, 64
+    v65 = lt v64, v2
+    v66 = gt v64, 0xffffffffffffffff
+    v67 = or v65, v66
+    jumpi v67, bb7, bb6
+  bb6:
+    mstore 64, v64 !metadata(memory=scratch)
+    v69 = calldatasize
+    calldatacopy v2, v69, 64
+    mstore v2, 32
+    v8 = add v2, 32
+    jump bb1
+  bb1:
+    v13 = phi [bb6: 0], [bb2: v17]
+    jumpi v13, bb3, bb2
+  bb2:
+    v15 = shl 5, v13
+    v16 = add v8, v15
+    mstore v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v17 = add v13, 1
+    jump bb1
+  bb3:
+    v28 = gas
+    v29 = mload 64 !metadata(memory=scratch)
+    v68 = add v29, 32
+    mstore 64, v68 !metadata(memory=scratch)
+    mstore v29, 0
+    v30 = add v29, 32
+    v33 = mload v2
+    v35 = call v28, 0xdead, 0, v30, 0, v8, v33
+    v36 = returndatasize
+    v37 = lt v36, v33
+    v38 = select v37, v36, v33
+    v45 = mload v2
+    v48 = gt 32, v45
+    jumpi v48, bb4, bb5
+  bb5:
+    v52 = mload v8
+    v57 = iszero v35
+    v58 = iszero v57
+    mstore 128, v58
+    mstore 160, v38
+    mstore 192, v36
+    mstore 224, v52
+    returndata 128, 128
+  bb4:
+    tail_call @revert_stub.6
+  bb7:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36
 }
 
-fn @callInto(arg0: address, arg1: u256, arg2: u256, arg3: memptr, arg4: memptr) -> struct1 [return_abi=[u256, u256, u256]] {
-  bb0:
-    v0 = mload arg4
-    v1 = add arg4, 32
-    v2 = mload arg3
-    v3 = add arg3, 32
-    v4 = call arg2, arg0, arg1, v3, v2, v1, v0
-    v5 = returndatasize
-    v7 = gt v5, v0
-    v15 = sub v0, v5
-    v16 = mul v7, v15
-    v17 = add v5, v16
-    ret v4, v17, v5
-}
-
-fn @staticCallInto(arg0: address, arg1: u256, arg2: memptr, arg3: memptr) -> struct1 [view, return_abi=[u256, u256, u256]] {
-  bb0:
-    v0 = mload arg3
-    v1 = add arg3, 32
-    v2 = mload arg2
-    v3 = add arg2, 32
-    v4 = staticcall arg1, arg0, v3, v2, v1, v0
-    v5 = returndatasize
-    v7 = gt v5, v0
-    v15 = sub v0, v5
-    v16 = mul v7, v15
-    v17 = add v5, v16
-    ret v4, v17, v5
-}
-
-fn @revert_stub.4() {
+fn @revert_stub.5() {
   bb0:
     mstore 0, 0x3011642500000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     revert 0, 4
 }
 
-fn @revert_stub.5() {
+fn @revert_stub.6() {
   bb0:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
@@ -225,18 +400,21 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    v1 = calldatasize
-    v2 = lt v1, 36
-    v3 = or v0, v2
-    jumpi v3, bb1, bb2
-  bb2:
-    v4 = calldataload 0
-    v5 = shr 224, v4
-    switch v5, default bb1, [0x2151f594 => bb3, 0xbed1a1cc => bb4]
-  bb4:
-    tail_call @probe
-  bb3:
-    tail_call @probeStatic
+    jumpi v0, bb7, bb1
   bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb7, [0x2151f594 => bb2, 0x58eb6d8a => bb3, 0x9ac072a4 => bb4, 0xbed1a1cc => bb5, 0xc0e324b4 => bb6]
+  bb6:
+    tail_call @probeDelegate
+  bb5:
+    tail_call @probe
+  bb4:
+    tail_call @probeWide
+  bb3:
+    tail_call @probeEmpty
+  bb2:
+    tail_call @probeStatic
+  bb7:
     revert 0, 0
 }

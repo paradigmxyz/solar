@@ -4,7 +4,7 @@ error: unknown compiler module `solar:core/v1/Nope.sol`
 LL │ import {Nope} from "solar:core/v1/Nope.sol";
    │                    ━━━━━━━━━━━━━━━━━━━━━━━━
    │
-   ╰ note: available compiler modules: solar:core/v1/Bytes.sol, solar:core/v1/Arrays.sol, solar:core/v1/Revert.sol, solar:core/v1/Hash.sol, solar:core/v1/Create.sol, solar:core/v1/Code.sol, solar:core/v1/Calls.sol, solar:core/v1/Bits.sol
+   ╰ note: available compiler modules: solar:core/v1/Bytes.sol, solar:core/v1/Arrays.sol, solar:core/v1/Revert.sol, solar:core/v1/Hash.sol, solar:core/v1/Create.sol, solar:core/v1/Code.sol, solar:core/v1/Calls.sol, solar:core/v1/Bits.sol, solar:core/v1/Math.sol, solar:core/v1/Cast.sol, solar:core/v1/Precompiles.sol, solar:core/v1/Buffers.sol, solar:core/v1/CalldataBytes.sol
 
 error: aborting due to 1 previous error
 

@@ -6,8 +6,9 @@
 // A call whose output lands in a buffer the caller owns: at most the buffer's
 // length is copied, and the caller learns both how much arrived and how much
 // there was. A reverting callee is `false` with its data in the buffer.
-// CHECK-LABEL: fn @callInto
-// CHECK: call arg2, arg0, arg1
+// CHECK-LABEL: fn @probe
+// CHECK-NOT: icall @callInto
+// CHECK: = call {{v[0-9]+}}, {{v[0-9]+}}, 0,
 // CHECK: returndatasize
 import {Bytes} from "solar:core/v1/Bytes.sol";
 import {Calls} from "solar:core/v1/Calls.sol";

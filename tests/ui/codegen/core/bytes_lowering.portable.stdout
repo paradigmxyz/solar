@@ -194,11 +194,11 @@ fn @copyInto(arg0: memptr, arg1: u256, arg2: memptr, arg3: u256, arg4: u256) [pu
     v95 = add arg0, 32
     jump bb10
   bb10:
-    v37 = phi [bb6: 0], [bb17: v83]
-    v43 = lt v37, arg4
+    v40 = phi [bb6: 0], [bb17: v83]
+    v43 = lt v40, arg4
     jumpi v43, bb11, bb7
   bb11:
-    v73 = add arg3, v37
+    v73 = add arg3, v40
     v74 = lt v73, arg3
     jumpi v74, bb18, bb21
   bb21:
@@ -209,7 +209,7 @@ fn @copyInto(arg0: memptr, arg1: u256, arg2: memptr, arg3: u256, arg4: u256) [pu
     v92 = add v91, v73
     v93 = mload v92
     v94 = byte 0, v93
-    v81 = add arg1, v37
+    v81 = add arg1, v40
     v82 = lt v81, arg1
     jumpi v82, bb18, bb23
   bb23:
@@ -218,19 +218,19 @@ fn @copyInto(arg0: memptr, arg1: u256, arg2: memptr, arg3: u256, arg4: u256) [pu
   bb17:
     v96 = add v95, v81
     mstore8 v96, v94
-    v83 = add v37, 1
+    v83 = add v40, 1
     jump bb10
   bb5:
     v85 = add arg2, 32
     v89 = add arg0, 32
     jump bb8
   bb8:
-    v18 = phi [bb5: arg4], [bb15: v79]
-    jumpi v18, bb9, bb7
+    v16 = phi [bb5: arg4], [bb15: v79]
+    jumpi v16, bb9, bb7
   bb7:
     ret
   bb9:
-    v69 = add arg3, v18
+    v69 = add arg3, v16
     v70 = lt v69, arg3
     jumpi v70, bb18, bb19
   bb19:
@@ -244,7 +244,7 @@ fn @copyInto(arg0: memptr, arg1: u256, arg2: memptr, arg3: u256, arg4: u256) [pu
     v86 = add v85, v71
     v87 = mload v86
     v88 = byte 0, v87
-    v75 = add arg1, v18
+    v75 = add arg1, v16
     v76 = lt v75, arg1
     jumpi v76, bb18, bb22
   bb22:
@@ -254,7 +254,7 @@ fn @copyInto(arg0: memptr, arg1: u256, arg2: memptr, arg3: u256, arg4: u256) [pu
   bb15:
     v90 = add v89, v77
     mstore8 v90, v88
-    v79 = sub v18, 1
+    v79 = sub v16, 1
     jump bb8
   bb18:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -287,20 +287,20 @@ fn @fill(arg0: memptr, arg1: u256, arg2: bytes1) [pure] {
     v16 = add arg0, 32
     jump bb1
   bb1:
-    v4 = phi [bb0: 0], [bb4: v14]
-    v5 = lt v4, arg1
+    v2 = phi [bb0: 0], [bb4: v14]
+    v5 = lt v2, arg1
     jumpi v5, bb5, bb2
   bb2:
     ret
   bb5:
-    v8 = lt v4, v7
+    v8 = lt v2, v7
     jumpi v8, bb4, bb3
   bb3:
     tail_call @revert_stub
   bb4:
-    v17 = add v16, v4
+    v17 = add v16, v2
     mstore8 v17, v10
-    v14 = add v4, 1
+    v14 = add v2, 1
     jump bb1
 }
 

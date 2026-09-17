@@ -1,0 +1,216 @@
+// === <solar:core/v1/Math.sol>:Math ===
+@module Math
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/math_lowering.sol:Test ===
+@module Test
+@phase lowered
+types:
+  struct0: {u256, u256}
+
+fn @mul512.0() [selector=0x73d0b512, abi_wrapper, pure] {
+  bb0:
+    v11 = calldatasize
+    v12 = lt v11, 68
+    jumpi v12, bb1, bb2
+  bb2:
+    v0 = mul arg0, arg1
+    v1 = mulmod arg0, arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v3 = lt v1, v0
+    v2 = sub v1, v0
+    v4 = sub v2, v3
+    mstore 128, v4
+    mstore 160, v0
+    returndata 128, 64
+  bb1:
+    revert 0, 0
+}
+
+fn @mulDiv.1() [selector=0xfb9f4917, abi_wrapper, pure] {
+  bb0:
+    v5 = calldatasize
+    v6 = lt v5, 132
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = calldataload 100
+    v8 = lt v7, 2
+    jumpi v8, bb3, bb1
+  bb3:
+    v1 = icall @mulDiv.6, arg0, arg1, arg2, arg3
+    mstore 128, v1
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @wrapAdd() [selector=0x85ec2dc1, abi_wrapper, pure] {
+  bb0:
+    v1 = calldatasize
+    v2 = lt v1, 68
+    jumpi v2, bb1, bb2
+  bb2:
+    v0 = add arg0, arg1
+    mstore 128, v0
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @wrapSub() [selector=0x928d9cf4, abi_wrapper, pure] {
+  bb0:
+    v1 = calldatasize
+    v2 = lt v1, 68
+    jumpi v2, bb1, bb2
+  bb2:
+    v0 = sub arg0, arg1
+    mstore 128, v0
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @wrapMul() [selector=0x6f486eee, abi_wrapper, pure] {
+  bb0:
+    v1 = calldatasize
+    v2 = lt v1, 68
+    jumpi v2, bb1, bb2
+  bb2:
+    v0 = mul arg0, arg1
+    mstore 128, v0
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @mulDiv.6(arg0: u256, arg1: u256, arg2: u256, arg3: u8) -> u256 [pure] {
+  bb0:
+    jump bb10
+  bb10:
+    v13 = mul arg0, arg1
+    v14 = mulmod arg0, arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v16 = lt v14, v13
+    v15 = sub v14, v13
+    v17 = sub v15, v16
+    jumpi v17, bb12, bb11
+  bb12:
+    v18 = gt arg2, v17
+    jumpi v18, bb14, bb13
+  bb13:
+    jumpi arg2, bb18, bb11
+  bb11:
+    jumpi arg2, bb16, bb15
+  bb16:
+    v28 = div v13, arg2
+    jump bb9
+  bb18:
+    mstore 0, 0x4e487b71
+    mstore 32, 17
+    revert 28, 36
+  bb14:
+    v19 = mulmod arg0, arg1, arg2
+    v20 = gt v19, v13
+    v21 = sub v17, 1
+    v22 = sub v21, v17
+    v23 = mul v20, v22
+    v24 = add v17, v23
+    v25 = sub v13, v19
+    v26 = sub 0, arg2
+    v27 = and arg2, v26
+    jumpi v27, bb17, bb15
+  bb15:
+    mstore 0, 0x4e487b71
+    mstore 32, 18
+    revert 28, 36
+  bb17:
+    v29 = div arg2, v27
+    v30 = div v25, v27
+    v31 = sub 0, v27
+    v32 = div v31, v27
+    v33 = add v32, 1
+    v34 = mul v24, v33
+    v35 = or v30, v34
+    v36 = mul v29, 3
+    v37 = xor v36, 2
+    v38 = mul v29, v37
+    v39 = sub 2, v38
+    v40 = mul v37, v39
+    v41 = mul v29, v40
+    v42 = sub 2, v41
+    v43 = mul v40, v42
+    v44 = mul v29, v43
+    v45 = sub 2, v44
+    v46 = mul v43, v45
+    v47 = mul v29, v46
+    v48 = sub 2, v47
+    v49 = mul v46, v48
+    v50 = mul v29, v49
+    v51 = sub 2, v50
+    v52 = mul v49, v51
+    v53 = mul v29, v52
+    v54 = sub 2, v53
+    v55 = mul v52, v54
+    v56 = mul v35, v55
+    jump bb9
+  bb9:
+    v57 = phi [bb16: v28], [bb17: v56]
+    v1 = lt arg3, 2
+    jumpi v1, bb5, bb4
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 33 !metadata(memory=scratch)
+    revert 28, 36
+  bb5:
+    v3 = eq arg3, 1
+    jumpi v3, bb1, bb3
+  bb1:
+    jumpi arg2, bb7, bb6
+  bb6:
+    tail_call @revert_stub
+  bb7:
+    v10 = mulmod arg0, arg1, arg2
+    jumpi v10, bb2, bb3
+  bb2:
+    v11 = add v57, 1
+    jumpi v11, bb3, bb8
+  bb8:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
+  bb3:
+    v9 = phi [bb2: v11], [bb7: v57], [bb5: v57]
+    ret v9
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 18 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb7, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb7, [0x6f486eee => bb2, 0x73d0b512 => bb3, 0x85ec2dc1 => bb4, 0x928d9cf4 => bb5, 0xfb9f4917 => bb6]
+  bb6:
+    tail_call @mulDiv.1
+  bb5:
+    tail_call @wrapSub
+  bb4:
+    tail_call @wrapAdd
+  bb3:
+    tail_call @mul512.0
+  bb2:
+    tail_call @wrapMul
+  bb7:
+    revert 0, 0
+}
