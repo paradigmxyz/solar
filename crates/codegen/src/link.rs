@@ -77,9 +77,3 @@ pub struct RelocatableBytecode {
     pub bytes: Bytes,
     pub relocations: Vec<LibraryRelocation>,
 }
-
-impl From<Bytes> for RelocatableBytecode {
-    fn from(bytes: Bytes) -> Self {
-        Self { bytes, relocations: Vec::new(), libraries: LibraryTable::default() }
-    }
-}

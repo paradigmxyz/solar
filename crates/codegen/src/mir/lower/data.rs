@@ -61,42 +61,56 @@ impl ContractBytecodes {
     }
 }
 
-/// Copies constant data and clears its padding through `padded_size`.
-pub(super) fn copy_data_to_memory(
+/// Copies embedded bytecode, remapping its library relocations into this module.
+pub(super) fn copy_bytecode_to_memory(
     gcx: Gcx<'_>,
     module: &mut Module,
     builder: &mut FunctionBuilder<'_>,
     dest: ValueId,
     bytecode: &RelocatableBytecode,
     padded_size: usize,
-    name: Option<Symbol>,
+    name: Symbol,
 ) {
     let data = &bytecode.bytes;
     debug_assert!(padded_size >= data.len());
-    if padded_size == 0 {
+    if bytecode.relocations.is_empty() {
+        copy_data_to_memory(gcx, module, builder, dest, data, padded_size, Some(name));
         return;
     }
-    if !bytecode.relocations.is_empty() {
-        // memory_zero dest + floor(size / 32) * 32, padded_size - floor(size / 32) * 32
-        // data_copy linked_bytecode, dest, size
-        if padded_size > data.len() {
-            let tail = builder.add_u64_offset(dest, (data.len() / WORD_BYTES * WORD_BYTES) as u64);
-            let size = builder.imm((padded_size - data.len() / WORD_BYTES * WORD_BYTES) as u64);
-            builder.memory_zero(tail, size);
-        }
-        let size = builder.imm(data.len() as u64);
-        let relocations = bytecode
-            .relocations
-            .iter()
-            .map(|reloc| LibraryRelocation {
-                offset: reloc.offset,
-                library: module.libraries.intern(
-                    *bytecode.libraries.get(reloc.library).expect("valid embedded library ID"),
-                ),
-            })
-            .collect();
-        let data = module.intern_linked_data(bytecode.bytes.clone(), name, relocations);
-        builder.data_copy(data, dest, size);
+    // memory_zero dest + floor(size / 32) * 32, padded_size - floor(size / 32) * 32
+    // data_copy linked_bytecode, dest, size
+    if padded_size > data.len() {
+        let tail = builder.add_u64_offset(dest, (data.len() / WORD_BYTES * WORD_BYTES) as u64);
+        let size = builder.imm((padded_size - data.len() / WORD_BYTES * WORD_BYTES) as u64);
+        builder.memory_zero(tail, size);
+    }
+    let size = builder.imm(data.len() as u64);
+    let relocations = bytecode
+        .relocations
+        .iter()
+        .map(|reloc| LibraryRelocation {
+            offset: reloc.offset,
+            library: module
+                .libraries
+                .intern(*bytecode.libraries.get(reloc.library).expect("valid embedded library ID")),
+        })
+        .collect();
+    let data = module.intern_linked_data(bytecode.bytes.clone(), Some(name), relocations);
+    builder.data_copy(data, dest, size);
+}
+
+/// Copies constant data and clears its padding through `padded_size`.
+pub(super) fn copy_data_to_memory(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    builder: &mut FunctionBuilder<'_>,
+    dest: ValueId,
+    data: &[u8],
+    padded_size: usize,
+    name: Option<Symbol>,
+) {
+    debug_assert!(padded_size >= data.len());
+    if padded_size == 0 {
         return;
     }
     if !data.is_empty() && padded_size <= EvmMemoryLayout::WORD_SIZE as usize {
@@ -112,7 +126,7 @@ pub(super) fn copy_data_to_memory(
         && padded_size > data.len()
         && padded_size == data.len().next_multiple_of(EvmMemoryLayout::WORD_SIZE as usize);
     let data = if separate_tail || padded_size == data.len() {
-        Cow::Borrowed(data.as_ref())
+        Cow::Borrowed(data)
     } else {
         let mut padded = Vec::with_capacity(padded_size);
         padded.extend_from_slice(data);

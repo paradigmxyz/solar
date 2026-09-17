@@ -1,7 +1,6 @@
 //! Builtin call and value lowering.
 
 use super::*;
-use alloy_primitives::Bytes;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_builtin_call(
@@ -280,17 +279,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 if creation { bytecodes.deployment() } else { bytecodes.runtime() }
                             });
                         match bytecode {
-                            Some(bytecode) => Self::build_bytes_literal(
+                            Some(bytecode) => Self::build_bytecode(
                                 self.cx.gcx,
                                 self.cx.module,
                                 &mut self.builder,
                                 bytecode,
-                                AllocationSemantics::INTERNAL,
-                                Some(super::super::data::contract_bytecode_data_name(
+                                super::super::data::contract_bytecode_data_name(
                                     self.cx.gcx,
                                     contract_id,
                                     creation,
-                                )),
+                                ),
                             ),
                             None => {
                                 let (kind, name) = match builtin {
@@ -815,9 +813,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.cx.gcx,
                 self.cx.module,
                 &mut self.builder,
-                &Bytes::from(bytes).into(),
+                &bytes,
                 AllocationSemantics::SOLIDITY_UNINITIALIZED,
-                None,
             );
         }
 

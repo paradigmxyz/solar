@@ -351,14 +351,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let allocation_size = self.builder.and(rounded_len, mask);
         let data = self.builder.alloc_raw(allocation_size, AllocationSemantics::INTERNAL);
 
-        super::super::data::copy_data_to_memory(
+        super::super::data::copy_bytecode_to_memory(
             self.cx.gcx,
             self.cx.module,
             &mut self.builder,
             data,
             bytecode,
             bytecode.bytes.len(),
-            Some(super::super::data::contract_bytecode_data_name(self.cx.gcx, contract_id, true)),
+            super::super::data::contract_bytecode_data_name(self.cx.gcx, contract_id, true),
         );
         let encoded_ptr = self.builder.slice_ptr(encoded);
         let copy_dest = self.builder.add(data, bytecode_len_value);
