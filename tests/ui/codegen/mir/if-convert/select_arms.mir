@@ -128,7 +128,9 @@ fn @word_condition(arg0: u256, arg1: u256) -> u256 {
 // times the folded difference, with no branch.
 // CHECK-LABEL: {{^[ +].*}}fn @literal_arms{{[( ]}}
 // CHECK: - jumpi
-// CHECK: + [[S:v[0-9]+]] = mul arg0, 0x1200000000000000000000000000000000000000000000000000000000000000
+// CHECK: + [[Z:v[0-9]+]] = iszero arg0
+// CHECK: + [[C:v[0-9]+]] = iszero [[Z]]
+// CHECK: + [[S:v[0-9]+]] = mul [[C]], 0x1200000000000000000000000000000000000000000000000000000000000000
 // CHECK: + {{v[0-9]+}} = add 0x5f00000000000000000000000000000000000000000000000000000000000000, [[S]]
 // CHECK-NOT: {{^[ +].*}}phi
 fn @literal_arms(arg0: bool) -> bytes32 {
@@ -146,8 +148,10 @@ fn @literal_arms(arg0: bool) -> bytes32 {
 // A literal over a value computed before the branch: `f + c * (t - f)`.
 // CHECK-LABEL: {{^[ +].*}}fn @literal_or_value{{[( ]}}
 // CHECK: - jumpi
+// CHECK: + [[Z:v[0-9]+]] = iszero arg0
+// CHECK: + [[C:v[0-9]+]] = iszero [[Z]]
 // CHECK: + [[D:v[0-9]+]] = sub 7, arg1
-// CHECK: + [[S:v[0-9]+]] = mul arg0, [[D]]
+// CHECK: + [[S:v[0-9]+]] = mul [[C]], [[D]]
 // CHECK: + {{v[0-9]+}} = add arg1, [[S]]
 fn @literal_or_value(arg0: bool, arg1: u256) -> u256 {
   bb0:

@@ -5,7 +5,10 @@
 //! rejected recipes leave the function and its metadata untouched.
 
 use super::{Recipe, Temporary};
-use crate::mir::{Function, InstId, Op, Value as MirValue, ValueId};
+use crate::{
+    mir::{Function, InstId, Op, Value as MirValue, ValueId},
+    target::Target,
+};
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
@@ -32,10 +35,15 @@ mod generated {
     include!(concat!(env!("OUT_DIR"), "/word_sequence.isle.rs"));
 }
 
-pub(super) fn alternatives(func: &Function, seen: &FxHashSet<InstId>, op: &Op) -> Vec<Recipe> {
+pub(super) fn alternatives(
+    func: &Function,
+    seen: &FxHashSet<InstId>,
+    op: &Op,
+    target: Target,
+) -> Vec<Recipe> {
     let mut result = Vec::new();
     generated::constructor_sequence_rewrite(
-        &mut Context { func, seen, temporaries: FxHashMap::default() },
+        &mut Context { func, seen, target, temporaries: FxHashMap::default() },
         op,
         &mut result,
     );
@@ -45,6 +53,7 @@ pub(super) fn alternatives(func: &Function, seen: &FxHashSet<InstId>, op: &Op) -
 struct Context<'a> {
     func: &'a Function,
     seen: &'a FxHashSet<InstId>,
+    target: Target,
     temporaries: FxHashMap<ValueId, Temporary>,
 }
 
@@ -98,6 +107,22 @@ impl generated::Context for Context<'_> {
     fn u256_from_limbs(&mut self, a: u64, b: u64, c: u64, d: u64) -> U256 {
         U256::from_limbs([a, b, c, d])
     }
+    fn bool_value(&mut self, value: Value) -> Option<()> {
+        super::super::egraph::is_bool_value(self.func, value).then_some(())
+    }
+
+    fn optimize_for_size(&mut self) -> bool {
+        self.target.optimization().is_size()
+    }
+
+    fn u256_ge(&mut self, a: U256, b: U256) -> bool {
+        a >= b
+    }
+
+    fn u256_sub(&mut self, a: U256, b: U256) -> U256 {
+        a.wrapping_sub(b)
+    }
+
     fn u256_same(&mut self, a: U256, b: U256) -> bool {
         a == b
     }

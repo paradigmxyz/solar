@@ -11,7 +11,27 @@
 //@ run-call: narrow 511 => 255
 //@ run-call: recurse 511, 3 => 255
 
+//@ run-call: selectedClean false => 7
+//@ run-call: selectedClean true => 19
+//@ run-call: selectedDirty 0 => 7
+//@ run-call: selectedDirty 2 => 19
+//@ run-call: selectedDirty 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 19
+
 contract DirtyArguments {
+    function selectedClean(bool condition) external pure returns (uint256) {
+        return selected(condition);
+    }
+
+    function selectedDirty(uint256 word) external pure returns (uint256) {
+        bool condition;
+        assembly { condition := word }
+        return selected(condition);
+    }
+
+    function selected(bool condition) internal pure returns (uint256) {
+        return condition ? 19 : 7;
+    }
+
     function clean(address value) external pure returns (uint256) {
         return addressBits(value);
     }

@@ -82,7 +82,7 @@ use solar_data_structures::{
 use std::rc::Rc;
 
 mod isle;
-pub(super) use isle::max_bits_with_args;
+pub(super) use isle::{is_bool_value, max_bits_with_args};
 
 const TRACE_TARGET: &str = "solar::codegen::mir::egraph";
 
