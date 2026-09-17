@@ -36,6 +36,7 @@ METRICS = {
 }
 ARTIFACT_KINDS = {
     "mir": (".mir",),
+    "llvm-ir": (".ll",),
     "evm-ir": (".evmir",),
     "disasm": (".disasm",),
     "bytecode": (".hex",),

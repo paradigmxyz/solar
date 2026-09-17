@@ -76,8 +76,10 @@ Inputs may be directories containing `results.json` or JSON paths. Artifacts def
 `artifacts/` beside each JSON. Use `--baseline-artifacts` and `--artifacts` for other paths.
 Add `--tests factorial counter` to select cases, `--artifact mir` for MIR diffs, or
 `--artifact evm-ir disasm bytecode` for backend output. `--compiler solc` or `--compiler solx`
-inspects that reference compiler;
-the default compares our compiler between runs. `--results PATH` without a baseline produces
+inspects that reference compiler. Solx artifacts include creation and runtime LLVM IR
+before and after optimization (`*.unoptimized.ll` and `*.optimized.ll`); use
+`--compiler solx --artifact llvm-ir` to compare them.
+The default compares our compiler between runs. `--results PATH` without a baseline produces
 a single-run CI report. Numeric regressions do not cause a nonzero exit status;
 missing or invalid result inputs do. The shared CI schema (`--common-output`)
 requires a complete, unfiltered run. `--compiler solc` requires two runs and shows

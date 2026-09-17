@@ -328,6 +328,12 @@ def artifact_compiler_input(input_text: str, test_case: TestCase, kind: str) -> 
     ]
     if kind in ("solc", "solx"):
         outputs.extend(("ir", "irOptimized"))
+    if kind == "solx":
+        outputs.extend(
+            f"evm.{segment}.{field}"
+            for segment in ("bytecode", "deployedBytecode")
+            for field in ("llvmIrUnoptimized", "llvmIr")
+        )
     payload.setdefault("settings", {})["outputSelection"] = {
         source: {test_case.contract_name: outputs}
     }
@@ -451,6 +457,15 @@ def write_artifacts(
     bytecodes: dict[str, bytes] = {}
     for prefix, key in (("creation", "bytecode"), ("runtime", "deployedBytecode")):
         bytecode = evm.get(key) or {}
+        if spec.kind == "solx":
+            for field, suffix in (
+                ("llvmIrUnoptimized", "unoptimized.ll"),
+                ("llvmIr", "optimized.ll"),
+            ):
+                if ir := bytecode.get(field):
+                    (output_dir / f"{prefix}.{suffix}").write_text(
+                        str(ir).rstrip() + "\n"
+                    )
         if object_hex := bytecode.get("object"):
             try:
                 bytes_ = bytes.fromhex(str(object_hex).removeprefix("0x"))
