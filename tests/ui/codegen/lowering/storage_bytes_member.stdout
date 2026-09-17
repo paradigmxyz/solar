@@ -433,6 +433,8 @@ bb42:
   eq
   push bb75
   jumpi
+  jump bb78
+bb78:
   push 128
   mstore
   push 32
@@ -510,11 +512,7 @@ bb51:
   shr
   push 248
   shl
-  push 128
-  mstore
-  push 32
-  push 128
-  return
+  jump bb78
 bb54:
   push 68
   calldatasize

@@ -12,22 +12,24 @@
     dup 1
     push bb3
     jumpi
-    push 1
-    push 2
-    add
-    push 32
-    mstore
-    stop
+-   push 1
+-   push 2
+-   add
+-   push 32
+-   mstore
+-   stop
++   jump bb5
   bb2:
     dup 1
     push bb4
     jumpi
-    push 1
-    push 2
-    add
-    push 32
-    mstore
-    stop
+-   push 1
+-   push 2
+-   add
+-   push 32
+-   mstore
+-   stop
++   jump bb5
   bb3:
     swap 2
     dup 2
@@ -46,4 +48,11 @@
     swap 1
     sub
     jump bb2
++ bb5:
++   push 1
++   push 2
++   add
++   push 32
++   mstore
++   stop
   

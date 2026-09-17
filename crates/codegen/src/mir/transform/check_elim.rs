@@ -438,6 +438,7 @@ impl<'a> CheckEliminator<'a> {
         self.strict_lower_bounds = None;
         self.relation_index = None;
         self.reverse_index = None;
+        self.difference_index = None;
         self.monotone_relations.clear();
         self.universal_relations.clear();
         self.trip_bounds.clear();
@@ -512,6 +513,8 @@ impl<'a> CheckEliminator<'a> {
                 self.monotone_relations.push(phi.relation());
             }
             self.relation_index = None;
+            self.reverse_index = None;
+            self.strict_lower_bounds = None;
             (folds, checks) = self.collect_folds(func, &cfg, &preds, &facts, &[], &mut Vec::new());
         }
         if let Some((selected, reverting)) = selected {
@@ -811,6 +814,7 @@ impl<'a> CheckEliminator<'a> {
         }
         self.relation_index = cx.relation_index;
         self.reverse_index = cx.reverse_index;
+        self.difference_index = cx.difference_index;
         entries
     }
 
@@ -929,7 +933,7 @@ impl<'a> CheckEliminator<'a> {
         }
     }
 
-    /// Builds the forward and reverse relation indexes on first use.
+    /// Builds the forward relation index on first use.
     fn ensure_relation_index(&mut self, func: &Function) {
         if self.relation_index.is_some() {
             return;
@@ -941,8 +945,16 @@ impl<'a> CheckEliminator<'a> {
         for &relation in &self.universal_relations {
             index_relation(&mut index, relation);
         }
+        self.relation_index = Some(index);
+    }
+
+    fn ensure_reverse_index(&mut self, func: &Function) {
+        if self.reverse_index.is_some() {
+            return;
+        }
+        self.ensure_relation_index(func);
         let mut reverse = FxHashMap::<_, SmallVec<[Relation; 2]>>::default();
-        for relation in index.values().flatten() {
+        for relation in self.relation_index.as_ref().unwrap().values().flatten() {
             let (a, b) = relation.operands();
             for key in if matches!(relation, Relation::Eq(..)) { [a, b] } else { [b, b] } {
                 let entry = reverse.entry(key).or_default();
@@ -950,6 +962,13 @@ impl<'a> CheckEliminator<'a> {
                     entry.push(*relation);
                 }
             }
+        }
+        self.reverse_index = Some(reverse);
+    }
+
+    fn ensure_difference_index(&mut self, func: &Function) {
+        if self.difference_index.is_some() {
+            return;
         }
         let mut differences = FxHashMap::<_, SmallVec<[(ValueId, ValueId); 2]>>::default();
         for inst_id in func.instructions() {
@@ -961,8 +980,6 @@ impl<'a> CheckEliminator<'a> {
                 }
             }
         }
-        self.relation_index = Some(index);
-        self.reverse_index = Some(reverse);
         self.difference_index = Some(differences);
     }
 
@@ -980,7 +997,7 @@ impl<'a> CheckEliminator<'a> {
             return false;
         }
         let Some(&InstKind::Add(first, second)) = inst_kind(func, sum) else { return false };
-        self.ensure_relation_index(func);
+        self.ensure_difference_index(func);
         self.sum_depth += 1;
         let found = [(first, second), (second, first)].into_iter().any(|(base, offset)| {
             let candidates = self
@@ -1012,7 +1029,7 @@ impl<'a> CheckEliminator<'a> {
         bound: ValueId,
         depth: usize,
     ) -> bool {
-        self.ensure_relation_index(func);
+        self.ensure_reverse_index(func);
         let reverse = self.reverse_index.as_ref().expect("relation index was just built");
         let mut amounts = SmallVec::<[U256; 4]>::new();
         for &fact in reverse.get(&bound).into_iter().flatten() {
@@ -1044,8 +1061,6 @@ impl<'a> CheckEliminator<'a> {
     /// which puts `value` at one or more: every word is at least zero.
     fn has_strict_lower_bound(&mut self, func: &Function, value: ValueId) -> bool {
         if self.strict_lower_bounds.is_none() {
-            self.ensure_relation_index(func);
-            let index = self.relation_index.as_ref().expect("relation index was just built");
             let mut nonzero = GrowableBitSet::with_capacity(func.num_values());
             let mut pending = Vec::new();
             for &fact in &self.relations {
@@ -1055,6 +1070,12 @@ impl<'a> CheckEliminator<'a> {
                     pending.push(bound);
                 }
             }
+            if pending.is_empty() {
+                self.strict_lower_bounds = Some(nonzero);
+                return false;
+            }
+            self.ensure_relation_index(func);
+            let index = self.relation_index.as_ref().expect("relation index was just built");
             // A strict edge makes its upper endpoint nonzero. Propagate that fact through
             // active orderings once per scope instead of searching backward for every value.
             while let Some(current) = pending.pop() {

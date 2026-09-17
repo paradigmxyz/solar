@@ -38,14 +38,8 @@ library ERC4337Utils {
 }
 
 contract CalldataStructFieldSlice {
-    // The single-use accessor is inlined into its wrapper. Past the length check, the
-    // `bytes20` conversion loads one calldata word at the slice start and masks it.
     // CDSFS-LABEL: fn @factory{{[.][0-9]+}}
-    // CDSFS-NOT: icall
-    // CDSFS: lt {{v[0-9]+}}, 20
-    // CDSFS: [[LEAD:v[0-9]+]] = calldataload
-    // CDSFS-NEXT: [[MASKED:v[0-9]+]] = and [[LEAD]], 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    // CDSFS-NEXT: shr 96, [[MASKED]]
+    // CDSFS: icall @factory
     function factory(PackedUserOperation calldata op) external pure returns (address) {
         return ERC4337Utils.factory(op);
     }
@@ -61,6 +55,12 @@ contract CalldataStructFieldSlice {
     // CDSFS: gt 32, {{v[0-9]+}}
     // CDSFS: [[WORD:v[0-9]+]] = calldataload
     // CDSFS-NEXT: mstore 128, [[WORD]]
+    // The accessor checks the length before loading and masking its leading word.
+    // CDSFS-LABEL: fn @factory{{[.][0-9]+}}
+    // CDSFS: lt {{v[0-9]+}}, 20
+    // CDSFS: [[LEAD:v[0-9]+]] = calldataload
+    // CDSFS-NEXT: [[MASKED:v[0-9]+]] = and [[LEAD]], 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
+    // CDSFS-NEXT: shr 96, [[MASKED]]
     // The hashing helper stays a separate function below the wrappers: the `[20:]` slice is
     // copied into memory and the hash reads that copy directly.
     // CDSFS-LABEL: fn @tailHash{{[.][0-9]+}}

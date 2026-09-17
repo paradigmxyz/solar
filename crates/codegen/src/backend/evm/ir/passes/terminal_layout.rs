@@ -17,8 +17,8 @@
 //! already terminate control flow. This removes the final STOP byte without adding a jump.
 //! Modules followed by data or code retain their explicit stop.
 //!
-//! Run this after structural sharing and loop layout, only for the gas objective. Size mode
-//! retains its layout because changing which caller pays the jump has no static size benefit.
+//! Run after structural sharing and loop layout. Size mode only moves a final STOP trace;
+//! exchanging which caller pays a jump has no static size benefit.
 
 use super::{
     EvmPass,
@@ -40,8 +40,17 @@ impl EvmPass for TerminalLayout {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        if !gcx.sess.opts.optimization.is_gas() || !has_small_fixed_layout(gcx, module) {
+        if !has_small_fixed_layout(gcx, module) {
             return false;
+        }
+        let mut order = module.blocks.indices().collect::<Vec<_>>();
+        if !gcx.sess.opts.optimization.is_gas() {
+            if !place_stop_last(module, &mut order) {
+                return false;
+            }
+            // terminal traces; stop trace
+            remap_block_order(module, &order);
+            return true;
         }
         let mut incoming = IndexVec::from_vec(vec![0usize; module.blocks.len()]);
         for block in &module.blocks {
@@ -56,7 +65,6 @@ impl EvmPass for TerminalLayout {
                 }
             }
         }
-        let mut order = module.blocks.indices().collect::<Vec<_>>();
         let mut moved = DenseBitSet::new_empty(module.blocks.len());
         for caller in module.blocks.indices() {
             let block = &module.blocks[caller];

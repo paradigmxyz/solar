@@ -66,7 +66,12 @@
 //! dominating block when that value is already live into the loading block or
 //! the address is loop-invariant: reviving a dead value across the loop body
 //! costs the scheduler more stack traffic than the load it removes. Acyclic
-//! reuse is unchanged.
+//! reuse is unchanged. Loop and liveness facts are built only when a candidate reuse needs them.
+//!
+//! `object-length-cse` runs this transform only on functions with semantic length reads.
+//! This early adapter unifies bounds before loop optimization without repeating CSE on every
+//! scalar helper. Unchanged functions without internal calls can skip later runs until their
+//! body changes; callers must still observe any improved callee summaries.
 
 use crate::mir::{
     AddressCallKind, BlockId, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId,
@@ -115,10 +120,9 @@ impl MirPass for Cse {
         let mut callers = DenseBitSet::new_empty(module.functions.len());
         for (id, func) in module.functions.iter_enumerated() {
             if matches!(self, Self::ObjectLengths)
-                && (!func
+                && !func
                     .instructions()
                     .any(|inst| matches!(func.inst(inst).kind, InstKind::MemoryObjectLen(..)))
-                    || analyses.cfg(id, func).cyclic_blocks().is_empty())
             {
                 continue;
             }
@@ -746,7 +750,7 @@ impl CommonSubexprEliminator {
         let facts = reuse.get_or_init(|| MemoryReuseFacts {
             liveness: Liveness::compute(func),
             definitions: func.inst_blocks(),
-            loops: LoopAnalyzer::new().analyze(func),
+            loops: LoopAnalyzer::new().analyze_structure(func),
         });
         let Some(header) = facts.loops.block_to_loop.get(&block) else { return true };
         let Some(loop_info) = facts.loops.loops.get(header) else { return true };

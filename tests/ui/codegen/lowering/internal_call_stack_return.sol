@@ -31,31 +31,36 @@ contract ICallStackReturn {
     // GAS-NEXT: eq
     // GAS-NEXT: push [[VOID_ENTRY:bb[0-9]+]]
     // GAS: [[COMMON_ENTRY]]:
+    // GAS-NEXT: push [[COMMON_RET:bb[0-9]+]]
+    // GAS-NEXT: jump [[SHARED:bb[0-9]+]]
+    // GAS-NEXT: [[SHARED]]:
     // GAS-NOT: mload
+    // GAS-NOT: mstore
     // GAS: push 11
     // GAS-NEXT: mul
-    // GAS-NEXT: add
-    // GAS-NEXT: push 128
-    // GAS-NEXT: mstore
-    // The void helper is inlined, keeping the multiplication live across storage writes.
+    // GAS: swap 2
+    // GAS-NEXT: jump
+    // The void helper keeps the multiplication live across storage writes.
     // GAS: [[VOID_ENTRY]]:
     // GAS: mul
     // GAS-NEXT: push 0
     // GAS-NEXT: sload
     // GAS: sstore
-    // The nested leaf is also inlined without reloading its result.
+    // GAS: [[COMMON_RET]] [continuation]:
+    // GAS-NEXT: add
+    // The nested entry shares the stack-only computation and adds three on return.
     // GAS: [[NESTED_ENTRY]]:
-    // GAS-NOT: mload
-    // GAS: push 11
-    // GAS-NEXT: mul
-    // GAS-NEXT: push 3
-    // GAS-NEXT: add
-    // GAS-NEXT: add
+    // GAS-NEXT: push [[NESTED_RET:bb[0-9]+]]
+    // GAS-NEXT: jump [[SHARED]]
     // ADDMOD consumes the inlined result without a frame reload.
     // GAS: [[MULTI_ENTRY]]:
     // GAS: or
     // GAS-NOT: mload
     // GAS: addmod
+    // GAS: [[NESTED_RET]] [continuation]:
+    // GAS-NEXT: push 3
+    // GAS-NEXT: add
+    // GAS-NEXT: jump [[COMMON_RET]]
 
     // Size mode keeps a one-word helper result on the physical stack and removes its
     // frame slot. Gas mode consumes the small helpers through single-use inlining.

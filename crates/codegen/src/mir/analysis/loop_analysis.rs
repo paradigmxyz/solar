@@ -95,26 +95,30 @@ impl LoopAnalyzer {
 
     /// Analyzes loops in a function.
     pub(crate) fn analyze(&mut self, func: &Function) -> LoopInfo {
-        let mut info = LoopInfo::default();
+        let mut info = self.analyze_structure(func);
+        for loop_info in info.loops.values_mut() {
+            self.analyze_induction_vars(func, loop_info);
+            self.find_invariant_instructions(func, loop_info);
+            self.analyze_trip_count(func, loop_info);
+        }
+        info
+    }
 
+    /// Finds loop membership, exits, and preheaders.
+    /// Leaves induction variables, invariants, and trip counts unset.
+    pub(crate) fn analyze_structure(&mut self, func: &Function) -> LoopInfo {
+        let mut info = LoopInfo::default();
         self.cfg = Some(CfgInfo::new(func));
         let mut loops = self.find_natural_loops(func);
-
         loops.sort_unstable_by_key(|loop_info| loop_info.header.index());
-
         for mut loop_info in loops {
             self.find_exit_blocks(func, &mut loop_info);
             self.find_preheader(func, &mut loop_info);
-            self.analyze_induction_vars(func, &mut loop_info);
-            self.find_invariant_instructions(func, &mut loop_info);
-            self.analyze_trip_count(func, &mut loop_info);
-
             for block in &loop_info.blocks {
                 info.block_to_loop.insert(block, loop_info.header);
             }
             info.loops.insert(loop_info.header, loop_info);
         }
-
         info
     }
 

@@ -707,7 +707,13 @@ impl IndVarSimplifier {
             .iter()
             .filter(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
             .count();
-        let mut seen = FxHashSet::default();
+        let mut defined_inside = DenseBitSet::new_empty(func.num_insts());
+        for block in loop_data.blocks.iter() {
+            for &inst in &func.blocks[block].instructions {
+                defined_inside.insert(inst);
+            }
+        }
+        let mut seen = DenseBitSet::new_empty(func.num_values());
         for block in loop_data.blocks.iter() {
             let block = &func.blocks[block];
             for operand in block
@@ -718,11 +724,7 @@ impl IndVarSimplifier {
                 .chain(block.terminator.iter().flat_map(Terminator::operands))
             {
                 let Value::Inst(inst_id) = func.value(operand) else { continue };
-                let defined_inside = loop_data
-                    .blocks
-                    .iter()
-                    .any(|block| func.blocks[block].instructions.contains(inst_id));
-                if !defined_inside && seen.insert(operand) {
+                if !defined_inside.contains(*inst_id) && seen.insert(operand) {
                     count += 1;
                 }
             }
