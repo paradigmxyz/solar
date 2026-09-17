@@ -983,16 +983,18 @@ pub(crate) fn signature_help(
     async move {
         let (Some(source), Some(analysis)) = (source, analysis) else { return Ok(None) };
         let tables = analysis.await?;
-        let cursor = source
+        let Some(range) = source
             .positions()
-            .text_range(lsp_types::Range::new(params.position, params.position))
-            .start;
+            .checked_text_range(lsp_types::Range::new(params.position, params.position))
+        else {
+            return Ok(None);
+        };
         Ok(tables.signature_help(
             &params.text_document.uri,
             params.position,
             source.positions(),
             &source.source(),
-            Some(source.statement_boundary(cursor)),
+            Some(source.statement_boundary(range.start)),
             options,
         ))
     }
