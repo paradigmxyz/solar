@@ -1,13 +1,15 @@
 //! Stack-resident phi planning for loops, branches, and live joins.
 
 use super::super::super::{
-    BlockId, DenseBitSet, Function, FunctionId, FxHashMap, FxHashSet, GlobalStackPlan, IndexVec,
-    InstId, InstKind, Liveness, Loop, LoopAnalyzer, MAX_STACK_ACCESS, STACK_PHI_LAYOUT_LIMIT,
-    SmallVec, Terminator, ValueId, index_vec, rematerializable_nullary_opcode,
+    BlockId, DenseBitSet, Function, FunctionId, FxHashMap, FxHashSet, GlobalStackPlan,
+    GrowableBitSet, IndexVec, InstId, InstKind, Liveness, Loop, LoopAnalyzer, MAX_STACK_ACCESS,
+    OptimizationMode, STACK_PHI_LAYOUT_LIMIT, SmallVec, Terminator, ValueId, index_vec,
+    rematerializable_nullary_opcode,
 };
 
 #[derive(Clone, Default)]
 pub(in crate::backend::evm::codegen) struct StackPhiPlan {
+    pub(in crate::backend::evm::codegen) loop_blocks: GrowableBitSet<BlockId>,
     pub(in crate::backend::evm::codegen) entries: FxHashMap<BlockId, Vec<ValueId>>,
     pub(in crate::backend::evm::codegen) edges: FxHashMap<BlockId, StackPhiEdge>,
     pub(in crate::backend::evm::codegen) branch_edges: FxHashMap<BlockId, StackPhiBranch>,
@@ -67,8 +69,9 @@ impl StackPhiPlan {
         func: &Function,
         liveness: &Liveness,
         cold_functions: &DenseBitSet<FunctionId>,
+        optimization: OptimizationMode,
     ) -> Self {
-        StackPhiPlanner::new(func, cold_functions).plan(liveness)
+        StackPhiPlanner::new(func, cold_functions, optimization).plan(liveness)
     }
 
     pub(in crate::backend::evm::codegen) fn edge_fits(
@@ -187,6 +190,7 @@ impl StackPhiPlan {
 }
 
 struct StackPhiPlanner<'a> {
+    optimization: OptimizationMode,
     func: &'a Function,
     loops: Vec<Loop>,
     header_results: FxHashMap<BlockId, Vec<ValueId>>,
@@ -258,7 +262,11 @@ impl LiveJoinState {
 }
 
 impl<'a> StackPhiPlanner<'a> {
-    fn new(func: &'a Function, cold_functions: &'a DenseBitSet<FunctionId>) -> Self {
+    fn new(
+        func: &'a Function,
+        cold_functions: &'a DenseBitSet<FunctionId>,
+        optimization: OptimizationMode,
+    ) -> Self {
         let mut loop_analyzer = LoopAnalyzer::new();
         let loop_info = loop_analyzer.analyze(func);
         let loops = loop_info.all_loops().cloned().collect();
@@ -271,8 +279,14 @@ impl<'a> StackPhiPlanner<'a> {
                 }
             }
         }
-        let mut planner =
-            Self { func, loops, header_results: FxHashMap::default(), definitions, cold_functions };
+        let mut planner = Self {
+            optimization,
+            func,
+            loops,
+            header_results: FxHashMap::default(),
+            definitions,
+            cold_functions,
+        };
         planner.collect_header_results();
         planner
     }
@@ -281,6 +295,9 @@ impl<'a> StackPhiPlanner<'a> {
         let mut plan = StackPhiPlan::default();
         self.plan_live_joins(liveness, &mut plan);
         for loop_info in &self.loops {
+            for block in loop_info.blocks.iter() {
+                plan.loop_blocks.insert(block);
+            }
             self.plan_loop(loop_info, liveness, &mut plan);
         }
         self.plan_branch_phi_joins(&mut plan);
@@ -706,12 +723,19 @@ impl<'a> StackPhiPlanner<'a> {
             // the branch's identity edge, so this order is what the branch shuffles to, and
             // matching the resident order keeps that shuffle empty on every execution. The
             // join edge reorders on its own path only.
-            let sources = state
+            let mut sources = state
                 .layouts
                 .get(&join)
                 .and_then(|layout| self.layout_sources(join, layout, pred))
                 .unwrap_or_default();
             let live_in = liveness.live_in(arm);
+            // branch; arm-local uses; join-only immediates on the join edge
+            if self.optimization == OptimizationMode::Gas {
+                sources.retain(|&value| {
+                    !matches!(self.func.value(value), crate::mir::Value::Immediate(_))
+                        || live_in.contains(value)
+                });
+            }
             let resident = state.resident_out.get(&pred).map(Vec::as_slice).unwrap_or_default();
             let wanted = &state.wanted[arm];
             let mut carried = resident
@@ -724,10 +748,17 @@ impl<'a> StackPhiPlanner<'a> {
                             && wanted.contains(value))
                 })
                 .collect::<Vec<_>>();
-            // Join words the predecessor does not hold are materialized for the branch.
+            // A two-word layout needs only one swap to put the condition above its reload.
+            let reload_on_top = carried.len() == 1
+                && sources.iter().filter(|value| !carried.contains(value)).count() == 1;
             for &value in &sources {
                 if !carried.contains(&value) {
-                    carried.push(value);
+                    // [resident]; push value -> [value, resident]
+                    if reload_on_top {
+                        carried.insert(0, value);
+                    } else {
+                        carried.push(value);
+                    }
                 }
             }
             carried.truncate(LIVE_JOIN_LAYOUT_LIMIT.max(sources.len()));
@@ -788,6 +819,14 @@ impl<'a> StackPhiPlanner<'a> {
             let live_out = liveness.live_out(block_id);
             resident.extend(defs.iter().copied().filter(|def| !incoming.contains(def)));
             resident.extend(incoming.iter().copied().filter(|value| live_out.contains(*value)));
+        }
+        // An unplanned branch consumes its condition. Its spill home may still exist, but
+        // the join planner must not count a reload as an already-resident stack word.
+        if !facts.planned_branches.contains(block_id)
+            && !plan.branch_edges.contains_key(&block_id)
+            && let Some(Terminator::Branch { condition, .. }) = &block.terminator
+        {
+            resident.retain(|value| value != condition);
         }
         if state.resident_out.get(&block_id) == Some(&resident) {
             return false;

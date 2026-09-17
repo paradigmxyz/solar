@@ -13,15 +13,15 @@
 // NONE: @module DumpPhase
 // NONE-NOT: @phase
 // NONE-LABEL: fn @f(arg0: u256)
-// NONE: add arg0, 0
-// GAS: @phase evm-shaped
+// NONE: checked_add {{[ui][0-9]+}}, arg0, 0
+// GAS: @phase lowered
 // GAS-NOT: add arg0, 0
 // PIPELINE: {{^// === .*:DumpPhase \(after none\) ===$}}
 // PIPELINE: @module DumpPhase
-// PIPELINE: add arg0, 0
+// PIPELINE: checked_add {{[ui][0-9]+}}, arg0, 0
 // SUBSTITUTE: @module DumpPhase
 // SUBSTITUTE-NOT: @phase
-// SUBSTITUTE: add arg0, 0
+// SUBSTITUTE: checked_add {{[ui][0-9]+}}, arg0, 0
 // EVM-SUBSTITUTE: @module DumpPhase_runtime
 // EVM-SUBSTITUTE: jump [[NEXT:bb[0-9]+]]
 // EVM-SUBSTITUTE-NEXT: [[NEXT]]:

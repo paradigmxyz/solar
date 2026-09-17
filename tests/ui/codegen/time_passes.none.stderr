@@ -1,10 +1,14 @@
+time: <TIME>	MIR TimePasses lower-checks changed=false
+time: <TIME>	MIR TimePasses lower-builtins changed=false
+time: <TIME>	MIR TimePasses lower-arithmetic changed=false
 time: <TIME>	MIR TimePasses lower-abi changed=true
 time: <TIME>	MIR TimePasses lower-abi-encode changed=false
 time: <TIME>	MIR TimePasses lower-aggregates changed=false
 time: <TIME>	MIR TimePasses lower-dispatch changed=true
+time: <TIME>	MIR TimePasses lower-structs changed=false
 time: <TIME>	MIR TimePasses lower-frame-slots changed=false
 time: <TIME>	MIR TimePasses lower-mapping-slots changed=false
-time: <TIME>	MIR TimePasses lower-memory-objects changed=true
+time: <TIME>	MIR TimePasses lower-memory-objects changed=false
 time: <TIME>	MIR TimePasses lower-slices changed=false
 time: <TIME>	MIR TimePasses lower-immutables changed=false
 time: <TIME>	MIR TimePasses lower-alloc changed=false

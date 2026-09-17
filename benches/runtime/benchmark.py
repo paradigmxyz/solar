@@ -1562,15 +1562,29 @@ def merge_reference_compiler(
     if entry.get("gas_profile") != reference.get("gas_profile"):
         return False
     # Compilation failures have no runtime workload to match.
-    if reference_data.get("status") != "failed" and not any(
-        workload_signature(data) == workload_signature(reference_data)
-        for data in compilers.values()
-        if isinstance(data, dict)
-    ):
+    matching_data = next(
+        (
+            data
+            for data in compilers.values()
+            if isinstance(data, dict)
+            and workload_signature(data) == workload_signature(reference_data)
+        ),
+        None,
+    )
+    if reference_data.get("status") != "failed" and matching_data is None:
         return False
 
+    imported = copy.deepcopy(reference_data)
+    if matching_data is not None:
+        for old_call, current_call in zip(
+            imported.get("gas_results") or [],
+            matching_data.get("gas_results") or [],
+            strict=True,
+        ):
+            if reason := current_call.get("comparison_exclusion_reason"):
+                old_call["comparison_exclusion_reason"] = reason
     entry["compilers"] = {
-        compiler_id: copy.deepcopy(reference_data),
+        compiler_id: imported,
         **compilers,
     }
     return True
@@ -1748,6 +1762,7 @@ def run_test_case(
                             "call": call.signature,
                             "args": list(call.args),
                             "gas": None,
+                            "comparison_exclusion_reason": call.comparison_exclusion_reason,
                             "error": error,
                         }
                     )
@@ -1758,6 +1773,7 @@ def run_test_case(
                         "call": call.signature,
                         "args": list(call.args),
                         "gas": gas,
+                        "comparison_exclusion_reason": call.comparison_exclusion_reason,
                     }
                 )
                 total_gas += gas

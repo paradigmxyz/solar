@@ -9,7 +9,7 @@
 +     sstore arg1, 2 !metadata(storage=symbolic(arg1))
       jump bb1
     bb1:
-      jumpi 1, bb2, bb4
+      jumpi true, bb2, bb4
     bb4:
       stop
     bb2:
@@ -36,7 +36,7 @@
 +     sstore 7, 2 !metadata(storage=slot(7))
       jump bb1
     bb1:
-      jumpi 1, bb2, bb4
+      jumpi true, bb2, bb4
     bb4:
       stop
     bb2:
@@ -63,7 +63,7 @@
 +     mstore 160, 2
       jump bb1
     bb1:
-      jumpi 1, bb2, bb4
+      jumpi true, bb2, bb4
     bb4:
 +     v5 = mload 160
 +     sstore 1, v5
@@ -96,7 +96,7 @@
 +     mstore 160, 2
       jump bb1
     bb1:
-      jumpi 1, bb2, bb4
+      jumpi true, bb2, bb4
     bb4:
 +     v11 = mload 160
 +     sstore v1, v11
@@ -120,6 +120,28 @@
 +     mstore 160, v8
       jump bb3
     bb3:
+      jump bb1
+  }
+  
+  fn @reject_hidden_storage_read(arg0: u256) [selector=0x01020309] {
+    bb0:
+-     sstore 0, 2
++     sstore 0, 2 !metadata(storage=slot(0))
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v5]
+      v1 = lt v0, arg0
+      jumpi v1, bb2, bb3
+    bb3:
+      ret
+    bb2:
+-     v2 = sload 0
++     v2 = sload 0 !metadata(storage=slot(0))
+      v3 = add v2, 2
+-     sstore 0, v3
++     sstore 0, v3 !metadata(storage=slot(0))
+      v4 = load_storage_bytes 0
+      v5 = add v0, 1
       jump bb1
   }
   

@@ -11,7 +11,7 @@ use eyre::{Result, eyre};
 use regex::bytes::Regex;
 use std::{
     ffi::{OsStr, OsString},
-    io,
+    io::{self, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::OnceLock,
@@ -653,15 +653,26 @@ impl Flag for FileCheck {
     fn post_test_action(
         &self,
         config: &TestConfig,
-        _output: &std::process::Output,
+        output: &std::process::Output,
         _build_manager: &BuildManager,
     ) -> std::result::Result<(), Errored> {
         let stdout_path = config.status.path().with_extension(config.extension("stdout"));
-        if !stdout_path.exists() {
+        if stdout_path.exists() {
+            return run_filecheck(config.status.path(), &self.args, &stdout_path);
+        }
+        if !config
+            .comments()
+            .flat_map(|comments| &comments.compile_flags)
+            .any(|flag| flag.starts_with("-Zdump="))
+        {
             return Ok(());
         }
 
-        run_filecheck(config.status.path(), &self.args, &stdout_path)
+        // Runtime checks discard stdout snapshots, but their IR dumps still need FileCheck.
+        let error = |err| command_error("FileCheck".into(), err);
+        let mut stdout = tempfile::NamedTempFile::new().map_err(error)?;
+        stdout.write_all(&output.stdout).map_err(error)?;
+        run_filecheck(config.status.path(), &self.args, stdout.path())
     }
 
     fn must_be_unique(&self) -> bool {

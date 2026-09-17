@@ -4,11 +4,11 @@
   bb0 [invoke=first@1..30]:
     push 11 !metadata(span=1..5)
 -   push 22 !metadata(span=6..10, invoke=inner_first@6..30)
--   push 33 !metadata(span=11..15)
+-   push 33 !metadata(span=11..15, invoke=nested@11..30)
 -   push 44 !metadata(span=16..20)
 -   push 55 !metadata(span=21..25)
 -   revert !metadata(span=26..30)
-+   jump bb2 !metadata(span=6..10, invoke=inner_first@6..30)
++   jump bb2 !metadata(span=6..10)
   bb1 [invoke=second@31..60]:
     push 99 !metadata(span=31..35)
 -   push 22 !metadata(span=36..40, invoke=inner_second@36..60)

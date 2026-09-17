@@ -12,3 +12,19 @@
       ret v0
   }
   
+  fn @dead_cycle_to_live_phi(arg0: u256, arg1: bool) -> u256 {
+    bb0:
+      jump bb3
+    bb3:
+-     v1 = phi [bb0: arg0], [bb2: v0]
++     v1 = phi [bb0: arg0]
+      ret v1
+    bb1:
+-     v0 = add arg0, 1
+-     jump bb2
++     invalid
+    bb2:
+-     jumpi arg1, bb1, bb3
++     invalid
+  }
+  

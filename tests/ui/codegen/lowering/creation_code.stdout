@@ -2,14 +2,14 @@
 @module CreationCodeChild
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/creation_code.sol:CreationCodeFactory ===
 @module CreationCodeFactory
 fn @creationCode() -> memorybytes [selector=0x7213edad, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 160
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 112
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x6070380380607060c03960c001601f017fffffffffffffffffffffffffffffff

@@ -89,12 +89,19 @@ The comparison reports missing/failed cases and excludes incompatible inputs or 
 workloads from deltas. The summary uses the geometric mean of candidate/baseline ratios,
 with equal weight per benchmark, separately for each metric. Zero-valued pairs stay in
 the per-case results and change counts but do not enter the mean. Runtime gas sums the
-measured transactions within each benchmark, not across benchmarks. It includes per-call gas changes,
+comparable transactions within each benchmark, not across benchmarks. It includes per-call gas changes,
 compile samples in JSON, artifact hashes, and file additions/removals, so equal bytecode sizes
 do not hide changed bytecode. Missing artifacts are reported as unavailable, including the
 whole-project cases that do not capture them. Compile time and RSS comparisons require matching
 compiler labels and known build profiles; machine differences and timing noise still need review.
 Artifact capture errors and runtime observation changes appear in the comparison's issues.
+
+Calls with `comparison_exclusion_reason` still execute and retain their raw gas and
+failures in `results.json`. Reports sum only calls eligible on both sides and list
+excluded gas and reasons separately. This excludes the upstream LibString memory
+brutalizer, whose workload depends on gas and contract bytecode. Older baselines
+use exclusions recorded by the candidate; two old reports without this metadata
+retain their original totals.
 
 The workload definitions and helper fixtures were imported from
 [`walnuthq/solidity-compiler-benchmarks`](https://github.com/walnuthq/solidity-compiler-benchmarks)

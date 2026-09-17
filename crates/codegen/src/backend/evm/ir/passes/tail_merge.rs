@@ -268,6 +268,8 @@ impl RunState {
                 if previous_tail.is_none()
                     && let Some(tail_terminator) = &mut tail.terminator
                 {
+                    // NOTE: A shared terminator cannot retain one path's invocation.
+                    tail_terminator.metadata.take_function_invoke();
                     for &(site, site_common) in &group.sites {
                         if site_common >= common
                             && let Some(site_terminator) = &module.blocks[site].terminator
@@ -327,11 +329,14 @@ fn suffix_debug_info(block: &Block, len: usize) -> Metadata {
     {
         metadata.copy_source_debug_from(origin);
     }
-    let mut functions =
-        suffix.iter().filter_map(|instruction| instruction.metadata.function_invoke());
-    let function = functions.next();
-    debug_assert!(functions.all(|other| Some(other) == function));
-    if let Some(function) = function {
+    let mut functions = suffix
+        .iter()
+        .map(|instruction| &instruction.metadata)
+        .chain(block.terminator.iter().map(|terminator| &terminator.metadata))
+        .filter_map(Metadata::function_invoke);
+    if let Some(function) = functions.next()
+        && functions.all(|other| other == function)
+    {
         metadata.set_function_invoke(function);
     }
     metadata

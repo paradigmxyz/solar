@@ -54,9 +54,10 @@
     bb1:
 -     v3 = add arg0, 32
 -     mstore v3, 7
+-     v4 = mload v1
+-     ret v4
 +     mstore v1, 7
-      v4 = mload v1
-      ret v4
++     ret 7
   }
   
   fn @keep_distinct_negative_memory_offsets(arg0: u256) -> u256 {

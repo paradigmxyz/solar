@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/none/terminator_metadata.mir (after pipeline-default) ===
 @module TerminatorMetadata
-@phase evm-shaped
+@phase lowered
 fn @checked(arg0: u256) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2 !metadata(span=10..20)

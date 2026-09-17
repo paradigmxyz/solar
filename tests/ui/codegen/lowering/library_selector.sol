@@ -10,7 +10,7 @@ library L {
 }
 
 contract C {
-    // CHECK-LABEL: fn @sel() [selector=0x41c910e1, pure]
+    // CHECK-LABEL: fn @sel() [selector=0x41c910e1, abi_wrapper, pure]
     // CHECK: mstore 128, 0xb3de648b00000000000000000000000000000000000000000000000000000000
     function sel() public pure returns (bytes4) {
         return L.f.selector;

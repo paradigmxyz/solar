@@ -1,9 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir (before lower-memory-objects) ===
 + // === ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir (after lower-memory-objects) ===
   @module LowerMemoryObjects
-- @phase dispatch
 - fn @objects(arg0: memorybytes, arg1: memoryarray, arg2: memorystruct, arg3: memoryfixedarray) {
-+ @phase memory-lowered
 + fn @objects(arg0: memptr, arg1: memptr, arg2: memptr, arg3: memptr) {
     bb0:
 -     v0 = alloc memorybytes, exact, zeroed, panic, 96
@@ -59,5 +57,45 @@
 +     v1 = add arg1, 32
 +     mcopy v0, v1, arg2
       stop
+  }
+  
+- fn @raw_pointer(arg0: u256) -> memorybytes {
++ fn @raw_pointer(arg0: u256) -> memptr {
+    bb0:
+-     v0 = memory_object_from_ptr memorybytes, arg0
+-     ret v0
++     ret arg0
+  }
+  
+- fn @word_carrier(arg0: memorystruct) -> u256 {
++ fn @word_carrier(arg0: memptr) -> u256 {
+    bb0:
+-     v0 = word_cast arg0
+-     v1 = memory_object_len memorybytes, v0
++     v1 = mload arg0
+      ret v1
+  }
+  
+  fn @unreachable_cast_cycle() -> u256 {
+    bb0:
+      ret 0
+-   bb1:
+-     v0 = word_cast v1
+-     v1 = word_cast v0
+-     ret v0
+  }
+  
+- fn @merged_allocations() -> memorybytes {
++ fn @merged_allocations() -> memptr {
+    bb0:
+-     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
+-     set_memory_object_len memorybytes, v0, 0
+-     v1 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+-     set_memory_object_len memorybytes, v1, 0
++     v0 = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
++     mstore v0, 0
++     v1 = add v0, 32
++     mstore v1, 0
+      ret v1
   }
   

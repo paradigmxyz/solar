@@ -9,63 +9,42 @@
 //@ run-call: hashBranch false, 1, 2 => 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6
 //@ run-call: hashBranch true, 1, 2 => 0xe90b7bceb6e7df5418fb78d8ee546e97c83a08bbccc01a0644d599ccd2a7c2e0
 
-// Each branch stores its free-memory-pointer load before updating the pointer, but the loaded value
-// does not escape the branch. Gas and unoptimized lowering should therefore reuse one block-local
-// spill slot. Size lowering deliberately keeps both slots stable.
-//
+// Gas and unoptimized lowering reserve one block-local free-memory-pointer spill slot;
+// size lowering reserves two stable slots. EVM cleanup removes unused optimized stores.
 // NONE-LABEL: @module FmpBlockLocalSpills_runtime
-// NONE-NEXT: bb0:
-// NONE-NEXT: push 192
+// NONE: push 288
 // NONE-NEXT: push 64
 // NONE-NEXT: mstore
-// NONE: bb11:
-// NONE-NEXT: push 64
+// NONE: push 64
 // NONE-NEXT: mload
 // NONE-NEXT: dup 1
-// NONE-NEXT: push [[NONE_FMP_SLOT:[0-9]+]]
+// NONE-NEXT: push [[FMP_SLOT:[0-9]+]]
 // NONE-NEXT: mstore
-// NONE: bb12:
-// NONE-NEXT: push 64
+// NONE: keccak256
+// NONE: jump [[JOIN:bb[0-9]+]]
+// NONE: push 64
 // NONE-NEXT: mload
 // NONE-NEXT: dup 1
-// NONE-NEXT: push [[NONE_FMP_SLOT]]
+// NONE-NEXT: push [[FMP_SLOT]]
 // NONE-NEXT: mstore
 //
 // GAS-LABEL: @module FmpBlockLocalSpills_runtime
-// GAS-NEXT: bb0:
-// GAS-NEXT: push 192
+// GAS: push 288
 // GAS-NEXT: push 64
 // GAS-NEXT: mstore
-// GAS: pop
+// GAS: mload
+// GAS-NEXT: push 32
+// GAS: mload
 // GAS-NEXT: push 64
-// GAS-NEXT: mload
-// GAS-NEXT: dup 1
-// GAS-NEXT: push [[GAS_FMP_SLOT:[0-9]+]]
-// GAS-NEXT: mstore
-// GAS: bb10:
-// GAS-NEXT: push 64
-// GAS-NEXT: mload
-// GAS-NEXT: dup 1
-// GAS-NEXT: push [[GAS_FMP_SLOT]]
-// GAS-NEXT: mstore
 //
 // SIZE-LABEL: @module FmpBlockLocalSpills_runtime
-// SIZE-NEXT: bb0:
-// SIZE-NEXT: push 224
+// SIZE: push 320
 // SIZE-NEXT: push 64
 // SIZE-NEXT: mstore
-// SIZE: pop
+// SIZE: mload
+// SIZE-NEXT: push 32
+// SIZE: mload
 // SIZE-NEXT: push 64
-// SIZE-NEXT: mload
-// SIZE-NEXT: dup 1
-// SIZE-NEXT: push 192
-// SIZE-NEXT: mstore
-// SIZE: bb10:
-// SIZE-NEXT: push 64
-// SIZE-NEXT: mload
-// SIZE-NEXT: dup 1
-// SIZE-NEXT: push 160
-// SIZE-NEXT: mstore
 contract FmpBlockLocalSpills {
     function hashBranch(
         bool pair,

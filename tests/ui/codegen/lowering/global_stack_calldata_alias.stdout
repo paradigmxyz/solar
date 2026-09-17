@@ -50,7 +50,7 @@ bb24:
   swap 1
   dup 2
   lt
-  push bb10
+  push bb22
   jumpi
   jump bb23
 bb23:
@@ -66,28 +66,28 @@ bb3 [cold]:
 bb9:
   push 2
   dup 2
-  eq
-  push bb11
-  jumpi
-  push 3
-  dup 2
   sub
-  push bb16
+  push bb12
   jumpi
-  push 3
-  jump bb25
-bb11:
   push 2
   jump bb25
-bb16:
+bb12:
+  push 3
+  dup 2
+  sub
+  push bb15
+  jumpi
+  push 3
+  jump bb25
+bb15:
   push 4
   dup 2
   sub
-  push bb19
+  push bb18
   jumpi
   push 4
   jump bb25
-bb19:
+bb18:
   push 5
   sub
   push bb23
@@ -96,15 +96,13 @@ bb19:
   dup 2
   add
   jump bb24
-bb10 [cold]:
+bb22 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 17
-  push 4
+  push 32
   mstore
   push 36
-  push 0
+  push 28
   revert

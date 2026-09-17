@@ -4,7 +4,7 @@
 // named like the library deployment address must not turn its non-view routes
 // into guarded library entries: only a `@library` module carries the guard.
 @module NamedImmutable
-@phase abi
+@phase semantic
 immutables:
   library_deploy_address: address
 
@@ -15,7 +15,7 @@ immutables:
 // CHECK-NOT: loadimmutable
 // CHECK-NOT: address
 // CHECK: + tail_call @write
-fn @write() [selector=0x00000002] {
+fn @write() [selector=0x00000002, abi_wrapper] {
   bb0:
     stop
 }

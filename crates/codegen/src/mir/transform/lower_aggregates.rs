@@ -1,11 +1,12 @@
 //! Lower semantic memory/storage aggregate operations to word operations.
 //!
 //! Walk each function after the main optimization pipeline and expand aggregate
-//! copies, loads, and clears using their recorded storage layouts. Packed fields
-//! are grouped by slot; partial groups preserve uncovered bytes. Expansions can
+//! copies, loads, and clears using their recorded word and nested aggregate layouts.
+//! Statically sized arrays expand into counted loops. Expansions can
 //! introduce loops, so the original control transfer and its source context move
-//! together to the final continuation block. Layouts remain explicit rather than
-//! being inferred again from physical memory operations.
+//! together to the final continuation block, repairing successor phi labels locally.
+//! Each emitted operation inherits the aggregate operation's source context. Layouts remain
+//! explicit rather than being inferred again from physical memory operations.
 
 use crate::mir::{
     Function, FunctionBuilder, InstKind, MemoryObjectLayout, Module, StorageField, StorageLayout,
@@ -101,6 +102,8 @@ fn lower_function(func: &mut Function) -> bool {
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         for inst in instructions {
+            let metadata = builder.func().inst(inst).metadata.debug_context();
+            builder.set_debug_context(&metadata);
             match &builder.func().inst(inst).kind {
                 InstKind::StorageToMemory { storage, memory, layout } => {
                     let (storage, memory, layout) = (*storage, *memory, layout.clone());
@@ -125,6 +128,10 @@ fn lower_function(func: &mut Function) -> bool {
         // final_block: lowered_aggregate_ops; terminator !metadata(original block)
         builder.func_mut().blocks[current].terminator = terminator;
         builder.func_mut().blocks[current].terminator_metadata = terminator_metadata;
+        if current != block {
+            // successor: phi [block: value] -> phi [current: value]
+            super::utils::redirect_successor_predecessors(builder.func_mut(), block, current);
+        }
     }
     true
 }

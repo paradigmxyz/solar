@@ -22,15 +22,15 @@ fn @fuse_consecutive() -> u256 {
 }
 
 // A fused zeroed group reserves the complete range once, but preserves each member's zeroing at
-// its original program point. The fused bump keeps the overflow panic when any member carried one.
+// its original program point. Checked allocations remain separate.
 // CHECK-LABEL: fn @fuse_zeroed
-// CHECK: + v0 = alloc raw, exact, uninitialized, panic, 96
+// CHECK: + v0 = alloc raw, exact, uninitialized, infallible, 96
 // CHECK-NEXT: + memory_zero v0, 64
 // CHECK: + v1 = add v0, 64
 // CHECK-NEXT: + memory_zero v1, 32
 fn @fuse_zeroed() -> u256 {
   bb0:
-    v0 = alloc raw, exact, zeroed, panic, 64
+    v0 = alloc raw, exact, zeroed, infallible, 64
     v1 = alloc raw, exact, zeroed, infallible, 32
     v2 = mload v1
     ret v2
@@ -104,5 +104,36 @@ fn @keep_across_set_fmp() -> memptr {
     set_fmp 65536
     v1 = alloc raw, exact, uninitialized, infallible, 32
     mstore v1, 5
+    ret v1
+}
+
+// Checked zeroing and later allocation checks keep their original order.
+// CHECK-LABEL: fn @keep_checked_zeroed
+// CHECK-NOT: +
+fn @keep_checked_zeroed() -> memptr {
+  bb0:
+    v0 = alloc raw, exact, zeroed, panic, 64
+    v1 = alloc raw, exact, zeroed, panic, 32
+    ret v1
+}
+
+// An infallible bump must not acquire a later member's panic check.
+// CHECK-LABEL: fn @keep_mixed_failures
+// CHECK-NOT: +
+fn @keep_mixed_failures() -> memptr {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 64
+    v1 = alloc raw, exact, uninitialized, panic, 32
+    ret v1
+}
+
+// Control effects end a group even when the instruction has no memory effect.
+// CHECK-LABEL: fn @keep_across_check
+// CHECK-NOT: +
+fn @keep_across_check(arg0: u256) -> u256 {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 64
+    v1 = checked_add u256, arg0, 1
+    v2 = alloc raw, exact, uninitialized, infallible, 32
     ret v1
 }

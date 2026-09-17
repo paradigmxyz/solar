@@ -3,7 +3,7 @@
 use super::{ArgIdx, InstId, MirType, TypeSize};
 use alloy_primitives::U256;
 use solar_interface::diagnostics::ErrorGuaranteed;
-use std::fmt;
+use std::{cmp::Ordering, fmt};
 
 /// An SSA value in the MIR.
 #[derive(Clone, Debug)]
@@ -45,6 +45,8 @@ pub(crate) enum Immediate {
     UInt(U256, TypeSize),
     /// Signed integer constant.
     Int(U256, TypeSize),
+    /// A constant pointer; its type implies no validity or aliasing guarantee.
+    Pointer(U256, MirType),
 }
 
 impl Immediate {
@@ -58,6 +60,12 @@ impl Immediate {
             Some(MirType::Bool) if value <= U256::from(1) => Self::Bool(!value.is_zero()),
             Some(MirType::UInt(size)) if fits_unsigned(value, size) => Self::UInt(value, size),
             Some(MirType::Int(size)) if fits_signed(value, size) => Self::Int(value, size),
+            Some(
+                ty @ (MirType::MemPtr
+                | MirType::CalldataPtr
+                | MirType::StoragePtr
+                | MirType::MemoryObject(_)),
+            ) => Self::Pointer(value, ty),
             _ => Self::uint256(value),
         }
     }
@@ -69,6 +77,7 @@ impl Immediate {
             Self::Bool(_) => MirType::Bool,
             Self::UInt(_, bits) => MirType::UInt(*bits),
             Self::Int(_, bits) => MirType::Int(*bits),
+            Self::Pointer(_, ty) => *ty,
         }
     }
 
@@ -89,7 +98,7 @@ impl Immediate {
     pub(crate) fn as_u256(&self) -> Option<U256> {
         match self {
             Self::Bool(b) => Some(U256::from(*b as u64)),
-            Self::UInt(v, _) | Self::Int(v, _) => Some(*v),
+            Self::UInt(v, _) | Self::Int(v, _) | Self::Pointer(v, _) => Some(*v),
         }
     }
 }
@@ -112,7 +121,42 @@ impl fmt::Display for Immediate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Bool(b) => write!(f, "{b}"),
-            Self::UInt(v, _) | Self::Int(v, _) => write!(f, "{v}"),
+            Self::UInt(v, _) | Self::Int(v, _) | Self::Pointer(v, _) => write!(f, "{v}"),
         }
+    }
+}
+
+impl Ord for Immediate {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let rank = |value: &Self| match value {
+            Self::Bool(_) => 0,
+            Self::UInt(_, _) => 1,
+            Self::Int(_, _) => 2,
+            Self::Pointer(_, _) => 3,
+        };
+        let pointer_rank = |ty| match ty {
+            MirType::MemPtr => 0,
+            MirType::StoragePtr => 1,
+            MirType::CalldataPtr => 2,
+            MirType::MemoryObject(kind) => 3 + kind as u8,
+            _ => unreachable!("pointer immediate has a pointer type"),
+        };
+        rank(self).cmp(&rank(other)).then_with(|| match (self, other) {
+            (Self::Bool(a), Self::Bool(b)) => a.cmp(b),
+            (Self::UInt(a, a_bits), Self::UInt(b, b_bits))
+            | (Self::Int(a, a_bits), Self::Int(b, b_bits)) => {
+                a_bits.cmp(b_bits).then_with(|| a.cmp(b))
+            }
+            (Self::Pointer(a, a_ty), Self::Pointer(b, b_ty)) => {
+                pointer_rank(*a_ty).cmp(&pointer_rank(*b_ty)).then_with(|| a.cmp(b))
+            }
+            _ => Ordering::Equal,
+        })
+    }
+}
+
+impl PartialOrd for Immediate {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }

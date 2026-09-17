@@ -4,7 +4,7 @@
 // `built` is the default phase: an explicit `@phase built` parses but is
 // not printed back.
 @module PhaseExplicitBuilt
-@phase built
+@phase semantic
 fn @f() {
   bb0:
     stop

@@ -45,22 +45,29 @@ contract ICallStackReturn {
     //
     // A nested helper rotates its one-word result above the hidden return label.
     // GAS: [[NESTED_ENTRY]]:
+    // GAS: mul
+    // GAS-NEXT: push [[NESTED_RETURN:bb[0-9]+]]
+    // GAS-NEXT: jump [[HELPER:bb[0-9]+]]
+    // GAS-NEXT: [[HELPER]]:
     // GAS: push 11
     // GAS-NEXT: mul
-    // GAS-NEXT: push 3
-    // GAS-NEXT: add
-    // GAS-NEXT: swap1
+    // GAS-NEXT: swap 1
     // GAS-NEXT: jump
     //
     // ADDMOD consumes two caller words and the helper result without a frame reload.
     // GAS: [[MULTI_ENTRY]]:
     // GAS: or
-    // GAS: addmod
+    // GAS: push [[MULTI_RETURN:bb[0-9]+]]
+    // GAS-NEXT: jump [[HELPER]]
     //
     // The ordinary one-result callers share a tail-merged stack-only entry.
     // GAS: [[COMMON_ENTRY]]:
-    // GAS: push 11
-    // GAS-NEXT: mul
+    // GAS: jump [[HELPER]]
+    // GAS: [[NESTED_RETURN]]:
+    // GAS-NEXT: push 3
+    // GAS-NEXT: add
+    // GAS: [[MULTI_RETURN]]:
+    // GAS: addmod
 
     // Both optimized modes keep a one-word helper result on the physical stack and remove its
     // frame slot. Five operations keep each leaf above the tiny-leaf inlining threshold so these
@@ -69,7 +76,7 @@ contract ICallStackReturn {
     // SIZE-LABEL: @module ICallStackReturn_runtime
     // SIZE: push 11
     // SIZE-NEXT: mul
-    // SIZE-NEXT: swap1
+    // SIZE-NEXT: swap 1
     // SIZE-NEXT: jump
     function stackAcross(uint256 x) external pure returns (uint256) {
         unchecked {

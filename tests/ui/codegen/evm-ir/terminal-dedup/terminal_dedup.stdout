@@ -5,12 +5,12 @@
     push 1
     indexed_jump bb1, bb2
 - bb1 [cold]:
-+ bb1:
++ bb1 [loop]:
     push 64
     push 32
     push 0
     revert
-  bb2:
+  bb2 [loop]:
 -   push 64
 -   push 32
 -   push 0

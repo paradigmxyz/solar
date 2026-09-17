@@ -6,17 +6,60 @@ bb0:
   push 1 !metadata(span=1..5)
   jumpi bb1, bb2 !metadata(span=6..10)
 
+// Shared instructions retain both source origins and omit conflicting function events.
 // CHECK-LABEL: {{^[ +].*}}bb1 [invoke=first@1..10]:
 // CHECK: {{^[ +].*}}push 0 !metadata(spans=[11..15, 31..35])
 // CHECK: {{^[ +].*}}revert !metadata(spans=[20..25, 40..45])
 bb1 [invoke=first@1..10]:
-  push 0 !metadata(span=11..15)
+  push 0 !metadata(span=11..15, invoke=nested_first@11..25)
   dup 1 !metadata(span=16..19)
   revert !metadata(span=20..25)
 
 // CHECK-LABEL: {{^[ +].*}}bb2 [invoke=second@11..20]:
 // CHECK: + jump bb1
 bb2 [invoke=second@11..20]:
-  push 0 !metadata(span=31..35)
+  push 0 !metadata(span=31..35, invoke=nested_second@31..45)
   dup 1 !metadata(span=36..39)
   revert !metadata(span=40..45)
+
+// A later copy cannot restore an invocation that conflicts within the group.
+bb3:
+  push 0 !metadata(invoke=nested_first@11..25)
+  dup 1
+  revert
+
+// Missing events merge with a known invocation and exit in either order.
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK: {{^[ +].*}}push 32 !metadata(invoke=known@51..60)
+// CHECK: {{^[ +].*}}pop !metadata(invoke=known@51..60)
+// CHECK: {{^[ +].*}}stop !metadata(invoke=known@51..60, exit=return)
+bb4:
+  push 32
+  pop !metadata(invoke=known@51..60)
+  stop
+bb5:
+  push 32 !metadata(invoke=known@51..60)
+  pop
+  stop !metadata(invoke=known@51..60, exit=return)
+bb6:
+  push 32
+  pop
+  stop
+
+// Conflicting exits and terminator invocations stay unknown across later copies.
+// CHECK-LABEL: {{^[ +].*}}bb7:
+// CHECK: {{^[ +].*}}push 64
+// CHECK: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}stop{{$}}
+bb7:
+  push 64
+  pop
+  stop !metadata(invoke=first@1..10, exit=return)
+bb8:
+  push 64
+  pop
+  stop !metadata(invoke=second@11..20, exit=revert)
+bb9:
+  push 64
+  pop
+  stop !metadata(invoke=first@1..10, exit=return)

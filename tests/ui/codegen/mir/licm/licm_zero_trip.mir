@@ -12,6 +12,7 @@ fn @keep_sload_zero_trip() -> u256 {
     v0 = calldatasize
     jump bb1
   bb1:
+    v10 = phi [bb0: 0], [bb2: v3]
     v1 = phi [bb0: 0], [bb2: v9]
     v2 = lt v1, v0
     jumpi v2, bb2, bb3
@@ -20,7 +21,7 @@ fn @keep_sload_zero_trip() -> u256 {
     v9 = add v1, 1
     jump bb1
   bb3:
-    ret v3
+    ret v10
 }
 
 // Hoisting the mload would unconditionally expand memory to 0x1000000 even
@@ -33,6 +34,7 @@ fn @keep_mload_zero_trip() -> u256 {
     v0 = calldatasize
     jump bb1
   bb1:
+    v10 = phi [bb0: 0], [bb2: v3]
     v1 = phi [bb0: 0], [bb2: v9]
     v2 = lt v1, v0
     jumpi v2, bb2, bb3
@@ -41,7 +43,7 @@ fn @keep_mload_zero_trip() -> u256 {
     v9 = add v1, 1
     jump bb1
   bb3:
-    ret v3
+    ret v10
 }
 
 // A verified trip count of 10 guarantees the body executes, so the sload is
@@ -53,6 +55,7 @@ fn @hoist_sload_known_trip() -> u256 {
   bb0:
     jump bb1
   bb1:
+    v10 = phi [bb0: 0], [bb2: v3]
     v1 = phi [bb0: 0], [bb2: v9]
     v2 = lt v1, 10
     jumpi v2, bb2, bb3
@@ -61,7 +64,7 @@ fn @hoist_sload_known_trip() -> u256 {
     v9 = add v1, 1
     jump bb1
   bb3:
-    ret v3
+    ret v10
 }
 
 // Do-while shape: the mload's block dominates the loop exit, so it executes
@@ -90,6 +93,7 @@ fn @keep_mload_msize_in_function() -> u256 {
   bb0:
     jump bb1
   bb1:
+    v10 = phi [bb0: 0], [bb2: v3]
     v1 = phi [bb0: 0], [bb2: v9]
     v2 = lt v1, 10
     jumpi v2, bb2, bb3
@@ -99,6 +103,71 @@ fn @keep_mload_msize_in_function() -> u256 {
     jump bb1
   bb3:
     v5 = msize
-    v6 = add v3, v5
+    v6 = add v10, v5
     ret v6
+}
+
+// A checked recurrence gives the same trip bound on successful iterations. The load
+// runs before the update, so its execution guarantee does not skip an arithmetic check.
+// CHECK-LABEL: {{^[ +].*}}fn @hoist_sload_checked_trip{{[( ]}}
+// CHECK: + [[LOAD:v[0-9]+]] = sload 5
+// CHECK: - [[LOAD]] = sload 5
+// CHECK: {{^[ +].*}}checked_add u256,
+fn @hoist_sload_checked_trip() -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v10 = phi [bb0: 0], [bb2: v3]
+    v1 = phi [bb0: 0], [bb2: v9]
+    v2 = lt v1, 10
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = sload 5
+    v9 = checked_add u256, v1, 1
+    jump bb1
+  bb3:
+    ret v10
+}
+
+// A semantic check before the load can exit within the block. A positive loop bound
+// alone does not let the load cross that check.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_sload_after_semantic_check{{[( ]}}
+// CHECK: {{^[ +].*}}checked_add u256, arg0, 1
+// CHECK: {{^[ +].*}}sload 5
+fn @keep_sload_after_semantic_check(arg0: u256) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v10 = phi [bb0: 0], [bb2: v3]
+    v1 = phi [bb0: 0], [bb2: v9]
+    v2 = lt v1, 10
+    jumpi v2, bb2, bb3
+  bb2:
+    v4 = checked_add u256, arg0, 1
+    v3 = sload 5
+    v9 = checked_add u256, v1, 1
+    jump bb1
+  bb3:
+    ret v10
+}
+
+// The header check can also exit before the load's block, despite the constant bound.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_sload_after_header_check{{[( ]}}
+// CHECK: {{^[ +].*}}checked_add u256, arg0, 1
+// CHECK: {{^[ +].*}}sload 5
+fn @keep_sload_after_header_check(arg0: u256) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v10 = phi [bb0: 0], [bb2: v3]
+    v1 = phi [bb0: 0], [bb2: v9]
+    v4 = checked_add u256, arg0, 1
+    v2 = lt v1, 10
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = sload 5
+    v9 = checked_add u256, v1, 1
+    jump bb1
+  bb3:
+    ret v10
 }

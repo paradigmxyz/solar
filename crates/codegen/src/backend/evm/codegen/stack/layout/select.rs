@@ -17,11 +17,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         liveness: &Liveness,
     ) -> Rc<StackPhiPlan> {
         let cold_functions = &self.cold_functions;
-        Rc::clone(
-            self.stack_phi_plans
-                .entry(func_id)
-                .or_insert_with(|| Rc::new(StackPhiPlan::analyze(func, liveness, cold_functions))),
-        )
+        let optimization = self.gcx.sess.opts.optimization;
+        Rc::clone(self.stack_phi_plans.entry(func_id).or_insert_with(|| {
+            Rc::new(StackPhiPlan::analyze(func, liveness, cold_functions, optimization))
+        }))
     }
 
     /// Collects the canonical identity of each used static-callee argument once for the stack
@@ -95,14 +94,17 @@ impl<'gcx> EvmCodegen<'gcx> {
             // One physical word cannot be both a phi input and an invariant resident prefix word.
             // `merge_resident` would otherwise extend only the result side of that edge, leaving a
             // non-square layout and a phantom word at the successor entry. Reject the complete or
-            // candidate subset here and retain the frame home for those arguments.
+            // candidate subset here and retain the frame home for those arguments. Identity-only
+            // edges already carry the same layout on both sides and need no extra word.
             let resident_is_phi_source = phi_plan.edges.iter().any(|(&pred, edge)| {
                 let term = func.blocks[pred]
                     .terminator
                     .as_ref()
                     .expect("stack-phi predecessor has no terminator");
-                plan.edge_layout(func, term)
-                    .is_some_and(|layout| layout.iter().any(|value| edge.sources.contains(value)))
+                edge.sources != edge.results
+                    && plan.edge_layout(func, term).is_some_and(|layout| {
+                        layout.iter().any(|value| edge.sources.contains(value))
+                    })
             });
             if resident_is_phi_source {
                 return None;

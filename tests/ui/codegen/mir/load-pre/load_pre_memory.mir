@@ -172,3 +172,72 @@ fn @msize_blocks_memory(arg0: bool) -> u256 {
     v5 = add v3, v4
     ret v5
 }
+
+// Implicit gas observations constrain partial-redundancy insertion.
+// CHECK-LABEL: {{^[ +].*}}fn @default_gas_call_blocks_prefix{{[( ]}}
+// CHECK: {{^[ +] *}}bb2:
+// CHECK-NEXT: {{^[ +] *}}jump bb3
+// CHECK: {{^[ +] *}}bb3:
+// CHECK: {{^[ +].*}}mload 128
+// CHECK: {{^[ +].*}}mload 128
+fn @default_gas_call_blocks_prefix(arg0: bool, arg1: memorybytes) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v1 = mload 128
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v5 = address_call 0xbeef, arg1
+    v2 = mload 128
+    v3 = mload 128
+    v4 = add v2, v3
+    ret v4
+}
+
+// Implicit gas observations constrain partial-redundancy insertion.
+// CHECK-LABEL: {{^[ +].*}}fn @default_gas_call_blocks_reload{{[( ]}}
+// CHECK: {{^[ +] *}}bb2:
+// CHECK-NEXT: {{^[ +] *}}jump bb3
+// CHECK: {{^[ +] *}}bb3:
+// CHECK: {{^[ +].*}}mload 128
+// CHECK: {{^[ +].*}}mload 128
+fn @default_gas_call_blocks_reload(arg0: bool, arg1: memorybytes) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v1 = mload 128
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v2 = mload 128
+    v5 = address_call 0xbeef, arg1
+    v3 = mload 128
+    v4 = add v2, v3
+    ret v4
+}
+
+// Calls remain motion barriers with an explicit gas argument.
+// CHECK-LABEL: {{^[ +].*}}fn @explicit_gas_call_blocks_pre{{[( ]}}
+// CHECK: {{^[ +] *}}bb2:
+// CHECK-NEXT: {{^[ +] *}}jump bb3
+// CHECK: {{^[ +] *}}bb3:
+// CHECK: {{^[ +].*}}mload 128
+// CHECK: {{^[ +].*}}mload 128
+fn @explicit_gas_call_blocks_pre(arg0: bool, arg1: memorybytes) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v1 = mload 128
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v5 = address_call 0xbeef, arg1, gas 1000
+    v2 = mload 128
+    v3 = mload 128
+    v4 = add v2, v3
+    ret v4
+}

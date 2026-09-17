@@ -12,6 +12,11 @@
 //! 3. **Partial redundancy**: a read available on some predecessors is inserted at the end of the
 //!    jump-terminated remaining predecessors, then handled as a full redundancy.
 //!
+//! The `storage-pre` variant limits the key universe to storage and transient storage.
+//! It runs after builtin expansion in the gas pipeline, when aggregate storage operations
+//! have exposed their loads and stores. Memory reads remain outside that cleanup to avoid
+//! extending pointer lifetimes across the representation boundary.
+//!
 //! # Keys
 //!
 //! One key universe per function:
@@ -49,15 +54,24 @@
 //! predecessor). If no concrete value can be located (the value only exists as a
 //! cross-path merge), the predecessor is treated as unavailable.
 //!
+//! For words at allocation bases, prefer an equivalent constant or a value already live at the
+//! predecessor's exit. A fully redundant reload stays in place if forwarding would extend a
+//! value's lifetime across the join solely to save this cheap load.
+//!
 //! # Safety of rewrites
 //!
 //! A join load is a candidate only if no kill of its key precedes it in the join block.
-//! For that scan, `gas` is additionally treated as a kill in all spaces and `msize` as a
+//! For that scan, gas observations and calls block all spaces and `msize` is a
 //! kill for memory and keccak keys: a partial-redundancy insertion moves the read to the
 //! end of a predecessor, so everything in the join block above the original load executes
 //! after the moved read, and a `gas`/`msize` read there would observe the moved load's gas
-//! and memory-expansion effects early. Removal-only (fully redundant) rewrites do not move
-//! reads, but we keep the single conservative scan for both cases for simplicity.
+//! and memory-expansion effects early. A call can also observe storage-access warming even
+//! when it cannot change stored values. Removal-only (fully redundant) rewrites do not move
+//! reads, but we keep the single conservative scan for these cases for simplicity.
+//!
+//! Before inserting a read, also reject a join prefix that may revert, terminate, or diverge:
+//! the new read could trap or consume gas on a path that did not execute it. Full redundancy
+//! can still reuse values computed on every incoming path, without inserting an access.
 //!
 //! An inserted load reads exactly the state the original would have read on that path: it
 //! sits at the end of the predecessor (nothing follows it but the jump), and the join
@@ -73,11 +87,11 @@
 //! 3. A function-size-derived rewrite budget backstops the above.
 
 use crate::mir::{
-    BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryObjectKind,
-    MemoryRegion, MirType, Module, StorageAlias, Terminator, Value, ValueId,
+    BlockId, EffectKind, Function, InstId, InstKind, Instruction, InstructionMetadata,
+    MemoryObjectKind, MirType, Module, StorageAlias, Terminator, Value, ValueId,
     analysis::{
-        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Location, LocationSize,
-        MemoryAddress, MemoryLocation, ModRef,
+        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Liveness, Location,
+        LocationSize, MemoryAddress, MemoryLocation, ModRef,
     },
     pass::{MirPass, run_function_pass},
     utils as mir_utils,
@@ -87,14 +101,22 @@ use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
 };
-use std::{collections::BTreeMap, rc::Rc};
+use std::{cell::OnceCell, collections::BTreeMap, rc::Rc};
 
 /// Function pass for load PRE.
-pub(crate) struct LoadPre;
+pub(crate) enum LoadPre {
+    /// Track every supported read kind.
+    All,
+    /// Track storage and transient-storage reads after builtin expansion.
+    Storage,
+}
 
 impl MirPass for LoadPre {
     fn name(&self) -> &'static str {
-        "load-pre"
+        match self {
+            Self::All => "load-pre",
+            Self::Storage => "storage-pre",
+        }
     }
 
     fn run_pass(
@@ -105,6 +127,7 @@ impl MirPass for LoadPre {
     ) -> bool {
         run_function_pass(module, analyses, |func, analyses| {
             let mut eliminator = LoadRedundancyEliminator::new();
+            eliminator.storage_only = matches!(self, Self::Storage);
             eliminator.alias = Some(Rc::clone(&analyses.alias));
             eliminator.cfg = Some(Rc::clone(&analyses.cfg));
             eliminator.run(func).total() != 0
@@ -131,6 +154,8 @@ impl LoadPreStats {
 /// Dataflow-based redundancy eliminator for memory-dependent reads.
 #[derive(Debug, Default)]
 struct LoadRedundancyEliminator {
+    storage_only: bool,
+    liveness: OnceCell<Liveness>,
     /// Shared CFG snapshot for the availability dataflow.
     cfg: Option<Rc<CfgInfo>>,
     stats: LoadPreStats,
@@ -436,6 +461,7 @@ impl LoadRedundancyEliminator {
         let mut inserted_insts = GrowableBitSet::with_capacity(func.num_insts());
 
         while rewrites < rewrite_limit {
+            self.liveness.take();
             let Some(analysis) = self.compute_analysis(func) else { break };
             let mut cx = CandidateCx {
                 analysis: &analysis,
@@ -484,7 +510,10 @@ impl LoadRedundancyEliminator {
                 continue;
             }
             for &inst_id in &func.blocks[block].instructions {
-                if let Some((key, GenSource::LoadResult)) = self.gen_key_value(func, inst_id) {
+                if let Some((key, GenSource::LoadResult)) = self.gen_key_value(func, inst_id)
+                    && (!self.storage_only
+                        || matches!(key, LoadKey::Storage(_) | LoadKey::Transient(_)))
+                {
                     key_index.entry(key).or_insert_with(|| {
                         keys.push(key);
                         keys.len() - 1
@@ -663,10 +692,10 @@ impl LoadRedundancyEliminator {
     /// Returns, in program order, the first load of each key in `target` that
     /// no kill of that key precedes.
     ///
-    /// `gas` and `msize` conservatively end or restrict the scan: a
+    /// Gas observations, calls, and `msize` end or restrict the scan: a
     /// partial-redundancy insertion moves the read to a predecessor's end, so
-    /// it must not cross a `gas` (any space) or `msize` (memory and keccak)
-    /// observation in the join prefix.
+    /// it must not cross a gas observation or call (any space), or `msize` (memory
+    /// and keccak) in the join prefix.
     fn first_loads(
         &self,
         func: &Function,
@@ -690,9 +719,8 @@ impl LoadRedundancyEliminator {
             }
             let kind = &func.inst(inst_id).kind;
             match kind {
-                // `gas` blocks every space, so nothing after it can be a
-                // candidate.
-                InstKind::Gas => break,
+                // Gas observations and calls block motion in every space.
+                _ if Self::blocks_motion(kind) => break,
                 InstKind::MSize => {
                     for &idx in &analysis.kill_index.memory {
                         blocked.insert(idx);
@@ -719,6 +747,14 @@ impl LoadRedundancyEliminator {
         found
     }
 
+    fn blocks_motion(kind: &InstKind) -> bool {
+        kind.observes_gas()
+            || matches!(
+                kind.effect_kind(),
+                EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
+            )
+    }
+
     fn same_key_loads_in_target(
         &self,
         func: &Function,
@@ -739,7 +775,7 @@ impl LoadRedundancyEliminator {
 
             if inst_id != first_inst {
                 let kind = &func.inst(inst_id).kind;
-                if matches!(kind, InstKind::Gas) {
+                if Self::blocks_motion(kind) {
                     break;
                 }
                 if matches!(kind, InstKind::MSize)
@@ -816,6 +852,20 @@ impl LoadRedundancyEliminator {
             || incoming.first().is_none_or(|&(_, first)| {
                 first == result || incoming.iter().any(|&(_, value)| value != first)
             });
+        if !needs_phi
+            && matches!(key, LoadKey::Memory(address)
+                if address.is_allocation_base())
+            && incoming.first().is_some_and(|&(_, value)| {
+                !matches!(func.value(value), Value::Immediate(_))
+                    && !self
+                        .liveness
+                        .get_or_init(|| Liveness::compute(func))
+                        .live_in(target)
+                        .contains(value)
+            })
+        {
+            return None;
+        }
         let model = LoadPreCostModel;
         let cost = model.estimate(LoadPreCostInput {
             func,
@@ -832,6 +882,14 @@ impl LoadRedundancyEliminator {
         }
 
         if !insertions.is_empty() {
+            if func.blocks[target]
+                .instructions
+                .iter()
+                .take_while(|&&prefix| prefix != inst)
+                .any(|&prefix| func.inst(prefix).kind.effects().control.any())
+            {
+                return None;
+            }
             // Insertions must be structurally safe; profitability is decided
             // by `LoadPreCostModel` above.
             let loop_insertion = incoming
@@ -915,20 +973,37 @@ impl LoadRedundancyEliminator {
         key_idx: usize,
     ) -> Option<ValueId> {
         let key = cx.analysis.keys[key_idx];
+        let prefer_live = matches!(key, LoadKey::Memory(address)
+            if address.is_allocation_base());
+        let mut found = None;
         for &inst_id in func.blocks[block].instructions.iter().rev() {
             if let Some((gen_key, source)) = self.gen_key_value(func, inst_id)
                 && gen_key == key
             {
                 // A store's exact-key gen wins over its own kill: the slot
                 // holds the stored value from this point on.
-                return match source {
-                    GenSource::LoadResult => func.inst_result_value(inst_id),
-                    GenSource::Stored(value) => Some(value),
+                let value = match source {
+                    GenSource::LoadResult => func.inst_result_value(inst_id)?,
+                    GenSource::Stored(value) => value,
                 };
+                if !prefer_live
+                    || matches!(func.value(value), Value::Immediate(_))
+                    || self
+                        .liveness
+                        .get_or_init(|| Liveness::compute(func))
+                        .live_out(block)
+                        .contains(value)
+                {
+                    return Some(value);
+                }
+                found.get_or_insert(value);
             }
             if self.inst_kills_key(func, inst_id, key) {
-                return None;
+                return found;
             }
+        }
+        if found.is_some() {
+            return found;
         }
 
         // The block is transparent for the key: the value at its end is the
@@ -1145,12 +1220,6 @@ impl LoadRedundancyEliminator {
                 for &idx in words.values() {
                     kill(idx);
                 }
-                continue;
-            }
-            if group.region != MemoryRegion::Unknown
-                && written.address.region != MemoryRegion::Unknown
-                && group.region != written.address.region
-            {
                 continue;
             }
             if group.base == written.address.base {

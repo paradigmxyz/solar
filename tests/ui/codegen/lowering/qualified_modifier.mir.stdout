@@ -3,7 +3,10 @@
 
 // === ROOT/tests/ui/codegen/lowering/qualified_modifier.sol:Derived ===
 @module Derived
-fn @qualified() -> (u256, u256) [selector=0xf25be4f2, abi_params=[], abi_returns=[word, word]] {
+types:
+  struct0: {u256, u256}
+
+fn @qualified() -> struct0 [selector=0xf25be4f2, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -11,10 +14,12 @@ fn @qualified() -> (u256, u256) [selector=0xf25be4f2, abi_params=[], abi_returns
   bb2:
     jump bb1
   bb1:
-    ret 9, v0
+    v1 = insert_value struct0, undef struct0, 0, 9
+    v2 = insert_value struct0, v1, 1, v0
+    ret v2
 }
 
-fn @virtualDispatch() -> (u256, u256) [selector=0x9996f134, abi_params=[], abi_returns=[word, word]] {
+fn @virtualDispatch() -> struct0 [selector=0x9996f134, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -22,10 +27,12 @@ fn @virtualDispatch() -> (u256, u256) [selector=0x9996f134, abi_params=[], abi_r
   bb2:
     jump bb1
   bb1:
-    ret 10, v0
+    v1 = insert_value struct0, undef struct0, 0, 10
+    v2 = insert_value struct0, v1, 1, v0
+    ret v2
 }
 
 fn @constructor() [constructor] {
   bb0:
-    stop
+    ret
 }

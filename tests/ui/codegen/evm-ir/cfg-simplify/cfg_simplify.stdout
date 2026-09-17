@@ -2,6 +2,8 @@
 + // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/cfg_simplify.evmir (after cfg-simplify) ===
   @module module
   bb0:
+    push bb11
+    pop
 -   push bb1
 +   push bb2
     jump
@@ -40,5 +42,12 @@
 -   jump bb10
 - bb10:
 +   pop
+    stop
+- bb11:
++ bb11 [loop]:
+    push 7
+-   jump bb12
+- bb12 [loop]:
+    push 8
     stop
   

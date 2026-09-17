@@ -48,6 +48,11 @@ impl CfgInfo {
         }
     }
 
+    /// Returns the number of blocks in the snapshot.
+    pub(crate) fn num_blocks(&self) -> usize {
+        self.successors.len()
+    }
+
     /// Returns successor blocks for `block`.
     #[must_use]
     pub(crate) fn successors(&self, block: BlockId) -> &[BlockId] {

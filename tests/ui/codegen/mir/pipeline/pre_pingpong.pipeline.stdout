@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/pipeline/pre_pingpong.mir (after pipeline-default) ===
 @module PingPong
-@phase evm-shaped
+@phase lowered
 fn @pingpong(arg0: u256, arg1: u256) {
   bb0:
     jump bb1

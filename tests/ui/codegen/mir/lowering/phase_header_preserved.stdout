@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/lowering/phase_header_preserved.mir (after pipeline-default) ===
 @module PhaseHeaderPreserved
-@phase evm-shaped
+@phase lowered
 fn @f() {
   bb0:
     stop

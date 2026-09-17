@@ -1,7 +1,6 @@
 //@compile-flags: -Zmir-pipeline=lower-abi
 //@filecheck:
 
-// CHECK: + @phase abi
 // CHECK: + fn @constructor(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256)
 // CHECK-NOT: abi_params
 // CHECK: + [[VALUE:v[0-9]+]] = callvalue

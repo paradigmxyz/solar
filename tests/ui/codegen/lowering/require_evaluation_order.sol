@@ -6,9 +6,11 @@
 //@ run-call: RequireEvaluationOrder::earlyReturn => 7
 //@ run-call-fail: RequireEvaluationOrder::customFailure => E(uint256)(1)
 //@ run-call-fail: RequireEvaluationOrder::stringFailure => Error("x")
+//@ run-call-fail: RequireEvaluationOrder::nestedFailure => Nested(bytes[])([0x010203])
 
 contract RequireEvaluationOrder {
     error E(uint256);
+    error Nested(bytes[]);
 
     uint256 private counter;
 
@@ -37,6 +39,12 @@ contract RequireEvaluationOrder {
     function stringFailure() external {
         counter = 0;
         require(false, reason());
+    }
+
+    function nestedFailure() external pure {
+        bytes[] memory values = new bytes[](1);
+        values[0] = hex"010203";
+        require(false, Nested(values));
     }
 
     function increment() internal returns (uint256) {

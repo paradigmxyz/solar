@@ -910,6 +910,76 @@ class RunComparisonTests(unittest.TestCase):
         row["compilers"]["solar"].update(values)
         return row
 
+    def test_gas_exclusions_use_common_calls_with_legacy_results(self):
+        before = self.fixture()
+        after = copy.deepcopy(before)
+        data = after["compilers"]["solar"]
+        data["gas_results"][0]["gas"] = 12
+        data["gas_results"][1].update(
+            gas=2000, comparison_exclusion_reason="code-dependent workload"
+        )
+        data["total_gas"] = 2012
+        for current, baseline in ((after, before), (before, after)):
+            comparison = benchmark.compare_runs([current], [baseline])
+            row = comparison["rows"][0]
+            expected = (10, 12) if current is after else (12, 10)
+            self.assertEqual(
+                (
+                    row["metrics"]["total_gas"]["before"],
+                    row["metrics"]["total_gas"]["after"],
+                ),
+                expected,
+            )
+            self.assertEqual(row["gas_calls"][1]["reason"], "code-dependent workload")
+            self.assertIsNone(row["gas_calls"][1]["delta"])
+        self.assertEqual(data["total_gas"], 2012)
+        self.assertEqual(benchmark.total_gas(after, "solar"), 12)
+        self.assertEqual(
+            benchmark.common_benchmark("test", [after], 1)["gas"]["runtime"]["value"],
+            12,
+        )
+        self.assertEqual(
+            benchmark.gas_exclusion_report([after], [before]),
+            [
+                "",
+                "### Gas excluded from comparison",
+                "",
+                "Calls still execute; raw gas and failures remain in the results. Totals below contain measured gas only.",
+                "",
+                "| Case | Calls | Baseline raw gas | Candidate raw gas | Reason |",
+                "| --- | ---: | ---: | ---: | --- |",
+                "| test | 1 | 20 | 2,000 | code-dependent workload |",
+                "",
+            ],
+        )
+        self.assertEqual(
+            benchmark.benchmark_rows([after], benchmark.by_test_id([before])),
+            ["| test | 12 (❌ +20.00%) | n/a (n/a) | 100B (~0%) | n/a (n/a) |"],
+        )
+
+    def test_all_gas_excluded_and_excluded_failures(self):
+        before = self.fixture()
+        after = copy.deepcopy(before)
+        data = after["compilers"]["solar"]
+        for call in data["gas_results"]:
+            call["comparison_exclusion_reason"] = "code-dependent workload"
+        row = benchmark.compare_runs([after], [before])["rows"][0]
+        self.assertEqual(
+            row["metrics"]["total_gas"]["reason"], "no comparable gas calls"
+        )
+        self.assertIsNone(benchmark.total_gas(after, "solar"))
+        self.assertNotIn(
+            "runtime", benchmark.common_benchmark("test", [after], 1)["gas"]
+        )
+        data["gas_status"] = "failed"
+        data["total_gas"] = None
+        data["gas_results"][0]["gas"] = None
+        row = benchmark.compare_runs([after], [before])["rows"][0]
+        self.assertEqual(
+            row["metrics"]["total_gas"]["reason"], "gas run failed or was not measured"
+        )
+        self.assertIn("candidate gas run failed", row["issues"])
+
     def test_reference_failures_do_not_trigger_comments_or_warnings(self):
         for compiler in ("solc", "solx"):
             for stage in ("status", "runtime_status", "gas_status"):

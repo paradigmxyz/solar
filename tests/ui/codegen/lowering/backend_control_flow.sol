@@ -10,7 +10,7 @@ contract BackendControlFlow {
     // CHECK-LABEL: fn @localVarInConditional
     // CHECK: [[VALUE:v[0-9]+]] = sload [[SLOT:[0-9]+]]
     // CHECK: jumpi
-    // CHECK: [[RESULT:v[0-9]+]] = sub [[VALUE]], 1
+    // CHECK: [[RESULT:v[0-9]+]] = checked_sub {{[ui][0-9]+}}, [[VALUE]], 1
     // CHECK: sstore [[SLOT]], [[RESULT]]
     function localVarInConditional() public {
         uint256 current = value;
@@ -21,7 +21,7 @@ contract BackendControlFlow {
     // CHECK: sload [[SLOT:[0-9]+]]
     // CHECK: jumpi
     // CHECK: [[VALUE:v[0-9]+]] = sload [[SLOT]]
-    // CHECK: [[RESULT:v[0-9]+]] = sub [[VALUE]], 1
+    // CHECK: [[RESULT:v[0-9]+]] = checked_sub {{[ui][0-9]+}}, [[VALUE]], 1
     // CHECK: sstore [[SLOT]], [[RESULT]]
     function directStorageInConditional() public {
         if (value != 0) value = value - 1;

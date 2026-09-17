@@ -25,7 +25,7 @@ contract Mapping {
     // CHECK-LABEL: fn @add_balance{{[( ]}}
     // CHECK: [[READ_SLOT:v[0-9]+]] = mapping_slot arg0, 0
     // CHECK: [[OLD:v[0-9]+]] = sload [[READ_SLOT]]
-    // CHECK: [[NEW:v[0-9]+]] = add [[OLD]], arg1
+    // CHECK: [[NEW:v[0-9]+]] = checked_add {{[ui][0-9]+}}, [[OLD]], arg1
     // CHECK: [[WRITE_SLOT:v[0-9]+]] = mapping_slot arg0, 0
     // CHECK: sstore [[WRITE_SLOT]], [[NEW]]
     function add_balance(uint256 id, uint256 amount) public {

@@ -141,6 +141,7 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
         if gcx.dcx().has_errors().is_ok() {
             let name = source.name.display().to_string();
             let _changed = pass::run_pipeline(gcx, &mut module, Some(&name));
+            gcx.dcx().has_errors()?;
             validate(&gcx.sess.dcx, &module);
             gcx.dcx().has_errors()?;
 

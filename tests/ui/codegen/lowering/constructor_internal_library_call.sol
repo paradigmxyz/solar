@@ -17,7 +17,7 @@ contract ConstructorInternalLibraryCall {
 
     // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK: [[MASKED:v[0-9]+]] = and arg0, 7
-    // CHECK: [[VALUE:v[0-9]+]] = icall @helper, 1, [[MASKED]]
+    // CHECK: [[VALUE:v[0-9]+]] = icall @helper, [[MASKED]]
     // CHECK: sstore 0, [[VALUE]]
     // CHECK-LABEL: fn @helper{{[( ]}}
     // CHECK: icall @helper

@@ -18,9 +18,9 @@
   
   fn @fuse_zeroed() -> u256 {
     bb0:
--     v0 = alloc raw, exact, zeroed, panic, 64
+-     v0 = alloc raw, exact, zeroed, infallible, 64
 -     v1 = alloc raw, exact, zeroed, infallible, 32
-+     v0 = alloc raw, exact, uninitialized, panic, 96
++     v0 = alloc raw, exact, uninitialized, infallible, 96
 +     memory_zero v0, 64
 +     v1 = add v0, 64
 +     memory_zero v1, 32
@@ -76,6 +76,28 @@
       set_fmp 0x10000
       v1 = alloc raw, exact, uninitialized, infallible, 32
       mstore v1, 5
+      ret v1
+  }
+  
+  fn @keep_checked_zeroed() -> memptr {
+    bb0:
+      v0 = alloc raw, exact, zeroed, panic, 64
+      v1 = alloc raw, exact, zeroed, panic, 32
+      ret v1
+  }
+  
+  fn @keep_mixed_failures() -> memptr {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 64
+      v1 = alloc raw, exact, uninitialized, panic, 32
+      ret v1
+  }
+  
+  fn @keep_across_check(arg0: u256) -> u256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 64
+      v1 = checked_add u256, arg0, 1
+      v2 = alloc raw, exact, uninitialized, infallible, 32
       ret v1
   }
   

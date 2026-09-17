@@ -57,6 +57,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         element: Ty<'gcx>,
         value: ValueId,
     ) -> Option<ValueId> {
+        // value = memory_object_from_ptr<element>(value)
+        let kind = self.types.memory_layout(element)?.kind();
+        let value = self.builder.memory_object_from_ptr(value, kind);
         let zero = self.builder.imm(U256::ZERO);
         let is_null = self.builder.eq(value, zero);
         let preheader = self.builder.current_block();
@@ -172,16 +175,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 helper,
                 vec![word, length],
                 MirType::MemoryObject(MemoryObjectKind::Bytes),
-                1,
             )
         } else if let Some(index) = self.cx.shared_literals.get_index_of(&symbol) {
             let helper = self.ensure_bytes_literal_helper(symbol, index);
-            self.builder.icall(
-                helper,
-                Vec::new(),
-                MirType::MemoryObject(MemoryObjectKind::Bytes),
-                1,
-            )
+            self.builder.icall(helper, Vec::new(), MirType::MemoryObject(MemoryObjectKind::Bytes))
         } else {
             self.lower_bytes_literal(bytes)?
         };
@@ -189,20 +186,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn ensure_bytes_word_helper(&mut self) -> FunctionId {
-        // object = bytes(word, length)
+        // object = bytes(word, length) !preserves_fmp
         // object[0] = word
         // return object
         self.lazy_helper(sym::literal_bytes_word, |_, function| {
-            let mut builder = FunctionBuilder::new(function);
+            let mut builder = FunctionBuilder::new_semantic(function);
             let word = builder.add_param(MirType::bytes32());
             let length = builder.add_param(MirType::uint256());
-            builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
+            builder.set_return_type(MirType::MemoryObject(MemoryObjectKind::Bytes));
             let size = builder.imm(64);
             let object = builder.alloc_object(
                 size,
                 MemoryObjectLayout::Bytes,
                 AllocationSemantics::INTERNAL,
             );
+            let Value::Inst(alloc) = *builder.func().value(object) else {
+                unreachable!("allocation result must reference its instruction")
+            };
+            builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
             builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
             let zero = builder.imm(0);
             builder.memory_object_store_word(object, zero, word);
@@ -220,10 +221,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         semantics: AllocationSemantics,
         name: Option<Symbol>,
     ) -> Option<ValueId> {
-        // object = bytes(len)
+        // object = bytes(len) !preserves_fmp
         let words = u64::try_from(bytes.len().div_ceil(32)).ok()?;
         let size = builder.imm(words.checked_add(1)?.checked_mul(32)?);
         let object = builder.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
+        let Value::Inst(alloc) = *builder.func().value(object) else {
+            unreachable!("allocation result must reference its instruction")
+        };
+        builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
         let length = builder.imm(u64::try_from(bytes.len()).ok()?);
         builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
         let data = builder.memory_object_data(object, MemoryObjectKind::Bytes);
@@ -242,8 +247,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn ensure_bytes_literal_helper(&mut self, symbol: ByteSymbol, index: usize) -> FunctionId {
         // literal_bytes() -> bytes
         self.lazy_helper(helper_name(sym::literal_bytes, index), |this, function| {
-            let mut builder = FunctionBuilder::new(function);
-            builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
+            let mut builder = FunctionBuilder::new_semantic(function);
+            builder.set_return_type(MirType::MemoryObject(MemoryObjectKind::Bytes));
             let object = Self::build_bytes_literal(
                 this.cx.gcx,
                 this.cx.module,
@@ -281,7 +286,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && matches!(layout, MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. })
         {
             // object = ZERO_SLOT
-            return Some(self.builder.imm(EvmMemoryLayout::ZERO_SLOT));
+            let value = crate::mir::Immediate::for_type(
+                Some(MirType::MemoryObject(layout.kind())),
+                U256::from(EvmMemoryLayout::ZERO_SLOT),
+            );
+            return Some(self.builder.func_mut().alloc_value(Value::Immediate(value)));
         }
 
         // object = alloc(default_layout)

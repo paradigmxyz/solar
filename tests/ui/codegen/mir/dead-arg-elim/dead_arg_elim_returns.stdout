@@ -16,25 +16,27 @@
       sstore 1, arg1
       ret arg1
     bb1:
-      v0 = icall @recursive, 1, 0, arg1
+      v0 = icall @recursive, false, arg1
       ret v0
   }
   
-  fn @kept(arg0: u256) -> u256 {
+- fn @kept(arg0: u256) -> u256 {
++ fn @kept() {
     bb0:
-      ret arg0
+-     ret arg0
++     ret
   }
   
   fn @entry() -> u256 [selector=0x01020304] {
     bb0:
--     v0 = icall @discarded, 1, 7
--     v1 = icall @recursive, 1, 1, 8
--     v2 = icall @kept, 1, 9
+-     v0 = icall @discarded, 7
+-     v1 = icall @recursive, true, 8
+-     v2 = icall @kept, 9
 -     ret v2
-+     icall @discarded, 0, 7
-+     v0 = icall @recursive, 1, 1, 8
-+     v1 = icall @kept, 1, 9
-+     ret v1
++     icall @discarded, 7
++     v0 = icall @recursive, true, 8
++     icall @kept
++     ret 9
   }
   
   fn @external_keeps_abi(arg0: u256) -> u256 [selector=0x01020305] {

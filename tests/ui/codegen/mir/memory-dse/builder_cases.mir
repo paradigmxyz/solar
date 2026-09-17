@@ -239,7 +239,7 @@ fn @memory_write_barrier() -> u256 {
 fn @icall_barrier() -> u256 {
   bb0:
     mstore 128, 42
-    icall @callee, 0
+    icall @callee
     v0 = mload 128
     ret v0
 }

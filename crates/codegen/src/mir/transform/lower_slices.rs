@@ -3,11 +3,13 @@
 //! Slices are deliberately a higher-level MIR abstraction. The EVM backend
 //! remains word-based, so this pass expands slice parameters and call
 //! arguments, resolves `slice_ptr`/`slice_len` projections, and erases the
-//! corresponding constructors before machine lowering.
+//! corresponding constructors before machine lowering. SSA structs must have been lowered first;
+//! otherwise expanding a slice would invalidate the struct field's declared type.
 
 use crate::mir::{
-    ArgIdx, BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction, MirType,
-    Module, SliceLocation, Terminator, Value, ValueId, memory::EvmMemoryLayout, pass::MirPass,
+    ArgIdx, BlockId, Callee, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
+    MirType, Module, SliceLocation, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    pass::MirPass,
 };
 use solar_data_structures::{
     index::IndexVec,
@@ -47,7 +49,7 @@ enum ParamRepr {
 /// The pointer type for a slice parameter's leading word. Returndata has no
 /// dedicated pointer type: like the result of `returndatasize`, its offset is
 /// an ordinary EVM word whose address space remains encoded by the slice type.
-fn slice_param_ptr_type(location: SliceLocation) -> MirType {
+pub(super) fn slice_param_ptr_type(location: SliceLocation) -> MirType {
     match location {
         SliceLocation::Memory => MirType::MemPtr,
         SliceLocation::Calldata => MirType::CalldataPtr,
@@ -204,29 +206,12 @@ impl LowerSlices {
     /// mutating the function so an offset near the address-space limit makes this transform bail
     /// atomically instead of panicking in debug builds or wrapping in release builds.
     fn shifted_frame_offsets(func: &Function, added_slots: usize) -> Option<Vec<(InstId, u64)>> {
-        if added_slots == 0 {
-            return Some(Vec::new());
-        }
-        let signature_slots = func.params.len().checked_add(func.returns.len())?;
-        let signature_size =
-            u64::try_from(signature_slots).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
-        let old_local_start =
-            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE.checked_add(signature_size)?;
-        let shift = u64::try_from(added_slots).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
-
-        let mut shifted = Vec::new();
-        for inst_id in func.instructions() {
-            let InstKind::InternalFrameAddr(offset) = func.inst(inst_id).kind else { continue };
-            // Lowering emits this instruction only for frame locals. Parsed MIR can address the
-            // header or signature directly, but a raw signature offset does not identify which
-            // parameter or result it belongs to after a slice expands. Bail instead of silently
-            // retargeting it to a different slot.
-            if offset < old_local_start {
-                return None;
-            }
-            shifted.push((inst_id, offset.checked_add(shift)?));
-        }
-        Some(shifted)
+        let signature_slots = func
+            .params
+            .len()
+            .checked_add(func.return_components().len())?
+            .checked_add(added_slots)?;
+        super::utils::rebase_frame_offsets(func, signature_slots)
     }
 
     /// Rewrites slice-typed `select` and `phi` into paired pointer/length
@@ -332,7 +317,9 @@ impl LowerSlices {
             builder.switch_to_block(block_id);
             for inst_id in instructions {
                 let call = match &builder.func().inst(inst_id).kind {
-                    InstKind::ICall { function, args, .. } => Some((*function, args.to_vec())),
+                    InstKind::ICall { function: Callee::Function(function), args, .. } => {
+                        Some((*function, args.to_vec()))
+                    }
                     _ => None,
                 };
                 if let Some((callee, args)) = call
@@ -374,35 +361,15 @@ impl LowerSlices {
             for inst_id in instructions {
                 builder.func_mut().blocks[block_id].instructions.push(inst_id);
                 let Some((signature, result)) = (match builder.func().inst(inst_id).kind {
-                    InstKind::ICall { function, returns, .. } => {
-                        signatures.get(&function).and_then(|signature| {
-                            (usize::try_from(returns).ok() == Some(signature.len()))
-                                .then(|| {
-                                    builder
-                                        .func()
-                                        .inst_result_value(inst_id)
-                                        .map(|result| (signature, result))
-                                })
-                                .flatten()
-                        })
+                    InstKind::ICall { function: Callee::Function(function), .. } => {
+                        signatures.get(&function).zip(builder.func().inst_result_value(inst_id))
                     }
                     _ => None,
                 }) else {
                     continue;
                 };
 
-                let returns = u32::try_from(
-                    signature.len()
-                        + signature.iter().filter(|&&repr| repr == ParamRepr::Pair).count(),
-                )
-                .expect("MIR return count fits in u32");
-
                 let instruction = builder.func_mut().inst_mut(inst_id);
-                let InstKind::ICall { returns: call_returns, .. } = &mut instruction.kind else {
-                    unreachable!()
-                };
-                changed |= *call_returns != returns;
-                *call_returns = returns;
                 let Some(MirType::Slice(location)) = instruction.result_ty else {
                     continue;
                 };
@@ -443,7 +410,7 @@ impl LowerSlices {
     fn lower_returns(func: &mut Function, signature: &[ParamRepr]) -> bool {
         let added_slots = signature.iter().filter(|&&repr| repr == ParamRepr::Pair).count();
         let lowers_word_slice = func
-            .returns
+            .return_components()
             .iter()
             .zip(signature)
             .any(|(ty, repr)| Self::is_slice(ty) && *repr != ParamRepr::Pair);
@@ -478,8 +445,8 @@ impl LowerSlices {
             };
             *offset = shifted;
         }
-        let mut returns = Vec::with_capacity(func.returns.len() + added_slots);
-        for (&ty, repr) in func.returns.iter().zip(signature) {
+        let mut returns = Vec::with_capacity(func.return_components().len() + added_slots);
+        for (&ty, repr) in func.return_components().iter().zip(signature) {
             match repr {
                 ParamRepr::Word | ParamRepr::CompactCalldata => match ty {
                     MirType::Slice(location) => returns.push(slice_param_ptr_type(location)),
@@ -492,7 +459,8 @@ impl LowerSlices {
                 }
             }
         }
-        func.returns = returns;
+        // result: slice -> result: slice [return_abi = pointer, length]
+        func.set_return_abi(returns);
         true
     }
 
@@ -681,7 +649,9 @@ impl LowerSlices {
             for (caller_id, caller) in module.functions.iter_enumerated() {
                 for inst_id in caller.instructions() {
                     let inst = caller.inst(inst_id);
-                    let InstKind::ICall { function: callee, args, .. } = &inst.kind else {
+                    let InstKind::ICall { function: Callee::Function(callee), args, .. } =
+                        &inst.kind
+                    else {
                         continue;
                     };
                     for index in module.function(*callee).params.indices() {
@@ -749,6 +719,16 @@ impl LowerSlices {
         // physical object representation.
         for &(slice, inst, is_ptr) in projections.values() {
             let Some(ty) = func.value_ty(slice) else { continue };
+            if let Value::Undef(MirType::Slice(location)) = *func.value(slice) {
+                // slice_ptr(undef slice) -> undef pointer
+                // slice_len(undef slice) -> undef u256
+                let ty = if is_ptr { slice_param_ptr_type(location) } else { MirType::uint256() };
+                let value = func.alloc_value(Value::Undef(ty));
+                let result = func.inst_result_value(inst).expect("slice projection has a result");
+                replacements.insert(result, value);
+                removed.insert(inst);
+                continue;
+            }
             let physical_object = matches!(ty, MirType::MemPtr);
             let physical_pointer = matches!(ty, MirType::MemPtr | MirType::CalldataPtr);
             let physical_word = matches!(ty, MirType::UInt(_))
@@ -790,6 +770,9 @@ impl LowerSlices {
         true
     }
     fn run(module: &mut Module) -> bool {
+        if module.has_struct_values() {
+            return false;
+        }
         let compact = Self::infer_compact_params(module);
         let return_signatures: FxHashMap<_, _> = module
             .functions
@@ -797,7 +780,7 @@ impl LowerSlices {
             .filter(|(_, func)| func.selector.is_none())
             .map(|(id, func)| {
                 let signature = func
-                    .returns
+                    .return_components()
                     .iter()
                     .enumerate()
                     .map(|(index, ty)| {

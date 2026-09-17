@@ -2,8 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (after lower-abi) ===
   @module LowerAbiDispatch
 - fn @get(arg0: u256) [selector=0x9507d39a] {
-+ @phase abi
-+ fn @get() [selector=0x9507d39a] {
++ fn @get() [selector=0x9507d39a, abi_wrapper] {
     bb0:
 +     v0 = calldatasize
 +     v1 = lt v0, 36
@@ -20,9 +19,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (before lower-dispatch) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (after lower-dispatch) ===
   @module LowerAbiDispatch
-- @phase abi
-+ @phase dispatch
-  fn @get() [selector=0x9507d39a] {
+  fn @get() [selector=0x9507d39a, abi_wrapper] {
     bb0:
       v0 = calldatasize
       v1 = lt v0, 36
