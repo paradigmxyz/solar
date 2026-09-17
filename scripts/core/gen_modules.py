@@ -55,6 +55,31 @@ library Bytes {
     }}
 
 ''')
+    for n in range(1, 33):
+        out.append(f'''    /// @dev The {n} byte{"s" if n > 1 else ""} of `b` at `offset`, or `false` and zero when they do
+    /// not all lie inside `b`.
+    function tryReadBytes{n}(bytes memory b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, bytes{n} result)
+    {{
+        if (offset > b.length || b.length - offset < {n}) return (false, bytes{n}(0));
+        return (true, readBytes{n}(b, offset));
+    }}
+
+''')
+    out.append('''    /// @dev The 32 bytes of `b` at `offset` as a big-endian integer, or `false`
+    /// and zero when they do not all lie inside `b`.
+    function tryReadUint256BE(bytes memory b, uint256 offset)
+        internal
+        pure
+        returns (bool ok, uint256 result)
+    {
+        if (offset > b.length || b.length - offset < 32) return (false, 0);
+        return (true, readUint256BE(b, offset));
+    }
+
+''')
     out.append('''    /// @dev Writes `value` into `b` at `offset` as a big-endian integer.
     function writeUint256BE(bytes memory b, uint256 offset, uint256 value) internal pure {
         for (uint256 k; k < 32; ++k) {
@@ -162,8 +187,121 @@ library Arrays {
     return "".join(out)
 
 
+def calldata_bytes_module() -> str:
+    out = [LICENSE, '''/// @notice Checked fixed-width byte loads from `bytes calldata`, and bulk copy
+/// out of it.
+/// @dev Compiler-owned module, imported as `solar:core/v1/CalldataBytes.sol`.
+/// Solidity does not let two functions differ only in the data location of a
+/// parameter, so the calldata operations live here under the names `Bytes`
+/// uses for memory. Every read checks that the full width lies inside the
+/// slice and reverts with `Panic(0x32)` otherwise; nothing is padded.
+/// `copyInto` validates both ranges before it writes. Every body here is
+/// ordinary checked Solidity and defines the behaviour; the compiler lowers
+/// each entry point to `calldataload` and `calldatacopy` by module identity.
+library CalldataBytes {
+''']
+    for n in range(1, 33):
+        out.append(f'''    /// @dev The {n} byte{"s" if n > 1 else ""} of `b` at `offset`.
+    function readBytes{n}(bytes calldata b, uint256 offset)
+        internal
+        pure
+        returns (bytes{n} result)
+    {{
+        for (uint256 k; k < {n}; ++k) {{
+            result |= bytes{n}(b[offset + k]) >> (8 * k);
+        }}
+    }}
+
+''')
+    out.append('''    /// @dev The 32 bytes of `b` at `offset`, read as a big-endian integer.
+    function readUint256BE(bytes calldata b, uint256 offset) internal pure returns (uint256 result) {
+        for (uint256 k; k < 32; ++k) {
+            result = (result << 8) | uint8(b[offset + k]);
+        }
+    }
+
+    /// @dev Copies `count` bytes of `src` at `srcOffset` into `dst` at
+    /// `dstOffset`.
+    function copyInto(
+        bytes memory dst,
+        uint256 dstOffset,
+        bytes calldata src,
+        uint256 srcOffset,
+        uint256 count
+    ) internal pure {
+        // Both ranges are validated before anything is written.
+        if (
+            count > dst.length || dstOffset > dst.length - count || count > src.length
+                || srcOffset > src.length - count
+        ) count = _outOfBounds();
+        for (uint256 k; k < count; ++k) {
+            dst[dstOffset + k] = src[srcOffset + k];
+        }
+    }
+
+    /// @dev Raises the `Panic(0x32)` an out-of-range index raises, which is the
+    /// portable spelling of a failed range check.
+    function _outOfBounds() private pure returns (uint256) {
+        return new uint256[](0)[0];
+    }
+}
+''')
+    return "".join(out)
+
+
+def cast_module() -> str:
+    out = [LICENSE, '''/// @notice Narrowing casts that fail instead of truncating.
+/// @dev Compiler-owned module, imported as `solar:core/v1/Cast.sol`. A
+/// Solidity cast such as `uint40(x)` keeps the low bits and drops the rest
+/// without a word; these revert with `Panic(0x11)`, the arithmetic overflow
+/// panic, when `x` does not fit the target type, and otherwise return it
+/// unchanged. Casts that cannot lose anything are not here: write them as
+/// ordinary conversions.
+library Cast {
+''']
+    for bits in range(8, 256, 8):
+        out.append(f'''    /// @dev `x` as a `uint{bits}`.
+    function toUint{bits}(uint256 x) internal pure returns (uint{bits}) {{
+        if (x > type(uint{bits}).max) _overflow();
+        return uint{bits}(x);
+    }}
+
+''')
+    for bits in range(8, 256, 8):
+        out.append(f'''    /// @dev `x` as an `int{bits}`.
+    function toInt{bits}(int256 x) internal pure returns (int{bits}) {{
+        if (x < type(int{bits}).min || x > type(int{bits}).max) _overflow();
+        return int{bits}(x);
+    }}
+
+''')
+    out.append('''    /// @dev `x` as an `int256`.
+    function toInt256(uint256 x) internal pure returns (int256) {
+        if (x > uint256(type(int256).max)) _overflow();
+        return int256(x);
+    }
+
+    /// @dev `x` as a `uint256`.
+    function toUint256(int256 x) internal pure returns (uint256) {
+        if (x < 0) _overflow();
+        return uint256(x);
+    }
+
+    /// @dev Raises the `Panic(0x11)` a checked addition raises, which is the
+    /// portable spelling of a value that does not fit.
+    function _overflow() private pure {
+        uint256 most = type(uint256).max;
+        most += 1;
+    }
+}
+''')
+    return "".join(out)
+
+
 (ROOT / "Bytes.sol").write_text(bytes_module())
 (ROOT / "Arrays.sol").write_text(arrays_module())
-for name in ("Bytes.sol", "Arrays.sol"):
+(ROOT / "Cast.sol").write_text(cast_module())
+(ROOT / "CalldataBytes.sol").write_text(calldata_bytes_module())
+for name in ("Bytes.sol", "Arrays.sol", "Cast.sol", "CalldataBytes.sol"):
     path = ROOT / name
     print(path, path.stat().st_size, "bytes")

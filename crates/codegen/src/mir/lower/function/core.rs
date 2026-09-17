@@ -75,12 +75,115 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::Deploy | CoreIntrinsic::Deploy2 => {
                 self.lower_core_deploy(intrinsic, &operands)
             }
+            CoreIntrinsic::TryDeploy | CoreIntrinsic::TryDeploy2 => {
+                self.lower_core_try_deploy(intrinsic, function_id, &operands)
+            }
+            CoreIntrinsic::TryReadBytes(width) => {
+                self.lower_core_try_read(function_id, &operands, width)
+            }
+            CoreIntrinsic::TryReadUint256Be => self.lower_core_try_read(function_id, &operands, 32),
+            CoreIntrinsic::CalldataReadBytes(width) => {
+                self.lower_core_calldata_read(&operands, width)
+            }
+            CoreIntrinsic::CalldataReadUint256Be => self.lower_core_calldata_read(&operands, 32),
+            CoreIntrinsic::CalldataCopyInto => self.lower_core_calldata_copy(&operands),
             CoreIntrinsic::CodeCopyInto => self.lower_core_code_copy(&operands),
             CoreIntrinsic::LeadingZeros => {
                 let [value] = *operands.as_slice() else { return None };
                 Some(self.builder.clz(value))
             }
+            CoreIntrinsic::CallInto
+            | CoreIntrinsic::StaticCallInto
+            | CoreIntrinsic::DelegateCallInto => {
+                self.lower_core_call_into(intrinsic, function_id, &operands)
+            }
+            CoreIntrinsic::Mul512 => self.lower_core_mul512(function_id, &operands),
+            CoreIntrinsic::WrappingAdd
+            | CoreIntrinsic::WrappingSub
+            | CoreIntrinsic::WrappingMul => {
+                let [x, y] = *operands.as_slice() else { return None };
+                // result = add|sub|mul(x, y)
+                Some(match intrinsic {
+                    CoreIntrinsic::WrappingAdd => self.builder.add(x, y),
+                    CoreIntrinsic::WrappingSub => self.builder.sub(x, y),
+                    _ => self.builder.mul(x, y),
+                })
+            }
         }
+    }
+
+    /// Packs an intrinsic's results the way a call to `function_id` returns
+    /// them, so the caller destructures either the same way.
+    fn core_results(&mut self, function_id: hir::FunctionId, values: Vec<ValueId>) -> ValueId {
+        let function = self.cx.gcx.hir.function(function_id);
+        let types = function
+            .returns
+            .iter()
+            .map(|&variable| self.cx.gcx.type_of_item(variable.into()))
+            .collect::<Vec<_>>();
+        self.pack_return_values(values, &types)
+    }
+
+    /// `Calls.callInto`, `staticCallInto` and `delegateCallInto`: the output
+    /// lands in the caller's buffer, never past it.
+    fn lower_core_call_into(
+        &mut self,
+        intrinsic: CoreIntrinsic,
+        function_id: hir::FunctionId,
+        operands: &[ValueId],
+    ) -> Option<ValueId> {
+        let (target, value, gas, payload, output) = match (intrinsic, operands) {
+            (CoreIntrinsic::CallInto, &[target, value, gas, payload, output]) => {
+                (target, Some(value), gas, payload, output)
+            }
+            (
+                CoreIntrinsic::StaticCallInto | CoreIntrinsic::DelegateCallInto,
+                &[target, gas, payload, output],
+            ) => (target, None, gas, payload, output),
+            _ => return None,
+        };
+        let input_size = self.builder.memory_object_len(payload, MemoryObjectKind::Bytes);
+        let input = self.builder.memory_object_data(payload, MemoryObjectKind::Bytes);
+        let capacity = self.builder.memory_object_len(output, MemoryObjectKind::Bytes);
+        let destination = self.builder.memory_object_data(output, MemoryObjectKind::Bytes);
+        // success = call|staticcall|delegatecall(gas, target[, value], input, input_size,
+        //                                        destination, capacity)
+        let success = match (intrinsic, value) {
+            (CoreIntrinsic::CallInto, Some(value)) => {
+                self.builder.call(gas, target, value, input, input_size, destination, capacity)
+            }
+            (CoreIntrinsic::StaticCallInto, _) => {
+                self.builder.staticcall(gas, target, input, input_size, destination, capacity)
+            }
+            _ => self.builder.delegatecall(gas, target, input, input_size, destination, capacity),
+        };
+        // total = returndatasize()
+        // copied = total < capacity ? total : capacity
+        let total = self.builder.returndatasize();
+        let shorter = self.builder.lt(total, capacity);
+        let copied = self.builder.select(shorter, total, capacity);
+        Some(self.core_results(function_id, vec![success, copied, total]))
+    }
+
+    /// `Math.mul512(x, y)`: the product modulo `2**256 - 1` is `high + low`
+    /// there, so the high word is its difference from the low one, less a
+    /// borrow.
+    fn lower_core_mul512(
+        &mut self,
+        function_id: hir::FunctionId,
+        operands: &[ValueId],
+    ) -> Option<ValueId> {
+        let [x, y] = *operands else { return None };
+        // low = mul(x, y)
+        // folded = mulmod(x, y, not(0))
+        // high = sub(sub(folded, low), lt(folded, low))
+        let low = self.builder.mul(x, y);
+        let modulus = self.builder.imm(U256::MAX);
+        let folded = self.builder.mulmod(x, y, modulus);
+        let difference = self.builder.sub(folded, low);
+        let borrow = self.builder.lt(folded, low);
+        let high = self.builder.sub(difference, borrow);
+        Some(self.core_results(function_id, vec![high, low]))
     }
 
     /// `Revert.raw(data)`: the call never returns.
@@ -102,6 +205,37 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(self.builder.keccak256(start, count))
     }
 
+    /// The `create` or `create2` both deployment families share.
+    fn core_create(&mut self, initcode: ValueId, salt: Option<ValueId>, value: ValueId) -> ValueId {
+        let length = self.builder.memory_object_len(initcode, MemoryObjectKind::Bytes);
+        let pointer = self.builder.memory_object_data(initcode, MemoryObjectKind::Bytes);
+        // deployed = create|create2(value, data, len[, salt])
+        match salt {
+            Some(salt) => self.builder.create2(value, pointer, length, salt),
+            None => self.builder.create(value, pointer, length),
+        }
+    }
+
+    /// `Create.tryDeploy(initcode, value)` and `tryDeploy2(initcode, salt, value)`:
+    /// a creation that returns no address is `false`, not a revert.
+    fn lower_core_try_deploy(
+        &mut self,
+        intrinsic: CoreIntrinsic,
+        function_id: hir::FunctionId,
+        operands: &[ValueId],
+    ) -> Option<ValueId> {
+        let (initcode, salt, value) = match (intrinsic, operands) {
+            (CoreIntrinsic::TryDeploy, &[initcode, value]) => (initcode, None, value),
+            (CoreIntrinsic::TryDeploy2, &[initcode, salt, value]) => (initcode, Some(salt), value),
+            _ => return None,
+        };
+        let deployed = self.core_create(initcode, salt, value);
+        // success = deployed != 0
+        let failed = self.builder.iszero(deployed);
+        let success = self.builder.iszero(failed);
+        Some(self.core_results(function_id, vec![success, deployed]))
+    }
+
     /// `Create.deploy(initcode, value)` and `Create.deploy2(initcode, salt, value)`.
     fn lower_core_deploy(
         &mut self,
@@ -113,13 +247,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (CoreIntrinsic::Deploy2, &[initcode, salt, value]) => (initcode, Some(salt), value),
             _ => return None,
         };
-        let length = self.builder.memory_object_len(initcode, MemoryObjectKind::Bytes);
-        let pointer = self.builder.memory_object_data(initcode, MemoryObjectKind::Bytes);
-        // deployed = create|create2(value, data, len[, salt])
-        let deployed = match salt {
-            Some(salt) => self.builder.create2(value, pointer, length, salt),
-            None => self.builder.create(value, pointer, length),
-        };
+        let deployed = self.core_create(initcode, salt, value);
         // if deployed == 0 { mstore(0, DeploymentFailed.selector); revert(0, 4) }
         let failed = self.builder.iszero(deployed);
         let failure = self.builder.create_block();
@@ -151,6 +279,68 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.panic_if(bad, PanicCode::ArrayOutOfBounds);
         // extcodecopy(target, destination, start, count)
         self.builder.extcodecopy_heap(target, destination, start, count);
+        Some(self.builder.imm(U256::ZERO))
+    }
+
+    /// `tryReadBytesN(b, offset)` and `tryReadUint256BE(b, offset)`: the range
+    /// test becomes the flag instead of a panic. A read that fails is aimed at
+    /// the start of the buffer, so it never reaches far past it, and its
+    /// result is discarded.
+    fn lower_core_try_read(
+        &mut self,
+        function_id: hir::FunctionId,
+        operands: &[ValueId],
+        width: u8,
+    ) -> Option<ValueId> {
+        let [object, offset] = *operands else { return None };
+        let length = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
+        let misses = self.core_range_misses(length, offset, Width::Const(u64::from(width)));
+        // ok = !misses
+        // word = mload(data(object) + (ok ? offset : 0))
+        // value = (ok ? word : 0) & leading(width)
+        let ok = self.builder.iszero(misses);
+        let zero = self.builder.imm(U256::ZERO);
+        let aimed = self.builder.select(ok, offset, zero);
+        let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
+        let address = self.builder.add(data, aimed);
+        let word = self.builder.mload(address);
+        let gated = self.builder.select(ok, word, zero);
+        // The mask comes last so that a cleanup of the typed result folds
+        // into it.
+        let value = match leading_mask(width) {
+            Some(mask) => {
+                let mask = self.builder.imm(mask);
+                self.builder.and(gated, mask)
+            }
+            None => gated,
+        };
+        Some(self.core_results(function_id, vec![ok, value]))
+    }
+
+    /// `CalldataBytes.readBytesN(b, offset)` and `readUint256BE(b, offset)`.
+    fn lower_core_calldata_read(&mut self, operands: &[ValueId], width: u8) -> Option<ValueId> {
+        let [slice, offset] = *operands else { return None };
+        let address =
+            self.core_checked_calldata_range(slice, offset, Width::Const(u64::from(width)));
+        // word = calldataload(ptr(slice) + offset)
+        // result = width < 32 ? word & leading(width) : word
+        let word = self.builder.calldataload(address);
+        Some(match leading_mask(width) {
+            Some(mask) => {
+                let mask = self.builder.imm(mask);
+                self.builder.and(word, mask)
+            }
+            None => word,
+        })
+    }
+
+    /// `CalldataBytes.copyInto(dst, dstOffset, src, srcOffset, count)`.
+    fn lower_core_calldata_copy(&mut self, operands: &[ValueId]) -> Option<ValueId> {
+        let [dst, dst_offset, src, src_offset, count] = *operands else { return None };
+        let destination = self.core_checked_range(dst, dst_offset, Width::Dynamic(count));
+        let source = self.core_checked_calldata_range(src, src_offset, Width::Dynamic(count));
+        // calldatacopy(destination, source, count)
+        self.builder.calldatacopy_heap(destination, source, count);
         Some(self.builder.imm(U256::ZERO))
     }
 
@@ -278,8 +468,36 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// the top of the word cannot wrap into a range that looks valid.
     fn core_checked_range(&mut self, object: ValueId, offset: ValueId, width: Width) -> ValueId {
         let length = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
+        // panic(0x32) if misses(length, offset, width)
+        let misses = self.core_range_misses(length, offset, width);
+        self.builder.panic_if(misses, PanicCode::ArrayOutOfBounds);
+        // address = data(object) + offset
+        let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
+        self.builder.add(data, offset)
+    }
+
+    /// The calldata counterpart of [`Self::core_checked_range`]: the range is
+    /// checked against the slice's length and the address is a calldata
+    /// offset.
+    fn core_checked_calldata_range(
+        &mut self,
+        slice: ValueId,
+        offset: ValueId,
+        width: Width,
+    ) -> ValueId {
+        let length = self.builder.slice_len(slice);
+        // panic(0x32) if misses(length, offset, width)
+        let misses = self.core_range_misses(length, offset, width);
+        self.builder.panic_if(misses, PanicCode::ArrayOutOfBounds);
+        // address = ptr(slice) + offset
+        let base = self.builder.slice_ptr(slice);
+        self.builder.add(base, offset)
+    }
+
+    /// Whether `[offset, offset + width)` fails to lie inside `length` bytes.
+    fn core_range_misses(&mut self, length: ValueId, offset: ValueId, width: Width) -> ValueId {
         // end = offset + width
-        // panic(0x32) if end < offset || end > length
+        // misses = end < offset || end > length
         let end = match width {
             Width::Dynamic(count) => self.builder.add(offset, count),
             Width::Const(width) => {
@@ -289,11 +507,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let wrapped = self.builder.lt(end, offset);
         let over = self.builder.gt(end, length);
-        let bad = self.builder.or(wrapped, over);
-        self.builder.panic_if(bad, PanicCode::ArrayOutOfBounds);
-        // address = data(object) + offset
-        let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
-        self.builder.add(data, offset)
+        self.builder.or(wrapped, over)
     }
 }
 
