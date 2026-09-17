@@ -204,12 +204,115 @@
     stop
   bb29:
     calldatasize
-    push 31
+-   push 31
++   push 32
     dup 2
+-   sgt
+-   iszero
++   slt
+    push 0
+    mstore
+    pop
+    stop
+  bb30:
+-   push 1
++   push 2
+    push 288
+    mload
+-   gt
+-   iszero
++   lt
+    push 0
+    mstore
+    stop
+  bb31:
+-   push 31
++   push 30
+    push 4
+    calldataload
+-   lt
+-   iszero
++   gt
+    push 0
+    mstore
+    stop
+  bb32:
+-   push 1
++   push 2
+    push 4
+    calldataload
+    dup 1
+    add
+-   gt
+-   iszero
++   lt
+    push 0
+    mstore
+    stop
+  bb33:
+    push 1
+    calldatasize
+    dup 2
+    add
+    gt
+    iszero
+    push 0
+    mstore
+    stop
+  bb34:
+    push 1
+    gas
+    gt
+    iszero
+    push 0
+    mstore
+    stop
+  bb35:
+    push 1
+    pc
+    gt
+    iszero
+    push 0
+    mstore
+    stop
+  bb36:
+-   push 31
++   push 32
+    push 4
+    calldataload
+-   sgt
+-   iszero
++   slt
+    push 0
+    mstore
+    stop
+  bb37:
+    push 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    push 4
+    calldataload
     sgt
     iszero
     push 0
     mstore
-    pop
+    stop
+  bb38:
+    push 0x8000000000000000000000000000000000000000000000000000000000000000
+    push 4
+    calldataload
+    slt
+    iszero
+    push 0
+    mstore
+    stop
+  bb39:
+-   push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++   push 0
+    push 4
+    calldataload
+-   sgt
+-   iszero
++   slt
+    push 0
+    mstore
     stop
   

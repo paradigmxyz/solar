@@ -28,13 +28,12 @@ bb0:
   sub
   push bb4
   jumpi
-  push 3
+  push 2
   jump bb12
 bb12:
   push 4
   calldataload
-  lt
-  iszero
+  gt
   push bb11
   jumpi
   push 4
@@ -50,7 +49,7 @@ bb4 [cold]:
   push 0
   revert
 bb8:
-  push 2
+  push 1
   jump bb12
 bb11 [cold]:
   push 0x4e487b71
