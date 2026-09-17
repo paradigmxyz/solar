@@ -1,7 +1,7 @@
 //! ISLE rewrite rules for the e-graph pass.
 //!
-//! The rules live in `isle/egraph.isle` and `isle/word.isle`. The instruction vocabulary they match
-//! on is generated from the MIR operation schema into `isle/prelude.isle`, and
+//! The rules live in `isle/mir/egraph.isle` and `isle/mir/word.isle`. The instruction vocabulary they match
+//! on is generated from the MIR operation schema into `isle/mir/prelude.isle`, and
 //! `build.rs` compiles both into Rust. This module implements the extractors
 //! and constructors the rules call. Root operations and nested definitions expose
 //! constants on the right of declared commutative pairs and comparisons, using

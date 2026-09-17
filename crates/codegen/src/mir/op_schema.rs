@@ -2928,10 +2928,10 @@ mod tests {
 
     #[test]
     fn isle_prelude_matches_schema() {
-        snapbox::assert_data_eq!(Op::isle_prelude(), snapbox::file!["../../isle/prelude.isle"]);
+        snapbox::assert_data_eq!(Op::isle_prelude(), snapbox::file!["../../isle/mir/prelude.isle"]);
         snapbox::assert_data_eq!(
             Op::isle_extractors(),
-            snapbox::file!["../../isle/extractors.isle"]
+            snapbox::file!["../../isle/mir/extractors.isle"]
         );
     }
 

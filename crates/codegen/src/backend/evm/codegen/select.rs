@@ -1,7 +1,7 @@
 //! Single-opcode selection for MIR operations.
 //!
 //! Most MIR operations lower to exactly one EVM opcode whose stack contract
-//! follows the operation's operand list. The local rules in `isle/select.isle`
+//! follows the operation's operand list. The local rules in `isle/mir-to-evm/select.isle`
 //! select that opcode and its scheduling shape. The target cost model uses
 //! the same selector. Operations requiring attributes, control flow, or
 //! multiple opcodes remain in the Rust emitter; version legalization and

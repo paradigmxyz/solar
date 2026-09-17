@@ -1,8 +1,8 @@
 //! ISLE rules for the EVM IR peephole pass.
 //!
-//! The rules live in `isle/peephole.isle` and match on a view of the last few
+//! The rules live in `isle/evm-ir/peephole.isle` and match on a view of the last few
 //! instructions of a block. The opcode vocabulary they use is generated from
-//! the opcode table into `isle/evm_prelude.isle`. This module implements the
+//! the opcode table into `isle/evm-ir/prelude.isle`. This module implements the
 //! window extractors, instruction facets, and opcode classes the rules call.
 
 use super::{Edit, is_block_push, is_removable_push, materialization_cost, push_value, raw_opcode};

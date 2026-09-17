@@ -184,7 +184,7 @@ class StackProofTests(unittest.TestCase):
             return verify_stack_file(path)
 
     def test_actual_compiled_stack_rules(self):
-        report = verify_stack_file(ISLE / "stack_peephole.isle")
+        report = verify_stack_file(ISLE / "evm-ir/stack_peephole.isle")
         self.assertEqual(len(report["rules"]), 7)
         self.assertTrue(all(r["status"] == "proved" for r in report["rules"]))
         self.assertGreater(sum(len(r["variants"]) for r in report["rules"]), 900)
@@ -223,7 +223,7 @@ class LateWordProofTests(unittest.TestCase):
             return verify_late_file(path)
 
     def test_compiled_mask_window_and_boundaries(self):
-        report = self.verify((ISLE / "late_word.isle").read_text())
+        report = self.verify((ISLE / "evm-ir/late_word.isle").read_text())
         result = report["rules"][0]
         self.assertTrue(all(r["status"] == "proved" for r in report["rules"]))
         self.assertEqual(
@@ -247,7 +247,7 @@ class LateWordProofTests(unittest.TestCase):
 
     def test_changed_shift_replays_counterexample(self):
         source = (
-            (ISLE / "late_word.isle")
+            (ISLE / "evm-ir/late_word.isle")
             .read_text()
             .replace("(opcode $SHL)", "(opcode $SHR)")
         )
@@ -256,7 +256,7 @@ class LateWordProofTests(unittest.TestCase):
         )
 
     def test_missing_contract_or_changed_edit_fails_closed(self):
-        source = (ISLE / "late_word.isle").read_text()
+        source = (ISLE / "evm-ir/late_word.isle").read_text()
         for change in (
             source.replace("(if-let true (closed_count window))", ""),
             source.replace("(late_length window)", "4"),
@@ -753,7 +753,7 @@ class OutputBitPartitionTests(unittest.TestCase):
 
 class EnvironmentTests(unittest.TestCase):
     def test_actual_balance_mask_rules_require_all_address_bits(self):
-        path = ISLE / "egraph.isle"
+        path = ISLE / "mir/egraph.isle"
         rules = [
             Rule(form, line, str(path))
             for form, line in forms(path.read_text())
@@ -783,7 +783,7 @@ class EnvironmentTests(unittest.TestCase):
                 self.assertTrue(result["replayed"])
 
     def test_actual_self_balance_rule_uses_a_shared_state_array(self):
-        path = ISLE / "egraph.isle"
+        path = ISLE / "mir/egraph.isle"
         rules = [
             Rule(form, line, str(path))
             for form, line in forms(path.read_text())
@@ -859,7 +859,11 @@ class EnvironmentTests(unittest.TestCase):
             concrete(expression("selfbalance"), {})
         with self.assertRaises(Unsupported):
             Context().pattern("@environment:address")
-        source = (ISLE / "select.isle").read_text().replace("$ADDRESS)", "$ORIGIN)")
+        source = (
+            (ISLE / "mir-to-evm/select.isle")
+            .read_text()
+            .replace("$ADDRESS)", "$ORIGIN)")
+        )
         with self.assertRaises(Unsupported):
             Context(selection_source=source).pattern(("current_address",))
 
@@ -936,7 +940,7 @@ class CallEffectTests(unittest.TestCase):
 
 class MemoryAddressTests(unittest.TestCase):
     def test_actual_projection_rules_and_missing_guards(self):
-        path = ISLE / "egraph.isle"
+        path = ISLE / "mir/egraph.isle"
         rules = [
             Rule(form, line, str(path))
             for form, line in forms(path.read_text())
@@ -1111,7 +1115,7 @@ class RuleTests(unittest.TestCase):
         self.assertNotEqual(before["source_sha256"], after["source_sha256"])
 
     def test_instruction_selection_drift_fails_closed(self):
-        selection = (ISLE / "select.isle").read_text()
+        selection = (ISLE / "mir-to-evm/select.isle").read_text()
         for changed in (
             selection.replace("$ADD)", "$SUB)"),
             selection.replace("Op.Add _ _", "Op.Add x x"),
@@ -1197,7 +1201,7 @@ class RuleTests(unittest.TestCase):
                 and any(uses_exp(child) for child in node)
             )
 
-        path = ISLE / "egraph.isle"
+        path = ISLE / "mir/egraph.isle"
         rules = [
             Rule(form, line, str(path))
             for form, line in forms(path.read_text())
@@ -1218,7 +1222,7 @@ class RuleTests(unittest.TestCase):
                 and any(contains(child, atom) for child in node)
             )
 
-        path = ISLE / "egraph.isle"
+        path = ISLE / "mir/egraph.isle"
         rules = [
             Rule(form, line, str(path))
             for form, line in forms(path.read_text())
@@ -1240,7 +1244,7 @@ class RuleTests(unittest.TestCase):
         self.assertEqual((result["cases"], len(queries)), (257, 258))
 
     def test_actual_nested_signextend_rule(self):
-        path = ISLE / "egraph.isle"
+        path = ISLE / "mir/egraph.isle"
 
         def has_nested_signextend(node):
             return isinstance(node, tuple) and (
@@ -1829,7 +1833,7 @@ class SolverFallbackTests(unittest.TestCase):
                 and any(uses_clz(child) for child in node)
             )
 
-        path = ISLE / "egraph.isle"
+        path = ISLE / "mir/egraph.isle"
         rules = [
             Rule(form, line, str(path))
             for form, line in forms(path.read_text())
@@ -1860,7 +1864,7 @@ class SolverFallbackTests(unittest.TestCase):
                 or any(selected(child) for child in node)
             )
 
-        path = ISLE / "egraph.isle"
+        path = ISLE / "mir/egraph.isle"
         rules = [
             Rule(form, line, str(path))
             for form, line in forms(path.read_text())
