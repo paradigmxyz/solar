@@ -54,11 +54,12 @@ fn @nestedFailure() [selector=0x3e70e061, pure, abi_params=[], abi_returns=[], a
     v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v4, 3
     v5 = memory_object_data memorybytes, v4
-    mstore v5, 0x102030000000000000000000000000000000000000000000000000000000000
-    v6 = memory_object_len memoryarray, v0
-    v7 = lt 0, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
+    v6 = ptrtoint memptr v5 to i256
+    mstore v6, 0x102030000000000000000000000000000000000000000000000000000000000
+    v7 = memory_object_len memoryarray, v0
+    v8 = lt 0, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
     memory_object_store_element memoryarray<1>, v0, 0, v4
     icall require<custom_error [memory_array<memory_bytes>]>, false, 0xae7687df00000000000000000000000000000000000000000000000000000000, v0
     ret
@@ -84,7 +85,8 @@ fn @reason() -> memorybytes {
     v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, 1
     v3 = memory_object_data memorybytes, v2
-    mstore v3, 0x7800000000000000000000000000000000000000000000000000000000000000
+    v4 = ptrtoint memptr v3 to i256
+    mstore v4, 0x7800000000000000000000000000000000000000000000000000000000000000
     ret v2
 }
 

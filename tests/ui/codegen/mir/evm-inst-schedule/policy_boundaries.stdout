@@ -84,7 +84,7 @@
 -     v0 = mload arg0
 -     v1 = tload arg1
       v2 = caller
-      v3 = word_cast v2
+      v3 = zext i160 v2 to i256
 +     v1 = tload arg1
 +     v0 = mload arg0
       v4 = sub v0, v1

@@ -7,7 +7,7 @@ fn @forward(arg0: calldataslice, arg1: i256, arg2: i256) [selector=0xb8467e08, a
     v2 = gt v1, v1
     v3 = lt v1, arg1
     v4 = or v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     icall revert_if<empty>, v5
     v6 = sub v1, arg1
     v7 = add v0, arg1

@@ -7,7 +7,7 @@ contract C {
     address public immutable owner;
 
     // CHECK-LABEL: fn @constructor{{[( ]}}
-    // CHECK: [[OWNER:v[0-9]+]] = trunc i160, arg0
+    // CHECK: [[OWNER:v[0-9]+]] = trunc i256 arg0 to i160
     // CHECK: storeimmutable owner, [[OWNER]]
     constructor(address value) {
         owner = value;

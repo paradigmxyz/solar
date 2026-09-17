@@ -75,7 +75,7 @@ impl Immediate {
                 );
                 Self::Int(value, bits)
             }
-            Some(ty @ MirType::MemoryObject(_)) => Self::Pointer(value, ty),
+            Some(ty @ (MirType::MemPtr | MirType::MemoryObject(_))) => Self::Pointer(value, ty),
             _ => Self::uint256(value),
         }
     }
@@ -135,6 +135,7 @@ impl Ord for Immediate {
             Self::Int(_, _) => 4,
         };
         let pointer_rank = |ty| match ty {
+            MirType::MemPtr => 2,
             MirType::MemoryObject(kind) => 3 + kind as u8,
             _ => unreachable!("pointer immediate has a pointer type"),
         };

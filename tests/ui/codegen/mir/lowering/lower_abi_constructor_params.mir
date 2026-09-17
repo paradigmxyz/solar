@@ -27,7 +27,7 @@
 fn @constructor(arg0: memoryfixedarray, arg1: i256) [abi_params=[array<2, array<2, u256>>, u256]] {
   bb0:
     v0 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 1
-    v3 = memory_object_from_ptr memoryfixedarray, v0
+    v3 = inttoptr i256 v0 to memoryfixedarray
     v1 = memory_object_load_element memoryfixedarray<2, 1>, v3, 0
     v2 = add v1, arg1
     mstore 0, v2

@@ -11,7 +11,7 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, abi_params=[byte
     v4 = phi [bb0: memorybytes 96], [bb3: v4]
     v5 = add v3, 256
     v6 = lt v1, v5
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     v8 = ne v7, 0
     jumpi v8, bb4, bb5
   bb5:
@@ -26,11 +26,11 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, abi_params=[byte
     v16 = sgt v11, v15
     icall revert_if<calldata_tail_too_short>, v16
     v17 = abi_encode [calldata_bytes], object, args v2
-    v18 = word_cast v17
+    v18 = ptrtoint memorybytes v17 to i256
     v19 = eq v3, v18
-    v20 = word_cast v19
+    v20 = zext i1 v19 to i256
     v21 = eq v20, 0
-    v22 = word_cast v21
+    v22 = zext i1 v21 to i256
     v23 = ne v22, 0
     jumpi v23, bb7, bb8
   bb8:
@@ -57,29 +57,30 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, 3
     v3 = memory_object_data memorybytes, v2
-    mstore v3, 0x6162630000000000000000000000000000000000000000000000000000000000
-    v4 = abi_encode [memory_bytes], selector 0x91e145ef00000000000000000000000000000000000000000000000000000000, args v2
-    v5 = slice_ptr v4
-    v6 = slice_len v4
-    v7 = call v1, v0, 0, v5, v6, 0, 0
-    jumpi v7, bb2, bb1
+    v4 = ptrtoint memptr v3 to i256
+    mstore v4, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v5 = abi_encode [memory_bytes], selector 0x91e145ef00000000000000000000000000000000000000000000000000000000, args v2
+    v6 = slice_ptr v5
+    v7 = slice_len v5
+    v8 = call v1, v0, 0, v6, v7, 0, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = icall returndata_bytes<>
-    v9 = abi_decode [bytes], v8
-    ret v9
+    v9 = icall returndata_bytes<>
+    v10 = abi_decode [bytes], v9
+    ret v10
 }
 
 fn @encodeDynamic(arg0: calldataslice) -> memorybytes [selector=0x44a76707, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = abi_encode [calldata_bytes], object, args arg0
-    v2 = word_cast v1
+    v2 = ptrtoint memorybytes v1 to i256
     v3 = eq v0, v2
-    v4 = word_cast v3
+    v4 = zext i1 v3 to i256
     v5 = eq v4, 0
-    v6 = word_cast v5
+    v6 = zext i1 v5 to i256
     v7 = ne v6, 0
     jumpi v7, bb1, bb2
   bb2:
@@ -94,11 +95,11 @@ fn @encodeStatic(arg0: i256) -> memorybytes [selector=0x815736ce, pure, abi_para
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = abi_encode [word], object, args arg0
-    v2 = word_cast v1
+    v2 = ptrtoint memorybytes v1 to i256
     v3 = eq v0, v2
-    v4 = word_cast v3
+    v4 = zext i1 v3 to i256
     v5 = eq v4, 0
-    v6 = word_cast v5
+    v6 = zext i1 v5 to i256
     v7 = ne v6, 0
     jumpi v7, bb1, bb2
   bb2:

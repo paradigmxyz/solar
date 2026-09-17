@@ -383,7 +383,7 @@ fn @load_storage_struct_array_0(arg0: i256) -> memoryarray {
     v5 = div v3, 32
     v6 = eq v5, v1
     v7 = or v4, v6
-    v8 = word_cast v7
+    v8 = zext i1 v7 to i256
     v9 = eq v8, 0
     icall panic_if<0x41>, v9
     v10 = alloc memoryarray<1>, exact, uninitialized, panic, v3
@@ -425,11 +425,11 @@ fn @store_recursive_storage_0_0(arg0: i256, arg1: memorystruct) {
     sstore arg0, v5 !metadata(storage=symbolic(arg0))
     v6 = add arg0, 1
     v7 = memory_object_load_field memorystruct<3>, arg1, 1
-    v8 = memory_object_from_ptr memorybytes, v7
+    v8 = inttoptr i256 v7 to memorybytes
     icall @store_storage_bytes, v6, v8
     v9 = add arg0, 2
     v10 = memory_object_load_field memorystruct<3>, arg1, 2
-    v11 = memory_object_from_ptr memoryarray, v10
+    v11 = inttoptr i256 v10 to memoryarray
     v12 = memory_object_len memoryarray, v11
     v13 = sload v9 !metadata(storage=offset(arg0, 2))
     v14 = gt v13, v12
@@ -452,10 +452,10 @@ fn @store_recursive_storage_0_0(arg0: i256, arg1: memorystruct) {
   bb8:
     ret
   bb7:
-    v23 = memory_object_from_ptr memoryarray, v10
+    v23 = inttoptr i256 v10 to memoryarray
     v24 = memory_object_load_element memoryarray<1>, v23, v21
-    v25 = memory_object_from_ptr memorystruct, v24
-    v26 = word_cast v25
+    v25 = inttoptr i256 v24 to memorystruct
+    v26 = ptrtoint memorystruct v25 to i256
     v27 = eq v26, 0
     jumpi v27, bb9, bb10
   bb9:
@@ -467,7 +467,7 @@ fn @store_recursive_storage_0_0(arg0: i256, arg1: memorystruct) {
     v30 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v30, 0
     memory_object_store_field memorystruct<3>, v28, 2, v30
-    v31 = memory_object_from_ptr memoryarray, v10
+    v31 = inttoptr i256 v10 to memoryarray
     memory_object_store_element memoryarray<1>, v31, v21, v28
     jump bb10
   bb10:

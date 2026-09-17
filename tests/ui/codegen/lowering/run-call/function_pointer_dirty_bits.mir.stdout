@@ -8,7 +8,7 @@ fn @g() [selector=0xe2179b8e, abi_params=[], abi_returns=[], abi_return_params=[
 fn @comparison() -> i256 [selector=0xaae103ad, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
-    v1 = word_cast v0
+    v1 = zext i160 v0 to i256
     v2 = shl 32, v1
     v3 = or v2, 0xe2179b8e
     v4 = sub 0, 1
@@ -29,18 +29,18 @@ fn @comparison() -> i256 [selector=0xaae103ad, view, abi_params=[], abi_returns=
     v19 = and v12, v18
     v20 = or v19, v17
     v21 = address
-    v22 = word_cast v21
+    v22 = zext i160 v21 to i256
     v23 = shl 32, v22
     v24 = or v23, 0xe2179b8e
     v25 = eq v24, v20
-    v26 = word_cast v25
+    v26 = zext i1 v25 to i256
     ret v26
 }
 
 fn @abiEncoding() -> i256 [selector=0xe9e87e69, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
-    v1 = word_cast v0
+    v1 = zext i160 v0 to i256
     v2 = shl 32, v1
     v3 = or v2, 0xe2179b8e
     v4 = sub 0, 1
@@ -65,7 +65,7 @@ fn @abiEncoding() -> i256 [selector=0xe9e87e69, view, abi_params=[], abi_returns
     v23 = slice_len v21
     v24 = keccak256 v22, v23
     v25 = address
-    v26 = word_cast v25
+    v26 = zext i160 v25 to i256
     v27 = shl 32, v26
     v28 = or v27, 0xe2179b8e
     v29 = abi_encode [function], scratch, args v28
@@ -73,6 +73,6 @@ fn @abiEncoding() -> i256 [selector=0xe9e87e69, view, abi_params=[], abi_returns
     v31 = slice_len v29
     v32 = keccak256 v30, v31
     v33 = eq v24, v32
-    v34 = word_cast v33
+    v34 = zext i1 v33 to i256
     ret v34
 }

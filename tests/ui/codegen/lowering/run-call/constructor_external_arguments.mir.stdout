@@ -16,7 +16,7 @@ fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[bytes3, bool]]
     v10 = sload 0 !metadata(storage=slot(0))
     v11 = not v9
     v12 = and v10, v11
-    v13 = word_cast v8
+    v13 = zext i1 v8 to i256
     v14 = and v13, 255
     v15 = shl 24, v14
     v16 = or v12, v15

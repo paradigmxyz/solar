@@ -4,20 +4,26 @@
   fn @reuse_projections(arg0: memorybytes, arg1: memorystruct, arg2: memoryarray, arg3: i256) -> i256 {
     bb0:
       v0 = memory_object_data memorybytes, arg0
--     v1 = memory_object_data memorybytes, arg0
-      v2 = memory_object_field_addr memorystruct<3>, arg1, 2
--     v3 = memory_object_field_addr memorystruct<3>, arg1, 2
-      v4 = memory_object_element_addr memoryarray<2>, arg2, arg3
--     v5 = memory_object_element_addr memoryarray<2>, arg2, arg3
--     v6 = eq v0, v1
--     v7 = eq v2, v3
--     v8 = eq v4, v5
--     v9 = word_cast v6
--     v10 = word_cast v7
--     v11 = add v9, v10
--     v12 = word_cast v8
--     v13 = add v11, v12
--     ret v13
+      v1 = ptrtoint memptr v0 to i256
+-     v2 = memory_object_data memorybytes, arg0
+-     v3 = ptrtoint memptr v2 to i256
+      v4 = memory_object_field_addr memorystruct<3>, arg1, 2
+      v5 = ptrtoint memptr v4 to i256
+-     v6 = memory_object_field_addr memorystruct<3>, arg1, 2
+-     v7 = ptrtoint memptr v6 to i256
+      v8 = memory_object_element_addr memoryarray<2>, arg2, arg3
+      v9 = ptrtoint memptr v8 to i256
+-     v10 = memory_object_element_addr memoryarray<2>, arg2, arg3
+-     v11 = ptrtoint memptr v10 to i256
+-     v12 = eq v1, v3
+-     v13 = eq v5, v7
+-     v14 = eq v9, v11
+-     v15 = zext i1 v12 to i256
+-     v16 = zext i1 v13 to i256
+-     v17 = add v15, v16
+-     v18 = zext i1 v14 to i256
+-     v19 = add v17, v18
+-     ret v19
 +     ret 3
   }
   

@@ -36,7 +36,7 @@ fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[u256], abi
     v29 = phi [bb2: v23], [bb9: v29]
     v30 = phi [bb2: v11], [bb9: v30]
     v31 = lt v26, v29
-    v32 = word_cast v31
+    v32 = zext i1 v31 to i256
     v33 = ne v32, 0
     jumpi v33, bb10, bb11
   bb11:
@@ -52,10 +52,10 @@ fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[u256], abi
     v43 = eq v40, v42
     v44 = eq v43, false
     icall revert_if<empty>, v44
-    v45 = word_cast v36
+    v45 = ptrtoint memorybytes v36 to i256
     v46 = add v45, 32
     v47 = mload v46
-    v48 = word_cast v36
+    v48 = ptrtoint memorybytes v36 to i256
     v49 = add v48, 64
     v50 = mload v49
     v51 = eq v47, 64
@@ -88,7 +88,7 @@ fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[u256], abi
   bb20:
     jump bb17
   bb17:
-    v109 = word_cast true
+    v109 = zext i1 1 to i256
     ret v109
   bb19:
     v68 = eq v60, 0
@@ -99,7 +99,7 @@ fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[u256], abi
     jump bb24
   bb24:
     v69 = phi [bb22: v65], [bb23: v57]
-    v70 = word_cast v59
+    v70 = ptrtoint memorybytes v59 to i256
     v71 = add v70, 32
     v72 = add v71, v69
     v73 = mload v72

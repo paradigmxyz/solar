@@ -39,7 +39,7 @@
       v1 = call 0x186a0, arg1, 0, 0, 0, 0, 0
       v2 = sload arg0
       v3 = add v0, v2
-      v4 = word_cast v1
+      v4 = zext i1 v1 to i256
       v5 = add v3, v4
       ret v5
   }

@@ -618,15 +618,15 @@
 (rule 1 (simplify (Op.Select (and cond (bool_value)) (one) (zero))) cond)
 
 ;; memory_object_data(object, kind) => object, when kind has zero data offset
-(rule (rewrite (Op.MemoryObjectData object kind)) (if-let 0 (object_data_offset kind)) (Op.WordCast object))
+(rule (rewrite (Op.MemoryObjectData object kind)) (if-let 0 (object_data_offset kind)) (Op.Bitcast object))
 ;; memory_object_field_addr(object, layout, field) => object, when the field offset is zero
 (rule (rewrite (Op.MemoryObjectFieldAddr object layout field))
       (if-let 0 (field_offset layout field))
-      (Op.WordCast object))
+      (Op.Bitcast object))
 ;; memory_object_element_addr(object, layout, 0) => object, when the layout has zero data offset
 (rule (rewrite (Op.MemoryObjectElementAddr object layout (zero)))
       (if-let 0 (object_data_offset (layout_kind layout)))
-      (Op.WordCast object))
+      (Op.Bitcast object))
 
 ;; Canonical zero tests preserve the operand's scalar type.
 (rule (rewrite (Op.Gt x (zero))) (Op.Ne x (imm (u256 0))))
@@ -635,8 +635,14 @@
 (rule (rewrite (Op.Eq (ne a b) (zero))) (Op.Eq a b))
 (rule (rewrite (Op.Ne (eq a b) (zero))) (Op.Eq a b))
 (rule (rewrite (Op.Ne (ne a b) (zero))) (Op.Ne a b))
-(rule (rewrite (Op.Eq (wordcast (and x (bool_value))) (zero))) (Op.Eq x (imm_bool false)))
-(rule (rewrite (Op.Ne (wordcast (and x (bool_value))) (zero))) (Op.Ne x (imm_bool false)))
+(rule (rewrite (Op.Eq (zext (and x (bool_value))) (zero))) (Op.Eq x (imm_bool false)))
+(rule (rewrite (Op.Ne (zext (and x (bool_value))) (zero))) (Op.Ne x (imm_bool false)))
 (rule 10 (simplify (Op.Ne a a)) (imm_bool false))
 (rule 9 (simplify (Op.Ne (and x (bool_value)) (zero))) x)
 (rule 8 (simplify (Op.Ne (zero) (and x (bool_value)))) x)
+
+;; Pointer casts preserve bits across changes of nominal pointer type.
+(rule (rewrite (Op.PtrToInt (bitcast value) bits)) (Op.PtrToInt value bits))
+(rule (rewrite (Op.Bitcast (bitcast value))) (Op.Bitcast value))
+(rule (simplify (Op.PtrToInt (inttoptr value) 256)) value)
+(rule (simplify (Op.IntToPtr (ptrtoint value 256))) value)

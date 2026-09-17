@@ -32,7 +32,7 @@
 + fn @owner() [selector=0x8da5cb5b, abi_wrapper] {
     bb0:
       v0 = loadimmutable owner
-      v1 = word_cast v0
+      v1 = zext i160 v0 to i256
 -     ret v1
 +     v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
 +     mstore 128, v2
@@ -82,10 +82,10 @@
 +     v6 = lt v5, 2
 +     jumpi v6, bb5, bb2
 +   bb5:
-+     v7 = trunc i160, arg0
++     v7 = trunc i256 arg0 to i160
 +     jump bb1
 +   bb1:
-+     v8 = word_cast v7
++     v8 = zext i160 v7 to i256
 +     v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
 +     mstore 128, v9
 +     v10 = add 128, 32

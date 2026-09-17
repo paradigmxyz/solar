@@ -112,13 +112,20 @@ class Context:
             if shapes.get(name) != MemoryAddresses.SHAPES[name]:
                 raise Unsupported(f"unmodeled or changed memory address schema: {name}")
             return self.memory.operation(name, tuple(args))
-        if name in ("Op.Ne", "Op.WordCast"):
+        if name in ("Op.Ne", "Op.Zext", "Op.Bitcast", "Op.IntToPtr"):
             self.contracts.add(f"{name}: trusted MIR word inequality or bit-preserving scalar cast")
             if name == "Op.Ne" and len(args) == 2:
                 return Expr("ne", tuple(args))
-            if name == "Op.WordCast" and len(args) == 1:
+            if name in ("Op.Zext", "Op.Bitcast", "Op.IntToPtr") and len(args) == 1:
                 return args[0]
             raise Unsupported(f"invalid scalar operation arity: {name}")
+        if name == "Op.PtrToInt":
+            if len(args) != 2:
+                raise Unsupported("invalid pointer cast arity")
+            value, bits = args
+            mask = Expr("sub", (Expr("shl", (bits, Expr.const(1))), Expr.const(1)))
+            self.contracts.add("PtrToInt: truncate or zero-extend a 256-bit pointer")
+            return Expr("and", (value, mask))
         if name == "Op.Select":
             self.contracts.add("Select: trusted MIR semantics select the true arm for any nonzero word")
             return Expr("select", tuple(args))

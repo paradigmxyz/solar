@@ -8,7 +8,7 @@
 +     v1 = eq arg1, 0 !metadata(span=10..20, modifier_depth=2)
 +     v2 = select v1, 0x8fc, 0 !metadata(span=10..20, modifier_depth=2)
 +     v3 = call v2, arg0, arg1, 0, 0, 0, 0 !metadata(span=10..20, modifier_depth=2)
-+     v4 = word_cast v3 !metadata(span=10..20, modifier_depth=2)
++     v4 = zext i1 v3 to i256 !metadata(span=10..20, modifier_depth=2)
 +     ret v4
   }
   
@@ -31,7 +31,7 @@
 +     v5 = eq 0, 0
 +     v6 = select v5, 0x8fc, 0
 +     v7 = call v6, arg1, 0, 0, 0, 0, 0
-+     v8 = word_cast v7
++     v8 = zext i1 v7 to i256
 +     v9 = eq 1, 0
 +     v10 = select v9, 0x8fc, 0
 +     v11 = call v10, arg1, 1, 0, 0, 0, 0

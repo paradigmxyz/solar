@@ -13,7 +13,7 @@ fn @constructor() [constructor] {
     v3 = sload v2 !metadata(storage=symbolic(v2))
     v4 = not 255
     v5 = and v3, v4
-    v6 = word_cast true
+    v6 = zext i1 1 to i256
     v7 = and v6, 255
     v8 = or v5, v7
     sstore v2, v8 !metadata(storage=symbolic(v2))
@@ -32,7 +32,7 @@ fn @isOperation(arg0: i256) -> i256 [selector=0x31d50750, view, abi_params=[byte
     v0 = mapping_slot arg0, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))
     v2 = gt v1, 0
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     ret v3
 }
 
@@ -118,7 +118,7 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v35 = div v33, 32
     v36 = eq v35, v23
     v37 = or v34, v36
-    v38 = word_cast v37
+    v38 = zext i1 v37 to i256
     v39 = eq v38, 0
     icall panic_if<0x41>, v39
     v40 = add v32, v33
@@ -137,7 +137,7 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v51 = div v49, 32
     v52 = eq v51, v23
     v53 = or v50, v52
-    v54 = word_cast v53
+    v54 = zext i1 v53 to i256
     v55 = eq v54, 0
     icall panic_if<0x41>, v55
     v56 = add v48, v49
@@ -152,7 +152,7 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v64 = div v62, 32
     v65 = eq v64, v23
     v66 = or v63, v65
-    v67 = word_cast v66
+    v67 = zext i1 v66 to i256
     v68 = eq v67, 0
     icall panic_if<0x41>, v68
     v69 = add v61, v62

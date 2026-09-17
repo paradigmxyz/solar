@@ -236,7 +236,7 @@ fn @constructor() [constructor] {
     v283 = shl v277, v282
     v284 = or v281, v283
     sstore v274, v284 !metadata(storage=symbolic(v274))
-    v285 = trunc i160, 1
+    v285 = trunc i256 1 to i160
     v286 = sload 2 !metadata(storage=slot(2))
     v287 = gt v286, 0xffffffffffffffff
     icall panic_if<0x41>, v287
@@ -251,13 +251,13 @@ fn @constructor() [constructor] {
     v296 = sload v291 !metadata(storage=symbolic(v291))
     v297 = not v295
     v298 = and v296, v297
-    v299 = word_cast v285
+    v299 = zext i160 v285 to i256
     v300 = and v299, 0xffffffffffffffffffffffffffffffffffffffff
     v301 = shl v294, v300
     v302 = or v298, v301
     sstore v291, v302 !metadata(storage=symbolic(v291))
     sstore 2, v288 !metadata(storage=slot(2))
-    v303 = trunc i160, 2
+    v303 = trunc i256 2 to i160
     v304 = sload 2 !metadata(storage=slot(2))
     v305 = gt v304, 0xffffffffffffffff
     icall panic_if<0x41>, v305
@@ -272,7 +272,7 @@ fn @constructor() [constructor] {
     v314 = sload v309 !metadata(storage=symbolic(v309))
     v315 = not v313
     v316 = and v314, v315
-    v317 = word_cast v303
+    v317 = zext i160 v303 to i256
     v318 = and v317, 0xffffffffffffffffffffffffffffffffffffffff
     v319 = shl v312, v318
     v320 = or v316, v319
@@ -351,8 +351,8 @@ fn @constructor() [constructor] {
     jump bb26
   bb10:
     v21 = memory_object_load_element memoryarray<1>, v0, v19
-    v22 = memory_object_from_ptr memoryarray, v21
-    v23 = word_cast v22
+    v22 = inttoptr i256 v21 to memoryarray
+    v23 = ptrtoint memoryarray v22 to i256
     v24 = eq v23, 0
     jumpi v24, bb12, bb13
   bb12:
@@ -445,7 +445,7 @@ fn @constructor() [constructor] {
     v13 = mod v11, 32
     v14 = eq v13, 0
     v15 = eq v14, false
-    v16 = word_cast v15
+    v16 = zext i1 v15 to i256
     v17 = add v12, v16
     clear_storage_words v10, 0, v17
     v18 = add v7, 1
@@ -464,7 +464,7 @@ fn @from_storage() -> memoryarray [selector=0x904f60db, abi_params=[], abi_retur
     v3 = div v1, 1
     v4 = eq v3, v0
     v5 = or v2, v4
-    v6 = word_cast v5
+    v6 = zext i1 v5 to i256
     v7 = eq v6, 0
     icall panic_if<0x41>, v7
     v8 = add v1, 1
@@ -475,7 +475,7 @@ fn @from_storage() -> memoryarray [selector=0x904f60db, abi_params=[], abi_retur
     v12 = div v10, 32
     v13 = eq v12, v8
     v14 = or v11, v13
-    v15 = word_cast v14
+    v15 = zext i1 v14 to i256
     v16 = eq v15, 0
     icall panic_if<0x41>, v16
     v17 = alloc memoryarray<1>, exact, uninitialized, panic, v10
@@ -514,7 +514,7 @@ fn @from_storage() -> memoryarray [selector=0x904f60db, abi_params=[], abi_retur
     v101 = div v99, 1
     v102 = eq v101, v98
     v103 = or v100, v102
-    v104 = word_cast v103
+    v104 = zext i1 v103 to i256
     v105 = eq v104, 0
     icall panic_if<0x41>, v105
     v106 = add v99, 1
@@ -525,7 +525,7 @@ fn @from_storage() -> memoryarray [selector=0x904f60db, abi_params=[], abi_retur
     v110 = div v108, 32
     v111 = eq v110, v106
     v112 = or v109, v111
-    v113 = word_cast v112
+    v113 = zext i1 v112 to i256
     v114 = eq v113, 0
     icall panic_if<0x41>, v114
     v115 = alloc memoryarray<1>, exact, uninitialized, panic, v108
@@ -546,8 +546,8 @@ fn @from_storage() -> memoryarray [selector=0x904f60db, abi_params=[], abi_retur
     jump bb24
   bb10:
     v42 = memory_object_load_element memoryarray<1>, v17, v40
-    v43 = memory_object_from_ptr memoryarray, v42
-    v44 = word_cast v43
+    v43 = inttoptr i256 v42 to memoryarray
+    v44 = ptrtoint memoryarray v43 to i256
     v45 = eq v44, 0
     jumpi v45, bb12, bb13
   bb12:
@@ -640,7 +640,7 @@ fn @from_storage() -> memoryarray [selector=0x904f60db, abi_params=[], abi_retur
     v34 = mod v32, 32
     v35 = eq v34, 0
     v36 = eq v35, false
-    v37 = word_cast v36
+    v37 = zext i1 v36 to i256
     v38 = add v33, v37
     clear_storage_words v31, 0, v38
     v39 = add v28, 1
@@ -662,7 +662,7 @@ fn @from_storage_ptr() -> memoryarray [selector=0x764eb525, abi_params=[], abi_r
     v3 = div v1, 1
     v4 = eq v3, v0
     v5 = or v2, v4
-    v6 = word_cast v5
+    v6 = zext i1 v5 to i256
     v7 = eq v6, 0
     icall panic_if<0x41>, v7
     v8 = add v1, 1
@@ -673,7 +673,7 @@ fn @from_storage_ptr() -> memoryarray [selector=0x764eb525, abi_params=[], abi_r
     v12 = div v10, 32
     v13 = eq v12, v8
     v14 = or v11, v13
-    v15 = word_cast v14
+    v15 = zext i1 v14 to i256
     v16 = eq v15, 0
     icall panic_if<0x41>, v16
     v17 = alloc memoryarray<1>, exact, uninitialized, panic, v10
@@ -712,7 +712,7 @@ fn @from_storage_ptr() -> memoryarray [selector=0x764eb525, abi_params=[], abi_r
     v101 = div v99, 1
     v102 = eq v101, v98
     v103 = or v100, v102
-    v104 = word_cast v103
+    v104 = zext i1 v103 to i256
     v105 = eq v104, 0
     icall panic_if<0x41>, v105
     v106 = add v99, 1
@@ -723,7 +723,7 @@ fn @from_storage_ptr() -> memoryarray [selector=0x764eb525, abi_params=[], abi_r
     v110 = div v108, 32
     v111 = eq v110, v106
     v112 = or v109, v111
-    v113 = word_cast v112
+    v113 = zext i1 v112 to i256
     v114 = eq v113, 0
     icall panic_if<0x41>, v114
     v115 = alloc memoryarray<1>, exact, uninitialized, panic, v108
@@ -744,8 +744,8 @@ fn @from_storage_ptr() -> memoryarray [selector=0x764eb525, abi_params=[], abi_r
     jump bb24
   bb10:
     v42 = memory_object_load_element memoryarray<1>, v17, v40
-    v43 = memory_object_from_ptr memoryarray, v42
-    v44 = word_cast v43
+    v43 = inttoptr i256 v42 to memoryarray
+    v44 = ptrtoint memoryarray v43 to i256
     v45 = eq v44, 0
     jumpi v45, bb12, bb13
   bb12:
@@ -838,7 +838,7 @@ fn @from_storage_ptr() -> memoryarray [selector=0x764eb525, abi_params=[], abi_r
     v34 = mod v32, 32
     v35 = eq v34, 0
     v36 = eq v35, false
-    v37 = word_cast v36
+    v37 = zext i1 v36 to i256
     v38 = add v33, v37
     clear_storage_words v31, 0, v38
     v39 = add v28, 1
@@ -860,7 +860,7 @@ fn @from_memory() -> memoryarray [selector=0x841ae8f5, abi_params=[], abi_return
     v3 = div v1, 1
     v4 = eq v3, v0
     v5 = or v2, v4
-    v6 = word_cast v5
+    v6 = zext i1 v5 to i256
     v7 = eq v6, 0
     icall panic_if<0x41>, v7
     v8 = add v1, 1
@@ -871,7 +871,7 @@ fn @from_memory() -> memoryarray [selector=0x841ae8f5, abi_params=[], abi_return
     v12 = div v10, 32
     v13 = eq v12, v8
     v14 = or v11, v13
-    v15 = word_cast v14
+    v15 = zext i1 v14 to i256
     v16 = eq v15, 0
     icall panic_if<0x41>, v16
     v17 = alloc memoryarray<1>, exact, uninitialized, panic, v10
@@ -910,7 +910,7 @@ fn @from_memory() -> memoryarray [selector=0x841ae8f5, abi_params=[], abi_return
     v101 = div v99, 1
     v102 = eq v101, v98
     v103 = or v100, v102
-    v104 = word_cast v103
+    v104 = zext i1 v103 to i256
     v105 = eq v104, 0
     icall panic_if<0x41>, v105
     v106 = add v99, 1
@@ -921,7 +921,7 @@ fn @from_memory() -> memoryarray [selector=0x841ae8f5, abi_params=[], abi_return
     v110 = div v108, 32
     v111 = eq v110, v106
     v112 = or v109, v111
-    v113 = word_cast v112
+    v113 = zext i1 v112 to i256
     v114 = eq v113, 0
     icall panic_if<0x41>, v114
     v115 = alloc memoryarray<1>, exact, uninitialized, panic, v108
@@ -942,8 +942,8 @@ fn @from_memory() -> memoryarray [selector=0x841ae8f5, abi_params=[], abi_return
     jump bb24
   bb10:
     v42 = memory_object_load_element memoryarray<1>, v17, v40
-    v43 = memory_object_from_ptr memoryarray, v42
-    v44 = word_cast v43
+    v43 = inttoptr i256 v42 to memoryarray
+    v44 = ptrtoint memoryarray v43 to i256
     v45 = eq v44, 0
     jumpi v45, bb12, bb13
   bb12:
@@ -1036,7 +1036,7 @@ fn @from_memory() -> memoryarray [selector=0x841ae8f5, abi_params=[], abi_return
     v34 = mod v32, 32
     v35 = eq v34, 0
     v36 = eq v35, false
-    v37 = word_cast v36
+    v37 = zext i1 v36 to i256
     v38 = add v33, v37
     clear_storage_words v31, 0, v38
     v39 = add v28, 1
@@ -1059,7 +1059,7 @@ fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_
     v4 = div v2, 32
     v5 = eq v4, v0
     v6 = or v3, v5
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     v8 = eq v7, 0
     icall panic_if<0x41>, v8
     v9 = calldatasize
@@ -1071,7 +1071,7 @@ fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_
     v14 = div v12, 32
     v15 = eq v14, v0
     v16 = or v13, v15
-    v17 = word_cast v16
+    v17 = zext i1 v16 to i256
     v18 = eq v17, 0
     icall panic_if<0x41>, v18
     v19 = add 32, v12
@@ -1113,7 +1113,7 @@ fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_
     v141 = div v139, 1
     v142 = eq v141, v138
     v143 = or v140, v142
-    v144 = word_cast v143
+    v144 = zext i1 v143 to i256
     v145 = eq v144, 0
     icall panic_if<0x41>, v145
     v146 = add v139, 1
@@ -1124,7 +1124,7 @@ fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_
     v150 = div v148, 32
     v151 = eq v150, v146
     v152 = or v149, v151
-    v153 = word_cast v152
+    v153 = zext i1 v152 to i256
     v154 = eq v153, 0
     icall panic_if<0x41>, v154
     v155 = alloc memoryarray<1>, exact, uninitialized, panic, v148
@@ -1145,8 +1145,8 @@ fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_
     jump bb27
   bb13:
     v82 = memory_object_load_element memoryarray<1>, v21, v80
-    v83 = memory_object_from_ptr memoryarray, v82
-    v84 = word_cast v83
+    v83 = inttoptr i256 v82 to memoryarray
+    v84 = ptrtoint memoryarray v83 to i256
     v85 = eq v84, 0
     jumpi v85, bb15, bb16
   bb15:
@@ -1239,7 +1239,7 @@ fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_
     v74 = mod v72, 32
     v75 = eq v74, 0
     v76 = eq v75, false
-    v77 = word_cast v76
+    v77 = zext i1 v76 to i256
     v78 = add v73, v77
     clear_storage_words v71, 0, v78
     v79 = add v68, 1
@@ -1274,7 +1274,7 @@ fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_
     v46 = div v44, 32
     v47 = eq v46, v36
     v48 = or v45, v47
-    v49 = word_cast v48
+    v49 = zext i1 v48 to i256
     v50 = eq v49, 0
     icall panic_if<0x41>, v50
     v51 = add 32, v44

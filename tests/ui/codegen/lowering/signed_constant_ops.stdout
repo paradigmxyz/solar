@@ -4,7 +4,7 @@ fn @lt() -> i256 [selector=0xa22ca2a6, pure, abi_params=[], abi_returns=[word<bo
   bb0:
     v0 = sub 0, 1
     v1 = slt v0, 1
-    v2 = word_cast v1
+    v2 = zext i1 v1 to i256
     ret v2
 }
 

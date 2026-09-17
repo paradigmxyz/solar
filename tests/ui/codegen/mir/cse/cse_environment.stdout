@@ -4,9 +4,9 @@
   fn @keep_cheap_nullary_environment_reads(arg0: i256) -> i256 {
     bb0:
       v0 = caller
-      v1 = word_cast v0
+      v1 = zext i160 v0 to i256
       v2 = caller
-      v3 = word_cast v2
+      v3 = zext i160 v2 to i256
       v4 = callvalue
       v5 = callvalue
       v6 = calldatasize
@@ -63,7 +63,7 @@
       v5 = add v0, v3
       v6 = add v1, v4
       v7 = add v5, v6
-      v8 = word_cast v2
+      v8 = zext i1 v2 to i256
       v9 = add v7, v8
       ret v9
   }
@@ -78,7 +78,7 @@
       v5 = add v0, v3
       v6 = add v1, v4
       v7 = add v5, v6
-      v8 = word_cast v2
+      v8 = zext i1 v2 to i256
       v9 = add v7, v8
       ret v9
   }

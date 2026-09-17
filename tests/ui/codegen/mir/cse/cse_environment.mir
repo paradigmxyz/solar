@@ -9,9 +9,9 @@
 fn @keep_cheap_nullary_environment_reads(arg0: i256) -> i256 {
   bb0:
     v20 = caller
-    v1 = word_cast v20
+    v1 = zext i160 v20 to i256
     v21 = caller
-    v2 = word_cast v21
+    v2 = zext i160 v21 to i256
     v3 = callvalue
     v4 = callvalue
     v5 = calldatasize
@@ -72,7 +72,7 @@ fn @invalidate_account_reads_after_call(arg0: i256) -> i256 {
     v6 = add v1, v4
     v7 = add v2, v5
     v8 = add v6, v7
-    v10 = word_cast v3
+    v10 = zext i1 v3 to i256
     v9 = add v8, v10
     ret v9
 }
@@ -90,7 +90,7 @@ fn @invalidate_account_reads_after_callcode(arg0: i256) -> i256 {
     v6 = add v1, v4
     v7 = add v2, v5
     v8 = add v6, v7
-    v10 = word_cast v3
+    v10 = zext i1 v3 to i256
     v9 = add v8, v10
     ret v9
 }

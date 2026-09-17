@@ -22,13 +22,13 @@ fn @append.1(arg0: memorystruct, arg1: i256) -> memorystruct [pure] {
 
 fn @append.2(arg0: memorystruct, arg1: memorystruct) -> memorystruct [pure] {
   bb0:
-    v0 = word_cast arg1
+    v0 = ptrtoint memorystruct arg1 to i256
     v1 = shl 8, v0
     v2 = or 3, v1
     v3 = shl 40, v2
     v4 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v4, 0, 0
-    v5 = word_cast v4
+    v5 = ptrtoint memorystruct v4 to i256
     mstore v5, v3
     icall @updateTail, arg0, v4
     ret arg0
@@ -39,7 +39,7 @@ fn @dirtyFreeMemory() [view] {
     v0 = mload 64 !metadata(memory=scratch)
     v1 = gas
     v2 = caller
-    v3 = word_cast v2
+    v3 = zext i160 v2 to i256
     v4 = add v3, v1
     mstore v0, v4
     v5 = not 0
@@ -53,10 +53,10 @@ fn @defaultLocal() -> i256 [selector=0x2f73c827, view, abi_params=[], abi_return
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
     icall @dirtyFreeMemory
-    v1 = word_cast v0
+    v1 = ptrtoint memorystruct v0 to i256
     v2 = mload v1
     v3 = eq v2, 0
-    v4 = word_cast v3
+    v4 = zext i1 v3 to i256
     ret v4
 }
 
@@ -64,10 +64,10 @@ fn @defaultReturn() -> i256 [selector=0x099c80fd, view, abi_params=[], abi_retur
   bb0:
     icall @dirtyFreeMemory
     v0 = icall @empty
-    v1 = word_cast v0
+    v1 = ptrtoint memorystruct v0 to i256
     v2 = mload v1
     v3 = eq v2, 0
-    v4 = word_cast v3
+    v4 = zext i1 v3 to i256
     ret v4
 }
 
@@ -77,20 +77,20 @@ fn @firstAppend() -> i256 [selector=0x9d2b282b, view, abi_params=[], abi_returns
     memory_object_store_field memorystruct<1>, v0, 0, 0
     icall @dirtyFreeMemory
     v1 = icall @append.1, v0, 7
-    v2 = word_cast v1
+    v2 = ptrtoint memorystruct v1 to i256
     v3 = mload v2
     v4 = and v3, 0xffffffffff
     v5 = shr 40, v3
     v6 = mload v4
     v7 = shr 48, v6
     v8 = eq v7, 7
-    v9 = word_cast v8
+    v9 = zext i1 v8 to i256
     v10 = eq v4, 0
-    v11 = word_cast v10
+    v11 = zext i1 v10 to i256
     v12 = eq v11, 0
-    v13 = word_cast v12
+    v13 = zext i1 v12 to i256
     v14 = eq v4, v5
-    v15 = word_cast v14
+    v15 = zext i1 v14 to i256
     v16 = and v15, v13
     v17 = and v16, v9
     ret v17
@@ -103,18 +103,18 @@ fn @secondAppend() -> i256 [selector=0xdce19125, view, abi_params=[], abi_return
     icall @dirtyFreeMemory
     v1 = icall @append.1, v0, 7
     v2 = icall @append.1, v1, 9
-    v3 = word_cast v2
+    v3 = ptrtoint memorystruct v2 to i256
     v4 = mload v3
     v5 = and v4, 0xffffffffff
     v6 = shr 40, v4
     v7 = mload v6
     v8 = shr 48, v7
     v9 = eq v8, 9
-    v10 = word_cast v9
+    v10 = zext i1 v9 to i256
     v11 = mload v5
     v12 = and v11, 0xffffffffff
     v13 = eq v12, v6
-    v14 = word_cast v13
+    v14 = zext i1 v13 to i256
     v15 = and v14, v10
     ret v15
 }
@@ -149,7 +149,7 @@ fn @nestedListEncoding() -> struct0 [selector=0xb61d93a1, pure, abi_params=[], a
     v13 = icall @append.2, v9, v12
     v14 = icall @append.2, v6, v13
     v15 = mload 64 !metadata(memory=scratch)
-    v16 = word_cast v14
+    v16 = ptrtoint memorystruct v14 to i256
     v17 = icall @encodeList, v16, v15
     v18 = sub v17, v15
     v19 = mload v15
@@ -160,22 +160,22 @@ fn @nestedListEncoding() -> struct0 [selector=0xb61d93a1, pure, abi_params=[], a
 
 fn @updateTail(arg0: memorystruct, arg1: memorystruct) [pure] {
   bb0:
-    v0 = word_cast arg0
+    v0 = ptrtoint memorystruct arg0 to i256
     v1 = mload v0
-    v2 = word_cast arg0
+    v2 = ptrtoint memorystruct arg0 to i256
     v3 = mload v2
-    v4 = word_cast arg1
+    v4 = ptrtoint memorystruct arg1 to i256
     v5 = shr v3, v4
     v6 = or v5, v1
     v7 = shr 40, v6
-    v8 = word_cast arg1
+    v8 = ptrtoint memorystruct arg1 to i256
     v9 = xor v7, v8
     v10 = shl 40, v9
     v11 = xor v10, v6
-    v12 = word_cast arg0
+    v12 = ptrtoint memorystruct arg0 to i256
     mstore v12, v11
     v13 = mload v7
-    v14 = word_cast arg1
+    v14 = ptrtoint memorystruct arg1 to i256
     v15 = or v13, v14
     mstore v7, v15
     ret
@@ -184,7 +184,7 @@ fn @updateTail(arg0: memorystruct, arg1: memorystruct) [pure] {
 fn @encode(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = eq arg0, 0
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     v2 = ne v1, 0
     jumpi v2, bb1, bb2
   bb2:
@@ -206,35 +206,35 @@ fn @encodeUint(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = add arg1, 1
     v1 = gt arg0, 127
-    v2 = word_cast v1
+    v2 = zext i1 v1 to i256
     v3 = eq v2, 0
-    v4 = word_cast v3
+    v4 = zext i1 v3 to i256
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
   bb2:
     jump bb3
   bb3:
     v10 = lt 0xffffffffffffffffffffffffffffffff, arg0
-    v11 = word_cast v10
+    v11 = zext i1 v10 to i256
     v12 = shl 7, v11
     v13 = shr v12, arg0
     v14 = lt 0xffffffffffffffff, v13
-    v15 = word_cast v14
+    v15 = zext i1 v14 to i256
     v16 = shl 6, v15
     v17 = or v12, v16
     v18 = shr v17, arg0
     v19 = lt 0xffffffff, v18
-    v20 = word_cast v19
+    v20 = zext i1 v19 to i256
     v21 = shl 5, v20
     v22 = or v17, v21
     v23 = shr v22, arg0
     v24 = lt 0xffff, v23
-    v25 = word_cast v24
+    v25 = zext i1 v24 to i256
     v26 = shl 4, v25
     v27 = or v22, v26
     v28 = shr v27, arg0
     v29 = lt 255, v28
-    v30 = word_cast v29
+    v30 = zext i1 v29 to i256
     v31 = shr 3, v27
     v32 = or v31, v30
     v33 = add v32, 129
@@ -248,7 +248,7 @@ fn @encodeUint(arg0: i256, arg1: i256) -> i256 {
     ret v37
   bb1:
     v6 = eq arg0, 0
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     v8 = shl 7, v7
     v9 = or v8, arg0
     mstore8 arg1, v9
@@ -269,9 +269,9 @@ fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     v0 = add arg1, 1
     v1 = mload arg0
     v2 = gt v1, 55
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     v4 = eq v3, 0
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     v6 = ne v5, 0
     jumpi v6, bb1, bb2
   bb2:
@@ -282,12 +282,12 @@ fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     v25 = returndatasize
     returndatacopy v25, v24, v23
     v26 = lt 0xffffff, v1
-    v27 = word_cast v26
+    v27 = zext i1 v26 to i256
     v28 = lt 0xffff, v1
-    v29 = word_cast v28
+    v29 = zext i1 v28 to i256
     v30 = add v29, v27
     v31 = lt 255, v1
-    v32 = word_cast v31
+    v32 = zext i1 v31 to i256
     v33 = add v32, v30
     v34 = add 1, v33
     v35 = add arg2, 55
@@ -318,9 +318,9 @@ fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     mstore v48, v52
     v53 = add v48, 32
     v54 = lt v53, v47
-    v55 = word_cast v54
+    v55 = zext i1 v54 to i256
     v56 = eq v55, 0
-    v57 = word_cast v56
+    v57 = zext i1 v56 to i256
     v58 = ne v57, 0
     jumpi v58, bb12, bb13
   bb13:
@@ -345,12 +345,12 @@ fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     v8 = mload v7
     v9 = byte 0, v8
     v10 = lt v9, 128
-    v11 = word_cast v10
+    v11 = zext i1 v10 to i256
     v12 = eq 1, v1
-    v13 = word_cast v12
+    v13 = zext i1 v12 to i256
     v14 = and v13, v11
     v15 = eq v14, 0
-    v16 = word_cast v15
+    v16 = zext i1 v15 to i256
     v17 = ne v16, 0
     jumpi v17, bb4, bb5
   bb5:
@@ -374,7 +374,7 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = mload arg0
     v1 = eq v0, 0
-    v2 = word_cast v1
+    v2 = zext i1 v1 to i256
     v3 = ne v2, 0
     jumpi v3, bb1, bb2
   bb2:
@@ -396,7 +396,7 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 {
     v12 = mload v10
     v13 = and v12, 0xffffffffff
     v14 = eq v13, 0
-    v15 = word_cast v14
+    v15 = zext i1 v14 to i256
     v16 = ne v15, 0
     jumpi v16, bb9, bb10
   bb10:
@@ -405,23 +405,23 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 {
     v17 = mload v13
     v18 = byte 26, v17
     v19 = gt v18, 1
-    v20 = word_cast v19
+    v20 = zext i1 v19 to i256
     v21 = eq v20, 0
-    v22 = word_cast v21
+    v22 = zext i1 v21 to i256
     v23 = ne v22, 0
     jumpi v23, bb12, bb13
   bb13:
     jump bb14
   bb14:
     v34 = eq v18, 2
-    v35 = word_cast v34
+    v35 = zext i1 v34 to i256
     v36 = ne v35, 0
     jumpi v36, bb18, bb19
   bb19:
     jump bb20
   bb20:
     v40 = eq v18, 3
-    v41 = word_cast v40
+    v41 = zext i1 v40 to i256
     v42 = ne v41, 0
     jumpi v42, bb21, bb22
   bb22:
@@ -445,7 +445,7 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 {
     jump bb4
   bb12:
     v24 = eq v18, 0
-    v25 = word_cast v24
+    v25 = zext i1 v24 to i256
     v26 = ne v25, 0
     jumpi v26, bb15, bb16
   bb16:
@@ -468,9 +468,9 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 {
     v50 = add v6, 32
     v51 = sub v7, v50
     v52 = gt v51, 55
-    v53 = word_cast v52
+    v53 = zext i1 v52 to i256
     v54 = eq v53, 0
-    v55 = word_cast v54
+    v55 = zext i1 v54 to i256
     v56 = ne v55, 0
     jumpi v56, bb24, bb25
   bb25:

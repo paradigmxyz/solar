@@ -117,7 +117,7 @@ fn @dynamicWords(arg0: calldataslice) -> memoryarray [selector=0x148d46ad, pure,
     v10 = div v8, 32
     v11 = eq v10, v6
     v12 = or v9, v11
-    v13 = word_cast v12
+    v13 = zext i1 v12 to i256
     v14 = eq v13, 0
     icall panic_if<0x41>, v14
     v15 = calldatasize
@@ -129,7 +129,7 @@ fn @dynamicWords(arg0: calldataslice) -> memoryarray [selector=0x148d46ad, pure,
     v20 = div v18, 32
     v21 = eq v20, v6
     v22 = or v19, v21
-    v23 = word_cast v22
+    v23 = zext i1 v22 to i256
     v24 = eq v23, 0
     icall panic_if<0x41>, v24
     v25 = add 32, v18
@@ -157,7 +157,7 @@ fn @dynamicFixed(arg0: calldataslice) -> memoryarray [selector=0x71cafd78, pure,
     v10 = div v8, 64
     v11 = eq v10, v6
     v12 = or v9, v11
-    v13 = word_cast v12
+    v13 = zext i1 v12 to i256
     v14 = eq v13, 0
     icall panic_if<0x41>, v14
     v15 = calldatasize
@@ -169,7 +169,7 @@ fn @dynamicFixed(arg0: calldataslice) -> memoryarray [selector=0x71cafd78, pure,
     v20 = div v18, 32
     v21 = eq v20, v6
     v22 = or v19, v21
-    v23 = word_cast v22
+    v23 = zext i1 v22 to i256
     v24 = eq v23, 0
     icall panic_if<0x41>, v24
     v25 = add 32, v18
@@ -190,7 +190,7 @@ fn @dynamicFixed(arg0: calldataslice) -> memoryarray [selector=0x71cafd78, pure,
     v32 = div v30, 64
     v33 = eq v32, v28
     v34 = or v31, v33
-    v35 = word_cast v34
+    v35 = zext i1 v34 to i256
     v36 = eq v35, 0
     icall panic_if<0x41>, v36
     v37 = add v7, v30
@@ -217,7 +217,7 @@ fn @dynamicNarrow(arg0: calldataslice) -> memoryarray [selector=0x320b552a, pure
     v10 = div v8, 32
     v11 = eq v10, v6
     v12 = or v9, v11
-    v13 = word_cast v12
+    v13 = zext i1 v12 to i256
     v14 = eq v13, 0
     icall panic_if<0x41>, v14
     v15 = calldatasize
@@ -229,7 +229,7 @@ fn @dynamicNarrow(arg0: calldataslice) -> memoryarray [selector=0x320b552a, pure
     v20 = div v18, 32
     v21 = eq v20, v6
     v22 = or v19, v21
-    v23 = word_cast v22
+    v23 = zext i1 v22 to i256
     v24 = eq v23, 0
     icall panic_if<0x41>, v24
     v25 = add 32, v18
@@ -272,7 +272,7 @@ fn @dynamicNested(arg0: calldataslice) -> memoryarray [selector=0x24abb2f5, pure
     v10 = div v8, 32
     v11 = eq v10, v6
     v12 = or v9, v11
-    v13 = word_cast v12
+    v13 = zext i1 v12 to i256
     v14 = eq v13, 0
     icall panic_if<0x41>, v14
     v15 = calldatasize
@@ -284,7 +284,7 @@ fn @dynamicNested(arg0: calldataslice) -> memoryarray [selector=0x24abb2f5, pure
     v20 = div v18, 32
     v21 = eq v20, v6
     v22 = or v19, v21
-    v23 = word_cast v22
+    v23 = zext i1 v22 to i256
     v24 = eq v23, 0
     icall panic_if<0x41>, v24
     v25 = add 32, v18
@@ -329,7 +329,7 @@ fn @dynamicNested(arg0: calldataslice) -> memoryarray [selector=0x24abb2f5, pure
     v52 = div v50, 32
     v53 = eq v52, v42
     v54 = or v51, v53
-    v55 = word_cast v54
+    v55 = zext i1 v54 to i256
     v56 = eq v55, 0
     icall panic_if<0x41>, v56
     v57 = add 32, v50
@@ -360,7 +360,7 @@ fn @dynamicOverflow(arg0: calldataslice) -> memoryarray [selector=0x51072adf, pu
     v11 = div v9, 32
     v12 = eq v11, v7
     v13 = or v10, v12
-    v14 = word_cast v13
+    v14 = zext i1 v13 to i256
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = calldatasize
@@ -372,7 +372,7 @@ fn @dynamicOverflow(arg0: calldataslice) -> memoryarray [selector=0x51072adf, pu
     v21 = div v19, 32
     v22 = eq v21, v7
     v23 = or v20, v22
-    v24 = word_cast v23
+    v24 = zext i1 v23 to i256
     v25 = eq v24, 0
     icall panic_if<0x41>, v25
     v26 = add 32, v19
@@ -401,7 +401,7 @@ fn @dynamicEmptyAtEnd(arg0: calldataslice) -> memoryarray [selector=0x93d2ba08, 
     v11 = div v9, 32
     v12 = eq v11, v7
     v13 = or v10, v12
-    v14 = word_cast v13
+    v14 = zext i1 v13 to i256
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = calldatasize
@@ -413,7 +413,7 @@ fn @dynamicEmptyAtEnd(arg0: calldataslice) -> memoryarray [selector=0x93d2ba08, 
     v21 = div v19, 32
     v22 = eq v21, v7
     v23 = or v20, v22
-    v24 = word_cast v23
+    v24 = zext i1 v23 to i256
     v25 = eq v24, 0
     icall panic_if<0x41>, v25
     v26 = add 32, v19
@@ -443,7 +443,7 @@ fn @dynamicEmptyPastEnd(arg0: calldataslice) -> memoryarray [selector=0x77beb5ce
     v12 = div v10, 32
     v13 = eq v12, v8
     v14 = or v11, v13
-    v15 = word_cast v14
+    v15 = zext i1 v14 to i256
     v16 = eq v15, 0
     icall panic_if<0x41>, v16
     v17 = calldatasize
@@ -455,7 +455,7 @@ fn @dynamicEmptyPastEnd(arg0: calldataslice) -> memoryarray [selector=0x77beb5ce
     v22 = div v20, 32
     v23 = eq v22, v8
     v24 = or v21, v23
-    v25 = word_cast v24
+    v25 = zext i1 v24 to i256
     v26 = eq v25, 0
     icall panic_if<0x41>, v26
     v27 = add 32, v20
@@ -484,7 +484,7 @@ fn @dynamicWrappingEnd(arg0: calldataslice) -> memoryarray [selector=0x4c797599,
     v11 = div v9, 32
     v12 = eq v11, v7
     v13 = or v10, v12
-    v14 = word_cast v13
+    v14 = zext i1 v13 to i256
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = calldatasize
@@ -496,7 +496,7 @@ fn @dynamicWrappingEnd(arg0: calldataslice) -> memoryarray [selector=0x4c797599,
     v21 = div v19, 32
     v22 = eq v21, v7
     v23 = or v20, v22
-    v24 = word_cast v23
+    v24 = zext i1 v23 to i256
     v25 = eq v24, 0
     icall panic_if<0x41>, v25
     v26 = add 32, v19

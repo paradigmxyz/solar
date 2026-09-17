@@ -11,12 +11,12 @@ fn @dirty(arg0: i256) -> i256 [pure] {
 
 fn @readDirty() -> struct0 [selector=0xd1f2dbc1, pure, abi_params=[], abi_returns=[word<bool>, word], abi_return_params=[bool, u256]] {
   bb0:
-    v0 = word_cast true
+    v0 = zext i1 1 to i256
     v1 = icall @dirty, v0
     v2 = eq v1, 0
     v3 = eq v2, false
     v4 = eq v3, true
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     v6 = insert_value struct0, undef struct0, 0, v5
     v7 = insert_value struct0, v6, 1, v1
     ret v7
@@ -29,7 +29,7 @@ fn @join(arg0: i256) -> i256 [selector=0xe2c05593, pure, abi_params=[bool], abi_
   bb2:
     jump bb3
   bb1:
-    v1 = word_cast true
+    v1 = zext i1 1 to i256
     jump bb3
   bb3:
     v2 = phi [bb1: v1], [bb2: 3]
@@ -41,7 +41,7 @@ fn @reverseJoin(arg0: i256) -> i256 [selector=0x2022dd82, pure, abi_params=[bool
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
   bb2:
-    v1 = word_cast true
+    v1 = zext i1 1 to i256
     jump bb3
   bb1:
     jump bb3
@@ -55,11 +55,11 @@ fn @chooseValue(arg0: i256) -> i256 [selector=0x204ac68b, pure, abi_params=[bool
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
   bb2:
-    v1 = word_cast true
+    v1 = zext i1 1 to i256
     v2 = icall @dirty, v1
     jump bb3
   bb1:
-    v3 = word_cast true
+    v3 = zext i1 1 to i256
     jump bb3
   bb3:
     v4 = phi [bb1: v3], [bb2: v2]
@@ -68,7 +68,7 @@ fn @chooseValue(arg0: i256) -> i256 [selector=0x204ac68b, pure, abi_params=[bool
 
 fn @loopValue(arg0: i256) -> i256 [selector=0x0f49c3a4, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = word_cast true
+    v0 = zext i1 1 to i256
     jump bb1
   bb1:
     v1 = phi [bb0: arg0], [bb3: v1]

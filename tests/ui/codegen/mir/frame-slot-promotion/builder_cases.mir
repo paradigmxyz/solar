@@ -4,27 +4,32 @@
 
 // CHECK-LABEL: @loop_carried
 // CHECK:       [[ENTRY:bb[0-9]+]]:
-// CHECK:       [[ENTRY_FRAME:v[0-9]+]] = internal_frame_addr
+// CHECK:       [[ENTRY_FRAME_PTR:v[0-9]+]] = internal_frame_addr
+// CHECK: [[ENTRY_FRAME:v[0-9]+]] = ptrtoint memptr [[ENTRY_FRAME_PTR]] to i256
 // CHECK: -     mstore [[ENTRY_FRAME]], 0
 // CHECK:       jump [[HEADER:bb[0-9]+]]
 // CHECK:       [[HEADER]]:
 // CHECK:       [[INDEX:v[0-9]+]] = phi [[[ENTRY]]: 0], [[[BODY:bb[0-9]+]]: [[NEXT:v[0-9]+]]]
-// CHECK:       [[HEADER_FRAME:v[0-9]+]] = internal_frame_addr
+// CHECK:       [[HEADER_FRAME_PTR:v[0-9]+]] = internal_frame_addr
+// CHECK: [[HEADER_FRAME:v[0-9]+]] = ptrtoint memptr [[HEADER_FRAME_PTR]] to i256
 // CHECK: -     [[OLD_INDEX:v[0-9]+]] = mload [[HEADER_FRAME]]
 // CHECK: -     {{v[0-9]+}} = lt [[OLD_INDEX]], 4
 // CHECK:       [[COND:v[0-9]+]] = lt [[INDEX]], 4
 // CHECK:       jumpi [[COND]], [[BODY]], [[EXIT:bb[0-9]+]]
 // CHECK:       [[EXIT]]:
-// CHECK:       [[EXIT_FRAME:v[0-9]+]] = internal_frame_addr
+// CHECK:       [[EXIT_FRAME_PTR:v[0-9]+]] = internal_frame_addr
+// CHECK: [[EXIT_FRAME:v[0-9]+]] = ptrtoint memptr [[EXIT_FRAME_PTR]] to i256
 // CHECK: -     [[OLD_RESULT:v[0-9]+]] = mload [[EXIT_FRAME]]
 // CHECK: -     ret [[OLD_RESULT]]
 // CHECK:       ret [[INDEX]]
 // CHECK:       [[BODY]]:
-// CHECK:       [[BODY_LOAD_FRAME:v[0-9]+]] = internal_frame_addr
+// CHECK:       [[BODY_LOAD_FRAME_PTR:v[0-9]+]] = internal_frame_addr
+// CHECK: [[BODY_LOAD_FRAME:v[0-9]+]] = ptrtoint memptr [[BODY_LOAD_FRAME_PTR]] to i256
 // CHECK: -     [[OLD_BODY_INDEX:v[0-9]+]] = mload [[BODY_LOAD_FRAME]]
 // CHECK: -     [[OLD_NEXT:v[0-9]+]] = add [[OLD_BODY_INDEX]], 1
 // CHECK:       [[NEXT]] = add [[INDEX]], 1
-// CHECK:       [[BODY_STORE_FRAME:v[0-9]+]] = internal_frame_addr
+// CHECK:       [[BODY_STORE_FRAME_PTR:v[0-9]+]] = internal_frame_addr
+// CHECK: [[BODY_STORE_FRAME:v[0-9]+]] = ptrtoint memptr [[BODY_STORE_FRAME_PTR]] to i256
 // CHECK: -     mstore [[BODY_STORE_FRAME]], [[OLD_NEXT]]
 // CHECK:       jump [[HEADER]]
 types:
@@ -32,23 +37,28 @@ types:
 
 fn @loop_carried() -> i256 {
   bb0:
-    v0 = internal_frame_addr 128
+    v10 = internal_frame_addr 128
+    v0 = ptrtoint memptr v10 to i256
     mstore v0, 0
     jump bb1
   bb1:
-    v1 = internal_frame_addr 128
+    v11 = internal_frame_addr 128
+    v1 = ptrtoint memptr v11 to i256
     v2 = mload v1
     v3 = lt v2, 4
     jumpi v3, bb2, bb3
   bb2:
-    v4 = internal_frame_addr 128
+    v12 = internal_frame_addr 128
+    v4 = ptrtoint memptr v12 to i256
     v5 = mload v4
     v6 = add v5, 1
-    v7 = internal_frame_addr 128
+    v13 = internal_frame_addr 128
+    v7 = ptrtoint memptr v13 to i256
     mstore v7, v6
     jump bb1
   bb3:
-    v8 = internal_frame_addr 128
+    v14 = internal_frame_addr 128
+    v8 = ptrtoint memptr v14 to i256
     v9 = mload v8
     ret v9
 }
@@ -60,7 +70,8 @@ fn @loop_carried() -> i256 {
 // CHECK: {{^ +}}ret [[HASH]], [[LOAD]]
 fn @escaped_address() -> struct0 [return_abi=[i256, i256]] {
   bb0:
-    v0 = internal_frame_addr 128
+    v15 = internal_frame_addr 128
+    v0 = ptrtoint memptr v15 to i256
     mstore v0, 42
     v1 = keccak256 v0, 32
     v2 = mload v0
@@ -77,7 +88,8 @@ fn @escaped_address() -> struct0 [return_abi=[i256, i256]] {
 // CHECK:       ret 42
 fn @gas_not_a_barrier() -> i256 {
   bb0:
-    v0 = internal_frame_addr 128
+    v16 = internal_frame_addr 128
+    v0 = ptrtoint memptr v16 to i256
     mstore v0, 42
     v1 = gas
     v2 = mload v0
@@ -93,7 +105,8 @@ fn @gas_not_a_barrier() -> i256 {
 // CHECK: {{^ +}}ret [[LOAD]]
 fn @msize_observed() -> i256 {
   bb0:
-    v0 = internal_frame_addr 128
+    v17 = internal_frame_addr 128
+    v0 = ptrtoint memptr v17 to i256
     mstore v0, 42
     v1 = msize
     v2 = mload v0
@@ -101,7 +114,8 @@ fn @msize_observed() -> i256 {
 }
 
 // CHECK-LABEL: @icall
-// CHECK:       [[FRAME:v[0-9]+]] = internal_frame_addr
+// CHECK:       [[FRAME_PTR:v[0-9]+]] = internal_frame_addr
+// CHECK: [[FRAME:v[0-9]+]] = ptrtoint memptr [[FRAME_PTR]] to i256
 // CHECK: -     mstore [[FRAME]], 42
 // CHECK:       icall @callee
 // CHECK: -     [[OLD:v[0-9]+]] = mload [[FRAME]]
@@ -109,7 +123,8 @@ fn @msize_observed() -> i256 {
 // CHECK:       ret 42
 fn @icall() -> i256 {
   bb0:
-    v0 = internal_frame_addr 128
+    v18 = internal_frame_addr 128
+    v0 = ptrtoint memptr v18 to i256
     mstore v0, 42
     icall @callee
     v1 = mload v0
@@ -122,20 +137,24 @@ fn @callee() {
 }
 
 // CHECK-LABEL: @constant_offset
-// CHECK:       [[BASE1:v[0-9]+]] = internal_frame_addr
+// CHECK:       [[BASE1_PTR:v[0-9]+]] = internal_frame_addr
+// CHECK: [[BASE1:v[0-9]+]] = ptrtoint memptr [[BASE1_PTR]] to i256
 // CHECK:       [[ADDR1:v[0-9]+]] = add [[BASE1]], [[OFFSET:[0-9]+]]
 // CHECK: -     mstore [[ADDR1]], 99
-// CHECK:       [[BASE2:v[0-9]+]] = internal_frame_addr
+// CHECK:       [[BASE2_PTR:v[0-9]+]] = internal_frame_addr
+// CHECK: [[BASE2:v[0-9]+]] = ptrtoint memptr [[BASE2_PTR]] to i256
 // CHECK:       [[ADDR2:v[0-9]+]] = add [[BASE2]], [[OFFSET]]
 // CHECK: -     [[OLD:v[0-9]+]] = mload [[ADDR2]]
 // CHECK: -     ret [[OLD]]
 // CHECK:       ret 99
 fn @constant_offset() -> i256 {
   bb0:
-    v0 = internal_frame_addr 128
+    v19 = internal_frame_addr 128
+    v0 = ptrtoint memptr v19 to i256
     v1 = add v0, 32
     mstore v1, 99
-    v2 = internal_frame_addr 128
+    v20 = internal_frame_addr 128
+    v2 = ptrtoint memptr v20 to i256
     v3 = add v2, 32
     v4 = mload v3
     ret v4

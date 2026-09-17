@@ -30,7 +30,7 @@ fn @copyGroups(arg0: i256, arg1: i256, arg2: i256) -> memorybytes [selector=0x03
     v15 = phi [bb3: 0], [bb6: v51]
     v16 = phi [bb3: arg1], [bb6: v50]
     v17 = lt v15, v12
-    v18 = word_cast v17
+    v18 = zext i1 v17 to i256
     v19 = ne v18, 0
     jumpi v19, bb7, bb8
   bb8:
@@ -41,7 +41,7 @@ fn @copyGroups(arg0: i256, arg1: i256, arg2: i256) -> memorybytes [selector=0x03
     v53 = add v11, v14
     v54 = add v53, 32
     mstore 64, v54 !metadata(memory=scratch)
-    v55 = memory_object_from_ptr memorybytes, v10
+    v55 = inttoptr i256 v10 to memorybytes
     ret v55
   bb7:
     v20 = ne v16, 0
@@ -74,9 +74,9 @@ fn @copyGroups(arg0: i256, arg1: i256, arg2: i256) -> memorybytes [selector=0x03
     mstore v36, v35
     v37 = add v30, 1
     v38 = lt v37, v31
-    v39 = word_cast v38
+    v39 = zext i1 v38 to i256
     v40 = eq v39, 0
-    v41 = word_cast v40
+    v41 = zext i1 v40 to i256
     v42 = ne v41, 0
     jumpi v42, bb18, bb19
   bb19:

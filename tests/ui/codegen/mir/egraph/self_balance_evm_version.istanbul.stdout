@@ -4,7 +4,7 @@
   fn @own_balance() -> i256 {
     bb0:
       v0 = address
-      v1 = word_cast v0
+      v1 = zext i160 v0 to i256
 -     v2 = balance v1
 +     v2 = selfbalance
       ret v2

@@ -7,8 +7,8 @@ fn @nested(arg0: memoryarray) -> i256 [selector=0x798068af, pure, abi_params=[ar
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryarray<1>, arg0, 0
-    v4 = memory_object_from_ptr memorybytes, v3
-    v5 = word_cast v4
+    v4 = inttoptr i256 v3 to memorybytes
+    v5 = ptrtoint memorybytes v4 to i256
     v6 = eq v5, 0
     jumpi v6, bb1, bb2
   bb1:

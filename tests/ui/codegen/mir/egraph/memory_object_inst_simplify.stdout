@@ -4,18 +4,24 @@
   fn @fold_identity_projections(arg0: memorystruct, arg1: memoryfixedarray) -> i256 {
     bb0:
 -     v0 = memory_object_data memorystruct, arg0
--     v1 = memory_object_field_addr memorystruct<2>, arg0, 0
--     v2 = memory_object_element_addr memoryfixedarray<4, 1>, arg1, 0
--     v3 = eq v0, v1
--     v4 = eq v1, v2
--     v5 = word_cast v3
-+     v0 = word_cast arg0
-+     v2 = word_cast arg1
-+     v4 = eq v0, v2
-      v6 = word_cast v4
--     v7 = add v5, v6
-+     v7 = add v6, 1
-      ret v7
+-     v1 = ptrtoint memptr v0 to i256
+-     v2 = memory_object_field_addr memorystruct<2>, arg0, 0
+-     v3 = ptrtoint memptr v2 to i256
+-     v4 = memory_object_element_addr memoryfixedarray<4, 1>, arg1, 0
+-     v5 = ptrtoint memptr v4 to i256
+-     v6 = eq v1, v3
+-     v7 = eq v3, v5
+-     v8 = zext i1 v6 to i256
++     v0 = bitcast memorystruct arg0 to memptr
++     v1 = ptrtoint memorystruct arg0 to i256
++     v2 = bitcast memorystruct arg0 to memptr
++     v4 = bitcast memoryfixedarray arg1 to memptr
++     v5 = ptrtoint memoryfixedarray arg1 to i256
++     v7 = eq v1, v5
+      v9 = zext i1 v7 to i256
+-     v10 = add v8, v9
++     v10 = add v9, 1
+      ret v10
   }
   
 - // === ROOT/tests/ui/codegen/mir/egraph/memory_object_inst_simplify.mir (before dce) ===
@@ -23,11 +29,14 @@
   @module MemoryObjectInstSimplify
   fn @fold_identity_projections(arg0: memorystruct, arg1: memoryfixedarray) -> i256 {
     bb0:
-      v0 = word_cast arg0
-      v2 = word_cast arg1
-      v4 = eq v0, v2
-      v6 = word_cast v4
-      v7 = add v6, 1
-      ret v7
+-     v0 = bitcast memorystruct arg0 to memptr
+      v1 = ptrtoint memorystruct arg0 to i256
+-     v2 = bitcast memorystruct arg0 to memptr
+-     v4 = bitcast memoryfixedarray arg1 to memptr
+      v5 = ptrtoint memoryfixedarray arg1 to i256
+      v7 = eq v1, v5
+      v9 = zext i1 v7 to i256
+      v10 = add v9, 1
+      ret v10
   }
   

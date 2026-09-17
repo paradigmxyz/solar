@@ -10,7 +10,7 @@
   fn @call(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = call 100, arg0, arg1, 0, 0, 0, 0
-      v1 = word_cast v0
+      v1 = zext i1 v0 to i256
       ret v1
   }
   
@@ -23,7 +23,7 @@
   fn @callcode(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = callcode 100, arg0, arg1, 0, 0, 0, 0
-      v1 = word_cast v0
+      v1 = zext i1 v0 to i256
       ret v1
   }
   
@@ -112,8 +112,8 @@
   
   fn @address_width(arg0: i256) -> i256 {
     bb0:
-      v0 = trunc i160, arg0
-      v1 = word_cast v0
+      v0 = trunc i256 arg0 to i160
+      v1 = zext i160 v0 to i256
       ret v1
   }
   
@@ -154,5 +154,45 @@
   fn @integer_undef() -> i24 {
     bb0:
       ret undef i24
+  }
+  
+  fn @llvm_casts(arg0: i256, arg1: i1, arg2: memptr) -> memptr {
+    bb0:
+      v0 = trunc i256 arg0 to i1
+      v1 = zext i1 arg1 to i256
+      v2 = sext i1 arg1 to i256
+      v3 = ptrtoint memptr arg2 to i160
+      v4 = inttoptr i256 arg0 to memptr
+      v5 = bitcast memptr arg2 to memorybytes
+      ret v4
+  }
+  
+  fn @cast_undef() -> memorybytes {
+    bb0:
+      v0 = bitcast memptr undef to memorybytes
+      ret v0
+  }
+  
+  fn @syntax_only_casts(arg0: i128) -> i512 {
+    bb0:
+      v0 = trunc i128 arg0 to i24
+      v1 = zext i24 v0 to i512
+      v2 = sext i24 v0 to i512
+      ret v2
+  }
+  
+  fn @forward_integer_phi(arg0: i1, arg1: i256) -> i24 {
+    bb0:
+      jumpi arg0, bb2, bb3
+    bb3:
+      v3 = trunc i256 31 to i7
+      jump bb1
+    bb2:
+      v2 = trunc i256 arg1 to i7
+      jump bb1
+    bb1:
+      v0 = phi [bb2: v2], [bb3: v3]
+      v1 = zext i7 v0 to i24
+      ret v1
   }
   

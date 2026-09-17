@@ -5,7 +5,7 @@ types:
 
 fn @f0() -> struct0 [selector=0xa5850475, pure, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[i256, bool]] {
   bb0:
-    v0 = word_cast true
+    v0 = zext i1 1 to i256
     v1 = insert_value struct0, undef struct0, 0, 2
     v2 = insert_value struct0, v1, 1, v0
     ret v2

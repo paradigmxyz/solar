@@ -5,7 +5,7 @@ fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[
     v0 = address
     v1 = gas
     v2 = address
-    v3 = word_cast v2
+    v3 = zext i160 v2 to i256
     v4 = shl 32, v3
     v5 = or v4, 0x7cf5dab0
     v6 = abi_encode [function, word], selector 0xc61581a000000000000000000000000000000000000000000000000000000000, args v5, arg0
@@ -29,7 +29,7 @@ fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[
 fn @f2(arg0: i256) -> i256 [selector=0xbf3724af, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
-    v1 = word_cast v0
+    v1 = zext i160 v0 to i256
     v2 = shl 32, v1
     v3 = or v2, 0x7cf5dab0
     v4 = icall @eval, v3, arg0

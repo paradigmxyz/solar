@@ -49,7 +49,7 @@ fn @keep_sload_after_external_call(arg0: i256, arg1: i256) -> i256 {
     v3 = call 100000, arg1, 0, 0, 0, 0, 0
     v4 = sload arg0
     v5 = add v2, v4
-    v7 = word_cast v3
+    v7 = zext i1 v3 to i256
     v6 = add v5, v7
     ret v6
 }

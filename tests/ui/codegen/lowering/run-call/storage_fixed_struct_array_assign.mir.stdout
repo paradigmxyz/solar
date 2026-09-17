@@ -18,7 +18,7 @@ fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_para
     v7 = sload v6 !metadata(storage=offset(v3, 2))
     v8 = not 255
     v9 = and v7, v8
-    v10 = word_cast true
+    v10 = zext i1 1 to i256
     v11 = and v10, 255
     v12 = or v9, v11
     sstore v6, v12 !metadata(storage=offset(v3, 2))
@@ -64,7 +64,7 @@ fn @testConstantIndex() -> struct0 [selector=0xb6aa0fa8, abi_params=[], abi_retu
     v6 = sload v5 !metadata(storage=offset(v2, 2))
     v7 = not 255
     v8 = and v6, v7
-    v9 = word_cast true
+    v9 = zext i1 1 to i256
     v10 = and v9, 255
     v11 = or v8, v10
     sstore v5, v11 !metadata(storage=offset(v2, 2))
@@ -135,7 +135,7 @@ fn @testNested() -> struct0 [selector=0xfbd4b8cc, abi_params=[], abi_returns=[wo
     v12 = sload v11 !metadata(storage=offset(v9, 2))
     v13 = not 255
     v14 = and v12, v13
-    v15 = word_cast true
+    v15 = zext i1 1 to i256
     v16 = and v15, 255
     v17 = or v14, v16
     sstore v11, v17 !metadata(storage=offset(v9, 2))

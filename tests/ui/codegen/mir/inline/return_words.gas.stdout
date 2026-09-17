@@ -18,9 +18,9 @@
       v1 = frame_load multi_return, word, 0
       v2 = add v1, 32
 -     v3 = mload v2
--     v4 = word_cast v0
+-     v4 = bitcast i256 v0 to i256
 -     v5 = sub v4, v3
-+     v4 = word_cast v6
++     v4 = bitcast i256 v6 to i256
 +     v5 = sub v4, v7
       ret v5
   }
@@ -67,9 +67,9 @@
       frame_store multi_return, word, 0, 128 !metadata(memory=scratch)
       v1 = frame_load multi_return, word, 0
       v2 = add v1, 32
--     v4 = word_cast v6
+-     v4 = bitcast i256 v6 to i256
 -     v5 = sub v4, v7
-+     v4 = word_cast arg1
++     v4 = bitcast i256 arg1 to i256
 +     v5 = sub v4, arg0
       ret v5
   }
@@ -109,7 +109,7 @@
       frame_store multi_return, word, 0, 128 !metadata(memory=scratch)
 -     v1 = frame_load multi_return, word, 0
 -     v2 = add v1, 32
-      v4 = word_cast arg1
+      v4 = bitcast i256 arg1 to i256
       v5 = sub v4, arg0
       ret v5
   }

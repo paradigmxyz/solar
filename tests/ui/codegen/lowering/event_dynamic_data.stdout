@@ -14,11 +14,12 @@ fn @literal() [selector=0x1373185e, abi_params=[], abi_returns=[], abi_return_pa
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 5
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x736f6c6172000000000000000000000000000000000000000000000000000000
-    v2 = abi_encode [memory_bytes, word], args v0, 9
-    v3 = slice_ptr v2
-    v4 = slice_len v2
-    log2 v3, v4, 0x1ec47f6be8a8bf4aa7aa1659aceb7cef3b607892101a00e4afd57e2ae4fbf3c4, 2
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x736f6c6172000000000000000000000000000000000000000000000000000000
+    v3 = abi_encode [memory_bytes, word], args v0, 9
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    log2 v4, v5, 0x1ec47f6be8a8bf4aa7aa1659aceb7cef3b607892101a00e4afd57e2ae4fbf3c4, 2
     ret
 }
 

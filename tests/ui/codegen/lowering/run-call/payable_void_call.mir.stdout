@@ -9,9 +9,9 @@ fn @stored() -> i256 [selector=0xe582dd31, view, abi_params=[], abi_returns=[wor
 fn @approve(arg0: i256, arg1: i256) [selector=0x095ea7b3, payable, abi_params=[address, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = caller
-    v1 = trunc i160, arg0
-    v2 = word_cast v0
-    v3 = word_cast v1
+    v1 = trunc i256 arg0 to i160
+    v2 = zext i160 v0 to i256
+    v3 = zext i160 v1 to i256
     log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v2, v3, arg1
     sstore 0, arg1 !metadata(storage=slot(0))
     ret
@@ -30,49 +30,51 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v3 = alloc raw, exact, uninitialized, infallible, v2
     data_copy Callee_initcode_0, v3, 181
     v4 = slice_ptr v0
-    v5 = add v3, 181
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 181
-    v7 = word_cast v6
-    v8 = ne v7, 0
-    jumpi v8, bb2, bb1
+    v5 = ptrtoint memptr v3 to i256
+    v6 = add v5, 181
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = ptrtoint memptr v3 to i256
+    v8 = create 0, v7, 181
+    v9 = zext i160 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = word_cast v6
-    v10 = address
-    v11 = trunc i160, 0xbeef
-    v12 = word_cast v10
-    v13 = word_cast v11
-    log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v12, v13, 7
-    v14 = gas
-    v15 = trunc i160, 0xbeef
-    v16 = abi_encode [word<u160>, word], selector 0x95ea7b300000000000000000000000000000000000000000000000000000000, args v15, 7
-    v17 = slice_ptr v16
-    v18 = slice_len v16
-    v19 = extcodesize v9
-    v20 = eq v19, 0
-    icall revert_if<target_contract_has_no_code>, v20
-    v21 = call v14, v9, 0, v17, v18, 0, 0
-    jumpi v21, bb4, bb3
+    v11 = zext i160 v8 to i256
+    v12 = address
+    v13 = trunc i256 0xbeef to i160
+    v14 = zext i160 v12 to i256
+    v15 = zext i160 v13 to i256
+    log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v14, v15, 7
+    v16 = gas
+    v17 = trunc i256 0xbeef to i160
+    v18 = abi_encode [word<u160>, word], selector 0x95ea7b300000000000000000000000000000000000000000000000000000000, args v17, 7
+    v19 = slice_ptr v18
+    v20 = slice_len v18
+    v21 = extcodesize v11
+    v22 = eq v21, 0
+    icall revert_if<target_contract_has_no_code>, v22
+    v23 = call v16, v11, 0, v19, v20, 0, 0
+    jumpi v23, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v22 = gas
-    v23 = abi_encode [], selector 0xe582dd3100000000000000000000000000000000000000000000000000000000
-    v24 = slice_ptr v23
-    v25 = slice_len v23
-    v26 = staticcall v22, v9, v24, v25, 0, 32
-    jumpi v26, bb6, bb5
+    v24 = gas
+    v25 = abi_encode [], selector 0xe582dd3100000000000000000000000000000000000000000000000000000000
+    v26 = slice_ptr v25
+    v27 = slice_len v25
+    v28 = staticcall v24, v11, v26, v27, 0, 32
+    jumpi v28, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v27 = returndatasize
-    v28 = lt v27, 32
-    icall revert_if<tuple_data_too_short>, v28
-    v29 = add 0, 0
-    v30 = mload v29
+    v29 = returndatasize
+    v30 = lt v29, 32
+    icall revert_if<tuple_data_too_short>, v30
     v31 = add 0, 0
     v32 = mload v31
-    ret v32
+    v33 = add 0, 0
+    v34 = mload v33
+    ret v34
 }

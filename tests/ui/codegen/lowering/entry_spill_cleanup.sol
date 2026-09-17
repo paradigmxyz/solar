@@ -17,6 +17,7 @@
 // CHECK-NEXT: jump [[HELPER:bb[0-9]+]]
 // CHECK-NEXT: [[HELPER]]:
 // CHECK-NEXT: dup 1
+// CHECK-NEXT: dup 1
 // CHECK-NEXT: mload
 // CHECK-NEXT: push 64
 // CHECK-NEXT: mload

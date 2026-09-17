@@ -12,7 +12,7 @@
 // CHECK-NOT: {{^[ +].*}}= gt
 // CHECK: {{^[ +].*}}[[PRODUCT:v[0-9]+]] = mul [[SUM]], [[SUM]]
 // CHECK-NOT: {{^[ +].*}}= and
-// CHECK: {{^[ +].*}}[[WORD:v[0-9]+]] = word_cast [[LT]]
+// CHECK: {{^[ +].*}}[[WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[LT]]
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = add [[PRODUCT]], [[WORD]]
 fn @value_numbering(arg0: i256, arg1: i256) -> i256 {
   bb0:
@@ -21,8 +21,8 @@ fn @value_numbering(arg0: i256, arg1: i256) -> i256 {
     v2 = lt arg0, arg1
     v3 = gt arg1, arg0
     v4 = mul v0, v1
-    v7 = word_cast v2
-    v8 = word_cast v3
+    v7 = zext i1 v2 to i256
+    v8 = zext i1 v3 to i256
     v5 = and v7, v8
     v6 = add v4, v5
     ret v6

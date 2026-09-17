@@ -2,8 +2,8 @@
 @module TypeConversion
 fn @narrowAddress(arg0: i256) -> i256 [selector=0xaf290423, pure, abi_params=[address], abi_returns=[word<u16>], abi_return_params=[u16]] {
   bb0:
-    v0 = trunc i160, arg0
-    v1 = word_cast v0
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
     v2 = and v1, 0xffff
     ret v2
 }

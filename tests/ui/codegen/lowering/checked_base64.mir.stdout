@@ -18,15 +18,15 @@ fn @encode.1(arg0: memorybytes) -> memorybytes [selector=0x12496a1b, pure, abi_p
 
 fn @encodeFileSafe(arg0: memorybytes) -> memorybytes [selector=0x2dba772b, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = word_cast true
+    v0 = zext i1 1 to i256
     v1 = icall @encode.7, arg0, v0
     ret v1
 }
 
 fn @encodeNoPadding(arg0: memorybytes) -> memorybytes [selector=0x3d92c956, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = word_cast false
-    v1 = word_cast true
+    v0 = zext i1 0 to i256
+    v1 = zext i1 1 to i256
     v2 = icall @encode.4, arg0, v0, v1
     ret v2
 }
@@ -259,15 +259,15 @@ fn @_encode(arg0: i256, arg1: i256) -> i256 [pure] {
 
 fn @encode.6(arg0: memorybytes) -> memorybytes [pure] {
   bb0:
-    v0 = word_cast false
-    v1 = word_cast false
+    v0 = zext i1 0 to i256
+    v1 = zext i1 0 to i256
     v2 = icall @encode.4, arg0, v0, v1
     ret v2
 }
 
 fn @encode.7(arg0: memorybytes, arg1: i256) -> memorybytes [pure] {
   bb0:
-    v0 = word_cast false
+    v0 = zext i1 0 to i256
     v1 = icall @encode.4, arg0, arg1, v0
     ret v1
 }

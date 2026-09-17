@@ -5,7 +5,8 @@
 // Two literal tails, including an empty tail, and an unaligned selector.
 // CHECK-LABEL: (after dce)
 // CHECK: fn @encode
-// CHECK: [[BUFFER:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 256{{$}}
+// CHECK: [[BUFFER_PTR:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 256{{$}}
+// CHECK: [[BUFFER:v[0-9]+]] = ptrtoint memptr [[BUFFER_PTR]] to i256
 // CHECK: mstore [[BUFFER]], 0x12345678
 // CHECK: make_memory_slice [[BUFFER]], 228
 // CHECK-NOT: preserves_fmp

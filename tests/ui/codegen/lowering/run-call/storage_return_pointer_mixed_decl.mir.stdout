@@ -68,18 +68,18 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
   bb17:
     jump bb18
   bb18:
-    v30 = word_cast true
+    v30 = zext i1 1 to i256
     ret v30
   bb16:
-    v29 = word_cast false
+    v29 = zext i1 0 to i256
     ret v29
   bb13:
-    v23 = word_cast false
+    v23 = zext i1 0 to i256
     ret v23
   bb10:
-    v17 = word_cast false
+    v17 = zext i1 0 to i256
     ret v17
   bb7:
-    v10 = word_cast false
+    v10 = zext i1 0 to i256
     ret v10
 }

@@ -23,8 +23,8 @@ fn @rule_2(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = eq arg0, 0
     v1 = eq arg1, 0
-    v3 = word_cast v0
-    v4 = word_cast v1
+    v3 = zext i1 v0 to i256
+    v4 = zext i1 v1 to i256
     v2 = and v3, v4
     ret v2
 }
@@ -208,55 +208,55 @@ fn @rule_24(arg0: i256, arg1: i256, arg2: i256) -> i256 {
 fn @rule_25(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 0x100
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     ret v1
 }
 
 fn @rule_26(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 0x10000
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     ret v1
 }
 
 fn @rule_27(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 0x100000000
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     ret v1
 }
 
 fn @rule_28(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 0x10000000000000000
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     ret v1
 }
 
 fn @rule_29(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 0x100000000000000000000000000000000
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     ret v1
 }
 
 fn @rule_30(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 0x10000000000000000000000000000000000000000
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     ret v1
 }
 
 fn @rule_31(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 0x100000000000000000000000000000000000000000000000000000000
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     ret v1
 }
 
 fn @rule_32(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 0x100000000000000000000000000000000000000000000000000000000000000
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     ret v1
 }

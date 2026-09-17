@@ -367,7 +367,7 @@ fn @pushNestedShorterCalldata(arg0: calldataslice) -> struct1 [selector=0xae0512
     sstore v26, 0 !metadata(storage=symbolic(v26))
     jump bb15
   bb13:
-    v28 = memory_object_from_ptr memoryfixedarray, v23
+    v28 = inttoptr i256 v23 to memoryfixedarray
     v29 = memory_object_load_element memoryfixedarray<2, 1>, v28, v24
     sstore v26, v29 !metadata(storage=symbolic(v26))
     jump bb15

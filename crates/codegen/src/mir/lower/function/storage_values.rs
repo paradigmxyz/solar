@@ -1338,7 +1338,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             build_storage_bytes_store_helper(function);
             Some(())
         })?;
-        // object = memory_object_from_ptr object
+        // object = inttoptr object
         // icall store_storage_bytes(slot, object)
         let object = self.builder.cast(object, MirType::MemoryObject(MemoryObjectKind::Bytes));
         self.builder.icall_void(helper, vec![slot, object]);

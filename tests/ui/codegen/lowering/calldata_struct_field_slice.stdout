@@ -71,8 +71,8 @@ fn @factory.0() [selector=0x1af91295, abi_wrapper, pure] {
     v43 = calldataload v31
     v44 = and v43, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
     v45 = shr 96, v44
-    v46 = trunc i160, v45
-    v47 = word_cast v46
+    v46 = trunc i256 v45 to i160
+    v47 = zext i160 v46 to i256
     jump bb7
   bb7:
     v22 = phi [bb12: 0], [bb15: v47]
@@ -212,11 +212,11 @@ fn @tailHash.4(arg0: i256, arg1: i256) -> i256 [pure] {
   bb12:
     v60 = add v50, 63
     v63 = and v60, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v64 = mload 64 !metadata(memory=scratch)
-    v76 = add v64, v63
-    mstore 64, v76 !metadata(memory=scratch)
-    mstore v64, v50
-    v69 = add v64, 32
+    v77 = mload 64 !metadata(memory=scratch)
+    v79 = add v77, v63
+    mstore 64, v79 !metadata(memory=scratch)
+    mstore v77, v50
+    v69 = add v77, 32
     calldatacopy v69, v51, v50
     v65 = keccak256 v69, v50
     jump bb2
@@ -232,7 +232,7 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = calldatasize
     v2 = lt v1, 36
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2

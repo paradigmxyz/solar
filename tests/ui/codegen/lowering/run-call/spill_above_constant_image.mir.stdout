@@ -10,14 +10,14 @@ fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [s
     v0 = keccak256 85, 183 !metadata(memory=scratch)
     mstore 53, v0 !metadata(memory=scratch)
     v1 = address
-    v2 = word_cast v1
+    v2 = zext i160 v1 to i256
     v3 = shl 96, v2
     mstore 1, v3 !metadata(memory=scratch)
     mstore 21, arg1 !metadata(memory=scratch)
     v4 = keccak256 0, 85 !metadata(memory=scratch)
     v5 = extcodesize v4
     v6 = eq v5, 0
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     v8 = ne v7, 0
     jumpi v8, bb1, bb2
   bb2:
@@ -29,9 +29,9 @@ fn @createAccount(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [s
     returndata 0, 32
   bb1:
     v9 = create2 0, 85, 183, arg1
-    v10 = word_cast v9
+    v10 = zext i160 v9 to i256
     v11 = eq v10, 0
-    v12 = word_cast v11
+    v12 = zext i1 v11 to i256
     v13 = ne v12, 0
     jumpi v13, bb4, bb5
   bb5:
@@ -58,65 +58,68 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v3 = alloc raw, exact, uninitialized, infallible, v2
     data_copy Registry_initcode_0, v3, 330
     v4 = slice_ptr v0
-    v5 = add v3, 330
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 330
-    v7 = word_cast v6
-    v8 = ne v7, 0
-    jumpi v8, bb2, bb1
+    v5 = ptrtoint memptr v3 to i256
+    v6 = add v5, 330
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = ptrtoint memptr v3 to i256
+    v8 = create 0, v7, 330
+    v9 = zext i160 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = word_cast v6
-    v10 = gas
-    v11 = shl 0, 0x2200000000000000000000000000000000000000000000000000000000000033
-    v12 = abi_encode [word<u160>, word, word, word<u160>, word], selector 0x8a54c52f00000000000000000000000000000000000000000000000000000000, args i160 0x1111111111111111111111111111111111111111, v11, 0x7a69, i160 0x4444444444444444444444444444444444444444, 0x5555
-    v13 = slice_ptr v12
-    v14 = slice_len v12
-    v15 = call v10, v9, 0, v13, v14, 0, 32
-    jumpi v15, bb4, bb3
+    v11 = zext i160 v8 to i256
+    v12 = gas
+    v13 = shl 0, 0x2200000000000000000000000000000000000000000000000000000000000033
+    v14 = abi_encode [word<u160>, word, word, word<u160>, word], selector 0x8a54c52f00000000000000000000000000000000000000000000000000000000, args i160 0x1111111111111111111111111111111111111111, v13, 0x7a69, i160 0x4444444444444444444444444444444444444444, 0x5555
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = call v12, v11, 0, v15, v16, 0, 32
+    jumpi v17, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v16 = returndatasize
-    v17 = lt v16, 32
-    icall revert_if<tuple_data_too_short>, v17
-    v18 = add 0, 0
-    v19 = mload v18
-    v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffff
-    v21 = eq v19, v20
-    v22 = eq v21, false
-    icall revert_if<empty>, v22
-    v23 = add 0, 0
-    v24 = mload v23
-    v25 = extcodesize v24
-    v26 = add v25, 63
-    v27 = lt v26, v25
-    icall panic_if<0x41>, v27
-    v28 = not 31
-    v29 = and v26, v28
-    v30 = alloc memorybytes, exact, zeroed, panic, v29
-    set_memory_object_len memorybytes, v30, v25
-    v31 = memory_object_data memorybytes, v30
-    extcodecopy v24, v31, 0, v25 !metadata(memory=heap)
-    v32 = memory_object_len memorybytes, v30
-    v33 = eq v32, 173
-    icall require<short_string>, v33, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
-    v34 = word_cast v30
-    v35 = add v34, 109
-    v36 = mload v35
-    v37 = word_cast v30
-    v38 = add v37, 141
+    v18 = returndatasize
+    v19 = lt v18, 32
+    icall revert_if<tuple_data_too_short>, v19
+    v20 = add 0, 0
+    v21 = mload v20
+    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffff
+    v23 = eq v21, v22
+    v24 = eq v23, false
+    icall revert_if<empty>, v24
+    v25 = add 0, 0
+    v26 = mload v25
+    v27 = extcodesize v26
+    v28 = add v27, 63
+    v29 = lt v28, v27
+    icall panic_if<0x41>, v29
+    v30 = not 31
+    v31 = and v28, v30
+    v32 = alloc memorybytes, exact, zeroed, panic, v31
+    set_memory_object_len memorybytes, v32, v27
+    v33 = memory_object_data memorybytes, v32
+    v34 = ptrtoint memptr v33 to i256
+    extcodecopy v26, v34, 0, v27 !metadata(memory=heap)
+    v35 = memory_object_len memorybytes, v32
+    v36 = eq v35, 173
+    icall require<short_string>, v36, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
+    v37 = ptrtoint memorybytes v32 to i256
+    v38 = add v37, 109
     v39 = mload v38
-    v40 = word_cast v30
-    v41 = add v40, 173
+    v40 = ptrtoint memorybytes v32 to i256
+    v41 = add v40, 141
     v42 = mload v41
-    v43 = eq v36, 0x7a69
-    icall require<short_string>, v43, 8, 0x636861696e206964000000000000000000000000000000000000000000000000
-    v44 = word_cast i160 0x4444444444444444444444444444444444444444
-    v45 = eq v39, v44
-    icall require<short_string>, v45, 14, 0x746f6b656e20636f6e7472616374000000000000000000000000000000000000
-    v46 = eq v42, 0x5555
-    icall require<short_string>, v46, 8, 0x746f6b656e206964000000000000000000000000000000000000000000000000
+    v43 = ptrtoint memorybytes v32 to i256
+    v44 = add v43, 173
+    v45 = mload v44
+    v46 = eq v39, 0x7a69
+    icall require<short_string>, v46, 8, 0x636861696e206964000000000000000000000000000000000000000000000000
+    v47 = zext i160 0x4444444444444444444444444444444444444444 to i256
+    v48 = eq v42, v47
+    icall require<short_string>, v48, 14, 0x746f6b656e20636f6e7472616374000000000000000000000000000000000000
+    v49 = eq v45, 0x5555
+    icall require<short_string>, v49, 8, 0x746f6b656e206964000000000000000000000000000000000000000000000000
     ret 1
 }

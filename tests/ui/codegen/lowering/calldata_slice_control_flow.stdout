@@ -86,7 +86,7 @@ fn @_explicitTrim(arg0: calldataslice) -> calldataslice [pure] {
     v5 = gt v4, v4
     v6 = lt v4, 4
     v7 = or v5, v6
-    v8 = word_cast v7
+    v8 = zext i1 v7 to i256
     icall revert_if<empty>, v8
     v9 = sub v4, 4
     v10 = add v3, 4
@@ -114,7 +114,7 @@ fn @_split(arg0: calldataslice) -> struct1 [pure] {
     v3 = gt v1, v1
     v4 = lt v1, v2
     v5 = or v3, v4
-    v6 = word_cast v5
+    v6 = zext i1 v5 to i256
     icall revert_if<empty>, v6
     v7 = sub v1, v2
     v8 = add v0, v2

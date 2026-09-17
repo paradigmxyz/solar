@@ -35,7 +35,7 @@ fn @copy() -> memorybytes [selector=0x60726abb, pure, abi_params=[], abi_returns
 fn @environment() -> i256 [selector=0x74e2b63c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = coinbase
-    v1 = word_cast v0
+    v1 = zext i160 v0 to i256
     v2 = xor 0, v1
     v3 = timestamp
     v4 = xor v2, v3
@@ -56,7 +56,7 @@ fn @environment() -> i256 [selector=0x74e2b63c, view, abi_params=[], abi_returns
     v19 = shr 224, v18
     v20 = xor v16, v19
     v21 = origin
-    v22 = word_cast v21
+    v22 = zext i160 v21 to i256
     v23 = xor v20, v22
     v24 = gasprice
     v25 = xor v23, v24
@@ -74,7 +74,7 @@ fn @tail(arg0: i256, arg1: i256) -> memorybytes [selector=0xb62868c3, pure, abi_
     v4 = gt arg1, v3
     v5 = lt arg1, arg0
     v6 = or v4, v5
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     icall revert_if<empty>, v7
     v8 = sub arg1, arg0
     v9 = add v2, arg0

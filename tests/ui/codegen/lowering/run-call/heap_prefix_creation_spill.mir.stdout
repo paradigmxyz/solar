@@ -18,109 +18,112 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v3 = alloc raw, exact, uninitialized, infallible, v2
     data_copy Implementation_initcode_0, v3, 67
     v4 = slice_ptr v0
-    v5 = add v3, 67
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 67
-    v7 = word_cast v6
-    v8 = ne v7, 0
-    jumpi v8, bb2, bb1
+    v5 = ptrtoint memptr v3 to i256
+    v6 = add v5, 67
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = ptrtoint memptr v3 to i256
+    v8 = create 0, v7, 67
+    v9 = zext i160 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = word_cast v6
-    v10 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v10, 15
-    v11 = memory_object_data memorybytes, v10
-    mstore v11, 0x112233445566778899aabbccddeeff0000000000000000000000000000000000
-    v12 = trunc i160, v9
-    v13 = word_cast v12
-    v14 = shl 0, 1
-    v15 = icall @_cloneDeterministic, v13, v10, v14
-    v16 = trunc i160, v15
-    v17 = gas
-    v18 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
-    v19 = slice_ptr v18
-    v20 = slice_len v18
-    v21 = staticcall v17, v16, v19, v20, 0, 32
-    jumpi v21, bb4, bb3
+    v11 = zext i160 v8 to i256
+    v12 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v12, 15
+    v13 = memory_object_data memorybytes, v12
+    v14 = ptrtoint memptr v13 to i256
+    mstore v14, 0x112233445566778899aabbccddeeff0000000000000000000000000000000000
+    v15 = trunc i256 v11 to i160
+    v16 = zext i160 v15 to i256
+    v17 = shl 0, 1
+    v18 = icall @_cloneDeterministic, v16, v12, v17
+    v19 = trunc i256 v18 to i160
+    v20 = gas
+    v21 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
+    v22 = slice_ptr v21
+    v23 = slice_len v21
+    v24 = staticcall v20, v19, v22, v23, 0, 32
+    jumpi v24, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v22 = returndatasize
-    v23 = lt v22, 32
-    icall revert_if<tuple_data_too_short>, v23
-    v24 = add 0, 0
-    v25 = mload v24
-    v26 = add 0, 0
-    v27 = mload v26
-    v28 = eq v27, 7
-    icall require<short_string>, v28, 5, 0x70726f7879000000000000000000000000000000000000000000000000000000
+    v25 = returndatasize
+    v26 = lt v25, 32
+    icall revert_if<tuple_data_too_short>, v26
+    v27 = add 0, 0
+    v28 = mload v27
+    v29 = add 0, 0
+    v30 = mload v29
+    v31 = eq v30, 7
+    icall require<short_string>, v31, 5, 0x70726f7879000000000000000000000000000000000000000000000000000000
     ret 1
 }
 
 fn @_cloneDeterministic(arg0: i256, arg1: memorybytes, arg2: i256) -> i256 {
   bb0:
     v0 = icall @_creationStart, arg1
-    v1 = word_cast arg1
+    v1 = ptrtoint memorybytes arg1 to i256
     v2 = sub v1, 96
     v3 = mload v2
-    v4 = word_cast arg1
+    v4 = ptrtoint memorybytes arg1 to i256
     v5 = sub v4, 64
     v6 = mload v5
-    v7 = word_cast arg1
+    v7 = ptrtoint memorybytes arg1 to i256
     v8 = sub v7, 32
     v9 = mload v8
-    v10 = word_cast arg1
+    v10 = ptrtoint memorybytes arg1 to i256
     v11 = mload v10
-    v12 = word_cast arg1
+    v12 = ptrtoint memorybytes arg1 to i256
     v13 = add v12, 32
     v14 = add v13, v11
     v15 = mload v14
     v16 = add v11, 2
-    v17 = word_cast arg1
+    v17 = ptrtoint memorybytes arg1 to i256
     mstore v17, 0x5af43d3d93803e606057fd5bf3
-    v18 = word_cast arg1
+    v18 = ptrtoint memorybytes arg1 to i256
     v19 = sub v18, 13
     mstore v19, arg0
     v20 = shl 72, v16
     v21 = or v20, 0x593da1005b363d3d373d3d3d3d610000806062363936013d73
-    v22 = word_cast arg1
+    v22 = ptrtoint memorybytes arg1 to i256
     v23 = sub v22, 33
     mstore v23, v21
-    v24 = word_cast arg1
+    v24 = ptrtoint memorybytes arg1 to i256
     v25 = sub v24, 58
     mstore v25, 0x9e4ac34f21c619cefc926c8bd93b54bf5a39c7ab2127a895af1cc0691d7e3dff
     v26 = add v16, 98
     v27 = shl 120, v26
     v28 = or v27, 0xfd6100003d81600a3d39f336602c57343d527f
     v29 = lt v16, 0xff9e
-    v30 = word_cast v29
+    v30 = zext i1 v29 to i256
     v31 = add 89, v30
-    v32 = word_cast arg1
+    v32 = ptrtoint memorybytes arg1 to i256
     v33 = sub v32, v31
     mstore v33, v28
     v34 = shl 240, v16
     mstore v14, v34
     v35 = add v16, 108
     v36 = create2 0, v0, v35, arg2
-    v37 = word_cast v36
+    v37 = zext i160 v36 to i256
     v38 = eq v37, 0
-    v39 = word_cast v38
+    v39 = zext i1 v38 to i256
     v40 = ne v39, 0
     jumpi v40, bb1, bb2
   bb2:
     jump bb3
   bb3:
     mstore v14, v15
-    v41 = word_cast arg1
+    v41 = ptrtoint memorybytes arg1 to i256
     mstore v41, v11
-    v42 = word_cast arg1
+    v42 = ptrtoint memorybytes arg1 to i256
     v43 = sub v42, 32
     mstore v43, v9
-    v44 = word_cast arg1
+    v44 = ptrtoint memorybytes arg1 to i256
     v45 = sub v44, 64
     mstore v45, v6
-    v46 = word_cast arg1
+    v46 = ptrtoint memorybytes arg1 to i256
     v47 = sub v46, 96
     mstore v47, v3
     ret v37
@@ -130,7 +133,7 @@ fn @_cloneDeterministic(arg0: i256, arg1: memorybytes, arg2: i256) -> i256 {
 
 fn @_creationStart(arg0: memorybytes) -> i256 [pure] {
   bb0:
-    v0 = word_cast arg0
+    v0 = ptrtoint memorybytes arg0 to i256
     v1 = sub v0, 76
     ret v1
 }
@@ -194,7 +197,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
     v1 = and 95, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 32
-    v3 = word_cast v2
+    v3 = ptrtoint memorybytes v2 to i256
     v4 = sub v3, 32
     mstore v4, 0xdeadbeef
     sstore 0, arg0 !metadata(storage=slot(0))
@@ -222,7 +225,7 @@ fn @build(arg0: i256) -> i256 [pure] {
     v1 = and 95, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 32
-    v3 = word_cast v2
+    v3 = ptrtoint memorybytes v2 to i256
     v4 = sub v3, 160
     mstore v4, 0xdeadbeef
     ret arg0
@@ -247,7 +250,7 @@ fn @build(arg0: i256, arg1: i256) -> i256 [pure] {
     v5 = and 95, v4
     v6 = alloc memorybytes, exact, zeroed, panic, v5
     set_memory_object_len memorybytes, v6, 32
-    v7 = word_cast v6
+    v7 = ptrtoint memorybytes v6 to i256
     v8 = sub v7, 288
     mstore v8, 0xdeadbeef
     ret arg0

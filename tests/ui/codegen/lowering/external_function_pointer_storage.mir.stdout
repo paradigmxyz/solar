@@ -38,7 +38,7 @@ fn @constructor() [constructor] {
     v17 = or v14, v16
     sstore v10, v17 !metadata(storage=slot(0))
     v18 = address
-    v19 = word_cast v18
+    v19 = zext i160 v18 to i256
     v20 = shl 32, v19
     v21 = or v20, 0x5a8ac02d
     v22 = lt 1, 2
@@ -76,7 +76,7 @@ fn @constructor() [constructor] {
     v49 = or v46, v48
     sstore v42, v49 !metadata(storage=slot(1))
     v50 = address
-    v51 = word_cast v50
+    v51 = zext i160 v50 to i256
     v52 = shl 32, v51
     v53 = or v52, 0x3df4ddf4
     v54 = lt 0, 2

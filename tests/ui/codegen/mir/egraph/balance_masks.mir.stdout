@@ -31,13 +31,13 @@ fn @funded() -> struct1 [selector=0xf3a504f2, payable, abi_params=[], abi_return
   bb0:
     v0 = address
     v1 = shl 200, 1
-    v2 = word_cast v0
+    v2 = zext i160 v0 to i256
     v3 = or v2, v1
     v4 = icall @shared, v3
     v5 = extract_value struct0, v4, 0
     v6 = extract_value struct0, v4, 1
     v7 = address
-    v8 = word_cast v7
+    v8 = zext i160 v7 to i256
     v9 = eq v6, v8
     v10 = eq v9, false
     icall panic_if<0x1>, v10

@@ -18,11 +18,11 @@ fn @target() -> i256 [selector=0xd4b83992, view, abi_params=[], abi_returns=[wor
 
 fn @prepare(arg0: i256, arg1: calldataslice) [selector=0xaacd9878, abi_params=[address, bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = trunc i160, arg0
+    v0 = trunc i256 arg0 to i160
     v1 = sload 1 !metadata(storage=slot(1))
     v2 = not 0xffffffffffffffffffffffffffffffffffffffff
     v3 = and v1, v2
-    v4 = word_cast v0
+    v4 = zext i160 v0 to i256
     v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
     v6 = or v3, v5
     sstore 1, v6 !metadata(storage=slot(1))
@@ -55,7 +55,7 @@ fn @fire() -> struct0 [selector=0x457094cc, abi_params=[], abi_returns=[word<boo
     v3 = load_storage_bytes 0
     v4 = address_call v1, v3, gas v2
     v5 = icall returndata_bytes<>
-    v6 = word_cast v4
+    v6 = zext i1 v4 to i256
     v7 = insert_value struct0, undef struct0, 0, v6
     v8 = insert_value struct0, v7, 1, v5
     ret v8

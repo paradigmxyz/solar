@@ -18,7 +18,7 @@ fn @hashTracksWrites() -> i256 [selector=0xfa4d6080, pure, abi_params=[], abi_re
     jump bb2
   bb2:
     v16 = eq v5, 0x5fe7f977e71dba2ea1a68e21057beebb9be2ac30c6410aa38d4f3fbe41dcffd2
-    v17 = word_cast v16
+    v17 = zext i1 v16 to i256
     ret v17
   bb4:
     v8 = and v3, 255

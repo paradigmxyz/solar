@@ -13,7 +13,7 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v4 = gt v3, v3
     v5 = lt v3, 4
     v6 = or v4, v5
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     icall revert_if<empty>, v7
     v8 = sub v3, 4
     v9 = add v2, 4
@@ -46,7 +46,7 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v31 = gt v30, v29
     v32 = lt v30, 4
     v33 = or v31, v32
-    v34 = word_cast v33
+    v34 = zext i1 v33 to i256
     icall revert_if<empty>, v34
     v35 = sub v30, 4
     v36 = add v28, 4
@@ -79,7 +79,7 @@ fn @f(arg0: i256, arg1: i256) -> struct0 [selector=0x13d1aa2e, pure, abi_params=
     v58 = gt v57, v54
     v59 = lt v57, v55
     v60 = or v58, v59
-    v61 = word_cast v60
+    v61 = zext i1 v60 to i256
     icall revert_if<empty>, v61
     v62 = sub v57, v55
     v63 = add v53, v55

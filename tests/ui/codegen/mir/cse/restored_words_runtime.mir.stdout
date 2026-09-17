@@ -9,19 +9,19 @@ fn @check(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0x4feb5714, p
     v1 = and 127, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 64
-    v3 = word_cast v2
+    v3 = ptrtoint memorybytes v2 to i256
     v4 = add v3, 32
     mstore v4, arg0
-    v5 = word_cast v2
+    v5 = ptrtoint memorybytes v2 to i256
     v6 = add v5, 64
     mstore v6, arg1
     v7 = icall @readTemporary, v2, arg2
     v8 = icall @readTemporary, v2, arg2
     v9 = checked_add u256, v7, v8
-    v10 = word_cast v2
+    v10 = ptrtoint memorybytes v2 to i256
     v11 = add v10, 32
     v12 = mload v11
-    v13 = word_cast v2
+    v13 = ptrtoint memorybytes v2 to i256
     v14 = add v13, 64
     v15 = mload v14
     v16 = insert_value struct0, undef struct0, 0, v9
@@ -32,7 +32,7 @@ fn @check(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0x4feb5714, p
 
 fn @readTemporary(arg0: memorybytes, arg1: i256) -> i256 [pure] {
   bb0:
-    v0 = word_cast arg0
+    v0 = ptrtoint memorybytes arg0 to i256
     v1 = add v0, 32
     v2 = add v1, 32
     v3 = mload v1

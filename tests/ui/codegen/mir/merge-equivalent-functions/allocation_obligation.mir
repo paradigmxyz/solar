@@ -7,7 +7,8 @@
 // CHECK: alloc raw, exact, uninitialized, infallible, 64{{$}}
 fn @movable() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 64
+    v2 = alloc raw, exact, uninitialized, infallible, 64
+    v0 = ptrtoint memptr v2 to i256
     ret v0
 }
 
@@ -15,7 +16,8 @@ fn @movable() -> i256 {
 // CHECK: alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
 fn @reserved() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v3 = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v0 = ptrtoint memptr v3 to i256
     ret v0
 }
 

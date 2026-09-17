@@ -7,15 +7,15 @@ fn @addressEq(arg0: memoryarray) -> i256 [selector=0x83ede5a4, pure, abi_params=
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryarray<1>, arg0, 0
-    v4 = trunc i160, v3
+    v4 = trunc i256 v3 to i160
     v5 = memory_object_len memoryarray, arg0
     v6 = lt 1, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = memory_object_load_element memoryarray<1>, arg0, 1
-    v9 = trunc i160, v8
-    v10 = word_cast v4
-    v11 = word_cast v9
+    v9 = trunc i256 v8 to i160
+    v10 = zext i160 v4 to i256
+    v11 = zext i160 v9 to i256
     v12 = icall @sameAccount, v10, v11
     ret v12
 }
@@ -40,10 +40,10 @@ fn @eq_(arg0: i256, arg1: i256) -> i256 [selector=0xd8a1aad7, pure, abi_params=[
 
 fn @sameAccount(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
-    v0 = trunc i160, arg0
-    v1 = trunc i160, arg1
+    v0 = trunc i256 arg0 to i160
+    v1 = trunc i256 arg1 to i160
     v2 = eq v0, v1
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     ret v3
 }
 
@@ -62,6 +62,6 @@ fn @mul(arg0: i256, arg1: i256) -> i256 [pure] {
 fn @eq(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg0, arg1
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     ret v1
 }

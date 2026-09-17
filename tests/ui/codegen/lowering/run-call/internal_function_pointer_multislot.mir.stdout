@@ -19,11 +19,11 @@ fn @foo() -> i256 [selector=0xc2985578, pure, abi_params=[], abi_returns=[word],
 fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
-    v1 = word_cast v0
+    v1 = zext i160 v0 to i256
     v2 = shl 32, v1
     v3 = or v2, 0xc2985578
     v4 = address
-    v5 = word_cast v4
+    v5 = zext i160 v4 to i256
     v6 = shl 32, v5
     v7 = or v6, 0xc2985578
     v8 = icall @internal_dispatcher_p_function_function_r_function, 1, v3, v7

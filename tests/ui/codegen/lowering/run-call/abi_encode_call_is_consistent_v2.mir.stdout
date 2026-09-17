@@ -10,12 +10,12 @@ fn @getExternalFunctionPointer() -> i256 [selector=0x0d5de1f2, abi_params=[], ab
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 255
     v2 = and v0, v1
-    v3 = word_cast true
+    v3 = zext i1 1 to i256
     v4 = and v3, 255
     v5 = or v2, v4
     sstore 0, v5 !metadata(storage=slot(0))
     v6 = address
-    v7 = word_cast v6
+    v7 = zext i160 v6 to i256
     v8 = shl 32, v7
     v9 = or v8, 0x33d85810
     ret v9
@@ -26,7 +26,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u8>], 
     v0 = icall @literal_bytes_word, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
     v1 = abi_encode [word, memory_bytes], object, selector 0x33d8581000000000000000000000000000000000000000000000000000000000, args 1, v0
     v2 = address
-    v3 = word_cast v2
+    v3 = zext i160 v2 to i256
     v4 = shl 32, v3
     v5 = or v4, 0x33d85810
     v6 = shl 8, 0xffffffffffffffffffffffffffffffffffffffffffffffff
@@ -45,7 +45,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u8>], 
     v18 = icall @literal_bytes_word, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
     v19 = abi_encode [word, memory_bytes], object, selector v17, args 1, v18
     v20 = address
-    v21 = word_cast v20
+    v21 = zext i160 v20 to i256
     v22 = shl 32, v21
     v23 = or v22, 0x33d85810
     v24 = and v23, 0xffffffff
@@ -107,7 +107,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u8>], 
 fn @storageEncoded() -> memorybytes [selector=0x46ad9d89, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = address
-    v1 = word_cast v0
+    v1 = zext i160 v0 to i256
     v2 = shl 32, v1
     v3 = or v2, 0x33d85810
     v4 = shl 8, 0xffffffffffffffffffffffffffffffffffffffffffffffff
@@ -131,7 +131,7 @@ fn @storageEncoded() -> memorybytes [selector=0x46ad9d89, abi_params=[], abi_ret
 fn @localEncoded() -> memorybytes [selector=0xde7d55c6, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = address
-    v1 = word_cast v0
+    v1 = zext i160 v0 to i256
     v2 = shl 32, v1
     v3 = or v2, 0x33d85810
     v4 = and v3, 0xffffffff

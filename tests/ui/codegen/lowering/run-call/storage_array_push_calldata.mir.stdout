@@ -9,7 +9,7 @@ fn @pushArray(arg0: calldataslice) -> i256 [selector=0xac513f44, abi_params=[arr
     v4 = div v2, 32
     v5 = eq v4, v0
     v6 = or v3, v5
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     v8 = eq v7, 0
     icall panic_if<0x41>, v8
     v9 = calldatasize
@@ -21,7 +21,7 @@ fn @pushArray(arg0: calldataslice) -> i256 [selector=0xac513f44, abi_params=[arr
     v14 = div v12, 32
     v15 = eq v14, v0
     v16 = or v13, v15
-    v17 = word_cast v16
+    v17 = zext i1 v16 to i256
     v18 = eq v17, 0
     icall panic_if<0x41>, v18
     v19 = add 32, v12
@@ -213,7 +213,7 @@ fn @pushStruct(arg0: calldataslice) -> i256 [selector=0x1696eca8, abi_params=[tu
     v53 = div v51, 32
     v54 = eq v53, v43
     v55 = or v52, v54
-    v56 = word_cast v55
+    v56 = zext i1 v55 to i256
     v57 = eq v56, 0
     icall panic_if<0x41>, v57
     v58 = add 32, v51
@@ -261,7 +261,7 @@ fn @pushStruct(arg0: calldataslice) -> i256 [selector=0x1696eca8, abi_params=[tu
   bb9:
     v118 = add v75, 2
     v119 = memory_object_load_field memorystruct<4>, v1, 3
-    v120 = memory_object_from_ptr memoryarray, v119
+    v120 = inttoptr i256 v119 to memoryarray
     v121 = memory_object_len memoryarray, v120
     v122 = sload v118 !metadata(storage=offset(v75, 2))
     v123 = gt v122, v121
@@ -365,7 +365,7 @@ fn @pushStruct(arg0: calldataslice) -> i256 [selector=0x1696eca8, abi_params=[tu
     v226 = checked_add u256, v206, v225
     ret v226
   bb19:
-    v142 = memory_object_from_ptr memoryarray, v119
+    v142 = inttoptr i256 v119 to memoryarray
     v143 = memory_object_load_element memoryarray<1>, v142, v140
     v144 = storage_array_data_slot v118
     v145 = div v140, 16
@@ -419,7 +419,7 @@ fn @pushStruct(arg0: calldataslice) -> i256 [selector=0x1696eca8, abi_params=[tu
     sstore v95, v116 !metadata(storage=symbolic(v95))
     jump bb12
   bb10:
-    v99 = memory_object_from_ptr memoryfixedarray, v91
+    v99 = inttoptr i256 v91 to memoryfixedarray
     v100 = memory_object_load_element memoryfixedarray<3, 1>, v99, v92
     v101 = mul v97, 8
     v102 = shl v101, 0xffff

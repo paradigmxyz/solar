@@ -25,7 +25,7 @@
 //! per array, so a store into any array of a function widens every array
 //! that function reads; aliasing between arrays needs no separate proof.
 //!
-//! Only word-element arrays, contiguous low-bit masks, and `word_cast(trunc i160, x)`
+//! Only word-element arrays, contiguous low-bit masks, and `zext i160 (trunc i256 x to i160) to i256`
 //! round trips are rewritten. A narrowing result with other typed uses stays in place.
 //! Runs early in the optimized phase, while element accesses are still
 //! semantic and the call graph is explicit; removed masks lose their debug
@@ -137,8 +137,8 @@ impl MirPass for ElementCleanup {
                     && objects.get(&object).is_some_and(|&origin| origin.max(reading) <= bits)
                     && let Some(result) = func.inst_result_value(inst)
                 {
-                    // word_cast(trunc i160, element) -> element
-                    if let InstKind::WordCast(narrow) = func.inst(inst).kind
+                    // zext i160 (trunc i256 element to i160) to i256 -> element
+                    if let InstKind::Zext(narrow) = func.inst(inst).kind
                         && uses[narrow] == 1
                         && let Value::Inst(trunc) = func.value(narrow)
                     {
@@ -189,9 +189,9 @@ fn is_array(ty: MirType) -> bool {
 
 /// The value a contiguous low-bit mask keeps, and the mask's width in bits.
 fn masked_element(func: &Function, inst: InstId) -> Option<(ValueId, u32)> {
-    if let InstKind::WordCast(narrow) = func.inst(inst).kind
+    if let InstKind::Zext(narrow) = func.inst(inst).kind
         && let Value::Inst(trunc) = func.value(narrow)
-        && let InstKind::Trunc160(element) = func.inst(*trunc).kind
+        && let InstKind::Trunc(element, 160) = func.inst(*trunc).kind
     {
         return Some((element, 160));
     }

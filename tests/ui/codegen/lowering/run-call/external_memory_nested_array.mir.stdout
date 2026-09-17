@@ -54,110 +54,112 @@ fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<
     v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v4, 1
     v5 = memory_object_data memorybytes, v4
-    mstore v5, 0xaa00000000000000000000000000000000000000000000000000000000000000
-    v6 = memory_object_len memoryarray, v0
-    v7 = lt 0, v6
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
+    v6 = ptrtoint memptr v5 to i256
+    mstore v6, 0xaa00000000000000000000000000000000000000000000000000000000000000
+    v7 = memory_object_len memoryarray, v0
+    v8 = lt 0, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
     memory_object_store_element memoryarray<1>, v0, 0, v4
-    v9 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v9, 2
-    v10 = memory_object_data memorybytes, v9
-    mstore v10, 0xbbcc000000000000000000000000000000000000000000000000000000000000
-    v11 = memory_object_len memoryarray, v0
-    v12 = lt 1, v11
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    memory_object_store_element memoryarray<1>, v0, 1, v9
-    v14 = abi_encode [memory_array<memory_bytes>], scratch, args v0
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = keccak256 v15, v16
-    v18 = address
-    v19 = gas
-    v20 = abi_encode [memory_array<memory_bytes>], selector 0x9d6ce1dc00000000000000000000000000000000000000000000000000000000, args v0
-    v21 = slice_ptr v20
-    v22 = slice_len v20
-    v23 = staticcall v19, v18, v21, v22, v21, 64
-    jumpi v23, bb5, bb4
+    v10 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v10, 2
+    v11 = memory_object_data memorybytes, v10
+    v12 = ptrtoint memptr v11 to i256
+    mstore v12, 0xbbcc000000000000000000000000000000000000000000000000000000000000
+    v13 = memory_object_len memoryarray, v0
+    v14 = lt 1, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    memory_object_store_element memoryarray<1>, v0, 1, v10
+    v16 = abi_encode [memory_array<memory_bytes>], scratch, args v0
+    v17 = slice_ptr v16
+    v18 = slice_len v16
+    v19 = keccak256 v17, v18
+    v20 = address
+    v21 = gas
+    v22 = abi_encode [memory_array<memory_bytes>], selector 0x9d6ce1dc00000000000000000000000000000000000000000000000000000000, args v0
+    v23 = slice_ptr v22
+    v24 = slice_len v22
+    v25 = staticcall v21, v20, v23, v24, v23, 64
+    jumpi v25, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v24 = returndatasize
-    v25 = lt v24, 64
-    icall revert_if<tuple_data_too_short>, v25
-    v26 = add v21, 0
-    v27 = mload v26
-    v28 = add v21, 32
+    v26 = returndatasize
+    v27 = lt v26, 64
+    icall revert_if<tuple_data_too_short>, v27
+    v28 = add v23, 0
     v29 = mload v28
-    v30 = add v21, 0
+    v30 = add v23, 32
     v31 = mload v30
-    v32 = add v21, 32
+    v32 = add v23, 0
     v33 = mload v32
-    v34 = insert_value struct0, undef struct0, 0, v31
-    v35 = insert_value struct0, v34, 1, v33
-    v36 = extract_value struct0, v35, 0
-    v37 = extract_value struct0, v35, 1
-    v38 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v38, 1
+    v34 = add v23, 32
+    v35 = mload v34
+    v36 = insert_value struct0, undef struct0, 0, v33
+    v37 = insert_value struct0, v36, 1, v35
+    v38 = extract_value struct0, v37, 0
+    v39 = extract_value struct0, v37, 1
+    v40 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v40, 1
     jump bb6
   bb6:
-    v39 = phi [bb5: 0], [bb7: v42]
-    v40 = lt v39, 1
-    jumpi v40, bb7, bb8
+    v41 = phi [bb5: 0], [bb7: v44]
+    v42 = lt v41, 1
+    jumpi v42, bb7, bb8
   bb8:
-    v43 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
-    memory_object_store_field memorystruct<5>, v43, 0, 1
-    memory_object_store_field memorystruct<5>, v43, 1, 2
-    memory_object_store_field memorystruct<5>, v43, 2, 3
-    memory_object_store_field memorystruct<5>, v43, 3, 4
-    memory_object_store_field memorystruct<5>, v43, 4, 5
-    v44 = memory_object_len memoryarray, v38
-    v45 = lt 0, v44
-    v46 = eq v45, false
-    icall panic_if<0x32>, v46
-    memory_object_store_element memoryarray<1>, v38, 0, v43
-    v47 = eq v36, 2
-    jumpi v47, bb9, bb10
+    v45 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
+    memory_object_store_field memorystruct<5>, v45, 0, 1
+    memory_object_store_field memorystruct<5>, v45, 1, 2
+    memory_object_store_field memorystruct<5>, v45, 2, 3
+    memory_object_store_field memorystruct<5>, v45, 3, 4
+    memory_object_store_field memorystruct<5>, v45, 4, 5
+    v46 = memory_object_len memoryarray, v40
+    v47 = lt 0, v46
+    v48 = eq v47, false
+    icall panic_if<0x32>, v48
+    memory_object_store_element memoryarray<1>, v40, 0, v45
+    v49 = eq v38, 2
+    jumpi v49, bb9, bb10
   bb10:
     jump bb11
   bb9:
-    v48 = eq v37, v17
+    v50 = eq v39, v19
     jump bb11
   bb11:
-    v49 = phi [bb9: v48], [bb10: false]
-    jumpi v49, bb12, bb13
+    v51 = phi [bb9: v50], [bb10: false]
+    jumpi v51, bb12, bb13
   bb13:
     jump bb14
   bb12:
-    v50 = address
-    v51 = gas
-    v52 = abi_encode [memory_array<tuple<word, word, word, word, word>>], selector 0x68057f1e00000000000000000000000000000000000000000000000000000000, args v38
-    v53 = slice_ptr v52
-    v54 = slice_len v52
-    v55 = staticcall v51, v50, v53, v54, 0, 32
-    jumpi v55, bb16, bb15
+    v52 = address
+    v53 = gas
+    v54 = abi_encode [memory_array<tuple<word, word, word, word, word>>], selector 0x68057f1e00000000000000000000000000000000000000000000000000000000, args v40
+    v55 = slice_ptr v54
+    v56 = slice_len v54
+    v57 = staticcall v53, v52, v55, v56, 0, 32
+    jumpi v57, bb16, bb15
   bb15:
     revert_returndata
   bb16:
-    v56 = returndatasize
-    v57 = lt v56, 32
-    icall revert_if<tuple_data_too_short>, v57
-    v58 = add 0, 0
-    v59 = mload v58
+    v58 = returndatasize
+    v59 = lt v58, 32
+    icall revert_if<tuple_data_too_short>, v59
     v60 = add 0, 0
     v61 = mload v60
-    v62 = eq v61, 6
+    v62 = add 0, 0
+    v63 = mload v62
+    v64 = eq v63, 6
     jump bb14
   bb14:
-    v63 = phi [bb16: v62], [bb13: false]
-    v64 = word_cast v63
-    ret v64
+    v65 = phi [bb16: v64], [bb13: false]
+    v66 = zext i1 v65 to i256
+    ret v66
   bb7:
-    v41 = alloc memorystruct<5>, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
-    memory_zero v41, 160
-    memory_object_store_element memoryarray<1>, v38, v39, v41
-    v42 = add v39, 1
+    v43 = alloc memorystruct<5>, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
+    memory_zero v43, 160
+    memory_object_store_element memoryarray<1>, v40, v41, v43
+    v44 = add v41, 1
     jump bb6
   bb2:
     memory_object_store_element memoryarray<1>, v0, v1, memorybytes 96

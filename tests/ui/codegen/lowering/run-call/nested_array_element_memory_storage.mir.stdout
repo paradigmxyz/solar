@@ -6,8 +6,8 @@ fn @test(arg0: memoryfixedarray) -> i256 [selector=0x55aeb383, abi_params=[array
     v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 0
-    v3 = memory_object_from_ptr memoryfixedarray, v2
-    v4 = word_cast v3
+    v3 = inttoptr i256 v2 to memoryfixedarray
+    v4 = ptrtoint memoryfixedarray v3 to i256
     v5 = eq v4, 0
     jumpi v5, bb1, bb2
   bb1:
@@ -170,7 +170,7 @@ fn @test(arg0: memoryfixedarray) -> i256 [selector=0x55aeb383, abi_params=[array
     sstore v20, v41 !metadata(storage=symbolic(v20))
     jump bb17
   bb15:
-    v24 = memory_object_from_ptr memoryfixedarray, v16
+    v24 = inttoptr i256 v16 to memoryfixedarray
     v25 = memory_object_load_element memoryfixedarray<2, 1>, v24, v17
     v26 = mul v22, 8
     v27 = shl v26, 255
@@ -368,7 +368,7 @@ fn @test2(arg0: memoryfixedarray) -> i256 [selector=0x3fc8671b, abi_params=[arra
     sstore v12, v33 !metadata(storage=symbolic(v12))
     jump bb12
   bb10:
-    v16 = memory_object_from_ptr memoryfixedarray, v8
+    v16 = inttoptr i256 v8 to memoryfixedarray
     v17 = memory_object_load_element memoryfixedarray<2, 1>, v16, v9
     v18 = mul v14, 8
     v19 = shl v18, 255

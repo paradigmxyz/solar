@@ -177,7 +177,7 @@ fn @_tryParseSlices(arg0: calldataslice) -> struct5 [pure] {
     v8 = memory_object_load_byte memorybytes, v3, 0
     v9 = shl 248, v8
     v10 = shr 248, v9
-    v11 = word_cast v4
+    v11 = ptrtoint memorybytes v4 to i256
     v12 = add v11, 32
     v13 = mload v12
     v14 = shr 96, v13
@@ -194,7 +194,7 @@ fn @_splitSlices(arg0: calldataslice) -> struct6 [pure] {
     v2 = gt 1, v1
     v3 = lt 1, 0
     v4 = or v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     icall revert_if<empty>, v5
     v6 = sub 1, 0
     v7 = add v0, 0
@@ -221,7 +221,7 @@ fn @_splitSlices(arg0: calldataslice) -> struct6 [pure] {
     v23 = gt v22, v22
     v24 = lt v22, 1
     v25 = or v23, v24
-    v26 = word_cast v25
+    v26 = zext i1 v25 to i256
     icall revert_if<empty>, v26
     v27 = sub v22, 1
     v28 = add v21, 1
@@ -243,7 +243,7 @@ fn @_splitSlices(arg0: calldataslice) -> struct6 [pure] {
     v41 = alloc memorybytes, exact, uninitialized, infallible, v40
     set_memory_object_len memorybytes, v41, v36
     memory_object_copy_from_slice memorybytes, v41, v29
-    v42 = word_cast true
+    v42 = zext i1 1 to i256
     v43 = insert_value struct6, undef struct6, 0, v42
     v44 = insert_value struct6, v43, 1, 0
     v45 = insert_value struct6, v44, 2, v20

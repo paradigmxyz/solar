@@ -83,7 +83,8 @@ contract C {
     // the arguments are encoded so that the delegatecall's own memory expansion is not charged
     // against the gas it withholds.
     // HOMESTEAD-LABEL: fn @two
-    // HOMESTEAD: [[AREA:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 64
     // HOMESTEAD: mstore [[ABOVE]], 0
     // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
@@ -107,9 +108,10 @@ contract C {
     // before the arguments, which the decoding then reads.
     // HOMESTEAD-LABEL: fn @aggregate
     // HOMESTEAD: [[BUF:v[0-9]+]] = alloc memorybytes
-    // HOMESTEAD: [[DATA:v[0-9]+]] = memory_object_data memorybytes, [[BUF]]
+    // HOMESTEAD: [[DATA_PTR:v[0-9]+]] = memory_object_data memorybytes, [[BUF]]
     // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
+    // HOMESTEAD: [[DATA:v[0-9]+]] = ptrtoint memptr [[DATA_PTR]] to i256
     // HOMESTEAD: mcopy [[DATA]], [[IN]], 64
     // HOMESTEAD: abi_decode {{.*}}, [[BUF]]
     // BYZANTIUM-LABEL: fn @aggregate
@@ -140,9 +142,10 @@ contract C {
     // is validated too.
     // HOMESTEAD-LABEL: fn @structBool
     // HOMESTEAD: [[BUF:v[0-9]+]] = alloc memorybytes
-    // HOMESTEAD: [[DATA:v[0-9]+]] = memory_object_data memorybytes, [[BUF]]
+    // HOMESTEAD: [[DATA_PTR:v[0-9]+]] = memory_object_data memorybytes, [[BUF]]
     // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
+    // HOMESTEAD: [[DATA:v[0-9]+]] = ptrtoint memptr [[DATA_PTR]] to i256
     // HOMESTEAD: mcopy [[DATA]], [[IN]], 64
     // HOMESTEAD: abi_decode [tuple<bool, u256>], [[BUF]]
     // BYZANTIUM-LABEL: fn @structBool
@@ -173,7 +176,8 @@ contract C {
     // sits at the free-memory pointer plus the output size, so it covers the area whatever the
     // argument encodes to, and it precedes the encoding it would otherwise write over.
     // HOMESTEAD-LABEL: fn @dynamicArgument
-    // HOMESTEAD: [[AREA:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 192
     // HOMESTEAD: mstore [[ABOVE]], 0
     // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr

@@ -16,7 +16,7 @@ fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[bytes3, bool]]
     v10 = sload 0 !metadata(storage=slot(0))
     v11 = not v9
     v12 = and v10, v11
-    v13 = word_cast v8
+    v13 = zext i1 v8 to i256
     v14 = and v13, 255
     v15 = shl 24, v14
     v16 = or v12, v15
@@ -48,7 +48,7 @@ data:
 fn @constructor() [constructor] {
   bb0:
     v0 = and 0x6162630000000000000000000000000000000000000000000000000000000000, 0xffffff0000000000000000000000000000000000000000000000000000000000
-    v1 = word_cast true
+    v1 = zext i1 1 to i256
     v2 = eq v1, 0
     v3 = eq v2, false
     v4 = abi_encode [word<bytes3>, word<bool>], args v0, v3
@@ -57,22 +57,24 @@ fn @constructor() [constructor] {
     v7 = alloc raw, exact, uninitialized, infallible, v6
     data_copy ConstructorInternalArgumentsHelper_initcode_0, v7, 343
     v8 = slice_ptr v4
-    v9 = add v7, 343
-    mcopy v9, v8, 64 !metadata(memory=heap)
-    v10 = create 0, v7, 407
-    v11 = word_cast v10
-    v12 = ne v11, 0
-    jumpi v12, bb2, bb1
+    v9 = ptrtoint memptr v7 to i256
+    v10 = add v9, 343
+    mcopy v10, v8, 64 !metadata(memory=heap)
+    v11 = ptrtoint memptr v7 to i256
+    v12 = create 0, v11, 407
+    v13 = zext i160 v12 to i256
+    v14 = ne v13, 0
+    jumpi v14, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = sload 0 !metadata(storage=slot(0))
-    v14 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v15 = and v13, v14
-    v16 = word_cast v10
-    v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
-    v18 = or v15, v17
-    sstore 0, v18 !metadata(storage=slot(0))
+    v15 = sload 0 !metadata(storage=slot(0))
+    v16 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v17 = and v15, v16
+    v18 = zext i160 v12 to i256
+    v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffff
+    v20 = or v17, v19
+    sstore 0, v20 !metadata(storage=slot(0))
     ret
 }
 
@@ -96,7 +98,7 @@ fn @getFlag() -> i256 [selector=0xf9633930, view, abi_params=[], abi_returns=[wo
     v10 = mload v9
     v11 = eq v10, 0
     v12 = eq v11, false
-    v13 = word_cast v12
+    v13 = zext i1 v12 to i256
     v14 = eq v10, v13
     v15 = eq v14, false
     icall revert_if<empty>, v15

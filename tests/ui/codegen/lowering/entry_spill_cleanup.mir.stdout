@@ -3,21 +3,21 @@
 fn @prefixed(arg0: memorybytes) -> memorybytes [selector=0x13e7d096, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @toHexStringNoPrefix, arg0
-    v1 = word_cast v0
+    v1 = ptrtoint memorybytes v0 to i256
     v2 = mload v1
     v3 = add v2, 2
-    v4 = word_cast v0
+    v4 = ptrtoint memorybytes v0 to i256
     mstore v4, 0x3078
-    v5 = word_cast v0
+    v5 = ptrtoint memorybytes v0 to i256
     v6 = sub v5, 2
     mstore v6, v3
-    v7 = memory_object_from_ptr memorybytes, v6
+    v7 = inttoptr i256 v6 to memorybytes
     ret v7
 }
 
 fn @toHexStringNoPrefix(arg0: memorybytes) -> memorybytes [selector=0x449f3447, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = word_cast arg0
+    v0 = ptrtoint memorybytes arg0 to i256
     v1 = mload v0
     v2 = mload 64 !metadata(memory=scratch)
     v3 = add v2, 2
@@ -25,7 +25,7 @@ fn @toHexStringNoPrefix(arg0: memorybytes) -> memorybytes [selector=0x449f3447, 
     mstore v3, v4
     mstore 15, 0x30313233343536373839616263646566 !metadata(memory=scratch)
     v5 = add v3, 32
-    v6 = word_cast arg0
+    v6 = ptrtoint memorybytes arg0 to i256
     v7 = add v6, v1
     jump bb1
   bb1:
@@ -34,11 +34,11 @@ fn @toHexStringNoPrefix(arg0: memorybytes) -> memorybytes [selector=0x449f3447, 
     v10 = phi [bb0: v7], [bb5: v10]
     v11 = phi [bb0: v3], [bb5: v11]
     v12 = phi [bb0: v5], [bb5: v29]
-    v13 = word_cast v8
+    v13 = ptrtoint memorybytes v8 to i256
     v14 = eq v13, v10
-    v15 = word_cast v14
+    v15 = zext i1 v14 to i256
     v16 = eq v15, 0
-    v17 = word_cast v16
+    v17 = zext i1 v16 to i256
     v18 = ne v17, 0
     jumpi v18, bb3, bb4
   bb4:
@@ -47,10 +47,10 @@ fn @toHexStringNoPrefix(arg0: memorybytes) -> memorybytes [selector=0x449f3447, 
     mstore v12, 0
     v31 = add v12, 32
     mstore 64, v31 !metadata(memory=scratch)
-    v32 = memory_object_from_ptr memorybytes, v11
+    v32 = inttoptr i256 v11 to memorybytes
     ret v32
   bb3:
-    v19 = word_cast v8
+    v19 = ptrtoint memorybytes v8 to i256
     v20 = add v19, 1
     v21 = mload v20
     v22 = and v21, 15
@@ -65,6 +65,6 @@ fn @toHexStringNoPrefix(arg0: memorybytes) -> memorybytes [selector=0x449f3447, 
     v29 = add v12, 2
     jump bb5
   bb5:
-    v30 = memory_object_from_ptr memorybytes, v20
+    v30 = inttoptr i256 v20 to memorybytes
     jump bb1
 }

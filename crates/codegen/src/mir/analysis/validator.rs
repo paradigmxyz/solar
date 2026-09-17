@@ -758,24 +758,6 @@ impl<'a> Validator<'a> {
                             );
                         }
                     }
-                    InstKind::WordCast(value) => {
-                        if inst.result_ty != Some(MirType::I256)
-                            || !func.value_ty(*value).is_some_and(MirType::is_word)
-                        {
-                            self.emit_at_inst(
-                                "word cast requires a one-word operand and word result",
-                                block,
-                                id,
-                            );
-                        }
-                    }
-                    InstKind::MemoryObjectFromPtr { ptr, kind } => {
-                        if inst.result_ty != Some(MirType::MemoryObject(*kind))
-                            || func.value_ty(*ptr) != Some(MirType::I256)
-                        {
-                            self.emit_at_inst("memory object pointer conversion requires a word and matching object result", block, id);
-                        }
-                    }
                     InstKind::InsertValue { .. } | InstKind::ExtractValue { .. } => {}
                     _ if has_struct_value => {
                         if matches!(inst.result_ty, Some(MirType::Struct(_))) {

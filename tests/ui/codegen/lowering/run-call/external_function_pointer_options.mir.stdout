@@ -36,7 +36,7 @@ fn @arg() -> i256 {
 fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
-    v1 = word_cast v0
+    v1 = zext i160 v0 to i256
     v2 = shl 32, v1
     v3 = or v2, 0xa4ba067e
     v4 = and v3, 0xffffffff

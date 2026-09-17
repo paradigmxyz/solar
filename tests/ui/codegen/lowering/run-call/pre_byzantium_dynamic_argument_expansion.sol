@@ -47,7 +47,8 @@ contract WideCalls {
     // precedes the encoding it would otherwise write over.
     // HOMESTEAD-LABEL: fn @plainCall
     // HOMESTEAD: create
-    // HOMESTEAD: [[AREA:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 192
     // HOMESTEAD: mstore [[ABOVE]], 0
     // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
@@ -69,7 +70,8 @@ contract WideCalls {
     // an out-of-gas.
     // HOMESTEAD-LABEL: fn @tryCall
     // HOMESTEAD: create
-    // HOMESTEAD: [[AREA:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 192
     // HOMESTEAD: mstore [[ABOVE]], 0
     // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
@@ -88,7 +90,8 @@ contract WideCalls {
 
     // HOMESTEAD-LABEL: fn @stringCall
     // HOMESTEAD: create
-    // HOMESTEAD: [[AREA:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 192
     // HOMESTEAD: mstore [[ABOVE]], 0
     function stringCall() external returns (uint256) {

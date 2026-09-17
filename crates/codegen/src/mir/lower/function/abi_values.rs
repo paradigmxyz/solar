@@ -353,6 +353,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         self.builder.switch_to_block(validate);
         let helper = self.ensure_error_catch_match_helper();
+        // pointer = ptrtoint data to i256
+        // valid = icall try_decode_error_message, pointer, length
+        let data_ptr = self.builder.cast(data_ptr, MirType::I256);
         let valid = self.builder.icall(helper, vec![data_ptr, data_len], MirType::I1);
         let valid_block = self.builder.current_block();
         self.builder.jump(done);

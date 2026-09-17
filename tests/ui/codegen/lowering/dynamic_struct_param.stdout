@@ -9,8 +9,8 @@ fn @init(arg0: calldataslice, arg1: i256) -> i256 [selector=0x5c58abd8, pure, ab
     v4 = eq v2, v3
     v5 = eq v4, false
     icall revert_if<empty>, v5
-    v6 = trunc i160, arg1
-    v8 = word_cast v6
+    v6 = trunc i256 arg1 to i160
+    v8 = zext i160 v6 to i256
     v9 = add v2, v8
     v10 = gt v9, 0xffffffffffffffffffffffffffffffffffffffff
     jumpi v10, bb1, bb2

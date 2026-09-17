@@ -110,7 +110,7 @@ fn @scanImpl(arg0: memorybytes) -> i256 [pure] {
   bb5:
     jump bb2
   bb2:
-    v13 = word_cast true
+    v13 = zext i1 1 to i256
     ret v13
   bb4:
     v5 = memory_object_len memorybytes, v0
@@ -131,7 +131,7 @@ fn @scanImpl(arg0: memorybytes) -> i256 [pure] {
     v12 = checked_add u256, v1, 1
     jump bb1
   bb7:
-    v11 = word_cast false
+    v11 = zext i1 0 to i256
     ret v11
 }
 
@@ -193,7 +193,7 @@ fn @checkedScan(arg0: i256) -> i256 [selector=0xf2609747, pure, abi_params=[u256
   bb5:
     jump bb2
   bb2:
-    v19 = word_cast true
+    v19 = zext i1 1 to i256
     ret v19
   bb4:
     v11 = memory_object_len memorybytes, v8
@@ -214,6 +214,6 @@ fn @checkedScan(arg0: i256) -> i256 [selector=0xf2609747, pure, abi_params=[u256
     v18 = checked_add u8, v6, 1
     jump bb1
   bb7:
-    v17 = word_cast false
+    v17 = zext i1 0 to i256
     ret v17
 }

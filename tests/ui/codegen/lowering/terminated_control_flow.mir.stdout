@@ -32,22 +32,24 @@ fn @constructor() [constructor] {
     v3 = alloc raw, exact, uninitialized, infallible, v2
     data_copy TryTarget_initcode_0, v3, 92
     v4 = slice_ptr v0
-    v5 = add v3, 92
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 92
-    v7 = word_cast v6
-    v8 = ne v7, 0
-    jumpi v8, bb2, bb1
+    v5 = ptrtoint memptr v3 to i256
+    v6 = add v5, 92
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = ptrtoint memptr v3 to i256
+    v8 = create 0, v7, 92
+    v9 = zext i160 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = sload 1 !metadata(storage=slot(1))
-    v10 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = and v9, v10
-    v12 = word_cast v6
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = or v11, v13
-    sstore 1, v14 !metadata(storage=slot(1))
+    v11 = sload 1 !metadata(storage=slot(1))
+    v12 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v13 = and v11, v12
+    v14 = zext i160 v8 to i256
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = or v13, v15
+    sstore 1, v16 !metadata(storage=slot(1))
     ret
 }
 
@@ -56,7 +58,7 @@ fn @trySuccess() -> i256 [selector=0x3984eec7, view, abi_params=[], abi_returns=
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = gas
-    v3 = word_cast false
+    v3 = zext i1 0 to i256
     v4 = eq v3, 0
     v5 = eq v4, false
     v6 = abi_encode [word<bool>], selector 0x2605fe9800000000000000000000000000000000000000000000000000000000, args v5
@@ -85,7 +87,7 @@ fn @tryFailure() -> i256 [selector=0x86763122, view, abi_params=[], abi_returns=
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = gas
-    v3 = word_cast true
+    v3 = zext i1 1 to i256
     v4 = eq v3, 0
     v5 = eq v4, false
     v6 = abi_encode [word<bool>], selector 0x2605fe9800000000000000000000000000000000000000000000000000000000, args v5
@@ -117,18 +119,20 @@ fn @constructorStop() -> i256 [selector=0x2114ee15, abi_params=[], abi_returns=[
     v3 = alloc raw, exact, uninitialized, infallible, v2
     data_copy StopsInConstructor_initcode_1, v3, 75
     v4 = slice_ptr v0
-    v5 = add v3, 75
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 75
-    v7 = word_cast v6
-    v8 = ne v7, 0
-    jumpi v8, bb2, bb1
+    v5 = ptrtoint memptr v3 to i256
+    v6 = add v5, 75
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = ptrtoint memptr v3 to i256
+    v8 = create 0, v7, 75
+    v9 = zext i160 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = word_cast v6
-    v10 = extcodesize v9
-    ret v10
+    v11 = zext i160 v8 to i256
+    v12 = extcodesize v11
+    ret v12
 }
 
 fn @stopInHelper() [selector=0xd738ac61, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -198,17 +202,19 @@ fn @constructorFailure(arg0: i256) -> i256 [selector=0x61e5bcd1, abi_params=[u25
     v3 = alloc raw, exact, uninitialized, infallible, v2
     data_copy RevertsInConstructor_initcode_2, v3, 171
     v4 = slice_ptr v0
-    v5 = add v3, 171
-    mcopy v5, v4, 32 !metadata(memory=heap)
-    v6 = create 0, v3, 203
-    v7 = word_cast v6
-    v8 = ne v7, 0
-    jumpi v8, bb2, bb1
+    v5 = ptrtoint memptr v3 to i256
+    v6 = add v5, 171
+    mcopy v6, v4, 32 !metadata(memory=heap)
+    v7 = ptrtoint memptr v3 to i256
+    v8 = create 0, v7, 203
+    v9 = zext i160 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = word_cast v6
-    ret v9
+    v11 = zext i160 v8 to i256
+    ret v11
 }
 
 fn @constructorWithoutArgs() -> i256 [selector=0x1f01d869, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -219,41 +225,44 @@ fn @constructorWithoutArgs() -> i256 [selector=0x1f01d869, abi_params=[], abi_re
     v3 = alloc raw, exact, uninitialized, infallible, v2
     data_copy RevertsWithoutArgs_initcode_3, v3, 232
     v4 = slice_ptr v0
-    v5 = add v3, 232
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 232
-    v7 = word_cast v6
-    v8 = eq v7, 0
-    v9 = eq v8, false
-    jumpi v9, bb1, bb2
+    v5 = ptrtoint memptr v3 to i256
+    v6 = add v5, 232
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = ptrtoint memptr v3 to i256
+    v8 = create 0, v7, 232
+    v9 = zext i160 v8 to i256
+    v10 = eq v9, 0
+    v11 = eq v10, false
+    jumpi v11, bb1, bb2
   bb2:
-    v11 = icall returndata_bytes<>
-    v12 = memory_object_data memorybytes, v11
-    v13 = memory_object_len memorybytes, v11
-    v14 = make_memory_slice v12, v13
-    v15 = memory_slice_load_word memory, v14, 0
-    v16 = shr 224, v15
+    v13 = icall returndata_bytes<>
+    v14 = memory_object_data memorybytes, v13
+    v15 = memory_object_len memorybytes, v13
+    v16 = ptrtoint memptr v14 to i256
+    v17 = make_memory_slice v16, v15
+    v18 = memory_slice_load_word memory, v17, 0
+    v19 = shr 224, v18
     jumpi true, bb4, bb5
   bb5:
-    revert v12, v13
+    revert v14, v15
   bb4:
-    v17 = keccak256_bytes v11
-    v18 = number
-    v19 = checked_add u256, v18, 11
-    v20 = timestamp
-    v21 = checked_add u256, v20, 22
-    v22 = chainid
-    v23 = checked_add u256, v22, 33
-    v24 = abi_encode [word, word, word], scratch, args v19, v21, v23
-    v25 = slice_ptr v24
-    v26 = slice_len v24
-    v27 = keccak256 v25, v26
-    v28 = eq v17, v27
-    v29 = word_cast v28
-    ret v29
+    v20 = keccak256_bytes v13
+    v21 = number
+    v22 = checked_add u256, v21, 11
+    v23 = timestamp
+    v24 = checked_add u256, v23, 22
+    v25 = chainid
+    v26 = checked_add u256, v25, 33
+    v27 = abi_encode [word, word, word], scratch, args v22, v24, v26
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = keccak256 v28, v29
+    v31 = eq v20, v30
+    v32 = zext i1 v31 to i256
+    ret v32
   bb1:
-    v10 = word_cast false
-    ret v10
+    v12 = zext i1 0 to i256
+    ret v12
   bb3:
     ret 0
 }
@@ -323,7 +332,7 @@ fn @storageRevertPayload() -> i256 [selector=0x0156c876, abi_params=[], abi_retu
     v2 = abi_encode [word], selector 0x49740e5b00000000000000000000000000000000000000000000000000000000, args 3
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = word_cast v0
+    v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
@@ -333,25 +342,27 @@ fn @storageRevertPayload() -> i256 [selector=0x0156c876, abi_params=[], abi_retu
     v10 = icall returndata_bytes<>
     v11 = memory_object_data memorybytes, v10
     v12 = memory_object_len memorybytes, v10
-    v13 = make_memory_slice v11, v12
-    v14 = memory_slice_load_word memory, v13, 0
-    v15 = shr 224, v14
+    v13 = ptrtoint memptr v11 to i256
+    v14 = make_memory_slice v13, v12
+    v15 = memory_slice_load_word memory, v14, 0
+    v16 = shr 224, v15
     jumpi true, bb4, bb5
   bb5:
     revert v11, v12
   bb4:
-    v16 = keccak256_bytes v10
-    v17 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v17, 4
-    v18 = memory_object_data memorybytes, v17
-    mstore v18, 0
-    v19 = abi_encode [memory_bytes], object, selector 0xe53184de00000000000000000000000000000000000000000000000000000000, args v17
-    v20 = keccak256_bytes v19
-    v21 = eq v16, v20
-    v22 = word_cast v21
-    ret v22
+    v17 = keccak256_bytes v10
+    v18 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v18, 4
+    v19 = memory_object_data memorybytes, v18
+    v20 = ptrtoint memptr v19 to i256
+    mstore v20, 0
+    v21 = abi_encode [memory_bytes], object, selector 0xe53184de00000000000000000000000000000000000000000000000000000000, args v18
+    v22 = keccak256_bytes v21
+    v23 = eq v17, v22
+    v24 = zext i1 v23 to i256
+    ret v24
   bb1:
-    v9 = word_cast false
+    v9 = zext i1 0 to i256
     ret v9
   bb3:
     ret 0

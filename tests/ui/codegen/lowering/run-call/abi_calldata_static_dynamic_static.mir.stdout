@@ -64,8 +64,8 @@ fn @g() -> memorybytes [selector=0xe2179b8e, view, abi_params=[], abi_returns=[m
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
-    v9 = memory_object_from_ptr memoryarray, v8
-    v10 = word_cast v9
+    v9 = inttoptr i256 v8 to memoryarray
+    v10 = ptrtoint memoryarray v9 to i256
     v11 = eq v10, 0
     jumpi v11, bb4, bb5
   bb4:
@@ -80,8 +80,8 @@ fn @g() -> memorybytes [selector=0xe2179b8e, view, abi_params=[], abi_returns=[m
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = memory_object_load_element memoryarray<1>, v13, 0
-    v18 = memory_object_from_ptr memoryfixedarray, v17
-    v19 = word_cast v18
+    v18 = inttoptr i256 v17 to memoryfixedarray
+    v19 = ptrtoint memoryfixedarray v18 to i256
     v20 = eq v19, 0
     jumpi v20, bb6, bb7
   bb6:
@@ -141,8 +141,8 @@ fn @i() -> memorybytes [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v14 = memory_object_from_ptr memoryarray, v13
-    v15 = word_cast v14
+    v14 = inttoptr i256 v13 to memoryarray
+    v15 = ptrtoint memoryarray v14 to i256
     v16 = eq v15, 0
     jumpi v16, bb7, bb8
   bb7:
@@ -157,8 +157,8 @@ fn @i() -> memorybytes [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = memory_object_load_element memoryarray<1>, v18, 0
-    v23 = memory_object_from_ptr memoryfixedarray, v22
-    v24 = word_cast v23
+    v23 = inttoptr i256 v22 to memoryfixedarray
+    v24 = ptrtoint memoryfixedarray v23 to i256
     v25 = eq v24, 0
     jumpi v25, bb9, bb10
   bb9:
@@ -176,8 +176,8 @@ fn @i() -> memorybytes [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     v31 = eq v30, false
     icall panic_if<0x32>, v31
     v32 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v33 = memory_object_from_ptr memoryarray, v32
-    v34 = word_cast v33
+    v33 = inttoptr i256 v32 to memoryarray
+    v34 = ptrtoint memoryarray v33 to i256
     v35 = eq v34, 0
     jumpi v35, bb11, bb12
   bb11:
@@ -192,8 +192,8 @@ fn @i() -> memorybytes [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     v40 = eq v39, false
     icall panic_if<0x32>, v40
     v41 = memory_object_load_element memoryarray<1>, v37, 0
-    v42 = memory_object_from_ptr memoryfixedarray, v41
-    v43 = word_cast v42
+    v42 = inttoptr i256 v41 to memoryfixedarray
+    v43 = ptrtoint memoryfixedarray v42 to i256
     v44 = eq v43, 0
     jumpi v44, bb13, bb14
   bb13:
@@ -211,8 +211,8 @@ fn @i() -> memorybytes [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     v50 = eq v49, false
     icall panic_if<0x32>, v50
     v51 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
-    v52 = memory_object_from_ptr memoryarray, v51
-    v53 = word_cast v52
+    v52 = inttoptr i256 v51 to memoryarray
+    v53 = ptrtoint memoryarray v52 to i256
     v54 = eq v53, 0
     jumpi v54, bb15, bb16
   bb15:
@@ -227,8 +227,8 @@ fn @i() -> memorybytes [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     v59 = eq v58, false
     icall panic_if<0x32>, v59
     v60 = memory_object_load_element memoryarray<1>, v56, 0
-    v61 = memory_object_from_ptr memoryfixedarray, v60
-    v62 = word_cast v61
+    v61 = inttoptr i256 v60 to memoryfixedarray
+    v62 = ptrtoint memoryfixedarray v61 to i256
     v63 = eq v62, 0
     jumpi v63, bb17, bb18
   bb17:
@@ -246,8 +246,8 @@ fn @i() -> memorybytes [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     v69 = eq v68, false
     icall panic_if<0x32>, v69
     v70 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
-    v71 = memory_object_from_ptr memoryarray, v70
-    v72 = word_cast v71
+    v71 = inttoptr i256 v70 to memoryarray
+    v72 = ptrtoint memoryarray v71 to i256
     v73 = eq v72, 0
     jumpi v73, bb19, bb20
   bb19:
@@ -262,8 +262,8 @@ fn @i() -> memorybytes [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     v78 = eq v77, false
     icall panic_if<0x32>, v78
     v79 = memory_object_load_element memoryarray<1>, v75, 0
-    v80 = memory_object_from_ptr memoryfixedarray, v79
-    v81 = word_cast v80
+    v80 = inttoptr i256 v79 to memoryfixedarray
+    v81 = ptrtoint memoryfixedarray v80 to i256
     v82 = eq v81, 0
     jumpi v82, bb21, bb22
   bb21:

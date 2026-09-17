@@ -113,8 +113,14 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         if self.emit_stack_expression(func, liveness, block, inst_idx) {
             // The selected expression already produced the original result.
-        } else if let InstKind::WordCast(value) | InstKind::Trunc160(value) = *kind {
-            // word_cast value -> the same physical word under the result identity
+        } else if let InstKind::Zext(value)
+        | InstKind::Trunc(value, _)
+        | InstKind::Sext(value, _, _)
+        | InstKind::PtrToInt(value, _)
+        | InstKind::IntToPtr(value)
+        | InstKind::Bitcast(value) = *kind
+        {
+            // cast value -> schedule the operand under the result identity
             if let Some(plan) = self.plan_operands(func, &[value], liveness, block, inst_idx) {
                 self.emit_operand_plan(func, plan);
             } else {
@@ -124,9 +130,30 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.spill_top_value_if_live(func, liveness, block, inst_idx, value);
                 }
             }
-            if matches!(kind, InstKind::Trunc160(_)) {
-                // result = AND value, (1 << 160) - 1
-                self.asm.emit_push(U256::MAX >> 96);
+            if let InstKind::Sext(_, from, _) = *kind {
+                if from == 1 {
+                    // sext i1 value to integer -> MUL value, -1
+                    self.asm.emit_push(U256::MAX);
+                    self.asm.emit_op(op::MUL);
+                } else {
+                    // sext i160 value to i256 -> SIGNEXTEND 19, value
+                    self.asm.emit_push(U256::from(from / 8 - 1));
+                    self.asm.emit_op(op::SIGNEXTEND);
+                }
+            }
+            let mask_bits = match *kind {
+                InstKind::Trunc(_, bits)
+                | InstKind::PtrToInt(_, bits)
+                | InstKind::Sext(_, _, bits)
+                    if bits < 256 =>
+                {
+                    Some(bits)
+                }
+                _ => None,
+            };
+            if let Some(bits) = mask_bits {
+                // result = AND value, (1 << bits) - 1
+                self.asm.emit_push(U256::MAX >> (256 - bits));
                 self.asm.emit_op(op::AND);
             }
             self.scheduler.instruction_executed(1, result_value);

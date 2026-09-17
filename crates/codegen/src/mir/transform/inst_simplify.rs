@@ -133,9 +133,12 @@ impl InstSimplifier {
                             kind,
                             InstKind::InsertValue { .. }
                                 | InstKind::ExtractValue { .. }
-                                | InstKind::MemoryObjectFromPtr { .. }
-                                | InstKind::WordCast { .. }
-                                | InstKind::Trunc160(_)
+                                | InstKind::IntToPtr(..)
+                                | InstKind::Zext(..)
+                                | InstKind::Trunc(..)
+                                | InstKind::Sext(..)
+                                | InstKind::PtrToInt(..)
+                                | InstKind::Bitcast(..)
                                 | InstKind::CheckedBinary { .. }
                                 | InstKind::ValidateAbi { .. }
                                 | InstKind::And(..)
@@ -264,12 +267,12 @@ impl InstSimplifier {
                 return Some(compare(b, a));
             }
             if let Value::Inst(id) = func.value(a)
-                && let InstKind::WordCast(inner) = func.inst(*id).kind
+                && let InstKind::Zext(inner) = func.inst(*id).kind
                 && Self::is_bool_value(func, inner)
                 && let Some(constant) = func.value_u256(b)
                 && constant <= U256::ONE
             {
-                // word_cast boolean == i256 0 -> boolean == false
+                // zext i1 boolean to i256 == 0 -> boolean == false
                 let constant = Self::imm_bool(func, !constant.is_zero());
                 return Some(compare(inner, constant));
             }
@@ -305,18 +308,18 @@ impl InstSimplifier {
             InstKind::MemoryObjectData(object, kind)
                 if EvmMemoryLayout::object_data_offset(*kind) == 0 =>
             {
-                Some(InstKind::WordCast(resolve(*object)))
+                Some(InstKind::Bitcast(resolve(*object)))
             }
             InstKind::MemoryObjectFieldAddr { object, layout, field }
                 if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) =>
             {
-                Some(InstKind::WordCast(resolve(*object)))
+                Some(InstKind::Bitcast(resolve(*object)))
             }
             InstKind::MemoryObjectElementAddr { object, layout, index }
                 if EvmMemoryLayout::object_data_offset(layout.kind()) == 0
                     && Self::is_zero(func, resolve(*index)) =>
             {
-                Some(InstKind::WordCast(resolve(*object)))
+                Some(InstKind::Bitcast(resolve(*object)))
             }
             InstKind::Add(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
@@ -687,11 +690,11 @@ impl InstSimplifier {
                     }))
                 .then(|| Self::imm(func, U256::ZERO))
             }
-            // trunc i160, (word_cast narrow) -> narrow
-            InstKind::Trunc160(value) => {
+            // trunc i256 (zext i160 narrow to i256) to i160 -> narrow
+            InstKind::Trunc(value, 160) => {
                 let value = resolve(*value);
                 if let Value::Inst(id) = func.value(value)
-                    && let InstKind::WordCast(inner) = func.inst(*id).kind
+                    && let InstKind::Zext(inner) = func.inst(*id).kind
                     && func.value_ty(inner) == Some(crate::mir::MirType::I160)
                 {
                     Some(inner)
@@ -699,12 +702,25 @@ impl InstSimplifier {
                     None
                 }
             }
-            InstKind::WordCast(value) => {
+            // bitcast value to its own type -> value (the caller checks the result type)
+            InstKind::Bitcast(value) => Some(resolve(*value)),
+            // inttoptr (ptrtoint pointer to i256) to the same pointer type -> pointer
+            InstKind::IntToPtr(value) => {
                 let value = resolve(*value);
-                if func.value_ty(value) == Some(crate::mir::MirType::I256) {
-                    Some(value)
-                } else if let Value::Inst(id) = func.value(value)
-                    && let InstKind::MemoryObjectFromPtr { ptr, .. } = func.inst(*id).kind
+                if let Value::Inst(id) = func.value(value)
+                    && let InstKind::PtrToInt(pointer, 256) = func.inst(*id).kind
+                {
+                    Some(pointer)
+                } else {
+                    None
+                }
+            }
+            // ptrtoint (inttoptr word) to i256 -> word
+            InstKind::PtrToInt(value, 256) => {
+                let value = resolve(*value);
+                if let Value::Inst(id) = func.value(value)
+                    && let InstKind::IntToPtr(ptr) = func.inst(*id).kind
+                    && func.value_ty(ptr) == Some(MirType::I256)
                 {
                     Some(ptr)
                 } else {
@@ -1211,7 +1227,7 @@ impl InstSimplifier {
     fn is_clean_address(func: &Function, value: ValueId) -> bool {
         func.value_ty(value) == Some(MirType::I160)
             || matches!(func.value(value), Value::Inst(id)
-                if matches!(func.inst(*id).kind, InstKind::WordCast(inner)
+                if matches!(func.inst(*id).kind, InstKind::Zext(inner)
                     if func.value_ty(inner) == Some(MirType::I160)))
     }
 
@@ -1219,7 +1235,7 @@ impl InstSimplifier {
         let Value::Inst(id) = func.value(value) else { return false };
         match func.inst(*id).kind {
             InstKind::Address => true,
-            InstKind::WordCast(inner) => Self::is_current_address(func, inner),
+            InstKind::Zext(inner) => Self::is_current_address(func, inner),
             _ => false,
         }
     }

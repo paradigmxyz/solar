@@ -8,51 +8,65 @@
 // CHECK: + [[NEXT_SECOND]] = add [[SECOND]], 1
 fn @sequential(arg0: i256) -> i256 {
   bb0:
-    v1 = internal_frame_addr 128
+    v28 = internal_frame_addr 128
+    v1 = ptrtoint memptr v28 to i256
     mstore v1, 0
-    v2 = internal_frame_addr 160
+    v29 = internal_frame_addr 160
+    v2 = ptrtoint memptr v29 to i256
     mstore v2, 0
     jump bb1
   bb1:
-    v3 = internal_frame_addr 160
+    v30 = internal_frame_addr 160
+    v3 = ptrtoint memptr v30 to i256
     v4 = mload v3
     v5 = lt v4, arg0
     jumpi v5, bb2, bb3
   bb2:
-    v6 = internal_frame_addr 128
+    v31 = internal_frame_addr 128
+    v6 = ptrtoint memptr v31 to i256
     v7 = mload v6
     v8 = add v7, 1
-    v9 = internal_frame_addr 128
+    v32 = internal_frame_addr 128
+    v9 = ptrtoint memptr v32 to i256
     mstore v9, v8
-    v10 = internal_frame_addr 160
+    v33 = internal_frame_addr 160
+    v10 = ptrtoint memptr v33 to i256
     v11 = mload v10
     v12 = add v11, 1
-    v13 = internal_frame_addr 160
+    v34 = internal_frame_addr 160
+    v13 = ptrtoint memptr v34 to i256
     mstore v13, v12
     jump bb1
   bb3:
-    v14 = internal_frame_addr 192
+    v35 = internal_frame_addr 192
+    v14 = ptrtoint memptr v35 to i256
     mstore v14, 0
     jump bb4
   bb4:
-    v15 = internal_frame_addr 192
+    v36 = internal_frame_addr 192
+    v15 = ptrtoint memptr v36 to i256
     v16 = mload v15
     v17 = lt v16, arg0
     jumpi v17, bb5, bb6
   bb5:
-    v18 = internal_frame_addr 128
+    v37 = internal_frame_addr 128
+    v18 = ptrtoint memptr v37 to i256
     v19 = mload v18
     v20 = add v19, 1
-    v21 = internal_frame_addr 128
+    v38 = internal_frame_addr 128
+    v21 = ptrtoint memptr v38 to i256
     mstore v21, v20
-    v22 = internal_frame_addr 192
+    v39 = internal_frame_addr 192
+    v22 = ptrtoint memptr v39 to i256
     v23 = mload v22
     v24 = add v23, 1
-    v25 = internal_frame_addr 192
+    v40 = internal_frame_addr 192
+    v25 = ptrtoint memptr v40 to i256
     mstore v25, v24
     jump bb4
   bb6:
-    v26 = internal_frame_addr 128
+    v41 = internal_frame_addr 128
+    v26 = ptrtoint memptr v41 to i256
     v27 = mload v26
     ret v27
 }

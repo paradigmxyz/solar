@@ -19,7 +19,7 @@ fn @roundtrip_byte(arg0: i256) -> i256 {
 fn @roundtrip_bool(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = eq arg0, arg1
-    v3 = word_cast v0
+    v3 = zext i1 v0 to i256
     v1 = shl 255, v3
     v2 = shr 255, v1
     ret v2
@@ -57,9 +57,9 @@ fn @shifted_compare(arg0: i256, arg1: i256) -> struct1 [return_abi=[i256, i256, 
     v4 = eq v2, v3
     v5 = lt v2, v3
     v6 = gt v2, v3
-    v7 = word_cast v4
-    v8 = word_cast v5
-    v9 = word_cast v6
+    v7 = zext i1 v4 to i256
+    v8 = zext i1 v5 to i256
+    v9 = zext i1 v6 to i256
     ret v7, v8, v9
 }
 
@@ -71,11 +71,11 @@ fn @across_blocks(arg0: i256, arg1: i256) -> i256 {
     jumpi v4, bb1, bb2
   bb1:
     v2 = eq v1, 0x700000000000000000000000000000000000000000000000000000000000000
-    v5 = word_cast v2
+    v5 = zext i1 v2 to i256
     ret v5
   bb2:
     v3 = lt v1, 0x700000000000000000000000000000000000000000000000000000000000000
-    v6 = word_cast v3
+    v6 = zext i1 v3 to i256
     ret v6
 }
 
@@ -89,12 +89,12 @@ fn @aligned_constants(arg0: i256) -> struct2 [return_abi=[i256, i256, i256, i256
     v5 = eq 0x700000000000000000000000000000000000000000000000000000000000000, v1
     v6 = lt 0x700000000000000000000000000000000000000000000000000000000000000, v1
     v7 = gt 0x700000000000000000000000000000000000000000000000000000000000000, v1
-    v8 = word_cast v2
-    v9 = word_cast v3
-    v10 = word_cast v4
-    v11 = word_cast v5
-    v12 = word_cast v6
-    v13 = word_cast v7
+    v8 = zext i1 v2 to i256
+    v9 = zext i1 v3 to i256
+    v10 = zext i1 v4 to i256
+    v11 = zext i1 v5 to i256
+    v12 = zext i1 v6 to i256
+    v13 = zext i1 v7 to i256
     ret v8, v9, v10, v11, v12, v13
 }
 
@@ -105,9 +105,9 @@ fn @unaligned_constants(arg0: i256) -> struct1 [return_abi=[i256, i256, i256]] {
     v2 = eq v1, 0x700000000000000000000000000000000000000000000000000000000000001
     v3 = lt v1, 0x700000000000000000000000000000000000000000000000000000000000001
     v4 = gt v1, 0x700000000000000000000000000000000000000000000000000000000000001
-    v5 = word_cast v2
-    v6 = word_cast v3
-    v7 = word_cast v4
+    v5 = zext i1 v2 to i256
+    v6 = zext i1 v3 to i256
+    v7 = zext i1 v4 to i256
     ret v5, v6, v7
 }
 
@@ -118,9 +118,9 @@ fn @truncating_compare(arg0: i256, arg1: i256) -> struct1 [return_abi=[i256, i25
     v2 = eq v0, v1
     v3 = lt v0, v1
     v4 = eq v0, 0x700000000000000000000000000000000000000000000000000000000000000
-    v5 = word_cast v2
-    v6 = word_cast v3
-    v7 = word_cast v4
+    v5 = zext i1 v2 to i256
+    v6 = zext i1 v3 to i256
+    v7 = zext i1 v4 to i256
     ret v5, v6, v7
 }
 
@@ -132,8 +132,8 @@ fn @signed_compare(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256]] 
     v3 = shl 248, v1
     v4 = slt v2, v3
     v5 = sgt v2, v3
-    v6 = word_cast v4
-    v7 = word_cast v5
+    v6 = zext i1 v4 to i256
+    v7 = zext i1 v5 to i256
     ret v6, v7
 }
 
@@ -158,7 +158,7 @@ fn @single_eq(arg0: i256, arg1: i256) -> i256 {
     v2 = shl 248, v0
     v3 = shl 248, v1
     v4 = eq v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     ret v5
 }
 
@@ -167,7 +167,7 @@ fn @constant_eq_0(arg0: i256) -> i256 {
     v0 = byte 31, arg0
     v1 = shl 248, v0
     v2 = eq v1, 0x700000000000000000000000000000000000000000000000000000000000000
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     ret v3
 }
 
@@ -176,7 +176,7 @@ fn @constant_eq_1(arg0: i256) -> i256 {
     v0 = byte 31, arg0
     v1 = shl 248, v0
     v2 = eq 0x700000000000000000000000000000000000000000000000000000000000000, v1
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     ret v3
 }
 
@@ -187,7 +187,7 @@ fn @single_lt(arg0: i256, arg1: i256) -> i256 {
     v2 = shl 248, v0
     v3 = shl 248, v1
     v4 = lt v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     ret v5
 }
 
@@ -196,7 +196,7 @@ fn @constant_lt_0(arg0: i256) -> i256 {
     v0 = byte 31, arg0
     v1 = shl 248, v0
     v2 = lt v1, 0x700000000000000000000000000000000000000000000000000000000000000
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     ret v3
 }
 
@@ -205,7 +205,7 @@ fn @constant_lt_1(arg0: i256) -> i256 {
     v0 = byte 31, arg0
     v1 = shl 248, v0
     v2 = lt 0x700000000000000000000000000000000000000000000000000000000000000, v1
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     ret v3
 }
 
@@ -216,7 +216,7 @@ fn @single_gt(arg0: i256, arg1: i256) -> i256 {
     v2 = shl 248, v0
     v3 = shl 248, v1
     v4 = gt v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     ret v5
 }
 
@@ -225,7 +225,7 @@ fn @constant_gt_0(arg0: i256) -> i256 {
     v0 = byte 31, arg0
     v1 = shl 248, v0
     v2 = gt v1, 0x700000000000000000000000000000000000000000000000000000000000000
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     ret v3
 }
 
@@ -234,6 +234,6 @@ fn @constant_gt_1(arg0: i256) -> i256 {
     v0 = byte 31, arg0
     v1 = shl 248, v0
     v2 = gt 0x700000000000000000000000000000000000000000000000000000000000000, v1
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     ret v3
 }

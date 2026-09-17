@@ -7,10 +7,10 @@ fn @carries(arg0: i256) -> struct0 [selector=0xe64b0efb, pure, abi_params=[u256]
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0
-    v2 = word_cast v1
+    v2 = zext i1 v1 to i256
     v3 = sub arg0, 1
     v4 = gt v3, arg0
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     v6 = insert_value struct0, undef struct0, 0, v2
     v7 = insert_value struct0, v6, 1, v5
     ret v7

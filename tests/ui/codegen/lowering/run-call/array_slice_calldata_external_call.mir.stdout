@@ -15,7 +15,7 @@ fn @forward(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0x4b1
     v4 = gt arg2, v3
     v5 = lt arg2, arg1
     v6 = or v4, v5
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     icall revert_if<empty>, v7
     v8 = sub arg2, arg1
     v9 = mul arg1, 32
@@ -23,7 +23,7 @@ fn @forward(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0x4b1
     v11 = div v9, 32
     v12 = eq v11, arg1
     v13 = or v10, v12
-    v14 = word_cast v13
+    v14 = zext i1 v13 to i256
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = add v2, v9

@@ -3,7 +3,7 @@
 fn @constructor() [constructor] {
   bb0:
     v0 = address
-    v1 = word_cast v0
+    v1 = zext i160 v0 to i256
     v2 = shl 32, v1
     v3 = or v2, 0xd4b83992
     v4 = sload 0 !metadata(storage=slot(0))

@@ -96,28 +96,28 @@ fn @and_all_ones(arg0: i256) -> i256 {
 
 // CHECK-LABEL: @address_mask
 // CHECK:       [[NARROW_ADDRESS:v[0-9]+]] = address
-// CHECK: [[ADDRESS:v[0-9]+]] = word_cast [[NARROW_ADDRESS]]
+// CHECK: [[ADDRESS:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[NARROW_ADDRESS]]
 // CHECK: -     [[MASKED:v[0-9]+]] = and [[ADDRESS]], {{0x[0-9a-f]+}}
 // CHECK: -     ret [[MASKED]]
 // CHECK:       ret [[ADDRESS]]
 fn @address_mask() -> i256 {
   bb0:
     v15 = address
-    v0 = word_cast v15
+    v0 = zext i160 v15 to i256
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     ret v1
 }
 
 // CHECK-LABEL: @own_balance
 // CHECK:       [[NARROW_ADDRESS:v[0-9]+]] = address
-// CHECK: [[ADDRESS:v[0-9]+]] = word_cast [[NARROW_ADDRESS]]
+// CHECK: [[ADDRESS:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[NARROW_ADDRESS]]
 // CHECK: -     {{v[0-9]+}} = balance [[ADDRESS]]
 // CHECK:       [[BALANCE:v[0-9]+]] = selfbalance
 // CHECK:       ret [[BALANCE]]
 fn @own_balance() -> i256 {
   bb0:
     v16 = address
-    v0 = word_cast v16
+    v0 = zext i160 v16 to i256
     v1 = balance v0
     ret v1
 }
@@ -138,7 +138,7 @@ fn @canonical_zero_branch(arg0: i256) {
 
 // CHECK-LABEL: @masked_own_balance
 // CHECK:       [[NARROW_ADDRESS:v[0-9]+]] = address
-// CHECK: [[ADDRESS:v[0-9]+]] = word_cast [[NARROW_ADDRESS]]
+// CHECK: [[ADDRESS:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[NARROW_ADDRESS]]
 // CHECK: -     [[MASKED:v[0-9]+]] = and [[ADDRESS]], {{0x[0-9a-f]+}}
 // CHECK: -     {{v[0-9]+}} = balance [[MASKED]]
 // CHECK:       [[BALANCE:v[0-9]+]] = selfbalance
@@ -146,7 +146,7 @@ fn @canonical_zero_branch(arg0: i256) {
 fn @masked_own_balance() -> i256 {
   bb0:
     v17 = address
-    v0 = word_cast v17
+    v0 = zext i160 v17 to i256
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = balance v1
     ret v2
@@ -199,10 +199,10 @@ fn @unknown_field(arg0: struct0, arg1: i256) -> i256 {
 // CHECK: {{v[0-9]+}} = memory_object_len memorybytes, {{v[0-9]+}}
 fn @raw_word_carrier(arg0: memorystruct) -> i256 {
   bb0:
-    v3 = word_cast arg0
+    v3 = ptrtoint memorystruct arg0 to i256
     v0 = insert_value struct0, undef struct0, 0, v3
     v1 = extract_value struct0, v0, 0
-    v4 = memory_object_from_ptr memorybytes, v1
+    v4 = inttoptr i256 v1 to memorybytes
     v2 = memory_object_len memorybytes, v4
     ret v2
 }
@@ -315,12 +315,12 @@ fn @masked_unknown_bits(arg0: i256, arg1: i256) -> struct4 [return_abi=[i256, i2
 
 // CHECK-LABEL: @unshift_address
 // CHECK: [[NARROW_ADDRESS:v[0-9]+]] = address
-// CHECK: [[ADDRESS:v[0-9]+]] = word_cast [[NARROW_ADDRESS]]
+// CHECK: [[ADDRESS:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[NARROW_ADDRESS]]
 // CHECK: ret [[ADDRESS]], [[ADDRESS]]
 fn @unshift_address() -> struct0 [return_abi=[i256, i256]] {
   bb0:
     v18 = address
-    v0 = word_cast v18
+    v0 = zext i160 v18 to i256
     v1 = shl 32, v0
     v2 = or v1, 0x12345678
     v3 = shr 32, v2
@@ -335,7 +335,7 @@ fn @unshift_address() -> struct0 [return_abi=[i256, i256]] {
 fn @keep_lossy_address_shifts(arg0: i256) -> struct3 [return_abi=[i256, i256, i256, i256]] {
   bb0:
     v19 = address
-    v0 = word_cast v19
+    v0 = zext i160 v19 to i256
     v1 = shl 97, v0
     v2 = or v1, 7
     v3 = shr 97, v2

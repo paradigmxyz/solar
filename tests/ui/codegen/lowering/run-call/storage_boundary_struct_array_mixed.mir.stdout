@@ -93,7 +93,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb21
   bb21:
     v175 = phi [bb19: v174], [bb20: false]
-    v179 = word_cast v175
+    v179 = zext i1 v175 to i256
     jump bb22
   bb22:
     v176 = phi [bb21: v3], [bb24: v230]
@@ -169,7 +169,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v231 = ne v180, 0
     jumpi v231, bb28, bb29
   bb29:
-    v243 = word_cast false
+    v243 = zext i1 0 to i256
     jump bb30
   bb28:
     v232 = lt 0, 1
@@ -253,11 +253,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb15
   bb13:
     v89 = memory_object_load_element memoryfixedarray<10, 1>, v60, v84
-    v90 = memory_object_from_ptr memorystruct, v89
+    v90 = inttoptr i256 v89 to memorystruct
     v91 = memory_object_load_field memorystruct<5>, v90, 0
     sstore v87, v91 !metadata(storage=symbolic(v87))
     v92 = add v87, 1
-    v93 = memory_object_from_ptr memorystruct, v89
+    v93 = inttoptr i256 v89 to memorystruct
     v94 = memory_object_load_field memorystruct<5>, v93, 1
     v95 = sload v92 !metadata(storage=offset(v87, 1))
     v96 = not 0xffffffffffffffffffffffffffffffff
@@ -266,7 +266,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v99 = or v97, v98
     sstore v92, v99 !metadata(storage=offset(v87, 1))
     v100 = add v87, 1
-    v101 = memory_object_from_ptr memorystruct, v89
+    v101 = inttoptr i256 v89 to memorystruct
     v102 = memory_object_load_field memorystruct<5>, v101, 2
     v103 = shl 128, 0xffffffffffffffff
     v104 = sload v100 !metadata(storage=offset(v87, 1))
@@ -277,11 +277,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v109 = or v106, v108
     sstore v100, v109 !metadata(storage=offset(v87, 1))
     v110 = add v87, 2
-    v111 = memory_object_from_ptr memorystruct, v89
+    v111 = inttoptr i256 v89 to memorystruct
     v112 = memory_object_load_field memorystruct<5>, v111, 3
     sstore v110, v112 !metadata(storage=offset(v87, 2))
     v113 = add v87, 3
-    v114 = memory_object_from_ptr memorystruct, v89
+    v114 = inttoptr i256 v89 to memorystruct
     v115 = memory_object_load_field memorystruct<5>, v114, 4
     v116 = sload v113 !metadata(storage=offset(v87, 3))
     v117 = not 255

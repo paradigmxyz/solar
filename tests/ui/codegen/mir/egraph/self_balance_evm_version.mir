@@ -7,7 +7,7 @@
 
 // PETERSBURG-LABEL: {{^[ +].*}}fn @own_balance{{[( ]}}
 // PETERSBURG: v0 = address
-// PETERSBURG: v1 = word_cast v0
+// PETERSBURG: v1 = {{(zext|ptrtoint)}} {{[^ ]+}} v0
 // PETERSBURG: v2 = balance v1
 // PETERSBURG: ret v2
 // ISTANBUL-LABEL: {{^[ +].*}}fn @own_balance{{[( ]}}
@@ -17,7 +17,7 @@
 fn @own_balance() -> i256 {
   bb0:
     v2 = address
-    v0 = word_cast v2
+    v0 = zext i160 v2 to i256
     v1 = balance v0
     ret v1
 }

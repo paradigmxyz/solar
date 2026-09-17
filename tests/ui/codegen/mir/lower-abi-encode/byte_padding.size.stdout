@@ -6,33 +6,38 @@
 -     v0 = abi_encode [calldata_bytes], args arg0
 -     ret v0
 +     v1 = fmp
-+     v2 = add v1, 32
-+     v3 = sub v2, v1
-+     mstore v1, v3
-+     v4 = slice_len arg0
-+     mstore v2, v4
-+     v5 = not 31
-+     v6 = add v4, 31
-+     v7 = and v6, v5
-+     v8 = add v2, 32
-+     v9 = eq v7, 0
-+     jumpi v9, bb2, bb1
++     v2 = ptrtoint memptr v1 to i256
++     v3 = add v2, 32
++     v4 = ptrtoint memptr v1 to i256
++     v5 = sub v3, v4
++     v6 = ptrtoint memptr v1 to i256
++     mstore v6, v5
++     v7 = slice_len arg0
++     mstore v3, v7
++     v8 = not 31
++     v9 = add v7, 31
++     v10 = and v9, v8
++     v11 = add v3, 32
++     v12 = eq v10, 0
++     jumpi v12, bb2, bb1
 +   bb1:
-+     v10 = sub v7, 32
-+     v11 = add v8, v10
-+     mstore v11, 0
++     v13 = sub v10, 32
++     v14 = add v11, v13
++     mstore v14, 0
 +     jump bb2
 +   bb2:
-+     v12 = slice_ptr arg0
-+     v13 = add v8, v7
-+     calldatacopy v8, v12, v4 !metadata(memory=heap)
-+     v14 = sub v13, v1
-+     v15 = add v14, 0
-+     v16 = add v15, 31
-+     v17 = not 31
-+     v18 = and v16, v17
-+     v19 = alloc raw, exact, uninitialized, infallible, v18 !metadata(preserves_fmp)
-+     v20 = make_memory_slice v19, v15
-+     ret v20
++     v15 = slice_ptr arg0
++     v16 = add v11, v10
++     calldatacopy v11, v15, v7 !metadata(memory=heap)
++     v17 = ptrtoint memptr v1 to i256
++     v18 = sub v16, v17
++     v19 = add v18, 0
++     v20 = add v19, 31
++     v21 = not 31
++     v22 = and v20, v21
++     v23 = alloc raw, exact, uninitialized, infallible, v22 !metadata(preserves_fmp)
++     v24 = ptrtoint memptr v23 to i256
++     v25 = make_memory_slice v24, v19
++     ret v25
   }
   

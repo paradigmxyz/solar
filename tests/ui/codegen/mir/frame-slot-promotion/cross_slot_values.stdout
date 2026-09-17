@@ -4,26 +4,30 @@
   fn @same_block() -> i256 {
     bb0:
       v0 = internal_frame_addr 128
-      v1 = internal_frame_addr 160
--     mstore v0, 42
--     v2 = mload v0
--     mstore v1, v2
--     v3 = mload v1
--     ret v3
+      v1 = ptrtoint memptr v0 to i256
+      v2 = internal_frame_addr 160
+      v3 = ptrtoint memptr v2 to i256
+-     mstore v1, 42
+-     v4 = mload v1
+-     mstore v3, v4
+-     v5 = mload v3
+-     ret v5
 +     ret 42
   }
   
   fn @dominated_store() -> i256 {
     bb0:
       v0 = internal_frame_addr 128
-      v1 = internal_frame_addr 160
--     mstore v0, 42
--     v2 = mload v0
--     mstore v1, v2
+      v1 = ptrtoint memptr v0 to i256
+      v2 = internal_frame_addr 160
+      v3 = ptrtoint memptr v2 to i256
+-     mstore v1, 42
+-     v4 = mload v1
+-     mstore v3, v4
       jump bb1
     bb1:
--     v3 = mload v1
--     ret v3
+-     v5 = mload v3
+-     ret v5
 +     ret 42
   }
   
@@ -33,14 +37,18 @@
   fn @same_block() -> i256 {
     bb0:
 -     v0 = internal_frame_addr 128
--     v1 = internal_frame_addr 160
+-     v1 = ptrtoint memptr v0 to i256
+-     v2 = internal_frame_addr 160
+-     v3 = ptrtoint memptr v2 to i256
       ret 42
   }
   
   fn @dominated_store() -> i256 {
     bb0:
 -     v0 = internal_frame_addr 128
--     v1 = internal_frame_addr 160
+-     v1 = ptrtoint memptr v0 to i256
+-     v2 = internal_frame_addr 160
+-     v3 = ptrtoint memptr v2 to i256
       jump bb1
     bb1:
       ret 42

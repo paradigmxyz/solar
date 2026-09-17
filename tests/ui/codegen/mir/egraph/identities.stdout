@@ -69,7 +69,7 @@
   fn @address_mask() -> i256 {
     bb0:
       v0 = address
-      v1 = word_cast v0
+      v1 = zext i160 v0 to i256
 -     v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
 -     ret v2
 +     ret v1
@@ -78,7 +78,7 @@
   fn @own_balance() -> i256 {
     bb0:
       v0 = address
-      v1 = word_cast v0
+      v1 = zext i160 v0 to i256
 -     v2 = balance v1
 +     v2 = selfbalance
       ret v2
@@ -99,7 +99,7 @@
   fn @masked_own_balance() -> i256 {
     bb0:
       v0 = address
-      v1 = word_cast v0
+      v1 = zext i160 v0 to i256
 -     v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
 -     v3 = balance v2
 +     v3 = selfbalance
@@ -143,11 +143,11 @@
   
   fn @raw_word_carrier(arg0: memorystruct) -> i256 {
     bb0:
-      v0 = word_cast arg0
+      v0 = ptrtoint memorystruct arg0 to i256
       v1 = insert_value struct0, undef struct0, 0, v0
 -     v2 = extract_value struct0, v1, 0
--     v3 = memory_object_from_ptr memorybytes, v2
-+     v3 = memory_object_from_ptr memorybytes, v0
+-     v3 = inttoptr i256 v2 to memorybytes
++     v3 = inttoptr i256 v0 to memorybytes
       v4 = memory_object_len memorybytes, v3
       ret v4
   }
@@ -252,7 +252,7 @@
   fn @unshift_address() -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = address
-      v1 = word_cast v0
+      v1 = zext i160 v0 to i256
       v2 = shl 32, v1
       v3 = or v2, 0x12345678
 -     v4 = shr 32, v3
@@ -266,7 +266,7 @@
   fn @keep_lossy_address_shifts(arg0: i256) -> struct3 [return_abi=[i256, i256, i256, i256]] {
     bb0:
       v0 = address
-      v1 = word_cast v0
+      v1 = zext i160 v0 to i256
       v2 = shl 97, v1
       v3 = or v2, 7
       v4 = shr 97, v3

@@ -114,10 +114,10 @@
   
   fn @raw_word_carrier(arg0: memorystruct) -> i256 {
     bb0:
-      v0 = word_cast arg0
+      v0 = ptrtoint memorystruct arg0 to i256
       v1 = insert_value struct0, undef struct0, 0, v0
       v2 = extract_value struct0, v1, 0
-      v3 = memory_object_from_ptr memorybytes, v2
+      v3 = inttoptr i256 v2 to memorybytes
       v4 = memory_object_len memorybytes, v3
       ret v4
   }

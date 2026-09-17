@@ -74,6 +74,6 @@ fn @hasExpectedLength() -> i256 [selector=0xa2fb6983, view, abi_params=[], abi_r
     v0 = mapping_slot 0, 0
     v1 = exp 2, 200
     v2 = eq 0x100000000000000000000000000000000000000000000000000, v1
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     ret v3
 }

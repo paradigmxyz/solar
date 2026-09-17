@@ -8,7 +8,7 @@
 // CHECK: [[VALUE:v[0-9]+]] = callvalue
 // CHECK: [[SIZE:v[0-9]+]] = calldatasize
 // CHECK: [[SHORT:v[0-9]+]] = lt [[SIZE]], 36
-// CHECK: [[SHORT_WORD:v[0-9]+]] = word_cast [[SHORT]]
+// CHECK: [[SHORT_WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[SHORT]]
 // CHECK: [[REJECTED:v[0-9]+]] = or [[VALUE]], [[SHORT_WORD]]
 // CHECK: [[COND:v[0-9]+]] = ne [[REJECTED]], 0
 // CHECK: jumpi [[COND]], [[REJECT:bb[0-9]+]],

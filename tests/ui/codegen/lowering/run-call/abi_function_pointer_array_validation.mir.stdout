@@ -55,7 +55,7 @@ fn @invoke(arg0: i256, arg1: i256, arg2: i256) -> i256 [view] {
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
     v1 = address
-    v2 = word_cast v1
+    v2 = zext i160 v1 to i256
     v3 = shl 32, v2
     v4 = or v3, 0xd4b83992
     v5 = memory_object_len memoryarray, v0
@@ -70,7 +70,7 @@ fn @invoke(arg0: i256, arg1: i256, arg2: i256) -> i256 [view] {
   bb2:
     jump bb3
   bb1:
-    v11 = word_cast v9
+    v11 = ptrtoint memorybytes v9 to i256
     v12 = add v11, 32
     v13 = add v12, 92
     mstore8 v13, 88

@@ -18,7 +18,7 @@ fn @sharedWordLiteral(arg0: i256) -> i256 [selector=0x55fe9b37, abi_params=[u256
     jump bb9
   bb7:
     v10 = icall @literal_bytes_word, 0x5678000000000000000000000000000000000000000000000000000000000000, 2
-    v11 = word_cast v10
+    v11 = ptrtoint memorybytes v10 to i256
     v12 = add v11, 32
     log0 v12, 2
     jump bb9
@@ -26,7 +26,7 @@ fn @sharedWordLiteral(arg0: i256) -> i256 [selector=0x55fe9b37, abi_params=[u256
     jump bb6
   bb4:
     v6 = icall @literal_bytes_word, 0x5678000000000000000000000000000000000000000000000000000000000000, 2
-    v7 = word_cast v6
+    v7 = ptrtoint memorybytes v6 to i256
     v8 = add v7, 32
     log0 v8, 2
     jump bb6
@@ -34,7 +34,7 @@ fn @sharedWordLiteral(arg0: i256) -> i256 [selector=0x55fe9b37, abi_params=[u256
     jump bb3
   bb1:
     v2 = icall @literal_bytes_word, 0x5678000000000000000000000000000000000000000000000000000000000000, 2
-    v3 = word_cast v2
+    v3 = ptrtoint memorybytes v2 to i256
     v4 = add v3, 32
     log0 v4, 2
     jump bb3
@@ -62,7 +62,7 @@ fn @sharedLongLiteral(arg0: i256) -> i256 [selector=0xd250d2b7, abi_params=[u256
     jump bb12
   bb10:
     v14 = icall @literal_bytes_0
-    v15 = word_cast v14
+    v15 = ptrtoint memorybytes v14 to i256
     v16 = add v15, 32
     log0 v16, 34
     jump bb12
@@ -70,7 +70,7 @@ fn @sharedLongLiteral(arg0: i256) -> i256 [selector=0xd250d2b7, abi_params=[u256
     jump bb9
   bb7:
     v10 = icall @literal_bytes_0
-    v11 = word_cast v10
+    v11 = ptrtoint memorybytes v10 to i256
     v12 = add v11, 32
     log0 v12, 34
     jump bb9
@@ -78,7 +78,7 @@ fn @sharedLongLiteral(arg0: i256) -> i256 [selector=0xd250d2b7, abi_params=[u256
     jump bb6
   bb4:
     v6 = icall @literal_bytes_0
-    v7 = word_cast v6
+    v7 = ptrtoint memorybytes v6 to i256
     v8 = add v7, 32
     log0 v8, 34
     jump bb6
@@ -86,7 +86,7 @@ fn @sharedLongLiteral(arg0: i256) -> i256 [selector=0xd250d2b7, abi_params=[u256
     jump bb3
   bb1:
     v2 = icall @literal_bytes_0
-    v3 = word_cast v2
+    v3 = ptrtoint memorybytes v2 to i256
     v4 = add v3, 32
     log0 v4, 34
     jump bb3
@@ -107,15 +107,16 @@ fn @conditionalLiteral(arg0: i256) -> i256 [selector=0x288b909f, abi_params=[boo
     v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, 2
     v3 = memory_object_data memorybytes, v2
-    mstore v3, 0x1234000000000000000000000000000000000000000000000000000000000000
-    v4 = word_cast v2
-    v5 = add v4, 32
-    log0 v5, 2
+    v4 = ptrtoint memptr v3 to i256
+    mstore v4, 0x1234000000000000000000000000000000000000000000000000000000000000
+    v5 = ptrtoint memorybytes v2 to i256
+    v6 = add v5, 32
+    log0 v6, 2
     jump bb3
   bb3:
-    v6 = mload 64 !metadata(memory=scratch)
-    v7 = sub v6, v0
-    ret v7
+    v7 = mload 64 !metadata(memory=scratch)
+    v8 = sub v7, v0
+    ret v8
 }
 
 fn @overlappingLiteral(arg0: i256) -> i256 [selector=0x7d61a7f9, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
@@ -130,16 +131,17 @@ fn @overlappingLiteral(arg0: i256) -> i256 [selector=0x7d61a7f9, abi_params=[boo
     v3 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v3, 2
     v4 = memory_object_data memorybytes, v3
-    mstore v4, 0xabcd000000000000000000000000000000000000000000000000000000000000
-    v5 = word_cast v3
-    v6 = add v5, 32
-    log0 v6, 2
+    v5 = ptrtoint memptr v4 to i256
+    mstore v5, 0xabcd000000000000000000000000000000000000000000000000000000000000
+    v6 = ptrtoint memorybytes v3 to i256
+    v7 = add v6, 32
+    log0 v7, 2
     jump bb3
   bb3:
-    v7 = mload 65 !metadata(memory=scratch)
-    v8 = shr 8, v7
-    v9 = sub v8, v1
-    ret v9
+    v8 = mload 65 !metadata(memory=scratch)
+    v9 = shr 8, v8
+    v10 = sub v9, v1
+    ret v10
 }
 
 fn @fmpIsStable() -> struct0 [selector=0x8543d886, pure, abi_params=[], abi_returns=[word<bool>, word, word], abi_return_params=[bool, u256, u256]] {
@@ -149,7 +151,7 @@ fn @fmpIsStable() -> struct0 [selector=0x8543d886, pure, abi_params=[], abi_retu
     v2 = eq v0, v1
     v3 = memory_object_len memorybytes, memorybytes 96
     v4 = memory_object_len memoryarray, memoryarray 96
-    v5 = word_cast v2
+    v5 = zext i1 v2 to i256
     v6 = insert_value struct0, undef struct0, 0, v5
     v7 = insert_value struct0, v6, 1, v3
     v8 = insert_value struct0, v7, 2, v4
@@ -196,7 +198,7 @@ fn @nullArrayElementsEncodeAsEmpty() -> i256 [selector=0x71417b4d, pure, abi_par
     jump bb9
   bb9:
     v20 = phi [bb7: v19], [bb8: false]
-    v21 = word_cast v20
+    v21 = zext i1 v20 to i256
     ret v21
   bb5:
     memory_object_store_element memoryarray<1>, v7, v8, memoryarray 96
@@ -221,8 +223,10 @@ fn @literal_bytes_0() -> memorybytes {
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 34
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
-    v2 = add v1, 32
-    mstore v2, 0x1122000000000000000000000000000000000000000000000000000000000000
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+    v3 = ptrtoint memptr v1 to i256
+    v4 = add v3, 32
+    mstore v4, 0x1122000000000000000000000000000000000000000000000000000000000000
     ret v0
 }

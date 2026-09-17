@@ -22,13 +22,13 @@ fn @h() -> i256 [selector=0xb8c9d365, payable, abi_params=[], abi_returns=[word]
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v1 = address
-    v2 = word_cast v1
+    v2 = zext i160 v1 to i256
     v3 = shl 32, v2
     v4 = or v3, 0x26121ff0
     v5 = shl 64, v4
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v5
     v6 = address
-    v7 = word_cast v6
+    v7 = zext i160 v6 to i256
     v8 = shl 32, v7
     v9 = or v8, 0xe2179b8e
     v10 = shl 64, v9

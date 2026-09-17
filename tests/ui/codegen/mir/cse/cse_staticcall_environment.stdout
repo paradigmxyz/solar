@@ -23,7 +23,7 @@
       v13 = add v9, v10
       v14 = add v11, v12
       v15 = add v13, v14
-      v16 = word_cast v4
+      v16 = zext i1 v4 to i256
       v17 = add v15, v16
       ret v17
   }
@@ -34,7 +34,7 @@
       v1 = staticcall 0x186a0, arg0, 0, 0, 128, 32
       v2 = mload 128
       v3 = add v0, v2
-      v4 = word_cast v1
+      v4 = zext i1 v1 to i256
       v5 = add v3, v4
       ret v5
   }
@@ -45,7 +45,7 @@
       v1 = call 0x186a0, arg0, 0, 0, 0, 0, 0
       v2 = balance arg0
       v3 = add v0, v2
-      v4 = word_cast v1
+      v4 = zext i1 v1 to i256
       v5 = add v3, v4
       ret v5
   }

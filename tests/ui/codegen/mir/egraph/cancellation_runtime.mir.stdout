@@ -39,10 +39,10 @@ fn @equality(arg0: i256, arg1: i256) -> struct0 [selector=0xf53825c4, pure, abi_
   bb0:
     v0 = sub arg0, arg1
     v1 = eq v0, 0
-    v2 = word_cast v1
+    v2 = zext i1 v1 to i256
     v3 = xor arg0, arg1
     v4 = eq v3, 0
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     v6 = insert_value struct0, undef struct0, 0, v2
     v7 = insert_value struct0, v6, 1, v5
     v8 = insert_value struct0, v7, 2, v0

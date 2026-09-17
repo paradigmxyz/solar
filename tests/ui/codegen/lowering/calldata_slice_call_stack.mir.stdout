@@ -2,7 +2,7 @@
 @module CalldataSliceCallStack
 fn @fees(arg0: i256) -> i256 [selector=0xfaaebd21, view, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = trunc i160, arg0
+    v0 = trunc i256 arg0 to i160
     v1 = mapping_slot v0, 0
     v2 = sload v1 !metadata(storage=symbolic(v1))
     ret v2
@@ -27,14 +27,14 @@ fn @execute(arg0: i256, arg1: i256, arg2: i256, arg3: calldataslice) [selector=0
     v9 = mload v8
     v10 = add 0, 0
     v11 = mload v10
-    v12 = trunc i160, arg0
-    v13 = trunc i160, arg1
+    v12 = trunc i256 arg0 to i160
+    v13 = trunc i256 arg1 to i160
     mstore 0, arg2 !metadata(memory=scratch)
-    v14 = word_cast v12
-    v15 = word_cast v13
+    v14 = zext i160 v12 to i256
+    v15 = zext i160 v13 to i256
     log3 0, 32, 0xa6d5647a92aa1dcbb9b0a53bd2edba8935c58f1e2c7c8fae35acd2acf52a5bd1, v14, v15
     v16 = gas
-    v17 = trunc i160, arg0
+    v17 = trunc i256 arg0 to i160
     v18 = abi_encode [word<u160>, word], selector 0xa9059cbb00000000000000000000000000000000000000000000000000000000, args v17, arg2
     v19 = slice_ptr v18
     v20 = slice_len v18
@@ -50,14 +50,14 @@ fn @execute(arg0: i256, arg1: i256, arg2: i256, arg3: calldataslice) [selector=0
     v25 = mload v24
     v26 = eq v25, 0
     v27 = eq v26, false
-    v28 = word_cast v27
+    v28 = zext i1 v27 to i256
     v29 = eq v25, v28
     v30 = eq v29, false
     icall revert_if<empty>, v30
     v31 = add 0, 0
     v32 = mload v31
     v33 = gas
-    v34 = trunc i160, arg1
+    v34 = trunc i256 arg1 to i160
     v35 = abi_encode [word<u160>, word, calldata_bytes], selector 0x794dca5300000000000000000000000000000000000000000000000000000000, args v34, arg2, arg3
     v36 = slice_ptr v35
     v37 = slice_len v35
@@ -101,7 +101,7 @@ fn @execute(arg0: i256, arg1: i256, arg2: i256, arg3: calldataslice) [selector=0
 
 fn @getFee(arg0: i256, arg1: i256) -> i256 [selector=0x4edeb834, view, abi_params=[address, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = trunc i160, arg0
+    v0 = trunc i256 arg0 to i160
     v1 = mapping_slot v0, 0
     v2 = sload v1 !metadata(storage=symbolic(v1))
     v3 = eq v2, 0
@@ -109,7 +109,7 @@ fn @getFee(arg0: i256, arg1: i256) -> i256 [selector=0x4edeb834, view, abi_param
   bb2:
     jump bb3
   bb3:
-    v4 = trunc i160, arg0
+    v4 = trunc i256 arg0 to i160
     v5 = mapping_slot v4, 0
     v6 = sload v5 !metadata(storage=symbolic(v5))
     v7 = checked_mul u256, arg1, v6

@@ -7,7 +7,7 @@ fn @decode(arg0: calldataslice) -> i256 [selector=0xe5c5e9a3, pure, abi_params=[
     v2 = gt v1, v1
     v3 = lt v1, 4
     v4 = or v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     icall revert_if<empty>, v5
     v6 = sub v1, 4
     v7 = add v0, 4

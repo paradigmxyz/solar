@@ -10,8 +10,8 @@ fn @decode(arg0: memorybytes) -> struct0 [selector=0xe5c5e9a3, pure, abi_params=
     v1 = extract_value struct1, v0, 0
     v2 = extract_value struct1, v0, 1
     v3 = extract_value struct1, v0, 2
-    v4 = word_cast v2
-    v5 = word_cast v3
+    v4 = zext i1 v2 to i256
+    v5 = zext i160 v3 to i256
     v6 = insert_value struct0, undef struct0, 0, v1
     v7 = insert_value struct0, v6, 1, v4
     v8 = insert_value struct0, v7, 2, v5

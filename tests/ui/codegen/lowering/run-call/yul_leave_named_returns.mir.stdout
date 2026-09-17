@@ -41,7 +41,7 @@ fn @skip(arg0: i256) -> i256 {
     ret v0
   bb4:
     v3 = eq v0, 5
-    v4 = word_cast v3
+    v4 = zext i1 v3 to i256
     v5 = ne v4, 0
     jumpi v5, bb7, bb8
   bb8:
@@ -60,7 +60,7 @@ fn @skip(arg0: i256) -> i256 {
 fn @f(arg0: i256) -> i256 {
   bb0:
     v0 = gt arg0, 10
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     v2 = ne v1, 0
     jumpi v2, bb1, bb2
   bb2:
@@ -75,7 +75,7 @@ fn @f(arg0: i256) -> i256 {
 fn @pair(arg0: i256) -> struct0 {
   bb0:
     v0 = gt arg0, 5
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     v2 = ne v1, 0
     jumpi v2, bb1, bb2
   bb2:

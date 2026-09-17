@@ -7,7 +7,7 @@ fn @callCond(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x407a1bfe, a
     v2 = select v1, 0x2b8fbce800000000000000000000000000000000000000000000000000000000, 0xe74800c00000000000000000000000000000000000000000000000000000000
     v3 = abi_encode [word], object, selector v2, args arg2
     v4 = address_call arg0, v3, gas v0
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     ret v5
 }
 

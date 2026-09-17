@@ -4,12 +4,12 @@
   fn @default_call(arg0: i256, arg1: memorybytes) -> i256 {
     bb0:
 -     v0 = address_call arg0, arg1 !metadata(span=10..20, modifier_depth=2)
--     v1 = word_cast v0
+-     v1 = zext i1 v0 to i256
 +     v2 = memory_object_data memorybytes, arg1 !metadata(span=10..20, modifier_depth=2)
 +     v3 = memory_object_len memorybytes, arg1 !metadata(span=10..20, modifier_depth=2)
 +     v4 = gas !metadata(span=10..20, modifier_depth=2)
 +     v5 = call v4, arg0, 0, v2, v3, 0, 0 !metadata(span=10..20, modifier_depth=2)
-+     v1 = word_cast v5
++     v1 = zext i1 v5 to i256
       ret v1
   }
   
@@ -42,23 +42,23 @@
   fn @delegate(arg0: i256, arg1: memorybytes) -> i256 {
     bb0:
 -     v0 = address_delegatecall arg0, arg1, gas 0x186a0
--     v1 = word_cast v0
+-     v1 = zext i1 v0 to i256
 +     v2 = memory_object_data memorybytes, arg1
 +     v3 = memory_object_len memorybytes, arg1
 +     v4 = delegatecall 0x186a0, arg0, v2, v3, 0, 0
-+     v1 = word_cast v4
++     v1 = zext i1 v4 to i256
       ret v1
   }
   
   fn @zero_value(arg0: i256, arg1: memorybytes) -> i256 {
     bb0:
 -     v0 = address_call arg0, arg1, value 0
--     v1 = word_cast v0
+-     v1 = zext i1 v0 to i256
 +     v2 = memory_object_data memorybytes, arg1
 +     v3 = memory_object_len memorybytes, arg1
 +     v4 = gas
 +     v5 = call v4, arg0, 0, v2, v3, 0, 0
-+     v1 = word_cast v5
++     v1 = zext i1 v5 to i256
       ret v1
   }
   

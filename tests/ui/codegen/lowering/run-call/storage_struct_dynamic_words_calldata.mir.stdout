@@ -9,7 +9,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0x2f4f3794, abi_params=[array<_,
     v4 = div v2, 32
     v5 = eq v4, v0
     v6 = or v3, v5
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     v8 = eq v7, 0
     icall panic_if<0x41>, v8
     v9 = calldatasize
@@ -21,7 +21,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0x2f4f3794, abi_params=[array<_,
     v14 = div v12, 32
     v15 = eq v14, v0
     v16 = or v13, v15
-    v17 = word_cast v16
+    v17 = zext i1 v16 to i256
     v18 = eq v17, 0
     icall panic_if<0x41>, v18
     v19 = add 32, v12
@@ -81,8 +81,8 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0x2f4f3794, abi_params=[array<_,
     ret v129
   bb13:
     v83 = memory_object_load_element memoryarray<1>, v21, v81
-    v84 = memory_object_from_ptr memorystruct, v83
-    v85 = word_cast v84
+    v84 = inttoptr i256 v83 to memorystruct
+    v85 = ptrtoint memorystruct v84 to i256
     v86 = eq v85, 0
     jumpi v86, bb15, bb16
   bb15:
@@ -97,7 +97,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0x2f4f3794, abi_params=[array<_,
     v90 = storage_array_data_slot 0
     v91 = add v90, v81
     v92 = memory_object_load_field memorystruct<1>, v89, 0
-    v93 = memory_object_from_ptr memoryarray, v92
+    v93 = inttoptr i256 v92 to memoryarray
     v94 = memory_object_len memoryarray, v93
     v95 = sload v91 !metadata(storage=symbolic(v91))
     v96 = gt v95, v94
@@ -121,7 +121,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0x2f4f3794, abi_params=[array<_,
     v109 = add v81, 1
     jump bb12
   bb23:
-    v104 = memory_object_from_ptr memoryarray, v92
+    v104 = inttoptr i256 v92 to memoryarray
     v105 = memory_object_load_element memoryarray<1>, v104, v102
     v106 = storage_array_data_slot v91
     v107 = add v106, v102
@@ -196,7 +196,7 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0x2f4f3794, abi_params=[array<_,
     v57 = div v55, 32
     v58 = eq v57, v47
     v59 = or v56, v58
-    v60 = word_cast v59
+    v60 = zext i1 v59 to i256
     v61 = eq v60, 0
     icall panic_if<0x41>, v61
     v62 = add 32, v55

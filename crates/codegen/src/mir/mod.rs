@@ -169,6 +169,27 @@ mod round_trip {
     }
 
     #[test]
+    fn cast_source_types() {
+        for (cast, valid) in [
+            ("zext i1 0 to i256", true),
+            ("zext i1 1 to i256", true),
+            ("zext i1 2 to i256", false),
+            ("zext i1 arg0 to i256", true),
+            ("zext i160 arg0 to i256", false),
+            ("zext i1 undef to i256", true),
+            ("ptrtoint memptr arg0 to i256", false),
+        ] {
+            let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+            sess.enter(|| {
+                let input = format!(
+                    "@module Casts\nfn @f(arg0: i1) -> i256 {{\n  bb0:\n    v0 = {cast}\n    ret v0\n}}\n"
+                );
+                assert_eq!(parse_module(&sess, &input).is_ok(), valid, "{cast}");
+            });
+        }
+    }
+
+    #[test]
     fn scalar_integer_types() {
         for (ty, valid) in [
             ("i1", true),

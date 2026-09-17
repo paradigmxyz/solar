@@ -14,7 +14,7 @@ fn @peel(arg0: calldataslice) -> calldataslice [pure] {
     v5 = gt v4, v4
     v6 = lt v4, 1
     v7 = or v5, v6
-    v8 = word_cast v7
+    v8 = zext i1 v7 to i256
     icall revert_if<empty>, v8
     v9 = sub v4, 1
     v10 = add v3, 1

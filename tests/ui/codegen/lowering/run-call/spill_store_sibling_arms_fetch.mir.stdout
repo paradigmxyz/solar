@@ -8,7 +8,7 @@ fn @constructor() [constructor] {
     v2 = sload v1 !metadata(storage=offset(v0, 1))
     v3 = not 255
     v4 = and v2, v3
-    v5 = word_cast true
+    v5 = zext i1 1 to i256
     v6 = and v5, 255
     v7 = or v4, v6
     sstore v1, v7 !metadata(storage=offset(v0, 1))
@@ -18,7 +18,7 @@ fn @constructor() [constructor] {
     v10 = sload v9 !metadata(storage=offset(v8, 1))
     v11 = not 255
     v12 = and v10, v11
-    v13 = word_cast false
+    v13 = zext i1 0 to i256
     v14 = and v13, 255
     v15 = or v12, v14
     sstore v9, v15 !metadata(storage=offset(v8, 1))
@@ -28,7 +28,7 @@ fn @constructor() [constructor] {
     v18 = sload v17 !metadata(storage=offset(v16, 1))
     v19 = not 255
     v20 = and v18, v19
-    v21 = word_cast true
+    v21 = zext i1 1 to i256
     v22 = and v21, 255
     v23 = or v20, v22
     sstore v17, v23 !metadata(storage=offset(v16, 1))
@@ -63,7 +63,7 @@ fn @run(arg0: i256, arg1: i256) -> i256 [selector=0x0a3395f5, abi_params=[u256, 
     v7 = ne v6, 0
     jumpi v7, bb1, bb2
   bb2:
-    v8 = word_cast false
+    v8 = zext i1 0 to i256
     jump bb3
   bb1:
     jump bb3

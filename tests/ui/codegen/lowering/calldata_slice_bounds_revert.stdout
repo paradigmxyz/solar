@@ -26,28 +26,28 @@ fn @endPastLength() [selector=0x8063d43b, abi_wrapper, pure] {
   bb4:
     v16 = add v6, 63
     v19 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v20 = mload 64 !metadata(memory=scratch)
-    v49 = add v20, v19
-    mstore 64, v49 !metadata(memory=scratch)
-    mstore v20, v6
-    v31 = mload 64 !metadata(memory=scratch)
-    v32 = add v31, 32
-    mstore v31, 32
-    v36 = add v6, 31
-    v37 = and v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v38 = add v32, 32
-    v39 = add v32, v37
-    mstore v39, 0
-    mstore v32, v6
-    v41 = add v38, v37
-    calldatacopy v38, v7, v6
-    v42 = sub v41, v31
-    v44 = add v42, 31
-    v46 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v47 = mload 64 !metadata(memory=scratch)
-    v50 = add v47, v46
-    mstore 64, v50 !metadata(memory=scratch)
-    returndata v47, v42
+    v55 = mload 64 !metadata(memory=scratch)
+    v57 = add v55, v19
+    mstore 64, v57 !metadata(memory=scratch)
+    mstore v55, v6
+    v58 = mload 64 !metadata(memory=scratch)
+    v33 = add v58, 32
+    mstore v58, 32
+    v39 = add v6, 31
+    v40 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v41 = add v33, 32
+    v42 = add v33, v40
+    mstore v42, 0
+    mstore v33, v6
+    v44 = add v41, v40
+    calldatacopy v41, v7, v6
+    v46 = sub v44, v58
+    v48 = add v46, 31
+    v50 = and v48, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v59 = mload 64 !metadata(memory=scratch)
+    v61 = add v59, v50
+    mstore 64, v61 !metadata(memory=scratch)
+    returndata v59, v46
   bb1:
     revert 0, 0
 }
@@ -78,28 +78,28 @@ fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
   bb4:
     v16 = add v6, 63
     v19 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v20 = mload 64 !metadata(memory=scratch)
-    v49 = add v20, v19
-    mstore 64, v49 !metadata(memory=scratch)
-    mstore v20, v6
-    v31 = mload 64 !metadata(memory=scratch)
-    v32 = add v31, 32
-    mstore v31, 32
-    v36 = add v6, 31
-    v37 = and v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v38 = add v32, 32
-    v39 = add v32, v37
-    mstore v39, 0
-    mstore v32, v6
-    v41 = add v38, v37
-    calldatacopy v38, v7, v6
-    v42 = sub v41, v31
-    v44 = add v42, 31
-    v46 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v47 = mload 64 !metadata(memory=scratch)
-    v50 = add v47, v46
-    mstore 64, v50 !metadata(memory=scratch)
-    returndata v47, v42
+    v55 = mload 64 !metadata(memory=scratch)
+    v57 = add v55, v19
+    mstore 64, v57 !metadata(memory=scratch)
+    mstore v55, v6
+    v58 = mload 64 !metadata(memory=scratch)
+    v33 = add v58, 32
+    mstore v58, 32
+    v39 = add v6, 31
+    v40 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v41 = add v33, 32
+    v42 = add v33, v40
+    mstore v42, 0
+    mstore v33, v6
+    v44 = add v41, v40
+    calldatacopy v41, v7, v6
+    v46 = sub v44, v58
+    v48 = add v46, 31
+    v50 = and v48, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v59 = mload 64 !metadata(memory=scratch)
+    v61 = add v59, v50
+    mstore 64, v61 !metadata(memory=scratch)
+    returndata v59, v46
   bb1:
     revert 0, 0
 }
@@ -113,11 +113,11 @@ fn @decode_calldata_slice(arg0: i256) -> i256 {
     v4 = gt v1, 0xffffffffffffffff
     v5 = gt v3, v0
     v6 = or v4, v5
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     v8 = calldataload v2
     v10 = sub v0, v3
     v11 = gt v8, v10
-    v12 = word_cast v11
+    v12 = zext i1 v11 to i256
     v13 = or v7, v12
     v14 = ne v13, 0
     jumpi v14, bb1, bb2

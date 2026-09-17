@@ -218,7 +218,7 @@ fn emit_recipe(
     let metadata = func.inst(root).metadata.debug_context();
     let block = crate::mir::BlockId::ENTRY;
     let start = func.blocks[block].instructions.len();
-    // operands = word_cast boolean_operands
+    // operands = zext i1 boolean_operands to i256
     // result = op operands
     // typed_result = cast result
     let result = crate::mir::FunctionBuilder::new(func).emit_inst(kind, Some(ty));

@@ -143,7 +143,7 @@ pub(in crate::mir::transform) fn max_bits_with_args(
     let bits = |value| max_bits_with_args(func, value, depth - 1, argument_bits);
     let shift = |shift| func.value_u256(shift).map(|shift| shift.min(U256::from(256)).to::<u32>());
     match *kind {
-        InstKind::WordCast(value) => bits(value),
+        InstKind::Zext(value) => bits(value),
         InstKind::Ne(..)
         | InstKind::Lt(..)
         | InstKind::Gt(..)
@@ -228,7 +228,7 @@ pub(in crate::mir::transform) fn is_bool_value(func: &Function, value: ValueId) 
 /// Returns whether `value` fits in an address, including a widened i160.
 fn is_clean_address(func: &Function, value: ValueId) -> bool {
     func.value_ty(value) == Some(crate::mir::MirType::I160)
-        || matches!(defining_kind(func, value), Some(InstKind::WordCast(inner))
+        || matches!(defining_kind(func, value), Some(InstKind::Zext(inner))
             if func.value_ty(*inner) == Some(crate::mir::MirType::I160))
 }
 
@@ -285,7 +285,7 @@ impl generated::Context for RuleContext<'_> {
 
     fn current_address(&mut self, value: Value) -> Option<()> {
         let value = match defining_kind(self.func, value) {
-            Some(InstKind::WordCast(inner)) => *inner,
+            Some(InstKind::Zext(inner)) => *inner,
             _ => value,
         };
         matches!(defining_kind(self.func, value), Some(InstKind::Address)).then_some(())

@@ -45,7 +45,7 @@ fn @isEven(arg0: i256) -> i256 [selector=0x2a2e1320, pure, abi_params=[u256], ab
     v3 = icall @isOdd, v2
     ret v3
   bb1:
-    v1 = word_cast true
+    v1 = zext i1 1 to i256
     ret v1
 }
 
@@ -60,6 +60,6 @@ fn @isOdd(arg0: i256) -> i256 [selector=0xd8b3a2eb, pure, abi_params=[u256], abi
     v3 = icall @isEven, v2
     ret v3
   bb1:
-    v1 = word_cast false
+    v1 = zext i1 0 to i256
     ret v1
 }

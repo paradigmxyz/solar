@@ -745,7 +745,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
     v648 = eq v647, 0
     v649 = eq v648, false
     icall panic_if<0x1>, v649
-    v650 = word_cast true
+    v650 = zext i1 1 to i256
     ret v650
   bb7:
     v345 = memory_object_load_element memoryarray<1>, v320, v343

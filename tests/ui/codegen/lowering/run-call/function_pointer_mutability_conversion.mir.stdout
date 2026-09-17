@@ -32,7 +32,7 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     v1 = address
-    v2 = word_cast v1
+    v2 = zext i160 v1 to i256
     v3 = shl 32, v2
     v4 = or v3, 0xbfbc85ef
     v5 = shl 64, v4
@@ -169,7 +169,7 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     v1 = address
-    v2 = word_cast v1
+    v2 = zext i160 v1 to i256
     v3 = shl 32, v2
     v4 = or v3, 0xf620336b
     v5 = shl 64, v4
@@ -306,7 +306,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     v1 = address
-    v2 = word_cast v1
+    v2 = zext i160 v1 to i256
     v3 = shl 32, v2
     v4 = or v3, 0xf620336b
     v5 = shl 64, v4

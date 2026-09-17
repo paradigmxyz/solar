@@ -39,7 +39,7 @@ fn @tryAdd(arg0: i256, arg1: i256) -> struct0 [pure] {
     v0 = add arg0, arg1
     v1 = lt v0, arg0
     v2 = eq v1, false
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     v4 = insert_value struct0, undef struct0, 0, v3
     v5 = insert_value struct0, v4, 1, v0
     ret v5

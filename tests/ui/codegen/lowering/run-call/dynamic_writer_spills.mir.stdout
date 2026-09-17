@@ -29,12 +29,12 @@ fn @run() -> i256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word],
     v19 = gas
     mstore 0, 0xa878f858 !metadata(memory=scratch)
     v20 = address
-    v21 = word_cast v20
+    v21 = zext i160 v20 to i256
     v22 = gas
     v23 = staticcall v22, v21, 28, 4, 0, 0
-    v24 = word_cast v23
+    v24 = zext i1 v23 to i256
     v25 = eq v24, 0
-    v26 = word_cast v25
+    v26 = zext i1 v25 to i256
     v27 = ne v26, 0
     jumpi v27, bb1, bb2
   bb2:
@@ -62,9 +62,9 @@ fn @run() -> i256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word],
     v46 = and v45, v42
     v47 = and v46, v39
     v48 = eq v47, 0
-    v49 = word_cast v48
+    v49 = zext i1 v48 to i256
     v50 = eq v49, 0
-    v51 = word_cast v50
+    v51 = zext i1 v50 to i256
     ret v51
   bb1:
     revert 0, 0

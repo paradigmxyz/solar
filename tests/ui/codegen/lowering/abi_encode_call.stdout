@@ -12,40 +12,40 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
     v6 = eq v5, 0
     jumpi v6, bb3, bb1
   bb3:
-    v0 = trunc i160, arg0
-    v10 = mload 64 !metadata(memory=scratch)
-    v39 = add v10, 128
-    mstore 64, v39 !metadata(memory=scratch)
-    mstore v10, 68
-    v11 = add v10, 32
-    mstore v11, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v12 = add v11, 4
-    v13 = word_cast v0
-    mstore v12, v13
-    v14 = add v12, 32
-    mstore v14, arg1
-    v15 = mload 64 !metadata(memory=scratch)
-    v16 = add v15, 32
-    mstore v15, 32
-    v22 = ne v10, 0
-    v23 = word_cast v22
-    v18 = mload v10
-    v24 = mul v18, v23
-    v26 = add v24, 31
-    v27 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v28 = add v16, 32
-    v29 = add v16, v27
-    mstore v29, 0
-    mstore v16, v24
-    v31 = add v28, v27
-    mcopy v28, v11, v24
-    v32 = sub v31, v15
-    v34 = add v32, 31
-    v36 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v37 = mload 64 !metadata(memory=scratch)
-    v40 = add v37, v36
-    mstore 64, v40 !metadata(memory=scratch)
-    returndata v37, v32
+    v0 = trunc i256 arg0 to i160
+    v51 = mload 64 !metadata(memory=scratch)
+    v53 = add v51, 128
+    mstore 64, v53 !metadata(memory=scratch)
+    mstore v51, 68
+    v49 = add v51, 32
+    mstore v49, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v14 = add v49, 4
+    v15 = zext i160 v0 to i256
+    mstore v14, v15
+    v16 = add v14, 32
+    mstore v16, arg1
+    v54 = mload 64 !metadata(memory=scratch)
+    v19 = add v54, 32
+    mstore v54, 32
+    v27 = ne v51, 0
+    v28 = zext i1 v27 to i256
+    v23 = mload v51
+    v29 = mul v23, v28
+    v31 = add v29, 31
+    v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v33 = add v19, 32
+    v34 = add v19, v32
+    mstore v34, 0
+    mstore v19, v29
+    v36 = add v33, v32
+    mcopy v33, v49, v29
+    v39 = sub v36, v54
+    v41 = add v39, 31
+    v43 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v55 = mload 64 !metadata(memory=scratch)
+    v57 = add v55, v43
+    mstore 64, v57 !metadata(memory=scratch)
+    returndata v55, v39
   bb1:
     revert 0, 0
 }
@@ -67,20 +67,21 @@ fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
     jumpi v15, bb4, bb1
   bb4:
     v0 = gas
-    v1 = trunc i160, arg1
-    v21 = mload 64 !metadata(memory=scratch)
-    v26 = add v21, 128
-    mstore 64, v26 !metadata(memory=scratch)
-    mstore v21, 68
-    v22 = add v21, 32
-    mstore v22, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v23 = add v22, 4
-    v24 = word_cast v1
-    mstore v23, v24
-    v25 = add v23, 32
-    mstore v25, arg2
+    v1 = trunc i256 arg1 to i160
+    v31 = mload 64 !metadata(memory=scratch)
+    v33 = add v31, 128
+    mstore 64, v33 !metadata(memory=scratch)
+    mstore v31, 68
+    v30 = add v31, 32
+    v22 = inttoptr i256 v30 to memptr
+    mstore v30, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v25 = add v30, 4
+    v26 = zext i160 v1 to i256
+    mstore v25, v26
+    v27 = add v25, 32
+    mstore v27, arg2
     v7 = call v0, arg0, 0, v22, 68, 0, 0
-    v4 = word_cast v7
+    v4 = zext i1 v7 to i256
     mstore 128, v4
     returndata 128, 32
   bb1:

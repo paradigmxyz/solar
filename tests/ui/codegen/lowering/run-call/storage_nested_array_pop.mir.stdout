@@ -144,7 +144,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v204 = mod v202, 16
     v205 = eq v204, 0
     v206 = eq v205, false
-    v207 = word_cast v206
+    v207 = zext i1 v206 to i256
     v208 = add v203, v207
     clear_storage_words 0, 0, v208
     v209 = insert_value struct0, undef struct0, 0, v181
@@ -165,7 +165,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v196 = mod v194, 16
     v197 = eq v196, 0
     v198 = eq v197, false
-    v199 = word_cast v198
+    v199 = zext i1 v198 to i256
     v200 = add v195, v199
     clear_storage_words v193, 0, v200
     jump bb40
@@ -188,7 +188,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v154 = mod v152, 16
     v155 = eq v154, 0
     v156 = eq v155, false
-    v157 = word_cast v156
+    v157 = zext i1 v156 to i256
     v158 = add v153, v157
     clear_storage_words v151, 0, v158
     jump bb34
@@ -211,7 +211,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v113 = mod v111, 16
     v114 = eq v113, 0
     v115 = eq v114, false
-    v116 = word_cast v115
+    v116 = zext i1 v115 to i256
     v117 = add v112, v116
     clear_storage_words v110, 0, v117
     jump bb28
@@ -234,7 +234,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v73 = mod v71, 16
     v74 = eq v73, 0
     v75 = eq v74, false
-    v76 = word_cast v75
+    v76 = zext i1 v75 to i256
     v77 = add v72, v76
     clear_storage_words v70, 0, v77
     jump bb22

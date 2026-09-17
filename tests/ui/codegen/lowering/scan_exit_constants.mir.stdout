@@ -25,12 +25,12 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params
   bb5:
     jump bb2
   bb2:
-    v21 = word_cast v8
+    v21 = ptrtoint memorybytes v8 to i256
     v22 = add v21, 32
     v23 = add v22, v9
     mstore v23, 0xdeadbeef
     v24 = icall @scan, v8
-    v25 = word_cast v8
+    v25 = ptrtoint memorybytes v8 to i256
     v26 = add v25, 32
     v27 = add v26, v9
     v28 = mload v27
@@ -63,14 +63,14 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params
 
 fn @scan(arg0: memorybytes) -> i256 [pure] {
   bb0:
-    v0 = word_cast arg0
+    v0 = ptrtoint memorybytes arg0 to i256
     v1 = mload v0
     v2 = ne v1, 0
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v3 = word_cast arg0
+    v3 = ptrtoint memorybytes arg0 to i256
     v4 = add v3, 32
     v5 = add v4, v1
     v6 = mload v5
@@ -97,9 +97,9 @@ fn @scan(arg0: memorybytes) -> i256 [pure] {
   bb11:
     v17 = add v8, 32
     v18 = lt v17, v12
-    v19 = word_cast v18
+    v19 = zext i1 v18 to i256
     v20 = eq v19, 0
-    v21 = word_cast v20
+    v21 = zext i1 v20 to i256
     v22 = ne v21, 0
     jumpi v22, bb12, bb13
   bb13:

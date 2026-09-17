@@ -13,21 +13,21 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     set_memory_object_len memoryarray, v1, 3
     memory_object_store_field memorystruct<2>, v0, 1, v1
     v2 = memory_object_load_field memorystruct<2>, v0, 1
-    v3 = memory_object_from_ptr memoryarray, v2
+    v3 = inttoptr i256 v2 to memoryarray
     v4 = memory_object_len memoryarray, v3
     v5 = lt 0, v4
     v6 = eq v5, false
     icall panic_if<0x32>, v6
     memory_object_store_element memoryarray<1>, v3, 0, 9
     v7 = memory_object_load_field memorystruct<2>, v0, 1
-    v8 = memory_object_from_ptr memoryarray, v7
+    v8 = inttoptr i256 v7 to memoryarray
     v9 = memory_object_len memoryarray, v8
     v10 = lt 1, v9
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     memory_object_store_element memoryarray<1>, v8, 1, 10
     v12 = memory_object_load_field memorystruct<2>, v0, 1
-    v13 = memory_object_from_ptr memoryarray, v12
+    v13 = inttoptr i256 v12 to memoryarray
     v14 = memory_object_len memoryarray, v13
     v15 = lt 2, v14
     v16 = eq v15, false
@@ -39,17 +39,17 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v19 = abi_decode [tuple<u256, array<_, u256>>], v18
     v20 = memory_object_load_field memorystruct<2>, v19, 0
     v21 = memory_object_load_field memorystruct<2>, v19, 1
-    v22 = memory_object_from_ptr memoryarray, v21
+    v22 = inttoptr i256 v21 to memoryarray
     v23 = memory_object_len memoryarray, v22
     v24 = memory_object_load_field memorystruct<2>, v19, 1
-    v25 = memory_object_from_ptr memoryarray, v24
+    v25 = inttoptr i256 v24 to memoryarray
     v26 = memory_object_len memoryarray, v25
     v27 = lt 0, v26
     v28 = eq v27, false
     icall panic_if<0x32>, v28
     v29 = memory_object_load_element memoryarray<1>, v25, 0
     v30 = memory_object_load_field memorystruct<2>, v19, 1
-    v31 = memory_object_from_ptr memoryarray, v30
+    v31 = inttoptr i256 v30 to memoryarray
     v32 = memory_object_len memoryarray, v31
     v33 = lt 2, v32
     v34 = eq v33, false

@@ -1527,11 +1527,14 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
     }
     let code = match kind {
         InstKind::Ne(..) => seq(&[op::EQ, op::ISZERO]),
-        InstKind::Trunc160(_) => target.op(&kind.op(), |_| None),
+        InstKind::Trunc(..) | InstKind::Sext(..) | InstKind::PtrToInt(..) => {
+            target.op(&kind.op(), |_| None)
+        }
         InstKind::InsertValue { .. }
         | InstKind::ExtractValue { .. }
-        | InstKind::MemoryObjectFromPtr { .. }
-        | InstKind::WordCast(_) => Cost::ZERO,
+        | InstKind::IntToPtr(..)
+        | InstKind::Zext(_)
+        | InstKind::Bitcast(_) => Cost::ZERO,
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => Cost::ZERO,
         InstKind::MemoryObjectData(_, kind) => {
             if EvmMemoryLayout::object_data_offset(*kind) == 0 {
@@ -2075,22 +2078,21 @@ fn inline_call_impl(
         );
     }
 
-    // object_arg = memory_object_from_ptr raw_arg
+    // object_arg = inttoptr raw_arg
     // jump cloned_entry(object_arg)
     // Calls can carry raw pointer words; cloned semantic operations still require
     // the callee's object types. Materialize the zero-cost view at the cloned entry.
     let mut args = args;
     let mut argument_views = Vec::new();
     for (arg, &ty) in args.iter_mut().zip(&callee.params) {
-        if let MirType::MemoryObject(kind) = ty
+        if let MirType::MemoryObject(_) = ty
             && caller.value_ty(*arg) != Some(ty)
         {
             if !caller.value_ty(*arg).is_some_and(MirType::is_word) {
                 return None;
             }
             let (inst, value) = caller.alloc_value_inst(
-                Instruction::new(InstKind::MemoryObjectFromPtr { ptr: *arg, kind }, Some(ty))
-                    .with_debug_info_dropped(),
+                Instruction::new(InstKind::IntToPtr(*arg), Some(ty)).with_debug_info_dropped(),
             );
             argument_views.push(inst);
             *arg = value;

@@ -6,7 +6,8 @@
 // CHECK: ret 42
 fn @known() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 64
+    v5 = alloc raw, exact, uninitialized, infallible, 64
+    v0 = ptrtoint memptr v5 to i256
     mstore v0, 1
     v1 = add v0, 32
     mstore v1, 41
@@ -41,7 +42,8 @@ fn @read(arg0: i256) -> i256 {
 // CHECK: {{^[ +].*}}= icall @choose
 fn @writes() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 64
+    v6 = alloc raw, exact, uninitialized, infallible, 64
+    v0 = ptrtoint memptr v6 to i256
     mstore v0, 0
     v1 = icall @choose, v0
     ret v1
@@ -52,7 +54,8 @@ fn @writes() -> i256 {
 // CHECK: {{^[ +].*}}= icall @read
 fn @partial_write(arg0: i256) -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v7 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v7 to i256
     mstore v0, 42
     v1 = add v0, 1
     mstore8 v1, arg0
@@ -65,7 +68,8 @@ fn @partial_write(arg0: i256) -> i256 {
 // CHECK: {{^[ +].*}}= icall @read
 fn @clobbered(arg0: i256) -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v8 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v8 to i256
     mstore v0, 42
     icall @overwrite, v0, arg0
     v1 = icall @read, v0
@@ -83,7 +87,8 @@ fn @overwrite(arg0: i256, arg1: i256) {
 // CHECK: {{^[ +].*}}= icall @choose
 fn @uninitialized() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 64
+    v9 = alloc raw, exact, uninitialized, infallible, 64
+    v0 = ptrtoint memptr v9 to i256
     mstore v0, 1
     v1 = icall @choose, v0
     ret v1
@@ -94,7 +99,8 @@ fn @uninitialized() -> i256 {
 // CHECK: {{^[ +].*}}= icall @read
 fn @scratch() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v10 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v10 to i256
     mstore v0, 1
     mstore 0, 42
     v1 = icall @read, 0
@@ -106,7 +112,8 @@ fn @scratch() -> i256 {
 // CHECK: ret 42
 fn @phi_caller() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v11 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v11 to i256
     mstore v0, 1
     v1 = icall @phi_callee, v0
     ret v1
@@ -131,7 +138,8 @@ fn @phi_callee(arg0: i256) -> i256 {
 // CHECK: {{^[ +].*}}= icall @recursive
 fn @recursive_caller() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v12 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v12 to i256
     mstore v0, 1
     v1 = icall @recursive, v0
     ret v1
@@ -148,7 +156,8 @@ fn @recursive(arg0: i256) -> i256 {
 // CHECK: {{^[ +].*}}= icall @gas_reader
 fn @observes_gas() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v13 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v13 to i256
     mstore v0, 42
     v1 = icall @gas_reader, v0
     ret v1
@@ -169,7 +178,8 @@ fn @loop_allocation(arg0: i1) -> i256 {
   bb0:
     jump bb1
   bb1:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v14 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v14 to i256
     mstore v0, 42
     v1 = icall @read, v0
     jumpi arg0, bb1, bb2
@@ -182,7 +192,8 @@ fn @loop_allocation(arg0: i1) -> i256 {
 // CHECK: {{^[ +].*}}= icall @read
 fn @unknown_alias(arg0: i256) -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v15 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v15 to i256
     mstore v0, 42
     mstore arg0, 7
     v1 = icall @read, v0
@@ -195,7 +206,8 @@ fn @unknown_alias(arg0: i256) -> i256 {
 fn @recycled(arg0: i256) -> i256 {
   bb0:
     set_fmp arg0
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v16 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v16 to i256
     mstore v0, 42
     v1 = icall @read, v0
     ret v1
@@ -206,7 +218,8 @@ fn @recycled(arg0: i256) -> i256 {
 // CHECK: {{^[ +].*}}= icall @loop_callee
 fn @loop_caller() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v17 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v17 to i256
     mstore v0, 1
     v1 = icall @loop_callee, v0
     ret v1

@@ -2,7 +2,7 @@
 @module A
 fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = word_cast true
+    v0 = zext i1 1 to i256
     jump bb2
   bb2:
     jump bb1
@@ -18,7 +18,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
   bb3:
     jump bb4
   bb2:
-    v0 = word_cast true
+    v0 = zext i1 1 to i256
     jump bb5
   bb5:
     jump bb4

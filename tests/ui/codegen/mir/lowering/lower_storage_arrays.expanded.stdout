@@ -15,7 +15,7 @@
 +     v6 = div v4, 32
 +     v7 = eq v6, v2
 +     v8 = or v5, v7
-+     v9 = word_cast v8
++     v9 = zext i1 v8 to i256
 +     v10 = eq v9, 0
 +     jumpi v10, bb1, bb3
 +   bb3:
@@ -56,7 +56,7 @@
 +     v6 = div v4, 32
 +     v7 = eq v6, v2
 +     v8 = or v5, v7
-+     v9 = word_cast v8
++     v9 = zext i1 v8 to i256
 +     v10 = eq v9, 0
 +     jumpi v10, bb1, bb3
 +   bb3:
@@ -102,7 +102,7 @@
 +     v6 = div v4, 32
 +     v7 = eq v6, v2
 +     v8 = or v5, v7
-+     v9 = word_cast v8
++     v9 = zext i1 v8 to i256
 +     v10 = eq v9, 0
 +     jumpi v10, bb1, bb3
 +   bb3:
@@ -148,7 +148,7 @@
 +     v6 = div v4, 32
 +     v7 = eq v6, v2
 +     v8 = or v5, v7
-+     v9 = word_cast v8
++     v9 = zext i1 v8 to i256
 +     v10 = eq v9, 0
 +     jumpi v10, bb1, bb3
 +   bb3:
@@ -204,7 +204,7 @@
 +     v7 = div v5, 32 !metadata(span=50..60, modifier_depth=5)
 +     v8 = eq v7, v3 !metadata(span=50..60, modifier_depth=5)
 +     v9 = or v6, v8 !metadata(span=50..60, modifier_depth=5)
-+     v10 = word_cast v9 !metadata(span=50..60, modifier_depth=5)
++     v10 = zext i1 v9 to i256 !metadata(span=50..60, modifier_depth=5)
 +     v11 = eq v10, 0 !metadata(span=50..60, modifier_depth=5)
 +     jumpi v11, bb4, bb6 !metadata(span=50..60, modifier_depth=5)
 +   bb6:

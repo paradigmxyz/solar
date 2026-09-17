@@ -7,7 +7,7 @@ fn @sliceLength(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     icall revert_if<empty>, v5
     v6 = sub arg2, arg1
     v7 = mul arg1, 32
@@ -15,7 +15,7 @@ fn @sliceLength(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0
     v9 = div v7, 32
     v10 = eq v9, arg1
     v11 = or v8, v10
-    v12 = word_cast v11
+    v12 = zext i1 v11 to i256
     v13 = eq v12, 0
     icall panic_if<0x41>, v13
     v14 = add v0, v7
@@ -31,7 +31,7 @@ fn @sliceIndex(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> i256 
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     icall revert_if<empty>, v5
     v6 = sub arg2, arg1
     v7 = mul arg1, 32
@@ -39,7 +39,7 @@ fn @sliceIndex(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> i256 
     v9 = div v7, 32
     v10 = eq v9, arg1
     v11 = or v8, v10
-    v12 = word_cast v11
+    v12 = zext i1 v11 to i256
     v13 = eq v12, 0
     icall panic_if<0x41>, v13
     v14 = add v0, v7
@@ -54,7 +54,7 @@ fn @sliceIndex(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> i256 
     v22 = div v20, 32
     v23 = eq v22, arg3
     v24 = or v21, v23
-    v25 = word_cast v24
+    v25 = zext i1 v24 to i256
     v26 = eq v25, 0
     icall panic_if<0x41>, v26
     v27 = add v19, v20
@@ -69,7 +69,7 @@ fn @chainedIndex(arg0: calldataslice) -> i256 [selector=0xb5f9dbd8, pure, abi_pa
     v2 = gt v1, v1
     v3 = lt v1, 1
     v4 = or v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     icall revert_if<empty>, v5
     v6 = sub v1, 1
     v7 = add v0, 32
@@ -79,7 +79,7 @@ fn @chainedIndex(arg0: calldataslice) -> i256 [selector=0xb5f9dbd8, pure, abi_pa
     v11 = gt v10, v10
     v12 = lt v10, 1
     v13 = or v11, v12
-    v14 = word_cast v13
+    v14 = zext i1 v13 to i256
     icall revert_if<empty>, v14
     v15 = sub v10, 1
     v16 = add v9, 32
@@ -101,7 +101,7 @@ fn @nestedSliceLength(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256, a
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     icall revert_if<empty>, v5
     v6 = sub arg2, arg1
     v7 = mul arg1, 32
@@ -109,7 +109,7 @@ fn @nestedSliceLength(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256, a
     v9 = div v7, 32
     v10 = eq v9, arg1
     v11 = or v8, v10
-    v12 = word_cast v11
+    v12 = zext i1 v11 to i256
     v13 = eq v12, 0
     icall panic_if<0x41>, v13
     v14 = add v0, v7
@@ -119,7 +119,7 @@ fn @nestedSliceLength(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256, a
     v18 = gt arg4, v17
     v19 = lt arg4, arg3
     v20 = or v18, v19
-    v21 = word_cast v20
+    v21 = zext i1 v20 to i256
     icall revert_if<empty>, v21
     v22 = sub arg4, arg3
     v23 = mul arg3, 32
@@ -127,7 +127,7 @@ fn @nestedSliceLength(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256, a
     v25 = div v23, 32
     v26 = eq v25, arg3
     v27 = or v24, v26
-    v28 = word_cast v27
+    v28 = zext i1 v27 to i256
     v29 = eq v28, 0
     icall panic_if<0x41>, v29
     v30 = add v16, v23
@@ -143,7 +143,7 @@ fn @startSliceLength(arg0: calldataslice, arg1: i256) -> i256 [selector=0xaedb6e
     v2 = gt v1, v1
     v3 = lt v1, arg1
     v4 = or v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     icall revert_if<empty>, v5
     v6 = sub v1, arg1
     v7 = mul arg1, 32
@@ -151,7 +151,7 @@ fn @startSliceLength(arg0: calldataslice, arg1: i256) -> i256 [selector=0xaedb6e
     v9 = div v7, 32
     v10 = eq v9, arg1
     v11 = or v8, v10
-    v12 = word_cast v11
+    v12 = zext i1 v11 to i256
     v13 = eq v12, 0
     icall panic_if<0x41>, v13
     v14 = add v0, v7
@@ -167,7 +167,7 @@ fn @endSliceLength(arg0: calldataslice, arg1: i256) -> i256 [selector=0x478be0ed
     v2 = gt arg1, v1
     v3 = lt arg1, 0
     v4 = or v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     icall revert_if<empty>, v5
     v6 = sub arg1, 0
     v7 = add v0, 0
@@ -183,7 +183,7 @@ fn @startSliceIndex(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [select
     v2 = gt v1, v1
     v3 = lt v1, arg1
     v4 = or v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     icall revert_if<empty>, v5
     v6 = sub v1, arg1
     v7 = mul arg1, 32
@@ -191,7 +191,7 @@ fn @startSliceIndex(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [select
     v9 = div v7, 32
     v10 = eq v9, arg1
     v11 = or v8, v10
-    v12 = word_cast v11
+    v12 = zext i1 v11 to i256
     v13 = eq v12, 0
     icall panic_if<0x41>, v13
     v14 = add v0, v7
@@ -206,7 +206,7 @@ fn @startSliceIndex(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [select
     v22 = div v20, 32
     v23 = eq v22, arg2
     v24 = or v21, v23
-    v25 = word_cast v24
+    v25 = zext i1 v24 to i256
     v26 = eq v25, 0
     icall panic_if<0x41>, v26
     v27 = add v19, v20
@@ -221,7 +221,7 @@ fn @endSliceIndex(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector
     v2 = gt arg1, v1
     v3 = lt arg1, 0
     v4 = or v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     icall revert_if<empty>, v5
     v6 = sub arg1, 0
     v7 = add v0, 0
@@ -236,7 +236,7 @@ fn @endSliceIndex(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector
     v15 = div v13, 32
     v16 = eq v15, arg2
     v17 = or v14, v16
-    v18 = word_cast v17
+    v18 = zext i1 v17 to i256
     v19 = eq v18, 0
     icall panic_if<0x41>, v19
     v20 = add v12, v13
@@ -251,7 +251,7 @@ fn @bytesSlice(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [sele
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     icall revert_if<empty>, v5
     v6 = sub arg2, arg1
     v7 = add v0, arg1
@@ -283,7 +283,7 @@ fn @chainedBytesIndex(arg0: calldataslice) -> i256 [selector=0x96fa77f1, pure, a
     v2 = gt v1, v1
     v3 = lt v1, 1
     v4 = or v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     icall revert_if<empty>, v5
     v6 = sub v1, 1
     v7 = add v0, 1
@@ -293,7 +293,7 @@ fn @chainedBytesIndex(arg0: calldataslice) -> i256 [selector=0x96fa77f1, pure, a
     v11 = gt v10, v10
     v12 = lt v10, 1
     v13 = or v11, v12
-    v14 = word_cast v13
+    v14 = zext i1 v13 to i256
     icall revert_if<empty>, v14
     v15 = sub v10, 1
     v16 = add v9, 1

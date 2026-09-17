@@ -620,7 +620,7 @@ impl AllocationKind {
     #[must_use]
     pub(crate) const fn result_type(self) -> MirType {
         match self {
-            Self::Raw => MirType::I256,
+            Self::Raw => MirType::MemPtr,
             Self::Object(layout) => MirType::MemoryObject(layout.kind()),
         }
     }
@@ -727,8 +727,7 @@ impl Instruction {
             | InstKind::StorageArrayElementSlot { .. } => Some("storage slot"),
             InstKind::StoreImmutable(..) => Some("immutable assignment"),
             InstKind::FrameLoad { .. } | InstKind::FrameStore { .. } => Some("frame slot"),
-            InstKind::MemoryObjectFromPtr { .. }
-            | InstKind::MemoryObjectLen(..)
+            InstKind::MemoryObjectLen(..)
             | InstKind::SetMemoryObjectLen(..)
             | InstKind::MemoryObjectData(..)
             | InstKind::MemoryObjectFieldAddr { .. }
@@ -750,8 +749,12 @@ impl Instruction {
                 || !matches!(kind, AllocationKind::Raw)
                 || *semantics != AllocationSemantics::INTERNAL)
                 .then_some("abstract allocation"),
-            InstKind::WordCast(..)
-            | InstKind::Trunc160(..)
+            InstKind::Zext(..)
+            | InstKind::Trunc(..)
+            | InstKind::Sext(..)
+            | InstKind::PtrToInt(..)
+            | InstKind::IntToPtr(..)
+            | InstKind::Bitcast(..)
             | InstKind::Add(..)
             | InstKind::Sub(..)
             | InstKind::Mul(..)
@@ -948,17 +951,25 @@ impl InstKind {
                     && ty(b) == result
                     && matches!(result, Some(MirType::I256 | MirType::I1))
             }
-            Self::Trunc160(value) => {
-                result == Some(MirType::I160) && ty(value) == Some(MirType::I256)
+            Self::Trunc(value, bits) => matches!((ty(value), result),
+                (Some(MirType::Int(from)), Some(MirType::Int(to))) if from > to && to.get() == bits),
+            Self::Zext(value) => matches!((ty(value), result),
+                (Some(MirType::Int(from)), Some(MirType::Int(to))) if from < to),
+            Self::Sext(value, from_bits, to_bits) => matches!((ty(value), result),
+                (Some(MirType::Int(from)), Some(MirType::Int(to)))
+                    if from < to && from.get() == from_bits && to.get() == to_bits),
+            Self::PtrToInt(value, bits) => {
+                ty(value).is_some_and(MirType::is_pointer)
+                    && matches!(result, Some(MirType::Int(to)) if to.get() == bits)
             }
-            Self::WordCast(value) => {
-                result == Some(MirType::I256)
-                    && matches!(
-                        ty(value),
-                        Some(
-                            MirType::I1 | MirType::I160 | MirType::I256 | MirType::MemoryObject(_)
-                        )
-                    )
+            Self::IntToPtr(value) => {
+                matches!(ty(value), Some(MirType::Int(_)))
+                    && result.is_some_and(MirType::is_pointer)
+            }
+            Self::Bitcast(value) => {
+                (ty(value).is_some_and(MirType::is_pointer)
+                    && result.is_some_and(MirType::is_pointer))
+                    || (matches!(ty(value), Some(MirType::Int(_))) && ty(value) == result)
             }
             _ if self.evm_opcode().is_some() => {
                 self.op_def().result.default_type() == result
@@ -1049,8 +1060,6 @@ impl InstKind {
         matches!(
             self,
             Self::Alloc { kind: AllocationKind::Object(_), .. }
-                | Self::MemoryObjectFromPtr { .. }
-                | Self::WordCast(_)
                 | Self::MemoryObjectLen(_, _)
                 | Self::SetMemoryObjectLen(_, _, _)
                 | Self::MemoryObjectData(_, _)

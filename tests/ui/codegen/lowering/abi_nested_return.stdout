@@ -44,7 +44,7 @@ fn @nestedArray(arg0: i256) -> memoryarray [selector=0x5abcbd75, pure, abi_param
     v6 = div v4, 1
     v7 = eq v6, arg0
     v8 = or v5, v7
-    v9 = word_cast v8
+    v9 = zext i1 v8 to i256
     v10 = eq v9, 0
     icall panic_if<0x41>, v10
     v11 = add v4, 1
@@ -55,7 +55,7 @@ fn @nestedArray(arg0: i256) -> memoryarray [selector=0x5abcbd75, pure, abi_param
     v15 = div v13, 32
     v16 = eq v15, v11
     v17 = or v14, v16
-    v18 = word_cast v17
+    v18 = zext i1 v17 to i256
     v19 = eq v18, 0
     icall panic_if<0x41>, v19
     v20 = alloc memoryarray<1>, exact, zeroed, panic, v13

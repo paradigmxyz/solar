@@ -26,7 +26,7 @@
 +     jump bb2
 +   bb2:
 +     v0 = memory_object_load_element memoryfixedarray<2, 1>, v9, 1
-      v1 = memory_object_from_ptr memoryfixedarray, v0
+      v1 = inttoptr i256 v0 to memoryfixedarray
       v2 = memory_object_load_element memoryfixedarray<2, 1>, v1, 0
 -     v3 = add v2, arg1
 +     v3 = add v2, arg4

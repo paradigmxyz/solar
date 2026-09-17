@@ -10,6 +10,6 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v3 = storage_array_data_slot 0
     v4 = add v3, v2
     sstore v4, 0 !metadata(storage=symbolic(v4))
-    v5 = word_cast true
+    v5 = zext i1 1 to i256
     ret v5
 }

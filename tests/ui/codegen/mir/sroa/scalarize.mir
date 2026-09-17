@@ -9,9 +9,12 @@
 // CHECK: - mstore {{v[0-9]+}}, arg1
 // CHECK: + {{v[0-9]+}} = add arg0, arg1
 // CHECK: {{^[ +].*}}fn @local_struct_observe_fmp{{[( ]}}
-// CHECK: {{^[ +].*}}mstore v1, arg0
-// CHECK: {{^[ +].*}}v4 = mload v3
-// CHECK: {{^[ +].*}}v8 = fmp
+// CHECK: {{^[ +].*}}[[FIELD:v[0-9]+]] = ptrtoint memptr {{v[0-9]+}} to i256
+// CHECK: {{^[ +].*}}mstore [[FIELD]], arg0
+// CHECK: {{^[ +].*}}mstore {{v[0-9]+}}, arg1
+// CHECK: {{^[ +].*}}[[LOAD_PTR:v[0-9]+]] = ptrtoint memptr {{v[0-9]+}} to i256
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload [[LOAD_PTR]]
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = fmp
 // CHECK: {{^[ +].*}}fn @zeroed_array{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
 // CHECK: - memory_zero
@@ -24,25 +27,31 @@
 // CHECK: {{^[ +].*}}memory_zero v0, 64
 // CHECK: {{^[ +].*}}revert v0, 64
 // CHECK: {{^[ +].*}}fn @return_field{{[( ]}}
-// CHECK: {{^[ +].*}}mstore v1, arg0
-// CHECK: {{^[ +].*}}returndata v1, 32
+// CHECK: {{^[ +].*}}[[FIELD:v[0-9]+]] = ptrtoint memptr {{v[0-9]+}} to i256
+// CHECK: {{^[ +].*}}mstore [[FIELD]], arg0
+// CHECK: {{^[ +].*}}returndata [[FIELD]], 32
 // CHECK: {{^[ +].*}}fn @revert_field_successor{{[( ]}}
-// CHECK: {{^[ +].*}}mstore v1, arg0
+// CHECK: {{^[ +].*}}[[FIELD:v[0-9]+]] = ptrtoint memptr {{v[0-9]+}} to i256
+// CHECK: {{^[ +].*}}mstore [[FIELD]], arg0
 // CHECK: {{^[ +].*}}bb1:
-// CHECK: {{^[ +].*}}revert v1, 32
+// CHECK: {{^[ +].*}}revert [[FIELD]], 32
 // CHECK-LABEL: after dce
 // CHECK: {{^[ +].*}}fn @local_struct{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = alloc memorystruct<2>, exact, uninitialized, infallible, 64
 fn @local_struct(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v1 = memory_object_field_addr memorystruct<2>, v0, 0
+    v10 = memory_object_field_addr memorystruct<2>, v0, 0
+    v1 = ptrtoint memptr v10 to i256
     mstore v1, arg0
-    v2 = memory_object_field_addr memorystruct<2>, v0, 1
+    v11 = memory_object_field_addr memorystruct<2>, v0, 1
+    v2 = ptrtoint memptr v11 to i256
     mstore v2, arg1
-    v3 = memory_object_field_addr memorystruct<2>, v0, 0
+    v12 = memory_object_field_addr memorystruct<2>, v0, 0
+    v3 = ptrtoint memptr v12 to i256
     v4 = mload v3
-    v5 = memory_object_field_addr memorystruct<2>, v0, 1
+    v13 = memory_object_field_addr memorystruct<2>, v0, 1
+    v5 = ptrtoint memptr v13 to i256
     v6 = mload v5
     v7 = add v4, v6
     ret v7
@@ -52,16 +61,21 @@ fn @local_struct(arg0: i256, arg1: i256) -> i256 {
 fn @local_struct_observe_fmp(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v1 = memory_object_field_addr memorystruct<2>, v0, 0
+    v14 = memory_object_field_addr memorystruct<2>, v0, 0
+    v1 = ptrtoint memptr v14 to i256
     mstore v1, arg0
-    v2 = memory_object_field_addr memorystruct<2>, v0, 1
+    v15 = memory_object_field_addr memorystruct<2>, v0, 1
+    v2 = ptrtoint memptr v15 to i256
     mstore v2, arg1
-    v3 = memory_object_field_addr memorystruct<2>, v0, 0
+    v16 = memory_object_field_addr memorystruct<2>, v0, 0
+    v3 = ptrtoint memptr v16 to i256
     v4 = mload v3
-    v5 = memory_object_field_addr memorystruct<2>, v0, 1
+    v17 = memory_object_field_addr memorystruct<2>, v0, 1
+    v5 = ptrtoint memptr v17 to i256
     v6 = mload v5
     v7 = add v4, v6
-    v8 = fmp
+    v18 = fmp
+    v8 = ptrtoint memptr v18 to i256
     v9 = add v7, v8
     ret v9
 }
@@ -70,7 +84,8 @@ fn @zeroed_array() -> i256 {
   bb0:
     v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
     memory_zero v0, 128
-    v1 = memory_object_element_addr memoryfixedarray<4, 1>, v0, 3
+    v19 = memory_object_element_addr memoryfixedarray<4, 1>, v0, 3
+    v1 = ptrtoint memptr v19 to i256
     v2 = mload v1
     ret v2
 }
@@ -92,7 +107,8 @@ fn @revert_zeroed_object() {
 fn @return_field(arg0: i256) {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v1 = memory_object_field_addr memorystruct<2>, v0, 1
+    v20 = memory_object_field_addr memorystruct<2>, v0, 1
+    v1 = ptrtoint memptr v20 to i256
     mstore v1, arg0
     returndata v1, 32
 }
@@ -100,7 +116,8 @@ fn @return_field(arg0: i256) {
 fn @revert_field_successor(arg0: i256) {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v1 = memory_object_element_addr memoryfixedarray<2, 1>, v0, 1
+    v21 = memory_object_element_addr memoryfixedarray<2, 1>, v0, 1
+    v1 = ptrtoint memptr v21 to i256
     mstore v1, arg0
     jump bb1
   bb1:

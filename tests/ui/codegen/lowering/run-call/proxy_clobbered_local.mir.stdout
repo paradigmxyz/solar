@@ -41,34 +41,36 @@ fn @forwards() -> i256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word], 
     v3 = alloc raw, exact, uninitialized, infallible, v2
     data_copy Impl_initcode_0, v3, 79
     v4 = slice_ptr v0
-    v5 = add v3, 79
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 79
-    v7 = word_cast v6
-    v8 = ne v7, 0
-    jumpi v8, bb2, bb1
+    v5 = ptrtoint memptr v3 to i256
+    v6 = add v5, 79
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = ptrtoint memptr v3 to i256
+    v8 = create 0, v7, 79
+    v9 = zext i160 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = word_cast v6
-    v10 = trunc i160, v9
-    v11 = word_cast v10
-    v12 = abi_encode [word], object, selector 0x6279e43c00000000000000000000000000000000000000000000000000000000, args 7
-    v13 = mload 64 !metadata(memory=scratch)
-    v14 = calldatasize
-    calldatacopy 0, 0, v14 !metadata(memory=scratch)
-    v15 = word_cast v12
-    v16 = mload v15
-    v17 = word_cast v12
-    v18 = add v17, 32
-    v19 = gas
-    v20 = delegatecall v19, v11, v18, v16, 0, 32
-    v21 = word_cast v20
-    v22 = mload 0 !metadata(memory=scratch)
-    v23 = eq v22, 7
-    v24 = word_cast v23
-    v25 = and v21, v24
-    v26 = eq v25, 1
-    icall require<short_string>, v26, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
+    v11 = zext i160 v8 to i256
+    v12 = trunc i256 v11 to i160
+    v13 = zext i160 v12 to i256
+    v14 = abi_encode [word], object, selector 0x6279e43c00000000000000000000000000000000000000000000000000000000, args 7
+    v15 = mload 64 !metadata(memory=scratch)
+    v16 = calldatasize
+    calldatacopy 0, 0, v16 !metadata(memory=scratch)
+    v17 = ptrtoint memorybytes v14 to i256
+    v18 = mload v17
+    v19 = ptrtoint memorybytes v14 to i256
+    v20 = add v19, 32
+    v21 = gas
+    v22 = delegatecall v21, v13, v20, v18, 0, 32
+    v23 = zext i1 v22 to i256
+    v24 = mload 0 !metadata(memory=scratch)
+    v25 = eq v24, 7
+    v26 = zext i1 v25 to i256
+    v27 = and v23, v26
+    v28 = eq v27, 1
+    icall require<short_string>, v28, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
     ret 1
 }

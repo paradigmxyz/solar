@@ -26,7 +26,7 @@ fn @trim(arg0: calldataslice) -> calldataslice [pure] {
     v5 = gt v4, v4
     v6 = lt v4, 4
     v7 = or v5, v6
-    v8 = word_cast v7
+    v8 = zext i1 v7 to i256
     icall revert_if<empty>, v8
     v9 = sub v4, 4
     v10 = add v3, 4
@@ -259,7 +259,7 @@ fn @findLoopExit(arg0: i256) -> struct0 [view] {
     v7 = sload v5 !metadata(storage=symbolic(v5))
     v8 = shr 160, v7
     v9 = eq v8, 0
-    v10 = word_cast v9
+    v10 = zext i1 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb6, bb7
   bb7:
@@ -272,7 +272,7 @@ fn @findLoopExit(arg0: i256) -> struct0 [view] {
   bb8:
     v15 = phi [bb6: v14], [bb7: v8]
     v16 = eq v15, v2
-    v17 = word_cast v16
+    v17 = zext i1 v16 to i256
     v18 = ne v17, 0
     jumpi v18, bb9, bb10
   bb10:

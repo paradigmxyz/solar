@@ -106,7 +106,8 @@ bb82:
   and
   push 64
   mload
-  swap 1
+  dup 1
+  swap 2
   dup 2
   add
   dup 2
@@ -123,18 +124,17 @@ bb82:
   jumpi
   push 64
   mstore
-  dup 2
+  dup 3
   dup 2
   mstore
-  dup 3
+  dup 4
   calldatasize
   sub
-  dup 3
+  dup 4
   gt
   push bb8
   jumpi
   push 32
-  dup 2
   add
   dup 3
   dup 5
@@ -177,10 +177,11 @@ bb54:
   and
   push 64
   mload
-  dup 2
-  dup 2
+  dup 1
+  dup 3
+  dup 3
   add
-  dup 2
+  dup 3
   dup 2
   lt
   push 0
@@ -195,26 +196,29 @@ bb54:
   push 64
   mstore
   calldatasize
-  dup 3
-  calldatasize
   dup 4
+  calldatasize
+  dup 5
   calldatacopy
   pop
-  swap 1
-  pop
-  swap 1
-  dup 2
-  mstore
-  dup 2
-  mload
   swap 2
+  pop
+  swap 2
+  dup 3
+  mstore
+  dup 3
+  mload
+  swap 3
   push 32
   add
   push 32
-  dup 3
+  dup 4
   add
   push 0
-  exchange 3, 4
+  swap 3
+  swap 4
+  swap 5
+  swap 3
   jump bb58
 bb60 [loop]:
   dup 1
@@ -239,7 +243,7 @@ bb60 [loop]:
   dup 3
   dup 1
   add
-  dup 8
+  dup 9
   mload
   dup 2
   lt
@@ -260,7 +264,7 @@ bb60 [loop]:
   swap 1
   push 1
   add
-  dup 7
+  dup 8
   mload
   gt
   iszero
@@ -286,6 +290,8 @@ bb58 [loop]:
   pop
   pop
   pop
+  pop
+  swap 1
   pop
   swap 1
   jump
@@ -703,6 +709,7 @@ bb79:
   shr
   jump bb89
 bb64 [cold]:
+  pop
   pop
   pop
   pop

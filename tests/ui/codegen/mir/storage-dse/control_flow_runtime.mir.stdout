@@ -13,9 +13,9 @@ fn @changingSlot() -> i256 [selector=0xf8e62371, abi_params=[], abi_returns=[wor
   bb4:
     sstore v0, 1 !metadata(storage=symbolic(v0))
     v3 = lt v0, 2
-    v4 = word_cast v3
+    v4 = zext i1 v3 to i256
     v5 = eq v4, 0
-    v6 = word_cast v5
+    v6 = zext i1 v5 to i256
     v7 = ne v6, 0
     jumpi v7, bb7, bb8
   bb8:

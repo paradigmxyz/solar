@@ -254,7 +254,7 @@ fn @deleteThenPush() -> struct0 [selector=0x63470f4e, abi_params=[], abi_returns
     v18 = mod v16, 32
     v19 = eq v18, 0
     v20 = eq v19, false
-    v21 = word_cast v20
+    v21 = zext i1 v20 to i256
     v22 = add v17, v21
     clear_storage_words 6, 0, v22
     v23 = sload 6 !metadata(storage=slot(6))
@@ -439,7 +439,7 @@ fn @clearDynamicDirtyWord() -> i256 [selector=0xa7b98e77, abi_params=[], abi_ret
     v28 = mod v26, 32
     v29 = eq v28, 0
     v30 = eq v29, false
-    v31 = word_cast v30
+    v31 = zext i1 v30 to i256
     v32 = add v27, v31
     clear_storage_words 0, 0, v32
     v33 = sload v24 !metadata(storage=symbolic(v24))
@@ -492,7 +492,7 @@ fn @clearOddWidthDirtyWords() [selector=0xf2b0f658, abi_params=[], abi_returns=[
     v13 = mod v11, 3
     v14 = eq v13, 0
     v15 = eq v14, false
-    v16 = word_cast v15
+    v16 = zext i1 v15 to i256
     v17 = add v12, v16
     clear_storage_words 2, 0, v17
     jump bb1

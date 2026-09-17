@@ -38,7 +38,7 @@ fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_
     v28 = div v26, 32
     v29 = eq v28, v24
     v30 = or v27, v29
-    v31 = word_cast v30
+    v31 = zext i1 v30 to i256
     v32 = eq v31, 0
     icall panic_if<0x41>, v32
     v33 = calldatasize
@@ -50,7 +50,7 @@ fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_
     v38 = div v36, 32
     v39 = eq v38, v24
     v40 = or v37, v39
-    v41 = word_cast v40
+    v41 = zext i1 v40 to i256
     v42 = eq v41, 0
     icall panic_if<0x41>, v42
     v43 = add 32, v36
@@ -177,8 +177,8 @@ fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_
     ret
   bb13:
     v105 = memory_object_load_element memoryarray<1>, v45, v103
-    v106 = memory_object_from_ptr memoryarray, v105
-    v107 = word_cast v106
+    v106 = inttoptr i256 v105 to memoryarray
+    v107 = ptrtoint memoryarray v106 to i256
     v108 = eq v107, 0
     jumpi v108, bb15, bb16
   bb15:
@@ -271,7 +271,7 @@ fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_
     v97 = mod v95, 32
     v98 = eq v97, 0
     v99 = eq v98, false
-    v100 = word_cast v99
+    v100 = zext i1 v99 to i256
     v101 = add v96, v100
     clear_storage_words v94, 0, v101
     v102 = add v91, 1
@@ -306,7 +306,7 @@ fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_
     v70 = div v68, 32
     v71 = eq v70, v60
     v72 = or v69, v71
-    v73 = word_cast v72
+    v73 = zext i1 v72 to i256
     v74 = eq v73, 0
     icall panic_if<0x41>, v74
     v75 = add 32, v68
@@ -373,7 +373,7 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v112 = div v110, 32
     v113 = eq v112, v108
     v114 = or v111, v113
-    v115 = word_cast v114
+    v115 = zext i1 v114 to i256
     v116 = eq v115, 0
     icall panic_if<0x41>, v116
     v117 = calldatasize
@@ -385,7 +385,7 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v122 = div v120, 32
     v123 = eq v122, v108
     v124 = or v121, v123
-    v125 = word_cast v124
+    v125 = zext i1 v124 to i256
     v126 = eq v125, 0
     icall panic_if<0x41>, v126
     v127 = add 32, v120
@@ -564,8 +564,8 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     ret
   bb49:
     v194 = memory_object_load_element memoryarray<1>, v129, v192
-    v195 = memory_object_from_ptr memoryarray, v194
-    v196 = word_cast v195
+    v195 = inttoptr i256 v194 to memoryarray
+    v196 = ptrtoint memoryarray v195 to i256
     v197 = eq v196, 0
     jumpi v197, bb51, bb52
   bb51:
@@ -658,7 +658,7 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v186 = mod v184, 32
     v187 = eq v186, 0
     v188 = eq v187, false
-    v189 = word_cast v188
+    v189 = zext i1 v188 to i256
     v190 = add v185, v189
     clear_storage_words v183, 0, v190
     v191 = add v180, 1
@@ -693,7 +693,7 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v154 = div v152, 32
     v155 = eq v154, v144
     v156 = or v153, v155
-    v157 = word_cast v156
+    v157 = zext i1 v156 to i256
     v158 = eq v157, 0
     icall panic_if<0x41>, v158
     v159 = add 32, v152
@@ -723,8 +723,8 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     jump bb40
   bb13:
     v27 = memory_object_load_element memoryarray<1>, v0, v25
-    v28 = memory_object_from_ptr memoryarray, v27
-    v29 = word_cast v28
+    v28 = inttoptr i256 v27 to memoryarray
+    v29 = ptrtoint memoryarray v28 to i256
     v30 = eq v29, 0
     jumpi v30, bb15, bb16
   bb15:
@@ -760,8 +760,8 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     jump bb12
   bb23:
     v52 = memory_object_load_element memoryarray<1>, v32, v50
-    v53 = memory_object_from_ptr memoryarray, v52
-    v54 = word_cast v53
+    v53 = inttoptr i256 v52 to memoryarray
+    v54 = ptrtoint memoryarray v53 to i256
     v55 = eq v54, 0
     jumpi v55, bb25, bb26
   bb25:
@@ -854,7 +854,7 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v44 = mod v42, 32
     v45 = eq v44, 0
     v46 = eq v45, false
-    v47 = word_cast v46
+    v47 = zext i1 v46 to i256
     v48 = add v43, v47
     clear_storage_words v41, 0, v48
     v49 = add v38, 1
@@ -881,7 +881,7 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v18 = mod v16, 32
     v19 = eq v18, 0
     v20 = eq v19, false
-    v21 = word_cast v20
+    v21 = zext i1 v20 to i256
     v22 = add v17, v21
     clear_storage_words v15, 0, v22
     v23 = add v12, 1

@@ -7,7 +7,7 @@ fn @word(arg0: calldataslice) -> memoryarray [selector=0x37948b05, pure, abi_par
     v2 = gt v1, v1
     v3 = lt v1, 1
     v4 = or v2, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     icall revert_if<empty>, v5
     v6 = sub v1, 1
     v7 = add v0, 32
@@ -19,7 +19,7 @@ fn @word(arg0: calldataslice) -> memoryarray [selector=0x37948b05, pure, abi_par
     v13 = div v11, 32
     v14 = eq v13, v9
     v15 = or v12, v14
-    v16 = word_cast v15
+    v16 = zext i1 v15 to i256
     v17 = eq v16, 0
     icall panic_if<0x41>, v17
     v18 = calldatasize
@@ -31,7 +31,7 @@ fn @word(arg0: calldataslice) -> memoryarray [selector=0x37948b05, pure, abi_par
     v23 = div v21, 32
     v24 = eq v23, v9
     v25 = or v22, v24
-    v26 = word_cast v25
+    v26 = zext i1 v25 to i256
     v27 = eq v26, 0
     icall panic_if<0x41>, v27
     v28 = add 32, v21

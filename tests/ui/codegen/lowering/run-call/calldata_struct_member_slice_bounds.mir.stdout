@@ -104,7 +104,7 @@ fn @_decodeBatch(arg0: calldataslice) -> calldataslice [pure] {
     v18 = shl 5, v17
     v19 = add v3, v18
     v20 = gt v19, v7
-    v21 = word_cast v20
+    v21 = zext i1 v20 to i256
     v22 = shr 64, v1
     v23 = or v22, v21
     v24 = ne v23, 0

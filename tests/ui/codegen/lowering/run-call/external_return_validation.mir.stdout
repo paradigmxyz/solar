@@ -77,9 +77,9 @@ fn @dirtyStruct() -> memorystruct [selector=0xe1193b83, pure, abi_params=[], abi
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
     memory_object_store_field memorystruct<2>, v0, 1, 0
-    v1 = word_cast v0
+    v1 = ptrtoint memorystruct v0 to i256
     mstore v1, 256
-    v2 = word_cast v0
+    v2 = ptrtoint memorystruct v0 to i256
     v3 = add v2, 32
     mstore v3, 2
     ret v0
@@ -105,12 +105,13 @@ fn @dirtyUnusedStructField() -> i256 [selector=0xc1226a60, view, abi_params=[], 
     v10 = and 127, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
     set_memory_object_len memorybytes, v11, 64
-    v12 = make_memory_slice v5, 64
-    memory_object_copy_from_slice memorybytes, v11, v12
-    v13 = abi_decode [tuple<u8, bool>], v11
-    v14 = memory_object_load_field memorystruct<2>, v13, 0
-    v15 = and v14, 255
-    ret v15
+    v12 = ptrtoint memptr v5 to i256
+    v13 = make_memory_slice v12, 64
+    memory_object_copy_from_slice memorybytes, v11, v13
+    v14 = abi_decode [tuple<u8, bool>], v11
+    v15 = memory_object_load_field memorystruct<2>, v14, 0
+    v16 = and v15, 255
+    ret v16
 }
 
 fn @dirtyUnusedStructFieldTarget() [selector=0x38a62c01, pure, abi_params=[], abi_returns=[tuple<word<u8>, word<bool>>], abi_return_params=[tuple<u8, bool>]] {
@@ -164,9 +165,9 @@ fn @dirtyAggregate() -> memorystruct [pure] {
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
     memory_object_store_field memorystruct<2>, v0, 1, 0
-    v1 = word_cast v0
+    v1 = ptrtoint memorystruct v0 to i256
     mstore v1, 257
-    v2 = word_cast v0
+    v2 = ptrtoint memorystruct v0 to i256
     v3 = add v2, 32
     mstore v3, 2
     ret v0
@@ -193,14 +194,14 @@ fn @distinctDynamicReturns() -> i256 [selector=0x56c7de2c, abi_params=[], abi_re
     v12 = extract_value struct0, v11, 0
     v13 = extract_value struct0, v11, 1
     v14 = memory_object_load_field memorystruct<1>, v12, 0
-    v15 = memory_object_from_ptr memoryarray, v14
+    v15 = inttoptr i256 v14 to memoryarray
     v16 = memory_object_len memoryarray, v15
     v17 = lt 0, v16
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     memory_object_store_element memoryarray<1>, v15, 0, 9
     v19 = memory_object_load_field memorystruct<1>, v13, 0
-    v20 = memory_object_from_ptr memoryarray, v19
+    v20 = inttoptr i256 v19 to memoryarray
     v21 = memory_object_len memoryarray, v20
     v22 = lt 0, v21
     v23 = eq v22, false
@@ -224,10 +225,10 @@ fn @dirtyArray() -> memoryarray [selector=0xab113bc3, pure, abi_params=[], abi_r
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
-    v1 = word_cast v0
+    v1 = ptrtoint memoryarray v0 to i256
     v2 = add v1, 32
     mstore v2, 2
-    v3 = word_cast v0
+    v3 = ptrtoint memoryarray v0 to i256
     v4 = add v3, 64
     mstore v4, 256
     ret v0
@@ -237,7 +238,7 @@ fn @dirtyMemoryFixedArray() -> i256 [selector=0x627cd2cc, pure, abi_params=[], a
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_zero v0, 32
-    v1 = word_cast v0
+    v1 = ptrtoint memoryfixedarray v0 to i256
     mstore v1, 257
     v2 = lt 0, 1
     v3 = eq v2, false
@@ -254,7 +255,7 @@ fn @dirtyMemoryFixedArray() -> i256 [selector=0x627cd2cc, pure, abi_params=[], a
     jump bb3
   bb3:
     v9 = phi [bb1: v8], [bb2: false]
-    v10 = word_cast v9
+    v10 = zext i1 v9 to i256
     ret v10
 }
 
@@ -262,7 +263,7 @@ fn @dirtyMemoryDynamicArray() -> i256 [selector=0x85ecd2fd, pure, abi_params=[],
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
-    v1 = word_cast v0
+    v1 = ptrtoint memoryarray v0 to i256
     v2 = add v1, 32
     mstore v2, 258
     v3 = memory_object_len memoryarray, v0
@@ -281,7 +282,7 @@ fn @dirtyMemoryDynamicArray() -> i256 [selector=0x85ecd2fd, pure, abi_params=[],
     jump bb3
   bb3:
     v11 = phi [bb1: v10], [bb2: false]
-    v12 = word_cast v11
+    v12 = zext i1 v11 to i256
     ret v12
 }
 
@@ -289,7 +290,7 @@ fn @dirtyMemoryStruct() -> i256 [selector=0x5c3a703b, pure, abi_params=[], abi_r
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
-    v1 = word_cast v0
+    v1 = ptrtoint memorystruct v0 to i256
     mstore v1, 257
     v2 = memory_object_load_field memorystruct<1>, v0, 0
     v3 = and v2, 255
@@ -303,7 +304,7 @@ fn @dirtyMemoryStruct() -> i256 [selector=0x5c3a703b, pure, abi_params=[], abi_r
     jump bb3
   bb3:
     v7 = phi [bb1: v6], [bb2: false]
-    v8 = word_cast v7
+    v8 = zext i1 v7 to i256
     ret v8
 }
 
@@ -311,7 +312,7 @@ fn @dirtyMemoryLvalue() -> i256 [selector=0x91f3b994, pure, abi_params=[], abi_r
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_zero v0, 32
-    v1 = word_cast v0
+    v1 = ptrtoint memoryfixedarray v0 to i256
     mstore v1, 257
     v2 = lt 0, 1
     v3 = eq v2, false
@@ -326,7 +327,7 @@ fn @dirtyMemoryLvalue() -> i256 [selector=0x91f3b994, pure, abi_params=[], abi_r
     v9 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
     v10 = and v9, 255
     v11 = eq v10, 2
-    v12 = word_cast v11
+    v12 = zext i1 v11 to i256
     ret v12
 }
 
@@ -394,7 +395,7 @@ fn @dirtyEnumStructExternalArg() -> i256 [selector=0x06fd3c7e, view, abi_params=
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
-    v1 = word_cast v0
+    v1 = ptrtoint memorystruct v0 to i256
     mstore v1, 2
     v2 = address
     v3 = gas
@@ -425,7 +426,7 @@ fn @dirtyEnumArrayExternalArg() -> i256 [selector=0xa5e959d5, view, abi_params=[
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
-    v1 = word_cast v0
+    v1 = ptrtoint memoryarray v0 to i256
     v2 = add v1, 32
     mstore v2, 2
     v3 = address
@@ -466,7 +467,7 @@ fn @dirtyEnumPackedArray() -> memorybytes [selector=0x4cd1ded8, pure, abi_params
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_zero v0, 32
-    v1 = word_cast v0
+    v1 = ptrtoint memoryfixedarray v0 to i256
     mstore v1, 2
     v2 = abi_encode_packed (array<word<enum 2>> memoryfixedarray<1, 1> v0)
     ret v2
@@ -481,7 +482,7 @@ fn @dirtyEnumNested() -> memorybytes [selector=0xb5dac01b, pure, abi_params=[], 
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v5 = word_cast v0
+    v5 = ptrtoint memoryfixedarray v0 to i256
     v6 = add v5, 32
     mstore v6, 2
     v7 = abi_encode [array<1, array<1, word<enum 2>>>], object, args v0
@@ -516,7 +517,7 @@ fn @dynamicShort(arg0: i256) -> i256 [selector=0x73932459, view, abi_params=[u25
   bb2:
     v6 = icall returndata_bytes<>
     v7 = abi_decode [bytes], v6
-    v8 = word_cast true
+    v8 = zext i1 1 to i256
     ret v8
 }
 

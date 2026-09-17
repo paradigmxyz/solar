@@ -87,11 +87,11 @@ fn @constructor() [constructor] {
     v67 = shl v61, v66
     v68 = or v65, v67
     sstore v58, v68 !metadata(storage=offset(v57, 2))
-    v69 = trunc i160, 0x1234
+    v69 = trunc i256 0x1234 to i160
     v70 = sload 3 !metadata(storage=slot(3))
     v71 = not 0xffffffffffffffffffffffffffffffffffffffff
     v72 = and v70, v71
-    v73 = word_cast v69
+    v73 = zext i160 v69 to i256
     v74 = and v73, 0xffffffffffffffffffffffffffffffffffffffff
     v75 = or v72, v74
     sstore 3, v75 !metadata(storage=slot(3))
@@ -99,7 +99,7 @@ fn @constructor() [constructor] {
     v77 = sload 3 !metadata(storage=slot(3))
     v78 = not v76
     v79 = and v77, v78
-    v80 = word_cast true
+    v80 = zext i1 1 to i256
     v81 = and v80, 255
     v82 = shl 160, v81
     v83 = or v79, v82

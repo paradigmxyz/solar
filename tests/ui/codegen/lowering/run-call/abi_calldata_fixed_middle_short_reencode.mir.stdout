@@ -16,7 +16,7 @@ fn @g(arg0: calldataslice) -> i256 [selector=0x4a848537, view, abi_params=[array
     v6 = div v4, 32
     v7 = eq v6, v2
     v8 = or v5, v7
-    v9 = word_cast v8
+    v9 = zext i1 v8 to i256
     v10 = eq v9, 0
     icall panic_if<0x41>, v10
     v11 = calldatasize
@@ -28,7 +28,7 @@ fn @g(arg0: calldataslice) -> i256 [selector=0x4a848537, view, abi_params=[array
     v16 = div v14, 32
     v17 = eq v16, v2
     v18 = or v15, v17
-    v19 = word_cast v18
+    v19 = zext i1 v18 to i256
     v20 = eq v19, 0
     icall panic_if<0x41>, v20
     v21 = add 32, v14
@@ -117,7 +117,7 @@ fn @g(arg0: calldataslice) -> i256 [selector=0x4a848537, view, abi_params=[array
     v66 = div v64, 32
     v67 = eq v66, v56
     v68 = or v65, v67
-    v69 = word_cast v68
+    v69 = zext i1 v68 to i256
     v70 = eq v69, 0
     icall panic_if<0x41>, v70
     v71 = add 32, v64

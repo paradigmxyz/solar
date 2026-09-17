@@ -32,7 +32,7 @@ fn @arr(arg0: i256) -> memoryfixedarray [selector=0x71e5ee5f, pure, abi_params=[
 fn @flag(arg0: i256) -> i256 [selector=0xbb760a75, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = ne arg0, 0
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     ret v1
 }
 
@@ -148,9 +148,10 @@ fn @aggregate(arg0: i256) -> memoryfixedarray [selector=0x407b7269, pure, abi_pa
   bb1:
     revert_returndata
   bb2:
-    mcopy v2, v4, 64
-    v10 = abi_decode [array<2, u256>], v1
-    ret v10
+    v10 = ptrtoint memptr v2 to i256
+    mcopy v10, v4, 64
+    v11 = abi_decode [array<2, u256>], v1
+    ret v11
 }
 
 fn @boolean(arg0: i256) -> i256 [selector=0xbc586ed6, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -171,7 +172,7 @@ fn @boolean(arg0: i256) -> i256 [selector=0xbc586ed6, pure, abi_params=[u256], a
     v8 = mload v7
     v9 = eq v8, 0
     v10 = eq v9, false
-    v11 = word_cast v10
+    v11 = zext i1 v10 to i256
     v12 = eq v8, v11
     v13 = eq v12, false
     icall revert_if<empty>, v13
@@ -200,9 +201,10 @@ fn @structBool(arg0: i256) -> memorystruct [selector=0x199436a8, pure, abi_param
   bb1:
     revert_returndata
   bb2:
-    mcopy v2, v4, 64
-    v10 = abi_decode [tuple<bool, u256>], v1
-    ret v10
+    v10 = ptrtoint memptr v2 to i256
+    mcopy v10, v4, 64
+    v11 = abi_decode [tuple<bool, u256>], v1
+    ret v11
 }
 
 fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

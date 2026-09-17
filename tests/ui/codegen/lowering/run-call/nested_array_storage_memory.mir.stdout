@@ -255,7 +255,7 @@ fn @constructor() [constructor] {
     sstore v165, 0 !metadata(storage=symbolic(v165))
     jump bb86
   bb84:
-    v167 = memory_object_from_ptr memoryfixedarray, v162
+    v167 = inttoptr i256 v162 to memoryfixedarray
     v168 = memory_object_load_element memoryfixedarray<2, 1>, v167, v163
     sstore v165, v168 !metadata(storage=symbolic(v165))
     jump bb86
@@ -358,8 +358,8 @@ fn @constructor() [constructor] {
     jump bb27
   bb13:
     v20 = memory_object_load_element memoryarray<1>, v0, v18
-    v21 = memory_object_from_ptr memoryarray, v20
-    v22 = word_cast v21
+    v21 = inttoptr i256 v20 to memoryarray
+    v22 = ptrtoint memoryarray v21 to i256
     v23 = eq v22, 0
     jumpi v23, bb15, bb16
   bb15:
@@ -439,7 +439,7 @@ fn @test1() -> memoryarray [selector=0x6b59084d, view, abi_params=[], abi_return
     v3 = div v1, 1
     v4 = eq v3, v0
     v5 = or v2, v4
-    v6 = word_cast v5
+    v6 = zext i1 v5 to i256
     v7 = eq v6, 0
     icall panic_if<0x41>, v7
     v8 = add v1, 1
@@ -450,7 +450,7 @@ fn @test1() -> memoryarray [selector=0x6b59084d, view, abi_params=[], abi_return
     v12 = div v10, 32
     v13 = eq v12, v8
     v14 = or v11, v13
-    v15 = word_cast v14
+    v15 = zext i1 v14 to i256
     v16 = eq v15, 0
     icall panic_if<0x41>, v16
     v17 = alloc memoryarray<1>, exact, uninitialized, panic, v10
@@ -508,7 +508,7 @@ fn @test3() -> memoryarray [selector=0x0a8e8e01, view, abi_params=[], abi_return
     v3 = div v1, 1
     v4 = eq v3, v0
     v5 = or v2, v4
-    v6 = word_cast v5
+    v6 = zext i1 v5 to i256
     v7 = eq v6, 0
     icall panic_if<0x41>, v7
     v8 = add v1, 1
@@ -519,7 +519,7 @@ fn @test3() -> memoryarray [selector=0x0a8e8e01, view, abi_params=[], abi_return
     v12 = div v10, 32
     v13 = eq v12, v8
     v14 = or v11, v13
-    v15 = word_cast v14
+    v15 = zext i1 v14 to i256
     v16 = eq v15, 0
     icall panic_if<0x41>, v16
     v17 = alloc memoryarray<1>, exact, uninitialized, panic, v10

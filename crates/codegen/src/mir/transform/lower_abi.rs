@@ -1680,7 +1680,13 @@ impl LowerAbiCx {
                 || offset_reason == RevertReason::InvalidTupleOffset)
             && let Some(&helper) = helpers.and_then(|helpers| helpers.get(ty))
         {
-            return builder.icall(helper, vec![head, tuple_base, input_end], ty.mir_type());
+            // word_arguments = ptrtoint pointer_arguments to i256
+            // decoded = icall helper, word_arguments
+            let args = [head, tuple_base, input_end]
+                .into_iter()
+                .map(|value| builder.cast(value, MirType::I256))
+                .collect();
+            return builder.icall(helper, args, ty.mir_type());
         }
         if !constructor
             && matches!(ty, crate::mir::AbiParamType::Bytes)
@@ -2736,7 +2742,7 @@ impl LowerAbiCx {
                 // A bytes memory value is commonly used as a raw pointer in inline assembly
                 // (`add(data, 0x20)`). Do not replace that pointer with a calldata slice. Keep
                 // the older propagation rule for other aggregate operations.
-                InstKind::WordCast(_)
+                InstKind::Zext(_)
                 | InstKind::Add(..)
                 | InstKind::Sub(..)
                 | InstKind::MLoad(_)
@@ -4164,14 +4170,18 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
             }
             (value, None)
         }
-        [data, store, remaining @ ..] => {
+        [data, cast, store, remaining @ ..] => {
             let InstKind::MemoryObjectData(data_object, MemoryObjectKind::Bytes) =
                 func.inst(*data).kind
             else {
                 return None;
             };
+            let InstKind::PtrToInt(data_ptr, 256) = func.inst(*cast).kind else { return None };
             let InstKind::MStore(ptr, value) = func.inst(*store).kind else { return None };
-            if data_object != *object || func.inst_result_value(*data) != Some(ptr) {
+            if data_object != *object
+                || func.inst_result_value(*data) != Some(data_ptr)
+                || func.inst_result_value(*cast) != Some(ptr)
+            {
                 return None;
             }
             let tail = match remaining {

@@ -22,8 +22,8 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = memory_object_load_element memoryarray<1>, v0, 0
-    v12 = memory_object_from_ptr memoryarray, v11
-    v13 = word_cast v12
+    v12 = inttoptr i256 v11 to memoryarray
+    v13 = ptrtoint memoryarray v12 to i256
     v14 = eq v13, 0
     jumpi v14, bb4, bb5
   bb4:
@@ -50,8 +50,8 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v26 = eq v25, false
     icall panic_if<0x32>, v26
     v27 = memory_object_load_element memoryarray<1>, v0, 4
-    v28 = memory_object_from_ptr memoryarray, v27
-    v29 = word_cast v28
+    v28 = inttoptr i256 v27 to memoryarray
+    v29 = ptrtoint memoryarray v28 to i256
     v30 = eq v29, 0
     jumpi v30, bb6, bb7
   bb6:
@@ -78,8 +78,8 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v42 = eq v41, false
     icall panic_if<0x32>, v42
     v43 = memory_object_load_element memoryarray<1>, v0, 10
-    v44 = memory_object_from_ptr memoryarray, v43
-    v45 = word_cast v44
+    v44 = inttoptr i256 v43 to memoryarray
+    v45 = ptrtoint memoryarray v44 to i256
     v46 = eq v45, 0
     jumpi v46, bb8, bb9
   bb8:
@@ -114,8 +114,8 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v62 = eq v61, false
     icall panic_if<0x32>, v62
     v63 = memory_object_load_element memoryarray<1>, v52, 0
-    v64 = memory_object_from_ptr memoryarray, v63
-    v65 = word_cast v64
+    v64 = inttoptr i256 v63 to memoryarray
+    v65 = ptrtoint memoryarray v64 to i256
     v66 = eq v65, 0
     jumpi v66, bb13, bb14
   bb13:
@@ -142,8 +142,8 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v78 = eq v77, false
     icall panic_if<0x32>, v78
     v79 = memory_object_load_element memoryarray<1>, v52, 4
-    v80 = memory_object_from_ptr memoryarray, v79
-    v81 = word_cast v80
+    v80 = inttoptr i256 v79 to memoryarray
+    v81 = ptrtoint memoryarray v80 to i256
     v82 = eq v81, 0
     jumpi v82, bb15, bb16
   bb15:
@@ -170,8 +170,8 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v94 = eq v93, false
     icall panic_if<0x32>, v94
     v95 = memory_object_load_element memoryarray<1>, v52, 10
-    v96 = memory_object_from_ptr memoryarray, v95
-    v97 = word_cast v96
+    v96 = inttoptr i256 v95 to memoryarray
+    v97 = ptrtoint memoryarray v96 to i256
     v98 = eq v97, 0
     jumpi v98, bb17, bb18
   bb17:
@@ -191,8 +191,8 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v106 = eq v105, false
     icall panic_if<0x32>, v106
     v107 = memory_object_load_element memoryarray<1>, v0, 0
-    v108 = memory_object_from_ptr memoryarray, v107
-    v109 = word_cast v108
+    v108 = inttoptr i256 v107 to memoryarray
+    v109 = ptrtoint memoryarray v108 to i256
     v110 = eq v109, 0
     jumpi v110, bb19, bb20
   bb19:
@@ -212,8 +212,8 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v119 = eq v118, false
     icall panic_if<0x32>, v119
     v120 = memory_object_load_element memoryarray<1>, v52, 0
-    v121 = memory_object_from_ptr memoryarray, v120
-    v122 = word_cast v121
+    v121 = inttoptr i256 v120 to memoryarray
+    v122 = ptrtoint memoryarray v121 to i256
     v123 = eq v122, 0
     jumpi v123, bb21, bb22
   bb21:
@@ -238,8 +238,8 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v133 = eq v132, false
     icall panic_if<0x32>, v133
     v134 = memory_object_load_element memoryarray<1>, v0, 4
-    v135 = memory_object_from_ptr memoryarray, v134
-    v136 = word_cast v135
+    v135 = inttoptr i256 v134 to memoryarray
+    v136 = ptrtoint memoryarray v135 to i256
     v137 = eq v136, 0
     jumpi v137, bb26, bb27
   bb26:
@@ -259,8 +259,8 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v146 = eq v145, false
     icall panic_if<0x32>, v146
     v147 = memory_object_load_element memoryarray<1>, v52, 4
-    v148 = memory_object_from_ptr memoryarray, v147
-    v149 = word_cast v148
+    v148 = inttoptr i256 v147 to memoryarray
+    v149 = ptrtoint memoryarray v148 to i256
     v150 = eq v149, 0
     jumpi v150, bb28, bb29
   bb28:
@@ -288,8 +288,8 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v161 = eq v160, false
     icall panic_if<0x32>, v161
     v162 = memory_object_load_element memoryarray<1>, v0, 10
-    v163 = memory_object_from_ptr memoryarray, v162
-    v164 = word_cast v163
+    v163 = inttoptr i256 v162 to memoryarray
+    v164 = ptrtoint memoryarray v163 to i256
     v165 = eq v164, 0
     jumpi v165, bb33, bb34
   bb33:
@@ -317,8 +317,8 @@ fn @allocate() -> i256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v176 = eq v175, false
     icall panic_if<0x32>, v176
     v177 = memory_object_load_element memoryarray<1>, v52, 10
-    v178 = memory_object_from_ptr memoryarray, v177
-    v179 = word_cast v178
+    v178 = inttoptr i256 v177 to memoryarray
+    v179 = ptrtoint memoryarray v178 to i256
     v180 = eq v179, 0
     jumpi v180, bb38, bb39
   bb38:

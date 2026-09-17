@@ -2,7 +2,7 @@
 @module C
 fn @parseSel(arg0: memorybytes) -> i256 [pure] {
   bb0:
-    v0 = word_cast arg0
+    v0 = ptrtoint memorybytes arg0 to i256
     v1 = add v0, 32
     v2 = mload v1
     ret v2
@@ -10,7 +10,7 @@ fn @parseSel(arg0: memorybytes) -> i256 [pure] {
 
 fn @selectorCompare() -> i256 [selector=0x3c3fb316, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = trunc i160, 0xbeef
+    v0 = trunc i256 0xbeef to i160
     v1 = abi_encode [word, word<u160>], object, selector 0xdc98354e00000000000000000000000000000000000000000000000000000000, args 7, v0
     v2 = and 0xdc98354e00000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v3 = abi_encode [word<bytes4>], object, args v2
@@ -62,7 +62,7 @@ fn @firstShiftedByte(arg0: i256) -> i256 [pure] {
 
 fn @rawScratchReuse() -> i256 [selector=0xbc90d10b, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = word_cast i160 0xa9036907dccae6a1e0033479b12e837e5cf5a02f
+    v0 = zext i160 0xa9036907dccae6a1e0033479b12e837e5cf5a02f to i256
     v1 = icall @firstShiftedByte, v0
     v2 = eq v1, 169
     icall require<short_string>, v2, 9, 0x7261772073686966740000000000000000000000000000000000000000000000
@@ -89,14 +89,14 @@ fn @memoryStoreCleanup() -> i256 [selector=0xa32f54c2, pure, abi_params=[], abi_
     v3 = lt 0, v2
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    v5 = trunc i160, v0
+    v5 = trunc i256 v0 to i160
     memory_object_store_element memoryarray<1>, v1, 0, v5
     v6 = shl 160, 1
     v7 = sub v6, 1
-    v8 = word_cast v1
+    v8 = ptrtoint memoryarray v1 to i256
     v9 = add v8, 32
     v10 = mload v9
     v11 = eq v10, v7
-    v12 = word_cast v11
+    v12 = zext i1 v11 to i256
     ret v12
 }

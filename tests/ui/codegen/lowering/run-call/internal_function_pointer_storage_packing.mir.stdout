@@ -117,7 +117,7 @@ fn @arrayMatches() [selector=0xa9b873e8, view, abi_params=[], abi_returns=[word<
     v2 = sload 1 !metadata(storage=slot(1))
     v3 = and v2, 0xffffffffffffffff
     v4 = eq v1, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     mstore 0, v5 !metadata(memory=scratch)
     returndata 0, 32
 }

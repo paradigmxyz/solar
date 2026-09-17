@@ -227,22 +227,23 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
   bb1:
     revert_returndata
   bb2:
-    mcopy v1, v3, 96
-    v9 = abi_decode [storageptr, array<2, u256>], v0
-    v10 = extract_value struct1, v9, 0
-    v11 = extract_value struct1, v9, 1
-    v12 = insert_value struct1, undef struct1, 0, v10
-    v13 = insert_value struct1, v12, 1, v11
-    v14 = extract_value struct1, v13, 0
-    v15 = extract_value struct1, v13, 1
-    v16 = sload v14 !metadata(storage=symbolic(v14))
-    v17 = lt 1, 2
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = memory_object_load_element memoryfixedarray<2, 1>, v15, 1
-    v20 = insert_value struct0, undef struct0, 0, v16
-    v21 = insert_value struct0, v20, 1, v19
-    ret v21
+    v9 = ptrtoint memptr v1 to i256
+    mcopy v9, v3, 96
+    v10 = abi_decode [storageptr, array<2, u256>], v0
+    v11 = extract_value struct1, v10, 0
+    v12 = extract_value struct1, v10, 1
+    v13 = insert_value struct1, undef struct1, 0, v11
+    v14 = insert_value struct1, v13, 1, v12
+    v15 = extract_value struct1, v14, 0
+    v16 = extract_value struct1, v14, 1
+    v17 = sload v15 !metadata(storage=symbolic(v15))
+    v18 = lt 1, 2
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = memory_object_load_element memoryfixedarray<2, 1>, v16, 1
+    v21 = insert_value struct0, undef struct0, 0, v17
+    v22 = insert_value struct0, v21, 1, v20
+    ret v22
 }
 
 fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

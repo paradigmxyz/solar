@@ -33,7 +33,7 @@
   fn @fork_availability(arg0: i256) -> i256 {
     bb0:
       v0 = lt arg0, 0x10000000000000000000000000000000000000000
-      v1 = word_cast v0
+      v1 = zext i1 v0 to i256
       ret v1
   }
   

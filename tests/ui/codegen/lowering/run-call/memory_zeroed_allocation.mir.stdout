@@ -7,7 +7,7 @@ fn @readDynamic(arg0: i256, arg1: i256) -> i256 [selector=0x8be2a62b, pure, abi_
     v2 = div v0, 1
     v3 = eq v2, arg0
     v4 = or v1, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     v6 = eq v5, 0
     icall panic_if<0x41>, v6
     v7 = add v0, 1
@@ -18,7 +18,7 @@ fn @readDynamic(arg0: i256, arg1: i256) -> i256 [selector=0x8be2a62b, pure, abi_
     v11 = div v9, 32
     v12 = eq v11, v7
     v13 = or v10, v12
-    v14 = word_cast v13
+    v14 = zext i1 v13 to i256
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
@@ -38,7 +38,7 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v2 = div v0, 1
     v3 = eq v2, arg0
     v4 = or v1, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     v6 = eq v5, 0
     icall panic_if<0x41>, v6
     v7 = add v0, 1
@@ -49,7 +49,7 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v11 = div v9, 32
     v12 = eq v11, v7
     v13 = or v10, v12
-    v14 = word_cast v13
+    v14 = zext i1 v13 to i256
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
@@ -79,8 +79,8 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v51 = eq v50, false
     icall panic_if<0x32>, v51
     v52 = memory_object_load_element memoryarray<1>, v22, v24
-    v53 = memory_object_from_ptr memoryarray, v52
-    v54 = word_cast v53
+    v53 = inttoptr i256 v52 to memoryarray
+    v54 = ptrtoint memoryarray v53 to i256
     v55 = eq v54, 0
     jumpi v55, bb10, bb11
   bb10:
@@ -102,7 +102,7 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v30 = div v28, 1
     v31 = eq v30, v20
     v32 = or v29, v31
-    v33 = word_cast v32
+    v33 = zext i1 v32 to i256
     v34 = eq v33, 0
     icall panic_if<0x41>, v34
     v35 = add v28, 1
@@ -113,7 +113,7 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v39 = div v37, 32
     v40 = eq v39, v35
     v41 = or v38, v40
-    v42 = word_cast v41
+    v42 = zext i1 v41 to i256
     v43 = eq v42, 0
     icall panic_if<0x41>, v43
     v44 = alloc memoryarray<1>, exact, zeroed, panic, v37
@@ -153,7 +153,7 @@ fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_p
     v2 = div v0, 1
     v3 = eq v2, arg0
     v4 = or v1, v3
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     v6 = eq v5, 0
     icall panic_if<0x41>, v6
     v7 = add v0, 1
@@ -164,7 +164,7 @@ fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_p
     v11 = div v9, 32
     v12 = eq v11, v7
     v13 = or v10, v12
-    v14 = word_cast v13
+    v14 = zext i1 v13 to i256
     v15 = eq v14, 0
     icall panic_if<0x41>, v15
     v16 = alloc memoryarray<1>, exact, zeroed, panic, v9
@@ -180,8 +180,8 @@ fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_p
     v23 = eq v22, false
     icall panic_if<0x32>, v23
     v24 = memory_object_load_element memoryarray<1>, v16, arg1
-    v25 = memory_object_from_ptr memoryfixedarray, v24
-    v26 = word_cast v25
+    v25 = inttoptr i256 v24 to memoryfixedarray
+    v26 = ptrtoint memoryfixedarray v25 to i256
     v27 = eq v26, 0
     jumpi v27, bb4, bb5
   bb4:

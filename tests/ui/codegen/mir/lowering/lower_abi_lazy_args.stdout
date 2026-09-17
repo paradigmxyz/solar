@@ -17,7 +17,7 @@
 +   bb1:
 +     v4 = eq arg0, false
 +     v5 = eq v4, false
-+     v6 = word_cast v5
++     v6 = zext i1 v5 to i256
 +     mstore 128, v6
 +     v7 = add 128, 32
 +     v8 = sub v7, 128

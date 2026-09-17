@@ -27,12 +27,12 @@ fn @constructor() [constructor] {
 @module EmptyCodeCalls
 fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = trunc i160, 0
+    v0 = trunc i256 0 to i160
     v1 = gas
     v2 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = word_cast v0
+    v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
@@ -46,8 +46,8 @@ fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[], abi_return_par
 
 fn @pointer() [selector=0x2f5f3b3c, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = trunc i160, 0
-    v1 = word_cast v0
+    v0 = trunc i256 0 to i160
+    v1 = zext i160 v0 to i256
     v2 = shl 32, v1
     v3 = or v2, 0x5dfc2e4a
     v4 = and v3, 0xffffffff
@@ -87,12 +87,12 @@ fn @libraryCall() [selector=0x239b86e9, abi_params=[], abi_returns=[], abi_retur
 
 fn @tryDirect() [selector=0x45eca8af, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = trunc i160, 0
+    v0 = trunc i256 0 to i160
     v1 = gas
     v2 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = word_cast v0
+    v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
@@ -113,8 +113,8 @@ fn @tryDirect() [selector=0x45eca8af, abi_params=[], abi_returns=[], abi_return_
 
 fn @tryPointer() [selector=0xce20ef7a, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = trunc i160, 0
-    v1 = word_cast v0
+    v0 = trunc i256 0 to i160
+    v1 = zext i160 v0 to i256
     v2 = shl 32, v1
     v3 = or v2, 0x5dfc2e4a
     v4 = and v3, 0xffffffff
@@ -144,12 +144,12 @@ fn @tryPointer() [selector=0xce20ef7a, abi_params=[], abi_returns=[], abi_return
 
 fn @tryStatic() [selector=0x54f223e3, view, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = trunc i160, 0
+    v0 = trunc i256 0 to i160
     v1 = gas
     v2 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = word_cast v0
+    v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
@@ -175,7 +175,7 @@ fn @trySelf() -> i256 [selector=0xf948cf5e, abi_params=[], abi_returns=[word<boo
     v2 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = word_cast v0
+    v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
@@ -187,10 +187,10 @@ fn @trySelf() -> i256 [selector=0xf948cf5e, abi_params=[], abi_returns=[word<boo
     icall revert_if<empty>, true
     invalid
   bb4:
-    v10 = word_cast false
+    v10 = zext i1 0 to i256
     ret v10
   bb1:
-    v9 = word_cast true
+    v9 = zext i1 1 to i256
     ret v9
   bb3:
     ret 0
@@ -198,13 +198,13 @@ fn @trySelf() -> i256 [selector=0xf948cf5e, abi_params=[], abi_returns=[word<boo
 
 fn @lowLevel() -> i256 [selector=0x5e4fa723, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = trunc i160, 0
+    v0 = trunc i256 0 to i160
     v1 = gas
     v2 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, 0
     v3 = memory_object_data memorybytes, v2
     v4 = address_call v0, v2, gas v1
-    v5 = word_cast v4
+    v5 = zext i1 v4 to i256
     ret v5
 }
 
@@ -215,7 +215,7 @@ fn @selfCall() -> i256 [selector=0x8dae0159, abi_params=[], abi_returns=[word<bo
     v2 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = word_cast v0
+    v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
@@ -224,7 +224,7 @@ fn @selfCall() -> i256 [selector=0x8dae0159, abi_params=[], abi_returns=[word<bo
   bb1:
     revert_returndata
   bb2:
-    v9 = word_cast true
+    v9 = zext i1 1 to i256
     ret v9
 }
 
@@ -236,22 +236,24 @@ fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_param
 // === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTryFactory ===
 @module EmptyCodeTryFactory
 data:
-  EmptyCodeTryConstructor_initcode_0: hex"6101206040523415156087575a8060e0528060e05260405180610100528061010052602081016040527f5dfc2e4a0000000000000000000000000000000000000000000000000000000081526004810150303b156083578160e05280610100525f5f6004835f3087f1915050607e576001607a576001608357fe5b607f565b5b608b565b5f5ffd5b5f5ffd5b60218060955f395ff3341515601c575f3560e01c80635dfc2e4a14601857601c565b6020565b5f5ffd5b"
+  EmptyCodeTryConstructor_initcode_0: hex"61016060405234151560b2575a8060e0528060e052604051806101205280610120528061014052602090016040526101405180610140527f5dfc2e4a00000000000000000000000000000000000000000000000000000000815250610140518061014052600490015061014051806101405280610100528061010052303b1560ae578160e05280610100525f5f6004835f3087f191505060a957600160a557600160ae57fe5b60aa565b5b60b6565b5f5ffd5b5f5ffd5b60218060c05f395ff3341515601c575f3560e01c80635dfc2e4a14601857601c565b6020565b5f5ffd5b"
 
 fn @deploy() [selector=0x775c300c, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 213, v1
+    v2 = and 256, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy EmptyCodeTryConstructor_initcode_0, v3, 182
+    data_copy EmptyCodeTryConstructor_initcode_0, v3, 225
     v4 = slice_ptr v0
-    v5 = add v3, 182
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 182
-    v7 = word_cast v6
-    v8 = ne v7, 0
-    jumpi v8, bb2, bb1
+    v5 = ptrtoint memptr v3 to i256
+    v6 = add v5, 225
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = ptrtoint memptr v3 to i256
+    v8 = create 0, v7, 225
+    v9 = zext i160 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -267,7 +269,7 @@ fn @constructor() [constructor] {
     v2 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = word_cast v0
+    v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7

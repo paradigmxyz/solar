@@ -15,8 +15,8 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = memory_object_load_element memoryarray<1>, v0, 0
-    v9 = memory_object_from_ptr memorystruct, v8
-    v10 = word_cast v9
+    v9 = inttoptr i256 v8 to memorystruct
+    v10 = ptrtoint memorystruct v9 to i256
     v11 = eq v10, 0
     jumpi v11, bb4, bb5
   bb4:
@@ -32,8 +32,8 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = memory_object_load_element memoryarray<1>, v0, 1
-    v18 = memory_object_from_ptr memorystruct, v17
-    v19 = word_cast v18
+    v18 = inttoptr i256 v17 to memorystruct
+    v19 = ptrtoint memorystruct v18 to i256
     v20 = eq v19, 0
     jumpi v20, bb6, bb7
   bb6:
@@ -49,8 +49,8 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = memory_object_load_element memoryarray<1>, v0, 0
-    v27 = memory_object_from_ptr memorystruct, v26
-    v28 = word_cast v27
+    v27 = inttoptr i256 v26 to memorystruct
+    v28 = ptrtoint memorystruct v27 to i256
     v29 = eq v28, 0
     jumpi v29, bb8, bb9
   bb8:
@@ -67,8 +67,8 @@ fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     v36 = eq v35, false
     icall panic_if<0x32>, v36
     v37 = memory_object_load_element memoryarray<1>, v0, 1
-    v38 = memory_object_from_ptr memorystruct, v37
-    v39 = word_cast v38
+    v38 = inttoptr i256 v37 to memorystruct
+    v39 = ptrtoint memorystruct v38 to i256
     v40 = eq v39, 0
     jumpi v40, bb10, bb11
   bb10:
@@ -99,14 +99,14 @@ fn @sharedBytesDefault() -> i256 [selector=0x8e773052, pure, abi_params=[], abi_
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb3:
-    v4 = word_cast v0
+    v4 = ptrtoint memoryarray v0 to i256
     v5 = add v4, 64
     v6 = mload v5
-    v7 = word_cast v0
+    v7 = ptrtoint memoryarray v0 to i256
     v8 = add v7, 32
     v9 = mload v8
     v10 = eq v9, v6
-    v11 = word_cast v10
+    v11 = zext i1 v10 to i256
     ret v11
   bb2:
     memory_object_store_element memoryarray<1>, v0, v1, memorybytes 96

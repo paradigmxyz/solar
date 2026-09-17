@@ -2,7 +2,7 @@
 @module AbiEncodePackedMixed
 fn @fixedBytesArg(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x795867e4, pure, abi_params=[u256, address, bytes2], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = trunc i160, arg1
+    v0 = trunc i256 arg1 to i160
     v1 = and arg2, 0xffff000000000000000000000000000000000000000000000000000000000000
     v2 = keccak256_packed (u256 arg0, u160 v0, bytes2 v1)
     ret v2

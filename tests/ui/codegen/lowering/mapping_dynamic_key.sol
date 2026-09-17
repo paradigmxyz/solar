@@ -32,12 +32,12 @@ contract MappingDynamicKeyPaths {
 
     // CHECK-LABEL: fn @nestedFirst{{[( ]}}
     // CHECK: [[OUTER:v[0-9]+]] = mapping_slot_calldata arg0, 1
-    // CHECK: [[KEY:v[0-9]+]] = trunc i160, arg1
+    // CHECK: [[KEY:v[0-9]+]] = trunc i256 arg1 to i160
     // CHECK: [[INNER:v[0-9]+]] = mapping_slot [[KEY]], [[OUTER]]
     mapping(string => mapping(address => uint256)) public nestedFirst;
 
     // CHECK-LABEL: fn @nestedSecond{{[( ]}}
-    // CHECK: [[KEY:v[0-9]+]] = trunc i160, arg0
+    // CHECK: [[KEY:v[0-9]+]] = trunc i256 arg0 to i160
     // CHECK: [[OUTER:v[0-9]+]] = mapping_slot [[KEY]], 2
     // CHECK: [[INNER:v[0-9]+]] = mapping_slot_calldata arg1, [[OUTER]]
     mapping(address => mapping(string => uint256)) public nestedSecond;
@@ -50,7 +50,8 @@ contract MappingDynamicKeyPaths {
     // Literal keys hash exactly the literal's bytes, hitting the same slot
     // as the equivalent runtime key.
     // CHECK-LABEL: fn @setLit{{[( ]}}
-    // CHECK: [[LITERAL_DATA:v[0-9]+]] = memory_object_data memorybytes, {{v[0-9]+}}
+    // CHECK: [[LITERAL_DATA_PTR:v[0-9]+]] = memory_object_data memorybytes, {{v[0-9]+}}
+    // CHECK: [[LITERAL_DATA:v[0-9]+]] = ptrtoint memptr [[LITERAL_DATA_PTR]] to i256
     // CHECK: mstore [[LITERAL_DATA]], 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_memory {{v[0-9]+}}, 0
     // CHECK: sstore [[SLOT]], arg0
@@ -68,7 +69,7 @@ contract MappingDynamicKeyPaths {
     // Nested mappings dispatch on the key type at every level.
     // CHECK-LABEL: fn @setNestedFirst{{[( ]}}
     // CHECK: [[OUTER:v[0-9]+]] = mapping_slot_memory arg0, 1
-    // CHECK: [[KEY:v[0-9]+]] = trunc i160, arg1
+    // CHECK: [[KEY:v[0-9]+]] = trunc i256 arg1 to i160
     // CHECK: [[INNER:v[0-9]+]] = mapping_slot [[KEY]], [[OUTER]]
     // CHECK: sstore [[INNER]], arg2
     function setNestedFirst(string memory k, address a, uint256 v) public {
@@ -77,7 +78,7 @@ contract MappingDynamicKeyPaths {
 
     // CHECK-LABEL: fn @getNestedFirst{{[( ]}}
     // CHECK: [[OUTER:v[0-9]+]] = mapping_slot_memory arg0, 1
-    // CHECK: [[KEY:v[0-9]+]] = trunc i160, arg1
+    // CHECK: [[KEY:v[0-9]+]] = trunc i256 arg1 to i160
     // CHECK: [[INNER:v[0-9]+]] = mapping_slot [[KEY]], [[OUTER]]
     // CHECK: sload [[INNER]]
     function getNestedFirst(string memory k, address a) public view returns (uint256) {
@@ -85,7 +86,7 @@ contract MappingDynamicKeyPaths {
     }
 
     // CHECK-LABEL: fn @setNestedSecond{{[( ]}}
-    // CHECK: [[KEY:v[0-9]+]] = trunc i160, arg0
+    // CHECK: [[KEY:v[0-9]+]] = trunc i256 arg0 to i160
     // CHECK: [[OUTER:v[0-9]+]] = mapping_slot [[KEY]], 2
     // CHECK: [[INNER:v[0-9]+]] = mapping_slot_memory arg1, [[OUTER]]
     // CHECK: sstore [[INNER]], arg2

@@ -18,22 +18,24 @@ fn @constructor() [constructor] {
     v3 = alloc raw, exact, uninitialized, infallible, v2
     data_copy TryExternalCallEvaluationOrderTarget_initcode_0, v3, 72
     v4 = slice_ptr v0
-    v5 = add v3, 72
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 72
-    v7 = word_cast v6
-    v8 = ne v7, 0
-    jumpi v8, bb2, bb1
+    v5 = ptrtoint memptr v3 to i256
+    v6 = add v5, 72
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = ptrtoint memptr v3 to i256
+    v8 = create 0, v7, 72
+    v9 = zext i160 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = sload 1 !metadata(storage=slot(1))
-    v10 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = and v9, v10
-    v12 = word_cast v6
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = or v11, v13
-    sstore 1, v14 !metadata(storage=slot(1))
+    v11 = sload 1 !metadata(storage=slot(1))
+    v12 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v13 = and v11, v12
+    v14 = zext i160 v8 to i256
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = or v13, v15
+    sstore 1, v16 !metadata(storage=slot(1))
     ret
 }
 

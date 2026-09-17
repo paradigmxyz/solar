@@ -49,7 +49,7 @@ fn @isUint8Max(arg0: i256) -> i256 [selector=0x9244ef1d, pure, abi_params=[i8], 
     v0 = signextend 0, arg0
     v1 = and v0, 255
     v2 = eq v1, 255
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     ret v3
 }
 

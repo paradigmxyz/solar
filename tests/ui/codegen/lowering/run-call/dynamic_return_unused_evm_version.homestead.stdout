@@ -20,7 +20,8 @@ fn @dynString() -> memorybytes [selector=0x2f4e7409, pure, abi_params=[], abi_re
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 5
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -29,10 +30,11 @@ fn @mixed() -> struct0 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[w
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 3
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x6162630000000000000000000000000000000000000000000000000000000000
-    v2 = insert_value struct0, undef struct0, 0, 11
-    v3 = insert_value struct0, v2, 1, v0
-    ret v3
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v3 = insert_value struct0, undef struct0, 0, 11
+    v4 = insert_value struct0, v3, 1, v0
+    ret v4
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_unused_evm_version.sol:DynamicReturnUnused ===
@@ -41,46 +43,49 @@ types:
   struct0: {i256, i256}
 
 data:
-  DynamicCallee_initcode_0: hex"346010576105ec8060166000396000f35b60006000fe3415156058576000357c0100000000000000000000000000000000000000000000000000000000900480632f4e7409146053578063354df1f914604e5780637271bb2c14604a576058565b605d565b61030d565b6102d9565b600080fe5b6102006040526040518060c0526060810160405260228152602081016040816105ac9039506040518060e0528060e05260208101818060e05281038252828060c05251838060c05260008114905015810280608052905080608052601f19601f8201166020830180610160528061016052818401600081525082806080528452925060208501806101a0529450846101a0528201806101c052806101c05281806080521591949193949315610117579050905090506102aa565b82806101605282106101dd57601f1984168060a0528060a05260005b8061010052818060a05281106101bd5785806080528210905061015c57509050905090506102aa565b601f8516945084602003945084600360020a0294508060a0528201915081519150818460020a90049150818460020a02915060a0518060a05283019250825160018560020a02945060018503945084901693508382179150925090526102aa565b806101005283015161010051806101005285015260206101005101610133565b601f198416806101205280610120528480608052811061020557935092909290919291610268565b601f8516945084602003945084600360020a02945080610120528201518460020a90048460020a0261012051806101205284018060c0525160018660020a029550600186039550859016945084901793508360c051529250610120519092909192915b80610180528061018052156101805190156102875750905090506102aa565b602081039050806101405282015161014051806101405284015261014051610268565b818060e052810391505060009001601f8101601f19811690506040518060c05281810191508160405290508181f35b6020608052600560a0527f68656c6c6f00000000000000000000000000000000000000000000000000000060c05260606080f35b6102006040526040518060c0526040810160405260038152602081017f61626300000000000000000000000000000000000000000000000000000000008152506040518060e0528060e05260408101600b825260208201828060e05282039052828060c05251838060c05260008114905015810280608052905080608052601f19601f8201166020830180610160528061016052818401600081525082806080528452925060208501806101a0529450846101a0528201806101c052806101c052818060805215919491939493156103ea5790509050905061057d565b82806101605282106104b057601f1984168060a0528060a05260005b8061010052818060a05281106104905785806080528210905061042f575090509050905061057d565b601f8516945084602003945084600360020a0294508060a0528201915081519150818460020a90049150818460020a02915060a0518060a05283019250825160018560020a029450600185039450849016935083821791509250905261057d565b806101005283015161010051806101005285015260206101005101610406565b601f19841680610120528061012052848060805281106104d85793509290929091929161053b565b601f8516945084602003945084600360020a02945080610120528201518460020a90048460020a0261012051806101205284018060c0525160018660020a029550600186039550859016945084901793508360c051529250610120519092909192915b806101805280610180521561018051901561055a57509050905061057d565b60208103905080610140528201516101405180610140528401526101405161053b565b818060e052810391505060009001601f8101601f19811690506040518060c05281810191508160405290508181f330313233343536373839616263646566303132333435363738396162636465663031000000000000000000000000000000000000000000000000000000000000"
+  DynamicCallee_initcode_0: hex"346010576106838060166000396000f35b60006000fe3415156058576000357c0100000000000000000000000000000000000000000000000000000000900480632f4e7409146053578063354df1f914604e5780637271bb2c14604a576058565b605d565b610354565b610320565b600080fe5b6102406040526040518061010052806101005280608052606090016040526080518060805260228152506080518060805260209001604081610643903950604051806102005280610200528060a0528060a0528060a0526020900160a0518060a052810360a0518060a052526080518060805251608051806080526000811490501581028060c05290508060c052601f19601f82011660208301806101805280610180528184016000815250828060c052845292506080518060805260209001818401806101c0529150816101c052806101e052806101e052828060c0521560a05190909190919291929492156101585750905090506102e4565b828061018052811061021657601f1984168060e0528060e05260005b8061012052818060e05281106101f657858060c0528210905061019c575050905090506102e4565b601f8516945084602003945084600360020a0294508060e05281019050518360020a90048360020a0260e0518060e05283019250825160018560020a029450600185039450849016935083901792508282529150506102e4565b806101205282015161012051806101205285015260206101205101610174565b601f19841680610140528061014052848060c052811061023e579350929092909192916102a3565b601f8516945084602003945084600360020a02945080610140528101518460020a90048460020a02610140518061014052840180610100525160018660020a029550600186039550859016945084901793508361010051529250610140519092909192915b806101a052806101a052156101a05190156102c157505090506102e4565b6020810390508061016052810151610160518061016052840152610160516102a3565b818060a052915081810391505060009001601f8101601f1981169050604051806101005280610100528060805201604052608051806080528181f35b6020608052600560a0527f68656c6c6f00000000000000000000000000000000000000000000000000000060c05260606080f35b61024060405260405180610100528061010052806080526040900160405260805180608052600381525060805180608052602090017f6162630000000000000000000000000000000000000000000000000000000000815250604051806102005280610200528060a0528060a0528060a0526040900160a0518060a052600b81525060a0518060a0526020900160a0518060a052820390526080518060805251608051806080526000811490501581028060c05290508060c052601f19601f82011660208301806101805280610180528184016000815250828060c052845292506080518060805260209001818401806101c0529150816101c052806101e052806101e052828060c0521560a051909091909192919294921561047b575090509050610607565b828061018052811061053957601f1984168060e0528060e05260005b8061012052818060e052811061051957858060c052821090506104bf57505090509050610607565b601f8516945084602003945084600360020a0294508060e05281019050518360020a90048360020a0260e0518060e05283019250825160018560020a02945060018503945084901693508390179250828252915050610607565b806101205282015161012051806101205285015260206101205101610497565b601f19841680610140528061014052848060c0528110610561579350929092909192916105c6565b601f8516945084602003945084600360020a02945080610140528101518460020a90048460020a02610140518061014052840180610100525160018660020a029550600186039550859016945084901793508361010051529250610140519092909192915b806101a052806101a052156101a05190156105e45750509050610607565b6020810390508061016052810151610160518061016052840152610160516105c6565b818060a052915081810391505060009001601f8101601f1981169050604051806101005280610100528060805201604052608051806080528181f330313233343536373839616263646566303132333435363738396162636465663031000000000000000000000000000000000000000000000000000000000000"
 
 fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 0x621, v1
+    v2 = and 0x6b8, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy DynamicCallee_initcode_0, v3, 0x602
+    data_copy DynamicCallee_initcode_0, v3, 0x699
     v4 = slice_ptr v0
-    v5 = add v3, 0x602
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 0x602
-    v7 = word_cast v6
-    v8 = ne v7, 0
-    jumpi v8, bb2, bb1
+    v5 = ptrtoint memptr v3 to i256
+    v6 = add v5, 0x699
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = ptrtoint memptr v3 to i256
+    v8 = create 0, v7, 0x699
+    v9 = zext i160 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = fmp
-    v10 = add v9, 32
-    mstore v10, 0
-    v11 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v12 = slice_ptr v11
-    v13 = slice_len v11
-    v14 = word_cast v6
-    v15 = extcodesize v14
-    v16 = eq v15, 0
-    icall revert_if<target_contract_has_no_code>, v16
-    v17 = gas
-    v18 = sub v17, 50
-    v19 = call v18, v6, 0, v12, v13, v12, 32
-    jumpi v19, bb4, bb3
+    v11 = fmp
+    v12 = ptrtoint memptr v11 to i256
+    v13 = add v12, 32
+    mstore v13, 0
+    v14 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = zext i160 v8 to i256
+    v18 = extcodesize v17
+    v19 = eq v18, 0
+    icall revert_if<target_contract_has_no_code>, v19
+    v20 = gas
+    v21 = sub v20, 50
+    v22 = call v21, v8, 0, v15, v16, v15, 32
+    jumpi v22, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v20 = add v12, 0
-    v21 = mload v20
-    v22 = add v12, 0
-    v23 = mload v22
+    v23 = add v15, 0
+    v24 = mload v23
+    v25 = add v15, 0
+    v26 = mload v25
     ret 1
 }
 
@@ -88,40 +93,43 @@ fn @liveString() -> i256 [selector=0x86c92c52, abi_params=[], abi_returns=[word]
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 0x621, v1
+    v2 = and 0x6b8, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy DynamicCallee_initcode_0, v3, 0x602
+    data_copy DynamicCallee_initcode_0, v3, 0x699
     v4 = slice_ptr v0
-    v5 = add v3, 0x602
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 0x602
-    v7 = word_cast v6
-    v8 = ne v7, 0
-    jumpi v8, bb2, bb1
+    v5 = ptrtoint memptr v3 to i256
+    v6 = add v5, 0x699
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = ptrtoint memptr v3 to i256
+    v8 = create 0, v7, 0x699
+    v9 = zext i160 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = fmp
-    v10 = add v9, 32
-    mstore v10, 0
-    v11 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
-    v12 = slice_ptr v11
-    v13 = slice_len v11
-    v14 = word_cast v6
-    v15 = extcodesize v14
-    v16 = eq v15, 0
-    icall revert_if<target_contract_has_no_code>, v16
-    v17 = gas
-    v18 = sub v17, 50
-    v19 = call v18, v6, 0, v12, v13, v12, 32
-    jumpi v19, bb4, bb3
+    v11 = fmp
+    v12 = ptrtoint memptr v11 to i256
+    v13 = add v12, 32
+    mstore v13, 0
+    v14 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = zext i160 v8 to i256
+    v18 = extcodesize v17
+    v19 = eq v18, 0
+    icall revert_if<target_contract_has_no_code>, v19
+    v20 = gas
+    v21 = sub v20, 50
+    v22 = call v21, v8, 0, v15, v16, v15, 32
+    jumpi v22, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v20 = add v12, 0
-    v21 = mload v20
-    v22 = add v12, 0
-    v23 = mload v22
+    v23 = add v15, 0
+    v24 = mload v23
+    v25 = add v15, 0
+    v26 = mload v25
     ret 1
 }
 
@@ -129,33 +137,36 @@ fn @liveTry() -> i256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word], a
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 0x621, v1
+    v2 = and 0x6b8, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy DynamicCallee_initcode_0, v3, 0x602
+    data_copy DynamicCallee_initcode_0, v3, 0x699
     v4 = slice_ptr v0
-    v5 = add v3, 0x602
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 0x602
-    v7 = word_cast v6
-    v8 = ne v7, 0
-    jumpi v8, bb2, bb1
+    v5 = ptrtoint memptr v3 to i256
+    v6 = add v5, 0x699
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = ptrtoint memptr v3 to i256
+    v8 = create 0, v7, 0x699
+    v9 = zext i160 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = fmp
-    v10 = add v9, 32
-    mstore v10, 0
-    v11 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v12 = slice_ptr v11
-    v13 = slice_len v11
-    v14 = word_cast v6
-    v15 = extcodesize v14
-    v16 = eq v15, 0
-    icall revert_if<target_contract_has_no_code>, v16
-    v17 = gas
-    v18 = sub v17, 50
-    v19 = call v18, v6, 0, v12, v13, v12, 32
-    jumpi v19, bb3, bb4
+    v11 = fmp
+    v12 = ptrtoint memptr v11 to i256
+    v13 = add v12, 32
+    mstore v13, 0
+    v14 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = zext i160 v8 to i256
+    v18 = extcodesize v17
+    v19 = eq v18, 0
+    icall revert_if<target_contract_has_no_code>, v19
+    v20 = gas
+    v21 = sub v20, 50
+    v22 = call v21, v8, 0, v15, v16, v15, 32
+    jumpi v22, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
@@ -164,123 +175,130 @@ fn @liveTry() -> i256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word], a
   bb6:
     jump bb5
   bb3:
-    v20 = add v12, 0
-    v21 = mload v20
-    v22 = add v12, 0
-    v23 = mload v22
+    v23 = add v15, 0
+    v24 = mload v23
+    v25 = add v15, 0
+    v26 = mload v25
     jump bb5
   bb5:
-    v24 = phi [bb3: 1], [bb6: 2]
-    ret v24
+    v27 = phi [bb3: 1], [bb6: 2]
+    ret v27
 }
 
 fn @liveMixed() -> i256 [selector=0xaf1b6bff, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 0x621, v1
+    v2 = and 0x6b8, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy DynamicCallee_initcode_0, v3, 0x602
+    data_copy DynamicCallee_initcode_0, v3, 0x699
     v4 = slice_ptr v0
-    v5 = add v3, 0x602
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 0x602
-    v7 = word_cast v6
-    v8 = ne v7, 0
-    jumpi v8, bb2, bb1
+    v5 = ptrtoint memptr v3 to i256
+    v6 = add v5, 0x699
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = ptrtoint memptr v3 to i256
+    v8 = create 0, v7, 0x699
+    v9 = zext i160 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = fmp
-    v10 = add v9, 64
-    mstore v10, 0
-    v11 = abi_encode [], selector 0x354df1f900000000000000000000000000000000000000000000000000000000
-    v12 = slice_ptr v11
-    v13 = slice_len v11
-    v14 = word_cast v6
-    v15 = extcodesize v14
-    v16 = eq v15, 0
-    icall revert_if<target_contract_has_no_code>, v16
-    v17 = gas
-    v18 = sub v17, 50
-    v19 = call v18, v6, 0, v12, v13, v12, 64
-    jumpi v19, bb4, bb3
+    v11 = fmp
+    v12 = ptrtoint memptr v11 to i256
+    v13 = add v12, 64
+    mstore v13, 0
+    v14 = abi_encode [], selector 0x354df1f900000000000000000000000000000000000000000000000000000000
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = zext i160 v8 to i256
+    v18 = extcodesize v17
+    v19 = eq v18, 0
+    icall revert_if<target_contract_has_no_code>, v19
+    v20 = gas
+    v21 = sub v20, 50
+    v22 = call v21, v8, 0, v15, v16, v15, 64
+    jumpi v22, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v20 = add v12, 0
-    v21 = mload v20
-    v22 = add v12, 32
-    v23 = mload v22
-    v24 = add v12, 0
-    v25 = mload v24
-    v26 = add v12, 32
-    v27 = mload v26
-    v28 = insert_value struct0, undef struct0, 0, v25
-    v29 = insert_value struct0, v28, 1, v27
-    v30 = extract_value struct0, v29, 0
-    v31 = extract_value struct0, v29, 1
-    ret v30
+    v23 = add v15, 0
+    v24 = mload v23
+    v25 = add v15, 32
+    v26 = mload v25
+    v27 = add v15, 0
+    v28 = mload v27
+    v29 = add v15, 32
+    v30 = mload v29
+    v31 = insert_value struct0, undef struct0, 0, v28
+    v32 = insert_value struct0, v31, 1, v30
+    v33 = extract_value struct0, v32, 0
+    v34 = extract_value struct0, v32, 1
+    ret v33
 }
 
 fn @liveTuple() -> i256 [selector=0x04e1eee0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 0x621, v1
+    v2 = and 0x6b8, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy DynamicCallee_initcode_0, v3, 0x602
+    data_copy DynamicCallee_initcode_0, v3, 0x699
     v4 = slice_ptr v0
-    v5 = add v3, 0x602
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 0x602
-    v7 = word_cast v6
-    v8 = ne v7, 0
-    jumpi v8, bb2, bb1
+    v5 = ptrtoint memptr v3 to i256
+    v6 = add v5, 0x699
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = ptrtoint memptr v3 to i256
+    v8 = create 0, v7, 0x699
+    v9 = zext i160 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = word_cast v6
-    v10 = fmp
-    v11 = add v10, 32
-    mstore v11, 0
-    v12 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v13 = slice_ptr v12
-    v14 = slice_len v12
-    v15 = extcodesize v9
-    v16 = eq v15, 0
-    icall revert_if<target_contract_has_no_code>, v16
-    v17 = gas
-    v18 = sub v17, 50
-    v19 = call v18, v9, 0, v13, v14, v13, 32
-    jumpi v19, bb4, bb3
+    v11 = zext i160 v8 to i256
+    v12 = fmp
+    v13 = ptrtoint memptr v12 to i256
+    v14 = add v13, 32
+    mstore v14, 0
+    v15 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = extcodesize v11
+    v19 = eq v18, 0
+    icall revert_if<target_contract_has_no_code>, v19
+    v20 = gas
+    v21 = sub v20, 50
+    v22 = call v21, v11, 0, v16, v17, v16, 32
+    jumpi v22, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v20 = add v13, 0
-    v21 = mload v20
-    v22 = add v13, 0
-    v23 = mload v22
-    v24 = fmp
-    v25 = add v24, 32
-    mstore v25, 0
-    v26 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
-    v27 = slice_ptr v26
-    v28 = slice_len v26
-    v29 = extcodesize v9
-    v30 = eq v29, 0
-    icall revert_if<target_contract_has_no_code>, v30
-    v31 = gas
-    v32 = sub v31, 50
-    v33 = call v32, v9, 0, v27, v28, v27, 32
-    jumpi v33, bb6, bb5
+    v23 = add v16, 0
+    v24 = mload v23
+    v25 = add v16, 0
+    v26 = mload v25
+    v27 = fmp
+    v28 = ptrtoint memptr v27 to i256
+    v29 = add v28, 32
+    mstore v29, 0
+    v30 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
+    v31 = slice_ptr v30
+    v32 = slice_len v30
+    v33 = extcodesize v11
+    v34 = eq v33, 0
+    icall revert_if<target_contract_has_no_code>, v34
+    v35 = gas
+    v36 = sub v35, 50
+    v37 = call v36, v11, 0, v31, v32, v31, 32
+    jumpi v37, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v34 = add v27, 0
-    v35 = mload v34
-    v36 = add v27, 0
-    v37 = mload v36
+    v38 = add v31, 0
+    v39 = mload v38
+    v40 = add v31, 0
+    v41 = mload v40
     ret 1
 }
 
@@ -288,45 +306,48 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 0x621, v1
+    v2 = and 0x6b8, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy DynamicCallee_initcode_0, v3, 0x602
+    data_copy DynamicCallee_initcode_0, v3, 0x699
     v4 = slice_ptr v0
-    v5 = add v3, 0x602
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 0x602
-    v7 = word_cast v6
-    v8 = ne v7, 0
-    jumpi v8, bb2, bb1
+    v5 = ptrtoint memptr v3 to i256
+    v6 = add v5, 0x699
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = ptrtoint memptr v3 to i256
+    v8 = create 0, v7, 0x699
+    v9 = zext i160 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = word_cast v6
-    v10 = shl 32, v9
-    v11 = or v10, 0x7271bb2c
-    v12 = and v11, 0xffffffff
-    v13 = shl 224, v12
-    v14 = shr 32, v11
-    v15 = fmp
-    v16 = add v15, 32
-    mstore v16, 0
-    v17 = abi_encode [], selector v13
-    v18 = slice_ptr v17
-    v19 = slice_len v17
-    v20 = extcodesize v14
-    v21 = eq v20, 0
-    icall revert_if<target_contract_has_no_code>, v21
-    v22 = gas
-    v23 = sub v22, 50
-    v24 = call v23, v14, 0, v18, v19, v18, 32
-    jumpi v24, bb4, bb3
+    v11 = zext i160 v8 to i256
+    v12 = shl 32, v11
+    v13 = or v12, 0x7271bb2c
+    v14 = and v13, 0xffffffff
+    v15 = shl 224, v14
+    v16 = shr 32, v13
+    v17 = fmp
+    v18 = ptrtoint memptr v17 to i256
+    v19 = add v18, 32
+    mstore v19, 0
+    v20 = abi_encode [], selector v15
+    v21 = slice_ptr v20
+    v22 = slice_len v20
+    v23 = extcodesize v16
+    v24 = eq v23, 0
+    icall revert_if<target_contract_has_no_code>, v24
+    v25 = gas
+    v26 = sub v25, 50
+    v27 = call v26, v16, 0, v21, v22, v21, 32
+    jumpi v27, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v25 = add v18, 0
-    v26 = mload v25
-    v27 = add v18, 0
-    v28 = mload v27
+    v28 = add v21, 0
+    v29 = mload v28
+    v30 = add v21, 0
+    v31 = mload v30
     ret 1
 }
 
@@ -334,105 +355,110 @@ fn @liveLoop() -> i256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word], 
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 0x621, v1
+    v2 = and 0x6b8, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy DynamicCallee_initcode_0, v3, 0x602
+    data_copy DynamicCallee_initcode_0, v3, 0x699
     v4 = slice_ptr v0
-    v5 = add v3, 0x602
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 0x602
-    v7 = word_cast v6
-    v8 = ne v7, 0
-    jumpi v8, bb2, bb1
+    v5 = ptrtoint memptr v3 to i256
+    v6 = add v5, 0x699
+    mcopy v6, v4, 0 !metadata(memory=heap)
+    v7 = ptrtoint memptr v3 to i256
+    v8 = create 0, v7, 0x699
+    v9 = zext i160 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = word_cast v6
+    v11 = zext i160 v8 to i256
     jump bb3
   bb3:
-    v10 = phi [bb2: 0], [bb5: v28]
-    v11 = phi [bb2: v9], [bb5: v11]
-    v12 = phi [bb2: 0], [bb5: v29]
-    v13 = lt v12, 3
-    jumpi v13, bb6, bb7
+    v12 = phi [bb2: 0], [bb5: v31]
+    v13 = phi [bb2: v11], [bb5: v13]
+    v14 = phi [bb2: 0], [bb5: v32]
+    v15 = lt v14, 3
+    jumpi v15, bb6, bb7
   bb7:
     jump bb4
   bb4:
-    ret v10
+    ret v12
   bb6:
-    v14 = fmp
-    v15 = add v14, 32
-    mstore v15, 0
-    v16 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v17 = slice_ptr v16
-    v18 = slice_len v16
-    v19 = extcodesize v11
-    v20 = eq v19, 0
-    icall revert_if<target_contract_has_no_code>, v20
-    v21 = gas
-    v22 = sub v21, 50
-    v23 = call v22, v11, 0, v17, v18, v17, 32
-    jumpi v23, bb10, bb9
+    v16 = fmp
+    v17 = ptrtoint memptr v16 to i256
+    v18 = add v17, 32
+    mstore v18, 0
+    v19 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v20 = slice_ptr v19
+    v21 = slice_len v19
+    v22 = extcodesize v13
+    v23 = eq v22, 0
+    icall revert_if<target_contract_has_no_code>, v23
+    v24 = gas
+    v25 = sub v24, 50
+    v26 = call v25, v13, 0, v20, v21, v20, 32
+    jumpi v26, bb10, bb9
   bb9:
     revert_returndata
   bb10:
-    v24 = add v17, 0
-    v25 = mload v24
-    v26 = add v17, 0
-    v27 = mload v26
-    v28 = checked_add u256, v10, 1
+    v27 = add v20, 0
+    v28 = mload v27
+    v29 = add v20, 0
+    v30 = mload v29
+    v31 = checked_add u256, v12, 1
     jump bb8
   bb8:
     jump bb5
   bb5:
-    v29 = checked_add u256, v12, 1
+    v32 = checked_add u256, v14, 1
     jump bb3
 }
 
 fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = trunc i160, 0
+    v0 = trunc i256 0 to i160
     v1 = fmp
-    v2 = add v1, 32
-    mstore v2, 0
-    v3 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    v6 = word_cast v0
-    v7 = extcodesize v6
-    v8 = eq v7, 0
-    icall revert_if<target_contract_has_no_code>, v8
-    v9 = gas
-    v10 = sub v9, 50
-    v11 = call v10, v0, 0, v4, v5, v4, 32
-    jumpi v11, bb2, bb1
+    v2 = ptrtoint memptr v1 to i256
+    v3 = add v2, 32
+    mstore v3, 0
+    v4 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = zext i160 v0 to i256
+    v8 = extcodesize v7
+    v9 = eq v8, 0
+    icall revert_if<target_contract_has_no_code>, v9
+    v10 = gas
+    v11 = sub v10, 50
+    v12 = call v11, v0, 0, v5, v6, v5, 32
+    jumpi v12, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = add v4, 0
-    v13 = mload v12
-    v14 = add v4, 0
-    v15 = mload v14
+    v13 = add v5, 0
+    v14 = mload v13
+    v15 = add v5, 0
+    v16 = mload v15
     ret 1
 }
 
 fn @noCodeTry() -> i256 [selector=0x1908ad35, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = trunc i160, 0
+    v0 = trunc i256 0 to i160
     v1 = fmp
-    v2 = add v1, 32
-    mstore v2, 0
-    v3 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    v6 = word_cast v0
-    v7 = extcodesize v6
-    v8 = eq v7, 0
-    icall revert_if<target_contract_has_no_code>, v8
-    v9 = gas
-    v10 = sub v9, 50
-    v11 = call v10, v0, 0, v4, v5, v4, 32
-    jumpi v11, bb1, bb2
+    v2 = ptrtoint memptr v1 to i256
+    v3 = add v2, 32
+    mstore v3, 0
+    v4 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = zext i160 v0 to i256
+    v8 = extcodesize v7
+    v9 = eq v8, 0
+    icall revert_if<target_contract_has_no_code>, v9
+    v10 = gas
+    v11 = sub v10, 50
+    v12 = call v11, v0, 0, v5, v6, v5, 32
+    jumpi v12, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -441,12 +467,12 @@ fn @noCodeTry() -> i256 [selector=0x1908ad35, abi_params=[], abi_returns=[word],
   bb4:
     jump bb3
   bb1:
-    v12 = add v4, 0
-    v13 = mload v12
-    v14 = add v4, 0
-    v15 = mload v14
+    v13 = add v5, 0
+    v14 = mload v13
+    v15 = add v5, 0
+    v16 = mload v15
     jump bb3
   bb3:
-    v16 = phi [bb1: 1], [bb4: 2]
-    ret v16
+    v17 = phi [bb1: 1], [bb4: 2]
+    ret v17
 }

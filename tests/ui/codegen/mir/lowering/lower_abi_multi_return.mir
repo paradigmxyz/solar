@@ -22,13 +22,13 @@ fn @pair(arg0: i256) -> struct0 [return_abi=[i256, i256], selector=0x1f6a26ff, a
 
 // CHECK-LABEL: {{^[ +].*}}fn @owner{{[( ]}}
 // CHECK: [[OWNER:v[0-9]+]] = loadimmutable owner
-// CHECK: [[WORD:v[0-9]+]] = word_cast [[OWNER]]
+// CHECK: [[WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[OWNER]]
 // CHECK: + [[CLEAN:v[0-9]+]] = and [[WORD]], 0xffffffffffffffffffffffffffffffffffffffff
 // CHECK: + mstore 128, [[CLEAN]]
 fn @owner() -> i256 [selector=0x8da5cb5b, abi_returns=[word], abi_return_params=[address]] {
   bb0:
     v0 = loadimmutable owner
-    v1 = word_cast v0
+    v1 = zext i160 v0 to i256
     ret v1
 }
 
@@ -43,7 +43,7 @@ fn @unreachable_cycle() -> struct0 [selector=0x01020304, abi_params=[], abi_retu
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @typed_address
-// CHECK: + {{v[0-9]+}} = trunc i160, arg0
+// CHECK: + {{v[0-9]+}} = trunc i256 arg0 to i160
 fn @typed_address(arg0: i160, arg1: i256) -> i160 [selector=0x01020305, abi_params=[address, bool], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     ret arg0

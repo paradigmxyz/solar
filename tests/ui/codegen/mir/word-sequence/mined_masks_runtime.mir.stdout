@@ -27,7 +27,7 @@ fn @same(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf708a77c, pure,
     v0 = and arg1, arg2
     v1 = and arg0, arg2
     v2 = eq v1, v0
-    v3 = word_cast v2
+    v3 = zext i1 v2 to i256
     ret v3
 }
 

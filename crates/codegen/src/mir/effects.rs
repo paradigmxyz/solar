@@ -125,9 +125,12 @@ impl InstKind {
             Self::ReturnDataCopy(..) => ControlEffects { may_revert: true, ..ControlEffects::NONE },
             Self::InsertValue { .. }
             | Self::ExtractValue { .. }
-            | Self::MemoryObjectFromPtr { .. }
-            | Self::WordCast(..)
-            | Self::Trunc160(..)
+            | Self::Zext(..)
+            | Self::Trunc(..)
+            | Self::Sext(..)
+            | Self::PtrToInt(..)
+            | Self::IntToPtr(..)
+            | Self::Bitcast(..)
             | Self::Add(..)
             | Self::Sub(..)
             | Self::Mul(..)

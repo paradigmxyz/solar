@@ -10,7 +10,7 @@
 
 // RECIPE-LABEL: fn @zero_right_dirty(
 // RECIPE: {{ *}}[[Z:v[0-9]+]] = ne arg0, 0
-// RECIPE: + {{ *}}[[B:v[0-9]+]] = word_cast [[Z]]
+// RECIPE: + {{ *}}[[B:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[Z]]
 // RECIPE-NEXT: + {{ *}}[[R:v[0-9]+]] = mul [[B]], arg1
 // RECIPE-NEXT: {{ *}}ret [[R]]
 // SHAPE-LABEL: fn @zero_right_dirty(
@@ -32,7 +32,7 @@ fn @zero_left_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
 
 // RECIPE-LABEL: fn @max_right_dirty(
 // RECIPE: {{ *}}[[COND:v[0-9]+]] = ne arg0, 0
-// RECIPE: + {{ *}}[[Z:v[0-9]+]] = word_cast [[COND]]
+// RECIPE: + {{ *}}[[Z:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[COND]]
 // RECIPE-NEXT: + {{ *}}[[MASK:v[0-9]+]] = sub [[Z]], 1
 // RECIPE-NEXT: + {{ *}}[[R:v[0-9]+]] = or arg1, [[MASK]]
 fn @max_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
@@ -44,7 +44,7 @@ fn @max_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
 
 // RECIPE-LABEL: fn @max_left_dirty(
 // RECIPE: + {{ *}}[[BOOL:v[0-9]+]] = eq {{v[0-9]+}}, {{(0|false)}}
-// RECIPE-NEXT: + {{ *}}[[Z:v[0-9]+]] = word_cast [[BOOL]]
+// RECIPE-NEXT: + {{ *}}[[Z:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[BOOL]]
 // RECIPE-NEXT: + {{ *}}[[MASK:v[0-9]+]] = sub [[Z]], 1
 // RECIPE-NEXT: + {{ *}}[[R:v[0-9]+]] = or arg1, [[MASK]]
 fn @max_left_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
@@ -174,7 +174,7 @@ fn @constant_left_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
 }
 
 // GAS-LABEL: fn @ascending_canonical(
-// GAS: + {{ *}}[[WORD:v[0-9]+]] = word_cast v0
+// GAS: + {{ *}}[[WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} v0
 // GAS-NEXT: + {{ *}}[[SCALED:v[0-9]+]] = mul [[WORD]], 35
 // GAS-NEXT: + {{ *}}[[R:v[0-9]+]] = add 7, [[SCALED]]
 // GAS-NEXT: {{ *}}ret [[R]]

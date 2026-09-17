@@ -446,7 +446,7 @@ fn @nested() -> i256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word], ab
     sstore v182, v203 !metadata(storage=symbolic(v182))
     jump bb18
   bb16:
-    v186 = memory_object_from_ptr memoryfixedarray, v178
+    v186 = inttoptr i256 v178 to memoryfixedarray
     v187 = memory_object_load_element memoryfixedarray<5, 1>, v186, v179
     v188 = mul v184, 8
     v189 = shl v188, 0xffffffffffffffffffffffffffffff

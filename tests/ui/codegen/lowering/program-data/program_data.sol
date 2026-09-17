@@ -57,7 +57,7 @@ contract C {
 
     // CHECK-LABEL: fn @splatData{{[.(]}}
     // CHECK: data_copy literal_2, {{.*}}, 160
-    // SPLAT-LABEL: fn @splatData.body() -> i256
+    // SPLAT-LABEL: fn @splatData.body() -> memptr
     // SPLAT-COUNT-2: mstore {{.*}}, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
     // SPLAT: mcopy {{.*}}, 64
     // SPLAT: mcopy {{.*}}, 32

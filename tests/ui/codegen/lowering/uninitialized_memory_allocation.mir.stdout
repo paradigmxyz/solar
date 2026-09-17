@@ -45,8 +45,8 @@ fn @dynamicDefaults() -> struct0 [selector=0xd295ba8d, pure, abi_params=[], abi_
     v3 = memory_object_len memorybytes, memorybytes 96
     v4 = memory_object_len memoryarray, memoryarray 96
     v5 = checked_add u256, v3, v4
-    v6 = word_cast memorybytes 96
-    v7 = word_cast memoryarray 96
+    v6 = ptrtoint memorybytes 96 to i256
+    v7 = ptrtoint memoryarray 96 to i256
     v8 = insert_value struct0, undef struct0, 0, v2
     v9 = insert_value struct0, v8, 1, v6
     v10 = insert_value struct0, v9, 2, v7
@@ -63,10 +63,10 @@ fn @nestedDynamicDefaults() -> struct0 [selector=0xd34386dc, pure, abi_params=[]
     memory_object_store_field memorystruct<3>, v1, 2, memoryarray 96
     v2 = icall @freeMemoryPointer
     v3 = checked_sub u256, v2, v0
-    v4 = word_cast v1
+    v4 = ptrtoint memorystruct v1 to i256
     v5 = add v4, 32
     v6 = mload v5
-    v7 = word_cast v1
+    v7 = ptrtoint memorystruct v1 to i256
     v8 = add v7, 64
     v9 = mload v8
     v10 = icall @freeMemoryPointer
@@ -74,9 +74,9 @@ fn @nestedDynamicDefaults() -> struct0 [selector=0xd34386dc, pure, abi_params=[]
     v12 = and 64, v11
     v13 = alloc memorybytes, exact, zeroed, panic, v12
     set_memory_object_len memorybytes, v13, 1
-    v14 = word_cast v13
+    v14 = ptrtoint memorybytes v13 to i256
     v15 = eq v14, v10
-    v16 = word_cast v15
+    v16 = zext i1 v15 to i256
     v17 = insert_value struct0, undef struct0, 0, v3
     v18 = insert_value struct0, v17, 1, v6
     v19 = insert_value struct0, v18, 2, v9
@@ -107,9 +107,9 @@ fn @fixedArrayDynamicDefaults() -> struct1 [selector=0x94633452, pure, abi_param
   bb3:
     v5 = icall @freeMemoryPointer
     v6 = checked_sub u256, v5, v0
-    v7 = word_cast v1
+    v7 = ptrtoint memoryfixedarray v1 to i256
     v8 = mload v7
-    v9 = word_cast v1
+    v9 = ptrtoint memoryfixedarray v1 to i256
     v10 = add v9, 32
     v11 = mload v10
     v12 = insert_value struct1, undef struct1, 0, v6
@@ -143,7 +143,8 @@ fn @literalBytes() -> memorybytes [selector=0x95549276, pure, abi_params=[], abi
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -184,7 +185,7 @@ fn @isEmpty(arg0: memorybytes) -> i256 [pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = eq v0, 0
-    v2 = word_cast v1
+    v2 = zext i1 v1 to i256
     ret v2
 }
 
@@ -202,8 +203,8 @@ fn @rawPointerPair() -> struct3 [pure] {
     v5 = shl 248, 34
     v6 = add v1, 32
     mstore v6, v5
-    v7 = memory_object_from_ptr memorybytes, v0
-    v8 = memory_object_from_ptr memorybytes, v1
+    v7 = inttoptr i256 v0 to memorybytes
+    v8 = inttoptr i256 v1 to memorybytes
     v9 = insert_value struct3, undef struct3, 0, v7
     v10 = insert_value struct3, v9, 1, v8
     ret v10

@@ -25,7 +25,7 @@
   fn @clean_caller() -> i256 {
     bb0:
       v0 = caller
-      v1 = word_cast v0
+      v1 = zext i160 v0 to i256
       v2 = icall @mixed, v1
       ret v2
   }
@@ -92,7 +92,7 @@
   
   fn @bool_leaf(arg0: i1) -> i256 {
     bb0:
-      v0 = word_cast arg0
+      v0 = zext i1 arg0 to i256
 -     v1 = and v0, 1
 -     ret v1
 +     ret v0
@@ -119,9 +119,10 @@
   fn @frame_input(arg0: i256) -> i256 {
     bb0:
       v0 = internal_frame_addr 64
-      mstore v0, 511
-      v1 = and arg0, 255
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 511
+      v2 = and arg0, 255
+      ret v2
   }
   
   fn @across_caller() -> i256 {

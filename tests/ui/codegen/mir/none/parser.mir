@@ -10,12 +10,12 @@ immutables:
 
 // CHECK-LABEL: @call
 // CHECK: {{^ +}}[[SUCCESS:v[0-9]+]] = call 100, arg0, arg1, 0, 0, 0, 0
-// CHECK: {{^ +}}[[WORD:v[0-9]+]] = word_cast [[SUCCESS]]
+// CHECK: {{^ +}}[[WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[SUCCESS]]
 // CHECK: {{^ +}}ret [[WORD]]
 fn @call(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = call 100, arg0, arg1, 0, 0, 0, 0
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     ret v1
 }
 
@@ -30,12 +30,12 @@ fn @clz(arg0: i256) -> i256 {
 
 // CHECK-LABEL: @callcode
 // CHECK: {{^ +}}[[SUCCESS:v[0-9]+]] = callcode 100, arg0, arg1, 0, 0, 0, 0
-// CHECK: {{^ +}}[[WORD:v[0-9]+]] = word_cast [[SUCCESS]]
+// CHECK: {{^ +}}[[WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[SUCCESS]]
 // CHECK: {{^ +}}ret [[WORD]]
 fn @callcode(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = callcode 100, arg0, arg1, 0, 0, 0, 0
-    v1 = word_cast v0
+    v1 = zext i1 v0 to i256
     ret v1
 }
 
@@ -160,13 +160,13 @@ fn @concatenate(arg0: memorybytes) -> memorybytes {
 }
 
 // CHECK-LABEL: @address_width
-// CHECK: [[NARROW:v[0-9]+]] = trunc i160, arg0
-// CHECK: [[WIDE:v[0-9]+]] = word_cast [[NARROW]]
+// CHECK: [[NARROW:v[0-9]+]] = trunc i256 arg0 to i160
+// CHECK: [[WIDE:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[NARROW]]
 // CHECK: ret [[WIDE]]
 fn @address_width(arg0: i256) -> i256 {
   bb0:
-    v0 = trunc i160, arg0
-    v1 = word_cast v0
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
     ret v1
 }
 
@@ -217,4 +217,59 @@ fn @wide_integer_literal() -> i512 {
 fn @integer_undef() -> i24 {
   bb0:
     ret undef i24
+}
+
+// CHECK-LABEL: fn @llvm_casts
+// CHECK: trunc i256 arg0 to i1
+// CHECK: zext i1 arg1 to i256
+// CHECK: sext i1 arg1 to i256
+// CHECK: ptrtoint memptr arg2 to i160
+// CHECK: inttoptr i256 arg0 to memptr
+// CHECK: bitcast memptr arg2 to memorybytes
+fn @llvm_casts(arg0: i256, arg1: i1, arg2: memptr) -> memptr {
+  bb0:
+    v0 = trunc i256 arg0 to i1
+    v1 = zext i1 arg1 to i256
+    v2 = sext i1 arg1 to i256
+    v3 = ptrtoint memptr arg2 to i160
+    v4 = inttoptr i256 arg0 to memptr
+    v5 = bitcast memptr arg2 to memorybytes
+    ret v4
+}
+
+// CHECK-LABEL: fn @cast_undef
+// CHECK: bitcast memptr undef to memorybytes
+fn @cast_undef() -> memorybytes {
+  bb0:
+    v0 = bitcast memptr undef to memorybytes
+    ret v0
+}
+
+// CHECK-LABEL: fn @syntax_only_casts
+// CHECK: trunc i128 arg0 to i24
+// CHECK: zext i24 {{v[0-9]+}} to i512
+// CHECK: sext i24 {{v[0-9]+}} to i512
+fn @syntax_only_casts(arg0: i128) -> i512 {
+  bb0:
+    v0 = trunc i128 arg0 to i24
+    v1 = zext i24 v0 to i512
+    v2 = sext i24 v0 to i512
+    ret v2
+}
+
+// CHECK-LABEL: fn @forward_integer_phi
+// CHECK: zext i7 {{v[0-9]+}} to i24
+fn @forward_integer_phi(arg0: i1, arg1: i256) -> i24 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb3:
+    v2 = phi [bb1: v0], [bb2: v1]
+    v3 = zext i7 v2 to i24
+    ret v3
+  bb1:
+    v0 = trunc i256 arg1 to i7
+    jump bb3
+  bb2:
+    v1 = trunc i256 31 to i7
+    jump bb3
 }

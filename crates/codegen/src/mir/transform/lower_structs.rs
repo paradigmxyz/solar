@@ -287,8 +287,8 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                                 Some(MirType::MemoryObject(_))
                             )
                         {
-                            // raw field = word_cast object
-                            vec![builder.word_cast(value)]
+                            // raw field = ptrtoint object to i256
+                            vec![builder.cast_word(value)]
                         } else {
                             components(value, &aggregates)
                         };

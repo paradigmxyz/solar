@@ -2,14 +2,14 @@
 @module ExternalFunctionPointerMemoryType
 fn @g(arg0: calldataslice) -> i256 [selector=0xe6d02096, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = word_cast true
+    v0 = zext i1 1 to i256
     ret v0
 }
 
 fn @main() -> i256 [selector=0xdffeadd0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
-    v1 = word_cast v0
+    v1 = zext i160 v0 to i256
     v2 = shl 32, v1
     v3 = or v2, 0xe6d02096
     v4 = and v3, 0xffffffff
@@ -19,27 +19,28 @@ fn @main() -> i256 [selector=0xdffeadd0, abi_params=[], abi_returns=[word<bool>]
     v8 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v8, 10
     v9 = memory_object_data memorybytes, v8
-    mstore v9, 0x74657374537472696e6700000000000000000000000000000000000000000000
-    v10 = abi_encode [memory_bytes], selector v5, args v8
-    v11 = slice_ptr v10
-    v12 = slice_len v10
-    v13 = call v7, v6, 0, v11, v12, 0, 32
-    jumpi v13, bb2, bb1
+    v10 = ptrtoint memptr v9 to i256
+    mstore v10, 0x74657374537472696e6700000000000000000000000000000000000000000000
+    v11 = abi_encode [memory_bytes], selector v5, args v8
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    v14 = call v7, v6, 0, v12, v13, 0, 32
+    jumpi v14, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v14 = returndatasize
-    v15 = lt v14, 32
-    icall revert_if<tuple_data_too_short>, v15
-    v16 = add 0, 0
-    v17 = mload v16
-    v18 = eq v17, 0
-    v19 = eq v18, false
-    v20 = word_cast v19
-    v21 = eq v17, v20
-    v22 = eq v21, false
-    icall revert_if<empty>, v22
-    v23 = add 0, 0
-    v24 = mload v23
-    ret v24
+    v15 = returndatasize
+    v16 = lt v15, 32
+    icall revert_if<tuple_data_too_short>, v16
+    v17 = add 0, 0
+    v18 = mload v17
+    v19 = eq v18, 0
+    v20 = eq v19, false
+    v21 = zext i1 v20 to i256
+    v22 = eq v18, v21
+    v23 = eq v22, false
+    icall revert_if<empty>, v23
+    v24 = add 0, 0
+    v25 = mload v24
+    ret v25
 }

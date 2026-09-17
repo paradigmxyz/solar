@@ -202,6 +202,8 @@ pub(crate) struct StructType {
 pub(crate) enum MirType {
     /// An integer with a nonzero bit width.
     Int(NonZeroU32),
+    /// A raw memory pointer, with no implied validity or heap provenance.
+    MemPtr,
     /// Reference to a semantically shaped memory object.
     MemoryObject(MemoryObjectKind),
     /// A pointer/length pair in the given address space.
@@ -226,6 +228,7 @@ impl MirType {
             Self::I1 => ValueLayout::Bool,
             Self::I160 => ValueLayout::Address,
             Self::Int(_) => ValueLayout::uint256(),
+            Self::MemPtr => ValueLayout::MemPtr,
             Self::MemoryObject(kind) => ValueLayout::MemoryObject(kind),
             Self::Slice(location) => ValueLayout::Slice(location),
             Self::Struct(id) => ValueLayout::Struct(id),
@@ -233,12 +236,16 @@ impl MirType {
         }
     }
 
+    pub(crate) const fn is_pointer(self) -> bool {
+        matches!(self, Self::MemPtr | Self::MemoryObject(_))
+    }
+
     pub(crate) const fn is_word(self) -> bool {
-        matches!(self, Self::I256 | Self::I160 | Self::I1 | Self::MemoryObject(_))
+        matches!(self, Self::I256 | Self::I160 | Self::I1 | Self::MemPtr | Self::MemoryObject(_))
     }
 
     pub(crate) const fn is_memory_reference(self) -> bool {
-        matches!(self, Self::MemoryObject(_) | Self::Slice(SliceLocation::Memory))
+        matches!(self, Self::MemPtr | Self::MemoryObject(_) | Self::Slice(SliceLocation::Memory))
     }
 }
 
@@ -246,6 +253,7 @@ impl fmt::Display for MirType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Int(bits) => write!(f, "i{bits}"),
+            Self::MemPtr => f.write_str("memptr"),
             Self::MemoryObject(kind) => write!(f, "{kind}"),
             Self::Slice(location) => write!(f, "{location}slice"),
             Self::Struct(id) => write!(f, "struct{}", id.index()),
@@ -374,6 +382,7 @@ impl ValueLayout {
         match self {
             Self::Bool => MirType::I1,
             Self::Address => MirType::I160,
+            Self::MemPtr => MirType::MemPtr,
             Self::MemoryObject(kind) => MirType::MemoryObject(kind),
             Self::Slice(location) => MirType::Slice(location),
             Self::Struct(id) => MirType::Struct(id),

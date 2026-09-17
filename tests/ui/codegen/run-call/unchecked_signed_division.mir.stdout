@@ -58,7 +58,7 @@ fn @isNegativeI8(arg0: i256, arg1: i256) -> i256 [selector=0x9ff9f4e2, pure, abi
     v1 = signextend 0, arg1
     v2 = wrapping_div i8, v0, v1
     v3 = slt v2, 0
-    v4 = word_cast v3
+    v4 = zext i1 v3 to i256
     ret v4
 }
 

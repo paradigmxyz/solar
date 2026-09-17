@@ -6,10 +6,10 @@
 // the triangle becomes a scaled shift and a scaled or with no branch.
 // CHECK-LABEL: {{^[ +].*}}fn @search_step{{[( ]}}
 // CHECK: - jumpi
-// CHECK: + [[COND:v[0-9]+]] = word_cast [[BOOL:v[0-9]+]]
+// CHECK: + [[COND:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[BOOL:v[0-9]+]]
 // CHECK: + [[SCALED:v[0-9]+]] = mul [[COND]], 128
 // CHECK: + {{v[0-9]+}} = shr [[SCALED]], arg0
-// CHECK: + [[COND2:v[0-9]+]] = word_cast [[BOOL]]
+// CHECK: + [[COND2:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[BOOL]]
 // CHECK: + [[SCALED2:v[0-9]+]] = mul [[COND2]], 128
 // CHECK: + {{v[0-9]+}} = or arg1, [[SCALED2]]
 // CHECK-NOT: {{^[ +].*}}phi
@@ -35,7 +35,7 @@ fn @search_step(arg0: i256, arg1: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @cheap_diamond{{[( ]}}
 // CHECK: - jumpi
 // CHECK: + [[D:v[0-9]+]] = sub [[T:v[0-9]+]], [[F:v[0-9]+]]
-// CHECK: + [[C:v[0-9]+]] = word_cast {{(arg[0-9]+|v[0-9]+)}}
+// CHECK: + [[C:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} {{(arg[0-9]+|v[0-9]+)}}
 // CHECK: + [[S:v[0-9]+]] = mul [[C]], [[D]]
 // CHECK: + {{v[0-9]+}} = add [[F]], [[S]]
 fn @cheap_diamond(arg0: i256, arg1: i256) -> i256 {
@@ -113,7 +113,7 @@ fn @wide_arm(arg0: i1, arg1: i256) -> i256 {
 
 // A word condition is normalized to zero or one before it scales the step.
 // CHECK-LABEL: {{^[ +].*}}fn @word_condition{{[( ]}}
-// CHECK: + [[C:v[0-9]+]] = word_cast {{v[0-9]+}}
+// CHECK: + [[C:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} {{v[0-9]+}}
 // CHECK: + [[S:v[0-9]+]] = mul [[C]], 5
 // CHECK: + {{v[0-9]+}} = add arg1, [[S]]
 fn @word_condition(arg0: i256, arg1: i256) -> i256 {
@@ -132,7 +132,7 @@ fn @word_condition(arg0: i256, arg1: i256) -> i256 {
 // times the folded difference, with no branch.
 // CHECK-LABEL: {{^[ +].*}}fn @literal_arms{{[( ]}}
 // CHECK: - jumpi
-// CHECK: + [[C:v[0-9]+]] = word_cast arg0
+// CHECK: + [[C:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} arg0
 // CHECK: + [[S:v[0-9]+]] = mul [[C]], 0x1200000000000000000000000000000000000000000000000000000000000000
 // CHECK: + {{v[0-9]+}} = add 0x5f00000000000000000000000000000000000000000000000000000000000000, [[S]]
 // CHECK-NOT: {{^[ +].*}}phi
@@ -152,7 +152,7 @@ fn @literal_arms(arg0: i1) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @literal_or_value{{[( ]}}
 // CHECK: - jumpi
 // CHECK: + [[D:v[0-9]+]] = sub 7, arg1
-// CHECK: + [[C:v[0-9]+]] = word_cast {{(arg[0-9]+|v[0-9]+)}}
+// CHECK: + [[C:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} {{(arg[0-9]+|v[0-9]+)}}
 // CHECK: + [[S:v[0-9]+]] = mul [[C]], [[D]]
 // CHECK: + {{v[0-9]+}} = add arg1, [[S]]
 fn @literal_or_value(arg0: i1, arg1: i256) -> i256 {
@@ -171,10 +171,10 @@ fn @literal_or_value(arg0: i1, arg1: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @table_ladder{{[( ]}}
 // CHECK: {{^ +}}[[C1:v[0-9]+]] = lt arg0, 64
 // CHECK: {{^ +}}[[C2:v[0-9]+]] = lt arg0, 96
-// CHECK: + [[W2:v[0-9]+]] = word_cast [[C2]]
+// CHECK: + [[W2:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[C2]]
 // CHECK: + [[S2:v[0-9]+]] = mul [[W2]], 0x{{[0-9a-f]+}}
 // CHECK: + [[E:v[0-9]+]] = add 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000, [[S2]]
-// CHECK: + [[W1:v[0-9]+]] = word_cast [[C1]]
+// CHECK: + [[W1:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[C1]]
 // CHECK: + [[S1:v[0-9]+]] = mul [[W1]], 0x{{[0-9a-f]+}}
 // CHECK: + {{v[0-9]+}} = add [[E]], [[S1]]
 // CHECK-NOT: {{^[ +].*}}phi
@@ -209,7 +209,7 @@ fn @pointer_arms(arg0: i1, arg1: memorystruct, arg2: memorystruct) -> i256 {
     jump bb2
   bb2:
     v0 = phi [bb0: arg1], [bb1: arg2]
-    v2 = word_cast v0
+    v2 = ptrtoint memorystruct v0 to i256
     v1 = mload v2
     ret v1
 }

@@ -212,7 +212,7 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[u256], a
     v17 = div v15, 1
     v18 = eq v17, v1
     v19 = or v16, v18
-    v20 = word_cast v19
+    v20 = zext i1 v19 to i256
     v21 = eq v20, 0
     icall panic_if<0x41>, v21
     v22 = add v15, 1
@@ -223,7 +223,7 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[u256], a
     v26 = div v24, 32
     v27 = eq v26, v22
     v28 = or v25, v27
-    v29 = word_cast v28
+    v29 = zext i1 v28 to i256
     v30 = eq v29, 0
     icall panic_if<0x41>, v30
     v31 = alloc memoryarray<1>, exact, zeroed, panic, v24

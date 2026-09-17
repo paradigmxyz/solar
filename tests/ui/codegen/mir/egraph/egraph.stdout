@@ -9,8 +9,8 @@
 -     v3 = gt arg1, arg0
 -     v4 = mul v0, v1
 +     v4 = mul v0, v0
-      v5 = word_cast v2
--     v6 = word_cast v3
+      v5 = zext i1 v2 to i256
+-     v6 = zext i1 v3 to i256
 -     v7 = and v5, v6
 -     v8 = add v4, v7
 +     v8 = add v4, v5

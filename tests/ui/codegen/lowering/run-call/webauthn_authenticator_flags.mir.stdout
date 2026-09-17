@@ -5,7 +5,7 @@ data:
 
 fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = word_cast true
+    v0 = zext i1 1 to i256
     v1 = icall @auth
     v2 = icall @check, v0, v1
     ret v2
@@ -14,13 +14,13 @@ fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word<
 fn @testFlags() -> i256 [selector=0x74da97f7, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @auth
-    v1 = word_cast v0
+    v1 = ptrtoint memorystruct v0 to i256
     v2 = mload v1
     v3 = add v2, 33
     v4 = mload v3
     v5 = and v4, 1
     v6 = eq v5, 1
-    v7 = word_cast v6
+    v7 = zext i1 v6 to i256
     ret v7
 }
 
@@ -28,7 +28,7 @@ fn @testTypedConstant() -> i256 [selector=0x62655512, pure, abi_params=[], abi_r
   bb0:
     v0 = icall @auth
     v1 = memory_object_load_field memorystruct<6>, v0, 0
-    v2 = memory_object_from_ptr memorybytes, v1
+    v2 = inttoptr i256 v1 to memorybytes
     v3 = memory_object_len memorybytes, v2
     v4 = lt 32, v3
     v5 = eq v4, false
@@ -38,7 +38,7 @@ fn @testTypedConstant() -> i256 [selector=0x62655512, pure, abi_params=[], abi_r
     v8 = and v7, 0x100000000000000000000000000000000000000000000000000000000000000
     v9 = and v8, 0xff00000000000000000000000000000000000000000000000000000000000000
     v10 = eq v9, 0x100000000000000000000000000000000000000000000000000000000000000
-    v11 = word_cast v10
+    v11 = zext i1 v10 to i256
     ret v11
 }
 
@@ -65,78 +65,79 @@ fn @check(arg0: i256, arg1: memorystruct) -> i256 [pure] {
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 2
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x4667000000000000000000000000000000000000000000000000000000000000
-    v2 = word_cast arg1
-    v3 = add v2, 32
-    v4 = mload v3
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x4667000000000000000000000000000000000000000000000000000000000000
+    v3 = ptrtoint memorystruct arg1 to i256
+    v4 = add v3, 32
     v5 = mload v4
-    v6 = add v4, 32
-    v7 = word_cast arg1
-    v8 = add v7, 64
-    v9 = mload v8
-    v10 = word_cast arg1
-    v11 = add v10, 96
-    v12 = mload v11
-    v13 = word_cast v0
-    v14 = mload v13
-    v15 = add v14, 13
-    v16 = shr 152, 0x226368616c6c656e6765223a2200000000000000000000000000000000000000
-    v17 = word_cast v0
-    mstore v17, v16
-    v18 = add v15, v9
-    v19 = lt v18, v5
-    v20 = word_cast v19
-    v21 = add v6, v9
-    v22 = add v21, v15
-    v23 = mload v22
-    v24 = byte 0, v23
-    v25 = eq v24, 34
-    v26 = word_cast v25
-    v27 = and v26, v20
-    v28 = word_cast v0
-    v29 = add v28, 19
-    v30 = keccak256 v29, v15
-    v31 = add v6, v9
-    v32 = keccak256 v31, v15
-    v33 = eq v32, v30
-    v34 = word_cast v33
-    v35 = and v34, v27
-    v36 = add 20, v12
-    v37 = lt v36, v5
-    v38 = word_cast v37
-    v39 = or v12, v9
-    v40 = shr 128, v39
-    v41 = lt v40, v38
-    v42 = word_cast v41
-    v43 = shr 88, 0x2274797065223a22776562617574686e2e676574220000000000000000000000
-    v44 = add v6, v12
-    v45 = mload v44
-    v46 = shr 88, v45
-    v47 = eq v46, v43
-    v48 = word_cast v47
-    v49 = and v48, v42
-    v50 = and v49, v35
-    v51 = word_cast v0
-    mstore v51, v14
-    v52 = word_cast arg1
-    v53 = mload v52
+    v6 = mload v5
+    v7 = add v5, 32
+    v8 = ptrtoint memorystruct arg1 to i256
+    v9 = add v8, 64
+    v10 = mload v9
+    v11 = ptrtoint memorystruct arg1 to i256
+    v12 = add v11, 96
+    v13 = mload v12
+    v14 = ptrtoint memorybytes v0 to i256
+    v15 = mload v14
+    v16 = add v15, 13
+    v17 = shr 152, 0x226368616c6c656e6765223a2200000000000000000000000000000000000000
+    v18 = ptrtoint memorybytes v0 to i256
+    mstore v18, v17
+    v19 = add v16, v10
+    v20 = lt v19, v6
+    v21 = zext i1 v20 to i256
+    v22 = add v7, v10
+    v23 = add v22, v16
+    v24 = mload v23
+    v25 = byte 0, v24
+    v26 = eq v25, 34
+    v27 = zext i1 v26 to i256
+    v28 = and v27, v21
+    v29 = ptrtoint memorybytes v0 to i256
+    v30 = add v29, 19
+    v31 = keccak256 v30, v16
+    v32 = add v7, v10
+    v33 = keccak256 v32, v16
+    v34 = eq v33, v31
+    v35 = zext i1 v34 to i256
+    v36 = and v35, v28
+    v37 = add 20, v13
+    v38 = lt v37, v6
+    v39 = zext i1 v38 to i256
+    v40 = or v13, v10
+    v41 = shr 128, v40
+    v42 = lt v41, v39
+    v43 = zext i1 v42 to i256
+    v44 = shr 88, 0x2274797065223a22776562617574686e2e676574220000000000000000000000
+    v45 = add v7, v13
+    v46 = mload v45
+    v47 = shr 88, v46
+    v48 = eq v47, v44
+    v49 = zext i1 v48 to i256
+    v50 = and v49, v43
+    v51 = and v50, v36
+    v52 = ptrtoint memorybytes v0 to i256
+    mstore v52, v15
+    v53 = ptrtoint memorystruct arg1 to i256
     v54 = mload v53
-    v55 = eq arg0, 0
-    v56 = word_cast v55
-    v57 = eq v56, 0
-    v58 = word_cast v57
-    v59 = shl 2, v58
-    v60 = or 1, v59
-    v61 = word_cast arg1
-    v62 = mload v61
-    v63 = add v62, 33
-    v64 = mload v63
-    v65 = and v64, v60
-    v66 = eq v65, v60
-    v67 = word_cast v66
-    v68 = gt v54, 32
-    v69 = word_cast v68
-    v70 = and v50, v69
-    v71 = and v70, v67
-    ret v71
+    v55 = mload v54
+    v56 = eq arg0, 0
+    v57 = zext i1 v56 to i256
+    v58 = eq v57, 0
+    v59 = zext i1 v58 to i256
+    v60 = shl 2, v59
+    v61 = or 1, v60
+    v62 = ptrtoint memorystruct arg1 to i256
+    v63 = mload v62
+    v64 = add v63, 33
+    v65 = mload v64
+    v66 = and v65, v61
+    v67 = eq v66, v61
+    v68 = zext i1 v67 to i256
+    v69 = gt v55, 32
+    v70 = zext i1 v69 to i256
+    v71 = and v51, v70
+    v72 = and v71, v68
+    ret v72
 }
