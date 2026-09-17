@@ -129,6 +129,8 @@ fn semantic_requests_wait_for_latest_analysis() {
     let uri = file_uri("Test.sol");
     let mut state = pending_analysis_state();
 
+    assert_pending(completion(&mut state, completion_params(uri.clone())));
+    assert_pending(signature_help(&mut state, signature_help_params(uri.clone())));
     assert_pending(document_symbol(&mut state, document_symbol_params(uri.clone())));
     assert_pending(document_links(&mut state, document_link_params(uri.clone())));
     assert_pending(goto_definition(&mut state, goto_params(uri.clone())));
@@ -242,11 +244,8 @@ fn invalid_rename_names_and_latency_sensitive_requests_do_not_wait_for_analysis(
     let uri = file_uri("Test.sol");
     let mut state = pending_analysis_state();
 
-    let error =
-        expect_ready(rename(&mut state, rename_params(uri.clone(), "not a name"))).unwrap_err();
+    let error = expect_ready(rename(&mut state, rename_params(uri, "not a name"))).unwrap_err();
     assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
-    assert_ready(completion(&mut state, completion_params(uri.clone())));
-    assert_ready(signature_help(&mut state, signature_help_params(uri)));
     assert_ready(workspace_symbol(
         &mut state,
         WorkspaceSymbolParams {

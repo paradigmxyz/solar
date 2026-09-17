@@ -157,7 +157,7 @@ fn import_definition_discards_a_fallback_from_an_old_analysis_epoch() {
 
     assert!(request.as_mut().poll(&mut context).is_pending());
 
-    state.mark_context_analysis_pending_for_test();
+    state.mark_analysis_pending_for_test();
     let mut snapshot = state.snapshot();
     assert!(snapshot.publish_symbol_tables(2, Default::default()));
 

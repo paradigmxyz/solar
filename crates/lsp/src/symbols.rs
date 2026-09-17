@@ -685,10 +685,6 @@ impl SymbolTables {
         self.natspec_completion.get(uri, source_fingerprint, key)
     }
 
-    pub(crate) fn natspec_source_fingerprint(&self, uri: &Url) -> Option<&str> {
-        self.natspec_completion.source_fingerprint(uri)
-    }
-
     pub(crate) fn signature_help(
         &self,
         uri: &Url,
