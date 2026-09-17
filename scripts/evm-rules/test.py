@@ -820,7 +820,7 @@ class RuleTests(unittest.TestCase):
         path = ISLE / "egraph.isle"
         rules = [Rule(form, line, str(path)) for form, line in forms(path.read_text())
                  if form[0] == "rule" and uses_exp(form)]
-        self.assertEqual(len(rules), 4)
+        self.assertEqual(len(rules), 5)
         for rule in rules:
             context = Context()
             lhs, rhs = context.obligation(rule)
