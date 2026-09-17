@@ -1111,7 +1111,7 @@ class RuleTests(unittest.TestCase):
                 self.assertEqual(result["status"], "proved", (bits, lowered, result))
 
     def test_actual_integer_and_pointer_cast_rules(self):
-        path = ISLE / "egraph.isle"
+        path = ISLE / "mir/egraph.isle"
         source = path.read_text()
         start = source.index(";; Identity casts")
         rules = [
