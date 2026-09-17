@@ -12,7 +12,7 @@
       ret v0
     bb2:
       v2 = add v0, 1
-      v3 = lt v2, v0
+-     v3 = lt v2, v0
 -     jumpi v3, bb3, bb4
 +     jump bb4
     bb4:

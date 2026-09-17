@@ -36,7 +36,6 @@ time: <TIME>	MIR TimePasses function-dce changed=false
 time: <TIME>	MIR TimePasses lower-checks changed=false
 time: <TIME>	MIR TimePasses lower-builtins changed=false
 time: <TIME>	MIR TimePasses outline-reverts changed=false
-time: <TIME>	MIR TimePasses checked-aggregate changed=false
 time: <TIME>	MIR TimePasses lower-arithmetic changed=false
 time: <TIME>	MIR TimePasses loop-split changed=false
 time: <TIME>	MIR TimePasses sccp changed=false

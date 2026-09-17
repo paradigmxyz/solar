@@ -2,15 +2,27 @@
 //!
 //! Emit explicit Solidity zero/overflow checks and exponentiation-by-squaring loops. Preserve
 //! checked widths and signedness; wrapping signed division still checks zero. Splitting blocks
-//! redirects successor phi predecessors locally, and every emitted operation inherits the source
-//! instruction's debug context. Later cleanup can combine exposed checks and scalar expressions.
+//! redirects successor phi predecessors locally, and arithmetic retains its source context.
+//! In gas mode, accumulate add/subtract/multiply overflow predicates
+//! across speculatable scalar instructions and emit one panic check per straight-line group.
+//! Groups support every signedness and width, arbitrary operand dependencies, and intermediate
+//! uses. Keep every predicate, including overflows whose later arithmetic returns to range.
+//! Flush before effects, execution observations, division/remainder, exponentiation, and block
+//! boundaries to preserve panic order. Shared checks deliberately drop their source context;
+//! ordinary checks retain it. Later e-graph cleanup simplifies the exposed scalar expressions.
 
-use crate::mir::{
-    ArithmeticKind, CheckedOp, FunctionBuilder, InstKind, Module, PanicCode, ValueId,
-    pass::{MirPass, run_function_pass},
-    transform::utils::redirect_successor_predecessors,
+use crate::{
+    backend::evm::op,
+    mir::{
+        ArithmeticKind, CheckedOp, EffectKind, Function, FunctionBuilder, InstId, InstKind,
+        InstructionMetadata, Module, PanicCode, ValueId,
+        pass::{MirPass, run_function_pass},
+        transform::utils::redirect_successor_predecessors,
+    },
+    target::Target,
 };
 use alloy_primitives::U256;
+use solar_config::OptimizationMode;
 use solar_data_structures::map::FxHashMap;
 
 pub(crate) struct LowerArithmetic;
@@ -24,10 +36,18 @@ impl MirPass for LowerArithmetic {
     }
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let target = Target::new(gcx);
+        let aggregate = target.optimization() == OptimizationMode::Gas
+            && target
+                .cmp(
+                    target.opcode(op::OR).plus(target.dup()),
+                    target.opcode(op::JUMPI).plus(target.opcode(op::PUSH2)),
+                )
+                .is_lt();
         run_function_pass(module, analyses, |func, _| {
             if !func
                 .instructions()
@@ -48,24 +68,43 @@ impl MirPass for LowerArithmetic {
                 let (terminator, metadata) = func.blocks[block].take_terminator();
                 let mut builder = FunctionBuilder::new(func);
                 builder.switch_to_block(block);
-                for id in instructions {
+                let mut pending = None::<(ValueId, InstructionMetadata)>;
+                for (index, &id) in instructions.iter().enumerate() {
                     let InstKind::CheckedBinary { op, arithmetic, lhs, rhs } =
                         builder.func().inst(id).kind
                     else {
+                        // continuation: original instruction
                         let current = builder.current_block();
                         builder.func_mut().blocks[current].instructions.push(id);
                         continue;
                     };
                     let context = builder.func().inst(id).metadata.debug_context();
                     builder.set_debug_context(&context);
-                    // result = scalar arithmetic(lhs, rhs); check overflow/zero
-                    let result = ArithmeticLowerer { builder: &mut builder }
+                    // result, overflow = scalar arithmetic(lhs, rhs)
+                    let (result, overflow) = ArithmeticLowerer { builder: &mut builder }
                         .binary(op, lhs, rhs, arithmetic);
+                    if let Some(overflow) = overflow {
+                        if let Some((previous, mut metadata)) = pending.take() {
+                            // NOTE: A combined overflow has no unique source instruction.
+                            metadata.mark_debug_info_dropped();
+                            builder.set_debug_context(&metadata);
+                            // pending = previous | overflow
+                            pending = Some((builder.or(previous, overflow), metadata));
+                        } else {
+                            pending = Some((overflow, context));
+                        }
+                        if !aggregate
+                            || !can_aggregate_next(builder.func(), &instructions[index + 1..])
+                        {
+                            flush_overflow(&mut builder, &mut pending);
+                        }
+                    }
                     replacements.insert(
                         builder.func().inst_result_value(id).expect("arithmetic result"),
                         result,
                     );
                 }
+                debug_assert!(pending.is_none());
                 // continuation: remaining instructions; original terminator
                 let end = builder.current_block();
                 if let Some(terminator) = terminator {
@@ -78,6 +117,31 @@ impl MirPass for LowerArithmetic {
             func.replace_uses_canonicalized(&replacements);
             true
         })
+    }
+}
+
+/// Look through safe scalar work, stopping at the next checked operation or barrier.
+fn can_aggregate_next(func: &Function, instructions: &[InstId]) -> bool {
+    for &id in instructions {
+        let kind = &func.inst(id).kind;
+        if let InstKind::CheckedBinary { op, .. } = kind {
+            return matches!(op, CheckedOp::Add | CheckedOp::Sub | CheckedOp::Mul);
+        }
+        if kind.op_def().effect != EffectKind::Pure || !kind.effects().can_speculate() {
+            return false;
+        }
+    }
+    false
+}
+
+fn flush_overflow(
+    builder: &mut FunctionBuilder<'_>,
+    pending: &mut Option<(ValueId, InstructionMetadata)>,
+) {
+    if let Some((overflow, metadata)) = pending.take() {
+        builder.set_debug_context(&metadata);
+        // panic_if overflow, 0x11
+        builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
     }
 }
 
@@ -220,11 +284,11 @@ impl ArithmeticLowerer<'_, '_> {
         lhs: ValueId,
         rhs: ValueId,
         kind: ArithmeticKind,
-    ) -> ValueId {
+    ) -> (ValueId, Option<ValueId>) {
         match op {
             CheckedOp::Add => {
                 // result = add lhs, rhs
-                // panic_if overflow(result, lhs, rhs)
+                // overflow = overflow(result, lhs, rhs)
                 let result = self.builder.add(lhs, rhs);
                 let overflow = match kind {
                     ArithmeticKind::Unsigned(256) => self.builder.lt(result, lhs),
@@ -236,22 +300,20 @@ impl ArithmeticLowerer<'_, '_> {
                         self.signed_add_sub_overflow(lhs, rhs, result, bits, true)
                     }
                 };
-                self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
-                result
+                (result, Some(overflow))
             }
             CheckedOp::Sub => {
                 if let ArithmeticKind::Signed(bits) = kind
                     && self.builder.func().value_u256(lhs) == Some(U256::ZERO)
                 {
-                    // panic_if rhs == signed_min
+                    // overflow = rhs == signed_min
                     // result = sub 0, rhs
                     let (min, _) = signed_bounds(bits, self.builder);
                     let overflow = self.builder.eq(rhs, min);
-                    self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
-                    return self.builder.sub(lhs, rhs);
+                    return (self.builder.sub(lhs, rhs), Some(overflow));
                 }
                 // result = sub lhs, rhs
-                // panic_if overflow(result, lhs, rhs)
+                // overflow = overflow(result, lhs, rhs)
                 let result = self.builder.sub(lhs, rhs);
                 let overflow = match kind {
                     ArithmeticKind::Unsigned(_) => self.builder.lt(lhs, rhs),
@@ -259,16 +321,14 @@ impl ArithmeticLowerer<'_, '_> {
                         self.signed_add_sub_overflow(lhs, rhs, result, bits, false)
                     }
                 };
-                self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
-                result
+                (result, Some(overflow))
             }
             CheckedOp::Mul => {
                 // result = mul lhs, rhs
-                // panic_if overflow(result, lhs, rhs)
+                // overflow = overflow(result, lhs, rhs)
                 let result = self.builder.mul(lhs, rhs);
                 let overflow = self.mul_overflow(lhs, rhs, result, kind);
-                self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
-                result
+                (result, Some(overflow))
             }
             CheckedOp::Div | CheckedOp::WrappingDiv => {
                 // panic_if rhs == 0
@@ -295,21 +355,22 @@ impl ArithmeticLowerer<'_, '_> {
                 {
                     // result = signextend(width - 1, result)
                     let byte = self.builder.imm(u64::from(bits / 8 - 1));
-                    self.builder.signextend(byte, result)
+                    (self.builder.signextend(byte, result), None)
                 } else {
-                    result
+                    (result, None)
                 }
             }
             CheckedOp::Rem => {
                 // panic_if rhs == 0
                 // result = mod/smod lhs, rhs
                 self.builder.panic_if_zero(rhs, PanicCode::DivisionByZero);
-                match kind {
+                let result = match kind {
                     ArithmeticKind::Signed(_) => self.builder.smod(lhs, rhs),
                     ArithmeticKind::Unsigned(_) => self.builder.mod_(lhs, rhs),
-                }
+                };
+                (result, None)
             }
-            CheckedOp::Pow => self.checked_pow(lhs, rhs, kind),
+            CheckedOp::Pow => (self.checked_pow(lhs, rhs, kind), None),
         }
     }
 }

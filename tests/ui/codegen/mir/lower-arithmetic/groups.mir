@@ -1,4 +1,4 @@
-//@ compile-flags: -Ogas -Zmir-pipeline=checked-aggregate,checked-aggregate
+//@ compile-flags: -Ogas -Zmir-pipeline=lower-arithmetic,lower-arithmetic
 @module CheckedAggregate
 
 // Retain every carry, including earlier overflows whose wrapped result feeds later additions.
@@ -10,7 +10,7 @@ fn @chain(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-// Independent additions do not form a chain.
+// Independent additions share the overflow check.
 fn @independent(arg0: u256, arg1: u256) -> u256 {
   bb0:
     v0 = checked_add u256, arg0, arg1
@@ -136,4 +136,44 @@ fn @reused_sum(arg0: u256, arg1: u256) -> u256 {
     v1 = checked_add u256, arg1, v0
     v2 = xor v0, v1
     ret v2
+}
+
+// Pure scalar work and fan-out do not break the group.
+fn @tree(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = xor arg1, arg2
+    v2 = checked_add u256, arg2, v1
+    v3 = checked_add u256, v2, v0
+    v4 = checked_mul u256, v3, v0
+    ret v4
+}
+
+// Each effect separates groups, including two groups within the same original block.
+fn @two_groups(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_add u256, v0, arg1
+    mstore 0, v1
+    v2 = checked_sub u256, v1, arg1
+    v3 = checked_mul u256, v2, arg1
+    ret v3
+}
+
+fn @remainder_boundary(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_add u256, v0, arg1
+    v2 = checked_rem u256, v1, arg1
+    v3 = checked_add u256, v2, arg1
+    ret v3
+}
+
+fn @power_boundary(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_add u256, v0, arg1
+    v2 = checked_pow u256, v1, arg1
+    v3 = checked_add u256, v2, arg1
+    ret v3
 }

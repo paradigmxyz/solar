@@ -77,7 +77,6 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
     &loop_opt::Licm,
-    &checked_aggregate::CheckedAggregate,
     &check_elim::CheckElim,
     &check_elim::LateCheckElim,
     &check_elim::ImmutableCheckElim,
@@ -250,7 +249,6 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_builtins::LowerBuiltins,
     // Gas mode keeps arithmetic failure edges local for stack scheduling.
     &GasOnly::new(outline_reverts::OutlineReverts),
-    &GasOnly::new(checked_aggregate::CheckedAggregate),
     &lower_arithmetic::LowerArithmetic,
     // Size mode shares arithmetic payloads too, before selecting stack layouts.
     &SizeOnly::new(outline_reverts::OutlineReverts),

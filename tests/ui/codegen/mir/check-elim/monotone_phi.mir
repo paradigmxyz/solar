@@ -9,12 +9,12 @@
 // CHECK: {{^ +}}[[J:v[0-9]+]] = phi
 // CHECK-NEXT: {{^ +}}jumpi [[J]],
 // CHECK: {{^ +}}[[JM1:v[0-9]+]] = sub [[J]], 1
-// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = lt [[JM1]], arg2
+// CHECK-NEXT: -     {{v[0-9]+}} = lt [[JM1]], arg2
 // CHECK-NEXT: -     jumpi
 // CHECK-NEXT: +     jump
 // CHECK: {{^ +}}{{v[0-9]+}} = gt {{v[0-9]+}}, arg0
 // CHECK-NEXT: {{^ +}}jumpi
-// CHECK: {{^ +}}{{v[0-9]+}} = lt [[J]], arg2
+// CHECK: -     {{v[0-9]+}} = lt [[J]], arg2
 // CHECK-NEXT: -     jumpi
 // CHECK: +     jump
 fn @fold_descending_index_bounds(arg0: u256, arg1: u256, arg2: u256) -> u256 {
@@ -78,7 +78,7 @@ fn @keep_unguarded_decrement(arg0: u256, arg1: u256, arg2: u256) -> u256 {
 // initial value, so a lower-bound check against that value folds.
 // CHECK-LABEL: @fold_ascending_lower_bound
 // CHECK: {{^ +}}[[K:v[0-9]+]] = phi
-// CHECK: {{^ +}}{{v[0-9]+}} = lt [[K]], arg0
+// CHECK: -     {{v[0-9]+}} = lt [[K]], arg0
 // CHECK-NEXT: -     jumpi
 // CHECK-NEXT: +     jump
 fn @fold_ascending_lower_bound(arg0: u256, arg1: u256) -> u256 {

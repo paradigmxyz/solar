@@ -5,7 +5,6 @@ pub(crate) mod byte_run;
 pub(crate) mod call_cleanup;
 pub(crate) mod cfg_simplify;
 pub(crate) mod check_elim;
-pub(crate) mod checked_aggregate;
 pub(crate) mod coalesce_allocs;
 pub(crate) mod copy_elision;
 pub(crate) mod cse;

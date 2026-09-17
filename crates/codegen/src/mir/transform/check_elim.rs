@@ -20,7 +20,9 @@
 //! dominated block. Branch conditions are then evaluated against the
 //! recorded facts with checked 256-bit arithmetic; a condition that is
 //! provably constant folds the branch to an unconditional jump, and the dead
-//! panic block is cleaned up by the existing CFG passes. Anything that is
+//! panic block is cleaned up by the existing CFG passes. Proven scalar predicates also fold
+//! at their definitions, so e-graph cleanup can remove redundant terms from combined checks.
+//! Anything that is
 //! not provable is left untouched. Semantic checks use the same facts in instruction order:
 //! a passing check refines all later execution, and a proven passing check can be removed before
 //! expansion. Facts roll back on leaving each dominator subtree, so a check on one conditional
@@ -95,8 +97,8 @@
 use super::cfg_simplify::simplify_function;
 use crate::{
     mir::{
-        BlockId, Builtin, Callee, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
-        InstKind, Module, Terminator, Value, ValueId,
+        BlockId, Builtin, Callee, Function, FunctionId, Immediate, ImmutableEncoding, ImmutableId,
+        InstId, InstKind, Module, ResultKind, Terminator, Value, ValueId,
         analysis::{CallGraphInfo, CfgInfo},
         immutable::immutable_push_type_size,
         pass::{
@@ -280,6 +282,13 @@ struct CheckElimStats {
     /// Number of branches folded to unconditional jumps.
     branches_folded: usize,
     checks_removed: usize,
+    predicates_folded: usize,
+}
+
+struct CheckFolds {
+    branches: Vec<(BlockId, BlockId)>,
+    checks: DenseBitSet<InstId>,
+    predicates: Vec<(InstId, bool)>,
 }
 
 /// An inclusive unsigned 256-bit interval.
@@ -420,8 +429,7 @@ impl<'a> CheckEliminator<'a> {
         Self { immutable_ranges, ..Self::default() }
     }
 
-    /// Runs check elimination on a function. Returns the number of folded
-    /// branches.
+    /// Runs check elimination on a function. Returns the number of rewrites.
     fn run(&mut self, func: &mut Function) -> usize {
         self.run_in_blocks(func, None)
     }
@@ -487,7 +495,7 @@ impl<'a> CheckEliminator<'a> {
             }
         }
         let mut proven = Vec::new();
-        let (mut folds, mut checks) =
+        let CheckFolds { branches: mut folds, mut checks, mut predicates } =
             self.collect_folds(func, &cfg, &preds, &facts, &candidates, &mut proven);
         if !proven.is_empty() {
             // The invariant is available wherever the phi is: attach it to the
@@ -509,9 +517,11 @@ impl<'a> CheckEliminator<'a> {
                 self.monotone_relations.push(phi.relation());
             }
             self.relation_index = None;
-            (folds, checks) = self.collect_folds(func, &cfg, &preds, &facts, &[], &mut Vec::new());
+            CheckFolds { branches: folds, checks, predicates } =
+                self.collect_folds(func, &cfg, &preds, &facts, &[], &mut Vec::new());
         }
         if let Some((selected, reverting)) = selected {
+            predicates.clear();
             folds.retain(|&(block, keep)| {
                 if selected.contains(block)
                     && let Some(Terminator::Branch { then_block, else_block, .. }) =
@@ -529,7 +539,7 @@ impl<'a> CheckEliminator<'a> {
         self.range_undo.clear();
         self.relation_undo.clear();
 
-        if folds.is_empty() && checks.is_empty() {
+        if folds.is_empty() && checks.is_empty() && predicates.is_empty() {
             return 0;
         }
         // branch proven_condition, keep, discard => jump keep
@@ -537,19 +547,30 @@ impl<'a> CheckEliminator<'a> {
             // jumpi condition, ..., keep -> jump keep
             fold_terminator_to_jump(func, block, keep);
         }
+        self.stats.checks_removed = checks.count();
+        self.stats.predicates_folded = predicates.len();
+        let mut replacements = FxHashMap::default();
+        // proven scalar predicate => boolean immediate
+        for (id, truth) in predicates {
+            let value = func.inst_result_value(id).expect("predicate result");
+            let immediate =
+                Immediate::for_type(func.inst(id).result_ty, U256::from(u8::from(truth)));
+            replacements.insert(value, func.alloc_value(Value::Immediate(immediate)));
+            checks.insert(id);
+        }
+        func.replace_uses(&replacements);
         if !checks.is_empty() {
-            // check a proven passing condition -> nothing
+            // passing check or constant predicate => nothing
             for block in func.blocks.iter_mut() {
                 block.instructions.retain(|&id| !checks.contains(id));
             }
         }
         self.stats.branches_folded = folds.len();
-        self.stats.checks_removed = checks.count();
-        self.stats.branches_folded + self.stats.checks_removed
+        self.stats.branches_folded + self.stats.checks_removed + self.stats.predicates_folded
     }
 
     /// Walks the dominator tree, recording edge and check facts. Returns branch folds and
-    /// proven passing checks to remove.
+    /// proven passing checks to remove, and constant scalar predicates.
     /// `candidates` whose update is proven wrap-free in its defining block's
     /// scope are appended to `proven`.
     fn collect_folds(
@@ -560,7 +581,7 @@ impl<'a> CheckEliminator<'a> {
         facts: &IndexVec<BlockId, Facts>,
         candidates: &[MonotonePhi],
         proven: &mut Vec<MonotonePhi>,
-    ) -> (Vec<(BlockId, BlockId)>, DenseBitSet<InstId>) {
+    ) -> CheckFolds {
         enum Walk {
             Enter(BlockId),
             Exit { range_mark: usize, relation_mark: usize },
@@ -568,6 +589,7 @@ impl<'a> CheckEliminator<'a> {
 
         let mut folds = Vec::new();
         let mut checks = DenseBitSet::new_empty(func.num_insts());
+        let mut predicates = Vec::new();
         let mut stack = vec![Walk::Enter(BlockId::ENTRY)];
         while let Some(item) = stack.pop() {
             match item {
@@ -606,6 +628,12 @@ impl<'a> CheckEliminator<'a> {
                     }
 
                     for &id in &func.blocks[block].instructions {
+                        if func.inst(id).kind.op_def().result == ResultKind::Bool
+                            && let Some(value) = func.inst_result_value(id)
+                            && let Some(truth) = self.eval_truth(func, value, MAX_DEPTH)
+                        {
+                            predicates.push((id, truth));
+                        }
                         let fact = match &func.inst(id).kind {
                             InstKind::ICall {
                                 function: Callee::Builtin(Builtin::Check { is_zero, .. }),
@@ -639,7 +667,7 @@ impl<'a> CheckEliminator<'a> {
                 }
             }
         }
-        (folds, checks)
+        CheckFolds { branches: folds, checks, predicates }
     }
 
     /// Decides in the current scope whether a monotone phi's update cannot

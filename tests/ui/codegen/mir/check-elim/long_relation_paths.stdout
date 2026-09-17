@@ -203,7 +203,6 @@
     bb67:
       ret 0
 +   bb65:
-+     v65 = lt arg0, arg65
 +     jump bb66
     bb66:
       ret 1

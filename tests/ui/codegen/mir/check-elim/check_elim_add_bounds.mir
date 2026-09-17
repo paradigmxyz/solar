@@ -42,3 +42,26 @@ fn @keep_wrappable_boundary(arg0: u256) -> u256 {
   bb4:
     ret v2
 }
+
+// A known-safe term folds even when the combined check can still fail.
+// CHECK-LABEL: {{^[ +].*}}fn @combined{{[( ]}}
+// CHECK: - [[SAFE:v[0-9]+]] = lt {{v[0-9]+}}, arg0
+// CHECK: + {{v[0-9]+}} = or false, {{v[0-9]+}}
+fn @combined(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v1 = lt arg0, 100
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = add arg0, 2
+    v3 = lt v2, arg0
+    v4 = add v2, arg1
+    v5 = lt v4, v2
+    v6 = or v3, v5
+    jumpi v6, bb3, bb4
+  bb2:
+    ret 0
+  bb3:
+    revert 0, 0
+  bb4:
+    ret v4
+}

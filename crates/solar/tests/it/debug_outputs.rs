@@ -179,7 +179,7 @@ fn inlined_dispatch_debug_outputs_are_bytecode_neutral() {
 
 #[test]
 fn checked_aggregation_debug_outputs_are_bytecode_neutral() {
-    let source = "../../codegen/mir/checked-aggregate/arithmetic.sol";
+    let source = "../../codegen/mir/lower-arithmetic/arithmetic.sol";
     for mode in ["gas", "size"] {
         let baseline = compile_json(&[source, "-O", mode, "--emit=bin,bin-runtime"]);
         let debug = compile_json(&[

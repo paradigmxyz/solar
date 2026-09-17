@@ -1,0 +1,1027 @@
+- // === ROOT/tests/ui/codegen/mir/lower-arithmetic/groups.mir (before lower-arithmetic) ===
++ // === ROOT/tests/ui/codegen/mir/lower-arithmetic/groups.mir (after lower-arithmetic) ===
+  @module CheckedAggregate
+  fn @chain(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+-     v0 = checked_add u256, arg0, arg1
+-     v1 = checked_add u256, v0, arg2
+-     v2 = checked_add u256, v1, arg0
+-     ret v2
++     v3 = add arg0, arg1
++     v4 = lt v3, arg0
++     v5 = add v3, arg2
++     v6 = lt v5, v3
++     v7 = or v4, v6
++     v8 = add v5, arg0
++     v9 = lt v8, v5
++     v10 = or v7, v9
++     jumpi v10, bb1, bb2
++   bb2:
++     ret v8
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 17 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @independent(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = checked_add u256, arg0, arg1
+-     v1 = checked_add u256, arg0, arg1
+-     v2 = xor v0, v1
++     v3 = add arg0, arg1
++     v4 = lt v3, arg0
++     v5 = add arg0, arg1
++     v6 = lt v5, arg0
++     v7 = or v4, v6
++     jumpi v7, bb1, bb2
++   bb2:
++     v2 = xor v3, v5
+      ret v2
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 17 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @mixed(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+-     v0 = checked_add u256, arg0, arg1
+-     v1 = checked_mul u256, v0, arg2
+-     v2 = checked_sub u256, v1, arg0
+-     ret v2
++     v3 = add arg0, arg1
++     v4 = lt v3, arg0
++     v5 = mul v3, arg2
++     v6 = iszero arg2
++     v7 = div v5, arg2
++     v8 = eq v7, v3
++     v9 = or v6, v8
++     v10 = iszero v9
++     v11 = or v4, v10
++     v12 = sub v5, arg0
++     v13 = lt v5, arg0
++     v14 = or v11, v13
++     jumpi v14, bb1, bb2
++   bb2:
++     ret v12
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 17 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @signed(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = checked_add i256, arg0, arg1
+-     v1 = checked_add i256, v0, arg1
+-     v2 = checked_mul i256, v1, arg1
+-     ret v2
++     v3 = add arg0, arg1
++     v4 = slt arg0, 0
++     v5 = slt arg1, 0
++     v6 = slt v3, 0
++     v7 = xor v4, v5
++     v8 = xor v6, v4
++     v9 = iszero v7
++     v10 = and v9, v8
++     v11 = add v3, arg1
++     v12 = slt v3, 0
++     v13 = slt arg1, 0
++     v14 = slt v11, 0
++     v15 = xor v12, v13
++     v16 = xor v14, v12
++     v17 = iszero v15
++     v18 = and v17, v16
++     v19 = or v10, v18
++     v20 = mul v11, arg1
++     v21 = iszero arg1
++     v22 = sdiv v20, arg1
++     v23 = eq v22, v11
++     v24 = or v21, v23
++     v25 = iszero v24
++     v26 = eq v11, 0x8000000000000000000000000000000000000000000000000000000000000000
++     v27 = slt arg1, 0
++     v28 = and v26, v27
++     v29 = or v25, v28
++     v30 = or v19, v29
++     jumpi v30, bb1, bb2
++   bb2:
++     ret v20
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 17 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @narrow(arg0: u8, arg1: u8) -> u8 {
+    bb0:
+-     v0 = checked_add u8, arg0, arg1
+-     v1 = checked_add u8, v0, arg1
+-     ret v1
++     v2 = add arg0, arg1
++     v3 = gt v2, 255
++     v4 = add v2, arg1
++     v5 = gt v4, 255
++     v6 = or v3, v5
++     jumpi v6, bb1, bb2
++   bb2:
++     ret v4
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 17 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @negation(arg0: i8, arg1: i8) -> i8 {
+    bb0:
+-     v0 = checked_sub i8, 0, arg0
+-     v1 = checked_add i8, v0, arg1
+-     ret v1
++     v2 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
++     v3 = sub 0, arg0
++     v4 = add v3, arg1
++     v5 = slt v3, 0
++     v6 = slt arg1, 0
++     v7 = slt v4, 0
++     v8 = xor v5, v6
++     v9 = xor v7, v5
++     v10 = iszero v8
++     v11 = and v10, v9
++     v12 = slt v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
++     v13 = sgt v4, 127
++     v14 = or v12, v13
++     v15 = or v11, v14
++     v16 = or v2, v15
++     jumpi v16, bb1, bb2
++   bb2:
++     ret v4
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 17 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @long_chain(arg0: u256) -> u256 {
+    bb0:
+-     v0 = checked_add u256, arg0, arg0
+-     v1 = checked_add u256, v0, arg0
+-     v2 = checked_add u256, v1, arg0
+-     v3 = checked_add u256, v2, arg0
+-     v4 = checked_add u256, v3, arg0
+-     v5 = checked_add u256, v4, arg0
+-     v6 = checked_add u256, v5, arg0
+-     v7 = checked_add u256, v6, arg0
+-     v8 = checked_add u256, v7, arg0
+-     ret v8
++     v9 = add arg0, arg0
++     v10 = lt v9, arg0
++     v11 = add v9, arg0
++     v12 = lt v11, v9
++     v13 = or v10, v12
++     v14 = add v11, arg0
++     v15 = lt v14, v11
++     v16 = or v13, v15
++     v17 = add v14, arg0
++     v18 = lt v17, v14
++     v19 = or v16, v18
++     v20 = add v17, arg0
++     v21 = lt v20, v17
++     v22 = or v19, v21
++     v23 = add v20, arg0
++     v24 = lt v23, v20
++     v25 = or v22, v24
++     v26 = add v23, arg0
++     v27 = lt v26, v23
++     v28 = or v25, v27
++     v29 = add v26, arg0
++     v30 = lt v29, v26
++     v31 = or v28, v30
++     v32 = add v29, arg0
++     v33 = lt v32, v29
++     v34 = or v31, v33
++     jumpi v34, bb1, bb2
++   bb2:
++     ret v32
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 17 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @memory_boundary(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = checked_add u256, arg0, arg1
+-     mstore 0, v0
+-     v1 = checked_add u256, v0, arg1
+-     ret v1
++     v2 = add arg0, arg1
++     v3 = lt v2, arg0
++     jumpi v3, bb1, bb2
++   bb2:
++     mstore 0, v2
++     v4 = add v2, arg1
++     v5 = lt v4, v2
++     jumpi v5, bb1, bb3
++   bb3:
++     ret v4
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 17 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @gas_boundary(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = checked_add u256, arg0, arg1
++     v3 = add arg0, arg1
++     v4 = lt v3, arg0
++     jumpi v4, bb1, bb2
++   bb2:
+      v1 = gas
+-     v2 = checked_add u256, v0, v1
+-     ret v2
++     v5 = add v3, v1
++     v6 = lt v5, v3
++     jumpi v6, bb1, bb3
++   bb3:
++     ret v5
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 17 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @panic_boundary(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = checked_add u256, arg0, arg1
++     v2 = add arg0, arg1
++     v3 = lt v2, arg0
++     jumpi v3, bb1, bb2
++   bb2:
+      icall panic_if_zero<0x1>, arg0
+-     v1 = checked_add u256, v0, arg1
+-     ret v1
++     v4 = add v2, arg1
++     v5 = lt v4, v2
++     jumpi v5, bb1, bb3
++   bb3:
++     ret v4
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 17 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @division_boundary(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = checked_add u256, arg0, arg1
+-     v1 = checked_div u256, v0, arg1
+-     v2 = checked_add u256, v1, arg1
+-     ret v2
++     v3 = add arg0, arg1
++     v4 = lt v3, arg0
++     jumpi v4, bb1, bb2
++   bb2:
++     jumpi arg1, bb4, bb3
++   bb3:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 18 !metadata(memory=scratch)
++     revert 28, 36
++   bb4:
++     v5 = div v3, arg1
++     v6 = add v5, arg1
++     v7 = lt v6, v5
++     jumpi v7, bb1, bb5
++   bb5:
++     ret v6
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 17 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @block_boundary(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = checked_add u256, arg0, arg1
++     v2 = add arg0, arg1
++     v3 = lt v2, arg0
++     jumpi v3, bb2, bb3
++   bb3:
+      jump bb1
+    bb1:
+-     v1 = checked_add u256, v0, arg1
+-     ret v1
++     v4 = add v2, arg1
++     v5 = lt v4, v2
++     jumpi v5, bb4, bb5
++   bb5:
++     ret v4
++   bb4:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 17 !metadata(memory=scratch)
++     revert 28, 36
++   bb2:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 17 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @phi_use(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = checked_add u256, arg0, arg1
+-     v1 = checked_add u256, v0, arg1
++     v3 = add arg0, arg1
++     v4 = lt v3, arg0
++     v5 = add v3, arg1
++     v6 = lt v5, v3
++     v7 = or v4, v6
++     jumpi v7, bb2, bb3
++   bb3:
+      jump bb1
+    bb1:
+-     v2 = phi [bb0: v1]
++     v2 = phi [bb3: v5]
+      ret v2
++   bb2:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 17 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @call_boundary(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = checked_add u256, arg0, arg1
+-     v1 = icall @helper, v0
+-     v2 = checked_add u256, v1, arg1
+-     ret v2
++     v3 = add arg0, arg1
++     v4 = lt v3, arg0
++     jumpi v4, bb1, bb2
++   bb2:
++     v1 = icall @helper, v3
++     v5 = add v1, arg1
++     v6 = lt v5, v1
++     jumpi v6, bb1, bb3
++   bb3:
++     ret v5
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 17 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @helper(arg0: u256) -> u256 {
+    bb0:
+      ret arg0
+  }
+  
+  fn @reused_sum(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = checked_add u256, arg0, arg1
+-     v1 = checked_add u256, arg1, v0
+-     v2 = xor v0, v1
++     v3 = add arg0, arg1
++     v4 = lt v3, arg0
++     v5 = add arg1, v3
++     v6 = lt v5, arg1
++     v7 = or v4, v6
++     jumpi v7, bb1, bb2
++   bb2:
++     v2 = xor v3, v5
+      ret v2
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 17 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @tree(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+-     v0 = checked_add u256, arg0, arg1
++     v5 = add arg0, arg1
++     v6 = lt v5, arg0
+      v1 = xor arg1, arg2
+-     v2 = checked_add u256, arg2, v1
+-     v3 = checked_add u256, v2, v0
+-     v4 = checked_mul u256, v3, v0
+-     ret v4
++     v7 = add arg2, v1
++     v8 = lt v7, arg2
++     v9 = or v6, v8
++     v10 = add v7, v5
++     v11 = lt v10, v7
++     v12 = or v9, v11
++     v13 = mul v10, v5
++     v14 = iszero v5
++     v15 = div v13, v5
++     v16 = eq v15, v10
++     v17 = or v14, v16
++     v18 = iszero v17
++     v19 = or v12, v18
++     jumpi v19, bb1, bb2
++   bb2:
++     ret v13
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 17 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @two_groups(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = checked_add u256, arg0, arg1
+-     v1 = checked_add u256, v0, arg1
+-     mstore 0, v1
+-     v2 = checked_sub u256, v1, arg1
+-     v3 = checked_mul u256, v2, arg1
+-     ret v3
++     v4 = add arg0, arg1
++     v5 = lt v4, arg0
++     v6 = add v4, arg1
++     v7 = lt v6, v4
++     v8 = or v5, v7
++     jumpi v8, bb1, bb2
++   bb2:
++     mstore 0, v6
++     v9 = sub v6, arg1
++     v10 = lt v6, arg1
++     v11 = mul v9, arg1
++     v12 = iszero arg1
++     v13 = div v11, arg1
++     v14 = eq v13, v9
++     v15 = or v12, v14
++     v16 = iszero v15
++     v17 = or v10, v16
++     jumpi v17, bb1, bb3
++   bb3:
++     ret v11
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 17 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @remainder_boundary(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = checked_add u256, arg0, arg1
+-     v1 = checked_add u256, v0, arg1
+-     v2 = checked_rem u256, v1, arg1
+-     v3 = checked_add u256, v2, arg1
+-     ret v3
++     v4 = add arg0, arg1
++     v5 = lt v4, arg0
++     v6 = add v4, arg1
++     v7 = lt v6, v4
++     v8 = or v5, v7
++     jumpi v8, bb1, bb2
++   bb2:
++     jumpi arg1, bb4, bb3
++   bb3:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 18 !metadata(memory=scratch)
++     revert 28, 36
++   bb4:
++     v9 = mod v6, arg1
++     v10 = add v9, arg1
++     v11 = lt v10, v9
++     jumpi v11, bb1, bb5
++   bb5:
++     ret v10
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 17 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @power_boundary(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = checked_add u256, arg0, arg1
+-     v1 = checked_add u256, v0, arg1
+-     v2 = checked_pow u256, v1, arg1
+-     v3 = checked_add u256, v2, arg1
+-     ret v3
++     v4 = add arg0, arg1
++     v5 = lt v4, arg0
++     v6 = add v4, arg1
++     v7 = lt v6, v4
++     v8 = or v5, v7
++     jumpi v8, bb1, bb2
++   bb2:
++     jump bb3
++   bb3:
++     v9 = phi [bb2: 1], [bb7: v21]
++     v10 = phi [bb2: v6], [bb7: v23]
++     v11 = phi [bb2: arg1], [bb7: v22]
++     v12 = gt v11, 0
++     jumpi v12, bb4, bb5
++   bb5:
++     v31 = add v9, arg1
++     v32 = lt v31, v9
++     jumpi v32, bb1, bb8
++   bb8:
++     ret v31
++   bb4:
++     v13 = and v11, 1
++     v14 = mul v9, v10
++     v15 = iszero v10
++     v16 = div v14, v10
++     v17 = eq v16, v9
++     v18 = or v15, v17
++     v19 = iszero v18
++     v20 = and v13, v19
++     jumpi v20, bb1, bb6
++   bb6:
++     v21 = select v13, v14, v9
++     v22 = shr 1, v11
++     v23 = mul v10, v10
++     v24 = iszero v10
++     v25 = div v23, v10
++     v26 = eq v25, v10
++     v27 = or v24, v26
++     v28 = iszero v27
++     v29 = gt v22, 0
++     v30 = and v29, v28
++     jumpi v30, bb1, bb7
++   bb7:
++     jump bb3
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 17 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/lower-arithmetic/groups.mir (before lower-arithmetic) ===
++ // === ROOT/tests/ui/codegen/mir/lower-arithmetic/groups.mir (after lower-arithmetic) ===
+  @module CheckedAggregate
+  fn @chain(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+      v3 = add arg0, arg1
+      v4 = lt v3, arg0
+      v5 = add v3, arg2
+      v6 = lt v5, v3
+      v7 = or v4, v6
+      v8 = add v5, arg0
+      v9 = lt v8, v5
+      v10 = or v7, v9
+      jumpi v10, bb1, bb2
+    bb2:
+      ret v8
+    bb1:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 17 !metadata(memory=scratch)
+      revert 28, 36
+  }
+  
+  fn @independent(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v3 = add arg0, arg1
+      v4 = lt v3, arg0
+      v5 = add arg0, arg1
+      v6 = lt v5, arg0
+      v7 = or v4, v6
+      jumpi v7, bb1, bb2
+    bb2:
+      v2 = xor v3, v5
+      ret v2
+    bb1:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 17 !metadata(memory=scratch)
+      revert 28, 36
+  }
+  
+  fn @mixed(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+      v3 = add arg0, arg1
+      v4 = lt v3, arg0
+      v5 = mul v3, arg2
+      v6 = iszero arg2
+      v7 = div v5, arg2
+      v8 = eq v7, v3
+      v9 = or v6, v8
+      v10 = iszero v9
+      v11 = or v4, v10
+      v12 = sub v5, arg0
+      v13 = lt v5, arg0
+      v14 = or v11, v13
+      jumpi v14, bb1, bb2
+    bb2:
+      ret v12
+    bb1:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 17 !metadata(memory=scratch)
+      revert 28, 36
+  }
+  
+  fn @signed(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v3 = add arg0, arg1
+      v4 = slt arg0, 0
+      v5 = slt arg1, 0
+      v6 = slt v3, 0
+      v7 = xor v4, v5
+      v8 = xor v6, v4
+      v9 = iszero v7
+      v10 = and v9, v8
+      v11 = add v3, arg1
+      v12 = slt v3, 0
+      v13 = slt arg1, 0
+      v14 = slt v11, 0
+      v15 = xor v12, v13
+      v16 = xor v14, v12
+      v17 = iszero v15
+      v18 = and v17, v16
+      v19 = or v10, v18
+      v20 = mul v11, arg1
+      v21 = iszero arg1
+      v22 = sdiv v20, arg1
+      v23 = eq v22, v11
+      v24 = or v21, v23
+      v25 = iszero v24
+      v26 = eq v11, 0x8000000000000000000000000000000000000000000000000000000000000000
+      v27 = slt arg1, 0
+      v28 = and v26, v27
+      v29 = or v25, v28
+      v30 = or v19, v29
+      jumpi v30, bb1, bb2
+    bb2:
+      ret v20
+    bb1:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 17 !metadata(memory=scratch)
+      revert 28, 36
+  }
+  
+  fn @narrow(arg0: u8, arg1: u8) -> u8 {
+    bb0:
+      v2 = add arg0, arg1
+      v3 = gt v2, 255
+      v4 = add v2, arg1
+      v5 = gt v4, 255
+      v6 = or v3, v5
+      jumpi v6, bb1, bb2
+    bb2:
+      ret v4
+    bb1:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 17 !metadata(memory=scratch)
+      revert 28, 36
+  }
+  
+  fn @negation(arg0: i8, arg1: i8) -> i8 {
+    bb0:
+      v2 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+      v3 = sub 0, arg0
+      v4 = add v3, arg1
+      v5 = slt v3, 0
+      v6 = slt arg1, 0
+      v7 = slt v4, 0
+      v8 = xor v5, v6
+      v9 = xor v7, v5
+      v10 = iszero v8
+      v11 = and v10, v9
+      v12 = slt v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+      v13 = sgt v4, 127
+      v14 = or v12, v13
+      v15 = or v11, v14
+      v16 = or v2, v15
+      jumpi v16, bb1, bb2
+    bb2:
+      ret v4
+    bb1:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 17 !metadata(memory=scratch)
+      revert 28, 36
+  }
+  
+  fn @long_chain(arg0: u256) -> u256 {
+    bb0:
+      v9 = add arg0, arg0
+      v10 = lt v9, arg0
+      v11 = add v9, arg0
+      v12 = lt v11, v9
+      v13 = or v10, v12
+      v14 = add v11, arg0
+      v15 = lt v14, v11
+      v16 = or v13, v15
+      v17 = add v14, arg0
+      v18 = lt v17, v14
+      v19 = or v16, v18
+      v20 = add v17, arg0
+      v21 = lt v20, v17
+      v22 = or v19, v21
+      v23 = add v20, arg0
+      v24 = lt v23, v20
+      v25 = or v22, v24
+      v26 = add v23, arg0
+      v27 = lt v26, v23
+      v28 = or v25, v27
+      v29 = add v26, arg0
+      v30 = lt v29, v26
+      v31 = or v28, v30
+      v32 = add v29, arg0
+      v33 = lt v32, v29
+      v34 = or v31, v33
+      jumpi v34, bb1, bb2
+    bb2:
+      ret v32
+    bb1:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 17 !metadata(memory=scratch)
+      revert 28, 36
+  }
+  
+  fn @memory_boundary(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v2 = add arg0, arg1
+      v3 = lt v2, arg0
+      jumpi v3, bb1, bb2
+    bb2:
+      mstore 0, v2
+      v4 = add v2, arg1
+      v5 = lt v4, v2
+      jumpi v5, bb1, bb3
+    bb3:
+      ret v4
+    bb1:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 17 !metadata(memory=scratch)
+      revert 28, 36
+  }
+  
+  fn @gas_boundary(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v3 = add arg0, arg1
+      v4 = lt v3, arg0
+      jumpi v4, bb1, bb2
+    bb2:
+      v1 = gas
+      v5 = add v3, v1
+      v6 = lt v5, v3
+      jumpi v6, bb1, bb3
+    bb3:
+      ret v5
+    bb1:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 17 !metadata(memory=scratch)
+      revert 28, 36
+  }
+  
+  fn @panic_boundary(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v2 = add arg0, arg1
+      v3 = lt v2, arg0
+      jumpi v3, bb1, bb2
+    bb2:
+      icall panic_if_zero<0x1>, arg0
+      v4 = add v2, arg1
+      v5 = lt v4, v2
+      jumpi v5, bb1, bb3
+    bb3:
+      ret v4
+    bb1:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 17 !metadata(memory=scratch)
+      revert 28, 36
+  }
+  
+  fn @division_boundary(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v3 = add arg0, arg1
+      v4 = lt v3, arg0
+      jumpi v4, bb1, bb2
+    bb2:
+      jumpi arg1, bb4, bb3
+    bb3:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 18 !metadata(memory=scratch)
+      revert 28, 36
+    bb4:
+      v5 = div v3, arg1
+      v6 = add v5, arg1
+      v7 = lt v6, v5
+      jumpi v7, bb1, bb5
+    bb5:
+      ret v6
+    bb1:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 17 !metadata(memory=scratch)
+      revert 28, 36
+  }
+  
+  fn @block_boundary(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v2 = add arg0, arg1
+      v3 = lt v2, arg0
+      jumpi v3, bb2, bb3
+    bb3:
+      jump bb1
+    bb1:
+      v4 = add v2, arg1
+      v5 = lt v4, v2
+      jumpi v5, bb4, bb5
+    bb5:
+      ret v4
+    bb4:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 17 !metadata(memory=scratch)
+      revert 28, 36
+    bb2:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 17 !metadata(memory=scratch)
+      revert 28, 36
+  }
+  
+  fn @phi_use(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v3 = add arg0, arg1
+      v4 = lt v3, arg0
+      v5 = add v3, arg1
+      v6 = lt v5, v3
+      v7 = or v4, v6
+      jumpi v7, bb2, bb3
+    bb3:
+      jump bb1
+    bb1:
+      v2 = phi [bb3: v5]
+      ret v2
+    bb2:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 17 !metadata(memory=scratch)
+      revert 28, 36
+  }
+  
+  fn @call_boundary(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v3 = add arg0, arg1
+      v4 = lt v3, arg0
+      jumpi v4, bb1, bb2
+    bb2:
+      v1 = icall @helper, v3
+      v5 = add v1, arg1
+      v6 = lt v5, v1
+      jumpi v6, bb1, bb3
+    bb3:
+      ret v5
+    bb1:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 17 !metadata(memory=scratch)
+      revert 28, 36
+  }
+  
+  fn @helper(arg0: u256) -> u256 {
+    bb0:
+      ret arg0
+  }
+  
+  fn @reused_sum(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v3 = add arg0, arg1
+      v4 = lt v3, arg0
+      v5 = add arg1, v3
+      v6 = lt v5, arg1
+      v7 = or v4, v6
+      jumpi v7, bb1, bb2
+    bb2:
+      v2 = xor v3, v5
+      ret v2
+    bb1:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 17 !metadata(memory=scratch)
+      revert 28, 36
+  }
+  
+  fn @tree(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+      v5 = add arg0, arg1
+      v6 = lt v5, arg0
+      v1 = xor arg1, arg2
+      v7 = add arg2, v1
+      v8 = lt v7, arg2
+      v9 = or v6, v8
+      v10 = add v7, v5
+      v11 = lt v10, v7
+      v12 = or v9, v11
+      v13 = mul v10, v5
+      v14 = iszero v5
+      v15 = div v13, v5
+      v16 = eq v15, v10
+      v17 = or v14, v16
+      v18 = iszero v17
+      v19 = or v12, v18
+      jumpi v19, bb1, bb2
+    bb2:
+      ret v13
+    bb1:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 17 !metadata(memory=scratch)
+      revert 28, 36
+  }
+  
+  fn @two_groups(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v4 = add arg0, arg1
+      v5 = lt v4, arg0
+      v6 = add v4, arg1
+      v7 = lt v6, v4
+      v8 = or v5, v7
+      jumpi v8, bb1, bb2
+    bb2:
+      mstore 0, v6
+      v9 = sub v6, arg1
+      v10 = lt v6, arg1
+      v11 = mul v9, arg1
+      v12 = iszero arg1
+      v13 = div v11, arg1
+      v14 = eq v13, v9
+      v15 = or v12, v14
+      v16 = iszero v15
+      v17 = or v10, v16
+      jumpi v17, bb1, bb3
+    bb3:
+      ret v11
+    bb1:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 17 !metadata(memory=scratch)
+      revert 28, 36
+  }
+  
+  fn @remainder_boundary(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v4 = add arg0, arg1
+      v5 = lt v4, arg0
+      v6 = add v4, arg1
+      v7 = lt v6, v4
+      v8 = or v5, v7
+      jumpi v8, bb1, bb2
+    bb2:
+      jumpi arg1, bb4, bb3
+    bb3:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 18 !metadata(memory=scratch)
+      revert 28, 36
+    bb4:
+      v9 = mod v6, arg1
+      v10 = add v9, arg1
+      v11 = lt v10, v9
+      jumpi v11, bb1, bb5
+    bb5:
+      ret v10
+    bb1:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 17 !metadata(memory=scratch)
+      revert 28, 36
+  }
+  
+  fn @power_boundary(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v4 = add arg0, arg1
+      v5 = lt v4, arg0
+      v6 = add v4, arg1
+      v7 = lt v6, v4
+      v8 = or v5, v7
+      jumpi v8, bb1, bb2
+    bb2:
+      jump bb3
+    bb3:
+      v9 = phi [bb2: 1], [bb7: v21]
+      v10 = phi [bb2: v6], [bb7: v23]
+      v11 = phi [bb2: arg1], [bb7: v22]
+      v12 = gt v11, 0
+      jumpi v12, bb4, bb5
+    bb5:
+      v31 = add v9, arg1
+      v32 = lt v31, v9
+      jumpi v32, bb1, bb8
+    bb8:
+      ret v31
+    bb4:
+      v13 = and v11, 1
+      v14 = mul v9, v10
+      v15 = iszero v10
+      v16 = div v14, v10
+      v17 = eq v16, v9
+      v18 = or v15, v17
+      v19 = iszero v18
+      v20 = and v13, v19
+      jumpi v20, bb1, bb6
+    bb6:
+      v21 = select v13, v14, v9
+      v22 = shr 1, v11
+      v23 = mul v10, v10
+      v24 = iszero v10
+      v25 = div v23, v10
+      v26 = eq v25, v10
+      v27 = or v24, v26
+      v28 = iszero v27
+      v29 = gt v22, 0
+      v30 = and v29, v28
+      jumpi v30, bb1, bb7
+    bb7:
+      jump bb3
+    bb1:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 17 !metadata(memory=scratch)
+      revert 28, 36
+  }
+  

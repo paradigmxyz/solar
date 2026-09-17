@@ -32,16 +32,6 @@ bb5 [cold]:
   push 0
   push 0
   revert
-bb14 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
-  push 17
-  push 32
-  mstore
-  push 36
-  push 28
-  revert
 bb18 [continuation]:
   dup 2
   add
@@ -52,6 +42,16 @@ bb18 [continuation]:
   jumpi
   swap 1
   jump
+bb14 [cold]:
+  push 0x4e487b71
+  push 0
+  mstore
+  push 17
+  push 32
+  mstore
+  push 36
+  push 28
+  revert
 bb6:
   push bb7
   push 4
@@ -88,18 +88,6 @@ bb29:
   mstore
   push 0
   push 0
-  jump bb30
-bb32 [loop]:
-  dup 1
-  dup 3
-  add
-  swap 2
-  dup 3
-  lt
-  push bb14
-  jumpi
-  push 1
-  add
   jump bb30
 bb30 [loop]:
   push 0x2020
@@ -193,3 +181,26 @@ bb12 [continuation]:
   push 32
   push 128
   return
+bb32 [loop]:
+  dup 1
+  dup 3
+  add
+  swap 1
+  push 1
+  add
+  swap 2
+  dup 2
+  lt
+  exchange 1, 2
+  iszero
+  push bb30
+  jumpi
+  push 0x4e487b71
+  push 0
+  mstore
+  push 17
+  push 32
+  mstore
+  push 36
+  push 28
+  revert

@@ -17,18 +17,18 @@
 +     jump bb4
     bb4:
       v4 = sub v3, v0
-      v5 = lt v3, v0
+-     v5 = lt v3, v0
 -     jumpi v5, bb5, bb6
 +     jump bb6
     bb6:
-      v6 = lt v4, arg1
+-     v6 = lt v4, arg1
 -     jumpi v6, bb7, bb8
 +     jump bb7
     bb7:
       v7 = shl 5, v4
       v8 = add arg0, v7
       v9 = mload v8
-      v10 = lt v0, arg1
+-     v10 = lt v0, arg1
 -     jumpi v10, bb9, bb8
 -   bb8:
 -     revert 0, 36
@@ -51,7 +51,7 @@
       v1 = lt arg0, v0
       jumpi v1, bb1, bb5
     bb1:
-      v2 = lt arg0, arg1
+-     v2 = lt arg0, arg1
 -     jumpi v2, bb2, bb5
 +     jump bb2
     bb2:
