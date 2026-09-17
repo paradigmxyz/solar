@@ -4,10 +4,10 @@
 //! on is generated from the MIR operation schema into `isle/prelude.isle`, and
 //! `build.rs` compiles both into Rust. This module implements the extractors
 //! and constructors the rules call. Root operations and nested definitions expose
-//! constants on the right of declared commutative pairs. This matching view does
-//! not add e-nodes or change emitted operand order; extraction still chooses it.
+//! constants on the right of declared commutative pairs and comparisons, using
+//! the same canonicalization as e-graph insertion and materialization.
 
-use super::{OperandViews, same_value};
+use super::{OperandViews, canonical_operands, same_value};
 use crate::{
     backend::evm::op,
     mir::{
@@ -85,20 +85,14 @@ impl<'a> RuleContext<'a> {
 
     /// Appends every equivalent instruction the rules can build for `op`.
     pub(super) fn rewrite(&mut self, op: &Op, alternatives: &mut Vec<Op>) {
-        let op = self.canonical(*op);
+        let op = canonical_operands(self.func, *op);
         generated::constructor_rewrite(self, &op, alternatives);
     }
 
     /// Returns the value `op` is equal to, when a rule applies.
     pub(super) fn simplify(&mut self, op: &Op) -> Option<ValueId> {
-        let op = self.canonical(*op);
+        let op = canonical_operands(self.func, *op);
         generated::constructor_simplify(self, &op)
-    }
-
-    /// Presents constants on the right without changing emitted operand order.
-    fn canonical(&self, op: Op) -> Op {
-        // op(constant, value, rest) => op(value, constant, rest)
-        op.canonicalize_commutative_by_key(|value| self.func.value_u256(value).is_some())
     }
 
     fn has_const(&self, value: ValueId, expected: U256) -> bool {
@@ -267,7 +261,7 @@ impl generated::Context for RuleContext<'_> {
             .find(|&&(operand, _)| operand == value)
             .map(|&(_, op)| op)
             .or_else(|| defining_kind(self.func, value).map(InstKind::op))
-            .map(|op| self.canonical(op))
+            .map(|op| canonical_operands(self.func, op))
     }
 
     fn iconst(&mut self, value: Value) -> Option<U256> {

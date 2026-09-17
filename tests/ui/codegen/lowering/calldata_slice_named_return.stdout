@@ -22,7 +22,7 @@ fn @use() [selector=0x01bd03f7, abi_wrapper, pure] {
     jumpi v3, bb1, bb2
   bb2:
     v4 = calldataload 4
-    v5 = add 4, v4
+    v5 = add v4, 4
     v6 = add v5, 32
     v7 = gt v4, 0xffffffffffffffff
     v8 = gt v6, v2

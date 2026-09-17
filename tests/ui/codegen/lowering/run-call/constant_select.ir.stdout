@@ -113,8 +113,8 @@ bb12:
   jumpi
   push 4
   calldataload
-  dup 1
   push 4
+  dup 2
   add
   push 32
   dup 2
@@ -589,8 +589,8 @@ bb71:
   calldatasize
   swap 1
   calldataload
-  dup 1
   push 4
+  dup 2
   add
   push 32
   dup 2

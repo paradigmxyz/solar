@@ -85,7 +85,7 @@ fn @fold_modular_helpers(arg0: i256) -> i256 {
     ret v3
 }
 
-// `gt arg1, 0` is the flipped `lt 0, arg1` and shares its definition.
+// Flipped comparisons share the constant-right definition.
 // CHECK-LABEL: {{^[ +].*}}fn @complete_word_identities{{[( ]}}
 // CHECK: {{^[ +].*}}[[NOT:v[0-9]+]] = not arg0
 // CHECK-NOT: {{^[ +].*}}= gt
