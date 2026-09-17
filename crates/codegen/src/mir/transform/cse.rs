@@ -30,8 +30,10 @@
 //! availability before applying the retained instruction's clobbers so an identical write does not
 //! invalidate itself.
 //!
-//! Loads at allocation bases stay local unless the cached value already crosses the block edge.
-//! Extending their lifetimes can add a spill whose store and reload cost more than the load.
+//! Loads at allocation bases stay local unless the cached value already crosses the block edge
+//! or is still live at the end of every predecessor, where it is held on the way in anyway.
+//! Extending their lifetimes further can add a spill whose store and reload cost more than the
+//! load.
 //! Constant word and semantic length writes seed the same read cache without extending register
 //! lifetimes. Overlapping writes and calls invalidate these entries through the usual alias checks.
 //!
@@ -776,15 +778,29 @@ impl CommonSubexprEliminator {
         cache: &mut ExprCache,
         ctx: &GlobalCseContext<'_>,
     ) {
+        let liveness = ctx.liveness.get_or_init(|| Liveness::compute(func));
+        // The word is still held wherever control enters `child`: it, or a read it has
+        // replaced, is live at the end of every predecessor. Reuse then lengthens its life by
+        // less than this block, or, where it replaces a read that outlives the block, by
+        // nothing, since it takes over that read's place. A result array's length after the
+        // loop that filled it is the case: the next loop reads its bound in its preheader and
+        // carries it around either way.
+        let held_at_entry = |value: ValueId| {
+            func.blocks[child].predecessors.iter().all(|&pred| {
+                let live_out = liveness.live_out(pred);
+                live_out.contains(value)
+                    || ctx.replacements.keys().any(|&replaced| {
+                        live_out.contains(replaced)
+                            && mir_utils::resolve_replacement(replaced, ctx.replacements) == value
+                    })
+            })
+        };
         cache.retain_stateful(|key, value| {
             !matches!(key, ExprKey::MLoad(location)
                 if location.address.is_allocation_base())
                 || func.value_u256(*value).is_some()
-                || ctx
-                    .liveness
-                    .get_or_init(|| Liveness::compute(func))
-                    .live_in(child)
-                    .contains(*value)
+                || liveness.live_in(child).contains(*value)
+                || held_at_entry(*value)
         });
         // A sole predecessor has already applied every clobber before this edge.
         if func.blocks[child].predecessors.as_slice() == [parent]

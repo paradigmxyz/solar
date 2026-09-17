@@ -255,8 +255,7 @@ fn @encode() [selector=0xfc4c4555, abi_wrapper, pure] {
   bb8:
     v230 = iszero v16
     v231 = iszero v230
-    v229 = mload v16
-    v232 = mul v229, v231
+    v232 = mul v106, v231
     v233 = add v16, 32
     v234 = add v232, 31
     v236 = and v234, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
