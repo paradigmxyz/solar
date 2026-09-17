@@ -33,6 +33,7 @@ use crate::{
     backend::assembler::{
         ArtifactKind, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
     },
+    link::LibraryRelocation,
     mir::{
         ArgIdx, BlockId, EffectKind, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
         InstKind, MemoryRegion, MirPhase, MirType, Module, Terminator, Value, ValueId,
@@ -83,6 +84,7 @@ const GLOBAL_STACK_LAYOUT_LIMIT: usize = 8;
 #[derive(Default)]
 struct GeneratedCode {
     bytecode: Vec<u8>,
+    library_relocations: Vec<LibraryRelocation>,
     evm_ir: Option<ir::Module>,
     debug_info: Option<Vec<DebugInstruction>>,
 }
@@ -610,10 +612,16 @@ impl<'gcx> EvmCodegen<'gcx> {
 /// The artifact produced by the EVM backend.
 #[derive(Clone, Debug, Default)]
 pub struct EvmArtifact {
+    /// Library identities referenced by this artifact.
+    pub libraries: crate::link::LibraryTable,
     /// Deployment (init) bytecode that, when run, returns the runtime code.
     pub deployment: Vec<u8>,
     /// Runtime bytecode, i.e. the code stored on-chain.
     pub runtime: Vec<u8>,
+    /// Library address offsets in the deployment bytecode.
+    pub deployment_library_relocations: Vec<LibraryRelocation>,
+    /// Library address offsets in the runtime bytecode.
+    pub runtime_library_relocations: Vec<LibraryRelocation>,
     /// Immutable placeholders in the runtime bytecode.
     pub(crate) immutable_references: Vec<ImmutableRef>,
     /// Final deployment-prefix EVM IR immediately before byte emission.
@@ -640,10 +648,12 @@ mod tests {
         stack::spills::{SpillColor, SpillLiveRange},
         *,
     };
-    use crate::backend::evm::disasm::disassemble;
-    use crate::mir::{
-        Callee, DataRef, FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value,
-        utils as mir_utils,
+    use crate::{
+        backend::{Backend, evm::disasm::disassemble},
+        mir::{
+            Callee, DataRef, FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value,
+            utils as mir_utils,
+        },
     };
     use solar_config::{CompileOpts, EvmVersion};
     use solar_interface::{Ident, Session, sym};
@@ -709,113 +719,212 @@ mod tests {
     #[test]
     fn llvm_cast_opcodes() {
         let mut output = String::new();
-        for (name, source, destination, cast) in [
-            (
-                "sext_i1_i256",
-                MirType::I1,
-                MirType::I256,
-                InstKind::Sext(ValueId::from_usize(0), 1, 256),
-            ),
-            (
-                "sext_i1_i160",
-                MirType::I1,
-                MirType::I160,
-                InstKind::Sext(ValueId::from_usize(0), 1, 160),
-            ),
-            (
-                "sext_i160_i256",
-                MirType::I160,
-                MirType::I256,
-                InstKind::Sext(ValueId::from_usize(0), 160, 256),
-            ),
-            (
-                "trunc_i256_i1",
-                MirType::I256,
-                MirType::I1,
-                InstKind::Trunc(ValueId::from_usize(0), 1),
-            ),
-            (
-                "trunc_i256_i160",
-                MirType::I256,
-                MirType::I160,
-                InstKind::Trunc(ValueId::from_usize(0), 160),
-            ),
-            (
-                "zext_i160_i256",
-                MirType::I160,
-                MirType::I256,
-                InstKind::Zext(ValueId::from_usize(0)),
-            ),
-            (
-                "ptrtoint_i1",
-                MirType::MemPtr,
-                MirType::I1,
-                InstKind::PtrToInt(ValueId::from_usize(0), 1),
-            ),
-            (
-                "ptrtoint_i160",
-                MirType::MemPtr,
-                MirType::I160,
-                InstKind::PtrToInt(ValueId::from_usize(0), 160),
-            ),
-            (
-                "ptrtoint_i256",
-                MirType::MemPtr,
-                MirType::I256,
-                InstKind::PtrToInt(ValueId::from_usize(0), 256),
-            ),
-            (
-                "inttoptr",
-                MirType::I256,
-                MirType::MemPtr,
-                InstKind::IntToPtr(ValueId::from_usize(0)),
-            ),
-            (
-                "bitcast",
-                MirType::MemPtr,
-                MirType::MemPtr,
-                InstKind::Bitcast(ValueId::from_usize(0)),
-            ),
-        ] {
-            output.push_str(name);
-            output.push('\n');
-            output.push_str(&with_codegen(CompileOpts::default(), |mut codegen| {
-                let mut function = Function::new(Ident::DUMMY);
-                let mut builder = FunctionBuilder::new(&mut function);
-                let argument = builder.add_param(source);
-                let result = builder.emit_inst(cast.clone(), Some(destination));
-                builder.set_return_type(destination);
-                builder.ret([result]);
-                let index = function.blocks[BlockId::ENTRY].instructions.len() - 1;
-                let instruction = function.blocks[BlockId::ENTRY].instructions[index];
-                let liveness = Liveness::compute(&function);
-                // CALLVALUE; cast argument
-                codegen.asm.emit_op(op::CALLVALUE);
-                codegen.scheduler.stack.push(argument);
-                codegen.generate_inst(
-                    FunctionId::from_usize(0),
-                    instruction,
-                    &function,
-                    &cast,
-                    &liveness,
-                    BlockId::ENTRY,
-                    index,
-                    Some(result),
-                );
-                // MSTORE 0, result; RETURN 0, 32
-                codegen.asm.emit_push(U256::ZERO);
-                codegen.asm.emit_op(op::MSTORE);
-                codegen.asm.emit_push(U256::from(32));
-                codegen.asm.emit_push(U256::ZERO);
-                codegen.asm.emit_op(op::RETURN);
-                let bytecode = codegen.asm.assemble().bytecode;
-                assert_eq!(codegen.gcx.dcx().err_count(), 0);
-                disassemble(&bytecode, EvmVersion::default())
-            }));
+        for evm_version in [EvmVersion::Byzantium, EvmVersion::Osaka] {
+            output.push_str(&format!("{evm_version:?}\n"));
+            for (name, source, destination, cast) in [
+                (
+                    "sext_i1_i256",
+                    MirType::I1,
+                    MirType::I256,
+                    InstKind::Sext(ValueId::from_usize(0), 1, 256),
+                ),
+                (
+                    "sext_i1_i160",
+                    MirType::I1,
+                    MirType::I160,
+                    InstKind::Sext(ValueId::from_usize(0), 1, 160),
+                ),
+                (
+                    "sext_i160_i256",
+                    MirType::I160,
+                    MirType::I256,
+                    InstKind::Sext(ValueId::from_usize(0), 160, 256),
+                ),
+                (
+                    "trunc_i256_i1",
+                    MirType::I256,
+                    MirType::I1,
+                    InstKind::Trunc(ValueId::from_usize(0), 1),
+                ),
+                (
+                    "trunc_i256_i160",
+                    MirType::I256,
+                    MirType::I160,
+                    InstKind::Trunc(ValueId::from_usize(0), 160),
+                ),
+                (
+                    "zext_i160_i256",
+                    MirType::I160,
+                    MirType::I256,
+                    InstKind::Zext(ValueId::from_usize(0)),
+                ),
+                (
+                    "ptrtoint_i1",
+                    MirType::MemPtr,
+                    MirType::I1,
+                    InstKind::PtrToInt(ValueId::from_usize(0), 1),
+                ),
+                (
+                    "ptrtoint_i160",
+                    MirType::MemPtr,
+                    MirType::I160,
+                    InstKind::PtrToInt(ValueId::from_usize(0), 160),
+                ),
+                (
+                    "ptrtoint_i256",
+                    MirType::MemPtr,
+                    MirType::I256,
+                    InstKind::PtrToInt(ValueId::from_usize(0), 256),
+                ),
+                (
+                    "inttoptr",
+                    MirType::I256,
+                    MirType::MemPtr,
+                    InstKind::IntToPtr(ValueId::from_usize(0)),
+                ),
+                (
+                    "bitcast",
+                    MirType::MemPtr,
+                    MirType::MemPtr,
+                    InstKind::Bitcast(ValueId::from_usize(0)),
+                ),
+            ] {
+                output.push_str(name);
+                output.push('\n');
+                output.push_str(&with_codegen(
+                    CompileOpts { evm_version, ..Default::default() },
+                    |mut codegen| {
+                        let mut function = Function::new(Ident::DUMMY);
+                        let mut builder = FunctionBuilder::new(&mut function);
+                        let argument = builder.add_param(source);
+                        let result = builder.emit_inst(cast.clone(), Some(destination));
+                        builder.set_return_type(destination);
+                        builder.ret([result]);
+                        let index = function.blocks[BlockId::ENTRY].instructions.len() - 1;
+                        let instruction = function.blocks[BlockId::ENTRY].instructions[index];
+                        let liveness = Liveness::compute(&function);
+                        // CALLVALUE; cast argument
+                        codegen.asm.emit_op(op::CALLVALUE);
+                        codegen.scheduler.stack.push(argument);
+                        codegen.generate_inst(
+                            FunctionId::from_usize(0),
+                            instruction,
+                            &function,
+                            &cast,
+                            &liveness,
+                            BlockId::ENTRY,
+                            index,
+                            Some(result),
+                        );
+                        // MSTORE 0, result; RETURN 0, 32
+                        codegen.asm.emit_push(U256::ZERO);
+                        codegen.asm.emit_op(op::MSTORE);
+                        codegen.asm.emit_push(U256::from(32));
+                        codegen.asm.emit_push(U256::ZERO);
+                        codegen.asm.emit_op(op::RETURN);
+                        let bytecode = codegen.asm.assemble().bytecode;
+                        assert_eq!(codegen.gcx.dcx().err_count(), 0);
+                        disassemble(&bytecode, evm_version)
+                    },
+                ));
+            }
         }
         snapbox::assert_data_eq!(
             output,
             snapbox::str![[r#"
+Byzantium
+sext_i1_i256
+CALLVALUE
+PUSH1 0x00
+SUB
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+sext_i1_i160
+CALLVALUE
+PUSH20 0xffffffffffffffffffffffffffffffffffffffff
+MUL
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+sext_i160_i256
+CALLVALUE
+PUSH1 0x13
+SIGNEXTEND
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+trunc_i256_i1
+CALLVALUE
+PUSH1 0x01
+AND
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+trunc_i256_i160
+CALLVALUE
+PUSH20 0xffffffffffffffffffffffffffffffffffffffff
+AND
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+zext_i160_i256
+CALLVALUE
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+ptrtoint_i1
+CALLVALUE
+PUSH1 0x01
+AND
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+ptrtoint_i160
+CALLVALUE
+PUSH20 0xffffffffffffffffffffffffffffffffffffffff
+AND
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+ptrtoint_i256
+CALLVALUE
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+inttoptr
+CALLVALUE
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+bitcast
+CALLVALUE
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+Osaka
 sext_i1_i256
 CALLVALUE
 PUSH0
@@ -828,10 +937,9 @@ RETURN
 sext_i1_i160
 CALLVALUE
 PUSH0
-NOT
+SUB
 PUSH1 0x60
 SHR
-MUL
 PUSH0
 MSTORE
 PUSH1 0x20
@@ -932,11 +1040,15 @@ RETURN
             module.advance_phase(codegen.gcx.dcx(), MirPhase::Lowered).unwrap();
 
             let mut first_module = module.clone();
-            let first = codegen.generate_deployment_bytecode(&mut first_module);
+            let first = codegen.lower_module(&mut first_module);
             let mut second_module = module.clone();
-            let second = codegen.generate_deployment_bytecode(&mut second_module);
+            let second = codegen.lower_module(&mut second_module);
 
-            assert_eq!(second, first);
+            assert_eq!(second.deployment, first.deployment);
+            assert_eq!(second.runtime, first.runtime);
+            assert_eq!(second.libraries, first.libraries);
+            assert_eq!(second.deployment_library_relocations, first.deployment_library_relocations);
+            assert_eq!(second.runtime_library_relocations, first.runtime_library_relocations);
         });
     }
 

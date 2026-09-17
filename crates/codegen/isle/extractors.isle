@@ -297,6 +297,9 @@
 (decl loadimmutable (ImmutableId) Value)
 (extractor (loadimmutable id) (inst (Op.LoadImmutable id)))
 
+(decl libraryaddress (LibraryId) Value)
+(extractor (libraryaddress library) (inst (Op.LibraryAddress library)))
+
 (decl returndatasize () Value)
 (extractor (returndatasize) (inst (Op.ReturnDataSize)))
 

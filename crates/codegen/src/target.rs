@@ -452,6 +452,11 @@ impl Target {
             if from_bits == 1 {
                 return if to_bits == 256 {
                     self.push(U256::ZERO) + self.opcode(op::SUB)
+                } else if to_bits == 160 && self.evm_version.has_bitwise_shifting() {
+                    self.push(U256::ZERO)
+                        + self.opcode(op::SUB)
+                        + self.push(U256::from(96))
+                        + self.opcode(op::SHR)
                 } else if to_bits < 256 {
                     self.push(U256::MAX >> (256 - to_bits)) + self.opcode(op::MUL)
                 } else {

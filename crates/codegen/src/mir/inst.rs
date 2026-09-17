@@ -801,6 +801,7 @@ impl Instruction {
             | InstKind::ExtCodeSize(..)
             | InstKind::ExtCodeCopy(..)
             | InstKind::ExtCodeHash(..)
+            | InstKind::LibraryAddress(..)
             | InstKind::LoadImmutable(..)
             | InstKind::ReturnDataSize
             | InstKind::ReturnDataCopy(..)

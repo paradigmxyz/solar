@@ -74,11 +74,12 @@ fn @libraryCall() [selector=0x239b86e9, abi_params=[], abi_returns=[], abi_retur
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = extcodesize 0x1111111111111111111111111111111111111111
-    v5 = eq v4, 0
-    icall revert_if<target_contract_has_no_code>, v5
-    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
-    jumpi v6, bb2, bb1
+    v4 = zext i160 0x1111111111111111111111111111111111111111 to i256
+    v5 = extcodesize v4
+    v6 = eq v5, 0
+    icall revert_if<target_contract_has_no_code>, v6
+    v7 = delegatecall v3, i160 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:

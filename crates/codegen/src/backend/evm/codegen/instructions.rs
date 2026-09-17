@@ -136,6 +136,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.asm.emit_push(U256::ZERO);
                     self.asm.emit_op(op::SUB);
                 }
+                InstKind::Sext(_, 1, 160)
+                    if self.gcx.sess.opts.evm_version.has_bitwise_shifting() =>
+                {
+                    // sext i1 value to i160 -> SUB 0, value; SHR 96
+                    self.asm.emit_push(U256::ZERO);
+                    self.asm.emit_op(op::SUB);
+                    self.asm.emit_push(U256::from(96));
+                    self.asm.emit_op(op::SHR);
+                }
                 InstKind::Sext(_, 1, bits) => {
                     // sext i1 value to iN -> MUL value, (1 << N) - 1
                     self.asm.emit_push(U256::MAX >> (256 - bits));
@@ -270,6 +279,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             // Immutables
             InstKind::StoreImmutable(..) => {
                 unreachable!("immutable stores must be lowered before EVM codegen")
+            }
+            InstKind::LibraryAddress(value) => {
+                // push_library library
+                self.asm.emit_push_library(*value);
+                self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::LoadImmutable(id) => {
                 self.emit_load_immutable(*id);

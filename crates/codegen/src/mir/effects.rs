@@ -206,6 +206,7 @@ impl InstKind {
             | Self::ExtCodeCopy(..)
             | Self::ExtCodeHash(..)
             | Self::StoreImmutable(..)
+            | Self::LibraryAddress(..)
             | Self::LoadImmutable(..)
             | Self::ReturnDataSize
             | Self::Caller

@@ -1093,6 +1093,19 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(rule["status"], "proved")
         self.assertEqual(rule["constant_specializations"], {"a": "0x1"})
 
+    def test_i1_sign_extension_lowering(self):
+        for bits in (160, 256):
+            cx = Context()
+            value = Expr.var("value")
+            expected = cx.operation("Op.Sext", [value, Expr.const(1), Expr.const(bits)])
+            negate = Expr("sub", (Expr.const(0), value))
+            shifted = Expr("shr", (Expr.const(256 - bits), negate))
+            multiply = Expr("mul", (value, Expr.const((1 << bits) - 1)))
+            assumptions = [z3.ULE(cx.model.eval(value), z3.BitVecVal(1, 256))]
+            for lowered in (shifted, multiply):
+                result, _ = check(expected, lowered, assumptions, 5000, cx.model)
+                self.assertEqual(result["status"], "proved", (bits, lowered, result))
+
     def test_actual_integer_and_pointer_cast_rules(self):
         path = ISLE / "egraph.isle"
         source = path.read_text()

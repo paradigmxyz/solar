@@ -83,7 +83,7 @@ fn @one(arg0: i256) -> i256 [selector=0xef56f928, pure, abi_params=[u256], abi_r
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    v4 = delegatecall v3, i160 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
     jumpi v4, bb2, bb1
   bb1:
     revert_returndata
@@ -99,7 +99,7 @@ fn @two(arg0: i256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[u256], ab
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    v4 = delegatecall v3, i160 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
     jumpi v4, bb2, bb1
   bb1:
     revert_returndata
@@ -125,7 +125,7 @@ fn @aggregate(arg0: i256) -> memoryfixedarray [selector=0x407b7269, pure, abi_pa
     v2 = slice_ptr v1
     v3 = slice_len v1
     v4 = gas
-    v5 = delegatecall v4, 0x1111111111111111111111111111111111111111, v2, v3, 0, 0
+    v5 = delegatecall v4, i160 0x1111111111111111111111111111111111111111, v2, v3, 0, 0
     jumpi v5, bb2, bb1
   bb1:
     revert_returndata
@@ -141,7 +141,7 @@ fn @boolean(arg0: i256) -> i256 [selector=0xbc586ed6, pure, abi_params=[u256], a
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    v4 = delegatecall v3, i160 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
     jumpi v4, bb2, bb1
   bb1:
     revert_returndata
@@ -161,7 +161,7 @@ fn @structBool(arg0: i256) -> memorystruct [selector=0x199436a8, pure, abi_param
     v2 = slice_ptr v1
     v3 = slice_len v1
     v4 = gas
-    v5 = delegatecall v4, 0x1111111111111111111111111111111111111111, v2, v3, 0, 0
+    v5 = delegatecall v4, i160 0x1111111111111111111111111111111111111111, v2, v3, 0, 0
     jumpi v5, bb2, bb1
   bb1:
     revert_returndata
@@ -177,7 +177,7 @@ fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    v4 = delegatecall v3, i160 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
     jumpi v4, bb2, bb1
   bb1:
     revert_returndata
@@ -193,7 +193,7 @@ fn @dynamicArgument(arg0: memorybytes) -> struct0 [selector=0x11b8efbf, pure, ab
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    v4 = delegatecall v3, i160 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
     jumpi v4, bb2, bb1
   bb1:
     revert_returndata
@@ -229,11 +229,12 @@ fn @none(arg0: i256) [selector=0x2758da14, pure, abi_params=[u256], abi_returns=
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = extcodesize 0x1111111111111111111111111111111111111111
-    v5 = eq v4, 0
-    icall revert_if<target_contract_has_no_code>, v5
-    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
-    jumpi v6, bb2, bb1
+    v4 = zext i160 0x1111111111111111111111111111111111111111 to i256
+    v5 = extcodesize v4
+    v6 = eq v5, 0
+    icall revert_if<target_contract_has_no_code>, v6
+    v7 = delegatecall v3, i160 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
