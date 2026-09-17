@@ -1,5 +1,6 @@
 [workspace]
 members = ["benches/", "crates/*", "examples/", "tools/*"]
+exclude = ["tools/compiler-diff"]
 default-members = ["crates/*"]
 resolver = "2"
 
