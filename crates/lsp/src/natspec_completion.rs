@@ -6,7 +6,7 @@ use lsp_types::{
 use solar_config::CompileOpts;
 use solar_interface::{Session, source_map::FileName};
 use solar_parse::{Cursor, Parser, ast, lexer::token::RawTokenKind};
-use std::{ops::Range as ByteRange, sync::Arc};
+use std::ops::Range as ByteRange;
 
 mod index;
 use index::syntax_fingerprint;
@@ -38,7 +38,6 @@ impl CommentStyle {
 pub(crate) struct NatSpecCompletionTarget {
     key: DeclarationKey,
     source_fingerprint: Box<str>,
-    pub(crate) analysis_source: Option<Arc<String>>,
     kind: TargetKind,
     parameters: Vec<String>,
     returns: Vec<Option<String>>,
@@ -338,10 +337,6 @@ pub(crate) fn target(contents: &Rope, cursor: Option<usize>) -> NatSpecCompletio
             target.edit_range = edit_range;
             target.filter_text = filter_text;
             target.source_fingerprint = source_fingerprint;
-            // Analyze the same repaired comment used to locate the declaration.
-            if candidate.parse_source != source {
-                target.analysis_source = Some(Arc::new(candidate.parse_source));
-            }
             target.additional_text_edits = candidate
                 .additional_edit_range
                 .and_then(|range| proto::byte_range_to_lsp(contents, range))
@@ -622,7 +617,6 @@ fn target_from_item(
     Some(NatSpecCompletionTarget {
         key,
         source_fingerprint: Box::default(),
-        analysis_source: None,
         kind,
         parameters,
         returns,

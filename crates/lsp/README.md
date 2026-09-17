@@ -11,12 +11,6 @@ Indexing exclusions still apply. Foundry settings supply import resolution, comp
 and build entry points for flycheck. Explicitly configured source directories remain included,
 including directories outside the project root.
 
-Completion and signature help reuse the current index when it is fresh. During a
-pending edit, they analyze the requested file and its imports with the captured
-open-document overlays. This request analysis runs independently of workspace
-indexing and never publishes partial diagnostics or replaces the full index.
-Requests reject results when a newer edit changes their inputs.
-
 ## Embedding
 
 Use the public `solar_lsp::launch` entry point to run the same language server implementation

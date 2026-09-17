@@ -1,7 +1,4 @@
-use super::{
-    GlobalState,
-    support::{RequestFixture, block_on},
-};
+use super::{GlobalState, expect_ready, support::RequestFixture};
 use crate::{handlers, vfs::VfsPath};
 use crop::Rope;
 use lsp_types::{
@@ -15,7 +12,7 @@ fn request_signature_help(
     uri: Url,
     position: Position,
 ) -> Option<SignatureHelp> {
-    block_on(handlers::signature_help(
+    expect_ready(handlers::signature_help(
         state,
         SignatureHelpParams {
             text_document_position_params: TextDocumentPositionParams {
@@ -428,7 +425,7 @@ fn does_not_reuse_a_stale_member_call_after_the_receiver_changes() {
 }
 
 #[test]
-fn warmed_requests_resolve_a_changed_receiver() {
+fn warmed_requests_reject_a_changed_receiver_before_reanalysis() {
     let fixture = RequestFixture::new(
         r#"
         //- /Signature.sol open
@@ -459,8 +456,7 @@ fn warmed_requests_resolve_a_changed_receiver() {
     let changed = contents.replace("a.f(", "b.f(");
     let path = VfsPath::from(fixture.project_path("/Signature.sol"));
     state.vfs.write().set_file_contents(path.clone(), Some(Rope::from(changed)));
-    let changed_help = request_signature_help(&mut state, uri.clone(), position).unwrap();
-    assert_eq!(changed_help.signatures[0].label, "function f(address value) external pure");
+    assert_eq!(request_signature_help(&mut state, uri.clone(), position), None);
 
     state.vfs.write().set_file_contents(path, Some(Rope::from(contents)));
     assert_eq!(request_signature_help(&mut state, uri, position), Some(original));
@@ -496,24 +492,20 @@ fn warmed_requests_use_current_string_and_comment_boundaries_before_reanalysis()
     let end = start + "hex\"3b3b\",".len();
     // Keep the callsite and cursor positions fixed while introducing invalid or incomplete
     // literals and comments. A comma swallowed by an open token belongs to the first argument.
-    // A closed comment followed by a comma leaves a missing expression and no analyzed call.
-    for (replacement, active_parameter) in [
-        (r#"hex";;,(","#, Some(1)),
-        (r#"hex";;,( ,"#, Some(0)),
-        (r#"/* "; */ ,"#, None),
-        (r#"/* ";    ,"#, Some(0)),
-    ] {
+    for (replacement, active_parameter) in
+        [(r#"hex";;,(","#, 1), (r#"hex";;,( ,"#, 0), (r#"/* "; */ ,"#, 1), (r#"/* ";    ,"#, 0)]
+    {
         assert_eq!(replacement.len(), end - start);
         let mut changed = contents.clone();
         changed.replace_range(start..end, replacement);
         state.vfs.write().set_file_contents(path.clone(), Some(Rope::from(changed)));
-        let expected = active_parameter.map(|active_parameter| {
-            let mut expected = original.clone();
-            expected.active_parameter = Some(active_parameter);
-            expected
-        });
-        assert_eq!(request_signature_help(&mut state, uri.clone(), position), expected);
-        assert_eq!(request_signature_help(&mut state, uri.clone(), position), expected);
+        let mut expected = original.clone();
+        expected.active_parameter = Some(active_parameter);
+        assert_eq!(
+            request_signature_help(&mut state, uri.clone(), position),
+            Some(expected.clone())
+        );
+        assert_eq!(request_signature_help(&mut state, uri.clone(), position), Some(expected));
     }
 
     state.vfs.write().set_file_contents(path, Some(Rope::from(contents)));
@@ -668,8 +660,7 @@ fn warmed_member_signature_help_does_not_reuse_a_nearby_call() {
         VfsPath::from(fixture.project_path("/Signature.sol")),
         Some(Rope::from(changed)),
     );
-    let help = request_signature_help(&mut state, uri, changed_position).unwrap();
-    assert_eq!(help.signatures[0].label, "function f(uint128 value) external pure");
+    assert_eq!(request_signature_help(&mut state, uri, changed_position), None);
 }
 
 #[test]

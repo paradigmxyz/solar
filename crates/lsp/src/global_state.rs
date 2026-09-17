@@ -58,7 +58,6 @@ use tokio::{
 };
 
 mod prototype_dependencies;
-mod request_analysis;
 
 #[derive(Clone, Copy)]
 enum AnalysisMode {
@@ -469,11 +468,6 @@ pub(crate) struct AnalysisRevision {
 }
 
 impl AnalysisRevision {
-    fn inputs_are_current(&self, vfs_content_revision: u64) -> bool {
-        self.current.load(Ordering::Acquire) == self.version
-            && self.vfs.read().content_revision() == vfs_content_revision
-    }
-
     pub(crate) fn is_current(&self, vfs_content_revision: u64) -> bool {
         let commit = self.commit.lock();
         self.current.load(Ordering::Acquire) == self.version
@@ -1570,13 +1564,6 @@ impl GlobalState {
         let analysis_commit = self.analysis_commit.clone();
         let mut commit = analysis_commit.lock();
         self.begin_analysis_epoch(&mut commit, vec![path]);
-    }
-
-    #[cfg(test)]
-    pub(crate) fn mark_context_analysis_pending_for_test(&self) {
-        let analysis_commit = self.analysis_commit.clone();
-        let mut commit = analysis_commit.lock();
-        self.begin_analysis_epoch(&mut commit, Vec::new());
     }
 
     #[cfg(test)]

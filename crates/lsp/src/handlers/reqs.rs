@@ -977,26 +977,28 @@ pub(crate) fn signature_help(
     let source = state
         .cached_vfs_path(&params.text_document.uri)
         .and_then(|path| state.vfs.read().get_file_source(&path));
-    let analysis =
-        source.as_ref().map(|_| state.analysis_for_request(&params.text_document.uri, None));
     let options = state.config.signature_help_options();
+    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     async move {
-        let (Some(source), Some(analysis)) = (source, analysis) else { return Ok(None) };
-        let tables = analysis.await?;
+        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
+        let symbol_tables = latest_analysis.await?;
+        let Some(source) = source else { return Ok(None) };
         let Some(range) = source
             .positions()
             .checked_text_range(lsp_types::Range::new(params.position, params.position))
         else {
             return Ok(None);
         };
-        Ok(tables.signature_help(
+        let statement_boundary = Some(source.statement_boundary(range.start));
+        let response = symbol_tables.load().signature_help(
             &params.text_document.uri,
             params.position,
             source.positions(),
             &source.source(),
-            Some(source.statement_boundary(range.start)),
+            statement_boundary,
             options,
-        ))
+        );
+        Ok(response)
     }
 }
 
@@ -1004,49 +1006,57 @@ pub(crate) fn completion(
     state: &mut GlobalState,
     params: CompletionParams,
 ) -> impl Future<Output = Result<Option<CompletionResponse>, ResponseError>> + use<> {
-    let empty_trigger = matches!(
-        params.context.as_ref().and_then(|context| context.trigger_character.as_deref()),
-        Some("/" | "*" | "\"" | "'")
-    );
+    let trigger_character = params.context.and_then(|context| context.trigger_character);
     let params = params.text_document_position;
     let source = state
         .cached_vfs_path(&params.text_document.uri)
         .and_then(|path| state.vfs.read().get_file_source(&path));
-    let (natspec, import) =
-        source.as_ref().map_or((NatSpecCompletionResult::NotApplicable, None), |source| {
-            let contents = source.contents();
-            let cursor = source
-                .positions()
-                .checked_text_range(lsp_types::Range::new(params.position, params.position))
-                .map(|range| range.start);
-            let natspec = natspec_completion::target(contents, cursor);
-            let import = if matches!(natspec, NatSpecCompletionResult::NotApplicable) {
-                cursor.and_then(|cursor| {
-                    import_completion(
-                        state,
-                        &params.text_document.uri,
-                        cursor,
-                        contents,
-                        &source.source(),
-                    )
-                })
-            } else {
-                None
-            };
-            (natspec, import)
-        });
-    let source_override = match &natspec {
-        NatSpecCompletionResult::Claimed(Some(target)) => target.analysis_source.clone(),
-        _ => None,
+    let mut natspec = NatSpecCompletionResult::NotApplicable;
+    let mut imports = None;
+    if let Some(source) = source {
+        let contents = source.contents();
+        let cursor = source
+            .positions()
+            .checked_text_range(lsp_types::Range::new(params.position, params.position))
+            .map(|range| range.start);
+        natspec = natspec_completion::target(contents, cursor);
+        if matches!(natspec, NatSpecCompletionResult::NotApplicable)
+            && let Some(cursor) = cursor
+        {
+            imports = import_completion(
+                state,
+                &params.text_document.uri,
+                cursor,
+                contents,
+                &source.source(),
+            );
+        }
+    }
+    let empty_trigger = matches!(trigger_character.as_deref(), Some("/" | "*" | "\"" | "'"));
+    let input = if matches!(natspec, NatSpecCompletionResult::NotApplicable)
+        && imports.is_none()
+        && !empty_trigger
+    {
+        completion_input(state, &params.text_document.uri, params.position)
+    } else {
+        None
     };
-    let analysis = state.analysis_for_request(&params.text_document.uri, source_override);
-    let input = completion_input(state, &params.text_document.uri, params.position);
     let options = state.config.completion_options();
+    let revision = state.analysis_revision();
+    let content_revision = state.vfs.read().content_revision();
+    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     async move {
-        let tables = analysis.await?;
+        let Some(latest_analysis) = latest_analysis else {
+            return Ok(Some(CompletionResponse::Array(Vec::new())));
+        };
+        let symbol_tables = latest_analysis.await?;
+        if !revision.is_current(content_revision) {
+            return Err(request_failed("analysis did not produce current results"));
+        }
+        let symbol_tables = symbol_tables.load();
         if let NatSpecCompletionResult::Claimed(target) = natspec {
             let items = target.map_or_else(Vec::new, |target| {
-                let semantics = tables.natspec_semantics(
+                let semantics = symbol_tables.natspec_semantics(
                     &params.text_document.uri,
                     target.source_fingerprint(),
                     target.key(),
@@ -1055,17 +1065,17 @@ pub(crate) fn completion(
             });
             return Ok(Some(CompletionResponse::Array(items)));
         }
-        if let Some(import) = import {
-            return Ok(Some(import));
+        if let Some(response) = imports {
+            return Ok(Some(response));
         }
         if empty_trigger {
             return Ok(Some(CompletionResponse::Array(Vec::new())));
         }
         let context = input.as_ref().map(CompletionInput::context).unwrap_or_default();
         let mut items =
-            tables.completion_items(&params.text_document.uri, params.position, context);
+            symbol_tables.completion_items(&params.text_document.uri, params.position, context);
         if !options.resolve_documentation {
-            tables.resolve_completion_items(&mut items, options.markdown_documentation);
+            symbol_tables.resolve_completion_items(&mut items, options.markdown_documentation);
         }
         Ok(Some(CompletionResponse::Array(items)))
     }

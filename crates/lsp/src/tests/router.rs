@@ -7,15 +7,14 @@ use async_lsp::{
 use lsp_types::{
     CallHierarchyIncomingCallsParams, CallHierarchyItem, CallHierarchyOutgoingCallsParams,
     CallHierarchyPrepareParams, CancelParams, CodeActionContext, CodeActionParams,
-    CompletionParams, CompletionResponse, DeleteFilesParams,
-    DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams,
-    DidChangeWorkspaceFoldersParams, DidSaveTextDocumentParams, DocumentFormattingParams,
-    DocumentHighlightParams, DocumentLinkParams, DocumentSymbolParams, ExecuteCommandParams,
-    FileChangeType, FileDelete, FileEvent, FileRename, FoldingRangeParams, FormattingOptions,
-    HoverParams, InitializeParams, InitializedParams, NumberOrString, PartialResultParams,
-    Position, ProgressParams, ProgressParamsValue, PublishDiagnosticsParams, Range,
-    RegistrationParams, RenameFilesParams, SelectionRangeParams, SignatureHelpParams, SymbolKind,
-    TextDocumentIdentifier, TextDocumentPositionParams, TextDocumentSaveReason,
+    CompletionParams, DeleteFilesParams, DidChangeWatchedFilesClientCapabilities,
+    DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams, DidSaveTextDocumentParams,
+    DocumentFormattingParams, DocumentHighlightParams, DocumentLinkParams, DocumentSymbolParams,
+    ExecuteCommandParams, FileChangeType, FileDelete, FileEvent, FileRename, FoldingRangeParams,
+    FormattingOptions, HoverParams, InitializeParams, InitializedParams, NumberOrString,
+    PartialResultParams, Position, ProgressParams, ProgressParamsValue, PublishDiagnosticsParams,
+    Range, RegistrationParams, RenameFilesParams, SelectionRangeParams, SignatureHelpParams,
+    SymbolKind, TextDocumentIdentifier, TextDocumentPositionParams, TextDocumentSaveReason,
     UnregistrationParams, WillSaveTextDocumentParams, WindowClientCapabilities, WorkDoneProgress,
     WorkDoneProgressCancelParams, WorkDoneProgressCreateParams, WorkDoneProgressParams,
     WorkspaceClientCapabilities, WorkspaceFolder, WorkspaceFoldersChangeEvent,
@@ -741,7 +740,7 @@ async fn router_handles_document_formatting_requests() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn pending_analysis_requests_do_not_block_completion_or_cancellation() {
+async fn pending_analysis_requests_do_not_block_cancellation() {
     const TIMEOUT: Duration = Duration::from_secs(1);
 
     let project = TestProject::from_fixture(
@@ -805,14 +804,10 @@ async fn pending_analysis_requests_do_not_block_completion_or_cancellation() {
     server.notify::<notif::Cancel>(CancelParams { id: NumberOrString::Number(0) }).unwrap();
     server.notify::<notif::Cancel>(CancelParams { id: NumberOrString::Number(1) }).unwrap();
 
-    let response = tokio::time::timeout(TIMEOUT, completion)
-        .await
-        .expect("completion should not wait for analysis")
-        .unwrap();
-    let Some(CompletionResponse::Array(items)) = response else {
-        panic!("expected completion items, got {response:?}");
-    };
-    assert!(items.iter().any(|item| item.label == "NatSpec contract documentation"));
+    server.notify::<notif::Cancel>(CancelParams { id: NumberOrString::Number(2) }).unwrap();
+    assert_request_cancelled(
+        tokio::time::timeout(TIMEOUT, completion).await.expect("completion should be cancelled"),
+    );
 
     assert_request_cancelled(
         tokio::time::timeout(TIMEOUT, document_symbols)

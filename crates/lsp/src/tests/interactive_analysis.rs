@@ -479,6 +479,7 @@ contract C {{
                 },
             ));
             assert!(completion.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
+            assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
             drop(gate);
             let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, completion)
                 .await
@@ -544,6 +545,7 @@ async fn completions_refresh_nonempty_lists_and_local_names() {
             completion_params(&uri, 8 + expression.len() as u32),
         ));
         assert!(completion.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
+        assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
         drop(gate);
         let response =
             tokio::time::timeout(ASYNC_TEST_TIMEOUT, completion).await.unwrap().unwrap().unwrap();
@@ -568,6 +570,7 @@ async fn signature_help_waits_for_a_new_attached_call() {
         },
     ));
     assert!(signature.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
+    assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
     drop(gate);
     let response =
         tokio::time::timeout(ASYNC_TEST_TIMEOUT, signature).await.unwrap().unwrap().unwrap();
@@ -620,6 +623,7 @@ async fn natspec_and_import_completions_wait_for_analysis() {
         params.text_document_position.position = position;
         let mut completion = std::pin::pin!(crate::handlers::completion(&mut state, params));
         assert!(completion.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
+        assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
         drop(gate);
         let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, completion).await.unwrap().unwrap();
         assert!(response.is_some());
@@ -633,6 +637,7 @@ async fn completion_rejects_results_after_analysis_failure() {
     change(&mut state, &uri, 1, "///\ncontract C {}");
     let mut params = completion_params(&uri, 0);
     params.text_document_position.position = Position::new(0, 3);
+    let completion = crate::handlers::completion(&mut state, params);
     handle_analysis_failure(
         state.analysis_version.load(Ordering::Acquire),
         "test analysis failure",
@@ -640,142 +645,7 @@ async fn completion_rejects_results_after_analysis_failure() {
         &state.published_analysis_version,
         &state.analysis_commit,
     );
-    let error = crate::handlers::completion(&mut state, params).await.unwrap_err();
-    assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
+    let error = completion.await.unwrap_err();
+    assert_eq!(error.code, ErrorCode::REQUEST_FAILED);
     drop(gate);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn completion_uses_changed_import_without_publishing_unrelated_files() {
-    let marked = MarkedProject::from_fixture(
-        r#"
-        //- /Library.sol open
-        library L { function oldMethod(uint x) internal pure returns (uint) { return x; } }
-        //- /Request.sol open
-        import {L} from "./Library.sol";
-        contract C {
-            using L for uint;
-            function f() public pure {
-                uint x;
-                x.$1;
-            }
-        }
-        //- /Unrelated.sol
-        this is not Solidity
-        "#,
-    );
-    let project = marked.project();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config());
-    *state.vfs.write() = project.vfs();
-    let uri = Url::from_file_path(project.path("/Request.sol")).unwrap();
-    let params = lsp_types::CompletionParams {
-        text_document_position: TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier::new(uri.clone()),
-            position: marked.marker("$1").position(),
-        },
-        work_done_progress_params: Default::default(),
-        partial_result_params: Default::default(),
-        context: None,
-    };
-    let before = state.analysis_for_request(&uri, None).await.unwrap();
-    state.symbol_tables.store(before.clone());
-    state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
-    let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
-    let library = Url::from_file_path(project.path("/Library.sol")).unwrap();
-    for (version, name) in [(1, "oldMethod"), (2, "newMethod")] {
-        let source = project.read_file("/Library.sol").replace("oldMethod", name);
-        change(&mut state, &library, version, &source);
-        let response = tokio::time::timeout(
-            ASYNC_TEST_TIMEOUT,
-            crate::handlers::completion(&mut state, params.clone()),
-        )
-        .await
-        .expect("completion must not wait for the workspace gate")
-        .unwrap()
-        .unwrap();
-        let lsp_types::CompletionResponse::Array(items) = response else {
-            panic!("expected items")
-        };
-        assert_eq!(items.iter().map(|item| item.label.as_str()).collect::<Vec<_>>(), [name]);
-        assert!(Arc::ptr_eq(&before, &state.symbol_tables.load_full()));
-        assert_eq!(*state.published_analysis_version.borrow(), 0);
-        assert!(state.diagnostics.read().workspace_pull_reports(Vec::new()).is_empty());
-    }
-    state.clear_analysis_cache();
-    drop(gate);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn signature_help_uses_new_parameters_without_workspace_publication() {
-    let marked = MarkedProject::from_fixture(
-        r#"
-        //- /Request.sol open
-        contract C {
-            function target(uint oldValue) internal pure {}
-            function f() public pure { target($1); }
-        }
-        "#,
-    );
-    let project = marked.project();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config());
-    *state.vfs.write() = project.vfs();
-    let uri = Url::from_file_path(project.path("/Request.sol")).unwrap();
-    let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
-    change(&mut state, &uri, 1, &project.read_file("/Request.sol").replace("oldValue", "newValue"));
-    let response = tokio::time::timeout(
-        ASYNC_TEST_TIMEOUT,
-        crate::handlers::signature_help(
-            &mut state,
-            lsp_types::SignatureHelpParams {
-                text_document_position_params: TextDocumentPositionParams {
-                    text_document: TextDocumentIdentifier::new(uri),
-                    position: marked.marker("$1").position(),
-                },
-                work_done_progress_params: Default::default(),
-                context: None,
-            },
-        ),
-    )
-    .await
-    .expect("signature help must not wait for the workspace gate")
-    .unwrap()
-    .unwrap();
-    assert_eq!(response.signatures[0].label, "function target(uint256 newValue) internal pure");
-    assert_eq!(*state.published_analysis_version.borrow(), 0);
-    state.clear_analysis_cache();
-    drop(gate);
-}
-
-#[test]
-fn request_analysis_rejects_edits_while_queued() {
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .max_blocking_threads(1)
-        .build()
-        .unwrap();
-    runtime.block_on(async {
-        let (_project, state, uri) = fixture();
-        let (release, worker) = pause_blocking_pool();
-        let mut request = std::pin::pin!(state.analysis_for_request(&uri, None));
-        let mut cx = Context::from_waker(Waker::noop());
-        assert!(request.as_mut().poll(&mut cx).is_pending());
-        state.mark_analysis_pending_for_test();
-        let result = tokio::time::timeout(ASYNC_TEST_TIMEOUT, request).await;
-        release.send(()).unwrap();
-        worker.await.unwrap();
-        let error = result.expect("invalidation should not wait for the worker").unwrap_err();
-        assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
-    });
-}
-
-#[test]
-fn request_analysis_rejects_failed_configuration_epoch() {
-    let (_project, state, uri) = fixture();
-    state.mark_analysis_pending_for_test();
-    state.analysis_commit.lock().cache_invalidated = true;
-    state.published_analysis_version.send_replace(state.analysis_version.load(Ordering::Acquire));
-    let error = expect_ready(state.analysis_for_request(&uri, None)).unwrap_err();
-    assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
 }

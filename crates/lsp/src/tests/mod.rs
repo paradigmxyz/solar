@@ -576,7 +576,6 @@ fn assert_source_notification_tracks_until_publish(
             external_refresh_pending
         );
         assert!(state.analysis_commit.lock().natspec_pending_source_changes.contains(path));
-        assert!(!state.analysis_revision().is_current(state.vfs.read().content_revision()));
         release_worker.send(()).unwrap();
         worker.await.unwrap();
         tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
@@ -584,7 +583,6 @@ fn assert_source_notification_tracks_until_publish(
             .expect("source analysis should finish")
             .unwrap();
         assert!(state.analysis_commit.lock().natspec_pending_source_changes.is_empty());
-        assert!(state.analysis_revision().is_current(state.vfs.read().content_revision()));
     });
 }
 
@@ -1122,7 +1120,6 @@ async fn failed_current_analysis_recovers_after_save() {
         .unwrap();
     assert!(tables.load().workspace_symbols("Old").iter().any(|symbol| symbol.name == "Old"));
     assert!(state.analysis_cache_invalidated());
-    assert!(!state.analysis_revision().is_current(state.vfs.read().content_revision()));
 
     let probe_owner =
         DiagnosticOwner::Flycheck { id: "probe".into(), workspace: project.root().into() };
@@ -1158,7 +1155,6 @@ async fn failed_current_analysis_recovers_after_save() {
     assert!(tables.workspace_symbols("Recovered").iter().any(|symbol| symbol.name == "Recovered"));
     drop(tables);
     assert!(!state.analysis_cache_invalidated());
-    assert!(state.analysis_revision().is_current(state.vfs.read().content_revision()));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1186,7 +1182,6 @@ async fn cancelled_current_analysis_recovers_after_save() {
         .unwrap();
     assert!(tables.load().workspace_symbols("").is_empty());
     assert!(state.analysis_cache_invalidated());
-    assert!(!state.analysis_revision().is_current(state.vfs.read().content_revision()));
 
     let result = crate::handlers::did_save_text_document(
         &mut state,
@@ -1208,7 +1203,6 @@ async fn cancelled_current_analysis_recovers_after_save() {
             .any(|symbol| symbol.name == "Recovered")
     );
     assert!(!state.analysis_cache_invalidated());
-    assert!(state.analysis_revision().is_current(state.vfs.read().content_revision()));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1582,7 +1576,6 @@ fn did_change_tracks_the_request_source_until_analysis_publishes() {
         assert!(
             state.analysis_commit.lock().natspec_pending_source_changes.contains(&request_path)
         );
-        assert!(!state.analysis_revision().is_current(state.vfs.read().content_revision()));
 
         release_worker.send(()).unwrap();
         worker.await.unwrap();
@@ -1595,12 +1588,11 @@ fn did_change_tracks_the_request_source_until_analysis_publishes() {
         assert!(tables.workspace_symbols("After").iter().any(|symbol| symbol.name == "After"));
         drop(tables);
         assert!(state.analysis_commit.lock().natspec_pending_source_changes.is_empty());
-        assert!(state.analysis_revision().is_current(state.vfs.read().content_revision()));
     });
 }
 
 #[test]
-fn configuration_change_invalidates_analysis_until_publication() {
+fn configuration_change_schedules_external_refresh() {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .max_blocking_threads(1)
@@ -1617,7 +1609,6 @@ fn configuration_change_invalidates_analysis_until_publication() {
 
         assert!(matches!(result, ControlFlow::Continue(())));
         assert!(state.analysis_commit.lock().external_refresh.is_some());
-        assert!(!state.analysis_revision().is_current(state.vfs.read().content_revision()));
 
         release_worker.send(()).unwrap();
         worker.await.unwrap();
@@ -1625,7 +1616,6 @@ fn configuration_change_invalidates_analysis_until_publication() {
             .await
             .expect("configuration-change analysis should finish")
             .unwrap();
-        assert!(state.analysis_revision().is_current(state.vfs.read().content_revision()));
     });
 }
 

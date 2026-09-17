@@ -26,7 +26,7 @@ use std::{
     future::Future,
     io::Read as _,
     path::Path,
-    sync::Arc,
+    sync::{Arc, atomic::Ordering},
     task::{Context, Poll, Waker},
 };
 
@@ -110,7 +110,7 @@ impl RequestFixture {
         let mut state = self.state();
         let (uri, position) = self.marker_location(marker);
         let response =
-            block_on(crate::handlers::completion(&mut state, completion_params(uri, position)))
+            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
                 .unwrap()
                 .unwrap();
         let CompletionResponse::Array(items) = response else {
@@ -132,7 +132,7 @@ impl RequestFixture {
         let mut state = self.state_with_completion_snippets(snippet_support);
         let (uri, position) = self.marker_location(marker);
         let response =
-            block_on(crate::handlers::completion(&mut state, completion_params(uri, position)))
+            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
                 .unwrap()
                 .unwrap();
         let CompletionResponse::Array(items) = response else {
@@ -149,7 +149,7 @@ impl RequestFixture {
     ) {
         let mut state = self.state_with_completion_snippets(true);
         let (uri, position) = self.marker_location(marker);
-        let response = block_on(crate::handlers::completion(
+        let response = expect_ready(crate::handlers::completion(
             &mut state,
             completion_params_with_trigger(uri, position, trigger_character),
         ))
@@ -207,18 +207,41 @@ impl RequestFixture {
         let mut state = self.state_with_completion_snippets(true);
         for &(path, contents) in changes {
             let path = self.marked.project().path(path);
-            state.mark_source_analysis_pending_for_test(path.clone());
             state.vfs.write().set_file_contents(
-                crate::vfs::VfsPath::from(path),
+                crate::vfs::VfsPath::from(path.clone()),
                 Some(crop::Rope::from(contents)),
             );
+            state.mark_source_analysis_pending_for_test(path);
         }
         let uri = Url::from_file_path(self.marked.project().path(request_path)).unwrap();
         let position = self.marked.marker(marker).position();
-        let response =
-            block_on(crate::handlers::completion(&mut state, completion_params(uri, position)))
-                .unwrap()
-                .unwrap();
+        Self::completion_after_analysis(&mut state, uri, position)
+    }
+
+    fn completion_after_analysis(
+        state: &mut GlobalState,
+        uri: Url,
+        position: Position,
+    ) -> Vec<CompletionItem> {
+        let mut completion =
+            std::pin::pin!(crate::handlers::completion(state, completion_params(uri, position)));
+        let response = match completion.as_mut().poll(&mut Context::from_waker(Waker::noop())) {
+            Poll::Ready(response) => response,
+            Poll::Pending => {
+                let mut snapshot = state.snapshot();
+                let mut results = AnalysisResultAccumulator::default();
+                for batch in snapshot.analysis_batches(Vec::new()) {
+                    results.push(analyze(batch));
+                }
+                assert!(snapshot.publish_analysis(
+                    state.analysis_version.load(Ordering::Acquire),
+                    results.finish(),
+                ));
+                expect_ready(completion)
+            }
+        }
+        .unwrap()
+        .unwrap();
         let CompletionResponse::Array(items) = response else {
             panic!("expected completion array");
         };
@@ -238,13 +261,7 @@ impl RequestFixture {
         std::fs::remove_file(deleted_path).unwrap();
         let uri = Url::from_file_path(self.marked.project().path(request_path)).unwrap();
         let position = self.marked.marker(marker).position();
-        let response =
-            block_on(crate::handlers::completion(&mut state, completion_params(uri, position)))
-                .unwrap()
-                .unwrap();
-        let CompletionResponse::Array(items) = response else {
-            panic!("expected completion array");
-        };
+        let items = Self::completion_after_analysis(&mut state, uri, position);
         assert_data_eq!(completion_details_output(&items), expected);
     }
 
@@ -254,15 +271,9 @@ impl RequestFixture {
         expected: impl IntoData,
     ) {
         let mut state = self.state_with_completion_snippets(true);
-        state.mark_context_analysis_pending_for_test();
+        state.mark_analysis_pending_for_test();
         let (uri, position) = self.marker_location(marker);
-        let response =
-            block_on(crate::handlers::completion(&mut state, completion_params(uri, position)))
-                .unwrap()
-                .unwrap();
-        let CompletionResponse::Array(items) = response else {
-            panic!("expected completion array");
-        };
+        let items = Self::completion_after_analysis(&mut state, uri, position);
         assert_data_eq!(completion_details_output(&items), expected);
     }
 
@@ -651,8 +662,11 @@ impl RequestFixture {
     pub(super) fn signature_help_response(&self, marker: &str) -> Option<SignatureHelp> {
         let mut state = self.state();
         let (uri, position) = self.marker_location(marker);
-        block_on(crate::handlers::signature_help(&mut state, signature_help_params(uri, position)))
-            .unwrap()
+        expect_ready(crate::handlers::signature_help(
+            &mut state,
+            signature_help_params(uri, position),
+        ))
+        .unwrap()
     }
 
     pub(super) fn check_signature_help_after_change(
@@ -687,9 +701,11 @@ impl RequestFixture {
         position: Position,
         expected: impl IntoData,
     ) {
-        let response =
-            block_on(crate::handlers::signature_help(state, signature_help_params(uri, position)))
-                .unwrap();
+        let response = expect_ready(crate::handlers::signature_help(
+            state,
+            signature_help_params(uri, position),
+        ))
+        .unwrap();
         assert_data_eq!(signature_help_output(response), expected);
     }
 
@@ -889,7 +905,7 @@ fn expect_ready<F: Future>(future: F) -> F::Output {
     }
 }
 
-pub(super) fn block_on<F: Future>(future: F) -> F::Output {
+fn block_on<F: Future>(future: F) -> F::Output {
     tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(future)
 }
 

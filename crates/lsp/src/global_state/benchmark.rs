@@ -953,7 +953,6 @@ impl BenchmarkSignatureHelpRequests {
             Some(1),
         );
         state.symbol_tables.store(Arc::new(project.analyze().symbol_tables));
-        state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
         let params = SignatureHelpParams {
             text_document_position_params: TextDocumentPositionParams {
                 text_document: TextDocumentIdentifier { uri },
@@ -990,7 +989,6 @@ impl BenchmarkSignatureHelpRequests {
             Some(if edit { 2 } else { 1 }),
         );
         state.symbol_tables.store(self.state.symbol_tables.load_full());
-        state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
         Self { state, params: self.params.clone() }
     }
 

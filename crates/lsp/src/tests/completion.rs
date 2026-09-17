@@ -887,7 +887,7 @@ new_text:
 }
 
 #[test]
-fn pending_analysis_uses_current_getter_returns() {
+fn edited_getter_uses_fresh_returns() {
     let fixture = RequestFixture::new(
         r#"
         //- /Completion.sol open
@@ -925,7 +925,7 @@ new_text:
 }
 
 #[test]
-fn pending_analysis_uses_current_inheritdoc() {
+fn edited_inheritance_uses_fresh_inheritdoc() {
     let fixture = RequestFixture::new(
         r#"
         //- /Completion.sol open
@@ -969,7 +969,7 @@ new_text:
 }
 
 #[test]
-fn pending_context_change_recomputes_inheritdoc() {
+fn context_change_waits_for_fresh_inheritdoc() {
     let fixture = RequestFixture::new(
         r#"
         //- /Completion.sol open
@@ -1046,7 +1046,7 @@ new_text:
 }
 
 #[test]
-fn pending_unclosed_block_keeps_getter_semantics() {
+fn unclosed_block_omits_unavailable_getter_semantics() {
     let fixture = RequestFixture::new(
         r#"
         //- /Completion.sol open
@@ -1076,9 +1076,7 @@ text_edit=edit 5:4-5:7
 insert_text_format=Snippet
 new_text:
 /**
-     * @notice $1
-     * @return amount $2
-     * @return owner $3$0
+     * @notice $1$0
      */
 
 "#]],
@@ -1086,7 +1084,7 @@ new_text:
 }
 
 #[test]
-fn pending_unclosed_block_keeps_inheritdoc_semantics() {
+fn unclosed_block_omits_unavailable_inheritdoc_semantics() {
     let fixture = RequestFixture::new(
         r#"
         //- /Completion.sol open
@@ -1114,17 +1112,6 @@ insert_text_format=Snippet
 new_text:
 /**
      * $1$0
-     */
-
-label=NatSpec @inheritdoc Base
-kind=Snippet
-detail=Inherit documentation from Base
-sort_text=1:Base
-text_edit=edit 2:4-2:7
-insert_text_format=Snippet
-new_text:
-/**
-     * @inheritdoc Base$0
      */
 
 "#]],
@@ -1174,7 +1161,7 @@ new_text:
 }
 
 #[test]
-fn pending_imported_struct_change_uses_current_getter_returns() {
+fn edited_imported_struct_uses_fresh_getter_returns() {
     let fixture = RequestFixture::new(
         r#"
         //- /Base.sol open
@@ -1930,7 +1917,7 @@ fn dot_completions_never_fall_back_to_globals() {
 }
 
 #[test]
-fn completes_library_members_before_analysis_finishes() {
+fn completes_library_members_after_edits() {
     let fixture = RequestFixture::new(
         r#"
         //- /Math.sol
@@ -1961,9 +1948,9 @@ Numbers Module
     );
     let changed = fixture
         .project_contents("/Completion.sol")
-        .replace("Numbers;", "Numbers.;")
-        .replace("value;", "value.;")
-        .replace("x;", "x.;");
+        .replace("Numbers;", "Numbers.")
+        .replace("value;", "value.")
+        .replace("x;", "x.");
     for marker in ["$1", "$2", "$4"] {
         fixture.check_completion_details_after_change(
             marker,
@@ -2039,7 +2026,7 @@ fn incomplete_uint_members_do_not_complete_globals() {
 }
 
 #[test]
-fn pending_members_respect_shadowing_and_chained_receivers() {
+fn edited_members_respect_shadowing_and_chained_receivers() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Completion.sol open
@@ -2057,8 +2044,8 @@ fn pending_members_respect_shadowing_and_chained_receivers() {
     );
     let changed = fixture
         .project_contents("/Completion.sol")
-        .replace("        msg;", "        msg.;")
-        .replace("msg.field;", "msg.field.;");
+        .replace("        msg;", "        msg.")
+        .replace("msg.field;", "msg.field.");
     fixture.check_completion_details_after_change(
         "$1",
         "/Completion.sol",
@@ -2079,7 +2066,7 @@ new_text:
 }
 
 #[test]
-fn completes_all_declaration_receivers_before_analysis() {
+fn completes_all_declaration_receivers_after_edits() {
     let fixture = RequestFixture::new(
         r#"
         //- /Completion.sol open
@@ -2115,13 +2102,13 @@ fn completes_all_declaration_receivers_before_analysis() {
     );
     let changed = fixture
         .project_contents("/Completion.sol")
-        .replace("Status;", "Status.;")
-        .replace("Record;", "Record.;")
-        .replace("Price;", "Price.;")
-        .replace("Changed;", "Changed.;")
-        .replace("Failed;", "Failed.;")
-        .replace("helper;", "helper.;")
-        .replace("Base;", "Base.;");
+        .replace("Status;", "Status.")
+        .replace("Record;", "Record.")
+        .replace("Price;", "Price.")
+        .replace("Changed;", "Changed.")
+        .replace("Failed;", "Failed.")
+        .replace("helper;", "helper.")
+        .replace("Base;", "Base.");
     fixture.check_completion_after_change(
         "$1",
         "/Completion.sol",
@@ -2179,7 +2166,7 @@ total Method
 }
 
 #[test]
-fn completes_namespace_receivers_before_analysis() {
+fn completes_namespace_receivers_after_edits() {
     let fixture = RequestFixture::new_in_batches(
         r#"
         //- /Definitions.sol
@@ -2208,8 +2195,8 @@ Definitions Module
     );
     let changed = fixture
         .project_contents("/Completion.sol")
-        .replace("Definitions;", "Definitions.;")
-        .replace("        Exports;", "        Exports.;");
+        .replace("Definitions;", "Definitions.")
+        .replace("        Exports;", "        Exports.");
     fixture.check_completion_after_change(
         "$2",
         "/Completion.sol",
@@ -2232,7 +2219,7 @@ Numbers Module
 }
 
 #[test]
-fn pending_receivers_use_the_callers_contract_scope() {
+fn edited_receivers_use_the_callers_contract_scope() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Base.sol
@@ -2263,11 +2250,11 @@ fn pending_receivers_use_the_callers_contract_scope() {
     );
     let changed = fixture
         .project_contents("/Completion.sol")
-        .replace("amount;", "amount.;")
-        .replace("this;", "this.;")
-        .replace("super;", "super.;")
-        .replace("externalCall;", "externalCall.;")
-        .replace("secret;", "secret.;");
+        .replace("amount;", "amount.")
+        .replace("this;", "this.")
+        .replace("super;", "super.")
+        .replace("externalCall;", "externalCall.")
+        .replace("secret;", "secret.");
     fixture.check_completion_after_change(
         "$1",
         "/Completion.sol",
@@ -2312,7 +2299,7 @@ selector Method
 }
 
 #[test]
-fn completes_function_value_members_before_analysis() {
+fn completes_function_value_members_after_edits() {
     let fixture = RequestFixture::new(
         r#"
         //- /Completion.sol open
@@ -2324,7 +2311,7 @@ fn completes_function_value_members_before_analysis() {
         "#,
         "/Completion.sol",
     );
-    let changed = fixture.project_contents("/Completion.sol").replace("callback;", "callback.;");
+    let changed = fixture.project_contents("/Completion.sol").replace("callback;", "callback.");
     fixture.check_completion_after_change(
         "$1",
         "/Completion.sol",
