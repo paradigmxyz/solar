@@ -21,36 +21,40 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v5 = add v3, 67
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 67
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v8, 15
-    v9 = memory_object_data memorybytes, v8
-    mstore v9, 0x112233445566778899aabbccddeeff0000000000000000000000000000000000
-    v10 = shl 0, 1
-    v11 = icall @_cloneDeterministic, v6, v8, v10
-    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
-    v13 = gas
-    v14 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = staticcall v13, v12, v15, v16, 0, 32
-    jumpi v17, bb4, bb3
+    v9 = word_cast v6
+    v10 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v10, 15
+    v11 = memory_object_data memorybytes, v10
+    mstore v11, 0x112233445566778899aabbccddeeff0000000000000000000000000000000000
+    v12 = trunc i160, v9
+    v13 = word_cast v12
+    v14 = shl 0, 1
+    v15 = icall @_cloneDeterministic, v13, v10, v14
+    v16 = trunc i160, v15
+    v17 = gas
+    v18 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
+    v19 = slice_ptr v18
+    v20 = slice_len v18
+    v21 = staticcall v17, v16, v19, v20, 0, 32
+    jumpi v21, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v18 = returndatasize
-    v19 = lt v18, 32
-    icall revert_if<tuple_data_too_short>, v19
-    v20 = add 0, 0
-    v21 = mload v20
-    v22 = add 0, 0
-    v23 = mload v22
-    v24 = eq v23, 7
-    icall require<short_string>, v24, 5, 0x70726f7879000000000000000000000000000000000000000000000000000000
+    v22 = returndatasize
+    v23 = lt v22, 32
+    icall revert_if<tuple_data_too_short>, v23
+    v24 = add 0, 0
+    v25 = mload v24
+    v26 = add 0, 0
+    v27 = mload v26
+    v28 = eq v27, 7
+    icall require<short_string>, v28, 5, 0x70726f7879000000000000000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -99,26 +103,27 @@ fn @_cloneDeterministic(arg0: i256, arg1: memorybytes, arg2: i256) -> i256 {
     mstore v14, v34
     v35 = add v16, 108
     v36 = create2 0, v0, v35, arg2
-    v37 = eq v36, 0
-    v38 = word_cast v37
-    v39 = ne v38, 0
-    jumpi v39, bb1, bb2
+    v37 = word_cast v36
+    v38 = eq v37, 0
+    v39 = word_cast v38
+    v40 = ne v39, 0
+    jumpi v40, bb1, bb2
   bb2:
     jump bb3
   bb3:
     mstore v14, v15
-    v40 = word_cast arg1
-    mstore v40, v11
     v41 = word_cast arg1
-    v42 = sub v41, 32
-    mstore v42, v9
-    v43 = word_cast arg1
-    v44 = sub v43, 64
-    mstore v44, v6
-    v45 = word_cast arg1
-    v46 = sub v45, 96
-    mstore v46, v3
-    ret v36
+    mstore v41, v11
+    v42 = word_cast arg1
+    v43 = sub v42, 32
+    mstore v43, v9
+    v44 = word_cast arg1
+    v45 = sub v44, 64
+    mstore v45, v6
+    v46 = word_cast arg1
+    v47 = sub v46, 96
+    mstore v47, v3
+    ret v37
   bb1:
     revert 0, 0
 }

@@ -129,52 +129,53 @@ fn @structMember() -> struct0 [selector=0x9f2d7231, view, abi_params=[], abi_ret
     jumpi v2, bb2, bb3
   bb3:
     v5 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v6, 3
-    v7 = memory_object_data memorybytes, v6
-    mstore v7, 0xabcdef0000000000000000000000000000000000000000000000000000000000
-    memory_object_store_field memorystruct<3>, v5, 0, 1
+    v6 = trunc i160, 1
+    v7 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v7, 3
+    v8 = memory_object_data memorybytes, v7
+    mstore v8, 0xabcdef0000000000000000000000000000000000000000000000000000000000
+    memory_object_store_field memorystruct<3>, v5, 0, v6
     memory_object_store_field memorystruct<3>, v5, 1, 2
-    memory_object_store_field memorystruct<3>, v5, 2, v6
-    v8 = memory_object_len memoryarray, v0
-    v9 = lt 0, v8
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
+    memory_object_store_field memorystruct<3>, v5, 2, v7
+    v9 = memory_object_len memoryarray, v0
+    v10 = lt 0, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
     memory_object_store_element memoryarray<1>, v0, 0, v5
-    v11 = address
-    v12 = gas
-    v13 = abi_encode [memory_array<tuple<word<u160>, word, memory_bytes>>], selector 0x903f85b300000000000000000000000000000000000000000000000000000000, args v0
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = staticcall v12, v11, v14, v15, v14, 64
-    jumpi v16, bb5, bb4
+    v12 = address
+    v13 = gas
+    v14 = abi_encode [memory_array<tuple<word<u160>, word, memory_bytes>>], selector 0x903f85b300000000000000000000000000000000000000000000000000000000, args v0
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = staticcall v13, v12, v15, v16, v15, 64
+    jumpi v17, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v17 = returndatasize
-    v18 = lt v17, 64
-    icall revert_if<tuple_data_too_short>, v18
-    v19 = add v14, 0
-    v20 = mload v19
-    v21 = add v14, 32
-    v22 = mload v21
-    v23 = eq v22, 0
-    v24 = eq v23, false
-    v25 = word_cast v24
-    v26 = eq v22, v25
-    v27 = eq v26, false
-    icall revert_if<empty>, v27
-    v28 = add v14, 0
-    v29 = mload v28
-    v30 = add v14, 32
-    v31 = mload v30
-    v32 = insert_value struct0, undef struct0, 0, v29
-    v33 = insert_value struct0, v32, 1, v31
-    v34 = extract_value struct0, v33, 0
-    v35 = extract_value struct0, v33, 1
-    v36 = insert_value struct0, undef struct0, 0, v34
-    v37 = insert_value struct0, v36, 1, v35
-    ret v37
+    v18 = returndatasize
+    v19 = lt v18, 64
+    icall revert_if<tuple_data_too_short>, v19
+    v20 = add v15, 0
+    v21 = mload v20
+    v22 = add v15, 32
+    v23 = mload v22
+    v24 = eq v23, 0
+    v25 = eq v24, false
+    v26 = word_cast v25
+    v27 = eq v23, v26
+    v28 = eq v27, false
+    icall revert_if<empty>, v28
+    v29 = add v15, 0
+    v30 = mload v29
+    v31 = add v15, 32
+    v32 = mload v31
+    v33 = insert_value struct0, undef struct0, 0, v30
+    v34 = insert_value struct0, v33, 1, v32
+    v35 = extract_value struct0, v34, 0
+    v36 = extract_value struct0, v34, 1
+    v37 = insert_value struct0, undef struct0, 0, v35
+    v38 = insert_value struct0, v37, 1, v36
+    ret v38
   bb2:
     v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v3, 0, 0

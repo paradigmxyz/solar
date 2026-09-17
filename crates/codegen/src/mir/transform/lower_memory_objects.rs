@@ -394,7 +394,10 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                 {
                     // scalar_operand = word_cast scalar_operand
                     kind.visit_operands_mut(|value| {
-                        if builder.func().value_ty(*value) == Some(MirType::I1) {
+                        if matches!(
+                            builder.func().value_ty(*value),
+                            Some(MirType::I1 | MirType::I160)
+                        ) {
                             *value = builder.word_cast(*value);
                         }
                     });

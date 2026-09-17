@@ -1527,6 +1527,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
     }
     let code = match kind {
         InstKind::Ne(..) => seq(&[op::EQ, op::ISZERO]),
+        InstKind::Trunc160(_) => target.op(&kind.op(), |_| None),
         InstKind::InsertValue { .. }
         | InstKind::ExtractValue { .. }
         | InstKind::MemoryObjectFromPtr { .. }

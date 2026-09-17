@@ -87,79 +87,81 @@ fn @constructor() [constructor] {
     v67 = shl v61, v66
     v68 = or v65, v67
     sstore v58, v68 !metadata(storage=offset(v57, 2))
-    v69 = sload 3 !metadata(storage=slot(3))
-    v70 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v71 = and v69, v70
-    v72 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
-    v73 = or v71, v72
-    sstore 3, v73 !metadata(storage=slot(3))
-    v74 = shl 160, 255
-    v75 = sload 3 !metadata(storage=slot(3))
-    v76 = not v74
-    v77 = and v75, v76
-    v78 = word_cast true
-    v79 = and v78, 255
-    v80 = shl 160, v79
-    v81 = or v77, v80
-    sstore 3, v81 !metadata(storage=slot(3))
-    v82 = shl 168, 0xffff
-    v83 = sload 3 !metadata(storage=slot(3))
-    v84 = not v82
-    v85 = and v83, v84
-    v86 = and 0x1234, 0xffff
-    v87 = shl 168, v86
-    v88 = or v85, v87
-    sstore 3, v88 !metadata(storage=slot(3))
-    v89 = sload 4 !metadata(storage=slot(4))
-    v90 = not 0xffffffff
-    v91 = and v89, v90
-    v92 = shr 224, 0x1122334400000000000000000000000000000000000000000000000000000000
-    v93 = and v92, 0xffffffff
-    v94 = or v91, v93
-    sstore 4, v94 !metadata(storage=slot(4))
-    v95 = sub 0, 7
-    v96 = shl 32, 255
-    v97 = sload 4 !metadata(storage=slot(4))
-    v98 = not v96
-    v99 = and v97, v98
-    v100 = and v95, 255
-    v101 = shl 32, v100
-    v102 = or v99, v101
-    sstore 4, v102 !metadata(storage=slot(4))
-    v103 = lt 1, 2
-    v104 = eq v103, false
-    icall panic_if<0x32>, v104
-    v105 = div 1, 8
-    v106 = add 5, v105
-    v107 = mod 1, 8
-    v108 = mul v107, 4
-    v109 = mul v108, 8
-    v110 = shl v109, 0xffffffff
-    v111 = sload v106 !metadata(storage=offset(v105, 5))
-    v112 = not v110
-    v113 = and v111, v112
-    v114 = shr 224, 0x5566778800000000000000000000000000000000000000000000000000000000
-    v115 = and v114, 0xffffffff
-    v116 = shl v109, v115
-    v117 = or v113, v116
-    sstore v106, v117 !metadata(storage=offset(v105, 5))
-    v118 = sub 0, 8
-    v119 = lt 1, 2
-    v120 = eq v119, false
-    icall panic_if<0x32>, v120
-    v121 = div 1, 32
-    v122 = add 6, v121
-    v123 = mod 1, 32
-    v124 = mul v123, 1
-    v125 = mul v124, 8
-    v126 = shl v125, 255
-    v127 = sload v122 !metadata(storage=offset(v121, 6))
-    v128 = not v126
-    v129 = and v127, v128
-    v130 = and v118, 255
-    v131 = shl v125, v130
-    v132 = or v129, v131
-    sstore v122, v132 !metadata(storage=offset(v121, 6))
+    v69 = trunc i160, 0x1234
+    v70 = sload 3 !metadata(storage=slot(3))
+    v71 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v72 = and v70, v71
+    v73 = word_cast v69
+    v74 = and v73, 0xffffffffffffffffffffffffffffffffffffffff
+    v75 = or v72, v74
+    sstore 3, v75 !metadata(storage=slot(3))
+    v76 = shl 160, 255
+    v77 = sload 3 !metadata(storage=slot(3))
+    v78 = not v76
+    v79 = and v77, v78
+    v80 = word_cast true
+    v81 = and v80, 255
+    v82 = shl 160, v81
+    v83 = or v79, v82
+    sstore 3, v83 !metadata(storage=slot(3))
+    v84 = shl 168, 0xffff
+    v85 = sload 3 !metadata(storage=slot(3))
+    v86 = not v84
+    v87 = and v85, v86
+    v88 = and 0x1234, 0xffff
+    v89 = shl 168, v88
+    v90 = or v87, v89
+    sstore 3, v90 !metadata(storage=slot(3))
+    v91 = sload 4 !metadata(storage=slot(4))
+    v92 = not 0xffffffff
+    v93 = and v91, v92
+    v94 = shr 224, 0x1122334400000000000000000000000000000000000000000000000000000000
+    v95 = and v94, 0xffffffff
+    v96 = or v93, v95
+    sstore 4, v96 !metadata(storage=slot(4))
+    v97 = sub 0, 7
+    v98 = shl 32, 255
+    v99 = sload 4 !metadata(storage=slot(4))
+    v100 = not v98
+    v101 = and v99, v100
+    v102 = and v97, 255
+    v103 = shl 32, v102
+    v104 = or v101, v103
+    sstore 4, v104 !metadata(storage=slot(4))
+    v105 = lt 1, 2
+    v106 = eq v105, false
+    icall panic_if<0x32>, v106
+    v107 = div 1, 8
+    v108 = add 5, v107
+    v109 = mod 1, 8
+    v110 = mul v109, 4
+    v111 = mul v110, 8
+    v112 = shl v111, 0xffffffff
+    v113 = sload v108 !metadata(storage=offset(v107, 5))
+    v114 = not v112
+    v115 = and v113, v114
+    v116 = shr 224, 0x5566778800000000000000000000000000000000000000000000000000000000
+    v117 = and v116, 0xffffffff
+    v118 = shl v111, v117
+    v119 = or v115, v118
+    sstore v108, v119 !metadata(storage=offset(v107, 5))
+    v120 = sub 0, 8
+    v121 = lt 1, 2
+    v122 = eq v121, false
+    icall panic_if<0x32>, v122
+    v123 = div 1, 32
+    v124 = add 6, v123
+    v125 = mod 1, 32
+    v126 = mul v125, 1
+    v127 = mul v126, 8
+    v128 = shl v127, 255
+    v129 = sload v124 !metadata(storage=offset(v123, 6))
+    v130 = not v128
+    v131 = and v129, v130
+    v132 = and v120, 255
+    v133 = shl v127, v132
+    v134 = or v131, v133
+    sstore v124, v134 !metadata(storage=offset(v123, 6))
     ret
 }
 

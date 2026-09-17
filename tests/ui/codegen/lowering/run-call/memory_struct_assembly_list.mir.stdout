@@ -39,11 +39,12 @@ fn @dirtyFreeMemory() [view] {
     v0 = mload 64 !metadata(memory=scratch)
     v1 = gas
     v2 = caller
-    v3 = add v2, v1
-    mstore v0, v3
-    v4 = not 0
-    v5 = add v0, 32
-    mstore v5, v4
+    v3 = word_cast v2
+    v4 = add v3, v1
+    mstore v0, v4
+    v5 = not 0
+    v6 = add v0, 32
+    mstore v6, v5
     ret
 }
 

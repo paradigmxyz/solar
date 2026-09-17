@@ -87,7 +87,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v71 = keccak256_bytes v70
     v72 = abi_encode_packed (array<word<u120>> memoryarray<1> v0)
     v73 = keccak256_bytes v72
-    v74 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
+    v74 = trunc i160, 0x1234
     v75 = keccak256_packed (u160 v74)
     v76 = insert_value struct0, undef struct0, 0, v71
     v77 = insert_value struct0, v76, 1, v73

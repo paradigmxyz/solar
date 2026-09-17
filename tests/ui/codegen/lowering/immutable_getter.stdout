@@ -6,11 +6,13 @@ immutables:
 fn @owner() -> i256 [selector=0x8da5cb5b, view, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = loadimmutable owner
-    ret v0
+    v1 = word_cast v0
+    ret v1
 }
 
 fn @constructor(arg0: i256) [constructor, abi_params=[address]] {
   bb0:
-    storeimmutable owner, arg0
+    v0 = trunc i160, arg0
+    storeimmutable owner, v0
     ret
 }

@@ -32,11 +32,13 @@
 + fn @owner() [selector=0x8da5cb5b, abi_wrapper] {
     bb0:
       v0 = loadimmutable owner
--     ret v0
-+     mstore 128, v0
-+     v1 = add 128, 32
-+     v2 = sub v1, 128
-+     returndata 128, v2
+      v1 = word_cast v0
+-     ret v1
++     v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
++     mstore 128, v2
++     v3 = add 128, 32
++     v4 = sub v3, 128
++     returndata 128, v4
   }
   
 - fn @unreachable_cycle() -> struct0 [selector=0x01020304, abi_params=[], abi_returns=[word, word]] {

@@ -441,6 +441,9 @@ impl Target {
         immediate: impl Fn(ValueId) -> Option<U256>,
         warmth: Warmth,
     ) -> Cost {
+        if matches!(op, Op::Trunc160 { .. }) {
+            return self.push(U256::MAX >> 96) + self.opcode(op::AND);
+        }
         if matches!(op, Op::WordCast { .. }) {
             return Cost::ZERO;
         }

@@ -8,8 +8,10 @@
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = callvalue
 fn @keep_cheap_nullary_environment_reads(arg0: i256) -> i256 {
   bb0:
-    v1 = caller
-    v2 = caller
+    v20 = caller
+    v1 = word_cast v20
+    v21 = caller
+    v2 = word_cast v21
     v3 = callvalue
     v4 = callvalue
     v5 = calldatasize

@@ -39,29 +39,30 @@ fn @viaExternal() -> i256 [selector=0x09338c08, abi_params=[], abi_returns=[word
     v5 = add v3, 138
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 138
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = gas
-    v9 = and 0x102030400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v10 = abi_encode [word<bytes4>], selector 0x14beb1ca00000000000000000000000000000000000000000000000000000000, args v9
-    v11 = slice_ptr v10
-    v12 = slice_len v10
-    v13 = call v8, v6, 0, v11, v12, 0, 32
-    jumpi v13, bb4, bb3
+    v9 = gas
+    v10 = and 0x102030400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v11 = abi_encode [word<bytes4>], selector 0x14beb1ca00000000000000000000000000000000000000000000000000000000, args v10
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    v14 = call v9, v6, 0, v12, v13, 0, 32
+    jumpi v14, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v14 = returndatasize
-    v15 = lt v14, 32
-    icall revert_if<tuple_data_too_short>, v15
-    v16 = add 0, 0
-    v17 = mload v16
-    v18 = add 0, 0
-    v19 = mload v18
-    ret v19
+    v15 = returndatasize
+    v16 = lt v15, 32
+    icall revert_if<tuple_data_too_short>, v16
+    v17 = add 0, 0
+    v18 = mload v17
+    v19 = add 0, 0
+    v20 = mload v19
+    ret v20
 }
 
 fn @giveInternal(arg0: i256) -> i256 [pure] {
@@ -215,7 +216,9 @@ fn @calldataSliceCast() -> i256 [selector=0x93f40587, view, abi_params=[], abi_r
 fn @stringAddressCast() -> i256 [selector=0x6e03912b, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = shr 96, 0x6d696c6164790000000000000000000000000000000000000000000000000000
-    ret v0
+    v1 = trunc i160, v0
+    v2 = word_cast v1
+    ret v2
 }
 
 fn @emptyStringCompare() -> i256 [selector=0x97e464f0, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {

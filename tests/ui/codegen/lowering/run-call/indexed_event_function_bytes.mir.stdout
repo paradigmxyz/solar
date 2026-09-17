@@ -11,74 +11,75 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
     memory_object_store_field memorystruct<2>, v0, 0, 0
     memory_object_store_field memorystruct<2>, v0, 1, memorybytes 96
     v1 = address
-    v2 = shl 32, v1
-    v3 = or v2, 0xd4b83992
-    v4 = shl 64, v3
-    memory_object_store_field memorystruct<2>, v0, 0, v4
-    v5 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v5, 1
-    v6 = memory_object_data memorybytes, v5
-    mstore v6, 0x7800000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_field memorystruct<2>, v0, 1, v5
-    v7 = memory_object_load_field memorystruct<2>, v0, 0
-    v8 = memory_object_load_field memorystruct<2>, v0, 1
-    v9 = memory_object_from_ptr memorybytes, v8
-    v10 = memory_object_len memorybytes, v9
-    v11 = eq v8, 0
-    v12 = eq v11, false
-    v13 = word_cast v12
-    v14 = mul v10, v13
-    v15 = add v14, 31
-    v16 = lt v15, v14
-    icall panic_if<0x41>, v16
-    v17 = not 31
-    v18 = and v15, v17
-    v19 = div v18, 32
-    v20 = add 1, v19
-    v21 = lt v20, 1
-    icall panic_if<0x41>, v21
-    v22 = mul v20, 32
-    v23 = eq 32, 0
-    v24 = div v22, 32
-    v25 = eq v24, v20
-    v26 = or v23, v25
-    v27 = word_cast v26
-    v28 = eq v27, 0
-    icall panic_if<0x41>, v28
-    v29 = add 32, v22
-    v30 = lt v29, 32
-    icall panic_if<0x41>, v30
-    v31 = alloc memorybytes, exact, uninitialized, infallible, v29
-    set_memory_object_len memorybytes, v31, v22
-    v32 = memory_object_load_field memorystruct<2>, v0, 0
-    v33 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    memory_object_store_word memorybytes, v31, 0, v33
-    v34 = memory_object_load_field memorystruct<2>, v0, 1
-    v35 = memory_object_from_ptr memorybytes, v34
-    v36 = memory_object_len memorybytes, v35
-    v37 = eq v34, 0
-    v38 = eq v37, false
-    v39 = word_cast v38
-    v40 = mul v36, v39
-    v41 = add v40, 31
-    v42 = lt v41, v40
-    icall panic_if<0x41>, v42
-    v43 = not 31
-    v44 = and v41, v43
-    v45 = eq v44, 0
-    jumpi v45, bb2, bb1
+    v2 = word_cast v1
+    v3 = shl 32, v2
+    v4 = or v3, 0xd4b83992
+    v5 = shl 64, v4
+    memory_object_store_field memorystruct<2>, v0, 0, v5
+    v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v6, 1
+    v7 = memory_object_data memorybytes, v6
+    mstore v7, 0x7800000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_field memorystruct<2>, v0, 1, v6
+    v8 = memory_object_load_field memorystruct<2>, v0, 0
+    v9 = memory_object_load_field memorystruct<2>, v0, 1
+    v10 = memory_object_from_ptr memorybytes, v9
+    v11 = memory_object_len memorybytes, v10
+    v12 = eq v9, 0
+    v13 = eq v12, false
+    v14 = word_cast v13
+    v15 = mul v11, v14
+    v16 = add v15, 31
+    v17 = lt v16, v15
+    icall panic_if<0x41>, v17
+    v18 = not 31
+    v19 = and v16, v18
+    v20 = div v19, 32
+    v21 = add 1, v20
+    v22 = lt v21, 1
+    icall panic_if<0x41>, v22
+    v23 = mul v21, 32
+    v24 = eq 32, 0
+    v25 = div v23, 32
+    v26 = eq v25, v21
+    v27 = or v24, v26
+    v28 = word_cast v27
+    v29 = eq v28, 0
+    icall panic_if<0x41>, v29
+    v30 = add 32, v23
+    v31 = lt v30, 32
+    icall panic_if<0x41>, v31
+    v32 = alloc memorybytes, exact, uninitialized, infallible, v30
+    set_memory_object_len memorybytes, v32, v23
+    v33 = memory_object_load_field memorystruct<2>, v0, 0
+    v34 = and v33, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    memory_object_store_word memorybytes, v32, 0, v34
+    v35 = memory_object_load_field memorystruct<2>, v0, 1
+    v36 = memory_object_from_ptr memorybytes, v35
+    v37 = memory_object_len memorybytes, v36
+    v38 = eq v35, 0
+    v39 = eq v38, false
+    v40 = word_cast v39
+    v41 = mul v37, v40
+    v42 = add v41, 31
+    v43 = lt v42, v41
+    icall panic_if<0x41>, v43
+    v44 = not 31
+    v45 = and v42, v44
+    v46 = eq v45, 0
+    jumpi v46, bb2, bb1
   bb1:
-    v46 = sub v44, 32
-    v47 = add 32, v46
-    memory_object_store_word memorybytes, v31, v47, 0
+    v47 = sub v45, 32
+    v48 = add 32, v47
+    memory_object_store_word memorybytes, v32, v48, 0
     jump bb2
   bb2:
-    v48 = memory_object_from_ptr memorybytes, v34
-    v49 = memory_object_data memorybytes, v48
-    v50 = make_memory_slice v49, v40
-    memory_object_copy_from_slice_at memorybytes, v31, 32, v50
-    v51 = add 32, v44
-    v52 = keccak256_bytes v31
-    log2 0, 0, 0x2a66ae4432794c7fc0bfc59df26473a06d65994d91dd1e3eecd6ff7df5305336, v52
+    v49 = memory_object_from_ptr memorybytes, v35
+    v50 = memory_object_data memorybytes, v49
+    v51 = make_memory_slice v50, v41
+    memory_object_copy_from_slice_at memorybytes, v32, 32, v51
+    v52 = add 32, v45
+    v53 = keccak256_bytes v32
+    log2 0, 0, 0x2a66ae4432794c7fc0bfc59df26473a06d65994d91dd1e3eecd6ff7df5305336, v53
     ret
 }

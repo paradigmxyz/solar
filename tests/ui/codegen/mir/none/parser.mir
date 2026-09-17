@@ -158,3 +158,28 @@ fn @concatenate(arg0: memorybytes) -> memorybytes {
     v0 = icall concat<memorybytes, bytes2>, arg0, 0x1234000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
+
+// CHECK-LABEL: @address_width
+// CHECK: [[NARROW:v[0-9]+]] = trunc i160, arg0
+// CHECK: [[WIDE:v[0-9]+]] = word_cast [[NARROW]]
+// CHECK: ret [[WIDE]]
+fn @address_width(arg0: i256) -> i256 {
+  bb0:
+    v0 = trunc i160, arg0
+    v1 = word_cast v0
+    ret v1
+}
+
+// CHECK-LABEL: @address_phi
+// CHECK: phi [bb1: arg1], [bb2: i160 0xffffffffffffffffffffffffffffffffffffffff]
+fn @address_phi(arg0: i1, arg1: i160) -> i160 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: arg1], [bb2: i160 0xffffffffffffffffffffffffffffffffffffffff]
+    ret v0
+}

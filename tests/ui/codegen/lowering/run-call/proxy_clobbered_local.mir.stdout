@@ -44,27 +44,31 @@ fn @forwards() -> i256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word], 
     v5 = add v3, 79
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 79
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = abi_encode [word], object, selector 0x6279e43c00000000000000000000000000000000000000000000000000000000, args 7
-    v9 = mload 64 !metadata(memory=scratch)
-    v10 = calldatasize
-    calldatacopy 0, 0, v10 !metadata(memory=scratch)
-    v11 = word_cast v8
-    v12 = mload v11
-    v13 = word_cast v8
-    v14 = add v13, 32
-    v15 = gas
-    v16 = delegatecall v15, v6, v14, v12, 0, 32
-    v17 = word_cast v16
-    v18 = mload 0 !metadata(memory=scratch)
-    v19 = eq v18, 7
-    v20 = word_cast v19
-    v21 = and v17, v20
-    v22 = eq v21, 1
-    icall require<short_string>, v22, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
+    v9 = word_cast v6
+    v10 = trunc i160, v9
+    v11 = word_cast v10
+    v12 = abi_encode [word], object, selector 0x6279e43c00000000000000000000000000000000000000000000000000000000, args 7
+    v13 = mload 64 !metadata(memory=scratch)
+    v14 = calldatasize
+    calldatacopy 0, 0, v14 !metadata(memory=scratch)
+    v15 = word_cast v12
+    v16 = mload v15
+    v17 = word_cast v12
+    v18 = add v17, 32
+    v19 = gas
+    v20 = delegatecall v19, v11, v18, v16, 0, 32
+    v21 = word_cast v20
+    v22 = mload 0 !metadata(memory=scratch)
+    v23 = eq v22, 7
+    v24 = word_cast v23
+    v25 = and v21, v24
+    v26 = eq v25, 1
+    icall require<short_string>, v26, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
     ret 1
 }

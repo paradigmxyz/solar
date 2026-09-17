@@ -25,8 +25,9 @@
   fn @clean_caller() -> i256 {
     bb0:
       v0 = caller
-      v1 = icall @mixed, v0
-      ret v1
+      v1 = word_cast v0
+      v2 = icall @mixed, v1
+      ret v2
   }
   
   fn @dirty_caller(arg0: i256) -> i256 {

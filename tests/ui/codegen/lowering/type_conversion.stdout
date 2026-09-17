@@ -2,9 +2,10 @@
 @module TypeConversion
 fn @narrowAddress(arg0: i256) -> i256 [selector=0xaf290423, pure, abi_params=[address], abi_returns=[word<u16>], abi_return_params=[u16]] {
   bb0:
-    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    v1 = and v0, 0xffff
-    ret v1
+    v0 = trunc i160, arg0
+    v1 = word_cast v0
+    v2 = and v1, 0xffff
+    ret v2
 }
 
 fn @narrowUint(arg0: i256) -> i256 [selector=0xf6938387, pure, abi_params=[u256], abi_returns=[word<u16>], abi_return_params=[u16]] {

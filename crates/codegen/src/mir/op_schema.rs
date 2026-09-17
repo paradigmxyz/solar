@@ -98,6 +98,8 @@ pub(crate) enum ResultKind {
     None,
     /// A 256-bit word.
     Word,
+    /// A 160-bit integer.
+    I160,
     /// A canonical boolean.
     Bool,
     /// A value whose type depends on the operation's attributes.
@@ -111,6 +113,7 @@ impl ResultKind {
         match self {
             Self::None | Self::Custom => None,
             Self::Word => Some(MirType::I256),
+            Self::I160 => Some(MirType::I160),
             Self::Bool => Some(MirType::I1),
         }
     }
@@ -867,6 +870,9 @@ define_mir_ops! {
     #[mir_op(mnemonic = "word_cast", result = Word, phases = PhaseSet::ALL,
         effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
     WordCast(operand0: ValueId),
+    #[mir_op(mnemonic = "trunc", result = I160, phases = PhaseSet::ALL,
+        effect = Pure, traits = OpTraits::NONE, side_effects = false, category = None)]
+    Trunc160(operand0: ValueId),
     #[mir_op(mnemonic = "checked_binary", result = Word, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
     CheckedBinary {
@@ -2062,7 +2068,7 @@ define_mir_ops! {
     /// Get caller address: `caller()`
     #[mir_op(
         mnemonic = "caller",
-        result = Word,
+        result = I160,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2086,7 +2092,7 @@ define_mir_ops! {
     /// Get origin address: `origin()`
     #[mir_op(
         mnemonic = "origin",
-        result = Word,
+        result = I160,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2122,7 +2128,7 @@ define_mir_ops! {
     /// Get coinbase address: `coinbase()`
     #[mir_op(
         mnemonic = "coinbase",
-        result = Word,
+        result = I160,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2205,7 +2211,7 @@ define_mir_ops! {
     /// Get this contract's address: `address()`
     #[mir_op(
         mnemonic = "address",
-        result = Word,
+        result = I160,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2514,7 +2520,7 @@ define_mir_ops! {
     /// Create contract: `create(value, offset, size)`
     #[mir_op(
         mnemonic = "create",
-        result = Word,
+        result = I160,
         phases = PhaseSet::ALL,
         effect = Create,
         traits = OpTraits::NONE,
@@ -2526,7 +2532,7 @@ define_mir_ops! {
     /// Create2 contract: `create2(value, offset, size, salt)`
     #[mir_op(
         mnemonic = "create2",
-        result = Word,
+        result = I160,
         phases = PhaseSet::ALL,
         effect = Create,
         traits = OpTraits::NONE,

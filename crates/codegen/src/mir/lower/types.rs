@@ -80,7 +80,7 @@ impl<'gcx> TypeLowerer<'gcx> {
     /// Carries raw Solidity scalar bits across calls, where assembly may observe them.
     pub(super) fn mir_signature_type(ty: Ty<'_>) -> MirType {
         match Self::mir_type(ty) {
-            MirType::I1 => MirType::I256,
+            MirType::I1 | MirType::I160 => MirType::I256,
             ty => ty,
         }
     }

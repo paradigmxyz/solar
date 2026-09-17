@@ -425,12 +425,12 @@ bb5:
   shr
   push bb4
   jumpi
+  push 4
+  calldataload
   push 0
   not
   push 96
   shr
-  push 4
-  calldataload
   and
   push 0
   mstore
@@ -616,12 +616,12 @@ bb9:
   add
   push 64
   mstore
+  push 100
+  calldataload
   push 0
   not
   push 96
   shr
-  push 100
-  calldataload
   and
   push 4
   calldataload

@@ -42,21 +42,23 @@ fn @f(arg0: i256) -> i256 [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[
     v16 = add v5, 298
     mcopy v16, v15, 32 !metadata(memory=heap)
     v17 = create 0, v5, 330
-    v18 = eq v17, 0
-    v19 = eq v18, false
-    jumpi v19, bb1, bb2
+    v18 = word_cast v17
+    v19 = eq v18, 0
+    v20 = eq v19, false
+    jumpi v20, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
     icall revert_if<empty>, true
     invalid
   bb4:
-    v22 = word_cast false
-    ret v22
+    v24 = word_cast false
+    ret v24
   bb1:
-    v20 = ne v17, 0
-    v21 = word_cast v20
-    ret v21
+    v21 = trunc i160, 0
+    v22 = ne v17, v21
+    v23 = word_cast v22
+    ret v23
   bb3:
     ret 0
 }

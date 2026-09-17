@@ -41,6 +41,8 @@ impl Value {
 pub(crate) enum Immediate {
     /// Boolean constant.
     Bool(bool),
+    /// A 160-bit integer constant.
+    I160(U256),
     /// A 256-bit word constant.
     Word(U256),
     /// A constant pointer; its type implies no validity or aliasing guarantee.
@@ -59,6 +61,10 @@ impl Immediate {
                 assert!(value <= U256::ONE, "boolean immediate must be zero or one");
                 Self::Bool(!value.is_zero())
             }
+            Some(MirType::I160) => {
+                assert!(value.bit_len() <= 160, "i160 immediate must fit in 160 bits");
+                Self::I160(value)
+            }
             Some(ty @ MirType::MemoryObject(_)) => Self::Pointer(value, ty),
             _ => Self::uint256(value),
         }
@@ -69,6 +75,7 @@ impl Immediate {
     pub(crate) const fn ty(&self) -> MirType {
         match self {
             Self::Bool(_) => MirType::I1,
+            Self::I160(_) => MirType::I160,
             Self::Word(_) => MirType::I256,
             Self::Pointer(_, ty) => *ty,
         }
@@ -91,7 +98,7 @@ impl Immediate {
     pub(crate) fn as_u256(&self) -> Option<U256> {
         match self {
             Self::Bool(b) => Some(U256::from(*b as u64)),
-            Self::Word(v) | Self::Pointer(v, _) => Some(*v),
+            Self::Word(v) | Self::I160(v) | Self::Pointer(v, _) => Some(*v),
         }
     }
 }
@@ -100,7 +107,7 @@ impl fmt::Display for Immediate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Bool(b) => write!(f, "{b}"),
-            Self::Word(v) | Self::Pointer(v, _) => write!(f, "{v}"),
+            Self::Word(v) | Self::I160(v) | Self::Pointer(v, _) => write!(f, "{v}"),
         }
     }
 }
@@ -110,6 +117,7 @@ impl Ord for Immediate {
         let rank = |value: &Self| match value {
             Self::Bool(_) => 0,
             Self::Word(_) => 1,
+            Self::I160(_) => 2,
             Self::Pointer(_, _) => 3,
         };
         let pointer_rank = |ty| match ty {
@@ -118,7 +126,7 @@ impl Ord for Immediate {
         };
         rank(self).cmp(&rank(other)).then_with(|| match (self, other) {
             (Self::Bool(a), Self::Bool(b)) => a.cmp(b),
-            (Self::Word(a), Self::Word(b)) => a.cmp(b),
+            (Self::Word(a), Self::Word(b)) | (Self::I160(a), Self::I160(b)) => a.cmp(b),
             (Self::Pointer(a, a_ty), Self::Pointer(b, b_ty)) => {
                 pointer_rank(*a_ty).cmp(&pointer_rank(*b_ty)).then_with(|| a.cmp(b))
             }

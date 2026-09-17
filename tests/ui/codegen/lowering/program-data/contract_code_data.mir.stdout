@@ -36,24 +36,25 @@ fn @deployCreationCode() -> i256 [selector=0x5986dddb, abi_params=[], abi_return
     v5 = word_cast v0
     v6 = add v5, 32
     v7 = create 0, v6, v4
-    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = gas
-    v10 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v11 = slice_ptr v10
-    v12 = slice_len v10
-    v13 = staticcall v9, v8, v11, v12, 0, 32
-    jumpi v13, bb2, bb1
+    v8 = word_cast v7
+    v9 = trunc i160, v8
+    v10 = gas
+    v11 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    v14 = staticcall v10, v9, v12, v13, 0, 32
+    jumpi v14, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v14 = returndatasize
-    v15 = lt v14, 32
-    icall revert_if<tuple_data_too_short>, v15
-    v16 = add 0, 0
-    v17 = mload v16
-    v18 = add 0, 0
-    v19 = mload v18
-    ret v19
+    v15 = returndatasize
+    v16 = lt v15, 32
+    icall revert_if<tuple_data_too_short>, v16
+    v17 = add 0, 0
+    v18 = mload v17
+    v19 = add 0, 0
+    v20 = mload v19
+    ret v20
 }
 
 fn @runtimeCodeMatches() -> i256 [selector=0x337e11d0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -67,20 +68,24 @@ fn @runtimeCodeMatches() -> i256 [selector=0x337e11d0, abi_params=[], abi_return
     v5 = add v3, 371
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 371
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = alloc memorybytes, exact, uninitialized, infallible, 416 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v8, 353
-    v9 = memory_object_data memorybytes, v8
-    v10 = add v9, 352
-    mstore v10, 0
-    data_copy CodeTarget_runtime_code_1, v9, 353
-    v11 = keccak256_bytes v8
-    v12 = extcodehash v6
-    v13 = eq v11, v12
-    v14 = word_cast v13
-    ret v14
+    v9 = word_cast v6
+    v10 = alloc memorybytes, exact, uninitialized, infallible, 416 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v10, 353
+    v11 = memory_object_data memorybytes, v10
+    v12 = add v11, 352
+    mstore v12, 0
+    data_copy CodeTarget_runtime_code_1, v11, 353
+    v13 = keccak256_bytes v10
+    v14 = trunc i160, v9
+    v15 = word_cast v14
+    v16 = extcodehash v15
+    v17 = eq v13, v16
+    v18 = word_cast v17
+    ret v18
 }

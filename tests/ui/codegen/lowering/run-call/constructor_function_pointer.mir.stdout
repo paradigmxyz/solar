@@ -56,39 +56,42 @@ data:
 fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
-    v1 = shl 32, v0
-    v2 = or v1, 0x990227f1
-    v3 = abi_encode [function], args v2
-    v4 = not 31
-    v5 = and 349, v4
-    v6 = alloc raw, exact, uninitialized, infallible, v5
-    data_copy Target_initcode_0, v6, 286
-    v7 = slice_ptr v3
-    v8 = add v6, 286
-    mcopy v8, v7, 32 !metadata(memory=heap)
-    v9 = create 0, v6, 318
-    v10 = ne v9, 0
-    jumpi v10, bb2, bb1
+    v1 = word_cast v0
+    v2 = shl 32, v1
+    v3 = or v2, 0x990227f1
+    v4 = abi_encode [function], args v3
+    v5 = not 31
+    v6 = and 349, v5
+    v7 = alloc raw, exact, uninitialized, infallible, v6
+    data_copy Target_initcode_0, v7, 286
+    v8 = slice_ptr v4
+    v9 = add v7, 286
+    mcopy v9, v8, 32 !metadata(memory=heap)
+    v10 = create 0, v7, 318
+    v11 = word_cast v10
+    v12 = ne v11, 0
+    jumpi v12, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = gas
-    v12 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v13 = slice_ptr v12
-    v14 = slice_len v12
-    v15 = staticcall v11, v9, v13, v14, 0, 32
-    jumpi v15, bb4, bb3
+    v13 = word_cast v10
+    v14 = gas
+    v15 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = staticcall v14, v13, v16, v17, 0, 32
+    jumpi v18, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v16 = returndatasize
-    v17 = lt v16, 32
-    icall revert_if<tuple_data_too_short>, v17
-    v18 = add 0, 0
-    v19 = mload v18
-    v20 = add 0, 0
-    v21 = mload v20
-    ret v21
+    v19 = returndatasize
+    v20 = lt v19, 32
+    icall revert_if<tuple_data_too_short>, v20
+    v21 = add 0, 0
+    v22 = mload v21
+    v23 = add 0, 0
+    v24 = mload v23
+    ret v24
 }
 
 fn @fArray() -> i256 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -96,51 +99,55 @@ fn @fArray() -> i256 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_zero v0, 32
     v1 = address
-    v2 = shl 32, v1
-    v3 = or v2, 0x990227f1
-    v4 = lt 0, 1
-    v5 = eq v4, false
-    icall panic_if<0x32>, v5
-    v6 = shl 64, v3
-    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v6
-    v7 = abi_encode [array<1, function>], args v0
-    v8 = not 31
-    v9 = and 360, v8
-    v10 = alloc raw, exact, uninitialized, infallible, v9
-    data_copy ArrayTarget_initcode_1, v10, 297
-    v11 = slice_ptr v7
-    v12 = add v10, 297
-    mcopy v12, v11, 32 !metadata(memory=heap)
-    v13 = create 0, v10, 329
-    v14 = ne v13, 0
-    jumpi v14, bb2, bb1
+    v2 = word_cast v1
+    v3 = shl 32, v2
+    v4 = or v3, 0x990227f1
+    v5 = lt 0, 1
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = shl 64, v4
+    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v7
+    v8 = abi_encode [array<1, function>], args v0
+    v9 = not 31
+    v10 = and 360, v9
+    v11 = alloc raw, exact, uninitialized, infallible, v10
+    data_copy ArrayTarget_initcode_1, v11, 297
+    v12 = slice_ptr v8
+    v13 = add v11, 297
+    mcopy v13, v12, 32 !metadata(memory=heap)
+    v14 = create 0, v11, 329
+    v15 = word_cast v14
+    v16 = ne v15, 0
+    jumpi v16, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v15 = address
-    v16 = shl 96, v15
-    v17 = shr 224, 0x990227f100000000000000000000000000000000000000000000000000000000
-    v18 = shl 64, v17
-    v19 = or v16, v18
-    v20 = gas
-    v21 = abi_encode [], selector 0xc096a63200000000000000000000000000000000000000000000000000000000
-    v22 = slice_ptr v21
-    v23 = slice_len v21
-    v24 = staticcall v20, v13, v22, v23, 0, 32
-    jumpi v24, bb4, bb3
+    v17 = word_cast v14
+    v18 = address
+    v19 = word_cast v18
+    v20 = shl 96, v19
+    v21 = shr 224, 0x990227f100000000000000000000000000000000000000000000000000000000
+    v22 = shl 64, v21
+    v23 = or v20, v22
+    v24 = gas
+    v25 = abi_encode [], selector 0xc096a63200000000000000000000000000000000000000000000000000000000
+    v26 = slice_ptr v25
+    v27 = slice_len v25
+    v28 = staticcall v24, v17, v26, v27, 0, 32
+    jumpi v28, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v25 = returndatasize
-    v26 = lt v25, 32
-    icall revert_if<tuple_data_too_short>, v26
-    v27 = add 0, 0
-    v28 = mload v27
-    v29 = add 0, 0
-    v30 = mload v29
-    v31 = eq v30, v19
-    v32 = word_cast v31
-    ret v32
+    v29 = returndatasize
+    v30 = lt v29, 32
+    icall revert_if<tuple_data_too_short>, v30
+    v31 = add 0, 0
+    v32 = mload v31
+    v33 = add 0, 0
+    v34 = mload v33
+    v35 = eq v34, v23
+    v36 = word_cast v35
+    ret v36
 }
 
 fn @sixteen() -> i256 [selector=0x990227f1, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

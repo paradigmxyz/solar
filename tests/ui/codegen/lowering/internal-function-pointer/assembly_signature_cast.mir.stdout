@@ -27,11 +27,13 @@ fn @_bytes32Greater(arg0: i256, arg1: i256) -> i256 [pure] {
 
 fn @_addressGreater(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
-    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = gt v0, v1
-    v3 = word_cast v2
-    ret v3
+    v0 = trunc i160, arg0
+    v1 = trunc i160, arg1
+    v2 = word_cast v0
+    v3 = word_cast v1
+    v4 = gt v2, v3
+    v5 = word_cast v4
+    ret v5
 }
 
 fn @_int256Less(arg0: i256, arg1: i256) -> i256 [pure] {

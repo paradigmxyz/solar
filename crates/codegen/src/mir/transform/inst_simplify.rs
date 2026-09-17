@@ -135,6 +135,7 @@ impl InstSimplifier {
                                 | InstKind::ExtractValue { .. }
                                 | InstKind::MemoryObjectFromPtr { .. }
                                 | InstKind::WordCast { .. }
+                                | InstKind::Trunc160(_)
                                 | InstKind::CheckedBinary { .. }
                                 | InstKind::ValidateAbi { .. }
                                 | InstKind::And(..)
@@ -686,6 +687,18 @@ impl InstSimplifier {
                     }))
                 .then(|| Self::imm(func, U256::ZERO))
             }
+            // trunc i160, (word_cast narrow) -> narrow
+            InstKind::Trunc160(value) => {
+                let value = resolve(*value);
+                if let Value::Inst(id) = func.value(value)
+                    && let InstKind::WordCast(inner) = func.inst(*id).kind
+                    && func.value_ty(inner) == Some(crate::mir::MirType::I160)
+                {
+                    Some(inner)
+                } else {
+                    None
+                }
+            }
             InstKind::WordCast(value) => {
                 let value = resolve(*value);
                 if func.value_ty(value) == Some(crate::mir::MirType::I256) {
@@ -1196,23 +1209,17 @@ impl InstSimplifier {
     }
 
     fn is_clean_address(func: &Function, value: ValueId) -> bool {
-        match func.value(value) {
-            Value::Inst(inst_id) => matches!(
-                func.inst(*inst_id).kind,
-                InstKind::Address
-                    | InstKind::Caller
-                    | InstKind::Origin
-                    | InstKind::Coinbase
-                    | InstKind::Create(_, _, _)
-                    | InstKind::Create2(_, _, _, _)
-            ),
-            _ => false,
-        }
+        func.value_ty(value) == Some(MirType::I160)
+            || matches!(func.value(value), Value::Inst(id)
+                if matches!(func.inst(*id).kind, InstKind::WordCast(inner)
+                    if func.value_ty(inner) == Some(MirType::I160)))
     }
 
     fn is_current_address(func: &Function, value: ValueId) -> bool {
-        match func.value(value) {
-            Value::Inst(inst_id) => matches!(func.inst(*inst_id).kind, InstKind::Address),
+        let Value::Inst(id) = func.value(value) else { return false };
+        match func.inst(*id).kind {
+            InstKind::Address => true,
+            InstKind::WordCast(inner) => Self::is_current_address(func, inner),
             _ => false,
         }
     }

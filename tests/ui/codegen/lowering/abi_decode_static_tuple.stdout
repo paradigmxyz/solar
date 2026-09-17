@@ -2,7 +2,7 @@
 @module AbiDecodeStaticTuple
 types:
   struct0: {i256, i256, i256}
-  struct1: {i256, i1, i256}
+  struct1: {i256, i1, i160}
 
 fn @decode(arg0: memorybytes) -> struct0 [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word, word<bool>, word<u160>], abi_return_params=[u256, bool, address]] {
   bb0:
@@ -11,8 +11,9 @@ fn @decode(arg0: memorybytes) -> struct0 [selector=0xe5c5e9a3, pure, abi_params=
     v2 = extract_value struct1, v0, 1
     v3 = extract_value struct1, v0, 2
     v4 = word_cast v2
-    v5 = insert_value struct0, undef struct0, 0, v1
-    v6 = insert_value struct0, v5, 1, v4
-    v7 = insert_value struct0, v6, 2, v3
-    ret v7
+    v5 = word_cast v3
+    v6 = insert_value struct0, undef struct0, 0, v1
+    v7 = insert_value struct0, v6, 1, v4
+    v8 = insert_value struct0, v7, 2, v5
+    ret v8
 }

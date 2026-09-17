@@ -127,6 +127,9 @@ pub(in crate::mir::transform) fn max_bits_with_args(
     if func.value_ty(value) == Some(crate::mir::MirType::I1) {
         return 1;
     }
+    if func.value_ty(value) == Some(crate::mir::MirType::I160) {
+        return 160;
+    }
     if let Some(constant) = func.value_u256(value) {
         return constant.bit_len() as u32;
     }
@@ -222,19 +225,11 @@ pub(in crate::mir::transform) fn is_bool_value(func: &Function, value: ValueId) 
     func.value_ty(value) == Some(crate::mir::MirType::I1)
 }
 
-/// Returns whether `value` is an address produced by an EVM opcode.
+/// Returns whether `value` fits in an address, including a widened i160.
 fn is_clean_address(func: &Function, value: ValueId) -> bool {
-    matches!(
-        defining_kind(func, value),
-        Some(
-            InstKind::Address
-                | InstKind::Caller
-                | InstKind::Origin
-                | InstKind::Coinbase
-                | InstKind::Create(..)
-                | InstKind::Create2(..)
-        )
-    )
+    func.value_ty(value) == Some(crate::mir::MirType::I160)
+        || matches!(defining_kind(func, value), Some(InstKind::WordCast(inner))
+            if func.value_ty(*inner) == Some(crate::mir::MirType::I160))
 }
 
 fn has_known_sign_bit(func: &Function, value: ValueId) -> bool {
@@ -289,6 +284,10 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn current_address(&mut self, value: Value) -> Option<()> {
+        let value = match defining_kind(self.func, value) {
+            Some(InstKind::WordCast(inner)) => *inner,
+            _ => value,
+        };
         matches!(defining_kind(self.func, value), Some(InstKind::Address)).then_some(())
     }
 

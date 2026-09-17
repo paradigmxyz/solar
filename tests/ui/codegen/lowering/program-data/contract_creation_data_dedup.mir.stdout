@@ -33,28 +33,29 @@ fn @first() -> i256 [selector=0x3df4ddf4, abi_params=[], abi_returns=[word], abi
     v5 = add v3, 371
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 371
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = gas
-    v9 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = staticcall v8, v6, v10, v11, 0, 32
-    jumpi v12, bb4, bb3
+    v9 = gas
+    v10 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = staticcall v9, v6, v11, v12, 0, 32
+    jumpi v13, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v13 = returndatasize
-    v14 = lt v13, 32
-    icall revert_if<tuple_data_too_short>, v14
-    v15 = add 0, 0
-    v16 = mload v15
-    v17 = add 0, 0
-    v18 = mload v17
-    ret v18
+    v14 = returndatasize
+    v15 = lt v14, 32
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = add 0, 0
+    v17 = mload v16
+    v18 = add 0, 0
+    v19 = mload v18
+    ret v19
 }
 
 fn @second() -> i256 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -68,28 +69,29 @@ fn @second() -> i256 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word], ab
     v5 = add v3, 371
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 371
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = gas
-    v9 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = staticcall v8, v6, v10, v11, 0, 32
-    jumpi v12, bb4, bb3
+    v9 = gas
+    v10 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = staticcall v9, v6, v11, v12, 0, 32
+    jumpi v13, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v13 = returndatasize
-    v14 = lt v13, 32
-    icall revert_if<tuple_data_too_short>, v14
-    v15 = add 0, 0
-    v16 = mload v15
-    v17 = add 0, 0
-    v18 = mload v17
-    ret v18
+    v14 = returndatasize
+    v15 = lt v14, 32
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = add 0, 0
+    v17 = mload v16
+    v18 = add 0, 0
+    v19 = mload v18
+    ret v19
 }
 
 fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -103,57 +105,61 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
     v5 = add v3, 371
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 371
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = abi_encode []
-    v9 = not 31
-    v10 = and 402, v9
-    v11 = alloc raw, exact, uninitialized, infallible, v10
-    data_copy Child_initcode_0, v11, 371
-    v12 = slice_ptr v8
-    v13 = add v11, 371
-    mcopy v13, v12, 0 !metadata(memory=heap)
-    v14 = create 0, v11, 371
-    v15 = ne v14, 0
-    jumpi v15, bb4, bb3
+    v9 = word_cast v6
+    v10 = abi_encode []
+    v11 = not 31
+    v12 = and 402, v11
+    v13 = alloc raw, exact, uninitialized, infallible, v12
+    data_copy Child_initcode_0, v13, 371
+    v14 = slice_ptr v10
+    v15 = add v13, 371
+    mcopy v15, v14, 0 !metadata(memory=heap)
+    v16 = create 0, v13, 371
+    v17 = word_cast v16
+    v18 = ne v17, 0
+    jumpi v18, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v16 = gas
-    v17 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v18 = slice_ptr v17
-    v19 = slice_len v17
-    v20 = staticcall v16, v6, v18, v19, 0, 32
-    jumpi v20, bb6, bb5
+    v19 = word_cast v16
+    v20 = gas
+    v21 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v22 = slice_ptr v21
+    v23 = slice_len v21
+    v24 = staticcall v20, v9, v22, v23, 0, 32
+    jumpi v24, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v21 = returndatasize
-    v22 = lt v21, 32
-    icall revert_if<tuple_data_too_short>, v22
-    v23 = add 0, 0
-    v24 = mload v23
-    v25 = add 0, 0
-    v26 = mload v25
-    v27 = gas
-    v28 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v29 = slice_ptr v28
-    v30 = slice_len v28
-    v31 = staticcall v27, v14, v29, v30, 0, 32
-    jumpi v31, bb8, bb7
+    v25 = returndatasize
+    v26 = lt v25, 32
+    icall revert_if<tuple_data_too_short>, v26
+    v27 = add 0, 0
+    v28 = mload v27
+    v29 = add 0, 0
+    v30 = mload v29
+    v31 = gas
+    v32 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v33 = slice_ptr v32
+    v34 = slice_len v32
+    v35 = staticcall v31, v19, v33, v34, 0, 32
+    jumpi v35, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v32 = returndatasize
-    v33 = lt v32, 32
-    icall revert_if<tuple_data_too_short>, v33
-    v34 = add 0, 0
-    v35 = mload v34
-    v36 = add 0, 0
-    v37 = mload v36
-    v38 = checked_add u256, v26, v37
-    ret v38
+    v36 = returndatasize
+    v37 = lt v36, 32
+    icall revert_if<tuple_data_too_short>, v37
+    v38 = add 0, 0
+    v39 = mload v38
+    v40 = add 0, 0
+    v41 = mload v40
+    v42 = checked_add u256, v30, v41
+    ret v42
 }

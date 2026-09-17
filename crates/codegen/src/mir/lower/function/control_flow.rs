@@ -1080,12 +1080,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn merge_value_phi(&mut self, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
         let dirty = !self.dirty_values.is_empty()
             && incoming.iter().any(|(_, value)| self.dirty_values.contains(value));
-        // Source bindings may acquire noncanonical boolean bits through assembly on a backedge.
-        // Preserve those bits even when the initial incoming value is i1.
+        // Source bindings may acquire raw bits through assembly on a backedge.
+        // Preserve those bits even when the initial incoming value is i1 or i160.
         let ty = incoming
             .first()
             .and_then(|(_, value)| self.builder.func().value_ty(*value))
-            .map(|ty| if ty == MirType::I1 { MirType::I256 } else { ty })
+            .map(|ty| if matches!(ty, MirType::I1 | MirType::I160) { MirType::I256 } else { ty })
             .unwrap_or(MirType::I256);
         // value = phi [predecessor: cast incoming to the source carrier type, ...]
         let value = self.builder.emit_inst(InstKind::Phi(incoming), Some(ty));

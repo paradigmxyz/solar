@@ -3,8 +3,9 @@
 
 contract TypeConversion {
     // CHECK-LABEL: fn @narrowAddress{{[( ]}}
-    // CHECK: [[ADDRESS:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    // CHECK: [[NARROW:v[0-9]+]] = and [[ADDRESS]], 0xffff
+    // CHECK: [[ADDRESS:v[0-9]+]] = trunc i160, arg0
+    // CHECK: [[WORD:v[0-9]+]] = word_cast [[ADDRESS]]
+    // CHECK: [[NARROW:v[0-9]+]] = and [[WORD]], 0xffff
     // CHECK: ret [[NARROW]]
     function narrowAddress(address asset) public pure returns (uint16) {
         return uint16(uint160(asset));

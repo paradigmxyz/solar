@@ -31,5 +31,7 @@ fn @addressFromBytes20(arg0: i256) -> i256 [selector=0x247e14fa, pure, abi_param
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
     v1 = shr 96, v0
-    ret v1
+    v2 = trunc i160, v1
+    v3 = word_cast v2
+    ret v3
 }

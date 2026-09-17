@@ -93,29 +93,34 @@ fn @deploysRevertingRuntime() -> i256 [selector=0x7c2d5470, abi_params=[], abi_r
     v5 = add v3, 20
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 20
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = gas
-    v9 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v9, 4
-    v10 = memory_object_data memorybytes, v9
-    mstore v10, 0xdeadbeef00000000000000000000000000000000000000000000000000000000
-    v11 = address_call v6, v9, gas v8
-    v12 = extcodesize v6
-    v13 = gt v12, 0
-    jumpi v13, bb3, bb4
+    v9 = word_cast v6
+    v10 = trunc i160, v9
+    v11 = gas
+    v12 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v12, 4
+    v13 = memory_object_data memorybytes, v12
+    mstore v13, 0xdeadbeef00000000000000000000000000000000000000000000000000000000
+    v14 = address_call v10, v12, gas v11
+    v15 = trunc i160, v9
+    v16 = word_cast v15
+    v17 = extcodesize v16
+    v18 = gt v17, 0
+    jumpi v18, bb3, bb4
   bb4:
     jump bb5
   bb3:
-    v14 = eq v11, false
+    v19 = eq v14, false
     jump bb5
   bb5:
-    v15 = phi [bb3: v14], [bb4: false]
-    v16 = word_cast v15
-    ret v16
+    v20 = phi [bb3: v19], [bb4: false]
+    v21 = word_cast v20
+    ret v21
 }
 
 fn @hasCode() -> i256 [selector=0xfffc60a2, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -129,15 +134,19 @@ fn @hasCode() -> i256 [selector=0xfffc60a2, abi_params=[], abi_returns=[word<boo
     v5 = add v3, 20
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 20
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = extcodesize v6
-    v9 = ne v8, 0
-    v10 = word_cast v9
-    ret v10
+    v9 = word_cast v6
+    v10 = trunc i160, v9
+    v11 = word_cast v10
+    v12 = extcodesize v11
+    v13 = ne v12, 0
+    v14 = word_cast v13
+    ret v14
 }
 
 fn @rejectsCalls() -> i256 [selector=0x99b623b6, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -151,17 +160,20 @@ fn @rejectsCalls() -> i256 [selector=0x99b623b6, abi_params=[], abi_returns=[wor
     v5 = add v3, 20
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 20
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = gas
-    v9 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v9, 0
-    v10 = memory_object_data memorybytes, v9
-    v11 = address_call v6, v9, gas v8
-    v12 = eq v11, false
-    v13 = word_cast v12
-    ret v13
+    v9 = word_cast v6
+    v10 = trunc i160, v9
+    v11 = gas
+    v12 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v12, 0
+    v13 = memory_object_data memorybytes, v12
+    v14 = address_call v10, v12, gas v11
+    v15 = eq v14, false
+    v16 = word_cast v15
+    ret v16
 }

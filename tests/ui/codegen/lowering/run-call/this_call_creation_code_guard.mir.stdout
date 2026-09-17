@@ -19,11 +19,12 @@ fn @helper() {
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = extcodesize v0
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = call v1, v0, 0, v3, v4, 0, 0
-    jumpi v7, bb2, bb1
+    v5 = word_cast v0
+    v6 = extcodesize v5
+    v7 = eq v6, 0
+    icall revert_if<target_contract_has_no_code>, v7
+    v8 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -53,11 +54,12 @@ fn @constructor() [constructor] {
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = extcodesize v0
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = call v1, v0, 0, v3, v4, 0, 0
-    jumpi v7, bb2, bb1
+    v5 = word_cast v0
+    v6 = extcodesize v5
+    v7 = eq v6, 0
+    icall revert_if<target_contract_has_no_code>, v7
+    v8 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -87,11 +89,12 @@ fn @constructor() [constructor] {
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = extcodesize v0
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = call v1, v0, 0, v3, v4, 0, 0
-    jumpi v7, bb3, bb2
+    v5 = word_cast v0
+    v6 = extcodesize v5
+    v7 = eq v6, 0
+    icall revert_if<target_contract_has_no_code>, v7
+    v8 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v8, bb3, bb2
   bb2:
     revert_returndata
   bb3:
@@ -125,11 +128,12 @@ fn @constructor() [constructor] {
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = extcodesize v0
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = call v1, v0, 0, v3, v4, 0, 0
-    jumpi v7, bb2, bb1
+    v5 = word_cast v0
+    v6 = extcodesize v5
+    v7 = eq v6, 0
+    icall revert_if<target_contract_has_no_code>, v7
+    v8 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -153,11 +157,12 @@ fn @constructor() [constructor] {
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = extcodesize v0
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = call v1, v0, 0, v3, v4, 0, 0
-    jumpi v7, bb3, bb2
+    v5 = word_cast v0
+    v6 = extcodesize v5
+    v7 = eq v6, 0
+    icall revert_if<target_contract_has_no_code>, v7
+    v8 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v8, bb3, bb2
   bb2:
     revert_returndata
   bb3:
@@ -203,11 +208,12 @@ fn @init() -> i256 {
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = extcodesize v0
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = call v1, v0, 0, v3, v4, 0, 0
-    jumpi v7, bb2, bb1
+    v5 = word_cast v0
+    v6 = extcodesize v5
+    v7 = eq v6, 0
+    icall revert_if<target_contract_has_no_code>, v7
+    v8 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -244,11 +250,12 @@ fn @constructor() [constructor] {
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = extcodesize v0
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = call v1, v0, 0, v3, v4, 0, 0
-    jumpi v7, bb1, bb2
+    v5 = word_cast v0
+    v6 = extcodesize v5
+    v7 = eq v6, 0
+    icall revert_if<target_contract_has_no_code>, v7
+    v8 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v8, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -285,11 +292,12 @@ fn @helper() {
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = extcodesize v0
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = call v1, v0, 0, v3, v4, 0, 0
-    jumpi v7, bb2, bb1
+    v5 = word_cast v0
+    v6 = extcodesize v5
+    v7 = eq v6, 0
+    icall revert_if<target_contract_has_no_code>, v7
+    v8 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -339,11 +347,12 @@ fn @helper() {
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = extcodesize v0
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = call v1, v0, 0, v3, v4, 0, 0
-    jumpi v7, bb2, bb1
+    v5 = word_cast v0
+    v6 = extcodesize v5
+    v7 = eq v6, 0
+    icall revert_if<target_contract_has_no_code>, v7
+    v8 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -368,25 +377,26 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:Deployer ===
 @module Deployer
 data:
-  CreationHelper_initcode_0: hex"60c06040526096565b5a8060a051606001528060a051606001526040518060a051608001528060a05160800152602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060a051604001523b156092578160a051606001528060a051608001525f5f6004835f3087f19150506090573d5f5f3e3d5ffd5b565b5f5ffd5b34151560cb5760405160a05181602001528060a05260a00160405260b76008565b60a05160405260a0516020015160a05260cf565b5f5ffd5b60748060d95f395ff3341515602a575f3560e01c80635fb11492146026578063d99aa8e214602257602a565b602e565b6040565b5f5ffd5b5f546080526020608001608090036080f35b5f54600181018060805280608052818110915050606257608051806080525f55005b634e487b715f5260116020526024601cfd"
-  CreationDirect_initcode_1: hex"6101206040523415156082575a8060e0528060e05260405180610100528061010052602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060c0523b15607e578160e05280610100525f5f6004835f3087f1915050607a573d5f5f3e3d5ffd5b6086565b5f5ffd5b5f5ffd5b60748060905f395ff3341515602a575f3560e01c80635fb11492146026578063d99aa8e214602257602a565b602e565b6040565b5f5ffd5b5f546080526020608001608090036080f35b5f54600181018060805280608052818110915050606257608051806080525f55005b634e487b715f5260116020526024601cfd"
-  CreationInitializer_initcode_2: hex"60e0604052609f565b5a8060a051608001528060a051608001526040518060a05160a001528060a05160a00152602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060a051606001523b15609b578160a051608001528060a05160a001525f5f6004835f3087f19150506090573d5f5f3e3d5ffd5b600360a05160400152565b5f5ffd5b34151560ea5760405160a05181602001528060a05260c00160405260c06008565b60a051604001518060c05260a05160405260a0516020015160a0528060c0528060c05260015560ee565b5f5ffd5b60958060f85f395ff33415156038575f3560e01c80630c55699c1460345780635fb11492146030578063d99aa8e214602c576038565b603c565b6061565b604e565b5f5ffd5b5f546080526020608001608090036080f35b6001546080526020608001608090036080f35b5f54600181018060805280608052818110915050608357608051806080525f55005b634e487b715f5260116020526024601cfd"
-  CreationTry_initcode_3: hex"610120604052341515608b575a8060e0528060e05260405180610100528061010052602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060c0523b156087578160e05280610100525f5f6004835f3087f19150506082576001607e576001608757fe5b6083565b5b608f565b5f5ffd5b5f5ffd5b60748060995f395ff3341515602a575f3560e01c80635fb11492146026578063d99aa8e214602257602a565b602e565b6040565b5f5ffd5b5f546080526020608001608090036080f35b5f54600181018060805280608052818110915050606257608051806080525f55005b634e487b715f5260116020526024601cfd"
-  SharedHelper_initcode_4: hex"61026038038061026060e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405260c8565b5a8060a051606001528060a051606001526040518060a051608001528060a05160800152602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060a051604001523b1560c4578160a051606001528060a051608001525f5f6004835f3087f191505060c2573d5f5f3e3d5ffd5b565b5f5ffd5b34151561013c5760e08060c0528060c05260e06102603803016020820111610138578060c0525160029010156101385760e051151561010657610133565b60405160a05181602001528060a05260a001604052610122603a565b60a05160405260a0516020015160a0525b610140565b5f5ffd5b5f5ffd5b6101148061014c5f395ff33415156038575f3560e01c80635fb114921460345780639c6f4ff5146030578063d99aa8e214602c576038565b603c565b604e565b606c565b5f5ffd5b5f546080526020608001608090036080f35b610100604052605a60a0565b5f546080526020608001608090036080f35b5f54600181018060805280608052818110915050608e57608051806080525f55005b634e487b715f5260116020526024601cfd5b5a8060c0528060c0526040518060e0528060e052602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060a0523b15610110578160c0528060e0525f5f6004835f3087f191505061010e573d5f5f3e3d5ffd5b565b5f5ffd"
+  CreationHelper_initcode_0: hex"60c0604052608e565b5a8060a051606001528060a051606001526040518060a051608001528060a05160800152602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150303b15608a578160a051606001528060a051608001525f5f6004835f3087f19150506088573d5f5f3e3d5ffd5b565b5f5ffd5b34151560c35760405160a05181602001528060a05260a00160405260af6008565b60a05160405260a0516020015160a05260c7565b5f5ffd5b60748060d15f395ff3341515602a575f3560e01c80635fb11492146026578063d99aa8e214602257602a565b602e565b6040565b5f5ffd5b5f546080526020608001608090036080f35b5f54600181018060805280608052818110915050606257608051806080525f55005b634e487b715f5260116020526024601cfd"
+  CreationDirect_initcode_1: hex"610120604052341515607e575a8060e0528060e05260405180610100528061010052602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150303b15607a578160e05280610100525f5f6004835f3087f19150506076573d5f5f3e3d5ffd5b6082565b5f5ffd5b5f5ffd5b607480608c5f395ff3341515602a575f3560e01c80635fb11492146026578063d99aa8e214602257602a565b602e565b6040565b5f5ffd5b5f546080526020608001608090036080f35b5f54600181018060805280608052818110915050606257608051806080525f55005b634e487b715f5260116020526024601cfd"
+  CreationInitializer_initcode_2: hex"60e06040526097565b5a8060a051608001528060a051608001526040518060a05160a001528060a05160a00152602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150303b156093578160a051608001528060a05160a001525f5f6004835f3087f19150506088573d5f5f3e3d5ffd5b600360a05160400152565b5f5ffd5b34151560e25760405160a05181602001528060a05260c00160405260b86008565b60a051604001518060c05260a05160405260a0516020015160a0528060c0528060c05260015560e6565b5f5ffd5b60958060f05f395ff33415156038575f3560e01c80630c55699c1460345780635fb11492146030578063d99aa8e214602c576038565b603c565b6061565b604e565b5f5ffd5b5f546080526020608001608090036080f35b6001546080526020608001608090036080f35b5f54600181018060805280608052818110915050608357608051806080525f55005b634e487b715f5260116020526024601cfd"
+  CreationTry_initcode_3: hex"6101206040523415156087575a8060e0528060e05260405180610100528061010052602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150303b156083578160e05280610100525f5f6004835f3087f1915050607e576001607a576001608357fe5b607f565b5b608b565b5f5ffd5b5f5ffd5b60748060955f395ff3341515602a575f3560e01c80635fb11492146026578063d99aa8e214602257602a565b602e565b6040565b5f5ffd5b5f546080526020608001608090036080f35b5f54600181018060805280608052818110915050606257608051806080525f55005b634e487b715f5260116020526024601cfd"
+  SharedHelper_initcode_4: hex"61025338038061025360e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405260c0565b5a8060a051606001528060a051606001526040518060a051608001528060a05160800152602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150303b1560bc578160a051606001528060a051608001525f5f6004835f3087f191505060ba573d5f5f3e3d5ffd5b565b5f5ffd5b3415156101335760e08060c0528060c05260e0610253380301602082011161012f578060c05251600290101561012f5760e051151560fd5761012a565b60405160a05181602001528060a05260a001604052610119603a565b60a05160405260a0516020015160a0525b610137565b5f5ffd5b5f5ffd5b610110806101435f395ff33415156038575f3560e01c80635fb114921460345780639c6f4ff5146030578063d99aa8e214602c576038565b603c565b604e565b606c565b5f5ffd5b5f546080526020608001608090036080f35b610100604052605a60a0565b5f546080526020608001608090036080f35b5f54600181018060805280608052818110915050608e57608051806080525f55005b634e487b715f5260116020526024601cfd5b5a8060c0528060c0526040518060e0528060e052602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150303b1561010c578160c0528060e0525f5f6004835f3087f191505061010a573d5f5f3e3d5ffd5b565b5f5ffd"
 
 fn @viaHelper() [selector=0x9c6f4ff5, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 364, v1
+    v2 = and 356, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy CreationHelper_initcode_0, v3, 333
+    data_copy CreationHelper_initcode_0, v3, 325
     v4 = slice_ptr v0
-    v5 = add v3, 333
+    v5 = add v3, 325
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 333
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v6 = create 0, v3, 325
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -397,15 +407,16 @@ fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[], abi_return_par
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 291, v1
+    v2 = and 287, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy CreationDirect_initcode_1, v3, 260
+    data_copy CreationDirect_initcode_1, v3, 256
     v4 = slice_ptr v0
-    v5 = add v3, 260
+    v5 = add v3, 256
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 260
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v6 = create 0, v3, 256
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -416,15 +427,16 @@ fn @viaModifier() [selector=0xb93fa0d6, abi_params=[], abi_returns=[], abi_retur
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 291, v1
+    v2 = and 287, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy CreationDirect_initcode_1, v3, 260
+    data_copy CreationDirect_initcode_1, v3, 256
     v4 = slice_ptr v0
-    v5 = add v3, 260
+    v5 = add v3, 256
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 260
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v6 = create 0, v3, 256
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -435,15 +447,16 @@ fn @viaBase() [selector=0x0f982f84, abi_params=[], abi_returns=[], abi_return_pa
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 291, v1
+    v2 = and 287, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy CreationDirect_initcode_1, v3, 260
+    data_copy CreationDirect_initcode_1, v3, 256
     v4 = slice_ptr v0
-    v5 = add v3, 260
+    v5 = add v3, 256
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 260
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v6 = create 0, v3, 256
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -454,15 +467,16 @@ fn @viaInitializer() [selector=0x7c61d018, abi_params=[], abi_returns=[], abi_re
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 428, v1
+    v2 = and 420, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy CreationInitializer_initcode_2, v3, 397
+    data_copy CreationInitializer_initcode_2, v3, 389
     v4 = slice_ptr v0
-    v5 = add v3, 397
+    v5 = add v3, 389
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 397
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v6 = create 0, v3, 389
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -473,15 +487,16 @@ fn @viaTry() [selector=0x9369e272, abi_params=[], abi_returns=[], abi_return_par
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 300, v1
+    v2 = and 296, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy CreationTry_initcode_3, v3, 269
+    data_copy CreationTry_initcode_3, v3, 265
     v4 = slice_ptr v0
-    v5 = add v3, 269
+    v5 = add v3, 265
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 269
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v6 = create 0, v3, 265
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -495,15 +510,16 @@ fn @viaShared() [selector=0x86375232, abi_params=[], abi_returns=[], abi_return_
     v2 = eq v1, false
     v3 = abi_encode [word<bool>], args v2
     v4 = not 31
-    v5 = and 671, v4
+    v5 = and 658, v4
     v6 = alloc raw, exact, uninitialized, infallible, v5
-    data_copy SharedHelper_initcode_4, v6, 608
+    data_copy SharedHelper_initcode_4, v6, 595
     v7 = slice_ptr v3
-    v8 = add v6, 608
+    v8 = add v6, 595
     mcopy v8, v7, 32 !metadata(memory=heap)
-    v9 = create 0, v6, 640
-    v10 = ne v9, 0
-    jumpi v10, bb2, bb1
+    v9 = create 0, v6, 627
+    v10 = word_cast v9
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:

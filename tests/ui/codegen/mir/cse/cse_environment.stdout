@@ -4,22 +4,24 @@
   fn @keep_cheap_nullary_environment_reads(arg0: i256) -> i256 {
     bb0:
       v0 = caller
-      v1 = caller
-      v2 = callvalue
-      v3 = callvalue
-      v4 = calldatasize
-      v5 = calldatasize
-      v6 = chainid
-      v7 = chainid
-      v8 = add v0, v1
-      v9 = add v2, v3
-      v10 = add v4, v5
-      v11 = add v6, v7
-      v12 = add v8, v9
-      v13 = add v10, v11
-      v14 = add v12, v13
-      v15 = add v14, arg0
-      ret v15
+      v1 = word_cast v0
+      v2 = caller
+      v3 = word_cast v2
+      v4 = callvalue
+      v5 = callvalue
+      v6 = calldatasize
+      v7 = calldatasize
+      v8 = chainid
+      v9 = chainid
+      v10 = add v1, v3
+      v11 = add v4, v5
+      v12 = add v6, v7
+      v13 = add v8, v9
+      v14 = add v10, v11
+      v15 = add v12, v13
+      v16 = add v14, v15
+      v17 = add v16, arg0
+      ret v17
   }
   
   fn @reuse_expensive_environment_reads(arg0: i256, arg1: i256) -> i256 {

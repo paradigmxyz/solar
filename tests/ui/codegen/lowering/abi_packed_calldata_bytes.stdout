@@ -121,6 +121,13 @@ bb9 [continuation]:
   swap 1
   push 32
   add
+  push 36
+  calldataload
+  push 0
+  not
+  push 96
+  shr
+  and
   push 64
   mload
   push 0x707265
@@ -131,16 +138,17 @@ bb9 [continuation]:
   push 3
   dup 2
   add
-  dup 4
-  dup 4
+  dup 5
+  dup 5
   dup 3
   calldatacopy
-  swap 2
+  swap 3
   pop
+  swap 3
+  swap 1
   swap 2
   add
-  push 36
-  calldataload
+  swap 1
   push 96
   shl
   dup 2

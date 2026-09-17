@@ -513,11 +513,13 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 
 ### IR construction and rewrites
 
-- MIR scalar SSA values use `i1` or `i256`; structs, slices, and memory-object
+- MIR scalar SSA values use `i1`, `i160`, or `i256`; structs, slices, and memory-object
   references retain their own types. Keep source widths, signedness, and ABI
   encodings in operation or layout metadata.
-- Name MIR integer types `iN` by bit width. Only `i1` and `i256` are supported
+- Name MIR integer types `iN` by bit width. Only `i1`, `i160`, and `i256` are supported
   for now; future widths should lower to `i256` at the EVM IR boundary.
+- Address values use `i160` and must fit in 160 bits. Narrow with `trunc i160, value`
+  and widen with `word_cast`; retain the width until EVM IR lowering.
 - Every `i1` value must be exactly zero or one, including arguments, loads,
   call results, phi inputs, and values produced by inline assembly. Normalize
   raw words with `ne value, 0` before treating them as booleans.
@@ -526,7 +528,7 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 - Use `eq value, 0` and `ne value, 0` as the canonical MIR zero tests. `ISZERO`
   belongs in EVM IR, not MIR. Rewrites must preserve both value and type;
   boolean-to-word conversions require `word_cast`.
-- Preserve raw Solidity boolean bits as `i256` when assembly can observe them;
+- Preserve raw Solidity boolean and address bits as `i256` when assembly can observe them;
   convert to `i1` for logical operations and branches.
 
 - Add an IR or pseudo-IR comment above lowering code and every transformation or rewrite that writes, moves, or rearranges IR. This includes builder sequences and helper bodies.

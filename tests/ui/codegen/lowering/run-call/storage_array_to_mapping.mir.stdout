@@ -236,44 +236,48 @@ fn @constructor() [constructor] {
     v283 = shl v277, v282
     v284 = or v281, v283
     sstore v274, v284 !metadata(storage=symbolic(v274))
-    v285 = sload 2 !metadata(storage=slot(2))
-    v286 = gt v285, 0xffffffffffffffff
-    icall panic_if<0x41>, v286
-    v287 = add v285, 1
-    v288 = storage_array_data_slot 2
-    v289 = div v285, 1
-    v290 = add v288, v289
-    v291 = mod v285, 1
-    v292 = mul v291, 20
-    v293 = mul v292, 8
-    v294 = shl v293, 0xffffffffffffffffffffffffffffffffffffffff
-    v295 = sload v290 !metadata(storage=symbolic(v290))
-    v296 = not v294
-    v297 = and v295, v296
-    v298 = and 1, 0xffffffffffffffffffffffffffffffffffffffff
-    v299 = shl v293, v298
-    v300 = or v297, v299
-    sstore v290, v300 !metadata(storage=symbolic(v290))
-    sstore 2, v287 !metadata(storage=slot(2))
-    v301 = sload 2 !metadata(storage=slot(2))
-    v302 = gt v301, 0xffffffffffffffff
-    icall panic_if<0x41>, v302
-    v303 = add v301, 1
-    v304 = storage_array_data_slot 2
-    v305 = div v301, 1
-    v306 = add v304, v305
-    v307 = mod v301, 1
-    v308 = mul v307, 20
-    v309 = mul v308, 8
-    v310 = shl v309, 0xffffffffffffffffffffffffffffffffffffffff
-    v311 = sload v306 !metadata(storage=symbolic(v306))
-    v312 = not v310
-    v313 = and v311, v312
-    v314 = and 2, 0xffffffffffffffffffffffffffffffffffffffff
-    v315 = shl v309, v314
-    v316 = or v313, v315
-    sstore v306, v316 !metadata(storage=symbolic(v306))
-    sstore 2, v303 !metadata(storage=slot(2))
+    v285 = trunc i160, 1
+    v286 = sload 2 !metadata(storage=slot(2))
+    v287 = gt v286, 0xffffffffffffffff
+    icall panic_if<0x41>, v287
+    v288 = add v286, 1
+    v289 = storage_array_data_slot 2
+    v290 = div v286, 1
+    v291 = add v289, v290
+    v292 = mod v286, 1
+    v293 = mul v292, 20
+    v294 = mul v293, 8
+    v295 = shl v294, 0xffffffffffffffffffffffffffffffffffffffff
+    v296 = sload v291 !metadata(storage=symbolic(v291))
+    v297 = not v295
+    v298 = and v296, v297
+    v299 = word_cast v285
+    v300 = and v299, 0xffffffffffffffffffffffffffffffffffffffff
+    v301 = shl v294, v300
+    v302 = or v298, v301
+    sstore v291, v302 !metadata(storage=symbolic(v291))
+    sstore 2, v288 !metadata(storage=slot(2))
+    v303 = trunc i160, 2
+    v304 = sload 2 !metadata(storage=slot(2))
+    v305 = gt v304, 0xffffffffffffffff
+    icall panic_if<0x41>, v305
+    v306 = add v304, 1
+    v307 = storage_array_data_slot 2
+    v308 = div v304, 1
+    v309 = add v307, v308
+    v310 = mod v304, 1
+    v311 = mul v310, 20
+    v312 = mul v311, 8
+    v313 = shl v312, 0xffffffffffffffffffffffffffffffffffffffff
+    v314 = sload v309 !metadata(storage=symbolic(v309))
+    v315 = not v313
+    v316 = and v314, v315
+    v317 = word_cast v303
+    v318 = and v317, 0xffffffffffffffffffffffffffffffffffffffff
+    v319 = shl v312, v318
+    v320 = or v316, v319
+    sstore v309, v320 !metadata(storage=symbolic(v309))
+    sstore 2, v306 !metadata(storage=slot(2))
     ret
   bb40:
     v197 = memory_object_load_element memoryarray<1>, v170, v195

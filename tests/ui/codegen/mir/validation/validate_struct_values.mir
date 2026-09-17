@@ -7,6 +7,8 @@
 //~? ERROR: [fn5] [bb0] tail-call arguments do not match the signature
 //~? ERROR: [fn6] internal return ABI does not match the function's result type
 //~? ERROR: [fn7] [bb0, inst0] memory object pointer conversion requires a word and matching object result
+//~? ERROR: [fn16] [bb0] return values do not match the signature
+//~? ERROR: [fn17] [bb0, inst0] `trunc` has incompatible scalar types; use an explicit cast
 @module InvalidStructValues
 
 types:
@@ -115,5 +117,16 @@ fn @bool_parameter(arg0: i1) -> i1 {
 fn @implicit_call_argument(arg0: i256) -> i1 {
   bb0:
     v0 = icall @bool_parameter, arg0
+    ret v0
+}
+
+fn @implicit_address_word(arg0: i160) -> i256 {
+  bb0:
+    ret arg0
+}
+
+fn @invalid_address_trunc(arg0: i160) -> i160 {
+  bb0:
+    v0 = trunc i160, arg0
     ret v0
 }

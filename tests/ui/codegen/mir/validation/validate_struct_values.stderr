@@ -28,5 +28,9 @@ error: [fn13] [bb0, inst0] `add` has incompatible scalar types; use an explicit 
 
 error: [fn15] [bb0, inst0] value has type `i256`, expected `i1`; use an explicit cast
 
-error: aborting due to 15 previous errors
+error: [fn16] [bb0] return values do not match the signature
+
+error: [fn17] [bb0, inst0] `trunc` has incompatible scalar types; use an explicit cast
+
+error: aborting due to 17 previous errors
 

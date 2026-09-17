@@ -29,7 +29,8 @@ fn @leaf(arg0: i256) -> i256 {
 
 fn @clean_caller() -> i256 {
   bb0:
-    v0 = caller
+    v3 = caller
+    v0 = word_cast v3
     v1 = icall @mixed, v0
     ret v1
 }

@@ -751,6 +751,7 @@ impl Instruction {
                 || *semantics != AllocationSemantics::INTERNAL)
                 .then_some("abstract allocation"),
             InstKind::WordCast(..)
+            | InstKind::Trunc160(..)
             | InstKind::Add(..)
             | InstKind::Sub(..)
             | InstKind::Mul(..)
@@ -940,18 +941,23 @@ impl InstKind {
             Self::Eq(a, b) | Self::Ne(a, b) => {
                 result == Some(MirType::I1)
                     && ty(a) == ty(b)
-                    && matches!(ty(a), Some(MirType::I256 | MirType::I1))
+                    && matches!(ty(a), Some(MirType::I256 | MirType::I160 | MirType::I1))
             }
             Self::And(a, b) | Self::Or(a, b) | Self::Xor(a, b) => {
                 ty(a) == result
                     && ty(b) == result
                     && matches!(result, Some(MirType::I256 | MirType::I1))
             }
+            Self::Trunc160(value) => {
+                result == Some(MirType::I160) && ty(value) == Some(MirType::I256)
+            }
             Self::WordCast(value) => {
                 result == Some(MirType::I256)
                     && matches!(
                         ty(value),
-                        Some(MirType::I1 | MirType::I256 | MirType::MemoryObject(_))
+                        Some(
+                            MirType::I1 | MirType::I160 | MirType::I256 | MirType::MemoryObject(_)
+                        )
                     )
             }
             _ if self.evm_opcode().is_some() => {

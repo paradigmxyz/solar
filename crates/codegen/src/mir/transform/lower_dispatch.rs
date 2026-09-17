@@ -341,7 +341,7 @@ fn build_entry(
             if let Some(immutable) = library_deploy_address
                 && super::utils::needs_delegatecall_guard(module.function(*target))
             {
-                let own = builder.load_immutable(immutable, MirType::I256);
+                let own = builder.load_immutable(immutable, MirType::I160);
                 let this = builder.address();
                 let direct_call = builder.eq(own, this);
                 builder.revert_if(direct_call, RevertReason::LibraryCalledWithoutDelegatecall);

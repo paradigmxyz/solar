@@ -127,6 +127,7 @@ impl InstKind {
             | Self::ExtractValue { .. }
             | Self::MemoryObjectFromPtr { .. }
             | Self::WordCast(..)
+            | Self::Trunc160(..)
             | Self::Add(..)
             | Self::Sub(..)
             | Self::Mul(..)

@@ -9,8 +9,10 @@ fn @stored() -> i256 [selector=0xe582dd31, view, abi_params=[], abi_returns=[wor
 fn @approve(arg0: i256, arg1: i256) [selector=0x095ea7b3, payable, abi_params=[address, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = caller
-    v1 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v0, v1, arg1
+    v1 = trunc i160, arg0
+    v2 = word_cast v0
+    v3 = word_cast v1
+    log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v2, v3, arg1
     sstore 0, arg1 !metadata(storage=slot(0))
     ret
 }
@@ -18,7 +20,7 @@ fn @approve(arg0: i256, arg1: i256) [selector=0x095ea7b3, payable, abi_params=[a
 // === ROOT/tests/ui/codegen/lowering/run-call/payable_void_call.sol:Caller ===
 @module Caller
 data:
-  Callee_initcode_0: hex"34600d5760a48060115f395ff35b5f5ffd5f3560e01c8063095ea7b3146020578063e582dd3114601c576024565b6028565b6044565b5f5ffd5b3415156040575f546080526020608001608090036080f35b5f5ffd5b6044361060a05760043560a01c151560a05773ffffffffffffffffffffffffffffffffffffffff6004351660243581337f8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b9255f5fa4506024355f55005b5f5ffd"
+  Callee_initcode_0: hex"34600d5760a48060115f395ff35b5f5ffd5f3560e01c8063095ea7b3146020578063e582dd3114601c576024565b6028565b6044565b5f5ffd5b3415156040575f546080526020608001608090036080f35b5f5ffd5b6044361060a05760043560a01c151560a05760043573ffffffffffffffffffffffffffffffffffffffff1660243581337f8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b9255f5fa4506024355f55005b5f5ffd"
 
 fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -31,41 +33,46 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v5 = add v3, 181
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 181
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = address
-    log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v8, 0xbeef, 7
-    v9 = gas
-    v10 = and 0xbeef, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = abi_encode [word<u160>, word], selector 0x95ea7b300000000000000000000000000000000000000000000000000000000, args v10, 7
-    v12 = slice_ptr v11
-    v13 = slice_len v11
-    v14 = extcodesize v6
-    v15 = eq v14, 0
-    icall revert_if<target_contract_has_no_code>, v15
-    v16 = call v9, v6, 0, v12, v13, 0, 0
-    jumpi v16, bb4, bb3
+    v9 = word_cast v6
+    v10 = address
+    v11 = trunc i160, 0xbeef
+    v12 = word_cast v10
+    v13 = word_cast v11
+    log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v12, v13, 7
+    v14 = gas
+    v15 = trunc i160, 0xbeef
+    v16 = abi_encode [word<u160>, word], selector 0x95ea7b300000000000000000000000000000000000000000000000000000000, args v15, 7
+    v17 = slice_ptr v16
+    v18 = slice_len v16
+    v19 = extcodesize v9
+    v20 = eq v19, 0
+    icall revert_if<target_contract_has_no_code>, v20
+    v21 = call v14, v9, 0, v17, v18, 0, 0
+    jumpi v21, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v17 = gas
-    v18 = abi_encode [], selector 0xe582dd3100000000000000000000000000000000000000000000000000000000
-    v19 = slice_ptr v18
-    v20 = slice_len v18
-    v21 = staticcall v17, v6, v19, v20, 0, 32
-    jumpi v21, bb6, bb5
+    v22 = gas
+    v23 = abi_encode [], selector 0xe582dd3100000000000000000000000000000000000000000000000000000000
+    v24 = slice_ptr v23
+    v25 = slice_len v23
+    v26 = staticcall v22, v9, v24, v25, 0, 32
+    jumpi v26, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v22 = returndatasize
-    v23 = lt v22, 32
-    icall revert_if<tuple_data_too_short>, v23
-    v24 = add 0, 0
-    v25 = mload v24
-    v26 = add 0, 0
-    v27 = mload v26
-    ret v27
+    v27 = returndatasize
+    v28 = lt v27, 32
+    icall revert_if<tuple_data_too_short>, v28
+    v29 = add 0, 0
+    v30 = mload v29
+    v31 = add 0, 0
+    v32 = mload v31
+    ret v32
 }

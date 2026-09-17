@@ -6,6 +6,7 @@ use super::{
     select::{self, OpcodeLowering},
 };
 use crate::mir::Callee;
+use alloy_primitives::U256;
 
 impl<'gcx> EvmCodegen<'gcx> {
     // ==================== Stack-Aware Emitter API ====================
@@ -112,7 +113,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         if self.emit_stack_expression(func, liveness, block, inst_idx) {
             // The selected expression already produced the original result.
-        } else if let InstKind::WordCast(value) = *kind {
+        } else if let InstKind::WordCast(value) | InstKind::Trunc160(value) = *kind {
             // word_cast value -> the same physical word under the result identity
             if let Some(plan) = self.plan_operands(func, &[value], liveness, block, inst_idx) {
                 self.emit_operand_plan(func, plan);
@@ -122,6 +123,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if !self.block_local_copy_survives(liveness, block, value, 1) {
                     self.spill_top_value_if_live(func, liveness, block, inst_idx, value);
                 }
+            }
+            if matches!(kind, InstKind::Trunc160(_)) {
+                // result = AND value, (1 << 160) - 1
+                self.asm.emit_push(U256::MAX >> 96);
+                self.asm.emit_op(op::AND);
             }
             self.scheduler.instruction_executed(1, result_value);
         } else if let InstKind::Eq(a, b) | InstKind::Ne(a, b) = *kind {

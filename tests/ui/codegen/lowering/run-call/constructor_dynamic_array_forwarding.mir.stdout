@@ -208,48 +208,50 @@ fn @f(arg0: i256, arg1: memoryarray) -> struct0 [selector=0x1b2902dd, abi_params
     v10 = add v8, 0x4df
     mcopy v10, v9, v1 !metadata(memory=heap)
     v11 = create 0, v8, v2
-    v12 = ne v11, 0
-    jumpi v12, bb2, bb1
+    v12 = word_cast v11
+    v13 = ne v12, 0
+    jumpi v13, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = gas
-    v14 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = staticcall v13, v11, v15, v16, 0, 32
-    jumpi v17, bb4, bb3
+    v14 = word_cast v11
+    v15 = gas
+    v16 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v17 = slice_ptr v16
+    v18 = slice_len v16
+    v19 = staticcall v15, v14, v17, v18, 0, 32
+    jumpi v19, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v18 = returndatasize
-    v19 = lt v18, 32
-    icall revert_if<tuple_data_too_short>, v19
-    v20 = add 0, 0
-    v21 = mload v20
+    v20 = returndatasize
+    v21 = lt v20, 32
+    icall revert_if<tuple_data_too_short>, v21
     v22 = add 0, 0
     v23 = mload v22
-    v24 = gas
-    v25 = abi_encode [word], selector 0xe2095c0700000000000000000000000000000000000000000000000000000000, args arg0
-    v26 = slice_ptr v25
-    v27 = slice_len v25
-    v28 = staticcall v24, v11, v26, v27, 0, 32
-    jumpi v28, bb6, bb5
+    v24 = add 0, 0
+    v25 = mload v24
+    v26 = gas
+    v27 = abi_encode [word], selector 0xe2095c0700000000000000000000000000000000000000000000000000000000, args arg0
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = staticcall v26, v14, v28, v29, 0, 32
+    jumpi v30, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v29 = returndatasize
-    v30 = lt v29, 32
-    icall revert_if<tuple_data_too_short>, v30
-    v31 = add 0, 0
-    v32 = mload v31
-    v33 = and v32, 0xffffffffffffffffffffffffffffffffffffffff
-    v34 = eq v32, v33
-    v35 = eq v34, false
-    icall revert_if<empty>, v35
-    v36 = add 0, 0
-    v37 = mload v36
-    v38 = insert_value struct0, undef struct0, 0, v23
-    v39 = insert_value struct0, v38, 1, v37
-    ret v39
+    v31 = returndatasize
+    v32 = lt v31, 32
+    icall revert_if<tuple_data_too_short>, v32
+    v33 = add 0, 0
+    v34 = mload v33
+    v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffff
+    v36 = eq v34, v35
+    v37 = eq v36, false
+    icall revert_if<empty>, v37
+    v38 = add 0, 0
+    v39 = mload v38
+    v40 = insert_value struct0, undef struct0, 0, v25
+    v41 = insert_value struct0, v40, 1, v39
+    ret v41
 }

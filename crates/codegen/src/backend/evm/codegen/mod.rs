@@ -20,7 +20,7 @@ use self::{
         layout::{
             GlobalStackPlan, StackPhiBranch, StackPhiEdge, StackPhiPlan, planned_entry_carries,
         },
-        rematerializable_nullary_opcode, rematerializable_nullary_value,
+        rematerializable_nullary_value,
     },
     switch::MAX_GAS_CODE_GROWTH,
 };

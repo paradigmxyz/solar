@@ -52,11 +52,12 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v10 = add v6, 95
     mcopy v10, v9, 32 !metadata(memory=heap)
     v11 = create2 v0, v6, 127, v1
-    v12 = ne v11, 0
-    jumpi v12, bb2, bb1
+    v12 = word_cast v11
+    v13 = ne v12, 0
+    jumpi v13, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = sload 0 !metadata(storage=slot(0))
-    ret v13
+    v14 = sload 0 !metadata(storage=slot(0))
+    ret v14
 }

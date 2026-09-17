@@ -35,17 +35,19 @@ fn @constructor() [constructor] {
     v5 = add v3, 92
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 92
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = sload 1 !metadata(storage=slot(1))
-    v9 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v10 = and v8, v9
-    v11 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v12 = or v10, v11
-    sstore 1, v12 !metadata(storage=slot(1))
+    v9 = sload 1 !metadata(storage=slot(1))
+    v10 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = and v9, v10
+    v12 = word_cast v6
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = or v11, v13
+    sstore 1, v14 !metadata(storage=slot(1))
     ret
 }
 
@@ -118,13 +120,15 @@ fn @constructorStop() -> i256 [selector=0x2114ee15, abi_params=[], abi_returns=[
     v5 = add v3, 75
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 75
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = extcodesize v6
-    ret v8
+    v9 = word_cast v6
+    v10 = extcodesize v9
+    ret v10
 }
 
 fn @stopInHelper() [selector=0xd738ac61, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -197,12 +201,14 @@ fn @constructorFailure(arg0: i256) -> i256 [selector=0x61e5bcd1, abi_params=[u25
     v5 = add v3, 171
     mcopy v5, v4, 32 !metadata(memory=heap)
     v6 = create 0, v3, 203
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    ret v6
+    v9 = word_cast v6
+    ret v9
 }
 
 fn @constructorWithoutArgs() -> i256 [selector=0x1f01d869, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -216,37 +222,38 @@ fn @constructorWithoutArgs() -> i256 [selector=0x1f01d869, abi_params=[], abi_re
     v5 = add v3, 232
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 232
-    v7 = eq v6, 0
-    v8 = eq v7, false
-    jumpi v8, bb1, bb2
+    v7 = word_cast v6
+    v8 = eq v7, 0
+    v9 = eq v8, false
+    jumpi v9, bb1, bb2
   bb2:
-    v10 = icall returndata_bytes<>
-    v11 = memory_object_data memorybytes, v10
-    v12 = memory_object_len memorybytes, v10
-    v13 = make_memory_slice v11, v12
-    v14 = memory_slice_load_word memory, v13, 0
-    v15 = shr 224, v14
+    v11 = icall returndata_bytes<>
+    v12 = memory_object_data memorybytes, v11
+    v13 = memory_object_len memorybytes, v11
+    v14 = make_memory_slice v12, v13
+    v15 = memory_slice_load_word memory, v14, 0
+    v16 = shr 224, v15
     jumpi true, bb4, bb5
   bb5:
-    revert v11, v12
+    revert v12, v13
   bb4:
-    v16 = keccak256_bytes v10
-    v17 = number
-    v18 = checked_add u256, v17, 11
-    v19 = timestamp
-    v20 = checked_add u256, v19, 22
-    v21 = chainid
-    v22 = checked_add u256, v21, 33
-    v23 = abi_encode [word, word, word], scratch, args v18, v20, v22
-    v24 = slice_ptr v23
-    v25 = slice_len v23
-    v26 = keccak256 v24, v25
-    v27 = eq v16, v26
-    v28 = word_cast v27
-    ret v28
+    v17 = keccak256_bytes v11
+    v18 = number
+    v19 = checked_add u256, v18, 11
+    v20 = timestamp
+    v21 = checked_add u256, v20, 22
+    v22 = chainid
+    v23 = checked_add u256, v22, 33
+    v24 = abi_encode [word, word, word], scratch, args v19, v21, v23
+    v25 = slice_ptr v24
+    v26 = slice_len v24
+    v27 = keccak256 v25, v26
+    v28 = eq v17, v27
+    v29 = word_cast v28
+    ret v29
   bb1:
-    v9 = word_cast false
-    ret v9
+    v10 = word_cast false
+    ret v10
   bb3:
     ret 0
 }
@@ -316,35 +323,36 @@ fn @storageRevertPayload() -> i256 [selector=0x0156c876, abi_params=[], abi_retu
     v2 = abi_encode [word], selector 0x49740e5b00000000000000000000000000000000000000000000000000000000, args 3
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = extcodesize v0
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = call v1, v0, 0, v3, v4, 0, 0
-    jumpi v7, bb1, bb2
+    v5 = word_cast v0
+    v6 = extcodesize v5
+    v7 = eq v6, 0
+    icall revert_if<target_contract_has_no_code>, v7
+    v8 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v8, bb1, bb2
   bb2:
-    v9 = icall returndata_bytes<>
-    v10 = memory_object_data memorybytes, v9
-    v11 = memory_object_len memorybytes, v9
-    v12 = make_memory_slice v10, v11
-    v13 = memory_slice_load_word memory, v12, 0
-    v14 = shr 224, v13
+    v10 = icall returndata_bytes<>
+    v11 = memory_object_data memorybytes, v10
+    v12 = memory_object_len memorybytes, v10
+    v13 = make_memory_slice v11, v12
+    v14 = memory_slice_load_word memory, v13, 0
+    v15 = shr 224, v14
     jumpi true, bb4, bb5
   bb5:
-    revert v10, v11
+    revert v11, v12
   bb4:
-    v15 = keccak256_bytes v9
-    v16 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v16, 4
-    v17 = memory_object_data memorybytes, v16
-    mstore v17, 0
-    v18 = abi_encode [memory_bytes], object, selector 0xe53184de00000000000000000000000000000000000000000000000000000000, args v16
-    v19 = keccak256_bytes v18
-    v20 = eq v15, v19
-    v21 = word_cast v20
-    ret v21
+    v16 = keccak256_bytes v10
+    v17 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v17, 4
+    v18 = memory_object_data memorybytes, v17
+    mstore v18, 0
+    v19 = abi_encode [memory_bytes], object, selector 0xe53184de00000000000000000000000000000000000000000000000000000000, args v17
+    v20 = keccak256_bytes v19
+    v21 = eq v16, v20
+    v22 = word_cast v21
+    ret v22
   bb1:
-    v8 = word_cast false
-    ret v8
+    v9 = word_cast false
+    ret v9
   bb3:
     ret 0
 }

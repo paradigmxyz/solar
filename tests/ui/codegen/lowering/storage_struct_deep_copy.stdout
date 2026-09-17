@@ -18,27 +18,28 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     jumpi v72, bb13, bb10
   bb13:
     v0 = mload 64 !metadata(memory=scratch)
-    v86 = add v0, 64
-    v87 = lt v86, v0
-    v88 = gt v86, 0xffffffffffffffff
-    v89 = or v87, v88
-    jumpi v89, bb15, bb14
+    v87 = add v0, 64
+    v88 = lt v87, v0
+    v89 = gt v87, 0xffffffffffffffff
+    v90 = or v88, v89
+    jumpi v90, bb15, bb14
   bb14:
-    mstore 64, v86 !metadata(memory=scratch)
-    v92 = calldatasize
-    calldatacopy v0, v92, 64
+    mstore 64, v87 !metadata(memory=scratch)
+    v93 = calldatasize
+    calldatacopy v0, v93, 64
     mstore v0, 1
     v4 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v81 = add v0, 32
     mstore v81, v4
     v5 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
-    v6 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore v5, v6
-    v83 = add v5, 32
-    mstore v83, v0
+    v6 = trunc i160, arg0
+    v82 = word_cast v6
+    mstore v5, v82
+    v84 = add v5, 32
+    mstore v84, v0
     v8 = sload 0 !metadata(storage=slot(0))
     v10 = and v8, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v12 = or v10, v6
+    v12 = or v10, v82
     sstore 0, v12 !metadata(storage=slot(0))
     v16 = mload v0
     v17 = sload 1 !metadata(storage=slot(1))
@@ -134,24 +135,25 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     jumpi v78, bb15, bb12
   bb15:
     v0 = mload 64 !metadata(memory=scratch)
-    v93 = add v0, 64
-    v94 = lt v93, v0
-    v95 = gt v93, 0xffffffffffffffff
-    v96 = or v94, v95
-    jumpi v96, bb10, bb16
+    v94 = add v0, 64
+    v95 = lt v94, v0
+    v96 = gt v94, 0xffffffffffffffff
+    v97 = or v95, v96
+    jumpi v97, bb10, bb16
   bb16:
-    mstore 64, v93 !metadata(memory=scratch)
-    v99 = calldatasize
-    calldatacopy v0, v99, 64
+    mstore 64, v94 !metadata(memory=scratch)
+    v100 = calldatasize
+    calldatacopy v0, v100, 64
     mstore v0, 1
     v4 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v90 = add v0, 32
     mstore v90, v4
     v5 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
-    v6 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore v5, v6
-    v92 = add v5, 32
-    mstore v92, v0
+    v6 = trunc i160, arg0
+    v91 = word_cast v6
+    mstore v5, v91
+    v93 = add v5, 32
+    mstore v93, v0
     v7 = sload 2 !metadata(storage=slot(2))
     v8 = gt v7, 0xffffffffffffffff
     jumpi v8, bb10, bb11
@@ -168,7 +170,7 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v18 = or v16, v17
     sstore v12, v18 !metadata(storage=symbolic(v12))
     v19 = add v12, 1
-    v20 = mload v92
+    v20 = mload v93
     v22 = mload v20
     v23 = sload v19 !metadata(storage=offset(v12, 1))
     v24 = gt v23, v22
@@ -307,27 +309,28 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     jumpi v76, bb13, bb10
   bb13:
     v0 = mload 64 !metadata(memory=scratch)
-    v90 = add v0, 64
-    v91 = lt v90, v0
-    v92 = gt v90, 0xffffffffffffffff
-    v93 = or v91, v92
-    jumpi v93, bb15, bb14
+    v91 = add v0, 64
+    v92 = lt v91, v0
+    v93 = gt v91, 0xffffffffffffffff
+    v94 = or v92, v93
+    jumpi v94, bb15, bb14
   bb14:
-    mstore 64, v90 !metadata(memory=scratch)
-    v96 = calldatasize
-    calldatacopy v0, v96, 64
+    mstore 64, v91 !metadata(memory=scratch)
+    v97 = calldatasize
+    calldatacopy v0, v97, 64
     mstore v0, 1
     v4 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v85 = add v0, 32
     mstore v85, v4
     v5 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
-    v6 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore v5, v6
-    v87 = add v5, 32
-    mstore v87, v0
+    v6 = trunc i160, arg0
+    v86 = word_cast v6
+    mstore v5, v86
+    v88 = add v5, 32
+    mstore v88, v0
     v12 = sload 3 !metadata(storage=slot(3))
     v14 = and v12, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v16 = or v14, v6
+    v16 = or v14, v86
     sstore 3, v16 !metadata(storage=slot(3))
     v20 = mload v0
     v21 = sload 4 !metadata(storage=slot(4))

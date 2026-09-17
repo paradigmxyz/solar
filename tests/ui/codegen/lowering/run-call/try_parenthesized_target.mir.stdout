@@ -36,17 +36,19 @@ fn @constructor() [constructor] {
     v11 = add v3, 194
     mcopy v11, v10, 0 !metadata(memory=heap)
     v12 = create 0, v3, 194
-    v13 = ne v12, 0
-    jumpi v13, bb2, bb1
+    v13 = word_cast v12
+    v14 = ne v13, 0
+    jumpi v14, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v14 = sload 0 !metadata(storage=slot(0))
-    v15 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v16 = and v14, v15
-    v17 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    v18 = or v16, v17
-    sstore 0, v18 !metadata(storage=slot(0))
+    v15 = sload 0 !metadata(storage=slot(0))
+    v16 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v17 = and v15, v16
+    v18 = word_cast v12
+    v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffff
+    v20 = or v17, v19
+    sstore 0, v20 !metadata(storage=slot(0))
     ret
 }
 

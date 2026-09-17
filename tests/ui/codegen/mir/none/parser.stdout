@@ -110,3 +110,22 @@
       ret v0
   }
   
+  fn @address_width(arg0: i256) -> i256 {
+    bb0:
+      v0 = trunc i160, arg0
+      v1 = word_cast v0
+      ret v1
+  }
+  
+  fn @address_phi(arg0: i1, arg1: i160) -> i160 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      jump bb3
+    bb3:
+      v0 = phi [bb1: arg1], [bb2: i160 0xffffffffffffffffffffffffffffffffffffffff]
+      ret v0
+  }
+  

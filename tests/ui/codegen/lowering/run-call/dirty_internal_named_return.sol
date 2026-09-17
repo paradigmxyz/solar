@@ -1,3 +1,7 @@
+//@ run-call: DirtyInternalNamedReturn::narrowAddress 0x10000000000000000000000000000000000000002 => 0x0000000000000000000000000000000000000002
+//@ run-call: DirtyInternalNamedReturn::bytesAddress 0x1234567890123456789012345678901234567890 => 0x1234567890123456789012345678901234567890
+//@ run-call: DirtyInternalNamedReturn::joinAddress true => 2
+//@ run-call: DirtyInternalNamedReturn::joinAddress false => 0x10000000000000000000000000000000000000002
 //@ codegen-matrix: standard
 //@ run-call: DirtyInternalNamedReturn::addressBits => true
 //@ run-call: DirtyInternalNamedReturn::bytesBits => true
@@ -7,6 +11,24 @@
 //@ run-call: DirtyInternalNamedReturn::boolBits => true
 
 contract DirtyInternalNamedReturn {
+    function narrowAddress(uint256 bits) external pure returns (address) {
+        return address(uint160(bits));
+    }
+
+    function bytesAddress(bytes20 bits) external pure returns (address) {
+        return address(bits);
+    }
+
+    function joinAddress(bool choose) external pure returns (uint256 raw) {
+        address value;
+        if (choose) {
+            value = address(2);
+        } else {
+            value = dirtyAddress(address(2));
+        }
+        assembly { raw := value }
+    }
+
     function dirtyAddress(address value) internal pure returns (address result) {
         assembly {
             result := or(value, shl(160, 1))

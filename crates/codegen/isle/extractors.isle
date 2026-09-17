@@ -18,6 +18,9 @@
 (decl wordcast (Value) Value)
 (extractor (wordcast operand0) (inst (Op.WordCast operand0)))
 
+(decl trunc160 (Value) Value)
+(extractor (trunc160 operand0) (inst (Op.Trunc160 operand0)))
+
 (decl checkedbinary (CheckedOp ArithmeticKind Value Value) Value)
 (extractor (checkedbinary op arithmetic lhs rhs) (inst (Op.CheckedBinary op arithmetic lhs rhs)))
 

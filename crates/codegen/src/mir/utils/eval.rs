@@ -21,6 +21,9 @@ pub(crate) fn eval_inst<E>(
     kind: &InstKind,
     mut get: impl FnMut(ValueId) -> Result<U256, E>,
 ) -> Result<Option<U256>, E> {
+    if let InstKind::Trunc160(value) = *kind {
+        return Ok(Some(get(value)? & (U256::MAX >> 96)));
+    }
     if let InstKind::WordCast(value) = *kind {
         return Ok(Some(get(value)?));
     }

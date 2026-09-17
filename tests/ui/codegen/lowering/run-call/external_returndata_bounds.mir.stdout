@@ -86,33 +86,35 @@ fn @staticAggregate() -> i256 [selector=0x9982aedb, abi_params=[], abi_returns=[
     v5 = add v3, 464
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 464
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = gas
-    v9 = abi_encode [], selector 0xaf36778b00000000000000000000000000000000000000000000000000000000
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = alloc raw, exact, uninitialized, infallible, 96
-    v13 = staticcall v8, v6, v10, v11, v12, 96
-    jumpi v13, bb4, bb3
+    v9 = word_cast v6
+    v10 = gas
+    v11 = abi_encode [], selector 0xaf36778b00000000000000000000000000000000000000000000000000000000
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    v14 = alloc raw, exact, uninitialized, infallible, 96
+    v15 = staticcall v10, v9, v12, v13, v14, 96
+    jumpi v15, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v14 = returndatasize
-    v15 = lt v14, 96
-    icall revert_if<tuple_data_too_short>, v15
-    v16 = not 31
-    v17 = and 159, v16
-    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
-    set_memory_object_len memorybytes, v18, 96
-    v19 = make_memory_slice v12, 96
-    memory_object_copy_from_slice memorybytes, v18, v19
-    v20 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v18
-    v21 = icall @check, v20
-    ret v21
+    v16 = returndatasize
+    v17 = lt v16, 96
+    icall revert_if<tuple_data_too_short>, v17
+    v18 = not 31
+    v19 = and 159, v18
+    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
+    set_memory_object_len memorybytes, v20, 96
+    v21 = make_memory_slice v14, 96
+    memory_object_copy_from_slice memorybytes, v20, v21
+    v22 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v20
+    v23 = icall @check, v22
+    ret v23
 }
 
 fn @projectedAggregate() -> i256 [selector=0xec2041b8, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -126,40 +128,42 @@ fn @projectedAggregate() -> i256 [selector=0xec2041b8, abi_params=[], abi_return
     v5 = add v3, 464
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 464
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = gas
-    v9 = abi_encode [], selector 0xaf36778b00000000000000000000000000000000000000000000000000000000
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = alloc raw, exact, uninitialized, infallible, 96
-    v13 = staticcall v8, v6, v10, v11, v12, 96
-    jumpi v13, bb4, bb3
+    v9 = word_cast v6
+    v10 = gas
+    v11 = abi_encode [], selector 0xaf36778b00000000000000000000000000000000000000000000000000000000
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    v14 = alloc raw, exact, uninitialized, infallible, 96
+    v15 = staticcall v10, v9, v12, v13, v14, 96
+    jumpi v15, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v14 = returndatasize
-    v15 = lt v14, 96
-    icall revert_if<tuple_data_too_short>, v15
-    v16 = not 31
-    v17 = and 159, v16
-    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
-    set_memory_object_len memorybytes, v18, 96
-    v19 = make_memory_slice v12, 96
-    memory_object_copy_from_slice memorybytes, v18, v19
-    v20 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v18
-    v21 = memory_object_load_field memorystruct<2>, v20, 0
-    v22 = memory_object_from_ptr memorystruct, v21
-    v23 = memory_object_load_field memorystruct<1>, v22, 0
-    v24 = memory_object_from_ptr memoryfixedarray, v23
-    v25 = lt 1, 2
-    v26 = eq v25, false
-    icall panic_if<0x32>, v26
-    v27 = memory_object_load_element memoryfixedarray<2, 1>, v24, 1
-    ret v27
+    v16 = returndatasize
+    v17 = lt v16, 96
+    icall revert_if<tuple_data_too_short>, v17
+    v18 = not 31
+    v19 = and 159, v18
+    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
+    set_memory_object_len memorybytes, v20, 96
+    v21 = make_memory_slice v14, 96
+    memory_object_copy_from_slice memorybytes, v20, v21
+    v22 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v20
+    v23 = memory_object_load_field memorystruct<2>, v22, 0
+    v24 = memory_object_from_ptr memorystruct, v23
+    v25 = memory_object_load_field memorystruct<1>, v24, 0
+    v26 = memory_object_from_ptr memoryfixedarray, v25
+    v27 = lt 1, 2
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = memory_object_load_element memoryfixedarray<2, 1>, v26, 1
+    ret v29
 }
 
 fn @functionPointerAggregate() -> i256 [selector=0xebe6d175, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -173,38 +177,40 @@ fn @functionPointerAggregate() -> i256 [selector=0xebe6d175, abi_params=[], abi_
     v5 = add v3, 464
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 464
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = shl 32, v6
-    v9 = or v8, 0xaf36778b
-    v10 = and v9, 0xffffffff
-    v11 = shl 224, v10
-    v12 = shr 32, v9
-    v13 = gas
-    v14 = abi_encode [], selector v11
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = alloc raw, exact, uninitialized, infallible, 96
-    v18 = staticcall v13, v12, v15, v16, v17, 96
-    jumpi v18, bb4, bb3
+    v9 = word_cast v6
+    v10 = shl 32, v9
+    v11 = or v10, 0xaf36778b
+    v12 = and v11, 0xffffffff
+    v13 = shl 224, v12
+    v14 = shr 32, v11
+    v15 = gas
+    v16 = abi_encode [], selector v13
+    v17 = slice_ptr v16
+    v18 = slice_len v16
+    v19 = alloc raw, exact, uninitialized, infallible, 96
+    v20 = staticcall v15, v14, v17, v18, v19, 96
+    jumpi v20, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v19 = returndatasize
-    v20 = lt v19, 96
-    icall revert_if<tuple_data_too_short>, v20
-    v21 = not 31
-    v22 = and 159, v21
-    v23 = alloc memorybytes, exact, uninitialized, infallible, v22
-    set_memory_object_len memorybytes, v23, 96
-    v24 = make_memory_slice v17, 96
-    memory_object_copy_from_slice memorybytes, v23, v24
-    v25 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v23
-    v26 = icall @check, v25
-    ret v26
+    v21 = returndatasize
+    v22 = lt v21, 96
+    icall revert_if<tuple_data_too_short>, v22
+    v23 = not 31
+    v24 = and 159, v23
+    v25 = alloc memorybytes, exact, uninitialized, infallible, v24
+    set_memory_object_len memorybytes, v25, 96
+    v26 = make_memory_slice v19, 96
+    memory_object_copy_from_slice memorybytes, v25, v26
+    v27 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v25
+    v28 = icall @check, v27
+    ret v28
 }
 
 fn @dirtyAddressBoundary() -> i256 [selector=0x2986c9cc, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -218,33 +224,37 @@ fn @dirtyAddressBoundary() -> i256 [selector=0x2986c9cc, abi_params=[], abi_retu
     v5 = add v3, 464
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 464
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = gas
-    v9 = abi_encode [], selector 0x986597e500000000000000000000000000000000000000000000000000000000
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = staticcall v8, v6, v10, v11, 0, 32
-    jumpi v12, bb4, bb3
+    v9 = word_cast v6
+    v10 = gas
+    v11 = abi_encode [], selector 0x986597e500000000000000000000000000000000000000000000000000000000
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    v14 = staticcall v10, v9, v12, v13, 0, 32
+    jumpi v14, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v13 = returndatasize
-    v14 = lt v13, 32
-    icall revert_if<tuple_data_too_short>, v14
-    v15 = add 0, 0
-    v16 = mload v15
-    v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
-    v18 = eq v16, v17
-    v19 = eq v18, false
-    icall revert_if<empty>, v19
-    v20 = add 0, 0
-    v21 = mload v20
-    v22 = eq v21, 0xffffffffffffffffffffffffffffffffffffffff
-    icall require<short_string>, v22, 7, 0x6164647265737300000000000000000000000000000000000000000000000000
+    v15 = returndatasize
+    v16 = lt v15, 32
+    icall revert_if<tuple_data_too_short>, v16
+    v17 = add 0, 0
+    v18 = mload v17
+    v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffff
+    v20 = eq v18, v19
+    v21 = eq v20, false
+    icall revert_if<empty>, v21
+    v22 = add 0, 0
+    v23 = mload v22
+    v24 = trunc i160, 0xffffffffffffffffffffffffffffffffffffffff
+    v25 = word_cast v24
+    v26 = eq v23, v25
+    icall require<short_string>, v26, 7, 0x6164647265737300000000000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -259,22 +269,24 @@ fn @truncated() -> i256 [selector=0xfc1dad0b, abi_params=[], abi_returns=[word],
     v5 = add v3, 464
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 464
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = gas
-    v9 = abi_encode [], selector 0xa39e7bc00000000000000000000000000000000000000000000000000000000
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = staticcall v8, v6, v10, v11, 0, 0
-    jumpi v12, bb4, bb3
+    v9 = word_cast v6
+    v10 = gas
+    v11 = abi_encode [], selector 0xa39e7bc00000000000000000000000000000000000000000000000000000000
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    v14 = staticcall v10, v9, v12, v13, 0, 0
+    jumpi v14, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v13 = icall returndata_bytes<>
-    v14 = abi_decode [bytes], v13
-    v15 = memory_object_len memorybytes, v14
-    ret v15
+    v15 = icall returndata_bytes<>
+    v16 = abi_decode [bytes], v15
+    v17 = memory_object_len memorybytes, v16
+    ret v17
 }

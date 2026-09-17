@@ -675,6 +675,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if id == sym::i256 {
             return Ok(MirType::I256);
         }
+        if id == sym::i160 {
+            return Ok(MirType::I160);
+        }
         if id == sym::i1 {
             return Ok(MirType::I1);
         }
@@ -685,7 +688,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             | super::ValueLayout::Struct(_)
             | super::ValueLayout::Void => Ok(layout.mir_type()),
             _ => Err(self.parser.error(format!(
-                "`{id}` is a layout type; use `i1` or `i256` for a scalar SSA value"
+                "`{id}` is a layout type; use `i1`, `i160`, or `i256` for a scalar SSA value"
             ))),
         }
     }
@@ -812,6 +815,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             let value = self.parser.parse_uint()?;
             if ty == MirType::I1 && value > alloy_primitives::U256::ONE {
                 return Err(self.parser.error("boolean literal must be 0 or 1"));
+            }
+            if ty == MirType::I160 && value.bit_len() > 160 {
+                return Err(self.parser.error("i160 literal must fit in 160 bits"));
             }
             let immediate = Immediate::for_type(Some(ty), value);
             if immediate.ty() != ty {
@@ -2328,6 +2334,15 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let else_value = self.parse_value(builder)?;
                 let ty = builder.func().value_ty(then_value).unwrap_or(MirType::I256);
                 (InstKind::Select(condition, then_value, else_value), Some(ty))
+            }
+            sym::trunc => {
+                let ty = self.parse_type()?;
+                if ty != MirType::I160 {
+                    return Err(self.parser.error("trunc requires an i160 result"));
+                }
+                self.parser.expect(TokenKind::Comma)?;
+                let value = self.parse_value(builder)?;
+                (InstKind::Trunc160(value), Some(MirType::I160))
             }
             sym::word_cast => {
                 let value = self.parse_value(builder)?;

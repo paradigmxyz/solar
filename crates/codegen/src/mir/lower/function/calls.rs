@@ -633,6 +633,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             value
         };
+        if from.peel_refs() != to.peel_refs() && types::TypeLowerer::mir_type(to) == MirType::I160 {
+            // address = trunc i160, value
+            return self.builder.cast(value, MirType::I160);
+        }
         let integer_conversion_needs_cleanup = match (from.peel_refs().kind, to.peel_refs().kind) {
             (
                 TyKind::Elementary(ElementaryType::UInt(from_size)),
@@ -708,6 +712,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let zero = self.builder.imm(U256::ZERO);
                 let is_zero = self.builder.eq(value, zero);
                 self.builder.eq_zero(is_zero)
+            }
+            // address = trunc i160, value
+            _ if types::TypeLowerer::mir_type(ty) == MirType::I160 => {
+                self.builder.cast(value, MirType::I160)
             }
             _ => AbiWordValidator::from_layout(types::TypeLowerer::value_layout(ty))
                 .map_or(value, |validator| validator.cleanup(&mut self.builder, value)),

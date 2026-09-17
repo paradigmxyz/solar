@@ -10,7 +10,8 @@
 // CHECK: {{^[ +].*}}[[LT_WORD:v[0-9]+]] = word_cast [[LT]]
 // CHECK: {{^[ +].*}}[[BYTE:v[0-9]+]] = byte 31, arg0
 // CHECK: {{^[ +].*}}[[SHR:v[0-9]+]] = shr 248, arg1
-// CHECK: {{^[ +].*}}[[ADDR:v[0-9]+]] = caller
+// CHECK: {{^[ +].*}}[[NARROW_ADDR:v[0-9]+]] = caller
+// CHECK: {{^[ +].*}}[[ADDR:v[0-9]+]] = word_cast [[NARROW_ADDR]]
 // CHECK-NOT: {{^[ +].*}}= and
 // CHECK: {{^[ +].*}}ret [[LT_WORD]], [[BYTE]], [[SHR]], [[ADDR]]
 types:
@@ -28,7 +29,8 @@ fn @masks_covering_known_bits(arg0: i256, arg1: i256) -> struct0 [return_abi=[i2
     v5 = and v4, 255
     v6 = shr 248, arg1
     v7 = and 255, v6
-    v8 = caller
+    v11 = caller
+    v8 = word_cast v11
     v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
     ret v3, v5, v7, v9
 }

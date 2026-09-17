@@ -257,28 +257,29 @@ fn @deployAdd(arg0: i256) -> i256 [selector=0xec1495a8, abi_params=[u256], abi_r
     v5 = add v3, 230
     mcopy v5, v4, 32 !metadata(memory=heap)
     v6 = create 0, v3, 262
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = gas
-    v9 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = staticcall v8, v6, v10, v11, 0, 32
-    jumpi v12, bb4, bb3
+    v9 = gas
+    v10 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = staticcall v9, v6, v11, v12, 0, 32
+    jumpi v13, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v13 = returndatasize
-    v14 = lt v13, 32
-    icall revert_if<tuple_data_too_short>, v14
-    v15 = add 0, 0
-    v16 = mload v15
-    v17 = add 0, 0
-    v18 = mload v17
-    ret v18
+    v14 = returndatasize
+    v15 = lt v14, 32
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = add 0, 0
+    v17 = mload v16
+    v18 = add 0, 0
+    v19 = mload v18
+    ret v19
 }
 
 fn @deployMul(arg0: i256) -> i256 [selector=0xcb7face2, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -292,28 +293,29 @@ fn @deployMul(arg0: i256) -> i256 [selector=0xcb7face2, abi_params=[u256], abi_r
     v5 = add v3, 242
     mcopy v5, v4, 32 !metadata(memory=heap)
     v6 = create 0, v3, 274
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = gas
-    v9 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = staticcall v8, v6, v10, v11, 0, 32
-    jumpi v12, bb4, bb3
+    v9 = gas
+    v10 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = staticcall v9, v6, v11, v12, 0, 32
+    jumpi v13, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v13 = returndatasize
-    v14 = lt v13, 32
-    icall revert_if<tuple_data_too_short>, v14
-    v15 = add 0, 0
-    v16 = mload v15
-    v17 = add 0, 0
-    v18 = mload v17
-    ret v18
+    v14 = returndatasize
+    v15 = lt v14, 32
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = add 0, 0
+    v17 = mload v16
+    v18 = add 0, 0
+    v19 = mload v18
+    ret v19
 }
 
 fn @deployNegate(arg0: i256) -> i256 [selector=0x8ee51801, abi_params=[i256], abi_returns=[word], abi_return_params=[i256]] {
@@ -339,28 +341,29 @@ fn @deployNegate(arg0: i256) -> i256 [selector=0x8ee51801, abi_params=[i256], ab
     v11 = add v3, 217
     mcopy v11, v10, 32 !metadata(memory=heap)
     v12 = create 0, v3, 249
-    v13 = ne v12, 0
-    jumpi v13, bb2, bb1
+    v13 = word_cast v12
+    v14 = ne v13, 0
+    jumpi v14, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v14 = gas
-    v15 = abi_encode [], selector 0xa56dfe4a00000000000000000000000000000000000000000000000000000000
-    v16 = slice_ptr v15
-    v17 = slice_len v15
-    v18 = staticcall v14, v12, v16, v17, 0, 32
-    jumpi v18, bb4, bb3
+    v15 = gas
+    v16 = abi_encode [], selector 0xa56dfe4a00000000000000000000000000000000000000000000000000000000
+    v17 = slice_ptr v16
+    v18 = slice_len v16
+    v19 = staticcall v15, v12, v17, v18, 0, 32
+    jumpi v19, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v19 = returndatasize
-    v20 = lt v19, 32
-    icall revert_if<tuple_data_too_short>, v20
-    v21 = add 0, 0
-    v22 = mload v21
-    v23 = add 0, 0
-    v24 = mload v23
-    ret v24
+    v20 = returndatasize
+    v21 = lt v20, 32
+    icall revert_if<tuple_data_too_short>, v21
+    v22 = add 0, 0
+    v23 = mload v22
+    v24 = add 0, 0
+    v25 = mload v24
+    ret v25
 }
 
 fn @deployElement(arg0: i256) -> i256 [selector=0x178d3c81, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -374,28 +377,29 @@ fn @deployElement(arg0: i256) -> i256 [selector=0x178d3c81, abi_params=[u256], a
     v5 = add v3, 415
     mcopy v5, v4, 32 !metadata(memory=heap)
     v6 = create 0, v3, 447
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = gas
-    v9 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = staticcall v8, v6, v10, v11, 0, 32
-    jumpi v12, bb4, bb3
+    v9 = gas
+    v10 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = staticcall v9, v6, v11, v12, 0, 32
+    jumpi v13, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v13 = returndatasize
-    v14 = lt v13, 32
-    icall revert_if<tuple_data_too_short>, v14
-    v15 = add 0, 0
-    v16 = mload v15
-    v17 = add 0, 0
-    v18 = mload v17
-    ret v18
+    v14 = returndatasize
+    v15 = lt v14, 32
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = add 0, 0
+    v17 = mload v16
+    v18 = add 0, 0
+    v19 = mload v18
+    ret v19
 }
 
 fn @deploySub(arg0: i256) -> i256 [selector=0xd5c4b324, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -409,28 +413,29 @@ fn @deploySub(arg0: i256) -> i256 [selector=0xd5c4b324, abi_params=[u256], abi_r
     v5 = add v3, 231
     mcopy v5, v4, 32 !metadata(memory=heap)
     v6 = create 0, v3, 263
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = gas
-    v9 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = staticcall v8, v6, v10, v11, 0, 32
-    jumpi v12, bb4, bb3
+    v9 = gas
+    v10 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = staticcall v9, v6, v11, v12, 0, 32
+    jumpi v13, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v13 = returndatasize
-    v14 = lt v13, 32
-    icall revert_if<tuple_data_too_short>, v14
-    v15 = add 0, 0
-    v16 = mload v15
-    v17 = add 0, 0
-    v18 = mload v17
-    ret v18
+    v14 = returndatasize
+    v15 = lt v14, 32
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = add 0, 0
+    v17 = mload v16
+    v18 = add 0, 0
+    v19 = mload v18
+    ret v19
 }
 
 fn @deployExp(arg0: i256) -> i256 [selector=0x2744a5b3, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -444,28 +449,29 @@ fn @deployExp(arg0: i256) -> i256 [selector=0x2744a5b3, abi_params=[u256], abi_r
     v5 = add v3, 468
     mcopy v5, v4, 32 !metadata(memory=heap)
     v6 = create 0, v3, 500
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = gas
-    v9 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = staticcall v8, v6, v10, v11, 0, 32
-    jumpi v12, bb4, bb3
+    v9 = gas
+    v10 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = staticcall v9, v6, v11, v12, 0, 32
+    jumpi v13, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v13 = returndatasize
-    v14 = lt v13, 32
-    icall revert_if<tuple_data_too_short>, v14
-    v15 = add 0, 0
-    v16 = mload v15
-    v17 = add 0, 0
-    v18 = mload v17
-    ret v18
+    v14 = returndatasize
+    v15 = lt v14, 32
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = add 0, 0
+    v17 = mload v16
+    v18 = add 0, 0
+    v19 = mload v18
+    ret v19
 }
 
 fn @deployShift(arg0: i256) -> i256 [selector=0xca2ccfdb, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -479,26 +485,27 @@ fn @deployShift(arg0: i256) -> i256 [selector=0xca2ccfdb, abi_params=[u256], abi
     v5 = add v3, 192
     mcopy v5, v4, 32 !metadata(memory=heap)
     v6 = create 0, v3, 224
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = gas
-    v9 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = staticcall v8, v6, v10, v11, 0, 32
-    jumpi v12, bb4, bb3
+    v9 = gas
+    v10 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = staticcall v9, v6, v11, v12, 0, 32
+    jumpi v13, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v13 = returndatasize
-    v14 = lt v13, 32
-    icall revert_if<tuple_data_too_short>, v14
-    v15 = add 0, 0
-    v16 = mload v15
-    v17 = add 0, 0
-    v18 = mload v17
-    ret v18
+    v14 = returndatasize
+    v15 = lt v14, 32
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = add 0, 0
+    v17 = mload v16
+    v18 = add 0, 0
+    v19 = mload v18
+    ret v19
 }

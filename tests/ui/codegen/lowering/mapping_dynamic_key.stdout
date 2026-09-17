@@ -11,13 +11,14 @@ fn @lookup(arg0: calldataslice) -> i256 [selector=0xf67187ac, view, abi_params=[
 fn @set(arg0: memorybytes, arg1: i256) [selector=0xa815ff15, abi_params=[bytes, address], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = mapping_slot_memory arg0, 0
-    v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = trunc i160, arg1
     v2 = sload v0 !metadata(storage=symbolic(v0))
     v3 = not 0xffffffffffffffffffffffffffffffffffffffff
     v4 = and v2, v3
-    v5 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = or v4, v5
-    sstore v0, v6 !metadata(storage=symbolic(v0))
+    v5 = word_cast v1
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
+    v7 = or v4, v6
+    sstore v0, v7 !metadata(storage=symbolic(v0))
     ret
 }
 
@@ -41,7 +42,7 @@ fn @flat(arg0: calldataslice) -> i256 [selector=0x0b893d9c, view, abi_params=[by
 fn @nestedFirst(arg0: calldataslice, arg1: i256) -> i256 [selector=0xe8f9d84d, view, abi_params=[bytes, address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mapping_slot_calldata arg0, 1
-    v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = trunc i160, arg1
     v2 = mapping_slot v1, v0
     v3 = sload v2 !metadata(storage=symbolic(v2))
     ret v3
@@ -49,7 +50,7 @@ fn @nestedFirst(arg0: calldataslice, arg1: i256) -> i256 [selector=0xe8f9d84d, v
 
 fn @nestedSecond(arg0: i256, arg1: calldataslice) -> i256 [selector=0xf7453cb9, view, abi_params=[address, bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v0 = trunc i160, arg0
     v1 = mapping_slot v0, 2
     v2 = mapping_slot_calldata arg1, v1
     v3 = sload v2 !metadata(storage=symbolic(v2))
@@ -89,7 +90,7 @@ fn @setLitLong(arg0: i256) [selector=0x7490efc0, abi_params=[u256], abi_returns=
 fn @setNestedFirst(arg0: memorybytes, arg1: i256, arg2: i256) [selector=0xf7d7b4f3, abi_params=[bytes, address, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = mapping_slot_memory arg0, 1
-    v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = trunc i160, arg1
     v2 = mapping_slot v1, v0
     sstore v2, arg2 !metadata(storage=symbolic(v2))
     ret
@@ -98,7 +99,7 @@ fn @setNestedFirst(arg0: memorybytes, arg1: i256, arg2: i256) [selector=0xf7d7b4
 fn @getNestedFirst(arg0: memorybytes, arg1: i256) -> i256 [selector=0x95cfa550, view, abi_params=[bytes, address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mapping_slot_memory arg0, 1
-    v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = trunc i160, arg1
     v2 = mapping_slot v1, v0
     v3 = sload v2 !metadata(storage=symbolic(v2))
     ret v3
@@ -106,7 +107,7 @@ fn @getNestedFirst(arg0: memorybytes, arg1: i256) -> i256 [selector=0x95cfa550, 
 
 fn @setNestedSecond(arg0: i256, arg1: memorybytes, arg2: i256) [selector=0xf589e254, abi_params=[address, bytes, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v0 = trunc i160, arg0
     v1 = mapping_slot v0, 2
     v2 = mapping_slot_memory arg1, v1
     sstore v2, arg2 !metadata(storage=symbolic(v2))

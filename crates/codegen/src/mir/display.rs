@@ -422,6 +422,7 @@ fn display_inst_kind<'a>(
             ty.index(),
             display_val(*aggregate, func)
         ),
+        InstKind::Trunc160(value) => write!(f, "trunc i160, {}", display_val(*value, func)),
         InstKind::WordCast(value) => write!(f, "word_cast {}", display_val(*value, func)),
         InstKind::MemoryObjectFromPtr { ptr, kind } => {
             write!(

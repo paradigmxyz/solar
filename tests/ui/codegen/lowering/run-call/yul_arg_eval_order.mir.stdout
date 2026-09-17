@@ -55,6 +55,7 @@ fn @doCreate(arg0: i256) -> i256 {
     v0 = mload arg0
     v1 = add arg0, 32
     v2 = create 0, v1, v0
-    mstore 32, v2 !metadata(memory=scratch)
-    ret v2
+    v3 = word_cast v2
+    mstore 32, v3 !metadata(memory=scratch)
+    ret v3
 }

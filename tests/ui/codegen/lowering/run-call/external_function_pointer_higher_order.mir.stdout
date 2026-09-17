@@ -67,31 +67,34 @@ fn @t() -> i256 [selector=0x92d0d153, abi_params=[], abi_returns=[word], abi_ret
     v12 = add v10, 120
     mcopy v12, v11, 0 !metadata(memory=heap)
     v13 = create 0, v10, 120
-    v14 = ne v13, 0
-    jumpi v14, bb2, bb1
+    v14 = word_cast v13
+    v15 = ne v14, 0
+    jumpi v15, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v15 = shl 32, v13
-    v16 = or v15, 0xcae57913
-    v17 = abi_encode [function], selector 0xf018a0a700000000000000000000000000000000000000000000000000000000, args v16
-    v18 = slice_ptr v17
-    v19 = slice_len v17
-    v20 = extcodesize v5
-    v21 = eq v20, 0
-    icall revert_if<target_contract_has_no_code>, v21
-    v22 = call v6, v5, 0, v18, v19, 0, 0
-    jumpi v22, bb4, bb3
+    v16 = word_cast v13
+    v17 = shl 32, v16
+    v18 = or v17, 0xcae57913
+    v19 = abi_encode [function], selector 0xf018a0a700000000000000000000000000000000000000000000000000000000, args v18
+    v20 = slice_ptr v19
+    v21 = slice_len v19
+    v22 = word_cast v5
+    v23 = extcodesize v22
+    v24 = eq v23, 0
+    icall revert_if<target_contract_has_no_code>, v24
+    v25 = call v6, v5, 0, v20, v21, 0, 0
+    jumpi v25, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v23 = sload 0 !metadata(storage=slot(0))
-    v24 = and v23, 0xffffffffffffffff
-    v25 = sload 0 !metadata(storage=slot(0))
-    v26 = shr 64, v25
-    v27 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v28 = icall @internal_dispatcher_p_function_r_u256, v24, v27
-    ret v28
+    v26 = sload 0 !metadata(storage=slot(0))
+    v27 = and v26, 0xffffffffffffffff
+    v28 = sload 0 !metadata(storage=slot(0))
+    v29 = shr 64, v28
+    v30 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v31 = icall @internal_dispatcher_p_function_r_u256, v27, v30
+    ret v31
 }
 
 fn @internal_dispatcher_p_function_r_u256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {

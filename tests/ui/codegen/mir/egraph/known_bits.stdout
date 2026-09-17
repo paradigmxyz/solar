@@ -17,9 +17,10 @@
       v5 = shr 248, arg1
 -     v6 = and 255, v5
       v7 = caller
--     v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
--     ret v2, v4, v6, v8
-+     ret v1, v3, v5, v7
+      v8 = word_cast v7
+-     v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
+-     ret v2, v4, v6, v9
++     ret v1, v3, v5, v8
   }
   
   fn @masks_narrowing_words(arg0: i256) -> struct1 [return_abi=[i256, i256]] {

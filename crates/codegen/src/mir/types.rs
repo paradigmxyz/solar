@@ -202,6 +202,8 @@ pub(crate) struct StructType {
 pub(crate) enum MirType {
     /// A 256-bit integer.
     I256,
+    /// A 160-bit integer, used for addresses.
+    I160,
     /// A one-bit integer: zero or one.
     I1,
     /// Reference to a semantically shaped memory object.
@@ -220,6 +222,7 @@ impl MirType {
         match self {
             Self::I256 => ValueLayout::uint256(),
             Self::I1 => ValueLayout::Bool,
+            Self::I160 => ValueLayout::Address,
             Self::MemoryObject(kind) => ValueLayout::MemoryObject(kind),
             Self::Slice(location) => ValueLayout::Slice(location),
             Self::Struct(id) => ValueLayout::Struct(id),
@@ -228,7 +231,7 @@ impl MirType {
     }
 
     pub(crate) const fn is_word(self) -> bool {
-        matches!(self, Self::I256 | Self::I1 | Self::MemoryObject(_))
+        matches!(self, Self::I256 | Self::I160 | Self::I1 | Self::MemoryObject(_))
     }
 
     pub(crate) const fn is_memory_reference(self) -> bool {
@@ -241,6 +244,7 @@ impl fmt::Display for MirType {
         match self {
             Self::I256 => f.write_str("i256"),
             Self::I1 => f.write_str("i1"),
+            Self::I160 => f.write_str("i160"),
             Self::MemoryObject(kind) => write!(f, "{kind}"),
             Self::Slice(location) => write!(f, "{location}slice"),
             Self::Struct(id) => write!(f, "struct{}", id.index()),
@@ -368,6 +372,7 @@ impl ValueLayout {
     pub(crate) const fn mir_type(self) -> MirType {
         match self {
             Self::Bool => MirType::I1,
+            Self::Address => MirType::I160,
             Self::MemoryObject(kind) => MirType::MemoryObject(kind),
             Self::Slice(location) => MirType::Slice(location),
             Self::Struct(id) => MirType::Struct(id),

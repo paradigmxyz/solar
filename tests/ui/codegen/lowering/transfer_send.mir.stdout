@@ -41,37 +41,41 @@ fn @constructor() [constructor] {
     v5 = add v3, 52
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 52
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = sload 0 !metadata(storage=slot(0))
-    v9 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v10 = and v8, v9
-    v11 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v12 = or v10, v11
-    sstore 0, v12 !metadata(storage=slot(0))
-    v13 = abi_encode []
-    v14 = not 31
-    v15 = and 76, v14
-    v16 = alloc raw, exact, uninitialized, infallible, v15
-    data_copy RevertReceiver_initcode_1, v16, 45
-    v17 = slice_ptr v13
-    v18 = add v16, 45
-    mcopy v18, v17, 0 !metadata(memory=heap)
-    v19 = create 0, v16, 45
-    v20 = ne v19, 0
-    jumpi v20, bb4, bb3
+    v9 = sload 0 !metadata(storage=slot(0))
+    v10 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = and v9, v10
+    v12 = word_cast v6
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = or v11, v13
+    sstore 0, v14 !metadata(storage=slot(0))
+    v15 = abi_encode []
+    v16 = not 31
+    v17 = and 76, v16
+    v18 = alloc raw, exact, uninitialized, infallible, v17
+    data_copy RevertReceiver_initcode_1, v18, 45
+    v19 = slice_ptr v15
+    v20 = add v18, 45
+    mcopy v20, v19, 0 !metadata(memory=heap)
+    v21 = create 0, v18, 45
+    v22 = word_cast v21
+    v23 = ne v22, 0
+    jumpi v23, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v21 = sload 1 !metadata(storage=slot(1))
-    v22 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v23 = and v21, v22
-    v24 = and v19, 0xffffffffffffffffffffffffffffffffffffffff
-    v25 = or v23, v24
-    sstore 1, v25 !metadata(storage=slot(1))
+    v24 = sload 1 !metadata(storage=slot(1))
+    v25 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v26 = and v24, v25
+    v27 = word_cast v21
+    v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffff
+    v29 = or v26, v28
+    sstore 1, v29 !metadata(storage=slot(1))
     ret
 }
 
@@ -79,68 +83,80 @@ fn @sendValue() -> i256 [selector=0x27c845dc, payable, abi_params=[], abi_return
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = icall send<>, v1, 1
-    ret v2
+    v2 = trunc i160, v1
+    v3 = icall send<>, v2, 1
+    ret v3
 }
 
 fn @transferValue() [selector=0x2d9ed8d5, payable, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    icall transfer<>, v1, 1
+    v2 = trunc i160, v1
+    icall transfer<>, v2, 1
     ret
 }
 
 fn @sendZero() -> i256 [selector=0xe857d88b, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = icall send<>, 0xbeef, 0
-    ret v0
+    v0 = trunc i160, 0xbeef
+    v1 = icall send<>, v0, 0
+    ret v1
 }
 
 fn @sendInsufficient() -> i256 [selector=0x244c33f1, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = icall send<>, 0xbeef, 1
-    ret v0
+    v0 = trunc i160, 0xbeef
+    v1 = icall send<>, v0, 1
+    ret v1
 }
 
 fn @balances() -> struct0 [selector=0x7bb98a68, payable, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = address
-    v1 = balance v0
-    v2 = icall send<>, 0xbeef, 1
-    v3 = eq v2, 0
-    icall revert_if<empty>, v3
-    v4 = address
-    v5 = balance v4
-    icall transfer<>, 0xbeef, 1
+    v1 = word_cast v0
+    v2 = balance v1
+    v3 = trunc i160, 0xbeef
+    v4 = icall send<>, v3, 1
+    v5 = eq v4, 0
+    icall revert_if<empty>, v5
     v6 = address
-    v7 = balance v6
-    v8 = insert_value struct0, undef struct0, 0, v1
-    v9 = insert_value struct0, v8, 1, v5
-    v10 = insert_value struct0, v9, 2, v7
-    ret v10
+    v7 = word_cast v6
+    v8 = balance v7
+    v9 = trunc i160, 0xbeef
+    icall transfer<>, v9, 1
+    v10 = address
+    v11 = word_cast v10
+    v12 = balance v11
+    v13 = insert_value struct0, undef struct0, 0, v2
+    v14 = insert_value struct0, v13, 1, v8
+    v15 = insert_value struct0, v14, 2, v12
+    ret v15
 }
 
 fn @sendRevertData() -> i256 [selector=0x2acce81c, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = icall send<>, v1, 0
+    v2 = trunc i160, v1
+    v3 = icall send<>, v2, 0
     returndatacopy 0, 0, 4 !metadata(memory=scratch)
-    v3 = mload 0 !metadata(memory=scratch)
-    ret v3
+    v4 = mload 0 !metadata(memory=scratch)
+    ret v4
 }
 
 fn @transferOutOfGas() [selector=0xb3a4387c, payable, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    icall transfer<>, v1, 1
+    v2 = trunc i160, v1
+    icall transfer<>, v2, 1
     ret
 }
 
 fn @transferInsufficient() [selector=0x44d19381, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    icall transfer<>, 0xbeef, 1
+    v0 = trunc i160, 0xbeef
+    icall transfer<>, v0, 1
     ret
 }

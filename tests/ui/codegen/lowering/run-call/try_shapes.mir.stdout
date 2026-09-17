@@ -36,17 +36,19 @@ fn @constructor() [constructor] {
     v5 = add v3, 227
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 227
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = sload 0 !metadata(storage=slot(0))
-    v9 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v10 = and v8, v9
-    v11 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v12 = or v10, v11
-    sstore 0, v12 !metadata(storage=slot(0))
+    v9 = sload 0 !metadata(storage=slot(0))
+    v10 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = and v9, v10
+    v12 = word_cast v6
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = or v11, v13
+    sstore 0, v14 !metadata(storage=slot(0))
     ret
 }
 
@@ -271,51 +273,52 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     v126 = add v124, 227
     mcopy v126, v125, 0 !metadata(memory=heap)
     v127 = create 0, v124, 227
-    v128 = eq v127, 0
-    v129 = eq v128, false
-    jumpi v129, bb36, bb37
+    v128 = word_cast v127
+    v129 = eq v128, 0
+    v130 = eq v129, false
+    jumpi v130, bb36, bb37
   bb37:
     jumpi true, bb39, bb40
   bb40:
     icall revert_if<empty>, true
     invalid
   bb39:
-    v131 = checked_add u256, v120, 900
+    v132 = checked_add u256, v120, 900
     jump bb38
   bb36:
-    v130 = checked_add u256, v120, 800
+    v131 = checked_add u256, v120, 800
     jump bb38
   bb38:
-    v132 = phi [bb36: v130], [bb39: v131]
-    v133 = sload 0 !metadata(storage=slot(0))
-    v134 = and v133, 0xffffffffffffffffffffffffffffffffffffffff
-    v135 = shl 32, v134
-    v136 = or v135, 0xb3de648b
-    v137 = and v136, 0xffffffff
-    v138 = shl 224, v137
-    v139 = shr 32, v136
-    v140 = gas
-    v141 = abi_encode [word], selector v138, args 6
-    v142 = slice_ptr v141
-    v143 = slice_len v141
-    v144 = call v140, v139, 0, v142, v143, 0, 0
-    jumpi v144, bb41, bb42
+    v133 = phi [bb36: v131], [bb39: v132]
+    v134 = sload 0 !metadata(storage=slot(0))
+    v135 = and v134, 0xffffffffffffffffffffffffffffffffffffffff
+    v136 = shl 32, v135
+    v137 = or v136, 0xb3de648b
+    v138 = and v137, 0xffffffff
+    v139 = shl 224, v138
+    v140 = shr 32, v137
+    v141 = gas
+    v142 = abi_encode [word], selector v139, args 6
+    v143 = slice_ptr v142
+    v144 = slice_len v142
+    v145 = call v141, v140, 0, v143, v144, 0, 0
+    jumpi v145, bb41, bb42
   bb42:
     jumpi true, bb44, bb45
   bb45:
     icall revert_if<empty>, true
     invalid
   bb44:
-    v148 = checked_add u256, v132, 0x3e8
+    v149 = checked_add u256, v133, 0x3e8
     jump bb43
   bb41:
-    v145 = icall returndata_bytes<>
-    v146 = abi_decode [u256], v145
-    v147 = checked_add u256, v132, v146
+    v146 = icall returndata_bytes<>
+    v147 = abi_decode [u256], v146
+    v148 = checked_add u256, v133, v147
     jump bb43
   bb43:
-    v149 = phi [bb41: v147], [bb44: v148]
-    ret v149
+    v150 = phi [bb41: v148], [bb44: v149]
+    ret v150
 }
 
 fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {

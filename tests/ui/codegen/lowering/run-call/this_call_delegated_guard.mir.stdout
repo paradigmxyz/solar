@@ -13,11 +13,12 @@ fn @init() [selector=0xe1c7392a, abi_params=[], abi_returns=[], abi_return_param
     v2 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = extcodesize v0
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = call v1, v0, 0, v3, v4, 0, 0
-    jumpi v7, bb2, bb1
+    v5 = word_cast v0
+    v6 = extcodesize v5
+    v7 = eq v6, 0
+    icall revert_if<target_contract_has_no_code>, v7
+    v8 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -50,36 +51,89 @@ fn @constructor(arg0: i256) [constructor, abi_params=[address]] {
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_delegated_guard.sol:Deployer ===
 @module Deployer
 data:
-  Impl_initcode_0: hex"34600d5760ca8060115f395ff35b5f5ffd3415156038575f3560e01c8063158ef93e1460345780635c36b186146030578063e1c7392a14602c576038565b604e565b60c9565b603c565b5f5ffd5b5f546080526020608001608090036080f35b60e06040525a8060a0528060a0526040518060c0528060c052602081016040527f5c36b186000000000000000000000000000000000000000000000000000000008152600481015030806080523b1560c5578160a0528060c0525f5f6004835f3087f191505060bf573d5f5f3e3d5ffd5b60015f55005b5f5ffd5b"
+  Impl_initcode_0: hex"34600d5760c68060115f395ff35b5f5ffd3415156038575f3560e01c8063158ef93e1460345780635c36b186146030578063e1c7392a14602c576038565b604e565b60c5565b603c565b5f5ffd5b5f546080526020608001608090036080f35b60e06040525a80608052806080526040518060a0528060a052602081016040527f5c36b1860000000000000000000000000000000000000000000000000000000081526004810150303b1560c157816080528060a0525f5f6004835f3087f191505060bb573d5f5f3e3d5ffd5b60015f55005b5f5ffd5b"
   Proxy_initcode_1: hex"6101b93803806101b96101403961014001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016604052607d565b7f08c379a0000000000000000000000000000000000000000000000000000000005f52602060045260a0516040015160245260a0516060015160445260645ffd5b341515610178576101408060c0528060c0526101406101b93803016020820111610174578060c0525160a01c1515610174576040518060e0526040810160405260048152602081017fe1c7392a000000000000000000000000000000000000000000000000000000008152600490015060208101818060e052519150806101005281610120525f5f8383610140515af491505061016f5760405160a0518160200152600b81604001527f696e6974206661696c656400000000000000000000000000000000000000000081606001528060a05260800160405261015d603c565b60a05160405260a0516020015160a052fe5b61017c565b5f5ffd5b5f5ffd5b6032806101875f395ff3341515601c575f3560e01c8063158ef93e14601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
 
 fn @deployProxy() -> i256 [selector=0x44882b95, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 250, v1
+    v2 = and 246, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Impl_initcode_0, v3, 219
+    data_copy Impl_initcode_0, v3, 215
     v4 = slice_ptr v0
-    v5 = add v3, 219
+    v5 = add v3, 215
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 219
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v6 = create 0, v3, 215
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = abi_encode [word<u160>], args v8
-    v10 = not 31
-    v11 = and 504, v10
-    v12 = alloc raw, exact, uninitialized, infallible, v11
-    data_copy Proxy_initcode_1, v12, 441
-    v13 = slice_ptr v9
-    v14 = add v12, 441
-    mcopy v14, v13, 32 !metadata(memory=heap)
-    v15 = create 0, v12, 473
-    v16 = ne v15, 0
+    v9 = word_cast v6
+    v10 = trunc i160, v9
+    v11 = abi_encode [word<u160>], args v10
+    v12 = not 31
+    v13 = and 504, v12
+    v14 = alloc raw, exact, uninitialized, infallible, v13
+    data_copy Proxy_initcode_1, v14, 441
+    v15 = slice_ptr v11
+    v16 = add v14, 441
+    mcopy v16, v15, 32 !metadata(memory=heap)
+    v17 = create 0, v14, 473
+    v18 = word_cast v17
+    v19 = ne v18, 0
+    jumpi v19, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v20 = word_cast v17
+    v21 = gas
+    v22 = abi_encode [], selector 0x158ef93e00000000000000000000000000000000000000000000000000000000
+    v23 = slice_ptr v22
+    v24 = slice_len v22
+    v25 = staticcall v21, v20, v23, v24, 0, 32
+    jumpi v25, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v26 = returndatasize
+    v27 = lt v26, 32
+    icall revert_if<tuple_data_too_short>, v27
+    v28 = add 0, 0
+    v29 = mload v28
+    v30 = add 0, 0
+    v31 = mload v30
+    ret v31
+}
+
+fn @callImplDirectly() -> i256 [selector=0x0bba4d4b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 246, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy Impl_initcode_0, v3, 215
+    v4 = slice_ptr v0
+    v5 = add v3, 215
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 215
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v9 = word_cast v6
+    v10 = gas
+    v11 = abi_encode [], selector 0xe1c7392a00000000000000000000000000000000000000000000000000000000
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    v14 = extcodesize v9
+    v15 = eq v14, 0
+    icall revert_if<target_contract_has_no_code>, v15
+    v16 = call v10, v9, 0, v12, v13, 0, 0
     jumpi v16, bb4, bb3
   bb3:
     revert_returndata
@@ -88,7 +142,7 @@ fn @deployProxy() -> i256 [selector=0x44882b95, abi_params=[], abi_returns=[word
     v18 = abi_encode [], selector 0x158ef93e00000000000000000000000000000000000000000000000000000000
     v19 = slice_ptr v18
     v20 = slice_len v18
-    v21 = staticcall v17, v15, v19, v20, 0, 32
+    v21 = staticcall v17, v9, v19, v20, 0, 32
     jumpi v21, bb6, bb5
   bb5:
     revert_returndata
@@ -101,51 +155,4 @@ fn @deployProxy() -> i256 [selector=0x44882b95, abi_params=[], abi_returns=[word
     v26 = add 0, 0
     v27 = mload v26
     ret v27
-}
-
-fn @callImplDirectly() -> i256 [selector=0x0bba4d4b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
-  bb0:
-    v0 = abi_encode []
-    v1 = not 31
-    v2 = and 250, v1
-    v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Impl_initcode_0, v3, 219
-    v4 = slice_ptr v0
-    v5 = add v3, 219
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 219
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
-  bb1:
-    revert_returndata
-  bb2:
-    v8 = gas
-    v9 = abi_encode [], selector 0xe1c7392a00000000000000000000000000000000000000000000000000000000
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = extcodesize v6
-    v13 = eq v12, 0
-    icall revert_if<target_contract_has_no_code>, v13
-    v14 = call v8, v6, 0, v10, v11, 0, 0
-    jumpi v14, bb4, bb3
-  bb3:
-    revert_returndata
-  bb4:
-    v15 = gas
-    v16 = abi_encode [], selector 0x158ef93e00000000000000000000000000000000000000000000000000000000
-    v17 = slice_ptr v16
-    v18 = slice_len v16
-    v19 = staticcall v15, v6, v17, v18, 0, 32
-    jumpi v19, bb6, bb5
-  bb5:
-    revert_returndata
-  bb6:
-    v20 = returndatasize
-    v21 = lt v20, 32
-    icall revert_if<tuple_data_too_short>, v21
-    v22 = add 0, 0
-    v23 = mload v22
-    v24 = add 0, 0
-    v25 = mload v24
-    ret v25
 }

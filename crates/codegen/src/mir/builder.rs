@@ -587,11 +587,14 @@ impl<'a> FunctionBuilder<'a> {
                     .operands()
                     .iter()
                     .all(|&value| self.func.value_ty(value) == Some(MirType::I1));
-        let boolean_equality = matches!(kind, InstKind::Eq(..) | InstKind::Ne(..))
-            && kind.operands().iter().all(|&value| self.func.value_ty(value) == Some(MirType::I1));
+        let typed_equality = matches!(kind, InstKind::Eq(..) | InstKind::Ne(..))
+            && kind.operands().iter().all(|&value| {
+                self.func.value_ty(value) == self.func.value_ty(kind.operands()[0])
+                    && matches!(self.func.value_ty(value), Some(MirType::I1 | MirType::I160))
+            });
         if (kind.evm_opcode().is_some() || matches!(kind, InstKind::Ne(..)))
             && !boolean_bitwise
-            && !boolean_equality
+            && !typed_equality
         {
             // operand = word_cast operand
             kind.visit_operands_mut(|value| *value = self.cast(*value, MirType::I256));
@@ -622,6 +625,11 @@ impl<'a> FunctionBuilder<'a> {
                 let value = self.cast(value, MirType::I256);
                 let zero = self.imm(0);
                 InstKind::Ne(value, zero)
+            }
+            // narrow = trunc i160, word
+            MirType::I160 => {
+                let value = self.cast(value, MirType::I256);
+                InstKind::Trunc160(value)
             }
             // word = word_cast value
             MirType::I256 => InstKind::WordCast(value),
@@ -1541,7 +1549,7 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         let cond = self.cast(cond, MirType::I1);
         let mut ty = self.func.value_ty(then_val).unwrap();
-        if ty == MirType::I1 && self.func.value_ty(else_val) == Some(MirType::I256) {
+        if matches!(ty, MirType::I1 | MirType::I160) && self.func.value_ty(else_val) != Some(ty) {
             ty = MirType::I256;
         }
         // then_val = cast then_val to the select type
@@ -1560,8 +1568,8 @@ impl<'a> FunctionBuilder<'a> {
             .first()
             .and_then(|(_, value)| self.func.value_ty(*value))
             .unwrap_or(MirType::I256);
-        if ty == MirType::I1
-            && incoming.iter().any(|(_, value)| self.func.value_ty(*value) == Some(MirType::I256))
+        if matches!(ty, MirType::I1 | MirType::I160)
+            && incoming.iter().any(|(_, value)| self.func.value_ty(*value) != Some(ty))
         {
             ty = MirType::I256;
         }

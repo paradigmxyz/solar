@@ -28,6 +28,7 @@
   (ExtractValue (ty StructId) (aggregate Value) (index u32))
   (MemoryObjectFromPtr (ptr Value) (kind MemoryObjectKind))
   (WordCast (operand0 Value))
+  (Trunc160 (operand0 Value))
   (CheckedBinary (op CheckedOp) (arithmetic ArithmeticKind) (lhs Value) (rhs Value))
   (ValidateStorageBytes (operand0 Value))
   (StorageBytesLoad (operand0 Value))

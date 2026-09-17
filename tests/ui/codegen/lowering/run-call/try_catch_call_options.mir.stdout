@@ -21,17 +21,19 @@ fn @constructor() [constructor] {
     v5 = add v3, 50
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 50
-    v7 = ne v6, 0
-    jumpi v7, bb2, bb1
+    v7 = word_cast v6
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = sload 0 !metadata(storage=slot(0))
-    v9 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v10 = and v8, v9
-    v11 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v12 = or v10, v11
-    sstore 0, v12 !metadata(storage=slot(0))
+    v9 = sload 0 !metadata(storage=slot(0))
+    v10 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = and v9, v10
+    v12 = word_cast v6
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = or v11, v13
+    sstore 0, v14 !metadata(storage=slot(0))
     ret
 }
 
@@ -78,11 +80,12 @@ fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word]
     v2 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = extcodesize v0
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = staticcall v1, v0, v3, v4, 0, 0
-    jumpi v7, bb1, bb2
+    v5 = word_cast v0
+    v6 = extcodesize v5
+    v7 = eq v6, 0
+    icall revert_if<target_contract_has_no_code>, v7
+    v8 = staticcall v1, v0, v3, v4, 0, 0
+    jumpi v8, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -90,11 +93,11 @@ fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word]
     invalid
   bb4:
     returndatacopy 0, 0, 32 !metadata(memory=scratch)
-    v8 = mload 0 !metadata(memory=scratch)
+    v9 = mload 0 !metadata(memory=scratch)
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v9 = phi [bb1: 0], [bb4: v8]
-    ret v9
+    v10 = phi [bb1: 0], [bb4: v9]
+    ret v10
 }
