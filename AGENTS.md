@@ -167,6 +167,13 @@ The [project guide](tools/compiler-diff/README.md) covers local standard-JSON
 imports, Sourcify sync, compiler commands, comparison policies, and replay.
 `scripts/sourcify.py` remains a compatibility entry point.
 
+Use `fuzz --seed N --count N` for [Fandango source campaigns](tools/compiler-diff/README.md#fandango-campaigns).
+Repeat `--compiler NAME='COMMAND ARGS'` to select compilers; each candidate is
+compared with the reference. Campaigns snapshot the grammar and generated inputs,
+reuse completed attempts, and stop at the first failure. Add
+`--symbolic-signature` for bounded execution checks of a function present in every
+case. Preserve the campaign report and generator provenance when reducing failures.
+
 `run` records compilation attempts; `compare` checks saved ABI and method
 identifiers without recompiling. Add `--check userdoc` or `--check devdoc` for
 JSON documentation. ABI `--policy interface` ignores parameter names and

@@ -132,6 +132,76 @@ comparison stops before reaching them. No divergences are accepted by default.
 Rules apply to matching contract paths across inputs; use separate expectation
 files when a rule is intended for one corpus only.
 
+## Fandango campaigns
+
+`fuzz` generates complete Solidity sources, imports each as standard JSON, then
+runs the selected compilers and comparisons before advancing to the next case:
+
+```sh
+uv run --project tools/compiler-diff compiler-diff --dir /tmp/compiler-fuzz fuzz \
+  --seed 7 --count 16 \
+  --compiler 'baseline=/absolute/path/to/solc --standard-json' \
+  --compiler 'candidate=/absolute/path/to/solar --standard-json'
+```
+
+The default grammar is `fuzz/fandango/solidity-source.fan`, targeting
+`FandangoSource`. Use `--grammar /path/to/grammar.fan --contract Name` for another
+self-contained Solidity-source grammar. The adapter snapshots the grammar file;
+external grammar resources are not copied. It runs Fandango 1.1.1 with uv-managed
+Python 3.12 and sets `PYTHONHASHSEED` to `--seed`. The generator's managed Python,
+tool environment and cache live under `<dir>/fandango-tools/`.
+
+Repeat `--compiler NAME='COMMAND ARGS'` for any standard-JSON compilers. The first
+is the default reference, compared with every other compiler. `--reference NAME`
+and repeated `--candidate NAME` select a subset. ABI and selectors are checked by
+default; `--check`, `--policy`, `--expectations`, and `--full` work as for `compare`.
+A compilation failure also fails the case, including when both compilers reject
+it; it is not by itself evidence of a compiler divergence.
+
+Use `--settings settings.json` for a standard-JSON settings object. `evmVersion`
+defaults to `osaka` unless supplied; choose a supported target when using older
+compilers. The runner still selects the outputs required for comparisons.
+`--generation-timeout` bounds generation including initial tool installation;
+`--timeout` bounds each compiler. Generation must produce exactly `--count`
+sources before any are imported.
+
+Add a symbolic check for a function present in every generated contract:
+
+```sh
+uv run --project tools/compiler-diff compiler-diff --dir /tmp/compiler-fuzz fuzz \
+  --grammar /absolute/path/to/pure-function.fan --contract C --seed 7 --count 8 \
+  --compiler 'baseline=/absolute/path/to/solc --standard-json' \
+  --compiler 'candidate=/absolute/path/to/solar --standard-json' \
+  --symbolic-signature 'f(uint256)' --symbolic-solc /absolute/path/to/solc \
+  --symbolic-args '--max-paths 64 --symbolic-timeout 10'
+```
+
+Symbolic checks consume the saved attempts for each selected compiler pair.
+`--symbolic-solc` compiles the harness. `--symbolic-args` forwards quoted engine
+options such as `--include-view`; `--engine-timeout` bounds each engine process.
+A missing function or incomplete symbolic check fails the case.
+
+Campaigns live under `<dir>/<version>/fuzz/<id>/`. Their identity includes the
+grammar content, generator version, seed, count, target and settings. Repeating
+those options verifies and reuses generated files; changed compiler commands
+start new compilation jobs without regenerating sources. Comparisons run again
+so changed rules take effect. `--retry-failures` retries failed compiler jobs.
+`--continue-on-failure` processes later cases; the default stops at the first
+failed case. Any failed case returns exit status 1.
+
+Each campaign retains `grammar.fan`, `campaign.json`, generation logs and source
+hashes, generated sources and standard-JSON inputs, and a latest `report.json`
+linking cases to compiler attempts, comparison bundles and symbolic reports.
+Attempts and mismatch bundles include `generator.json` with the grammar and seed.
+The corpus database and run artifacts live in the campaign's `<version>/`
+subdirectory. The CLI prints the campaign path; use it as `--dir` with `run`,
+`compare`, or `status` to inspect or rerun that corpus independently.
+`--generate-only` imports sources without running compilers.
+
+This command handles grammars that emit Solidity sources. The existing
+[ABI-value and stateful Fandango runners](../../fuzz/fandango/README.md) retain
+their specialized execution and reduction workflows.
+
 ## Execution engines
 
 The package also provides entry points for the existing execution engines. Pass

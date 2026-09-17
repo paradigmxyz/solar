@@ -306,7 +306,7 @@ def make_input(db, compilation_id):
     return request, record
 
 
-def execute(command, directory, timeout, input_path=None):
+def execute(command, directory, timeout, input_path=None, *, env=None):
     started = time.monotonic()
     result = {
         "command": command,
@@ -315,6 +315,7 @@ def execute(command, directory, timeout, input_path=None):
         "started": time.time(),
     }
     environment = os.environ.copy()
+    environment.update(env or {})
     environment.update(
         {"TMPDIR": str(directory), "TMP": str(directory), "TEMP": str(directory)}
     )
@@ -360,11 +361,16 @@ def executable_state(command):
     return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
 
 
-def compiler_info(spec, root):
+def parse_compiler_spec(spec):
     name, separator, command = spec.partition("=")
     argv = shlex.split(command)
     if not separator or not name or not argv:
         raise ValueError("--compiler requires NAME='COMMAND ARGS'")
+    return name, argv
+
+
+def compiler_info(spec, root):
+    name, argv = parse_compiler_spec(spec)
     executable = shutil.which(argv[0])
     info = {
         "name": name,
@@ -416,23 +422,27 @@ def output_error(directory, result, target=None):
     return None
 
 
-def run(db, root, args):
+def run(db, root, args, *, compilation_id=None, compilers=None):
     if db.execute("SELECT value FROM state WHERE key = 'sync_complete'").fetchone() != (
         "true",
     ):
         raise RuntimeError("no complete corpus; run sync first")
-    compilers = [
-        compiler_info(spec, root)
-        for spec in (
-            args.compiler
-            or ["solc=solc --standard-json", "solar=solar --standard-json"]
-        )
-    ]
+    if compilers is None:
+        compilers = [
+            compiler_info(spec, root)
+            for spec in (
+                args.compiler
+                or ["solc=solc --standard-json", "solar=solar --standard-json"]
+            )
+        ]
     if len({compiler["name"] for compiler in compilers}) != len(compilers):
         raise ValueError("compiler names must be unique")
     script_hash = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     failures = jobs = 0
-    reader = db.cursor().execute("SELECT id FROM compilations ORDER BY id")
+    reader = db.cursor().execute(
+        "SELECT id FROM compilations WHERE (? IS NULL OR id = ?) ORDER BY id",
+        [compilation_id, compilation_id],
+    )
     try:
         while row := reader.fetchone():
             compilation_id = row[0]
@@ -579,6 +589,17 @@ def status(db):
         print(f"{compiler}: {outcome}: {count} attempts")
 
 
+def add_compiler_arguments(runner):
+    runner.add_argument("--compiler", action="append", metavar="NAME=COMMAND")
+    runner.add_argument("--timeout", type=float, default=120)
+    runner.add_argument("--retry-failures", action="store_true")
+    runner.add_argument(
+        "--tag",
+        default="",
+        help="Distinguish wrapper dependencies, environment, or experiments",
+    )
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -595,16 +616,9 @@ def main(argv=None):
     )
     subparsers.add_parser("status", help="Show local corpus and attempt counts")
     runner = subparsers.add_parser("run", help="Run compilers against the local corpus")
-    runner.add_argument("--compiler", action="append", metavar="NAME=COMMAND")
-    runner.add_argument("--timeout", type=float, default=120)
+    add_compiler_arguments(runner)
     runner.add_argument("--continue-on-failure", action="store_true")
-    runner.add_argument("--retry-failures", action="store_true")
     runner.add_argument("--limit", type=int)
-    runner.add_argument(
-        "--tag",
-        default="",
-        help="Distinguish wrapper dependencies, environment, or experiments",
-    )
     subparsers.add_parser("self-test", help="Run embedded offline regression tests")
     args = parser.parse_args(argv)
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", args.version):

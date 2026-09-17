@@ -30,7 +30,8 @@ diffs.
   calls, then compares returndata, logs, and normalized state diffs with
   cheatcodes.
 
-Generated artifacts belong under `fuzz/fandango/out/`, which is ignored.
+Generated artifacts from the direct runners belong under `fuzz/fandango/out/`,
+which is ignored. The unified `compiler-diff fuzz` command uses its chosen `--dir`.
 Promote only minimized, stable failures into `corpus.jsonl` or `tests/ui/`.
 
 ## CI
@@ -92,25 +93,25 @@ PYTHONHASHSEED=1 uv tool run --quiet --from 'fandango-fuzzer==1.1.1' fandango fu
       --timeout 20
 ```
 
-Generate Solidity sources and compile-check each file:
+Generate Solidity sources and compare their ABI and selectors through the shared
+[compiler-diff campaign runner](../../tools/compiler-diff/README.md#fandango-campaigns):
 
 ```bash
-mkdir -p fuzz/fandango/out/sources
-
-PYTHONHASHSEED=1 uv tool run --quiet --from 'fandango-fuzzer==1.1.1' fandango fuzz \
-  -f fuzz/fandango/solidity-source.fan \
-  --random-seed 1 \
-  -n 32 \
-  --directory fuzz/fandango/out/sources \
-  --filename-extension .sol \
-  --progress-bar off
-
-python3 fuzz/fandango/run_solidity_sources.py \
-  --source-dir fuzz/fandango/out/sources \
-  --max-sources 256 \
-  --timeout 20 \
-  --verbose
+uv run --project tools/compiler-diff compiler-diff --dir /tmp/compiler-fuzz fuzz \
+  --seed 1 --count 32 \
+  --compiler 'solc=/absolute/path/to/solc --standard-json' \
+  --compiler 'solar=/absolute/path/to/solar --standard-json'
 ```
+
+The runner records the grammar, seed and generated sources, then compiles and
+compares each case. Repeat the command to reuse generation and cached attempts;
+add `--continue-on-failure` to process later cases or `--symbolic-signature` to
+check a selected function. Campaign artifacts stay under
+`/tmp/compiler-fuzz/<version>/fuzz/<id>/`. Custom source grammars and arbitrary
+named standard-JSON compilers use the same database and replay bundles.
+
+The direct `run_solidity_sources.py` runner remains available for compile-acceptance
+checks and the bounded CI lane; it does not compare ABI or documentation outputs.
 
 Failures are saved under `fuzz/fandango/out/failures/` or
 `fuzz/fandango/out/source-failures/`.

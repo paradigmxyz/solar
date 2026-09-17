@@ -15,7 +15,7 @@ from pathlib import Path
 
 import duckdb
 
-from . import compare, corpus, display
+from . import compare, corpus, display, fandango
 from .artifacts import read_attempt
 
 
@@ -48,8 +48,9 @@ def load_rules(path):
     return rules
 
 
-def import_input(db, path, target, version):
-    request = read_json(path)
+def import_input(db, path, target, version, *, request=None):
+    if request is None:
+        request = read_json(path)
     if not isinstance(request, dict) or request.get("language") != "Solidity":
         raise ValueError("input must be Solidity standard JSON")
     if set(request) - {"language", "sources", "settings"}:
@@ -140,9 +141,11 @@ def compare_pair(left, right, selected, policy):
         ]
 
 
-def compare_saved(db, root, args):
-    rules = load_rules(args.expectations)
-    rule_index = compare.rule_index(rules)
+def compare_saved(db, root, args, *, compilation_id=None, expectations=None):
+    if expectations is None:
+        rules = load_rules(args.expectations)
+        expectations = rules, compare.rule_index(rules)
+    rules, rule_index = expectations
     if bool(args.left) != bool(args.right):
         raise ValueError("--left and --right must be supplied together")
     selected = args.check or ["abi", "methods"]
@@ -154,12 +157,12 @@ def compare_saved(db, root, args):
         rows = db.execute(
             """
             SELECT compilation_id, compiler, directory FROM attempts
-            WHERE compiler IN (?, ?)
+            WHERE compiler IN (?, ?) AND (? IS NULL OR compilation_id = ?)
             QUALIFY row_number() OVER (
                 PARTITION BY compilation_id, compiler ORDER BY started DESC, id DESC
             ) = 1 ORDER BY compilation_id, compiler
         """,
-            [args.reference, args.candidate],
+            [args.reference, args.candidate, compilation_id, compilation_id],
         ).fetchall()
         by_id = {}
         for identifier, compiler, directory in rows:
@@ -216,6 +219,7 @@ def compare_saved(db, root, args):
                             "compilation.json",
                             "result.json",
                             "replay.sh",
+                            "generator.json",
                         ):
                             if (source / name).is_file():
                                 shutil.copyfile(source / name, destination / name)
@@ -298,7 +302,7 @@ def compare_saved(db, root, args):
     return int(report["failed"])
 
 
-def run_engine(root, args):
+def run_engine(root, args, *, directory=None):
     repository = Path(__file__).resolve().parents[3]
     script = (
         repository
@@ -314,7 +318,8 @@ def run_engine(root, args):
         arguments = arguments[1:]
     if "--help" in arguments or "-h" in arguments:
         return subprocess.call([sys.executable, str(script), *arguments])
-    directory = root / "engines" / args.action / uuid.uuid4().hex
+    if directory is None:
+        directory = root / "engines" / args.action / uuid.uuid4().hex
     directory.mkdir(parents=True)
     if args.action == "symbolic":
         arguments = [*arguments, "--output-root", str(directory / "artifacts")]
@@ -353,6 +358,212 @@ def run_engine(root, args):
     )
 
 
+def fuzz_campaign(root, args):
+    specs = args.compiler or [
+        "solc=solc --standard-json",
+        "solar=solar --standard-json",
+    ]
+    names = [corpus.parse_compiler_spec(spec)[0] for spec in specs]
+    if len(set(names)) != len(names):
+        raise ValueError("provide unique --compiler NAME='COMMAND ARGS' entries")
+    reference = args.reference or names[0]
+    candidates = args.candidate or [name for name in names if name != reference]
+    if not args.generate_only and (
+        reference not in names
+        or not candidates
+        or any(name not in names or name == reference for name in candidates)
+    ):
+        raise ValueError(
+            "select a reference and at least one distinct candidate from --compiler names"
+        )
+    rules = load_rules(args.expectations)
+    expectations = rules, compare.rule_index(rules)
+    symbolic_arguments = shlex.split(args.symbolic_args)
+    campaign, config, grammar = fandango.prepare(root, args)
+    data = campaign / args.version
+    db = corpus.connect(data)
+    report = {
+        "status": "running",
+        "config": config,
+        "generated": 0,
+        "cases": [],
+        "reference": reference,
+        "candidates": candidates,
+        "compilers": specs,
+    }
+    print(f"Campaign: {campaign}", flush=True)
+    try:
+        files = fandango.generate(campaign, config, grammar, args.generation_timeout)
+        report["generated"] = len(files)
+        compilers = (
+            []
+            if args.generate_only
+            else [corpus.compiler_info(spec, data) for spec in specs]
+        )
+        for number, source in enumerate(files, 1):
+            case = {
+                "source": str(source),
+                "status": "running",
+                "comparisons": [],
+                "symbolic": [],
+            }
+            report["cases"].append(case)
+            request = {
+                "language": "Solidity",
+                "sources": {
+                    "generated.sol": {"content": source.read_text(encoding="utf-8")}
+                },
+                "settings": config["settings"],
+            }
+            input_path = source.with_suffix(".json")
+            corpus.write_json(input_path, request)
+            identifier = import_input(
+                db,
+                input_path,
+                "generated.sol:" + args.contract,
+                args.version,
+                request=request,
+            )
+            case["compilation_id"] = identifier
+            print(f"[{number}/{len(files)}] {source.name}", flush=True)
+            if args.generate_only:
+                case["status"] = "imported"
+                continue
+            code = corpus.run(
+                db, data, args, compilation_id=identifier, compilers=compilers
+            )
+            attempts = {
+                name: Path(directory)
+                for name, directory in db.execute(
+                    "SELECT compiler, directory FROM attempts WHERE compilation_id = ? QUALIFY row_number() OVER (PARTITION BY compiler ORDER BY started DESC, id DESC) = 1",
+                    [identifier],
+                ).fetchall()
+            }
+            case["compile_exit"] = code
+            case["attempts"] = {
+                name: str(attempts[name]) for name in names if name in attempts
+            }
+            for name in names:
+                if name in attempts:
+                    provenance = attempts[name] / "generator.json"
+                    if not provenance.exists():
+                        corpus.write_json(
+                            provenance,
+                            {
+                                "campaign": str(campaign),
+                                "config": config,
+                                "grammar": grammar.decode(),
+                                "source": str(source),
+                            },
+                        )
+            case["status"] = "failed" if code else "passed"
+            if code == 130:
+                report["status"] = "interrupted"
+                return 130
+            if not code:
+                for candidate in candidates:
+                    comparison_args = argparse.Namespace(
+                        **{
+                            **vars(args),
+                            "left": None,
+                            "right": None,
+                            "reference": reference,
+                            "candidate": candidate,
+                        }
+                    )
+                    comparison_code = compare_saved(
+                        db,
+                        data,
+                        comparison_args,
+                        compilation_id=identifier,
+                        expectations=expectations,
+                    )
+                    comparison_directory = db.execute(
+                        "SELECT directory FROM comparisons ORDER BY started DESC LIMIT 1"
+                    ).fetchone()[0]
+                    case["comparisons"].append(
+                        str(Path(comparison_directory) / "report.json")
+                    )
+                    if comparison_code:
+                        case["status"] = "failed"
+                        if not args.continue_on_failure:
+                            break
+                    if args.symbolic_signature:
+                        engine_directory = data / "engines/symbolic" / uuid.uuid4().hex
+                        engine_args = argparse.Namespace(
+                            action="symbolic",
+                            engine_timeout=args.engine_timeout,
+                            arguments=[
+                                *symbolic_arguments,
+                                "--source",
+                                "generated.sol",
+                                "--contract",
+                                args.contract,
+                                "--signature",
+                                args.symbolic_signature,
+                                "--solc",
+                                args.symbolic_solc,
+                                "--solc-attempt",
+                                str(attempts[reference]),
+                                "--solar-attempt",
+                                str(attempts[candidate]),
+                            ],
+                        )
+                        engine_code = run_engine(
+                            data, engine_args, directory=engine_directory
+                        )
+                        engine_report = engine_directory / "result.json"
+                        case["symbolic"].append(str(engine_report))
+                        if (
+                            engine_code
+                            or not engine_report.exists()
+                            or read_json(engine_report)
+                            .get("engine_report", {})
+                            .get("status")
+                            != "bounded_agreement"
+                        ):
+                            case["status"] = "failed"
+                        if engine_code == 130:
+                            report["status"] = "interrupted"
+                            return 130
+                    if case["status"] == "failed" and not args.continue_on_failure:
+                        break
+            corpus.write_json(campaign / "report.json", report)
+            if case["status"] == "failed" and not args.continue_on_failure:
+                break
+        failed = sum(case["status"] == "failed" for case in report["cases"])
+        report["status"] = (
+            "failed" if failed else "generated" if args.generate_only else "passed"
+        )
+        print(
+            f"{report['status'].upper()}: {len(report['cases'])}/{len(files)} cases processed; {failed} failed"
+        )
+        return int(failed > 0)
+    except BaseException as error:
+        report.update(
+            status="interrupted" if isinstance(error, KeyboardInterrupt) else "error",
+            error=str(error),
+        )
+        raise
+    finally:
+        corpus.write_json(campaign / "report.json", report)
+        db.close()
+        print(f"campaign report: {campaign / 'report.json'}")
+        print(f"reuse with --dir {campaign} --version {args.version}")
+
+
+def add_comparison_arguments(parser):
+    parser.add_argument("--check", action="append", choices=compare.COMPARATORS)
+    parser.add_argument("--policy", choices=("interface", "exact"), default="interface")
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Print every difference and complete JSON values",
+    )
+    parser.add_argument("--expectations", type=Path)
+    parser.add_argument("--continue-on-failure", action="store_true")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dir", type=Path, default=Path("/tmp/solar-sourcify"))
@@ -364,6 +575,51 @@ def main(argv=None):
         engine = sub.add_parser(name, help="Run the existing " + name + " engine")
         engine.add_argument("--engine-timeout", type=float, default=3600)
         engine.add_argument("arguments", nargs=argparse.REMAINDER)
+    fuzzer = sub.add_parser(
+        "fuzz", help="Generate Solidity with Fandango, then compile and compare"
+    )
+    fuzzer.add_argument(
+        "--grammar",
+        type=Path,
+        default=Path(__file__).resolve().parents[3]
+        / "fuzz/fandango/solidity-source.fan",
+    )
+    fuzzer.add_argument("--contract", default="FandangoSource")
+    fuzzer.add_argument("--seed", type=int, default=1)
+    fuzzer.add_argument("--count", type=int, default=16)
+    fuzzer.add_argument(
+        "--settings",
+        type=Path,
+        help="JSON settings object; evmVersion defaults to osaka",
+    )
+    fuzzer.add_argument("--generation-timeout", type=float, default=600)
+    fuzzer.add_argument("--generate-only", action="store_true")
+    fuzzer.add_argument(
+        "--reference", help="Baseline compiler name (default: first compiler)"
+    )
+    fuzzer.add_argument(
+        "--candidate",
+        action="append",
+        help="Candidate name; repeat to select several (default: all others)",
+    )
+    fuzzer.add_argument(
+        "--symbolic-signature",
+        help="Also check this function in every generated source",
+    )
+    fuzzer.add_argument(
+        "--symbolic-solc",
+        default="solc",
+        help="Solc executable for the symbolic harness",
+    )
+    fuzzer.add_argument(
+        "--symbolic-args",
+        default="",
+        help="Additional symbolic engine options, shell-quoted",
+    )
+    fuzzer.add_argument("--engine-timeout", type=float, default=120)
+    corpus.add_compiler_arguments(fuzzer)
+    add_comparison_arguments(fuzzer)
+    fuzzer.set_defaults(limit=None)
     importer = sub.add_parser("import-input", help="Import a local standard-JSON input")
     importer.add_argument("input", type=Path)
     importer.add_argument("--target", required=True, metavar="SOURCE:CONTRACT")
@@ -376,24 +632,14 @@ def main(argv=None):
     )
     comparer.add_argument("--reference", default="solc")
     comparer.add_argument("--candidate", default="solar")
-    comparer.add_argument("--check", action="append", choices=compare.COMPARATORS)
-    comparer.add_argument(
-        "--policy", choices=("interface", "exact"), default="interface"
-    )
-    comparer.add_argument(
-        "--full",
-        action="store_true",
-        help="Print every difference and complete JSON values",
-    )
-    comparer.add_argument("--expectations", type=Path)
-    comparer.add_argument("--continue-on-failure", action="store_true")
+    add_comparison_arguments(comparer)
     args, rest = parser.parse_known_args(argv)
     if args.action == "self-test":
         if rest:
             parser.error("unrecognized arguments: " + " ".join(rest))
         suite = unittest.TestSuite(
             unittest.defaultTestLoader.loadTestsFromTestCase(t)
-            for t in (compare.Tests, display.Tests, Tests)
+            for t in (compare.Tests, display.Tests, fandango.Tests, Tests)
         )
         return int(not unittest.TextTestRunner().run(suite).wasSuccessful())
     if args.action in {"sync", "run", "status"}:
@@ -403,6 +649,17 @@ def main(argv=None):
     if not corpus.re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", args.version):
         parser.error("--version must be a release number such as 0.8.36")
     root = args.dir.expanduser().resolve() / args.version
+    if args.action == "fuzz":
+        if args.count < 1 or not 0 <= args.seed < 2**32 or not args.contract:
+            parser.error(
+                "--count must be positive, --seed must fit uint32, and --contract must be nonempty"
+            )
+        if any(
+            not 0 < value < float("inf")
+            for value in (args.timeout, args.generation_timeout, args.engine_timeout)
+        ):
+            parser.error("timeouts must be positive and finite")
+        return fuzz_campaign(root, args)
     if args.action in {"symbolic", "runtime"}:
         if not 0 < args.engine_timeout < float("inf"):
             parser.error("--engine-timeout must be positive and finite")
@@ -428,6 +685,97 @@ def entrypoint():
 
 
 class Tests(corpus.Tests):
+    def test_fuzz_stop_continue_expectations_and_resume(self):
+        grammar = self.root / "grammar.fan"
+        grammar.write_text("<start> ::= 'contract FandangoSource {}'\n")
+        sources = []
+        for index in range(2):
+            source = self.root / f"{index}.sol"
+            source.write_text(f"contract FandangoSource {{ uint x{index}; }}")
+            sources.append(source)
+        artifact = {
+            "contracts": {
+                "generated.sol": {
+                    "FandangoSource": {
+                        "abi": [
+                            {
+                                "type": "function",
+                                "name": "f",
+                                "inputs": [],
+                                "outputs": [],
+                                "stateMutability": "view",
+                            }
+                        ],
+                        "evm": {
+                            "bytecode": {"object": ""},
+                            "deployedBytecode": {"object": ""},
+                            "methodIdentifiers": {"f()": "26121ff0"},
+                        },
+                    }
+                }
+            }
+        }
+        baseline = self.fake("baseline", "print(" + repr(json.dumps(artifact)) + ")")
+        artifact["contracts"]["generated.sol"]["FandangoSource"]["abi"][0][
+            "stateMutability"
+        ] = "pure"
+        candidate = self.fake("candidate", "print(" + repr(json.dumps(artifact)) + ")")
+        base = [
+            "--dir",
+            str(self.root / "campaigns"),
+            "fuzz",
+            "--grammar",
+            str(grammar),
+            "--count",
+            "2",
+            "--compiler",
+            baseline,
+            "--compiler",
+            candidate,
+        ]
+        with corpus.patch.object(fandango, "generate", return_value=sources):
+            self.assertEqual(main(base), 1)
+            report_path = next(
+                (self.root / "campaigns" / corpus.DEFAULT_VERSION / "fuzz").glob(
+                    "*/report.json"
+                )
+            )
+            report = read_json(report_path)
+            self.assertEqual(len(report["cases"]), 1)
+            comparison = read_json(Path(report["cases"][0]["comparisons"][0]))
+            bundle = Path(comparison["pairs"][0]["bundle"])
+            self.assertEqual(
+                read_json(bundle / "left/generator.json")["config"]["seed"], 1
+            )
+            self.assertEqual(main([*base, "--continue-on-failure"]), 1)
+            self.assertEqual(len(read_json(report_path)["cases"]), 2)
+            result = comparison["pairs"][0]["results"][0]
+            rules = [
+                {
+                    **{key: result[key] for key in ("comparator", "version", "policy")},
+                    "difference": difference,
+                    "reason": "test divergence",
+                }
+                for difference in result["differences"]
+            ]
+            expected = self.root / "expected.json"
+            corpus.write_json(expected, rules)
+            self.assertEqual(main([*base, "--expectations", str(expected)]), 0)
+            self.assertEqual(read_json(report_path)["status"], "passed")
+            another = baseline.replace("baseline=", "another=", 1)
+            self.assertEqual(
+                main([*base, "--compiler", another, "--expectations", str(expected)]), 0
+            )
+            self.assertEqual(len(read_json(report_path)["cases"][0]["comparisons"]), 2)
+
+            data = corpus.connect(report_path.parent / corpus.DEFAULT_VERSION)
+            try:
+                self.assertEqual(
+                    data.execute("SELECT count(*) FROM attempts").fetchone(), (6,)
+                )
+            finally:
+                data.close()
+
     def test_local_import(self):
         path = self.root / "input.json"
         request = {
