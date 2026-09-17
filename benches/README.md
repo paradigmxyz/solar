@@ -31,9 +31,8 @@ CodSpeed, or both, and can override the pinned solc release.
 
 CodSpeed runs on one allowed CPU so default compiler sessions use one thread. This prevents
 Rayon worker scheduling and teardown from leaking into later measurements and keeps Tokio
-request benchmarks on the same CPU. The build still uses all available CPUs. Rust and
-cargo-codspeed versions are pinned in the workflow; update them deliberately and establish a
-new baseline when changing the measurement environment. Simulation measures CPU work; use the
+request benchmarks on the same CPU. The build still uses all available CPUs. Simulation
+measures CPU work; use the
 [LSP session benchmarks](lsp/README.md) to measure end-to-end request latency.
 
 All LSP microbenchmarks use `lsp/<operation>[<scenario>]` display names. Register each case

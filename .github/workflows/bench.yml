@@ -327,7 +327,7 @@ jobs:
         run: git submodule update --checkout
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
         with:
-          toolchain: 1.98.1
+          toolchain: stable
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-on-failure: true
@@ -336,10 +336,10 @@ jobs:
       - name: Install cargo-codspeed
         uses: taiki-e/install-action@d438492cf8a250514fa2d34b30bc3c0dc37c65ff # v2.87.8
         with:
-          tool: cargo-codspeed@5.0.1
+          tool: cargo-codspeed
       - name: Build the benchmark targets
         run: >-
-          cargo codspeed build --locked -m simulation --profile profiling
+          cargo codspeed build -m simulation --profile profiling
           -p solar-bench -p solar-lsp
           --bench criterion --bench lsp --bench lsp_diagnostic
           --features solar-lsp/bench
