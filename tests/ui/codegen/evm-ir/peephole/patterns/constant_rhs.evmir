@@ -334,8 +334,10 @@ bb28:
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb29:
-// CHECK: {{^[ +].*}}sgt
-// CHECK-NEXT: {{^[ +].*}}iszero
+// CHECK: +   push 32
+// CHECK: -   sgt
+// CHECK: -   iszero
+// CHECK: +   slt
 bb29:
   calldatasize
   push 31
@@ -345,4 +347,145 @@ bb29:
   push 0
   mstore
   pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb30:
+// CHECK: +   push 2
+// CHECK: -   gt
+// CHECK: -   iszero
+// CHECK: +   lt
+bb30:
+  push 1
+  push 288
+  mload
+  gt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb31:
+// CHECK: +   push 30
+// CHECK: -   lt
+// CHECK: -   iszero
+// CHECK: +   gt
+bb31:
+  push 31
+  push 4
+  calldataload
+  lt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb32:
+// CHECK: +   push 2
+// CHECK: -   gt
+// CHECK: -   iszero
+// CHECK: +   lt
+bb32:
+  push 1
+  push 4
+  calldataload
+  dup 1
+  add
+  gt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb33:
+// CHECK: {{^[ +].*}}gt
+// CHECK: {{^[ +].*}}iszero
+bb33:
+  push 1
+  calldatasize
+  dup 2
+  add
+  gt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb34:
+// CHECK: {{^[ +].*}}gt
+// CHECK: {{^[ +].*}}iszero
+bb34:
+  push 1
+  gas
+  gt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb35:
+// CHECK: {{^[ +].*}}gt
+// CHECK: {{^[ +].*}}iszero
+bb35:
+  push 1
+  pc
+  gt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb36:
+// CHECK: +   push 32
+// CHECK: -   sgt
+// CHECK: -   iszero
+// CHECK: +   slt
+bb36:
+  push 31
+  push 4
+  calldataload
+  sgt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb37:
+// CHECK: {{^[ +].*}}sgt
+// CHECK: {{^[ +].*}}iszero
+bb37:
+  push 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 4
+  calldataload
+  sgt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb38:
+// CHECK: {{^[ +].*}}slt
+// CHECK: {{^[ +].*}}iszero
+bb38:
+  push 0x8000000000000000000000000000000000000000000000000000000000000000
+  push 4
+  calldataload
+  slt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb39:
+// CHECK: +   push 0
+// CHECK: -   sgt
+// CHECK: -   iszero
+// CHECK: +   slt
+bb39:
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 4
+  calldataload
+  sgt
+  iszero
+  push 0
+  mstore
   stop

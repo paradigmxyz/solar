@@ -2,6 +2,8 @@
 // CHECK: @module
 //@ codegen-matrix: standard
 //@ run-call: f [(1, 2), (3, 4)] => 2, 1, 2, 3, 4
+//@ run-call-fail: f [] => Panic(0x32)
+//@ run-call-fail: f [(1, 2)] => Panic(0x32)
 // ported-from: test/libsolidity/semanticTests/abicoder/calldataDecoding/array/calldata_array_struct_static_v2.sol
 
 struct StaticPair {
