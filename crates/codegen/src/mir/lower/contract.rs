@@ -28,6 +28,11 @@ pub(super) fn lower(
 ) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
+    for bytecodes in child_bytecodes.values() {
+        if bytecodes.validate(gcx.dcx()).is_err() {
+            return module;
+        }
+    }
     let storage = StorageLayout::for_contract(gcx, contract_id);
     let mut immutable_ids = FxHashMap::default();
     for &base in contract.linearized_bases.iter().rev() {

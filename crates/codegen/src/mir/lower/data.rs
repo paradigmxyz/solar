@@ -10,7 +10,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
-use solar_interface::Symbol;
+use solar_interface::{Symbol, diagnostics::DiagCtxt};
 use solar_sema::{Gcx, hir::ContractId};
 use std::borrow::Cow;
 
@@ -36,44 +36,50 @@ pub(crate) fn data_copy_is_profitable(
 #[derive(Clone, Debug, Default)]
 pub struct ContractBytecodes {
     /// Deployment bytecode, including the initcode prefix.
-    deployment: Option<RelocatableBytecode>,
+    deployment: RelocatableBytecode,
     /// Deployed runtime bytecode.
-    runtime: Option<RelocatableBytecode>,
+    runtime: RelocatableBytecode,
 }
 
 impl ContractBytecodes {
     /// Creates bytecode metadata from a generated artifact and its relocations.
-    ///
-    /// # Panics
-    ///
-    /// Panics if a relocation names a missing library or its 20-byte address is out of bounds.
     pub fn new(deployment: RelocatableBytecode, runtime: RelocatableBytecode) -> Self {
-        for bytecode in [&deployment, &runtime] {
+        Self { deployment, runtime }
+    }
+
+    /// Validates library identities and address ranges before bytecode embedding.
+    pub fn validate(&self, dcx: &DiagCtxt) -> solar_interface::Result {
+        let mut error = None;
+        for (kind, bytecode) in [("deployment", &self.deployment), ("runtime", &self.runtime)] {
             for relocation in &bytecode.relocations {
-                assert!(bytecode.libraries.get(relocation.library).is_some(), "invalid library ID");
-                assert!(
-                    relocation
-                        .offset
-                        .checked_add(20)
-                        .is_some_and(|end| end <= bytecode.bytes.len()),
-                    "library relocation exceeds bytecode bounds"
-                );
+                if bytecode.libraries.get(relocation.library).is_none() {
+                    error = Some(
+                        dcx.err(format!(
+                            "{kind} bytecode relocation references nonexistent library {}",
+                            relocation.library.index()
+                        ))
+                        .emit(),
+                    );
+                }
+                if relocation.offset.checked_add(20).is_none_or(|end| end > bytecode.bytes.len()) {
+                    error = Some(
+                        dcx.err(format!("{kind} bytecode relocation exceeds bytecode bounds"))
+                            .emit(),
+                    );
+                }
             }
         }
-        Self {
-            deployment: (!deployment.bytes.is_empty()).then_some(deployment),
-            runtime: (!runtime.bytes.is_empty()).then_some(runtime),
-        }
+        error.map_or(Ok(()), Err)
     }
 
     /// Returns the deployment bytecode, when codegen produced it.
     pub(crate) fn deployment(&self) -> Option<&RelocatableBytecode> {
-        self.deployment.as_ref()
+        (!self.deployment.bytes.is_empty()).then_some(&self.deployment)
     }
 
     /// Returns the runtime bytecode, when codegen produced it.
     pub(crate) fn runtime(&self) -> Option<&RelocatableBytecode> {
-        self.runtime.as_ref()
+        (!self.runtime.bytes.is_empty()).then_some(&self.runtime)
     }
 }
 
@@ -286,11 +292,14 @@ fn is_repeated_word(data: &[u8]) -> bool {
 mod tests {
     use super::*;
     use crate::link::{Library, LibraryTable};
-    use solar_interface::sym;
+    use snapbox::{assert_data_eq, str};
+    use solar_interface::{ColorChoice, Session, sym};
 
     #[test]
     fn contract_bytecodes_validate_relocations() {
-        solar_interface::enter(|| {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.dcx.set_flags(|flags| flags.track_diagnostics = false);
+        sess.enter(|| {
             let mut libraries = LibraryTable::default();
             let library = libraries.intern(Library { source: sym::Test, name: sym::Test });
             let valid = RelocatableBytecode {
@@ -299,6 +308,7 @@ mod tests {
                 relocations: vec![LibraryRelocation { offset: 0, library }],
             };
             let bytecodes = ContractBytecodes::new(valid.clone(), valid.clone());
+            assert!(bytecodes.validate(&sess.dcx).is_ok());
             assert_eq!(bytecodes.deployment(), Some(&valid));
             assert_eq!(bytecodes.runtime(), Some(&valid));
 
@@ -311,19 +321,25 @@ mod tests {
                     ..valid.clone()
                 },
             ] {
-                assert!(
-                    std::panic::catch_unwind(|| {
-                        ContractBytecodes::new(invalid.clone(), valid.clone())
-                    })
-                    .is_err()
-                );
-                assert!(
-                    std::panic::catch_unwind(|| {
-                        ContractBytecodes::new(valid.clone(), invalid.clone())
-                    })
-                    .is_err()
-                );
+                let deployment = ContractBytecodes::new(invalid.clone(), valid.clone());
+                assert!(deployment.validate(&sess.dcx).is_err());
+                let runtime = ContractBytecodes::new(valid.clone(), invalid);
+                assert!(runtime.validate(&sess.dcx).is_err());
             }
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: deployment bytecode relocation references nonexistent library 0
+
+error: runtime bytecode relocation references nonexistent library 0
+
+error: deployment bytecode relocation exceeds bytecode bounds
+
+error: runtime bytecode relocation exceeds bytecode bounds
+
+
+"#]]
+            );
         });
     }
 
