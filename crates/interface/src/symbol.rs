@@ -1299,6 +1299,7 @@ symbols! {
         truncate,
         tryDeploy,
         tryDeploy2,
+        tryDeployInto,
         tryReadUint256BE,
         try_decode_error_message,
         tuple,
