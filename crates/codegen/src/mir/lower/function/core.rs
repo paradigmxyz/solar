@@ -83,6 +83,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::TryDeploy | CoreIntrinsic::TryDeploy2 => {
                 self.lower_core_try_deploy(intrinsic, function_id, &operands)
             }
+            CoreIntrinsic::TryDeployInto => self.lower_core_try_deploy_into(function_id, &operands),
             CoreIntrinsic::TryReadBytes(width) => {
                 self.lower_core_try_read(function_id, &operands, width)
             }
@@ -271,6 +272,32 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let failed = self.builder.iszero(deployed);
         let success = self.builder.iszero(failed);
         Some(self.core_results(function_id, vec![success, deployed]))
+    }
+
+    /// `Create.tryDeployInto(initcode, value, diagnostics)`. A creation that
+    /// succeeds leaves no return data, so the copy needs no branch: it moves
+    /// nothing then.
+    fn lower_core_try_deploy_into(
+        &mut self,
+        function_id: hir::FunctionId,
+        operands: &[ValueId],
+    ) -> Option<ValueId> {
+        let [initcode, value, diagnostics] = *operands else { return None };
+        let capacity = self.builder.memory_object_len(diagnostics, MemoryObjectKind::Bytes);
+        let destination = self.builder.memory_object_data(diagnostics, MemoryObjectKind::Bytes);
+        let deployed = self.core_create(initcode, None, value);
+        // total = returndatasize()
+        // copied = total < capacity ? total : capacity
+        // returndatacopy(data(diagnostics), 0, copied)
+        let total = self.builder.returndatasize();
+        let shorter = self.builder.lt(total, capacity);
+        let copied = self.builder.select(shorter, total, capacity);
+        let zero = self.builder.imm(U256::ZERO);
+        self.builder.returndatacopy_heap(destination, zero, copied);
+        // success = deployed != 0
+        let failed = self.builder.iszero(deployed);
+        let success = self.builder.iszero(failed);
+        Some(self.core_results(function_id, vec![success, deployed, copied, total]))
     }
 
     /// `Create.deploy(initcode, value)` and `Create.deploy2(initcode, salt, value)`.

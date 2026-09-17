@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {Bits} from "solar:core/v1/Bits.sol";
+
 /// @notice How `Math.mulDiv` rounds a quotient that is not exact.
 enum Rounding {
     Down,
@@ -41,6 +43,22 @@ library Math {
         // The quotient exists, so the denominator is not zero here. Rounding
         // up the largest quotient does not fit and fails as an overflow.
         if (rounding == Rounding.Up && mulmod(x, y, denominator) != 0) result += 1;
+    }
+
+    /// @dev The square root of `x`, rounded down.
+    function sqrt(uint256 x) internal pure returns (uint256 root) {
+        if (x == 0) return 0;
+        unchecked {
+            // A power of two above the root: `x` is below `2**(bits + 1)`, so
+            // its root is below `2**(bits / 2 + 1)`. Newton's step from above
+            // only ever comes down, and stops at the floor.
+            root = uint256(1) << ((Bits.highestSetBit(x) >> 1) + 1);
+            while (true) {
+                uint256 next = (root + x / root) >> 1;
+                if (next >= root) break;
+                root = next;
+            }
+        }
     }
 
     /// @dev `x + y` modulo `2**256`.

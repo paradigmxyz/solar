@@ -140,6 +140,9 @@ pub enum CoreIntrinsic {
     TryDeploy,
     /// `Create.tryDeploy2(initcode, salt, value)`: create2, reporting failure.
     TryDeploy2,
+    /// `Create.tryDeployInto(initcode, value, diagnostics)`: create, with a
+    /// failed constructor's revert data bounded into the caller's buffer.
+    TryDeployInto,
     /// `Math.mul512(x, y)`: both words of the product.
     Mul512,
     /// `Math.wrappingAdd(x, y)`.
@@ -221,6 +224,7 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (sym::deploy2, CoreIntrinsic::Deploy2),
                 (sym::tryDeploy, CoreIntrinsic::TryDeploy),
                 (sym::tryDeploy2, CoreIntrinsic::TryDeploy2),
+                (sym::tryDeployInto, CoreIntrinsic::TryDeployInto),
             ])
         })),
         "solar:core/v1/Code.sol" => Some(CODE.get_or_init(|| {
