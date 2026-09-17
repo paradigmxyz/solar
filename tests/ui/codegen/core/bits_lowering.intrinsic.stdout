@@ -21,41 +21,42 @@ fn @entry() [entry] {
     v4 = calldataload 0
     v5 = shr 224, v4
     v6 = calldataload 4
-    switch v5, default bb1, [0x3ce23483 => bb3, 0x5b348c5a => bb4, 0xb2f925a4 => bb5]
+    switch v5, default bb1, [0x3ce23483 => bb3, 0x5b348c5a => bb4, 0xb2f925a4 => bb5, 0xe076913c => bb6]
+  bb6:
+    v30 = clz v6
+    v31 = xor 255, v30
+    v32 = iszero v6
+    v33 = mul v32, 255
+    v34 = xor v31, v33
+    mstore 128, v34
+    returndata 128, 32
   bb5:
-    v14 = and v6, 1
-    v16 = shr 2, v6
-    v17 = and v16, 0x5555555555555555555555555555555555555555555555555555555555555555
-    v15 = shr 1, v6
-    v18 = sub v15, v17
-    v20 = shr 2, v18
-    v21 = and v20, 0x3333333333333333333333333333333333333333333333333333333333333333
-    v19 = and v18, 0x3333333333333333333333333333333333333333333333333333333333333333
-    v22 = add v19, v21
-    v23 = shr 4, v22
-    v24 = add v22, v23
-    v25 = and v24, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
-    v26 = mul v25, 0x101010101010101010101010101010101010101010101010101010101010101
-    v27 = shr 248, v26
-    v28 = add v27, v14
-    mstore 128, v28
+    v15 = and v6, 1
+    v17 = shr 2, v6
+    v18 = and v17, 0x5555555555555555555555555555555555555555555555555555555555555555
+    v16 = shr 1, v6
+    v19 = sub v16, v18
+    v21 = shr 2, v19
+    v22 = and v21, 0x3333333333333333333333333333333333333333333333333333333333333333
+    v20 = and v19, 0x3333333333333333333333333333333333333333333333333333333333333333
+    v23 = add v20, v22
+    v24 = shr 4, v23
+    v25 = add v23, v24
+    v26 = and v25, 0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
+    v27 = mul v26, 0x101010101010101010101010101010101010101010101010101010101010101
+    v28 = shr 248, v27
+    v29 = add v28, v15
+    mstore 128, v29
     returndata 128, 32
   bb4:
-    jumpi v6, bb7, bb6
-  bb7:
-    v9 = not v6
-    v10 = add v9, 1
-    v11 = and v6, v10
-    v12 = clz v11
-    v13 = sub 255, v12
-    jumpi v11, bb6, bb8
-  bb8:
-    mstore 0, 0x4e487b71
-    mstore 32, 17
-    revert 28, 36
-  bb6:
-    v8 = phi [bb4: 256], [bb7: v13]
-    mstore 128, v8
+    v8 = sub 0, v6
+    v9 = and v6, v8
+    v10 = clz v9
+    v11 = xor 255, v10
+    v12 = iszero v9
+    v13 = mul v12, 255
+    v14 = xor v11, v13
+    mstore 128, v14
     returndata 128, 32
   bb3:
     v7 = clz v6
