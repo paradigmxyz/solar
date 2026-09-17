@@ -58,6 +58,7 @@ use tokio::{
 };
 
 mod prototype_dependencies;
+mod request_analysis;
 
 #[derive(Clone, Copy)]
 enum AnalysisMode {
@@ -282,7 +283,6 @@ struct AnalysisCommitState {
     /// validating its results against the previous discovery snapshot.
     analysis_config: Option<Arc<Config>>,
     natspec_pending_source_changes: FxHashSet<PathBuf>,
-    natspec_context_change_version: usize,
     cached_output: Option<CachedAnalysisOutput>,
 }
 
@@ -469,6 +469,11 @@ pub(crate) struct AnalysisRevision {
 }
 
 impl AnalysisRevision {
+    fn inputs_are_current(&self, vfs_content_revision: u64) -> bool {
+        self.current.load(Ordering::Acquire) == self.version
+            && self.vfs.read().content_revision() == vfs_content_revision
+    }
+
     pub(crate) fn is_current(&self, vfs_content_revision: u64) -> bool {
         let commit = self.commit.lock();
         self.current.load(Ordering::Acquire) == self.version
@@ -972,7 +977,6 @@ impl GlobalState {
                 commit.symbol_tables_version = version;
                 commit.analysis_config = Some(config.clone());
                 commit.natspec_pending_source_changes.clear();
-                commit.natspec_context_change_version = version;
                 published_analysis_version.send_replace(version);
                 (old_symbol_tables, refresh_requests)
             })
@@ -1341,7 +1345,7 @@ impl GlobalState {
                 // Keep invalidation even if a later request cancels the debounced worker.
                 commit.cached_output = None;
             }
-            self.commit_analysis_epoch(&mut commit, version, changed_paths, rediscover);
+            self.commit_analysis_epoch(&mut commit, version, changed_paths);
             let update =
                 self.diagnostics.write().clear_file_path_prefixes_retaining_and_publish_batches(
                     &removed_paths,
@@ -1402,10 +1406,9 @@ impl GlobalState {
         &self,
         commit: &mut AnalysisCommitState,
         changed_paths: Vec<PathBuf>,
-        context_changed: bool,
     ) -> usize {
         let version = self.next_analysis_version();
-        self.commit_analysis_epoch(commit, version, changed_paths, context_changed);
+        self.commit_analysis_epoch(commit, version, changed_paths);
         version
     }
 
@@ -1414,12 +1417,8 @@ impl GlobalState {
         commit: &mut AnalysisCommitState,
         version: usize,
         changed_paths: Vec<PathBuf>,
-        context_changed: bool,
     ) {
         commit.vfs_content_revision = self.vfs.read().content_revision();
-        if context_changed {
-            commit.natspec_context_change_version = version;
-        }
         commit.natspec_pending_source_changes.extend(changed_paths);
         self.analysis_version.store(version, Ordering::Release);
         self.analysis_invalidated.send_replace(());
@@ -1559,66 +1558,25 @@ impl GlobalState {
         }
     }
 
-    pub(crate) fn natspec_semantics_are_usable(&self, request_uri: &Url) -> bool {
-        let request_path = request_uri.to_file_path().ok();
-        let (analysis_version, symbol_tables_version, context_change_version, pending_paths) = {
-            let commit = self.analysis_commit.lock();
-            (
-                self.analysis_version.load(Ordering::Acquire),
-                commit.symbol_tables_version,
-                commit.natspec_context_change_version,
-                commit.natspec_pending_source_changes.iter().cloned().collect::<Vec<_>>(),
-            )
-        };
-        if symbol_tables_version >= analysis_version {
-            return true;
-        }
-        if context_change_version > symbol_tables_version {
-            return false;
-        }
-
-        for path in pending_paths {
-            if request_path.as_deref() == Some(path.as_path()) {
-                continue;
-            }
-            let Ok(uri) = Url::from_file_path(&path) else { return false };
-            let analyzed =
-                self.symbol_tables.load().natspec_source_fingerprint(&uri).map(str::to_owned);
-            let vfs_path = crate::vfs::VfsPath::from(path.clone());
-            let open_contents = self.vfs.read().get_file_contents(&vfs_path).cloned();
-            let current = open_contents
-                .map(|contents| contents.to_string())
-                .or_else(|| self.sess.source_map().file_loader().load_file(&path).ok());
-            let current =
-                current.as_deref().map(crate::natspec_completion::source_syntax_fingerprint);
-            if !matches!((analyzed.as_deref(), current.as_deref()),
-                (Some(analyzed), Some(current)) if analyzed == current
-            ) {
-                return false;
-            }
-        }
-        true
-    }
-
     #[cfg(test)]
     pub(crate) fn mark_analysis_pending_for_test(&self) {
         let analysis_commit = self.analysis_commit.clone();
         let mut commit = analysis_commit.lock();
-        self.begin_analysis_epoch(&mut commit, Vec::new(), false);
+        self.begin_analysis_epoch(&mut commit, Vec::new());
     }
 
     #[cfg(test)]
     pub(crate) fn mark_source_analysis_pending_for_test(&self, path: PathBuf) {
         let analysis_commit = self.analysis_commit.clone();
         let mut commit = analysis_commit.lock();
-        self.begin_analysis_epoch(&mut commit, vec![path], false);
+        self.begin_analysis_epoch(&mut commit, vec![path]);
     }
 
     #[cfg(test)]
     pub(crate) fn mark_context_analysis_pending_for_test(&self) {
         let analysis_commit = self.analysis_commit.clone();
         let mut commit = analysis_commit.lock();
-        self.begin_analysis_epoch(&mut commit, Vec::new(), true);
+        self.begin_analysis_epoch(&mut commit, Vec::new());
     }
 
     #[cfg(test)]
@@ -2084,7 +2042,6 @@ fn handle_analysis_failure(
     commit.cache_invalidated = true;
     commit.cached_output = None;
     commit.discovery_pending = false;
-    commit.natspec_context_change_version = commit.natspec_context_change_version.max(version);
     published_analysis_version.send_replace(version);
     Some(refresh_requests)
 }

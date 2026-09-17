@@ -579,10 +579,8 @@ impl BenchmarkRepeatedAnalysis {
         config.try_rediscover_workspaces().expect("benchmark workspace discovery should succeed");
         assert_eq!(config.workspaces().len(), roots.len());
         assert!(config.workspaces().iter().all(|workspace| {
-            workspace
-                .source_files()
-                .iter()
-                .any(|path| path.file_name().is_some_and(|name| name == "Main.sol"))
+            workspace.source_files().len() == 1
+                && workspace.source_files()[0].file_name().is_some_and(|name| name == "Main.sol")
         }));
         let mut state = super::GlobalState::new(ClientSocket::new_closed());
         state.config = Arc::new(config);
@@ -637,7 +635,6 @@ impl BenchmarkRepeatedAnalysis {
             &mut self.state.analysis_commit.lock(),
             version,
             Vec::new(),
-            false,
         );
         let mut snapshot = self.snapshot();
         let progress = self.state.analysis_progress.reserve(version);
@@ -660,15 +657,6 @@ impl BenchmarkRepeatedAnalysis {
         position: Position,
     ) -> Option<Vec<CallHierarchyItem>> {
         self.state.symbol_tables.load().prepare_call_hierarchy(uri, position)
-    }
-
-    /// Complete names against the latest published snapshot.
-    pub fn completions(&self, uri: &Url, position: Position, prefix: &str) -> Vec<CompletionItem> {
-        self.state.symbol_tables.load().completion_items(
-            uri,
-            position,
-            CompletionContext::new(prefix, None),
-        )
     }
 
     /// Advance the VFS revision through an edit and undo before analysis begins.
@@ -965,6 +953,7 @@ impl BenchmarkSignatureHelpRequests {
             Some(1),
         );
         state.symbol_tables.store(Arc::new(project.analyze().symbol_tables));
+        state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
         let params = SignatureHelpParams {
             text_document_position_params: TextDocumentPositionParams {
                 text_document: TextDocumentIdentifier { uri },
@@ -1001,6 +990,7 @@ impl BenchmarkSignatureHelpRequests {
             Some(if edit { 2 } else { 1 }),
         );
         state.symbol_tables.store(self.state.symbol_tables.load_full());
+        state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
         Self { state, params: self.params.clone() }
     }
 

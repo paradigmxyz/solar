@@ -974,89 +974,99 @@ pub(crate) fn signature_help(
     params: SignatureHelpParams,
 ) -> impl Future<Output = Result<Option<SignatureHelp>, ResponseError>> + use<> {
     let params = params.text_document_position_params;
-    let response = state.cached_vfs_path(&params.text_document.uri).and_then(|path| {
-        let source = state.vfs.read().get_file_source(&path)?;
+    let source = state
+        .cached_vfs_path(&params.text_document.uri)
+        .and_then(|path| state.vfs.read().get_file_source(&path));
+    let analysis =
+        source.as_ref().map(|_| state.analysis_for_request(&params.text_document.uri, None));
+    let options = state.config.signature_help_options();
+    async move {
+        let (Some(source), Some(analysis)) = (source, analysis) else { return Ok(None) };
+        let tables = analysis.await?;
         let cursor = source
             .positions()
             .text_range(lsp_types::Range::new(params.position, params.position))
             .start;
-        let statement_boundary = Some(source.statement_boundary(cursor));
-        state.symbol_tables.load().signature_help(
+        Ok(tables.signature_help(
             &params.text_document.uri,
             params.position,
             source.positions(),
             &source.source(),
-            statement_boundary,
-            state.config.signature_help_options(),
-        )
-    });
-    ready(Ok(response))
+            Some(source.statement_boundary(cursor)),
+            options,
+        ))
+    }
 }
 
 pub(crate) fn completion(
     state: &mut GlobalState,
     params: CompletionParams,
 ) -> impl Future<Output = Result<Option<CompletionResponse>, ResponseError>> + use<> {
-    let trigger_character =
-        params.context.as_ref().and_then(|context| context.trigger_character.as_deref());
+    let empty_trigger = matches!(
+        params.context.as_ref().and_then(|context| context.trigger_character.as_deref()),
+        Some("/" | "*" | "\"" | "'")
+    );
     let params = params.text_document_position;
     let source = state
         .cached_vfs_path(&params.text_document.uri)
         .and_then(|path| state.vfs.read().get_file_source(&path));
-    if let Some(source) = source {
-        let contents = source.contents();
-        let cursor = source
-            .positions()
-            .checked_text_range(lsp_types::Range::new(params.position, params.position))
-            .map(|range| range.start);
-        match natspec_completion::target(contents, cursor) {
-            NatSpecCompletionResult::Claimed(target) => {
-                let items = target.map_or_else(Vec::new, |target| {
-                    let semantics = state
-                        .natspec_semantics_are_usable(&params.text_document.uri)
-                        .then(|| {
-                            state
-                                .symbol_tables
-                                .load()
-                                .natspec_semantics(
-                                    &params.text_document.uri,
-                                    target.source_fingerprint(),
-                                    target.key(),
-                                )
-                                .cloned()
-                        })
-                        .flatten();
-                    target.completion_items(state.config.completion_options(), semantics.as_ref())
-                });
-                return ready(Ok(Some(CompletionResponse::Array(items))));
-            }
-            NatSpecCompletionResult::NotApplicable => {}
-        }
-        if let Some(cursor) = cursor
-            && let Some(response) = import_completion(
-                state,
-                &params.text_document.uri,
-                cursor,
-                contents,
-                &source.source(),
-            )
-        {
-            return ready(Ok(Some(response)));
-        }
-    }
-    if matches!(trigger_character, Some("/" | "*" | "\"" | "'")) {
-        return ready(Ok(Some(CompletionResponse::Array(Vec::new()))));
-    }
+    let (natspec, import) =
+        source.as_ref().map_or((NatSpecCompletionResult::NotApplicable, None), |source| {
+            let contents = source.contents();
+            let cursor = source
+                .positions()
+                .checked_text_range(lsp_types::Range::new(params.position, params.position))
+                .map(|range| range.start);
+            let natspec = natspec_completion::target(contents, cursor);
+            let import = if matches!(natspec, NatSpecCompletionResult::NotApplicable) {
+                cursor.and_then(|cursor| {
+                    import_completion(
+                        state,
+                        &params.text_document.uri,
+                        cursor,
+                        contents,
+                        &source.source(),
+                    )
+                })
+            } else {
+                None
+            };
+            (natspec, import)
+        });
+    let source_override = match &natspec {
+        NatSpecCompletionResult::Claimed(Some(target)) => target.analysis_source.clone(),
+        _ => None,
+    };
+    let analysis = state.analysis_for_request(&params.text_document.uri, source_override);
     let input = completion_input(state, &params.text_document.uri, params.position);
-    let context = input.as_ref().map(CompletionInput::context).unwrap_or_default();
     let options = state.config.completion_options();
-    let symbol_tables = state.symbol_tables.load();
-    let mut items =
-        symbol_tables.completion_items(&params.text_document.uri, params.position, context);
-    if !options.resolve_documentation {
-        symbol_tables.resolve_completion_items(&mut items, options.markdown_documentation);
+    async move {
+        let tables = analysis.await?;
+        if let NatSpecCompletionResult::Claimed(target) = natspec {
+            let items = target.map_or_else(Vec::new, |target| {
+                let semantics = tables.natspec_semantics(
+                    &params.text_document.uri,
+                    target.source_fingerprint(),
+                    target.key(),
+                );
+                target.completion_items(options, semantics)
+            });
+            return Ok(Some(CompletionResponse::Array(items)));
+        }
+        if let Some(import) = import {
+            return Ok(Some(import));
+        }
+        if empty_trigger {
+            return Ok(Some(CompletionResponse::Array(Vec::new())));
+        }
+        let context = input.as_ref().map(CompletionInput::context).unwrap_or_default();
+        let mut items =
+            tables.completion_items(&params.text_document.uri, params.position, context);
+        if !options.resolve_documentation {
+            tables.resolve_completion_items(&mut items, options.markdown_documentation);
+        }
+        Ok(Some(CompletionResponse::Array(items)))
     }
-    ready(Ok(Some(CompletionResponse::Array(items))))
 }
 
 fn import_completion(

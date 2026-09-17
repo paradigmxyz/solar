@@ -887,7 +887,7 @@ new_text:
 }
 
 #[test]
-fn pending_analysis_omits_stale_getter_returns_without_waiting() {
+fn pending_analysis_uses_current_getter_returns() {
     let fixture = RequestFixture::new(
         r#"
         //- /Completion.sol open
@@ -916,14 +916,16 @@ sort_text=0
 text_edit=edit 5:4-5:7
 insert_text_format=Snippet
 new_text:
-/// @notice $1$0
+/// @notice $1
+    /// @return amount $2
+    /// @return admin $3$0
 
 "#]],
     );
 }
 
 #[test]
-fn pending_analysis_omits_stale_inheritdoc_without_waiting() {
+fn pending_analysis_uses_current_inheritdoc() {
     let fixture = RequestFixture::new(
         r#"
         //- /Completion.sol open
@@ -953,12 +955,21 @@ insert_text_format=Snippet
 new_text:
 /// $1$0
 
+label=NatSpec @inheritdoc Other
+kind=Snippet
+detail=Inherit documentation from Other
+sort_text=1:Other
+text_edit=edit 3:4-3:7
+insert_text_format=Snippet
+new_text:
+/// @inheritdoc Other$0
+
 "#]],
     );
 }
 
 #[test]
-fn pending_context_change_omits_inheritdoc_without_waiting() {
+fn pending_context_change_recomputes_inheritdoc() {
     let fixture = RequestFixture::new(
         r#"
         //- /Completion.sol open
@@ -982,6 +993,15 @@ text_edit=edit 2:4-2:7
 insert_text_format=Snippet
 new_text:
 /// $1$0
+
+label=NatSpec @inheritdoc Base
+kind=Snippet
+detail=Inherit documentation from Base
+sort_text=1:Base
+text_edit=edit 2:4-2:7
+insert_text_format=Snippet
+new_text:
+/// @inheritdoc Base$0
 
 "#]],
     );
@@ -1154,7 +1174,7 @@ new_text:
 }
 
 #[test]
-fn pending_imported_struct_change_omits_stale_getter_returns() {
+fn pending_imported_struct_change_uses_current_getter_returns() {
     let fixture = RequestFixture::new(
         r#"
         //- /Base.sol open
@@ -1187,7 +1207,9 @@ sort_text=0
 text_edit=edit 2:4-2:7
 insert_text_format=Snippet
 new_text:
-/// @notice $1$0
+/// @notice $1
+    /// @return amount $2
+    /// @return admin $3$0
 
 "#]],
     );
@@ -1939,9 +1961,9 @@ Numbers Module
     );
     let changed = fixture
         .project_contents("/Completion.sol")
-        .replace("Numbers;", "Numbers.")
-        .replace("value;", "value.")
-        .replace("x;", "x.");
+        .replace("Numbers;", "Numbers.;")
+        .replace("value;", "value.;")
+        .replace("x;", "x.;");
     for marker in ["$1", "$2", "$4"] {
         fixture.check_completion_details_after_change(
             marker,
@@ -2035,8 +2057,8 @@ fn pending_members_respect_shadowing_and_chained_receivers() {
     );
     let changed = fixture
         .project_contents("/Completion.sol")
-        .replace("msg;", "msg.")
-        .replace("msg.field;", "msg.field.");
+        .replace("        msg;", "        msg.;")
+        .replace("msg.field;", "msg.field.;");
     fixture.check_completion_details_after_change(
         "$1",
         "/Completion.sol",
@@ -2093,13 +2115,13 @@ fn completes_all_declaration_receivers_before_analysis() {
     );
     let changed = fixture
         .project_contents("/Completion.sol")
-        .replace("Status;", "Status.")
-        .replace("Record;", "Record.")
-        .replace("Price;", "Price.")
-        .replace("Changed;", "Changed.")
-        .replace("Failed;", "Failed.")
-        .replace("helper;", "helper.")
-        .replace("Base;", "Base.");
+        .replace("Status;", "Status.;")
+        .replace("Record;", "Record.;")
+        .replace("Price;", "Price.;")
+        .replace("Changed;", "Changed.;")
+        .replace("Failed;", "Failed.;")
+        .replace("helper;", "helper.;")
+        .replace("Base;", "Base.;");
     fixture.check_completion_after_change(
         "$1",
         "/Completion.sol",
@@ -2186,8 +2208,8 @@ Definitions Module
     );
     let changed = fixture
         .project_contents("/Completion.sol")
-        .replace("Definitions;", "Definitions.")
-        .replace("Exports;", "Exports.");
+        .replace("Definitions;", "Definitions.;")
+        .replace("        Exports;", "        Exports.;");
     fixture.check_completion_after_change(
         "$2",
         "/Completion.sol",
@@ -2241,11 +2263,11 @@ fn pending_receivers_use_the_callers_contract_scope() {
     );
     let changed = fixture
         .project_contents("/Completion.sol")
-        .replace("amount;", "amount.")
-        .replace("this;", "this.")
-        .replace("super;", "super.")
-        .replace("externalCall;", "externalCall.")
-        .replace("secret;", "secret.");
+        .replace("amount;", "amount.;")
+        .replace("this;", "this.;")
+        .replace("super;", "super.;")
+        .replace("externalCall;", "externalCall.;")
+        .replace("secret;", "secret.;");
     fixture.check_completion_after_change(
         "$1",
         "/Completion.sol",
@@ -2302,7 +2324,7 @@ fn completes_function_value_members_before_analysis() {
         "#,
         "/Completion.sol",
     );
-    let changed = fixture.project_contents("/Completion.sol").replace("callback;", "callback.");
+    let changed = fixture.project_contents("/Completion.sol").replace("callback;", "callback.;");
     fixture.check_completion_after_change(
         "$1",
         "/Completion.sol",

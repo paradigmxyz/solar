@@ -255,11 +255,6 @@ impl NatSpecCompletionIndex {
         Some(semantics)
     }
 
-    pub(crate) fn source_fingerprint(&self, uri: &Url) -> Option<&str> {
-        let path = uri.to_file_path().ok()?;
-        self.by_file.get(&path)?.syntax_fingerprint()
-    }
-
     fn add_ast_item(
         entries: &mut FxHashMap<DeclarationKey, IndexedSemantics>,
         gcx: Gcx<'_>,

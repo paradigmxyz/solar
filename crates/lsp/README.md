@@ -11,6 +11,12 @@ Indexing exclusions still apply. Foundry settings supply import resolution, comp
 and build entry points for flycheck. Explicitly configured source directories remain included,
 including directories outside the project root.
 
+Completion and signature help reuse the current index when it is fresh. During a
+pending edit, they analyze the requested file and its imports with the captured
+open-document overlays. This request analysis runs independently of workspace
+indexing and never publishes partial diagnostics or replaces the full index.
+Requests reject results when a newer edit changes their inputs.
+
 ## Embedding
 
 Use the public `solar_lsp::launch` entry point to run the same language server implementation
@@ -97,8 +103,3 @@ The benchmark groups intentionally keep separate timing boundaries:
   `single-workspace-changed`, and `single-workspace-unchanged` provide first-analysis, changed-text,
   and unchanged-epoch controls. These include synchronous filesystem validation and compiler work;
   they exclude protocol transport, debounce, and blocking-pool scheduling.
-- `fresh-completion-warm` and `fresh-completion-after-edit` compare a warm query with
-  an edit, a complete synchronous analysis epoch, and a checked fresh response.
-  Unrelated contracts share the active workspace or occupy separate workspaces.
-  See [the analysis latency investigation](ANALYSIS_LATENCY.md) for timing boundaries,
-  measurements, and the proposed request-snapshot boundary.
