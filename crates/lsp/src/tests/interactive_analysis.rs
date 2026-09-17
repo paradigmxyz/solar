@@ -1,7 +1,8 @@
 use super::*;
 use lsp_types::{
-    DocumentSymbolParams, GotoDefinitionParams, HoverParams, ReferenceContext, ReferenceParams,
-    RenameParams, TextDocumentPositionParams,
+    CompletionParams, CompletionResponse, DocumentSymbolParams, GotoDefinitionParams, HoverParams,
+    ReferenceContext, ReferenceParams, RenameParams, SignatureHelpParams,
+    TextDocumentPositionParams,
 };
 
 fn fixture() -> (TestProject, GlobalState, Url) {
@@ -433,4 +434,178 @@ async fn content_identical_edits_preserve_pending_requests() {
     drop(gate);
     let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, hover).await.unwrap().unwrap();
     assert!(response.is_some());
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn completes_using_for_after_adding_a_local_variable() {
+    for (using, local) in [("using Math for uint256;", "// local"), ("// using", "uint256 x;")] {
+        for expression in ["x.", "x.tw"] {
+            let (_project, mut state, uri) = fixture();
+            let source = format!(
+                r#"library Math {{
+    function twice(uint256 value) internal pure returns (uint256) {{ return value * 2; }}
+}}
+contract C {{
+    {using}
+    function f() public pure {{
+        {local}
+        // completion
+    }}
+}}"#,
+            );
+            change(&mut state, &uri, 1, &source);
+            state.prioritize_pending_analysis();
+            tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+                .await
+                .unwrap()
+                .unwrap();
+
+            let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
+            let changed = source
+                .replace("// using", "using Math for uint256;")
+                .replace("// local", "uint256 x;")
+                .replace("// completion", expression);
+            change(&mut state, &uri, 2, &changed);
+            let mut completion = std::pin::pin!(crate::handlers::completion(
+                &mut state,
+                CompletionParams {
+                    text_document_position: TextDocumentPositionParams {
+                        text_document: TextDocumentIdentifier::new(uri),
+                        position: Position::new(7, 8 + expression.len() as u32),
+                    },
+                    work_done_progress_params: Default::default(),
+                    partial_result_params: Default::default(),
+                    context: None,
+                },
+            ));
+            assert!(completion.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
+            assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
+            drop(gate);
+            let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, completion)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+            let CompletionResponse::Array(items) = response else {
+                panic!("expected completion array")
+            };
+            assert_eq!(items.iter().map(|item| item.label.as_str()).collect::<Vec<_>>(), ["twice"]);
+        }
+    }
+}
+
+async fn using_fixture() -> (TestProject, GlobalState, Url, String) {
+    let (project, mut state, uri) = fixture();
+    let source = r#"library Math {
+    function twice(uint256 value) internal pure returns (uint256) { return value * 2; }
+    function triple(uint256 value) internal pure returns (uint256) { return value * 3; }
+}
+contract C {
+    using {Math.twice} for uint256;
+    function f() public pure {
+        uint256 x;
+        // completion
+    }
+}"#
+    .to_owned();
+    change(&mut state, &uri, 1, &source);
+    state.prioritize_pending_analysis();
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    (project, state, uri, source)
+}
+
+fn completion_params(uri: &Url, character: u32) -> CompletionParams {
+    CompletionParams {
+        text_document_position: TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier::new(uri.clone()),
+            position: Position::new(8, character),
+        },
+        work_done_progress_params: Default::default(),
+        partial_result_params: Default::default(),
+        context: None,
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn completions_refresh_nonempty_lists_and_local_names() {
+    for (using, local, expression, expected) in [
+        ("using Math for uint256;", "uint256 x;", "x.", vec!["triple", "twice"]),
+        ("using {Math.triple} for uint256;", "uint256 x;", "x.", vec!["triple"]),
+        ("using {Math.twice} for uint256;", "uint256 newLocal;", "newL", vec!["newLocal"]),
+    ] {
+        let (_project, mut state, uri, source) = using_fixture().await;
+        let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
+        let changed = source
+            .replace("using {Math.twice} for uint256;", using)
+            .replace("uint256 x;", local)
+            .replace("// completion", expression);
+        change(&mut state, &uri, 2, &changed);
+        let mut completion = std::pin::pin!(crate::handlers::completion(
+            &mut state,
+            completion_params(&uri, 8 + expression.len() as u32),
+        ));
+        assert!(completion.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
+        assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
+        drop(gate);
+        let response =
+            tokio::time::timeout(ASYNC_TEST_TIMEOUT, completion).await.unwrap().unwrap().unwrap();
+        let CompletionResponse::Array(items) = response else {
+            panic!("expected completion array")
+        };
+        assert_eq!(items.iter().map(|item| item.label.as_str()).collect::<Vec<_>>(), expected);
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn signature_help_waits_for_a_new_attached_call() {
+    let (_project, mut state, uri, source) = using_fixture().await;
+    let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
+    change(&mut state, &uri, 2, &source.replace("// completion", "x.twice("));
+    let mut signature = std::pin::pin!(crate::handlers::signature_help(
+        &mut state,
+        SignatureHelpParams {
+            text_document_position_params: completion_params(&uri, 16).text_document_position,
+            work_done_progress_params: Default::default(),
+            context: None,
+        },
+    ));
+    assert!(signature.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
+    assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
+    drop(gate);
+    let response =
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, signature).await.unwrap().unwrap().unwrap();
+    snapbox::assert_data_eq!(
+        response.signatures[0].label.as_str(),
+        snapbox::str!["function twice() internal pure returns (uint256)"]
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn completion_and_signature_help_reject_superseding_edits() {
+    let (_project, mut state, uri, source) = using_fixture().await;
+    let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
+    change(&mut state, &uri, 2, &source.replace("// completion", "x.twice("));
+    let mut completion =
+        std::pin::pin!(crate::handlers::completion(&mut state, completion_params(&uri, 10)));
+    let mut signature = std::pin::pin!(crate::handlers::signature_help(
+        &mut state,
+        SignatureHelpParams {
+            text_document_position_params: completion_params(&uri, 16).text_document_position,
+            work_done_progress_params: Default::default(),
+            context: None,
+        },
+    ));
+    let mut cx = Context::from_waker(Waker::noop());
+    assert!(completion.as_mut().poll(&mut cx).is_pending());
+    assert!(signature.as_mut().poll(&mut cx).is_pending());
+    change(&mut state, &uri, 3, &source.replace("// completion", "x.twice();"));
+    let Poll::Ready(Err(error)) = completion.as_mut().poll(&mut cx) else {
+        panic!("stale completion must be rejected")
+    };
+    assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
+    let Poll::Ready(Err(error)) = signature.as_mut().poll(&mut cx) else {
+        panic!("stale signature help must be rejected")
+    };
+    assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
+    drop(gate);
 }

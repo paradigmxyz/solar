@@ -26,7 +26,7 @@ use std::{
     future::Future,
     io::Read as _,
     path::Path,
-    sync::Arc,
+    sync::{Arc, atomic::Ordering},
     task::{Context, Poll, Waker},
 };
 
@@ -215,10 +215,27 @@ impl RequestFixture {
         }
         let uri = Url::from_file_path(self.marked.project().path(request_path)).unwrap();
         let position = self.marked.marker(marker).position();
-        let response =
-            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
-                .unwrap()
-                .unwrap();
+        let mut completion = std::pin::pin!(crate::handlers::completion(
+            &mut state,
+            completion_params(uri, position),
+        ));
+        let response = match completion.as_mut().poll(&mut Context::from_waker(Waker::noop())) {
+            Poll::Ready(response) => response,
+            Poll::Pending => {
+                let mut snapshot = state.snapshot();
+                let mut results = AnalysisResultAccumulator::default();
+                for batch in snapshot.analysis_batches(Vec::new()) {
+                    results.push(analyze(batch));
+                }
+                assert!(snapshot.publish_analysis(
+                    state.analysis_version.load(Ordering::Acquire),
+                    results.finish(),
+                ));
+                expect_ready(completion)
+            }
+        }
+        .unwrap()
+        .unwrap();
         let CompletionResponse::Array(items) = response else {
             panic!("expected completion array");
         };

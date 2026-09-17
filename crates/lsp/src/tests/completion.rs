@@ -1908,7 +1908,7 @@ fn dot_completions_never_fall_back_to_globals() {
 }
 
 #[test]
-fn completes_library_members_before_analysis_finishes() {
+fn completes_library_members_after_edits() {
     let fixture = RequestFixture::new(
         r#"
         //- /Math.sol
@@ -2017,7 +2017,7 @@ fn incomplete_uint_members_do_not_complete_globals() {
 }
 
 #[test]
-fn pending_members_respect_shadowing_and_chained_receivers() {
+fn edited_members_respect_shadowing_and_chained_receivers() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Completion.sol open
@@ -2036,6 +2036,7 @@ fn pending_members_respect_shadowing_and_chained_receivers() {
     let changed = fixture
         .project_contents("/Completion.sol")
         .replace("msg;", "msg.")
+        .replace("memory msg.", "memory msg;")
         .replace("msg.field;", "msg.field.");
     fixture.check_completion_details_after_change(
         "$1",
@@ -2057,7 +2058,7 @@ new_text:
 }
 
 #[test]
-fn completes_all_declaration_receivers_before_analysis() {
+fn completes_all_declaration_receivers_after_edits() {
     let fixture = RequestFixture::new(
         r#"
         //- /Completion.sol open
@@ -2157,7 +2158,7 @@ total Method
 }
 
 #[test]
-fn completes_namespace_receivers_before_analysis() {
+fn completes_namespace_receivers_after_edits() {
     let fixture = RequestFixture::new_in_batches(
         r#"
         //- /Definitions.sol
@@ -2187,7 +2188,8 @@ Definitions Module
     let changed = fixture
         .project_contents("/Completion.sol")
         .replace("Definitions;", "Definitions.")
-        .replace("Exports;", "Exports.");
+        .replace("Exports;", "Exports.")
+        .replace("as Exports.", "as Exports;");
     fixture.check_completion_after_change(
         "$2",
         "/Completion.sol",
@@ -2210,7 +2212,7 @@ Numbers Module
 }
 
 #[test]
-fn pending_receivers_use_the_callers_contract_scope() {
+fn edited_receivers_use_the_callers_contract_scope() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Base.sol
@@ -2290,7 +2292,7 @@ selector Method
 }
 
 #[test]
-fn completes_function_value_members_before_analysis() {
+fn completes_function_value_members_after_edits() {
     let fixture = RequestFixture::new(
         r#"
         //- /Completion.sol open
