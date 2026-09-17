@@ -295,7 +295,7 @@ bb18 [continuation]:
   dup 1
   push 160
   mstore
-  push 288
+  push 256
   add
   push 64
   mstore
@@ -418,13 +418,6 @@ bb29 [continuation]:
   push 1
   push 160
   mload
-  push 64
-  add
-  mload
-  sub
-  push 1
-  push 160
-  mload
   push 96
   add
   mload
@@ -433,6 +426,13 @@ bb29 [continuation]:
   iszero
   push bb25
   jumpi
+  push 1
+  push 160
+  mload
+  push 64
+  add
+  mload
+  sub
   dup 3
   push 160
   mload
@@ -447,12 +447,12 @@ bb29 [continuation]:
   push 32
   add
   mstore
-  dup 3
+  dup 2
   dup 2
   push 64
   add
   mstore
-  dup 2
+  dup 3
   dup 2
   push 96
   add
@@ -536,13 +536,6 @@ bb36:
   mstore
   jump
 bb43 [continuation]:
-  push 1
-  push 160
-  mload
-  push 64
-  add
-  mload
-  sub
   push 3
   push 160
   mload
@@ -559,6 +552,13 @@ bb43 [continuation]:
   lt
   push bb25
   jumpi
+  push 1
+  push 160
+  mload
+  push 64
+  add
+  mload
+  sub
   dup 3
   push 160
   mload
@@ -573,12 +573,12 @@ bb43 [continuation]:
   push 32
   add
   mstore
-  dup 3
+  dup 2
   dup 2
   push 64
   add
   mstore
-  dup 2
+  dup 3
   dup 2
   push 96
   add
@@ -586,7 +586,7 @@ bb43 [continuation]:
   dup 1
   push 160
   mstore
-  push 256
+  push 224
   add
   push 64
   mstore
@@ -602,13 +602,6 @@ bb43 [continuation]:
   iszero
   push bb57
   jumpi
-  push 1
-  push 160
-  mload
-  push 64
-  add
-  mload
-  sub
   push 5
   push 160
   mload
@@ -625,6 +618,13 @@ bb43 [continuation]:
   lt
   push bb25
   jumpi
+  push 1
+  push 160
+  mload
+  push 64
+  add
+  mload
+  sub
   push 64
   mload
   push 160
@@ -633,12 +633,12 @@ bb43 [continuation]:
   push 32
   add
   mstore
-  dup 3
+  dup 2
   dup 2
   push 64
   add
   mstore
-  dup 2
+  dup 3
   dup 2
   push 96
   add
@@ -646,7 +646,7 @@ bb43 [continuation]:
   dup 1
   push 160
   mstore
-  push 288
+  push 256
   add
   push 64
   mstore

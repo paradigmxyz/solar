@@ -168,10 +168,12 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
     v136 = add v146, 32
     v93 = sub v136, v89
     v94 = ne v87, 0
-    jumpi v94, bb18, bb19
+    jumpi v94, bb21, bb19
+  bb21:
+    jump bb18
   bb18:
-    v95 = phi [bb17: v87], [bb18: v102]
-    v96 = phi [bb17: v89], [bb18: v103]
+    v95 = phi [bb18: v102], [bb21: v87]
+    v96 = phi [bb18: v103], [bb21: v89]
     v97 = add v96, v93
     v98 = mload v97
     v100 = ne v98, 0

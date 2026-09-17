@@ -1,0 +1,345 @@
+- // === ROOT/tests/ui/codegen/mir/loop-unswitch/guard.mir (before loop-unswitch) ===
++ // === ROOT/tests/ui/codegen/mir/loop-unswitch/guard.mir (after loop-unswitch) ===
+  @module Unswitch
+  fn @guard(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg1, 0
+-     jump bb1
++     jumpi v0, bb6, bb1
+    bb1:
+      v1 = phi [bb0: 0], [bb3: v8]
+      v2 = phi [bb0: arg0], [bb3: v4]
+      v3 = lt v1, arg2
+      jumpi v3, bb2, bb4
+    bb4:
+      ret v2
+    bb2:
+      v4 = mul v2, arg1
+      v5 = div v4, arg1
+      v6 = eq v5, v2
+-     v7 = or v0, v6
++     v7 = or false, v6
+      jumpi v7, bb3, bb5
+-   bb5:
+-     revert 0, 0
+    bb3:
+      v8 = add v1, 1
+      jump bb1
++   bb6:
++     v9 = phi [bb0: 0], [bb8: v16]
++     v10 = phi [bb0: arg0], [bb8: v12]
++     v11 = lt v9, arg2
++     jumpi v11, bb7, bb9
++   bb9:
++     ret v10
++   bb7:
++     v12 = mul v10, 0
++     v13 = div v12, 0
++     v14 = eq v13, v10
++     v15 = or true, v14
++     jumpi v15, bb8, bb5
++   bb5:
++     revert 0, 0
++   bb8:
++     v16 = add v9, 1
++     jump bb6
+  }
+  
+  fn @keep_memory(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg1, 0
+      jump bb1
+    bb1:
+      v1 = phi [bb0: 0], [bb3: v8]
+      v2 = phi [bb0: arg0], [bb3: v4]
+      v3 = lt v1, arg2
+      jumpi v3, bb2, bb4
+    bb4:
+      ret v2
+    bb2:
+      mstore 128, v2
+      v4 = mul v2, arg1
+      v5 = div v4, arg1
+      v6 = eq v5, v2
+      v7 = or v0, v6
+      jumpi v7, bb3, bb5
+    bb5:
+      revert 0, 0
+    bb3:
+      v8 = add v1, 1
+      jump bb1
+  }
+  
+  fn @inside_guard(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+-     jump bb1
++     v6 = eq arg1, 0
++     jumpi v6, bb6, bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb3: v8]
+      v1 = phi [bb0: arg0], [bb3: v3]
+      v2 = lt v0, arg2
+      jumpi v2, bb2, bb4
+    bb4:
+      ret v1
+    bb2:
+      v3 = mul v1, arg1
+      v4 = div v3, arg1
+      v5 = eq v4, v1
+-     v6 = eq arg1, 0
+-     v7 = or v6, v5
++     v7 = or false, v5
+      jumpi v7, bb3, bb5
+-   bb5:
+-     revert 0, 0
+    bb3:
+      v8 = add v0, 1
+      jump bb1
++   bb6:
++     v9 = phi [bb0: 0], [bb8: v16]
++     v10 = phi [bb0: arg0], [bb8: v12]
++     v11 = lt v9, arg2
++     jumpi v11, bb7, bb9
++   bb9:
++     ret v10
++   bb7:
++     v12 = mul v10, 0
++     v13 = div v12, 0
++     v14 = eq v13, v10
++     v15 = or true, v14
++     jumpi v15, bb8, bb5
++   bb5:
++     revert 0, 0
++   bb8:
++     v16 = add v9, 1
++     jump bb6
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/loop-unswitch/guard.mir (before const-fold) ===
++ // === ROOT/tests/ui/codegen/mir/loop-unswitch/guard.mir (after const-fold) ===
+  @module Unswitch
+  fn @guard(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg1, 0
+      jumpi v0, bb6, bb1
+    bb1:
+      v1 = phi [bb0: 0], [bb3: v8]
+      v2 = phi [bb0: arg0], [bb3: v4]
+      v3 = lt v1, arg2
+      jumpi v3, bb2, bb4
+    bb4:
+      ret v2
+    bb2:
+      v4 = mul v2, arg1
+      v5 = div v4, arg1
+      v6 = eq v5, v2
+      v7 = or false, v6
+      jumpi v7, bb3, bb5
+    bb3:
+      v8 = add v1, 1
+      jump bb1
+    bb6:
+      v9 = phi [bb0: 0], [bb8: v16]
+-     v10 = phi [bb0: arg0], [bb8: v12]
++     v10 = phi [bb0: arg0], [bb8: 0]
+      v11 = lt v9, arg2
+      jumpi v11, bb7, bb9
+    bb9:
+      ret v10
+    bb7:
+-     v12 = mul v10, 0
+-     v13 = div v12, 0
+-     v14 = eq v13, v10
+-     v15 = or true, v14
+-     jumpi v15, bb8, bb5
++     v14 = eq 0, v10
++     jumpi true, bb8, bb5
+    bb5:
+      revert 0, 0
+    bb8:
+      v16 = add v9, 1
+      jump bb6
+  }
+  
+  fn @keep_memory(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg1, 0
+      jump bb1
+    bb1:
+      v1 = phi [bb0: 0], [bb3: v8]
+      v2 = phi [bb0: arg0], [bb3: v4]
+      v3 = lt v1, arg2
+      jumpi v3, bb2, bb4
+    bb4:
+      ret v2
+    bb2:
+      mstore 128, v2
+      v4 = mul v2, arg1
+      v5 = div v4, arg1
+      v6 = eq v5, v2
+      v7 = or v0, v6
+      jumpi v7, bb3, bb5
+    bb5:
+      revert 0, 0
+    bb3:
+      v8 = add v1, 1
+      jump bb1
+  }
+  
+  fn @inside_guard(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v6 = eq arg1, 0
+      jumpi v6, bb6, bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb3: v8]
+      v1 = phi [bb0: arg0], [bb3: v3]
+      v2 = lt v0, arg2
+      jumpi v2, bb2, bb4
+    bb4:
+      ret v1
+    bb2:
+      v3 = mul v1, arg1
+      v4 = div v3, arg1
+      v5 = eq v4, v1
+      v7 = or false, v5
+      jumpi v7, bb3, bb5
+    bb3:
+      v8 = add v0, 1
+      jump bb1
+    bb6:
+      v9 = phi [bb0: 0], [bb8: v16]
+-     v10 = phi [bb0: arg0], [bb8: v12]
++     v10 = phi [bb0: arg0], [bb8: 0]
+      v11 = lt v9, arg2
+      jumpi v11, bb7, bb9
+    bb9:
+      ret v10
+    bb7:
+-     v12 = mul v10, 0
+-     v13 = div v12, 0
+-     v14 = eq v13, v10
+-     v15 = or true, v14
+-     jumpi v15, bb8, bb5
++     v14 = eq 0, v10
++     jumpi true, bb8, bb5
+    bb5:
+      revert 0, 0
+    bb8:
+      v16 = add v9, 1
+      jump bb6
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/loop-unswitch/guard.mir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/loop-unswitch/guard.mir (after cfg-simplify) ===
+  @module Unswitch
+  fn @guard(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg1, 0
+      jumpi v0, bb6, bb1
+    bb1:
+      v1 = phi [bb0: 0], [bb3: v8]
+      v2 = phi [bb0: arg0], [bb3: v4]
+      v3 = lt v1, arg2
+      jumpi v3, bb2, bb4
+    bb4:
+      ret v2
+    bb2:
+      v4 = mul v2, arg1
+      v5 = div v4, arg1
+      v6 = eq v5, v2
+      v7 = or false, v6
+      jumpi v7, bb3, bb5
++   bb5:
++     revert 0, 0
+    bb3:
+      v8 = add v1, 1
+      jump bb1
+    bb6:
+-     v9 = phi [bb0: 0], [bb8: v16]
+-     v10 = phi [bb0: arg0], [bb8: 0]
++     v9 = phi [bb0: 0], [bb7: v16]
++     v10 = phi [bb0: arg0], [bb7: 0]
+      v11 = lt v9, arg2
+-     jumpi v11, bb7, bb9
+-   bb9:
++     jumpi v11, bb7, bb8
++   bb8:
+      ret v10
+    bb7:
+      v14 = eq 0, v10
+-     jumpi true, bb8, bb5
+-   bb5:
+-     revert 0, 0
+-   bb8:
+      v16 = add v9, 1
+      jump bb6
+  }
+  
+  fn @keep_memory(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg1, 0
+      jump bb1
+    bb1:
+      v1 = phi [bb0: 0], [bb3: v8]
+      v2 = phi [bb0: arg0], [bb3: v4]
+      v3 = lt v1, arg2
+      jumpi v3, bb2, bb4
+    bb4:
+      ret v2
+    bb2:
+      mstore 128, v2
+      v4 = mul v2, arg1
+      v5 = div v4, arg1
+      v6 = eq v5, v2
+      v7 = or v0, v6
+      jumpi v7, bb3, bb5
+    bb5:
+      revert 0, 0
+    bb3:
+      v8 = add v1, 1
+      jump bb1
+  }
+  
+  fn @inside_guard(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v6 = eq arg1, 0
+      jumpi v6, bb6, bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb3: v8]
+      v1 = phi [bb0: arg0], [bb3: v3]
+      v2 = lt v0, arg2
+      jumpi v2, bb2, bb4
+    bb4:
+      ret v1
+    bb2:
+      v3 = mul v1, arg1
+      v4 = div v3, arg1
+      v5 = eq v4, v1
+      v7 = or false, v5
+      jumpi v7, bb3, bb5
++   bb5:
++     revert 0, 0
+    bb3:
+      v8 = add v0, 1
+      jump bb1
+    bb6:
+-     v9 = phi [bb0: 0], [bb8: v16]
+-     v10 = phi [bb0: arg0], [bb8: 0]
++     v9 = phi [bb0: 0], [bb7: v16]
++     v10 = phi [bb0: arg0], [bb7: 0]
+      v11 = lt v9, arg2
+-     jumpi v11, bb7, bb9
+-   bb9:
++     jumpi v11, bb7, bb8
++   bb8:
+      ret v10
+    bb7:
+      v14 = eq 0, v10
+-     jumpi true, bb8, bb5
+-   bb5:
+-     revert 0, 0
+-   bb8:
+      v16 = add v9, 1
+      jump bb6
+  }
+  

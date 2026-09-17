@@ -290,58 +290,30 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.scheduler.instruction_executed(0, result_value);
             }
 
-            // Select is like a ternary conditional
             InstKind::Select(cond, true_val, false_val) => {
-                // select(cond, t, f) = f + cond * (t - f)
-                //
-                // We emit all three values to the stack, then do inline computation.
-                // Stack notation: rightmost = top (depth 0).
-                // Stack after emit_value calls: [f, t, cond] with cond on top.
-
-                if let Some(plan) = self.plan_operands(
-                    func,
-                    &[*false_val, *true_val, *cond],
-                    liveness,
-                    block,
-                    inst_idx,
-                ) {
+                let operands = [*false_val, *cond, *true_val];
+                if let Some(plan) = self.plan_operands(func, &operands, liveness, block, inst_idx) {
                     self.emit_operand_plan(func, plan);
                 } else {
-                    self.preserve_stack_only_operands(
-                        &[*false_val, *true_val, *cond],
-                        liveness,
-                        block,
-                        inst_idx,
-                    );
-                    self.emit_value(func, *false_val); // Stack: [f]
-                    self.emit_operand(func, *true_val); // Stack: [f, t]
-                    self.emit_operand(func, *cond); // Stack: [f, t, cond]
+                    self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
+                    self.emit_value(func, *false_val);
+                    self.emit_operand(func, *cond);
+                    self.emit_operand(func, *true_val);
                 }
 
-                // Now compute: f + cond * (t - f)
-                // Stack is [f, t, cond] with cond on top (depth 0), t at depth 1, f at depth 2
-                //
-                // Step 1: get f -> [f, t, cond, f]
-                self.emit_operand(func, *false_val);
-                // Step 2: get t -> [f, t, cond, f, t]
-                self.emit_operand(func, *true_val);
-                // Step 3: SUB (top - second = t - f) -> [f, t, cond, t-f]
+                // [f, c, t] -> [f, c, f, t] -> [f, c, t-f] -> [f, c*(t-f)].
+                self.emit_stack_op(StackOp::Dup(3));
+                self.emit_stack_op(StackOp::Swap(1));
                 self.emit_op_with_effect(
                     op::SUB,
                     StackEffect { pops: 2, pushes: 1 },
                     StackPush::Unknown,
                 );
-                // Step 4: MUL (cond * (t-f)) -> [f, t, cond*(t-f)]
                 self.emit_op_with_effect(
                     op::MUL,
                     StackEffect { pops: 2, pushes: 1 },
                     StackPush::Unknown,
                 );
-                // Step 5: SWAP1 -> [f, cond*(t-f), t]
-                self.emit_stack_op(StackOp::Swap(1));
-                // Step 6: POP (remove t) -> [f, cond*(t-f)]
-                self.emit_stack_op(StackOp::Pop);
-                // Step 7: ADD (cond*(t-f) + f = f + cond*(t-f)) -> [result]
                 let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
                 self.emit_op_with_effect(op::ADD, StackEffect { pops: 2, pushes: 1 }, push);
             }

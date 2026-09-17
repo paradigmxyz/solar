@@ -549,6 +549,11 @@
 ;; a & ~a => 0
 (rule 2 (simplify (Op.And a (bnot a))) (imm (u256 0)))
 
+;; 1 | b => 1, when b is a canonical boolean
+(rule 13 (simplify (Op.Or (and a (one)) (bool_value))) a)
+;; a | 1 => 1, when a is a canonical boolean
+(rule 12 (simplify (Op.Or (bool_value) (and b (one)))) b)
+
 ;; a | (a & _) => a
 (rule 11 (simplify (Op.Or a (band a _))) a)
 ;; a | (_ & a) => a
@@ -740,7 +745,6 @@
 (rule 10 (simplify (Op.Ne a a)) (imm_bool false))
 (rule 9 (simplify (Op.Ne (and x (bool_value)) (zero))) x)
 (rule 8 (simplify (Op.Ne (zero) (and x (bool_value)))) x)
-
 (decl integer_bits (u32) Value)
 (extern extractor integer_bits integer_bits)
 (decl pure u32_lt (u32 u32) bool)

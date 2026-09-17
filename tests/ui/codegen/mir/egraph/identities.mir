@@ -421,3 +421,12 @@ fn @mixed_and_variable_shifts(arg0: i256, arg1: i256) -> struct2 [return_abi=[i2
     v5 = shl arg1, v4
     ret v1, v3, v5
 }
+
+// CHECK-LABEL: @boolean_or_one
+// CHECK: ret true
+fn @boolean_or_one(arg0: i1) -> i1 {
+  bb0:
+    v0 = or arg0, true
+    v1 = or true, v0
+    ret v1
+}

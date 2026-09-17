@@ -68,7 +68,7 @@ bb12 [loop]:
   swap 1
   dup 2
   lt
-  push bb45
+  push bb46
   jumpi
   swap 1
   push 1
@@ -117,7 +117,7 @@ bb22 [loop]:
   swap 2
   dup 3
   lt
-  push bb45
+  push bb46
   jumpi
   push 1
   add
@@ -147,8 +147,8 @@ bb24 [loop]:
   iszero
   push bb18
   jumpi
-  jump bb45
-bb45 [cold]:
+  jump bb46
+bb46 [cold]:
   push 0x4e487b71
   push 0
   mstore
@@ -208,7 +208,7 @@ bb34 [loop]:
   swap 1
   dup 2
   lt
-  push bb45
+  push bb46
   jumpi
   swap 1
   push 1
@@ -224,13 +224,13 @@ bb38:
   push 36
   calldataload
   iszero
-  push 128
-  mstore
+  push bb47
+  jumpi
   push 0
   push 4
   calldataload
-  jump bb40
-bb42 [loop]:
+  jump bb41
+bb43 [loop]:
   push 36
   calldataload
   dup 2
@@ -241,12 +241,8 @@ bb42 [loop]:
   div
   swap 1
   swap 2
-  eq
-  push 128
-  mload
-  or
-  iszero
-  push bb45
+  sub
+  push bb46
   jumpi
   push 4
   calldataload
@@ -255,7 +251,7 @@ bb42 [loop]:
   swap 1
   dup 2
   lt
-  push bb45
+  push bb46
   jumpi
   push 1
   shr
@@ -268,14 +264,37 @@ bb42 [loop]:
   push 1
   add
   swap 1
-  jump bb40
-bb40 [loop]:
+  jump bb41
+bb41 [loop]:
   push 68
   calldataload
   dup 3
   lt
-  push bb42
+  push bb43
   jumpi
+  push 0
+  sstore
+  stop
+bb47:
+  push 0xf4240
+  push 4
+  calldataload
+  push 1
+  shr
+  mod
+  push 1
+  add
+  push 68
+  calldataload
+  iszero
+  iszero
+  push 4
+  calldataload
+  dup 1
+  swap 3
+  sub
+  mul
+  add
   push 0
   sstore
   stop

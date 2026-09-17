@@ -73,13 +73,13 @@ fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
     mstore 64, v33 !metadata(memory=scratch)
     mstore v31, 68
     v30 = add v31, 32
-    v22 = inttoptr i256 v30 to memptr
     mstore v30, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
     v25 = add v31, 36
     v26 = zext i160 v1 to i256
     mstore v25, v26
     v27 = add v25, 32
     mstore v27, arg2
+    v22 = inttoptr i256 v30 to memptr
     v7 = call v0, arg0, 0, v22, 68, 0, 0
     v4 = zext i1 v7 to i256
     mstore 128, v4
