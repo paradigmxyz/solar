@@ -2,6 +2,8 @@
 @module SwitchLowerings_runtime
 bb0:
   callvalue
+  iszero
+  iszero
   push bb2
   jumpi
   jump bb1

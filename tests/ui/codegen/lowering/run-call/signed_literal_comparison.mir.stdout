@@ -7,7 +7,7 @@ fn @literalLeft(arg0: i256) -> i256 [selector=0x2177a885, pure, abi_params=[i256
     ret v1
 }
 
-fn @signedBranch(arg0: i256) -> u256 [selector=0x7b50f2fb, pure, abi_params=[i256], abi_returns=[word]] {
+fn @signedBranch(arg0: i256) -> i256 [selector=0x7b50f2fb, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sgt arg0, 31
     jumpi v0, bb1, bb2
@@ -19,7 +19,7 @@ fn @signedBranch(arg0: i256) -> u256 [selector=0x7b50f2fb, pure, abi_params=[i25
     ret 7
 }
 
-fn @unsignedBranch(arg0: u256) -> u256 [selector=0x86b11c26, pure, abi_params=[u256], abi_returns=[word]] {
+fn @unsignedBranch(arg0: i256) -> i256 [selector=0x86b11c26, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gt arg0, 1
     jumpi v0, bb1, bb2
