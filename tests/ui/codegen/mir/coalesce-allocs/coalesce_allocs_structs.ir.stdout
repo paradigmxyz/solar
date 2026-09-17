@@ -16,7 +16,7 @@ fn @combine() [selector=0xd9171e32, abi_wrapper, pure] {
     mstore v23, 1
     v42 = add v43, 64
     mstore v42, 2
-    v25 = add v42, 32
+    v25 = add v43, 96
     mstore v25, arg0
     v36 = ptrtoint memptr v0 to i256
     mstore v36, v43

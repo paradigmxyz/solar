@@ -21,7 +21,7 @@ fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
     v24 = mload v54
     v56 = ptrtoint memptr v22 to i256
     mstore v56, v24
-    v26 = add v54, 32
+    v26 = add v53, 64
     v27 = mload v26
     v28 = shr 160, v27
     v29 = eq v28, 0
@@ -29,7 +29,7 @@ fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
   bb3:
     v46 = add v56, 32
     mstore v46, v27
-    v31 = add v54, 64
+    v31 = add v53, 96
     v32 = mload v31
     v33 = lt v32, 2
     jumpi v33, bb4, bb1

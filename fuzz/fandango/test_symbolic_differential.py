@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import pathlib
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import symbolic_differential as symbolic
 
@@ -167,12 +169,14 @@ class FunctionSelectionTests(unittest.TestCase):
     def test_validates_prefix_calldata(self) -> None:
         self.assertEqual(symbolic._prefix_calldata("0xAa00"), "0xaa00")
         for value in ("", "1234", "0x0", "0xzz"):
-            with self.subTest(value=value):
-                with self.assertRaisesRegex(
+            with (
+                self.subTest(value=value),
+                self.assertRaisesRegex(
                     argparse.ArgumentTypeError,
                     "even-length hexadecimal",
-                ):
-                    symbolic._prefix_calldata(value)
+                ),
+            ):
+                symbolic._prefix_calldata(value)
 
 
 class ResultClassificationTests(unittest.TestCase):
@@ -226,7 +230,9 @@ class ResultClassificationTests(unittest.TestCase):
             symbolic._classify(report, "0xb3de648b", expected),
             {"status": "bounded_agreement"},
         )
-        symbolic_result = next(iter(report.values()))["test_results"]
+        contract_report = next(iter(report.values()))
+        assert isinstance(contract_report, dict)
+        symbolic_result = contract_report["test_results"]
         symbolic_result = next(iter(symbolic_result.values()))["symbolic"]
         symbolic_result["bounds"]["max_paths"] = 31
         with self.assertRaisesRegex(ValueError, "max_paths=31"):
@@ -312,9 +318,7 @@ class ProjectGenerationTests(unittest.TestCase):
                 prefix_calldata=("0x12345678", "0x"),
             )
 
-            test_source = (
-                project / "test" / "SymbolicDifferential.t.sol"
-            ).read_text()
+            test_source = (project / "test" / "SymbolicDifferential.t.sol").read_text()
 
         symbolic_start = test_source.index("function checkSymbolicDifferential")
         self.assertEqual(test_source.count('hex"12345678"'), 2)
@@ -324,10 +328,7 @@ class ProjectGenerationTests(unittest.TestCase):
         first_prefix_b = test_source.index('hex"12345678"', first_prefix_a + 1)
         second_prefix_b = test_source.index('hex""', second_prefix_a + 1)
         self.assertTrue(
-            first_prefix_a
-            < second_prefix_a
-            < first_prefix_b
-            < second_prefix_b
+            first_prefix_a < second_prefix_a < first_prefix_b < second_prefix_b
         )
         self.assertGreater(first_prefix_a, symbolic_start)
         self.assertIn("assert(prefixResults[0]", test_source)
@@ -404,6 +405,122 @@ class CommandTests(unittest.TestCase):
                 standard_input["settings"]["optimizer"],
                 {"enabled": True, "runs": 200},
             )
+
+            for name, runtime in (("solc", "60" * 300), ("solar", "60" * 400)):
+                directory = root / (name + "-attempt")
+                directory.mkdir()
+                (directory / "input.json").write_text(json.dumps(standard_input))
+                (directory / "result.json").write_text(
+                    json.dumps({"returncode": 0, "error": None})
+                )
+                output = {
+                    "contracts": {
+                        "Probe.sol": {
+                            "Probe": {
+                                "abi": _artifact()["abi"],
+                                "evm": {
+                                    "methodIdentifiers": {"f(uint256)": "b3de648b"},
+                                    "deployedBytecode": {
+                                        "object": runtime,
+                                        "immutableReferences": {},
+                                        "linkReferences": {},
+                                    },
+                                },
+                            }
+                        }
+                    }
+                }
+                (directory / "stdout.txt").write_text(json.dumps(output))
+            args.solc_attempt = root / "solc-attempt"
+            args.solar_attempt = root / "solar-attempt"
+            args.source = pathlib.Path("Probe.sol")
+            args.solar = "missing-compiler-must-not-be-resolved"
+            with patch.object(
+                symbolic,
+                "_compile",
+                side_effect=AssertionError("must reuse saved artifacts"),
+            ):
+                result = symbolic.run(args, root / "saved-out")
+            self.assertEqual(result["status"], "bounded_agreement")
+            self.assertEqual(
+                result["standard_input_sha256"],
+                symbolic.hashlib.sha256(
+                    json.dumps(
+                        standard_input,
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                        sort_keys=True,
+                    ).encode()
+                ).hexdigest(),
+            )
+            for source_unit in ("./C.sol", "https://example.com/C.sol"):
+                with self.subTest(source_unit=source_unit):
+                    request = {
+                        **standard_input,
+                        "sources": {
+                            source_unit: next(iter(standard_input["sources"].values()))
+                        },
+                    }
+                    for directory in (args.solc_attempt, args.solar_attempt):
+                        saved_output = json.loads(
+                            (directory / "stdout.txt").read_text()
+                        )
+                        saved_output["contracts"] = {
+                            source_unit: next(iter(saved_output["contracts"].values()))
+                        }
+                        (directory / "input.json").write_text(json.dumps(request))
+                        (directory / "stdout.txt").write_text(json.dumps(saved_output))
+                    with patch("sys.stdout", new_callable=io.StringIO) as stdout:
+                        code = symbolic.main(
+                            [
+                                "--source",
+                                source_unit,
+                                "--contract",
+                                "Probe",
+                                "--signature",
+                                "f(uint256)",
+                                "--solc-attempt",
+                                str(args.solc_attempt),
+                                "--solar-attempt",
+                                str(args.solar_attempt),
+                                "--solc",
+                                str(solc),
+                                "--forge",
+                                str(forge),
+                                "--solver",
+                                str(solver),
+                                "--output-root",
+                                str(root / "literal-source-out"),
+                                "--max-paths",
+                                "32",
+                                "--max-solver-queries",
+                                "100",
+                                "--max-calldata-bytes",
+                                "512",
+                                "--symbolic-timeout",
+                                "5",
+                                "--dynamic-lengths",
+                                "0,1",
+                                "--max-returndata-bytes",
+                                "256",
+                            ]
+                        )
+                    self.assertEqual(code, 0, stdout.getvalue())
+                    saved_result = json.loads(stdout.getvalue())
+                    self.assertEqual(saved_result["source"], source_unit)
+                    self.assertEqual(saved_result["sources"], [source_unit])
+            for directory in (args.solc_attempt, args.solar_attempt):
+                (directory / "input.json").write_text(json.dumps(standard_input))
+                (directory / "stdout.txt").write_text(json.dumps(output))
+            output["contracts"]["Probe.sol"]["Probe"]["evm"]["deployedBytecode"].pop(
+                "immutableReferences"
+            )
+            (args.solar_attempt / "stdout.txt").write_text(json.dumps(output))
+            with self.assertRaisesRegex(ValueError, "immutableReferences"):
+                symbolic.run(args, root / "saved-out")
+            (args.solar_attempt / "input.json").write_text("{}")
+            with self.assertRaisesRegex(ValueError, "different inputs"):
+                symbolic.run(args, root / "saved-out")
 
     def test_import_discovery_uses_requested_evm_version(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

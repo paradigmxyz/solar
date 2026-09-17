@@ -79,7 +79,7 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v117 = and v115, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v119 = add v161, v117
     mstore v119, 0
-    v121 = add v161, 32
+    v121 = add v170, 64
     mcopy v121, v161, v113
     mstore v170, 32
     mstore v161, v113

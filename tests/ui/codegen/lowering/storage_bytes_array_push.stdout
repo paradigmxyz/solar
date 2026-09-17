@@ -138,51 +138,51 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
 fn @popStr() [selector=0x5d7696c3, abi_wrapper] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v14 = ne v0, 0
-    jumpi v14, bb4, bb3
-  bb3:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    mstore 32, 49 !metadata(memory=scratch)
-    revert 28, 36
+    v1 = eq v0, 0
+    jumpi v1, bb3, bb4
   bb4:
     v2 = sub v0, 1
     sstore 0, v2 !metadata(storage=slot(0))
     mstore 0, 0 !metadata(memory=scratch)
-    v31 = keccak256 0, 32 !metadata(memory=scratch)
-    v4 = add v31, v2
+    v30 = keccak256 0, 32 !metadata(memory=scratch)
+    v4 = add v30, v2
     v5 = sload v4 !metadata(storage=symbolic(v4))
-    v22 = and v5, 1
-    v23 = eq v22, 1
-    v24 = sub 0, v22
-    v25 = or 127, v24
-    v26 = shr 1, v5
-    v27 = and v26, v25
-    v28 = lt v27, 32
-    v29 = eq v23, v28
-    jumpi v29, bb7, bb8
+    v21 = and v5, 1
+    v22 = eq v21, 1
+    v23 = sub 0, v21
+    v24 = or 127, v23
+    v25 = shr 1, v5
+    v26 = and v25, v24
+    v27 = lt v26, 32
+    v28 = eq v22, v27
+    jumpi v28, bb7, bb8
   bb8:
-    v12 = add v27, 31
+    v12 = add v26, 31
     v13 = shr 5, v12
-    jumpi v23, bb1, bb2
+    jumpi v22, bb1, bb2
   bb1:
     mstore 0, v4 !metadata(memory=scratch)
-    v30 = keccak256 0, 32 !metadata(memory=scratch)
+    v29 = keccak256 0, 32 !metadata(memory=scratch)
     jump bb5
   bb5:
-    v17 = phi [bb1: 0], [bb6: v20]
-    v18 = phi [bb1: v30], [bb6: v21]
-    v19 = lt v17, v13
-    jumpi v19, bb6, bb2
+    v16 = phi [bb1: 0], [bb6: v19]
+    v17 = phi [bb1: v29], [bb6: v20]
+    v18 = lt v16, v13
+    jumpi v18, bb6, bb2
   bb2:
     sstore v4, 0 !metadata(storage=symbolic(v4))
     stop
   bb6:
-    sstore v18, 0 !metadata(storage=symbolic(v18))
+    sstore v17, 0 !metadata(storage=symbolic(v17))
+    v19 = add v16, 1
     v20 = add v17, 1
-    v21 = add v18, 1
     jump bb5
   bb7:
     tail_call @revert_stub.7
+  bb3:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 49 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @blobAt() [selector=0x8f236983, abi_wrapper, view] {
@@ -213,7 +213,7 @@ fn @blobAt() [selector=0x8f236983, abi_wrapper, view] {
     v21 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v23 = add v35, v21
     mstore v23, 0
-    v25 = add v35, 32
+    v25 = add v33, 64
     mcopy v25, v35, v17
     mstore v33, 32
     mstore v35, v17

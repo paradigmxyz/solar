@@ -1,6 +1,6 @@
 //@ revisions: baseline optimized
-//@[baseline] compile-flags: -Zmir-pipeline=lower-memory-objects,lower-slices,inst-simplify,dce
-//@[optimized] compile-flags: -Zmir-pipeline=egraph,lower-memory-objects,lower-slices,inst-simplify,dce
+//@[baseline] compile-flags: -Zmir-pipeline=lower-memory-objects,lower-slices,egraph,dce
+//@[optimized] compile-flags: -Zmir-pipeline=egraph,lower-memory-objects,lower-slices,egraph,dce
 //@ filecheck:
 
 // CHECK-LABEL: (after dce)

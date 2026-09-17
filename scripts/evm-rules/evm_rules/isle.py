@@ -5,15 +5,25 @@ restrict matching but never imply unequal words. Rust range predicates remain
 explicit trusted contracts; their analysis implementations are not proved here.
 """
 
-from dataclasses import dataclass
 import hashlib
-from pathlib import Path
 import re
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 import z3
 
-from .semantics import Expr, MASK, Model, Unsupported, check, partition_bits, partition_shift, word
 from .memory import MemoryAddresses
+from .semantics import (
+    MASK,
+    Expr,
+    Model,
+    Unsupported,
+    check,
+    partition_bits,
+    partition_shift,
+    word,
+)
 
 ROOT = Path(__file__).resolve().parents[3]
 ISLE = ROOT / "crates/codegen/isle"
@@ -23,7 +33,7 @@ def forms(source):
     """S-expression reader with source lines, comments and balanced-delimiter checks."""
     tokens = []
     for line, text in enumerate(source.splitlines(), 1):
-        for token in re.findall(r'[^\s()]+|[()]', text.split(";;", 1)[0]):
+        for token in re.findall(r"[^\s()]+|[()]", text.split(";;", 1)[0]):
             tokens.append((token, line))
     stack, result = [], []
     for token, line in tokens:
@@ -74,8 +84,12 @@ def opcode_bindings(source):
         shape, opcode = replacement
         if name in bindings:
             raise Unsupported(f"multiple instruction-selection rules for {name}")
-        bindings[name] = (opcode.removeprefix("$").lower(), len(operands), shape,
-                          all(operand == "_" for operand in operands))
+        bindings[name] = (
+            opcode.removeprefix("$").lower(),
+            len(operands),
+            shape,
+            all(operand == "_" for operand in operands),
+        )
     return bindings
 
 
@@ -97,8 +111,11 @@ class Context:
         self.contracts = set()
         self.model = Model()
         self.extractors = extractor_definitions()
-        self.bindings = opcode_bindings(selection_source if selection_source is not None
-                                       else (ISLE / "select.isle").read_text())
+        self.bindings = opcode_bindings(
+            selection_source
+            if selection_source is not None
+            else (ISLE / "select.isle").read_text()
+        )
         self.fresh_id = 0
         self.memory = MemoryAddresses(self)
 
@@ -106,9 +123,16 @@ class Context:
         if name in MemoryAddresses.SHAPES:
             # Semantic projections have no single-opcode selector. Check their
             # schema-generated field names/types before applying the model.
-            declarations = [form[3][1:] for form, _ in forms((ISLE / "prelude.isle").read_text())
-                            if form[:3] == ("type", "Op", "extern")]
-            shapes = {"Op." + variant[0]: variant[1:] for variants in declarations for variant in variants}
+            declarations = [
+                form[3][1:]
+                for form, _ in forms((ISLE / "prelude.isle").read_text())
+                if form[:3] == ("type", "Op", "extern")
+            ]
+            shapes = {
+                "Op." + variant[0]: variant[1:]
+                for variants in declarations
+                for variant in variants
+            }
             if shapes.get(name) != MemoryAddresses.SHAPES[name]:
                 raise Unsupported(f"unmodeled or changed memory address schema: {name}")
             return self.memory.operation(name, tuple(args))
@@ -119,22 +143,36 @@ class Context:
             if name in ("Op.Zext", "Op.Bitcast", "Op.IntToPtr") and len(args) == 1:
                 return args[0]
             raise Unsupported(f"invalid scalar operation arity: {name}")
-        if name == "Op.PtrToInt":
+        if name in ("Op.PtrToInt", "Op.Trunc"):
             if len(args) != 2:
-                raise Unsupported("invalid pointer cast arity")
+                raise Unsupported("invalid narrowing cast arity")
             value, bits = args
             mask = Expr("sub", (Expr("shl", (bits, Expr.const(1))), Expr.const(1)))
-            self.contracts.add("PtrToInt: truncate or zero-extend a 256-bit pointer")
+            self.contracts.add(f"{name}: truncate or zero-extend a 256-bit value")
             return Expr("and", (value, mask))
         if name == "Op.Select":
-            self.contracts.add("Select: trusted MIR semantics select the true arm for any nonzero word")
+            self.contracts.add(
+                "Select: trusted MIR semantics select the true arm for any nonzero word"
+            )
             return Expr("select", tuple(args))
         binding = self.bindings.get(name)
-        shape = {0: "OpcodeLowering.Nullary", 1: "OpcodeLowering.Unary", 2: "OpcodeLowering.Binary", 3: "OpcodeLowering.Nary"}
-        if binding is None or binding != (name[3:].lower(), len(args), shape.get(len(args)), True):
+        shape = {
+            0: "OpcodeLowering.Nullary",
+            1: "OpcodeLowering.Unary",
+            2: "OpcodeLowering.Binary",
+            3: "OpcodeLowering.Nary",
+        }
+        if binding is None or binding != (
+            name[3:].lower(),
+            len(args),
+            shape.get(len(args)),
+            True,
+        ):
             raise Unsupported(f"unmodeled or changed instruction selection: {name}")
         if name in ("Op.Address", "Op.Balance", "Op.SelfBalance"):
-            self.contracts.add("environment reads: one executing account and one balance snapshot; no state changes, gas or access-list effects")
+            self.contracts.add(
+                "environment reads: one executing account and one balance snapshot; no state changes, gas or access-list effects"
+            )
         return Expr(binding[0], tuple(args))
 
     def fresh(self):
@@ -158,7 +196,9 @@ class Context:
                 raise Unsupported("and-pattern requires multiple patterns")
             value = self.pattern(args[0])
             for other in args[1:]:
-                self.assumptions.append(self.model.eval(value) == self.model.eval(self.pattern(other)))
+                self.assumptions.append(
+                    self.model.eval(value) == self.model.eval(self.pattern(other))
+                )
             return value
         if name.startswith("Op."):
             return self.operation(name, [self.pattern(a) for a in args])
@@ -177,18 +217,26 @@ class Context:
         if not args and name in ("zero", "one", "all_ones"):
             return Expr.const({"zero": 0, "one": 1, "all_ones": MASK}[name])
         if name == "current_address" and not args:
-            self.contracts.add("current_address: Rust extractor matches an ADDRESS producer in this execution context")
+            self.contracts.add(
+                "current_address: Rust extractor matches an ADDRESS producer in this execution context"
+            )
             return self.operation("Op.Address", [])
         if name == "bool_value" and not args:
             value = self.fresh()
             self.assumptions.append(z3.ULE(self.model.eval(value), word(1)))
-            self.contracts.add("bool_value: the Rust extractor establishes a canonical 0/1 word")
+            self.contracts.add(
+                "bool_value: the Rust extractor establishes a canonical 0/1 word"
+            )
             return value
         raise Unsupported(f"unmodeled extractor: {name}")
 
     def constructor(self, node):
         if isinstance(node, str):
-            if node in self.values or node in ("true", "false") or re.fullmatch(r"[0-9]+", node):
+            if (
+                node in self.values
+                or node in ("true", "false")
+                or re.fullmatch(r"[0-9]+", node)
+            ):
                 return self.pattern(node)
             raise Unsupported(f"unbound constructor variable: {node}")
         name, *args = node
@@ -199,13 +247,17 @@ class Context:
             return self.memory.constructor(name, tuple(values))
         if name in ("imm", "u256", "resident", "make", "sequence") and len(values) == 1:
             if name == "resident":
-                self.contracts.add("resident: available value has the matched expression's word semantics")
+                self.contracts.add(
+                    "resident: available value has the matched expression's word semantics"
+                )
             return values[0]
         if name == "imm_bool" and len(values) == 1:
             value = values[0]
             # Boolean results become word expressions so concrete replay stays independent.
             symbol = self.fresh()
-            self.assumptions.append(self.model.eval(symbol) == z3.If(value, word(1), word(0)))
+            self.assumptions.append(
+                self.model.eval(symbol) == z3.If(value, word(1), word(0))
+            )
             return symbol
         if name == "zero_value" and not values:
             return Expr.const(0)
@@ -217,16 +269,37 @@ class Context:
             return Expr.const(sum(v.args[0] << (64 * i) for i, v in enumerate(values)))
         unary = {"u256_not": "not", "u256_neg": "sub"}
         if name in unary and len(values) == 1:
-            return Expr(unary[name], tuple(([Expr.const(0)] if name == "u256_neg" else []) + values))
-        binary = {"u256_add": "add", "u256_sub": "sub", "u256_and": "and",
-                  "u256_shl": "shl", "u256_shr": "shr", "u256_byte": "byte"}
+            return Expr(
+                unary[name],
+                tuple(([Expr.const(0)] if name == "u256_neg" else []) + values),
+            )
+        binary = {
+            "u256_add": "add",
+            "u256_sub": "sub",
+            "u256_and": "and",
+            "u256_shl": "shl",
+            "u256_shr": "shr",
+            "u256_byte": "byte",
+        }
         if name in binary and len(values) == 2:
             return Expr(binary[name], tuple(values))
         smt = [self.model.eval(v) for v in values]
-        if name in ("u256_is_zero", "u256_is_one", "u256_is_all_ones") and len(smt) == 1:
-            return smt[0] == {"u256_is_zero": 0, "u256_is_one": 1, "u256_is_all_ones": MASK}[name]
-        predicates = {"u256_gt": z3.UGT, "u256_ge": z3.UGE, "u256_lt": z3.ULT, "u256_same": lambda a, b: a == b,
-                      "u256_le": z3.ULE, "u256_eq": lambda a, b: a == b}
+        if (
+            name in ("u256_is_zero", "u256_is_one", "u256_is_all_ones")
+            and len(smt) == 1
+        ):
+            return (
+                smt[0]
+                == {"u256_is_zero": 0, "u256_is_one": 1, "u256_is_all_ones": MASK}[name]
+            )
+        predicates = {
+            "u256_gt": z3.UGT,
+            "u256_ge": z3.UGE,
+            "u256_lt": z3.ULT,
+            "u256_same": lambda a, b: a == b,
+            "u256_le": z3.ULE,
+            "u256_eq": lambda a, b: a == b,
+        }
         if name in predicates and len(smt) == 2:
             return predicates[name](*smt)
         if name == "u256_has_bits" and len(smt) == 2:
@@ -235,22 +308,38 @@ class Context:
             return Expr("select", (Expr("lt", tuple(values)), *values))
         if name == "shift_sum" and len(values) == 2:
             limit = Expr.const(256)
-            capped = tuple(Expr("select", (Expr("lt", (v, limit)), v, limit)) for v in values)
+            capped = tuple(
+                Expr("select", (Expr("lt", (v, limit)), v, limit)) for v in values
+            )
             total = Expr("add", capped)
             return Expr("select", (Expr("lt", (total, limit)), total, limit))
         if name == "sign_byte" and len(values) == 1:
             self.assumptions.extend([z3.ULT(smt[0], word(256)), smt[0] & 7 == 0])
-            return Expr("sub", (Expr.const(31), Expr("shr", (Expr.const(3), values[0]))))
+            return Expr(
+                "sub", (Expr.const(31), Expr("shr", (Expr.const(3), values[0])))
+            )
         if name == "power_of_two_shift" and len(values) == 1:
             shift = self.fresh()
-            self.assumptions.extend([z3.UGT(self.model.eval(shift), word(0)),
-                                     z3.ULT(self.model.eval(shift), word(256)),
-                                     smt[0] == word(1) << self.model.eval(shift)])
+            self.assumptions.extend(
+                [
+                    z3.UGT(self.model.eval(shift), word(0)),
+                    z3.ULT(self.model.eval(shift), word(256)),
+                    smt[0] == word(1) << self.model.eval(shift),
+                ]
+            )
             return shift
-        if name in ("is_const", "differ", "has_bitwise_shifting", "has_self_balance", "in_current_block", "single_use", "optimize_for_size"):
+        if name in (
+            "is_const",
+            "differ",
+            "has_bitwise_shifting",
+            "has_self_balance",
+            "in_current_block",
+            "single_use",
+            "optimize_for_size",
+        ):
             # In particular, different ValueIds must NOT imply different word values.
             self.contracts.add(f"{name}: structural/fork condition is overapproximated")
-            return z3.Bool(f"structural_{name}_{repr(node)}")
+            return z3.Bool(f"structural_{name}_{node!r}")
         guarantees = {
             "is_zero_or_one": lambda: z3.ULE(smt[0], word(1)),
             "has_known_sign_bit": lambda: z3.Extract(255, 255, smt[0]) == 1,
@@ -266,9 +355,11 @@ class Context:
             arity = 1 if name in ("is_zero_or_one", "has_known_sign_bit") else 2
             if len(smt) != arity:
                 raise Unsupported(f"extractor contract arity: {name}")
-            flag = z3.Bool(f"contract_{name}_{repr(node)}")
+            flag = z3.Bool(f"contract_{name}_{node!r}")
             self.assumptions.append(z3.Implies(flag, guarantees[name]()))
-            self.contracts.add(f"{name}: trusted Rust extractor contract (true implies word property)")
+            self.contracts.add(
+                f"{name}: trusted Rust extractor contract (true implies word property)"
+            )
             return flag
         raise Unsupported(f"unmodeled constructor: {name}")
 
@@ -281,7 +372,10 @@ class Context:
         if len(parts) < 2:
             raise Unsupported("rule lacks a left or right side")
         root, *inputs = parts[0]
-        if root not in ("rewrite", "simplify", "stack_rewrite", "sequence_rewrite") or len(inputs) != 1:
+        if (
+            root not in ("rewrite", "simplify", "stack_rewrite", "sequence_rewrite")
+            or len(inputs) != 1
+        ):
             raise Unsupported(f"unmodeled root: {root}")
         lhs = self.pattern(inputs[0])
         for clause in parts[1:-1]:
@@ -289,12 +383,20 @@ class Context:
                 raise Unsupported("only explicit if-let clauses are supported")
             _, pattern, expression = clause
             value = self.constructor(expression)
-            if isinstance(pattern, str) and pattern not in self.values and pattern not in ("true", "false", "_") and not re.fullmatch(r"[0-9]+", pattern):
+            if (
+                isinstance(pattern, str)
+                and pattern not in self.values
+                and pattern not in ("true", "false", "_")
+                and not re.fullmatch(r"[0-9]+", pattern)
+            ):
                 self.values[pattern] = value
             elif pattern != "_":
                 other = self.pattern(pattern)
-                self.assumptions.append(self.model.eval(other) == self.model.eval(value)
-                                        if isinstance(value, Expr) else other == value)
+                self.assumptions.append(
+                    self.model.eval(other) == self.model.eval(value)
+                    if isinstance(value, Expr)
+                    else other == value
+                )
         rhs = self.constructor(parts[-1])
 
         def validate_snapshot_root(expr):
@@ -302,7 +404,9 @@ class Context:
                 return
             for child in expr.args:
                 if child.op in ("balance", "selfbalance"):
-                    raise Unsupported("balance reads are only modeled at instruction roots; nested producers may observe another state")
+                    raise Unsupported(
+                        "balance reads are only modeled at instruction roots; nested producers may observe another state"
+                    )
                 validate_snapshot_root(child)
 
         # Account state is shared by the two replacements of this instruction,
@@ -312,25 +416,55 @@ class Context:
         return lhs, rhs
 
 
-def verify_file(path, timeout_ms, artifacts=None, partition_shifts=False, fallback=None, bit_partition_timeout_ms=0,
-                index_partition_timeout_ms=0, bit_partition_jobs=1):
+def verify_file(
+    path,
+    timeout_ms,
+    artifacts=None,
+    partition_shifts=False,
+    fallback=None,
+    bit_partition_timeout_ms=0,
+    index_partition_timeout_ms=0,
+    bit_partition_jobs=1,
+    shard_index=0,
+    shard_count=1,
+):
     source = path.read_text()
-    rules = [Rule(form, line, str(path)) for form, line in forms(source) if form[0] == "rule"]
+    rules = [
+        Rule(form, line, str(path)) for form, line in forms(source) if form[0] == "rule"
+    ]
     if not rules:
         raise ValueError(f"no rules in {path}")
+    if not 0 <= shard_index < shard_count <= len(rules):
+        raise ValueError(
+            "shards must be nonempty and satisfy 0 <= index < count <= rules"
+        )
     results = []
-    for rule in rules:
+    for rule in rules[shard_index::shard_count]:
         context = Context()
+        result: dict[str, Any]
         query = ""
         partitions = []
         try:
             lhs, rhs = context.obligation(rule)
-            result, query = check(lhs, rhs, context.assumptions, timeout_ms, context.model)
+            result, query = check(
+                lhs, rhs, context.assumptions, timeout_ms, context.model
+            )
             if constants := result.get("constant_specializations"):
-                context.model = Model({name: int(value, 16) for name, value in constants.items()})
-            if query and (result["status"] == "unknown" or partition_shifts and result["status"] == "proved"):
-                partitioned, partitions = partition_shift(lhs, rhs, context.assumptions,
-                                                          index_partition_timeout_ms or timeout_ms, context.model)
+                context.model = Model(
+                    {name: int(value, 16) for name, value in constants.items()}
+                )
+            if query and (
+                result["status"] == "unknown"
+                or partition_shifts
+                and result["status"] == "proved"
+            ):
+                partitioned, partitions = partition_shift(
+                    lhs,
+                    rhs,
+                    context.assumptions,
+                    index_partition_timeout_ms or timeout_ms,
+                    context.model,
+                )
                 if partitions:
                     if constants:
                         partitioned["constant_specializations"] = constants
@@ -340,28 +474,45 @@ def verify_file(path, timeout_ms, artifacts=None, partition_shifts=False, fallba
                 # replaces partial partitions, never promotes their proved prefix.
                 attempt = fallback.solve(query)
                 if attempt["status"] == "unsat":
-                    result = {"status": "proved", "proof_method": "solver-fallback",
-                              "fallback": attempt}
+                    result = {
+                        "status": "proved",
+                        "proof_method": "solver-fallback",
+                        "fallback": attempt,
+                    }
                     if constants:
                         result["constant_specializations"] = constants
                     partitions = []
                 else:
                     result["fallback"] = attempt
                     if attempt["status"] == "sat":
-                        result["reason"] = "cvc5 reported SAT; no independently replayed counterexample"
+                        result["reason"] = (
+                            "cvc5 reported SAT; no independently replayed counterexample"
+                        )
                     else:
                         reason = result.get("reason", "Z3 verification incomplete")
-                        result["reason"] = f"{reason}; cvc5 fallback returned {attempt['status']}"
+                        result["reason"] = (
+                            f"{reason}; cvc5 fallback returned {attempt['status']}"
+                        )
                     if partitions:
                         partitions.append(("word", query))
-            if (query and result["status"] == "unknown" and bit_partition_timeout_ms > 0
-                    and result.get("fallback", {}).get("status", "unknown") in ("unknown", "timeout")):
+            if (
+                query
+                and result["status"] == "unknown"
+                and bit_partition_timeout_ms > 0
+                and result.get("fallback", {}).get("status", "unknown")
+                in ("unknown", "timeout")
+            ):
                 # All output bits must agree under the complete original guards.
                 # Do not hide a fallback solver's SAT result or process failure.
                 previous_fallback = result.get("fallback")
-                result, partitions = partition_bits(lhs, rhs, context.assumptions,
-                                                    bit_partition_timeout_ms, context.model,
-                                                    bit_partition_jobs)
+                result, partitions = partition_bits(
+                    lhs,
+                    rhs,
+                    context.assumptions,
+                    bit_partition_timeout_ms,
+                    context.model,
+                    bit_partition_jobs,
+                )
                 if constants:
                     result["constant_specializations"] = constants
                 if previous_fallback is not None:
@@ -370,14 +521,28 @@ def verify_file(path, timeout_ms, artifacts=None, partition_shifts=False, fallba
                     partitions.append(("word", query))
         except Unsupported as error:
             result = {"status": "unsupported", "reason": str(error)}
-        result.update(line=rule.line, rule_sha256=rule.digest, contracts=sorted(context.contracts))
+        result.update(
+            line=rule.line, rule_sha256=rule.digest, contracts=sorted(context.contracts)
+        )
         if query and artifacts is not None:
             artifacts.mkdir(parents=True, exist_ok=True)
             paths = []
             for suffix, text in partitions or [("word", query)]:
-                query_path = artifacts / f"{path.stem}-{rule.line}-{rule.digest[:12]}-{suffix}.smt2"
+                query_path = (
+                    artifacts
+                    / f"{path.stem}-{rule.line}-{rule.digest[:12]}-{suffix}.smt2"
+                )
                 query_path.write_text(text)
                 paths.append(str(query_path))
             result["smt2"] = paths
         results.append(result)
-    return {"source": str(path), "source_sha256": hashlib.sha256(source.encode()).hexdigest(), "rules": results}
+    return {
+        "source": str(path),
+        "source_sha256": hashlib.sha256(source.encode()).hexdigest(),
+        "shard": {
+            "index": shard_index,
+            "count": shard_count,
+            "total_rules": len(rules),
+        },
+        "rules": results,
+    }

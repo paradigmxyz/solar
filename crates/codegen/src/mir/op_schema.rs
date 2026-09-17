@@ -871,7 +871,7 @@ define_mir_ops! {
         effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
     Zext(operand0: ValueId),
     #[mir_op(mnemonic = "trunc", result = Custom, phases = PhaseSet::ALL,
-        effect = Pure, traits = OpTraits::NONE, side_effects = false, category = None)]
+        effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
     Trunc(operand0: ValueId, bits: u32),
     #[mir_op(mnemonic = "sext", result = Custom, phases = PhaseSet::ALL,
         effect = Pure, traits = OpTraits::NONE, side_effects = false, category = None)]

@@ -24,7 +24,7 @@ fn @decode.0() [selector=0x49145c91, abi_wrapper, pure] {
     v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v19 = add v30, v17
     mstore v19, 0
-    v21 = add v30, 32
+    v21 = add v28, 64
     mcopy v21, v30, v13
     mstore v28, 32
     mstore v30, v13
@@ -46,7 +46,7 @@ fn @encode.1() [selector=0x12496a1b, abi_wrapper, pure] {
     v19 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v21 = add v32, v19
     mstore v21, 0
-    v23 = add v32, 32
+    v23 = add v30, 64
     mcopy v23, v32, v15
     mstore v30, 32
     mstore v32, v15
@@ -68,7 +68,7 @@ fn @encodeFileSafe() [selector=0x2dba772b, abi_wrapper, pure] {
     v20 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v22 = add v33, v20
     mstore v22, 0
-    v24 = add v33, 32
+    v24 = add v31, 64
     mcopy v24, v33, v16
     mstore v31, 32
     mstore v33, v16
@@ -90,7 +90,7 @@ fn @encodeNoPadding() [selector=0x3d92c956, abi_wrapper, pure] {
     v19 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v21 = add v32, v19
     mstore v21, 0
-    v23 = add v32, 32
+    v23 = add v30, 64
     mcopy v23, v32, v15
     mstore v30, 32
     mstore v32, v15
@@ -270,7 +270,7 @@ fn @encode.4(arg0: memptr, arg1: i256, arg2: i256) -> memptr [may_return_memory,
     v235 = lt v90, 32
     jumpi v235, bb52, bb53
   bb53:
-    v238 = and v57, 31
+    v238 = and v90, 31
     v239 = byte v238, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
     v240 = shl 248, v239
     jump bb54
@@ -378,7 +378,7 @@ fn @encode.4(arg0: memptr, arg1: i256, arg2: i256) -> memptr [may_return_memory,
     v295 = lt v197, 32
     jumpi v295, bb80, bb81
   bb81:
-    v298 = and v196, 31
+    v298 = and v197, 31
     v299 = byte v298, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
     v300 = shl 248, v299
     jump bb82
@@ -419,7 +419,7 @@ fn @encode.4(arg0: memptr, arg1: i256, arg2: i256) -> memptr [may_return_memory,
     v250 = lt v166, 32
     jumpi v250, bb59, bb60
   bb60:
-    v253 = and v165, 31
+    v253 = and v166, 31
     v254 = byte v253, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
     v255 = shl 248, v254
     jump bb61
@@ -460,7 +460,7 @@ fn @encode.4(arg0: memptr, arg1: i256, arg2: i256) -> memptr [may_return_memory,
     v265 = lt v175, 32
     jumpi v265, bb66, bb67
   bb67:
-    v268 = and v194, 31
+    v268 = and v175, 31
     v269 = byte v268, 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392b2f
     v270 = shl 248, v269
     jump bb68

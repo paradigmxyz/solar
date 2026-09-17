@@ -88,8 +88,8 @@
       ret v2
   }
   
-- // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (before inst-simplify) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (after inst-simplify) ===
+- // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (after egraph) ===
   @module MemoryObjectSliceProjections
   fn @fixed_payload(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     bb0:

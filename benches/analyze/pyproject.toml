@@ -3,5 +3,5 @@ name = "analyze"
 version = "0.1.0"
 description = "Analyze benchmarks"
 readme = "../README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 dependencies = ["matplotlib>=3.11.1", "numpy>=2.5.1", "tabulate>=0.10.0"]

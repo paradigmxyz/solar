@@ -1,5 +1,5 @@
 # /// script
-# requires-python = ">=3.11"
+# requires-python = ">=3.14"
 # ///
 """Replay every saved proof query with cvc5, failing unless all return UNSAT.
 
@@ -9,20 +9,21 @@ that generated those formulas or provide a checked proof certificate.
 """
 
 import argparse
-from collections import Counter
-from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
-from pathlib import Path
 import shutil
 import subprocess
 import sys
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from typing import Any
 
 from evm_rules.artifacts import query_paths
 from evm_rules.solver import solve_query
 
 
-def replay_query(path, digest, solver, timeout_ms):
+def replay_query(path, digest, solver, timeout_ms) -> dict[str, Any]:
     result = {"query": path, "sha256": digest}
     try:
         data = Path(path).read_bytes()
@@ -35,26 +36,46 @@ def replay_query(path, digest, solver, timeout_ms):
     return result
 
 
-def replay_report(report_path, solver="cvc5", timeout_ms=5000, jobs=4):
+def replay_report(
+    report_path, solver="cvc5", timeout_ms=5000, jobs=4
+) -> dict[str, Any]:
     data = report_path.read_bytes()
     report = json.loads(data)
-    if report.get("schema") != "solar:evm-word-rules@1" or report.get("word_bits") != 256:
+    if (
+        report.get("schema") != "solar:evm-word-rules@1"
+        or report.get("word_bits") != 256
+    ):
         raise ValueError("unsupported proof report schema or word width")
     paths = query_paths(report, require_proved=True)
     manifest = report.get("query_sha256", {})
     if set(manifest) != set(paths):
         raise ValueError("proof report must fingerprint exactly every saved query")
     for digest in manifest.values():
-        if not isinstance(digest, str) or len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+        if (
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(c not in "0123456789abcdef" for c in digest)
+        ):
             raise ValueError("invalid query SHA-256")
     executable = shutil.which(solver)
     if executable is None:
         raise ValueError(f"solver executable not found: {solver}")
-    version = subprocess.run([executable, "--version"], capture_output=True, text=True, timeout=5)
+    version = subprocess.run(
+        [executable, "--version"],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
     if version.returncode != 0 or "cvc5" not in version.stdout.lower():
         raise ValueError("the replay solver must identify itself as cvc5")
     with ThreadPoolExecutor(max_workers=jobs) as pool:
-        results = list(pool.map(lambda path: replay_query(path, manifest[path], executable, timeout_ms), paths))
+        results = list(
+            pool.map(
+                lambda path: replay_query(path, manifest[path], executable, timeout_ms),
+                paths,
+            )
+        )
     counts = dict(Counter(row["status"] for row in results))
     return {
         "schema": "solar:evm-rule-replay@1",
@@ -80,18 +101,30 @@ def main():
     args = parser.parse_args()
     if args.timeout_ms <= 0 or not 1 <= args.jobs <= 32:
         parser.error("timeout must be positive and jobs must be between 1 and 32")
+    report: dict[str, Any]
     try:
         report = replay_report(args.report, args.solver, args.timeout_ms, args.jobs)
     except (OSError, ValueError, subprocess.TimeoutExpired) as error:
-        report = {"schema": "solar:evm-rule-replay@1", "counts": {"error": 1}, "error": str(error)}
+        report = {
+            "schema": "solar:evm-rule-replay@1",
+            "counts": {"error": 1},
+            "error": str(error),
+        }
         print(str(error), file=sys.stderr)
     for row in report.get("queries", []):
         if row["status"] != "unsat":
-            print(f"{row['query']}: {row['status']}: {row.get('reason', row.get('stderr', ''))}", file=sys.stderr)
+            print(
+                f"{row['query']}: {row['status']}: {row.get('reason', row.get('stderr', ''))}",
+                file=sys.stderr,
+            )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     print(json.dumps(report["counts"], sort_keys=True))
-    return 0 if report["counts"].get("unsat", 0) and set(report["counts"]) == {"unsat"} else 1
+    return (
+        0
+        if report["counts"].get("unsat", 0) and set(report["counts"]) == {"unsat"}
+        else 1
+    )
 
 
 if __name__ == "__main__":

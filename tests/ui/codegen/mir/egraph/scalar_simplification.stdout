@@ -1,6 +1,6 @@
-- // === ROOT/tests/ui/codegen/mir/egraph/inst_simplify.mir (before egraph) ===
-+ // === ROOT/tests/ui/codegen/mir/egraph/inst_simplify.mir (after egraph) ===
-  @module InstSimplify
+- // === ROOT/tests/ui/codegen/mir/egraph/scalar_simplification.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/scalar_simplification.mir (after egraph) ===
+  @module ScalarSimplification
   types:
     struct0: {i256, i256, i256, i256, i256}
     struct1: {i256, i256, i256, i256, i256, i256, i256, i256, i256, i1, i1, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256}
@@ -226,15 +226,22 @@
       ret
   }
   
-  fn @check_polarity(arg0: i256) {
+  fn @check_polarity(arg0: i1) {
     bb0:
-      v0 = eq arg0, 0
+      v0 = eq arg0, false
 -     icall panic_if<0x1>, v0
 -     icall panic_if_zero<0x11>, v0
 -     icall revert_if<tuple_data_too_short>, v0
 +     icall panic_if_zero<0x1>, arg0
 +     icall panic_if<0x11>, arg0
 +     icall revert_if_zero<tuple_data_too_short>, arg0
+      ret
+  }
+  
+  fn @word_check_polarity(arg0: i256) {
+    bb0:
+      v0 = eq arg0, 0
+      icall panic_if<0x1>, v0
       ret
   }
   

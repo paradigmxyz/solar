@@ -215,8 +215,8 @@ bb17:
   push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
   dup 2
   mstore
-  push 32
-  dup 2
+  push 64
+  dup 3
   add
   push 33
   push 248

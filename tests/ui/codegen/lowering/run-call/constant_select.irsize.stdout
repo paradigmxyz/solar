@@ -360,8 +360,9 @@ bb23:
   push 0
   swap 1
   mstore
-  push 32
-  dup 3
+  push 64
+  push 128
+  mload
   add
   dup 4
   dup 4

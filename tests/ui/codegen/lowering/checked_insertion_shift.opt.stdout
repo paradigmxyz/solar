@@ -22,7 +22,7 @@ fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
     v57 = mul v35, v56
     v89 = add v90, 32
     v59 = shl 5, v57
-    v61 = add v89, 32
+    v61 = add v90, 64
     mcopy v61, v89, v59
     mstore v90, 32
     mstore v89, v57
@@ -98,7 +98,7 @@ fn @shiftAt() [selector=0xa227bfd8, abi_wrapper, pure] {
     v23 = mul v17, v22
     v45 = add v43, 32
     v25 = shl 5, v23
-    v27 = add v45, 32
+    v27 = add v43, 64
     mcopy v27, v45, v25
     mstore v43, 32
     mstore v45, v23

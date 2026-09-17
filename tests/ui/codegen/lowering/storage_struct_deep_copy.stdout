@@ -255,19 +255,15 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
 fn @pop() [selector=0xa4ece52c, abi_wrapper] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
-    v14 = ne v0, 0
-    jumpi v14, bb2, bb1
-  bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    mstore 32, 49 !metadata(memory=scratch)
-    revert 28, 36
+    v1 = eq v0, 0
+    jumpi v1, bb1, bb2
   bb2:
     v2 = sub v0, 1
     sstore 2, v2 !metadata(storage=slot(2))
     mstore 0, 2 !metadata(memory=scratch)
     v4 = add v2, v2
-    v22 = keccak256 0, 32 !metadata(memory=scratch)
-    v5 = add v22, v4
+    v21 = keccak256 0, 32 !metadata(memory=scratch)
+    v5 = add v21, v4
     sstore v5, 0 !metadata(storage=symbolic(v5))
     v6 = add v5, 1
     v7 = sload v6 !metadata(storage=offset(v5, 1))
@@ -278,20 +274,24 @@ fn @pop() [selector=0xa4ece52c, abi_wrapper] {
     v12 = zext i1 v11 to i256
     v13 = add v8, v12
     mstore 0, v6 !metadata(memory=scratch)
-    v23 = keccak256 0, 32 !metadata(memory=scratch)
+    v22 = keccak256 0, 32 !metadata(memory=scratch)
     jump bb3
   bb3:
-    v17 = phi [bb2: 0], [bb4: v20]
-    v18 = phi [bb2: v23], [bb4: v21]
-    v19 = lt v17, v13
-    jumpi v19, bb4, bb5
+    v16 = phi [bb2: 0], [bb4: v19]
+    v17 = phi [bb2: v22], [bb4: v20]
+    v18 = lt v16, v13
+    jumpi v18, bb4, bb5
   bb5:
     stop
   bb4:
-    sstore v18, 0 !metadata(storage=symbolic(v18))
+    sstore v17, 0 !metadata(storage=symbolic(v17))
+    v19 = add v16, 1
     v20 = add v17, 1
-    v21 = add v18, 1
     jump bb3
+  bb1:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 49 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {

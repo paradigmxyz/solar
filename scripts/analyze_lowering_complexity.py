@@ -11,7 +11,6 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-
 PATTERNS = (
     (
         "raw_ops",
@@ -126,7 +125,9 @@ def signed(value: int) -> str:
     return f"{value:+d}"
 
 
-def print_report(base_ref: str, base: dict[str, Metrics], current: dict[str, Metrics]) -> None:
+def print_report(
+    base_ref: str, base: dict[str, Metrics], current: dict[str, Metrics]
+) -> None:
     columns = (
         "files",
         "lines",
@@ -143,19 +144,19 @@ def print_report(base_ref: str, base: dict[str, Metrics], current: dict[str, Met
     }
     print(f"base: {base_ref}")
     print("scope    " + " ".join(f"{column:>13}" for column in columns))
-    for scope in current:
-        values = current[scope]
+    for scope, values in current.items():
         print(
-                f"{scope:<8}"
+            f"{scope:<8}"
             + " ".join(
                 f"{values.value(names.get(column, column)):>13}" for column in columns
             )
         )
         changes = delta(values, base[scope])
         print(
-            f"  delta  "
+            "  delta  "
             + " ".join(
-                f"{signed(changes[names.get(column, column)]):>13}" for column in columns
+                f"{signed(changes[names.get(column, column)]):>13}"
+                for column in columns
             )
         )
 
@@ -172,7 +173,9 @@ def main() -> None:
         type=Path,
         help="repository root (default: the current git repository)",
     )
-    parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    parser.add_argument(
+        "--json", action="store_true", help="print machine-readable JSON"
+    )
     args = parser.parse_args()
 
     root = (args.root or repo_root()).resolve()
@@ -180,7 +183,9 @@ def main() -> None:
         "hir": "crates/codegen/src/mir/lower",
         "passes": "crates/codegen/src/mir/transform/lower_*.rs",
     }
-    base = {scope: measure_base(root, args.base, path) for scope, path in scopes.items()}
+    base = {
+        scope: measure_base(root, args.base, path) for scope, path in scopes.items()
+    }
     current = {scope: measure_current(root, path) for scope, path in scopes.items()}
 
     if args.json:

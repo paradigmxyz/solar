@@ -386,7 +386,7 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
     jumpi v14, bb1, bb2
   bb2:
     v18 = mload v140
-    v20 = add v140, 32
+    v20 = add v139, 64
     v21 = mload v20
     v23 = add v140, v21
     v24 = add v23, 32
@@ -426,7 +426,7 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
   bb8:
     v132 = add v150, 32
     mcopy v132, v24, v42
-    v54 = add v140, 64
+    v54 = add v139, 96
     v55 = mload v54
     v57 = add v140, v55
     v58 = add v57, 32

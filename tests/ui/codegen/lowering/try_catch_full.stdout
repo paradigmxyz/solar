@@ -361,7 +361,7 @@ fn @decode_aggregate.5(arg0: memptr) -> struct0 [may_return_memory, return_abi=[
     jumpi v7, bb1, bb2
   bb2:
     v11 = mload v40
-    v13 = add v40, 32
+    v13 = add v39, 64
     v14 = mload v13
     v16 = add v40, v14
     v17 = add v16, 32

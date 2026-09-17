@@ -13,7 +13,7 @@ fn @outer() [selector=0x87c3dbb6, abi_wrapper, pure] {
     mstore v31, 241
     v30 = add v31, 32
     v1 = inttoptr i256 v30 to memptr
-    v3 = add v30, 224
+    v3 = add v31, 256
     mstore v3, 0
     data_copy literal_0, v1, 241
     v11 = ne v31, 0
@@ -23,7 +23,7 @@ fn @outer() [selector=0x87c3dbb6, abi_wrapper, pure] {
     v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v19 = add v30, v17
     mstore v19, 0
-    v21 = add v30, 32
+    v21 = add v31, 64
     mcopy v21, v30, v13
     mstore v31, 32
     mstore v30, v13
@@ -39,7 +39,7 @@ fn @inner() [selector=0x4adb7729, abi_wrapper, pure] {
     mstore v31, 161
     v30 = add v31, 32
     v1 = inttoptr i256 v30 to memptr
-    v3 = add v30, 160
+    v3 = add v31, 192
     mstore v3, 0
     data_copy literal_1, v1, 161
     v11 = ne v31, 0
@@ -49,7 +49,7 @@ fn @inner() [selector=0x4adb7729, abi_wrapper, pure] {
     v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v19 = add v30, v17
     mstore v19, 0
-    v21 = add v30, 32
+    v21 = add v31, 64
     mcopy v21, v30, v13
     mstore v31, 32
     mstore v30, v13
@@ -133,8 +133,8 @@ bb6:
   dup 2
   add
   dup 1
-  push 224
-  dup 3
+  push 256
+  dup 4
   add
   push 0
   swap 1
@@ -163,8 +163,8 @@ bb9:
   push 0
   swap 1
   mstore
-  push 32
-  dup 4
+  push 64
+  dup 5
   add
   dup 3
   dup 5
@@ -197,8 +197,8 @@ bb7:
   dup 2
   add
   dup 1
-  push 160
-  dup 3
+  push 192
+  dup 4
   add
   push 0
   swap 1

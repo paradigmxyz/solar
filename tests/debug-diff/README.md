@@ -44,7 +44,10 @@ reports, versions, and settings remain under `target/debug-diff/`. A command
 failure or comparison difference exits nonzero; there is no blessing or
 automatic acceptance of differences. Change the location with `--output`.
 Reports are regression evidence for debug information, not a proof of semantic
-equivalence. Use `fuzz/bin/solsymdiff` for compiler semantic differentials.
+equivalence. For ABI/JSON or execution comparisons, use the
+[compiler-diff project](../../tools/compiler-diff/README.md); its `symbolic`
+command runs bounded, replay-confirmed semantic differentials. Debug-info
+comparisons keep the separate `soldb` workflow described here.
 
 ## Known compiler gaps
 

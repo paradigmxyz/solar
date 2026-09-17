@@ -125,28 +125,28 @@ fn @entry() [entry] {
 @phase lowered
 fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
   bb0:
-    v24 = calldatasize
-    v26 = calldataload 4
-    v27 = add v26, 4
-    v28 = add v27, 32
-    v29 = gt v26, 0xffffffffffffffff
-    v30 = gt v28, v24
-    v31 = or v29, v30
-    jumpi v31, bb3, bb6
+    v23 = calldatasize
+    v25 = calldataload 4
+    v26 = add v25, 4
+    v27 = add v26, 32
+    v28 = gt v25, 0xffffffffffffffff
+    v29 = gt v27, v23
+    v30 = or v28, v29
+    jumpi v30, bb3, bb6
   bb6:
-    v34 = calldataload v27
-    v36 = sub v24, v28
-    v37 = shr 5, v36
-    v38 = gt v34, v37
-    jumpi v38, bb3, bb7
+    v33 = calldataload v26
+    v35 = sub v23, v27
+    v36 = shr 5, v35
+    v37 = gt v33, v36
+    jumpi v37, bb3, bb7
   bb7:
-    v2 = shl 5, v34
+    v2 = shl 5, v33
     v4 = shr 5, v2
-    v5 = eq v4, v34
-    jumpi v5, bb2, bb1
+    v8 = ne v4, v33
+    jumpi v8, bb1, bb2
   bb2:
     v9 = calldatasize
-    v10 = sub v9, v28
+    v10 = sub v9, v27
     v11 = slt v10, v2
     jumpi v11, bb3, bb4
   bb4:
@@ -154,22 +154,22 @@ fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
     v20 = lt v19, 32
     jumpi v20, bb1, bb5
   bb5:
-    v68 = mload 64 !metadata(memory=scratch)
-    v70 = add v68, v19
-    mstore 64, v70 !metadata(memory=scratch)
-    mstore v68, v34
-    v61 = add v68, 32
-    calldatacopy v61, v28, v2
-    v47 = ne v68, 0
-    v48 = zext i1 v47 to i256
-    v49 = mul v34, v48
-    v51 = shl 5, v49
-    v53 = add v68, 64
-    mcopy v53, v61, v51
-    mstore v68, 32
-    mstore v61, v49
-    v57 = add v51, 64
-    returndata v68, v57
+    v67 = mload 64 !metadata(memory=scratch)
+    v69 = add v67, v19
+    mstore 64, v69 !metadata(memory=scratch)
+    mstore v67, v33
+    v60 = add v67, 32
+    calldatacopy v60, v27, v2
+    v46 = ne v67, 0
+    v47 = zext i1 v46 to i256
+    v48 = mul v33, v47
+    v50 = shl 5, v48
+    v52 = add v67, 64
+    mcopy v52, v60, v50
+    mstore v67, 32
+    mstore v60, v48
+    v56 = add v50, 64
+    returndata v67, v56
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

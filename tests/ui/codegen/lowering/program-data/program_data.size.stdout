@@ -13,7 +13,7 @@ fn @data() [selector=0x73d4a13a, abi_wrapper, pure] {
     mstore v31, 257
     v30 = add v31, 32
     v1 = inttoptr i256 v30 to memptr
-    v3 = add v30, 256
+    v3 = add v31, 288
     mstore v3, 0
     data_copy literal_0, v1, 257
     v11 = ne v31, 0
@@ -23,7 +23,7 @@ fn @data() [selector=0x73d4a13a, abi_wrapper, pure] {
     v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v19 = add v30, v17
     mstore v19, 0
-    v21 = add v30, 32
+    v21 = add v31, 64
     mcopy v21, v30, v13
     mstore v31, 32
     mstore v30, v13
@@ -39,7 +39,7 @@ fn @subslice() [selector=0xb9ad073e, abi_wrapper, pure] {
     mstore v31, 161
     v30 = add v31, 32
     v1 = inttoptr i256 v30 to memptr
-    v3 = add v30, 160
+    v3 = add v31, 192
     mstore v3, 0
     data_copy literal_1, v1, 161
     v11 = ne v31, 0
@@ -49,7 +49,7 @@ fn @subslice() [selector=0xb9ad073e, abi_wrapper, pure] {
     v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v19 = add v30, v17
     mstore v19, 0
-    v21 = add v30, 32
+    v21 = add v31, 64
     mcopy v21, v30, v13
     mstore v31, 32
     mstore v30, v13
@@ -82,7 +82,7 @@ fn @zeroData() [selector=0x6ec059cd, abi_wrapper, pure] {
     v16 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v18 = add v29, v16
     mstore v18, 0
-    v20 = add v29, 32
+    v20 = add v27, 64
     mcopy v20, v29, v12
     mstore v27, 32
     mstore v29, v12
@@ -111,7 +111,7 @@ fn @splatData() [selector=0xe1910fda, abi_wrapper, pure] {
     v25 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v27 = add v38, v25
     mstore v27, 0
-    v29 = add v38, 32
+    v29 = add v36, 64
     mcopy v29, v38, v21
     mstore v36, 32
     mstore v38, v21
@@ -186,11 +186,11 @@ fn @splatData.body() -> memptr [may_return_memory, pure] {
     mstore v14, 160
     v13 = add v14, 32
     mstore v13, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
-    v4 = add v13, 32
+    v4 = add v14, 64
     mstore v4, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
-    v6 = add v13, 64
+    v6 = add v14, 96
     mcopy v6, v13, 64
-    v9 = add v13, 128
+    v9 = add v14, 160
     mcopy v9, v13, 32
     ret v0
 }
@@ -309,8 +309,8 @@ bb13:
   dup 2
   add
   dup 1
-  push 256
-  dup 3
+  push 288
+  dup 4
   add
   push 0
   swap 1
@@ -339,8 +339,8 @@ bb32:
   push 0
   swap 1
   mstore
-  push 32
-  dup 4
+  push 64
+  dup 5
   add
   dup 3
   dup 5
@@ -375,8 +375,8 @@ bb14:
   dup 2
   add
   dup 1
-  push 160
-  dup 3
+  push 192
+  dup 4
   add
   push 0
   swap 1
@@ -453,8 +453,8 @@ bb18 [continuation]:
   push 0
   swap 1
   mstore
-  push 32
-  dup 3
+  push 64
+  dup 5
   add
   dup 4
   dup 4
@@ -498,8 +498,8 @@ bb30:
   push 160
   dup 3
   mstore
-  swap 1
   push 32
+  dup 3
   add
   push bb36
   jump bb34
@@ -554,30 +554,31 @@ bb26:
 bb35 [continuation]:
   swap 1
   mstore
-  push 64
-  dup 2
+  push 96
+  dup 4
   add
   push 64
   dup 3
   dup 3
   mcopy
   pop
-  push 128
-  dup 2
+  swap 2
+  push 160
   add
   push 32
-  dup 3
+  dup 4
   dup 3
   mcopy
   pop
+  swap 1
   pop
   swap 1
   jump
 bb36 [continuation]:
   dup 2
   mstore
-  push 32
-  dup 2
+  push 64
+  dup 4
   add
   push bb35
   jump bb34

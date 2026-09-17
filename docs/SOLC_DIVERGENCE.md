@@ -12,6 +12,12 @@ difference, why we keep it, and the tests or issue that cover it.
 See [#547](https://github.com/paradigmxyz/solar/issues/547) for the tracking issue
 for documenting divergences.
 
+Use the [compiler-diff project](../tools/compiler-diff/README.md) to capture
+ABI/JSON or execution differences with inputs, compiler identities and replay
+artifacts. A mismatch needs investigation before it becomes an intentional
+divergence. Link reviewed expectation rules to the relevant entry or issue;
+the comparison tool does not load this document as an allowlist.
+
 ## Entry Format
 
 Use the next ID in the relevant phase.

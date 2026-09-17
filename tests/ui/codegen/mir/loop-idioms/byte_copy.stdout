@@ -19,7 +19,7 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
     v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v19 = add v30, v17
     mstore v19, 0
-    v21 = add v30, 32
+    v21 = add v28, 64
     mcopy v21, v30, v13
     mstore v28, 32
     mstore v30, v13
@@ -54,7 +54,7 @@ fn @inPlace() [selector=0xda1b3040, abi_wrapper, pure] {
     v39 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v41 = add v59, v39
     mstore v41, 0
-    v43 = add v59, 32
+    v43 = add v60, 64
     mcopy v43, v59, v35
     mstore v60, 32
     mstore v59, v35
