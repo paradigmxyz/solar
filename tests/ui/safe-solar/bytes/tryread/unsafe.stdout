@@ -1,0 +1,72 @@
+// === ROOT/tests/ui/safe-solar/bytes/tryread/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase lowered
+types:
+  struct0: {u256, u256}
+
+fn @peek() [selector=0xa230438f, abi_wrapper, pure] {
+  bb0:
+    v7 = calldatasize
+    v8 = lt v7, 68
+    jumpi v8, bb1, bb2
+  bb2:
+    v9 = calldataload 4
+    v10 = add v9, 4
+    v11 = add v10, 32
+    v12 = gt v9, 0xffffffffffffffff
+    v13 = gt v11, v7
+    v14 = or v12, v13
+    jumpi v14, bb1, bb3
+  bb3:
+    v15 = calldataload v10
+    v17 = add v15, 63
+    v18 = lt v17, v15
+    jumpi v18, bb4, bb5
+  bb5:
+    v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v21 = mload 64 !metadata(memory=scratch)
+    v34 = add v21, v20
+    v35 = lt v34, v21
+    v36 = gt v34, 0xffffffffffffffff
+    v37 = or v35, v36
+    jumpi v37, bb4, bb7
+  bb7:
+    mstore 64, v34 !metadata(memory=scratch)
+    mstore v21, v15
+    v22 = sub v7, v11
+    v23 = gt v15, v22
+    jumpi v23, bb1, bb6
+  bb6:
+    v31 = add v21, 32
+    calldatacopy v31, v11, v15
+    v0 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
+    mstore v0, 4
+    v1 = add v0, 32
+    mstore v1, 0x1122334400000000000000000000000000000000000000000000000000000000
+    v3 = add v31, arg1
+    v4 = mload v3
+    v27 = and v4, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 128, true
+    mstore 160, v27
+    returndata 128, 64
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0xa230438f => bb2]
+  bb2:
+    tail_call @peek
+  bb3:
+    revert 0, 0
+}

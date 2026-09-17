@@ -1,0 +1,74 @@
+// === ROOT/tests/ui/safe-solar/calldata/copy/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase lowered
+fn @part() [selector=0x107cd163, abi_wrapper, pure] {
+  bb0:
+    v8 = calldatasize
+    v9 = lt v8, 100
+    jumpi v9, bb3, bb4
+  bb4:
+    v10 = calldataload 4
+    v11 = add v10, 4
+    v12 = add v11, 32
+    v13 = gt v10, 0xffffffffffffffff
+    v14 = gt v12, v8
+    v15 = or v13, v14
+    v16 = calldataload v11
+    v18 = sub v8, v12
+    v19 = gt v16, v18
+    v20 = or v15, v19
+    jumpi v20, bb3, bb5
+  bb5:
+    v0 = add arg2, 63
+    v1 = lt v0, arg2
+    jumpi v1, bb1, bb2
+  bb2:
+    v3 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v4 = mload 64 !metadata(memory=scratch)
+    v37 = add v4, v3
+    v38 = lt v37, v4
+    v39 = gt v37, 0xffffffffffffffff
+    v40 = or v38, v39
+    jumpi v40, bb1, bb6
+  bb6:
+    mstore 64, v37 !metadata(memory=scratch)
+    v41 = calldatasize
+    calldatacopy v4, v41, v3
+    mstore v4, arg2
+    v6 = add v12, arg1
+    v7 = add v4, 32
+    calldatacopy v7, v6, arg2
+    v26 = iszero v4
+    v27 = iszero v26
+    v28 = mul arg2, v27
+    v30 = add v28, 31
+    v32 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v33 = add v7, v32
+    mstore v33, 0
+    v34 = add v7, 32
+    mcopy v34, v7, v28
+    mstore v4, 32
+    mstore v7, v28
+    v35 = add v32, 64
+    returndata v4, v35
+  bb1:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0x107cd163 => bb2]
+  bb2:
+    tail_call @part
+  bb3:
+    revert 0, 0
+}
