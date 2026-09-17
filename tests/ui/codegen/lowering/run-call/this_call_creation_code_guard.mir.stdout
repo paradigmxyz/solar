@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationHelper ===
 @module CreationHelper
-fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -19,20 +19,18 @@ fn @helper() {
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = zext i160 v0 to i256
-    v6 = extcodesize v5
-    v7 = eq v6, 0
-    icall revert_if<target_contract_has_no_code>, v7
-    v8 = zext i160 v0 to i256
-    v9 = call v1, v8, 0, v3, v4, 0, 0
-    jumpi v9, bb2, bb1
+    v5 = extcodesize v0
+    v6 = iszero v5
+    icall revert_if<target_contract_has_no_code>, v6
+    v7 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
     ret
 }
 
-fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
@@ -42,7 +40,7 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationDirect ===
 @module CreationDirect
-fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -55,20 +53,18 @@ fn @constructor() [constructor] {
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = zext i160 v0 to i256
-    v6 = extcodesize v5
-    v7 = eq v6, 0
-    icall revert_if<target_contract_has_no_code>, v7
-    v8 = zext i160 v0 to i256
-    v9 = call v1, v8, 0, v3, v4, 0, 0
-    jumpi v9, bb2, bb1
+    v5 = extcodesize v0
+    v6 = iszero v5
+    icall revert_if<target_contract_has_no_code>, v6
+    v7 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
     ret
 }
 
-fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
@@ -78,7 +74,7 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationModifier ===
 @module CreationModifier
-fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -91,13 +87,11 @@ fn @constructor() [constructor] {
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = zext i160 v0 to i256
-    v6 = extcodesize v5
-    v7 = eq v6, 0
-    icall revert_if<target_contract_has_no_code>, v7
-    v8 = zext i160 v0 to i256
-    v9 = call v1, v8, 0, v3, v4, 0, 0
-    jumpi v9, bb3, bb2
+    v5 = extcodesize v0
+    v6 = iszero v5
+    icall revert_if<target_contract_has_no_code>, v6
+    v7 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v7, bb3, bb2
   bb2:
     revert_returndata
   bb3:
@@ -108,7 +102,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
@@ -118,7 +112,7 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationBase ===
 @module CreationBase
-fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -131,20 +125,18 @@ fn @constructor() [constructor] {
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = zext i160 v0 to i256
-    v6 = extcodesize v5
-    v7 = eq v6, 0
-    icall revert_if<target_contract_has_no_code>, v7
-    v8 = zext i160 v0 to i256
-    v9 = call v1, v8, 0, v3, v4, 0, 0
-    jumpi v9, bb2, bb1
+    v5 = extcodesize v0
+    v6 = iszero v5
+    icall revert_if<target_contract_has_no_code>, v6
+    v7 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
     ret
 }
 
-fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
@@ -161,13 +153,11 @@ fn @constructor() [constructor] {
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = zext i160 v0 to i256
-    v6 = extcodesize v5
-    v7 = eq v6, 0
-    icall revert_if<target_contract_has_no_code>, v7
-    v8 = zext i160 v0 to i256
-    v9 = call v1, v8, 0, v3, v4, 0, 0
-    jumpi v9, bb3, bb2
+    v5 = extcodesize v0
+    v6 = iszero v5
+    icall revert_if<target_contract_has_no_code>, v6
+    v7 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v7, bb3, bb2
   bb2:
     revert_returndata
   bb3:
@@ -178,13 +168,13 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
@@ -194,39 +184,37 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationInitializer ===
 @module CreationInitializer
-fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     ret v0
 }
 
-fn @init() -> i256 {
+fn @init() -> u256 {
   bb0:
     v0 = address
     v1 = gas
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = zext i160 v0 to i256
-    v6 = extcodesize v5
-    v7 = eq v6, 0
-    icall revert_if<target_contract_has_no_code>, v7
-    v8 = zext i160 v0 to i256
-    v9 = call v1, v8, 0, v3, v4, 0, 0
-    jumpi v9, bb2, bb1
+    v5 = extcodesize v0
+    v6 = iszero v5
+    icall revert_if<target_contract_has_no_code>, v6
+    v7 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
     ret 3
 }
 
-fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
@@ -243,7 +231,7 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationTry ===
 @module CreationTry
-fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -256,13 +244,11 @@ fn @constructor() [constructor] {
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = zext i160 v0 to i256
-    v6 = extcodesize v5
-    v7 = eq v6, 0
-    icall revert_if<target_contract_has_no_code>, v7
-    v8 = zext i160 v0 to i256
-    v9 = call v1, v8, 0, v3, v4, 0, 0
-    jumpi v9, bb1, bb2
+    v5 = extcodesize v0
+    v6 = iszero v5
+    icall revert_if<target_contract_has_no_code>, v6
+    v7 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v7, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -276,7 +262,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
@@ -286,7 +272,7 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:Runtime ===
 @module Runtime
-fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -299,27 +285,25 @@ fn @helper() {
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = zext i160 v0 to i256
-    v6 = extcodesize v5
-    v7 = eq v6, 0
-    icall revert_if<target_contract_has_no_code>, v7
-    v8 = zext i160 v0 to i256
-    v9 = call v1, v8, 0, v3, v4, 0, 0
-    jumpi v9, bb2, bb1
+    v5 = extcodesize v0
+    v6 = iszero v5
+    icall revert_if<target_contract_has_no_code>, v6
+    v7 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
     ret
 }
 
-fn @viaHelper() -> i256 [selector=0x9c6f4ff5, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @viaHelper() -> u256 [selector=0x9c6f4ff5, abi_params=[], abi_returns=[word]] {
   bb0:
     icall @helper
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
@@ -329,16 +313,15 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:SharedHelper ===
 @module SharedHelper
-fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: i256) [constructor, abi_params=[bool]] {
+fn @constructor(arg0: bool) [constructor, abi_params=[bool]] {
   bb0:
-    v0 = ne arg0, 0
-    jumpi v0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb2:
     jump bb3
   bb1:
@@ -355,27 +338,25 @@ fn @helper() {
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = zext i160 v0 to i256
-    v6 = extcodesize v5
-    v7 = eq v6, 0
-    icall revert_if<target_contract_has_no_code>, v7
-    v8 = zext i160 v0 to i256
-    v9 = call v1, v8, 0, v3, v4, 0, 0
-    jumpi v9, bb2, bb1
+    v5 = extcodesize v0
+    v6 = iszero v5
+    icall revert_if<target_contract_has_no_code>, v6
+    v7 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
     ret
 }
 
-fn @viaHelper() -> i256 [selector=0x9c6f4ff5, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @viaHelper() -> u256 [selector=0x9c6f4ff5, abi_params=[], abi_returns=[word]] {
   bb0:
     icall @helper
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
@@ -385,175 +366,135 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[], abi_return_para
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:Deployer ===
 @module Deployer
-@data
-  CreationHelper_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationHelper"
-  CreationDirect_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationDirect"
-  CreationModifier_creation_code_2: creation_code "ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationModifier"
-  CreationDerived_creation_code_3: creation_code "ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationDerived"
-  CreationInitializer_creation_code_4: creation_code "ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationInitializer"
-  CreationTry_creation_code_5: creation_code "ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationTry"
-  SharedHelper_creation_code_6: creation_code "ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:SharedHelper"
+data:
+  CreationHelper_initcode_0: hex"60c06040526096565b5a8060a051606001528060a051606001526040518060a051608001528060a05160800152602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060a051604001523b156092578160a051606001528060a051608001525f5f6004835f3087f19150506090573d5f5f3e3d5ffd5b565b5f5ffd5b3460c95760405160a05181602001528060a05260a00160405260b56008565b60a05160405260a0516020015160a05260cd565b5f5ffd5b606f8060d75f395ff3346028575f3560e01c80635fb11492146024578063d99aa8e2146020576028565b602c565b603e565b5f5ffd5b5f546080526020608001608090036080f35b5f54600181018060805280608052818110915090605d57806080525f55005b634e487b715f5260116020526024601cfd"
+  CreationDirect_initcode_1: hex"610120604052346080575a8060e0528060e05260405180610100528061010052602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060c0523b15607c578160e05280610100525f5f6004835f3087f19150506078573d5f5f3e3d5ffd5b6084565b5f5ffd5b5f5ffd5b606f80608e5f395ff3346028575f3560e01c80635fb11492146024578063d99aa8e2146020576028565b602c565b603e565b5f5ffd5b5f546080526020608001608090036080f35b5f54600181018060805280608052818110915090605d57806080525f55005b634e487b715f5260116020526024601cfd"
+  CreationInitializer_initcode_2: hex"60e0604052609f565b5a8060a051608001528060a051608001526040518060a05160a001528060a05160a00152602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060a051606001523b15609b578160a051608001528060a05160a001525f5f6004835f3087f19150506090573d5f5f3e3d5ffd5b600360a05160400152565b5f5ffd5b3460e85760405160a05181602001528060a05260c00160405260be6008565b60a051604001518060c05260a05160405260a0516020015160a0528060c0528060c05260015560ec565b5f5ffd5b60908060f65f395ff3346036575f3560e01c80630c55699c1460325780635fb1149214602e578063d99aa8e214602a576036565b603a565b605f565b604c565b5f5ffd5b5f546080526020608001608090036080f35b6001546080526020608001608090036080f35b5f54600181018060805280608052818110915090607e57806080525f55005b634e487b715f5260116020526024601cfd"
+  CreationTry_initcode_3: hex"610120604052346089575a8060e0528060e05260405180610100528061010052602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060c0523b156085578160e05280610100525f5f6004835f3087f19150506080576001607c576001608557fe5b6081565b5b608d565b5f5ffd5b5f5ffd5b606f8060975f395ff3346028575f3560e01c80635fb11492146024578063d99aa8e2146020576028565b602c565b603e565b5f5ffd5b5f546080526020608001608090036080f35b5f54600181018060805280608052818110915090605d57806080525f55005b634e487b715f5260116020526024601cfd"
+  SharedHelper_initcode_4: hex"61025738038061025760e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405260c8565b5a8060a051606001528060a051606001526040518060a051608001528060a05160800152602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060a051604001523b1560c4578160a051606001528060a051608001525f5f6004835f3087f191505060c2573d5f5f3e3d5ffd5b565b5f5ffd5b346101385760e08060c0528060c05260e06102573803016020820111610134578060c0525160029010156101345760e0516101025761012f565b60405160a05181602001528060a05260a00160405261011e603a565b60a05160405260a0516020015160a0525b61013c565b5f5ffd5b5f5ffd5b61010f806101485f395ff3346036575f3560e01c80635fb114921460325780639c6f4ff514602e578063d99aa8e214602a576036565b603a565b604c565b606a565b5f5ffd5b5f546080526020608001608090036080f35b6101006040526058609b565b5f546080526020608001608090036080f35b5f54600181018060805280608052818110915090608957806080525f55005b634e487b715f5260116020526024601cfd5b5a8060c0528060c0526040518060e0528060e052602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060a0523b1561010b578160c0528060e0525f5f6004835f3087f1915050610109573d5f5f3e3d5ffd5b565b5f5ffd"
 
-fn @viaHelper() [selector=0x9c6f4ff5, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @viaHelper() [selector=0x9c6f4ff5, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize CreationHelper_creation_code_0
-    v2 = datasize CreationHelper_creation_code_0, 31, aligned
+    v1 = not 31
+    v2 = and 357, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    datacopy CreationHelper_creation_code_0, v4, v1
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    data_copy CreationHelper_initcode_0, v3, 326
+    v4 = slice_ptr v0
+    v5 = add v3, 326
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 326
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
     ret
 }
 
-fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize CreationDirect_creation_code_1
-    v2 = datasize CreationDirect_creation_code_1, 31, aligned
+    v1 = not 31
+    v2 = and 284, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    datacopy CreationDirect_creation_code_1, v4, v1
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    data_copy CreationDirect_initcode_1, v3, 253
+    v4 = slice_ptr v0
+    v5 = add v3, 253
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 253
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
     ret
 }
 
-fn @viaModifier() [selector=0xb93fa0d6, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @viaModifier() [selector=0xb93fa0d6, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize CreationModifier_creation_code_2
-    v2 = datasize CreationModifier_creation_code_2, 31, aligned
+    v1 = not 31
+    v2 = and 284, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    datacopy CreationModifier_creation_code_2, v4, v1
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    data_copy CreationDirect_initcode_1, v3, 253
+    v4 = slice_ptr v0
+    v5 = add v3, 253
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 253
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
     ret
 }
 
-fn @viaBase() [selector=0x0f982f84, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @viaBase() [selector=0x0f982f84, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize CreationDerived_creation_code_3
-    v2 = datasize CreationDerived_creation_code_3, 31, aligned
+    v1 = not 31
+    v2 = and 284, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    datacopy CreationDerived_creation_code_3, v4, v1
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    data_copy CreationDirect_initcode_1, v3, 253
+    v4 = slice_ptr v0
+    v5 = add v3, 253
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 253
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
     ret
 }
 
-fn @viaInitializer() [selector=0x7c61d018, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @viaInitializer() [selector=0x7c61d018, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize CreationInitializer_creation_code_4
-    v2 = datasize CreationInitializer_creation_code_4, 31, aligned
+    v1 = not 31
+    v2 = and 421, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    datacopy CreationInitializer_creation_code_4, v4, v1
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    data_copy CreationInitializer_initcode_2, v3, 390
+    v4 = slice_ptr v0
+    v5 = add v3, 390
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 390
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
     ret
 }
 
-fn @viaTry() [selector=0x9369e272, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @viaTry() [selector=0x9369e272, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize CreationTry_creation_code_5
-    v2 = datasize CreationTry_creation_code_5, 31, aligned
+    v1 = not 31
+    v2 = and 293, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    datacopy CreationTry_creation_code_5, v4, v1
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, v1
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, v1
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    data_copy CreationTry_initcode_3, v3, 262
+    v4 = slice_ptr v0
+    v5 = add v3, 262
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 262
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
     ret
 }
 
-fn @viaShared() [selector=0x86375232, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @viaShared() [selector=0x86375232, abi_params=[], abi_returns=[]] {
   bb0:
-    v0 = zext i1 1 to i256
-    v1 = eq v0, 0
-    v2 = eq v1, false
-    v3 = zext i1 v2 to i256
-    v4 = abi_encode [word<bool>], args v3
-    v5 = datasize SharedHelper_creation_code_6
-    v6 = datasize SharedHelper_creation_code_6, 32
-    v7 = datasize SharedHelper_creation_code_6, 63, aligned
-    v8 = alloc raw, exact, uninitialized, infallible, v7
-    v9 = ptrtoint memptr v8 to i256
-    datacopy SharedHelper_creation_code_6, v9, v5
-    v10 = slice_ptr v4
-    v11 = ptrtoint memptr v8 to i256
-    v12 = add v11, v5
-    mcopy v12, v10, 32 !metadata(memory=heap)
-    v13 = ptrtoint memptr v8 to i256
-    v14 = create 0, v13, v6
-    v15 = zext i160 v14 to i256
-    v16 = ne v15, 0
-    jumpi v16, bb2, bb1
+    v0 = eq true, 0
+    v1 = iszero v0
+    v2 = abi_encode [word<bool>], args v1
+    v3 = not 31
+    v4 = and 662, v3
+    v5 = alloc raw, exact, uninitialized, infallible, v4
+    data_copy SharedHelper_initcode_4, v5, 599
+    v6 = slice_ptr v2
+    v7 = add v5, 599
+    mcopy v7, v6, 32 !metadata(memory=heap)
+    v8 = create 0, v5, 631
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
