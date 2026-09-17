@@ -822,6 +822,19 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.spill_value_if_needed(func, *condition);
                 }
             }
+            if !preserve_branch_targets.is_empty()
+                && let Some(Terminator::Branch { condition, .. }) = block.terminator.as_ref()
+                && !liveness.live_out(block_id).contains(*condition)
+                && let Some(depth) = self.scheduler.stack.find(*condition)
+                && depth > 0
+            {
+                // swap depth(condition)
+                // jumpi condition, then, else
+                // A dead word dropped after the condition was computed left the condition under
+                // the word that came up in its place. Draining the stack to reach it would store
+                // every carried word here and reload each on both arms.
+                self.emit_stack_op(StackOp::Swap(depth as u8));
+            }
             if !preserve_branch_targets.is_empty() {
                 // Junk-terminal siblings may have argument padding in their global plan,
                 // but every planned value must be dead here; no phi layout may be bypassed.
@@ -1065,9 +1078,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// it. If both successors are private, later blocks, we can leave those
     /// values on the stack for both edges instead of spilling them before every
     /// loop condition. The condition may also be a carried loop invariant below
-    /// the top, which the terminator duplicates for `JUMPI`. Every word must be
-    /// live out of the block, and at most `LIVE_JOIN_LAYOUT_LIMIT` words are
-    /// carried, matching what the live-join planner delivers into a block.
+    /// the top, which the terminator duplicates for `JUMPI`, or one that dies at
+    /// the branch and was covered when a dead word was dropped, which the caller
+    /// swaps back up. Every other word must be live out of the block, and at most
+    /// `LIVE_JOIN_LAYOUT_LIMIT` words are carried, matching what the live-join
+    /// planner delivers into a block.
     fn branch_preserve_targets(
         &self,
         func: &Function,
@@ -1084,15 +1099,20 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // A freshly computed condition is the top word and JUMPI consumes it. A condition
         // carried below the top is a loop invariant the successors still read; the terminator
-        // duplicates it for JUMPI, so the whole stack survives the branch.
+        // duplicates it for JUMPI, so the whole stack survives the branch. A condition that
+        // dies at the branch can sit below the top as well, once a dead word beneath it has
+        // been swapped up and dropped; the caller swaps it back up for JUMPI, and the word it
+        // trades places with stays among the carried ones.
         let condition_on_top = self.scheduler.stack.top() == Some(*condition);
+        let condition_live = liveness.live_out(block_id).contains(*condition);
+        let condition_depth = self.scheduler.stack.find(*condition);
+        let buried = !condition_on_top
+            && !condition_live
+            && condition_depth.is_some_and(|depth| depth <= self.stack_access_limit());
         if !condition_on_top
-            && !(liveness.live_out(block_id).contains(*condition)
-                && self
-                    .scheduler
-                    .stack
-                    .find(*condition)
-                    .is_some_and(|depth| depth < self.stack_access_limit()))
+            && !buried
+            && !(condition_live
+                && condition_depth.is_some_and(|depth| depth < self.stack_access_limit()))
         {
             tracing::trace!(
                 block = ?block_id,
@@ -1101,12 +1121,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             return Vec::new();
         }
 
+        // JUMPI takes the condition's slot when the condition dies here.
+        let consumed = if condition_on_top { Some(0) } else { condition_depth.filter(|_| buried) };
         let Some(mut carried) = self
             .scheduler
             .stack
             .iter()
-            .skip(usize::from(condition_on_top))
-            .map(|slot| {
+            .enumerate()
+            .filter(|(depth, _)| Some(*depth) != consumed)
+            .map(|(_, slot)| {
                 let value = slot?;
                 liveness.live_out(block_id).contains(value).then_some(value)
             })

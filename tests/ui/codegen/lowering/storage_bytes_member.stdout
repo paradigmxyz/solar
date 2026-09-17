@@ -127,10 +127,7 @@ bb21 [loop]:
   push 1
   dup 2
   and
-  push 1
-  dup 2
-  eq
-  swap 1
+  dup 1
   push 0
   sub
   push 127
@@ -273,10 +270,7 @@ bb32:
   push 1
   dup 2
   and
-  push 1
-  dup 2
-  eq
-  swap 1
+  dup 1
   push 0
   sub
   push 127
@@ -294,51 +288,43 @@ bb32:
   push bb75
   jumpi
   dup 1
+  push 128
+  mstore
   iszero
-  push bb40
+  push bb35
   jumpi
   push 32
-  dup 2
+  push 128
+  mload
   eq
-  push bb38
+  push bb39
   jumpi
   push 1
-  swap 1
-  sub
   push 128
-  mstore
-  dup 3
-  push 160
-  mstore
-  dup 2
-  push 192
-  mstore
-  swap 2
-  pop
-  pop
-  push bb37
-  jumpi
-  push 160
   mload
+  sub
+  swap 1
+  push bb38
+  jumpi
+  dup 3
   push 0
   mstore
-  push 128
-  mload
+  dup 1
   push 5
   shr
   push 32
   push 0
   keccak256
   add
-  push 255
+  swap 1
   push 31
-  push 128
-  mload
   and
   push 31
   sub
   push 3
   shl
+  push 255
+  swap 1
   shl
   dup 2
   sload
@@ -348,40 +334,35 @@ bb32:
   swap 1
   sstore
   push 2
-  push 192
-  mload
+  swap 1
   sub
-  push 160
-  mload
+  swap 1
   sstore
   stop
-bb37:
-  push 0
-  not
-  push 128
-  mload
+bb38:
+  dup 1
   push 32
   sub
   push 3
   shl
+  push 0
+  not
+  swap 1
   shl
-  push 192
-  mload
+  swap 1
+  swap 2
   and
-  push 128
-  mload
+  swap 1
   dup 1
   add
   or
-  push 160
-  mload
+  swap 1
   sstore
   stop
-bb38:
-  dup 4
+bb39:
+  dup 3
   push 0
   mstore
-  pop
   pop
   pop
   push 32
@@ -417,10 +398,7 @@ bb42:
   push 1
   dup 2
   and
-  push 1
-  dup 2
-  eq
-  swap 1
+  dup 1
   push 0
   sub
   push 127
@@ -466,10 +444,7 @@ bb45:
   push 1
   dup 2
   and
-  push 1
-  dup 2
-  eq
-  swap 1
+  dup 1
   push 0
   sub
   push 127
@@ -552,10 +527,7 @@ bb54:
   push 1
   dup 2
   and
-  push 1
-  dup 2
-  eq
-  swap 1
+  dup 1
   push 0
   sub
   push 127
@@ -621,7 +593,7 @@ bb61:
   sstore
   stop
 bb64:
-  push 256
+  push 128
   push 64
   mstore
   caller
@@ -640,10 +612,7 @@ bb64:
   push 1
   dup 2
   and
-  push 1
-  dup 2
-  eq
-  swap 1
+  dup 1
   push 0
   sub
   push 127
@@ -689,38 +658,24 @@ bb64:
   jumpi
   push 64
   mstore
-  dup 1
-  push 128
-  mstore
   swap 2
   dup 3
   mstore
-  dup 5
-  push 160
-  mstore
-  dup 4
-  push 192
-  mstore
-  push 224
-  mstore
-  pop
   swap 2
-  pop
-  pop
   push bb68
   jumpi
+  swap 2
   push 255
   not
-  push 192
-  mload
   and
+  swap 3
+  pop
+  pop
   push 32
-  push 128
-  mload
+  dup 2
   add
+  exchange 1, 2
   mstore
-  push 128
-  mload
   jump bb70
 bb70:
   dup 1
@@ -744,8 +699,8 @@ bb70:
   push 0
   swap 1
   mstore
-  push 64
-  dup 5
+  push 32
+  dup 3
   add
   dup 4
   dup 4
@@ -763,25 +718,19 @@ bb70:
   dup 2
   return
 bb68:
-  push 160
-  mload
+  swap 3
   push 0
   mstore
+  swap 1
+  pop
   push 32
   push 0
   keccak256
   push 32
-  push 128
-  mload
+  dup 4
   add
   push 0
-  push 128
-  mload
-  push 224
-  mload
-  swap 4
-  swap 2
-  exchange 1, 3
+  exchange 3, 4
   jump bb69
 bb71 [loop]:
   dup 1
@@ -809,7 +758,7 @@ bb69 [loop]:
   swap 1
   pop
   jump bb70
-bb40 [cold]:
+bb35 [cold]:
   push 0x4e487b71
   push 0
   mstore

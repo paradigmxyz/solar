@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_evaluation_order.sol:MutatingBase ===
 @module MutatingBase
-fn @mutate() -> i256 [selector=0x7795b5fc, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @mutate() -> u256 [selector=0x7795b5fc, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
@@ -11,23 +11,22 @@ fn @mutate() -> i256 [selector=0x7795b5fc, abi_params=[], abi_returns=[word], ab
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_evaluation_order.sol:ExternalCallEvaluationOrder ===
 @module ExternalCallEvaluationOrder
 data:
-  MutatingBase_initcode_0: hex"34600d5760698060115f395ff35b5f5ffd341515601c575f3560e01c80637795b5fc14601857601c565b6020565b5f5ffd5b5f54600181018060a0528060a05281811091505060575760a0518060a0525f5560a0518060a0526080526020608001608090036080f35b634e487b715f5260116020526024601cfd"
+  MutatingBase_initcode_0: hex"34600d5760648060115f395ff35b5f5ffd34601a575f3560e01c80637795b5fc14601657601a565b601e565b5f5ffd5b5f54600181018060a0528060a0528181109150906052578060a0525f5560a0518060a0526080526020608001608090036080f35b634e487b715f5260116020526024601cfd"
 
 immutables:
-  target: u256
+  target: address
 
-fn @receiver() -> i256 {
+fn @receiver() -> address {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = checked_mul u256, v0, 10
     v2 = checked_add u256, v1, 1
     sstore 1, v2 !metadata(storage=slot(1))
     v3 = address
-    v4 = zext i160 v3 to i256
-    ret v4
+    ret v3
 }
 
-fn @arg() -> i256 {
+fn @arg() -> u256 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = checked_mul u256, v0, 10
@@ -36,7 +35,7 @@ fn @arg() -> i256 {
     ret 7
 }
 
-fn @gasOpt() -> i256 {
+fn @gasOpt() -> u256 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = checked_mul u256, v0, 10
@@ -46,7 +45,7 @@ fn @gasOpt() -> i256 {
     ret v3
 }
 
-fn @valueOpt() -> i256 {
+fn @valueOpt() -> u256 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = checked_mul u256, v0, 10
@@ -55,12 +54,12 @@ fn @valueOpt() -> i256 {
     ret 0
 }
 
-fn @sink(arg0: i256) [selector=0xa4ba067e, payable, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @sink(arg0: u256) [selector=0xa4ba067e, payable, abi_params=[u256], abi_returns=[]] {
   bb0:
     ret
 }
 
-fn @externalReceiver() -> i256 [selector=0x7b42c356, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @externalReceiver() -> u256 [selector=0x7b42c356, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = icall @receiver
     v1 = gas
@@ -69,7 +68,7 @@ fn @externalReceiver() -> i256 [selector=0x7b42c356, abi_params=[], abi_returns=
     v4 = slice_ptr v3
     v5 = slice_len v3
     v6 = extcodesize v0
-    v7 = eq v6, 0
+    v7 = iszero v6
     icall revert_if<target_contract_has_no_code>, v7
     v8 = call v1, v0, 0, v4, v5, 0, 0
     jumpi v8, bb2, bb1
@@ -80,7 +79,7 @@ fn @externalReceiver() -> i256 [selector=0x7b42c356, abi_params=[], abi_returns=
     ret v9
 }
 
-fn @callOptions() -> i256 [selector=0xec5f47fe, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @callOptions() -> u256 [selector=0xec5f47fe, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = gas
@@ -90,26 +89,24 @@ fn @callOptions() -> i256 [selector=0xec5f47fe, abi_params=[], abi_returns=[word
     v5 = abi_encode [word], selector 0xa4ba067e00000000000000000000000000000000000000000000000000000000, args v4
     v6 = slice_ptr v5
     v7 = slice_len v5
-    v8 = zext i160 v0 to i256
-    v9 = extcodesize v8
-    v10 = eq v9, 0
-    icall revert_if<target_contract_has_no_code>, v10
-    v11 = zext i160 v0 to i256
-    v12 = call v2, v11, v3, v6, v7, 0, 0
-    jumpi v12, bb2, bb1
+    v8 = extcodesize v0
+    v9 = iszero v8
+    icall revert_if<target_contract_has_no_code>, v9
+    v10 = call v2, v0, v3, v6, v7, 0, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = sload 1 !metadata(storage=slot(1))
-    ret v13
+    v11 = sload 1 !metadata(storage=slot(1))
+    ret v11
 }
 
-fn @dirtyUint8(arg0: i256) -> i256 [pure] {
+fn @dirtyUint8(arg0: u256) -> u8 [pure] {
   bb0:
     ret arg0
 }
 
-fn @dirtyGasOption() -> i256 [selector=0x494be41f, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @dirtyGasOption() -> bool [selector=0x494be41f, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = address
     v1 = gas
@@ -117,49 +114,46 @@ fn @dirtyGasOption() -> i256 [selector=0x494be41f, abi_params=[], abi_returns=[w
     v3 = and v2, 255
     v4 = abi_encode [word], object, selector 0xa4ba067e00000000000000000000000000000000000000000000000000000000, args 0
     v5 = address_call v0, v4, gas v3
-    v6 = zext i1 v5 to i256
-    ret v6
+    ret v5
 }
 
-fn @dirtySend() -> i256 [selector=0x82ec93de, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @dirtySend() -> bool [selector=0x82ec93de, payable, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = trunc i256 0xbeef to i160
-    v1 = icall @dirtyUint8, 256
-    v2 = and v1, 255
-    v3 = icall send<>, v0, v2
-    ret v3
+    v0 = icall @dirtyUint8, 256
+    v1 = and v0, 255
+    v2 = icall send<>, 0xbeef, v1
+    ret v2
 }
 
-fn @dirtyIndex() -> i256 [selector=0xe98f4d7c, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirtyIndex() -> u256 [selector=0xe98f4d7c, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<257, 1>, exact, uninitialized, infallible, 0x2020 !metadata(preserves_fmp)
-    v1 = ptrtoint memoryfixedarray v0 to i256
-    memory_zero v1, 0x2020
-    v2 = lt 0, 257
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
+    memory_zero v0, 0x2020
+    v1 = lt 0, 257
+    v2 = iszero v1
+    icall panic_if<0x32>, v2
     memory_object_store_element memoryfixedarray<257, 1>, v0, 0, 7
-    v4 = lt 256, 257
-    v5 = eq v4, false
-    icall panic_if<0x32>, v5
+    v3 = lt 256, 257
+    v4 = iszero v3
+    icall panic_if<0x32>, v4
     memory_object_store_element memoryfixedarray<257, 1>, v0, 256, 9
-    v6 = icall @dirtyUint8, 256
-    v7 = and v6, 255
-    v8 = lt v7, 257
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = memory_object_load_element memoryfixedarray<257, 1>, v0, v7
-    ret v10
+    v5 = icall @dirtyUint8, 256
+    v6 = and v5, 255
+    v7 = lt v6, 257
+    v8 = iszero v7
+    icall panic_if<0x32>, v8
+    v9 = memory_object_load_element memoryfixedarray<257, 1>, v0, v6
+    ret v9
 }
 
-fn @mutate() -> i256 [selector=0x7795b5fc, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @mutate() -> u256 [selector=0x7795b5fc, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 7
     ret v1
 }
 
-fn @staticReceiverMutability() -> i256 [selector=0xde2015ae, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @staticReceiverMutability() -> u256 [selector=0xde2015ae, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = loadimmutable target
     v1 = gas
@@ -185,23 +179,17 @@ fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 153, v1
+    v2 = and 148, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    v4 = ptrtoint memptr v3 to i256
-    data_copy MutatingBase_initcode_0, v4, 122
-    v5 = slice_ptr v0
-    v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 122
-    mcopy v7, v5, 0 !metadata(memory=heap)
-    v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 122
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    data_copy MutatingBase_initcode_0, v3, 117
+    v4 = slice_ptr v0
+    v5 = add v3, 117
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 117
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    storeimmutable target, v12
+    storeimmutable target, v6
     ret
 }
