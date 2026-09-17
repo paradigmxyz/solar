@@ -28,8 +28,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let intrinsic = solar_sema::core::intrinsic_of(self.cx.gcx, function_id)?;
         // Without the instruction the shipped body is the implementation.
-        if intrinsic == CoreIntrinsic::LeadingZeros && !self.cx.gcx.sess.opts.evm_version.has_clz()
-        {
+        let needs_clz = matches!(
+            intrinsic,
+            CoreIntrinsic::LeadingZeros
+                | CoreIntrinsic::HighestSetBit
+                | CoreIntrinsic::TrailingZeros
+        );
+        if needs_clz && !self.cx.gcx.sess.opts.evm_version.has_clz() {
             return None;
         }
         Some(intrinsic)
@@ -92,6 +97,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let [value] = *operands.as_slice() else { return None };
                 Some(self.builder.clz(value))
             }
+            CoreIntrinsic::HighestSetBit => {
+                let [value] = *operands.as_slice() else { return None };
+                Some(self.core_highest_set_bit(value))
+            }
+            CoreIntrinsic::TrailingZeros => {
+                let [value] = *operands.as_slice() else { return None };
+                // lowest = value & (0 - value)
+                let zero = self.builder.imm(U256::ZERO);
+                let negated = self.builder.sub(zero, value);
+                let lowest = self.builder.and(value, negated);
+                Some(self.core_highest_set_bit(lowest))
+            }
             CoreIntrinsic::CallInto
             | CoreIntrinsic::StaticCallInto
             | CoreIntrinsic::DelegateCallInto => {
@@ -110,6 +127,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 })
             }
         }
+    }
+
+    /// The index of the highest set bit of `value`, 256 for zero. A count of
+    /// leading zeros is at most 255 for a non-zero word, where exclusive-or
+    /// with 255 subtracts it; zero counts 256, which that turns into 511, and
+    /// the second term brings back to 256.
+    fn core_highest_set_bit(&mut self, value: ValueId) -> ValueId {
+        // index = (255 ^ clz(value)) ^ (255 * iszero(value))
+        let count = self.builder.clz(value);
+        let top = self.builder.imm(U256::from(255));
+        let index = self.builder.xor(top, count);
+        let is_zero = self.builder.iszero(value);
+        let fix = self.builder.mul(top, is_zero);
+        self.builder.xor(index, fix)
     }
 
     /// Packs an intrinsic's results the way a call to `function_id` returns

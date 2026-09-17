@@ -104,6 +104,10 @@ pub enum CoreIntrinsic {
     CodeCopyInto,
     /// `Bits.leadingZeros(x)`: `clz`, on targets that have it.
     LeadingZeros,
+    /// `Bits.highestSetBit(x)`: `255 - clz`, with 256 for zero.
+    HighestSetBit,
+    /// `Bits.trailingZeros(x)`: the highest set bit of the isolated lowest one.
+    TrailingZeros,
     /// `Calls.callInto(target, value, gasLimit, payload, output)`.
     CallInto,
     /// `Calls.staticCallInto(target, gasLimit, payload, output)`.
@@ -214,8 +218,12 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
             FxHashMap::from_iter([(sym::copyInto, CoreIntrinsic::CodeCopyInto)])
         })),
         "solar:core/v1/Bits.sol" => Some(BITS.get_or_init(|| {
-            // `trailingZeros` and `popCount` have no instruction to lower to.
-            FxHashMap::from_iter([(sym::leadingZeros, CoreIntrinsic::LeadingZeros)])
+            // `popCount` has no instruction to lower to.
+            FxHashMap::from_iter([
+                (sym::leadingZeros, CoreIntrinsic::LeadingZeros),
+                (sym::highestSetBit, CoreIntrinsic::HighestSetBit),
+                (sym::trailingZeros, CoreIntrinsic::TrailingZeros),
+            ])
         })),
         "solar:core/v1/Calls.sol" => Some(CALLS.get_or_init(|| {
             FxHashMap::from_iter([
