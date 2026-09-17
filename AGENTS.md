@@ -513,11 +513,13 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 
 ### IR construction and rewrites
 
-- MIR scalar SSA values use `i1`, `i160`, or `i256`; structs, slices, and memory-object
+- Generated MIR scalar SSA values use `i1`, `i160`, or `i256`; structs, slices, and memory-object
   references retain their own types. Keep source widths, signedness, and ABI
   encodings in operation or layout metadata.
-- Name MIR integer types `iN` by bit width. Only `i1`, `i160`, and `i256` are supported
-  for now; future widths should lower to `i256` at the EVM IR boundary.
+- Name MIR integer types `iN` by bit width. Accept any positive 32-bit width in
+  MIR syntax, but emit only `i1`, `i160`, and `i256` from source lowering for now.
+  Other widths have no codegen support yet; lower them at the EVM IR boundary
+  when that support is added.
 - Address values use `i160` and must fit in 160 bits. Narrow with `trunc i160, value`
   and widen with `word_cast`; retain the width until EVM IR lowering.
 - Every `i1` value must be exactly zero or one, including arguments, loads,

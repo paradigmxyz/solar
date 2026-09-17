@@ -8,14 +8,16 @@ is a late lowering decision.
 
 ## Value types and conversions
 
-SSA values use `i256`, `i160`, `i1`, structs, slices, or memory-object references.
+SSA values use integers (`iN`), structs, slices, or memory-object references.
 An `i256` carries 256 bits; source widths, signedness, and ABI encoding rules
 belong to operation and layout metadata. An `i256` argument does not imply
 heap provenance or non-wrapping address arithmetic. `void` denotes no function result.
 
-Integer type names follow `iN`, where `N` is the bit width. Only `i1`, `i160`, and
-`i256` are supported for now. Future integer widths should remain explicit in
-MIR and lower to the EVM's `i256` representation at the EVM IR boundary.
+Integer type names follow `iN`, where `N` ranges from 1 to 4294967295. All
+widths can appear in MIR text; typed literals currently hold at most 256 bits.
+Only `i1`, `i160`, and `i256` have codegen support and are emitted by source
+lowering. Other widths are syntax-only for now; their eventual lowering belongs
+at the EVM IR boundary.
 Signedness belongs to operations, not integer types.
 
 Every `i1` is zero or one. Branches and select conditions require `i1`;

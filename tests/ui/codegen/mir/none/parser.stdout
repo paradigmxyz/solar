@@ -129,3 +129,30 @@
       ret v0
   }
   
+  fn @integer_widths(arg0: i8, arg1: i24, arg2: i512, arg3: i4294967295) -> i512 {
+    bb0:
+      ret arg2
+  }
+  
+  fn @integer_phi(arg0: i1, arg1: i7) -> i7 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      jump bb3
+    bb3:
+      v0 = phi [bb1: arg1], [bb2: i7 127]
+      ret v0
+  }
+  
+  fn @wide_integer_literal() -> i512 {
+    bb0:
+      ret i512 42
+  }
+  
+  fn @integer_undef() -> i24 {
+    bb0:
+      ret undef i24
+  }
+  

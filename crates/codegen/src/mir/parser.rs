@@ -681,15 +681,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if id == sym::i1 {
             return Ok(MirType::I1);
         }
+        if let Some(bits) = id.as_str().strip_prefix('i')
+            && !bits.is_empty()
+            && bits.bytes().all(|byte| byte.is_ascii_digit())
+        {
+            let bits = bits
+                .parse::<std::num::NonZeroU32>()
+                .map_err(|_| self.parser.error("integer width must be between 1 and 4294967295"))?;
+            return Ok(MirType::Int(bits));
+        }
         let layout = self.parse_value_layout_from_ident(id)?;
         match layout {
             super::ValueLayout::MemoryObject(_)
             | super::ValueLayout::Slice(_)
             | super::ValueLayout::Struct(_)
             | super::ValueLayout::Void => Ok(layout.mir_type()),
-            _ => Err(self.parser.error(format!(
-                "`{id}` is a layout type; use `i1`, `i160`, or `i256` for a scalar SSA value"
-            ))),
+            _ => Err(self
+                .parser
+                .error(format!("`{id}` is a layout type; use `iN` for a scalar SSA value"))),
         }
     }
 
@@ -816,8 +825,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             if ty == MirType::I1 && value > alloy_primitives::U256::ONE {
                 return Err(self.parser.error("boolean literal must be 0 or 1"));
             }
-            if ty == MirType::I160 && value.bit_len() > 160 {
-                return Err(self.parser.error("i160 literal must fit in 160 bits"));
+            if let MirType::Int(bits) = ty
+                && value.bit_len() > bits.get() as usize
+            {
+                return Err(self.parser.error(format!("{ty} literal must fit in {bits} bits")));
             }
             let immediate = Immediate::for_type(Some(ty), value);
             if immediate.ty() != ty {

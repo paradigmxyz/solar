@@ -1,7 +1,7 @@
 //! MIR type system.
 
 use super::StructId;
-use std::fmt;
+use std::{fmt, num::NonZeroU32};
 
 pub(crate) use solar_ast::TypeSize;
 
@@ -200,12 +200,8 @@ pub(crate) struct StructType {
 /// SSA value types. Integers have a bit width but no signedness.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum MirType {
-    /// A 256-bit integer.
-    I256,
-    /// A 160-bit integer, used for addresses.
-    I160,
-    /// A one-bit integer: zero or one.
-    I1,
+    /// An integer with a nonzero bit width.
+    Int(NonZeroU32),
     /// Reference to a semantically shaped memory object.
     MemoryObject(MemoryObjectKind),
     /// A pointer/length pair in the given address space.
@@ -217,12 +213,19 @@ pub(crate) enum MirType {
 }
 
 impl MirType {
+    /// A one-bit integer: zero or one.
+    pub(crate) const I1: Self = Self::Int(NonZeroU32::new(1).unwrap());
+    /// A 160-bit integer, used for addresses.
+    pub(crate) const I160: Self = Self::Int(NonZeroU32::new(160).unwrap());
+    /// A 256-bit integer.
+    pub(crate) const I256: Self = Self::Int(NonZeroU32::new(256).unwrap());
+
     /// Returns the full-width layout when no narrower source contract was supplied.
     pub(crate) const fn value_layout(self) -> ValueLayout {
         match self {
-            Self::I256 => ValueLayout::uint256(),
             Self::I1 => ValueLayout::Bool,
             Self::I160 => ValueLayout::Address,
+            Self::Int(_) => ValueLayout::uint256(),
             Self::MemoryObject(kind) => ValueLayout::MemoryObject(kind),
             Self::Slice(location) => ValueLayout::Slice(location),
             Self::Struct(id) => ValueLayout::Struct(id),
@@ -242,9 +245,7 @@ impl MirType {
 impl fmt::Display for MirType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::I256 => f.write_str("i256"),
-            Self::I1 => f.write_str("i1"),
-            Self::I160 => f.write_str("i160"),
+            Self::Int(bits) => write!(f, "i{bits}"),
             Self::MemoryObject(kind) => write!(f, "{kind}"),
             Self::Slice(location) => write!(f, "{location}slice"),
             Self::Struct(id) => write!(f, "struct{}", id.index()),
