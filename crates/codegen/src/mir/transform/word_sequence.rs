@@ -190,7 +190,7 @@ impl Recipe {
         let Some(temporary) = self.temporaries.get(&value) else { return value };
         let actual = match temporary {
             Temporary::Constant(value) => {
-                func.alloc_value(Value::Immediate(Immediate::uint256(*value)))
+                func.alloc_value(Value::Immediate(Immediate::I256(*value)))
             }
             Temporary::Operation(op) => {
                 let op = op.map_values(|value| {

@@ -854,7 +854,7 @@ fn display_function_ref(function: FunctionId, module: Option<&Module>) -> impl f
 fn display_val(vid: ValueId, func: &Function) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| match func.value(vid) {
         Value::Immediate(imm) if let Some(u256) = imm.as_u256() => match imm {
-            Immediate::Bool(value) => write!(f, "{value}"),
+            Immediate::I1(value) => write!(f, "{value}"),
             _ if imm.ty() != MirType::I256 => write!(f, "{} {}", imm.ty(), display_u256(u256)),
             _ => write!(f, "{}", display_u256(u256)),
         },

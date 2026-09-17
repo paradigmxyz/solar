@@ -281,7 +281,7 @@ impl SroaCx {
         if fields.is_empty() {
             return Some(false);
         }
-        let zero = func.alloc_value(Value::Immediate(Immediate::uint256(U256::ZERO)));
+        let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
         let mut slots: Vec<_> = fields
             .iter()
             .map(|&slot| SlotAccessInfo::object(object, slot, func.blocks.len()))

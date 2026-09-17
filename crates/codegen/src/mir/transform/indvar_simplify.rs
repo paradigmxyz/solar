@@ -858,7 +858,7 @@ impl IndVarSimplifier {
         if offset < 0 {
             return None;
         }
-        Some(func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(offset as u128)))))
+        Some(func.alloc_value(Value::Immediate(Immediate::I256(U256::from(offset as u128)))))
     }
 
     fn append_inst_value(

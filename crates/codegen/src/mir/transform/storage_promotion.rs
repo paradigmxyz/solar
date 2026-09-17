@@ -832,7 +832,7 @@ impl StorageScalarPromoter {
         );
         exit_instructions.push(dirty_load_inst);
         // dirty_bool = ne dirty_word, 0
-        let zero = func.alloc_value(Value::Immediate(Immediate::uint256(U256::ZERO)));
+        let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
         let (normalize, dirty_value) = func.alloc_value_inst(
             Instruction::new(InstKind::Ne(dirty_value, zero), Some(MirType::I1))
                 .with_debug_info_dropped(),
@@ -884,7 +884,7 @@ impl StorageScalarPromoter {
         let frame_offset = func.internal_frame_size.max(func.external_static_return_size);
         let temp_addr = EvmMemoryLayout::HEAP_START + frame_offset;
         func.internal_frame_size = func.internal_frame_size.max(frame_offset + 32);
-        func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(temp_addr))))
+        func.alloc_value(Value::Immediate(Immediate::I256(U256::from(temp_addr))))
     }
 
     fn redirect_successor_phi_incoming(
@@ -913,7 +913,7 @@ impl StorageScalarPromoter {
     }
 
     fn bool_word(&self, func: &mut Function, value: bool) -> ValueId {
-        func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(value))))
+        func.alloc_value(Value::Immediate(Immediate::I256(U256::from(value))))
     }
 
     fn alloc_inst_value(

@@ -527,7 +527,7 @@ fn coalesce_constant_allocations(func: &mut Function) {
             let preserves_fmp =
                 allocations.iter().any(|(inst, _, _)| func.inst(*inst).metadata.preserves_fmp());
             let base = allocations[0].1.result;
-            let size = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(total))));
+            let size = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(total))));
             let mut offset = 0_u64;
             // base = alloc total !preserves_fmp(any member)
             // remaining members = base + offset
@@ -542,7 +542,7 @@ fn coalesce_constant_allocations(func: &mut Function) {
                     inst.metadata.set_preserves_fmp(preserves_fmp);
                 } else {
                     let offset_value =
-                        func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(offset))));
+                        func.alloc_value(Value::Immediate(Immediate::I256(U256::from(offset))));
                     let inst = func.inst_mut(*allocation_id);
                     inst.kind = InstKind::Add(base, offset_value);
                     inst.metadata.set_effect(Some(inst.kind.effect_kind()));

@@ -39,14 +39,14 @@ impl Value {
 /// An immediate constant value.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Immediate {
-    /// Boolean constant.
-    Bool(bool),
+    /// A one-bit integer constant.
+    I1(bool),
     /// A 160-bit integer constant.
     I160(U160),
     /// An integer constant with a syntax-only width.
     Int(U256, NonZeroU32),
-    /// A 256-bit word constant.
-    Word(U256),
+    /// A 256-bit integer constant.
+    I256(U256),
     /// A constant pointer; its type implies no validity or aliasing guarantee.
     Pointer(U256, MirType),
 }
@@ -61,13 +61,13 @@ impl Immediate {
         match ty {
             Some(MirType::I1) => {
                 assert!(value <= U256::ONE, "boolean immediate must be zero or one");
-                Self::Bool(!value.is_zero())
+                Self::I1(!value.is_zero())
             }
             Some(MirType::I160) => {
                 assert!(value.bit_len() <= 160, "i160 immediate must fit in 160 bits");
                 Self::I160(U160::from(value))
             }
-            Some(MirType::I256) => Self::uint256(value),
+            Some(MirType::I256) => Self::I256(value),
             Some(MirType::Int(bits)) => {
                 assert!(
                     value.bit_len() <= bits.get() as usize,
@@ -76,7 +76,7 @@ impl Immediate {
                 Self::Int(value, bits)
             }
             Some(ty @ (MirType::MemPtr | MirType::MemoryObject(_))) => Self::Pointer(value, ty),
-            _ => Self::uint256(value),
+            _ => Self::I256(value),
         }
     }
 
@@ -84,33 +84,21 @@ impl Immediate {
     #[must_use]
     pub(crate) const fn ty(&self) -> MirType {
         match self {
-            Self::Bool(_) => MirType::I1,
+            Self::I1(_) => MirType::I1,
             Self::I160(_) => MirType::I160,
-            Self::Word(_) => MirType::I256,
+            Self::I256(_) => MirType::I256,
             Self::Int(_, bits) => MirType::Int(*bits),
             Self::Pointer(_, ty) => *ty,
         }
-    }
-
-    /// Creates a new uint256 immediate from a U256 value.
-    #[must_use]
-    pub(crate) const fn uint256(value: U256) -> Self {
-        Self::Word(value)
-    }
-
-    /// Creates a new boolean immediate.
-    #[must_use]
-    pub(crate) const fn bool(value: bool) -> Self {
-        Self::Bool(value)
     }
 
     /// Returns the value as a U256, if applicable.
     #[must_use]
     pub(crate) fn as_u256(&self) -> Option<U256> {
         match self {
-            Self::Bool(b) => Some(U256::from(*b as u64)),
+            Self::I1(b) => Some(U256::from(*b as u64)),
             Self::I160(v) => Some(U256::from(*v)),
-            Self::Word(v) | Self::Int(v, _) | Self::Pointer(v, _) => Some(*v),
+            Self::I256(v) | Self::Int(v, _) | Self::Pointer(v, _) => Some(*v),
         }
     }
 }
@@ -118,9 +106,9 @@ impl Immediate {
 impl fmt::Display for Immediate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Bool(b) => write!(f, "{b}"),
+            Self::I1(b) => write!(f, "{b}"),
             Self::I160(v) => write!(f, "{v}"),
-            Self::Word(v) | Self::Int(v, _) | Self::Pointer(v, _) => {
+            Self::I256(v) | Self::Int(v, _) | Self::Pointer(v, _) => {
                 write!(f, "{v}")
             }
         }
@@ -130,8 +118,8 @@ impl fmt::Display for Immediate {
 impl Ord for Immediate {
     fn cmp(&self, other: &Self) -> Ordering {
         let rank = |value: &Self| match value {
-            Self::Bool(_) => 0,
-            Self::Word(_) => 1,
+            Self::I1(_) => 0,
+            Self::I256(_) => 1,
             Self::I160(_) => 2,
             Self::Pointer(_, _) => 3,
             Self::Int(_, _) => 4,
@@ -142,8 +130,8 @@ impl Ord for Immediate {
             _ => unreachable!("pointer immediate has a pointer type"),
         };
         rank(self).cmp(&rank(other)).then_with(|| match (self, other) {
-            (Self::Bool(a), Self::Bool(b)) => a.cmp(b),
-            (Self::Word(a), Self::Word(b)) => a.cmp(b),
+            (Self::I1(a), Self::I1(b)) => a.cmp(b),
+            (Self::I256(a), Self::I256(b)) => a.cmp(b),
             (Self::I160(a), Self::I160(b)) => a.cmp(b),
             (Self::Int(a, a_bits), Self::Int(b, b_bits)) => {
                 a_bits.cmp(b_bits).then_with(|| a.cmp(b))

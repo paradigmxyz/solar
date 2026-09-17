@@ -1176,8 +1176,8 @@ mod tests {
         let mut func = Function::new(Ident::DUMMY);
         let pred_a = BlockId::ENTRY;
         let pred_b = func.alloc_block();
-        let a = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
-        let b = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(2))));
+        let a = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
+        let b = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(2))));
 
         let phi = InstKind::Phi(vec![(pred_a, a), (pred_b, b)]);
 

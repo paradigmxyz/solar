@@ -353,11 +353,11 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn imm(&mut self, value: U256) -> Value {
-        self.func.alloc_value(MirValue::Immediate(Immediate::uint256(value)))
+        self.func.alloc_value(MirValue::Immediate(Immediate::I256(value)))
     }
 
     fn imm_bool(&mut self, value: bool) -> Value {
-        self.func.alloc_value(MirValue::Immediate(Immediate::bool(value)))
+        self.func.alloc_value(MirValue::Immediate(Immediate::I1(value)))
     }
 
     fn u256(&mut self, value: u64) -> U256 {

@@ -303,7 +303,7 @@ fn apply(func: &mut Function, split: &Split) {
 
     // main_header: ahead = add counter', lookahead
     //              jumpi (lt ahead, bound), body', header
-    let lookahead = func.alloc_value(Value::Immediate(Immediate::uint256(split.lookahead)));
+    let lookahead = func.alloc_value(Value::Immediate(Immediate::I256(split.lookahead)));
     let (add, ahead) = func.alloc_value_inst(
         Instruction::new(InstKind::Add(mapped(split.counter), lookahead), Some(MirType::I256))
             .with_debug_info_dropped(),

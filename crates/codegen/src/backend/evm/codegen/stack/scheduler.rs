@@ -2585,7 +2585,7 @@ mod tests {
     fn cross_block_recomputation_requires_stable_leaves() {
         let mut function = Function::new(Ident::DUMMY);
         let argument = function.alloc_param(MirType::I256);
-        let immediate = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
+        let immediate = function.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
         let (safe_inst, safe) = function.alloc_value_inst(Instruction::new(
             InstKind::Add(argument, immediate),
             Some(MirType::I256),
@@ -2662,8 +2662,8 @@ mod tests {
         let mut func = Function::new(name);
 
         // Add some values.
-        func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(42))));
-        func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(100))));
+        func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(42))));
+        func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(100))));
 
         func
     }
@@ -2808,9 +2808,9 @@ mod tests {
     fn failed_layout_shuffle_preserves_live_stack() {
         let mut func = Function::new(Ident::DUMMY);
         let present =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
         let missing =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(1))));
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(present);
 
@@ -2845,7 +2845,7 @@ mod tests {
     fn ensure_operand_on_top_prefers_push0() {
         let mut func = Function::new(Ident::DUMMY);
         let zero =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
 
         for (evm_version, expected) in [
             (EvmVersion::London, ScheduledOp::Stack(StackOp::Dup(1))),
@@ -2875,9 +2875,9 @@ mod tests {
     fn ensure_operand_on_top_rematerializes_deep_cheap_values() {
         let mut func = Function::new(Ident::DUMMY);
         let zero =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
         let filler =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ONE)));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ONE)));
         let (_, caller) =
             func.alloc_value_inst(Instruction::new(InstKind::Caller, Some(MirType::I256)));
 
@@ -3072,7 +3072,7 @@ mod tests {
     fn operand_plan_prefers_push0_for_repeated_zero() {
         let mut func = Function::new(Ident::DUMMY);
         let zero =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(zero);
 
@@ -3128,9 +3128,9 @@ mod tests {
         let (_, caller) =
             func.alloc_value_inst(Instruction::new(InstKind::Caller, Some(MirType::I256)));
         let filler =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(1))));
         let top =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(2))));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(2))));
         let mut scheduler = StackScheduler::new();
         for _ in 0..MAX_STACK_DEPTH - 3 {
             scheduler.stack.push(filler);
@@ -3184,7 +3184,7 @@ mod tests {
         let (_, value) =
             func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::I256)));
         let dead =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(1))));
 
         for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
             let mut scheduler = StackScheduler::new();
@@ -3213,7 +3213,7 @@ mod tests {
         let argument = func.alloc_param(MirType::I256);
         let spilled = func.alloc_param(MirType::I256);
         let filler =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(1))));
         let mut scheduler = StackScheduler::new();
         let spill = scheduler.spills.allocate(spilled);
         scheduler.spills.mark_reloadable(spilled);
@@ -3281,7 +3281,7 @@ mod tests {
         let mut func = Function::new(Ident::DUMMY);
         let argument = func.alloc_param(MirType::I256);
         let filler =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ONE)));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ONE)));
         let mut scheduler = StackScheduler::new();
         for _ in 0..MAX_STACK_DEPTH - 1 {
             scheduler.stack.push(filler);
@@ -3310,7 +3310,7 @@ mod tests {
         assert_eq!(peak, MAX_STACK_DEPTH + 1);
 
         let immediate =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(2))));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(2))));
         let start_depth = scheduler.depth();
         let ops = scheduler.ensure_on_top(immediate, &func).to_vec();
         let peak =
@@ -3322,9 +3322,9 @@ mod tests {
     fn compact_immediate_accounts_for_transient_peak() {
         let mut func = Function::new(Ident::DUMMY);
         let filler =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ONE)));
-        let shifted = func
-            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ONE << 128)));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ONE)));
+        let shifted =
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ONE << 128)));
         let mut scheduler = StackScheduler::new();
         for _ in 0..MAX_STACK_DEPTH - 1 {
             scheduler.stack.push(filler);
@@ -3345,11 +3345,11 @@ mod tests {
     fn operand_plan_does_not_defer_dead_zero_cleanup() {
         let mut func = Function::new(Ident::DUMMY);
         let zero =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
         let one =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(1))));
         let two =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(2))));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(2))));
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(zero);
         scheduler.stack.push(two);
@@ -3367,9 +3367,9 @@ mod tests {
     fn operand_plan_prefers_push0_for_live_unary_value() {
         let mut func = Function::new(Ident::DUMMY);
         let zero =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
         let one =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(1))));
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(zero);
         scheduler.stack.push(one);
@@ -3386,9 +3386,9 @@ mod tests {
     fn operand_plan_does_not_defer_multi_operand_cleanup() {
         let mut func = Function::new(Ident::DUMMY);
         let zero =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
         let one =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(1))));
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(zero);
 
@@ -3410,9 +3410,9 @@ mod tests {
     fn operand_plan_uses_push0_for_live_multi_operand_value() {
         let mut func = Function::new(Ident::DUMMY);
         let zero =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
         let one =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(1))));
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(zero);
         scheduler.stack.push(zero);
@@ -3440,12 +3440,12 @@ mod tests {
             func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::I256)));
         let (_, second) =
             func.alloc_value_inst(Instruction::new(InstKind::Sub(a, b), Some(MirType::I256)));
-        let size = func
-            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(32))));
-        let topic = func
-            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(256))));
+        let size =
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(32))));
+        let topic =
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(256))));
         let trailing =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
         let operand_sets =
             [vec![trailing, second, preserved], vec![trailing, second, topic, size, preserved]];
         let cases = [
@@ -3524,13 +3524,13 @@ mod tests {
 
         let middle = (0..MAX_STACK_ACCESS - 3)
             .map(|i| {
-                func.alloc_value(Value::Immediate(Immediate::uint256(
-                    alloy_primitives::U256::from(1000 + i),
-                )))
+                func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(
+                    1000 + i,
+                ))))
             })
             .collect::<Vec<_>>();
-        let trailing = func
-            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(2000))));
+        let trailing =
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(2000))));
         let mut goal = Vec::with_capacity(MAX_STACK_ACCESS);
         goal.push(first);
         goal.extend(middle);
@@ -3541,9 +3541,9 @@ mod tests {
 
         let tail = (0..64)
             .map(|i| {
-                func.alloc_value(Value::Immediate(Immediate::uint256(
-                    alloy_primitives::U256::from(3000 + i),
-                )))
+                func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(
+                    3000 + i,
+                ))))
             })
             .collect::<Vec<_>>();
         assert!(func.num_values() > BIG_BLOCK_INSTRUCTIONS);
@@ -3598,9 +3598,9 @@ mod tests {
     fn operand_search_matches_exact_cost_for_small_layouts() {
         let mut func = Function::new(Ident::DUMMY);
         let zero =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
         let one =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(1))));
         let layouts = sequences(&[None, Some(zero), Some(one)], 3);
         let operand_sets = sequences(&[zero, one], 3);
         let preserved_sets = [vec![], vec![zero], vec![one], vec![zero, one]];
@@ -3687,8 +3687,8 @@ mod tests {
     fn operand_search_handles_anonymous_top_admissibly() {
         let mut func = Function::new(Ident::DUMMY);
         let a = func.alloc_param(MirType::I256);
-        let c = func
-            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(17))));
+        let c =
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(17))));
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(a);
         scheduler.stack.push(a);
@@ -3721,8 +3721,8 @@ mod tests {
     fn operand_search_exhausts_function_budget_and_keeps_fast_paths() {
         let mut func = Function::new(Ident::DUMMY);
         let a = func.alloc_param(MirType::I256);
-        let c = func
-            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(17))));
+        let c =
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(17))));
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(a);
         scheduler.stack.push(a);
@@ -3855,7 +3855,7 @@ mod tests {
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(target);
         for i in 0..MAX_STACK_ACCESS {
-            let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
+            let filler = func.alloc_value(Value::Immediate(Immediate::I256(
                 alloy_primitives::U256::from(100 + i),
             )));
             scheduler.stack.push(filler);
@@ -3876,7 +3876,7 @@ mod tests {
         let mut scheduler = StackScheduler::for_evm_version(EvmVersion::Amsterdam);
         scheduler.stack.push(target);
         for i in 0..17 {
-            let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
+            let filler = func.alloc_value(Value::Immediate(Immediate::I256(
                 alloy_primitives::U256::from(100 + i),
             )));
             scheduler.stack.push(filler);
@@ -3896,7 +3896,7 @@ mod tests {
         scheduler.stack.push(target);
         let fillers = (0..17)
             .map(|i| {
-                let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
+                let filler = func.alloc_value(Value::Immediate(Immediate::I256(
                     alloy_primitives::U256::from(100 + i),
                 )));
                 scheduler.stack.push(filler);
@@ -3926,7 +3926,7 @@ mod tests {
         scheduler.stack.push(first);
         scheduler.stack.push(second);
         for i in 0..17 {
-            let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
+            let filler = func.alloc_value(Value::Immediate(Immediate::I256(
                 alloy_primitives::U256::from(100 + i),
             )));
             scheduler.stack.push(filler);
@@ -3960,12 +3960,12 @@ mod tests {
     fn amsterdam_preserved_binary_operand_uses_dupn() {
         let mut func = make_test_func();
         let target = ValueId::from_usize(0);
-        let other = func
-            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(999))));
+        let other =
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(999))));
         let mut scheduler = StackScheduler::for_evm_version(EvmVersion::Amsterdam);
         scheduler.stack.push(target);
         for i in 0..17 {
-            let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
+            let filler = func.alloc_value(Value::Immediate(Immediate::I256(
                 alloy_primitives::U256::from(100 + i),
             )));
             scheduler.stack.push(filler);
@@ -3993,7 +3993,7 @@ mod tests {
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(target);
         for value in 0..=MAX_STACK_ACCESS {
-            let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
+            let filler = func.alloc_value(Value::Immediate(Immediate::I256(
                 alloy_primitives::U256::from(value),
             )));
             scheduler.stack.push(filler);
@@ -4034,7 +4034,7 @@ mod tests {
         scheduler.spills.mark_reloadable(target);
         scheduler.stack.push(target);
         for value in 0..MAX_STACK_ACCESS {
-            let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
+            let filler = func.alloc_value(Value::Immediate(Immediate::I256(
                 alloy_primitives::U256::from(value),
             )));
             scheduler.stack.push(filler);
@@ -4067,14 +4067,14 @@ mod tests {
             func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::I256)));
         let (_, top) =
             func.alloc_value_inst(Instruction::new(InstKind::Sub(a, b), Some(MirType::I256)));
-        let surplus = func
-            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(256))));
+        let surplus =
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(256))));
         let mut scheduler = StackScheduler::new();
         scheduler.spills.allocate(target);
         scheduler.spills.mark_reloadable(target);
         scheduler.stack.push(target);
         for value in 0..MAX_STACK_ACCESS - 2 {
-            let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
+            let filler = func.alloc_value(Value::Immediate(Immediate::I256(
                 alloy_primitives::U256::from(value),
             )));
             scheduler.stack.push(filler);
@@ -4104,7 +4104,7 @@ mod tests {
     fn operand_plan_validation_rejects_invalid_depths() {
         let mut func = Function::new(Ident::DUMMY);
         let target =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
 
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(target);
@@ -4122,7 +4122,7 @@ mod tests {
         );
 
         for value in 0..=MAX_STACK_ACCESS {
-            let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
+            let filler = func.alloc_value(Value::Immediate(Immediate::I256(
                 alloy_primitives::U256::from(value + 1),
             )));
             scheduler.stack.push(filler);
@@ -4157,7 +4157,7 @@ mod tests {
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(target);
         for value in 0..MAX_STACK_ACCESS {
-            let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
+            let filler = func.alloc_value(Value::Immediate(Immediate::I256(
                 alloy_primitives::U256::from(value + 100),
             )));
             scheduler.stack.push(filler);
@@ -4186,7 +4186,7 @@ mod tests {
     fn operand_plan_validation_rejects_forged_materializations() {
         let mut func = Function::new(Ident::DUMMY);
         let immediate =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
         let argument = func.alloc_param(MirType::I256);
         let spilled = func.alloc_param(MirType::I256);
         let mut scheduler = StackScheduler::new();
@@ -4255,9 +4255,9 @@ mod tests {
     fn operand_plan_validation_preserves_non_operands() {
         let mut func = Function::new(Ident::DUMMY);
         let target =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
         let unrelated =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(1))));
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(target);
         scheduler.stack.push(unrelated);
@@ -4280,9 +4280,9 @@ mod tests {
     fn operand_plan_validation_can_drop_redundant_non_operand_copy() {
         let mut func = Function::new(Ident::DUMMY);
         let target =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
         let unrelated =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(1))));
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(target);
         scheduler.stack.push(unrelated);
@@ -4309,7 +4309,7 @@ mod tests {
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(target);
         for value in 0..MAX_STACK_ACCESS {
-            let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
+            let filler = func.alloc_value(Value::Immediate(Immediate::I256(
                 alloy_primitives::U256::from(value),
             )));
             scheduler.stack.push(filler);
@@ -4490,7 +4490,7 @@ mod tests {
                 for immediate in [0, 17] {
                     let mut func = Function::new(Ident::DUMMY);
                     let resident = func.alloc_param(MirType::I256);
-                    let other = func.alloc_value(Value::Immediate(Immediate::uint256(
+                    let other = func.alloc_value(Value::Immediate(Immediate::I256(
                         alloy_primitives::U256::from(immediate),
                     )));
                     let mut scheduler = StackScheduler::for_evm_version(evm_version);
@@ -4528,7 +4528,7 @@ mod tests {
         let mut func = Function::new(Ident::DUMMY);
         let resident = func.alloc_param(MirType::I256);
         let other =
-            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ONE)));
+            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ONE)));
         let filler = func.alloc_param(MirType::I256);
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(resident);
@@ -4565,7 +4565,7 @@ mod tests {
         let mut func = make_test_func();
         let mut operands = vec![ValueId::from_usize(0), ValueId::from_usize(1)];
         for value in 2..6 {
-            operands.push(func.alloc_value(Value::Immediate(Immediate::uint256(
+            operands.push(func.alloc_value(Value::Immediate(Immediate::I256(
                 alloy_primitives::U256::from(value),
             ))));
         }
@@ -4586,9 +4586,9 @@ mod tests {
         let mut func = Function::new(Ident::DUMMY);
         let operands = (1..=5)
             .map(|value| {
-                func.alloc_value(Value::Immediate(Immediate::uint256(
-                    alloy_primitives::U256::from(value),
-                )))
+                func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(
+                    value,
+                ))))
             })
             .collect::<Vec<_>>();
 

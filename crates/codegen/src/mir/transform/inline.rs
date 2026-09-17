@@ -2210,7 +2210,7 @@ fn inline_literal_call(
             // mstore memory_object_data(object), word
             //   => memory_object_store_word object, 0, word
             let offset =
-                cloner.caller.alloc_value(Value::Immediate(Immediate::uint256(Default::default())));
+                cloner.caller.alloc_value(Value::Immediate(Immediate::I256(Default::default())));
             instruction.kind = InstKind::MemoryObjectStoreWord { object, offset, value };
         }
         let new_inst = if let Some(value) = callee.inst_result_value(inst) {

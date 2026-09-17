@@ -222,14 +222,14 @@ impl<'a> FunctionBuilder<'a> {
         self.func.set_return_type(ty);
     }
 
-    /// Creates a uint256 immediate value.
+    /// Creates an i256 immediate value.
     pub(crate) fn imm(&mut self, value: impl ToUint) -> ValueId {
-        self.alloc_value(Value::Immediate(Immediate::uint256(value.to_uint())))
+        self.alloc_value(Value::Immediate(Immediate::I256(value.to_uint())))
     }
 
     /// Creates a boolean immediate.
     pub(crate) fn imm_bool(&mut self, value: bool) -> ValueId {
-        self.alloc_value(Value::Immediate(Immediate::bool(value)))
+        self.alloc_value(Value::Immediate(Immediate::I1(value)))
     }
 
     /// Adds a constant byte offset, folding zero offsets.

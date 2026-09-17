@@ -1120,8 +1120,8 @@ RETURN
         let data = DataRef::new(crate::mir::DataId::from_usize(0), 0);
 
         let mut constant = Function::new(Ident::DUMMY);
-        let dest = constant.alloc_value(Value::Immediate(Immediate::uint256(U256::from(0x40))));
-        let size = constant.alloc_value(Value::Immediate(Immediate::uint256(U256::from(0x20))));
+        let dest = constant.alloc_value(Value::Immediate(Immediate::I256(U256::from(0x40))));
+        let size = constant.alloc_value(Value::Immediate(Immediate::I256(U256::from(0x20))));
         let inst =
             constant.alloc_inst(Instruction::new(InstKind::DataCopy(data, dest, size), None));
         constant.blocks[BlockId::ENTRY].instructions.push(inst);
@@ -1249,7 +1249,7 @@ RETURN
     fn dynamic_frame_stack_args_allow_raw_values() {
         let mut function = Function::new(Ident::DUMMY);
         let argument = function.alloc_param(MirType::I256);
-        let immediate = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
+        let immediate = function.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
         let (_, computed) = function.alloc_value_inst(Instruction::new(
             InstKind::Add(argument, immediate),
             Some(MirType::I256),
@@ -1273,9 +1273,9 @@ RETURN
     #[test]
     fn spill_elision_requires_uniform_successor_residency() {
         let mut function = Function::new(Ident::DUMMY);
-        let condition = function.alloc_value(Value::Immediate(Immediate::bool(true)));
-        let first = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
-        let second = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(2))));
+        let condition = function.alloc_value(Value::Immediate(Immediate::I1(true)));
+        let first = function.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
+        let second = function.alloc_value(Value::Immediate(Immediate::I256(U256::from(2))));
         let then_block = function.alloc_block();
         let else_block = function.alloc_block();
         let term = Terminator::Branch { condition, then_block, else_block };
@@ -1564,8 +1564,8 @@ RETURN
             let opts = CompileOpts { evm_version, ..Default::default() };
             with_codegen(opts, |mut codegen| {
                 let mut function = Function::new(Ident::with_dummy_span(sym::Test));
-                let lhs = function.alloc_value(Value::Immediate(Immediate::uint256(U256::ZERO)));
-                let rhs = function.alloc_value(Value::Immediate(Immediate::uint256(U256::ONE)));
+                let lhs = function.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
+                let rhs = function.alloc_value(Value::Immediate(Immediate::I256(U256::ONE)));
                 let (_, target) = function.alloc_value_inst(Instruction::new(
                     InstKind::Add(lhs, rhs),
                     Some(MirType::I256),
@@ -1618,7 +1618,7 @@ RETURN
     #[test]
     fn cross_block_reload_excludes_phi_edge_uses() {
         let mut function = Function::new(Ident::DUMMY);
-        let immediate = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
+        let immediate = function.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
         let (edge_inst, edge_value) = function.alloc_value_inst(Instruction::new(
             InstKind::Add(immediate, immediate),
             Some(MirType::I256),

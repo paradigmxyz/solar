@@ -610,7 +610,7 @@ fn scaled_select(
 }
 
 fn literal(func: &mut Function, value: U256) -> ValueId {
-    func.alloc_value(Value::Immediate(Immediate::uint256(value)))
+    func.alloc_value(Value::Immediate(Immediate::I256(value)))
 }
 
 fn append(func: &mut Function, block: BlockId, kind: InstKind, ty: Option<MirType>) -> ValueId {

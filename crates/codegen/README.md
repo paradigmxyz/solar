@@ -25,7 +25,7 @@ Metadata sits directly above the operation inside `define_mir_ops!`:
 ```rust,ignore
 #[mir_op(
     mnemonic = "add",
-    result = Word,
+    result = I256,
     phases = PhaseSet::ALL,
     effect = Pure,
     traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE),
