@@ -438,45 +438,20 @@ async fn content_identical_edits_preserve_pending_requests() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn completes_using_for_after_adding_a_local_variable() {
-    for (using, local) in [("using Math for uint256;", "// local"), ("// using", "uint256 x;")] {
+    for (using, local) in
+        [("using {Math.twice} for uint256;", "// local"), ("// using", "uint256 x;")]
+    {
         for expression in ["x.", "x.tw"] {
-            let (_project, mut state, uri) = fixture();
-            let source = format!(
-                r#"library Math {{
-    function twice(uint256 value) internal pure returns (uint256) {{ return value * 2; }}
-}}
-contract C {{
-    {using}
-    function f() public pure {{
-        {local}
-        // completion
-    }}
-}}"#,
-            );
-            change(&mut state, &uri, 1, &source);
-            state.prioritize_pending_analysis();
-            tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
-                .await
-                .unwrap()
-                .unwrap();
-
+            let (_project, mut state, uri, source) = using_fixture(using, local).await;
             let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
             let changed = source
-                .replace("// using", "using Math for uint256;")
+                .replace("// using", "using {Math.twice} for uint256;")
                 .replace("// local", "uint256 x;")
                 .replace("// completion", expression);
             change(&mut state, &uri, 2, &changed);
             let mut completion = std::pin::pin!(crate::handlers::completion(
                 &mut state,
-                CompletionParams {
-                    text_document_position: TextDocumentPositionParams {
-                        text_document: TextDocumentIdentifier::new(uri),
-                        position: Position::new(7, 8 + expression.len() as u32),
-                    },
-                    work_done_progress_params: Default::default(),
-                    partial_result_params: Default::default(),
-                    context: None,
-                },
+                completion_params(&uri, 8 + expression.len() as u32),
             ));
             assert!(completion.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
             assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
@@ -494,7 +469,7 @@ contract C {{
     }
 }
 
-async fn using_fixture() -> (TestProject, GlobalState, Url, String) {
+async fn using_fixture(using: &str, local: &str) -> (TestProject, GlobalState, Url, String) {
     let (project, mut state, uri) = fixture();
     let source = r#"library Math {
     function twice(uint256 value) internal pure returns (uint256) { return value * 2; }
@@ -507,7 +482,8 @@ contract C {
         // completion
     }
 }"#
-    .to_owned();
+    .replace("using {Math.twice} for uint256;", using)
+    .replace("uint256 x;", local);
     change(&mut state, &uri, 1, &source);
     state.prioritize_pending_analysis();
     tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
@@ -533,7 +509,8 @@ async fn completions_refresh_nonempty_lists_and_local_names() {
         ("using {Math.triple} for uint256;", "uint256 x;", "x.", vec!["triple"]),
         ("using {Math.twice} for uint256;", "uint256 newLocal;", "newL", vec!["newLocal"]),
     ] {
-        let (_project, mut state, uri, source) = using_fixture().await;
+        let (_project, mut state, uri, source) =
+            using_fixture("using {Math.twice} for uint256;", "uint256 x;").await;
         let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
         let changed = source
             .replace("using {Math.twice} for uint256;", using)
@@ -558,7 +535,8 @@ async fn completions_refresh_nonempty_lists_and_local_names() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn signature_help_waits_for_a_new_attached_call() {
-    let (_project, mut state, uri, source) = using_fixture().await;
+    let (_project, mut state, uri, source) =
+        using_fixture("using {Math.twice} for uint256;", "uint256 x;").await;
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
     change(&mut state, &uri, 2, &source.replace("// completion", "x.twice("));
     let mut signature = std::pin::pin!(crate::handlers::signature_help(
@@ -582,7 +560,8 @@ async fn signature_help_waits_for_a_new_attached_call() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn completion_and_signature_help_reject_superseding_edits() {
-    let (_project, mut state, uri, source) = using_fixture().await;
+    let (_project, mut state, uri, source) =
+        using_fixture("using {Math.twice} for uint256;", "uint256 x;").await;
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
     change(&mut state, &uri, 2, &source.replace("// completion", "x.twice("));
     let mut completion =

@@ -1013,7 +1013,7 @@ pub(crate) fn completion(
         .and_then(|path| state.vfs.read().get_file_source(&path));
     let mut natspec = NatSpecCompletionResult::NotApplicable;
     let mut imports = None;
-    if let Some(source) = source {
+    if let Some(source) = &source {
         let contents = source.contents();
         let cursor = source
             .positions()
@@ -1033,14 +1033,6 @@ pub(crate) fn completion(
         }
     }
     let empty_trigger = matches!(trigger_character.as_deref(), Some("/" | "*" | "\"" | "'"));
-    let input = if matches!(natspec, NatSpecCompletionResult::NotApplicable)
-        && imports.is_none()
-        && !empty_trigger
-    {
-        completion_input(state, &params.text_document.uri, params.position)
-    } else {
-        None
-    };
     let options = state.config.completion_options();
     let revision = state.analysis_revision();
     let content_revision = state.vfs.read().content_revision();
@@ -1071,6 +1063,8 @@ pub(crate) fn completion(
         if empty_trigger {
             return Ok(Some(CompletionResponse::Array(Vec::new())));
         }
+        let input =
+            source.as_ref().and_then(|source| completion_input(source.contents(), params.position));
         let context = input.as_ref().map(CompletionInput::context).unwrap_or_default();
         let mut items =
             symbol_tables.completion_items(&params.text_document.uri, params.position, context);
@@ -1229,10 +1223,8 @@ impl CompletionInput {
     }
 }
 
-fn completion_input(state: &GlobalState, uri: &Url, position: Position) -> Option<CompletionInput> {
-    let path = crate::proto::vfs_path(uri)?;
-    let vfs = state.vfs.read();
-    let line = line_at(vfs.get_file_contents(&path)?, position.line as usize)?;
+fn completion_input(contents: &Rope, position: Position) -> Option<CompletionInput> {
+    let line = line_at(contents, position.line as usize)?;
     let line_prefix = line_prefix_at(&line, position)?;
     Some(completion_input_from_line_prefix(line_prefix))
 }
