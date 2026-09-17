@@ -8,6 +8,7 @@ types:
   struct2: {i256, i256, i256}
   struct3: {i256, i256, i256, i256}
   struct4: {i256, i256, i256, i256, i256}
+  struct5: {i1, i1, i1, i1}
 
 // CHECK-LABEL: @add_zero
 // CHECK: - [[SUM:v[0-9]+]] = add arg0, 0
@@ -430,4 +431,32 @@ fn @constant_multiplicands(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
     v1 = mulmod 0, 5, arg0
     v2 = mulmod 5, 0, arg0
     ret v1, v2
+}
+
+// CHECK-LABEL: @constant_operand_order
+// CHECK: + {{v[0-9]+}} = add arg0, 7
+// CHECK: + {{v[0-9]+}} = mul arg1, 11
+// CHECK: + {{v[0-9]+}} = or arg2, 13
+// CHECK: + {{v[0-9]+}} = xor arg3, 17
+fn @constant_operand_order(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> struct3 [return_abi=[u256, u256, u256, u256]] {
+  bb0:
+    v4 = add 7, arg0
+    v5 = mul 11, arg1
+    v6 = or 13, arg2
+    v7 = xor 17, arg3
+    ret v4, v5, v6, v7
+}
+
+// CHECK-LABEL: @constant_comparison_order
+// CHECK: + {{v[0-9]+}} = gt arg0, 13
+// CHECK: + {{v[0-9]+}} = lt arg1, 13
+// CHECK: + {{v[0-9]+}} = sgt arg2, 13
+// CHECK: + {{v[0-9]+}} = slt arg3, 13
+fn @constant_comparison_order(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> struct5 [return_abi=[bool, bool, bool, bool]] {
+  bb0:
+    v4 = lt 13, arg0
+    v5 = gt 13, arg1
+    v6 = slt 13, arg2
+    v7 = sgt 13, arg3
+    ret v4, v5, v6, v7
 }

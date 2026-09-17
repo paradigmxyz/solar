@@ -91,7 +91,7 @@ fn @clz.4(arg0: i256) -> i256 [pure] {
   bb1:
     v1 = icall @fls.3, arg0
     v4 = sub 255, v1
-    v5 = lt 255, v1
+    v5 = gt v1, 255
     jumpi v5, bb3, bb2
   bb3:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

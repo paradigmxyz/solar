@@ -49,8 +49,8 @@ bb1:
   jumpi
   push 36
   calldataload
-  dup 1
   push 4
+  dup 2
   add
   push 4
   calldatasize
@@ -463,8 +463,8 @@ bb9:
   jumpi
   push 36
   calldataload
-  dup 1
   push 4
+  dup 2
   add
   push 32
   dup 2
@@ -493,8 +493,8 @@ bb9:
   jumpi
   push 68
   calldataload
-  dup 1
   push 4
+  dup 2
   add
   push 32
   dup 2
@@ -538,8 +538,8 @@ bb9:
   sgt
   push bb4
   jumpi
-  dup 1
   push 32
+  dup 2
   add
   push 32
   dup 2

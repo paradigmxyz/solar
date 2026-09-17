@@ -5,8 +5,8 @@
 ;; the value an instruction is equal to, which merges the class into that
 ;; value. The pass in
 ;; `transform/egraph.rs` resolves operand value identities before matching.
-;; The matcher presents constants on the right of declared commutative pairs,
-;; both at the root and in defining instructions, without changing emitted IR.
+;; Constants stay on the right of declared commutative pairs and comparisons,
+;; at roots, in defining instructions, and in emitted e-graph output.
 ;; Rules only need the constant-right spelling; nonconstant permutations remain.
 ;; Every rule must be exact for all 256-bit EVM words.
 ;;
@@ -233,10 +233,6 @@
 (rule (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c 255)) (Op.Eq input (imm (u256 1))))
 ;; clz(input) == 256 => input == 0
 (rule (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c 256)) (Op.Eq input (imm (u256 0))))
-;; 255 == clz(input) => input == 1
-(rule (rewrite (Op.Eq (iconst c) (clz input))) (if-let true (u256_eq c 255)) (Op.Eq input (imm (u256 1))))
-;; 256 == clz(input) => input == 0
-(rule (rewrite (Op.Eq (iconst c) (clz input))) (if-let true (u256_eq c 256)) (Op.Eq input (imm (u256 0))))
 
 ;; clz(input) == 0 => signed(input) < 0
 (rule (rewrite (Op.Eq (clz input) (zero))) (Op.SLt input (imm (u256 0))))
@@ -247,17 +243,11 @@
 
 ;; clz(input) < 256 => input > 0
 (rule (rewrite (Op.Lt (clz input) (iconst c))) (if-let true (u256_eq c 256)) (Op.Ne input (imm (u256 0))))
-;; 255 < clz(input) => input == 0
-(rule (rewrite (Op.Lt (iconst c) (clz input))) (if-let true (u256_eq c 255)) (Op.Eq input (imm (u256 0))))
 ;; a < 1 => a == 0
 (rule (rewrite (Op.Lt a (one))) (Op.Eq a (imm (u256 0))))
 
 ;; clz(input) > 255 => input == 0
 (rule (rewrite (Op.Gt (clz input) (iconst c))) (if-let true (u256_eq c 255)) (Op.Eq input (imm (u256 0))))
-;; 256 > clz(input) => input > 0
-(rule (rewrite (Op.Gt (iconst c) (clz input))) (if-let true (u256_eq c 256)) (Op.Ne input (imm (u256 0))))
-;; 1 > b => b == 0
-(rule (rewrite (Op.Gt (one) b)) (Op.Eq b (imm (u256 0))))
 
 ;; clz(input) >> 8 => input == 0
 (rule (rewrite (Op.Shr (iconst c) (clz input))) (if-let true (u256_eq c 8)) (Op.Eq input (imm (u256 0))))
@@ -533,39 +523,23 @@
 
 ;; a < c => 1, when a is known to be less than constant c
 (rule 10 (simplify (Op.Lt a (iconst c))) (if-let true (below_const a c)) (imm_bool true))
-;; c < b => 0, when b is known to be at most constant c
-(rule 9 (simplify (Op.Lt (iconst c) b)) (if-let true (at_most_const b c)) (imm_bool false))
 ;; clz(_) < b => 1, when b > 256
 (rule 8 (simplify (Op.Lt (clz _) (iconst b))) (if-let true (u256_gt b 256)) (imm_bool true))
-;; a < clz(_) => 0, when constant a >= 256
-(rule 7 (simplify (Op.Lt (iconst a) (clz _))) (if-let true (u256_ge a 256)) (imm_bool false))
 ;; a < a => 0
 (rule 6 (simplify (Op.Lt a a)) (imm_bool false))
 ;; _ < 0 => 0
 (rule 5 (simplify (Op.Lt _ (zero))) (imm_bool false))
-;; 0 < b => b, when b is boolean
-(rule 4 (simplify (Op.Lt (zero) (and b (bool_value)))) b)
 ;; b < c => 1, when b is boolean and constant c > 1
 (rule 3 (simplify (Op.Lt (bool_value) (iconst c))) (if-let true (u256_gt c 1)) (imm_bool true))
-;; c < b => 0, when b is boolean and constant c >= 1
-(rule 2 (simplify (Op.Lt (iconst c) (bool_value))) (if-let true (u256_ge c 1)) (imm_bool false))
 
 ;; a > c => 0, when a is known to be at most constant c
 (rule 10 (simplify (Op.Gt a (iconst c))) (if-let true (at_most_const a c)) (imm_bool false))
-;; c > b => 1, when b is known to be less than constant c
-(rule 9 (simplify (Op.Gt (iconst c) b)) (if-let true (below_const b c)) (imm_bool true))
 ;; clz(_) > b => 0, when constant b >= 256
 (rule 8 (simplify (Op.Gt (clz _) (iconst b))) (if-let true (u256_ge b 256)) (imm_bool false))
-;; a > clz(_) => 1, when constant a > 256
-(rule 7 (simplify (Op.Gt (iconst a) (clz _))) (if-let true (u256_gt a 256)) (imm_bool true))
 ;; a > a => 0
 (rule 6 (simplify (Op.Gt a a)) (imm_bool false))
-;; 0 > _ => 0
-(rule 5 (simplify (Op.Gt (zero) _)) (imm_bool false))
 ;; a > 0 => a, when a is boolean
 (rule 4 (simplify (Op.Gt (and a (bool_value)) (zero))) a)
-;; c > b => 1, when b is boolean and constant c > 1
-(rule 3 (simplify (Op.Gt (iconst c) (bool_value))) (if-let true (u256_gt c 1)) (imm_bool true))
 ;; b > c => 0, when b is boolean and constant c >= 1
 (rule 2 (simplify (Op.Gt (bool_value) (iconst c))) (if-let true (u256_ge c 1)) (imm_bool false))
 
