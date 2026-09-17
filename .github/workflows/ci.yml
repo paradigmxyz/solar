@@ -68,9 +68,9 @@ jobs:
           else
             files=("$SUITE")
           fi
-          options=(--partition-shifts)
+          options=(--partition-shifts --index-partition-timeout-ms 30000)
           if [[ "$SUITE" == egraph ]]; then
-            options+=(--index-partition-timeout-ms 30000 --fallback-solver cvc5
+            options+=(--fallback-solver cvc5
               --bit-partition-timeout-ms 120000 --bit-partition-jobs 4)
           fi
           inputs=()
