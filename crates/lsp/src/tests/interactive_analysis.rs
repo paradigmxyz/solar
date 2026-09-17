@@ -443,28 +443,11 @@ async fn completes_using_for_after_adding_a_local_variable() {
     {
         for expression in ["x.", "x.tw"] {
             let (_project, mut state, uri, source) = using_fixture(using, local).await;
-            let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
             let changed = source
                 .replace("// using", "using {Math.twice} for uint256;")
                 .replace("// local", "uint256 x;")
                 .replace("// completion", expression);
-            change(&mut state, &uri, 2, &changed);
-            let mut completion = std::pin::pin!(crate::handlers::completion(
-                &mut state,
-                completion_params(&uri, 8 + expression.len() as u32),
-            ));
-            assert!(completion.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
-            assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
-            drop(gate);
-            let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, completion)
-                .await
-                .unwrap()
-                .unwrap()
-                .unwrap();
-            let CompletionResponse::Array(items) = response else {
-                panic!("expected completion array")
-            };
-            assert_eq!(items.iter().map(|item| item.label.as_str()).collect::<Vec<_>>(), ["twice"]);
+            check_completion_after_change(&mut state, &uri, &changed, expression, &["twice"]).await;
         }
     }
 }
@@ -502,6 +485,28 @@ fn completion_params(uri: &Url, character: u32) -> CompletionParams {
     }
 }
 
+async fn check_completion_after_change(
+    state: &mut GlobalState,
+    uri: &Url,
+    source: &str,
+    expression: &str,
+    expected: &[&str],
+) {
+    let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
+    change(state, uri, 2, source);
+    let mut completion = std::pin::pin!(crate::handlers::completion(
+        state,
+        completion_params(uri, 8 + expression.len() as u32),
+    ));
+    assert!(completion.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
+    assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
+    drop(gate);
+    let response =
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, completion).await.unwrap().unwrap().unwrap();
+    let CompletionResponse::Array(items) = response else { panic!("expected completion array") };
+    assert_eq!(items.iter().map(|item| item.label.as_str()).collect::<Vec<_>>(), expected);
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn completions_refresh_nonempty_lists_and_local_names() {
     for (using, local, expression, expected) in [
@@ -511,25 +516,11 @@ async fn completions_refresh_nonempty_lists_and_local_names() {
     ] {
         let (_project, mut state, uri, source) =
             using_fixture("using {Math.twice} for uint256;", "uint256 x;").await;
-        let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
         let changed = source
             .replace("using {Math.twice} for uint256;", using)
             .replace("uint256 x;", local)
             .replace("// completion", expression);
-        change(&mut state, &uri, 2, &changed);
-        let mut completion = std::pin::pin!(crate::handlers::completion(
-            &mut state,
-            completion_params(&uri, 8 + expression.len() as u32),
-        ));
-        assert!(completion.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
-        assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
-        drop(gate);
-        let response =
-            tokio::time::timeout(ASYNC_TEST_TIMEOUT, completion).await.unwrap().unwrap().unwrap();
-        let CompletionResponse::Array(items) = response else {
-            panic!("expected completion array")
-        };
-        assert_eq!(items.iter().map(|item| item.label.as_str()).collect::<Vec<_>>(), expected);
+        check_completion_after_change(&mut state, &uri, &changed, expression, &expected).await;
     }
 }
 
