@@ -72,7 +72,7 @@ is the main path for broader valid-by-construction program generation.
 Use `uv tool run` with the pinned Fandango version:
 
 ```bash
-uv tool run --quiet --python 3.14.7 --from 'fandango-fuzzer==1.1.1' fandango --help
+uv tool run --quiet --python "$(cat .python-version)" --from 'fandango-fuzzer==1.1.1' fandango --help
 ```
 
 Run ABI runtime differentials against a local anvil:
@@ -80,7 +80,7 @@ Run ABI runtime differentials against a local anvil:
 ```bash
 anvil --silent --port 8545
 
-PYTHONHASHSEED=1 uv tool run --quiet --python 3.14.7 --from 'fandango-fuzzer==1.1.1' fandango fuzz \
+PYTHONHASHSEED=1 uv tool run --quiet --python "$(cat .python-version)" --from 'fandango-fuzzer==1.1.1' fandango fuzz \
   -f fuzz/fandango/abi-values.fan \
   --random-seed 1 \
   -n 32 \
@@ -140,7 +140,7 @@ Generate Solidity runtime harnesses and compare side effects:
 ```bash
 mkdir -p fuzz/fandango/out/runtime-sources
 
-PYTHONHASHSEED=1 uv tool run --quiet --python 3.14.7 --from 'fandango-fuzzer==1.1.1' fandango fuzz \
+PYTHONHASHSEED=1 uv tool run --quiet --python "$(cat .python-version)" --from 'fandango-fuzzer==1.1.1' fandango fuzz \
   -f fuzz/fandango/solidity-runtime-source.fan \
   --initial-population fuzz/fandango/runtime-corpus \
   --random-seed 1 \

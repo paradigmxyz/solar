@@ -7,6 +7,7 @@
 import argparse
 import hashlib
 import json
+import os
 import sys
 from collections import Counter
 from pathlib import Path
@@ -40,8 +41,15 @@ def main():
         ],
     )
     verify.add_argument("--timeout-ms", type=int, default=5000)
+    verify.add_argument("--shard-index", type=int, default=0)
+    verify.add_argument("--shard-count", type=int, default=1)
     verify.add_argument("--output", type=Path, required=True)
     verify.add_argument("--artifacts", type=Path)
+    verify.add_argument(
+        "--cache-dir",
+        type=Path,
+        help="reuse UNSAT queries in this directory (also set by SOLAR_PROOF_CACHE)",
+    )
     verify.add_argument(
         "--fallback-solver", help="explicit cvc5 executable for incomplete word proofs"
     )
@@ -161,6 +169,8 @@ def main():
         report = discover_rules(args)
         exit_code = 0 if report.get("accepted", True) else 1
     else:
+        if args.cache_dir is not None:
+            os.environ["SOLAR_PROOF_CACHE"] = str(args.cache_dir.resolve())
         try:
             fallback = (
                 Cvc5(args.fallback_solver, args.timeout_ms)
@@ -169,6 +179,13 @@ def main():
             )
         except (OSError, ValueError) as error:
             parser.error(str(error))
+        if not 0 <= args.shard_index < args.shard_count:
+            parser.error("shards must satisfy 0 <= index < count")
+        if args.shard_count > 1 and any(
+            path.name in ("stack_peephole.isle", "late_word.isle")
+            for path in args.files
+        ):
+            parser.error("physical-stack and late-word files must run without sharding")
         files = []
         for path in args.files:
             if path.name == "stack_peephole.isle":
@@ -185,6 +202,8 @@ def main():
                     args.bit_partition_timeout_ms,
                     args.index_partition_timeout_ms,
                     args.bit_partition_jobs,
+                    args.shard_index,
+                    args.shard_count,
                 )
             files.append(file)
         for file in files:
@@ -197,6 +216,11 @@ def main():
                     )
         counts = Counter(rule["status"] for file in files for rule in file["rules"])
         report = {"files": files, "counts": dict(counts)}
+        if cache_dir := os.environ.get("SOLAR_PROOF_CACHE"):
+            report["query_cache"] = {
+                "directory": str(Path(cache_dir).resolve()),
+                "policy": "unsat-only",
+            }
         if fallback is not None:
             report["fallback_solver"] = fallback.metadata
         report["query_sha256"] = query_manifest(report)

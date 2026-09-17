@@ -68,7 +68,7 @@ mod builtin;
 pub(crate) use builtin::{Builtin, Callee, RequireKind};
 
 mod builder;
-pub(crate) use builder::{ERROR_SELECTOR, FunctionBuilder, ToUint};
+pub(crate) use builder::{ERROR_SELECTOR, FunctionBuilder};
 
 mod display;
 

@@ -287,14 +287,21 @@ programs or purposes.
 
 ### Python tooling
 
-Python tooling uses the version in `.python-version` (currently 3.14.7).
+Python tooling uses the version in `.python-version`.
 Use uv from the repository root; the workspace shares `uv.lock` across
 `tools/compiler-diff` and `benches/analyze`.
 Run `bash scripts/check-python.sh` for formatting, lint, type checks, and all
 Python unit tests. The required `Python` CI job runs the same command.
-Node.js and cvc5 1.2.0 must be on PATH for the workflow and proof unit tests.
+Node.js and cvc5 must be on PATH for the workflow and proof unit tests;
+use the versions configured in `.github/workflows/ci.yml`.
 These checks do not build the compilers or run live Fandango/Foundry differentials.
 Use `uv run --all-packages ruff format .` to format Python files.
+
+The proof CI job runs for changes to codegen or proof inputs, and on main.
+It checks all selected rules with parallel workers and reuses cached UNSAT
+queries. Scheduled and manual audits bypass the cache and replay with cvc5.
+See the [proof guide](scripts/evm-rules/README.md) for local commands, cache
+sharing, audit controls, and failure artifacts.
 
 ### Compiler comparisons
 
@@ -344,8 +351,8 @@ Saved symbolic attempts require identical inputs, an explicit `evmVersion`,
 and immutable/link reference outputs. Retain the engine's bounds and incomplete
 status when reporting results.
 
-Put `--dir` and `--version` before the subcommand. Defaults are
-`/tmp/solar-sourcify` and `0.8.36`; each version has its own DuckDB database.
+Put `--dir` and `--version` before the subcommand. See `compiler-diff --help`
+for their defaults; each version has its own DuckDB database.
 `runs/`, `failures/`, `comparisons/`, and `engines/` under that version directory
 hold inputs, outputs, diagnostics and reports. Mismatch bundles include
 `compare.sh`; compiler `replay.sh` uses the recorded executable path, so keep

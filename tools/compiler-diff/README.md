@@ -191,8 +191,9 @@ uv run --project tools/compiler-diff compiler-diff --dir /tmp/compiler-fuzz fuzz
 The default grammar is `fuzz/fandango/solidity-source.fan`, targeting
 `FandangoSource`. Use `--grammar /path/to/grammar.fan --contract Name` for another
 self-contained Solidity-source grammar. The adapter snapshots the grammar file;
-external grammar resources are not copied. It runs Fandango 1.1.1 with uv-managed
-Python 3.14.7 and sets `PYTHONHASHSEED` to `--seed`. The generator's managed Python,
+external grammar resources are not copied. It uses the Fandango version in `compiler_diff/fandango.py` and the Python
+version in the repository's `.python-version`, managed by uv. It sets
+`PYTHONHASHSEED` to `--seed`. The generator's managed Python,
 tool environment and cache live under `<dir>/fandango-tools/`.
 
 Seed generation from a directory, then run several bounded batches:
