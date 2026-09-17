@@ -42,8 +42,8 @@ use crate::mir::{
     BlockId, Callee, EffectKind, Function, ImmutableId, InstId, InstKind, MemoryRegion, Module,
     OpTraits, StorageAlias, Terminator, Value, ValueId,
     analysis::{
-        Access, AddressSpace, AffineExpr, AliasAnalysis, AliasResult, Location, LocationSize, Loop,
-        LoopAnalyzer, MemoryBase, ScalarEvolution,
+        Access, AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, Location,
+        LocationSize, Loop, LoopAnalyzer, MemoryBase, ScalarEvolution,
     },
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
@@ -116,7 +116,7 @@ impl MirPass for Licm {
                 let mut optimizer = LoopOptimizer::with_limits(3, 8);
                 optimizer.hoist_cheap = hoist_cheap;
                 optimizer.alias = Some(Rc::clone(analyses.alias()));
-                optimizer.optimize(func).instructions_hoisted != 0
+                optimizer.optimize(func, Rc::clone(analyses.cfg())).instructions_hoisted != 0
             },
         )
     }
@@ -190,7 +190,7 @@ impl LoopOptimizer {
     }
 
     /// Runs loop-invariant code motion on a function.
-    fn optimize(&mut self, func: &mut Function) -> &LoopOptStats {
+    fn optimize(&mut self, func: &mut Function, cfg: Rc<CfgInfo>) -> &LoopOptStats {
         self.stats = LoopOptStats::default();
         func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
         if self.alias.is_none() {
@@ -198,7 +198,7 @@ impl LoopOptimizer {
         }
 
         let mut analyzer = LoopAnalyzer::new();
-        let loop_info = analyzer.analyze(func);
+        let loop_info = analyzer.analyze_with_cfg(func, cfg);
 
         if loop_info.loops.is_empty() {
             return &self.stats;

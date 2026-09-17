@@ -53,7 +53,7 @@ use crate::mir::{
     ArithmeticKind, BlockId, CheckedOp, Function, Immediate, InstId, InstKind, Instruction,
     MemoryRegion, MirType, Module, Terminator, Value, ValueId,
     analysis::{
-        AffineTerm, AliasAnalysis, InductionVariable, Loop, LoopAnalyzer, MemoryBase,
+        AffineTerm, AliasAnalysis, CfgInfo, InductionVariable, Loop, LoopAnalyzer, MemoryBase,
         ScalarEvolution,
     },
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
@@ -91,7 +91,10 @@ impl MirPass for IndVarSimplify {
             analyses,
             &selected,
             |func, analyses| {
-                IndVarSimplifier::new(Rc::clone(analyses.alias())).run(func).total() != 0
+                IndVarSimplifier::new(Rc::clone(analyses.alias()))
+                    .run(func, Rc::clone(analyses.cfg()))
+                    .total()
+                    != 0
             },
         )
     }
@@ -174,11 +177,11 @@ impl IndVarSimplifier {
     }
 
     /// Runs induction-variable simplification once over `func`.
-    fn run(&mut self, func: &mut Function) -> &IndVarSimplifyStats {
+    fn run(&mut self, func: &mut Function, cfg: Rc<CfgInfo>) -> &IndVarSimplifyStats {
         self.stats = IndVarSimplifyStats::default();
 
         let mut analyzer = LoopAnalyzer::new();
-        let loop_info = analyzer.analyze(func);
+        let loop_info = analyzer.analyze_with_cfg(func, cfg);
         let loops: Vec<_> = loop_info.loops.values().cloned().collect();
 
         for loop_data in loops {
