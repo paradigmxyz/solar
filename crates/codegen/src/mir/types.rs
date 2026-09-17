@@ -200,7 +200,12 @@ pub(crate) struct StructType {
 /// SSA value types. Integers have a bit width but no signedness.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum MirType {
-    /// An integer with a nonzero bit width.
+    /// An integer bit pattern that fits within its nonzero bit width.
+    ///
+    /// Bits above this width are always zero in the EVM word representation,
+    /// including for arguments, loads, call results, and phi inputs. Raw words
+    /// must be truncated or validated before acquiring a narrower type.
+    /// Signed operations interpret the top bit; signedness is not part of the type.
     Int(NonZeroU32),
     /// A raw memory pointer, with no implied validity or heap provenance.
     MemPtr,

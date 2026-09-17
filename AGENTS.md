@@ -611,6 +611,10 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
   MIR syntax, but emit only `i1`, `i160`, and `i256` from source lowering for now.
   Other widths have no codegen support yet; lower them at the EVM IR boundary
   when that support is added.
+- Every `iN` SSA value is a clean bit pattern: all bits above N are zero in its
+  physical word. This applies to arguments, loads, call results, phis, and constants;
+  optimizations may rely on the type without repeating cleanup. Raw memory and
+  assembly values remain `i256` until an explicit conversion establishes the width.
 - Address values use `i160` and must fit in 160 bits. Narrow with `trunc i256 value to i160`
   and widen with `zext i160 value to i256`; retain the width until EVM IR lowering.
 - Every `i1` value must be exactly zero or one, including arguments, loads,

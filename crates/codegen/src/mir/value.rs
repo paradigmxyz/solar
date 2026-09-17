@@ -1,7 +1,7 @@
 //! MIR values.
 
 use super::{ArgIdx, InstId, MirType};
-use alloy_primitives::U256;
+use alloy_primitives::{U160, U256};
 use solar_interface::diagnostics::ErrorGuaranteed;
 use std::{cmp::Ordering, fmt, num::NonZeroU32};
 
@@ -42,7 +42,7 @@ pub(crate) enum Immediate {
     /// Boolean constant.
     Bool(bool),
     /// A 160-bit integer constant.
-    I160(U256),
+    I160(U160),
     /// An integer constant with a syntax-only width.
     Int(U256, NonZeroU32),
     /// A 256-bit word constant.
@@ -54,8 +54,8 @@ pub(crate) enum Immediate {
 impl Immediate {
     /// Creates a scalar or pointer immediate carrying `value`.
     ///
-    /// Boolean values must be zero or one. Types without a scalar or pointer
-    /// payload use `i256`.
+    /// Integer values must fit their declared width; booleans must be zero or one.
+    /// Types without a scalar or pointer payload use `i256`.
     #[must_use]
     pub(crate) fn for_type(ty: Option<MirType>, value: U256) -> Self {
         match ty {
@@ -65,7 +65,7 @@ impl Immediate {
             }
             Some(MirType::I160) => {
                 assert!(value.bit_len() <= 160, "i160 immediate must fit in 160 bits");
-                Self::I160(value)
+                Self::I160(U160::from(value))
             }
             Some(MirType::I256) => Self::uint256(value),
             Some(MirType::Int(bits)) => {
@@ -109,7 +109,8 @@ impl Immediate {
     pub(crate) fn as_u256(&self) -> Option<U256> {
         match self {
             Self::Bool(b) => Some(U256::from(*b as u64)),
-            Self::Word(v) | Self::I160(v) | Self::Int(v, _) | Self::Pointer(v, _) => Some(*v),
+            Self::I160(v) => Some(U256::from(*v)),
+            Self::Word(v) | Self::Int(v, _) | Self::Pointer(v, _) => Some(*v),
         }
     }
 }
@@ -118,7 +119,8 @@ impl fmt::Display for Immediate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Bool(b) => write!(f, "{b}"),
-            Self::Word(v) | Self::I160(v) | Self::Int(v, _) | Self::Pointer(v, _) => {
+            Self::I160(v) => write!(f, "{v}"),
+            Self::Word(v) | Self::Int(v, _) | Self::Pointer(v, _) => {
                 write!(f, "{v}")
             }
         }
@@ -141,7 +143,8 @@ impl Ord for Immediate {
         };
         rank(self).cmp(&rank(other)).then_with(|| match (self, other) {
             (Self::Bool(a), Self::Bool(b)) => a.cmp(b),
-            (Self::Word(a), Self::Word(b)) | (Self::I160(a), Self::I160(b)) => a.cmp(b),
+            (Self::Word(a), Self::Word(b)) => a.cmp(b),
+            (Self::I160(a), Self::I160(b)) => a.cmp(b),
             (Self::Int(a, a_bits), Self::Int(b, b_bits)) => {
                 a_bits.cmp(b_bits).then_with(|| a.cmp(b))
             }

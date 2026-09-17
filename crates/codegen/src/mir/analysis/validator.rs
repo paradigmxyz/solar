@@ -674,9 +674,21 @@ impl<'a> Validator<'a> {
         }
     }
 
-    /// Checks aggregate operands, field indices, and result types against the module declarations.
+    /// Checks constant widths and aggregate operands against their declared types.
     fn validate_value_types(&mut self, module: &Module, func: &Function) {
         self.validate_return_abi(module, func);
+        for value in func.live_values() {
+            if let Value::Immediate(immediate) = func.value(value)
+                && let MirType::Int(bits) = immediate.ty()
+                && immediate.as_u256().is_some_and(|word| word.bit_len() > bits.get() as usize)
+            {
+                self.emit(format_args!(
+                    "constant v{} does not fit its type `{}`",
+                    value.index(),
+                    immediate.ty()
+                ));
+            }
+        }
         for ty in func
             .arg_indices()
             .map(|index| func.arg_ty(index))
@@ -1700,9 +1712,11 @@ fn return_abi_matches(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{DataId, DataRef, Function, FunctionBuilder, MirType, Terminator};
+    use crate::mir::{DataId, DataRef, Function, FunctionBuilder, Immediate, MirType, Terminator};
+    use alloy_primitives::U256;
     use snapbox::{assert_data_eq, str};
     use solar_interface::{ColorChoice, Ident, Session};
+    use std::num::NonZeroU32;
 
     fn with_session<F: FnOnce(&Session) + Send>(f: F) {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
@@ -1712,6 +1726,37 @@ mod tests {
 
     fn make_func() -> Function {
         Function::new(Ident::DUMMY)
+    }
+
+    #[test]
+    fn integer_constants_must_fit_their_types() {
+        with_session(|sess| {
+            let mut module = Module::new(Ident::DUMMY);
+            for bits in [1, 7, 160] {
+                let mut function = make_func();
+                let width = NonZeroU32::new(bits).unwrap();
+                let value = function
+                    .alloc_value(Value::Immediate(Immediate::Int(U256::ONE << bits, width)));
+                // ret an out-of-range integer constant
+                let mut builder = FunctionBuilder::new(&mut function);
+                builder.set_return_type(MirType::Int(width));
+                builder.ret([value]);
+                module.add_function(function);
+            }
+            validate(&sess.dcx, &module);
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [fn0] constant v0 does not fit its type `i1`
+
+error: [fn1] constant v0 does not fit its type `i7`
+
+error: [fn2] constant v0 does not fit its type `i160`
+
+
+"#]]
+            );
+        });
     }
 
     #[test]
