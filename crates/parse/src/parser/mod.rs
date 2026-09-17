@@ -8,7 +8,7 @@ use solar_data_structures::{BumpExt, fmt::or_list};
 use solar_interface::{
     BytePos, Ident, Result, Session, Span, Symbol,
     diagnostics::DiagCtxt,
-    error_code,
+    error_code, kw,
     source_map::{FileName, SourceFile},
 };
 use std::{fmt, path::Path};
@@ -62,6 +62,9 @@ pub struct Parser<'sess, 'ast, 'cb> {
     in_modifier: bool,
     /// Whether incomplete input should be recovered into a partial AST.
     recover_incomplete_input: bool,
+
+    /// Nesting of consumed braces, used to find recovery boundaries.
+    brace_depth: usize,
 
     /// Current recursion depth for recursive parsing operations.
     recursion_depth: usize,
@@ -164,6 +167,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             in_contract: false,
             in_modifier: false,
             recover_incomplete_input: sess.opts.unstable.recover_incomplete_input,
+            brace_depth: 0,
             recursion_depth: 0,
             import_callback: None,
         };
@@ -416,15 +420,25 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     #[inline]
     #[track_caller]
     fn expect_semi(&mut self) -> PResult<'sess, ()> {
+        if self.eat(TokenKind::Semi) {
+            return Ok(());
+        }
         let recover = self.recover_incomplete_input
-            && matches!(self.token.kind, TokenKind::CloseDelim(Delimiter::Brace) | TokenKind::Eof);
+            && (matches!(
+                self.token.kind,
+                TokenKind::CloseDelim(Delimiter::Brace) | TokenKind::Eof
+            ) || self.sess.source_map().is_multiline(
+                self.prev_token.span.shrink_to_hi().to(self.token.span.shrink_to_lo()),
+            ));
         if recover && self.last_unexpected_token_span == Some(self.token.span) {
+            self.last_unexpected_token_span = None;
             return Ok(());
         }
         match self.expect(TokenKind::Semi) {
             Ok(_) => Ok(()),
             Err(err) if recover => {
                 err.emit();
+                self.last_unexpected_token_span = None;
                 Ok(())
             }
             Err(err) => Err(err),
@@ -694,6 +708,18 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 recovered = Recovered::Yes;
                 break;
             }
+            if self.recover_incomplete_input
+                && !self.in_yul
+                && ket == TokenKind::CloseDelim(Delimiter::Brace)
+                && sep.sep.is_none()
+                && self.is_recovery_item_start()
+            {
+                self.unexpected_error().emit();
+                self.last_unexpected_token_span = None;
+                self.brace_depth = self.brace_depth.saturating_sub(1);
+                recovered = Recovered::Yes;
+                break;
+            }
 
             if first {
                 // No separator for the first element.
@@ -712,10 +738,22 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 }
             }
 
+            let brace_depth = self.brace_depth;
+            let start = self.token.span;
             match f(self) {
                 Ok(value) => v.push(value),
+                Err(err)
+                    if self.recover_incomplete_input
+                        && !self.in_yul
+                        && ket == TokenKind::CloseDelim(Delimiter::Brace)
+                        && sep.sep.is_none() =>
+                {
+                    err.emit();
+                    self.recover_statement(brace_depth, start);
+                }
                 Err(err) if self.can_recover_sequence(ket) => {
                     err.emit();
+                    self.last_unexpected_token_span = None;
                     if ket == TokenKind::CloseDelim(Delimiter::Brace)
                         && sep.sep.is_none()
                         && self.token.kind == TokenKind::Semi
@@ -760,8 +798,55 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 ))
     }
 
+    /// Skips broken syntax without consuming the enclosing block or the next declaration.
+    fn recover_statement(&mut self, brace_depth: usize, start: Span) {
+        // An enclosing production may diagnose this boundary again after recovery.
+        self.last_unexpected_token_span = None;
+        while self.token.kind != TokenKind::Eof {
+            if self.brace_depth <= brace_depth {
+                if self.token.is_close_delim(Delimiter::Brace) {
+                    break;
+                }
+                if self.token.span != start && self.is_recovery_item_start() {
+                    break;
+                }
+                if self.eat(TokenKind::Semi) {
+                    break;
+                }
+            }
+            let closes_block = self.token.is_close_delim(Delimiter::Brace);
+            self.bump();
+            if closes_block && self.brace_depth <= brace_depth {
+                break;
+            }
+        }
+    }
+
+    fn is_recovery_item_start(&self) -> bool {
+        match self.token.kind {
+            TokenKind::Ident(kw::Function | kw::Type) => self.look_ahead(1).is_ident(),
+            TokenKind::Ident(
+                kw::Modifier
+                | kw::Constructor
+                | kw::Fallback
+                | kw::Receive
+                | kw::Contract
+                | kw::Interface
+                | kw::Library
+                | kw::Struct
+                | kw::Enum
+                | kw::Event
+                | kw::Import
+                | kw::Pragma
+                | kw::Using,
+            ) => true,
+            _ => false,
+        }
+    }
+
     /// Advance the parser by one token.
     pub fn bump(&mut self) {
+        self.track_brace();
         let next = self.next_token();
         if next.is_comment_or_doc() {
             return self.bump_trivia(next);
@@ -775,7 +860,20 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     ///
     /// Panics if the provided token is a comment.
     pub fn bump_with(&mut self, next: Token) {
+        self.track_brace();
         self.inlined_bump_with(next);
+    }
+
+    fn track_brace(&mut self) {
+        if self.recover_incomplete_input {
+            match self.token.kind {
+                TokenKind::OpenDelim(Delimiter::Brace) => self.brace_depth += 1,
+                TokenKind::CloseDelim(Delimiter::Brace) => {
+                    self.brace_depth = self.brace_depth.saturating_sub(1);
+                }
+                _ => {}
+            }
+        }
     }
 
     /// This always-inlined version should only be used on hot code paths.
@@ -1279,6 +1377,56 @@ fn parse_natspec(
 mod tests {
     use super::*;
     use solar_interface::{Session, SourceMap};
+
+    #[test]
+    fn statement_recovery_is_opt_in() {
+        for recover in [false, true] {
+            let mut sess = Session::builder()
+                .with_buffer_emitter(Default::default())
+                .single_threaded()
+                .build();
+            sess.opts.unstable.recover_incomplete_input = recover;
+            sess.enter_sequential(|| {
+                let arena = ast::Arena::new();
+                let mut parser = Parser::from_source_code(
+                    &sess,
+                    &arena,
+                    "test.sol".to_string().into(),
+                    "contract C { function f() external { uint x = * 2; } }",
+                )
+                .unwrap();
+                let result = parser.parse_file().map_err(|error| error.emit());
+                assert_eq!(result.is_ok(), recover);
+                assert!(sess.dcx.has_errors().is_err());
+            });
+        }
+    }
+
+    #[test]
+    fn recovery_preserves_valid_type_expressions_and_function_types() {
+        let mut sess =
+            Session::builder().with_buffer_emitter(Default::default()).single_threaded().build();
+        sess.opts.unstable.recover_incomplete_input = true;
+        sess.enter_sequential(|| {
+            let arena = ast::Arena::new();
+            let mut parser = Parser::from_source_code(
+                &sess,
+                &arena,
+                "test.sol".to_string().into(),
+                "contract C { function f() external { type(uint).max; function() external callback; } }",
+            )
+            .unwrap();
+            let unit = parser.parse_file().unwrap();
+            assert!(sess.dcx.has_errors().is_ok());
+            let ast::ItemKind::Contract(contract) = &unit.items[ast::ItemId::new(0)].kind else {
+                panic!("expected contract");
+            };
+            let ast::ItemKind::Function(function) = &contract.body[0].kind else {
+                panic!("expected function");
+            };
+            assert_eq!(function.body.as_ref().unwrap().stmts.len(), 2);
+        });
+    }
 
     fn check_natspec_item(
         sm: &SourceMap,

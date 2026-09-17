@@ -2,6 +2,14 @@
 
 Solar LSP definitions and implementation.
 
+## Editing incomplete code
+
+Interactive analysis recovers at statement and declaration boundaries when the source contains
+syntax errors. Selectors, reference lenses, and inline hints for recovered code use the current
+document, so they follow line edits and disappear when their declarations are removed. Broken
+statements or declarations may lose their own annotations; diagnostics still report the errors.
+Normal compilation keeps its strict parsing behavior.
+
 ## Workspace indexing
 
 Workspace indexing discovers Solidity files throughout the project, independently of build
