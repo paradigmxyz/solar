@@ -27,8 +27,8 @@ fn @dirty() [selector=0x74016a59, abi_wrapper, pure] {
     mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v6 = icall @cleanup_return, v5
     v26 = mload 64 !metadata(memory=scratch)
-    v12 = add v26, 32
     mstore v26, 32
+    v12 = add v26, 32
     v16 = icall @encode_abi_array, v6, v12
     v18 = sub v16, v26
     v20 = add v18, 31
@@ -47,8 +47,8 @@ fn @viaHelper() [selector=0x43a4968c, abi_wrapper, pure] {
     mstore v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v5 = icall @cleanup_return, v4
     v25 = mload 64 !metadata(memory=scratch)
-    v11 = add v25, 32
     mstore v25, 32
+    v11 = add v25, 32
     v15 = icall @encode_abi_array, v5, v11
     v17 = sub v15, v25
     v19 = add v17, 31
@@ -331,10 +331,12 @@ fn @encode_abi_array(arg0: memptr, arg1: i256) -> i256 [may_return_memory] {
     v25 = add v23, 32
     v12 = sub v25, v8
     v13 = ne v6, 0
-    jumpi v13, bb1, bb2
+    jumpi v13, bb3, bb2
+  bb3:
+    jump bb1
   bb1:
-    v14 = phi [bb0: v6], [bb1: v19]
-    v15 = phi [bb0: v8], [bb1: v20]
+    v14 = phi [bb1: v19], [bb3: v6]
+    v15 = phi [bb1: v20], [bb3: v8]
     v16 = add v15, v12
     v17 = mload v16
     v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffff

@@ -1,0 +1,64 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=constant-hash
+//@[size] compile-flags: -Osize -Zmir-pipeline=constant-hash
+@module Hashes
+
+fn @words() -> i256 {
+  bb0:
+    mstore 128, 1
+    mstore 160, 2
+    mstore8 159, 255
+    v0 = keccak256 128, 64
+    ret v0
+}
+
+fn @empty() -> i256 {
+  bb0:
+    v0 = keccak256 115792089237316195423570985008687907853269984665640564039457584007913129639935, 0
+    ret v0
+}
+
+fn @unknown_write(arg0: i256) -> i256 {
+  bb0:
+    mstore 128, 1
+    mstore8 159, arg0
+    v0 = keccak256 128, 32
+    ret v0
+}
+
+fn @unknown_alias(arg0: i256) -> i256 {
+  bb0:
+    mstore 128, 1
+    mstore8 arg0, 9
+    v0 = keccak256 128, 32
+    ret v0
+}
+
+fn @partial() -> i256 {
+  bb0:
+    mstore8 128, 1
+    v0 = keccak256 128, 32
+    ret v0
+}
+
+fn @copy(arg0: i256) -> i256 {
+  bb0:
+    mstore 128, 1
+    mcopy 128, arg0, 32
+    v0 = keccak256 128, 32
+    ret v0
+}
+
+fn @join(arg0: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    mstore 128, 1
+    jump bb3
+  bb2:
+    mstore 128, 2
+    jump bb3
+  bb3:
+    v0 = keccak256 128, 32
+    ret v0
+}

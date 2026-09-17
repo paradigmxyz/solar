@@ -102,12 +102,12 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     mstore 64, v271 !metadata(memory=scratch)
     returndata v269, v121
   bb4:
-    v27 = add v290, 36
     v28 = sub v65, 4
     v31 = add v28, 63
     v32 = lt v31, v28
     jumpi v32, bb8, bb9
   bb9:
+    v27 = add v290, 36
     v34 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v276 = mload 64 !metadata(memory=scratch)
     v35 = inttoptr i256 v276 to memptr !metadata(memory=scratch)
@@ -226,12 +226,12 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
   bb6:
     revert v77, v44
   bb5:
-    v25 = add v96, 36
     v26 = sub v44, 4
     v29 = add v26, 63
     v30 = lt v29, v26
     jumpi v30, bb7, bb8
   bb8:
+    v25 = add v96, 36
     v32 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v90 = mload 64 !metadata(memory=scratch)
     v33 = inttoptr i256 v90 to memptr !metadata(memory=scratch)

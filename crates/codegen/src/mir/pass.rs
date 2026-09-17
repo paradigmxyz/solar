@@ -59,6 +59,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &pure_eval::PureEval,
     &const_fold::ConstFold,
     &readonly_eval::ReadonlyEval,
+    &constant_hash::ConstantHash,
     &cse::Cse,
     &cse::FmpCse,
     &pre::Pre,
@@ -72,7 +73,9 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &loop_canonicalize::LoopCanonicalize,
     &loop_exit_remat::LoopExitRemat,
     &loop_idioms::LoopIdioms,
+    &loop_closed_form::LoopClosedForm,
     &loop_split::LoopSplit,
+    &loop_unswitch::LoopUnswitch,
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
     &loop_opt::Licm,
@@ -110,6 +113,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_slices::LowerSlices,
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
+    &code_sink::CodeSink,
     &evm_inst_schedule::EvmInstSchedule,
 ];
 
@@ -348,6 +352,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &call_cleanup::CallCleanup,
     // Shared scalar ABI words and wrapper bodies become one CFG before extraction.
     &inline_dispatch::InlineDispatch,
+    &loop_unswitch::LoopUnswitch,
+    &constant_hash::ConstantHash,
+    &GasOnly::new(memory_dse::MemoryDse),
     // Memory lowering materializes address arithmetic; number and simplify it
     // once more before the physical shape is fixed. The stack-aware cost keeps
     // rewrites from reaching for values the scheduler would have to keep alive.
@@ -358,6 +365,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // extraction; fuse the run into the one read it is a field of, before the
     // loop passes below hoist and step addresses the run no longer uses.
     &byte_run::ByteRunLoads,
+    &GasOnly::new(loop_canonicalize::LoopCanonicalize),
     // Memory lowering materializes each element access as `add base, 32`
     // plus an index term inside the loop that reads it. Hoist the invariant
     // base once the physical form is final, so a hot loop carries one word
@@ -379,6 +387,8 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // the pass drops the consumed callee itself.
     &GasOnly::new(inline::InlineSingleUse::Physical),
     &cfg_simplify::CfgSimplify,
+    &GasOnly::new(loop_canonicalize::LoopCanonicalize),
+    &loop_closed_form::LoopClosedForm,
     &lower_evm_shaped::LowerEvmShaped,
 ];
 
@@ -392,6 +402,7 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     // Late lowering can leave pure address and length calculations unused.
     // Remove their complete dependency chains before selecting physical stack order.
     &dce::Dce,
+    &GasOnly::new(code_sink::CodeSink),
     &evm_inst_schedule::EvmInstSchedule,
 ];
 
