@@ -250,6 +250,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_builtins::LowerBuiltins,
     // Gas mode keeps arithmetic failure edges local for stack scheduling.
     &GasOnly::new(outline_reverts::OutlineReverts),
+    &GasOnly::new(checked_aggregate::CheckedAggregate),
     &lower_arithmetic::LowerArithmetic,
     // Size mode shares arithmetic payloads too, before selecting stack layouts.
     &SizeOnly::new(outline_reverts::OutlineReverts),
@@ -262,7 +263,6 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &word_sequence::WordSequence,
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
-    &GasOnly::new(checked_aggregate::CheckedAggregate),
     &cfg_simplify::CfgSimplify,
     // Small pure diamonds become selects once folded conditions are gone, so
     // bit searches lose their branches and lookup helpers arrive branch-free

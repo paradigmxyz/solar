@@ -1,4 +1,4 @@
-//@ compile-flags: -Ogas -Zmir-pipeline=lower-arithmetic,egraph,check-elim,cfg-simplify,checked-aggregate,checked-aggregate
+//@ compile-flags: -Ogas -Zmir-pipeline=checked-aggregate,checked-aggregate
 @module CheckedAggregate
 
 // Retain every carry, including earlier overflows whose wrapped result feeds later additions.
@@ -10,11 +10,11 @@ fn @chain(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-// Independent operations can share the check; both results remain live.
+// Independent additions do not form a chain.
 fn @independent(arg0: u256, arg1: u256) -> u256 {
   bb0:
     v0 = checked_add u256, arg0, arg1
-    v1 = checked_sub u256, arg0, arg1
+    v1 = checked_add u256, arg0, arg1
     v2 = xor v0, v1
     ret v2
 }
@@ -30,7 +30,7 @@ fn @mixed(arg0: u256, arg1: u256, arg2: u256) -> u256 {
 fn @signed(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = checked_add i256, arg0, arg1
-    v1 = checked_sub i256, v0, arg1
+    v1 = checked_add i256, v0, arg1
     v2 = checked_mul i256, v1, arg1
     ret v2
 }
@@ -38,7 +38,7 @@ fn @signed(arg0: i256, arg1: i256) -> i256 {
 fn @narrow(arg0: u8, arg1: u8) -> u8 {
   bb0:
     v0 = checked_add u8, arg0, arg1
-    v1 = checked_mul u8, v0, arg1
+    v1 = checked_add u8, v0, arg1
     ret v1
 }
 
@@ -49,8 +49,8 @@ fn @negation(arg0: i8, arg1: i8) -> i8 {
     ret v1
 }
 
-// A long group splits at the speculation limit; replacements cross the split.
-fn @bounded(arg0: u256) -> u256 {
+// Long chains keep one accumulated carry.
+fn @long_chain(arg0: u256) -> u256 {
   bb0:
     v0 = checked_add u256, arg0, arg0
     v1 = checked_add u256, v0, arg0
@@ -105,7 +105,7 @@ fn @block_boundary(arg0: u256, arg1: u256) -> u256 {
     ret v1
 }
 
-// Replacement reaches successor phi inputs without changing predecessors.
+// Replacement redirects successor phi inputs to the new continuation.
 fn @phi_use(arg0: u256, arg1: u256) -> u256 {
   bb0:
     v0 = checked_add u256, arg0, arg1
@@ -114,35 +114,6 @@ fn @phi_use(arg0: u256, arg1: u256) -> u256 {
   bb1:
     v2 = phi [bb0: v1]
     ret v2
-}
-
-// Failure payloads selected by predecessor must retain the individual edges.
-fn @failure_phi(arg0: u256, arg1: u256) {
-  bb0:
-    jumpi arg0, bb2, bb1
-  bb1:
-    jumpi arg1, bb2, bb3
-  bb2:
-    v0 = phi [bb0: 32], [bb1: 64]
-    mstore 0, v0
-    revert 0, v0
-  bb3:
-    ret
-}
-
-// The continuation can also execute without passing through the first check.
-fn @join_boundary(arg0: u256, arg1: u256, arg2: u256) {
-  bb0:
-    jumpi arg0, bb1, bb2
-  bb1:
-    jumpi arg1, bb3, bb2
-  bb2:
-    jumpi arg2, bb3, bb4
-  bb3:
-    mstore 0, 17
-    revert 0, 32
-  bb4:
-    ret
 }
 
 fn @call_boundary(arg0: u256, arg1: u256) -> u256 {
@@ -156,4 +127,13 @@ fn @call_boundary(arg0: u256, arg1: u256) -> u256 {
 fn @helper(arg0: u256) -> u256 {
   bb0:
     ret arg0
+}
+
+// Reversed operands and later uses of intermediate sums remain valid.
+fn @reused_sum(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_add u256, arg1, v0
+    v2 = xor v0, v1
+    ret v2
 }

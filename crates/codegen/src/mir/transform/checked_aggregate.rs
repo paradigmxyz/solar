@@ -1,38 +1,28 @@
-//! Combine surviving checks that branch to the same failure block.
+//! Lower consecutive checked `uint256` additions with one overflow check.
 //!
-//! After arithmetic lowering and check elimination, scan straight-line chains of conditional
-//! branches with a common failure successor. Keep each overflow predicate, OR them in execution
-//! order, and branch only at the end of the group. This works for signed and unsigned arithmetic
-//! of every width without recognizing arithmetic recipes or encoded panic payloads. Eliminating
-//! redundant checks first avoids retaining their computations inside a partially known OR.
+//! Scan each block for adjacent checked additions where each addition uses the previous result.
+//! Emit the sums in order, OR their individual carry predicates, and panic once at the end of the
+//! chain. Keep every carry: wrapping more than once can make the final result appear valid.
+//! Any other instruction, arithmetic type, or block boundary ends the chain. Intermediate sums
+//! may have other uses; replacing their SSA values preserves those uses.
 //!
-//! Each continuation must have one predecessor and contain only pure, nontrapping computations,
-//! with no phis. Calls, memory and environment reads, writes, semantic checks, and control-flow
-//! joins stop the group. The common failure block must end in a revert or tail call and have no
-//! phis: postponing its execution must not change which incoming values it observes. Different
-//! panic codes have different targets and cannot combine. Only failure-on-nonzero branches
-//! qualify; division checks and other inverted conditions remain untouched.
-//!
-//! The target prices each removed branch against an OR and accumulator stack traffic. Groups
-//! contain at most four branches and each continuation at most eight instructions to bound
-//! speculative work and live ranges. The following CFG cleanup merges the unconditional links.
-//! Empty-revert paths stay separate: combining their compact ABI guards can increase stack
-//! pressure and interfere with later ABI lowering. Outlined single-block payload helpers qualify.
-//! The default pipeline enables this only for gas: fewer branches can still grow bytecode when
-//! the accumulated predicate needs spills. Original computations keep their debug contexts; the
-//! combined branch has no unique origin.
+//! Run immediately before arithmetic lowering, after gas-mode revert outlining, so the shared
+//! check stays local like ordinary arithmetic checks. The target prices the removed branches
+//! against the added OR and accumulator traffic. Enable this by default only in gas mode because
+//! predicate lifetimes can increase bytecode size. Each addition retains its source context;
+//! the shared check intentionally has no unique source location.
 
 use crate::{
     backend::evm::op,
     mir::{
-        BlockId, EffectKind, Function, FunctionId, InstKind, Instruction, MirType, Module,
-        Terminator, ValueId,
+        ArithmeticKind, CheckedOp, Function, FunctionBuilder, InstId, InstKind,
+        InstructionMetadata, Module, PanicCode,
         pass::{MirPass, run_function_pass},
-        utils::{fold_terminator_to_jump, replace_terminator},
+        transform::utils::redirect_successor_predecessors,
     },
     target::Target,
 };
-use solar_data_structures::bit_set::DenseBitSet;
+use solar_data_structures::map::FxHashMap;
 
 pub(crate) struct CheckedAggregate;
 
@@ -53,120 +43,91 @@ impl MirPass for CheckedAggregate {
         if target.cmp(after, before).is_ge() {
             return false;
         }
-        let mut payload_helpers = DenseBitSet::new_empty(module.functions.len());
-        for (id, func) in module.functions.iter_enumerated() {
-            if func.blocks.len() == 1
-                && !func.blocks[BlockId::ENTRY].instructions.is_empty()
-                && matches!(func.blocks[BlockId::ENTRY].terminator, Some(Terminator::Revert { .. }))
-            {
-                payload_helpers.insert(id);
+        run_function_pass(module, analyses, |func, _| {
+            let mut replacements = FxHashMap::default();
+            for block in func.blocks.indices() {
+                if !func.blocks[block]
+                    .instructions
+                    .windows(2)
+                    .any(|pair| chain_len(func, pair) == 2)
+                {
+                    continue;
+                }
+                let instructions = std::mem::take(&mut func.blocks[block].instructions);
+                let (terminator, metadata) = func.blocks[block].take_terminator();
+                let mut builder = FunctionBuilder::new(func);
+                builder.switch_to_block(block);
+                let mut remaining = instructions.as_slice();
+                while !remaining.is_empty() {
+                    let count = chain_len(builder.func(), remaining);
+                    if count < 2 {
+                        // continuation: original instruction
+                        let current = builder.current_block();
+                        builder.func_mut().blocks[current].instructions.push(remaining[0]);
+                        remaining = &remaining[1..];
+                        continue;
+                    }
+                    let mut carry = None;
+                    let mut combined = InstructionMetadata::EMPTY;
+                    // NOTE: An accumulated overflow cannot be attributed to one addition.
+                    combined.mark_debug_info_dropped();
+                    for &id in &remaining[..count] {
+                        let InstKind::CheckedBinary { lhs, rhs, .. } = builder.func().inst(id).kind
+                        else {
+                            unreachable!();
+                        };
+                        let context = builder.func().inst(id).metadata.debug_context();
+                        builder.set_debug_context(&context);
+                        // sum = add lhs, rhs
+                        // overflow = lt sum, lhs
+                        let sum = builder.add(lhs, rhs);
+                        let overflow = builder.lt(sum, lhs);
+                        replacements.insert(builder.func().inst_result_value(id).unwrap(), sum);
+                        builder.set_debug_context(&combined);
+                        // carry = carry | overflow
+                        carry = Some(match carry {
+                            Some(previous) => builder.or(previous, overflow),
+                            None => overflow,
+                        });
+                    }
+                    // panic_if carry, 0x11
+                    builder.panic_if(carry.unwrap(), PanicCode::ArithmeticOverflowUnderflow);
+                    remaining = &remaining[count..];
+                }
+                // continuation: original terminator
+                let end = builder.current_block();
+                if let Some(terminator) = terminator {
+                    builder.func_mut().blocks[end].set_terminator(terminator, metadata);
+                }
+                redirect_successor_predecessors(builder.func_mut(), block, end);
             }
-        }
-        run_function_pass(module, analyses, |func, _| aggregate(func, &payload_helpers))
+            if replacements.is_empty() {
+                return false;
+            }
+            // checked sum uses => scalar sum uses
+            func.replace_uses_canonicalized(&replacements);
+            true
+        })
     }
 }
 
-#[derive(Clone, Copy)]
-struct Check {
-    block: BlockId,
-    condition: ValueId,
-    failure: BlockId,
-    continuation: BlockId,
-}
-
-fn check(
-    func: &Function,
-    block: BlockId,
-    payload_helpers: &DenseBitSet<FunctionId>,
-) -> Option<Check> {
-    let Terminator::Branch { condition, then_block: failure, else_block: continuation } =
-        func.blocks[block].terminator.as_ref()?
-    else {
-        return None;
-    };
-    if failure == continuation
-        || *failure == block
-        || func.block_has_phi(*failure)
-        || !match &func.blocks[*failure].terminator {
-            Some(Terminator::Revert { .. }) => !func.blocks[*failure].instructions.is_empty(),
-            Some(Terminator::TailCall { function, .. }) => payload_helpers.contains(*function),
-            _ => false,
+fn chain_len(func: &Function, instructions: &[InstId]) -> usize {
+    let mut previous = None;
+    let mut count = 0;
+    for &id in instructions {
+        if let InstKind::CheckedBinary {
+            op: CheckedOp::Add,
+            arithmetic: ArithmeticKind::Unsigned(256),
+            lhs,
+            rhs,
+        } = func.inst(id).kind
+            && previous.is_none_or(|sum| lhs == sum || rhs == sum)
+        {
+            previous = func.inst_result_value(id);
+            count += 1;
+        } else {
+            break;
         }
-    {
-        return None;
     }
-    Some(Check { block, condition: *condition, failure: *failure, continuation: *continuation })
-}
-
-fn aggregate(func: &mut Function, payload_helpers: &DenseBitSet<FunctionId>) -> bool {
-    let mut claimed = DenseBitSet::new_empty(func.blocks.len());
-    let mut changed = false;
-    for block in func.blocks.indices() {
-        if claimed.contains(block) {
-            continue;
-        }
-        let Some(first) = check(func, block, payload_helpers) else { continue };
-        let mut chain = vec![first];
-        let mut current = first;
-        while chain.len() < 4 {
-            let next = current.continuation;
-            if next == block
-                || claimed.contains(next)
-                || func.unique_predecessors(next).as_slice() != [current.block]
-                || func.blocks[next].instructions.len() > 8
-                || !func.blocks[next].instructions.iter().all(|&id| {
-                    let kind = &func.inst(id).kind;
-                    !matches!(kind, InstKind::Phi(_))
-                        && !kind.has_side_effects()
-                        && kind.effect_kind() == EffectKind::Pure
-                        && func.inst_result_value(id).is_some()
-                })
-            {
-                break;
-            }
-            let Some(next) = check(func, next, payload_helpers) else { break };
-            if next.failure != first.failure {
-                break;
-            }
-            chain.push(next);
-            current = next;
-        }
-        if chain.len() < 2 {
-            continue;
-        }
-        let mut accumulated = first.condition;
-        for (index, node) in chain.iter().enumerate().skip(1) {
-            // accumulated = accumulated | condition
-            // branch accumulated, failure, continuation
-            let (id, value) = func.alloc_value_inst(
-                Instruction::new(
-                    InstKind::Or(accumulated, node.condition),
-                    Some(MirType::uint256()),
-                )
-                .with_debug_info_dropped(),
-            );
-            func.blocks[node.block].instructions.push(id);
-            replace_terminator(
-                func,
-                node.block,
-                Terminator::Branch {
-                    condition: value,
-                    then_block: node.failure,
-                    else_block: node.continuation,
-                },
-            );
-            // NOTE: Several checks now share this branch. Keep no arbitrary source location.
-            func.blocks[node.block].terminator_metadata.mark_debug_info_dropped();
-            accumulated = value;
-            let previous = chain[index - 1];
-            // branch condition, failure, continuation => jump continuation
-            fold_terminator_to_jump(func, previous.block, previous.continuation);
-            func.blocks[previous.block].terminator_metadata.mark_debug_info_dropped();
-        }
-        for node in chain {
-            claimed.insert(node.block);
-        }
-        changed = true;
-    }
-    changed
+    count
 }
