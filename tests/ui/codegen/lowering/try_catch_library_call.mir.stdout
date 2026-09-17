@@ -4,7 +4,7 @@
 immutables:
   library_deploy_address: address
 
-fn @direct(arg0: word, arg1: word) -> word [selector=0x52db6885, pure, abi_params=[u256, bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @direct(arg0: i256, arg1: i256) -> i256 [selector=0x52db6885, pure, abi_params=[u256, bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq arg1, 0
     v1 = eq v0, false
@@ -13,7 +13,7 @@ fn @direct(arg0: word, arg1: word) -> word [selector=0x52db6885, pure, abi_param
     ret arg0
 }
 
-fn @attached(arg0: word, arg1: word, arg2: word) -> word [selector=0x280ac7e9, abi_params=[storageptr, u256, bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @attached(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x280ac7e9, abi_params=[storageptr, u256, bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq arg2, 0
     v1 = eq v0, false
@@ -24,7 +24,7 @@ fn @attached(arg0: word, arg1: word, arg2: word) -> word [selector=0x280ac7e9, a
     ret v3
 }
 
-fn @add(arg0: word, arg1: word, arg2: word) -> word [selector=0x07f6a6c2, pure, abi_params=[u256, u256, bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @add(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x07f6a6c2, pure, abi_params=[u256, u256, bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq arg2, 0
     v1 = eq v0, false
@@ -48,7 +48,7 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/try_catch_library_call.sol:C ===
 @module C
-fn @direct(arg0: word) -> word [selector=0xa8f96c85, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @direct(arg0: i256) -> i256 [selector=0xa8f96c85, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = eq arg0, 0
@@ -102,7 +102,7 @@ fn @direct(arg0: word) -> word [selector=0xa8f96c85, pure, abi_params=[bool], ab
     ret 0
 }
 
-fn @attached(arg0: word) -> word [selector=0x42425916, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @attached(arg0: i256) -> i256 [selector=0x42425916, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = eq arg0, 0
@@ -156,7 +156,7 @@ fn @attached(arg0: word) -> word [selector=0x42425916, abi_params=[bool], abi_re
     ret 0
 }
 
-fn @attachedValue(arg0: word, arg1: word) -> word [selector=0xcece4c7f, pure, abi_params=[u256, bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @attachedValue(arg0: i256, arg1: i256) -> i256 [selector=0xcece4c7f, pure, abi_params=[u256, bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = eq arg1, 0
@@ -235,7 +235,7 @@ fn @emptyCode() [selector=0xddb3636e, pure, abi_params=[], abi_returns=[], abi_r
     ret
 }
 
-fn @try_decode_error_message(arg0: word, arg1: word) -> bool {
+fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
   bb0:
     v0 = lt arg1, 68
     v1 = eq v0, false

@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/join_carry_phi_source_live.sol:JoinCarryPhiSourceLive ===
 @module JoinCarryPhiSourceLive
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
-fn @helper(arg0: word, arg1: word) -> word [pure] {
+fn @helper(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -18,7 +18,7 @@ fn @helper(arg0: word, arg1: word) -> word [pure] {
     ret arg1
 }
 
-fn @fee(arg0: word, arg1: word, arg2: word, arg3: word) -> struct0 [selector=0x603ced03, pure, abi_params=[u256, u256, bool, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @fee(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0x603ced03, pure, abi_params=[u256, u256, bool, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = ne arg2, 0
     jumpi v0, bb1, bb2

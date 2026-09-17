@@ -14,7 +14,7 @@
 // CHECK-NOT: {{^[ +].*}}= and
 // CHECK: {{^[ +].*}}[[WORD:v[0-9]+]] = word_cast [[LT]]
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = add [[PRODUCT]], [[WORD]]
-fn @value_numbering(arg0: word, arg1: word) -> word {
+fn @value_numbering(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = add arg0, arg1
     v1 = add arg1, arg0
@@ -35,7 +35,7 @@ fn @value_numbering(arg0: word, arg1: word) -> word {
 // CHECK: {{^[ +].*}}[[SHL:v[0-9]+]] = shl 3, arg0
 // CHECK: {{^[ +].*}}[[OFF:v[0-9]+]] = add arg0, 9
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = add [[SHL]], [[OFF]]
-fn @cheapest_node(arg0: word) -> word {
+fn @cheapest_node(arg0: i256) -> i256 {
   bb0:
     v0 = mul arg0, 8
     v1 = add arg0, 4
@@ -51,7 +51,7 @@ fn @cheapest_node(arg0: word) -> word {
 // CHECK-NOT: {{^[ +].*}}= add arg0, 1
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mul [[SUM]], 3
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mul [[SUM]], 3
-fn @dominance(arg0: word, arg1: bool) -> word {
+fn @dominance(arg0: i256, arg1: i1) -> i256 {
   bb0:
     v0 = add arg0, 1
     jumpi arg1, bb1, bb2
@@ -75,7 +75,7 @@ fn @dominance(arg0: word, arg1: bool) -> word {
 // CHECK-NOT: {{^[ +].*}}= add
 // CHECK: {{^[ +].*}}sstore [[SLOT]], 3
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = sload [[SLOT]]
-fn @skeleton(arg0: word) -> word {
+fn @skeleton(arg0: i256) -> i256 {
   bb0:
     v0 = add arg0, 1
     v1 = add 1, 2

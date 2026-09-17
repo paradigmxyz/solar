@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/creation_code.sol:CreationCodeChild ===
 @module CreationCodeChild
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     ret
 }

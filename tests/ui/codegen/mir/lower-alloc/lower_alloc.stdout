@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-alloc/lower_alloc.mir (before lower-alloc) ===
 + // === ROOT/tests/ui/codegen/mir/lower-alloc/lower_alloc.mir (after lower-alloc) ===
   @module LowerAlloc
-  fn @operations(arg0: word) -> word {
+  fn @operations(arg0: i256) -> i256 {
     bb0:
 -     v0 = fmp
 -     set_fmp v0 !metadata(preserves_fmp)
@@ -22,7 +22,7 @@
       stop
   }
   
-  fn @forward_load_store() -> word {
+  fn @forward_load_store() -> i256 {
     bb0:
       v0 = mload 64
       v1 = mload 64
@@ -32,7 +32,7 @@
       ret v3
   }
   
-  fn @byte_clobber(arg0: word) -> word {
+  fn @byte_clobber(arg0: i256) -> i256 {
     bb0:
       mstore 64, 128
       mstore8 65, arg0
@@ -40,7 +40,7 @@
       ret v0
   }
   
-  fn @unknown_clobber(arg0: word) -> word {
+  fn @unknown_clobber(arg0: i256) -> i256 {
     bb0:
       mstore 64, 128
       mstore arg0, 256
@@ -48,7 +48,7 @@
       ret v0
   }
   
-  fn @call_clobber() -> word {
+  fn @call_clobber() -> i256 {
     bb0:
       mstore 64, 128
       icall @write_fmp
@@ -62,7 +62,7 @@
       ret
   }
   
-  fn @across_edge() -> word {
+  fn @across_edge() -> i256 {
     bb0:
       mstore 64, 128
       jump bb1
@@ -71,7 +71,7 @@
       ret v0
   }
   
-  fn @forwarded_address() -> word {
+  fn @forwarded_address() -> i256 {
     bb0:
       mstore 64, 64
       v0 = mload 64
@@ -82,7 +82,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-alloc/lower_alloc.mir (before fmp-cse) ===
 + // === ROOT/tests/ui/codegen/mir/lower-alloc/lower_alloc.mir (after fmp-cse) ===
   @module LowerAlloc
-  fn @operations(arg0: word) -> word {
+  fn @operations(arg0: i256) -> i256 {
     bb0:
       v0 = mload 64 !metadata(memory=scratch)
       mstore 64, v0 !metadata(memory=scratch)
@@ -103,7 +103,7 @@
       stop
   }
   
-  fn @forward_load_store() -> word {
+  fn @forward_load_store() -> i256 {
     bb0:
       v0 = mload 64
 -     v1 = mload 64
@@ -115,7 +115,7 @@
 +     ret v2
   }
   
-  fn @byte_clobber(arg0: word) -> word {
+  fn @byte_clobber(arg0: i256) -> i256 {
     bb0:
       mstore 64, 128
       mstore8 65, arg0
@@ -123,7 +123,7 @@
       ret v0
   }
   
-  fn @unknown_clobber(arg0: word) -> word {
+  fn @unknown_clobber(arg0: i256) -> i256 {
     bb0:
       mstore 64, 128
       mstore arg0, 256
@@ -131,7 +131,7 @@
       ret v0
   }
   
-  fn @call_clobber() -> word {
+  fn @call_clobber() -> i256 {
     bb0:
       mstore 64, 128
       icall @write_fmp
@@ -145,7 +145,7 @@
       ret
   }
   
-  fn @across_edge() -> word {
+  fn @across_edge() -> i256 {
     bb0:
       mstore 64, 128
       jump bb1
@@ -154,7 +154,7 @@
       ret v0
   }
   
-  fn @forwarded_address() -> word {
+  fn @forwarded_address() -> i256 {
     bb0:
       mstore 64, 64
 -     v0 = mload 64

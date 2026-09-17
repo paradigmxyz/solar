@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_call_storage_bytes.sol:LowLevelCallStorageBytes ===
 @module LowLevelCallStorageBytes
 types:
-  struct0: {word, memorybytes}
+  struct0: {i256, memorybytes}
 
 fn @callData() -> memorybytes [selector=0x4e417a98, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
@@ -9,14 +9,14 @@ fn @callData() -> memorybytes [selector=0x4e417a98, view, abi_params=[], abi_ret
     ret v0
 }
 
-fn @target() -> word [selector=0xd4b83992, view, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @target() -> i256 [selector=0xd4b83992, view, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     ret v1
 }
 
-fn @prepare(arg0: word, arg1: calldataslice) [selector=0xaacd9878, abi_params=[address, bytes], abi_returns=[], abi_return_params=[]] {
+fn @prepare(arg0: i256, arg1: calldataslice) [selector=0xaacd9878, abi_params=[address, bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     v1 = sload 1 !metadata(storage=slot(1))
@@ -60,7 +60,7 @@ fn @fire() -> struct0 [selector=0x457094cc, abi_params=[], abi_returns=[word<boo
     ret v8
 }
 
-fn @store_storage_bytes(arg0: word, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

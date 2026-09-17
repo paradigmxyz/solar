@@ -7,14 +7,14 @@
 // copy because `@caller` itself has no internal callers.
 @module LowerAbiRetargets
 // CHECK: + fn @pub()
-fn @pub(arg0: word) -> word [selector=0x0a0a0a01, abi_returns=[word]] {
+fn @pub(arg0: i256) -> i256 [selector=0x0a0a0a01, abi_returns=[word]] {
   bb0:
     v1 = add arg0, 1
     ret v1
 }
 // CHECK: + fn @caller()
 // CHECK: + {{v[0-9]+}} = icall @pub.body
-fn @caller(arg0: word) -> word [selector=0x0a0a0a02, abi_returns=[word]] {
+fn @caller(arg0: i256) -> i256 [selector=0x0a0a0a02, abi_returns=[word]] {
   bb0:
     v1 = icall fn0, arg0
     v2 = word_cast v1
@@ -116,7 +116,7 @@ fn @prefixedEncoding() -> memorybytes [selector=0x0a0a0a0a, abi_params=[], abi_r
 // CHECK-NOT: slice_ptr
 // CHECK: + fn @sliceCaller()
 // CHECK: + {{v[0-9]+}} = icall @sliceBody.body
-fn @sliceBody() -> word [selector=0x0a0a0a0b, abi_params=[], abi_returns=[word]] {
+fn @sliceBody() -> i256 [selector=0x0a0a0a0b, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = make_calldata_slice 4, 32
     jump bb1
@@ -125,7 +125,7 @@ fn @sliceBody() -> word [selector=0x0a0a0a0b, abi_params=[], abi_returns=[word]]
     ret v1
 }
 
-fn @sliceCaller() -> word [selector=0x0a0a0a0c, abi_params=[], abi_returns=[word]] {
+fn @sliceCaller() -> i256 [selector=0x0a0a0a0c, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = icall @sliceBody
     ret v0

@@ -94,7 +94,7 @@ fn @encodeNoPadding() [selector=0x3d92c956, abi_wrapper, pure] {
     returndata v2, v23
 }
 
-fn @encode.4(arg0: word, arg1: word, arg2: word) -> word [may_return_memory, pure] {
+fn @encode.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory, pure] {
   bb0:
     v0 = mload arg0
     v101 = mod v0, 3
@@ -494,7 +494,7 @@ fn @encode.4(arg0: word, arg1: word, arg2: word) -> word [may_return_memory, pur
     revert 28, 36
 }
 
-fn @_encode(arg0: word, arg1: word) -> word [pure] {
+fn @_encode(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = ne arg1, 0
     jumpi v0, bb1, bb3
@@ -524,7 +524,7 @@ fn @_encode(arg0: word, arg1: word) -> word [pure] {
     ret v16
 }
 
-fn @decode.8(arg0: word) -> word [may_return_memory, pure] {
+fn @decode.8(arg0: i256) -> i256 [may_return_memory, pure] {
   bb0:
     v0 = mload arg0
     v1 = eq v0, 0
@@ -981,7 +981,7 @@ fn @revert_stub.9() {
     revert 28, 36
 }
 
-fn @decode_calldata_type(arg0: word) -> word [may_return_memory] {
+fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0

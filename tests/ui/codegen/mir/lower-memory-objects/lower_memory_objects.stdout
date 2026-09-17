@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir (after lower-memory-objects) ===
   @module LowerMemoryObjects
 - fn @objects(arg0: memorybytes, arg1: memoryarray, arg2: memorystruct, arg3: memoryfixedarray) {
-+ fn @objects(arg0: word, arg1: word, arg2: word, arg3: word) [may_return_memory] {
++ fn @objects(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_memory] {
     bb0:
 -     v0 = alloc memorybytes, exact, zeroed, panic, 96
 -     set_memory_object_len memorybytes, v0, 3
@@ -30,7 +30,7 @@
   }
   
 - fn @copy_from_slice(arg0: memorybytes, arg1: memoryslice, arg2: calldataslice, arg3: returndataslice) {
-+ fn @copy_from_slice(arg0: word, arg1: memoryslice, arg2: calldataslice, arg3: returndataslice) [may_return_memory] {
++ fn @copy_from_slice(arg0: i256, arg1: memoryslice, arg2: calldataslice, arg3: returndataslice) [may_return_memory] {
     bb0:
 -     memory_object_copy_from_slice memorybytes, arg0, arg1
 -     memory_object_copy_from_slice memorybytes, arg0, arg2
@@ -53,8 +53,8 @@
       stop
   }
   
-- fn @copy_object(arg0: memorybytes, arg1: memorybytes, arg2: word) {
-+ fn @copy_object(arg0: word, arg1: word, arg2: word) [may_return_memory] {
+- fn @copy_object(arg0: memorybytes, arg1: memorybytes, arg2: i256) {
++ fn @copy_object(arg0: i256, arg1: i256, arg2: i256) [may_return_memory] {
     bb0:
 -     memory_object_copy memorybytes, arg0, memorybytes, arg1, arg2
 +     v0 = word_cast arg0
@@ -65,16 +65,16 @@
       stop
   }
   
-- fn @raw_pointer(arg0: word) -> memorybytes {
-+ fn @raw_pointer(arg0: word) -> word [may_return_memory] {
+- fn @raw_pointer(arg0: i256) -> memorybytes {
++ fn @raw_pointer(arg0: i256) -> i256 [may_return_memory] {
     bb0:
 -     v0 = memory_object_from_ptr memorybytes, arg0
 -     ret v0
 +     ret arg0
   }
   
-- fn @word_carrier(arg0: memorystruct) -> word {
-+ fn @word_carrier(arg0: word) -> word [may_return_memory] {
+- fn @word_carrier(arg0: memorystruct) -> i256 {
++ fn @word_carrier(arg0: i256) -> i256 [may_return_memory] {
     bb0:
       v0 = word_cast arg0
 -     v1 = memory_object_from_ptr memorybytes, v0
@@ -83,7 +83,7 @@
       ret v2
   }
   
-  fn @unreachable_cast_cycle() -> word {
+  fn @unreachable_cast_cycle() -> i256 {
     bb0:
       ret 0
 -   bb1:
@@ -93,7 +93,7 @@
   }
   
 - fn @merged_allocations() -> memorybytes {
-+ fn @merged_allocations() -> word [may_return_memory] {
++ fn @merged_allocations() -> i256 [may_return_memory] {
     bb0:
 -     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
 -     set_memory_object_len memorybytes, v0, 0

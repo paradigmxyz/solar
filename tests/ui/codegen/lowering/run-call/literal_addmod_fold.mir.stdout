@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/literal_addmod_fold.sol:LiteralAddmodFold ===
 @module LiteralAddmodFold
-fn @test() -> word [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = exp 2, 255
     v1 = exp 2, 255

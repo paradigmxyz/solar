@@ -8,7 +8,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @fold_sub_after_ge_guard{{[( ]}}
 // CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb4
 // CHECK: + jump bb4
-fn @fold_sub_after_ge_guard(arg0: word, arg1: word) -> word {
+fn @fold_sub_after_ge_guard(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v1 = gt arg1, arg0
     v2 = eq v1, false
@@ -29,7 +29,7 @@ fn @fold_sub_after_ge_guard(arg0: word, arg1: word) -> word {
 // Without a dominating guard the underflow check must stay.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_sub_without_guard{{[( ]}}
 // CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
-fn @keep_sub_without_guard(arg0: word, arg1: word) -> word {
+fn @keep_sub_without_guard(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v1 = sub arg0, arg1
     v2 = lt arg0, arg1
@@ -44,7 +44,7 @@ fn @keep_sub_without_guard(arg0: word, arg1: word) -> word {
 // SSA value derived from a fresh load: no fact transfers, the check stays.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_sub_on_other_value{{[( ]}}
 // CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb4
-fn @keep_sub_on_other_value(arg0: word, arg1: word) -> word {
+fn @keep_sub_on_other_value(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v1 = gt arg1, arg0
     jumpi v1, bb1, bb2

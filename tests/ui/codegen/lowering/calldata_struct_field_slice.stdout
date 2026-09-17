@@ -153,7 +153,7 @@ fn @midWord.2() [selector=0xbb6106d2, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @tailHash.4(arg0: word, arg1: word) -> word [pure] {
+fn @tailHash.4(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v1 = add arg0, 64
     v2 = calldatasize

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_storage_struct.sol:AbiDecodeStorageStruct ===
 @module AbiDecodeStorageStruct
 types:
-  struct0: {word, word, word, word}
+  struct0: {i256, i256, i256, i256}
 
 fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
@@ -62,7 +62,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     ret v39
 }
 
-fn @store_storage_bytes(arg0: word, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

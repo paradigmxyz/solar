@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_evaluation_order.sol:MutatingBase ===
 @module MutatingBase
-fn @mutate() -> word [selector=0x7795b5fc, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @mutate() -> i256 [selector=0x7795b5fc, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
@@ -16,7 +16,7 @@ data:
 immutables:
   target: address
 
-fn @receiver() -> word {
+fn @receiver() -> i256 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = checked_mul u256, v0, 10
@@ -26,7 +26,7 @@ fn @receiver() -> word {
     ret v3
 }
 
-fn @arg() -> word {
+fn @arg() -> i256 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = checked_mul u256, v0, 10
@@ -35,7 +35,7 @@ fn @arg() -> word {
     ret 7
 }
 
-fn @gasOpt() -> word {
+fn @gasOpt() -> i256 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = checked_mul u256, v0, 10
@@ -45,7 +45,7 @@ fn @gasOpt() -> word {
     ret v3
 }
 
-fn @valueOpt() -> word {
+fn @valueOpt() -> i256 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = checked_mul u256, v0, 10
@@ -54,12 +54,12 @@ fn @valueOpt() -> word {
     ret 0
 }
 
-fn @sink(arg0: word) [selector=0xa4ba067e, payable, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @sink(arg0: i256) [selector=0xa4ba067e, payable, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @externalReceiver() -> word [selector=0x7b42c356, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @externalReceiver() -> i256 [selector=0x7b42c356, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @receiver
     v1 = gas
@@ -79,7 +79,7 @@ fn @externalReceiver() -> word [selector=0x7b42c356, abi_params=[], abi_returns=
     ret v9
 }
 
-fn @callOptions() -> word [selector=0xec5f47fe, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @callOptions() -> i256 [selector=0xec5f47fe, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -101,12 +101,12 @@ fn @callOptions() -> word [selector=0xec5f47fe, abi_params=[], abi_returns=[word
     ret v11
 }
 
-fn @dirtyUint8(arg0: word) -> word [pure] {
+fn @dirtyUint8(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
 
-fn @dirtyGasOption() -> word [selector=0x494be41f, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @dirtyGasOption() -> i256 [selector=0x494be41f, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
     v1 = gas
@@ -118,7 +118,7 @@ fn @dirtyGasOption() -> word [selector=0x494be41f, abi_params=[], abi_returns=[w
     ret v6
 }
 
-fn @dirtySend() -> word [selector=0x82ec93de, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @dirtySend() -> i256 [selector=0x82ec93de, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @dirtyUint8, 256
     v1 = and v0, 255
@@ -126,7 +126,7 @@ fn @dirtySend() -> word [selector=0x82ec93de, payable, abi_params=[], abi_return
     ret v2
 }
 
-fn @dirtyIndex() -> word [selector=0xe98f4d7c, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirtyIndex() -> i256 [selector=0xe98f4d7c, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<257, 1>, exact, uninitialized, infallible, 0x2020 !metadata(preserves_fmp)
     memory_zero v0, 0x2020
@@ -147,14 +147,14 @@ fn @dirtyIndex() -> word [selector=0xe98f4d7c, pure, abi_params=[], abi_returns=
     ret v9
 }
 
-fn @mutate() -> word [selector=0x7795b5fc, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @mutate() -> i256 [selector=0x7795b5fc, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 7
     ret v1
 }
 
-fn @staticReceiverMutability() -> word [selector=0xde2015ae, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @staticReceiverMutability() -> i256 [selector=0xde2015ae, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = loadimmutable target
     v1 = gas

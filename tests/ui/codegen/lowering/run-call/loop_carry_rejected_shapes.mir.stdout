@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/loop_carry_rejected_shapes.sol:LoopCarryRejectedShapes ===
 @module LoopCarryRejectedShapes
-fn @counter() -> word [selector=0x61bc221a, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @counter() -> i256 [selector=0x61bc221a, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @sumEvens(arg0: word) -> word [selector=0x0c4376eb, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @sumEvens(arg0: i256) -> i256 [selector=0x0c4376eb, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -41,7 +41,7 @@ fn @sumEvens(arg0: word) -> word [selector=0x0c4376eb, abi_params=[u256], abi_re
     jump bb1
 }
 
-fn @countdown(arg0: word, arg1: word) -> word [selector=0x8275b13a, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @countdown(arg0: i256, arg1: i256) -> i256 [selector=0x8275b13a, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -73,7 +73,7 @@ fn @countdown(arg0: word, arg1: word) -> word [selector=0x8275b13a, pure, abi_pa
     invalid
 }
 
-fn @firstAbove(arg0: word) -> word [selector=0x0d7505f6, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @firstAbove(arg0: i256) -> i256 [selector=0x0d7505f6, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:

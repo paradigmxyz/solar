@@ -8,7 +8,7 @@
 // CHECK-NEXT: + [[COND:v[0-9]+]] = ne [[DIRTY]], 0
 // CHECK-NEXT: + jumpi [[COND]], bb{{[0-9]+}}, bb{{[0-9]+}}{{$}}
 // CHECK: ret arg0 !metadata(span=100..120, modifier_depth=2)
-fn @dirty(arg0: word) -> word [selector=0x01020304] {
+fn @dirty(arg0: i256) -> i256 [selector=0x01020304] {
   bb0:
     jump bb1
   bb1:

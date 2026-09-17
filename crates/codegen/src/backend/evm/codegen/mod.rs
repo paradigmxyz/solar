@@ -728,11 +728,11 @@ mod tests {
     fn static_frames_reject_explicit_signature_addresses() {
         let make_function = |offset| {
             let mut function = Function::new(Ident::DUMMY);
-            function.alloc_param(MirType::Word);
+            function.alloc_param(MirType::I256);
             function.internal_frame_size = EvmMemoryLayout::WORD_SIZE;
             let (inst, _) = function.alloc_value_inst(Instruction::new(
                 InstKind::InternalFrameAddr(offset),
-                Some(MirType::Word),
+                Some(MirType::I256),
             ));
             function.blocks[BlockId::ENTRY].instructions.push(inst);
             function
@@ -802,8 +802,8 @@ mod tests {
         assert!(mir_utils::is_memory_inst(&constant.inst(inst).kind));
 
         let mut dynamic = Function::new(Ident::DUMMY);
-        let dest = dynamic.alloc_param(MirType::Word);
-        let size = dynamic.alloc_param(MirType::Word);
+        let dest = dynamic.alloc_param(MirType::I256);
+        let size = dynamic.alloc_param(MirType::I256);
         let inst = dynamic.alloc_inst(Instruction::new(InstKind::DataCopy(data, dest, size), None));
         dynamic.blocks[BlockId::ENTRY].instructions.push(inst);
         assert_eq!(EvmCodegen::dynamic_spill_write_dest(&dynamic, inst), Some(dest));
@@ -920,14 +920,14 @@ mod tests {
     #[test]
     fn dynamic_frame_stack_args_allow_raw_values() {
         let mut function = Function::new(Ident::DUMMY);
-        let argument = function.alloc_param(MirType::Word);
+        let argument = function.alloc_param(MirType::I256);
         let immediate = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
         let (_, computed) = function.alloc_value_inst(Instruction::new(
             InstKind::Add(argument, immediate),
-            Some(MirType::Word),
+            Some(MirType::I256),
         ));
         let (_, calldata_size) = function
-            .alloc_value_inst(Instruction::new(InstKind::CalldataSize, Some(MirType::Word)));
+            .alloc_value_inst(Instruction::new(InstKind::CalldataSize, Some(MirType::I256)));
 
         assert!(EvmCodegen::stack_arg_site_eligible(&function, false, immediate));
         assert!(!EvmCodegen::stack_arg_site_eligible(&function, false, argument));
@@ -1030,7 +1030,7 @@ mod tests {
         with_codegen(opts, |mut codegen| {
             let mut module = Module::new(Ident::DUMMY);
             let mut function = Function::new(Ident::DUMMY);
-            let argument = function.alloc_param(MirType::Word);
+            let argument = function.alloc_param(MirType::I256);
             let function = module.add_function(function);
 
             codegen.static_call_abi_mut(function, 1).stack_args.insert(0);
@@ -1069,8 +1069,8 @@ mod tests {
             let mut function = Function::new(Ident::with_dummy_span(sym::Test));
             function.internal_frame_size = EvmMemoryLayout::WORD_SIZE;
             let mut builder = FunctionBuilder::new(&mut function);
-            let argument = builder.add_param(MirType::Word);
-            builder.set_return_type(MirType::Word);
+            let argument = builder.add_param(MirType::I256);
+            builder.set_return_type(MirType::I256);
             builder.ret([argument]);
             let function = module.add_function(function);
 
@@ -1100,7 +1100,7 @@ mod tests {
             let mut module = Module::new(Ident::DUMMY);
             let mut function = Function::new(Ident::with_dummy_span(sym::Test));
             let mut builder = FunctionBuilder::new(&mut function);
-            let argument = builder.add_param(MirType::Word);
+            let argument = builder.add_param(MirType::I256);
             let one = builder.imm(1);
             let _unrelated = builder.add(one, one);
             let _use = builder.add(argument, one);
@@ -1139,7 +1139,7 @@ mod tests {
             };
             with_codegen(opts, |codegen| {
                 let mut function = Function::new(Ident::DUMMY);
-                let argument = function.alloc_param(MirType::Word);
+                let argument = function.alloc_param(MirType::I256);
                 let mut builder = FunctionBuilder::new(&mut function);
                 let one = builder.imm(1);
                 let blocks: Vec<_> = (0..5).map(|_| builder.create_block()).collect();
@@ -1216,7 +1216,7 @@ mod tests {
             (InstKind::BaseFee, op::BASEFEE),
             (InstKind::BlobBaseFee, op::BLOBBASEFEE),
         ] {
-            let (_, value) = function.alloc_value_inst(Instruction::new(kind, Some(MirType::Word)));
+            let (_, value) = function.alloc_value_inst(Instruction::new(kind, Some(MirType::I256)));
             assert_eq!(EvmCodegen::always_rematerializable_op(&function, value), Some(expected_op));
             assert!(!EvmCodegen::can_own_spill_slot(&function, value));
         }
@@ -1224,7 +1224,7 @@ mod tests {
         for kind in
             [InstKind::MSize, InstKind::ReturnDataSize, InstKind::SelfBalance, InstKind::Gas]
         {
-            let (_, value) = function.alloc_value_inst(Instruction::new(kind, Some(MirType::Word)));
+            let (_, value) = function.alloc_value_inst(Instruction::new(kind, Some(MirType::I256)));
             assert_eq!(EvmCodegen::always_rematerializable_op(&function, value), None);
             assert!(EvmCodegen::can_own_spill_slot(&function, value));
         }
@@ -1240,13 +1240,13 @@ mod tests {
                 let rhs = function.alloc_value(Value::Immediate(Immediate::uint256(U256::ONE)));
                 let (_, target) = function.alloc_value_inst(Instruction::new(
                     InstKind::Add(lhs, rhs),
-                    Some(MirType::Word),
+                    Some(MirType::I256),
                 ));
                 codegen.scheduler.stack.push(target);
                 for _ in 0..evm_version.reachable_stack_depth() {
                     let (_, filler) = function.alloc_value_inst(Instruction::new(
                         InstKind::Add(lhs, rhs),
-                        Some(MirType::Word),
+                        Some(MirType::I256),
                     ));
                     codegen.scheduler.stack.push(filler);
                 }
@@ -1293,25 +1293,25 @@ mod tests {
         let immediate = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
         let (edge_inst, edge_value) = function.alloc_value_inst(Instruction::new(
             InstKind::Add(immediate, immediate),
-            Some(MirType::Word),
+            Some(MirType::I256),
         ));
         let (direct_inst, direct_value) = function.alloc_value_inst(Instruction::new(
             InstKind::Mul(immediate, immediate),
-            Some(MirType::Word),
+            Some(MirType::I256),
         ));
         function.blocks[BlockId::ENTRY].instructions.extend([edge_inst, direct_inst]);
 
         let phi_block = function.alloc_block();
         let (phi_inst, _) = function.alloc_value_inst(Instruction::new(
             InstKind::Phi(vec![(BlockId::ENTRY, edge_value)]),
-            Some(MirType::Word),
+            Some(MirType::I256),
         ));
         function.blocks[phi_block].instructions.push(phi_inst);
 
         let direct_block = function.alloc_block();
         let (use_inst, _) = function.alloc_value_inst(Instruction::new(
             InstKind::Add(direct_value, immediate),
-            Some(MirType::Word),
+            Some(MirType::I256),
         ));
         function.blocks[direct_block].instructions.push(use_inst);
 
@@ -1362,12 +1362,12 @@ mod tests {
                 ParallelCopy {
                     src: CopySource::Value(source0),
                     dst: CopyDest::Value(destination0),
-                    ty: MirType::Word,
+                    ty: MirType::I256,
                 },
                 ParallelCopy {
                     src: CopySource::Value(source1),
                     dst: CopyDest::Value(destination1),
-                    ty: MirType::Word,
+                    ty: MirType::I256,
                 },
             ],
         )]);

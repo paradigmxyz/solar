@@ -1,7 +1,7 @@
 //@ compile-flags: -Zmir-pipeline=call-cleanup,dce
 @module BooleanReturns
 
-fn @clean(arg0: word) -> bool {
+fn @clean(arg0: i256) -> i1 {
   bb0:
     v0 = lt arg0, 128
     jumpi v0, bb1, bb2
@@ -16,20 +16,20 @@ fn @clean(arg0: word) -> bool {
 }
 
 // Assembly words must be normalized before returning a boolean.
-fn @dirty(arg0: word) -> bool {
+fn @dirty(arg0: i256) -> i1 {
   bb0:
     v0 = ne arg0, 0
     ret v0
 }
 
 // Recursive calls preserve the declared boolean contract.
-fn @recursive(arg0: word) -> bool {
+fn @recursive(arg0: i256) -> i1 {
   bb0:
     v0 = icall @recursive, arg0
     ret v0
 }
 
-fn @compare(arg0: word) -> bool {
+fn @compare(arg0: i256) -> i1 {
   bb0:
     v0 = icall @clean, arg0
     v1 = eq v0, false
@@ -37,7 +37,7 @@ fn @compare(arg0: word) -> bool {
     ret v2
 }
 
-fn @keep_dirty(arg0: word) -> bool {
+fn @keep_dirty(arg0: i256) -> i1 {
   bb0:
     v0 = icall @dirty, arg0
     v1 = eq v0, false
@@ -45,7 +45,7 @@ fn @keep_dirty(arg0: word) -> bool {
     ret v2
 }
 
-fn @keep_recursive(arg0: word) -> bool {
+fn @keep_recursive(arg0: i256) -> i1 {
   bb0:
     v0 = icall @recursive, arg0
     v1 = eq v0, false
@@ -54,7 +54,7 @@ fn @keep_recursive(arg0: word) -> bool {
 }
 
 // Every return arm normalizes raw words to booleans.
-fn @mixed(arg0: word) -> bool {
+fn @mixed(arg0: i256) -> i1 {
   bb0:
     v0 = lt arg0, 5
     jumpi v0, bb1, bb2
@@ -65,7 +65,7 @@ fn @mixed(arg0: word) -> bool {
     ret v1
 }
 
-fn @keep_mixed(arg0: word) -> bool {
+fn @keep_mixed(arg0: i256) -> i1 {
   bb0:
     v0 = icall @mixed, arg0
     v1 = eq v0, false

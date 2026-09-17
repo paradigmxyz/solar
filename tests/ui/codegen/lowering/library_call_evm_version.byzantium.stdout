@@ -2,16 +2,16 @@
 @module Lib
 @library
 types:
-  struct0: {word, word}
-  struct1: {word, word, word, word, word, word}
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256, i256, i256, i256}
 
-fn @dbl(arg0: word) -> word [selector=0x5d2a6863, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @dbl(arg0: i256) -> i256 [selector=0x5d2a6863, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_mul u256, 2, arg0
     ret v0
 }
 
-fn @pair(arg0: word) -> struct0 [selector=0x645751af, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @pair(arg0: i256) -> struct0 [selector=0x645751af, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = checked_add u256, arg0, 1
     v1 = insert_value struct0, undef struct0, 0, arg0
@@ -19,7 +19,7 @@ fn @pair(arg0: word) -> struct0 [selector=0x645751af, pure, abi_params=[u256], a
     ret v2
 }
 
-fn @arr(arg0: word) -> memoryfixedarray [selector=0x71e5ee5f, pure, abi_params=[u256], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @arr(arg0: i256) -> memoryfixedarray [selector=0x71e5ee5f, pure, abi_params=[u256], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v0, 64
@@ -29,14 +29,14 @@ fn @arr(arg0: word) -> memoryfixedarray [selector=0x71e5ee5f, pure, abi_params=[
     ret v1
 }
 
-fn @flag(arg0: word) -> word [selector=0xbb760a75, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @flag(arg0: i256) -> i256 [selector=0xbb760a75, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = ne arg0, 0
     v1 = word_cast v0
     ret v1
 }
 
-fn @flagged(arg0: word) -> memorystruct [selector=0xa370c668, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
+fn @flagged(arg0: i256) -> memorystruct [selector=0xa370c668, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
@@ -48,13 +48,13 @@ fn @flagged(arg0: word) -> memorystruct [selector=0xa370c668, pure, abi_params=[
     ret v1
 }
 
-fn @total(arg0: word) -> word [selector=0xa2fc82bf, view, abi_params=[storageptr], abi_returns=[word], abi_return_params=[u256]] {
+fn @total(arg0: i256) -> i256 [selector=0xa2fc82bf, view, abi_params=[storageptr], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     ret v0
 }
 
-fn @noret(arg0: word) [selector=0x089b9644, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @noret(arg0: i256) [selector=0x089b9644, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
@@ -74,10 +74,10 @@ fn @six(arg0: memorybytes) -> struct1 [selector=0xb84d18fb, pure, abi_params=[by
 // === ROOT/tests/ui/codegen/lowering/library_call_evm_version.sol:C ===
 @module C
 types:
-  struct0: {word, word}
-  struct1: {word, word, word, word, word, word}
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256, i256, i256, i256}
 
-fn @one(arg0: word) -> word [selector=0xef56f928, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @one(arg0: i256) -> i256 [selector=0xef56f928, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], selector 0x5d2a686300000000000000000000000000000000000000000000000000000000, args arg0
     v1 = slice_ptr v0
@@ -93,7 +93,7 @@ fn @one(arg0: word) -> word [selector=0xef56f928, pure, abi_params=[u256], abi_r
     ret v6
 }
 
-fn @two(arg0: word) -> struct0 [selector=0xcf2a8612, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @two(arg0: i256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode [word], selector 0x645751af00000000000000000000000000000000000000000000000000000000, args arg0
     v1 = slice_ptr v0
@@ -117,7 +117,7 @@ fn @two(arg0: word) -> struct0 [selector=0xcf2a8612, pure, abi_params=[u256], ab
     ret v14
 }
 
-fn @aggregate(arg0: word) -> memoryfixedarray [selector=0x407b7269, pure, abi_params=[u256], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @aggregate(arg0: i256) -> memoryfixedarray [selector=0x407b7269, pure, abi_params=[u256], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v0, 64
@@ -135,7 +135,7 @@ fn @aggregate(arg0: word) -> memoryfixedarray [selector=0x407b7269, pure, abi_pa
     ret v7
 }
 
-fn @boolean(arg0: word) -> word [selector=0xbc586ed6, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @boolean(arg0: i256) -> i256 [selector=0xbc586ed6, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode [word], selector 0xbb760a7500000000000000000000000000000000000000000000000000000000, args arg0
     v1 = slice_ptr v0
@@ -152,7 +152,7 @@ fn @boolean(arg0: word) -> word [selector=0xbc586ed6, pure, abi_params=[u256], a
     ret v7
 }
 
-fn @structBool(arg0: word) -> memorystruct [selector=0x199436a8, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
+fn @structBool(arg0: i256) -> memorystruct [selector=0x199436a8, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
@@ -171,7 +171,7 @@ fn @structBool(arg0: word) -> memorystruct [selector=0x199436a8, pure, abi_param
     ret v7
 }
 
-fn @attached() -> word [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], selector 0xa2fc82bf00000000000000000000000000000000000000000000000000000000, args 0
     v1 = slice_ptr v0
@@ -223,7 +223,7 @@ fn @dynamicArgument(arg0: memorybytes) -> struct0 [selector=0x11b8efbf, pure, ab
     ret v26
 }
 
-fn @none(arg0: word) [selector=0x2758da14, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @none(arg0: i256) [selector=0x2758da14, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode [word], selector 0x89b964400000000000000000000000000000000000000000000000000000000, args arg0
     v1 = slice_ptr v0

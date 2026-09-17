@@ -548,7 +548,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .lazy_helper(name, |this, function| {
                 function.attributes.is_function_pointer_dispatcher = true;
                 let mut builder = FunctionBuilder::new_semantic(function);
-                builder.add_param(MirType::Word);
+                builder.add_param(MirType::I256);
                 for ty in params {
                     builder.add_param(ty.mir_type());
                 }

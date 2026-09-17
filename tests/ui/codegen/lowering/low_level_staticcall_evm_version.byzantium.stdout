@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_staticcall_evm_version.sol:Caller ===
 @module Caller
-fn @probe(arg0: word) -> word [selector=0x275e5da5, view, abi_params=[address], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @probe(arg0: i256) -> i256 [selector=0x275e5da5, view, abi_params=[address], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gas
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
@@ -11,7 +11,7 @@ fn @probe(arg0: word) -> word [selector=0x275e5da5, view, abi_params=[address], 
     ret v4
 }
 
-fn @probeCall(arg0: word) -> word [selector=0x9c6db033, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
+fn @probeCall(arg0: i256) -> i256 [selector=0x9c6db033, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)

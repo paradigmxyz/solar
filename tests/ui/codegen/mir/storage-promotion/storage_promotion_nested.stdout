@@ -52,7 +52,7 @@
       jump bb1
   }
   
-  fn @reject_outer_when_inner_flush_may_alias(arg0: word) [selector=0x01020304] {
+  fn @reject_outer_when_inner_flush_may_alias(arg0: i256) [selector=0x01020304] {
     bb0:
       jump bb6
     bb6:

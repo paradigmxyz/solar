@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/duplicate_edge_words.sol:DuplicateEdgeWords ===
 @module DuplicateEdgeWords
 types:
-  struct0: {word, word, word}
+  struct0: {i256, i256, i256}
 
-fn @choose(arg0: word, arg1: word, arg2: word, arg3: word) -> struct0 [selector=0x3017409e, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @choose(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0x3017409e, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     jump bb1
   bb1:

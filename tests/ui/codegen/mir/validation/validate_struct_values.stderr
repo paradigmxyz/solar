@@ -1,12 +1,12 @@
 error: [fn0] [bb0, inst0] aggregate operand does not match its declared struct type
 
-error: [fn1] [bb0, inst0] inserted value must have type `bool`
+error: [fn1] [bb0, inst0] inserted value must have type `i1`
 
 error: [fn2] [bb0] return values do not match the signature
 
-error: [fn3] [bb0, inst0] value has type `struct0`, expected `bool`; use an explicit cast
+error: [fn3] [bb0, inst0] value has type `struct0`, expected `i1`; use an explicit cast
 
-error: [fn4] [bb0] branch condition must have type `bool`; compare words with zero
+error: [fn4] [bb0] branch condition must have type `i1`; compare words with zero
 
 error: [fn5] [bb0] tail-call arguments do not match the signature
 
@@ -20,13 +20,13 @@ error: [fn9] [bb0, inst0] memory object has type `memorybytes`, expected `memory
 
 error: [fn10] [bb0, inst0] `word_cast` has incompatible scalar types; use an explicit cast
 
-error: [fn11] [bb0] branch condition must have type `bool`; compare words with zero
+error: [fn11] [bb0] branch condition must have type `i1`; compare words with zero
 
 error: [fn12] [bb0] return values do not match the signature
 
 error: [fn13] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
 
-error: [fn15] [bb0, inst0] value has type `word`, expected `bool`; use an explicit cast
+error: [fn15] [bb0, inst0] value has type `i256`, expected `i1`; use an explicit cast
 
 error: aborting due to 15 previous errors
 

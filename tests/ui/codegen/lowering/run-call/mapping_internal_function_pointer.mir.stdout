@@ -51,7 +51,7 @@ fn @stage2() {
     ret
 }
 
-fn @run() -> word [selector=0xc0406226, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
     v1 = mapping_slot v0, 1
@@ -73,7 +73,7 @@ fn @run() -> word [selector=0xc0406226, abi_params=[], abi_returns=[word<bool>],
     ret v13
 }
 
-fn @internal_dispatcher_p_none_r_none(arg0: word) [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_none_r_none(arg0: i256) [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2

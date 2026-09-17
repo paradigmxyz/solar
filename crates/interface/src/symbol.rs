@@ -1102,6 +1102,8 @@ symbols! {
         global,
         heap,
         hir,
+        i1,
+        i256,
         icall,
         immutable_read,
         immutable_write,

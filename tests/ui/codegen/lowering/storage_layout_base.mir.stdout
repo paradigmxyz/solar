@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutSlots ===
 @module LayoutSlots
 types:
-  struct0: {word, word, word, word, word, word}
+  struct0: {i256, i256, i256, i256, i256, i256}
 
 fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
@@ -17,9 +17,9 @@ fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[w
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutStorage ===
 @module LayoutStorage
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
-fn @store(arg0: word) -> struct0 [selector=0x6057361d, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @store(arg0: i256) -> struct0 [selector=0x6057361d, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     sstore 42, arg0 !metadata(storage=slot(42))
     v0 = sload 42 !metadata(storage=slot(42))
@@ -42,7 +42,7 @@ fn @constructor() [constructor] {
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutDerived ===
 @module LayoutDerived
 types:
-  struct0: {word, word, word}
+  struct0: {i256, i256, i256}
 
 fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
@@ -60,7 +60,7 @@ fn @constructor() [constructor] {
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutTransient ===
 @module LayoutTransient
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
 fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
@@ -71,7 +71,7 @@ fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[w
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutErc7201 ===
 @module LayoutErc7201
-fn @matchesReference() -> word [selector=0xedf3feeb, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @matchesReference() -> i256 [selector=0xedf3feeb, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 12
@@ -83,7 +83,7 @@ fn @matchesReference() -> word [selector=0xedf3feeb, pure, abi_params=[], abi_re
     ret v4
 }
 
-fn @erc7201Reference(arg0: memorybytes) -> word [pure] {
+fn @erc7201Reference(arg0: memorybytes) -> i256 [pure] {
   bb0:
     v0 = keccak256_bytes arg0
     v1 = checked_sub u256, v0, 1

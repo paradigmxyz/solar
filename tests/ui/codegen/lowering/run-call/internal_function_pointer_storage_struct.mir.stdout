@@ -1,14 +1,14 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_storage_struct.sol:InternalFunctionPointerStorageStruct ===
 @module InternalFunctionPointerStorageStruct
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
-fn @firstTarget() -> word [pure] {
+fn @firstTarget() -> i256 [pure] {
   bb0:
     ret 1
 }
 
-fn @secondTarget() -> word [pure] {
+fn @secondTarget() -> i256 [pure] {
   bb0:
     ret 2
 }
@@ -109,7 +109,7 @@ fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word, wo
     ret v15
 }
 
-fn @internal_dispatcher_p_none_r_u256(arg0: word) -> word [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_none_r_u256(arg0: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2

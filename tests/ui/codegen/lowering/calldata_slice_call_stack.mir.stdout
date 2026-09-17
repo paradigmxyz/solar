@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_call_stack.sol:CalldataSliceCallStack ===
 @module CalldataSliceCallStack
-fn @fees(arg0: word) -> word [selector=0xfaaebd21, view, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
+fn @fees(arg0: i256) -> i256 [selector=0xfaaebd21, view, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     v1 = mapping_slot v0, 0
@@ -8,7 +8,7 @@ fn @fees(arg0: word) -> word [selector=0xfaaebd21, view, abi_params=[address], a
     ret v2
 }
 
-fn @execute(arg0: word, arg1: word, arg2: word, arg3: calldataslice) [selector=0x9aefaff8, abi_params=[address, address, u256, bytes], abi_returns=[], abi_return_params=[]] {
+fn @execute(arg0: i256, arg1: i256, arg2: i256, arg3: calldataslice) [selector=0x9aefaff8, abi_params=[address, address, u256, bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = gas
     v1 = address
@@ -100,7 +100,7 @@ fn @execute(arg0: word, arg1: word, arg2: word, arg3: calldataslice) [selector=0
     invalid
 }
 
-fn @getFee(arg0: word, arg1: word) -> word [selector=0x4edeb834, view, abi_params=[address, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @getFee(arg0: i256, arg1: i256) -> i256 [selector=0x4edeb834, view, abi_params=[address, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     v1 = mapping_slot v0, 0

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_lazy_struct_wrapped.sol:AbiCalldataLazyStructWrapped ===
 @module AbiCalldataLazyStructWrapped
 types:
-  struct0: {word, memorybytes}
+  struct0: {i256, memorybytes}
 
 fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=[array<_, tuple<u256, bytes>>], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:

@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return_named_init.sol:MultiReturnNamedInit ===
 @module MultiReturnNamedInit
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
-fn @readU64(arg0: calldataslice, arg1: word) -> struct0 [pure] {
+fn @readU64(arg0: calldataslice, arg1: i256) -> struct0 [pure] {
   bb0:
     jump bb1
   bb1:

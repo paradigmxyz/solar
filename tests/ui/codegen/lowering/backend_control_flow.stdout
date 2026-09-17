@@ -1,24 +1,24 @@
 // === ROOT/tests/ui/codegen/lowering/backend_control_flow.sol:BackendControlFlow ===
 @module BackendControlFlow
-fn @value() -> word [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @totalSupply() -> word [selector=0x18160ddd, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @totalSupply() -> i256 [selector=0x18160ddd, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     ret v0
 }
 
-fn @reserve0() -> word [selector=0x443cb4bc, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @reserve0() -> i256 [selector=0x443cb4bc, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     ret v0
 }
 
-fn @reserve1() -> word [selector=0x5a76f25e, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @reserve1() -> i256 [selector=0x5a76f25e, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 3 !metadata(storage=slot(3))
     ret v0
@@ -55,7 +55,7 @@ fn @directStorageInConditional() [selector=0xf5a03547, abi_params=[], abi_return
     ret
 }
 
-fn @phiAfterBranch() -> word [selector=0x3c96aa28, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @phiAfterBranch() -> i256 [selector=0x3c96aa28, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = eq v0, 0
@@ -72,7 +72,7 @@ fn @phiAfterBranch() -> word [selector=0x3c96aa28, abi_params=[], abi_returns=[w
     ret v2
 }
 
-fn @phiUsedMultipleTimes() -> word [selector=0x4e3a23dd, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @phiUsedMultipleTimes() -> i256 [selector=0x4e3a23dd, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = eq v0, 0
@@ -91,7 +91,7 @@ fn @phiUsedMultipleTimes() -> word [selector=0x4e3a23dd, abi_params=[], abi_retu
     ret v6
 }
 
-fn @phiWithTernary() -> word [selector=0x2318217a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @phiWithTernary() -> i256 [selector=0x2318217a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = eq v0, 0

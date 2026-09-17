@@ -3,7 +3,7 @@
 @module KnownBits
 
 // A mask that keeps every bit the operand can have is dropped: comparison
-// results are one bit, `byte` eight, an opcode word 160, and a shifted
+// results are one bit, `byte` eight, an opcode i256 160, and a shifted
 // word as many bits as the shift leaves.
 // CHECK-LABEL: {{^[ +].*}}fn @masks_covering_known_bits{{[( ]}}
 // CHECK: {{^[ +].*}}[[LT:v[0-9]+]] = lt arg0, arg1
@@ -14,12 +14,12 @@
 // CHECK-NOT: {{^[ +].*}}= and
 // CHECK: {{^[ +].*}}ret [[LT_WORD]], [[BYTE]], [[SHR]], [[ADDR]]
 types:
-  struct0: {word, word, word, word}
-  struct1: {word, word}
-  struct2: {bool, bool}
-  struct3: {bool, bool, bool, word, word, word, word}
+  struct0: {i256, i256, i256, i256}
+  struct1: {i256, i256}
+  struct2: {i1, i1}
+  struct3: {i1, i1, i1, i256, i256, i256, i256}
 
-fn @masks_covering_known_bits(arg0: word, arg1: word) -> struct0 [return_abi=[word, word, word, word]] {
+fn @masks_covering_known_bits(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256, i256, i256]] {
   bb0:
     v2 = lt arg0, arg1
     v10 = word_cast v2
@@ -37,7 +37,7 @@ fn @masks_covering_known_bits(arg0: word, arg1: word) -> struct0 [return_abi=[wo
 // CHECK-LABEL: {{^[ +].*}}fn @masks_narrowing_words{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = and {{v[0-9]+}}, 127
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = and arg0, 255
-fn @masks_narrowing_words(arg0: word) -> struct1 [return_abi=[word, word]] {
+fn @masks_narrowing_words(arg0: i256) -> struct1 [return_abi=[i256, i256]] {
   bb0:
     v1 = byte 31, arg0
     v2 = and v1, 127
@@ -51,7 +51,7 @@ fn @masks_narrowing_words(arg0: word) -> struct1 [return_abi=[word, word]] {
 // CHECK: {{^[ +].*}}[[NONZERO:v[0-9]+]] = ne [[BIT]], 0
 // CHECK: {{^[ +].*}}[[ONE:v[0-9]+]] = eq [[BIT]], 1
 // CHECK: {{^[ +].*}}ret [[NONZERO]], [[ONE]]
-fn @bounded_bools(arg0: word) -> struct2 [return_abi=[bool, bool]] {
+fn @bounded_bools(arg0: i256) -> struct2 [return_abi=[i1, i1]] {
   bb0:
     v1 = and arg0, 1
     v2 = eq v1, 0
@@ -74,7 +74,7 @@ fn @bounded_bools(arg0: word) -> struct2 [return_abi=[bool, bool]] {
 // CHECK-NOT: {{^[ +].*}}= shr
 // CHECK-NOT: {{^[ +].*}}= signextend
 // CHECK: {{^[ +].*}}ret false, true, false, [[BYTE]], 0, 0, [[BYTE]]
-fn @bounded_operands(arg0: word) -> struct3 [return_abi=[bool, bool, bool, word, word, word, word]] {
+fn @bounded_operands(arg0: i256) -> struct3 [return_abi=[i1, i1, i1, i256, i256, i256, i256]] {
   bb0:
     v1 = byte 31, arg0
     v2 = eq v1, 300
@@ -92,7 +92,7 @@ fn @bounded_operands(arg0: word) -> struct3 [return_abi=[bool, bool, bool, word,
 // CHECK: {{^[ +].*}}[[PHI:v[0-9]+]] = phi
 // CHECK-NOT: {{^[ +].*}}= and
 // CHECK: {{^[ +].*}}ret [[PHI]]
-fn @phi_bound(arg0: word, arg1: bool) -> word {
+fn @phi_bound(arg0: i256, arg1: i1) -> i256 {
   bb0:
     v2 = byte 31, arg0
     jumpi arg1, bb1, bb2

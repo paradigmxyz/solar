@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dispatch.mir (after lower-abi) ===
   @module LowerAbiDispatch
-- fn @get(arg0: word) [selector=0x9507d39a] {
+- fn @get(arg0: i256) [selector=0x9507d39a] {
 + fn @get() [selector=0x9507d39a, abi_wrapper] {
     bb0:
 +     v0 = calldatasize

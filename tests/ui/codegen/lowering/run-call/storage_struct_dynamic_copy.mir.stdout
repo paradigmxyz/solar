@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_struct_dynamic_copy.sol:StorageStructDynamicCopy ===
 @module StorageStructDynamicCopy
-fn @copy() -> word [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 7 !metadata(storage=slot(0))
     v0 = add 0, 1
@@ -138,7 +138,7 @@ fn @copy() -> word [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     ret v95
 }
 
-fn @arrayCopy() -> word [selector=0xb192499e, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @arrayCopy() -> i256 [selector=0xb192499e, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 6 !metadata(storage=slot(6))
     v1 = gt v0, 0xffffffffffffffff
@@ -317,13 +317,13 @@ fn @arrayCopy() -> word [selector=0xb192499e, abi_params=[], abi_returns=[word],
     ret v133
 }
 
-fn @load_storage_bytes(arg0: word) -> memorybytes {
+fn @load_storage_bytes(arg0: i256) -> memorybytes {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0
 }
 
-fn @store_storage_bytes(arg0: word, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

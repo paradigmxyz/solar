@@ -2,7 +2,7 @@
 @module CalldataStructMemberIndex
 @phase lowered
 types:
-  struct0: {word, word, word}
+  struct0: {i256, i256, i256}
 
 fn @plain() [selector=0xc2dcee6a, abi_wrapper, pure] {
   bb0:

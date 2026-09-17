@@ -9,7 +9,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @multi_latch_mixed_step{{[( ]}}
 // CHECK: {{^[ +].*}}mstore
 // CHECK: {{^[ +].*}}mload 288
-fn @multi_latch_mixed_step() -> word {
+fn @multi_latch_mixed_step() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -39,7 +39,7 @@ fn @multi_latch_mixed_step() -> word {
 // CHECK-LABEL: {{^[ +].*}}fn @multi_latch_same_value{{[( ]}}
 // CHECK: + [[LOAD:v[0-9]+]] = mload 320
 // CHECK: - [[LOAD]] = mload 320
-fn @multi_latch_same_value() -> word {
+fn @multi_latch_same_value() -> i256 {
   bb0:
     jump bb1
   bb1:

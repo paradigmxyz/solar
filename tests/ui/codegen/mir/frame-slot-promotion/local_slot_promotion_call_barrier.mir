@@ -5,7 +5,7 @@
 // CHECK: {{^[ +].*}}[[CALL:v[0-9]+]] = staticcall
 // CHECK: [[WORD:v[0-9]+]] = word_cast [[CALL]]
 // CHECK: + {{v[0-9]+}} = add 9, [[WORD]]
-fn @promote_across_unrelated_staticcall(arg0: word) -> word {
+fn @promote_across_unrelated_staticcall(arg0: i256) -> i256 {
   bb0:
     v1 = internal_frame_addr 128
     mstore v1, 9
@@ -22,7 +22,7 @@ fn @promote_across_unrelated_staticcall(arg0: word) -> word {
 // CHECK: {{^[ +].*}}mstore [[SLOT]], 9
 // CHECK: {{^[ +].*}}msize
 // CHECK: {{^[ +].*}}mload
-fn @keep_msize_observation() -> word {
+fn @keep_msize_observation() -> i256 {
   bb0:
     v1 = internal_frame_addr 128
     mstore v1, 9
@@ -36,7 +36,7 @@ fn @keep_msize_observation() -> word {
 // CHECK-LABEL: {{^[ +].*}}fn @promote_slot_with_unrelated_frame_hash{{[( ]}}
 // CHECK: {{^[ +].*}}[[HASH:v[0-9]+]] = keccak256
 // CHECK: + {{v[0-9]+}} = add 9, [[HASH]]
-fn @promote_slot_with_unrelated_frame_hash() -> word {
+fn @promote_slot_with_unrelated_frame_hash() -> i256 {
   bb0:
     v1 = internal_frame_addr 128
     mstore v1, 9

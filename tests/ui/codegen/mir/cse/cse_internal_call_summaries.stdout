@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/cse/cse_internal_call_summaries.mir (before cse) ===
 + // === ROOT/tests/ui/codegen/mir/cse/cse_internal_call_summaries.mir (after cse) ===
   @module CseICallSummaries
-  fn @keep_load_across_reader(arg0: word) -> word {
+  fn @keep_load_across_reader(arg0: i256) -> i256 {
     bb0:
       v0 = mload arg0
       v1 = icall @reader, arg0
@@ -12,7 +12,7 @@
       ret v4
   }
   
-  fn @invalidate_load_across_writer(arg0: word) -> word {
+  fn @invalidate_load_across_writer(arg0: i256) -> i256 {
     bb0:
       v0 = mload arg0
       icall @writer, arg0
@@ -21,7 +21,7 @@
       ret v2
   }
   
-  fn @keep_load_across_allocation_fmp_update() -> word {
+  fn @keep_load_across_allocation_fmp_update() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = mload v0
@@ -33,13 +33,13 @@
       ret v4
   }
   
-  fn @reader(arg0: word) -> word {
+  fn @reader(arg0: i256) -> i256 {
     bb0:
       v0 = mload arg0
       ret v0
   }
   
-  fn @writer(arg0: word) {
+  fn @writer(arg0: i256) {
     bb0:
       mstore arg0, 9
       ret
@@ -50,7 +50,7 @@
       ret
   }
   
-  fn @disjoint_storage(arg0: word) -> word {
+  fn @disjoint_storage(arg0: i256) -> i256 {
     bb0:
       v0 = sload 0
       icall @write_slot_one
@@ -60,7 +60,7 @@
       ret v2
   }
   
-  fn @overlapping_storage(arg0: word) -> word {
+  fn @overlapping_storage(arg0: i256) -> i256 {
     bb0:
       v0 = sload 0
       icall @write_slot_zero
@@ -69,7 +69,7 @@
       ret v2
   }
   
-  fn @unknown_storage(arg0: word) -> word {
+  fn @unknown_storage(arg0: i256) -> i256 {
     bb0:
       v0 = sload 0
       icall @write_unknown, arg0
@@ -78,7 +78,7 @@
       ret v2
   }
   
-  fn @transitive_storage(arg0: word) -> word {
+  fn @transitive_storage(arg0: i256) -> i256 {
     bb0:
       v0 = sload 0
       icall @tail_writer
@@ -88,7 +88,7 @@
       ret v2
   }
   
-  fn @recursive_storage(arg0: word) -> word {
+  fn @recursive_storage(arg0: i256) -> i256 {
     bb0:
       v0 = sload 0
       icall @recursive_writer, arg0
@@ -98,7 +98,7 @@
       ret v2
   }
   
-  fn @disjoint_transient(arg0: word) -> word {
+  fn @disjoint_transient(arg0: i256) -> i256 {
     bb0:
       v0 = tload 0
       icall @write_transient_one
@@ -108,7 +108,7 @@
       ret v2
   }
   
-  fn @overlapping_transient(arg0: word) -> word {
+  fn @overlapping_transient(arg0: i256) -> i256 {
     bb0:
       v0 = tload 0
       icall @write_transient_zero
@@ -117,7 +117,7 @@
       ret v2
   }
   
-  fn @separate_spaces(arg0: word) -> word {
+  fn @separate_spaces(arg0: i256) -> i256 {
     bb0:
       v0 = sload 0
       icall @write_transient_zero
@@ -127,7 +127,7 @@
       ret v2
   }
   
-  fn @wide_storage(arg0: word) -> word {
+  fn @wide_storage(arg0: i256) -> i256 {
     bb0:
       v0 = sload 0
       icall @write_many_slots
@@ -148,7 +148,7 @@
       ret
   }
   
-  fn @write_unknown(arg0: word) {
+  fn @write_unknown(arg0: i256) {
     bb0:
       sstore arg0, 7
       ret
@@ -159,7 +159,7 @@
       tail_call @write_slot_one
   }
   
-  fn @recursive_writer(arg0: word) {
+  fn @recursive_writer(arg0: i256) {
     bb0:
       sstore 1, 7
       v0 = ne arg0, 0
@@ -221,7 +221,7 @@
       ret
   }
   
-  fn @disjoint_parameter_range(arg0: word) -> word {
+  fn @disjoint_parameter_range(arg0: i256) -> i256 {
     bb0:
       v0 = mload arg0
       icall @write_next_word, arg0
@@ -231,7 +231,7 @@
       ret v2
   }
   
-  fn @overlapping_parameter_range(arg0: word) -> word {
+  fn @overlapping_parameter_range(arg0: i256) -> i256 {
     bb0:
       v0 = mload arg0
       v1 = add arg0, 1
@@ -241,7 +241,7 @@
       ret v3
   }
   
-  fn @distinct_parameters_may_alias(arg0: word, arg1: word) -> word {
+  fn @distinct_parameters_may_alias(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = mload arg0
       icall @writer, arg1
@@ -250,7 +250,7 @@
       ret v2
   }
   
-  fn @transitive_memory_range(arg0: word) -> word {
+  fn @transitive_memory_range(arg0: i256) -> i256 {
     bb0:
       v0 = mload arg0
       icall @write_second_word, arg0
@@ -260,7 +260,7 @@
       ret v2
   }
   
-  fn @tail_memory_range(arg0: word) -> word {
+  fn @tail_memory_range(arg0: i256) -> i256 {
     bb0:
       v0 = mload arg0
       icall @tail_write_next_word, arg0
@@ -270,7 +270,7 @@
       ret v2
   }
   
-  fn @bounded_allocation_range() -> word {
+  fn @bounded_allocation_range() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64
       v1 = alloc raw, exact, uninitialized, infallible, 32
@@ -282,7 +282,7 @@
       ret v4
   }
   
-  fn @out_of_bounds_allocation_range() -> word {
+  fn @out_of_bounds_allocation_range() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = alloc raw, exact, uninitialized, infallible, 32
@@ -293,7 +293,7 @@
       ret v4
   }
   
-  fn @unknown_memory_size(arg0: word, arg1: word, arg2: word) -> word {
+  fn @unknown_memory_size(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
       v0 = mload arg0
       icall @copy_dynamic, arg1, arg0, arg2
@@ -302,7 +302,7 @@
       ret v2
   }
   
-  fn @absolute_memory_range() -> word {
+  fn @absolute_memory_range() -> i256 {
     bb0:
       v0 = mload 64
       icall @write_absolute_word
@@ -312,7 +312,7 @@
       ret v2
   }
   
-  fn @recursive_memory_widening(arg0: word, arg1: word) -> word {
+  fn @recursive_memory_widening(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = add arg0, 0x1000
       v1 = mload v0
@@ -322,27 +322,27 @@
       ret v3
   }
   
-  fn @write_next_word(arg0: word) {
+  fn @write_next_word(arg0: i256) {
     bb0:
       v0 = add arg0, 32
       mstore v0, 7
       ret
   }
   
-  fn @write_second_word(arg0: word) {
+  fn @write_second_word(arg0: i256) {
     bb0:
       v0 = add arg0, 32
       icall @write_next_word, v0
       ret
   }
   
-  fn @tail_write_next_word(arg0: word) {
+  fn @tail_write_next_word(arg0: i256) {
     bb0:
       v0 = add arg0, 32
       tail_call @writer, v0
   }
   
-  fn @copy_dynamic(arg0: word, arg1: word, arg2: word) {
+  fn @copy_dynamic(arg0: i256, arg1: i256, arg2: i256) {
     bb0:
       mcopy arg0, arg1, arg2
       ret
@@ -354,7 +354,7 @@
       ret
   }
   
-  fn @write_recursive_words(arg0: word, arg1: word) {
+  fn @write_recursive_words(arg0: i256, arg1: i256) {
     bb0:
       mstore arg0, 7
       v0 = ne arg1, 0
@@ -368,7 +368,7 @@
       ret
   }
   
-  fn @transitive_memory_overlap(arg0: word) -> word {
+  fn @transitive_memory_overlap(arg0: i256) -> i256 {
     bb0:
       v0 = add arg0, 64
       v1 = mload v0
@@ -378,7 +378,7 @@
       ret v3
   }
   
-  fn @tail_memory_overlap(arg0: word) -> word {
+  fn @tail_memory_overlap(arg0: i256) -> i256 {
     bb0:
       v0 = add arg0, 32
       v1 = mload v0
@@ -388,7 +388,7 @@
       ret v3
   }
   
-  fn @absolute_memory_overlap() -> word {
+  fn @absolute_memory_overlap() -> i256 {
     bb0:
       v0 = mload 16
       icall @write_absolute_word
@@ -397,7 +397,7 @@
       ret v2
   }
   
-  fn @unknown_indirect_pointer(arg0: word) -> word {
+  fn @unknown_indirect_pointer(arg0: i256) -> i256 {
     bb0:
       v0 = mload arg0
       icall @write_indirect
@@ -413,7 +413,7 @@
       ret
   }
   
-  fn @out_of_bounds_caller_read() -> word {
+  fn @out_of_bounds_caller_read() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = alloc raw, exact, uninitialized, infallible, 32

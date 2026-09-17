@@ -751,7 +751,7 @@ impl StorageScalarPromoter {
                     let (load_inst, load_value) = self.alloc_inst_value(
                         func,
                         InstKind::SLoad(candidate.slot_value),
-                        MirType::Word,
+                        MirType::I256,
                     );
                     let store_inst = self
                         .alloc_void_inst(func, InstKind::MStore(promoted.temp_addr, load_value));
@@ -785,7 +785,7 @@ impl StorageScalarPromoter {
         temp_addr: ValueId,
     ) {
         let (load_inst, load_value) = func.alloc_value_inst(
-            Instruction::new(InstKind::MLoad(temp_addr), Some(MirType::Word))
+            Instruction::new(InstKind::MLoad(temp_addr), Some(MirType::I256))
                 .with_debug_info_dropped(),
         );
         let store_inst = func.alloc_inst(
@@ -827,14 +827,14 @@ impl StorageScalarPromoter {
         let continuation_instructions = old_instructions[split_pos..].to_vec();
 
         let (dirty_load_inst, dirty_value) = func.alloc_value_inst(
-            Instruction::new(InstKind::MLoad(dirty_addr), Some(MirType::Word))
+            Instruction::new(InstKind::MLoad(dirty_addr), Some(MirType::I256))
                 .with_debug_info_dropped(),
         );
         exit_instructions.push(dirty_load_inst);
         // dirty_bool = ne dirty_word, 0
         let zero = func.alloc_value(Value::Immediate(Immediate::uint256(U256::ZERO)));
         let (normalize, dirty_value) = func.alloc_value_inst(
-            Instruction::new(InstKind::Ne(dirty_value, zero), Some(MirType::Bool))
+            Instruction::new(InstKind::Ne(dirty_value, zero), Some(MirType::I1))
                 .with_debug_info_dropped(),
         );
         exit_instructions.push(normalize);
@@ -849,7 +849,7 @@ impl StorageScalarPromoter {
         });
 
         let (load_inst, load_value) = func.alloc_value_inst(
-            Instruction::new(InstKind::MLoad(temp_addr), Some(MirType::Word))
+            Instruction::new(InstKind::MLoad(temp_addr), Some(MirType::I256))
                 .with_debug_info_dropped(),
         );
         let store_inst = func.alloc_inst(

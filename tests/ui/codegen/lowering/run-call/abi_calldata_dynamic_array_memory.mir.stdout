@@ -81,13 +81,13 @@ fn @f(arg0: calldataslice) -> memoryarray [selector=0xc26b6b9a, pure, abi_params
     jump bb1
 }
 
-fn @lengthMemory(arg0: memoryarray) -> word [selector=0xdefa62e9, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @lengthMemory(arg0: memoryarray) -> i256 [selector=0xdefa62e9, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     ret v0
 }
 
-fn @sumMemory(arg0: memoryarray) -> word [selector=0x13201b5d, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @sumMemory(arg0: memoryarray) -> i256 [selector=0x13201b5d, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 0, v0

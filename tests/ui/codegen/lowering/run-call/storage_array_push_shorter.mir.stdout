@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_shorter.sol:StorageArrayPushShorter ===
 @module StorageArrayPushShorter
 types:
-  struct0: {word, word, word}
+  struct0: {i256, i256, i256}
 
 fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:

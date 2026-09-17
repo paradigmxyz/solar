@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/egraph.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/egraph.mir (after egraph) ===
   @module Egraph
-  fn @value_numbering(arg0: word, arg1: word) -> word {
+  fn @value_numbering(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = add arg0, arg1
 -     v1 = add arg1, arg0
@@ -17,7 +17,7 @@
       ret v8
   }
   
-  fn @cheapest_node(arg0: word) -> word {
+  fn @cheapest_node(arg0: i256) -> i256 {
     bb0:
 -     v0 = mul arg0, 8
 +     v0 = shl 3, arg0
@@ -28,7 +28,7 @@
       ret v3
   }
   
-  fn @dominance(arg0: word, arg1: bool) -> word {
+  fn @dominance(arg0: i256, arg1: i1) -> i256 {
     bb0:
       v0 = add arg0, 1
       jumpi arg1, bb1, bb2
@@ -47,7 +47,7 @@
       ret v5
   }
   
-  fn @skeleton(arg0: word) -> word {
+  fn @skeleton(arg0: i256) -> i256 {
     bb0:
       v0 = add arg0, 1
 -     v1 = add 1, 2

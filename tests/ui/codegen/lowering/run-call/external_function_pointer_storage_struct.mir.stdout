@@ -1,14 +1,14 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_storage_struct.sol:ExternalFunctionPointerStorageStruct ===
 @module ExternalFunctionPointerStorageStruct
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
-fn @firstTarget() -> word [selector=0xf5db9820, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @firstTarget() -> i256 [selector=0xf5db9820, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 1
 }
 
-fn @secondTarget() -> word [selector=0x9e3b9dc1, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @secondTarget() -> i256 [selector=0x9e3b9dc1, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 2
 }

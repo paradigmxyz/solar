@@ -9,7 +9,7 @@
 // CHECK-DAG: - {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}]
 // CHECK-DAG: + ret arg0
 // CHECK: + {{v[0-9]+}} = add arg0, 1
-fn @chained_trivial(arg0: word) -> word {
+fn @chained_trivial(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:

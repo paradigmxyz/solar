@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/loop-exit-remat/induction.mir (before loop-exit-remat) ===
 + // === ROOT/tests/ui/codegen/mir/loop-exit-remat/induction.mir (after loop-exit-remat) ===
   @module Induction
-  fn @exit_old(arg0: word, arg1: word) -> word {
+  fn @exit_old(arg0: i256, arg1: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -17,7 +17,7 @@
       jump bb1
   }
   
-  fn @subtract(arg0: word) -> word {
+  fn @subtract(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -29,7 +29,7 @@
       ret v0
   }
   
-  fn @variable_step(arg0: word, arg1: word) -> word {
+  fn @variable_step(arg0: i256, arg1: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -41,7 +41,7 @@
       ret v0
   }
   
-  fn @nested(arg0: word, arg1: bool) -> word {
+  fn @nested(arg0: i256, arg1: i1) -> i256 {
     bb0:
       jump bb1
     bb1:

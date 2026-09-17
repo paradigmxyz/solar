@@ -5,13 +5,13 @@ immutables:
   duration: u64
   initial: u256
 
-fn @initial() -> word [selector=0xbb806dc9, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @initial() -> i256 [selector=0xbb806dc9, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = loadimmutable initial
     ret v0
 }
 
-fn @constructor(arg0: word, arg1: word) [constructor, abi_params=[u64, u64]] {
+fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[u64, u64]] {
   bb0:
     storeimmutable start, arg0
     storeimmutable duration, arg1
@@ -22,7 +22,7 @@ fn @constructor(arg0: word, arg1: word) [constructor, abi_params=[u64, u64]] {
     ret
 }
 
-fn @end() -> word [selector=0xefbe1c1c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @end() -> i256 [selector=0xefbe1c1c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = loadimmutable start
     v1 = loadimmutable duration
@@ -30,7 +30,7 @@ fn @end() -> word [selector=0xefbe1c1c, view, abi_params=[], abi_returns=[word],
     ret v2
 }
 
-fn @vested(arg0: word, arg1: word) -> word [selector=0xcc71fadf, view, abi_params=[u256, u64], abi_returns=[word], abi_return_params=[u256]] {
+fn @vested(arg0: i256, arg1: i256) -> i256 [selector=0xcc71fadf, view, abi_params=[u256, u64], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and arg1, 0xffffffffffffffff
     v1 = loadimmutable start

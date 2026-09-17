@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_parenthesized_target.sol:Target ===
 @module Target
-fn @ok() -> word [selector=0xd909b403, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @ok() -> i256 [selector=0xd909b403, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 5
 }
@@ -50,7 +50,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @success() -> word [selector=0x0b93381b, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -75,7 +75,7 @@ fn @success() -> word [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     ret 0
 }
 
-fn @failure() -> word [selector=0x76ffb887, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff

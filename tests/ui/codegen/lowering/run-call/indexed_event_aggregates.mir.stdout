@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/indexed_event_aggregates.sol:IndexedAggregates ===
 @module IndexedAggregates
 types:
-  struct0: {word, memorybytes}
+  struct0: {i256, memorybytes}
 
 fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:

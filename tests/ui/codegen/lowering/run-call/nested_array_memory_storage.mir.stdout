@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/nested_array_memory_storage.sol:NestedArrayMemoryStorage ===
 @module NestedArrayMemoryStorage
-fn @test() -> word [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -287,7 +287,7 @@ fn @test() -> word [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     jump bb1
 }
 
-fn @test1() -> word [selector=0x6b59084d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test1() -> i256 [selector=0x6b59084d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -446,7 +446,7 @@ fn @test1() -> word [selector=0x6b59084d, abi_params=[], abi_returns=[word], abi
     jump bb1
 }
 
-fn @test2() -> word [selector=0x66e41cb7, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test2() -> i256 [selector=0x66e41cb7, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     jump bb1
@@ -615,7 +615,7 @@ fn @test2() -> word [selector=0x66e41cb7, abi_params=[], abi_returns=[word], abi
     jump bb1
 }
 
-fn @test3() -> word [selector=0x0a8e8e01, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test3() -> i256 [selector=0x0a8e8e01, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     jump bb1

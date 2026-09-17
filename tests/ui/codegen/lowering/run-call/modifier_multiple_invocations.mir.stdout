@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_multiple_invocations.sol:ModifierMultipleInvocations ===
 @module ModifierMultipleInvocations
-fn @f(arg0: word) -> word [selector=0xb3de648b, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 2

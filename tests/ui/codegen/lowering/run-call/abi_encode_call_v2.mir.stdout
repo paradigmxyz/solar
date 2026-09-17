@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_v2.sol:AbiEncodeCallV2 ===
 @module AbiEncodeCallV2
-fn @callMeMaybe(arg0: calldataslice, arg1: word, arg2: memorybytes) [selector=0x291c5a61, pure, abi_params=[tuple<array<_, u256>, u256, bytes, bytes, enum<3, u8>>, i256, bytes], abi_returns=[], abi_return_params=[]] {
+fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memorybytes) [selector=0x291c5a61, pure, abi_params=[tuple<array<_, u256>, u256, bytes, bytes, enum<3, u8>>, i256, bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 0
@@ -253,7 +253,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: word, arg2: memorybytes) [selector=0x
     ret
 }
 
-fn @callExternal() -> word [selector=0x5f431992, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @callExternal() -> i256 [selector=0x5f431992, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorystruct<5>, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
     memory_zero v0, 160

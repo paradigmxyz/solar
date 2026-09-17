@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi.mir (after lower-abi) ===
   @module LowerAbi
-- fn @add(arg0: word, arg1: word) [selector=0x771602f7] {
+- fn @add(arg0: i256, arg1: i256) [selector=0x771602f7] {
 + fn @add() [selector=0x771602f7, abi_wrapper] {
     bb0:
 +     v1 = calldatasize
@@ -17,7 +17,7 @@
 +     revert 0, 0
   }
   
-- fn @flag(arg0: bool) [selector=0x0d2020dd] {
+- fn @flag(arg0: i1) [selector=0x0d2020dd] {
 + fn @flag() [selector=0x0d2020dd, abi_wrapper] {
     bb0:
 +     v1 = calldatasize

@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/tuple_assignment_order.sol:TupleAssignmentOrder ===
 @module TupleAssignmentOrder
 types:
-  struct0: {word, word}
-  struct1: {word, word, word}
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256}
 
 fn @swap() -> struct0 [selector=0x8119c065, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
@@ -65,7 +65,7 @@ fn @repeatedStateTarget() -> struct0 [selector=0x9f06da88, abi_params=[], abi_re
     ret v6
 }
 
-fn @repeatedCallTarget() -> word [selector=0xbf139358, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @repeatedCallTarget() -> i256 [selector=0xbf139358, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @threeValues
     v1 = extract_value struct1, v0, 0
@@ -232,13 +232,13 @@ fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_re
     ret v89
 }
 
-fn @setCursor(arg0: word) -> word {
+fn @setCursor(arg0: i256) -> i256 {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     ret arg0
 }
 
-fn @nextIndex() -> word {
+fn @nextIndex() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = sload 0 !metadata(storage=slot(0))
@@ -266,7 +266,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @store_storage_bytes(arg0: word, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

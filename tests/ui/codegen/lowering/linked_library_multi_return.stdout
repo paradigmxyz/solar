@@ -2,7 +2,7 @@
 @module Lib
 @library
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
 fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
@@ -14,7 +14,7 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[wo
 // === ROOT/tests/ui/codegen/lowering/linked_library_multi_return.sol:C ===
 @module C
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
 fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:

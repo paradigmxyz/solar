@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/checked_arithmetic_panic.sol:CheckedArithmeticPanic ===
 @module CheckedArithmeticPanic
-fn @add(arg0: word, arg1: word) -> word [selector=0x771602f7, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @add(arg0: i256, arg1: i256) -> i256 [selector=0x771602f7, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v1 = add arg0, arg1
     v2 = lt v1, arg0
@@ -13,7 +13,7 @@ fn @add(arg0: word, arg1: word) -> word [selector=0x771602f7, pure, abi_params=[
     revert 28, 36
 }
 
-fn @sub(arg0: word, arg1: word) -> word [selector=0xb67d77c5, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @sub(arg0: i256, arg1: i256) -> i256 [selector=0xb67d77c5, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v1 = sub arg0, arg1
     v2 = lt arg0, arg1
@@ -26,7 +26,7 @@ fn @sub(arg0: word, arg1: word) -> word [selector=0xb67d77c5, pure, abi_params=[
     revert 28, 36
 }
 
-fn @mul(arg0: word, arg1: word) -> word [selector=0xc8a4ac9c, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @mul(arg0: i256, arg1: i256) -> i256 [selector=0xc8a4ac9c, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v1 = mul arg0, arg1
     v2 = eq arg1, 0
@@ -44,7 +44,7 @@ fn @mul(arg0: word, arg1: word) -> word [selector=0xc8a4ac9c, pure, abi_params=[
     revert 28, 36
 }
 
-fn @div_zero(arg0: word, arg1: word) -> word [selector=0xf37348f3, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @div_zero(arg0: i256, arg1: i256) -> i256 [selector=0xf37348f3, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v1 = ne arg1, 0
     jumpi v1, bb2, bb1
@@ -57,7 +57,7 @@ fn @div_zero(arg0: word, arg1: word) -> word [selector=0xf37348f3, pure, abi_par
     ret v2
 }
 
-fn @pow(arg0: word, arg1: word) -> word [selector=0x2e4c697f, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @pow(arg0: i256, arg1: i256) -> i256 [selector=0x2e4c697f, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -105,7 +105,7 @@ fn @pow(arg0: word, arg1: word) -> word [selector=0x2e4c697f, pure, abi_params=[
     revert 28, 36
 }
 
-fn @signed_add(arg0: word, arg1: word) -> word [selector=0xd51c5580, pure, abi_params=[i256, i256], abi_returns=[word], abi_return_params=[i256]] {
+fn @signed_add(arg0: i256, arg1: i256) -> i256 [selector=0xd51c5580, pure, abi_params=[i256, i256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v1 = add arg0, arg1
     v2 = slt arg0, 0
@@ -128,7 +128,7 @@ fn @signed_add(arg0: word, arg1: word) -> word [selector=0xd51c5580, pure, abi_p
     revert 28, 36
 }
 
-fn @signed_neg(arg0: word) -> word [selector=0x85cce915, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[i256]] {
+fn @signed_neg(arg0: i256) -> i256 [selector=0x85cce915, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v1 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     jumpi v1, bb1, bb2
@@ -141,7 +141,7 @@ fn @signed_neg(arg0: word) -> word [selector=0x85cce915, pure, abi_params=[i256]
     revert 28, 36
 }
 
-fn @narrow_add(arg0: word, arg1: word) -> word [selector=0xeb8645e0, pure, abi_params=[u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @narrow_add(arg0: i256, arg1: i256) -> i256 [selector=0xeb8645e0, pure, abi_params=[u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = and arg0, 255
     v1 = and arg1, 255
@@ -156,31 +156,31 @@ fn @narrow_add(arg0: word, arg1: word) -> word [selector=0xeb8645e0, pure, abi_p
     revert 28, 36
 }
 
-fn @unchecked_add(arg0: word, arg1: word) -> word [selector=0xda71cb6d, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @unchecked_add(arg0: i256, arg1: i256) -> i256 [selector=0xda71cb6d, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = add arg0, arg1
     ret v0
 }
 
-fn @unchecked_neg(arg0: word) -> word [selector=0xd00932b4, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[i256]] {
+fn @unchecked_neg(arg0: i256) -> i256 [selector=0xd00932b4, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sub 0, arg0
     ret v0
 }
 
-fn @unchecked_pow(arg0: word, arg1: word) -> word [selector=0xef90b373, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @unchecked_pow(arg0: i256, arg1: i256) -> i256 [selector=0xef90b373, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = exp arg0, arg1
     ret v0
 }
 
-fn @unchecked_call(arg0: word, arg1: word) -> word [selector=0x27805c8b, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @unchecked_call(arg0: i256, arg1: i256) -> i256 [selector=0x27805c8b, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @checked_inner, arg0, arg1
     ret v0
 }
 
-fn @checked_inner(arg0: word, arg1: word) -> word [pure] {
+fn @checked_inner(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v1 = add arg0, arg1
     v2 = lt v1, arg0

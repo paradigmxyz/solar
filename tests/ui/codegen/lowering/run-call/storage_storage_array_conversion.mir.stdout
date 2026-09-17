@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_storage_array_conversion.sol:StorageStorageArrayConversion ===
 @module StorageStorageArrayConversion
-fn @dynamic() -> word [selector=0x4bd54f04, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @dynamic() -> i256 [selector=0x4bd54f04, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -151,7 +151,7 @@ fn @dynamic() -> word [selector=0x4bd54f04, abi_params=[], abi_returns=[word], a
     jump bb3
 }
 
-fn @nested() -> word [selector=0x4ce2d543, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @nested() -> i256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = lt 0, 3
     v1 = eq v0, false
@@ -487,7 +487,7 @@ fn @nested() -> word [selector=0x4ce2d543, abi_params=[], abi_returns=[word], ab
     jump bb4
 }
 
-fn @fixedToDynamic() -> word [selector=0xf12520ec, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fixedToDynamic() -> i256 [selector=0xf12520ec, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = lt 8, 9
     v1 = eq v0, false
@@ -551,7 +551,7 @@ fn @fixedToDynamic() -> word [selector=0xf12520ec, abi_params=[], abi_returns=[w
     jump bb1
 }
 
-fn @load_storage_packed_array_8_0(arg0: word) -> memoryarray {
+fn @load_storage_packed_array_8_0(arg0: i256) -> memoryarray {
   bb0:
     v0 = load_storage_array u64, arg0
     ret v0

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/jump-threading/jump_threading_phi_constants.mir (before jump-threading) ===
 + // === ROOT/tests/ui/codegen/mir/jump-threading/jump_threading_phi_constants.mir (after jump-threading) ===
   @module JumpThreadingPhiConstants
-  fn @thread_branch_on_phi_constant(arg0: bool) -> word {
+  fn @thread_branch_on_phi_constant(arg0: i1) -> i256 {
     bb0:
 -     jumpi arg0, bb1, bb2
 -   bb2:
@@ -26,7 +26,7 @@
 -     ret 11
   }
   
-  fn @thread_switch_on_phi_constant(arg0: bool) -> word {
+  fn @thread_switch_on_phi_constant(arg0: i1) -> i256 {
     bb0:
 -     jumpi arg0, bb1, bb2
 -   bb2:
@@ -52,7 +52,7 @@
       ret 33
   }
   
-  fn @keep_unknown_phi(arg0: bool, arg1: word, arg2: word) -> word {
+  fn @keep_unknown_phi(arg0: i1, arg1: i256, arg2: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -69,7 +69,7 @@
       ret 11
   }
   
-  fn @keep_phi_used_in_successor(arg0: bool) -> word {
+  fn @keep_phi_used_in_successor(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -87,7 +87,7 @@
       ret v2
   }
   
-  fn @nested_short_circuit(arg0: bool, arg1: bool, arg2: bool) -> word {
+  fn @nested_short_circuit(arg0: i1, arg1: i1, arg2: i1) -> i256 {
     bb0:
 -     jumpi arg0, bb1, bb4
 +     jumpi arg0, bb1, bb6
@@ -113,7 +113,7 @@
 +     invalid
   }
   
-  fn @keep_single_phi_used_in_successor(arg0: bool) -> bool {
+  fn @keep_single_phi_used_in_successor(arg0: i1) -> i1 {
     bb0:
       jump bb1
     bb1:

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_dynamic_static_dynamic.sol:AbiCalldataDynamicStaticDynamic ===
 @module AbiCalldataDynamicStaticDynamic
-fn @readNarrow(arg0: calldataslice) -> word [selector=0x49c9edea, pure, abi_params=[array<_, array<1, array<_, u8>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @readNarrow(arg0: calldataslice) -> i256 [selector=0x49c9edea, pure, abi_params=[array<_, array<1, array<_, u8>>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_len arg0
@@ -116,7 +116,7 @@ fn @readNarrow(arg0: calldataslice) -> word [selector=0x49c9edea, pure, abi_para
     ret v92
 }
 
-fn @readWide(arg0: calldataslice) -> word [selector=0xb44a60df, pure, abi_params=[array<_, array<2, array<_, u256>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @readWide(arg0: calldataslice) -> i256 [selector=0xb44a60df, pure, abi_params=[array<_, array<2, array<_, u256>>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_len arg0

@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dirty_bool_internal_return.sol:DirtyBoolInternalReturn ===
 @module DirtyBoolInternalReturn
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
-fn @dirty(arg0: word) -> word [pure] {
+fn @dirty(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = mul arg0, 3
     ret v0

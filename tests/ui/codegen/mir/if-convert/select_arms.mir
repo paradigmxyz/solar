@@ -13,7 +13,7 @@
 // CHECK: + [[SCALED2:v[0-9]+]] = mul [[COND2]], 128
 // CHECK: + {{v[0-9]+}} = or arg1, [[SCALED2]]
 // CHECK-NOT: {{^[ +].*}}phi
-fn @search_step(arg0: word, arg1: word) -> word {
+fn @search_step(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = shr 128, arg0
     v1 = eq v0, 0
@@ -38,7 +38,7 @@ fn @search_step(arg0: word, arg1: word) -> word {
 // CHECK: + [[C:v[0-9]+]] = word_cast {{(arg[0-9]+|v[0-9]+)}}
 // CHECK: + [[S:v[0-9]+]] = mul [[C]], [[D]]
 // CHECK: + {{v[0-9]+}} = add [[F]], [[S]]
-fn @cheap_diamond(arg0: word, arg1: word) -> word {
+fn @cheap_diamond(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v3 = ne arg0, 0
     jumpi v3, bb1, bb2
@@ -59,7 +59,7 @@ fn @cheap_diamond(arg0: word, arg1: word) -> word {
 // CHECK: {{^ +}}[[COND:v[0-9]+]] = ne arg0, 0
 // CHECK: {{^ +}}jumpi [[COND]]
 // CHECK-NOT: select
-fn @diamond(arg0: word, arg1: word) -> word {
+fn @diamond(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v7 = ne arg0, 0
     jumpi v7, bb1, bb2
@@ -82,7 +82,7 @@ fn @diamond(arg0: word, arg1: word) -> word {
 // branch stays.
 // CHECK-LABEL: {{^[ +].*}}fn @memory_arm{{[( ]}}
 // CHECK: {{^ +}}jumpi
-fn @memory_arm(arg0: bool, arg1: word) -> word {
+fn @memory_arm(arg0: i1, arg1: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -97,7 +97,7 @@ fn @memory_arm(arg0: bool, arg1: word) -> word {
 // it would remove: the branch stays.
 // CHECK-LABEL: {{^[ +].*}}fn @wide_arm{{[( ]}}
 // CHECK: {{^ +}}jumpi
-fn @wide_arm(arg0: bool, arg1: word) -> word {
+fn @wide_arm(arg0: i1, arg1: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -116,7 +116,7 @@ fn @wide_arm(arg0: bool, arg1: word) -> word {
 // CHECK: + [[C:v[0-9]+]] = word_cast {{v[0-9]+}}
 // CHECK: + [[S:v[0-9]+]] = mul [[C]], 5
 // CHECK: + {{v[0-9]+}} = add arg1, [[S]]
-fn @word_condition(arg0: word, arg1: word) -> word {
+fn @word_condition(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = ne arg0, 0
     jumpi v2, bb1, bb2
@@ -136,7 +136,7 @@ fn @word_condition(arg0: word, arg1: word) -> word {
 // CHECK: + [[S:v[0-9]+]] = mul [[C]], 0x1200000000000000000000000000000000000000000000000000000000000000
 // CHECK: + {{v[0-9]+}} = add 0x5f00000000000000000000000000000000000000000000000000000000000000, [[S]]
 // CHECK-NOT: {{^[ +].*}}phi
-fn @literal_arms(arg0: bool) -> word {
+fn @literal_arms(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -155,7 +155,7 @@ fn @literal_arms(arg0: bool) -> word {
 // CHECK: + [[C:v[0-9]+]] = word_cast {{(arg[0-9]+|v[0-9]+)}}
 // CHECK: + [[S:v[0-9]+]] = mul [[C]], [[D]]
 // CHECK: + {{v[0-9]+}} = add arg1, [[S]]
-fn @literal_or_value(arg0: bool, arg1: word) -> word {
+fn @literal_or_value(arg0: i1, arg1: i256) -> i256 {
   bb0:
     jumpi arg0, bb2, bb1
   bb1:
@@ -179,7 +179,7 @@ fn @literal_or_value(arg0: bool, arg1: word) -> word {
 // CHECK: + {{v[0-9]+}} = add [[E]], [[S1]]
 // CHECK-NOT: {{^[ +].*}}phi
 // CHECK-NOT: {{^[ +].*}}jumpi
-fn @table_ladder(arg0: word) -> word {
+fn @table_ladder(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 64
     jumpi v0, bb4, bb1
@@ -202,7 +202,7 @@ fn @table_ladder(arg0: word) -> word {
 // allocation provenance later passes rely on.
 // CHECK-LABEL: {{^[ +].*}}fn @pointer_arms{{[( ]}}
 // CHECK: {{^ +}}jumpi
-fn @pointer_arms(arg0: bool, arg1: memorystruct, arg2: memorystruct) -> word {
+fn @pointer_arms(arg0: i1, arg1: memorystruct, arg2: memorystruct) -> i256 {
   bb0:
     jumpi arg0, bb2, bb1
   bb1:

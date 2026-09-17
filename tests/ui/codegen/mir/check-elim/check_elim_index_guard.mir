@@ -8,7 +8,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @fold_const_len_check{{[( ]}}
 // CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb2
 // CHECK: + jump bb3
-fn @fold_const_len_check(arg0: word) -> word {
+fn @fold_const_len_check(arg0: i256) -> i256 {
   bb0:
     v1 = lt arg0, 3
     jumpi v1, bb1, bb4
@@ -33,7 +33,7 @@ fn @fold_const_len_check(arg0: word) -> word {
 // CHECK-LABEL: {{^[ +].*}}fn @fold_dyn_len_check{{[( ]}}
 // CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb2
 // CHECK: + jump bb3
-fn @fold_dyn_len_check(arg0: word) -> word {
+fn @fold_dyn_len_check(arg0: i256) -> i256 {
   bb0:
     v1 = sload 0
     v2 = lt arg0, v1
@@ -57,7 +57,7 @@ fn @fold_dyn_len_check(arg0: word) -> word {
 // `i < 5` does not), so the bounds check must stay.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_weaker_guard{{[( ]}}
 // CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb2
-fn @keep_weaker_guard(arg0: word) -> word {
+fn @keep_weaker_guard(arg0: i256) -> i256 {
   bb0:
     v1 = lt arg0, 5
     jumpi v1, bb1, bb4
@@ -80,7 +80,7 @@ fn @keep_weaker_guard(arg0: word) -> word {
 // CHECK: icall revert_if_zero<empty>, arg0
 // CHECK: - icall panic_if_zero<0x1>, arg0
 // CHECK: - icall panic_if_zero<0x32>, v0
-fn @semantic_guards(arg0: bool, arg1: word) {
+fn @semantic_guards(arg0: i1, arg1: i256) {
   bb0:
     icall revert_if_zero<empty>, arg0
     icall panic_if_zero<0x1>, arg0
@@ -94,7 +94,7 @@ fn @semantic_guards(arg0: bool, arg1: word) {
 // CHECK-DAG: icall panic_if_zero<0x1>, arg1{{$}}
 // CHECK-DAG: - icall panic_if_zero<0x32>, arg1
 // CHECK-DAG: icall panic_if_zero<0x12>, arg1
-fn @conditional_guard(arg0: bool, arg1: bool) {
+fn @conditional_guard(arg0: i1, arg1: i1) {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:

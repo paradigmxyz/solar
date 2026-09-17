@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/debug_info.mir (before frame-slot-promotion) ===
 + // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/debug_info.mir (after frame-slot-promotion) ===
   @module DebugInfo
-  fn @promote_loop_carried_slot(arg0: word) -> word {
+  fn @promote_loop_carried_slot(arg0: i256) -> i256 {
     bb0:
       v0 = internal_frame_addr 128 !metadata(span=10..20)
 -     mstore v0, 0 !metadata(span=10..20)

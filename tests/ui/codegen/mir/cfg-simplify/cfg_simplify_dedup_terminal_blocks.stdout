@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_dedup_terminal_blocks.mir (before cfg-simplify) ===
 + // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_dedup_terminal_blocks.mir (after cfg-simplify) ===
   @module CfgDedupTerminalBlocks
-  fn @dedup_identical_panics(arg0: word, arg1: word) {
+  fn @dedup_identical_panics(arg0: i256, arg1: i256) {
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
@@ -22,7 +22,7 @@
       revert 0, 36
   }
   
-  fn @keep_distinct_panic_codes(arg0: word, arg1: word) {
+  fn @keep_distinct_panic_codes(arg0: i256, arg1: i256) {
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
@@ -41,7 +41,7 @@
       revert 0, 36
   }
   
-  fn @keep_distinct_revert_sizes(arg0: word, arg1: word) {
+  fn @keep_distinct_revert_sizes(arg0: i256, arg1: i256) {
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
@@ -60,7 +60,7 @@
       revert 0, 36
   }
   
-  fn @dedup_local_computations(arg0: word, arg1: word) {
+  fn @dedup_local_computations(arg0: i256, arg1: i256) {
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
@@ -81,7 +81,7 @@
       revert 0, 32
   }
   
-  fn @keep_distinct_outside_operands(arg0: word, arg1: word) {
+  fn @keep_distinct_outside_operands(arg0: i256, arg1: i256) {
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
@@ -98,7 +98,7 @@
       revert 0, 32
   }
   
-  fn @keep_distinct_memory_fields(arg0: word, arg1: word, arg2: memorystruct) {
+  fn @keep_distinct_memory_fields(arg0: i256, arg1: i256, arg2: memorystruct) {
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
@@ -117,7 +117,7 @@
       revert 0, 32
   }
   
-  fn @keep_distinct_packed_literals(arg0: bool) -> word {
+  fn @keep_distinct_packed_literals(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -128,7 +128,7 @@
       ret v0
   }
   
-  fn @keep_distinct_enum_bounds(arg0: bool, arg1: word) -> memoryarray {
+  fn @keep_distinct_enum_bounds(arg0: i1, arg1: i256) -> memoryarray {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -139,7 +139,7 @@
       ret v0
   }
   
-  fn @merge_equal_packed_literals(arg0: bool) -> word {
+  fn @merge_equal_packed_literals(arg0: i1) -> i256 {
     bb0:
 -     jumpi arg0, bb1, bb2
 -   bb2:
@@ -150,7 +150,7 @@
       ret v0
   }
   
-  fn @keep_distinct_storage_literals(arg0: bool, arg1: word) {
+  fn @keep_distinct_storage_literals(arg0: i1, arg1: i256) {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:

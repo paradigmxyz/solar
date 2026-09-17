@@ -2,12 +2,12 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_multi_return.mir (after lower-abi) ===
   @module LowerAbiMultiReturn
   types:
-    struct0: {word, word}
+    struct0: {i256, i256}
   
   immutables:
     owner: address
   
-- fn @pair(arg0: word) -> struct0 [selector=0x1f6a26ff, return_abi=[word, word], abi_returns=[word, word]] {
+- fn @pair(arg0: i256) -> struct0 [selector=0x1f6a26ff, return_abi=[i256, i256], abi_returns=[word, word]] {
 + fn @pair() [selector=0x1f6a26ff, abi_wrapper] {
     bb0:
 +     v1 = calldatasize
@@ -28,7 +28,7 @@
 +     revert 0, 0
   }
   
-- fn @owner() -> word [selector=0x8da5cb5b, abi_returns=[word], abi_return_params=[address]] {
+- fn @owner() -> i256 [selector=0x8da5cb5b, abi_returns=[word], abi_return_params=[address]] {
 + fn @owner() [selector=0x8da5cb5b, abi_wrapper] {
     bb0:
       v0 = loadimmutable owner

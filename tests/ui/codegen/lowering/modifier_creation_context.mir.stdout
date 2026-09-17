@@ -43,7 +43,7 @@ fn @f3() [selector=0xaaf05f3d, abi_params=[], abi_returns=[], abi_return_params=
     ret
 }
 
-fn @getData() -> word [selector=0x3bc5de30, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @getData() -> i256 [selector=0x3bc5de30, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -94,7 +94,7 @@ fn @f2() [selector=0x9942ec6f, abi_params=[], abi_returns=[], abi_return_params=
     ret
 }
 
-fn @getData() -> word [selector=0x3bc5de30, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @getData() -> i256 [selector=0x3bc5de30, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0

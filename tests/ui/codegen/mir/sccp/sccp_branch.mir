@@ -8,7 +8,7 @@
 // CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
 // CHECK: + jump bb1
 // CHECK: + invalid
-fn @const_branch() -> word {
+fn @const_branch() -> i256 {
   bb0:
     v0 = lt 5, 10
     jumpi v0, bb1, bb2

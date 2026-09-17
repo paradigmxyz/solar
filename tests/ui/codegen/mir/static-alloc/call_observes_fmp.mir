@@ -9,7 +9,7 @@
 // CHECK:   fn @observing_caller{{.*}}
 // CHECK-NEXT:     bb0:
 // CHECK-NEXT:       v0 = alloc raw, exact, uninitialized, infallible, 32
-fn @observing_caller() -> bool [selector=0x01020304] {
+fn @observing_caller() -> i1 [selector=0x01020304] {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     mstore v0, 7
@@ -23,7 +23,7 @@ fn @observing_caller() -> bool [selector=0x01020304] {
 // CHECK:   fn @forwarding_caller{{.*}}
 // CHECK-NEXT:     bb0:
 // CHECK-NEXT:       v0 = alloc raw, exact, uninitialized, infallible, 32
-fn @forwarding_caller() -> bool [selector=0x01020305] {
+fn @forwarding_caller() -> i1 [selector=0x01020305] {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     mstore v0, 7
@@ -41,7 +41,7 @@ fn @forwarding_caller() -> bool [selector=0x01020305] {
 // CHECK-NEXT: -     v1 = icall @dereferences, v0
 // CHECK-NEXT: +     mstore 128, 7
 // CHECK-NEXT: +     v1 = icall @dereferences, 128
-fn @dereferencing_caller() -> word [selector=0x01020306] {
+fn @dereferencing_caller() -> i256 [selector=0x01020306] {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     mstore v0, 7
@@ -53,7 +53,7 @@ fn @dereferencing_caller() -> word [selector=0x01020306] {
 // CHECK:   fn @msize_caller{{.*}}
 // CHECK-NEXT:     bb0:
 // CHECK-NEXT:       v0 = alloc raw, exact, uninitialized, infallible, 32
-fn @msize_caller() -> word [selector=0x01020307] {
+fn @msize_caller() -> i256 [selector=0x01020307] {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     mstore v0, 7
@@ -61,21 +61,21 @@ fn @msize_caller() -> word [selector=0x01020307] {
     ret v1
 }
 
-fn @observes(arg0: word) -> bool {
+fn @observes(arg0: i256) -> i1 {
   bb0:
     v0 = mload 64
     v1 = lt arg0, v0
     ret v1
 }
 
-fn @forwards(arg0: word) -> bool {
+fn @forwards(arg0: i256) -> i1 {
   bb0:
     v0 = icall fn4, arg0
     v1 = ne v0, false
     ret v1
 }
 
-fn @dereferences(arg0: word) -> word {
+fn @dereferences(arg0: i256) -> i256 {
   bb0:
     v0 = mload 64
     v1 = mload arg0
@@ -83,7 +83,7 @@ fn @dereferences(arg0: word) -> word {
     ret v2
 }
 
-fn @measures(arg0: word) -> word {
+fn @measures(arg0: i256) -> i256 {
   bb0:
     v0 = msize
     v1 = mload arg0
@@ -120,7 +120,7 @@ fn @reserve_frame() [selector=0x01020308] {
 // CHECK-NEXT: -     v1 = icall @iterates, v0
 // CHECK-NEXT: +     mstore 128, 7
 // CHECK-NEXT: +     v1 = icall @iterates, 128
-fn @iterating_caller() -> word [selector=0x01020309] {
+fn @iterating_caller() -> i256 [selector=0x01020309] {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     mstore v0, 7
@@ -128,7 +128,7 @@ fn @iterating_caller() -> word [selector=0x01020309] {
     ret v1
 }
 
-fn @iterates(arg0: word) -> word {
+fn @iterates(arg0: i256) -> i256 {
   bb0:
     v0 = mload 64
     mstore v0, 1

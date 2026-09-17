@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/enum_memory_store_validation.sol:EnumMemoryStoreValidation ===
 @module EnumMemoryStoreValidation
-fn @dirty() -> word [pure] {
+fn @dirty() -> i256 [pure] {
   bb0:
     ret 4
 }
 
-fn @structConstructor() -> word [selector=0x9b40f93f, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
+fn @structConstructor() -> i256 [selector=0x9b40f93f, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = icall @dirty
@@ -20,7 +20,7 @@ fn @structConstructor() -> word [selector=0x9b40f93f, pure, abi_params=[], abi_r
     ret v4
 }
 
-fn @arrayLiteral() -> word [selector=0x7e94f0e2, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
+fn @arrayLiteral() -> i256 [selector=0x7e94f0e2, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     v1 = icall @dirty
@@ -38,7 +38,7 @@ fn @arrayLiteral() -> word [selector=0x7e94f0e2, pure, abi_params=[], abi_return
     ret v6
 }
 
-fn @arrayElement() -> word [selector=0x050651a8, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
+fn @arrayElement() -> i256 [selector=0x050651a8, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1

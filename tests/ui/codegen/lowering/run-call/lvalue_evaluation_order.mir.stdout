@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/lvalue_evaluation_order.sol:LValueEvaluationOrder ===
 @module LValueEvaluationOrder
 types:
-  struct0: {word, word, word}
+  struct0: {i256, i256, i256}
 
 fn @constructor() [constructor] {
   bb0:
@@ -94,7 +94,7 @@ fn @postIncrement() -> struct0 [selector=0x016e4842, abi_params=[], abi_returns=
     ret v24
 }
 
-fn @value() -> word [selector=0x3fa4f245, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     v1 = gt v0, 0xffffffffffffffff

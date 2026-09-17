@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/keep_reloaded_store.sol:Target ===
 @module Target
-fn @six(arg0: word) -> word [selector=0x84b8ba08, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @six(arg0: i256) -> i256 [selector=0x84b8ba08, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_mul u256, arg0, 6
     ret v0
@@ -36,7 +36,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @depth(arg0: word) -> word [pure] {
+fn @depth(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -51,7 +51,7 @@ fn @depth(arg0: word) -> word [pure] {
     ret 0
 }
 
-fn @check(arg0: word) [pure] {
+fn @check(arg0: i256) [pure] {
   bb0:
     v0 = eq arg0, 0
     icall revert_if<empty>, v0
@@ -62,7 +62,7 @@ fn @check(arg0: word) [pure] {
     ret
 }
 
-fn @probe(arg0: word) -> word [selector=0xdb082440, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @probe(arg0: i256) -> i256 [selector=0xdb082440, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff

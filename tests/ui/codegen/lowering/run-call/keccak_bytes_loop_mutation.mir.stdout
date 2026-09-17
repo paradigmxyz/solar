@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/keccak_bytes_loop_mutation.sol:KeccakBytesLoopMutation ===
 @module KeccakBytesLoopMutation
-fn @hashTracksWrites() -> word [selector=0xfa4d6080, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @hashTracksWrites() -> i256 [selector=0xfa4d6080, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = not 31
     v1 = and 64, v0

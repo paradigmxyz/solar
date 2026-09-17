@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_fixed_struct_array_assign.sol:StorageFixedStructArrayAssign ===
 @module StorageFixedStructArrayAssign
 types:
-  struct0: {word, word, word}
+  struct0: {i256, i256, i256}
 
 fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
@@ -25,7 +25,7 @@ fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_para
     ret
 }
 
-fn @read(arg0: word) -> struct0 [view] {
+fn @read(arg0: i256) -> struct0 [view] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add arg0, 1

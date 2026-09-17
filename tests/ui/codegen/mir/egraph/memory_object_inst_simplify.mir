@@ -11,7 +11,7 @@
 // CHECK: {{^[ +].*}}[[SAME:v[0-9]+]] = eq [[LEFT]], [[RIGHT]]
 // CHECK: {{^[ +].*}}[[SAME_WORD:v[0-9]+]] = word_cast [[SAME]]
 // CHECK: {{^[ +].*}}add [[SAME_WORD]], 1
-fn @fold_identity_projections(arg0: memorystruct, arg1: memoryfixedarray) -> word {
+fn @fold_identity_projections(arg0: memorystruct, arg1: memoryfixedarray) -> i256 {
   bb0:
     v2 = memory_object_data memorystruct, arg0
     v3 = memory_object_field_addr memorystruct<2>, arg0, 0

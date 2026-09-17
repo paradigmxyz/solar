@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_roundtrip.sol:AbiEncodeRoundtrip ===
 @module AbiEncodeRoundtrip
 types:
-  struct0: {word, word, word}
-  struct1: {memoryfixedarray, memorybytes, word}
-  struct2: {word, word, word, word}
+  struct0: {i256, i256, i256}
+  struct1: {memoryfixedarray, memorybytes, i256}
+  struct2: {i256, i256, i256, i256}
   struct3: {memoryarray, memorybytes}
 
-fn @roundtrip(arg0: word) -> word [selector=0x33cddcf6, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @roundtrip(arg0: i256) -> i256 [selector=0x33cddcf6, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], object, args arg0
     v1 = abi_decode [u256], v0
@@ -20,7 +20,7 @@ fn @bytesRoundtrip(arg0: memorybytes) -> memorybytes [selector=0x2e2230c7, pure,
     ret v1
 }
 
-fn @wordsRoundtrip(arg0: memoryarray) -> word [selector=0x285417c3, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @wordsRoundtrip(arg0: memoryarray) -> i256 [selector=0x285417c3, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [memory_array<word>], object, args arg0
     v1 = abi_decode [array<_, u256>], v0
@@ -44,7 +44,7 @@ fn @wordsRoundtrip(arg0: memoryarray) -> word [selector=0x285417c3, pure, abi_pa
     ret v15
 }
 
-fn @nestedWordsRoundtrip(arg0: memoryarray) -> word [selector=0xd8828f2f, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @nestedWordsRoundtrip(arg0: memoryarray) -> i256 [selector=0xd8828f2f, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [memory_array<memory_array<word>>], object, args arg0
     v1 = abi_decode [array<_, array<_, u256>>], v0
@@ -255,7 +255,7 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     jump bb1
 }
 
-fn @hash(arg0: word) -> word [selector=0xb189fd4c, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @hash(arg0: i256) -> i256 [selector=0xb189fd4c, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = abi_encode [word], scratch, args arg0
     v1 = slice_ptr v0

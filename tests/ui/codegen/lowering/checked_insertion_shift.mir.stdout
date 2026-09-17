@@ -75,7 +75,7 @@ fn @sort(arg0: memoryarray) -> memoryarray [selector=0x9ec8b026, pure, abi_param
     jump bb7
 }
 
-fn @shiftAt(arg0: memoryarray, arg1: word) -> memoryarray [selector=0xa227bfd8, pure, abi_params=[array<_, u256>, u256], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @shiftAt(arg0: memoryarray, arg1: i256) -> memoryarray [selector=0xa227bfd8, pure, abi_params=[array<_, u256>, u256], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
     v0 = ne arg1, 0
     jumpi v0, bb1, bb2

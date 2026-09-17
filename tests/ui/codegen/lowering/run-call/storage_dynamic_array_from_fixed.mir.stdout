@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_dynamic_array_from_fixed.sol:StorageDynamicArrayFromFixed ===
 @module StorageDynamicArrayFromFixed
 types:
-  struct0: {word, word, word}
+  struct0: {i256, i256, i256}
 
 fn @assign() -> struct0 [selector=0x12ae6397, abi_params=[], abi_returns=[word, word<enum 6>, word<enum 6>], abi_return_params=[u256, enum<6, u8>, enum<6, u8>]] {
   bb0:

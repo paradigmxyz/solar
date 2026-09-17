@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_dynamic_struct.sol:AbiDynamicStruct ===
 @module AbiDynamicStruct
 types:
-  struct0: {word, word, word, word, word}
-  struct1: {word, word, word, word}
-  struct2: {word, word}
+  struct0: {i256, i256, i256, i256, i256}
+  struct1: {i256, i256, i256, i256}
+  struct2: {i256, i256}
 
-fn @init(arg0: calldataslice, arg1: word) -> word [selector=0x5c58abd8, pure, abi_params=[tuple<address, u8, bytes, bytes>, address], abi_returns=[word], abi_return_params=[u256]] {
+fn @init(arg0: calldataslice, arg1: i256) -> i256 [selector=0x5c58abd8, pure, abi_params=[tuple<address, u8, bytes, bytes>, address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 32
@@ -1209,7 +1209,7 @@ fn @zeroDynamicAggregatesAfterScratch() -> struct2 [selector=0x7d3c2623, pure, a
     jump bb1
 }
 
-fn @zeroNestedDynamicAggregateAfterScratch() -> word [selector=0x84af5c73, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @zeroNestedDynamicAggregateAfterScratch() -> i256 [selector=0x84af5c73, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1

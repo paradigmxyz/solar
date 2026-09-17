@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_dynamic_array_forwarding.sol:Base ===
 @module Base
-fn @value() -> word [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: word, arg1: memoryarray) [constructor, abi_params=[u256, array<_, address>]] {
+fn @constructor(arg0: i256, arg1: memoryarray) [constructor, abi_params=[u256, array<_, address>]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     v0 = memory_object_len memoryarray, arg1
@@ -67,7 +67,7 @@ fn @constructor(arg0: word, arg1: memoryarray) [constructor, abi_params=[u256, a
     jump bb3
 }
 
-fn @entry(arg0: word) -> word [selector=0xe2095c07, view, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @entry(arg0: i256) -> i256 [selector=0xe2095c07, view, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = lt arg0, v0
@@ -87,7 +87,7 @@ fn @entry(arg0: word) -> word [selector=0xe2095c07, view, abi_params=[u256], abi
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_dynamic_array_forwarding.sol:Main ===
 @module Main
-fn @constructor(arg0: memoryarray, arg1: word) [constructor, abi_params=[array<_, address>, u256]] {
+fn @constructor(arg0: memoryarray, arg1: i256) [constructor, abi_params=[array<_, address>, u256]] {
   bb0:
     v0 = icall @forward, arg0
     sstore 0, arg1 !metadata(storage=slot(0))
@@ -158,13 +158,13 @@ fn @forward(arg0: memoryarray) -> memoryarray [pure] {
     ret arg0
 }
 
-fn @value() -> word [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @entry(arg0: word) -> word [selector=0xe2095c07, view, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @entry(arg0: i256) -> i256 [selector=0xe2095c07, view, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = lt arg0, v0
@@ -185,12 +185,12 @@ fn @entry(arg0: word) -> word [selector=0xe2095c07, view, abi_params=[u256], abi
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_dynamic_array_forwarding.sol:Creator ===
 @module Creator
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
 data:
   Main_initcode_0: hex"6104df3803806104df6103c0396103c001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016604052604c565b60a0516040015160a05160600152565b34151561041c576103c0806101a052806101a0526103c06104df380301806101c052806101c0526040820181806101c0529011610418575f82806101a0520151806103a0528201806101e0529150816101e0526020820167ffffffffffffffff6103a05111826101c05282806101c052821191501715156104145781806101e052518061020052806102005260208301806102205292508261022052600181018061024052806102405281806102005281106104025760208180610240520280610260528061026052602015602082048380610240529014925082901791508191508115915082610200528461022052509050905090506104025760405180610280528061028052610260518061026052810180610380528061038052818061028052811067ffffffffffffffff82118117905015156103f05780610380526040528061028052610200518061020052815260206102005102602015602082049150610200518061020052821491501715610402576102205180610220526101c0510360051c61020051116104145761020051610220515f929091905b816102a0525f821161038f5760405160a05181602001528181604001528060a0526080016040525050505061021b603c565b60a051606001518060c05260a0516020015160a0528060c0526103c0602001515f558060c052518060e0528060e05260015480610100528061010052818060e052811160c05192919061026e5750610284565b815b806101205281806101005281106103275750505b8060e0526001555f60e051905b8061016052818060e05281106102a657610420565b828060c05260209001602082806101605202810190505160015f5260205f20600183048101905060018306601490026008900273ffffffffffffffffffffffffffffffffffffffff811b8254811991501673ffffffffffffffffffffffffffffffffffffffff8416935083821b915092508217915055600181019050610291565b60015f5260205f206001828061012052048101905060018206601490026008900273ffffffffffffffffffffffffffffffffffffffff811b8254811991501673ffffffffffffffffffffffffffffffffffffffff5f16821b9150179055600181019050610270565b826102c05282806102c0525180610300528061030052806103005260a01c151561041457806102805260209001602084806102e0520281019050610300518061030052815250600181039050602082019150600183019250610280516101e9565b634e487b715f5260416020526024601cfd5b634e487b715f5260416020526024601cfd5b5f5ffd5b5f5ffd5b5f5ffd5b60b48061042b5f395ff3341515602a575f3560e01c80633fa4f245146026578063e2095c0714602257602a565b6040565b602e565b5f5ffd5b5f546080526020608001608090036080f35b6024361060b0576001546004351015609e5760015f5260205f20600160043504810190506001600435066014900281549150600890021c73ffffffffffffffffffffffffffffffffffffffff90166080526020608001608090036080f35b634e487b715f5260326020526024601cfd5b5f5ffd"
 
-fn @f(arg0: word, arg1: memoryarray) -> struct0 [selector=0x1b2902dd, abi_params=[u256, array<_, address>], abi_returns=[word, word<u160>], abi_return_params=[u256, address]] {
+fn @f(arg0: i256, arg1: memoryarray) -> struct0 [selector=0x1b2902dd, abi_params=[u256, array<_, address>], abi_returns=[word, word<u160>], abi_return_params=[u256, address]] {
   bb0:
     v0 = abi_encode [memory_array<word<u160>>, word], args arg1, arg0
     v1 = slice_len v0

@@ -586,21 +586,18 @@ impl<'a> FunctionBuilder<'a> {
                 && kind
                     .operands()
                     .iter()
-                    .all(|&value| self.func.value_ty(value) == Some(MirType::Bool));
+                    .all(|&value| self.func.value_ty(value) == Some(MirType::I1));
         let boolean_equality = matches!(kind, InstKind::Eq(..) | InstKind::Ne(..))
-            && kind
-                .operands()
-                .iter()
-                .all(|&value| self.func.value_ty(value) == Some(MirType::Bool));
+            && kind.operands().iter().all(|&value| self.func.value_ty(value) == Some(MirType::I1));
         if (kind.evm_opcode().is_some() || matches!(kind, InstKind::Ne(..)))
             && !boolean_bitwise
             && !boolean_equality
         {
             // operand = word_cast operand
-            kind.visit_operands_mut(|value| *value = self.cast(*value, MirType::Word));
+            kind.visit_operands_mut(|value| *value = self.cast(*value, MirType::I256));
         }
         let produced = if boolean_bitwise {
-            MirType::Bool
+            MirType::I1
         } else {
             kind.op_def().result.default_type().unwrap_or(requested)
         };
@@ -621,16 +618,16 @@ impl<'a> FunctionBuilder<'a> {
         }
         let kind = match ty {
             // boolean = ne word, 0
-            MirType::Bool => {
-                let value = self.cast(value, MirType::Word);
+            MirType::I1 => {
+                let value = self.cast(value, MirType::I256);
                 let zero = self.imm(0);
                 InstKind::Ne(value, zero)
             }
             // word = word_cast value
-            MirType::Word => InstKind::WordCast(value),
+            MirType::I256 => InstKind::WordCast(value),
             // object = memory_object_from_ptr word
             MirType::MemoryObject(kind) => {
-                let ptr = self.cast(value, MirType::Word);
+                let ptr = self.cast(value, MirType::I256);
                 InstKind::MemoryObjectFromPtr { ptr, kind }
             }
             _ => return value,
@@ -647,7 +644,7 @@ impl<'a> FunctionBuilder<'a> {
         self.cast_memory_operands(&mut kind);
         if kind.evm_opcode().is_some() {
             // operand = word_cast operand
-            kind.visit_operands_mut(|value| *value = self.cast(*value, MirType::Word));
+            kind.visit_operands_mut(|value| *value = self.cast(*value, MirType::I256));
         }
         let inst = self.make_inst(kind, None);
         self.append_instruction(inst);
@@ -823,7 +820,7 @@ impl<'a> FunctionBuilder<'a> {
         object: ValueId,
         kind: crate::mir::MemoryObjectKind,
     ) -> ValueId {
-        self.emit_inst(InstKind::MemoryObjectLen(object, kind), Some(MirType::Word))
+        self.emit_inst(InstKind::MemoryObjectLen(object, kind), Some(MirType::I256))
     }
 
     /// Sets the logical length of a dynamic memory object.
@@ -842,7 +839,7 @@ impl<'a> FunctionBuilder<'a> {
         object: ValueId,
         kind: crate::mir::MemoryObjectKind,
     ) -> ValueId {
-        self.emit_inst(InstKind::MemoryObjectData(object, kind), Some(MirType::Word))
+        self.emit_inst(InstKind::MemoryObjectData(object, kind), Some(MirType::I256))
     }
 
     /// Loads a direct struct field through the semantic object layout.
@@ -854,7 +851,7 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         self.emit_inst(
             InstKind::MemoryObjectLoadField { object, layout, field },
-            Some(MirType::Word),
+            Some(MirType::I256),
         )
     }
 
@@ -893,7 +890,7 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         self.emit_inst(
             InstKind::MemoryObjectLoadElement { object, layout, index },
-            Some(MirType::Word),
+            Some(MirType::I256),
         )
     }
 
@@ -913,7 +910,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Loads one byte from a bytes object through its semantic layout.
     pub(crate) fn memory_object_load_byte(&mut self, object: ValueId, index: ValueId) -> ValueId {
-        self.emit_inst(InstKind::MemoryObjectLoadByte { object, index }, Some(MirType::Word))
+        self.emit_inst(InstKind::MemoryObjectLoadByte { object, index }, Some(MirType::I256))
     }
 
     /// Stores an array element through the semantic object layout.
@@ -953,7 +950,7 @@ impl<'a> FunctionBuilder<'a> {
     pub(crate) fn memory_slice_load_word(&mut self, slice: ValueId, offset: ValueId) -> ValueId {
         self.emit_inst(
             InstKind::MemorySliceLoadWord { slice, offset },
-            Some(crate::mir::MirType::Word),
+            Some(crate::mir::MirType::I256),
         )
     }
 
@@ -962,7 +959,7 @@ impl<'a> FunctionBuilder<'a> {
     pub(crate) fn calldata_slice_load_word(&mut self, slice: ValueId, offset: ValueId) -> ValueId {
         self.emit_inst(
             InstKind::CalldataSliceLoadWord { slice, offset },
-            Some(crate::mir::MirType::Word),
+            Some(crate::mir::MirType::I256),
         )
     }
 
@@ -1079,7 +1076,7 @@ impl<'a> FunctionBuilder<'a> {
     /// Preserves all bits while forgetting a value's nominal one-word type.
     pub(crate) fn word_cast(&mut self, value: ValueId) -> ValueId {
         // word = word_cast value
-        self.cast(value, MirType::Word)
+        self.cast(value, MirType::I256)
     }
 
     /// Preserve a source ABI validation obligation until interface lowering discharges it.
@@ -1175,7 +1172,7 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         // ptr = word_cast ptr
         // object = memory_object_from_ptr ptr
-        let ptr = self.cast(ptr, MirType::Word);
+        let ptr = self.cast(ptr, MirType::I256);
         self.emit_inst(
             InstKind::MemoryObjectFromPtr { ptr, kind },
             Some(MirType::MemoryObject(kind)),
@@ -1204,7 +1201,7 @@ impl<'a> FunctionBuilder<'a> {
         data: ValueId,
         result_ty: MirType,
     ) -> ValueId {
-        let data = if self.func.value_ty(data) == Some(MirType::Word) {
+        let data = if self.func.value_ty(data) == Some(MirType::I256) {
             // object = alloc_bytes static_head_size
             // memory_object_copy_from_slice object, make_memory_slice(data, static_head_size)
             let size = self.imm(layout.checked_head_size().expect("static ABI layout"));
@@ -1342,7 +1339,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Emits an address inside the current internal-call frame.
     pub(crate) fn internal_frame_addr(&mut self, offset: u64) -> ValueId {
-        self.emit_inst(InstKind::InternalFrameAddr(offset), Some(MirType::Word))
+        self.emit_inst(InstKind::InternalFrameAddr(offset), Some(MirType::I256))
     }
 
     /// Loads a mutable local through its logical frame slot.
@@ -1367,7 +1364,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     pub(crate) fn slotnum(&mut self) -> ValueId {
-        self.emit_inst(InstKind::SlotNum, Some(MirType::Word))
+        self.emit_inst(InstKind::SlotNum, Some(MirType::I256))
     }
 
     /// Emits a low-level address call over a bytes object.
@@ -1382,7 +1379,7 @@ impl<'a> FunctionBuilder<'a> {
         // success = address_call(address, input, gas?, value?)
         self.emit_inst(
             InstKind::AddressCall { kind, address, input, gas, value },
-            Some(MirType::Bool),
+            Some(MirType::I1),
         )
     }
 
@@ -1400,7 +1397,7 @@ impl<'a> FunctionBuilder<'a> {
         // success = send address, amount
         self.emit_inst(
             InstKind::builtin(crate::mir::Builtin::Send, [address, amount]),
-            Some(MirType::Word),
+            Some(MirType::I256),
         )
     }
 
@@ -1424,7 +1421,7 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         self.emit_inst(
             InstKind::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size },
-            Some(MirType::Bool),
+            Some(MirType::I1),
         )
     }
 
@@ -1442,7 +1439,7 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         self.emit_inst(
             InstKind::CallCode { gas, addr, value, args_offset, args_size, ret_offset, ret_size },
-            Some(MirType::Bool),
+            Some(MirType::I1),
         )
     }
 
@@ -1458,7 +1455,7 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         self.emit_inst(
             InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size },
-            Some(MirType::Bool),
+            Some(MirType::I1),
         )
     }
 
@@ -1474,7 +1471,7 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         self.emit_inst(
             InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size },
-            Some(MirType::Bool),
+            Some(MirType::I1),
         )
     }
 
@@ -1486,7 +1483,7 @@ impl<'a> FunctionBuilder<'a> {
         size: ValueId,
         salt: ValueId,
     ) -> ValueId {
-        self.emit_inst(InstKind::Create2(value, offset, size, salt), Some(MirType::Word))
+        self.emit_inst(InstKind::Create2(value, offset, size, salt), Some(MirType::I256))
     }
 
     /// Emits a log0 instruction (event with no topics).
@@ -1542,7 +1539,7 @@ impl<'a> FunctionBuilder<'a> {
         then_val: ValueId,
         else_val: ValueId,
     ) -> ValueId {
-        let cond = self.cast(cond, MirType::Bool);
+        let cond = self.cast(cond, MirType::I1);
         let ty = self.func.value_ty(then_val).unwrap();
         let else_val = self.cast(else_val, ty);
         // result = select cond, then_val, else_val
@@ -1556,7 +1553,7 @@ impl<'a> FunctionBuilder<'a> {
         let ty = incoming
             .first()
             .and_then(|(_, value)| self.func.value_ty(*value))
-            .unwrap_or(MirType::Word);
+            .unwrap_or(MirType::I256);
         self.emit_inst(InstKind::Phi(incoming), Some(ty))
     }
 
@@ -1589,7 +1586,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Sets a branch terminator.
     pub(crate) fn branch(&mut self, condition: ValueId, then_block: BlockId, else_block: BlockId) {
-        let condition = self.cast(condition, MirType::Bool);
+        let condition = self.cast(condition, MirType::I1);
         // branch condition, then_block, else_block
         self.set_terminator(Terminator::Branch { condition, then_block, else_block });
     }

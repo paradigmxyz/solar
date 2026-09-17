@@ -2,11 +2,11 @@
 + // === ROOT/tests/ui/codegen/mir/egraph/lossless_shifts.mir (after egraph) ===
   @module LosslessShifts
   types:
-    struct0: {word, word}
-    struct1: {word, word, word}
-    struct2: {word, word, word, word, word, word}
+    struct0: {i256, i256}
+    struct1: {i256, i256, i256}
+    struct2: {i256, i256, i256, i256, i256, i256}
   
-  fn @roundtrip_byte(arg0: word) -> word {
+  fn @roundtrip_byte(arg0: i256) -> i256 {
     bb0:
       v0 = byte 0, arg0
       v1 = shl 248, v0
@@ -15,7 +15,7 @@
 +     ret v0
   }
   
-  fn @roundtrip_bool(arg0: word, arg1: word) -> word {
+  fn @roundtrip_bool(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = eq arg0, arg1
       v1 = word_cast v0
@@ -25,7 +25,7 @@
 +     ret v1
   }
   
-  fn @shared_shift(arg0: word) -> struct0 [return_abi=[word, word]] {
+  fn @shared_shift(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = byte 31, arg0
       v1 = shl 248, v0
@@ -33,14 +33,14 @@
       ret v1, v2
   }
   
-  fn @truncating_roundtrip(arg0: word) -> word {
+  fn @truncating_roundtrip(arg0: i256) -> i256 {
     bb0:
       v0 = shl 248, arg0
       v1 = shr 248, v0
       ret v1
   }
   
-  fn @overshift(arg0: word) -> word {
+  fn @overshift(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
 -     v1 = shl 256, v0
@@ -49,7 +49,7 @@
 +     ret 0
   }
   
-  fn @shifted_compare(arg0: word, arg1: word) -> struct1 [return_abi=[word, word, word]] {
+  fn @shifted_compare(arg0: i256, arg1: i256) -> struct1 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = byte 0, arg0
       v1 = byte 31, arg1
@@ -64,7 +64,7 @@
       ret v7, v8, v9
   }
   
-  fn @across_blocks(arg0: word, arg1: word) -> word {
+  fn @across_blocks(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = byte 0, arg0
       v1 = shl 248, v0
@@ -82,7 +82,7 @@
       ret v4
   }
   
-  fn @aligned_constants(arg0: word) -> struct2 [return_abi=[word, word, word, word, word, word]] {
+  fn @aligned_constants(arg0: i256) -> struct2 [return_abi=[i256, i256, i256, i256, i256, i256]] {
     bb0:
       v0 = byte 31, arg0
       v1 = shl 248, v0
@@ -105,7 +105,7 @@
 +     ret v8, v9, v10, v8, v10, v9
   }
   
-  fn @unaligned_constants(arg0: word) -> struct1 [return_abi=[word, word, word]] {
+  fn @unaligned_constants(arg0: i256) -> struct1 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = byte 31, arg0
       v1 = shl 248, v0
@@ -118,7 +118,7 @@
       ret v5, v6, v7
   }
   
-  fn @truncating_compare(arg0: word, arg1: word) -> struct1 [return_abi=[word, word, word]] {
+  fn @truncating_compare(arg0: i256, arg1: i256) -> struct1 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = shl 248, arg0
       v1 = shl 248, arg1
@@ -131,7 +131,7 @@
       ret v5, v6, v7
   }
   
-  fn @signed_compare(arg0: word, arg1: word) -> struct0 [return_abi=[word, word]] {
+  fn @signed_compare(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = byte 31, arg0
       v1 = byte 31, arg1
@@ -144,7 +144,7 @@
       ret v6, v7
   }
   
-  fn @cross_block_roundtrip(arg0: word, arg1: word) -> word {
+  fn @cross_block_roundtrip(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
       v1 = shl 248, v0
@@ -157,7 +157,7 @@
       ret v3
   }
   
-  fn @single_eq(arg0: word, arg1: word) -> word {
+  fn @single_eq(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = byte 0, arg0
       v1 = byte 31, arg1
@@ -169,7 +169,7 @@
       ret v5
   }
   
-  fn @constant_eq_0(arg0: word) -> word {
+  fn @constant_eq_0(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
       v1 = shl 248, v0
@@ -179,7 +179,7 @@
       ret v3
   }
   
-  fn @constant_eq_1(arg0: word) -> word {
+  fn @constant_eq_1(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
       v1 = shl 248, v0
@@ -189,7 +189,7 @@
       ret v3
   }
   
-  fn @single_lt(arg0: word, arg1: word) -> word {
+  fn @single_lt(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = byte 0, arg0
       v1 = byte 31, arg1
@@ -201,7 +201,7 @@
       ret v5
   }
   
-  fn @constant_lt_0(arg0: word) -> word {
+  fn @constant_lt_0(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
       v1 = shl 248, v0
@@ -211,7 +211,7 @@
       ret v3
   }
   
-  fn @constant_lt_1(arg0: word) -> word {
+  fn @constant_lt_1(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
       v1 = shl 248, v0
@@ -221,7 +221,7 @@
       ret v3
   }
   
-  fn @single_gt(arg0: word, arg1: word) -> word {
+  fn @single_gt(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = byte 0, arg0
       v1 = byte 31, arg1
@@ -233,7 +233,7 @@
       ret v5
   }
   
-  fn @constant_gt_0(arg0: word) -> word {
+  fn @constant_gt_0(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
       v1 = shl 248, v0
@@ -243,7 +243,7 @@
       ret v3
   }
   
-  fn @constant_gt_1(arg0: word) -> word {
+  fn @constant_gt_1(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
       v1 = shl 248, v0
@@ -257,18 +257,18 @@
 + // === ROOT/tests/ui/codegen/mir/egraph/lossless_shifts.mir (after dce) ===
   @module LosslessShifts
   types:
-    struct0: {word, word}
-    struct1: {word, word, word}
-    struct2: {word, word, word, word, word, word}
+    struct0: {i256, i256}
+    struct1: {i256, i256, i256}
+    struct2: {i256, i256, i256, i256, i256, i256}
   
-  fn @roundtrip_byte(arg0: word) -> word {
+  fn @roundtrip_byte(arg0: i256) -> i256 {
     bb0:
       v0 = byte 0, arg0
 -     v1 = shl 248, v0
       ret v0
   }
   
-  fn @roundtrip_bool(arg0: word, arg1: word) -> word {
+  fn @roundtrip_bool(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = eq arg0, arg1
       v1 = word_cast v0
@@ -276,7 +276,7 @@
       ret v1
   }
   
-  fn @shared_shift(arg0: word) -> struct0 [return_abi=[word, word]] {
+  fn @shared_shift(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = byte 31, arg0
       v1 = shl 248, v0
@@ -284,20 +284,20 @@
       ret v1, v2
   }
   
-  fn @truncating_roundtrip(arg0: word) -> word {
+  fn @truncating_roundtrip(arg0: i256) -> i256 {
     bb0:
       v0 = shl 248, arg0
       v1 = shr 248, v0
       ret v1
   }
   
-  fn @overshift(arg0: word) -> word {
+  fn @overshift(arg0: i256) -> i256 {
     bb0:
 -     v0 = byte 31, arg0
       ret 0
   }
   
-  fn @shifted_compare(arg0: word, arg1: word) -> struct1 [return_abi=[word, word, word]] {
+  fn @shifted_compare(arg0: i256, arg1: i256) -> struct1 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = byte 0, arg0
       v1 = byte 31, arg1
@@ -312,7 +312,7 @@
       ret v7, v8, v9
   }
   
-  fn @across_blocks(arg0: word, arg1: word) -> word {
+  fn @across_blocks(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = byte 0, arg0
 -     v1 = shl 248, v0
@@ -328,7 +328,7 @@
       ret v4
   }
   
-  fn @aligned_constants(arg0: word) -> struct2 [return_abi=[word, word, word, word, word, word]] {
+  fn @aligned_constants(arg0: i256) -> struct2 [return_abi=[i256, i256, i256, i256, i256, i256]] {
     bb0:
       v0 = byte 31, arg0
 -     v1 = shl 248, v0
@@ -341,7 +341,7 @@
       ret v8, v9, v10, v8, v10, v9
   }
   
-  fn @unaligned_constants(arg0: word) -> struct1 [return_abi=[word, word, word]] {
+  fn @unaligned_constants(arg0: i256) -> struct1 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = byte 31, arg0
       v1 = shl 248, v0
@@ -354,7 +354,7 @@
       ret v5, v6, v7
   }
   
-  fn @truncating_compare(arg0: word, arg1: word) -> struct1 [return_abi=[word, word, word]] {
+  fn @truncating_compare(arg0: i256, arg1: i256) -> struct1 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = shl 248, arg0
       v1 = shl 248, arg1
@@ -367,7 +367,7 @@
       ret v5, v6, v7
   }
   
-  fn @signed_compare(arg0: word, arg1: word) -> struct0 [return_abi=[word, word]] {
+  fn @signed_compare(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = byte 31, arg0
       v1 = byte 31, arg1
@@ -380,7 +380,7 @@
       ret v6, v7
   }
   
-  fn @cross_block_roundtrip(arg0: word, arg1: word) -> word {
+  fn @cross_block_roundtrip(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
       v1 = shl 248, v0
@@ -393,7 +393,7 @@
       ret v3
   }
   
-  fn @single_eq(arg0: word, arg1: word) -> word {
+  fn @single_eq(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = byte 0, arg0
       v1 = byte 31, arg1
@@ -404,7 +404,7 @@
       ret v5
   }
   
-  fn @constant_eq_0(arg0: word) -> word {
+  fn @constant_eq_0(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
 -     v1 = shl 248, v0
@@ -413,7 +413,7 @@
       ret v3
   }
   
-  fn @constant_eq_1(arg0: word) -> word {
+  fn @constant_eq_1(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
 -     v1 = shl 248, v0
@@ -422,7 +422,7 @@
       ret v3
   }
   
-  fn @single_lt(arg0: word, arg1: word) -> word {
+  fn @single_lt(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = byte 0, arg0
       v1 = byte 31, arg1
@@ -433,7 +433,7 @@
       ret v5
   }
   
-  fn @constant_lt_0(arg0: word) -> word {
+  fn @constant_lt_0(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
 -     v1 = shl 248, v0
@@ -442,7 +442,7 @@
       ret v3
   }
   
-  fn @constant_lt_1(arg0: word) -> word {
+  fn @constant_lt_1(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
 -     v1 = shl 248, v0
@@ -451,7 +451,7 @@
       ret v3
   }
   
-  fn @single_gt(arg0: word, arg1: word) -> word {
+  fn @single_gt(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = byte 0, arg0
       v1 = byte 31, arg1
@@ -462,7 +462,7 @@
       ret v5
   }
   
-  fn @constant_gt_0(arg0: word) -> word {
+  fn @constant_gt_0(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
 -     v1 = shl 248, v0
@@ -471,7 +471,7 @@
       ret v3
   }
   
-  fn @constant_gt_1(arg0: word) -> word {
+  fn @constant_gt_1(arg0: i256) -> i256 {
     bb0:
       v0 = byte 31, arg0
 -     v1 = shl 248, v0

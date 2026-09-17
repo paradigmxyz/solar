@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_mul_div.mir (before check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_mul_div.mir (after check-elim) ===
   @module CheckElimMulDiv
-  fn @fold_mul_check_with_bound(arg0: word) -> word {
+  fn @fold_mul_check_with_bound(arg0: i256) -> i256 {
     bb0:
       v0 = lt arg0, 100
       jumpi v0, bb1, bb2
@@ -20,7 +20,7 @@
       revert 0, 0
   }
   
-  fn @keep_mul_check_without_bound(arg0: word) -> word {
+  fn @keep_mul_check_without_bound(arg0: i256) -> i256 {
     bb0:
       v0 = mul arg0, 3
       v1 = div v0, 3

@@ -43,7 +43,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @reasonLength() -> word [selector=0xa4bc2ef1, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @reasonLength() -> i256 [selector=0xa4bc2ef1, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -103,7 +103,7 @@ fn @reasonLength() -> word [selector=0xa4bc2ef1, view, abi_params=[], abi_return
     ret 0
 }
 
-fn @try_decode_error_message(arg0: word, arg1: word) -> bool {
+fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
   bb0:
     v0 = lt arg1, 68
     v1 = eq v0, false

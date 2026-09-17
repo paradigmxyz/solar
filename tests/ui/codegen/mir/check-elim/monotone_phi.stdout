@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/check-elim/monotone_phi.mir (before check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/check-elim/monotone_phi.mir (after check-elim) ===
   @module CheckElimMonotonePhi
-  fn @fold_descending_index_bounds(arg0: word, arg1: word, arg2: word) -> word {
+  fn @fold_descending_index_bounds(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
       v0 = lt arg1, arg2
       jumpi v0, bb1, bb8
@@ -35,7 +35,7 @@
       jump bb2
   }
   
-  fn @keep_unguarded_decrement(arg0: word, arg1: word, arg2: word) -> word {
+  fn @keep_unguarded_decrement(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
       v0 = lt arg1, arg2
       jumpi v0, bb1, bb5
@@ -58,7 +58,7 @@
       jump bb2
   }
   
-  fn @fold_ascending_lower_bound(arg0: word, arg1: word) -> word {
+  fn @fold_ascending_lower_bound(arg0: i256, arg1: i256) -> i256 {
     bb0:
       jump bb1
     bb1:

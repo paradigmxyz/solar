@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-slices/returndata_slice.mir (before lower-slices) ===
 + // === ROOT/tests/ui/codegen/mir/lower-slices/returndata_slice.mir (after lower-slices) ===
   @module ReturndataSlice
-  fn @copy_returndata() -> word {
+  fn @copy_returndata() -> i256 {
     bb0:
       v0 = returndatasize
 -     v1 = make_returndata_slice 0, v0
@@ -19,8 +19,8 @@
       ret v7
   }
   
-- fn @consume_returndata(arg0: returndataslice) -> word {
-+ fn @consume_returndata(arg0: word, arg1: word) -> word {
+- fn @consume_returndata(arg0: returndataslice) -> i256 {
++ fn @consume_returndata(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = slice_ptr arg0
 -     v1 = slice_len arg0

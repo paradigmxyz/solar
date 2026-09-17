@@ -7,7 +7,7 @@
 @phase semantic
 
 types:
-  struct0: {memoryslice, word}
+  struct0: {memoryslice, i256}
   struct1: {memorybytes}
 
 fn @legacy(arg0: memorybytes) -> memoryslice {

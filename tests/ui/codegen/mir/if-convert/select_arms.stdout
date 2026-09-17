@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/if-convert/select_arms.mir (before if-convert) ===
 + // === ROOT/tests/ui/codegen/mir/if-convert/select_arms.mir (after if-convert) ===
   @module SelectArms
-  fn @search_step(arg0: word, arg1: word) -> word {
+  fn @search_step(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = shr 128, arg0
       v1 = eq v0, 0
@@ -25,7 +25,7 @@
       ret v7
   }
   
-  fn @cheap_diamond(arg0: word, arg1: word) -> word {
+  fn @cheap_diamond(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = ne arg0, 0
 -     jumpi v0, bb1, bb2
@@ -46,7 +46,7 @@
 +     ret v7
   }
   
-  fn @diamond(arg0: word, arg1: word) -> word {
+  fn @diamond(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
@@ -65,7 +65,7 @@
       ret v7
   }
   
-  fn @memory_arm(arg0: bool, arg1: word) -> word {
+  fn @memory_arm(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb1:
@@ -76,7 +76,7 @@
       ret v1
   }
   
-  fn @wide_arm(arg0: bool, arg1: word) -> word {
+  fn @wide_arm(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb1:
@@ -90,7 +90,7 @@
       ret v4
   }
   
-  fn @word_condition(arg0: word, arg1: word) -> word {
+  fn @word_condition(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = ne arg0, 0
 -     jumpi v0, bb1, bb2
@@ -106,7 +106,7 @@
 +     ret v5
   }
   
-  fn @literal_arms(arg0: bool) -> word {
+  fn @literal_arms(arg0: i1) -> i256 {
     bb0:
 -     jumpi arg0, bb1, bb2
 -   bb2:
@@ -122,7 +122,7 @@
 +     ret v3
   }
   
-  fn @literal_or_value(arg0: bool, arg1: word) -> word {
+  fn @literal_or_value(arg0: i1, arg1: i256) -> i256 {
     bb0:
 -     jumpi arg0, bb2, bb1
 -   bb1:
@@ -137,7 +137,7 @@
 +     ret v4
   }
   
-  fn @table_ladder(arg0: word) -> word {
+  fn @table_ladder(arg0: i256) -> i256 {
     bb0:
       v0 = lt arg0, 64
 -     jumpi v0, bb4, bb1
@@ -163,7 +163,7 @@
       ret v5
   }
   
-  fn @pointer_arms(arg0: bool, arg1: memorystruct, arg2: memorystruct) -> word {
+  fn @pointer_arms(arg0: i1, arg1: memorystruct, arg2: memorystruct) -> i256 {
     bb0:
       jumpi arg0, bb2, bb1
     bb1:

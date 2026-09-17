@@ -10,7 +10,7 @@
 // CHECK: + ret [[COUNT]]
 // CHECK: + {{v[0-9]+}} = and {{v[0-9]+}}, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
 // CHECK: + {{v[0-9]+}} = mul {{v[0-9]+}}, 0x1010101010101010101010101010101
-fn @count_zero(arg0: word) -> word {
+fn @count_zero(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -45,7 +45,7 @@ fn @count_zero(arg0: word) -> word {
 // CHECK: + {{v[0-9]+}} = calldataload {{v[0-9]+}}
 // CHECK: + {{v[0-9]+}} = and {{v[0-9]+}}, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
 // CHECK: + {{v[0-9]+}} = mul {{v[0-9]+}}, 0x101010101010101010101010101010101010101010101010101010101010101
-fn @count_zero_calldata(arg0: word, arg1: word) -> word {
+fn @count_zero_calldata(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_retargets_calls.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_retargets_calls.mir (after lower-abi) ===
   @module LowerAbiRetargets
-- fn @pub(arg0: word) -> word [selector=0x0a0a0a01, abi_returns=[word]] {
+- fn @pub(arg0: i256) -> i256 [selector=0x0a0a0a01, abi_returns=[word]] {
 + fn @pub() [selector=0x0a0a0a01, abi_wrapper] {
     bb0:
 +     v1 = calldatasize
@@ -20,7 +20,7 @@
 +     revert 0, 0
   }
   
-- fn @caller(arg0: word) -> word [selector=0x0a0a0a02, abi_returns=[word]] {
+- fn @caller(arg0: i256) -> i256 [selector=0x0a0a0a02, abi_returns=[word]] {
 + fn @caller() [selector=0x0a0a0a02, abi_wrapper] {
     bb0:
 -     v0 = icall @pub, arg0
@@ -160,13 +160,13 @@
 +     returndata 128, v2
 + }
 + 
-+ fn @pub.body(arg0: word) -> word {
++ fn @pub.body(arg0: i256) -> i256 {
 +   bb0:
 +     v0 = add arg0, 1
       ret v0
   }
   
-- fn @sliceBody() -> word [selector=0x0a0a0a0b, abi_params=[], abi_returns=[word]] {
+- fn @sliceBody() -> i256 [selector=0x0a0a0a0b, abi_params=[], abi_returns=[word]] {
 + fn @literal.body() -> memorybytes {
     bb0:
 +     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -175,7 +175,7 @@
 +     ret v0
 + }
 + 
-+ fn @sliceBody.body() -> word {
++ fn @sliceBody.body() -> i256 {
 +   bb0:
       v0 = make_calldata_slice 4, 32
       jump bb1
@@ -184,7 +184,7 @@
       ret v1
 - }
 - 
-- fn @sliceCaller() -> word [selector=0x0a0a0a0c, abi_params=[], abi_returns=[word]] {
+- fn @sliceCaller() -> i256 [selector=0x0a0a0a0c, abi_params=[], abi_returns=[word]] {
 -   bb0:
 -     v0 = icall @sliceBody
 -     ret v0

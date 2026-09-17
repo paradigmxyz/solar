@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_init_return.sol:ModifierInitReturn ===
 @module ModifierInitReturn
-fn @f(arg0: word) -> memoryfixedarray [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[array<5, word>], abi_return_params=[array<5, u256>]] {
+fn @f(arg0: i256) -> memoryfixedarray [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[array<5, word>], abi_return_params=[array<5, u256>]] {
   bb0:
     v0 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
     memory_zero v0, 160

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/storage-dse/control_flow_runtime.sol:StorageControlFlow ===
 @module StorageControlFlow
-fn @changingSlot() -> word [selector=0xf8e62371, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @changingSlot() -> i256 [selector=0xf8e62371, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -35,7 +35,7 @@ fn @changingSlot() -> word [selector=0xf8e62371, abi_params=[], abi_returns=[wor
     ret v9
 }
 
-fn @observer() -> word [selector=0xeb70e498, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @observer() -> i256 [selector=0xeb70e498, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     v0 = address
@@ -59,13 +59,13 @@ fn @observer() -> word [selector=0xeb70e498, abi_params=[], abi_returns=[word], 
     ret v11
 }
 
-fn @readWord() -> word [selector=0x05cd82f4, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @readWord() -> i256 [selector=0x05cd82f4, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @write(arg0: word) -> word [selector=0x6ebfc750, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @write(arg0: i256) -> i256 [selector=0x6ebfc750, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     v0 = ne arg0, 0
@@ -81,7 +81,7 @@ fn @write(arg0: word) -> word [selector=0x6ebfc750, abi_params=[bool], abi_retur
     ret v1
 }
 
-fn @observed(arg0: word) -> word [selector=0xc61230fa, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @observed(arg0: i256) -> i256 [selector=0xc61230fa, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     v0 = ne arg0, 0
@@ -98,7 +98,7 @@ fn @observed(arg0: word) -> word [selector=0xc61230fa, abi_params=[bool], abi_re
     ret v2
 }
 
-fn @pack(arg0: word, arg1: word) -> word [selector=0x5a5ffdde, abi_params=[u8, u8], abi_returns=[word], abi_return_params=[u256]] {
+fn @pack(arg0: i256, arg1: i256) -> i256 [selector=0x5a5ffdde, abi_params=[u8, u8], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and arg0, 255
     v1 = sload 1 !metadata(storage=slot(1))
@@ -126,7 +126,7 @@ fn @pack(arg0: word, arg1: word) -> word [selector=0x5a5ffdde, abi_params=[u8, u
     ret v20
 }
 
-fn @preserve(arg0: word, arg1: word) -> word [selector=0xced1063a, abi_params=[u8, u8], abi_returns=[word], abi_return_params=[u256]] {
+fn @preserve(arg0: i256, arg1: i256) -> i256 [selector=0xced1063a, abi_params=[u8, u8], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 0xffffffffffffffff !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))

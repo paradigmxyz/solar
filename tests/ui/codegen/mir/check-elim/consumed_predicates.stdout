@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/check-elim/consumed_predicates.mir (before check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/check-elim/consumed_predicates.mir (after check-elim) ===
   @module ConsumedPredicates
-  fn @operands(arg0: word) -> word {
+  fn @operands(arg0: i256) -> i256 {
     bb0:
       v0 = lt arg0, 8
       v1 = eq v0, false
@@ -17,7 +17,7 @@
       ret 0
   }
   
-  fn @reused(arg0: word) -> word {
+  fn @reused(arg0: i256) -> i256 {
     bb0:
       v0 = calldataload arg0
       v1 = ne v0, 0
@@ -34,7 +34,7 @@
       ret 1
   }
   
-  fn @phi_user(arg0: word) -> word {
+  fn @phi_user(arg0: i256) -> i256 {
     bb0:
       v0 = eq arg0, 0
       jumpi v0, bb1, bb2

@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_structs.sol:AbiDecodeStructsRunCall ===
 @module AbiDecodeStructsRunCall
 types:
-  struct0: {word, word, word}
-  struct1: {word, memorybytes, word}
-  struct2: {word, memorybytes, memoryarray}
-  struct3: {word, word, word, word}
-  struct4: {word, word}
-  struct5: {word, word, word, word, word, word}
-  struct6: {word, word, word, word, word}
+  struct0: {i256, i256, i256}
+  struct1: {i256, memorybytes, i256}
+  struct2: {i256, memorybytes, memoryarray}
+  struct3: {i256, i256, i256, i256}
+  struct4: {i256, i256}
+  struct5: {i256, i256, i256, i256, i256, i256}
+  struct6: {i256, i256, i256, i256, i256}
   struct7: {memoryarray, memoryarray}
 
 fn @dFlat(arg0: memorybytes) -> struct0 [selector=0x6644232b, pure, abi_params=[bytes], abi_returns=[word, word<u160>, word<bool>], abi_return_params=[u256, address, bool]] {

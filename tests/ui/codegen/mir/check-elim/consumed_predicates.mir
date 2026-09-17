@@ -2,7 +2,7 @@
 @module ConsumedPredicates
 
 // Discarding the single-use predicate chain must retain the bound on arg0.
-fn @operands(arg0: word) -> word {
+fn @operands(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 8
     v1 = eq v0, false
@@ -18,7 +18,7 @@ fn @operands(arg0: word) -> word {
 }
 
 // An opaque word reused by a later branch still needs its scoped range.
-fn @reused(arg0: word) -> word {
+fn @reused(arg0: i256) -> i256 {
   bb0:
     v0 = calldataload arg0
     v1 = ne v0, 0
@@ -33,7 +33,7 @@ fn @reused(arg0: word) -> word {
 }
 
 // Phi users count too: each edge supplies a value proven to be one.
-fn @phi_user(arg0: word) -> word {
+fn @phi_user(arg0: i256) -> i256 {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2

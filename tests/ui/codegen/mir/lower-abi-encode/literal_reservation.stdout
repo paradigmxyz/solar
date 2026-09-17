@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (before lower-abi-encode) ===
 + // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (after lower-abi-encode) ===
   @module LiteralReservation
-  fn @encode(arg0: word) -> memoryslice {
+  fn @encode(arg0: i256) -> memoryslice {
     bb0:
 -     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
 -     set_memory_object_len memorybytes, v0, 33
@@ -40,7 +40,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (after egraph) ===
   @module LiteralReservation
-  fn @encode(arg0: word) -> memoryslice {
+  fn @encode(arg0: i256) -> memoryslice {
     bb0:
       v3 = alloc raw, exact, uninitialized, infallible, 256
       mstore v3, 0x1234567800000000000000000000000000000000000000000000000000000000
@@ -74,7 +74,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (after dce) ===
   @module LiteralReservation
-  fn @encode(arg0: word) -> memoryslice {
+  fn @encode(arg0: i256) -> memoryslice {
     bb0:
       v3 = alloc raw, exact, uninitialized, infallible, 256
       mstore v3, 0x1234567800000000000000000000000000000000000000000000000000000000

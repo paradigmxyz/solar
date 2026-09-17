@@ -110,8 +110,8 @@ impl ResultKind {
     pub(crate) const fn default_type(self) -> Option<MirType> {
         match self {
             Self::None | Self::Custom => None,
-            Self::Word => Some(MirType::Word),
-            Self::Bool => Some(MirType::Bool),
+            Self::Word => Some(MirType::I256),
+            Self::Bool => Some(MirType::I1),
         }
     }
 
@@ -2650,7 +2650,7 @@ mod tests {
         assert!(calldata_size.op_def().traits.contains(OpTraits::REMATERIALIZABLE));
         assert!(calldata_size.op_def().phases.contains(MirPhase::Lowered));
 
-        assert_eq!(add.op_def().result.default_type(), Some(MirType::Word));
+        assert_eq!(add.op_def().result.default_type(), Some(MirType::I256));
         assert!(
             !InstKind::MStore(ValueId::new(0), ValueId::new(1)).op_def().result.produces_value()
         );

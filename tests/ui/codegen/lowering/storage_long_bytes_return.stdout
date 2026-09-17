@@ -39,7 +39,7 @@ fn @getB() -> memorybytes [selector=0xa1c51915, view, abi_params=[], abi_returns
     ret v0
 }
 
-fn @load_storage_bytes(arg0: word) -> memorybytes {
+fn @load_storage_bytes(arg0: i256) -> memorybytes {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0

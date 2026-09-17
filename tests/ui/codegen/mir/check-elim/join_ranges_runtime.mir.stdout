@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/join_ranges_runtime.sol:JoinedRanges ===
 @module JoinedRanges
-fn @choose(arg0: word, arg1: word, arg2: word) -> word [selector=0x28eac35d, pure, abi_params=[bool, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @choose(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x28eac35d, pure, abi_params=[bool, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
@@ -23,7 +23,7 @@ fn @choose(arg0: word, arg1: word, arg2: word) -> word [selector=0x28eac35d, pur
     ret v8
 }
 
-fn @boundedLoop(arg0: word) -> word [selector=0x46b5a18f, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @boundedLoop(arg0: i256) -> i256 [selector=0x46b5a18f, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gt arg0, 100
     v1 = eq v0, false
@@ -50,7 +50,7 @@ fn @boundedLoop(arg0: word) -> word [selector=0x46b5a18f, pure, abi_params=[u256
     jump bb1
 }
 
-fn @wrapLoop(arg0: word) -> word [selector=0xe58d2ef9, pure, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @wrapLoop(arg0: i256) -> i256 [selector=0xe58d2ef9, pure, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     jump bb1
   bb1:
@@ -74,7 +74,7 @@ fn @wrapLoop(arg0: word) -> word [selector=0xe58d2ef9, pure, abi_params=[u256], 
     jump bb1
 }
 
-fn @checked(arg0: word) -> word [selector=0x2e53fee2, pure, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @checked(arg0: i256) -> i256 [selector=0x2e53fee2, pure, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     jump bb1
   bb1:

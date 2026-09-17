@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_static_struct_validation.sol:AbiCalldataStaticStructValidation ===
 @module AbiCalldataStaticStructValidation
 types:
-  struct0: {word, word, word}
+  struct0: {i256, i256, i256}
 
 fn @f(arg0: memorystruct) -> struct0 [selector=0x9a869a74, pure, abi_params=[tuple<i16, u8, bytes2>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:

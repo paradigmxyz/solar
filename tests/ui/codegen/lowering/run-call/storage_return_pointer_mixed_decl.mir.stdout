@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_return_pointer_mixed_decl.sol:StorageReturnPointerMixedDecl ===
 @module StorageReturnPointerMixedDecl
 types:
-  struct0: {word, word, word}
+  struct0: {i256, i256, i256}
 
 fn @g() -> struct0 {
   bb0:
@@ -12,7 +12,7 @@ fn @g() -> struct0 {
     ret v2
 }
 
-fn @f() -> word [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @g
     v1 = extract_value struct0, v0, 0

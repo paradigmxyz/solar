@@ -1,7 +1,7 @@
 //@compile-flags: -Zmir-pipeline=lower-abi
 //@filecheck:
 
-// CHECK: + fn @constructor(arg0: word, arg1: word, arg2: word, arg3: word, arg4: word)
+// CHECK: + fn @constructor(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256)
 // CHECK-NOT: abi_params
 // CHECK: + [[VALUE:v[0-9]+]] = callvalue
 // CHECK: + [[CONDITION:v[0-9]+]] = ne [[VALUE]], 0
@@ -24,7 +24,7 @@
 // CHECK: + memory_object_store_element memoryfixedarray<2, 1>, [[INNER]], [[INNER_INDEX]], [[WORD]]
 @module LowerAbiConstructorParams
 
-fn @constructor(arg0: memoryfixedarray, arg1: word) [abi_params=[array<2, array<2, u256>>, u256]] {
+fn @constructor(arg0: memoryfixedarray, arg1: i256) [abi_params=[array<2, array<2, u256>>, u256]] {
   bb0:
     v0 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 1
     v3 = memory_object_from_ptr memoryfixedarray, v0

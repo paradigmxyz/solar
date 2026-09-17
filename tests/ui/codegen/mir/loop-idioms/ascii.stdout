@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/loop-idioms/ascii.mir (after loop-idioms) ===
   @module AsciiLoop
   @phase lowered
-  fn @ascii(arg0: word) -> bool {
+  fn @ascii(arg0: i256) -> i1 {
     bb0:
 -     jump bb1
 -   bb1:
@@ -100,7 +100,7 @@
 +     ret v58
   }
   
-  fn @effectful(arg0: word, arg1: word) -> bool {
+  fn @effectful(arg0: i256, arg1: i256) -> i1 {
     bb0:
       jump bb1
     bb1:

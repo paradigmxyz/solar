@@ -1,18 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_declaration_v2.sol:AbiEncodeCallDeclarationTarget ===
 @module AbiEncodeCallDeclarationTarget
-fn @a(arg0: word) [selector=0xf0fdf834, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @a(arg0: i256) [selector=0xf0fdf834, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @b(arg0: word) [selector=0xcd580ff3, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @b(arg0: i256) [selector=0xcd580ff3, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_declaration_v2.sol:AbiEncodeCallDeclarationBase ===
 @module AbiEncodeCallDeclarationBase
-fn @a(arg0: word) -> word [selector=0xf0fdf834, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @a(arg0: i256) -> i256 [selector=0xf0fdf834, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_add u256, arg0, 1
     ret v0
@@ -20,7 +20,7 @@ fn @a(arg0: word) -> word [selector=0xf0fdf834, pure, abi_params=[u256], abi_ret
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_declaration_v2.sol:AbiEncodeCallDeclaration ===
 @module AbiEncodeCallDeclaration
-fn @test() -> word [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -130,7 +130,7 @@ fn @test() -> word [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
     ret v62
 }
 
-fn @b(arg0: word) -> word [selector=0xcd580ff3, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @b(arg0: i256) -> i256 [selector=0xcd580ff3, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -152,7 +152,7 @@ fn @b(arg0: word) -> word [selector=0xcd580ff3, view, abi_params=[u256], abi_ret
     ret v11
 }
 
-fn @a(arg0: word) -> word [selector=0xf0fdf834, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @a(arg0: i256) -> i256 [selector=0xf0fdf834, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_add u256, arg0, 1
     ret v0

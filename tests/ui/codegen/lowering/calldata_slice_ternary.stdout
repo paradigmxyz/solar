@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_ternary.sol:CalldataSliceTernary ===
 @module CalldataSliceTernary
-fn @pick(arg0: word, arg1: calldataslice, arg2: calldataslice) -> word [selector=0x159bd6de, pure, abi_params=[bool, bytes, bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @pick(arg0: i256, arg1: calldataslice, arg2: calldataslice) -> i256 [selector=0x159bd6de, pure, abi_params=[bool, bytes, bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
@@ -14,7 +14,7 @@ fn @pick(arg0: word, arg1: calldataslice, arg2: calldataslice) -> word [selector
     ret v2
 }
 
-fn @adopt(arg0: word, arg1: calldataslice) -> memorybytes [selector=0x7b54f632, pure, abi_params=[bool, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @adopt(arg0: i256, arg1: calldataslice) -> memorybytes [selector=0x7b54f632, pure, abi_params=[bool, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 2

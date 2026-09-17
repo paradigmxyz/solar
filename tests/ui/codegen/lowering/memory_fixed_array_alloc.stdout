@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:MemoryFixedArrayAlloc ===
 @module MemoryFixedArrayAlloc
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
-fn @guardedFix(arg0: word) -> word [selector=0x93390577, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @guardedFix(arg0: i256) -> i256 [selector=0x93390577, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_zero v0, 96
@@ -14,7 +14,7 @@ fn @guardedFix(arg0: word) -> word [selector=0x93390577, pure, abi_params=[u256]
     ret v3
 }
 
-fn @structArr(arg0: word) -> word [selector=0x40b8037f, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @structArr(arg0: i256) -> i256 [selector=0x40b8037f, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     v1 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
@@ -29,7 +29,7 @@ fn @structArr(arg0: word) -> word [selector=0x40b8037f, pure, abi_params=[u256],
     ret v6
 }
 
-fn @nested(arg0: word, arg1: word) -> word [selector=0x50d1f082, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @nested(arg0: i256, arg1: i256) -> i256 [selector=0x50d1f082, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     jump bb1
@@ -114,7 +114,7 @@ fn @fmpIntegrity() -> struct0 [selector=0xe547cb4d, pure, abi_params=[], abi_ret
     ret v15
 }
 
-fn @literal() -> word [selector=0x1373185e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @literal() -> i256 [selector=0x1373185e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     memory_object_store_element memoryfixedarray<3, 1>, v0, 0, 1
@@ -127,7 +127,7 @@ fn @literal() -> word [selector=0x1373185e, pure, abi_params=[], abi_returns=[wo
     ret v3
 }
 
-fn @bulkDefault(arg0: word) -> word [selector=0xbe4421b6, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @bulkDefault(arg0: i256) -> i256 [selector=0xbe4421b6, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
     memory_zero v0, 128
@@ -141,9 +141,9 @@ fn @bulkDefault(arg0: word) -> word [selector=0xbe4421b6, pure, abi_params=[u256
 // === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:NamedReturnAndDelete ===
 @module NamedReturnAndDelete
 types:
-  struct0: {memoryfixedarray, word}
+  struct0: {memoryfixedarray, i256}
   struct1: {memoryarray, memorybytes}
-  struct2: {word, word}
+  struct2: {i256, i256}
 
 fn @namedReturn() -> struct0 [selector=0xf76de570, pure, abi_params=[], abi_returns=[array<3, word>, word], abi_return_params=[array<3, u256>, u256]] {
   bb0:
@@ -179,7 +179,7 @@ fn @namedReturn() -> struct0 [selector=0xf76de570, pure, abi_params=[], abi_retu
     ret v19
 }
 
-fn @emptyMemoryReferences() -> word [selector=0xc82d0745, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @emptyMemoryReferences() -> i256 [selector=0xc82d0745, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, memoryarray 96

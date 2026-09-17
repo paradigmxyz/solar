@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_trivial_phi_chain.mir (before cfg-simplify) ===
 + // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_trivial_phi_chain.mir (after cfg-simplify) ===
   @module CfgSimplifyTrivialPhiChain
-  fn @chained_trivial(arg0: word) -> word {
+  fn @chained_trivial(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:

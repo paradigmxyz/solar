@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/builtin_addmod_mulmod.sol:AddmodMulmod ===
 @module AddmodMulmod
-fn @am(arg0: word, arg1: word, arg2: word) -> word [selector=0xc1013215, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @am(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xc1013215, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v1 = ne arg2, 0
     jumpi v1, bb2, bb1
@@ -13,7 +13,7 @@ fn @am(arg0: word, arg1: word, arg2: word) -> word [selector=0xc1013215, pure, a
     ret v2
 }
 
-fn @mm(arg0: word, arg1: word, arg2: word) -> word [selector=0x91b121df, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @mm(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x91b121df, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v1 = ne arg2, 0
     jumpi v1, bb2, bb1

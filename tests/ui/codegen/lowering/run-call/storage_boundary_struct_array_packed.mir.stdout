@@ -1,20 +1,20 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_boundary_struct_array_packed.sol:StorageBoundaryStructArrayPacked ===
 @module StorageBoundaryStructArrayPacked
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
-fn @getBoundaryArray() -> word [pure] {
+fn @getBoundaryArray() -> i256 [pure] {
   bb0:
     v0 = sub 0, 5
     ret v0
 }
 
-fn @getDest() -> word [pure] {
+fn @getDest() -> i256 [pure] {
   bb0:
     ret 6
 }
 
-fn @getCanary() -> word [pure] {
+fn @getCanary() -> i256 [pure] {
   bb0:
     ret 5
 }

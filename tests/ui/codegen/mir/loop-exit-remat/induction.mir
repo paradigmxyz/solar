@@ -3,7 +3,7 @@
 //@[size] compile-flags: -Osize -Zmir-pipeline=loop-exit-remat
 @module Induction
 
-fn @exit_old(arg0: word, arg1: word) -> word {
+fn @exit_old(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -19,7 +19,7 @@ fn @exit_old(arg0: word, arg1: word) -> word {
     ret v4
 }
 
-fn @subtract(arg0: word) -> word {
+fn @subtract(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -32,7 +32,7 @@ fn @subtract(arg0: word) -> word {
 }
 
 // An unknown step stays unchanged.
-fn @variable_step(arg0: word, arg1: word) -> word {
+fn @variable_step(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -45,7 +45,7 @@ fn @variable_step(arg0: word, arg1: word) -> word {
 }
 
 // Reconstruction is also valid when an enclosing loop reenters the header.
-fn @nested(arg0: word, arg1: bool) -> word {
+fn @nested(arg0: i256, arg1: i1) -> i256 {
   bb0:
     jump bb1
   bb1:

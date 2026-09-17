@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_element_access.sol:StorageBytesElementAccess ===
 @module StorageBytesElementAccess
 types:
-  struct0: {word, word}
-  struct1: {word, word, word, word, word}
-  struct2: {word, word, word}
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256, i256, i256}
+  struct2: {i256, i256, i256}
 
-fn @_fill(arg0: word) {
+fn @_fill(arg0: i256) {
   bb0:
     v0 = add arg0, 63
     v1 = lt v0, arg0
@@ -44,7 +44,7 @@ fn @_fill(arg0: word) {
     jump bb1
 }
 
-fn @at(arg0: word) -> word [selector=0xe0886f90, view, abi_params=[u256], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+fn @at(arg0: i256) -> i256 [selector=0xe0886f90, view, abi_params=[u256], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v0
@@ -122,7 +122,7 @@ fn @readSingle() -> struct0 [selector=0xf6f3185a, abi_params=[], abi_returns=[wo
     ret v29
 }
 
-fn @readEdges(arg0: word) -> struct1 [selector=0x0ecdc808, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>, word], abi_return_params=[u8, u8, u8, u8, u256]] {
+fn @readEdges(arg0: i256) -> struct1 [selector=0x0ecdc808, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>, word], abi_return_params=[u8, u8, u8, u8, u256]] {
   bb0:
     icall @_fill, arg0
     v0 = sload 0 !metadata(storage=slot(0))
@@ -259,7 +259,7 @@ fn @readEdges(arg0: word) -> struct1 [selector=0x0ecdc808, abi_params=[u256], ab
     ret v97
 }
 
-fn @writeEdges(arg0: word) -> struct1 [selector=0x633fe221, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>, word], abi_return_params=[u8, u8, u8, u8, u256]] {
+fn @writeEdges(arg0: i256) -> struct1 [selector=0x633fe221, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>, word], abi_return_params=[u8, u8, u8, u8, u256]] {
   bb0:
     icall @_fill, arg0
     v0 = sload 0 !metadata(storage=slot(0))
@@ -463,7 +463,7 @@ fn @writeEdges(arg0: word) -> struct1 [selector=0x633fe221, abi_params=[u256], a
     ret v146
 }
 
-fn @bumpAll(arg0: word) -> struct0 [selector=0x583a2887, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @bumpAll(arg0: i256) -> struct0 [selector=0x583a2887, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     icall @_fill, arg0
     jump bb1
@@ -626,7 +626,7 @@ fn @bumpAll(arg0: word) -> struct0 [selector=0x583a2887, abi_params=[u256], abi_
     jump bb1
 }
 
-fn @compoundEdges(arg0: word) -> struct2 [selector=0xd8df6f4c, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word], abi_return_params=[u8, u8, u256]] {
+fn @compoundEdges(arg0: i256) -> struct2 [selector=0xd8df6f4c, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word], abi_return_params=[u8, u8, u256]] {
   bb0:
     icall @_fill, arg0
     v0 = sload 0 !metadata(storage=slot(0))
@@ -783,7 +783,7 @@ fn @compoundEdges(arg0: word) -> struct2 [selector=0xd8df6f4c, abi_params=[u256]
     ret v115
 }
 
-fn @deleteLast(arg0: word) -> struct2 [selector=0x32a309a7, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word], abi_return_params=[u8, u8, u256]] {
+fn @deleteLast(arg0: i256) -> struct2 [selector=0x32a309a7, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word], abi_return_params=[u8, u8, u256]] {
   bb0:
     icall @_fill, arg0
     v0 = checked_sub u256, arg0, 1
@@ -894,7 +894,7 @@ fn @deleteLast(arg0: word) -> struct2 [selector=0x32a309a7, abi_params=[u256], a
     ret v78
 }
 
-fn @rawByte(arg0: word) -> word [selector=0xa88f9005, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @rawByte(arg0: i256) -> i256 [selector=0xa88f9005, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall @_fill, arg0
     v0 = checked_sub u256, arg0, 1
@@ -1295,7 +1295,7 @@ fn @writeLongString() -> struct2 [selector=0x233b60b4, abi_params=[], abi_return
     ret v75
 }
 
-fn @readOob(arg0: word) -> word [selector=0x4043349b, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @readOob(arg0: i256) -> i256 [selector=0x4043349b, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     icall @_fill, arg0
     v0 = sload 0 !metadata(storage=slot(0))
@@ -1330,7 +1330,7 @@ fn @readOob(arg0: word) -> word [selector=0x4043349b, abi_params=[u256], abi_ret
     ret v20
 }
 
-fn @writeOob(arg0: word) [selector=0x4621e8f8, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @writeOob(arg0: i256) [selector=0x4621e8f8, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall @_fill, arg0
     v0 = sload 0 !metadata(storage=slot(0))
@@ -1369,7 +1369,7 @@ fn @writeOob(arg0: word) [selector=0x4621e8f8, abi_params=[u256], abi_returns=[]
     ret
 }
 
-fn @deleteOob(arg0: word) [selector=0xfb2fda33, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @deleteOob(arg0: i256) [selector=0xfb2fda33, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall @_fill, arg0
     v0 = sload 0 !metadata(storage=slot(0))
@@ -1408,7 +1408,7 @@ fn @deleteOob(arg0: word) [selector=0xfb2fda33, abi_params=[u256], abi_returns=[
     ret
 }
 
-fn @store_storage_bytes(arg0: word, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

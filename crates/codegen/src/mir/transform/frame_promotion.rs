@@ -1104,7 +1104,7 @@ impl<'a> SlotSsaBuilder<'a> {
 
         // field = phi []
         let (inst, value) = func.alloc_value_inst(
-            Instruction::new(InstKind::Phi(Vec::new()), Some(MirType::Word))
+            Instruction::new(InstKind::Phi(Vec::new()), Some(MirType::I256))
                 .with_debug_info_dropped(),
         );
         self.phis.insert(

@@ -119,7 +119,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @pushValue(arg0: word) [selector=0x0217b939, abi_params=[bytes1], abi_returns=[], abi_return_params=[]] {
+fn @pushValue(arg0: i256) [selector=0x0217b939, abi_params=[bytes1], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v0

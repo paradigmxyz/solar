@@ -35,7 +35,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @fetch(arg0: word) -> word [view] {
+fn @fetch(arg0: i256) -> i256 [view] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -50,7 +50,7 @@ fn @bump() {
     ret
 }
 
-fn @run(arg0: word, arg1: word) -> word [selector=0x0a3395f5, abi_params=[u256, bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @run(arg0: i256, arg1: i256) -> i256 [selector=0x0a3395f5, abi_params=[u256, bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @fetch, arg0
     icall @bump

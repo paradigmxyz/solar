@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_tuple_aliasing.sol:StorageTupleAliasing ===
 @module StorageTupleAliasing
 types:
-  struct0: {word, word, word, word}
-  struct1: {word, word}
-  struct2: {word, word, word}
+  struct0: {i256, i256, i256, i256}
+  struct1: {i256, i256}
+  struct2: {i256, i256, i256}
   struct3: {memorybytes, memorybytes}
 
 fn @storageAliases() -> struct0 [selector=0x985e71ce, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
@@ -432,7 +432,7 @@ fn @byteArrays() -> struct3 [selector=0x2d074e2f, abi_params=[], abi_returns=[me
     ret v5
 }
 
-fn @nextLhs() -> word {
+fn @nextLhs() -> i256 {
   bb0:
     v0 = sload 3 !metadata(storage=slot(3))
     v1 = checked_add u256, v0, 1
@@ -440,7 +440,7 @@ fn @nextLhs() -> word {
     ret v0
 }
 
-fn @nextRhs() -> word {
+fn @nextRhs() -> i256 {
   bb0:
     v0 = sload 4 !metadata(storage=slot(4))
     v1 = sload 4 !metadata(storage=slot(4))
@@ -449,7 +449,7 @@ fn @nextRhs() -> word {
     ret v0
 }
 
-fn @mutateSource() -> word {
+fn @mutateSource() -> i256 {
   bb0:
     v0 = lt 0, 3
     v1 = eq v0, false
@@ -474,19 +474,19 @@ fn @pair() -> struct1 [view] {
     ret v7
 }
 
-fn @load_storage_word_array(arg0: word) -> memoryarray {
+fn @load_storage_word_array(arg0: i256) -> memoryarray {
   bb0:
     v0 = load_storage_array u256, arg0
     ret v0
 }
 
-fn @load_storage_bytes(arg0: word) -> memorybytes {
+fn @load_storage_bytes(arg0: i256) -> memorybytes {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0
 }
 
-fn @store_storage_bytes(arg0: word, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

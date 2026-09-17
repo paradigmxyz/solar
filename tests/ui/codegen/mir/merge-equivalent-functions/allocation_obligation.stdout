@@ -1,13 +1,13 @@
 - // === ROOT/tests/ui/codegen/mir/merge-equivalent-functions/allocation_obligation.mir (before merge-equivalent-functions) ===
 + // === ROOT/tests/ui/codegen/mir/merge-equivalent-functions/allocation_obligation.mir (after merge-equivalent-functions) ===
   @module AllocationObligation
-  fn @movable() -> word {
+  fn @movable() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64
       ret v0
   }
   
-  fn @reserved() -> word {
+  fn @reserved() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
       ret v0

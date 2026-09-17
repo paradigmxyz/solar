@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_references.sol:StorageArrayPushReferences ===
 @module StorageArrayPushReferences
 types:
-  struct0: {word, word, word}
-  struct1: {word, word}
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256}
 
-fn @references(arg0: word) -> struct0 [selector=0x04866b90, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @references(arg0: i256) -> struct0 [selector=0x04866b90, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -58,7 +58,7 @@ fn @references(arg0: word) -> struct0 [selector=0x04866b90, abi_params=[u256], a
     ret v36
 }
 
-fn @nestedPush(arg0: word, arg1: word) -> word [selector=0x44c891f2, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @nestedPush(arg0: i256, arg1: i256) -> i256 [selector=0x44c891f2, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
@@ -289,7 +289,7 @@ fn @bytesPush() -> struct1 [selector=0x52808f21, abi_params=[], abi_returns=[wor
     jump bb1
 }
 
-fn @bytesTransition() -> word [selector=0xe0a151c6, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @bytesTransition() -> i256 [selector=0xe0a151c6, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -485,7 +485,7 @@ fn @bytesTransition() -> word [selector=0xe0a151c6, abi_params=[], abi_returns=[
     ret v83
 }
 
-fn @pushPreservesStorage() -> word [selector=0x2bc06499, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @pushPreservesStorage() -> i256 [selector=0x2bc06499, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     mstore 0, 0 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
@@ -507,7 +507,7 @@ fn @pushPreservesStorage() -> word [selector=0x2bc06499, abi_params=[], abi_retu
     ret v11
 }
 
-fn @bytesPushLvalue(arg0: word) -> struct0 [selector=0x6fd1f0e5, abi_params=[u256], abi_returns=[word, word<bytes1>, word<bytes1>], abi_return_params=[u256, bytes1, bytes1]] {
+fn @bytesPushLvalue(arg0: i256) -> struct0 [selector=0x6fd1f0e5, abi_params=[u256], abi_returns=[word, word<bytes1>, word<bytes1>], abi_return_params=[u256, bytes1, bytes1]] {
   bb0:
     jump bb1
   bb1:

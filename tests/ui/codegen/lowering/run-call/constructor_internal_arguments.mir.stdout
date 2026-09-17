@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_internal_arguments.sol:ConstructorInternalArgumentsHelper ===
 @module ConstructorInternalArgumentsHelper
-fn @constructor(arg0: word, arg1: word) [constructor, abi_params=[bytes3, bool]] {
+fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[bytes3, bool]] {
   bb0:
     v0 = and arg0, 0xffffff0000000000000000000000000000000000000000000000000000000000
     v1 = sload 0 !metadata(storage=slot(0))
@@ -24,7 +24,7 @@ fn @constructor(arg0: word, arg1: word) [constructor, abi_params=[bytes3, bool]]
     ret
 }
 
-fn @getName() -> word [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>], abi_return_params=[bytes3]] {
+fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>], abi_return_params=[bytes3]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffff
@@ -32,7 +32,7 @@ fn @getName() -> word [selector=0x17d7de7c, view, abi_params=[], abi_returns=[wo
     ret v2
 }
 
-fn @getFlag() -> word [selector=0xf9633930, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @getFlag() -> i256 [selector=0xf9633930, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 24, v0
@@ -74,7 +74,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @getFlag() -> word [selector=0xf9633930, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @getFlag() -> i256 [selector=0xf9633930, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -103,7 +103,7 @@ fn @getFlag() -> word [selector=0xf9633930, view, abi_params=[], abi_returns=[wo
     ret v17
 }
 
-fn @getName() -> word [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>], abi_return_params=[bytes3]] {
+fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>], abi_return_params=[bytes3]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff

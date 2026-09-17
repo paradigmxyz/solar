@@ -4,7 +4,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @remove_overwritten_store{{[( ]}}
 // CHECK: - sstore 0, arg0
 // CHECK: + sstore 0, 7
-fn @remove_overwritten_store(arg0: word) {
+fn @remove_overwritten_store(arg0: i256) {
   bb0:
     sstore 0, arg0
     sstore 0, 7
@@ -15,7 +15,7 @@ fn @remove_overwritten_store(arg0: word) {
 // CHECK: + sstore 0, arg0
 // CHECK: + {{v[0-9]+}} = sload 0
 // CHECK: + sstore 0, 7
-fn @keep_store_observed_by_load(arg0: word) -> word {
+fn @keep_store_observed_by_load(arg0: i256) -> i256 {
   bb0:
     sstore 0, arg0
     v1 = sload 0
@@ -29,7 +29,7 @@ fn @keep_store_observed_by_load(arg0: word) -> word {
 // CHECK: - sstore 0, arg0
 // CHECK: + sstore 0, arg0
 // CHECK: + {{v[0-9]+}} = sload 0
-fn @remove_equal_store_after_load(arg0: word) -> word {
+fn @remove_equal_store_after_load(arg0: i256) -> i256 {
   bb0:
     sstore 0, arg0
     v1 = sload 0
@@ -40,7 +40,7 @@ fn @remove_equal_store_after_load(arg0: word) -> word {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_may_alias_symbolic_store{{[( ]}}
 // CHECK: + sstore arg0, 1
 // CHECK: + sstore arg1, 2
-fn @keep_may_alias_symbolic_store(arg0: word, arg1: word) {
+fn @keep_may_alias_symbolic_store(arg0: i256, arg1: i256) {
   bb0:
     sstore arg0, 1
     sstore arg1, 2
@@ -50,7 +50,7 @@ fn @keep_may_alias_symbolic_store(arg0: word, arg1: word) {
 // CHECK-LABEL: {{^[ +].*}}fn @remove_disjoint_offset_overwrite{{[( ]}}
 // CHECK: - sstore {{v[0-9]+}}, 1
 // CHECK: + sstore {{v[0-9]+}}, 3
-fn @remove_disjoint_offset_overwrite(arg0: word) {
+fn @remove_disjoint_offset_overwrite(arg0: i256) {
   bb0:
     v1 = add arg0, 1
     sstore v1, 1
@@ -65,7 +65,7 @@ fn @remove_disjoint_offset_overwrite(arg0: word) {
 // CHECK: + sstore 0, arg0
 // CHECK: {{^[ +].*[ =]call[[:space:]]}}
 // CHECK: + sstore 0, 7
-fn @keep_across_call(arg0: word, arg1: word) {
+fn @keep_across_call(arg0: i256, arg1: i256) {
   bb0:
     sstore 0, arg0
     v1 = call 100000, arg1, 0, 0, 0, 0, 0
@@ -77,7 +77,7 @@ fn @keep_across_call(arg0: word, arg1: word) {
 // CHECK: {{^[ +].*}}sstore arg0, 64
 // CHECK: {{^[ +].*}}validate_storage_bytes {{v[0-9]+}}
 // CHECK: {{^[ +].*}}sstore arg0, 0
-fn @header_observes_store(arg0: word) {
+fn @header_observes_store(arg0: i256) {
   bb0:
     sstore arg0, 64
     v0 = sload arg0
@@ -90,7 +90,7 @@ fn @header_observes_store(arg0: word) {
 // CHECK: {{^[ +].*}}sstore arg0, 7
 // CHECK: {{^[ +].*}}load_storage_bytes arg1
 // CHECK: {{^[ +].*}}sstore arg0, 0
-fn @copy_observes_store(arg0: word, arg1: word) -> memorybytes {
+fn @copy_observes_store(arg0: i256, arg1: i256) -> memorybytes {
   bb0:
     sstore arg0, 7
     v0 = load_storage_bytes arg1
@@ -103,7 +103,7 @@ fn @copy_observes_store(arg0: word, arg1: word) -> memorybytes {
 // CHECK: + sstore 0, 1
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = gas
 // CHECK: + sstore 0, 2
-fn @keep_store_observed_by_gas() -> word {
+fn @keep_store_observed_by_gas() -> i256 {
   bb0:
     v0 = gas
     sstore 0, 1
@@ -118,7 +118,7 @@ fn @keep_store_observed_by_gas() -> word {
 // CHECK: + sstore 0, 1
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = gas
 // CHECK: + sstore 0, 2
-fn @keep_cross_block_store_observed_by_gas() -> word {
+fn @keep_cross_block_store_observed_by_gas() -> i256 {
   bb0:
     v0 = gas
     sstore 0, 1
@@ -136,7 +136,7 @@ fn @keep_cross_block_store_observed_by_gas() -> word {
 // CHECK: {{^[ +].*}}sstore 0, 1
 // CHECK: icall @observe_indirect
 // CHECK: {{^[ +].*}}sstore 0, 2
-fn @keep_store_observed_by_callee() -> word {
+fn @keep_store_observed_by_callee() -> i256 {
   bb0:
     sstore 0, 1
     v0 = icall @observe_indirect
@@ -144,13 +144,13 @@ fn @keep_store_observed_by_callee() -> word {
     ret v0
 }
 
-fn @observe_indirect() -> word {
+fn @observe_indirect() -> i256 {
   bb0:
     v0 = icall @observe_gas
     ret v0
 }
 
-fn @observe_gas() -> word {
+fn @observe_gas() -> i256 {
   bb0:
     v0 = gas
     ret v0

@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/mir_alloc_ops.sol:MirAllocOps ===
 @module MirAllocOps
 types:
-  struct0: {word, word, word, word}
+  struct0: {i256, i256, i256, i256}
 
-fn @fixedArray(arg0: word) -> word [selector=0x9a5009ac, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @fixedArray(arg0: i256) -> i256 [selector=0x9a5009ac, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v0, 64
@@ -49,7 +49,7 @@ fn @frameShadow() -> struct0 [selector=0x7953faf2, pure, abi_params=[], abi_retu
     ret v3
 }
 
-fn @rawAssembly() -> word [selector=0x89eb38b4, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @rawAssembly() -> i256 [selector=0x89eb38b4, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore 64, v0 !metadata(memory=scratch)

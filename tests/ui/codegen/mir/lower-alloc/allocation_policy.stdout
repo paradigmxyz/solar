@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-alloc/allocation_policy.mir (before lower-alloc) ===
 + // === ROOT/tests/ui/codegen/mir/lower-alloc/allocation_policy.mir (after lower-alloc) ===
   @module AllocationPolicy
-  fn @checked(arg0: word) -> memorybytes {
+  fn @checked(arg0: i256) -> memorybytes {
     bb0:
 -     v0 = alloc memorybytes, word, zeroed, panic, arg0 !metadata(preserves_fmp)
 +     v1 = mload 64 !metadata(memory=scratch)
@@ -30,7 +30,7 @@
 +     revert 28, 36
   }
   
-  fn @internal() -> word {
+  fn @internal() -> i256 {
     bb0:
 -     v0 = alloc raw, exact, uninitialized, infallible, 32 !metadata(span=10..20, preserves_fmp)
 +     v0 = mload 64 !metadata(memory=scratch, span=10..20)

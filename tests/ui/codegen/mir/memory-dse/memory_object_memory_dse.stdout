@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (before memory-dse) ===
 + // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (after memory-dse) ===
   @module MemoryObjectMemoryDse
-  fn @forward_length(arg0: memorybytes) -> word {
+  fn @forward_length(arg0: memorybytes) -> i256 {
     bb0:
       set_memory_object_len memorybytes, arg0, 39
 -     v0 = memory_object_len memorybytes, arg0
@@ -9,7 +9,7 @@
 +     ret 39
   }
   
-  fn @keep_length_after_clobber(arg0: memorybytes, arg1: word) -> word {
+  fn @keep_length_after_clobber(arg0: memorybytes, arg1: i256) -> i256 {
     bb0:
       set_memory_object_len memorybytes, arg0, 39
       mstore arg1, 7
@@ -17,7 +17,7 @@
       ret v0
   }
   
-  fn @store_bytes_reads_memory(arg0: word, arg1: memorybytes) {
+  fn @store_bytes_reads_memory(arg0: i256, arg1: memorybytes) {
     bb0:
       set_memory_object_len memorybytes, arg1, 32
       memory_object_store_word memorybytes, arg1, 0, 7
@@ -25,7 +25,7 @@
       ret
   }
   
-  fn @acyclic_shared_exit(arg0: word, arg1: word) -> word {
+  fn @acyclic_shared_exit(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb3, bb1
@@ -47,13 +47,13 @@
 - // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (after dce) ===
   @module MemoryObjectMemoryDse
-  fn @forward_length(arg0: memorybytes) -> word {
+  fn @forward_length(arg0: memorybytes) -> i256 {
     bb0:
       set_memory_object_len memorybytes, arg0, 39
       ret 39
   }
   
-  fn @keep_length_after_clobber(arg0: memorybytes, arg1: word) -> word {
+  fn @keep_length_after_clobber(arg0: memorybytes, arg1: i256) -> i256 {
     bb0:
       set_memory_object_len memorybytes, arg0, 39
       mstore arg1, 7
@@ -61,7 +61,7 @@
       ret v0
   }
   
-  fn @store_bytes_reads_memory(arg0: word, arg1: memorybytes) {
+  fn @store_bytes_reads_memory(arg0: i256, arg1: memorybytes) {
     bb0:
       set_memory_object_len memorybytes, arg1, 32
       memory_object_store_word memorybytes, arg1, 0, 7
@@ -69,7 +69,7 @@
       ret
   }
   
-  fn @acyclic_shared_exit(arg0: word, arg1: word) -> word {
+  fn @acyclic_shared_exit(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb3, bb1

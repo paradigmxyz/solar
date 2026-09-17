@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/storage-promotion/terminator_metadata.mir (before storage-promotion) ===
 + // === ROOT/tests/ui/codegen/mir/storage-promotion/terminator_metadata.mir (after storage-promotion) ===
   @module DirtyTerminatorMetadata
-  fn @dirty(arg0: word) -> word [selector=0x01020304] {
+  fn @dirty(arg0: i256) -> i256 [selector=0x01020304] {
     bb0:
 +     mstore 160, 0
       jump bb1

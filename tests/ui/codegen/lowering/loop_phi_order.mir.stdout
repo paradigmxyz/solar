@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/loop_phi_order.sol:LoopPhiOrder ===
 @module LoopPhiOrder
 types:
-  struct0: {word, word, word}
+  struct0: {i256, i256, i256}
 
-fn @packed(arg0: word, arg1: word) -> word [selector=0xaf080e88, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @packed(arg0: i256, arg1: i256) -> i256 [selector=0xaf080e88, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -33,7 +33,7 @@ fn @packed(arg0: word, arg1: word) -> word [selector=0xaf080e88, pure, abi_param
     jump bb1
 }
 
-fn @complement(arg0: word, arg1: word, arg2: word) -> word [selector=0x82829e9f, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @complement(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x82829e9f, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -61,7 +61,7 @@ fn @complement(arg0: word, arg1: word, arg2: word) -> word [selector=0x82829e9f,
     jump bb1
 }
 
-fn @rotate(arg0: word, arg1: word, arg2: word, arg3: word) -> struct0 [selector=0x5423941f, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @rotate(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0x5423941f, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     jump bb1
   bb1:

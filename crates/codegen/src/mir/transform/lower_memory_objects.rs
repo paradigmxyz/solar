@@ -394,7 +394,7 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                 {
                     // scalar_operand = word_cast scalar_operand
                     kind.visit_operands_mut(|value| {
-                        if builder.func().value_ty(*value) == Some(MirType::Bool) {
+                        if builder.func().value_ty(*value) == Some(MirType::I1) {
                             *value = builder.word_cast(*value);
                         }
                     });
@@ -735,7 +735,7 @@ fn erase_object_types(func: &mut Function) {
 
 fn erase_object_type(ty: &mut MirType) {
     if is_object_type(ty) {
-        *ty = MirType::Word;
+        *ty = MirType::I256;
     }
 }
 

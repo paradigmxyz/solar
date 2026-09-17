@@ -4,7 +4,7 @@ data:
   ConstructorStopAlways_initcode_0: hex"60c060405234151560105760015f55005b5f5ffd603280601d5f395ff3341515601c575f3560e01c80633fa4f24514601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
   ConstructorStopConditional_initcode_1: hex"60b638038060b660e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405234151560765760e08060c0528060c05260e060b638030160208201116072578060c05251600290101560725760015f5560e0511515607057607a565b005b5f5ffd5b5f5ffd5b60328060845f395ff3341515601c575f3560e01c80633fa4f24514601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
 
-fn @unconditional() -> word [selector=0x7d06b8f6, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @unconditional() -> i256 [selector=0x7d06b8f6, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -24,7 +24,7 @@ fn @unconditional() -> word [selector=0x7d06b8f6, abi_params=[], abi_returns=[wo
     ret v8
 }
 
-fn @conditional(arg0: word) -> word [selector=0x9077f189, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @conditional(arg0: i256) -> i256 [selector=0x9077f189, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq arg0, 0
     v1 = eq v0, false
@@ -46,7 +46,7 @@ fn @conditional(arg0: word) -> word [selector=0x9077f189, abi_params=[bool], abi
     ret v10
 }
 
-fn @conditionalContinues() -> word [selector=0x828f9845, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @conditionalContinues() -> i256 [selector=0x828f9845, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = word_cast false
     v1 = eq v0, 0
@@ -73,7 +73,7 @@ fn @conditionalContinues() -> word [selector=0x828f9845, abi_params=[], abi_retu
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopAlways ===
 @module ConstructorStopAlways
-fn @value() -> word [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -87,13 +87,13 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopConditional ===
 @module ConstructorStopConditional
-fn @value() -> word [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: word) [constructor, abi_params=[bool]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[bool]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     v0 = ne arg0, 0

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_gas_observation.sol:StorageGasObservation ===
 @module StorageGasObservation
-fn @overwrittenStore() -> word [selector=0x92d23338, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @overwrittenStore() -> i256 [selector=0x92d23338, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     sstore 0, 1 !metadata(storage=slot(0))
@@ -19,7 +19,7 @@ fn @overwrittenStore() -> word [selector=0x92d23338, abi_params=[], abi_returns=
     ret v4
 }
 
-fn @forwardedLoad() -> word [selector=0x7cfab297, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @forwardedLoad() -> i256 [selector=0x7cfab297, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 7 !metadata(storage=slot(0))
     v0 = gas
@@ -40,7 +40,7 @@ fn @forwardedLoad() -> word [selector=0x7cfab297, abi_params=[], abi_returns=[wo
 
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_gas_observation.sol:StorageGasCfgObservation ===
 @module StorageGasCfgObservation
-fn @diamond(arg0: word) -> word [selector=0xdf460a0e, view, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @diamond(arg0: i256) -> i256 [selector=0xdf460a0e, view, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = ne arg0, 0
@@ -66,7 +66,7 @@ fn @diamond(arg0: word) -> word [selector=0xdf460a0e, view, abi_params=[bool], a
     ret v14
 }
 
-fn @loop() -> word [selector=0xa92100cb, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @loop() -> i256 [selector=0xa92100cb, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     jump bb1

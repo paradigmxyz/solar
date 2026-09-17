@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_nested_struct_memory.sol:StorageNestedStructMemory ===
 @module StorageNestedStructMemory
-fn @copy(arg0: memoryarray) -> word [selector=0xc58b68ae, abi_params=[array<_, array<_, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copy(arg0: memoryarray) -> i256 [selector=0xc58b68ae, abi_params=[array<_, array<_, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = sload 0 !metadata(storage=slot(0))
@@ -345,7 +345,7 @@ fn @copy(arg0: memoryarray) -> word [selector=0xc58b68ae, abi_params=[array<_, a
     jump bb9
 }
 
-fn @copyFixed(arg0: memoryfixedarray) -> word [selector=0x39bd9a66, abi_params=[array<1, array<_, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copyFixed(arg0: memoryfixedarray) -> i256 [selector=0x39bd9a66, abi_params=[array<1, array<_, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -815,7 +815,7 @@ fn @copyFixed(arg0: memoryfixedarray) -> word [selector=0x39bd9a66, abi_params=[
     jump bb12
 }
 
-fn @copyDynamicFixed(arg0: memoryarray) -> word [selector=0x62d70355, abi_params=[array<_, array<1, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copyDynamicFixed(arg0: memoryarray) -> i256 [selector=0x62d70355, abi_params=[array<_, array<1, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = sload 2 !metadata(storage=slot(2))

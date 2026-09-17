@@ -620,7 +620,7 @@ impl AllocationKind {
     #[must_use]
     pub(crate) const fn result_type(self) -> MirType {
         match self {
-            Self::Raw => MirType::Word,
+            Self::Raw => MirType::I256,
             Self::Object(layout) => MirType::MemoryObject(layout.kind()),
         }
     }
@@ -930,7 +930,7 @@ impl InstKind {
     /// Checks the operation's result type, including boolean bitwise operations.
     pub(crate) fn admits_result_type(&self, ty: MirType) -> bool {
         self.op_def().result.admits_type(ty)
-            || (ty == MirType::Bool && matches!(self, Self::And(..) | Self::Or(..) | Self::Xor(..)))
+            || (ty == MirType::I1 && matches!(self, Self::And(..) | Self::Or(..) | Self::Xor(..)))
     }
 
     /// Checks scalar operation contracts without applying implicit conversions.
@@ -938,25 +938,25 @@ impl InstKind {
         let ty = |value| func.value_ty(value);
         match *self {
             Self::Eq(a, b) | Self::Ne(a, b) => {
-                result == Some(MirType::Bool)
+                result == Some(MirType::I1)
                     && ty(a) == ty(b)
-                    && matches!(ty(a), Some(MirType::Word | MirType::Bool))
+                    && matches!(ty(a), Some(MirType::I256 | MirType::I1))
             }
             Self::And(a, b) | Self::Or(a, b) | Self::Xor(a, b) => {
                 ty(a) == result
                     && ty(b) == result
-                    && matches!(result, Some(MirType::Word | MirType::Bool))
+                    && matches!(result, Some(MirType::I256 | MirType::I1))
             }
             Self::WordCast(value) => {
-                result == Some(MirType::Word)
+                result == Some(MirType::I256)
                     && matches!(
                         ty(value),
-                        Some(MirType::Bool | MirType::Word | MirType::MemoryObject(_))
+                        Some(MirType::I1 | MirType::I256 | MirType::MemoryObject(_))
                     )
             }
             _ if self.evm_opcode().is_some() => {
                 self.op_def().result.default_type() == result
-                    && self.operands().iter().all(|&value| ty(value) == Some(MirType::Word))
+                    && self.operands().iter().all(|&value| ty(value) == Some(MirType::I256))
             }
             _ => true,
         }
@@ -1106,7 +1106,7 @@ mod tests {
     fn rewrites_preserve_provenance_and_invalidate_facts() {
         let a = ValueId::new(0);
         let b = ValueId::new(1);
-        let mut inst = Instruction::new(InstKind::MLoad(a), Some(MirType::Word));
+        let mut inst = Instruction::new(InstKind::MLoad(a), Some(MirType::I256));
         inst.metadata.set_storage_alias(Some(StorageAlias::Slot(U256::from(7))));
         inst.metadata.set_memory_region(Some(MemoryRegion::Scratch));
         inst.metadata.set_effect(Some(EffectKind::MemoryRead));
@@ -1142,7 +1142,7 @@ mod tests {
             kind: AllocationKind::Raw,
             semantics: AllocationSemantics::INTERNAL,
         };
-        let mut inst = Instruction::new(kind.clone(), Some(MirType::Word));
+        let mut inst = Instruction::new(kind.clone(), Some(MirType::I256));
         inst.metadata.set_deferred_alloc();
         inst.metadata.set_preserves_fmp(true);
         inst.replace_kind(kind);

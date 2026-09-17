@@ -18,7 +18,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @value() -> word [pure] {
+fn @value() -> i256 [pure] {
   bb0:
     ret 1
 }
@@ -26,9 +26,9 @@ fn @value() -> word [pure] {
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_storage_virtual.sol:ConstructorModifierStorageVirtual ===
 @module ConstructorModifierStorageVirtual
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
-fn @value() -> word [pure] {
+fn @value() -> i256 [pure] {
   bb0:
     ret 2
 }

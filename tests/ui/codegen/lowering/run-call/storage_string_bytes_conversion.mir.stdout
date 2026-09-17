@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_string_bytes_conversion.sol:StorageStringBytesConversion ===
 @module StorageStringBytesConversion
 types:
-  struct0: {memorybytes, word}
+  struct0: {memorybytes, i256}
 
 fn @constructor(arg0: memorybytes) [constructor, abi_params=[bytes]] {
   bb0:
@@ -9,7 +9,7 @@ fn @constructor(arg0: memorybytes) [constructor, abi_params=[bytes]] {
     ret
 }
 
-fn @readLength() -> word [selector=0x3d19002a, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @readLength() -> i256 [selector=0x3d19002a, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v0
@@ -370,7 +370,7 @@ fn @transitionThroughConversion() -> struct0 [selector=0x7117dd67, abi_params=[]
     jump bb1
 }
 
-fn @store_storage_bytes(arg0: word, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/inline-guards/returning_guard.mir (before inline-guards) ===
 + // === ROOT/tests/ui/codegen/mir/inline-guards/returning_guard.mir (after inline-guards) ===
   @module ReturningGuard
-  fn @check(arg0: word, arg1: word) {
+  fn @check(arg0: i256, arg1: i256) {
     bb0:
       v0 = eq arg0, arg1
       jumpi v0, bb1, bb2
@@ -12,7 +12,7 @@
       ret
   }
   
-  fn @loop(arg0: word) {
+  fn @loop(arg0: i256) {
     bb0:
       jump bb1
     bb1:
@@ -40,7 +40,7 @@
       jump bb1
   }
   
-  fn @reading(arg0: word) {
+  fn @reading(arg0: i256) {
     bb0:
       v0 = sload 0
       v1 = eq v0, arg0
@@ -52,7 +52,7 @@
       ret
   }
   
-  fn @keep_read(arg0: word) {
+  fn @keep_read(arg0: i256) {
     bb0:
       jump bb1
     bb1:
@@ -63,7 +63,7 @@
       ret
   }
   
-  fn @normalize(arg0: bool, arg1: bool) {
+  fn @normalize(arg0: i1, arg1: i1) {
     bb0:
       v0 = eq arg0, false
       v1 = eq arg1, false
@@ -76,7 +76,7 @@
       ret
   }
   
-  fn @dirty(arg0: bool, arg1: bool) {
+  fn @dirty(arg0: i1, arg1: i1) {
     bb0:
       jump bb1
     bb1:
@@ -93,7 +93,7 @@
       ret
   }
   
-  fn @inverted(arg0: word) {
+  fn @inverted(arg0: i256) {
     bb0:
       v0 = lt arg0, 8
       jumpi v0, bb1, bb2
@@ -104,7 +104,7 @@
       ret
   }
   
-  fn @false_edge(arg0: word) {
+  fn @false_edge(arg0: i256) {
     bb0:
       jump bb1
     bb1:
@@ -120,7 +120,7 @@
       ret
   }
   
-  fn @opaque(arg0: word) {
+  fn @opaque(arg0: i256) {
     bb0:
       v0 = eq arg0, 0 !metadata(effect=memory_read)
       jumpi v0, bb1, bb2
@@ -131,7 +131,7 @@
       ret
   }
   
-  fn @keep_opaque(arg0: word) {
+  fn @keep_opaque(arg0: i256) {
     bb0:
       jump bb1
     bb1:

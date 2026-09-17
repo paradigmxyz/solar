@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_unused_evm_version.sol:DynamicCallee ===
 @module DynamicCallee
 types:
-  struct0: {word, memorybytes}
+  struct0: {i256, memorybytes}
 
 fn @dynBytes() -> memorybytes [selector=0x7271bb2c, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
@@ -37,12 +37,12 @@ fn @mixed() -> struct0 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[w
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_unused_evm_version.sol:DynamicReturnUnused ===
 @module DynamicReturnUnused
 types:
-  struct0: {word, memorybytes}
+  struct0: {i256, memorybytes}
 
 data:
   DynamicCallee_initcode_0: hex"34600e5761018d8060125f395ff35b5f5ffd3415156038575f3560e01c80632f4e7409146034578063354df1f91460305780637271bb2c14602c576038565b603c565b60c8565b6094565b5f5ffd5b6020608052602260a0527f303132333435363738396162636465663031323334353637383961626364656660c0527f303100000000000000000000000000000000000000000000000000000000000060e05260806080f35b6020608052600560a0527f68656c6c6f00000000000000000000000000000000000000000000000000000060c05260606080f35b60e0604052604051806080526040810160405260038152602081017f61626300000000000000000000000000000000000000000000000000000000008152506040518060a05260408101600b825260208201828060a0528203905282806080525183806080525f811490501581029050601f19601f820116602083018184015f815250828452925060208501945082018185845e91505091508060a052810390505f9001601f8101601f19811690506040518060c05281810191508160405290508181f3"
 
-fn @live() -> word [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -72,7 +72,7 @@ fn @live() -> word [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     ret 1
 }
 
-fn @liveString() -> word [selector=0x86c92c52, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @liveString() -> i256 [selector=0x86c92c52, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -102,7 +102,7 @@ fn @liveString() -> word [selector=0x86c92c52, abi_params=[], abi_returns=[word]
     ret 1
 }
 
-fn @liveTry() -> word [selector=0xc2e69a83, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @liveTry() -> i256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -140,7 +140,7 @@ fn @liveTry() -> word [selector=0xc2e69a83, abi_params=[], abi_returns=[word], a
     ret v15
 }
 
-fn @liveMixed() -> word [selector=0xaf1b6bff, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @liveMixed() -> i256 [selector=0xaf1b6bff, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -176,7 +176,7 @@ fn @liveMixed() -> word [selector=0xaf1b6bff, abi_params=[], abi_returns=[word],
     ret v19
 }
 
-fn @liveTuple() -> word [selector=0x04e1eee0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @liveTuple() -> i256 [selector=0x04e1eee0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -217,7 +217,7 @@ fn @liveTuple() -> word [selector=0x04e1eee0, abi_params=[], abi_returns=[word],
     ret 1
 }
 
-fn @livePointer() -> word [selector=0x6347cf88, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -252,7 +252,7 @@ fn @livePointer() -> word [selector=0x6347cf88, abi_params=[], abi_returns=[word
     ret 1
 }
 
-fn @liveLoop() -> word [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @liveLoop() -> i256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -300,7 +300,7 @@ fn @liveLoop() -> word [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word], 
     jump bb3
 }
 
-fn @noCode() -> word [selector=0x96c56dce, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
@@ -316,7 +316,7 @@ fn @noCode() -> word [selector=0x96c56dce, abi_params=[], abi_returns=[word], ab
     ret 1
 }
 
-fn @noCodeTry() -> word [selector=0x1908ad35, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @noCodeTry() -> i256 [selector=0x1908ad35, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000

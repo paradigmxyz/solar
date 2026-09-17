@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mixed_storage_tuple.sol:C ===
 @module C
 types:
-  struct0: {word, word}
-  struct1: {word, word, word, word}
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256, i256}
 
 fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
@@ -74,7 +74,7 @@ fn @test_g() -> struct0 [selector=0xc51b800f, abi_params=[], abi_returns=[word, 
     ret v19
 }
 
-fn @test_h() -> word [selector=0xeafd81e0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test_h() -> i256 [selector=0xeafd81e0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @f
     v1 = extract_value struct0, v0, 0

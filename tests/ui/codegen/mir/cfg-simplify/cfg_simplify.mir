@@ -6,7 +6,7 @@
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = add {{v[0-9]+}}, 1
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = add {{v[0-9]+}}, 1
 // CHECK: {{^[ +].*}}ret {{v[0-9]+}}
-fn @sequential(arg0: word) -> word {
+fn @sequential(arg0: i256) -> i256 {
   bb0:
     v1 = add arg0, 1
     jump bb1
@@ -20,7 +20,7 @@ fn @sequential(arg0: word) -> word {
 
 // CHECK-LABEL: {{^[ +].*}}fn @branch_forwarder_preserves_successor_order{{[( ]}}
 // CHECK: - jump bb3
-fn @branch_forwarder_preserves_successor_order(arg0: bool) -> word {
+fn @branch_forwarder_preserves_successor_order(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -33,7 +33,7 @@ fn @branch_forwarder_preserves_successor_order(arg0: bool) -> word {
 
 // CHECK-LABEL: {{^[ +].*}}fn @degenerate_branch_refreshes_successors{{[( ]}}
 // CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb1
-fn @degenerate_branch_refreshes_successors(arg0: bool) -> word {
+fn @degenerate_branch_refreshes_successors(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb1
   bb1:
@@ -44,7 +44,7 @@ fn @degenerate_branch_refreshes_successors(arg0: bool) -> word {
 // constant case, even though it routes to the default.
 // CHECK-LABEL: {{^[ +].*}}fn @ordered_switch{{[( ]}}
 // CHECK: {{^[ +].*}}switch 5, default bb1, [arg0 => bb1, 5 => bb2]
-fn @ordered_switch(arg0: word) -> word {
+fn @ordered_switch(arg0: i256) -> i256 {
   bb0:
     switch 5, default bb1, [arg0 => bb1, 5 => bb2]
   bb1:
@@ -55,7 +55,7 @@ fn @ordered_switch(arg0: word) -> word {
 
 // CHECK-LABEL: {{^[ +].*}}fn @degenerate_switch_refreshes_successors{{[( ]}}
 // CHECK: - switch arg0, default bb1, [0 => bb1, 1 => bb1]
-fn @degenerate_switch_refreshes_successors(arg0: word) -> word {
+fn @degenerate_switch_refreshes_successors(arg0: i256) -> i256 {
   bb0:
     switch arg0, default bb1, [0 => bb1, 1 => bb1]
   bb1:
@@ -65,7 +65,7 @@ fn @degenerate_switch_refreshes_successors(arg0: word) -> word {
 // CHECK-LABEL: {{^[ +].*}}fn @constant_false_branch{{[( ]}}
 // CHECK: - {{.*}}jumpi false
 // CHECK: {{^[ +].*}}ret 2
-fn @constant_false_branch() -> word {
+fn @constant_false_branch() -> i256 {
   bb0:
     jumpi false, bb1, bb2
   bb1:
@@ -77,7 +77,7 @@ fn @constant_false_branch() -> word {
 // CHECK-LABEL: {{^[ +].*}}fn @constant_nonzero_branch{{[( ]}}
 // CHECK: - {{.*}}jumpi true
 // CHECK: {{^[ +].*}}ret 1
-fn @constant_nonzero_branch() -> word {
+fn @constant_nonzero_branch() -> i256 {
   bb0:
     jumpi true, bb1, bb2
   bb1:
@@ -86,7 +86,7 @@ fn @constant_nonzero_branch() -> word {
     ret 2
 }
 
-fn @known_edges_keep_stores(arg0: bool) -> word {
+fn @known_edges_keep_stores(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -103,7 +103,7 @@ fn @known_edges_keep_stores(arg0: bool) -> word {
     ret v1
 }
 
-fn @multiple_incoming_edges(arg0: bool, arg1: bool) -> word {
+fn @multiple_incoming_edges(arg0: i1, arg1: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -120,7 +120,7 @@ fn @multiple_incoming_edges(arg0: bool, arg1: bool) -> word {
     ret 2
 }
 
-fn @same_incoming_arms(arg0: bool) -> word {
+fn @same_incoming_arms(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb1
   bb1:

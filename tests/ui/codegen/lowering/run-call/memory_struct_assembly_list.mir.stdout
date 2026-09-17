@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_struct_assembly_list.sol:MemoryStructAssemblyList ===
 @module MemoryStructAssemblyList
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
 fn @empty() -> memorystruct [pure] {
   bb0:
@@ -10,7 +10,7 @@ fn @empty() -> memorystruct [pure] {
     ret v0
 }
 
-fn @append.1(arg0: memorystruct, arg1: word) -> memorystruct [pure] {
+fn @append.1(arg0: memorystruct, arg1: i256) -> memorystruct [pure] {
   bb0:
     v0 = shl 48, arg1
     v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
@@ -47,7 +47,7 @@ fn @dirtyFreeMemory() [view] {
     ret
 }
 
-fn @defaultLocal() -> word [selector=0x2f73c827, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @defaultLocal() -> i256 [selector=0x2f73c827, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -59,7 +59,7 @@ fn @defaultLocal() -> word [selector=0x2f73c827, view, abi_params=[], abi_return
     ret v4
 }
 
-fn @defaultReturn() -> word [selector=0x099c80fd, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @defaultReturn() -> i256 [selector=0x099c80fd, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     icall @dirtyFreeMemory
     v0 = icall @empty
@@ -70,7 +70,7 @@ fn @defaultReturn() -> word [selector=0x099c80fd, view, abi_params=[], abi_retur
     ret v4
 }
 
-fn @firstAppend() -> word [selector=0x9d2b282b, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @firstAppend() -> i256 [selector=0x9d2b282b, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -95,7 +95,7 @@ fn @firstAppend() -> word [selector=0x9d2b282b, view, abi_params=[], abi_returns
     ret v17
 }
 
-fn @secondAppend() -> word [selector=0xdce19125, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @secondAppend() -> i256 [selector=0xdce19125, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -118,7 +118,7 @@ fn @secondAppend() -> word [selector=0xdce19125, view, abi_params=[], abi_return
     ret v15
 }
 
-fn @recursiveYul(arg0: word) -> struct0 [selector=0x2aa1bcc4, pure, abi_params=[u256], abi_returns=[word, word<bytes1>], abi_return_params=[u256, bytes1]] {
+fn @recursiveYul(arg0: i256) -> struct0 [selector=0x2aa1bcc4, pure, abi_params=[u256], abi_returns=[word, word<bytes1>], abi_return_params=[u256, bytes1]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = icall @encode, arg0, v0
@@ -180,7 +180,7 @@ fn @updateTail(arg0: memorystruct, arg1: memorystruct) [pure] {
     ret
 }
 
-fn @encode(arg0: word, arg1: word) -> word {
+fn @encode(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = eq arg0, 0
     v1 = word_cast v0
@@ -201,7 +201,7 @@ fn @encode(arg0: word, arg1: word) -> word {
     ret v3
 }
 
-fn @encodeUint(arg0: word, arg1: word) -> word {
+fn @encodeUint(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = add arg1, 1
     v1 = gt arg0, 127
@@ -254,7 +254,7 @@ fn @encodeUint(arg0: word, arg1: word) -> word {
     ret v0
 }
 
-fn @encodeAddress(arg0: word, arg1: word) -> word {
+fn @encodeAddress(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = add arg1, 21
     v1 = shl 88, arg0
@@ -263,7 +263,7 @@ fn @encodeAddress(arg0: word, arg1: word) -> word {
     ret v0
 }
 
-fn @encodeBytes(arg0: word, arg1: word, arg2: word) -> word {
+fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = add arg1, 1
     v1 = mload arg0
@@ -369,7 +369,7 @@ fn @encodeBytes(arg0: word, arg1: word, arg2: word) -> word {
     ret v22
 }
 
-fn @encodeList(arg0: word, arg1: word) -> word {
+fn @encodeList(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = mload arg0
     v1 = eq v0, 0

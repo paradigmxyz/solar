@@ -36,7 +36,7 @@ fn @malformed() [selector=0x0a39e7bc, pure, abi_params=[], abi_returns=[memory_b
     returndata 0, 64
 }
 
-fn @dirtyAddress() -> word [selector=0x986597e5, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @dirtyAddress() -> i256 [selector=0x986597e5, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = not 0
     ret v0
@@ -47,7 +47,7 @@ fn @dirtyAddress() -> word [selector=0x986597e5, pure, abi_params=[], abi_return
 data:
   ReturnProducer_initcode_0: hex"34600e576101be8060125f395ff35b5f5ffd341515603a575f3560e01c80630a39e7bc146035578063986597e5146030578063af36778b14602c57603a565b603e565b610195565b610186565b5f5ffd5b6101e06040526040518060e0528060e052604081016040526040518061014052602081016040526040518061012052604081016040526040368280610120523780610120528152806101405281528060e052602090015f81525060e0518060e0525151806101a052806101a05260025f101561017457600b81525060e0518060e05251518061016052806101605260026001101561017457806101605260209001601681525060e0518060e05260209001602181525060e0518060e0525151806101005280610100525f60e05191905b8061018052600281106101505760406080015050506040608001818060e052915060208201915081519150818152905060209001506060608001608090036080f35b6020818061018052028280610100520151602082026080015260018101905061010e565b634e487b715f5260326020526024601cfd5b60205f5261010060205260405ff35b5f1973ffffffffffffffffffffffffffffffffffffffff90166080526020608001608090036080f3"
 
-fn @check(arg0: memorystruct) -> word [pure] {
+fn @check(arg0: memorystruct) -> i256 [pure] {
   bb0:
     v0 = memory_object_load_field memorystruct<2>, arg0, 0
     v1 = memory_object_from_ptr memorystruct, v0
@@ -75,7 +75,7 @@ fn @check(arg0: memorystruct) -> word [pure] {
     ret 1
 }
 
-fn @staticAggregate() -> word [selector=0x9982aedb, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @staticAggregate() -> i256 [selector=0x9982aedb, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -115,7 +115,7 @@ fn @staticAggregate() -> word [selector=0x9982aedb, abi_params=[], abi_returns=[
     ret v21
 }
 
-fn @projectedAggregate() -> word [selector=0xec2041b8, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @projectedAggregate() -> i256 [selector=0xec2041b8, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -162,7 +162,7 @@ fn @projectedAggregate() -> word [selector=0xec2041b8, abi_params=[], abi_return
     ret v27
 }
 
-fn @functionPointerAggregate() -> word [selector=0xebe6d175, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @functionPointerAggregate() -> i256 [selector=0xebe6d175, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -207,7 +207,7 @@ fn @functionPointerAggregate() -> word [selector=0xebe6d175, abi_params=[], abi_
     ret v26
 }
 
-fn @dirtyAddressBoundary() -> word [selector=0x2986c9cc, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirtyAddressBoundary() -> i256 [selector=0x2986c9cc, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -248,7 +248,7 @@ fn @dirtyAddressBoundary() -> word [selector=0x2986c9cc, abi_params=[], abi_retu
     ret 1
 }
 
-fn @truncated() -> word [selector=0xfc1dad0b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @truncated() -> i256 [selector=0xfc1dad0b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_allocation_panic.sol:MemoryAllocationPanicRuntime ===
 @module MemoryAllocationPanicRuntime
-fn @makeBytes(arg0: word) -> word [selector=0xd90fd4da, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @makeBytes(arg0: i256) -> i256 [selector=0xd90fd4da, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = add arg0, 63
     v1 = lt v0, arg0
@@ -13,7 +13,7 @@ fn @makeBytes(arg0: word) -> word [selector=0xd90fd4da, pure, abi_params=[u256],
     ret v5
 }
 
-fn @makeArray(arg0: word) -> word [selector=0x9510f212, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @makeArray(arg0: i256) -> i256 [selector=0x9510f212, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mul arg0, 1
     v1 = eq 1, 0
@@ -40,7 +40,7 @@ fn @makeArray(arg0: word) -> word [selector=0x9510f212, pure, abi_params=[u256],
     ret v17
 }
 
-fn @makeArrayTooLarge() -> word [selector=0x821e5729, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @makeArrayTooLarge() -> i256 [selector=0x821e5729, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall panic_if<0x41>, true
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 32
@@ -58,7 +58,7 @@ fn @makeArrayTooLarge() -> word [selector=0x821e5729, pure, abi_params=[], abi_r
     ret v7
 }
 
-fn @makeNestedArray(arg0: word) -> word [selector=0x95572958, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -118,7 +118,7 @@ fn @makeNestedArray(arg0: word) -> word [selector=0x95572958, pure, abi_params=[
     jump bb1
 }
 
-fn @makeStructArray(arg0: word) -> word [selector=0x4273d03f, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @makeStructArray(arg0: i256) -> i256 [selector=0x4273d03f, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mul arg0, 1
     v1 = eq 1, 0

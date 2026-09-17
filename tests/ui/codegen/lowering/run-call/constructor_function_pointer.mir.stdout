@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:Target ===
 @module Target
-fn @value() -> word [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: word) [constructor, abi_params=[function]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[function]] {
   bb0:
     v0 = and arg0, 0xffffffff
     v1 = shl 224, v0
@@ -33,7 +33,7 @@ fn @constructor(arg0: word) [constructor, abi_params=[function]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:ArrayTarget ===
 @module ArrayTarget
-fn @raw() -> word [selector=0xc096a632, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -53,7 +53,7 @@ data:
   Target_initcode_0: hex"61011e38038061011e6101403961014001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405234151560de576101408060c0528060c05261014061011e380301602082011160da578060c0525160c01b151560da576101405160401c8060e0528060e05263ffffffff811660e01b818060e05260201c915060405180610100526020810160405281815290506004810150816101205260205f600483855afa91505060bf573d5f5f3e3d5ffd5b3d6020901060d6575f5f0151505f5f01515f5560e2565b5f5ffd5b5f5ffd5b5f5ffd5b60328060ec5f395ff3341515601c575f3560e01c80633fa4f24514601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
   ArrayTarget_initcode_1: hex"6101293803806101296101803961018001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405234151560e9576101808060c0528060c052610180610129380301602082011160e5575f81018060e05290508060e05260405180610100528061010052602081016040525f5b806101205260018110609a5781806101005292505050515f5560ed565b80610120526020810283015180610140528061014052806101405260c01b1560c0575f5ffd5b61014051806101405260401c60401b602082028380610100520152600181019050607d565b5f5ffd5b5f5ffd5b60328060f75f395ff3341515601c575f3560e01c8063c096a63214601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
 
-fn @f() -> word [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = shl 32, v0
@@ -91,7 +91,7 @@ fn @f() -> word [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     ret v21
 }
 
-fn @fArray() -> word [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @fArray() -> i256 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_zero v0, 32
@@ -143,7 +143,7 @@ fn @fArray() -> word [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool
     ret v32
 }
 
-fn @sixteen() -> word [selector=0x990227f1, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @sixteen() -> i256 [selector=0x990227f1, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 16
 }

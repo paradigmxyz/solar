@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/cse/cse_allocation_provenance.mir (before cse) ===
 + // === ROOT/tests/ui/codegen/mir/cse/cse_allocation_provenance.mir (after cse) ===
   @module CseAllocationProvenance
-  fn @fresh(arg0: word, arg1: word) -> word {
+  fn @fresh(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = alloc raw, exact, uninitialized, infallible, 32
@@ -14,7 +14,7 @@
       ret v4
   }
   
-  fn @reset(arg0: word, arg1: word) -> word {
+  fn @reset(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, arg0
@@ -28,7 +28,7 @@
       ret v4
   }
   
-  fn @unbounded_heap_copy_keeps_reserved_load(arg0: word) -> word {
+  fn @unbounded_heap_copy_keeps_reserved_load(arg0: i256) -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = mload 96
@@ -38,7 +38,7 @@
       ret v3
   }
   
-  fn @unbounded_heap_copy_can_reach_other_allocation(arg0: word) -> word {
+  fn @unbounded_heap_copy_can_reach_other_allocation(arg0: i256) -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = alloc raw, exact, uninitialized, infallible, 32
@@ -49,7 +49,7 @@
       ret v4
   }
   
-  fn @loop_allocation_after_fmp_reset(arg0: bool) -> word {
+  fn @loop_allocation_after_fmp_reset(arg0: i1) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -64,7 +64,7 @@
       ret v3
   }
   
-  fn @argument_header(arg0: memorybytes) -> word {
+  fn @argument_header(arg0: memorybytes) -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = memory_object_len memorybytes, arg0

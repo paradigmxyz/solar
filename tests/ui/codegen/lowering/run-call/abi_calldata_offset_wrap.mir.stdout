@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_offset_wrap.sol:AbiCalldataOffsetWrap ===
 @module AbiCalldataOffsetWrap
 types:
-  struct0: {word, word, word}
+  struct0: {i256, i256, i256}
 
 fn @f(arg0: calldataslice) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:

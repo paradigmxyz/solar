@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/loop_bound_resident.sol:LoopBoundResident ===
 @module LoopBoundResident
-fn @accumulate(arg0: word, arg1: word, arg2: word) -> word [selector=0xf39fb277, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @accumulate(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xf39fb277, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:

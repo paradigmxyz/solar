@@ -1,7 +1,7 @@
 //@compile-flags: -Zmir-pipeline=egraph
 @module AlternativeNumbering
 
-fn @rewrite_then_original(arg0: word, arg1: word) -> word {
+fn @rewrite_then_original(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = sub arg0, arg1
     v1 = eq v0, 0
@@ -12,7 +12,7 @@ fn @rewrite_then_original(arg0: word, arg1: word) -> word {
     ret v3
 }
 
-fn @sibling_scope(arg0: bool, arg1: word, arg2: word) -> word {
+fn @sibling_scope(arg0: i1, arg1: i256, arg2: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:

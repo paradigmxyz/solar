@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_loop_increment.mir (before check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_loop_increment.mir (after check-elim) ===
   @module CheckElimLoopIncrement
-  fn @fold_increment_check(arg0: word) -> word {
+  fn @fold_increment_check(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -21,7 +21,7 @@
       revert 0, 0
   }
   
-  fn @keep_non_dominating_guard(arg0: word, arg1: bool) -> word {
+  fn @keep_non_dominating_guard(arg0: i256, arg1: i1) -> i256 {
     bb0:
       jumpi arg1, bb1, bb2
     bb1:

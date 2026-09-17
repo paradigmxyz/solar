@@ -10,7 +10,7 @@
 // CHECK: - {{v[0-9]+}} = extcodesize arg0
 // CHECK: - {{v[0-9]+}} = extcodehash arg0
 // CHECK: - {{v[0-9]+}} = selfbalance
-fn @reuse_account_reads_across_staticcall(arg0: word) -> word {
+fn @reuse_account_reads_across_staticcall(arg0: i256) -> i256 {
   bb0:
     v1 = balance arg0
     v2 = extcodesize arg0
@@ -36,7 +36,7 @@ fn @reuse_account_reads_across_staticcall(arg0: word) -> word {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_memory_reads_across_staticcall{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 128
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 128
-fn @keep_memory_reads_across_staticcall(arg0: word) -> word {
+fn @keep_memory_reads_across_staticcall(arg0: i256) -> i256 {
   bb0:
     v1 = mload 128
     v2 = staticcall 100000, arg0, 0, 0, 128, 32
@@ -50,7 +50,7 @@ fn @keep_memory_reads_across_staticcall(arg0: word) -> word {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_account_reads_across_call{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = balance arg0
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = balance arg0
-fn @keep_account_reads_across_call(arg0: word) -> word {
+fn @keep_account_reads_across_call(arg0: i256) -> i256 {
   bb0:
     v1 = balance arg0
     v2 = call 100000, arg0, 0, 0, 0, 0, 0

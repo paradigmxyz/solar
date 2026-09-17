@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/return_spill_loop.sol:ReturnCopy ===
 @module ReturnCopy
 types:
-  struct0: {word, word, word}
+  struct0: {i256, i256, i256}
 
-fn @probe(arg0: word) -> struct0 [selector=0xdb082440, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @probe(arg0: i256) -> struct0 [selector=0xdb082440, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = not 31
     v1 = and 66, v0
@@ -57,7 +57,7 @@ fn @probe(arg0: word) -> struct0 [selector=0xdb082440, pure, abi_params=[u256], 
     ret v38
 }
 
-fn @doubleProbe() -> word [selector=0xf770a1a3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @doubleProbe() -> i256 [selector=0xf770a1a3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 3
@@ -75,20 +75,20 @@ fn @doubleProbe() -> word [selector=0xf770a1a3, pure, abi_params=[], abi_returns
     ret v9
 }
 
-fn @run(arg0: memorybytes, arg1: word) -> memorybytes [selector=0x194e10ce, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @run(arg0: memorybytes, arg1: i256) -> memorybytes [selector=0x194e10ce, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @copy, arg0, arg1
     ret v0
 }
 
-fn @twice(arg0: memorybytes, arg1: word) -> memorybytes [selector=0x5a2aaa96, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @twice(arg0: memorybytes, arg1: i256) -> memorybytes [selector=0x5a2aaa96, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @copy, arg0, arg1
     v1 = icall @copy, v0, arg1
     ret v1
 }
 
-fn @copy(arg0: memorybytes, arg1: word) -> memorybytes [pure] {
+fn @copy(arg0: memorybytes, arg1: i256) -> memorybytes [pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = word_cast arg0

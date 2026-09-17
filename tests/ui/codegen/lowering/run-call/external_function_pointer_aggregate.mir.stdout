@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_aggregate.sol:ExternalFunctionPointerAggregateTarget ===
 @module ExternalFunctionPointerAggregateTarget
 types:
-  struct0: {word, memorybytes}
+  struct0: {i256, memorybytes}
 
 fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
@@ -35,7 +35,7 @@ fn @combine(arg0: memoryarray, arg1: memorybytes) -> struct0 [selector=0x3488ea1
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_aggregate.sol:ExternalFunctionPointerAggregate ===
 @module ExternalFunctionPointerAggregate
 types:
-  struct0: {word, memorybytes}
+  struct0: {i256, memorybytes}
 
 data:
   ExternalFunctionPointerAggregateTarget_initcode_0: hex"34600e5761046b8060125f395ff35b5f5ffd341515602a575f3560e01c80633488ea15146026578063a8aa1b3114602257602a565b602e565b60f3565b5f5ffd5b60e0604052604051806080526040810160405260028152602081017f6f6b0000000000000000000000000000000000000000000000000000000000008152506040518060a052604081016007825260208201828060a0528203905282806080525183806080525f811490501581029050601f19601f820116602083018184015f815250828452925060208501945082018185845e91505091508060a052810390505f9001601f8101601f19811690506040518060c05281810191508160405290508181f35b6102c060405260443610610467576004358060c052600401806101c052806101c0526020810167ffffffffffffffff60c0511136806101a0528211915017151561046357806101c052358061020052806102005260206101c05101806101005280610100526020820280610120528061012052602015602082048480610200529014811790501561045157806101205260208101806102205280610220528180610120528110610451576040518060805280608052818061022052810180610240529150816102405280608052811067ffffffffffffffff821181179050151561043f578061024052604052828061020052608051528161010052818061010052360360051c8311925050506104635760805180608052602090016101205180610120526101005180610100528237506024358060c052600401806101e052806101e0526020810167ffffffffffffffff60c0511136806101a0528211915017151561046357806101e052358061016052806101605260206101e0510180610140528061014052603f8201806102a052806102a052828061016052811061045157601f19811690506040518060a0528060a0528181018061026052915081610260528060a052811067ffffffffffffffff821181179050151561042d578061026052604052816101605281806101605260a0515280610140528061014052360381116104635760a0518060a052602090018180610160526101405180610140528237505060805180608052515f101561041b576080518060805260209001518061018052806101805260805180608052516001101561041b57608051806080526040900151818061018052018060e0528060e0528180610180528110915050610409576040518060c0526040810160e0518060e052825260208201828060c0528203905260a0518060a0525160a0518060a0525f811490501581029050601f19601f820116602083018184015f8152508284529250602060a0510181840191508281855e50915050818060c052900390505f9001601f8101601f1981169050604051806102805281810191508160405290508181f35b634e487b715f5260116020526024601cfd5b634e487b715f5260326020526024601cfd5b634e487b715f5260416020526024601cfd5b634e487b715f5260416020526024601cfd5b634e487b715f5260416020526024601cfd5b5f5ffd5b5f5ffd"
@@ -135,13 +135,13 @@ fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_re
     ret v26
 }
 
-fn @increment(arg0: word) -> word [selector=0x7cf5dab0, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @increment(arg0: i256) -> i256 [selector=0x7cf5dab0, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_add u256, arg0, 1
     ret v0
 }
 
-fn @invoke(arg0: word, arg1: word) -> word [selector=0xec460bea, abi_params=[function, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @invoke(arg0: i256, arg1: i256) -> i256 [selector=0xec460bea, abi_params=[function, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and arg0, 0xffffffff
     v1 = shl 224, v0
@@ -165,7 +165,7 @@ fn @invoke(arg0: word, arg1: word) -> word [selector=0xec460bea, abi_params=[fun
     ret v13
 }
 
-fn @pointerArgumentRoundtrip() -> word [selector=0x358b91d8, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @pointerArgumentRoundtrip() -> i256 [selector=0x358b91d8, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -181,7 +181,7 @@ fn @pointerArgumentRoundtrip() -> word [selector=0x358b91d8, view, abi_params=[]
     ret v9
 }
 
-fn @pointer() -> word [selector=0x2f5f3b3c, view, abi_params=[], abi_returns=[function], abi_return_params=[function]] {
+fn @pointer() -> i256 [selector=0x2f5f3b3c, view, abi_params=[], abi_returns=[function], abi_return_params=[function]] {
   bb0:
     v0 = address
     v1 = shl 32, v0
@@ -189,7 +189,7 @@ fn @pointer() -> word [selector=0x2f5f3b3c, view, abi_params=[], abi_returns=[fu
     ret v2
 }
 
-fn @pointerReturnRoundtrip() -> word [selector=0xd6aa3b50, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @pointerReturnRoundtrip() -> i256 [selector=0xd6aa3b50, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -225,7 +225,7 @@ fn @pointerReturnRoundtrip() -> word [selector=0xd6aa3b50, abi_params=[], abi_re
     ret v21
 }
 
-fn @pointerStructRoundtrip() -> word [selector=0xbbd5d6bf, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @pointerStructRoundtrip() -> i256 [selector=0xbbd5d6bf, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -258,7 +258,7 @@ fn @pointerStructRoundtrip() -> word [selector=0xbbd5d6bf, abi_params=[], abi_re
     ret v20
 }
 
-fn @pointerArrayRoundtrip() -> word [selector=0x38c40b23, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -334,7 +334,7 @@ fn @pointerArrayRoundtrip() -> word [selector=0x38c40b23, abi_params=[], abi_ret
     ret v53
 }
 
-fn @calldataTarget(arg0: calldataslice) -> word [selector=0x3b20e329, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @calldataTarget(arg0: calldataslice) -> i256 [selector=0x3b20e329, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -359,7 +359,7 @@ fn @calldataTarget(arg0: calldataslice) -> word [selector=0x3b20e329, pure, abi_
     ret v14
 }
 
-fn @calldataPointerRoundtrip() -> word [selector=0x1d9b1866, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @calldataPointerRoundtrip() -> i256 [selector=0x1d9b1866, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
     v1 = shl 32, v0

@@ -6,7 +6,7 @@
 // CHECK: bb0:
 // CHECK-NEXT: ret 1
 // CHECK-NOT: invalid
-fn @fold_phi_after_promotion(arg0: bool) -> word {
+fn @fold_phi_after_promotion(arg0: i1) -> i256 {
   bb0:
     v1 = internal_frame_addr 128
     mstore v1, 1

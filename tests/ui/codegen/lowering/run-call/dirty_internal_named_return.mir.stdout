@@ -1,32 +1,32 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dirty_internal_named_return.sol:DirtyInternalNamedReturn ===
 @module DirtyInternalNamedReturn
-fn @dirtyAddress(arg0: word) -> word [pure] {
+fn @dirtyAddress(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = shl 160, 1
     v1 = or arg0, v0
     ret v1
 }
 
-fn @dirtyBytes(arg0: word) -> word [pure] {
+fn @dirtyBytes(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = or arg0, 1
     ret v0
 }
 
-fn @dirtyUint8(arg0: word) -> word [pure] {
+fn @dirtyUint8(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = shl 8, 1
     v1 = or arg0, v0
     ret v1
 }
 
-fn @dirtyBool(arg0: word) -> word [pure] {
+fn @dirtyBool(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = mul arg0, 2
     ret v0
 }
 
-fn @addressBits() -> word [selector=0xf41cb93b, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @addressBits() -> i256 [selector=0xf41cb93b, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @dirtyAddress, 2
     v1 = shr 160, v0
@@ -37,7 +37,7 @@ fn @addressBits() -> word [selector=0xf41cb93b, pure, abi_params=[], abi_returns
     ret v5
 }
 
-fn @bytesBits() -> word [selector=0x92ad518d, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @bytesBits() -> i256 [selector=0x92ad518d, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @dirtyBytes, 0x4200000000000000000000000000000000000000000000000000000000000000
     v1 = shr 248, v0
@@ -47,7 +47,7 @@ fn @bytesBits() -> word [selector=0x92ad518d, pure, abi_params=[], abi_returns=[
     ret v4
 }
 
-fn @same.6(arg0: word, arg1: word) -> word [pure] {
+fn @same.6(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
@@ -56,7 +56,7 @@ fn @same.6(arg0: word, arg1: word) -> word [pure] {
     ret v3
 }
 
-fn @same.7(arg0: word, arg1: word) -> word [pure] {
+fn @same.7(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
@@ -65,21 +65,21 @@ fn @same.7(arg0: word, arg1: word) -> word [pure] {
     ret v3
 }
 
-fn @sameWord(arg0: word, arg1: word) -> word [pure] {
+fn @sameWord(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg0, arg1
     v1 = word_cast v0
     ret v1
 }
 
-fn @sameBytes32(arg0: word, arg1: word) -> word [pure] {
+fn @sameBytes32(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg0, arg1
     v1 = word_cast v0
     ret v1
 }
 
-fn @typedCallCleans() -> word [selector=0x27e15135, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @typedCallCleans() -> i256 [selector=0x27e15135, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @dirtyAddress, 2
     v1 = icall @dirtyBytes, 0x4200000000000000000000000000000000000000000000000000000000000000
@@ -120,7 +120,7 @@ fn @typedCallCleans() -> word [selector=0x27e15135, pure, abi_params=[], abi_ret
     ret v17
 }
 
-fn @directTypedCallCleans() -> word [selector=0x39703d9f, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @directTypedCallCleans() -> i256 [selector=0x39703d9f, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @dirtyAddress, 2
     v1 = icall @same.6, v0, 2
@@ -150,7 +150,7 @@ fn @directTypedCallCleans() -> word [selector=0x39703d9f, pure, abi_params=[], a
     ret v12
 }
 
-fn @directComparisonCleans() -> word [selector=0x38576c60, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @directComparisonCleans() -> i256 [selector=0x38576c60, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @dirtyAddress, 2
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -179,7 +179,7 @@ fn @directComparisonCleans() -> word [selector=0x38576c60, pure, abi_params=[], 
     ret v11
 }
 
-fn @boolBits() -> word [selector=0xc674afd7, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @boolBits() -> i256 [selector=0xc674afd7, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = word_cast true
     v1 = icall @dirtyBool, v0

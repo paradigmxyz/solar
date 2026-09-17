@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_parameter.sol:ExternalFunctionPointerParameter ===
 @module ExternalFunctionPointerParameter
-fn @f(arg0: word) -> word [selector=0xb3de648b, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -25,7 +25,7 @@ fn @f(arg0: word) -> word [selector=0xb3de648b, abi_params=[u256], abi_returns=[
     ret v14
 }
 
-fn @f2(arg0: word) -> word [selector=0xbf3724af, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @f2(arg0: i256) -> i256 [selector=0xbf3724af, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = shl 32, v0
@@ -34,7 +34,7 @@ fn @f2(arg0: word) -> word [selector=0xbf3724af, abi_params=[u256], abi_returns=
     ret v3
 }
 
-fn @eval(arg0: word, arg1: word) -> word [selector=0xc61581a0, abi_params=[function, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @eval(arg0: i256, arg1: i256) -> i256 [selector=0xc61581a0, abi_params=[function, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and arg0, 0xffffffff
     v1 = shl 224, v0
@@ -58,7 +58,7 @@ fn @eval(arg0: word, arg1: word) -> word [selector=0xc61581a0, abi_params=[funct
     ret v13
 }
 
-fn @increment(arg0: word) -> word [selector=0x7cf5dab0, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @increment(arg0: i256) -> i256 [selector=0x7cf5dab0, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_add u256, arg0, 1
     ret v0

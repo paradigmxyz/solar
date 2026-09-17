@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (before copy-elision) ===
 + // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (after copy-elision) ===
   @module CopyElision
-  fn @unread(arg0: word) -> word {
+  fn @unread(arg0: i256) -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, zeroed, panic, 64
       v1 = memory_object_data memorybytes, v0
@@ -9,7 +9,7 @@
       ret arg0
   }
   
-  fn @read(arg0: word) -> word {
+  fn @read(arg0: i256) -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = memory_object_data memorybytes, v0
@@ -18,7 +18,7 @@
       ret v2
   }
   
-  fn @absolute_alias() -> word {
+  fn @absolute_alias() -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = memory_object_data memorybytes, v0
@@ -27,7 +27,7 @@
       ret v2
   }
   
-  fn @mstore8_escape() -> word {
+  fn @mstore8_escape() -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = memory_object_data memorybytes, v0
@@ -36,7 +36,7 @@
       ret 0
   }
   
-  fn @zero_sized_write() -> word {
+  fn @zero_sized_write() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 0
       mstore v0, 7
@@ -45,7 +45,7 @@
       ret v2
   }
   
-  fn @write_past_allocation() -> word {
+  fn @write_past_allocation() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = alloc raw, exact, uninitialized, infallible, 32
@@ -55,7 +55,7 @@
       ret v3
   }
   
-  fn @guarded_loop() -> word {
+  fn @guarded_loop() -> i256 {
     bb0:
       v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
       jump bb1
@@ -71,7 +71,7 @@
       jump bb1
   }
   
-  fn @guarded_overrun(arg0: word) -> word {
+  fn @guarded_overrun(arg0: i256) -> i256 {
     bb0:
       v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
       v1 = lt arg0, 3
@@ -83,7 +83,7 @@
       ret 0
   }
   
-  fn @unguarded_join(arg0: word) -> word {
+  fn @unguarded_join(arg0: i256) -> i256 {
     bb0:
       v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
       v1 = lt arg0, 2
@@ -100,7 +100,7 @@
 - // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (after dce) ===
   @module CopyElision
-  fn @unread(arg0: word) -> word {
+  fn @unread(arg0: i256) -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, zeroed, panic, 64
       v1 = memory_object_data memorybytes, v0
@@ -108,7 +108,7 @@
       ret arg0
   }
   
-  fn @read(arg0: word) -> word {
+  fn @read(arg0: i256) -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = memory_object_data memorybytes, v0
@@ -117,7 +117,7 @@
       ret v2
   }
   
-  fn @absolute_alias() -> word {
+  fn @absolute_alias() -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = memory_object_data memorybytes, v0
@@ -126,7 +126,7 @@
       ret v2
   }
   
-  fn @mstore8_escape() -> word {
+  fn @mstore8_escape() -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = memory_object_data memorybytes, v0
@@ -135,7 +135,7 @@
       ret 0
   }
   
-  fn @zero_sized_write() -> word {
+  fn @zero_sized_write() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 0
       mstore v0, 7
@@ -144,7 +144,7 @@
       ret v2
   }
   
-  fn @write_past_allocation() -> word {
+  fn @write_past_allocation() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = alloc raw, exact, uninitialized, infallible, 32
@@ -154,7 +154,7 @@
       ret v3
   }
   
-  fn @guarded_loop() -> word {
+  fn @guarded_loop() -> i256 {
     bb0:
       v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
       jump bb1
@@ -170,7 +170,7 @@
       jump bb1
   }
   
-  fn @guarded_overrun(arg0: word) -> word {
+  fn @guarded_overrun(arg0: i256) -> i256 {
     bb0:
       v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
       v1 = lt arg0, 3
@@ -182,7 +182,7 @@
       ret 0
   }
   
-  fn @unguarded_join(arg0: word) -> word {
+  fn @unguarded_join(arg0: i256) -> i256 {
     bb0:
       v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
       v1 = lt arg0, 2

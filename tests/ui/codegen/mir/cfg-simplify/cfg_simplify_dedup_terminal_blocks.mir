@@ -7,7 +7,7 @@
 // CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, [[PANIC:bb[0-9]+]], {{bb[0-9]+}}
 // CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb4
 // CHECK: + jumpi {{(arg[0-9]+|v[0-9]+)}}, [[PANIC]], {{bb[0-9]+}}
-fn @dedup_identical_panics(arg0: word, arg1: word) {
+fn @dedup_identical_panics(arg0: i256, arg1: i256) {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
@@ -29,7 +29,7 @@ fn @dedup_identical_panics(arg0: word, arg1: word) {
 // Panic blocks with different panic codes must NOT merge.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_panic_codes{{[( ]}}
 // CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb4
-fn @keep_distinct_panic_codes(arg0: word, arg1: word) {
+fn @keep_distinct_panic_codes(arg0: i256, arg1: i256) {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
@@ -51,7 +51,7 @@ fn @keep_distinct_panic_codes(arg0: word, arg1: word) {
 // Identical instructions but different terminator operands must NOT merge.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_revert_sizes{{[( ]}}
 // CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb4
-fn @keep_distinct_revert_sizes(arg0: word, arg1: word) {
+fn @keep_distinct_revert_sizes(arg0: i256, arg1: i256) {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
@@ -76,7 +76,7 @@ fn @keep_distinct_revert_sizes(arg0: word, arg1: word) {
 // CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, [[COMPUTATION:bb[0-9]+]], {{bb[0-9]+}}
 // CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb4
 // CHECK: + jumpi {{(arg[0-9]+|v[0-9]+)}}, [[COMPUTATION]], {{bb[0-9]+}}
-fn @dedup_local_computations(arg0: word, arg1: word) {
+fn @dedup_local_computations(arg0: i256, arg1: i256) {
   bb0:
     v21 = ne arg0, 0
     jumpi v21, bb1, bb2
@@ -98,7 +98,7 @@ fn @dedup_local_computations(arg0: word, arg1: word) {
 // Blocks reading different outside values must NOT merge.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_outside_operands{{[( ]}}
 // CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb4
-fn @keep_distinct_outside_operands(arg0: word, arg1: word) {
+fn @keep_distinct_outside_operands(arg0: i256, arg1: i256) {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
@@ -119,7 +119,7 @@ fn @keep_distinct_outside_operands(arg0: word, arg1: word) {
 // fields must stay separate.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_memory_fields{{[( ]}}
 // CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb4
-fn @keep_distinct_memory_fields(arg0: word, arg1: word, arg2: memorystruct) {
+fn @keep_distinct_memory_fields(arg0: i256, arg1: i256, arg2: memorystruct) {
   bb0:
     v2 = ne arg0, 0
     jumpi v2, bb1, bb2
@@ -143,7 +143,7 @@ fn @keep_distinct_memory_fields(arg0: word, arg1: word, arg2: memorystruct) {
 // CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
 // CHECK-DAG: {{^[ +].*}}keccak256_packed (data hex"61")
 // CHECK-DAG: {{^[ +].*}}keccak256_packed (data hex"62")
-fn @keep_distinct_packed_literals(arg0: bool) -> word {
+fn @keep_distinct_packed_literals(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -159,7 +159,7 @@ fn @keep_distinct_packed_literals(arg0: bool) -> word {
 // CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
 // CHECK: {{^[ +].*}}load_storage_array enum<3>, arg1
 // CHECK: {{^[ +].*}}load_storage_array enum<2>, arg1
-fn @keep_distinct_enum_bounds(arg0: bool, arg1: word) -> memoryarray {
+fn @keep_distinct_enum_bounds(arg0: i1, arg1: i256) -> memoryarray {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -174,7 +174,7 @@ fn @keep_distinct_enum_bounds(arg0: bool, arg1: word) -> memoryarray {
 // CHECK-LABEL: {{^[ +].*}}fn @merge_equal_packed_literals{{[( ]}}
 // CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
 // CHECK: {{^[ +].*}}keccak256_packed (data hex"61")
-fn @merge_equal_packed_literals(arg0: bool) -> word {
+fn @merge_equal_packed_literals(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -189,7 +189,7 @@ fn @merge_equal_packed_literals(arg0: bool) -> word {
 // CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
 // CHECK-DAG: {{^[ +].*}}store_storage_bytes_literal arg1, hex"61"
 // CHECK-DAG: {{^[ +].*}}store_storage_bytes_literal arg1, hex"62"
-fn @keep_distinct_storage_literals(arg0: bool, arg1: word) {
+fn @keep_distinct_storage_literals(arg0: i1, arg1: i256) {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:

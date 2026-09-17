@@ -2,10 +2,10 @@
 + // === ROOT/tests/ui/codegen/mir/egraph/cost_shared_inputs.mir (after egraph) ===
   @module SharedInputCosts
   types:
-    struct0: {word, word}
-    struct1: {word, word, word}
+    struct0: {i256, i256}
+    struct1: {i256, i256, i256}
   
-  fn @retained_parent(arg0: word) -> struct0 [return_abi=[word, word]] {
+  fn @retained_parent(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = byte 31, arg0
       v1 = shl 248, v0
@@ -15,7 +15,7 @@
       ret v1, v3
   }
   
-  fn @several_consumers(arg0: word) -> struct1 [return_abi=[word, word, word]] {
+  fn @several_consumers(arg0: i256) -> struct1 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = byte 31, arg0
       v1 = shl 248, v0
@@ -31,7 +31,7 @@
       ret v5, v6, v7
   }
   
-  fn @repeated_shift_count(arg0: word) -> word {
+  fn @repeated_shift_count(arg0: i256) -> i256 {
     bb0:
 -     v0 = shl 1, arg0
 -     v1 = shl 1, v0
@@ -40,7 +40,7 @@
       ret v1
   }
   
-  fn @returned_double(arg0: word) -> struct0 [return_abi=[word, word]] {
+  fn @returned_double(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
 -     v0 = shl 1, arg0
 -     v1 = shl 1, v0
@@ -53,10 +53,10 @@
 + // === ROOT/tests/ui/codegen/mir/egraph/cost_shared_inputs.mir (after dce) ===
   @module SharedInputCosts
   types:
-    struct0: {word, word}
-    struct1: {word, word, word}
+    struct0: {i256, i256}
+    struct1: {i256, i256, i256}
   
-  fn @retained_parent(arg0: word) -> struct0 [return_abi=[word, word]] {
+  fn @retained_parent(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = byte 31, arg0
       v1 = shl 248, v0
@@ -65,7 +65,7 @@
       ret v1, v3
   }
   
-  fn @several_consumers(arg0: word) -> struct1 [return_abi=[word, word, word]] {
+  fn @several_consumers(arg0: i256) -> struct1 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = byte 31, arg0
 -     v1 = shl 248, v0
@@ -78,14 +78,14 @@
       ret v5, v6, v7
   }
   
-  fn @repeated_shift_count(arg0: word) -> word {
+  fn @repeated_shift_count(arg0: i256) -> i256 {
     bb0:
 -     v0 = add arg0, arg0
       v1 = shl 2, arg0
       ret v1
   }
   
-  fn @returned_double(arg0: word) -> struct0 [return_abi=[word, word]] {
+  fn @returned_double(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = add arg0, arg0
       v1 = add v0, v0

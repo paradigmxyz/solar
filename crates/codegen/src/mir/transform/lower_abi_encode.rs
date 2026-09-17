@@ -162,7 +162,7 @@ impl TupleHelperKey {
             types: layout.types.clone(),
             arg_types: args
                 .iter()
-                .map(|&arg| func.value_ty(arg).unwrap_or(MirType::Word))
+                .map(|&arg| func.value_ty(arg).unwrap_or(MirType::I256))
                 .collect(),
         }
     }
@@ -219,10 +219,10 @@ fn synthesize_tuple_helpers(
             let mut builder =
                 FunctionBuilder::new(&mut function).with_revert_strings(revert_strings);
             let args = key.arg_types.iter().map(|ty| builder.add_param(*ty)).collect::<Vec<_>>();
-            let selector = key.selector.then(|| builder.add_param(MirType::Word));
+            let selector = key.selector.then(|| builder.add_param(MirType::I256));
             let layout = AbiLayout::new(key.types.clone());
             let encoded = lower_encode(&mut builder, &layout, selector, &args, key.mode, helpers);
-            let result_ty = builder.func().value_ty(encoded).unwrap_or(MirType::Word);
+            let result_ty = builder.func().value_ty(encoded).unwrap_or(MirType::I256);
             builder.set_return_type(result_ty);
             builder.ret([encoded]);
         }
@@ -269,7 +269,7 @@ fn synthesize_array_helpers(
                     .map_or(*location, |value| effective_slice_location(func, value, *location));
                 if location == SliceLocation::Memory && array_loop_element(element).is_some() {
                     let value_ty =
-                        value.and_then(|value| func.value_ty(value)).unwrap_or(MirType::Word);
+                        value.and_then(|value| func.value_ty(value)).unwrap_or(MirType::I256);
                     let next = counts.len();
                     let count = counts
                         .entry(ArrayHelperKey { element: element.as_ref().clone(), value_ty })
@@ -322,9 +322,9 @@ fn synthesize_array_helpers(
             let value = builder.add_param(key.value_ty);
             // The destination is a heap pointer, and typing it so lets the backend's
             // provenance analysis see that the returned tail stays in the heap.
-            let dest = builder.add_param(MirType::Word);
+            let dest = builder.add_param(MirType::I256);
             let tail = encode_memory_array(&mut builder, &key.element, value, dest, &helpers);
-            builder.set_return_type(MirType::Word);
+            builder.set_return_type(MirType::I256);
             builder.ret([tail]);
         }
         let helper = module.add_function(function);
@@ -341,7 +341,7 @@ fn array_helper(
     value: ValueId,
 ) -> Option<FunctionId> {
     array_loop_element(element)?;
-    let value_ty = func.value_ty(value).unwrap_or(MirType::Word);
+    let value_ty = func.value_ty(value).unwrap_or(MirType::I256);
     helpers.arrays.get(&ArrayHelperKey { element: element.clone(), value_ty }).copied()
 }
 
@@ -452,7 +452,7 @@ fn lower_function(
                 match helpers.tuples.get(&key) {
                     Some(&helper) => {
                         // encoded = icall @encode_abi_tuple, 1, args.., [selector]
-                        let result_ty = builder.func().value_ty(result).unwrap_or(MirType::Word);
+                        let result_ty = builder.func().value_ty(result).unwrap_or(MirType::I256);
                         let call_args = args.iter().copied().chain(selector).collect();
                         builder.icall(helper, call_args, result_ty)
                     }
@@ -1221,7 +1221,7 @@ fn encode_dynamic_body(
             let location = effective_slice_location(builder.func(), value, *location);
             if location == SliceLocation::Memory {
                 if let Some(helper) = array_helper(builder.func(), helpers, element, value) {
-                    return builder.icall(helper, vec![value, dest], MirType::Word);
+                    return builder.icall(helper, vec![value, dest], MirType::I256);
                 }
                 return encode_memory_array(builder, element, value, dest, helpers);
             }
@@ -1290,7 +1290,7 @@ fn effective_slice_location(
 ) -> SliceLocation {
     match func.value_ty(value) {
         Some(MirType::Slice(location)) => location,
-        Some(MirType::Word | MirType::MemoryObject(_)) => SliceLocation::Memory,
+        Some(MirType::I256 | MirType::MemoryObject(_)) => SliceLocation::Memory,
         _ if matches!(func.value(value), Value::Inst(inst) if matches!(
             func.inst(*inst).kind,
             InstKind::MemoryObjectLoadField { .. } | InstKind::MemoryObjectLoadElement { .. }

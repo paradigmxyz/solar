@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/checked_loop_stack.sol:CheckedLoopStorage ===
 @module CheckedLoopStorage
-fn @result() -> word [selector=0x65372147, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @compute(arg0: word) [selector=0x5ed86d5c, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @compute(arg0: i256) [selector=0x5ed86d5c, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     jump bb1
@@ -34,7 +34,7 @@ fn @compute(arg0: word) [selector=0x5ed86d5c, abi_params=[u256], abi_returns=[],
 
 // === ROOT/tests/ui/codegen/lowering/checked_loop_stack.sol:CheckedLoopStack ===
 @module CheckedLoopStack
-fn @factorial(arg0: word) -> word [selector=0x83714834, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @factorial(arg0: i256) -> i256 [selector=0x83714834, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -58,7 +58,7 @@ fn @factorial(arg0: word) -> word [selector=0x83714834, pure, abi_params=[u256],
     jump bb1
 }
 
-fn @checkedLatch(arg0: word, arg1: word) -> word [selector=0x3ed7bb22, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @checkedLatch(arg0: i256, arg1: i256) -> i256 [selector=0x3ed7bb22, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -83,7 +83,7 @@ fn @checkedLatch(arg0: word, arg1: word) -> word [selector=0x3ed7bb22, pure, abi
     jump bb1
 }
 
-fn @diagnostic(arg0: word, arg1: word) -> word [selector=0x6f25cb96, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @diagnostic(arg0: i256, arg1: i256) -> i256 [selector=0x6f25cb96, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:

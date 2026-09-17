@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/basic.sol:RunCall ===
 @module RunCall
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
 fn @constructor() [constructor] {
   bb0:
@@ -9,14 +9,14 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @add(arg0: word) -> word [selector=0x1003e2d2, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @add(arg0: i256) -> i256 [selector=0x1003e2d2, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, arg0
     ret v1
 }
 
-fn @negate(arg0: word) -> word [selector=0xb9225c15, pure, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @negate(arg0: i256) -> i256 [selector=0xb9225c15, pure, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg0, 0
     v1 = eq v0, false
@@ -25,7 +25,7 @@ fn @negate(arg0: word) -> word [selector=0xb9225c15, pure, abi_params=[bool], ab
     ret v3
 }
 
-fn @pair(arg0: word, arg1: word) -> struct0 [selector=0xedaceefe, pure, abi_params=[u256, bool], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
+fn @pair(arg0: i256, arg1: i256) -> struct0 [selector=0xedaceefe, pure, abi_params=[u256, bool], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
   bb0:
     v0 = checked_add u256, arg0, 1
     v1 = eq arg1, 0
@@ -37,7 +37,7 @@ fn @pair(arg0: word, arg1: word) -> struct0 [selector=0xedaceefe, pure, abi_para
     ret v6
 }
 
-fn @sum(arg0: calldataslice) -> word [selector=0x0194db8e, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @sum(arg0: calldataslice) -> i256 [selector=0x0194db8e, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -76,7 +76,7 @@ fn @sum(arg0: calldataslice) -> word [selector=0x0194db8e, pure, abi_params=[arr
     jump bb1
 }
 
-fn @increment() -> word [selector=0xd09de08a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @increment() -> i256 [selector=0xd09de08a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
@@ -109,7 +109,7 @@ fn @fullyInitializedNamedStruct() -> memorystruct [selector=0x03e8d290, pure, ab
     ret v1
 }
 
-fn @reservedSpillFreshness(arg0: word) -> word [selector=0x45f98aed, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @reservedSpillFreshness(arg0: i256) -> i256 [selector=0x45f98aed, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = ne arg0, 0
@@ -136,7 +136,7 @@ fn @reservedSpillFreshness(arg0: word) -> word [selector=0x45f98aed, abi_params=
     ret v14
 }
 
-fn @pairInternal(arg0: word) -> struct0 [pure] {
+fn @pairInternal(arg0: i256) -> struct0 [pure] {
   bb0:
     v0 = checked_add u256, arg0, 1
     v1 = checked_add u256, arg0, 2
@@ -145,7 +145,7 @@ fn @pairInternal(arg0: word) -> struct0 [pure] {
     ret v3
 }
 
-fn @fill(arg0: word) -> memoryfixedarray [selector=0x3fda5389, pure, abi_params=[u256], abi_returns=[array<4, word>], abi_return_params=[array<4, u256>]] {
+fn @fill(arg0: i256) -> memoryfixedarray [selector=0x3fda5389, pure, abi_params=[u256], abi_returns=[array<4, word>], abi_return_params=[array<4, u256>]] {
   bb0:
     v0 = gt arg0, 4
     v1 = eq v0, false

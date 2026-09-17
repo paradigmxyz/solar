@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (before sroa) ===
 + // === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (after sroa) ===
   @module Sroa
-  fn @local_struct(arg0: word, arg1: word) -> word {
+  fn @local_struct(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
 -     v1 = memory_object_field_addr memorystruct<2>, v0, 0
@@ -17,7 +17,7 @@
       ret v7
   }
   
-  fn @local_struct_observe_fmp(arg0: word, arg1: word) -> word {
+  fn @local_struct_observe_fmp(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
       v1 = memory_object_field_addr memorystruct<2>, v0, 0
@@ -34,7 +34,7 @@
       ret v9
   }
   
-  fn @zeroed_array() -> word {
+  fn @zeroed_array() -> i256 {
     bb0:
       v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
 -     memory_zero v0, 128
@@ -58,7 +58,7 @@
       revert v0, 64
   }
   
-  fn @return_field(arg0: word) {
+  fn @return_field(arg0: i256) {
     bb0:
       v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
       v1 = memory_object_field_addr memorystruct<2>, v0, 1
@@ -66,7 +66,7 @@
       returndata v1, 32
   }
   
-  fn @revert_field_successor(arg0: word) {
+  fn @revert_field_successor(arg0: i256) {
     bb0:
       v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
       v1 = memory_object_element_addr memoryfixedarray<2, 1>, v0, 1
@@ -79,14 +79,14 @@
 - // === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/sroa/scalarize.mir (after dce) ===
   @module Sroa
-  fn @local_struct(arg0: word, arg1: word) -> word {
+  fn @local_struct(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
       v7 = add arg0, arg1
       ret v7
   }
   
-  fn @local_struct_observe_fmp(arg0: word, arg1: word) -> word {
+  fn @local_struct_observe_fmp(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
       v1 = memory_object_field_addr memorystruct<2>, v0, 0
@@ -103,7 +103,7 @@
       ret v9
   }
   
-  fn @zeroed_array() -> word {
+  fn @zeroed_array() -> i256 {
     bb0:
       v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
       ret 0
@@ -123,7 +123,7 @@
       revert v0, 64
   }
   
-  fn @return_field(arg0: word) {
+  fn @return_field(arg0: i256) {
     bb0:
       v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
       v1 = memory_object_field_addr memorystruct<2>, v0, 1
@@ -131,7 +131,7 @@
       returndata v1, 32
   }
   
-  fn @revert_field_successor(arg0: word) {
+  fn @revert_field_successor(arg0: i256) {
     bb0:
       v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
       v1 = memory_object_element_addr memoryfixedarray<2, 1>, v0, 1

@@ -75,7 +75,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     lhs,
                     rhs,
                 },
-                Some(MirType::Word),
+                Some(MirType::I256),
             );
         }
         match op {
@@ -155,7 +155,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             lhs: zero,
                             rhs: value,
                         },
-                        Some(MirType::Word),
+                        Some(MirType::I256),
                     );
                 }
                 let zero = self.builder.imm(U256::ZERO);

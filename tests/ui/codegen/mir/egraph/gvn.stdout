@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/gvn.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/gvn.mir (after egraph) ===
   @module Gvn
-  fn @transitive_congruence(arg0: word, arg1: word) -> word {
+  fn @transitive_congruence(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = add arg0, arg1
 -     v1 = add arg0, arg1
@@ -13,7 +13,7 @@
       ret v4
   }
   
-  fn @equal_immediates_unify(arg0: word) -> word {
+  fn @equal_immediates_unify(arg0: i256) -> i256 {
     bb0:
       v0 = add arg0, 16
 -     v1 = add 16, arg0
@@ -22,7 +22,7 @@
       ret v2
   }
   
-  fn @swapped_comparison_feeds_arithmetic(arg0: word, arg1: word) -> word {
+  fn @swapped_comparison_feeds_arithmetic(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = lt arg0, arg1
 -     v1 = gt arg1, arg0
@@ -33,7 +33,7 @@
       ret v4
   }
   
-  fn @keep_state_dependent_reads(arg0: word) -> word {
+  fn @keep_state_dependent_reads(arg0: i256) -> i256 {
     bb0:
       v0 = sload arg0
       v1 = sload arg0
@@ -49,7 +49,7 @@
       ret v10
   }
   
-  fn @no_replacement_across_siblings(arg0: word, arg1: bool) -> word {
+  fn @no_replacement_across_siblings(arg0: i256, arg1: i1) -> i256 {
     bb0:
       jumpi arg1, bb1, bb2
     bb2:
@@ -65,7 +65,7 @@
       ret v4
   }
   
-  fn @fresh_mapping_entry(arg0: memorybytes) -> word [selector=0x10000001, abi_params=[bytes], abi_returns=[word]] {
+  fn @fresh_mapping_entry(arg0: memorybytes) -> i256 [selector=0x10000001, abi_params=[bytes], abi_returns=[word]] {
     bb0:
       v0 = mapping_slot_memory arg0, 0
       v1 = sload v0
@@ -81,7 +81,7 @@
       ret v4
   }
   
-  fn @mapping_internal_target(arg0: memorybytes) -> word [selector=0x10000002, abi_params=[bytes], abi_returns=[word]] {
+  fn @mapping_internal_target(arg0: memorybytes) -> i256 [selector=0x10000002, abi_params=[bytes], abi_returns=[word]] {
     bb0:
       v0 = mapping_slot_memory arg0, 0
       v1 = mapping_slot_memory arg0, 0
@@ -89,7 +89,7 @@
       ret v2
   }
   
-  fn @mapping_tail_target(arg0: memorybytes) -> word [selector=0x10000003, abi_params=[bytes], abi_returns=[word]] {
+  fn @mapping_tail_target(arg0: memorybytes) -> i256 [selector=0x10000003, abi_params=[bytes], abi_returns=[word]] {
     bb0:
       v0 = mapping_slot_memory arg0, 0
       v1 = mapping_slot_memory arg0, 0
@@ -97,7 +97,7 @@
       ret v2
   }
   
-  fn @mapping_fmp_reset(arg0: memorybytes) -> word [selector=0x10000004, abi_params=[bytes], abi_returns=[word]] {
+  fn @mapping_fmp_reset(arg0: memorybytes) -> i256 [selector=0x10000004, abi_params=[bytes], abi_returns=[word]] {
     bb0:
       v0 = mapping_slot_memory arg0, 0
       set_fmp 0
@@ -106,7 +106,7 @@
       ret v2
   }
   
-  fn @mapping_raw_read(arg0: memorybytes) -> word [selector=0x10000005, abi_params=[bytes], abi_returns=[word]] {
+  fn @mapping_raw_read(arg0: memorybytes) -> i256 [selector=0x10000005, abi_params=[bytes], abi_returns=[word]] {
     bb0:
       v0 = mapping_slot_memory arg0, 0
       v1 = mload 128
@@ -115,7 +115,7 @@
       ret v3
   }
   
-  fn @mapping_size_observer(arg0: memorybytes) -> word [selector=0x10000006, abi_params=[bytes], abi_returns=[word]] {
+  fn @mapping_size_observer(arg0: memorybytes) -> i256 [selector=0x10000006, abi_params=[bytes], abi_returns=[word]] {
     bb0:
       v0 = mapping_slot_memory arg0, 0
       v1 = msize
@@ -124,13 +124,13 @@
       ret v3
   }
   
-  fn @call_mapping_entry(arg0: memorybytes) -> word {
+  fn @call_mapping_entry(arg0: memorybytes) -> i256 {
     bb0:
       v0 = icall @mapping_internal_target, arg0
       ret v0
   }
   
-  fn @tailcall_mapping_entry(arg0: memorybytes) -> word {
+  fn @tailcall_mapping_entry(arg0: memorybytes) -> i256 {
     bb0:
       tail_call @mapping_tail_target, arg0
   }

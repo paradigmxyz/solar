@@ -7,7 +7,7 @@
 // CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
 // CHECK: {{^[ +].*}}[[VALUE:v[0-9]+]] = phi [bb1: 1], [bb2: 2]
 // CHECK: {{^[ +].*}}add [[VALUE]], 1
-fn @keep_phi_only_block(arg0: bool) -> word {
+fn @keep_phi_only_block(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:

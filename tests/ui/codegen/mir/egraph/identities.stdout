@@ -2,34 +2,34 @@
 + // === ROOT/tests/ui/codegen/mir/egraph/identities.mir (after egraph) ===
   @module InstSimplifyIdentities
   types:
-    struct0: {word, word}
-    struct1: {struct0, word}
-    struct2: {word, word, word}
-    struct3: {word, word, word, word}
-    struct4: {word, word, word, word, word}
+    struct0: {i256, i256}
+    struct1: {struct0, i256}
+    struct2: {i256, i256, i256}
+    struct3: {i256, i256, i256, i256}
+    struct4: {i256, i256, i256, i256, i256}
   
-  fn @add_zero(arg0: word) -> word {
+  fn @add_zero(arg0: i256) -> i256 {
     bb0:
 -     v0 = add arg0, 0
 -     ret v0
 +     ret arg0
   }
   
-  fn @mul_one(arg0: word) -> word {
+  fn @mul_one(arg0: i256) -> i256 {
     bb0:
 -     v0 = mul 1, arg0
 -     ret v0
 +     ret arg0
   }
   
-  fn @self_sub(arg0: word) -> word {
+  fn @self_sub(arg0: i256) -> i256 {
     bb0:
 -     v0 = sub arg0, arg0
 -     ret v0
 +     ret 0
   }
   
-  fn @idempotent_logic(arg0: word) -> struct2 [return_abi=[word, word, word]] {
+  fn @idempotent_logic(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
     bb0:
 -     v0 = and arg0, arg0
 -     v1 = or arg0, arg0
@@ -38,7 +38,7 @@
 +     ret arg0, arg0, 0
   }
   
-  fn @not_not(arg0: word) -> word {
+  fn @not_not(arg0: i256) -> i256 {
     bb0:
       v0 = not arg0
 -     v1 = not v0
@@ -46,27 +46,27 @@
 +     ret arg0
   }
   
-  fn @iszero_immediate() -> bool {
+  fn @iszero_immediate() -> i1 {
     bb0:
 -     v0 = eq 0, 0
 -     ret v0
 +     ret true
   }
   
-  fn @eq_zero(arg0: word) -> bool {
+  fn @eq_zero(arg0: i256) -> i1 {
     bb0:
       v0 = eq arg0, 0
       ret v0
   }
   
-  fn @and_all_ones(arg0: word) -> word {
+  fn @and_all_ones(arg0: i256) -> i256 {
     bb0:
 -     v0 = and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
 -     ret v0
 +     ret arg0
   }
   
-  fn @address_mask() -> word {
+  fn @address_mask() -> i256 {
     bb0:
       v0 = address
 -     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -74,7 +74,7 @@
 +     ret v0
   }
   
-  fn @own_balance() -> word {
+  fn @own_balance() -> i256 {
     bb0:
       v0 = address
 -     v1 = balance v0
@@ -82,7 +82,7 @@
       ret v1
   }
   
-  fn @canonical_zero_branch(arg0: word) {
+  fn @canonical_zero_branch(arg0: i256) {
     bb0:
       v0 = lt 0, arg0
 -     v1 = eq v0, false
@@ -94,7 +94,7 @@
       stop
   }
   
-  fn @masked_own_balance() -> word {
+  fn @masked_own_balance() -> i256 {
     bb0:
       v0 = address
 -     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -103,7 +103,7 @@
       ret v2
   }
   
-  fn @aggregate_projection(arg0: word, arg1: word) -> word {
+  fn @aggregate_projection(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = insert_value struct0, undef struct0, 0, arg0
       v1 = insert_value struct0, v0, 1, arg1
@@ -112,7 +112,7 @@
 +     ret arg0
   }
   
-  fn @overwritten_field(arg0: word, arg1: word) -> word {
+  fn @overwritten_field(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = insert_value struct0, undef struct0, 0, arg0
       v1 = insert_value struct0, v0, 0, arg1
@@ -121,7 +121,7 @@
 +     ret arg1
   }
   
-  fn @nested_projection(arg0: word) -> word {
+  fn @nested_projection(arg0: i256) -> i256 {
     bb0:
       v0 = insert_value struct0, undef struct0, 1, arg0
       v1 = insert_value struct1, undef struct1, 0, v0
@@ -131,14 +131,14 @@
 +     ret arg0
   }
   
-  fn @unknown_field(arg0: struct0, arg1: word) -> word {
+  fn @unknown_field(arg0: struct0, arg1: i256) -> i256 {
     bb0:
       v0 = insert_value struct0, arg0, 0, arg1
       v1 = extract_value struct0, v0, 1
       ret v1
   }
   
-  fn @raw_word_carrier(arg0: memorystruct) -> word {
+  fn @raw_word_carrier(arg0: memorystruct) -> i256 {
     bb0:
       v0 = word_cast arg0
       v1 = insert_value struct0, undef struct0, 0, v0
@@ -149,7 +149,7 @@
       ret v4
   }
   
-  fn @unreachable_insertion_cycle(arg0: word) -> word {
+  fn @unreachable_insertion_cycle(arg0: i256) -> i256 {
     bb0:
       ret arg0
     bb1:
@@ -159,7 +159,7 @@
       ret v2
   }
   
-  fn @cancel_offsets(arg0: word, arg1: word) -> struct3 [return_abi=[word, word, word, word]] {
+  fn @cancel_offsets(arg0: i256, arg1: i256) -> struct3 [return_abi=[i256, i256, i256, i256]] {
     bb0:
       v0 = sub arg1, arg0
 -     v1 = add arg0, v0
@@ -171,7 +171,7 @@
 +     ret arg1, arg1, arg1, arg0
   }
   
-  fn @different_offsets(arg0: word, arg1: word, arg2: word) -> struct0 [return_abi=[word, word]] {
+  fn @different_offsets(arg0: i256, arg1: i256, arg2: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = sub arg1, arg0
       v1 = add arg2, v0
@@ -180,7 +180,7 @@
       ret v1, v3
   }
   
-  fn @masked_left_shift(arg0: word) -> struct0 [return_abi=[word, word]] {
+  fn @masked_left_shift(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = shl 32, arg0
       v1 = or v0, 0x12345678
@@ -191,7 +191,7 @@
 +     ret 0x12345678, 120
   }
   
-  fn @masked_right_shift(arg0: word) -> word {
+  fn @masked_right_shift(arg0: i256) -> i256 {
     bb0:
       v0 = shr 8, arg0
       v1 = or v0, 0x1200000000000000000000000000000000000000000000000000000000000001
@@ -200,7 +200,7 @@
 +     ret 0x1200000000000000000000000000000000000000000000000000000000000000
   }
   
-  fn @masked_constant_covers_bits(arg0: word) -> word {
+  fn @masked_constant_covers_bits(arg0: i256) -> i256 {
     bb0:
 -     v0 = shl 1, arg0
 +     v0 = add arg0, arg0
@@ -210,7 +210,7 @@
 +     ret 2
   }
   
-  fn @masked_shift_boundaries(arg0: word) -> struct2 [return_abi=[word, word, word]] {
+  fn @masked_shift_boundaries(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = shl 255, arg0
       v1 = or v0, 7
@@ -225,7 +225,7 @@
 +     ret 7, 9, 11
   }
   
-  fn @masked_unknown_bits(arg0: word, arg1: word) -> struct4 [return_abi=[word, word, word, word, word]] {
+  fn @masked_unknown_bits(arg0: i256, arg1: i256) -> struct4 [return_abi=[i256, i256, i256, i256, i256]] {
     bb0:
       v0 = shl 31, arg0
       v1 = or v0, 7
@@ -246,7 +246,7 @@
       ret v2, v5, v8, v11, v14
   }
   
-  fn @unshift_address() -> struct0 [return_abi=[word, word]] {
+  fn @unshift_address() -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = address
       v1 = shl 32, v0
@@ -259,7 +259,7 @@
 +     ret v0, v0
   }
   
-  fn @keep_lossy_address_shifts(arg0: word) -> struct3 [return_abi=[word, word, word, word]] {
+  fn @keep_lossy_address_shifts(arg0: i256) -> struct3 [return_abi=[i256, i256, i256, i256]] {
     bb0:
       v0 = address
       v1 = shl 97, v0
@@ -278,7 +278,7 @@
       ret v3, v6, v9, v12
   }
   
-  fn @subtract_common_base(arg0: word) -> struct2 [return_abi=[word, word, word]] {
+  fn @subtract_common_base(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = add arg0, 68
 -     v1 = add 36, arg0
@@ -292,7 +292,7 @@
 +     ret 32, 2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
   }
   
-  fn @keep_distinct_bases(arg0: word, arg1: word) -> word {
+  fn @keep_distinct_bases(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = add arg0, 68
       v1 = add arg1, 36
@@ -300,7 +300,7 @@
       ret v2
   }
   
-  fn @nested_shifts(arg0: word) -> struct2 [return_abi=[word, word, word]] {
+  fn @nested_shifts(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = shl 3, arg0
 -     v1 = shl 5, v0
@@ -314,7 +314,7 @@
       ret v1, v3, v5
   }
   
-  fn @nested_shift_limits(arg0: word) -> struct2 [return_abi=[word, word, word]] {
+  fn @nested_shift_limits(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = shl 128, arg0
 -     v1 = shl 128, v0
@@ -327,7 +327,7 @@
 +     ret 0, 0, v5
   }
   
-  fn @mixed_and_variable_shifts(arg0: word, arg1: word) -> struct2 [return_abi=[word, word, word]] {
+  fn @mixed_and_variable_shifts(arg0: i256, arg1: i256) -> struct2 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = shl 3, arg0
       v1 = shr 5, v0

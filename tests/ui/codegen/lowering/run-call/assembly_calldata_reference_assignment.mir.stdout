@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/assembly_calldata_reference_assignment.sol:AssemblyCalldataReferenceAssignment ===
 @module AssemblyCalldataReferenceAssignment
 types:
-  struct0: {word, word}
-  struct1: {word, word, word}
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256}
 
 fn @structs(arg0: calldataslice, arg1: calldataslice) -> struct0 [selector=0x46afc9f8, pure, abi_params=[tuple<u256>, tuple<u256, u256>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
@@ -509,7 +509,7 @@ fn @dynamicWrappingEnd(arg0: calldataslice) -> memoryarray [selector=0x4c797599,
     ret v28
 }
 
-fn @returnedSlice(arg0: calldataslice) -> word [selector=0x515c2822, pure, abi_params=[bytes], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+fn @returnedSlice(arg0: calldataslice) -> i256 [selector=0x515c2822, pure, abi_params=[bytes], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = icall @slice, arg0, 0
     v1 = slice_ptr v0
@@ -518,7 +518,7 @@ fn @returnedSlice(arg0: calldataslice) -> word [selector=0x515c2822, pure, abi_p
     ret v3
 }
 
-fn @emptyUnassignedSlice() -> word [selector=0xfe14379c, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @emptyUnassignedSlice() -> i256 [selector=0xfe14379c, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = make_calldata_slice 0, 0
     v1 = slice_ptr v0
@@ -528,13 +528,13 @@ fn @emptyUnassignedSlice() -> word [selector=0xfe14379c, pure, abi_params=[], ab
     ret v4
 }
 
-fn @sliceLength(arg0: calldataslice) -> word [pure] {
+fn @sliceLength(arg0: calldataslice) -> i256 [pure] {
   bb0:
     v0 = slice_len arg0
     ret v0
 }
 
-fn @slice(arg0: calldataslice, arg1: word) -> calldataslice [pure] {
+fn @slice(arg0: calldataslice, arg1: i256) -> calldataslice [pure] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, arg1

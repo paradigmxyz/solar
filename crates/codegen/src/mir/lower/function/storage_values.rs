@@ -6,7 +6,7 @@ use super::*;
 fn build_storage_bytes_helper(function: &mut Function) {
     // load_storage_bytes(slot) -> bytes_object
     let mut builder = FunctionBuilder::new_semantic(function);
-    let slot = builder.add_param(MirType::Word);
+    let slot = builder.add_param(MirType::I256);
     builder.set_return_type(MirType::MemoryObject(MemoryObjectKind::Bytes));
     let object = builder.emit_inst(
         InstKind::StorageBytesLoad(slot),
@@ -22,7 +22,7 @@ fn build_storage_array_helper(
 ) {
     // object = load_storage_array element, slot; ret object
     let mut builder = FunctionBuilder::new_semantic(function);
-    let slot = builder.add_param(MirType::Word);
+    let slot = builder.add_param(MirType::I256);
     let ty = MirType::MemoryObject(MemoryObjectKind::DynamicArray);
     builder.set_return_type(ty);
     let object =
@@ -56,7 +56,7 @@ fn packed_storage_array_position(
 fn build_storage_bytes_store_helper(function: &mut Function) {
     // store_storage_bytes(slot, object); ret
     let mut builder = FunctionBuilder::new_semantic(function);
-    let slot = builder.add_param(MirType::Word);
+    let slot = builder.add_param(MirType::I256);
     let object = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
     builder.store_storage_bytes(slot, object);
     builder.ret([]);
@@ -1102,7 +1102,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         //     array[i] = load_struct(element_slot)
         //     element_slot += element_slots
         // }
-        let slot = self.builder.add_param(MirType::Word);
+        let slot = self.builder.add_param(MirType::I256);
         self.builder.set_return_type(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
 
         let length = self.builder.sload(slot);
@@ -1509,7 +1509,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         self.lazy_helper(name, |this, function| {
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
-            let slot = lowerer.builder.add_param(MirType::Word);
+            let slot = lowerer.builder.add_param(MirType::I256);
             let lowered = match helper {
                 RecursiveStorageHelper::Store { target, source } => {
                     let object =

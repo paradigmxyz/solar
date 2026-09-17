@@ -25,7 +25,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @fixedLength() -> word [selector=0x47f1a57f, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     memory_object_store_element memoryfixedarray<1, 1>, v0, 0, 0
@@ -193,7 +193,7 @@ fn @fixedLength() -> word [selector=0x47f1a57f, abi_params=[], abi_returns=[word
     jump bb3
 }
 
-fn @dynamicLength(arg0: word) -> word [selector=0x3e3319e9, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     jump bb1
@@ -429,7 +429,7 @@ fn @dynamicLength(arg0: word) -> word [selector=0x3e3319e9, abi_params=[u256], a
     jump bb1
 }
 
-fn @exactSlotBoundary() -> word [selector=0xe55d27b8, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     jump bb1

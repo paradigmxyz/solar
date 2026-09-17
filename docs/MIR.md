@@ -8,11 +8,16 @@ is a late lowering decision.
 
 ## Value types and conversions
 
-SSA values use `word`, `bool`, structs, slices, or memory-object references.
-A `word` carries 256 bits; source widths, signedness, and ABI encoding rules
+SSA values use `i256`, `i1`, structs, slices, or memory-object references.
+An `i256` carries 256 bits; source widths, signedness, and ABI encoding rules
 belong to operation and layout metadata. `void` denotes no function result.
 
-Every `bool` is zero or one. Branches and select conditions require `bool`;
+Integer type names follow `iN`, where `N` is the bit width. Only `i1` and
+`i256` are supported for now. Future integer widths should remain explicit in
+MIR and lower to the EVM's `i256` representation at the EVM IR boundary.
+Signedness belongs to operations, not integer types.
+
+Every `i1` is zero or one. Branches and select conditions require `i1`;
 compare a word with zero using `eq value, 0` or `ne value, 0` before branching.
 These are the canonical MIR zero tests. `ISZERO` exists only in EVM IR.
 Use `word_cast` to preserve a boolean or object reference's bits as a word,
@@ -41,7 +46,7 @@ or types a module may contain.
 | Representation | Contract | Main work |
 | --- | --- | --- |
 | Semantic MIR | Typed SSA, structs, slices, object references, semantic builtins, ordinary function calls; ABI and storage layouts remain explicit data. | Inline and specialize small functions, propagate constants, promote frame slots, simplify aggregates, remove redundant checks and memory/storage work. |
-| Lowered MIR | Word and boolean SSA, explicit routing and ABI code, physical memory accesses, lowered call signatures, backend-supported operations. No semantic builtin or unresolved layout remains. | Simplify exposed scalar code, remove redundant loads/stores, optimize generated loops where profitable, prepare scheduling. |
+| Lowered MIR | `i256` and `i1` SSA, explicit routing and ABI code, physical memory accesses, lowered call signatures, backend-supported operations. No semantic builtin or unresolved layout remains. | Simplify exposed scalar code, remove redundant loads/stores, optimize generated loops where profitable, prepare scheduling. |
 | EVM IR | Scheduled blocks with physical stack operations and explicit control transfers. | Target peepholes, sharing, outlining, layout, then assembly. |
 
 `lowered` does not mean scheduled: SSA values, phis, functions, and calls survive
@@ -460,7 +465,7 @@ They do not allocate storage, copy bytes, or imply an address. A slice field
 carries its pointer and length; a memory-object field carries a typed reference,
 not a copy of the referenced object.
 
-A raw `word` field can carry all bits of a nominal object reference. Keep that
+A raw `i256` field can carry all bits of a nominal object reference. Keep that
 loss of type information explicit: `word_cast` preserves the bits and yields a
 raw word; `memory_object_from_ptr` gives a word an object type without proving
 validity or ownership. Neither operation allocates or copies memory. Aggregate

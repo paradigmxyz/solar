@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_options.sol:ExternalFunctionPointerOptions ===
 @module ExternalFunctionPointerOptions
-fn @sink(arg0: word) [selector=0xa4ba067e, payable, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @sink(arg0: i256) [selector=0xa4ba067e, payable, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @gasOpt() -> word {
+fn @gasOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -15,7 +15,7 @@ fn @gasOpt() -> word {
     ret v3
 }
 
-fn @valueOpt() -> word {
+fn @valueOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -24,7 +24,7 @@ fn @valueOpt() -> word {
     ret 0
 }
 
-fn @arg() -> word {
+fn @arg() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -33,7 +33,7 @@ fn @arg() -> word {
     ret 7
 }
 
-fn @f() -> word [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = shl 32, v0

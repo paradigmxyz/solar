@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_index_boundary.sol:StorageArrayIndexBoundary ===
 @module StorageArrayIndexBoundary
-fn @read(arg0: word, arg1: word) -> word [selector=0x75080997, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @read(arg0: i256, arg1: i256) -> i256 [selector=0x75080997, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:

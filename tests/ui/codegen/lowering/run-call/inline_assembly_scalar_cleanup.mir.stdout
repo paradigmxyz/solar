@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/inline_assembly_scalar_cleanup.sol:InlineAssemblyScalarCleanup ===
 @module InlineAssemblyScalarCleanup
 types:
-  struct0: {word, word, word, word, word, word}
-  struct1: {word, word}
+  struct0: {i256, i256, i256, i256, i256, i256}
+  struct1: {i256, i256}
 
 fn @arithmetic() -> struct0 [selector=0x980a67fd, pure, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>, word<u8>, word<u8>], abi_return_params=[u8, u8, u8, u8, u8, u8]] {
   bb0:
@@ -70,7 +70,7 @@ fn @increments() -> struct1 [selector=0x56aa2dc5, pure, abi_params=[], abi_retur
     ret v5
 }
 
-fn @decrements() -> word [selector=0xa1d28959, pure, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @decrements() -> i256 [selector=0xa1d28959, pure, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = not 255
     v1 = and v0, 255
@@ -78,7 +78,7 @@ fn @decrements() -> word [selector=0xa1d28959, pure, abi_params=[], abi_returns=
     ret v2
 }
 
-fn @negation() -> word [selector=0x336c96f8, pure, abi_params=[], abi_returns=[word<i8>], abi_return_params=[i8]] {
+fn @negation() -> i256 [selector=0x336c96f8, pure, abi_params=[], abi_returns=[word<i8>], abi_return_params=[i8]] {
   bb0:
     v0 = signextend 0, 128
     v1 = checked_sub i8, 0, v0
@@ -95,18 +95,18 @@ fn @wideningConversions() -> struct1 [selector=0x06a404a3, pure, abi_params=[], 
     ret v4
 }
 
-fn @explicitWideningReturn() -> word [selector=0xbd2ce75e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @explicitWideningReturn() -> i256 [selector=0xbd2ce75e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and 0x12345678, 255
     ret v0
 }
 
-fn @implicitReturn() -> word [selector=0xf8438e3d, pure, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @implicitReturn() -> i256 [selector=0xf8438e3d, pure, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     ret 0x12345678
 }
 
-fn @invalidEnum() -> word [selector=0xb65e9efe, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {
+fn @invalidEnum() -> i256 [selector=0xb65e9efe, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {
   bb0:
     v0 = lt 2, 2
     v1 = eq v0, false
@@ -115,7 +115,7 @@ fn @invalidEnum() -> word [selector=0xb65e9efe, pure, abi_params=[], abi_returns
     ret 2
 }
 
-fn @assemblyRead() -> word [selector=0x4f21d5c0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @assemblyRead() -> i256 [selector=0x4f21d5c0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 257
 }
@@ -129,7 +129,7 @@ fn @internalArguments() -> struct1 [selector=0xd0754141, pure, abi_params=[], ab
     ret v3
 }
 
-fn @storageAssignment() -> word [selector=0x7bae1f27, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @storageAssignment() -> i256 [selector=0x7bae1f27, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq 5, 0
     v1 = eq v0, false
@@ -144,12 +144,12 @@ fn @storageAssignment() -> word [selector=0x7bae1f27, abi_params=[], abi_returns
     ret v8
 }
 
-fn @widen(arg0: word) -> word [pure] {
+fn @widen(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
 
-fn @dirtyNot(arg0: word) -> word [pure] {
+fn @dirtyNot(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = div arg0, 256
     ret v0

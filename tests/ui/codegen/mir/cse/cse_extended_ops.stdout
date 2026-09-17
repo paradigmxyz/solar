@@ -2,9 +2,9 @@
 + // === ROOT/tests/ui/codegen/mir/cse/cse_extended_ops.mir (after cse) ===
   @module CseExtendedOps
   types:
-    struct0: {word, word, word, word, word, bool}
+    struct0: {i256, i256, i256, i256, i256, i1}
   
-  fn @extended_pure_ops(arg0: word, arg1: word, arg2: bool) -> struct0 [return_abi=[word, word, word, word, word, bool]] {
+  fn @extended_pure_ops(arg0: i256, arg1: i256, arg2: i1) -> struct0 [return_abi=[i256, i256, i256, i256, i256, i1]] {
     bb0:
       v0 = sdiv arg0, arg1
 -     v1 = sdiv arg0, arg1
@@ -24,7 +24,7 @@
 +     ret v0, v2, v4, v6, v8, v12
   }
   
-  fn @calldata_reads(arg0: word) -> word {
+  fn @calldata_reads(arg0: i256) -> i256 {
     bb0:
       v0 = calldataload arg0
 -     v1 = calldataload arg0
@@ -32,7 +32,7 @@
 +     ret v0
   }
   
-  fn @clz(arg0: word) -> word {
+  fn @clz(arg0: i256) -> i256 {
     bb0:
       v0 = clz arg0
 -     v1 = clz arg0

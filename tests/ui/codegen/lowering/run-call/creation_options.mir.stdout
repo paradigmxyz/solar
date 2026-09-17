@@ -3,7 +3,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/creation_options.sol:CreationOptions ===
 @module CreationOptions
-fn @sameShortLiteralSalt() -> word [selector=0xae55518d, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @sameShortLiteralSalt() -> i256 [selector=0xae55518d, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -46,7 +46,7 @@ fn @sameShortLiteralSalt() -> word [selector=0xae55518d, abi_params=[], abi_retu
     ret 0
 }
 
-fn @sameEmptyLiteralSalt() -> word [selector=0x01dd6ed9, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @sameEmptyLiteralSalt() -> i256 [selector=0x01dd6ed9, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -89,7 +89,7 @@ fn @sameEmptyLiteralSalt() -> word [selector=0x01dd6ed9, abi_params=[], abi_retu
     ret 0
 }
 
-fn @sameFullLiteralSalt() -> word [selector=0xaf96a2f0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @sameFullLiteralSalt() -> i256 [selector=0xaf96a2f0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -132,7 +132,7 @@ fn @sameFullLiteralSalt() -> word [selector=0xaf96a2f0, abi_params=[], abi_retur
     ret 0
 }
 
-fn @differentLiteralSalts() -> word [selector=0x3109d26e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @differentLiteralSalts() -> i256 [selector=0x3109d26e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31

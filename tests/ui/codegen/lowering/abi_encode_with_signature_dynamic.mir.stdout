@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_with_signature_dynamic.sol:AbiEncodeWithSignatureDynamic ===
 @module AbiEncodeWithSignatureDynamic
-fn @callCond(arg0: word, arg1: word, arg2: word) -> word [selector=0x407a1bfe, abi_params=[address, bool, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @callCond(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x407a1bfe, abi_params=[address, bool, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gas
     v1 = ne arg1, 0
@@ -11,7 +11,7 @@ fn @callCond(arg0: word, arg1: word, arg2: word) -> word [selector=0x407a1bfe, a
     ret v5
 }
 
-fn @encodeCond(arg0: word, arg1: word) -> memorybytes [selector=0x3e8cea54, pure, abi_params=[bool, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeCond(arg0: i256, arg1: i256) -> memorybytes [selector=0x3e8cea54, pure, abi_params=[bool, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = ne arg0, 0
     v1 = select v0, 0x2b8fbce800000000000000000000000000000000000000000000000000000000, 0xe74800c00000000000000000000000000000000000000000000000000000000
@@ -19,13 +19,13 @@ fn @encodeCond(arg0: word, arg1: word) -> memorybytes [selector=0x3e8cea54, pure
     ret v2
 }
 
-fn @encodeLiteral(arg0: word) -> memorybytes [selector=0xb7e00125, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeLiteral(arg0: i256) -> memorybytes [selector=0xb7e00125, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_encode [word], object, selector 0x2b8fbce800000000000000000000000000000000000000000000000000000000, args arg0
     ret v0
 }
 
-fn @encodeRuntime(arg0: memorybytes, arg1: word) -> memorybytes [selector=0xc69a8386, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeRuntime(arg0: memorybytes, arg1: i256) -> memorybytes [selector=0xc69a8386, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = keccak256_bytes arg0
     v1 = shr 224, v0

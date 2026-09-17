@@ -55,7 +55,7 @@ impl Immediate {
     #[must_use]
     pub(crate) fn for_type(ty: Option<MirType>, value: U256) -> Self {
         match ty {
-            Some(MirType::Bool) => {
+            Some(MirType::I1) => {
                 assert!(value <= U256::ONE, "boolean immediate must be zero or one");
                 Self::Bool(!value.is_zero())
             }
@@ -68,8 +68,8 @@ impl Immediate {
     #[must_use]
     pub(crate) const fn ty(&self) -> MirType {
         match self {
-            Self::Bool(_) => MirType::Bool,
-            Self::Word(_) => MirType::Word,
+            Self::Bool(_) => MirType::I1,
+            Self::Word(_) => MirType::I256,
             Self::Pointer(_, ty) => *ty,
         }
     }

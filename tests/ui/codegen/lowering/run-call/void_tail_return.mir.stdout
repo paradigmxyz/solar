@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/void_tail_return.sol:VoidTailReturn ===
 @module VoidTailReturn
 types:
-  struct0: {word, word, word}
-  struct1: {word, word}
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256}
 
-fn @tuple(arg0: word, arg1: word) -> struct0 [selector=0x420f3440, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @tuple(arg0: i256, arg1: i256) -> struct0 [selector=0x420f3440, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     icall @forwardTuple, arg0, arg1
     icall @forwardTuple, arg1, arg0
@@ -17,7 +17,7 @@ fn @tuple(arg0: word, arg1: word) -> struct0 [selector=0x420f3440, abi_params=[u
     ret v5
 }
 
-fn @forwardTuple(arg0: word, arg1: word) {
+fn @forwardTuple(arg0: i256, arg1: i256) {
   bb0:
     v0 = ne arg0, 0
     v1 = eq v0, false
@@ -26,7 +26,7 @@ fn @forwardTuple(arg0: word, arg1: word) {
     ret
 }
 
-fn @tupleSink(arg0: word, arg1: word, arg2: word) {
+fn @tupleSink(arg0: i256, arg1: i256, arg2: i256) {
   bb0:
     v0 = ne arg0, 0
     v1 = eq v0, false
@@ -37,14 +37,14 @@ fn @tupleSink(arg0: word, arg1: word, arg2: word) {
     ret
 }
 
-fn @once(arg0: word, arg1: word) -> word [selector=0x4c579d9d, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @once(arg0: i256, arg1: i256) -> i256 [selector=0x4c579d9d, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall @forward, arg0, arg1
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @twice(arg0: word, arg1: word) -> word [selector=0x09d3ef31, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @twice(arg0: i256, arg1: i256) -> i256 [selector=0x09d3ef31, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall @forward, arg0, arg1
     icall @forward, arg1, arg0
@@ -52,7 +52,7 @@ fn @twice(arg0: word, arg1: word) -> word [selector=0x09d3ef31, abi_params=[u256
     ret v0
 }
 
-fn @forward(arg0: word, arg1: word) {
+fn @forward(arg0: i256, arg1: i256) {
   bb0:
     v0 = ne arg0, 0
     v1 = eq v0, false
@@ -61,7 +61,7 @@ fn @forward(arg0: word, arg1: word) {
     ret
 }
 
-fn @sink(arg0: word, arg1: word, arg2: word) {
+fn @sink(arg0: i256, arg1: i256, arg2: i256) {
   bb0:
     v0 = lt arg0, 10
     jumpi v0, bb1, bb2
@@ -93,14 +93,14 @@ fn @sink(arg0: word, arg1: word, arg2: word) {
     ret
 }
 
-fn @zero(arg0: word) -> word [selector=0xe0353e59, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @zero(arg0: i256) -> i256 [selector=0xe0353e59, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall @zeroForward, arg0
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @zeroForward(arg0: word) {
+fn @zeroForward(arg0: i256) {
   bb0:
     v0 = ne arg0, 0
     v1 = eq v0, false
@@ -137,14 +137,14 @@ fn @finish() {
     jump bb1
 }
 
-fn @recurse(arg0: word) -> word [selector=0xb2041d21, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @recurse(arg0: i256) -> i256 [selector=0xb2041d21, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall @recursive, arg0
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @recursive(arg0: word) {
+fn @recursive(arg0: i256) {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, arg0
@@ -161,7 +161,7 @@ fn @recursive(arg0: word) {
     ret
 }
 
-fn @recursePair(arg0: word, arg1: word, arg2: word) -> struct1 [selector=0x6920ce60, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @recursePair(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0x6920ce60, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     icall @recursivePair, arg0, arg1, arg2
     v0 = sload 0 !metadata(storage=slot(0))
@@ -171,7 +171,7 @@ fn @recursePair(arg0: word, arg1: word, arg2: word) -> struct1 [selector=0x6920c
     ret v3
 }
 
-fn @recursivePair(arg0: word, arg1: word, arg2: word) {
+fn @recursivePair(arg0: i256, arg1: i256, arg2: i256) {
   bb0:
     v0 = eq arg2, 0
     jumpi v0, bb1, bb2
@@ -188,14 +188,14 @@ fn @recursivePair(arg0: word, arg1: word, arg2: word) {
     ret
 }
 
-fn @recurseYul(arg0: word) -> word [selector=0xdcf2147e, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @recurseYul(arg0: i256) -> i256 [selector=0xdcf2147e, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall @recursiveYul, arg0
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @recursiveYul(arg0: word) {
+fn @recursiveYul(arg0: i256) {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2

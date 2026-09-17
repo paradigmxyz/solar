@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/lowering/element_cleanup.sol:ElementCleanup (before element-cleanup) ===
 + // === ROOT/tests/ui/codegen/lowering/element_cleanup.sol:ElementCleanup (after element-cleanup) ===
   @module ElementCleanup
-  fn @first(arg0: memoryarray) -> word [selector=0x61c4cbc4, pure, abi_params=[array<_, address>], abi_returns=[word<u160>], abi_return_params=[address]] {
+  fn @first(arg0: memoryarray) -> i256 [selector=0x61c4cbc4, pure, abi_params=[array<_, address>], abi_returns=[word<u160>], abi_return_params=[address]] {
     bb0:
       v0 = memory_object_len memoryarray, arg0
       v1 = lt 0, v0
@@ -13,7 +13,7 @@
 +     ret v3
   }
   
-  fn @fresh(arg0: word) -> word [selector=0x0538087c, pure, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
+  fn @fresh(arg0: i256) -> i256 [selector=0x0538087c, pure, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
     bb0:
       v0 = mul arg0, 1
       v1 = eq 1, 0
@@ -58,7 +58,7 @@
 +     ret v28
   }
   
-  fn @last(arg0: memoryarray, arg1: word) -> word [pure] {
+  fn @last(arg0: memoryarray, arg1: i256) -> i256 [pure] {
     bb0:
       v0 = checked_add u256, arg1, 1
       v1 = memory_object_len memoryarray, arg0
@@ -81,13 +81,13 @@
 +     ret v6
   }
   
-  fn @tail(arg0: memoryarray) -> word [selector=0x4c8ba82e, pure, abi_params=[array<_, address>], abi_returns=[word<u160>], abi_return_params=[address]] {
+  fn @tail(arg0: memoryarray) -> i256 [selector=0x4c8ba82e, pure, abi_params=[array<_, address>], abi_returns=[word<u160>], abi_return_params=[address]] {
     bb0:
       v0 = icall @last, arg0, 0
       ret v0
   }
   
-  fn @dirty(arg0: memoryarray) -> word [selector=0x74016a59, pure, abi_params=[array<_, address>], abi_returns=[word<u160>], abi_return_params=[address]] {
+  fn @dirty(arg0: memoryarray) -> i256 [selector=0x74016a59, pure, abi_params=[array<_, address>], abi_returns=[word<u160>], abi_return_params=[address]] {
     bb0:
       v0 = word_cast arg0
       v1 = add v0, 32
@@ -101,7 +101,7 @@
       ret v6
   }
   
-  fn @fill(arg0: memoryarray, arg1: word) [pure] {
+  fn @fill(arg0: memoryarray, arg1: i256) [pure] {
     bb0:
       v0 = memory_object_len memoryarray, arg0
       v1 = lt 0, v0
@@ -112,7 +112,7 @@
       ret
   }
   
-  fn @filled(arg0: memoryarray, arg1: word) -> word [selector=0xc5c700de, pure, abi_params=[array<_, address>, address], abi_returns=[word<u160>], abi_return_params=[address]] {
+  fn @filled(arg0: memoryarray, arg1: i256) -> i256 [selector=0xc5c700de, pure, abi_params=[array<_, address>, address], abi_returns=[word<u160>], abi_return_params=[address]] {
     bb0:
       icall @fill, arg0, arg1
       v0 = memory_object_len memoryarray, arg0
@@ -125,7 +125,7 @@
 +     ret v3
   }
   
-  fn @narrowed(arg0: memoryarray, arg1: word) -> word [selector=0xb5215a28, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
+  fn @narrowed(arg0: memoryarray, arg1: i256) -> i256 [selector=0xb5215a28, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
     bb0:
       v0 = memory_object_len memoryarray, arg0
       v1 = lt 0, v0

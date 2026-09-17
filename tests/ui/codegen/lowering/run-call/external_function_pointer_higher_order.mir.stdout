@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_higher_order.sol:ExternalFunctionPointerHigherOrderTarget ===
 @module ExternalFunctionPointerHigherOrderTarget
-fn @addTwo(arg0: word) -> word [selector=0xcae57913, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @addTwo(arg0: i256) -> i256 [selector=0xcae57913, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_add u256, arg0, 2
     ret v0
@@ -11,7 +11,7 @@ fn @addTwo(arg0: word) -> word [selector=0xcae57913, pure, abi_params=[u256], ab
 data:
   ExternalFunctionPointerHigherOrderTarget_initcode_0: hex"34600d5760678060115f395ff35b5f5ffd341515601c575f3560e01c8063cae5791314601857601c565b6020565b5f5ffd5b602436106063576002600435018060a0528060a05260043581106051578060a0526080526020608001608090036080f35b634e487b715f5260116020526024601cfd5b5f5ffd"
 
-fn @store(arg0: word) [selector=0xf018a0a7, abi_params=[function], abi_returns=[], abi_return_params=[]] {
+fn @store(arg0: i256) [selector=0xf018a0a7, abi_params=[function], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = shl 64, 0xffffffffffffffffffffffffffffffffffffffffffffffff
     v1 = sload 0 !metadata(storage=slot(0))
@@ -24,7 +24,7 @@ fn @store(arg0: word) [selector=0xf018a0a7, abi_params=[function], abi_returns=[
     ret
 }
 
-fn @eval(arg0: word) -> word [selector=0xd54e4ce7, abi_params=[function], abi_returns=[word], abi_return_params=[u256]] {
+fn @eval(arg0: i256) -> i256 [selector=0xd54e4ce7, abi_params=[function], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and arg0, 0xffffffff
     v1 = shl 224, v0
@@ -48,7 +48,7 @@ fn @eval(arg0: word) -> word [selector=0xd54e4ce7, abi_params=[function], abi_re
     ret v13
 }
 
-fn @t() -> word [selector=0x92d0d153, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @t() -> i256 [selector=0x92d0d153, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffffffffffffffff
@@ -94,7 +94,7 @@ fn @t() -> word [selector=0x92d0d153, abi_params=[], abi_returns=[word], abi_ret
     ret v28
 }
 
-fn @internal_dispatcher_p_function_r_u256(arg0: word, arg1: word) -> word [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_function_r_u256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 3
     jumpi v0, bb1, bb2

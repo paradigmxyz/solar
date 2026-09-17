@@ -13,7 +13,7 @@
 // CHECK-NEXT: -     {{v[0-9]+}} = lt
 // CHECK-NEXT: -     jumpi
 // CHECK-NEXT: +     jumpi [[COND]],
-fn @reuse_dominating_read_in_loop(arg0: word, arg1: word) -> word {
+fn @reuse_dominating_read_in_loop(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -42,7 +42,7 @@ fn @reuse_dominating_read_in_loop(arg0: word, arg1: word) -> word {
 // CHECK-LABEL: @keep_read_across_inner_cycle
 // CHECK: {{^ +}}{{v[0-9]+}} = mload arg0
 // CHECK: {{^ +}}{{v[0-9]+}} = mload arg0
-fn @keep_read_across_inner_cycle(arg0: word, arg1: word) -> word {
+fn @keep_read_across_inner_cycle(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:

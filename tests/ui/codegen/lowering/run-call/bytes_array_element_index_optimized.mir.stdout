@@ -32,14 +32,14 @@ fn @build() -> memoryfixedarray [pure] {
     jump bb1
 }
 
-fn @sumSecond() -> word [selector=0xee09deba, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @sumSecond() -> i256 [selector=0xee09deba, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @build
     v1 = icall @sumElement1, v0
     ret v1
 }
 
-fn @sumElement1(arg0: memoryfixedarray) -> word [pure] {
+fn @sumElement1(arg0: memoryfixedarray) -> i256 [pure] {
   bb0:
     v0 = lt 1, 2
     v1 = eq v0, false
@@ -89,7 +89,7 @@ fn @sumElement1(arg0: memoryfixedarray) -> word [pure] {
     ret v28
 }
 
-fn @twoAsserts() -> word [selector=0xb2d66aee, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @twoAsserts() -> i256 [selector=0xb2d66aee, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @build
     v1 = lt 0, 2

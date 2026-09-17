@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_call_returndata.sol:LowLevelCallReturndata ===
 @module LowLevelCallReturndata
-fn @safeTransfer(arg0: word, arg1: word, arg2: word) [selector=0xd1660f99, abi_params=[address, address, u256], abi_returns=[], abi_return_params=[]] {
+fn @safeTransfer(arg0: i256, arg1: i256, arg2: i256) [selector=0xd1660f99, abi_params=[address, address, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = gas
     v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
@@ -28,7 +28,7 @@ fn @safeTransfer(arg0: word, arg1: word, arg2: word) [selector=0xd1660f99, abi_p
     ret
 }
 
-fn @balanceOf(arg0: word) -> word [selector=0x70a08231, view, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
+fn @balanceOf(arg0: i256) -> i256 [selector=0x70a08231, view, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = address
@@ -42,7 +42,7 @@ fn @balanceOf(arg0: word) -> word [selector=0x70a08231, view, abi_params=[addres
     ret v7
 }
 
-fn @forward(arg0: word, arg1: memorybytes) -> memorybytes [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @forward(arg0: i256, arg1: memorybytes) -> memorybytes [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = gas
     v1 = address_call arg0, arg1, gas v0

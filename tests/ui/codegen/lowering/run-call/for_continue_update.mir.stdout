@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/for_continue_update.sol:ForContinueUpdate ===
 @module ForContinueUpdate
-fn @yulLoop() -> word [selector=0x8bd7fdaf, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @yulLoop() -> i256 [selector=0x8bd7fdaf, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -34,7 +34,7 @@ fn @yulLoop() -> word [selector=0x8bd7fdaf, pure, abi_params=[], abi_returns=[wo
     jump bb1
 }
 
-fn @solidityLoop() -> word [selector=0xf8459dc8, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @solidityLoop() -> i256 [selector=0xf8459dc8, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:

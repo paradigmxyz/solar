@@ -1,19 +1,19 @@
 //@compile-flags: -Zmir-pipeline=specialize,dead-arg-elim
 @module SharedSpecialization
 
-fn @first(arg0: word) -> word [selector=0x00000001] {
+fn @first(arg0: i256) -> i256 [selector=0x00000001] {
   bb0:
     v0 = icall @helper, 0, arg0
     ret v0
 }
 
-fn @second(arg0: word) -> word [selector=0x00000002] {
+fn @second(arg0: i256) -> i256 [selector=0x00000002] {
   bb0:
     v0 = icall @helper, 0, arg0
     ret v0
 }
 
-fn @helper(arg0: word, arg1: word) -> word {
+fn @helper(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v3 = ne arg0, 0
     jumpi v3, bb1, bb2
@@ -26,25 +26,25 @@ fn @helper(arg0: word, arg1: word) -> word {
     ret v2
 }
 
-fn @specialized_a(arg0: word) -> word {
+fn @specialized_a(arg0: i256) -> i256 {
   bb0:
     v0 = icall @mixed_helper, 0, arg0
     ret v0
 }
 
-fn @specialized_b(arg0: word) -> word {
+fn @specialized_b(arg0: i256) -> i256 {
   bb0:
     v0 = icall @mixed_helper, 0, arg0
     ret v0
 }
 
-fn @generic(arg0: word, arg1: word) -> word {
+fn @generic(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = icall @mixed_helper, arg0, arg1
     ret v0
 }
 
-fn @mixed_helper(arg0: word, arg1: word) -> word {
+fn @mixed_helper(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v3 = ne arg0, 0
     jumpi v3, bb1, bb2

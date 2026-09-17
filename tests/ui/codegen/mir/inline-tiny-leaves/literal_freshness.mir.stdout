@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/literal_freshness.sol:LiteralFreshness ===
 @module LiteralFreshness
-fn @freshInLoop(arg0: word) -> word [selector=0x533a7d1b, pure, abi_params=[bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @freshInLoop(arg0: i256) -> i256 [selector=0x533a7d1b, pure, abi_params=[bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     jump bb1
   bb1:
@@ -77,14 +77,14 @@ fn @freshInLoop(arg0: word) -> word [selector=0x533a7d1b, pure, abi_params=[byte
     ret v15
 }
 
-fn @emptyLiteral() -> word [selector=0x298b653f, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @emptyLiteral() -> i256 [selector=0x298b653f, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @empty
     v1 = memory_object_len memorybytes, v0
     ret v1
 }
 
-fn @encoded(arg0: word) -> memorybytes [selector=0xdbafcb80, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encoded(arg0: i256) -> memorybytes [selector=0xdbafcb80, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = shl 224, 0x12345678
     v1 = icall @encodedWord

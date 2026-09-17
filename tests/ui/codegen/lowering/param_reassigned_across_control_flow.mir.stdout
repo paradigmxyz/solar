@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/param_reassigned_across_control_flow.sol:ParamReassignedAcrossControlFlow ===
 @module ParamReassignedAcrossControlFlow
-fn @ifOnly(arg0: word, arg1: word) -> word [selector=0xcb9cf439, pure, abi_params=[u256, bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @ifOnly(arg0: i256, arg1: i256) -> i256 [selector=0xcb9cf439, pure, abi_params=[u256, bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = ne arg1, 0
     jumpi v0, bb1, bb2
@@ -13,7 +13,7 @@ fn @ifOnly(arg0: word, arg1: word) -> word [selector=0xcb9cf439, pure, abi_param
     ret v1
 }
 
-fn @nested(arg0: word, arg1: word, arg2: word) -> word [selector=0x32d773a7, pure, abi_params=[u256, bool, bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @nested(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x32d773a7, pure, abi_params=[u256, bool, bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = ne arg1, 0
     jumpi v0, bb1, bb2
@@ -42,7 +42,7 @@ fn @nested(arg0: word, arg1: word, arg2: word) -> word [selector=0x32d773a7, pur
     ret v5
 }
 
-fn @loop(arg0: word, arg1: word) -> word [selector=0x402b7423, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @loop(arg0: i256, arg1: i256) -> i256 [selector=0x402b7423, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -66,7 +66,7 @@ fn @loop(arg0: word, arg1: word) -> word [selector=0x402b7423, pure, abi_params=
     jump bb1
 }
 
-fn @memParam(arg0: memorybytes, arg1: word) -> word [selector=0x7f0132b5, pure, abi_params=[bytes, bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @memParam(arg0: memorybytes, arg1: i256) -> i256 [selector=0x7f0132b5, pure, abi_params=[bytes, bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = ne arg1, 0
     jumpi v0, bb1, bb2
@@ -84,7 +84,7 @@ fn @memParam(arg0: memorybytes, arg1: word) -> word [selector=0x7f0132b5, pure, 
     ret v4
 }
 
-fn @deferredMemory(arg0: word) -> word [selector=0xfd723601, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @deferredMemory(arg0: i256) -> i256 [selector=0xfd723601, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2

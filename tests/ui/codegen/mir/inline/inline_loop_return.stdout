@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/inline/inline_loop_return.mir (before inline) ===
 + // === ROOT/tests/ui/codegen/mir/inline/inline_loop_return.mir (after inline) ===
   @module InlineLoopReturn
-  fn @caller() -> word [selector=0x01020304] {
+  fn @caller() -> i256 [selector=0x01020304] {
     bb0:
 -     v0 = icall @callee, 4
 -     v1 = add v0, 1
@@ -32,7 +32,7 @@
 +     jump bb3
   }
   
-  fn @callee(arg0: word) -> word {
+  fn @callee(arg0: i256) -> i256 {
     bb0:
       v0 = internal_frame_addr 128
       mstore v0, 0

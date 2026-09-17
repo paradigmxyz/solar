@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_number_literals.sol:Probe ===
 @module Probe
-fn @probe(arg0: word) -> word [selector=0x14beb1ca, pure, abi_params=[bytes4], abi_returns=[word], abi_return_params=[u256]] {
+fn @probe(arg0: i256) -> i256 [selector=0x14beb1ca, pure, abi_params=[bytes4], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v1 = shr 224, v0
@@ -19,8 +19,8 @@ fn @constructor() [constructor] {
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_number_literals.sol:FixedBytesLiterals ===
 @module FixedBytesLiterals
 types:
-  struct0: {word, memorybytes}
-  struct1: {word, word, word}
+  struct0: {i256, memorybytes}
+  struct1: {i256, i256, i256}
 
 data:
   Probe_initcode_0: hex"60c0604052341515600e576012565b5f5ffd5b606e80601c5f395ff3341515601c575f3560e01c806314beb1ca14601857601c565b6020565b5f5ffd5b60243610606a5760043560201b1515606a577fffffffff000000000000000000000000000000000000000000000000000000006004351660e01c6080526020608001608090036080f35b5f5ffd"
@@ -28,7 +28,7 @@ data:
 immutables:
   immutableLiteral: bytes4
 
-fn @viaExternal() -> word [selector=0x09338c08, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @viaExternal() -> i256 [selector=0x09338c08, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -64,40 +64,40 @@ fn @viaExternal() -> word [selector=0x09338c08, abi_params=[], abi_returns=[word
     ret v19
 }
 
-fn @giveInternal(arg0: word) -> word [pure] {
+fn @giveInternal(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
 
-fn @viaInternal() -> word [selector=0xf1c8352f, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+fn @viaInternal() -> i256 [selector=0xf1c8352f, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = icall @giveInternal, 0x1122334400000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
-fn @viaLibrary() -> word [selector=0x14bbf91b, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+fn @viaLibrary() -> i256 [selector=0x14bbf91b, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = icall @give, 0x2122232400000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
-fn @retLit() -> word [selector=0xad0d29ff, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+fn @retLit() -> i256 [selector=0xad0d29ff, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     ret 0xaabbccdd00000000000000000000000000000000000000000000000000000000
 }
 
-fn @declLit() -> word [selector=0xe5489b44, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+fn @declLit() -> i256 [selector=0xe5489b44, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = shl 224, 0x55667788
     ret v0
 }
 
-fn @assignLit() -> word [selector=0xa4d2a382, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+fn @assignLit() -> i256 [selector=0xa4d2a382, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     ret 0x6677889900000000000000000000000000000000000000000000000000000000
 }
 
-fn @mapKeyCross() -> word [selector=0xef866c75, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @mapKeyCross() -> i256 [selector=0xef866c75, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and 0x3132333400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v1 = mapping_slot v0, 0
@@ -109,7 +109,7 @@ fn @mapKeyCross() -> word [selector=0xef866c75, abi_params=[], abi_returns=[word
     ret v5
 }
 
-fn @compareControl() -> word [selector=0x86f1fef0, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @compareControl() -> i256 [selector=0x86f1fef0, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = shl 224, 0x41424344
     v1 = eq v0, 0x4142434400000000000000000000000000000000000000000000000000000000
@@ -117,7 +117,7 @@ fn @compareControl() -> word [selector=0x86f1fef0, pure, abi_params=[], abi_retu
     ret v2
 }
 
-fn @bytesObjectCast() -> word [selector=0x3edbb59d, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+fn @bytesObjectCast() -> i256 [selector=0x3edbb59d, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 6
@@ -134,7 +134,7 @@ fn @bytesObjectCast() -> word [selector=0x3edbb59d, pure, abi_params=[], abi_ret
     ret v9
 }
 
-fn @returnedBytesObjectCast() -> word [selector=0x28a9d934, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @returnedBytesObjectCast() -> i256 [selector=0x28a9d934, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @returnBytes
     v1 = extract_value struct0, v0, 0
@@ -163,7 +163,7 @@ fn @returnBytes() -> struct0 [pure] {
     ret v4
 }
 
-fn @takeSlice(arg0: calldataslice) -> word [selector=0x4f4c8d8b, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @takeSlice(arg0: calldataslice) -> i256 [selector=0x4f4c8d8b, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -186,7 +186,7 @@ fn @takeSlice(arg0: calldataslice) -> word [selector=0x4f4c8d8b, pure, abi_param
     ret v16
 }
 
-fn @calldataSliceCast() -> word [selector=0x93f40587, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @calldataSliceCast() -> i256 [selector=0x93f40587, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = address
     v1 = gas
@@ -212,13 +212,13 @@ fn @calldataSliceCast() -> word [selector=0x93f40587, view, abi_params=[], abi_r
     ret v13
 }
 
-fn @stringAddressCast() -> word [selector=0x6e03912b, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @stringAddressCast() -> i256 [selector=0x6e03912b, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = shr 96, 0x6d696c6164790000000000000000000000000000000000000000000000000000
     ret v0
 }
 
-fn @emptyStringCompare() -> word [selector=0x97e464f0, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @emptyStringCompare() -> i256 [selector=0x97e464f0, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq 0, 0
     v1 = word_cast v0
@@ -241,7 +241,7 @@ fn @stateLiterals() -> struct1 [selector=0x803da9a2, view, abi_params=[], abi_re
     ret v10
 }
 
-fn @give(arg0: word) -> word [pure] {
+fn @give(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }

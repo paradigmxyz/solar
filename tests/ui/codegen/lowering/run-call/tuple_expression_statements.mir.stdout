@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/tuple_expression_statements.sol:C ===
 @module C
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
-fn @tupleLiteral() -> word [selector=0xd176547e, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @tupleLiteral() -> i256 [selector=0xd176547e, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = word_cast true
     ret v0

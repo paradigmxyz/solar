@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_packed_array_elements.sol:StoragePackedArrayElements ===
 @module StoragePackedArrayElements
 types:
-  struct0: {word, word, word}
+  struct0: {i256, i256, i256}
 
 fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word<u8>, word<u32>, word<u120>], abi_return_params=[u8, u32, u120]] {
   bb0:

@@ -81,7 +81,7 @@ fn removable(func: &Function, inst: &Instruction, target: Target) -> bool {
         Op::Select { true_val, false_val, .. } => {
             [inst.result_ty, func.value_ty(true_val), func.value_ty(false_val)]
                 .into_iter()
-                .all(|ty| matches!(ty, Some(MirType::Word | MirType::Bool)))
+                .all(|ty| matches!(ty, Some(MirType::I256 | MirType::I1)))
         }
         _ => false,
     };
@@ -198,7 +198,7 @@ impl Recipe {
                 });
                 // %temporary = recipe_child(earlier_values)
                 let kind = op.into_kind().expect("legal recipe child");
-                let ty = kind.op_def().result.default_type().unwrap_or(MirType::Word);
+                let ty = kind.op_def().result.default_type().unwrap_or(MirType::I256);
                 emit_recipe(func, root, kind, ty, inserted)
             }
         };

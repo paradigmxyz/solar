@@ -3,9 +3,9 @@
 //@[size] compile-flags: -Osize -Zmir-pipeline=inline-tiny-leaves,cfg-simplify,dce
 @module ReturnWords
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
-fn @entry(arg0: word, arg1: word) -> word [selector=1] {
+fn @entry(arg0: i256, arg1: i256) -> i256 [selector=1] {
   bb0:
     v0 = icall @swap, arg0, arg1
     v1 = frame_load multi_return, word, 0
@@ -15,12 +15,12 @@ fn @entry(arg0: word, arg1: word) -> word [selector=1] {
     v4 = sub v5, v3
     ret v4
 }
-fn @swap(arg0: word, arg1: word) -> struct0 [return_abi=[word, word]] {
+fn @swap(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256]] {
   bb0:
     ret arg1, arg0
 }
 // A memory write prevents forwarding a subsequent buffer read.
-fn @barrier(arg0: word, arg1: word) -> word [selector=2] {
+fn @barrier(arg0: i256, arg1: i256) -> i256 [selector=2] {
   bb0:
     v0 = icall @swap, arg0, arg1
     v1 = frame_load multi_return, word, 0

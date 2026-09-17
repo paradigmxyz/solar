@@ -73,7 +73,7 @@ fn @calldataReason(arg0: calldataslice) [selector=0x3f2c0e1e, pure, abi_params=[
     invalid
 }
 
-fn @load_storage_bytes(arg0: word) -> memorybytes {
+fn @load_storage_bytes(arg0: i256) -> memorybytes {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0

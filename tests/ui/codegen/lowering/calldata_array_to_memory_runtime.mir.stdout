@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_array_to_memory_runtime.sol:C ===
 @module C
-fn @viaStructLiteral(arg0: word, arg1: calldataslice, arg2: calldataslice) -> word [selector=0x3ce9e381, pure, abi_params=[u256, array<_, u256>, bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @viaStructLiteral(arg0: i256, arg1: calldataslice, arg2: calldataslice) -> i256 [selector=0x3ce9e381, pure, abi_params=[u256, array<_, u256>, bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v1 = slice_len arg1
@@ -66,7 +66,7 @@ fn @viaStructLiteral(arg0: word, arg1: calldataslice, arg2: calldataslice) -> wo
     ret v46
 }
 
-fn @viaDeclaration(arg0: calldataslice) -> word [selector=0xcd64a752, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @viaDeclaration(arg0: calldataslice) -> i256 [selector=0xcd64a752, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -101,7 +101,7 @@ fn @viaDeclaration(arg0: calldataslice) -> word [selector=0xcd64a752, pure, abi_
     ret v23
 }
 
-fn @viaAssignment(arg0: calldataslice) -> word [selector=0xdd04540a, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @viaAssignment(arg0: calldataslice) -> i256 [selector=0xdd04540a, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0

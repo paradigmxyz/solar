@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/run-call/calldata_string_slicing.sol:CalldataStringSlicing ===
 @module CalldataStringSlicing
-fn @slice(arg0: calldataslice, arg1: word) -> memorybytes [selector=0x8b150516, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @slice(arg0: calldataslice, arg1: i256) -> memorybytes [selector=0x8b150516, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -60,7 +60,7 @@ fn @slice(arg0: calldataslice, arg1: word) -> memorybytes [selector=0x8b150516, 
     ret v42
 }
 
-fn @segment(arg0: calldataslice, arg1: word, arg2: word) -> memorybytes [selector=0xdfcfbb62, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @segment(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [selector=0xdfcfbb62, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -92,7 +92,7 @@ fn @segment(arg0: calldataslice, arg1: word, arg2: word) -> memorybytes [selecto
     ret v20
 }
 
-fn @nested(arg0: calldataslice, arg1: word, arg2: word, arg3: word, arg4: word) -> memorybytes [selector=0xe1463c2d, pure, abi_params=[bytes, u256, u256, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @nested(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> memorybytes [selector=0xe1463c2d, pure, abi_params=[bytes, u256, u256, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0

@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/assembly_constant_access.sol:AssemblyConstantAccess ===
 @module AssemblyConstantAccess
 types:
-  struct0: {word, word, word, word, word}
-  struct1: {word, word}
+  struct0: {i256, i256, i256, i256, i256}
+  struct1: {i256, i256}
 
 fn @assemblyValues() -> struct0 [selector=0x5fa26448, pure, abi_params=[], abi_returns=[word, word<bytes2>, word<bytes3>, word<bool>, word<u160>], abi_return_params=[u256, bytes2, bytes3, bool, address]] {
   bb0:

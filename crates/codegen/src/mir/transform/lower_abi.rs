@@ -375,7 +375,7 @@ impl LowerAbiCx {
         func.params.len() == layout.types.len()
             && layout.types.iter().zip(&func.params).all(|(abi_ty, &param_ty)| {
                 abi_ty.mir_type() == param_ty
-                    || (abi_ty.is_scalar_word() && param_ty == MirType::Word)
+                    || (abi_ty.is_scalar_word() && param_ty == MirType::I256)
             })
     }
 
@@ -649,7 +649,7 @@ impl LowerAbiCx {
                         .func()
                         .inst_result_value(inst)
                         .expect("ABI decode must produce a value");
-                    let data = if matches!(builder.func().value_ty(data), Some(MirType::Word)) {
+                    let data = if matches!(builder.func().value_ty(data), Some(MirType::I256)) {
                         Self::materialize_static_decode_bytes(&mut builder, data, &layout)
                     } else {
                         data
@@ -732,7 +732,7 @@ impl LowerAbiCx {
         let mut function = Function::new(Ident::with_dummy_span(sym::decode_calldata_type));
         {
             let mut builder = self.builder(&mut function);
-            let head = builder.add_param(MirType::Word);
+            let head = builder.add_param(MirType::I256);
             let tuple_base = builder.imm(4);
             let input_end = builder.calldatasize();
             let mut current = builder.current_block();
@@ -822,7 +822,7 @@ impl LowerAbiCx {
         let mut function = Function::new(Ident::with_dummy_span(sym::decode_calldata_slice));
         {
             let mut builder = self.builder(&mut function);
-            let head = builder.add_param(MirType::Word);
+            let head = builder.add_param(MirType::I256);
             let tuple_base = builder.imm(4);
             let input_end = builder.calldatasize();
             let mut current = builder.current_block();
@@ -835,7 +835,7 @@ impl LowerAbiCx {
                 true,
                 RevertReason::InvalidTupleOffset,
             );
-            builder.set_return_type(MirType::Word);
+            builder.set_return_type(MirType::I256);
             builder.ret([base]);
         }
         module.add_function(function)
@@ -1225,7 +1225,7 @@ impl LowerAbiCx {
                 });
             let mut params = IndexVec::with_capacity((head_offset / 32) as usize);
             for (index, _) in (0..head_offset / 32).enumerate() {
-                params.push(if preserve_word_types { arg_types[index] } else { MirType::Word });
+                params.push(if preserve_word_types { arg_types[index] } else { MirType::I256 });
             }
             func.set_params(params);
             logical_values = logical_physical
@@ -1394,7 +1394,7 @@ impl LowerAbiCx {
                             && matches!(ty, AbiParamType::Bytes)
                             && let Some(helper) = self.calldata_slice_helper
                         {
-                            let base = builder.icall(helper, vec![head], MirType::Word);
+                            let base = builder.icall(helper, vec![head], MirType::I256);
                             let len = builder.calldataload(base);
                             let data = builder.add_u64_offset(base, 32);
                             builder.make_slice(data, len, SliceLocation::Calldata)
@@ -1430,7 +1430,7 @@ impl LowerAbiCx {
             for (logical, value) in logical_values.iter_mut().enumerate() {
                 if let Some(raw) = *value
                     && let Some(&ty) = arg_types.get(logical)
-                    && ty == MirType::Bool
+                    && ty == MirType::I1
                 {
                     // value = ne raw, 0
                     let normalized = builder.cast(raw, ty);
@@ -3122,9 +3122,9 @@ fn synthesize_memory_decode_helper(
     let mut function = Function::new(Ident::with_dummy_span(sym::decode_memory_type));
     {
         let mut builder = FunctionBuilder::new(&mut function).with_revert_strings(revert_strings);
-        let head = builder.add_param(MirType::Word);
-        let tuple_base = builder.add_param(MirType::Word);
-        let input_end = builder.add_param(MirType::Word);
+        let head = builder.add_param(MirType::I256);
+        let tuple_base = builder.add_param(MirType::I256);
+        let input_end = builder.add_param(MirType::I256);
         let mut current = builder.current_block();
         let value = LowerAbiCx::decode_aggregate_argument(
             &mut builder,

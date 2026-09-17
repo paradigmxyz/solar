@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/external_function_pointer_try.sol:ExternalFunctionPointerTry ===
 @module ExternalFunctionPointerTry
 types:
-  struct0: {word, memorybytes}
+  struct0: {i256, memorybytes}
 
-fn @invoke(arg0: word, arg1: memorystruct) {
+fn @invoke(arg0: i256, arg1: memorystruct) {
   bb0:
     v0 = and arg0, 0xffffffff
     v1 = shl 224, v0
@@ -62,7 +62,7 @@ fn @pair(arg0: memorystruct) -> struct0 [selector=0x76ea4d37, pure, abi_params=[
     ret v4
 }
 
-fn @invokePair(arg0: word, arg1: memorystruct) -> struct0 {
+fn @invokePair(arg0: i256, arg1: memorystruct) -> struct0 {
   bb0:
     v0 = and arg0, 0xffffffff
     v1 = shl 224, v0
@@ -100,7 +100,7 @@ fn @invokePair(arg0: word, arg1: memorystruct) -> struct0 {
     ret v19
 }
 
-fn @trySuccess() -> word [selector=0x3984eec7, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @trySuccess() -> i256 [selector=0x3984eec7, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = shl 32, v0
@@ -112,7 +112,7 @@ fn @trySuccess() -> word [selector=0x3984eec7, abi_params=[], abi_returns=[word]
     ret v4
 }
 
-fn @tryFailure() -> word [selector=0x86763122, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @tryFailure() -> i256 [selector=0x86763122, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = shl 32, v0

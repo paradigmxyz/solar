@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_dead_merge.mir (before frame-slot-promotion) ===
 + // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_dead_merge.mir (after frame-slot-promotion) ===
   @module FramePromotionDeadMerge
-  fn @dead_merge(arg0: word, arg1: bool) -> word {
+  fn @dead_merge(arg0: i256, arg1: i1) -> i256 {
     bb0:
       jumpi arg1, bb1, bb2
     bb2:

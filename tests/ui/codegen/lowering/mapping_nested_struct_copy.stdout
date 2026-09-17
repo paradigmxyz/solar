@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/mapping_nested_struct_copy.sol:MappingNestedStructCopy ===
 @module MappingNestedStructCopy
 types:
-  struct0: {word, word, word, word}
+  struct0: {i256, i256, i256, i256}
 
-fn @set(arg0: word, arg1: word, arg2: word, arg3: word, arg4: word) [selector=0xeccd65dc, abi_params=[u256, u256, u256, u256, u256], abi_returns=[], abi_return_params=[]] {
+fn @set(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [selector=0xeccd65dc, abi_params=[u256, u256, u256, u256, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
@@ -30,7 +30,7 @@ fn @set(arg0: word, arg1: word, arg2: word, arg3: word, arg4: word) [selector=0x
     ret
 }
 
-fn @get(arg0: word) -> struct0 [selector=0x9507d39a, view, abi_params=[u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @get(arg0: i256) -> struct0 [selector=0x9507d39a, view, abi_params=[u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = alloc memorystruct<3>, exact, uninitialized, panic, 96
@@ -62,7 +62,7 @@ fn @get(arg0: word) -> struct0 [selector=0x9507d39a, view, abi_params=[u256], ab
     ret v21
 }
 
-fn @clear(arg0: word) [selector=0xc0fe1af8, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @clear(arg0: i256) [selector=0xc0fe1af8, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = mapping_slot arg0, 0
     sstore v0, 0 !metadata(storage=symbolic(v0))

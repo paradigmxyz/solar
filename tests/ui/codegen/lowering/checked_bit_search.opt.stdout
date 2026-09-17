@@ -31,7 +31,7 @@ fn @ffs.2() [selector=0x2297890a, abi_wrapper, pure] {
     returndata 128, 32
 }
 
-fn @fls.3(arg0: word) -> word [pure] {
+fn @fls.3(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -84,7 +84,7 @@ fn @fls.3(arg0: word) -> word [pure] {
     ret 256
 }
 
-fn @clz.4(arg0: word) -> word [pure] {
+fn @clz.4(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb2, bb1
@@ -102,7 +102,7 @@ fn @clz.4(arg0: word) -> word [pure] {
     ret v3
 }
 
-fn @ffs.5(arg0: word) -> word [pure] {
+fn @ffs.5(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb2, bb1

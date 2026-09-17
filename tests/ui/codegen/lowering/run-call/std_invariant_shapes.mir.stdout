@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/std_invariant_shapes.sol:Shapes ===
 @module Shapes
 types:
-  struct0: {word, word}
-  struct1: {word, word, word}
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256}
 
-fn @targetContract(arg0: word) {
+fn @targetContract(arg0: i256) {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -253,13 +253,13 @@ fn @pushAndReadSelectors() -> struct1 [selector=0x5c0d845c, abi_params=[], abi_r
     ret v50
 }
 
-fn @load_storage_packed_array_20_0(arg0: word) -> memoryarray {
+fn @load_storage_packed_array_20_0(arg0: i256) -> memoryarray {
   bb0:
     v0 = load_storage_array u160, arg0
     ret v0
 }
 
-fn @load_storage_struct_array_0(arg0: word) -> memoryarray {
+fn @load_storage_struct_array_0(arg0: i256) -> memoryarray {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add v0, 1
@@ -298,7 +298,7 @@ fn @load_storage_struct_array_0(arg0: word) -> memoryarray {
     jump bb1
 }
 
-fn @load_storage_packed_array_4_2(arg0: word) -> memoryarray {
+fn @load_storage_packed_array_4_2(arg0: i256) -> memoryarray {
   bb0:
     v0 = load_storage_array bytes4, arg0
     ret v0

@@ -29,7 +29,7 @@ fn @caller() [selector=0x00000007, abi_wrapper] {
     icall fn2, v0 !metadata(span=10..20, modifier_depth=1)
     stop !metadata(span=30..40, modifier_depth=2)
 }
-fn @fused(arg0: word) {
+fn @fused(arg0: i256) {
   bb0:
     mstore 128, arg0
     returndata 128, 32
@@ -38,7 +38,7 @@ fn @fused(arg0: word) {
 }
 // CHECK-LABEL: {{^[ +].*}}fn @spin{{[( ]}}
 // CHECK: {{^[ +].*}}icall @spin
-fn @spin(arg0: word) {
+fn @spin(arg0: i256) {
   bb0:
     icall fn3, arg0
     revert 0, 0
@@ -50,7 +50,7 @@ fn @spin(arg0: word) {
 // CHECK: + jumpi {{(arg[0-9]+|v[0-9]+)}}, [[LIVE_EDGE]], bb3
 // CHECK: + [[LIVE_EDGE]]:
 // CHECK-NEXT: + jump bb1
-fn @live_on_sibling(arg0: bool) -> word {
+fn @live_on_sibling(arg0: i1) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -69,7 +69,7 @@ fn @live_on_sibling(arg0: bool) -> word {
 // CHECK: [[PHI:v[0-9]+]] = phi [bb0: 1], [bb2: {{v[0-9]+}}]
 // CHECK: [[CONDITION:v[0-9]+]] = ne [[PHI]], 0
 // CHECK: jumpi [[CONDITION]], bb1, bb3
-fn @used_by_terminator() -> word {
+fn @used_by_terminator() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -87,7 +87,7 @@ fn @used_by_terminator() -> word {
 // CHECK-LABEL: {{^[ +].*}}fn @switch_edge{{[( ]}}
 // CHECK: + {{v[0-9]+}} = phi {{\[}}bb0: 0], {{\[}}[[SWITCH_EDGE:bb[0-9]+]]: {{v[0-9]+}}]
 // CHECK: + switch arg0, default [[SWITCH_EDGE]], {{\[}}1 => [[SWITCH_EDGE]], 2 => bb3]
-fn @switch_edge(arg0: word) -> word {
+fn @switch_edge(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -103,7 +103,7 @@ fn @switch_edge(arg0: word) -> word {
 // Keep the original edge when its phi destination is dead on every sibling path.
 // CHECK-LABEL: {{^[ +].*}}fn @dead_on_sibling{{[( ]}}
 // CHECK-NOT: + bb
-fn @dead_on_sibling(arg0: bool) -> word {
+fn @dead_on_sibling(arg0: i1) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -162,7 +162,7 @@ fn @tail_return_helper() {
 // CHECK-LABEL: {{^[ +].*}}fn @scalar_caller{{[( ]}}
 // CHECK: + {{v[0-9]+}} = phi [bb0: 7]
 // CHECK: + tail_call @scalar_fail, 17 !metadata(span=50..60)
-fn @scalar_caller(arg0: bool) -> word {
+fn @scalar_caller(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -175,7 +175,7 @@ fn @scalar_caller(arg0: bool) -> word {
     ret v2
 }
 
-fn @scalar_fail(arg0: word) -> word {
+fn @scalar_fail(arg0: i256) -> i256 {
   bb0:
     mstore 0, arg0
     revert 0, 32
@@ -186,7 +186,7 @@ fn @scalar_fail(arg0: word) -> word {
 // CHECK: {{^[ +].*}}= icall @recursive_fail, arg0 !metadata(span=70..80)
 // CHECK: - sstore 0,
 // CHECK: + invalid
-fn @recursive_fail(arg0: word) -> word {
+fn @recursive_fail(arg0: i256) -> i256 {
   bb0:
     v1 = ne arg0, 0
     jumpi v1, bb1, bb2
@@ -220,7 +220,7 @@ fn @constructor() [abi_wrapper] {
     ret
 }
 
-fn @constructor_no_args() -> word {
+fn @constructor_no_args() -> i256 {
   bb0:
     revert 0, 0
 }
@@ -230,7 +230,7 @@ fn @constructor_no_args() -> word {
 // CHECK: {{^[ +].*}}= icall @scalar_fail, arg0
 // CHECK: - ret
 // CHECK: + invalid
-fn @constructor_helper(arg0: word) -> word {
+fn @constructor_helper(arg0: i256) -> i256 {
   bb0:
     v0 = icall @scalar_fail, arg0
     ret v0
@@ -241,14 +241,14 @@ fn @constructor_helper(arg0: word) -> word {
 // CHECK: {{^[ +].*}}= icall @maybe_fail, arg0
 // CHECK: {{^[ +].*}}sstore 0,
 // CHECK: {{^[ +].*}}ret
-fn @maybe_caller(arg0: bool) {
+fn @maybe_caller(arg0: i1) {
   bb0:
     v0 = icall @maybe_fail, arg0
     sstore 0, v0
     ret
 }
 
-fn @maybe_fail(arg0: bool) -> word {
+fn @maybe_fail(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -260,21 +260,21 @@ fn @maybe_fail(arg0: bool) -> word {
 // A newly nonreturning ordinary call propagates back through tail-call wrappers.
 // CHECK-LABEL: {{^[ +].*}}fn @chain_caller{{[( ]}}
 // CHECK: + tail_call @chain_tail, 31
-fn @chain_caller() -> word {
+fn @chain_caller() -> i256 {
   bb0:
     v0 = icall @chain_tail, 31
     sstore 0, v0
     ret v0
 }
 
-fn @chain_tail(arg0: word) -> word {
+fn @chain_tail(arg0: i256) -> i256 {
   bb0:
     tail_call @chain_body, arg0
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @chain_body{{[( ]}}
 // CHECK: + tail_call @scalar_fail, arg0
-fn @chain_body(arg0: word) -> word {
+fn @chain_body(arg0: i256) -> i256 {
   bb0:
     v0 = icall @scalar_fail, arg0
     ret v0

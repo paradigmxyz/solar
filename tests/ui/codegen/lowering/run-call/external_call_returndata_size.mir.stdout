@@ -17,7 +17,7 @@ fn @f() -> memoryfixedarray [selector=0x26121ff0, pure, abi_params=[], abi_retur
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol:ShortReturn ===
 @module ShortReturn
-fn @f() -> word [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 42
 }
@@ -25,8 +25,8 @@ fn @f() -> word [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], a
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol:ExternalCallReturndataSize ===
 @module ExternalCallReturndataSize
 types:
-  struct0: {word, word}
-  struct1: {word, word, word}
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256}
 
 data:
   LongReturn_initcode_0: hex"34600d5760c78060115f395ff35b5f5ffd341515601c575f3560e01c806326121ff014601857601c565b6020565b5f5ffd5b610360604052604051806103005280610300526102808101604052610280368280610300523760145f101560b5578061030052602a815260146001101560b557806103005260209001602b8152505f61030051905b806103205260148110609257610280608001915050608090036080f35b602081806103205202828061030052015160208202608001526001810190506075565b634e487b715f5260326020526024601cfd"
@@ -307,7 +307,7 @@ fn @pointerShort() -> struct0 [selector=0xc6a7045a, abi_params=[], abi_returns=[
     ret v29
 }
 
-fn @directInvalidBool() -> word [selector=0x78cd2593, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @directInvalidBool() -> i256 [selector=0x78cd2593, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -348,7 +348,7 @@ fn @directInvalidBool() -> word [selector=0x78cd2593, abi_params=[], abi_returns
     ret v23
 }
 
-fn @pointerInvalidBool() -> word [selector=0xa0f03ea6, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @pointerInvalidBool() -> i256 [selector=0xa0f03ea6, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31

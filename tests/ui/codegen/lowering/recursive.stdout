@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/recursive.sol:Recursive ===
 @module Recursive
-fn @fact(arg0: word) -> word [selector=0x0b95d228, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @fact(arg0: i256) -> i256 [selector=0x0b95d228, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gt arg0, 1
     v1 = eq v0, false
@@ -16,7 +16,7 @@ fn @fact(arg0: word) -> word [selector=0x0b95d228, pure, abi_params=[u256], abi_
     ret 1
 }
 
-fn @fib(arg0: word) -> word [selector=0xc6c2ea17, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @fib(arg0: i256) -> i256 [selector=0xc6c2ea17, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gt arg0, 1
     v1 = eq v0, false
@@ -34,7 +34,7 @@ fn @fib(arg0: word) -> word [selector=0xc6c2ea17, pure, abi_params=[u256], abi_r
     ret arg0
 }
 
-fn @isEven(arg0: word) -> word [selector=0x2a2e1320, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @isEven(arg0: i256) -> i256 [selector=0x2a2e1320, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -49,7 +49,7 @@ fn @isEven(arg0: word) -> word [selector=0x2a2e1320, pure, abi_params=[u256], ab
     ret v1
 }
 
-fn @isOdd(arg0: word) -> word [selector=0xd8b3a2eb, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @isOdd(arg0: i256) -> i256 [selector=0xd8b3a2eb, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2

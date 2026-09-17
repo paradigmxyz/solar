@@ -12,7 +12,7 @@ immutables:
 // CHECK: {{^ +}}[[SUCCESS:v[0-9]+]] = call 100, arg0, arg1, 0, 0, 0, 0
 // CHECK: {{^ +}}[[WORD:v[0-9]+]] = word_cast [[SUCCESS]]
 // CHECK: {{^ +}}ret [[WORD]]
-fn @call(arg0: word, arg1: word) -> word {
+fn @call(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = call 100, arg0, arg1, 0, 0, 0, 0
     v1 = word_cast v0
@@ -22,7 +22,7 @@ fn @call(arg0: word, arg1: word) -> word {
 // CHECK-LABEL: @clz
 // CHECK: {{^ +}}[[COUNT:v[0-9]+]] = clz arg0
 // CHECK: {{^ +}}ret [[COUNT]]
-fn @clz(arg0: word) -> word {
+fn @clz(arg0: i256) -> i256 {
   bb0:
     v0 = clz arg0
     ret v0
@@ -32,7 +32,7 @@ fn @clz(arg0: word) -> word {
 // CHECK: {{^ +}}[[SUCCESS:v[0-9]+]] = callcode 100, arg0, arg1, 0, 0, 0, 0
 // CHECK: {{^ +}}[[WORD:v[0-9]+]] = word_cast [[SUCCESS]]
 // CHECK: {{^ +}}ret [[WORD]]
-fn @callcode(arg0: word, arg1: word) -> word {
+fn @callcode(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = callcode 100, arg0, arg1, 0, 0, 0, 0
     v1 = word_cast v0
@@ -44,7 +44,7 @@ fn @callcode(arg0: word, arg1: word) -> word {
 // CHECK: {{^ +}}mstore 32, 2
 // CHECK: {{^ +}}[[HASH:v[0-9]+]] = keccak256 0, 64
 // CHECK: {{^ +}}ret [[HASH]]
-fn @hash() -> word {
+fn @hash() -> i256 {
   bb0:
     mstore 0, 1
     mstore 32, 2
@@ -66,7 +66,7 @@ fn @copy_data() {
 // CHECK: {{^ +}}{{v[0-9]+}} = gas
 // CHECK: {{^ +}}[[CHAIN_ID:v[0-9]+]] = chainid
 // CHECK: {{^ +}}ret [[CHAIN_ID]]
-fn @environment() -> word {
+fn @environment() -> i256 {
   bb0:
     v0 = caller
     v1 = callvalue
@@ -79,7 +79,7 @@ fn @environment() -> word {
 // CHECK: {{^ +}}[[SELECTED:v[0-9]+]] = select arg0, arg1, arg2
 // CHECK: {{^ +}}log1 0, 32, [[SELECTED]]
 // CHECK: {{^ +}}ret [[SELECTED]]
-fn @select_and_log(arg0: bool, arg1: word, arg2: word) -> word {
+fn @select_and_log(arg0: i1, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = select arg0, arg1, arg2
     log1 0, 32, v0
@@ -103,7 +103,7 @@ fn @spaced_span() {
 
 // CHECK-LABEL: @immutable
 // CHECK: {{^ +}}{{v[0-9]+}} = loadimmutable fn
-fn @immutable() -> word {
+fn @immutable() -> i256 {
   bb0:
     v0 = loadimmutable fn
     ret v0
@@ -112,7 +112,7 @@ fn @immutable() -> word {
 // CHECK-LABEL: @constructor
 // CHECK: {{^ +}}[[BASE:v[0-9]+]] = constructor_args_base
 // CHECK: {{^ +}}ret [[BASE]]
-fn @constructor() -> word {
+fn @constructor() -> i256 {
   bb0:
     v0 = constructor_args_base
     ret v0
@@ -121,7 +121,7 @@ fn @constructor() -> word {
 // CHECK-LABEL: @returndatasize
 // CHECK: {{^ +}}[[SIZE:v[0-9]+]] = returndatasize
 // CHECK: {{^ +}}ret [[SIZE]]
-fn @returndatasize() -> word {
+fn @returndatasize() -> i256 {
   bb0:
     v0 = returndatasize
     ret v0
@@ -143,7 +143,7 @@ fn @view() [view] {
 // CHECK: = icall sha256<>, arg0
 // CHECK: = icall ripemd160<>, arg0
 // CHECK: icall ecrecover<>, 0, 0, 0, 0
-fn @precompiles(arg0: memorybytes) -> word {
+fn @precompiles(arg0: memorybytes) -> i256 {
   bb0:
     icall sha256<>, arg0
     icall ripemd160<>, arg0

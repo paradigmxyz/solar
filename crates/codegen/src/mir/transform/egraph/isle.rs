@@ -124,7 +124,7 @@ pub(in crate::mir::transform) fn max_bits_with_args(
     depth: u32,
     argument_bits: &impl Fn(ArgIdx) -> u32,
 ) -> u32 {
-    if func.value_ty(value) == Some(crate::mir::MirType::Bool) {
+    if func.value_ty(value) == Some(crate::mir::MirType::I1) {
         return 1;
     }
     if let Some(constant) = func.value_u256(value) {
@@ -219,7 +219,7 @@ fn at_most(func: &Function, value: ValueId, bound: U256) -> bool {
 
 /// Returns whether the value carries the canonical boolean invariant.
 pub(in crate::mir::transform) fn is_bool_value(func: &Function, value: ValueId) -> bool {
-    func.value_ty(value) == Some(crate::mir::MirType::Bool)
+    func.value_ty(value) == Some(crate::mir::MirType::I1)
 }
 
 /// Returns whether `value` is an address produced by an EVM opcode.

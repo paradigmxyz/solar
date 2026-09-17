@@ -726,9 +726,9 @@ mod tests {
     #[test]
     fn immediate_for_type_preserves_result_types() {
         let one = U256::ONE;
-        assert_eq!(Immediate::for_type(Some(MirType::Bool), one), Immediate::Bool(true));
-        assert_eq!(Immediate::for_type(Some(MirType::Bool), U256::ZERO), Immediate::Bool(false));
-        assert_eq!(Immediate::for_type(Some(MirType::Word), one), Immediate::Word(one));
+        assert_eq!(Immediate::for_type(Some(MirType::I1), one), Immediate::Bool(true));
+        assert_eq!(Immediate::for_type(Some(MirType::I1), U256::ZERO), Immediate::Bool(false));
+        assert_eq!(Immediate::for_type(Some(MirType::I256), one), Immediate::Word(one));
         assert_eq!(Immediate::for_type(None, U256::MAX), Immediate::Word(U256::MAX));
     }
 }

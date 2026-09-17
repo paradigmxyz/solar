@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-aggregates/lower_aggregates.mir (before lower-aggregates) ===
 + // === ROOT/tests/ui/codegen/mir/lower-aggregates/lower_aggregates.mir (after lower-aggregates) ===
   @module LowerAggregates
-  fn @storage_to_memory(arg0: word, arg1: word) {
+  fn @storage_to_memory(arg0: i256, arg1: i256) {
     bb0:
 -     storage_to_memory struct<word, struct<word, word>, array<2, word>>, arg0, arg1
 +     v0 = sload arg0 !metadata(storage=symbolic(arg0))
@@ -36,7 +36,7 @@
 +     jump bb1
   }
   
-  fn @memory_to_storage(arg0: word, arg1: word) {
+  fn @memory_to_storage(arg0: i256, arg1: i256) {
     bb0:
 -     memory_to_storage struct<word, struct<word, word>, array<2, word>>, arg0, arg1
 +     v0 = memory_object_from_ptr memorystruct, arg0
@@ -72,7 +72,7 @@
 +     jump bb1
   }
   
-  fn @clear_storage(arg0: word) {
+  fn @clear_storage(arg0: i256) {
     bb0:
 -     clear_storage struct<word, struct<word, word>, array<2, word>>, arg0
 +     jump bb1
@@ -89,7 +89,7 @@
 +     jump bb1
   }
   
-  fn @phi_successor(arg0: bool, arg1: word) -> word {
+  fn @phi_successor(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:

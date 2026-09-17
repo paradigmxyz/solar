@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_different_packing.sol:StorageArrayDifferentPacking ===
 @module StorageArrayDifferentPacking
 types:
-  struct0: {word, word, word, word, word}
+  struct0: {i256, i256, i256, i256, i256}
 
 fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes10>, word<bytes10>, word<bytes10>, word<bytes10>, word<bytes10>], abi_return_params=[bytes10, bytes10, bytes10, bytes10, bytes10]] {
   bb0:
@@ -272,7 +272,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     jump bb3
 }
 
-fn @load_storage_packed_array_8_2(arg0: word) -> memoryarray {
+fn @load_storage_packed_array_8_2(arg0: i256) -> memoryarray {
   bb0:
     v0 = load_storage_array bytes8, arg0
     ret v0

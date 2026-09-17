@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_nested_struct_calldata.sol:StorageNestedStructCalldata ===
 @module StorageNestedStructCalldata
-fn @copy(arg0: calldataslice) -> word [selector=0xc58b68ae, abi_params=[array<_, array<_, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copy(arg0: calldataslice) -> i256 [selector=0xc58b68ae, abi_params=[array<_, array<_, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -522,7 +522,7 @@ fn @copy(arg0: calldataslice) -> word [selector=0xc58b68ae, abi_params=[array<_,
     jump bb7
 }
 
-fn @copyFixed(arg0: calldataslice) -> word [selector=0x39bd9a66, abi_params=[array<1, array<_, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x39bd9a66, abi_params=[array<1, array<_, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = calldatasize
@@ -1148,7 +1148,7 @@ fn @copyFixed(arg0: calldataslice) -> word [selector=0x39bd9a66, abi_params=[arr
     jump bb7
 }
 
-fn @copyDynamicFixed(arg0: calldataslice) -> word [selector=0x62d70355, abi_params=[array<_, array<1, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0x62d70355, abi_params=[array<_, array<1, tuple<array<_, u8>, array<2, u8>>>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0

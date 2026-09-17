@@ -252,7 +252,7 @@ fn evaluate(
         || func
             .return_components()
             .first()
-            .is_some_and(|ty| !matches!(ty, MirType::Word | MirType::Bool))
+            .is_some_and(|ty| !matches!(ty, MirType::I256 | MirType::I1))
     {
         return None;
     }

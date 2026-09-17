@@ -1,16 +1,16 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/implicit_widen_alloc_mapping.sol:ImplicitWidenAllocMapping ===
 @module ImplicitWidenAllocMapping
-fn @inject(arg0: word) -> word [pure] {
+fn @inject(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
 
-fn @injectSigned(arg0: word) -> word [pure] {
+fn @injectSigned(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
 
-fn @newLength(arg0: word) -> word [selector=0x09661d83, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @newLength(arg0: i256) -> i256 [selector=0x09661d83, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @inject, arg0
     v1 = and v0, 255
@@ -39,7 +39,7 @@ fn @newLength(arg0: word) -> word [selector=0x09661d83, pure, abi_params=[u256],
     ret v19
 }
 
-fn @newBytesLength(arg0: word) -> word [selector=0x4f901bea, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @newBytesLength(arg0: i256) -> i256 [selector=0x4f901bea, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @inject, arg0
     v1 = and v0, 255
@@ -54,7 +54,7 @@ fn @newBytesLength(arg0: word) -> word [selector=0x4f901bea, pure, abi_params=[u
     ret v7
 }
 
-fn @mappingKey(arg0: word) -> word [selector=0xaf28bd9d, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @mappingKey(arg0: i256) -> i256 [selector=0xaf28bd9d, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mapping_slot 1, 0
     sstore v0, 7 !metadata(storage=symbolic(v0))
@@ -65,7 +65,7 @@ fn @mappingKey(arg0: word) -> word [selector=0xaf28bd9d, abi_params=[u256], abi_
     ret v4
 }
 
-fn @signedMappingKey(arg0: word) -> word [selector=0x6962ed4e, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @signedMappingKey(arg0: i256) -> i256 [selector=0x6962ed4e, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sub 0, 1
     v1 = mapping_slot v0, 1

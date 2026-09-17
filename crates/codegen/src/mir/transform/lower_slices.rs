@@ -51,15 +51,15 @@ enum ParamRepr {
 /// an ordinary EVM word whose address space remains encoded by the slice type.
 pub(super) fn slice_param_ptr_type(location: SliceLocation) -> MirType {
     match location {
-        SliceLocation::Memory => MirType::Word,
-        SliceLocation::Calldata => MirType::Word,
-        SliceLocation::Returndata => MirType::Word,
+        SliceLocation::Memory => MirType::I256,
+        SliceLocation::Calldata => MirType::I256,
+        SliceLocation::Returndata => MirType::I256,
     }
 }
 
 /// Allocates a word-typed instruction and its result value, returning both.
 fn new_word_inst(func: &mut Function, kind: InstKind) -> (InstId, ValueId) {
-    func.alloc_value_inst(Instruction::new(kind, Some(MirType::Word)).with_debug_info_dropped())
+    func.alloc_value_inst(Instruction::new(kind, Some(MirType::I256)).with_debug_info_dropped())
 }
 
 /// Allocates a `make_slice` instruction and its slice-typed result value.
@@ -114,8 +114,8 @@ fn can_split_slice_incoming(
     incoming.iter().all(|(_, value)| {
         let ty = func.value_ty(*value);
         let is_slice = matches!(ty, Some(MirType::Slice(_)));
-        has_split |= is_slice || (allow_memory_pointer && matches!(ty, Some(MirType::Word)));
-        is_slice || matches!(ty, Some(MirType::Word))
+        has_split |= is_slice || (allow_memory_pointer && matches!(ty, Some(MirType::I256)));
+        is_slice || matches!(ty, Some(MirType::I256))
     }) && has_split
 }
 
@@ -453,7 +453,7 @@ impl LowerSlices {
                 ParamRepr::Pair => {
                     let MirType::Slice(location) = ty else { unreachable!() };
                     returns.push(slice_param_ptr_type(location));
-                    returns.push(MirType::Word);
+                    returns.push(MirType::I256);
                 }
             }
         }
@@ -479,12 +479,12 @@ impl LowerSlices {
                     new_params.push(ty);
                 }
                 ParamRepr::CompactCalldata => {
-                    new_params.push(MirType::Word);
+                    new_params.push(MirType::I256);
                 }
                 ParamRepr::Pair => {
                     let MirType::Slice(location) = ty else { unreachable!() };
                     new_params.push(slice_param_ptr_type(location));
-                    new_params.push(MirType::Word);
+                    new_params.push(MirType::I256);
                 }
             }
         }
@@ -616,7 +616,7 @@ impl LowerSlices {
         }
 
         for &index in slice_args.values() {
-            func.set_arg_ty(index, MirType::Word);
+            func.set_arg_ty(index, MirType::I256);
         }
         let raw_heads: FxHashMap<_, _> = slice_args
             .iter()
@@ -720,16 +720,16 @@ impl LowerSlices {
             if let Value::Undef(MirType::Slice(location)) = *func.value(slice) {
                 // slice_ptr(undef slice) -> undef pointer
                 // slice_len(undef slice) -> undef u256
-                let ty = if is_ptr { slice_param_ptr_type(location) } else { MirType::Word };
+                let ty = if is_ptr { slice_param_ptr_type(location) } else { MirType::I256 };
                 let value = func.alloc_value(Value::Undef(ty));
                 let result = func.inst_result_value(inst).expect("slice projection has a result");
                 replacements.insert(result, value);
                 removed.insert(inst);
                 continue;
             }
-            let physical_object = matches!(ty, MirType::Word);
-            let physical_pointer = matches!(ty, MirType::Word);
-            let physical_word = matches!(ty, MirType::Word)
+            let physical_object = matches!(ty, MirType::I256);
+            let physical_pointer = matches!(ty, MirType::I256);
+            let physical_word = matches!(ty, MirType::I256)
                 && matches!(func.value(slice), Value::Inst(def) if matches!(func.inst(*def).kind, InstKind::MLoad(_)));
             if physical_word || (physical_pointer && is_ptr) {
                 let result = func.inst_result_value(inst).expect("slice projection has a result");

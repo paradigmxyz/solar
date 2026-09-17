@@ -965,14 +965,14 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
         function.attributes.is_function_pointer_dispatcher = true;
         {
             let mut builder = FunctionBuilder::new_semantic(&mut function);
-            let function_value = builder.add_param(MirType::Word);
+            let function_value = builder.add_param(MirType::I256);
             let arguments = shape
                 .params
                 .iter()
                 .copied()
                 .map(|ty| {
                     builder.add_param(if ty == crate::mir::ValueLayout::Bool {
-                        MirType::Word
+                        MirType::I256
                     } else {
                         ty.mir_type()
                     })
@@ -984,7 +984,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     .iter()
                     .map(|ty| {
                         if *ty == crate::mir::ValueLayout::Bool {
-                            MirType::Word
+                            MirType::I256
                         } else {
                             ty.mir_type()
                         }

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/licm/licm_multi_latch.mir (before licm) ===
 + // === ROOT/tests/ui/codegen/mir/licm/licm_multi_latch.mir (after licm) ===
   @module LicmMultiLatch
-  fn @multi_latch_mixed_step() -> word {
+  fn @multi_latch_mixed_step() -> i256 {
     bb0:
 +     v5 = calldataload 0
 +     v6 = ne v5, 0
@@ -28,7 +28,7 @@
       jump bb1
   }
   
-  fn @multi_latch_same_value() -> word {
+  fn @multi_latch_same_value() -> i256 {
     bb0:
 +     v4 = mload 320
 +     v6 = calldataload 0

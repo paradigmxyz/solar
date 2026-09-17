@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/join_carry_remat_condition.sol:JoinCarryRematCondition ===
 @module JoinCarryRematCondition
-fn @pick(arg0: word) -> word [selector=0x7701ea4a, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @pick(arg0: i256) -> i256 [selector=0x7701ea4a, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = eq v0, 0

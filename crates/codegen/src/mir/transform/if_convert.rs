@@ -506,7 +506,7 @@ fn boolean_condition(func: &mut Function, block: BlockId, condition: ValueId) ->
     }
     // cond01 = ne cond, 0
     let zero = literal(func, U256::ZERO);
-    append(func, block, InstKind::Ne(condition, zero), Some(MirType::Bool))
+    append(func, block, InstKind::Ne(condition, zero), Some(MirType::I1))
 }
 
 /// Builds `cond ? then_value : else_value` at the end of `block` in the
@@ -527,13 +527,13 @@ fn select_value(
         // c ? t : t op k => t op (c == 0) * k
         SelectForm::ScaledNegated(derived) => {
             let zero = literal(func, U256::ZERO);
-            let negated = append(func, block, InstKind::Eq(condition, zero), Some(MirType::Bool));
+            let negated = append(func, block, InstKind::Eq(condition, zero), Some(MirType::I1));
             scaled_select(func, block, negated, else_value, then_value, derived, ty)
         }
         // c ? A : e => e + c * (A - base - k), for e = base + c2 * k
         SelectForm::Ladder(delta) => {
             let delta = literal(func, delta);
-            let scaled = append(func, block, InstKind::Mul(condition, delta), Some(MirType::Word));
+            let scaled = append(func, block, InstKind::Mul(condition, delta), Some(MirType::I256));
             append(func, block, InstKind::Add(else_value, scaled), ty)
         }
         // c ? t : f => f + c * (t - f)
@@ -541,10 +541,10 @@ fn select_value(
             let delta = match delta {
                 Some(delta) => literal(func, delta),
                 None => {
-                    append(func, block, InstKind::Sub(then_value, else_value), Some(MirType::Word))
+                    append(func, block, InstKind::Sub(then_value, else_value), Some(MirType::I256))
                 }
             };
-            let scaled = append(func, block, InstKind::Mul(condition, delta), Some(MirType::Word));
+            let scaled = append(func, block, InstKind::Mul(condition, delta), Some(MirType::I256));
             append(func, block, InstKind::Add(else_value, scaled), ty)
         }
     }
@@ -586,7 +586,7 @@ fn scaled_select(
     ty: Option<MirType>,
 ) -> ValueId {
     let scale = |func: &mut Function, amount| {
-        append(func, block, InstKind::Mul(condition, amount), Some(MirType::Word))
+        append(func, block, InstKind::Mul(condition, amount), Some(MirType::I256))
     };
     match derived {
         // c ? t : 0 => c * t

@@ -1,31 +1,31 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBase ===
 @module CheckedBase
-fn @x() -> word [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     ret
 }
 
-fn @two() -> word [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 2
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedSignedBase ===
 @module CheckedSignedBase
-fn @y() -> word [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+fn @y() -> i256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: word) [constructor, abi_params=[i256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[i256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     ret
@@ -33,7 +33,7 @@ fn @constructor(arg0: word) [constructor, abi_params=[i256]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgAdd ===
 @module CheckedBaseArgAdd
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     v0 = checked_add u256, arg0, 1
     sstore 0, v0 !metadata(storage=slot(0))
@@ -44,20 +44,20 @@ fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
     ret
 }
 
-fn @x() -> word [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @two() -> word [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 2
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgMul ===
 @module CheckedBaseArgMul
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     v0 = checked_mul u256, arg0, 2
     sstore 0, v0 !metadata(storage=slot(0))
@@ -68,26 +68,26 @@ fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
     ret
 }
 
-fn @x() -> word [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @two() -> word [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 2
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgList ===
 @module CheckedBaseArgList
-fn @x() -> word [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @two() -> word [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 2
 }
@@ -104,7 +104,7 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgNegate ===
 @module CheckedBaseArgNegate
-fn @constructor(arg0: word) [constructor, abi_params=[i256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[i256]] {
   bb0:
     v0 = checked_sub i256, 0, arg0
     sstore 0, v0 !metadata(storage=slot(0))
@@ -115,7 +115,7 @@ fn @constructor(arg0: word) [constructor, abi_params=[i256]] {
     ret
 }
 
-fn @y() -> word [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+fn @y() -> i256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -123,7 +123,7 @@ fn @y() -> word [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word], a
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgSub ===
 @module CheckedBaseArgSub
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     v0 = checked_sub u256, arg0, 1
     sstore 0, v0 !metadata(storage=slot(0))
@@ -134,20 +134,20 @@ fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
     ret
 }
 
-fn @x() -> word [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @two() -> word [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 2
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgExp ===
 @module CheckedBaseArgExp
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     v0 = checked_pow u256, arg0, 2
     sstore 0, v0 !metadata(storage=slot(0))
@@ -158,20 +158,20 @@ fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
     ret
 }
 
-fn @x() -> word [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @two() -> word [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 2
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgShift ===
 @module CheckedBaseArgShift
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     v0 = shl 1, arg0
     sstore 0, v0 !metadata(storage=slot(0))
@@ -182,20 +182,20 @@ fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
     ret
 }
 
-fn @x() -> word [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @two() -> word [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 2
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgElement ===
 @module CheckedBaseArgElement
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     v0 = icall @table
     v1 = lt arg0, 2
@@ -225,13 +225,13 @@ fn @table() -> memoryfixedarray [pure] {
     ret v0
 }
 
-fn @x() -> word [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @two() -> word [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 2
 }
@@ -246,7 +246,7 @@ data:
   CheckedBaseArgExp_initcode_4: hex"6101d43803806101d46101c0396101c001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016604052341515610173576101c06101c06101d43803016020820191508111905061016f5760016101c0516002915b82610100525f8311607b578060c0525f555050610177565b826101005260018316806101205280610120528160c0528260e052828060e052820280610140528061014052838060e05215848060e0528204848060c052901481179050158216151561014c578180610120521515915082818382820302905001806101605292505050806101605282806101005260011c806101805292508261018052818060e0528002806101a052806101a052828060e05215838060e0528204848060e052901493508390179250829250821592505f841183901692508292508215159250505090501561015e575b634e487b715f5260116020526024601cfd5b610160516101a05161018051916063565b5f5ffd5b5f5ffd5b6052806101825f395ff3341515602a575f3560e01c80630c55699c1460265780635fdf05d714602257602a565b6040565b602e565b5f5ffd5b5f546080526020608001608090036080f35b60026080526020608001608090036080f3"
   CheckedBaseArgShift_initcode_5: hex"60c038038060c060c03960c001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405234151560605760c060c060c038030160208201915081119050605c5760c05160011b5f556064565b5f5ffd5b5f5ffd5b605280606e5f395ff3341515602a575f3560e01c80630c55699c1460265780635fdf05d714602257602a565b6040565b602e565b5f5ffd5b5f546080526020608001608090036080f35b60026080526020608001608090036080f3"
 
-fn @deployAdd(arg0: word) -> word [selector=0xec1495a8, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @deployAdd(arg0: i256) -> i256 [selector=0xec1495a8, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], args arg0
     v1 = not 31
@@ -281,7 +281,7 @@ fn @deployAdd(arg0: word) -> word [selector=0xec1495a8, abi_params=[u256], abi_r
     ret v18
 }
 
-fn @deployMul(arg0: word) -> word [selector=0xcb7face2, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @deployMul(arg0: i256) -> i256 [selector=0xcb7face2, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], args arg0
     v1 = not 31
@@ -316,7 +316,7 @@ fn @deployMul(arg0: word) -> word [selector=0xcb7face2, abi_params=[u256], abi_r
     ret v18
 }
 
-fn @deployNegate(arg0: word) -> word [selector=0x8ee51801, abi_params=[i256], abi_returns=[word], abi_return_params=[i256]] {
+fn @deployNegate(arg0: i256) -> i256 [selector=0x8ee51801, abi_params=[i256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = abi_encode [word], args arg0
     v1 = not 31
@@ -363,7 +363,7 @@ fn @deployNegate(arg0: word) -> word [selector=0x8ee51801, abi_params=[i256], ab
     ret v24
 }
 
-fn @deployElement(arg0: word) -> word [selector=0x178d3c81, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @deployElement(arg0: i256) -> i256 [selector=0x178d3c81, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], args arg0
     v1 = not 31
@@ -398,7 +398,7 @@ fn @deployElement(arg0: word) -> word [selector=0x178d3c81, abi_params=[u256], a
     ret v18
 }
 
-fn @deploySub(arg0: word) -> word [selector=0xd5c4b324, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @deploySub(arg0: i256) -> i256 [selector=0xd5c4b324, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], args arg0
     v1 = not 31
@@ -433,7 +433,7 @@ fn @deploySub(arg0: word) -> word [selector=0xd5c4b324, abi_params=[u256], abi_r
     ret v18
 }
 
-fn @deployExp(arg0: word) -> word [selector=0x2744a5b3, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @deployExp(arg0: i256) -> i256 [selector=0x2744a5b3, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], args arg0
     v1 = not 31
@@ -468,7 +468,7 @@ fn @deployExp(arg0: word) -> word [selector=0x2744a5b3, abi_params=[u256], abi_r
     ret v18
 }
 
-fn @deployShift(arg0: word) -> word [selector=0xca2ccfdb, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @deployShift(arg0: i256) -> i256 [selector=0xca2ccfdb, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], args arg0
     v1 = not 31

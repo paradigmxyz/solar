@@ -11,7 +11,7 @@
       stop
   }
   
-  fn @keep_distinct_targets(arg0: bool) {
+  fn @keep_distinct_targets(arg0: i1) {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -20,7 +20,7 @@
       tail_call @target_a
   }
   
-  fn @dedup_same_target(arg0: bool) {
+  fn @dedup_same_target(arg0: i1) {
     bb0:
 -     jumpi arg0, bb1, bb2
 -   bb2:

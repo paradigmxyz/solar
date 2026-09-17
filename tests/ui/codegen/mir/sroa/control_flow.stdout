@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/sroa/control_flow.mir (before sroa) ===
 + // === ROOT/tests/ui/codegen/mir/sroa/control_flow.mir (after sroa) ===
   @module SroaControlFlow
-  fn @diamond(arg0: bool, arg1: word, arg2: word) -> word {
+  fn @diamond(arg0: i1, arg1: i256, arg2: i256) -> i256 {
     bb0:
       v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
 -     v1 = memory_object_field_addr memorystruct<1>, v0, 0
@@ -19,7 +19,7 @@
 +     ret v3
   }
   
-  fn @loop(arg0: word) -> word {
+  fn @loop(arg0: i256) -> i256 {
     bb0:
       v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
 -     memory_zero v0, 32
@@ -41,7 +41,7 @@
       jump bb1
   }
   
-  fn @missing_definition(arg0: bool) -> word {
+  fn @missing_definition(arg0: i1) -> i256 {
     bb0:
       v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
       v1 = memory_object_field_addr memorystruct<1>, v0, 0
@@ -54,7 +54,7 @@
       ret v2
   }
   
-  fn @cross_field_phi(arg0: bool, arg1: word) -> word {
+  fn @cross_field_phi(arg0: i1, arg1: i256) -> i256 {
     bb0:
       v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
 -     memory_zero v0, 64
@@ -73,7 +73,7 @@
 +     ret v5
   }
   
-  fn @observe_size() -> word {
+  fn @observe_size() -> i256 {
     bb0:
       v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
       memory_zero v0, 32
@@ -83,7 +83,7 @@
       ret v2
   }
   
-  fn @outside_object() -> word {
+  fn @outside_object() -> i256 {
     bb0:
       v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
       memory_zero v0, 32
@@ -95,7 +95,7 @@
 - // === ROOT/tests/ui/codegen/mir/sroa/control_flow.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/sroa/control_flow.mir (after dce) ===
   @module SroaControlFlow
-  fn @diamond(arg0: bool, arg1: word, arg2: word) -> word {
+  fn @diamond(arg0: i1, arg1: i256, arg2: i256) -> i256 {
     bb0:
       v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
       jumpi arg0, bb1, bb2
@@ -108,7 +108,7 @@
       ret v3
   }
   
-  fn @loop(arg0: word) -> word {
+  fn @loop(arg0: i256) -> i256 {
     bb0:
       v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
       jump bb1
@@ -123,7 +123,7 @@
       jump bb1
   }
   
-  fn @missing_definition(arg0: bool) -> word {
+  fn @missing_definition(arg0: i1) -> i256 {
     bb0:
       v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
       v1 = memory_object_field_addr memorystruct<1>, v0, 0
@@ -136,7 +136,7 @@
       ret v2
   }
   
-  fn @cross_field_phi(arg0: bool, arg1: word) -> word {
+  fn @cross_field_phi(arg0: i1, arg1: i256) -> i256 {
     bb0:
       v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
       jumpi arg0, bb1, bb2
@@ -147,7 +147,7 @@
       ret v5
   }
   
-  fn @observe_size() -> word {
+  fn @observe_size() -> i256 {
     bb0:
       v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
       memory_zero v0, 32
@@ -157,7 +157,7 @@
       ret v2
   }
   
-  fn @outside_object() -> word {
+  fn @outside_object() -> i256 {
     bb0:
       v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
       memory_zero v0, 32

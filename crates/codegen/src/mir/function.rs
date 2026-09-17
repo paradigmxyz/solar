@@ -728,9 +728,9 @@ mod tests {
         let mut func = Function::new(Ident::DUMMY);
         let (instruction_arg, terminator_arg, unused_arg, immediate, result) = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let instruction_arg = builder.add_param(MirType::Word);
-            let terminator_arg = builder.add_param(MirType::Word);
-            let unused_arg = builder.add_param(MirType::Word);
+            let instruction_arg = builder.add_param(MirType::I256);
+            let terminator_arg = builder.add_param(MirType::I256);
+            let unused_arg = builder.add_param(MirType::I256);
             let immediate = builder.imm(1);
             let result = builder.add(instruction_arg, immediate);
             builder.ret([terminator_arg, result]);
@@ -772,7 +772,7 @@ mod tests {
         let mut func = Function::new(Ident::DUMMY);
         let (first, second, result) = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let first = builder.add_param(MirType::Word);
+            let first = builder.add_param(MirType::I256);
             let second = builder.alloc_value(Value::Arg(ArgIdx::new(0)));
             let result = builder.add(first, second);
             builder.ret([second, result]);
@@ -794,8 +794,8 @@ mod tests {
         let mut func = Function::new(Ident::DUMMY);
         let (old, new, load) = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let old = builder.add_param(MirType::Word);
-            let new = builder.add_param(MirType::Word);
+            let old = builder.add_param(MirType::I256);
+            let new = builder.add_param(MirType::I256);
             let value = builder.mload(old);
             builder.ret([value]);
             let Value::Inst(load) = builder.func().value(value) else {

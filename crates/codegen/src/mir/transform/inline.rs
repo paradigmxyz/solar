@@ -1366,7 +1366,7 @@ fn is_memory_wrapper(func: &Function) -> bool {
         || func.internal_frame_size != 0
         || func.blocks.len() != 1
         || func.params.len() > 2
-        || func.return_components() != [MirType::Word]
+        || func.return_components() != [MirType::I256]
     {
         return false;
     }
@@ -1480,8 +1480,8 @@ fn is_identity_function(func: &Function) -> bool {
 }
 
 fn is_transparent_function_pointer_cast(func: &Function) -> bool {
-    func.params == [MirType::Word]
-        && func.return_components() == [MirType::Word]
+    func.params == [MirType::I256]
+        && func.return_components() == [MirType::I256]
         && is_identity_function(func)
 }
 
@@ -1942,7 +1942,7 @@ fn direct_dispatch_target(
         };
         let matches_selector = [(lhs, rhs), (rhs, lhs)].into_iter().any(|(arg, value)| {
             matches!(dispatcher.value(arg), Value::Arg(index) if index.index() == 0)
-                && dispatcher.value_ty(arg) == Some(MirType::Word)
+                && dispatcher.value_ty(arg) == Some(MirType::I256)
                 && dispatcher.value(value).as_immediate().and_then(Immediate::as_u256)
                     == Some(selector)
         });

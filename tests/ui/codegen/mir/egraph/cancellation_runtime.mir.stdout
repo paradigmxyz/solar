@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/mir/egraph/cancellation_runtime.sol:Cancellation ===
 @module Cancellation
 types:
-  struct0: {word, word, word}
-  struct1: {word, word, word, word}
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256, i256, i256}
 
-fn @arithmetic(arg0: word, arg1: word) -> struct0 [selector=0x6cbb5ae3, pure, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @arithmetic(arg0: i256, arg1: i256) -> struct0 [selector=0x6cbb5ae3, pure, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = sub arg0, arg1
     v1 = add v0, arg1
@@ -18,7 +18,7 @@ fn @arithmetic(arg0: word, arg1: word) -> struct0 [selector=0x6cbb5ae3, pure, ab
     ret v8
 }
 
-fn @bitwise(arg0: word, arg1: word) -> struct1 [selector=0x2c27aaa9, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @bitwise(arg0: i256, arg1: i256) -> struct1 [selector=0x2c27aaa9, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = or arg0, arg1
     v1 = and arg0, v0
@@ -35,7 +35,7 @@ fn @bitwise(arg0: word, arg1: word) -> struct1 [selector=0x2c27aaa9, pure, abi_p
     ret v11
 }
 
-fn @equality(arg0: word, arg1: word) -> struct0 [selector=0xf53825c4, pure, abi_params=[u256, u256], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, u256]] {
+fn @equality(arg0: i256, arg1: i256) -> struct0 [selector=0xf53825c4, pure, abi_params=[u256, u256], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, u256]] {
   bb0:
     v0 = sub arg0, arg1
     v1 = eq v0, 0

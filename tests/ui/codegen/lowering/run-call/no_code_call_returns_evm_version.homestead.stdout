@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/no_code_call_returns_evm_version.sol:NoCodeCallee ===
 @module NoCodeCallee
-fn @value() -> word [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 42
 }
@@ -23,12 +23,12 @@ fn @pair() -> memoryfixedarray [selector=0xa8aa1b31, pure, abi_params=[], abi_re
 // === ROOT/tests/ui/codegen/lowering/run-call/no_code_call_returns_evm_version.sol:NoCodeReturnCalls ===
 @module NoCodeReturnCalls
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
 data:
   NoCodeCallee_initcode_0: hex"34600f5760fd8060156000396000f35b60006000fe3415156048576000357c0100000000000000000000000000000000000000000000000000000000900480633fa4f245146044578063a8aa1b31146040576048565b605f565b604d565b600080fe5b602a6080526020608001608090036080f35b6101206040526040518060c0528060c05260408101604052604036828060c0523760026000101560ea578060c0526001815260026001101560ea578060c052602090016002815250600060c051905b8060e0526002811060c9576040608001915050608090036080f35b6020818060e05202828060c0520151602082026080015260018101905060ae565b634e487b7160005260326020526024601cfe"
 
-fn @direct() -> word [selector=0x222b1407, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @direct() -> i256 [selector=0x222b1407, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = fmp
     v1 = add v0, 32
@@ -53,7 +53,7 @@ fn @direct() -> word [selector=0x222b1407, abi_params=[], abi_returns=[word], ab
     ret v13
 }
 
-fn @viewCall() -> word [selector=0x33fd44fa, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @viewCall() -> i256 [selector=0x33fd44fa, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = fmp
     v1 = add v0, 32
@@ -78,7 +78,7 @@ fn @viewCall() -> word [selector=0x33fd44fa, view, abi_params=[], abi_returns=[w
     ret v13
 }
 
-fn @pointer() -> word [selector=0x2f5f3b3c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @pointer() -> i256 [selector=0x2f5f3b3c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and 0, 0xffffffff
     v1 = shl 224, v0
@@ -106,7 +106,7 @@ fn @pointer() -> word [selector=0x2f5f3b3c, abi_params=[], abi_returns=[word], a
     ret v16
 }
 
-fn @aggregate() -> word [selector=0xaf36778b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
     set_memory_object_len memorybytes, v0, 64
@@ -175,7 +175,7 @@ fn @pointerNoReturn() [selector=0xcf820bfc, abi_params=[], abi_returns=[], abi_r
     ret
 }
 
-fn @live() -> word [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31

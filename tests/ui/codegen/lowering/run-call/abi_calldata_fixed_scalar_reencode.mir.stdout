@@ -6,7 +6,7 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x5dc12891, pure, abi_params
     ret v0
 }
 
-fn @g(arg0: calldataslice, arg1: word) -> memorybytes [selector=0x1fd55338, view, abi_params=[array<2, array<3, u256>>, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @g(arg0: calldataslice, arg1: i256) -> memorybytes [selector=0x1fd55338, view, abi_params=[array<2, array<3, u256>>, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = address
     v1 = gas
@@ -68,7 +68,7 @@ fn @h(arg0: calldataslice) -> memorybytes [selector=0x94e17704, pure, abi_params
     jump bb1
 }
 
-fn @i(arg0: calldataslice, arg1: word) -> memorybytes [selector=0x18e849a4, view, abi_params=[array<2, array<3, u8>>, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @i(arg0: calldataslice, arg1: i256) -> memorybytes [selector=0x18e849a4, view, abi_params=[array<2, array<3, u8>>, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = address
     v1 = gas

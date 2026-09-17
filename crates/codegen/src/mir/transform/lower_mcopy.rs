@@ -125,9 +125,9 @@ fn shared_copy_helper(target: Target, sites: usize) -> Option<Function> {
     let mut function = Function::new(Ident::with_dummy_span(sym::mcopy_words));
     {
         let mut builder = FunctionBuilder::new(&mut function);
-        let dest = builder.add_param(MirType::Word);
-        let src = builder.add_param(MirType::Word);
-        let len = builder.add_param(MirType::Word);
+        let dest = builder.add_param(MirType::I256);
+        let src = builder.add_param(MirType::I256);
+        let len = builder.add_param(MirType::I256);
         let exit = builder.create_block();
         emit_copy_loop(&mut builder, dest, src, len, exit, CopyDirection::Dynamic);
         builder.switch_to_block(exit);

@@ -484,7 +484,7 @@ fn @runAll() -> memorybytes [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     jump bb3
 }
 
-fn @store_storage_bytes(arg0: word, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

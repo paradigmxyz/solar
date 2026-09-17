@@ -4,7 +4,7 @@
 
 // CHECK-LABEL: {{^[ +].*}}fn @forward_length_across_join{{[( ]}}
 // CHECK: + ret arg2
-fn @forward_length_across_join(arg0: memorybytes, arg1: bool, arg2: word) -> word {
+fn @forward_length_across_join(arg0: memorybytes, arg1: i1, arg2: i256) -> i256 {
   bb0:
     jumpi arg1, bb1, bb2
   bb1:
@@ -22,7 +22,7 @@ fn @forward_length_across_join(arg0: memorybytes, arg1: bool, arg2: word) -> wor
 // CHECK:     bb2:
 // CHECK:       [[RETAINED:v[0-9]+]] = memory_object_len memorybytes, v0
 // CHECK-NEXT:       ret [[RETAINED]]
-fn @allocation_fmp_update_keeps_length_load(arg0: bool) -> word {
+fn @allocation_fmp_update_keeps_length_load(arg0: i1) -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 7
@@ -43,7 +43,7 @@ fn @allocation_fmp_update_keeps_length_load(arg0: bool) -> word {
 // CHECK:     bb2:
 // CHECK:       [[LENGTH:v[0-9]+]] = memory_object_len memorybytes, v0
 // CHECK-NEXT:       ret [[LENGTH]]
-fn @unknown_data_write_can_reset_fmp(arg0: bool, arg1: word) -> word {
+fn @unknown_data_write_can_reset_fmp(arg0: i1, arg1: i256) -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 7
@@ -66,7 +66,7 @@ fn @unknown_data_write_can_reset_fmp(arg0: bool, arg1: word) -> word {
 // CHECK:       bb2:
 // CHECK-NEXT:       [[LOCAL:v[0-9]+]] = memory_object_len memorybytes,
 // CHECK-NEXT:       ret [[LOCAL]]
-fn @keep_local_length() -> word {
+fn @keep_local_length() -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     v1 = memory_object_len memorybytes, v0
@@ -82,7 +82,7 @@ fn @keep_local_length() -> word {
 // CHECK-LABEL: {{^[ +].*}}fn @reuse_live_length{{[( ]}}
 // CHECK: -     {{v[0-9]+}} = memory_object_len memorybytes,
 // CHECK: +     {{v[0-9]+}} = add [[LIVE:v[0-9]+]], [[LIVE]]
-fn @reuse_live_length() -> word {
+fn @reuse_live_length() -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     v1 = memory_object_len memorybytes, v0
@@ -99,7 +99,7 @@ fn @reuse_live_length() -> word {
 // CHECK-LABEL: {{^[ +].*}}fn @forward_latest_store{{[( ]}}
 // CHECK: -     {{v[0-9]+}} = memory_object_len memorybytes,
 // CHECK: +     ret 9
-fn @forward_latest_store() -> word {
+fn @forward_latest_store() -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 7

@@ -4,7 +4,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constant_integer_value.sol:ConstantIntegerValue ===
 @module ConstantIntegerValue
-fn @calc() -> word [selector=0x96f1b6be, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @calc() -> i256 [selector=0x96f1b6be, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @mulWadDown, 0x8ac7230489e80000, 0xaa87bee538000
     v1 = exp 2, 128
@@ -12,20 +12,20 @@ fn @calc() -> word [selector=0x96f1b6be, pure, abi_params=[], abi_returns=[word]
     ret v2
 }
 
-fn @avgEdge() -> word [selector=0xbb94a0c5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @avgEdge() -> i256 [selector=0xbb94a0c5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @average, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
     ret v0
 }
 
-fn @negativeConstant() -> word [selector=0xce4ac84e, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @negativeConstant() -> i256 [selector=0xce4ac84e, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sub 0, 0xd89e8
     v1 = icall @isMinTick, v0
     ret v1
 }
 
-fn @average(arg0: word, arg1: word) -> word [pure] {
+fn @average(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = and arg0, arg1
     v1 = xor arg0, arg1
@@ -34,13 +34,13 @@ fn @average(arg0: word, arg1: word) -> word [pure] {
     ret v3
 }
 
-fn @mulWadDown(arg0: word, arg1: word) -> word [pure] {
+fn @mulWadDown(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = icall @mulDivDown, arg0, arg1, 0xde0b6b3a7640000
     ret v0
 }
 
-fn @mulDivDown(arg0: word, arg1: word, arg2: word) -> word [pure] {
+fn @mulDivDown(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
   bb0:
     v0 = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1
     v1 = gt arg0, v0
@@ -63,7 +63,7 @@ fn @mulDivDown(arg0: word, arg1: word, arg2: word) -> word [pure] {
     revert 0, 0
 }
 
-fn @isMinTick(arg0: word) -> word [pure] {
+fn @isMinTick(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = signextend 2, arg0
     v1 = eq v0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffff27618

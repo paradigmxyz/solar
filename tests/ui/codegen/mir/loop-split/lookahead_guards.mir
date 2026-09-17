@@ -18,7 +18,7 @@
 // CHECK: + [[LATCH]]:
 // CHECK: + [[NEXT]] = add [[I]], 4
 // CHECK: + jump [[MAIN]]
-fn @group_loop(arg0: word, arg1: word) -> word {
+fn @group_loop(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -50,7 +50,7 @@ fn @group_loop(arg0: word, arg1: word) -> word {
 // Without a lookahead guard there is nothing to fold: the loop is kept.
 // CHECK-LABEL: {{^[ +].*}}fn @plain_loop{{[( ]}}
 // CHECK-NOT: {{^[-+]}}
-fn @plain_loop(arg0: word, arg1: word) -> word {
+fn @plain_loop(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -70,7 +70,7 @@ fn @plain_loop(arg0: word, arg1: word) -> word {
 // dominating definition once both copies reach it: the loop is kept.
 // CHECK-LABEL: {{^[ +].*}}fn @body_exit_use{{[( ]}}
 // CHECK-NOT: {{^[-+]}}
-fn @body_exit_use(arg0: word, arg1: word) -> word {
+fn @body_exit_use(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -95,7 +95,7 @@ fn @body_exit_use(arg0: word, arg1: word) -> word {
 // is kept.
 // CHECK-LABEL: {{^[ +].*}}fn @variable_step{{[( ]}}
 // CHECK-NOT: {{^[-+]}}
-fn @variable_step(arg0: word, arg1: word) -> word {
+fn @variable_step(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:

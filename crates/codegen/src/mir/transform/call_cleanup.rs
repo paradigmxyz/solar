@@ -75,7 +75,7 @@ impl MirPass for CallCleanup {
                         .is_none_or(|effect| effect == func.inst(inst).kind.effect_kind())
                     && let Value::Inst(inner) = func.value(inner)
                     && let Some(value) = func.inst(*inner).kind.zero_test_operand(func)
-                    && func.value_ty(value) == Some(crate::mir::MirType::Bool)
+                    && func.value_ty(value) == Some(crate::mir::MirType::I1)
                     && let Some(result) = func.inst_result_value(inst)
                 {
                     replacements.insert(result, value);
@@ -199,7 +199,7 @@ fn infer_arguments(module: &Module) -> ArgumentBits {
 }
 
 fn argument_bits(func: &Function, id: FunctionId, index: ArgIdx, facts: &ArgumentBits) -> u32 {
-    if func.params.get(index) == Some(&crate::mir::MirType::Bool) {
+    if func.params.get(index) == Some(&crate::mir::MirType::I1) {
         return 1;
     }
     if func.attributes.is_abi_wrapper && func.selector.is_some() && func.params.is_empty() {

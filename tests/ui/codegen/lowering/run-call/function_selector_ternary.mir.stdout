@@ -10,7 +10,7 @@ fn @g() [selector=0xe2179b8e, abi_params=[], abi_returns=[], abi_return_params=[
     ret
 }
 
-fn @h(arg0: word) -> word [selector=0x05a0581e, view, abi_params=[bool], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+fn @h(arg0: i256) -> i256 [selector=0x05a0581e, view, abi_params=[bool], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2

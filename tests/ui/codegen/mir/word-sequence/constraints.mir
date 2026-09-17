@@ -3,7 +3,7 @@
 //@[homestead] compile-flags: --evm-version=homestead -Osize -Zmir-pipeline=word-sequence
 @module RecipeConstraints
 
-fn @shared_producers(arg0: word, arg1: word) -> word {
+fn @shared_producers(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = not arg0
     v1 = not arg1
@@ -13,7 +13,7 @@ fn @shared_producers(arg0: word, arg1: word) -> word {
     ret v4
 }
 
-fn @effect_barrier(arg0: word, arg1: word) -> word {
+fn @effect_barrier(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = not arg0
     v1 = not arg1
@@ -22,7 +22,7 @@ fn @effect_barrier(arg0: word, arg1: word) -> word {
     ret v2
 }
 
-fn @gas_barrier(arg0: word, arg1: word) -> word {
+fn @gas_barrier(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = not arg0
     v1 = not arg1
@@ -32,14 +32,14 @@ fn @gas_barrier(arg0: word, arg1: word) -> word {
     ret v4
 }
 
-fn @fork_availability(arg0: word) -> word {
+fn @fork_availability(arg0: i256) -> i256 {
   bb0:
     v0 = lt arg0, 0x10000000000000000000000000000000000000000
     v1 = word_cast v0
     ret v1
 }
 
-fn @cross_block(arg0: word, arg1: word) -> word {
+fn @cross_block(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = not arg0
     v1 = not arg1
@@ -49,7 +49,7 @@ fn @cross_block(arg0: word, arg1: word) -> word {
     ret v2
 }
 
-fn @recipe_metadata(arg0: word, arg1: word) -> word {
+fn @recipe_metadata(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = not arg0
     v1 = not arg1

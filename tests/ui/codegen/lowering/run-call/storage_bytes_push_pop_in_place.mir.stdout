@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_push_pop_in_place.sol:StorageBytesPushPop ===
 @module StorageBytesPushPop
 types:
-  struct0: {memorybytes, word}
-  struct1: {word, word, word}
-  struct2: {word, word, word, word}
-  struct3: {word, word}
+  struct0: {memorybytes, i256}
+  struct1: {i256, i256, i256}
+  struct2: {i256, i256, i256, i256}
+  struct3: {i256, i256}
 
-fn @_push(arg0: word) {
+fn @_push(arg0: i256) {
   bb0:
     jump bb1
   bb1:
@@ -87,7 +87,7 @@ fn @_push(arg0: word) {
     jump bb1
 }
 
-fn @pushOne(arg0: word) [selector=0x5da02415, abi_params=[bytes1], abi_returns=[], abi_return_params=[]] {
+fn @pushOne(arg0: i256) [selector=0x5da02415, abi_params=[bytes1], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v0
@@ -217,14 +217,14 @@ fn @popOne() [selector=0x53b8a6c6, abi_params=[], abi_returns=[], abi_return_par
     ret
 }
 
-fn @pushRange(arg0: word) -> memorybytes [selector=0xcac9de04, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @pushRange(arg0: i256) -> memorybytes [selector=0xcac9de04, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     icall @_push, arg0
     v0 = icall @load_storage_bytes, 0
     ret v0
 }
 
-fn @pushZero(arg0: word) -> struct0 [selector=0xb0e28d5e, abi_params=[u256], abi_returns=[memory_bytes, word], abi_return_params=[bytes, u256]] {
+fn @pushZero(arg0: i256) -> struct0 [selector=0xb0e28d5e, abi_params=[u256], abi_returns=[memory_bytes, word], abi_return_params=[bytes, u256]] {
   bb0:
     jump bb1
   bb1:
@@ -311,7 +311,7 @@ fn @pushZero(arg0: word) -> struct0 [selector=0xb0e28d5e, abi_params=[u256], abi
     jump bb1
 }
 
-fn @pushAssign(arg0: word) -> memorybytes [selector=0xbcb447d8, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @pushAssign(arg0: i256) -> memorybytes [selector=0xbcb447d8, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jump bb1
   bb1:
@@ -395,7 +395,7 @@ fn @pushAssign(arg0: word) -> memorybytes [selector=0xbcb447d8, abi_params=[u256
     jump bb1
 }
 
-fn @popTo(arg0: word, arg1: word) -> struct0 [selector=0x6203376f, abi_params=[u256, u256], abi_returns=[memory_bytes, word], abi_return_params=[bytes, u256]] {
+fn @popTo(arg0: i256, arg1: i256) -> struct0 [selector=0x6203376f, abi_params=[u256, u256], abi_returns=[memory_bytes, word], abi_return_params=[bytes, u256]] {
   bb0:
     icall @_push, arg0
     jump bb1
@@ -492,7 +492,7 @@ fn @popTo(arg0: word, arg1: word) -> struct0 [selector=0x6203376f, abi_params=[u
     jump bb1
 }
 
-fn @slots(arg0: word, arg1: word) -> struct1 [selector=0xec823b6d, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[bytes32, bytes32, bytes32]] {
+fn @slots(arg0: i256, arg1: i256) -> struct1 [selector=0xec823b6d, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[bytes32, bytes32, bytes32]] {
   bb0:
     icall @_push, arg0
     jump bb1
@@ -588,7 +588,7 @@ fn @slots(arg0: word, arg1: word) -> struct1 [selector=0xec823b6d, abi_params=[u
     jump bb1
 }
 
-fn @interleaved(arg0: word) -> struct2 [selector=0x8a27da89, abi_params=[u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @interleaved(arg0: i256) -> struct2 [selector=0x8a27da89, abi_params=[u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     jump bb1
   bb1:
@@ -819,7 +819,7 @@ fn @interleaved(arg0: word) -> struct2 [selector=0x8a27da89, abi_params=[u256], 
     jump bb1
 }
 
-fn @popEmptyAfter(arg0: word) [selector=0x7b110cfa, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @popEmptyAfter(arg0: i256) [selector=0x7b110cfa, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall @_push, arg0
     jump bb1
@@ -1040,7 +1040,7 @@ fn @popUntouched() [selector=0xbf1e345b, abi_params=[], abi_returns=[], abi_retu
     ret
 }
 
-fn @structPushPop(arg0: word) -> struct0 [selector=0x9c0e8d6f, abi_params=[u256], abi_returns=[memory_bytes, word], abi_return_params=[bytes, u256]] {
+fn @structPushPop(arg0: i256) -> struct0 [selector=0x9c0e8d6f, abi_params=[u256], abi_returns=[memory_bytes, word], abi_return_params=[bytes, u256]] {
   bb0:
     sstore 1, arg0 !metadata(storage=slot(1))
     jump bb1
@@ -1192,7 +1192,7 @@ fn @structPushPop(arg0: word) -> struct0 [selector=0x9c0e8d6f, abi_params=[u256]
     jump bb1
 }
 
-fn @mappingPushPop(arg0: word) -> memorybytes [selector=0x9881887b, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @mappingPushPop(arg0: i256) -> memorybytes [selector=0x9881887b, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jump bb1
   bb1:
@@ -1339,13 +1339,13 @@ fn @mappingPushPop(arg0: word) -> memorybytes [selector=0x9881887b, abi_params=[
     jump bb1
 }
 
-fn @pointerPushPop(arg0: word) -> memorybytes [selector=0x3a6f6ba7, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @pointerPushPop(arg0: i256) -> memorybytes [selector=0x3a6f6ba7, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @_pushPop, 0, arg0
     ret v0
 }
 
-fn @_pushPop(arg0: word, arg1: word) -> memorybytes {
+fn @_pushPop(arg0: i256, arg1: i256) -> memorybytes {
   bb0:
     jump bb1
   bb1:
@@ -1490,7 +1490,7 @@ fn @_pushPop(arg0: word, arg1: word) -> memorybytes {
     jump bb1
 }
 
-fn @pushZeroRead(arg0: word) -> struct3 [selector=0x421e4f69, abi_params=[u256], abi_returns=[word<bytes1>, word], abi_return_params=[bytes1, bytes32]] {
+fn @pushZeroRead(arg0: i256) -> struct3 [selector=0x421e4f69, abi_params=[u256], abi_returns=[word<bytes1>, word], abi_return_params=[bytes1, bytes32]] {
   bb0:
     v0 = mod arg0, 32
     v1 = mul v0, 2
@@ -1556,7 +1556,7 @@ fn @pushZeroRead(arg0: word) -> struct3 [selector=0x421e4f69, abi_params=[u256],
     ret v43
 }
 
-fn @pushZeroReadLong(arg0: word) -> struct1 [selector=0x18e52e09, abi_params=[u256], abi_returns=[word<bytes1>, word, word], abi_return_params=[bytes1, bytes32, bytes32]] {
+fn @pushZeroReadLong(arg0: i256) -> struct1 [selector=0x18e52e09, abi_params=[u256], abi_returns=[word<bytes1>, word, word], abi_return_params=[bytes1, bytes32, bytes32]] {
   bb0:
     v0 = mod arg0, 32
     v1 = add v0, 32
@@ -1637,7 +1637,7 @@ fn @pushZeroReadLong(arg0: word) -> struct1 [selector=0x18e52e09, abi_params=[u2
     ret v53
 }
 
-fn @pushPopWords(arg0: word) -> struct3 [selector=0x068eaf65, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @pushPopWords(arg0: i256) -> struct3 [selector=0x068eaf65, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     jump bb1
   bb1:
@@ -1718,7 +1718,7 @@ fn @pushPopWords(arg0: word) -> struct3 [selector=0x068eaf65, abi_params=[u256],
     jump bb1
 }
 
-fn @load_storage_bytes(arg0: word) -> memorybytes {
+fn @load_storage_bytes(arg0: i256) -> memorybytes {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0

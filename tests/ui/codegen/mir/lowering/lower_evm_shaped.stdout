@@ -21,7 +21,7 @@
 +     tail_call @fused, v0 !metadata(span=10..20, modifier_depth=1)
   }
   
-  fn @fused(arg0: word) {
+  fn @fused(arg0: i256) {
     bb0:
       mstore 128, arg0
       returndata 128, 32
@@ -29,14 +29,14 @@
       stop
   }
   
-  fn @spin(arg0: word) {
+  fn @spin(arg0: i256) {
     bb0:
       icall @spin, arg0
 -     revert 0, 0
 +     invalid
   }
   
-  fn @live_on_sibling(arg0: bool) -> word {
+  fn @live_on_sibling(arg0: i1) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -54,7 +54,7 @@
 +     jump bb1
   }
   
-  fn @used_by_terminator() -> word {
+  fn @used_by_terminator() -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -68,7 +68,7 @@
       ret 7
   }
   
-  fn @switch_edge(arg0: word) -> word {
+  fn @switch_edge(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -85,7 +85,7 @@
 +     jump bb1
   }
   
-  fn @dead_on_sibling(arg0: bool) -> word {
+  fn @dead_on_sibling(arg0: i1) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -132,7 +132,7 @@
       tail_call @void_helper
   }
   
-  fn @scalar_caller(arg0: bool) -> word {
+  fn @scalar_caller(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
 -   bb1:
@@ -148,13 +148,13 @@
 +     tail_call @scalar_fail, 17 !metadata(span=50..60)
   }
   
-  fn @scalar_fail(arg0: word) -> word {
+  fn @scalar_fail(arg0: i256) -> i256 {
     bb0:
       mstore 0, arg0
       revert 0, 32
   }
   
-  fn @recursive_fail(arg0: word) -> word {
+  fn @recursive_fail(arg0: i256) -> i256 {
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
@@ -184,26 +184,26 @@
 +     invalid
   }
   
-  fn @constructor_no_args() -> word {
+  fn @constructor_no_args() -> i256 {
     bb0:
       revert 0, 0
   }
   
-  fn @constructor_helper(arg0: word) -> word {
+  fn @constructor_helper(arg0: i256) -> i256 {
     bb0:
       v0 = icall @scalar_fail, arg0
 -     ret v0
 +     invalid
   }
   
-  fn @maybe_caller(arg0: bool) {
+  fn @maybe_caller(arg0: i1) {
     bb0:
       v0 = icall @maybe_fail, arg0
       sstore 0, v0
       ret
   }
   
-  fn @maybe_fail(arg0: bool) -> word {
+  fn @maybe_fail(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -212,7 +212,7 @@
       revert 0, 0
   }
   
-  fn @chain_caller() -> word {
+  fn @chain_caller() -> i256 {
     bb0:
 -     v0 = icall @chain_tail, 31
 -     sstore 0, v0
@@ -220,12 +220,12 @@
 +     tail_call @chain_tail, 31
   }
   
-  fn @chain_tail(arg0: word) -> word {
+  fn @chain_tail(arg0: i256) -> i256 {
     bb0:
       tail_call @chain_body, arg0
   }
   
-  fn @chain_body(arg0: word) -> word {
+  fn @chain_body(arg0: i256) -> i256 {
     bb0:
 -     v0 = icall @scalar_fail, arg0
 -     ret v0

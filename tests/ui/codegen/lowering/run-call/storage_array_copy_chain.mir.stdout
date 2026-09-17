@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy_chain.sol:Chain ===
 @module Chain
 types:
-  struct0: {word, word, word}
-  struct1: {word, word}
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256}
 
 fn @constructor() [constructor] {
   bb0:
@@ -111,7 +111,7 @@ fn @ctorNested() -> struct0 [selector=0x23c43244, view, abi_params=[], abi_retur
     ret v20
 }
 
-fn @runtimeNested(arg0: word) -> struct1 [selector=0x916a6a26, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @runtimeNested(arg0: i256) -> struct1 [selector=0x916a6a26, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -249,7 +249,7 @@ fn @storageToStorage() -> struct0 [selector=0xdb07d74b, abi_params=[], abi_retur
     jump bb3
 }
 
-fn @load_storage_word_array(arg0: word) -> memoryarray {
+fn @load_storage_word_array(arg0: i256) -> memoryarray {
   bb0:
     v0 = load_storage_array u256, arg0
     ret v0

@@ -1,29 +1,29 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/function_pointer_mutability_conversion.sol:FunctionPointerMutabilityConversion ===
 @module FunctionPointerMutabilityConversion
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
-fn @externalDefaultTarget() -> word [selector=0x7660b402, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @externalDefaultTarget() -> i256 [selector=0x7660b402, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 11
 }
 
-fn @externalViewTarget() -> word [selector=0xbfbc85ef, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @externalViewTarget() -> i256 [selector=0xbfbc85ef, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 12
 }
 
-fn @externalPureTarget() -> word [selector=0xf620336b, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @externalPureTarget() -> i256 [selector=0xf620336b, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 13
 }
 
-fn @internalViewTarget() -> word [pure] {
+fn @internalViewTarget() -> i256 [pure] {
   bb0:
     ret 22
 }
 
-fn @internalPureTarget() -> word [pure] {
+fn @internalPureTarget() -> i256 [pure] {
   bb0:
     ret 23
 }
@@ -436,7 +436,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     jump bb1
 }
 
-fn @internal_dispatcher_p_none_r_u256(arg0: word) -> word [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_none_r_u256(arg0: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 5
     jumpi v0, bb1, bb2

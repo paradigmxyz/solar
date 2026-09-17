@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_delegated_guard.sol:Impl ===
 @module Impl
-fn @initialized() -> word [selector=0x158ef93e, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @initialized() -> i256 [selector=0x158ef93e, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -32,13 +32,13 @@ fn @ping() [selector=0x5c36b186, abi_params=[], abi_returns=[], abi_return_param
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_delegated_guard.sol:Proxy ===
 @module Proxy
-fn @initialized() -> word [selector=0x158ef93e, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @initialized() -> i256 [selector=0x158ef93e, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: word) [constructor, abi_params=[address]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[address]] {
   bb0:
     v0 = gas
     v1 = abi_encode [], object, selector 0xe1c7392a00000000000000000000000000000000000000000000000000000000
@@ -53,7 +53,7 @@ data:
   Impl_initcode_0: hex"34600d5760ca8060115f395ff35b5f5ffd3415156038575f3560e01c8063158ef93e1460345780635c36b186146030578063e1c7392a14602c576038565b604e565b60c9565b603c565b5f5ffd5b5f546080526020608001608090036080f35b60e06040525a8060a0528060a0526040518060c0528060c052602081016040527f5c36b186000000000000000000000000000000000000000000000000000000008152600481015030806080523b1560c5578160a0528060c0525f5f6004835f3087f191505060bf573d5f5f3e3d5ffd5b60015f55005b5f5ffd5b"
   Proxy_initcode_1: hex"6101b93803806101b96101403961014001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016604052607d565b7f08c379a0000000000000000000000000000000000000000000000000000000005f52602060045260a0516040015160245260a0516060015160445260645ffd5b341515610178576101408060c0528060c0526101406101b93803016020820111610174578060c0525160a01c1515610174576040518060e0526040810160405260048152602081017fe1c7392a000000000000000000000000000000000000000000000000000000008152600490015060208101818060e052519150806101005281610120525f5f8383610140515af491505061016f5760405160a0518160200152600b81604001527f696e6974206661696c656400000000000000000000000000000000000000000081606001528060a05260800160405261015d603c565b60a05160405260a0516020015160a052fe5b61017c565b5f5ffd5b5f5ffd5b6032806101875f395ff3341515601c575f3560e01c8063158ef93e14601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
 
-fn @deployProxy() -> word [selector=0x44882b95, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @deployProxy() -> i256 [selector=0x44882b95, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -103,7 +103,7 @@ fn @deployProxy() -> word [selector=0x44882b95, abi_params=[], abi_returns=[word
     ret v27
 }
 
-fn @callImplDirectly() -> word [selector=0x0bba4d4b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @callImplDirectly() -> i256 [selector=0x0bba4d4b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31

@@ -353,7 +353,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         self.builder.switch_to_block(validate);
         let helper = self.ensure_error_catch_match_helper();
-        let valid = self.builder.icall(helper, vec![data_ptr, data_len], MirType::Bool);
+        let valid = self.builder.icall(helper, vec![data_ptr, data_len], MirType::I1);
         let valid_block = self.builder.current_block();
         self.builder.jump(done);
 
@@ -377,9 +377,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // valid &= msg_len <= u64::MAX && msg_len <= len - (offset + 36)
         self.lazy_helper(sym::try_decode_error_message, |_, function| {
             let mut builder = FunctionBuilder::new_semantic(function);
-            let data_ptr = builder.add_param(MirType::Word);
-            let data_len = builder.add_param(MirType::Word);
-            builder.set_return_type(MirType::Bool);
+            let data_ptr = builder.add_param(MirType::I256);
+            let data_len = builder.add_param(MirType::I256);
+            builder.set_return_type(MirType::I1);
 
             let check_offset = builder.create_block();
             let check_length = builder.create_block();
@@ -449,7 +449,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // hash = keccak256_packed(parts)
         Some(
             self.builder
-                .emit_inst(InstKind::AbiEncodePacked { parts, hash: true }, Some(MirType::Word)),
+                .emit_inst(InstKind::AbiEncodePacked { parts, hash: true }, Some(MirType::I256)),
         )
     }
 
@@ -547,7 +547,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(MirType::Slice(location @ (SliceLocation::Memory | SliceLocation::Calldata))) => {
                 PackedArraySource::Slice(location)
             }
-            Some(MirType::Word)
+            Some(MirType::I256)
                 if matches!(
                     layout,
                     MemoryObjectLayout::DynamicArray { .. } | MemoryObjectLayout::FixedArray { .. }
@@ -959,7 +959,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             InstKind::builtin(crate::mir::Builtin::Ripemd160, [input])
         };
-        Some(self.builder.emit_inst(kind, Some(MirType::Word)))
+        Some(self.builder.emit_inst(kind, Some(MirType::I256)))
     }
 
     pub(super) fn lower_ecrecover_call(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
@@ -976,7 +976,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // result = ecrecover(hash, v, r, s)
         Some(self.builder.emit_inst(
             InstKind::builtin(crate::mir::Builtin::EcRecover, [hash, v, r, s]),
-            Some(MirType::Word),
+            Some(MirType::I256),
         ))
     }
 }

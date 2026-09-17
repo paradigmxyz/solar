@@ -236,7 +236,7 @@ fn @pushEmpty() [selector=0x19d30117, abi_wrapper] {
     tail_call @revert_stub.6
 }
 
-fn @load_storage_bytes(arg0: word) -> word [may_return_memory] {
+fn @load_storage_bytes(arg0: i256) -> i256 [may_return_memory] {
   bb0:
     v1 = sload arg0 !metadata(storage=symbolic(arg0))
     v2 = and v1, 1
@@ -295,7 +295,7 @@ fn @load_storage_bytes(arg0: word) -> word [may_return_memory] {
     tail_call @revert_stub.7
 }
 
-fn @clear_storage_words(arg0: word, arg1: word, arg2: word) {
+fn @clear_storage_words(arg0: i256, arg1: i256, arg2: i256) {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
     v7 = keccak256 0, 32 !metadata(memory=scratch)

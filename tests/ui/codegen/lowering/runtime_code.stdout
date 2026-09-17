@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/runtime_code.sol:RuntimeCodeTarget ===
 @module RuntimeCodeTarget
-fn @value() -> word [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 7
 }
 
 // === ROOT/tests/ui/codegen/lowering/runtime_code.sol:RuntimeCode ===
 @module RuntimeCode
-fn @runtime() -> word [selector=0x54d75aa6, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @runtime() -> i256 [selector=0x54d75aa6, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 50

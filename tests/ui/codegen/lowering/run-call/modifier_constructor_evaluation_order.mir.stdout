@@ -1,20 +1,20 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_constructor_evaluation_order.sol:EvaluationOrderA ===
 @module EvaluationOrderA
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_constructor_evaluation_order.sol:EvaluationOrderB ===
 @module EvaluationOrderB
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_constructor_evaluation_order.sol:EvaluationOrderC ===
 @module EvaluationOrderC
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     ret
 }
@@ -53,7 +53,7 @@ fn @query() -> memoryarray [selector=0x2c46b205, view, abi_params=[], abi_return
     ret v0
 }
 
-fn @f(arg0: word) -> word {
+fn @f(arg0: i256) -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -66,7 +66,7 @@ fn @f(arg0: word) -> word {
     ret 0
 }
 
-fn @load_storage_word_array(arg0: word) -> memoryarray {
+fn @load_storage_word_array(arg0: i256) -> memoryarray {
   bb0:
     v0 = load_storage_array u256, arg0
     ret v0

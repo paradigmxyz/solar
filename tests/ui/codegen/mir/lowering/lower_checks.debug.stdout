@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_checks.mir (before lower-checks) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_checks.mir (after lower-checks) ===
   @module LowerChecks
-  fn @branch_checks(arg0: bool, arg1: word) -> word {
+  fn @branch_checks(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -41,7 +41,7 @@
       ret v2
   }
   
-  fn @payloads(arg0: bool, arg1: memorybytes, arg2: word) {
+  fn @payloads(arg0: i1, arg1: memorybytes, arg2: i256) {
     bb0:
 -     icall require<short_string>, arg0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
 -     icall require<empty_string>, arg0
@@ -76,7 +76,7 @@
       ret
   }
   
-  fn @constant_failure_with_writes() -> word {
+  fn @constant_failure_with_writes() -> i256 {
     bb0:
       memory_zero 128, 32
 -     icall panic_if_zero<0x32>, 0
@@ -101,7 +101,7 @@
 +     revert 28, 36
 + }
 + 
-+ fn @revert_error(arg0: word, arg1: word) {
++ fn @revert_error(arg0: i256, arg1: i256) {
 +   bb0:
 +     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
 +     mstore 4, 32 !metadata(memory=scratch)

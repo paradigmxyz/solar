@@ -1097,7 +1097,7 @@ fn @constructor() [constructor] {
     jump bb4
 }
 
-fn @copyDynamic() -> word [selector=0x902a0a84, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = lt 1, v0
@@ -1343,7 +1343,7 @@ fn @copyDynamic() -> word [selector=0x902a0a84, abi_params=[], abi_returns=[word
     jump bb1
 }
 
-fn @copyFixed() -> word [selector=0x23235673, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = lt 0, 2
     v1 = eq v0, false
@@ -1587,7 +1587,7 @@ fn @copyFixed() -> word [selector=0x23235673, abi_params=[], abi_returns=[word],
     jump bb1
 }
 
-fn @copyMixed() -> word [selector=0x0eb8f89e, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @copyMixed() -> i256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 3 !metadata(storage=slot(3))
     v1 = lt 0, v0
@@ -1845,7 +1845,7 @@ fn @copyMixed() -> word [selector=0x0eb8f89e, abi_params=[], abi_returns=[word],
     jump bb1
 }
 
-fn @load_storage_packed_array_1_0(arg0: word) -> memoryarray {
+fn @load_storage_packed_array_1_0(arg0: i256) -> memoryarray {
   bb0:
     v0 = load_storage_array u8, arg0
     ret v0

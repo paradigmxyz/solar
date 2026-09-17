@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_fixed_array_layout.sol:StorageFixedArrayLayout ===
 @module StorageFixedArrayLayout
 types:
-  struct0: {word, word, word, word, word, word}
-  struct1: {word, word, word, word}
+  struct0: {i256, i256, i256, i256, i256, i256}
+  struct1: {i256, i256, i256, i256}
 
 fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:

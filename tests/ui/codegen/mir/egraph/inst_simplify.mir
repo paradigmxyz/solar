@@ -7,14 +7,14 @@
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = and arg0, 15
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mul arg0, arg0
 types:
-  struct0: {word, word, word, word, word}
-  struct1: {word, word, word, word, word, word, word, word, word, bool, bool, word, word, word, word, word, word, word, word, word, word}
-  struct2: {word, word}
-  struct3: {word, word, word, word, bool, bool, bool, bool, word, word}
-  struct4: {word, word, bool, bool, bool, word, word, word, word}
-  struct5: {bool, bool, word, bool, bool}
+  struct0: {i256, i256, i256, i256, i256}
+  struct1: {i256, i256, i256, i256, i256, i256, i256, i256, i256, i1, i1, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256}
+  struct2: {i256, i256}
+  struct3: {i256, i256, i256, i256, i1, i1, i1, i1, i256, i256}
+  struct4: {i256, i256, i1, i1, i1, i256, i256, i256, i256}
+  struct5: {i1, i1, i256, i1, i1}
 
-fn @strength_reduce_arithmetic(arg0: word) -> word {
+fn @strength_reduce_arithmetic(arg0: i256) -> i256 {
   bb0:
     v1 = mul arg0, 32
     v2 = div v1, 8
@@ -35,7 +35,7 @@ fn @strength_reduce_arithmetic(arg0: word) -> word {
 // CHECK: {{^[ +].*}}[[IS_FALSE:v[0-9]+]] = eq arg0, false
 // CHECK: {{^[ +].*}}[[SELECT_FALSE:v[0-9]+]] = select arg0, false, true
 // CHECK: {{^[ +].*}}ret arg0, [[IS_FALSE]], arg1, arg0, [[SELECT_FALSE]]
-fn @simplify_booleans(arg0: bool, arg1: word, arg2: word) -> struct5 [return_abi=[bool, bool, word, bool, bool]] {
+fn @simplify_booleans(arg0: i1, arg1: i256, arg2: i256) -> struct5 [return_abi=[i1, i1, i256, i1, i1]] {
   bb0:
     v3 = eq arg0, true
     v4 = eq arg0, false
@@ -51,7 +51,7 @@ fn @simplify_booleans(arg0: bool, arg1: word, arg2: word) -> struct5 [return_abi
 // CHECK: - codecopy
 // CHECK: - returndatacopy
 // CHECK: {{^[ +].*}}ret arg0
-fn @remove_zero_length_copies(arg0: word) -> word {
+fn @remove_zero_length_copies(arg0: i256) -> i256 {
   bb0:
     mcopy 64, 96, 0
     calldatacopy 128, 0, 0
@@ -62,7 +62,7 @@ fn @remove_zero_length_copies(arg0: word) -> word {
 
 // CHECK-LABEL: {{^[ +].*}}fn @stop_zero_length_external_return{{[( ]}}
 // CHECK: + stop
-fn @stop_zero_length_external_return(arg0: word) [selector=0x01020304] {
+fn @stop_zero_length_external_return(arg0: i256) [selector=0x01020304] {
   bb0:
     v1 = xor arg0, arg0
     returndata arg0, v1
@@ -70,14 +70,14 @@ fn @stop_zero_length_external_return(arg0: word) [selector=0x01020304] {
 
 // CHECK-LABEL: {{^[ +].*}}fn @preserve_zero_length_internal_return{{[( ]}}
 // CHECK: {{^[ +].*}}returndata arg0, 0
-fn @preserve_zero_length_internal_return(arg0: word) {
+fn @preserve_zero_length_internal_return(arg0: i256) {
   bb0:
     returndata arg0, 0
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @fold_modular_helpers{{[( ]}}
 // CHECK: + ret 0
-fn @fold_modular_helpers(arg0: word) -> word {
+fn @fold_modular_helpers(arg0: i256) -> i256 {
   bb0:
     v1 = addmod arg0, 0, 0
     v2 = mulmod arg0, 0, 97
@@ -90,7 +90,7 @@ fn @fold_modular_helpers(arg0: word) -> word {
 // CHECK: {{^[ +].*}}[[NOT:v[0-9]+]] = not arg0
 // CHECK-NOT: {{^[ +].*}}= gt
 // CHECK: {{^[ +].*}}ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, [[NOT]], arg1, arg1, arg1, 0, 0, 0, arg0
-fn @complete_word_identities(arg0: word, arg1: bool) -> struct4 [return_abi=[word, word, bool, bool, bool, word, word, word, word]] {
+fn @complete_word_identities(arg0: i256, arg1: i1) -> struct4 [return_abi=[i256, i256, i1, i1, i1, i256, i256, i256, i256]] {
   bb0:
     v2 = or arg0, 115792089237316195423570985008687907853269984665640564039457584007913129639935
     v3 = xor arg0, 115792089237316195423570985008687907853269984665640564039457584007913129639935
@@ -111,7 +111,7 @@ fn @complete_word_identities(arg0: word, arg1: bool) -> struct4 [return_abi=[wor
 // CHECK-LABEL: {{^[ +].*}}fn @complete_exact_identities{{[( ]}}
 // CHECK-NOT: {{^[ +].*}}= gt
 // CHECK: {{^[ +].*}}ret [[NOT:v[0-9]+]], 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, true, false, true, false, 0, 0
-fn @complete_exact_identities(arg0: word, arg1: bool) -> struct3 [return_abi=[word, word, word, word, bool, bool, bool, bool, word, word]] {
+fn @complete_exact_identities(arg0: i256, arg1: i1) -> struct3 [return_abi=[i256, i256, i256, i256, i1, i1, i1, i1, i256, i256]] {
   bb0:
     v2 = not arg0
     v3 = and arg0, v2
@@ -132,7 +132,7 @@ fn @complete_exact_identities(arg0: word, arg1: bool) -> struct3 [return_abi=[wo
 
 // CHECK-LABEL: {{^[ +].*}}fn @fold_modular_mod_one{{[( ]}}
 // CHECK: + ret 0
-fn @fold_modular_mod_one(arg0: word, arg1: word) -> word {
+fn @fold_modular_mod_one(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = addmod arg0, arg1, 1
     v3 = mulmod arg0, arg1, 1
@@ -143,7 +143,7 @@ fn @fold_modular_mod_one(arg0: word, arg1: word) -> word {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_exp_zero_base_with_unknown_exponent{{[( ]}}
 // CHECK: {{^[ +].*}}[[RESULT:v[0-9]+]] = exp 0, arg0
 // CHECK: {{^[ +].*}}ret [[RESULT]]
-fn @keep_exp_zero_base_with_unknown_exponent(arg0: word) -> word {
+fn @keep_exp_zero_base_with_unknown_exponent(arg0: i256) -> i256 {
   bb0:
     v1 = exp 0, arg0
     ret v1
@@ -151,7 +151,7 @@ fn @keep_exp_zero_base_with_unknown_exponent(arg0: word) -> word {
 
 // CHECK-LABEL: {{^[ +].*}}fn @fold_wide_modular_constants{{[( ]}}
 // CHECK: + ret 2, 2
-fn @fold_wide_modular_constants() -> struct2 [return_abi=[word, word]] {
+fn @fold_wide_modular_constants() -> struct2 [return_abi=[i256, i256]] {
   bb0:
     v0 = addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 3
     v1 = mulmod 0x100000000000000000000000000000000, 0x100000000000000000000000000000000, 7
@@ -160,7 +160,7 @@ fn @fold_wide_modular_constants() -> struct2 [return_abi=[word, word]] {
 
 // CHECK-LABEL: {{^[ +].*}}fn @fold_constant_ops{{[( ]}}
 // CHECK: + ret 12, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 42, 8, 0, 2, 256, 2, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, true, true, 15, 17, 12, 256, 16, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc, 255, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 5
-fn @fold_constant_ops() -> struct1 [return_abi=[word, word, word, word, word, word, word, word, word, bool, bool, word, word, word, word, word, word, word, word, word, word]] {
+fn @fold_constant_ops() -> struct1 [return_abi=[i256, i256, i256, i256, i256, i256, i256, i256, i256, i1, i1, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256]] {
   bb0:
     v1 = add 7, 5
     v2 = sub 7, 9
@@ -190,7 +190,7 @@ fn @fold_constant_ops() -> struct1 [return_abi=[word, word, word, word, word, wo
 
 // CHECK-LABEL: {{^[ +].*}}fn @fold_clz_constants{{[( ]}}
 // CHECK: + ret 256, 255, 248, 1, 0
-fn @fold_clz_constants() -> struct0 [return_abi=[word, word, word, word, word]] {
+fn @fold_clz_constants() -> struct0 [return_abi=[i256, i256, i256, i256, i256]] {
   bb0:
     v0 = clz 0
     v1 = clz 1
@@ -205,7 +205,7 @@ fn @fold_clz_constants() -> struct0 [return_abi=[word, word, word, word, word]] 
 // CHECK: {{^[ +].*}}checked_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 // CHECK: {{^[ +].*}}checked_div u256, 1, 0
 // CHECK: {{^[ +].*}}ret 243
-fn @checked_constants() -> word {
+fn @checked_constants() -> i256 {
   bb0:
     v0 = checked_add u8, 255, 1
     v1 = checked_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -216,7 +216,7 @@ fn @checked_constants() -> word {
 
 // CHECK-LABEL: fn @wrapping_signed_division
 // CHECK: {{^[ +].*}}ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-fn @wrapping_signed_division() -> word {
+fn @wrapping_signed_division() -> i256 {
   bb0:
     v0 = wrapping_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret v0
@@ -229,7 +229,7 @@ fn @wrapping_signed_division() -> word {
 // CHECK: - icall revert_if_zero<tuple_data_too_short>, 7
 // CHECK: icall panic_if<0x11>, true
 // CHECK: icall revert_if_zero<empty>, arg0
-fn @constant_checks(arg0: word) {
+fn @constant_checks(arg0: i256) {
   bb0:
     icall panic_if<0x1>, false
     icall panic_if_zero<0x12>, true
@@ -250,7 +250,7 @@ fn @constant_require(arg0: memorybytes) {
     ret
 }
 
-fn @checked_modular() -> word {
+fn @checked_modular() -> i256 {
   bb0:
     v0 = icall checked_addmod<>, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 3
     v1 = icall checked_mulmod<>, 5, 5, 7
@@ -258,7 +258,7 @@ fn @checked_modular() -> word {
     ret v2
 }
 
-fn @checked_modular_zero(arg0: word) {
+fn @checked_modular_zero(arg0: i256) {
   bb0:
     v0 = icall checked_addmod<>, arg0, 0, 0
     v1 = icall checked_mulmod<>, 0, arg0, 0
@@ -269,7 +269,7 @@ fn @checked_modular_zero(arg0: word) {
 // CHECK: + icall panic_if_zero<0x1>, arg0
 // CHECK: + icall panic_if<0x11>, arg0
 // CHECK: + icall revert_if_zero<tuple_data_too_short>, arg0
-fn @check_polarity(arg0: word) {
+fn @check_polarity(arg0: i256) {
   bb0:
     v0 = eq arg0, 0
     icall panic_if<0x1>, v0

@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_compound_assignments.sol:FixedBytesCompoundAssignments ===
 @module FixedBytesCompoundAssignments
 types:
-  struct0: {word, word, word}
-  struct1: {word, word}
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256}
 
-fn @bitwise(arg0: word) -> struct0 [selector=0xbe8f3303, pure, abi_params=[bytes1], abi_returns=[word<bytes1>, word<bytes1>, word<bytes1>], abi_return_params=[bytes1, bytes1, bytes1]] {
+fn @bitwise(arg0: i256) -> struct0 [selector=0xbe8f3303, pure, abi_params=[bytes1], abi_returns=[word<bytes1>, word<bytes1>, word<bytes1>], abi_return_params=[bytes1, bytes1, bytes1]] {
   bb0:
     v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = or v0, 0x200000000000000000000000000000000000000000000000000000000000000
@@ -21,7 +21,7 @@ fn @bitwise(arg0: word) -> struct0 [selector=0xbe8f3303, pure, abi_params=[bytes
     ret v11
 }
 
-fn @shifts(arg0: word) -> struct1 [selector=0x96fca76a, pure, abi_params=[bytes1], abi_returns=[word<bytes1>, word<bytes1>], abi_return_params=[bytes1, bytes1]] {
+fn @shifts(arg0: i256) -> struct1 [selector=0x96fca76a, pure, abi_params=[bytes1], abi_returns=[word<bytes1>, word<bytes1>], abi_return_params=[bytes1, bytes1]] {
   bb0:
     v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = shl 1, v0
@@ -34,7 +34,7 @@ fn @shifts(arg0: word) -> struct1 [selector=0x96fca76a, pure, abi_params=[bytes1
     ret v7
 }
 
-fn @wide(arg0: word) -> word [selector=0x8b537c35, pure, abi_params=[bytes2], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {
+fn @wide(arg0: i256) -> i256 [selector=0x8b537c35, pure, abi_params=[bytes2], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {
   bb0:
     v0 = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
     v1 = or v0, 0x1000000000000000000000000000000000000000000000000000000000000
@@ -42,7 +42,7 @@ fn @wide(arg0: word) -> word [selector=0x8b537c35, pure, abi_params=[bytes2], ab
     ret v2
 }
 
-fn @storageBoundary() -> word [selector=0x90f7c243, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+fn @storageBoundary() -> i256 [selector=0x90f7c243, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = not 31
     v1 = and 98, v0
@@ -153,7 +153,7 @@ fn @storageBoundary() -> word [selector=0x90f7c243, abi_params=[], abi_returns=[
     ret v77
 }
 
-fn @store_storage_bytes(arg0: word, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

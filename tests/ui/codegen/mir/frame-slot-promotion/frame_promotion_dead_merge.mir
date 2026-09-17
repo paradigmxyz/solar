@@ -5,7 +5,7 @@
 // CHECK: + [[COUNTER:v[0-9]+]] = phi [bb3: 0], [bb5: [[NEXT:v[0-9]+]]]
 // CHECK: + ret [[COUNTER]]
 // CHECK: + [[NEXT]] = add [[COUNTER]], 1
-fn @dead_merge(arg0: word, arg1: bool) -> word {
+fn @dead_merge(arg0: i256, arg1: i1) -> i256 {
   bb0:
     jumpi arg1, bb1, bb2
   bb1:

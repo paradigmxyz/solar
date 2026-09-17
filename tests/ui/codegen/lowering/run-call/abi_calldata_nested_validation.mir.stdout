@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_nested_validation.sol:AbiCalldataNestedValidation ===
 @module AbiCalldataNestedValidation
-fn @f(arg0: calldataslice) -> word [selector=0xc26b6b9a, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @f(arg0: calldataslice) -> i256 [selector=0xc26b6b9a, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 42
 }
 
-fn @g(arg0: calldataslice) -> word [selector=0xebcd97f8, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @g(arg0: calldataslice) -> i256 [selector=0xebcd97f8, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0

@@ -31,7 +31,7 @@ fn @encodeNoPadding(arg0: memorybytes) -> memorybytes [selector=0x3d92c956, pure
     ret v2
 }
 
-fn @encode.4(arg0: memorybytes, arg1: word, arg2: word) -> memorybytes [pure] {
+fn @encode.4(arg0: memorybytes, arg1: i256, arg2: i256) -> memorybytes [pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = checked_rem u256, v0, 3
@@ -209,7 +209,7 @@ fn @encode.4(arg0: memorybytes, arg1: word, arg2: word) -> memorybytes [pure] {
     jump bb7
 }
 
-fn @_encode(arg0: word, arg1: word) -> word [pure] {
+fn @_encode(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = ne arg1, 0
     jumpi v0, bb1, bb2
@@ -265,7 +265,7 @@ fn @encode.6(arg0: memorybytes) -> memorybytes [pure] {
     ret v2
 }
 
-fn @encode.7(arg0: memorybytes, arg1: word) -> memorybytes [pure] {
+fn @encode.7(arg0: memorybytes, arg1: i256) -> memorybytes [pure] {
   bb0:
     v0 = word_cast false
     v1 = icall @encode.4, arg0, arg1, v0
@@ -479,7 +479,7 @@ fn @decode.8(arg0: memorybytes) -> memorybytes [pure] {
     ret v4
 }
 
-fn @_decode(arg0: word) -> word [pure] {
+fn @_decode(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = shr 248, v0

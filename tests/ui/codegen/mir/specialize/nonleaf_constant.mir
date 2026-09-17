@@ -7,19 +7,19 @@
 // the parameter in place and the parameter disappears.
 // CHECK-LABEL: {{^[ +].*}}fn @caller{{[( ]}}
 // CHECK: + {{v[0-9]+}} = icall @outer, arg0
-// CHECK-LABEL: {{^[ +].*}}fn @outer(arg0: word)
+// CHECK-LABEL: {{^[ +].*}}fn @outer(arg0: i256)
 // CHECK: [[COND:v[0-9]+]] = ne 0, 0
 // CHECK: jumpi [[COND]], bb1, bb2
 // CHECK-LABEL: {{^[ +].*}}fn @wide{{[( ]}}
 // CHECK: {{^ +}}{{v[0-9]+}} = icall @keep, arg0, 0x1000000000000000000000000000000000000000000000000000000000000000
-// CHECK-LABEL: {{^[ +].*}}fn @keep(arg0: word, arg1: word)
-fn @caller(arg0: word) -> word [selector=0x00000001] {
+// CHECK-LABEL: {{^[ +].*}}fn @keep(arg0: i256, arg1: i256)
+fn @caller(arg0: i256) -> i256 [selector=0x00000001] {
   bb0:
     v0 = icall @outer, arg0, 0
     ret v0
 }
 
-fn @outer(arg0: word, arg1: word) -> word {
+fn @outer(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = ne arg1, 0
     jumpi v2, bb1, bb2
@@ -31,7 +31,7 @@ fn @outer(arg0: word, arg1: word) -> word {
     ret v1
 }
 
-fn @inner(arg0: word) -> word {
+fn @inner(arg0: i256) -> i256 {
   bb0:
     v0 = mul arg0, arg0
     ret v0
@@ -39,13 +39,13 @@ fn @inner(arg0: word) -> word {
 
 // A wide literal would cost a full push at every use, so it stays an
 // argument of the helper that still calls.
-fn @wide(arg0: word) -> word [selector=0x00000002] {
+fn @wide(arg0: i256) -> i256 [selector=0x00000002] {
   bb0:
     v0 = icall @keep, arg0, 0x1000000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
-fn @keep(arg0: word, arg1: word) -> word {
+fn @keep(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = icall @inner, arg0
     v1 = add v0, arg1

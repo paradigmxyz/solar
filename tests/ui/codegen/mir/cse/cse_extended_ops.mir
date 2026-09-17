@@ -9,9 +9,9 @@
 // CHECK: - {{v[0-9]+}} = addmod arg1, arg0, 97
 // CHECK: - {{v[0-9]+}} = select arg2, arg0, arg1
 types:
-  struct0: {word, word, word, word, word, bool}
+  struct0: {i256, i256, i256, i256, i256, i1}
 
-fn @extended_pure_ops(arg0: word, arg1: word, arg2: bool) -> struct0 [return_abi=[word, word, word, word, word, bool]] {
+fn @extended_pure_ops(arg0: i256, arg1: i256, arg2: i1) -> struct0 [return_abi=[i256, i256, i256, i256, i256, i1]] {
   bb0:
     v3 = sdiv arg0, arg1
     v4 = sdiv arg0, arg1
@@ -31,7 +31,7 @@ fn @extended_pure_ops(arg0: word, arg1: word, arg2: bool) -> struct0 [return_abi
 
 // CHECK-LABEL: {{^[ +].*}}fn @calldata_reads{{[( ]}}
 // CHECK: - {{v[0-9]+}} = calldataload arg0
-fn @calldata_reads(arg0: word) -> word {
+fn @calldata_reads(arg0: i256) -> i256 {
   bb0:
     v1 = calldataload arg0
     v2 = calldataload arg0
@@ -40,7 +40,7 @@ fn @calldata_reads(arg0: word) -> word {
 
 // CHECK-LABEL: {{^[ +].*}}fn @clz{{[( ]}}
 // CHECK: - {{v[0-9]+}} = clz arg0
-fn @clz(arg0: word) -> word {
+fn @clz(arg0: i256) -> i256 {
   bb0:
     v1 = clz arg0
     v2 = clz arg0

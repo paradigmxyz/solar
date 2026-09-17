@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/do_while_continue.sol:DoWhileContinue ===
 @module DoWhileContinue
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
-fn @falseCondition() -> word [selector=0x0c55a706, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @falseCondition() -> i256 [selector=0x0c55a706, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -30,7 +30,7 @@ fn @falseCondition() -> word [selector=0x0c55a706, pure, abi_params=[], abi_retu
     invalid
 }
 
-fn @countToThree() -> word [selector=0x1da4c6ce, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @countToThree() -> i256 [selector=0x1da4c6ce, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -74,7 +74,7 @@ fn @conditionSideEffect() -> struct0 [selector=0x9f218831, pure, abi_params=[], 
     invalid
 }
 
-fn @skipRemainder() -> word [selector=0x3c43b081, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @skipRemainder() -> i256 [selector=0x3c43b081, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -104,7 +104,7 @@ fn @skipRemainder() -> word [selector=0x3c43b081, pure, abi_params=[], abi_retur
     invalid
 }
 
-fn @nested() -> word [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @nested() -> i256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -143,7 +143,7 @@ fn @nested() -> word [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[wor
     invalid
 }
 
-fn @whileControl() -> word [selector=0x4eb5547e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @whileControl() -> i256 [selector=0x4eb5547e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -161,7 +161,7 @@ fn @whileControl() -> word [selector=0x4eb5547e, pure, abi_params=[], abi_return
     invalid
 }
 
-fn @whileConditionalContinue() -> word [selector=0xd1e42237, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @whileConditionalContinue() -> i256 [selector=0xd1e42237, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -189,7 +189,7 @@ fn @whileConditionalContinue() -> word [selector=0xd1e42237, pure, abi_params=[]
     jump bb1
 }
 
-fn @exitUsesPreviousLoopValue() -> word [selector=0x27efcb8a, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @exitUsesPreviousLoopValue() -> i256 [selector=0x27efcb8a, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -211,7 +211,7 @@ fn @exitUsesPreviousLoopValue() -> word [selector=0x27efcb8a, pure, abi_params=[
     invalid
 }
 
-fn @once() -> word [selector=0x292a3f7e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @once() -> i256 [selector=0x292a3f7e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -230,7 +230,7 @@ fn @once() -> word [selector=0x292a3f7e, pure, abi_params=[], abi_returns=[word]
     invalid
 }
 
-fn @conditionSideEffects() -> word [selector=0xb44652e6, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @conditionSideEffects() -> i256 [selector=0xb44652e6, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -255,7 +255,7 @@ fn @conditionSideEffects() -> word [selector=0xb44652e6, pure, abi_params=[], ab
     invalid
 }
 
-fn @nestedSideEffects() -> word [selector=0x31faa90c, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @nestedSideEffects() -> i256 [selector=0x31faa90c, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -298,7 +298,7 @@ fn @nestedSideEffects() -> word [selector=0x31faa90c, pure, abi_params=[], abi_r
     invalid
 }
 
-fn @checkedDecrementLatch() -> word [selector=0x9d033d28, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @checkedDecrementLatch() -> i256 [selector=0x9d033d28, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:

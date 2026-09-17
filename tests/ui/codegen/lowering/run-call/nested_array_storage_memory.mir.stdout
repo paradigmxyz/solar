@@ -597,7 +597,7 @@ fn @test4() -> memoryfixedarray [selector=0x8f0d282d, view, abi_params=[], abi_r
     jump bb1
 }
 
-fn @load_storage_word_array(arg0: word) -> memoryarray {
+fn @load_storage_word_array(arg0: i256) -> memoryarray {
   bb0:
     v0 = load_storage_array u256, arg0
     ret v0

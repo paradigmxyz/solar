@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/try_catch_return.sol:TryCatchReturnTarget ===
 @module TryCatchReturnTarget
-fn @value(arg0: word) -> word [selector=0xc4d47ed1, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @value(arg0: i256) -> i256 [selector=0xc4d47ed1, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq arg0, 0
     v1 = eq v0, false
@@ -45,7 +45,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @success() -> word [selector=0x0b93381b, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -74,7 +74,7 @@ fn @success() -> word [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     ret v12
 }
 
-fn @failure() -> word [selector=0x76ffb887, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -103,7 +103,7 @@ fn @failure() -> word [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     ret v12
 }
 
-fn @ignored() -> word [selector=0x0c77db80, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @ignored() -> i256 [selector=0x0c77db80, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff

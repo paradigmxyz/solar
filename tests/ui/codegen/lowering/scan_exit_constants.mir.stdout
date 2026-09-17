@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/scan_exit_constants.sol:ScanExitConstants ===
 @module ScanExitConstants
-fn @check(arg0: word, arg1: word) -> word [selector=0x8fefd8ea, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gt arg0, 0x400
     v1 = eq v0, false
@@ -61,7 +61,7 @@ fn @check(arg0: word, arg1: word) -> word [selector=0x8fefd8ea, pure, abi_params
     jump bb1
 }
 
-fn @scan(arg0: memorybytes) -> word [pure] {
+fn @scan(arg0: memorybytes) -> i256 [pure] {
   bb0:
     v0 = word_cast arg0
     v1 = mload v0

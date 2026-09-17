@@ -2,10 +2,10 @@
 + // === ROOT/tests/ui/codegen/mir/dead-arg-elim/memory_return.mir (after dead-arg-elim) ===
   @module MemoryReturn
   types:
-    struct0: {memoryslice, word}
-    struct1: {struct0, bool}
+    struct0: {memoryslice, i256}
+    struct1: {struct0, i1}
   
-  fn @escape() -> word {
+  fn @escape() -> i256 {
     bb0:
       v0 = fmp
       ret v0

@@ -2,8 +2,8 @@
 @module AbiDecodeStructs
 @phase lowered
 types:
-  struct0: {word, word, word}
-  struct1: {word, memorybytes, word}
+  struct0: {i256, i256, i256}
+  struct1: {i256, memorybytes, i256}
 
 fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
   bb0:
@@ -309,7 +309,7 @@ fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @decode_calldata_type(arg0: word) -> word [may_return_memory] {
+fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0
@@ -350,7 +350,7 @@ fn @decode_calldata_type(arg0: word) -> word [may_return_memory] {
     revert 0, 0
 }
 
-fn @decode_memory_type(arg0: word, arg1: word, arg2: word) -> word [may_return_memory] {
+fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = mload arg0
     v1 = add arg1, v0

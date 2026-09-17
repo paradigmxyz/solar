@@ -8,7 +8,7 @@
 // CHECK: + [[INNER:v[0-9]+]] = phi [bb2: 0], [bb4: [[NEXT_INNER:v[0-9]+]]]
 // CHECK: + [[NEXT_OUTER]] = add [[OUTER]], 1
 // CHECK: + [[NEXT_INNER]] = add [[INNER]], 1
-fn @nested(arg0: word, arg1: word) -> word {
+fn @nested(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v1 = internal_frame_addr 128
     mstore v1, 0

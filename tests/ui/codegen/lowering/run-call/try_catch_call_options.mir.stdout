@@ -35,7 +35,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @highLevelGas() -> word [selector=0x480be654, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @highLevelGas() -> i256 [selector=0x480be654, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -71,7 +71,7 @@ fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[], abi_return
     revert 0, 32
 }
 
-fn @read() -> word [selector=0x57de26a4, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas

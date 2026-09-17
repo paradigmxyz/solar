@@ -4,7 +4,7 @@
 immutables:
   _start: u256
 
-fn @constructor(arg0: word) [abi_wrapper, constructor] {
+fn @constructor(arg0: i256) [abi_wrapper, constructor] {
   bb0:
     v4 = callvalue
     v5 = ne v4, 0

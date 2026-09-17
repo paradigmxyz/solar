@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_slots_beyond_u64.sol:StorageSlotsBeyondU64 ===
 @module StorageSlotsBeyondU64
-fn @roundTrip(arg0: word, arg1: word, arg2: word) -> word [selector=0xfaa172f5, abi_params=[u256, u8, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @roundTrip(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xfaa172f5, abi_params=[u256, u8, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 7 !metadata(storage=slot(0))
     v0 = lt arg0, 0xffffffffffffffff

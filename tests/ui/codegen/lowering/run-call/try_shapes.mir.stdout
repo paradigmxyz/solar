@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_shapes.sol:Callee ===
 @module Callee
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
-fn @f(arg0: word) -> word [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_mul u256, arg0, 2
     ret v0
 }
 
-fn @g(arg0: word) -> struct0 [selector=0xe420264a, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @g(arg0: i256) -> struct0 [selector=0xe420264a, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = checked_add u256, arg0, 1
     v1 = insert_value struct0, undef struct0, 0, arg0
@@ -20,7 +20,7 @@ fn @g(arg0: word) -> struct0 [selector=0xe420264a, pure, abi_params=[u256], abi_
 // === ROOT/tests/ui/codegen/lowering/run-call/try_shapes.sol:TryShapes ===
 @module TryShapes
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
 data:
   Callee_initcode_0: hex"34600d5760d28060115f395ff35b5f5ffd6024361034171515602f575f3560e01c8063b3de648b14602b578063e420264a14602757602f565b6080565b6033565b5f5ffd5b60243610506002600435028060a0528060a0526002156002820460043590148117905015606e578060a0526080526020608001608090036080f35b634e487b715f5260116020526024601cfd5b60e060405260243610506001600435018060c0528060c052600435811060c0576004356080526020608001818060c0528152905060209001608090036080f35b634e487b715f5260116020526024601cfd"
@@ -50,7 +50,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @ok() -> word [selector=0xd909b403, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @ok() -> i256 [selector=0xd909b403, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 1
 }
@@ -61,7 +61,7 @@ fn @bad() [selector=0x9c3674fc, pure, abi_params=[], abi_returns=[word], abi_ret
     invalid
 }
 
-fn @test_try() -> word [selector=0x8494fb4a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -318,7 +318,7 @@ fn @test_try() -> word [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
     ret v149
 }
 
-fn @try_decode_error_message(arg0: word, arg1: word) -> bool {
+fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
   bb0:
     v0 = lt arg1, 68
     v1 = eq v0, false

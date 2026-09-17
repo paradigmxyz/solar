@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_return_pointer_multi.sol:StorageReturnPointerMulti ===
 @module StorageReturnPointerMulti
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
 fn @refs() -> struct0 [view] {
   bb0:
@@ -10,7 +10,7 @@ fn @refs() -> struct0 [view] {
     ret v1
 }
 
-fn @test() -> word [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @refs
     v1 = extract_value struct0, v0, 0

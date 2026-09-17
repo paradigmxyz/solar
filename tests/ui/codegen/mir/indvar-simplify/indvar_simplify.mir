@@ -7,7 +7,7 @@
 // CHECK: + {{v[0-9]+}} = mload [[ADDRESS]]
 // CHECK: + mstore [[ADDRESS]], {{v[0-9]+}}
 // CHECK: + [[NEXT]] = add [[ADDRESS]], 32
-fn @strength_reduce_shifted_address(arg0: word) -> word {
+fn @strength_reduce_shifted_address(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -34,7 +34,7 @@ fn @strength_reduce_shifted_address(arg0: word) -> word {
 // CHECK-NOT: + {{v[0-9]+}} = phi
 // CHECK: {{^ +}}{{v[0-9]+}} = add arg0, {{v[0-9]+}}
 // CHECK-NEXT: {{^ +}}mstore
-fn @keep_shifted_address_single_use(arg0: word) -> word {
+fn @keep_shifted_address_single_use(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -56,7 +56,7 @@ fn @keep_shifted_address_single_use(arg0: word) -> word {
 // CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb0: [[START]]], [bb2: [[NEXT:v[0-9]+]]]
 // CHECK: + mstore [[ADDRESS]], {{v[0-9]+}}
 // CHECK: + [[NEXT]] = add [[ADDRESS]], 32
-fn @strength_reduce_scaled_address_with_offset(arg0: word) -> word {
+fn @strength_reduce_scaled_address_with_offset(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -80,7 +80,7 @@ fn @strength_reduce_scaled_address_with_offset(arg0: word) -> word {
 // CHECK-NOT: + {{v[0-9]+}} = phi
 // CHECK: {{^ +}}{{v[0-9]+}} = add arg0, {{v[0-9]+}}
 // CHECK-NEXT: {{^ +}}mstore8
-fn @keep_scale_one_single_use(arg0: word) -> word {
+fn @keep_scale_one_single_use(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -105,7 +105,7 @@ fn @keep_scale_one_single_use(arg0: word) -> word {
 // CHECK: + mstore [[ADDRESS]], {{v[0-9]+}}
 // CHECK: {{^[ +].*}}checked_add u256,
 // CHECK: + [[NEXT]] = add [[ADDRESS]], 32
-fn @strength_reduce_checked_address(arg0: word, arg1: word) -> word {
+fn @strength_reduce_checked_address(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -129,7 +129,7 @@ fn @strength_reduce_checked_address(arg0: word, arg1: word) -> word {
 // CHECK: + mstore [[ADDRESS]], {{v[0-9]+}}
 // CHECK: {{^[ +].*}}checked_add u256, 1,
 // CHECK: + [[NEXT]] = add [[ADDRESS]], 32
-fn @strength_reduce_commuted_checked_step(arg0: word) -> word {
+fn @strength_reduce_commuted_checked_step(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -154,7 +154,7 @@ fn @strength_reduce_commuted_checked_step(arg0: word) -> word {
 // CHECK: {{^[ +].*}}add arg0,
 // CHECK: {{^[ +].*}}mstore
 // CHECK: {{^[ +].*}}checked_sub u256,
-fn @keep_checked_descending_address(arg0: word) -> word {
+fn @keep_checked_descending_address(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -177,7 +177,7 @@ fn @keep_checked_descending_address(arg0: word) -> word {
 // CHECK: {{^[ +].*}}shl 5,
 // CHECK: {{^[ +].*}}mstore
 // CHECK: {{^[ +].*}}mstore
-fn @keep_shared_field_addresses(arg0: word) -> word {
+fn @keep_shared_field_addresses(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -202,7 +202,7 @@ fn @keep_shared_field_addresses(arg0: word) -> word {
 // CHECK: {{^[ +].*}}add arg0,
 // CHECK: {{^[ +].*}}mstore8
 // CHECK: {{^[ +].*}}checked_add u256,
-fn @keep_checked_scale_one_address(arg0: word) -> word {
+fn @keep_checked_scale_one_address(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:

@@ -8,7 +8,7 @@
       stop
   }
   
-  fn @store_observed_only_by_load() -> word {
+  fn @store_observed_only_by_load() -> i256 {
     bb0:
 -     mstore 128, 0
 -     v0 = mload 128
@@ -33,7 +33,7 @@
       stop
   }
   
-  fn @cross_block_dead_store(arg0: word) {
+  fn @cross_block_dead_store(arg0: i256) {
     bb0:
 -     mstore 128, 0
       v0 = ne arg0, 0
@@ -45,7 +45,7 @@
       returndata 128, 32
   }
   
-  fn @cross_block_read_path(arg0: word) {
+  fn @cross_block_read_path(arg0: i256) {
     bb0:
       mstore 128, 7
       v0 = ne arg0, 0
@@ -57,7 +57,7 @@
       returndata 128, 32
   }
   
-  fn @return_pointer() -> word {
+  fn @return_pointer() -> i256 {
     bb0:
       mstore 160, 42
       ret 160
@@ -78,7 +78,7 @@
       stop
   }
   
-  fn @equivalent_base_load(arg0: word) -> word {
+  fn @equivalent_base_load(arg0: i256) -> i256 {
     bb0:
       v0 = add arg0, 32
       mstore v0, 42
@@ -88,7 +88,7 @@
 +     ret 42
   }
   
-  fn @equivalent_base_overwrite(arg0: word) {
+  fn @equivalent_base_overwrite(arg0: i256) {
     bb0:
       v0 = add arg0, 32
 -     mstore v0, 0
@@ -97,14 +97,14 @@
       stop
   }
   
-  fn @unused_frame_store() -> word {
+  fn @unused_frame_store() -> i256 {
     bb0:
       v0 = internal_frame_addr 192
 -     mstore v0, 0
       ret 0
   }
   
-  fn @immutable_copy_reuse() -> word {
+  fn @immutable_copy_reuse() -> i256 {
     bb0:
       v0 = codesize
       v1 = sub v0, 64
@@ -130,7 +130,7 @@
       stop
   }
   
-  fn @forward_load() -> word {
+  fn @forward_load() -> i256 {
     bb0:
       mstore 128, 42
 -     v0 = mload 128
@@ -138,7 +138,7 @@
 +     ret 42
   }
   
-  fn @forward_through_pure_op() -> word {
+  fn @forward_through_pure_op() -> i256 {
     bb0:
       mstore 128, 42
       v0 = add 1, 1
@@ -147,7 +147,7 @@
 +     ret 42
   }
   
-  fn @memory_write_barrier() -> word {
+  fn @memory_write_barrier() -> i256 {
     bb0:
       mstore 128, 42
       mcopy 160, 128, 32
@@ -155,7 +155,7 @@
       ret v0
   }
   
-  fn @icall_barrier() -> word {
+  fn @icall_barrier() -> i256 {
     bb0:
       mstore 128, 42
       icall @writer
@@ -169,7 +169,7 @@
       ret
   }
   
-  fn @icall_clean_callee() -> word {
+  fn @icall_clean_callee() -> i256 {
     bb0:
       mstore 128, 42
       icall @callee
@@ -183,7 +183,7 @@
       ret
   }
   
-  fn @icall_msize_barrier() -> word {
+  fn @icall_msize_barrier() -> i256 {
     bb0:
       mstore 0x1000, 42
       v0 = icall @observe_msize
@@ -191,13 +191,13 @@
       ret v0
   }
   
-  fn @observe_msize() -> word {
+  fn @observe_msize() -> i256 {
     bb0:
       v0 = msize
       ret v0
   }
   
-  fn @chained_forwarding() -> word {
+  fn @chained_forwarding() -> i256 {
     bb0:
       mstore 128, 42
 -     v0 = mload 128

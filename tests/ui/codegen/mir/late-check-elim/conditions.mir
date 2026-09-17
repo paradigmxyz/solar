@@ -6,7 +6,7 @@
 @module LateMemoryConditions
 
 // Memory lowering makes both lengths the same load. The second check is redundant.
-fn @same_length(arg0: word, arg1: word) -> word {
+fn @same_length(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v4 = memory_object_from_ptr memorybytes, arg0
     v0 = memory_object_len memorybytes, v4
@@ -23,7 +23,7 @@ fn @same_length(arg0: word, arg1: word) -> word {
 }
 
 // A write to the header invalidates the first length, even with the same address.
-fn @changed_length(arg0: word, arg1: word, arg2: word) -> word {
+fn @changed_length(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v4 = memory_object_from_ptr memorybytes, arg0
     v0 = memory_object_len memorybytes, v4
@@ -41,7 +41,7 @@ fn @changed_length(arg0: word, arg1: word, arg2: word) -> word {
 }
 
 // The loop header proves the in-body bound, including the zero-iteration case.
-fn @loop_length(arg0: word) -> word {
+fn @loop_length(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -64,7 +64,7 @@ fn @loop_length(arg0: word) -> word {
 }
 
 // Preserve ordinary loop exits in gas mode, even when their edge is redundant.
-fn @loop_exit(arg0: word) -> word {
+fn @loop_exit(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -87,7 +87,7 @@ fn @loop_exit(arg0: word) -> word {
 }
 
 // An outlined failure helper has the same profitability as a direct revert.
-fn @outlined_failure(arg0: word) -> word {
+fn @outlined_failure(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:

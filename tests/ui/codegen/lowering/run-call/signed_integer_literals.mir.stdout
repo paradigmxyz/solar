@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/signed_integer_literals.sol:SignedIntegerLiterals ===
 @module SignedIntegerLiterals
-fn @negativeRemainder() -> word [selector=0x5356187e, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+fn @negativeRemainder() -> i256 [selector=0x5356187e, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sub 0, 15
     v1 = sub 0, 10
@@ -8,21 +8,21 @@ fn @negativeRemainder() -> word [selector=0x5356187e, pure, abi_params=[], abi_r
     ret v2
 }
 
-fn @mixedRemainder() -> word [selector=0xbc23cacf, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+fn @mixedRemainder() -> i256 [selector=0xbc23cacf, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sub 0, 15
     v1 = checked_rem i256, v0, 10
     ret v1
 }
 
-fn @negativeDivisorRemainder() -> word [selector=0xe7ce2708, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+fn @negativeDivisorRemainder() -> i256 [selector=0xe7ce2708, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sub 0, 10
     v1 = checked_rem i256, 15, v0
     ret v1
 }
 
-fn @negativeDivision() -> word [selector=0x1a6ca939, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+fn @negativeDivision() -> i256 [selector=0x1a6ca939, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sub 0, 20
     v1 = sub 0, 10
@@ -30,28 +30,28 @@ fn @negativeDivision() -> word [selector=0x1a6ca939, pure, abi_params=[], abi_re
     ret v2
 }
 
-fn @mixedDivision() -> word [selector=0x3f885fe0, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+fn @mixedDivision() -> i256 [selector=0x3f885fe0, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sub 0, 20
     v1 = checked_div i256, v0, 10
     ret v1
 }
 
-fn @rightShift(arg0: word) -> word [selector=0xd0ba8aa1, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
+fn @rightShift(arg0: i256) -> i256 [selector=0xd0ba8aa1, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sub 0, 16
     v1 = sar arg0, v0
     ret v1
 }
 
-fn @leftShift(arg0: word) -> word [selector=0xc96a98f8, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
+fn @leftShift(arg0: i256) -> i256 [selector=0xc96a98f8, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sub 0, 1
     v1 = shl arg0, v0
     ret v1
 }
 
-fn @lessThan() -> word [selector=0x5ba0b6e8, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @lessThan() -> i256 [selector=0x5ba0b6e8, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sub 0, 15
     v1 = sub 0, 10
@@ -60,7 +60,7 @@ fn @lessThan() -> word [selector=0x5ba0b6e8, pure, abi_params=[], abi_returns=[w
     ret v3
 }
 
-fn @greaterThan() -> word [selector=0xe1ad5fbb, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @greaterThan() -> i256 [selector=0xe1ad5fbb, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sub 0, 15
     v1 = sub 0, 10
@@ -69,7 +69,7 @@ fn @greaterThan() -> word [selector=0xe1ad5fbb, pure, abi_params=[], abi_returns
     ret v3
 }
 
-fn @literalLessThan(arg0: word) -> word [selector=0xa9431753, pure, abi_params=[i256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @literalLessThan(arg0: i256) -> i256 [selector=0xa9431753, pure, abi_params=[i256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sub 0, 15
     v1 = slt v0, arg0
@@ -77,7 +77,7 @@ fn @literalLessThan(arg0: word) -> word [selector=0xa9431753, pure, abi_params=[
     ret v2
 }
 
-fn @parameterLessThan(arg0: word) -> word [selector=0xdf852757, pure, abi_params=[i256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @parameterLessThan(arg0: i256) -> i256 [selector=0xdf852757, pure, abi_params=[i256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sub 0, 15
     v1 = slt arg0, v0
@@ -85,25 +85,25 @@ fn @parameterLessThan(arg0: word) -> word [selector=0xdf852757, pure, abi_params
     ret v2
 }
 
-fn @positiveRemainder() -> word [selector=0x018baf05, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @positiveRemainder() -> i256 [selector=0x018baf05, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_rem u256, 15, 10
     ret v0
 }
 
-fn @largePositiveDivision() -> word [selector=0x01ad88db, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @largePositiveDivision() -> i256 [selector=0x01ad88db, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_div u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
     ret v0
 }
 
-fn @largePositiveRightShift(arg0: word) -> word [selector=0xba4becb8, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @largePositiveRightShift(arg0: i256) -> i256 [selector=0xba4becb8, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = shr arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
-fn @largePositiveGreaterThan() -> word [selector=0x2fc0cb82, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @largePositiveGreaterThan() -> i256 [selector=0x2fc0cb82, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gt 0x8000000000000000000000000000000000000000000000000000000000000000, 1
     v1 = word_cast v0

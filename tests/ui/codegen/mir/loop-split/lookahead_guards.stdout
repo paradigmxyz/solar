@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/loop-split/lookahead_guards.mir (before loop-split) ===
 + // === ROOT/tests/ui/codegen/mir/loop-split/lookahead_guards.mir (after loop-split) ===
   @module LookaheadGuards
-  fn @group_loop(arg0: word, arg1: word) -> word {
+  fn @group_loop(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     jump bb1
 +     jump bb7
@@ -57,7 +57,7 @@
 +     jump bb7
   }
   
-  fn @plain_loop(arg0: word, arg1: word) -> word {
+  fn @plain_loop(arg0: i256, arg1: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -73,7 +73,7 @@
       jump bb1
   }
   
-  fn @body_exit_use(arg0: word, arg1: word) -> word {
+  fn @body_exit_use(arg0: i256, arg1: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -94,7 +94,7 @@
       jump bb1
   }
   
-  fn @variable_step(arg0: word, arg1: word) -> word {
+  fn @variable_step(arg0: i256, arg1: i256) -> i256 {
     bb0:
       jump bb1
     bb1:

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_index_reference.sol:CalldataIndexReference ===
 @module CalldataIndexReference
 types:
-  struct0: {word, word, word}
+  struct0: {i256, i256, i256}
 
 fn @dynamicFixed(arg0: calldataslice) -> struct0 [selector=0x71cafd78, pure, abi_params=[array<_, array<2, u256>>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:

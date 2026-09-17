@@ -996,7 +996,7 @@ fn defined_outside(func: &Function, header: BlockId, body: BlockId, value: Value
 /// already turned into a plain pointer by the time this pass runs.
 fn is_caller_memory(func: &Function, value: ValueId) -> bool {
     let Value::Arg(index) = *func.value(value) else { return false };
-    matches!(func.arg_ty(index), MirType::Word | MirType::MemoryObject(_))
+    matches!(func.arg_ty(index), MirType::I256 | MirType::MemoryObject(_))
 }
 
 /// Whether a value is the free-memory pointer this function read, which every

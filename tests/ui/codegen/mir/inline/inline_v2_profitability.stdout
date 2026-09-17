@@ -2,9 +2,9 @@
 + // === ROOT/tests/ui/codegen/mir/inline/inline_v2_profitability.mir (after inline) ===
   @module InlineV2Profitability
   types:
-    struct0: {word, word}
+    struct0: {i256, i256}
   
-  fn @single_large_caller(arg0: word) -> word {
+  fn @single_large_caller(arg0: i256) -> i256 {
     bb0:
 -     v0 = icall @single_large_callee, arg0
 -     ret v0
@@ -39,7 +39,7 @@
 +     ret v2
   }
   
-  fn @single_large_callee(arg0: word) -> word {
+  fn @single_large_callee(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -67,7 +67,7 @@
       ret v0
   }
   
-  fn @multi_return_caller(arg0: word) -> word {
+  fn @multi_return_caller(arg0: i256) -> i256 {
     bb0:
 -     v0 = icall @multi_return_callee, arg0
 +     jump bb2
@@ -89,14 +89,14 @@
       ret v3
   }
   
-  fn @multi_return_callee(arg0: word) -> struct0 [return_abi=[word, word]] {
+  fn @multi_return_callee(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = add arg0, 1
       v1 = add arg0, 2
       ret v0, v1
   }
   
-  fn @tiny_stateful_caller(arg0: word, arg1: word) {
+  fn @tiny_stateful_caller(arg0: i256, arg1: i256) {
     bb0:
 -     icall @tiny_stateful_callee, arg0
 -     icall @tiny_stateful_callee, arg1
@@ -113,13 +113,13 @@
       stop
   }
   
-  fn @tiny_stateful_callee(arg0: word) {
+  fn @tiny_stateful_callee(arg0: i256) {
     bb0:
       sstore 0, arg0
       ret
   }
   
-  fn @large_shared_nontail(arg0: word) -> word {
+  fn @large_shared_nontail(arg0: i256) -> i256 {
     bb0:
       v0 = icall @large_shared_callee, arg0
       v1 = add v0, 1
@@ -127,7 +127,7 @@
       ret v2
   }
   
-  fn @large_shared_tail(arg0: word) -> word {
+  fn @large_shared_tail(arg0: i256) -> i256 {
     bb0:
 -     v0 = icall @large_shared_callee, arg0
 -     ret v0
@@ -162,7 +162,7 @@
 +     ret v2
   }
   
-  fn @large_shared_callee(arg0: word) -> word {
+  fn @large_shared_callee(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:

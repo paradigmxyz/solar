@@ -4,25 +4,25 @@
 
 // === ROOT/tests/ui/codegen/lowering/checked_bit_search.sol:CheckedBitSearch ===
 @module CheckedBitSearch
-fn @fls.0(arg0: word) -> word [selector=0x27be8b2d, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @fls.0(arg0: i256) -> i256 [selector=0x27be8b2d, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @fls.3, arg0
     ret v0
 }
 
-fn @clz.1(arg0: word) -> word [selector=0x30244f7a, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @clz.1(arg0: i256) -> i256 [selector=0x30244f7a, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @clz.4, arg0
     ret v0
 }
 
-fn @ffs.2(arg0: word) -> word [selector=0x2297890a, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @ffs.2(arg0: i256) -> i256 [selector=0x2297890a, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @ffs.5, arg0
     ret v0
 }
 
-fn @fls.3(arg0: word) -> word [pure] {
+fn @fls.3(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -119,7 +119,7 @@ fn @fls.3(arg0: word) -> word [pure] {
     ret 256
 }
 
-fn @clz.4(arg0: word) -> word [pure] {
+fn @clz.4(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -134,7 +134,7 @@ fn @clz.4(arg0: word) -> word [pure] {
     ret v3
 }
 
-fn @ffs.5(arg0: word) -> word [pure] {
+fn @ffs.5(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2

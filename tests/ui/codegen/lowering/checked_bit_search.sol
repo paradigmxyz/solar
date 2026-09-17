@@ -89,7 +89,7 @@ library LibBit {
 }
 
 contract CheckedBitSearch {
-    // OPT-LABEL: fn @fls{{[.0-9]*}}(arg0: word)
+    // OPT-LABEL: fn @fls{{[.0-9]*}}(arg0: i256)
     // OPT: jumpi {{v[0-9]+}}, {{bb[0-9]+}}, [[SEARCH:bb[0-9]+]]
     // OPT: [[SEARCH]]:
     // OPT: [[SCALED:v[0-9]+]] = shl 7, {{v[0-9]+}}

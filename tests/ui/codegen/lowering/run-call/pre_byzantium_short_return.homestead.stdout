@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/pre_byzantium_short_return.sol:ShortReturns ===
 @module ShortReturns
 types:
-  struct0: {word, word}
-  struct1: {word, word, word, word}
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256, i256}
 
 fn @fallback() [fallback] {
   bb0:
@@ -33,7 +33,7 @@ fn @shortFour() [selector=0xfb8720fc, pure, abi_params=[], abi_returns=[], abi_r
     returndata 0, 4
 }
 
-fn @emptySingle() -> word [selector=0x52635aa1, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @emptySingle() -> i256 [selector=0x52635aa1, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     mstore 0, 42 !metadata(memory=scratch)
     v0 = address
@@ -60,7 +60,7 @@ fn @emptySingle() -> word [selector=0x52635aa1, abi_params=[], abi_returns=[word
     ret v14
 }
 
-fn @emptySingleArg() -> word [selector=0x44cc61d5, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @emptySingleArg() -> i256 [selector=0x44cc61d5, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = fmp
@@ -232,7 +232,7 @@ fn @emptyAggArg() -> memoryfixedarray [selector=0x3dd9064d, abi_params=[], abi_r
     ret v14
 }
 
-fn @partialSingle() -> word [selector=0xe1e2fed5, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @partialSingle() -> i256 [selector=0xe1e2fed5, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = fmp

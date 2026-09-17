@@ -9,7 +9,7 @@
 // CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
 // CHECK: +     [[SUM:v[0-9]+]] = add arg0, arg0
 // CHECK:       ret [[SUM]]
-fn @fresh(arg0: word, arg1: word) -> word {
+fn @fresh(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = alloc raw, exact, uninitialized, infallible, 32
     v3 = alloc raw, exact, uninitialized, infallible, 32
@@ -28,7 +28,7 @@ fn @fresh(arg0: word, arg1: word) -> word {
 // CHECK: {{^ +}}[[SECOND:v[0-9]+]] = mload [[ADDR]]
 // CHECK: +     [[SUM:v[0-9]+]] = add arg0, [[SECOND]]
 // CHECK: {{^ +}}ret [[SUM]]
-fn @reset(arg0: word, arg1: word) -> word {
+fn @reset(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = alloc raw, exact, uninitialized, infallible, 32
     mstore v2, arg0
@@ -46,7 +46,7 @@ fn @reset(arg0: word, arg1: word) -> word {
 // CHECK: {{^ +}}mcopy
 // CHECK: {{^ +}}[[SECOND:v[0-9]+]] = mload 96
 // CHECK: {{^ +}}{{v[0-9]+}} = add [[FIRST]], [[SECOND]]
-fn @unbounded_heap_copy_keeps_reserved_load(arg0: word) -> word {
+fn @unbounded_heap_copy_keeps_reserved_load(arg0: i256) -> i256 {
   bb0:
     v1 = alloc raw, exact, uninitialized, infallible, 32
     v2 = mload 96
@@ -61,7 +61,7 @@ fn @unbounded_heap_copy_keeps_reserved_load(arg0: word) -> word {
 // CHECK: {{^ +}}mcopy
 // CHECK: {{^ +}}[[SECOND:v[0-9]+]] = mload [[OTHER]]
 // CHECK: {{^ +}}{{v[0-9]+}} = add [[FIRST]], [[SECOND]]
-fn @unbounded_heap_copy_can_reach_other_allocation(arg0: word) -> word {
+fn @unbounded_heap_copy_can_reach_other_allocation(arg0: i256) -> i256 {
   bb0:
     v1 = alloc raw, exact, uninitialized, infallible, 32
     v2 = alloc raw, exact, uninitialized, infallible, 32
@@ -77,7 +77,7 @@ fn @unbounded_heap_copy_can_reach_other_allocation(arg0: word) -> word {
 // CHECK: {{^ +}}mcopy
 // CHECK: {{^ +}}[[AFTER:v[0-9]+]] = mload 96
 // CHECK: {{^ +}}{{v[0-9]+}} = add [[BEFORE]], [[AFTER]]
-fn @loop_allocation_after_fmp_reset(arg0: bool) -> word {
+fn @loop_allocation_after_fmp_reset(arg0: i1) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -99,7 +99,7 @@ fn @loop_allocation_after_fmp_reset(arg0: bool) -> word {
 // CHECK: {{^ +}}memory_object_store_byte
 // CHECK: -     {{v[0-9]+}} = memory_object_len memorybytes, arg0
 // CHECK: +     {{v[0-9]+}} = add [[LEN]], [[LEN]]
-fn @argument_header(arg0: memorybytes) -> word {
+fn @argument_header(arg0: memorybytes) -> i256 {
   bb0:
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64
     v0 = memory_object_len memorybytes, arg0

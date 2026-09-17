@@ -899,7 +899,7 @@ impl<'a> Builder<'a> {
                     break;
                 };
                 let inner = resolve_replacement(inner, &self.merged);
-                if func.value_ty(inner) != Some(crate::mir::MirType::Bool) {
+                if func.value_ty(inner) != Some(crate::mir::MirType::I1) {
                     break;
                 }
                 let Some(Terminator::Branch { condition, then_block, else_block }) =

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_storage_arrays.sol:AbiEncodeStorageArrays ===
 @module AbiEncodeStorageArrays
 types:
-  struct0: {word, word, word, word, word, word}
+  struct0: {i256, i256, i256, i256, i256, i256}
 
 fn @encodeDynamicStatic(arg0: calldataslice) -> memorybytes [selector=0x199f835c, abi_params=[array<_, array<2, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:

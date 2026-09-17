@@ -264,7 +264,7 @@ fn @ripemdEmpty() [selector=0x0c4b170a, abi_wrapper, pure] {
     revert 28, 36
 }
 
-fn @literal_bytes_word(arg0: word, arg1: word) -> word [may_return_memory] {
+fn @literal_bytes_word(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v4 = add v0, 64

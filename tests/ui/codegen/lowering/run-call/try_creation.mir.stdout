@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_creation.sol:TryCreationChild ===
 @module TryCreationChild
-fn @constructor(arg0: word) [constructor, abi_params=[bool]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[bool]] {
   bb0:
     v0 = eq arg0, 0
     v1 = eq v0, false
@@ -11,7 +11,7 @@ fn @constructor(arg0: word) [constructor, abi_params=[bool]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_creation.sol:TryCreation ===
 @module TryCreation
-fn @f(arg0: word) -> word [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @f(arg0: i256) -> i256 [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg0, 0
     v1 = eq v0, false

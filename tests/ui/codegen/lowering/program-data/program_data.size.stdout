@@ -145,7 +145,7 @@ fn @splatHash() [selector=0x38f844b9, abi_wrapper, pure] {
     returndata 128, 32
 }
 
-fn @zeroData.body() -> word [may_return_memory, pure] {
+fn @zeroData.body() -> i256 [may_return_memory, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v2 = add v0, 192
@@ -157,7 +157,7 @@ fn @zeroData.body() -> word [may_return_memory, pure] {
     ret v0
 }
 
-fn @zeroWord.body() -> word [may_return_memory, pure] {
+fn @zeroWord.body() -> i256 [may_return_memory, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v2 = add v0, 64
@@ -168,7 +168,7 @@ fn @zeroWord.body() -> word [may_return_memory, pure] {
     ret v0
 }
 
-fn @splatData.body() -> word [may_return_memory, pure] {
+fn @splatData.body() -> i256 [may_return_memory, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v5 = add v0, 192

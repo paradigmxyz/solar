@@ -6,7 +6,7 @@
 // CHECK: - {{v[0-9]+}} = memory_object_data memorybytes, arg0
 // CHECK: - {{v[0-9]+}} = memory_object_field_addr memorystruct<3>, arg1, 2
 // CHECK: - {{v[0-9]+}} = memory_object_element_addr memoryarray<2>, arg2, arg3
-fn @reuse_projections(arg0: memorybytes, arg1: memorystruct, arg2: memoryarray, arg3: word) -> word {
+fn @reuse_projections(arg0: memorybytes, arg1: memorystruct, arg2: memoryarray, arg3: i256) -> i256 {
   bb0:
     v4 = memory_object_data memorybytes, arg0
     v5 = memory_object_data memorybytes, arg0
@@ -28,7 +28,7 @@ fn @reuse_projections(arg0: memorybytes, arg1: memorystruct, arg2: memoryarray, 
 // CHECK-LABEL: {{^[ +].*}}fn @invalidate_length{{[( ]}}
 // CHECK: - {{v[0-9]+}} = memory_object_len memorybytes, arg0
 // CHECK: + {{v[0-9]+}} = add [[LENGTH:v[0-9]+]], [[LENGTH]]
-fn @invalidate_length(arg0: memorybytes) -> word {
+fn @invalidate_length(arg0: memorybytes) -> i256 {
   bb0:
     v1 = memory_object_len memorybytes, arg0
     v2 = memory_object_len memorybytes, arg0
@@ -43,7 +43,7 @@ fn @invalidate_length(arg0: memorybytes) -> word {
 // CHECK:       bb1:
 // CHECK-NEXT:       [[LOCAL:v[0-9]+]] = memory_object_len memorybytes,
 // CHECK-NEXT:       ret [[LOCAL]]
-fn @keep_local_length() -> word {
+fn @keep_local_length() -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     v1 = memory_object_len memorybytes, v0
@@ -59,7 +59,7 @@ fn @keep_local_length() -> word {
 // CHECK-LABEL: {{^[ +].*}}fn @reuse_live_length{{[( ]}}
 // CHECK: -     {{v[0-9]+}} = memory_object_len memorybytes,
 // CHECK: +     {{v[0-9]+}} = add [[LIVE:v[0-9]+]], [[LIVE]]
-fn @reuse_live_length() -> word {
+fn @reuse_live_length() -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     v1 = memory_object_len memorybytes, v0
@@ -77,7 +77,7 @@ fn @reuse_live_length() -> word {
 // CHECK:       [[FIELD:v[0-9]+]] = mload
 // CHECK: -     {{v[0-9]+}} = mload
 // CHECK: +     {{v[0-9]+}} = add [[FIELD]], [[FIELD]]
-fn @reuse_struct_field() -> word {
+fn @reuse_struct_field() -> i256 {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = memory_object_field_addr memorystruct<1>, v0, 0
@@ -95,7 +95,7 @@ fn @reuse_struct_field() -> word {
 // CHECK-LABEL: {{^[ +].*}}fn @forward_initialized_length{{[( ]}}
 // CHECK: -     {{v[0-9]+}} = memory_object_len memorybytes,
 // CHECK: +     ret 3
-fn @forward_initialized_length() -> word {
+fn @forward_initialized_length() -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 3
@@ -110,7 +110,7 @@ fn @forward_initialized_length() -> word {
 // CHECK-LABEL: {{^[ +].*}}fn @raw_header_clobber{{[( ]}}
 // CHECK:       [[LENGTH:v[0-9]+]] = memory_object_len memorybytes,
 // CHECK-NEXT:       ret [[LENGTH]]
-fn @raw_header_clobber(arg0: memorybytes, arg1: word) -> word {
+fn @raw_header_clobber(arg0: memorybytes, arg1: i256) -> i256 {
   bb0:
     set_memory_object_len memorybytes, arg0, 3
     v2 = word_cast arg0
@@ -123,7 +123,7 @@ fn @raw_header_clobber(arg0: memorybytes, arg1: word) -> word {
 // CHECK:       bb3:
 // CHECK-NEXT:       [[LENGTH:v[0-9]+]] = memory_object_len memorybytes,
 // CHECK-NEXT:       ret [[LENGTH]]
-fn @diamond_header_clobber(arg0: memorybytes, arg1: word) -> word {
+fn @diamond_header_clobber(arg0: memorybytes, arg1: i256) -> i256 {
   bb0:
     set_memory_object_len memorybytes, arg0, 3
     v3 = ne arg1, 0
@@ -143,7 +143,7 @@ fn @diamond_header_clobber(arg0: memorybytes, arg1: word) -> word {
 // CHECK-NEXT:       [[LENGTH:v[0-9]+]] = memory_object_len memorybytes,
 // CHECK-NEXT:       [[COND:v[0-9]+]] = ne [[LENGTH]], 0
 // CHECK-NEXT:       jumpi [[COND]],
-fn @loop_header_clobber(arg0: memorybytes) -> word {
+fn @loop_header_clobber(arg0: memorybytes) -> i256 {
   bb0:
     set_memory_object_len memorybytes, arg0, 7
     jump bb1
@@ -161,7 +161,7 @@ fn @loop_header_clobber(arg0: memorybytes) -> word {
 // CHECK-LABEL: {{^[ +].*}}fn @recycled_header_clobber{{[( ]}}
 // CHECK:       [[LENGTH:v[0-9]+]] = memory_object_len memorybytes,
 // CHECK-NEXT:       ret [[LENGTH]]
-fn @recycled_header_clobber() -> word {
+fn @recycled_header_clobber() -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 3

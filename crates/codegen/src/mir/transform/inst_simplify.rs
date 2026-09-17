@@ -268,7 +268,7 @@ impl InstSimplifier {
                 && let Some(constant) = func.value_u256(b)
                 && constant <= U256::ONE
             {
-                // word_cast boolean == word 0 -> boolean == false
+                // word_cast boolean == i256 0 -> boolean == false
                 let constant = Self::imm_bool(func, !constant.is_zero());
                 return Some(compare(inner, constant));
             }
@@ -688,7 +688,7 @@ impl InstSimplifier {
             }
             InstKind::WordCast(value) => {
                 let value = resolve(*value);
-                if func.value_ty(value) == Some(crate::mir::MirType::Word) {
+                if func.value_ty(value) == Some(crate::mir::MirType::I256) {
                     Some(value)
                 } else if let Value::Inst(id) = func.value(value)
                     && let InstKind::MemoryObjectFromPtr { ptr, .. } = func.inst(*id).kind
@@ -1175,7 +1175,7 @@ impl InstSimplifier {
     }
 
     fn is_bool_value(func: &Function, value: ValueId) -> bool {
-        func.value_ty(value) == Some(MirType::Bool)
+        func.value_ty(value) == Some(MirType::I1)
     }
 
     fn same_value(func: &Function, a: ValueId, b: ValueId) -> bool {
@@ -1242,7 +1242,7 @@ impl InstSimplifier {
                     break;
                 };
                 let inner = mir_utils::resolve_replacement(inner, replacements);
-                if func.value_ty(inner) != Some(crate::mir::MirType::Bool) {
+                if func.value_ty(inner) != Some(crate::mir::MirType::I1) {
                     break;
                 }
                 let Some(Terminator::Branch { condition, then_block, else_block }) =

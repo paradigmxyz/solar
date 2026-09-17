@@ -3,7 +3,7 @@
 data:
   literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 
-fn @value() -> word [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 7
 }
@@ -22,7 +22,7 @@ fn @payload() -> memorybytes [selector=0xa878f858, pure, abi_params=[], abi_retu
 data:
   Child_initcode_0: hex"34600e576101618060125f395ff35b5f5ffd341515602a575f3560e01c80633fa4f245146026578063a878f85814602257602a565b6040565b602e565b5f5ffd5b60076080526020608001608090036080f35b60e06040526040518060805260a08101604052608081526020810160808160e19039506040518060a05260208101818060a0528103825282806080525183806080525f811490501581029050601f19601f820116602083018184015f815250828452925060208501945082018185845e91505091508060a052810390505f9001601f8101601f19811690506040518060c05281810191508160405290508181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 
-fn @first() -> word [selector=0x3df4ddf4, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @first() -> i256 [selector=0x3df4ddf4, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -57,7 +57,7 @@ fn @first() -> word [selector=0x3df4ddf4, abi_params=[], abi_returns=[word], abi
     ret v18
 }
 
-fn @second() -> word [selector=0x5a8ac02d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @second() -> i256 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -92,7 +92,7 @@ fn @second() -> word [selector=0x5a8ac02d, abi_params=[], abi_returns=[word], ab
     ret v18
 }
 
-fn @pair() -> word [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31

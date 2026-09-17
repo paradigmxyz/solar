@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/new_reference_array_defaults.sol:NewReferenceArrayDefaults ===
 @module NewReferenceArrayDefaults
-fn @writeStructs() -> word [selector=0xa4c02825, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -89,7 +89,7 @@ fn @writeStructs() -> word [selector=0xa4c02825, pure, abi_params=[], abi_return
     jump bb1
 }
 
-fn @sharedBytesDefault() -> word [selector=0x8e773052, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @sharedBytesDefault() -> i256 [selector=0x8e773052, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2

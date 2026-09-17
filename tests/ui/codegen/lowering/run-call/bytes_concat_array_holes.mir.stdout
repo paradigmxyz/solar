@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/bytes_concat_array_holes.sol:BytesConcatArrayHoles ===
 @module BytesConcatArrayHoles
 types:
-  struct0: {memoryarray, word}
-  struct1: {word, word}
+  struct0: {memoryarray, i256}
+  struct1: {i256, i256}
 
 fn @chunksAndHash() -> struct0 [pure] {
   bb0:

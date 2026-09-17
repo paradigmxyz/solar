@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/mir/loop-exit-remat/induction_runtime.sol:Test ===
 @module Test
 types:
-  struct0: {word, word, word, word}
+  struct0: {i256, i256, i256, i256}
 
-fn @previous(arg0: word) -> word [selector=0x3c311f3c, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @previous(arg0: i256) -> i256 [selector=0x3c311f3c, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -33,7 +33,7 @@ fn @previous(arg0: word) -> word [selector=0x3c311f3c, pure, abi_params=[u256], 
     ret v7
 }
 
-fn @wrapping(arg0: word) -> word [selector=0x45d1ad99, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @wrapping(arg0: i256) -> i256 [selector=0x45d1ad99, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:

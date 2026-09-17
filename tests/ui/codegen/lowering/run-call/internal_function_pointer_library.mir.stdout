@@ -4,13 +4,13 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_library.sol:InternalFunctionPointerLibrary ===
 @module InternalFunctionPointerLibrary
-fn @f(arg0: memoryarray) -> word [selector=0x7bc5bbbf, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @f(arg0: memoryarray) -> i256 [selector=0x7bc5bbbf, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @reduce, arg0, 2, 0
     ret v0
 }
 
-fn @reduce(arg0: memoryarray, arg1: word, arg2: word) -> word {
+fn @reduce(arg0: memoryarray, arg1: i256, arg2: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -41,13 +41,13 @@ fn @reduce(arg0: memoryarray, arg1: word, arg2: word) -> word {
     jump bb1
 }
 
-fn @sum(arg0: word, arg1: word) -> word [pure] {
+fn @sum(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = checked_add u256, arg0, arg1
     ret v0
 }
 
-fn @internal_dispatcher_p_u256_u256_r_u256(arg0: word, arg1: word, arg2: word) -> word [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_u256_u256_r_u256(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2

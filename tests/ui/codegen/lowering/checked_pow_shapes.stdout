@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/checked_pow_shapes.sol:CheckedPowShapes ===
 @module CheckedPowShapes
-fn @upow(arg0: word, arg1: word) -> word [selector=0x11698b2f, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @upow(arg0: i256, arg1: i256) -> i256 [selector=0x11698b2f, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -48,7 +48,7 @@ fn @upow(arg0: word, arg1: word) -> word [selector=0x11698b2f, pure, abi_params=
     revert 28, 36
 }
 
-fn @spow(arg0: word, arg1: word) -> word [selector=0x8c0da14f, pure, abi_params=[i256, u256], abi_returns=[word], abi_return_params=[i256]] {
+fn @spow(arg0: i256, arg1: i256) -> i256 [selector=0x8c0da14f, pure, abi_params=[i256, u256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     jump bb1
   bb1:
@@ -107,7 +107,7 @@ fn @spow(arg0: word, arg1: word) -> word [selector=0x8c0da14f, pure, abi_params=
     revert 28, 36
 }
 
-fn @upow8(arg0: word, arg1: word) -> word [selector=0x3f7ced5f, pure, abi_params=[u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @upow8(arg0: i256, arg1: i256) -> i256 [selector=0x3f7ced5f, pure, abi_params=[u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = and arg0, 255
     v1 = and arg1, 255
@@ -162,7 +162,7 @@ fn @upow8(arg0: word, arg1: word) -> word [selector=0x3f7ced5f, pure, abi_params
     revert 28, 36
 }
 
-fn @spow8(arg0: word, arg1: word) -> word [selector=0xd44642ed, pure, abi_params=[i8, u8], abi_returns=[word<i8>], abi_return_params=[i8]] {
+fn @spow8(arg0: i256, arg1: i256) -> i256 [selector=0xd44642ed, pure, abi_params=[i8, u8], abi_returns=[word<i8>], abi_return_params=[i8]] {
   bb0:
     v0 = signextend 0, arg0
     v1 = and arg1, 255
@@ -233,7 +233,7 @@ fn @spow8(arg0: word, arg1: word) -> word [selector=0xd44642ed, pure, abi_params
     revert 28, 36
 }
 
-fn @const2(arg0: word) -> word [selector=0xb253ebfa, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @const2(arg0: i256) -> i256 [selector=0xb253ebfa, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -281,7 +281,7 @@ fn @const2(arg0: word) -> word [selector=0xb253ebfa, pure, abi_params=[u256], ab
     revert 28, 36
 }
 
-fn @const10(arg0: word) -> word [selector=0xd325f19a, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @const10(arg0: i256) -> i256 [selector=0xd325f19a, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -329,7 +329,7 @@ fn @const10(arg0: word) -> word [selector=0xd325f19a, pure, abi_params=[u256], a
     revert 28, 36
 }
 
-fn @const_neg2(arg0: word) -> word [selector=0xf3adabf1, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
+fn @const_neg2(arg0: i256) -> i256 [selector=0xf3adabf1, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sub 0, 2
     jump bb1
@@ -389,7 +389,7 @@ fn @const_neg2(arg0: word) -> word [selector=0xf3adabf1, pure, abi_params=[u256]
     revert 28, 36
 }
 
-fn @unchecked_pow8(arg0: word, arg1: word) -> word [selector=0xa376b2ef, pure, abi_params=[u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @unchecked_pow8(arg0: i256, arg1: i256) -> i256 [selector=0xa376b2ef, pure, abi_params=[u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = and arg0, 255
     v1 = and arg1, 255

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/static_call_transient_args.sol:StaticCallTransientArgs ===
 @module StaticCallTransientArgs
-fn @PROPOSER_ROLE() -> word [selector=0x8f61f4f5, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @PROPOSER_ROLE() -> i256 [selector=0x8f61f4f5, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     ret 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
 }
@@ -22,13 +22,13 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @getMinDelay() -> word [selector=0xf27a0c92, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @getMinDelay() -> i256 [selector=0xf27a0c92, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     ret v0
 }
 
-fn @isOperation(arg0: word) -> word [selector=0x31d50750, view, abi_params=[bytes32], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @isOperation(arg0: i256) -> i256 [selector=0x31d50750, view, abi_params=[bytes32], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mapping_slot arg0, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -37,7 +37,7 @@ fn @isOperation(arg0: word) -> word [selector=0x31d50750, view, abi_params=[byte
     ret v3
 }
 
-fn @hashOperationBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice, arg3: word, arg4: word) -> word [selector=0xb1c5f427, pure, abi_params=[array<_, address>, array<_, u256>, array<_, bytes>, bytes32, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @hashOperationBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice, arg3: i256, arg4: i256) -> i256 [selector=0xb1c5f427, pure, abi_params=[array<_, address>, array<_, u256>, array<_, bytes>, bytes32, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = abi_encode [calldata_array<word<u160>>, calldata_array<word>, calldata_array<calldata_bytes>, word, word], scratch, args arg0, arg1, arg2, arg3, arg4
     v1 = slice_ptr v0
@@ -46,7 +46,7 @@ fn @hashOperationBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldatas
     ret v3
 }
 
-fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice, arg3: word, arg4: word, arg5: word) -> word [selector=0x8f2a0bb0, abi_params=[array<_, address>, array<_, u256>, array<_, bytes>, bytes32, bytes32, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice, arg3: i256, arg4: i256, arg5: i256) -> i256 [selector=0x8f2a0bb0, abi_params=[array<_, address>, array<_, u256>, array<_, bytes>, bytes32, bytes32, u256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = mapping_slot 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0
     v1 = caller
@@ -212,7 +212,7 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     invalid
 }
 
-fn @_schedule(arg0: word, arg1: word) {
+fn @_schedule(arg0: i256, arg1: i256) {
   bb0:
     v0 = icall @isOperation, arg0
     v1 = ne v0, 0

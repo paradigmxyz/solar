@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_offset_overflow.sol:AbiDecodeOffsetOverflow ===
 @module AbiDecodeOffsetOverflow
-fn @test() -> word [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -37,7 +37,7 @@ fn @test() -> word [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word]
     ret v18
 }
 
-fn @withinArray() -> word [selector=0xac457954, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @withinArray() -> i256 [selector=0xac457954, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1

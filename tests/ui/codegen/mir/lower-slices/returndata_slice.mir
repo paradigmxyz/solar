@@ -10,7 +10,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @copy_returndata{{[( ]}}
 // CHECK: {{^[ +].*}}[[LENGTH:v[0-9]+]] = returndatasize
 // CHECK: + returndatacopy {{v[0-9]+}}, 0, [[LENGTH]]
-fn @copy_returndata() -> word {
+fn @copy_returndata() -> i256 {
   bb0:
     v0 = returndatasize
     v1 = make_returndata_slice 0, v0
@@ -27,10 +27,10 @@ fn @copy_returndata() -> word {
 
 // Parsed MIR may pass a volatile returndata slice to an internal helper. Its
 // offset and length lower to two ordinary words without a compiler panic.
-// CHECK-LABEL: {{^[ +].*}}fn @consume_returndata(arg0: word, arg1: word)
+// CHECK-LABEL: {{^[ +].*}}fn @consume_returndata(arg0: i256, arg1: i256)
 // CHECK: {{^[ +].*}}[[SUM:v[0-9]+]] = add arg0, arg1
 // CHECK: {{^[ +].*}}ret [[SUM]]
-fn @consume_returndata(arg0: returndataslice) -> word {
+fn @consume_returndata(arg0: returndataslice) -> i256 {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0

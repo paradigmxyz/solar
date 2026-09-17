@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/readonly-eval/known_words.mir (before readonly-eval) ===
 + // === ROOT/tests/ui/codegen/mir/readonly-eval/known_words.mir (after readonly-eval) ===
   @module KnownWords
-  fn @known() -> word {
+  fn @known() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64
       mstore v0, 1
@@ -12,7 +12,7 @@
 +     ret 42
   }
   
-  fn @choose(arg0: word) -> word {
+  fn @choose(arg0: i256) -> i256 {
     bb0:
       v0 = mload arg0
       v1 = ne v0, 0
@@ -27,13 +27,13 @@
       ret v4
   }
   
-  fn @read(arg0: word) -> word {
+  fn @read(arg0: i256) -> i256 {
     bb0:
       v0 = mload arg0
       ret v0
   }
   
-  fn @writes() -> word {
+  fn @writes() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64
       mstore v0, 0
@@ -41,7 +41,7 @@
       ret v1
   }
   
-  fn @partial_write(arg0: word) -> word {
+  fn @partial_write(arg0: i256) -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 42
@@ -51,7 +51,7 @@
       ret v2
   }
   
-  fn @clobbered(arg0: word) -> word {
+  fn @clobbered(arg0: i256) -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 42
@@ -60,13 +60,13 @@
       ret v1
   }
   
-  fn @overwrite(arg0: word, arg1: word) {
+  fn @overwrite(arg0: i256, arg1: i256) {
     bb0:
       mstore arg0, arg1
       ret
   }
   
-  fn @uninitialized() -> word {
+  fn @uninitialized() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64
       mstore v0, 1
@@ -74,7 +74,7 @@
       ret v1
   }
   
-  fn @scratch() -> word {
+  fn @scratch() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 1
@@ -83,7 +83,7 @@
       ret v1
   }
   
-  fn @phi_caller() -> word {
+  fn @phi_caller() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 1
@@ -92,7 +92,7 @@
 +     ret 42
   }
   
-  fn @phi_callee(arg0: word) -> word {
+  fn @phi_callee(arg0: i256) -> i256 {
     bb0:
       v0 = mload arg0
       v1 = ne v0, 0
@@ -106,7 +106,7 @@
       ret v2
   }
   
-  fn @recursive_caller() -> word {
+  fn @recursive_caller() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 1
@@ -114,13 +114,13 @@
       ret v1
   }
   
-  fn @recursive(arg0: word) -> word {
+  fn @recursive(arg0: i256) -> i256 {
     bb0:
       v0 = icall @recursive, arg0
       ret v0
   }
   
-  fn @observes_gas() -> word {
+  fn @observes_gas() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 42
@@ -128,7 +128,7 @@
       ret v1
   }
   
-  fn @gas_reader(arg0: word) -> word {
+  fn @gas_reader(arg0: i256) -> i256 {
     bb0:
       v0 = gas
       v1 = mload arg0
@@ -136,7 +136,7 @@
       ret v2
   }
   
-  fn @loop_allocation(arg0: bool) -> word {
+  fn @loop_allocation(arg0: i1) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -148,7 +148,7 @@
       ret v1
   }
   
-  fn @unknown_alias(arg0: word) -> word {
+  fn @unknown_alias(arg0: i256) -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 42
@@ -157,7 +157,7 @@
       ret v1
   }
   
-  fn @recycled(arg0: word) -> word {
+  fn @recycled(arg0: i256) -> i256 {
     bb0:
       set_fmp arg0
       v0 = alloc raw, exact, uninitialized, infallible, 32
@@ -166,7 +166,7 @@
       ret v1
   }
   
-  fn @loop_caller() -> word {
+  fn @loop_caller() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 1
@@ -174,7 +174,7 @@
       ret v1
   }
   
-  fn @loop_callee(arg0: word) -> word {
+  fn @loop_callee(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:

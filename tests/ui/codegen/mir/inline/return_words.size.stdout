@@ -2,9 +2,9 @@
 + // === ROOT/tests/ui/codegen/mir/inline/return_words.mir (after inline-tiny-leaves) ===
   @module ReturnWords
   types:
-    struct0: {word, word}
+    struct0: {i256, i256}
   
-  fn @entry(arg0: word, arg1: word) -> word [selector=0x00000001] {
+  fn @entry(arg0: i256, arg1: i256) -> i256 [selector=0x00000001] {
     bb0:
 -     v0 = icall @swap, arg0, arg1
 +     jump bb2
@@ -25,12 +25,12 @@
       ret v5
   }
   
-  fn @swap(arg0: word, arg1: word) -> struct0 [return_abi=[word, word]] {
+  fn @swap(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       ret arg1, arg0
   }
   
-  fn @barrier(arg0: word, arg1: word) -> word [selector=0x00000002] {
+  fn @barrier(arg0: i256, arg1: i256) -> i256 [selector=0x00000002] {
     bb0:
 -     v0 = icall @swap, arg0, arg1
 +     jump bb2
@@ -52,9 +52,9 @@
 + // === ROOT/tests/ui/codegen/mir/inline/return_words.mir (after cfg-simplify) ===
   @module ReturnWords
   types:
-    struct0: {word, word}
+    struct0: {i256, i256}
   
-  fn @entry(arg0: word, arg1: word) -> word [selector=0x00000001] {
+  fn @entry(arg0: i256, arg1: i256) -> i256 [selector=0x00000001] {
     bb0:
 -     jump bb2
 -   bb2:
@@ -74,12 +74,12 @@
       ret v5
   }
   
-  fn @swap(arg0: word, arg1: word) -> struct0 [return_abi=[word, word]] {
+  fn @swap(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       ret arg1, arg0
   }
   
-  fn @barrier(arg0: word, arg1: word) -> word [selector=0x00000002] {
+  fn @barrier(arg0: i256, arg1: i256) -> i256 [selector=0x00000002] {
     bb0:
 -     jump bb2
 -   bb2:
@@ -101,9 +101,9 @@
 + // === ROOT/tests/ui/codegen/mir/inline/return_words.mir (after dce) ===
   @module ReturnWords
   types:
-    struct0: {word, word}
+    struct0: {i256, i256}
   
-  fn @entry(arg0: word, arg1: word) -> word [selector=0x00000001] {
+  fn @entry(arg0: i256, arg1: i256) -> i256 [selector=0x00000001] {
     bb0:
       mstore 160, arg0
       frame_store multi_return, word, 0, 128 !metadata(memory=scratch)
@@ -114,12 +114,12 @@
       ret v5
   }
   
-  fn @swap(arg0: word, arg1: word) -> struct0 [return_abi=[word, word]] {
+  fn @swap(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       ret arg1, arg0
   }
   
-  fn @barrier(arg0: word, arg1: word) -> word [selector=0x00000002] {
+  fn @barrier(arg0: i256, arg1: i256) -> i256 [selector=0x00000002] {
     bb0:
       mstore 160, arg0
       frame_store multi_return, word, 0, 128 !metadata(memory=scratch)

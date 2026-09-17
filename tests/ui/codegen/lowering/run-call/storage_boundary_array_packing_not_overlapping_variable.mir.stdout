@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_boundary_array_packing_not_overlapping_variable.sol:StorageBoundaryArrayPacking ===
 @module StorageBoundaryArrayPacking
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
-fn @getArray() -> word [pure] {
+fn @getArray() -> i256 [pure] {
   bb0:
     v0 = sub 0, 1
     ret v0
 }
 
-fn @getCanary() -> word [pure] {
+fn @getCanary() -> i256 [pure] {
   bb0:
     ret 2
 }

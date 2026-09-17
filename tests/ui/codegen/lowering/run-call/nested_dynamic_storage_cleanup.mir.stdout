@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/nested_dynamic_storage_cleanup.sol:NestedDynamicStorageCleanup ===
 @module NestedDynamicStorageCleanup
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
 fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:

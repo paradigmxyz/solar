@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_shorter_calldata.sol:StorageArrayPushShorterCalldata ===
 @module StorageArrayPushShorterCalldata
 types:
-  struct0: {word, word, word}
-  struct1: {word, word, word, word, word, word}
-  struct2: {word, word}
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256, i256, i256, i256, i256}
+  struct2: {i256, i256}
 
 fn @pushShorterCalldata(arg0: calldataslice) -> struct0 [selector=0x4e10bf3a, abi_params=[array<2, u256>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:

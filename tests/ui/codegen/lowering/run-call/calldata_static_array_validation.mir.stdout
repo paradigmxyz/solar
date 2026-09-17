@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_static_array_validation.sol:CalldataStaticArrayValidation ===
 @module CalldataStaticArrayValidation
-fn @readSecond(arg0: calldataslice) -> word [selector=0xe9d33e2a, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @readSecond(arg0: calldataslice) -> i256 [selector=0xe9d33e2a, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 1, v0
@@ -16,7 +16,7 @@ fn @readSecond(arg0: calldataslice) -> word [selector=0xe9d33e2a, pure, abi_para
     ret v5
 }
 
-fn @readFirst(arg0: calldataslice) -> word [selector=0x77c98de5, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @readFirst(arg0: calldataslice) -> i256 [selector=0x77c98de5, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0
@@ -32,12 +32,12 @@ fn @readFirst(arg0: calldataslice) -> word [selector=0x77c98de5, pure, abi_param
     ret v5
 }
 
-fn @unused(arg0: calldataslice) -> word [selector=0x492c7c0b, pure, abi_params=[array<2, u8>], abi_returns=[word], abi_return_params=[u256]] {
+fn @unused(arg0: calldataslice) -> i256 [selector=0x492c7c0b, pure, abi_params=[array<2, u8>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 2
 }
 
-fn @nested(arg0: calldataslice) -> word [selector=0xf4e4bddf, pure, abi_params=[array<2, array<2, u8>>], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @nested(arg0: calldataslice) -> i256 [selector=0xf4e4bddf, pure, abi_params=[array<2, array<2, u8>>], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 1, v0
@@ -60,13 +60,13 @@ fn @nested(arg0: calldataslice) -> word [selector=0xf4e4bddf, pure, abi_params=[
     ret v11
 }
 
-fn @passToInternal(arg0: calldataslice) -> word [selector=0xbdb87238, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @passToInternal(arg0: calldataslice) -> i256 [selector=0xbdb87238, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = icall @second, arg0
     ret v0
 }
 
-fn @second(arg0: calldataslice) -> word [pure] {
+fn @second(arg0: calldataslice) -> i256 [pure] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 1, v0
@@ -82,7 +82,7 @@ fn @second(arg0: calldataslice) -> word [pure] {
     ret v5
 }
 
-fn @copyToMemory(arg0: calldataslice) -> word [selector=0x13aac4cb, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @copyToMemory(arg0: calldataslice) -> i256 [selector=0x13aac4cb, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = calldatasize

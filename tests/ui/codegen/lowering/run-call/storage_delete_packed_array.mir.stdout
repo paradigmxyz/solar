@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_delete_packed_array.sol:StorageDeletePackedArray ===
 @module StorageDeletePackedArray
 types:
-  struct0: {word, word, word}
-  struct1: {word, word, word, word, word, word}
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256, i256, i256, i256, i256}
 
 fn @clear() -> struct0 [selector=0x52efea6e, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>], abi_return_params=[u8, u8, u8]] {
   bb0:
@@ -397,7 +397,7 @@ fn @clearFixed() -> struct0 [selector=0x94bd0f54, abi_params=[], abi_returns=[wo
     jump bb1
 }
 
-fn @clearDynamicDirtyWord() -> word [selector=0xa7b98e77, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @clearDynamicDirtyWord() -> i256 [selector=0xa7b98e77, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -446,7 +446,7 @@ fn @clearDynamicDirtyWord() -> word [selector=0xa7b98e77, abi_params=[], abi_ret
     ret v33
 }
 
-fn @clearFixedDirtyWord() -> word [selector=0xb56337b4, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @clearFixedDirtyWord() -> i256 [selector=0xb56337b4, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = not 0
     sstore 1, v0 !metadata(storage=slot(1))

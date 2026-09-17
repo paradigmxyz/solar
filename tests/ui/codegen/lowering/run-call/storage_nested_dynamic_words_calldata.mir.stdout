@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_nested_dynamic_words_calldata.sol:StorageNestedDynamicWordsCalldata ===
 @module StorageNestedDynamicWordsCalldata
-fn @copyDynamic(arg0: calldataslice) -> word [selector=0x2662f0b3, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copyDynamic(arg0: calldataslice) -> i256 [selector=0x2662f0b3, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -199,7 +199,7 @@ fn @copyDynamic(arg0: calldataslice) -> word [selector=0x2662f0b3, abi_params=[a
     jump bb1
 }
 
-fn @copyFixedDynamic(arg0: calldataslice) -> word [selector=0x8b16421b, abi_params=[array<2, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copyFixedDynamic(arg0: calldataslice) -> i256 [selector=0x8b16421b, abi_params=[array<2, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = calldatasize
@@ -376,7 +376,7 @@ fn @copyFixedDynamic(arg0: calldataslice) -> word [selector=0x8b16421b, abi_para
     jump bb1
 }
 
-fn @copyDynamicFixed(arg0: calldataslice) -> word [selector=0xde674e0a, abi_params=[array<_, array<2, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0xde674e0a, abi_params=[array<_, array<2, u256>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -532,7 +532,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> word [selector=0xde674e0a, abi_para
     jump bb1
 }
 
-fn @copyDynamicFixedWiden(arg0: calldataslice) -> word [selector=0x48878fa6, abi_params=[array<_, array<2, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copyDynamicFixedWiden(arg0: calldataslice) -> i256 [selector=0x48878fa6, abi_params=[array<_, array<2, u256>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -714,7 +714,7 @@ fn @copyDynamicFixedWiden(arg0: calldataslice) -> word [selector=0x48878fa6, abi
     jump bb1
 }
 
-fn @copyFixed(arg0: calldataslice) -> word [selector=0x4ae52609, abi_params=[array<2, array<2, u256>>], abi_returns=[word], abi_return_params=[u256]] {
+fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x4ae52609, abi_params=[array<2, array<2, u256>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = calldatasize

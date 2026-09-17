@@ -112,7 +112,7 @@ fn @revert_stub() {
     revert 28, 36
 }
 
-fn @decode_calldata_type(arg0: word) -> word [may_return_memory] {
+fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0

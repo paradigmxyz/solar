@@ -68,7 +68,7 @@ impl Layouts {
                     }
                     MirType::Slice(location) => {
                         leaves.push(super::lower_slices::slice_param_ptr_type(location));
-                        leaves.push(MirType::Word);
+                        leaves.push(MirType::I256);
                     }
                     MirType::Struct(_) | MirType::Void => return None,
                     _ => leaves.push(field),
@@ -281,7 +281,7 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                         if matches!(layouts.types[ty].fields[index as usize], MirType::Slice(_)) {
                             // slice -> slice_ptr(slice), slice_len(slice)
                             vec![builder.slice_ptr(value), builder.slice_len(value)]
-                        } else if layouts.types[ty].fields[index as usize] == MirType::Word
+                        } else if layouts.types[ty].fields[index as usize] == MirType::I256
                             && matches!(
                                 builder.func().value_ty(value),
                                 Some(MirType::MemoryObject(_))

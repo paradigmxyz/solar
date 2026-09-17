@@ -2172,7 +2172,7 @@ mod tests {
         let mut func = function();
         let cases = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let slot = builder.add_param(MirType::Word);
+            let slot = builder.add_param(MirType::I256);
             let object = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
             let calldata = builder.add_param(MirType::Slice(SliceLocation::Calldata));
             let cases = [
@@ -2195,7 +2195,7 @@ mod tests {
             ];
             cases.map(|(kind, size, has_result)| {
                 // semantic hash/store operands
-                let inst = Instruction::new(kind, has_result.then_some(MirType::Word));
+                let inst = Instruction::new(kind, has_result.then_some(MirType::I256));
                 (builder.append_instruction(inst).0, size)
             })
         };
@@ -2361,8 +2361,8 @@ mod tests {
         let mut func = function();
         let (local, captured) = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let local = builder.add_param(MirType::Word);
-            let captured = builder.add_param(MirType::Word);
+            let local = builder.add_param(MirType::I256);
+            let captured = builder.add_param(MirType::I256);
             let offset = builder.imm(32);
             let local_address = builder.add(local, offset);
             let captured_address = builder.add(captured, offset);
@@ -2384,7 +2384,7 @@ mod tests {
         let mut func = function();
         let allocation = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let condition = builder.add_param(MirType::Bool);
+            let condition = builder.add_param(MirType::I1);
             let header = builder.create_block();
             let exit = builder.create_block();
             builder.jump(header);
@@ -2409,8 +2409,8 @@ mod tests {
         let mut func = function();
         let allocation = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let pointer = builder.add_param(MirType::Word);
-            let condition = builder.add_param(MirType::Bool);
+            let pointer = builder.add_param(MirType::I256);
+            let condition = builder.add_param(MirType::I1);
             let header = builder.create_block();
             let exit = builder.create_block();
             // jump header
@@ -2462,9 +2462,9 @@ mod tests {
         let id = ImmutableId::new(3);
         {
             let mut builder = FunctionBuilder::new(&mut func);
-            let value = builder.add_param(MirType::Word);
+            let value = builder.add_param(MirType::I256);
             builder.store_immutable(id, value);
-            let _value = builder.load_immutable(id, MirType::Word);
+            let _value = builder.load_immutable(id, MirType::I256);
             builder.stop();
         }
         let [store, load] = func.blocks[BlockId::ENTRY].instructions.as_slice() else {
@@ -2552,7 +2552,7 @@ mod tests {
             let size = builder.msize();
             builder.ret([size]);
         }
-        observer.set_return_type(MirType::Word);
+        observer.set_return_type(MirType::I256);
         let observer = module.add_function(observer);
 
         let mut caller = function();
@@ -2564,7 +2564,7 @@ mod tests {
             let destination = builder.imm(0x1000);
             let value = builder.imm(1);
             builder.mstore(destination, value);
-            let _ = builder.icall(observer, vec![], MirType::Word);
+            let _ = builder.icall(observer, vec![], MirType::I256);
             builder.ret([]);
             *builder.func().blocks[builder.current_block()].instructions.last().unwrap()
         };

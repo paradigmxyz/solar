@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_storage_arrays.mir (before lower-builtins) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_storage_arrays.mir (after lower-builtins) ===
   @module StorageArrays
-  fn @words(arg0: word) -> memoryarray {
+  fn @words(arg0: i256) -> memoryarray {
     bb0:
 -     v0 = load_storage_array u256, arg0
 -     ret v0
@@ -42,7 +42,7 @@
 +     revert 28, 36
   }
   
-  fn @signed(arg0: word) -> memoryarray {
+  fn @signed(arg0: i256) -> memoryarray {
     bb0:
 -     v0 = load_storage_array i24, arg0
 -     ret v0
@@ -88,7 +88,7 @@
 +     revert 28, 36
   }
   
-  fn @fixed(arg0: word) -> memoryarray {
+  fn @fixed(arg0: i256) -> memoryarray {
     bb0:
 -     v0 = load_storage_array bytes9, arg0
 -     ret v0
@@ -134,7 +134,7 @@
 +     revert 28, 36
   }
   
-  fn @enums(arg0: word) -> memoryarray {
+  fn @enums(arg0: i256) -> memoryarray {
     bb0:
 -     v0 = load_storage_array enum<3>, arg0
 -     ret v0
@@ -187,7 +187,7 @@
 +     revert 28, 36
   }
   
-  fn @bytes(arg0: bool, arg1: word, arg2: memoryarray) -> memoryarray {
+  fn @bytes(arg0: i1, arg1: i256, arg2: memoryarray) -> memoryarray {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -234,7 +234,7 @@
 +     revert 28, 36 !metadata(span=50..60, modifier_depth=5)
 + }
 + 
-+ fn @load_storage_bytes(arg0: word) -> memorybytes {
++ fn @load_storage_bytes(arg0: i256) -> memorybytes {
 +   bb0:
 +     v1 = sload arg0 !metadata(storage=symbolic(arg0))
 +     v2 = and v1, 1

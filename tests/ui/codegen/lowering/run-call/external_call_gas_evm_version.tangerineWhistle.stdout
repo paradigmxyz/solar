@@ -1,20 +1,20 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_gas_evm_version.sol:CallGasCallee ===
 @module CallGasCallee
 types:
-  struct0: {word, word}
-  struct1: {word, word, word, word, word, word, word, word}
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256, i256, i256, i256, i256, i256}
 
 fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @value() -> word [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 42
 }
 
-fn @paid() -> word [selector=0x295b4e17, payable, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @paid() -> i256 [selector=0x295b4e17, payable, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 7
 }
@@ -62,13 +62,13 @@ fn @receive() [receive, payable] {
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_gas_evm_version.sol:CallGasCalls ===
 @module CallGasCalls
 types:
-  struct0: {word, word}
-  struct1: {word, word, word, word, word, word, word, word}
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256, i256, i256, i256, i256, i256}
 
 data:
   CallGasCallee_initcode_0: hex"346010576101fc8060166000396000f35b60006000fe361515600a576101fb565b6000357c010000000000000000000000000000000000000000000000000000000090048063295b4e171460825780633fa4f24514607e5780635dfc2e4a14607a578063a8aa1b31146076578063cb94343e146072578063f5e34bfa14606d576086565b61014d565b60f1565b60c7565b608b565b6098565b60b5565b600080fe5b341515609357005b600080fe5b34151560b057602a6080526020608001608090036080f35b600080fe5b60076080526020608001608090036080f35b60c060405234151560ec57600160805260206080016002815260209001608090036080f35b600080fe5b61018060405234151561014857600160805260206080016002815260209001600381526020900160048152602090016005815260209001600681526020900160078152602090016008815260209001608090036080f35b600080fe5b6101206040523415156101f6576040518060c0528060c05260408101604052604036828060c052376002600010156101e3578060c052600b81526002600110156101e3578060c052602090016016815250600060c051905b8060e052600281106101c1576040608001915050608090036080f35b6020818060e05202828060c052015160208202608001526001810190506101a5565b634e487b7160005260326020526024601cfe5b600080fe5b"
 
-fn @noReturn() -> word [selector=0x31794254, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @noReturn() -> i256 [selector=0x31794254, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -99,7 +99,7 @@ fn @noReturn() -> word [selector=0x31794254, abi_params=[], abi_returns=[word], 
     ret 1
 }
 
-fn @withReturn() -> word [selector=0x2149184b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @withReturn() -> i256 [selector=0x2149184b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -134,7 +134,7 @@ fn @withReturn() -> word [selector=0x2149184b, abi_params=[], abi_returns=[word]
     ret v18
 }
 
-fn @withValue() -> word [selector=0xd6b69802, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @withValue() -> i256 [selector=0xd6b69802, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -169,7 +169,7 @@ fn @withValue() -> word [selector=0xd6b69802, abi_params=[], abi_returns=[word],
     ret v18
 }
 
-fn @twoReturns() -> word [selector=0xf7f4979a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @twoReturns() -> i256 [selector=0xf7f4979a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -213,7 +213,7 @@ fn @twoReturns() -> word [selector=0xf7f4979a, abi_params=[], abi_returns=[word]
     ret v27
 }
 
-fn @eightReturns() -> word [selector=0x67b0b213, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @eightReturns() -> i256 [selector=0x67b0b213, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -299,7 +299,7 @@ fn @eightReturns() -> word [selector=0x67b0b213, abi_params=[], abi_returns=[wor
     ret v69
 }
 
-fn @aggregate() -> word [selector=0xaf36778b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -344,7 +344,7 @@ fn @aggregate() -> word [selector=0xaf36778b, abi_params=[], abi_returns=[word],
     ret v24
 }
 
-fn @bare() -> word [selector=0x8095dd0b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @bare() -> i256 [selector=0x8095dd0b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -373,7 +373,7 @@ fn @bare() -> word [selector=0x8095dd0b, abi_params=[], abi_returns=[word], abi_
     ret v11
 }
 
-fn @sendZero() -> word [selector=0xe857d88b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @sendZero() -> i256 [selector=0xe857d88b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31

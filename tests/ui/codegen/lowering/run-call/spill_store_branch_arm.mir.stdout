@@ -1,17 +1,17 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_store_branch_arm.sol:Mgr ===
 @module Mgr
-fn @last() -> word [selector=0x47799da8, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @last() -> i256 [selector=0x47799da8, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @bal(arg0: word) -> word [selector=0x5580f72a, pure, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
+fn @bal(arg0: i256) -> i256 [selector=0x5580f72a, pure, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 7
 }
 
-fn @delta(arg0: word) -> word [selector=0x0acaa1fa, pure, abi_params=[address], abi_returns=[word], abi_return_params=[i256]] {
+fn @delta(arg0: i256) -> i256 [selector=0x0acaa1fa, pure, abi_params=[address], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     v1 = eq v0, 1
@@ -26,7 +26,7 @@ fn @delta(arg0: word) -> word [selector=0x0acaa1fa, pure, abi_params=[address], 
     ret v3
 }
 
-fn @phasedDelta(arg0: word) -> word [selector=0xf6e32b8b, view, abi_params=[address], abi_returns=[word], abi_return_params=[i256]] {
+fn @phasedDelta(arg0: i256) -> i256 [selector=0xf6e32b8b, view, abi_params=[address], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 255
@@ -50,18 +50,18 @@ fn @phasedDelta(arg0: word) -> word [selector=0xf6e32b8b, view, abi_params=[addr
     ret 0
 }
 
-fn @consume(arg0: word) [selector=0x483f31ab, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @consume(arg0: i256) [selector=0x483f31ab, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     ret
 }
 
-fn @sync(arg0: word) [selector=0xa5841194, abi_params=[address], abi_returns=[], abi_return_params=[]] {
+fn @sync(arg0: i256) [selector=0xa5841194, abi_params=[address], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @advance(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice) -> word [selector=0x2360a5fc, abi_params=[tuple<address, address, u24, i24, address>, tuple<bool, i256, u160>, bytes], abi_returns=[word], abi_return_params=[i256]] {
+fn @advance(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice) -> i256 [selector=0x2360a5fc, abi_params=[tuple<address, address, u24, i24, address>, tuple<bool, i256, u160>, bytes], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = not 255
@@ -97,7 +97,7 @@ fn @advance(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice) -> wo
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_store_branch_arm.sol:Router ===
 @module Router
 types:
-  struct0: {word, word, word}
+  struct0: {i256, i256, i256}
 
 data:
   Mgr_initcode_0: hex"34600e576102e48060125f395ff35b5f5ffd3415156074575f3560e01c80630acaa1fa1460705780632360a5fc14606b57806347799da8146067578063483f31ab1460625780635580f72a14605e578063a5841194146059578063f6e32b8b146054576074565b610109565b610192565b608a565b61017f565b6078565b6101ac565b60b2565b5f5ffd5b5f546080526020608001608090036080f35b6024361060ae5760043560a01c151560ae5760076080526020608001608090036080f35b5f5ffd5b602436106101055760043560a01c15156101055773ffffffffffffffffffffffffffffffffffffffff600435166001901460ec57606460f1565b60ca5f035b8060a0526080526020608001608090036080f35b5f5ffd5b6024361061017b5760043560a01c151561017b5760015460ff90161561016a5773ffffffffffffffffffffffffffffffffffffffff6004351660019014610151576064610156565b60ca5f035b8060a0526080526020608001608090036080f35b5f6080526020608001608090036080f35b5f5ffd5b6024361061018e576004355f55005b5f5ffd5b602436106101a85760043560a01c15156101a857005b5f5ffd5b61012436106102e0576101043580610100526004016020810167ffffffffffffffff6101005111368061016052821191501781358060c0528060c052602083019250823603925082811192508292508282179150915015156102dc5760015460ff1981169050600160ff9016811790506001556040600401358060e0528060e05262ffffff81168114156102d857604060a401358061012052806101205273ffffffffffffffffffffffffffffffffffffffff81168114156102d8578061012052818060e052018060a0528060a052818060e052811091508260c0525090506102c65760c0518060c05260a051018061014052806101405260a0518060a05281106102c65780610140526080526020608001608090036080f35b634e487b715f5260116020526024601cfd5b5f5ffd5b5f5ffd5b5f5ffd"
@@ -145,7 +145,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @fetch(arg0: word) -> struct0 [view] {
+fn @fetch(arg0: i256) -> struct0 [view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -211,7 +211,7 @@ fn @fetch(arg0: word) -> struct0 [view] {
     ret v45
 }
 
-fn @fetchRich(arg0: word) -> struct0 [view] {
+fn @fetchRich(arg0: i256) -> struct0 [view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -277,7 +277,7 @@ fn @fetchRich(arg0: word) -> struct0 [view] {
     ret v45
 }
 
-fn @go() -> word [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @go() -> i256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @fetch, 1
     v1 = extract_value struct0, v0, 0
@@ -405,7 +405,7 @@ fn @go() -> word [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_re
     ret 1
 }
 
-fn @goRich() -> word [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @goRich() -> i256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
     memory_object_store_field memorystruct<5>, v0, 0, 1
@@ -611,7 +611,7 @@ fn @goRich() -> word [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], ab
     ret 2
 }
 
-fn @settle(arg0: word, arg1: word, arg2: word) {
+fn @settle(arg0: i256, arg1: i256, arg2: i256) {
   bb0:
     v0 = gas
     v1 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff

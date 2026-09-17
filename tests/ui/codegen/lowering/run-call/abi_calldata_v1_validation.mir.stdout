@@ -5,7 +5,7 @@ fn @f(arg0: calldataslice) [selector=0x7bc5bbbf, pure, abi_params=[array<_, u256
     ret
 }
 
-fn @g(arg0: word, arg1: calldataslice, arg2: word) -> word [selector=0x338620c8, pure, abi_params=[u256, array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @g(arg0: i256, arg1: calldataslice, arg2: i256) -> i256 [selector=0x338620c8, pure, abi_params=[u256, array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 7
 }

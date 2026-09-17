@@ -1,18 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return_scratch.sol:MultiReturnScratch ===
 @module MultiReturnScratch
 types:
-  struct0: {word, word, word}
-  struct1: {word, word, word, word}
-  struct2: {word, word}
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256, i256, i256}
+  struct2: {i256, i256}
 
-fn @stored(arg0: word) -> word [selector=0x8c396222, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @stored(arg0: i256) -> i256 [selector=0x8c396222, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
     ret v1
 }
 
-fn @triple(arg0: word) -> struct0 [pure] {
+fn @triple(arg0: i256) -> struct0 [pure] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -32,7 +32,7 @@ fn @triple(arg0: word) -> struct0 [pure] {
     ret v3
 }
 
-fn @assign(arg0: word, arg1: word) -> struct1 [selector=0xf09915d4, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @assign(arg0: i256, arg1: i256) -> struct1 [selector=0xf09915d4, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = icall @triple, arg1
@@ -49,7 +49,7 @@ fn @assign(arg0: word, arg1: word) -> struct1 [selector=0xf09915d4, abi_params=[
     ret v10
 }
 
-fn @ternary(arg0: word, arg1: word) -> struct2 [selector=0x09a143f6, pure, abi_params=[bool, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @ternary(arg0: i256, arg1: i256) -> struct2 [selector=0x09a143f6, pure, abi_params=[bool, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2

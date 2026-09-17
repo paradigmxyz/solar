@@ -14,7 +14,7 @@
 // CHECK: + jump bb7
 // CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb9, bb8
 // CHECK: + jump bb9
-fn @reverse_pairs(arg0: word, arg1: word) -> word {
+fn @reverse_pairs(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -60,7 +60,7 @@ fn @reverse_pairs(arg0: word, arg1: word) -> word {
 // CHECK: + jump bb2
 // CHECK: {{^ +}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb5
 // CHECK: {{^ +}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb4, bb5
-fn @divided_and_masked(arg0: word, arg1: word, arg2: word) -> word {
+fn @divided_and_masked(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = div arg1, 3
     v1 = lt arg0, v0

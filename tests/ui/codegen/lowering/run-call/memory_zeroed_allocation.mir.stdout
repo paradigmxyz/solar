@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_zeroed_allocation.sol:MemoryZeroedAllocation ===
 @module MemoryZeroedAllocation
-fn @readDynamic(arg0: word, arg1: word) -> word [selector=0x8be2a62b, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @readDynamic(arg0: i256, arg1: i256) -> i256 [selector=0x8be2a62b, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mul arg0, 1
     v1 = eq 1, 0
@@ -31,7 +31,7 @@ fn @readDynamic(arg0: word, arg1: word) -> word [selector=0x8be2a62b, pure, abi_
     ret v20
 }
 
-fn @readNested(arg0: word, arg1: word, arg2: word, arg3: word) -> word [selector=0x9abd415d, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x9abd415d, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mul arg0, 1
     v1 = eq 1, 0
@@ -135,7 +135,7 @@ fn @readNested(arg0: word, arg1: word, arg2: word, arg3: word) -> word [selector
     jump bb1
 }
 
-fn @readFixed(arg0: word) -> word [selector=0x6a11db72, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @readFixed(arg0: i256) -> i256 [selector=0x6a11db72, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_zero v0, 96
@@ -146,7 +146,7 @@ fn @readFixed(arg0: word) -> word [selector=0x6a11db72, pure, abi_params=[u256],
     ret v3
 }
 
-fn @readStatic(arg0: word, arg1: word) -> word [selector=0xf90f6c35, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mul arg0, 1
     v1 = eq 1, 0

@@ -158,7 +158,7 @@ fn @tryStatic() [selector=0x54f223e3, view, abi_params=[], abi_returns=[], abi_r
     ret
 }
 
-fn @trySelf() -> word [selector=0xf948cf5e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @trySelf() -> i256 [selector=0xf948cf5e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
     v1 = gas
@@ -185,7 +185,7 @@ fn @trySelf() -> word [selector=0xf948cf5e, abi_params=[], abi_returns=[word<boo
     ret 0
 }
 
-fn @lowLevel() -> word [selector=0x5e4fa723, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @lowLevel() -> i256 [selector=0x5e4fa723, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gas
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
@@ -196,7 +196,7 @@ fn @lowLevel() -> word [selector=0x5e4fa723, abi_params=[], abi_returns=[word<bo
     ret v4
 }
 
-fn @selfCall() -> word [selector=0x8dae0159, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @selfCall() -> i256 [selector=0x8dae0159, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
     v1 = gas

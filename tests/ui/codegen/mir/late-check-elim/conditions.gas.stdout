@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/late-check-elim/conditions.mir (before lower-memory-objects) ===
 + // === ROOT/tests/ui/codegen/mir/late-check-elim/conditions.mir (after lower-memory-objects) ===
   @module LateMemoryConditions
-  fn @same_length(arg0: word, arg1: word) -> word {
+  fn @same_length(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = memory_object_from_ptr memorybytes, arg0
 -     v1 = memory_object_len memorybytes, v0
@@ -18,7 +18,7 @@
       ret arg1
   }
   
-  fn @changed_length(arg0: word, arg1: word, arg2: word) -> word {
+  fn @changed_length(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
 -     v0 = memory_object_from_ptr memorybytes, arg0
 -     v1 = memory_object_len memorybytes, v0
@@ -36,7 +36,7 @@
       ret arg1
   }
   
-  fn @loop_length(arg0: word) -> word {
+  fn @loop_length(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -59,7 +59,7 @@
       jump bb1
   }
   
-  fn @loop_exit(arg0: word) -> word {
+  fn @loop_exit(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -82,7 +82,7 @@
       jump bb1
   }
   
-  fn @outlined_failure(arg0: word) -> word {
+  fn @outlined_failure(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -113,7 +113,7 @@
 - // === ROOT/tests/ui/codegen/mir/late-check-elim/conditions.mir (before cse) ===
 + // === ROOT/tests/ui/codegen/mir/late-check-elim/conditions.mir (after cse) ===
   @module LateMemoryConditions
-  fn @same_length(arg0: word, arg1: word) -> word {
+  fn @same_length(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v1 = mload arg0
       v2 = lt arg1, v1
@@ -129,7 +129,7 @@
       ret arg1
   }
   
-  fn @changed_length(arg0: word, arg1: word, arg2: word) -> word {
+  fn @changed_length(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
       v1 = mload arg0
       v2 = lt arg1, v1
@@ -146,7 +146,7 @@
       ret arg1
   }
   
-  fn @loop_length(arg0: word) -> word {
+  fn @loop_length(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -168,7 +168,7 @@
       jump bb1
   }
   
-  fn @loop_exit(arg0: word) -> word {
+  fn @loop_exit(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -190,7 +190,7 @@
       jump bb1
   }
   
-  fn @outlined_failure(arg0: word) -> word {
+  fn @outlined_failure(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -220,7 +220,7 @@
 - // === ROOT/tests/ui/codegen/mir/late-check-elim/conditions.mir (before late-check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/late-check-elim/conditions.mir (after late-check-elim) ===
   @module LateMemoryConditions
-  fn @same_length(arg0: word, arg1: word) -> word {
+  fn @same_length(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v1 = mload arg0
       v2 = lt arg1, v1
@@ -233,7 +233,7 @@
       ret arg1
   }
   
-  fn @changed_length(arg0: word, arg1: word, arg2: word) -> word {
+  fn @changed_length(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
       v1 = mload arg0
       v2 = lt arg1, v1
@@ -248,7 +248,7 @@
       ret arg1
   }
   
-  fn @loop_length(arg0: word) -> word {
+  fn @loop_length(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -270,7 +270,7 @@
       jump bb1
   }
   
-  fn @loop_exit(arg0: word) -> word {
+  fn @loop_exit(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -289,7 +289,7 @@
       jump bb1
   }
   
-  fn @outlined_failure(arg0: word) -> word {
+  fn @outlined_failure(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:

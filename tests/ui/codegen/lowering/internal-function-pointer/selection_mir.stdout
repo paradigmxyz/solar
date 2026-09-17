@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/selection_mir.sol:FunctionPointerSelection ===
 @module FunctionPointerSelection
-fn @choose(arg0: word, arg1: word) -> word [selector=0xced8609d, abi_params=[bool, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @choose(arg0: i256, arg1: i256) -> i256 [selector=0xced8609d, abi_params=[bool, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
@@ -14,37 +14,37 @@ fn @choose(arg0: word, arg1: word) -> word [selector=0xced8609d, abi_params=[boo
     ret v2
 }
 
-fn @increment(arg0: word) -> word [pure] {
+fn @increment(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = checked_add u256, arg0, 1
     ret v0
 }
 
-fn @decrement(arg0: word) -> word [pure] {
+fn @decrement(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = checked_sub u256, arg0, 1
     ret v0
 }
 
-fn @callConstant(arg0: word) -> word [selector=0x0560cf94, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @callConstant(arg0: i256) -> i256 [selector=0x0560cf94, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @internal_dispatcher_p_u256_r_u256, 2, arg0
     ret v0
 }
 
-fn @throughCast(arg0: word) -> word [selector=0x090ff363, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @throughCast(arg0: i256) -> i256 [selector=0x090ff363, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @castViewToPure, 7
     v1 = icall @internal_dispatcher_p_u256_r_u256, v0, arg0
     ret v1
 }
 
-fn @castViewToPure(arg0: word) -> word [pure] {
+fn @castViewToPure(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
 
-fn @incrementView(arg0: word) -> word [view] {
+fn @incrementView(arg0: i256) -> i256 [view] {
   bb0:
     v0 = number
     v1 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -58,7 +58,7 @@ fn @incrementView(arg0: word) -> word [view] {
     ret arg0
 }
 
-fn @internal_dispatcher_p_u256_r_u256(arg0: word, arg1: word) -> word [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_u256_r_u256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:TryTarget ===
 @module TryTarget
-fn @invoke(arg0: word) [selector=0x2605fe98, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
+fn @invoke(arg0: i256) [selector=0x2605fe98, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
@@ -16,7 +16,7 @@ fn @invoke(arg0: word) [selector=0x2605fe98, pure, abi_params=[bool], abi_return
 // === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:TerminatedControlFlow ===
 @module TerminatedControlFlow
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
 data:
   TryTarget_initcode_0: hex"34600d57604b8060115f395ff35b5f5ffd341515601c575f3560e01c80632605fe9814601857601c565b6020565b5f5ffd5b6024361060475760043560029010156047576004351515603c57005b6001604357fe5b5f5ffd5b5f5ffd"
@@ -49,7 +49,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @trySuccess() -> word [selector=0x3984eec7, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @trySuccess() -> i256 [selector=0x3984eec7, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -78,7 +78,7 @@ fn @trySuccess() -> word [selector=0x3984eec7, view, abi_params=[], abi_returns=
     ret 0
 }
 
-fn @tryFailure() -> word [selector=0x86763122, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @tryFailure() -> i256 [selector=0x86763122, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -107,7 +107,7 @@ fn @tryFailure() -> word [selector=0x86763122, view, abi_params=[], abi_returns=
     ret 0
 }
 
-fn @constructorStop() -> word [selector=0x2114ee15, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @constructorStop() -> i256 [selector=0x2114ee15, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -139,20 +139,20 @@ fn @stopHelper() [pure] {
     stop
 }
 
-fn @scalarFailure(arg0: word) -> word [selector=0x97ca1c76, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @scalarFailure(arg0: i256) -> i256 [selector=0x97ca1c76, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @failScalar, arg0
     v1 = checked_add u256, v0, 1
     ret v1
 }
 
-fn @failScalar(arg0: word) -> word [pure] {
+fn @failScalar(arg0: i256) -> i256 [pure] {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
     revert 0, 32
 }
 
-fn @pairFailure(arg0: word) -> struct0 [selector=0xbdf5d4d3, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @pairFailure(arg0: i256) -> struct0 [selector=0xbdf5d4d3, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = icall @failPair, arg0
     v1 = extract_value struct0, v0, 0
@@ -164,13 +164,13 @@ fn @pairFailure(arg0: word) -> struct0 [selector=0xbdf5d4d3, pure, abi_params=[u
     ret v6
 }
 
-fn @failPair(arg0: word) -> struct0 [pure] {
+fn @failPair(arg0: i256) -> struct0 [pure] {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
     revert 0, 32
 }
 
-fn @recursiveFailure(arg0: word, arg1: word) -> word [selector=0x0d8ae7f2, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @recursiveFailure(arg0: i256, arg1: i256) -> i256 [selector=0x0d8ae7f2, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -186,7 +186,7 @@ fn @recursiveFailure(arg0: word, arg1: word) -> word [selector=0x0d8ae7f2, pure,
     revert 0, 32
 }
 
-fn @constructorFailure(arg0: word) -> word [selector=0x61e5bcd1, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @constructorFailure(arg0: i256) -> i256 [selector=0x61e5bcd1, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = abi_encode [word], args arg0
     v1 = not 31
@@ -205,7 +205,7 @@ fn @constructorFailure(arg0: word) -> word [selector=0x61e5bcd1, abi_params=[u25
     ret v6
 }
 
-fn @constructorWithoutArgs() -> word [selector=0x1f01d869, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @constructorWithoutArgs() -> i256 [selector=0x1f01d869, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -263,7 +263,7 @@ fn @unaffordableReturn() [selector=0x0acfbfd5, pure, abi_params=[], abi_returns=
     returndata 0x123456789abcdef0, 32
 }
 
-fn @precompileReturndata(arg0: word, arg1: word) -> word [selector=0x3553277c, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @precompileReturndata(arg0: i256, arg1: i256) -> i256 [selector=0x3553277c, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -309,7 +309,7 @@ fn @precompileReturndata(arg0: word, arg1: word) -> word [selector=0x3553277c, p
     invalid
 }
 
-fn @storageRevertPayload() -> word [selector=0x0156c876, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @storageRevertPayload() -> i256 [selector=0x0156c876, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
     v1 = gas
@@ -349,7 +349,7 @@ fn @storageRevertPayload() -> word [selector=0x0156c876, abi_params=[], abi_retu
     ret 0
 }
 
-fn @failWithStorageBytes(arg0: word) [selector=0x49740e5b, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @failWithStorageBytes(arg0: i256) [selector=0x49740e5b, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
     jump bb1
@@ -383,14 +383,14 @@ fn @failWithStorageBytes(arg0: word) [selector=0x49740e5b, abi_params=[u256], ab
     invalid
 }
 
-fn @maybeFailure(arg0: word) -> word [selector=0x5f6d6eda, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @maybeFailure(arg0: i256) -> i256 [selector=0x5f6d6eda, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @maybeFail, arg0
     v1 = checked_add u256, v0, 1
     ret v1
 }
 
-fn @maybeFail(arg0: word) -> word [pure] {
+fn @maybeFail(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
@@ -403,7 +403,7 @@ fn @maybeFail(arg0: word) -> word [pure] {
     invalid
 }
 
-fn @breakSkipsTail() -> word [selector=0xa299c6cb, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @breakSkipsTail() -> i256 [selector=0xa299c6cb, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -423,7 +423,7 @@ fn @breakSkipsTail() -> word [selector=0xa299c6cb, pure, abi_params=[], abi_retu
     invalid
 }
 
-fn @continueSkipsTail() -> word [selector=0xc45ef923, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @continueSkipsTail() -> i256 [selector=0xc45ef923, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -451,21 +451,21 @@ fn @constructor() [constructor] {
     stop
 }
 
-fn @present() -> word [selector=0xe735afb2, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @present() -> i256 [selector=0xe735afb2, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 1
 }
 
 // === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:RevertsInConstructor ===
 @module RevertsInConstructor
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     v0 = icall @fail, arg0
     sstore 0, v0 !metadata(storage=slot(0))
     ret
 }
 
-fn @fail(arg0: word) -> word [pure] {
+fn @fail(arg0: i256) -> i256 [pure] {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
     revert 0, 32
@@ -480,7 +480,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @fail() -> word [view] {
+fn @fail() -> i256 [view] {
   bb0:
     v0 = number
     v1 = checked_add u256, v0, 11

@@ -6,7 +6,7 @@
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = caller
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = callvalue
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = callvalue
-fn @keep_cheap_nullary_environment_reads(arg0: word) -> word {
+fn @keep_cheap_nullary_environment_reads(arg0: i256) -> i256 {
   bb0:
     v1 = caller
     v2 = caller
@@ -33,7 +33,7 @@ fn @keep_cheap_nullary_environment_reads(arg0: word) -> word {
 // CHECK: - {{v[0-9]+}} = extcodehash arg0
 // CHECK: - {{v[0-9]+}} = blockhash arg1
 // CHECK: - {{v[0-9]+}} = blobhash arg1
-fn @reuse_expensive_environment_reads(arg0: word, arg1: word) -> word {
+fn @reuse_expensive_environment_reads(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v1 = balance arg0
     v2 = balance arg0
@@ -60,7 +60,7 @@ fn @reuse_expensive_environment_reads(arg0: word, arg1: word) -> word {
 // CHECK-LABEL: {{^[ +].*}}fn @invalidate_account_reads_after_call{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = balance arg0
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = balance arg0
-fn @invalidate_account_reads_after_call(arg0: word) -> word {
+fn @invalidate_account_reads_after_call(arg0: i256) -> i256 {
   bb0:
     v1 = balance arg0
     v2 = extcodehash arg0
@@ -78,7 +78,7 @@ fn @invalidate_account_reads_after_call(arg0: word) -> word {
 // CHECK-LABEL: {{^[ +].*}}fn @invalidate_account_reads_after_callcode{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = balance arg0
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = balance arg0
-fn @invalidate_account_reads_after_callcode(arg0: word) -> word {
+fn @invalidate_account_reads_after_callcode(arg0: i256) -> i256 {
   bb0:
     v1 = balance arg0
     v2 = extcodehash arg0
@@ -96,7 +96,7 @@ fn @invalidate_account_reads_after_callcode(arg0: word) -> word {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_gas_uncached{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = gas
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = gas
-fn @keep_gas_uncached() -> word {
+fn @keep_gas_uncached() -> i256 {
   bb0:
     v1 = gas
     v2 = gas

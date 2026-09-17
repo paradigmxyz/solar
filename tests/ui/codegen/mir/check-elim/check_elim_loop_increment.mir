@@ -7,7 +7,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @fold_increment_check{{[( ]}}
 // CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb4
 // CHECK: + jump bb4
-fn @fold_increment_check(arg0: word) -> word {
+fn @fold_increment_check(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -30,7 +30,7 @@ fn @fold_increment_check(arg0: word) -> word {
 // so the overflow check must stay.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_non_dominating_guard{{[( ]}}
 // CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb4, bb5
-fn @keep_non_dominating_guard(arg0: word, arg1: bool) -> word {
+fn @keep_non_dominating_guard(arg0: i256, arg1: i1) -> i256 {
   bb0:
     jumpi arg1, bb1, bb2
   bb1:

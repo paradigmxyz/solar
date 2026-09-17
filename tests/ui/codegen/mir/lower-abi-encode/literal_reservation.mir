@@ -9,7 +9,7 @@
 // CHECK: mstore [[BUFFER]], 0x12345678
 // CHECK: make_memory_slice [[BUFFER]], 228
 // CHECK-NOT: preserves_fmp
-fn @encode(arg0: word) -> memoryslice {
+fn @encode(arg0: i256) -> memoryslice {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
     set_memory_object_len memorybytes, v0, 33

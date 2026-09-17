@@ -5,7 +5,7 @@
     first: u8
     second: bool
   
-  fn @constructor(arg0: word, arg1: bool) -> word [constructor] {
+  fn @constructor(arg0: i256, arg1: i1) -> i256 [constructor] {
     bb0:
 -     storeimmutable first, arg0
 -     storeimmutable second, arg1

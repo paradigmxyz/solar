@@ -156,14 +156,35 @@ mod round_trip {
     }
 
     #[test]
-    fn boolean_literals_are_canonical() {
+    fn i1_literals_are_canonical() {
         for (literal, valid) in [("0", true), ("1", true), ("2", false), ("0xff", false)] {
             let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
             sess.enter(|| {
                 let input = format!(
-                    "@module BoolLiterals\nfn @f() -> bool {{\n  bb0:\n    ret bool {literal}\n}}\n"
+                    "@module BoolLiterals\nfn @f() -> i1 {{\n  bb0:\n    ret i1 {literal}\n}}\n"
                 );
                 assert_eq!(parse_module(&sess, &input).is_ok(), valid, "{literal}");
+            });
+        }
+    }
+
+    #[test]
+    fn scalar_integer_types() {
+        for (ty, valid) in [
+            ("i1", true),
+            ("i256", true),
+            ("i8", false),
+            ("i128", false),
+            ("bool", false),
+            ("word", false),
+            ("u256", false),
+        ] {
+            let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+            sess.enter(|| {
+                let input = format!(
+                    "@module IntegerTypes\nfn @f(arg0: {ty}) -> {ty} {{\n  bb0:\n    ret arg0\n}}\n"
+                );
+                assert_eq!(parse_module(&sess, &input).is_ok(), valid, "{ty}");
             });
         }
     }

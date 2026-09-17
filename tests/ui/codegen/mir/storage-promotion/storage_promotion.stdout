@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion.mir (before storage-promotion) ===
 + // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion.mir (after storage-promotion) ===
   @module StoragePromotion
-  fn @promote_recomputed_offset_slot(arg0: word) [selector=0x01020304] {
+  fn @promote_recomputed_offset_slot(arg0: i256) [selector=0x01020304] {
     bb0:
       v0 = add arg0, 1
 -     sstore v0, 1
@@ -26,7 +26,7 @@
       jump bb1
   }
   
-  fn @reject_loop_variant_offset_slot(arg0: word) [selector=0x01020304] {
+  fn @reject_loop_variant_offset_slot(arg0: i256) [selector=0x01020304] {
     bb0:
       jump bb1
     bb1:
@@ -101,7 +101,7 @@
       jump bb1
   }
   
-  fn @promote_without_init_rewrites_successor_phi() -> word [selector=0x01020304] {
+  fn @promote_without_init_rewrites_successor_phi() -> i256 [selector=0x01020304] {
     bb0:
 +     v3 = sload 0
 +     mstore 128, v3
@@ -137,7 +137,7 @@
       jump bb5
   }
   
-  fn @reject_memory_size_observers(arg0: bool) -> word [selector=0x01020304] {
+  fn @reject_memory_size_observers(arg0: i1) -> i256 [selector=0x01020304] {
     bb0:
       v0 = msize
       sstore 0, 1
@@ -153,7 +153,7 @@
       jump bb1
   }
   
-  fn @reject_callee_memory_size_observers(arg0: bool) -> word [selector=0x01020304] {
+  fn @reject_callee_memory_size_observers(arg0: i1) -> i256 [selector=0x01020304] {
     bb0:
       v0 = icall @observe_memory_size
       sstore 0, 1
@@ -171,7 +171,7 @@
       jump bb1
   }
   
-  fn @observe_memory_size() -> word {
+  fn @observe_memory_size() -> i256 {
     bb0:
       v0 = msize
       ret v0

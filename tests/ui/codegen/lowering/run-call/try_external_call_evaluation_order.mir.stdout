@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_external_call_evaluation_order.sol:TryExternalCallEvaluationOrderTarget ===
 @module TryExternalCallEvaluationOrderTarget
-fn @ping(arg0: word) -> word [selector=0x773acdef, payable, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @ping(arg0: i256) -> i256 [selector=0x773acdef, payable, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 1
 }
@@ -35,7 +35,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @receiver() -> word {
+fn @receiver() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -46,7 +46,7 @@ fn @receiver() -> word {
     ret v4
 }
 
-fn @gasOpt() -> word {
+fn @gasOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -56,7 +56,7 @@ fn @gasOpt() -> word {
     ret v3
 }
 
-fn @valueOpt() -> word {
+fn @valueOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -65,7 +65,7 @@ fn @valueOpt() -> word {
     ret 0
 }
 
-fn @arg() -> word {
+fn @arg() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -74,7 +74,7 @@ fn @arg() -> word {
     ret 7
 }
 
-fn @f() -> word [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @receiver
     v1 = gas

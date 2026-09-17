@@ -104,7 +104,7 @@ fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @decode_calldata_slice(arg0: word) -> word {
+fn @decode_calldata_slice(arg0: i256) -> i256 {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0

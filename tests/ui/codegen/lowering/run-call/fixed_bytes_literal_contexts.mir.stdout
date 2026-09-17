@@ -4,7 +4,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_literal_contexts.sol:FixedBytesLiteralBase ===
 @module FixedBytesLiteralBase
-fn @constructor(arg0: word) [constructor, abi_params=[bytes2]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[bytes2]] {
   bb0:
     v0 = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
     v1 = sload 0 !metadata(storage=slot(0))
@@ -20,7 +20,7 @@ fn @constructor(arg0: word) [constructor, abi_params=[bytes2]] {
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_literal_contexts.sol:FixedBytesLiteralContexts ===
 @module FixedBytesLiteralContexts
 types:
-  struct0: {word, word, word, word, word, word, word, word, word}
+  struct0: {i256, i256, i256, i256, i256, i256, i256, i256, i256}
 
 fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word<bytes1>, word<bytes2>, word<bytes1>, word<bytes2>, word<bytes1>, word<bytes2>, word<bytes1>, word<bytes1>, word<bytes1>], abi_return_params=[bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes1, bytes1]] {
   bb0:
@@ -193,7 +193,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     ret v128
 }
 
-fn @throughModifier() -> word [selector=0x6b6c6d94, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+fn @throughModifier() -> i256 [selector=0x6b6c6d94, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = shl 24, 255
     v1 = sload 0 !metadata(storage=slot(0))
@@ -215,17 +215,17 @@ fn @throughModifier() -> word [selector=0x6b6c6d94, abi_params=[], abi_returns=[
     ret v11
 }
 
-fn @externalIdentity(arg0: word) -> word [selector=0xa8775ceb, pure, abi_params=[bytes1], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+fn @externalIdentity(arg0: i256) -> i256 [selector=0xa8775ceb, pure, abi_params=[bytes1], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     ret arg0
 }
 
-fn @internalIdentity(arg0: word) -> word [pure] {
+fn @internalIdentity(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
 
-fn @identity(arg0: word) -> word [pure] {
+fn @identity(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion.mir (before frame-slot-promotion) ===
 + // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion.mir (after frame-slot-promotion) ===
   @module LocalSlotPromotion
-  fn @promote_loop_carried_slot(arg0: word) -> word {
+  fn @promote_loop_carried_slot(arg0: i256) -> i256 {
     bb0:
       v0 = internal_frame_addr 128
 -     mstore v0, 0
@@ -31,7 +31,7 @@
 - // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/local_slot_promotion.mir (after dce) ===
   @module LocalSlotPromotion
-  fn @promote_loop_carried_slot(arg0: word) -> word {
+  fn @promote_loop_carried_slot(arg0: i256) -> i256 {
     bb0:
 -     v0 = internal_frame_addr 128
       jump bb1

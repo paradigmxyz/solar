@@ -2,9 +2,9 @@
 @module LowLevelCallEvaluationOrder
 types:
   struct0: {memorybytes, memorybytes}
-  struct1: {word, memorybytes}
+  struct1: {i256, memorybytes}
 
-fn @receiver() -> word {
+fn @receiver() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -14,7 +14,7 @@ fn @receiver() -> word {
     ret v3
 }
 
-fn @gasOpt() -> word {
+fn @gasOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -24,7 +24,7 @@ fn @gasOpt() -> word {
     ret v3
 }
 
-fn @valueOpt() -> word {
+fn @valueOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -50,7 +50,7 @@ fn @receive() [receive, payable] {
     ret
 }
 
-fn @f() -> word [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @receiver
     v1 = gas
@@ -69,7 +69,7 @@ fn @echo(arg0: memorybytes) -> memorybytes [selector=0x624fbfdc, pure, abi_param
     ret arg0
 }
 
-fn @number() -> word [selector=0x8381f58a, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @number() -> i256 [selector=0x8381f58a, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 7
 }
@@ -136,7 +136,7 @@ fn @staticRead() -> struct1 [selector=0xf511364b, view, abi_params=[], abi_retur
     ret v7
 }
 
-fn @delegateWrite() -> word [selector=0xeedb6db6, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @delegateWrite() -> i256 [selector=0xeedb6db6, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     v0 = address

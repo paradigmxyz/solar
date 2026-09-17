@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/creation_evaluation_order.sol:CreationEvaluationOrderChild ===
 @module CreationEvaluationOrderChild
-fn @constructor(arg0: word) [constructor, payable, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, payable, abi_params=[u256]] {
   bb0:
     ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/creation_evaluation_order.sol:CreationEvaluationOrder ===
 @module CreationEvaluationOrder
-fn @valueOpt() -> word {
+fn @valueOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -16,7 +16,7 @@ fn @valueOpt() -> word {
     ret 0
 }
 
-fn @saltOpt() -> word {
+fn @saltOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -25,7 +25,7 @@ fn @saltOpt() -> word {
     ret 0
 }
 
-fn @arg() -> word {
+fn @arg() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -34,7 +34,7 @@ fn @arg() -> word {
     ret 1
 }
 
-fn @f() -> word [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @valueOpt
     v1 = icall @saltOpt

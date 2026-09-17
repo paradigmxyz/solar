@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/ternary_operand_reuse.sol:TernaryOperandReuse ===
 @module TernaryOperandReuse
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
-fn @addCaller(arg0: word, arg1: word) [selector=0x0718ec94, view, abi_params=[u256, u256], abi_returns=[word, word<u160>], abi_return_params=[u256, address]] {
+fn @addCaller(arg0: i256, arg1: i256) [selector=0x0718ec94, view, abi_params=[u256, u256], abi_returns=[word, word<u160>], abi_return_params=[u256, address]] {
   bb0:
     v0 = caller
     v1 = addmod arg0, arg1, v0
@@ -12,7 +12,7 @@ fn @addCaller(arg0: word, arg1: word) [selector=0x0718ec94, view, abi_params=[u2
     returndata 0, 64
 }
 
-fn @mulRepeated(arg0: word) [selector=0xfd9e0caf, view, abi_params=[u256], abi_returns=[word, word<u160>], abi_return_params=[u256, address]] {
+fn @mulRepeated(arg0: i256) [selector=0xfd9e0caf, view, abi_params=[u256], abi_returns=[word, word<u160>], abi_return_params=[u256, address]] {
   bb0:
     v0 = caller
     v1 = mulmod v0, v0, arg0

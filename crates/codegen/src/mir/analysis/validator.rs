@@ -148,10 +148,10 @@ impl<'a> Validator<'a> {
             };
 
             if let crate::mir::Terminator::Branch { condition, .. } = term
-                && func.value_ty(*condition) != Some(MirType::Bool)
+                && func.value_ty(*condition) != Some(MirType::I1)
             {
                 self.emit_at_block(
-                    "branch condition must have type `bool`; compare words with zero",
+                    "branch condition must have type `i1`; compare words with zero",
                     block_id,
                 );
             }
@@ -706,7 +706,7 @@ impl<'a> Validator<'a> {
                     InstKind::Select(condition, a, b) => {
                         self.check_value_type(
                             func.value_ty(*condition),
-                            Some(MirType::Bool),
+                            Some(MirType::I1),
                             block,
                             id,
                         );
@@ -759,7 +759,7 @@ impl<'a> Validator<'a> {
                         }
                     }
                     InstKind::WordCast(value) => {
-                        if inst.result_ty != Some(MirType::Word)
+                        if inst.result_ty != Some(MirType::I256)
                             || !func.value_ty(*value).is_some_and(MirType::is_word)
                         {
                             self.emit_at_inst(
@@ -771,7 +771,7 @@ impl<'a> Validator<'a> {
                     }
                     InstKind::MemoryObjectFromPtr { ptr, kind } => {
                         if inst.result_ty != Some(MirType::MemoryObject(*kind))
-                            || func.value_ty(*ptr) != Some(MirType::Word)
+                            || func.value_ty(*ptr) != Some(MirType::I256)
                         {
                             self.emit_at_inst("memory object pointer conversion requires a word and matching object result", block, id);
                         }
@@ -934,7 +934,7 @@ impl<'a> Validator<'a> {
                                     id,
                                 );
                             }
-                            if func.inst(id).result_ty != Some(MirType::Word) {
+                            if func.inst(id).result_ty != Some(MirType::I256) {
                                 self.emit_at_inst(
                                     "checked modular arithmetic requires a u256 result",
                                     block,
@@ -946,7 +946,7 @@ impl<'a> Validator<'a> {
                             if !matches!(
                                 func.value_ty(args[0]),
                                 Some(
-                                    MirType::MemoryObject(MemoryObjectKind::Bytes) | MirType::Word
+                                    MirType::MemoryObject(MemoryObjectKind::Bytes) | MirType::I256
                                 )
                             ) {
                                 self.emit_at_inst(
@@ -955,7 +955,7 @@ impl<'a> Validator<'a> {
                                     id,
                                 );
                             }
-                            if func.inst(id).result_ty != Some(MirType::Word) {
+                            if func.inst(id).result_ty != Some(MirType::I256) {
                                 self.emit_at_inst("hash builtin requires a u256 result", block, id);
                             }
                         }
@@ -979,7 +979,7 @@ impl<'a> Validator<'a> {
                                 self.emit_at_inst("payable call requires word operands", block, id);
                             }
                             let expected =
-                                matches!(builtin, Builtin::Send).then_some(MirType::Word);
+                                matches!(builtin, Builtin::Send).then_some(MirType::I256);
                             if func.inst(id).result_ty != expected {
                                 self.emit_at_inst(
                                     "payable call has an invalid result type",
@@ -996,7 +996,7 @@ impl<'a> Validator<'a> {
                             }) {
                                 self.emit_at_inst("ecrecover requires word operands", block, id);
                             }
-                            if func.inst(id).result_ty != Some(MirType::Word) {
+                            if func.inst(id).result_ty != Some(MirType::I256) {
                                 self.emit_at_inst("ecrecover requires a u256 result", block, id);
                             }
                         }
@@ -1032,7 +1032,7 @@ impl<'a> Validator<'a> {
                         (RequireKind::EmptyString, [_]) => true,
                         (RequireKind::ErrorString, [_, value]) => matches!(
                             func.value_ty(*value),
-                            Some(MirType::MemoryObject(MemoryObjectKind::Bytes) | MirType::Word)
+                            Some(MirType::MemoryObject(MemoryObjectKind::Bytes) | MirType::I256)
                         ),
                         (RequireKind::CustomError(layout), [_, selector, values @ ..]) => {
                             word(*selector) && values.len() == layout.types.len()
@@ -1065,7 +1065,7 @@ impl<'a> Validator<'a> {
                                 func.value_ty(*value),
                                 Some(
                                     MirType::MemoryObject(MemoryObjectKind::Bytes)
-                                        | MirType::Word
+                                        | MirType::I256
                                         | MirType::Slice(
                                             SliceLocation::Memory | SliceLocation::Calldata
                                         )
@@ -1084,7 +1084,7 @@ impl<'a> Validator<'a> {
                                                 Some(MirType::MemoryObject(kind)) => {
                                                     kind == layout.kind()
                                                 }
-                                                Some(MirType::Word) => true,
+                                                Some(MirType::I256) => true,
                                                 _ => false,
                                             }
                                         }
@@ -1107,7 +1107,7 @@ impl<'a> Validator<'a> {
                         }
                     }
                     let result = if *hash {
-                        MirType::Word
+                        MirType::I256
                     } else {
                         MirType::MemoryObject(MemoryObjectKind::Bytes)
                     };
@@ -1136,7 +1136,7 @@ impl<'a> Validator<'a> {
                                     func.value_ty(value),
                                     Some(
                                         MirType::MemoryObject(MemoryObjectKind::Bytes)
-                                            | MirType::Word
+                                            | MirType::I256
                                     )
                                 )
                             }
@@ -1216,7 +1216,7 @@ impl<'a> Validator<'a> {
                                 id,
                             );
                         }
-                        if func.inst(id).result_ty != Some(MirType::Word) {
+                        if func.inst(id).result_ty != Some(MirType::I256) {
                             self.emit_at_inst(
                                 "checked arithmetic requires a u256 result",
                                 block,
@@ -1341,7 +1341,7 @@ impl<'a> Validator<'a> {
                                 id,
                             );
                         }
-                        if func.inst(id).result_ty != Some(MirType::Bool) {
+                        if func.inst(id).result_ty != Some(MirType::I1) {
                             self.emit_at_inst("address call requires a bool result", block, id);
                         }
                     }
@@ -1677,12 +1677,12 @@ fn return_abi_matches(
                     continue;
                 }
                 match ty {
-                    MirType::MemoryObject(_) if actual == MirType::Word => {}
+                    MirType::MemoryObject(_) if actual == MirType::I256 => {}
                     MirType::Slice(location) => {
                         let pointer = match location {
-                            SliceLocation::Memory => MirType::Word,
-                            SliceLocation::Calldata => MirType::Word,
-                            SliceLocation::Returndata => MirType::Word,
+                            SliceLocation::Memory => MirType::I256,
+                            SliceLocation::Calldata => MirType::I256,
+                            SliceLocation::Returndata => MirType::I256,
                         };
                         if actual != pointer {
                             return false;
@@ -1691,7 +1691,7 @@ fn return_abi_matches(
                             continue;
                         }
                         let Some((&length, rest)) = components.split_first() else { return false };
-                        if length != MirType::Word {
+                        if length != MirType::I256 {
                             return false;
                         }
                         components = rest;
@@ -1729,12 +1729,12 @@ mod tests {
     fn return_abi_matches_struct_fields() {
         with_session(|sess| {
             let mut module = Module::new(Ident::DUMMY);
-            let pair = module.intern_struct(vec![MirType::Word, MirType::Bool]);
+            let pair = module.intern_struct(vec![MirType::I256, MirType::I1]);
             let slice = MirType::Slice(SliceLocation::Memory);
             let nested = module.intern_struct(vec![pair, slice]);
             let mut function = make_func();
             function.set_return_type(nested);
-            let words = [MirType::Word, MirType::Bool, MirType::Word, MirType::Word];
+            let words = [MirType::I256, MirType::I1, MirType::I256, MirType::I256];
             function.set_return_abi(words);
             module.add_function(function);
             let mut validator = Validator::new(&sess.dcx);
@@ -1745,10 +1745,10 @@ mod tests {
             assert!(matches(nested, &words));
             assert!(!matches(nested, &words[..3]));
             assert!(!matches(pair, &words));
-            assert!(!matches(pair, &[MirType::Bool, MirType::Word]));
-            assert!(matches(slice, &[MirType::Word]));
+            assert!(!matches(pair, &[MirType::I1, MirType::I256]));
+            assert!(matches(slice, &[MirType::I256]));
             assert!(matches(slice, &words[2..]));
-            assert!(!matches(slice, &[MirType::Word, MirType::Bool]));
+            assert!(!matches(slice, &[MirType::I256, MirType::I1]));
         });
     }
 
@@ -1770,7 +1770,7 @@ mod tests {
             assert!(!return_abi_matches(
                 &module,
                 ty,
-                &[MirType::Word],
+                &[MirType::I256],
                 &validator.return_field_counts
             ));
         });
@@ -1841,14 +1841,14 @@ error: [fn0] tail_call targets nonexistent function fn98
             with_session(|sess| {
                 let mut module = Module::new(Ident::DUMMY);
                 let mut callee = make_func();
-                callee.set_return_type(MirType::Word);
+                callee.set_return_type(MirType::I256);
                 // ret 0
                 let mut builder = FunctionBuilder::new(&mut callee);
                 let zero = builder.imm(0);
                 builder.ret([zero]);
                 let callee = module.add_function(callee);
                 let mut caller = make_func();
-                caller.set_return_type(MirType::Word);
+                caller.set_return_type(MirType::I256);
                 // tail_call callee
                 FunctionBuilder::new(&mut caller).tail_call(callee, Vec::new());
                 let caller = module.add_function(caller);
@@ -1976,7 +1976,7 @@ error: [fn0] [bb0, inst0] data_copy range 5..6 exceeds data size 4
             // Add a parameter to the entry block but no terminator.
             {
                 let mut b = FunctionBuilder::new(&mut func);
-                let _p = b.add_param(MirType::Word);
+                let _p = b.add_param(MirType::I256);
                 // Don't terminate — leave the entry block dangling.
             }
             Validator::new(&sess.dcx).validate_standalone_function(&func);
@@ -1998,7 +1998,7 @@ error: [bb0] block has no terminator
             let mut func = make_func();
             {
                 let mut b = FunctionBuilder::new(&mut func);
-                let x = b.add_param(MirType::Word);
+                let x = b.add_param(MirType::I256);
                 b.ret([x]);
             }
             // Manually corrupt: replace the terminator with a Jump to a nonexistent block.

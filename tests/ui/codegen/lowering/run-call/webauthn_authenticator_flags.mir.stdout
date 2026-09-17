@@ -3,7 +3,7 @@
 data:
   literal_0: hex"68de9469627f4002c727fe634985a916f4414d6309d81cc2a26ca3f1785725b649ddbb03b8b89d41b77e5e5ad00b388d3e95043177ee2ef763a67a3e2cd40000"
 
-fn @test() -> word [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = word_cast true
     v1 = icall @auth
@@ -11,7 +11,7 @@ fn @test() -> word [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word<
     ret v2
 }
 
-fn @testFlags() -> word [selector=0x74da97f7, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @testFlags() -> i256 [selector=0x74da97f7, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @auth
     v1 = word_cast v0
@@ -24,7 +24,7 @@ fn @testFlags() -> word [selector=0x74da97f7, pure, abi_params=[], abi_returns=[
     ret v7
 }
 
-fn @testTypedConstant() -> word [selector=0x62655512, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @testTypedConstant() -> i256 [selector=0x62655512, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @auth
     v1 = memory_object_load_field memorystruct<6>, v0, 0
@@ -60,7 +60,7 @@ fn @auth() -> memorystruct [pure] {
     ret v2
 }
 
-fn @check(arg0: word, arg1: memorystruct) -> word [pure] {
+fn @check(arg0: i256, arg1: memorystruct) -> i256 [pure] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 2

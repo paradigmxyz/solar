@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_multi_return.sol:TryMultiReturnTarget ===
 @module TryMultiReturnTarget
 types:
-  struct0: {word, memorybytes}
+  struct0: {i256, memorybytes}
 
-fn @value(arg0: word) -> struct0 [selector=0xc4d47ed1, pure, abi_params=[bool], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @value(arg0: i256) -> struct0 [selector=0xc4d47ed1, pure, abi_params=[bool], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
     v0 = eq arg0, 0
     v1 = eq v0, false
@@ -27,7 +27,7 @@ fn @value(arg0: word) -> struct0 [selector=0xc4d47ed1, pure, abi_params=[bool], 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_multi_return.sol:TryMultiReturn ===
 @module TryMultiReturn
 types:
-  struct0: {word, memorybytes}
+  struct0: {i256, memorybytes}
 
 data:
   TryMultiReturnTarget_initcode_0: hex"34600e576101788060125f395ff35b5f5ffd341515601c575f3560e01c8063c4d47ed114601857601c565b6020565b5f5ffd5b6101206040526024361061013a57600435600290101561013a5760043515151561010457604051806080526040810160405260028152602081017f6f6b0000000000000000000000000000000000000000000000000000000000008152506040518060a05260408101600d825260208201828060a0528203905282806080525183806080525f811490501581029050601f19601f820116602083018184015f815250828452925060208501945082018185845e91505091508060a052810390505f9001601f8101601f19811690506040518060c05281810191508160405290508181f35b5f61013857600260e0527f6e6f0000000000000000000000000000000000000000000000000000000000006101005261013e565bfe5b5f5ffd5b7f08c379a0000000000000000000000000000000000000000000000000000000005f52602060045260e0516024526101005160445260645ffd"
@@ -57,7 +57,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @success() -> word [selector=0x0b93381b, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -89,7 +89,7 @@ fn @success() -> word [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     ret 0
 }
 
-fn @failure() -> word [selector=0x76ffb887, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff

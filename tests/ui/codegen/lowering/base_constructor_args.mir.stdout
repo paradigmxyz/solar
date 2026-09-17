@@ -1,19 +1,19 @@
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:Root ===
 @module Root
-fn @value() -> word [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: word, arg1: memorybytes) [constructor, abi_params=[u256, bytes]] {
+fn @constructor(arg0: i256, arg1: memorybytes) [constructor, abi_params=[u256, bytes]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     icall @store_storage_bytes, 1, arg1
     ret
 }
 
-fn @store_storage_bytes(arg0: word, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
@@ -21,7 +21,7 @@ fn @store_storage_bytes(arg0: word, arg1: memorybytes) {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:Middle ===
 @module Middle
-fn @constructor(arg0: word, arg1: memorybytes) [constructor, abi_params=[u256, bytes]] {
+fn @constructor(arg0: i256, arg1: memorybytes) [constructor, abi_params=[u256, bytes]] {
   bb0:
     v0 = checked_add u256, arg0, 1
     sstore 0, v0 !metadata(storage=slot(0))
@@ -33,13 +33,13 @@ fn @constructor(arg0: word, arg1: memorybytes) [constructor, abi_params=[u256, b
     ret
 }
 
-fn @value() -> word [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @store_storage_bytes(arg0: word, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
@@ -47,7 +47,7 @@ fn @store_storage_bytes(arg0: word, arg1: memorybytes) {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:BaseConstructorArgs ===
 @module BaseConstructorArgs
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     v0 = checked_mul u256, arg0, 2
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
@@ -68,20 +68,20 @@ fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
     ret
 }
 
-fn @labelHash() -> word [selector=0x7e0a41bc, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @labelHash() -> i256 [selector=0x7e0a41bc, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = load_storage_bytes 1
     v1 = keccak256_bytes v0
     ret v1
 }
 
-fn @value() -> word [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @store_storage_bytes(arg0: word, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
@@ -89,28 +89,28 @@ fn @store_storage_bytes(arg0: word, arg1: memorybytes) {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:OrderA ===
 @module OrderA
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:OrderB ===
 @module OrderB
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:OrderC ===
 @module OrderC
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:OrderD ===
 @module OrderD
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     ret
 }
@@ -118,7 +118,7 @@ fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:ConstructorArgumentOrder ===
 @module ConstructorArgumentOrder
 types:
-  struct0: {word, word, word, word}
+  struct0: {i256, i256, i256, i256}
 
 fn @constructor() [constructor] {
   bb0:
@@ -139,7 +139,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @record(arg0: word) -> word {
+fn @record(arg0: i256) -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -191,13 +191,13 @@ fn @order() -> struct0 [selector=0xbf15071d, view, abi_params=[], abi_returns=[w
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:InitializationBase ===
 @module InitializationBase
-fn @x() -> word [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
     ret
@@ -216,13 +216,13 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @x() -> word [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @touch() -> word {
+fn @touch() -> i256 {
   bb0:
     sstore 0, 4 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -231,13 +231,13 @@ fn @touch() -> word {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:NamedBase ===
 @module NamedBase
-fn @value() -> word [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: word, arg1: word) [constructor, abi_params=[u256, u256]] {
+fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[u256, u256]] {
   bb0:
     v0 = checked_mul u256, arg0, 10
     v1 = checked_add u256, v0, arg1
@@ -247,7 +247,7 @@ fn @constructor(arg0: word, arg1: word) [constructor, abi_params=[u256, u256]] {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:NamedDerived ===
 @module NamedDerived
-fn @value() -> word [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -265,7 +265,7 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:ReturningBase ===
 @module ReturningBase
-fn @value() -> word [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -288,7 +288,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @value() -> word [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -296,20 +296,20 @@ fn @value() -> word [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:FunctionUsageBaseBase ===
 @module FunctionUsageBaseBase
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     ret
 }
 
-fn @g() -> word [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 2
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:FunctionUsageBase ===
 @module FunctionUsageBase
-fn @g() -> word [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 2
 }
@@ -325,13 +325,13 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:FunctionUsageDerived ===
 @module FunctionUsageDerived
-fn @getA() -> word [selector=0xd46300fd, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @getA() -> i256 [selector=0xd46300fd, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @g() -> word [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 2
 }
@@ -347,18 +347,18 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:VirtualFunctionUsageBaseBase ===
 @module VirtualFunctionUsageBaseBase
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     ret
 }
 
-fn @overridden() -> word [selector=0x275a4dcc, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @overridden() -> i256 [selector=0x275a4dcc, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 1
 }
 
-fn @g() -> word [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @overridden
     ret v0
@@ -366,12 +366,12 @@ fn @g() -> word [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], a
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:VirtualFunctionUsageBase ===
 @module VirtualFunctionUsageBase
-fn @overridden() -> word [selector=0x275a4dcc, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @overridden() -> i256 [selector=0x275a4dcc, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 1
 }
 
-fn @g() -> word [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @overridden
     ret v0
@@ -388,18 +388,18 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:VirtualFunctionUsageDerived ===
 @module VirtualFunctionUsageDerived
-fn @getA() -> word [selector=0xd46300fd, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @getA() -> i256 [selector=0xd46300fd, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @overridden() -> word [selector=0x275a4dcc, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @overridden() -> i256 [selector=0x275a4dcc, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 2
 }
 
-fn @g() -> word [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @overridden
     ret v0
@@ -435,13 +435,13 @@ fn @domain() -> struct0 [selector=0xc2fb26a6, view, abi_params=[], abi_returns=[
     ret v3
 }
 
-fn @store_storage_bytes(arg0: word, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
 }
 
-fn @load_storage_bytes(arg0: word) -> memorybytes {
+fn @load_storage_bytes(arg0: i256) -> memorybytes {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0
@@ -476,13 +476,13 @@ fn @domain() -> struct0 [selector=0xc2fb26a6, view, abi_params=[], abi_returns=[
     ret v3
 }
 
-fn @store_storage_bytes(arg0: word, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
 }
 
-fn @load_storage_bytes(arg0: word) -> memorybytes {
+fn @load_storage_bytes(arg0: i256) -> memorybytes {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0
@@ -542,13 +542,13 @@ fn @domain() -> struct0 [selector=0xc2fb26a6, view, abi_params=[], abi_returns=[
     ret v3
 }
 
-fn @store_storage_bytes(arg0: word, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
 }
 
-fn @load_storage_bytes(arg0: word) -> memorybytes {
+fn @load_storage_bytes(arg0: i256) -> memorybytes {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0
@@ -556,14 +556,14 @@ fn @load_storage_bytes(arg0: word) -> memorybytes {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:WriterBaseA ===
 @module WriterBaseA
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:WriterBaseB ===
 @module WriterBaseB
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     ret
 }
@@ -587,13 +587,13 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @order() -> word [selector=0xbf15071d, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @order() -> i256 [selector=0xbf15071d, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @trace(arg0: word) -> word {
+fn @trace(arg0: i256) -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10

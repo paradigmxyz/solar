@@ -5,7 +5,7 @@ fn @payload() [selector=0xa878f858, pure, abi_params=[], abi_returns=[], abi_ret
     returndata 0, 0x600
 }
 
-fn @run() -> word [selector=0xc0406226, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @run() -> i256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = gas

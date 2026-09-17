@@ -56,7 +56,7 @@ fn @viaHelper() [selector=0x43a4968c, abi_wrapper, pure] {
     returndata v18, v13
 }
 
-fn @decode_calldata_type(arg0: word) -> word [may_return_memory] {
+fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0
@@ -118,7 +118,7 @@ fn @decode_calldata_type(arg0: word) -> word [may_return_memory] {
     revert 0, 0
 }
 
-fn @cleanup_return(arg0: word) -> word [may_return_memory] {
+fn @cleanup_return(arg0: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = mload arg0
     v1 = add v0, 1
@@ -159,7 +159,7 @@ fn @cleanup_return(arg0: word) -> word [may_return_memory] {
     revert 28, 36
 }
 
-fn @encode_abi_array(arg0: word, arg1: word) -> word [may_return_memory] {
+fn @encode_abi_array(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb0:
     v4 = ne arg0, 0
     v5 = word_cast v4

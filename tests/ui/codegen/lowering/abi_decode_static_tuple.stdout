@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_static_tuple.sol:AbiDecodeStaticTuple ===
 @module AbiDecodeStaticTuple
 types:
-  struct0: {word, word, word}
-  struct1: {word, bool, word}
+  struct0: {i256, i256, i256}
+  struct1: {i256, i1, i256}
 
 fn @decode(arg0: memorybytes) -> struct0 [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word, word<bool>, word<u160>], abi_return_params=[u256, bool, address]] {
   bb0:

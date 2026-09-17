@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_builtin.mir (before cse) ===
 + // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_builtin.mir (after cse) ===
   @module MappingSlotBuiltin
-  fn @word(arg0: word) -> word {
+  fn @word(arg0: i256) -> i256 {
     bb0:
       v0 = mapping_slot arg0, 7
 -     v1 = mapping_slot arg0, 7
@@ -10,7 +10,7 @@
       ret v2
   }
   
-  fn @word_across_reverting_branch(arg0: word, arg1: bool) -> word {
+  fn @word_across_reverting_branch(arg0: i256, arg1: i1) -> i256 {
     bb0:
       v0 = mapping_slot arg0, 7
       jumpi arg1, bb1, bb2
@@ -24,7 +24,7 @@
       revert 0, 0
   }
   
-  fn @memory(arg0: word) -> word {
+  fn @memory(arg0: i256) -> i256 {
     bb0:
       v0 = mapping_slot_memory arg0, 9
       mstore arg0, 1
@@ -33,7 +33,7 @@
       ret v2
   }
   
-  fn @calldata(arg0: calldataslice) -> word {
+  fn @calldata(arg0: calldataslice) -> i256 {
     bb0:
       v0 = mapping_slot_calldata arg0, 11
       v1 = mapping_slot_calldata arg0, 11
@@ -41,7 +41,7 @@
       ret v2
   }
   
-  fn @word_after_scratch_write(arg0: word, arg1: word) -> word {
+  fn @word_after_scratch_write(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = mapping_slot arg0, 7
       mstore 0, arg1
@@ -50,7 +50,7 @@
       ret v2
   }
   
-  fn @array_after_disjoint_write(arg0: word, arg1: word) -> word {
+  fn @array_after_disjoint_write(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = storage_array_data_slot arg0
       mstore 32, arg1
@@ -63,7 +63,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_builtin.mir (before lower-mapping-slots) ===
 + // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_builtin.mir (after lower-mapping-slots) ===
   @module MappingSlotBuiltin
-  fn @word(arg0: word) -> word {
+  fn @word(arg0: i256) -> i256 {
     bb0:
 -     v0 = mapping_slot arg0, 7
 -     v2 = add v0, v0
@@ -74,7 +74,7 @@
       ret v2
   }
   
-  fn @word_across_reverting_branch(arg0: word, arg1: bool) -> word {
+  fn @word_across_reverting_branch(arg0: i256, arg1: i1) -> i256 {
     bb0:
 -     v0 = mapping_slot arg0, 7
 +     mstore 0, arg0 !metadata(memory=scratch)
@@ -90,7 +90,7 @@
       revert 0, 0
   }
   
-  fn @memory(arg0: word) -> word {
+  fn @memory(arg0: i256) -> i256 {
     bb0:
 -     v0 = mapping_slot_memory arg0, 9
 +     v3 = memory_object_from_ptr memorybytes, arg0
@@ -120,7 +120,7 @@
       ret v2
   }
   
-  fn @calldata(arg0: calldataslice) -> word {
+  fn @calldata(arg0: calldataslice) -> i256 {
     bb0:
 -     v0 = mapping_slot_calldata arg0, 11
 -     v1 = mapping_slot_calldata arg0, 11
@@ -145,7 +145,7 @@
       ret v2
   }
   
-  fn @word_after_scratch_write(arg0: word, arg1: word) -> word {
+  fn @word_after_scratch_write(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = mapping_slot arg0, 7
 +     mstore 0, arg0 !metadata(memory=scratch)
@@ -161,7 +161,7 @@
       ret v2
   }
   
-  fn @array_after_disjoint_write(arg0: word, arg1: word) -> word {
+  fn @array_after_disjoint_write(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = storage_array_data_slot arg0
 +     mstore 0, arg0 !metadata(memory=scratch)
@@ -175,7 +175,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_builtin.mir (before lower-slices) ===
 + // === ROOT/tests/ui/codegen/mir/lower-mapping-slots/mapping_slot_builtin.mir (after lower-slices) ===
   @module MappingSlotBuiltin
-  fn @word(arg0: word) -> word {
+  fn @word(arg0: i256) -> i256 {
     bb0:
       mstore 0, arg0 !metadata(memory=scratch)
       mstore 32, 7 !metadata(memory=scratch)
@@ -184,7 +184,7 @@
       ret v2
   }
   
-  fn @word_across_reverting_branch(arg0: word, arg1: bool) -> word {
+  fn @word_across_reverting_branch(arg0: i256, arg1: i1) -> i256 {
     bb0:
       mstore 0, arg0 !metadata(memory=scratch)
       mstore 32, 7 !metadata(memory=scratch)
@@ -198,7 +198,7 @@
       revert 0, 0
   }
   
-  fn @memory(arg0: word) -> word {
+  fn @memory(arg0: i256) -> i256 {
     bb0:
       v3 = memory_object_from_ptr memorybytes, arg0
       v4 = memory_object_len memorybytes, v3
@@ -225,8 +225,8 @@
       ret v2
   }
   
-- fn @calldata(arg0: calldataslice) -> word {
-+ fn @calldata(arg0: word, arg1: word) -> word {
+- fn @calldata(arg0: calldataslice) -> i256 {
++ fn @calldata(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v3 = slice_len arg0
 -     v4 = add v3, 32
@@ -254,7 +254,7 @@
       ret v2
   }
   
-  fn @word_after_scratch_write(arg0: word, arg1: word) -> word {
+  fn @word_after_scratch_write(arg0: i256, arg1: i256) -> i256 {
     bb0:
       mstore 0, arg0 !metadata(memory=scratch)
       mstore 32, 7 !metadata(memory=scratch)
@@ -267,7 +267,7 @@
       ret v2
   }
   
-  fn @array_after_disjoint_write(arg0: word, arg1: word) -> word {
+  fn @array_after_disjoint_write(arg0: i256, arg1: i256) -> i256 {
     bb0:
       mstore 0, arg0 !metadata(memory=scratch)
       v3 = keccak256 0, 32 !metadata(memory=scratch)

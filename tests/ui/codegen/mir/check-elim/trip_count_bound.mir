@@ -8,7 +8,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @constant_start_and_step{{[( ]}}
 // CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb4, bb3
 // CHECK: + jump bb3
-fn @constant_start_and_step(arg0: memorybytes) -> word {
+fn @constant_start_and_step(arg0: memorybytes) -> i256 {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     jump bb1
@@ -33,7 +33,7 @@ fn @constant_start_and_step(arg0: memorybytes) -> word {
 // so the same check stays.
 // CHECK-LABEL: {{^[ +].*}}fn @unknown_start{{[( ]}}
 // CHECK: {{^ +}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb4, bb3
-fn @unknown_start(arg0: memorybytes, arg1: word) -> word {
+fn @unknown_start(arg0: memorybytes, arg1: i256) -> i256 {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     jump bb1

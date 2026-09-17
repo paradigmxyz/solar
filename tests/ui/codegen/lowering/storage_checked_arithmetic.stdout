@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_checked_arithmetic.sol:StorageCheckedArithmetic ===
 @module StorageCheckedArithmetic
-fn @storage_sub(arg0: word, arg1: word) [selector=0x8af2db43, abi_params=[address, u256], abi_returns=[], abi_return_params=[]] {
+fn @storage_sub(arg0: i256, arg1: i256) [selector=0x8af2db43, abi_params=[address, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     v1 = mapping_slot v0, 0
@@ -17,7 +17,7 @@ fn @storage_sub(arg0: word, arg1: word) [selector=0x8af2db43, abi_params=[addres
     revert 28, 36
 }
 
-fn @storage_binary_sub(arg0: word, arg1: word) [selector=0x816bb6a5, abi_params=[address, u256], abi_returns=[], abi_return_params=[]] {
+fn @storage_binary_sub(arg0: i256, arg1: i256) [selector=0x816bb6a5, abi_params=[address, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     v1 = mapping_slot v0, 0
@@ -36,7 +36,7 @@ fn @storage_binary_sub(arg0: word, arg1: word) [selector=0x816bb6a5, abi_params=
     revert 28, 36
 }
 
-fn @storage_struct_add(arg0: word, arg1: word) [selector=0xb11dd1b8, abi_params=[address, u128], abi_returns=[], abi_return_params=[]] {
+fn @storage_struct_add(arg0: i256, arg1: i256) [selector=0xb11dd1b8, abi_params=[address, u128], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     v1 = mapping_slot v0, 1
@@ -60,7 +60,7 @@ fn @storage_struct_add(arg0: word, arg1: word) [selector=0xb11dd1b8, abi_params=
     revert 28, 36
 }
 
-fn @storage_struct_signed_sub(arg0: word, arg1: word) [selector=0x14ebfa30, abi_params=[address, i8], abi_returns=[], abi_return_params=[]] {
+fn @storage_struct_signed_sub(arg0: i256, arg1: i256) [selector=0x14ebfa30, abi_params=[address, i8], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     v1 = mapping_slot v0, 1

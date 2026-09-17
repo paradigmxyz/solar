@@ -38,7 +38,7 @@ fn @copy_from_slice(arg0: memorybytes, arg1: memoryslice, arg2: calldataslice, a
 
 // CHECK-LABEL: {{^[ +].*}}fn @copy_object{{[( ]}}
 // CHECK: + mcopy [[OBJECT_DEST:v[0-9]+]], [[OBJECT_SOURCE:v[0-9]+]], [[COPY_LEN:(v|arg)[0-9]+]]
-fn @copy_object(arg0: memorybytes, arg1: memorybytes, arg2: word) {
+fn @copy_object(arg0: memorybytes, arg1: memorybytes, arg2: i256) {
   bb0:
     memory_object_copy memorybytes, arg0, memorybytes, arg1, arg2
     stop
@@ -46,7 +46,7 @@ fn @copy_object(arg0: memorybytes, arg1: memorybytes, arg2: word) {
 
 // CHECK-LABEL: {{^[ +].*}}fn @raw_pointer{{[( ]}}
 // CHECK: + ret arg0
-fn @raw_pointer(arg0: word) -> memorybytes {
+fn @raw_pointer(arg0: i256) -> memorybytes {
   bb0:
     v0 = memory_object_from_ptr memorybytes, arg0
     ret v0
@@ -55,7 +55,7 @@ fn @raw_pointer(arg0: word) -> memorybytes {
 // CHECK-LABEL: {{^[ +].*}}fn @word_carrier{{[( ]}}
 // CHECK: {{^[ +].*}}[[POINTER:v[0-9]+]] = word_cast arg0
 // CHECK: + {{v[0-9]+}} = mload [[POINTER]]
-fn @word_carrier(arg0: memorystruct) -> word {
+fn @word_carrier(arg0: memorystruct) -> i256 {
   bb0:
     v0 = word_cast arg0
     v2 = memory_object_from_ptr memorybytes, v0
@@ -66,7 +66,7 @@ fn @word_carrier(arg0: memorystruct) -> word {
 // CHECK-LABEL: {{^[ +].*}}fn @unreachable_cast_cycle{{[( ]}}
 // CHECK: ret 0
 // CHECK: - {{v[0-9]+}} = word_cast
-fn @unreachable_cast_cycle() -> word {
+fn @unreachable_cast_cycle() -> i256 {
   bb0:
     ret 0
   bb1:

@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/loop-idioms/zero_count.mir (after loop-idioms) ===
   @module ZeroCountLoop
   @phase lowered
-  fn @count_zero(arg0: word) -> word {
+  fn @count_zero(arg0: i256) -> i256 {
     bb0:
 -     jump bb1
 -   bb1:
@@ -99,7 +99,7 @@
 +     ret v31
   }
   
-  fn @count_zero_calldata(arg0: word, arg1: word) -> word {
+  fn @count_zero_calldata(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     jump bb1
 -   bb1:

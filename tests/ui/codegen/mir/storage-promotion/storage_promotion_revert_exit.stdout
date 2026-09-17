@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_revert_exit.mir (before storage-promotion) ===
 + // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_revert_exit.mir (after storage-promotion) ===
   @module StoragePromotionRevertExit
-  fn @promote_checked_sum_loop(arg0: word) [selector=0x01020304] {
+  fn @promote_checked_sum_loop(arg0: i256) [selector=0x01020304] {
     bb0:
 +     v6 = sload 0
 +     mstore 128, v6
@@ -39,7 +39,7 @@
       revert 0, 0
   }
   
-  fn @promote_revert_exit_reads_slot(arg0: word) [selector=0x01020304] {
+  fn @promote_revert_exit_reads_slot(arg0: i256) [selector=0x01020304] {
     bb0:
 -     sstore 0, 1
 +     mstore 128, 1
@@ -67,7 +67,7 @@
       jump bb1
   }
   
-  fn @reject_revert_exit_with_call(arg0: word) [selector=0x01020304] {
+  fn @reject_revert_exit_with_call(arg0: i256) [selector=0x01020304] {
     bb0:
 -     sstore 0, 1
 +     sstore 0, 1 !metadata(storage=slot(0))
@@ -91,7 +91,7 @@
       jump bb1
   }
   
-  fn @reject_revert_exit_with_payable(arg0: word) [selector=0x01020304] {
+  fn @reject_revert_exit_with_payable(arg0: i256) [selector=0x01020304] {
     bb0:
 -     sstore 0, 1
 +     sstore 0, 1 !metadata(storage=slot(0))
@@ -116,7 +116,7 @@
       jump bb1
   }
   
-  fn @reject_revert_exit_with_storage_bytes(arg0: word) [selector=0x01020305] {
+  fn @reject_revert_exit_with_storage_bytes(arg0: i256) [selector=0x01020305] {
     bb0:
 -     sstore 0, 2
 +     sstore 0, 2 !metadata(storage=slot(0))

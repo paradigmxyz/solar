@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/storage_struct_array.sol:StorageStructArray ===
 @module StorageStructArray
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
-fn @setS(arg0: word, arg1: word, arg2: word) [selector=0x200618df, abi_params=[u256, u256, u256], abi_returns=[], abi_return_params=[]] {
+fn @setS(arg0: i256, arg1: i256, arg2: i256) [selector=0x200618df, abi_params=[u256, u256, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = lt arg0, 3
     v1 = eq v0, false
@@ -21,7 +21,7 @@ fn @setS(arg0: word, arg1: word, arg2: word) [selector=0x200618df, abi_params=[u
     ret
 }
 
-fn @getS(arg0: word) -> struct0 [selector=0xd40d7b60, view, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @getS(arg0: i256) -> struct0 [selector=0xd40d7b60, view, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = lt arg0, 3
     v1 = eq v0, false

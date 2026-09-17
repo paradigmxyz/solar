@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/fixed_bytes_literal_assign.sol:FixedBytesLiteralAssign ===
 @module FixedBytesLiteralAssign
-fn @patch(arg0: word) -> word [selector=0x7f603a02, pure, abi_params=[bool], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+fn @patch(arg0: i256) -> i256 [selector=0x7f603a02, pure, abi_params=[bool], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 2
@@ -28,7 +28,7 @@ fn @patch(arg0: word) -> word [selector=0x7f603a02, pure, abi_params=[bool], abi
     ret v11
 }
 
-fn @store() -> word [selector=0x975057e7, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+fn @store() -> i256 [selector=0x975057e7, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 255

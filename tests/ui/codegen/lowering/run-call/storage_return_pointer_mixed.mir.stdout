@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_return_pointer_mixed.sol:StorageReturnPointerMixed ===
 @module StorageReturnPointerMixed
 types:
-  struct0: {word, word, word}
-  struct1: {word, word}
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256}
 
 fn @g() -> struct0 [view] {
   bb0:
@@ -19,7 +19,7 @@ fn @h() -> struct1 [selector=0xb8c9d365, pure, abi_params=[], abi_returns=[word,
     ret v1
 }
 
-fn @f() -> word [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff

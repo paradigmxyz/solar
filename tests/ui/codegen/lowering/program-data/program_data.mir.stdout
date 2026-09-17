@@ -23,12 +23,12 @@ fn @subslice() -> memorybytes [selector=0xb9ad073e, pure, abi_params=[], abi_ret
     ret v0
 }
 
-fn @dataHash() -> word [selector=0x1b3012a3, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @dataHash() -> i256 [selector=0x1b3012a3, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     ret 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
 }
 
-fn @subsliceHash() -> word [selector=0xe5a3e763, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @subsliceHash() -> i256 [selector=0xe5a3e763, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     ret 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
 }
@@ -60,21 +60,21 @@ fn @splatData() -> memorybytes [selector=0xe1910fda, pure, abi_params=[], abi_re
     ret v0
 }
 
-fn @zeroHash() -> word [selector=0x672c8259, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @zeroHash() -> i256 [selector=0x672c8259, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = icall @zeroData
     v1 = keccak256_bytes v0
     ret v1
 }
 
-fn @zeroWordHash() -> word [selector=0x0d00d797, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @zeroWordHash() -> i256 [selector=0x0d00d797, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = icall @zeroWord
     v1 = keccak256_bytes v0
     ret v1
 }
 
-fn @splatHash() -> word [selector=0x38f844b9, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @splatHash() -> i256 [selector=0x38f844b9, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = icall @splatData
     v1 = keccak256_bytes v0

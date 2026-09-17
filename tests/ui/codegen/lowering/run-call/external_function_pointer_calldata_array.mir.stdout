@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_calldata_array.sol:ExternalFunctionPointerCalldataArray ===
 @module ExternalFunctionPointerCalldataArray
 types:
-  struct0: {word, word, word}
+  struct0: {i256, i256, i256}
 
 fn @f(arg0: calldataslice) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<_, function>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
@@ -193,22 +193,22 @@ fn @fReenc(arg0: calldataslice) -> struct0 [selector=0xfbeba237, abi_params=[arr
     jump bb1
 }
 
-fn @getter1() -> word [selector=0x0ec1632e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @getter1() -> i256 [selector=0x0ec1632e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 23
 }
 
-fn @getter2() -> word [selector=0xe255e5f9, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @getter2() -> i256 [selector=0xe255e5f9, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 37
 }
 
-fn @getter3() -> word [selector=0xec202537, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @getter3() -> i256 [selector=0xec202537, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 71
 }
 
-fn @g(arg0: word) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @g(arg0: i256) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
     set_memory_object_len memoryarray, v0, 3

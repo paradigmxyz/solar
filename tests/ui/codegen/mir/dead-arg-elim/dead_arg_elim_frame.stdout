@@ -1,8 +1,8 @@
 - // === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_frame.mir (before dead-arg-elim) ===
 + // === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_frame.mir (after dead-arg-elim) ===
   @module DeadArgElimFrame
-- fn @framed(arg0: word, arg1: word, arg2: word) -> word {
-+ fn @framed(arg0: word, arg1: word) -> word {
+- fn @framed(arg0: i256, arg1: i256, arg2: i256) -> i256 {
++ fn @framed(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = internal_frame_addr 192
 +     v0 = internal_frame_addr 160
@@ -13,14 +13,14 @@
       ret v2
   }
   
-  fn @entry() -> word [selector=0x01020304] {
+  fn @entry() -> i256 [selector=0x01020304] {
     bb0:
 -     v0 = icall @framed, 5, 6, 7
 +     v0 = icall @framed, 5, 7
       ret v0
   }
   
-  fn @explicit_slot(arg0: word, arg1: word) -> word {
+  fn @explicit_slot(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = internal_frame_addr 0
       mstore v0, arg0
@@ -28,20 +28,20 @@
       ret v1
   }
   
-  fn @explicit_slot_caller() -> word [selector=0x05060708] {
+  fn @explicit_slot_caller() -> i256 [selector=0x05060708] {
     bb0:
       v0 = icall @explicit_slot, 1, 2
       ret v0
   }
   
-  fn @constant_frame(arg0: word) -> word {
+  fn @constant_frame(arg0: i256) -> i256 {
     bb0:
       v0 = internal_frame_addr 0
       mstore v0, arg0
       ret 9
   }
   
-  fn @constant_frame_caller() -> word [selector=0x090a0b0c] {
+  fn @constant_frame_caller() -> i256 [selector=0x090a0b0c] {
     bb0:
       v0 = icall @constant_frame, 1
       v1 = add v0, 1

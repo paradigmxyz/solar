@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/fallback_bytes.sol:FallbackBytes ===
 @module FallbackBytes
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
 fn @invoke(arg0: memorybytes) -> struct0 [selector=0xa6514259, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[u256, bytes32]] {
   bb0:

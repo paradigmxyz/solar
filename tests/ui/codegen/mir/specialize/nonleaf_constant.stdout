@@ -1,13 +1,13 @@
 - // === ROOT/tests/ui/codegen/mir/specialize/nonleaf_constant.mir (before specialize) ===
 + // === ROOT/tests/ui/codegen/mir/specialize/nonleaf_constant.mir (after specialize) ===
   @module NonLeafConstant
-  fn @caller(arg0: word) -> word [selector=0x00000001] {
+  fn @caller(arg0: i256) -> i256 [selector=0x00000001] {
     bb0:
       v0 = icall @outer, arg0, 0
       ret v0
   }
   
-  fn @outer(arg0: word, arg1: word) -> word {
+  fn @outer(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = ne arg1, 0
 +     v0 = ne 0, 0
@@ -20,19 +20,19 @@
       ret v1
   }
   
-  fn @inner(arg0: word) -> word {
+  fn @inner(arg0: i256) -> i256 {
     bb0:
       v0 = mul arg0, arg0
       ret v0
   }
   
-  fn @wide(arg0: word) -> word [selector=0x00000002] {
+  fn @wide(arg0: i256) -> i256 [selector=0x00000002] {
     bb0:
       v0 = icall @keep, arg0, 0x1000000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
-  fn @keep(arg0: word, arg1: word) -> word {
+  fn @keep(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = icall @inner, arg0
       v1 = add v0, arg1
@@ -42,15 +42,15 @@
 - // === ROOT/tests/ui/codegen/mir/specialize/nonleaf_constant.mir (before dead-arg-elim) ===
 + // === ROOT/tests/ui/codegen/mir/specialize/nonleaf_constant.mir (after dead-arg-elim) ===
   @module NonLeafConstant
-  fn @caller(arg0: word) -> word [selector=0x00000001] {
+  fn @caller(arg0: i256) -> i256 [selector=0x00000001] {
     bb0:
 -     v0 = icall @outer, arg0, 0
 +     v0 = icall @outer, arg0
       ret v0
   }
   
-- fn @outer(arg0: word, arg1: word) -> word {
-+ fn @outer(arg0: word) -> word {
+- fn @outer(arg0: i256, arg1: i256) -> i256 {
++ fn @outer(arg0: i256) -> i256 {
     bb0:
       v0 = ne 0, 0
       jumpi v0, bb1, bb2
@@ -62,19 +62,19 @@
       ret v1
   }
   
-  fn @inner(arg0: word) -> word {
+  fn @inner(arg0: i256) -> i256 {
     bb0:
       v0 = mul arg0, arg0
       ret v0
   }
   
-  fn @wide(arg0: word) -> word [selector=0x00000002] {
+  fn @wide(arg0: i256) -> i256 [selector=0x00000002] {
     bb0:
       v0 = icall @keep, arg0, 0x1000000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
-  fn @keep(arg0: word, arg1: word) -> word {
+  fn @keep(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = icall @inner, arg0
       v1 = add v0, arg1

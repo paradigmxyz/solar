@@ -10,7 +10,7 @@
 // CHECK: mstore 0, 0x4e487b71
 // CHECK-NEXT: mstore 32, 1
 // CHECK-NEXT: revert 28, 36
-fn @branch_checks(arg0: bool, arg1: word) -> word {
+fn @branch_checks(arg0: i1, arg1: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -29,7 +29,7 @@ fn @branch_checks(arg0: bool, arg1: word) -> word {
     ret v2
 }
 
-fn @payloads(arg0: bool, arg1: memorybytes, arg2: word) {
+fn @payloads(arg0: i1, arg1: memorybytes, arg2: i256) {
   bb0:
     icall require<short_string>, arg0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
     icall require<empty_string>, arg0
@@ -43,7 +43,7 @@ fn @payloads(arg0: bool, arg1: memorybytes, arg2: word) {
 // CHECK-NOT: jumpi
 // CHECK: + mstore 0, 0x4e487b71
 // CHECK: + revert 28, 36
-fn @constant_failure_with_writes() -> word {
+fn @constant_failure_with_writes() -> i256 {
   bb0:
     memory_zero 128, 32
     icall panic_if_zero<0x32>, 0

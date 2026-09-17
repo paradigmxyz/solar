@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/mir/cse/restored_calls.sol:RestoredCalls ===
 @module RestoredCalls
 types:
-  struct0: {word, word}
-  struct1: {word, word, word}
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256}
 
-fn @same(arg0: word, arg1: word) -> struct0 [selector=0xc32c70b1, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @same(arg0: i256, arg1: i256) -> struct0 [selector=0xc32c70b1, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = gt arg1, 8
     v1 = eq v0, false
@@ -31,7 +31,7 @@ fn @same(arg0: word, arg1: word) -> struct0 [selector=0xc32c70b1, pure, abi_para
     ret v17
 }
 
-fn @repeated(arg0: word, arg1: word, arg2: word) -> struct1 [selector=0xd6d01539, pure, abi_params=[u256, u256, bool], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @repeated(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0xd6d01539, pure, abi_params=[u256, u256, bool], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = gt arg1, 8
     v1 = eq v0, false
@@ -68,7 +68,7 @@ fn @repeated(arg0: word, arg1: word, arg2: word) -> struct1 [selector=0xd6d01539
     ret v20
 }
 
-fn @scan(arg0: memorybytes, arg1: word) -> word [pure] {
+fn @scan(arg0: memorybytes, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = word_cast arg0
     v1 = add v0, 32
@@ -103,7 +103,7 @@ fn @scan(arg0: memorybytes, arg1: word) -> word [pure] {
     jump bb1
 }
 
-fn @restored(arg0: word, arg1: word) -> struct0 [selector=0x70ef4778, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @restored(arg0: i256, arg1: i256) -> struct0 [selector=0x70ef4778, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = gt arg1, 8
     v1 = eq v0, false
@@ -125,7 +125,7 @@ fn @restored(arg0: word, arg1: word) -> struct0 [selector=0x70ef4778, pure, abi_
     ret v13
 }
 
-fn @temporary(arg0: memorybytes, arg1: word) -> word [pure] {
+fn @temporary(arg0: memorybytes, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = word_cast arg0
     v1 = add v0, 32
@@ -159,7 +159,7 @@ fn @temporary(arg0: memorybytes, arg1: word) -> word [pure] {
     jump bb1
 }
 
-fn @dirty(arg0: word, arg1: word) -> word [selector=0xd5f2e1b7, pure, abi_params=[u256, bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirty(arg0: i256, arg1: i256) -> i256 [selector=0xd5f2e1b7, pure, abi_params=[u256, bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
@@ -175,7 +175,7 @@ fn @dirty(arg0: word, arg1: word) -> word [selector=0xd5f2e1b7, pure, abi_params
     ret v7
 }
 
-fn @conditional(arg0: memorybytes, arg1: word) [pure] {
+fn @conditional(arg0: memorybytes, arg1: i256) [pure] {
   bb0:
     v0 = word_cast arg0
     v1 = add v0, 32

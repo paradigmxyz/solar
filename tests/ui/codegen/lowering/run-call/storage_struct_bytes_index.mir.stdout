@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_struct_bytes_index.sol:StorageStructBytesIndex ===
 @module StorageStructBytesIndex
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
 fn @constructor() [constructor] {
   bb0:
@@ -103,7 +103,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     ret v62
 }
 
-fn @g() -> word [selector=0xe2179b8e, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @g() -> i256 [selector=0xe2179b8e, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v0

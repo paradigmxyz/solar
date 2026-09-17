@@ -124,12 +124,12 @@ library Base64 {
 }
 
 contract CheckedBase64 {
-    // OPT-LABEL: fn @encode{{[.0-9]*}}(arg0: word, arg1: word, arg2: word)
+    // OPT-LABEL: fn @encode{{[.0-9]*}}(arg0: i256, arg1: i256, arg2: i256)
     // Allocating the output may alias the input header, so reload it before the loop.
     // OPT: {{v[0-9]+}} = mload arg0
     // OPT: {{v[0-9]+}} = mload arg0
     // OPT-NOT: mload arg0
-    // OPT-LABEL: fn @decode{{[.0-9]*}}(arg0: word)
+    // OPT-LABEL: fn @decode{{[.0-9]*}}(arg0: i256)
     // Allocating the output may alias the input header, so reload it before the loop.
     // OPT: {{v[0-9]+}} = mload arg0
     // OPT: {{v[0-9]+}} = mload arg0

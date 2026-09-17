@@ -20,7 +20,7 @@ fn @dead_load() {
 // CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
 // CHECK: {{^[ +].*}}mload 0x1000
 // CHECK: {{^[ +].*}}msize
-fn @observed_load(arg0: bool) -> word {
+fn @observed_load(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -34,7 +34,7 @@ fn @observed_load(arg0: bool) -> word {
 // CHECK-LABEL: fn @callee_observes_memory
 // CHECK: {{^[ +].*}}mload 0x1000
 // CHECK: {{^[ +].*}}icall @observe_memory
-fn @callee_observes_memory(arg0: bool) -> word {
+fn @callee_observes_memory(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -45,7 +45,7 @@ fn @callee_observes_memory(arg0: bool) -> word {
     ret v1
 }
 
-fn @observe_memory() -> word {
+fn @observe_memory() -> i256 {
   bb0:
     v0 = msize
     ret v0

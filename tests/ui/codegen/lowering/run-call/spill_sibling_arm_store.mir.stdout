@@ -1,24 +1,24 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:Recorder ===
 @module Recorder
-fn @last() -> word [selector=0x47799da8, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @last() -> i256 [selector=0x47799da8, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @sync(arg0: word) [selector=0xa5841194, abi_params=[address], abi_returns=[], abi_return_params=[]] {
+fn @sync(arg0: i256) [selector=0xa5841194, abi_params=[address], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @transfer(arg0: word, arg1: word) -> word [selector=0xa9059cbb, abi_params=[address, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @transfer(arg0: i256, arg1: i256) -> i256 [selector=0xa9059cbb, abi_params=[address, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     sstore 0, arg1 !metadata(storage=slot(0))
     v0 = word_cast true
     ret v0
 }
 
-fn @take(arg0: word, arg1: word, arg2: word) [selector=0x0b0d9c09, abi_params=[address, address, u256], abi_returns=[], abi_return_params=[]] {
+fn @take(arg0: i256, arg1: i256, arg2: i256) [selector=0x0b0d9c09, abi_params=[address, address, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, arg2 !metadata(storage=slot(0))
     ret
@@ -38,7 +38,7 @@ fn @settle() [selector=0x11da60b4, payable, abi_params=[], abi_returns=[], abi_r
 data:
   Recorder_initcode_0: hex"34600d5760fc8060115f395ff35b5f5ffd5f3560e01c80630b0d9c0914604a57806311da60b414604657806347799da8146042578063a584119414603e578063a9059cbb14603a57604e565b6090565b606e565b6052565b60fb565b60c9565b5f5ffd5b341515606a575f546080526020608001608090036080f35b5f5ffd5b341515608c576024361060885760043560a01c1515608857005b5f5ffd5b5f5ffd5b34151560c5576044361060c15760043560a01c151560c1576024355f55600115156080526020608001608090036080f35b5f5ffd5b5f5ffd5b34151560f7576064361060f35760043560a01c151560f35760243560a01c151560f3576044355f55005b5f5ffd5b5f5ffd5b"
 
-fn @run(arg0: word) -> word [selector=0x96c07422, abi_params=[i128], abi_returns=[word], abi_return_params=[u256]] {
+fn @run(arg0: i256) -> i256 [selector=0x96c07422, abi_params=[i128], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = signextend 15, arg0
     v1 = sload 0 !metadata(storage=slot(0))
@@ -100,7 +100,7 @@ fn @run(arg0: word) -> word [selector=0x96c07422, abi_params=[i128], abi_returns
     ret v36
 }
 
-fn @_settleOrTake(arg0: word, arg1: word) {
+fn @_settleOrTake(arg0: i256, arg1: i256) {
   bb0:
     v0 = signextend 15, arg1
     v1 = sgt v0, 0
@@ -149,7 +149,7 @@ fn @_settleOrTake(arg0: word, arg1: word) {
     ret
 }
 
-fn @settle(arg0: word, arg1: word, arg2: word, arg3: word, arg4: word) {
+fn @settle(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) {
   bb0:
     v0 = ne arg4, 0
     jumpi v0, bb1, bb2
@@ -220,7 +220,7 @@ fn @settle(arg0: word, arg1: word, arg2: word, arg3: word, arg4: word) {
     ret
 }
 
-fn @take(arg0: word, arg1: word, arg2: word, arg3: word, arg4: word) {
+fn @take(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) {
   bb0:
     v0 = ne arg4, 0
     jumpi v0, bb1, bb2

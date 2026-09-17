@@ -4,7 +4,7 @@
 @module MemoryWrappers
 
 // Clone the nested call and both potentially aliasing accesses in their original order.
-fn @entry(arg0: word) -> word [selector=1] {
+fn @entry(arg0: i256) -> i256 [selector=1] {
   bb0:
     v0 = icall @wrap, arg0
     v1 = icall @wrap, v0
@@ -13,7 +13,7 @@ fn @entry(arg0: word) -> word [selector=1] {
     ret v3
 }
 
-fn @wrap(arg0: word) -> word {
+fn @wrap(arg0: i256) -> i256 {
   bb0:
     v0 = icall @base, arg0
     v1 = mload v0
@@ -23,7 +23,7 @@ fn @wrap(arg0: word) -> word {
 }
 
 // A single-use adapter also expands when its call and stack costs permit it.
-fn @single(arg0: word) -> word {
+fn @single(arg0: i256) -> i256 {
   bb0:
     v0 = icall @base, arg0
     v1 = mload v0
@@ -32,7 +32,7 @@ fn @single(arg0: word) -> word {
 }
 
 // Storage effects are outside this bounded adapter.
-fn @effects(arg0: word) -> word {
+fn @effects(arg0: i256) -> i256 {
   bb0:
     v0 = icall @base, arg0
     mstore v0, 5
@@ -40,13 +40,13 @@ fn @effects(arg0: word) -> word {
     ret v0
 }
 
-fn @base(arg0: word) -> word {
+fn @base(arg0: i256) -> i256 {
   bb0:
     ret arg0
 }
 
 // Keep the wrapper call when expansion would overlap too many caller words.
-fn @pressure(arg0: word, arg1: word, arg2: word, arg3: word, arg4: word, arg5: word, arg6: word, arg7: word, arg8: word, arg9: word, arg10: word, arg11: word, arg12: word) -> word [selector=2] {
+fn @pressure(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256) -> i256 [selector=2] {
   bb0:
     v0 = icall @wrap, arg0
     v1 = add arg1, arg2

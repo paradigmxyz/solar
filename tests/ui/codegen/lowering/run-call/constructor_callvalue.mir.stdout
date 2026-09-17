@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ExplicitNonpayable ===
 @module ExplicitNonpayable
-fn @constructor(arg0: word) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     ret
 }
@@ -41,7 +41,7 @@ fn @constructor() [constructor, payable] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ConstructorCallvalue ===
 @module ConstructorCallvalue
-fn @rejectsExplicit() -> word [selector=0x90887b1f, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @rejectsExplicit() -> i256 [selector=0x90887b1f, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 105
@@ -62,7 +62,7 @@ fn @rejectsExplicit() -> word [selector=0x90887b1f, payable, abi_params=[], abi_
     ret v10
 }
 
-fn @rejectsImplicit() -> word [selector=0x05da30eb, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @rejectsImplicit() -> i256 [selector=0x05da30eb, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 20
@@ -75,7 +75,7 @@ fn @rejectsImplicit() -> word [selector=0x05da30eb, payable, abi_params=[], abi_
     ret v5
 }
 
-fn @rejectsSynthetic() -> word [selector=0x28868c98, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @rejectsSynthetic() -> i256 [selector=0x28868c98, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 35
@@ -90,7 +90,7 @@ fn @rejectsSynthetic() -> word [selector=0x28868c98, payable, abi_params=[], abi
     ret v6
 }
 
-fn @rejectsInherited() -> word [selector=0xb3ba0b5d, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @rejectsInherited() -> i256 [selector=0xb3ba0b5d, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 31
@@ -103,7 +103,7 @@ fn @rejectsInherited() -> word [selector=0xb3ba0b5d, payable, abi_params=[], abi
     ret v5
 }
 
-fn @acceptsPayable() -> word [selector=0xd6e5da6b, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @acceptsPayable() -> i256 [selector=0xd6e5da6b, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 17
@@ -126,7 +126,7 @@ fn @acceptsPayable() -> word [selector=0xd6e5da6b, payable, abi_params=[], abi_r
     ret v9
 }
 
-fn @deploy(arg0: memorybytes) -> word {
+fn @deploy(arg0: memorybytes) -> i256 {
   bb0:
     v0 = word_cast arg0
     v1 = mload v0

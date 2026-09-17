@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:C ===
 @module C
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
 fn @copyState() -> struct0 [selector=0x183a6195, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
@@ -71,7 +71,7 @@ fn @copyReference() -> struct0 [selector=0x4cf1051d, abi_params=[], abi_returns=
     ret v17
 }
 
-fn @load_storage_word_array(arg0: word) -> memoryarray {
+fn @load_storage_word_array(arg0: i256) -> memoryarray {
   bb0:
     v0 = load_storage_array u256, arg0
     ret v0
@@ -80,7 +80,7 @@ fn @load_storage_word_array(arg0: word) -> memoryarray {
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:AggregateStorageCopy ===
 @module AggregateStorageCopy
 types:
-  struct0: {word, word, word}
+  struct0: {i256, i256, i256}
 
 fn @copyAggregate() -> struct0 [selector=0x515a112e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
@@ -153,7 +153,7 @@ fn @copyAggregate() -> struct0 [selector=0x515a112e, abi_params=[], abi_returns=
     ret v43
 }
 
-fn @load_storage_struct_array_0(arg0: word) -> memoryarray {
+fn @load_storage_struct_array_0(arg0: i256) -> memoryarray {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add v0, 1
@@ -193,7 +193,7 @@ fn @load_storage_struct_array_0(arg0: word) -> memoryarray {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:EnumStorageCopy ===
 @module EnumStorageCopy
-fn @smallInvalid() -> word [selector=0x7ab5e63b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @smallInvalid() -> i256 [selector=0x7ab5e63b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     mstore 0, 0 !metadata(memory=scratch)
@@ -211,7 +211,7 @@ fn @smallInvalid() -> word [selector=0x7ab5e63b, abi_params=[], abi_returns=[wor
     ret v5
 }
 
-fn @largeValid() -> word [selector=0x9f458284, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @largeValid() -> i256 [selector=0x9f458284, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 1, 1 !metadata(storage=slot(1))
     mstore 0, 1 !metadata(memory=scratch)
@@ -229,13 +229,13 @@ fn @largeValid() -> word [selector=0x9f458284, abi_params=[], abi_returns=[word]
     ret v5
 }
 
-fn @load_storage_packed_array_1_0_enum_2(arg0: word) -> memoryarray {
+fn @load_storage_packed_array_1_0_enum_2(arg0: i256) -> memoryarray {
   bb0:
     v0 = load_storage_array enum<2>, arg0
     ret v0
 }
 
-fn @load_storage_packed_array_1_0_enum_3(arg0: word) -> memoryarray {
+fn @load_storage_packed_array_1_0_enum_3(arg0: i256) -> memoryarray {
   bb0:
     v0 = load_storage_array enum<3>, arg0
     ret v0

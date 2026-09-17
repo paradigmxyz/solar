@@ -692,7 +692,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     InstKind::builtin(crate::mir::Builtin::CheckedMulMod, [a, b, modulus])
                 };
-                Some(self.builder.emit_inst(kind, Some(MirType::Word)))
+                Some(self.builder.emit_inst(kind, Some(MirType::I256)))
             }
             Builtin::Erc7201 => self.lower_erc7201(args),
             Builtin::Sha256 | Builtin::Ripemd160 => self.lower_hash_precompile_call(builtin, args),
@@ -759,7 +759,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // slot = erc7201(value)
         Some(self.builder.emit_inst(
             InstKind::builtin(crate::mir::Builtin::Erc7201, [value]),
-            Some(MirType::Word),
+            Some(MirType::I256),
         ))
     }
 
@@ -881,7 +881,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let [$($arg),*] = self.lower_builtin_args(builtin, &args)?;
                 {
                     let value = self.builder.$method($($arg),*);
-                    Some(self.builder.cast(value, MirType::Word))
+                    Some(self.builder.cast(value, MirType::I256))
                 }
             }};
         }

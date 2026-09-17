@@ -4,7 +4,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @same_block{{[( ]}}
 // CHECK: + [[RESULT:v[0-9]+]] = add 7, 1
 // CHECK: + ret [[RESULT]]
-fn @same_block() -> word {
+fn @same_block() -> i256 {
   bb0:
     v1 = internal_frame_addr 128
     mstore v1, 7

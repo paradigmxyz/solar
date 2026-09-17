@@ -2,7 +2,7 @@
 @module TryCatchFull
 @phase lowered
 types:
-  struct0: {word, memorybytes}
+  struct0: {i256, memorybytes}
 
 fn @full() [selector=0xd17b272f, abi_wrapper, view] {
   bb0:
@@ -261,7 +261,7 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
     tail_call @revert_stub
 }
 
-fn @try_decode_error_message(arg0: word, arg1: word) -> bool {
+fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
   bb0:
     v0 = lt arg1, 68
     jumpi v0, bb3, bb1
@@ -293,7 +293,7 @@ fn @revert_stub() {
     revert 28, 36
 }
 
-fn @decode_aggregate.4(arg0: word) -> word [may_return_memory] {
+fn @decode_aggregate.4(arg0: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = add arg0, 32
     v1 = mload arg0
@@ -341,7 +341,7 @@ fn @decode_aggregate.4(arg0: word) -> word [may_return_memory] {
     revert 0, 0
 }
 
-fn @decode_aggregate.5(arg0: word) -> struct0 [may_return_memory, return_abi=[word, word]] {
+fn @decode_aggregate.5(arg0: i256) -> struct0 [may_return_memory, return_abi=[i256, i256]] {
   bb0:
     v0 = add arg0, 32
     v1 = mload arg0

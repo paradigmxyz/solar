@@ -6,7 +6,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @branch_forwarders{{[( ]}}
 // CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
 // CHECK: + jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb4
-fn @branch_forwarders(arg0: word) -> word {
+fn @branch_forwarders(arg0: i256) -> i256 {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2

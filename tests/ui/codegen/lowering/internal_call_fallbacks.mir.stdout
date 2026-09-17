@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/internal_call_fallbacks.sol:ICallFallbacks ===
 @module ICallFallbacks
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
-fn @recurse(arg0: word) -> word [selector=0xb2041d21, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @recurse(arg0: i256) -> i256 [selector=0xb2041d21, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @a, arg0
     ret v0
 }
 
-fn @a(arg0: word) -> word {
+fn @a(arg0: i256) -> i256 {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -24,7 +24,7 @@ fn @a(arg0: word) -> word {
     ret v3
 }
 
-fn @b(arg0: word) -> word {
+fn @b(arg0: i256) -> i256 {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -39,7 +39,7 @@ fn @b(arg0: word) -> word {
     ret v3
 }
 
-fn @multi(arg0: word) -> struct0 [selector=0x645444bd, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @multi(arg0: i256) -> struct0 [selector=0x645444bd, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = icall @pair, arg0
     v1 = extract_value struct0, v0, 0
@@ -49,7 +49,7 @@ fn @multi(arg0: word) -> struct0 [selector=0x645444bd, pure, abi_params=[u256], 
     ret v4
 }
 
-fn @pair(arg0: word) -> struct0 [pure] {
+fn @pair(arg0: i256) -> struct0 [pure] {
   bb0:
     v0 = checked_add u256, arg0, 1
     v1 = insert_value struct0, undef struct0, 0, arg0
@@ -57,13 +57,13 @@ fn @pair(arg0: word) -> struct0 [pure] {
     ret v2
 }
 
-fn @callVoid(arg0: word) [selector=0xf42b07b1, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+fn @callVoid(arg0: i256) [selector=0xf42b07b1, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall @branchingVoid, arg0
     ret
 }
 
-fn @branchingVoid(arg0: word) [pure] {
+fn @branchingVoid(arg0: i256) [pure] {
   bb0:
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
@@ -77,13 +77,13 @@ fn @branchingVoid(arg0: word) [pure] {
     ret
 }
 
-fn @callEntry(arg0: word) -> word [selector=0x7a7de4a9, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @callEntry(arg0: i256) -> i256 [selector=0x7a7de4a9, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @entry, arg0
     ret v0
 }
 
-fn @entry(arg0: word) -> word [pure] {
+fn @entry(arg0: i256) -> i256 [pure] {
   bb0:
     jump bb1
   bb1:

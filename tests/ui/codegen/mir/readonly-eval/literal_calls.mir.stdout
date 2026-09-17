@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/readonly-eval/literal_calls.sol:LiteralCalls ===
 @module LiteralCalls
 types:
-  struct0: {word, word}
+  struct0: {i256, i256}
 
 immutables:
   answer: u256
@@ -37,7 +37,7 @@ fn @words() -> struct0 [selector=0xf2c31bd9, view, abi_params=[], abi_returns=[w
     ret v3
 }
 
-fn @dynamicWord(arg0: word) -> word [selector=0x0c872375, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @dynamicWord(arg0: i256) -> i256 [selector=0x0c872375, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
@@ -50,7 +50,7 @@ fn @dynamicWord(arg0: word) -> word [selector=0x0c872375, pure, abi_params=[u256
     ret v5
 }
 
-fn @sideEffects(arg0: word) -> struct0 [selector=0x4335d2b9, abi_params=[bool], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @sideEffects(arg0: i256) -> struct0 [selector=0x4335d2b9, abi_params=[bool], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
@@ -66,7 +66,7 @@ fn @sideEffects(arg0: word) -> struct0 [selector=0x4335d2b9, abi_params=[bool], 
     ret v8
 }
 
-fn @modified(arg0: word) -> word [selector=0xd492dffb, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @modified(arg0: i256) -> i256 [selector=0xd492dffb, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
@@ -80,7 +80,7 @@ fn @modified(arg0: word) -> word [selector=0xd492dffb, pure, abi_params=[u256], 
     ret v5
 }
 
-fn @fails() -> word [selector=0xce869a64, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @fails() -> i256 [selector=0xce869a64, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 0
@@ -89,7 +89,7 @@ fn @fails() -> word [selector=0xce869a64, pure, abi_params=[], abi_returns=[word
     ret v2
 }
 
-fn @readWord(arg0: memorybytes) -> word [pure] {
+fn @readWord(arg0: memorybytes) -> i256 [pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = eq v0, 32
@@ -101,7 +101,7 @@ fn @readWord(arg0: memorybytes) -> word [pure] {
     ret v5
 }
 
-fn @toShort(arg0: memorybytes) -> word [pure] {
+fn @toShort(arg0: memorybytes) -> i256 [pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = lt v0, 32
@@ -123,7 +123,7 @@ fn @toShort(arg0: memorybytes) -> word [pure] {
     ret v15
 }
 
-fn @choose(arg0: memorybytes, arg1: word) -> word {
+fn @choose(arg0: memorybytes, arg1: i256) -> i256 {
   bb0:
     v0 = ne arg1, 0
     jumpi v0, bb1, bb2
@@ -139,7 +139,7 @@ fn @choose(arg0: memorybytes, arg1: word) -> word {
     ret v1
 }
 
-fn @overwrite(arg0: memorybytes, arg1: word) [pure] {
+fn @overwrite(arg0: memorybytes, arg1: i256) [pure] {
   bb0:
     v0 = word_cast arg0
     v1 = add v0, 32

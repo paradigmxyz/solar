@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/try_catch_clause_evm_version.sol:TryCatchClauses ===
 @module TryCatchClauses
-fn @bare(arg0: word) -> word [selector=0x590eaf9b, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
+fn @bare(arg0: i256) -> i256 [selector=0x590eaf9b, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
@@ -24,7 +24,7 @@ fn @bare(arg0: word) -> word [selector=0x590eaf9b, abi_params=[address], abi_ret
     ret v7
 }
 
-fn @typed(arg0: word) -> word [selector=0x18d9eb38, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
+fn @typed(arg0: i256) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
@@ -95,7 +95,7 @@ fn @typed(arg0: word) -> word [selector=0x18d9eb38, abi_params=[address], abi_re
     ret v38
 }
 
-fn @try_decode_error_message(arg0: word, arg1: word) -> bool {
+fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
   bb0:
     v0 = lt arg1, 68
     v1 = eq v0, false

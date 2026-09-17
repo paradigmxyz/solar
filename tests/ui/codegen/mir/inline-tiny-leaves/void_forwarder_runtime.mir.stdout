@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/void_forwarder_runtime.sol:VoidForwarder ===
 @module VoidForwarder
-fn @once(arg0: word, arg1: word) -> word [selector=0x4c579d9d, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @once(arg0: i256, arg1: i256) -> i256 [selector=0x4c579d9d, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall @forward, arg0, arg1, 7
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @twice(arg0: word, arg1: word) -> word [selector=0x09d3ef31, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @twice(arg0: i256, arg1: i256) -> i256 [selector=0x09d3ef31, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall @forward, arg0, arg1, 7
     icall @forward, arg1, arg0, 7
@@ -15,26 +15,26 @@ fn @twice(arg0: word, arg1: word) -> word [selector=0x09d3ef31, abi_params=[u256
     ret v0
 }
 
-fn @wrap(arg0: word) -> word [selector=0xea598cb0, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @wrap(arg0: i256) -> i256 [selector=0xea598cb0, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall @wrappingForward, arg0
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @forward(arg0: word, arg1: word, arg2: word) {
+fn @forward(arg0: i256, arg1: i256, arg2: i256) {
   bb0:
     icall @sink, arg1, arg0, arg2
     ret
 }
 
-fn @wrappingForward(arg0: word) {
+fn @wrappingForward(arg0: i256) {
   bb0:
     icall @uncheckedSink, arg0, 4
     ret
 }
 
-fn @sink(arg0: word, arg1: word, arg2: word) {
+fn @sink(arg0: i256, arg1: i256, arg2: i256) {
   bb0:
     v0 = ne arg0, 0
     v1 = eq v0, false
@@ -50,7 +50,7 @@ fn @sink(arg0: word, arg1: word, arg2: word) {
     ret
 }
 
-fn @uncheckedSink(arg0: word, arg1: word) {
+fn @uncheckedSink(arg0: i256, arg1: i256) {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
