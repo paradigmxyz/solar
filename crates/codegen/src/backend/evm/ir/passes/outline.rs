@@ -12,8 +12,10 @@
 //! input arguments. Candidates have known stack effects and contain no control flow or position
 //! or gas observations. Profitability includes the shared body,
 //! per-site call sequence, continuation labels, and target-dependent push widths. Constant
-//! recipes charge call/return gas against deposited bytes using the requested optimizer run count
-//! in gas mode. Gas mode never outlines a site inside a loop: static duplicate counts cannot
+//! store recipes charge call/return gas against deposited bytes using the requested optimizer run
+//! count in gas mode, counting only hot sites. Other computations and literals use the byte saving:
+//! occurrence counts do not estimate how often disjoint dispatch paths execute. Gas mode never
+//! outlines a site inside a loop: static duplicate counts cannot
 //! justify adding two jumps to every dynamic iteration. Sites are selected without overlap, and
 //! new blocks and labels are installed through the normal EVM IR CFG representation.
 //!
@@ -230,10 +232,13 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         // =>
         // push continuation; jump shared; ...; swap outputs; jump continuation
         //
-        // Charge the transfer gas at the requested execution count against
-        // the deposited bytes saved by sharing. Static occurrence counts do
-        // not make the calls cold, even when every site is outside a loop.
-        if gcx.sess.opts.optimization.is_gas() {
+        // A constant store does less work than the transfer itself. Charge hot store
+        // sites for that overhead; retain size-based sharing for other computations.
+        if gcx.sess.opts.optimization.is_gas()
+            && matches!(body.get(..3), Some([value, address, store])
+                if value.is_encoded_push() && address.is_encoded_push()
+                    && matches!(store.opcode, op::MSTORE | op::MSTORE8))
+        {
             let saved_bytes = free.len() * (run_size - site_size) - stub_size;
             let transfer_gas = target.opcode_gas(op::PUSH2) * 2
                 + target.opcode_gas(op::JUMP) * 2
@@ -242,7 +247,9 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                     * u32::from(first.outputs.saturating_add(first.inputs));
             if !sharing_improves_lifetime(
                 saved_bytes,
-                free.len(),
+                free.iter()
+                    .filter(|site| !module.blocks[site.block].metadata.hotness.is_cold())
+                    .count(),
                 transfer_gas,
                 target.expected_executions(),
             ) {
@@ -672,10 +679,6 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     let body_bytes = (target.opcode(op::JUMPDEST).bytes
         + target.opcode(op::SWAP1).bytes
         + target.opcode(op::JUMP).bytes) as usize;
-    let transfer_gas = target.opcode_gas(op::PUSH2) * 2
-        + target.opcode_gas(op::JUMP) * 2
-        + target.opcode_gas(op::JUMPDEST) * 2
-        + target.opcode_gas(op::SWAP1);
     const MIN_SAVING: usize = 8;
     let mut values: Vec<_> = sites
         .iter()
@@ -687,17 +690,8 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             let push_size = selected_len(gcx, value);
             let inline = occurrences.len() * push_size;
             let outlined = occurrences.len() * site_bytes + push_size + body_bytes;
-            let saved_bytes = inline.saturating_sub(outlined);
-            (occurrences.len() >= 2
-                && inline >= outlined + MIN_SAVING
-                && (!gcx.sess.opts.optimization.is_gas()
-                    || sharing_improves_lifetime(
-                        saved_bytes,
-                        occurrences.len(),
-                        transfer_gas,
-                        target.expected_executions(),
-                    )))
-            .then_some((value, push_size))
+            (occurrences.len() >= 2 && inline >= outlined + MIN_SAVING)
+                .then_some((value, push_size))
         })
         .collect();
     if values.is_empty() {
@@ -707,16 +701,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
         let occurrences = &sites[value];
         let inline = occurrences.len() * push_size;
         let outlined = occurrences.len() * site_bytes + push_size + body_bytes;
-        let saved_bytes = inline.saturating_sub(outlined);
-        occurrences.len() >= 2
-            && inline >= outlined + MIN_SAVING
-            && (!gcx.sess.opts.optimization.is_gas()
-                || sharing_improves_lifetime(
-                    saved_bytes,
-                    occurrences.len(),
-                    transfer_gas,
-                    target.expected_executions(),
-                ))
+        occurrences.len() >= 2 && inline >= outlined + MIN_SAVING
     });
     if values.is_empty() {
         return false;

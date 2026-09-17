@@ -36,7 +36,8 @@
 //! than the branch, the arm jump, their labels, and the arm that runs on an
 //! average path. Runs after the late CFG cleanup, so folded conditions never
 //! reach it, and before hot-leaf inlining, so cloned lookup helpers arrive
-//! already branch-free.
+//! already branch-free. Converts a sweep of sites with updated predecessor lists before
+//! running CFG cleanup, avoiding a whole-function cleanup for each diamond.
 
 use super::{cfg_simplify::simplify_function, egraph::is_bool_value};
 use crate::{
@@ -121,8 +122,25 @@ enum SelectForm {
 
 fn if_convert_function(func: &mut Function, target: Target) -> bool {
     let mut changed = false;
-    while let Some(site) = find_site(func, target) {
-        convert(func, &site);
+    loop {
+        let mut preds = predecessors(func);
+        let mut converted = false;
+        for block in func.blocks.indices() {
+            if let Some(site) = find_site(func, target, &preds, block) {
+                convert(func, &site);
+                for arm in [site.then_arm, site.else_arm].into_iter().flatten() {
+                    preds[arm].clear();
+                    preds[site.join].retain(|&pred| pred != arm);
+                }
+                if !preds[site.join].contains(&block) {
+                    preds[site.join].push(block);
+                }
+                converted = true;
+            }
+        }
+        if !converted {
+            break;
+        }
         simplify_function(func);
         changed = true;
     }
@@ -147,38 +165,39 @@ fn predecessors(func: &Function) -> IndexVec<BlockId, Vec<BlockId>> {
     preds
 }
 
-fn find_site(func: &Function, target: Target) -> Option<Site> {
-    let preds = predecessors(func);
-    for (block, body) in func.blocks.iter_enumerated() {
-        let Some(Terminator::Branch { condition, then_block, else_block }) = body.terminator else {
-            continue;
-        };
-        if then_block == else_block || (block != BlockId::ENTRY && preds[block].is_empty()) {
-            continue;
-        }
-        let then_join = arm_join(func, &preds, block, then_block);
-        let else_join = arm_join(func, &preds, block, else_block);
-        let (then_arm, else_arm, join) = match (then_join, else_join) {
-            // then_arm -> join <- else_arm
-            (Some(join), Some(other)) if join == other => {
-                (Some(then_block), Some(else_block), join)
-            }
-            // then_arm -> join, block -> join
-            (Some(join), _) if join == else_block => (Some(then_block), None, join),
-            // block -> join, else_arm -> join
-            (_, Some(join)) if join == then_block => (None, Some(else_block), join),
-            _ => continue,
-        };
-        if join == block {
-            continue;
-        }
-        let mut site = Site { block, condition, then_arm, else_arm, join, selects: Vec::new() };
-        if let Some(selects) = join_selects(func, &site)
-            && profitable(func, target, &site, &selects)
-        {
-            site.selects = selects;
-            return Some(site);
-        }
+fn find_site(
+    func: &Function,
+    target: Target,
+    preds: &IndexVec<BlockId, Vec<BlockId>>,
+    block: BlockId,
+) -> Option<Site> {
+    let body = &func.blocks[block];
+    let Some(Terminator::Branch { condition, then_block, else_block }) = body.terminator else {
+        return None;
+    };
+    if then_block == else_block || (block != BlockId::ENTRY && preds[block].is_empty()) {
+        return None;
+    }
+    let then_join = arm_join(func, preds, block, then_block);
+    let else_join = arm_join(func, preds, block, else_block);
+    let (then_arm, else_arm, join) = match (then_join, else_join) {
+        // then_arm -> join <- else_arm
+        (Some(join), Some(other)) if join == other => (Some(then_block), Some(else_block), join),
+        // then_arm -> join, block -> join
+        (Some(join), _) if join == else_block => (Some(then_block), None, join),
+        // block -> join, else_arm -> join
+        (_, Some(join)) if join == then_block => (None, Some(else_block), join),
+        _ => return None,
+    };
+    if join == block {
+        return None;
+    }
+    let mut site = Site { block, condition, then_arm, else_arm, join, selects: Vec::new() };
+    if let Some(selects) = join_selects(func, &site)
+        && profitable(func, target, &site, &selects)
+    {
+        site.selects = selects;
+        return Some(site);
     }
     None
 }

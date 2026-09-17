@@ -22,7 +22,7 @@ contract LiveBranchCondition {
     // CHECK-NOT: mstore
     // CHECK: jumpi
     // CHECK-NOT: mload
-    // CHECK: return
+    // CHECK: jump [[RETURN]]
     function next(uint256 x) external pure returns (uint256) {
         return x + 1;
     }

@@ -102,6 +102,8 @@ bb4:
   eq
   swap 2
   xor
+  jump bb30
+bb30:
   push 128
   mstore
   push 160
@@ -172,19 +174,15 @@ bb7:
   push 224
   mload
   push 256
+  jump bb31
+bb31:
   mload
   dup 2
   dup 2
   eq
   swap 2
   sub
-  push 128
-  mstore
-  push 160
-  mstore
-  push 64
-  push 128
-  return
+  jump bb30
 bb8:
   dup 1
   push 0x132a45fc
@@ -200,16 +198,4 @@ bb8:
   push 256
   mload
   push 224
-  mload
-  dup 2
-  dup 2
-  eq
-  swap 2
-  sub
-  push 128
-  mstore
-  push 160
-  mstore
-  push 64
-  push 128
-  return
+  jump bb31

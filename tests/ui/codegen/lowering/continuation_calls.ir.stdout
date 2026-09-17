@@ -52,22 +52,10 @@ bb26 [cold]:
   push 36
   push 28
   revert
-bb9 [continuation]:
-  push 5
-  dup 2
-  add
-  swap 1
-  dup 2
-  lt
-  push bb26
-  jumpi
-  push 128
-  mstore
-  push 32
-  push 128
-  return
 bb8:
-  push bb9
+  push bb39
+  jump bb40
+bb40:
   push 4
   calldataload
   push 1
@@ -104,23 +92,22 @@ bb35 [loop]:
   swap 1
   jump
 bb12:
-  push bb9
+  push bb39
+  jump bb41
+bb41:
   push 4
   calldataload
   push 2
   jump bb34
 bb16:
-  push bb9
+  push bb39
   push 4
   calldataload
   push 3
   jump bb34
 bb20:
   push bb21
-  push 4
-  calldataload
-  push 1
-  jump bb34
+  jump bb40
 bb21 [continuation]:
   push 4
   calldataload
@@ -131,11 +118,8 @@ bb21 [continuation]:
   lt
   push bb26
   jumpi
-  push bb23
-  push 4
-  calldataload
-  push 2
-  jump bb34
+  push bb42
+  jump bb41
 bb27:
   push 3
   push 4
@@ -161,8 +145,8 @@ bb30 [continuation]:
   swap 2
   pop
   swap 1
-  jump bb23
-bb23:
+  jump bb42
+bb42 [continuation]:
   dup 2
   add
   swap 1
@@ -171,6 +155,8 @@ bb23:
   push bb26
   jumpi
   push 7
+  jump bb38
+bb38:
   dup 2
   add
   swap 1
@@ -183,3 +169,6 @@ bb23:
   push 32
   push 128
   return
+bb39 [continuation]:
+  push 5
+  jump bb38

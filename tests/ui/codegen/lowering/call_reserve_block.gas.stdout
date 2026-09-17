@@ -50,6 +50,9 @@ bb0:
   sload
   push 0xffffffffffffffffffffffffffffffffffffffff
   and
+  push bb12
+  jump bb11
+bb11:
   push 64
   mload
   push 32
@@ -60,6 +63,40 @@ bb0:
   push 0x3fa4f24500000000000000000000000000000000000000000000000000000000
   dup 2
   mstore
+  swap 1
+  jump
+bb4 [cold]:
+  push 0
+  dup 1
+  invalid
+bb9:
+  push 192
+  push 64
+  mstore
+  push 0
+  sload
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  and
+  push 32
+  push 2
+  exp
+  mul
+  push 0x3fa4f245
+  or
+  push 32
+  push 2
+  exp
+  swap 1
+  div
+  push 0
+  push 64
+  mload
+  push 32
+  add
+  mstore
+  push bb13
+  jump bb11
+bb12 [continuation]:
   dup 2
   extcodesize
   iszero
@@ -92,45 +129,7 @@ bb10:
   push 32
   push 128
   return
-bb4 [cold]:
-  push 0
-  dup 1
-  invalid
-bb9:
-  push 192
-  push 64
-  mstore
-  push 0
-  sload
-  push 0xffffffffffffffffffffffffffffffffffffffff
-  and
-  push 32
-  push 2
-  exp
-  mul
-  push 0x3fa4f245
-  or
-  push 32
-  push 2
-  exp
-  swap 1
-  div
-  push 0
-  push 64
-  mload
-  push 32
-  add
-  mstore
-  push 64
-  mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
-  push 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-  dup 2
-  mstore
+bb13 [continuation]:
   dup 2
   extcodesize
   iszero

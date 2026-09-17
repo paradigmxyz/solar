@@ -219,11 +219,6 @@ bb38:
   lt
   push bb6
   jumpi
-  push 36
-  calldataload
-  iszero
-  push 128
-  mstore
   push 0
   push 4
   calldataload
@@ -235,13 +230,16 @@ bb42 [loop]:
   mul
   push 36
   calldataload
-  dup 2
+  iszero
+  push 36
+  calldataload
+  dup 3
   div
   swap 1
-  swap 2
+  swap 3
   eq
-  push 128
-  mload
+  swap 1
+  swap 2
   or
   iszero
   push bb45

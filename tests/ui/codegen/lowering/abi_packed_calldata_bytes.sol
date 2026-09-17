@@ -19,14 +19,15 @@ contract P {
     // CHECK: jump [[DECODE:bb[0-9]+]]
     // CHECK: [[DECODE]]:
     // CHECK: calldatacopy
+    // CHECK: jump [[HASH:bb[0-9]+]]
+    // CHECK-NEXT: [[HASH]]:
     // CHECK: keccak256
     // CHECK: return
     // CHECK: [[H2_BODY]]:
     // CHECK: push {{bb[0-9]+}}
     // CHECK: jump [[DECODE]]
     // CHECK: calldatacopy
-    // CHECK: keccak256
-    // CHECK: return
+    // CHECK: jump [[HASH]]
     function h(bytes calldata a, uint256 x) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(a, x));
     }

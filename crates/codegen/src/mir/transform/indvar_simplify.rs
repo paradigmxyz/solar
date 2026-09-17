@@ -53,14 +53,17 @@ use crate::mir::{
     ArithmeticKind, BlockId, CheckedOp, Function, Immediate, InstId, InstKind, Instruction,
     MemoryRegion, MirType, Module, Terminator, Value, ValueId,
     analysis::{
-        AffineTerm, AliasAnalysis, InductionVariable, Loop, LoopAnalyzer, MemoryBase,
+        AffineTerm, AliasAnalysis, CfgInfo, InductionVariable, Loop, LoopAnalyzer, MemoryBase,
         ScalarEvolution,
     },
-    pass::{MirPass, run_function_pass_with_alias},
+    pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 use std::rc::Rc;
 
 /// Function pass for induction-variable simplification and strength reduction.
@@ -77,9 +80,23 @@ impl MirPass for IndVarSimplify {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass_with_alias(module, analyses, |func, analyses| {
-            IndVarSimplifier::new(Rc::clone(analyses.alias())).run(func).total() != 0
-        })
+        let mut selected = DenseBitSet::new_empty(module.functions.len());
+        for (id, func) in module.functions.iter_enumerated() {
+            if !func.blocks.is_empty() && !analyses.cfg(id, func).cyclic_blocks().is_empty() {
+                selected.insert(id);
+            }
+        }
+        run_selected_function_pass_with_alias_and_cfg(
+            module,
+            analyses,
+            &selected,
+            |func, analyses| {
+                IndVarSimplifier::new(Rc::clone(analyses.alias()))
+                    .run(func, Rc::clone(analyses.cfg()))
+                    .total()
+                    != 0
+            },
+        )
     }
 }
 
@@ -160,11 +177,11 @@ impl IndVarSimplifier {
     }
 
     /// Runs induction-variable simplification once over `func`.
-    fn run(&mut self, func: &mut Function) -> &IndVarSimplifyStats {
+    fn run(&mut self, func: &mut Function, cfg: Rc<CfgInfo>) -> &IndVarSimplifyStats {
         self.stats = IndVarSimplifyStats::default();
 
         let mut analyzer = LoopAnalyzer::new();
-        let loop_info = analyzer.analyze(func);
+        let loop_info = analyzer.analyze_with_cfg(func, cfg);
         let loops: Vec<_> = loop_info.loops.values().cloned().collect();
 
         for loop_data in loops {
@@ -693,7 +710,13 @@ impl IndVarSimplifier {
             .iter()
             .filter(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
             .count();
-        let mut seen = FxHashSet::default();
+        let mut defined_inside = DenseBitSet::new_empty(func.num_insts());
+        for block in loop_data.blocks.iter() {
+            for &inst in &func.blocks[block].instructions {
+                defined_inside.insert(inst);
+            }
+        }
+        let mut seen = DenseBitSet::new_empty(func.num_values());
         for block in loop_data.blocks.iter() {
             let block = &func.blocks[block];
             for operand in block
@@ -704,11 +727,7 @@ impl IndVarSimplifier {
                 .chain(block.terminator.iter().flat_map(Terminator::operands))
             {
                 let Value::Inst(inst_id) = func.value(operand) else { continue };
-                let defined_inside = loop_data
-                    .blocks
-                    .iter()
-                    .any(|block| func.blocks[block].instructions.contains(inst_id));
-                if !defined_inside && seen.insert(operand) {
+                if !defined_inside.contains(*inst_id) && seen.insert(operand) {
                     count += 1;
                 }
             }

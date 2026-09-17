@@ -36,6 +36,8 @@ bb22 [loop]:
   lt
   push bb24
   jumpi
+  jump bb32
+bb32 [loop]:
   push 128
   mstore
   push 32
@@ -67,11 +69,7 @@ bb8 [loop]:
   lt
   push bb10
   jumpi
-  push 128
-  mstore
-  push 32
-  push 128
-  return
+  jump bb32
 bb3:
   dup 1
   push 0xcf25b09f
@@ -80,11 +78,7 @@ bb3:
   jumpi
   pop
   push 1
-  push 128
-  mstore
-  push 32
-  push 128
-  return
+  jump bb32
 bb10 [loop]:
   dup 1
   push 160

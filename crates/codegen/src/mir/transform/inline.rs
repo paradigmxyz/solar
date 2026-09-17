@@ -50,6 +50,9 @@
 //! across the call or assuming alias freedom. Both caller live words and wrapper
 //! peak words must fit the same twelve-word budget, and lifetime gas must pay for
 //! code growth. General allocators, branches, and larger memory helpers stay shared.
+//! The late single-use adapter keeps acyclic branching helpers out of the caller:
+//! their merged CFG can cost more than the removed call. Loop helpers retain the
+//! ordinary stack-pressure and profitability checks.
 //! After inlining a multi-word return, immediate reads of the published return
 //! buffer can use the returned SSA words directly. Only scalar word loads at
 //! constant offsets before the next memory/effect barrier qualify. Publication
@@ -226,6 +229,7 @@ impl MirPass for InlineSingleUse {
         let stats = MirInliner {
             mode: InlineMode::SingleUse,
             max_single_call_sanity_instructions: 256,
+            loop_control_flow_only: matches!(self, Self::Physical),
             frame_staging_allowed: matches!(self, Self::Semantic)
                 && module.phase < MirPhase::Lowered,
             ..MirInliner::default()
@@ -317,6 +321,8 @@ struct MirInliner {
     /// frame slots are lowered to physical memory, a late run must leave such
     /// callees alone: the staging instructions would survive the phase boundary.
     frame_staging_allowed: bool,
+    /// Keep acyclic branching helpers shared during late single-use inlining.
+    loop_control_flow_only: bool,
     mode: InlineMode,
 }
 
@@ -359,6 +365,7 @@ impl Default for MirInliner {
             immutable_leaves_only: false,
             memory_wrappers_only: false,
             frame_staging_allowed: true,
+            loop_control_flow_only: false,
             mode: InlineMode::Normal,
         }
     }
@@ -813,6 +820,7 @@ impl MirInliner {
             };
         if self.mode == InlineMode::SingleUse
             && (!single_call
+                || (self.loop_control_flow_only && summary.has_control_flow && !summary.has_loop)
                 || summary.internal_frame_size != 0
                 || summary.has_reference_return
                 || (summary.has_phi && !bounded_phi)
