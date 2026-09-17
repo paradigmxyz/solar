@@ -10,6 +10,10 @@ fn @entry() [entry] {
 // === ROOT/tests/ui/codegen/core/create_lowering.sol:Test ===
 @module Test
 @phase lowered
+types:
+  struct0: {u256, memorybytes}
+  struct1: {u256, u256}
+
 fn @spawn() [selector=0x0da0cf17, abi_wrapper] {
   bb0:
     v15 = calldatasize
@@ -149,6 +153,157 @@ fn @predicted() [selector=0x1aab0aa1, abi_wrapper] {
     revert 0, 0
 }
 
+fn @attempt() [selector=0xa95d7aa6, abi_wrapper] {
+  bb0:
+    v20 = calldatasize
+    v21 = lt v20, 36
+    jumpi v21, bb3, bb4
+  bb4:
+    v22 = icall @decode_calldata_type, 4
+    v12 = mload v22
+    v13 = add v22, 32
+    v14 = create 0, v13, v12
+    v15 = iszero v14
+    v16 = iszero v15
+    v3 = extcodesize v14
+    v4 = add v3, 63
+    v5 = lt v4, v3
+    jumpi v5, bb1, bb2
+  bb2:
+    v7 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v8 = mload 64 !metadata(memory=scratch)
+    v50 = add v8, v7
+    v51 = lt v50, v8
+    v52 = gt v50, 0xffffffffffffffff
+    v53 = or v51, v52
+    jumpi v53, bb6, bb5
+  bb5:
+    mstore 64, v50 !metadata(memory=scratch)
+    v55 = calldatasize
+    calldatacopy v8, v55, v7
+    mstore v8, v3
+    v9 = add v8, 32
+    extcodecopy v14, v9, 0, v3
+    v28 = mload 64 !metadata(memory=scratch)
+    v29 = add v28, 64
+    mstore v28, v16
+    v30 = add v28, 32
+    mstore v30, 64
+    v33 = iszero v8
+    v34 = iszero v33
+    v32 = mload v8
+    v35 = mul v32, v34
+    v37 = add v35, 31
+    v38 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v39 = add v29, 32
+    v40 = add v29, v38
+    mstore v40, 0
+    mstore v29, v35
+    v42 = add v39, v38
+    mcopy v39, v9, v35
+    v43 = sub v42, v28
+    v45 = add v43, 31
+    v47 = and v45, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v48 = mload 64 !metadata(memory=scratch)
+    v54 = add v48, v47
+    mstore 64, v54 !metadata(memory=scratch)
+    returndata v48, v43
+  bb6:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    tail_call @revert_stub
+  bb3:
+    revert 0, 0
+}
+
+fn @attemptAt() [selector=0xaa568f57, abi_wrapper] {
+  bb0:
+    v12 = calldatasize
+    v13 = lt v12, 68
+    jumpi v13, bb3, bb4
+  bb4:
+    v14 = icall @decode_calldata_type, 4
+    v42 = icall @tryDeploy2, v14, arg1, 0
+    v46 = mload 32 !metadata(memory=scratch)
+    v44 = add v46, 32
+    v45 = mload v44
+    v3 = extcodesize v45
+    v4 = add v3, 63
+    v5 = lt v4, v3
+    jumpi v5, bb1, bb2
+  bb2:
+    v7 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v8 = mload 64 !metadata(memory=scratch)
+    v47 = add v8, v7
+    v48 = lt v47, v8
+    v49 = gt v47, 0xffffffffffffffff
+    v50 = or v48, v49
+    jumpi v50, bb6, bb5
+  bb5:
+    mstore 64, v47 !metadata(memory=scratch)
+    v52 = calldatasize
+    calldatacopy v8, v52, v7
+    mstore v8, v3
+    v9 = add v8, 32
+    extcodecopy v45, v9, 0, v3
+    v15 = iszero v42
+    v16 = iszero v15
+    v20 = mload 64 !metadata(memory=scratch)
+    v21 = add v20, 64
+    mstore v20, v16
+    v22 = add v20, 32
+    mstore v22, 64
+    v25 = iszero v8
+    v26 = iszero v25
+    v24 = mload v8
+    v27 = mul v24, v26
+    v29 = add v27, 31
+    v30 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v31 = add v21, 32
+    v32 = add v21, v30
+    mstore v32, 0
+    mstore v21, v27
+    v34 = add v31, v30
+    mcopy v31, v9, v27
+    v35 = sub v34, v20
+    v37 = add v35, 31
+    v39 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v40 = mload 64 !metadata(memory=scratch)
+    v51 = add v40, v39
+    mstore 64, v51 !metadata(memory=scratch)
+    returndata v40, v35
+  bb6:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    tail_call @revert_stub
+  bb3:
+    revert 0, 0
+}
+
+fn @twice() [selector=0x8cf98279, abi_wrapper] {
+  bb0:
+    v8 = calldatasize
+    v9 = lt v8, 68
+    jumpi v9, bb1, bb2
+  bb2:
+    v10 = icall @decode_calldata_type, 4
+    v18 = icall @tryDeploy2, v10, arg1, 0
+    v22 = icall @tryDeploy2, v10, arg1, 0
+    v13 = iszero v22
+    v14 = iszero v13
+    v11 = iszero v18
+    v12 = iszero v11
+    mstore 128, v12
+    mstore 160, v14
+    returndata 128, 64
+  bb1:
+    revert 0, 0
+}
+
 fn @deploy2(arg0: memptr, arg1: bytes32) -> address {
   bb0:
     v0 = mload arg0
@@ -163,6 +318,16 @@ fn @deploy2(arg0: memptr, arg1: bytes32) -> address {
     revert v8, 4
   bb1:
     ret v2
+}
+
+fn @tryDeploy2(arg0: memptr, arg1: bytes32, arg2: u256) -> struct1 [return_abi=[u256, u256]] {
+  bb0:
+    v0 = mload arg0
+    v1 = add arg0, 32
+    v2 = create2 arg2, v1, v0, arg1
+    v4 = iszero v2
+    v5 = iszero v4
+    ret v5, v2
 }
 
 fn @revert_stub() {
@@ -216,17 +381,23 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb5, bb1
+    jumpi v0, bb8, bb1
   bb1:
     v1 = calldataload 0
     v2 = shr 224, v1
-    switch v2, default bb5, [0xda0cf17 => bb2, 0x1aab0aa1 => bb3, 0x9639302c => bb4]
-  bb4:
+    switch v2, default bb8, [0xda0cf17 => bb2, 0x1aab0aa1 => bb3, 0x8cf98279 => bb4, 0x9639302c => bb5, 0xa95d7aa6 => bb6, 0xaa568f57 => bb7]
+  bb7:
+    tail_call @attemptAt
+  bb6:
+    tail_call @attempt
+  bb5:
     tail_call @spawnAt
+  bb4:
+    tail_call @twice
   bb3:
     tail_call @predicted
   bb2:
     tail_call @spawn
-  bb5:
+  bb8:
     revert 0, 0
 }

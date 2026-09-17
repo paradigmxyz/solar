@@ -44,14 +44,14 @@ fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
     v21 = add v5, 32
     jump bb1
   bb1:
-    v7 = phi [bb19: arg1], [bb14: v87]
-    v8 = phi [bb19: arg0], [bb14: v23]
-    v10 = lt v7, 16
+    v6 = phi [bb19: arg0], [bb14: v23]
+    v9 = phi [bb19: arg1], [bb14: v87]
+    v10 = lt v9, 16
     jumpi v10, bb3, bb2
   bb2:
-    v87 = sub v7, 16
+    v87 = sub v9, 16
     v89 = add v87, v87
-    v14 = and v8, 0xffffffffffffffffffffffffffffffff
+    v14 = and v6, 0xffffffffffffffffffffffffffffffff
     v56 = shl 64, v14
     v57 = or v14, v56
     v58 = and v57, 0xffffffffffffffff0000000000000000ffffffffffffffff
@@ -82,20 +82,20 @@ fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
   bb14:
     v22 = add v21, v89
     mstore v22, v115
-    v23 = shr 128, v8
+    v23 = shr 128, v6
     jump bb1
   bb3:
-    v153 = shl 1, v7
+    v153 = shl 1, v9
     v154 = add v21, v153
     v155 = sub v154, 1
     jump bb4
   bb4:
-    v25 = phi [bb3: v7], [bb12: v95]
-    v26 = phi [bb3: v8], [bb12: v53]
+    v24 = phi [bb3: v6], [bb12: v53]
+    v27 = phi [bb3: v9], [bb12: v95]
     v156 = phi [bb3: v155], [bb12: v157]
-    jumpi v25, bb6, bb5
+    jumpi v27, bb6, bb5
   bb5:
-    jumpi v26, bb13, bb7
+    jumpi v24, bb13, bb7
   bb7:
     v129 = iszero v5
     v130 = iszero v129
@@ -118,8 +118,8 @@ fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
     mstore v140, 0x2194895a00000000000000000000000000000000000000000000000000000000
     revert v140, 4
   bb6:
-    v95 = sub v25, 1
-    v31 = and v26, 15
+    v95 = sub v27, 1
+    v31 = and v24, 15
     v34 = byte v31, 0x3031323334353637383961626364656600000000000000000000000000000000
     v97 = add v95, v95
     v103 = add v97, 1
@@ -128,7 +128,7 @@ fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
     jumpi v39, bb11, bb10
   bb11:
     mstore8 v156, v34
-    v42 = shr 4, v26
+    v42 = shr 4, v24
     v43 = and v42, 15
     v46 = byte v43, 0x3031323334353637383961626364656600000000000000000000000000000000
     v49 = mload v5
@@ -141,7 +141,7 @@ fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
   bb12:
     v146 = sub v156, 1
     mstore8 v146, v46
-    v53 = shr 8, v26
+    v53 = shr 8, v24
     v157 = sub v156, 2
     jump bb4
   bb8:
