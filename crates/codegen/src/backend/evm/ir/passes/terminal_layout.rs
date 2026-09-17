@@ -13,6 +13,10 @@
 //! bound must keep the entire module below the one-byte label-address boundary: exchanging
 //! jumps then cannot increase PUSH widths. Larger modules retain the established layout.
 //!
+//! For small fixed layouts, place a STOP-terminated trace last when both trace boundaries
+//! already terminate control flow. This removes the final STOP byte without adding a jump.
+//! Modules followed by data or code retain their explicit stop.
+//!
 //! Run this after structural sharing and loop layout, only for the gas objective. Size mode
 //! retains its layout because changing which caller pays the jump has no static size benefit.
 
@@ -99,12 +103,44 @@ impl EvmPass for TerminalLayout {
             order.insert(t, caller);
             moved.insert(*tail);
         }
-        if moved.is_empty() {
+        let stop_moved = place_stop_last(module, &mut order);
+        if moved.is_empty() && !stop_moved {
             return false;
         }
         remap_block_order(module, &order);
         true
     }
+}
+
+/// Let a final STOP fall off the bytecode without breaking a trace's fallthroughs.
+fn place_stop_last(module: &Module, order: &mut [BlockId]) -> bool {
+    if module.code_follows || order.is_empty() {
+        return false;
+    }
+    let Some(stop) = order.iter().rposition(|&block| {
+        matches!(
+            module.blocks[block].terminator.as_ref().map(|term| &term.kind),
+            Some(TerminatorKind::Op(op::STOP))
+        )
+    }) else {
+        return false;
+    };
+    if stop + 1 == order.len() {
+        return false;
+    }
+    let Some(last) = order.last().copied() else { return false };
+    if !is_physical_terminal_boundary(&module.blocks[last], None) {
+        return false;
+    }
+    let Some(start) = (1..=stop).rev().find(|&position| {
+        is_physical_terminal_boundary(&module.blocks[order[position - 1]], Some(order[position]))
+    }) else {
+        return false;
+    };
+    // boundary; trace; stop; remaining terminal traces
+    // -> boundary; remaining terminal traces; trace; stop
+    order[start..].rotate_left(stop + 1 - start);
+    true
 }
 
 /// Establishes a label-width bound without assembling or examining optional debug information.

@@ -226,6 +226,7 @@ impl MirPass for InlineSingleUse {
         let stats = MirInliner {
             mode: InlineMode::SingleUse,
             max_single_call_sanity_instructions: 256,
+            loop_leaves_only: matches!(self, Self::Physical),
             frame_staging_allowed: matches!(self, Self::Semantic)
                 && module.phase < MirPhase::Lowered,
             ..MirInliner::default()
@@ -317,6 +318,8 @@ struct MirInliner {
     /// frame slots are lowered to physical memory, a late run must leave such
     /// callees alone: the staging instructions would survive the phase boundary.
     frame_staging_allowed: bool,
+    /// Limit late single-use inlining to the loops exposed by memory lowering.
+    loop_leaves_only: bool,
     mode: InlineMode,
 }
 
@@ -359,6 +362,7 @@ impl Default for MirInliner {
             immutable_leaves_only: false,
             memory_wrappers_only: false,
             frame_staging_allowed: true,
+            loop_leaves_only: false,
             mode: InlineMode::Normal,
         }
     }
@@ -813,6 +817,7 @@ impl MirInliner {
             };
         if self.mode == InlineMode::SingleUse
             && (!single_call
+                || (self.loop_leaves_only && !summary.has_loop)
                 || summary.internal_frame_size != 0
                 || summary.has_reference_return
                 || (summary.has_phi && !bounded_phi)

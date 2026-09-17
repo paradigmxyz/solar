@@ -56,11 +56,14 @@ use crate::mir::{
         AffineTerm, AliasAnalysis, InductionVariable, Loop, LoopAnalyzer, MemoryBase,
         ScalarEvolution,
     },
-    pass::{MirPass, run_function_pass_with_alias},
+    pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 use std::rc::Rc;
 
 /// Function pass for induction-variable simplification and strength reduction.
@@ -77,9 +80,20 @@ impl MirPass for IndVarSimplify {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass_with_alias(module, analyses, |func, analyses| {
-            IndVarSimplifier::new(Rc::clone(analyses.alias())).run(func).total() != 0
-        })
+        let mut selected = DenseBitSet::new_empty(module.functions.len());
+        for (id, func) in module.functions.iter_enumerated() {
+            if !func.blocks.is_empty() && !analyses.cfg(id, func).cyclic_blocks().is_empty() {
+                selected.insert(id);
+            }
+        }
+        run_selected_function_pass_with_alias_and_cfg(
+            module,
+            analyses,
+            &selected,
+            |func, analyses| {
+                IndVarSimplifier::new(Rc::clone(analyses.alias())).run(func).total() != 0
+            },
+        )
     }
 }
 

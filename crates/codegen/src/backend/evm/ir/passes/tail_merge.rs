@@ -16,7 +16,7 @@
 //! Loop-only paths do not create sharing groups.
 //! Replacement jumps retain the suffix's entry location before its origins are merged, so
 //! single-origin source maps do not lose both callers' locations on a shared body.
-//! In gas mode, hot sharing must repay its transfer over the optimizer run count.
+//! Hot tails require an extra byte of savings in gas mode; loop-entry safeguards apply first.
 //!
 //! A shared tail starts at a block boundary, so both the merged block and the representative may
 //! only be cut where `keep_with_next` allows a split. That keeps sequences whose intervening gas
@@ -140,9 +140,6 @@ impl RunState {
             let transfer_bytes = (target.opcode(op::PUSH2).bytes
                 + target.opcode(op::JUMP).bytes
                 + target.opcode(op::JUMPDEST).bytes) as usize;
-            let transfer_gas = target.opcode_gas(op::PUSH2)
-                + target.opcode_gas(op::JUMP)
-                + target.opcode_gas(op::JUMPDEST);
             if let Some((representative, common)) = matched
                 && common > 0
                 && {
@@ -151,13 +148,7 @@ impl RunState {
                     let suffix_size = suffix_size(gcx, module, block_id, common);
                     let saved_bytes = suffix_size.saturating_sub(transfer_bytes);
                     suffix_size > transfer_bytes
-                        && (!gcx.sess.opts.optimization.is_gas()
-                            || !hot
-                            || tail_merge_improves_lifetime(
-                                saved_bytes,
-                                transfer_gas,
-                                target.expected_executions(),
-                            ))
+                        && (!gcx.sess.opts.optimization.is_gas() || !hot || saved_bytes > 1)
                 }
             {
                 self.merges.push(Merge { representative, block: block_id, common });
@@ -418,16 +409,6 @@ impl RunState {
     }
 }
 
-/// Whether one hot transfer into a shared tail repays its deposited-byte saving.
-const fn tail_merge_improves_lifetime(
-    saved_bytes: usize,
-    transfer_gas: u32,
-    expected_executions: u64,
-) -> bool {
-    saved_bytes as u128 * Target::CODE_DEPOSIT_GAS_PER_BYTE as u128
-        > transfer_gas as u128 * expected_executions as u128
-}
-
 /// Preserve an address's control-only identity when its consumer moves into a shared tail.
 fn preserve_split_control_target(
     module: &mut Module,
@@ -561,15 +542,4 @@ struct Merge {
 struct MergeGroup {
     representative: BlockId,
     sites: Vec<(BlockId, usize)>,
-}
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn hot_tail_lifetime_profitability() {
-        assert!(tail_merge_improves_lifetime(20, 12, 200));
-        assert!(!tail_merge_improves_lifetime(12, 12, 200));
-        assert!(!tail_merge_improves_lifetime(20, 12, 1_000_000));
-    }
 }

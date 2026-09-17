@@ -32,7 +32,7 @@ use crate::{
 use alloy_primitives::U256;
 use solar_data_structures::{
     index::{IndexVec, index_vec},
-    map::FxHashMap,
+    map::{FxHashMap, FxHashSet},
 };
 
 /// Module pass for sharing constant-argument specializations.
@@ -63,8 +63,9 @@ impl MirPass for Specialize {
         // nothing changes; the sweep count is bounded by the call-graph depth.
         const MAX_ROUNDS: usize = 4;
         let mut changed = false;
+        let mut tried = FxHashSet::default();
         for _ in 0..MAX_ROUNDS {
-            if !specialize_round(gcx, module) {
+            if !specialize_round(gcx, module, &mut tried) {
                 break;
             }
             changed = true;
@@ -74,7 +75,11 @@ impl MirPass for Specialize {
 }
 
 /// One specialization sweep over every call site in the module.
-fn specialize_round(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
+fn specialize_round(
+    gcx: solar_sema::Gcx<'_>,
+    module: &mut Module,
+    tried: &mut FxHashSet<(FunctionId, Constants, usize, bool)>,
+) -> bool {
     let graph = CallGraphInfo::new(module);
     let target = Target::new(gcx);
     let mut sites: IndexVec<FunctionId, Vec<CallSite>> =
@@ -140,14 +145,15 @@ fn specialize_round(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
             // elimination then drops the parameter and the later cleanup
             // folds the branches it decided.
             // helper(argK, ...) => helper(literalK, ...)
-            constants.retain(|(_, immediate)| {
-                immediate.as_u256().is_some_and(|value| value <= U256::from(u8::MAX))
+            let uses = body.arg_uses();
+            constants.retain(|(index, immediate)| {
+                !uses[*index].is_empty()
+                    && immediate.as_u256().is_some_and(|value| value <= U256::from(u8::MAX))
             });
             if constants.is_empty() {
                 continue;
             }
             let func = module.function_mut(callee);
-            let uses = func.arg_uses();
             let mut replacements = FxHashMap::default();
             for (index, immediate) in &constants {
                 let value = func.alloc_value(Value::Immediate(immediate.clone()));
@@ -176,6 +182,12 @@ fn specialize_round(gcx: solar_sema::Gcx<'_>, module: &mut Module) -> bool {
             };
             constants = key;
             selected = indices;
+        }
+        // Leaf bodies cannot change through specialization of another callee. Retry only
+        // when their constants or the number of sites entering the cost estimate changes.
+        if !tried.insert((callee, constants.clone(), selected.len(), selected.len() == calls.len()))
+        {
+            continue;
         }
         let mut candidate = body.clone();
         let uses = candidate.arg_uses();

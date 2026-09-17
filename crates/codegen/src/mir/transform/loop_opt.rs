@@ -44,7 +44,7 @@ use crate::mir::{
         Access, AddressSpace, AffineExpr, AliasAnalysis, AliasResult, Location, LocationSize, Loop,
         LoopAnalyzer, MemoryBase, ScalarEvolution,
     },
-    pass::{MirPass, run_function_pass_with_alias},
+    pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
 };
 use alloy_primitives::U256;
@@ -61,11 +61,17 @@ use std::rc::Rc;
 const LOOP_CARRY_BUDGET: usize = 5;
 
 /// Function pass for loop-invariant code motion.
-pub(crate) struct Licm;
+pub(crate) enum Licm {
+    All,
+    MemoryLoops,
+}
 
 impl MirPass for Licm {
     fn name(&self) -> &'static str {
-        "licm"
+        match self {
+            Self::All => "licm",
+            Self::MemoryLoops => "memory-licm",
+        }
     }
 
     fn run_pass(
@@ -75,12 +81,36 @@ impl MirPass for Licm {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let hoist_cheap = gcx.sess.opts.optimization.is_gas();
-        run_function_pass_with_alias(module, analyses, |func, analyses| {
-            let mut optimizer = LoopOptimizer::with_limits(3, 8);
-            optimizer.hoist_cheap = hoist_cheap;
-            optimizer.alias = Some(Rc::clone(analyses.alias()));
-            optimizer.optimize(func).instructions_hoisted != 0
-        })
+        let mut selected = DenseBitSet::new_empty(module.functions.len());
+        for (id, func) in module.functions.iter_enumerated() {
+            if func.blocks.is_empty() {
+                continue;
+            }
+            let cfg = analyses.cfg(id, func);
+            let cycles = cfg.cyclic_blocks();
+            if !cycles.is_empty()
+                && (matches!(self, Self::All)
+                    || cycles.iter().any(|block| {
+                        func.blocks[block]
+                            .instructions
+                            .iter()
+                            .any(|&inst| matches!(func.inst(inst).kind, InstKind::MLoad(_)))
+                    }))
+            {
+                selected.insert(id);
+            }
+        }
+        run_selected_function_pass_with_alias_and_cfg(
+            module,
+            analyses,
+            &selected,
+            |func, analyses| {
+                let mut optimizer = LoopOptimizer::with_limits(3, 8);
+                optimizer.hoist_cheap = hoist_cheap;
+                optimizer.alias = Some(Rc::clone(analyses.alias()));
+                optimizer.optimize(func).instructions_hoisted != 0
+            },
+        )
     }
 }
 
@@ -206,9 +236,12 @@ impl LoopOptimizer {
         count
     }
 
-    /// Whether a value read inside `loop_data` occupies a carried word: an instruction result
-    /// defined outside the loop that is not a nullary rematerializable read.
+    /// Whether a value read inside `loop_data` occupies a carried word: an argument or an
+    /// instruction result outside the loop that is not a nullary rematerializable read.
     fn is_carried_operand(func: &Function, loop_data: &Loop, value: ValueId) -> bool {
+        if matches!(func.value(value), Value::Arg(_)) {
+            return true;
+        }
         let Value::Inst(inst_id) = func.value(value) else { return false };
         let kind = &func.inst(*inst_id).kind;
         !loop_data.blocks.iter().any(|block| func.blocks[block].instructions.contains(inst_id))
