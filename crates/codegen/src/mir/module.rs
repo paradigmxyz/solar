@@ -4,6 +4,7 @@ use super::{
     AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, DataId, DataRef, Disambiguator,
     Function, FunctionId, ImmutableId, MangledSymbol, MirType, StructId, StructType, Terminator,
 };
+use crate::link::LibraryRelocation;
 use alloy_primitives::Bytes;
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -26,23 +27,13 @@ pub(crate) struct Immutable {
     pub(crate) variable_id: Option<VariableId>,
 }
 
-/// An unresolved external library address referenced by a MIR module.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct LibraryLink {
-    /// Source unit containing the library.
-    pub(crate) source: String,
-    /// Library contract name.
-    pub(crate) name: String,
-    /// Fixed-width address placeholder emitted into bytecode.
-    pub(crate) placeholder: [u8; 20],
-}
 /// One constant byte string and its optional display name.
 #[derive(Clone, Debug)]
 struct Data {
     bytes: Bytes,
     name: Option<Symbol>,
     emit_in_runtime: bool,
-    library_offsets: Vec<usize>,
+    library_relocations: Vec<LibraryRelocation>,
 }
 
 /// The representation contract of a MIR module.
@@ -115,10 +106,8 @@ pub struct Module {
     data: IndexVec<DataId, Data>,
     /// Exact data lookup used before the final subslice-packing pass.
     data_index: FxHashMap<Bytes, DataId>,
-    /// Unresolved external library addresses used by this module.
-    library_links: Vec<LibraryLink>,
     /// Linked data has a separate identity from literal bytes with the same contents.
-    linked_data_index: FxHashMap<(Bytes, Vec<usize>), DataId>,
+    linked_data_index: FxHashMap<(Bytes, Vec<LibraryRelocation>), DataId>,
     /// Whether this is an interface (no bytecode generation).
     pub(crate) is_interface: bool,
     /// Whether this module was lowered from a library.
@@ -189,7 +178,6 @@ impl Module {
             immutables: IndexVec::new(),
             data: IndexVec::new(),
             data_index: FxHashMap::default(),
-            library_links: Vec::new(),
             linked_data_index: FxHashMap::default(),
             is_interface: false,
             is_library: false,
@@ -393,18 +381,6 @@ impl Module {
         &self.immutables[id]
     }
 
-    /// Registers an unresolved external library address.
-    pub(crate) fn add_library_link(&mut self, link: LibraryLink) {
-        if !self.library_links.contains(&link) {
-            self.library_links.push(link);
-        }
-    }
-
-    /// Returns unresolved external library addresses used by this module.
-    pub(crate) fn library_links(&self) -> &[LibraryLink] {
-        &self.library_links
-    }
-
     /// Returns an immutable declaration if the identifier is allocated.
     #[must_use]
     pub(crate) fn get_immutable(&self, id: ImmutableId) -> Option<&Immutable> {
@@ -455,8 +431,8 @@ impl Module {
     }
 
     /// Returns library relocation offsets in a data blob.
-    pub(crate) fn data_library_offsets(&self, id: DataId) -> &[usize] {
-        &self.data[id].library_offsets
+    pub(crate) fn data_library_relocations(&self, id: DataId) -> &[LibraryRelocation] {
+        &self.data[id].library_relocations
     }
 
     /// Adds a declaration with library relocations without interning it as literal data.
@@ -464,12 +440,12 @@ impl Module {
         &mut self,
         bytes: Bytes,
         name: Option<Symbol>,
-        offsets: Vec<usize>,
+        offsets: Vec<LibraryRelocation>,
     ) -> DataId {
         if offsets.is_empty() {
             return self.add_data(bytes, name);
         }
-        self.data.push(Data { bytes, name, emit_in_runtime: false, library_offsets: offsets })
+        self.data.push(Data { bytes, name, emit_in_runtime: false, library_relocations: offsets })
     }
 
     /// Interns embedded bytecode without sharing its relocations with literal data.
@@ -477,7 +453,7 @@ impl Module {
         &mut self,
         bytes: Bytes,
         name: Option<Symbol>,
-        offsets: Vec<usize>,
+        offsets: Vec<LibraryRelocation>,
     ) -> DataRef {
         if offsets.is_empty() {
             return self.intern_data(Cow::Borrowed(&bytes), name);
@@ -486,8 +462,12 @@ impl Module {
         if let Some(&id) = self.linked_data_index.get(&key) {
             return DataRef::new(id, 0);
         }
-        let id =
-            self.data.push(Data { bytes, name, emit_in_runtime: false, library_offsets: offsets });
+        let id = self.data.push(Data {
+            bytes,
+            name,
+            emit_in_runtime: false,
+            library_relocations: offsets,
+        });
         self.linked_data_index.insert(key, id);
         DataRef::new(id, 0)
     }
@@ -519,7 +499,7 @@ impl Module {
             bytes: data.clone(),
             name,
             emit_in_runtime,
-            library_offsets: Vec::new(),
+            library_relocations: Vec::new(),
         });
         self.data_index.entry(data).or_insert(id);
         id
@@ -585,9 +565,9 @@ impl Module {
                         write!(f, "{byte:02x}")?;
                     }
                     write!(f, "\"")?;
-                    let offsets = self.data_library_offsets(id);
+                    let offsets = self.data_library_relocations(id);
                     if !offsets.is_empty() {
-                        write!(f, " library_offsets [{}]", offsets.iter().format(", "))?;
+                        write!(f, " library_relocations [{}]", offsets.iter().format(", "))?;
                     }
                     writeln!(f)?;
                 }

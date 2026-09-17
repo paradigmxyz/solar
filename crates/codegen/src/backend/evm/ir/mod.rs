@@ -17,6 +17,7 @@ use super::{
 };
 use crate::{
     backend::assembler::{self, assembly},
+    link::{LibraryId, LibraryRelocation},
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::{Bytes, U256};
@@ -68,8 +69,8 @@ pub(crate) struct Data {
     pub(crate) bytes: Bytes,
     pub(crate) name: Option<Symbol>,
     pub(crate) emit_in_runtime: bool,
-    /// Byte offsets of unresolved library addresses in this data.
-    pub(crate) library_offsets: Vec<usize>,
+    /// Identities and byte offsets of unresolved library addresses in this data.
+    pub(crate) library_relocations: Vec<LibraryRelocation>,
 }
 
 impl DataRef {
@@ -330,7 +331,7 @@ impl Instruction {
 
     /// Creates an opaque library-address push instruction.
     #[must_use]
-    pub(crate) fn push_library(value: U256) -> Self {
+    pub(crate) fn push_library(value: LibraryId) -> Self {
         Self::encoded_push(PushValue::Library(value), Self::ENCODED_PUSH)
     }
 
@@ -409,8 +410,8 @@ impl Instruction {
         }
     }
 
-    /// Returns the opaque library placeholder, if any.
-    pub(in crate::backend) const fn pushed_library(&self) -> Option<U256> {
+    /// Returns the source-qualified library identity, if any.
+    pub(in crate::backend) const fn pushed_library(&self) -> Option<LibraryId> {
         match self.value {
             Some(PushValue::Library(value)) => Some(value),
             _ => None,
@@ -713,7 +714,7 @@ enum PushValue {
     /// Immediate EVM word.
     Immediate(U256),
     /// Opaque library address supplied by the linker.
-    Library(U256),
+    Library(LibraryId),
     /// Basic block reference.
     Block(BlockId),
     /// Constant program-data reference.

@@ -3,24 +3,29 @@ pragma solidity ^0.8.0;
 
 import "../src/OverloadLib.sol";
 import "../src/SafeMath.sol";
+import {OverloadLib as OtherOverloadLib} from "./auxiliary/OverloadLib.sol";
 
 contract OverloadLibTest {
     function chooseLibrary(bool first) external pure returns (address) {
         if (first) return address(OverloadLib);
-        return address(SafeMath);
+        return address(OtherOverloadLib);
     }
 
     function testDistinctLibraryBranches() public {
         require(this.chooseLibrary(true) == address(OverloadLib));
-        require(this.chooseLibrary(false) == address(SafeMath));
+        require(this.chooseLibrary(false) == address(OtherOverloadLib));
         require(this.chooseLibrary(true) != this.chooseLibrary(false));
+        require(address(SafeMath) != address(OtherOverloadLib));
+        require(OtherOverloadLib.value() == 99);
     }
 
     function testEmbeddedLibraryRuntime() public {
         LibraryAddressChild child = new LibraryAddressChild();
         require(child.linked() == address(OverloadLib));
+        require(child.linkedOther() == address(OtherOverloadLib));
         RuntimeCodeDeployer deployed = new RuntimeCodeDeployer(type(LibraryAddressChild).runtimeCode);
         require(LibraryAddressChild(address(deployed)).linked() == address(OverloadLib));
+        require(LibraryAddressChild(address(deployed)).linkedOther() == address(OtherOverloadLib));
     }
 
     function libraryAddress() external pure returns (address) {
@@ -77,6 +82,7 @@ contract OverloadLibTest {
 
 contract LibraryAddressChild {
     function linked() external pure returns (address) { return address(OverloadLib); }
+    function linkedOther() external pure returns (address) { return address(OtherOverloadLib); }
 }
 
 contract RuntimeCodeDeployer {

@@ -23,6 +23,9 @@ newtype_index! {
     /// A packed-label immediate identifier.
     pub(in crate::backend) struct PackedLabelsId;
 
+    /// An interned source-qualified library identifier.
+    pub(in crate::backend) struct LibraryPushId;
+
     /// An interned immutable placeholder identifier.
     pub(in crate::backend) struct ImmutablePushId;
 
@@ -59,6 +62,10 @@ impl AsmIndex for DeferredAlloc {
 
 impl AsmIndex for PushValueId {
     const NAME: &'static str = "assembler push value index";
+}
+
+impl AsmIndex for LibraryPushId {
+    const NAME: &'static str = "assembler library push index";
 }
 
 impl AsmIndex for ImmutablePushId {
@@ -101,6 +108,7 @@ impl AsmInst {
     const EXTENDED_PUSH_PACKED_LABELS: u32 = 0;
     const EXTENDED_PUSH_DATA: u32 = 0x0400_0000;
     const EXTENDED_DATA: u32 = 0x0800_0000;
+    const EXTENDED_PUSH_LIBRARY: u32 = 0x0c00_0000;
 
     pub(in crate::backend) fn op(opcode: u8) -> Self {
         Self(Self::TAG_OP | u32::from(opcode))
@@ -121,6 +129,10 @@ impl AsmInst {
 
     pub(in crate::backend) fn push(index: PushValueId) -> Self {
         Self::tagged(Self::TAG_PUSH, index.inst_payload())
+    }
+
+    pub(in crate::backend) fn push_library(id: LibraryPushId) -> Self {
+        Self::extended(Self::EXTENDED_PUSH_LIBRARY, id.inst_payload())
     }
 
     pub(in crate::backend) fn push_label(label: Label) -> Self {
@@ -208,6 +220,9 @@ impl AsmInst {
                     Self::EXTENDED_PUSH_DATA => {
                         AsmInstKind::PushData(DataRefId::from_inst_payload(index))
                     }
+                    Self::EXTENDED_PUSH_LIBRARY => {
+                        AsmInstKind::PushLibrary(LibraryPushId::from_inst_payload(index))
+                    }
                     Self::EXTENDED_DATA => AsmInstKind::Data(DataId::from_inst_payload(index)),
                     _ => unreachable!("invalid extended assembler instruction tag"),
                 }
@@ -228,6 +243,7 @@ pub(in crate::backend) enum AsmInstKind {
     PushPackedLabels(PackedLabelsId),
     PushDeferred(DeferredConst),
     PushImmutable(ImmutablePushId),
+    PushLibrary(LibraryPushId),
     Label(Label),
     PushData(DataRefId),
     Data(DataId),

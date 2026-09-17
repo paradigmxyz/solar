@@ -198,7 +198,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 unreachable!("immutable stores must be lowered before EVM codegen")
             }
             InstKind::LibraryAddress(value) => {
-                // push_library placeholder
+                // push_library library
                 self.asm.emit_push_library(*value);
                 self.scheduler.instruction_executed(0, result_value);
             }

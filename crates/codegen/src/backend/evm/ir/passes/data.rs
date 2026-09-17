@@ -9,6 +9,7 @@
 //! relocatable bytes.
 
 use super::{EvmPass, utils::instruction_size_lower_bound};
+use crate::link::LibraryRelocation;
 use crate::{
     backend::evm::{
         data_copy_cost, data_copy_gas, data_copy_is_profitable,
@@ -128,12 +129,12 @@ impl DataPool {
         Self {
             entries: data
                 .iter_enumerated()
-                .filter(|(_, data)| data.library_offsets.is_empty())
+                .filter(|(_, data)| data.library_relocations.is_empty())
                 .map(|(id, data)| PoolEntry { id, bytes: data.bytes.clone() })
                 .collect(),
             exact: data
                 .iter_enumerated()
-                .filter(|(_, data)| data.library_offsets.is_empty())
+                .filter(|(_, data)| data.library_relocations.is_empty())
                 .map(|(id, data)| (data.bytes.clone(), DataRef::new(id, 0)))
                 .collect(),
         }
@@ -162,7 +163,7 @@ impl DataPool {
             bytes: bytes.clone(),
             name: Some(sym::literal),
             emit_in_runtime: false,
-            library_offsets: Vec::new(),
+            library_relocations: Vec::new(),
         });
         self.entries.push(PoolEntry { id, bytes: bytes.clone() });
         self.exact.insert(bytes, DataRef::new(id, 0));
@@ -376,11 +377,11 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
 
     let mut packed = IndexVec::<DataId, Data>::new();
     let mut sources = IndexVec::<DataId, DataId>::new();
-    let mut exact = FxHashMap::<(Bytes, Vec<usize>), DataId>::default();
+    let mut exact = FxHashMap::<(Bytes, Vec<LibraryRelocation>), DataId>::default();
     let mut remap = FxHashMap::default();
     for old_id in referenced {
         let data = &module.data[old_id];
-        let key = (data.bytes.clone(), data.library_offsets.clone());
+        let key = (data.bytes.clone(), data.library_relocations.clone());
         let data_ref = if data.emit_in_runtime {
             let id = packed.push(data.clone());
             sources.push(old_id);
@@ -447,12 +448,12 @@ fn find_data(
         let offset = memmem::find(&known.bytes, &needle.bytes)?;
         let end = offset + needle.bytes.len();
         let compatible = known
-            .library_offsets
+            .library_relocations
             .iter()
             .copied()
-            .filter(|&start| start < end && start + 20 > offset)
-            .map(|start| start.checked_sub(offset))
-            .eq(needle.library_offsets.iter().copied().map(Some));
+            .filter(|reloc| reloc.offset < end && reloc.offset + 20 > offset)
+            .map(|reloc| (reloc.offset.checked_sub(offset), reloc.library))
+            .eq(needle.library_relocations.iter().map(|reloc| (Some(reloc.offset), reloc.library)));
         compatible.then(|| DataRef::new(id, data_offset(offset)))
     })
 }

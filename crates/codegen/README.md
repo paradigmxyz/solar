@@ -79,12 +79,13 @@ every Rust rewrite belongs in the DSL. See the repository's
 
 ### Library addresses and relocations
 
-Unresolved library addresses remain symbolic through MIR (`library_address`)
-and EVM IR (`push_library`). Their placeholder bytes identify the library;
-optimizers must not treat those bytes as the linked address. The assembler
-records each relocation when it emits the address or linked program data.
-Embedded creation and runtime bytecode carry these offsets through data
-pooling, which shares bytes only when their relocations also match.
+Unresolved library addresses retain their source-qualified identities through MIR
+(`library_address`) and EVM IR (`push_library`). The primitive assembler emits a
+fixed-width `PUSH20` slot and records its library directly; placeholder bytes carry
+no identity. Embedded creation and runtime bytecode travel with typed relocations.
+Data pooling shares bytes only when the library identities and offsets also match.
+The textual IR prints library identities as `"source.sol":"Library"` and data
+relocations as `library_relocations [offset: "source.sol":"Library"]`.
 
 ### Optimization search and costs
 

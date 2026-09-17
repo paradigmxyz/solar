@@ -191,15 +191,15 @@ fn @keep_distinct_storage_literals(arg0: bool, arg1: u256) {
 // Library addresses carry distinct relocation identities.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_libraries{{[( ]}}
 // CHECK: {{^[ +].*}}jumpi arg0, bb1, bb2
-// CHECK: library_address 730750818665451459101842416358141509827966271489
-// CHECK: library_address 730750818665451459101842416358141509827966271488
+// CHECK: library_address "B.sol":"L"
+// CHECK: library_address "A.sol":"L"
 fn @keep_distinct_libraries(arg0: bool) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
-    v0 = library_address 730750818665451459101842416358141509827966271488
+    v0 = library_address "A.sol":"L"
     ret v0
   bb2:
-    v1 = library_address 730750818665451459101842416358141509827966271489
+    v1 = library_address "B.sol":"L"
     ret v1
 }

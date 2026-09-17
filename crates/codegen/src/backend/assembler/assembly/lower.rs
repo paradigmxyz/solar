@@ -65,6 +65,7 @@ impl Assembler<'_> {
             evm_ir,
             program,
             push_values: std::mem::take(&mut self.push_values),
+            library_pushes: std::mem::take(&mut self.library_pushes),
             immutable_pushes: std::mem::take(&mut self.immutable_pushes),
             next_label: std::mem::take(&mut self.next_label),
             deferred_values: std::mem::take(&mut self.deferred_values),
@@ -216,9 +217,6 @@ fn lower_evm_ir_once(
             program.set_modifier_depth(inst.metadata.modifier_depth());
             let first = program.instructions.len();
             lower_instruction(assembler, &mut program, inst, module, labels);
-            if inst.pushed_library().is_some() {
-                program.library_pushes.insert(first);
-            }
             if first < program.instructions.len() {
                 if let Some(function) = pending_block_invoke.take() {
                     program.set_function_invoke(first, Some(function));
@@ -345,8 +343,10 @@ fn lower_instruction(
         let type_size = inst.immutable_type_size().expect("validated immutable width");
         assembler.immutable_push_inst(id, type_size)
     } else if inst.is_encoded_push() {
-        // push20 placeholder | push immediate
-        if let Some(value) = inst.pushed_library().or(inst.pushed_value()) {
+        // push_library source:library | push immediate
+        if let Some(library) = inst.pushed_library() {
+            assembler.library_push_inst(library)
+        } else if let Some(value) = inst.pushed_value() {
             assembler.push_inst(value)
         } else if let Some(block) = inst.pushed_block() {
             AsmInst::push_label(label_for_block(assembler, module, block, labels))

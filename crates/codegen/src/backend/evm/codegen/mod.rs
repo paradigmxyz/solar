@@ -29,6 +29,7 @@ use super::{
     layout::{RelayoutAddress, preserves_push_width},
     op::{self, WORD_BYTES},
 };
+use crate::link::LibraryRelocation;
 use crate::{
     backend::assembler::{
         ArtifactKind, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
@@ -83,7 +84,7 @@ const GLOBAL_STACK_LAYOUT_LIMIT: usize = 8;
 #[derive(Default)]
 struct GeneratedCode {
     bytecode: Vec<u8>,
-    library_offsets: Vec<usize>,
+    library_relocations: Vec<LibraryRelocation>,
     evm_ir: Option<ir::Module>,
     debug_info: Option<Vec<DebugInstruction>>,
 }
@@ -616,9 +617,9 @@ pub struct EvmArtifact {
     /// Runtime bytecode, i.e. the code stored on-chain.
     pub runtime: Vec<u8>,
     /// Library address offsets in the deployment bytecode.
-    pub(crate) deployment_library_offsets: Vec<usize>,
+    pub(crate) deployment_library_relocations: Vec<LibraryRelocation>,
     /// Library address offsets in the runtime bytecode.
-    pub(crate) runtime_library_offsets: Vec<usize>,
+    pub(crate) runtime_library_relocations: Vec<LibraryRelocation>,
     /// Immutable placeholders in the runtime bytecode.
     pub(crate) immutable_references: Vec<ImmutableRef>,
     /// Final deployment-prefix EVM IR immediately before byte emission.

@@ -313,7 +313,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             self.parser.expect(TokenKind::Colon)?;
             let bytes = self.parser.parse_data_bytes()?;
-            let offsets = self.parser.parse_data_library_offsets(&bytes)?;
+            let offsets = self.parser.parse_data_library_relocations(&bytes)?;
             module.add_linked_data(bytes, name, offsets);
         }
         self.data_sizes = module.iter_data().map(|(_, data)| data.len()).collect();
@@ -1995,7 +1995,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::StoreImmutable(id, value), None)
             }
             sym::library_address => {
-                let value = self.parser.parse_uint()?;
+                let value = self.parser.parse_library()?;
                 (InstKind::LibraryAddress(value), Some(MirType::uint256()))
             }
             kw::Loadimmutable => {

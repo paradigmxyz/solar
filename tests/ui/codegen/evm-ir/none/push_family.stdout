@@ -7,7 +7,7 @@
     push_deferred 0xfffffff
     push_immutable 3, 1
     push_immutable 0xfffffff, 32
-    push_library 0x8000000000000000000000000000000000000000
+    push_library "dir/name\".sol":"L"
     pop
     pop
     pop

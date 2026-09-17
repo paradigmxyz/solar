@@ -7,6 +7,7 @@ use super::{
     RevertKind, RevertPayload, RevertReason, SliceLocation, StorageAlias, StructId, Terminator,
     Value, ValueId,
 };
+use crate::link::LibraryId;
 use crate::mir::{Callee, memory::EvmMemoryLayout};
 use alloy_primitives::{Bytes, U256};
 use smallvec::SmallVec;
@@ -1108,9 +1109,9 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits an opaque library address supplied by the linker.
-    pub(crate) fn library_address(&mut self, placeholder: U256) -> ValueId {
-        // result = library_address placeholder
-        self.emit_inst(InstKind::LibraryAddress(placeholder), Some(MirType::uint256()))
+    pub(crate) fn library_address(&mut self, library: LibraryId) -> ValueId {
+        // result = library_address source:library
+        self.emit_inst(InstKind::LibraryAddress(library), Some(MirType::uint256()))
     }
 
     /// Emits a loadimmutable instruction.

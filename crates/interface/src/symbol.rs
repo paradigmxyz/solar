@@ -1135,7 +1135,7 @@ symbols! {
         library_address,
         library_called_without_delegatecall,
         library_deploy_address,
-        library_offsets,
+        library_relocations,
         literal,
         literal_bytes,
         literal_bytes_word,

@@ -22,6 +22,7 @@ pub use contract::{
 };
 
 mod ir_parse;
+mod link;
 mod source_info;
 
 pub(crate) mod target;

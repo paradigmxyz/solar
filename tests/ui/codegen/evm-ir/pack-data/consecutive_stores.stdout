@@ -19,7 +19,7 @@
     jump bb1
   bb1:
     push 128
-    push_library 0x8000000000000000000000000000000000000000
+    push_library "A.sol":"L"
     dup 2
     mstore
     push 32

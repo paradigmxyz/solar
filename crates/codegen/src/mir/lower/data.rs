@@ -5,6 +5,7 @@ use crate::{
         ir::immediate_materialization_cost,
         op::{WORD_BYTES, push_len},
     },
+    link::RelocatableBytecode,
     mir::{FunctionBuilder, Module, ValueId, memory::EvmMemoryLayout},
 };
 use alloy_primitives::{Bytes, U256};
@@ -35,51 +36,55 @@ pub(crate) fn data_copy_is_profitable(
 #[derive(Clone, Debug, Default)]
 pub struct ContractBytecodes {
     /// Deployment bytecode, including the initcode prefix.
-    deployment: Option<Bytes>,
+    deployment: Option<RelocatableBytecode>,
     /// Deployed runtime bytecode.
-    runtime: Option<Bytes>,
-    pub(crate) deployment_library_offsets: Vec<usize>,
-    pub(crate) runtime_library_offsets: Vec<usize>,
+    runtime: Option<RelocatableBytecode>,
 }
 
 impl ContractBytecodes {
-    /// Creates bytecode metadata from a generated artifact.
+    /// Creates bytecode metadata without unresolved library addresses.
     pub fn new(deployment: Bytes, runtime: Bytes) -> Self {
+        Self::with_relocations(deployment.into(), runtime.into())
+    }
+
+    /// Creates bytecode metadata from a generated artifact and its relocations.
+    pub(crate) fn with_relocations(
+        deployment: RelocatableBytecode,
+        runtime: RelocatableBytecode,
+    ) -> Self {
         Self {
-            deployment: (!deployment.is_empty()).then_some(deployment),
-            runtime: (!runtime.is_empty()).then_some(runtime),
-            ..Self::default()
+            deployment: (!deployment.bytes.is_empty()).then_some(deployment),
+            runtime: (!runtime.bytes.is_empty()).then_some(runtime),
         }
     }
 
     /// Returns the deployment bytecode, when codegen produced it.
-    pub fn deployment(&self) -> Option<&Bytes> {
+    pub(crate) fn deployment(&self) -> Option<&RelocatableBytecode> {
         self.deployment.as_ref()
     }
 
     /// Returns the runtime bytecode, when codegen produced it.
-    pub fn runtime(&self) -> Option<&Bytes> {
+    pub(crate) fn runtime(&self) -> Option<&RelocatableBytecode> {
         self.runtime.as_ref()
     }
 }
 
 /// Copies constant data and clears its padding through `padded_size`.
-#[allow(clippy::too_many_arguments)]
 pub(super) fn copy_data_to_memory(
     gcx: Gcx<'_>,
     module: &mut Module,
     builder: &mut FunctionBuilder<'_>,
     dest: ValueId,
-    data: &[u8],
+    bytecode: &RelocatableBytecode,
     padded_size: usize,
     name: Option<Symbol>,
-    library_offsets: &[usize],
 ) {
+    let data = &bytecode.bytes;
     debug_assert!(padded_size >= data.len());
     if padded_size == 0 {
         return;
     }
-    if !library_offsets.is_empty() {
+    if !bytecode.relocations.is_empty() {
         // memory_zero dest + floor(size / 32) * 32, padded_size - floor(size / 32) * 32
         // data_copy linked_bytecode, dest, size
         if padded_size > data.len() {
@@ -89,7 +94,7 @@ pub(super) fn copy_data_to_memory(
         }
         let size = builder.imm(data.len() as u64);
         let data =
-            module.intern_linked_data(Bytes::copy_from_slice(data), name, library_offsets.to_vec());
+            module.intern_linked_data(bytecode.bytes.clone(), name, bytecode.relocations.clone());
         builder.data_copy(data, dest, size);
         return;
     }
@@ -106,7 +111,7 @@ pub(super) fn copy_data_to_memory(
         && padded_size > data.len()
         && padded_size == data.len().next_multiple_of(EvmMemoryLayout::WORD_SIZE as usize);
     let data = if separate_tail || padded_size == data.len() {
-        Cow::Borrowed(data)
+        Cow::Borrowed(data.as_ref())
     } else {
         let mut padded = Vec::with_capacity(padded_size);
         padded.extend_from_slice(data);

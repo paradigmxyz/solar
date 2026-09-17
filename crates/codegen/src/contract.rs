@@ -3,7 +3,8 @@
 use crate::{
     Backend, EvmCodegen,
     backend::evm::{DebugInstruction, ir},
-    mir::{LibraryLink, Module, lower, pass::run_pipeline},
+    link::{LibraryId, LibraryRelocation, RelocatableBytecode},
+    mir::{Module, lower, pass::run_pipeline},
 };
 use alloy_primitives::Bytes;
 use either::Either;
@@ -15,7 +16,7 @@ use solar_data_structures::{
     map::FxHashMap,
     sync::{self, Scope},
 };
-use solar_interface::{Result, error_code};
+use solar_interface::{Result, Symbol, error_code};
 use solar_sema::{
     Gcx,
     hir::{ContractId, VariableId},
@@ -38,9 +39,6 @@ pub struct ContractArtifact {
     pub deployment_link_references: Vec<LibraryReference>,
     /// Unresolved library addresses in the runtime bytecode.
     pub runtime_link_references: Vec<LibraryReference>,
-    /// Library placeholders this artifact may contain, including those of every contract
-    /// whose creation or runtime code it embeds.
-    pub(crate) library_links: Vec<LibraryLink>,
     /// Captured MIR, built under `-O none` when no explicit pipeline is configured and
     /// post-pipeline otherwise.
     pub mir: Option<Module>,
@@ -357,17 +355,19 @@ fn generate_contract_bytecode(
             let artifact = artifacts[dependency]
                 .get()
                 .expect("dependency artifact should have been generated");
-            (dependency, {
-                let mut bytecodes = lower::ContractBytecodes::new(
-                    artifact.deployment.clone(),
-                    artifact.runtime.clone(),
-                );
-                bytecodes.deployment_library_offsets =
-                    artifact.deployment_link_references.iter().map(|r| r.start).collect();
-                bytecodes.runtime_library_offsets =
-                    artifact.runtime_link_references.iter().map(|r| r.start).collect();
-                bytecodes
-            })
+            (
+                dependency,
+                lower::ContractBytecodes::with_relocations(
+                    RelocatableBytecode {
+                        bytes: artifact.deployment.clone(),
+                        relocations: library_relocations(&artifact.deployment_link_references),
+                    },
+                    RelocatableBytecode {
+                        bytes: artifact.runtime.clone(),
+                        relocations: library_relocations(&artifact.runtime_link_references),
+                    },
+                ),
+            )
         })
         .collect();
     let mut module =
@@ -456,28 +456,9 @@ fn generate_contract_bytecode(
             type_size: reference.type_size,
         })
         .collect();
-    // Embedded creation and runtime code carries the dependencies' placeholders verbatim, so
-    // their links are part of this artifact's link surface too.
-    let mut library_links = module.library_links().to_vec();
-    for dependency in graph.dependencies[contract_id].iter() {
-        let dependency =
-            artifacts[dependency].get().expect("dependency artifact should have been generated");
-        for link in &dependency.library_links {
-            if !library_links.contains(link) {
-                library_links.push(link.clone());
-            }
-        }
-    }
-    let deployment_link_references = collect_library_references(
-        &artifact.deployment,
-        &artifact.deployment_library_offsets,
-        &library_links,
-    );
-    let runtime_link_references = collect_library_references(
-        &artifact.runtime,
-        &artifact.runtime_library_offsets,
-        &library_links,
-    );
+    let deployment_link_references =
+        collect_library_references(&artifact.deployment_library_relocations);
+    let runtime_link_references = collect_library_references(&artifact.runtime_library_relocations);
     let mir = capture_mir.then(|| built_mir.unwrap_or(module));
 
     Ok(ContractArtifact {
@@ -486,7 +467,6 @@ fn generate_contract_bytecode(
         immutable_references,
         deployment_link_references,
         runtime_link_references,
-        library_links,
         mir,
         deployment_evm_ir: artifact.deployment_evm_ir,
         runtime_evm_ir: artifact.runtime_evm_ir,
@@ -495,21 +475,28 @@ fn generate_contract_bytecode(
     })
 }
 
-/// Resolves the assembler's library relocations to source-qualified names.
-fn collect_library_references(
-    bytecode: &[u8],
-    offsets: &[usize],
-    links: &[LibraryLink],
-) -> Vec<LibraryReference> {
-    offsets
+/// Converts named artifact references into identities for embedded bytecode.
+fn library_relocations(references: &[LibraryReference]) -> Vec<LibraryRelocation> {
+    references
         .iter()
-        .map(|&start| {
-            let placeholder = &bytecode[start..start + 20];
-            let link = links
-                .iter()
-                .find(|link| placeholder == link.placeholder)
-                .expect("library relocation must name a registered library");
-            LibraryReference { source: link.source.clone(), name: link.name.clone(), start }
+        .map(|reference| LibraryRelocation {
+            offset: reference.start,
+            library: LibraryId {
+                source: Symbol::intern(&reference.source),
+                name: Symbol::intern(&reference.name),
+            },
+        })
+        .collect()
+}
+
+/// Resolves the assembler's library relocations to source-qualified names.
+fn collect_library_references(relocations: &[LibraryRelocation]) -> Vec<LibraryReference> {
+    relocations
+        .iter()
+        .map(|reloc| LibraryReference {
+            source: reloc.library.source.to_string(),
+            name: reloc.library.name.to_string(),
+            start: reloc.offset,
         })
         .collect()
 }
@@ -523,28 +510,21 @@ fn append_runtime_data(module: &mut Module, data: Option<&Bytes>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::evm;
+    use solar_interface::sym;
 
     #[test]
-    fn library_references_use_recorded_offsets() {
-        let link = LibraryLink {
-            source: "source.sol".to_string(),
-            name: "Library".to_string(),
-            placeholder: [42; 20],
-        };
-        let mut bytecode = vec![evm::op::PUSH20 + 1, evm::op::PUSH20];
-        bytecode.extend(link.placeholder);
-        let start = bytecode.len() + 1;
-        bytecode.push(evm::op::PUSH20);
-        bytecode.extend(link.placeholder);
-
-        assert_eq!(
-            collect_library_references(&bytecode, &[start], &[link]),
-            [LibraryReference {
-                source: "source.sol".to_string(),
-                name: "Library".to_string(),
-                start,
-            }]
-        );
+    fn library_references_use_recorded_identities() {
+        solar_interface::enter(|| {
+            let relocation = LibraryRelocation {
+                offset: 22,
+                library: LibraryId { source: sym::literal, name: sym::runtime },
+            };
+            let references = collect_library_references(&[relocation]);
+            assert_eq!(
+                references,
+                [LibraryReference { source: "literal".into(), name: "runtime".into(), start: 22 }]
+            );
+            assert_eq!(library_relocations(&references), [relocation]);
+        });
     }
 }

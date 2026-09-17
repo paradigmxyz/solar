@@ -29,8 +29,12 @@ impl Module {
                     write!(f, "{byte:02x}")?;
                 }
                 write!(f, "\"")?;
-                if !data.library_offsets.is_empty() {
-                    write!(f, " library_offsets [{}]", data.library_offsets.iter().format(", "))?;
+                if !data.library_relocations.is_empty() {
+                    write!(
+                        f,
+                        " library_relocations [{}]",
+                        data.library_relocations.iter().format(", ")
+                    )?;
                 }
                 writeln!(f)?;
             }
@@ -211,9 +215,10 @@ fn display_metadata(
 
 fn display_push_value<'a>(module: &'a Module, value: &'a PushValue) -> impl fmt::Display + 'a {
     fmt::from_fn(move |f| match value {
-        PushValue::Immediate(value) | PushValue::Library(value) => {
+        PushValue::Immediate(value) => {
             write!(f, "{}", display_u256(*value))
         }
+        PushValue::Library(library) => write!(f, "{library}"),
         PushValue::Block(block) => write!(f, "{}", display_block_id(module, *block)),
         PushValue::Data(data) => write!(
             f,

@@ -1,6 +1,7 @@
 //! EVM IR construction through the backend assembler interface.
 
 use super::{self as ir};
+use crate::link::LibraryId;
 use crate::{
     backend::{
         assembler::{
@@ -143,7 +144,7 @@ impl<'gcx> Assembler<'gcx> {
             .iter_data()
             .map(|(id, data)| ir::Data {
                 bytes: data.clone(),
-                library_offsets: module.data_library_offsets(id).to_vec(),
+                library_relocations: module.data_library_relocations(id).to_vec(),
                 name: module.data_name(id),
                 emit_in_runtime: self.artifact_kind == ArtifactKind::Runtime
                     && module.data_is_emitted_in_runtime(id),
@@ -468,9 +469,9 @@ impl<'gcx> Assembler<'gcx> {
         self.deferred_allocations.insert(id, DeferredAllocResolution::Dynamic(size));
     }
 
-    /// Emits an opaque library placeholder.
-    pub(crate) fn emit_push_library(&mut self, value: U256) {
-        // push_library placeholder
+    /// Emits a symbolic library address.
+    pub(crate) fn emit_push_library(&mut self, value: LibraryId) {
+        // push_library library
         self.push_ir_instruction(ir::Instruction::push_library(value));
     }
 

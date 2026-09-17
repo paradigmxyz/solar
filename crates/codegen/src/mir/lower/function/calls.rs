@@ -1,6 +1,7 @@
 //! Function calls, conversions, and call-target resolution.
 
 use super::*;
+use crate::link::LibraryId;
 
 #[derive(Clone, Copy)]
 pub(super) struct ExternalReturnPlan {
@@ -339,7 +340,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.imm(layout.head_size())
         };
 
-        let bytecode_len = u64::try_from(bytecode.len()).ok()?;
+        let bytecode_len = u64::try_from(bytecode.bytes.len()).ok()?;
         let bytecode_len_value = self.builder.imm(bytecode_len);
         let total_len = self.builder.checked_add(bytecode_len_value, encoded_len);
         // CREATE consumes a raw byte range, so do not reserve a semantic bytes
@@ -356,9 +357,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             &mut self.builder,
             data,
             bytecode,
-            bytecode.len(),
+            bytecode.bytes.len(),
             Some(super::super::data::contract_bytecode_data_name(self.cx.gcx, contract_id, true)),
-            &self.cx.child_bytecodes[&contract_id].deployment_library_offsets,
         );
         let encoded_ptr = self.builder.slice_ptr(encoded);
         let copy_dest = self.builder.add(data, bytecode_len_value);
@@ -1085,23 +1085,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let contract = self.cx.gcx.hir.contract(contract_id);
         let source = self.cx.gcx.hir.source(contract.source).file.name.display().to_string();
 
-        let name = contract.name.as_str_in(self.cx.gcx.sess).to_string();
-        // The source map keeps absolute file names under `-Zui-testing` (the UI runner relies
-        // on them), so hash only the file name there; otherwise the placeholder would change
-        // with the checkout path and no blessed output could pin it.
-        let hashed_source = if self.cx.gcx.sess.opts.unstable.ui_testing
-            && let Some(file_name) = std::path::Path::new(&source).file_name()
-        {
-            file_name.to_string_lossy().into_owned()
-        } else {
-            source.clone()
-        };
-        let hash = keccak256(format!("{hashed_source}:{name}"));
-        let mut placeholder = <[u8; 20]>::try_from(&hash[..20]).unwrap();
-        placeholder[0] |= 0x80;
-        self.cx.module.add_library_link(LibraryLink { source, name, placeholder });
-        // result = library_address placeholder
-        self.builder.library_address(U256::from_be_slice(&placeholder))
+        let library = LibraryId { source: Symbol::intern(&source), name: contract.name.name };
+        // result = library_address source:library
+        self.builder.library_address(library)
     }
 
     pub(super) fn lower_library_call(

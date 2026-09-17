@@ -23,7 +23,8 @@
 //! `#[commutative(lhs, rhs)]` generates the trait and canonicalizes exactly that
 //! operand pair, leaving attributes and any remaining operands untouched.
 
-use alloy_primitives::{Bytes, U256};
+use crate::link::LibraryId;
+use alloy_primitives::Bytes;
 
 use super::{
     AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AddressCallKind, AllocationKind,
@@ -479,7 +480,7 @@ attributes! {
     bool, StructId, MirType, AddressCallKind, CheckedOp, ArithmeticKind, OptionU64,
     u32,
     u64,
-    U256,
+    LibraryId,
     AbiEncodeMode,
     AllocationKind,
     AllocationSemantics,
@@ -2064,7 +2065,7 @@ define_mir_ops! {
         side_effects = false,
         category = None
     )]
-    LibraryAddress(placeholder: U256),
+    LibraryAddress(library: LibraryId),
 
     // Return data operations
     /// Get the current call's return data size: `returndatasize()`.

@@ -1,6 +1,8 @@
 //! Memory-backed value construction and default aggregate values.
 
 use super::*;
+use crate::link::RelocatableBytecode;
+use alloy_primitives::Bytes;
 
 const MIN_BULK_ZERO_STRUCT_FIELDS: usize = 4;
 
@@ -156,10 +158,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.cx.gcx,
             self.cx.module,
             &mut self.builder,
-            bytes,
+            &Bytes::copy_from_slice(bytes).into(),
             AllocationSemantics::INTERNAL,
             None,
-            &[],
         )
     }
 
@@ -218,11 +219,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         gcx: Gcx<'_>,
         module: &mut Module,
         builder: &mut FunctionBuilder<'_>,
-        bytes: &[u8],
+        bytecode: &RelocatableBytecode,
         semantics: AllocationSemantics,
         name: Option<Symbol>,
-        library_offsets: &[usize],
     ) -> Option<ValueId> {
+        let bytes = &bytecode.bytes;
         // object = bytes(len) !preserves_fmp
         let words = u64::try_from(bytes.len().div_ceil(32)).ok()?;
         let size = builder.imm(words.checked_add(1)?.checked_mul(32)?);
@@ -239,10 +240,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             module,
             builder,
             data,
-            bytes,
+            bytecode,
             usize::try_from(words.checked_mul(32)?).ok()?,
             name,
-            library_offsets,
         );
         Some(object)
     }
@@ -256,10 +256,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 this.cx.gcx,
                 this.cx.module,
                 &mut builder,
-                symbol.as_byte_str(),
+                &Bytes::copy_from_slice(symbol.as_byte_str()).into(),
                 AllocationSemantics::INTERNAL,
                 None,
-                &[],
             )
             .expect("literal length fits in a memory object");
             builder.ret([object]);
