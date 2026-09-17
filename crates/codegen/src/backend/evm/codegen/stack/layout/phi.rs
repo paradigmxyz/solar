@@ -358,14 +358,17 @@ impl<'a> StackPhiPlanner<'a> {
         plan
     }
 
-    /// Plans entry layouts for the acyclic joins the phi planners left alone. A join keeps its
-    /// phi results and the live-in values that are already on the stack at the exit of every
+    /// Plans entry layouts for the acyclic joins the phi planners left alone. A join keeps its phi
+    /// results and the live-in values that are already on the stack at the exit of every
     /// predecessor, so a value defined before a diamond crosses it without a spill store and a
     /// reload on the far side, and no edge has to load anything it did not have. Residency is a
     /// static fixpoint over the planned layouts: a carried value stays resident through
-    /// single-predecessor chains and planned joins until a call drains the stack. The sibling
-    /// arm of a planned branch gets a layout of its own; a sibling that only aborts is entered
-    /// with the carried words beneath it, and any other sibling starts from an empty stack.
+    /// single-predecessor chains and planned joins until a call drains the stack. A branch the plan
+    /// does not own takes the condition it computes off the top, but one it was entered with stays
+    /// below and is duplicated for `JUMPI`, so an invariant test goes around a loop with the other
+    /// carried words. The sibling arm of a planned branch gets a layout of its own; a sibling that
+    /// only aborts is entered with the carried words beneath it, and any other sibling starts from
+    /// an empty stack.
     fn plan_live_joins(&self, liveness: &Liveness, plan: &mut StackPhiPlan) {
         let func = self.func;
         let mut loop_headers = DenseBitSet::new_empty(func.blocks.len());
@@ -1075,11 +1078,16 @@ impl<'a> StackPhiPlanner<'a> {
             resident.extend(defs.iter().copied().filter(|def| !incoming.contains(def)));
             resident.extend(incoming.iter().copied().filter(|value| live_out.contains(*value)));
         }
-        // An unplanned branch consumes its condition. Its spill home may still exist, but
-        // the join planner must not count a reload as an already-resident stack word.
+        // An unplanned branch consumes the condition it finds on top, which is the one the
+        // block computes. Its spill home may still exist, but the join planner must not count
+        // a reload as an already-resident stack word. A condition the block was entered with
+        // rides below the top instead: the branch duplicates it for `JUMPI` and every word
+        // survives, so an invariant that guards each iteration goes around the loop on the
+        // stack rather than being banned at the latch and reloaded by the header.
         if !facts.planned_branches.contains(block_id)
             && !plan.branch_edges.contains_key(&block_id)
             && let Some(Terminator::Branch { condition, .. }) = &block.terminator
+            && (resident.first() == Some(condition) || !incoming.contains(condition))
         {
             resident.retain(|value| value != condition);
         }
