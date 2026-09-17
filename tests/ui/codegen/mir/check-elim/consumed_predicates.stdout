@@ -8,7 +8,7 @@
       jumpi v1, bb3, bb1
     bb1:
       v2 = mul arg0, 4
-      v3 = lt v2, 32
+-     v3 = lt v2, 32
 -     jumpi v3, bb2, bb3
 +     jump bb2
     bb2:

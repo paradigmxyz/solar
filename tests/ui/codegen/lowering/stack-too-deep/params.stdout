@@ -10,25 +10,9 @@ bb0:
   shr
   dup 1
   push 0x8c4ee692
-  eq
-  push bb4
+  sub
+  push bb3
   jumpi
-  jump bb3
-bb3 [cold]:
-  push 0
-  push 0
-  revert
-bb25 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
-  push 17
-  push 32
-  mstore
-  push 36
-  push 28
-  revert
-bb4:
   push 644
   calldatasize
   lt
@@ -43,172 +27,168 @@ bb4:
   calldataload
   dup 2
   lt
-  push bb25
-  jumpi
   push 68
   calldataload
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb25
-  jumpi
+  or
   push 100
   calldataload
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb25
-  jumpi
+  or
   push 132
   calldataload
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb25
-  jumpi
+  or
   push 164
   calldataload
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb25
-  jumpi
+  or
   push 196
   calldataload
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb25
-  jumpi
+  or
   push 228
   calldataload
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb25
-  jumpi
+  or
   push 260
   calldataload
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb25
-  jumpi
+  or
   push 292
   calldataload
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb25
-  jumpi
+  or
   push 324
   calldataload
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb25
-  jumpi
+  or
   push 356
   calldataload
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb25
-  jumpi
+  or
   push 388
   calldataload
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb25
-  jumpi
+  or
   push 420
   calldataload
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb25
-  jumpi
+  or
   push 452
   calldataload
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb25
-  jumpi
+  or
   push 484
   calldataload
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb25
-  jumpi
+  or
   push 516
   calldataload
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb25
-  jumpi
+  or
   push 548
   calldataload
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb25
-  jumpi
+  or
   push 580
   calldataload
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb25
-  jumpi
+  or
   push 612
   calldataload
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb25
+  or
+  push bb7
   jumpi
   push 128
   mstore
   push 32
   push 128
   return
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb7 [cold]:
+  push 0x4e487b71
+  push 0
+  mstore
+  push 17
+  push 32
+  mstore
+  push 36
+  push 28
+  revert

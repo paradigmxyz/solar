@@ -18,7 +18,7 @@
       jump bb5
     bb5:
       v2 = phi [bb3: arg1], [bb4: arg2]
-      v3 = lt v2, 100
+-     v3 = lt v2, 100
 -     jumpi v3, bb7, bb6
 -   bb6:
 -     revert 0, 0
@@ -35,7 +35,7 @@
       v1 = lt v0, 100
       jumpi v1, bb2, bb3
     bb3:
-      v3 = gt v0, 100
+-     v3 = gt v0, 100
 -     jumpi v3, bb4, bb5
 +     jump bb5
     bb5:
@@ -75,7 +75,7 @@
       v1 = gt arg1, arg2
       jumpi v1, bb4, bb2
     bb2:
-      v2 = lt arg0, arg2
+-     v2 = lt arg0, arg2
 -     jumpi v2, bb3, bb4
 +     jump bb3
     bb3:

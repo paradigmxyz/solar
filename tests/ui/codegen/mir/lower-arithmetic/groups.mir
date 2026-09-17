@@ -1,0 +1,179 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=lower-arithmetic,lower-arithmetic
+@module CheckedAggregate
+
+// Retain every carry, including earlier overflows whose wrapped result feeds later additions.
+fn @chain(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_add u256, v0, arg2
+    v2 = checked_add u256, v1, arg0
+    ret v2
+}
+
+// Independent additions share the overflow check.
+fn @independent(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_add u256, arg0, arg1
+    v2 = xor v0, v1
+    ret v2
+}
+
+fn @mixed(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_mul u256, v0, arg2
+    v2 = checked_sub u256, v1, arg0
+    ret v2
+}
+
+fn @signed(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = checked_add i256, arg0, arg1
+    v1 = checked_add i256, v0, arg1
+    v2 = checked_mul i256, v1, arg1
+    ret v2
+}
+
+fn @narrow(arg0: u8, arg1: u8) -> u8 {
+  bb0:
+    v0 = checked_add u8, arg0, arg1
+    v1 = checked_add u8, v0, arg1
+    ret v1
+}
+
+fn @negation(arg0: i8, arg1: i8) -> i8 {
+  bb0:
+    v0 = checked_sub i8, 0, arg0
+    v1 = checked_add i8, v0, arg1
+    ret v1
+}
+
+// Long chains keep one accumulated carry.
+fn @long_chain(arg0: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, arg0
+    v1 = checked_add u256, v0, arg0
+    v2 = checked_add u256, v1, arg0
+    v3 = checked_add u256, v2, arg0
+    v4 = checked_add u256, v3, arg0
+    v5 = checked_add u256, v4, arg0
+    v6 = checked_add u256, v5, arg0
+    v7 = checked_add u256, v6, arg0
+    v8 = checked_add u256, v7, arg0
+    ret v8
+}
+
+fn @memory_boundary(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    mstore 0, v0
+    v1 = checked_add u256, v0, arg1
+    ret v1
+}
+
+fn @gas_boundary(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = gas
+    v2 = checked_add u256, v0, v1
+    ret v2
+}
+
+fn @panic_boundary(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    icall panic_if_zero<0x1>, arg0
+    v1 = checked_add u256, v0, arg1
+    ret v1
+}
+
+fn @division_boundary(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_div u256, v0, arg1
+    v2 = checked_add u256, v1, arg1
+    ret v2
+}
+
+fn @block_boundary(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    jump bb1
+  bb1:
+    v1 = checked_add u256, v0, arg1
+    ret v1
+}
+
+// Replacement redirects successor phi inputs to the new continuation.
+fn @phi_use(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_add u256, v0, arg1
+    jump bb1
+  bb1:
+    v2 = phi [bb0: v1]
+    ret v2
+}
+
+fn @call_boundary(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = icall @helper, v0
+    v2 = checked_add u256, v1, arg1
+    ret v2
+}
+
+fn @helper(arg0: u256) -> u256 {
+  bb0:
+    ret arg0
+}
+
+// Reversed operands and later uses of intermediate sums remain valid.
+fn @reused_sum(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_add u256, arg1, v0
+    v2 = xor v0, v1
+    ret v2
+}
+
+// Pure scalar work and fan-out do not break the group.
+fn @tree(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = xor arg1, arg2
+    v2 = checked_add u256, arg2, v1
+    v3 = checked_add u256, v2, v0
+    v4 = checked_mul u256, v3, v0
+    ret v4
+}
+
+// Each effect separates groups, including two groups within the same original block.
+fn @two_groups(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_add u256, v0, arg1
+    mstore 0, v1
+    v2 = checked_sub u256, v1, arg1
+    v3 = checked_mul u256, v2, arg1
+    ret v3
+}
+
+fn @remainder_boundary(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_add u256, v0, arg1
+    v2 = checked_rem u256, v1, arg1
+    v3 = checked_add u256, v2, arg1
+    ret v3
+}
+
+fn @power_boundary(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_add u256, v0, arg1
+    v2 = checked_pow u256, v1, arg1
+    v3 = checked_add u256, v2, arg1
+    ret v3
+}

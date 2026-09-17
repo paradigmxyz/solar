@@ -9,7 +9,7 @@
       jumpi v2, bb1, bb2
     bb2:
       v3 = sub arg0, arg1
-      v4 = lt arg0, arg1
+-     v4 = lt arg0, arg1
 -     jumpi v4, bb3, bb4
 +     jump bb4
     bb4:

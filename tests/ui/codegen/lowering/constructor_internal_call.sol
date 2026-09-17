@@ -21,8 +21,9 @@ contract ConstructorICall {
     // EVMIR: [[RECURSE_BLOCK:bb[0-9]+]]:
     // EVMIR-NEXT: push 11
     // EVMIR: mul
+    // EVMIR: push 1{{$}}
+    // EVMIR: sub
     // EVMIR: jumpi
-    // EVMIR-NEXT: push 1
     // EVMIR: push {{bb[0-9]+}}
     // EVMIR-NEXT: jump [[HELPER]]
     // EVMIR: [[HELPER]]:

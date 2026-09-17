@@ -43,17 +43,11 @@ bb10 [loop]:
   dup 3
   mul
   dup 2
-  iszero
-  dup 3
-  dup 3
+  dup 2
   div
   swap 1
-  swap 4
-  eq
-  swap 1
   swap 3
-  or
-  iszero
+  sub
   push bb12
   jumpi
   push 1
@@ -94,12 +88,12 @@ bb0:
   dup 1
   push 0x3ed7bb22
   eq
-  push bb14
+  push bb13
   jumpi
   dup 1
   push 0x6f25cb96
   eq
-  push bb21
+  push bb20
   jumpi
   dup 1
   push 0x83714834
@@ -114,71 +108,26 @@ bb0:
   push 2
   push 1
   jump bb8
-bb10 [loop]:
-  dup 2
-  dup 2
-  mul
-  dup 3
-  iszero
-  dup 4
-  dup 3
-  div
-  swap 1
-  swap 3
-  eq
-  swap 1
-  swap 2
-  or
-  iszero
-  push bb12
-  jumpi
-  swap 1
-  push 1
-  add
-  swap 1
-  jump bb8
 bb8 [loop]:
   push 4
   calldataload
   dup 3
   gt
-  iszero
-  push bb10
-  jumpi
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb5 [cold]:
-  push 0
-  push 0
-  revert
-bb14:
-  push 68
-  calldatasize
-  lt
-  push bb5
-  jumpi
-  push 4
-  calldataload
-  push 0
-  jump bb16
-bb16 [loop]:
-  push 36
-  calldataload
-  dup 3
-  gt
-  push bb17
+  push bb9
   jumpi
   dup 2
-  add
-  swap 1
+  dup 2
+  mul
   push 1
+  dup 4
   add
-  swap 1
+  swap 3
   dup 2
-  push bb16
+  div
+  swap 1
+  swap 2
+  eq
+  push bb8
   jumpi
   push 0x4e487b71
   push 0
@@ -189,13 +138,52 @@ bb16 [loop]:
   push 36
   push 28
   revert
-bb17:
+bb5 [cold]:
+  push 0
+  push 0
+  revert
+bb9:
   push 128
   mstore
   push 32
   push 128
   return
-bb21:
+bb13:
+  push 68
+  calldatasize
+  lt
+  push bb5
+  jumpi
+  push 4
+  calldataload
+  push 0
+  jump bb15
+bb15 [loop]:
+  push 36
+  calldataload
+  dup 3
+  gt
+  push bb9
+  jumpi
+  dup 2
+  add
+  swap 1
+  push 1
+  add
+  swap 1
+  dup 2
+  push bb15
+  jumpi
+  push 0x4e487b71
+  push 0
+  mstore
+  push 17
+  push 32
+  mstore
+  push 36
+  push 28
+  revert
+bb20:
   push 288
   push 64
   mstore
@@ -207,8 +195,8 @@ bb21:
   push 0
   push 4
   calldataload
-  jump bb23
-bb25 [loop]:
+  jump bb22
+bb24 [loop]:
   dup 1
   swap 2
   add
@@ -219,20 +207,20 @@ bb25 [loop]:
   push 160
   mstore
   iszero
-  push bb27
+  push bb26
   jumpi
   swap 1
   pop
   push 160
   mload
-  jump bb23
-bb23 [loop]:
+  jump bb22
+bb22 [loop]:
   push 36
   calldataload
   dup 2
   gt
   iszero
-  push bb25
+  push bb24
   jumpi
   swap 1
   push 128
@@ -240,17 +228,7 @@ bb23 [loop]:
   push 32
   push 128
   return
-bb12 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
-  push 17
-  push 32
-  mstore
-  push 36
-  push 28
-  revert
-bb27 [cold]:
+bb26 [cold]:
   push 192
   push 0x760769fe
   push 224

@@ -64,8 +64,15 @@ bb3:
   add
   mload
   mul
+  push 1
+  push 160
+  mload
+  push 64
+  add
+  mload
+  sub
   push 11
-  dup 2
+  dup 3
   div
   push 160
   mload
@@ -75,13 +82,6 @@ bb3:
   sub
   push bb7
   jumpi
-  push 1
-  push 160
-  mload
-  push 64
-  add
-  mload
-  sub
   dup 2
   push 160
   mload
