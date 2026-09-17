@@ -2069,6 +2069,9 @@ impl AliasAnalysis {
             {
                 Some(EvmMemoryLayout::HEAP_START)
             }
+            InstKind::WordCast(value) | InstKind::MemoryObjectFromPtr { ptr: value, .. } => {
+                Self::pointer_lower_bound(func, *value, depth + 1)
+            }
             InstKind::InternalFrameAddr(offset) => EvmMemoryLayout::HEAP_START.checked_add(*offset),
             InstKind::MemoryObjectData(object, kind) => {
                 Self::pointer_lower_bound(func, *object, depth + 1)?
@@ -2155,7 +2158,7 @@ enum SizeOperand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{FunctionBuilder, Instruction, MirType, Module, TypeSize};
+    use crate::mir::{FunctionBuilder, Instruction, MirType, Module};
     use alloy_primitives::U256;
     use solar_interface::Ident;
     use std::sync::Arc;
@@ -2169,7 +2172,7 @@ mod tests {
         let mut func = function();
         let cases = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let slot = builder.add_param(MirType::uint256());
+            let slot = builder.add_param(MirType::Word);
             let object = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
             let calldata = builder.add_param(MirType::Slice(SliceLocation::Calldata));
             let cases = [
@@ -2192,7 +2195,7 @@ mod tests {
             ];
             cases.map(|(kind, size, has_result)| {
                 // semantic hash/store operands
-                let inst = Instruction::new(kind, has_result.then_some(MirType::uint256()));
+                let inst = Instruction::new(kind, has_result.then_some(MirType::Word));
                 (builder.append_instruction(inst).0, size)
             })
         };
@@ -2358,8 +2361,8 @@ mod tests {
         let mut func = function();
         let (local, captured) = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let local = builder.add_param(MirType::uint256());
-            let captured = builder.add_param(MirType::uint256());
+            let local = builder.add_param(MirType::Word);
+            let captured = builder.add_param(MirType::Word);
             let offset = builder.imm(32);
             let local_address = builder.add(local, offset);
             let captured_address = builder.add(captured, offset);
@@ -2406,7 +2409,7 @@ mod tests {
         let mut func = function();
         let allocation = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let pointer = builder.add_param(MirType::MemPtr);
+            let pointer = builder.add_param(MirType::Word);
             let condition = builder.add_param(MirType::Bool);
             let header = builder.create_block();
             let exit = builder.create_block();
@@ -2459,9 +2462,9 @@ mod tests {
         let id = ImmutableId::new(3);
         {
             let mut builder = FunctionBuilder::new(&mut func);
-            let value = builder.add_param(MirType::UInt(TypeSize::new_int_bits(8)));
+            let value = builder.add_param(MirType::Word);
             builder.store_immutable(id, value);
-            let _value = builder.load_immutable(id, MirType::UInt(TypeSize::new_int_bits(8)));
+            let _value = builder.load_immutable(id, MirType::Word);
             builder.stop();
         }
         let [store, load] = func.blocks[BlockId::ENTRY].instructions.as_slice() else {
@@ -2549,7 +2552,7 @@ mod tests {
             let size = builder.msize();
             builder.ret([size]);
         }
-        observer.set_return_type(MirType::uint256());
+        observer.set_return_type(MirType::Word);
         let observer = module.add_function(observer);
 
         let mut caller = function();
@@ -2561,7 +2564,7 @@ mod tests {
             let destination = builder.imm(0x1000);
             let value = builder.imm(1);
             builder.mstore(destination, value);
-            let _ = builder.icall(observer, vec![], MirType::uint256());
+            let _ = builder.icall(observer, vec![], MirType::Word);
             builder.ret([]);
             *builder.func().blocks[builder.current_block()].instructions.last().unwrap()
         };

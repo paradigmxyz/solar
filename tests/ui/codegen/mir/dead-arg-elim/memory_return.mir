@@ -3,14 +3,14 @@
 @module MemoryReturn
 
 types:
-  struct0: {memoryslice, u256}
+  struct0: {memoryslice, word}
   struct1: {struct0, bool}
 
 // Reading the free-memory pointer is an observable memory read, so retain the result protocol.
-// CHECK-LABEL: fn @escape() -> memptr
+// CHECK-LABEL: fn @escape() -> word
 // CHECK: v0 = fmp
 // CHECK-NEXT: ret v0
-fn @escape() -> memptr {
+fn @escape() -> word {
   bb0:
     v0 = fmp
     ret v0

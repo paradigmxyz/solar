@@ -548,11 +548,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .lazy_helper(name, |this, function| {
                 function.attributes.is_function_pointer_dispatcher = true;
                 let mut builder = FunctionBuilder::new_semantic(function);
-                builder.add_param(MirType::Function);
+                builder.add_param(MirType::Word);
                 for ty in params {
-                    builder.add_param(ty);
+                    builder.add_param(ty.mir_type());
                 }
-                if let Some(ty) = this.cx.module.intern_return_type(returns) {
+                if let Some(ty) = this
+                    .cx
+                    .module
+                    .intern_return_type(returns.into_iter().map(|ty| ty.mir_type()).collect())
+                {
                     builder.set_return_type(ty);
                 }
                 Some(())
@@ -703,9 +707,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Elementary(ElementaryType::Bool) => {
                 let zero = self.builder.imm(U256::ZERO);
                 let is_zero = self.builder.eq(value, zero);
-                self.builder.iszero(is_zero)
+                self.builder.eq_zero(is_zero)
             }
-            _ => AbiWordValidator::from_mir_type(types::TypeLowerer::mir_type(ty))
+            _ => AbiWordValidator::from_layout(types::TypeLowerer::value_layout(ty))
                 .map_or(value, |validator| validator.cleanup(&mut self.builder, value)),
         }
     }
@@ -1509,9 +1513,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Emit after ABI encoding, whose allocation can fail even with no arguments.
     pub(super) fn revert_if_no_code(&mut self, address: ValueId) {
-        // if iszero(extcodesize(address)) { revert(no_code) }
+        // if extcodesize(address) == 0 { revert(no_code) }
         let size = self.builder.extcodesize(address);
-        let missing = self.builder.iszero(size);
+        let missing = self.builder.eq_zero(size);
         self.builder.revert_if(missing, RevertReason::TargetContractHasNoCode);
     }
 
@@ -1537,12 +1541,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(AbiWordValidator::EnumRange(self.cx.gcx.hir.enumm(id).variants.len() as u64))
             }
             TyKind::Fn(_) => None,
-            _ => AbiWordValidator::from_return_mir_type(types::TypeLowerer::mir_return_type(ty)),
+            _ => AbiWordValidator::from_return_layout(types::TypeLowerer::value_layout(ty)),
         };
         let Some(validator) = validator else { return };
         let valid = validator.condition(&mut self.builder, value, false);
 
-        let invalid = self.builder.iszero(valid);
+        let invalid = self.builder.eq_zero(valid);
         self.builder.revert_if(invalid, RevertReason::Empty);
     }
 

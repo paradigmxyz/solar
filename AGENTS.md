@@ -222,7 +222,7 @@ user, and a rewrite pays a `DUP` for every non-immediate value it newly
 reaches while a displaced operand stays live elsewhere. Without that term,
 rewrites after memory lowering extend live ranges the stack scheduler
 spills and measure as a loss. The pass also merges phis, deletes zero-byte
-copies, and rewrites branches on `iszero`, and runs once more after memory
+copies, and rewrites branches on boolean zero tests, and runs once more after memory
 lowering. Extend it by adding rules to `egraph.isle`, bounds to `max_bits`,
 and stack-traffic terms to `Costs::node`; opcode prices belong in the gas
 schedule, never in the pass, and never match instructions in the pass
@@ -512,6 +512,20 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 - When type hints are needed, prefer turbofish (`let x = Type::<X, Y>::new()`) over annotation (`let x: Type<X, Y> = Type::new()`).
 
 ### IR construction and rewrites
+
+- MIR scalar SSA values use `bool` or `word`; structs, slices, and memory-object
+  references retain their own types. Keep source widths, signedness, and ABI
+  encodings in operation or layout metadata.
+- Every `bool` value must be exactly zero or one, including arguments, loads,
+  call results, phi inputs, and values produced by inline assembly. Normalize
+  raw words with `ne value, 0` before treating them as booleans.
+- Branches and select conditions accept only `bool`. Insert explicit casts
+  between value types; never retag an SSA value or rely on equal storage width.
+- Use `eq value, 0` and `ne value, 0` as the canonical MIR zero tests. `ISZERO`
+  belongs in EVM IR, not MIR. Rewrites must preserve both value and type;
+  boolean-to-word conversions require `word_cast`.
+- Preserve raw Solidity boolean bits as `word` when assembly can observe them;
+  convert to `bool` for logical operations and branches.
 
 - Add an IR or pseudo-IR comment above lowering code and every transformation or rewrite that writes, moves, or rearranges IR. This includes builder sequences and helper bodies.
 - Put each comment at the narrowest useful scope that emits the described IR: immediately above the relevant match arm, `if` or `else` block, loop, or contiguous builder sequence. Do not collect comments at the top of a large function when separate paths emit the described IR later.

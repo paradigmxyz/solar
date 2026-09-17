@@ -3,38 +3,43 @@
 data:
   literal_0: hex"68de9469627f4002c727fe634985a916f4414d6309d81cc2a26ca3f1785725b649ddbb03b8b89d41b77e5e5ad00b388d3e95043177ee2ef763a67a3e2cd40000"
 
-fn @test() -> bool [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word<bool>]] {
+fn @test() -> word [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = icall @auth
-    v1 = icall @check, true, v0
-    ret v1
+    v0 = word_cast true
+    v1 = icall @auth
+    v2 = icall @check, v0, v1
+    ret v2
 }
 
-fn @testFlags() -> bool [selector=0x74da97f7, pure, abi_params=[], abi_returns=[word<bool>]] {
+fn @testFlags() -> word [selector=0x74da97f7, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @auth
-    v1 = mload v0
-    v2 = add v1, 33
-    v3 = mload v2
-    v4 = and v3, 1
-    v5 = eq v4, 1
-    ret v5
+    v1 = word_cast v0
+    v2 = mload v1
+    v3 = add v2, 33
+    v4 = mload v3
+    v5 = and v4, 1
+    v6 = eq v5, 1
+    v7 = word_cast v6
+    ret v7
 }
 
-fn @testTypedConstant() -> bool [selector=0x62655512, pure, abi_params=[], abi_returns=[word<bool>]] {
+fn @testTypedConstant() -> word [selector=0x62655512, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @auth
-    v1 = memory_object_load_field memorystruct<6>, v0, 0, memorybytes
-    v2 = memory_object_len memorybytes, v1
-    v3 = lt 32, v2
-    v4 = iszero v3
-    icall panic_if<0x32>, v4
-    v5 = memory_object_load_byte memorybytes, v1, 32
-    v6 = shl 248, v5
-    v7 = and v6, 0x100000000000000000000000000000000000000000000000000000000000000
-    v8 = and v7, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v9 = eq v8, 0x100000000000000000000000000000000000000000000000000000000000000
-    ret v9
+    v1 = memory_object_load_field memorystruct<6>, v0, 0
+    v2 = memory_object_from_ptr memorybytes, v1
+    v3 = memory_object_len memorybytes, v2
+    v4 = lt 32, v3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = memory_object_load_byte memorybytes, v2, 32
+    v7 = shl 248, v6
+    v8 = and v7, 0x100000000000000000000000000000000000000000000000000000000000000
+    v9 = and v8, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v10 = eq v9, 0x100000000000000000000000000000000000000000000000000000000000000
+    v11 = word_cast v10
+    ret v11
 }
 
 fn @auth() -> memorystruct [pure] {
@@ -55,64 +60,83 @@ fn @auth() -> memorystruct [pure] {
     ret v2
 }
 
-fn @check(arg0: bool, arg1: memorystruct) -> bool [pure] {
+fn @check(arg0: word, arg1: memorystruct) -> word [pure] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 2
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x4667000000000000000000000000000000000000000000000000000000000000
-    v2 = add arg1, 32
-    v3 = mload v2
+    v2 = word_cast arg1
+    v3 = add v2, 32
     v4 = mload v3
-    v5 = add v3, 32
-    v6 = add arg1, 64
-    v7 = mload v6
-    v8 = add arg1, 96
+    v5 = mload v4
+    v6 = add v4, 32
+    v7 = word_cast arg1
+    v8 = add v7, 64
     v9 = mload v8
-    v10 = mload v0
-    v11 = add v10, 13
-    v12 = shr 152, 0x226368616c6c656e6765223a2200000000000000000000000000000000000000
-    mstore v0, v12
-    v13 = add v11, v7
-    v14 = lt v13, v4
-    v15 = add v5, v7
-    v16 = add v15, v11
-    v17 = mload v16
-    v18 = byte 0, v17
-    v19 = eq v18, 34
-    v20 = and v19, v14
-    v21 = add v0, 19
-    v22 = keccak256 v21, v11
-    v23 = add v5, v7
-    v24 = keccak256 v23, v11
-    v25 = eq v24, v22
-    v26 = and v25, v20
-    v27 = add 20, v9
-    v28 = lt v27, v4
-    v29 = or v9, v7
-    v30 = shr 128, v29
-    v31 = lt v30, v28
-    v32 = shr 88, 0x2274797065223a22776562617574686e2e676574220000000000000000000000
-    v33 = add v5, v9
-    v34 = mload v33
-    v35 = shr 88, v34
-    v36 = eq v35, v32
-    v37 = and v36, v31
-    v38 = and v37, v26
-    mstore v0, v10
-    v39 = mload arg1
-    v40 = mload v39
-    v41 = iszero arg0
-    v42 = iszero v41
-    v43 = shl 2, v42
-    v44 = or 1, v43
-    v45 = mload arg1
-    v46 = add v45, 33
-    v47 = mload v46
-    v48 = and v47, v44
-    v49 = eq v48, v44
-    v50 = gt v40, 32
-    v51 = and v38, v50
-    v52 = and v51, v49
-    ret v52
+    v10 = word_cast arg1
+    v11 = add v10, 96
+    v12 = mload v11
+    v13 = word_cast v0
+    v14 = mload v13
+    v15 = add v14, 13
+    v16 = shr 152, 0x226368616c6c656e6765223a2200000000000000000000000000000000000000
+    v17 = word_cast v0
+    mstore v17, v16
+    v18 = add v15, v9
+    v19 = lt v18, v5
+    v20 = word_cast v19
+    v21 = add v6, v9
+    v22 = add v21, v15
+    v23 = mload v22
+    v24 = byte 0, v23
+    v25 = eq v24, 34
+    v26 = word_cast v25
+    v27 = and v26, v20
+    v28 = word_cast v0
+    v29 = add v28, 19
+    v30 = keccak256 v29, v15
+    v31 = add v6, v9
+    v32 = keccak256 v31, v15
+    v33 = eq v32, v30
+    v34 = word_cast v33
+    v35 = and v34, v27
+    v36 = add 20, v12
+    v37 = lt v36, v5
+    v38 = word_cast v37
+    v39 = or v12, v9
+    v40 = shr 128, v39
+    v41 = lt v40, v38
+    v42 = word_cast v41
+    v43 = shr 88, 0x2274797065223a22776562617574686e2e676574220000000000000000000000
+    v44 = add v6, v12
+    v45 = mload v44
+    v46 = shr 88, v45
+    v47 = eq v46, v43
+    v48 = word_cast v47
+    v49 = and v48, v42
+    v50 = and v49, v35
+    v51 = word_cast v0
+    mstore v51, v14
+    v52 = word_cast arg1
+    v53 = mload v52
+    v54 = mload v53
+    v55 = eq arg0, 0
+    v56 = word_cast v55
+    v57 = eq v56, 0
+    v58 = word_cast v57
+    v59 = shl 2, v58
+    v60 = or 1, v59
+    v61 = word_cast arg1
+    v62 = mload v61
+    v63 = add v62, 33
+    v64 = mload v63
+    v65 = and v64, v60
+    v66 = eq v65, v60
+    v67 = word_cast v66
+    v68 = gt v54, 32
+    v69 = word_cast v68
+    v70 = and v50, v69
+    v71 = and v70, v67
+    ret v71
 }

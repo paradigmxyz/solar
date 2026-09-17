@@ -1135,20 +1135,14 @@ fn summarize_function(
             || func.attributes.is_receive
             || func.selector.is_some(),
         is_constructor: func.attributes.is_constructor,
-        has_reference_return: func.return_components().iter().any(|ty| {
-            matches!(
-                ty,
-                MirType::MemPtr
-                    | MirType::MemoryObject(_)
-                    | MirType::StoragePtr
-                    | MirType::CalldataPtr
-                    | MirType::Slice(_)
-            )
-        }),
+        has_reference_return: func
+            .return_components()
+            .iter()
+            .any(|ty| matches!(ty, MirType::MemoryObject(_) | MirType::Slice(_))),
         is_transparent_forwarder: is_transparent_forwarder(module, func),
         is_small_literal_return: is_small_literal_return(func),
         is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
-        has_function_selector: func.params.first() == Some(&MirType::Function),
+        has_function_selector: func.attributes.is_function_pointer_dispatcher,
         is_pure: func.attributes.state_mutability == StateMutability::Pure,
         has_loop: has_back_edge(func),
         ..MirInlineSummary::default()
@@ -1372,7 +1366,7 @@ fn is_memory_wrapper(func: &Function) -> bool {
         || func.internal_frame_size != 0
         || func.blocks.len() != 1
         || func.params.len() > 2
-        || func.return_components() != [MirType::MemPtr]
+        || func.return_components() != [MirType::Word]
     {
         return false;
     }
@@ -1486,8 +1480,8 @@ fn is_identity_function(func: &Function) -> bool {
 }
 
 fn is_transparent_function_pointer_cast(func: &Function) -> bool {
-    func.params == [MirType::Function]
-        && func.return_components() == [MirType::Function]
+    func.params == [MirType::Word]
+        && func.return_components() == [MirType::Word]
         && is_identity_function(func)
 }
 
@@ -1532,6 +1526,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         return (target.op(&kind.op(), |_| None), 1);
     }
     let code = match kind {
+        InstKind::Ne(..) => seq(&[op::EQ, op::ISZERO]),
         InstKind::InsertValue { .. }
         | InstKind::ExtractValue { .. }
         | InstKind::MemoryObjectFromPtr { .. }
@@ -1947,7 +1942,7 @@ fn direct_dispatch_target(
         };
         let matches_selector = [(lhs, rhs), (rhs, lhs)].into_iter().any(|(arg, value)| {
             matches!(dispatcher.value(arg), Value::Arg(index) if index.index() == 0)
-                && dispatcher.value_ty(arg) == Some(MirType::Function)
+                && dispatcher.value_ty(arg) == Some(MirType::Word)
                 && dispatcher.value(value).as_immediate().and_then(Immediate::as_u256)
                     == Some(selector)
         });

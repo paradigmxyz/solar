@@ -98,7 +98,7 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         instruction.kind =
                             InstKind::Alloc { size, kind: AllocationKind::Raw, semantics };
                     }
-                    InstKind::MemoryObjectFromPtr { ptr, .. } | InstKind::WordCast(ptr) => {
+                    InstKind::MemoryObjectFromPtr { ptr, .. } => {
                         // object -> ptr
                         if let Some(result) = builder.func().inst_result_value(inst) {
                             replacements.insert(result, ptr);
@@ -388,6 +388,18 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                 true
             })();
             if keep {
+                let mut kind = builder.func().inst(inst).kind.clone();
+                if kind.evm_opcode().is_some()
+                    && !kind.scalar_types_match(builder.func(), builder.func().inst(inst).result_ty)
+                {
+                    // scalar_operand = word_cast scalar_operand
+                    kind.visit_operands_mut(|value| {
+                        if builder.func().value_ty(*value) == Some(MirType::Bool) {
+                            *value = builder.word_cast(*value);
+                        }
+                    });
+                    builder.func_mut().inst_mut(inst).kind = kind;
+                }
                 builder.func_mut().blocks[block].instructions.push(inst);
             }
         }
@@ -694,6 +706,8 @@ fn lower_object_copy<P: MemoryLayoutPolicy>(
 }
 
 fn erase_object_types(func: &mut Function) {
+    func.attributes.may_return_memory |=
+        func.params.iter().chain(func.return_components()).any(|ty| ty.is_memory_reference());
     for index in func.arg_indices() {
         let mut ty = func.arg_ty(index);
         erase_object_type(&mut ty);
@@ -721,7 +735,7 @@ fn erase_object_types(func: &mut Function) {
 
 fn erase_object_type(ty: &mut MirType) {
     if is_object_type(ty) {
-        *ty = MirType::MemPtr;
+        *ty = MirType::Word;
     }
 }
 

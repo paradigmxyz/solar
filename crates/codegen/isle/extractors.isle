@@ -27,7 +27,7 @@
 (decl storagebytesload (Value) Value)
 (extractor (storagebytesload operand0) (inst (Op.StorageBytesLoad operand0)))
 
-(decl storagearrayload (Value MirType OptionU64) Value)
+(decl storagearrayload (Value ValueLayout OptionU64) Value)
 (extractor (storagearrayload slot element enum_variants) (inst (Op.StorageArrayLoad slot element enum_variants)))
 
 (decl storagebytesstore (Value Value) Value)
@@ -120,8 +120,8 @@
 (decl eq (Value Value) Value)
 (extractor (eq a b) (inst (Op.Eq a b)))
 
-(decl iszero (Value) Value)
-(extractor (iszero a) (inst (Op.IsZero a)))
+(decl ne (Value Value) Value)
+(extractor (ne a b) (inst (Op.Ne a b)))
 
 (decl mload (Value) Value)
 (extractor (mload offset) (inst (Op.MLoad offset)))

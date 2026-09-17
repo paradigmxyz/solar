@@ -1,6 +1,6 @@
 //! Solidity arithmetic semantics retained before scalar expansion.
 
-use super::MirType;
+use super::ValueLayout;
 use solar_ast::TypeSize;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -10,10 +10,10 @@ pub(crate) enum ArithmeticKind {
 }
 
 impl ArithmeticKind {
-    pub(crate) fn ty(self) -> MirType {
+    pub(crate) fn ty(self) -> ValueLayout {
         match self {
-            Self::Unsigned(bits) => MirType::UInt(TypeSize::new_int_bits(bits)),
-            Self::Signed(bits) => MirType::Int(TypeSize::new_int_bits(bits)),
+            Self::Unsigned(bits) => ValueLayout::UInt(TypeSize::new_int_bits(bits)),
+            Self::Signed(bits) => ValueLayout::Int(TypeSize::new_int_bits(bits)),
         }
     }
 }

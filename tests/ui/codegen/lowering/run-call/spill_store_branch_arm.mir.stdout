@@ -1,17 +1,17 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_store_branch_arm.sol:Mgr ===
 @module Mgr
-fn @last() -> u256 [selector=0x47799da8, view, abi_params=[], abi_returns=[word]] {
+fn @last() -> word [selector=0x47799da8, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @bal(arg0: address) -> u256 [selector=0x5580f72a, pure, abi_params=[address], abi_returns=[word]] {
+fn @bal(arg0: word) -> word [selector=0x5580f72a, pure, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 7
 }
 
-fn @delta(arg0: address) -> i256 [selector=0x0acaa1fa, pure, abi_params=[address], abi_returns=[word]] {
+fn @delta(arg0: word) -> word [selector=0x0acaa1fa, pure, abi_params=[address], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     v1 = eq v0, 1
@@ -26,11 +26,11 @@ fn @delta(arg0: address) -> i256 [selector=0x0acaa1fa, pure, abi_params=[address
     ret v3
 }
 
-fn @phasedDelta(arg0: address) -> i256 [selector=0xf6e32b8b, view, abi_params=[address], abi_returns=[word]] {
+fn @phasedDelta(arg0: word) -> word [selector=0xf6e32b8b, view, abi_params=[address], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 255
-    v2 = iszero v1
+    v2 = eq v1, 0
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
@@ -50,43 +50,44 @@ fn @phasedDelta(arg0: address) -> i256 [selector=0xf6e32b8b, view, abi_params=[a
     ret 0
 }
 
-fn @consume(arg0: u256) [selector=0x483f31ab, abi_params=[u256], abi_returns=[]] {
+fn @consume(arg0: word) [selector=0x483f31ab, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     ret
 }
 
-fn @sync(arg0: address) [selector=0xa5841194, abi_params=[address], abi_returns=[]] {
+fn @sync(arg0: word) [selector=0xa5841194, abi_params=[address], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @advance(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice) -> i256 [selector=0x2360a5fc, abi_params=[tuple<address, address, u24, i24, address>, tuple<bool, i256, u160>, bytes], abi_returns=[word]] {
+fn @advance(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice) -> word [selector=0x2360a5fc, abi_params=[tuple<address, address, u24, i24, address>, tuple<bool, i256, u160>, bytes], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = not 255
     v2 = and v0, v1
-    v3 = and true, 255
-    v4 = or v2, v3
-    sstore 1, v4 !metadata(storage=slot(1))
-    v5 = slice_ptr arg0
-    v6 = add v5, 64
-    v7 = calldataload v6
-    v8 = and v7, 0xffffff
-    v9 = eq v7, v8
-    v10 = iszero v9
-    icall revert_if<empty>, v10
-    v11 = slice_ptr arg1
-    v12 = add v11, 64
-    v13 = calldataload v12
-    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
-    v15 = eq v13, v14
-    v16 = iszero v15
-    icall revert_if<empty>, v16
-    v17 = checked_add u256, v7, v13
-    v18 = slice_len arg2
-    v19 = checked_add u256, v17, v18
-    ret v19
+    v3 = word_cast true
+    v4 = and v3, 255
+    v5 = or v2, v4
+    sstore 1, v5 !metadata(storage=slot(1))
+    v6 = slice_ptr arg0
+    v7 = add v6, 64
+    v8 = calldataload v7
+    v9 = and v8, 0xffffff
+    v10 = eq v8, v9
+    v11 = eq v10, false
+    icall revert_if<empty>, v11
+    v12 = slice_ptr arg1
+    v13 = add v12, 64
+    v14 = calldataload v13
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = eq v14, v15
+    v17 = eq v16, false
+    icall revert_if<empty>, v17
+    v18 = checked_add u256, v8, v14
+    v19 = slice_len arg2
+    v20 = checked_add u256, v18, v19
+    ret v20
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_store_branch_arm.sol:Settler ===
@@ -96,10 +97,10 @@ fn @advance(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice) -> i2
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_store_branch_arm.sol:Router ===
 @module Router
 types:
-  struct0: {u256, u256, u256}
+  struct0: {word, word, word}
 
 data:
-  Mgr_initcode_0: hex"34600e576102dc8060125f395ff35b5f5ffd346072575f3560e01c80630acaa1fa14606e5780632360a5fc14606957806347799da8146065578063483f31ab1460605780635580f72a14605c578063a5841194146057578063f6e32b8b146052576072565b610107565b610190565b6088565b61017d565b6076565b6101aa565b60b0565b5f5ffd5b5f546080526020608001608090036080f35b6024361060ac5760043560a01c151560ac5760076080526020608001608090036080f35b5f5ffd5b602436106101035760043560a01c15156101035773ffffffffffffffffffffffffffffffffffffffff600435166001901460ea57606460ef565b60ca5f035b8060a0526080526020608001608090036080f35b5f5ffd5b602436106101795760043560a01c15156101795760015460ff9016156101685773ffffffffffffffffffffffffffffffffffffffff600435166001901461014f576064610154565b60ca5f035b8060a0526080526020608001608090036080f35b5f6080526020608001608090036080f35b5f5ffd5b6024361061018c576004355f55005b5f5ffd5b602436106101a65760043560a01c15156101a657005b5f5ffd5b61012436106102d8576101043580610100526004016020810167ffffffffffffffff6101005111368061016052821191501781358060c0528060c05260208301925082360392508281119250828217915091506102d45760015460ff198116905060ff600116811790506001556040600401358060e0528060e05262ffffff81168114156102d057604060a401358061012052806101205273ffffffffffffffffffffffffffffffffffffffff81168114156102d0578061012052818060e052018060a0528060a052818060e052811091508260c0525090506102be5760c0518060c05260a051018061014052806101405260a0518060a05281106102be5780610140526080526020608001608090036080f35b634e487b715f5260116020526024601cfd5b5f5ffd5b5f5ffd5b5f5ffd"
+  Mgr_initcode_0: hex"34600e576102e48060125f395ff35b5f5ffd3415156074575f3560e01c80630acaa1fa1460705780632360a5fc14606b57806347799da8146067578063483f31ab1460625780635580f72a14605e578063a5841194146059578063f6e32b8b146054576074565b610109565b610192565b608a565b61017f565b6078565b6101ac565b60b2565b5f5ffd5b5f546080526020608001608090036080f35b6024361060ae5760043560a01c151560ae5760076080526020608001608090036080f35b5f5ffd5b602436106101055760043560a01c15156101055773ffffffffffffffffffffffffffffffffffffffff600435166001901460ec57606460f1565b60ca5f035b8060a0526080526020608001608090036080f35b5f5ffd5b6024361061017b5760043560a01c151561017b5760015460ff90161561016a5773ffffffffffffffffffffffffffffffffffffffff6004351660019014610151576064610156565b60ca5f035b8060a0526080526020608001608090036080f35b5f6080526020608001608090036080f35b5f5ffd5b6024361061018e576004355f55005b5f5ffd5b602436106101a85760043560a01c15156101a857005b5f5ffd5b61012436106102e0576101043580610100526004016020810167ffffffffffffffff6101005111368061016052821191501781358060c0528060c052602083019250823603925082811192508292508282179150915015156102dc5760015460ff1981169050600160ff9016811790506001556040600401358060e0528060e05262ffffff81168114156102d857604060a401358061012052806101205273ffffffffffffffffffffffffffffffffffffffff81168114156102d8578061012052818060e052018060a0528060a052818060e052811091508260c0525090506102c65760c0518060c05260a051018061014052806101405260a0518060a05281106102c65780610140526080526020608001608090036080f35b634e487b715f5260116020526024601cfd5b5f5ffd5b5f5ffd5b5f5ffd"
 
 fn @constructor() [constructor] {
   bb0:
@@ -107,41 +108,44 @@ fn @constructor() [constructor] {
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = not v0
     v3 = and v1, v2
-    v4 = and true, 255
-    v5 = shl 160, v4
-    v6 = or v3, v5
-    sstore 0, v6 !metadata(storage=slot(0))
-    v7 = shl 168, 255
-    v8 = sload 0 !metadata(storage=slot(0))
-    v9 = not v7
-    v10 = and v8, v9
-    v11 = and false, 255
-    v12 = shl 168, v11
-    v13 = or v10, v12
-    sstore 0, v13 !metadata(storage=slot(0))
-    v14 = abi_encode []
-    v15 = not 31
-    v16 = and 781, v15
-    v17 = alloc raw, exact, uninitialized, infallible, v16
-    data_copy Mgr_initcode_0, v17, 750
-    v18 = slice_ptr v14
-    v19 = add v17, 750
-    mcopy v19, v18, 0 !metadata(memory=heap)
-    v20 = create 0, v17, 750
-    jumpi v20, bb2, bb1
+    v4 = word_cast true
+    v5 = and v4, 255
+    v6 = shl 160, v5
+    v7 = or v3, v6
+    sstore 0, v7 !metadata(storage=slot(0))
+    v8 = shl 168, 255
+    v9 = sload 0 !metadata(storage=slot(0))
+    v10 = not v8
+    v11 = and v9, v10
+    v12 = word_cast false
+    v13 = and v12, 255
+    v14 = shl 168, v13
+    v15 = or v11, v14
+    sstore 0, v15 !metadata(storage=slot(0))
+    v16 = abi_encode []
+    v17 = not 31
+    v18 = and 789, v17
+    v19 = alloc raw, exact, uninitialized, infallible, v18
+    data_copy Mgr_initcode_0, v19, 758
+    v20 = slice_ptr v16
+    v21 = add v19, 758
+    mcopy v21, v20, 0 !metadata(memory=heap)
+    v22 = create 0, v19, 758
+    v23 = ne v22, 0
+    jumpi v23, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v21 = sload 0 !metadata(storage=slot(0))
-    v22 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v23 = and v21, v22
-    v24 = and v20, 0xffffffffffffffffffffffffffffffffffffffff
-    v25 = or v23, v24
-    sstore 0, v25 !metadata(storage=slot(0))
+    v24 = sload 0 !metadata(storage=slot(0))
+    v25 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v26 = and v24, v25
+    v27 = and v22, 0xffffffffffffffffffffffffffffffffffffffff
+    v28 = or v26, v27
+    sstore 0, v28 !metadata(storage=slot(0))
     ret
 }
 
-fn @fetch(arg0: address) -> struct0 [view] {
+fn @fetch(arg0: word) -> struct0 [view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -207,7 +211,7 @@ fn @fetch(arg0: address) -> struct0 [view] {
     ret v45
 }
 
-fn @fetchRich(arg0: address) -> struct0 [view] {
+fn @fetchRich(arg0: word) -> struct0 [view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -273,7 +277,7 @@ fn @fetchRich(arg0: address) -> struct0 [view] {
     ret v45
 }
 
-fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
+fn @go() -> word [selector=0x0f59f83a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @fetch, 1
     v1 = extract_value struct0, v0, 0
@@ -289,117 +293,119 @@ fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
     v10 = sload 0 !metadata(storage=slot(0))
     v11 = shr 160, v10
     v12 = and v11, 255
-    jumpi v12, bb1, bb2
+    v13 = ne v12, 0
+    jumpi v13, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v13 = sload 0 !metadata(storage=slot(0))
-    v14 = shr 168, v13
-    v15 = and v14, 255
-    jumpi v15, bb4, bb5
+    v14 = sload 0 !metadata(storage=slot(0))
+    v15 = shr 168, v14
+    v16 = and v15, 255
+    v17 = ne v16, 0
+    jumpi v17, bb4, bb5
   bb5:
-    v18 = sgt v7, 100
-    v19 = iszero v18
-    icall require<short_string>, v19, 4, 0x6f76657200000000000000000000000000000000000000000000000000000000
+    v20 = sgt v7, 100
+    v21 = eq v20, false
+    icall require<short_string>, v21, 4, 0x6f76657200000000000000000000000000000000000000000000000000000000
     jump bb6
   bb4:
-    v16 = slt v7, 0
-    v17 = iszero v16
-    icall require<short_string>, v17, 1, 0x7800000000000000000000000000000000000000000000000000000000000000
+    v18 = slt v7, 0
+    v19 = eq v18, false
+    icall require<short_string>, v19, 1, 0x7800000000000000000000000000000000000000000000000000000000000000
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v20 = slt v3, 0
-    jumpi v20, bb7, bb8
+    v22 = slt v3, 0
+    jumpi v22, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v21 = sload 0 !metadata(storage=slot(0))
-    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffff
-    v23 = caller
-    v24 = checked_sub i256, 0, v3
-    icall @settle, v22, v23, v24
+    v23 = sload 0 !metadata(storage=slot(0))
+    v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffff
+    v25 = caller
+    v26 = checked_sub i256, 0, v3
+    icall @settle, v24, v25, v26
     jump bb9
   bb9:
-    v25 = slt v7, 0
-    jumpi v25, bb10, bb11
+    v27 = slt v7, 0
+    jumpi v27, bb10, bb11
   bb11:
     jump bb12
   bb10:
-    v26 = sload 0 !metadata(storage=slot(0))
-    v27 = and v26, 0xffffffffffffffffffffffffffffffffffffffff
-    v28 = caller
-    v29 = checked_sub i256, 0, v7
-    icall @settle, v27, v28, v29
+    v28 = sload 0 !metadata(storage=slot(0))
+    v29 = and v28, 0xffffffffffffffffffffffffffffffffffffffff
+    v30 = caller
+    v31 = checked_sub i256, 0, v7
+    icall @settle, v29, v30, v31
     jump bb12
   bb12:
-    v30 = sgt v3, 0
-    jumpi v30, bb13, bb14
+    v32 = sgt v3, 0
+    jumpi v32, bb13, bb14
   bb14:
     jump bb15
   bb13:
-    v31 = sload 0 !metadata(storage=slot(0))
-    v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffff
-    v33 = gas
-    v34 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v3
-    v35 = slice_ptr v34
-    v36 = slice_len v34
-    v37 = extcodesize v32
-    v38 = iszero v37
-    icall revert_if<target_contract_has_no_code>, v38
-    v39 = call v33, v32, 0, v35, v36, 0, 0
-    jumpi v39, bb17, bb16
+    v33 = sload 0 !metadata(storage=slot(0))
+    v34 = and v33, 0xffffffffffffffffffffffffffffffffffffffff
+    v35 = gas
+    v36 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v3
+    v37 = slice_ptr v36
+    v38 = slice_len v36
+    v39 = extcodesize v34
+    v40 = eq v39, 0
+    icall revert_if<target_contract_has_no_code>, v40
+    v41 = call v35, v34, 0, v37, v38, 0, 0
+    jumpi v41, bb17, bb16
   bb16:
     revert_returndata
   bb17:
     jump bb15
   bb15:
-    v40 = sgt v7, 0
-    jumpi v40, bb18, bb19
+    v42 = sgt v7, 0
+    jumpi v42, bb18, bb19
   bb19:
     jump bb20
   bb18:
-    v41 = sload 0 !metadata(storage=slot(0))
-    v42 = and v41, 0xffffffffffffffffffffffffffffffffffffffff
-    v43 = gas
-    v44 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v7
-    v45 = slice_ptr v44
-    v46 = slice_len v44
-    v47 = extcodesize v42
-    v48 = iszero v47
-    icall revert_if<target_contract_has_no_code>, v48
-    v49 = call v43, v42, 0, v45, v46, 0, 0
-    jumpi v49, bb22, bb21
+    v43 = sload 0 !metadata(storage=slot(0))
+    v44 = and v43, 0xffffffffffffffffffffffffffffffffffffffff
+    v45 = gas
+    v46 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args v7
+    v47 = slice_ptr v46
+    v48 = slice_len v46
+    v49 = extcodesize v44
+    v50 = eq v49, 0
+    icall revert_if<target_contract_has_no_code>, v50
+    v51 = call v45, v44, 0, v47, v48, 0, 0
+    jumpi v51, bb22, bb21
   bb21:
     revert_returndata
   bb22:
     jump bb20
   bb20:
-    v50 = sload 0 !metadata(storage=slot(0))
-    v51 = and v50, 0xffffffffffffffffffffffffffffffffffffffff
-    v52 = gas
-    v53 = abi_encode [], selector 0x47799da800000000000000000000000000000000000000000000000000000000
-    v54 = slice_ptr v53
-    v55 = slice_len v53
-    v56 = staticcall v52, v51, v54, v55, 0, 32
-    jumpi v56, bb24, bb23
+    v52 = sload 0 !metadata(storage=slot(0))
+    v53 = and v52, 0xffffffffffffffffffffffffffffffffffffffff
+    v54 = gas
+    v55 = abi_encode [], selector 0x47799da800000000000000000000000000000000000000000000000000000000
+    v56 = slice_ptr v55
+    v57 = slice_len v55
+    v58 = staticcall v54, v53, v56, v57, 0, 32
+    jumpi v58, bb24, bb23
   bb23:
     revert_returndata
   bb24:
-    v57 = returndatasize
-    v58 = lt v57, 32
-    icall revert_if<tuple_data_too_short>, v58
-    v59 = add 0, 0
-    v60 = mload v59
+    v59 = returndatasize
+    v60 = lt v59, 32
+    icall revert_if<tuple_data_too_short>, v60
     v61 = add 0, 0
     v62 = mload v61
-    v63 = eq v62, 100
-    icall require<short_string>, v63, 17, 0x746f6f6b2077726f6e6720616d6f756e74000000000000000000000000000000
+    v63 = add 0, 0
+    v64 = mload v63
+    v65 = eq v64, 100
+    icall require<short_string>, v65, 17, 0x746f6f6b2077726f6e6720616d6f756e74000000000000000000000000000000
     ret 1
 }
 
-fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
+fn @goRich() -> word [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
     memory_object_store_field memorystruct<5>, v0, 0, 1
@@ -463,7 +469,7 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     v42 = extract_value struct0, v39, 2
     v43 = memory_object_load_field memorystruct<3>, v1, 0
     v44 = eq v43, 0
-    v45 = iszero v44
+    v45 = eq v44, false
     jumpi v45, bb3, bb4
   bb4:
     v58 = memory_object_load_field memorystruct<3>, v1, 1
@@ -472,19 +478,19 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
   bb10:
     v65 = memory_object_load_field memorystruct<3>, v1, 1
     v66 = sgt v42, v65
-    v67 = iszero v66
+    v67 = eq v66, false
     icall require<short_string>, v67, 1, 0x6700000000000000000000000000000000000000000000000000000000000000
     v68 = sgt v36, 0
-    v69 = iszero v68
+    v69 = eq v68, false
     icall require<short_string>, v69, 1, 0x6800000000000000000000000000000000000000000000000000000000000000
     jump bb11
   bb9:
     v60 = memory_object_load_field memorystruct<3>, v1, 1
     v61 = slt v42, v60
-    v62 = iszero v61
+    v62 = eq v61, false
     icall require<short_string>, v62, 1, 0x6500000000000000000000000000000000000000000000000000000000000000
     v63 = slt v36, 0
-    v64 = iszero v63
+    v64 = eq v63, false
     icall require<short_string>, v64, 1, 0x6600000000000000000000000000000000000000000000000000000000000000
     jump bb11
   bb11:
@@ -495,20 +501,20 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     jumpi v47, bb6, bb7
   bb7:
     v53 = sgt v36, 0
-    v54 = iszero v53
+    v54 = eq v53, false
     icall require<short_string>, v54, 1, 0x6300000000000000000000000000000000000000000000000000000000000000
     v55 = memory_object_load_field memorystruct<3>, v1, 1
     v56 = sgt v42, v55
-    v57 = iszero v56
+    v57 = eq v56, false
     icall require<short_string>, v57, 1, 0x6400000000000000000000000000000000000000000000000000000000000000
     jump bb8
   bb6:
     v48 = memory_object_load_field memorystruct<3>, v1, 1
     v49 = slt v36, v48
-    v50 = iszero v49
+    v50 = eq v49, false
     icall require<short_string>, v50, 1, 0x6100000000000000000000000000000000000000000000000000000000000000
     v51 = slt v42, 0
-    v52 = iszero v51
+    v52 = eq v51, false
     icall require<short_string>, v52, 1, 0x6200000000000000000000000000000000000000000000000000000000000000
     jump bb8
   bb8:
@@ -550,7 +556,7 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     v85 = slice_ptr v84
     v86 = slice_len v84
     v87 = extcodesize v82
-    v88 = iszero v87
+    v88 = eq v87, 0
     icall revert_if<target_contract_has_no_code>, v88
     v89 = call v83, v82, 0, v85, v86, 0, 0
     jumpi v89, bb22, bb21
@@ -571,7 +577,7 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     v95 = slice_ptr v94
     v96 = slice_len v94
     v97 = extcodesize v92
-    v98 = iszero v97
+    v98 = eq v97, 0
     icall revert_if<target_contract_has_no_code>, v98
     v99 = call v93, v92, 0, v95, v96, 0, 0
     jumpi v99, bb27, bb26
@@ -605,7 +611,7 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     ret 2
 }
 
-fn @settle(arg0: address, arg1: address, arg2: u256) {
+fn @settle(arg0: word, arg1: word, arg2: word) {
   bb0:
     v0 = gas
     v1 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
@@ -613,7 +619,7 @@ fn @settle(arg0: address, arg1: address, arg2: u256) {
     v3 = slice_ptr v2
     v4 = slice_len v2
     v5 = extcodesize arg0
-    v6 = iszero v5
+    v6 = eq v5, 0
     icall revert_if<target_contract_has_no_code>, v6
     v7 = call v0, arg0, 0, v3, v4, 0, 0
     jumpi v7, bb2, bb1
@@ -625,7 +631,7 @@ fn @settle(arg0: address, arg1: address, arg2: u256) {
     v10 = slice_ptr v9
     v11 = slice_len v9
     v12 = extcodesize arg0
-    v13 = iszero v12
+    v13 = eq v12, 0
     icall revert_if<target_contract_has_no_code>, v13
     v14 = call v8, arg0, 0, v10, v11, 0, 0
     jumpi v14, bb4, bb3

@@ -16,7 +16,7 @@
       stop
   }
   
-  fn @one_path_reads(arg0: bool) -> u256 {
+  fn @one_path_reads(arg0: bool) -> word {
     bb0:
 -     sstore 0, 1
 +     sstore 0, 1 !metadata(storage=slot(0))
@@ -48,7 +48,7 @@
       jump bb1
   }
   
-  fn @packed(arg0: u256, arg1: u256) {
+  fn @packed(arg0: word, arg1: word) {
     bb0:
 -     v0 = sload 0
 +     v0 = sload 0 !metadata(storage=slot(0))
@@ -68,7 +68,7 @@
       stop
   }
   
-  fn @call_observer(arg0: address) {
+  fn @call_observer(arg0: word) {
     bb0:
 -     sstore 0, 1
 +     sstore 0, 1 !metadata(storage=slot(0))
@@ -115,7 +115,7 @@
       stop
   }
   
-  fn @one_path_reads(arg0: bool) -> u256 {
+  fn @one_path_reads(arg0: bool) -> word {
     bb0:
       sstore 0, 1 !metadata(storage=slot(0))
       jumpi arg0, bb1, bb2
@@ -141,7 +141,7 @@
       jump bb1
   }
   
-  fn @packed(arg0: u256, arg1: u256) {
+  fn @packed(arg0: word, arg1: word) {
     bb0:
       v0 = sload 0 !metadata(storage=slot(0))
       v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
@@ -156,7 +156,7 @@
       stop
   }
   
-  fn @call_observer(arg0: address) {
+  fn @call_observer(arg0: word) {
     bb0:
       sstore 0, 1 !metadata(storage=slot(0))
       jump bb1
@@ -198,7 +198,7 @@
       stop
   }
   
-  fn @one_path_reads(arg0: bool) -> u256 {
+  fn @one_path_reads(arg0: bool) -> word {
     bb0:
       sstore 0, 1 !metadata(storage=slot(0))
       jumpi arg0, bb1, bb2
@@ -224,7 +224,7 @@
       jump bb1
   }
   
-  fn @packed(arg0: u256, arg1: u256) {
+  fn @packed(arg0: word, arg1: word) {
     bb0:
       v0 = sload 0 !metadata(storage=slot(0))
       v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
@@ -238,7 +238,7 @@
       stop
   }
   
-  fn @call_observer(arg0: address) {
+  fn @call_observer(arg0: word) {
     bb0:
       sstore 0, 1 !metadata(storage=slot(0))
       jump bb1
@@ -280,7 +280,7 @@
       stop
   }
   
-  fn @one_path_reads(arg0: bool) -> u256 {
+  fn @one_path_reads(arg0: bool) -> word {
     bb0:
       sstore 0, 1 !metadata(storage=slot(0))
       jumpi arg0, bb1, bb2
@@ -306,7 +306,7 @@
       jump bb1
   }
   
-  fn @packed(arg0: u256, arg1: u256) {
+  fn @packed(arg0: word, arg1: word) {
     bb0:
       v0 = sload 0 !metadata(storage=slot(0))
       v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
@@ -320,7 +320,7 @@
       stop
   }
   
-  fn @call_observer(arg0: address) {
+  fn @call_observer(arg0: word) {
     bb0:
       sstore 0, 1 !metadata(storage=slot(0))
       jump bb1

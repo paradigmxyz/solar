@@ -1,118 +1,121 @@
 - // === ROOT/tests/ui/codegen/mir/call-cleanup/argument_bits.mir (before call-cleanup) ===
 + // === ROOT/tests/ui/codegen/mir/call-cleanup/argument_bits.mir (after call-cleanup) ===
   @module ArgumentBits
-  fn @root(arg0: u256) -> u256 {
+  fn @root(arg0: word) -> word {
     bb0:
       v0 = and arg0, 255
       v1 = icall @forward, v0
       ret v1
   }
   
-  fn @forward(arg0: u256) -> u256 {
+  fn @forward(arg0: word) -> word {
     bb0:
 -     v0 = and arg0, 255
 -     tail_call @leaf, v0
 +     tail_call @leaf, arg0
   }
   
-  fn @leaf(arg0: u256) -> u256 {
+  fn @leaf(arg0: word) -> word {
     bb0:
 -     v0 = and arg0, 255
 -     ret v0
 +     ret arg0
   }
   
-  fn @clean_caller() -> u256 {
+  fn @clean_caller() -> word {
     bb0:
       v0 = caller
       v1 = icall @mixed, v0
       ret v1
   }
   
-  fn @dirty_caller(arg0: address) -> u256 {
+  fn @dirty_caller(arg0: word) -> word {
     bb0:
       v0 = icall @mixed, arg0
       ret v0
   }
   
-  fn @mixed(arg0: address) -> u256 {
+  fn @mixed(arg0: word) -> word {
     bb0:
       v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
       ret v0
   }
   
-  fn @recursive_root(arg0: u256) -> u256 {
+  fn @recursive_root(arg0: word) -> word {
     bb0:
       v0 = and arg0, 255
       v1 = icall @recursive, v0
       ret v1
   }
   
-  fn @recursive(arg0: u256) -> u256 {
+  fn @recursive(arg0: word) -> word {
     bb0:
-      jumpi arg0, bb1, bb2
+      v0 = ne arg0, 0
+      jumpi v0, bb1, bb2
     bb2:
-      v1 = and arg0, 255
-      ret v1
+      v2 = and arg0, 255
+      ret v2
     bb1:
-      v0 = icall @recursive, arg0
-      ret v0
+      v1 = icall @recursive, arg0
+      ret v1
   }
   
-  fn @sanitized_root(arg0: u256) -> u256 {
+  fn @sanitized_root(arg0: word) -> word {
     bb0:
       v0 = and arg0, 255
       v1 = icall @sanitized_recursive, v0
       ret v1
   }
   
-  fn @sanitized_recursive(arg0: u256) -> u256 {
+  fn @sanitized_recursive(arg0: word) -> word {
     bb0:
 -     v0 = and arg0, 255
--     jumpi v0, bb1, bb2
-+     jumpi arg0, bb1, bb2
+-     v1 = ne v0, 0
++     v1 = ne arg0, 0
+      jumpi v1, bb1, bb2
     bb2:
 -     ret v0
 +     ret arg0
     bb1:
--     v1 = icall @sanitized_recursive, v0
-+     v1 = icall @sanitized_recursive, arg0
-      ret v1
+-     v2 = icall @sanitized_recursive, v0
++     v2 = icall @sanitized_recursive, arg0
+      ret v2
   }
   
-  fn @bool_root(arg0: u256) -> u256 {
+  fn @bool_root(arg0: word) -> word {
     bb0:
-      v0 = iszero arg0
+      v0 = eq arg0, 0
       v1 = icall @bool_leaf, v0
       ret v1
   }
   
-  fn @bool_leaf(arg0: bool) -> u256 {
+  fn @bool_leaf(arg0: bool) -> word {
     bb0:
--     v0 = and arg0, 1
--     ret v0
-+     ret arg0
+      v0 = word_cast arg0
+-     v1 = and v0, 1
+-     ret v1
++     ret v0
   }
   
-  fn @public_caller() -> u256 {
+  fn @public_caller() -> word {
     bb0:
       v0 = icall @public_input, 1
       ret v0
   }
   
-  fn @public_input(arg0: u256) -> u256 [selector=0x01020304] {
+  fn @public_input(arg0: word) -> word [selector=0x01020304] {
     bb0:
       v0 = and arg0, 255
       ret v0
   }
   
-  fn @frame_caller() -> u256 {
+  fn @frame_caller() -> word {
     bb0:
       v0 = icall @frame_input, 1
       ret v0
   }
   
-  fn @frame_input(arg0: u256) -> u256 {
+  fn @frame_input(arg0: word) -> word {
     bb0:
       v0 = internal_frame_addr 64
       mstore v0, 511
@@ -120,13 +123,13 @@
       ret v1
   }
   
-  fn @across_caller() -> u256 {
+  fn @across_caller() -> word {
     bb0:
       v0 = icall @across_call, 1
       ret v0
   }
   
-  fn @across_call(arg0: u256) -> u256 {
+  fn @across_call(arg0: word) -> word {
     bb0:
       v0 = and arg0, 255
       icall @clobber

@@ -21,6 +21,12 @@ pub(crate) fn eval_inst<E>(
     kind: &InstKind,
     mut get: impl FnMut(ValueId) -> Result<U256, E>,
 ) -> Result<Option<U256>, E> {
+    if let InstKind::WordCast(value) = *kind {
+        return Ok(Some(get(value)?));
+    }
+    if let InstKind::Ne(a, b) = *kind {
+        return Ok(Some(U256::from(get(a)? != get(b)?)));
+    }
     if let InstKind::CheckedBinary { op, arithmetic, lhs, rhs } = *kind {
         return Ok(eval_checked(op, arithmetic, get(lhs)?, get(rhs)?));
     }

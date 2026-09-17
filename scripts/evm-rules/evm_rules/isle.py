@@ -112,6 +112,13 @@ class Context:
             if shapes.get(name) != MemoryAddresses.SHAPES[name]:
                 raise Unsupported(f"unmodeled or changed memory address schema: {name}")
             return self.memory.operation(name, tuple(args))
+        if name in ("Op.Ne", "Op.WordCast"):
+            self.contracts.add(f"{name}: trusted MIR word inequality or bit-preserving scalar cast")
+            if name == "Op.Ne" and len(args) == 2:
+                return Expr("ne", tuple(args))
+            if name == "Op.WordCast" and len(args) == 1:
+                return args[0]
+            raise Unsupported(f"invalid scalar operation arity: {name}")
         if name == "Op.Select":
             self.contracts.add("Select: trusted MIR semantics select the true arm for any nonzero word")
             return Expr("select", tuple(args))
@@ -193,6 +200,8 @@ class Context:
             symbol = self.fresh()
             self.assumptions.append(self.model.eval(symbol) == z3.If(value, word(1), word(0)))
             return symbol
+        if name == "zero_value" and not values:
+            return Expr.const(0)
         if name == "u256_max" and not values:
             return Expr.const(MASK)
         if name == "u256_from_limbs" and len(values) == 4:

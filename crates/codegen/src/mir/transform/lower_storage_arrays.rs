@@ -8,14 +8,14 @@
 //! a block. Nested struct and array layouts remain with their existing lowering paths.
 
 use crate::mir::{
-    AllocationSemantics, FunctionBuilder, FunctionId, MemoryObjectKind, MirType, ValueId,
+    AllocationSemantics, FunctionBuilder, FunctionId, MemoryObjectKind, ValueId, ValueLayout,
 };
 use alloy_primitives::U256;
 
 pub(super) fn load(
     builder: &mut FunctionBuilder<'_>,
     slot: ValueId,
-    element: MirType,
+    element: ValueLayout,
     enum_variants: Option<u64>,
     bytes_helper: Option<FunctionId>,
 ) -> ValueId {
@@ -28,13 +28,13 @@ pub(super) fn load(
         builder.alloc_dynamic_word_array(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
     let data_slot = builder.storage_array_data_slot(slot);
     builder.counted_loop(length, |builder, index| {
-        let value = if element == MirType::MemoryObject(MemoryObjectKind::Bytes) {
+        let value = if element == ValueLayout::MemoryObject(MemoryObjectKind::Bytes) {
             // element_slot = data_slot + index; value = load_storage_bytes(element_slot)
             let element_slot = builder.add(data_slot, index);
             builder.icall(
                 bytes_helper.expect("bytes array requires a bytes loader"),
                 vec![element_slot],
-                element,
+                element.mir_type(),
             )
         } else {
             load_scalar(builder, data_slot, index, element)
@@ -53,7 +53,7 @@ fn load_scalar(
     builder: &mut FunctionBuilder<'_>,
     data_slot: ValueId,
     index: ValueId,
-    element: MirType,
+    element: ValueLayout,
 ) -> ValueId {
     // slot = data_slot + index / (32 / bytes)
     // word = sload(slot)
@@ -73,12 +73,12 @@ fn load_scalar(
     let mask = builder.imm((U256::from(1) << (bytes * 8)) - U256::from(1));
     let value = builder.and(shifted, mask);
     match element {
-        MirType::Int(_) => {
+        ValueLayout::Int(_) => {
             // value = signextend(bytes - 1, value)
             let index = builder.imm(bytes - 1);
             builder.signextend(index, value)
         }
-        MirType::FixedBytes(_) => {
+        ValueLayout::FixedBytes(_) => {
             // value = value << (32 - bytes) * 8
             let shift = builder.imm((32 - bytes) * 8);
             builder.shl(shift, value)

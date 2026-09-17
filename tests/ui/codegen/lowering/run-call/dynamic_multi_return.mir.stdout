@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_multi_return.sol:Callee ===
 @module Callee
 types:
-  struct0: {memorybytes, u256}
-  struct1: {u256, memorybytes}
+  struct0: {memorybytes, word}
+  struct1: {word, memorybytes}
   struct2: {memorybytes, memorybytes}
-  struct3: {memoryarray, u256, memorybytes}
+  struct3: {memoryarray, word, memorybytes}
 
 fn @strAndNum() -> struct0 [selector=0x713d228b, pure, abi_params=[], abi_returns=[memory_bytes, word], abi_return_params=[bytes, u256]] {
   bb0:
@@ -49,7 +49,7 @@ fn @mixed() -> struct3 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[m
     set_memory_object_len memoryarray, v0, 3
     v1 = memory_object_len memoryarray, v0
     v2 = lt 0, v1
-    v3 = iszero v2
+    v3 = eq v2, false
     icall panic_if<0x32>, v3
     memory_object_store_element memoryarray<1>, v0, 0, 7
     v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
@@ -65,177 +65,181 @@ fn @mixed() -> struct3 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[m
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_multi_return.sol:Caller ===
 @module Caller
 types:
-  struct0: {u256, u256}
-  struct1: {memorybytes, u256}
-  struct2: {u256, memorybytes}
+  struct0: {word, word}
+  struct1: {memorybytes, word}
+  struct2: {word, memorybytes}
   struct3: {memorybytes, memorybytes}
-  struct4: {u256, u256, u256}
-  struct5: {memoryarray, u256, memorybytes}
+  struct4: {word, word, word}
+  struct5: {memoryarray, word, memorybytes}
 
 data:
-  Callee_initcode_0: hex"34600e576104888060125f395ff35b5f5ffd346047575f3560e01c8063354df1f9146042578063477be19f14603d578063713d228b146039578063ed19722c146034576047565b61010d565b604b565b6101ce565b6102f8565b5f5ffd5b60e0604052604051806080526040810160405260058152602081017f68656c6c6f0000000000000000000000000000000000000000000000000000008152506040518060a05260408101818060a052810382528280608052518380608052151581029050601f19601f820116602083018184015f815250828452925060208501945082018185845e915050915060208101602a8152508060a052810390505f9001601f8101601f19811690506040518060c05281810191508160405290508181f35b60e0604052604051806080526040810160405260058152602081017f776f726c640000000000000000000000000000000000000000000000000000008152506040518060a05260408101602a825260208201828060a052820390528280608052518380608052151581029050601f19601f820116602083018184015f815250828452925060208501945082018185845e91505091508060a052810390505f9001601f8101601f19811690506040518060c05281810191508160405290508181f35b60e06040526040518060a0526080810160405260058152602081017f68656c6c6f0000000000000000000000000000000000000000000000000000008152506040810160028152602081017faabb0000000000000000000000000000000000000000000000000000000000008152506040518060805260408101818060805281038252838060a05251848060a052151581029050601f19601f820116602083018184015f815250828452925060208601955082018186845e915050925060208101818060805284039052815182151581029050601f19601f820116602085018186015f815250828652945060208401935084018184865e9050915091508180608052900390505f9001601f8101601f19811690506040518060c05281810191508160405290508181f35b610140604052604051806080528060805260808101806101005280610100528180608052811067ffffffffffffffff821181179050610476578061010052604052806080526080368280608052376003815280608052515f10156104645760206080510160078152506040518060c0526040810160405260018152602081017fcc000000000000000000000000000000000000000000000000000000000000008152506040518060a05260608101818060a052810382526080518060805251608051806080521515810290508060e0528152602060e051026020820191506020608051018183018282855e9250505060208201600781525060408201828060a05282039052828060c05251838060c052151581029050601f19601f820116602083018184015f815250828452925060208501945082018185845e91505091508060a052810390505f9001601f8101601f1981169050604051806101205281810191508160405290508181f35b634e487b715f5260326020526024601cfd5b634e487b715f5260416020526024601cfd"
+  Callee_initcode_0: hex"34600e576104a98060125f395ff35b5f5ffd3415156049575f3560e01c8063354df1f9146044578063477be19f14603f578063713d228b14603b578063ed19722c146036576049565b610113565b604d565b6101d8565b61030a565b5f5ffd5b60e0604052604051806080526040810160405260058152602081017f68656c6c6f0000000000000000000000000000000000000000000000000000008152506040518060a05260408101818060a0528103825282806080525183806080525f811490501581029050601f19601f820116602083018184015f815250828452925060208501945082018185845e915050915060208101602a8152508060a052810390505f9001601f8101601f19811690506040518060c05281810191508160405290508181f35b60e0604052604051806080526040810160405260058152602081017f776f726c640000000000000000000000000000000000000000000000000000008152506040518060a05260408101602a825260208201828060a0528203905282806080525183806080525f811490501581029050601f19601f820116602083018184015f815250828452925060208501945082018185845e91505091508060a052810390505f9001601f8101601f19811690506040518060c05281810191508160405290508181f35b60e06040526040518060a0526080810160405260058152602081017f68656c6c6f0000000000000000000000000000000000000000000000000000008152506040810160028152602081017faabb0000000000000000000000000000000000000000000000000000000000008152506040518060805260408101818060805281038252838060a05251848060a0525f811490501581029050601f19601f820116602083018184015f815250828452925060208601955082018186845e9150509250602081018180608052840390528151825f811490501581029050601f19601f820116602085018186015f815250828652945060208401935084018184865e9050915091508180608052900390505f9001601f8101601f19811690506040518060c05281810191508160405290508181f35b610140604052604051806080528060805260808101806101005280610100528180608052811067ffffffffffffffff8211811790501515610497578061010052604052806080526080368280608052376003815280608052515f101561048557608051806080526020900160078152506040518060c0526040810160405260018152602081017fcc000000000000000000000000000000000000000000000000000000000000008152506040518060a05260608101818060a052810382526080518060805251608051806080525f8114905015810290508060e0528152602060e051026020820191506020608051018183018282855e9250505060208201600781525060408201828060a05282039052828060c05251838060c0525f811490501581029050601f19601f820116602083018184015f815250828452925060208501945082018185845e91505091508060a052810390505f9001601f8101601f1981169050604051806101205281810191508160405290508181f35b634e487b715f5260326020526024601cfd5b634e487b715f5260416020526024601cfd"
 
 fn @strAndNum() -> struct0 [selector=0x713d228b, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 0x4b9, v1
+    v2 = and 0x4da, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Callee_initcode_0, v3, 0x49a
+    data_copy Callee_initcode_0, v3, 0x4bb
     v4 = slice_ptr v0
-    v5 = add v3, 0x49a
+    v5 = add v3, 0x4bb
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 0x49a
-    jumpi v6, bb2, bb1
+    v6 = create 0, v3, 0x4bb
+    v7 = ne v6, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = gas
-    v8 = abi_encode [], selector 0x713d228b00000000000000000000000000000000000000000000000000000000
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = staticcall v7, v6, v9, v10, 0, 0
-    jumpi v11, bb4, bb3
+    v8 = gas
+    v9 = abi_encode [], selector 0x713d228b00000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = staticcall v8, v6, v10, v11, 0, 0
+    jumpi v12, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v12 = icall returndata_bytes<>
-    v13 = abi_decode [bytes, u256], v12
-    v14 = extract_value struct1, v13, 0
-    v15 = extract_value struct1, v13, 1
-    v16 = insert_value struct1, undef struct1, 0, v14
-    v17 = insert_value struct1, v16, 1, v15
-    v18 = extract_value struct1, v17, 0
-    v19 = extract_value struct1, v17, 1
-    v20 = memory_object_len memorybytes, v18
-    v21 = insert_value struct0, undef struct0, 0, v20
-    v22 = insert_value struct0, v21, 1, v19
-    ret v22
+    v13 = icall returndata_bytes<>
+    v14 = abi_decode [bytes, u256], v13
+    v15 = extract_value struct1, v14, 0
+    v16 = extract_value struct1, v14, 1
+    v17 = insert_value struct1, undef struct1, 0, v15
+    v18 = insert_value struct1, v17, 1, v16
+    v19 = extract_value struct1, v18, 0
+    v20 = extract_value struct1, v18, 1
+    v21 = memory_object_len memorybytes, v19
+    v22 = insert_value struct0, undef struct0, 0, v21
+    v23 = insert_value struct0, v22, 1, v20
+    ret v23
 }
 
 fn @numAndStr() -> struct0 [selector=0xed19722c, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 0x4b9, v1
+    v2 = and 0x4da, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Callee_initcode_0, v3, 0x49a
+    data_copy Callee_initcode_0, v3, 0x4bb
     v4 = slice_ptr v0
-    v5 = add v3, 0x49a
+    v5 = add v3, 0x4bb
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 0x49a
-    jumpi v6, bb2, bb1
+    v6 = create 0, v3, 0x4bb
+    v7 = ne v6, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = gas
-    v8 = abi_encode [], selector 0xed19722c00000000000000000000000000000000000000000000000000000000
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = staticcall v7, v6, v9, v10, 0, 0
-    jumpi v11, bb4, bb3
+    v8 = gas
+    v9 = abi_encode [], selector 0xed19722c00000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = staticcall v8, v6, v10, v11, 0, 0
+    jumpi v12, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v12 = icall returndata_bytes<>
-    v13 = abi_decode [u256, bytes], v12
-    v14 = extract_value struct2, v13, 0
-    v15 = extract_value struct2, v13, 1
-    v16 = insert_value struct2, undef struct2, 0, v14
-    v17 = insert_value struct2, v16, 1, v15
-    v18 = extract_value struct2, v17, 0
-    v19 = extract_value struct2, v17, 1
-    v20 = memory_object_len memorybytes, v19
-    v21 = insert_value struct0, undef struct0, 0, v18
-    v22 = insert_value struct0, v21, 1, v20
-    ret v22
+    v13 = icall returndata_bytes<>
+    v14 = abi_decode [u256, bytes], v13
+    v15 = extract_value struct2, v14, 0
+    v16 = extract_value struct2, v14, 1
+    v17 = insert_value struct2, undef struct2, 0, v15
+    v18 = insert_value struct2, v17, 1, v16
+    v19 = extract_value struct2, v18, 0
+    v20 = extract_value struct2, v18, 1
+    v21 = memory_object_len memorybytes, v20
+    v22 = insert_value struct0, undef struct0, 0, v19
+    v23 = insert_value struct0, v22, 1, v21
+    ret v23
 }
 
 fn @twoStrings() -> struct0 [selector=0x477be19f, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 0x4b9, v1
+    v2 = and 0x4da, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Callee_initcode_0, v3, 0x49a
+    data_copy Callee_initcode_0, v3, 0x4bb
     v4 = slice_ptr v0
-    v5 = add v3, 0x49a
+    v5 = add v3, 0x4bb
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 0x49a
-    jumpi v6, bb2, bb1
+    v6 = create 0, v3, 0x4bb
+    v7 = ne v6, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = gas
-    v8 = abi_encode [], selector 0x477be19f00000000000000000000000000000000000000000000000000000000
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = staticcall v7, v6, v9, v10, 0, 0
-    jumpi v11, bb4, bb3
+    v8 = gas
+    v9 = abi_encode [], selector 0x477be19f00000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = staticcall v8, v6, v10, v11, 0, 0
+    jumpi v12, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v12 = icall returndata_bytes<>
-    v13 = abi_decode [bytes, bytes], v12
-    v14 = extract_value struct3, v13, 0
-    v15 = extract_value struct3, v13, 1
-    v16 = insert_value struct3, undef struct3, 0, v14
-    v17 = insert_value struct3, v16, 1, v15
-    v18 = extract_value struct3, v17, 0
-    v19 = extract_value struct3, v17, 1
-    v20 = memory_object_len memorybytes, v18
+    v13 = icall returndata_bytes<>
+    v14 = abi_decode [bytes, bytes], v13
+    v15 = extract_value struct3, v14, 0
+    v16 = extract_value struct3, v14, 1
+    v17 = insert_value struct3, undef struct3, 0, v15
+    v18 = insert_value struct3, v17, 1, v16
+    v19 = extract_value struct3, v18, 0
+    v20 = extract_value struct3, v18, 1
     v21 = memory_object_len memorybytes, v19
-    v22 = insert_value struct0, undef struct0, 0, v20
-    v23 = insert_value struct0, v22, 1, v21
-    ret v23
+    v22 = memory_object_len memorybytes, v20
+    v23 = insert_value struct0, undef struct0, 0, v21
+    v24 = insert_value struct0, v23, 1, v22
+    ret v24
 }
 
 fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 0x4b9, v1
+    v2 = and 0x4da, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Callee_initcode_0, v3, 0x49a
+    data_copy Callee_initcode_0, v3, 0x4bb
     v4 = slice_ptr v0
-    v5 = add v3, 0x49a
+    v5 = add v3, 0x4bb
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 0x49a
-    jumpi v6, bb2, bb1
+    v6 = create 0, v3, 0x4bb
+    v7 = ne v6, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = gas
-    v8 = abi_encode [], selector 0x354df1f900000000000000000000000000000000000000000000000000000000
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = staticcall v7, v6, v9, v10, 0, 0
-    jumpi v11, bb4, bb3
+    v8 = gas
+    v9 = abi_encode [], selector 0x354df1f900000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = staticcall v8, v6, v10, v11, 0, 0
+    jumpi v12, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v12 = icall returndata_bytes<>
-    v13 = abi_decode [array<_, u256>, u256, bytes], v12
-    v14 = extract_value struct5, v13, 0
-    v15 = extract_value struct5, v13, 1
-    v16 = extract_value struct5, v13, 2
-    v17 = insert_value struct5, undef struct5, 0, v14
-    v18 = insert_value struct5, v17, 1, v15
-    v19 = insert_value struct5, v18, 2, v16
-    v20 = extract_value struct5, v19, 0
-    v21 = extract_value struct5, v19, 1
-    v22 = extract_value struct5, v19, 2
-    v23 = memory_object_len memoryarray, v20
-    v24 = memory_object_len memoryarray, v20
-    v25 = lt 0, v24
-    v26 = iszero v25
-    icall panic_if<0x32>, v26
-    v27 = memory_object_load_element memoryarray<1>, v20, 0
-    v28 = checked_sub u256, v21, 7
-    v29 = checked_add u256, v27, v28
-    v30 = memory_object_len memorybytes, v22
-    v31 = insert_value struct4, undef struct4, 0, v23
-    v32 = insert_value struct4, v31, 1, v29
-    v33 = insert_value struct4, v32, 2, v30
-    ret v33
+    v13 = icall returndata_bytes<>
+    v14 = abi_decode [array<_, u256>, u256, bytes], v13
+    v15 = extract_value struct5, v14, 0
+    v16 = extract_value struct5, v14, 1
+    v17 = extract_value struct5, v14, 2
+    v18 = insert_value struct5, undef struct5, 0, v15
+    v19 = insert_value struct5, v18, 1, v16
+    v20 = insert_value struct5, v19, 2, v17
+    v21 = extract_value struct5, v20, 0
+    v22 = extract_value struct5, v20, 1
+    v23 = extract_value struct5, v20, 2
+    v24 = memory_object_len memoryarray, v21
+    v25 = memory_object_len memoryarray, v21
+    v26 = lt 0, v25
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = memory_object_load_element memoryarray<1>, v21, 0
+    v29 = checked_sub u256, v22, 7
+    v30 = checked_add u256, v28, v29
+    v31 = memory_object_len memorybytes, v23
+    v32 = insert_value struct4, undef struct4, 0, v24
+    v33 = insert_value struct4, v32, 1, v30
+    v34 = insert_value struct4, v33, 2, v31
+    ret v34
 }

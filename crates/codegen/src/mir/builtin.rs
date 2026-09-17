@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use super::{AbiLayoutRef, ConcatPart, FunctionId, InstKind, MirType, RevertPayload, ValueId};
+use super::{AbiLayoutRef, ConcatPart, FunctionId, InstKind, RevertPayload, ValueId, ValueLayout};
 
 /// An internal call targets either a MIR definition or a builtin specialization.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -39,7 +39,7 @@ pub(crate) enum Builtin {
     /// Copy the current returndata into a fresh bytes object (empty before Byzantium).
     ReturndataBytes,
     /// A thin shared pointer keeps ordinary call instructions compact.
-    Concat(Arc<Vec<MirType>>),
+    Concat(Arc<Vec<ValueLayout>>),
 }
 
 /// Error payload type for a require call.
@@ -86,8 +86,8 @@ impl InstKind {
         let types = parts
             .iter()
             .map(|part| match part {
-                ConcatPart::Bytes(_) => MirType::MemoryObject(super::MemoryObjectKind::Bytes),
-                ConcatPart::Fixed { size, .. } => MirType::FixedBytes(*size),
+                ConcatPart::Bytes(_) => ValueLayout::MemoryObject(super::MemoryObjectKind::Bytes),
+                ConcatPart::Fixed { size, .. } => ValueLayout::FixedBytes(*size),
             })
             .collect();
         let args = parts.iter().map(ConcatPart::value).collect::<Box<[_]>>();

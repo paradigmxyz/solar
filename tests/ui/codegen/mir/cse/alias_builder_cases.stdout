@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/cse/alias_builder_cases.mir (before cse) ===
 + // === ROOT/tests/ui/codegen/mir/cse/alias_builder_cases.mir (after cse) ===
   @module AliasBuilderCases
-  fn @canonical_arg_offset(arg0: memptr) -> u256 {
+  fn @canonical_arg_offset(arg0: word) -> word {
     bb0:
       v0 = add arg0, 64
       v1 = mload v0
@@ -12,7 +12,7 @@
       ret v4
   }
   
-  fn @canonical_frame_offset() -> u256 {
+  fn @canonical_frame_offset() -> word {
     bb0:
       v0 = internal_frame_addr 32
       v1 = add v0, 64
@@ -24,7 +24,7 @@
       ret v5
   }
   
-  fn @canonical_heap_offset() -> u256 {
+  fn @canonical_heap_offset() -> word {
     bb0:
       v0 = fmp
       v1 = add v0, 64
@@ -37,7 +37,7 @@
       ret v6
   }
   
-  fn @same_select(arg0: bool) -> u256 {
+  fn @same_select(arg0: bool) -> word {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = mload v0
@@ -48,7 +48,7 @@
       ret v4
   }
   
-  fn @joined_select(arg0: bool) -> u256 {
+  fn @joined_select(arg0: bool) -> word {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = alloc raw, exact, uninitialized, infallible, 32
@@ -62,7 +62,7 @@
       ret v5
   }
   
-  fn @distinct_loop_allocations(arg0: bool) -> u256 {
+  fn @distinct_loop_allocations(arg0: bool) -> word {
     bb0:
       jump bb1
     bb1:

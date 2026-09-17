@@ -2,6 +2,8 @@
 @module DumpPhase_runtime
 bb0:
   callvalue
+  iszero
+  iszero
   push bb3
   jumpi
   jump bb1

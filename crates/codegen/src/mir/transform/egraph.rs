@@ -41,7 +41,7 @@
 //! stay in place and see their operands canonicalized; `rewrite` rules still
 //! apply to them in place. Phis over one value merge into it, phis of one
 //! block with equal incoming values merge into one, copies of zero bytes are
-//! deleted, and branches on `iszero` or a nonzero test branch on the tested
+//! deleted, and branches on boolean zero tests or a nonzero test branch on the tested
 //! value directly.
 //! A balance read can bypass a mask that preserves all address bits. Since
 //! effectful roots do not participate in cost extraction, this rule requires
@@ -256,7 +256,7 @@ fn has_fresh_mapping_arguments(func: &Function) -> bool {
                 | InstKind::SLt(..)
                 | InstKind::SGt(..)
                 | InstKind::Eq(..)
-                | InstKind::IsZero(..)
+                | InstKind::Ne(..)
                 | InstKind::Clz(..)
                 | InstKind::SignExtend(..)
                 | InstKind::Select(..)
@@ -550,7 +550,12 @@ impl<'a> Builder<'a> {
                 }
                 for next in alternatives.drain(..) {
                     let next = next.map_values(|value| self.resolve(value));
-                    if !nodes.as_slice().contains(&next) && nodes.len() < node_limit {
+                    if !nodes.as_slice().contains(&next)
+                        && nodes.len() < node_limit
+                        && next
+                            .into_kind()
+                            .is_some_and(|kind| kind.scalar_types_match(self.func, ty))
+                    {
                         nodes.push(next);
                         simplified.push(Simplified::Pending);
                     }
@@ -604,7 +609,7 @@ impl<'a> Builder<'a> {
             };
             if let Some(equal) = equal {
                 let equal = self.resolve(equal);
-                if equal != result {
+                if equal != result && self.func.value_ty(equal) == ty {
                     leader = Some(equal);
                     break;
                 }
@@ -786,6 +791,9 @@ impl<'a> Builder<'a> {
     }
 
     fn merge(&mut self, result: ValueId, into: ValueId, inst_id: InstId) {
+        if self.func.value_ty(result) != self.func.value_ty(into) {
+            return;
+        }
         tracing::trace!(
             target: TRACE_TARGET,
             function = %self.func.name,
@@ -868,7 +876,7 @@ impl<'a> Builder<'a> {
         }
     }
 
-    /// Branches on `iszero(x)` swap their targets and branch on `x`, branches
+    /// Branches on `eq x, false` swap their targets and branch on `x`, branches
     /// on a nonzero test branch on the tested value, and an external return
     /// of zero bytes stops.
     fn rewrite_terminators(&mut self) {
@@ -881,7 +889,7 @@ impl<'a> Builder<'a> {
                 else {
                     break;
                 };
-                let (inner, swap) = if let Some(inner) = iszero_operand(func, condition) {
+                let (inner, swap) = if let Some(inner) = zero_test_operand(func, condition) {
                     (inner, true)
                 } else if let Some(inner) = nonzero_test_operand(func, condition) {
                     // `branch gt(x, 0)` / `branch lt(0, x)` test exactly `x != 0`,
@@ -891,6 +899,9 @@ impl<'a> Builder<'a> {
                     break;
                 };
                 let inner = resolve_replacement(inner, &self.merged);
+                if func.value_ty(inner) != Some(crate::mir::MirType::Bool) {
+                    break;
+                }
                 let Some(Terminator::Branch { condition, then_block, else_block }) =
                     &mut func.blocks[block_id].terminator
                 else {
@@ -1191,7 +1202,7 @@ fn const_fold(func: &mut Function, kind: &InstKind) -> Option<ValueId> {
         | InstKind::SLt(..)
         | InstKind::SGt(..)
         | InstKind::Eq(..)
-        | InstKind::IsZero(..) => Immediate::bool(!value.is_zero()),
+        | InstKind::Ne(..) => Immediate::bool(!value.is_zero()),
         _ => Immediate::uint256(value),
     };
     Some(func.alloc_value(Value::Immediate(immediate)))
@@ -1227,9 +1238,9 @@ fn nonzero_test_operand(func: &Function, value: ValueId) -> Option<ValueId> {
     }
 }
 
-fn iszero_operand(func: &Function, value: ValueId) -> Option<ValueId> {
+fn zero_test_operand(func: &Function, value: ValueId) -> Option<ValueId> {
     match *defining_kind(func, value)? {
-        InstKind::IsZero(inner) => Some(inner),
+        InstKind::Eq(inner, zero) if is_zero(func, zero) => Some(inner),
         _ => None,
     }
 }
@@ -1277,7 +1288,14 @@ impl Costs<'_> {
 
     /// Cost of computing `node` in place of the instruction that roots `class`.
     fn node(&mut self, class: &Class, node: &Op) -> Cost {
-        let operands = operands_of(node);
+        let mut operands = operands_of(node);
+        if matches!(node, Op::Eq { .. } | Op::Ne { .. })
+            && let Some(index) =
+                operands.iter().position(|&value| self.func.value_u64(value) == Some(0))
+        {
+            // eq/ne x, 0 emits ISZERO without materializing the zero operand.
+            operands.remove(index);
+        }
         let original =
             (node != &class.nodes.as_slice()[0]).then(|| operands_of(&class.nodes.as_slice()[0]));
         // An operand shared with other users is computed regardless of this

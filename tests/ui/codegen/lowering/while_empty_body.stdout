@@ -18,11 +18,14 @@ bb0:
   lt
   push bb3
   jumpi
-  jump bb5
-bb5 [loop]:
+  push 0
   push 4
   calldataload
-  push bb5
+  gt
+  jump bb6
+bb6 [loop]:
+  dup 1
+  push bb6
   jumpi
   stop
 bb3 [cold]:

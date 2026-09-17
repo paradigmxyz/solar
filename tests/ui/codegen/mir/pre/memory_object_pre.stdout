@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/pre/memory_object_pre.mir (before pre) ===
 + // === ROOT/tests/ui/codegen/mir/pre/memory_object_pre.mir (after pre) ===
   @module MemoryObjectPre
-  fn @hoist_projection(arg0: memorystruct, arg1: bool) -> memptr {
+  fn @hoist_projection(arg0: memorystruct, arg1: bool) -> word {
     bb0:
       jumpi arg1, bb1, bb2
     bb2:

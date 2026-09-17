@@ -27,7 +27,7 @@ contract CheckedArithmeticPanic {
     }
 
     // CHECK-LABEL: fn @div_zero{{[( ]}}
-    // CHECK: jumpi arg1,
+    // CHECK: jumpi {{(arg[0-9]+|v[0-9]+)}},
     // CHECK: mstore 32, 18
     // CHECK: div arg0, arg1
     function div_zero(uint256 a, uint256 b) public pure returns (uint256) {

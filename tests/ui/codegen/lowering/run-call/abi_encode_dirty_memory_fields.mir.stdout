@@ -11,19 +11,24 @@ fn @dirty() -> memorystruct [pure] {
     v1 = sub 0, 1
     memory_object_store_field memorystruct<6>, v0, 4, v1
     memory_object_store_field memorystruct<6>, v0, 5, 0x1234000000000000000000000000000000000000000000000000000000000000
-    mstore v0, 511
-    v2 = add v0, 32
-    mstore v2, 258
-    v3 = add v0, 96
-    mstore v3, 0x1000000000000000000000000000000000000000000000000000000000000002
-    v4 = add v0, 128
-    mstore v4, 254
-    v5 = add v0, 160
-    mstore v5, 0x1234567800000000000000000000000000000000000000000000000000000000
+    v2 = word_cast v0
+    mstore v2, 511
+    v3 = word_cast v0
+    v4 = add v3, 32
+    mstore v4, 258
+    v5 = word_cast v0
+    v6 = add v5, 96
+    mstore v6, 0x1000000000000000000000000000000000000000000000000000000000000002
+    v7 = word_cast v0
+    v8 = add v7, 128
+    mstore v8, 254
+    v9 = word_cast v0
+    v10 = add v9, 160
+    mstore v10, 0x1234567800000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
-fn @encodeStruct() -> bytes32 [selector=0x01e941a3, pure, abi_params=[], abi_returns=[word]] {
+fn @encodeStruct() -> word [selector=0x01e941a3, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = icall @dirty
     v1 = abi_encode [tuple<word<u8>, word<bool>, word<enum 2>, word<u160>, word<i8>, word<bytes2>>], scratch, args v0
@@ -33,36 +38,39 @@ fn @encodeStruct() -> bytes32 [selector=0x01e941a3, pure, abi_params=[], abi_ret
     ret v4
 }
 
-fn @encodeArray() -> bytes32 [selector=0x7a13e494, pure, abi_params=[], abi_returns=[word]] {
+fn @encodeArray() -> word [selector=0x7a13e494, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
     v1 = memory_object_len memoryarray, v0
     v2 = lt 0, v1
-    v3 = iszero v2
+    v3 = eq v2, false
     icall panic_if<0x32>, v3
     memory_object_store_element memoryarray<1>, v0, 0, 3
     v4 = memory_object_len memoryarray, v0
     v5 = lt 1, v4
-    v6 = iszero v5
+    v6 = eq v5, false
     icall panic_if<0x32>, v6
     memory_object_store_element memoryarray<1>, v0, 1, 4
-    v7 = add v0, 32
-    mstore v7, 0xff03
-    v8 = add v0, 64
-    mstore v8, 260
-    v9 = abi_encode [memory_array<word<u8>>], scratch, args v0
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = keccak256 v10, v11
-    ret v12
+    v7 = word_cast v0
+    v8 = add v7, 32
+    mstore v8, 0xff03
+    v9 = word_cast v0
+    v10 = add v9, 64
+    mstore v10, 260
+    v11 = abi_encode [memory_array<word<u8>>], scratch, args v0
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    v14 = keccak256 v12, v13
+    ret v14
 }
 
-fn @encodeBadEnum() -> memorybytes [selector=0xc72bddb9, pure, abi_params=[], abi_returns=[memory_bytes]] {
+fn @encodeBadEnum() -> memorybytes [selector=0xc72bddb9, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @dirty
-    v1 = add v0, 64
-    mstore v1, 5
-    v2 = abi_encode [tuple<word<u8>, word<bool>, word<enum 2>, word<u160>, word<i8>, word<bytes2>>], object, args v0
-    ret v2
+    v1 = word_cast v0
+    v2 = add v1, 64
+    mstore v2, 5
+    v3 = abi_encode [tuple<word<u8>, word<bool>, word<enum 2>, word<u160>, word<i8>, word<bytes2>>], object, args v0
+    ret v3
 }

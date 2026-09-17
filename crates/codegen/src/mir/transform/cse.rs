@@ -232,7 +232,7 @@ enum ExprKey {
     /// Also keys `SGt(a, b)`, normalized as `SLt(b, a)`.
     SLt(OperandKey, OperandKey),
     Eq(OperandKey, OperandKey),
-    IsZero(OperandKey),
+    Ne(OperandKey, OperandKey),
     Not(OperandKey),
     Clz(OperandKey),
     SignExtend(OperandKey, OperandKey),
@@ -1038,7 +1038,7 @@ impl CommonSubexprEliminator {
             InstKind::SignExtend(a, b) => Some(ExprKey::SignExtend(operand(*a), operand(*b))),
 
             // Unary operations
-            InstKind::IsZero(a) => Some(ExprKey::IsZero(operand(*a))),
+            InstKind::Ne(a, b) => Some(ExprKey::Ne(operand(*a), operand(*b))),
             InstKind::Not(a) => Some(ExprKey::Not(operand(*a))),
             InstKind::Clz(a) => Some(ExprKey::Clz(operand(*a))),
             InstKind::CalldataLoad(a) => Some(ExprKey::CalldataLoad(operand(*a))),

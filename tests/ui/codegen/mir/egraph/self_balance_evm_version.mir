@@ -13,7 +13,7 @@
 // ISTANBUL: - v1 = balance v0
 // ISTANBUL: + v1 = selfbalance
 // ISTANBUL: ret v1
-fn @own_balance() -> u256 {
+fn @own_balance() -> word {
   bb0:
     v0 = address
     v1 = balance v0

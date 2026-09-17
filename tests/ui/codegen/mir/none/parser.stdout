@@ -7,25 +7,27 @@
   immutables:
     fn: u8
   
-  fn @call(arg0: address, arg1: u256) -> u256 {
+  fn @call(arg0: word, arg1: word) -> word {
     bb0:
       v0 = call 100, arg0, arg1, 0, 0, 0, 0
-      ret v0
+      v1 = word_cast v0
+      ret v1
   }
   
-  fn @clz(arg0: u256) -> u256 {
+  fn @clz(arg0: word) -> word {
     bb0:
       v0 = clz arg0
       ret v0
   }
   
-  fn @callcode(arg0: address, arg1: u256) -> u256 {
+  fn @callcode(arg0: word, arg1: word) -> word {
     bb0:
       v0 = callcode 100, arg0, arg1, 0, 0, 0, 0
-      ret v0
+      v1 = word_cast v0
+      ret v1
   }
   
-  fn @hash() -> u256 {
+  fn @hash() -> word {
     bb0:
       mstore 0, 1
       mstore 32, 2
@@ -39,7 +41,7 @@
       stop
   }
   
-  fn @environment() -> u256 {
+  fn @environment() -> word {
     bb0:
       v0 = caller
       v1 = callvalue
@@ -48,7 +50,7 @@
       ret v3
   }
   
-  fn @select_and_log(arg0: bool, arg1: u256, arg2: u256) -> u256 {
+  fn @select_and_log(arg0: bool, arg1: word, arg2: word) -> word {
     bb0:
       v0 = select arg0, arg1, arg2
       log1 0, 32, v0
@@ -66,19 +68,19 @@
       stop
   }
   
-  fn @immutable() -> u8 {
+  fn @immutable() -> word {
     bb0:
       v0 = loadimmutable fn
       ret v0
   }
   
-  fn @constructor() -> u256 [constructor] {
+  fn @constructor() -> word [constructor] {
     bb0:
       v0 = constructor_args_base
       ret v0
   }
   
-  fn @returndatasize() -> u256 {
+  fn @returndatasize() -> word {
     bb0:
       v0 = returndatasize
       ret v0
@@ -94,7 +96,7 @@
       stop
   }
   
-  fn @precompiles(arg0: memorybytes) -> u256 {
+  fn @precompiles(arg0: memorybytes) -> word {
     bb0:
       v0 = icall sha256<>, arg0
       v1 = icall ripemd160<>, arg0

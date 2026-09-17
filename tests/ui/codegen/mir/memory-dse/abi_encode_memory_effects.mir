@@ -5,7 +5,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @encode{{[( ]}}
 // CHECK: {{^[ +].*}}mstore arg0, 1
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = abi_encode
-fn @encode(arg0: memptr) -> memoryslice {
+fn @encode(arg0: word) -> memoryslice {
   bb0:
     mstore arg0, 1
     v0 = abi_encode [memory_bytes], args arg0
@@ -15,7 +15,7 @@ fn @encode(arg0: memptr) -> memoryslice {
 // CHECK-LABEL: fn @require_reads_message
 // CHECK: {{^[ +].*}}mstore arg1, 1
 // CHECK: {{^[ +].*}}icall require<error_string>, arg0, arg1
-fn @require_reads_message(arg0: bool, arg1: memptr) {
+fn @require_reads_message(arg0: bool, arg1: word) {
   bb0:
     mstore arg1, 1
     icall require<error_string>, arg0, arg1

@@ -11,7 +11,7 @@ immutables:
 // CHECK: + v0 = alloc raw, exact, uninitialized, infallible, 160
 // CHECK: + v1 = add v0, 64
 // CHECK: + v2 = add v0, 96
-fn @fuse_consecutive() -> u256 {
+fn @fuse_consecutive() -> word {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 64
     mstore v0, 1
@@ -30,7 +30,7 @@ fn @fuse_consecutive() -> u256 {
 // CHECK-NEXT: + memory_zero v0, 64
 // CHECK: + v1 = add v0, 64
 // CHECK-NEXT: + memory_zero v1, 32
-fn @fuse_zeroed() -> u256 {
+fn @fuse_zeroed() -> word {
   bb0:
     v0 = alloc raw, exact, zeroed, infallible, 64
     v1 = alloc raw, exact, zeroed, infallible, 32
@@ -46,7 +46,7 @@ fn @fuse_zeroed() -> u256 {
 // CHECK: mstore 160, 7
 // CHECK: + v1 = add v0, 32
 // CHECK-NEXT: + memory_zero v1, 32
-fn @preserve_zero_timing() -> u256 {
+fn @preserve_zero_timing() -> word {
   bb0:
     v0 = alloc raw, exact, zeroed, infallible, 32
     mstore 160, 7
@@ -59,7 +59,7 @@ fn @preserve_zero_timing() -> u256 {
 // heap address, so the write ends the allocation group and the second allocation observes it.
 // CHECK-LABEL: fn @keep_across_wrapped_fmp
 // CHECK-NOT: +
-fn @keep_across_wrapped_fmp() -> memptr {
+fn @keep_across_wrapped_fmp() -> word {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     v1 = sub 64, v0
@@ -74,7 +74,7 @@ fn @keep_across_wrapped_fmp() -> memptr {
 // A call may allocate in the callee, which is the same barrier.
 // CHECK-LABEL: fn @keep_across_fmp
 // CHECK-NOT: +
-fn @keep_across_fmp() -> memptr {
+fn @keep_across_fmp() -> word {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     v1 = fmp
@@ -88,7 +88,7 @@ fn @keep_across_fmp() -> memptr {
 // so the second allocation must observe it and the group ends.
 // CHECK-LABEL: fn @keep_across_constant_fmp_store
 // CHECK-NOT: +
-fn @keep_across_constant_fmp_store() -> memptr {
+fn @keep_across_constant_fmp_store() -> word {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     mstore 64, 65536
@@ -100,7 +100,7 @@ fn @keep_across_constant_fmp_store() -> memptr {
 // An explicit frontier update between two allocations is the same barrier.
 // CHECK-LABEL: fn @keep_across_set_fmp
 // CHECK-NOT: +
-fn @keep_across_set_fmp() -> memptr {
+fn @keep_across_set_fmp() -> word {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     set_fmp 65536
@@ -112,7 +112,7 @@ fn @keep_across_set_fmp() -> memptr {
 // Checked zeroing and later allocation checks keep their original order.
 // CHECK-LABEL: fn @keep_checked_zeroed
 // CHECK-NOT: +
-fn @keep_checked_zeroed() -> memptr {
+fn @keep_checked_zeroed() -> word {
   bb0:
     v0 = alloc raw, exact, zeroed, panic, 64
     v1 = alloc raw, exact, zeroed, panic, 32
@@ -122,7 +122,7 @@ fn @keep_checked_zeroed() -> memptr {
 // An infallible bump must not acquire a later member's panic check.
 // CHECK-LABEL: fn @keep_mixed_failures
 // CHECK-NOT: +
-fn @keep_mixed_failures() -> memptr {
+fn @keep_mixed_failures() -> word {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 64
     v1 = alloc raw, exact, uninitialized, panic, 32
@@ -132,7 +132,7 @@ fn @keep_mixed_failures() -> memptr {
 // Control effects end a group even when the instruction has no memory effect.
 // CHECK-LABEL: fn @keep_across_check
 // CHECK-NOT: +
-fn @keep_across_check(arg0: u256) -> u256 {
+fn @keep_across_check(arg0: word) -> word {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 64
     v1 = checked_add u256, arg0, 1
@@ -145,7 +145,7 @@ fn @keep_across_check(arg0: u256) -> u256 {
 // CHECK: + v0 = alloc raw, exact, uninitialized, infallible, 64
 // CHECK: storeimmutable stored, 7
 // CHECK: + v1 = add v0, 32
-fn @across_immutable() -> memptr {
+fn @across_immutable() -> word {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     mstore v0, 42

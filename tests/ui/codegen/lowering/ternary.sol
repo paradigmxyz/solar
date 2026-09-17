@@ -20,7 +20,7 @@ contract Ternary {
 
     // CHECK-LABEL: fn @abs_diff{{[( ]}}
     // CHECK: [[LT:v[0-9]+]] = lt arg0, arg1
-    // CHECK: {{v[0-9]+}} = iszero [[LT]]
+    // CHECK: {{v[0-9]+}} = eq [[LT]], {{(0|false)}}
     // CHECK: checked_sub {{[ui][0-9]+}}, arg1, arg0
     // CHECK: checked_sub {{[ui][0-9]+}}, arg0, arg1
     // CHECK: phi [

@@ -3,21 +3,29 @@
 ;; is equivalent to testing a wrapping difference or XOR for zero, in both
 ;; directions. The Rust adapter compares complete preparation/cleanup plans.
 
+(decl zero () Value)
+(extern extractor zero zero)
+(decl pure partial zero_value () Value)
+(extern constructor zero_value zero_value)
+
 (decl pure partial resident (Op) Value)
 (extern constructor resident resident)
 (decl multi stack_rewrite (Op) Op)
 
 (rule (stack_rewrite (Op.Eq a b))
   (if-let difference (resident (Op.Sub a b)))
-  (Op.IsZero difference))
+  (if-let zero (zero_value))
+  (Op.Eq difference zero))
 (rule (stack_rewrite (Op.Eq a b))
   (if-let difference (resident (Op.Sub b a)))
-  (Op.IsZero difference))
+  (if-let zero (zero_value))
+  (Op.Eq difference zero))
 (rule (stack_rewrite (Op.Eq a b))
   (if-let difference (resident (Op.Xor a b)))
-  (Op.IsZero difference))
-(rule (stack_rewrite (Op.IsZero (sub a b))) (Op.Eq a b))
-(rule (stack_rewrite (Op.IsZero (inst (Op.Xor a b)))) (Op.Eq a b))
+  (if-let zero (zero_value))
+  (Op.Eq difference zero))
+(rule (stack_rewrite (Op.Eq (sub a b) (zero))) (Op.Eq a b))
+(rule (stack_rewrite (Op.Eq (inst (Op.Xor a b)) (zero))) (Op.Eq a b))
 
 ;; Reuse already-computed components when their complete stack plan is cheaper.
 (rule (stack_rewrite (Op.Add a b))
@@ -56,7 +64,7 @@
   (if-let left (resident (Op.Not a)))
   (if-let right (resident (Op.Not b)))
   (Op.Or left right))
-(rule (stack_rewrite (Op.IsZero (bor a b)))
-  (if-let left (resident (Op.IsZero a)))
-  (if-let right (resident (Op.IsZero b)))
+(rule (stack_rewrite (Op.Eq (bor a b) (and zero (zero))))
+  (if-let left (resident (Op.Eq a zero)))
+  (if-let right (resident (Op.Eq b zero)))
   (Op.And left right))

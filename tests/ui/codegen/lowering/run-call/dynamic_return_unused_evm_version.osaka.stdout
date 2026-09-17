@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_unused_evm_version.sol:DynamicCallee ===
 @module DynamicCallee
 types:
-  struct0: {u256, memorybytes}
+  struct0: {word, memorybytes}
 
-fn @dynBytes() -> memorybytes [selector=0x7271bb2c, pure, abi_params=[], abi_returns=[memory_bytes]] {
+fn @dynBytes() -> memorybytes [selector=0x7271bb2c, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 34
@@ -14,7 +14,7 @@ fn @dynBytes() -> memorybytes [selector=0x7271bb2c, pure, abi_params=[], abi_ret
     ret v0
 }
 
-fn @dynString() -> memorybytes [selector=0x2f4e7409, pure, abi_params=[], abi_returns=[memory_bytes]] {
+fn @dynString() -> memorybytes [selector=0x2f4e7409, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 5
@@ -37,90 +37,93 @@ fn @mixed() -> struct0 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[w
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_unused_evm_version.sol:DynamicReturnUnused ===
 @module DynamicReturnUnused
 types:
-  struct0: {u256, memorybytes}
+  struct0: {word, memorybytes}
 
 data:
-  DynamicCallee_initcode_0: hex"34600e576101878060125f395ff35b5f5ffd346036575f3560e01c80632f4e7409146032578063354df1f914602e5780637271bb2c14602a576036565b603a565b60c6565b6092565b5f5ffd5b6020608052602260a0527f303132333435363738396162636465663031323334353637383961626364656660c0527f303100000000000000000000000000000000000000000000000000000000000060e05260806080f35b6020608052600560a0527f68656c6c6f00000000000000000000000000000000000000000000000000000060c05260606080f35b60e0604052604051806080526040810160405260038152602081017f61626300000000000000000000000000000000000000000000000000000000008152506040518060a05260408101600b825260208201828060a052820390528280608052518380608052151581029050601f19601f820116602083018184015f815250828452925060208501945082018185845e91505091508060a052810390505f9001601f8101601f19811690506040518060c05281810191508160405290508181f3"
+  DynamicCallee_initcode_0: hex"34600e5761018d8060125f395ff35b5f5ffd3415156038575f3560e01c80632f4e7409146034578063354df1f91460305780637271bb2c14602c576038565b603c565b60c8565b6094565b5f5ffd5b6020608052602260a0527f303132333435363738396162636465663031323334353637383961626364656660c0527f303100000000000000000000000000000000000000000000000000000000000060e05260806080f35b6020608052600560a0527f68656c6c6f00000000000000000000000000000000000000000000000000000060c05260606080f35b60e0604052604051806080526040810160405260038152602081017f61626300000000000000000000000000000000000000000000000000000000008152506040518060a05260408101600b825260208201828060a0528203905282806080525183806080525f811490501581029050601f19601f820116602083018184015f815250828452925060208501945082018185845e91505091508060a052810390505f9001601f8101601f19811690506040518060c05281810191508160405290508181f3"
 
-fn @live() -> u256 [selector=0x957aa58c, abi_params=[], abi_returns=[word]] {
+fn @live() -> word [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 440, v1
+    v2 = and 446, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy DynamicCallee_initcode_0, v3, 409
+    data_copy DynamicCallee_initcode_0, v3, 415
     v4 = slice_ptr v0
-    v5 = add v3, 409
+    v5 = add v3, 415
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 409
-    jumpi v6, bb2, bb1
+    v6 = create 0, v3, 415
+    v7 = ne v6, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = gas
-    v8 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = call v7, v6, 0, v9, v10, 0, 0
-    jumpi v11, bb4, bb3
+    v8 = gas
+    v9 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = call v8, v6, 0, v10, v11, 0, 0
+    jumpi v12, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v12 = icall returndata_bytes<>
-    v13 = abi_decode [bytes], v12
+    v13 = icall returndata_bytes<>
+    v14 = abi_decode [bytes], v13
     ret 1
 }
 
-fn @liveString() -> u256 [selector=0x86c92c52, abi_params=[], abi_returns=[word]] {
+fn @liveString() -> word [selector=0x86c92c52, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 440, v1
+    v2 = and 446, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy DynamicCallee_initcode_0, v3, 409
+    data_copy DynamicCallee_initcode_0, v3, 415
     v4 = slice_ptr v0
-    v5 = add v3, 409
+    v5 = add v3, 415
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 409
-    jumpi v6, bb2, bb1
+    v6 = create 0, v3, 415
+    v7 = ne v6, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = gas
-    v8 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = call v7, v6, 0, v9, v10, 0, 0
-    jumpi v11, bb4, bb3
+    v8 = gas
+    v9 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = call v8, v6, 0, v10, v11, 0, 0
+    jumpi v12, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v12 = icall returndata_bytes<>
-    v13 = abi_decode [bytes], v12
+    v13 = icall returndata_bytes<>
+    v14 = abi_decode [bytes], v13
     ret 1
 }
 
-fn @liveTry() -> u256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word]] {
+fn @liveTry() -> word [selector=0xc2e69a83, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 440, v1
+    v2 = and 446, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy DynamicCallee_initcode_0, v3, 409
+    data_copy DynamicCallee_initcode_0, v3, 415
     v4 = slice_ptr v0
-    v5 = add v3, 409
+    v5 = add v3, 415
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 409
-    jumpi v6, bb2, bb1
+    v6 = create 0, v3, 415
+    v7 = ne v6, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = gas
-    v8 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = call v7, v6, 0, v9, v10, 0, 0
-    jumpi v11, bb3, bb4
+    v8 = gas
+    v9 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = call v8, v6, 0, v10, v11, 0, 0
+    jumpi v12, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
@@ -129,171 +132,175 @@ fn @liveTry() -> u256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word]] {
   bb6:
     jump bb5
   bb3:
-    v12 = icall returndata_bytes<>
-    v13 = abi_decode [bytes], v12
+    v13 = icall returndata_bytes<>
+    v14 = abi_decode [bytes], v13
     jump bb5
   bb5:
-    v14 = phi [bb3: 1], [bb6: 2]
-    ret v14
+    v15 = phi [bb3: 1], [bb6: 2]
+    ret v15
 }
 
-fn @liveMixed() -> u256 [selector=0xaf1b6bff, abi_params=[], abi_returns=[word]] {
+fn @liveMixed() -> word [selector=0xaf1b6bff, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 440, v1
+    v2 = and 446, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy DynamicCallee_initcode_0, v3, 409
+    data_copy DynamicCallee_initcode_0, v3, 415
     v4 = slice_ptr v0
-    v5 = add v3, 409
+    v5 = add v3, 415
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 409
-    jumpi v6, bb2, bb1
+    v6 = create 0, v3, 415
+    v7 = ne v6, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = gas
-    v8 = abi_encode [], selector 0x354df1f900000000000000000000000000000000000000000000000000000000
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = call v7, v6, 0, v9, v10, 0, 0
-    jumpi v11, bb4, bb3
+    v8 = gas
+    v9 = abi_encode [], selector 0x354df1f900000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = call v8, v6, 0, v10, v11, 0, 0
+    jumpi v12, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v12 = icall returndata_bytes<>
-    v13 = abi_decode [u256, bytes], v12
-    v14 = extract_value struct0, v13, 0
-    v15 = extract_value struct0, v13, 1
-    v16 = insert_value struct0, undef struct0, 0, v14
-    v17 = insert_value struct0, v16, 1, v15
-    v18 = extract_value struct0, v17, 0
-    v19 = extract_value struct0, v17, 1
-    ret v18
+    v13 = icall returndata_bytes<>
+    v14 = abi_decode [u256, bytes], v13
+    v15 = extract_value struct0, v14, 0
+    v16 = extract_value struct0, v14, 1
+    v17 = insert_value struct0, undef struct0, 0, v15
+    v18 = insert_value struct0, v17, 1, v16
+    v19 = extract_value struct0, v18, 0
+    v20 = extract_value struct0, v18, 1
+    ret v19
 }
 
-fn @liveTuple() -> u256 [selector=0x04e1eee0, abi_params=[], abi_returns=[word]] {
+fn @liveTuple() -> word [selector=0x04e1eee0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 440, v1
+    v2 = and 446, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy DynamicCallee_initcode_0, v3, 409
+    data_copy DynamicCallee_initcode_0, v3, 415
     v4 = slice_ptr v0
-    v5 = add v3, 409
+    v5 = add v3, 415
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 409
-    jumpi v6, bb2, bb1
+    v6 = create 0, v3, 415
+    v7 = ne v6, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = gas
-    v8 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = call v7, v6, 0, v9, v10, 0, 0
-    jumpi v11, bb4, bb3
+    v8 = gas
+    v9 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = call v8, v6, 0, v10, v11, 0, 0
+    jumpi v12, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v12 = icall returndata_bytes<>
-    v13 = abi_decode [bytes], v12
-    v14 = gas
-    v15 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
-    v16 = slice_ptr v15
-    v17 = slice_len v15
-    v18 = call v14, v6, 0, v16, v17, 0, 0
-    jumpi v18, bb6, bb5
+    v13 = icall returndata_bytes<>
+    v14 = abi_decode [bytes], v13
+    v15 = gas
+    v16 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
+    v17 = slice_ptr v16
+    v18 = slice_len v16
+    v19 = call v15, v6, 0, v17, v18, 0, 0
+    jumpi v19, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v19 = icall returndata_bytes<>
-    v20 = abi_decode [bytes], v19
+    v20 = icall returndata_bytes<>
+    v21 = abi_decode [bytes], v20
     ret 1
 }
 
-fn @livePointer() -> u256 [selector=0x6347cf88, abi_params=[], abi_returns=[word]] {
+fn @livePointer() -> word [selector=0x6347cf88, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 440, v1
+    v2 = and 446, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy DynamicCallee_initcode_0, v3, 409
+    data_copy DynamicCallee_initcode_0, v3, 415
     v4 = slice_ptr v0
-    v5 = add v3, 409
+    v5 = add v3, 415
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 409
-    jumpi v6, bb2, bb1
+    v6 = create 0, v3, 415
+    v7 = ne v6, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = shl 32, v6
-    v8 = or v7, 0x7271bb2c
-    v9 = and v8, 0xffffffff
-    v10 = shl 224, v9
-    v11 = shr 32, v8
-    v12 = gas
-    v13 = abi_encode [], selector v10
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = call v12, v11, 0, v14, v15, 0, 0
-    jumpi v16, bb4, bb3
+    v8 = shl 32, v6
+    v9 = or v8, 0x7271bb2c
+    v10 = and v9, 0xffffffff
+    v11 = shl 224, v10
+    v12 = shr 32, v9
+    v13 = gas
+    v14 = abi_encode [], selector v11
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = call v13, v12, 0, v15, v16, 0, 0
+    jumpi v17, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v17 = icall returndata_bytes<>
-    v18 = abi_decode [bytes], v17
+    v18 = icall returndata_bytes<>
+    v19 = abi_decode [bytes], v18
     ret 1
 }
 
-fn @liveLoop() -> u256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word]] {
+fn @liveLoop() -> word [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 440, v1
+    v2 = and 446, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy DynamicCallee_initcode_0, v3, 409
+    data_copy DynamicCallee_initcode_0, v3, 415
     v4 = slice_ptr v0
-    v5 = add v3, 409
+    v5 = add v3, 415
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 409
-    jumpi v6, bb2, bb1
+    v6 = create 0, v3, 415
+    v7 = ne v6, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
     jump bb3
   bb3:
-    v7 = phi [bb2: 0], [bb5: v18]
-    v8 = phi [bb2: v6], [bb5: v8]
-    v9 = phi [bb2: 0], [bb5: v19]
-    v10 = lt v9, 3
-    jumpi v10, bb6, bb7
+    v8 = phi [bb2: 0], [bb5: v19]
+    v9 = phi [bb2: v6], [bb5: v9]
+    v10 = phi [bb2: 0], [bb5: v20]
+    v11 = lt v10, 3
+    jumpi v11, bb6, bb7
   bb7:
     jump bb4
   bb4:
-    ret v7
+    ret v8
   bb6:
-    v11 = gas
-    v12 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v13 = slice_ptr v12
-    v14 = slice_len v12
-    v15 = call v11, v8, 0, v13, v14, 0, 0
-    jumpi v15, bb10, bb9
+    v12 = gas
+    v13 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = call v12, v9, 0, v14, v15, 0, 0
+    jumpi v16, bb10, bb9
   bb9:
     revert_returndata
   bb10:
-    v16 = icall returndata_bytes<>
-    v17 = abi_decode [bytes], v16
-    v18 = checked_add u256, v7, 1
+    v17 = icall returndata_bytes<>
+    v18 = abi_decode [bytes], v17
+    v19 = checked_add u256, v8, 1
     jump bb8
   bb8:
     jump bb5
   bb5:
-    v19 = checked_add u256, v9, 1
+    v20 = checked_add u256, v10, 1
     jump bb3
 }
 
-fn @noCode() -> u256 [selector=0x96c56dce, abi_params=[], abi_returns=[word]] {
+fn @noCode() -> word [selector=0x96c56dce, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
@@ -309,7 +316,7 @@ fn @noCode() -> u256 [selector=0x96c56dce, abi_params=[], abi_returns=[word]] {
     ret 1
 }
 
-fn @noCodeTry() -> u256 [selector=0x1908ad35, abi_params=[], abi_returns=[word]] {
+fn @noCodeTry() -> word [selector=0x1908ad35, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/try_catch_clause_evm_version.sol:TryCatchClauses ===
 @module TryCatchClauses
-fn @bare(arg0: address) -> u256 [selector=0x590eaf9b, abi_params=[address], abi_returns=[word]] {
+fn @bare(arg0: word) -> word [selector=0x590eaf9b, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
@@ -24,7 +24,7 @@ fn @bare(arg0: address) -> u256 [selector=0x590eaf9b, abi_params=[address], abi_
     ret v7
 }
 
-fn @typed(arg0: address) -> u256 [selector=0x18d9eb38, abi_params=[address], abi_returns=[word]] {
+fn @typed(arg0: word) -> word [selector=0x18d9eb38, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
@@ -52,9 +52,11 @@ fn @typed(arg0: address) -> u256 [selector=0x18d9eb38, abi_params=[address], abi
   bb8:
     v28 = eq v12, 0x4e487b71
     v29 = lt v9, 36
-    v30 = iszero v29
+    v30 = eq v29, false
     v31 = and v28, v30
-    jumpi v31, bb9, bb10
+    v32 = word_cast v31
+    v33 = ne v32, 0
+    jumpi v33, bb9, bb10
   bb10:
     jumpi true, bb11, bb12
   bb12:
@@ -62,10 +64,10 @@ fn @typed(arg0: address) -> u256 [selector=0x18d9eb38, abi_params=[address], abi
   bb11:
     jump bb3
   bb9:
-    v32 = memory_object_data memorybytes, v7
-    v33 = add v32, 4
-    v34 = make_memory_slice v33, 32
-    v35 = memory_slice_load_word memory, v34, 0
+    v34 = memory_object_data memorybytes, v7
+    v35 = add v34, 4
+    v36 = make_memory_slice v35, 32
+    v37 = memory_slice_load_word memory, v36, 0
     jump bb3
   bb7:
     v16 = memory_object_data memorybytes, v7
@@ -89,14 +91,14 @@ fn @typed(arg0: address) -> u256 [selector=0x18d9eb38, abi_params=[address], abi
     v6 = abi_decode [u256], v5
     jump bb3
   bb3:
-    v36 = phi [bb1: v6], [bb7: 1], [bb9: 2], [bb11: 3]
-    ret v36
+    v38 = phi [bb1: v6], [bb7: 1], [bb9: 2], [bb11: 3]
+    ret v38
 }
 
-fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
+fn @try_decode_error_message(arg0: word, arg1: word) -> bool {
   bb0:
     v0 = lt arg1, 68
-    v1 = iszero v0
+    v1 = eq v0, false
     jumpi v1, bb1, bb3
   bb1:
     v2 = add arg0, 4
@@ -105,16 +107,19 @@ fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
     v5 = add v3, 36
     v6 = gt v5, arg1
     v7 = or v4, v6
-    jumpi v7, bb3, bb2
+    v8 = word_cast v7
+    v9 = ne v8, 0
+    jumpi v9, bb3, bb2
   bb2:
-    v8 = add v2, v3
-    v9 = mload v8
-    v10 = gt v9, 0xffffffffffffffff
-    v11 = sub arg1, v5
-    v12 = gt v9, v11
-    v13 = or v10, v12
-    v14 = iszero v13
-    ret v14
+    v10 = add v2, v3
+    v11 = mload v10
+    v12 = gt v11, 0xffffffffffffffff
+    v13 = sub arg1, v5
+    v14 = gt v11, v13
+    v15 = or v12, v14
+    v16 = word_cast v15
+    v17 = eq v16, 0
+    ret v17
   bb3:
     ret false
 }

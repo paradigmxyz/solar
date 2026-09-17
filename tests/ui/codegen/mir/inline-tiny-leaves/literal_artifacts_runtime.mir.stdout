@@ -11,7 +11,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @version() -> memorybytes [selector=0x54fd4d50, pure, abi_params=[], abi_returns=[memory_bytes]] {
+fn @version() -> memorybytes [selector=0x54fd4d50, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1
@@ -20,7 +20,7 @@ fn @version() -> memorybytes [selector=0x54fd4d50, pure, abi_params=[], abi_retu
     ret v0
 }
 
-fn @constructorAndRuntime() -> bool [selector=0x6b57fb7b, view, abi_params=[], abi_returns=[word<bool>]] {
+fn @constructorAndRuntime() -> word [selector=0x6b57fb7b, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = loadimmutable initial
     v1 = address
@@ -37,5 +37,6 @@ fn @constructorAndRuntime() -> bool [selector=0x6b57fb7b, view, abi_params=[], a
     v8 = abi_decode [bytes], v7
     v9 = keccak256_bytes v8
     v10 = eq v0, v9
-    ret v10
+    v11 = word_cast v10
+    ret v11
 }

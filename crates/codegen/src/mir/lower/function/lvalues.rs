@@ -284,6 +284,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(());
         }
         if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
+            // value = cast to the immutable value type
+            let ty = self.cx.module.immutable_type(immutable_id).mir_type();
+            let value = self.builder.cast(value, ty);
             self.builder.store_immutable(immutable_id, value);
             return Some(());
         }

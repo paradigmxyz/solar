@@ -25,9 +25,9 @@ contract SF {
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // Static locals use fixed addresses without a dynamic-frame header.
-    // CHECK: push 224
-    // CHECK-NEXT: mstore
     // CHECK: push 320
+    // CHECK-NEXT: mstore
+    // CHECK: push 224
     // CHECK-NEXT: mstore
     // Recursive calls reserve dynamic frames from the free-memory pointer.
     // CHECK: push 160

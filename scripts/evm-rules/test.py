@@ -891,7 +891,7 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(rule["inputs"]["a"], rule["inputs"]["b"])
 
     def test_guard_and_pattern_semantics(self):
-        report = self.verify("""(rule (simplify (Op.IsZero (iszero (and x (bool_value))))) x)
+        report = self.verify("""(rule (simplify (Op.Eq (eq (and x (bool_value)) (zero)) (zero))) x)
           (rule (rewrite (Op.Sub x x)) (if-let false (u256_eq (u256 1) 1))
              (Op.Add x (imm (u256 0))))""")
         self.assertEqual([r["status"] for r in report["rules"]], ["proved", "inapplicable"])
@@ -1347,7 +1347,7 @@ class DiscoveryTests(unittest.TestCase):
     def test_large_literal_guard_and_recipe_are_verified(self):
         x = Expr.var("x")
         lhs = expression("lt", x, 1 << 160)
-        rhs = expression("iszero", expression("shr", 160, x))
+        rhs = expression("eq", expression("shr", 160, x), 0)
         source = emit_rule(lhs, rhs)
         for expected, text in (("proved", source), ("counterexample", source.replace("(u256 160)", "(u256 159)"))):
             form, line = forms(text)[0]

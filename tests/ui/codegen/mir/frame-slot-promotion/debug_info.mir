@@ -6,7 +6,7 @@
 // CHECK: + [[COUNTER:v[0-9]+]] = phi [bb0: 0], [bb2: [[NEXT:v[0-9]+]]]
 // CHECK: + ret [[COUNTER]]
 // CHECK: + [[NEXT]] = add [[COUNTER]], 1 !metadata(span=30..40)
-fn @promote_loop_carried_slot(arg0: u256) -> u256 {
+fn @promote_loop_carried_slot(arg0: word) -> word {
   bb0:
     v1 = internal_frame_addr 128 !metadata(span=10..20)
     mstore v1, 0 !metadata(span=10..20)

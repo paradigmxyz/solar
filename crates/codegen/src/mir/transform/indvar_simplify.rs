@@ -561,7 +561,7 @@ impl IndVarSimplifier {
             address.region == MemoryRegion::Heap
                 || matches!(address.base, MemoryBase::Value(base)
                     if matches!(*func.value(base), Value::Arg(index)
-                        if func.arg_ty(index) == MirType::MemPtr))
+                        if func.arg_ty(index) == MirType::Word))
         })
     }
 
@@ -593,12 +593,9 @@ impl IndVarSimplifier {
         value: ValueId,
     ) -> ValueId {
         match acc {
-            Some(acc) => self.append_inst_value(
-                func,
-                block,
-                InstKind::Add(acc, value),
-                Some(MirType::uint256()),
-            ),
+            Some(acc) => {
+                self.append_inst_value(func, block, InstKind::Add(acc, value), Some(MirType::Word))
+            }
             None => value,
         }
     }
@@ -804,7 +801,7 @@ impl IndVarSimplifier {
             self.pointer_at(func, preheader, key, iv.init)?
         };
         let (phi_inst, phi_value) = func.alloc_value_inst(
-            Instruction::new(InstKind::Phi(vec![(preheader, initial)]), Some(MirType::uint256()))
+            Instruction::new(InstKind::Phi(vec![(preheader, initial)]), Some(MirType::Word))
                 .with_debug_info_dropped(),
         );
         self.insert_header_phi(func, loop_data.header, phi_inst);
@@ -836,7 +833,7 @@ impl IndVarSimplifier {
         } else {
             InstKind::Sub(value, magnitude)
         };
-        Some(self.append_inst_value(func, block, kind, Some(MirType::uint256())))
+        Some(self.append_inst_value(func, block, kind, Some(MirType::Word)))
     }
 
     /// Appends `value * scale` to `block`: a shift for a power of two, a
@@ -853,31 +850,16 @@ impl IndVarSimplifier {
             value
         } else if magnitude.is_power_of_two() {
             let shift = self.offset_value(func, i128::from(magnitude.trailing_zeros()))?;
-            self.append_inst_value(
-                func,
-                block,
-                InstKind::Shl(shift, value),
-                Some(MirType::uint256()),
-            )
+            self.append_inst_value(func, block, InstKind::Shl(shift, value), Some(MirType::Word))
         } else {
             let factor = self.offset_value(func, i128::try_from(magnitude).ok()?)?;
-            self.append_inst_value(
-                func,
-                block,
-                InstKind::Mul(value, factor),
-                Some(MirType::uint256()),
-            )
+            self.append_inst_value(func, block, InstKind::Mul(value, factor), Some(MirType::Word))
         };
         if scale > 0 {
             return Some(scaled);
         }
         let zero = self.offset_value(func, 0)?;
-        Some(self.append_inst_value(
-            func,
-            block,
-            InstKind::Sub(zero, scaled),
-            Some(MirType::uint256()),
-        ))
+        Some(self.append_inst_value(func, block, InstKind::Sub(zero, scaled), Some(MirType::Word)))
     }
 
     fn offset_value(&self, func: &mut Function, offset: i128) -> Option<ValueId> {
@@ -910,7 +892,7 @@ impl IndVarSimplifier {
     }
 
     fn is_reducible_result(&self, func: &Function, inst_id: InstId) -> bool {
-        if func.inst(inst_id).result_ty != Some(MirType::uint256()) {
+        if func.inst(inst_id).result_ty != Some(MirType::Word) {
             return false;
         }
         matches!(

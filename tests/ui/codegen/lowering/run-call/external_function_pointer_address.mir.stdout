@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_address.sol:ExternalFunctionPointerAddress ===
 @module ExternalFunctionPointerAddress
-fn @g() [selector=0xe2179b8e, abi_params=[], abi_returns=[]] {
+fn @g() [selector=0xe2179b8e, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @f() -> bool [selector=0x26121ff0, view, abi_params=[], abi_returns=[word<bool>]] {
+fn @f() -> word [selector=0x26121ff0, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
     v1 = shl 32, v0
@@ -14,5 +14,6 @@ fn @f() -> bool [selector=0x26121ff0, view, abi_params=[], abi_returns=[word<boo
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = address
     v6 = eq v4, v5
-    ret v6
+    v7 = word_cast v6
+    ret v7
 }

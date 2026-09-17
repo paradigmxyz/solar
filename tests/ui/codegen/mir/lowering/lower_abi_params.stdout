@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_params.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_params.mir (after lower-abi) ===
   @module LowerAbiParams
-- fn @read(arg0: memoryfixedarray, arg1: u256) -> u256 [selector=0x12345678, abi_params=[array<3, u256>, u256], abi_returns=[word]] {
+- fn @read(arg0: memoryfixedarray, arg1: word) -> word [selector=0x12345678, abi_params=[array<3, u256>, u256], abi_returns=[word]] {
 + fn @read() [selector=0x12345678, abi_wrapper] {
     bb0:
 -     ret arg1
@@ -19,75 +19,79 @@
 +     revert 0, 0
   }
   
-- fn @read_words(arg0: memorystruct) -> u256 [selector=0x12345679, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word]] {
+- fn @read_words(arg0: memorystruct) -> word [selector=0x12345679, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word]] {
 + fn @read_words() [selector=0x12345679, abi_wrapper] {
     bb0:
 -     v0 = memory_object_field_addr memorystruct<0>, arg0, 0
-+     v6 = calldatasize
-+     v7 = lt v6, 36
-+     jumpi v7, bb2, bb3
++     v7 = calldatasize
++     v8 = lt v7, 36
++     jumpi v8, bb2, bb3
 +   bb3:
-+     v8 = calldataload 4
-+     v9 = add 4, v8
-+     v10 = sub v6, 4
-+     v11 = gt v8, v10
-+     jumpi v11, bb4, bb5
++     v9 = calldataload 4
++     v10 = add 4, v9
++     v11 = sub v7, 4
++     v12 = gt v9, v11
++     jumpi v12, bb4, bb5
 +   bb5:
-+     v12 = sub v6, v9
-+     v13 = gt 64, v12
-+     jumpi v13, bb4, bb6
++     v13 = sub v7, v10
++     v14 = gt 64, v13
++     jumpi v14, bb4, bb6
 +   bb6:
-+     v14 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-+     v15 = calldataload v9
-+     v16 = add v9, v15
-+     v17 = add v16, 32
-+     v18 = gt v15, 0xffffffffffffffff
-+     v19 = gt v17, v6
-+     v20 = or v18, v19
-+     jumpi v20, bb4, bb7
++     v15 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
++     v16 = calldataload v10
++     v17 = add v10, v16
++     v18 = add v17, 32
++     v19 = gt v16, 0xffffffffffffffff
++     v20 = gt v18, v7
++     v21 = or v19, v20
++     v22 = word_cast v21
++     v23 = ne v22, 0
++     jumpi v23, bb4, bb7
 +   bb7:
-+     v21 = calldataload v16
-+     v22 = add v16, 32
-+     v23 = mul v21, 32
-+     v24 = iszero 32
-+     v25 = div v23, 32
-+     v26 = eq v25, v21
-+     v27 = or v24, v26
-+     v28 = iszero v27
-+     jumpi v28, bb8, bb9
++     v24 = calldataload v17
++     v25 = add v17, 32
++     v26 = mul v24, 32
++     v27 = eq 32, 0
++     v28 = div v26, 32
++     v29 = eq v28, v24
++     v30 = or v27, v29
++     v31 = word_cast v30
++     v32 = eq v31, 0
++     jumpi v32, bb8, bb9
 +   bb9:
-+     v29 = add v23, 32
-+     v30 = lt v29, v23
-+     jumpi v30, bb8, bb10
++     v33 = add v26, 32
++     v34 = lt v33, v26
++     jumpi v34, bb8, bb10
 +   bb10:
-+     v31 = alloc memoryarray<1>, exact, uninitialized, panic, v29
-+     set_memory_object_len memoryarray, v31, v21
-+     v32 = sub v6, v22
-+     v33 = shr 5, v32
-+     v34 = gt v21, v33
-+     jumpi v34, bb4, bb11
++     v35 = alloc memoryarray<1>, exact, uninitialized, panic, v33
++     set_memory_object_len memoryarray, v35, v24
++     v36 = sub v7, v25
++     v37 = shr 5, v36
++     v38 = gt v24, v37
++     jumpi v38, bb4, bb11
 +   bb11:
-+     v35 = make_calldata_slice v22, v23
-+     memory_object_copy_from_slice memoryarray, v31, v35
-+     memory_object_store_field memorystruct<3>, v14, 0, v31
-+     v36 = add v9, 32
-+     v37 = calldataload v36
-+     memory_object_store_field memorystruct<3>, v14, 1, v37
-+     memory_object_store_field memorystruct<3>, v14, 2, v9
++     v39 = make_calldata_slice v25, v26
++     memory_object_copy_from_slice memoryarray, v35, v39
++     memory_object_store_field memorystruct<3>, v15, 0, v35
++     v40 = add v10, 32
++     v41 = calldataload v40
++     memory_object_store_field memorystruct<3>, v15, 1, v41
++     memory_object_store_field memorystruct<3>, v15, 2, v10
 +     jump bb1
 +   bb1:
-+     v0 = memory_object_field_addr memorystruct<0>, v14, 0
++     v0 = memory_object_field_addr memorystruct<0>, v15, 0
       v1 = mload v0
-      v2 = memory_object_len memoryarray, v1
--     v3 = memory_object_field_addr memorystruct<0>, arg0, 1
-+     v3 = memory_object_field_addr memorystruct<0>, v14, 1
-      v4 = mload v3
-      v5 = add v2, v4
--     ret v5
-+     mstore 128, v5
-+     v38 = add 128, 32
-+     v39 = sub v38, 128
-+     returndata 128, v39
+      v2 = memory_object_from_ptr memoryarray, v1
+      v3 = memory_object_len memoryarray, v2
+-     v4 = memory_object_field_addr memorystruct<0>, arg0, 1
++     v4 = memory_object_field_addr memorystruct<0>, v15, 1
+      v5 = mload v4
+      v6 = add v3, v5
+-     ret v6
++     mstore 128, v6
++     v42 = add 128, 32
++     v43 = sub v42, 128
++     returndata 128, v43
 +   bb8:
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)

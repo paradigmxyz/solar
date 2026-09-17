@@ -73,7 +73,7 @@ impl FrameSlotKind {
     #[must_use]
     pub(crate) const fn result_type(self) -> MirType {
         match self {
-            Self::Word => MirType::uint256(),
+            Self::Word => MirType::Word,
             Self::Slice(location) => MirType::Slice(location),
         }
     }
@@ -197,9 +197,61 @@ pub(crate) struct StructType {
     pub(crate) fields: Box<[MirType]>,
 }
 
-/// Types used in MIR.
+/// SSA value types. Scalar words have no source-level width or signedness.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum MirType {
+    /// A 256-bit word.
+    Word,
+    /// A canonical zero or one.
+    Bool,
+    /// Reference to a semantically shaped memory object.
+    MemoryObject(MemoryObjectKind),
+    /// A pointer/length pair in the given address space.
+    Slice(SliceLocation),
+    /// A fixed aggregate declared in the module type table.
+    Struct(StructId),
+    /// Absence of a function result.
+    Void,
+}
+
+impl MirType {
+    /// Returns the full-width layout when no narrower source contract was supplied.
+    pub(crate) const fn value_layout(self) -> ValueLayout {
+        match self {
+            Self::Word => ValueLayout::uint256(),
+            Self::Bool => ValueLayout::Bool,
+            Self::MemoryObject(kind) => ValueLayout::MemoryObject(kind),
+            Self::Slice(location) => ValueLayout::Slice(location),
+            Self::Struct(id) => ValueLayout::Struct(id),
+            Self::Void => ValueLayout::Void,
+        }
+    }
+
+    pub(crate) const fn is_word(self) -> bool {
+        matches!(self, Self::Word | Self::Bool | Self::MemoryObject(_))
+    }
+
+    pub(crate) const fn is_memory_reference(self) -> bool {
+        matches!(self, Self::MemoryObject(_) | Self::Slice(SliceLocation::Memory))
+    }
+}
+
+impl fmt::Display for MirType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Word => f.write_str("word"),
+            Self::Bool => f.write_str("bool"),
+            Self::MemoryObject(kind) => write!(f, "{kind}"),
+            Self::Slice(location) => write!(f, "{location}slice"),
+            Self::Struct(id) => write!(f, "struct{}", id.index()),
+            Self::Void => f.write_str("void"),
+        }
+    }
+}
+
+/// Source representation metadata for ABI, storage, and immutable layouts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum ValueLayout {
     /// Unsigned integer with a given bit width (8, 16, 32, ..., 256).
     UInt(TypeSize),
     /// Signed integer with a given bit width.
@@ -228,7 +280,7 @@ pub(crate) enum MirType {
     Void,
 }
 
-impl MirType {
+impl ValueLayout {
     /// Returns whether a value occupies one word rather than an SSA aggregate or no value.
     #[must_use]
     pub(crate) const fn is_word(self) -> bool {
@@ -274,12 +326,6 @@ impl MirType {
         })
     }
 
-    /// Returns whether this value can refer to live memory beyond the current call frame.
-    #[must_use]
-    pub(crate) const fn is_memory_reference(self) -> bool {
-        matches!(self, Self::MemPtr | Self::MemoryObject(_) | Self::Slice(SliceLocation::Memory))
-    }
-
     /// Returns whether this scalar occupies a complete ABI word without padding.
     #[must_use]
     pub(crate) const fn is_full_abi_word(self) -> bool {
@@ -290,46 +336,14 @@ impl MirType {
             || matches!(self, Self::FixedBytes(size) if size.bytes() == 32)
     }
 
-    /// Returns the carrier type used for scalar fields of a return tuple.
-    /// Scalar words may contain dirty upper bits; aggregates preserve them until cleanup.
-    pub(crate) const fn return_field_type(self) -> Self {
-        match self {
-            Self::UInt(_)
-            | Self::Int(_)
-            | Self::Bool
-            | Self::Address
-            | Self::FixedBytes(_)
-            | Self::Function
-            | Self::StoragePtr => Self::uint256(),
-            _ => self,
-        }
-    }
-
-    /// Checks whether a struct field can carry this value without changing its bits.
-    pub(crate) fn accepts_field_value(self, actual: Self) -> bool {
-        self == actual || (self == Self::uint256() && actual.is_word())
-    }
-
     /// Returns the uint256 type.
     #[must_use]
     pub(crate) const fn uint256() -> Self {
         Self::UInt(TypeSize::new_int_bits(256))
     }
-
-    /// Returns the int256 type.
-    #[must_use]
-    pub(crate) const fn int256() -> Self {
-        Self::Int(TypeSize::new_int_bits(256))
-    }
-
-    /// Returns the bytes32 type.
-    #[must_use]
-    pub(crate) const fn bytes32() -> Self {
-        Self::FixedBytes(TypeSize::new_fb_bytes(32))
-    }
 }
 
-impl fmt::Display for MirType {
+impl fmt::Display for ValueLayout {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UInt(size) => write!(f, "u{}", size.bits()),
@@ -345,6 +359,20 @@ impl fmt::Display for MirType {
             Self::Function => write!(f, "function"),
             Self::Struct(id) => write!(f, "struct{}", id.index()),
             Self::Void => write!(f, "void"),
+        }
+    }
+}
+
+impl ValueLayout {
+    /// Returns the SSA carrier; source widths and signedness stay in this layout.
+    pub(crate) const fn mir_type(self) -> MirType {
+        match self {
+            Self::Bool => MirType::Bool,
+            Self::MemoryObject(kind) => MirType::MemoryObject(kind),
+            Self::Slice(location) => MirType::Slice(location),
+            Self::Struct(id) => MirType::Struct(id),
+            Self::Void => MirType::Void,
+            _ => MirType::Word,
         }
     }
 }

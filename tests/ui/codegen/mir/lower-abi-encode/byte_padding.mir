@@ -18,7 +18,7 @@
 // SIZE: + [[LEN:v[0-9]+]] = slice_len arg0
 // SIZE-NEXT: + mstore {{v[0-9]+}}, [[LEN]]
 // SIZE: + {{v[0-9]+}} = and
-// SIZE: + {{v[0-9]+}} = iszero
+// SIZE: + {{v[0-9]+}} = eq {{v[0-9]+}}, 0
 // SIZE-NEXT: + jumpi
 // SIZE: + mstore {{v[0-9]+}}, 0
 // SIZE: + calldatacopy

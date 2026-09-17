@@ -57,7 +57,7 @@ contract CheckedArithmeticShapes {
     }
 
     // CHECK-LABEL: fn @sdiv{{[( ]}}
-    // CHECK: jumpi arg1,
+    // CHECK: jumpi {{(arg[0-9]+|v[0-9]+)}},
     // CHECK: mstore 32, 18
     // CHECK: and {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK: sdiv arg0, arg1
@@ -66,7 +66,7 @@ contract CheckedArithmeticShapes {
     }
 
     // CHECK-LABEL: fn @smod{{[( ]}}
-    // CHECK: jumpi arg1,
+    // CHECK: jumpi {{(arg[0-9]+|v[0-9]+)}},
     // CHECK: mstore 32, 18
     // CHECK: smod arg0, arg1
     function smod(int256 a, int256 b) public pure returns (int256) {

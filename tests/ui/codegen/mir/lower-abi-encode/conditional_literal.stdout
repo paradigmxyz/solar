@@ -1,46 +1,50 @@
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/conditional_literal.mir (before lower-abi-encode) ===
 + // === ROOT/tests/ui/codegen/mir/lower-abi-encode/conditional_literal.mir (after lower-abi-encode) ===
   @module ConditionalLiteral
-  fn @encode(arg0: u256) -> memoryslice {
+  fn @encode(arg0: word) -> memoryslice {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 1
-      jumpi arg0, bb1, bb2
+      v1 = ne arg0, 0
+      jumpi v1, bb1, bb2
     bb1:
       memory_object_store_word memorybytes, v0, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
       jump bb2
     bb2:
--     v1 = abi_encode [memory_bytes], args v0
--     ret v1
-+     v2 = fmp
-+     v3 = add v2, 32
-+     v4 = sub v3, v2
-+     mstore v2, v4
-+     v5 = memory_object_len memorybytes, v0
-+     v6 = iszero v0
-+     v7 = iszero v6
-+     v8 = mul v5, v7
-+     v9 = not 31
-+     v10 = add v8, 31
-+     v11 = and v10, v9
-+     v12 = add v3, 32
-+     v13 = add v3, v11
-+     mstore v13, 0
-+     mstore v3, v8
-+     v14 = memory_object_data memorybytes, v0
-+     v15 = add v12, v11
-+     mcopy v12, v14, v8 !metadata(memory=heap)
-+     v16 = sub v15, v2
-+     v17 = add v16, 0
-+     v18 = add v17, 31
-+     v19 = not 31
-+     v20 = and v18, v19
-+     v21 = alloc raw, exact, uninitialized, infallible, v20 !metadata(preserves_fmp)
-+     v22 = make_memory_slice v21, v17
-+     ret v22
+-     v2 = abi_encode [memory_bytes], args v0
+-     ret v2
++     v3 = fmp
++     v4 = add v3, 32
++     v5 = sub v4, v3
++     mstore v3, v5
++     v6 = memory_object_len memorybytes, v0
++     v7 = word_cast v0
++     v8 = word_cast memorybytes 0
++     v9 = eq v7, v8
++     v10 = eq v9, false
++     v11 = word_cast v10
++     v12 = mul v6, v11
++     v13 = not 31
++     v14 = add v12, 31
++     v15 = and v14, v13
++     v16 = add v4, 32
++     v17 = add v4, v15
++     mstore v17, 0
++     mstore v4, v12
++     v18 = memory_object_data memorybytes, v0
++     v19 = add v16, v15
++     mcopy v16, v18, v12 !metadata(memory=heap)
++     v20 = sub v19, v3
++     v21 = add v20, 0
++     v22 = add v21, 31
++     v23 = not 31
++     v24 = and v22, v23
++     v25 = alloc raw, exact, uninitialized, infallible, v24 !metadata(preserves_fmp)
++     v26 = make_memory_slice v25, v21
++     ret v26
   }
   
-  fn @overlapping(arg0: u256) -> memoryslice {
+  fn @overlapping(arg0: word) -> memoryslice {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 1
@@ -55,27 +59,30 @@
 +     v5 = sub v4, v3
 +     mstore v3, v5
 +     v6 = memory_object_len memorybytes, v0
-+     v7 = iszero v0
-+     v8 = iszero v7
-+     v9 = mul v6, v8
-+     v10 = not 31
-+     v11 = add v9, 31
-+     v12 = and v11, v10
-+     v13 = add v4, 32
-+     v14 = add v4, v12
-+     mstore v14, 0
-+     mstore v4, v9
-+     v15 = memory_object_data memorybytes, v0
-+     v16 = add v13, v12
-+     mcopy v13, v15, v9 !metadata(memory=heap)
-+     v17 = sub v16, v3
-+     v18 = add v17, 0
-+     v19 = add v18, 31
-+     v20 = not 31
-+     v21 = and v19, v20
-+     v22 = alloc raw, exact, uninitialized, infallible, v21 !metadata(preserves_fmp)
-+     v23 = make_memory_slice v22, v18
-+     ret v23
++     v7 = word_cast v0
++     v8 = word_cast memorybytes 0
++     v9 = eq v7, v8
++     v10 = eq v9, false
++     v11 = word_cast v10
++     v12 = mul v6, v11
++     v13 = not 31
++     v14 = add v12, 31
++     v15 = and v14, v13
++     v16 = add v4, 32
++     v17 = add v4, v15
++     mstore v17, 0
++     mstore v4, v12
++     v18 = memory_object_data memorybytes, v0
++     v19 = add v16, v15
++     mcopy v16, v18, v12 !metadata(memory=heap)
++     v20 = sub v19, v3
++     v21 = add v20, 0
++     v22 = add v21, 31
++     v23 = not 31
++     v24 = and v22, v23
++     v25 = alloc raw, exact, uninitialized, infallible, v24 !metadata(preserves_fmp)
++     v26 = make_memory_slice v25, v21
++     ret v26
   }
   
   fn @preserved() -> memoryslice {
@@ -90,26 +97,29 @@
 +     v4 = sub v3, v2
 +     mstore v2, v4
 +     v5 = memory_object_len memorybytes, v0
-+     v6 = iszero v0
-+     v7 = iszero v6
-+     v8 = mul v5, v7
-+     v9 = not 31
-+     v10 = add v8, 31
-+     v11 = and v10, v9
-+     v12 = add v3, 32
-+     v13 = add v3, v11
-+     mstore v13, 0
-+     mstore v3, v8
-+     v14 = memory_object_data memorybytes, v0
-+     v15 = add v12, v11
-+     mcopy v12, v14, v8 !metadata(memory=heap)
-+     v16 = sub v15, v2
-+     v17 = add v16, 0
-+     v18 = add v17, 31
-+     v19 = not 31
-+     v20 = and v18, v19
-+     v21 = alloc raw, exact, uninitialized, infallible, v20 !metadata(preserves_fmp)
-+     v22 = make_memory_slice v21, v17
-+     ret v22
++     v6 = word_cast v0
++     v7 = word_cast memorybytes 0
++     v8 = eq v6, v7
++     v9 = eq v8, false
++     v10 = word_cast v9
++     v11 = mul v5, v10
++     v12 = not 31
++     v13 = add v11, 31
++     v14 = and v13, v12
++     v15 = add v3, 32
++     v16 = add v3, v14
++     mstore v16, 0
++     mstore v3, v11
++     v17 = memory_object_data memorybytes, v0
++     v18 = add v15, v14
++     mcopy v15, v17, v11 !metadata(memory=heap)
++     v19 = sub v18, v2
++     v20 = add v19, 0
++     v21 = add v20, 31
++     v22 = not 31
++     v23 = and v21, v22
++     v24 = alloc raw, exact, uninitialized, infallible, v23 !metadata(preserves_fmp)
++     v25 = make_memory_slice v24, v20
++     ret v25
   }
   

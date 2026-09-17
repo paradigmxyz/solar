@@ -3,7 +3,7 @@
 
 contract RevertPayloads {
     // CHECK-LABEL: fn @assert_panic{{[( ]}}
-    // CHECK: {{v[0-9]+}} = iszero arg0
+    // CHECK: {{v[0-9]+}} = eq arg0, {{(0|false)}}
     // CHECK: icall panic_if<0x1>, {{v[0-9]+}}
     function assert_panic(bool ok) public pure {
         assert(ok);

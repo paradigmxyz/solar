@@ -16,9 +16,9 @@ contract CrossBlockStackJoin {
     // CHECK-NEXT: push 1
     // CHECK-NOT: mstore
     // CHECK: sub
-    // CHECK-NEXT: swap 1
     // CHECK-NEXT: swap 2
     // CHECK-NEXT: iszero
+    // CHECK-NEXT: exchange 1, 2
     // CHECK-NEXT: push [[OVERFLOW:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: jump [[JOIN:bb[0-9]+]]

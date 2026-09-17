@@ -6,7 +6,7 @@
 
 types:
   struct0: {}
-  struct1: {calldataslice, u256}
+  struct1: {calldataslice, word}
   struct2: {memoryslice, struct0, struct1, returndataslice}
   struct3: {memorybytes}
 
@@ -21,7 +21,7 @@ fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struc
     ret v5
 }
 
-fn @consume(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> u256 {
+fn @consume(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> word {
   bb0:
     v0 = icall @pack, arg0, arg1, arg2
     v1 = extract_value struct2, v0, 0

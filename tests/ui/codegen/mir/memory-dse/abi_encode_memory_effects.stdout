@@ -1,14 +1,14 @@
 - // === ROOT/tests/ui/codegen/mir/memory-dse/abi_encode_memory_effects.mir (before memory-dse) ===
 + // === ROOT/tests/ui/codegen/mir/memory-dse/abi_encode_memory_effects.mir (after memory-dse) ===
   @module AbiEncodeMemoryEffects
-  fn @encode(arg0: memptr) -> memoryslice {
+  fn @encode(arg0: word) -> memoryslice {
     bb0:
       mstore arg0, 1
       v0 = abi_encode [memory_bytes], args arg0
       ret v0
   }
   
-  fn @require_reads_message(arg0: bool, arg1: memptr) {
+  fn @require_reads_message(arg0: bool, arg1: word) {
     bb0:
       mstore arg1, 1
       icall require<error_string>, arg0, arg1

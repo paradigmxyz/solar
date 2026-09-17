@@ -56,6 +56,16 @@ struct RuleContext<'a> {
 }
 
 impl generated::Context for RuleContext<'_> {
+    fn zero(&mut self, value: Value) -> Option<()> {
+        self.func.value_u256(value).is_some_and(|v| v.is_zero()).then_some(())
+    }
+
+    fn zero_value(&mut self) -> Option<Value> {
+        self.func
+            .live_values()
+            .find(|&value| self.func.value_u256(value).is_some_and(|v| v.is_zero()))
+    }
+
     fn inst_data(&mut self, value: Value) -> Option<Op> {
         let MirValue::Inst(inst) = self.func.value(value) else { return None };
         self.func.blocks[self.block].instructions[..self.index]

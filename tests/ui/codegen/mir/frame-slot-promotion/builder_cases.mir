@@ -28,9 +28,9 @@
 // CHECK: -     mstore [[BODY_STORE_FRAME]], [[OLD_NEXT]]
 // CHECK:       jump [[HEADER]]
 types:
-  struct0: {bytes32, u256}
+  struct0: {word, word}
 
-fn @loop_carried() -> u256 {
+fn @loop_carried() -> word {
   bb0:
     v0 = internal_frame_addr 128
     mstore v0, 0
@@ -58,7 +58,7 @@ fn @loop_carried() -> u256 {
 // CHECK: {{^ +}}[[HASH:v[0-9]+]] = keccak256 [[FRAME]], 32
 // CHECK: {{^ +}}[[LOAD:v[0-9]+]] = mload [[FRAME]]
 // CHECK: {{^ +}}ret [[HASH]], [[LOAD]]
-fn @escaped_address() -> struct0 [return_abi=[bytes32, u256]] {
+fn @escaped_address() -> struct0 [return_abi=[word, word]] {
   bb0:
     v0 = internal_frame_addr 128
     mstore v0, 42
@@ -75,7 +75,7 @@ fn @escaped_address() -> struct0 [return_abi=[bytes32, u256]] {
 // CHECK:       {{v[0-9]+}} = gas
 // CHECK: -     {{v[0-9]+}} = mload
 // CHECK:       ret 42
-fn @gas_not_a_barrier() -> u256 {
+fn @gas_not_a_barrier() -> word {
   bb0:
     v0 = internal_frame_addr 128
     mstore v0, 42
@@ -91,7 +91,7 @@ fn @gas_not_a_barrier() -> u256 {
 // CHECK: {{^ +}}{{v[0-9]+}} = msize
 // CHECK: {{^ +}}[[LOAD:v[0-9]+]] = mload [[FRAME]]
 // CHECK: {{^ +}}ret [[LOAD]]
-fn @msize_observed() -> u256 {
+fn @msize_observed() -> word {
   bb0:
     v0 = internal_frame_addr 128
     mstore v0, 42
@@ -107,7 +107,7 @@ fn @msize_observed() -> u256 {
 // CHECK: -     [[OLD:v[0-9]+]] = mload [[FRAME]]
 // CHECK: -     ret [[OLD]]
 // CHECK:       ret 42
-fn @icall() -> u256 {
+fn @icall() -> word {
   bb0:
     v0 = internal_frame_addr 128
     mstore v0, 42
@@ -130,7 +130,7 @@ fn @callee() {
 // CHECK: -     [[OLD:v[0-9]+]] = mload [[ADDR2]]
 // CHECK: -     ret [[OLD]]
 // CHECK:       ret 99
-fn @constant_offset() -> u256 {
+fn @constant_offset() -> word {
   bb0:
     v0 = internal_frame_addr 128
     v1 = add v0, 32

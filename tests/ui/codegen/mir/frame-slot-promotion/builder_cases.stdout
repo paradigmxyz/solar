@@ -2,9 +2,9 @@
 + // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/builder_cases.mir (after frame-slot-promotion) ===
   @module FramePromotionBuilderCases
   types:
-    struct0: {bytes32, u256}
+    struct0: {word, word}
   
-  fn @loop_carried() -> u256 {
+  fn @loop_carried() -> word {
     bb0:
       v0 = internal_frame_addr 128
 -     mstore v0, 0
@@ -31,7 +31,7 @@
       jump bb1
   }
   
-  fn @escaped_address() -> struct0 [return_abi=[bytes32, u256]] {
+  fn @escaped_address() -> struct0 [return_abi=[word, word]] {
     bb0:
       v0 = internal_frame_addr 128
       mstore v0, 42
@@ -40,7 +40,7 @@
       ret v1, v2
   }
   
-  fn @gas_not_a_barrier() -> u256 {
+  fn @gas_not_a_barrier() -> word {
     bb0:
       v0 = internal_frame_addr 128
 -     mstore v0, 42
@@ -50,7 +50,7 @@
 +     ret 42
   }
   
-  fn @msize_observed() -> u256 {
+  fn @msize_observed() -> word {
     bb0:
       v0 = internal_frame_addr 128
       mstore v0, 42
@@ -59,7 +59,7 @@
       ret v2
   }
   
-  fn @icall() -> u256 {
+  fn @icall() -> word {
     bb0:
       v0 = internal_frame_addr 128
 -     mstore v0, 42
@@ -74,7 +74,7 @@
       ret
   }
   
-  fn @constant_offset() -> u256 {
+  fn @constant_offset() -> word {
     bb0:
       v0 = internal_frame_addr 128
       v1 = add v0, 32

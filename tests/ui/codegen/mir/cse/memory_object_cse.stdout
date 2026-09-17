@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/cse/memory_object_cse.mir (before cse) ===
 + // === ROOT/tests/ui/codegen/mir/cse/memory_object_cse.mir (after cse) ===
   @module MemoryObjectCse
-  fn @reuse_projections(arg0: memorybytes, arg1: memorystruct, arg2: memoryarray, arg3: u256) -> u256 {
+  fn @reuse_projections(arg0: memorybytes, arg1: memorystruct, arg2: memoryarray, arg3: word) -> word {
     bb0:
       v0 = memory_object_data memorybytes, arg0
 -     v1 = memory_object_data memorybytes, arg0
@@ -15,12 +15,15 @@
 +     v6 = eq v0, v0
 +     v7 = eq v2, v2
 +     v8 = eq v4, v4
-      v9 = add v6, v7
-      v10 = add v9, v8
-      ret v10
+      v9 = word_cast v6
+      v10 = word_cast v7
+      v11 = add v9, v10
+      v12 = word_cast v8
+      v13 = add v11, v12
+      ret v13
   }
   
-  fn @invalidate_length(arg0: memorybytes) -> u256 {
+  fn @invalidate_length(arg0: memorybytes) -> word {
     bb0:
       v0 = memory_object_len memorybytes, arg0
 -     v1 = memory_object_len memorybytes, arg0
@@ -33,48 +36,51 @@
       ret v4
   }
   
-  fn @keep_local_length() -> u256 {
+  fn @keep_local_length() -> word {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 32
       v1 = memory_object_len memorybytes, v0
-      jumpi v1, bb1, bb2
-    bb2:
-      ret 0
-    bb1:
-      v2 = memory_object_len memorybytes, v0
-      ret v2
-  }
-  
-  fn @reuse_live_length() -> u256 {
-    bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 32
-      v1 = memory_object_len memorybytes, v0
-      jumpi v1, bb1, bb2
-    bb2:
-      ret 0
-    bb1:
--     v2 = memory_object_len memorybytes, v0
--     v3 = add v1, v2
-+     v3 = add v1, v1
-      ret v3
-  }
-  
-  fn @reuse_struct_field() -> u256 {
-    bb0:
-      v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-      v1 = memory_object_field_addr memorystruct<1>, v0, 0
-      v2 = mload v1
+      v2 = ne v1, 0
       jumpi v2, bb1, bb2
     bb2:
       ret 0
     bb1:
--     v3 = mload v1
--     v4 = add v2, v3
-+     v4 = add v2, v2
+      v3 = memory_object_len memorybytes, v0
+      ret v3
+  }
+  
+  fn @reuse_live_length() -> word {
+    bb0:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 32
+      v1 = memory_object_len memorybytes, v0
+      v2 = ne v1, 0
+      jumpi v2, bb1, bb2
+    bb2:
+      ret 0
+    bb1:
+-     v3 = memory_object_len memorybytes, v0
+-     v4 = add v1, v3
++     v4 = add v1, v1
       ret v4
   }
   
-  fn @forward_initialized_length() -> u256 {
+  fn @reuse_struct_field() -> word {
+    bb0:
+      v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+      v1 = memory_object_field_addr memorystruct<1>, v0, 0
+      v2 = mload v1
+      v3 = ne v2, 0
+      jumpi v3, bb1, bb2
+    bb2:
+      ret 0
+    bb1:
+-     v4 = mload v1
+-     v5 = add v2, v4
++     v5 = add v2, v2
+      ret v5
+  }
+  
+  fn @forward_initialized_length() -> word {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 3
@@ -87,7 +93,7 @@
 +     ret 3
   }
   
-  fn @raw_header_clobber(arg0: memorybytes, arg1: u256) -> u256 {
+  fn @raw_header_clobber(arg0: memorybytes, arg1: word) -> word {
     bb0:
       set_memory_object_len memorybytes, arg0, 3
       v0 = word_cast arg0
@@ -97,27 +103,29 @@
 +     ret arg1
   }
   
-  fn @diamond_header_clobber(arg0: memorybytes, arg1: u256) -> u256 {
+  fn @diamond_header_clobber(arg0: memorybytes, arg1: word) -> word {
     bb0:
       set_memory_object_len memorybytes, arg0, 3
-      jumpi arg1, bb1, bb2
+      v0 = ne arg1, 0
+      jumpi v0, bb1, bb2
     bb2:
       jump bb3
     bb1:
       set_memory_object_len memorybytes, arg0, 4
       jump bb3
     bb3:
-      v0 = memory_object_len memorybytes, arg0
-      ret v0
+      v1 = memory_object_len memorybytes, arg0
+      ret v1
   }
   
-  fn @loop_header_clobber(arg0: memorybytes) -> u256 {
+  fn @loop_header_clobber(arg0: memorybytes) -> word {
     bb0:
       set_memory_object_len memorybytes, arg0, 7
       jump bb1
     bb1:
       v0 = memory_object_len memorybytes, arg0
-      jumpi v0, bb2, bb3
+      v1 = ne v0, 0
+      jumpi v1, bb2, bb3
     bb3:
       ret v0
     bb2:
@@ -125,7 +133,7 @@
       jump bb1
   }
   
-  fn @recycled_header_clobber() -> u256 {
+  fn @recycled_header_clobber() -> word {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 32
       set_memory_object_len memorybytes, v0, 3

@@ -30,7 +30,7 @@ use super::{
     AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, EffectKind,
     FrameMode, FrameSlotKind, FunctionId, ImmutableId, InstructionMetadata, MemoryObjectKind,
     MemoryObjectLayout, MirPhase, MirType, PackedPart, RevertKind, SliceLocation, StorageLayoutRef,
-    StructId, ValueId,
+    StructId, ValueId, ValueLayout,
 };
 use smallvec::{Array, SmallVec};
 #[cfg(test)]
@@ -96,18 +96,10 @@ impl OpTraits {
 pub(crate) enum ResultKind {
     /// The operation produces no value.
     None,
-    /// An unsigned 256-bit word.
+    /// A 256-bit word.
     Word,
-    /// A signed 256-bit word.
-    SignedWord,
-    /// A boolean.
+    /// A canonical boolean.
     Bool,
-    /// An address.
-    Address,
-    /// A 32-byte hash or slot.
-    Bytes32,
-    /// A memory pointer.
-    MemPtr,
     /// A value whose type depends on the operation's attributes.
     Custom,
 }
@@ -118,12 +110,8 @@ impl ResultKind {
     pub(crate) const fn default_type(self) -> Option<MirType> {
         match self {
             Self::None | Self::Custom => None,
-            Self::Word => Some(MirType::uint256()),
-            Self::SignedWord => Some(MirType::int256()),
+            Self::Word => Some(MirType::Word),
             Self::Bool => Some(MirType::Bool),
-            Self::Address => Some(MirType::Address),
-            Self::Bytes32 => Some(MirType::bytes32()),
-            Self::MemPtr => Some(MirType::MemPtr),
         }
     }
 
@@ -133,21 +121,9 @@ impl ResultKind {
         !matches!(self, Self::None)
     }
 
-    /// Returns whether a result type is consistent with the operation's result kind.
-    ///
-    /// Word-producing operations carry the precise Solidity type of the value they
-    /// compute, so any word type is admitted there. Boolean operations produce
-    /// `bool`, or the 256-bit word when lowered from inline assembly, where every
-    /// value is a word.
+    /// Checks the exact result type; scalar conversions require explicit instructions.
     pub(crate) fn admits_type(self, ty: MirType) -> bool {
-        match self {
-            Self::None | Self::Custom => true,
-            Self::Word | Self::SignedWord => !matches!(ty, MirType::Void | MirType::Function),
-            Self::Bool => matches!(ty, MirType::Bool) || ty == MirType::uint256(),
-            Self::Address => matches!(ty, MirType::Address),
-            Self::Bytes32 => matches!(ty, MirType::FixedBytes(_)),
-            Self::MemPtr => matches!(ty, MirType::MemPtr),
-        }
+        self.default_type().is_none_or(|expected| expected == ty)
     }
 }
 
@@ -476,7 +452,7 @@ fn isle_op_name(variant: &str) -> String {
 type OptionU64 = Option<u64>;
 
 attributes! {
-    bool, StructId, MirType, AddressCallKind, CheckedOp, ArithmeticKind, OptionU64,
+    bool, StructId, MirType, ValueLayout, AddressCallKind, CheckedOp, ArithmeticKind, OptionU64,
     u32,
     u64,
     AbiEncodeMode,
@@ -888,8 +864,8 @@ define_mir_ops! {
     #[mir_op(mnemonic = "memory_object_from_ptr", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some("semantic operation"))]
     MemoryObjectFromPtr { ptr: ValueId, kind: MemoryObjectKind },
-    #[mir_op(mnemonic = "word_cast", result = Word, phases = PhaseSet::SEMANTIC,
-        effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some("semantic operation"))]
+    #[mir_op(mnemonic = "word_cast", result = Word, phases = PhaseSet::ALL,
+        effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
     WordCast(operand0: ValueId),
     #[mir_op(mnemonic = "checked_binary", result = Word, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
@@ -907,7 +883,7 @@ define_mir_ops! {
     StorageBytesLoad(operand0: ValueId),
     #[mir_op(mnemonic = "load_storage_array", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
-    StorageArrayLoad { slot: ValueId, element: MirType, enum_variants: Option<u64> },
+    StorageArrayLoad { slot: ValueId, element: ValueLayout, enum_variants: Option<u64> },
     #[mir_op(mnemonic = "store_storage_bytes", result = None, phases = PhaseSet::SEMANTIC,
         effect = StorageWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
     StorageBytesStore(operand0: ValueId, operand1: ValueId),
@@ -923,7 +899,7 @@ define_mir_ops! {
     #[mir_op(mnemonic = "abi_encode_packed", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
     AbiEncodePacked { parts: Box<[PackedPart]>, hash: bool },
-    #[mir_op(mnemonic = "address_call", result = Word, phases = PhaseSet::SEMANTIC,
+    #[mir_op(mnemonic = "address_call", result = Bool, phases = PhaseSet::SEMANTIC,
         effect = ExternalCall, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
     AddressCall {
         kind: AddressCallKind,
@@ -987,7 +963,7 @@ define_mir_ops! {
     /// Signed division: `a / b`
     #[mir_op(
         mnemonic = "sdiv",
-        result = SignedWord,
+        result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -1011,7 +987,7 @@ define_mir_ops! {
     /// Signed modulo: `a % b`
     #[mir_op(
         mnemonic = "smod",
-        result = SignedWord,
+        result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -1150,7 +1126,7 @@ define_mir_ops! {
     /// Arithmetic right shift: `a >> b` (signed)
     #[mir_op(
         mnemonic = "sar",
-        result = SignedWord,
+        result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
@@ -1234,18 +1210,19 @@ define_mir_ops! {
     #[commutative(a, b)]
     #[builder(eq)]
     Eq(a: ValueId, b: ValueId),
-    /// Check if zero: `a == 0`
+    /// Inequality: `a != b`.
     #[mir_op(
-        mnemonic = "iszero",
+        mnemonic = "ne",
         result = Bool,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::EGRAPH_REWRITE,
+        traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
-    #[builder(iszero)]
-    IsZero(a: ValueId),
+    #[commutative(a, b)]
+    #[builder(ne)]
+    Ne(a: ValueId, b: ValueId),
 
     // Memory operations
     /// Load from memory: `mload(offset)`
@@ -1311,7 +1288,7 @@ define_mir_ops! {
     /// Read the free-memory pointer.
     #[mir_op(
         mnemonic = "fmp",
-        result = MemPtr,
+        result = Word,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::NONE,
@@ -1374,7 +1351,7 @@ define_mir_ops! {
     /// Project the address of the first payload byte from an object.
     #[mir_op(
         mnemonic = "memory_object_data",
-        result = MemPtr,
+        result = Word,
         phases = PhaseSet::SEMANTIC,
         effect = Pure,
         traits = OpTraits::MEMORY_OBJECT.union(OpTraits::EGRAPH_REWRITE),
@@ -1385,7 +1362,7 @@ define_mir_ops! {
     /// Address a direct field of a struct object.
     #[mir_op(
         mnemonic = "memory_object_field_addr",
-        result = MemPtr,
+        result = Word,
         phases = PhaseSet::SEMANTIC,
         effect = Pure,
         traits = OpTraits::MEMORY_OBJECT.union(OpTraits::EGRAPH_REWRITE),
@@ -1403,7 +1380,7 @@ define_mir_ops! {
     /// Address an array element under the semantic object layout.
     #[mir_op(
         mnemonic = "memory_object_element_addr",
-        result = MemPtr,
+        result = Word,
         phases = PhaseSet::SEMANTIC,
         effect = Pure,
         traits = OpTraits::MEMORY_OBJECT.union(OpTraits::EGRAPH_REWRITE),
@@ -1879,7 +1856,7 @@ define_mir_ops! {
     /// Address inside the current internal-call frame.
     #[mir_op(
         mnemonic = "internal_frame_addr",
-        result = MemPtr,
+        result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::NONE,
@@ -2085,7 +2062,7 @@ define_mir_ops! {
     /// Get caller address: `caller()`
     #[mir_op(
         mnemonic = "caller",
-        result = Address,
+        result = Word,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2109,7 +2086,7 @@ define_mir_ops! {
     /// Get origin address: `origin()`
     #[mir_op(
         mnemonic = "origin",
-        result = Address,
+        result = Word,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2133,7 +2110,7 @@ define_mir_ops! {
     /// Get block hash: `blockhash(blockNum)`
     #[mir_op(
         mnemonic = "blockhash",
-        result = Bytes32,
+        result = Word,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::NONE,
@@ -2145,7 +2122,7 @@ define_mir_ops! {
     /// Get coinbase address: `coinbase()`
     #[mir_op(
         mnemonic = "coinbase",
-        result = Address,
+        result = Word,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2228,7 +2205,7 @@ define_mir_ops! {
     /// Get this contract's address: `address()`
     #[mir_op(
         mnemonic = "address",
-        result = Address,
+        result = Word,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2300,7 +2277,7 @@ define_mir_ops! {
     /// Get blob hash: `blobhash(index)`
     #[mir_op(
         mnemonic = "blobhash",
-        result = Bytes32,
+        result = Word,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::NONE,
@@ -2314,7 +2291,7 @@ define_mir_ops! {
     /// Keccak256 hash: `keccak256(offset, size)`
     #[mir_op(
         mnemonic = "keccak256",
-        result = Bytes32,
+        result = Word,
         phases = PhaseSet::ALL,
         effect = MemoryRead,
         traits = OpTraits::NONE,
@@ -2332,7 +2309,7 @@ define_mir_ops! {
     /// and a physical `keccak256`.
     #[mir_op(
         mnemonic = "keccak256_bytes",
-        result = Bytes32,
+        result = Word,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::MEMORY_OBJECT,
@@ -2346,7 +2323,7 @@ define_mir_ops! {
     /// Late lowering writes scratch memory; effect analysis tracks that footprint.
     #[mir_op(
         mnemonic = "mapping_slot",
-        result = Bytes32,
+        result = Word,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::NONE,
@@ -2358,7 +2335,7 @@ define_mir_ops! {
     /// Hash a `[length][data...]` memory value and its parent mapping slot.
     #[mir_op(
         mnemonic = "mapping_slot_memory",
-        result = Bytes32,
+        result = Word,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::NONE,
@@ -2372,7 +2349,7 @@ define_mir_ops! {
     /// Late lowering writes scratch memory; effect analysis tracks that footprint.
     #[mir_op(
         mnemonic = "mapping_slot_calldata",
-        result = Bytes32,
+        result = Word,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::NONE,
@@ -2386,7 +2363,7 @@ define_mir_ops! {
     /// Late lowering writes scratch memory; effect analysis tracks that footprint.
     #[mir_op(
         mnemonic = "storage_array_data_slot",
-        result = Bytes32,
+        result = Word,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::NONE,
@@ -2402,7 +2379,7 @@ define_mir_ops! {
     /// offset calculation.
     #[mir_op(
         mnemonic = "storage_array_element_slot",
-        result = Bytes32,
+        result = Word,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::NONE,
@@ -2417,7 +2394,7 @@ define_mir_ops! {
     /// External call: `call(gas, addr, value, argsOffset, argsSize, retOffset, retSize)`
     #[mir_op(
         mnemonic = "call",
-        result = Word,
+        result = Bool,
         phases = PhaseSet::ALL,
         effect = ExternalCall,
         traits = OpTraits::NONE,
@@ -2436,7 +2413,7 @@ define_mir_ops! {
     /// Call code: `callcode(gas, addr, value, argsOffset, argsSize, retOffset, retSize)`
     #[mir_op(
         mnemonic = "callcode",
-        result = Word,
+        result = Bool,
         phases = PhaseSet::ALL,
         effect = ExternalCall,
         traits = OpTraits::NONE,
@@ -2455,7 +2432,7 @@ define_mir_ops! {
     /// Static call: `staticcall(gas, addr, argsOffset, argsSize, retOffset, retSize)`
     #[mir_op(
         mnemonic = "staticcall",
-        result = Word,
+        result = Bool,
         phases = PhaseSet::ALL,
         effect = ExternalCall,
         traits = OpTraits::NONE,
@@ -2473,7 +2450,7 @@ define_mir_ops! {
     /// Delegate call: `delegatecall(gas, addr, argsOffset, argsSize, retOffset, retSize)`
     #[mir_op(
         mnemonic = "delegatecall",
-        result = Word,
+        result = Bool,
         phases = PhaseSet::ALL,
         effect = ExternalCall,
         traits = OpTraits::NONE,
@@ -2537,7 +2514,7 @@ define_mir_ops! {
     /// Create contract: `create(value, offset, size)`
     #[mir_op(
         mnemonic = "create",
-        result = Address,
+        result = Word,
         phases = PhaseSet::ALL,
         effect = Create,
         traits = OpTraits::NONE,
@@ -2549,7 +2526,7 @@ define_mir_ops! {
     /// Create2 contract: `create2(value, offset, size, salt)`
     #[mir_op(
         mnemonic = "create2",
-        result = Address,
+        result = Word,
         phases = PhaseSet::ALL,
         effect = Create,
         traits = OpTraits::NONE,
@@ -2631,7 +2608,7 @@ define_mir_ops! {
     /// Select: `select(cond, true_val, false_val)`
     #[mir_op(
         mnemonic = "select",
-        result = Word,
+        result = Custom,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -2644,7 +2621,7 @@ define_mir_ops! {
     /// Sign extend: `signextend(b, x)` - extends the sign bit from byte position b
     #[mir_op(
         mnemonic = "signextend",
-        result = SignedWord,
+        result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -2673,7 +2650,7 @@ mod tests {
         assert!(calldata_size.op_def().traits.contains(OpTraits::REMATERIALIZABLE));
         assert!(calldata_size.op_def().phases.contains(MirPhase::Lowered));
 
-        assert_eq!(add.op_def().result.default_type(), Some(MirType::uint256()));
+        assert_eq!(add.op_def().result.default_type(), Some(MirType::Word));
         assert!(
             !InstKind::MStore(ValueId::new(0), ValueId::new(1)).op_def().result.produces_value()
         );

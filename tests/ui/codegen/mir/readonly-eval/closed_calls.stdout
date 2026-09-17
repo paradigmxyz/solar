@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/readonly-eval/closed_calls.mir (before readonly-eval) ===
 + // === ROOT/tests/ui/codegen/mir/readonly-eval/closed_calls.mir (after readonly-eval) ===
   @module ClosedCalls
-  fn @closed() -> u256 {
+  fn @closed() -> word {
     bb0:
 -     v0 = icall @validated, 42
 -     icall @guard, v0
@@ -9,13 +9,13 @@
 +     ret 42
   }
   
-  fn @validated(arg0: u256) -> u256 {
+  fn @validated(arg0: word) -> word {
     bb0:
       icall @guard, arg0
       ret arg0
   }
   
-  fn @guard(arg0: u256) {
+  fn @guard(arg0: word) {
     bb0:
       v0 = eq arg0, 42
       jumpi v0, bb1, bb2
@@ -32,7 +32,7 @@
       ret
   }
   
-  fn @unknown(arg0: u256) {
+  fn @unknown(arg0: word) {
     bb0:
       icall @guard, arg0
       ret
@@ -46,7 +46,7 @@
       ret
   }
   
-  fn @write(arg0: u256) {
+  fn @write(arg0: word) {
     bb0:
       sstore 0, arg0
       ret
@@ -70,13 +70,13 @@
       ret
   }
   
-  fn @recursive(arg0: u256) {
+  fn @recursive(arg0: word) {
     bb0:
       icall @recursive, arg0
       ret
   }
   
-  fn @known_memory() -> u256 {
+  fn @known_memory() -> word {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 19
@@ -86,20 +86,20 @@
 +     ret 19
   }
   
-  fn @read(arg0: memptr) -> u256 {
+  fn @read(arg0: word) -> word {
     bb0:
       v0 = mload arg0
       ret v0
   }
   
-  fn @reference_caller() -> storageptr {
+  fn @reference_caller() -> memorybytes {
     bb0:
       v0 = icall @reference
       ret v0
   }
   
-  fn @reference() -> storageptr {
+  fn @reference() -> memorybytes {
     bb0:
-      ret 5
+      ret memorybytes 5
   }
   

@@ -75,7 +75,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     lhs,
                     rhs,
                 },
-                Some(MirType::uint256()),
+                Some(MirType::Word),
             );
         }
         match op {
@@ -101,23 +101,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 _ => self.builder.gt(lhs, rhs),
             },
             BinOpKind::Eq => self.builder.eq(lhs, rhs),
-            BinOpKind::Ne => {
-                let eq = self.builder.eq(lhs, rhs);
-                self.builder.iszero(eq)
-            }
+            BinOpKind::Ne => self.builder.ne(lhs, rhs),
             BinOpKind::Le => {
                 let gt = match arithmetic {
                     Some(ArithmeticKind::Signed(_)) => self.builder.sgt(lhs, rhs),
                     _ => self.builder.gt(lhs, rhs),
                 };
-                self.builder.iszero(gt)
+                self.builder.eq_zero(gt)
             }
             BinOpKind::Ge => {
                 let lt = match arithmetic {
                     Some(ArithmeticKind::Signed(_)) => self.builder.slt(lhs, rhs),
                     _ => self.builder.lt(lhs, rhs),
                 };
-                self.builder.iszero(lt)
+                self.builder.eq_zero(lt)
             }
             BinOpKind::And | BinOpKind::BitAnd => self.builder.and(lhs, rhs),
             BinOpKind::Or | BinOpKind::BitOr => self.builder.or(lhs, rhs),
@@ -144,7 +141,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn unary(&mut self, op: UnOpKind, value: ValueId, ty: Option<Ty<'gcx>>) -> ValueId {
         match op {
-            UnOpKind::Not => self.builder.iszero(value),
+            UnOpKind::Not => self.builder.eq_zero(value),
             UnOpKind::Neg => {
                 if !self.unchecked
                     && let Some(ArithmeticKind::Signed(bits)) = ty.and_then(arithmetic_kind)
@@ -158,7 +155,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             lhs: zero,
                             rhs: value,
                         },
-                        Some(MirType::uint256()),
+                        Some(MirType::Word),
                     );
                 }
                 let zero = self.builder.imm(U256::ZERO);

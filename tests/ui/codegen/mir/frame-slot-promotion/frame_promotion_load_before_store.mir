@@ -6,7 +6,7 @@
 // CHECK: {{^[ +].*}}[[BEFORE:v[0-9]+]] = mload [[SLOT]]
 // CHECK: {{^[ +].*}}mstore [[SLOT]], 1
 // CHECK: {{^[ +].*}}ret [[BEFORE]]
-fn @load_before_store() -> u256 {
+fn @load_before_store() -> word {
   bb0:
     v1 = internal_frame_addr 128
     v2 = mload v1

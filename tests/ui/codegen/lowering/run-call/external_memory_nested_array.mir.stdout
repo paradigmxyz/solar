@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_memory_nested_array.sol:ExternalMemoryNestedArray ===
 @module ExternalMemoryNestedArray
 types:
-  struct0: {u256, u256}
+  struct0: {word, word}
 
 fn @inspect(arg0: memoryarray) -> struct0 [selector=0x9d6ce1dc, pure, abi_params=[array<_, bytes>], abi_returns=[word, word], abi_return_params=[u256, bytes32]] {
   bb0:
@@ -15,11 +15,11 @@ fn @inspect(arg0: memoryarray) -> struct0 [selector=0x9d6ce1dc, pure, abi_params
     ret v6
 }
 
-fn @inspectItems(arg0: calldataslice) -> u256 [selector=0x68057f1e, pure, abi_params=[array<_, tuple<u256, u256, u256, u256, u256>>], abi_returns=[word]] {
+fn @inspectItems(arg0: calldataslice) -> word [selector=0x68057f1e, pure, abi_params=[array<_, tuple<u256, u256, u256, u256, u256>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 0
@@ -29,7 +29,7 @@ fn @inspectItems(arg0: calldataslice) -> u256 [selector=0x68057f1e, pure, abi_pa
     v8 = calldataload v7
     v9 = slice_len arg0
     v10 = lt 0, v9
-    v11 = iszero v10
+    v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = slice_ptr arg0
     v13 = add v12, 0
@@ -41,7 +41,7 @@ fn @inspectItems(arg0: calldataslice) -> u256 [selector=0x68057f1e, pure, abi_pa
     ret v18
 }
 
-fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>]] {
+fn @test() -> word [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -57,7 +57,7 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<
     mstore v5, 0xaa00000000000000000000000000000000000000000000000000000000000000
     v6 = memory_object_len memoryarray, v0
     v7 = lt 0, v6
-    v8 = iszero v7
+    v8 = eq v7, false
     icall panic_if<0x32>, v8
     memory_object_store_element memoryarray<1>, v0, 0, v4
     v9 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
@@ -66,7 +66,7 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<
     mstore v10, 0xbbcc000000000000000000000000000000000000000000000000000000000000
     v11 = memory_object_len memoryarray, v0
     v12 = lt 1, v11
-    v13 = iszero v12
+    v13 = eq v12, false
     icall panic_if<0x32>, v13
     memory_object_store_element memoryarray<1>, v0, 1, v9
     v14 = abi_encode [memory_array<memory_bytes>], scratch, args v0
@@ -114,7 +114,7 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<
     memory_object_store_field memorystruct<5>, v43, 4, 5
     v44 = memory_object_len memoryarray, v38
     v45 = lt 0, v44
-    v46 = iszero v45
+    v46 = eq v45, false
     icall panic_if<0x32>, v46
     memory_object_store_element memoryarray<1>, v38, 0, v43
     v47 = eq v36, 2
@@ -151,7 +151,8 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<
     jump bb14
   bb14:
     v63 = phi [bb16: v62], [bb13: false]
-    ret v63
+    v64 = word_cast v63
+    ret v64
   bb7:
     v41 = alloc memorystruct<5>, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
     memory_zero v41, 160

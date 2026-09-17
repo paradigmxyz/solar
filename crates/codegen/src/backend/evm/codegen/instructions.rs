@@ -112,6 +112,49 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         if self.emit_stack_expression(func, liveness, block, inst_idx) {
             // The selected expression already produced the original result.
+        } else if let InstKind::WordCast(value) = *kind {
+            // word_cast value -> the same physical word under the result identity
+            if let Some(plan) = self.plan_operands(func, &[value], liveness, block, inst_idx) {
+                self.emit_operand_plan(func, plan);
+            } else {
+                self.preserve_stack_only_operands(&[value], liveness, block, inst_idx);
+                self.emit_value(func, value);
+                if !self.block_local_copy_survives(liveness, block, value, 1) {
+                    self.spill_top_value_if_live(func, liveness, block, inst_idx, value);
+                }
+            }
+            self.scheduler.instruction_executed(1, result_value);
+        } else if let InstKind::Eq(a, b) | InstKind::Ne(a, b) = *kind {
+            // eq x, 0 -> ISZERO x
+            // ne x, 0 -> ISZERO x; ISZERO
+            // ne x, y -> EQ x, y; ISZERO
+            if let Some(value) = [(a, b), (b, a)].into_iter().find_map(|(value, zero)| {
+                func.value_u256(zero).is_some_and(|v| v.is_zero()).then_some(value)
+            }) {
+                self.emit_unary_op_with_result(
+                    func,
+                    value,
+                    op::ISZERO,
+                    result_value,
+                    liveness,
+                    block,
+                    inst_idx,
+                );
+            } else {
+                self.emit_binary_op_with_result(
+                    func,
+                    a,
+                    b,
+                    op::EQ,
+                    result_value,
+                    liveness,
+                    block,
+                    inst_idx,
+                );
+            }
+            if matches!(kind, InstKind::Ne(..)) {
+                self.asm.emit_op(op::ISZERO);
+            }
         } else if let Some(lowering) = select::opcode_lowering(&kind.op()) {
             self.emit_opcode_lowering(
                 func,

@@ -151,7 +151,7 @@ impl InstKind {
             | Self::SLt(..)
             | Self::SGt(..)
             | Self::Eq(..)
-            | Self::IsZero(..)
+            | Self::Ne(..)
             | Self::MLoad(..)
             | Self::MStore(..)
             | Self::MStore8(..)

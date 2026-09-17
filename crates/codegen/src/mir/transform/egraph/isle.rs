@@ -124,6 +124,9 @@ pub(in crate::mir::transform) fn max_bits_with_args(
     depth: u32,
     argument_bits: &impl Fn(ArgIdx) -> u32,
 ) -> u32 {
+    if func.value_ty(value) == Some(crate::mir::MirType::Bool) {
+        return 1;
+    }
     if let Some(constant) = func.value_u256(value) {
         return constant.bit_len() as u32;
     }
@@ -137,7 +140,8 @@ pub(in crate::mir::transform) fn max_bits_with_args(
     let bits = |value| max_bits_with_args(func, value, depth - 1, argument_bits);
     let shift = |shift| func.value_u256(shift).map(|shift| shift.min(U256::from(256)).to::<u32>());
     match *kind {
-        InstKind::IsZero(_)
+        InstKind::WordCast(value) => bits(value),
+        InstKind::Ne(..)
         | InstKind::Lt(..)
         | InstKind::Gt(..)
         | InstKind::SLt(..)
@@ -213,13 +217,9 @@ fn at_most(func: &Function, value: ValueId, bound: U256) -> bool {
     bits < 256 && bound >= (U256::ONE << bits) - U256::ONE
 }
 
-/// Returns whether `value` is known to be exactly zero or one.
-///
-/// Solidity's `bool` type does not prove that the EVM word is canonical:
-/// inline assembly can assign dirty words to variables, arguments, and return
-/// values. Only values whose definition bounds them to one bit qualify.
+/// Returns whether the value carries the canonical boolean invariant.
 pub(in crate::mir::transform) fn is_bool_value(func: &Function, value: ValueId) -> bool {
-    max_bits(func, value, MAX_BITS_DEPTH) <= 1
+    func.value_ty(value) == Some(crate::mir::MirType::Bool)
 }
 
 /// Returns whether `value` is an address produced by an EVM opcode.

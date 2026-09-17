@@ -8,7 +8,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/string_literal_internal_args.sol:StringLiteralInternalArgs ===
 @module StringLiteralInternalArgs
-fn @libLiteral() -> u256 [selector=0x71bacd94, pure, abi_params=[], abi_returns=[word]] {
+fn @libLiteral() -> word [selector=0x71bacd94, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 2
@@ -18,7 +18,7 @@ fn @libLiteral() -> u256 [selector=0x71bacd94, pure, abi_params=[], abi_returns=
     ret v2
 }
 
-fn @libConstant() -> u256 [selector=0x4f548a6c, pure, abi_params=[], abi_returns=[word]] {
+fn @libConstant() -> word [selector=0x4f548a6c, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 20
@@ -28,7 +28,7 @@ fn @libConstant() -> u256 [selector=0x4f548a6c, pure, abi_params=[], abi_returns
     ret v2
 }
 
-fn @libHex() -> u256 [selector=0xed6b01e9, pure, abi_params=[], abi_returns=[word]] {
+fn @libHex() -> word [selector=0xed6b01e9, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 2
@@ -38,14 +38,14 @@ fn @libHex() -> u256 [selector=0xed6b01e9, pure, abi_params=[], abi_returns=[wor
     ret v2
 }
 
-fn @libLong() -> u256 [selector=0x7a8edc4e, pure, abi_params=[], abi_returns=[word]] {
+fn @libLong() -> word [selector=0x7a8edc4e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @literal_bytes_0
     v1 = icall @lenPlus, v0, 0
     ret v1
 }
 
-fn @sharedLong() -> u256 [selector=0xd83f9e13, pure, abi_params=[], abi_returns=[word]] {
+fn @sharedLong() -> word [selector=0xd83f9e13, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @literal_bytes_0
     v1 = icall @lenPlus, v0, 0
@@ -61,7 +61,7 @@ fn @sharedLong() -> u256 [selector=0xd83f9e13, pure, abi_params=[], abi_returns=
     ret v10
 }
 
-fn @literalContent() -> bytes32 [selector=0x4ab72711, pure, abi_params=[], abi_returns=[word]] {
+fn @literalContent() -> word [selector=0x4ab72711, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 2
@@ -71,7 +71,7 @@ fn @literalContent() -> bytes32 [selector=0x4ab72711, pure, abi_params=[], abi_r
     ret v2
 }
 
-fn @encodeConstant() -> u256 [selector=0xbffc53ff, pure, abi_params=[], abi_returns=[word]] {
+fn @encodeConstant() -> word [selector=0xbffc53ff, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 20
@@ -82,7 +82,7 @@ fn @encodeConstant() -> u256 [selector=0xbffc53ff, pure, abi_params=[], abi_retu
     ret v3
 }
 
-fn @encodeConstantCast() -> u256 [selector=0x355fad3a, pure, abi_params=[], abi_returns=[word]] {
+fn @encodeConstantCast() -> word [selector=0x355fad3a, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 20
@@ -93,24 +93,25 @@ fn @encodeConstantCast() -> u256 [selector=0x355fad3a, pure, abi_params=[], abi_
     ret v3
 }
 
-fn @lenPlus(arg0: memorybytes, arg1: u256) -> u256 [pure] {
+fn @lenPlus(arg0: memorybytes, arg1: word) -> word [pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = checked_add u256, v0, arg1
     ret v1
 }
 
-fn @lenBytes(arg0: memorybytes) -> u256 [pure] {
+fn @lenBytes(arg0: memorybytes) -> word [pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     ret v0
 }
 
-fn @firstWord(arg0: memorybytes) -> bytes32 [pure] {
+fn @firstWord(arg0: memorybytes) -> word [pure] {
   bb0:
-    v0 = add arg0, 32
-    v1 = mload v0
-    ret v1
+    v0 = word_cast arg0
+    v1 = add v0, 32
+    v2 = mload v1
+    ret v2
 }
 
 fn @literal_bytes_0() -> memorybytes {

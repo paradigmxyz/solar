@@ -15,12 +15,13 @@
 +   bb4:
 +     jump bb1
 +   bb1:
-+     v4 = iszero arg0
-+     v5 = iszero v4
-+     mstore 128, v5
-+     v6 = add 128, 32
-+     v7 = sub v6, 128
-+     returndata 128, v7
++     v4 = eq arg0, false
++     v5 = eq v4, false
++     v6 = word_cast v5
++     mstore 128, v6
++     v7 = add 128, 32
++     v8 = sub v7, 128
++     returndata 128, v8
 +   bb2:
 +     revert 0, 0
   }

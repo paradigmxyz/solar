@@ -6,7 +6,7 @@ error: [fn3] icall targets nonexistent function fn99
 
 error: [fn4] icall to `callee` produces a value but the callee returns no values
 
-error: [fn5] [bb0] tail-call results do not match the struct signature
+error: [fn5] [bb0] tail-call results do not match the signature
 
 error: [fn8] tail_call to `twoWords` returns 2 value(s), caller signature expects 1
 

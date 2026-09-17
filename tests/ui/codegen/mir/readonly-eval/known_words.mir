@@ -4,7 +4,7 @@
 
 // CHECK-LABEL: fn @known
 // CHECK: ret 42
-fn @known() -> u256 {
+fn @known() -> word {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 64
     mstore v0, 1
@@ -15,10 +15,11 @@ fn @known() -> u256 {
 }
 
 // CHECK-LABEL: fn @choose
-fn @choose(arg0: memptr) -> u256 {
+fn @choose(arg0: word) -> word {
   bb0:
     v0 = mload arg0
-    jumpi v0, bb1, bb2
+    v4 = ne v0, 0
+    jumpi v4, bb1, bb2
   bb1:
     v1 = add arg0, 32
     v2 = icall @read, v1
@@ -29,7 +30,7 @@ fn @choose(arg0: memptr) -> u256 {
     ret 7
 }
 
-fn @read(arg0: memptr) -> u256 {
+fn @read(arg0: word) -> word {
   bb0:
     v0 = mload arg0
     ret v0
@@ -38,7 +39,7 @@ fn @read(arg0: memptr) -> u256 {
 // A taken write prevents folding even when the return value is constant.
 // CHECK-LABEL: fn @writes
 // CHECK: {{^[ +].*}}= icall @choose
-fn @writes() -> u256 {
+fn @writes() -> word {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 64
     mstore v0, 0
@@ -49,7 +50,7 @@ fn @writes() -> u256 {
 // A partial overwrite must kill the old full-word fact.
 // CHECK-LABEL: fn @partial_write
 // CHECK: {{^[ +].*}}= icall @read
-fn @partial_write(arg0: u256) -> u256 {
+fn @partial_write(arg0: word) -> word {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     mstore v0, 42
@@ -62,7 +63,7 @@ fn @partial_write(arg0: u256) -> u256 {
 // Unknown call effects invalidate memory; the old initialization cannot survive.
 // CHECK-LABEL: fn @clobbered
 // CHECK: {{^[ +].*}}= icall @read
-fn @clobbered(arg0: u256) -> u256 {
+fn @clobbered(arg0: word) -> word {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     mstore v0, 42
@@ -71,7 +72,7 @@ fn @clobbered(arg0: u256) -> u256 {
     ret v1
 }
 
-fn @overwrite(arg0: memptr, arg1: u256) {
+fn @overwrite(arg0: word, arg1: word) {
   bb0:
     mstore arg0, arg1
     ret
@@ -80,7 +81,7 @@ fn @overwrite(arg0: memptr, arg1: u256) {
 // A call reading an uninitialized word must not fold from adjacent data.
 // CHECK-LABEL: fn @uninitialized
 // CHECK: {{^[ +].*}}= icall @choose
-fn @uninitialized() -> u256 {
+fn @uninitialized() -> word {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 64
     mstore v0, 1
@@ -91,7 +92,7 @@ fn @uninitialized() -> u256 {
 // Fixed scratch words are deliberately outside the fresh-allocation model.
 // CHECK-LABEL: fn @scratch
 // CHECK: {{^[ +].*}}= icall @read
-fn @scratch() -> u256 {
+fn @scratch() -> word {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     mstore v0, 1
@@ -103,7 +104,7 @@ fn @scratch() -> u256 {
 // Both constants propagate through the chosen phi edge.
 // CHECK-LABEL: fn @phi_caller
 // CHECK: ret 42
-fn @phi_caller() -> u256 {
+fn @phi_caller() -> word {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     mstore v0, 1
@@ -111,10 +112,11 @@ fn @phi_caller() -> u256 {
     ret v1
 }
 
-fn @phi_callee(arg0: memptr) -> u256 {
+fn @phi_callee(arg0: word) -> word {
   bb0:
     v0 = mload arg0
-    jumpi v0, bb1, bb2
+    v2 = ne v0, 0
+    jumpi v2, bb1, bb2
   bb1:
     jump bb3
   bb2:
@@ -127,7 +129,7 @@ fn @phi_callee(arg0: memptr) -> u256 {
 // Recursive evaluation must stop without changing the original call.
 // CHECK-LABEL: fn @recursive_caller
 // CHECK: {{^[ +].*}}= icall @recursive
-fn @recursive_caller() -> u256 {
+fn @recursive_caller() -> word {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     mstore v0, 1
@@ -135,7 +137,7 @@ fn @recursive_caller() -> u256 {
     ret v1
 }
 
-fn @recursive(arg0: memptr) -> u256 {
+fn @recursive(arg0: word) -> word {
   bb0:
     v0 = icall @recursive, arg0
     ret v0
@@ -144,7 +146,7 @@ fn @recursive(arg0: memptr) -> u256 {
 // Gas observations are not pure arithmetic, even when memory is fully known.
 // CHECK-LABEL: fn @observes_gas
 // CHECK: {{^[ +].*}}= icall @gas_reader
-fn @observes_gas() -> u256 {
+fn @observes_gas() -> word {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     mstore v0, 42
@@ -152,7 +154,7 @@ fn @observes_gas() -> u256 {
     ret v1
 }
 
-fn @gas_reader(arg0: memptr) -> u256 {
+fn @gas_reader(arg0: word) -> word {
   bb0:
     v0 = gas
     v1 = mload arg0
@@ -163,7 +165,7 @@ fn @gas_reader(arg0: memptr) -> u256 {
 // A loop allocation has multiple dynamic instances and is not a unique base.
 // CHECK-LABEL: fn @loop_allocation
 // CHECK: {{^[ +].*}}= icall @read
-fn @loop_allocation(arg0: bool) -> u256 {
+fn @loop_allocation(arg0: bool) -> word {
   bb0:
     jump bb1
   bb1:
@@ -178,7 +180,7 @@ fn @loop_allocation(arg0: bool) -> u256 {
 // Unknown addresses may overlap the initialized word.
 // CHECK-LABEL: fn @unknown_alias
 // CHECK: {{^[ +].*}}= icall @read
-fn @unknown_alias(arg0: memptr) -> u256 {
+fn @unknown_alias(arg0: word) -> word {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     mstore v0, 42
@@ -190,7 +192,7 @@ fn @unknown_alias(arg0: memptr) -> u256 {
 // Recycling the allocation frontier prevents unique-provenance assumptions.
 // CHECK-LABEL: fn @recycled
 // CHECK: {{^[ +].*}}= icall @read
-fn @recycled(arg0: u256) -> u256 {
+fn @recycled(arg0: word) -> word {
   bb0:
     set_fmp arg0
     v0 = alloc raw, exact, uninitialized, infallible, 32
@@ -202,7 +204,7 @@ fn @recycled(arg0: u256) -> u256 {
 // An infinite concrete path exhausts fuel and keeps the call.
 // CHECK-LABEL: fn @loop_caller
 // CHECK: {{^[ +].*}}= icall @loop_callee
-fn @loop_caller() -> u256 {
+fn @loop_caller() -> word {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     mstore v0, 1
@@ -210,12 +212,13 @@ fn @loop_caller() -> u256 {
     ret v1
 }
 
-fn @loop_callee(arg0: memptr) -> u256 {
+fn @loop_callee(arg0: word) -> word {
   bb0:
     jump bb1
   bb1:
     v0 = mload arg0
-    jumpi v0, bb1, bb2
+    v1 = ne v0, 0
+    jumpi v1, bb1, bb2
   bb2:
     ret v0
 }

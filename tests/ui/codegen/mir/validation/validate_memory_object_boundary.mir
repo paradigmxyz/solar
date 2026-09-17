@@ -17,7 +17,7 @@ fn @object(arg0: memorybytes) -> memorystruct {
     ret v1
 }
 
-fn @typed_immediate() -> memptr {
+fn @typed_immediate() -> memorybytes {
   bb0:
     ret memorybytes 96
 }

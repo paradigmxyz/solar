@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_parenthesized_target.sol:Target ===
 @module Target
-fn @ok() -> u256 [selector=0xd909b403, pure, abi_params=[], abi_returns=[word]] {
+fn @ok() -> word [selector=0xd909b403, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 5
 }
 
-fn @bad() [selector=0x9c3674fc, pure, abi_params=[], abi_returns=[word]] {
+fn @bad() [selector=0x9c3674fc, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall require<short_string>, false, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
@@ -13,34 +13,44 @@ fn @bad() [selector=0x9c3674fc, pure, abi_params=[], abi_returns=[word]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_parenthesized_target.sol:Caller ===
 @module Caller
-data:
-  Target_initcode_0: hex"34600d5760af8060115f395ff35b5f5ffd346028575f3560e01c80639c3674fc146024578063d909b403146020576028565b602c565b603e565b5f5ffd5b60056080526020608001608090036080f35b60e06040525f607457600260a0527f6e6f00000000000000000000000000000000000000000000000000000000000060c0526076565bfe5b7f08c379a0000000000000000000000000000000000000000000000000000000005f52602060045260a05160245260c05160445260645ffd"
-
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 223, v1
+    v2 = and 225, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Target_initcode_0, v3, 192
-    v4 = slice_ptr v0
-    v5 = add v3, 192
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 192
-    jumpi v6, bb2, bb1
+    mstore v3, 0x34600d5760b18060115f395ff35b5f5ffd341515602a575f3560e01c80639c36
+    v4 = add v3, 32
+    mstore v4, 0x74fc146026578063d909b40314602257602a565b602e565b6040565b5f5ffd5b
+    v5 = add v3, 64
+    mstore v5, 0x60056080526020608001608090036080f35b60e06040525f607657600260a052
+    v6 = add v3, 96
+    mstore v6, 0x7f6e6f0000000000000000000000000000000000000000000000000000000000
+    v7 = add v3, 128
+    mstore v7, 0x60c0526078565bfe5b7f08c379a00000000000000000000000000000000000
+    v8 = add v3, 160
+    mstore v8, 0x5f52602060045260a05160245260c0516044526064
+    v9 = add v3, 192
+    mstore v9, 0x5ffd000000000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v0
+    v11 = add v3, 194
+    mcopy v11, v10, 0 !metadata(memory=heap)
+    v12 = create 0, v3, 194
+    v13 = ne v12, 0
+    jumpi v13, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = sload 0 !metadata(storage=slot(0))
-    v8 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = and v7, v8
-    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = or v9, v10
-    sstore 0, v11 !metadata(storage=slot(0))
+    v14 = sload 0 !metadata(storage=slot(0))
+    v15 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = and v14, v15
+    v17 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
+    v18 = or v16, v17
+    sstore 0, v18 !metadata(storage=slot(0))
     ret
 }
 
-fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word]] {
+fn @success() -> word [selector=0x0b93381b, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -65,7 +75,7 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     ret 0
 }
 
-fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word]] {
+fn @failure() -> word [selector=0x76ffb887, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff

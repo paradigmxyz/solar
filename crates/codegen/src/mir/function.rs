@@ -668,9 +668,9 @@ pub(crate) struct FunctionAttributes {
     pub(crate) is_receive: bool,
     /// Whether this function originated from a Yul function definition.
     pub(crate) is_yul: bool,
-    /// Whether a removed return value may still reference caller-visible memory.
+    /// Whether the original signature may reference caller-visible memory.
     ///
-    /// Dead-result elimination can erase the callable return signature, but it must not erase the
+    /// Dead-result elimination and memory lowering can erase reference types, but must preserve the
     /// original signature's frame-lifetime constraint. The backend uses this sticky bit to avoid
     /// reclaiming memory that may have escaped through inline assembly.
     pub(crate) may_return_memory: bool,
@@ -728,9 +728,9 @@ mod tests {
         let mut func = Function::new(Ident::DUMMY);
         let (instruction_arg, terminator_arg, unused_arg, immediate, result) = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let instruction_arg = builder.add_param(MirType::uint256());
-            let terminator_arg = builder.add_param(MirType::uint256());
-            let unused_arg = builder.add_param(MirType::uint256());
+            let instruction_arg = builder.add_param(MirType::Word);
+            let terminator_arg = builder.add_param(MirType::Word);
+            let unused_arg = builder.add_param(MirType::Word);
             let immediate = builder.imm(1);
             let result = builder.add(instruction_arg, immediate);
             builder.ret([terminator_arg, result]);
@@ -772,7 +772,7 @@ mod tests {
         let mut func = Function::new(Ident::DUMMY);
         let (first, second, result) = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let first = builder.add_param(MirType::uint256());
+            let first = builder.add_param(MirType::Word);
             let second = builder.alloc_value(Value::Arg(ArgIdx::new(0)));
             let result = builder.add(first, second);
             builder.ret([second, result]);
@@ -794,8 +794,8 @@ mod tests {
         let mut func = Function::new(Ident::DUMMY);
         let (old, new, load) = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let old = builder.add_param(MirType::MemPtr);
-            let new = builder.add_param(MirType::MemPtr);
+            let old = builder.add_param(MirType::Word);
+            let new = builder.add_param(MirType::Word);
             let value = builder.mload(old);
             builder.ret([value]);
             let Value::Inst(load) = builder.func().value(value) else {

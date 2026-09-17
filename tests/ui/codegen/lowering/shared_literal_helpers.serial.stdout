@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/shared_literal_helpers.sol:SharedLiteralHelpers ===
 @module SharedLiteralHelpers
-fn @b(arg0: u256) -> memorybytes [selector=0xcd580ff3, pure, abi_params=[u256], abi_returns=[memory_bytes]] {
+fn @b(arg0: word) -> memorybytes [selector=0xcd580ff3, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -30,7 +30,7 @@ fn @b(arg0: u256) -> memorybytes [selector=0xcd580ff3, pure, abi_params=[u256], 
     ret v1
 }
 
-fn @a(arg0: u256) -> memorybytes [selector=0xf0fdf834, pure, abi_params=[u256], abi_returns=[memory_bytes]] {
+fn @a(arg0: word) -> memorybytes [selector=0xf0fdf834, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2

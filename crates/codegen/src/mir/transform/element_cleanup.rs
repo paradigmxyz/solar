@@ -271,7 +271,7 @@ fn validated_width(func: &Function, index: ArgIdx) -> u32 {
         _ => return FULL_WIDTH,
     };
     match **element {
-        AbiParamType::Scalar(ty) => match AbiWordValidator::from_mir_type(ty) {
+        AbiParamType::Scalar(ty) => match AbiWordValidator::from_layout(ty) {
             Some(AbiWordValidator::Unsigned(bits)) => u32::from(bits),
             // A full-width element has no mask to remove.
             None => FULL_WIDTH,

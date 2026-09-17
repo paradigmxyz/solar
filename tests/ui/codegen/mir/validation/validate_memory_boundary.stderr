@@ -34,8 +34,6 @@ error: [fn5] non-word type `calldataslice` survives the `lowered` phase boundary
 
 error: [fn6] non-word type `returndataslice` survives the `lowered` phase boundary
 
-error: [fn7] [bb0, inst0] memory-object instruction `word_cast` survives the `lowered` phase boundary
-
 error: [fn8] [bb0, inst0] abstract allocation instruction `alloc` survives the `lowered` phase boundary
 
 error: [fn9] [bb0, inst0] deferred allocation requires a constant size
@@ -68,5 +66,5 @@ error: [fn20] [bb0, inst0] builtin instruction `icall` survives the `lowered` ph
 
 error: [fn20] [bb0, inst1] builtin instruction `address_call` survives the `lowered` phase boundary
 
-error: aborting due to 35 previous errors
+error: aborting due to 34 previous errors
 

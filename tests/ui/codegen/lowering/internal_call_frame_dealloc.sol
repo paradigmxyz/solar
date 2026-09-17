@@ -12,8 +12,11 @@ contract ICallFrameDealloc {
     // CHECK-NEXT: mstore
     // CHECK-NEXT: push [[FIRST_RET:bb[0-9]+]]
     // CHECK-NEXT: jump [[SUM:bb[0-9]+]]
-    // The recursive call body precedes its test, giving the call edge a fallthrough.
-    // CHECK: [[RECURSE:bb[0-9]+]]:
+    // The recursive call path falls through from the zero test.
+    // CHECK: [[SUM]]:
+    // CHECK: iszero
+    // CHECK-NEXT: push [[BASE:bb[0-9]+]]
+    // CHECK-NEXT: jumpi
     // CHECK-NEXT: push 1{{$}}
     // CHECK-NEXT: push 160
     // CHECK-NEXT: mload
@@ -24,17 +27,6 @@ contract ICallFrameDealloc {
     // CHECK-NEXT: pop
     // CHECK-NEXT: push [[RECURSE_RET:bb[0-9]+]]
     // CHECK-NEXT: jump [[SUM]]
-    // CHECK: [[SUM]]:
-    // CHECK: push [[RECURSE]]
-    // CHECK-NEXT: jumpi
-    // The base case stores its result into the frame and returns through the stacked address.
-    // CHECK-NEXT: push 0{{$}}
-    // CHECK-NEXT: push 160
-    // CHECK-NEXT: mload
-    // CHECK-NEXT: push 96
-    // CHECK-NEXT: add
-    // CHECK-NEXT: mstore
-    // CHECK-NEXT: jump{{$}}
     // Each continuation reads the result, then releases the callee frame by resetting the
     // free memory pointer to the frame base before restoring the caller frame.
     // CHECK: [[FIRST_RET]] [continuation]:
@@ -49,7 +41,7 @@ contract ICallFrameDealloc {
     // CHECK-NEXT: add
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
-    // CHECK-NEXT: push [[SECOND_RET:bb[0-9]+]]
+    // CHECK: push [[SECOND_RET:bb[0-9]+]]
     // CHECK-NEXT: jump [[SUM]]
     // CHECK: [[SECOND_RET]] [continuation]:
     // CHECK-NEXT: push 160
@@ -63,6 +55,15 @@ contract ICallFrameDealloc {
     // CHECK: push 64
     // CHECK-NEXT: mstore
     // CHECK: push 96
+    // CHECK-NEXT: add
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: jump{{$}}
+    // The base case stores its result into the frame and returns through the stacked address.
+    // CHECK: [[BASE]]:
+    // CHECK-NEXT: push 0{{$}}
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 96
     // CHECK-NEXT: add
     // CHECK-NEXT: mstore
     // CHECK-NEXT: jump{{$}}

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_array_literal_calldata.sol:MemoryArrayLiteralCalldata ===
 @module MemoryArrayLiteralCalldata
-fn @collect(arg0: calldataslice, arg1: calldataslice) -> memoryfixedarray [selector=0xcc62604c, pure, abi_params=[bytes, bytes], abi_returns=[array<2, memory_bytes>]] {
+fn @collect(arg0: calldataslice, arg1: calldataslice) -> memoryfixedarray [selector=0xcc62604c, pure, abi_params=[bytes, bytes], abi_returns=[array<2, memory_bytes>], abi_return_params=[array<2, bytes>]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     jump bb1

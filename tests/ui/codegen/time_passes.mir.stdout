@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/time_passes.sol:TimePasses ===
 @module TimePasses
-fn @f() [selector=0x26121ff0, pure, abi_params=[], abi_returns=[]] {
+fn @f() [selector=0x26121ff0, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }

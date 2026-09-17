@@ -1,13 +1,16 @@
 - // === ROOT/tests/ui/codegen/mir/indvar-simplify/indvar_simplify.mir (before indvar-simplify) ===
 + // === ROOT/tests/ui/codegen/mir/indvar-simplify/indvar_simplify.mir (after indvar-simplify) ===
   @module IndVarSimplify
-  fn @strength_reduce_shifted_address(arg0: u256) -> u256 {
+  fn @strength_reduce_shifted_address(arg0: word) -> word {
     bb0:
++     v11 = shl 5, 4
++     v12 = add arg0, v11
       jump bb1
     bb1:
-      v0 = phi [bb0: 0], [bb2: v8]
+-     v0 = phi [bb0: 0], [bb2: v8]
+-     v1 = lt v0, 4
 +     v9 = phi [bb0: arg0], [bb2: v10]
-      v1 = lt v0, 4
++     v1 = lt v9, v12
       jumpi v1, bb2, bb3
     bb3:
       ret 0
@@ -20,13 +23,13 @@
 +     v4 = mload v9
       v7 = add v4, 1
 -     mstore v6, v7
+-     v8 = add v0, 1
 +     mstore v9, v7
-      v8 = add v0, 1
 +     v10 = add v9, 32
       jump bb1
   }
   
-  fn @keep_shifted_address_single_use(arg0: u256) -> u256 {
+  fn @keep_shifted_address_single_use(arg0: word) -> word {
     bb0:
       jump bb1
     bb1:
@@ -43,7 +46,7 @@
       jump bb1
   }
   
-  fn @strength_reduce_scaled_address_with_offset(arg0: u256) -> u256 {
+  fn @strength_reduce_scaled_address_with_offset(arg0: word) -> word {
     bb0:
 +     v6 = add arg0, 4
       jump bb1
@@ -65,7 +68,7 @@
       jump bb1
   }
   
-  fn @keep_scale_one_single_use(arg0: u256) -> u256 {
+  fn @keep_scale_one_single_use(arg0: word) -> word {
     bb0:
       jump bb1
     bb1:
@@ -81,7 +84,7 @@
       jump bb1
   }
   
-  fn @strength_reduce_checked_address(arg0: u256, arg1: u256) -> u256 {
+  fn @strength_reduce_checked_address(arg0: word, arg1: word) -> word {
     bb0:
       jump bb1
     bb1:
@@ -104,7 +107,7 @@
       jump bb1
   }
   
-  fn @strength_reduce_commuted_checked_step(arg0: u256) -> u256 {
+  fn @strength_reduce_commuted_checked_step(arg0: word) -> word {
     bb0:
       jump bb1
     bb1:
@@ -127,7 +130,7 @@
       jump bb1
   }
   
-  fn @keep_checked_descending_address(arg0: u256) -> u256 {
+  fn @keep_checked_descending_address(arg0: word) -> word {
     bb0:
       jump bb1
     bb1:
@@ -144,7 +147,7 @@
       jump bb1
   }
   
-  fn @keep_shared_field_addresses(arg0: u256) -> u256 {
+  fn @keep_shared_field_addresses(arg0: word) -> word {
     bb0:
       jump bb1
     bb1:
@@ -163,7 +166,7 @@
       jump bb1
   }
   
-  fn @keep_checked_scale_one_address(arg0: u256) -> u256 {
+  fn @keep_checked_scale_one_address(arg0: word) -> word {
     bb0:
       jump bb1
     bb1:

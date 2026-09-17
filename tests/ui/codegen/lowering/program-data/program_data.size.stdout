@@ -8,51 +8,51 @@ data:
 fn @data() [selector=0x73d4a13a, abi_wrapper, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
-    v18 = add v0, 320
-    mstore 64, v18
+    v22 = add v0, 320
+    mstore 64, v22
     mstore v0, 257
     v1 = add v0, 32
     v2 = add v1, 256
     mstore v2, 0
     data_copy literal_0, v1, 257
-    v7 = iszero v0
-    v8 = iszero v7
-    v9 = mul v8, 257
-    v11 = add v9, 31
-    v13 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v14 = add v1, v13
-    mstore v14, 0
-    v15 = add v1, 32
-    mcopy v15, v1, v9
+    v10 = ne v0, 0
+    v11 = word_cast v10
+    v12 = mul v11, 257
+    v14 = add v12, 31
+    v16 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v17 = add v1, v16
+    mstore v17, 0
+    v18 = add v1, 32
+    mcopy v18, v1, v12
     mstore v0, 32
-    mstore v1, v9
-    v16 = add v13, 64
-    returndata v0, v16
+    mstore v1, v12
+    v20 = add v16, 64
+    returndata v0, v20
 }
 
 fn @subslice() [selector=0xb9ad073e, abi_wrapper, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
-    v18 = add v0, 224
-    mstore 64, v18
+    v22 = add v0, 224
+    mstore 64, v22
     mstore v0, 161
     v1 = add v0, 32
     v2 = add v1, 160
     mstore v2, 0
     data_copy literal_1, v1, 161
-    v7 = iszero v0
-    v8 = iszero v7
-    v9 = mul v8, 161
-    v11 = add v9, 31
-    v13 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v14 = add v1, v13
-    mstore v14, 0
-    v15 = add v1, 32
-    mcopy v15, v1, v9
+    v10 = ne v0, 0
+    v11 = word_cast v10
+    v12 = mul v11, 161
+    v14 = add v12, 31
+    v16 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v17 = add v1, v16
+    mstore v17, 0
+    v18 = add v1, 32
+    mcopy v18, v1, v12
     mstore v0, 32
-    mstore v1, v9
-    v16 = add v13, 64
-    returndata v0, v16
+    mstore v1, v12
+    v20 = add v16, 64
+    returndata v0, v20
 }
 
 fn @dataHash() [selector=0x1b3012a3, abi_wrapper, pure] {
@@ -70,21 +70,21 @@ fn @subsliceHash() [selector=0xe5a3e763, abi_wrapper, pure] {
 fn @zeroData() [selector=0x6ec059cd, abi_wrapper, pure] {
   bb0:
     v2 = icall @zeroData.body
-    v7 = iszero v2
-    v8 = iszero v7
+    v10 = ne v2, 0
+    v11 = word_cast v10
     v6 = mload v2
-    v9 = mul v6, v8
-    v10 = add v2, 32
-    v11 = add v9, 31
-    v13 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v14 = add v10, v13
-    mstore v14, 0
-    v15 = add v10, 32
-    mcopy v15, v10, v9
+    v12 = mul v6, v11
+    v13 = add v2, 32
+    v14 = add v12, 31
+    v16 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v17 = add v13, v16
+    mstore v17, 0
+    v18 = add v13, 32
+    mcopy v18, v13, v12
     mstore v2, 32
-    mstore v10, v9
-    v16 = add v13, 64
-    returndata v2, v16
+    mstore v13, v12
+    v20 = add v16, 64
+    returndata v2, v20
 }
 
 fn @zeroWord() [selector=0x4c092794, abi_wrapper, pure] {
@@ -98,29 +98,29 @@ fn @zeroWord() [selector=0x4c092794, abi_wrapper, pure] {
 fn @splatData() [selector=0xe1910fda, abi_wrapper, pure] {
   bb0:
     v5 = icall @splatData.body
-    v10 = iszero v5
-    v11 = iszero v10
+    v13 = ne v5, 0
+    v14 = word_cast v13
     v9 = mload v5
-    v12 = mul v9, v11
-    v13 = add v5, 32
-    v14 = add v12, 31
-    v16 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v17 = add v13, v16
-    mstore v17, 0
-    v18 = add v13, 32
-    mcopy v18, v13, v12
+    v15 = mul v9, v14
+    v16 = add v5, 32
+    v17 = add v15, 31
+    v19 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v20 = add v16, v19
+    mstore v20, 0
+    v21 = add v16, 32
+    mcopy v21, v16, v15
     mstore v5, 32
-    mstore v13, v12
-    v19 = add v16, 64
-    returndata v5, v19
+    mstore v16, v15
+    v23 = add v19, 64
+    returndata v5, v23
 }
 
 fn @zeroHash() [selector=0x672c8259, abi_wrapper, pure] {
   bb0:
     v0 = icall @zeroData.body
-    v4 = mload v0
-    v5 = add v0, 32
-    v1 = keccak256 v5, v4
+    v5 = mload v0
+    v7 = add v0, 32
+    v1 = keccak256 v7, v5
     mstore 128, v1
     returndata 128, 32
 }
@@ -128,9 +128,9 @@ fn @zeroHash() [selector=0x672c8259, abi_wrapper, pure] {
 fn @zeroWordHash() [selector=0x0d00d797, abi_wrapper, pure] {
   bb0:
     v0 = icall @zeroWord.body
-    v4 = mload v0
-    v5 = add v0, 32
-    v1 = keccak256 v5, v4
+    v5 = mload v0
+    v7 = add v0, 32
+    v1 = keccak256 v7, v5
     mstore 128, v1
     returndata 128, 32
 }
@@ -138,14 +138,14 @@ fn @zeroWordHash() [selector=0x0d00d797, abi_wrapper, pure] {
 fn @splatHash() [selector=0x38f844b9, abi_wrapper, pure] {
   bb0:
     v0 = icall @splatData.body
-    v4 = mload v0
-    v5 = add v0, 32
-    v1 = keccak256 v5, v4
+    v5 = mload v0
+    v7 = add v0, 32
+    v1 = keccak256 v7, v5
     mstore 128, v1
     returndata 128, 32
 }
 
-fn @zeroData.body() -> memptr [pure] {
+fn @zeroData.body() -> word [may_return_memory, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v2 = add v0, 192
@@ -157,7 +157,7 @@ fn @zeroData.body() -> memptr [pure] {
     ret v0
 }
 
-fn @zeroWord.body() -> memptr [pure] {
+fn @zeroWord.body() -> word [may_return_memory, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v2 = add v0, 64
@@ -168,7 +168,7 @@ fn @zeroWord.body() -> memptr [pure] {
     ret v0
 }
 
-fn @splatData.body() -> memptr [pure] {
+fn @splatData.body() -> word [may_return_memory, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v5 = add v0, 192
@@ -188,11 +188,12 @@ fn @splatData.body() -> memptr [pure] {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb12, bb1
+    v1 = ne v0, 0
+    jumpi v1, bb12, bb1
   bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb12, [0xd00d797 => bb2, 0x1b3012a3 => bb3, 0x38f844b9 => bb4, 0x4c092794 => bb5, 0x672c8259 => bb6, 0x6ec059cd => bb7, 0x73d4a13a => bb8, 0xb9ad073e => bb9, 0xe1910fda => bb10, 0xe5a3e763 => bb11]
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb12, [0xd00d797 => bb2, 0x1b3012a3 => bb3, 0x38f844b9 => bb4, 0x4c092794 => bb5, 0x672c8259 => bb6, 0x6ec059cd => bb7, 0x73d4a13a => bb8, 0xb9ad073e => bb9, 0xe1910fda => bb10, 0xe5a3e763 => bb11]
   bb11:
     tail_call @subsliceHash
   bb10:

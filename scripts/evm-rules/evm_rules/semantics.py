@@ -174,6 +174,7 @@ class Model:
             case "slt", (a, b): return boolean(a < b)
             case "sgt", (a, b): return boolean(a > b)
             case "eq", (a, b): return boolean(a == b)
+            case "ne", (a, b): return boolean(a != b)
             case "iszero", (a,): return boolean(a == 0)
             case "select", (condition, a, b): return z3.If(condition != 0, a, b)
             case "byte", (index, value):
@@ -247,6 +248,7 @@ def concrete(expr, values, environment=None):
         case "slt", (a, b): result = int(signed(a) < signed(b))
         case "sgt", (a, b): result = int(signed(a) > signed(b))
         case "eq", (a, b): result = int(a == b)
+        case "ne", (a, b): result = int(a != b)
         case "iszero", (a,): result = int(a == 0)
         case "select", (c, a, b): result = a if c else b
         case "byte", (i, a): result = (a >> (8 * (31 - i))) & 255 if i < 32 else 0

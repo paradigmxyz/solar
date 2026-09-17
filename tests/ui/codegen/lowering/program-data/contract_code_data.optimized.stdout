@@ -184,7 +184,7 @@ bb8 [cold]:
   push 0
   revert
 bb10:
-  push 224
+  push 192
   push 64
   mstore
   push 0
@@ -206,8 +206,6 @@ bb10:
   push 0
   create
   dup 1
-  push 192
-  mstore
   iszero
   push bb8
   jumpi
@@ -236,8 +234,7 @@ bb10:
   push 238
   swap 1
   keccak256
-  push 192
-  mload
+  swap 1
   extcodehash
   eq
   push 0

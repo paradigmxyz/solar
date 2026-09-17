@@ -6,6 +6,8 @@ bb0:
   lt
   callvalue
   or
+  iszero
+  iszero
   push bb4
   jumpi
   jump bb1
@@ -41,10 +43,9 @@ bb5:
   calldatasize
   lt
   pop
-  push 0
   push 4
   calldataload
-  eq
+  iszero
   push bb7
   jumpi
   jump bb6
@@ -100,10 +101,9 @@ bb10:
 bb11:
   push 160
   mstore
-  push 0
   push 160
   mload
-  eq
+  iszero
   push bb23
   jumpi
   jump bb12

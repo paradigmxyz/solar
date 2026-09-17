@@ -161,6 +161,7 @@ impl InstSimplifier {
 
                     if !self.constants_only
                         && let Some(new_kind) = self.rewrite_inst(func, &kind, &state.replacements)
+                        && new_kind.scalar_types_match(func, func.inst(inst_id).result_ty)
                     {
                         tracing::trace!(
                             target: "solar::codegen::mir::inst_simplify",
@@ -187,12 +188,7 @@ impl InstSimplifier {
                     if self.constants_only && func.value(replacement).as_immediate().is_none() {
                         break;
                     }
-                    if matches!(kind, InstKind::ExtractValue { .. })
-                        && func.value_ty(result) != func.value_ty(replacement)
-                        && [func.value_ty(result), func.value_ty(replacement)]
-                            .iter()
-                            .any(|ty| matches!(ty, Some(MirType::MemoryObject(_))))
-                    {
+                    if func.value_ty(result) != func.value_ty(replacement) {
                         break;
                     }
                     if replacement != result {
@@ -258,17 +254,68 @@ impl InstSimplifier {
     ) -> Option<InstKind> {
         let resolve = |value| mir_utils::resolve_replacement(value, replacements);
 
+        if let InstKind::Eq(a, b) | InstKind::Ne(a, b) = *kind {
+            let (a, b) = (resolve(a), resolve(b));
+            let equal = matches!(kind, InstKind::Eq(..));
+            let compare = |a, b| if equal { InstKind::Eq(a, b) } else { InstKind::Ne(a, b) };
+            if Self::is_zero(func, a) && !Self::is_zero(func, b) {
+                // 0 == x -> x == 0; 0 != x -> x != 0
+                return Some(compare(b, a));
+            }
+            if let Value::Inst(id) = func.value(a)
+                && let InstKind::WordCast(inner) = func.inst(*id).kind
+                && Self::is_bool_value(func, inner)
+                && let Some(constant) = func.value_u256(b)
+                && constant <= U256::ONE
+            {
+                // word_cast boolean == word 0 -> boolean == false
+                let constant = Self::imm_bool(func, !constant.is_zero());
+                return Some(compare(inner, constant));
+            }
+            if Self::is_zero(func, b)
+                && let Value::Inst(id) = func.value(a)
+            {
+                let inner = func.inst(*id).kind.clone();
+                if let InstKind::Eq(x, y) | InstKind::Ne(x, y) = inner {
+                    // (x == y) == false -> x != y
+                    // (x != y) == false -> x == y
+                    let inner_equal = matches!(inner, InstKind::Eq(..));
+                    return Some(if inner_equal != equal {
+                        InstKind::Eq(x, y)
+                    } else {
+                        InstKind::Ne(x, y)
+                    });
+                }
+            }
+        }
+
         match kind {
-            // check iszero(condition), polarity -> check condition, !polarity
+            // check (condition == 0), polarity -> check condition, !polarity
             InstKind::ICall {
                 function: Callee::Builtin(Builtin::Check { is_zero, failure }),
                 args,
             } => {
-                let condition = Self::iszero_operand(func, resolve(args[0]))?;
+                let condition = Self::zero_test_operand(func, resolve(args[0]))?;
                 Some(InstKind::builtin(
                     Builtin::Check { is_zero: !is_zero, failure: *failure },
                     [condition],
                 ))
+            }
+            InstKind::MemoryObjectData(object, kind)
+                if EvmMemoryLayout::object_data_offset(*kind) == 0 =>
+            {
+                Some(InstKind::WordCast(resolve(*object)))
+            }
+            InstKind::MemoryObjectFieldAddr { object, layout, field }
+                if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) =>
+            {
+                Some(InstKind::WordCast(resolve(*object)))
+            }
+            InstKind::MemoryObjectElementAddr { object, layout, index }
+                if EvmMemoryLayout::object_data_offset(layout.kind()) == 0
+                    && Self::is_zero(func, resolve(*index)) =>
+            {
+                Some(InstKind::WordCast(resolve(*object)))
             }
             InstKind::Add(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
@@ -314,16 +361,18 @@ impl InstSimplifier {
             }
             InstKind::Eq(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
-                if a != b && Self::is_zero(func, a) {
-                    Some(InstKind::IsZero(b))
-                } else if a != b && Self::is_zero(func, b) {
-                    Some(InstKind::IsZero(a))
+                if a != b && Self::is_zero(func, a) && !Self::is_zero(func, b) {
+                    Some(InstKind::Eq(b, a))
+                } else if Self::is_zero(func, b)
+                    && let Some(input) = Self::clz_operand(func, a)
+                {
+                    Some(InstKind::SLt(input, b))
                 } else if let Some((_, input, constant)) = Self::clz_const_operand(func, a, b) {
                     if constant == U256::from(255) {
                         let one = Self::imm(func, U256::from(1));
                         Some(InstKind::Eq(input, one))
                     } else if constant == U256::from(256) {
-                        Some(InstKind::IsZero(input))
+                        Some(InstKind::Eq(input, Self::imm(func, U256::ZERO)))
                     } else {
                         None
                     }
@@ -331,42 +380,40 @@ impl InstSimplifier {
                     None
                 }
             }
-            InstKind::IsZero(a) => {
-                let a = resolve(*a);
-                let input = Self::clz_operand(func, a)?;
-                let zero = Self::imm(func, U256::ZERO);
-                Some(InstKind::SLt(input, zero))
-            }
             // `a < 1` is `a == 0` for unsigned comparisons.
             InstKind::Lt(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
-                if let Some(input) = Self::clz_operand(func, a)
+                if Self::is_zero(func, a) {
+                    Some(InstKind::Ne(b, a))
+                } else if let Some(input) = Self::clz_operand(func, a)
                     && Self::is_const(func, b, U256::from(256))
                 {
                     let zero = Self::imm(func, U256::ZERO);
-                    Some(InstKind::Gt(input, zero))
+                    Some(InstKind::Ne(input, zero))
                 } else if let Some(input) = Self::clz_operand(func, b)
                     && Self::is_const(func, a, U256::from(255))
                 {
-                    Some(InstKind::IsZero(input))
+                    Some(InstKind::Eq(input, Self::imm(func, U256::ZERO)))
                 } else {
-                    Self::is_one(func, b).then_some(InstKind::IsZero(a))
+                    Self::is_one(func, b).then_some(InstKind::Eq(a, Self::imm(func, U256::ZERO)))
                 }
             }
             // `1 > b` is `b == 0` for unsigned comparisons.
             InstKind::Gt(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
-                if let Some(input) = Self::clz_operand(func, a)
+                if Self::is_zero(func, b) {
+                    Some(InstKind::Ne(a, b))
+                } else if let Some(input) = Self::clz_operand(func, a)
                     && Self::is_const(func, b, U256::from(255))
                 {
-                    Some(InstKind::IsZero(input))
+                    Some(InstKind::Eq(input, Self::imm(func, U256::ZERO)))
                 } else if let Some(input) = Self::clz_operand(func, b)
                     && Self::is_const(func, a, U256::from(256))
                 {
                     let zero = Self::imm(func, U256::ZERO);
-                    Some(InstKind::Gt(input, zero))
+                    Some(InstKind::Ne(input, zero))
                 } else {
-                    Self::is_one(func, a).then_some(InstKind::IsZero(b))
+                    Self::is_one(func, a).then_some(InstKind::Eq(b, Self::imm(func, U256::ZERO)))
                 }
             }
             InstKind::Shl(shift, value) | InstKind::Sar(shift, value) => {
@@ -376,7 +423,8 @@ impl InstSimplifier {
                 let (shift, value) = (resolve(*shift), resolve(*value));
                 Self::rewrite_nested_shift(func, kind, shift, value).or_else(|| {
                     if Self::is_const(func, shift, U256::from(8)) {
-                        Self::clz_operand(func, value).map(InstKind::IsZero)
+                        Self::clz_operand(func, value)
+                            .map(|input| InstKind::Eq(input, Self::imm(func, U256::ZERO)))
                     } else {
                         None
                     }
@@ -385,7 +433,8 @@ impl InstSimplifier {
             InstKind::Byte(index, value) => {
                 let (index, value) = (resolve(*index), resolve(*value));
                 if Self::is_const(func, index, U256::from(30)) {
-                    Self::clz_operand(func, value).map(InstKind::IsZero)
+                    Self::clz_operand(func, value)
+                        .map(|input| InstKind::Eq(input, Self::imm(func, U256::ZERO)))
                 } else {
                     None
                 }
@@ -397,7 +446,7 @@ impl InstSimplifier {
                     && Self::is_zero(func, then_value)
                     && Self::is_one(func, else_value)
                 {
-                    Some(InstKind::IsZero(condition))
+                    Some(InstKind::Eq(condition, Self::imm_bool(func, false)))
                 } else {
                     None
                 }
@@ -607,13 +656,6 @@ impl InstSimplifier {
                 let a = resolve(*a);
                 Self::has_known_sign_bit(func, a).then(|| Self::imm(func, U256::ZERO))
             }
-            InstKind::IsZero(a) => {
-                let a = resolve(*a);
-                func.value_u256(a).map(|v| Self::imm_bool(func, v.is_zero())).or_else(|| {
-                    let inner = Self::iszero_operand(func, a)?;
-                    Self::is_bool_value(func, inner).then_some(inner)
-                })
-            }
             InstKind::Shl(a, b) | InstKind::Shr(a, b) | InstKind::Sar(a, b) => {
                 let (shift, value) = (resolve(*a), resolve(*b));
                 if Self::is_zero(func, shift) || Self::is_zero(func, value) {
@@ -643,6 +685,30 @@ impl InstSimplifier {
                             || (index < U256::from(30) && Self::clz_operand(func, value).is_some())
                     }))
                 .then(|| Self::imm(func, U256::ZERO))
+            }
+            InstKind::WordCast(value) => {
+                let value = resolve(*value);
+                if func.value_ty(value) == Some(crate::mir::MirType::Word) {
+                    Some(value)
+                } else if let Value::Inst(id) = func.value(value)
+                    && let InstKind::MemoryObjectFromPtr { ptr, .. } = func.inst(*id).kind
+                {
+                    Some(ptr)
+                } else {
+                    None
+                }
+            }
+            InstKind::Ne(a, b) => {
+                let (a, b) = (resolve(*a), resolve(*b));
+                if a == b {
+                    Some(Self::imm_bool(func, false))
+                } else if Self::is_bool_value(func, a) && Self::is_zero(func, b) {
+                    Some(a)
+                } else if Self::is_bool_value(func, b) && Self::is_zero(func, a) {
+                    Some(b)
+                } else {
+                    None
+                }
             }
             InstKind::Eq(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
@@ -781,22 +847,6 @@ impl InstSimplifier {
                     .all(|&(_, value)| Self::same_value(func, resolve(value), first))
                     .then_some(first)
             }
-            InstKind::MemoryObjectData(object, kind)
-                if EvmMemoryLayout::object_data_offset(*kind) == 0 =>
-            {
-                Some(resolve(*object))
-            }
-            InstKind::MemoryObjectFieldAddr { object, layout, field }
-                if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) =>
-            {
-                Some(resolve(*object))
-            }
-            InstKind::MemoryObjectElementAddr { object, layout, index }
-                if EvmMemoryLayout::object_data_offset(layout.kind()) == 0
-                    && Self::is_zero(func, resolve(*index)) =>
-            {
-                Some(resolve(*object))
-            }
             _ => None,
         }
     }
@@ -825,7 +875,7 @@ impl InstSimplifier {
             | InstKind::SLt(..)
             | InstKind::SGt(..)
             | InstKind::Eq(..)
-            | InstKind::IsZero(..) => Some(Self::imm_bool(func, !value.is_zero())),
+            | InstKind::Ne(..) => Some(Self::imm_bool(func, !value.is_zero())),
             _ => Some(Self::imm(func, value)),
         }
     }
@@ -1125,23 +1175,7 @@ impl InstSimplifier {
     }
 
     fn is_bool_value(func: &Function, value: ValueId) -> bool {
-        match func.value(value) {
-            Value::Immediate(Immediate::Bool(_)) => true,
-            Value::Inst(inst_id) => matches!(
-                func.inst(*inst_id).kind,
-                InstKind::Lt(..)
-                    | InstKind::Gt(..)
-                    | InstKind::SLt(..)
-                    | InstKind::SGt(..)
-                    | InstKind::Eq(..)
-                    | InstKind::IsZero(..)
-            ),
-            // Solidity's `bool` type does not prove that the EVM word is
-            // canonical: inline assembly can assign dirty words to variables,
-            // arguments, and return values. Only values produced by an EVM
-            // comparison above are known to be exactly zero or one.
-            Value::Arg(_) | Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => false,
-        }
+        func.value_ty(value) == Some(MirType::Bool)
     }
 
     fn same_value(func: &Function, a: ValueId, b: ValueId) -> bool {
@@ -1198,7 +1232,7 @@ impl InstSimplifier {
                     break;
                 };
                 let condition = mir_utils::resolve_replacement(condition, replacements);
-                let (inner, swap) = if let Some(inner) = Self::iszero_operand(func, condition) {
+                let (inner, swap) = if let Some(inner) = Self::zero_test_operand(func, condition) {
                     (inner, true)
                 } else if let Some(inner) = Self::nonzero_test_operand(func, condition) {
                     // `branch gt(x, 0)` / `branch lt(0, x)` test exactly `x != 0`,
@@ -1208,6 +1242,9 @@ impl InstSimplifier {
                     break;
                 };
                 let inner = mir_utils::resolve_replacement(inner, replacements);
+                if func.value_ty(inner) != Some(crate::mir::MirType::Bool) {
+                    break;
+                }
                 let Some(Terminator::Branch { condition, then_block, else_block }) =
                     &mut func.blocks[block_id].terminator
                 else {
@@ -1253,10 +1290,10 @@ impl InstSimplifier {
         }
     }
 
-    fn iszero_operand(func: &Function, value: ValueId) -> Option<ValueId> {
+    fn zero_test_operand(func: &Function, value: ValueId) -> Option<ValueId> {
         match func.value(value) {
             Value::Inst(inst_id) => match func.inst(*inst_id).kind {
-                InstKind::IsZero(inner) => Some(inner),
+                InstKind::Eq(inner, zero) if Self::is_zero(func, zero) => Some(inner),
                 _ => None,
             },
             _ => None,

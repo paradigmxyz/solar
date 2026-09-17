@@ -2,6 +2,8 @@
 @module EqualImmediateScheduling_runtime
 bb0:
   callvalue
+  iszero
+  iszero
   push bb3
   jumpi
   jump bb1
@@ -32,6 +34,8 @@ bb4:
 bb5:
   push 4
   calldataload
+  iszero
+  iszero
   push bb7
   jumpi
   jump bb6

@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir (after lower-memory-objects) ===
   @module LowerMemoryObjects
 - fn @objects(arg0: memorybytes, arg1: memoryarray, arg2: memorystruct, arg3: memoryfixedarray) {
-+ fn @objects(arg0: memptr, arg1: memptr, arg2: memptr, arg3: memptr) {
++ fn @objects(arg0: word, arg1: word, arg2: word, arg3: word) [may_return_memory] {
     bb0:
 -     v0 = alloc memorybytes, exact, zeroed, panic, 96
 -     set_memory_object_len memorybytes, v0, 3
@@ -17,66 +17,73 @@
 +     v3 = add arg2, 32
       mstore v3, v1
 -     v4 = memory_object_element_addr memoryarray<1>, arg1, v1
-+     v6 = add arg1, 32
-+     v7 = mul v1, 32
-+     v4 = add v6, v7
++     v6 = word_cast arg1
++     v7 = add v6, 32
++     v8 = mul v1, 32
++     v4 = add v7, v8
       mstore v4, v1
 -     v5 = memory_object_element_addr memoryfixedarray<4, 1>, arg3, v1
-+     v8 = mul v1, 32
-+     v5 = add arg3, v8
++     v9 = mul v1, 32
++     v5 = add arg3, v9
       mstore v5, v1
       stop
   }
   
 - fn @copy_from_slice(arg0: memorybytes, arg1: memoryslice, arg2: calldataslice, arg3: returndataslice) {
-+ fn @copy_from_slice(arg0: memptr, arg1: memoryslice, arg2: calldataslice, arg3: returndataslice) {
++ fn @copy_from_slice(arg0: word, arg1: memoryslice, arg2: calldataslice, arg3: returndataslice) [may_return_memory] {
     bb0:
 -     memory_object_copy_from_slice memorybytes, arg0, arg1
 -     memory_object_copy_from_slice memorybytes, arg0, arg2
 -     memory_object_copy_from_slice memorybytes, arg0, arg3
-+     v0 = add arg0, 32
-+     v1 = slice_ptr arg1
-+     v2 = slice_len arg1
-+     mcopy v0, v1, v2
-+     v3 = add arg0, 32
-+     v4 = slice_ptr arg2
-+     v5 = slice_len arg2
-+     calldatacopy v3, v4, v5
-+     v6 = add arg0, 32
-+     v7 = slice_ptr arg3
-+     v8 = slice_len arg3
-+     returndatacopy v6, v7, v8
++     v0 = word_cast arg0
++     v1 = add v0, 32
++     v2 = slice_ptr arg1
++     v3 = slice_len arg1
++     mcopy v1, v2, v3
++     v4 = word_cast arg0
++     v5 = add v4, 32
++     v6 = slice_ptr arg2
++     v7 = slice_len arg2
++     calldatacopy v5, v6, v7
++     v8 = word_cast arg0
++     v9 = add v8, 32
++     v10 = slice_ptr arg3
++     v11 = slice_len arg3
++     returndatacopy v9, v10, v11
       stop
   }
   
-- fn @copy_object(arg0: memorybytes, arg1: memorybytes, arg2: u256) {
-+ fn @copy_object(arg0: memptr, arg1: memptr, arg2: u256) {
+- fn @copy_object(arg0: memorybytes, arg1: memorybytes, arg2: word) {
++ fn @copy_object(arg0: word, arg1: word, arg2: word) [may_return_memory] {
     bb0:
 -     memory_object_copy memorybytes, arg0, memorybytes, arg1, arg2
-+     v0 = add arg0, 32
-+     v1 = add arg1, 32
-+     mcopy v0, v1, arg2
++     v0 = word_cast arg0
++     v1 = add v0, 32
++     v2 = word_cast arg1
++     v3 = add v2, 32
++     mcopy v1, v3, arg2
       stop
   }
   
-- fn @raw_pointer(arg0: u256) -> memorybytes {
-+ fn @raw_pointer(arg0: u256) -> memptr {
+- fn @raw_pointer(arg0: word) -> memorybytes {
++ fn @raw_pointer(arg0: word) -> word [may_return_memory] {
     bb0:
 -     v0 = memory_object_from_ptr memorybytes, arg0
 -     ret v0
 +     ret arg0
   }
   
-- fn @word_carrier(arg0: memorystruct) -> u256 {
-+ fn @word_carrier(arg0: memptr) -> u256 {
+- fn @word_carrier(arg0: memorystruct) -> word {
++ fn @word_carrier(arg0: word) -> word [may_return_memory] {
     bb0:
--     v0 = word_cast arg0
--     v1 = memory_object_len memorybytes, v0
-+     v1 = mload arg0
-      ret v1
+      v0 = word_cast arg0
+-     v1 = memory_object_from_ptr memorybytes, v0
+-     v2 = memory_object_len memorybytes, v1
++     v2 = mload v0
+      ret v2
   }
   
-  fn @unreachable_cast_cycle() -> u256 {
+  fn @unreachable_cast_cycle() -> word {
     bb0:
       ret 0
 -   bb1:
@@ -86,7 +93,7 @@
   }
   
 - fn @merged_allocations() -> memorybytes {
-+ fn @merged_allocations() -> memptr {
++ fn @merged_allocations() -> word [may_return_memory] {
     bb0:
 -     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
 -     set_memory_object_len memorybytes, v0, 0

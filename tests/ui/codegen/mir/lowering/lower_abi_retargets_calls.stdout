@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_retargets_calls.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_retargets_calls.mir (after lower-abi) ===
   @module LowerAbiRetargets
-- fn @pub(arg0: u256) -> u256 [selector=0x0a0a0a01, abi_returns=[word]] {
+- fn @pub(arg0: word) -> word [selector=0x0a0a0a01, abi_returns=[word]] {
 + fn @pub() [selector=0x0a0a0a01, abi_wrapper] {
     bb0:
 +     v1 = calldatasize
@@ -20,22 +20,23 @@
 +     revert 0, 0
   }
   
-- fn @caller(arg0: u256) -> u256 [selector=0x0a0a0a02, abi_returns=[word]] {
+- fn @caller(arg0: word) -> word [selector=0x0a0a0a02, abi_returns=[word]] {
 + fn @caller() [selector=0x0a0a0a02, abi_wrapper] {
     bb0:
 -     v0 = icall @pub, arg0
--     ret v0
-+     v1 = calldatasize
-+     v2 = lt v1, 36
-+     jumpi v2, bb2, bb3
++     v2 = calldatasize
++     v3 = lt v2, 36
++     jumpi v3, bb2, bb3
 +   bb3:
 +     jump bb1
 +   bb1:
 +     v0 = icall @pub.body, arg0
-+     mstore 128, v0
-+     v3 = add 128, 32
-+     v4 = sub v3, 128
-+     returndata 128, v4
+      v1 = word_cast v0
+-     ret v1
++     mstore 128, v1
++     v4 = add 128, 32
++     v5 = sub v4, 128
++     returndata 128, v5
 +   bb2:
 +     revert 0, 0
   }
@@ -159,13 +160,13 @@
 +     returndata 128, v2
 + }
 + 
-+ fn @pub.body(arg0: u256) -> u256 {
++ fn @pub.body(arg0: word) -> word {
 +   bb0:
 +     v0 = add arg0, 1
       ret v0
   }
   
-- fn @sliceBody() -> u256 [selector=0x0a0a0a0b, abi_params=[], abi_returns=[word]] {
+- fn @sliceBody() -> word [selector=0x0a0a0a0b, abi_params=[], abi_returns=[word]] {
 + fn @literal.body() -> memorybytes {
     bb0:
 +     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -174,7 +175,7 @@
 +     ret v0
 + }
 + 
-+ fn @sliceBody.body() -> u256 {
++ fn @sliceBody.body() -> word {
 +   bb0:
       v0 = make_calldata_slice 4, 32
       jump bb1
@@ -183,7 +184,7 @@
       ret v1
 - }
 - 
-- fn @sliceCaller() -> u256 [selector=0x0a0a0a0c, abi_params=[], abi_returns=[word]] {
+- fn @sliceCaller() -> word [selector=0x0a0a0a0c, abi_params=[], abi_returns=[word]] {
 -   bb0:
 -     v0 = icall @sliceBody
 -     ret v0

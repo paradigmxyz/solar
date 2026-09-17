@@ -33,7 +33,7 @@
 // CHECK-LABEL: after dce
 // CHECK: {{^[ +].*}}fn @local_struct{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-fn @local_struct(arg0: u256, arg1: u256) -> u256 {
+fn @local_struct(arg0: word, arg1: word) -> word {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v1 = memory_object_field_addr memorystruct<2>, v0, 0
@@ -49,7 +49,7 @@ fn @local_struct(arg0: u256, arg1: u256) -> u256 {
 }
 
 // Raw FMP reads may observe the allocated range; keep this case conservative.
-fn @local_struct_observe_fmp(arg0: u256, arg1: u256) -> u256 {
+fn @local_struct_observe_fmp(arg0: word, arg1: word) -> word {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v1 = memory_object_field_addr memorystruct<2>, v0, 0
@@ -66,7 +66,7 @@ fn @local_struct_observe_fmp(arg0: u256, arg1: u256) -> u256 {
     ret v9
 }
 
-fn @zeroed_array() -> u256 {
+fn @zeroed_array() -> word {
   bb0:
     v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
     memory_zero v0, 128
@@ -89,7 +89,7 @@ fn @revert_zeroed_object() {
     revert v0, 64
 }
 
-fn @return_field(arg0: u256) {
+fn @return_field(arg0: word) {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v1 = memory_object_field_addr memorystruct<2>, v0, 1
@@ -97,7 +97,7 @@ fn @return_field(arg0: u256) {
     returndata v1, 32
 }
 
-fn @revert_field_successor(arg0: u256) {
+fn @revert_field_successor(arg0: word) {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v1 = memory_object_element_addr memoryfixedarray<2, 1>, v0, 1

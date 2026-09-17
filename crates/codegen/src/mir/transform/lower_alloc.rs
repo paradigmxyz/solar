@@ -199,9 +199,26 @@ fn initialize(
 
 fn rewrite_as_fmp_load(builder: &mut FunctionBuilder<'_>, inst: crate::mir::InstId) {
     let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
+    // ptr = mload 64
+    // object = memory_object_from_ptr ptr
+    let kind = if let Some(crate::mir::MirType::MemoryObject(kind)) =
+        builder.func().inst(inst).result_ty
+    {
+        let block = builder.current_block();
+        let attached = builder.func().blocks[block].instructions.last() == Some(&inst);
+        if attached {
+            builder.func_mut().blocks[block].instructions.pop();
+        }
+        let ptr = builder.mload(slot);
+        if attached {
+            builder.func_mut().blocks[block].instructions.push(inst);
+        }
+        InstKind::MemoryObjectFromPtr { ptr, kind }
+    } else {
+        InstKind::MLoad(slot)
+    };
     let instruction = builder.func_mut().inst_mut(inst);
-    // fmp / alloc size -> mload 64
-    instruction.kind = InstKind::MLoad(slot);
+    instruction.kind = kind;
     instruction.metadata.set_effect(None);
     instruction.metadata.set_preserves_fmp(false);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));

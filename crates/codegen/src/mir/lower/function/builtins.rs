@@ -572,7 +572,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::Assert => {
                 let condition = &self.builtin_args::<1>(builtin, &args)?[0];
                 let condition = self.lower_expr(condition)?;
-                let invalid = self.builder.iszero(condition);
+                let invalid = self.builder.eq_zero(condition);
                 self.builder.panic_if(invalid, PanicCode::Assert);
             }
             Builtin::Require => {
@@ -587,7 +587,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     None => None,
                 };
                 let Some(message) = message else {
-                    let is_false = self.builder.iszero(condition);
+                    let is_false = self.builder.eq_zero(condition);
                     self.builder.revert_if(is_false, RevertReason::Empty);
                     return Some(());
                 };
@@ -692,7 +692,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     InstKind::builtin(crate::mir::Builtin::CheckedMulMod, [a, b, modulus])
                 };
-                Some(self.builder.emit_inst(kind, Some(MirType::uint256())))
+                Some(self.builder.emit_inst(kind, Some(MirType::Word)))
             }
             Builtin::Erc7201 => self.lower_erc7201(args),
             Builtin::Sha256 | Builtin::Ripemd160 => self.lower_hash_precompile_call(builtin, args),
@@ -759,7 +759,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // slot = erc7201(value)
         Some(self.builder.emit_inst(
             InstKind::builtin(crate::mir::Builtin::Erc7201, [value]),
-            Some(MirType::uint256()),
+            Some(MirType::Word),
         ))
     }
 
@@ -879,7 +879,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         macro_rules! lower {
             ($method:ident($($arg:ident),* $(,)?)) => {{
                 let [$($arg),*] = self.lower_builtin_args(builtin, &args)?;
-                Some(self.builder.$method($($arg),*))
+                {
+                    let value = self.builder.$method($($arg),*);
+                    Some(self.builder.cast(value, MirType::Word))
+                }
             }};
         }
         match builtin {
@@ -905,7 +908,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::YulShl => lower!(shl(shift, value)),
             Builtin::YulShr => lower!(shr(shift, value)),
             Builtin::YulSar => lower!(sar(shift, value)),
-            Builtin::YulIszero => lower!(iszero(value)),
+            Builtin::YulIszero => lower!(eq_zero(value)),
             Builtin::YulAddmod => lower!(addmod(a, b, modulus)),
             Builtin::YulMulmod => lower!(mulmod(a, b, modulus)),
             Builtin::YulClz => lower!(clz(value)),

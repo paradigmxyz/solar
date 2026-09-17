@@ -8,7 +8,7 @@
 // CHECK: -     {{v[0-9]+}} = mload
 // CHECK: [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
 // CHECK: ret [[SUM]]
-fn @canonical_arg_offset(arg0: memptr) -> u256 {
+fn @canonical_arg_offset(arg0: word) -> word {
   bb0:
     v0 = add arg0, 64
     v1 = mload v0
@@ -23,7 +23,7 @@ fn @canonical_arg_offset(arg0: memptr) -> u256 {
 // CHECK: -     {{v[0-9]+}} = mload
 // CHECK: [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
 // CHECK: ret [[SUM]]
-fn @canonical_frame_offset() -> u256 {
+fn @canonical_frame_offset() -> word {
   bb0:
     v0 = internal_frame_addr 32
     v1 = add v0, 64
@@ -39,7 +39,7 @@ fn @canonical_frame_offset() -> u256 {
 // CHECK: -     {{v[0-9]+}} = mload
 // CHECK: [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
 // CHECK: ret [[SUM]]
-fn @canonical_heap_offset() -> u256 {
+fn @canonical_heap_offset() -> word {
   bb0:
     v0 = fmp
     v1 = add v0, 64
@@ -56,7 +56,7 @@ fn @canonical_heap_offset() -> u256 {
 // CHECK: -     {{v[0-9]+}} = mload
 // CHECK: [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
 // CHECK: ret [[SUM]]
-fn @same_select(arg0: bool) -> u256 {
+fn @same_select(arg0: bool) -> word {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     v1 = mload v0
@@ -72,7 +72,7 @@ fn @same_select(arg0: bool) -> u256 {
 // CHECK: {{^ +}}mstore
 // CHECK: {{^ +}}[[AFTER:v[0-9]+]] = mload [[FIRST]]
 // CHECK: +     {{v[0-9]+}} = add 1, [[AFTER]]
-fn @joined_select(arg0: bool) -> u256 {
+fn @joined_select(arg0: bool) -> word {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     v1 = alloc raw, exact, uninitialized, infallible, 32
@@ -93,7 +93,7 @@ fn @joined_select(arg0: bool) -> u256 {
 // CHECK: mstore [[SECOND]]
 // CHECK: -     {{v[0-9]+}} = mload [[FIRST]]
 // CHECK: + {{v[0-9]+}} = add 7, 7
-fn @distinct_loop_allocations(arg0: bool) -> u256 {
+fn @distinct_loop_allocations(arg0: bool) -> word {
   bb0:
     jump bb1
   bb1:

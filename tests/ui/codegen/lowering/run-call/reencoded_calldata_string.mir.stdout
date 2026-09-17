@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/reencoded_calldata_string.sol:C ===
 @module C
-fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, abi_params=[bytes], abi_returns=[memory_bytes]] {
+fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     jump bb1
@@ -11,8 +11,8 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, abi_params=[byte
     v4 = phi [bb0: memorybytes 96], [bb3: v4]
     v5 = add v3, 256
     v6 = lt v1, v5
-    v7 = eq v6, 0
-    v8 = iszero v7
+    v7 = word_cast v6
+    v8 = ne v7, 0
     jumpi v8, bb4, bb5
   bb5:
     jump bb2
@@ -26,11 +26,13 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, abi_params=[byte
     v16 = sgt v11, v15
     icall revert_if<calldata_tail_too_short>, v16
     v17 = abi_encode [calldata_bytes], object, args v2
-    v18 = eq v3, v17
-    v19 = iszero v18
-    v20 = eq v19, 0
-    v21 = iszero v20
-    jumpi v21, bb7, bb8
+    v18 = word_cast v17
+    v19 = eq v3, v18
+    v20 = word_cast v19
+    v21 = eq v20, 0
+    v22 = word_cast v21
+    v23 = ne v22, 0
+    jumpi v23, bb7, bb8
   bb8:
     jump bb9
   bb9:
@@ -48,7 +50,7 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, abi_params=[byte
     jump bb1
 }
 
-fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memory_bytes]] {
+fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = address
     v1 = gas
@@ -69,15 +71,17 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     ret v9
 }
 
-fn @encodeDynamic(arg0: calldataslice) -> memorybytes [selector=0x44a76707, pure, abi_params=[bytes], abi_returns=[memory_bytes]] {
+fn @encodeDynamic(arg0: calldataslice) -> memorybytes [selector=0x44a76707, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = abi_encode [calldata_bytes], object, args arg0
-    v2 = eq v0, v1
-    v3 = iszero v2
-    v4 = eq v3, 0
-    v5 = iszero v4
-    jumpi v5, bb1, bb2
+    v2 = word_cast v1
+    v3 = eq v0, v2
+    v4 = word_cast v3
+    v5 = eq v4, 0
+    v6 = word_cast v5
+    v7 = ne v6, 0
+    jumpi v7, bb1, bb2
   bb2:
     jump bb3
   bb3:
@@ -86,15 +90,17 @@ fn @encodeDynamic(arg0: calldataslice) -> memorybytes [selector=0x44a76707, pure
     revert 0, 0
 }
 
-fn @encodeStatic(arg0: u256) -> memorybytes [selector=0x815736ce, pure, abi_params=[u256], abi_returns=[memory_bytes]] {
+fn @encodeStatic(arg0: word) -> memorybytes [selector=0x815736ce, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = abi_encode [word], object, args arg0
-    v2 = eq v0, v1
-    v3 = iszero v2
-    v4 = eq v3, 0
-    v5 = iszero v4
-    jumpi v5, bb1, bb2
+    v2 = word_cast v1
+    v3 = eq v0, v2
+    v4 = word_cast v3
+    v5 = eq v4, 0
+    v6 = word_cast v5
+    v7 = ne v6, 0
+    jumpi v7, bb1, bb2
   bb2:
     jump bb3
   bb3:

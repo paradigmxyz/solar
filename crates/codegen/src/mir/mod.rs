@@ -15,7 +15,7 @@ mod transform;
 mod types;
 pub(crate) use types::{
     FrameMode, FrameSlotKind, ImmutableEncoding, MemoryObjectKind, MemoryObjectLayout, MirType,
-    SliceLocation, StructType, TypeSize,
+    SliceLocation, StructType, TypeSize, ValueLayout,
 };
 
 mod abi;
@@ -153,6 +153,19 @@ mod round_trip {
 
     fn parse_module(sess: &Session, input: &str) -> solar_interface::Result<Module> {
         super::parser::parse_module(sess, input)
+    }
+
+    #[test]
+    fn boolean_literals_are_canonical() {
+        for (literal, valid) in [("0", true), ("1", true), ("2", false), ("0xff", false)] {
+            let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+            sess.enter(|| {
+                let input = format!(
+                    "@module BoolLiterals\nfn @f() -> bool {{\n  bb0:\n    ret bool {literal}\n}}\n"
+                );
+                assert_eq!(parse_module(&sess, &input).is_ok(), valid, "{literal}");
+            });
+        }
     }
 
     /// Path to `tests/ui/codegen/` (the workspace's UI test directory).

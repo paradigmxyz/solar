@@ -1,29 +1,30 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:Recorder ===
 @module Recorder
-fn @last() -> u256 [selector=0x47799da8, view, abi_params=[], abi_returns=[word]] {
+fn @last() -> word [selector=0x47799da8, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @sync(arg0: address) [selector=0xa5841194, abi_params=[address], abi_returns=[]] {
+fn @sync(arg0: word) [selector=0xa5841194, abi_params=[address], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @transfer(arg0: address, arg1: u256) -> bool [selector=0xa9059cbb, abi_params=[address, u256], abi_returns=[word<bool>]] {
+fn @transfer(arg0: word, arg1: word) -> word [selector=0xa9059cbb, abi_params=[address, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     sstore 0, arg1 !metadata(storage=slot(0))
-    ret true
+    v0 = word_cast true
+    ret v0
 }
 
-fn @take(arg0: address, arg1: address, arg2: u256) [selector=0x0b0d9c09, abi_params=[address, address, u256], abi_returns=[]] {
+fn @take(arg0: word, arg1: word, arg2: word) [selector=0x0b0d9c09, abi_params=[address, address, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, arg2 !metadata(storage=slot(0))
     ret
 }
 
-fn @settle() [selector=0x11da60b4, payable, abi_params=[], abi_returns=[]] {
+fn @settle() [selector=0x11da60b4, payable, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
@@ -35,9 +36,9 @@ fn @settle() [selector=0x11da60b4, payable, abi_params=[], abi_returns=[]] {
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:IntNegate ===
 @module IntNegate
 data:
-  Recorder_initcode_0: hex"34600d5760f48060115f395ff35b5f5ffd5f3560e01c80630b0d9c0914604a57806311da60b414604657806347799da8146042578063a584119414603e578063a9059cbb14603a57604e565b608c565b606c565b6052565b60f3565b60c3565b5f5ffd5b346068575f546080526020608001608090036080f35b5f5ffd5b346088576024361060845760043560a01c1515608457005b5f5ffd5b5f5ffd5b3460bf576044361060bb5760043560a01c151560bb576024355f55600115156080526020608001608090036080f35b5f5ffd5b5f5ffd5b3460ef576064361060eb5760043560a01c151560eb5760243560a01c151560eb576044355f55005b5f5ffd5b5f5ffd5b"
+  Recorder_initcode_0: hex"34600d5760fc8060115f395ff35b5f5ffd5f3560e01c80630b0d9c0914604a57806311da60b414604657806347799da8146042578063a584119414603e578063a9059cbb14603a57604e565b6090565b606e565b6052565b60fb565b60c9565b5f5ffd5b341515606a575f546080526020608001608090036080f35b5f5ffd5b341515608c576024361060885760043560a01c1515608857005b5f5ffd5b5f5ffd5b34151560c5576044361060c15760043560a01c151560c1576024355f55600115156080526020608001608090036080f35b5f5ffd5b5f5ffd5b34151560f7576064361060f35760043560a01c151560f35760243560a01c151560f3576044355f55005b5f5ffd5b5f5ffd5b"
 
-fn @run(arg0: i128) -> u256 [selector=0x96c07422, abi_params=[i128], abi_returns=[word]] {
+fn @run(arg0: word) -> word [selector=0x96c07422, abi_params=[i128], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = signextend 15, arg0
     v1 = sload 0 !metadata(storage=slot(0))
@@ -51,85 +52,84 @@ fn @run(arg0: i128) -> u256 [selector=0x96c07422, abi_params=[i128], abi_returns
     v8 = sload 0 !metadata(storage=slot(0))
     v9 = and v8, 0xffffffffffffffffffffffffffffffff
     v10 = signextend 15, v9
-    v11 = eq v10, 0
-    v12 = iszero v11
-    jumpi v12, bb1, bb2
+    v11 = ne v10, 0
+    jumpi v11, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v13 = sload 0 !metadata(storage=slot(0))
-    v14 = and v13, 0xffffffffffffffffffffffffffffffff
-    v15 = signextend 15, v14
-    icall @_settleOrTake, v7, v15
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = and v12, 0xffffffffffffffffffffffffffffffff
+    v14 = signextend 15, v13
+    icall @_settleOrTake, v7, v14
     jump bb3
   bb3:
-    v16 = sload 0 !metadata(storage=slot(0))
-    v17 = shr 128, v16
-    v18 = and v17, 0xffffffffffffffffffffffffffffffff
-    v19 = signextend 15, v18
-    v20 = eq v19, 0
-    v21 = iszero v20
-    jumpi v21, bb4, bb5
+    v15 = sload 0 !metadata(storage=slot(0))
+    v16 = shr 128, v15
+    v17 = and v16, 0xffffffffffffffffffffffffffffffff
+    v18 = signextend 15, v17
+    v19 = ne v18, 0
+    jumpi v19, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v22 = sload 0 !metadata(storage=slot(0))
-    v23 = shr 128, v22
-    v24 = and v23, 0xffffffffffffffffffffffffffffffff
-    v25 = signextend 15, v24
-    icall @_settleOrTake, v7, v25
+    v20 = sload 0 !metadata(storage=slot(0))
+    v21 = shr 128, v20
+    v22 = and v21, 0xffffffffffffffffffffffffffffffff
+    v23 = signextend 15, v22
+    icall @_settleOrTake, v7, v23
     jump bb6
   bb6:
-    v26 = sload 2 !metadata(storage=slot(2))
-    v27 = and v26, 0xffffffffffffffffffffffffffffffffffffffff
-    v28 = gas
-    v29 = abi_encode [], selector 0x47799da800000000000000000000000000000000000000000000000000000000
-    v30 = slice_ptr v29
-    v31 = slice_len v29
-    v32 = staticcall v28, v27, v30, v31, 0, 32
-    jumpi v32, bb8, bb7
+    v24 = sload 2 !metadata(storage=slot(2))
+    v25 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
+    v26 = gas
+    v27 = abi_encode [], selector 0x47799da800000000000000000000000000000000000000000000000000000000
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = staticcall v26, v25, v28, v29, 0, 32
+    jumpi v30, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v33 = returndatasize
-    v34 = lt v33, 32
-    icall revert_if<tuple_data_too_short>, v34
+    v31 = returndatasize
+    v32 = lt v31, 32
+    icall revert_if<tuple_data_too_short>, v32
+    v33 = add 0, 0
+    v34 = mload v33
     v35 = add 0, 0
     v36 = mload v35
-    v37 = add 0, 0
-    v38 = mload v37
-    ret v38
+    ret v36
 }
 
-fn @_settleOrTake(arg0: address, arg1: i128) {
+fn @_settleOrTake(arg0: word, arg1: word) {
   bb0:
     v0 = signextend 15, arg1
     v1 = sgt v0, 0
     jumpi v1, bb1, bb2
   bb2:
-    v7 = signextend 15, arg1
-    v8 = checked_sub i256, 0, v7
-    v9 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    v10 = eq v9, 0
-    jumpi v10, bb4, bb5
+    v8 = signextend 15, arg1
+    v9 = checked_sub i256, 0, v8
+    v10 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = eq v10, 0
+    jumpi v11, bb4, bb5
   bb5:
-    v20 = sload 2 !metadata(storage=slot(2))
-    v21 = and v20, 0xffffffffffffffffffffffffffffffffffffffff
-    v22 = address
-    icall @settle, arg0, v21, v22, v8, false
+    v21 = sload 2 !metadata(storage=slot(2))
+    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffff
+    v23 = address
+    v24 = word_cast false
+    icall @settle, arg0, v22, v23, v9, v24
     jump bb6
   bb4:
-    v11 = sload 2 !metadata(storage=slot(2))
-    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
-    v13 = gas
-    v14 = abi_encode [], selector 0x11da60b400000000000000000000000000000000000000000000000000000000
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = extcodesize v12
-    v18 = iszero v17
-    icall revert_if<target_contract_has_no_code>, v18
-    v19 = call v13, v12, v8, v15, v16, 0, 0
-    jumpi v19, bb8, bb7
+    v12 = sload 2 !metadata(storage=slot(2))
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = gas
+    v15 = abi_encode [], selector 0x11da60b400000000000000000000000000000000000000000000000000000000
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = extcodesize v13
+    v19 = eq v18, 0
+    icall revert_if<target_contract_has_no_code>, v19
+    v20 = call v14, v13, v9, v16, v17, 0, 0
+    jumpi v20, bb8, bb7
   bb7:
     revert_returndata
   bb8:
@@ -142,35 +142,36 @@ fn @_settleOrTake(arg0: address, arg1: i128) {
     v4 = address
     v5 = signextend 15, arg1
     v6 = and v5, 0xffffffffffffffffffffffffffffffff
-    icall @take, arg0, v3, v4, v6, false
+    v7 = word_cast false
+    icall @take, arg0, v3, v4, v6, v7
     jump bb3
   bb3:
     ret
 }
 
-fn @settle(arg0: address, arg1: address, arg2: address, arg3: u256, arg4: bool) {
+fn @settle(arg0: word, arg1: word, arg2: word, arg3: word, arg4: word) {
   bb0:
-    jumpi arg4, bb1, bb2
+    v0 = ne arg4, 0
+    jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v0 = gas
-    v1 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = abi_encode [word<u160>], selector 0xa584119400000000000000000000000000000000000000000000000000000000, args v1
-    v3 = slice_ptr v2
-    v4 = slice_len v2
-    v5 = extcodesize arg1
-    v6 = iszero v5
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = call v0, arg1, 0, v3, v4, 0, 0
-    jumpi v7, bb5, bb4
+    v1 = gas
+    v2 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = abi_encode [word<u160>], selector 0xa584119400000000000000000000000000000000000000000000000000000000, args v2
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = extcodesize arg1
+    v7 = eq v6, 0
+    icall revert_if<target_contract_has_no_code>, v7
+    v8 = call v1, arg1, 0, v4, v5, 0, 0
+    jumpi v8, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v8 = and arg2, 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = address
-    v10 = eq v8, v9
-    v11 = iszero v10
+    v9 = and arg2, 0xffffffffffffffffffffffffffffffffffffffff
+    v10 = address
+    v11 = ne v9, v10
     jumpi v11, bb6, bb7
   bb7:
     jump bb8
@@ -192,22 +193,23 @@ fn @settle(arg0: address, arg1: address, arg2: address, arg3: u256, arg4: bool) 
     icall revert_if<tuple_data_too_short>, v21
     v22 = add 0, 0
     v23 = mload v22
-    v24 = iszero v23
-    v25 = iszero v24
-    v26 = eq v23, v25
-    v27 = iszero v26
-    icall revert_if<empty>, v27
-    v28 = add 0, 0
-    v29 = mload v28
-    v30 = gas
-    v31 = abi_encode [], selector 0x11da60b400000000000000000000000000000000000000000000000000000000
-    v32 = slice_ptr v31
-    v33 = slice_len v31
-    v34 = extcodesize arg1
-    v35 = iszero v34
-    icall revert_if<target_contract_has_no_code>, v35
-    v36 = call v30, arg1, 0, v32, v33, 0, 0
-    jumpi v36, bb12, bb11
+    v24 = eq v23, 0
+    v25 = eq v24, false
+    v26 = word_cast v25
+    v27 = eq v23, v26
+    v28 = eq v27, false
+    icall revert_if<empty>, v28
+    v29 = add 0, 0
+    v30 = mload v29
+    v31 = gas
+    v32 = abi_encode [], selector 0x11da60b400000000000000000000000000000000000000000000000000000000
+    v33 = slice_ptr v32
+    v34 = slice_len v32
+    v35 = extcodesize arg1
+    v36 = eq v35, 0
+    icall revert_if<target_contract_has_no_code>, v36
+    v37 = call v31, arg1, 0, v33, v34, 0, 0
+    jumpi v37, bb12, bb11
   bb11:
     revert_returndata
   bb12:
@@ -218,23 +220,24 @@ fn @settle(arg0: address, arg1: address, arg2: address, arg3: u256, arg4: bool) 
     ret
 }
 
-fn @take(arg0: address, arg1: address, arg2: address, arg3: u256, arg4: bool) {
+fn @take(arg0: word, arg1: word, arg2: word, arg3: word, arg4: word) {
   bb0:
-    jumpi arg4, bb1, bb2
+    v0 = ne arg4, 0
+    jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v0 = gas
-    v1 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = and arg2, 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = abi_encode [word<u160>, word<u160>, word], selector 0xb0d9c0900000000000000000000000000000000000000000000000000000000, args v1, v2, arg3
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    v6 = extcodesize arg1
-    v7 = iszero v6
-    icall revert_if<target_contract_has_no_code>, v7
-    v8 = call v0, arg1, 0, v4, v5, 0, 0
-    jumpi v8, bb5, bb4
+    v1 = gas
+    v2 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = and arg2, 0xffffffffffffffffffffffffffffffffffffffff
+    v4 = abi_encode [word<u160>, word<u160>, word], selector 0xb0d9c0900000000000000000000000000000000000000000000000000000000, args v2, v3, arg3
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = extcodesize arg1
+    v8 = eq v7, 0
+    icall revert_if<target_contract_has_no_code>, v8
+    v9 = call v1, arg1, 0, v5, v6, 0, 0
+    jumpi v9, bb5, bb4
   bb4:
     revert_returndata
   bb5:
@@ -247,22 +250,23 @@ fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 292, v1
+    v2 = and 300, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Recorder_initcode_0, v3, 261
+    data_copy Recorder_initcode_0, v3, 269
     v4 = slice_ptr v0
-    v5 = add v3, 261
+    v5 = add v3, 269
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 261
-    jumpi v6, bb2, bb1
+    v6 = create 0, v3, 269
+    v7 = ne v6, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = sload 2 !metadata(storage=slot(2))
-    v8 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = and v7, v8
-    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = or v9, v10
-    sstore 2, v11 !metadata(storage=slot(2))
+    v8 = sload 2 !metadata(storage=slot(2))
+    v9 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v10 = and v8, v9
+    v11 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v12 = or v10, v11
+    sstore 2, v12 !metadata(storage=slot(2))
     ret
 }

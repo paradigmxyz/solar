@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_clobbered_local.sol:Impl ===
 @module Impl
-fn @echo(arg0: u256) -> u256 [selector=0x6279e43c, pure, abi_params=[u256], abi_returns=[word]] {
+fn @echo(arg0: word) -> word [selector=0x6279e43c, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret arg0
 }
@@ -8,9 +8,9 @@ fn @echo(arg0: u256) -> u256 [selector=0x6279e43c, pure, abi_params=[u256], abi_
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_clobbered_local.sol:C ===
 @module C
 data:
-  Impl_initcode_0: hex"34600d57603c8060115f395ff35b5f5ffd34601a575f3560e01c80636279e43c14601657601a565b601e565b5f5ffd5b602436106038576004356080526020608001608090036080f35b5f5ffd"
+  Impl_initcode_0: hex"34600d57603e8060115f395ff35b5f5ffd341515601c575f3560e01c80636279e43c14601857601c565b6020565b5f5ffd5b60243610603a576004356080526020608001608090036080f35b5f5ffd"
 
-fn @keepsLocal(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) -> u256 [selector=0x0ea6bb92, pure, abi_params=[u256, u256, u256, u256, u256], abi_returns=[word]] {
+fn @keepsLocal(arg0: word, arg1: word, arg2: word, arg3: word, arg4: word) -> word [selector=0x0ea6bb92, pure, abi_params=[u256, u256, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gt arg0, 0
     jumpi v0, bb1, bb2
@@ -33,33 +33,38 @@ fn @keepsLocal(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) -> u2
     ret v10
 }
 
-fn @forwards() -> u256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word]] {
+fn @forwards() -> word [selector=0xa38e2a32, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 108, v1
+    v2 = and 110, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Impl_initcode_0, v3, 77
+    data_copy Impl_initcode_0, v3, 79
     v4 = slice_ptr v0
-    v5 = add v3, 77
+    v5 = add v3, 79
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 77
-    jumpi v6, bb2, bb1
+    v6 = create 0, v3, 79
+    v7 = ne v6, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = abi_encode [word], object, selector 0x6279e43c00000000000000000000000000000000000000000000000000000000, args 7
-    v8 = mload 64 !metadata(memory=scratch)
-    v9 = calldatasize
-    calldatacopy 0, 0, v9 !metadata(memory=scratch)
-    v10 = mload v7
-    v11 = add v7, 32
-    v12 = gas
-    v13 = delegatecall v12, v6, v11, v10, 0, 32
-    v14 = mload 0 !metadata(memory=scratch)
-    v15 = eq v14, 7
-    v16 = and v13, v15
-    v17 = eq v16, 1
-    icall require<short_string>, v17, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
+    v8 = abi_encode [word], object, selector 0x6279e43c00000000000000000000000000000000000000000000000000000000, args 7
+    v9 = mload 64 !metadata(memory=scratch)
+    v10 = calldatasize
+    calldatacopy 0, 0, v10 !metadata(memory=scratch)
+    v11 = word_cast v8
+    v12 = mload v11
+    v13 = word_cast v8
+    v14 = add v13, 32
+    v15 = gas
+    v16 = delegatecall v15, v6, v14, v12, 0, 32
+    v17 = word_cast v16
+    v18 = mload 0 !metadata(memory=scratch)
+    v19 = eq v18, 7
+    v20 = word_cast v19
+    v21 = and v17, v20
+    v22 = eq v21, 1
+    icall require<short_string>, v22, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
     ret 1
 }

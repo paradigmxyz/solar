@@ -134,8 +134,6 @@ bb7 [continuation]:
   pop
   pop
   pop
-  iszero
-  iszero
   push 128
   mstore
   push 32
@@ -212,8 +210,6 @@ bb13 [continuation]:
   pop
   pop
   pop
-  iszero
-  iszero
   push 128
   mstore
   push 32

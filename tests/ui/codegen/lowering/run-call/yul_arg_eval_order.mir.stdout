@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/yul_arg_eval_order.sol:C ===
 @module C
-fn @builtinOrder() -> u256 [selector=0x0eb481d9, pure, abi_params=[], abi_returns=[word]] {
+fn @builtinOrder() -> word [selector=0x0eb481d9, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     mstore 0, 3 !metadata(memory=scratch)
     v0 = icall @eff
@@ -9,7 +9,7 @@ fn @builtinOrder() -> u256 [selector=0x0eb481d9, pure, abi_params=[], abi_return
     ret v2
 }
 
-fn @userFnOrder() -> u256 [selector=0x6b0e5af2, pure, abi_params=[], abi_returns=[word]] {
+fn @userFnOrder() -> word [selector=0x6b0e5af2, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     mstore 0, 1 !metadata(memory=scratch)
     v0 = icall @w, 7
@@ -19,35 +19,38 @@ fn @userFnOrder() -> u256 [selector=0x6b0e5af2, pure, abi_params=[], abi_returns
     ret v3
 }
 
-fn @deployIdiom() -> u256 [selector=0x298d6964, abi_params=[], abi_returns=[word]] {
+fn @deployIdiom() -> word [selector=0x298d6964, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 20
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x600a600a5f39600a5ff3600760005260206000f3000000000000000000000000
     mstore 32, 0 !metadata(memory=scratch)
-    v2 = icall @doCreate, v0
-    v3 = mload 32 !metadata(memory=scratch)
-    v4 = extcodesize v3
-    v5 = mul v4, v2
-    v6 = iszero v5
-    v7 = iszero v6
-    ret v7
+    v2 = word_cast v0
+    v3 = icall @doCreate, v2
+    v4 = mload 32 !metadata(memory=scratch)
+    v5 = extcodesize v4
+    v6 = mul v5, v3
+    v7 = eq v6, 0
+    v8 = word_cast v7
+    v9 = eq v8, 0
+    v10 = word_cast v9
+    ret v10
 }
 
-fn @eff() -> u256 {
+fn @eff() -> word {
   bb0:
     mstore 0, 5 !metadata(memory=scratch)
     ret 10
 }
 
-fn @w(arg0: u256) -> u256 {
+fn @w(arg0: word) -> word {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
     ret arg0
 }
 
-fn @doCreate(arg0: u256) -> u256 {
+fn @doCreate(arg0: word) -> word {
   bb0:
     v0 = mload arg0
     v1 = add arg0, 32

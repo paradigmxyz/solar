@@ -15,7 +15,7 @@
 +     v6 = add v4, 31
 +     v7 = and v6, v5
 +     v8 = add v2, 32
-+     v9 = iszero v7
++     v9 = eq v7, 0
 +     jumpi v9, bb2, bb1
 +   bb1:
 +     v10 = sub v7, 32

@@ -112,7 +112,7 @@ enum ExprKey {
     SLt(OperandKey, OperandKey),
     SGt(OperandKey, OperandKey),
     Eq(OperandKey, OperandKey),
-    IsZero(OperandKey),
+    Ne(OperandKey, OperandKey),
     Select(OperandKey, OperandKey, OperandKey),
     SignExtend(OperandKey, OperandKey),
     MemoryObjectData(OperandKey, MemoryObjectKind),
@@ -524,7 +524,7 @@ impl PartialRedundancyEliminator {
                 | InstKind::SLt(_, _)
                 | InstKind::SGt(_, _)
                 | InstKind::Eq(_, _)
-                | InstKind::IsZero(_)
+                | InstKind::Ne(..)
                 | InstKind::Select(_, _, _)
                 | InstKind::SignExtend(_, _)
                 | InstKind::MemoryObjectData(_, _)
@@ -584,7 +584,7 @@ impl PartialRedundancyEliminator {
             InstKind::Gt(a, b) => Some(ExprKey::Gt(operand(*a), operand(*b))),
             InstKind::SLt(a, b) => Some(ExprKey::SLt(operand(*a), operand(*b))),
             InstKind::SGt(a, b) => Some(ExprKey::SGt(operand(*a), operand(*b))),
-            InstKind::IsZero(a) => Some(ExprKey::IsZero(operand(*a))),
+            InstKind::Ne(a, b) => Some(ExprKey::Ne(operand(*a), operand(*b))),
             InstKind::Select(a, b, c) => {
                 Some(ExprKey::Select(operand(*a), operand(*b), operand(*c)))
             }

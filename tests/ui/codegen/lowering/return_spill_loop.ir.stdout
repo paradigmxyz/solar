@@ -52,7 +52,7 @@ bb46 [cold]:
   push 65
   jump bb47
 bb7:
-  push 288
+  push 256
   push 64
   mstore
   push 36
@@ -93,16 +93,15 @@ bb7:
   push 32
   dup 3
   add
-  swap 1
-  dup 2
   mstore8
-  push 1
+  push 33
   dup 2
   add
   push 34
   swap 1
   mstore8
-  push 2
+  push 34
+  dup 2
   add
   push 51
   swap 1
@@ -112,7 +111,7 @@ bb7:
   exchange 1, 2
   jump bb33
 bb33:
-  push 256
+  push 224
   mstore
   push 64
   mload
@@ -137,7 +136,7 @@ bb35 [loop]:
   dup 1
   push 0
   byte
-  push 256
+  push 224
   mload
   eq
   push bb37
@@ -184,45 +183,41 @@ bb10 [continuation]:
   dup 1
   mload
   dup 1
-  push 224
-  mstore
-  iszero
-  push bb40
-  jumpi
-  push 32
-  add
-  dup 1
-  mload
-  push 0
-  byte
-  push 224
-  mload
-  push 2
+  push 1
   gt
   push bb40
   jumpi
-  push 1
+  push 32
   dup 3
   add
   mload
   push 0
   byte
-  push 224
+  dup 2
+  push 2
+  gt
+  push bb40
+  jumpi
+  push 33
+  dup 4
+  add
   mload
+  push 0
+  byte
+  swap 2
   push 3
   gt
   push bb40
   jumpi
   swap 2
-  push 2
+  push 34
   add
   mload
   push 0
   byte
-  swap 1
+  swap 2
   push 128
   mstore
-  swap 1
   push 160
   mstore
   push 192
@@ -231,7 +226,7 @@ bb10 [continuation]:
   push 128
   return
 bb17:
-  push 288
+  push 256
   dup 1
   push 64
   mstore
@@ -278,7 +273,7 @@ bb19 [continuation]:
   push 128
   return
 bb22:
-  push 288
+  push 256
   push 64
   mstore
   push 68
@@ -439,7 +434,7 @@ bb25 [continuation]:
   dup 2
   return
 bb27:
-  push 288
+  push 256
   push 64
   mstore
   push 68

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/memory_object_gvn.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/memory_object_gvn.mir (after egraph) ===
   @module MemoryObjectGvn
-  fn @reuse_projections(arg0: memorybytes, arg1: memorystruct, arg2: memoryarray, arg3: u256) -> u256 {
+  fn @reuse_projections(arg0: memorybytes, arg1: memorystruct, arg2: memoryarray, arg3: word) -> word {
     bb0:
       v0 = memory_object_data memorybytes, arg0
 -     v1 = memory_object_data memorybytes, arg0
@@ -12,9 +12,12 @@
 -     v6 = eq v0, v1
 -     v7 = eq v2, v3
 -     v8 = eq v4, v5
--     v9 = add v6, v7
--     v10 = add v9, v8
--     ret v10
+-     v9 = word_cast v6
+-     v10 = word_cast v7
+-     v11 = add v9, v10
+-     v12 = word_cast v8
+-     v13 = add v11, v12
+-     ret v13
 +     ret 3
   }
   

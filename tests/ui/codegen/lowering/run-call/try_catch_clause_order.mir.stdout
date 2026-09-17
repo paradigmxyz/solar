@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_clause_order.sol:C ===
 @module C
-fn @boom(arg0: u256) -> u256 [selector=0xb443a085, pure, abi_params=[u256], abi_returns=[word]] {
+fn @boom(arg0: word) -> word [selector=0xb443a085, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
@@ -29,7 +29,7 @@ fn @boom(arg0: u256) -> u256 [selector=0xb443a085, pure, abi_params=[u256], abi_
     invalid
 }
 
-fn @lowLevelFirst(arg0: u256) -> u256 [selector=0x7bb76e97, view, abi_params=[u256], abi_returns=[word]] {
+fn @lowLevelFirst(arg0: word) -> word [selector=0x7bb76e97, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -58,9 +58,11 @@ fn @lowLevelFirst(arg0: u256) -> u256 [selector=0x7bb76e97, view, abi_params=[u2
   bb8:
     v29 = eq v13, 0x4e487b71
     v30 = lt v10, 36
-    v31 = iszero v30
+    v31 = eq v30, false
     v32 = and v29, v31
-    jumpi v32, bb9, bb10
+    v33 = word_cast v32
+    v34 = ne v33, 0
+    jumpi v34, bb9, bb10
   bb10:
     jumpi true, bb11, bb12
   bb12:
@@ -68,10 +70,10 @@ fn @lowLevelFirst(arg0: u256) -> u256 [selector=0x7bb76e97, view, abi_params=[u2
   bb11:
     ret 100
   bb9:
-    v33 = memory_object_data memorybytes, v8
-    v34 = add v33, 4
-    v35 = make_memory_slice v34, 32
-    v36 = memory_slice_load_word memory, v35, 0
+    v35 = memory_object_data memorybytes, v8
+    v36 = add v35, 4
+    v37 = make_memory_slice v36, 32
+    v38 = memory_slice_load_word memory, v37, 0
     ret 300
   bb7:
     v17 = memory_object_data memorybytes, v8
@@ -98,7 +100,7 @@ fn @lowLevelFirst(arg0: u256) -> u256 [selector=0x7bb76e97, view, abi_params=[u2
     ret 0
 }
 
-fn @typedFirst(arg0: u256) -> u256 [selector=0x90ba0c06, view, abi_params=[u256], abi_returns=[word]] {
+fn @typedFirst(arg0: word) -> word [selector=0x90ba0c06, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -127,9 +129,11 @@ fn @typedFirst(arg0: u256) -> u256 [selector=0x90ba0c06, view, abi_params=[u256]
   bb8:
     v29 = eq v13, 0x4e487b71
     v30 = lt v10, 36
-    v31 = iszero v30
+    v31 = eq v30, false
     v32 = and v29, v31
-    jumpi v32, bb9, bb10
+    v33 = word_cast v32
+    v34 = ne v33, 0
+    jumpi v34, bb9, bb10
   bb10:
     jumpi true, bb11, bb12
   bb12:
@@ -137,10 +141,10 @@ fn @typedFirst(arg0: u256) -> u256 [selector=0x90ba0c06, view, abi_params=[u256]
   bb11:
     ret 100
   bb9:
-    v33 = memory_object_data memorybytes, v8
-    v34 = add v33, 4
-    v35 = make_memory_slice v34, 32
-    v36 = memory_slice_load_word memory, v35, 0
+    v35 = memory_object_data memorybytes, v8
+    v36 = add v35, 4
+    v37 = make_memory_slice v36, 32
+    v38 = memory_slice_load_word memory, v37, 0
     ret 300
   bb7:
     v17 = memory_object_data memorybytes, v8
@@ -167,7 +171,7 @@ fn @typedFirst(arg0: u256) -> u256 [selector=0x90ba0c06, view, abi_params=[u256]
     ret 0
 }
 
-fn @bareFirst(arg0: u256) -> u256 [selector=0x2f2a2d09, view, abi_params=[u256], abi_returns=[word]] {
+fn @bareFirst(arg0: word) -> word [selector=0x2f2a2d09, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -185,9 +189,11 @@ fn @bareFirst(arg0: u256) -> u256 [selector=0x2f2a2d09, view, abi_params=[u256],
     v13 = shr 224, v12
     v14 = eq v13, 0x4e487b71
     v15 = lt v10, 36
-    v16 = iszero v15
+    v16 = eq v15, false
     v17 = and v14, v16
-    jumpi v17, bb4, bb5
+    v18 = word_cast v17
+    v19 = ne v18, 0
+    jumpi v19, bb4, bb5
   bb5:
     jumpi true, bb6, bb7
   bb7:
@@ -195,10 +201,10 @@ fn @bareFirst(arg0: u256) -> u256 [selector=0x2f2a2d09, view, abi_params=[u256],
   bb6:
     ret 100
   bb4:
-    v18 = memory_object_data memorybytes, v8
-    v19 = add v18, 4
-    v20 = make_memory_slice v19, 32
-    v21 = memory_slice_load_word memory, v20, 0
+    v20 = memory_object_data memorybytes, v8
+    v21 = add v20, 4
+    v22 = make_memory_slice v21, 32
+    v23 = memory_slice_load_word memory, v22, 0
     ret 300
   bb1:
     v6 = icall returndata_bytes<>
@@ -208,10 +214,10 @@ fn @bareFirst(arg0: u256) -> u256 [selector=0x2f2a2d09, view, abi_params=[u256],
     ret 0
 }
 
-fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
+fn @try_decode_error_message(arg0: word, arg1: word) -> bool {
   bb0:
     v0 = lt arg1, 68
-    v1 = iszero v0
+    v1 = eq v0, false
     jumpi v1, bb1, bb3
   bb1:
     v2 = add arg0, 4
@@ -220,16 +226,19 @@ fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
     v5 = add v3, 36
     v6 = gt v5, arg1
     v7 = or v4, v6
-    jumpi v7, bb3, bb2
+    v8 = word_cast v7
+    v9 = ne v8, 0
+    jumpi v9, bb3, bb2
   bb2:
-    v8 = add v2, v3
-    v9 = mload v8
-    v10 = gt v9, 0xffffffffffffffff
-    v11 = sub arg1, v5
-    v12 = gt v9, v11
-    v13 = or v10, v12
-    v14 = iszero v13
-    ret v14
+    v10 = add v2, v3
+    v11 = mload v10
+    v12 = gt v11, 0xffffffffffffffff
+    v13 = sub arg1, v5
+    v14 = gt v11, v13
+    v15 = or v12, v14
+    v16 = word_cast v15
+    v17 = eq v16, 0
+    ret v17
   bb3:
     ret false
 }

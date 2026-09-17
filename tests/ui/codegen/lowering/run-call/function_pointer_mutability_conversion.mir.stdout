@@ -1,29 +1,29 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/function_pointer_mutability_conversion.sol:FunctionPointerMutabilityConversion ===
 @module FunctionPointerMutabilityConversion
 types:
-  struct0: {u256, u256}
+  struct0: {word, word}
 
-fn @externalDefaultTarget() -> u256 [selector=0x7660b402, pure, abi_params=[], abi_returns=[word]] {
+fn @externalDefaultTarget() -> word [selector=0x7660b402, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 11
 }
 
-fn @externalViewTarget() -> u256 [selector=0xbfbc85ef, pure, abi_params=[], abi_returns=[word]] {
+fn @externalViewTarget() -> word [selector=0xbfbc85ef, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 12
 }
 
-fn @externalPureTarget() -> u256 [selector=0xf620336b, pure, abi_params=[], abi_returns=[word]] {
+fn @externalPureTarget() -> word [selector=0xf620336b, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 13
 }
 
-fn @internalViewTarget() -> u256 [pure] {
+fn @internalViewTarget() -> word [pure] {
   bb0:
     ret 22
 }
 
-fn @internalPureTarget() -> u256 [pure] {
+fn @internalPureTarget() -> word [pure] {
   bb0:
     ret 23
 }
@@ -51,7 +51,7 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     jumpi v33, bb8, bb9
   bb9:
     v57 = lt 0, 1
-    v58 = iszero v57
+    v58 = eq v57, false
     icall panic_if<0x32>, v58
     v59 = div 0, 1
     v60 = add 0, v59
@@ -81,7 +81,7 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     v79 = add 0, 0
     v80 = mload v79
     v81 = lt 0, 1
-    v82 = iszero v81
+    v82 = eq v81, false
     icall panic_if<0x32>, v82
     v83 = div 0, 4
     v84 = add 3, v83
@@ -187,7 +187,7 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     jumpi v33, bb8, bb9
   bb9:
     v57 = lt 0, 1
-    v58 = iszero v57
+    v58 = eq v57, false
     icall panic_if<0x32>, v58
     v59 = div 0, 1
     v60 = add 0, v59
@@ -217,7 +217,7 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     v79 = add 0, 0
     v80 = mload v79
     v81 = lt 0, 1
-    v82 = iszero v81
+    v82 = eq v81, false
     icall panic_if<0x32>, v82
     v83 = div 0, 4
     v84 = add 3, v83
@@ -323,7 +323,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     jumpi v33, bb8, bb9
   bb9:
     v57 = lt 0, 1
-    v58 = iszero v57
+    v58 = eq v57, false
     icall panic_if<0x32>, v58
     v59 = div 0, 1
     v60 = add 1, v59
@@ -353,7 +353,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     v79 = add 0, 0
     v80 = mload v79
     v81 = lt 0, 1
-    v82 = iszero v81
+    v82 = eq v81, false
     icall panic_if<0x32>, v82
     v83 = div 0, 4
     v84 = add 4, v83
@@ -436,7 +436,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     jump bb1
 }
 
-fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_none_r_u256(arg0: word) -> word [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 5
     jumpi v0, bb1, bb2

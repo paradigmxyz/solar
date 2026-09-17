@@ -2,19 +2,19 @@
 + // === ROOT/tests/ui/codegen/mir/lower-structs/values.mir (after none) ===
   @module StructValues
   types:
-    struct0: {u256, bool}
-    struct1: {struct0, u256}
+    struct0: {word, bool}
+    struct1: {struct0, word}
     struct2: {}
-    struct3: {bool, u8, i8}
+    struct3: {bool, word, word}
   
-  fn @pair(arg0: u256, arg1: bool) -> struct0 {
+  fn @pair(arg0: word, arg1: bool) -> struct0 {
     bb0:
       v0 = insert_value struct0, undef struct0, 0, arg0
       v1 = insert_value struct0, v0, 1, arg1
       ret v1
   }
   
-  fn @nested(arg0: struct0) -> u256 {
+  fn @nested(arg0: struct0) -> word {
     bb0:
       v0 = insert_value struct1, undef struct1, 0, arg0
       v1 = insert_value struct1, v0, 1, 42
@@ -47,12 +47,12 @@
   fn @constants() -> struct3 {
     bb0:
       v0 = insert_value struct3, undef struct3, 0, true
-      v1 = insert_value struct3, v0, 1, u8 255
-      v2 = insert_value struct3, v1, 2, i8 127
+      v1 = insert_value struct3, v0, 1, 255
+      v2 = insert_value struct3, v1, 2, 127
       ret v2
   }
   
-  fn @repeated_args(arg0: struct0, arg1: u256, arg2: struct0) -> u256 {
+  fn @repeated_args(arg0: struct0, arg1: word, arg2: struct0) -> word {
     bb0:
       v0 = extract_value struct0, arg0, 0
       v1 = extract_value struct0, arg2, 0
@@ -85,7 +85,7 @@
       ret v0
   }
   
-  fn @tail(arg0: u256, arg1: bool) -> struct0 {
+  fn @tail(arg0: word, arg1: bool) -> struct0 {
     bb0:
       tail_call @pair, arg0, arg1
   }
@@ -103,7 +103,7 @@
       ret v0
   }
   
-  fn @unreachable_cycle() -> u256 {
+  fn @unreachable_cycle() -> word {
     bb0:
       ret 0
     bb1:
@@ -112,11 +112,13 @@
       ret v1
   }
   
-  fn @raw_word_carrier(arg0: memorystruct) -> u256 {
+  fn @raw_word_carrier(arg0: memorystruct) -> word {
     bb0:
-      v0 = insert_value struct0, undef struct0, 0, arg0
-      v1 = extract_value struct0, v0, 0
-      v2 = memory_object_len memorybytes, v1
-      ret v2
+      v0 = word_cast arg0
+      v1 = insert_value struct0, undef struct0, 0, v0
+      v2 = extract_value struct0, v1, 0
+      v3 = memory_object_from_ptr memorybytes, v2
+      v4 = memory_object_len memorybytes, v3
+      ret v4
   }
   

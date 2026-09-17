@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/internal_stop_runtime.sol:InternalStopRuntime ===
 @module InternalStopRuntime
-fn @haltThenRevert() [selector=0xf0f4d9f7, pure, abi_params=[], abi_returns=[]] {
+fn @haltThenRevert() [selector=0xf0f4d9f7, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall @halt
     icall revert_if<empty>, true

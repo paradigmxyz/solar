@@ -2,35 +2,35 @@
 @module Lib
 @library
 types:
-  struct0: {u256, memoryfixedarray}
-  struct1: {u256, u256}
+  struct0: {word, memoryfixedarray}
+  struct1: {word, word}
 
-fn @arrRef(arg0: storageptr) -> storageptr [selector=0x1fbd3e50, pure, abi_params=[storageptr], abi_returns=[word]] {
+fn @arrRef(arg0: word) -> word [selector=0x1fbd3e50, pure, abi_params=[storageptr], abi_returns=[word], abi_return_params=[storageptr]] {
   bb0:
     ret arg0
 }
 
-fn @bytesRef(arg0: storageptr) -> storageptr [selector=0x4d5b8d56, pure, abi_params=[storageptr], abi_returns=[word]] {
+fn @bytesRef(arg0: word) -> word [selector=0x4d5b8d56, pure, abi_params=[storageptr], abi_returns=[word], abi_return_params=[storageptr]] {
   bb0:
     ret arg0
 }
 
-fn @plainRef(arg0: storageptr) -> storageptr [selector=0xd4ba1053, pure, abi_params=[storageptr], abi_returns=[word]] {
+fn @plainRef(arg0: word) -> word [selector=0xd4ba1053, pure, abi_params=[storageptr], abi_returns=[word], abi_return_params=[storageptr]] {
   bb0:
     ret arg0
 }
 
-fn @fixedRef(arg0: storageptr) -> storageptr [selector=0x23fe6d5e, pure, abi_params=[storageptr], abi_returns=[word]] {
+fn @fixedRef(arg0: word) -> word [selector=0x23fe6d5e, pure, abi_params=[storageptr], abi_returns=[word], abi_return_params=[storageptr]] {
   bb0:
     ret arg0
 }
 
-fn @mapRef(arg0: storageptr) -> storageptr [selector=0xca34aaa5, pure, abi_params=[storageptr], abi_returns=[word]] {
+fn @mapRef(arg0: word) -> word [selector=0xca34aaa5, pure, abi_params=[storageptr], abi_returns=[word], abi_return_params=[storageptr]] {
   bb0:
     ret arg0
 }
 
-fn @aggRef(arg0: storageptr) -> struct0 [selector=0xed18bf21, pure, abi_params=[storageptr], abi_returns=[word, array<2, word>], abi_return_params=[storageptr, array<2, u256>]] {
+fn @aggRef(arg0: word) -> struct0 [selector=0xed18bf21, pure, abi_params=[storageptr], abi_returns=[word, array<2, word>], abi_return_params=[storageptr, array<2, u256>]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v0, 64
@@ -42,7 +42,7 @@ fn @aggRef(arg0: storageptr) -> struct0 [selector=0xed18bf21, pure, abi_params=[
     ret v3
 }
 
-fn @pairRef(arg0: storageptr) -> struct1 [selector=0x4a3c24da, view, abi_params=[storageptr], abi_returns=[word, word], abi_return_params=[u256, storageptr]] {
+fn @pairRef(arg0: word) -> struct1 [selector=0x4a3c24da, view, abi_params=[storageptr], abi_returns=[word, word], abi_return_params=[u256, storageptr]] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = insert_value struct1, undef struct1, 0, v0
@@ -53,10 +53,10 @@ fn @pairRef(arg0: storageptr) -> struct1 [selector=0x4a3c24da, view, abi_params=
 // === ROOT/tests/ui/codegen/lowering/library_storage_pointer_return.sol:C ===
 @module C
 types:
-  struct0: {u256, u256}
-  struct1: {u256, memoryfixedarray}
+  struct0: {word, word}
+  struct1: {word, memoryfixedarray}
 
-fn @len() -> u256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word]] {
+fn @len() -> word [selector=0x56d88e27, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = fmp
     v1 = add v0, 32
@@ -65,7 +65,7 @@ fn @len() -> u256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word]]
     v3 = slice_ptr v2
     v4 = slice_len v2
     v5 = extcodesize 0x1111111111111111111111111111111111111111
-    v6 = iszero v5
+    v6 = eq v5, 0
     icall revert_if<target_contract_has_no_code>, v6
     v7 = gas
     v8 = sub v7, 50
@@ -82,7 +82,7 @@ fn @len() -> u256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word]]
     ret v14
 }
 
-fn @bytesLen() -> u256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[word]] {
+fn @bytesLen() -> word [selector=0x6a4634a6, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = fmp
     v1 = add v0, 32
@@ -91,7 +91,7 @@ fn @bytesLen() -> u256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
     v3 = slice_ptr v2
     v4 = slice_len v2
     v5 = extcodesize 0x1111111111111111111111111111111111111111
-    v6 = iszero v5
+    v6 = eq v5, 0
     icall revert_if<target_contract_has_no_code>, v6
     v7 = gas
     v8 = sub v7, 50
@@ -115,7 +115,7 @@ fn @bytesLen() -> u256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
     ret v20
 }
 
-fn @member() -> u256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[word]] {
+fn @member() -> word [selector=0xe3f6b544, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = fmp
     v1 = add v0, 32
@@ -124,7 +124,7 @@ fn @member() -> u256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[wor
     v3 = slice_ptr v2
     v4 = slice_len v2
     v5 = extcodesize 0x1111111111111111111111111111111111111111
-    v6 = iszero v5
+    v6 = eq v5, 0
     icall revert_if<target_contract_has_no_code>, v6
     v7 = gas
     v8 = sub v7, 50
@@ -150,7 +150,7 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
     v3 = slice_ptr v2
     v4 = slice_len v2
     v5 = extcodesize 0x1111111111111111111111111111111111111111
-    v6 = iszero v5
+    v6 = eq v5, 0
     icall revert_if<target_contract_has_no_code>, v6
     v7 = gas
     v8 = sub v7, 50
@@ -177,7 +177,7 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
     ret v24
 }
 
-fn @fixedLast() -> u256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[word]] {
+fn @fixedLast() -> word [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = fmp
     v1 = add v0, 32
@@ -186,7 +186,7 @@ fn @fixedLast() -> u256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
     v3 = slice_ptr v2
     v4 = slice_len v2
     v5 = extcodesize 0x1111111111111111111111111111111111111111
-    v6 = iszero v5
+    v6 = eq v5, 0
     icall revert_if<target_contract_has_no_code>, v6
     v7 = gas
     v8 = sub v7, 50
@@ -200,14 +200,14 @@ fn @fixedLast() -> u256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
     v12 = add v3, 0
     v13 = mload v12
     v14 = lt 2, 3
-    v15 = iszero v14
+    v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = add v13, 2
     v17 = sload v16 !metadata(storage=offset(v13, 2))
     ret v17
 }
 
-fn @mapValue(arg0: u256) -> u256 [selector=0x152381f4, view, abi_params=[u256], abi_returns=[word]] {
+fn @mapValue(arg0: word) -> word [selector=0x152381f4, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = fmp
     v1 = add v0, 32
@@ -216,7 +216,7 @@ fn @mapValue(arg0: u256) -> u256 [selector=0x152381f4, view, abi_params=[u256], 
     v3 = slice_ptr v2
     v4 = slice_len v2
     v5 = extcodesize 0x1111111111111111111111111111111111111111
-    v6 = iszero v5
+    v6 = eq v5, 0
     icall revert_if<target_contract_has_no_code>, v6
     v7 = gas
     v8 = sub v7, 50
@@ -246,7 +246,7 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     v5 = slice_ptr v4
     v6 = slice_len v4
     v7 = extcodesize 0x1111111111111111111111111111111111111111
-    v8 = iszero v7
+    v8 = eq v7, 0
     icall revert_if<target_contract_has_no_code>, v8
     v9 = gas
     v10 = sub v9, 50
@@ -265,7 +265,7 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     v18 = extract_value struct1, v16, 1
     v19 = sload v17 !metadata(storage=symbolic(v17))
     v20 = lt 1, 2
-    v21 = iszero v20
+    v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = memory_object_load_element memoryfixedarray<2, 1>, v18, 1
     v23 = insert_value struct0, undef struct0, 0, v19
@@ -273,7 +273,7 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     ret v24
 }
 
-fn @attached() -> u256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word]] {
+fn @attached() -> word [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = fmp
     v1 = add v0, 32
@@ -282,7 +282,7 @@ fn @attached() -> u256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     v3 = slice_ptr v2
     v4 = slice_len v2
     v5 = extcodesize 0x1111111111111111111111111111111111111111
-    v6 = iszero v5
+    v6 = eq v5, 0
     icall revert_if<target_contract_has_no_code>, v6
     v7 = gas
     v8 = sub v7, 50

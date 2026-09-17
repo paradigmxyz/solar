@@ -15,7 +15,7 @@ contract ColdCallFallthrough {
     // NONE: [[NONE_DISPATCH]]:
     // NONE-NEXT: jump [[WRAPPER:bb[0-9]+]]
     // NONE: [[WRAPPER]]:
-    // NONE: eq
+    // NONE: iszero
     // NONE-NEXT: push [[NONE_COLD:bb[0-9]+]]
     // NONE-NEXT: jumpi
     // NONE-NEXT: jump [[HOT:bb[0-9]+]]

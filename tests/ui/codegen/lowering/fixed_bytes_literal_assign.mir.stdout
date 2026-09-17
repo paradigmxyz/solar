@@ -1,33 +1,34 @@
 // === ROOT/tests/ui/codegen/lowering/fixed_bytes_literal_assign.sol:FixedBytesLiteralAssign ===
 @module FixedBytesLiteralAssign
-fn @patch(arg0: bool) -> bytes1 [selector=0x7f603a02, pure, abi_params=[bool], abi_returns=[word<bytes1>]] {
+fn @patch(arg0: word) -> word [selector=0x7f603a02, pure, abi_params=[bool], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 2
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x4142000000000000000000000000000000000000000000000000000000000000
-    jumpi arg0, bb1, bb2
+    v2 = ne arg0, 0
+    jumpi v2, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v2 = memory_object_len memorybytes, v0
-    v3 = lt 0, v2
-    v4 = iszero v3
-    icall panic_if<0x32>, v4
-    v5 = byte 0, 0x2d00000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_byte memorybytes, v0, 0, v5
+    v3 = memory_object_len memorybytes, v0
+    v4 = lt 0, v3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = byte 0, 0x2d00000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_byte memorybytes, v0, 0, v6
     jump bb3
   bb3:
-    v6 = memory_object_len memorybytes, v0
-    v7 = lt 0, v6
-    v8 = iszero v7
-    icall panic_if<0x32>, v8
-    v9 = memory_object_load_byte memorybytes, v0, 0
-    v10 = shl 248, v9
-    ret v10
+    v7 = memory_object_len memorybytes, v0
+    v8 = lt 0, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = memory_object_load_byte memorybytes, v0, 0
+    v11 = shl 248, v10
+    ret v11
 }
 
-fn @store() -> bytes1 [selector=0x975057e7, abi_params=[], abi_returns=[word<bytes1>]] {
+fn @store() -> word [selector=0x975057e7, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 255

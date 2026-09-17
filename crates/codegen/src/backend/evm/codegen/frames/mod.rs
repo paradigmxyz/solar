@@ -1522,7 +1522,7 @@ mod tests {
         // offsets = base - 32, base + (-32), (-32) + base
         // mixed = (base + (-32)) - 16
         let base = builder.fmp();
-        let opaque = builder.add_param(MirType::uint256());
+        let opaque = builder.add_param(MirType::Word);
         let word = builder.imm(32);
         // loaded_base = mload(32 + 32)
         let fmp_slot = builder.add(word, word);
@@ -1662,8 +1662,8 @@ mod tests {
         let word = builder.imm(32);
         let prefix = builder.sub(base, word);
         let zero = builder.imm(0);
-        let dynamic_size = builder.add_param(MirType::uint256());
-        let result = Some(MirType::uint256());
+        let dynamic_size = builder.add_param(MirType::Word);
+        let result = Some(MirType::Word);
         for size in [zero, word, dynamic_size] {
             for (kind, ty) in [
                 (InstKind::Keccak256(prefix, size), result),
@@ -1773,7 +1773,7 @@ mod tests {
         let base = builder.fmp();
         let word = builder.imm(32);
         let known = builder.sub(base, word);
-        let opaque = builder.add_param(MirType::uint256());
+        let opaque = builder.add_param(MirType::Word);
         let condition = builder.add_param(MirType::Bool);
         let selected = builder.select(condition, opaque, known);
         let merged = builder.phi(vec![(BlockId::ENTRY, opaque), (BlockId::ENTRY, known)]);
@@ -1801,9 +1801,9 @@ mod tests {
         let mut module = Module::new(Ident::DUMMY);
         let mut helper = Function::new(Ident::DUMMY);
         let mut builder = FunctionBuilder::new(&mut helper);
-        builder.set_return_type(MirType::uint256());
+        builder.set_return_type(MirType::Word);
         // helper(base): return base + (-32)
-        let base = builder.add_param(MirType::uint256());
+        let base = builder.add_param(MirType::Word);
         let adjustment = builder.imm(-32);
         let prefix = builder.add(base, adjustment);
         builder.ret([prefix]);
@@ -1811,12 +1811,12 @@ mod tests {
 
         let mut caller = Function::new(Ident::DUMMY);
         let mut builder = FunctionBuilder::new(&mut caller);
-        builder.set_return_type(MirType::uint256());
+        builder.set_return_type(MirType::Word);
         // caller(base): return helper(base - 16) - 16
-        let base = builder.add_param(MirType::uint256());
+        let base = builder.add_param(MirType::Word);
         let adjustment = builder.imm(16);
         let argument = builder.sub(base, adjustment);
-        let result = builder.icall(helper, vec![argument], MirType::uint256());
+        let result = builder.icall(helper, vec![argument], MirType::Word);
         let prefix = builder.sub(result, adjustment);
         builder.ret([prefix]);
         let caller = module.add_function(caller);
@@ -1827,27 +1827,23 @@ mod tests {
 
         let mut root = Function::new(Ident::DUMMY);
         let mut builder = FunctionBuilder::new(&mut root);
-        builder.set_return_type(MirType::uint256());
+        builder.set_return_type(MirType::Word);
         // root(): return caller(fmp)
         let base = builder.fmp();
-        let result = builder.icall(caller, vec![base], MirType::uint256());
+        let result = builder.icall(caller, vec![base], MirType::Word);
         builder.ret([result]);
         let root = module.add_function(root);
 
         let mut scalar = Function::new(Ident::DUMMY);
         let mut builder = FunctionBuilder::new(&mut scalar);
-        builder.set_return_type(MirType::uint256());
+        builder.set_return_type(MirType::Word);
         // scalar(pointer): return 7
-        builder.add_param(MirType::uint256());
+        builder.add_param(MirType::Word);
         let value = builder.imm(7);
         builder.ret([value]);
         let scalar = module.add_function(scalar);
         // root(): scalar(fmp)
-        FunctionBuilder::new(&mut module.functions[root]).icall(
-            scalar,
-            vec![base],
-            MirType::uint256(),
-        );
+        FunctionBuilder::new(&mut module.functions[root]).icall(scalar, vec![base], MirType::Word);
 
         let offsets = EvmCodegen::heap_prefix_offsets(&module);
         assert_eq!(offsets.arguments[&caller][&ArgIdx::new(0)], 0);
@@ -1862,7 +1858,7 @@ mod tests {
     #[test]
     fn heap_prefix_partial_tuple_returns() {
         let mut module = Module::new(Ident::DUMMY);
-        let fields = [MirType::uint256(); 3];
+        let fields = [MirType::Word; 3];
         let tuple = module.intern_struct(fields);
         let mut helper = Function::new(Ident::DUMMY);
         helper.set_return_type(tuple);
@@ -1887,12 +1883,12 @@ mod tests {
 
         let mut caller = Function::new(Ident::DUMMY);
         let mut builder = FunctionBuilder::new(&mut caller);
-        builder.set_return_type(MirType::uint256());
+        builder.set_return_type(MirType::Word);
         // icall forward()
         // buffer = mload(MULTI_RETURN_BUFFER_PTR_SLOT)
         // result = mload(buffer + 64)
         // return result
-        builder.icall(forward, Vec::new(), MirType::uint256());
+        builder.icall(forward, Vec::new(), MirType::Word);
         let slot = builder.imm(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
         let buffer = builder.mload(slot);
         let address = builder.add_u64_offset(buffer, 64);

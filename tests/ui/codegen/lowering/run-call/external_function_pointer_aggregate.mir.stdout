@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_aggregate.sol:ExternalFunctionPointerAggregateTarget ===
 @module ExternalFunctionPointerAggregateTarget
 types:
-  struct0: {u256, memorybytes}
+  struct0: {word, memorybytes}
 
 fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
@@ -18,12 +18,12 @@ fn @combine(arg0: memoryarray, arg1: memorybytes) -> struct0 [selector=0x3488ea1
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 0, v0
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryarray<1>, arg0, 0
     v4 = memory_object_len memoryarray, arg0
     v5 = lt 1, v4
-    v6 = iszero v5
+    v6 = eq v5, false
     icall panic_if<0x32>, v6
     v7 = memory_object_load_element memoryarray<1>, arg0, 1
     v8 = checked_add u256, v3, v7
@@ -35,32 +35,33 @@ fn @combine(arg0: memoryarray, arg1: memorybytes) -> struct0 [selector=0x3488ea1
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_aggregate.sol:ExternalFunctionPointerAggregate ===
 @module ExternalFunctionPointerAggregate
 types:
-  struct0: {u256, memorybytes}
+  struct0: {word, memorybytes}
 
 data:
-  ExternalFunctionPointerAggregateTarget_initcode_0: hex"34600e576104458060125f395ff35b5f5ffd346028575f3560e01c80633488ea15146024578063a8aa1b31146020576028565b602c565b60ed565b5f5ffd5b60e0604052604051806080526040810160405260028152602081017f6f6b0000000000000000000000000000000000000000000000000000000000008152506040518060a052604081016007825260208201828060a052820390528280608052518380608052151581029050601f19601f820116602083018184015f815250828452925060208501945082018185845e91505091508060a052810390505f9001601f8101601f19811690506040518060c05281810191508160405290508181f35b6102c060405260443610610441576004358060c052600401806101c052806101c0526020810167ffffffffffffffff60c0511136806101a052821191501761043d57806101c052358061020052806102005260206101c05101806101005280610100526020820280610120528061012052602015602082048480610200529014811790501561042b5780610120526020810180610220528061022052818061012052811061042b576040518060805280608052818061022052810180610240529150816102405280608052811067ffffffffffffffff821181179050610419578061024052604052828061020052608051528161010052818061010052360360051c83119250505061043d576020608051016101205180610120526101005180610100528237506024358060c052600401806101e052806101e0526020810167ffffffffffffffff60c0511136806101a052821191501761043d57806101e052358061016052806101605260206101e0510180610140528061014052603f8201806102a052806102a052828061016052811061042b57601f19811690506040518060a0528060a0528181018061026052915081610260528060a052811067ffffffffffffffff821181179050610407578061026052604052816101605281806101605260a05152806101405280610140523603811161043d57602060a051018180610160526101405180610140528237505060805180608052515f10156103f55760206080510151806101805280610180526080518060805251600110156103f55760406080510151818061018052018060e0528060e05281806101805281109150506103e3576040518060c0526040810160e0518060e052825260208201828060c0528203905260a0518060a0525160a0518060a052151581029050601f19601f820116602083018184015f8152508284529250602060a0510181840191508281855e50915050818060c052900390505f9001601f8101601f1981169050604051806102805281810191508160405290508181f35b634e487b715f5260116020526024601cfd5b634e487b715f5260326020526024601cfd5b634e487b715f5260416020526024601cfd5b634e487b715f5260416020526024601cfd5b634e487b715f5260416020526024601cfd5b5f5ffd5b5f5ffd"
+  ExternalFunctionPointerAggregateTarget_initcode_0: hex"34600e5761046b8060125f395ff35b5f5ffd341515602a575f3560e01c80633488ea15146026578063a8aa1b3114602257602a565b602e565b60f3565b5f5ffd5b60e0604052604051806080526040810160405260028152602081017f6f6b0000000000000000000000000000000000000000000000000000000000008152506040518060a052604081016007825260208201828060a0528203905282806080525183806080525f811490501581029050601f19601f820116602083018184015f815250828452925060208501945082018185845e91505091508060a052810390505f9001601f8101601f19811690506040518060c05281810191508160405290508181f35b6102c060405260443610610467576004358060c052600401806101c052806101c0526020810167ffffffffffffffff60c0511136806101a0528211915017151561046357806101c052358061020052806102005260206101c05101806101005280610100526020820280610120528061012052602015602082048480610200529014811790501561045157806101205260208101806102205280610220528180610120528110610451576040518060805280608052818061022052810180610240529150816102405280608052811067ffffffffffffffff821181179050151561043f578061024052604052828061020052608051528161010052818061010052360360051c8311925050506104635760805180608052602090016101205180610120526101005180610100528237506024358060c052600401806101e052806101e0526020810167ffffffffffffffff60c0511136806101a0528211915017151561046357806101e052358061016052806101605260206101e0510180610140528061014052603f8201806102a052806102a052828061016052811061045157601f19811690506040518060a0528060a0528181018061026052915081610260528060a052811067ffffffffffffffff821181179050151561042d578061026052604052816101605281806101605260a0515280610140528061014052360381116104635760a0518060a052602090018180610160526101405180610140528237505060805180608052515f101561041b576080518060805260209001518061018052806101805260805180608052516001101561041b57608051806080526040900151818061018052018060e0528060e0528180610180528110915050610409576040518060c0526040810160e0518060e052825260208201828060c0528203905260a0518060a0525160a0518060a0525f811490501581029050601f19601f820116602083018184015f8152508284529250602060a0510181840191508281855e50915050818060c052900390505f9001601f8101601f1981169050604051806102805281810191508160405290508181f35b634e487b715f5260116020526024601cfd5b634e487b715f5260326020526024601cfd5b634e487b715f5260416020526024601cfd5b634e487b715f5260416020526024601cfd5b634e487b715f5260416020526024601cfd5b5f5ffd5b5f5ffd"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 0x476, v1
+    v2 = and 0x49c, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ExternalFunctionPointerAggregateTarget_initcode_0, v3, 0x457
+    data_copy ExternalFunctionPointerAggregateTarget_initcode_0, v3, 0x47d
     v4 = slice_ptr v0
-    v5 = add v3, 0x457
+    v5 = add v3, 0x47d
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 0x457
-    jumpi v6, bb2, bb1
+    v6 = create 0, v3, 0x47d
+    v7 = ne v6, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = sload 0 !metadata(storage=slot(0))
-    v8 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = and v7, v8
-    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = or v9, v10
-    sstore 0, v11 !metadata(storage=slot(0))
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v10 = and v8, v9
+    v11 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v12 = or v10, v11
+    sstore 0, v12 !metadata(storage=slot(0))
     ret
 }
 
@@ -101,12 +102,12 @@ fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_re
     set_memory_object_len memoryarray, v4, 2
     v5 = memory_object_len memoryarray, v4
     v6 = lt 0, v5
-    v7 = iszero v6
+    v7 = eq v6, false
     icall panic_if<0x32>, v7
     memory_object_store_element memoryarray<1>, v4, 0, 4
     v8 = memory_object_len memoryarray, v4
     v9 = lt 1, v8
-    v10 = iszero v9
+    v10 = eq v9, false
     icall panic_if<0x32>, v10
     memory_object_store_element memoryarray<1>, v4, 1, 3
     v11 = and v3, 0xffffffff
@@ -134,13 +135,13 @@ fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_re
     ret v26
 }
 
-fn @increment(arg0: u256) -> u256 [selector=0x7cf5dab0, pure, abi_params=[u256], abi_returns=[word]] {
+fn @increment(arg0: word) -> word [selector=0x7cf5dab0, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_add u256, arg0, 1
     ret v0
 }
 
-fn @invoke(arg0: function, arg1: u256) -> u256 [selector=0xec460bea, abi_params=[function, u256], abi_returns=[word]] {
+fn @invoke(arg0: word, arg1: word) -> word [selector=0xec460bea, abi_params=[function, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and arg0, 0xffffffff
     v1 = shl 224, v0
@@ -164,7 +165,7 @@ fn @invoke(arg0: function, arg1: u256) -> u256 [selector=0xec460bea, abi_params=
     ret v13
 }
 
-fn @pointerArgumentRoundtrip() -> u256 [selector=0x358b91d8, view, abi_params=[], abi_returns=[word]] {
+fn @pointerArgumentRoundtrip() -> word [selector=0x358b91d8, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -174,13 +175,13 @@ fn @pointerArgumentRoundtrip() -> u256 [selector=0x358b91d8, view, abi_params=[]
     v5 = abi_encode [function, word], object, selector 0xec460bea00000000000000000000000000000000000000000000000000000000, args v4, 7
     v6 = address_staticcall v0, v5, gas v1
     v7 = icall returndata_bytes<>
-    v8 = iszero v6
+    v8 = eq v6, false
     icall revert_if<empty>, v8
     v9 = abi_decode [u256], v7
     ret v9
 }
 
-fn @pointer() -> function [selector=0x2f5f3b3c, view, abi_params=[], abi_returns=[function]] {
+fn @pointer() -> word [selector=0x2f5f3b3c, view, abi_params=[], abi_returns=[function], abi_return_params=[function]] {
   bb0:
     v0 = address
     v1 = shl 32, v0
@@ -188,7 +189,7 @@ fn @pointer() -> function [selector=0x2f5f3b3c, view, abi_params=[], abi_returns
     ret v2
 }
 
-fn @pointerReturnRoundtrip() -> u256 [selector=0xd6aa3b50, abi_params=[], abi_returns=[word]] {
+fn @pointerReturnRoundtrip() -> word [selector=0xd6aa3b50, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -224,7 +225,7 @@ fn @pointerReturnRoundtrip() -> u256 [selector=0xd6aa3b50, abi_params=[], abi_re
     ret v21
 }
 
-fn @pointerStructRoundtrip() -> u256 [selector=0xbbd5d6bf, abi_params=[], abi_returns=[word]] {
+fn @pointerStructRoundtrip() -> word [selector=0xbbd5d6bf, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -257,7 +258,7 @@ fn @pointerStructRoundtrip() -> u256 [selector=0xbbd5d6bf, abi_params=[], abi_re
     ret v20
 }
 
-fn @pointerArrayRoundtrip() -> u256 [selector=0x38c40b23, abi_params=[], abi_returns=[word]] {
+fn @pointerArrayRoundtrip() -> word [selector=0x38c40b23, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -266,7 +267,7 @@ fn @pointerArrayRoundtrip() -> u256 [selector=0x38c40b23, abi_params=[], abi_ret
     v3 = or v2, 0x7cf5dab0
     v4 = memory_object_len memoryarray, v0
     v5 = lt 0, v4
-    v6 = iszero v5
+    v6 = eq v5, false
     icall panic_if<0x32>, v6
     v7 = shl 64, v3
     memory_object_store_element memoryarray<1>, v0, 0, v7
@@ -275,13 +276,13 @@ fn @pointerArrayRoundtrip() -> u256 [selector=0x38c40b23, abi_params=[], abi_ret
     v10 = or v9, 0x7cf5dab0
     v11 = memory_object_len memoryarray, v0
     v12 = lt 1, v11
-    v13 = iszero v12
+    v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = shl 64, v10
     memory_object_store_element memoryarray<1>, v0, 1, v14
     v15 = memory_object_len memoryarray, v0
     v16 = lt 0, v15
-    v17 = iszero v16
+    v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = memory_object_load_element memoryarray<1>, v0, 0
     v19 = shr 64, v18
@@ -306,7 +307,7 @@ fn @pointerArrayRoundtrip() -> u256 [selector=0x38c40b23, abi_params=[], abi_ret
     v33 = mload v32
     v34 = memory_object_len memoryarray, v0
     v35 = lt 1, v34
-    v36 = iszero v35
+    v36 = eq v35, false
     icall panic_if<0x32>, v36
     v37 = memory_object_load_element memoryarray<1>, v0, 1
     v38 = shr 64, v37
@@ -333,7 +334,7 @@ fn @pointerArrayRoundtrip() -> u256 [selector=0x38c40b23, abi_params=[], abi_ret
     ret v53
 }
 
-fn @calldataTarget(arg0: calldataslice) -> bool [selector=0x3b20e329, pure, abi_params=[bytes], abi_returns=[word<bool>]] {
+fn @calldataTarget(arg0: calldataslice) -> word [selector=0x3b20e329, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -354,10 +355,11 @@ fn @calldataTarget(arg0: calldataslice) -> bool [selector=0x3b20e329, pure, abi_
     memory_object_copy_from_slice memorybytes, v11, arg0
     v12 = keccak256_bytes v11
     v13 = eq v12, 0x46e5f6b6987ca0bd7c8884e2d9fbfc072e24bb9d2a2ebb858bc217d66a45ab99
-    ret v13
+    v14 = word_cast v13
+    ret v14
 }
 
-fn @calldataPointerRoundtrip() -> bool [selector=0x1d9b1866, abi_params=[], abi_returns=[word<bool>]] {
+fn @calldataPointerRoundtrip() -> word [selector=0x1d9b1866, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
     v1 = shl 32, v0
@@ -383,12 +385,13 @@ fn @calldataPointerRoundtrip() -> bool [selector=0x1d9b1866, abi_params=[], abi_
     icall revert_if<tuple_data_too_short>, v14
     v15 = add 0, 0
     v16 = mload v15
-    v17 = iszero v16
-    v18 = iszero v17
-    v19 = eq v16, v18
-    v20 = iszero v19
-    icall revert_if<empty>, v20
-    v21 = add 0, 0
-    v22 = mload v21
-    ret v22
+    v17 = eq v16, 0
+    v18 = eq v17, false
+    v19 = word_cast v18
+    v20 = eq v16, v19
+    v21 = eq v20, false
+    icall revert_if<empty>, v21
+    v22 = add 0, 0
+    v23 = mload v22
+    ret v23
 }

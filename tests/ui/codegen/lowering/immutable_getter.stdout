@@ -3,13 +3,13 @@
 immutables:
   owner: address
 
-fn @owner() -> address [selector=0x8da5cb5b, view, abi_params=[], abi_returns=[word<u160>]] {
+fn @owner() -> word [selector=0x8da5cb5b, view, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = loadimmutable owner
     ret v0
 }
 
-fn @constructor(arg0: address) [constructor, abi_params=[address]] {
+fn @constructor(arg0: word) [constructor, abi_params=[address]] {
   bb0:
     storeimmutable owner, arg0
     ret

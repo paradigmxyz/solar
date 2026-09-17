@@ -1,22 +1,22 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_multislot.sol:InternalFunctionPointerMultislot ===
 @module InternalFunctionPointerMultislot
-fn @m(arg0: function, arg1: function) -> function [pure] {
+fn @m(arg0: word, arg1: word) -> word [pure] {
   bb0:
     ret arg0
 }
 
-fn @s(arg0: u256, arg1: u256) -> u256 [pure] {
+fn @s(arg0: word, arg1: word) -> word [pure] {
   bb0:
     v0 = checked_add u256, arg0, arg1
     ret v0
 }
 
-fn @foo() -> u256 [selector=0xc2985578, pure, abi_params=[], abi_returns=[word]] {
+fn @foo() -> word [selector=0xc2985578, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 6
 }
 
-fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
+fn @test() -> word [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = shl 32, v0
@@ -49,7 +49,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     ret v22
 }
 
-fn @internal_dispatcher_p_function_function_r_function(arg0: function, arg1: function, arg2: function) -> function [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_function_function_r_function(arg0: word, arg1: word, arg2: word) -> word [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
@@ -61,7 +61,7 @@ fn @internal_dispatcher_p_function_function_r_function(arg0: function, arg1: fun
     ret v1
 }
 
-fn @internal_dispatcher_p_u256_u256_r_u256(arg0: function, arg1: u256, arg2: u256) -> u256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_u256_u256_r_u256(arg0: word, arg1: word, arg2: word) -> word [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2

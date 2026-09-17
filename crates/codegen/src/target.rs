@@ -441,6 +441,18 @@ impl Target {
         immediate: impl Fn(ValueId) -> Option<U256>,
         warmth: Warmth,
     ) -> Cost {
+        if matches!(op, Op::WordCast { .. }) {
+            return Cost::ZERO;
+        }
+        if let Op::Ne { a, b } = *op {
+            let comparison = if [a, b].into_iter().any(|value| immediate(value) == Some(U256::ZERO))
+            {
+                op::ISZERO
+            } else {
+                op::EQ
+            };
+            return self.opcode(comparison) + self.opcode(op::ISZERO);
+        }
         let Some(lowering) = select::opcode_lowering(op) else {
             return Cost::new(GasTier::VeryLow.gas(self.evm_version), 1);
         };

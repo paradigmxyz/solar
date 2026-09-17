@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/nested_tuple_assignment.sol:NestedTupleAssignment ===
 @module NestedTupleAssignment
 types:
-  struct0: {u256, u256, u256}
-  struct1: {u256, u256, u256, u256}
+  struct0: {word, word, word}
+  struct1: {word, word, word, word}
 
 fn @assign() -> struct0 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
@@ -20,21 +20,21 @@ fn @assign() -> struct0 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[
     mstore v5, 0x3200000000000000000000000000000000000000000000000000000000000000
     v6 = memory_object_len memorybytes, v0
     v7 = lt 0, v6
-    v8 = iszero v7
+    v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = memory_object_load_byte memorybytes, v0, 0
     v10 = shl 248, v9
     v11 = shr 248, v10
     v12 = memory_object_len memorybytes, v2
     v13 = lt 0, v12
-    v14 = iszero v13
+    v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = memory_object_load_byte memorybytes, v2, 0
     v16 = shl 248, v15
     v17 = shr 248, v16
     v18 = memory_object_len memorybytes, v4
     v19 = lt 0, v18
-    v20 = iszero v19
+    v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = memory_object_load_byte memorybytes, v4, 0
     v22 = shl 248, v21

@@ -3,12 +3,12 @@
   @module StructSlices
   types:
     struct0: {}
-    struct1: {calldataslice, u256}
+    struct1: {calldataslice, word}
     struct2: {memoryslice, struct0, struct1, returndataslice}
     struct3: {memorybytes}
   
 - fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struct2 {
-+ fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
++ fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struct2 [return_abi=[word, word, word, word, word, word, word]] {
     bb0:
 -     v0 = insert_value struct1, undef struct1, 0, arg1
 -     v1 = insert_value struct1, v0, 1, 42
@@ -26,7 +26,7 @@
 +     ret v8, v9, v6, v7, 42, v10, v11
   }
   
-  fn @consume(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> u256 {
+  fn @consume(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> word {
     bb0:
 -     v0 = icall @pack, arg0, arg1, arg2
 -     v1 = extract_value struct2, v0, 0
@@ -65,7 +65,7 @@
   }
   
 - fn @loop(arg0: struct2, arg1: bool) -> struct2 {
-+ fn @loop(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: bool) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
++ fn @loop(arg0: word, arg1: word, arg2: word, arg3: word, arg4: word, arg5: word, arg6: word, arg7: bool) -> struct2 [return_abi=[word, word, word, word, word, word, word]] {
     bb0:
       jump bb1
     bb1:
@@ -95,21 +95,21 @@
   }
   
 - fn @forward(arg0: struct2) -> struct2 {
-+ fn @forward(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
++ fn @forward(arg0: word, arg1: word, arg2: word, arg3: word, arg4: word, arg5: word, arg6: word) -> struct2 [return_abi=[word, word, word, word, word, word, word]] {
     bb0:
 -     ret arg0
 +     ret arg0, arg1, arg2, arg3, arg4, arg5, arg6
   }
   
 - fn @tail(arg0: struct2) -> struct2 {
-+ fn @tail(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
++ fn @tail(arg0: word, arg1: word, arg2: word, arg3: word, arg4: word, arg5: word, arg6: word) -> struct2 [return_abi=[word, word, word, word, word, word, word]] {
     bb0:
 -     tail_call @forward, arg0
 +     tail_call @forward, arg0, arg1, arg2, arg3, arg4, arg5, arg6
   }
   
 - fn @from_undef() -> struct1 {
-+ fn @from_undef() -> struct1 [return_abi=[calldataptr, u256, u256]] {
++ fn @from_undef() -> struct1 [return_abi=[word, word, word]] {
     bb0:
 -     v0 = insert_value struct1, undef struct1, 0, undef calldataslice
 -     v1 = insert_value struct1, v0, 1, 42
@@ -120,7 +120,7 @@
   }
   
 - fn @phi_undef(arg0: calldataslice, arg1: bool) -> struct1 {
-+ fn @phi_undef(arg0: calldataslice, arg1: bool) -> struct1 [return_abi=[calldataptr, u256, u256]] {
++ fn @phi_undef(arg0: calldataslice, arg1: bool) -> struct1 [return_abi=[word, word, word]] {
     bb0:
       jumpi arg1, bb1, bb2
     bb2:
@@ -138,7 +138,7 @@
   }
   
 - fn @select_undef(arg0: calldataslice, arg1: bool) -> struct1 {
-+ fn @select_undef(arg0: calldataslice, arg1: bool) -> struct1 [return_abi=[calldataptr, u256, u256]] {
++ fn @select_undef(arg0: calldataslice, arg1: bool) -> struct1 [return_abi=[word, word, word]] {
     bb0:
       v0 = select arg1, arg0, undef calldataslice
 -     v1 = insert_value struct1, undef struct1, 0, v0
@@ -164,7 +164,7 @@
   }
   
 - fn @phi_call_results(arg0: bool, arg1: calldataslice) -> struct1 {
-+ fn @phi_call_results(arg0: bool, arg1: calldataslice) -> struct1 [return_abi=[calldataptr, u256, u256]] {
++ fn @phi_call_results(arg0: bool, arg1: calldataslice) -> struct1 [return_abi=[word, word, word]] {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -217,11 +217,11 @@
   @module StructSlices
   types:
     struct0: {}
-    struct1: {calldataslice, u256}
+    struct1: {calldataslice, word}
     struct2: {memoryslice, struct0, struct1, returndataslice}
     struct3: {memorybytes}
   
-  fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
+  fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struct2 [return_abi=[word, word, word, word, word, word, word]] {
     bb0:
       v6 = slice_ptr arg1
       v7 = slice_len arg1
@@ -232,7 +232,7 @@
       ret v8, v9, v6, v7, 42, v10, v11
   }
   
-  fn @consume(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> u256 {
+  fn @consume(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> word {
     bb0:
       v12 = icall @pack, arg0, arg1, arg2
 -     v13 = frame_load multi_return, word, 0 !metadata(memory=scratch)
@@ -267,7 +267,7 @@
       ret v11
   }
   
-  fn @loop(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: bool) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
+  fn @loop(arg0: word, arg1: word, arg2: word, arg3: word, arg4: word, arg5: word, arg6: word, arg7: bool) -> struct2 [return_abi=[word, word, word, word, word, word, word]] {
     bb0:
       jump bb1
     bb1:
@@ -290,24 +290,24 @@
       jump bb1
   }
   
-  fn @forward(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
+  fn @forward(arg0: word, arg1: word, arg2: word, arg3: word, arg4: word, arg5: word, arg6: word) -> struct2 [return_abi=[word, word, word, word, word, word, word]] {
     bb0:
       ret arg0, arg1, arg2, arg3, arg4, arg5, arg6
   }
   
-  fn @tail(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
+  fn @tail(arg0: word, arg1: word, arg2: word, arg3: word, arg4: word, arg5: word, arg6: word) -> struct2 [return_abi=[word, word, word, word, word, word, word]] {
     bb0:
       tail_call @forward, arg0, arg1, arg2, arg3, arg4, arg5, arg6
   }
   
-  fn @from_undef() -> struct1 [return_abi=[calldataptr, u256, u256]] {
+  fn @from_undef() -> struct1 [return_abi=[word, word, word]] {
     bb0:
       v2 = slice_ptr undef calldataslice
       v3 = slice_len undef calldataslice
       ret v2, v3, 42
   }
   
-  fn @phi_undef(arg0: calldataslice, arg1: bool) -> struct1 [return_abi=[calldataptr, u256, u256]] {
+  fn @phi_undef(arg0: calldataslice, arg1: bool) -> struct1 [return_abi=[word, word, word]] {
     bb0:
       jumpi arg1, bb1, bb2
     bb2:
@@ -321,7 +321,7 @@
       ret v3, v4, 42
   }
   
-  fn @select_undef(arg0: calldataslice, arg1: bool) -> struct1 [return_abi=[calldataptr, u256, u256]] {
+  fn @select_undef(arg0: calldataslice, arg1: bool) -> struct1 [return_abi=[word, word, word]] {
     bb0:
       v0 = select arg1, arg0, undef calldataslice
       v3 = slice_ptr v0
@@ -343,7 +343,7 @@
       revert 0, 0
   }
   
-  fn @phi_call_results(arg0: bool, arg1: calldataslice) -> struct1 [return_abi=[calldataptr, u256, u256]] {
+  fn @phi_call_results(arg0: bool, arg1: calldataslice) -> struct1 [return_abi=[word, word, word]] {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -390,12 +390,12 @@
   @module StructSlices
   types:
     struct0: {}
-    struct1: {calldataslice, u256}
+    struct1: {calldataslice, word}
     struct2: {memoryslice, struct0, struct1, returndataslice}
     struct3: {memorybytes}
   
-- fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
-+ fn @pack(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
+- fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struct2 [return_abi=[word, word, word, word, word, word, word]] {
++ fn @pack(arg0: word, arg1: word, arg2: word, arg3: word, arg4: word, arg5: word) -> struct2 [return_abi=[word, word, word, word, word, word, word]] {
     bb0:
 -     v6 = slice_ptr arg1
 -     v7 = slice_len arg1
@@ -407,8 +407,8 @@
 +     ret arg0, arg1, arg2, arg3, 42, arg4, arg5
   }
   
-- fn @consume(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> u256 {
-+ fn @consume(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256) -> u256 {
+- fn @consume(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> word {
++ fn @consume(arg0: word, arg1: word, arg2: word, arg3: word, arg4: word, arg5: word) -> word {
     bb0:
 -     v12 = icall @pack, arg0, arg1, arg2
 +     v12 = icall @pack, arg0, arg1, arg2, arg3, arg4, arg5
@@ -439,7 +439,7 @@
       ret v11
   }
   
-  fn @loop(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: bool) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
+  fn @loop(arg0: word, arg1: word, arg2: word, arg3: word, arg4: word, arg5: word, arg6: word, arg7: bool) -> struct2 [return_abi=[word, word, word, word, word, word, word]] {
     bb0:
       jump bb1
     bb1:
@@ -464,26 +464,26 @@
       jump bb1
   }
   
-  fn @forward(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
+  fn @forward(arg0: word, arg1: word, arg2: word, arg3: word, arg4: word, arg5: word, arg6: word) -> struct2 [return_abi=[word, word, word, word, word, word, word]] {
     bb0:
       ret arg0, arg1, arg2, arg3, arg4, arg5, arg6
   }
   
-  fn @tail(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
+  fn @tail(arg0: word, arg1: word, arg2: word, arg3: word, arg4: word, arg5: word, arg6: word) -> struct2 [return_abi=[word, word, word, word, word, word, word]] {
     bb0:
       tail_call @forward, arg0, arg1, arg2, arg3, arg4, arg5, arg6
   }
   
-  fn @from_undef() -> struct1 [return_abi=[calldataptr, u256, u256]] {
+  fn @from_undef() -> struct1 [return_abi=[word, word, word]] {
     bb0:
 -     v2 = slice_ptr undef calldataslice
 -     v3 = slice_len undef calldataslice
 -     ret v2, v3, 42
-+     ret undef calldataptr, undef u256, 42
++     ret undef word, undef word, 42
   }
   
-- fn @phi_undef(arg0: calldataslice, arg1: bool) -> struct1 [return_abi=[calldataptr, u256, u256]] {
-+ fn @phi_undef(arg0: calldataptr, arg1: u256, arg2: bool) -> struct1 [return_abi=[calldataptr, u256, u256]] {
+- fn @phi_undef(arg0: calldataslice, arg1: bool) -> struct1 [return_abi=[word, word, word]] {
++ fn @phi_undef(arg0: word, arg1: word, arg2: bool) -> struct1 [return_abi=[word, word, word]] {
     bb0:
 -     jumpi arg1, bb1, bb2
 +     jumpi arg2, bb1, bb2
@@ -496,25 +496,25 @@
 -     v3 = slice_ptr v0
 -     v4 = slice_len v0
 -     ret v3, v4, 42
-+     v9 = phi [bb1: arg0], [bb2: undef calldataptr]
-+     v10 = phi [bb1: arg1], [bb2: undef u256]
++     v9 = phi [bb1: arg0], [bb2: undef word]
++     v10 = phi [bb1: arg1], [bb2: undef word]
 +     ret v9, v10, 42
   }
   
-- fn @select_undef(arg0: calldataslice, arg1: bool) -> struct1 [return_abi=[calldataptr, u256, u256]] {
-+ fn @select_undef(arg0: calldataptr, arg1: u256, arg2: bool) -> struct1 [return_abi=[calldataptr, u256, u256]] {
+- fn @select_undef(arg0: calldataslice, arg1: bool) -> struct1 [return_abi=[word, word, word]] {
++ fn @select_undef(arg0: word, arg1: word, arg2: bool) -> struct1 [return_abi=[word, word, word]] {
     bb0:
 -     v0 = select arg1, arg0, undef calldataslice
 -     v3 = slice_ptr v0
 -     v4 = slice_len v0
 -     ret v3, v4, 42
-+     v9 = select arg2, arg0, undef calldataptr
-+     v10 = select arg2, arg1, undef u256
++     v9 = select arg2, arg0, undef word
++     v10 = select arg2, arg1, undef word
 +     ret v9, v10, 42
   }
   
 - fn @checked_slice(arg0: calldataslice, arg1: bool) -> calldataslice {
-+ fn @checked_slice(arg0: calldataptr, arg1: u256, arg2: bool) -> calldataslice [return_abi=[calldataptr, u256]] {
++ fn @checked_slice(arg0: word, arg1: word, arg2: bool) -> calldataslice [return_abi=[word, word]] {
     bb0:
 -     jumpi arg1, bb1, bb2
 +     jumpi arg2, bb1, bb2
@@ -530,8 +530,8 @@
       revert 0, 0
   }
   
-- fn @phi_call_results(arg0: bool, arg1: calldataslice) -> struct1 [return_abi=[calldataptr, u256, u256]] {
-+ fn @phi_call_results(arg0: bool, arg1: calldataptr, arg2: u256) -> struct1 [return_abi=[calldataptr, u256, u256]] {
+- fn @phi_call_results(arg0: bool, arg1: calldataslice) -> struct1 [return_abi=[word, word, word]] {
++ fn @phi_call_results(arg0: bool, arg1: word, arg2: word) -> struct1 [return_abi=[word, word, word]] {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -562,7 +562,7 @@
   }
   
 - fn @slice_identity(arg0: calldataslice) -> calldataslice {
-+ fn @slice_identity(arg0: calldataptr, arg1: u256) -> calldataslice [return_abi=[calldataptr, u256]] {
++ fn @slice_identity(arg0: word, arg1: word) -> calldataslice [return_abi=[word, word]] {
     bb0:
 -     ret arg0
 +     ret arg0, arg1

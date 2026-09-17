@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/readonly-eval/known_words.mir (before readonly-eval) ===
 + // === ROOT/tests/ui/codegen/mir/readonly-eval/known_words.mir (after readonly-eval) ===
   @module KnownWords
-  fn @known() -> u256 {
+  fn @known() -> word {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64
       mstore v0, 1
@@ -12,27 +12,28 @@
 +     ret 42
   }
   
-  fn @choose(arg0: memptr) -> u256 {
+  fn @choose(arg0: word) -> word {
     bb0:
       v0 = mload arg0
-      jumpi v0, bb1, bb2
+      v1 = ne v0, 0
+      jumpi v1, bb1, bb2
     bb2:
       sstore 0, 1
       ret 7
     bb1:
-      v1 = add arg0, 32
-      v2 = icall @read, v1
-      v3 = add v2, 1
-      ret v3
+      v2 = add arg0, 32
+      v3 = icall @read, v2
+      v4 = add v3, 1
+      ret v4
   }
   
-  fn @read(arg0: memptr) -> u256 {
+  fn @read(arg0: word) -> word {
     bb0:
       v0 = mload arg0
       ret v0
   }
   
-  fn @writes() -> u256 {
+  fn @writes() -> word {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64
       mstore v0, 0
@@ -40,7 +41,7 @@
       ret v1
   }
   
-  fn @partial_write(arg0: u256) -> u256 {
+  fn @partial_write(arg0: word) -> word {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 42
@@ -50,7 +51,7 @@
       ret v2
   }
   
-  fn @clobbered(arg0: u256) -> u256 {
+  fn @clobbered(arg0: word) -> word {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 42
@@ -59,13 +60,13 @@
       ret v1
   }
   
-  fn @overwrite(arg0: memptr, arg1: u256) {
+  fn @overwrite(arg0: word, arg1: word) {
     bb0:
       mstore arg0, arg1
       ret
   }
   
-  fn @uninitialized() -> u256 {
+  fn @uninitialized() -> word {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64
       mstore v0, 1
@@ -73,7 +74,7 @@
       ret v1
   }
   
-  fn @scratch() -> u256 {
+  fn @scratch() -> word {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 1
@@ -82,7 +83,7 @@
       ret v1
   }
   
-  fn @phi_caller() -> u256 {
+  fn @phi_caller() -> word {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 1
@@ -91,20 +92,21 @@
 +     ret 42
   }
   
-  fn @phi_callee(arg0: memptr) -> u256 {
+  fn @phi_callee(arg0: word) -> word {
     bb0:
       v0 = mload arg0
-      jumpi v0, bb1, bb2
+      v1 = ne v0, 0
+      jumpi v1, bb1, bb2
     bb2:
       jump bb3
     bb1:
       jump bb3
     bb3:
-      v1 = phi [bb1: 42], [bb2: 7]
-      ret v1
+      v2 = phi [bb1: 42], [bb2: 7]
+      ret v2
   }
   
-  fn @recursive_caller() -> u256 {
+  fn @recursive_caller() -> word {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 1
@@ -112,13 +114,13 @@
       ret v1
   }
   
-  fn @recursive(arg0: memptr) -> u256 {
+  fn @recursive(arg0: word) -> word {
     bb0:
       v0 = icall @recursive, arg0
       ret v0
   }
   
-  fn @observes_gas() -> u256 {
+  fn @observes_gas() -> word {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 42
@@ -126,7 +128,7 @@
       ret v1
   }
   
-  fn @gas_reader(arg0: memptr) -> u256 {
+  fn @gas_reader(arg0: word) -> word {
     bb0:
       v0 = gas
       v1 = mload arg0
@@ -134,7 +136,7 @@
       ret v2
   }
   
-  fn @loop_allocation(arg0: bool) -> u256 {
+  fn @loop_allocation(arg0: bool) -> word {
     bb0:
       jump bb1
     bb1:
@@ -146,7 +148,7 @@
       ret v1
   }
   
-  fn @unknown_alias(arg0: memptr) -> u256 {
+  fn @unknown_alias(arg0: word) -> word {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 42
@@ -155,7 +157,7 @@
       ret v1
   }
   
-  fn @recycled(arg0: u256) -> u256 {
+  fn @recycled(arg0: word) -> word {
     bb0:
       set_fmp arg0
       v0 = alloc raw, exact, uninitialized, infallible, 32
@@ -164,7 +166,7 @@
       ret v1
   }
   
-  fn @loop_caller() -> u256 {
+  fn @loop_caller() -> word {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 1
@@ -172,12 +174,13 @@
       ret v1
   }
   
-  fn @loop_callee(arg0: memptr) -> u256 {
+  fn @loop_callee(arg0: word) -> word {
     bb0:
       jump bb1
     bb1:
       v0 = mload arg0
-      jumpi v0, bb1, bb2
+      v1 = ne v0, 0
+      jumpi v1, bb1, bb2
     bb2:
       ret v0
   }

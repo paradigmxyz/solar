@@ -2,13 +2,13 @@
 + // === ROOT/tests/ui/codegen/mir/lower-structs/values.mir (after lower-structs) ===
   @module StructValues
   types:
-    struct0: {u256, bool}
-    struct1: {struct0, u256}
+    struct0: {word, bool}
+    struct1: {struct0, word}
     struct2: {}
-    struct3: {bool, u8, i8}
+    struct3: {bool, word, word}
   
-- fn @pair(arg0: u256, arg1: bool) -> struct0 {
-+ fn @pair(arg0: u256, arg1: bool) -> struct0 [return_abi=[u256, bool]] {
+- fn @pair(arg0: word, arg1: bool) -> struct0 {
++ fn @pair(arg0: word, arg1: bool) -> struct0 [return_abi=[word, bool]] {
     bb0:
 -     v0 = insert_value struct0, undef struct0, 0, arg0
 -     v1 = insert_value struct0, v0, 1, arg1
@@ -16,8 +16,8 @@
 +     ret arg0, arg1
   }
   
-- fn @nested(arg0: struct0) -> u256 {
-+ fn @nested(arg0: u256, arg1: bool) -> u256 {
+- fn @nested(arg0: struct0) -> word {
++ fn @nested(arg0: word, arg1: bool) -> word {
     bb0:
 -     v0 = insert_value struct1, undef struct1, 0, arg0
 -     v1 = insert_value struct1, v0, 1, 42
@@ -36,11 +36,12 @@
 +     v3 = frame_load multi_return, word, 0 !metadata(memory=scratch)
 +     v4 = add v3, 32
 +     v5 = mload v4
-+     ret v5
++     v6 = ne v5, 0
++     ret v6
   }
   
 - fn @loop(arg0: struct0, arg1: bool) -> struct0 {
-+ fn @loop(arg0: u256, arg1: bool, arg2: bool) -> struct0 [return_abi=[u256, bool]] {
++ fn @loop(arg0: word, arg1: bool, arg2: bool) -> struct0 [return_abi=[word, bool]] {
     bb0:
       jump bb1
     bb1:
@@ -59,17 +60,17 @@
   }
   
 - fn @constants() -> struct3 {
-+ fn @constants() -> struct3 [return_abi=[bool, u8, i8]] {
++ fn @constants() -> struct3 [return_abi=[bool, word, word]] {
     bb0:
 -     v0 = insert_value struct3, undef struct3, 0, true
--     v1 = insert_value struct3, v0, 1, u8 255
--     v2 = insert_value struct3, v1, 2, i8 127
+-     v1 = insert_value struct3, v0, 1, 255
+-     v2 = insert_value struct3, v1, 2, 127
 -     ret v2
-+     ret true, u8 255, i8 127
++     ret true, 255, 127
   }
   
-- fn @repeated_args(arg0: struct0, arg1: u256, arg2: struct0) -> u256 {
-+ fn @repeated_args(arg0: u256, arg1: bool, arg2: u256, arg3: u256, arg4: bool) -> u256 {
+- fn @repeated_args(arg0: struct0, arg1: word, arg2: struct0) -> word {
++ fn @repeated_args(arg0: word, arg1: bool, arg2: word, arg3: word, arg4: bool) -> word {
     bb0:
 -     v0 = extract_value struct0, arg0, 0
 -     v1 = extract_value struct0, arg2, 0
@@ -102,7 +103,7 @@
   }
   
 - fn @select(arg0: bool, arg1: struct0, arg2: struct0) -> struct0 {
-+ fn @select(arg0: bool, arg1: u256, arg2: bool, arg3: u256, arg4: bool) -> struct0 [return_abi=[u256, bool]] {
++ fn @select(arg0: bool, arg1: word, arg2: bool, arg3: word, arg4: bool) -> struct0 [return_abi=[word, bool]] {
     bb0:
 -     v0 = select arg0, arg1, arg2
 -     ret v0
@@ -111,14 +112,14 @@
 +     ret v1, v2
   }
   
-- fn @tail(arg0: u256, arg1: bool) -> struct0 {
-+ fn @tail(arg0: u256, arg1: bool) -> struct0 [return_abi=[u256, bool]] {
+- fn @tail(arg0: word, arg1: bool) -> struct0 {
++ fn @tail(arg0: word, arg1: bool) -> struct0 [return_abi=[word, bool]] {
     bb0:
       tail_call @pair, arg0, arg1
   }
   
 - fn @select_call(arg0: bool, arg1: struct0) -> struct0 {
-+ fn @select_call(arg0: bool, arg1: u256, arg2: bool) -> struct0 [return_abi=[u256, bool]] {
++ fn @select_call(arg0: bool, arg1: word, arg2: bool) -> struct0 [return_abi=[word, bool]] {
     bb0:
 -     v0 = icall @pair, 42, true
 -     v1 = select arg0, v0, arg1
@@ -127,13 +128,14 @@
 +     v3 = frame_load multi_return, word, 0 !metadata(memory=scratch)
 +     v4 = add v3, 32
 +     v5 = mload v4
-+     v6 = select arg0, v2, arg1
-+     v7 = select arg0, v5, arg2
-+     ret v6, v7
++     v6 = ne v5, 0
++     v7 = select arg0, v2, arg1
++     v8 = select arg0, v6, arg2
++     ret v7, v8
   }
   
 - fn @numeric_call() -> struct0 {
-+ fn @numeric_call() -> struct0 [return_abi=[u256, bool]] {
++ fn @numeric_call() -> struct0 [return_abi=[word, bool]] {
     bb0:
 -     v0 = icall @pair, 42, true
 -     ret v0
@@ -141,10 +143,11 @@
 +     v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
 +     v3 = add v2, 32
 +     v4 = mload v3
-+     ret v1, v4
++     v5 = ne v4, 0
++     ret v1, v5
   }
   
-  fn @unreachable_cycle() -> u256 {
+  fn @unreachable_cycle() -> word {
     bb0:
       ret 0
 -   bb1:
@@ -153,13 +156,14 @@
 -     ret v1
   }
   
-  fn @raw_word_carrier(arg0: memorystruct) -> u256 {
+  fn @raw_word_carrier(arg0: memorystruct) -> word {
     bb0:
--     v0 = insert_value struct0, undef struct0, 0, arg0
--     v1 = extract_value struct0, v0, 0
--     v2 = memory_object_len memorybytes, v1
-+     v3 = word_cast arg0
-+     v2 = memory_object_len memorybytes, v3
-      ret v2
+      v0 = word_cast arg0
+-     v1 = insert_value struct0, undef struct0, 0, v0
+-     v2 = extract_value struct0, v1, 0
+-     v3 = memory_object_from_ptr memorybytes, v2
++     v3 = memory_object_from_ptr memorybytes, v0
+      v4 = memory_object_len memorybytes, v3
+      ret v4
   }
   

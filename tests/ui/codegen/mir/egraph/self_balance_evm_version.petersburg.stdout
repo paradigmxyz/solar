@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/self_balance_evm_version.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/self_balance_evm_version.mir (after egraph) ===
   @module InstSimplifySelfBalance
-  fn @own_balance() -> u256 {
+  fn @own_balance() -> word {
     bb0:
       v0 = address
       v1 = balance v0

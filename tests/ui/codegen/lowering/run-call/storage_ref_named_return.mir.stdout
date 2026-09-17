@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_ref_named_return.sol:Positions ===
 @module Positions
 types:
-  struct0: {u256, u256, u256}
+  struct0: {word, word, word}
 
-fn @_get(arg0: storageptr, arg1: bytes32) -> storageptr [view] {
+fn @_get(arg0: word, arg1: word) -> word [view] {
   bb0:
     v0 = mapping_slot arg1, arg0
     ret v0
 }
 
-fn @_getPool(arg0: bytes32) -> storageptr [view] {
+fn @_getPool(arg0: word) -> word [view] {
   bb0:
     v0 = mapping_slot arg0, 0
     ret v0

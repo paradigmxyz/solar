@@ -127,7 +127,7 @@ contract C {
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 32
     // HOMESTEAD: [[WORD:v[0-9]+]] = mload
     // HOMESTEAD: [[CLEAN:v[0-9]+]] = eq [[WORD]],
-    // HOMESTEAD: iszero [[CLEAN]]
+    // HOMESTEAD: eq [[CLEAN]], {{(0|false)}}
     // HOMESTEAD: icall revert_if<empty>, {{v[0-9]+}}
     // BYZANTIUM-LABEL: fn @boolean
     // BYZANTIUM: delegatecall {{.*}}, 0, 0

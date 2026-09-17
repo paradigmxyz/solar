@@ -4,7 +4,7 @@
   immutables:
     stored: u256
   
-  fn @fuse_consecutive() -> u256 {
+  fn @fuse_consecutive() -> word {
     bb0:
 -     v0 = alloc raw, exact, uninitialized, infallible, 64
 +     v0 = alloc raw, exact, uninitialized, infallible, 160
@@ -19,7 +19,7 @@
       ret v3
   }
   
-  fn @fuse_zeroed() -> u256 {
+  fn @fuse_zeroed() -> word {
     bb0:
 -     v0 = alloc raw, exact, zeroed, infallible, 64
 -     v1 = alloc raw, exact, zeroed, infallible, 32
@@ -31,7 +31,7 @@
       ret v2
   }
   
-  fn @preserve_zero_timing() -> u256 {
+  fn @preserve_zero_timing() -> word {
     bb0:
 -     v0 = alloc raw, exact, zeroed, infallible, 32
 +     v0 = alloc raw, exact, uninitialized, infallible, 64
@@ -44,7 +44,7 @@
       ret v2
   }
   
-  fn @keep_across_wrapped_fmp() -> memptr {
+  fn @keep_across_wrapped_fmp() -> word {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = sub 64, v0
@@ -54,7 +54,7 @@
       ret v3
   }
   
-  fn @keep_across_fmp() -> memptr {
+  fn @keep_across_fmp() -> word {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = fmp
@@ -64,7 +64,7 @@
       ret v1
   }
   
-  fn @keep_across_constant_fmp_store() -> memptr {
+  fn @keep_across_constant_fmp_store() -> word {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore 64, 0x10000
@@ -73,7 +73,7 @@
       ret v1
   }
   
-  fn @keep_across_set_fmp() -> memptr {
+  fn @keep_across_set_fmp() -> word {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       set_fmp 0x10000
@@ -82,21 +82,21 @@
       ret v1
   }
   
-  fn @keep_checked_zeroed() -> memptr {
+  fn @keep_checked_zeroed() -> word {
     bb0:
       v0 = alloc raw, exact, zeroed, panic, 64
       v1 = alloc raw, exact, zeroed, panic, 32
       ret v1
   }
   
-  fn @keep_mixed_failures() -> memptr {
+  fn @keep_mixed_failures() -> word {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64
       v1 = alloc raw, exact, uninitialized, panic, 32
       ret v1
   }
   
-  fn @keep_across_check(arg0: u256) -> u256 {
+  fn @keep_across_check(arg0: word) -> word {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64
       v1 = checked_add u256, arg0, 1
@@ -104,7 +104,7 @@
       ret v1
   }
   
-  fn @across_immutable() -> memptr {
+  fn @across_immutable() -> word {
     bb0:
 -     v0 = alloc raw, exact, uninitialized, infallible, 32
 +     v0 = alloc raw, exact, uninitialized, infallible, 64

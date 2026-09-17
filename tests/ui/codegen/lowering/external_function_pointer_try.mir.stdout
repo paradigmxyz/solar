@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/external_function_pointer_try.sol:ExternalFunctionPointerTry ===
 @module ExternalFunctionPointerTry
 types:
-  struct0: {u256, memorybytes}
+  struct0: {word, memorybytes}
 
-fn @invoke(arg0: function, arg1: memorystruct) {
+fn @invoke(arg0: word, arg1: memorystruct) {
   bb0:
     v0 = and arg0, 0xffffffff
     v1 = shl 224, v0
@@ -13,7 +13,7 @@ fn @invoke(arg0: function, arg1: memorystruct) {
     v5 = slice_ptr v4
     v6 = slice_len v4
     v7 = extcodesize v2
-    v8 = iszero v7
+    v8 = eq v7, 0
     icall revert_if<target_contract_has_no_code>, v8
     v9 = call v3, v2, 0, v5, v6, 0, 0
     jumpi v9, bb1, bb2
@@ -37,14 +37,14 @@ fn @invoke(arg0: function, arg1: memorystruct) {
     ret
 }
 
-fn @succeed(arg0: memorystruct) [selector=0x93edcd0d, abi_params=[tuple<u256>], abi_returns=[]] {
+fn @succeed(arg0: memorystruct) [selector=0x93edcd0d, abi_params=[tuple<u256>], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = memory_object_load_field memorystruct<1>, arg0, 0
     sstore 0, v0 !metadata(storage=slot(0))
     ret
 }
 
-fn @fail(arg0: memorystruct) [selector=0xe8be0a6f, pure, abi_params=[tuple<u256>], abi_returns=[]] {
+fn @fail(arg0: memorystruct) [selector=0xe8be0a6f, pure, abi_params=[tuple<u256>], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall require<short_string>, false, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
@@ -62,7 +62,7 @@ fn @pair(arg0: memorystruct) -> struct0 [selector=0x76ea4d37, pure, abi_params=[
     ret v4
 }
 
-fn @invokePair(arg0: function, arg1: memorystruct) -> struct0 {
+fn @invokePair(arg0: word, arg1: memorystruct) -> struct0 {
   bb0:
     v0 = and arg0, 0xffffffff
     v1 = shl 224, v0
@@ -100,7 +100,7 @@ fn @invokePair(arg0: function, arg1: memorystruct) -> struct0 {
     ret v19
 }
 
-fn @trySuccess() -> u256 [selector=0x3984eec7, abi_params=[], abi_returns=[word]] {
+fn @trySuccess() -> word [selector=0x3984eec7, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = shl 32, v0
@@ -112,7 +112,7 @@ fn @trySuccess() -> u256 [selector=0x3984eec7, abi_params=[], abi_returns=[word]
     ret v4
 }
 
-fn @tryFailure() -> u256 [selector=0x86763122, abi_params=[], abi_returns=[word]] {
+fn @tryFailure() -> word [selector=0x86763122, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = shl 32, v0

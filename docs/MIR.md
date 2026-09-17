@@ -6,6 +6,25 @@ EVM stack. These boundaries serve different purposes: maintaining SSA is a
 correctness requirement for every transform; choosing a physical representation
 is a late lowering decision.
 
+## Value types and conversions
+
+SSA values use `word`, `bool`, structs, slices, or memory-object references.
+A `word` carries 256 bits; source widths, signedness, and ABI encoding rules
+belong to operation and layout metadata. `void` denotes no function result.
+
+Every `bool` is zero or one. Branches and select conditions require `bool`;
+compare a word with zero using `eq value, 0` or `ne value, 0` before branching.
+These are the canonical MIR zero tests. `ISZERO` exists only in EVM IR.
+Use `word_cast` to preserve a boolean or object reference's bits as a word,
+and `memory_object_from_ptr` to give a word an object-reference type. Phi
+inputs, struct fields, arguments, and results must match their declared types;
+equal storage width does not permit an implicit conversion.
+
+Solidity booleans whose raw bits can be observed by assembly travel as words
+across source-function calls. Logical operations convert those words to
+canonical booleans. This keeps the MIR invariant without changing the bits
+that source assembly can observe.
+
 ## Phase model
 
 The two representation phases and checked backend boundary are implemented.
@@ -22,7 +41,7 @@ or types a module may contain.
 | Representation | Contract | Main work |
 | --- | --- | --- |
 | Semantic MIR | Typed SSA, structs, slices, object references, semantic builtins, ordinary function calls; ABI and storage layouts remain explicit data. | Inline and specialize small functions, propagate constants, promote frame slots, simplify aggregates, remove redundant checks and memory/storage work. |
-| Lowered MIR | Word-valued SSA, explicit routing and ABI code, physical memory accesses, lowered call signatures, backend-supported operations. No semantic builtin or unresolved layout remains. | Simplify exposed scalar code, remove redundant loads/stores, optimize generated loops where profitable, prepare scheduling. |
+| Lowered MIR | Word and boolean SSA, explicit routing and ABI code, physical memory accesses, lowered call signatures, backend-supported operations. No semantic builtin or unresolved layout remains. | Simplify exposed scalar code, remove redundant loads/stores, optimize generated loops where profitable, prepare scheduling. |
 | EVM IR | Scheduled blocks with physical stack operations and explicit control transfers. | Target peepholes, sharing, outlining, layout, then assembly. |
 
 `lowered` does not mean scheduled: SSA values, phis, functions, and calls survive
@@ -441,13 +460,13 @@ They do not allocate storage, copy bytes, or imply an address. A slice field
 carries its pointer and length; a memory-object field carries a typed reference,
 not a copy of the referenced object.
 
-A raw `u256` field can carry all bits of a nominal object reference. Keep that
+A raw `word` field can carry all bits of a nominal object reference. Keep that
 loss of type information explicit: `word_cast` preserves the bits and yields a
 raw word; `memory_object_from_ptr` gives a word an object type without proving
 validity or ownership. Neither operation allocates or copies memory. Aggregate
 lowering inserts `word_cast` when a raw field contains a nominal reference;
-memory-object lowering erases both conversions. Alias analysis follows their
-unchanged addresses.
+memory-object lowering erases object types, and later simplification removes
+redundant word casts. Alias analysis follows their unchanged addresses.
 
 The verifier checks nominal object kinds against semantic accesses, while
 retaining compatibility with raw pointer carriers during lowering. It also
@@ -480,9 +499,9 @@ phis, selects, and calls. It reserves scalar placeholders before rewriting so
 loop-carried aggregates do not depend on block traversal order. For example:
 
 ```text
-s0 = insert_value {u256, u256}, undef, 0, a
-s1 = insert_value {u256, u256}, s0, 1, b
-x = extract_value {u256, u256}, s1, 0
+s0 = insert_value {word, word}, undef, 0, a
+s1 = insert_value {word, word}, s0, 1, b
+x = extract_value {word, word}, s1, 0
 ```
 
 becomes the value substitution `x = a`, with no load or store. An aggregate

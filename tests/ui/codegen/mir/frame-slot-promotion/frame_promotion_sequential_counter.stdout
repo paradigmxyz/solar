@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (before frame-slot-promotion) ===
 + // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (after frame-slot-promotion) ===
   @module SequentialCounter
-  fn @sequential(arg0: u256) -> u256 {
+  fn @sequential(arg0: word) -> word {
     bb0:
       v0 = internal_frame_addr 128
 -     mstore v0, 0
@@ -66,7 +66,7 @@
 - // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (before cfg-simplify) ===
 + // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (after cfg-simplify) ===
   @module SequentialCounter
-  fn @sequential(arg0: u256) -> u256 {
+  fn @sequential(arg0: word) -> word {
     bb0:
       v0 = internal_frame_addr 128
       v1 = internal_frame_addr 160
@@ -110,7 +110,7 @@
 - // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_sequential_counter.mir (after dce) ===
   @module SequentialCounter
-  fn @sequential(arg0: u256) -> u256 {
+  fn @sequential(arg0: word) -> word {
     bb0:
 -     v0 = internal_frame_addr 128
 -     v1 = internal_frame_addr 160
