@@ -52,10 +52,7 @@
 use crate::mir::{
     ArithmeticKind, BlockId, CheckedOp, Function, Immediate, InstId, InstKind, Instruction,
     MemoryRegion, MirType, Module, Terminator, Value, ValueId,
-    analysis::{
-        AffineTerm, AliasAnalysis, InductionVariable, Loop, LoopAnalyzer, MemoryBase,
-        ScalarEvolution,
-    },
+    analysis::{AffineTerm, AliasAnalysis, InductionVariable, Loop, LoopAnalyzer, ScalarEvolution},
     pass::{MirPass, run_function_pass_with_alias},
     utils as mir_utils,
 };
@@ -553,16 +550,11 @@ impl IndVarSimplifier {
         }
     }
 
-    /// Whether `value` addresses memory, so scaling a bounded index onto it
-    /// cannot wrap: a heap address, or an offset from a memory-pointer argument,
-    /// which the lowered MIR no longer classifies by region.
+    /// Whether `value` has proven heap provenance, so scaling a bounded index cannot wrap.
     fn is_heap_address(&self, func: &Function, value: ValueId) -> bool {
-        self.alias.memory_address(func, value).is_some_and(|address| {
-            address.region == MemoryRegion::Heap
-                || matches!(address.base, MemoryBase::Value(base)
-                    if matches!(*func.value(base), Value::Arg(index)
-                        if func.arg_ty(index) == MirType::I256))
-        })
+        self.alias
+            .memory_address(func, value)
+            .is_some_and(|address| address.region == MemoryRegion::Heap)
     }
 
     /// Appends to `block` the pointer's value at `index`:

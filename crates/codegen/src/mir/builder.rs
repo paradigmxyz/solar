@@ -1540,9 +1540,15 @@ impl<'a> FunctionBuilder<'a> {
         else_val: ValueId,
     ) -> ValueId {
         let cond = self.cast(cond, MirType::I1);
-        let ty = self.func.value_ty(then_val).unwrap();
-        let else_val = self.cast(else_val, ty);
+        let mut ty = self.func.value_ty(then_val).unwrap();
+        if ty == MirType::I1 && self.func.value_ty(else_val) == Some(MirType::I256) {
+            ty = MirType::I256;
+        }
+        // then_val = cast then_val to the select type
+        // else_val = cast else_val to the select type
         // result = select cond, then_val, else_val
+        let then_val = self.cast(then_val, ty);
+        let else_val = self.cast(else_val, ty);
         self.emit_inst(InstKind::Select(cond, then_val, else_val), Some(ty))
     }
 
@@ -1550,10 +1556,16 @@ impl<'a> FunctionBuilder<'a> {
     /// current block with the value the phi takes when control arrives from
     /// that block. Emit phis before any other instruction in their block.
     pub(crate) fn phi(&mut self, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
-        let ty = incoming
+        let mut ty = incoming
             .first()
             .and_then(|(_, value)| self.func.value_ty(*value))
             .unwrap_or(MirType::I256);
+        if ty == MirType::I1
+            && incoming.iter().any(|(_, value)| self.func.value_ty(*value) == Some(MirType::I256))
+        {
+            ty = MirType::I256;
+        }
+        // result = phi [predecessor: cast value to the phi type, ...]
         self.emit_inst(InstKind::Phi(incoming), Some(ty))
     }
 

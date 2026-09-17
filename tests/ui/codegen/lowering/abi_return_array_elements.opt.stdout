@@ -137,12 +137,12 @@ fn @cleanup_return(arg0: i256) -> i256 [may_return_memory] {
     v17 = add arg0, 32
     v21 = add v10, 32
     v29 = shl 5, v0
-    v30 = add v17, v29
+    v30 = add v21, v29
     jump bb4
   bb4:
     v25 = phi [bb3: v17], [bb5: v26]
     v27 = phi [bb3: v21], [bb5: v28]
-    v12 = lt v25, v30
+    v12 = lt v27, v30
     jumpi v12, bb5, bb6
   bb6:
     ret v10

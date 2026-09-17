@@ -10,7 +10,8 @@ is a late lowering decision.
 
 SSA values use `i256`, `i1`, structs, slices, or memory-object references.
 An `i256` carries 256 bits; source widths, signedness, and ABI encoding rules
-belong to operation and layout metadata. `void` denotes no function result.
+belong to operation and layout metadata. An `i256` argument does not imply
+heap provenance or non-wrapping address arithmetic. `void` denotes no function result.
 
 Integer type names follow `iN`, where `N` is the bit width. Only `i1` and
 `i256` are supported for now. Future integer widths should remain explicit in
@@ -26,7 +27,9 @@ inputs, struct fields, arguments, and results must match their declared types;
 equal storage width does not permit an implicit conversion.
 
 Solidity booleans whose raw bits can be observed by assembly travel as words
-across source-function calls. Logical operations convert those words to
+across source-function calls and source-variable joins, including loop phis.
+Mixed `i1`/`i256` joins widen the `i1` input without normalizing the word.
+Logical operations convert those words to
 canonical booleans. This keeps the MIR invariant without changing the bits
 that source assembly can observe.
 

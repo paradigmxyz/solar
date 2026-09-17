@@ -4,36 +4,33 @@
 fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
   bb0:
     v84 = calldatasize
-    v85 = lt v84, 36
-    jumpi v85, bb17, bb18
-  bb18:
     v86 = calldataload 4
     v87 = add v86, 4
     v88 = add v87, 32
     v89 = gt v86, 0xffffffffffffffff
     v90 = gt v88, v84
     v91 = or v89, v90
-    jumpi v91, bb17, bb19
-  bb19:
+    jumpi v91, bb17, bb18
+  bb18:
     v94 = calldataload v87
     v96 = add v94, 63
     v97 = lt v96, v94
-    jumpi v97, bb5, bb20
-  bb20:
+    jumpi v97, bb5, bb19
+  bb19:
     v99 = and v96, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v100 = mload 64 !metadata(memory=scratch)
     v160 = add v100, v99
     v161 = lt v160, v100
     v162 = gt v160, 0xffffffffffffffff
     v163 = or v161, v162
-    jumpi v163, bb5, bb23
-  bb23:
+    jumpi v163, bb5, bb22
+  bb22:
     mstore 64, v160 !metadata(memory=scratch)
     mstore v100, v94
     v101 = sub v84, v88
     v102 = gt v94, v101
-    jumpi v102, bb17, bb21
-  bb21:
+    jumpi v102, bb17, bb20
+  bb20:
     v151 = add v100, 32
     calldatacopy v151, v88, v94
     v58 = div v94, 3
@@ -52,8 +49,8 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v155 = lt v154, v7
     v156 = gt v154, 0xffffffffffffffff
     v157 = or v155, v156
-    jumpi v157, bb5, bb22
-  bb22:
+    jumpi v157, bb5, bb21
+  bb21:
     mstore 64, v154 !metadata(memory=scratch)
     v166 = calldatasize
     calldatacopy v7, v166, v6
@@ -62,9 +59,9 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v167 = add v7, 32
     jump bb1
   bb1:
-    v9 = phi [bb22: 0], [bb14: v82]
-    v12 = phi [bb22: 0], [bb14: v80]
-    v168 = phi [bb22: v167], [bb14: v169]
+    v9 = phi [bb21: 0], [bb14: v82]
+    v12 = phi [bb21: 0], [bb14: v80]
+    v168 = phi [bb21: v167], [bb14: v169]
     v66 = add v12, 2
     v15 = lt v66, v94
     jumpi v15, bb3, bb2
@@ -153,17 +150,42 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     revert 0, 0
 }
 
+fn @rawBase() [selector=0xcc1fc46b, abi_wrapper, pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb3: v8]
+    v3 = lt v1, 2
+    jumpi v3, bb3, bb2
+  bb2:
+    v9 = mload 0 !metadata(memory=scratch)
+    mstore 128, v9
+    returndata 128, 32
+  bb3:
+    v6 = shl 5, v1
+    v7 = add arg0, v6
+    mstore v7, 7
+    v8 = add v1, 1
+    jump bb1
+}
+
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb3, bb1
-  bb1:
-    v2 = calldataload 0
-    v3 = shr 224, v2
-    switch v3, default bb3, [0x62b0ae87 => bb2]
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = word_cast v2
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
   bb2:
-    tail_call @pack
+    v6 = calldataload 0
+    v7 = shr 224, v6
+    switch v7, default bb1, [0x62b0ae87 => bb3, 0xcc1fc46b => bb4]
+  bb4:
+    tail_call @rawBase
   bb3:
+    tail_call @pack
+  bb1:
     revert 0, 0
 }
