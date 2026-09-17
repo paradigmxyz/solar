@@ -22,6 +22,19 @@
       ret v3
   }
   
+  fn @constant_phi(arg0: bool) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      jump bb3
+    bb3:
+-     v0 = phi [bb1: 42], [bb2: 42]
+-     ret v0
++     ret 42
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (before branch-simplify) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (after branch-simplify) ===
   @module PhasePipelineResume
@@ -43,6 +56,17 @@
       ret v3
   }
   
+  fn @constant_phi(arg0: bool) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      jump bb3
+    bb3:
+      ret 42
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (after dce) ===
   @module PhasePipelineResume
@@ -59,5 +83,16 @@
       jump bb1
     bb1:
       ret v3
+  }
+  
+  fn @constant_phi(arg0: bool) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      jump bb3
+    bb3:
+      ret 42
   }
   
