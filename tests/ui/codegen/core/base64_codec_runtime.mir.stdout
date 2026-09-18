@@ -804,7 +804,7 @@ fn @_encodeWide(arg0: memorybytes, arg1: bool, arg2: bool) -> memorybytes [pure]
     icall panic_if<0x32>, v48
     v49 = memory_object_data memorybytes, v17
     v50 = add v49, v23
-    mstore v50, v43
+    memory_object_store_word memorybytes, v17, v23, v43
     v51 = checked_add u256, v20, 24
     v52 = checked_add u256, v23, 32
     jump bb14

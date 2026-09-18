@@ -457,12 +457,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// `writeBytesN(b, offset, value)` and `writeUint256BE(b, offset, value)`.
+    ///
+    /// The store is the semantic word store into the object's payload rather than a store
+    /// through the computed address: the alias analysis then knows it stays inside the
+    /// object, so lengths and words of other objects read before it, and the object's own
+    /// length, stay forwarded across it. Both lower to the same `mstore`.
     fn lower_core_write(&mut self, operands: &[ValueId], width: u8) -> Option<ValueId> {
         let [object, offset, value] = *operands else { return None };
         let data = self.core_checked_range(object, offset, Width::Const(u64::from(width)));
         match leading_mask(width) {
             // stored = (mload(data) & ~leading) | (value & leading)
-            // mstore(data, stored)
+            // memory_object_store_word(object, offset, stored)
             Some(mask) => {
                 let tail = self.builder.imm(!mask);
                 let mask = self.builder.imm(mask);
@@ -470,10 +475,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let kept = self.builder.and(old, tail);
                 let taken = self.builder.and(value, mask);
                 let stored = self.builder.or(kept, taken);
-                self.builder.mstore(data, stored);
+                self.builder.memory_object_store_word(object, offset, stored);
             }
-            // A whole word replaces everything at the address.
-            None => self.builder.mstore(data, value),
+            // A whole word replaces everything at the offset.
+            None => self.builder.memory_object_store_word(object, offset, value),
         }
         Some(self.builder.imm(U256::ZERO))
     }

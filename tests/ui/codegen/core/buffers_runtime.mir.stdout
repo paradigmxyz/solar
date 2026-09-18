@@ -375,7 +375,7 @@ fn @appendByte(arg0: memorystruct, arg1: bytes1) [pure] {
     v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v15 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
     v16 = or v14, v15
-    mstore v12, v16
+    memory_object_store_word memorybytes, v5, v0, v16
     v17 = checked_add u256, v0, 1
     memory_object_store_field memorystruct<2>, arg0, 1, v17
     ret

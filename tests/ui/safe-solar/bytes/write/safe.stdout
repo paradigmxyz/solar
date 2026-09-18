@@ -54,19 +54,19 @@ fn @word() [selector=0x8ce8a8b7, abi_wrapper, pure] {
     v3 = gt 32, v0
     jumpi v3, bb1, bb2
   bb2:
-    v5 = add v9, 32
-    mstore v5, arg1
+    v25 = add v9, 32
+    mstore v25, arg1
     v14 = iszero v9
     v15 = iszero v14
     v16 = mul v0, v15
     v18 = add v16, 31
     v20 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v21 = add v5, v20
+    v21 = add v25, v20
     mstore v21, 0
-    v22 = add v5, 32
-    mcopy v22, v5, v16
+    v22 = add v25, 32
+    mcopy v22, v25, v16
     mstore v9, 32
-    mstore v5, v16
+    mstore v25, v16
     v23 = add v20, 64
     returndata v9, v23
   bb1:
