@@ -10,7 +10,11 @@
 //! the payload base may be computed in the body or hoisted, and the exits may
 //! be distinct `ret` blocks or, once the scan was inlined into its ABI wrapper,
 //! one block whose phi selects the result from the header and body edges or a
-//! lowered `mstore`/`returndata` epilogue.
+//! lowered `mstore`/`returndata` epilogue. A counting scan inlined into a
+//! larger function instead leaves to a block that goes on computing with the
+//! count; the rewrite then hands that block the count on a merge block and
+//! renames the header phis it read, the count to the result and the index to
+//! the length, provided nothing else the loop defines is read after it.
 //!
 //! Full chunks stay within the source payload. A final load may include only
 //! the rounded allocation padding; the transform shifts or forces those bytes
@@ -28,6 +32,7 @@ use crate::mir::{
     utils::{fold_terminator_to_jump, invalidate_unreachable_block},
 };
 use alloy_primitives::U256;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::Gcx;
 
 /// Rewrites canonical memory loops to target-efficient word operations.
@@ -70,6 +75,10 @@ enum ReturnShape {
     Ret,
     /// The lowered external epilogue `mstore address, count; returndata address, size`.
     Lowered { address: ValueId, size: ValueId },
+    /// Any other `exit` block, which reads the header's `count` and `index` phis where the
+    /// scan reaches it from `header`; the rewrite reaches it from a merge block carrying the
+    /// result instead.
+    Continue { exit: BlockId, header: BlockId, count: ValueId, index: ValueId },
 }
 
 /// Accepts the loop bound as a header `mload object`, or as the same load hoisted
@@ -183,15 +192,54 @@ fn count_exit(func: &Function, exit: BlockId, count: ValueId) -> Option<ReturnSh
     (value == count).then_some(shape)
 }
 
-/// Delivers a scan result through the loop's original exit shape.
-fn emit_return(builder: &mut FunctionBuilder<'_>, exit: ReturnShape, value: ValueId) {
+/// Delivers a scan result through the loop's original exit shape. A continuing exit is
+/// reached through `merge`, whose phi `result` collects the value from every delivering block.
+fn emit_return(
+    builder: &mut FunctionBuilder<'_>,
+    exit: ReturnShape,
+    merge: Option<(BlockId, ValueId)>,
+    value: ValueId,
+) {
     match exit {
         ReturnShape::Ret => builder.ret([value]),
         ReturnShape::Lowered { address, size } => {
             builder.mstore(address, value);
             builder.set_terminator(Terminator::ReturnData { offset: address, size });
         }
+        ReturnShape::Continue { .. } => {
+            let (merge, result) = merge.expect("a continuing exit has its merge block");
+            let from = builder.current_block();
+            // jump merge; merge: result = phi [..., from: value]
+            builder.jump(merge);
+            builder.add_phi_incoming(result, from, value);
+        }
     }
+}
+
+/// Whether a value the loop defines, other than the header phis the rewrite renames, is read
+/// outside the loop's `blocks`; the rewrite deletes the loop, so such a loop keeps its shape.
+fn loop_value_escapes(func: &Function, blocks: &[BlockId], renamed: [ValueId; 2]) -> bool {
+    let mut defined = FxHashSet::default();
+    for &block in blocks {
+        for &inst in &func.blocks[block].instructions {
+            if let Some(value) = func.inst_result_value(inst)
+                && !renamed.contains(&value)
+            {
+                defined.insert(value);
+            }
+        }
+    }
+    func.blocks.iter_enumerated().any(|(block, data)| {
+        !blocks.contains(&block)
+            && (data
+                .instructions
+                .iter()
+                .any(|&inst| func.inst(inst).kind.operands().iter().any(|v| defined.contains(v)))
+                || data
+                    .terminator
+                    .as_ref()
+                    .is_some_and(|term| term.operands().iter().any(|v| defined.contains(v))))
+    })
 }
 
 fn run_function(func: &mut Function, alias: &AliasAnalysis) -> bool {
@@ -368,18 +416,40 @@ enum ByteSource {
 }
 
 /// Finds the count phi and index phi among a counting loop's header phis, and
-/// the exit that returns the count.
+/// the exit that returns the count or goes on with it.
 fn count_phis(
     func: &Function,
     phis: [InstId; 2],
+    header: BlockId,
     exit: BlockId,
     index: ValueId,
 ) -> Option<(InstId, InstId, ValueId, ReturnShape)> {
     let index_phi = phis.into_iter().find(|&inst| func.inst_result_value(inst) == Some(index))?;
     let count_phi = phis.into_iter().find(|&inst| inst != index_phi)?;
     let count = func.inst_result_value(count_phi)?;
-    let exit = count_exit(func, exit, count)?;
+    let exit = count_exit(func, exit, count).unwrap_or(ReturnShape::Continue {
+        exit,
+        header,
+        count,
+        index,
+    });
     Some((count_phi, index_phi, count, exit))
+}
+
+/// Whether a continuing exit may take over from the loop `blocks`: it lies outside them and
+/// reads nothing they define but the header phis.
+fn continues_soundly(
+    func: &Function,
+    exit: ReturnShape,
+    blocks: &[BlockId],
+    renamed: [ValueId; 2],
+) -> bool {
+    match exit {
+        ReturnShape::Continue { exit, .. } => {
+            !blocks.contains(&exit) && !loop_value_escapes(func, blocks, renamed)
+        }
+        ReturnShape::Ret | ReturnShape::Lowered { .. } => true,
+    }
 }
 
 fn match_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLoop> {
@@ -405,7 +475,7 @@ fn match_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLo
     if *branch != condition {
         return None;
     }
-    let (count_phi, index_phi, count, count_exit) = count_phis(func, phis, *exit, index)?;
+    let (count_phi, index_phi, count, count_exit) = count_phis(func, phis, header, *exit, index)?;
 
     // body: [base = object + 32]; ptr = base + index; word = mload ptr; byte = byte 0, word
     //       aligned = shl 248, byte; jumpi aligned, latch, increment
@@ -496,6 +566,10 @@ fn match_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLo
         return None;
     }
 
+    if !continues_soundly(func, count_exit, &[header, *body, *increment, *latch], [count, index]) {
+        return None;
+    }
+
     Some(ZeroCountLoop {
         preheader: *preheader,
         source: ByteSource::Memory { object },
@@ -522,7 +596,7 @@ fn match_calldata_zero_count_loop(func: &Function, header: BlockId) -> Option<Ze
     if *branch != condition {
         return None;
     }
-    let (count_phi, index_phi, count, count_exit) = count_phis(func, phis, *exit, index)?;
+    let (count_phi, index_phi, count, count_exit) = count_phis(func, phis, header, *exit, index)?;
 
     let [ptr_inst, load_inst, byte_inst] = func.blocks[*body].instructions.as_slice() else {
         return None;
@@ -608,6 +682,10 @@ fn match_calldata_zero_count_loop(func: &Function, header: BlockId) -> Option<Ze
         return None;
     }
 
+    if !continues_soundly(func, count_exit, &[header, *body, *increment, *latch], [count, index]) {
+        return None;
+    }
+
     Some(ZeroCountLoop {
         preheader: *preheader,
         source: ByteSource::Calldata { data, length },
@@ -626,11 +704,21 @@ fn rewrite_zero_count_loop(func: &mut Function, candidate: ZeroCountLoop) {
     let word_body = func.alloc_block();
     let tail = func.alloc_block();
     let done = func.alloc_block();
+    let merge = matches!(candidate.exit, ReturnShape::Continue { .. }).then(|| func.alloc_block());
 
+    let mut result = None;
+    let length;
     {
         let mut builder = FunctionBuilder::new(func);
+        if let (Some(merge), ReturnShape::Continue { exit, .. }) = (merge, candidate.exit) {
+            // merge: result = phi [...]; jump exit
+            builder.switch_to_block(merge);
+            let phi = builder.phi(Vec::new());
+            builder.jump(exit);
+            result = Some((merge, phi));
+        }
         builder.switch_to_block(candidate.preheader);
-        let (data, length) = match candidate.source {
+        let (data, bound) = match candidate.source {
             ByteSource::Memory { object } => {
                 let length = candidate.length.unwrap_or_else(|| builder.mload(object));
                 let data = builder.add_u64_offset(object, 32);
@@ -638,6 +726,7 @@ fn rewrite_zero_count_loop(func: &mut Function, candidate: ZeroCountLoop) {
             }
             ByteSource::Calldata { data, length } => (data, length),
         };
+        length = bound;
         let short_limit = builder.imm(33);
         let is_short = builder.lt(length, short_limit);
         builder.branch(is_short, short, setup);
@@ -657,7 +746,7 @@ fn rewrite_zero_count_loop(func: &mut Function, candidate: ZeroCountLoop) {
 
         // return 0
         builder.switch_to_block(empty_result);
-        emit_return(&mut builder, candidate.exit, zero);
+        emit_return(&mut builder, candidate.exit, result, zero);
 
         // padding_mask = max >> (length * 8)
         // word = load(data) | padding_mask
@@ -672,8 +761,8 @@ fn rewrite_zero_count_loop(func: &mut Function, candidate: ZeroCountLoop) {
             ByteSource::Calldata { .. } => builder.calldataload(data),
         };
         let word = builder.or(word, padding_mask);
-        let result = emit_zero_byte_count(&mut builder, word);
-        emit_return(&mut builder, candidate.exit, result);
+        let short_count = emit_zero_byte_count(&mut builder, word);
+        emit_return(&mut builder, candidate.exit, result, short_count);
 
         // pointer = phi(setup: data, word_body: next_pointer)
         // word_count = phi(setup: 0, word_body: count_next)
@@ -724,12 +813,29 @@ fn rewrite_zero_count_loop(func: &mut Function, candidate: ZeroCountLoop) {
         };
         let word = builder.or(word, padding_mask);
         let tail_count = emit_zero_byte_count(&mut builder, word);
-        let result = builder.add(word_count, tail_count);
-        emit_return(&mut builder, candidate.exit, result);
+        let tail_total = builder.add(word_count, tail_count);
+        emit_return(&mut builder, candidate.exit, result, tail_total);
 
         // return word_count
         builder.switch_to_block(done);
-        emit_return(&mut builder, candidate.exit, word_count);
+        emit_return(&mut builder, candidate.exit, result, word_count);
+    }
+
+    // The exit read the count and the index from the header; it takes the result and the
+    // length from the merge block now, the index being the length where the scan stopped.
+    if let (ReturnShape::Continue { exit, header, count, index }, Some((merge, phi))) =
+        (candidate.exit, result)
+    {
+        for &inst in &func.blocks[exit].instructions.clone() {
+            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
+                for (block, _) in incoming.iter_mut() {
+                    if *block == header {
+                        *block = merge;
+                    }
+                }
+            }
+        }
+        func.replace_uses(&FxHashMap::from_iter([(count, phi), (index, length)]));
     }
 }
 
@@ -903,7 +1009,7 @@ fn rewrite_ascii_loop(func: &mut Function, candidate: AsciiLoop) {
         let result =
             builder.phi(vec![(one_word, one_result), (two_words, two_result), (tail, tail_result)]);
         match candidate.exits {
-            BoolExits::Blocks { shape, .. } => emit_return(&mut builder, shape, result),
+            BoolExits::Blocks { shape, .. } => emit_return(&mut builder, shape, None, result),
             BoolExits::Merged { block, phi } => {
                 builder.jump(block);
                 builder.add_phi_incoming(phi, finish, result);
