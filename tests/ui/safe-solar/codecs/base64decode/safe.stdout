@@ -156,50 +156,56 @@ fn @decode.1(arg0: memptr) -> memptr [pure] {
     mstore v46, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v47 = add v40, 224
     mstore v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v356 = add arg0, 32
+    v364 = add arg0, v24
+    v365 = add v364, 32
+    v366 = add arg0, v0
+    v367 = add v366, 32
+    v368 = add v38, 32
+    v376 = add v38, v33
+    v377 = add v376, 32
     jump bb5
   bb5:
     v50 = phi [bb32: 0], [bb21: v115]
-    v53 = phi [bb32: 0], [bb21: v243]
-    v56 = phi [bb32: 0], [bb21: v259]
-    v243 = add v53, 4
-    v59 = gt v243, v24
+    v357 = phi [bb32: v356], [bb21: v358]
+    v369 = phi [bb32: v368], [bb21: v370]
+    v358 = add v357, 4
+    v59 = gt v358, v365
     jumpi v59, bb6, bb7
   bb7:
-    v62 = lt v53, v0
+    v62 = lt v357, v367
     jumpi v62, bb15, bb13
   bb15:
-    v278 = add arg0, 32
-    v279 = add v278, v53
-    v280 = mload v279
+    v280 = mload v357
     v281 = byte 0, v280
     v283 = add v40, v281
     v284 = mload v283
     v285 = byte 0, v284
-    v247 = add v53, 1
-    v75 = lt v247, v0
+    v363 = add v357, 1
+    v75 = lt v363, v367
     jumpi v75, bb16, bb13
   bb16:
-    v287 = add v278, v247
+    v287 = add v357, 1
     v288 = mload v287
     v289 = byte 0, v288
     v291 = add v40, v289
     v292 = mload v291
     v293 = byte 0, v292
-    v249 = add v53, 2
-    v88 = lt v249, v0
+    v360 = add v357, 2
+    v88 = lt v360, v367
     jumpi v88, bb17, bb13
   bb17:
-    v295 = add v278, v249
+    v295 = add v357, 2
     v296 = mload v295
     v297 = byte 0, v296
     v299 = add v40, v297
     v300 = mload v299
     v301 = byte 0, v300
-    v251 = add v53, 3
-    v101 = lt v251, v0
+    v362 = add v357, 3
+    v101 = lt v362, v367
     jumpi v101, bb18, bb13
   bb18:
-    v303 = add v278, v251
+    v303 = add v357, 3
     v304 = mload v303
     v305 = byte 0, v304
     v307 = add v40, v305
@@ -216,46 +222,42 @@ fn @decode.1(arg0: memptr) -> memptr [pure] {
     v120 = or v118, v119
     v121 = or v120, v309
     v123 = byte 29, v121
-    v126 = lt v56, v33
+    v126 = lt v369, v377
     jumpi v126, bb19, bb13
   bb19:
-    v310 = add v38, 32
-    v311 = add v310, v56
-    mstore8 v311, v123
+    mstore8 v369, v123
     v130 = byte 30, v121
-    v253 = add v56, 1
-    v134 = lt v253, v33
+    v373 = add v369, 1
+    v134 = lt v373, v377
     jumpi v134, bb20, bb13
   bb20:
-    v313 = add v310, v253
+    v313 = add v369, 1
     mstore8 v313, v130
     v137 = and v121, 255
-    v255 = add v56, 2
-    v141 = lt v255, v33
+    v371 = add v369, 2
+    v141 = lt v371, v377
     jumpi v141, bb21, bb13
   bb21:
-    v315 = add v310, v255
+    v315 = add v369, 2
     mstore8 v315, v137
-    v259 = add v56, 3
+    v370 = add v369, 3
     jump bb5
   bb6:
     jumpi v229, bb8, bb9
   bb8:
-    v149 = lt v53, v0
+    v149 = lt v357, v367
     jumpi v149, bb22, bb13
   bb22:
-    v316 = add arg0, 32
-    v317 = add v316, v53
-    v318 = mload v317
+    v318 = mload v357
     v319 = byte 0, v318
     v321 = add v40, v319
     v322 = mload v321
     v323 = byte 0, v322
-    v261 = add v53, 1
-    v162 = lt v261, v0
+    v359 = add v357, 1
+    v162 = lt v359, v367
     jumpi v162, bb23, bb13
   bb23:
-    v325 = add v316, v261
+    v325 = add v357, 1
     v326 = mload v325
     v327 = byte 0, v326
     v329 = add v40, v327
@@ -269,11 +271,11 @@ fn @decode.1(arg0: memptr) -> memptr [pure] {
     v178 = eq v229, 3
     jumpi v178, bb10, bb11
   bb10:
-    v245 = add v53, 2
-    v181 = lt v245, v0
+    v361 = add v357, 2
+    v181 = lt v361, v367
     jumpi v181, bb24, bb13
   bb24:
-    v333 = add v316, v245
+    v333 = add v357, 2
     v334 = mload v333
     v335 = byte 0, v334
     v337 = add v40, v335
@@ -283,13 +285,14 @@ fn @decode.1(arg0: memptr) -> memptr [pure] {
     v193 = shl 6, v339
     v194 = or v177, v193
     v196 = byte 30, v194
-    v263 = add v56, 1
+    v372 = add v369, 1
     v199 = mload v38
-    v200 = lt v263, v199
+    v378 = add v38, v199
+    v379 = add v378, 32
+    v200 = lt v372, v379
     jumpi v200, bb25, bb13
   bb25:
-    v340 = add v38, 32
-    v341 = add v340, v263
+    v341 = add v369, 1
     mstore8 v341, v196
     jump bb11
   bb11:
@@ -297,16 +300,16 @@ fn @decode.1(arg0: memptr) -> memptr [pure] {
     v204 = phi [bb25: v192], [bb23: v174]
     v206 = byte 29, v203
     v208 = mload v38
-    v209 = lt v56, v208
+    v374 = add v38, v208
+    v375 = add v374, 32
+    v209 = lt v369, v375
     jumpi v209, bb26, bb13
   bb13:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
     revert 28, 36
   bb26:
-    v342 = add v38, 32
-    v343 = add v342, v56
-    mstore8 v343, v206
+    mstore8 v369, v206
     jump bb9
   bb9:
     v212 = phi [bb26: v204], [bb6: v50]

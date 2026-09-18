@@ -412,3 +412,35 @@ fn @reduce_through_inner_header(arg0: memptr, arg1: u256, arg2: u256) -> u256 {
   bb6:
     ret 0
 }
+
+// A codec loop tests its update, `i + 4 <= n`, rather than the counter. The
+// update's mirror sits beside it in the header, so the test compares that
+// mirror with the pointer's end and the counter still dies.
+// CHECK-LABEL: {{^[ +].*}}fn @reduce_tested_update{{[( ]}}
+// CHECK: + [[START:v[0-9]+]] = add arg0, 32
+// CHECK: + [[END:v[0-9]+]] = add {{v[0-9]+}}, 32
+// CHECK: - [[COUNTER:v[0-9]+]] = phi [bb0: 0], [bb2: [[UPDATE:v[0-9]+]]]
+// CHECK-NEXT: - [[UPDATE]] = add [[COUNTER]], 4
+// CHECK-NEXT: - {{v[0-9]+}} = gt [[UPDATE]], arg1
+// CHECK-NEXT: + [[PTR:v[0-9]+]] = phi [bb0: [[START]]], [bb2: [[NEXT:v[0-9]+]]]
+// CHECK-NEXT: + [[NEXT]] = add [[PTR]], 4
+// CHECK-NEXT: + {{v[0-9]+}} = gt [[NEXT]], [[END]]
+// CHECK: + {{v[0-9]+}} = mload [[PTR]]
+fn @reduce_tested_update(arg0: memptr, arg1: u256) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v2]
+    v2 = add v1, 4
+    v3 = gt v2, arg1
+    jumpi v3, bb3, bb2
+  bb2:
+    v4 = add arg0, 32
+    v5 = add v4, v1
+    v6 = mload v5
+    v7 = shr 224, v6
+    mstore 0, v7
+    jump bb1
+  bb3:
+    ret 0
+}

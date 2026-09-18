@@ -580,11 +580,13 @@ fn @decode.8(arg0: memptr) -> memptr [pure] {
     calldatacopy v35, v388, v34
     mstore v35, v30
     v389 = add arg0, 32
+    v393 = add v35, 32
     jump bb32
   bb32:
     v160 = phi [bb66: 0], [bb39: v220]
     v161 = phi [bb66: 0], [bb39: v194]
     v390 = phi [bb66: v389], [bb39: v391]
+    v394 = phi [bb66: v393], [bb39: v395]
     v222 = add v160, 3
     v223 = lt v222, v0
     jumpi v223, bb33, bb9
@@ -845,9 +847,7 @@ fn @decode.8(arg0: memptr) -> memptr [pure] {
     jumpi v182, bb34, bb35
   bb34:
     v183 = byte 29, v209
-    v362 = add v35, 32
-    v363 = add v362, v161
-    mstore8 v363, v183
+    mstore8 v394, v183
     jump bb35
   bb35:
     v184 = add v161, 1
@@ -855,8 +855,7 @@ fn @decode.8(arg0: memptr) -> memptr [pure] {
     jumpi v216, bb36, bb37
   bb36:
     v186 = byte 30, v209
-    v364 = add v35, 32
-    v365 = add v364, v184
+    v365 = add v394, 1
     mstore8 v365, v186
     jump bb37
   bb37:
@@ -865,14 +864,14 @@ fn @decode.8(arg0: memptr) -> memptr [pure] {
     jumpi v218, bb38, bb39
   bb38:
     v191 = and v209, 255
-    v366 = add v35, 32
-    v367 = add v366, v189
+    v367 = add v394, 2
     mstore8 v367, v191
     jump bb39
   bb39:
     v194 = add v161, 3
     v220 = add v160, 4
     v391 = add v390, 4
+    v395 = add v394, 3
     jump bb32
   bb65:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

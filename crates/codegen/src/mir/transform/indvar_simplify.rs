@@ -70,6 +70,7 @@ use crate::mir::{
     ArithmeticKind, BlockId, CheckedOp, Function, Immediate, InstId, InstKind, Instruction,
     MemoryRegion, MirType, Module, Terminator, Value, ValueId,
     analysis::{AffineTerm, AliasAnalysis, Loop, LoopAnalyzer, MemoryBase, ScalarEvolution},
+    memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass_with_alias},
     utils as mir_utils,
 };
@@ -124,13 +125,15 @@ struct IndVarSimplifier {
     alias: Rc<AliasAnalysis>,
 }
 
-/// A comparison of the counter with an invariant bound, `lt`, `gt` or `eq`
-/// with the counter on either side.
+/// A comparison of the counter, or of one of its updates, with an invariant
+/// bound: `lt`, `gt` or `eq` with the subject on either side.
 #[derive(Clone, Copy)]
 struct ExitTest {
     condition: InstId,
+    /// The counter or an update of it.
+    subject: ValueId,
     bound: ValueId,
-    counter_first: bool,
+    subject_first: bool,
     comparison: Comparison,
 }
 
@@ -288,8 +291,72 @@ impl IndVarSimplifier {
         // time. A reduction only retypes instructions, adds phis with their
         // updates, and deletes arithmetic it just made dead, so the blocks,
         // preheader and back edge analyzed here stay valid for the next.
+        let lengths = self.stored_lengths(func, analyzer, loop_data.header);
+        // The pointer's end for a bound is built in the preheader, so a bound
+        // must be defined where the preheader can read it.
+        let mut before = DenseBitSet::new_empty(func.blocks.len());
+        for block in func.blocks.indices() {
+            if analyzer.dominates(block, preheader) {
+                before.insert(block);
+            }
+        }
         for counter in Self::counters(func, loop_data, preheader, latch) {
-            self.reduce_counter(func, loop_data, &region, preheader, latch, counter);
+            self.reduce_counter(
+                func, loop_data, &region, &before, &lengths, preheader, latch, counter,
+            );
+        }
+    }
+
+    /// The words stored as an object's length before `header`: a length the
+    /// function computed itself, `(n / 4) * 3` say, is as bounded as one read
+    /// back from the object, since the allocation checked it.
+    fn stored_lengths(
+        &self,
+        func: &Function,
+        analyzer: &LoopAnalyzer,
+        header: BlockId,
+    ) -> FxHashSet<ValueId> {
+        let mut lengths = FxHashSet::default();
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            if !analyzer.dominates(block_id, header) {
+                continue;
+            }
+            for &inst_id in &block.instructions {
+                let (slot, length) = match func.inst(inst_id).kind {
+                    InstKind::MStore(slot, length) => (slot, length),
+                    InstKind::SetMemoryObjectLen(object, length, _) => (object, length),
+                    _ => continue,
+                };
+                if self.is_length_slot(func, slot) {
+                    lengths.insert(length);
+                }
+            }
+        }
+        lengths
+    }
+
+    /// Whether `slot` is the first word of a memory object: a memory
+    /// reference, or the start of an allocation, which after allocation
+    /// lowering is a read of the free-memory pointer.
+    fn is_length_slot(&self, func: &Function, slot: ValueId) -> bool {
+        if func.value_ty(slot).is_some_and(MirType::is_memory_reference) {
+            return true;
+        }
+        let Some(address) = self.alias.memory_address(func, slot) else { return false };
+        if address.region != MemoryRegion::Heap || address.offset != 0 {
+            return false;
+        }
+        match address.base {
+            MemoryBase::Allocation(_) | MemoryBase::DynamicAllocation(_) => true,
+            MemoryBase::Value(base) => {
+                let Value::Inst(inst_id) = func.value(base) else { return false };
+                match func.inst(*inst_id).kind {
+                    InstKind::Fmp => true,
+                    InstKind::MLoad(fmp) => func.value_u64(fmp) == Some(EvmMemoryLayout::FMP_SLOT),
+                    _ => false,
+                }
+            }
+            _ => false,
         }
     }
 
@@ -335,12 +402,18 @@ impl IndVarSimplifier {
                     recognized = false;
                     break;
                 };
-                if !in_loop(definer) || func.blocks[header].instructions.contains(&definer) {
+                if !in_loop(definer) {
                     recognized = false;
                     break;
                 }
                 match &func.inst(definer).kind {
+                    // Another header phi would make this counter a function of
+                    // that one; a merge phi below the header is a step's join.
                     InstKind::Phi(merged) => {
+                        if func.blocks[header].instructions.contains(&definer) {
+                            recognized = false;
+                            break;
+                        }
                         phis.push(definer);
                         pending.extend(merged.iter().map(|&(_, merged_value)| merged_value));
                     }
@@ -412,6 +485,8 @@ impl IndVarSimplifier {
         func: &mut Function,
         loop_data: &Loop,
         region: &DenseBitSet<BlockId>,
+        before: &DenseBitSet<BlockId>,
+        lengths: &FxHashSet<ValueId>,
         preheader: BlockId,
         latch: BlockId,
         counter: Counter,
@@ -508,7 +583,7 @@ impl IndVarSimplifier {
         // With the counter free once every address is a pointer, an ascending pointer
         // that cannot wrap takes over the exit test and the counter dies; that credit
         // is weighed across all families at once.
-        let exit_tests = self.counter_exit_tests(func, loop_data, region, counter.value);
+        let exit_tests = self.counter_exit_tests(func, loop_data, region, lengths, &counter);
         let definers = counter.definers(func);
         let counter_free = !must_keep_update
             && !exit_tests.is_empty()
@@ -571,9 +646,14 @@ impl IndVarSimplifier {
             if !pays {
                 continue;
             }
-            let Some(pointer) =
-                self.materialize_pointer_phi(func, loop_data, preheader, latch, &counter, primary)
-            else {
+            let derived = Self::derived_values(func, region, counter.value);
+            let subjects = exit_tests
+                .iter()
+                .filter_map(|test| Some((test.subject, *derived.get(&test.subject)?)))
+                .collect::<FxHashMap<_, _>>();
+            let Some((pointer, mirrors)) = self.materialize_pointer_phi(
+                func, loop_data, region, preheader, latch, &counter, primary, &subjects,
+            ) else {
                 tracing::trace!(
                     function = %func.name,
                     header = ?loop_data.header,
@@ -583,7 +663,7 @@ impl IndVarSimplifier {
                 continue;
             };
             if reduce_all && test_family == Some(index) {
-                test_pointer = Some((pointer, primary.clone()));
+                test_pointer = Some((pointer, primary.clone(), mirrors));
             }
             for &value in primary_values {
                 replacements.insert(value, pointer);
@@ -599,22 +679,43 @@ impl IndVarSimplifier {
         // exit: lt counter, bound  =>  lt ptr, end   with end = ptr's value at the bound
         // and the same for gt and eq
         let mut test_rewritten = false;
-        if let Some((pointer, key)) = test_pointer.as_ref()
+        if let Some((_, key, mirrors)) = test_pointer.as_ref()
             && replacements.len() + siblings.len() == addresses.len()
         {
             let mut ends = FxHashMap::default();
             for test in &exit_tests {
+                let Some(&subject) = mirrors.get(&test.subject) else { continue };
                 let end = match ends.get(&test.bound) {
                     Some(&end) => end,
                     None => {
-                        let Some(end) = self.pointer_at(func, preheader, key, test.bound) else {
-                            continue;
+                        // A bound the preheader can read is priced there
+                        // once; one defined after the loop, a length read
+                        // back for a later check, gets its end beside it.
+                        let bound_block = match func.value(test.bound) {
+                            Value::Inst(inst_id) => region
+                                .iter()
+                                .find(|&block| func.blocks[block].instructions.contains(inst_id)),
+                            _ => None,
                         };
+                        let end = match bound_block {
+                            Some(block) if !before.contains(block) => {
+                                let position = func.blocks[block]
+                                    .instructions
+                                    .iter()
+                                    .position(|&inst_id| {
+                                        func.inst_result_value(inst_id) == Some(test.bound)
+                                    })
+                                    .map_or(0, |position| position + 1);
+                                self.pointer_at_position(func, block, position, key, test.bound)
+                            }
+                            _ => self.pointer_at(func, preheader, key, test.bound),
+                        };
+                        let Some(end) = end else { continue };
                         ends.insert(test.bound, end);
                         end
                     }
                 };
-                let (a, b) = if test.counter_first { (*pointer, end) } else { (end, *pointer) };
+                let (a, b) = if test.subject_first { (subject, end) } else { (end, subject) };
                 func.inst_mut(test.condition).kind = match test.comparison {
                     Comparison::Lt => InstKind::Lt(a, b),
                     Comparison::Gt => InstKind::Gt(a, b),
@@ -723,8 +824,14 @@ impl IndVarSimplifier {
         func: &Function,
         loop_data: &Loop,
         region: &DenseBitSet<BlockId>,
-        iv: ValueId,
+        lengths: &FxHashSet<ValueId>,
+        counter: &Counter,
     ) -> Vec<ExitTest> {
+        // `i + 4 <= n` tests the update, and the tail after a loop tests
+        // `i + 1 < n`; each such value gets a mirror beside its definition.
+        let subjects = Self::derived_values(func, region, counter.value);
+        // A bound is any value the loop does not change: one the preheader
+        // can read, or one defined after the loop for a test there.
         let invariant = |value: ValueId| match func.value(value) {
             Value::Immediate(_) | Value::Arg(_) => true,
             Value::Inst(inst_id) => !loop_data
@@ -735,13 +842,14 @@ impl IndVarSimplifier {
         };
         let object_length = |value: ValueId| match func.value(value) {
             Value::Immediate(_) => true,
-            Value::Inst(inst_id) => match func.inst(*inst_id).kind {
-                InstKind::MemoryObjectLen(..) => true,
-                InstKind::MLoad(address) => {
-                    func.value_ty(address).is_some_and(MirType::is_memory_reference)
-                }
-                _ => false,
-            },
+            Value::Inst(inst_id) => {
+                lengths.contains(&value)
+                    || match func.inst(*inst_id).kind {
+                        InstKind::MemoryObjectLen(..) => true,
+                        InstKind::MLoad(slot) => self.is_length_slot(func, slot),
+                        _ => false,
+                    }
+            }
             Value::Arg(_) | Value::Undef(_) | Value::Error(_) => false,
         };
         let mut tests = Vec::new();
@@ -754,19 +862,41 @@ impl IndVarSimplifier {
                     InstKind::Eq(a, b) => (a, b, Comparison::Eq),
                     _ => continue,
                 };
-                let (bound, counter_first) = if a == iv && invariant(b) {
-                    (b, true)
-                } else if b == iv && invariant(a) {
-                    (a, false)
+                let (subject, bound, subject_first) = if subjects.contains_key(&a) && invariant(b) {
+                    (a, b, true)
+                } else if subjects.contains_key(&b) && invariant(a) {
+                    (b, a, false)
                 } else {
                     continue;
                 };
                 if in_header && !matches!(comparison, Comparison::Eq) || object_length(bound) {
-                    tests.push(ExitTest { condition, bound, counter_first, comparison });
+                    tests.push(ExitTest { condition, subject, bound, subject_first, comparison });
                 }
             }
         }
         tests
+    }
+
+    /// The counter and every `counter + c` in the region, each with its
+    /// offset, whether an update of the loop or a derived index after it.
+    fn derived_values(
+        func: &Function,
+        region: &DenseBitSet<BlockId>,
+        counter: ValueId,
+    ) -> FxHashMap<ValueId, i128> {
+        let mut derived = FxHashMap::default();
+        derived.insert(counter, 0);
+        for block in region.iter() {
+            for &inst_id in &func.blocks[block].instructions {
+                let Some(result) = func.inst_result_value(inst_id) else { continue };
+                if let Some(Step::Constant(offset)) =
+                    Self::step_of(func, &func.inst(inst_id).kind, counter)
+                {
+                    derived.insert(result, offset);
+                }
+            }
+        }
+        derived
     }
 
     /// Whether the counter is read only by its exit tests, the phis and updates
@@ -881,6 +1011,42 @@ impl IndVarSimplifier {
         self.add_signed_offset(func, block, value, key.constant)
     }
 
+    /// Inserts the pointer's value at `index` at `at` in `block`, the way
+    /// [`Self::pointer_at`] appends it.
+    fn pointer_at_position(
+        &self,
+        func: &mut Function,
+        block: BlockId,
+        mut at: usize,
+        key: &AddressKey,
+        index: ValueId,
+    ) -> Option<ValueId> {
+        let mut value = key.base;
+        for term in &key.invariants {
+            let (scaled, next) = self.insert_scaled(func, block, at, term.value, term.scale)?;
+            at = next;
+            value = Some(match value {
+                Some(acc) => {
+                    let sum = self.insert_inst_value(func, block, at, InstKind::Add(acc, scaled));
+                    at += 1;
+                    sum
+                }
+                None => scaled,
+            });
+        }
+        let (scaled, next) = self.insert_scaled(func, block, at, index, key.scale)?;
+        at = next;
+        let value = match value {
+            Some(acc) => {
+                let sum = self.insert_inst_value(func, block, at, InstKind::Add(acc, scaled));
+                at += 1;
+                sum
+            }
+            None => scaled,
+        };
+        self.insert_signed_offset(func, block, at, value, key.constant)
+    }
+
     /// Appends `acc + value` to `block`, or starts the sum with `value`.
     fn add_values(
         &self,
@@ -927,7 +1093,13 @@ impl IndVarSimplifier {
         counter: &Counter,
     ) -> usize {
         let carry = 2 + carried.saturating_sub(4);
-        let byte_pointer = if members[0].0.scale.abs() == 1 { 2 } else { 0 };
+        let key = &members[0].0;
+        let byte_pointer = if key.scale.abs() == 1 && key.constant == 0 && key.invariants.is_empty()
+        {
+            2
+        } else {
+            0
+        };
         // A value step is scaled before it is added, on every path that takes it.
         let scaling =
             counter.leaves.iter().filter(|(_, step)| matches!(step, Step::Value { .. })).count()
@@ -958,9 +1130,11 @@ impl IndVarSimplifier {
     /// three carried words still cost every sorting kernel a few tenths of a
     /// percent), plus one for every word past four the loop already carries,
     /// since each deepens the accesses to all the others. A byte pointer, one
-    /// whose index is unscaled, is charged two more: its address is one add
-    /// away from words the loop holds anyway, and the `replace` search loop
-    /// lost 1.3% carrying one.
+    /// whose index is unscaled and added to a bare base, is charged two more:
+    /// its address is one add away from words the loop holds anyway, and the
+    /// `replace` search loop lost 1.3% carrying one. With an offset or an
+    /// invariant in the address the base is not that word, so the charge
+    /// stays with the expression it prices.
     fn reduction_pays_off(
         members: &[(AddressKey, Vec<ValueId>)],
         offset_shared: &FxHashSet<ValueId>,
@@ -1070,11 +1244,13 @@ impl IndVarSimplifier {
         &mut self,
         func: &mut Function,
         loop_data: &Loop,
+        region: &DenseBitSet<BlockId>,
         preheader: BlockId,
         latch: BlockId,
         counter: &Counter,
         key: &AddressKey,
-    ) -> Option<ValueId> {
+        subjects: &FxHashMap<ValueId, i128>,
+    ) -> Option<(ValueId, FxHashMap<ValueId, ValueId>)> {
         for &(_, step) in &counter.leaves {
             if let Step::Constant(constant) = step {
                 constant.checked_mul(key.scale)?;
@@ -1129,18 +1305,19 @@ impl IndVarSimplifier {
         }
         for &(leaf, step) in &counter.leaves {
             let updated = func.inst_result_value(leaf)?;
-            // A counter with one plain update steps its pointer on the latch;
-            // the mirror of an update below a merge sits beside the update.
-            let (block, at) = if counter.phis.is_empty() {
+            // A counter with one plain update steps its pointer at the end of
+            // the latch; the mirror of an update below a merge, or of one an
+            // exit test compares, sits beside the update.
+            let (block, position) = loop_data.blocks.iter().find_map(|block| {
+                func.blocks[block]
+                    .instructions
+                    .iter()
+                    .position(|&inst_id| inst_id == leaf)
+                    .map(|position| (block, position))
+            })?;
+            let (block, at) = if counter.phis.is_empty() && !subjects.contains_key(&updated) {
                 (latch, func.blocks[latch].instructions.len())
             } else {
-                let (block, position) = loop_data.blocks.iter().find_map(|block| {
-                    func.blocks[block]
-                        .instructions
-                        .iter()
-                        .position(|&inst_id| inst_id == leaf)
-                        .map(|position| (block, position))
-                })?;
                 (block, position + 1)
             };
             let mirror = match step {
@@ -1172,7 +1349,29 @@ impl IndVarSimplifier {
         };
         incoming.push((latch, latch_mirror));
         self.stats.pointer_phis_inserted += 1;
-        Some(phi_value)
+
+        // A tested value derived from the counter elsewhere in the region,
+        // `i + 1` after the loop, gets its mirror beside its definition too.
+        //   mirror(counter + c) = add ptr, c * scale
+        for (&subject, &offset) in subjects {
+            if mirrors.contains_key(&subject) {
+                continue;
+            }
+            let Value::Inst(definer) = *func.value(subject) else { continue };
+            let Some((block, position)) = region.iter().find_map(|block| {
+                func.blocks[block]
+                    .instructions
+                    .iter()
+                    .position(|&inst_id| inst_id == definer)
+                    .map(|position| (block, position))
+            }) else {
+                continue;
+            };
+            let delta = offset.checked_mul(key.scale)?;
+            let mirror = self.insert_signed_offset(func, block, position + 1, phi_value, delta)?;
+            mirrors.insert(subject, mirror);
+        }
+        Some((phi_value, mirrors))
     }
 
     /// Inserts `value + offset` at `at` in `block`, as an add or a subtraction
