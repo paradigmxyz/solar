@@ -179,3 +179,175 @@
       jump bb1
   }
   
+  fn @reduce_conditional_step(arg0: memptr, arg1: u256, arg2: u256) -> u256 {
+    bb0:
++     v13 = shl 5, arg1
++     v14 = add arg0, v13
+      jump bb1
+    bb1:
+-     v0 = phi [bb0: 0], [bb4: v7]
+-     v1 = lt v0, arg1
++     v10 = phi [bb0: arg0], [bb4: v11]
++     v1 = lt v10, v14
+      jumpi v1, bb2, bb5
+    bb5:
+-     v8 = shl 5, v0
+-     v9 = add arg0, v8
+-     mstore v9, 0
++     mstore v10, 0
+      ret 0
+    bb2:
+-     v2 = shl 5, v0
+-     v3 = add arg0, v2
+-     v4 = mload v3
++     v4 = mload v10
+      v5 = lt v4, arg2
+      jumpi v5, bb3, bb4
+    bb3:
+-     v6 = add v0, 1
++     v12 = add v10, 32
+      jump bb4
+    bb4:
+-     v7 = phi [bb3: v6], [bb2: v0]
++     v11 = phi [bb3: v12], [bb2: v10]
+      mstore 0, v4
+      jump bb1
+  }
+  
+  fn @keep_counter_reset_in_arm(arg0: memptr, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb4: v7]
+      v1 = lt v0, arg1
+      jumpi v1, bb2, bb5
+    bb5:
+      ret 0
+    bb2:
+      v2 = shl 5, v0
+      v3 = add arg0, v2
+      v4 = mload v3
+      v5 = lt v4, arg2
+      jumpi v5, bb3, bb4
+    bb3:
+      v6 = add v0, 1
+      jump bb4
+    bb4:
+      v7 = phi [bb3: v6], [bb2: arg2]
+      mstore 0, v4
+      jump bb1
+  }
+  
+  fn @reduce_condition_step(arg0: memptr, arg1: u256, arg2: u256) -> u256 {
+    bb0:
++     v10 = shl 5, arg1
++     v11 = add arg0, v10
+      jump bb1
+    bb1:
+-     v0 = phi [bb0: 0], [bb2: v6]
+-     v1 = lt v0, arg1
++     v7 = phi [bb0: arg0], [bb2: v9]
++     v1 = lt v7, v11
+      jumpi v1, bb2, bb3
+    bb3:
+      ret 0
+    bb2:
+-     v2 = shl 5, v0
+-     v3 = add arg0, v2
+-     v4 = mload v3
++     v4 = mload v7
+      v5 = lt v4, arg2
+-     v6 = add v0, v5
+      mstore 0, v4
++     v8 = shl 5, v5
++     v9 = add v7, v8
+      jump bb1
+  }
+  
+  fn @keep_word_step(arg0: memptr, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v5]
+      v1 = lt v0, arg1
+      jumpi v1, bb2, bb3
+    bb3:
+      ret 0
+    bb2:
+      v2 = shl 5, v0
+      v3 = add arg0, v2
+      v4 = mload v3
+      v5 = add v0, v4
+      mstore 0, v4
+      jump bb1
+  }
+  
+  fn @reduce_descending_gt(arg0: memptr, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+    bb0:
++     v11 = shl 5, arg2
++     v12 = add arg0, v11
++     v15 = shl 5, arg1
++     v16 = add arg0, v15
+      jump bb1
+    bb1:
+-     v0 = phi [bb0: arg2], [bb2: v8]
+-     v1 = gt v0, arg1
++     v13 = phi [bb0: v12], [bb2: v14]
++     v1 = gt v13, v16
+      jumpi v1, bb2, bb3
+    bb3:
+-     v9 = shl 5, v0
+-     v10 = add arg0, v9
+-     mstore v10, arg3
++     mstore v13, arg3
+      ret 0
+    bb2:
+-     v2 = sub v0, 1
+-     v3 = shl 5, v2
+-     v4 = add arg0, v3
++     v4 = sub v13, 32
+      v5 = mload v4
+-     v6 = shl 5, v0
+-     v7 = add arg0, v6
+-     mstore v7, v5
+-     v8 = sub v0, 1
++     mstore v13, v5
++     v14 = sub v13, 32
+      jump bb1
+  }
+  
+  fn @reduce_through_inner_header(arg0: memptr, arg1: u256, arg2: u256) -> u256 {
+    bb0:
++     v12 = shl 5, arg1
++     v13 = add arg0, v12
+      jump bb1
+    bb1:
+-     v0 = phi [bb0: 0], [bb5: v6]
+-     v1 = lt v0, arg1
++     v9 = phi [bb0: arg0], [bb5: v10]
++     v1 = lt v9, v13
+      jumpi v1, bb2, bb6
+    bb6:
+      ret 0
+    bb2:
+-     v2 = shl 5, v0
+-     v3 = add arg0, v2
+-     v4 = mload v3
+-     v5 = add v0, 1
++     v4 = mload v9
++     v11 = add v9, 32
+      jump bb3
+    bb3:
+-     v6 = phi [bb2: v5], [bb4: v6]
++     v10 = phi [bb2: v11], [bb4: v10]
+      v7 = mload 0
+      v8 = lt v7, arg2
+      jumpi v8, bb4, bb5
+    bb5:
+      mstore 32, v4
+      jump bb1
+    bb4:
+      mstore 0, v4
+      jump bb3
+  }
+  
