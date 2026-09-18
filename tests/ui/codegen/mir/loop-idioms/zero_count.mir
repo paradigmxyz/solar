@@ -72,3 +72,79 @@ fn @count_zero_calldata(arg0: i256, arg1: i256) -> i256 {
   bb6:
     ret v0
 }
+
+// The scan inlined into a larger function leaves to a block that goes on
+// with its count and its index. That block is reached from a merge block
+// carrying the result now, and reads it in place of the count and the length
+// in place of the index, which is where the scan stopped.
+// CHECK-LABEL: {{^[ +].*}}fn @count_zero_then_use{{[( ]}}
+// CHECK: {{^ +}}[[LEN:v[0-9]+]] = mload arg0
+// CHECK: + [[RESULT:v[0-9]+]] = phi [bb{{[0-9]+}}: 0], [bb{{[0-9]+}}: v{{[0-9]+}}], [bb{{[0-9]+}}: v{{[0-9]+}}], [bb{{[0-9]+}}: v{{[0-9]+}}]
+// CHECK-NEXT: {{^ +}}jump [[EXIT:bb[0-9]+]]
+// CHECK-NEXT: + [[EXIT]]:
+// CHECK-NEXT: + {{v[0-9]+}} = add [[RESULT]], [[RESULT]]
+// CHECK-NEXT: + {{v[0-9]+}} = add {{v[0-9]+}}, [[LEN]]
+fn @count_zero_then_use(arg0: memptr, arg1: u256) -> u256 {
+  bb0:
+    v2 = mload arg0
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb5: v12]
+    v1 = phi [bb0: 0], [bb5: v13]
+    v3 = lt v1, v2
+    jumpi v3, bb2, bb6
+  bb2:
+    v4 = add arg0, 32
+    v5 = add v4, v1
+    v6 = mload v5
+    v7 = byte 0, v6
+    v8 = shl 248, v7
+    jumpi v8, bb5, bb3
+  bb3:
+    v9 = add v0, 1
+    jumpi v9, bb5, bb4
+  bb4:
+    revert 0, 0
+  bb5:
+    v12 = phi [bb3: v9], [bb2: v0]
+    v13 = add v1, 1
+    jump bb1
+  bb6:
+    v14 = add v0, v0
+    v15 = add v14, v1
+    v16 = add v15, arg1
+    ret v16
+}
+
+// The header's condition is read after the loop, so the loop stays.
+// CHECK-LABEL: {{^[ +].*}}fn @count_zero_condition_escapes{{[( ]}}
+// CHECK-NOT: 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
+fn @count_zero_condition_escapes(arg0: memptr) -> u256 {
+  bb0:
+    v2 = mload arg0
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb5: v12]
+    v1 = phi [bb0: 0], [bb5: v13]
+    v3 = lt v1, v2
+    jumpi v3, bb2, bb6
+  bb2:
+    v4 = add arg0, 32
+    v5 = add v4, v1
+    v6 = mload v5
+    v7 = byte 0, v6
+    v8 = shl 248, v7
+    jumpi v8, bb5, bb3
+  bb3:
+    v9 = add v0, 1
+    jumpi v9, bb5, bb4
+  bb4:
+    revert 0, 0
+  bb5:
+    v12 = phi [bb3: v9], [bb2: v0]
+    v13 = add v1, 1
+    jump bb1
+  bb6:
+    v14 = add v0, v3
+    ret v14
+}
