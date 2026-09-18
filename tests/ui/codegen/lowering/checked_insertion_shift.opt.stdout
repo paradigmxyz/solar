@@ -3,59 +3,56 @@
 @phase lowered
 fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
   bb0:
-    v45 = calldatasize
-    v46 = lt v45, 36
-    jumpi v46, bb8, bb9
+    v46 = calldatasize
+    v47 = lt v46, 36
+    jumpi v47, bb8, bb9
   bb9:
-    v47 = icall @decode_calldata_type, 4
-    v90 = ptrtoint memptr v47 to i256
-    v35 = mload v90
-    v69 = add v90, 32
+    v48 = icall @decode_calldata_type, 4
+    v36 = mload v48
+    v61 = add v48, 32
+    v80 = add v61, 32
     jump bb1
   bb1:
-    v0 = phi [bb9: 1], [bb5: v41]
-    v4 = lt v0, v35
+    v0 = phi [bb9: 1], [bb5: v42]
+    v81 = phi [bb9: v80], [bb5: v82]
+    v4 = lt v0, v36
     jumpi v4, bb3, bb2
   bb2:
-    v55 = ne v90, 0
-    v56 = zext i1 v55 to i256
-    v57 = mul v35, v56
-    v89 = add v90, 32
-    v59 = shl 5, v57
-    v61 = add v90, 64
-    mcopy v61, v89, v59
-    mstore v90, 32
-    mstore v89, v57
-    v65 = add v59, 64
-    returndata v90, v65
+    v53 = iszero v48
+    v54 = iszero v53
+    v55 = mul v36, v54
+    v56 = add v48, 32
+    v57 = shl 5, v55
+    v58 = add v56, 32
+    mcopy v58, v56, v57
+    mstore v48, 32
+    mstore v56, v55
+    v59 = add v57, 64
+    returndata v48, v59
   bb3:
-    v70 = shl 5, v0
-    v71 = add v69, v70
-    v8 = mload v71
-    v91 = shl 5, v0
-    v92 = add v69, v91
+    v8 = mload v81
     jump bb4
   bb4:
-    v12 = phi [bb3: v0], [bb7: v37]
-    v93 = phi [bb3: v92], [bb7: v94]
-    v14 = ne v12, 0
-    jumpi v14, bb6, bb5
+    v12 = phi [bb3: v0], [bb7: v38]
+    v78 = phi [bb3: v81], [bb7: v79]
+    jumpi v12, bb6, bb5
   bb6:
-    v37 = sub v12, 1
-    v79 = sub v93, 32
-    v19 = mload v79
-    v20 = gt v19, v8
-    jumpi v20, bb7, bb5
+    v38 = sub v12, 1
+    v69 = sub v78, 32
+    v20 = mload v69
+    v21 = gt v20, v8
+    jumpi v21, bb7, bb5
   bb5:
-    v74 = shl 5, v12
-    v75 = add v69, v74
-    mstore v75, v8
-    v41 = add v0, 1
+    v65 = shl 5, v12
+    v66 = add v61, v65
+    mstore v66, v8
+    v42 = add v0, 1
+    v82 = add v81, 32
     jump bb1
   bb7:
-    v26 = mload v79
-    mstore v93, v26
-    v94 = sub v93, 32
+    v27 = mload v69
+    mstore v78, v27
+    v79 = sub v78, 32
     jump bb4
   bb8:
     revert 0, 0
@@ -63,47 +60,44 @@ fn @sort() [selector=0x9ec8b026, abi_wrapper, pure] {
 
 fn @shiftAt() [selector=0xa227bfd8, abi_wrapper, pure] {
   bb0:
-    v11 = calldatasize
-    v12 = lt v11, 68
-    jumpi v12, bb6, bb7
+    v12 = calldatasize
+    v13 = lt v12, 68
+    jumpi v13, bb6, bb7
   bb7:
-    v13 = icall @decode_calldata_type, 4
-    v0 = ne arg1, 0
-    jumpi v0, bb1, bb2
+    v14 = icall @decode_calldata_type, 4
+    jumpi arg1, bb1, bb2
   bb1:
-    v9 = sub arg1, 1
-    v42 = ptrtoint memptr v13 to i256
-    v2 = mload v42
-    v3 = lt v9, v2
-    jumpi v3, bb4, bb3
+    v10 = sub arg1, 1
+    v3 = mload v14
+    v4 = lt v10, v3
+    jumpi v4, bb4, bb3
   bb4:
-    v35 = add v42, 32
-    v36 = shl 5, v9
-    v37 = add v35, v36
-    v5 = mload v37
-    v7 = lt arg1, v2
-    jumpi v7, bb5, bb3
+    v27 = add v14, 32
+    v28 = shl 5, v10
+    v29 = add v27, v28
+    v6 = mload v29
+    v8 = lt arg1, v3
+    jumpi v8, bb5, bb3
   bb3:
     tail_call @revert_stub
   bb5:
-    v40 = shl 5, arg1
-    v41 = add v35, v40
-    mstore v41, v5
+    v31 = shl 5, arg1
+    v32 = add v27, v31
+    mstore v32, v6
     jump bb2
   bb2:
-    v43 = ptrtoint memptr v13 to i256
-    v21 = ne v43, 0
-    v22 = zext i1 v21 to i256
-    v17 = mload v43
-    v23 = mul v17, v22
-    v45 = add v43, 32
-    v25 = shl 5, v23
-    v27 = add v43, 64
-    mcopy v27, v45, v25
-    mstore v43, 32
-    mstore v45, v23
-    v31 = add v25, 64
-    returndata v43, v31
+    v19 = iszero v14
+    v20 = iszero v19
+    v18 = mload v14
+    v21 = mul v18, v20
+    v22 = add v14, 32
+    v23 = shl 5, v21
+    v24 = add v22, 32
+    mcopy v24, v22, v23
+    mstore v14, 32
+    mstore v22, v21
+    v25 = add v23, 64
+    returndata v14, v25
   bb6:
     revert 0, 0
 }
@@ -115,7 +109,7 @@ fn @revert_stub() {
     revert 28, 36
 }
 
-fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
+fn @decode_calldata_type(arg0: u256) -> memptr {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0
@@ -126,34 +120,33 @@ fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
     v6 = or v4, v5
     jumpi v6, bb1, bb2
   bb2:
-    v8 = calldataload v2
-    v10 = shl 5, v8
-    v12 = shr 5, v10
-    v16 = ne v12, v8
-    jumpi v16, bb3, bb4
+    v7 = calldataload v2
+    v9 = shl 5, v7
+    v11 = shr 5, v9
+    v12 = eq v11, v7
+    jumpi v12, bb4, bb3
   bb4:
-    v17 = add v10, 32
-    v18 = lt v17, v10
-    jumpi v18, bb3, bb5
+    v15 = add v9, 32
+    v16 = lt v15, v9
+    jumpi v16, bb3, bb5
   bb5:
-    v29 = mload 64 !metadata(memory=scratch)
-    v19 = inttoptr i256 v29 to memptr !metadata(memory=scratch)
-    v30 = add v29, v17
-    v31 = lt v30, v29
-    v32 = gt v30, 0xffffffffffffffff
-    v33 = or v31, v32
-    jumpi v33, bb3, bb7
+    v17 = mload 64 !metadata(memory=scratch)
+    v25 = add v17, v15
+    v26 = lt v25, v17
+    v27 = gt v25, 0xffffffffffffffff
+    v28 = or v26, v27
+    jumpi v28, bb3, bb7
   bb7:
-    mstore 64, v30 !metadata(memory=scratch)
-    mstore v29, v8
-    v20 = sub v0, v3
-    v21 = shr 5, v20
-    v22 = gt v8, v21
-    jumpi v22, bb1, bb6
+    mstore 64, v25 !metadata(memory=scratch)
+    mstore v17, v7
+    v18 = sub v0, v3
+    v19 = shr 5, v18
+    v20 = gt v7, v19
+    jumpi v20, bb1, bb6
   bb6:
-    v25 = add v29, 32
-    calldatacopy v25, v3, v10
-    ret v19
+    v22 = add v17, 32
+    calldatacopy v22, v3, v9
+    ret v17
   bb3:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
@@ -165,12 +158,11 @@ fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    v1 = ne v0, 0
-    jumpi v1, bb4, bb1
+    jumpi v0, bb4, bb1
   bb1:
-    v2 = calldataload 0
-    v3 = shr 224, v2
-    switch v3, default bb4, [0x9ec8b026 => bb2, 0xa227bfd8 => bb3]
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb4, [0x9ec8b026 => bb2, 0xa227bfd8 => bb3]
   bb3:
     tail_call @shiftAt
   bb2:

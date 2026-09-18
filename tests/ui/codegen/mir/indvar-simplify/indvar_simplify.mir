@@ -220,3 +220,198 @@ fn @keep_checked_scale_one_address(arg0: i256) -> i256 {
   bb3:
     ret 0
 }
+
+// A counter that only one arm advances reaches its header phi through the
+// arms' merge phi. The pointer mirrors that shape: a phi beside the merge and
+// an add beside the update. The base is a memory pointer, so the exit test
+// compares the pointer with its end and the counter, its merge and its update
+// die; the address the exit block builds from the final counter is the
+// pointer as well.
+// CHECK-LABEL: {{^[ +].*}}fn @reduce_conditional_step{{[( ]}}
+// CHECK: + [[SCALED:v[0-9]+]] = shl 5, arg1
+// CHECK: + [[END:v[0-9]+]] = add arg0, [[SCALED]]
+// CHECK: - [[COUNTER:v[0-9]+]] = phi [bb0: 0], [bb4: {{v[0-9]+}}]
+// CHECK-NEXT: - {{v[0-9]+}} = lt [[COUNTER]], arg1
+// CHECK-NEXT: + [[PTR:v[0-9]+]] = phi [bb0: arg0], [bb4: [[NEXT:v[0-9]+]]]
+// CHECK-NEXT: + {{v[0-9]+}} = lt [[PTR]], [[END]]
+// CHECK: + mstore [[PTR]], 0
+// CHECK: + {{v[0-9]+}} = mload [[PTR]]
+// CHECK: + [[STEP:v[0-9]+]] = add [[PTR]], 32
+// CHECK: + [[NEXT]] = phi [bb3: [[STEP]]], [bb2: [[PTR]]]
+fn @reduce_conditional_step(arg0: memptr, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb4: v9]
+    v2 = lt v1, arg1
+    jumpi v2, bb2, bb5
+  bb2:
+    v3 = shl 5, v1
+    v4 = add arg0, v3
+    v5 = mload v4
+    v6 = lt v5, arg2
+    jumpi v6, bb3, bb4
+  bb3:
+    v7 = add v1, 1
+    jump bb4
+  bb4:
+    v9 = phi [bb3: v7], [bb2: v1]
+    mstore 0, v5
+    jump bb1
+  bb5:
+    v10 = shl 5, v1
+    v11 = add arg0, v10
+    mstore v11, 0
+    ret 0
+}
+
+// A merge phi that is not built from the counter alone is not a step of it,
+// so nothing is reduced.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_counter_reset_in_arm{{[( ]}}
+// CHECK-NOT: + {{.*}}phi
+fn @keep_counter_reset_in_arm(arg0: memptr, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb4: v9]
+    v2 = lt v1, arg1
+    jumpi v2, bb2, bb5
+  bb2:
+    v3 = shl 5, v1
+    v4 = add arg0, v3
+    v5 = mload v4
+    v6 = lt v5, arg2
+    jumpi v6, bb3, bb4
+  bb3:
+    v7 = add v1, 1
+    jump bb4
+  bb4:
+    v9 = phi [bb3: v7], [bb2: arg2]
+    mstore 0, v5
+    jump bb1
+  bb5:
+    ret 0
+}
+
+// An if-converted arm steps the counter by its condition, `i += (u < v)`, a
+// one-bit value: the pointer steps by the condition scaled to the stride.
+// CHECK-LABEL: {{^[ +].*}}fn @reduce_condition_step{{[( ]}}
+// CHECK: + [[PTR:v[0-9]+]] = phi [bb0: arg0], [bb2: [[NEXT:v[0-9]+]]]
+// CHECK: + {{v[0-9]+}} = mload [[PTR]]
+// CHECK: [[COND:v[0-9]+]] = lt {{v[0-9]+}}, arg2
+// CHECK: + [[SCALED:v[0-9]+]] = shl 5, [[COND]]
+// CHECK: + [[NEXT]] = add [[PTR]], [[SCALED]]
+fn @reduce_condition_step(arg0: memptr, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v7]
+    v2 = lt v1, arg1
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = shl 5, v1
+    v4 = add arg0, v3
+    v5 = mload v4
+    v6 = lt v5, arg2
+    v7 = add v1, v6
+    mstore 0, v5
+    jump bb1
+  bb3:
+    ret 0
+}
+
+// A step of unknown width could carry the counter around the word, so an
+// update by a full word is not a step and the counter is left alone.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_word_step{{[( ]}}
+// CHECK-NOT: + {{.*}}phi
+fn @keep_word_step(arg0: memptr, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v7]
+    v2 = lt v1, arg1
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = shl 5, v1
+    v4 = add arg0, v3
+    v5 = mload v4
+    v7 = add v1, v5
+    mstore 0, v5
+    jump bb1
+  bb3:
+    ret 0
+}
+
+// An insertion sort's inner loop walks `j` down while `j > lo`, moving
+// `a[j - 1]` to `a[j]`, and writes `a[j]` once more after it. The exit test
+// is a `gt`, the two offsets share one descending pointer, and the write
+// after the loop reads that pointer, so the counter dies.
+// CHECK-LABEL: {{^[ +].*}}fn @reduce_descending_gt{{[( ]}}
+// CHECK: + [[START:v[0-9]+]] = add arg0, {{v[0-9]+}}
+// CHECK: + [[END:v[0-9]+]] = add arg0, {{v[0-9]+}}
+// CHECK: - {{v[0-9]+}} = phi [bb0: arg2], [bb2: {{v[0-9]+}}]
+// CHECK: + [[PTR:v[0-9]+]] = phi [bb0: [[START]]], [bb2: [[NEXT:v[0-9]+]]]
+// CHECK: + {{v[0-9]+}} = gt [[PTR]], [[END]]
+// CHECK: + mstore [[PTR]], arg3
+// CHECK: + [[PREV:v[0-9]+]] = sub [[PTR]], 32
+// CHECK: {{^[ +].*}} = mload [[PREV]]
+// CHECK: + mstore [[PTR]],
+// CHECK: + [[NEXT]] = sub [[PTR]], 32
+fn @reduce_descending_gt(arg0: memptr, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: arg2], [bb2: v9]
+    v2 = gt v1, arg1
+    jumpi v2, bb2, bb3
+  bb2:
+    v4 = sub v1, 1
+    v5 = shl 5, v4
+    v6 = add arg0, v5
+    v7 = mload v6
+    v10 = shl 5, v1
+    v11 = add arg0, v10
+    mstore v11, v7
+    v9 = sub v1, 1
+    jump bb1
+  bb3:
+    v12 = shl 5, v1
+    v13 = add arg0, v12
+    mstore v13, arg3
+    ret 0
+}
+
+// A merge phi may be an inner loop's header, which leaves the counter alone
+// around its own back edge; the mirror phi cycles through that latch too.
+// CHECK-LABEL: {{^[ +].*}}fn @reduce_through_inner_header{{[( ]}}
+// CHECK: + [[PTR:v[0-9]+]] = phi [bb0: arg0], [bb5: [[INNER:v[0-9]+]]]
+// CHECK: + {{v[0-9]+}} = mload [[PTR]]
+// CHECK: + [[STEP:v[0-9]+]] = add [[PTR]], 32
+// CHECK: + [[INNER]] = phi [bb2: [[STEP]]], [bb4: [[INNER]]]
+fn @reduce_through_inner_header(arg0: memptr, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb5: v9]
+    v2 = lt v1, arg1
+    jumpi v2, bb2, bb6
+  bb2:
+    v3 = shl 5, v1
+    v4 = add arg0, v3
+    v5 = mload v4
+    v7 = add v1, 1
+    jump bb3
+  bb3:
+    v9 = phi [bb2: v7], [bb4: v9]
+    v10 = mload 0
+    v11 = lt v10, arg2
+    jumpi v11, bb4, bb5
+  bb4:
+    mstore 0, v5
+    jump bb3
+  bb5:
+    mstore 32, v5
+    jump bb1
+  bb6:
+    ret 0
+}

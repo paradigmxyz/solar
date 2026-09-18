@@ -22,16 +22,17 @@ contract BranchBuriedCondition {
     // Both elements are on the stack for the comparison, and the arm that takes `v` no longer
     // needs `u`. Dropping it after the bounds check of `c[k]` is computed brings `v` up over
     // that check's condition. The branch swaps the condition back to the top rather than drain
-    // the stack to reach it, so the arm keeps its eight carried words and its only memory
-    // access is the store.
+    // the stack to reach it, so the arm keeps its carried words (the two input pointers with
+    // their ends, the output pointer, its index and length) and its only memory access is
+    // the store.
     // CHECK-LABEL: @module BranchBuriedCondition_runtime
     // CHECK: [loop]:
     // CHECK: gt
     // CHECK-NEXT: push [[TAKE_V:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK: [[TAKE_V]] [loop]:
-    // CHECK-NEXT: dup 8
-    // CHECK-NEXT: dup 5
+    // CHECK-NEXT: dup 10
+    // CHECK-NEXT: dup 4
     // CHECK-NEXT: lt
     // CHECK-NEXT: swap 2
     // CHECK-NEXT: pop
@@ -39,7 +40,7 @@ contract BranchBuriedCondition {
     // CHECK-NEXT: iszero
     // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK-NEXT: jumpi
-    // CHECK-NEXT: dup 5
+    // CHECK-NEXT: dup 3
     // CHECK-NEXT: mstore
     // CHECK-NOT: mload
     // CHECK: jump
