@@ -55,10 +55,10 @@ pub(crate) struct InductionVariable {
     pub init: ValueId,
     /// Step/stride per iteration. The magnitude only; see [`Self::descending`] for the sign.
     pub step: ValueId,
+    /// The instruction that advances the recurrence.
+    pub update_inst: InstId,
     /// Whether the variable decreases by `step` each iteration (`i = i - step`).
     pub descending: bool,
-    /// The recognized instruction that computes the next value.
-    pub update_inst: InstId,
 }
 
 /// Result of loop analysis for a function.
@@ -276,8 +276,8 @@ impl LoopAnalyzer {
                             value: phi_val,
                             init,
                             step: step_amount,
-                            descending,
                             update_inst,
+                            descending,
                         });
                     }
                 }

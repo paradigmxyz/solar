@@ -33,7 +33,7 @@ mod liveness;
 pub(crate) use liveness::Liveness;
 
 mod loop_analysis;
-pub(crate) use loop_analysis::{InductionVariable, Loop, LoopAnalyzer, LoopInfo};
+pub(crate) use loop_analysis::{Loop, LoopAnalyzer, LoopInfo};
 
 mod scalar_evolution;
 pub(crate) use scalar_evolution::{AffineExpr, AffineTerm, ScalarEvolution};
