@@ -1349,6 +1349,59 @@ impl<'a> CheckEliminator<'a> {
             .any(|amount| hi.checked_add(amount).is_some_and(|hi| hi <= integer_max(func, base)))
     }
 
+    /// Decides `x + c1 < y + c2` from a fact `x + d < y` or `x + d <= y`:
+    /// `Some(true)` when the sum is strictly below, `Some(false)` when it is
+    /// only at most equal. Needs `d <= c1 <= d + c2`, so `x + c1` is
+    /// `(x + d) + (c1 - d)` with `c1 - d <= c2`, and `y + c2` not wrapping,
+    /// which its own passing check or its range establishes; then neither
+    /// side wraps and the order carries over. A side without an offset has
+    /// an offset of zero.
+    fn shifted_below(
+        &mut self,
+        func: &Function,
+        a: ValueId,
+        b: ValueId,
+        depth: usize,
+    ) -> Option<bool> {
+        let (x, c1) = shifted_operand(func, a);
+        let (y, c2) = shifted_operand(func, b);
+        if x == y || (c1.is_zero() && c2.is_zero()) {
+            return None;
+        }
+        self.ensure_relation_index(func);
+        let reverse = self.reverse_index.as_ref().expect("relation index was just built");
+        let mut best = None::<(U256, bool)>;
+        for &fact in reverse.get(&y).into_iter().flatten() {
+            let (index, strict) = match fact {
+                Relation::Lt(index, limit) if limit == y => (index, true),
+                Relation::Le(index, limit) if limit == y => (index, false),
+                _ => continue,
+            };
+            if !self.relations.contains(&fact) && !self.universal_relations.contains(&fact) {
+                continue;
+            }
+            let (base, d) = shifted_operand(func, index);
+            if base != x || d > c1 {
+                continue;
+            }
+            if best.is_none_or(|(known, _)| d > known || (d == known && strict)) {
+                best = Some((d, strict));
+            }
+        }
+        let (d, strict) = best?;
+        let reach = d.checked_add(c2)?;
+        if c1 > reach {
+            return None;
+        }
+        let sum_sound = c2.is_zero()
+            || self.has_relation(func, Relation::Le(y, b))
+            || self.range_of(func, y, depth).hi.checked_add(c2).is_some_and(|hi| hi <= integer_max(func, b));
+        if !sum_sound {
+            return None;
+        }
+        Some(strict || c1 < reach)
+    }
+
     /// Whether some value is provably below `value` in the current scope,
     /// which puts `value` at one or more: every word is at least zero.
     fn has_strict_lower_bound(&mut self, func: &Function, value: ValueId) -> bool {
@@ -1818,6 +1871,18 @@ impl<'a> CheckEliminator<'a> {
             && self.has_larger_offset_bound(func, base, offset, b, depth)
         {
             return Some(true);
+        }
+
+        // Both sides shifted by constants: `x + c1 < y + c2` follows from
+        // `x + d < y`, and `y + c2 < x + c1` is false after `x + d <= y`, when
+        // `d <= c1 <= d + c2` and `y + c2` cannot wrap, which covers a word
+        // written at `j` into 29 bytes of slack, `j + 32 <= length + 29`,
+        // after the guard `j + 3 <= length` and the allocation's own check.
+        if self.shifted_below(func, a, b, depth) == Some(true) {
+            return Some(true);
+        }
+        if self.shifted_below(func, b, a, depth).is_some() {
+            return Some(false);
         }
 
         let (x, y) = ordered(a, b);
@@ -2351,6 +2416,20 @@ fn largest_step(func: &Function, phi: ValueId, next: ValueId) -> Option<U256> {
         }
     }
     (!largest.is_zero()).then_some(largest)
+}
+
+/// Splits `x + c` with a literal `c` into `(x, c)`; any other value has an
+/// offset of zero.
+fn shifted_operand(func: &Function, value: ValueId) -> (ValueId, U256) {
+    match inst_kind(func, value) {
+        Some(&InstKind::Add(x, c)) if const_of(func, c).is_some() => {
+            (x, const_of(func, c).unwrap_or_default())
+        }
+        Some(&InstKind::Add(c, x)) if const_of(func, c).is_some() => {
+            (x, const_of(func, c).unwrap_or_default())
+        }
+        _ => (value, U256::ZERO),
+    }
 }
 
 fn const_of(func: &Function, value: ValueId) -> Option<U256> {
