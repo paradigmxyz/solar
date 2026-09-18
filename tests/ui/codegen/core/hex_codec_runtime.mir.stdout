@@ -170,7 +170,7 @@ fn @encodePrefixed(arg0: memorybytes) -> memorybytes [pure] {
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v17 = and 0x3078000000000000000000000000000000000000000000000000000000000000, 0xffff000000000000000000000000000000000000000000000000000000000000
     v18 = or v16, v17
-    mstore v14, v18
+    memory_object_store_word memorybytes, v7, 0, v18
     icall @_encodeInto, v7, 2, arg0
     ret v7
 }
@@ -452,7 +452,7 @@ fn @_encodeInto(arg0: memorybytes, arg1: u256, arg2: memorybytes) [pure] {
     icall panic_if<0x32>, v51
     v52 = memory_object_data memorybytes, v1
     v53 = add v52, v35
-    mstore v53, v46
+    memory_object_store_word memorybytes, v1, v35, v46
     ret
   bb6:
     ret
@@ -477,7 +477,7 @@ fn @_encodeInto(arg0: memorybytes, arg1: u256, arg2: memorybytes) [pure] {
     icall panic_if<0x32>, v25
     v26 = memory_object_data memorybytes, v1
     v27 = add v26, v6
-    mstore v27, v20
+    memory_object_store_word memorybytes, v1, v6, v20
     v28 = checked_add u256, v3, 16
     v29 = checked_add u256, v6, 32
     jump bb5
