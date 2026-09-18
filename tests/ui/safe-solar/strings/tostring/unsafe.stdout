@@ -44,22 +44,19 @@ fn @_toString(arg0: u256) -> memptr [pure] {
     mstore v1, 0
     jump bb1
   bb1:
-    v4 = phi [bb0: v1], [bb3: v11]
-    v8 = phi [bb0: arg0], [bb3: v14]
+    v4 = phi [bb0: v1], [bb1: v11]
+    v8 = phi [bb0: arg0], [bb1: v14]
     v11 = add v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v12 = mod v8, 10
     v13 = add v12, 48
     mstore8 v11, v13
     v14 = div v8, 10
-    jumpi v14, bb3, bb2
+    jumpi v14, bb1, bb2
   bb2:
     v20 = sub v1, v11
-    v23 = sub v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v21 = add v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffdf
+    v21 = sub v11, 32
     mstore v21, v20
     ret v21
-  bb3:
-    jump bb1
 }
 
 fn @entry() [entry] {
