@@ -137,7 +137,7 @@ fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
     v46 = byte v43, 0x3031323334353637383961626364656600000000000000000000000000000000
     v146 = sub v156, 1
     mstore8 v146, v46
-    v53 = shr 8, v27
+    v53 = shr 4, v42
     v157 = sub v156, 2
     jump bb4
   bb8:
