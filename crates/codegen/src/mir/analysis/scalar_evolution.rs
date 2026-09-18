@@ -134,13 +134,27 @@ fn add_term(terms: &mut SmallVec<[AffineTerm; 2]>, value: ValueId, scale: i128) 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ScalarEvolution {
     expressions: FxHashMap<ValueId, AffineExpr>,
+    /// Values treated as induction variables besides the loop's own, such as
+    /// a counter that only some paths around the loop advance.
+    counters: SmallVec<[ValueId; 2]>,
 }
 
 impl ScalarEvolution {
     /// Computes affine expressions for values used by `loop_data`.
     #[must_use]
     pub(crate) fn analyze(func: &Function, loop_data: &Loop) -> Self {
-        let mut analysis = Self::default();
+        Self::analyze_with_counters(func, loop_data, &[])
+    }
+
+    /// Computes affine expressions for values used by `loop_data`, with
+    /// `counters` recognized as induction variables as well.
+    #[must_use]
+    pub(crate) fn analyze_with_counters(
+        func: &Function,
+        loop_data: &Loop,
+        counters: &[ValueId],
+    ) -> Self {
+        let mut analysis = Self { counters: counters.iter().copied().collect(), ..Self::default() };
         for block_id in &loop_data.blocks {
             let block = &func.blocks[block_id];
             for &inst_id in &block.instructions {
@@ -185,7 +199,9 @@ impl ScalarEvolution {
                 AffineExpr::base(value)
             }
             Value::Inst(inst_id) => {
-                if loop_data.induction_vars.iter().any(|iv| iv.value == value) {
+                if loop_data.induction_vars.iter().any(|iv| iv.value == value)
+                    || self.counters.contains(&value)
+                {
                     AffineExpr::induction(value)
                 } else {
                     match func.inst(*inst_id).kind {
