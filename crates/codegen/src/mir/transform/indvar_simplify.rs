@@ -59,7 +59,7 @@
 //! scaled pointer could wrap.
 //!
 //! Safety contract:
-//! - require canonical loops with a preheader and a single latch
+//! - require canonical loops with a preheader; several latches must pass one value
 //! - rewrite only affine address expressions derived from the recognized induction variable
 //! - preserve the original address value when it is still used outside the loop
 //! - recognize checked unsigned word updates while retaining their failure checks.
@@ -289,8 +289,12 @@ impl IndVarSimplifier {
 
     fn run_loop(&mut self, func: &mut Function, analyzer: &LoopAnalyzer, loop_data: &Loop) {
         let Some(preheader) = loop_data.preheader else { return };
-        let [latch] = loop_data.back_edges.as_slice() else { return };
-        let latch = *latch;
+        // Several latches are one when they all pass the same value, the way
+        // the arms of a conditional store each jump back to the header.
+        let latches = loop_data.back_edges.as_slice();
+        if latches.is_empty() {
+            return;
+        }
         // The pointers are header phis, so they are in scope in every block the
         // header dominates: the loop, and the code after it that reads the
         // counter's final value through the same addresses.
@@ -316,9 +320,9 @@ impl IndVarSimplifier {
                 before.insert(block);
             }
         }
-        for counter in Self::counters(func, loop_data, preheader, latch) {
+        for counter in Self::counters(func, loop_data, preheader, latches) {
             self.reduce_counter(
-                func, loop_data, &region, &before, &lengths, preheader, latch, counter,
+                func, loop_data, &region, &before, &lengths, preheader, latches, counter,
             );
         }
     }
@@ -343,8 +347,18 @@ impl IndVarSimplifier {
                     InstKind::SetMemoryObjectLen(object, length, _) => (object, length),
                     _ => continue,
                 };
-                if self.is_length_slot(func, slot) {
-                    lengths.insert(length);
+                if !self.is_length_slot(func, slot) {
+                    continue;
+                }
+                lengths.insert(length);
+                // `n + 29` stored as a length bounds `n` as well: an
+                // allocation with slack is cut back to the length it computed.
+                if let Some(&InstKind::Add(a, b)) = inst_kind(func, length) {
+                    if func.value_u256(b).is_some() {
+                        lengths.insert(a);
+                    } else if func.value_u256(a).is_some() {
+                        lengths.insert(b);
+                    }
                 }
             }
         }
@@ -383,7 +397,7 @@ impl IndVarSimplifier {
         func: &Function,
         loop_data: &Loop,
         preheader: BlockId,
-        latch: BlockId,
+        latches: &[BlockId],
     ) -> Vec<Counter> {
         let header = loop_data.header;
         let in_loop = |inst_id: InstId| {
@@ -395,14 +409,19 @@ impl IndVarSimplifier {
             let Some(value) = func.inst_result_value(inst_id) else { continue };
             let mut init = None;
             let mut latch_value = None;
+            let mut agreed = true;
             for &(block, incoming_value) in incoming {
                 if block == preheader {
                     init = Some(incoming_value);
-                } else if block == latch {
+                } else if latches.contains(&block) {
+                    agreed &= latch_value.is_none_or(|value| value == incoming_value);
                     latch_value = Some(incoming_value);
                 }
             }
             let (Some(init), Some(latch_value)) = (init, latch_value) else { continue };
+            if !agreed {
+                continue;
+            }
 
             let mut phis = Vec::new();
             let mut leaves = Vec::new();
@@ -504,7 +523,7 @@ impl IndVarSimplifier {
         before: &DenseBitSet<BlockId>,
         lengths: &FxHashSet<ValueId>,
         preheader: BlockId,
-        latch: BlockId,
+        latches: &[BlockId],
         counter: Counter,
     ) {
         // Reducing an earlier counter can delete this one's updates as dead
@@ -668,7 +687,7 @@ impl IndVarSimplifier {
                 .filter_map(|test| Some((test.subject, *derived.get(&test.subject)?)))
                 .collect::<FxHashMap<_, _>>();
             let Some((pointer, mirrors)) = self.materialize_pointer_phi(
-                func, loop_data, region, preheader, latch, &counter, primary, &subjects,
+                func, loop_data, region, preheader, latches, &counter, primary, &subjects,
             ) else {
                 tracing::trace!(
                     function = %func.name,
@@ -1261,7 +1280,7 @@ impl IndVarSimplifier {
         loop_data: &Loop,
         region: &DenseBitSet<BlockId>,
         preheader: BlockId,
-        latch: BlockId,
+        latches: &[BlockId],
         counter: &Counter,
         key: &AddressKey,
         subjects: &FxHashMap<ValueId, i128>,
@@ -1330,10 +1349,11 @@ impl IndVarSimplifier {
                     .position(|&inst_id| inst_id == leaf)
                     .map(|position| (block, position))
             })?;
-            let (block, at) = if counter.phis.is_empty() && !subjects.contains_key(&updated) {
-                (latch, func.blocks[latch].instructions.len())
-            } else {
-                (block, position + 1)
+            let (block, at) = match latches {
+                [latch] if counter.phis.is_empty() && !subjects.contains_key(&updated) => {
+                    (*latch, func.blocks[*latch].instructions.len())
+                }
+                _ => (block, position + 1),
             };
             let mirror = match step {
                 Step::Constant(constant) => {
@@ -1362,7 +1382,7 @@ impl IndVarSimplifier {
         let InstKind::Phi(incoming) = &mut func.inst_mut(phi_inst).kind else {
             return None;
         };
-        incoming.push((latch, latch_mirror));
+        incoming.extend(latches.iter().map(|&latch| (latch, latch_mirror)));
         self.stats.pointer_phis_inserted += 1;
 
         // A tested value derived from the counter elsewhere in the region,
@@ -1594,6 +1614,13 @@ impl IndVarSimplifier {
             }
         }
         replaced
+    }
+}
+
+fn inst_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
+    match func.value(value) {
+        Value::Inst(inst_id) => Some(&func.inst(*inst_id).kind),
+        _ => None,
     }
 }
 
