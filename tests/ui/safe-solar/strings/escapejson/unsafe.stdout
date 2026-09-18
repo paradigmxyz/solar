@@ -109,7 +109,7 @@ fn @_escapeJSON(arg0: memptr) -> memptr [pure] {
     v41 = shr 4, v23
     v42 = mload v41
     mstore8 29, v42 !metadata(memory=scratch)
-    v43 = and v22, 15
+    v43 = and v23, 15
     v44 = mload v43
     mstore8 30, v44 !metadata(memory=scratch)
     v45 = mload 25 !metadata(memory=scratch)
