@@ -1,0 +1,83 @@
+// === ROOT/tests/ui/safe-solar/libstring/hex/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase lowered
+fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
+  bb0:
+    v38 = calldatasize
+    v39 = lt v38, 68
+    jumpi v39, bb5, bb6
+  bb6:
+    v1 = add arg1, arg1
+    v2 = add v1, 66
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v4 = mload 64 !metadata(memory=scratch)
+    v5 = add v4, v3
+    v6 = add v5, 32
+    mstore 64, v6 !metadata(memory=scratch)
+    mstore v5, 0
+    mstore 15, 0x30313233343536373839616263646566 !metadata(memory=scratch)
+    v8 = sub v5, v1
+    jump bb1
+  bb1:
+    v13 = phi [bb6: v5], [bb1: v19]
+    v15 = phi [bb6: arg0], [bb1: v26]
+    v19 = add v13, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+    v20 = and v15, 15
+    v21 = mload v20
+    v22 = add v19, 1
+    mstore8 v22, v21
+    v23 = shr 4, v15
+    v24 = and v23, 15
+    v25 = mload v24
+    mstore8 v19, v25
+    v26 = shr 8, v15
+    v28 = eq v19, v8
+    jumpi v28, bb2, bb1
+  bb2:
+    jumpi v26, bb3, bb4
+  bb4:
+    v35 = sub v5, v19
+    v36 = sub v19, 32
+    mstore v36, v35
+    v43 = mload 64 !metadata(memory=scratch)
+    v44 = add v43, 32
+    mstore v43, 32
+    v47 = iszero v36
+    v48 = iszero v47
+    v46 = mload v36
+    v49 = mul v46, v48
+    v51 = add v49, 31
+    v52 = and v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v53 = add v44, 32
+    v54 = add v44, v52
+    mstore v54, 0
+    mstore v44, v49
+    v56 = add v53, v52
+    mcopy v53, v19, v49
+    v57 = sub v56, v43
+    v59 = add v57, 31
+    v61 = and v59, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v62 = mload 64 !metadata(memory=scratch)
+    v64 = add v62, v61
+    mstore 64, v64 !metadata(memory=scratch)
+    returndata v62, v57
+  bb3:
+    mstore 0, 0x2194895a !metadata(memory=scratch)
+    revert 28, 4
+  bb5:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0xe1425395 => bb2]
+  bb2:
+    tail_call @toHex
+  bb3:
+    revert 0, 0
+}

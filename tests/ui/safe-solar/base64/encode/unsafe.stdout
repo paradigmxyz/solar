@@ -1,0 +1,150 @@
+// === ROOT/tests/ui/safe-solar/base64/encode/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase lowered
+fn @encode() [selector=0xfc4c4555, abi_wrapper, pure] {
+  bb0:
+    v64 = calldatasize
+    v65 = lt v64, 100
+    jumpi v65, bb5, bb6
+  bb6:
+    v66 = calldataload 36
+    v67 = lt v66, 2
+    jumpi v67, bb7, bb5
+  bb7:
+    v68 = calldataload 68
+    v69 = lt v68, 2
+    jumpi v69, bb8, bb5
+  bb8:
+    v70 = calldataload 4
+    v71 = add v70, 4
+    v72 = add v71, 32
+    v73 = gt v70, 0xffffffffffffffff
+    v74 = gt v72, v64
+    v75 = or v73, v74
+    jumpi v75, bb5, bb9
+  bb9:
+    v76 = calldataload v71
+    v78 = add v76, 63
+    v79 = lt v78, v76
+    jumpi v79, bb10, bb11
+  bb11:
+    v81 = and v78, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v82 = mload 64 !metadata(memory=scratch)
+    v113 = add v82, v81
+    v114 = lt v113, v82
+    v115 = gt v113, 0xffffffffffffffff
+    v116 = or v114, v115
+    jumpi v116, bb10, bb13
+  bb13:
+    mstore 64, v113 !metadata(memory=scratch)
+    mstore v82, v76
+    v83 = sub v64, v72
+    v84 = gt v76, v83
+    jumpi v84, bb5, bb12
+  bb12:
+    v110 = add v82, 32
+    calldatacopy v110, v72, v76
+    jumpi v76, bb1, bb2
+  bb1:
+    v3 = add v76, 2
+    v4 = div v3, 3
+    v5 = shl 2, v4
+    v6 = mload 64 !metadata(memory=scratch)
+    mstore 31, 0x4142434445464748494a4b4c4d4e4f505152535455565758595a616263646566 !metadata(memory=scratch)
+    v7 = iszero arg1
+    v8 = mul v7, 0x670
+    v9 = xor 0x6768696a6b6c6d6e6f707172737475767778797a303132333435363738392d5f, v8
+    mstore 63, v9 !metadata(memory=scratch)
+    v10 = add v6, 32
+    v11 = add v10, v5
+    v13 = add v110, v76
+    v14 = mload v13
+    mstore v13, 0
+    jump bb3
+  bb3:
+    v18 = phi [bb1: v10], [bb3: v41]
+    v21 = phi [bb1: v82], [bb3: v27]
+    v27 = add v21, 3
+    v28 = mload v27
+    v29 = shr 18, v28
+    v30 = and v29, 63
+    v31 = mload v30
+    mstore8 0, v31 !metadata(memory=scratch)
+    v32 = shr 12, v28
+    v33 = and v32, 63
+    v34 = mload v33
+    mstore8 1, v34 !metadata(memory=scratch)
+    v35 = shr 6, v28
+    v36 = and v35, 63
+    v37 = mload v36
+    mstore8 2, v37 !metadata(memory=scratch)
+    v38 = and v28, 63
+    v39 = mload v38
+    mstore8 3, v39 !metadata(memory=scratch)
+    v40 = mload 0 !metadata(memory=scratch)
+    mstore v18, v40
+    v41 = add v18, 4
+    v42 = lt v41, v11
+    jumpi v42, bb3, bb4
+  bb4:
+    mstore v13, v14
+    v48 = add v11, 32
+    mstore 64, v48 !metadata(memory=scratch)
+    v49 = mod v76, 3
+    v50 = div 2, v49
+    v52 = sub v41, v50
+    mstore v52, 0x3d3d000000000000000000000000000000000000000000000000000000000000
+    v53 = iszero arg2
+    v54 = iszero v53
+    v55 = mul v54, v50
+    v56 = sub v41, v55
+    mstore v56, 0
+    v57 = sub v5, v55
+    mstore v6, v57
+    jump bb2
+  bb2:
+    v58 = phi [bb4: v6], [bb12: memptr 96]
+    v89 = mload 64 !metadata(memory=scratch)
+    v90 = add v89, 32
+    mstore v89, 32
+    v93 = iszero v58
+    v94 = iszero v93
+    v92 = mload v58
+    v95 = mul v92, v94
+    v97 = add v95, 31
+    v98 = and v97, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v99 = add v90, 32
+    v100 = add v90, v98
+    mstore v100, 0
+    mstore v90, v95
+    v102 = add v99, v98
+    v101 = add v58, 32
+    mcopy v99, v101, v95 !metadata(memory=heap)
+    v103 = sub v102, v89
+    v105 = add v103, 31
+    v107 = and v105, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v108 = mload 64 !metadata(memory=scratch)
+    v117 = add v108, v107
+    mstore 64, v117 !metadata(memory=scratch)
+    returndata v108, v103
+  bb10:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb5:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0xfc4c4555 => bb2]
+  bb2:
+    tail_call @encode
+  bb3:
+    revert 0, 0
+}

@@ -1,0 +1,49 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": null,
+      "message": "source `solar:core/v1/Bytes.sol` is provided by the compiler; the supplied content is ignored",
+      "formattedMessage": "warning: source `solar:core/v1/Bytes.sol` is provided by the compiler; the supplied content is ignored\n\n"
+    }
+  ],
+  "sources": {
+    "<solar:core/v1/Bytes.sol>": {
+      "id": 0
+    },
+    "A.sol": {
+      "id": 1
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "T": {
+        "abi": [
+          {
+            "type": "function",
+            "name": "f",
+            "inputs": [
+              {
+                "name": "b",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "",
+                "type": "bytes4",
+                "internalType": "bytes4"
+              }
+            ],
+            "stateMutability": "pure"
+          }
+        ]
+      }
+    }
+  }
+}

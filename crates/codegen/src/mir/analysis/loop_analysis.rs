@@ -55,8 +55,6 @@ pub(crate) struct InductionVariable {
     pub step: ValueId,
     /// Whether the variable decreases by `step` each iteration (`i = i - step`).
     pub descending: bool,
-    /// The recognized instruction that computes the next value.
-    pub update_inst: InstId,
 }
 
 /// Result of loop analysis for a function.
@@ -234,7 +232,7 @@ impl LoopAnalyzer {
                 if let (Some(init), Some(step_val)) = (init_value, step_value) {
                     let phi_value = func.inst_result_value(inst_id);
                     if let Some(phi_val) = phi_value
-                        && let Some((update_inst, step_amount, descending)) =
+                        && let Some((step_amount, descending)) =
                             self.induction_step(func, phi_val, step_val)
                     {
                         loop_info.induction_vars.push(InductionVariable {
@@ -242,7 +240,6 @@ impl LoopAnalyzer {
                             init,
                             step: step_amount,
                             descending,
-                            update_inst,
                         });
                     }
                 }
@@ -258,7 +255,7 @@ impl LoopAnalyzer {
         func: &Function,
         phi_val: ValueId,
         step_val: ValueId,
-    ) -> Option<(InstId, ValueId, bool)> {
+    ) -> Option<(ValueId, bool)> {
         let Value::Inst(inst_id) = *func.value(step_val) else { return None };
         match func.inst(inst_id).kind {
             InstKind::Add(a, b)
@@ -276,7 +273,7 @@ impl LoopAnalyzer {
                     func.value(step),
                     Value::Immediate(imm) if imm.as_u256().is_some_and(|v| v.bit(255))
                 );
-                Some((inst_id, step, descending))
+                Some((step, descending))
             }
             InstKind::Sub(a, b)
             | InstKind::CheckedBinary {
@@ -284,7 +281,7 @@ impl LoopAnalyzer {
                 arithmetic: ArithmeticKind::Unsigned(256),
                 lhs: a,
                 rhs: b,
-            } if a == phi_val => Some((inst_id, b, true)),
+            } if a == phi_val => Some((b, true)),
             _ => None,
         }
     }

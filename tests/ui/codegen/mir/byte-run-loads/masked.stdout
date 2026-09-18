@@ -1,0 +1,122 @@
+// === <solar:core/v1/Bytes.sol>:Bytes ===
+@module Bytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/mir/byte-run-loads/masked.sol:Test ===
+@module Test
+@phase lowered
+types:
+  struct0: {u256, u256, u256, u256}
+  struct1: {u256, u256}
+
+fn @quad() [selector=0x31dccb6d, abi_wrapper, pure] {
+  bb0:
+    v35 = icall @decode_calldata_type, 4
+    v0 = mload v35
+    v3 = gt 4, v0
+    jumpi v3, bb1, bb2
+  bb2:
+    v5 = add v35, 32
+    v7 = mload v5
+    v16 = byte 1, v7
+    v21 = byte 2, v7
+    v26 = byte 3, v7
+    v11 = byte 0, v7
+    mstore 128, v11
+    mstore 160, v16
+    mstore 192, v21
+    mstore 224, v26
+    returndata 128, 128
+  bb1:
+    tail_call @revert_stub
+}
+
+fn @kept() [selector=0xc57c8563, abi_wrapper, pure] {
+  bb0:
+    v18 = icall @decode_calldata_type, 4
+    v0 = mload v18
+    v3 = gt 4, v0
+    jumpi v3, bb1, bb2
+  bb2:
+    v5 = add v18, 32
+    v7 = mload v5
+    v8 = and v7, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v11 = byte 1, v8
+    mstore 128, v8
+    mstore 160, v11
+    returndata 128, 64
+  bb1:
+    tail_call @revert_stub
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @decode_calldata_type(arg0: u256) -> memptr {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload arg0
+    v2 = add v1, 4
+    v3 = add v2, 32
+    v4 = gt v1, 0xffffffffffffffff
+    v5 = gt v3, v0
+    v6 = or v4, v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = calldataload v2
+    v9 = add v7, 63
+    v10 = lt v9, v7
+    jumpi v10, bb3, bb4
+  bb4:
+    v12 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = mload 64 !metadata(memory=scratch)
+    v20 = add v13, v12
+    v21 = lt v20, v13
+    v22 = gt v20, 0xffffffffffffffff
+    v23 = or v21, v22
+    jumpi v23, bb3, bb6
+  bb6:
+    mstore 64, v20 !metadata(memory=scratch)
+    mstore v13, v7
+    v14 = sub v0, v3
+    v15 = gt v7, v14
+    jumpi v15, bb1, bb5
+  bb5:
+    v17 = add v13, 32
+    calldatacopy v17, v3, v7
+    ret v13
+  bb3:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = or v0, v2
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = calldataload 0
+    v5 = shr 224, v4
+    switch v5, default bb1, [0x31dccb6d => bb3, 0xc57c8563 => bb4]
+  bb4:
+    tail_call @kept
+  bb3:
+    tail_call @quad
+  bb1:
+    revert 0, 0
+}

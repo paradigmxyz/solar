@@ -1,0 +1,55 @@
+// === <solar:core/v1/Bits.sol>:Bits ===
+@module Bits
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === <solar:core/v1/Math.sol>:Math ===
+@module Math
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/safe-solar/math/mul512/safe.sol:Safe ===
+@module Safe
+@phase lowered
+types:
+  struct0: {u256, u256}
+
+fn @product() [selector=0xba88c3b7, abi_wrapper, pure] {
+  bb0:
+    v11 = calldatasize
+    v12 = lt v11, 68
+    jumpi v12, bb1, bb2
+  bb2:
+    v0 = mul arg0, arg1
+    v1 = mulmod arg0, arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v3 = lt v1, v0
+    v2 = sub v1, v0
+    v4 = sub v2, v3
+    mstore 128, v4
+    mstore 160, v0
+    returndata 128, 64
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0xba88c3b7 => bb2]
+  bb2:
+    tail_call @product
+  bb3:
+    revert 0, 0
+}

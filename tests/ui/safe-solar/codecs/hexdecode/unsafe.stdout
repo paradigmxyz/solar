@@ -1,0 +1,120 @@
+// === ROOT/tests/ui/safe-solar/codecs/hexdecode/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase lowered
+fn @decode() [selector=0x49145c91, abi_wrapper, pure] {
+  bb0:
+    v48 = calldatasize
+    v49 = lt v48, 36
+    jumpi v49, bb4, bb5
+  bb5:
+    v50 = calldataload 4
+    v51 = add v50, 4
+    v52 = add v51, 32
+    v53 = gt v50, 0xffffffffffffffff
+    v54 = gt v52, v48
+    v55 = or v53, v54
+    jumpi v55, bb4, bb6
+  bb6:
+    v56 = calldataload v51
+    v58 = add v56, 63
+    v59 = lt v58, v56
+    jumpi v59, bb7, bb8
+  bb8:
+    v61 = and v58, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v62 = mload 64 !metadata(memory=scratch)
+    v93 = add v62, v61
+    v94 = lt v93, v62
+    v95 = gt v93, 0xffffffffffffffff
+    v96 = or v94, v95
+    jumpi v96, bb7, bb10
+  bb10:
+    mstore 64, v93 !metadata(memory=scratch)
+    mstore v62, v56
+    v63 = sub v48, v52
+    v64 = gt v56, v63
+    jumpi v64, bb4, bb9
+  bb9:
+    v90 = add v62, 32
+    calldatacopy v90, v52, v56
+    v1 = add v56, 1
+    v2 = shr 1, v1
+    v3 = mload 64 !metadata(memory=scratch)
+    mstore v3, v2
+    v4 = add v3, 32
+    v6 = add v4, v2
+    v7 = add v6, 31
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    mstore 64, v8 !metadata(memory=scratch)
+    jump bb1
+  bb1:
+    v10 = phi [bb9: 0], [bb3: v43]
+    v46 = phi [bb9: v90], [bb3: v47]
+    v15 = lt v10, v56
+    jumpi v15, bb3, bb2
+  bb2:
+    v69 = mload 64 !metadata(memory=scratch)
+    v70 = add v69, 32
+    mstore v69, 32
+    v73 = iszero v3
+    v74 = iszero v73
+    v72 = mload v3
+    v75 = mul v72, v74
+    v77 = add v75, 31
+    v78 = and v77, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v79 = add v70, 32
+    v80 = add v70, v78
+    mstore v80, 0
+    mstore v70, v75
+    v82 = add v79, v78
+    mcopy v79, v4, v75
+    v83 = sub v82, v69
+    v85 = add v83, 31
+    v87 = and v85, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v88 = mload 64 !metadata(memory=scratch)
+    v97 = add v88, v87
+    mstore 64, v97 !metadata(memory=scratch)
+    returndata v88, v83
+  bb3:
+    v20 = mload v46
+    v25 = byte 1, v20
+    v21 = byte 0, v20
+    v26 = and v21, 95
+    v27 = gt v26, 25
+    v28 = mul v27, 7
+    v30 = sub v26, v28
+    v31 = and v25, 95
+    v32 = gt v31, 25
+    v33 = mul v32, 7
+    v35 = sub v31, v33
+    v36 = sub v35, 16
+    v37 = and v36, 15
+    v38 = sub v30, 16
+    v39 = shl 4, v38
+    v40 = or v39, v37
+    v41 = shr 1, v10
+    v42 = add v4, v41
+    mstore8 v42, v40
+    v43 = add v10, 2
+    v47 = add v46, 2
+    jump bb1
+  bb7:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb4:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0x49145c91 => bb2]
+  bb2:
+    tail_call @decode
+  bb3:
+    revert 0, 0
+}

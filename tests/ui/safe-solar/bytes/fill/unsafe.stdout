@@ -1,0 +1,99 @@
+// === ROOT/tests/ui/safe-solar/bytes/fill/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase lowered
+fn @blank() [selector=0xc89c9e3d, abi_wrapper, pure] {
+  bb0:
+    v30 = calldatasize
+    v31 = lt v30, 100
+    jumpi v31, bb6, bb7
+  bb7:
+    v32 = calldataload 4
+    v33 = add v32, 4
+    v34 = add v33, 32
+    v35 = gt v32, 0xffffffffffffffff
+    v36 = gt v34, v30
+    v37 = or v35, v36
+    jumpi v37, bb6, bb8
+  bb8:
+    v38 = calldataload v33
+    v40 = add v38, 63
+    v41 = lt v40, v38
+    jumpi v41, bb9, bb10
+  bb10:
+    v43 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v44 = mload 64 !metadata(memory=scratch)
+    v66 = add v44, v43
+    v67 = lt v66, v44
+    v68 = gt v66, 0xffffffffffffffff
+    v69 = or v67, v68
+    jumpi v69, bb9, bb12
+  bb12:
+    mstore 64, v66 !metadata(memory=scratch)
+    mstore v44, v38
+    v45 = sub v30, v34
+    v46 = gt v38, v45
+    jumpi v46, bb6, bb11
+  bb11:
+    v63 = add v44, 32
+    calldatacopy v63, v34, v38
+    v1 = add v63, arg1
+    v2 = add v1, arg2
+    jump bb1
+  bb1:
+    v10 = phi [bb11: v1], [bb3: v18]
+    v13 = sub v2, v10
+    v14 = lt v13, 32
+    jumpi v14, bb2, bb3
+  bb3:
+    mstore v10, 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a
+    v18 = add v10, 32
+    jump bb1
+  bb2:
+    v20 = eq v2, v10
+    jumpi v20, bb5, bb4
+  bb4:
+    v23 = shl 3, v13
+    v24 = shr v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v25 = not v24
+    v26 = and v25, 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a
+    v27 = mload v10
+    v28 = and v27, v24
+    v29 = or v28, v26
+    mstore v10, v29
+    jump bb5
+  bb5:
+    v52 = iszero v44
+    v53 = iszero v52
+    v51 = mload v44
+    v54 = mul v51, v53
+    v56 = add v54, 31
+    v58 = and v56, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v59 = add v63, v58
+    mstore v59, 0
+    v60 = add v63, 32
+    mcopy v60, v63, v54
+    mstore v44, 32
+    mstore v63, v54
+    v61 = add v58, 64
+    returndata v44, v61
+  bb9:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb6:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0xc89c9e3d => bb2]
+  bb2:
+    tail_call @blank
+  bb3:
+    revert 0, 0
+}

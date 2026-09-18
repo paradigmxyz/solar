@@ -1,0 +1,90 @@
+// === <solar:core/v1/Bytes.sol>:Bytes ===
+@module Bytes
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/safe-solar/bytes/tryread/safe.sol:Safe ===
+@module Safe
+@phase lowered
+types:
+  struct0: {u256, u256}
+
+fn @peek() [selector=0xa230438f, abi_wrapper, pure] {
+  bb0:
+    v20 = calldatasize
+    v21 = lt v20, 68
+    jumpi v21, bb1, bb2
+  bb2:
+    v22 = calldataload 4
+    v23 = add v22, 4
+    v24 = add v23, 32
+    v25 = gt v22, 0xffffffffffffffff
+    v26 = gt v24, v20
+    v27 = or v25, v26
+    jumpi v27, bb1, bb3
+  bb3:
+    v28 = calldataload v23
+    v30 = add v28, 63
+    v31 = lt v30, v28
+    jumpi v31, bb4, bb5
+  bb5:
+    v33 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v34 = mload 64 !metadata(memory=scratch)
+    v46 = add v34, v33
+    v47 = lt v46, v34
+    v48 = gt v46, 0xffffffffffffffff
+    v49 = or v47, v48
+    jumpi v49, bb4, bb7
+  bb7:
+    mstore 64, v46 !metadata(memory=scratch)
+    mstore v34, v28
+    v35 = sub v20, v24
+    v36 = gt v28, v35
+    jumpi v36, bb1, bb6
+  bb6:
+    v43 = add v34, 32
+    calldatacopy v43, v24, v28
+    v0 = mload 64 !metadata(memory=scratch)
+    v50 = add v0, 64
+    mstore 64, v50 !metadata(memory=scratch)
+    mstore v0, 4
+    v1 = add v0, 32
+    mstore v1, 0x1122334400000000000000000000000000000000000000000000000000000000
+    v3 = add arg1, 4
+    v4 = lt v3, arg1
+    v5 = gt v3, v28
+    v6 = or v4, v5
+    v7 = iszero v6
+    v8 = mul v7, arg1
+    v10 = add v43, v8
+    v11 = mload v10
+    v12 = mul v7, v11
+    v13 = and v12, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 128, v7
+    mstore 160, v13
+    returndata 128, 64
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0xa230438f => bb2]
+  bb2:
+    tail_call @peek
+  bb3:
+    revert 0, 0
+}

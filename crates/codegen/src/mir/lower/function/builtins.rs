@@ -648,6 +648,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && self.cx.gcx.resolved_builtin(callee) == Some(Builtin::AbiEncode)
                 {
                     let exprs = self.variadic_builtin_args(Builtin::AbiEncode, encode_args)?;
+                    if let Some(hash) = self.lower_keccak_abi_encode_words(exprs) {
+                        return Some(hash);
+                    }
                     let encoded = self.lower_abi_encode_scratch(exprs, None)?;
                     let pointer = self.builder.slice_ptr(encoded);
                     let length = self.builder.slice_len(encoded);
