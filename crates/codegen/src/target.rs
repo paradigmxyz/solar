@@ -543,6 +543,38 @@ impl Target {
             + self.copy_word_gas().saturating_mul(words)
     }
 
+    /// Mandatory control transfers for a frameless scalar call and return.
+    /// Excludes optional argument shuffles and spills: do not credit frame
+    /// traffic that the backend can already avoid when deciding to inline.
+    pub(crate) fn scalar_call_protocol(self) -> Cost {
+        // Price the smallest nonzero labels; widening is not guaranteed.
+        let site = self
+            .opcode(op::PUSH1)
+            .times(2)
+            .plus(self.opcode(op::JUMP))
+            .plus(self.opcode(op::JUMPDEST));
+        let returning = self.opcode(op::JUMP).plus(self.opcode(op::JUMPDEST));
+        // The shared callee's entry/return bytes remain for its other callers,
+        // although every inlined invocation saves executing those operations.
+        Cost::new(site.gas + returning.gas, site.bytes)
+    }
+
+    /// Whether saved scalar call transfers repay any duplicated body bytes.
+    /// Loop executions are a profitability estimate, independent of legality.
+    pub(crate) fn scalar_inline_profitable(
+        self,
+        body_bytes: u32,
+        shared: bool,
+        executions: u64,
+    ) -> bool {
+        let protocol = self.scalar_call_protocol();
+        let added_bytes = if shared { body_bytes.saturating_sub(protocol.bytes) } else { 0 };
+        let saved_gas = u128::from(protocol.gas)
+            .saturating_mul(u128::from(executions))
+            .saturating_mul(u128::from(self.expected_executions));
+        saved_gas > u128::from(added_bytes) * u128::from(Self::CODE_DEPOSIT_GAS_PER_BYTE)
+    }
+
     /// Cost of one internal call site with its return landing: the pushed
     /// return label, the jump, the landing, and the frame protocol moving
     /// `args` arguments in and `returns` results out, whose gas grows with
@@ -743,6 +775,22 @@ mod tests {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
         assert_eq!(target.select(false), Cost::new(17, 5));
         assert_eq!(target.select(true), Cost::new(20, 6));
+    }
+
+    #[test]
+    fn scalar_inline_prices_transfers_and_deposit() {
+        for version in [EvmVersion::Paris, EvmVersion::Shanghai, EvmVersion::Cancun] {
+            let once = Target::with(version, OptimizationMode::Gas, 1);
+            let often = Target::with(version, OptimizationMode::Gas, 200);
+            assert_eq!(once.scalar_call_protocol(), Cost::new(24, 6));
+            assert!(!once.scalar_inline_profitable(20, true, 1));
+            assert!(often.scalar_inline_profitable(20, true, 1));
+            assert!(once.scalar_inline_profitable(20, true, 1000));
+            assert!(once.scalar_inline_profitable(20, false, 1));
+            assert!(!often.scalar_inline_profitable(20, true, 0));
+            let maximum = Target::with(version, OptimizationMode::Gas, u64::MAX);
+            assert!(maximum.scalar_inline_profitable(u32::MAX, true, u64::MAX));
+        }
     }
 
     #[test]

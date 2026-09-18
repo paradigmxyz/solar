@@ -1,5 +1,14 @@
 //! Function inlining optimization pass.
 //!
+//! The default general pass runs after check lowering and CFG simplification.
+//! It admits bounded, acyclic scalar leaves only when caller live words plus
+//! callee peak fit the stack budget. Target pricing charges duplicated body
+//! bytes, including immediate pushes, against mandatory call/return transfers
+//! over optimizer runs and counted loop iterations. It does not credit frame
+//! traffic that the backend might already eliminate. Opaque, allocating, framed,
+//! recursive, and nested-call bodies remain with the dedicated adapters.
+//! All modes respect `no_inline`, including bodies kept shared by specialization.
+//!
 //! This module inlines profitable MIR internal calls to remove their call
 //! protocol and expose further optimization opportunities. The dedicated single-use pass only
 //! consumes one-call-site, frameless scalar helpers without reference returns. The
@@ -383,6 +392,9 @@ impl MirInliner {
     /// Live words a caller may hold across an inlined body plus the body's own
     /// peak, leaving stack-addressing headroom for operand staging.
     const STACK_BUDGET: usize = 12;
+    /// Unprofiled scalar sites stay small; a proved loop trip count can repay
+    /// a larger clone without guessing how often a shared helper executes.
+    const MAX_UNCOUNTED_SCALAR_INSTRUCTIONS: usize = 16;
     /// The budget for hot leaves: a clone inside a loop body also keeps the
     /// loop's carried words resident through every join it adds. It matched the
     /// general budget once the backend carried twelve words through a loop's
@@ -401,11 +413,9 @@ impl MirInliner {
         }
     }
 
-    /// Creates the `-O size` inliner: a module budget of zero disables all MIR
-    /// inlining, which only ever grows emitted code on real contracts (both
-    /// multi-use duplication and the cascades that single-call inlining sets
-    /// off were measured to increase size). Lowering-time inlining is disabled
-    /// independently; this zero budget also lets the MIR inliner skip analysis.
+    /// Disables general size-mode expansion; dedicated adapters remain active.
+    /// The zero budget skips analysis as well as cloning. Broad size-mode
+    /// inlining needs separate evidence before enabling it by default.
     #[must_use]
     fn for_size() -> Self {
         Self { max_module_code_size: 0, ..Self::default() }
@@ -459,6 +469,7 @@ struct MirInlineSummary {
     return_values: usize,
     param_count: usize,
     estimated_code_size: usize,
+    scalar_code_size: u32,
     internal_frame_size: u64,
     has_icall: bool,
     /// Calls on returning paths require a separate call/frame stack estimate.
@@ -592,8 +603,7 @@ impl MirInliner {
                     || (self.immutable_leaves_only
                         && !is_immutable_word_leaf(module.function(site.callee)))
                     || (self.memory_wrappers_only && !memory_wrappers.contains_key(&site.callee))
-                    || (self.mode == InlineMode::SingleUse
-                        && module.function(site.callee).attributes.no_inline)
+                    || module.function(site.callee).attributes.no_inline
                     || !self.is_inlineable(
                         caller_id,
                         site,
@@ -632,7 +642,7 @@ impl MirInliner {
                     // The clone split the call block, so the loop membership
                     // of the calls that followed it must be recomputed before
                     // they are weighed.
-                    if self.mode == InlineMode::HotLeaves {
+                    if matches!(self.mode, InlineMode::HotLeaves | InlineMode::Normal) {
                         loop_costs = block_loop_costs(module.function(caller_id));
                     }
                     let new_summary = summarize_function(
@@ -691,10 +701,8 @@ impl MirInliner {
     fn peak_analysis(&self) -> PeakAnalysis {
         match self.mode {
             InlineMode::SingleUse => PeakAnalysis::Phis,
-            InlineMode::HotLeaves => PeakAnalysis::Scalars,
-            InlineMode::Normal | InlineMode::TinyLeaves | InlineMode::ConstantLeaves => {
-                PeakAnalysis::None
-            }
+            InlineMode::HotLeaves | InlineMode::Normal => PeakAnalysis::Scalars,
+            InlineMode::TinyLeaves | InlineMode::ConstantLeaves => PeakAnalysis::None,
         }
     }
 
@@ -816,11 +824,31 @@ impl MirInliner {
         preferred_large_call_site: Option<(MirFunctionId, InstId)>,
     ) -> bool {
         let single_call = self.inline_single_call && call_count == 1;
+        // General inlining is bounded to scalar leaves with a liveness estimate.
+        // Opaque operations, frame allocation, and nested calls need a different
+        // cost model; the dedicated adapters retain their existing policies.
+        if self.mode == InlineMode::Normal
+            && (summary.phi_stack_peak.is_none()
+                || summary.has_loop
+                || summary.has_icall
+                || summary.has_reference_return
+                || summary.internal_frame_size != 0
+                || summary.instruction_count
+                    > if site.loop_depth > 0 && site.loop_counted {
+                        self.max_instructions
+                    } else {
+                        Self::MAX_UNCOUNTED_SCALAR_INSTRUCTIONS
+                    }
+                || summary.block_count > self.max_blocks)
+        {
+            return false;
+        }
+
         let bounded_phi = summary.phi_stack_peak.is_some()
             && match self.mode {
                 InlineMode::SingleUse => single_call,
-                InlineMode::HotLeaves => true,
-                InlineMode::Normal | InlineMode::TinyLeaves | InlineMode::ConstantLeaves => false,
+                InlineMode::HotLeaves | InlineMode::Normal => true,
+                InlineMode::TinyLeaves | InlineMode::ConstantLeaves => false,
             };
         if self.mode == InlineMode::SingleUse
             && (!single_call
@@ -951,6 +979,13 @@ impl MirInliner {
         site: CallSite,
         single_call: bool,
     ) -> bool {
+        if self.mode == InlineMode::Normal {
+            return self.target.scalar_inline_profitable(
+                summary.scalar_code_size,
+                !single_call,
+                site.loop_executions,
+            );
+        }
         const CODE_DEPOSIT_GAS_PER_BYTE: u128 = Target::CODE_DEPOSIT_GAS_PER_BYTE as u128;
 
         let inlined_bytes = summary.estimated_code_size;
@@ -1316,6 +1351,9 @@ fn summarize_function(
         })
     {
         summary.phi_stack_peak = Some(scalar_stack_peak(func));
+        if peak == PeakAnalysis::Scalars {
+            summary.scalar_code_size = target.code_estimate(func).bytes;
+        }
     }
     summary
 }

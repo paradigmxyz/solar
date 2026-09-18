@@ -1,0 +1,24 @@
+// === ROOT/tests/ui/codegen/mir/inline/default_guards.sol:Guards ===
+@module Guards
+fn @first(arg0: u256) -> u256 [selector=0x0b3f62f5, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    icall @guard, arg0
+    v0 = add arg0, 1
+    ret v0
+}
+
+fn @second(arg0: u256) -> u256 [selector=0x7896dfe3, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    icall @guard, arg0
+    v0 = mul arg0, 2
+    ret v0
+}
+
+fn @guard(arg0: u256) [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    v2 = iszero v1
+    icall revert_if<empty>, v2
+    ret
+}

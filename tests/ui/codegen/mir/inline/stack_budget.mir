@@ -1,18 +1,22 @@
-//@ compile-flags: -Ogas -Zmir-pipeline=inline-single-use
-//@ filecheck:
+//@ revisions: single general
+//@ compile-flags: -Ogas
+//@[single] compile-flags: -Zmir-pipeline=inline-single-use
+//@[general] compile-flags: -Zmir-pipeline=inline
+//@[single] filecheck: --check-prefixes=CHECK,SINGLE
+//@[general] filecheck: --check-prefixes=CHECK,GENERAL
 @module StackBudget
 
 // A small acyclic helper fits beside the one word surviving its sole call.
 // CHECK-LABEL: fn @low_pressure
 // CHECK: - {{v[0-9]+}} = icall @choose
 // CHECK: + {{v[0-9]+}} = phi
-fn @low_pressure(arg0: i1, arg1: i256) -> i256 [selector=0x01020304] {
+fn @low_pressure(arg0: bool, arg1: u256) -> u256 [selector=0x01020304] {
   bb0:
     v0 = icall @choose, arg0, arg1
     v1 = add arg1, v0
     ret v1
 }
-fn @choose(arg0: i1, arg1: i256) -> i256 {
+fn @choose(arg0: bool, arg1: u256) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -29,7 +33,7 @@ fn @choose(arg0: i1, arg1: i256) -> i256 {
 // The live arguments would exceed the inline stack budget.
 // CHECK-LABEL: fn @high_pressure
 // CHECK: {{^ +}}v0 = icall @wide_choose
-fn @high_pressure(arg0: i1, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256) -> i256 [selector=0x01020305] {
+fn @high_pressure(arg0: bool, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: u256, arg8: u256, arg9: u256, arg10: u256, arg11: u256, arg12: u256) -> u256 [selector=0x01020305] {
   bb0:
     v0 = icall @wide_choose, arg0, arg1
     v1 = add arg1, arg2
@@ -46,7 +50,7 @@ fn @high_pressure(arg0: i1, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5
     v12 = add v10, v11
     ret v12
 }
-fn @wide_choose(arg0: i1, arg1: i256) -> i256 {
+fn @wide_choose(arg0: bool, arg1: u256) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -61,16 +65,18 @@ fn @wide_choose(arg0: i1, arg1: i256) -> i256 {
 }
 
 // Backward liveness bounds a read-only loop helper too, so its sole call
-// inlines with the loop-carried phi.
+// inlines with the loop-carried phi in single-use mode. General mode
+// deliberately keeps loops shared.
 // CHECK-LABEL: fn @loop_caller
-// CHECK: - {{v[0-9]+}} = icall @loop_body
-// CHECK: + {{v[0-9]+}} = phi [{{bb[0-9]+}}: 0], [{{bb[0-9]+}}: {{v[0-9]+}}]
-fn @loop_caller(arg0: i256) -> i256 [selector=0x01020306] {
+// SINGLE: - {{v[0-9]+}} = icall @loop_body
+// GENERAL: {{^ +}}v0 = icall @loop_body
+// SINGLE: + {{v[0-9]+}} = phi [{{bb[0-9]+}}: 0], [{{bb[0-9]+}}: {{v[0-9]+}}]
+fn @loop_caller(arg0: u256) -> u256 [selector=0x01020306] {
   bb0:
     v0 = icall @loop_body, arg0
     ret v0
 }
-fn @loop_body(arg0: i256) -> i256 {
+fn @loop_body(arg0: u256) -> u256 {
   bb0:
     jump bb1
   bb1:
