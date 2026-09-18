@@ -1,0 +1,56 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=inline-tiny-leaves
+//@ filecheck:
+@module CheckWrapper
+
+// Both calls to a shared check inline, with the failure polarity preserved.
+// CHECK-LABEL: {{^[ +].*}}fn @caller{{[( ]}}
+// CHECK: - icall @ensure, arg0
+// CHECK: - icall @ensure, arg1
+// CHECK: + {{v[0-9]+}} = iszero arg0
+// CHECK: + icall revert_if<empty>
+// CHECK: + {{v[0-9]+}} = iszero arg1
+// CHECK: + icall revert_if<empty>
+fn @caller(arg0: bool, arg1: bool) {
+  bb0:
+    icall @ensure, arg0
+    icall @ensure, arg1
+    ret
+}
+
+fn @ensure(arg0: bool) [pure] {
+  bb0:
+    v0 = iszero arg0
+    icall revert_if<empty>, v0
+    ret
+}
+
+// A memory write must not qualify for the semantic-check exception.
+// CHECK-LABEL: {{^[ +].*}}fn @effect_caller{{[( ]}}
+// CHECK: {{^ +}}icall @effect, arg0
+fn @effect_caller(arg0: bool) {
+  bb0:
+    icall @effect, arg0
+    ret
+}
+
+fn @effect(arg0: bool) {
+  bb0:
+    mstore 0, 42
+    icall revert_if<empty>, arg0
+    ret
+}
+
+// STOP is not a returning check wrapper.
+// CHECK-LABEL: {{^[ +].*}}fn @stop_caller{{[( ]}}
+// CHECK: {{^ +}}icall @halt, arg0
+fn @stop_caller(arg0: bool) {
+  bb0:
+    icall @halt, arg0
+    ret
+}
+
+fn @halt(arg0: bool) {
+  bb0:
+    icall revert_if<empty>, arg0
+    stop
+}

@@ -11,6 +11,10 @@
 //! with a header guard and no other exit receive that weight. Conditional calls and
 //! unknown loop bounds retain the ordinary per-invocation estimate; size mode keeps
 //! its existing growth policy. These are profitability estimates, never legality facts.
+//! Tiny check wrappers containing a semantic check and an optional boolean
+//! negation also inline before check lowering. This exposes the guard to caller
+//! analyses without duplicating arbitrary control flow or allocation. Ordinary
+//! size limits and lifetime pricing still decide whether cloning is profitable.
 //! Tiny forwarding wrappers may return one call result or forward a void call.
 //! Both forms contain only that call and its internal return, so inlining exposes
 //! the original call exactly once without cloning the callee body. Shared void
@@ -466,6 +470,7 @@ struct MirInlineSummary {
     has_immutable_write: bool,
     has_log: bool,
     has_control_flow: bool,
+    is_check_wrapper: bool,
     /// Whether the body contains a back edge; a loop cloned into a loop nests
     /// its carried words inside the caller's.
     has_loop: bool,
@@ -877,7 +882,7 @@ impl MirInliner {
                     && !summary.is_transparent_forwarder
                     && !self.memory_wrappers_only)
                 || (!single_call && summary.void_forwarder_adds_args)
-                || summary.has_control_flow)
+                || (summary.has_control_flow && !summary.is_check_wrapper))
         {
             return false;
         }
@@ -1179,6 +1184,7 @@ fn summarize_function(
         }),
         is_transparent_forwarder: is_transparent_forwarder(module, func),
         is_small_literal_return: is_small_literal_return(func),
+        is_check_wrapper: is_check_wrapper(func),
         is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
         has_function_selector: func.params.first() == Some(&MirType::Function),
         is_pure: func.attributes.state_mutability == StateMutability::Pure,
@@ -1458,6 +1464,31 @@ fn is_immutable_word_leaf(func: &Function) -> bool {
         }
     }
     has_immutable
+}
+
+/// A semantic check has one returning path and no allocation on that path.
+/// Keep the exception narrow: no other calls, memory effects, or computations.
+fn is_check_wrapper(func: &Function) -> bool {
+    if func.attributes.no_inline
+        || func.blocks.len() != 1
+        || func.internal_frame_size != 0
+        || !func.return_components().is_empty()
+    {
+        return false;
+    }
+    let block = &func.blocks[BlockId::ENTRY];
+    if !matches!(&block.terminator, Some(Terminator::Return { values }) if values.is_empty()) {
+        return false;
+    }
+    let call = match block.instructions.as_slice() {
+        [call] => *call,
+        [negation, call] if matches!(func.inst(*negation).kind, InstKind::IsZero(_)) => *call,
+        _ => return false,
+    };
+    matches!(
+        func.inst(call).kind,
+        InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. }
+    )
 }
 
 fn is_transparent_forwarder(module: &Module, func: &Function) -> bool {
