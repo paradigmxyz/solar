@@ -19,8 +19,8 @@ fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
     v8 = sub v5, v1
     jump bb1
   bb1:
-    v13 = phi [bb6: v5], [bb7: v19]
-    v15 = phi [bb6: arg0], [bb7: v26]
+    v13 = phi [bb6: v5], [bb1: v19]
+    v15 = phi [bb6: arg0], [bb1: v26]
     v19 = add v13, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
     v20 = and v15, 15
     v21 = mload v20
@@ -32,14 +32,12 @@ fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
     mstore8 v19, v25
     v26 = shr 8, v15
     v28 = eq v19, v8
-    jumpi v28, bb2, bb7
-  bb7:
-    jump bb1
+    jumpi v28, bb2, bb1
   bb2:
     jumpi v26, bb3, bb4
   bb4:
     v35 = sub v5, v19
-    v36 = add v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffde
+    v36 = sub v19, 32
     mstore v36, v35
     v43 = mload 64 !metadata(memory=scratch)
     v44 = add v43, 32

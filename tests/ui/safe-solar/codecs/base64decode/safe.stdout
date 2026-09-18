@@ -94,7 +94,7 @@ fn @decode.1(arg0: memptr) -> memptr [pure] {
     v12 = eq v277, 61
     jumpi v12, bb29, bb2
   bb29:
-    v227 = add v0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+    v227 = sub v223, 1
     jumpi v223, bb30, bb28
   bb28:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
