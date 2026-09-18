@@ -143,11 +143,14 @@ fn @decode.1(arg0: memptr) -> memptr [pure] {
     mstore v43, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v44 = add v37, 224
     mstore v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v157 = add v35, 32
+    v160 = add v35, v106
+    v161 = add v160, 32
     jump bb6
   bb6:
     v45 = phi [bb18: 0], [bb17: v80]
-    v47 = phi [bb18: 0], [bb17: v111]
     v49 = phi [bb18: v24], [bb17: v109]
+    v158 = phi [bb18: v157], [bb17: v159]
     v53 = lt v49, v0
     jumpi v53, bb8, bb7
   bb7:
@@ -179,21 +182,19 @@ fn @decode.1(arg0: memptr) -> memptr [pure] {
     v82 = and v146, 15
     v83 = or v81, v82
     v84 = and v83, 255
-    v87 = lt v47, v106
+    v87 = lt v158, v161
     jumpi v87, bb13, bb10
   bb10:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)
     revert 28, 36
   bb13:
-    v147 = add v35, 32
-    v148 = add v147, v47
-    mstore8 v148, v84
+    mstore8 v158, v84
     v109 = add v49, 2
     v110 = lt v109, v49
     jumpi v110, bb14, bb17
   bb17:
-    v111 = add v47, 1
+    v159 = add v158, 1
     jump bb6
   bb19:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

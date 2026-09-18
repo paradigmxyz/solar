@@ -221,11 +221,19 @@ fn @copyInto(arg0: memptr, arg1: u256, arg2: memptr, arg3: u256, arg4: u256) [pu
     v83 = add v40, 1
     jump bb10
   bb5:
-    v85 = add arg2, 32
     v89 = add arg0, 32
+    v101 = add v89, arg1
+    v102 = add v101, arg4
+    v103 = sub v102, 1
+    v85 = add arg2, 32
+    v106 = add v85, arg3
+    v107 = add v106, arg4
+    v108 = sub v107, 1
     jump bb8
   bb8:
     v16 = phi [bb5: arg4], [bb15: v79]
+    v104 = phi [bb5: v103], [bb15: v105]
+    v109 = phi [bb5: v108], [bb15: v110]
     jumpi v16, bb9, bb7
   bb7:
     ret
@@ -241,8 +249,7 @@ fn @copyInto(arg0: memptr, arg1: u256, arg2: memptr, arg3: u256, arg4: u256) [pu
     v26 = lt v71, v25
     jumpi v26, bb14, bb13
   bb14:
-    v86 = add v85, v71
-    v87 = mload v86
+    v87 = mload v109
     v88 = byte 0, v87
     v75 = add arg1, v16
     v76 = lt v75, arg1
@@ -252,9 +259,10 @@ fn @copyInto(arg0: memptr, arg1: u256, arg2: memptr, arg3: u256, arg4: u256) [pu
     v33 = lt v77, v0
     jumpi v33, bb15, bb13
   bb15:
-    v90 = add v89, v77
-    mstore8 v90, v88
+    mstore8 v104, v88
     v79 = sub v16, 1
+    v105 = sub v104, 1
+    v110 = sub v109, 1
     jump bb8
   bb18:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
