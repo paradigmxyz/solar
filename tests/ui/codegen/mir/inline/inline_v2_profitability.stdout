@@ -100,8 +100,18 @@
   
   fn @tiny_stateful_caller(arg0: i256, arg1: i256) {
     bb0:
-      icall @tiny_stateful_callee, arg0
-      icall @tiny_stateful_callee, arg1
+-     icall @tiny_stateful_callee, arg0
+-     icall @tiny_stateful_callee, arg1
++     jump bb2
++   bb2:
++     sstore 0, arg0
++     jump bb1
++   bb1:
++     jump bb4
++   bb4:
++     sstore 0, arg1
++     jump bb3
++   bb3:
       stop
   }
   

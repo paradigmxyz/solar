@@ -157,6 +157,44 @@ fn fmp_write_has_future_observer(func: &Function, cfg: &CfgInfo, inst_id: InstId
     false
 }
 
+/// Whether a later instruction directly reads the free-memory pointer or
+/// allocates after `inst_id`. Calls are not counted: the static-allocation
+/// analysis already proves interprocedurally whether a callee observes the
+/// pointer or its placement, and a callee that merely reads the pointer for
+/// scratch does not see the elided bump.
+fn alloc_bump_has_future_observer(func: &Function, cfg: &CfgInfo, inst_id: InstId) -> bool {
+    let Some((block, position)) = func.blocks.iter_enumerated().find_map(|(block, block_data)| {
+        block_data
+            .instructions
+            .iter()
+            .position(|&candidate| candidate == inst_id)
+            .map(|position| (block, position))
+    }) else {
+        return true;
+    };
+
+    if func.blocks[block].instructions[position + 1..].iter().any(|&inst| {
+        match func.inst(inst).kind {
+            InstKind::Alloc { .. } | InstKind::Fmp | InstKind::SetFmp(_) => true,
+            InstKind::MLoad(address) => func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT),
+            _ => false,
+        }
+    }) {
+        return true;
+    }
+    cfg.transitive_reachability().get(&block).into_iter().flat_map(|blocks| blocks.iter()).any(
+        |block| {
+            func.blocks[block].instructions.iter().copied().any(|inst| match func.inst(inst).kind {
+                InstKind::Alloc { .. } | InstKind::Fmp | InstKind::SetFmp(_) => true,
+                InstKind::MLoad(address) => {
+                    func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+                }
+                _ => false,
+            })
+        },
+    )
+}
+
 fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
         InstKind::Alloc { .. }
@@ -249,6 +287,13 @@ fn eligible_static_allocations(
                 || !size.is_multiple_of(32)
                 || !cfg.is_reachable(block)
                 || cfg.cyclic_blocks().contains(block)
+                // Static placement removes the allocation instruction, so the
+                // free-memory-pointer advance it performed disappears. Any
+                // later direct observation of the pointer (a read, another
+                // allocation, or an explicit pointer write) makes the deferral
+                // unsound; inlining can otherwise bring such allocations into
+                // an entry from a consumed reference-returning helper.
+                || alloc_bump_has_future_observer(func, &cfg, alloc)
             {
                 continue;
             }

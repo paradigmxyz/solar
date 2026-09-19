@@ -65,9 +65,10 @@ fn @multi_return_callee(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @tiny_stateful_caller{{[( ]}}
-// Shared stateful helpers are outside the general scalar policy.
-// CHECK: {{^ +}}icall @tiny_stateful_callee, arg0
-// CHECK: {{^ +}}icall @tiny_stateful_callee, arg1
+// A stateful helper as small as the internal-call protocol it replaces is
+// still cloned; the storage writes repeat in order at each call site.
+// CHECK: + sstore 0, arg0
+// CHECK: + sstore 0, arg1
 fn @tiny_stateful_caller(arg0: u256, arg1: u256) {
   bb0:
     icall fn5, arg0

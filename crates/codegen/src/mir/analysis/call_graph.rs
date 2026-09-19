@@ -123,6 +123,41 @@ impl CallGraphInfo {
         reachable
     }
 
+    /// A caller processing order that visits callees before their callers.
+    ///
+    /// Both LLVM's inliner (post-order SCC walk) and GCC's IPA inliner process
+    /// the call graph bottom-up, so a shared wrapper's single-use inner helper
+    /// is consumed before the wrapper's body is duplicated at its call sites;
+    /// otherwise every clone deposits its own copy of the inner call. Recursive
+    /// components have no topological order; their members are rejected by the
+    /// recursion check anyway, so ties break by function index.
+    #[must_use]
+    pub(crate) fn bottom_up_order(&self, module: &Module) -> Vec<FunctionId> {
+        fn visit(
+            func: FunctionId,
+            graph: &CallGraphInfo,
+            visited: &mut DenseBitSet<FunctionId>,
+            order: &mut Vec<FunctionId>,
+        ) {
+            if !visited.insert(func) {
+                return;
+            }
+            if let Some(callees) = graph.callees.get(&func) {
+                for callee in callees.iter() {
+                    visit(callee, graph, visited, order);
+                }
+            }
+            order.push(func);
+        }
+
+        let mut visited = DenseBitSet::new_empty(module.functions.len());
+        let mut order = Vec::with_capacity(module.functions.len());
+        for func in module.functions.indices() {
+            visit(func, self, &mut visited, &mut order);
+        }
+        order
+    }
+
     /// Collects direct call targets, including tail calls, without building graph analyses.
     pub(crate) fn collect_internal_callees(
         func: &Function,

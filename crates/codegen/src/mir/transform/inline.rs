@@ -1,18 +1,29 @@
 //! Function inlining optimization pass.
 //!
 //! The default general pass runs after check lowering and CFG simplification.
-//! It admits bounded, acyclic scalar leaves only when caller live words plus
+//! It admits bounded scalar bodies with liveness estimates: callees may read
+//! and write memory and storage, carry up to two internal calls, and return
+//! references at their sole call site, as long as caller live words plus
 //! callee peak fit the stack budget. Target pricing charges duplicated body
-//! bytes, including immediate pushes, against mandatory call/return transfers
-//! over optimizer runs and counted loop iterations. It does not credit frame
-//! traffic that the backend might already eliminate. Opaque, allocating, framed,
-//! recursive, and nested-call bodies remain with the dedicated adapters.
+//! bytes, including immediate pushes and the inner call sites of shared
+//! clones, against mandatory call/return transfers over optimizer runs and
+//! counted loop iterations; the lifetime credit is capped at the default
+//! expected executions. It does not credit frame traffic that the backend
+//! might already eliminate. Opaque, allocating, framed, recursive, and
+//! loop-containing bodies remain with the dedicated adapters or stay calls: a
+//! cloned loop nests its carried words inside the caller and measured gas
+//! regressions. A single-use scalar leaf may forward up to two internal calls:
+//! the cloned body keeps those calls, which resolve in the same pass, and the
+//! consumed wrapper disappears through function DCE, so helper chains collapse
+//! without depositing shared bodies. Shared wrappers with nested calls are
+//! priced for the duplicated inner call sites rather than rejected outright.
 //! Scalar candidates may retain argless tail transfers to single-block,
 //! frameless revert payloads. The successful path inlines while the failure
 //! payload remains shared. Returning tail calls, argument staging, and general
 //! nonreturning control flow stay excluded. Target pricing includes the tail
 //! transfer itself, rather than treating an interprocedural exit as free.
-//! All modes respect `no_inline`, including bodies kept shared by specialization.
+//! All modes respect `no_inline`, including bodies kept shared by
+//! specialization.
 //!
 //! This module inlines profitable MIR internal calls to remove their call
 //! protocol and expose further optimization opportunities. The dedicated single-use pass only
@@ -25,10 +36,6 @@
 //! with a header guard and no other exit receive that weight. Conditional calls and
 //! unknown loop bounds retain the ordinary per-invocation estimate; size mode keeps
 //! its existing growth policy. These are profitability estimates, never legality facts.
-//! Tiny check wrappers containing a semantic check and an optional boolean
-//! negation also inline before check lowering. This exposes the guard to caller
-//! analyses without duplicating arbitrary control flow or allocation. Ordinary
-//! size limits and lifetime pricing still decide whether cloning is profitable.
 //! Tiny forwarding wrappers may return one call result or forward a void call.
 //! Both forms contain only that call and its internal return, so inlining exposes
 //! the original call exactly once without cloning the callee body. Shared void
@@ -59,12 +66,8 @@
 //! over the loop's trip count (ten iterations when none is computable) and the
 //! expected executions, repays the deposited copy; sites outside loops and
 //! callees shared by more than eight sites keep the call. Read-only loops are eligible after
-//! loop-idiom lowering when their bounded MIR shape replaces the original scalar loop.
-//! A phi-free helper with one return may also call a nonreturning failure helper.
-//! Such calls stay on their original paths: caller values never survive them.
-//! Keep more complex call-containing helpers shared rather than duplicating their
-//! diamonds under the scalar leaf cost estimate.
-//! Other writes and shared phi helpers remain excluded. This is a bounded profitability
+//! loop-idiom lowering when their bounded MIR shape replaces the original scalar loop;
+//! writes and shared phi helpers remain excluded. This is a bounded profitability
 //! estimate, not a promise that the scheduler will emit no spills.
 //! A separate gas-only late adapter accepts frameless wrappers with one returning
 //! call followed by at most five physical address/load/store operations. It clones
@@ -406,6 +409,11 @@ impl MirInliner {
     /// joins; at ten, two of the Base64 decoder's four lookups stayed calls
     /// that drained every carried word, and lifting it took 15% off decoding.
     const HOT_LEAF_STACK_BUDGET: usize = 12;
+    /// How many internal calls a bounded scalar body may carry in the general
+    /// pass. Pure one-word wrappers commonly forward one or two helper calls;
+    /// the clone keeps the inner calls, so the model prices their bytes and
+    /// the size limits bound the growth.
+    const MAX_NESTED_CALLS: usize = 2;
 
     /// The live-word budget for inlining at the current mode's sites.
     const fn stack_budget(&self) -> usize {
@@ -477,16 +485,17 @@ struct MirInlineSummary {
     scalar_code_size: u32,
     internal_frame_size: u64,
     has_icall: bool,
-    /// Calls on returning paths require a separate call/frame stack estimate.
-    has_returning_icall: bool,
+    /// Number of internal function calls in the body; bounded admission in the
+    /// general pass allows pure scalars to carry a few nested calls.
+    nested_calls: usize,
     has_phi: bool,
     phi_stack_peak: Option<usize>,
     has_external_call: bool,
     has_storage_write: bool,
+    has_memory_write: bool,
     has_immutable_write: bool,
     has_log: bool,
     has_control_flow: bool,
-    is_check_wrapper: bool,
     /// Whether the body contains a back edge; a loop cloned into a loop nests
     /// its carried words inside the caller's.
     has_loop: bool,
@@ -555,11 +564,21 @@ impl MirInliner {
         let preferred_large_call_sites = self.preferred_large_call_sites(module, &summaries);
 
         // Specialize dispatcher calls before helper-local inlining introduces phis.
+        // Process the remaining callers bottom-up (callees first), like the
+        // LLVM and GCC inliners: a shared wrapper's single-use inner helper is
+        // consumed before the wrapper's body is cloned, so clones do not each
+        // deposit their own copy of the inner call.
         let mut caller_ids = module.functions.indices().collect::<Vec<_>>();
+        let mut order_index =
+            FxHashMap::with_capacity_and_hasher(module.functions.len(), Default::default());
+        for (index, &caller) in call_graph.bottom_up_order(module).iter().enumerate() {
+            order_index.insert(caller, index);
+        }
         caller_ids.sort_by_key(|caller| {
-            summaries.get(caller).is_some_and(|summary| {
+            let dispatcher = summaries.get(caller).is_some_and(|summary| {
                 summary.is_function_pointer_dispatcher && summary.has_function_selector
-            })
+            });
+            (dispatcher, order_index.get(caller).copied().unwrap_or(usize::MAX))
         });
         for caller_id in caller_ids {
             // Leaf bodies cannot contain an inline candidate. Keep their summary for
@@ -829,17 +848,26 @@ impl MirInliner {
         preferred_large_call_site: Option<(MirFunctionId, InstId)>,
     ) -> bool {
         let single_call = self.inline_single_call && call_count == 1;
-        // General inlining is bounded to scalar leaves with a liveness estimate.
-        // Opaque operations, frame allocation, and nested calls need a different
-        // cost model; the dedicated adapters retain their existing policies.
+        // General inlining is bounded to small effectful bodies with a liveness
+        // estimate, mirroring the LLVM/GCC model: callees may read and write
+        // memory and storage, carry up to two internal calls, and return
+        // references at their sole call site. Shared wrappers with nested calls
+        // are priced for the duplicated inner call sites rather than rejected
+        // outright; one-shot shared clones of stateful bodies stay guarded
+        // below. Framed bodies, shared reference returns, and loop-containing
+        // callees remain excluded: a cloned loop nests its carried words inside
+        // the caller, which measured gas regressions even at call sites outside
+        // caller loops.
         if self.mode == InlineMode::Normal
             && (summary.phi_stack_peak.is_none()
                 || summary.has_loop
-                || summary.has_icall
-                || summary.has_reference_return
+                || summary.nested_calls > Self::MAX_NESTED_CALLS
+                || (summary.has_reference_return && !single_call)
                 || summary.internal_frame_size != 0
                 || summary.instruction_count
-                    > if site.loop_depth > 0 && site.loop_counted {
+                    > if single_call {
+                        self.max_single_call_sanity_instructions
+                    } else if site.loop_depth > 0 && site.loop_counted {
                         self.max_instructions
                     } else {
                         Self::MAX_UNCOUNTED_SCALAR_INSTRUCTIONS
@@ -858,7 +886,7 @@ impl MirInliner {
         if self.mode == InlineMode::SingleUse
             && (!single_call
                 || summary.internal_frame_size != 0
-                || summary.has_reference_return
+                || summary.has_loop
                 || (summary.has_phi && !bounded_phi)
                 || (!self.frame_staging_allowed && summary.return_values > 1))
         {
@@ -872,7 +900,7 @@ impl MirInliner {
             && (site.loop_depth == 0
                 || summary.phi_stack_peak.is_none()
                 || summary.has_loop
-                || summary.has_returning_icall
+                || summary.nested_calls > Self::MAX_NESTED_CALLS
                 || summary.internal_frame_size != 0
                 || summary.has_reference_return
                 || call_count > Self::MAX_HOT_LEAF_CALL_SITES)
@@ -915,7 +943,7 @@ impl MirInliner {
                     && !summary.is_transparent_forwarder
                     && !self.memory_wrappers_only)
                 || (!single_call && summary.void_forwarder_adds_args)
-                || (summary.has_control_flow && !summary.is_check_wrapper))
+                || summary.has_control_flow)
         {
             return false;
         }
@@ -957,13 +985,16 @@ impl MirInliner {
         // call is hot or the body is no larger than the internal-call protocol
         // it replaces. Single-call callees disappear from emitted runtime
         // bytecode after inlining, so they are allowed through the normal
-        // code-growth check below.
+        // code-growth check below. The memory-write clause applies to the
+        // general pass only: the dedicated tiny-leaf and memory-wrapper
+        // adapters admit their own small shapes.
         if !single_call
             && site.loop_depth == 0
             && (summary.has_storage_write
                 || summary.has_immutable_write
                 || summary.has_external_call
-                || summary.has_log)
+                || summary.has_log
+                || (self.mode == InlineMode::Normal && summary.has_memory_write))
             && summary.estimated_code_size
                 > estimated_icall_code_size(self.target, site)
                     + estimated_internal_return_code_size(self.target, summary, site)
@@ -989,6 +1020,7 @@ impl MirInliner {
                 summary.scalar_code_size,
                 !single_call,
                 site.loop_executions,
+                summary.nested_calls,
             );
         }
         const CODE_DEPOSIT_GAS_PER_BYTE: u128 = Target::CODE_DEPOSIT_GAS_PER_BYTE as u128;
@@ -1015,7 +1047,9 @@ impl MirInliner {
             site.loop_executions
         };
         let execution_savings = u128::from(estimated_icall_savings(self.target, site, summary))
-            .saturating_mul(u128::from(self.expected_executions_per_deployment))
+            .saturating_mul(u128::from(
+                self.expected_executions_per_deployment.min(Target::DEFAULT_EXPECTED_EXECUTIONS),
+            ))
             .saturating_mul(u128::from(loop_executions));
         execution_savings > added_deposit_cost
     }
@@ -1170,32 +1204,6 @@ fn is_small_literal_return(func: &Function) -> bool {
     }
 }
 
-/// A direct call whose callee cannot resume the caller. Keep tail-call chains
-/// conservative; this local test only accepts bodies with explicit message exits.
-fn is_terminal_call(module: &Module, kind: &InstKind) -> bool {
-    let InstKind::ICall { function: Callee::Function(callee), .. } = kind else {
-        return false;
-    };
-    let callee = module.function(*callee);
-    !callee.blocks.is_empty()
-        && callee.blocks.iter().all(|block| {
-            matches!(
-                block.terminator,
-                Some(
-                    Terminator::Jump(_)
-                        | Terminator::Branch { .. }
-                        | Terminator::Switch { .. }
-                        | Terminator::Revert { .. }
-                        | Terminator::RevertReturndata
-                        | Terminator::Stop
-                        | Terminator::Invalid
-                        | Terminator::ReturnData { .. }
-                        | Terminator::SelfDestruct { .. }
-                )
-            )
-        })
-}
-
 fn summarize_function(
     gcx: Gcx<'_>,
     module: &Module,
@@ -1218,7 +1226,6 @@ fn summarize_function(
             .any(|ty| matches!(ty, MirType::MemoryObject(_) | MirType::Slice(_))),
         is_transparent_forwarder: is_transparent_forwarder(module, func),
         is_small_literal_return: is_small_literal_return(func),
-        is_check_wrapper: is_check_wrapper(func),
         is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
         has_function_selector: func.attributes.is_function_pointer_dispatcher,
         is_pure: func.attributes.state_mutability == StateMutability::Pure,
@@ -1235,8 +1242,7 @@ fn summarize_function(
             match kind {
                 InstKind::ICall { function: Callee::Function(_), args } => {
                     summary.has_icall = true;
-                    summary.has_returning_icall |=
-                        peak != PeakAnalysis::Scalars || !is_terminal_call(module, kind);
+                    summary.nested_calls += 1;
                     if summary.is_transparent_forwarder && func.return_components().is_empty() {
                         summary.void_forwarder_adds_args = args.len() > func.params.len();
                     }
@@ -1294,6 +1300,9 @@ fn summarize_function(
                 }
                 InstKind::SStore(..) | InstKind::TStore(..) => summary.has_storage_write = true,
                 InstKind::StoreImmutable(..) => summary.has_immutable_write = true,
+                kind if kind.effect_kind() == EffectKind::MemoryWrite => {
+                    summary.has_memory_write = true;
+                }
                 InstKind::Log0(..)
                 | InstKind::Log1(..)
                 | InstKind::Log2(..)
@@ -1351,18 +1360,22 @@ fn summarize_function(
         && summary.return_count <= 3
         && summary.return_count != 0
         && summary.internal_frame_size == 0
-        && !summary.has_reference_return
-        && (!summary.has_icall
-            || (peak == PeakAnalysis::Scalars
-                && !summary.has_phi
-                && summary.return_count == 1
-                && !summary.has_returning_icall))
+        && summary.nested_calls <= MirInliner::MAX_NESTED_CALLS
         && func.instructions().all(|inst| {
-            is_terminal_call(module, &func.inst(inst).kind)
-                || matches!(
-                    func.inst(inst).kind.effect_kind(),
-                    EffectKind::Pure | EffectKind::MemoryRead | EffectKind::EnvironmentRead
-                )
+            matches!(
+                func.inst(inst).kind.effect_kind(),
+                EffectKind::Pure
+                    | EffectKind::MemoryRead
+                    | EffectKind::MemoryWrite
+                    | EffectKind::EnvironmentRead
+                    | EffectKind::StorageRead
+                    | EffectKind::StorageWrite
+                    | EffectKind::TransientRead
+                    | EffectKind::TransientWrite
+            ) || matches!(
+                &func.inst(inst).kind,
+                InstKind::ICall { function: Callee::Function(_), .. }
+            )
         })
     {
         summary.phi_stack_peak = Some(scalar_stack_peak(func));
@@ -1524,36 +1537,6 @@ fn is_immutable_word_leaf(func: &Function) -> bool {
         }
     }
     has_immutable
-}
-
-/// A semantic check has one returning path and no allocation on that path.
-/// Keep the exception narrow: no other calls, memory effects, or computations.
-fn is_check_wrapper(func: &Function) -> bool {
-    if func.attributes.no_inline
-        || func.blocks.len() != 1
-        || func.internal_frame_size != 0
-        || !func.return_components().is_empty()
-    {
-        return false;
-    }
-    let block = &func.blocks[BlockId::ENTRY];
-    if !matches!(&block.terminator, Some(Terminator::Return { values }) if values.is_empty()) {
-        return false;
-    }
-    let call = match block.instructions.as_slice() {
-        [call] => *call,
-        [negation, call]
-            if matches!(func.inst(*negation).kind, InstKind::Eq(lhs, rhs)
-                if func.value_u64(lhs) == Some(0) || func.value_u64(rhs) == Some(0)) =>
-        {
-            *call
-        }
-        _ => return false,
-    };
-    matches!(
-        func.inst(call).kind,
-        InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. }
-    )
 }
 
 fn is_transparent_forwarder(module: &Module, func: &Function) -> bool {

@@ -67,8 +67,8 @@ bb6:
   push 0
   swap 1
   mstore
-  push 64
-  dup 5
+  push 32
+  dup 4
   add
   dup 3
   dup 5
@@ -119,10 +119,9 @@ bb0:
   dup 2
   mstore
   push 32
-  dup 2
   add
-  swap 1
-  push 256
+  push 224
+  dup 2
   add
   push 0
   swap 1
@@ -186,18 +185,19 @@ bb8 [cold]:
   revert
 bb10:
   push 192
+  dup 1
   push 64
   mstore
-  push 0
-  push 160
-  mstore
-  push 64
-  mload
-  push 256
+  push 288
   dup 2
   add
   push 64
   mstore
+  push 0
+  dup 2
+  mstore
+  push 32
+  add
   push 255
   push_data CodeTarget_initcode_0
   dup 3
@@ -207,6 +207,8 @@ bb10:
   push 0
   create
   dup 1
+  push 160
+  mstore
   iszero
   push bb8
   jumpi
@@ -221,10 +223,9 @@ bb10:
   dup 2
   mstore
   push 32
-  dup 2
   add
-  swap 1
-  push 256
+  push 224
+  dup 2
   add
   push 0
   swap 1
@@ -236,7 +237,8 @@ bb10:
   push 238
   swap 1
   keccak256
-  swap 1
+  push 160
+  mload
   extcodehash
   eq
   push 0
@@ -245,4 +247,4 @@ bb10:
   push 0
   return
 
-@data CodeTarget_initcode_0 hex"34600d5760ee8060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b60808060405260a081016040528081526020810181606e823981151560071b601f8101601f19168083015f9052604084018284825e5060208452915260400181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+@data CodeTarget_initcode_0 hex"34600d5760ee8060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b60808060405260a081016040528081526020810181606e823981151560071b601f8101601f19168083015f9052602083018284825e5060208452915260400181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"

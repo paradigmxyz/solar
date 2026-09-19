@@ -271,7 +271,7 @@ bb22:
   push 128
   return
 bb31:
-  push 256
+  push 160
   push 64
   mstore
   push 100
@@ -339,7 +339,13 @@ bb31:
   or
   push bb6
   jumpi
-  push 160
+  push 64
+  mload
+  push 96
+  dup 2
+  add
+  push 64
+  mstore
   dup 4
   push 5
   shl

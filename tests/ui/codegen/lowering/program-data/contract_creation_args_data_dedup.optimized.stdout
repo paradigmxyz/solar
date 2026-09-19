@@ -67,8 +67,8 @@ bb6:
   push 0
   swap 1
   mstore
-  push 64
-  dup 5
+  push 32
+  dup 4
   add
   dup 3
   dup 5
@@ -125,25 +125,27 @@ bb26 [cold]:
   push 0
   revert
 bb6:
-  push 224
+  push 192
+  dup 1
   push 64
   mstore
-  push 160
+  push 576
+  dup 2
+  add
+  push 64
+  mstore
   push 32
   dup 2
   mstore
   push 32
+  dup 2
   add
   push 11
   dup 2
   mstore
+  swap 1
   push 64
-  mload
-  push 512
-  dup 2
   add
-  push 64
-  mstore
   push 470
   push_data ChildWithArg_initcode_0
   dup 3
@@ -165,6 +167,8 @@ bb6:
   jump bb28
 bb28:
   dup 1
+  push 160
+  mstore
   iszero
   push bb26
   jumpi
@@ -184,11 +188,11 @@ bb28:
   push 0
   push 4
   dup 4
-  dup 6
+  push 160
+  mload
   gas
   staticcall
-  swap 2
-  pop
+  swap 1
   pop
   iszero
   push bb26
@@ -200,31 +204,33 @@ bb28:
   jumpi
   push 0
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb12:
-  push 224
+  push 192
+  dup 1
   push 64
   mstore
-  push 160
+  push 576
+  dup 2
+  add
+  push 64
+  mstore
   push 32
   dup 2
   mstore
   push 32
+  dup 2
   add
   push 22
   dup 2
   mstore
+  swap 1
   push 64
-  mload
-  push 512
-  dup 2
   add
-  push 64
-  mstore
   push 470
   push_data ChildWithArg_initcode_0
   dup 3
@@ -246,25 +252,27 @@ bb12:
   create2
   jump bb28
 bb18:
-  push 320
+  push 224
+  dup 1
   push 64
   mstore
-  push 160
+  push 576
+  dup 2
+  add
+  push 64
+  mstore
   push 32
   dup 2
   mstore
   push 32
+  dup 2
   add
   push 3
   dup 2
   mstore
+  swap 1
   push 64
-  mload
-  push 512
-  dup 2
   add
-  push 64
-  mstore
   push 470
   push_data ChildWithArg_initcode_0
   dup 3
@@ -284,25 +292,30 @@ bb18:
   push 0
   create
   dup 1
+  push 160
+  mstore
   iszero
   push bb26
   jumpi
-  push 256
+  push 64
+  mload
+  push 576
+  dup 2
+  add
+  push 64
+  mstore
   push 32
   dup 2
   mstore
   push 32
+  dup 2
   add
   push 4
   dup 2
   mstore
+  swap 1
   push 64
-  mload
-  push 512
-  dup 2
   add
-  push 64
-  mstore
   push 470
   push_data ChildWithArg_initcode_0
   dup 3
@@ -322,6 +335,8 @@ bb18:
   push 0
   create
   dup 1
+  push 192
+  mstore
   iszero
   push bb26
   jumpi
@@ -341,14 +356,12 @@ bb18:
   push 0
   push 4
   dup 4
-  dup 7
+  push 160
+  mload
   gas
   staticcall
-  swap 3
+  swap 1
   pop
-  pop
-  push 224
-  mstore
   iszero
   push bb26
   jumpi
@@ -375,7 +388,7 @@ bb18:
   push 0
   push 4
   dup 4
-  push 224
+  push 192
   mload
   gas
   staticcall
@@ -414,4 +427,4 @@ bb27 [cold]:
   push 28
   revert
 
-@data ChildWithArg_initcode_0 hex"6101d63803806101d660e03960e001601f01601f19166040523460455760e06101d63803016101001160455760e05160c05261010d8060c960e03960c0516101035260e0f35b5f5ffdffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa9988776655443322110034601d575f3560e01c80633fa4f245146021578063a878f85814604b575b5f5ffd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b60808060405260a081016040528081526020810181608d823981151560071b601f8101601f19168083015f9052604084018284825e5060208452915260400181f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+@data ChildWithArg_initcode_0 hex"6101d63803806101d660e03960e001601f01601f19166040523460455760e06101d63803016101001160455760e05160c05261010d8060c960e03960c0516101035260e0f35b5f5ffdffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa9988776655443322110034601d575f3560e01c80633fa4f245146021578063a878f85814604b575b5f5ffd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b60808060405260a081016040528081526020810181608d823981151560071b601f8101601f19168083015f9052602083018284825e5060208452915260400181f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"

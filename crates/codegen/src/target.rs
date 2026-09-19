@@ -561,17 +561,35 @@ impl Target {
 
     /// Whether saved scalar call transfers repay any duplicated body bytes.
     /// Loop executions are a profitability estimate, independent of legality.
+    /// A shared clone also duplicates its nested call sites: each one adds the
+    /// inner call's deposited bytes in the clone while the shared wrapper keeps
+    /// its own copy, so `nested_calls` inner transfers are charged per clone.
+    /// The lifetime credit is capped at the default expected executions: the
+    /// optimizer-runs knob already switches the optimization mode below 200,
+    /// and above it LLVM- and GCC-style fixed inline thresholds do not keep
+    /// scaling with the runs count. Measured solady inputs at 1000 runs
+    /// otherwise over-admit one-shot shared clones whose bodies expand after
+    /// lowering.
     pub(crate) fn scalar_inline_profitable(
         self,
         body_bytes: u32,
         shared: bool,
         executions: u64,
+        nested_calls: usize,
     ) -> bool {
         let protocol = self.scalar_call_protocol();
-        let added_bytes = if shared { body_bytes.saturating_sub(protocol.bytes) } else { 0 };
+        let inner_transfers = self.icall(1, 1, 0).bytes;
+        let added_bytes = if shared {
+            body_bytes
+                .saturating_add(u32::try_from(nested_calls).unwrap_or(u32::MAX) * inner_transfers)
+                .saturating_sub(protocol.bytes)
+        } else {
+            0
+        };
+        let lifetime = self.expected_executions.min(Self::DEFAULT_EXPECTED_EXECUTIONS);
         let saved_gas = u128::from(protocol.gas)
             .saturating_mul(u128::from(executions))
-            .saturating_mul(u128::from(self.expected_executions));
+            .saturating_mul(u128::from(lifetime));
         saved_gas > u128::from(added_bytes) * u128::from(Self::CODE_DEPOSIT_GAS_PER_BYTE)
     }
 
@@ -796,13 +814,19 @@ mod tests {
             let once = Target::with(version, OptimizationMode::Gas, 1);
             let often = Target::with(version, OptimizationMode::Gas, 200);
             assert_eq!(once.scalar_call_protocol(), Cost::new(24, 6));
-            assert!(!once.scalar_inline_profitable(20, true, 1));
-            assert!(often.scalar_inline_profitable(20, true, 1));
-            assert!(once.scalar_inline_profitable(20, true, 1000));
-            assert!(once.scalar_inline_profitable(20, false, 1));
-            assert!(!often.scalar_inline_profitable(20, true, 0));
+            assert!(!once.scalar_inline_profitable(20, true, 1, 0));
+            assert!(often.scalar_inline_profitable(20, true, 1, 0));
+            assert!(once.scalar_inline_profitable(20, true, 1000, 0));
+            assert!(once.scalar_inline_profitable(20, false, 1, 0));
+            assert!(!often.scalar_inline_profitable(20, true, 0, 0));
             let maximum = Target::with(version, OptimizationMode::Gas, u64::MAX);
-            assert!(maximum.scalar_inline_profitable(u32::MAX, true, u64::MAX));
+            assert!(maximum.scalar_inline_profitable(u32::MAX, true, u64::MAX, 0));
+            // A shared clone also deposits its nested call sites: a body with
+            // two inner transfers stops being profitable where the plain body
+            // was.
+            assert!(often.scalar_inline_profitable(20, true, 1, 0));
+            assert!(!often.scalar_inline_profitable(20, true, 1, 2));
+            assert!(often.scalar_inline_profitable(20, true, 1000, 2));
         }
     }
 

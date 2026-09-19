@@ -50,8 +50,12 @@ contract CalldataStructFieldSlice {
         return ERC4337Utils.factory(op);
     }
 
+    // The single-use slice wrapper and hashing helper are consumed into the
+    // wrapper entry: past the bounds checks, the `[20:]` slice is copied into
+    // memory and the hash reads that copy directly.
     // CDSFS-LABEL: fn @tailHash{{[.][0-9]+}}
-    // CDSFS: icall @tailHash
+    // CDSFS: calldatacopy [[COPY:v[0-9]+]], {{v[0-9]+}}, [[LEN:v[0-9]+]]
+    // CDSFS: keccak256 [[COPY]], [[LEN]]
     function tailHash(PackedUserOperation calldata op) external pure returns (bytes32) {
         return ERC4337Utils.tailHash(op);
     }
@@ -61,13 +65,6 @@ contract CalldataStructFieldSlice {
     // CDSFS: = lt {{v[0-9]+}}, 32
     // CDSFS: [[WORD:v[0-9]+]] = calldataload
     // CDSFS-NEXT: mstore 128, [[WORD]]
-    // The hashing helper stays a separate function below the wrappers: the `[20:]` slice is
-    // copied into memory and the hash reads that copy directly.
-    // CDSFS-LABEL: fn @tailHash{{[.][0-9]+}}
-    // CDSFS-DAG: [[LEN:v[0-9]+]] = sub {{v[0-9]+}}, 20
-    // CDSFS-DAG: [[START:v[0-9]+]] = add {{v[0-9]+}}, 20
-    // CDSFS: calldatacopy [[COPY:v[0-9]+]], [[START]], [[LEN]]
-    // CDSFS: keccak256 [[COPY]],
     function midWord(PackedUserOperation calldata op) external pure returns (bytes32) {
         return ERC4337Utils.midWord(op);
     }
