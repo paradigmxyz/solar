@@ -15,7 +15,7 @@
 
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
-    mir::{Function, Op, Value, ValueId},
+    mir::{Function, Op, Terminator, Value, ValueId},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -611,6 +611,19 @@ impl Target {
                     }
                 }
             }
+            // A tail transfer still needs its target label and jump even when
+            // it has no intraprocedural successor (for example a revert stub).
+            if let Some(Terminator::TailCall { args, .. }) = &block.terminator {
+                cost += self.opcode(op::PUSH2);
+                cost += self.opcode(op::JUMP);
+                for &arg in args {
+                    if let Value::Immediate(value) = func.value(arg)
+                        && let Some(value) = value.as_u256()
+                    {
+                        cost += self.push(value);
+                    }
+                }
+            }
             let edges =
                 block.terminator.as_ref().map_or(0, |terminator| terminator.successors().len());
             for _ in 0..edges {
@@ -658,7 +671,7 @@ impl Target {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{Function, Immediate, InstKind, Value};
+    use crate::mir::{BlockId, Function, FunctionId, Immediate, InstKind, Value};
     use solar_interface::Ident;
     use std::fmt::Write;
 
@@ -791,6 +804,25 @@ mod tests {
             let maximum = Target::with(version, OptimizationMode::Gas, u64::MAX);
             assert!(maximum.scalar_inline_profitable(u32::MAX, true, u64::MAX));
         }
+    }
+
+    #[test]
+    fn code_estimate_prices_tail_transfers() {
+        let target = Target::with(EvmVersion::Cancun, OptimizationMode::Gas, 200);
+        let mut function = Function::new(Ident::DUMMY);
+        // tail_call @payload => push label(payload); jump
+        function.blocks[BlockId::ENTRY].set_generated_terminator(Terminator::TailCall {
+            function: FunctionId::from_usize(1),
+            args: SmallVec::new(),
+        });
+        assert_eq!(target.code_estimate(&function), Cost::new(11, 4));
+        let arg = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(42))));
+        // tail_call @payload, 42 => push 42; push label(payload); jump
+        function.blocks[BlockId::ENTRY].set_generated_terminator(Terminator::TailCall {
+            function: FunctionId::from_usize(1),
+            args: SmallVec::from_slice(&[arg]),
+        });
+        assert_eq!(target.code_estimate(&function), Cost::new(14, 6));
     }
 
     #[test]

@@ -7,6 +7,11 @@
 //! over optimizer runs and counted loop iterations. It does not credit frame
 //! traffic that the backend might already eliminate. Opaque, allocating, framed,
 //! recursive, and nested-call bodies remain with the dedicated adapters.
+//! Scalar candidates may retain argless tail transfers to single-block,
+//! frameless revert payloads. The successful path inlines while the failure
+//! payload remains shared. Returning tail calls, argument staging, and general
+//! nonreturning control flow stay excluded. Target pricing includes the tail
+//! transfer itself, rather than treating an interprocedural exit as free.
 //! All modes respect `no_inline`, including bodies kept shared by specialization.
 //!
 //! This module inlines profitable MIR internal calls to remove their call
@@ -1319,6 +1324,16 @@ fn summarize_function(
                     estimate_terminator_cost(target, block.terminator.as_ref().unwrap()).bytes
                         as usize;
             }
+            // A copied failure edge still jumps to the shared nonreturning
+            // payload. A returning tail call would bypass our continuation.
+            Some(term @ Terminator::TailCall { function, args })
+                if peak == PeakAnalysis::Scalars
+                    && args.is_empty()
+                    && is_reverting_leaf(module.function(*function)) =>
+            {
+                summary.estimated_code_size +=
+                    estimate_terminator_cost(target, term).bytes as usize;
+            }
             Some(Terminator::ReturnData { .. })
             | Some(Terminator::Stop)
             | Some(Terminator::SelfDestruct { .. })
@@ -1356,6 +1371,19 @@ fn summarize_function(
         }
     }
     summary
+}
+
+/// A frameless, argument-free failure payload cannot return past the inlined
+/// call's continuation. Keep this deliberately narrower than general noreturn
+/// analysis so arbitrary tail calls do not enter the scalar policy.
+fn is_reverting_leaf(func: &Function) -> bool {
+    func.params.is_empty()
+        && func.internal_frame_size == 0
+        && func.blocks.len() == 1
+        && matches!(
+            func.blocks[BlockId::ENTRY].terminator,
+            Some(Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid)
+        )
 }
 
 /// Whether the control-flow graph has a back edge, found by a depth-first walk

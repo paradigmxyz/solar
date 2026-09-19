@@ -1,0 +1,63 @@
+// === ROOT/tests/ui/codegen/mir/inline/shared_revert.sol:GuardedCalls ===
+@module GuardedCalls
+fn @first(arg0: u256) -> u256 [selector=0x0b3f62f5, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = icall @left, arg0
+    v1 = icall @right, arg0
+    v2 = add v0, v1
+    ret v2
+}
+
+fn @second(arg0: u256) -> u256 [selector=0x7896dfe3, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = icall @right, arg0
+    v1 = icall @left, arg0
+    v2 = xor v0, v1
+    ret v2
+}
+
+fn @sum(arg0: u256) -> u256 [selector=0x188b85b4, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v9]
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v10]
+    v3 = lt v2, v1
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v0
+  bb4:
+    v4 = and v2, 31
+    v5 = icall @left, v4
+    v6 = and v2, 63
+    v7 = icall @right, v6
+    v8 = add v5, v7
+    v9 = add v0, v8
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v10 = add v2, 1
+    jump bb1
+}
+
+fn @left(arg0: u256) -> u256 [pure] {
+  bb0:
+    v0 = lt arg0, 32
+    v1 = iszero v0
+    icall panic_if<0x1>, v1
+    v2 = add arg0, 1
+    ret v2
+}
+
+fn @right(arg0: u256) -> u256 [pure] {
+  bb0:
+    v0 = lt arg0, 64
+    v1 = iszero v0
+    icall panic_if<0x1>, v1
+    v2 = mul arg0, 2
+    ret v2
+}
