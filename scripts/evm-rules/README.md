@@ -326,12 +326,15 @@ structural/fork guards; actual opcode availability and profitability remain the
 compiler's responsibility. There is no claim of a verified compiler or an
 independently checked proof certificate.
 
-The physical stack lane checks the six compiled rules in `stack_peephole.isle`
+The physical stack lane checks the seven compiled rules in `stack_peephole.isle`
 directly, including every supported DUP/SWAP depth from 1 through 235 and every
-legal EXCHANGE pair. It compares every touched word, the final height, required
-input depth and peak growth; an arbitrary deeper prefix stays unchanged.
+legal EXCHANGE pair and the EQ/ISZERO shuffle cleanup. It compares every touched
+word, the final height, required input depth and peak growth; an arbitrary deeper
+prefix stays unchanged.
 Malformed input bytecode and out-of-gas behavior are excluded. The Rust window
 facets, edits and target lowering remain trusted and are recorded by hash.
+The guarded five-op window rejects overridden stack effects and protected
+instruction boundaries; focused window-helper tests check these Rust-side guards.
 Other peepholes, especially memory and branch rewrites, are not covered by this
 lane. Unknown syntax, guards, edits or operations fail verification.
 

@@ -348,6 +348,10 @@ impl generated::Context for PeepContext<'_> {
         self.tail().map(|[a, b, c, d, e]| (a, b, c, d, e))
     }
 
+    fn unprotected_last5(&mut self, _: Window) -> Option<(Inst, Inst, Inst, Inst, Inst)> {
+        self.unprotected_tail().map(|[a, b, c, d, e]| (a, b, c, d, e))
+    }
+
     fn last6(&mut self, _: Window) -> Option<(Inst, Inst, Inst, Inst, Inst, Inst)> {
         self.tail().map(|[a, b, c, d, e, f]| (a, b, c, d, e, f))
     }
@@ -732,6 +736,32 @@ mod tests {
         assert!(
             PeepContext::new(&instructions, EvmVersion::Osaka).unprotected_tail::<2>().is_none()
         );
+    }
+
+    #[test]
+    fn equality_shuffle_requires_unprotected_canonical_window() {
+        let mut instructions = [GAS, DUP2, EQ, ISZERO, SWAP1, POP].map(Instruction::opcode);
+        assert!(
+            PeepContext::new(&instructions, EvmVersion::Osaka).unprotected_tail::<5>().is_some()
+        );
+        for boundary in 0..instructions.len() {
+            instructions[boundary].metadata.keep_with_next = true;
+            assert!(
+                PeepContext::new(&instructions, EvmVersion::Osaka)
+                    .unprotected_tail::<5>()
+                    .is_none()
+            );
+            instructions[boundary].metadata.keep_with_next = false;
+        }
+        for instruction in 1..instructions.len() {
+            instructions[instruction].metadata.stack = Some(StackEffect::new(0, 7));
+            assert!(
+                PeepContext::new(&instructions, EvmVersion::Osaka)
+                    .unprotected_tail::<5>()
+                    .is_none()
+            );
+            instructions[instruction].metadata.stack = None;
+        }
     }
 
     #[test]

@@ -64,6 +64,9 @@
 (extern constructor canonical_stack_effects4 canonical_stack_effects4)
 (decl last5 (Inst Inst Inst Inst Inst) Window)
 (extern extractor last5 last5)
+;; A five-instruction window with canonical effects and no protected boundaries.
+(decl unprotected_last5 (Inst Inst Inst Inst Inst) Window)
+(extern extractor unprotected_last5 unprotected_last5)
 (decl last6 (Inst Inst Inst Inst Inst Inst) Window)
 (extern extractor last6 last6)
 ;; `SWAPn POP*n SWAP1 POP`, giving `n`.

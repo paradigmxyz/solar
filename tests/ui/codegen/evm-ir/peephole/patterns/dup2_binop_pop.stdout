@@ -193,4 +193,25 @@
 -   pop
 +   keccak256
     stop
+  bb22:
+    calldatasize
+    returndatasize
+-   dup 2
+    eq
+    iszero
+-   swap 1
+-   pop
+    stop
+  bb23:
+    calldatasize
+    returndatasize
+-   dup 2
+    eq
+-   iszero
+-   swap 1
+-   pop
+-   iszero
+    push bb22
+    jumpi
+    stop
   

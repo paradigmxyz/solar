@@ -185,7 +185,7 @@ class StackProofTests(unittest.TestCase):
 
     def test_actual_compiled_stack_rules(self):
         report = verify_stack_file(ISLE / "stack_peephole.isle")
-        self.assertEqual(len(report["rules"]), 6)
+        self.assertEqual(len(report["rules"]), 7)
         self.assertTrue(all(r["status"] == "proved" for r in report["rules"]))
         self.assertGreater(sum(len(r["variants"]) for r in report["rules"]), 900)
 
@@ -197,6 +197,14 @@ class StackProofTests(unittest.TestCase):
             result = self.verify(source)["rules"][0]
             self.assertEqual(result["status"], "counterexample")
             self.assertTrue(result["variants"][0]["replayed"])
+
+    def test_equality_shuffle_requires_symmetric_operands(self):
+        correct = "(rule (peep_nonpush (unprotected_last5 (opcode $DUP2) (opcode $EQ) (opcode $ISZERO) (opcode $SWAP1) (opcode $POP))) (rewrite 5 (Edit.RemoveFirstKeepTwo)))"
+        self.assertEqual(self.verify(correct)["rules"][0]["status"], "proved")
+        wrong = correct.replace("$DUP2", "$DUP1")
+        result = self.verify(wrong)["rules"][0]
+        self.assertEqual(result["status"], "counterexample")
+        self.assertTrue(result["variants"][0]["replayed"])
 
     def test_unknown_effect_and_changed_extent_fail_closed(self):
         for source in (
