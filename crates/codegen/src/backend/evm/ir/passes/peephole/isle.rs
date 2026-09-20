@@ -7,7 +7,11 @@
 
 use super::{Edit, is_block_push, is_removable_push, materialization_cost, push_value, raw_opcode};
 use crate::{
-    backend::evm::{ir::Instruction, op, op::*},
+    backend::evm::{
+        ir::{ImmediateMaterialization, Instruction},
+        op,
+        op::*,
+    },
     mir::utils::eval,
     target::Target,
 };
@@ -710,7 +714,10 @@ impl generated::Context for PeepContext<'_> {
                 } else {
                     ordered.checked_sub(U256::ONE)
                 };
+                // A shorter encoding may need an extra temporary stack word.
                 if let Some(bound) = bound.map(|bound| bound ^ bias)
+                    && ImmediateMaterialization::new(self.evm_version, bound).stack_peak()
+                        <= ImmediateMaterialization::new(self.evm_version, value).stack_peak()
                     && op::push_len(self.evm_version, bound)
                         <= super::immediate_materialization_cost(self.evm_version, value).0 + 1
                 {

@@ -489,3 +489,20 @@ bb39:
   push 0
   mstore
   stop
+
+// Adjusting the bound must not increase its materialization's stack peak.
+// The intervening POP may be the first instruction that frees a stack slot.
+// CHECK-LABEL: {{^[ +].*}}bb40:
+// CHECK: {{^[ +].*}}push 0x10000000001
+// CHECK: {{^[ +].*}}lt
+// CHECK-NEXT: {{^[ +].*}}iszero
+bb40:
+  calldatasize
+  push 0x10000000001
+  swap 1
+  pop
+  push 0
+  calldataload
+  lt
+  iszero
+  stop

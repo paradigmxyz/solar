@@ -14,7 +14,8 @@
 //! Comparison inversion tracks a constant through up to 24 instructions that cannot observe
 //! or copy it. Adjusting that bound and flipping LT/GT or SLT/SGT removes ISZERO after branch
 //! layout chooses the taken edge. Operand computations stay in place; wrapping bounds,
-//! protected boundaries, custom stack effects, and larger materializations are rejected.
+//! protected boundaries, custom stack effects, and materializations that grow in size or stack
+//! peak are rejected.
 //! Literal unary expressions use the same evaluator as MIR and require a Pareto
 //! improvement under the target's immediate materialization costs. A known-false
 //! inline conditional jump then disappears with its two pushes. These rules
