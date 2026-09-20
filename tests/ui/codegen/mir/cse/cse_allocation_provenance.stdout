@@ -79,9 +79,8 @@
       v1 = memory_object_len memorybytes, arg0
       set_memory_object_len memorybytes, v0, 32
       memory_object_store_byte memorybytes, v0, 0, 7
--     v2 = memory_object_len memorybytes, arg0
--     v3 = add v1, v2
-+     v3 = add v1, v1
+      v2 = memory_object_len memorybytes, arg0
+      v3 = add v1, v2
       ret v3
   }
   

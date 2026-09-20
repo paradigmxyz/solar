@@ -48,11 +48,13 @@ full validation, including SSA and constant widths. Builders emit conversion
 instructions; parsing and validation never repair mismatched types.
 
 Solidity booleans and addresses whose raw bits can be observed by assembly travel as words
-across source-function calls and source-variable joins, including loop phis.
+across source-function calls, source-variable joins, and immutable storage.
+This includes loop phis.
 Mixed narrow-integer/`i256` joins widen the narrow input without normalizing the word.
 Logical operations convert those words to
 canonical booleans. This keeps the MIR invariant without changing the bits
-that source assembly can observe.
+that source assembly can observe. Immutable encodings may shrink only when
+every assignment proves that all stored bits fit the shorter encoding.
 
 ## Phase model
 

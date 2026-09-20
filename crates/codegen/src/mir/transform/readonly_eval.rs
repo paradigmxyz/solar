@@ -9,7 +9,8 @@
 //! A bounded interpreter follows concrete control flow through direct calls,
 //! scalar EVM operations, phis, and reads of those words. It rejects every
 //! executed write, unknown read, environment observation, or unsupported operation.
-//! Pointer values remain symbolic and cannot escape as constant return values.
+//! Lossless pointer casts retain symbolic addresses, which cannot escape as
+//! constant return values; narrowing pointer casts reject evaluation.
 //! Memory, storage, and calldata reference returns are excluded even for concrete
 //! addresses: exposing immediates can disrupt pointer induction and loop scheduling.
 //! A shared per-caller fuel budget and nesting limit bound recursive and looping
@@ -215,6 +216,9 @@ fn scalar(
     memory: &Memory,
 ) -> Option<Datum> {
     match *kind {
+        InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) | InstKind::Bitcast(value) => {
+            return get(value);
+        }
         InstKind::MLoad(address) => {
             let Datum::Pointer(address) = get(address)? else { return None };
             return memory.get(&address).copied().map(Datum::Word);

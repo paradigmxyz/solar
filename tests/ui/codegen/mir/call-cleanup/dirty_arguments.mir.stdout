@@ -1,5 +1,55 @@
 // === ROOT/tests/ui/codegen/mir/call-cleanup/dirty_arguments.sol:DirtyArguments ===
 @module DirtyArguments
+fn @normalizedReturn(arg0: i256) -> i256 [selector=0xaca23352, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @rawReturn, arg0
+    ret v0
+}
+
+fn @compareRawReturn(arg0: i256, arg1: i256) -> i256 [selector=0x6585d271, pure, abi_params=[u256, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @rawReturn, arg0
+    v1 = eq v0, 0
+    v2 = eq v1, false
+    v3 = eq arg1, 0
+    v4 = eq v3, false
+    v5 = eq v2, v4
+    v6 = zext i1 v5 to i256
+    ret v6
+}
+
+fn @rawReturn(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @compareReturns(arg0: i256, arg1: i256) -> i256 [selector=0xf3b43d04, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @canonicalReturn, arg0
+    v1 = eq v0, 0
+    v2 = eq v1, false
+    v3 = icall @canonicalReturn, arg1
+    v4 = eq v3, 0
+    v5 = eq v4, false
+    v6 = eq v2, v5
+    v7 = zext i1 v6 to i256
+    ret v7
+}
+
+fn @canonicalReturn(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v2 = zext i1 0 to i256
+    ret v2
+  bb1:
+    v1 = zext i1 1 to i256
+    ret v1
+}
+
 fn @selectedClean(arg0: i256) -> i256 [selector=0x4d264e8d, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @selected, arg0
@@ -22,6 +72,38 @@ fn @selected(arg0: i256) -> i256 [pure] {
     jump bb3
   bb3:
     v1 = phi [bb1: 19], [bb2: 7]
+    ret v1
+}
+
+fn @cleanIsZero(arg0: i256) -> i256 [selector=0xcb37dd49, pure, abi_params=[address], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = trunc i256 0 to i160
+    v2 = eq v0, v1
+    v3 = zext i1 v2 to i256
+    ret v3
+}
+
+fn @dirtyIsZero(arg0: i256) -> i256 [selector=0x9f3c1122, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = trunc i256 0 to i160
+    v2 = eq v0, v1
+    v3 = zext i1 v2 to i256
+    ret v3
+}
+
+fn @cleanCast(arg0: i256) -> i256 [selector=0x12a6bf89, pure, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    ret v1
+}
+
+fn @dirtyCast(arg0: i256) -> i256 [selector=0x9a5c5594, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
     ret v1
 }
 

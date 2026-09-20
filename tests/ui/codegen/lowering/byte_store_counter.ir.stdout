@@ -206,19 +206,13 @@ bb54:
   swap 2
   dup 3
   mstore
-  dup 3
-  mload
-  swap 3
   push 32
+  dup 4
   add
   push 32
   dup 4
   add
   push 0
-  swap 3
-  swap 4
-  swap 5
-  swap 3
   jump bb58
 bb60 [loop]:
   dup 1
@@ -238,7 +232,7 @@ bb60 [loop]:
   dup 3
   dup 1
   add
-  dup 9
+  dup 8
   mload
   dup 2
   lt
@@ -259,7 +253,7 @@ bb60 [loop]:
   swap 1
   push 1
   add
-  dup 8
+  dup 7
   mload
   gt
   iszero
@@ -277,7 +271,8 @@ bb60 [loop]:
   swap 1
   jump bb58
 bb58 [loop]:
-  dup 4
+  dup 6
+  mload
   dup 2
   lt
   push bb60
@@ -285,8 +280,8 @@ bb58 [loop]:
   pop
   pop
   pop
+  swap 2
   pop
-  swap 1
   pop
   swap 1
   jump
@@ -419,8 +414,6 @@ bb89:
   swap 1
   jump
 bb23 [continuation]:
-  iszero
-  iszero
   push 128
   mstore
   push 32
@@ -455,11 +448,7 @@ bb29 [continuation]:
 bb30 [continuation]:
   swap 1
   pop
-  iszero
-  iszero
   swap 1
-  iszero
-  iszero
   push 128
   mstore
   push 160

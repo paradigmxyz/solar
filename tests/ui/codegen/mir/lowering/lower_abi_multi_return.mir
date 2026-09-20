@@ -23,8 +23,8 @@ fn @pair(arg0: i256) -> struct0 [return_abi=[i256, i256], selector=0x1f6a26ff, a
 // CHECK-LABEL: {{^[ +].*}}fn @owner{{[( ]}}
 // CHECK: [[OWNER:v[0-9]+]] = loadimmutable owner
 // CHECK: [[WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[OWNER]]
-// CHECK: + [[CLEAN:v[0-9]+]] = and [[WORD]], 0xffffffffffffffffffffffffffffffffffffffff
-// CHECK: + mstore 128, [[CLEAN]]
+// CHECK-NOT: {{^[ +].*}}= and
+// CHECK: + mstore 128, [[WORD]]
 fn @owner() -> i256 [selector=0x8da5cb5b, abi_returns=[word], abi_return_params=[address]] {
   bb0:
     v0 = loadimmutable owner

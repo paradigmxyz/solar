@@ -105,3 +105,173 @@
 +     revert 0, 0
   }
   
+- fn @read_address(arg0: memoryfixedarray, arg1: i256) -> i256 [selector=0x12345680, abi_params=[array<3, u256>, address], abi_returns=[word]] {
++ fn @read_address() [selector=0x12345680, abi_wrapper] {
+    bb0:
+-     v0 = trunc i256 arg1 to i160
+-     v1 = zext i160 v0 to i256
+-     ret v1
++     v2 = calldatasize
++     v3 = lt v2, 132
++     jumpi v3, bb2, bb3
++   bb3:
++     v4 = calldataload 100
++     v5 = shr 160, v4
++     v6 = eq v5, 0
++     jumpi v6, bb4, bb2
++   bb4:
++     jump bb1
++   bb1:
++     v0 = trunc i256 arg3 to i160
++     mstore 128, arg3
++     v7 = add 128, 32
++     v8 = sub v7, 128
++     returndata 128, v8
++   bb2:
++     revert 0, 0
+  }
+  
+- fn @address_is_zero(arg0: i256) -> i1 [selector=0x12345681, abi_params=[address], abi_returns=[word]] {
++ fn @address_is_zero() [selector=0x12345681, abi_wrapper] {
+    bb0:
++     v2 = calldatasize
++     v3 = lt v2, 36
++     jumpi v3, bb2, bb3
++   bb3:
++     v4 = calldataload 4
++     v5 = shr 160, v4
++     v6 = eq v5, 0
++     jumpi v6, bb4, bb2
++   bb4:
++     jump bb1
++   bb1:
+      v0 = trunc i256 arg0 to i160
+-     v1 = eq v0, i160 0
+-     ret v1
++     v1 = eq arg0, 0
++     v7 = eq v1, false
++     v9 = zext i1 v1 to i256
++     mstore 128, v9
++     v10 = add 128, 32
++     v11 = sub v10, 128
++     returndata 128, v11
++   bb2:
++     revert 0, 0
+  }
+  
+- fn @dirty_address(arg0: i256) -> i256 [selector=0x12345682, abi_params=[u256], abi_returns=[word]] {
++ fn @dirty_address() [selector=0x12345682, abi_wrapper] {
+    bb0:
++     v2 = calldatasize
++     v3 = lt v2, 36
++     jumpi v3, bb2, bb3
++   bb3:
++     jump bb1
++   bb1:
+      v0 = trunc i256 arg0 to i160
+      v1 = zext i160 v0 to i256
+-     ret v1
++     mstore 128, v1
++     v4 = add 128, 32
++     v5 = sub v4, 128
++     returndata 128, v5
++   bb2:
++     revert 0, 0
+  }
+  
+- fn @validated_forward(arg0: i256) -> i256 [selector=0x12345683, abi_params=[address], abi_returns=[word]] {
++ fn @validated_forward() [selector=0x12345683, abi_wrapper] {
+    bb0:
++     v1 = calldatasize
++     v2 = lt v1, 36
++     jumpi v2, bb2, bb3
++   bb3:
++     v3 = calldataload 4
++     v4 = shr 160, v3
++     v5 = eq v4, 0
++     jumpi v5, bb4, bb2
++   bb4:
++     jump bb1
++   bb1:
+      v0 = icall @validated_leaf, arg0
+-     ret v0
++     mstore 128, v0
++     v6 = add 128, 32
++     v7 = sub v6, 128
++     returndata 128, v7
++   bb2:
++     revert 0, 0
+  }
+  
+  fn @validated_leaf(arg0: i256) -> i256 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+-     v1 = zext i160 v0 to i256
+-     ret v1
++     ret arg0
+  }
+  
+- fn @validated_mixed(arg0: i256) -> i256 [selector=0x12345684, abi_params=[address], abi_returns=[word]] {
++ fn @validated_mixed() [selector=0x12345684, abi_wrapper] {
+    bb0:
++     v1 = calldatasize
++     v2 = lt v1, 36
++     jumpi v2, bb2, bb3
++   bb3:
++     v3 = calldataload 4
++     v4 = shr 160, v3
++     v5 = eq v4, 0
++     jumpi v5, bb4, bb2
++   bb4:
++     jump bb1
++   bb1:
+      v0 = icall @mixed_leaf, arg0
+-     ret v0
++     mstore 128, v0
++     v6 = add 128, 32
++     v7 = sub v6, 128
++     returndata 128, v7
++   bb2:
++     revert 0, 0
+  }
+  
+- fn @unvalidated_mixed(arg0: i256) -> i256 [selector=0x12345685, abi_params=[u256], abi_returns=[word]] {
++ fn @unvalidated_mixed() [selector=0x12345685, abi_wrapper] {
+    bb0:
++     v1 = calldatasize
++     v2 = lt v1, 36
++     jumpi v2, bb2, bb3
++   bb3:
++     jump bb1
++   bb1:
+      v0 = icall @mixed_leaf, arg0
+-     ret v0
++     mstore 128, v0
++     v3 = add 128, 32
++     v4 = sub v3, 128
++     returndata 128, v4
++   bb2:
++     revert 0, 0
+  }
+  
+  fn @mixed_leaf(arg0: i256) -> i256 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+      v1 = zext i160 v0 to i256
+      ret v1
++ }
++ 
++ fn @decode_calldata_type(arg0: i256) -> memoryfixedarray {
++   bb0:
++     v0 = calldatasize
++     v1 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
++     v2 = make_calldata_slice arg0, 96
++     memory_object_copy_from_slice memoryfixedarray, v1, v2
++     v3 = eq 1, 0
++     jumpi v3, bb1, bb2
++   bb2:
++     ret v1
++   bb1:
++     revert 0, 0
+  }
+  

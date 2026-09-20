@@ -78,8 +78,11 @@
 //! and left-aligned encodings remain unknown. The bounds are immutable facts and
 //! are available to both the forward analysis and the dominator walk.
 //! The separate `immutable-check-elim` adapter runs after ABI getter inlining,
-//! selecting only runtime functions that load bounded immutables. This exposes
-//! facts hidden behind getter calls during the ordinary earlier check passes.
+//! selecting only runtime functions that load bounded immutables. Before using those
+//! bounds, it narrows unsigned immutable encodings when every assignment fits, using
+//! the shared value-width and caller-argument proofs. Missing assignments and unknown
+//! words keep their declared width; unsigned layouts retain their i256 SSA carrier.
+//! This exposes facts hidden behind getter calls during the ordinary earlier check passes.
 
 //! The `late-check-elim` adapter revisits conditions unified by CSE after memory
 //! lowering. Gas mode only removes redundant failure edges from blocks on a CFG
@@ -92,11 +95,11 @@
 //! Run it after the post-memory CSE. Only functions with removed checks receive
 //! CFG cleanup, avoiding unrelated late block merges in other functions.
 
-use super::cfg_simplify::simplify_function;
+use super::{call_cleanup, cfg_simplify::simplify_function, egraph::max_bits_with_args};
 use crate::{
     mir::{
         BlockId, Builtin, Callee, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
-        InstKind, Module, Terminator, Value, ValueId,
+        InstKind, Module, Terminator, TypeSize, Value, ValueId, ValueLayout,
         analysis::{CallGraphInfo, CfgInfo},
         immutable::immutable_push_type_size,
         pass::{
@@ -206,6 +209,7 @@ impl MirPass for ImmutableCheckElim {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let narrowed = narrow_immutable_layouts(module);
         let bounds = module
             .iter_immutables()
             .filter_map(|(id, immutable)| {
@@ -224,7 +228,7 @@ impl MirPass for ImmutableCheckElim {
             })
             .collect::<FxHashMap<_, _>>();
         if bounds.is_empty() {
-            return false;
+            return narrowed;
         }
         let mut runtime_only = runtime_only_functions(module);
         for id in runtime_only.iter().collect::<Vec<_>>() {
@@ -239,8 +243,41 @@ impl MirPass for ImmutableCheckElim {
             let mut eliminator = CheckEliminator::new(Some(&bounds));
             eliminator.cfg = Some(Rc::clone(analyses.cfg()));
             eliminator.run(func) != 0
-        })
+        }) || narrowed
     }
+}
+
+/// Shrinks unsigned encodings only when every assignment preserves all stored bits.
+fn narrow_immutable_layouts(module: &mut Module) -> bool {
+    if module.immutable_count() == 0 {
+        return false;
+    }
+    let arguments = call_cleanup::infer_arguments(module);
+    let mut widths = FxHashMap::<_, u32>::default();
+    for (id, func) in module.functions.iter_enumerated() {
+        for inst in func.instructions() {
+            if let InstKind::StoreImmutable(immutable, value) = func.inst(inst).kind {
+                let bits = max_bits_with_args(func, value, 8, &|index| {
+                    call_cleanup::argument_bits(func, id, index, &arguments)
+                });
+                widths
+                    .entry(immutable)
+                    .and_modify(|width| *width = (*width).max(bits))
+                    .or_insert(bits);
+            }
+        }
+    }
+    let mut changed = false;
+    for (id, bits) in widths {
+        let bits = bits.max(1).div_ceil(8) * 8;
+        if let ValueLayout::UInt(size) = module.immutable(id).ty
+            && bits < u32::from(size.bits())
+        {
+            module.immutable_mut(id).ty = ValueLayout::UInt(TypeSize::new_int_bits(bits as u16));
+            changed = true;
+        }
+    }
+    changed
 }
 
 /// Excludes every constructor-reachable helper, including recursive and tail-call edges.

@@ -1,18 +1,16 @@
 // === ROOT/tests/ui/codegen/lowering/immutable_getter.sol:C ===
 @module C
 immutables:
-  owner: address
+  owner: u256
 
 fn @owner() -> i256 [selector=0x8da5cb5b, view, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = loadimmutable owner
-    v1 = zext i160 v0 to i256
-    ret v1
+    ret v0
 }
 
 fn @constructor(arg0: i256) [constructor, abi_params=[address]] {
   bb0:
-    v0 = trunc i256 arg0 to i160
-    storeimmutable owner, v0
+    storeimmutable owner, arg0
     ret
 }

@@ -428,11 +428,6 @@ bb5:
   push 4
   calldataload
   push 0
-  not
-  push 96
-  shr
-  and
-  push 0
   mstore
   push 0
   push 32
@@ -616,33 +611,27 @@ bb9:
   add
   push 64
   mstore
-  push 100
-  calldataload
-  push 0
-  not
-  push 96
-  shr
-  and
   push 4
   calldataload
-  dup 3
+  dup 2
   mstore
   push 32
+  dup 2
+  add
+  swap 2
   dup 3
+  mstore
+  push 64
+  dup 2
   add
   swap 3
   dup 4
   mstore
-  push 64
-  dup 3
-  add
-  swap 4
-  dup 5
-  mstore
   push 96
-  dup 3
+  dup 2
   add
-  swap 1
+  push 100
+  calldataload
   dup 2
   mstore
   push 64

@@ -45,12 +45,10 @@ bb7:
   lt
   push bb6
   jumpi
-  push 36
-  calldataload
-  iszero
-  iszero
   push 3
   not
+  push 36
+  calldataload
   mul
   push 11
   add

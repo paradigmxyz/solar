@@ -5,6 +5,16 @@
     small: u64
     signed: i64
     wide: u256
+-   clean_address: u256
+-   dirty_address: u256
+-   repeated: u256
++   clean_address: u160
++   dirty_address: u168
++   repeated: u24
+    unknown: u256
+    unwritten: u256
+-   called: u256
++   called: u16
   
   fn @runtime() -> i256 [selector=0x00000001] {
     bb0:
@@ -88,5 +98,25 @@
       ret v1
     bb1:
       revert 0, 0
+  }
+  
+  fn @assign_widths(arg0: i256) [constructor] {
+    bb0:
+      v0 = address
+      v1 = zext i160 v0 to i256
+      storeimmutable clean_address, v1
+      storeimmutable dirty_address, 0x10000000000000000000000000000000000000007
+      storeimmutable repeated, 1
+      storeimmutable repeated, 0x10000
+      storeimmutable unknown, arg0
+      icall @assign_called, 7
+      icall @assign_called, 0xffff
+      ret
+  }
+  
+  fn @assign_called(arg0: i256) {
+    bb0:
+      storeimmutable called, arg0
+      ret
   }
   

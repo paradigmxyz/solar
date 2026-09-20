@@ -11,6 +11,9 @@ fn @constructor(arg0: i256) [constructor, abi_params=[bool]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_creation.sol:TryCreation ===
 @module TryCreation
+data:
+  TryCreationChild_initcode_0: hex"6101373803806101376101003961010001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016604052607d565b7f08c379a0000000000000000000000000000000000000000000000000000000005f52602060045260a0516040015160245260a0516060015160445260645ffd5b341515610125576101008060c0528060c0526101006101373803016020820111610121578060c0525160029010156101215761010051158060e052155060e05161011c5760405160a0518160200152600181604001527f780000000000000000000000000000000000000000000000000000000000000081606001528060a05260800160405261010a603c565b60a05160405260a0516020015160a052fe5b610129565b5f5ffd5b5f5ffd5b6003806101345f395ff35f5ffd"
+
 fn @f(arg0: i256) -> i256 [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg0, 0
@@ -18,60 +21,33 @@ fn @f(arg0: i256) -> i256 [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[
     v2 = zext i1 v1 to i256
     v3 = abi_encode [word<bool>], args v2
     v4 = not 31
-    v5 = and 361, v4
+    v5 = and 374, v4
     v6 = alloc raw, exact, uninitialized, infallible, v5
     v7 = ptrtoint memptr v6 to i256
-    mstore v7, 0x61012a38038061012a60e03960e001601f017fffffffffffffffffffffffffff
-    v8 = ptrtoint memptr v6 to i256
-    v9 = add v8, 32
-    mstore v9, 0xffffffffffffffffffffffffffffffffffffe016604052607b565b7f08c379a0
-    v10 = ptrtoint memptr v6 to i256
-    v11 = add v10, 64
-    mstore v11, 0x5f526020
-    v12 = ptrtoint memptr v6 to i256
-    v13 = add v12, 96
-    mstore v13, 0x60045260a0516040015160245260a0516060015160445260645ffd5b34151561
-    v14 = ptrtoint memptr v6 to i256
-    v15 = add v14, 128
-    mstore v15, 0x1185760e08060c0528060c05260e061012a3803016020820111610114578060
-    v16 = ptrtoint memptr v6 to i256
-    v17 = add v16, 160
-    mstore v17, 0xc0525160029010156101145760e05115151561010f5760405160a05181602001
-    v18 = ptrtoint memptr v6 to i256
-    v19 = add v18, 192
-    mstore v19, 0x52600181604001527f7800000000000000000000000000000000000000000000
-    v20 = ptrtoint memptr v6 to i256
-    v21 = add v20, 224
-    mstore v21, 0x81606001528060a05260800160405260fd603a565b60a0
-    v22 = ptrtoint memptr v6 to i256
-    v23 = add v22, 256
-    mstore v23, 0x5160405260a0516020015160a052fe5b61011c565b5f5ffd5b5f5ffd5b600380
-    v24 = ptrtoint memptr v6 to i256
-    v25 = add v24, 288
-    mstore v25, 0x6101275f395ff35f5ffd00000000000000000000000000000000000000000000
-    v26 = slice_ptr v3
-    v27 = ptrtoint memptr v6 to i256
-    v28 = add v27, 298
-    mcopy v28, v26, 32 !metadata(memory=heap)
-    v29 = ptrtoint memptr v6 to i256
-    v30 = create 0, v29, 330
-    v31 = zext i160 v30 to i256
-    v32 = eq v31, 0
-    v33 = eq v32, false
-    jumpi v33, bb1, bb2
+    data_copy TryCreationChild_initcode_0, v7, 311
+    v8 = slice_ptr v3
+    v9 = ptrtoint memptr v6 to i256
+    v10 = add v9, 311
+    mcopy v10, v8, 32 !metadata(memory=heap)
+    v11 = ptrtoint memptr v6 to i256
+    v12 = create 0, v11, 343
+    v13 = zext i160 v12 to i256
+    v14 = eq v13, 0
+    v15 = eq v14, false
+    jumpi v15, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
     icall revert_if<empty>, true
     invalid
   bb4:
-    v37 = zext i1 0 to i256
-    ret v37
+    v19 = zext i1 0 to i256
+    ret v19
   bb1:
-    v34 = trunc i256 0 to i160
-    v35 = ne v30, v34
-    v36 = zext i1 v35 to i256
-    ret v36
+    v16 = trunc i256 0 to i160
+    v17 = ne v12, v16
+    v18 = zext i1 v17 to i256
+    ret v18
   bb3:
     ret 0
 }

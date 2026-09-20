@@ -137,9 +137,7 @@ fn @vWidened() [selector=0x3d71ddd7, abi_wrapper, pure] {
   bb4:
     jump bb1
   bb1:
-    v0 = and arg0, 255
-    v6 = and v0, 0xffff
-    mstore 128, v6
+    mstore 128, arg0
     v7 = add 128, 32
     v8 = sub v7, 128
     returndata 128, v8
@@ -165,10 +163,9 @@ fn @vMulti() [selector=0x403ecab4, abi_wrapper, pure] {
   bb5:
     jump bb1
   bb1:
-    v0 = and arg0, 0xffffffff
     v1 = signextend 0, arg1
     v2 = and v1, 255
-    v3 = checked_add u256, v0, v2
+    v3 = checked_add u256, arg0, v2
     mstore 128, v3
     v12 = add 128, 32
     v13 = sub v12, 128

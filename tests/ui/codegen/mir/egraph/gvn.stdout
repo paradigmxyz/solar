@@ -76,9 +76,16 @@
       invalid
     bb1:
 -     v3 = mapping_slot_memory arg0, 0
--     v4 = add v0, v3
-+     v4 = add v0, v0
-      ret v4
+      v4 = caller
+      v5 = zext i160 v4 to i256
+      v6 = trunc i256 v1 to i8
+      v7 = sext i8 v6 to i256
+      v8 = or v5, v7
+-     sstore v3, v8
+-     v9 = add v0, v3
++     sstore v0, v8
++     v9 = add v0, v0
+      ret v9
   }
   
   fn @mapping_internal_target(arg0: memorybytes) -> i256 [selector=0x10000002, abi_params=[bytes], abi_returns=[word]] {
@@ -150,5 +157,15 @@
       v1 = mapping_slot_memory arg0, 0
       icall require<custom_error [memory_bytes]>, false, 0, arg0
       invalid
+  }
+  
+  fn @mapping_pointer_cast(arg0: memorybytes) -> i256 [selector=0x10000010, abi_params=[bytes], abi_returns=[word]] {
+    bb0:
+      v0 = mapping_slot_memory arg0, 0
+      v1 = ptrtoint memorybytes arg0 to i256
+      sstore 0, v1
+      v2 = mapping_slot_memory arg0, 0
+      v3 = add v0, v2
+      ret v3
   }
   

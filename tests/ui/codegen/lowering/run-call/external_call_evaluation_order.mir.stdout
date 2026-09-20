@@ -14,7 +14,7 @@ data:
   MutatingBase_initcode_0: hex"34600d5760698060115f395ff35b5f5ffd341515601c575f3560e01c80637795b5fc14601857601c565b6020565b5f5ffd5b5f54600181018060a0528060a05281811091505060575760a0518060a0525f5560a0518060a0526080526020608001608090036080f35b634e487b715f5260116020526024601cfd"
 
 immutables:
-  target: address
+  target: u256
 
 fn @receiver() -> i256 {
   bb0:
@@ -166,20 +166,19 @@ fn @staticReceiverMutability() -> i256 [selector=0xde2015ae, abi_params=[], abi_
     v2 = abi_encode [], selector 0x7795b5fc00000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = zext i160 v0 to i256
-    v6 = call v1, v5, 0, v3, v4, 0, 32
-    jumpi v6, bb2, bb1
+    v5 = call v1, v0, 0, v3, v4, 0, 32
+    jumpi v5, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = returndatasize
-    v8 = lt v7, 32
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    v11 = add 0, 0
-    v12 = mload v11
-    ret v12
+    v6 = returndatasize
+    v7 = lt v6, 32
+    icall revert_if<tuple_data_too_short>, v7
+    v8 = add 0, 0
+    v9 = mload v8
+    v10 = add 0, 0
+    v11 = mload v10
+    ret v11
 }
 
 fn @constructor() [constructor] {
@@ -202,6 +201,7 @@ fn @constructor() [constructor] {
   bb1:
     revert_returndata
   bb2:
-    storeimmutable target, v9
+    v12 = zext i160 v9 to i256
+    storeimmutable target, v12
     ret
 }

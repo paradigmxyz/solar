@@ -169,3 +169,126 @@ fn @clobber() {
     sstore 0, 1
     stop
 }
+
+fn @cast_caller() -> i1 {
+  bb0:
+    v0 = caller
+    v1 = zext i160 v0 to i256
+    v2 = icall @clean_cast, v1
+    ret v2
+}
+
+// A proved-clean argument retains its original word identity after a cast pair.
+// CHECK-LABEL: fn @clean_cast
+// CHECK: [[NARROW:v[0-9]+]] = trunc i256 arg0 to i160
+// CHECK-NOT: {{^[ +].*}}= zext
+// CHECK: [[TEST:v[0-9]+]] = eq arg0, 0
+// CHECK: mstore 0, arg0
+// CHECK: ret [[TEST]]
+fn @clean_cast(arg0: i256) -> i1 {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    v2 = eq v0, i160 0
+    mstore 0, v1
+    ret v2
+}
+
+// An unconstrained word still needs the narrowing mask.
+// CHECK-LABEL: fn @dirty_cast
+// CHECK: [[NARROW:v[0-9]+]] = trunc i256 arg0 to i160
+// CHECK: [[WORD:v[0-9]+]] = zext i160 [[NARROW]] to i256
+// CHECK: ret [[WORD]]
+fn @dirty_cast(arg0: i256) -> i256 {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    ret v1
+}
+
+fn @wider_caller() -> i256 {
+  bb0:
+    v0 = icall @wider_cast, i160 1
+    ret v0
+}
+
+// A roundtrip whose result has a wider type cannot merge with its input.
+// CHECK-LABEL: fn @wider_cast
+// CHECK: = trunc i160 arg0 to i1
+// CHECK: = zext i1
+fn @wider_cast(arg0: i160) -> i256 {
+  bb0:
+    v0 = trunc i160 arg0 to i1
+    v1 = zext i1 v0 to i256
+    ret v1
+}
+
+fn @cast_across_caller() -> i256 {
+  bb0:
+    v0 = icall @cast_across_call, 1
+    ret v0
+}
+
+// Keep the existing profitability guard for a cast result live across a call.
+// CHECK-LABEL: fn @cast_across_call
+// CHECK: [[NARROW:v[0-9]+]] = trunc i256 arg0 to i160
+// CHECK: [[WORD:v[0-9]+]] = zext i160 [[NARROW]] to i256
+// CHECK: icall @clobber
+// CHECK: ret [[WORD]]
+fn @cast_across_call(arg0: i256) -> i256 {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    icall @clobber
+    ret v1
+}
+
+fn @zero_caller() -> i1 {
+  bb0:
+    v0 = icall @clean_zero_tests, 7
+    ret v0
+}
+
+// CHECK-LABEL: fn @clean_zero_tests
+// CHECK: = eq arg0, 0
+// CHECK: = ne arg0, 0
+fn @clean_zero_tests(arg0: i256) -> i1 {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = eq v0, i160 0
+    v2 = ne i160 0, v0
+    v3 = select v1, v1, v2
+    ret v3
+}
+
+// CHECK-LABEL: fn @dirty_zero_tests
+// CHECK: [[NARROW:v[0-9]+]] = trunc i256 arg0 to i160
+// CHECK: = eq [[NARROW]], i160 0
+// CHECK: = ne i160 0, [[NARROW]]
+fn @dirty_zero_tests(arg0: i256) -> i1 {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = eq v0, i160 0
+    v2 = ne i160 0, v0
+    v3 = select v1, v1, v2
+    ret v3
+}
+
+fn @zero_across_caller() -> i1 {
+  bb0:
+    v0 = icall @zero_across_call, 1
+    ret v0
+}
+
+// Preserve the narrowed word identity when it lives across a call.
+// CHECK-LABEL: fn @zero_across_call
+// CHECK: [[NARROW:v[0-9]+]] = trunc i256 arg0 to i160
+// CHECK: icall @clobber
+// CHECK: = ne [[NARROW]], i160 0
+fn @zero_across_call(arg0: i256) -> i1 {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    icall @clobber
+    v1 = ne v0, i160 0
+    ret v1
+}

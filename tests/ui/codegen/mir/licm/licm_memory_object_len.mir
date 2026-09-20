@@ -89,13 +89,11 @@ fn @keep_len_under_unknown_store(arg0: memoryarray, arg1: i256) {
     stop
 }
 
-// The loop calls a helper that touches no memory and stores into a fresh
-// allocation, so the argument's length read is still invariant.
+// A store to a fresh allocation may overwrite a fabricated argument header.
 // CHECK-LABEL: @hoist_len_over_pure_call
-// CHECK: +     [[LEN:v[0-9]+]] = memory_object_len memorybytes, arg0
-// CHECK-NEXT: {{^ +}}jump [[HEADER:bb[0-9]+]]
-// CHECK: {{^ +}}[[HEADER]]:
-// CHECK: -     [[LEN]] = memory_object_len memorybytes, arg0
+// CHECK: {{^ +}}bb1:
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = phi
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = memory_object_len memorybytes, arg0
 fn @hoist_len_over_pure_call(arg0: memorybytes) -> memorybytes {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -118,5 +116,51 @@ fn @hoist_len_over_pure_call(arg0: memorybytes) -> memorybytes {
 fn @mask_low(arg0: i256) -> i256 {
   bb0:
     v0 = and arg0, 31
+    ret v0
+}
+
+// A zero-trip loop must not read an arbitrary nominal object's header.
+// CHECK-LABEL: @keep_unexecuted_header
+// CHECK: {{^ +}}bb2:
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = memory_object_len memorybytes, arg0
+fn @keep_unexecuted_header(arg0: memorybytes, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v3]
+    v1 = phi [bb0: 0], [bb2: v2]
+    v4 = lt v0, arg1
+    jumpi v4, bb2, bb3
+  bb2:
+    v2 = memory_object_len memorybytes, arg0
+    v3 = add v0, 1
+    jump bb1
+  bb3:
+    ret v1
+}
+
+// The helper observes memory before the guaranteed header read in each iteration.
+// CHECK-LABEL: @keep_header_after_size_call
+// CHECK: {{^ +}}bb1:
+// CHECK: {{^ +}}v1 = icall @observe_size
+// CHECK-NEXT: {{^ +}}v2 = memory_object_len memorybytes, arg0
+fn @keep_header_after_size_call(arg0: memorybytes, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb1: v4]
+    v1 = icall @observe_size
+    v2 = memory_object_len memorybytes, arg0
+    v3 = add v1, v2
+    v4 = add v0, 1
+    v5 = lt v4, arg1
+    jumpi v5, bb1, bb2
+  bb2:
+    ret v3
+}
+
+fn @observe_size() -> i256 {
+  bb0:
+    v0 = msize
     ret v0
 }

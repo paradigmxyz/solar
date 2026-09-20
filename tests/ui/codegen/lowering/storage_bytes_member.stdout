@@ -100,23 +100,16 @@ bb15:
   push 0
   push 32
   mstore
-  push 255
-  push 36
-  calldataload
-  and
   push 64
   push 0
   keccak256
   push 1
   add
-  push 255
-  push 4
-  calldataload
-  and
   push 0
   jump bb19
 bb19 [loop]:
-  dup 4
+  push 36
+  calldataload
   dup 2
   lt
   push bb21
@@ -124,11 +117,12 @@ bb19 [loop]:
   stop
 bb21 [loop]:
   dup 1
-  dup 3
+  push 4
+  calldataload
   add
   push 248
   shl
-  dup 4
+  dup 3
   sload
   push 1
   dup 2
@@ -153,12 +147,9 @@ bb21 [loop]:
   eq
   push bb75
   jumpi
-  push 1
+  dup 1
   push 64
-  shl
-  dup 2
-  lt
-  iszero
+  shr
   push bb72
   jumpi
   push 31
@@ -192,7 +183,7 @@ bb21 [loop]:
   swap 1
   shl
   or
-  dup 4
+  dup 3
   sstore
   jump bb30
 bb30 [loop]:
@@ -200,7 +191,7 @@ bb30 [loop]:
   add
   jump bb19
 bb28 [loop]:
-  dup 6
+  dup 5
   push 0
   mstore
   pop
@@ -220,16 +211,16 @@ bb28 [loop]:
   swap 1
   sstore
   push 65
-  dup 4
+  dup 3
   sstore
   jump bb30
 bb29 [loop]:
   swap 1
   push 2
   add
-  dup 6
-  sstore
   dup 5
+  sstore
+  dup 4
   push 0
   mstore
   dup 1

@@ -12,8 +12,6 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
     v7 = eq v6, 0
     jumpi v7, bb3, bb1
   bb3:
-    v0 = trunc i256 arg0 to i160
-    v1 = zext i160 v0 to i256
     v51 = mload 64 !metadata(memory=scratch)
     v53 = add v51, 128
     mstore 64, v53 !metadata(memory=scratch)
@@ -21,7 +19,7 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
     v49 = add v51, 32
     mstore v49, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
     v15 = add v51, 36
-    mstore v15, v1
+    mstore v15, arg0
     v16 = add v15, 32
     mstore v16, arg1
     v54 = mload 64 !metadata(memory=scratch)
@@ -67,8 +65,6 @@ fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
     jumpi v19, bb4, bb1
   bb4:
     v0 = gas
-    v1 = trunc i256 arg1 to i160
-    v2 = zext i160 v1 to i256
     v34 = mload 64 !metadata(memory=scratch)
     v36 = add v34, 128
     mstore 64, v36 !metadata(memory=scratch)
@@ -76,7 +72,7 @@ fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
     v33 = add v34, 32
     mstore v33, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
     v29 = add v34, 36
-    mstore v29, v2
+    mstore v29, arg1
     v30 = add v29, 32
     mstore v30, arg2
     v11 = call v0, arg0, 0, v33, 68, 0, 0

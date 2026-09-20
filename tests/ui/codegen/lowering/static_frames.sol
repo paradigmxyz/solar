@@ -21,11 +21,11 @@ contract SF {
     // CHECK: return
     // The allocating entry initializes its reachable frame floor.
     // CHECK: [[TOP]]:
-    // CHECK-NEXT: push 384
+    // CHECK-NEXT: push 352
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // Static locals use fixed addresses without a dynamic-frame header.
-    // CHECK: push 320
+    // CHECK: push 288
     // CHECK-NEXT: mstore
     // CHECK: push 224
     // CHECK-NEXT: mstore

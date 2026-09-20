@@ -229,6 +229,9 @@ fn has_fresh_mapping_arguments(func: &Function) -> bool {
                     && matches!(block.terminator, Some(Terminator::Invalid))
                     && block.instructions.last() == Some(&inst) => {}
                 InstKind::Phi(_)
+                | InstKind::Zext(_)
+                | InstKind::Sext(..)
+                | InstKind::Trunc(..)
                 | InstKind::Add(..)
                 | InstKind::Sub(..)
                 | InstKind::Mul(..)
@@ -1383,12 +1386,9 @@ impl Costs<'_> {
     /// Cost of computing `node` in place of the instruction that roots `class`.
     fn node(&mut self, class: &Class, node: &Op) -> Cost {
         let mut operands = operands_of(node);
-        if matches!(node, Op::Eq { .. } | Op::Ne { .. })
-            && let Some(index) =
-                operands.iter().position(|&value| self.func.value_u64(value) == Some(0))
-        {
-            // eq/ne x, 0 emits ISZERO without materializing the zero operand.
-            operands.remove(index);
+        if let Some(value) = Target::zero_test_input(node, |value| self.func.value_u256(value)) {
+            operands.clear();
+            operands.push(value);
         }
         let original =
             (node != &class.nodes.as_slice()[0]).then(|| operands_of(&class.nodes.as_slice()[0]));

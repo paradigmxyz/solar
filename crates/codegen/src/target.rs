@@ -479,14 +479,11 @@ impl Target {
         if matches!(op, Op::Zext { .. } | Op::IntToPtr { .. } | Op::Bitcast { .. }) {
             return Cost::ZERO;
         }
-        if let Op::Ne { a, b } = *op {
-            let comparison = if [a, b].into_iter().any(|value| immediate(value) == Some(U256::ZERO))
-            {
-                op::ISZERO
-            } else {
-                op::EQ
-            };
-            return self.opcode(comparison) + self.opcode(op::ISZERO);
+        if matches!(op, Op::Eq { .. } | Op::Ne { .. }) {
+            let comparison =
+                if Self::zero_test_input(op, &immediate).is_some() { op::ISZERO } else { op::EQ };
+            return self.opcode(comparison)
+                + if matches!(op, Op::Ne { .. }) { self.opcode(op::ISZERO) } else { Cost::ZERO };
         }
         let Some(lowering) = select::opcode_lowering(op) else {
             return Cost::new(GasTier::VeryLow.gas(self.evm_version), 1);
@@ -505,6 +502,21 @@ impl Target {
         });
         let dynamic = dynamic_gas.saturating_mul(tier.dynamic_units(&arguments));
         Cost::new(static_gas.saturating_add(dynamic), 1)
+    }
+
+    /// Returns the sole materialized operand of an equality or inequality with zero.
+    pub(crate) fn zero_test_input(
+        op: &Op,
+        immediate: impl Fn(ValueId) -> Option<U256>,
+    ) -> Option<ValueId> {
+        let (Op::Eq { a, b } | Op::Ne { a, b }) = *op else { return None };
+        if immediate(a) == Some(U256::ZERO) {
+            Some(b)
+        } else if immediate(b) == Some(U256::ZERO) {
+            Some(a)
+        } else {
+            None
+        }
     }
 
     /// Cost of the generic Select emitter, excluding initial operand placement.

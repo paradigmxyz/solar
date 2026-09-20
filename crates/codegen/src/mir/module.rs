@@ -381,6 +381,11 @@ impl Module {
         &self.immutables[id]
     }
 
+    /// Returns a mutable immutable declaration.
+    pub(crate) fn immutable_mut(&mut self, id: ImmutableId) -> &mut Immutable {
+        &mut self.immutables[id]
+    }
+
     /// Returns an immutable declaration if the identifier is allocated.
     #[must_use]
     pub(crate) fn get_immutable(&self, id: ImmutableId) -> Option<&Immutable> {

@@ -199,3 +199,55 @@
       ret v0
   }
   
+  fn @empty_bytes() -> i256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 0
+-     v2 = icall @is_empty_bytes, v0
+-     ret v2
++     ret 1
+  }
+  
+  fn @is_empty_bytes(arg0: memptr) -> i256 {
+    bb0:
+      v0 = bitcast memptr arg0 to memorybytes
+      v1 = ptrtoint memorybytes v0 to i256
+      v2 = inttoptr i256 v1 to memptr
+      v3 = ptrtoint memptr v2 to i256
+      v4 = mload v3
+      v5 = eq v4, 0
+      v6 = zext i1 v5 to i256
+      ret v6
+  }
+  
+  fn @narrow_pointer_caller() -> i256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 42
+      v2 = icall @narrow_pointer, v0
+      ret v2
+  }
+  
+  fn @narrow_pointer(arg0: memptr) -> i256 {
+    bb0:
+      v0 = ptrtoint memptr arg0 to i160
+      v1 = zext i160 v0 to i256
+      v2 = mload v1
+      ret v2
+  }
+  
+  fn @pointer_return_caller() -> i256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = icall @pointer_return, v0
+      ret v1
+  }
+  
+  fn @pointer_return(arg0: memptr) -> i256 {
+    bb0:
+      v0 = ptrtoint memptr arg0 to i256
+      ret v0
+  }
+  

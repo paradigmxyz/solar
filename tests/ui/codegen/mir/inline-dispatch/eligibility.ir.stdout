@@ -226,8 +226,7 @@ fn @a() [selector=0x2a500b7f, abi_wrapper, pure] {
   bb1:
     revert 0, 0
   bb2:
-    v0 = and arg0, 255
-    mstore 128, v0
+    mstore 128, arg0
     returndata 128, 32
 }
 

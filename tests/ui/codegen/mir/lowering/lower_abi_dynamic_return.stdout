@@ -1,3 +1,848 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (before element-cleanup) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (after element-cleanup) ===
+  @module LowerAbiDynamicReturn
+  fn @givesBytes(arg0: memorybytes) -> memorybytes [selector=0x0dead001, abi_returns=[memory_bytes]] {
+    bb0:
+      ret arg0
+  }
+  
+  fn @canonicalAddresses() -> memoryarray {
+    bb0:
+      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 96
+      v1 = add 2, 0
+      set_memory_object_len memoryarray, v0, v1
+      jump bb1
+    bb1:
+      v2 = phi [bb0: 0], [bb2: v5]
+      v3 = lt v2, v1
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
+      memory_object_store_element memoryarray<1>, v0, v2, v4
+      v5 = add v2, 1
+      jump bb1
+  }
+  
+  fn @givesAddresses() -> memoryarray [selector=0x0dead002, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+    bb0:
+      v0 = icall @canonicalAddresses
+      ret v0
+  }
+  
+  fn @givesAddressesAgain() -> memoryarray [selector=0x0dead003, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+    bb0:
+      v0 = icall @canonicalAddresses
+      ret v0
+  }
+  
+  fn @canonicalAddressArrays() -> memoryarray {
+    bb0:
+      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v1 = add 1, 0
+      set_memory_object_len memoryarray, v0, v1
+      jump bb1
+    bb1:
+      v2 = phi [bb0: 0], [bb2: v9]
+      v3 = lt v2, v1
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v4 = icall @canonicalAddresses
+      v5 = bitcast memoryarray v4 to memptr
+      v6 = ptrtoint memptr v5 to i256
+      v7 = inttoptr i256 v6 to memoryarray
+      v8 = ptrtoint memoryarray v7 to i256
+      memory_object_store_element memoryarray<1>, v0, v2, v8
+      v9 = add v2, 1
+      jump bb1
+  }
+  
+  fn @givesAddressArrays() -> memoryarray [selector=0x0dead005, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+    bb0:
+      v0 = icall @canonicalAddressArrays
+      ret v0
+  }
+  
+  fn @givesAddressArraysAgain() -> memoryarray [selector=0x0dead006, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+    bb0:
+      v0 = icall @canonicalAddressArrays
+      ret v0
+  }
+  
+  fn @dirtyAddressArrays() -> memoryarray {
+    bb0:
+      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v1 = add 1, 0
+      set_memory_object_len memoryarray, v0, v1
+      jump bb1
+    bb1:
+      v2 = phi [bb0: 0], [bb2: v6]
+      v3 = lt v2, v1
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v4 = icall @canonicalAddresses
+      memory_object_store_element memoryarray<1>, v4, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      v5 = ptrtoint memoryarray v4 to i256
+      memory_object_store_element memoryarray<1>, v0, v2, v5
+      v6 = add v2, 1
+      jump bb1
+  }
+  
+  fn @givesDirtyAddressArrays() -> memoryarray [selector=0x0dead007, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+    bb0:
+      v0 = icall @dirtyAddressArrays
+      ret v0
+  }
+  
+  fn @givesDirtyAddressArraysAgain() -> memoryarray [selector=0x0dead008, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+    bb0:
+      v0 = icall @dirtyAddressArrays
+      ret v0
+  }
+  
+  fn @givesZeroedTuple() -> memorystruct [selector=0x0dead004, abi_returns=[tuple<word, word>], abi_return_params=[tuple<u128, address>]] {
+    bb0:
+      v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+      v1 = ptrtoint memorystruct v0 to i256
+      memory_zero v1, 64
+      ret v0
+  }
+  
+  fn @dirtyAddressAliases() -> memoryarray {
+    bb0:
+      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v1 = add 1, 0
+      set_memory_object_len memoryarray, v0, v1
+      jump bb1
+    bb1:
+      v2 = phi [bb0: 0], [bb2: v7]
+      v3 = lt v2, v1
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v4 = icall @canonicalAddresses
+      v5 = ptrtoint memoryarray v4 to i256
+      v6 = inttoptr i256 v5 to memoryarray
+      memory_object_store_element memoryarray<1>, v6, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      memory_object_store_element memoryarray<1>, v0, v2, v5
+      v7 = add v2, 1
+      jump bb1
+  }
+  
+  fn @dirtyAddressReloads() -> memoryarray {
+    bb0:
+      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v1 = add 1, 0
+      set_memory_object_len memoryarray, v0, v1
+      jump bb1
+    bb1:
+      v2 = phi [bb0: 0], [bb2: v8]
+      v3 = lt v2, v1
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v4 = icall @canonicalAddresses
+      v5 = ptrtoint memoryarray v4 to i256
+      memory_object_store_element memoryarray<1>, v0, v2, v5
+      v6 = memory_object_load_element memoryarray<1>, v0, v2
+      v7 = inttoptr i256 v6 to memoryarray
+      memory_object_store_element memoryarray<1>, v7, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      v8 = add v2, 1
+      jump bb1
+  }
+  
+  fn @escapingAddressArrays() -> memoryarray {
+    bb0:
+      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v1 = add 1, 0
+      set_memory_object_len memoryarray, v0, v1
+      jump bb1
+    bb1:
+      v2 = phi [bb0: 0], [bb2: v6]
+      v3 = lt v2, v1
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v4 = icall @canonicalAddresses
+      v5 = ptrtoint memoryarray v4 to i256
+      memory_object_store_element memoryarray<1>, v0, v2, v5
+      icall @dirtyNestedArray, v0
+      v6 = add v2, 1
+      jump bb1
+  }
+  
+  fn @dirtyNestedArray(arg0: memoryarray) {
+    bb0:
+      v0 = memory_object_load_element memoryarray<1>, arg0, 0
+      v1 = inttoptr i256 v0 to memoryarray
+      memory_object_store_element memoryarray<1>, v1, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret
+  }
+  
+  fn @givesDirtyAddressAliases() -> memoryarray [selector=0x0dead009, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+    bb0:
+      v0 = icall @dirtyAddressAliases
+      ret v0
+  }
+  
+  fn @givesDirtyAddressReloads() -> memoryarray [selector=0x0dead00a, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+    bb0:
+      v0 = icall @dirtyAddressReloads
+      ret v0
+  }
+  
+  fn @givesEscapingAddressArrays() -> memoryarray [selector=0x0dead00b, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+    bb0:
+      v0 = icall @escapingAddressArrays
+      ret v0
+  }
+  
+  fn @givesZeroedThenDirtyTuple() -> memorystruct [selector=0x0dead00c, abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
+    bb0:
+      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v1 = ptrtoint memorystruct v0 to i256
+      memory_zero v1, 32
+      memory_object_store_field memorystruct<1>, v0, 0, 256
+      ret v0
+  }
+  
+  fn @givesPartlyZeroedTuple() -> memorystruct [selector=0x0dead00d, abi_returns=[tuple<word, word>], abi_return_params=[tuple<u8, u8>]] {
+    bb0:
+      v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+      v1 = ptrtoint memorystruct v0 to i256
+      memory_zero v1, 32
+      ret v0
+  }
+  
+  fn @givesConditionallyZeroedTuple(arg0: i1) -> memorystruct [selector=0x0dead00e, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
+    bb0:
+      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      jumpi arg0, bb1, bb2
+    bb1:
+      v1 = ptrtoint memorystruct v0 to i256
+      memory_zero v1, 32
+      jump bb2
+    bb2:
+      ret v0
+  }
+  
+  fn @givesConditionallyStoredTuple(arg0: i1) -> memorystruct [selector=0x0dead00f, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
+    bb0:
+      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      jumpi arg0, bb1, bb2
+    bb1:
+      memory_object_store_field memorystruct<1>, v0, 0, 1
+      jump bb2
+    bb2:
+      ret v0
+  }
+  
+  fn @aliasedAddressContainer(arg0: memorystruct, arg1: memorystruct) -> memoryarray {
+    bb0:
+      v0 = icall @canonicalAddresses
+      v1 = ptrtoint memoryarray v0 to i256
+      memory_object_store_field memorystruct<1>, arg0, 0, v1
+      v2 = memory_object_load_field memorystruct<1>, arg1, 0
+      v3 = inttoptr i256 v2 to memoryarray
+      memory_object_store_element memoryarray<1>, v3, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret v0
+  }
+  
+  fn @givesAliasedAddressContainer() -> memoryarray [selector=0x0dead010, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+    bb0:
+      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v1 = icall @aliasedAddressContainer, v0, v0
+      ret v1
+  }
+  
+  fn @givesRawMemoryWrite() -> memoryarray [selector=0x0dead011, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+    bb0:
+      v0 = icall @canonicalAddresses
+      mstore 0, 256
+      ret v0
+  }
+  
+  fn @conditionalFixedArray(arg0: i1) -> memoryfixedarray {
+    bb0:
+      v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, panic, 32
+      jumpi arg0, bb1, bb2
+    bb1:
+      memory_object_store_element memoryfixedarray<1, 1>, v0, 0, 1
+      jump bb2
+    bb2:
+      ret v0
+  }
+  
+  fn @givesConditionalFixedArray(arg0: i1) -> memoryfixedarray [selector=0x0dead012, abi_params=[bool], abi_returns=[array<1, word>], abi_return_params=[array<1, u8>]] {
+    bb0:
+      v0 = icall @conditionalFixedArray, arg0
+      ret v0
+  }
+  
+  fn @bypassedArrayLoop(arg0: i1) -> memoryarray {
+    bb0:
+      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 96
+      v1 = add 2, 0
+      set_memory_object_len memoryarray, v0, v1
+      jumpi arg0, bb1, bb3
+    bb1:
+      v2 = phi [bb0: 0], [bb2: v5]
+      v3 = lt v2, v1
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
+      memory_object_store_element memoryarray<1>, v0, v2, v4
+      v5 = add v2, 1
+      jump bb1
+  }
+  
+  fn @lateArrayLength() -> memoryarray {
+    bb0:
+      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 96
+      v1 = add 2, 0
+      jump bb1
+    bb1:
+      v2 = phi [bb0: 0], [bb2: v5]
+      v3 = lt v2, v1
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      set_memory_object_len memoryarray, v0, v1
+      v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
+      memory_object_store_element memoryarray<1>, v0, v2, v4
+      v5 = add v2, 1
+      jump bb1
+  }
+  
+  fn @givesBypassedArrayLoop(arg0: i1) -> memoryarray [selector=0x0dead013, abi_params=[bool], abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+    bb0:
+      v0 = icall @bypassedArrayLoop, arg0
+      ret v0
+  }
+  
+  fn @givesLateArrayLength() -> memoryarray [selector=0x0dead014, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+    bb0:
+      v0 = icall @lateArrayLength
+      ret v0
+  }
+  
+  fn @givesOverlappingAllocationWrite() -> memorystruct [selector=0x0dead015, abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
+    bb0:
+      v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, panic, 32
+      v1 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      memory_object_store_field memorystruct<1>, v1, 0, 1
+      memory_object_store_element memoryfixedarray<1, 1>, v0, 1, 256
+      ret v1
+  }
+  
+  fn @givesMismatchedArrayStride() -> memoryfixedarray [selector=0x0dead016, abi_returns=[array<2, word>], abi_return_params=[array<2, u8>]] {
+    bb0:
+      v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, panic, 96
+      memory_object_store_element memoryfixedarray<2, 2>, v0, 0, 1
+      memory_object_store_element memoryfixedarray<2, 2>, v0, 1, 1
+      ret v0
+  }
+  
+  fn @canonicalStorageAddresses(arg0: i256) -> memoryarray {
+    bb0:
+      v0 = load_storage_array u160, arg0
+      ret v0
+  }
+  
+  fn @givesStorageAddresses() -> memoryarray [selector=0x0dead018, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+    bb0:
+      v0 = icall @canonicalStorageAddresses, 0
+      ret v0
+  }
+  
+  fn @dirtyStorageAddresses(arg0: i256) -> memoryarray {
+    bb0:
+      v0 = load_storage_array u160, arg0
+      v1 = memory_object_data memoryarray, v0
+      v2 = ptrtoint memptr v1 to i256
+      mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret v0
+  }
+  
+  fn @givesDirtyStorageAddresses() -> memoryarray [selector=0x0dead019, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+    bb0:
+      v0 = icall @dirtyStorageAddresses, 0
+      ret v0
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (before lower-builtins) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (after lower-builtins) ===
+  @module LowerAbiDynamicReturn
+  fn @givesBytes(arg0: memorybytes) -> memorybytes [selector=0x0dead001, abi_returns=[memory_bytes]] {
+    bb0:
+      ret arg0
+  }
+  
+  fn @canonicalAddresses() -> memoryarray {
+    bb0:
+      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 96
+      v1 = add 2, 0
+      set_memory_object_len memoryarray, v0, v1
+      jump bb1
+    bb1:
+      v2 = phi [bb0: 0], [bb2: v5]
+      v3 = lt v2, v1
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
+      memory_object_store_element memoryarray<1>, v0, v2, v4
+      v5 = add v2, 1
+      jump bb1
+  }
+  
+  fn @givesAddresses() -> memoryarray [selector=0x0dead002, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+    bb0:
+      v0 = icall @canonicalAddresses
+      ret v0
+  }
+  
+  fn @givesAddressesAgain() -> memoryarray [selector=0x0dead003, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+    bb0:
+      v0 = icall @canonicalAddresses
+      ret v0
+  }
+  
+  fn @canonicalAddressArrays() -> memoryarray {
+    bb0:
+      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v1 = add 1, 0
+      set_memory_object_len memoryarray, v0, v1
+      jump bb1
+    bb1:
+      v2 = phi [bb0: 0], [bb2: v9]
+      v3 = lt v2, v1
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v4 = icall @canonicalAddresses
+      v5 = bitcast memoryarray v4 to memptr
+      v6 = ptrtoint memptr v5 to i256
+      v7 = inttoptr i256 v6 to memoryarray
+      v8 = ptrtoint memoryarray v7 to i256
+      memory_object_store_element memoryarray<1>, v0, v2, v8
+      v9 = add v2, 1
+      jump bb1
+  }
+  
+  fn @givesAddressArrays() -> memoryarray [selector=0x0dead005, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+    bb0:
+      v0 = icall @canonicalAddressArrays
+      ret v0
+  }
+  
+  fn @givesAddressArraysAgain() -> memoryarray [selector=0x0dead006, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+    bb0:
+      v0 = icall @canonicalAddressArrays
+      ret v0
+  }
+  
+  fn @dirtyAddressArrays() -> memoryarray {
+    bb0:
+      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v1 = add 1, 0
+      set_memory_object_len memoryarray, v0, v1
+      jump bb1
+    bb1:
+      v2 = phi [bb0: 0], [bb2: v6]
+      v3 = lt v2, v1
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v4 = icall @canonicalAddresses
+      memory_object_store_element memoryarray<1>, v4, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      v5 = ptrtoint memoryarray v4 to i256
+      memory_object_store_element memoryarray<1>, v0, v2, v5
+      v6 = add v2, 1
+      jump bb1
+  }
+  
+  fn @givesDirtyAddressArrays() -> memoryarray [selector=0x0dead007, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+    bb0:
+      v0 = icall @dirtyAddressArrays
+      ret v0
+  }
+  
+  fn @givesDirtyAddressArraysAgain() -> memoryarray [selector=0x0dead008, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+    bb0:
+      v0 = icall @dirtyAddressArrays
+      ret v0
+  }
+  
+  fn @givesZeroedTuple() -> memorystruct [selector=0x0dead004, abi_returns=[tuple<word, word>], abi_return_params=[tuple<u128, address>]] {
+    bb0:
+      v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+      v1 = ptrtoint memorystruct v0 to i256
+      memory_zero v1, 64
+      ret v0
+  }
+  
+  fn @dirtyAddressAliases() -> memoryarray {
+    bb0:
+      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v1 = add 1, 0
+      set_memory_object_len memoryarray, v0, v1
+      jump bb1
+    bb1:
+      v2 = phi [bb0: 0], [bb2: v7]
+      v3 = lt v2, v1
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v4 = icall @canonicalAddresses
+      v5 = ptrtoint memoryarray v4 to i256
+      v6 = inttoptr i256 v5 to memoryarray
+      memory_object_store_element memoryarray<1>, v6, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      memory_object_store_element memoryarray<1>, v0, v2, v5
+      v7 = add v2, 1
+      jump bb1
+  }
+  
+  fn @dirtyAddressReloads() -> memoryarray {
+    bb0:
+      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v1 = add 1, 0
+      set_memory_object_len memoryarray, v0, v1
+      jump bb1
+    bb1:
+      v2 = phi [bb0: 0], [bb2: v8]
+      v3 = lt v2, v1
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v4 = icall @canonicalAddresses
+      v5 = ptrtoint memoryarray v4 to i256
+      memory_object_store_element memoryarray<1>, v0, v2, v5
+      v6 = memory_object_load_element memoryarray<1>, v0, v2
+      v7 = inttoptr i256 v6 to memoryarray
+      memory_object_store_element memoryarray<1>, v7, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      v8 = add v2, 1
+      jump bb1
+  }
+  
+  fn @escapingAddressArrays() -> memoryarray {
+    bb0:
+      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v1 = add 1, 0
+      set_memory_object_len memoryarray, v0, v1
+      jump bb1
+    bb1:
+      v2 = phi [bb0: 0], [bb2: v6]
+      v3 = lt v2, v1
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v4 = icall @canonicalAddresses
+      v5 = ptrtoint memoryarray v4 to i256
+      memory_object_store_element memoryarray<1>, v0, v2, v5
+      icall @dirtyNestedArray, v0
+      v6 = add v2, 1
+      jump bb1
+  }
+  
+  fn @dirtyNestedArray(arg0: memoryarray) {
+    bb0:
+      v0 = memory_object_load_element memoryarray<1>, arg0, 0
+      v1 = inttoptr i256 v0 to memoryarray
+      memory_object_store_element memoryarray<1>, v1, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret
+  }
+  
+  fn @givesDirtyAddressAliases() -> memoryarray [selector=0x0dead009, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+    bb0:
+      v0 = icall @dirtyAddressAliases
+      ret v0
+  }
+  
+  fn @givesDirtyAddressReloads() -> memoryarray [selector=0x0dead00a, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+    bb0:
+      v0 = icall @dirtyAddressReloads
+      ret v0
+  }
+  
+  fn @givesEscapingAddressArrays() -> memoryarray [selector=0x0dead00b, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
+    bb0:
+      v0 = icall @escapingAddressArrays
+      ret v0
+  }
+  
+  fn @givesZeroedThenDirtyTuple() -> memorystruct [selector=0x0dead00c, abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
+    bb0:
+      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v1 = ptrtoint memorystruct v0 to i256
+      memory_zero v1, 32
+      memory_object_store_field memorystruct<1>, v0, 0, 256
+      ret v0
+  }
+  
+  fn @givesPartlyZeroedTuple() -> memorystruct [selector=0x0dead00d, abi_returns=[tuple<word, word>], abi_return_params=[tuple<u8, u8>]] {
+    bb0:
+      v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+      v1 = ptrtoint memorystruct v0 to i256
+      memory_zero v1, 32
+      ret v0
+  }
+  
+  fn @givesConditionallyZeroedTuple(arg0: i1) -> memorystruct [selector=0x0dead00e, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
+    bb0:
+      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      jumpi arg0, bb1, bb2
+    bb1:
+      v1 = ptrtoint memorystruct v0 to i256
+      memory_zero v1, 32
+      jump bb2
+    bb2:
+      ret v0
+  }
+  
+  fn @givesConditionallyStoredTuple(arg0: i1) -> memorystruct [selector=0x0dead00f, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
+    bb0:
+      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      jumpi arg0, bb1, bb2
+    bb1:
+      memory_object_store_field memorystruct<1>, v0, 0, 1
+      jump bb2
+    bb2:
+      ret v0
+  }
+  
+  fn @aliasedAddressContainer(arg0: memorystruct, arg1: memorystruct) -> memoryarray {
+    bb0:
+      v0 = icall @canonicalAddresses
+      v1 = ptrtoint memoryarray v0 to i256
+      memory_object_store_field memorystruct<1>, arg0, 0, v1
+      v2 = memory_object_load_field memorystruct<1>, arg1, 0
+      v3 = inttoptr i256 v2 to memoryarray
+      memory_object_store_element memoryarray<1>, v3, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret v0
+  }
+  
+  fn @givesAliasedAddressContainer() -> memoryarray [selector=0x0dead010, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+    bb0:
+      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v1 = icall @aliasedAddressContainer, v0, v0
+      ret v1
+  }
+  
+  fn @givesRawMemoryWrite() -> memoryarray [selector=0x0dead011, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+    bb0:
+      v0 = icall @canonicalAddresses
+      mstore 0, 256
+      ret v0
+  }
+  
+  fn @conditionalFixedArray(arg0: i1) -> memoryfixedarray {
+    bb0:
+      v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, panic, 32
+      jumpi arg0, bb1, bb2
+    bb1:
+      memory_object_store_element memoryfixedarray<1, 1>, v0, 0, 1
+      jump bb2
+    bb2:
+      ret v0
+  }
+  
+  fn @givesConditionalFixedArray(arg0: i1) -> memoryfixedarray [selector=0x0dead012, abi_params=[bool], abi_returns=[array<1, word>], abi_return_params=[array<1, u8>]] {
+    bb0:
+      v0 = icall @conditionalFixedArray, arg0
+      ret v0
+  }
+  
+  fn @bypassedArrayLoop(arg0: i1) -> memoryarray {
+    bb0:
+      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 96
+      v1 = add 2, 0
+      set_memory_object_len memoryarray, v0, v1
+      jumpi arg0, bb1, bb3
+    bb1:
+      v2 = phi [bb0: 0], [bb2: v5]
+      v3 = lt v2, v1
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
+      memory_object_store_element memoryarray<1>, v0, v2, v4
+      v5 = add v2, 1
+      jump bb1
+  }
+  
+  fn @lateArrayLength() -> memoryarray {
+    bb0:
+      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 96
+      v1 = add 2, 0
+      jump bb1
+    bb1:
+      v2 = phi [bb0: 0], [bb2: v5]
+      v3 = lt v2, v1
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      set_memory_object_len memoryarray, v0, v1
+      v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
+      memory_object_store_element memoryarray<1>, v0, v2, v4
+      v5 = add v2, 1
+      jump bb1
+  }
+  
+  fn @givesBypassedArrayLoop(arg0: i1) -> memoryarray [selector=0x0dead013, abi_params=[bool], abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+    bb0:
+      v0 = icall @bypassedArrayLoop, arg0
+      ret v0
+  }
+  
+  fn @givesLateArrayLength() -> memoryarray [selector=0x0dead014, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+    bb0:
+      v0 = icall @lateArrayLength
+      ret v0
+  }
+  
+  fn @givesOverlappingAllocationWrite() -> memorystruct [selector=0x0dead015, abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
+    bb0:
+      v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, panic, 32
+      v1 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      memory_object_store_field memorystruct<1>, v1, 0, 1
+      memory_object_store_element memoryfixedarray<1, 1>, v0, 1, 256
+      ret v1
+  }
+  
+  fn @givesMismatchedArrayStride() -> memoryfixedarray [selector=0x0dead016, abi_returns=[array<2, word>], abi_return_params=[array<2, u8>]] {
+    bb0:
+      v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, panic, 96
+      memory_object_store_element memoryfixedarray<2, 2>, v0, 0, 1
+      memory_object_store_element memoryfixedarray<2, 2>, v0, 1, 1
+      ret v0
+  }
+  
+  fn @canonicalStorageAddresses(arg0: i256) -> memoryarray {
+    bb0:
+-     v0 = load_storage_array u160, arg0
+-     ret v0
++     v1 = sload arg0 !metadata(storage=symbolic(arg0))
++     v2 = add v1, 1
++     v3 = lt v2, v1
++     jumpi v3, bb1, bb2
++   bb2:
++     v4 = mul v2, 32
++     v5 = eq 32, 0
++     v6 = div v4, 32
++     v7 = eq v6, v2
++     v8 = or v5, v7
++     v9 = zext i1 v8 to i256
++     v10 = eq v9, 0
++     jumpi v10, bb1, bb3
++   bb3:
++     v11 = alloc memoryarray<1>, exact, uninitialized, panic, v4
++     set_memory_object_len memoryarray, v11, v1
++     v12 = storage_array_data_slot arg0
++     jump bb4
++   bb4:
++     v13 = phi [bb3: 0], [bb5: v22]
++     v14 = lt v13, v1
++     jumpi v14, bb5, bb6
++   bb6:
++     ret v11
++   bb5:
++     v15 = div v13, 1
++     v16 = add v12, v15
++     v17 = sload v16 !metadata(storage=symbolic(v16))
++     v18 = mod v13, 1
++     v19 = mul v18, 160
++     v20 = shr v19, v17
++     v21 = and v20, 0xffffffffffffffffffffffffffffffffffffffff
++     memory_object_store_element memoryarray<1>, v11, v13, v21
++     v22 = add v13, 1
++     jump bb4
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @givesStorageAddresses() -> memoryarray [selector=0x0dead018, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+    bb0:
+      v0 = icall @canonicalStorageAddresses, 0
+      ret v0
+  }
+  
+  fn @dirtyStorageAddresses(arg0: i256) -> memoryarray {
+    bb0:
+-     v0 = load_storage_array u160, arg0
+-     v1 = memory_object_data memoryarray, v0
++     v3 = sload arg0 !metadata(storage=symbolic(arg0))
++     v4 = add v3, 1
++     v5 = lt v4, v3
++     jumpi v5, bb1, bb2
++   bb2:
++     v6 = mul v4, 32
++     v7 = eq 32, 0
++     v8 = div v6, 32
++     v9 = eq v8, v4
++     v10 = or v7, v9
++     v11 = zext i1 v10 to i256
++     v12 = eq v11, 0
++     jumpi v12, bb1, bb3
++   bb3:
++     v13 = alloc memoryarray<1>, exact, uninitialized, panic, v6
++     set_memory_object_len memoryarray, v13, v3
++     v14 = storage_array_data_slot arg0
++     jump bb4
++   bb4:
++     v15 = phi [bb3: 0], [bb5: v24]
++     v16 = lt v15, v3
++     jumpi v16, bb5, bb6
++   bb6:
++     v1 = memory_object_data memoryarray, v13
+      v2 = ptrtoint memptr v1 to i256
+      mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     ret v0
++     ret v13
++   bb5:
++     v17 = div v15, 1
++     v18 = add v14, v17
++     v19 = sload v18 !metadata(storage=symbolic(v18))
++     v20 = mod v15, 1
++     v21 = mul v20, 160
++     v22 = shr v21, v19
++     v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffff
++     memory_object_store_element memoryarray<1>, v13, v15, v23
++     v24 = add v15, 1
++     jump bb4
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @givesDirtyStorageAddresses() -> memoryarray [selector=0x0dead019, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
+    bb0:
+      v0 = icall @dirtyStorageAddresses, 0
+      ret v0
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (after lower-abi) ===
   @module LowerAbiDynamicReturn
@@ -43,7 +888,7 @@
     bb0:
       v0 = icall @canonicalAddresses
 -     ret v0
-+     v1 = icall @cleanup_return.35, v0
++     v1 = icall @cleanup_return.39, v0
 +     v2 = abi_encode [memory_array<word>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -55,7 +900,7 @@
     bb0:
       v0 = icall @canonicalAddresses
 -     ret v0
-+     v1 = icall @cleanup_return.35, v0
++     v1 = icall @cleanup_return.39, v0
 +     v2 = abi_encode [memory_array<word>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -90,7 +935,7 @@
     bb0:
       v0 = icall @canonicalAddressArrays
 -     ret v0
-+     v1 = icall @cleanup_return.33, v0
++     v1 = icall @cleanup_return.37, v0
 +     v2 = abi_encode [memory_array<memory_array<word>>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -102,7 +947,7 @@
     bb0:
       v0 = icall @canonicalAddressArrays
 -     ret v0
-+     v1 = icall @cleanup_return.33, v0
++     v1 = icall @cleanup_return.37, v0
 +     v2 = abi_encode [memory_array<memory_array<word>>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -135,7 +980,7 @@
     bb0:
       v0 = icall @dirtyAddressArrays
 -     ret v0
-+     v1 = icall @cleanup_return.33, v0
++     v1 = icall @cleanup_return.37, v0
 +     v2 = abi_encode [memory_array<memory_array<word>>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -147,7 +992,7 @@
     bb0:
       v0 = icall @dirtyAddressArrays
 -     ret v0
-+     v1 = icall @cleanup_return.33, v0
++     v1 = icall @cleanup_return.37, v0
 +     v2 = abi_encode [memory_array<memory_array<word>>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -251,7 +1096,7 @@
     bb0:
       v0 = icall @dirtyAddressAliases
 -     ret v0
-+     v1 = icall @cleanup_return.33, v0
++     v1 = icall @cleanup_return.37, v0
 +     v2 = abi_encode [memory_array<memory_array<word>>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -263,7 +1108,7 @@
     bb0:
       v0 = icall @dirtyAddressReloads
 -     ret v0
-+     v1 = icall @cleanup_return.33, v0
++     v1 = icall @cleanup_return.37, v0
 +     v2 = abi_encode [memory_array<memory_array<word>>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -275,7 +1120,7 @@
     bb0:
       v0 = icall @escapingAddressArrays
 -     ret v0
-+     v1 = icall @cleanup_return.33, v0
++     v1 = icall @cleanup_return.37, v0
 +     v2 = abi_encode [memory_array<memory_array<word>>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -290,7 +1135,7 @@
       memory_zero v1, 32
       memory_object_store_field memorystruct<1>, v0, 0, 256
 -     ret v0
-+     v2 = icall @cleanup_return.34, v0
++     v2 = icall @cleanup_return.38, v0
 +     v3 = memory_object_load_field memorystruct<1>, v2, 0
 +     mstore 128, v3
 +     v4 = add 128, 32
@@ -349,7 +1194,7 @@
 -     ret v0
 +     jump bb3
 +   bb3:
-+     v6 = icall @cleanup_return.34, v0
++     v6 = icall @cleanup_return.38, v0
 +     v7 = memory_object_load_field memorystruct<1>, v6, 0
 +     mstore 128, v7
 +     v8 = add 128, 32
@@ -384,7 +1229,7 @@
 +     memory_object_store_field memorystruct<1>, v0, 0, 1
 +     jump bb3
 +   bb3:
-+     v5 = icall @cleanup_return.34, v0
++     v5 = icall @cleanup_return.38, v0
 +     v6 = memory_object_load_field memorystruct<1>, v5, 0
 +     mstore 128, v6
 +     v7 = add 128, 32
@@ -412,7 +1257,7 @@
       v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
       v1 = icall @aliasedAddressContainer, v0, v0
 -     ret v1
-+     v2 = icall @cleanup_return.35, v1
++     v2 = icall @cleanup_return.39, v1
 +     v3 = abi_encode [memory_array<word>], args v2
 +     v4 = slice_ptr v3
 +     v5 = slice_len v3
@@ -425,7 +1270,7 @@
       v0 = icall @canonicalAddresses
       mstore 0, 256
 -     ret v0
-+     v1 = icall @cleanup_return.35, v0
++     v1 = icall @cleanup_return.39, v0
 +     v2 = abi_encode [memory_array<word>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -544,7 +1389,7 @@
 +   bb1:
       v0 = icall @bypassedArrayLoop, arg0
 -     ret v0
-+     v5 = icall @cleanup_return.35, v0
++     v5 = icall @cleanup_return.39, v0
 +     v6 = abi_encode [memory_array<word>], args v5
 +     v7 = slice_ptr v6
 +     v8 = slice_len v6
@@ -558,7 +1403,7 @@
     bb0:
       v0 = icall @lateArrayLength
 -     ret v0
-+     v1 = icall @cleanup_return.35, v0
++     v1 = icall @cleanup_return.39, v0
 +     v2 = abi_encode [memory_array<word>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -573,7 +1418,7 @@
       memory_object_store_field memorystruct<1>, v1, 0, 1
       memory_object_store_element memoryfixedarray<1, 1>, v0, 1, 256
 -     ret v1
-+     v2 = icall @cleanup_return.34, v1
++     v2 = icall @cleanup_return.38, v1
 +     v3 = memory_object_load_field memorystruct<1>, v2, 0
 +     mstore 128, v3
 +     v4 = add 128, 32
@@ -588,6 +1433,7 @@
       v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, panic, 96
       memory_object_store_element memoryfixedarray<2, 2>, v0, 0, 1
       memory_object_store_element memoryfixedarray<2, 2>, v0, 1, 1
+-     ret v0
 +     v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
 +     jump bb1
 +   bb1:
@@ -617,9 +1463,120 @@
 +     memory_object_store_element memoryfixedarray<2, 1>, v1, v2, v5
 +     v6 = add v2, 1
 +     jump bb1
+  }
+  
+  fn @canonicalStorageAddresses(arg0: i256) -> memoryarray {
+    bb0:
+      v1 = sload arg0 !metadata(storage=symbolic(arg0))
+      v2 = add v1, 1
+      v3 = lt v2, v1
+      jumpi v3, bb1, bb2
+    bb2:
+      v4 = mul v2, 32
+      v5 = eq 32, 0
+      v6 = div v4, 32
+      v7 = eq v6, v2
+      v8 = or v5, v7
+      v9 = zext i1 v8 to i256
+      v10 = eq v9, 0
+      jumpi v10, bb1, bb3
+    bb3:
+      v11 = alloc memoryarray<1>, exact, uninitialized, panic, v4
+      set_memory_object_len memoryarray, v11, v1
+      v12 = storage_array_data_slot arg0
+      jump bb4
+    bb4:
+      v13 = phi [bb3: 0], [bb5: v22]
+      v14 = lt v13, v1
+      jumpi v14, bb5, bb6
+    bb6:
+      ret v11
+    bb5:
+      v15 = div v13, 1
+      v16 = add v12, v15
+      v17 = sload v16 !metadata(storage=symbolic(v16))
+      v18 = mod v13, 1
+      v19 = mul v18, 160
+      v20 = shr v19, v17
+      v21 = and v20, 0xffffffffffffffffffffffffffffffffffffffff
+      memory_object_store_element memoryarray<1>, v11, v13, v21
+      v22 = add v13, 1
+      jump bb4
+    bb1:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 65 !metadata(memory=scratch)
+      revert 28, 36
+  }
+  
+- fn @givesStorageAddresses() -> memoryarray [selector=0x0dead018, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
++ fn @givesStorageAddresses() [selector=0x0dead018, abi_wrapper] {
+    bb0:
+      v0 = icall @canonicalStorageAddresses, 0
+-     ret v0
++     v1 = abi_encode [memory_array<word>], args v0
++     v2 = slice_ptr v1
++     v3 = slice_len v1
++     returndata v2, v3
+  }
+  
+  fn @dirtyStorageAddresses(arg0: i256) -> memoryarray {
+    bb0:
+      v3 = sload arg0 !metadata(storage=symbolic(arg0))
+      v4 = add v3, 1
+      v5 = lt v4, v3
+      jumpi v5, bb1, bb2
+    bb2:
+      v6 = mul v4, 32
+      v7 = eq 32, 0
+      v8 = div v6, 32
+      v9 = eq v8, v4
+      v10 = or v7, v9
+      v11 = zext i1 v10 to i256
+      v12 = eq v11, 0
+      jumpi v12, bb1, bb3
+    bb3:
+      v13 = alloc memoryarray<1>, exact, uninitialized, panic, v6
+      set_memory_object_len memoryarray, v13, v3
+      v14 = storage_array_data_slot arg0
+      jump bb4
+    bb4:
+      v15 = phi [bb3: 0], [bb5: v24]
+      v16 = lt v15, v3
+      jumpi v16, bb5, bb6
+    bb6:
+      v1 = memory_object_data memoryarray, v13
+      v2 = ptrtoint memptr v1 to i256
+      mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret v13
+    bb5:
+      v17 = div v15, 1
+      v18 = add v14, v17
+      v19 = sload v18 !metadata(storage=symbolic(v18))
+      v20 = mod v15, 1
+      v21 = mul v20, 160
+      v22 = shr v21, v19
+      v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffff
+      memory_object_store_element memoryarray<1>, v13, v15, v23
+      v24 = add v15, 1
+      jump bb4
+    bb1:
+      mstore 0, 0x4e487b71 !metadata(memory=scratch)
+      mstore 32, 65 !metadata(memory=scratch)
+      revert 28, 36
+  }
+  
+- fn @givesDirtyStorageAddresses() -> memoryarray [selector=0x0dead019, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
++ fn @givesDirtyStorageAddresses() [selector=0x0dead019, abi_wrapper] {
+    bb0:
+      v0 = icall @dirtyStorageAddresses, 0
++     v1 = icall @cleanup_return.39, v0
++     v2 = abi_encode [memory_array<word>], args v1
++     v3 = slice_ptr v2
++     v4 = slice_len v2
++     returndata v3, v4
 + }
 + 
-+ fn @cleanup_return.33(arg0: memoryarray) -> memoryarray {
++ fn @cleanup_return.37(arg0: memoryarray) -> memoryarray {
 +   bb0:
 +     v0 = memory_object_len memoryarray, arg0
 +     v1 = add v0, 1
@@ -692,7 +1649,7 @@
 +     revert 28, 36
 + }
 + 
-+ fn @cleanup_return.34(arg0: memorystruct) -> memorystruct {
++ fn @cleanup_return.38(arg0: memorystruct) -> memorystruct {
 +   bb0:
 +     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
 +     v1 = memory_object_load_field memorystruct<1>, arg0, 0
@@ -701,7 +1658,7 @@
       ret v0
 + }
 + 
-+ fn @cleanup_return.35(arg0: memoryarray) -> memoryarray {
++ fn @cleanup_return.39(arg0: memoryarray) -> memoryarray {
 +   bb0:
 +     v0 = memory_object_len memoryarray, arg0
 +     v1 = add v0, 1

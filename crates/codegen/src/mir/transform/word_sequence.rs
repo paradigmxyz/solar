@@ -105,10 +105,16 @@ fn operation_cost(
     } else {
         target.op(op, immediate)
     };
-    let _ = op.map_values(|value| {
-        cost += immediate(value).map_or_else(|| target.dup(), |value| target.push(value));
-        value
-    });
+    let operand_cost =
+        |value| immediate(value).map_or_else(|| target.dup(), |value| target.push(value));
+    if let Some(value) = Target::zero_test_input(op, immediate) {
+        cost += operand_cost(value);
+    } else {
+        let _ = op.map_values(|value| {
+            cost += operand_cost(value);
+            value
+        });
+    }
     cost
 }
 

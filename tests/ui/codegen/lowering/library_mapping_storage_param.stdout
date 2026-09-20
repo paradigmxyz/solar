@@ -33,11 +33,6 @@ bb0:
   push 4
   calldataload
   push 0
-  not
-  push 96
-  shr
-  and
-  push 0
   mstore
   push 0
   push 32

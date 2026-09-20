@@ -212,10 +212,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(value);
         }
         if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
-            let ty = self.cx.gcx.type_of_item(id.into());
-            return Some(
-                self.builder.load_immutable(immutable_id, types::TypeLowerer::mir_type(ty)),
-            );
+            let ty = self.cx.module.immutable_type(immutable_id).mir_type();
+            let value = self.builder.load_immutable(immutable_id, ty);
+            let source_ty = self.cx.gcx.type_of_item(id.into());
+            if ty != types::TypeLowerer::mir_type(source_ty) {
+                self.dirty_values.insert(value);
+            }
+            return Some(value);
         }
         if let Some(access) = self.storage_refs.get(&id).copied() {
             let ty = self.cx.gcx.type_of_item(id.into());

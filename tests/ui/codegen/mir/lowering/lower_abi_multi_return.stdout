@@ -34,8 +34,7 @@
       v0 = loadimmutable owner
       v1 = zext i160 v0 to i256
 -     ret v1
-+     v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
-+     mstore 128, v2
++     mstore 128, v1
 +     v3 = add 128, 32
 +     v4 = sub v3, 128
 +     returndata 128, v4
@@ -86,8 +85,7 @@
 +     jump bb1
 +   bb1:
 +     v8 = zext i160 v7 to i256
-+     v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
-+     mstore 128, v9
++     mstore 128, v8
 +     v10 = add 128, 32
 +     v11 = sub v10, 128
 +     returndata 128, v11

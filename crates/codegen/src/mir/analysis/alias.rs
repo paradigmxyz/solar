@@ -50,8 +50,7 @@ pub(crate) enum MemoryBase {
     Allocation(InstId),
     /// An unrecycled allocation site with multiple dynamic loop instances.
     DynamicAllocation(InstId),
-    /// A memory-object argument: an object that existed before the function
-    /// ran, below every allocation the function makes.
+    /// A nominal memory-object argument, without allocation ownership.
     Param(ValueId),
     /// A symbolic MIR value.
     Value(ValueId),
@@ -527,6 +526,11 @@ impl AliasAnalysis {
         summaries: Arc<MemoryCallSummaries>,
     ) -> Self {
         Self::with_optional_summaries(func, Some(summaries))
+    }
+
+    /// Includes memory-size observations in callees and tail calls.
+    pub(crate) fn may_observe_msize(&self, func: &Function) -> bool {
+        super::may_observe_msize(func, self.call_summaries.as_deref())
     }
 
     /// Drops value-dependent memoization after instruction operands are rewritten.
@@ -1631,9 +1635,7 @@ impl AliasAnalysis {
         // loop-instance allocation may hit the same or different instances, so
         // they stay `MayAlias`; a dynamic allocation against a
         // non-allocation base is likewise `MayAlias`. A memory-object
-        // argument was allocated before the function ran, below the pointer
-        // every allocation in the function bumps, so both allocation kinds
-        // are disjoint from it.
+        // argument has a nominal type but no allocation ownership proof.
         let first_alloc = Self::allocation_base(first.address.base);
         let second_alloc = Self::allocation_base(second.address.base);
         match (first_alloc, second_alloc) {
@@ -1655,12 +1657,6 @@ impl AliasAnalysis {
                     };
                 }
                 // Same unique static allocation: compare offsets below.
-            }
-            (Some(_), None) if matches!(second.address.base, MemoryBase::Param(_)) => {
-                return AliasResult::NoAlias;
-            }
-            (None, Some(_)) if matches!(first.address.base, MemoryBase::Param(_)) => {
-                return AliasResult::NoAlias;
             }
             (Some((_, true)), _) | (_, Some((_, true))) => return AliasResult::MayAlias,
             _ => {}
@@ -1733,8 +1729,7 @@ impl AliasAnalysis {
             Value::Immediate(immediate) => {
                 Some(MemoryAddress::absolute(immediate.as_u256()?.try_into().ok()?))
             }
-            // A memory-object argument was allocated by a caller, so it sits
-            // below the free-memory pointer this function starts from.
+            // Preserve parameter identity without assuming an allocation origin.
             Value::Arg(index) => {
                 Some(if matches!(func.arg_ty(*index), crate::mir::MirType::MemoryObject(_)) {
                     MemoryAddress::param(value)

@@ -18,9 +18,11 @@
 //! externally callable function's array parameter whose ABI decoding
 //! validates every element, the widest argument any call site passes for an
 //! internal parameter (each argument bounded by its own origin and the
-//! caller's transitive bound), the widest incoming array for a phi, and the
-//! full word for anything else. A mask on an element load is dropped when
-//! its width covers both the array's origin bound and the transitive bound
+//! caller's transitive bound), the widest incoming array for a phi, the width
+//! of a storage-array load's validated unsigned elements, and the full word
+//! for anything else. Storage-array loads initialize fresh private arrays.
+//! A mask on an element load is dropped when its width covers both the array's
+//! origin bound and the transitive bound
 //! of the function reading it. Widths are tracked per function rather than
 //! per array, so a store into any array of a function widens every array
 //! that function reads; aliasing between arrays needs no separate proof.
@@ -222,7 +224,8 @@ fn store_bound(func: &Function) -> u32 {
             | InstKind::SetMemoryObjectLen(..)
             | InstKind::SetFmp(_)
             | InstKind::FrameStore { .. }
-            | InstKind::MemoryZero(..) => 0,
+            | InstKind::MemoryZero(..)
+            | InstKind::StorageArrayLoad { .. } => 0,
             InstKind::MStore(..) | InstKind::MStore8(..) => {
                 if instruction.metadata.memory_region() == Some(MemoryRegion::Scratch) {
                     0
@@ -392,6 +395,13 @@ fn object_bounds(
                     && semantics.initialization == AllocationInitialization::Zeroed =>
             {
                 bounds.insert(result, 0);
+            }
+            InstKind::StorageArrayLoad { element, .. } => {
+                if let Some(AbiWordValidator::Unsigned(bits)) =
+                    AbiWordValidator::from_layout(*element)
+                {
+                    bounds.insert(result, u32::from(bits));
+                }
             }
             // Every phi joins, not only the array-typed ones: lowering types a returned
             // array as the raw pointer it is, and an object reaches its uses through

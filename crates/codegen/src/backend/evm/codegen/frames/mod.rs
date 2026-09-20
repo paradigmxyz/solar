@@ -1523,7 +1523,10 @@ mod tests {
         // mixed = (base + (-32)) - 16
         let base = builder.fmp();
         let opaque = builder.add_param(MirType::I256);
+        let pointer = builder.add_param(MirType::MemPtr);
+        let pointer_word = builder.cast_word(pointer);
         let word = builder.imm(32);
+        let pointer_prefix = builder.sub(pointer_word, word);
         // loaded_base = mload(32 + 32)
         let fmp_slot = builder.add(word, word);
         let loaded_base = builder.mload(fmp_slot);
@@ -1569,6 +1572,9 @@ mod tests {
         let cases = [
             (base, 0),
             (loaded_base, 0),
+            (pointer, 0),
+            (pointer_word, 0),
+            (pointer_prefix, 32),
             (sub, 32),
             (add, 32),
             (commuted, 32),

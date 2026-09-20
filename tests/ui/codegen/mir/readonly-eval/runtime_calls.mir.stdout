@@ -1,5 +1,34 @@
 // === ROOT/tests/ui/codegen/mir/readonly-eval/runtime_calls.sol:RuntimeCalls ===
 @module RuntimeCalls
+fn @emptyBytes() -> i256 [selector=0x55c4baff, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v0, 0
+    v1 = memory_object_data memorybytes, v0
+    v2 = icall @isEmpty, v0
+    ret v2
+}
+
+fn @nonemptyBytes() -> i256 [selector=0xe23ba52c, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v0, 1
+    v1 = memory_object_data memorybytes, v0
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v3 = icall @isEmpty, v0
+    ret v3
+}
+
+fn @isEmpty(arg0: memorybytes) -> i256 [pure] {
+  bb0:
+    v0 = ptrtoint memorybytes arg0 to i256
+    v1 = mload v0
+    v2 = eq v1, 0
+    v3 = zext i1 v2 to i256
+    ret v3
+}
+
 fn @constantWord() -> i256 [selector=0xf7bfd103, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = not 31

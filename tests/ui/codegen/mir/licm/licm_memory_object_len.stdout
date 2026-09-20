@@ -71,11 +71,10 @@
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 32
-+     v2 = memory_object_len memorybytes, arg0
       jump bb1
     bb1:
       v1 = phi [bb0: 0], [bb2: v6]
--     v2 = memory_object_len memorybytes, arg0
+      v2 = memory_object_len memorybytes, arg0
       v3 = lt v1, v2
       jumpi v3, bb2, bb3
     bb3:
@@ -91,6 +90,43 @@
   fn @mask_low(arg0: i256) -> i256 {
     bb0:
       v0 = and arg0, 31
+      ret v0
+  }
+  
+  fn @keep_unexecuted_header(arg0: memorybytes, arg1: i256) -> i256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v4]
+      v1 = phi [bb0: 0], [bb2: v3]
+      v2 = lt v0, arg1
+      jumpi v2, bb2, bb3
+    bb3:
+      ret v1
+    bb2:
+      v3 = memory_object_len memorybytes, arg0
+      v4 = add v0, 1
+      jump bb1
+  }
+  
+  fn @keep_header_after_size_call(arg0: memorybytes, arg1: i256) -> i256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb1: v4]
+      v1 = icall @observe_size
+      v2 = memory_object_len memorybytes, arg0
+      v3 = add v1, v2
+      v4 = add v0, 1
+      v5 = lt v4, arg1
+      jumpi v5, bb1, bb2
+    bb2:
+      ret v3
+  }
+  
+  fn @observe_size() -> i256 {
+    bb0:
+      v0 = msize
       ret v0
   }
   

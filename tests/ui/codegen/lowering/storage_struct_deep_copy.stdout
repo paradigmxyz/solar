@@ -32,15 +32,14 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     v83 = add v92, 32
     mstore v83, v4
     v5 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
-    v6 = trunc i256 arg0 to i160
-    v7 = zext i160 v6 to i256
     v89 = ptrtoint memptr v5 to i256
-    mstore v89, v7
+    mstore v89, arg0
     v85 = add v89, 32
     mstore v85, v92
     v10 = sload 0 !metadata(storage=slot(0))
     v12 = and v10, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v14 = or v12, v7
+    v13 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = or v12, v13
     sstore 0, v14 !metadata(storage=slot(0))
     v18 = mload v92
     v19 = sload 1 !metadata(storage=slot(1))
@@ -150,10 +149,8 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v92 = add v99, 32
     mstore v92, v4
     v5 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
-    v6 = trunc i256 arg0 to i160
-    v7 = zext i160 v6 to i256
     v98 = ptrtoint memptr v5 to i256
-    mstore v98, v7
+    mstore v98, arg0
     v94 = add v98, 32
     mstore v94, v99
     v9 = sload 2 !metadata(storage=slot(2))
@@ -325,15 +322,14 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     v87 = add v96, 32
     mstore v87, v4
     v5 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
-    v6 = trunc i256 arg0 to i160
-    v7 = zext i160 v6 to i256
     v93 = ptrtoint memptr v5 to i256
-    mstore v93, v7
+    mstore v93, arg0
     v89 = add v93, 32
     mstore v89, v96
     v14 = sload 3 !metadata(storage=slot(3))
     v16 = and v14, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v18 = or v16, v7
+    v17 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v18 = or v16, v17
     sstore 3, v18 !metadata(storage=slot(3))
     v22 = mload v96
     v23 = sload 4 !metadata(storage=slot(4))

@@ -90,6 +90,14 @@ impl<'gcx> TypeLowerer<'gcx> {
         Self::mir_signature_type(ty)
     }
 
+    /// Preserves raw scalar bits in immutables for inline assembly reads.
+    pub(super) fn immutable_layout(ty: Ty<'_>) -> ValueLayout {
+        match Self::value_layout(ty) {
+            ValueLayout::Bool | ValueLayout::Address => ValueLayout::uint256(),
+            layout => layout,
+        }
+    }
+
     /// Builds the ABI input shape for a function parameter.
     pub(super) fn abi_param_type(&mut self, ty: Ty<'gcx>) -> Option<AbiParamType> {
         self.seen_structs.clear();

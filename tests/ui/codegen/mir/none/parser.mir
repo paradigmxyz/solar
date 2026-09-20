@@ -273,3 +273,17 @@ fn @forward_integer_phi(arg0: i1, arg1: i256) -> i24 {
     v1 = trunc i256 31 to i7
     jump bb3
 }
+
+// CHECK-LABEL: fn @bool_bitwise
+// CHECK: and arg0, arg1
+// CHECK: or {{v[0-9]+}}, false
+// CHECK: xor {{v[0-9]+}}, true
+// CHECK: zext i1 {{v[0-9]+}} to i256
+fn @bool_bitwise(arg0: i1, arg1: i1) -> i256 {
+  bb0:
+    v0 = and arg0, arg1
+    v1 = or v0, false
+    v2 = xor v1, true
+    v3 = zext i1 v2 to i256
+    ret v3
+}

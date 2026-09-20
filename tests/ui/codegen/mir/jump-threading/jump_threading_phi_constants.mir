@@ -12,8 +12,9 @@ fn @thread_branch_on_phi_constant(arg0: i1) -> i256 {
   bb2:
     jump bb3
   bb3:
-    v1 = phi [bb1: false], [bb2: true]
-    jumpi v1, bb4, bb5
+    v1 = phi [bb1: 0], [bb2: 1]
+    v2 = ne v1, 0
+    jumpi v2, bb4, bb5
   bb4:
     ret 11
   bb5:
@@ -119,5 +120,44 @@ fn @keep_single_phi_used_in_successor(arg0: i1) -> i1 {
   bb2:
     ret v0
   bb3:
+    ret false
+}
+
+// CHECK-LABEL: fn @thread_zero_phi
+// CHECK: + jumpi arg0, bb4, bb5
+fn @thread_zero_phi(arg0: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: 0], [bb2: 2]
+    v2 = eq 0, v1
+    jumpi v2, bb4, bb5
+  bb4:
+    ret 11
+  bb5:
+    ret 22
+}
+
+// CHECK-LABEL: fn @keep_escaping_zero_test
+// CHECK: {{^[ +].*}}[[ZERO:v[0-9]+]] = eq {{v[0-9]+}}, 0
+// CHECK: {{^[ +].*}}ret [[ZERO]]
+fn @keep_escaping_zero_test(arg0: i1) -> i1 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: 0], [bb2: 2]
+    v2 = eq v1, 0
+    jumpi v2, bb4, bb5
+  bb4:
+    ret v2
+  bb5:
     ret false
 }

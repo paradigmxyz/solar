@@ -39,7 +39,7 @@ pub(super) fn lower(
             let Some(name) = variable.name else { continue };
             let mir_id = module.add_immutable(
                 name,
-                TypeLowerer::value_layout(gcx.type_of_item(id.into())),
+                TypeLowerer::immutable_layout(gcx.type_of_item(id.into())),
                 Some(id),
             );
             immutable_ids.insert(id, mir_id);

@@ -121,6 +121,7 @@ struct LowerAbiCx {
     calldata_slice_helper: Option<FunctionId>,
     return_cleanup_helpers: FxHashMap<AbiParamType, FunctionId>,
     function_params: IndexVec<FunctionId, Vec<MirType>>,
+    validated_abi_arguments: super::call_cleanup::ArgumentBits,
     has_bitwise_shifting: bool,
     /// How compiler-generated decoding reverts are encoded.
     revert_strings: RevertStrings,
@@ -341,6 +342,22 @@ impl LowerAbiCx {
         }
 
         mark_abi_wrappers(module);
+        let argument_bits =
+            |func: &Function, id, index, facts: &super::call_cleanup::ArgumentBits| {
+                self.validated_abi_arguments
+                    .get(&(id, index))
+                    .copied()
+                    .unwrap_or_else(|| super::call_cleanup::argument_bits(func, id, index, facts))
+            };
+        let facts = super::call_cleanup::infer_arguments_with(module, argument_bits);
+        let returns = super::call_cleanup::infer_returns(module);
+        for (id, func) in module.functions.iter_mut_enumerated() {
+            super::call_cleanup::cleanup(
+                func,
+                |func, index| argument_bits(func, id, index, &facts),
+                &returns,
+            );
+        }
         true
     }
 
@@ -953,6 +970,23 @@ impl LowerAbiCx {
             abi_params.as_ref(),
             false,
             call_body,
+        );
+        self.validated_abi_arguments.extend(
+            abi_params
+                .as_ref()
+                .into_iter()
+                .flat_map(|layout| layout.types.iter().zip(&logical_values))
+                .filter_map(|(ty, value)| {
+                    let Value::Arg(index) = module.function(wrapper_id).value((*value)?) else {
+                        return None;
+                    };
+                    let bits = match ty.word_validator()? {
+                        AbiWordValidator::Unsigned(bits) => u32::from(bits),
+                        AbiWordValidator::Bool => 1,
+                        _ => return None,
+                    };
+                    Some(((wrapper_id, *index), bits))
+                }),
         );
         // A wrapper that keeps its body in place returns values computed from these
         // decoded parameters; one that calls the body returns the call's results instead.
@@ -3688,6 +3722,8 @@ fn is_canonical_return_scalar(
     if source == ReturnValueSource::Scalar
         && let Value::Inst(inst) = func.value(value)
         && matches!(func.inst(*inst).kind, InstKind::LoadImmutable(_))
+        && (!matches!(ty, crate::mir::ValueLayout::Bool | crate::mir::ValueLayout::Address)
+            || func.value_ty(value) == Some(ty.mir_type()))
     {
         return true;
     }

@@ -21,9 +21,8 @@
 //! grows code.
 
 use crate::mir::{
-    BlockId, Function, FunctionBuilder, InstId, InstKind, MirType, Module, Terminator, Value,
-    ValueId,
-    analysis::{AliasAnalysis, LocationSize, MemoryAddress, MemoryBase, MemoryLocation},
+    BlockId, Function, FunctionBuilder, InstId, InstKind, Module, Terminator, Value, ValueId,
+    analysis::{AliasAnalysis, LocationSize},
     pass::{MirPass, ModuleAnalyses, run_function_pass_with_alias},
     utils::{fold_terminator_to_jump, invalidate_unreachable_block},
 };
@@ -988,55 +987,6 @@ fn defined_outside(func: &Function, header: BlockId, body: BlockId, value: Value
         && !func.blocks[body].instructions.contains(&inst)
 }
 
-/// Whether a value is a memory pointer the caller passed in.
-///
-/// Such an object was allocated before this function ran, so it lies below the
-/// free-memory pointer the function reads. This is the same ordering the alias
-/// analysis records for a memory-object parameter, which memory lowering has
-/// already turned into a plain pointer by the time this pass runs.
-fn is_caller_memory(func: &Function, value: ValueId) -> bool {
-    let Value::Arg(index) = *func.value(value) else { return false };
-    matches!(func.arg_ty(index), MirType::I256 | MirType::MemoryObject(_))
-}
-
-/// Whether a value is the free-memory pointer this function read, which every
-/// allocation it makes starts from.
-///
-/// Allocation lowering runs before this pass, so a freshly allocated buffer is
-/// no longer an `alloc` the alias analysis can place: it is a read of the
-/// pointer plus an offset.
-fn reads_allocation_frontier(func: &Function, value: ValueId) -> bool {
-    let Value::Inst(inst) = *func.value(value) else { return false };
-    match func.inst(inst).kind {
-        InstKind::MLoad(address) => func.value_u64(address) == Some(64),
-        InstKind::Fmp => true,
-        _ => false,
-    }
-}
-
-/// The abstract address of the one addend that carries memory provenance.
-///
-/// A copied range is `object + constant + index`; the object is the addend the
-/// alias analysis can place, while the index and any invariant scalar cannot be.
-fn provenance(
-    func: &Function,
-    alias: &AliasAnalysis,
-    addends: &[ValueId],
-) -> Option<MemoryAddress> {
-    let mut found = None;
-    for &addend in addends {
-        let Some(address) = alias.memory_address(func, addend) else { continue };
-        if matches!(address.base, MemoryBase::Value(_)) {
-            continue;
-        }
-        if found.is_some() {
-            return None;
-        }
-        found = Some(address);
-    }
-    found
-}
-
 /// Whether any value other than the loop itself reads the counter.
 fn counter_escapes(func: &Function, header: BlockId, body: BlockId, index: ValueId) -> bool {
     for (block, contents) in func.blocks.iter_enumerated() {
@@ -1071,7 +1021,7 @@ fn counter_escapes(func: &Function, header: BlockId, body: BlockId, index: Value
 fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> Option<CopyLoop> {
     // A discarded read raises the memory high-water mark, and the copy this
     // builds touches less of it than the reads it replaces.
-    if func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize)) {
+    if alias.may_observe_msize(func) {
         return None;
     }
     // header: index = phi [preheader: 0], [body: next]; jumpi lt(index, bound), body, exit
@@ -1160,34 +1110,20 @@ fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> O
 
     // `mcopy` moves as if through a buffer while the loop copies upwards, so
     // the two differ exactly when the ranges overlap. Require them disjoint.
-    let disjoint = match (provenance(func, alias, &source), provenance(func, alias, &dest)) {
-        (Some(source_place), Some(dest_place)) => !AliasAnalysis::memory_alias_locations(
-            MemoryLocation::new(source_place, LocationSize::Unknown),
-            MemoryLocation::new(dest_place, LocationSize::Unknown),
-        )
-        .may_alias(),
-        // An object the caller passed in was allocated before this function
-        // ran, so it lies below the frontier every allocation here starts
-        // from. That is the same reasoning the alias analysis applies to an
-        // allocation it can still see.
-        (Some(place), None) => {
-            matches!(place.base, MemoryBase::Param(_))
-                && dest.iter().any(|&value| reads_allocation_frontier(func, value))
-        }
-        (None, Some(place)) => {
-            matches!(place.base, MemoryBase::Param(_))
-                && source.iter().any(|&value| reads_allocation_frontier(func, value))
-        }
-        // Memory lowering leaves a caller's object as a plain pointer argument
-        // and a fresh buffer as an offset from the frontier, and the first is
-        // always below the second.
-        (None, None) => {
-            (source.iter().any(|&value| is_caller_memory(func, value))
-                && dest.iter().any(|&value| reads_allocation_frontier(func, value)))
-                || (dest.iter().any(|&value| is_caller_memory(func, value))
-                    && source.iter().any(|&value| reads_allocation_frontier(func, value)))
-        }
-    };
+    let [source_base] = source.as_slice() else { return None };
+    let [dest_base] = dest.as_slice() else { return None };
+    let length = func.value_u64(bound)?;
+    let source_place = alias.bare_memory_location(
+        func,
+        *source_base,
+        LocationSize::Const(source_offset.checked_add(length)?),
+    )?;
+    let dest_place = alias.bare_memory_location(
+        func,
+        *dest_base,
+        LocationSize::Const(dest_offset.checked_add(length)?),
+    )?;
+    let disjoint = !AliasAnalysis::memory_alias_locations(source_place, dest_place).may_alias();
     if !disjoint {
         return None;
     }

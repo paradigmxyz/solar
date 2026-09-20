@@ -1,16 +1,12 @@
 //@ compile-flags: -Ogas -Zmir-pipeline=loop-idioms
 //@ filecheck:
 @module ByteCopyLoop
-@phase lowered
 
-// A canonical byte loop with disjoint caller input and a fresh destination
-// becomes one bulk copy. The Solidity fixture covers retained bounds checks.
+// A raw address argument may overlap the fresh destination. Preserve the
+// ascending copy, which differs from MCOPY when the destination follows it.
 // CHECK-LABEL: fn @copy
-// CHECK: + {{v[0-9]+}} = add arg0, 32
-// CHECK: + {{v[0-9]+}} = add {{v[0-9]+}}, 32
-// CHECK: + mcopy
-// CHECK: - {{v[0-9]+}} = byte 0,
-// CHECK: - mstore8
+// CHECK-NOT: mcopy
+// CHECK: mstore8
 fn @copy(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = mload 64
@@ -34,5 +30,200 @@ fn @copy(arg0: i256, arg1: i256) -> i256 {
     v11 = add v5, 1
     jump bb1
   bb3:
+    ret v0
+}
+
+// A raw memory pointer also carries no allocation provenance.
+// CHECK-LABEL: fn @copy_pointer
+// CHECK-NOT: mcopy
+// CHECK: mstore8
+fn @copy_pointer(arg0: memptr, arg1: i256) -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = add arg1, 32
+    v2 = add v0, v1
+    mstore 64, v2
+    mstore v0, arg1
+    v12 = ptrtoint memptr arg0 to i256
+    v3 = add v12, 32
+    v4 = add v0, 32
+    jump bb1
+  bb1:
+    v5 = phi [bb0: 0], [bb2: v11]
+    v6 = lt v5, arg1
+    jumpi v6, bb2, bb3
+  bb2:
+    v7 = add v3, v5
+    v8 = mload v7
+    v9 = byte 0, v8
+    v10 = add v4, v5
+    mstore8 v10, v9
+    v11 = add v5, 1
+    jump bb1
+  bb3:
+    ret v0
+}
+
+// A nominal memory object can originate from arbitrary integer bits.
+// CHECK-LABEL: fn @copy_object
+// CHECK-NOT: mcopy
+// CHECK: mstore8
+fn @copy_object(arg0: memorybytes, arg1: i256) -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = add arg1, 32
+    v2 = add v0, v1
+    mstore 64, v2
+    mstore v0, arg1
+    v12 = ptrtoint memorybytes arg0 to i256
+    v3 = add v12, 32
+    v4 = add v0, 32
+    jump bb1
+  bb1:
+    v5 = phi [bb0: 0], [bb2: v11]
+    v6 = lt v5, arg1
+    jumpi v6, bb2, bb3
+  bb2:
+    v7 = add v3, v5
+    v8 = mload v7
+    v9 = byte 0, v8
+    v10 = add v4, v5
+    mstore8 v10, v9
+    v11 = add v5, 1
+    jump bb1
+  bb3:
+    ret v0
+}
+
+fn @overlap_caller() -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = sub v0, 1
+    v2 = inttoptr i256 v1 to memptr
+    v3 = bitcast memptr v2 to memorybytes
+    v4 = icall @copy_object, v3, 4
+    ret v4
+}
+
+// Distinct concrete allocations still prove these four-byte ranges disjoint.
+// CHECK-LABEL: fn @copy_allocations
+// CHECK: + mcopy
+// CHECK: - mstore8
+fn @copy_allocations() -> i256 {
+  bb0:
+    v12 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v13 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v14 = ptrtoint memorybytes v12 to i256
+    v0 = ptrtoint memorybytes v13 to i256
+    v3 = add v14, 32
+    v4 = add v0, 32
+    jump bb1
+  bb1:
+    v5 = phi [bb0: 0], [bb2: v11]
+    v6 = lt v5, 4
+    jumpi v6, bb2, bb3
+  bb2:
+    v7 = add v3, v5
+    v8 = mload v7
+    v9 = byte 0, v8
+    v10 = add v4, v5
+    mstore8 v10, v9
+    v11 = add v5, 1
+    jump bb1
+  bb3:
+    ret v0
+}
+
+// The source copy extends into the next allocation, so it must keep its order.
+// CHECK-LABEL: fn @copy_over_allocation_end
+// CHECK-NOT: mcopy
+// CHECK: mstore8
+fn @copy_over_allocation_end() -> i256 {
+  bb0:
+    v12 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v13 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v14 = ptrtoint memorybytes v12 to i256
+    v0 = ptrtoint memorybytes v13 to i256
+    v3 = add v14, 32
+    v4 = add v0, 32
+    jump bb1
+  bb1:
+    v5 = phi [bb0: 0], [bb2: v11]
+    v6 = lt v5, 65
+    jumpi v6, bb2, bb3
+  bb2:
+    v7 = add v3, v5
+    v8 = mload v7
+    v9 = byte 0, v8
+    v10 = add v4, v5
+    mstore8 v10, v9
+    v11 = add v5, 1
+    jump bb1
+  bb3:
+    ret v0
+}
+
+// A callee can observe the extra word-load memory expansion.
+// CHECK-LABEL: fn @copy_before_size_call
+// CHECK-NOT: mcopy
+// CHECK: mstore8
+fn @copy_before_size_call() -> i256 {
+  bb0:
+    v13 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v12 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v14 = ptrtoint memorybytes v12 to i256
+    v0 = ptrtoint memorybytes v13 to i256
+    v3 = add v14, 32
+    v4 = add v0, 32
+    jump bb1
+  bb1:
+    v5 = phi [bb0: 0], [bb2: v11]
+    v6 = lt v5, 4
+    jumpi v6, bb2, bb3
+  bb2:
+    v7 = add v3, v5
+    v8 = mload v7
+    v9 = byte 0, v8
+    v10 = add v4, v5
+    mstore8 v10, v9
+    v11 = add v5, 1
+    jump bb1
+  bb3:
+    v15 = icall @observe_size
+    ret v15
+}
+
+// A callee can observe the extra word-load memory expansion.
+// CHECK-LABEL: fn @copy_before_size_tail
+// CHECK-NOT: mcopy
+// CHECK: mstore8
+fn @copy_before_size_tail() -> i256 {
+  bb0:
+    v13 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v12 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v14 = ptrtoint memorybytes v12 to i256
+    v0 = ptrtoint memorybytes v13 to i256
+    v3 = add v14, 32
+    v4 = add v0, 32
+    jump bb1
+  bb1:
+    v5 = phi [bb0: 0], [bb2: v11]
+    v6 = lt v5, 4
+    jumpi v6, bb2, bb3
+  bb2:
+    v7 = add v3, v5
+    v8 = mload v7
+    v9 = byte 0, v8
+    v10 = add v4, v5
+    mstore8 v10, v9
+    v11 = add v5, 1
+    jump bb1
+  bb3:
+    tail_call @observe_size
+}
+
+fn @observe_size() -> i256 {
+  bb0:
+    v0 = msize
     ret v0
 }

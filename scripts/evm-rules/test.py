@@ -1151,10 +1151,14 @@ class RuleTests(unittest.TestCase):
             negate = Expr("sub", (Expr.const(0), value))
             shifted = Expr("shr", (Expr.const(256 - bits), negate))
             multiply = Expr("mul", (value, Expr.const((1 << bits) - 1)))
-            assumptions = [z3.ULE(cx.model.eval(value), z3.BitVecVal(1, 256))]
-            for lowered in (shifted, multiply):
-                result, _ = check(expected, lowered, assumptions, 5000, cx.model)
-                self.assertEqual(result["status"], "proved", (bits, lowered, result))
+            # Split the complete i1 domain to avoid bit-blasting a 256-bit multiplication.
+            for bit in (0, 1):
+                assumptions = [cx.model.eval(value) == z3.BitVecVal(bit, 256)]
+                for lowered in (shifted, multiply):
+                    result, _ = check(expected, lowered, assumptions, 5000, cx.model)
+                    self.assertEqual(
+                        result["status"], "proved", (bits, bit, lowered, result)
+                    )
 
     def test_actual_integer_and_pointer_cast_rules(self):
         path = ISLE / "egraph.isle"

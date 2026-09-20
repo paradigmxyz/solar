@@ -7,6 +7,12 @@ immutables:
   small: u64
   signed: i64
   wide: u256
+  clean_address: u256
+  dirty_address: u256
+  repeated: u256
+  unknown: u256
+  unwritten: u256
+  called: u256
 
 fn @runtime() -> i256 [selector=1] {
   bb0:
@@ -95,4 +101,25 @@ fn @unrooted() -> i256 {
     revert 0, 0
   bb2:
     ret v1
+}
+
+// Every assignment contributes to the encoding width, including helper calls.
+fn @assign_widths(arg0: i256) [constructor] {
+  bb0:
+    v0 = address
+    v1 = zext i160 v0 to i256
+    storeimmutable clean_address, v1
+    storeimmutable dirty_address, 0x10000000000000000000000000000000000000007
+    storeimmutable repeated, 1
+    storeimmutable repeated, 65536
+    storeimmutable unknown, arg0
+    icall @assign_called, 7
+    icall @assign_called, 65535
+    ret
+}
+
+fn @assign_called(arg0: i256) {
+  bb0:
+    storeimmutable called, arg0
+    ret
 }

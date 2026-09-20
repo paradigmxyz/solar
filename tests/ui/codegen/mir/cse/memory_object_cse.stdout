@@ -154,3 +154,22 @@
       ret v4
   }
   
+  fn @parameter_may_overlap_allocation(arg0: memorybytes) -> i256 {
+    bb0:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 32
+      v1 = memory_object_len memorybytes, arg0
+      set_memory_object_len memorybytes, v0, 7
+      v2 = memory_object_len memorybytes, arg0
+      v3 = add v1, v2
+      ret v3
+  }
+  
+  fn @fabricated_parameter() -> i256 {
+    bb0:
+      v0 = mload 64
+      v1 = inttoptr i256 v0 to memptr
+      v2 = bitcast memptr v1 to memorybytes
+      v3 = icall @parameter_may_overlap_allocation, v2
+      ret v3
+  }
+  
