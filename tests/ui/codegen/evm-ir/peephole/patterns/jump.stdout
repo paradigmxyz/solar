@@ -39,4 +39,27 @@
     jumpi
     pop
     stop
+  bb5:
+    returndatasize
+-   push 0
+-   lt
+    push bb2
+    jumpi
+    stop
+  bb6:
+    returndatasize
+    push 0
+    lt
+    dup 1
+    push bb2
+    jumpi
+    pop
+    stop
+  bb7:
+    returndatasize
+    push 1
+    lt
+    push bb2
+    jumpi
+    stop
   

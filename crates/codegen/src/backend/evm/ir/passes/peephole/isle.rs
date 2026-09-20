@@ -340,6 +340,10 @@ impl generated::Context for PeepContext<'_> {
         self.tail().map(|[a, b, c, d]| (a, b, c, d))
     }
 
+    fn unprotected_last4(&mut self, _: Window) -> Option<(Inst, Inst, Inst, Inst)> {
+        self.unprotected_tail().map(|[a, b, c, d]| (a, b, c, d))
+    }
+
     fn canonical_stack_effects4(&mut self, a: Inst, b: Inst, c: Inst, d: Inst) -> bool {
         [a, b, c, d].into_iter().all(|inst| self.instructions[inst].has_canonical_stack_effect())
     }

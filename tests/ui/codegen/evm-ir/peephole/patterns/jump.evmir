@@ -60,3 +60,43 @@ bb4:
   jumpi
   pop
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb5:
+// CHECK: {{^[ +].*}}returndatasize
+// CHECK-NEXT: - push 0
+// CHECK-NEXT: - lt
+// CHECK-NEXT: {{^[ +].*}}push bb2
+// CHECK-NEXT: {{^[ +].*}}jumpi
+bb5:
+  returndatasize
+  push 0
+  lt
+  push bb2
+  jumpi
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb6:
+// CHECK: {{^[ +].*}}lt
+// CHECK-NEXT: {{^[ +].*}}dup 1
+// CHECK: {{^[ +].*}}jumpi
+bb6:
+  returndatasize
+  push 0
+  lt
+  dup 1
+  push bb2
+  jumpi
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb7:
+// CHECK: {{^[ +].*}}push 1
+// CHECK-NEXT: {{^[ +].*}}lt
+// CHECK: {{^[ +].*}}jumpi
+bb7:
+  returndatasize
+  push 1
+  lt
+  push bb2
+  jumpi
+  stop

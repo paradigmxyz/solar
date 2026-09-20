@@ -19,3 +19,34 @@ fn @both(arg0: i256) -> i256 [selector=0x75de2d6b, pure, abi_params=[u256], abi_
     v2 = phi [bb2: v0], [bb3: v1]
     ret v2
 }
+
+// === ROOT/tests/ui/codegen/lowering/live_branch_condition.sol:ReturndataBranch ===
+@module ReturndataBranch
+fn @test(arg0: i256) [selector=0x29e99f07, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = gas
+    v1 = staticcall v0, 4, 0, arg0, 0, 0
+    v2 = zext i1 v1 to i256
+    v3 = eq v2, 0
+    v4 = zext i1 v3 to i256
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v6 = returndatasize
+    v7 = gt v6, 0
+    v8 = zext i1 v7 to i256
+    v9 = ne v8, 0
+    jumpi v9, bb4, bb5
+  bb5:
+    jump bb6
+  bb6:
+    mstore 0, 9 !metadata(memory=scratch)
+    returndata 0, 32
+  bb4:
+    mstore 0, 7 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1:
+    revert 0, 0
+}
