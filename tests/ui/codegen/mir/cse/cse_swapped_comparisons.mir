@@ -64,3 +64,34 @@ fn @keep_unsigned_signed_distinct(arg0: i256, arg1: i256) -> struct0 [return_abi
     v3 = sgt arg1, arg0
     ret v2, v3
 }
+
+// CHECK-LABEL: fn @reuse_swapped_eq
+// CHECK: - {{v[0-9]+}} = eq arg1, arg0
+// CHECK: + ret [[CMP:v[0-9]+]], [[CMP]]
+fn @reuse_swapped_eq(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {
+  bb0:
+    v0 = eq arg0, arg1
+    v1 = eq arg1, arg0
+    ret v0, v1
+}
+
+// CHECK-LABEL: fn @reuse_swapped_ne
+// CHECK: - {{v[0-9]+}} = ne arg1, arg0
+// CHECK: + ret [[CMP:v[0-9]+]], [[CMP]]
+fn @reuse_swapped_ne(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {
+  bb0:
+    v0 = ne arg0, arg1
+    v1 = ne arg1, arg0
+    ret v0, v1
+}
+
+// CHECK-LABEL: fn @keep_eq_ne_distinct
+// CHECK: {{^[ +].*}}[[EQ:v[0-9]+]] = eq arg0, arg1
+// CHECK: {{^[ +].*}}[[NE:v[0-9]+]] = ne arg1, arg0
+// CHECK: {{^[ +].*}}ret [[EQ]], [[NE]]
+fn @keep_eq_ne_distinct(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {
+  bb0:
+    v0 = eq arg0, arg1
+    v1 = ne arg1, arg0
+    ret v0, v1
+}

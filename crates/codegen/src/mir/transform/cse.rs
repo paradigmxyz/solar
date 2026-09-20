@@ -1005,6 +1005,10 @@ impl CommonSubexprEliminator {
                 let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
                 Some(ExprKey::Eq(a, b))
             }
+            InstKind::Ne(a, b) => {
+                let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
+                Some(ExprKey::Ne(a, b))
+            }
 
             // Non-commutative operations - preserve order
             InstKind::Sub(a, b) => {
@@ -1040,7 +1044,6 @@ impl CommonSubexprEliminator {
             InstKind::SignExtend(a, b) => Some(ExprKey::SignExtend(operand(*a), operand(*b))),
 
             // Unary operations
-            InstKind::Ne(a, b) => Some(ExprKey::Ne(operand(*a), operand(*b))),
             InstKind::Not(a) => Some(ExprKey::Not(operand(*a))),
             InstKind::Clz(a) => Some(ExprKey::Clz(operand(*a))),
             InstKind::CalldataLoad(a) => Some(ExprKey::CalldataLoad(operand(*a))),

@@ -50,3 +50,26 @@
       ret v0, v1
   }
   
+  fn @reuse_swapped_eq(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {
+    bb0:
+      v0 = eq arg0, arg1
+-     v1 = eq arg1, arg0
+-     ret v0, v1
++     ret v0, v0
+  }
+  
+  fn @reuse_swapped_ne(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {
+    bb0:
+      v0 = ne arg0, arg1
+-     v1 = ne arg1, arg0
+-     ret v0, v1
++     ret v0, v0
+  }
+  
+  fn @keep_eq_ne_distinct(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {
+    bb0:
+      v0 = eq arg0, arg1
+      v1 = ne arg1, arg0
+      ret v0, v1
+  }
+  

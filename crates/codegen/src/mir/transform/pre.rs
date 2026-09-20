@@ -11,7 +11,8 @@
 //! Availability at a predecessor's end is checked in the predecessor itself and
 //! then up its dominator tree: a def of the translated expression in any
 //! dominator is available with no further checks, so it can feed the join phi
-//! without inserting a duplicate computation.
+//! without inserting a duplicate computation. Commutative operands share a key;
+//! swapped signed and unsigned comparisons retain their corresponding predicate.
 //!
 //! # Termination
 //!
@@ -108,9 +109,7 @@ enum ExprKey {
     Sar(OperandKey, OperandKey),
     Byte(OperandKey, OperandKey),
     Lt(OperandKey, OperandKey),
-    Gt(OperandKey, OperandKey),
     SLt(OperandKey, OperandKey),
-    SGt(OperandKey, OperandKey),
     Eq(OperandKey, OperandKey),
     Ne(OperandKey, OperandKey),
     Select(OperandKey, OperandKey, OperandKey),
@@ -560,6 +559,10 @@ impl PartialRedundancyEliminator {
                 let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
                 Some(ExprKey::Eq(a, b))
             }
+            InstKind::Ne(a, b) => {
+                let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
+                Some(ExprKey::Ne(a, b))
+            }
             InstKind::AddMod(a, b, n) => {
                 let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
                 Some(ExprKey::AddMod(a, b, operand(*n)))
@@ -581,10 +584,9 @@ impl PartialRedundancyEliminator {
             InstKind::Sar(a, b) => Some(ExprKey::Sar(operand(*a), operand(*b))),
             InstKind::Byte(a, b) => Some(ExprKey::Byte(operand(*a), operand(*b))),
             InstKind::Lt(a, b) => Some(ExprKey::Lt(operand(*a), operand(*b))),
-            InstKind::Gt(a, b) => Some(ExprKey::Gt(operand(*a), operand(*b))),
+            InstKind::Gt(a, b) => Some(ExprKey::Lt(operand(*b), operand(*a))),
             InstKind::SLt(a, b) => Some(ExprKey::SLt(operand(*a), operand(*b))),
-            InstKind::SGt(a, b) => Some(ExprKey::SGt(operand(*a), operand(*b))),
-            InstKind::Ne(a, b) => Some(ExprKey::Ne(operand(*a), operand(*b))),
+            InstKind::SGt(a, b) => Some(ExprKey::SLt(operand(*b), operand(*a))),
             InstKind::Select(a, b, c) => {
                 Some(ExprKey::Select(operand(*a), operand(*b), operand(*c)))
             }

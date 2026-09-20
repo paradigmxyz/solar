@@ -28,3 +28,35 @@ bb1:
   stop
 bb2:
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: - swap 1
+// CHECK: - eq
+// CHECK: - iszero
+// CHECK: + sub
+// CHECK: {{^[ +].*}}jumpi
+bb3:
+  calldatasize
+  returndatasize
+  swap 1
+  eq
+  iszero
+  push bb2
+  jumpi
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK: {{^[ +].*}}eq
+// CHECK-NEXT: {{^[ +].*}}iszero
+// CHECK-NEXT: {{^[ +].*}}dup 1
+// CHECK: {{^[ +].*}}jumpi
+bb4:
+  calldatasize
+  returndatasize
+  eq
+  iszero
+  dup 1
+  push bb2
+  jumpi
+  pop
+  stop

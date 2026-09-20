@@ -1,0 +1,84 @@
+// === ROOT/tests/ui/codegen/lowering/branch_condition_live_out.sol:BranchConditionLiveOut ===
+@module BranchConditionLiveOut
+types:
+  struct0: {i256, i256, i256}
+
+fn @comparisons(arg0: i256, arg1: i256) -> struct0 [selector=0xb5d0691b, pure, abi_params=[u256, u256], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, u256]] {
+  bb0:
+    v0 = eq arg0, arg1
+    v1 = ne arg1, arg0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v2 = phi [bb1: 1], [bb2: 2]
+    jumpi v1, bb4, bb5
+  bb5:
+    v4 = checked_add u256, v2, 10
+    jump bb6
+  bb4:
+    v3 = checked_add u256, v2, 20
+    jump bb6
+  bb6:
+    v5 = phi [bb4: v3], [bb5: v4]
+    v6 = zext i1 v0 to i256
+    v7 = zext i1 v1 to i256
+    v8 = insert_value struct0, undef struct0, 0, v6
+    v9 = insert_value struct0, v8, 1, v7
+    v10 = insert_value struct0, v9, 2, v5
+    ret v10
+}
+
+fn @zeros(arg0: i256) -> struct0 [selector=0xe8295588, pure, abi_params=[u256], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, u256]] {
+  bb0:
+    v0 = eq 0, arg0
+    v1 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v2 = phi [bb1: 1], [bb2: 2]
+    jumpi v1, bb4, bb5
+  bb5:
+    v4 = checked_add u256, v2, 10
+    jump bb6
+  bb4:
+    v3 = checked_add u256, v2, 20
+    jump bb6
+  bb6:
+    v5 = phi [bb4: v3], [bb5: v4]
+    v6 = zext i1 v0 to i256
+    v7 = zext i1 v1 to i256
+    v8 = insert_value struct0, undef struct0, 0, v6
+    v9 = insert_value struct0, v8, 1, v7
+    v10 = insert_value struct0, v9, 2, v5
+    ret v10
+}
+
+fn @pick(arg0: i256, arg1: i256) -> i256 [selector=0xa62f4550, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = ne arg0, 0
+    v1 = zext i1 v0 to i256
+    v2 = ne v1, 0
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v3 = phi [bb1: arg1], [bb2: 0]
+    v4 = checked_add u256, v3, 1
+    v5 = ne v1, 0
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    jump bb6
+  bb6:
+    v6 = phi [bb4: v4], [bb5: v3]
+    ret v6
+}
