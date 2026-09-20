@@ -1,0 +1,205 @@
+- // === ROOT/tests/ui/codegen/evm-ir/share-reverts/share_reverts.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/share-reverts/share_reverts.evmir (after peephole) ===
+  @module module
+  bb0:
+-   push 1
+-   iszero
+-   push bb2
+-   jumpi
+    jump bb1
+  bb1 [cold]:
+    push 0
+    push 0
+    revert
+  bb2:
+    stop
+  bb3:
+    calldatasize
+    iszero
+    push bb5
+    jumpi
+    jump bb4
+  bb4 [cold]:
+    push 17
+    push 0
+    mstore
+    push 32
+    push 0
+    revert
+  bb5:
+    stop
+  bb6:
+    calldatasize
+    push bb8
+    jumpi
+    jump bb7
+  bb7 [cold]:
+    push 18
+    push 0
+    mstore
+    push 32
+    push 0
+    revert
+  bb8:
+    stop
+  bb9:
+-   push 7
++   push 6
+    calldatasize
+-   lt
+-   iszero
++   gt
+    push bb11
+    jumpi
+    jump bb10
+  bb10 [cold]:
+    push 17
+    push 0
+    mstore
+    push 32
+    push 0
+    revert
+  bb11:
+    stop
+  bb12:
+    push 6
+    gas
+    gt
+    push bb14
+    jumpi
+    jump bb13
+  bb13 [cold]:
+    push 32
+    push 0
+    revert
+  bb14:
+    stop
+  bb15:
+    push 0
+    calldatasize
+    gt
+    push bb17
+    jumpi
+    jump bb16
+  bb16 [cold]:
+    push 32
+    push 0
+    revert
+  bb17:
+    stop
+  bb18:
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    calldatasize
+    gt
+    push bb20
+    jumpi
+    jump bb19
+  bb19 [cold]:
+    push 32
+    push 0
+    revert
+  bb20:
+    stop
+  
+- // === ROOT/tests/ui/codegen/evm-ir/share-reverts/share_reverts.evmir (before share-reverts) ===
++ // === ROOT/tests/ui/codegen/evm-ir/share-reverts/share_reverts.evmir (after share-reverts) ===
+  @module module
+  bb0:
+    jump bb1
+  bb1 [cold]:
+    push 0
+    push 0
+    revert
+  bb2:
+    stop
+  bb3:
+    calldatasize
+-   iszero
+-   push bb5
++   push bb4
+    jumpi
+-   jump bb4
++   jump bb5
+  bb4 [cold]:
+    push 17
+    push 0
+    mstore
+    push 32
+    push 0
+    revert
+  bb5:
+    stop
+  bb6:
+    calldatasize
+    push bb8
+    jumpi
+    jump bb7
+  bb7 [cold]:
+    push 18
+    push 0
+    mstore
+    push 32
+    push 0
+    revert
+  bb8:
+    stop
+  bb9:
+-   push 6
++   push 7
+    calldatasize
+-   gt
+-   push bb11
++   lt
++   push bb10
+    jumpi
+-   jump bb10
++   jump bb11
+  bb10 [cold]:
+    push 17
+    push 0
+    mstore
+    push 32
+    push 0
+    revert
+  bb11:
+    stop
+  bb12:
+    push 6
+    gas
+    gt
+    push bb14
+    jumpi
+    jump bb13
+  bb13 [cold]:
+    push 32
+    push 0
+    revert
+  bb14:
+    stop
+  bb15:
+    push 0
+    calldatasize
+    gt
+    push bb17
+    jumpi
+    jump bb16
+  bb16 [cold]:
+    push 32
+    push 0
+    revert
+  bb17:
+    stop
+  bb18:
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    calldatasize
+    gt
+    push bb20
+    jumpi
+    jump bb19
+  bb19 [cold]:
+    push 32
+    push 0
+    revert
+  bb20:
+    stop
+  

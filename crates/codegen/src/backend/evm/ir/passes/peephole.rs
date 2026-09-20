@@ -48,6 +48,8 @@ use tracing::trace;
 
 mod isle;
 
+pub(super) use isle::invert_comparison;
+
 pub(super) struct Peephole {
     final_cleanup: bool,
 }

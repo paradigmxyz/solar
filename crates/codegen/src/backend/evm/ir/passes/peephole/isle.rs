@@ -22,6 +22,61 @@ use solar_config::{EvmVersion, OptimizationMode};
 /// How far back a rule may simulate the block's stack.
 const MAX_STACK_WINDOW: usize = 24;
 
+/// Inverts a comparison against a protected constant without increasing stack usage.
+pub(crate) fn invert_comparison(
+    instructions: &[Instruction],
+    evm_version: EvmVersion,
+) -> Option<(usize, U256, u8)> {
+    let end = instructions.len().checked_sub(1)?;
+    let comparison = &instructions[end];
+    let opcode = comparison.as_evm_opcode()?;
+    let opposite = flipped_comparison(opcode)?;
+    if !comparison.has_canonical_stack_effect() || comparison.keeps_with_next() {
+        return None;
+    }
+    for start in (end.saturating_sub(MAX_STACK_WINDOW - 2)..end).rev() {
+        let pushed = &instructions[start];
+        if !pushed.has_canonical_stack_effect()
+            || pushed.keeps_with_next()
+            || start > 0 && instructions[start - 1].keeps_with_next()
+        {
+            break;
+        }
+        if let Some(value) = pushed.concrete_immediate()
+            && let Some(depth @ 0..=1) = protected_word_depth(&instructions[start + 1..end])
+        {
+            // Bias signed bounds into unsigned order before checking for overflow.
+            let bias = if matches!(opcode, SLT | SGT) { U256::ONE << 255 } else { U256::ZERO };
+            let ordered = value ^ bias;
+            let bound = if matches!(opcode, GT | SGT) == (depth == 1) {
+                ordered.checked_add(U256::ONE)
+            } else {
+                ordered.checked_sub(U256::ONE)
+            };
+            // A shorter encoding may need an extra temporary stack word.
+            if let Some(bound) = bound.map(|bound| bound ^ bias)
+                && ImmediateMaterialization::new(evm_version, bound).stack_peak()
+                    <= ImmediateMaterialization::new(evm_version, value).stack_peak()
+                && op::push_len(evm_version, bound)
+                    <= super::immediate_materialization_cost(evm_version, value).0 + 1
+            {
+                return Some((start, bound, opposite));
+            }
+        }
+    }
+    None
+}
+
+fn flipped_comparison(opcode: u8) -> Option<u8> {
+    match opcode {
+        LT => Some(GT),
+        GT => Some(LT),
+        SLT => Some(SGT),
+        SGT => Some(SLT),
+        _ => None,
+    }
+}
+
 /// Rewrite-rule name of the instruction tail under inspection.
 #[derive(Clone, Copy)]
 pub(super) struct Window;
@@ -625,13 +680,7 @@ impl generated::Context for PeepContext<'_> {
     }
 
     fn flipped_comparison(&mut self, opcode: u8) -> Option<u8> {
-        match opcode {
-            LT => Some(GT),
-            GT => Some(LT),
-            SLT => Some(SGT),
-            SGT => Some(SLT),
-            _ => None,
-        }
+        flipped_comparison(opcode)
     }
 
     fn is_noncommutative_binop(&mut self, opcode: u8) -> bool {
@@ -680,52 +729,15 @@ impl generated::Context for PeepContext<'_> {
     }
 
     fn invert_comparison(&mut self, _: Window) -> Option<(u8, U256, u8)> {
-        if self.instructions.last()?.as_evm_opcode() != Some(ISZERO) {
-            return None;
-        }
-        let end = self.instructions.len().checked_sub(2)?;
-        let comparison = &self.instructions[end];
-        let opcode = comparison.as_evm_opcode()?;
-        let opposite = self.flipped_comparison(opcode)?;
-        if !comparison.has_canonical_stack_effect()
-            || comparison.keeps_with_next()
-            || !self.instructions[end + 1].has_canonical_stack_effect()
-            || self.instructions[end + 1].keeps_with_next()
+        let (iszero, comparison) = self.instructions.split_last()?;
+        if iszero.as_evm_opcode() != Some(ISZERO)
+            || !iszero.has_canonical_stack_effect()
+            || iszero.keeps_with_next()
         {
             return None;
         }
-        for start in (end.saturating_sub(MAX_STACK_WINDOW - 2)..end).rev() {
-            let pushed = &self.instructions[start];
-            if !pushed.has_canonical_stack_effect()
-                || pushed.keeps_with_next()
-                || start > 0 && self.instructions[start - 1].keeps_with_next()
-            {
-                break;
-            }
-            if let Some(value) = pushed.concrete_immediate()
-                && let Some(depth @ 0..=1) =
-                    protected_word_depth(&self.instructions[start + 1..end])
-            {
-                // Bias signed bounds into unsigned order before checking for overflow.
-                let bias = if matches!(opcode, SLT | SGT) { U256::ONE << 255 } else { U256::ZERO };
-                let ordered = value ^ bias;
-                let bound = if matches!(opcode, GT | SGT) == (depth == 1) {
-                    ordered.checked_add(U256::ONE)
-                } else {
-                    ordered.checked_sub(U256::ONE)
-                };
-                // A shorter encoding may need an extra temporary stack word.
-                if let Some(bound) = bound.map(|bound| bound ^ bias)
-                    && ImmediateMaterialization::new(self.evm_version, bound).stack_peak()
-                        <= ImmediateMaterialization::new(self.evm_version, value).stack_peak()
-                    && op::push_len(self.evm_version, bound)
-                        <= super::immediate_materialization_cost(self.evm_version, value).0 + 1
-                {
-                    return Some(((self.instructions.len() - start) as u8, bound, opposite));
-                }
-            }
-        }
-        None
+        let (start, bound, opposite) = invert_comparison(comparison, self.evm_version)?;
+        Some(((self.instructions.len() - start) as u8, bound, opposite))
     }
 
     fn rewrite(&mut self, skip: u8, edit: &Edit) -> Rewrite {

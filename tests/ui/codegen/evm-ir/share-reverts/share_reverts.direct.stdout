@@ -46,4 +46,62 @@
     revert
   bb8:
     stop
+  bb9:
+    push 7
+    calldatasize
+    lt
+-   iszero
+-   push bb11
++   push bb10
+    jumpi
+-   jump bb10
++   jump bb11
+  bb10 [cold]:
+    push 17
+    push 0
+    mstore
+    push 32
+    push 0
+    revert
+  bb11:
+    stop
+  bb12:
+    push 6
+    gas
+    gt
+    push bb14
+    jumpi
+    jump bb13
+  bb13 [cold]:
+    push 32
+    push 0
+    revert
+  bb14:
+    stop
+  bb15:
+    push 0
+    calldatasize
+    gt
+    push bb17
+    jumpi
+    jump bb16
+  bb16 [cold]:
+    push 32
+    push 0
+    revert
+  bb17:
+    stop
+  bb18:
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    calldatasize
+    gt
+    push bb20
+    jumpi
+    jump bb19
+  bb19 [cold]:
+    push 32
+    push 0
+    revert
+  bb20:
+    stop
   
