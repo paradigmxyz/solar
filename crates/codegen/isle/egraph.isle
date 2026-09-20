@@ -845,9 +845,13 @@
 (rule (rewrite (Op.Ne (zext a) (zext b))) (Op.Ne a b))
 
 ;; sext(a) == sext(b) => a == b, for identical source and destination widths.
-(rule (rewrite (Op.Eq (sext a from to) (sext b from to))) (Op.Eq a b))
+(rule (rewrite (Op.Eq (sext (and a (integer_bits from)) from to)
+                       (sext (and b (integer_bits from)) from to)))
+      (if-let true (u32_lt from to)) (Op.Eq a b))
 ;; sext(a) != sext(b) => a != b, for identical source and destination widths.
-(rule (rewrite (Op.Ne (sext a from to) (sext b from to))) (Op.Ne a b))
+(rule (rewrite (Op.Ne (sext (and a (integer_bits from)) from to)
+                       (sext (and b (integer_bits from)) from to)))
+      (if-let true (u32_lt from to)) (Op.Ne a b))
 
 ;; Pointer casts preserve bits across changes of nominal pointer type.
 (rule (rewrite (Op.PtrToInt (bitcast value) bits)) (Op.PtrToInt value bits))
