@@ -37,26 +37,26 @@ class ReportFormattingTests(unittest.TestCase):
         with patch.dict(
             os.environ,
             {
-                "BENCHMARK_BASE_SHA": "0123456789abcdef",
-                "BENCHMARK_PR_HEAD_SHA": "fedcba9876543210",
+                "BENCHMARK_BASE_SHA": "0123456789abcdef0123456789abcdef01234567",
+                "BENCHMARK_PR_HEAD_SHA": "fedcba9876543210fedcba9876543210fedcba98",
             },
             clear=True,
         ):
             self.assertEqual(
                 benchmark.perf_link("Results"),
-                "[Results](https://getfoundry.sh/perf/solar/?base=01234567&head=fedcba98#benchmarks)",
+                "[Results](https://www.getfoundry.sh/perf/solar/?base=0123456789abcdef0123456789abcdef01234567&head=fedcba9876543210fedcba9876543210fedcba98#benchmarks)",
             )
             self.assertEqual(
                 benchmark.perf_link("factorial", "factorial"),
-                "[factorial](https://getfoundry.sh/perf/solar/?base=01234567&head=fedcba98&benchmark=factorial#artifacts)",
+                "[factorial](https://www.getfoundry.sh/perf/solar/?base=0123456789abcdef0123456789abcdef01234567&head=fedcba9876543210fedcba9876543210fedcba98&benchmark=factorial#artifacts)",
             )
 
     def test_perf_link_targets_artifact(self):
         with patch.dict(
             os.environ,
             {
-                "BENCHMARK_BASE_SHA": "0123456789abcdef",
-                "BENCHMARK_PR_HEAD_SHA": "fedcba9876543210",
+                "BENCHMARK_BASE_SHA": "0123456789abcdef0123456789abcdef01234567",
+                "BENCHMARK_PR_HEAD_SHA": "fedcba9876543210fedcba9876543210fedcba98",
                 "BENCHMARK_SITE_URL": "https://example.test/",
             },
         ):
@@ -64,7 +64,7 @@ class ReportFormattingTests(unittest.TestCase):
 
         self.assertEqual(
             link,
-            "[factorial](https://example.test/?base=01234567&head=fedcba98&benchmark=factorial#artifacts)",
+            "[factorial](https://example.test/?base=0123456789abcdef0123456789abcdef01234567&head=fedcba9876543210fedcba9876543210fedcba98&benchmark=factorial#artifacts)",
         )
 
     def test_unchanged_report_has_note(self):
@@ -80,12 +80,12 @@ class ReportFormattingTests(unittest.TestCase):
         )
 
     def test_pr_comment_without_comparison_links_to_overview(self):
-        button = "[![View benchmark overview](https://img.shields.io/badge/View_benchmark_overview-2563eb?style=for-the-badge)](https://example.test/?base=01234567&head=fedcba98#benchmarks)\n"
+        button = "[![View benchmark overview](https://img.shields.io/badge/View_benchmark_overview-2563eb?style=for-the-badge)](https://example.test/?base=0123456789abcdef0123456789abcdef01234567&head=fedcba9876543210fedcba9876543210fedcba98#benchmarks)\n"
         with patch.dict(
             os.environ,
             {
-                "BENCHMARK_BASE_SHA": "0123456789abcdef",
-                "BENCHMARK_PR_HEAD_SHA": "fedcba9876543210",
+                "BENCHMARK_BASE_SHA": "0123456789abcdef0123456789abcdef01234567",
+                "BENCHMARK_PR_HEAD_SHA": "fedcba9876543210fedcba9876543210fedcba98",
                 "BENCHMARK_SITE_URL": "https://example.test/",
             },
             clear=True,
@@ -1356,7 +1356,7 @@ class RunComparisonTests(unittest.TestCase):
                 "| runtime bytes | ~0% |\n"
                 "| creation bytes | ~0% |\n\n"
                 "Equal-weight geometric means; lower is better.\n\n"
-                "[![View benchmark overview](https://img.shields.io/badge/View_benchmark_overview-2563eb?style=for-the-badge)](https://getfoundry.sh/perf/solar/)\n",
+                "[![View benchmark overview](https://img.shields.io/badge/View_benchmark_overview-2563eb?style=for-the-badge)](https://www.getfoundry.sh/perf/solar/)\n",
             )
             self.assertEqual(
                 json.loads(outputs["comparison.json"].read_text())["totals"][
