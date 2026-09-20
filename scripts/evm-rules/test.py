@@ -1177,12 +1177,16 @@ class RuleTests(unittest.TestCase):
             for form, line in forms(source[start:])
             if form[0] == "rule"
         ]
-        self.assertEqual(len(rules), 24)
+        self.assertEqual(len(rules), 26)
         for rule in rules:
             with self.subTest(rule=rule.form):
                 cx = Context()
                 lhs, rhs = cx.obligation(rule)
-                result, _ = check(lhs, rhs, cx.assumptions, 10000, cx.model)
+                result, query = check(lhs, rhs, cx.assumptions, 10000, cx.model)
+                if result["status"] == "unknown" and query:
+                    result, _ = partition_shift(
+                        lhs, rhs, cx.assumptions, 30000, cx.model
+                    )
                 self.assertEqual(result["status"], "proved", result)
 
     def test_actual_compiled_exp_rules(self):
@@ -1862,7 +1866,7 @@ class SolverFallbackTests(unittest.TestCase):
             for form, line in forms(path.read_text())
             if form[0] == "rule" and selected(form)
         ]
-        self.assertEqual(len(rules), 8)
+        self.assertEqual(len(rules), 10)
         fallback = Cvc5(timeout_ms=1000)
         for rule in rules:
             cx = Context()
