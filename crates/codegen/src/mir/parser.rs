@@ -421,7 +421,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             // phi/select of typed operands -> the operand type
             // Resolve after calls, including forward and numeric function references. Each merge
-            // acquires a non-default type at most once, so cyclic value references cannot oscillate.
+            // acquires a non-default type at most once, so cyclic value references cannot
+            // oscillate.
             loop {
                 let mut changed = false;
                 for &id in &instructions {

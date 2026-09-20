@@ -25,8 +25,8 @@
 //! per array, so a store into any array of a function widens every array
 //! that function reads; aliasing between arrays needs no separate proof.
 //!
-//! Only word-element arrays, contiguous low-bit masks, and `zext i160 (trunc i256 x to i160) to i256`
-//! round trips are rewritten. A narrowing result with other typed uses stays in place.
+//! Only word-element arrays, contiguous low-bit masks, and `zext i160 (trunc i256 x to i160) to
+//! i256` round trips are rewritten. A narrowing result with other typed uses stays in place.
 //! Runs early in the optimized phase, while element accesses are still
 //! semantic and the call graph is explicit; removed masks lose their debug
 //! checkpoints rather than lending them to the loads.

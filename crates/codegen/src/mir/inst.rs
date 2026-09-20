@@ -1004,7 +1004,8 @@ impl InstKind {
             | Self::StorageArrayLoad { .. }
             | Self::AbiEncodePacked { .. }
             | Self::LoadImmutable(..) => result.is_some(),
-            Self::ICall { .. } => true, // Module and builtin signatures are checked by the validator.
+            // Module and builtin signatures are checked by the validator.
+            Self::ICall { .. } => true,
             _ => {
                 self.op_def().result != super::ResultKind::Custom
                     && self.op_def().result.default_type() == result
