@@ -155,7 +155,7 @@ class Context:
             opcode = name[3:].lower()
             declarations = [
                 form[3][1:]
-                for form, _ in forms((ISLE / "prelude.isle").read_text())
+                for form, _ in forms((ISLE / "mir/prelude.isle").read_text())
                 if form[:3] == ("type", "Op", "extern")
             ]
             shapes = {

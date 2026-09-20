@@ -67,7 +67,7 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     jumpi v30, bb1, bb3
   bb3:
     v31 = sub v17, v27
-    v32 = gt 160, v31
+    v32 = lt v31, 160
     jumpi v32, bb1, bb4
   bb4:
     v33 = alloc raw, exact, uninitialized, infallible, 96 !metadata(deferred_alloc)
@@ -189,7 +189,7 @@ fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
     jumpi v33, bb3, bb5
   bb5:
     v34 = sub v20, v30
-    v35 = gt 64, v34
+    v35 = lt v34, 64
     jumpi v35, bb3, bb6
   bb6:
     v76 = mload 64 !metadata(memory=scratch)
@@ -326,7 +326,7 @@ fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0
-    v2 = add 4, v1
+    v2 = add v1, 4
     v3 = add v2, 32
     v4 = gt v1, 0xffffffffffffffff
     v5 = gt v3, v0
@@ -373,7 +373,7 @@ fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> memptr [may_return
     jumpi v3, bb1, bb2
   bb2:
     v4 = sub arg2, v1
-    v5 = gt 96, v4
+    v5 = lt v4, 96
     jumpi v5, bb1, bb3
   bb3:
     v94 = mload 64 !metadata(memory=scratch)

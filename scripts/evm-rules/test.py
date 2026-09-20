@@ -891,8 +891,8 @@ class EnvironmentTests(unittest.TestCase):
 class CallEffectTests(unittest.TestCase):
     def call_rules(self):
         return [
-            Rule(form, line, "egraph.isle")
-            for form, line in forms((ISLE / "egraph.isle").read_text())
+            Rule(form, line, "mir/egraph.isle")
+            for form, line in forms((ISLE / "mir/egraph.isle").read_text())
             if form[0] == "rule"
             and form[1][0] == "rewrite"
             and form[1][1][0]

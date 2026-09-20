@@ -159,7 +159,7 @@ fn @oversizedCopy() [selector=0x1e820d5e, abi_wrapper, pure] {
     calldatacopy v56, v67, 128
     mstore v56, 65
     v6 = mload v46
-    v7 = lt 0, v6
+    v7 = gt v6, 0
     jumpi v7, bb5, bb4
   bb5:
     v35 = add v46, 32
@@ -172,7 +172,7 @@ fn @oversizedCopy() [selector=0x1e820d5e, abi_wrapper, pure] {
     jumpi v14, bb3, bb2
   bb2:
     v26 = mload v56
-    v27 = lt 64, v26
+    v27 = gt v26, 64
     jumpi v27, bb6, bb4
   bb4:
     tail_call @revert_stub
