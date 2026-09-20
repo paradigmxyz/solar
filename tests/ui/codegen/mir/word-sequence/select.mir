@@ -273,3 +273,27 @@ fn @factor_and(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     v1 = select v2, v0, arg2
     ret v1
 }
+
+// RECIPE-LABEL: fn @factor_add_after_ne(
+// RECIPE: + {{ *}}[[PRODUCT:v[0-9]+]] = mul
+// RECIPE: + {{ *}}[[RESULT:v[0-9]+]] = add arg2, [[PRODUCT]]
+// RECIPE: {{ *}}ret [[RESULT]]
+fn @factor_add_after_ne(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = add arg1, arg2
+    v1 = ne arg0, 0
+    v2 = select v1, v0, arg2
+    ret v2
+}
+
+// RECIPE-LABEL: fn @factor_add_after_cast(
+// RECIPE: + {{ *}}[[PRODUCT:v[0-9]+]] = mul
+// RECIPE: + {{ *}}[[RESULT:v[0-9]+]] = add arg2, [[PRODUCT]]
+// RECIPE: {{ *}}ret [[RESULT]]
+fn @factor_add_after_cast(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = add arg1, arg2
+    v1 = trunc i256 arg0 to i1
+    v2 = select v1, v0, arg2
+    ret v2
+}

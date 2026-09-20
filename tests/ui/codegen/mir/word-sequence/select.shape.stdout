@@ -229,6 +229,22 @@
       ret v2
   }
   
+  fn @factor_add_after_ne(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = add arg1, arg2
+      v1 = ne arg0, 0
+      v2 = select v1, v0, arg2
+      ret v2
+  }
+  
+  fn @factor_add_after_cast(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = add arg1, arg2
+      v1 = trunc i256 arg0 to i1
+      v2 = select v1, v0, arg2
+      ret v2
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (before lower-evm-shaped) ===
 + // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (after lower-evm-shaped) ===
   @module ConstantSelectRecipes
@@ -456,6 +472,22 @@
       v0 = ne arg0, 0
       v1 = and arg1, arg2
       v2 = select v0, v1, arg2
+      ret v2
+  }
+  
+  fn @factor_add_after_ne(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = add arg1, arg2
+      v1 = ne arg0, 0
+      v2 = select v1, v0, arg2
+      ret v2
+  }
+  
+  fn @factor_add_after_cast(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = add arg1, arg2
+      v1 = trunc i256 arg0 to i1
+      v2 = select v1, v0, arg2
       ret v2
   }
   
