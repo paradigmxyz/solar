@@ -92,21 +92,15 @@ pub(super) fn cleanup(
     let mut zero_tests = Vec::new();
     let mut boolean_comparisons = Vec::new();
     let mut replacement_inputs = FxHashMap::default();
-    let mut dead = DenseBitSet::<InstId>::new_empty(func.num_insts());
     for inst in func.instructions() {
         if let Some(inner) = func.inst(inst).kind.zero_test_operand(func)
-            && func
-                .inst(inst)
-                .metadata
-                .effect()
-                .is_none_or(|effect| effect == func.inst(inst).kind.effect_kind())
+            && native_effect(func, inst)
             && let Value::Inst(inner) = func.value(inner)
             && let Some(value) = func.inst(*inner).kind.zero_test_operand(func)
             && func.value_ty(value) == Some(crate::mir::MirType::I1)
             && let Some(result) = func.inst_result_value(inst)
         {
             replacements.insert(result, value);
-            dead.insert(inst);
         }
         if let InstKind::And(a, b) = func.inst(inst).kind
             && native_effect(func, inst)
@@ -120,7 +114,6 @@ pub(super) fn cleanup(
             && let Some(result) = func.inst_result_value(inst)
         {
             replacements.insert(result, value);
-            dead.insert(inst);
         }
         if let InstKind::Zext(narrowed) = func.inst(inst).kind
             && native_effect(func, inst)
@@ -131,7 +124,6 @@ pub(super) fn cleanup(
             && max_bits_with_args(func, value, MAX_VALUE_DEPTH, &argument_bits) <= bits
         {
             replacements.insert(result, value);
-            dead.insert(inst);
         }
         if let InstKind::Zext(boolean) = func.inst(inst).kind
             && let Some(value) = normalized_word(func, boolean, &argument_bits, returns)
@@ -141,7 +133,6 @@ pub(super) fn cleanup(
         {
             replacements.insert(result, value);
             replacement_inputs.insert(result, boolean);
-            dead.insert(inst);
         }
         if let InstKind::Eq(a, b) | InstKind::Ne(a, b) = func.inst(inst).kind
             && func.value_ty(a) == Some(MirType::I1)
@@ -161,11 +152,7 @@ pub(super) fn cleanup(
             && let Value::Inst(truncation) = func.value(narrowed)
             && let InstKind::Trunc(value, bits) = func.inst(*truncation).kind
             && max_bits_with_args(func, value, MAX_VALUE_DEPTH, &argument_bits) <= bits
-            && func
-                .inst(inst)
-                .metadata
-                .effect()
-                .is_none_or(|effect| effect == func.inst(inst).kind.effect_kind())
+            && native_effect(func, inst)
         {
             zero_tests.push((inst, narrowed, value));
         }
@@ -180,12 +167,6 @@ pub(super) fn cleanup(
             !protected.contains(*result)
                 && replacement_inputs.get(result).is_none_or(|value| !protected.contains(*value))
         });
-        for inst in dead.iter().collect::<Vec<_>>() {
-            if func.inst_result_value(inst).is_some_and(|value| !replacements.contains_key(&value))
-            {
-                dead.remove(inst);
-            }
-        }
     }
     for (inst, _, value) in zero_tests {
         let zero = func
@@ -231,6 +212,12 @@ pub(super) fn cleanup(
         }
     }
     if !replacements.is_empty() {
+        let mut dead = DenseBitSet::new_empty(func.num_insts());
+        for &result in replacements.keys() {
+            if let Value::Inst(inst) = func.value(result) {
+                dead.insert(*inst);
+            }
+        }
         // result = and value, low_mask; use result -> use value
         // result = zext (trunc value, bits); use result -> use value
         // result = eq (eq boolean, false), false; use result -> use boolean
@@ -242,9 +229,7 @@ pub(super) fn cleanup(
             });
         });
         for block in &mut func.blocks {
-            block
-                .instructions
-                .retain(|&inst| inst.index() >= dead.domain_size() || !dead.contains(inst));
+            block.instructions.retain(|&inst| !dead.contains(inst));
             if let Some(term) = &mut block.terminator {
                 utils::replace_terminator_uses_canonicalized(term, &replacements);
             }

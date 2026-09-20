@@ -121,10 +121,8 @@ impl EvmCodegen<'_> {
             return None;
         }
         let mut operands = SmallVec::<[ValueId; 8]>::new();
-        let zero_test = if let Op::Eq { a, b } = *op {
-            [(a, b), (b, a)]
-                .into_iter()
-                .find_map(|(value, zero)| (func.value_u64(zero) == Some(0)).then_some(value))
+        let zero_test = if matches!(op, Op::Eq { .. }) {
+            Target::zero_test_input(op, |value| func.value_u256(value))
         } else {
             None
         };

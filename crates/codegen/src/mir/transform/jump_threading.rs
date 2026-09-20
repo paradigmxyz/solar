@@ -282,35 +282,33 @@ impl JumpThreader {
     }
 
     fn block_results_have_external_uses(func: &Function, block_id: BlockId) -> bool {
-        let phi_results = func.blocks[block_id]
-            .instructions
-            .iter()
-            .filter_map(|&inst| func.inst_result_value(inst))
-            .collect::<Vec<_>>();
-        if phi_results.is_empty() {
+        let mut results = DenseBitSet::new_empty(func.num_values());
+        for &inst in &func.blocks[block_id].instructions {
+            if let Some(result) = func.inst_result_value(inst) {
+                results.insert(result);
+            }
+        }
+        if results.is_empty() {
             return false;
         }
 
         for (other_block, block) in func.blocks.iter_enumerated() {
-            if other_block != block_id {
-                for &inst_id in &block.instructions {
-                    if func
-                        .inst(inst_id)
-                        .kind
-                        .operands()
-                        .iter()
-                        .any(|&operand| phi_results.contains(&operand))
-                    {
-                        return true;
-                    }
-                }
-            }
-
             if other_block == block_id {
                 continue;
             }
+            for &inst_id in &block.instructions {
+                if func
+                    .inst(inst_id)
+                    .kind
+                    .operands()
+                    .iter()
+                    .any(|&operand| results.contains(operand))
+                {
+                    return true;
+                }
+            }
             if let Some(term) = &block.terminator
-                && term.operands().iter().any(|&operand| phi_results.contains(&operand))
+                && term.operands().iter().any(|&operand| results.contains(operand))
             {
                 return true;
             }

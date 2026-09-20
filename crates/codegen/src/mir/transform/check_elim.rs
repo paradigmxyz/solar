@@ -249,14 +249,17 @@ impl MirPass for ImmutableCheckElim {
 
 /// Shrinks unsigned encodings only when every assignment preserves all stored bits.
 fn narrow_immutable_layouts(module: &mut Module) -> bool {
-    if module.immutable_count() == 0 {
+    let can_narrow = |ty| matches!(ty, ValueLayout::UInt(size) if size.bits() > 8);
+    if !module.iter_immutables().any(|(_, immutable)| can_narrow(immutable.ty)) {
         return false;
     }
     let arguments = call_cleanup::infer_arguments(module);
     let mut widths = FxHashMap::<_, u32>::default();
     for (id, func) in module.functions.iter_enumerated() {
         for inst in func.instructions() {
-            if let InstKind::StoreImmutable(immutable, value) = func.inst(inst).kind {
+            if let InstKind::StoreImmutable(immutable, value) = func.inst(inst).kind
+                && can_narrow(module.immutable(immutable).ty)
+            {
                 let bits = max_bits_with_args(func, value, 8, &|index| {
                     call_cleanup::argument_bits(func, id, index, &arguments)
                 });

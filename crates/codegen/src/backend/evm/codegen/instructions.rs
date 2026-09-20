@@ -5,7 +5,7 @@ use super::{
     StackOp, StackPush, Terminator, ValueId, op,
     select::{self, OpcodeLowering},
 };
-use crate::mir::Callee;
+use crate::{mir::Callee, target::Target};
 use alloy_primitives::U256;
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -168,9 +168,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             // eq x, 0 -> ISZERO x
             // ne x, 0 -> ISZERO x; ISZERO
             // ne x, y -> EQ x, y; ISZERO
-            if let Some(value) = [(a, b), (b, a)].into_iter().find_map(|(value, zero)| {
-                func.value_u256(zero).is_some_and(|v| v.is_zero()).then_some(value)
-            }) {
+            if let Some(value) = Target::zero_test_input(&kind.op(), |value| func.value_u256(value))
+            {
                 self.emit_unary_op_with_result(
                     func,
                     value,
