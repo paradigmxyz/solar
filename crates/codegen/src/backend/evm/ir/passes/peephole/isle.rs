@@ -682,13 +682,7 @@ impl generated::Context for PeepContext<'_> {
         let end = self.instructions.len().checked_sub(2)?;
         let comparison = &self.instructions[end];
         let opcode = comparison.as_evm_opcode()?;
-        let opposite = match opcode {
-            GT => LT,
-            LT => GT,
-            SGT => SLT,
-            SLT => SGT,
-            _ => return None,
-        };
+        let opposite = self.flipped_comparison(opcode)?;
         if !comparison.has_canonical_stack_effect()
             || comparison.keeps_with_next()
             || !self.instructions[end + 1].has_canonical_stack_effect()
