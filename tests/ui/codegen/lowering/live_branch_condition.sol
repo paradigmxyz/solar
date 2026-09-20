@@ -6,6 +6,9 @@
 //@ run-call-fail: next 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call: both 0 => 7
 //@ run-call: both 42 => 51
+//@ run-call: ReturndataBranch::test 0 => 9
+//@ run-call: ReturndataBranch::test 1 => 7
+//@ run-call: ReturndataBranch::test 32 => 7
 
 contract LiveBranchCondition {
     // CHECK-LABEL: @module LiveBranchCondition_runtime
@@ -35,5 +38,23 @@ contract LiveBranchCondition {
             default { result := add(x, 9) }
         }
         return result;
+    }
+}
+
+contract ReturndataBranch {
+    // CHECK-LABEL: @module ReturndataBranch_runtime
+    // CHECK: returndatasize
+    // CHECK-NEXT: push {{bb[0-9]+}}
+    // CHECK-NEXT: jumpi
+    function test(uint256 size) external view returns (uint256) {
+        assembly {
+            if iszero(staticcall(gas(), 4, 0, size, 0, 0)) { revert(0, 0) }
+            if gt(returndatasize(), 0) {
+                mstore(0, 7)
+                return(0, 32)
+            }
+            mstore(0, 9)
+            return(0, 32)
+        }
     }
 }

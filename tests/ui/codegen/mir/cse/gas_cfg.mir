@@ -10,7 +10,7 @@
 // inherited pre-branch load and the local duplicate must remain explicit.
 // CHECK-LABEL: fn @diamond
 // CHECK-COUNT-3: {{^[ +].*}}v{{[0-9]+}} = sload arg0
-fn @diamond(arg0: u256, arg1: bool) -> u256 {
+fn @diamond(arg0: i256, arg1: i1) -> i256 {
   bb0:
     v2 = sload arg0
     jumpi arg1, bb1, bb2
@@ -34,7 +34,7 @@ fn @diamond(arg0: u256, arg1: bool) -> u256 {
 // The gas read at the latch observes the next iteration's loads.
 // CHECK-LABEL: fn @loop_backedge
 // CHECK-COUNT-3: {{^[ +].*}}v{{[0-9]+}} = sload arg0
-fn @loop_backedge(arg0: u256, arg1: bool) -> u256 {
+fn @loop_backedge(arg0: i256, arg1: i1) -> i256 {
   bb0:
     v2 = sload arg0
     jump bb1
@@ -58,7 +58,7 @@ fn @loop_backedge(arg0: u256, arg1: bool) -> u256 {
 // Transitive callee observations must survive memory-effect summaries.
 // CHECK-LABEL: fn @caller
 // CHECK-COUNT-3: {{^[ +].*}}v{{[0-9]+}} = sload arg0
-fn @caller(arg0: u256) -> u256 {
+fn @caller(arg0: i256) -> i256 {
   bb0:
     v1 = sload arg0
     v2 = icall @observe
@@ -74,13 +74,13 @@ fn @caller(arg0: u256) -> u256 {
     ret v9
 }
 
-fn @observe() -> u256 {
+fn @observe() -> i256 {
   bb0:
     v0 = icall @read_gas
     ret v0
 }
 
-fn @read_gas() -> u256 {
+fn @read_gas() -> i256 {
   bb0:
     v0 = gas
     ret v0

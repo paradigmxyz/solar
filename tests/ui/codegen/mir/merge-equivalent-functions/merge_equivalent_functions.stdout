@@ -1,38 +1,38 @@
 - // === ROOT/tests/ui/codegen/mir/merge-equivalent-functions/merge_equivalent_functions.mir (before merge-equivalent-functions) ===
 + // === ROOT/tests/ui/codegen/mir/merge-equivalent-functions/merge_equivalent_functions.mir (after merge-equivalent-functions) ===
   @module MergeEquivalentFunctions
-  fn @leaf_a(arg0: u256) -> u256 {
+  fn @leaf_a(arg0: i256) -> i256 {
     bb0:
       v0 = add arg0, 1
       ret v0
   }
   
-  fn @leaf_b(arg0: u256) -> u256 {
+  fn @leaf_b(arg0: i256) -> i256 {
     bb0:
       v0 = add arg0, 1
       ret v0
   }
   
-  fn @wrap_a(arg0: u256) -> u256 {
+  fn @wrap_a(arg0: i256) -> i256 {
     bb0:
       v0 = icall @leaf_a, arg0
       ret v0
   }
   
-  fn @wrap_b(arg0: u256) -> u256 {
+  fn @wrap_b(arg0: i256) -> i256 {
     bb0:
 -     v0 = icall @leaf_b, arg0
 +     v0 = icall @leaf_a, arg0
       ret v0
   }
   
-  fn @different(arg0: u256) -> u256 {
+  fn @different(arg0: i256) -> i256 {
     bb0:
       v0 = add arg0, 2
       ret v0
   }
   
-  fn @entry() -> u256 [selector=0x01020304] {
+  fn @entry() -> i256 [selector=0x01020304] {
     bb0:
       v0 = icall @wrap_a, 1
 -     v1 = icall @wrap_b, 2
@@ -43,7 +43,7 @@
       ret v4
   }
   
-  fn @recursive_a(arg0: bool, arg1: u256) -> u256 {
+  fn @recursive_a(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -53,7 +53,7 @@
       ret v0
   }
   
-  fn @recursive_b(arg0: bool, arg1: u256) -> u256 {
+  fn @recursive_b(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -72,9 +72,9 @@
       stop
   }
   
-  fn @mutual_a(arg0: u256) -> u256 {
+  fn @mutual_a(arg0: i256) -> i256 {
     bb0:
-      v0 = iszero arg0
+      v0 = eq arg0, 0
       jumpi v0, bb1, bb2
     bb2:
       v1 = sub arg0, 1
@@ -85,9 +85,9 @@
       ret 7
   }
   
-  fn @mutual_b(arg0: u256) -> u256 {
+  fn @mutual_b(arg0: i256) -> i256 {
     bb0:
-      v0 = iszero arg0
+      v0 = eq arg0, 0
       jumpi v0, bb1, bb2
     bb2:
       v1 = sub arg0, 1
@@ -97,16 +97,16 @@
       ret 7
   }
   
-  fn @mutual_entry() -> u256 [selector=0x01020307] {
+  fn @mutual_entry() -> i256 [selector=0x01020307] {
     bb0:
 -     v0 = icall @mutual_b, 2
 +     v0 = icall @mutual_a, 2
       ret v0
   }
   
-  fn @different_mutual_a(arg0: u256) -> u256 {
+  fn @different_mutual_a(arg0: i256) -> i256 {
     bb0:
-      v0 = iszero arg0
+      v0 = eq arg0, 0
       jumpi v0, bb1, bb2
     bb2:
       v1 = sub arg0, 1
@@ -116,9 +116,9 @@
       ret 17
   }
   
-  fn @different_mutual_b(arg0: u256) -> u256 {
+  fn @different_mutual_b(arg0: i256) -> i256 {
     bb0:
-      v0 = iszero arg0
+      v0 = eq arg0, 0
       jumpi v0, bb1, bb2
     bb2:
       v1 = sub arg0, 1
@@ -128,9 +128,9 @@
       ret 18
   }
   
-  fn @mutual_tail_a(arg0: u256) -> u256 {
+  fn @mutual_tail_a(arg0: i256) -> i256 {
     bb0:
-      v0 = iszero arg0
+      v0 = eq arg0, 0
       jumpi v0, bb1, bb2
     bb2:
       v1 = sub arg0, 1
@@ -140,9 +140,9 @@
       ret 23
   }
   
-  fn @mutual_tail_b(arg0: u256) -> u256 {
+  fn @mutual_tail_b(arg0: i256) -> i256 {
     bb0:
-      v0 = iszero arg0
+      v0 = eq arg0, 0
       jumpi v0, bb1, bb2
     bb2:
       v1 = sub arg0, 1

@@ -1,0 +1,72 @@
+// === ROOT/tests/ui/codegen/mir/egraph/clz_runtime.sol:YulClzSimplify ===
+@module YulClzSimplify
+types:
+  struct0: {i256, i256, i256, i256}
+  struct1: {i256, i256, i256, i256, i256, i256, i256, i256, i256, i256}
+
+fn @inequalities(arg0: i256) -> struct0 [selector=0x6774d5e5, pure, abi_params=[u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+  bb0:
+    v0 = clz arg0
+    v1 = eq v0, 255
+    v2 = zext i1 v1 to i256
+    v3 = eq v2, 0
+    v4 = zext i1 v3 to i256
+    v5 = clz arg0
+    v6 = eq 256, v5
+    v7 = zext i1 v6 to i256
+    v8 = eq v7, 0
+    v9 = zext i1 v8 to i256
+    v10 = clz arg0
+    v11 = eq v10, 257
+    v12 = zext i1 v11 to i256
+    v13 = eq v12, 0
+    v14 = zext i1 v13 to i256
+    v15 = clz arg0
+    v16 = eq 257, v15
+    v17 = zext i1 v16 to i256
+    v18 = eq v17, 0
+    v19 = zext i1 v18 to i256
+    v20 = insert_value struct0, undef struct0, 0, v4
+    v21 = insert_value struct0, v20, 1, v9
+    v22 = insert_value struct0, v21, 2, v14
+    v23 = insert_value struct0, v22, 3, v19
+    ret v23
+}
+
+fn @simplify(arg0: i256) -> struct1 [selector=0xb009c6b8, pure, abi_params=[u256], abi_returns=[word, word, word, word, word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256, u256, u256, u256, u256]] {
+  bb0:
+    v0 = clz arg0
+    v1 = eq v0, 0
+    v2 = zext i1 v1 to i256
+    v3 = clz arg0
+    v4 = eq v3, 255
+    v5 = zext i1 v4 to i256
+    v6 = clz arg0
+    v7 = eq v6, 256
+    v8 = zext i1 v7 to i256
+    v9 = clz arg0
+    v10 = shr 8, v9
+    v11 = clz arg0
+    v12 = shr 9, v11
+    v13 = clz arg0
+    v14 = and v13, 511
+    v15 = clz arg0
+    v16 = byte 30, v15
+    v17 = clz arg0
+    v18 = div v17, 257
+    v19 = clz arg0
+    v20 = mod v19, 257
+    v21 = or arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v22 = clz v21
+    v23 = insert_value struct1, undef struct1, 0, v2
+    v24 = insert_value struct1, v23, 1, v5
+    v25 = insert_value struct1, v24, 2, v8
+    v26 = insert_value struct1, v25, 3, v10
+    v27 = insert_value struct1, v26, 4, v12
+    v28 = insert_value struct1, v27, 5, v14
+    v29 = insert_value struct1, v28, 6, v16
+    v30 = insert_value struct1, v29, 7, v18
+    v31 = insert_value struct1, v30, 8, v20
+    v32 = insert_value struct1, v31, 9, v22
+    ret v32
+}

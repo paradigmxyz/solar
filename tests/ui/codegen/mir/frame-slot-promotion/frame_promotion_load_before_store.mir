@@ -2,13 +2,15 @@
 //@filecheck:
 @module FramePromotionLoadBeforeStore
 // CHECK-LABEL: {{^[ +].*}}fn @load_before_store{{[( ]}}
-// CHECK: {{^[ +].*}}[[SLOT:v[0-9]+]] = internal_frame_addr 128
+// CHECK: {{^[ +].*}}[[SLOT_PTR:v[0-9]+]] = internal_frame_addr 128
+// CHECK: [[SLOT:v[0-9]+]] = ptrtoint memptr [[SLOT_PTR]] to i256
 // CHECK: {{^[ +].*}}[[BEFORE:v[0-9]+]] = mload [[SLOT]]
 // CHECK: {{^[ +].*}}mstore [[SLOT]], 1
 // CHECK: {{^[ +].*}}ret [[BEFORE]]
-fn @load_before_store() -> u256 {
+fn @load_before_store() -> i256 {
   bb0:
-    v1 = internal_frame_addr 128
+    v3 = internal_frame_addr 128
+    v1 = ptrtoint memptr v3 to i256
     v2 = mload v1
     mstore v1, 1
     ret v2

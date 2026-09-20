@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/creation_evaluation_order.sol:CreationEvaluationOrderChild ===
 @module CreationEvaluationOrderChild
-fn @constructor(arg0: u256) [constructor, payable, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, payable, abi_params=[u256]] {
   bb0:
     ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/creation_evaluation_order.sol:CreationEvaluationOrder ===
 @module CreationEvaluationOrder
-fn @valueOpt() -> u256 {
+fn @valueOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -16,7 +16,7 @@ fn @valueOpt() -> u256 {
     ret 0
 }
 
-fn @saltOpt() -> bytes32 {
+fn @saltOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -25,7 +25,7 @@ fn @saltOpt() -> bytes32 {
     ret 0
 }
 
-fn @arg() -> u256 {
+fn @arg() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -34,7 +34,7 @@ fn @arg() -> u256 {
     ret 1
 }
 
-fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @valueOpt
     v1 = icall @saltOpt
@@ -43,19 +43,26 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     v4 = not 31
     v5 = and 158, v4
     v6 = alloc raw, exact, uninitialized, infallible, v5
-    mstore v6, 0x605f380380605f60c03960c001601f017fffffffffffffffffffffffffffffff
-    v7 = add v6, 32
-    mstore v7, 0xffffffffffffffffffffffffffffffffe01660405260c060c0605f3803016020
-    v8 = add v6, 64
-    mstore v8, 0x8201915081119050604e576052565b5f5ffd5b600380605c5f395ff35f5ffd00
-    v9 = slice_ptr v3
-    v10 = add v6, 95
-    mcopy v10, v9, 32 !metadata(memory=heap)
-    v11 = create2 v0, v6, 127, v1
-    jumpi v11, bb2, bb1
+    v7 = ptrtoint memptr v6 to i256
+    mstore v7, 0x605f380380605f60c03960c001601f017fffffffffffffffffffffffffffffff
+    v8 = ptrtoint memptr v6 to i256
+    v9 = add v8, 32
+    mstore v9, 0xffffffffffffffffffffffffffffffffe01660405260c060c0605f3803016020
+    v10 = ptrtoint memptr v6 to i256
+    v11 = add v10, 64
+    mstore v11, 0x8201915081119050604e576052565b5f5ffd5b600380605c5f395ff35f5ffd00
+    v12 = slice_ptr v3
+    v13 = ptrtoint memptr v6 to i256
+    v14 = add v13, 95
+    mcopy v14, v12, 32 !metadata(memory=heap)
+    v15 = ptrtoint memptr v6 to i256
+    v16 = create2 v0, v15, 127, v1
+    v17 = zext i160 v16 to i256
+    v18 = ne v17, 0
+    jumpi v18, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = sload 0 !metadata(storage=slot(0))
-    ret v12
+    v19 = sload 0 !metadata(storage=slot(0))
+    ret v19
 }

@@ -9,7 +9,7 @@
 // CHECK: {{^[ +].*}}bb3:
 // CHECK: {{^[ +].*}}[[JOIN:v[0-9]+]] = mload 128
 // CHECK: {{^[ +].*}}ret [[JOIN]]
-fn @mload_full_diamond(arg0: bool) -> u256 {
+fn @mload_full_diamond(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -27,7 +27,7 @@ fn @mload_full_diamond(arg0: bool) -> u256 {
 // CHECK: {{^[ +].*}}bb3:
 // CHECK: {{^[ +].*}}[[JOIN:v[0-9]+]] = mload 128
 // CHECK: {{^[ +].*}}ret [[JOIN]]
-fn @mstore_forwarding(arg0: bool, arg1: u256) -> u256 {
+fn @mstore_forwarding(arg0: i1, arg1: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -45,7 +45,7 @@ fn @mstore_forwarding(arg0: bool, arg1: u256) -> u256 {
 // CHECK: {{^[ +].*}}mstore8 159
 // CHECK: {{^[ +].*}}bb3:
 // CHECK: {{^[ +].*}}[[JOIN:v[0-9]+]] = mload 128
-fn @mstore8_overlap_kills(arg0: bool) -> u256 {
+fn @mstore8_overlap_kills(arg0: i1) -> i256 {
   bb0:
     v1 = mload 128
     jumpi arg0, bb1, bb2
@@ -65,7 +65,7 @@ fn @mstore8_overlap_kills(arg0: bool) -> u256 {
 // CHECK: {{^[ +].*}}bb3:
 // CHECK: {{^[ +].*}}[[JOIN:v[0-9]+]] = mload 128
 // CHECK: {{^[ +].*}}ret [[JOIN]]
-fn @mload_partial_rejected(arg0: bool) -> u256 {
+fn @mload_partial_rejected(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -82,7 +82,7 @@ fn @mload_partial_rejected(arg0: bool) -> u256 {
 // CHECK: + [[INSERTED:v[0-9]+]] = mload 128
 // CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: {{v[0-9]+}}], [bb2: [[INSERTED]]]
 // CHECK: + {{v[0-9]+}} = add [[MERGE]], [[MERGE]]
-fn @mload_partial_repeated_profitable(arg0: bool) -> u256 {
+fn @mload_partial_repeated_profitable(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -101,7 +101,7 @@ fn @mload_partial_repeated_profitable(arg0: bool) -> u256 {
 // CHECK: {{^[ +].*}}bb4:
 // CHECK: {{^[ +].*}}[[JOIN:v[0-9]+]] = mload 128
 // CHECK: {{^[ +].*}}ret [[JOIN]]
-fn @mload_partial_two_available(arg0: u256) -> u256 {
+fn @mload_partial_two_available(arg0: i256) -> i256 {
   bb0:
     switch arg0, default bb3, [1 => bb1, 2 => bb2]
   bb1:
@@ -120,7 +120,7 @@ fn @mload_partial_two_available(arg0: u256) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @mload_loop_header{{[( ]}}
 // CHECK: + [[LOAD:v[0-9]+]] = phi [bb0: {{v[0-9]+}}], [bb2: [[LOAD]]]
 // CHECK: + {{v[0-9]+}} = lt [[LOAD]], arg0
-fn @mload_loop_header(arg0: u256) -> u256 {
+fn @mload_loop_header(arg0: i256) -> i256 {
   bb0:
     v1 = mload 128
     jump bb1
@@ -138,7 +138,7 @@ fn @mload_loop_header(arg0: u256) -> u256 {
 // CHECK: {{^[ +].*}}[[LOAD:v[0-9]+]] = mload 128
 // CHECK: {{^[ +].*}}staticcall
 // CHECK: + ret [[LOAD]]
-fn @staticcall_zero_return_preserves_memory(arg0: bool, arg1: address) -> u256 {
+fn @staticcall_zero_return_preserves_memory(arg0: i1, arg1: i256) -> i256 {
   bb0:
     v1 = mload 128
     jumpi arg0, bb1, bb2
@@ -157,7 +157,7 @@ fn @staticcall_zero_return_preserves_memory(arg0: bool, arg1: address) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @msize_blocks_memory{{[( ]}}
 // CHECK: {{^[ +].*}}msize
 // CHECK: {{^[ +].*}}[[JOIN:v[0-9]+]] = mload 128
-fn @msize_blocks_memory(arg0: bool) -> u256 {
+fn @msize_blocks_memory(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -180,7 +180,7 @@ fn @msize_blocks_memory(arg0: bool) -> u256 {
 // CHECK: {{^[ +] *}}bb3:
 // CHECK: {{^[ +].*}}mload 128
 // CHECK: {{^[ +].*}}mload 128
-fn @default_gas_call_blocks_prefix(arg0: bool, arg1: memorybytes) -> u256 {
+fn @default_gas_call_blocks_prefix(arg0: i1, arg1: memorybytes) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -189,7 +189,8 @@ fn @default_gas_call_blocks_prefix(arg0: bool, arg1: memorybytes) -> u256 {
   bb2:
     jump bb3
   bb3:
-    v5 = address_call 0xbeef, arg1
+    v100 = trunc i256 0xbeef to i160
+    v5 = address_call v100, arg1
     v2 = mload 128
     v3 = mload 128
     v4 = add v2, v3
@@ -203,7 +204,7 @@ fn @default_gas_call_blocks_prefix(arg0: bool, arg1: memorybytes) -> u256 {
 // CHECK: {{^[ +] *}}bb3:
 // CHECK: {{^[ +].*}}mload 128
 // CHECK: {{^[ +].*}}mload 128
-fn @default_gas_call_blocks_reload(arg0: bool, arg1: memorybytes) -> u256 {
+fn @default_gas_call_blocks_reload(arg0: i1, arg1: memorybytes) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -213,7 +214,8 @@ fn @default_gas_call_blocks_reload(arg0: bool, arg1: memorybytes) -> u256 {
     jump bb3
   bb3:
     v2 = mload 128
-    v5 = address_call 0xbeef, arg1
+    v100 = trunc i256 0xbeef to i160
+    v5 = address_call v100, arg1
     v3 = mload 128
     v4 = add v2, v3
     ret v4
@@ -226,7 +228,7 @@ fn @default_gas_call_blocks_reload(arg0: bool, arg1: memorybytes) -> u256 {
 // CHECK: {{^[ +] *}}bb3:
 // CHECK: {{^[ +].*}}mload 128
 // CHECK: {{^[ +].*}}mload 128
-fn @explicit_gas_call_blocks_pre(arg0: bool, arg1: memorybytes) -> u256 {
+fn @explicit_gas_call_blocks_pre(arg0: i1, arg1: memorybytes) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -235,7 +237,8 @@ fn @explicit_gas_call_blocks_pre(arg0: bool, arg1: memorybytes) -> u256 {
   bb2:
     jump bb3
   bb3:
-    v5 = address_call 0xbeef, arg1, gas 1000
+    v100 = trunc i256 0xbeef to i160
+    v5 = address_call v100, arg1, gas 1000
     v2 = mload 128
     v3 = mload 128
     v4 = add v2, v3

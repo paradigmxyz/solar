@@ -1,27 +1,28 @@
 // === ROOT/tests/ui/codegen/mir/egraph/paired_views.sol:PairedViews ===
 @module PairedViews
 types:
-  struct0: {u256, u256, u256, u256}
+  struct0: {i256, i256, i256, i256}
 
-fn @words(arg0: u256, arg1: u256) -> struct0 [selector=0xa5a43888, pure, abi_params=[u256, u256], abi_returns=[word<bool>, word, word, word], abi_return_params=[bool, u256, u256, u256]] {
+fn @words(arg0: i256, arg1: i256) -> struct0 [selector=0xa5a43888, pure, abi_params=[u256, u256], abi_returns=[word<bool>, word, word, word], abi_return_params=[bool, u256, u256, u256]] {
   bb0:
     v0 = not 0
     v1 = xor arg1, v0
     v2 = not 0
     v3 = xor arg0, v2
     v4 = eq v3, v1
-    v5 = not 0
-    v6 = xor arg1, v5
-    v7 = not 0
-    v8 = xor arg0, v7
-    v9 = xor v8, v6
-    v10 = shl 248, arg0
-    v11 = byte 0, v10
-    v12 = shl 240, arg0
-    v13 = byte 0, v12
-    v14 = insert_value struct0, undef struct0, 0, v4
-    v15 = insert_value struct0, v14, 1, v9
-    v16 = insert_value struct0, v15, 2, v11
-    v17 = insert_value struct0, v16, 3, v13
-    ret v17
+    v5 = zext i1 v4 to i256
+    v6 = not 0
+    v7 = xor arg1, v6
+    v8 = not 0
+    v9 = xor arg0, v8
+    v10 = xor v9, v7
+    v11 = shl 248, arg0
+    v12 = byte 0, v11
+    v13 = shl 240, arg0
+    v14 = byte 0, v13
+    v15 = insert_value struct0, undef struct0, 0, v5
+    v16 = insert_value struct0, v15, 1, v10
+    v17 = insert_value struct0, v16, 2, v12
+    v18 = insert_value struct0, v17, 3, v14
+    ret v18
 }

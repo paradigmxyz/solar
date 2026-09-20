@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_memory_return.sol:ConstructorMemoryReturn ===
 @module ConstructorMemoryReturn
-fn @value() -> memorybytes [selector=0x3fa4f245, view, abi_params=[], abi_returns=[memory_bytes]] {
+fn @value() -> memorybytes [selector=0x3fa4f245, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = load_storage_bytes 0
     ret v0
@@ -14,12 +14,13 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @version() -> memorybytes [selector=0x54fd4d50, pure, abi_params=[], abi_returns=[memory_bytes]] {
+fn @version() -> memorybytes [selector=0x54fd4d50, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -28,18 +29,19 @@ fn @consume(arg0: memorybytes) -> memorybytes [pure] {
     ret arg0
 }
 
-fn @direct() -> u256 [selector=0x222b1407, pure, abi_params=[], abi_returns=[word]] {
+fn @direct() -> i256 [selector=0x222b1407, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 5
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    v2 = icall @consume, v0
-    v3 = memory_object_len memorybytes, v2
-    ret v3
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v3 = icall @consume, v0
+    v4 = memory_object_len memorybytes, v3
+    ret v4
 }
 
-fn @makePair(arg0: u256) -> memorystruct [pure] {
+fn @makePair(arg0: i256) -> memorystruct [pure] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
@@ -51,7 +53,7 @@ fn @makePair(arg0: u256) -> memorystruct [pure] {
     ret v1
 }
 
-fn @pairValue() -> u256 [selector=0x393eabbf, pure, abi_params=[], abi_returns=[word]] {
+fn @pairValue() -> i256 [selector=0x393eabbf, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v1 = checked_add u256, 2, 1
@@ -61,7 +63,7 @@ fn @pairValue() -> u256 [selector=0x393eabbf, pure, abi_params=[], abi_returns=[
     ret v2
 }
 
-fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

@@ -1,38 +1,45 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_returndata_bounds.sol:ReturnProducer ===
 @module ReturnProducer
-fn @aggregate() -> memorystruct [selector=0xaf36778b, pure, abi_params=[], abi_returns=[tuple<tuple<array<2, word>>, word>]] {
+fn @aggregate() -> memorystruct [selector=0xaf36778b, pure, abi_params=[], abi_returns=[tuple<tuple<array<2, word>>, word>], abi_return_params=[tuple<tuple<array<2, u256>>, u256>]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     v2 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    memory_zero v2, 64
-    memory_object_store_field memorystruct<1>, v1, 0, v2
-    memory_object_store_field memorystruct<2>, v0, 0, v1
+    v3 = ptrtoint memoryfixedarray v2 to i256
+    memory_zero v3, 64
+    v4 = ptrtoint memoryfixedarray v2 to i256
+    memory_object_store_field memorystruct<1>, v1, 0, v4
+    v5 = ptrtoint memorystruct v1 to i256
+    memory_object_store_field memorystruct<2>, v0, 0, v5
     memory_object_store_field memorystruct<2>, v0, 1, 0
-    v3 = memory_object_load_field memorystruct<2>, v0, 0, memorystruct
-    v4 = memory_object_load_field memorystruct<1>, v3, 0, memoryfixedarray
-    v5 = lt 0, 2
-    v6 = iszero v5
-    icall panic_if<0x32>, v6
-    memory_object_store_element memoryfixedarray<2, 1>, v4, 0, 11
-    v7 = memory_object_load_field memorystruct<2>, v0, 0, memorystruct
-    v8 = memory_object_load_field memorystruct<1>, v7, 0, memoryfixedarray
-    v9 = lt 1, 2
-    v10 = iszero v9
-    icall panic_if<0x32>, v10
-    memory_object_store_element memoryfixedarray<2, 1>, v8, 1, 22
+    v6 = memory_object_load_field memorystruct<2>, v0, 0
+    v7 = inttoptr i256 v6 to memorystruct
+    v8 = memory_object_load_field memorystruct<1>, v7, 0
+    v9 = inttoptr i256 v8 to memoryfixedarray
+    v10 = lt 0, 2
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    memory_object_store_element memoryfixedarray<2, 1>, v9, 0, 11
+    v12 = memory_object_load_field memorystruct<2>, v0, 0
+    v13 = inttoptr i256 v12 to memorystruct
+    v14 = memory_object_load_field memorystruct<1>, v13, 0
+    v15 = inttoptr i256 v14 to memoryfixedarray
+    v16 = lt 1, 2
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    memory_object_store_element memoryfixedarray<2, 1>, v15, 1, 22
     memory_object_store_field memorystruct<2>, v0, 1, 33
     ret v0
 }
 
-fn @malformed() [selector=0x0a39e7bc, pure, abi_params=[], abi_returns=[memory_bytes]] {
+fn @malformed() [selector=0x0a39e7bc, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     mstore 0, 32 !metadata(memory=scratch)
     mstore 32, 256 !metadata(memory=scratch)
     returndata 0, 64
 }
 
-fn @dirtyAddress() -> address [selector=0x986597e5, pure, abi_params=[], abi_returns=[word<u160>]] {
+fn @dirtyAddress() -> i256 [selector=0x986597e5, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = not 0
     ret v0
@@ -41,207 +48,269 @@ fn @dirtyAddress() -> address [selector=0x986597e5, pure, abi_params=[], abi_ret
 // === ROOT/tests/ui/codegen/lowering/run-call/external_returndata_bounds.sol:ReturnHarness ===
 @module ReturnHarness
 data:
-  ReturnProducer_initcode_0: hex"34600e576101a08060125f395ff35b5f5ffd346038575f3560e01c80630a39e7bc146033578063986597e514602e578063af36778b14602a576038565b603c565b610177565b610168565b5f5ffd5b6101e06040526040518060e0528060e05260408101604052604051806101405260208101604052604051806101005260408101604052604036828061010052378061010052815280610140528152602081015f8152508060e05251518061018052806101805260025f101561015657600b81525060e0518060e0525151806101a052806101a052600260011015610156576020810190506016815250602060e05101602181525060e0518060e0525151806101205280610120525f60e05191905b806101605260028110610138576040608001505050604060800160208201915081519150818152905060209001506060608001608090036080f35b602081806101605202820151602082026080015260018101905060fd565b634e487b715f5260326020526024601cfd5b60205f5261010060205260405ff35b5f1973ffffffffffffffffffffffffffffffffffffffff90166080526020608001608090036080f3"
+  ReturnProducer_initcode_0: hex"34600e576102098060125f395ff35b5f5ffd341515603a575f3560e01c80630a39e7bc146035578063986597e5146030578063af36778b14602c57603a565b603e565b6101e0565b6101d1565b5f5ffd5b610240604052604051806101605280610160528060e0528060e0528060e0526040900160405260405180610180528061018052806101005260209001604052604051806101a052806101a0528061012052604090016040526101205180610120526040368237506101205180610120526101005180610100525261010051806101005260e0518060e0525260e0518060e052602090015f81525060e0518060e0525151806101c052806101c05260025f10156101bf57806101c052600b81525060e0518060e0525151806101e052806101e0526002600110156101bf57806101e05260209001601681525060e0518060e05260209001602181525060e0518060e0525151806101405280610140525f60e05191905b8061020052600281106101955760406080015050506040608001818060e052915060208201915081519150818152905060209001506060608001608090036080f35b81806101405260208280610200520281915081019050516020820260800152600181019050610153565b634e487b715f5260326020526024601cfd5b60205f5261010060205260405ff35b5f1973ffffffffffffffffffffffffffffffffffffffff90166080526020608001608090036080f3"
 
-fn @check(arg0: memorystruct) -> u256 [pure] {
+fn @check(arg0: memorystruct) -> i256 [pure] {
   bb0:
-    v0 = memory_object_load_field memorystruct<2>, arg0, 0, memorystruct
-    v1 = memory_object_load_field memorystruct<1>, v0, 0, memoryfixedarray
-    v2 = lt 0, 2
-    v3 = iszero v2
-    icall panic_if<0x32>, v3
-    v4 = memory_object_load_element memoryfixedarray<2, 1>, v1, 0
-    v5 = eq v4, 11
-    icall require<short_string>, v5, 5, 0x6669727374000000000000000000000000000000000000000000000000000000
-    v6 = memory_object_load_field memorystruct<2>, arg0, 0, memorystruct
-    v7 = memory_object_load_field memorystruct<1>, v6, 0, memoryfixedarray
-    v8 = lt 1, 2
-    v9 = iszero v8
-    icall panic_if<0x32>, v9
-    v10 = memory_object_load_element memoryfixedarray<2, 1>, v7, 1
-    v11 = eq v10, 22
-    icall require<short_string>, v11, 6, 0x7365636f6e640000000000000000000000000000000000000000000000000000
-    v12 = memory_object_load_field memorystruct<2>, arg0, 1
-    v13 = eq v12, 33
-    icall require<short_string>, v13, 3, 0x7461670000000000000000000000000000000000000000000000000000000000
+    v0 = memory_object_load_field memorystruct<2>, arg0, 0
+    v1 = inttoptr i256 v0 to memorystruct
+    v2 = memory_object_load_field memorystruct<1>, v1, 0
+    v3 = inttoptr i256 v2 to memoryfixedarray
+    v4 = lt 0, 2
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = memory_object_load_element memoryfixedarray<2, 1>, v3, 0
+    v7 = eq v6, 11
+    icall require<short_string>, v7, 5, 0x6669727374000000000000000000000000000000000000000000000000000000
+    v8 = memory_object_load_field memorystruct<2>, arg0, 0
+    v9 = inttoptr i256 v8 to memorystruct
+    v10 = memory_object_load_field memorystruct<1>, v9, 0
+    v11 = inttoptr i256 v10 to memoryfixedarray
+    v12 = lt 1, 2
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = memory_object_load_element memoryfixedarray<2, 1>, v11, 1
+    v15 = eq v14, 22
+    icall require<short_string>, v15, 6, 0x7365636f6e640000000000000000000000000000000000000000000000000000
+    v16 = memory_object_load_field memorystruct<2>, arg0, 1
+    v17 = eq v16, 33
+    icall require<short_string>, v17, 3, 0x7461670000000000000000000000000000000000000000000000000000000000
     ret 1
 }
 
-fn @staticAggregate() -> u256 [selector=0x9982aedb, abi_params=[], abi_returns=[word]] {
+fn @staticAggregate() -> i256 [selector=0x9982aedb, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 465, v1
+    v2 = and 570, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ReturnProducer_initcode_0, v3, 434
-    v4 = slice_ptr v0
-    v5 = add v3, 434
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 434
-    jumpi v6, bb2, bb1
+    v4 = ptrtoint memptr v3 to i256
+    data_copy ReturnProducer_initcode_0, v4, 539
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, 539
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, 539
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = gas
-    v8 = abi_encode [], selector 0xaf36778b00000000000000000000000000000000000000000000000000000000
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = alloc raw, exact, uninitialized, infallible, 96
-    v12 = staticcall v7, v6, v9, v10, v11, 96
-    jumpi v12, bb4, bb3
+    v12 = zext i160 v9 to i256
+    v13 = gas
+    v14 = abi_encode [], selector 0xaf36778b00000000000000000000000000000000000000000000000000000000
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = alloc raw, exact, uninitialized, infallible, 96
+    v18 = ptrtoint memptr v17 to i256
+    v19 = staticcall v13, v12, v15, v16, v18, 96
+    jumpi v19, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v13 = returndatasize
-    v14 = lt v13, 96
-    icall revert_if<tuple_data_too_short>, v14
-    v15 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v11
-    v16 = icall @check, v15
-    ret v16
+    v20 = returndatasize
+    v21 = lt v20, 96
+    icall revert_if<tuple_data_too_short>, v21
+    v22 = not 31
+    v23 = and 159, v22
+    v24 = alloc memorybytes, exact, uninitialized, infallible, v23
+    set_memory_object_len memorybytes, v24, 96
+    v25 = ptrtoint memptr v17 to i256
+    v26 = make_memory_slice v25, 96
+    memory_object_copy_from_slice memorybytes, v24, v26
+    v27 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v24
+    v28 = icall @check, v27
+    ret v28
 }
 
-fn @projectedAggregate() -> u256 [selector=0xec2041b8, abi_params=[], abi_returns=[word]] {
+fn @projectedAggregate() -> i256 [selector=0xec2041b8, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 465, v1
+    v2 = and 570, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ReturnProducer_initcode_0, v3, 434
-    v4 = slice_ptr v0
-    v5 = add v3, 434
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 434
-    jumpi v6, bb2, bb1
+    v4 = ptrtoint memptr v3 to i256
+    data_copy ReturnProducer_initcode_0, v4, 539
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, 539
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, 539
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = gas
-    v8 = abi_encode [], selector 0xaf36778b00000000000000000000000000000000000000000000000000000000
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = alloc raw, exact, uninitialized, infallible, 96
-    v12 = staticcall v7, v6, v9, v10, v11, 96
-    jumpi v12, bb4, bb3
+    v12 = zext i160 v9 to i256
+    v13 = gas
+    v14 = abi_encode [], selector 0xaf36778b00000000000000000000000000000000000000000000000000000000
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = alloc raw, exact, uninitialized, infallible, 96
+    v18 = ptrtoint memptr v17 to i256
+    v19 = staticcall v13, v12, v15, v16, v18, 96
+    jumpi v19, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v13 = returndatasize
-    v14 = lt v13, 96
-    icall revert_if<tuple_data_too_short>, v14
-    v15 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v11
-    v16 = memory_object_load_field memorystruct<2>, v15, 0, memorystruct
-    v17 = memory_object_load_field memorystruct<1>, v16, 0, memoryfixedarray
-    v18 = lt 1, 2
-    v19 = iszero v18
-    icall panic_if<0x32>, v19
-    v20 = memory_object_load_element memoryfixedarray<2, 1>, v17, 1
-    ret v20
+    v20 = returndatasize
+    v21 = lt v20, 96
+    icall revert_if<tuple_data_too_short>, v21
+    v22 = not 31
+    v23 = and 159, v22
+    v24 = alloc memorybytes, exact, uninitialized, infallible, v23
+    set_memory_object_len memorybytes, v24, 96
+    v25 = ptrtoint memptr v17 to i256
+    v26 = make_memory_slice v25, 96
+    memory_object_copy_from_slice memorybytes, v24, v26
+    v27 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v24
+    v28 = memory_object_load_field memorystruct<2>, v27, 0
+    v29 = inttoptr i256 v28 to memorystruct
+    v30 = memory_object_load_field memorystruct<1>, v29, 0
+    v31 = inttoptr i256 v30 to memoryfixedarray
+    v32 = lt 1, 2
+    v33 = eq v32, false
+    icall panic_if<0x32>, v33
+    v34 = memory_object_load_element memoryfixedarray<2, 1>, v31, 1
+    ret v34
 }
 
-fn @functionPointerAggregate() -> u256 [selector=0xebe6d175, abi_params=[], abi_returns=[word]] {
+fn @functionPointerAggregate() -> i256 [selector=0xebe6d175, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 465, v1
+    v2 = and 570, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ReturnProducer_initcode_0, v3, 434
-    v4 = slice_ptr v0
-    v5 = add v3, 434
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 434
-    jumpi v6, bb2, bb1
+    v4 = ptrtoint memptr v3 to i256
+    data_copy ReturnProducer_initcode_0, v4, 539
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, 539
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, 539
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = shl 32, v6
-    v8 = or v7, 0xaf36778b
-    v9 = and v8, 0xffffffff
-    v10 = shl 224, v9
-    v11 = shr 32, v8
-    v12 = gas
-    v13 = abi_encode [], selector v10
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = alloc raw, exact, uninitialized, infallible, 96
-    v17 = staticcall v12, v11, v14, v15, v16, 96
+    v12 = zext i160 v9 to i256
+    v13 = shl 32, v12
+    v14 = or v13, 0xaf36778b
+    v15 = and v14, 0xffffffff
+    v16 = shl 224, v15
+    v17 = shr 32, v14
+    v18 = gas
+    v19 = abi_encode [], selector v16
+    v20 = slice_ptr v19
+    v21 = slice_len v19
+    v22 = alloc raw, exact, uninitialized, infallible, 96
+    v23 = ptrtoint memptr v22 to i256
+    v24 = staticcall v18, v17, v20, v21, v23, 96
+    jumpi v24, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v25 = returndatasize
+    v26 = lt v25, 96
+    icall revert_if<tuple_data_too_short>, v26
+    v27 = not 31
+    v28 = and 159, v27
+    v29 = alloc memorybytes, exact, uninitialized, infallible, v28
+    set_memory_object_len memorybytes, v29, 96
+    v30 = ptrtoint memptr v22 to i256
+    v31 = make_memory_slice v30, 96
+    memory_object_copy_from_slice memorybytes, v29, v31
+    v32 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v29
+    v33 = icall @check, v32
+    ret v33
+}
+
+fn @dirtyAddressBoundary() -> i256 [selector=0x2986c9cc, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 570, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v4 = ptrtoint memptr v3 to i256
+    data_copy ReturnProducer_initcode_0, v4, 539
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, 539
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, 539
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v12 = zext i160 v9 to i256
+    v13 = gas
+    v14 = abi_encode [], selector 0x986597e500000000000000000000000000000000000000000000000000000000
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = staticcall v13, v12, v15, v16, 0, 32
     jumpi v17, bb4, bb3
   bb3:
     revert_returndata
   bb4:
     v18 = returndatasize
-    v19 = lt v18, 96
+    v19 = lt v18, 32
     icall revert_if<tuple_data_too_short>, v19
-    v20 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v16
-    v21 = icall @check, v20
-    ret v21
-}
-
-fn @dirtyAddressBoundary() -> u256 [selector=0x2986c9cc, abi_params=[], abi_returns=[word]] {
-  bb0:
-    v0 = abi_encode []
-    v1 = not 31
-    v2 = and 465, v1
-    v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ReturnProducer_initcode_0, v3, 434
-    v4 = slice_ptr v0
-    v5 = add v3, 434
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 434
-    jumpi v6, bb2, bb1
-  bb1:
-    revert_returndata
-  bb2:
-    v7 = gas
-    v8 = abi_encode [], selector 0x986597e500000000000000000000000000000000000000000000000000000000
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = staticcall v7, v6, v9, v10, 0, 32
-    jumpi v11, bb4, bb3
-  bb3:
-    revert_returndata
-  bb4:
-    v12 = returndatasize
-    v13 = lt v12, 32
-    icall revert_if<tuple_data_too_short>, v13
-    v14 = add 0, 0
-    v15 = mload v14
-    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
-    v17 = eq v15, v16
-    v18 = iszero v17
-    icall revert_if<empty>, v18
-    v19 = add 0, 0
-    v20 = mload v19
-    v21 = eq v20, 0xffffffffffffffffffffffffffffffffffffffff
-    icall require<short_string>, v21, 7, 0x6164647265737300000000000000000000000000000000000000000000000000
+    v20 = add 0, 0
+    v21 = mload v20
+    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffff
+    v23 = eq v21, v22
+    v24 = eq v23, false
+    icall revert_if<empty>, v24
+    v25 = add 0, 0
+    v26 = mload v25
+    v27 = trunc i256 0xffffffffffffffffffffffffffffffffffffffff to i160
+    v28 = zext i160 v27 to i256
+    v29 = eq v26, v28
+    icall require<short_string>, v29, 7, 0x6164647265737300000000000000000000000000000000000000000000000000
     ret 1
 }
 
-fn @truncated() -> u256 [selector=0xfc1dad0b, abi_params=[], abi_returns=[word]] {
+fn @truncated() -> i256 [selector=0xfc1dad0b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 465, v1
+    v2 = and 570, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ReturnProducer_initcode_0, v3, 434
-    v4 = slice_ptr v0
-    v5 = add v3, 434
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 434
-    jumpi v6, bb2, bb1
+    v4 = ptrtoint memptr v3 to i256
+    data_copy ReturnProducer_initcode_0, v4, 539
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, 539
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, 539
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = gas
-    v8 = abi_encode [], selector 0xa39e7bc00000000000000000000000000000000000000000000000000000000
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = staticcall v7, v6, v9, v10, 0, 0
-    jumpi v11, bb4, bb3
+    v12 = zext i160 v9 to i256
+    v13 = gas
+    v14 = abi_encode [], selector 0xa39e7bc00000000000000000000000000000000000000000000000000000000
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = staticcall v13, v12, v15, v16, 0, 0
+    jumpi v17, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v12 = icall returndata_bytes<>
-    v13 = abi_decode [bytes], v12
-    v14 = memory_object_len memorybytes, v13
-    ret v14
+    v18 = icall returndata_bytes<>
+    v19 = abi_decode [bytes], v18
+    v20 = memory_object_len memorybytes, v19
+    ret v20
 }

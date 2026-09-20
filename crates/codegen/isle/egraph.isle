@@ -267,44 +267,40 @@
 (rule (rewrite (Op.SignExtend (iconst outer) (signextend (iconst inner) value)))
       (Op.SignExtend (imm (u256_min outer inner)) value))
 
-;; a == b => b == 0, when a is a known zero and a and b have distinct value IDs
-(rule (rewrite (Op.Eq (and a (zero)) b)) (if-let true (differ a b)) (Op.IsZero b))
-;; a == b => a == 0, when b is a known zero and a and b have distinct value IDs
-(rule (rewrite (Op.Eq a (and b (zero)))) (if-let true (differ a b)) (Op.IsZero a))
 ;; clz(input) == 255 => input == 1
 (rule (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c 255)) (Op.Eq input (imm (u256 1))))
 ;; clz(input) == 256 => input == 0
-(rule (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c 256)) (Op.IsZero input))
+(rule (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c 256)) (Op.Eq input (imm (u256 0))))
 ;; 255 == clz(input) => input == 1
 (rule (rewrite (Op.Eq (iconst c) (clz input))) (if-let true (u256_eq c 255)) (Op.Eq input (imm (u256 1))))
 ;; 256 == clz(input) => input == 0
-(rule (rewrite (Op.Eq (iconst c) (clz input))) (if-let true (u256_eq c 256)) (Op.IsZero input))
+(rule (rewrite (Op.Eq (iconst c) (clz input))) (if-let true (u256_eq c 256)) (Op.Eq input (imm (u256 0))))
 
 ;; clz(input) == 0 => signed(input) < 0
-(rule (rewrite (Op.IsZero (clz input))) (Op.SLt input (imm (u256 0))))
+(rule (rewrite (Op.Eq (clz input) (zero))) (Op.SLt input (imm (u256 0))))
 ;; (a - b) == 0 => a == b
-(rule (rewrite (Op.IsZero (sub a b))) (Op.Eq a b))
+(rule (rewrite (Op.Eq (sub a b) (zero))) (Op.Eq a b))
 ;; (a ^ b) == 0 => a == b
-(rule (rewrite (Op.IsZero (bxor a b))) (Op.Eq a b))
+(rule (rewrite (Op.Eq (bxor a b) (zero))) (Op.Eq a b))
 
 ;; clz(input) < 256 => input > 0
-(rule (rewrite (Op.Lt (clz input) (iconst c))) (if-let true (u256_eq c 256)) (Op.Gt input (imm (u256 0))))
+(rule (rewrite (Op.Lt (clz input) (iconst c))) (if-let true (u256_eq c 256)) (Op.Ne input (imm (u256 0))))
 ;; 255 < clz(input) => input == 0
-(rule (rewrite (Op.Lt (iconst c) (clz input))) (if-let true (u256_eq c 255)) (Op.IsZero input))
+(rule (rewrite (Op.Lt (iconst c) (clz input))) (if-let true (u256_eq c 255)) (Op.Eq input (imm (u256 0))))
 ;; a < 1 => a == 0
-(rule (rewrite (Op.Lt a (one))) (Op.IsZero a))
+(rule (rewrite (Op.Lt a (one))) (Op.Eq a (imm (u256 0))))
 
 ;; clz(input) > 255 => input == 0
-(rule (rewrite (Op.Gt (clz input) (iconst c))) (if-let true (u256_eq c 255)) (Op.IsZero input))
+(rule (rewrite (Op.Gt (clz input) (iconst c))) (if-let true (u256_eq c 255)) (Op.Eq input (imm (u256 0))))
 ;; 256 > clz(input) => input > 0
-(rule (rewrite (Op.Gt (iconst c) (clz input))) (if-let true (u256_eq c 256)) (Op.Gt input (imm (u256 0))))
+(rule (rewrite (Op.Gt (iconst c) (clz input))) (if-let true (u256_eq c 256)) (Op.Ne input (imm (u256 0))))
 ;; 1 > b => b == 0
-(rule (rewrite (Op.Gt (one) b)) (Op.IsZero b))
+(rule (rewrite (Op.Gt (one) b)) (Op.Eq b (imm (u256 0))))
 
 ;; clz(input) >> 8 => input == 0
-(rule (rewrite (Op.Shr (iconst c) (clz input))) (if-let true (u256_eq c 8)) (Op.IsZero input))
+(rule (rewrite (Op.Shr (iconst c) (clz input))) (if-let true (u256_eq c 8)) (Op.Eq input (imm (u256 0))))
 ;; byte(30, clz(input)) => input == 0
-(rule (rewrite (Op.Byte (iconst c) (clz input))) (if-let true (u256_eq c 30)) (Op.IsZero input))
+(rule (rewrite (Op.Byte (iconst c) (clz input))) (if-let true (u256_eq c 30)) (Op.Eq input (imm (u256 0))))
 
 ;; byte(0, value << 248) => value & 255
 ;; A single-use left-aligned byte followed by high-byte extraction keeps the low byte.
@@ -314,7 +310,7 @@
       (Op.And value (imm (u256 255))))
 
 ;; cond ? 0 : 1 => cond == 0, when cond is boolean
-(rule (rewrite (Op.Select (and cond (bool_value)) (zero) (one))) (Op.IsZero cond))
+(rule (rewrite (Op.Select (and cond (bool_value)) (zero) (one))) (Op.Eq cond (imm (u256 0))))
 
 ;; balance(address & mask) => balance(address), when mask keeps all low 160 bits.
 ;; Require a single use in this block to avoid retaining a shared mask or extending its live range.
@@ -329,6 +325,42 @@
       (if-let true (single_use masked))
       (if-let true (u256_is_zero (u256_shl (u256 96) (u256_not mask))))
       (Op.Balance address))
+
+;; call(gas, zext(trunc(address, 160)), ...) => call(gas, address, ...).
+;; The EVM consumes only the low 160 address bits; both casts must die in this block.
+(rule (rewrite (Op.Call gas (and extended (zext (and narrowed (trunc (and address (integer_bits 256)) 160)))) value args_offset args_size ret_offset ret_size))
+      (if-let true (in_current_block extended))
+      (if-let true (single_use extended))
+      (if-let true (in_current_block narrowed))
+      (if-let true (single_use narrowed))
+      (Op.Call gas address value args_offset args_size ret_offset ret_size))
+
+;; callcode(gas, zext(trunc(address, 160)), ...) => callcode(gas, address, ...).
+;; The EVM consumes only the low 160 address bits; both casts must die in this block.
+(rule (rewrite (Op.CallCode gas (and extended (zext (and narrowed (trunc (and address (integer_bits 256)) 160)))) value args_offset args_size ret_offset ret_size))
+      (if-let true (in_current_block extended))
+      (if-let true (single_use extended))
+      (if-let true (in_current_block narrowed))
+      (if-let true (single_use narrowed))
+      (Op.CallCode gas address value args_offset args_size ret_offset ret_size))
+
+;; staticcall(gas, zext(trunc(address, 160)), ...) => staticcall(gas, address, ...).
+;; The EVM consumes only the low 160 address bits; both casts must die in this block.
+(rule (rewrite (Op.StaticCall gas (and extended (zext (and narrowed (trunc (and address (integer_bits 256)) 160)))) args_offset args_size ret_offset ret_size))
+      (if-let true (in_current_block extended))
+      (if-let true (single_use extended))
+      (if-let true (in_current_block narrowed))
+      (if-let true (single_use narrowed))
+      (Op.StaticCall gas address args_offset args_size ret_offset ret_size))
+
+;; delegatecall(gas, zext(trunc(address, 160)), ...) => delegatecall(gas, address, ...).
+;; The EVM consumes only the low 160 address bits; both casts must die in this block.
+(rule (rewrite (Op.DelegateCall gas (and extended (zext (and narrowed (trunc (and address (integer_bits 256)) 160)))) args_offset args_size ret_offset ret_size))
+      (if-let true (in_current_block extended))
+      (if-let true (single_use extended))
+      (if-let true (in_current_block narrowed))
+      (if-let true (single_use narrowed))
+      (Op.DelegateCall gas address args_offset args_size ret_offset ret_size))
 
 ;; balance(address()) => selfbalance(), when SELFBALANCE is available
 (rule (rewrite (Op.Balance (current_address))) (if-let true (has_self_balance)) (Op.SelfBalance))
@@ -649,10 +681,8 @@
 ;; byte(index, clz(_)) => 0, when index < 30
 (rule 1 (simplify (Op.Byte (iconst index) (clz _))) (if-let true (u256_lt index 30)) (imm (u256 0)))
 
-;; c == 0 => constant(c == 0)
-(rule 2 (simplify (Op.IsZero (iconst c))) (imm_bool (u256_is_zero c)))
 ;; (inner == 0) == 0 => inner, when inner is boolean
-(rule 1 (simplify (Op.IsZero (iszero (and inner (bool_value))))) inner)
+(rule 20 (simplify (Op.Eq (eq (and inner (bool_value)) (zero)) (zero))) inner)
 
 ;; a == c => 0, when a is known to be less than constant c
 (rule 7 (simplify (Op.Eq a (iconst c))) (if-let true (below_const a c)) (imm_bool false))
@@ -724,12 +754,119 @@
 (rule 1 (simplify (Op.Select (and cond (bool_value)) (one) (zero))) cond)
 
 ;; memory_object_data(object, kind) => object, when kind has zero data offset
-(rule (simplify (Op.MemoryObjectData object kind)) (if-let 0 (object_data_offset kind)) object)
+(rule (rewrite (Op.MemoryObjectData object kind)) (if-let 0 (object_data_offset kind)) (Op.Bitcast object))
 ;; memory_object_field_addr(object, layout, field) => object, when the field offset is zero
-(rule (simplify (Op.MemoryObjectFieldAddr object layout field))
+(rule (rewrite (Op.MemoryObjectFieldAddr object layout field))
       (if-let 0 (field_offset layout field))
-      object)
+      (Op.Bitcast object))
 ;; memory_object_element_addr(object, layout, 0) => object, when the layout has zero data offset
-(rule (simplify (Op.MemoryObjectElementAddr object layout (zero)))
+(rule (rewrite (Op.MemoryObjectElementAddr object layout (zero)))
       (if-let 0 (object_data_offset (layout_kind layout)))
-      object)
+      (Op.Bitcast object))
+
+;; Canonical zero tests preserve the operand's scalar type.
+(rule (rewrite (Op.Gt x (zero))) (Op.Ne x (imm (u256 0))))
+(rule (rewrite (Op.Lt (zero) x)) (Op.Ne x (imm (u256 0))))
+(rule (rewrite (Op.Eq (eq a b) (zero))) (Op.Ne a b))
+(rule (rewrite (Op.Eq (ne a b) (zero))) (Op.Eq a b))
+(rule (rewrite (Op.Ne (eq a b) (zero))) (Op.Eq a b))
+(rule (rewrite (Op.Ne (ne a b) (zero))) (Op.Ne a b))
+(rule (rewrite (Op.Eq (zext (and x (bool_value))) (zero))) (Op.Eq x (imm_bool false)))
+(rule (rewrite (Op.Ne (zext (and x (bool_value))) (zero))) (Op.Ne x (imm_bool false)))
+(rule 10 (simplify (Op.Ne a a)) (imm_bool false))
+(rule 9 (simplify (Op.Ne (and x (bool_value)) (zero))) x)
+(rule 8 (simplify (Op.Ne (zero) (and x (bool_value)))) x)
+
+;; ~a != ~b => a != b.
+(rule (rewrite (Op.Ne (bnot a) (bnot b))) (Op.Ne a b))
+;; (a - b) != 0 => a != b.
+(rule (rewrite (Op.Ne (sub a b) (zero))) (Op.Ne a b))
+;; (a ^ b) != 0 => a != b.
+(rule (rewrite (Op.Ne (bxor a b) (zero))) (Op.Ne a b))
+;; clz(x) != 255 => x != 1.
+(rule (rewrite (Op.Ne (clz x) (iconst c))) (if-let true (u256_eq c 255)) (Op.Ne x (imm (u256 1))))
+;; 255 != clz(x) => x != 1.
+(rule (rewrite (Op.Ne (iconst c) (clz x))) (if-let true (u256_eq c 255)) (Op.Ne x (imm (u256 1))))
+;; clz(x) != 256 => x != 0.
+(rule (rewrite (Op.Ne (clz x) (iconst c))) (if-let true (u256_eq c 256)) (Op.Ne x (imm (u256 0))))
+;; 256 != clz(x) => x != 0.
+(rule (rewrite (Op.Ne (iconst c) (clz x))) (if-let true (u256_eq c 256)) (Op.Ne x (imm (u256 0))))
+;; x != true => x == false, when x is boolean.
+(rule (rewrite (Op.Ne (and x (bool_value)) (one))) (Op.Eq x (imm_bool false)))
+;; true != x => x == false, when x is boolean.
+(rule (rewrite (Op.Ne (one) (and x (bool_value)))) (Op.Eq x (imm_bool false)))
+;; a != c => true, when a is known to be less than constant c.
+(rule 7 (simplify (Op.Ne a (iconst c))) (if-let true (below_const a c)) (imm_bool true))
+;; c != b => true, when b is known to be less than constant c.
+(rule 6 (simplify (Op.Ne (iconst c) b)) (if-let true (below_const b c)) (imm_bool true))
+;; clz(_) != c => true, when c > 256.
+(rule 5 (simplify (Op.Ne (clz _) (iconst c))) (if-let true (u256_gt c 256)) (imm_bool true))
+;; c != clz(_) => true, when c > 256.
+(rule 4 (simplify (Op.Ne (iconst c) (clz _))) (if-let true (u256_gt c 256)) (imm_bool true))
+
+(decl integer_bits (u32) Value)
+(extern extractor integer_bits integer_bits)
+(decl pure u32_lt (u32 u32) bool)
+(extern constructor u32_lt u32_lt)
+(decl pure u32_le (u32 u32) bool)
+(extern constructor u32_le u32_le)
+
+;; Identity casts require the result type to match before their values merge.
+(rule (simplify (Op.Bitcast value)) value)
+(rule (simplify (Op.Trunc (zext (and value (integer_bits bits))) bits)) value)
+(rule (simplify (Op.Trunc (sext (and value (integer_bits bits)) bits middle) bits))
+      (if-let true (u32_lt bits middle)) value)
+
+;; Successive extensions and truncations retain only their outer boundary.
+(rule (rewrite (Op.Zext (zext value))) (Op.Zext value))
+(rule (rewrite (Op.Sext (sext value from middle) middle to))
+      (if-let true (u32_lt from middle))
+      (if-let true (u32_lt middle to)) (Op.Sext value from to))
+(rule (rewrite (Op.Trunc (trunc value middle) to))
+      (if-let true (u32_lt to middle)) (Op.Trunc value to))
+(rule (rewrite (Op.Sext (zext (and value (integer_bits bits))) from to))
+      (if-let true (u32_lt bits from))
+      (if-let true (u32_lt from to)) (Op.Zext value))
+
+;; Truncating an extension either narrows the source or keeps a shorter extension.
+(rule (rewrite (Op.Trunc (zext (and value (integer_bits from))) to))
+      (if-let true (u32_lt to from)) (Op.Trunc value to))
+(rule (rewrite (Op.Trunc (zext (and value (integer_bits from))) to))
+      (if-let true (u32_lt from to)) (Op.Zext value))
+(rule (rewrite (Op.Trunc (sext value from middle) to))
+      (if-let true (u32_lt from middle))
+      (if-let true (u32_lt to from)) (Op.Trunc value to))
+(rule (rewrite (Op.Trunc (sext value from middle) to))
+      (if-let true (u32_lt to middle))
+      (if-let true (u32_lt from to)) (Op.Sext value from to))
+
+;; Equal zero extensions can be compared in their original integer type.
+(rule (rewrite (Op.Eq (zext a) (zext b))) (Op.Eq a b))
+(rule (rewrite (Op.Ne (zext a) (zext b))) (Op.Ne a b))
+
+;; sext(a) == sext(b) => a == b, for identical source and destination widths.
+(rule (rewrite (Op.Eq (sext (and a (integer_bits from)) from to)
+                       (sext (and b (integer_bits from)) from to)))
+      (if-let true (u32_lt from to)) (Op.Eq a b))
+;; sext(a) != sext(b) => a != b, for identical source and destination widths.
+(rule (rewrite (Op.Ne (sext (and a (integer_bits from)) from to)
+                       (sext (and b (integer_bits from)) from to)))
+      (if-let true (u32_lt from to)) (Op.Ne a b))
+
+;; Pointer casts preserve bits across changes of nominal pointer type.
+(rule (rewrite (Op.PtrToInt (bitcast value) bits)) (Op.PtrToInt value bits))
+(rule (rewrite (Op.Bitcast (bitcast value))) (Op.Bitcast value))
+(rule (rewrite (Op.Bitcast (inttoptr value))) (Op.IntToPtr value))
+(rule (rewrite (Op.IntToPtr (zext value))) (Op.IntToPtr value))
+(rule (rewrite (Op.IntToPtr (trunc value bits)))
+      (if-let true (u32_le 256 bits)) (Op.IntToPtr value))
+(rule (rewrite (Op.IntToPtr (ptrtoint value bits)))
+      (if-let true (u32_le 256 bits)) (Op.Bitcast value))
+(rule (rewrite (Op.Trunc (ptrtoint value middle) bits))
+      (if-let true (u32_lt bits middle)) (Op.PtrToInt value bits))
+(rule (simplify (Op.IntToPtr (ptrtoint value 256))) value)
+(rule (simplify (Op.PtrToInt (inttoptr (and value (integer_bits bits))) bits)) value)
+(rule (rewrite (Op.PtrToInt (inttoptr (and value (integer_bits from))) to))
+      (if-let true (u32_lt from to)) (Op.Zext value))
+(rule (rewrite (Op.PtrToInt (inttoptr (and value (integer_bits from))) to))
+      (if-let true (u32_lt to from)) (Op.Trunc value to))

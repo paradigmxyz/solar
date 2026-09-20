@@ -21,10 +21,11 @@
 //! recorded facts with checked 256-bit arithmetic; a condition that is
 //! provably constant folds the branch to an unconditional jump, and the dead
 //! panic block is cleaned up by the existing CFG passes. Anything that is
-//! not provable is left untouched. Semantic checks use the same facts in instruction order:
-//! a passing check refines all later execution, and a proven passing check can be removed before
-//! expansion. Facts roll back on leaving each dominator subtree, so a check on one conditional
-//! path cannot justify removing a check on another.
+//! not provable is left untouched. Explicit integer casts retain range facts only
+//! when their width and sign semantics preserve the bounded values. Semantic checks use the same
+//! facts in instruction order: a passing check refines all later execution, and a proven passing
+//! check can be removed before expansion. Facts roll back on leaving each dominator subtree, so a
+//! check on one conditional path cannot justify removing a check on another.
 //!
 //! Before the dominator walk, a bounded forward analysis carries the intersection
 //! of relational facts and the union of ranges across predecessor edges. Phi
@@ -78,8 +79,11 @@
 //! and left-aligned encodings remain unknown. The bounds are immutable facts and
 //! are available to both the forward analysis and the dominator walk.
 //! The separate `immutable-check-elim` adapter runs after ABI getter inlining,
-//! selecting only runtime functions that load bounded immutables. This exposes
-//! facts hidden behind getter calls during the ordinary earlier check passes.
+//! selecting only runtime functions that load bounded immutables. Before using those
+//! bounds, it narrows unsigned immutable encodings when every assignment fits, using
+//! the shared value-width and caller-argument proofs. Missing assignments and unknown
+//! words keep their declared width; unsigned layouts retain their i256 SSA carrier.
+//! This exposes facts hidden behind getter calls during the ordinary earlier check passes.
 
 //! The `late-check-elim` adapter revisits conditions unified by CSE after memory
 //! lowering. Gas mode only removes redundant failure edges from blocks on a CFG
@@ -92,11 +96,11 @@
 //! Run it after the post-memory CSE. Only functions with removed checks receive
 //! CFG cleanup, avoiding unrelated late block merges in other functions.
 
-use super::cfg_simplify::simplify_function;
+use super::{call_cleanup, cfg_simplify::simplify_function, egraph::max_bits_with_args};
 use crate::{
     mir::{
         BlockId, Builtin, Callee, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
-        InstKind, Module, Terminator, Value, ValueId,
+        InstKind, Module, Terminator, TypeSize, Value, ValueId, ValueLayout,
         analysis::{CallGraphInfo, CfgInfo},
         immutable::immutable_push_type_size,
         pass::{
@@ -206,6 +210,7 @@ impl MirPass for ImmutableCheckElim {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let narrowed = narrow_immutable_layouts(module);
         let bounds = module
             .iter_immutables()
             .filter_map(|(id, immutable)| {
@@ -224,7 +229,7 @@ impl MirPass for ImmutableCheckElim {
             })
             .collect::<FxHashMap<_, _>>();
         if bounds.is_empty() {
-            return false;
+            return narrowed;
         }
         let mut runtime_only = runtime_only_functions(module);
         for id in runtime_only.iter().collect::<Vec<_>>() {
@@ -239,8 +244,44 @@ impl MirPass for ImmutableCheckElim {
             let mut eliminator = CheckEliminator::new(Some(&bounds));
             eliminator.cfg = Some(Rc::clone(analyses.cfg()));
             eliminator.run(func) != 0
-        })
+        }) || narrowed
     }
+}
+
+/// Shrinks unsigned encodings only when every assignment preserves all stored bits.
+fn narrow_immutable_layouts(module: &mut Module) -> bool {
+    let can_narrow = |ty| matches!(ty, ValueLayout::UInt(size) if size.bits() > 8);
+    if !module.iter_immutables().any(|(_, immutable)| can_narrow(immutable.ty)) {
+        return false;
+    }
+    let arguments = call_cleanup::infer_arguments(module);
+    let mut widths = FxHashMap::<_, u32>::default();
+    for (id, func) in module.functions.iter_enumerated() {
+        for inst in func.instructions() {
+            if let InstKind::StoreImmutable(immutable, value) = func.inst(inst).kind
+                && can_narrow(module.immutable(immutable).ty)
+            {
+                let bits = max_bits_with_args(func, value, 8, &|index| {
+                    call_cleanup::argument_bits(func, id, index, &arguments)
+                });
+                widths
+                    .entry(immutable)
+                    .and_modify(|width| *width = (*width).max(bits))
+                    .or_insert(bits);
+            }
+        }
+    }
+    let mut changed = false;
+    for (id, bits) in widths {
+        let bits = bits.max(1).div_ceil(8) * 8;
+        if let ValueLayout::UInt(size) = module.immutable(id).ty
+            && bits < u32::from(size.bits())
+        {
+            module.immutable_mut(id).ty = ValueLayout::UInt(TypeSize::new_int_bits(bits as u16));
+            changed = true;
+        }
+    }
+    changed
 }
 
 /// Excludes every constructor-reachable helper, including recursive and tail-call edges.
@@ -685,8 +726,12 @@ impl<'a> CheckEliminator<'a> {
                 let mut value = condition;
                 while uses[value] == 1 {
                     consumed_conditions.entry(block).or_default().push(value);
-                    let Some(InstKind::IsZero(inner)) = inst_kind(func, value) else { break };
-                    value = *inner;
+                    let Some(inner) =
+                        inst_kind(func, value).and_then(|kind| kind.zero_test_operand(func))
+                    else {
+                        break;
+                    };
+                    value = inner;
                 }
             }
         }
@@ -820,7 +865,7 @@ impl<'a> CheckEliminator<'a> {
         let Some(depth) = depth.checked_sub(1) else { return };
         let Some(kind) = inst_kind(func, value) else { return };
         match *kind {
-            InstKind::IsZero(a) => self.assume(func, a, !truth, depth),
+            InstKind::Ne(a, b) => self.assume_eq(func, a, b, !truth, depth),
             InstKind::Lt(a, b) => self.assume_lt(func, a, b, truth, depth),
             InstKind::Gt(a, b) => self.assume_lt(func, b, a, truth, depth),
             InstKind::Eq(a, b) => self.assume_eq(func, a, b, truth, depth),
@@ -866,6 +911,11 @@ impl<'a> CheckEliminator<'a> {
 
     /// Records the consequences of `(a == b) == truth`.
     fn assume_eq(&mut self, func: &Function, a: ValueId, b: ValueId, truth: bool, depth: usize) {
+        if const_of(func, b).is_some_and(|v| v.is_zero()) {
+            self.assume(func, a, !truth, depth);
+        } else if const_of(func, a).is_some_and(|v| v.is_zero()) {
+            self.assume(func, b, !truth, depth);
+        }
         let (x, y) = ordered(a, b);
         if truth {
             self.add_relation(Relation::Eq(x, y));
@@ -1158,6 +1208,17 @@ impl<'a> CheckEliminator<'a> {
         let Some(depth) = depth.checked_sub(1) else { return range };
         let Some(kind) = inst_kind(func, value) else { return range };
         let derived = match *kind {
+            InstKind::Zext(source) => self.range_of(func, source, depth),
+            InstKind::Trunc(source, bits) if (1..=256).contains(&bits) => {
+                let source = self.range_of(func, source, depth);
+                let mask = U256::MAX >> (256 - bits);
+                if source.hi <= mask { source } else { Range::new(U256::ZERO, mask) }
+            }
+            InstKind::Sext(source, from_bits, _) if (1..=256).contains(&from_bits) => {
+                let source = self.range_of(func, source, depth);
+                // Sign extension preserves nonnegative values; other signs remain unknown.
+                if source.hi < (U256::ONE << (from_bits - 1)) { source } else { Range::FULL }
+            }
             InstKind::LoadImmutable(id) => self
                 .immutable_ranges
                 .and_then(|ranges| ranges.get(&id))
@@ -1234,7 +1295,7 @@ impl<'a> CheckEliminator<'a> {
             | InstKind::SLt(..)
             | InstKind::SGt(..)
             | InstKind::Eq(..)
-            | InstKind::IsZero(..) => match self.eval_truth(func, value, depth) {
+            | InstKind::Ne(..) => match self.eval_truth(func, value, depth) {
                 Some(true) => Range::singleton(U256::from(1)),
                 Some(false) => Range::singleton(U256::ZERO),
                 None => Range::new(U256::ZERO, U256::from(1)),
@@ -1281,7 +1342,7 @@ impl<'a> CheckEliminator<'a> {
             InstKind::Lt(a, b) => self.eval_lt(func, a, b, depth),
             InstKind::Gt(a, b) => self.eval_lt(func, b, a, depth),
             InstKind::Eq(a, b) => self.eval_eq(func, a, b, depth),
-            InstKind::IsZero(a) => self.eval_truth(func, a, depth).map(|truth| !truth),
+            InstKind::Ne(a, b) => self.eval_eq(func, a, b, depth).map(|truth| !truth),
             InstKind::Sub(a, b) | InstKind::Xor(a, b) => {
                 self.eval_eq(func, a, b, depth).map(|eq| !eq)
             }
@@ -1490,7 +1551,7 @@ impl<'a> CheckEliminator<'a> {
         None
     }
 
-    /// Recognizes the checked doubling `or (iszero x), (eq (div (add x, x), x), 2)`,
+    /// Recognizes the checked doubling `or (eq x, 0), (eq (div (add x, x), x), 2)`,
     /// which holds whenever `x + x` cannot wrap: a zero `x` satisfies the first
     /// disjunct and any other `x` divides its doubling back to two.
     fn doubling_check_holds(
@@ -1500,7 +1561,10 @@ impl<'a> CheckEliminator<'a> {
         roundtrip: ValueId,
         depth: usize,
     ) -> bool {
-        let Some(&InstKind::IsZero(x)) = inst_kind(func, zero_test) else { return false };
+        let Some(x) = inst_kind(func, zero_test).and_then(|kind| kind.zero_test_operand(func))
+        else {
+            return false;
+        };
         let Some(&InstKind::Eq(lhs, rhs)) = inst_kind(func, roundtrip) else { return false };
         let (quotient, two) = if const_of(func, rhs) == Some(U256::from(2)) {
             (lhs, rhs)
@@ -1669,11 +1733,16 @@ fn relation_candidates(func: &Function) -> FxHashMap<ValueId, SmallVec<[Relation
                     add(Relation::Lt(a, b));
                     add(Relation::Le(b, a));
                 }
-                Some(&InstKind::Eq(a, b) | &InstKind::Sub(a, b) | &InstKind::Xor(a, b)) => {
+                Some(
+                    &InstKind::Eq(a, b)
+                    | &InstKind::Ne(a, b)
+                    | &InstKind::Sub(a, b)
+                    | &InstKind::Xor(a, b),
+                ) => {
                     let (x, y) = ordered(a, b);
                     add(Relation::Eq(x, y));
                 }
-                Some(&InstKind::IsZero(a)) => pending.push(a),
+
                 Some(&InstKind::And(a, b) | &InstKind::Or(a, b)) => {
                     pending.extend([b, a]);
                 }

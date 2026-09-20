@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_conversions.sol:FixedBytesConversions ===
 @module FixedBytesConversions
 types:
-  struct0: {u256, u256, u256}
+  struct0: {i256, i256, i256}
 
 fn @narrow() -> struct0 [selector=0xe3b21a7a, pure, abi_params=[], abi_returns=[word<bytes2>, word<bytes4>, word<bytes6>], abi_return_params=[bytes2, bytes4, bytes6]] {
   bb0:

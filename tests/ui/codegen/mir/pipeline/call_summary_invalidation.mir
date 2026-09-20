@@ -10,7 +10,7 @@ fn @caller() {
 
 fn @callee() {
   bb0:
-    jumpi 1, bb1, bb2
+    jumpi true, bb1, bb2
   bb1:
     ret
   bb2:

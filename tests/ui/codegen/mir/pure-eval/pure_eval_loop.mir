@@ -4,7 +4,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @bounded_loop{{[( ]}}
 // CHECK: - jump bb1
 // CHECK: + ret 3
-fn @bounded_loop() -> u256 {
+fn @bounded_loop() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -19,13 +19,13 @@ fn @bounded_loop() -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @parallel_phis{{[( ]}}
 // CHECK: + ret 0
-fn @parallel_phis() -> u256 {
+fn @parallel_phis() -> i256 {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb2: v1]
     v1 = phi [bb0: 1], [bb2: v0]
-    v2 = iszero v0
+    v2 = eq v0, 0
     jumpi v2, bb2, bb3
   bb2:
     jump bb1
@@ -35,7 +35,7 @@ fn @parallel_phis() -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @with_arg{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = add arg0, 1
-fn @with_arg(arg0: u256) -> u256 {
+fn @with_arg(arg0: i256) -> i256 {
   bb0:
     v0 = add arg0, 1
     ret v0
@@ -43,7 +43,7 @@ fn @with_arg(arg0: u256) -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @extended_evm_ops{{[( ]}}
 // CHECK: + ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fn @extended_evm_ops() -> u256 {
+fn @extended_evm_ops() -> i256 {
   bb0:
     v0 = sdiv 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 2
     v1 = smod 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 3
@@ -56,7 +56,7 @@ fn @extended_evm_ops() -> u256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @signed_return{{[( ]}}
-// CHECK: + ret i256 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
+// CHECK: + ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
 fn @signed_return() -> i256 {
   bb0:
     v0 = sdiv 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 2
@@ -65,16 +65,17 @@ fn @signed_return() -> i256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @bool_return{{[( ]}}
 // CHECK: + ret true
-fn @bool_return() -> bool {
+fn @bool_return() -> i1 {
   bb0:
     v0 = slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0
     ret v0
 }
 
-fn @unknown_case_precedes_match() -> u256 {
+fn @unknown_case_precedes_match() -> i256 {
   bb0:
     v0 = address
-    switch 1, default bb3, [v0 => bb1, 1 => bb2]
+    v1 = zext i160 v0 to i256
+    switch 1, default bb3, [v1 => bb1, 1 => bb2]
   bb1:
     ret 1
   bb2:

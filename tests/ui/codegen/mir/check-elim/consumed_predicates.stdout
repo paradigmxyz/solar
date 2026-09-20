@@ -1,10 +1,10 @@
 - // === ROOT/tests/ui/codegen/mir/check-elim/consumed_predicates.mir (before check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/check-elim/consumed_predicates.mir (after check-elim) ===
   @module ConsumedPredicates
-  fn @operands(arg0: u256) -> u256 {
+  fn @operands(arg0: i256) -> i256 {
     bb0:
       v0 = lt arg0, 8
-      v1 = iszero v0
+      v1 = eq v0, false
       jumpi v1, bb3, bb1
     bb1:
       v2 = mul arg0, 4
@@ -17,21 +17,24 @@
       ret 0
   }
   
-  fn @reused(arg0: u256) -> u256 {
+  fn @reused(arg0: i256) -> i256 {
     bb0:
       v0 = calldataload arg0
-      jumpi v0, bb1, bb3
+      v1 = ne v0, 0
+      jumpi v1, bb1, bb3
 -   bb1:
--     jumpi v0, bb2, bb3
+-     v2 = ne v0, 0
+-     jumpi v2, bb2, bb3
     bb3:
       ret 0
 +   bb1:
++     v2 = ne v0, 0
 +     jump bb2
     bb2:
       ret 1
   }
   
-  fn @phi_user(arg0: u256) -> u256 {
+  fn @phi_user(arg0: i256) -> i256 {
     bb0:
       v0 = eq arg0, 0
       jumpi v0, bb1, bb2
@@ -40,7 +43,7 @@
     bb1:
       jump bb3
     bb3:
-      v1 = phi [bb1: v0], [bb2: 1]
+      v1 = phi [bb1: v0], [bb2: true]
 -     jumpi v1, bb4, bb5
 -   bb5:
 -     ret 0

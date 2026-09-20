@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_storage.sol:FixedBytesStorage ===
 @module FixedBytesStorage
 types:
-  struct0: {u256, u256, u256, u256, u256}
-  struct1: {u256, u256}
+  struct0: {i256, i256, i256, i256, i256}
+  struct1: {i256, i256}
 
 fn @constructor() [constructor] {
   bb0:
@@ -82,7 +82,7 @@ fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[wo
     ret v25
 }
 
-fn @raw() -> bytes32 [selector=0xc096a632, view, abi_params=[], abi_returns=[word]] {
+fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0

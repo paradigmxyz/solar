@@ -143,7 +143,7 @@ pub(super) fn add_load_helper(module: &mut Module) -> FunctionId {
     // fn load_storage_bytes(slot) { object = load_storage_bytes slot; ret object }
     let mut function = Function::new(Ident::with_dummy_span(sym::load_storage_bytes));
     let mut builder = FunctionBuilder::new_semantic(&mut function);
-    let slot = builder.add_param(MirType::uint256());
+    let slot = builder.add_param(MirType::I256);
     let ty = MirType::MemoryObject(MemoryObjectKind::Bytes);
     builder.set_return_type(ty);
     let object = builder.emit_inst(InstKind::StorageBytesLoad(slot), Some(ty));
@@ -155,9 +155,9 @@ pub(super) fn add_clear_helper(module: &mut Module) -> FunctionId {
     // fn clear_storage_words(slot, first, end) { clear_storage_words slot, first, end; ret }
     let mut function = Function::new(Ident::with_dummy_span(sym::clear_storage_words));
     let mut builder = FunctionBuilder::new_semantic(&mut function);
-    let slot = builder.add_param(MirType::uint256());
-    let first = builder.add_param(MirType::uint256());
-    let end = builder.add_param(MirType::uint256());
+    let slot = builder.add_param(MirType::I256);
+    let first = builder.add_param(MirType::I256);
+    let end = builder.add_param(MirType::I256);
     builder.clear_storage_words(slot, first, end);
     builder.ret([]);
     module.add_function(function)
@@ -171,8 +171,8 @@ pub(super) fn add_literal_helper(
     // fn store_literal(slot, header) { validate; clear old tail; sstore literal; ret }
     let mut function = Function::new(Ident::with_dummy_span(sym::store_storage_bytes_literal));
     let mut builder = FunctionBuilder::new(&mut function);
-    let slot = builder.add_param(MirType::uint256());
-    let header = builder.add_param(MirType::uint256());
+    let slot = builder.add_param(MirType::I256);
+    let header = builder.add_param(MirType::I256);
     store_literal(&mut builder, slot, header, bytes, clear_helper);
     builder.ret([]);
     module.add_function(function)
@@ -248,7 +248,7 @@ pub(super) fn store(
     // matching solc's `copy_byte_array_to_storage`.
     let partial_block = builder.create_block();
     let remainder = builder.and(length, thirty_one);
-    let has_partial = builder.iszero(remainder);
+    let has_partial = builder.eq_zero(remainder);
     builder.branch(has_partial, merge_block, partial_block);
 
     // if length % 32 != 0 {

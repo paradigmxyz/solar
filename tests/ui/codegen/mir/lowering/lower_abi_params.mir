@@ -5,7 +5,7 @@
 // CHECK: + v{{[0-9]+}} = calldatasize
 @module LowerAbiParams
 
-fn @read(arg0: memoryfixedarray, arg1: u256) -> u256 [selector=0x12345678, abi_params=[array<3, u256>, u256], abi_returns=[word]] {
+fn @read(arg0: memoryfixedarray, arg1: i256) -> i256 [selector=0x12345678, abi_params=[array<3, u256>, u256], abi_returns=[word]] {
   bb0:
     ret arg1
 }
@@ -16,13 +16,91 @@ fn @read(arg0: memoryfixedarray, arg1: u256) -> u256 [selector=0x12345678, abi_p
 // CHECK: + set_memory_object_len memoryarray
 // CHECK: + memory_object_copy_from_slice memoryarray
 // CHECK: + memory_object_store_field memorystruct<3>
-fn @read_words(arg0: memorystruct) -> u256 [selector=0x12345679, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word]] {
+fn @read_words(arg0: memorystruct) -> i256 [selector=0x12345679, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word]] {
   bb0:
-    v0 = memory_object_field_addr memorystruct, arg0, 0
+    v7 = memory_object_field_addr memorystruct, arg0, 0
+    v0 = ptrtoint memptr v7 to i256
     v1 = mload v0
-    v2 = memory_object_len memoryarray, v1
-    v3 = memory_object_field_addr memorystruct, arg0, 1
+    v6 = inttoptr i256 v1 to memoryarray
+    v2 = memory_object_len memoryarray, v6
+    v8 = memory_object_field_addr memorystruct, arg0, 1
+    v3 = ptrtoint memptr v8 to i256
     v4 = mload v3
     v5 = add v2, v4
     ret v5
+}
+
+// The address follows three physical head words, so its proof belongs to arg3.
+// CHECK: + fn @read_address()
+// CHECK: + [[RAW:v[0-9]+]] = calldataload 100
+// CHECK: + [[HIGH:v[0-9]+]] = shr 160, [[RAW]]
+// CHECK: + {{v[0-9]+}} = eq [[HIGH]], 0
+// CHECK-NOT: {{^[ +].*}}= zext
+// CHECK: + mstore 128, arg3
+fn @read_address(arg0: memoryfixedarray, arg1: i256) -> i256 [selector=0x12345680, abi_params=[array<3, u256>, address], abi_returns=[word]] {
+  bb0:
+    v0 = trunc i256 arg1 to i160
+    v1 = zext i160 v0 to i256
+    ret v1
+}
+
+// CHECK: + fn @address_is_zero()
+// CHECK: + {{v[0-9]+}} = calldataload 4
+// CHECK: = eq arg0, 0
+fn @address_is_zero(arg0: i256) -> i1 [selector=0x12345681, abi_params=[address], abi_returns=[word]] {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = eq v0, i160 0
+    ret v1
+}
+
+// An unconstrained ABI word does not supply an address-width proof.
+// CHECK: + fn @dirty_address()
+// CHECK: = trunc i256 arg0 to i160
+// CHECK: = zext i160
+fn @dirty_address(arg0: i256) -> i256 [selector=0x12345682, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    ret v1
+}
+
+fn @validated_forward(arg0: i256) -> i256 [selector=0x12345683, abi_params=[address], abi_returns=[word]] {
+  bb0:
+    v0 = icall @validated_leaf, arg0
+    ret v0
+}
+
+// A freshly generated ABI guard proves the argument through an internal call.
+// CHECK-LABEL: fn @validated_leaf
+// CHECK-NOT: {{^[ +].*}}= zext
+// CHECK: + ret arg0
+fn @validated_leaf(arg0: i256) -> i256 {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    ret v1
+}
+
+fn @validated_mixed(arg0: i256) -> i256 [selector=0x12345684, abi_params=[address], abi_returns=[word]] {
+  bb0:
+    v0 = icall @mixed_leaf, arg0
+    ret v0
+}
+
+fn @unvalidated_mixed(arg0: i256) -> i256 [selector=0x12345685, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = icall @mixed_leaf, arg0
+    ret v0
+}
+
+// Every caller must prove the bound; the raw-word wrapper prevents removal.
+// CHECK-LABEL: fn @mixed_leaf
+// CHECK: = trunc i256 arg0 to i160
+// CHECK: = zext i160
+fn @mixed_leaf(arg0: i256) -> i256 {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    ret v1
 }

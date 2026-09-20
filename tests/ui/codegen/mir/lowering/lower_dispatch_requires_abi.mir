@@ -3,7 +3,7 @@
 // has typed external arguments, so the pass must leave it untouched.
 //~? ERROR: `lower-dispatch` requires explicit ABI entries; run `lower-abi` first
 @module LowerDispatchRequiresAbi
-fn @takesArg(arg0: u256) -> u256 [selector=0x9a2dbe3f] {
+fn @takesArg(arg0: i256) -> i256 [selector=0x9a2dbe3f] {
   bb0:
     ret arg0
 }

@@ -1,16 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/payable_void_call.sol:Callee ===
 @module Callee
-fn @stored() -> u256 [selector=0xe582dd31, view, abi_params=[], abi_returns=[word]] {
+fn @stored() -> i256 [selector=0xe582dd31, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @approve(arg0: address, arg1: u256) [selector=0x095ea7b3, payable, abi_params=[address, u256], abi_returns=[]] {
+fn @approve(arg0: i256, arg1: i256) [selector=0x095ea7b3, payable, abi_params=[address, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = caller
-    v1 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v0, v1, arg1
+    v1 = trunc i256 arg0 to i160
+    v2 = zext i160 v0 to i256
+    v3 = zext i160 v1 to i256
+    log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v2, v3, arg1
     sstore 0, arg1 !metadata(storage=slot(0))
     ret
 }
@@ -18,53 +20,63 @@ fn @approve(arg0: address, arg1: u256) [selector=0x095ea7b3, payable, abi_params
 // === ROOT/tests/ui/codegen/lowering/run-call/payable_void_call.sol:Caller ===
 @module Caller
 data:
-  Callee_initcode_0: hex"34600d5760a28060115f395ff35b5f5ffd5f3560e01c8063095ea7b3146020578063e582dd3114601c576024565b6028565b6042565b5f5ffd5b34603e575f546080526020608001608090036080f35b5f5ffd5b60443610609e5760043560a01c1515609e5773ffffffffffffffffffffffffffffffffffffffff6004351660243581337f8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b9255f5fa4506024355f55005b5f5ffd"
+  Callee_initcode_0: hex"34600d5760a68060115f395ff35b5f5ffd5f3560e01c8063095ea7b3146020578063e582dd3114601c576024565b6028565b6044565b5f5ffd5b3415156040575f546080526020608001608090036080f35b5f5ffd5b6044361060a25760043560a01c151560a25760043573ffffffffffffffffffffffffffffffffffffffff1650602435600435337f8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b9255f5fa46024355f55005b5f5ffd"
 
-fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
+fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 210, v1
+    v2 = and 214, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Callee_initcode_0, v3, 179
-    v4 = slice_ptr v0
-    v5 = add v3, 179
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 179
-    jumpi v6, bb2, bb1
+    v4 = ptrtoint memptr v3 to i256
+    data_copy Callee_initcode_0, v4, 183
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, 183
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, 183
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = address
-    log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v7, 0xbeef, 7
-    v8 = gas
-    v9 = and 0xbeef, 0xffffffffffffffffffffffffffffffffffffffff
-    v10 = abi_encode [word<u160>, word], selector 0x95ea7b300000000000000000000000000000000000000000000000000000000, args v9, 7
-    v11 = slice_ptr v10
-    v12 = slice_len v10
-    v13 = extcodesize v6
-    v14 = iszero v13
-    icall revert_if<target_contract_has_no_code>, v14
-    v15 = call v8, v6, 0, v11, v12, 0, 0
-    jumpi v15, bb4, bb3
+    v12 = zext i160 v9 to i256
+    v13 = address
+    v14 = trunc i256 0xbeef to i160
+    v15 = zext i160 v13 to i256
+    v16 = zext i160 v14 to i256
+    log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v15, v16, 7
+    v17 = gas
+    v18 = trunc i256 0xbeef to i160
+    v19 = zext i160 v18 to i256
+    v20 = abi_encode [word<u160>, word], selector 0x95ea7b300000000000000000000000000000000000000000000000000000000, args v19, 7
+    v21 = slice_ptr v20
+    v22 = slice_len v20
+    v23 = extcodesize v12
+    v24 = eq v23, 0
+    icall revert_if<target_contract_has_no_code>, v24
+    v25 = call v17, v12, 0, v21, v22, 0, 0
+    jumpi v25, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v16 = gas
-    v17 = abi_encode [], selector 0xe582dd3100000000000000000000000000000000000000000000000000000000
-    v18 = slice_ptr v17
-    v19 = slice_len v17
-    v20 = staticcall v16, v6, v18, v19, 0, 32
-    jumpi v20, bb6, bb5
+    v26 = gas
+    v27 = abi_encode [], selector 0xe582dd3100000000000000000000000000000000000000000000000000000000
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = staticcall v26, v12, v28, v29, 0, 32
+    jumpi v30, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v21 = returndatasize
-    v22 = lt v21, 32
-    icall revert_if<tuple_data_too_short>, v22
-    v23 = add 0, 0
-    v24 = mload v23
-    v25 = add 0, 0
-    v26 = mload v25
-    ret v26
+    v31 = returndatasize
+    v32 = lt v31, 32
+    icall revert_if<tuple_data_too_short>, v32
+    v33 = add 0, 0
+    v34 = mload v33
+    v35 = add 0, 0
+    v36 = mload v35
+    ret v36
 }

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_packed_array_copy.sol:StoragePackedArrayCopy ===
 @module StoragePackedArrayCopy
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
 fn @constructor() [constructor] {
   bb0:
@@ -15,7 +15,7 @@ fn @constructor() [constructor] {
   bb2:
     v20 = shl 192, 2
     v21 = lt 8, 10
-    v22 = iszero v21
+    v22 = eq v21, false
     icall panic_if<0x32>, v22
     v23 = div 8, 1
     v24 = add 3, v23
@@ -33,7 +33,7 @@ fn @constructor() [constructor] {
     sstore v24, v35 !metadata(storage=offset(v23, 3))
     v36 = shl 192, 2
     v37 = lt 9, 10
-    v38 = iszero v37
+    v38 = eq v37, false
     icall panic_if<0x32>, v38
     v39 = div 9, 1
     v40 = add 3, v39
@@ -54,7 +54,7 @@ fn @constructor() [constructor] {
     v2 = and v0, 0xffffffffffffffff
     v3 = shl 192, v2
     v4 = lt v0, 9
-    v5 = iszero v4
+    v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = div v0, 4
     v7 = add 0, v6
@@ -119,7 +119,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     ret v79
   bb19:
     v63 = lt v61, 10
-    v64 = iszero v63
+    v64 = eq v63, false
     icall panic_if<0x32>, v64
     v65 = div v61, 1
     v66 = add 3, v65
@@ -141,7 +141,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb16
   bb13:
     v44 = lt v41, 9
-    v45 = iszero v44
+    v45 = eq v44, false
     icall panic_if<0x32>, v45
     v46 = div v41, 4
     v47 = add 0, v46

@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/static_frame_context.sol:StaticFrameContext ===
 @module StaticFrameContext
-fn @low(arg0: u256) -> u256 [selector=0x10c888cd, pure, abi_params=[u256], abi_returns=[word]] {
+fn @low(arg0: i256) -> i256 [selector=0x10c888cd, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @twice, arg0
     ret v0
 }
 
-fn @high(arg0: u256) -> u256 [selector=0x6257139f, pure, abi_params=[u256], abi_returns=[word]] {
+fn @high(arg0: i256) -> i256 [selector=0x6257139f, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     mstore 0x1fe0, arg0
     v0 = icall @fourTimes, arg0
@@ -15,7 +15,7 @@ fn @high(arg0: u256) -> u256 [selector=0x6257139f, pure, abi_params=[u256], abi_
     ret v2
 }
 
-fn @shared(arg0: u256) -> u256 [selector=0x727ee1fa, pure, abi_params=[u256], abi_returns=[word]] {
+fn @shared(arg0: i256) -> i256 [selector=0x727ee1fa, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @twice, arg0
     v1 = icall @fourTimes, arg0
@@ -24,7 +24,7 @@ fn @shared(arg0: u256) -> u256 [selector=0x727ee1fa, pure, abi_params=[u256], ab
     ret v3
 }
 
-fn @twice(arg0: u256) -> u256 [pure] {
+fn @twice(arg0: i256) -> i256 [pure] {
   bb0:
     jump bb1
   bb1:
@@ -49,7 +49,7 @@ fn @twice(arg0: u256) -> u256 [pure] {
     jump bb1
 }
 
-fn @fourTimes(arg0: u256) -> u256 [pure] {
+fn @fourTimes(arg0: i256) -> i256 [pure] {
   bb0:
     jump bb1
   bb1:
@@ -74,7 +74,7 @@ fn @fourTimes(arg0: u256) -> u256 [pure] {
     jump bb1
 }
 
-fn @sum(arg0: u256) -> u256 [pure] {
+fn @sum(arg0: i256) -> i256 [pure] {
   bb0:
     jump bb1
   bb1:

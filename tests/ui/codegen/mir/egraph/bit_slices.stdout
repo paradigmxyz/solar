@@ -2,10 +2,10 @@
 + // === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (after egraph) ===
   @module BitSlices
   types:
-    struct0: {u256, u256, u256}
-    struct1: {u256, u256}
+    struct0: {i256, i256, i256}
+    struct1: {i256, i256}
   
-  fn @shift_chains(arg0: u256) -> struct0 [return_abi=[u256, u256, u256]] {
+  fn @shift_chains(arg0: i256) -> struct0 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = shl 8, arg0
 -     v1 = shl 16, v0
@@ -19,7 +19,7 @@
       ret v1, v3, v5
   }
   
-  fn @shift_overflow(arg0: u256) -> struct0 [return_abi=[u256, u256, u256]] {
+  fn @shift_overflow(arg0: i256) -> struct0 [return_abi=[i256, i256, i256]] {
     bb0:
 -     v0 = shl 1, arg0
 -     v1 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v0
@@ -33,21 +33,21 @@
 +     ret 0, 0, v5
   }
   
-  fn @low_byte(arg0: u256) -> u256 {
+  fn @low_byte(arg0: i256) -> i256 {
     bb0:
       v0 = shl 248, arg0
       v1 = shr 248, v0
       ret v1
   }
   
-  fn @high_bits(arg0: u256) -> u256 {
+  fn @high_bits(arg0: i256) -> i256 {
     bb0:
       v0 = shr 8, arg0
       v1 = shl 8, v0
       ret v1
   }
   
-  fn @signed_byte(arg0: u256) -> u256 {
+  fn @signed_byte(arg0: i256) -> i256 {
     bb0:
       v0 = shl 248, arg0
 -     v1 = sar 248, v0
@@ -55,14 +55,14 @@
       ret v1
   }
   
-  fn @unaligned_signed_bits(arg0: u256) -> u256 {
+  fn @unaligned_signed_bits(arg0: i256) -> i256 {
     bb0:
       v0 = shl 249, arg0
       v1 = sar 249, v0
       ret v1
   }
   
-  fn @nested_sign_extension(arg0: u256) -> struct1 [return_abi=[u256, u256]] {
+  fn @nested_sign_extension(arg0: i256) -> struct1 [return_abi=[i256, i256]] {
     bb0:
       v0 = signextend 0, arg0
 -     v1 = signextend 2, v0
@@ -73,7 +73,7 @@
 +     ret v0, v3
   }
   
-  fn @unbounded_sign_extension(arg0: u256) -> u256 {
+  fn @unbounded_sign_extension(arg0: i256) -> i256 {
     bb0:
 -     v0 = signextend 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
 -     v1 = signextend 31, v0
@@ -81,21 +81,21 @@
 +     ret arg0
   }
   
-  fn @dynamic_shifts(arg0: u256, arg1: u256) -> u256 {
+  fn @dynamic_shifts(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = shl arg1, arg0
       v1 = shl arg1, v0
       ret v1
   }
   
-  fn @unequal_shifts(arg0: u256) -> u256 {
+  fn @unequal_shifts(arg0: i256) -> i256 {
     bb0:
       v0 = shl 248, arg0
       v1 = shr 249, v0
       ret v1
   }
   
-  fn @repeated_dynamic_extension(arg0: u256, arg1: u256) -> u256 {
+  fn @repeated_dynamic_extension(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = signextend arg1, arg0
 -     v1 = signextend arg1, v0
@@ -107,10 +107,10 @@
 + // === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (after dce) ===
   @module BitSlices
   types:
-    struct0: {u256, u256, u256}
-    struct1: {u256, u256}
+    struct0: {i256, i256, i256}
+    struct1: {i256, i256}
   
-  fn @shift_chains(arg0: u256) -> struct0 [return_abi=[u256, u256, u256]] {
+  fn @shift_chains(arg0: i256) -> struct0 [return_abi=[i256, i256, i256]] {
     bb0:
 -     v0 = shl 8, arg0
       v1 = shl 24, arg0
@@ -121,7 +121,7 @@
       ret v1, v3, v5
   }
   
-  fn @shift_overflow(arg0: u256) -> struct0 [return_abi=[u256, u256, u256]] {
+  fn @shift_overflow(arg0: i256) -> struct0 [return_abi=[i256, i256, i256]] {
     bb0:
 -     v0 = add arg0, arg0
 -     v2 = shr 255, arg0
@@ -130,35 +130,35 @@
       ret 0, 0, v5
   }
   
-  fn @low_byte(arg0: u256) -> u256 {
+  fn @low_byte(arg0: i256) -> i256 {
     bb0:
       v0 = shl 248, arg0
       v1 = shr 248, v0
       ret v1
   }
   
-  fn @high_bits(arg0: u256) -> u256 {
+  fn @high_bits(arg0: i256) -> i256 {
     bb0:
       v0 = shr 8, arg0
       v1 = shl 8, v0
       ret v1
   }
   
-  fn @signed_byte(arg0: u256) -> u256 {
+  fn @signed_byte(arg0: i256) -> i256 {
     bb0:
 -     v0 = shl 248, arg0
       v1 = signextend 0, arg0
       ret v1
   }
   
-  fn @unaligned_signed_bits(arg0: u256) -> u256 {
+  fn @unaligned_signed_bits(arg0: i256) -> i256 {
     bb0:
       v0 = shl 249, arg0
       v1 = sar 249, v0
       ret v1
   }
   
-  fn @nested_sign_extension(arg0: u256) -> struct1 [return_abi=[u256, u256]] {
+  fn @nested_sign_extension(arg0: i256) -> struct1 [return_abi=[i256, i256]] {
     bb0:
       v0 = signextend 0, arg0
 -     v2 = signextend 2, arg0
@@ -166,26 +166,26 @@
       ret v0, v3
   }
   
-  fn @unbounded_sign_extension(arg0: u256) -> u256 {
+  fn @unbounded_sign_extension(arg0: i256) -> i256 {
     bb0:
       ret arg0
   }
   
-  fn @dynamic_shifts(arg0: u256, arg1: u256) -> u256 {
+  fn @dynamic_shifts(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = shl arg1, arg0
       v1 = shl arg1, v0
       ret v1
   }
   
-  fn @unequal_shifts(arg0: u256) -> u256 {
+  fn @unequal_shifts(arg0: i256) -> i256 {
     bb0:
       v0 = shl 248, arg0
       v1 = shr 249, v0
       ret v1
   }
   
-  fn @repeated_dynamic_extension(arg0: u256, arg1: u256) -> u256 {
+  fn @repeated_dynamic_extension(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = signextend arg1, arg0
       ret v0

@@ -1,7 +1,7 @@
 //@compile-flags: -Zmir-pipeline=storage-load-cse,storage-dse,egraph,dce
 @module StorageDseControlFlow
 
-fn @both_paths(arg0: bool) {
+fn @both_paths(arg0: i1) {
   bb0:
     sstore 0, 1
     jumpi arg0, bb1, bb2
@@ -13,7 +13,7 @@ fn @both_paths(arg0: bool) {
     stop
 }
 
-fn @one_path_reads(arg0: bool) -> u256 {
+fn @one_path_reads(arg0: i1) -> i256 {
   bb0:
     sstore 0, 1
     jumpi arg0, bb1, bb2
@@ -26,7 +26,7 @@ fn @one_path_reads(arg0: bool) -> u256 {
     ret 0
 }
 
-fn @loop_exit_observes(arg0: bool) {
+fn @loop_exit_observes(arg0: i1) {
   bb0:
     sstore 0, 1
     jump bb1
@@ -39,7 +39,7 @@ fn @loop_exit_observes(arg0: bool) {
     stop
 }
 
-fn @packed(arg0: u256, arg1: u256) {
+fn @packed(arg0: i256, arg1: i256) {
   bb0:
     v0 = sload 0
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
@@ -55,7 +55,7 @@ fn @packed(arg0: u256, arg1: u256) {
     stop
 }
 
-fn @call_observer(arg0: address) {
+fn @call_observer(arg0: i256) {
   bb0:
     sstore 0, 1
     jump bb1

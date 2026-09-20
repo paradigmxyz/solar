@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/storage-dse/control_flow.mir (before storage-load-cse) ===
 + // === ROOT/tests/ui/codegen/mir/storage-dse/control_flow.mir (after storage-load-cse) ===
   @module StorageDseControlFlow
-  fn @both_paths(arg0: bool) {
+  fn @both_paths(arg0: i1) {
     bb0:
 -     sstore 0, 1
 +     sstore 0, 1 !metadata(storage=slot(0))
@@ -16,7 +16,7 @@
       stop
   }
   
-  fn @one_path_reads(arg0: bool) -> u256 {
+  fn @one_path_reads(arg0: i1) -> i256 {
     bb0:
 -     sstore 0, 1
 +     sstore 0, 1 !metadata(storage=slot(0))
@@ -33,7 +33,7 @@
       ret v0
   }
   
-  fn @loop_exit_observes(arg0: bool) {
+  fn @loop_exit_observes(arg0: i1) {
     bb0:
 -     sstore 0, 1
 +     sstore 0, 1 !metadata(storage=slot(0))
@@ -48,7 +48,7 @@
       jump bb1
   }
   
-  fn @packed(arg0: u256, arg1: u256) {
+  fn @packed(arg0: i256, arg1: i256) {
     bb0:
 -     v0 = sload 0
 +     v0 = sload 0 !metadata(storage=slot(0))
@@ -68,7 +68,7 @@
       stop
   }
   
-  fn @call_observer(arg0: address) {
+  fn @call_observer(arg0: i256) {
     bb0:
 -     sstore 0, 1
 +     sstore 0, 1 !metadata(storage=slot(0))
@@ -103,7 +103,7 @@
 - // === ROOT/tests/ui/codegen/mir/storage-dse/control_flow.mir (before storage-dse) ===
 + // === ROOT/tests/ui/codegen/mir/storage-dse/control_flow.mir (after storage-dse) ===
   @module StorageDseControlFlow
-  fn @both_paths(arg0: bool) {
+  fn @both_paths(arg0: i1) {
     bb0:
 -     sstore 0, 1 !metadata(storage=slot(0))
       jumpi arg0, bb1, bb2
@@ -115,7 +115,7 @@
       stop
   }
   
-  fn @one_path_reads(arg0: bool) -> u256 {
+  fn @one_path_reads(arg0: i1) -> i256 {
     bb0:
       sstore 0, 1 !metadata(storage=slot(0))
       jumpi arg0, bb1, bb2
@@ -128,7 +128,7 @@
       ret v0
   }
   
-  fn @loop_exit_observes(arg0: bool) {
+  fn @loop_exit_observes(arg0: i1) {
     bb0:
       sstore 0, 1 !metadata(storage=slot(0))
       jump bb1
@@ -141,7 +141,7 @@
       jump bb1
   }
   
-  fn @packed(arg0: u256, arg1: u256) {
+  fn @packed(arg0: i256, arg1: i256) {
     bb0:
       v0 = sload 0 !metadata(storage=slot(0))
       v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
@@ -156,7 +156,7 @@
       stop
   }
   
-  fn @call_observer(arg0: address) {
+  fn @call_observer(arg0: i256) {
     bb0:
       sstore 0, 1 !metadata(storage=slot(0))
       jump bb1
@@ -187,7 +187,7 @@
 - // === ROOT/tests/ui/codegen/mir/storage-dse/control_flow.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/storage-dse/control_flow.mir (after egraph) ===
   @module StorageDseControlFlow
-  fn @both_paths(arg0: bool) {
+  fn @both_paths(arg0: i1) {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -198,7 +198,7 @@
       stop
   }
   
-  fn @one_path_reads(arg0: bool) -> u256 {
+  fn @one_path_reads(arg0: i1) -> i256 {
     bb0:
       sstore 0, 1 !metadata(storage=slot(0))
       jumpi arg0, bb1, bb2
@@ -211,7 +211,7 @@
       ret v0
   }
   
-  fn @loop_exit_observes(arg0: bool) {
+  fn @loop_exit_observes(arg0: i1) {
     bb0:
       sstore 0, 1 !metadata(storage=slot(0))
       jump bb1
@@ -224,7 +224,7 @@
       jump bb1
   }
   
-  fn @packed(arg0: u256, arg1: u256) {
+  fn @packed(arg0: i256, arg1: i256) {
     bb0:
       v0 = sload 0 !metadata(storage=slot(0))
       v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
@@ -238,7 +238,7 @@
       stop
   }
   
-  fn @call_observer(arg0: address) {
+  fn @call_observer(arg0: i256) {
     bb0:
       sstore 0, 1 !metadata(storage=slot(0))
       jump bb1
@@ -269,7 +269,7 @@
 - // === ROOT/tests/ui/codegen/mir/storage-dse/control_flow.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/storage-dse/control_flow.mir (after dce) ===
   @module StorageDseControlFlow
-  fn @both_paths(arg0: bool) {
+  fn @both_paths(arg0: i1) {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -280,7 +280,7 @@
       stop
   }
   
-  fn @one_path_reads(arg0: bool) -> u256 {
+  fn @one_path_reads(arg0: i1) -> i256 {
     bb0:
       sstore 0, 1 !metadata(storage=slot(0))
       jumpi arg0, bb1, bb2
@@ -293,7 +293,7 @@
       ret v0
   }
   
-  fn @loop_exit_observes(arg0: bool) {
+  fn @loop_exit_observes(arg0: i1) {
     bb0:
       sstore 0, 1 !metadata(storage=slot(0))
       jump bb1
@@ -306,7 +306,7 @@
       jump bb1
   }
   
-  fn @packed(arg0: u256, arg1: u256) {
+  fn @packed(arg0: i256, arg1: i256) {
     bb0:
       v0 = sload 0 !metadata(storage=slot(0))
       v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
@@ -320,7 +320,7 @@
       stop
   }
   
-  fn @call_observer(arg0: address) {
+  fn @call_observer(arg0: i256) {
     bb0:
       sstore 0, 1 !metadata(storage=slot(0))
       jump bb1

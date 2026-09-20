@@ -1,7 +1,7 @@
 //@ revisions: gas size shape
 //@[gas] compile-flags: -Ogas -Zmir-pipeline=word-sequence
 //@[size] compile-flags: -Osize -Zmir-pipeline=word-sequence
-//@[shape] compile-flags: -Zmir-pipeline=lower-evm-shaped
+//@[shape] compile-flags: -Zmir-pipeline=lower-memory-objects,lower-evm-shaped
 //@[gas] filecheck: --check-prefixes=RECIPE,GAS
 //@[size] filecheck: --check-prefixes=RECIPE,SIZE
 //@[shape] filecheck: --check-prefix=SHAPE
@@ -9,204 +9,219 @@
 @phase semantic
 
 // RECIPE-LABEL: fn @zero_right_dirty(
-// RECIPE: + {{ *}}[[Z:v[0-9]+]] = iszero arg0
-// RECIPE-NEXT: + {{ *}}[[B:v[0-9]+]] = iszero [[Z]]
+// RECIPE: {{ *}}[[Z:v[0-9]+]] = ne arg0, 0
+// RECIPE: + {{ *}}[[B:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[Z]]
 // RECIPE-NEXT: + {{ *}}[[R:v[0-9]+]] = mul [[B]], arg1
 // RECIPE-NEXT: {{ *}}ret [[R]]
 // SHAPE-LABEL: fn @zero_right_dirty(
-// SHAPE: + {{ *}}[[Z:v[0-9]+]] = iszero arg0
-// SHAPE-NEXT: + {{ *}}[[R:v[0-9]+]] = select [[Z]], 0, arg1
-fn @zero_right_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+// SHAPE: {{ *}}[[Z:v[0-9]+]] = ne arg0, 0
+// SHAPE-NEXT: {{ *}}[[R:v[0-9]+]] = select [[Z]], arg1, 0
+fn @zero_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v1 = select arg0, arg1, 0
+    v2 = ne arg0, 0
+    v1 = select v2, arg1, 0
     ret v1
 }
 
-fn @zero_left_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @zero_left_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v1 = select arg0, 0, arg1
+    v2 = ne arg0, 0
+    v1 = select v2, 0, arg1
     ret v1
 }
 
 // RECIPE-LABEL: fn @max_right_dirty(
-// RECIPE: + {{ *}}[[Z:v[0-9]+]] = iszero arg0
-// RECIPE-NEXT: + {{ *}}[[MASK:v[0-9]+]] = sub 0, [[Z]]
+// RECIPE: {{ *}}[[COND:v[0-9]+]] = ne arg0, 0
+// RECIPE: + {{ *}}[[Z:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[COND]]
+// RECIPE-NEXT: + {{ *}}[[MASK:v[0-9]+]] = sub [[Z]], 1
 // RECIPE-NEXT: + {{ *}}[[R:v[0-9]+]] = or arg1, [[MASK]]
-fn @max_right_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @max_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v1 = select arg0, arg1, 115792089237316195423570985008687907853269984665640564039457584007913129639935
+    v2 = ne arg0, 0
+    v1 = select v2, arg1, 115792089237316195423570985008687907853269984665640564039457584007913129639935
     ret v1
 }
 
 // RECIPE-LABEL: fn @max_left_dirty(
-// RECIPE: + {{ *}}[[Z:v[0-9]+]] = iszero arg0
+// RECIPE: + {{ *}}[[BOOL:v[0-9]+]] = eq {{v[0-9]+}}, {{(0|false)}}
+// RECIPE-NEXT: + {{ *}}[[Z:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[BOOL]]
 // RECIPE-NEXT: + {{ *}}[[MASK:v[0-9]+]] = sub [[Z]], 1
 // RECIPE-NEXT: + {{ *}}[[R:v[0-9]+]] = or arg1, [[MASK]]
-fn @max_left_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @max_left_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v1 = select arg0, 115792089237316195423570985008687907853269984665640564039457584007913129639935, arg1
+    v2 = ne arg0, 0
+    v1 = select v2, 115792089237316195423570985008687907853269984665640564039457584007913129639935, arg1
     ret v1
 }
 
-fn @one_right_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @one_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v1 = select arg0, arg1, 1
+    v2 = ne arg0, 0
+    v1 = select v2, arg1, 1
     ret v1
 }
 
-fn @one_left_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @one_left_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v1 = select arg0, 1, arg1
+    v2 = ne arg0, 0
+    v1 = select v2, 1, arg1
     ret v1
 }
 
-fn @constant_right_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @constant_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v1 = select arg0, arg1, 42
+    v2 = ne arg0, 0
+    v1 = select v2, arg1, 42
     ret v1
 }
 
 // RECIPE-LABEL: fn @constant_left_dirty(
-// RECIPE: {{^ *}}[[R:v[0-9]+]] = select arg0, 42, arg1
+// RECIPE: {{^ *}}[[COND:v[0-9]+]] = ne arg0, 0
+// RECIPE-NEXT: {{ *}}[[R:v[0-9]+]] = select [[COND]], 42, arg1
 // RECIPE-NEXT: {{ *}}ret [[R]]
-fn @constant_left_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @constant_left_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v1 = select arg0, 42, arg1
+    v2 = ne arg0, 0
+    v1 = select v2, 42, arg1
     ret v1
 }
 
-fn @ascending_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @ascending_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v1 = select arg0, 42, 7
+    v2 = ne arg0, 0
+    v1 = select v2, 42, 7
     ret v1
 }
 
-fn @descending_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @descending_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v1 = select arg0, 7, 42
+    v2 = ne arg0, 0
+    v1 = select v2, 7, 42
     ret v1
 }
 
-fn @wide_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @wide_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v1 = select arg0, 57896044618658097711785492504343953926634992332820282019728792003956564819968, 7
+    v2 = ne arg0, 0
+    v1 = select v2, 57896044618658097711785492504343953926634992332820282019728792003956564819968, 7
     ret v1
 }
 
-fn @variable_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @variable_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v1 = select arg0, arg1, arg2
+    v2 = ne arg0, 0
+    v1 = select v2, arg1, arg2
     ret v1
 }
 
 // RECIPE-LABEL: fn @zero_right_canonical(
 // RECIPE: + {{ *}}[[R:v[0-9]+]] = mul {{v[0-9]+}}, arg1
 // RECIPE-NEXT: {{ *}}ret [[R]]
-fn @zero_right_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @zero_right_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     v1 = select v0, arg1, 0
     ret v1
 }
 
-fn @zero_left_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @zero_left_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     v1 = select v0, 0, arg1
     ret v1
 }
 
-fn @max_right_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @max_right_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     v1 = select v0, arg1, 115792089237316195423570985008687907853269984665640564039457584007913129639935
     ret v1
 }
 
-fn @max_left_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @max_left_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     v1 = select v0, 115792089237316195423570985008687907853269984665640564039457584007913129639935, arg1
     ret v1
 }
 
-fn @one_right_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @one_right_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     v1 = select v0, arg1, 1
     ret v1
 }
 
-fn @one_left_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @one_left_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     v1 = select v0, 1, arg1
     ret v1
 }
 
-fn @constant_right_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @constant_right_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     v1 = select v0, arg1, 42
     ret v1
 }
 
-fn @constant_left_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @constant_left_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     v1 = select v0, 42, arg1
     ret v1
 }
 
 // GAS-LABEL: fn @ascending_canonical(
-// GAS: + {{ *}}[[SCALED:v[0-9]+]] = mul v0, 35
+// GAS: + {{ *}}[[WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} v0
+// GAS-NEXT: + {{ *}}[[SCALED:v[0-9]+]] = mul [[WORD]], 35
 // GAS-NEXT: + {{ *}}[[R:v[0-9]+]] = add 7, [[SCALED]]
 // GAS-NEXT: {{ *}}ret [[R]]
 // SIZE-LABEL: fn @ascending_canonical(
 // SIZE: {{^ *}}[[R:v[0-9]+]] = select v0, 42, 7
 // SIZE-NEXT: {{ *}}ret [[R]]
-fn @ascending_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @ascending_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     v1 = select v0, 42, 7
     ret v1
 }
 
-fn @descending_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @descending_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     v1 = select v0, 7, 42
     ret v1
 }
 
-fn @wide_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @wide_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     v1 = select v0, 57896044618658097711785492504343953926634992332820282019728792003956564819968, 7
     ret v1
 }
 
-fn @variable_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @variable_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     v1 = select v0, arg1, arg2
     ret v1
 }
 
-// SHAPE-LABEL: fn @dirty_bool(
-// SHAPE: + {{ *}}[[Z:v[0-9]+]] = iszero arg0
-// SHAPE-NEXT: + {{ *}}[[R:v[0-9]+]] = select [[Z]], 0, arg1
-fn @dirty_bool(arg0: bool, arg1: u256) -> u256 {
+// SHAPE-LABEL: fn @canonical_bool(
+// SHAPE: {{ *}}[[R:v[0-9]+]] = select arg0, arg1, 0
+fn @canonical_bool(arg0: i1, arg1: i256) -> i256 {
   bb0:
     v0 = select arg0, arg1, 0
     ret v0
 }
 
 // RECIPE-LABEL: fn @pointer_arm(
-// RECIPE: {{^ *}}[[R:v[0-9]+]] = select arg0, arg1, 0
+// RECIPE: {{^ *}}[[R:v[0-9]+]] = select arg0, arg1, memorybytes 0
 // RECIPE-NEXT: {{ *}}ret [[R]]
-fn @pointer_arm(arg0: bool, arg1: memptr) -> u256 {
+fn @pointer_arm(arg0: i1, arg1: memorybytes) -> memorybytes {
   bb0:
-    v0 = select arg0, arg1, 0
+    v0 = select arg0, arg1, memorybytes 0
     ret v0
 }

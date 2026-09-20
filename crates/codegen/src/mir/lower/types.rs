@@ -2,7 +2,7 @@
 
 use crate::mir::{
     AbiParamType, AbiType, AbiWordValidator, MemoryObjectKind, MemoryObjectLayout, MirType,
-    SliceLocation,
+    SliceLocation, ValueLayout,
 };
 use solar_ast::{DataLocation, TypeSize};
 use solar_data_structures::map::FxHashSet;
@@ -23,8 +23,12 @@ impl<'gcx> TypeLowerer<'gcx> {
         Self { gcx, seen_structs: FxHashSet::default() }
     }
 
-    /// Converts a checked Solidity type to its coarse MIR representation.
     pub(super) fn mir_type(ty: Ty<'_>) -> MirType {
+        Self::value_layout(ty).mir_type()
+    }
+
+    /// Converts a checked Solidity type to its coarse MIR representation.
+    pub(super) fn value_layout(ty: Ty<'_>) -> ValueLayout {
         if let TyKind::Ref(inner, DataLocation::Calldata) = ty.kind
             && matches!(
                 inner.peel_refs().kind,
@@ -35,43 +39,63 @@ impl<'gcx> TypeLowerer<'gcx> {
                     | TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes)
             )
         {
-            return MirType::Slice(SliceLocation::Calldata);
+            return ValueLayout::Slice(SliceLocation::Calldata);
         }
         if matches!(ty.kind, TyKind::Ref(_, DataLocation::Storage)) {
-            return MirType::StoragePtr;
+            return ValueLayout::StoragePtr;
         }
         match ty.peel_refs().kind {
             TyKind::Elementary(elementary) => match elementary {
-                ElementaryType::Bool => MirType::Bool,
-                ElementaryType::Address(_) => MirType::Address,
-                ElementaryType::Int(size) => MirType::Int(TypeSize::new_int_bits(size.bits())),
-                ElementaryType::UInt(size) => MirType::UInt(TypeSize::new_int_bits(size.bits())),
-                ElementaryType::Fixed(size, _) => MirType::Int(TypeSize::new_int_bits(size.bits())),
-                ElementaryType::UFixed(size, _) => {
-                    MirType::UInt(TypeSize::new_int_bits(size.bits()))
+                ElementaryType::Bool => ValueLayout::Bool,
+                ElementaryType::Address(_) => ValueLayout::Address,
+                ElementaryType::Int(size) => ValueLayout::Int(TypeSize::new_int_bits(size.bits())),
+                ElementaryType::UInt(size) => {
+                    ValueLayout::UInt(TypeSize::new_int_bits(size.bits()))
                 }
-                ElementaryType::FixedBytes(size) => MirType::FixedBytes(size),
+                ElementaryType::Fixed(size, _) => {
+                    ValueLayout::Int(TypeSize::new_int_bits(size.bits()))
+                }
+                ElementaryType::UFixed(size, _) => {
+                    ValueLayout::UInt(TypeSize::new_int_bits(size.bits()))
+                }
+                ElementaryType::FixedBytes(size) => ValueLayout::FixedBytes(size),
                 ElementaryType::String | ElementaryType::Bytes => {
-                    MirType::MemoryObject(MemoryObjectKind::Bytes)
+                    ValueLayout::MemoryObject(MemoryObjectKind::Bytes)
                 }
             },
-            TyKind::Mapping(_, _) => MirType::StoragePtr,
+            TyKind::Mapping(_, _) => ValueLayout::StoragePtr,
             TyKind::DynArray(_) | TyKind::Slice(_) => {
-                MirType::MemoryObject(MemoryObjectKind::DynamicArray)
+                ValueLayout::MemoryObject(MemoryObjectKind::DynamicArray)
             }
-            TyKind::Array(_, _) => MirType::MemoryObject(MemoryObjectKind::FixedArray),
-            TyKind::Struct(_) => MirType::MemoryObject(MemoryObjectKind::Struct),
-            TyKind::Fn(_) => MirType::Function,
-            TyKind::Enum(_) => MirType::UInt(TypeSize::new_int_bits(8)),
-            TyKind::Udvt(underlying, _) => Self::mir_type(underlying),
-            TyKind::Contract(_) | TyKind::Super(_) => MirType::Address,
-            _ => MirType::uint256(),
+            TyKind::Array(_, _) => ValueLayout::MemoryObject(MemoryObjectKind::FixedArray),
+            TyKind::Struct(_) => ValueLayout::MemoryObject(MemoryObjectKind::Struct),
+            TyKind::Fn(_) => ValueLayout::Function,
+            TyKind::Enum(_) => ValueLayout::UInt(TypeSize::new_int_bits(8)),
+            TyKind::Udvt(underlying, _) => Self::value_layout(underlying),
+            TyKind::Contract(_) | TyKind::Super(_) => ValueLayout::Address,
+            _ => ValueLayout::uint256(),
+        }
+    }
+
+    /// Carries raw Solidity scalar bits across calls, where assembly may observe them.
+    pub(super) fn mir_signature_type(ty: Ty<'_>) -> MirType {
+        match Self::mir_type(ty) {
+            MirType::I1 | MirType::I160 => MirType::I256,
+            ty => ty,
         }
     }
 
     /// Returns the MIR representation used for a function return value.
     pub(super) fn mir_return_type(ty: Ty<'_>) -> MirType {
-        Self::mir_type(ty)
+        Self::mir_signature_type(ty)
+    }
+
+    /// Preserves raw scalar bits in immutables for inline assembly reads.
+    pub(super) fn immutable_layout(ty: Ty<'_>) -> ValueLayout {
+        match Self::value_layout(ty) {
+            ValueLayout::Bool | ValueLayout::Address => ValueLayout::uint256(),
+            layout => layout,
+        }
     }
 
     /// Builds the ABI input shape for a function parameter.
@@ -157,15 +181,15 @@ impl<'gcx> TypeLowerer<'gcx> {
         location: DataLocation,
     ) -> Option<AbiParamType> {
         if ty.encodes_as_slot() {
-            return Some(AbiParamType::Scalar(MirType::StoragePtr));
+            return Some(AbiParamType::Scalar(ValueLayout::StoragePtr));
         }
         Some(match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes) => {
                 AbiParamType::Bytes
             }
-            TyKind::Elementary(_) => AbiParamType::Scalar(Self::mir_type(ty)),
+            TyKind::Elementary(_) => AbiParamType::Scalar(Self::value_layout(ty)),
             TyKind::Enum(id) => AbiParamType::Enum {
-                ty: Self::mir_type(ty),
+                ty: Self::value_layout(ty),
                 variants: self.gcx.hir.enumm(id).variants.len() as u64,
             },
             TyKind::DynArray(element) | TyKind::Slice(element) => {
@@ -212,8 +236,8 @@ impl<'gcx> TypeLowerer<'gcx> {
                     location,
                 );
             }
-            TyKind::Contract(_) | TyKind::Super(_) => AbiParamType::Scalar(MirType::Address),
-            _ => AbiParamType::Scalar(Self::mir_type(ty)),
+            TyKind::Contract(_) | TyKind::Super(_) => AbiParamType::Scalar(ValueLayout::Address),
+            _ => AbiParamType::Scalar(Self::value_layout(ty)),
         })
     }
 
@@ -223,7 +247,7 @@ impl<'gcx> TypeLowerer<'gcx> {
         location: DataLocation,
     ) -> Option<(AbiType, AbiParamType)> {
         if ty.encodes_as_slot() {
-            return Some((AbiType::Word(None), AbiParamType::Scalar(MirType::StoragePtr)));
+            return Some((AbiType::Word(None), AbiParamType::Scalar(ValueLayout::StoragePtr)));
         }
         let param_ty = ty.with_loc_if_ref(self.gcx, location);
 
@@ -232,26 +256,23 @@ impl<'gcx> TypeLowerer<'gcx> {
                 (AbiType::Bytes(Self::abi_slice_location(ty)), AbiParamType::Bytes)
             }
             TyKind::Elementary(_) => {
-                let mir_ty = Self::mir_type(param_ty);
-                (
-                    AbiType::Word(AbiWordValidator::from_mir_type(mir_ty)),
-                    AbiParamType::Scalar(mir_ty),
-                )
+                let mir_ty = Self::value_layout(param_ty);
+                (AbiType::Word(AbiWordValidator::from_layout(mir_ty)), AbiParamType::Scalar(mir_ty))
             }
             TyKind::Fn(function) => (
                 if function.is_external() { AbiType::Function } else { AbiType::Word(None) },
-                AbiParamType::Scalar(Self::mir_type(param_ty)),
+                AbiParamType::Scalar(Self::value_layout(param_ty)),
             ),
             TyKind::Enum(id) => {
                 let variants = self.gcx.hir.enumm(id).variants.len() as u64;
                 (
                     AbiType::Word(Some(AbiWordValidator::EnumRange(variants))),
-                    AbiParamType::Enum { ty: Self::mir_type(param_ty), variants },
+                    AbiParamType::Enum { ty: Self::value_layout(param_ty), variants },
                 )
             }
             TyKind::Contract(_) | TyKind::Super(_) => (
-                AbiType::Word(AbiWordValidator::from_mir_type(MirType::Address)),
-                AbiParamType::Scalar(MirType::Address),
+                AbiType::Word(AbiWordValidator::from_layout(ValueLayout::Address)),
+                AbiParamType::Scalar(ValueLayout::Address),
             ),
             TyKind::DynArray(element) => {
                 let (abi_element, param_element) = self.abi_return_shapes_inner(
@@ -316,7 +337,7 @@ impl<'gcx> TypeLowerer<'gcx> {
             TyKind::Udvt(underlying, _) => {
                 return self.abi_return_shapes_inner(underlying, location);
             }
-            _ => (AbiType::Word(None), AbiParamType::Scalar(Self::mir_type(param_ty))),
+            _ => (AbiType::Word(None), AbiParamType::Scalar(Self::value_layout(param_ty))),
         })
     }
 
@@ -326,14 +347,14 @@ impl<'gcx> TypeLowerer<'gcx> {
                 AbiType::Bytes(Self::abi_slice_location(ty))
             }
             TyKind::Elementary(_) => {
-                AbiType::Word(AbiWordValidator::from_mir_type(Self::mir_type(ty)))
+                AbiType::Word(AbiWordValidator::from_layout(Self::value_layout(ty)))
             }
             TyKind::Fn(function) if function.is_external() => AbiType::Function,
             TyKind::Enum(id) => AbiType::Word(Some(AbiWordValidator::EnumRange(
                 self.gcx.hir.enumm(id).variants.len() as u64,
             ))),
             TyKind::Contract(_) | TyKind::Super(_) => {
-                AbiType::Word(AbiWordValidator::from_mir_type(MirType::Address))
+                AbiType::Word(AbiWordValidator::from_layout(ValueLayout::Address))
             }
             TyKind::DynArray(element) => AbiType::DynamicArray {
                 element: Box::new(

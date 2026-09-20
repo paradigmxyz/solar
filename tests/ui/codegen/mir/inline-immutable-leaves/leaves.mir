@@ -7,7 +7,7 @@ immutables:
   duration: u64
   initial: u256
 
-fn @entry() -> u256 [selector=1] {
+fn @entry() -> i256 [selector=1] {
   bb0:
     v0 = icall @end
     v1 = icall @memory
@@ -20,7 +20,7 @@ fn @entry() -> u256 [selector=1] {
 }
 
 // Inlining preserves constructor staging loads at the original call site.
-fn @constructor(arg0: u64, arg1: u64) [constructor] {
+fn @constructor(arg0: i256, arg1: i256) [constructor] {
   bb0:
     storeimmutable start, arg0
     storeimmutable duration, arg1
@@ -29,7 +29,7 @@ fn @constructor(arg0: u64, arg1: u64) [constructor] {
     stop
 }
 
-fn @end() -> u256 {
+fn @end() -> i256 {
   bb0:
     v0 = loadimmutable start
     v1 = loadimmutable duration
@@ -38,7 +38,7 @@ fn @end() -> u256 {
 }
 
 // Memory reads are outside the immutable leaf adapter.
-fn @memory() -> u256 {
+fn @memory() -> i256 {
   bb0:
     v0 = mload 0
     v1 = loadimmutable start
@@ -47,14 +47,14 @@ fn @memory() -> u256 {
 }
 
 // Other pure helpers are left to the ordinary inliner.
-fn @ordinary() -> u256 {
+fn @ordinary() -> i256 {
   bb0:
     v0 = add 1, 2
     ret v0
 }
 
 // The adapter excludes argument-carrying helpers.
-fn @argument(arg0: u256) -> u256 {
+fn @argument(arg0: i256) -> i256 {
   bb0:
     v0 = loadimmutable start
     v1 = add v0, arg0

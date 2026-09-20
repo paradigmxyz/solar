@@ -12,6 +12,16 @@ error: [fn2] non-word type `memorystruct` survives the `lowered` phase boundary
 
 error: [fn2] [bb0, inst0] aggregate instruction `storage_to_memory` survives the `lowered` phase boundary
 
+error: [fn3] [bb0, inst3] `mapping_slot` has incompatible scalar types; use an explicit cast
+
+error: [fn3] [bb0, inst4] `mapping_slot_memory` has incompatible scalar types; use an explicit cast
+
+error: [fn3] [bb0, inst5] `mapping_slot_calldata` has incompatible scalar types; use an explicit cast
+
+error: [fn3] [bb0, inst6] `storage_array_data_slot` has incompatible scalar types; use an explicit cast
+
+error: [fn3] [bb0, inst7] `storage_array_element_slot` has incompatible scalar types; use an explicit cast
+
 error: [fn3] [bb0, inst0] abstract allocation instruction `fmp` survives the `lowered` phase boundary
 
 error: [fn3] [bb0, inst1] abstract allocation instruction `set_fmp` survives the `lowered` phase boundary
@@ -34,8 +44,6 @@ error: [fn5] non-word type `calldataslice` survives the `lowered` phase boundary
 
 error: [fn6] non-word type `returndataslice` survives the `lowered` phase boundary
 
-error: [fn7] [bb0, inst0] memory-object instruction `word_cast` survives the `lowered` phase boundary
-
 error: [fn8] [bb0, inst0] abstract allocation instruction `alloc` survives the `lowered` phase boundary
 
 error: [fn9] [bb0, inst0] deferred allocation requires a constant size
@@ -46,7 +54,11 @@ error: [fn11] [bb0, inst0] checked arithmetic instruction `checked_add` survives
 
 error: [fn12] [bb0, inst0] ABI validation instruction `validate_abi` survives the `lowered` phase boundary
 
+error: [fn13] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
+
 error: [fn13] [bb0, inst0] conditional check instruction `icall` survives the `lowered` phase boundary
+
+error: [fn14] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 
 error: [fn14] [bb0, inst0] conditional check instruction `icall` survives the `lowered` phase boundary
 
@@ -54,13 +66,21 @@ error: [fn15] [bb0, inst0] builtin instruction `keccak256_packed` survives the `
 
 error: [fn16] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
 
+error: [fn17] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
+
 error: [fn17] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
 
 error: [fn18] [bb0, inst0] builtin instruction `validate_storage_bytes` survives the `lowered` phase boundary
 
+error: [fn19] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
+
+error: [fn19] [bb0, inst1] `icall` has incompatible scalar types; use an explicit cast
+
 error: [fn19] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
 
 error: [fn19] [bb0, inst1] builtin instruction `icall` survives the `lowered` phase boundary
+
+error: [fn20] [bb0, inst1] `address_call` has incompatible scalar types; use an explicit cast
 
 error: [fn20] non-word type `memorybytes` survives the `lowered` phase boundary
 
@@ -68,5 +88,5 @@ error: [fn20] [bb0, inst0] builtin instruction `icall` survives the `lowered` ph
 
 error: [fn20] [bb0, inst1] builtin instruction `address_call` survives the `lowered` phase boundary
 
-error: aborting due to 35 previous errors
+error: aborting due to 45 previous errors
 

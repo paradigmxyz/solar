@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/mir/egraph/cancellation_runtime.sol:Cancellation ===
 @module Cancellation
 types:
-  struct0: {u256, u256, u256}
-  struct1: {u256, u256, u256, u256}
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256, i256, i256}
 
-fn @arithmetic(arg0: u256, arg1: u256) -> struct0 [selector=0x6cbb5ae3, pure, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @arithmetic(arg0: i256, arg1: i256) -> struct0 [selector=0x6cbb5ae3, pure, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = sub arg0, arg1
     v1 = add v0, arg1
@@ -18,7 +18,7 @@ fn @arithmetic(arg0: u256, arg1: u256) -> struct0 [selector=0x6cbb5ae3, pure, ab
     ret v8
 }
 
-fn @bitwise(arg0: u256, arg1: u256) -> struct1 [selector=0x2c27aaa9, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @bitwise(arg0: i256, arg1: i256) -> struct1 [selector=0x2c27aaa9, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = or arg0, arg1
     v1 = and arg0, v0
@@ -35,14 +35,16 @@ fn @bitwise(arg0: u256, arg1: u256) -> struct1 [selector=0x2c27aaa9, pure, abi_p
     ret v11
 }
 
-fn @equality(arg0: u256, arg1: u256) -> struct0 [selector=0xf53825c4, pure, abi_params=[u256, u256], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, u256]] {
+fn @equality(arg0: i256, arg1: i256) -> struct0 [selector=0xf53825c4, pure, abi_params=[u256, u256], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, u256]] {
   bb0:
     v0 = sub arg0, arg1
-    v1 = iszero v0
-    v2 = xor arg0, arg1
-    v3 = iszero v2
-    v4 = insert_value struct0, undef struct0, 0, v1
-    v5 = insert_value struct0, v4, 1, v3
-    v6 = insert_value struct0, v5, 2, v0
-    ret v6
+    v1 = eq v0, 0
+    v2 = zext i1 v1 to i256
+    v3 = xor arg0, arg1
+    v4 = eq v3, 0
+    v5 = zext i1 v4 to i256
+    v6 = insert_value struct0, undef struct0, 0, v2
+    v7 = insert_value struct0, v6, 1, v5
+    v8 = insert_value struct0, v7, 2, v0
+    ret v8
 }

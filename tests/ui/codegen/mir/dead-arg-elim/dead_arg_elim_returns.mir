@@ -5,19 +5,19 @@
 // Result pruning runs only under `-Osize`; it removes a discarded one-word
 // result together with the call-result protocol, jointly with argument pruning.
 
-// CHECK-LABEL: fn @discarded(arg0: u256)
+// CHECK-LABEL: fn @discarded(arg0: i256)
 // CHECK: ret
-fn @discarded(arg0: u256) -> u256 {
+fn @discarded(arg0: i256) -> i256 {
   bb0:
     sstore 0, arg0
     ret arg0
 }
 
 // A returned call result is not effect-free, so the recursive call protocol remains intact.
-// CHECK-LABEL: fn @recursive(arg0: bool, arg1: u256) -> u256
+// CHECK-LABEL: fn @recursive(arg0: i1, arg1: i256) -> i256
 // CHECK: v0 = icall @recursive, false, arg1
 // CHECK: ret v0
-fn @recursive(arg0: bool, arg1: u256) -> u256 {
+fn @recursive(arg0: i1, arg1: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -29,17 +29,17 @@ fn @recursive(arg0: bool, arg1: u256) -> u256 {
 }
 
 // CHECK-LABEL: + fn @kept()
-fn @kept(arg0: u256) -> u256 {
+fn @kept(arg0: i256) -> i256 {
   bb0:
     ret arg0
 }
 
-// CHECK-LABEL: fn @entry() -> u256
+// CHECK-LABEL: fn @entry() -> i256
 // CHECK: icall @discarded, 7
 // CHECK: v0 = icall @recursive, true, 8
 // CHECK: +     icall @kept
 // CHECK-NEXT: +     ret 9
-fn @entry() -> u256 [selector=0x01020304] {
+fn @entry() -> i256 [selector=0x01020304] {
   bb0:
     v0 = icall fn0, 7
     v1 = icall fn1, true, 8
@@ -48,8 +48,8 @@ fn @entry() -> u256 [selector=0x01020304] {
 }
 
 // External signatures are never rewritten.
-// CHECK-LABEL: fn @external_keeps_abi(arg0: u256) -> u256
-fn @external_keeps_abi(arg0: u256) -> u256 [selector=0x01020305] {
+// CHECK-LABEL: fn @external_keeps_abi(arg0: i256) -> i256
+fn @external_keeps_abi(arg0: i256) -> i256 [selector=0x01020305] {
   bb0:
     ret arg0
 }

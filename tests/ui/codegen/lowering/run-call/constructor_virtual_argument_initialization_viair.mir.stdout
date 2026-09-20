@@ -1,18 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_virtual_argument_initialization_viair.sol:ConstructorVirtualArgumentBase ===
 @module ConstructorVirtualArgumentBase
-fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
     ret
 }
 
-fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 4 !metadata(storage=slot(0))
     ret 0
@@ -31,13 +31,13 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
+fn @x() -> i256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 4 !metadata(storage=slot(0))
     ret 0

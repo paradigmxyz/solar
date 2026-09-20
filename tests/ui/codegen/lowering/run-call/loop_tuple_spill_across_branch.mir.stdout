@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/loop_tuple_spill_across_branch.sol:LoopTupleSpillAcrossBranch ===
 @module LoopTupleSpillAcrossBranch
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
-fn @step(arg0: u256, arg1: u256) -> struct0 [pure] {
+fn @step(arg0: i256, arg1: i256) -> struct0 [pure] {
   bb0:
     v0 = mul arg0, 3
     v1 = add v0, arg1
@@ -14,14 +14,14 @@ fn @step(arg0: u256, arg1: u256) -> struct0 [pure] {
     ret v5
 }
 
-fn @mix(arg0: u256) -> u256 [pure] {
+fn @mix(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = mul arg0, 0x9e3779b97f4a7c15
     v1 = add v0, 1
     ret v1
 }
 
-fn @loopTuple(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x2a5696fb, pure, abi_params=[u256, u256, u256], abi_returns=[word]] {
+fn @loopTuple(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x2a5696fb, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = add arg0, 1
     v1 = add arg2, 2
@@ -92,7 +92,7 @@ fn @loopTuple(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x2a5696fb, 
     jump bb4
 }
 
-fn @loopTupleInline(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xb4233682, pure, abi_params=[u256, u256, u256], abi_returns=[word]] {
+fn @loopTupleInline(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb4233682, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = add arg0, 1
     v1 = add arg2, 2

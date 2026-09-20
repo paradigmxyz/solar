@@ -155,7 +155,7 @@ fn eligible(func: &Function) -> bool {
         && func.params.is_empty()
         && func.return_components().is_empty()
         && func.arg_indices().count() <= 8
-        && func.arg_indices().all(|index| func.arg_ty(index) == MirType::uint256())
+        && func.arg_indices().all(|index| func.arg_ty(index) == MirType::I256)
         && func.instructions().all(|id| {
             let kind = &func.inst(id).kind;
             match kind {

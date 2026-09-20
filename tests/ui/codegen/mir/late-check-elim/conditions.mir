@@ -6,9 +6,10 @@
 @module LateMemoryConditions
 
 // Memory lowering makes both lengths the same load. The second check is redundant.
-fn @same_length(arg0: memptr, arg1: u256) -> u256 {
+fn @same_length(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
+    v4 = inttoptr i256 arg0 to memorybytes
+    v0 = memory_object_len memorybytes, v4
     v1 = lt arg1, v0
     jumpi v1, bb1, bb2
   bb1:
@@ -22,9 +23,10 @@ fn @same_length(arg0: memptr, arg1: u256) -> u256 {
 }
 
 // A write to the header invalidates the first length, even with the same address.
-fn @changed_length(arg0: memptr, arg1: u256, arg2: u256) -> u256 {
+fn @changed_length(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
+    v4 = inttoptr i256 arg0 to memorybytes
+    v0 = memory_object_len memorybytes, v4
     v1 = lt arg1, v0
     jumpi v1, bb1, bb2
   bb1:
@@ -39,12 +41,13 @@ fn @changed_length(arg0: memptr, arg1: u256, arg2: u256) -> u256 {
 }
 
 // The loop header proves the in-body bound, including the zero-iteration case.
-fn @loop_length(arg0: memptr) -> u256 {
+fn @loop_length(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb3: v5]
-    v1 = memory_object_len memorybytes, arg0
+    v6 = inttoptr i256 arg0 to memorybytes
+    v1 = memory_object_len memorybytes, v6
     v2 = lt v0, v1
     jumpi v2, bb2, bb4
   bb2:
@@ -61,12 +64,13 @@ fn @loop_length(arg0: memptr) -> u256 {
 }
 
 // Preserve ordinary loop exits in gas mode, even when their edge is redundant.
-fn @loop_exit(arg0: memptr) -> u256 {
+fn @loop_exit(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb3: v5]
-    v1 = memory_object_len memorybytes, arg0
+    v6 = inttoptr i256 arg0 to memorybytes
+    v1 = memory_object_len memorybytes, v6
     v2 = lt v0, v1
     jumpi v2, bb2, bb4
   bb2:
@@ -83,12 +87,13 @@ fn @loop_exit(arg0: memptr) -> u256 {
 }
 
 // An outlined failure helper has the same profitability as a direct revert.
-fn @outlined_failure(arg0: memptr) -> u256 {
+fn @outlined_failure(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb3: v5]
-    v1 = memory_object_len memorybytes, arg0
+    v6 = inttoptr i256 arg0 to memorybytes
+    v1 = memory_object_len memorybytes, v6
     v2 = lt v0, v1
     jumpi v2, bb2, bb4
   bb2:

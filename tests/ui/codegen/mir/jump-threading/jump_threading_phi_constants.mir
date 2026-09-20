@@ -2,9 +2,9 @@
 //@filecheck:
 @module JumpThreadingPhiConstants
 // CHECK-LABEL: {{^[ +].*}}fn @thread_branch_on_phi_constant{{[( ]}}
-// CHECK: + jumpi arg0, bb5, bb4
+// CHECK: + jumpi {{(arg[0-9]+|v[0-9]+)}}, bb5, bb4
 // CHECK: + {{v[0-9]+}} = phi
-fn @thread_branch_on_phi_constant(arg0: bool) -> u256 {
+fn @thread_branch_on_phi_constant(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -13,7 +13,8 @@ fn @thread_branch_on_phi_constant(arg0: bool) -> u256 {
     jump bb3
   bb3:
     v1 = phi [bb1: 0], [bb2: 1]
-    jumpi v1, bb4, bb5
+    v2 = ne v1, 0
+    jumpi v2, bb4, bb5
   bb4:
     ret 11
   bb5:
@@ -21,9 +22,9 @@ fn @thread_branch_on_phi_constant(arg0: bool) -> u256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @thread_switch_on_phi_constant{{[( ]}}
-// CHECK: + jumpi arg0, bb4, bb5
+// CHECK: + jumpi {{(arg[0-9]+|v[0-9]+)}}, bb4, bb5
 // CHECK: + {{v[0-9]+}} = phi
-fn @thread_switch_on_phi_constant(arg0: bool) -> u256 {
+fn @thread_switch_on_phi_constant(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -43,8 +44,9 @@ fn @thread_switch_on_phi_constant(arg0: bool) -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @keep_unknown_phi{{[( ]}}
 // CHECK: {{^[ +].*}}[[VALUE:v[0-9]+]] = phi [bb1: arg1], [bb2: arg2]
-// CHECK: {{^[ +].*}}jumpi [[VALUE]], bb4, bb5
-fn @keep_unknown_phi(arg0: bool, arg1: u256, arg2: u256) -> u256 {
+// CHECK: {{^[ +].*}}[[COND:v[0-9]+]] = ne [[VALUE]], 0
+// CHECK: {{^[ +].*}}jumpi [[COND]], bb4, bb5
+fn @keep_unknown_phi(arg0: i1, arg1: i256, arg2: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -53,7 +55,8 @@ fn @keep_unknown_phi(arg0: bool, arg1: u256, arg2: u256) -> u256 {
     jump bb3
   bb3:
     v1 = phi [bb1: arg1], [bb2: arg2]
-    jumpi v1, bb4, bb5
+    v2 = ne v1, 0
+    jumpi v2, bb4, bb5
   bb4:
     ret 11
   bb5:
@@ -64,7 +67,7 @@ fn @keep_unknown_phi(arg0: bool, arg1: u256, arg2: u256) -> u256 {
 // CHECK: {{^[ +].*}}[[VALUE:v[0-9]+]] = phi [bb1: 0], [bb2: 1]
 // CHECK: {{^[ +].*}}[[RESULT:v[0-9]+]] = add [[VALUE]], 1
 // CHECK: {{^[ +].*}}ret [[RESULT]]
-fn @keep_phi_used_in_successor(arg0: bool) -> u256 {
+fn @keep_phi_used_in_successor(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -73,7 +76,8 @@ fn @keep_phi_used_in_successor(arg0: bool) -> u256 {
     jump bb3
   bb3:
     v1 = phi [bb1: 0], [bb2: 1]
-    jumpi v1, bb4, bb5
+    v3 = ne v1, 0
+    jumpi v3, bb4, bb5
   bb4:
     v2 = add v1, 1
     ret v2
@@ -82,10 +86,10 @@ fn @keep_phi_used_in_successor(arg0: bool) -> u256 {
 }
 
 // CHECK-LABEL: fn @nested_short_circuit
-// CHECK: + jumpi arg1, bb5, bb2
-// CHECK: + jumpi arg2, bb5, bb6
+// CHECK: + jumpi {{(arg[0-9]+|v[0-9]+)}}, bb5, bb2
+// CHECK: + jumpi {{(arg[0-9]+|v[0-9]+)}}, bb5, bb6
 // CHECK-NOT: {{^[ +].*}}phi
-fn @nested_short_circuit(arg0: bool, arg1: bool, arg2: bool) -> u256 {
+fn @nested_short_circuit(arg0: i1, arg1: i1, arg2: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb5
   bb1:
@@ -107,7 +111,7 @@ fn @nested_short_circuit(arg0: bool, arg1: bool, arg2: bool) -> u256 {
 // CHECK-LABEL: fn @keep_single_phi_used_in_successor
 // CHECK: {{^[ +].*}}[[PHI:v[0-9]+]] = phi
 // CHECK: {{^[ +].*}}ret [[PHI]]
-fn @keep_single_phi_used_in_successor(arg0: bool) -> bool {
+fn @keep_single_phi_used_in_successor(arg0: i1) -> i1 {
   bb0:
     jump bb1
   bb1:
@@ -116,5 +120,44 @@ fn @keep_single_phi_used_in_successor(arg0: bool) -> bool {
   bb2:
     ret v0
   bb3:
+    ret false
+}
+
+// CHECK-LABEL: fn @thread_zero_phi
+// CHECK: + jumpi arg0, bb4, bb5
+fn @thread_zero_phi(arg0: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: 0], [bb2: 2]
+    v2 = eq 0, v1
+    jumpi v2, bb4, bb5
+  bb4:
+    ret 11
+  bb5:
+    ret 22
+}
+
+// CHECK-LABEL: fn @keep_escaping_zero_test
+// CHECK: {{^[ +].*}}[[ZERO:v[0-9]+]] = eq {{v[0-9]+}}, 0
+// CHECK: {{^[ +].*}}ret [[ZERO]]
+fn @keep_escaping_zero_test(arg0: i1) -> i1 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: 0], [bb2: 2]
+    v2 = eq v1, 0
+    jumpi v2, bb4, bb5
+  bb4:
+    ret v2
+  bb5:
     ret false
 }

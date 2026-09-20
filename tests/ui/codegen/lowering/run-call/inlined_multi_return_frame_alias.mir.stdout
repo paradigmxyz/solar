@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/inlined_multi_return_frame_alias.sol:Test ===
 @module Test
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
-fn @run() -> u256 [selector=0xc0406226, pure, abi_params=[], abi_returns=[word]] {
+fn @run() -> i256 [selector=0xc0406226, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @outer
     ret v0
 }
 
-fn @outer() -> u256 [pure] {
+fn @outer() -> i256 [pure] {
   bb0:
     v0 = icall @pair
     v1 = extract_value struct0, v0, 0

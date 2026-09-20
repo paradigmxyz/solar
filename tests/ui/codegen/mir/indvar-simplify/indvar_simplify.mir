@@ -1,13 +1,16 @@
 //@compile-flags: -Zmir-pipeline=indvar-simplify
 //@filecheck:
 @module IndVarSimplify
-// Two shifted address computations share one pointer phi.
+// Two shifted address computations share one pointer phi. The raw word base
+// may wrap, so the original counter still controls the loop.
 // CHECK-LABEL: {{^[ +].*}}fn @strength_reduce_shifted_address{{[( ]}}
+// CHECK: {{^ +}}[[INDEX:v[0-9]+]] = phi [bb0: 0], [bb2: {{v[0-9]+}}]
 // CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb0: arg0], [bb2: [[NEXT:v[0-9]+]]]
+// CHECK: {{^ +}}{{v[0-9]+}} = lt [[INDEX]], 4
 // CHECK: + {{v[0-9]+}} = mload [[ADDRESS]]
 // CHECK: + mstore [[ADDRESS]], {{v[0-9]+}}
 // CHECK: + [[NEXT]] = add [[ADDRESS]], 32
-fn @strength_reduce_shifted_address(arg0: u256) -> u256 {
+fn @strength_reduce_shifted_address(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -34,7 +37,7 @@ fn @strength_reduce_shifted_address(arg0: u256) -> u256 {
 // CHECK-NOT: + {{v[0-9]+}} = phi
 // CHECK: {{^ +}}{{v[0-9]+}} = add arg0, {{v[0-9]+}}
 // CHECK-NEXT: {{^ +}}mstore
-fn @keep_shifted_address_single_use(arg0: u256) -> u256 {
+fn @keep_shifted_address_single_use(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -56,7 +59,7 @@ fn @keep_shifted_address_single_use(arg0: u256) -> u256 {
 // CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb0: [[START]]], [bb2: [[NEXT:v[0-9]+]]]
 // CHECK: + mstore [[ADDRESS]], {{v[0-9]+}}
 // CHECK: + [[NEXT]] = add [[ADDRESS]], 32
-fn @strength_reduce_scaled_address_with_offset(arg0: u256) -> u256 {
+fn @strength_reduce_scaled_address_with_offset(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -80,7 +83,7 @@ fn @strength_reduce_scaled_address_with_offset(arg0: u256) -> u256 {
 // CHECK-NOT: + {{v[0-9]+}} = phi
 // CHECK: {{^ +}}{{v[0-9]+}} = add arg0, {{v[0-9]+}}
 // CHECK-NEXT: {{^ +}}mstore8
-fn @keep_scale_one_single_use(arg0: u256) -> u256 {
+fn @keep_scale_one_single_use(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -105,7 +108,7 @@ fn @keep_scale_one_single_use(arg0: u256) -> u256 {
 // CHECK: + mstore [[ADDRESS]], {{v[0-9]+}}
 // CHECK: {{^[ +].*}}checked_add u256,
 // CHECK: + [[NEXT]] = add [[ADDRESS]], 32
-fn @strength_reduce_checked_address(arg0: u256, arg1: u256) -> u256 {
+fn @strength_reduce_checked_address(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -129,7 +132,7 @@ fn @strength_reduce_checked_address(arg0: u256, arg1: u256) -> u256 {
 // CHECK: + mstore [[ADDRESS]], {{v[0-9]+}}
 // CHECK: {{^[ +].*}}checked_add u256, 1,
 // CHECK: + [[NEXT]] = add [[ADDRESS]], 32
-fn @strength_reduce_commuted_checked_step(arg0: u256) -> u256 {
+fn @strength_reduce_commuted_checked_step(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -154,7 +157,7 @@ fn @strength_reduce_commuted_checked_step(arg0: u256) -> u256 {
 // CHECK: {{^[ +].*}}add arg0,
 // CHECK: {{^[ +].*}}mstore
 // CHECK: {{^[ +].*}}checked_sub u256,
-fn @keep_checked_descending_address(arg0: u256) -> u256 {
+fn @keep_checked_descending_address(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -177,7 +180,7 @@ fn @keep_checked_descending_address(arg0: u256) -> u256 {
 // CHECK: {{^[ +].*}}shl 5,
 // CHECK: {{^[ +].*}}mstore
 // CHECK: {{^[ +].*}}mstore
-fn @keep_shared_field_addresses(arg0: u256) -> u256 {
+fn @keep_shared_field_addresses(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -202,7 +205,7 @@ fn @keep_shared_field_addresses(arg0: u256) -> u256 {
 // CHECK: {{^[ +].*}}add arg0,
 // CHECK: {{^[ +].*}}mstore8
 // CHECK: {{^[ +].*}}checked_add u256,
-fn @keep_checked_scale_one_address(arg0: u256) -> u256 {
+fn @keep_checked_scale_one_address(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:

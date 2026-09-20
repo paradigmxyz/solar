@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/recursive.sol:Recursive ===
 @module Recursive
-fn @fact(arg0: u256) -> u256 [selector=0x0b95d228, pure, abi_params=[u256], abi_returns=[word]] {
+fn @fact(arg0: i256) -> i256 [selector=0x0b95d228, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gt arg0, 1
-    v1 = iszero v0
+    v1 = eq v0, false
     jumpi v1, bb1, bb2
   bb2:
     jump bb3
@@ -16,10 +16,10 @@ fn @fact(arg0: u256) -> u256 [selector=0x0b95d228, pure, abi_params=[u256], abi_
     ret 1
 }
 
-fn @fib(arg0: u256) -> u256 [selector=0xc6c2ea17, pure, abi_params=[u256], abi_returns=[word]] {
+fn @fib(arg0: i256) -> i256 [selector=0xc6c2ea17, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gt arg0, 1
-    v1 = iszero v0
+    v1 = eq v0, false
     jumpi v1, bb1, bb2
   bb2:
     jump bb3
@@ -34,30 +34,32 @@ fn @fib(arg0: u256) -> u256 [selector=0xc6c2ea17, pure, abi_params=[u256], abi_r
     ret arg0
 }
 
-fn @isEven(arg0: u256) -> bool [selector=0x2a2e1320, pure, abi_params=[u256], abi_returns=[word<bool>]] {
+fn @isEven(arg0: i256) -> i256 [selector=0x2a2e1320, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v1 = checked_sub u256, arg0, 1
-    v2 = icall @isOdd, v1
-    ret v2
+    v2 = checked_sub u256, arg0, 1
+    v3 = icall @isOdd, v2
+    ret v3
   bb1:
-    ret true
+    v1 = zext i1 1 to i256
+    ret v1
 }
 
-fn @isOdd(arg0: u256) -> bool [selector=0xd8b3a2eb, pure, abi_params=[u256], abi_returns=[word<bool>]] {
+fn @isOdd(arg0: i256) -> i256 [selector=0xd8b3a2eb, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v1 = checked_sub u256, arg0, 1
-    v2 = icall @isEven, v1
-    ret v2
+    v2 = checked_sub u256, arg0, 1
+    v3 = icall @isEven, v2
+    ret v3
   bb1:
-    ret false
+    v1 = zext i1 0 to i256
+    ret v1
 }

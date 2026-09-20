@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_number_literals.sol:Probe ===
 @module Probe
-fn @probe(arg0: bytes4) -> u256 [selector=0x14beb1ca, pure, abi_params=[bytes4], abi_returns=[word]] {
+fn @probe(arg0: i256) -> i256 [selector=0x14beb1ca, pure, abi_params=[bytes4], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v1 = shr 224, v0
@@ -19,84 +19,90 @@ fn @constructor() [constructor] {
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_number_literals.sol:FixedBytesLiterals ===
 @module FixedBytesLiterals
 types:
-  struct0: {u256, memorybytes}
-  struct1: {u256, u256, u256}
+  struct0: {i256, memorybytes}
+  struct1: {i256, i256, i256}
 
 data:
-  Probe_initcode_0: hex"60c060405234600c576010565b5f5ffd5b606c80601a5f395ff334601a575f3560e01c806314beb1ca14601657601a565b601e565b5f5ffd5b6024361060685760043560201b15156068577fffffffff000000000000000000000000000000000000000000000000000000006004351660e01c6080526020608001608090036080f35b5f5ffd"
+  Probe_initcode_0: hex"60c0604052341515600e576012565b5f5ffd5b606e80601c5f395ff3341515601c575f3560e01c806314beb1ca14601857601c565b6020565b5f5ffd5b60243610606a5760043560201b1515606a577fffffffff000000000000000000000000000000000000000000000000000000006004351660e01c6080526020608001608090036080f35b5f5ffd"
 
 immutables:
   immutableLiteral: bytes4
 
-fn @viaExternal() -> u256 [selector=0x09338c08, abi_params=[], abi_returns=[word]] {
+fn @viaExternal() -> i256 [selector=0x09338c08, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 165, v1
+    v2 = and 169, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Probe_initcode_0, v3, 134
-    v4 = slice_ptr v0
-    v5 = add v3, 134
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 134
-    jumpi v6, bb2, bb1
+    v4 = ptrtoint memptr v3 to i256
+    data_copy Probe_initcode_0, v4, 138
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, 138
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, 138
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = gas
-    v8 = and 0x102030400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v9 = abi_encode [word<bytes4>], selector 0x14beb1ca00000000000000000000000000000000000000000000000000000000, args v8
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = call v7, v6, 0, v10, v11, 0, 32
-    jumpi v12, bb4, bb3
+    v12 = gas
+    v13 = and 0x102030400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v14 = abi_encode [word<bytes4>], selector 0x14beb1ca00000000000000000000000000000000000000000000000000000000, args v13
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = zext i160 v9 to i256
+    v18 = call v12, v17, 0, v15, v16, 0, 32
+    jumpi v18, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v13 = returndatasize
-    v14 = lt v13, 32
-    icall revert_if<tuple_data_too_short>, v14
-    v15 = add 0, 0
-    v16 = mload v15
-    v17 = add 0, 0
-    v18 = mload v17
-    ret v18
+    v19 = returndatasize
+    v20 = lt v19, 32
+    icall revert_if<tuple_data_too_short>, v20
+    v21 = add 0, 0
+    v22 = mload v21
+    v23 = add 0, 0
+    v24 = mload v23
+    ret v24
 }
 
-fn @giveInternal(arg0: bytes4) -> bytes4 [pure] {
+fn @giveInternal(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
 
-fn @viaInternal() -> bytes4 [selector=0xf1c8352f, pure, abi_params=[], abi_returns=[word<bytes4>]] {
+fn @viaInternal() -> i256 [selector=0xf1c8352f, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = icall @giveInternal, 0x1122334400000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
-fn @viaLibrary() -> bytes4 [selector=0x14bbf91b, pure, abi_params=[], abi_returns=[word<bytes4>]] {
+fn @viaLibrary() -> i256 [selector=0x14bbf91b, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = icall @give, 0x2122232400000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
-fn @retLit() -> bytes4 [selector=0xad0d29ff, pure, abi_params=[], abi_returns=[word<bytes4>]] {
+fn @retLit() -> i256 [selector=0xad0d29ff, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     ret 0xaabbccdd00000000000000000000000000000000000000000000000000000000
 }
 
-fn @declLit() -> bytes4 [selector=0xe5489b44, pure, abi_params=[], abi_returns=[word<bytes4>]] {
+fn @declLit() -> i256 [selector=0xe5489b44, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = shl 224, 0x55667788
     ret v0
 }
 
-fn @assignLit() -> bytes4 [selector=0xa4d2a382, pure, abi_params=[], abi_returns=[word<bytes4>]] {
+fn @assignLit() -> i256 [selector=0xa4d2a382, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     ret 0x6677889900000000000000000000000000000000000000000000000000000000
 }
 
-fn @mapKeyCross() -> u256 [selector=0xef866c75, abi_params=[], abi_returns=[word]] {
+fn @mapKeyCross() -> i256 [selector=0xef866c75, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and 0x3132333400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v1 = mapping_slot v0, 0
@@ -108,31 +114,33 @@ fn @mapKeyCross() -> u256 [selector=0xef866c75, abi_params=[], abi_returns=[word
     ret v5
 }
 
-fn @compareControl() -> bool [selector=0x86f1fef0, pure, abi_params=[], abi_returns=[word<bool>]] {
+fn @compareControl() -> i256 [selector=0x86f1fef0, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = shl 224, 0x41424344
     v1 = eq v0, 0x4142434400000000000000000000000000000000000000000000000000000000
-    ret v1
+    v2 = zext i1 v1 to i256
+    ret v2
 }
 
-fn @bytesObjectCast() -> bytes4 [selector=0x3edbb59d, pure, abi_params=[], abi_returns=[word<bytes4>]] {
+fn @bytesObjectCast() -> i256 [selector=0x3edbb59d, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 6
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x93dafdf1aabb0000000000000000000000000000000000000000000000000000
-    v2 = memory_object_load_element memorybytes, v0, 0
-    v3 = memory_object_len memorybytes, v0
-    v4 = lt v3, 4
-    v5 = sub 4, v3
-    v6 = mul 8, v5
-    v7 = shl v6, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v8 = select v4, v7, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v9 = and v2, v8
-    ret v9
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x93dafdf1aabb0000000000000000000000000000000000000000000000000000
+    v3 = memory_object_load_element memorybytes, v0, 0
+    v4 = memory_object_len memorybytes, v0
+    v5 = lt v4, 4
+    v6 = sub 4, v4
+    v7 = mul 8, v6
+    v8 = shl v7, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v9 = select v5, v8, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v10 = and v3, v9
+    ret v10
 }
 
-fn @returnedBytesObjectCast() -> u256 [selector=0x28a9d934, pure, abi_params=[], abi_returns=[word]] {
+fn @returnedBytesObjectCast() -> i256 [selector=0x28a9d934, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @returnBytes
     v1 = extract_value struct0, v0, 0
@@ -154,70 +162,79 @@ fn @returnBytes() -> struct0 [pure] {
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0xe00000000000000000000000000000000000000000000000000000000000000
-    v2 = insert_value struct0, undef struct0, 0, true
-    v3 = insert_value struct0, v2, 1, v0
-    ret v3
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0xe00000000000000000000000000000000000000000000000000000000000000
+    v3 = zext i1 1 to i256
+    v4 = insert_value struct0, undef struct0, 0, v3
+    v5 = insert_value struct0, v4, 1, v0
+    ret v5
 }
 
-fn @takeSlice(arg0: calldataslice) -> bytes32 [selector=0x4f4c8d8b, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @takeSlice(arg0: calldataslice) -> i256 [selector=0x4f4c8d8b, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt 5, v1
     v3 = lt 5, 0
     v4 = or v2, v3
-    icall revert_if<empty>, v4
-    v5 = sub 5, 0
-    v6 = add v0, 0
-    v7 = make_calldata_slice v6, v5
-    v8 = calldata_slice_load_word calldata, v7, 0
-    v9 = slice_len v7
-    v10 = lt v9, 32
-    v11 = sub 32, v9
-    v12 = mul 8, v11
-    v13 = shl v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v14 = select v10, v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v15 = and v8, v14
-    ret v15
+    v5 = zext i1 v4 to i256
+    v6 = ne v5, 0
+    icall revert_if<empty>, v6
+    v7 = sub 5, 0
+    v8 = add v0, 0
+    v9 = make_calldata_slice v8, v7
+    v10 = calldata_slice_load_word calldata, v9, 0
+    v11 = slice_len v9
+    v12 = lt v11, 32
+    v13 = sub 32, v11
+    v14 = mul 8, v13
+    v15 = shl v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v16 = select v12, v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v17 = and v10, v16
+    ret v17
 }
 
-fn @calldataSliceCast() -> bytes32 [selector=0x93f40587, view, abi_params=[], abi_returns=[word]] {
+fn @calldataSliceCast() -> i256 [selector=0x93f40587, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = address
     v1 = gas
     v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, 9
     v3 = memory_object_data memorybytes, v2
-    mstore v3, 0x1122334455667788990000000000000000000000000000000000000000000000
-    v4 = abi_encode [memory_bytes], selector 0x4f4c8d8b00000000000000000000000000000000000000000000000000000000, args v2
-    v5 = slice_ptr v4
-    v6 = slice_len v4
-    v7 = staticcall v1, v0, v5, v6, 0, 32
-    jumpi v7, bb2, bb1
+    v4 = ptrtoint memptr v3 to i256
+    mstore v4, 0x1122334455667788990000000000000000000000000000000000000000000000
+    v5 = abi_encode [memory_bytes], selector 0x4f4c8d8b00000000000000000000000000000000000000000000000000000000, args v2
+    v6 = slice_ptr v5
+    v7 = slice_len v5
+    v8 = zext i160 v0 to i256
+    v9 = staticcall v1, v8, v6, v7, 0, 32
+    jumpi v9, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = returndatasize
-    v9 = lt v8, 32
-    icall revert_if<tuple_data_too_short>, v9
-    v10 = add 0, 0
-    v11 = mload v10
+    v10 = returndatasize
+    v11 = lt v10, 32
+    icall revert_if<tuple_data_too_short>, v11
     v12 = add 0, 0
     v13 = mload v12
-    ret v13
+    v14 = add 0, 0
+    v15 = mload v14
+    ret v15
 }
 
-fn @stringAddressCast() -> address [selector=0x6e03912b, pure, abi_params=[], abi_returns=[word<u160>]] {
+fn @stringAddressCast() -> i256 [selector=0x6e03912b, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = shr 96, 0x6d696c6164790000000000000000000000000000000000000000000000000000
-    ret v0
+    v1 = trunc i256 v0 to i160
+    v2 = zext i160 v1 to i256
+    ret v2
 }
 
-fn @emptyStringCompare() -> bool [selector=0x97e464f0, pure, abi_params=[], abi_returns=[word<bool>]] {
+fn @emptyStringCompare() -> i256 [selector=0x97e464f0, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq 0, 0
-    ret v0
+    v1 = zext i1 v0 to i256
+    ret v1
 }
 
 fn @stateLiterals() -> struct1 [selector=0x803da9a2, view, abi_params=[], abi_returns=[word<bytes4>, word<bytes2>, word<bytes4>], abi_return_params=[bytes4, bytes2, bytes4]] {
@@ -236,7 +253,7 @@ fn @stateLiterals() -> struct1 [selector=0x803da9a2, view, abi_params=[], abi_re
     ret v10
 }
 
-fn @give(arg0: bytes4) -> bytes4 [pure] {
+fn @give(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }

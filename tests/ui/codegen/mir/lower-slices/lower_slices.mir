@@ -14,7 +14,7 @@ fn @entry(arg0: calldataslice) [selector=0x12345678] {
 // CHECK: + [[HEAD:v[0-9]+]] = add arg0, 4
 // CHECK: + [[LENGTH:v[0-9]+]] = calldataload [[HEAD]]
 // CHECK: + ret [[LENGTH]]
-fn @len(arg0: calldataslice) -> u256 {
+fn @len(arg0: calldataslice) -> i256 {
   bb0:
     v1 = slice_len arg0
     ret v1
@@ -24,7 +24,7 @@ fn @len(arg0: calldataslice) -> u256 {
 // CHECK: + [[POINTER:v[0-9]+]] = add arg0, arg2
 // CHECK: + [[LENGTH:v[0-9]+]] = sub arg1, arg2
 // CHECK: + {{v[0-9]+}} = icall @pair_len, [[POINTER]], [[LENGTH]]
-fn @tail(arg0: calldataslice, arg1: u256) -> u256 {
+fn @tail(arg0: calldataslice, arg1: i256) -> i256 {
   bb0:
     v2 = slice_ptr arg0
     v3 = slice_len arg0
@@ -37,7 +37,7 @@ fn @tail(arg0: calldataslice, arg1: u256) -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @pair_len{{[( ]}}
 // CHECK: + ret arg1
-fn @pair_len(arg0: calldataslice) -> u256 {
+fn @pair_len(arg0: calldataslice) -> i256 {
   bb0:
     v1 = slice_len arg0
     ret v1
@@ -46,7 +46,7 @@ fn @pair_len(arg0: calldataslice) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @memory{{[( ]}}
 // CHECK: + [[END:v[0-9]+]] = add arg0, arg1
 // CHECK: {{^[ +].*}}ret [[END]]
-fn @memory(arg0: memptr, arg1: u256) -> u256 {
+fn @memory(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = make_memory_slice arg0, arg1
     v3 = slice_ptr v2

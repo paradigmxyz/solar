@@ -31,78 +31,81 @@ fn @ffs.2() [selector=0x2297890a, abi_wrapper, pure] {
     returndata 128, 32
 }
 
-fn @fls.3(arg0: u256) -> u256 [pure] {
+fn @fls.3(arg0: i256) -> i256 [pure] {
   bb0:
-    jumpi arg0, bb2, bb1
-  bb1:
-    ret 256
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
   bb2:
     v1 = shr 128, arg0
-    v51 = iszero v1
-    v52 = iszero v51
-    v53 = shl 7, v52
-    v55 = shr v53, arg0
-    v7 = shr 64, v55
-    v56 = iszero v7
-    v57 = iszero v56
-    v58 = shl 6, v57
-    v59 = or v53, v58
-    v61 = shr v58, v55
-    v14 = shr 32, v61
-    v62 = iszero v14
-    v63 = iszero v62
-    v64 = shl 5, v63
-    v65 = or v59, v64
-    v67 = shr v64, v61
-    v21 = shr 16, v67
-    v68 = iszero v21
-    v69 = iszero v68
-    v70 = shl 4, v69
-    v71 = or v65, v70
-    v73 = shr v70, v67
-    v28 = shr 8, v73
-    v74 = iszero v28
-    v75 = iszero v74
-    v76 = shl 3, v75
-    v77 = or v71, v76
-    v79 = shr v76, v73
-    v35 = shr 4, v79
-    v80 = iszero v35
-    v81 = iszero v80
-    v82 = shl 2, v81
-    v83 = or v77, v82
-    v85 = shr v82, v79
-    v42 = shr 2, v85
-    v86 = iszero v42
-    v87 = iszero v86
-    v88 = add v87, v87
-    v89 = or v83, v88
-    v91 = shr v88, v85
-    v49 = shr 1, v91
-    v50 = or v89, v49
-    ret v50
+    v2 = ne v1, 0
+    v44 = zext i1 v2 to i256
+    v45 = shl 7, v44
+    v48 = shr v45, arg0
+    v6 = shr 64, v48
+    v7 = ne v6, 0
+    v49 = zext i1 v7 to i256
+    v50 = shl 6, v49
+    v51 = or v45, v50
+    v54 = shr v50, v48
+    v12 = shr 32, v54
+    v13 = ne v12, 0
+    v55 = zext i1 v13 to i256
+    v56 = shl 5, v55
+    v57 = or v51, v56
+    v60 = shr v56, v54
+    v18 = shr 16, v60
+    v19 = ne v18, 0
+    v61 = zext i1 v19 to i256
+    v62 = shl 4, v61
+    v63 = or v57, v62
+    v66 = shr v62, v60
+    v24 = shr 8, v66
+    v25 = ne v24, 0
+    v67 = zext i1 v25 to i256
+    v68 = shl 3, v67
+    v69 = or v63, v68
+    v72 = shr v68, v66
+    v30 = shr 4, v72
+    v31 = ne v30, 0
+    v73 = zext i1 v31 to i256
+    v74 = shl 2, v73
+    v75 = or v69, v74
+    v78 = shr v74, v72
+    v36 = shr 2, v78
+    v37 = ne v36, 0
+    v79 = zext i1 v37 to i256
+    v80 = add v79, v79
+    v81 = or v75, v80
+    v84 = shr v80, v78
+    v42 = shr 1, v84
+    v43 = or v81, v42
+    ret v43
+  bb1:
+    ret 256
 }
 
-fn @clz.4(arg0: u256) -> u256 [pure] {
+fn @clz.4(arg0: i256) -> i256 [pure] {
   bb0:
-    jumpi arg0, bb1, bb2
+    v0 = eq arg0, 0
+    jumpi v0, bb2, bb1
   bb1:
     v1 = icall @fls.3, arg0
     v4 = sub 255, v1
     v5 = lt 255, v1
     jumpi v5, bb3, bb2
-  bb2:
-    v3 = phi [bb0: 256], [bb1: v4]
-    ret v3
   bb3:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
     revert 28, 36
+  bb2:
+    v3 = phi [bb0: 256], [bb1: v4]
+    ret v3
 }
 
-fn @ffs.5(arg0: u256) -> u256 [pure] {
+fn @ffs.5(arg0: i256) -> i256 [pure] {
   bb0:
-    jumpi arg0, bb1, bb2
+    v0 = eq arg0, 0
+    jumpi v0, bb2, bb1
   bb1:
     v1 = not arg0
     v6 = add v1, 1
@@ -119,12 +122,14 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = calldatasize
     v2 = lt v1, 36
-    v3 = or v0, v2
-    jumpi v3, bb1, bb2
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
   bb2:
-    v4 = calldataload 0
-    v5 = shr 224, v4
-    switch v5, default bb1, [0x2297890a => bb3, 0x27be8b2d => bb4, 0x30244f7a => bb5]
+    v6 = calldataload 0
+    v7 = shr 224, v6
+    switch v7, default bb1, [0x2297890a => bb3, 0x27be8b2d => bb4, 0x30244f7a => bb5]
   bb5:
     tail_call @clz.1
   bb4:

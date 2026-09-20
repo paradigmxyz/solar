@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_named_arguments.sol:ModifierNamedArguments ===
 @module ModifierNamedArguments
-fn @f() -> u256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word]] {
+fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq 7, 7
-    v1 = iszero v0
+    v1 = eq v0, false
     icall revert_if<empty>, v1
     jump bb2
   bb2:

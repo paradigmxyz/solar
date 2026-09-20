@@ -6,7 +6,7 @@
 // CHECK: + {{v[0-9]+}} = select arg4, arg0, arg2
 // CHECK: + [[LENGTH:v[0-9]+]] = select arg4, arg1, arg3
 // CHECK: + ret [[LENGTH]]
-fn @select_slice(arg0: calldataslice, arg1: calldataslice, arg2: bool) -> u256 {
+fn @select_slice(arg0: calldataslice, arg1: calldataslice, arg2: i1) -> i256 {
   bb0:
     v3 = select arg2, arg0, arg1
     v4 = slice_len v3
@@ -17,7 +17,7 @@ fn @select_slice(arg0: calldataslice, arg1: calldataslice, arg2: bool) -> u256 {
 // CHECK: + {{v[0-9]+}} = phi [bb1: arg0], [bb2: arg2]
 // CHECK: + [[LENGTH:v[0-9]+]] = phi [bb1: arg1], [bb2: arg3]
 // CHECK: + ret [[LENGTH]]
-fn @phi_slice(arg0: calldataslice, arg1: calldataslice, arg2: bool) -> u256 {
+fn @phi_slice(arg0: calldataslice, arg1: calldataslice, arg2: i1) -> i256 {
   bb0:
     jumpi arg2, bb1, bb2
   bb1:

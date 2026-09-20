@@ -1,52 +1,53 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_storage_copy.sol:InternalFunctionPointerStorageCopy ===
 @module InternalFunctionPointerStorageCopy
-fn @one() -> u256 [selector=0x901717d1, abi_params=[], abi_returns=[word]] {
+fn @one() -> i256 [selector=0x901717d1, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<20, 1>, exact, uninitialized, infallible, 640 !metadata(preserves_fmp)
-    memory_zero v0, 640
+    v1 = ptrtoint memoryfixedarray v0 to i256
+    memory_zero v1, 640
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb6: v25]
-    v2 = lt v1, 20
-    jumpi v2, bb2, bb3
+    v2 = phi [bb0: 0], [bb6: v26]
+    v3 = lt v2, 20
+    jumpi v3, bb2, bb3
   bb3:
     ret 3
   bb2:
-    v3 = div v1, 4
-    v4 = add 0, v3
-    v5 = mod v1, 4
-    v6 = mul v5, 8
-    v7 = lt v1, 20
-    jumpi v7, bb4, bb5
+    v4 = div v2, 4
+    v5 = add 0, v4
+    v6 = mod v2, 4
+    v7 = mul v6, 8
+    v8 = lt v2, 20
+    jumpi v8, bb4, bb5
   bb5:
-    v17 = mul v6, 8
-    v18 = shl v17, 0xffffffffffffffff
-    v19 = sload v4 !metadata(storage=symbolic(v3))
-    v20 = not v18
-    v21 = and v19, v20
-    v22 = and 0, 0xffffffffffffffff
-    v23 = shl v17, v22
-    v24 = or v21, v23
-    sstore v4, v24 !metadata(storage=symbolic(v3))
+    v18 = mul v7, 8
+    v19 = shl v18, 0xffffffffffffffff
+    v20 = sload v5 !metadata(storage=symbolic(v4))
+    v21 = not v19
+    v22 = and v20, v21
+    v23 = and 0, 0xffffffffffffffff
+    v24 = shl v18, v23
+    v25 = or v22, v24
+    sstore v5, v25 !metadata(storage=symbolic(v4))
     jump bb6
   bb4:
-    v8 = memory_object_load_element memoryfixedarray<20, 1>, v0, v1
-    v9 = mul v6, 8
-    v10 = shl v9, 0xffffffffffffffff
-    v11 = sload v4 !metadata(storage=symbolic(v3))
-    v12 = not v10
-    v13 = and v11, v12
-    v14 = and v8, 0xffffffffffffffff
-    v15 = shl v9, v14
-    v16 = or v13, v15
-    sstore v4, v16 !metadata(storage=symbolic(v3))
+    v9 = memory_object_load_element memoryfixedarray<20, 1>, v0, v2
+    v10 = mul v7, 8
+    v11 = shl v10, 0xffffffffffffffff
+    v12 = sload v5 !metadata(storage=symbolic(v4))
+    v13 = not v11
+    v14 = and v12, v13
+    v15 = and v9, 0xffffffffffffffff
+    v16 = shl v10, v15
+    v17 = or v14, v16
+    sstore v5, v17 !metadata(storage=symbolic(v4))
     jump bb6
   bb6:
-    v25 = add v1, 1
+    v26 = add v2, 1
     jump bb1
 }
 
-fn @two() -> u256 [selector=0x5fdf05d7, abi_params=[], abi_returns=[word]] {
+fn @two() -> i256 [selector=0x5fdf05d7, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 5 !metadata(storage=slot(5))
     v1 = sgt v0, 0
@@ -56,7 +57,7 @@ fn @two() -> u256 [selector=0x5fdf05d7, abi_params=[], abi_returns=[word]] {
   bb3:
     sstore 5, 1 !metadata(storage=slot(5))
     v2 = lt 0, 20
-    v3 = iszero v2
+    v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = div 0, 4
     v5 = add 0, v4
@@ -72,7 +73,7 @@ fn @two() -> u256 [selector=0x5fdf05d7, abi_params=[], abi_returns=[word]] {
     ret 7
 }
 
-fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_none_r_u256(arg0: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     icall panic_if<0x51>, true
     invalid

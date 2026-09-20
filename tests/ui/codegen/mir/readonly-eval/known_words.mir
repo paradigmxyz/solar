@@ -4,9 +4,10 @@
 
 // CHECK-LABEL: fn @known
 // CHECK: ret 42
-fn @known() -> u256 {
+fn @known() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 64
+    v5 = alloc raw, exact, uninitialized, infallible, 64
+    v0 = ptrtoint memptr v5 to i256
     mstore v0, 1
     v1 = add v0, 32
     mstore v1, 41
@@ -15,10 +16,11 @@ fn @known() -> u256 {
 }
 
 // CHECK-LABEL: fn @choose
-fn @choose(arg0: memptr) -> u256 {
+fn @choose(arg0: i256) -> i256 {
   bb0:
     v0 = mload arg0
-    jumpi v0, bb1, bb2
+    v4 = ne v0, 0
+    jumpi v4, bb1, bb2
   bb1:
     v1 = add arg0, 32
     v2 = icall @read, v1
@@ -29,7 +31,7 @@ fn @choose(arg0: memptr) -> u256 {
     ret 7
 }
 
-fn @read(arg0: memptr) -> u256 {
+fn @read(arg0: i256) -> i256 {
   bb0:
     v0 = mload arg0
     ret v0
@@ -38,9 +40,10 @@ fn @read(arg0: memptr) -> u256 {
 // A taken write prevents folding even when the return value is constant.
 // CHECK-LABEL: fn @writes
 // CHECK: {{^[ +].*}}= icall @choose
-fn @writes() -> u256 {
+fn @writes() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 64
+    v6 = alloc raw, exact, uninitialized, infallible, 64
+    v0 = ptrtoint memptr v6 to i256
     mstore v0, 0
     v1 = icall @choose, v0
     ret v1
@@ -49,9 +52,10 @@ fn @writes() -> u256 {
 // A partial overwrite must kill the old full-word fact.
 // CHECK-LABEL: fn @partial_write
 // CHECK: {{^[ +].*}}= icall @read
-fn @partial_write(arg0: u256) -> u256 {
+fn @partial_write(arg0: i256) -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v7 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v7 to i256
     mstore v0, 42
     v1 = add v0, 1
     mstore8 v1, arg0
@@ -62,16 +66,17 @@ fn @partial_write(arg0: u256) -> u256 {
 // Unknown call effects invalidate memory; the old initialization cannot survive.
 // CHECK-LABEL: fn @clobbered
 // CHECK: {{^[ +].*}}= icall @read
-fn @clobbered(arg0: u256) -> u256 {
+fn @clobbered(arg0: i256) -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v8 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v8 to i256
     mstore v0, 42
     icall @overwrite, v0, arg0
     v1 = icall @read, v0
     ret v1
 }
 
-fn @overwrite(arg0: memptr, arg1: u256) {
+fn @overwrite(arg0: i256, arg1: i256) {
   bb0:
     mstore arg0, arg1
     ret
@@ -80,9 +85,10 @@ fn @overwrite(arg0: memptr, arg1: u256) {
 // A call reading an uninitialized word must not fold from adjacent data.
 // CHECK-LABEL: fn @uninitialized
 // CHECK: {{^[ +].*}}= icall @choose
-fn @uninitialized() -> u256 {
+fn @uninitialized() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 64
+    v9 = alloc raw, exact, uninitialized, infallible, 64
+    v0 = ptrtoint memptr v9 to i256
     mstore v0, 1
     v1 = icall @choose, v0
     ret v1
@@ -91,9 +97,10 @@ fn @uninitialized() -> u256 {
 // Fixed scratch words are deliberately outside the fresh-allocation model.
 // CHECK-LABEL: fn @scratch
 // CHECK: {{^[ +].*}}= icall @read
-fn @scratch() -> u256 {
+fn @scratch() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v10 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v10 to i256
     mstore v0, 1
     mstore 0, 42
     v1 = icall @read, 0
@@ -103,18 +110,20 @@ fn @scratch() -> u256 {
 // Both constants propagate through the chosen phi edge.
 // CHECK-LABEL: fn @phi_caller
 // CHECK: ret 42
-fn @phi_caller() -> u256 {
+fn @phi_caller() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v11 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v11 to i256
     mstore v0, 1
     v1 = icall @phi_callee, v0
     ret v1
 }
 
-fn @phi_callee(arg0: memptr) -> u256 {
+fn @phi_callee(arg0: i256) -> i256 {
   bb0:
     v0 = mload arg0
-    jumpi v0, bb1, bb2
+    v2 = ne v0, 0
+    jumpi v2, bb1, bb2
   bb1:
     jump bb3
   bb2:
@@ -127,15 +136,16 @@ fn @phi_callee(arg0: memptr) -> u256 {
 // Recursive evaluation must stop without changing the original call.
 // CHECK-LABEL: fn @recursive_caller
 // CHECK: {{^[ +].*}}= icall @recursive
-fn @recursive_caller() -> u256 {
+fn @recursive_caller() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v12 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v12 to i256
     mstore v0, 1
     v1 = icall @recursive, v0
     ret v1
 }
 
-fn @recursive(arg0: memptr) -> u256 {
+fn @recursive(arg0: i256) -> i256 {
   bb0:
     v0 = icall @recursive, arg0
     ret v0
@@ -144,15 +154,16 @@ fn @recursive(arg0: memptr) -> u256 {
 // Gas observations are not pure arithmetic, even when memory is fully known.
 // CHECK-LABEL: fn @observes_gas
 // CHECK: {{^[ +].*}}= icall @gas_reader
-fn @observes_gas() -> u256 {
+fn @observes_gas() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v13 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v13 to i256
     mstore v0, 42
     v1 = icall @gas_reader, v0
     ret v1
 }
 
-fn @gas_reader(arg0: memptr) -> u256 {
+fn @gas_reader(arg0: i256) -> i256 {
   bb0:
     v0 = gas
     v1 = mload arg0
@@ -163,11 +174,12 @@ fn @gas_reader(arg0: memptr) -> u256 {
 // A loop allocation has multiple dynamic instances and is not a unique base.
 // CHECK-LABEL: fn @loop_allocation
 // CHECK: {{^[ +].*}}= icall @read
-fn @loop_allocation(arg0: bool) -> u256 {
+fn @loop_allocation(arg0: i1) -> i256 {
   bb0:
     jump bb1
   bb1:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v14 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v14 to i256
     mstore v0, 42
     v1 = icall @read, v0
     jumpi arg0, bb1, bb2
@@ -178,9 +190,10 @@ fn @loop_allocation(arg0: bool) -> u256 {
 // Unknown addresses may overlap the initialized word.
 // CHECK-LABEL: fn @unknown_alias
 // CHECK: {{^[ +].*}}= icall @read
-fn @unknown_alias(arg0: memptr) -> u256 {
+fn @unknown_alias(arg0: i256) -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v15 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v15 to i256
     mstore v0, 42
     mstore arg0, 7
     v1 = icall @read, v0
@@ -190,10 +203,12 @@ fn @unknown_alias(arg0: memptr) -> u256 {
 // Recycling the allocation frontier prevents unique-provenance assumptions.
 // CHECK-LABEL: fn @recycled
 // CHECK: {{^[ +].*}}= icall @read
-fn @recycled(arg0: u256) -> u256 {
+fn @recycled(arg0: i256) -> i256 {
   bb0:
-    set_fmp arg0
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v17 = inttoptr i256 arg0 to memptr
+    set_fmp v17
+    v16 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v16 to i256
     mstore v0, 42
     v1 = icall @read, v0
     ret v1
@@ -202,20 +217,82 @@ fn @recycled(arg0: u256) -> u256 {
 // An infinite concrete path exhausts fuel and keeps the call.
 // CHECK-LABEL: fn @loop_caller
 // CHECK: {{^[ +].*}}= icall @loop_callee
-fn @loop_caller() -> u256 {
+fn @loop_caller() -> i256 {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v17 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v17 to i256
     mstore v0, 1
     v1 = icall @loop_callee, v0
     ret v1
 }
 
-fn @loop_callee(arg0: memptr) -> u256 {
+fn @loop_callee(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
     v0 = mload arg0
-    jumpi v0, bb1, bb2
+    v1 = ne v0, 0
+    jumpi v1, bb1, bb2
   bb2:
+    ret v0
+}
+
+// Lossless casts keep the initialized empty bytes pointer symbolic.
+// CHECK-LABEL: fn @empty_bytes
+// CHECK: ret 1
+fn @empty_bytes() -> i256 {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 0
+    v2 = icall @is_empty_bytes, v0
+    ret v2
+}
+
+fn @is_empty_bytes(arg0: memptr) -> i256 {
+  bb0:
+    v0 = bitcast memptr arg0 to memorybytes
+    v1 = ptrtoint memorybytes v0 to i256
+    v2 = inttoptr i256 v1 to memptr
+    v3 = ptrtoint memptr v2 to i256
+    v4 = mload v3
+    v5 = eq v4, 0
+    v6 = zext i1 v5 to i256
+    ret v6
+}
+
+// Narrowing cannot preserve an allocation's symbolic address.
+// CHECK-LABEL: fn @narrow_pointer_caller
+// CHECK: {{^[ +].*}}= icall @narrow_pointer
+fn @narrow_pointer_caller() -> i256 {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 42
+    v2 = icall @narrow_pointer, v0
+    ret v2
+}
+
+fn @narrow_pointer(arg0: memptr) -> i256 {
+  bb0:
+    v0 = ptrtoint memptr arg0 to i160
+    v1 = zext i160 v0 to i256
+    v2 = mload v1
+    ret v2
+}
+
+// A lossless pointer cast still cannot become a concrete return address.
+// CHECK-LABEL: fn @pointer_return_caller
+// CHECK: {{^[ +].*}}= icall @pointer_return
+fn @pointer_return_caller() -> i256 {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = icall @pointer_return, v0
+    ret v1
+}
+
+fn @pointer_return(arg0: memptr) -> i256 {
+  bb0:
+    v0 = ptrtoint memptr arg0 to i256
     ret v0
 }

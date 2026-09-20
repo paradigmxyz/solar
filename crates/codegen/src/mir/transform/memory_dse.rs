@@ -1278,7 +1278,7 @@ impl MemoryStoreEliminator {
                         continue;
                     };
                     let hash = keccak256(&bytes);
-                    let replacement = func.alloc_value(Value::Immediate(Immediate::uint256(
+                    let replacement = func.alloc_value(Value::Immediate(Immediate::I256(
                         U256::from_be_bytes(hash.0),
                     )));
                     scratch.replacements.insert(result, replacement);

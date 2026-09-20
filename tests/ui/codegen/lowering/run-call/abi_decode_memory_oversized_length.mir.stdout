@@ -1,54 +1,54 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_memory_oversized_length.sol:AbiDecodeMemoryOversizedLength ===
 @module AbiDecodeMemoryOversizedLength
-fn @decodeWordArray(arg0: memoryarray) -> u256 [selector=0x5592ecdf, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
+fn @decodeWordArray(arg0: memoryarray) -> i256 [selector=0x5592ecdf, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     ret v0
 }
 
-fn @decodeNarrowArray(arg0: memoryarray) -> u256 [selector=0x42670e32, pure, abi_params=[array<_, u8>], abi_returns=[word]] {
+fn @decodeNarrowArray(arg0: memoryarray) -> i256 [selector=0x42670e32, pure, abi_params=[array<_, u8>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     ret v0
 }
 
-fn @decodeBytes(arg0: memorybytes) -> u256 [selector=0x197621ce, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @decodeBytes(arg0: memorybytes) -> i256 [selector=0x197621ce, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     ret v0
 }
 
-fn @decodeNestedArray(arg0: memoryarray) -> u256 [selector=0xad885292, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word]] {
+fn @decodeNestedArray(arg0: memoryarray) -> i256 [selector=0xad885292, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     ret v0
 }
 
-fn @wordArray() -> bool [selector=0xdbd2add2, abi_params=[], abi_returns=[word<bool>]] {
+fn @wordArray() -> i256 [selector=0xdbd2add2, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @oversized, 0x5592ecdf00000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
-fn @narrowArray() -> bool [selector=0x69b43bd0, abi_params=[], abi_returns=[word<bool>]] {
+fn @narrowArray() -> i256 [selector=0x69b43bd0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @oversized, 0x42670e3200000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
-fn @bytesValue() -> bool [selector=0x5a286ac0, abi_params=[], abi_returns=[word<bool>]] {
+fn @bytesValue() -> i256 [selector=0x5a286ac0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @oversized, 0x197621ce00000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
-fn @nestedArray() -> bool [selector=0x810ef4b8, abi_params=[], abi_returns=[word<bool>]] {
+fn @nestedArray() -> i256 [selector=0x810ef4b8, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @oversized, 0xad88529200000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
-fn @oversized(arg0: bytes4) -> bool {
+fn @oversized(arg0: i256) -> i256 {
   bb0:
     v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v1 = abi_encode_packed (bytes4 v0, u256 32, u256 0xffffffffffffffff)
@@ -56,7 +56,7 @@ fn @oversized(arg0: bytes4) -> bool {
     v3 = gas
     v4 = address_call v2, v1, gas v3
     v5 = icall returndata_bytes<>
-    v6 = iszero v4
+    v6 = eq v4, false
     jumpi v6, bb1, bb2
   bb2:
     jump bb3
@@ -68,5 +68,6 @@ fn @oversized(arg0: bytes4) -> bool {
     jump bb3
   bb3:
     v11 = phi [bb1: v10], [bb2: false]
-    ret v11
+    v12 = zext i1 v11 to i256
+    ret v12
 }

@@ -41,15 +41,17 @@
 //! stay in place and see their operands canonicalized; `rewrite` rules still
 //! apply to them in place. Phis over one value merge into it, phis of one
 //! block with equal incoming values merge into one, copies of zero bytes are
-//! deleted, and branches on `iszero` or a nonzero test branch on the tested
-//! value directly. Nontrapping checked constants and passing checks disappear during
-//! the walk. Fixed aggregate projections follow bounded insertion chains without
-//! changing memory-object types. Late `const-fold` reuses the same evaluator and
-//! scalar identities but accepts only immediate results.
+//! deleted, and branches on boolean zero tests branch on the tested value directly.
+//! Nontrapping checked constants and passing checks disappear during the walk.
+//! Fixed aggregate projections follow bounded insertion chains while preserving types.
+//! Late `const-fold` reuses the same evaluator and scalar identities but accepts
+//! only immediate results.
 //! A balance read can bypass a mask that preserves all address bits. Since
 //! effectful roots do not participate in cost extraction, this rule requires
 //! one original use of the mask in the same block. The account read remains
-//! at its original position; only its redundant address computation changes.
+//! at its original position; only its redundant address computation changes. Classic EVM calls
+//! similarly bypass single-use truncation/extension pairs around their 160-bit address operand.
+//! Both casts must belong to the call block, and every other call operand stays unchanged.
 //!
 //! Memory-key mapping hashes also share dominating definitions in uncalled
 //! semantic ABI entries where fresh decoded keys stay below scratch and no path
@@ -227,6 +229,9 @@ fn has_fresh_mapping_arguments(func: &Function) -> bool {
                     && matches!(block.terminator, Some(Terminator::Invalid))
                     && block.instructions.last() == Some(&inst) => {}
                 InstKind::Phi(_)
+                | InstKind::Zext(_)
+                | InstKind::Sext(..)
+                | InstKind::Trunc(..)
                 | InstKind::Add(..)
                 | InstKind::Sub(..)
                 | InstKind::Mul(..)
@@ -250,7 +255,7 @@ fn has_fresh_mapping_arguments(func: &Function) -> bool {
                 | InstKind::SLt(..)
                 | InstKind::SGt(..)
                 | InstKind::Eq(..)
-                | InstKind::IsZero(..)
+                | InstKind::Ne(..)
                 | InstKind::Clz(..)
                 | InstKind::SignExtend(..)
                 | InstKind::Select(..)
@@ -501,7 +506,7 @@ impl<'a> Builder<'a> {
         {
             let mut kind = inst.kind.clone();
             kind.visit_operands_mut(|value| *value = self.resolve(*value));
-            if let Some(value) = const_fold(self.func, &kind) {
+            if let Some(value) = const_fold(self.func, &kind, ty) {
                 // %result = <nontrapping constant expression> => constant
                 self.merge(result, value, inst_id);
             } else {
@@ -536,7 +541,7 @@ impl<'a> Builder<'a> {
                 frontier += 1;
                 alternatives.clear();
                 let kind = current.into_kind().expect("nodes are complete instructions");
-                let folded = const_fold(self.func, &kind);
+                let folded = const_fold(self.func, &kind, ty);
                 if kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
                     let (views, truncated) = self.matching_views(&current, view_limit);
                     views_truncated |= truncated;
@@ -559,7 +564,12 @@ impl<'a> Builder<'a> {
                 }
                 for next in alternatives.drain(..) {
                     let next = next.map_values(|value| self.resolve(value));
-                    if !nodes.as_slice().contains(&next) && nodes.len() < node_limit {
+                    if !nodes.as_slice().contains(&next)
+                        && nodes.len() < node_limit
+                        && next
+                            .into_kind()
+                            .is_some_and(|kind| kind.scalar_types_match(self.func, ty))
+                    {
                         nodes.push(next);
                         simplified.push(Simplified::Pending);
                     }
@@ -596,7 +606,7 @@ impl<'a> Builder<'a> {
                 Simplified::Unchanged => None,
                 Simplified::Pending => {
                     let kind = node.into_kind().expect("nodes are complete instructions");
-                    let folded = const_fold(self.func, &kind);
+                    let folded = const_fold(self.func, &kind, ty);
                     if kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
                         let (views, _) = self.matching_views(node, view_limit);
                         folded.or_else(|| {
@@ -613,7 +623,7 @@ impl<'a> Builder<'a> {
             };
             if let Some(equal) = equal {
                 let equal = self.resolve(equal);
-                if equal != result {
+                if equal != result && self.func.value_ty(equal) == ty {
                     leader = Some(equal);
                     break;
                 }
@@ -741,6 +751,7 @@ impl<'a> Builder<'a> {
         if !kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
             return;
         }
+        let result_ty = self.func.inst(inst_id).result_ty;
         let mut current = op.map_values(|value| self.resolve(value));
         let mut rewritten = false;
         let mut alternatives = Vec::new();
@@ -750,8 +761,15 @@ impl<'a> Builder<'a> {
                 .with_block(block)
                 .with_uses(&self.uses)
                 .rewrite(&current, &mut alternatives);
-            let Some(&next) = alternatives.first() else { break };
-            current = next.map_values(|value| self.resolve(value));
+            let Some(next) = alternatives.iter().find_map(|next| {
+                let next = next.map_values(|value| self.resolve(value));
+                next.into_kind()
+                    .is_some_and(|kind| kind.scalar_types_match(self.func, result_ty))
+                    .then_some(next)
+            }) else {
+                break;
+            };
+            current = next;
             rewritten = true;
         }
         if !rewritten {
@@ -789,11 +807,7 @@ impl<'a> Builder<'a> {
             if field == index {
                 let value = self.resolve(value);
                 let value_ty = self.func.value_ty(value);
-                if result_ty != value_ty
-                    && [result_ty, value_ty]
-                        .iter()
-                        .any(|ty| matches!(ty, Some(MirType::MemoryObject(_))))
-                {
+                if result_ty != value_ty {
                     return None;
                 }
                 return Some(value);
@@ -815,13 +829,15 @@ impl<'a> Builder<'a> {
         let (mut is_zero, failure, condition) = (*is_zero, *failure, args[0]);
         let mut condition = self.resolve(condition);
         let mut changed = false;
-        while let Some(inner) = iszero_operand(self.func, condition) {
+        while let Some(inner) = zero_test_operand(self.func, condition)
+            && self.func.value_ty(inner) == Some(MirType::I1)
+        {
             condition = self.resolve(inner);
             is_zero = !is_zero;
             changed = true;
         }
         if changed {
-            // check iszero(condition), polarity => check condition, !polarity
+            // check eq(condition, false), polarity => check condition, !polarity
             self.func
                 .inst_mut(inst_id)
                 .replace_kind(InstKind::builtin(Builtin::Check { is_zero, failure }, [condition]));
@@ -830,6 +846,9 @@ impl<'a> Builder<'a> {
     }
 
     fn merge(&mut self, result: ValueId, into: ValueId, inst_id: InstId) {
+        if self.func.value_ty(result) != self.func.value_ty(into) {
+            return;
+        }
         tracing::trace!(
             target: TRACE_TARGET,
             function = %self.func.name,
@@ -912,7 +931,7 @@ impl<'a> Builder<'a> {
         }
     }
 
-    /// Branches on `iszero(x)` swap their targets and branch on `x`, branches
+    /// Branches on `eq x, false` swap their targets and branch on `x`, branches
     /// on a nonzero test branch on the tested value, and an external return
     /// of zero bytes stops.
     fn rewrite_terminators(&mut self) {
@@ -925,7 +944,7 @@ impl<'a> Builder<'a> {
                 else {
                     break;
                 };
-                let (inner, swap) = if let Some(inner) = iszero_operand(func, condition) {
+                let (inner, swap) = if let Some(inner) = zero_test_operand(func, condition) {
                     (inner, true)
                 } else if let Some(inner) = nonzero_test_operand(func, condition) {
                     // `branch gt(x, 0)` / `branch lt(0, x)` test exactly `x != 0`,
@@ -935,6 +954,9 @@ impl<'a> Builder<'a> {
                     break;
                 };
                 let inner = resolve_replacement(inner, &self.merged);
+                if func.value_ty(inner) != Some(crate::mir::MirType::I1) {
+                    break;
+                }
                 let Some(Terminator::Branch { condition, then_block, else_block }) =
                     &mut func.blocks[block_id].terminator
                 else {
@@ -1223,21 +1245,13 @@ fn canonical(op: Op) -> Op {
 }
 
 /// Folds an instruction over immediate operands to an immediate result.
-fn const_fold(func: &mut Function, kind: &InstKind) -> Option<ValueId> {
+fn const_fold(func: &mut Function, kind: &InstKind, ty: Option<MirType>) -> Option<ValueId> {
     if let InstKind::Select(condition, then_value, else_value) = *kind {
         let condition = func.value_u256(condition)?;
         return Some(if condition.is_zero() { else_value } else { then_value });
     }
     let value = eval::eval_inst(kind, |value| func.value_u256(value).ok_or(())).ok().flatten()?;
-    let immediate = match kind {
-        InstKind::Lt(..)
-        | InstKind::Gt(..)
-        | InstKind::SLt(..)
-        | InstKind::SGt(..)
-        | InstKind::Eq(..)
-        | InstKind::IsZero(..) => Immediate::bool(!value.is_zero()),
-        _ => Immediate::uint256(value),
-    };
+    let immediate = Immediate::for_type(ty, value);
     Some(func.alloc_value(Value::Immediate(immediate)))
 }
 
@@ -1245,6 +1259,7 @@ fn const_fold(func: &mut Function, kind: &InstKind) -> Option<ValueId> {
 pub(super) fn fold_constant(
     func: &mut Function,
     kind: &InstKind,
+    ty: Option<MirType>,
     evm: EvmVersion,
 ) -> Option<ValueId> {
     if let InstKind::Phi(incoming) = kind
@@ -1254,14 +1269,16 @@ pub(super) fn fold_constant(
     {
         return Some(first);
     }
-    let value = const_fold(func, kind).or_else(|| {
+    let value = const_fold(func, kind, ty).or_else(|| {
         if is_node(kind) && kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
             isle::RuleContext::new(func, evm).simplify(&kind.op())
         } else {
             None
         }
     })?;
-    func.value(value).as_immediate().map(|_| value)
+    (func.value_ty(value) == ty)
+        .then_some(value)
+        .filter(|&value| func.value(value).as_immediate().is_some())
 }
 
 /// Recognizes passing checks and copies with no effects, including no bounds failure.
@@ -1318,9 +1335,9 @@ fn nonzero_test_operand(func: &Function, value: ValueId) -> Option<ValueId> {
     }
 }
 
-fn iszero_operand(func: &Function, value: ValueId) -> Option<ValueId> {
+fn zero_test_operand(func: &Function, value: ValueId) -> Option<ValueId> {
     match *defining_kind(func, value)? {
-        InstKind::IsZero(inner) => Some(inner),
+        InstKind::Eq(inner, zero) if is_zero(func, zero) => Some(inner),
         _ => None,
     }
 }
@@ -1368,7 +1385,11 @@ impl Costs<'_> {
 
     /// Cost of computing `node` in place of the instruction that roots `class`.
     fn node(&mut self, class: &Class, node: &Op) -> Cost {
-        let operands = operands_of(node);
+        let mut operands = operands_of(node);
+        if let Some(value) = Target::zero_test_input(node, |value| self.func.value_u256(value)) {
+            operands.clear();
+            operands.push(value);
+        }
         let original =
             (node != &class.nodes.as_slice()[0]).then(|| operands_of(&class.nodes.as_slice()[0]));
         // An operand shared with other users is computed regardless of this

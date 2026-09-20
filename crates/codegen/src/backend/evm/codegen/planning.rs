@@ -121,16 +121,25 @@ impl EvmCodegen<'_> {
             return None;
         }
         let mut operands = SmallVec::<[ValueId; 8]>::new();
-        let _ = op.map_values(|value| {
+        let zero_test = if matches!(op, Op::Eq { .. }) {
+            Target::zero_test_input(op, |value| func.value_u256(value))
+        } else {
+            None
+        };
+        if let Some(value) = zero_test {
             operands.push(value);
-            value
-        });
-        operands.reverse();
+        } else {
+            let _ = op.map_values(|value| {
+                operands.push(value);
+                value
+            });
+            operands.reverse();
+        }
         let target = Target::new(self.gcx);
         let mut scheduler = self.scheduler.clone();
         let preserved =
             self.preserved_operands_for(&scheduler, func, &operands, liveness, block, index);
-        let mut opcode = lowering.opcode();
+        let mut opcode = if zero_test.is_some() { op::ISZERO } else { lowering.opcode() };
         let mut plan = scheduler.plan_operands(
             &operands,
             &preserved,

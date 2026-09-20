@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/storage_packed_bool.sol:PackedBool ===
 @module PackedBool
-fn @a() -> bool [selector=0x0dbe671f, view, abi_params=[], abi_returns=[word<bool>]] {
+fn @a() -> i256 [selector=0x0dbe671f, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
     ret v1
 }
 
-fn @b() -> bool [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[word<bool>]] {
+fn @b() -> i256 [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0
@@ -15,42 +15,46 @@ fn @b() -> bool [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[word<boo
     ret v2
 }
 
-fn @set(arg0: bool, arg1: bool) [selector=0xf907191a, abi_params=[bool, bool], abi_returns=[]] {
+fn @set(arg0: i256, arg1: i256) [selector=0xf907191a, abi_params=[bool, bool], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = eq arg0, 0
-    v1 = iszero v0
+    v1 = eq v0, false
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = not 255
     v4 = and v2, v3
-    v5 = and v1, 255
-    v6 = or v4, v5
-    sstore 0, v6 !metadata(storage=slot(0))
-    v7 = eq arg1, 0
-    v8 = iszero v7
-    v9 = shl 8, 255
-    v10 = sload 0 !metadata(storage=slot(0))
-    v11 = not v9
-    v12 = and v10, v11
-    v13 = and v8, 255
-    v14 = shl 8, v13
-    v15 = or v12, v14
-    sstore 0, v15 !metadata(storage=slot(0))
+    v5 = zext i1 v1 to i256
+    v6 = and v5, 255
+    v7 = or v4, v6
+    sstore 0, v7 !metadata(storage=slot(0))
+    v8 = eq arg1, 0
+    v9 = eq v8, false
+    v10 = shl 8, 255
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = not v10
+    v13 = and v11, v12
+    v14 = zext i1 v9 to i256
+    v15 = and v14, 255
+    v16 = shl 8, v15
+    v17 = or v13, v16
+    sstore 0, v17 !metadata(storage=slot(0))
     ret
 }
 
-fn @both() -> bool [selector=0x35f2e0a7, view, abi_params=[], abi_returns=[word<bool>]] {
+fn @both() -> i256 [selector=0x35f2e0a7, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
-    jumpi v1, bb1, bb2
+    v2 = ne v1, 0
+    jumpi v2, bb1, bb2
   bb2:
+    v6 = zext i1 0 to i256
     jump bb3
   bb1:
-    v2 = sload 0 !metadata(storage=slot(0))
-    v3 = shr 8, v2
-    v4 = and v3, 255
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = shr 8, v3
+    v5 = and v4, 255
     jump bb3
   bb3:
-    v5 = phi [bb1: v4], [bb2: false]
-    ret v5
+    v7 = phi [bb1: v5], [bb2: v6]
+    ret v7
 }

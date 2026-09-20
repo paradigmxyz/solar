@@ -1,6 +1,6 @@
-error: [fn0] [bb0, inst0] only address_call accepts a value option
+error: [fn0] [bb0, inst0] instruction result or layout does not match its type contract
 
-error: [fn1] [bb0, inst0] address call options require word operands
+error: [fn1] [bb0, inst0] `address_call` has incompatible scalar types; use an explicit cast
 
 error: aborting due to 2 previous errors
 

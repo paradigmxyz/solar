@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/pre/pre.mir (before pre) ===
 + // === ROOT/tests/ui/codegen/mir/pre/pre.mir (after pre) ===
   @module Pre
-  fn @insert_missing_predecessor(arg0: u256, arg1: u256) -> u256 {
+  fn @insert_missing_predecessor(arg0: i256, arg1: i256) -> i256 {
     bb0:
       switch arg1, default bb3, [1 => bb1, 2 => bb2]
     bb2:
@@ -20,7 +20,7 @@
 +     ret v4
   }
   
-  fn @translate_join_phi(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+  fn @translate_join_phi(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 {
     bb0:
       switch arg3, default bb3, [1 => bb1, 2 => bb2]
     bb2:
@@ -40,7 +40,7 @@
 +     ret v5
   }
   
-  fn @two_way_join(arg0: u256, arg1: bool) -> u256 {
+  fn @two_way_join(arg0: i256, arg1: i1) -> i256 {
     bb0:
       jumpi arg1, bb1, bb2
     bb2:
@@ -56,7 +56,7 @@
 +     ret v3
   }
   
-  fn @split_branch_terminated_pred(arg0: u256, arg1: bool) -> u256 {
+  fn @split_branch_terminated_pred(arg0: i256, arg1: i1) -> i256 {
     bb0:
       jumpi arg1, bb1, bb2
     bb2:
@@ -75,5 +75,81 @@
 -     ret v1
 +     v3 = phi [bb1: v0], [bb5: v2]
 +     ret v3
+  }
+  
+  fn @swapped_eq_predecessors(arg0: i256, arg1: i256, arg2: i256) -> i1 {
+    bb0:
+      switch arg2, default bb3, [1 => bb1, 2 => bb2]
+    bb2:
+      v1 = eq arg1, arg0
+      jump bb4
+    bb1:
+      v0 = eq arg0, arg1
+      jump bb4
+    bb3:
++     v3 = eq arg0, arg1
+      jump bb4
+    bb4:
+-     v2 = eq arg0, arg1
+-     ret v2
++     v4 = phi [bb1: v0], [bb2: v1], [bb3: v3]
++     ret v4
+  }
+  
+  fn @swapped_ne_predecessors(arg0: i256, arg1: i256, arg2: i256) -> i1 {
+    bb0:
+      switch arg2, default bb3, [1 => bb1, 2 => bb2]
+    bb2:
+      v1 = ne arg1, arg0
+      jump bb4
+    bb1:
+      v0 = ne arg0, arg1
+      jump bb4
+    bb3:
++     v3 = ne arg0, arg1
+      jump bb4
+    bb4:
+-     v2 = ne arg0, arg1
+-     ret v2
++     v4 = phi [bb1: v0], [bb2: v1], [bb3: v3]
++     ret v4
+  }
+  
+  fn @swapped_lt_gt_predecessors(arg0: i256, arg1: i256, arg2: i256) -> i1 {
+    bb0:
+      switch arg2, default bb3, [1 => bb1, 2 => bb2]
+    bb2:
+      v1 = gt arg1, arg0
+      jump bb4
+    bb1:
+      v0 = lt arg0, arg1
+      jump bb4
+    bb3:
++     v3 = lt arg0, arg1
+      jump bb4
+    bb4:
+-     v2 = lt arg0, arg1
+-     ret v2
++     v4 = phi [bb1: v0], [bb2: v1], [bb3: v3]
++     ret v4
+  }
+  
+  fn @swapped_slt_sgt_predecessors(arg0: i256, arg1: i256, arg2: i256) -> i1 {
+    bb0:
+      switch arg2, default bb3, [1 => bb1, 2 => bb2]
+    bb2:
+      v1 = sgt arg1, arg0
+      jump bb4
+    bb1:
+      v0 = slt arg0, arg1
+      jump bb4
+    bb3:
++     v3 = slt arg0, arg1
+      jump bb4
+    bb4:
+-     v2 = slt arg0, arg1
+-     ret v2
++     v4 = phi [bb1: v0], [bb2: v1], [bb3: v3]
++     ret v4
   }
   

@@ -2,9 +2,9 @@
 + // === ROOT/tests/ui/codegen/mir/cse/cse_swapped_comparisons.mir (after cse) ===
   @module CseSwappedComparisons
   types:
-    struct0: {bool, bool}
+    struct0: {i1, i1}
   
-  fn @reuse_gt_after_lt(arg0: u256, arg1: u256) -> struct0 [return_abi=[bool, bool]] {
+  fn @reuse_gt_after_lt(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {
     bb0:
       v0 = lt arg0, arg1
 -     v1 = gt arg1, arg0
@@ -12,7 +12,7 @@
 +     ret v0, v0
   }
   
-  fn @reuse_lt_after_gt(arg0: u256, arg1: u256) -> struct0 [return_abi=[bool, bool]] {
+  fn @reuse_lt_after_gt(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {
     bb0:
       v0 = gt arg1, arg0
 -     v1 = lt arg0, arg1
@@ -20,7 +20,7 @@
 +     ret v0, v0
   }
   
-  fn @reuse_sgt_after_slt(arg0: u256, arg1: u256) -> struct0 [return_abi=[bool, bool]] {
+  fn @reuse_sgt_after_slt(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {
     bb0:
       v0 = slt arg0, arg1
 -     v1 = sgt arg1, arg0
@@ -28,7 +28,7 @@
 +     ret v0, v0
   }
   
-  fn @reuse_slt_after_sgt(arg0: u256, arg1: u256) -> struct0 [return_abi=[bool, bool]] {
+  fn @reuse_slt_after_sgt(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {
     bb0:
       v0 = sgt arg1, arg0
 -     v1 = slt arg0, arg1
@@ -36,17 +36,40 @@
 +     ret v0, v0
   }
   
-  fn @keep_same_order_lt_gt(arg0: u256, arg1: u256) -> struct0 [return_abi=[bool, bool]] {
+  fn @keep_same_order_lt_gt(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {
     bb0:
       v0 = lt arg0, arg1
       v1 = gt arg0, arg1
       ret v0, v1
   }
   
-  fn @keep_unsigned_signed_distinct(arg0: u256, arg1: u256) -> struct0 [return_abi=[bool, bool]] {
+  fn @keep_unsigned_signed_distinct(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {
     bb0:
       v0 = lt arg0, arg1
       v1 = sgt arg1, arg0
+      ret v0, v1
+  }
+  
+  fn @reuse_swapped_eq(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {
+    bb0:
+      v0 = eq arg0, arg1
+-     v1 = eq arg1, arg0
+-     ret v0, v1
++     ret v0, v0
+  }
+  
+  fn @reuse_swapped_ne(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {
+    bb0:
+      v0 = ne arg0, arg1
+-     v1 = ne arg1, arg0
+-     ret v0, v1
++     ret v0, v0
+  }
+  
+  fn @keep_eq_ne_distinct(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {
+    bb0:
+      v0 = eq arg0, arg1
+      v1 = ne arg1, arg0
       ret v0, v1
   }
   

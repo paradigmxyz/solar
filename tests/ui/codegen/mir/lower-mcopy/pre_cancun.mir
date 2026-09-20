@@ -31,7 +31,7 @@
 // PRE: + [[REVERSE_WORD:v[0-9]+]] = mload [[REVERSE_SOURCE]]
 // PRE: + mstore {{v[0-9]+}}, [[REVERSE_WORD]]
 // PRE: {{^[ +].*}}ret arg0
-fn @copy(arg0: memptr, arg1: memptr, arg2: u256) -> memptr {
+fn @copy(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     mcopy arg0, arg1, arg2
     ret arg0

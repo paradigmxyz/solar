@@ -265,6 +265,14 @@ The ISLE reader permits balance reads only at the instruction roots being
 replaced. It rejects nested balance producers, which could have executed before
 an intervening call; a shared-state assumption is not silently added for them.
 
+Classic `CALL`, `CALLCODE`, `STATICCALL`, and `DELEGATECALL` rewrites use a
+separate effect-preservation obligation. Both sides must keep the same opcode
+and every effective operand, with the address truncated to 160 bits. The checker
+compares the complete operand tuple; it never models the call result as a pure
+value. Nested calls and rewrites that remove or change the call are rejected.
+The rewrite driver keeps the instruction at its original position. Gas accounting
+and the callee's execution remain outside this proof.
+
 The compiled balance-mask rules remove `address & mask` before `BALANCE` when
 the mask preserves all low 160 bits. Their single-use and same-block guards
 restrict profitability; the proof checks returned-word equality for arbitrary
@@ -318,12 +326,15 @@ structural/fork guards; actual opcode availability and profitability remain the
 compiler's responsibility. There is no claim of a verified compiler or an
 independently checked proof certificate.
 
-The physical stack lane checks the six compiled rules in `stack_peephole.isle`
+The physical stack lane checks the seven compiled rules in `stack_peephole.isle`
 directly, including every supported DUP/SWAP depth from 1 through 235 and every
-legal EXCHANGE pair. It compares every touched word, the final height, required
-input depth and peak growth; an arbitrary deeper prefix stays unchanged.
+legal EXCHANGE pair and the EQ/ISZERO shuffle cleanup. It compares every touched
+word, the final height, required input depth and peak growth; an arbitrary deeper
+prefix stays unchanged.
 Malformed input bytecode and out-of-gas behavior are excluded. The Rust window
 facets, edits and target lowering remain trusted and are recorded by hash.
+The guarded five-op window rejects overridden stack effects and protected
+instruction boundaries; focused window-helper tests check these Rust-side guards.
 Other peepholes, especially memory and branch rewrites, are not covered by this
 lane. Unknown syntax, guards, edits or operations fail verification.
 

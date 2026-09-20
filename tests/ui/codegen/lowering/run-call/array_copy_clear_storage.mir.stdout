@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/array_copy_clear_storage.sol:ArrayCopyClearStorage ===
 @module ArrayCopyClearStorage
-fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -38,7 +38,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     set_memory_object_len memoryarray, v20, 1
     v21 = memory_object_len memoryarray, v20
     v22 = lt 0, v21
-    v23 = iszero v22
+    v23 = eq v22, false
     icall panic_if<0x32>, v23
     memory_object_store_element memoryarray<1>, v20, 0, 23
     v24 = memory_object_len memoryarray, v20
@@ -64,27 +64,27 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     sstore 0, 4 !metadata(storage=slot(0))
     v38 = sload 0 !metadata(storage=slot(0))
     v39 = lt 1, v38
-    v40 = iszero v39
+    v40 = eq v39, false
     icall panic_if<0x32>, v40
     v41 = storage_array_data_slot 0
     v42 = add v41, 1
     v43 = sload v42 !metadata(storage=offset(v41, 1))
     v44 = eq v43, 0
-    v45 = iszero v44
+    v45 = eq v44, false
     icall panic_if<0x1>, v45
     v46 = sload 0 !metadata(storage=slot(0))
     v47 = lt 2, v46
-    v48 = iszero v47
+    v48 = eq v47, false
     icall panic_if<0x32>, v48
     v49 = storage_array_data_slot 0
     v50 = add v49, 2
     v51 = sload v50 !metadata(storage=offset(v49, 2))
     v52 = eq v51, 0
-    v53 = iszero v52
+    v53 = eq v52, false
     icall panic_if<0x1>, v53
     v54 = sload 0 !metadata(storage=slot(0))
     v55 = lt 3, v54
-    v56 = iszero v55
+    v56 = eq v55, false
     icall panic_if<0x32>, v56
     v57 = storage_array_data_slot 0
     v58 = add v57, 3

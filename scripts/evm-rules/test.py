@@ -185,7 +185,7 @@ class StackProofTests(unittest.TestCase):
 
     def test_actual_compiled_stack_rules(self):
         report = verify_stack_file(ISLE / "stack_peephole.isle")
-        self.assertEqual(len(report["rules"]), 6)
+        self.assertEqual(len(report["rules"]), 7)
         self.assertTrue(all(r["status"] == "proved" for r in report["rules"]))
         self.assertGreater(sum(len(r["variants"]) for r in report["rules"]), 900)
 
@@ -197,6 +197,14 @@ class StackProofTests(unittest.TestCase):
             result = self.verify(source)["rules"][0]
             self.assertEqual(result["status"], "counterexample")
             self.assertTrue(result["variants"][0]["replayed"])
+
+    def test_equality_shuffle_requires_symmetric_operands(self):
+        correct = "(rule (peep_nonpush (unprotected_last5 (opcode $DUP2) (opcode $EQ) (opcode $ISZERO) (opcode $SWAP1) (opcode $POP))) (rewrite 5 (Edit.RemoveFirstKeepTwo)))"
+        self.assertEqual(self.verify(correct)["rules"][0]["status"], "proved")
+        wrong = correct.replace("$DUP2", "$DUP1")
+        result = self.verify(wrong)["rules"][0]
+        self.assertEqual(result["status"], "counterexample")
+        self.assertTrue(result["variants"][0]["replayed"])
 
     def test_unknown_effect_and_changed_extent_fail_closed(self):
         for source in (
@@ -876,6 +884,56 @@ class EnvironmentTests(unittest.TestCase):
             portable_query(solver)
 
 
+class CallEffectTests(unittest.TestCase):
+    def call_rules(self):
+        return [
+            Rule(form, line, "egraph.isle")
+            for form, line in forms((ISLE / "egraph.isle").read_text())
+            if form[0] == "rule"
+            and form[1][0] == "rewrite"
+            and form[1][1][0]
+            in ("Op.Call", "Op.CallCode", "Op.StaticCall", "Op.DelegateCall")
+        ]
+
+    def test_actual_rules_preserve_call_effects(self):
+        rules = self.call_rules()
+        self.assertEqual(len(rules), 4)
+        for rule in rules:
+            context = Context()
+            lhs, rhs = context.obligation(rule)
+            result, _ = check(lhs, rhs, context.assumptions, 5000, context.model)
+            self.assertEqual(result["status"], "proved")
+
+    def test_changed_call_operands_are_counterexamples(self):
+        for rule in self.call_rules():
+            for index in range(1, len(rule.form[-1])):
+                replacement = list(rule.form[-1])
+                replacement[index] = ("imm", ("u256", "1"))
+                changed = Rule(
+                    (*rule.form[:-1], tuple(replacement)), rule.line, rule.source
+                )
+                context = Context()
+                lhs, rhs = context.obligation(changed)
+                result, _ = check(lhs, rhs, context.assumptions, 5000, context.model)
+                self.assertEqual(result["status"], "counterexample")
+
+    def test_calls_cannot_be_removed_changed_or_nested(self):
+        rule = self.call_rules()[0]
+        for replacement in (
+            ("imm", ("u256", "0")),
+            ("Op.CallCode", *rule.form[-1][1:]),
+        ):
+            changed = Rule((*rule.form[:-1], replacement), rule.line, rule.source)
+            with self.assertRaisesRegex(Unsupported, "preserve its opcode and effect"):
+                Context().obligation(changed)
+        nested = ("Op.Add", rule.form[-1], ("zero",))
+        changed = Rule(
+            ("rule", ("rewrite", nested), ("imm", ("u256", "0"))), 1, "nested"
+        )
+        with self.assertRaisesRegex(Unsupported, "instruction roots"):
+            Context().obligation(changed)
+
+
 class MemoryAddressTests(unittest.TestCase):
     def test_actual_projection_rules_and_missing_guards(self):
         path = ISLE / "egraph.isle"
@@ -1093,6 +1151,44 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(rule["status"], "proved")
         self.assertEqual(rule["constant_specializations"], {"a": "0x1"})
 
+    def test_i1_sign_extension_lowering(self):
+        for bits in (160, 256):
+            cx = Context()
+            value = Expr.var("value")
+            expected = cx.operation("Op.Sext", [value, Expr.const(1), Expr.const(bits)])
+            negate = Expr("sub", (Expr.const(0), value))
+            shifted = Expr("shr", (Expr.const(256 - bits), negate))
+            multiply = Expr("mul", (value, Expr.const((1 << bits) - 1)))
+            # Split the complete i1 domain to avoid bit-blasting a 256-bit multiplication.
+            for bit in (0, 1):
+                assumptions = [cx.model.eval(value) == z3.BitVecVal(bit, 256)]
+                for lowered in (shifted, multiply):
+                    result, _ = check(expected, lowered, assumptions, 5000, cx.model)
+                    self.assertEqual(
+                        result["status"], "proved", (bits, bit, lowered, result)
+                    )
+
+    def test_actual_integer_and_pointer_cast_rules(self):
+        path = ISLE / "egraph.isle"
+        source = path.read_text()
+        start = source.index(";; Identity casts")
+        rules = [
+            Rule(form, line, str(path))
+            for form, line in forms(source[start:])
+            if form[0] == "rule"
+        ]
+        self.assertEqual(len(rules), 26)
+        for rule in rules:
+            with self.subTest(rule=rule.form):
+                cx = Context()
+                lhs, rhs = cx.obligation(rule)
+                result, query = check(lhs, rhs, cx.assumptions, 10000, cx.model)
+                if result["status"] == "unknown" and query:
+                    result, _ = partition_shift(
+                        lhs, rhs, cx.assumptions, 30000, cx.model
+                    )
+                self.assertEqual(result["status"], "proved", result)
+
     def test_actual_compiled_exp_rules(self):
         def uses_exp(node):
             return (
@@ -1199,7 +1295,7 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(rule["inputs"]["a"], rule["inputs"]["b"])
 
     def test_guard_and_pattern_semantics(self):
-        report = self.verify("""(rule (simplify (Op.IsZero (iszero (and x (bool_value))))) x)
+        report = self.verify("""(rule (simplify (Op.Eq (eq (and x (bool_value)) (zero)) (zero))) x)
           (rule (rewrite (Op.Sub x x)) (if-let false (u256_eq (u256 1) 1))
              (Op.Add x (imm (u256 0))))""")
         self.assertEqual(
@@ -1770,7 +1866,7 @@ class SolverFallbackTests(unittest.TestCase):
             for form, line in forms(path.read_text())
             if form[0] == "rule" and selected(form)
         ]
-        self.assertEqual(len(rules), 8)
+        self.assertEqual(len(rules), 10)
         fallback = Cvc5(timeout_ms=1000)
         for rule in rules:
             cx = Context()
@@ -2045,7 +2141,7 @@ class DiscoveryTests(unittest.TestCase):
     def test_large_literal_guard_and_recipe_are_verified(self):
         x = Expr.var("x")
         lhs = expression("lt", x, 1 << 160)
-        rhs = expression("iszero", expression("shr", 160, x))
+        rhs = expression("eq", expression("shr", 160, x), 0)
         source = emit_rule(lhs, rhs)
         for expected, text in (
             ("proved", source),

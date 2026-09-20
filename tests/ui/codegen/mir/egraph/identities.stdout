@@ -2,34 +2,34 @@
 + // === ROOT/tests/ui/codegen/mir/egraph/identities.mir (after egraph) ===
   @module InstSimplifyIdentities
   types:
-    struct0: {u256, u256}
-    struct1: {struct0, u256}
-    struct2: {u256, u256, u256}
-    struct3: {u256, u256, u256, u256}
-    struct4: {u256, u256, u256, u256, u256}
+    struct0: {i256, i256}
+    struct1: {struct0, i256}
+    struct2: {i256, i256, i256}
+    struct3: {i256, i256, i256, i256}
+    struct4: {i256, i256, i256, i256, i256}
   
-  fn @add_zero(arg0: u256) -> u256 {
+  fn @add_zero(arg0: i256) -> i256 {
     bb0:
 -     v0 = add arg0, 0
 -     ret v0
 +     ret arg0
   }
   
-  fn @mul_one(arg0: u256) -> u256 {
+  fn @mul_one(arg0: i256) -> i256 {
     bb0:
 -     v0 = mul 1, arg0
 -     ret v0
 +     ret arg0
   }
   
-  fn @self_sub(arg0: u256) -> u256 {
+  fn @self_sub(arg0: i256) -> i256 {
     bb0:
 -     v0 = sub arg0, arg0
 -     ret v0
 +     ret 0
   }
   
-  fn @idempotent_logic(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
+  fn @idempotent_logic(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
     bb0:
 -     v0 = and arg0, arg0
 -     v1 = or arg0, arg0
@@ -38,7 +38,7 @@
 +     ret arg0, arg0, 0
   }
   
-  fn @not_not(arg0: u256) -> u256 {
+  fn @not_not(arg0: i256) -> i256 {
     bb0:
       v0 = not arg0
 -     v1 = not v0
@@ -46,67 +46,67 @@
 +     ret arg0
   }
   
-  fn @iszero_immediate() -> bool {
+  fn @iszero_immediate() -> i1 {
     bb0:
--     v0 = iszero 0
+-     v0 = eq 0, 0
 -     ret v0
 +     ret true
   }
   
-  fn @eq_zero(arg0: u256) -> bool {
+  fn @eq_zero(arg0: i256) -> i1 {
     bb0:
--     v0 = eq arg0, 0
-+     v0 = iszero arg0
+      v0 = eq arg0, 0
       ret v0
   }
   
-  fn @and_all_ones(arg0: u256) -> u256 {
+  fn @and_all_ones(arg0: i256) -> i256 {
     bb0:
 -     v0 = and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
 -     ret v0
 +     ret arg0
   }
   
-  fn @address_mask() -> address {
+  fn @address_mask() -> i256 {
     bb0:
       v0 = address
--     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
--     ret v1
-+     ret v0
+      v1 = zext i160 v0 to i256
+-     v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
+-     ret v2
++     ret v1
   }
   
-  fn @own_balance() -> u256 {
+  fn @own_balance() -> i256 {
     bb0:
       v0 = address
--     v1 = balance v0
-+     v1 = selfbalance
-      ret v1
-  }
-  
-  fn @invert_iszero_branch(arg0: u256) {
-    bb0:
-      v0 = lt 0, arg0
-      v1 = iszero v0
--     jumpi v1, bb1, bb2
--   bb2:
--     stop
-+     jumpi arg0, bb2, bb1
-    bb1:
-      stop
-+   bb2:
-+     stop
-  }
-  
-  fn @masked_own_balance() -> u256 {
-    bb0:
-      v0 = address
--     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+      v1 = zext i160 v0 to i256
 -     v2 = balance v1
 +     v2 = selfbalance
       ret v2
   }
   
-  fn @aggregate_projection(arg0: u256, arg1: u256) -> u256 {
+  fn @canonical_zero_branch(arg0: i256) {
+    bb0:
+      v0 = lt 0, arg0
+-     v1 = eq v0, false
++     v1 = eq arg0, 0
+      jumpi v1, bb1, bb2
+    bb2:
+      stop
+    bb1:
+      stop
+  }
+  
+  fn @masked_own_balance() -> i256 {
+    bb0:
+      v0 = address
+      v1 = zext i160 v0 to i256
+-     v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
+-     v3 = balance v2
++     v3 = selfbalance
+      ret v3
+  }
+  
+  fn @aggregate_projection(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = insert_value struct0, undef struct0, 0, arg0
       v1 = insert_value struct0, v0, 1, arg1
@@ -115,7 +115,7 @@
 +     ret arg0
   }
   
-  fn @overwritten_field(arg0: u256, arg1: u256) -> u256 {
+  fn @overwritten_field(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = insert_value struct0, undef struct0, 0, arg0
       v1 = insert_value struct0, v0, 0, arg1
@@ -124,7 +124,7 @@
 +     ret arg1
   }
   
-  fn @nested_projection(arg0: u256) -> u256 {
+  fn @nested_projection(arg0: i256) -> i256 {
     bb0:
       v0 = insert_value struct0, undef struct0, 1, arg0
       v1 = insert_value struct1, undef struct1, 0, v0
@@ -134,22 +134,25 @@
 +     ret arg0
   }
   
-  fn @unknown_field(arg0: struct0, arg1: u256) -> u256 {
+  fn @unknown_field(arg0: struct0, arg1: i256) -> i256 {
     bb0:
       v0 = insert_value struct0, arg0, 0, arg1
       v1 = extract_value struct0, v0, 1
       ret v1
   }
   
-  fn @raw_word_carrier(arg0: memorystruct) -> u256 {
+  fn @raw_word_carrier(arg0: memorystruct) -> i256 {
     bb0:
-      v0 = insert_value struct0, undef struct0, 0, arg0
-      v1 = extract_value struct0, v0, 0
-      v2 = memory_object_len memorybytes, v1
-      ret v2
+      v0 = ptrtoint memorystruct arg0 to i256
+      v1 = insert_value struct0, undef struct0, 0, v0
+-     v2 = extract_value struct0, v1, 0
+-     v3 = inttoptr i256 v2 to memorybytes
++     v3 = bitcast memorystruct arg0 to memorybytes
+      v4 = memory_object_len memorybytes, v3
+      ret v4
   }
   
-  fn @unreachable_insertion_cycle(arg0: u256) -> u256 {
+  fn @unreachable_insertion_cycle(arg0: i256) -> i256 {
     bb0:
       ret arg0
     bb1:
@@ -159,7 +162,7 @@
       ret v2
   }
   
-  fn @cancel_offsets(arg0: u256, arg1: u256) -> struct3 [return_abi=[u256, u256, u256, u256]] {
+  fn @cancel_offsets(arg0: i256, arg1: i256) -> struct3 [return_abi=[i256, i256, i256, i256]] {
     bb0:
       v0 = sub arg1, arg0
 -     v1 = add arg0, v0
@@ -171,7 +174,7 @@
 +     ret arg1, arg1, arg1, arg0
   }
   
-  fn @different_offsets(arg0: u256, arg1: u256, arg2: u256) -> struct0 [return_abi=[u256, u256]] {
+  fn @different_offsets(arg0: i256, arg1: i256, arg2: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = sub arg1, arg0
       v1 = add arg2, v0
@@ -180,7 +183,7 @@
       ret v1, v3
   }
   
-  fn @masked_left_shift(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
+  fn @masked_left_shift(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = shl 32, arg0
       v1 = or v0, 0x12345678
@@ -191,7 +194,7 @@
 +     ret 0x12345678, 120
   }
   
-  fn @masked_right_shift(arg0: u256) -> u256 {
+  fn @masked_right_shift(arg0: i256) -> i256 {
     bb0:
       v0 = shr 8, arg0
       v1 = or v0, 0x1200000000000000000000000000000000000000000000000000000000000001
@@ -200,7 +203,7 @@
 +     ret 0x1200000000000000000000000000000000000000000000000000000000000000
   }
   
-  fn @masked_constant_covers_bits(arg0: u256) -> u256 {
+  fn @masked_constant_covers_bits(arg0: i256) -> i256 {
     bb0:
 -     v0 = shl 1, arg0
 +     v0 = add arg0, arg0
@@ -210,7 +213,7 @@
 +     ret 2
   }
   
-  fn @masked_shift_boundaries(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
+  fn @masked_shift_boundaries(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = shl 255, arg0
       v1 = or v0, 7
@@ -225,7 +228,7 @@
 +     ret 7, 9, 11
   }
   
-  fn @masked_unknown_bits(arg0: u256, arg1: u256) -> struct4 [return_abi=[u256, u256, u256, u256, u256]] {
+  fn @masked_unknown_bits(arg0: i256, arg1: i256) -> struct4 [return_abi=[i256, i256, i256, i256, i256]] {
     bb0:
       v0 = shl 31, arg0
       v1 = or v0, 7
@@ -246,39 +249,41 @@
       ret v2, v5, v8, v11, v14
   }
   
-  fn @unshift_address() -> struct0 [return_abi=[u256, u256]] {
+  fn @unshift_address() -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = address
-      v1 = shl 32, v0
-      v2 = or v1, 0x12345678
--     v3 = shr 32, v2
-      v4 = shl 96, v0
-      v5 = or 7, v4
--     v6 = shr 96, v5
--     ret v3, v6
-+     ret v0, v0
+      v1 = zext i160 v0 to i256
+      v2 = shl 32, v1
+      v3 = or v2, 0x12345678
+-     v4 = shr 32, v3
+      v5 = shl 96, v1
+      v6 = or 7, v5
+-     v7 = shr 96, v6
+-     ret v4, v7
++     ret v1, v1
   }
   
-  fn @keep_lossy_address_shifts(arg0: u256) -> struct3 [return_abi=[u256, u256, u256, u256]] {
+  fn @keep_lossy_address_shifts(arg0: i256) -> struct3 [return_abi=[i256, i256, i256, i256]] {
     bb0:
       v0 = address
-      v1 = shl 97, v0
-      v2 = or v1, 7
-      v3 = shr 97, v2
-      v4 = shl 32, arg0
-      v5 = or v4, 7
-      v6 = shr 32, v5
-      v7 = shl 32, v0
-      v8 = or v7, 0x100000000
-      v9 = shr 32, v8
--     v10 = shl 32, v0
--     v11 = or v10, 7
-+     v11 = or v7, 7
-      v12 = shr 31, v11
-      ret v3, v6, v9, v12
+      v1 = zext i160 v0 to i256
+      v2 = shl 97, v1
+      v3 = or v2, 7
+      v4 = shr 97, v3
+      v5 = shl 32, arg0
+      v6 = or v5, 7
+      v7 = shr 32, v6
+      v8 = shl 32, v1
+      v9 = or v8, 0x100000000
+      v10 = shr 32, v9
+-     v11 = shl 32, v1
+-     v12 = or v11, 7
++     v12 = or v8, 7
+      v13 = shr 31, v12
+      ret v4, v7, v10, v13
   }
   
-  fn @subtract_common_base(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
+  fn @subtract_common_base(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = add arg0, 68
 -     v1 = add 36, arg0
@@ -292,7 +297,7 @@
 +     ret 32, 2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
   }
   
-  fn @keep_distinct_bases(arg0: u256, arg1: u256) -> u256 {
+  fn @keep_distinct_bases(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = add arg0, 68
       v1 = add arg1, 36
@@ -300,7 +305,7 @@
       ret v2
   }
   
-  fn @nested_shifts(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
+  fn @nested_shifts(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = shl 3, arg0
 -     v1 = shl 5, v0
@@ -314,7 +319,7 @@
       ret v1, v3, v5
   }
   
-  fn @nested_shift_limits(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
+  fn @nested_shift_limits(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = shl 128, arg0
 -     v1 = shl 128, v0
@@ -327,7 +332,7 @@
 +     ret 0, 0, v5
   }
   
-  fn @mixed_and_variable_shifts(arg0: u256, arg1: u256) -> struct2 [return_abi=[u256, u256, u256]] {
+  fn @mixed_and_variable_shifts(arg0: i256, arg1: i256) -> struct2 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = shl 3, arg0
       v1 = shr 5, v0

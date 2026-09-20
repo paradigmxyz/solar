@@ -1,18 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/storage_struct_array.sol:StorageStructArray ===
 @module StorageStructArray
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
-fn @setS(arg0: u256, arg1: u256, arg2: u256) [selector=0x200618df, abi_params=[u256, u256, u256], abi_returns=[]] {
+fn @setS(arg0: i256, arg1: i256, arg2: i256) [selector=0x200618df, abi_params=[u256, u256, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = lt arg0, 3
-    v1 = iszero v0
+    v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = mul arg0, 2
     v3 = add 0, v2
     sstore v3, arg1 !metadata(storage=symbolic(v2))
     v4 = lt arg0, 3
-    v5 = iszero v4
+    v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = mul arg0, 2
     v7 = add 0, v6
@@ -21,16 +21,16 @@ fn @setS(arg0: u256, arg1: u256, arg2: u256) [selector=0x200618df, abi_params=[u
     ret
 }
 
-fn @getS(arg0: u256) -> struct0 [selector=0xd40d7b60, view, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @getS(arg0: i256) -> struct0 [selector=0xd40d7b60, view, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = lt arg0, 3
-    v1 = iszero v0
+    v1 = eq v0, false
     icall panic_if<0x32>, v1
     v2 = mul arg0, 2
     v3 = add 0, v2
     v4 = sload v3 !metadata(storage=symbolic(v2))
     v5 = lt arg0, 3
-    v6 = iszero v5
+    v6 = eq v5, false
     icall panic_if<0x32>, v6
     v7 = mul arg0, 2
     v8 = add 0, v7

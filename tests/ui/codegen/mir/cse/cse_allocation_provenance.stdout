@@ -1,78 +1,86 @@
 - // === ROOT/tests/ui/codegen/mir/cse/cse_allocation_provenance.mir (before cse) ===
 + // === ROOT/tests/ui/codegen/mir/cse/cse_allocation_provenance.mir (after cse) ===
   @module CseAllocationProvenance
-  fn @fresh(arg0: u256, arg1: u256) -> u256 {
+  fn @fresh(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, arg0
--     v2 = mload v0
-      mstore v1, arg1
--     v3 = mload v0
--     v4 = add v2, v3
-+     v4 = add arg0, arg0
-      ret v4
-  }
-  
-  fn @reset(arg0: u256, arg1: u256) -> u256 {
-    bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, arg0
--     v1 = mload v0
-      set_fmp v0
+      v1 = ptrtoint memptr v0 to i256
       v2 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v2, arg1
-      v3 = mload v0
--     v4 = add v1, v3
-+     v4 = add arg0, v3
-      ret v4
+      v3 = ptrtoint memptr v2 to i256
+      mstore v1, arg0
+-     v4 = mload v1
+      mstore v3, arg1
+-     v5 = mload v1
+-     v6 = add v4, v5
++     v6 = add arg0, arg0
+      ret v6
   }
   
-  fn @unbounded_heap_copy_keeps_reserved_load(arg0: u256) -> u256 {
+  fn @reset(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = mload 96
-      mcopy v0, 0, arg0
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, arg0
+-     v2 = mload v1
+      set_fmp v0
+      v3 = alloc raw, exact, uninitialized, infallible, 32
+      v4 = ptrtoint memptr v3 to i256
+      mstore v4, arg1
+      v5 = mload v1
+-     v6 = add v2, v5
++     v6 = add arg0, v5
+      ret v6
+  }
+  
+  fn @unbounded_heap_copy_keeps_reserved_load(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = ptrtoint memptr v0 to i256
       v2 = mload 96
-      v3 = add v1, v2
-      ret v3
-  }
-  
-  fn @unbounded_heap_copy_can_reach_other_allocation(arg0: u256) -> u256 {
-    bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = alloc raw, exact, uninitialized, infallible, 32
-      v2 = mload v1
-      mcopy v0, 0, arg0
-      v3 = mload v1
+      mcopy v1, 0, arg0
+      v3 = mload 96
       v4 = add v2, v3
       ret v4
   }
   
-  fn @loop_allocation_after_fmp_reset(arg0: bool) -> u256 {
+  fn @unbounded_heap_copy_can_reach_other_allocation(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = ptrtoint memptr v0 to i256
+      v2 = alloc raw, exact, uninitialized, infallible, 32
+      v3 = ptrtoint memptr v2 to i256
+      v4 = mload v3
+      mcopy v1, 0, arg0
+      v5 = mload v3
+      v6 = add v4, v5
+      ret v6
+  }
+  
+  fn @loop_allocation_after_fmp_reset(arg0: i1) -> i256 {
     bb0:
       jump bb1
     bb1:
-      set_fmp 0
-      v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = mload 96
-      mcopy v0, 128, 128
-      v2 = mload 96
-      v3 = add v1, v2
+      v0 = inttoptr i256 0 to memptr
+      set_fmp v0
+      v1 = alloc raw, exact, uninitialized, infallible, 32
+      v2 = ptrtoint memptr v1 to i256
+      v3 = mload 96
+      mcopy v2, 128, 128
+      v4 = mload 96
+      v5 = add v3, v4
       jumpi arg0, bb1, bb2
     bb2:
-      ret v3
+      ret v5
   }
   
-  fn @argument_header(arg0: memorybytes) -> u256 {
+  fn @argument_header(arg0: memorybytes) -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = memory_object_len memorybytes, arg0
       set_memory_object_len memorybytes, v0, 32
       memory_object_store_byte memorybytes, v0, 0, 7
--     v2 = memory_object_len memorybytes, arg0
--     v3 = add v1, v2
-+     v3 = add v1, v1
+      v2 = memory_object_len memorybytes, arg0
+      v3 = add v1, v2
       ret v3
   }
   

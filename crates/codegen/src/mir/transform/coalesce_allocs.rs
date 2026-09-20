@@ -44,8 +44,9 @@ impl MirPass for CoalesceAllocs {
     ) -> bool {
         let mut changed = false;
         for func in module.functions.iter_mut() {
-            if !func.blocks.is_empty() {
-                changed |= coalesce_function(func);
+            if !func.blocks.is_empty() && coalesce_function(func) {
+                super::lower_memory_objects::normalize_pointer_operands(func);
+                changed = true;
             }
         }
         changed
@@ -195,8 +196,7 @@ fn flush_group(func: &mut Function, block: BlockId, group: &mut Vec<Member>) -> 
         members.iter().any(|member| func.inst(member.inst).metadata.preserves_fmp());
 
     let base = members[0].result;
-    let appended_start = func.blocks[block].instructions.len();
-    let (total_size, offsets) = {
+    let (total_size, offsets, zero_insts) = {
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         let total_size = builder.imm(total);
@@ -206,16 +206,21 @@ fn flush_group(func: &mut Function, block: BlockId, group: &mut Vec<Member>) -> 
             offsets.push(builder.imm(offset));
             offset += member.size;
         }
+        let mut zero_insts = Vec::new();
         if zeroed {
-            // memory_zero member, size
             for member in &members {
+                let start = builder.func().blocks[block].instructions.len();
+                let metadata = builder.func().inst(member.inst).metadata.clone();
+                builder.set_debug_context(&metadata);
+                // word = ptrtoint member to i256
+                // memory_zero word, size
                 let size = builder.imm(member.size);
                 builder.memory_zero(member.result, size);
+                zero_insts.push(builder.func_mut().blocks[block].instructions.split_off(start));
             }
         }
-        (total_size, offsets)
+        (total_size, offsets, zero_insts)
     };
-    let zero_insts = func.blocks[block].instructions.split_off(appended_start);
 
     // Member sizes are already component-aligned, so the fused reservation is
     // exact and the final frontier matches the member-by-member bumps.
@@ -244,14 +249,15 @@ fn flush_group(func: &mut Function, block: BlockId, group: &mut Vec<Member>) -> 
         instruction.metadata.set_memory_region(None);
     }
     // member = alloc/add ...
-    // memory_zero member, size
-    for (member, zero_inst) in members.iter().zip(zero_insts) {
+    // word = ptrtoint member to i256
+    // memory_zero word, size
+    for (member, zero_insts) in members.iter().zip(zero_insts) {
         let position = func.blocks[block]
             .instructions
             .iter()
             .position(|&inst| inst == member.inst)
             .expect("coalesced allocation disappeared from its block");
-        func.blocks[block].instructions.insert(position + 1, zero_inst);
+        func.blocks[block].instructions.splice(position + 1..position + 1, zero_insts);
     }
     true
 }

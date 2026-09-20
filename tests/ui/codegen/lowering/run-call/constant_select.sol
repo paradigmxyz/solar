@@ -65,10 +65,11 @@ contract ConstantSelect {
     // SIZE-NEXT: push 4
     // SIZE-NEXT: calldataload
     // SIZE-NEXT: iszero
-    // SIZE-NEXT: push 0xe2179b8e
+    // SIZE-NEXT: iszero
+    // SIZE-NEXT: push 0x26121ff0
     // SIZE-NEXT: push 224
     // SIZE-NEXT: shl
-    // SIZE-NEXT: push 0x26121ff0
+    // SIZE-NEXT: push 0xe2179b8e
     // EVM: push 0xbc057b9e
     // EVM-NEXT: push 224
     // EVM-NEXT: shl

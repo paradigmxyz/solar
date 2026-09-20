@@ -129,7 +129,7 @@ fn returning_guard(func: &Function) -> Option<Guard> {
         let instruction = func.inst(inst);
         if !matches!(
             instruction.kind,
-            InstKind::Eq(..) | InstKind::Lt(..) | InstKind::Gt(..) | InstKind::IsZero(..)
+            InstKind::Eq(..) | InstKind::Lt(..) | InstKind::Gt(..) | InstKind::Ne(..)
         ) || instruction.metadata.effect().is_some_and(|effect| effect != EffectKind::Pure)
             || !instruction.operands().into_iter().all(|value| guard_operand(func, value, &defined))
         {

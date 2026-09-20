@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion.mir (before storage-promotion) ===
 + // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion.mir (after storage-promotion) ===
   @module StoragePromotion
-  fn @promote_recomputed_offset_slot(arg0: u256) [selector=0x01020304] {
+  fn @promote_recomputed_offset_slot(arg0: i256) [selector=0x01020304] {
     bb0:
       v0 = add arg0, 1
 -     sstore v0, 1
@@ -26,7 +26,7 @@
       jump bb1
   }
   
-  fn @reject_loop_variant_offset_slot(arg0: u256) [selector=0x01020304] {
+  fn @reject_loop_variant_offset_slot(arg0: i256) [selector=0x01020304] {
     bb0:
       jump bb1
     bb1:
@@ -47,23 +47,24 @@
   
   fn @promote_store_only_without_initial_load() [selector=0x01020304] {
     bb0:
-+     mstore 160, false
++     mstore 160, 0
       jump bb1
     bb1:
       jumpi true, bb2, bb4
     bb4:
 +     v0 = mload 160
-+     jumpi v0, bb6, bb5
++     v1 = ne v0, 0
++     jumpi v1, bb6, bb5
 +   bb6:
-+     v1 = mload 128
-+     sstore 0, v1
++     v2 = mload 128
++     sstore 0, v2
 +     jump bb5
 +   bb5:
       stop
     bb2:
 -     sstore 0, 7
 +     mstore 128, 7
-+     mstore 160, true
++     mstore 160, 1
       jump bb3
     bb3:
       jump bb1
@@ -100,20 +101,21 @@
       jump bb1
   }
   
-  fn @promote_without_init_rewrites_successor_phi() -> u256 [selector=0x01020304] {
+  fn @promote_without_init_rewrites_successor_phi() -> i256 [selector=0x01020304] {
     bb0:
 +     v3 = sload 0
 +     mstore 128, v3
-+     mstore 160, false
++     mstore 160, 0
       jump bb1
     bb1:
       jumpi true, bb2, bb4
     bb4:
 +     v4 = mload 160
-+     jumpi v4, bb8, bb7
++     v5 = ne v4, 0
++     jumpi v5, bb8, bb7
 +   bb8:
-+     v5 = mload 128
-+     sstore 0, v5
++     v6 = mload 128
++     sstore 0, v6
 +     jump bb7
 +   bb7:
       jump bb5
@@ -127,7 +129,7 @@
       v1 = add v0, 2
 -     sstore 0, v1
 +     mstore 128, v1
-+     mstore 160, true
++     mstore 160, 1
       jump bb3
     bb3:
       jump bb1
@@ -135,7 +137,7 @@
       jump bb5
   }
   
-  fn @reject_memory_size_observers(arg0: bool) -> u256 [selector=0x01020304] {
+  fn @reject_memory_size_observers(arg0: i1) -> i256 [selector=0x01020304] {
     bb0:
       v0 = msize
       sstore 0, 1
@@ -151,7 +153,7 @@
       jump bb1
   }
   
-  fn @reject_callee_memory_size_observers(arg0: bool) -> u256 [selector=0x01020304] {
+  fn @reject_callee_memory_size_observers(arg0: i1) -> i256 [selector=0x01020304] {
     bb0:
       v0 = icall @observe_memory_size
       sstore 0, 1
@@ -169,7 +171,7 @@
       jump bb1
   }
   
-  fn @observe_memory_size() -> u256 {
+  fn @observe_memory_size() -> i256 {
     bb0:
       v0 = msize
       ret v0

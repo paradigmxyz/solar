@@ -1,16 +1,16 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_uint_bytes.sol:AbiEncodeCallUintBytes ===
 @module AbiEncodeCallUintBytes
-fn @g(arg0: bytes2, arg1: bytes2, arg2: bytes2) [selector=0x6dddb956, pure, abi_params=[bytes2, bytes2, bytes2], abi_returns=[]] {
+fn @g(arg0: i256, arg1: i256, arg2: i256) [selector=0x6dddb956, pure, abi_params=[bytes2, bytes2, bytes2], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @h(arg0: u16, arg1: u16) [selector=0x2a62baf5, pure, abi_params=[u16, u16], abi_returns=[]] {
+fn @h(arg0: i256, arg1: i256) [selector=0x2a62baf5, pure, abi_params=[u16, u16], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @f() -> memorybytes [selector=0x26121ff0, view, abi_params=[], abi_returns=[memory_bytes]] {
+fn @f() -> memorybytes [selector=0x26121ff0, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = and 0x1234000000000000000000000000000000000000000000000000000000000000, 0xffff000000000000000000000000000000000000000000000000000000000000
     v1 = and 0x6162000000000000000000000000000000000000000000000000000000000000, 0xffff000000000000000000000000000000000000000000000000000000000000
@@ -20,7 +20,7 @@ fn @f() -> memorybytes [selector=0x26121ff0, view, abi_params=[], abi_returns=[m
     ret v4
 }
 
-fn @f2() -> memorybytes [selector=0x9942ec6f, view, abi_params=[], abi_returns=[memory_bytes]] {
+fn @f2() -> memorybytes [selector=0x9942ec6f, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = shl 240, 0x1234
     v1 = and 0x1234, 0xffff

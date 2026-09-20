@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_cross_block.mir (before memory-dse) ===
 + // === ROOT/tests/ui/codegen/mir/memory-dse/memory_dse_cross_block.mir (after memory-dse) ===
   @module MemoryDseCrossBlock
-  fn @remove_store_overwritten_on_unique_edge() -> u256 {
+  fn @remove_store_overwritten_on_unique_edge() -> i256 {
     bb0:
 -     mstore 128, 1
       jump bb1
@@ -12,7 +12,7 @@
 +     ret 2
   }
   
-  fn @keep_store_read_before_successor_overwrite() -> u256 {
+  fn @keep_store_read_before_successor_overwrite() -> i256 {
     bb0:
       mstore 128, 1
       jump bb1
@@ -22,7 +22,7 @@
       ret v0
   }
   
-  fn @keep_store_into_multi_pred_successor(arg0: bool) -> u256 {
+  fn @keep_store_into_multi_pred_successor(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:

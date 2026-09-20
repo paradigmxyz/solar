@@ -1,42 +1,46 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_array_subslice.sol:CalldataArraySubsliceRuntime ===
 @module CalldataArraySubsliceRuntime
-fn @word(arg0: calldataslice) -> memoryarray [selector=0x37948b05, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>]] {
+fn @word(arg0: calldataslice) -> memoryarray [selector=0x37948b05, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt v1, v1
     v3 = lt v1, 1
     v4 = or v2, v3
-    icall revert_if<empty>, v4
-    v5 = sub v1, 1
-    v6 = add v0, 32
-    v7 = make_calldata_slice v6, v5
-    v8 = slice_len v7
-    v9 = slice_ptr v7
-    v10 = mul v8, 32
-    v11 = iszero 32
-    v12 = div v10, 32
-    v13 = eq v12, v8
-    v14 = or v11, v13
-    v15 = iszero v14
-    icall panic_if<0x41>, v15
-    v16 = calldatasize
-    v17 = sub v16, v9
-    v18 = slt v17, v10
-    icall revert_if<calldata_tail_too_short>, v18
-    v19 = mul v8, 32
-    v20 = iszero 32
-    v21 = div v19, 32
-    v22 = eq v21, v8
-    v23 = or v20, v22
-    v24 = iszero v23
-    icall panic_if<0x41>, v24
-    v25 = add 32, v19
-    v26 = lt v25, 32
-    icall panic_if<0x41>, v26
-    v27 = alloc memoryarray<1>, exact, uninitialized, infallible, v25
-    set_memory_object_len memoryarray, v27, v8
-    v28 = make_calldata_slice v9, v19
-    memory_object_copy_from_slice memoryarray, v27, v28
-    ret v27
+    v5 = zext i1 v4 to i256
+    v6 = ne v5, 0
+    icall revert_if<empty>, v6
+    v7 = sub v1, 1
+    v8 = add v0, 32
+    v9 = make_calldata_slice v8, v7
+    v10 = slice_len v9
+    v11 = slice_ptr v9
+    v12 = mul v10, 32
+    v13 = eq 32, 0
+    v14 = div v12, 32
+    v15 = eq v14, v10
+    v16 = or v13, v15
+    v17 = zext i1 v16 to i256
+    v18 = eq v17, 0
+    icall panic_if<0x41>, v18
+    v19 = calldatasize
+    v20 = sub v19, v11
+    v21 = slt v20, v12
+    icall revert_if<calldata_tail_too_short>, v21
+    v22 = mul v10, 32
+    v23 = eq 32, 0
+    v24 = div v22, 32
+    v25 = eq v24, v10
+    v26 = or v23, v25
+    v27 = zext i1 v26 to i256
+    v28 = eq v27, 0
+    icall panic_if<0x41>, v28
+    v29 = add 32, v22
+    v30 = lt v29, 32
+    icall panic_if<0x41>, v30
+    v31 = alloc memoryarray<1>, exact, uninitialized, infallible, v29
+    set_memory_object_len memoryarray, v31, v10
+    v32 = make_calldata_slice v11, v22
+    memory_object_copy_from_slice memoryarray, v31, v32
+    ret v31
 }

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/readonly-eval/literal_calls.sol:LiteralCalls ===
 @module LiteralCalls
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
 immutables:
   answer: u256
@@ -13,17 +13,19 @@ fn @constructor() [constructor] {
     v1 = and 95, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 32
-    v3 = add v2, 32
-    mstore v3, 41
-    v4 = icall @readWord, v2
-    v5 = checked_add u256, v4, 1
-    storeimmutable answer, v5
-    v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v6, 1
-    v7 = memory_object_data memorybytes, v6
-    mstore v7, 0x3100000000000000000000000000000000000000000000000000000000000000
-    v8 = icall @toShort, v6
-    storeimmutable shortWord, v8
+    v3 = ptrtoint memorybytes v2 to i256
+    v4 = add v3, 32
+    mstore v4, 41
+    v5 = icall @readWord, v2
+    v6 = checked_add u256, v5, 1
+    storeimmutable answer, v6
+    v7 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v7, 1
+    v8 = memory_object_data memorybytes, v7
+    v9 = ptrtoint memptr v8 to i256
+    mstore v9, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v10 = icall @toShort, v7
+    storeimmutable shortWord, v10
     ret
 }
 
@@ -36,47 +38,50 @@ fn @words() -> struct0 [selector=0xf2c31bd9, view, abi_params=[], abi_returns=[w
     ret v3
 }
 
-fn @dynamicWord(arg0: u256) -> u256 [selector=0x0c872375, pure, abi_params=[u256], abi_returns=[word]] {
+fn @dynamicWord(arg0: i256) -> i256 [selector=0x0c872375, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 32
-    v3 = add v2, 32
-    mstore v3, arg0
-    v4 = icall @readWord, v2
-    ret v4
+    v3 = ptrtoint memorybytes v2 to i256
+    v4 = add v3, 32
+    mstore v4, arg0
+    v5 = icall @readWord, v2
+    ret v5
 }
 
-fn @sideEffects(arg0: bool) -> struct0 [selector=0x4335d2b9, abi_params=[bool], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @sideEffects(arg0: i256) -> struct0 [selector=0x4335d2b9, abi_params=[bool], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 32
-    v3 = add v2, 32
-    mstore v3, 42
-    v4 = icall @choose, v2, arg0
-    v5 = sload 0 !metadata(storage=slot(0))
-    v6 = insert_value struct0, undef struct0, 0, v4
-    v7 = insert_value struct0, v6, 1, v5
-    ret v7
+    v3 = ptrtoint memorybytes v2 to i256
+    v4 = add v3, 32
+    mstore v4, 42
+    v5 = icall @choose, v2, arg0
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = insert_value struct0, undef struct0, 0, v5
+    v8 = insert_value struct0, v7, 1, v6
+    ret v8
 }
 
-fn @modified(arg0: u256) -> u256 [selector=0xd492dffb, pure, abi_params=[u256], abi_returns=[word]] {
+fn @modified(arg0: i256) -> i256 [selector=0xd492dffb, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = not 31
     v1 = and 95, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 32
-    v3 = add v2, 32
-    mstore v3, 42
+    v3 = ptrtoint memorybytes v2 to i256
+    v4 = add v3, 32
+    mstore v4, 42
     icall @overwrite, v2, arg0
-    v4 = icall @readWord, v2
-    ret v4
+    v5 = icall @readWord, v2
+    ret v5
 }
 
-fn @fails() -> u256 [selector=0xce869a64, pure, abi_params=[], abi_returns=[word]] {
+fn @fails() -> i256 [selector=0xce869a64, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 0
@@ -85,54 +90,60 @@ fn @fails() -> u256 [selector=0xce869a64, pure, abi_params=[], abi_returns=[word
     ret v2
 }
 
-fn @readWord(arg0: memorybytes) -> u256 [pure] {
+fn @readWord(arg0: memorybytes) -> i256 [pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = eq v0, 32
-    v2 = iszero v1
+    v2 = eq v1, false
     icall revert_if<empty>, v2
-    v3 = add arg0, 32
-    v4 = mload v3
-    ret v4
+    v3 = ptrtoint memorybytes arg0 to i256
+    v4 = add v3, 32
+    v5 = mload v4
+    ret v5
 }
 
-fn @toShort(arg0: memorybytes) -> bytes32 [pure] {
+fn @toShort(arg0: memorybytes) -> i256 [pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = lt v0, 32
-    v2 = iszero v1
+    v2 = eq v1, false
     icall revert_if<empty>, v2
     v3 = not 0
-    v4 = mload arg0
-    v5 = sub 32, v4
-    v6 = mul v5, 8
-    v7 = shl v6, v3
-    v8 = mload arg0
-    v9 = add arg0, 32
+    v4 = ptrtoint memorybytes arg0 to i256
+    v5 = mload v4
+    v6 = sub 32, v5
+    v7 = mul v6, 8
+    v8 = shl v7, v3
+    v9 = ptrtoint memorybytes arg0 to i256
     v10 = mload v9
-    v11 = and v10, v7
-    v12 = or v11, v8
-    ret v12
+    v11 = ptrtoint memorybytes arg0 to i256
+    v12 = add v11, 32
+    v13 = mload v12
+    v14 = and v13, v8
+    v15 = or v14, v10
+    ret v15
 }
 
-fn @choose(arg0: memorybytes, arg1: bool) -> u256 {
+fn @choose(arg0: memorybytes, arg1: i256) -> i256 {
   bb0:
-    jumpi arg1, bb1, bb2
+    v0 = ne arg1, 0
+    jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v1 = sload 0 !metadata(storage=slot(0))
-    v2 = checked_add u256, v1, 1
-    sstore 0, v2 !metadata(storage=slot(0))
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = checked_add u256, v2, 1
+    sstore 0, v3 !metadata(storage=slot(0))
     ret 7
   bb1:
-    v0 = icall @readWord, arg0
-    ret v0
+    v1 = icall @readWord, arg0
+    ret v1
 }
 
-fn @overwrite(arg0: memorybytes, arg1: u256) [pure] {
+fn @overwrite(arg0: memorybytes, arg1: i256) [pure] {
   bb0:
-    v0 = add arg0, 32
-    mstore v0, arg1
+    v0 = ptrtoint memorybytes arg0 to i256
+    v1 = add v0, 32
+    mstore v1, arg1
     ret
 }

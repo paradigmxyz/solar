@@ -1,40 +1,44 @@
 // === ROOT/tests/ui/codegen/mir/specialize/shared_runtime.sol:SharedConstants ===
 @module SharedConstants
-fn @first(arg0: u256) -> u256 [selector=0x0b3f62f5, pure, abi_params=[u256], abi_returns=[word]] {
+fn @first(arg0: i256) -> i256 [selector=0x0b3f62f5, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = icall @helper, false, arg0
-    ret v0
+    v0 = zext i1 0 to i256
+    v1 = icall @helper, v0, arg0
+    ret v1
 }
 
-fn @second(arg0: u256) -> u256 [selector=0x7896dfe3, pure, abi_params=[u256], abi_returns=[word]] {
+fn @second(arg0: i256) -> i256 [selector=0x7896dfe3, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = icall @helper, false, arg0
-    ret v0
+    v0 = zext i1 0 to i256
+    v1 = icall @helper, v0, arg0
+    ret v1
 }
 
-fn @third(arg0: u256) -> u256 [selector=0xf1680ae6, pure, abi_params=[u256], abi_returns=[word]] {
+fn @third(arg0: i256) -> i256 [selector=0xf1680ae6, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = icall @helper, false, arg0
-    ret v0
+    v0 = zext i1 0 to i256
+    v1 = icall @helper, v0, arg0
+    ret v1
 }
 
-fn @generic(arg0: bool, arg1: u256) -> u256 [selector=0x01213f39, pure, abi_params=[bool, u256], abi_returns=[word]] {
+fn @generic(arg0: i256, arg1: i256) -> i256 [selector=0x01213f39, pure, abi_params=[bool, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @helper, arg0, arg1
     ret v0
 }
 
-fn @helper(arg0: bool, arg1: u256) -> u256 [pure] {
+fn @helper(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
-    jumpi arg0, bb1, bb2
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v3 = checked_add u256, arg1, 7
-    ret v3
+    v4 = checked_add u256, arg1, 7
+    ret v4
   bb1:
-    v0 = checked_mul u256, arg1, arg1
-    v1 = checked_mul u256, v0, arg1
+    v1 = checked_mul u256, arg1, arg1
     v2 = checked_mul u256, v1, arg1
-    ret v2
+    v3 = checked_mul u256, v2, arg1
+    ret v3
 }

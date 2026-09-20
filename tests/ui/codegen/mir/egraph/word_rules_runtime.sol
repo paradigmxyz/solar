@@ -8,7 +8,24 @@
 //@ run-call: guards 0x8000000000000000000000000000000000000000000000000000000000000001, 0 => 1, 0, 0, 0, 0
 //@ run-call: guards 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2 => 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0, 1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 
+//@ run-call: inequalities 0, 0, false => false, false, false, false, true, true
+//@ run-call: inequalities 0, 1, true => true, true, true, true, false, true
+//@ run-call: inequalities 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0, false => true, true, true, true, true, true
+
 contract WordRules {
+    function inequalities(uint256 x, uint256 y, bool flag) external pure returns (
+        bool direct, bool difference, bool bits, bool inverted, bool boolean, bool bounded
+    ) {
+        unchecked {
+            direct = x != y;
+            difference = x - y != 0;
+            bits = x ^ y != 0;
+            inverted = ~x != ~y;
+            boolean = flag != true;
+            bounded = uint256(uint8(x)) != 256;
+        }
+    }
+
     function mixed(uint256 x, uint256 y) external pure returns (
         uint256 a, uint256 b, uint256 c, uint256 d, uint256 e,
         uint256 f, uint256 g, uint256 h, uint256 i

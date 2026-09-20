@@ -8,7 +8,7 @@
       stop
   }
   
-  fn @store_observed_only_by_load() -> u256 {
+  fn @store_observed_only_by_load() -> i256 {
     bb0:
 -     mstore 128, 0
 -     v0 = mload 128
@@ -33,10 +33,11 @@
       stop
   }
   
-  fn @cross_block_dead_store(arg0: u256) {
+  fn @cross_block_dead_store(arg0: i256) {
     bb0:
 -     mstore 128, 0
-      jumpi arg0, bb1, bb2
+      v0 = ne arg0, 0
+      jumpi v0, bb1, bb2
     bb2:
       revert 0, 0
     bb1:
@@ -44,10 +45,11 @@
       returndata 128, 32
   }
   
-  fn @cross_block_read_path(arg0: u256) {
+  fn @cross_block_read_path(arg0: i256) {
     bb0:
       mstore 128, 7
-      jumpi arg0, bb1, bb2
+      v0 = ne arg0, 0
+      jumpi v0, bb1, bb2
     bb2:
       mstore 128, 9
       returndata 128, 32
@@ -55,7 +57,7 @@
       returndata 128, 32
   }
   
-  fn @return_pointer() -> u256 {
+  fn @return_pointer() -> i256 {
     bb0:
       mstore 160, 42
       ret 160
@@ -76,7 +78,7 @@
       stop
   }
   
-  fn @equivalent_base_load(arg0: u256) -> u256 {
+  fn @equivalent_base_load(arg0: i256) -> i256 {
     bb0:
       v0 = add arg0, 32
       mstore v0, 42
@@ -86,7 +88,7 @@
 +     ret 42
   }
   
-  fn @equivalent_base_overwrite(arg0: u256) {
+  fn @equivalent_base_overwrite(arg0: i256) {
     bb0:
       v0 = add arg0, 32
 -     mstore v0, 0
@@ -95,14 +97,15 @@
       stop
   }
   
-  fn @unused_frame_store() -> u256 {
+  fn @unused_frame_store() -> i256 {
     bb0:
       v0 = internal_frame_addr 192
--     mstore v0, 0
+      v1 = ptrtoint memptr v0 to i256
+-     mstore v1, 0
       ret 0
   }
   
-  fn @immutable_copy_reuse() -> u256 {
+  fn @immutable_copy_reuse() -> i256 {
     bb0:
       v0 = codesize
       v1 = sub v0, 64
@@ -128,7 +131,7 @@
       stop
   }
   
-  fn @forward_load() -> u256 {
+  fn @forward_load() -> i256 {
     bb0:
       mstore 128, 42
 -     v0 = mload 128
@@ -136,7 +139,7 @@
 +     ret 42
   }
   
-  fn @forward_through_pure_op() -> u256 {
+  fn @forward_through_pure_op() -> i256 {
     bb0:
       mstore 128, 42
       v0 = add 1, 1
@@ -145,7 +148,7 @@
 +     ret 42
   }
   
-  fn @memory_write_barrier() -> u256 {
+  fn @memory_write_barrier() -> i256 {
     bb0:
       mstore 128, 42
       mcopy 160, 128, 32
@@ -153,7 +156,7 @@
       ret v0
   }
   
-  fn @icall_barrier() -> u256 {
+  fn @icall_barrier() -> i256 {
     bb0:
       mstore 128, 42
       icall @writer
@@ -167,7 +170,7 @@
       ret
   }
   
-  fn @icall_clean_callee() -> u256 {
+  fn @icall_clean_callee() -> i256 {
     bb0:
       mstore 128, 42
       icall @callee
@@ -181,7 +184,7 @@
       ret
   }
   
-  fn @icall_msize_barrier() -> u256 {
+  fn @icall_msize_barrier() -> i256 {
     bb0:
       mstore 0x1000, 42
       v0 = icall @observe_msize
@@ -189,13 +192,13 @@
       ret v0
   }
   
-  fn @observe_msize() -> u256 {
+  fn @observe_msize() -> i256 {
     bb0:
       v0 = msize
       ret v0
   }
   
-  fn @chained_forwarding() -> u256 {
+  fn @chained_forwarding() -> i256 {
     bb0:
       mstore 128, 42
 -     v0 = mload 128

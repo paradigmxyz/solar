@@ -284,7 +284,7 @@ enum Edit {
     ConsumeStoredValue {
         depth: u8,
     },
-    DropDoubleIszero,
+    DropNonzeroTest,
     EqIszeroJumpi,
     StackOp {
         op: op::StackOp,
@@ -383,7 +383,7 @@ impl Edit {
                 overwrite_raw(&mut instructions[start], op::DUP1);
                 instructions.truncate(start + 3);
             }
-            Self::DropDoubleIszero => {
+            Self::DropNonzeroTest => {
                 instructions.drain(start..start + 2);
                 overwrite_raw(&mut instructions[start + 1], op::JUMPI);
             }

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/cse/gas_cfg.mir (before storage-load-cse) ===
 + // === ROOT/tests/ui/codegen/mir/cse/gas_cfg.mir (after storage-load-cse) ===
   @module GasCfg
-  fn @diamond(arg0: u256, arg1: bool) -> u256 {
+  fn @diamond(arg0: i256, arg1: i1) -> i256 {
     bb0:
 -     v0 = sload arg0
 +     v0 = sload arg0 !metadata(storage=symbolic(arg0))
@@ -25,7 +25,7 @@
       ret v9
   }
   
-  fn @loop_backedge(arg0: u256, arg1: bool) -> u256 {
+  fn @loop_backedge(arg0: i256, arg1: i1) -> i256 {
     bb0:
 -     v0 = sload arg0
 +     v0 = sload arg0 !metadata(storage=symbolic(arg0))
@@ -49,7 +49,7 @@
       jump bb1
   }
   
-  fn @caller(arg0: u256) -> u256 {
+  fn @caller(arg0: i256) -> i256 {
     bb0:
 -     v0 = sload arg0
 +     v0 = sload arg0 !metadata(storage=symbolic(arg0))
@@ -68,13 +68,13 @@
       ret v8
   }
   
-  fn @observe() -> u256 {
+  fn @observe() -> i256 {
     bb0:
       v0 = icall @read_gas
       ret v0
   }
   
-  fn @read_gas() -> u256 {
+  fn @read_gas() -> i256 {
     bb0:
       v0 = gas
       ret v0

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_hashing.sol:StorageBytesHashing ===
 @module StorageBytesHashing
-fn @mappingEmpty() -> bool [selector=0x20f98002, abi_params=[], abi_returns=[word<bool>]] {
+fn @mappingEmpty() -> i256 [selector=0x20f98002, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = not 31
     v1 = and 63, v0
@@ -13,10 +13,11 @@ fn @mappingEmpty() -> bool [selector=0x20f98002, abi_params=[], abi_returns=[wor
     v6 = keccak256_bytes v5
     v7 = keccak256_bytes v2
     v8 = eq v6, v7
-    ret v8
+    v9 = zext i1 v8 to i256
+    ret v9
 }
 
-fn @mappingLong(arg0: bytes32, arg1: bytes1) -> bool [selector=0xa4972bce, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
+fn @mappingLong(arg0: i256, arg1: i256) -> i256 [selector=0xa4972bce, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
@@ -27,10 +28,11 @@ fn @mappingLong(arg0: bytes32, arg1: bytes1) -> bool [selector=0xa4972bce, abi_p
     v5 = keccak256_bytes v4
     v6 = keccak256_bytes v1
     v7 = eq v5, v6
-    ret v7
+    v8 = zext i1 v7 to i256
+    ret v8
 }
 
-fn @mappingShort(arg0: bytes31) -> bool [selector=0xd17dedff, abi_params=[bytes31], abi_returns=[word<bool>]] {
+fn @mappingShort(arg0: i256) -> i256 [selector=0xd17dedff, abi_params=[bytes31], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v1 = abi_encode_packed (bytes31 v0)
@@ -41,10 +43,11 @@ fn @mappingShort(arg0: bytes31) -> bool [selector=0xd17dedff, abi_params=[bytes3
     v5 = keccak256_bytes v4
     v6 = keccak256_bytes v1
     v7 = eq v5, v6
-    ret v7
+    v8 = zext i1 v7 to i256
+    ret v8
 }
 
-fn @mappingWord(arg0: bytes32) -> bool [selector=0x95027de5, abi_params=[bytes32], abi_returns=[word<bool>]] {
+fn @mappingWord(arg0: i256) -> i256 [selector=0x95027de5, abi_params=[bytes32], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode_packed (bytes32 arg0)
     v1 = mapping_slot 2, 0
@@ -54,10 +57,11 @@ fn @mappingWord(arg0: bytes32) -> bool [selector=0x95027de5, abi_params=[bytes32
     v4 = keccak256_bytes v3
     v5 = keccak256_bytes v0
     v6 = eq v4, v5
-    ret v6
+    v7 = zext i1 v6 to i256
+    ret v7
 }
 
-fn @mappingTwoWords(arg0: bytes32, arg1: bytes32, arg2: bytes1) -> bool [selector=0xb0efa5db, abi_params=[bytes32, bytes32, bytes1], abi_returns=[word<bool>]] {
+fn @mappingTwoWords(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb0efa5db, abi_params=[bytes32, bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg2, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = abi_encode_packed (bytes32 arg0, bytes32 arg1, bytes1 v0)
@@ -68,10 +72,11 @@ fn @mappingTwoWords(arg0: bytes32, arg1: bytes32, arg2: bytes1) -> bool [selecto
     v5 = keccak256_bytes v4
     v6 = keccak256_bytes v1
     v7 = eq v5, v6
-    ret v7
+    v8 = zext i1 v7 to i256
+    ret v8
 }
 
-fn @mappingReference(arg0: bytes32, arg1: bytes1) -> bool [selector=0xe1bd71bc, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
+fn @mappingReference(arg0: i256, arg1: i256) -> i256 [selector=0xe1bd71bc, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
@@ -82,10 +87,11 @@ fn @mappingReference(arg0: bytes32, arg1: bytes1) -> bool [selector=0xe1bd71bc, 
     v5 = keccak256_bytes v4
     v6 = keccak256_bytes v1
     v7 = eq v5, v6
-    ret v7
+    v8 = zext i1 v7 to i256
+    ret v8
 }
 
-fn @nestedMapping(arg0: bytes32, arg1: bytes1) -> bool [selector=0x9670c676, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
+fn @nestedMapping(arg0: i256, arg1: i256) -> i256 [selector=0x9670c676, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
@@ -98,10 +104,11 @@ fn @nestedMapping(arg0: bytes32, arg1: bytes1) -> bool [selector=0x9670c676, abi
     v7 = keccak256_bytes v6
     v8 = keccak256_bytes v1
     v9 = eq v7, v8
-    ret v9
+    v10 = zext i1 v9 to i256
+    ret v10
 }
 
-fn @structField(arg0: bytes32, arg1: bytes1) -> bool [selector=0xc85878d4, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
+fn @structField(arg0: i256, arg1: i256) -> i256 [selector=0xc85878d4, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
@@ -110,10 +117,11 @@ fn @structField(arg0: bytes32, arg1: bytes1) -> bool [selector=0xc85878d4, abi_p
     v3 = keccak256_bytes v2
     v4 = keccak256_bytes v1
     v5 = eq v3, v4
-    ret v5
+    v6 = zext i1 v5 to i256
+    ret v6
 }
 
-fn @directValue(arg0: bytes32, arg1: bytes1) -> bool [selector=0xdb5536af, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
+fn @directValue(arg0: i256, arg1: i256) -> i256 [selector=0xdb5536af, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
@@ -122,10 +130,11 @@ fn @directValue(arg0: bytes32, arg1: bytes1) -> bool [selector=0xdb5536af, abi_p
     v3 = keccak256_bytes v2
     v4 = keccak256_bytes v1
     v5 = eq v3, v4
-    ret v5
+    v6 = zext i1 v5 to i256
+    ret v6
 }
 
-fn @internalReference(arg0: bytes32, arg1: bytes1) -> bool [selector=0xd14b1bf5, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
+fn @internalReference(arg0: i256, arg1: i256) -> i256 [selector=0xd14b1bf5, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
@@ -135,17 +144,18 @@ fn @internalReference(arg0: bytes32, arg1: bytes1) -> bool [selector=0xd14b1bf5,
     v4 = icall @hashStorageBytes, v3
     v5 = keccak256_bytes v1
     v6 = eq v4, v5
-    ret v6
+    v7 = zext i1 v6 to i256
+    ret v7
 }
 
-fn @hashStorageBytes(arg0: storageptr) -> bytes32 [pure] {
+fn @hashStorageBytes(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = icall @load_storage_bytes, arg0
     v1 = keccak256_bytes v0
     ret v1
 }
 
-fn @mappingString(arg0: bytes32, arg1: bytes1) -> bool [selector=0x4cbcb134, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
+fn @mappingString(arg0: i256, arg1: i256) -> i256 [selector=0x4cbcb134, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
@@ -156,10 +166,11 @@ fn @mappingString(arg0: bytes32, arg1: bytes1) -> bool [selector=0x4cbcb134, abi
     v5 = keccak256_bytes v4
     v6 = keccak256_bytes v1
     v7 = eq v5, v6
-    ret v7
+    v8 = zext i1 v7 to i256
+    ret v8
 }
 
-fn @mappingStringErc7201(arg0: bytes32, arg1: bytes1) -> bool [selector=0x55edb0fc, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
+fn @mappingStringErc7201(arg0: i256, arg1: i256) -> i256 [selector=0x55edb0fc, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
@@ -170,16 +181,17 @@ fn @mappingStringErc7201(arg0: bytes32, arg1: bytes1) -> bool [selector=0x55edb0
     v5 = icall erc7201<>, v4
     v6 = icall erc7201<>, v1
     v7 = eq v5, v6
-    ret v7
+    v8 = zext i1 v7 to i256
+    ret v8
 }
 
-fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
 }
 
-fn @load_storage_bytes(arg0: u256) -> memorybytes {
+fn @load_storage_bytes(arg0: i256) -> memorybytes {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0
