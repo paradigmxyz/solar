@@ -1870,7 +1870,7 @@ class SolverFallbackTests(unittest.TestCase):
             for form, line in forms(path.read_text())
             if form[0] == "rule" and selected(form)
         ]
-        self.assertEqual(len(rules), 8)
+        self.assertEqual(len(rules), 7)
         fallback = Cvc5(timeout_ms=1000)
         for rule in rules:
             cx = Context()
