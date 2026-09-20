@@ -59,7 +59,6 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     v39 = lt v38, v18
     jumpi v39, bb6, bb7
   bb7:
-    v57 = shr 3, v18
     v58 = and v18, 7
     v59 = eq v58, 0
     jumpi v59, bb9, bb8
@@ -68,11 +67,11 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     v61 = shl v60, 1
     v62 = sub v61, 1
     mstore 0, 1 !metadata(memory=scratch)
-    v79 = keccak256 0, 32 !metadata(memory=scratch)
-    v64 = add v79, v57
-    v65 = sload v64 !metadata(storage=symbolic(v64))
+    v57 = shr 3, v18
+    v64 = add v57, 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6
+    v65 = sload v64 !metadata(storage=offset(v57, 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6))
     v66 = and v65, v62
-    sstore v64, v66 !metadata(storage=symbolic(v64))
+    sstore v64, v66 !metadata(storage=offset(v57, 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6))
     jump bb9
   bb9:
     stop
@@ -82,32 +81,30 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     v41 = mload v83
     mstore 0, 1 !metadata(memory=scratch)
     v43 = shr 3, v38
-    v78 = keccak256 0, 32 !metadata(memory=scratch)
-    v44 = add v78, v43
+    v44 = add v43, 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6
     v45 = and v38, 7
     v47 = shl 5, v45
     v48 = shl v47, 0xffffffff
-    v49 = sload v44 !metadata(storage=symbolic(v44))
+    v49 = sload v44 !metadata(storage=offset(v43, 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6))
     v50 = not v48
     v51 = and v49, v50
     v52 = shr 224, v41
     v54 = shl v47, v52
     v55 = or v51, v54
-    sstore v44, v55 !metadata(storage=symbolic(v44))
+    sstore v44, v55 !metadata(storage=offset(v43, 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6))
     v56 = add v38, 1
     jump bb5
   bb4:
     mstore 0, 1 !metadata(memory=scratch)
     v24 = shr 3, v21
-    v77 = keccak256 0, 32 !metadata(memory=scratch)
-    v25 = add v77, v24
+    v25 = add v24, 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6
     v26 = and v21, 7
     v28 = shl 5, v26
     v29 = shl v28, 0xffffffff
-    v30 = sload v25 !metadata(storage=symbolic(v25))
+    v30 = sload v25 !metadata(storage=offset(v24, 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6))
     v31 = not v29
     v32 = and v30, v31
-    sstore v25, v32 !metadata(storage=symbolic(v25))
+    sstore v25, v32 !metadata(storage=offset(v24, 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6))
     v37 = add v21, 1
     v67 = lt v37, v19
     jump bb3
@@ -161,18 +158,17 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v11 = add v9, 1
     mstore 0, 2 !metadata(memory=scratch)
     v13 = add v9, v9
-    v86 = keccak256 0, 32 !metadata(memory=scratch)
-    v14 = add v86, v13
+    v14 = add v13, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace
     v15 = mload v100
-    v16 = sload v14 !metadata(storage=symbolic(v14))
+    v16 = sload v14 !metadata(storage=offset(v13, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace))
     v18 = and v16, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
     v19 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
     v20 = or v18, v19
-    sstore v14, v20 !metadata(storage=symbolic(v14))
+    sstore v14, v20 !metadata(storage=offset(v13, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace))
     v21 = add v14, 1
     v22 = mload v96
     v24 = mload v22
-    v25 = sload v21 !metadata(storage=offset(v14, 1))
+    v25 = sload v21 !metadata(storage=offset(v13, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5acf))
     v26 = gt v25, v24
     jumpi v26, bb1, bb2
   bb1:
@@ -182,7 +178,7 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v74 = phi [bb1: v26], [bb4: v73]
     jumpi v74, bb4, bb2
   bb2:
-    sstore v21, v24 !metadata(storage=offset(v14, 1))
+    sstore v21, v24 !metadata(storage=offset(v13, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5acf))
     v88 = add v22, 32
     jump bb5
   bb5:
@@ -190,11 +186,11 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v45 = lt v44, v24
     jumpi v45, bb6, bb7
   bb7:
-    v63 = shr 3, v24
     v64 = and v24, 7
     v65 = eq v64, 0
     jumpi v65, bb9, bb8
   bb8:
+    v63 = shr 3, v24
     v66 = shl 5, v64
     v67 = shl v66, 1
     v68 = sub v67, 1
@@ -259,14 +255,12 @@ fn @pop() [selector=0xa4ece52c, abi_wrapper] {
   bb2:
     v2 = sub v0, 1
     sstore 2, v2 !metadata(storage=slot(2))
-    mstore 0, 2 !metadata(memory=scratch)
     v4 = add v2, v2
-    v21 = keccak256 0, 32 !metadata(memory=scratch)
-    v5 = add v21, v4
-    sstore v5, 0 !metadata(storage=symbolic(v5))
+    v5 = add v4, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace
+    sstore v5, 0 !metadata(storage=offset(v4, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace))
     v6 = add v5, 1
-    v7 = sload v6 !metadata(storage=offset(v5, 1))
-    sstore v6, 0 !metadata(storage=offset(v5, 1))
+    v7 = sload v6 !metadata(storage=offset(v4, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5acf))
+    sstore v6, 0 !metadata(storage=offset(v4, 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5acf))
     v8 = shr 3, v7
     v9 = and v7, 7
     v11 = ne v9, 0
@@ -351,7 +345,6 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     v43 = lt v42, v22
     jumpi v43, bb6, bb7
   bb7:
-    v61 = shr 3, v22
     v62 = and v22, 7
     v63 = eq v62, 0
     jumpi v63, bb9, bb8
@@ -360,11 +353,11 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     v65 = shl v64, 1
     v66 = sub v65, 1
     mstore 0, 4 !metadata(memory=scratch)
-    v83 = keccak256 0, 32 !metadata(memory=scratch)
-    v68 = add v83, v61
-    v69 = sload v68 !metadata(storage=symbolic(v68))
+    v61 = shr 3, v22
+    v68 = add v61, 0x8a35acfbc15ff81a39ae7d344fd709f28e8600b4aa8c65c6b64bfe7fe36bd19b
+    v69 = sload v68 !metadata(storage=offset(v61, 0x8a35acfbc15ff81a39ae7d344fd709f28e8600b4aa8c65c6b64bfe7fe36bd19b))
     v70 = and v69, v66
-    sstore v68, v70 !metadata(storage=symbolic(v68))
+    sstore v68, v70 !metadata(storage=offset(v61, 0x8a35acfbc15ff81a39ae7d344fd709f28e8600b4aa8c65c6b64bfe7fe36bd19b))
     jump bb9
   bb9:
     stop
@@ -374,32 +367,30 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     v45 = mload v87
     mstore 0, 4 !metadata(memory=scratch)
     v47 = shr 3, v42
-    v82 = keccak256 0, 32 !metadata(memory=scratch)
-    v48 = add v82, v47
+    v48 = add v47, 0x8a35acfbc15ff81a39ae7d344fd709f28e8600b4aa8c65c6b64bfe7fe36bd19b
     v49 = and v42, 7
     v51 = shl 5, v49
     v52 = shl v51, 0xffffffff
-    v53 = sload v48 !metadata(storage=symbolic(v48))
+    v53 = sload v48 !metadata(storage=offset(v47, 0x8a35acfbc15ff81a39ae7d344fd709f28e8600b4aa8c65c6b64bfe7fe36bd19b))
     v54 = not v52
     v55 = and v53, v54
     v56 = shr 224, v45
     v58 = shl v51, v56
     v59 = or v55, v58
-    sstore v48, v59 !metadata(storage=symbolic(v48))
+    sstore v48, v59 !metadata(storage=offset(v47, 0x8a35acfbc15ff81a39ae7d344fd709f28e8600b4aa8c65c6b64bfe7fe36bd19b))
     v60 = add v42, 1
     jump bb5
   bb4:
     mstore 0, 4 !metadata(memory=scratch)
     v28 = shr 3, v25
-    v81 = keccak256 0, 32 !metadata(memory=scratch)
-    v29 = add v81, v28
+    v29 = add v28, 0x8a35acfbc15ff81a39ae7d344fd709f28e8600b4aa8c65c6b64bfe7fe36bd19b
     v30 = and v25, 7
     v32 = shl 5, v30
     v33 = shl v32, 0xffffffff
-    v34 = sload v29 !metadata(storage=symbolic(v29))
+    v34 = sload v29 !metadata(storage=offset(v28, 0x8a35acfbc15ff81a39ae7d344fd709f28e8600b4aa8c65c6b64bfe7fe36bd19b))
     v35 = not v33
     v36 = and v34, v35
-    sstore v29, v36 !metadata(storage=symbolic(v29))
+    sstore v29, v36 !metadata(storage=offset(v28, 0x8a35acfbc15ff81a39ae7d344fd709f28e8600b4aa8c65c6b64bfe7fe36bd19b))
     v41 = add v25, 1
     v71 = lt v41, v23
     jump bb3
