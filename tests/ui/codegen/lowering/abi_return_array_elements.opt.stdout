@@ -70,7 +70,7 @@ fn @aliasedStruct() [selector=0x8c175a3d, abi_wrapper, pure] {
     v2 = add v1, 32
     mstore v2, 257
     v4 = mload v1
-    v5 = lt 0, v4
+    v5 = gt v4, 0
     jumpi v5, bb2, bb1
   bb1:
     tail_call @revert_stub
@@ -84,7 +84,7 @@ fn @aliasedBytes() [selector=0x4a6c046c, abi_wrapper, pure] {
     v13 = icall @decode_calldata_type.9, 4
     v21 = ptrtoint memptr v13 to i256
     v1 = mload v21
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     jumpi v2, bb2, bb1
   bb1:
     tail_call @revert_stub
@@ -108,7 +108,7 @@ fn @unalignedArray() [selector=0xd621b19f, abi_wrapper, pure] {
     v3 = add v2, 33
     mstore v3, 1
     v7 = mload v2
-    v8 = lt 1, v7
+    v8 = gt v7, 1
     jumpi v8, bb2, bb1
   bb1:
     tail_call @revert_stub
@@ -131,7 +131,7 @@ fn @unalignedHelper() [selector=0x29dcbdaa, abi_wrapper, pure] {
     v3 = add v2, 33
     mstore v3, 1
     v5 = mload v2
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     jumpi v6, bb2, bb1
   bb1:
     tail_call @revert_stub
