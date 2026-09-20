@@ -525,54 +525,21 @@ impl<'a> FunctionBuilder<'a> {
         inst_id
     }
 
-    fn cast_memory_operands(&mut self, kind: &mut InstKind) {
-        let mut cast_object = |value: &mut ValueId, kind| {
-            if self.func.value_slice_location(*value).is_none() {
-                // object = inttoptr word
-                *value = self.cast(*value, MirType::MemoryObject(kind));
+    fn cast_operands(&mut self, kind: &mut InstKind) {
+        let Some(types) = kind.operand_types(self.func) else { return };
+        let mut types = types.into_iter();
+        // operand = cast operand to its declared parameter type
+        kind.visit_operands_mut(|value| {
+            if let Some(ty) = types.next() {
+                *value = self.cast(*value, ty);
             }
-        };
-        match kind {
-            InstKind::MemoryObjectLen(object, kind)
-            | InstKind::SetMemoryObjectLen(object, _, kind)
-            | InstKind::MemoryObjectData(object, kind)
-            | InstKind::MemoryObjectCopyFromSlice { object, kind, .. }
-            | InstKind::MemoryObjectCopyFromSliceAt { object, kind, .. } => {
-                cast_object(object, *kind)
-            }
-            InstKind::MemoryObjectFieldAddr { object, layout, .. }
-            | InstKind::MemoryObjectElementAddr { object, layout, .. }
-            | InstKind::MemoryObjectLoadField { object, layout, .. }
-            | InstKind::MemoryObjectStoreField { object, layout, .. }
-            | InstKind::MemoryObjectLoadElement { object, layout, .. }
-            | InstKind::MemoryObjectStoreElement { object, layout, .. } => {
-                cast_object(object, layout.kind())
-            }
-            InstKind::MemoryObjectLoadByte { object, .. }
-            | InstKind::MemoryObjectStoreByte { object, .. }
-            | InstKind::MemoryObjectStoreWord { object, .. }
-            | InstKind::AddressCall { input: object, .. }
-            | InstKind::StorageBytesStore(_, object) => {
-                cast_object(object, MemoryObjectKind::Bytes)
-            }
-            InstKind::MemoryObjectCopy {
-                destination,
-                destination_kind,
-                source,
-                source_kind,
-                ..
-            } => {
-                cast_object(destination, *destination_kind);
-                cast_object(source, *source_kind);
-            }
-            _ => {}
-        }
+        });
     }
 
     /// Emits a typed value-producing instruction with the current source and effect metadata.
     pub(crate) fn emit_inst(&mut self, mut kind: InstKind, result_ty: Option<MirType>) -> ValueId {
         debug_assert!(result_ty.is_some(), "value-producing instructions must have a result type");
-        self.cast_memory_operands(&mut kind);
+        self.cast_operands(&mut kind);
         let requested = result_ty.unwrap();
         if let InstKind::Phi(incoming) = &mut kind {
             let current = self.current_block;
@@ -595,8 +562,14 @@ impl<'a> FunctionBuilder<'a> {
                 self.func.value_ty(value) == self.func.value_ty(kind.operands()[0])
                     && matches!(self.func.value_ty(value), Some(MirType::I1 | MirType::I160))
             });
-        if (kind.evm_opcode().is_some() || matches!(kind, InstKind::Ne(..)))
-            && !boolean_bitwise
+        if matches!(
+            kind,
+            InstKind::Eq(..)
+                | InstKind::Ne(..)
+                | InstKind::And(..)
+                | InstKind::Or(..)
+                | InstKind::Xor(..)
+        ) && !boolean_bitwise
             && !typed_equality
         {
             // operand = zext integer or ptrtoint pointer to i256
@@ -622,7 +595,10 @@ impl<'a> FunctionBuilder<'a> {
         if self.func.value_ty(value) == Some(ty) {
             return value;
         }
-        let from = self.func.value_ty(value).unwrap_or(MirType::I256);
+        let Some(from) = self.func.value_ty(value) else {
+            assert!(matches!(self.func.value(value), Value::Error(_)), "cast operand has no type");
+            return value;
+        };
         let kind = match (from, ty) {
             // boolean = ne word, 0
             (_, MirType::I1) => {
@@ -640,7 +616,7 @@ impl<'a> FunctionBuilder<'a> {
             (MirType::Int(_), to) if to.is_pointer() => InstKind::IntToPtr(value),
             // pointer = bitcast pointer to destination
             (from, to) if from.is_pointer() && to.is_pointer() => InstKind::Bitcast(value),
-            _ => return value,
+            _ => panic!("cannot cast MIR value from `{from}` to `{ty}`"),
         };
         let inst = self.make_inst(kind, Some(ty));
         self.append_instruction(inst).1.unwrap()
@@ -651,21 +627,14 @@ impl<'a> FunctionBuilder<'a> {
     /// No result [`Value`] is allocated: only value-producing instructions get
     /// an entry in the function's value table.
     pub(in crate::mir) fn emit_void_inst(&mut self, mut kind: InstKind) {
-        self.cast_memory_operands(&mut kind);
-        if kind.evm_opcode().is_some() {
-            // operand = zext integer or ptrtoint pointer to i256
-            kind.visit_operands_mut(|value| *value = self.cast(*value, MirType::I256));
-        }
+        self.cast_operands(&mut kind);
         let inst = self.make_inst(kind, None);
         self.append_instruction(inst);
     }
 
     /// Emits a void memory instruction with a proven destination region.
     fn emit_void_inst_in_region(&mut self, mut kind: InstKind, region: MemoryRegion) {
-        if kind.evm_opcode().is_some() {
-            // operand = zext integer or ptrtoint pointer to i256
-            kind.visit_operands_mut(|value| *value = self.cast(*value, MirType::I256));
-        }
+        self.cast_operands(&mut kind);
         let mut inst = self.make_inst(kind, None);
         inst.metadata.set_memory_region(Some(region));
         self.append_instruction(inst);
@@ -1651,6 +1620,10 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Sets a revert terminator.
     pub(crate) fn revert(&mut self, offset: ValueId, size: ValueId) {
+        // offset = ptrtoint offset to i256
+        // size = zext size to i256
+        let offset = self.cast(offset, MirType::I256);
+        let size = self.cast(size, MirType::I256);
         self.set_terminator(Terminator::Revert { offset, size });
     }
 
@@ -1661,6 +1634,10 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Sets a return-data terminator: `RETURN(offset, size)`.
     pub(crate) fn ret_data(&mut self, offset: ValueId, size: ValueId) {
+        // offset = ptrtoint offset to i256
+        // size = zext size to i256
+        let offset = self.cast(offset, MirType::I256);
+        let size = self.cast(size, MirType::I256);
         self.set_terminator(Terminator::ReturnData { offset, size });
     }
 
@@ -1682,6 +1659,8 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Sets a selfdestruct terminator.
     pub(crate) fn selfdestruct(&mut self, recipient: ValueId) {
+        // recipient = zext recipient to i256
+        let recipient = self.cast(recipient, MirType::I256);
         self.set_terminator(Terminator::SelfDestruct { recipient });
     }
 

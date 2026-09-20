@@ -43,20 +43,21 @@ fn @observer() -> i256 [selector=0xeb70e498, abi_params=[], abi_returns=[word], 
     v2 = abi_encode [], selector 0x5cd82f400000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = staticcall v1, v0, v3, v4, 0, 32
-    jumpi v5, bb2, bb1
+    v5 = zext i160 v0 to i256
+    v6 = staticcall v1, v5, v3, v4, 0, 32
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v6 = returndatasize
-    v7 = lt v6, 32
-    icall revert_if<tuple_data_too_short>, v7
-    v8 = add 0, 0
-    v9 = mload v8
-    v10 = add 0, 0
-    v11 = mload v10
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    v11 = add 0, 0
+    v12 = mload v11
     sstore 0, 2 !metadata(storage=slot(0))
-    ret v11
+    ret v12
 }
 
 fn @readWord() -> i256 [selector=0x05cd82f4, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

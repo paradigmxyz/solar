@@ -265,6 +265,14 @@ The ISLE reader permits balance reads only at the instruction roots being
 replaced. It rejects nested balance producers, which could have executed before
 an intervening call; a shared-state assumption is not silently added for them.
 
+Classic `CALL`, `CALLCODE`, `STATICCALL`, and `DELEGATECALL` rewrites use a
+separate effect-preservation obligation. Both sides must keep the same opcode
+and every effective operand, with the address truncated to 160 bits. The checker
+compares the complete operand tuple; it never models the call result as a pure
+value. Nested calls and rewrites that remove or change the call are rejected.
+The rewrite driver keeps the instruction at its original position. Gas accounting
+and the callee's execution remain outside this proof.
+
 The compiled balance-mask rules remove `address & mask` before `BALANCE` when
 the mask preserves all low 160 bits. Their single-use and same-block guards
 restrict profitability; the proof checks returned-word equality for arbitrary

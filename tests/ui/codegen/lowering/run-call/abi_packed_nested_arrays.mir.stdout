@@ -40,14 +40,16 @@ fn @encodeFixedIndex(arg0: memoryfixedarray) -> i256 [selector=0x4e9c2229, pure,
     jumpi v5, bb1, bb2
   bb1:
     v6 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    memory_zero v6, 64
-    memory_object_store_element memoryfixedarray<2, 1>, arg0, 0, v6
+    v7 = ptrtoint memoryfixedarray v6 to i256
+    memory_zero v7, 64
+    v8 = ptrtoint memoryfixedarray v6 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, arg0, 0, v8
     jump bb2
   bb2:
-    v7 = phi [bb0: v3], [bb1: v6]
-    v8 = abi_encode_packed (array<word> memoryfixedarray<2, 1> v7)
-    v9 = keccak256_bytes v8
-    ret v9
+    v9 = phi [bb0: v3], [bb1: v6]
+    v10 = abi_encode_packed (array<word> memoryfixedarray<2, 1> v9)
+    v11 = keccak256_bytes v10
+    ret v11
 }
 
 fn @encodeDynamicIndex(arg0: memoryarray) -> i256 [selector=0x7d5331fb, pure, abi_params=[array<_, array<2, u256>>], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -63,14 +65,16 @@ fn @encodeDynamicIndex(arg0: memoryarray) -> i256 [selector=0x7d5331fb, pure, ab
     jumpi v6, bb1, bb2
   bb1:
     v7 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    memory_zero v7, 64
-    memory_object_store_element memoryarray<1>, arg0, 0, v7
+    v8 = ptrtoint memoryfixedarray v7 to i256
+    memory_zero v8, 64
+    v9 = ptrtoint memoryfixedarray v7 to i256
+    memory_object_store_element memoryarray<1>, arg0, 0, v9
     jump bb2
   bb2:
-    v8 = phi [bb0: v4], [bb1: v7]
-    v9 = abi_encode_packed (array<word> memoryfixedarray<2, 1> v8)
-    v10 = keccak256_bytes v9
-    ret v10
+    v10 = phi [bb0: v4], [bb1: v7]
+    v11 = abi_encode_packed (array<word> memoryfixedarray<2, 1> v10)
+    v12 = keccak256_bytes v11
+    ret v12
 }
 
 fn @encodeStructField(arg0: memorystruct) -> i256 [selector=0xa7ad7e04, pure, abi_params=[tuple<array<2, u256>>], abi_returns=[word], abi_return_params=[bytes32]] {

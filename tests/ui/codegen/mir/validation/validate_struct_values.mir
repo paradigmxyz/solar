@@ -2,7 +2,7 @@
 //~? ERROR: [fn0] [bb0, inst0] aggregate operand does not match its declared struct type
 //~? ERROR: [fn1] [bb0, inst0] inserted value must have type `i1`
 //~? ERROR: [fn2] [bb0] return values do not match the signature
-//~? ERROR: [fn3] [bb0, inst0] value has type `struct0`, expected `i1`; use an explicit cast
+//~? ERROR: [fn3] [bb0, inst0] `select` has incompatible scalar types; use an explicit cast
 //~? ERROR: [fn4] [bb0] branch condition must have type `i1`; compare words with zero
 //~? ERROR: [fn5] [bb0] tail-call arguments do not match the signature
 //~? ERROR: [fn6] internal return ABI does not match the function's result type
@@ -63,14 +63,14 @@ fn @invalid_object_pointer(arg0: struct0) -> memorybytes {
     ret v0
 }
 
-//~? ERROR: [fn8] [bb0, inst0] memory object has type `memorystruct`, expected `memorybytes`
+//~? ERROR: [fn8] [bb0, inst0] `memory_object_len` has incompatible scalar types; use an explicit cast
 fn @wrong_object_kind(arg0: memorystruct) -> i256 {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     ret v0
 }
 
-//~? ERROR: [fn9] [bb0, inst0] memory object has type `memorybytes`, expected `memoryfixedarray`
+//~? ERROR: [fn9] [bb0, inst0] `memory_object_element_addr` has incompatible scalar types; use an explicit cast
 fn @wrong_element_layout(arg0: memorybytes) -> i256 {
   bb0:
     v0 = memory_object_element_addr memoryfixedarray<4, 1>, arg0, 0
@@ -150,5 +150,74 @@ fn @integer_ptrtoint(arg0: i256) -> i256 {
 fn @integer_pointer_bitcast(arg0: i256) -> memptr {
   bb0:
     v0 = bitcast i256 arg0 to memptr
+    ret v0
+}
+
+//~? ERROR: [fn21] [bb0, inst0] `memory_object_load_element` has incompatible scalar types; use an explicit cast
+fn @implicit_object_index(arg0: memoryarray, arg1: i1) -> i256 {
+  bb0:
+    v0 = memory_object_load_element memoryarray<1>, arg0, arg1
+    ret v0
+}
+
+//~? ERROR: [fn22] [bb0, inst0] `memory_object_store_word` has incompatible scalar types; use an explicit cast
+fn @implicit_object_value(arg0: memorybytes, arg1: i160) {
+  bb0:
+    memory_object_store_word memorybytes, arg0, 0, arg1
+    ret
+}
+
+//~? ERROR: [fn23] [bb0, inst0] `set_fmp` has incompatible scalar types; use an explicit cast
+fn @implicit_free_memory_pointer(arg0: i256) {
+  bb0:
+    set_fmp arg0
+    ret
+}
+
+//~? ERROR: [fn24] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
+fn @implicit_check_condition(arg0: i256) {
+  bb0:
+    icall panic_if_zero<0x1>, arg0
+    ret
+}
+
+//~? ERROR: [fn25] [bb0, inst0] `abi_encode` has incompatible scalar types; use an explicit cast
+fn @implicit_abi_word(arg0: i1) -> memoryslice {
+  bb0:
+    v0 = abi_encode [word], args arg0
+    ret v0
+}
+
+//~? ERROR: [fn26] [bb0] raw return and revert operands must have type `i256`; use an explicit cast
+fn @implicit_return_pointer(arg0: memptr) {
+  bb0:
+    returndata arg0, 32
+}
+
+//~? ERROR: [fn27] [bb0, inst0] `memory_zero` has incompatible scalar types; use an explicit cast
+fn @implicit_zero_pointer(arg0: memptr) {
+  bb0:
+    memory_zero arg0, 32
+    ret
+}
+
+//~? ERROR: [fn28] [bb0, inst0] ABI input location does not support its layout
+fn @dynamic_calldata_tuple(arg0: calldataslice) -> memoryslice {
+  bb0:
+    v0 = abi_encode [tuple<calldata_bytes>], args arg0
+    ret v0
+}
+
+//~? ERROR: [fn29] [bb0, inst0] ABI input location does not support its layout
+fn @nested_calldata_array(arg0: calldataslice) -> memoryslice {
+  bb0:
+    v0 = abi_encode [calldata_array<calldata_array<word>>], args arg0
+    ret v0
+}
+
+//~? ERROR: [fn30] [bb0, inst0] `memory_object_data` has incompatible scalar types; use an explicit cast
+fn @calldata_as_memory(arg0: calldataslice) -> memptr {
+  bb0:
+    v0 = memory_object_data memorybytes, arg0
     ret v0
 }

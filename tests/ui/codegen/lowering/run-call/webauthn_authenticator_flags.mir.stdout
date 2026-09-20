@@ -47,17 +47,23 @@ fn @auth() -> memorystruct [pure] {
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 62
     v1 = memory_object_data memorybytes, v0
-    data_copy literal_0, v1, 64
-    v2 = alloc memorystruct<6>, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
-    memory_zero v2, 192
-    memory_object_store_field memorystruct<6>, v2, 0, memorybytes 96
-    memory_object_store_field memorystruct<6>, v2, 1, memorybytes 96
-    memory_object_store_field memorystruct<6>, v2, 0, v0
-    v3 = abi_encode_packed (data hex"7b252274797065223a22776562617574686e2e676574220ff9062c226368616c6c656e6765223a22466722d2df7d")
-    memory_object_store_field memorystruct<6>, v2, 1, v3
-    memory_object_store_field memorystruct<6>, v2, 2, 27
-    memory_object_store_field memorystruct<6>, v2, 3, 2
-    ret v2
+    v2 = ptrtoint memptr v1 to i256
+    data_copy literal_0, v2, 64
+    v3 = alloc memorystruct<6>, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
+    v4 = ptrtoint memorystruct v3 to i256
+    memory_zero v4, 192
+    v5 = ptrtoint memorybytes 96 to i256
+    memory_object_store_field memorystruct<6>, v3, 0, v5
+    v6 = ptrtoint memorybytes 96 to i256
+    memory_object_store_field memorystruct<6>, v3, 1, v6
+    v7 = ptrtoint memorybytes v0 to i256
+    memory_object_store_field memorystruct<6>, v3, 0, v7
+    v8 = abi_encode_packed (data hex"7b252274797065223a22776562617574686e2e676574220ff9062c226368616c6c656e6765223a22466722d2df7d")
+    v9 = ptrtoint memorybytes v8 to i256
+    memory_object_store_field memorystruct<6>, v3, 1, v9
+    memory_object_store_field memorystruct<6>, v3, 2, 27
+    memory_object_store_field memorystruct<6>, v3, 3, 2
+    ret v3
 }
 
 fn @check(arg0: i256, arg1: memorystruct) -> i256 [pure] {

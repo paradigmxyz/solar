@@ -21,11 +21,11 @@
 // CHECK: - {{.*}}mload
 // CHECK: + ret 0
 // CHECK: {{^[ +].*}}fn @return_zeroed_object{{[( ]}}
-// CHECK: {{^[ +].*}}memory_zero v0, 64
-// CHECK: {{^[ +].*}}returndata v0, 64
+// CHECK: {{^[ +].*}}memory_zero [[RETURN_PTR:v[0-9]+]], 64
+// CHECK: {{^[ +].*}}returndata [[RETURN_PTR]], 64
 // CHECK: {{^[ +].*}}fn @revert_zeroed_object{{[( ]}}
-// CHECK: {{^[ +].*}}memory_zero v0, 64
-// CHECK: {{^[ +].*}}revert v0, 64
+// CHECK: {{^[ +].*}}memory_zero [[REVERT_PTR:v[0-9]+]], 64
+// CHECK: {{^[ +].*}}revert [[REVERT_PTR]], 64
 // CHECK: {{^[ +].*}}fn @return_field{{[( ]}}
 // CHECK: {{^[ +].*}}[[FIELD:v[0-9]+]] = ptrtoint memptr {{v[0-9]+}} to i256
 // CHECK: {{^[ +].*}}mstore [[FIELD]], arg0
@@ -83,7 +83,8 @@ fn @local_struct_observe_fmp(arg0: i256, arg1: i256) -> i256 {
 fn @zeroed_array() -> i256 {
   bb0:
     v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
-    memory_zero v0, 128
+    v30 = ptrtoint memoryfixedarray v0 to i256
+    memory_zero v30, 128
     v19 = memory_object_element_addr memoryfixedarray<4, 1>, v0, 3
     v1 = ptrtoint memptr v19 to i256
     v2 = mload v1
@@ -93,15 +94,17 @@ fn @zeroed_array() -> i256 {
 fn @return_zeroed_object() {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_zero v0, 64
-    returndata v0, 64
+    v30 = ptrtoint memorystruct v0 to i256
+    memory_zero v30, 64
+    returndata v30, 64
 }
 
 fn @revert_zeroed_object() {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    memory_zero v0, 64
-    revert v0, 64
+    v30 = ptrtoint memoryfixedarray v0 to i256
+    memory_zero v30, 64
+    revert v30, 64
 }
 
 fn @return_field(arg0: i256) {
@@ -122,4 +125,36 @@ fn @revert_field_successor(arg0: i256) {
     jump bb1
   bb1:
     revert v1, 32
+}
+
+// CHECK-LABEL: fn @zeroed_through_bitcast
+// CHECK: {{^[ +].*}}ret 0
+fn @zeroed_through_bitcast() -> i256 {
+  bb0:
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v1 = bitcast memorystruct v0 to memptr
+    v2 = ptrtoint memptr v1 to i256
+    memory_zero v2, 32
+    v3 = memory_object_field_addr memorystruct<1>, v0, 0
+    v4 = ptrtoint memptr v3 to i256
+    v5 = mload v4
+    ret v5
+}
+
+// CHECK-LABEL: fn @truncated_pointer_escapes
+// CHECK: {{^[ +].*}}memory_zero
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = trunc i256
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload
+fn @truncated_pointer_escapes() -> i256 {
+  bb0:
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v1 = ptrtoint memorystruct v0 to i256
+    memory_zero v1, 32
+    v2 = trunc i256 v1 to i160
+    v3 = zext i160 v2 to i256
+    mstore v3, 7
+    v4 = memory_object_field_addr memorystruct<1>, v0, 0
+    v5 = ptrtoint memptr v4 to i256
+    v6 = mload v5
+    ret v6
 }

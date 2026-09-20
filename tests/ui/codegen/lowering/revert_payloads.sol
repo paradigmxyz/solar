@@ -10,7 +10,8 @@ contract RevertPayloads {
     }
 
     // CHECK-LABEL: fn @require_message{{[( ]}}
-    // CHECK: icall require<short_string>, arg0, 3, 0x626164{{0+}}
+    // CHECK: [[COND:v[0-9]+]] = ne arg0, 0
+    // CHECK: icall require<short_string>, [[COND]], 3, 0x626164{{0+}}
     function require_message(bool ok) public pure {
         require(ok, "bad");
     }

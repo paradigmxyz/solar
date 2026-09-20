@@ -104,6 +104,37 @@ class Rule:
         return hashlib.sha256(repr(self.form).encode()).hexdigest()
 
 
+CALL_OPERANDS = {
+    "call": (
+        "gas",
+        "addr",
+        "value",
+        "args_offset",
+        "args_size",
+        "ret_offset",
+        "ret_size",
+    ),
+    "callcode": (
+        "gas",
+        "addr",
+        "value",
+        "args_offset",
+        "args_size",
+        "ret_offset",
+        "ret_size",
+    ),
+    "staticcall": ("gas", "addr", "args_offset", "args_size", "ret_offset", "ret_size"),
+    "delegatecall": (
+        "gas",
+        "addr",
+        "args_offset",
+        "args_size",
+        "ret_offset",
+        "ret_size",
+    ),
+}
+
+
 class Context:
     def __init__(self, selection_source=None):
         self.values = {}
@@ -120,6 +151,22 @@ class Context:
         self.memory = MemoryAddresses(self)
 
     def operation(self, name, args):
+        if name.startswith("Op.") and name[3:].lower() in CALL_OPERANDS:
+            opcode = name[3:].lower()
+            declarations = [
+                form[3][1:]
+                for form, _ in forms((ISLE / "prelude.isle").read_text())
+                if form[:3] == ("type", "Op", "extern")
+            ]
+            shapes = {
+                "Op." + variant[0]: variant[1:]
+                for variants in declarations
+                for variant in variants
+            }
+            expected = tuple((field, "Value") for field in CALL_OPERANDS[opcode])
+            if shapes.get(name) != expected or len(args) != len(expected):
+                raise Unsupported(f"unmodeled or changed call operand schema: {name}")
+            return Expr(opcode, tuple(args))
         if name in MemoryAddresses.SHAPES:
             # Semantic projections have no single-opcode selector. Check their
             # schema-generated field names/types before applying the model.
@@ -432,6 +479,8 @@ class Context:
             if expr.op in ("var", "const"):
                 return
             for child in expr.args:
+                if child.op in CALL_OPERANDS:
+                    raise Unsupported("calls are only modeled at instruction roots")
                 if child.op in ("balance", "selfbalance"):
                     raise Unsupported(
                         "balance reads are only modeled at instruction roots; nested producers may observe another state"
@@ -442,6 +491,24 @@ class Context:
         # not by arbitrary earlier producers reached through operand extractors.
         validate_snapshot_root(lhs)
         validate_snapshot_root(rhs)
+        if lhs.op in CALL_OPERANDS or rhs.op in CALL_OPERANDS:
+            if lhs.op != rhs.op or len(lhs.args) != len(rhs.args):
+                raise Unsupported("a call rewrite must preserve its opcode and effect")
+            self.contracts.add(
+                "classic CALL-family: preserve the instruction and every effective operand; "
+                "only address bits above 160 are ignored. No call result is modeled as a pure value; "
+                "the rewrite driver preserves effect order. Gas accounting is outside this model"
+            )
+            difference = Expr.const(0)
+            for index, (before, after) in enumerate(
+                zip(lhs.args, rhs.args, strict=True)
+            ):
+                if index == 1:
+                    mask = Expr.const((1 << 160) - 1)
+                    before = Expr("and", (before, mask))
+                    after = Expr("and", (after, mask))
+                difference = Expr("or", (difference, Expr("xor", (before, after))))
+            return difference, Expr.const(0)
         return lhs, rhs
 
 

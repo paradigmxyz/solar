@@ -1631,6 +1631,10 @@ fn memory_object_len(
     value: ValueId,
     kind: MemoryObjectKind,
 ) -> ValueId {
+    if builder.func().value_slice_location(value).is_some() {
+        // len = slice_len value
+        return builder.slice_len(value);
+    }
     let len = builder.memory_object_len(value, kind);
     let non_null = memory_object_non_null(builder, value);
     builder.mul(len, non_null)

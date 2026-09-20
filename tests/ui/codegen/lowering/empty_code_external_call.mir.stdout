@@ -36,8 +36,9 @@ fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[], abi_return_par
     v6 = extcodesize v5
     v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
-    v8 = call v1, v0, 0, v3, v4, 0, 0
-    jumpi v8, bb2, bb1
+    v8 = zext i160 v0 to i256
+    v9 = call v1, v8, 0, v3, v4, 0, 0
+    jumpi v9, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -78,8 +79,9 @@ fn @libraryCall() [selector=0x239b86e9, abi_params=[], abi_returns=[], abi_retur
     v5 = extcodesize v4
     v6 = eq v5, 0
     icall revert_if<target_contract_has_no_code>, v6
-    v7 = delegatecall v3, i160 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
-    jumpi v7, bb2, bb1
+    v7 = zext i160 0x1111111111111111111111111111111111111111 to i256
+    v8 = delegatecall v3, v7, v1, v2, 0, 0
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -97,8 +99,9 @@ fn @tryDirect() [selector=0x45eca8af, abi_params=[], abi_returns=[], abi_return_
     v6 = extcodesize v5
     v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
-    v8 = call v1, v0, 0, v3, v4, 0, 0
-    jumpi v8, bb1, bb2
+    v8 = zext i160 v0 to i256
+    v9 = call v1, v8, 0, v3, v4, 0, 0
+    jumpi v9, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -154,8 +157,9 @@ fn @tryStatic() [selector=0x54f223e3, view, abi_params=[], abi_returns=[], abi_r
     v6 = extcodesize v5
     v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
-    v8 = staticcall v1, v0, v3, v4, 0, 0
-    jumpi v8, bb1, bb2
+    v8 = zext i160 v0 to i256
+    v9 = staticcall v1, v8, v3, v4, 0, 0
+    jumpi v9, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -180,19 +184,20 @@ fn @trySelf() -> i256 [selector=0xf948cf5e, abi_params=[], abi_returns=[word<boo
     v6 = extcodesize v5
     v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
-    v8 = call v1, v0, 0, v3, v4, 0, 0
-    jumpi v8, bb1, bb2
+    v8 = zext i160 v0 to i256
+    v9 = call v1, v8, 0, v3, v4, 0, 0
+    jumpi v9, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
     icall revert_if<empty>, true
     invalid
   bb4:
-    v10 = zext i1 0 to i256
-    ret v10
+    v11 = zext i1 0 to i256
+    ret v11
   bb1:
-    v9 = zext i1 1 to i256
-    ret v9
+    v10 = zext i1 1 to i256
+    ret v10
   bb3:
     ret 0
 }
@@ -220,13 +225,14 @@ fn @selfCall() -> i256 [selector=0x8dae0159, abi_params=[], abi_returns=[word<bo
     v6 = extcodesize v5
     v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
-    v8 = call v1, v0, 0, v3, v4, 0, 0
-    jumpi v8, bb2, bb1
+    v8 = zext i160 v0 to i256
+    v9 = call v1, v8, 0, v3, v4, 0, 0
+    jumpi v9, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = zext i1 1 to i256
-    ret v9
+    v10 = zext i1 1 to i256
+    ret v10
 }
 
 fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -245,16 +251,17 @@ fn @deploy() [selector=0x775c300c, abi_params=[], abi_returns=[], abi_return_par
     v1 = not 31
     v2 = and 256, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy EmptyCodeTryConstructor_initcode_0, v3, 225
-    v4 = slice_ptr v0
-    v5 = ptrtoint memptr v3 to i256
-    v6 = add v5, 225
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = ptrtoint memptr v3 to i256
-    v8 = create 0, v7, 225
-    v9 = zext i160 v8 to i256
-    v10 = ne v9, 0
-    jumpi v10, bb2, bb1
+    v4 = ptrtoint memptr v3 to i256
+    data_copy EmptyCodeTryConstructor_initcode_0, v4, 225
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, 225
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, 225
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -274,8 +281,9 @@ fn @constructor() [constructor] {
     v6 = extcodesize v5
     v7 = eq v6, 0
     icall revert_if<target_contract_has_no_code>, v7
-    v8 = call v1, v0, 0, v3, v4, 0, 0
-    jumpi v8, bb1, bb2
+    v8 = zext i160 v0 to i256
+    v9 = call v1, v8, 0, v3, v4, 0, 0
+    jumpi v9, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:

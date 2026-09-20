@@ -114,43 +114,44 @@ fn @pushSideEffect() -> struct0 [selector=0x0753e3a7, abi_params=[], abi_returns
     v2 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = call v1, v0, 0, v3, v4, 0, 32
-    jumpi v5, bb2, bb1
+    v5 = zext i160 v0 to i256
+    v6 = call v1, v5, 0, v3, v4, 0, 32
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v6 = returndatasize
-    v7 = lt v6, 32
-    icall revert_if<tuple_data_too_short>, v7
-    v8 = add 0, 0
-    v9 = mload v8
-    v10 = add 0, 0
-    v11 = mload v10
-    v12 = sload 2 !metadata(storage=slot(2))
-    v13 = gt v12, 0xffffffffffffffff
-    icall panic_if<0x41>, v13
-    v14 = add v12, 1
-    v15 = storage_array_data_slot 2
-    v16 = add v15, v12
-    sstore v16, v11 !metadata(storage=symbolic(v16))
-    sstore 2, v14 !metadata(storage=slot(2))
-    v17 = sload 2 !metadata(storage=slot(2))
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    v11 = add 0, 0
+    v12 = mload v11
+    v13 = sload 2 !metadata(storage=slot(2))
+    v14 = gt v13, 0xffffffffffffffff
+    icall panic_if<0x41>, v14
+    v15 = add v13, 1
+    v16 = storage_array_data_slot 2
+    v17 = add v16, v13
+    sstore v17, v12 !metadata(storage=symbolic(v17))
+    sstore 2, v15 !metadata(storage=slot(2))
     v18 = sload 2 !metadata(storage=slot(2))
-    v19 = lt 0, v18
-    v20 = eq v19, false
-    icall panic_if<0x32>, v20
-    v21 = storage_array_data_slot 2
-    v22 = add v21, 0
-    v23 = sload v22 !metadata(storage=symbolic(v21))
-    v24 = sload 2 !metadata(storage=slot(2))
-    v25 = lt 1, v24
-    v26 = eq v25, false
-    icall panic_if<0x32>, v26
-    v27 = storage_array_data_slot 2
-    v28 = add v27, 1
-    v29 = sload v28 !metadata(storage=offset(v27, 1))
-    v30 = insert_value struct0, undef struct0, 0, v17
-    v31 = insert_value struct0, v30, 1, v23
-    v32 = insert_value struct0, v31, 2, v29
-    ret v32
+    v19 = sload 2 !metadata(storage=slot(2))
+    v20 = lt 0, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = storage_array_data_slot 2
+    v23 = add v22, 0
+    v24 = sload v23 !metadata(storage=symbolic(v22))
+    v25 = sload 2 !metadata(storage=slot(2))
+    v26 = lt 1, v25
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = storage_array_data_slot 2
+    v29 = add v28, 1
+    v30 = sload v29 !metadata(storage=offset(v28, 1))
+    v31 = insert_value struct0, undef struct0, 0, v18
+    v32 = insert_value struct0, v31, 1, v24
+    v33 = insert_value struct0, v32, 2, v30
+    ret v33
 }

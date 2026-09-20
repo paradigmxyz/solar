@@ -88,11 +88,11 @@ fn @_slice(arg0: memptr, arg1: i256, arg2: i256) -> memptr [may_return_memory, p
     v8 = lt v49, v45
     jumpi v8, bb2, bb1
   bb1:
-    v72 = mload 64 !metadata(memory=scratch)
-    v10 = inttoptr i256 v72 to memptr !metadata(memory=scratch)
-    v74 = add v72, 32
-    mstore 64, v74 !metadata(memory=scratch)
-    mstore v72, 0
+    v73 = mload 64 !metadata(memory=scratch)
+    v10 = inttoptr i256 v73 to memptr !metadata(memory=scratch)
+    v75 = add v73, 32
+    mstore 64, v75 !metadata(memory=scratch)
+    mstore v73, 0
     ret v10
   bb2:
     v36 = sub v45, v49

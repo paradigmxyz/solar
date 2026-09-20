@@ -36,20 +36,21 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0xd1ee4a1a, pure, abi_params=[tu
     v26 = alloc memorybytes, exact, uninitialized, infallible, v25
     set_memory_object_len memorybytes, v26, v21
     memory_object_copy_from_slice memorybytes, v26, v20
-    memory_object_store_field memorystruct<2>, v1, 0, v26
-    v27 = add v0, 32
-    v28 = calldatasize
-    v29 = sub v28, v27
-    v30 = slt v29, 32
-    icall revert_if<calldata_tail_too_short>, v30
-    v31 = calldataload v27
-    memory_object_store_field memorystruct<2>, v1, 1, v31
-    v32 = memory_object_load_field memorystruct<2>, v1, 0
-    v33 = inttoptr i256 v32 to memorybytes
-    v34 = memory_object_len memorybytes, v33
-    v35 = memory_object_load_field memorystruct<2>, v1, 1
-    v36 = checked_add u256, v34, v35
-    ret v36
+    v27 = ptrtoint memorybytes v26 to i256
+    memory_object_store_field memorystruct<2>, v1, 0, v27
+    v28 = add v0, 32
+    v29 = calldatasize
+    v30 = sub v29, v28
+    v31 = slt v30, 32
+    icall revert_if<calldata_tail_too_short>, v31
+    v32 = calldataload v28
+    memory_object_store_field memorystruct<2>, v1, 1, v32
+    v33 = memory_object_load_field memorystruct<2>, v1, 0
+    v34 = inttoptr i256 v33 to memorybytes
+    v35 = memory_object_len memorybytes, v34
+    v36 = memory_object_load_field memorystruct<2>, v1, 1
+    v37 = checked_add u256, v35, v36
+    ret v37
 }
 
 fn @encodeField(arg0: calldataslice) -> i256 [selector=0xbd1dd83b, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -407,28 +408,29 @@ fn @copyArray(arg0: calldataslice) -> i256 [selector=0x58bdfbf3, pure, abi_param
     set_memory_object_len memoryarray, v21, v0
     jump bb1
   bb1:
-    v22 = phi [bb0: 0], [bb2: v51]
+    v22 = phi [bb0: 0], [bb2: v52]
     v23 = lt v22, v0
     jumpi v23, bb2, bb3
   bb3:
-    v52 = memory_object_len memoryarray, v21
-    v53 = lt 0, v52
-    v54 = eq v53, false
-    icall panic_if<0x32>, v54
-    v55 = memory_object_load_element memoryarray<1>, v21, 0
-    v56 = inttoptr i256 v55 to memorybytes
-    v57 = ptrtoint memorybytes v56 to i256
-    v58 = eq v57, 0
-    jumpi v58, bb4, bb5
+    v53 = memory_object_len memoryarray, v21
+    v54 = lt 0, v53
+    v55 = eq v54, false
+    icall panic_if<0x32>, v55
+    v56 = memory_object_load_element memoryarray<1>, v21, 0
+    v57 = inttoptr i256 v56 to memorybytes
+    v58 = ptrtoint memorybytes v57 to i256
+    v59 = eq v58, 0
+    jumpi v59, bb4, bb5
   bb4:
-    v59 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v59, 0
-    memory_object_store_element memoryarray<1>, v21, 0, v59
+    v60 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v60, 0
+    v61 = ptrtoint memorybytes v60 to i256
+    memory_object_store_element memoryarray<1>, v21, 0, v61
     jump bb5
   bb5:
-    v60 = phi [bb3: v56], [bb4: v59]
-    v61 = memory_object_len memorybytes, v60
-    ret v61
+    v62 = phi [bb3: v57], [bb4: v60]
+    v63 = memory_object_len memorybytes, v62
+    ret v63
   bb2:
     v24 = mul v22, 32
     v25 = add v1, v24
@@ -464,7 +466,8 @@ fn @copyArray(arg0: calldataslice) -> i256 [selector=0x58bdfbf3, pure, abi_param
     v50 = alloc memorybytes, exact, uninitialized, infallible, v49
     set_memory_object_len memorybytes, v50, v45
     memory_object_copy_from_slice memorybytes, v50, v44
-    memory_object_store_element memoryarray<1>, v21, v22, v50
-    v51 = add v22, 1
+    v51 = ptrtoint memorybytes v50 to i256
+    memory_object_store_element memoryarray<1>, v21, v22, v51
+    v52 = add v22, 1
     jump bb1
 }

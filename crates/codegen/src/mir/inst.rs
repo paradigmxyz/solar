@@ -941,6 +941,17 @@ impl InstKind {
     /// Checks scalar operation contracts without applying implicit conversions.
     pub(crate) fn scalar_types_match(&self, func: &Function, result: Option<MirType>) -> bool {
         let ty = |value| func.value_ty(value);
+        let expected = self.operand_types(func);
+        if let Some(expected) = expected
+            && (expected.len() != self.operands().len()
+                || self
+                    .operands()
+                    .iter()
+                    .zip(expected)
+                    .any(|(&value, expected)| ty(value) != Some(expected)))
+        {
+            return false;
+        }
         match *self {
             Self::Eq(a, b) | Self::Ne(a, b) => {
                 result == Some(MirType::I1)
@@ -972,11 +983,32 @@ impl InstKind {
                     && result.is_some_and(MirType::is_pointer))
                     || (matches!(ty(value), Some(MirType::Int(_))) && ty(value) == result)
             }
-            _ if self.evm_opcode().is_some() => {
-                self.op_def().result.default_type() == result
-                    && self.operands().iter().all(|&value| ty(value) == Some(MirType::I256))
+            Self::Alloc { kind, .. } => result == Some(kind.result_type()),
+            Self::MakeSlice { location, .. } => result == Some(MirType::Slice(location)),
+            Self::FrameLoad { kind, .. } => result == Some(kind.result_type()),
+            Self::AbiEncode { mode, .. } => result == Some(mode.result_type()),
+            Self::Phi(_) => {
+                result.is_some_and(|ty| ty != MirType::Void)
+                    && self.operands().iter().all(|&value| ty(value) == result)
             }
-            _ => true,
+            Self::Select(condition, a, b) => {
+                result.is_some_and(|ty| ty != MirType::Void)
+                    && ty(condition) == Some(MirType::I1)
+                    && ty(a) == result
+                    && ty(b) == result
+            }
+            Self::InsertValue { .. }
+            | Self::ExtractValue { .. }
+            | Self::AbiDecode { .. }
+            | Self::StorageBytesLoad(..)
+            | Self::StorageArrayLoad { .. }
+            | Self::AbiEncodePacked { .. }
+            | Self::LoadImmutable(..) => result.is_some(),
+            Self::ICall { .. } => true, // Module and builtin signatures are checked by the validator.
+            _ => {
+                self.op_def().result != super::ResultKind::Custom
+                    && self.op_def().result.default_type() == result
+            }
         }
     }
 

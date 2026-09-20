@@ -5,133 +5,142 @@ fn @roundTrip() -> i256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
     v0 = alloc memorystruct<6>, exact, uninitialized, infallible, 192
     v1 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
     v2 = trunc i256 0 to i160
-    memory_object_store_field memorystruct<5>, v1, 0, i160 0x15cf58144ef33af1e14b5208015d11f9143e27b9
-    memory_object_store_field memorystruct<5>, v1, 1, i160 0x212224d2f2d262cd093ee13240ca4873fccbba3c
+    v3 = zext i160 0x15cf58144ef33af1e14b5208015d11f9143e27b9 to i256
+    memory_object_store_field memorystruct<5>, v1, 0, v3
+    v4 = zext i160 0x212224d2f2d262cd093ee13240ca4873fccbba3c to i256
+    memory_object_store_field memorystruct<5>, v1, 1, v4
     memory_object_store_field memorystruct<5>, v1, 2, 0xbb8
     memory_object_store_field memorystruct<5>, v1, 3, 60
-    memory_object_store_field memorystruct<5>, v1, 4, v2
-    v3 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
-    v4 = sub 0, 120
-    memory_object_store_field memorystruct<4>, v3, 0, v4
-    memory_object_store_field memorystruct<4>, v3, 1, 120
-    memory_object_store_field memorystruct<4>, v3, 2, 0xde0b6b3a7640000
-    memory_object_store_field memorystruct<4>, v3, 3, 0
-    v5 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v5, 0
-    v6 = memory_object_data memorybytes, v5
-    memory_object_store_field memorystruct<6>, v0, 0, i160 0x7fa9385be102ac3eac297483dd6233d62b3e1496
-    memory_object_store_field memorystruct<6>, v0, 1, v1
-    memory_object_store_field memorystruct<6>, v0, 2, v3
-    memory_object_store_field memorystruct<6>, v0, 3, v5
-    memory_object_store_field memorystruct<6>, v0, 4, false
-    memory_object_store_field memorystruct<6>, v0, 5, false
-    v7 = abi_encode [tuple<word<u160>, tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, tuple<word<i24>, word<i24>, word, word>, memory_bytes, word<bool>, word<bool>>], object, args v0
-    v8 = abi_decode [tuple<address, tuple<address, address, u24, i24, address>, tuple<i24, i24, i256, bytes32>, bytes, bool, bool>], v7
-    v9 = memory_object_load_field memorystruct<6>, v8, 0
-    v10 = trunc i256 v9 to i160
-    v11 = memory_object_load_field memorystruct<6>, v0, 0
-    v12 = trunc i256 v11 to i160
-    v13 = eq v10, v12
-    icall require<short_string>, v13, 6, 0x73656e6465720000000000000000000000000000000000000000000000000000
-    v14 = memory_object_load_field memorystruct<6>, v8, 1
-    v15 = inttoptr i256 v14 to memorystruct
-    v16 = memory_object_load_field memorystruct<5>, v15, 0
-    v17 = trunc i256 v16 to i160
-    v18 = memory_object_load_field memorystruct<6>, v0, 1
-    v19 = inttoptr i256 v18 to memorystruct
-    v20 = memory_object_load_field memorystruct<5>, v19, 0
+    v5 = zext i160 v2 to i256
+    memory_object_store_field memorystruct<5>, v1, 4, v5
+    v6 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
+    v7 = sub 0, 120
+    memory_object_store_field memorystruct<4>, v6, 0, v7
+    memory_object_store_field memorystruct<4>, v6, 1, 120
+    memory_object_store_field memorystruct<4>, v6, 2, 0xde0b6b3a7640000
+    memory_object_store_field memorystruct<4>, v6, 3, 0
+    v8 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v8, 0
+    v9 = memory_object_data memorybytes, v8
+    v10 = zext i160 0x7fa9385be102ac3eac297483dd6233d62b3e1496 to i256
+    memory_object_store_field memorystruct<6>, v0, 0, v10
+    v11 = ptrtoint memorystruct v1 to i256
+    memory_object_store_field memorystruct<6>, v0, 1, v11
+    v12 = ptrtoint memorystruct v6 to i256
+    memory_object_store_field memorystruct<6>, v0, 2, v12
+    v13 = ptrtoint memorybytes v8 to i256
+    memory_object_store_field memorystruct<6>, v0, 3, v13
+    v14 = zext i1 0 to i256
+    memory_object_store_field memorystruct<6>, v0, 4, v14
+    v15 = zext i1 0 to i256
+    memory_object_store_field memorystruct<6>, v0, 5, v15
+    v16 = abi_encode [tuple<word<u160>, tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, tuple<word<i24>, word<i24>, word, word>, memory_bytes, word<bool>, word<bool>>], object, args v0
+    v17 = abi_decode [tuple<address, tuple<address, address, u24, i24, address>, tuple<i24, i24, i256, bytes32>, bytes, bool, bool>], v16
+    v18 = memory_object_load_field memorystruct<6>, v17, 0
+    v19 = trunc i256 v18 to i160
+    v20 = memory_object_load_field memorystruct<6>, v0, 0
     v21 = trunc i256 v20 to i160
-    v22 = eq v17, v21
-    icall require<short_string>, v22, 2, 0x6330000000000000000000000000000000000000000000000000000000000000
-    v23 = memory_object_load_field memorystruct<6>, v8, 1
+    v22 = eq v19, v21
+    icall require<short_string>, v22, 6, 0x73656e6465720000000000000000000000000000000000000000000000000000
+    v23 = memory_object_load_field memorystruct<6>, v17, 1
     v24 = inttoptr i256 v23 to memorystruct
-    v25 = memory_object_load_field memorystruct<5>, v24, 1
+    v25 = memory_object_load_field memorystruct<5>, v24, 0
     v26 = trunc i256 v25 to i160
     v27 = memory_object_load_field memorystruct<6>, v0, 1
     v28 = inttoptr i256 v27 to memorystruct
-    v29 = memory_object_load_field memorystruct<5>, v28, 1
+    v29 = memory_object_load_field memorystruct<5>, v28, 0
     v30 = trunc i256 v29 to i160
     v31 = eq v26, v30
-    icall require<short_string>, v31, 2, 0x6331000000000000000000000000000000000000000000000000000000000000
-    v32 = memory_object_load_field memorystruct<6>, v8, 1
+    icall require<short_string>, v31, 2, 0x6330000000000000000000000000000000000000000000000000000000000000
+    v32 = memory_object_load_field memorystruct<6>, v17, 1
     v33 = inttoptr i256 v32 to memorystruct
-    v34 = memory_object_load_field memorystruct<5>, v33, 2
-    v35 = and v34, 0xffffff
+    v34 = memory_object_load_field memorystruct<5>, v33, 1
+    v35 = trunc i256 v34 to i160
     v36 = memory_object_load_field memorystruct<6>, v0, 1
     v37 = inttoptr i256 v36 to memorystruct
-    v38 = memory_object_load_field memorystruct<5>, v37, 2
-    v39 = and v38, 0xffffff
+    v38 = memory_object_load_field memorystruct<5>, v37, 1
+    v39 = trunc i256 v38 to i160
     v40 = eq v35, v39
-    icall require<short_string>, v40, 3, 0x6665650000000000000000000000000000000000000000000000000000000000
-    v41 = memory_object_load_field memorystruct<6>, v8, 1
+    icall require<short_string>, v40, 2, 0x6331000000000000000000000000000000000000000000000000000000000000
+    v41 = memory_object_load_field memorystruct<6>, v17, 1
     v42 = inttoptr i256 v41 to memorystruct
-    v43 = memory_object_load_field memorystruct<5>, v42, 3
-    v44 = signextend 2, v43
+    v43 = memory_object_load_field memorystruct<5>, v42, 2
+    v44 = and v43, 0xffffff
     v45 = memory_object_load_field memorystruct<6>, v0, 1
     v46 = inttoptr i256 v45 to memorystruct
-    v47 = memory_object_load_field memorystruct<5>, v46, 3
-    v48 = signextend 2, v47
+    v47 = memory_object_load_field memorystruct<5>, v46, 2
+    v48 = and v47, 0xffffff
     v49 = eq v44, v48
-    icall require<short_string>, v49, 2, 0x7473000000000000000000000000000000000000000000000000000000000000
-    v50 = memory_object_load_field memorystruct<6>, v8, 1
+    icall require<short_string>, v49, 3, 0x6665650000000000000000000000000000000000000000000000000000000000
+    v50 = memory_object_load_field memorystruct<6>, v17, 1
     v51 = inttoptr i256 v50 to memorystruct
-    v52 = memory_object_load_field memorystruct<5>, v51, 4
-    v53 = trunc i256 v52 to i160
+    v52 = memory_object_load_field memorystruct<5>, v51, 3
+    v53 = signextend 2, v52
     v54 = memory_object_load_field memorystruct<6>, v0, 1
     v55 = inttoptr i256 v54 to memorystruct
-    v56 = memory_object_load_field memorystruct<5>, v55, 4
-    v57 = trunc i256 v56 to i160
+    v56 = memory_object_load_field memorystruct<5>, v55, 3
+    v57 = signextend 2, v56
     v58 = eq v53, v57
-    icall require<short_string>, v58, 5, 0x686f6f6b73000000000000000000000000000000000000000000000000000000
-    v59 = memory_object_load_field memorystruct<6>, v8, 2
+    icall require<short_string>, v58, 2, 0x7473000000000000000000000000000000000000000000000000000000000000
+    v59 = memory_object_load_field memorystruct<6>, v17, 1
     v60 = inttoptr i256 v59 to memorystruct
-    v61 = memory_object_load_field memorystruct<4>, v60, 0
-    v62 = signextend 2, v61
-    v63 = sub 0, 120
-    v64 = eq v62, v63
-    icall require<short_string>, v64, 2, 0x746c000000000000000000000000000000000000000000000000000000000000
-    v65 = memory_object_load_field memorystruct<6>, v8, 2
-    v66 = inttoptr i256 v65 to memorystruct
-    v67 = memory_object_load_field memorystruct<4>, v66, 1
-    v68 = signextend 2, v67
-    v69 = eq v68, 120
-    icall require<short_string>, v69, 2, 0x7475000000000000000000000000000000000000000000000000000000000000
-    v70 = memory_object_load_field memorystruct<6>, v8, 2
-    v71 = inttoptr i256 v70 to memorystruct
-    v72 = memory_object_load_field memorystruct<4>, v71, 2
-    v73 = eq v72, 0xde0b6b3a7640000
-    icall require<short_string>, v73, 2, 0x6c64000000000000000000000000000000000000000000000000000000000000
-    v74 = memory_object_load_field memorystruct<6>, v8, 3
-    v75 = inttoptr i256 v74 to memorybytes
-    v76 = memory_object_len memorybytes, v75
-    v77 = eq v76, 0
-    icall require<short_string>, v77, 2, 0x6864000000000000000000000000000000000000000000000000000000000000
-    v78 = memory_object_load_field memorystruct<6>, v8, 4
-    v79 = eq v78, 0
-    v80 = eq v79, false
-    v81 = eq v80, false
-    jumpi v81, bb1, bb2
+    v61 = memory_object_load_field memorystruct<5>, v60, 4
+    v62 = trunc i256 v61 to i160
+    v63 = memory_object_load_field memorystruct<6>, v0, 1
+    v64 = inttoptr i256 v63 to memorystruct
+    v65 = memory_object_load_field memorystruct<5>, v64, 4
+    v66 = trunc i256 v65 to i160
+    v67 = eq v62, v66
+    icall require<short_string>, v67, 5, 0x686f6f6b73000000000000000000000000000000000000000000000000000000
+    v68 = memory_object_load_field memorystruct<6>, v17, 2
+    v69 = inttoptr i256 v68 to memorystruct
+    v70 = memory_object_load_field memorystruct<4>, v69, 0
+    v71 = signextend 2, v70
+    v72 = sub 0, 120
+    v73 = eq v71, v72
+    icall require<short_string>, v73, 2, 0x746c000000000000000000000000000000000000000000000000000000000000
+    v74 = memory_object_load_field memorystruct<6>, v17, 2
+    v75 = inttoptr i256 v74 to memorystruct
+    v76 = memory_object_load_field memorystruct<4>, v75, 1
+    v77 = signextend 2, v76
+    v78 = eq v77, 120
+    icall require<short_string>, v78, 2, 0x7475000000000000000000000000000000000000000000000000000000000000
+    v79 = memory_object_load_field memorystruct<6>, v17, 2
+    v80 = inttoptr i256 v79 to memorystruct
+    v81 = memory_object_load_field memorystruct<4>, v80, 2
+    v82 = eq v81, 0xde0b6b3a7640000
+    icall require<short_string>, v82, 2, 0x6c64000000000000000000000000000000000000000000000000000000000000
+    v83 = memory_object_load_field memorystruct<6>, v17, 3
+    v84 = inttoptr i256 v83 to memorybytes
+    v85 = memory_object_len memorybytes, v84
+    v86 = eq v85, 0
+    icall require<short_string>, v86, 2, 0x6864000000000000000000000000000000000000000000000000000000000000
+    v87 = memory_object_load_field memorystruct<6>, v17, 4
+    v88 = eq v87, 0
+    v89 = eq v88, false
+    v90 = eq v89, false
+    jumpi v90, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v82 = memory_object_load_field memorystruct<6>, v8, 5
-    v83 = eq v82, 0
-    v84 = eq v83, false
-    v85 = eq v84, false
+    v91 = memory_object_load_field memorystruct<6>, v17, 5
+    v92 = eq v91, 0
+    v93 = eq v92, false
+    v94 = eq v93, false
     jump bb3
   bb3:
-    v86 = phi [bb1: v85], [bb2: false]
-    icall require<short_string>, v86, 5, 0x666c616773000000000000000000000000000000000000000000000000000000
-    v87 = memory_object_load_field memorystruct<6>, v0, 1
-    v88 = inttoptr i256 v87 to memorystruct
-    v89 = memory_object_load_field memorystruct<6>, v8, 1
-    v90 = inttoptr i256 v89 to memorystruct
-    v91 = ptrtoint memorystruct v88 to i256
-    v92 = keccak256 v91, 160
-    v93 = ptrtoint memorystruct v90 to i256
-    v94 = keccak256 v93, 160
-    v95 = eq v92, v94
-    icall require<short_string>, v95, 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
+    v95 = phi [bb1: v94], [bb2: false]
+    icall require<short_string>, v95, 5, 0x666c616773000000000000000000000000000000000000000000000000000000
+    v96 = memory_object_load_field memorystruct<6>, v0, 1
+    v97 = inttoptr i256 v96 to memorystruct
+    v98 = memory_object_load_field memorystruct<6>, v17, 1
+    v99 = inttoptr i256 v98 to memorystruct
+    v100 = ptrtoint memorystruct v97 to i256
+    v101 = keccak256 v100, 160
+    v102 = ptrtoint memorystruct v99 to i256
+    v103 = keccak256 v102, 160
+    v104 = eq v101, v103
+    icall require<short_string>, v104, 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -142,43 +151,50 @@ fn @outer() -> i256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     v1 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
     v2 = trunc i256 0 to i160
-    memory_object_store_field memorystruct<5>, v1, 0, i160 0x15cf58144ef33af1e14b5208015d11f9143e27b9
-    memory_object_store_field memorystruct<5>, v1, 1, i160 0x212224d2f2d262cd093ee13240ca4873fccbba3c
+    v3 = zext i160 0x15cf58144ef33af1e14b5208015d11f9143e27b9 to i256
+    memory_object_store_field memorystruct<5>, v1, 0, v3
+    v4 = zext i160 0x212224d2f2d262cd093ee13240ca4873fccbba3c to i256
+    memory_object_store_field memorystruct<5>, v1, 1, v4
     memory_object_store_field memorystruct<5>, v1, 2, 0xbb8
     memory_object_store_field memorystruct<5>, v1, 3, 60
-    memory_object_store_field memorystruct<5>, v1, 4, v2
-    v3 = sub 0, 120
-    v4 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v4, 0
-    v5 = memory_object_data memorybytes, v4
-    memory_object_store_field memorystruct<4>, v0, 0, i160 0x7fa9385be102ac3eac297483dd6233d62b3e1496
-    memory_object_store_field memorystruct<4>, v0, 1, v1
-    memory_object_store_field memorystruct<4>, v0, 2, v3
-    memory_object_store_field memorystruct<4>, v0, 3, v4
-    v6 = memory_object_load_field memorystruct<4>, v0, 1
-    v7 = inttoptr i256 v6 to memorystruct
-    v8 = ptrtoint memorystruct v7 to i256
-    v9 = keccak256 v8, 160
-    v10 = abi_encode [tuple<word<u160>, tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, word, memory_bytes>], object, args v0
-    v11 = address
-    v12 = gas
-    v13 = abi_encode [memory_bytes], selector 0x3c12b05c00000000000000000000000000000000000000000000000000000000, args v10
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = staticcall v12, v11, v14, v15, 0, 32
-    jumpi v16, bb2, bb1
+    v5 = zext i160 v2 to i256
+    memory_object_store_field memorystruct<5>, v1, 4, v5
+    v6 = sub 0, 120
+    v7 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v7, 0
+    v8 = memory_object_data memorybytes, v7
+    v9 = zext i160 0x7fa9385be102ac3eac297483dd6233d62b3e1496 to i256
+    memory_object_store_field memorystruct<4>, v0, 0, v9
+    v10 = ptrtoint memorystruct v1 to i256
+    memory_object_store_field memorystruct<4>, v0, 1, v10
+    memory_object_store_field memorystruct<4>, v0, 2, v6
+    v11 = ptrtoint memorybytes v7 to i256
+    memory_object_store_field memorystruct<4>, v0, 3, v11
+    v12 = memory_object_load_field memorystruct<4>, v0, 1
+    v13 = inttoptr i256 v12 to memorystruct
+    v14 = ptrtoint memorystruct v13 to i256
+    v15 = keccak256 v14, 160
+    v16 = abi_encode [tuple<word<u160>, tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, word, memory_bytes>], object, args v0
+    v17 = address
+    v18 = gas
+    v19 = abi_encode [memory_bytes], selector 0x3c12b05c00000000000000000000000000000000000000000000000000000000, args v16
+    v20 = slice_ptr v19
+    v21 = slice_len v19
+    v22 = zext i160 v17 to i256
+    v23 = staticcall v18, v22, v20, v21, 0, 32
+    jumpi v23, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v17 = returndatasize
-    v18 = lt v17, 32
-    icall revert_if<tuple_data_too_short>, v18
-    v19 = add 0, 0
-    v20 = mload v19
-    v21 = add 0, 0
-    v22 = mload v21
-    v23 = eq v9, v22
-    icall require<short_string>, v23, 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
+    v24 = returndatasize
+    v25 = lt v24, 32
+    icall revert_if<tuple_data_too_short>, v25
+    v26 = add 0, 0
+    v27 = mload v26
+    v28 = add 0, 0
+    v29 = mload v28
+    v30 = eq v15, v29
+    icall require<short_string>, v30, 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -229,60 +245,65 @@ fn @run() -> i256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word],
   bb0:
     v0 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
     v1 = trunc i256 0 to i160
-    memory_object_store_field memorystruct<5>, v0, 0, i160 0x15cf58144ef33af1e14b5208015d11f9143e27b9
-    memory_object_store_field memorystruct<5>, v0, 1, i160 0x212224d2f2d262cd093ee13240ca4873fccbba3c
+    v2 = zext i160 0x15cf58144ef33af1e14b5208015d11f9143e27b9 to i256
+    memory_object_store_field memorystruct<5>, v0, 0, v2
+    v3 = zext i160 0x212224d2f2d262cd093ee13240ca4873fccbba3c to i256
+    memory_object_store_field memorystruct<5>, v0, 1, v3
     memory_object_store_field memorystruct<5>, v0, 2, 0xbb8
     memory_object_store_field memorystruct<5>, v0, 3, 60
-    memory_object_store_field memorystruct<5>, v0, 4, v1
-    v2 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
-    v3 = sub 0, 120
-    memory_object_store_field memorystruct<4>, v2, 0, v3
-    memory_object_store_field memorystruct<4>, v2, 1, 120
-    memory_object_store_field memorystruct<4>, v2, 2, 0xde0b6b3a7640000
-    memory_object_store_field memorystruct<4>, v2, 3, 0
-    v4 = ptrtoint memorystruct v0 to i256
-    v5 = keccak256 v4, 160
-    v6 = address
-    v7 = gas
-    v8 = and 1, 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = abi_encode [tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, word<u160>], selector 0x128e91fc00000000000000000000000000000000000000000000000000000000, args v0, v8
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = staticcall v7, v6, v10, v11, 0, 32
-    jumpi v12, bb2, bb1
+    v4 = zext i160 v1 to i256
+    memory_object_store_field memorystruct<5>, v0, 4, v4
+    v5 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
+    v6 = sub 0, 120
+    memory_object_store_field memorystruct<4>, v5, 0, v6
+    memory_object_store_field memorystruct<4>, v5, 1, 120
+    memory_object_store_field memorystruct<4>, v5, 2, 0xde0b6b3a7640000
+    memory_object_store_field memorystruct<4>, v5, 3, 0
+    v7 = ptrtoint memorystruct v0 to i256
+    v8 = keccak256 v7, 160
+    v9 = address
+    v10 = gas
+    v11 = and 1, 0xffffffffffffffffffffffffffffffffffffffff
+    v12 = abi_encode [tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, word<u160>], selector 0x128e91fc00000000000000000000000000000000000000000000000000000000, args v0, v11
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = zext i160 v9 to i256
+    v16 = staticcall v10, v15, v13, v14, 0, 32
+    jumpi v16, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = returndatasize
-    v14 = lt v13, 32
-    icall revert_if<tuple_data_too_short>, v14
-    v15 = add 0, 0
-    v16 = mload v15
-    v17 = add 0, 0
-    v18 = mload v17
-    v19 = address
-    v20 = gas
-    v21 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v21, 0
-    v22 = memory_object_data memorybytes, v21
-    v23 = abi_encode [tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, tuple<word<i24>, word<i24>, word, word>, memory_bytes], selector 0xd0a3f74900000000000000000000000000000000000000000000000000000000, args v0, v2, v21
-    v24 = slice_ptr v23
-    v25 = slice_len v23
-    v26 = staticcall v20, v19, v24, v25, 0, 32
-    jumpi v26, bb4, bb3
+    v17 = returndatasize
+    v18 = lt v17, 32
+    icall revert_if<tuple_data_too_short>, v18
+    v19 = add 0, 0
+    v20 = mload v19
+    v21 = add 0, 0
+    v22 = mload v21
+    v23 = address
+    v24 = gas
+    v25 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v25, 0
+    v26 = memory_object_data memorybytes, v25
+    v27 = abi_encode [tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, tuple<word<i24>, word<i24>, word, word>, memory_bytes], selector 0xd0a3f74900000000000000000000000000000000000000000000000000000000, args v0, v5, v25
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = zext i160 v23 to i256
+    v31 = staticcall v24, v30, v28, v29, 0, 32
+    jumpi v31, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v27 = returndatasize
-    v28 = lt v27, 32
-    icall revert_if<tuple_data_too_short>, v28
-    v29 = add 0, 0
-    v30 = mload v29
-    v31 = add 0, 0
-    v32 = mload v31
-    v33 = eq v18, v5
-    icall require<short_string>, v33, 10, 0x6b65794f6e6c7920696400000000000000000000000000000000000000000000
-    v34 = eq v32, v5
-    icall require<short_string>, v34, 8, 0x6d69786564206964000000000000000000000000000000000000000000000000
+    v32 = returndatasize
+    v33 = lt v32, 32
+    icall revert_if<tuple_data_too_short>, v33
+    v34 = add 0, 0
+    v35 = mload v34
+    v36 = add 0, 0
+    v37 = mload v36
+    v38 = eq v22, v8
+    icall require<short_string>, v38, 10, 0x6b65794f6e6c7920696400000000000000000000000000000000000000000000
+    v39 = eq v37, v8
+    icall require<short_string>, v39, 8, 0x6d69786564206964000000000000000000000000000000000000000000000000
     ret 1
 }

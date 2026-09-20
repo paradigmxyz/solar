@@ -18,7 +18,8 @@
 // CHECK: + [[INNER:v[0-9]+]] = alloc memoryfixedarray<2, 1>
 // CHECK: + [[INNER_INDEX:v[0-9]+]] = phi
 // CHECK: + {{v[0-9]+}} = lt [[INNER_INDEX]], 2
-// CHECK: + memory_object_store_element memoryfixedarray<2, 1>, [[OUTER]], [[OUTER_INDEX]], [[INNER]]
+// CHECK: + [[INNER_PTR:v[0-9]+]] = ptrtoint memoryfixedarray [[INNER]] to i256
+// CHECK-NEXT: + memory_object_store_element memoryfixedarray<2, 1>, [[OUTER]], [[OUTER_INDEX]], [[INNER_PTR]]
 // CHECK: + {{v[0-9]+}} = mul [[INNER_INDEX]], 32
 // CHECK: + [[WORD:v[0-9]+]] = mload
 // CHECK: + memory_object_store_element memoryfixedarray<2, 1>, [[INNER]], [[INNER_INDEX]], [[WORD]]

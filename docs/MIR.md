@@ -41,6 +41,12 @@ nonzero truth conversion. Pointer casts establish no validity or ownership. Phi
 inputs, struct fields, arguments, and results must match their declared types;
 equal storage width does not permit an implicit conversion.
 
+Every operation declares its operand contract in the operation schema. The validator
+checks those contracts, dependent result types, builtin and function signatures,
+aggregate layouts, and terminators. Phase transitions and the backend boundary run
+full validation, including SSA and constant widths. Builders emit conversion
+instructions; parsing and validation never repair mismatched types.
+
 Solidity booleans and addresses whose raw bits can be observed by assembly travel as words
 across source-function calls and source-variable joins, including loop phis.
 Mixed narrow-integer/`i256` joins widen the narrow input without normalizing the word.

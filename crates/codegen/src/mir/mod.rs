@@ -13,6 +13,7 @@ pub(crate) mod pass_manager;
 mod transform;
 
 mod types;
+mod typing;
 pub(crate) use types::{
     FrameMode, FrameSlotKind, ImmutableEncoding, MemoryObjectKind, MemoryObjectLayout, MirType,
     SliceLocation, StructType, TypeSize, ValueLayout,

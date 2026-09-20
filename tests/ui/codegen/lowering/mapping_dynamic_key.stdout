@@ -43,18 +43,20 @@ fn @nestedFirst(arg0: calldataslice, arg1: i256) -> i256 [selector=0xe8f9d84d, v
   bb0:
     v0 = mapping_slot_calldata arg0, 1
     v1 = trunc i256 arg1 to i160
-    v2 = mapping_slot v1, v0
-    v3 = sload v2 !metadata(storage=symbolic(v2))
-    ret v3
+    v2 = zext i160 v1 to i256
+    v3 = mapping_slot v2, v0
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    ret v4
 }
 
 fn @nestedSecond(arg0: i256, arg1: calldataslice) -> i256 [selector=0xf7453cb9, view, abi_params=[address, bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = trunc i256 arg0 to i160
-    v1 = mapping_slot v0, 2
-    v2 = mapping_slot_calldata arg1, v1
-    v3 = sload v2 !metadata(storage=symbolic(v2))
-    ret v3
+    v1 = zext i160 v0 to i256
+    v2 = mapping_slot v1, 2
+    v3 = mapping_slot_calldata arg1, v2
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    ret v4
 }
 
 fn @skey() -> memorybytes [selector=0x8cd2a1c2, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -94,8 +96,9 @@ fn @setNestedFirst(arg0: memorybytes, arg1: i256, arg2: i256) [selector=0xf7d7b4
   bb0:
     v0 = mapping_slot_memory arg0, 1
     v1 = trunc i256 arg1 to i160
-    v2 = mapping_slot v1, v0
-    sstore v2, arg2 !metadata(storage=symbolic(v2))
+    v2 = zext i160 v1 to i256
+    v3 = mapping_slot v2, v0
+    sstore v3, arg2 !metadata(storage=symbolic(v3))
     ret
 }
 
@@ -103,17 +106,19 @@ fn @getNestedFirst(arg0: memorybytes, arg1: i256) -> i256 [selector=0x95cfa550, 
   bb0:
     v0 = mapping_slot_memory arg0, 1
     v1 = trunc i256 arg1 to i160
-    v2 = mapping_slot v1, v0
-    v3 = sload v2 !metadata(storage=symbolic(v2))
-    ret v3
+    v2 = zext i160 v1 to i256
+    v3 = mapping_slot v2, v0
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    ret v4
 }
 
 fn @setNestedSecond(arg0: i256, arg1: memorybytes, arg2: i256) [selector=0xf589e254, abi_params=[address, bytes, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = trunc i256 arg0 to i160
-    v1 = mapping_slot v0, 2
-    v2 = mapping_slot_memory arg1, v1
-    sstore v2, arg2 !metadata(storage=symbolic(v2))
+    v1 = zext i160 v0 to i256
+    v2 = mapping_slot v1, 2
+    v3 = mapping_slot_memory arg1, v2
+    sstore v3, arg2 !metadata(storage=symbolic(v3))
     ret
 }
 

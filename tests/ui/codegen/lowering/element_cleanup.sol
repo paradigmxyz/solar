@@ -13,7 +13,8 @@ contract ElementCleanup {
 
     // A fresh array is zeroed and only ever stores canonical words.
     // CHECK-LABEL: {{^[ +-].*}}fn @fresh
-    // CHECK: {{^ +}}{{v[0-9]+}} = trunc i256 {{v[0-9]+}} to i160
+    // CHECK: - {{v[0-9]+}} = trunc i256 {{v[0-9]+}} to i160
+    // CHECK: + memory_object_store_element memoryarray<1>, {{v[0-9]+}}, 0, {{v[0-9]+}}
     // CHECK: - {{v[0-9]+}} = trunc i256 {{v[0-9]+}} to i160
     function fresh(uint256 n) external pure returns (address) {
         address[] memory a = new address[](n);

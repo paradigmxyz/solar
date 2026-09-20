@@ -38,10 +38,13 @@
 use crate::mir::{
     AbiEncodeMode, AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
     AbiType, AbiWordValidator, AllocationKind, AllocationSemantics, ArgIdx, BlockId, Callee,
-    FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstId, InstKind,
+    EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstId, InstKind,
     MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PanicCode,
-    RevertReason, SliceLocation, Terminator, Value, ValueId, memory::EvmMemoryLayout,
-    pass::MirPass, transform::cfg_simplify::remove_unreachable_blocks,
+    RevertReason, SliceLocation, Terminator, Value, ValueId,
+    analysis::{AliasAnalysis, MemoryBase},
+    memory::EvmMemoryLayout,
+    pass::MirPass,
+    transform::cfg_simplify::remove_unreachable_blocks,
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, RevertStrings};
@@ -3346,11 +3349,17 @@ fn is_canonical_return_value_inner(
     visiting: &mut FxHashSet<ValueId>,
     calls: &mut CanonicalCallProof<'_>,
 ) -> bool {
+    let value = if ty.is_scalar_word() { value } else { pointer_alias_root(func, value) };
     if !ty.needs_return_cleanup()
         || (source == ReturnValueSource::Scalar
             && reuses_validated_input(func, value, input_params, ty))
     {
         return true;
+    }
+    if !ty.is_scalar_word()
+        && !memory_writes_stay_private(func, calls.module, &mut FxHashSet::default())
+    {
+        return false;
     }
     if calls.module.is_some()
         && let Value::Inst(inst) = func.value(value)
@@ -3377,8 +3386,9 @@ fn is_canonical_return_value_inner(
         AbiParamType::FixedArray { element, len } => {
             is_canonical_return_array(func, element, *len, value, input_params, visiting, calls)
         }
+        // Runtime-index stores need an allocation extent proof before cleanup can be omitted.
         AbiParamType::DynamicArray(element) => {
-            is_canonical_return_dynamic_array(func, element, value, input_params, visiting, calls)
+            is_canonical_return_array_param(func, element, value, calls)
         }
     };
     visiting.remove(&value);
@@ -3427,33 +3437,187 @@ fn is_canonical_return_function(
     result
 }
 
+/// Follows only conversions that preserve every pointer bit.
+fn pointer_alias_root(func: &Function, mut value: ValueId) -> ValueId {
+    // A malformed cyclic definition must not make the proof loop forever.
+    for _ in 0..func.num_values() {
+        let Value::Inst(inst) = func.value(value) else { break };
+        let Some(input) = lossless_pointer_cast(func, *inst) else { break };
+        value = input;
+    }
+    value
+}
+
+fn lossless_pointer_cast(func: &Function, inst: InstId) -> Option<ValueId> {
+    let result = func.inst_result_value(inst).and_then(|value| func.value_ty(value))?;
+    match func.inst(inst).kind {
+        InstKind::PtrToInt(value, 256)
+            if result == MirType::I256 && func.value_ty(value).is_some_and(MirType::is_pointer) =>
+        {
+            Some(value)
+        }
+        InstKind::IntToPtr(value)
+            if result.is_pointer() && func.value_ty(value) == Some(MirType::I256) =>
+        {
+            Some(value)
+        }
+        InstKind::Bitcast(value)
+            if result.is_pointer() && func.value_ty(value).is_some_and(MirType::is_pointer) =>
+        {
+            Some(value)
+        }
+        _ => None,
+    }
+}
+
+/// Rejects writes through unknown aliases, including effects hidden in callees.
+fn memory_writes_stay_private(
+    func: &Function,
+    module: Option<&Module>,
+    visiting: &mut FxHashSet<FunctionId>,
+) -> bool {
+    let aliases = AliasAnalysis::new(func);
+    func.instructions().all(|inst| {
+        let kind = &func.inst(inst).kind;
+        match *kind {
+            InstKind::Alloc { .. } => true,
+            _ if kind.effect_kind() == EffectKind::MemoryWrite => {
+                let location = match *kind {
+                    InstKind::MemoryZero(object, size) => aliases.memory_location(
+                        func,
+                        inst,
+                        object,
+                        aliases.location_size(func, size),
+                    ),
+                    InstKind::SetMemoryObjectLen(object, _, kind) => {
+                        aliases.memory_object_length_location(func, inst, object, kind)
+                    }
+                    InstKind::MemoryObjectStoreField { object, layout, field, .. } => {
+                        aliases.memory_object_field_location(func, inst, object, layout, field)
+                    }
+                    InstKind::MemoryObjectStoreElement { object, layout, index, .. } => {
+                        aliases.memory_object_element_location(func, inst, object, layout, index)
+                    }
+                    _ => None,
+                };
+                // Runtime indices need a separate extent proof; a payload range is insufficient.
+                location.is_some_and(|location| {
+                    matches!(
+                        location.address.base,
+                        MemoryBase::Allocation(_) | MemoryBase::DynamicAllocation(_)
+                    )
+                })
+            }
+            InstKind::ICall { function: Callee::Function(id), .. } => {
+                let Some(module) = module else { return false };
+                if !visiting.insert(id) {
+                    return false;
+                }
+                let private =
+                    memory_writes_stay_private(module.function(id), Some(module), visiting);
+                visiting.remove(&id);
+                private
+            }
+            _ => !matches!(
+                kind.effect_kind(),
+                EffectKind::MemoryWrite
+                    | EffectKind::ICall
+                    | EffectKind::ExternalCall
+                    | EffectKind::Create
+            ),
+        }
+    })
+}
+
+/// A stored pointer cannot be reloaded or exposed through its containing object.
+fn container_keeps_pointer_private(func: &Function, object: ValueId) -> bool {
+    let mut pending = vec![pointer_alias_root(func, object)];
+    let mut seen = FxHashSet::default();
+    while let Some(object) = pending.pop() {
+        if !seen.insert(object) {
+            continue;
+        }
+        let Value::Inst(alloc) = func.value(object) else { return false };
+        if !matches!(
+            func.inst(*alloc).kind,
+            InstKind::Alloc { kind: AllocationKind::Object(_), .. }
+        ) {
+            return false;
+        }
+        for inst in func.instructions() {
+            let kind = &func.inst(inst).kind;
+            if !kind.operands().iter().any(|&value| pointer_alias_root(func, value) == object) {
+                continue;
+            }
+            if lossless_pointer_cast(func, inst).is_some() {
+                continue;
+            }
+            match *kind {
+                InstKind::MemoryObjectStoreField { object: base, value, .. }
+                | InstKind::MemoryObjectStoreElement { object: base, value, .. } => {
+                    if pointer_alias_root(func, value) == object {
+                        pending.push(pointer_alias_root(func, base));
+                    } else if pointer_alias_root(func, base) != object {
+                        return false;
+                    }
+                }
+                InstKind::SetMemoryObjectLen(base, _, _) | InstKind::MemoryObjectLen(base, _)
+                    if pointer_alias_root(func, base) == object => {}
+                _ => return false,
+            }
+        }
+        if func.blocks.iter().any(|block| {
+            block.terminator.as_ref().is_some_and(|term| {
+                !matches!(term, Terminator::Return { .. })
+                    && term
+                        .operands()
+                        .iter()
+                        .any(|&value| pointer_alias_root(func, value) == object)
+            })
+        }) {
+            return false;
+        }
+    }
+    true
+}
+
 fn is_unmodified_call_result(func: &Function, value: ValueId, call: InstId) -> bool {
+    let value = pointer_alias_root(func, value);
     for inst in func.instructions() {
-        if inst == call {
+        if inst == call || lossless_pointer_cast(func, inst).is_some() {
             continue;
         }
         match func.inst(inst).kind {
             InstKind::MemoryObjectLen(object, _)
             | InstKind::MemoryObjectLoadByte { object, .. }
-                if object == value => {}
-            InstKind::MemoryObjectLoadField { object, .. }
-            | InstKind::MemoryObjectLoadElement { object, .. }
-                if object == value
-                    && func
-                        .inst_result_value(inst)
-                        .and_then(|result| func.value_ty(result))
-                        .is_some_and(|ty| !matches!(ty, MirType::MemoryObject(_))) => {}
-            InstKind::MemoryObjectStoreField { value: stored, .. }
-            | InstKind::MemoryObjectStoreElement { value: stored, .. }
-                if stored == value => {}
-            _ if func.inst(inst).operands().contains(&value) => return false,
+                if pointer_alias_root(func, object) == value => {}
+            InstKind::MemoryObjectStoreField { object, value: stored, .. }
+            | InstKind::MemoryObjectStoreElement { object, value: stored, .. }
+                if pointer_alias_root(func, stored) == value
+                    && pointer_alias_root(func, object) != value
+                    && container_keeps_pointer_private(func, object) => {}
+            _ if func
+                .inst(inst)
+                .operands()
+                .iter()
+                .any(|&operand| pointer_alias_root(func, operand) == value) =>
+            {
+                return false;
+            }
             _ => {}
         }
     }
+    pointer_only_returned(func, value)
+}
+
+fn pointer_only_returned(func: &Function, value: ValueId) -> bool {
     func.blocks.iter().all(|block| {
         block.terminator.as_ref().is_none_or(|term| {
-            !term.operands().contains(&value)
-                || matches!(term, Terminator::Return { values } if values.contains(&value))
+            matches!(term, Terminator::Return { .. })
+                || !term
+                    .operands()
+                    .iter()
+                    .any(|&operand| pointer_alias_root(func, operand) == value)
         })
     })
 }
@@ -3568,6 +3732,17 @@ fn return_cleanup_mask(ty: crate::mir::ValueLayout, source: ReturnValueSource) -
     validator.and_then(AbiWordValidator::canonical_mask)
 }
 
+/// Instructions after the allocation in its block execute whenever the object is created.
+fn allocation_initializers(func: &Function, alloc: InstId) -> Option<&[InstId]> {
+    func.blocks.iter().find_map(|block| {
+        block
+            .instructions
+            .iter()
+            .position(|&inst| inst == alloc)
+            .map(|index| &block.instructions[index + 1..])
+    })
+}
+
 fn is_canonical_return_object(
     func: &Function,
     fields: &[AbiParamType],
@@ -3581,38 +3756,54 @@ fn is_canonical_return_object(
         return false;
     };
 
+    let Some(initializers) = allocation_initializers(func, *alloc) else { return false };
+    let Some(size) = u64::try_from(fields.len()).ok().and_then(|len| len.checked_mul(32)) else {
+        return false;
+    };
     let mut stores = FxHashMap::default();
     let mut zeroed = false;
     for inst in func.instructions() {
-        if inst == *alloc {
+        if inst == *alloc || lossless_pointer_cast(func, inst).is_some() {
             continue;
         }
         match &func.inst(inst).kind {
-            InstKind::MemoryZero(base, _) if *base == object => zeroed = true,
+            InstKind::MemoryZero(base, length) if pointer_alias_root(func, *base) == object => {
+                if !initializers.contains(&inst)
+                    || func.value_u64(*length).is_none_or(|length| length < size)
+                {
+                    return false;
+                }
+                zeroed = true;
+            }
             InstKind::MemoryObjectStoreField { object: base, field, value, .. }
-                if *base == object =>
+                if pointer_alias_root(func, *base) == object =>
             {
-                if stores.insert(*field, *value).is_some() {
+                if !initializers.contains(&inst) || stores.insert(*field, *value).is_some() {
                     return false;
                 }
             }
-            InstKind::MemoryObjectLoadField { object: base, .. } if *base == object => {}
-            InstKind::MemoryObjectStoreField { value: stored, .. } if *stored == object => {}
-            InstKind::MemoryObjectStoreElement { value: stored, .. } if *stored == object => {}
-            _ if func.inst(inst).operands().contains(&object) => return false,
+            InstKind::MemoryObjectStoreField { object: base, value: stored, .. }
+                if pointer_alias_root(func, *stored) == object
+                    && container_keeps_pointer_private(func, *base) => {}
+            InstKind::MemoryObjectStoreElement { object: base, value: stored, .. }
+                if pointer_alias_root(func, *stored) == object
+                    && container_keeps_pointer_private(func, *base) => {}
+            _ if func
+                .inst(inst)
+                .operands()
+                .iter()
+                .any(|&value| pointer_alias_root(func, value) == object) =>
+            {
+                return false;
+            }
             _ => {}
         }
     }
-    if func.blocks.iter().any(|block| {
-        block.terminator.as_ref().is_some_and(|terminator| {
-            terminator.operands().contains(&object)
-                && !matches!(terminator, Terminator::Return { values } if values.contains(&object))
-        })
-    }) {
+    if !pointer_only_returned(func, object) {
         return false;
     }
     fields.iter().enumerate().all(|(index, ty)| {
-        let canonical = stores.get(&(index as u64)).is_some_and(|&value| {
+        if let Some(&value) = stores.get(&(index as u64)) {
             is_canonical_return_value_inner(
                 func,
                 ty,
@@ -3622,9 +3813,9 @@ fn is_canonical_return_object(
                 visiting,
                 calls,
             )
-        });
-        let zero = zeroed && (ty.is_scalar_word() || !ty.needs_return_cleanup());
-        canonical || zero
+        } else {
+            zeroed && (ty.is_scalar_word() || !ty.needs_return_cleanup())
+        }
     })
 }
 
@@ -3641,24 +3832,41 @@ fn is_canonical_return_array(
         return true;
     }
     let Value::Inst(alloc) = func.value(object) else { return false };
-    if !matches!(func.inst(*alloc).kind, InstKind::Alloc { kind: AllocationKind::Object(_), .. }) {
+    let expected_layout = MemoryObjectLayout::word_fixed_array(len);
+    if !matches!(func.inst(*alloc).kind, InstKind::Alloc { kind: AllocationKind::Object(layout), .. } if layout == expected_layout)
+    {
         return false;
     }
+    if !pointer_only_returned(func, object) {
+        return false;
+    }
+    let Some(initializers) = allocation_initializers(func, *alloc) else { return false };
     let mut stores = FxHashMap::default();
     for inst in func.instructions() {
-        if let InstKind::MemoryObjectStoreElement { object: base, index, value, .. } =
+        if let InstKind::MemoryObjectStoreElement { object: base, layout, index, value } =
             func.inst(inst).kind
-            && base == object
+            && pointer_alias_root(func, base) == object
         {
             let Some(index) = func.value_u64(index) else { return false };
-            if stores.insert(index, value).is_some() {
+            if layout != expected_layout
+                || !initializers.contains(&inst)
+                || stores.insert(index, value).is_some()
+            {
                 return false;
             }
-        } else if let InstKind::MemoryObjectStoreElement { value: stored, .. } =
+        } else if let InstKind::MemoryObjectStoreElement { object: base, value: stored, .. } =
             func.inst(inst).kind
-            && stored == object
+            && pointer_alias_root(func, stored) == object
+            && container_keeps_pointer_private(func, base)
         {
-        } else if inst != *alloc && func.inst(inst).operands().contains(&object) {
+        } else if inst != *alloc
+            && lossless_pointer_cast(func, inst).is_none()
+            && func
+                .inst(inst)
+                .operands()
+                .iter()
+                .any(|&value| pointer_alias_root(func, value) == object)
+        {
             return false;
         }
     }
@@ -3677,7 +3885,6 @@ fn is_canonical_return_array(
     })
 }
 
-/// Proves canonicality for arrays built by a counted loop with no escaping reads.
 /// Whether `object` is the array this wrapper decoded for one of its own parameters and
 /// element cleanup proved every word in it fits the ABI element type. Decoding validates
 /// each element, and the proof covers everything the function and its callees store, so
@@ -3764,138 +3971,6 @@ fn abi_element_bits(element: &AbiParamType) -> Option<u32> {
         return None;
     };
     Some(u32::from(bits))
-}
-
-fn is_canonical_return_dynamic_array(
-    func: &Function,
-    element: &AbiParamType,
-    object: ValueId,
-    input_params: Option<&AbiParamLayout>,
-    visiting: &mut FxHashSet<ValueId>,
-    calls: &mut CanonicalCallProof<'_>,
-) -> bool {
-    if is_canonical_return_array_param(func, element, object, calls) {
-        return true;
-    }
-    let Value::Inst(alloc) = func.value(object) else { return false };
-    let InstKind::Alloc { kind: AllocationKind::Object(layout), .. } = &func.inst(*alloc).kind
-    else {
-        return false;
-    };
-    if layout.kind() != MemoryObjectKind::DynamicArray {
-        return false;
-    }
-
-    let mut length = None;
-    let mut store = None;
-    let inst_blocks = func.inst_blocks();
-    for inst in func.instructions() {
-        match &func.inst(inst).kind {
-            InstKind::SetMemoryObjectLen(base, value, kind)
-                if *base == object && *kind == MemoryObjectKind::DynamicArray =>
-            {
-                if length.replace(*value).is_some() {
-                    return false;
-                }
-            }
-            InstKind::MemoryObjectStoreElement { object: base, index, value, .. }
-                if *base == object =>
-            {
-                if store.replace((inst, *index, *value)).is_some() {
-                    return false;
-                }
-            }
-            _ if inst != *alloc && func.inst(inst).operands().contains(&object) => return false,
-            _ => {}
-        }
-    }
-    let (Some(length), Some((store_inst, index, value))) = (length, store) else {
-        return false;
-    };
-    if !is_canonical_return_value_inner(
-        func,
-        element,
-        value,
-        input_params,
-        ReturnValueSource::Memory,
-        visiting,
-        calls,
-    ) {
-        return false;
-    }
-
-    let Some(&store_block) = inst_blocks.get(&store_inst) else {
-        return false;
-    };
-    let Value::Inst(phi_inst) = func.value(index) else {
-        return false;
-    };
-    let Some(&phi_block) = inst_blocks.get(phi_inst) else {
-        return false;
-    };
-    let InstKind::Phi(incoming) = &func.inst(*phi_inst).kind else {
-        return false;
-    };
-    if incoming.len() != 2 {
-        return false;
-    }
-
-    let Some(&(preheader, _zero)) =
-        incoming.iter().find(|(_, value)| func.value_u64(*value) == Some(0))
-    else {
-        return false;
-    };
-    let Some(&(backedge, _)) = incoming.iter().find(|(_, value)| {
-        let Value::Inst(inst) = func.value(*value) else { return false };
-        matches!(func.inst(*inst).kind, InstKind::Add(lhs, rhs) if
-            (lhs == index && func.value_u64(rhs) == Some(1))
-                || (rhs == index && func.value_u64(lhs) == Some(1)))
-    }) else {
-        return false;
-    };
-    if preheader == backedge
-        || !func.blocks[backedge]
-            .terminator
-            .as_ref()
-            .is_some_and(|term| matches!(term, Terminator::Jump(target) if *target == phi_block))
-    {
-        return false;
-    }
-
-    let Some(Terminator::Branch { condition, then_block, .. }) = &func.blocks[phi_block].terminator
-    else {
-        return false;
-    };
-    let Value::Inst(condition_inst) = func.value(*condition) else { return false };
-    if !matches!(func.inst(*condition_inst).kind, InstKind::Lt(lhs, rhs) if lhs == index && rhs == length)
-    {
-        return false;
-    }
-
-    let mut work = vec![(*then_block, false)];
-    let mut seen = FxHashSet::default();
-    while let Some((block, stored)) = work.pop() {
-        if !seen.insert((block, stored)) {
-            continue;
-        }
-        let stored = stored || block == store_block;
-        if block == phi_block {
-            if !stored {
-                return false;
-            }
-            continue;
-        }
-        let Some(terminator) = &func.blocks[block].terminator else {
-            return false;
-        };
-        if matches!(terminator, Terminator::Return { .. } | Terminator::ReturnData { .. }) {
-            return false;
-        }
-        for successor in terminator.successors() {
-            work.push((successor, stored));
-        }
-    }
-    true
 }
 
 fn canonicalize_return_value(

@@ -7,59 +7,61 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
-    memory_object_store_field memorystruct<2>, v0, 1, memoryarray 96
-    memory_object_store_field memorystruct<2>, v0, 0, 8
-    v1 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    set_memory_object_len memoryarray, v1, 3
+    v1 = ptrtoint memoryarray 96 to i256
     memory_object_store_field memorystruct<2>, v0, 1, v1
-    v2 = memory_object_load_field memorystruct<2>, v0, 1
-    v3 = inttoptr i256 v2 to memoryarray
-    v4 = memory_object_len memoryarray, v3
-    v5 = lt 0, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    memory_object_store_element memoryarray<1>, v3, 0, 9
-    v7 = memory_object_load_field memorystruct<2>, v0, 1
-    v8 = inttoptr i256 v7 to memoryarray
-    v9 = memory_object_len memoryarray, v8
-    v10 = lt 1, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    memory_object_store_element memoryarray<1>, v8, 1, 10
-    v12 = memory_object_load_field memorystruct<2>, v0, 1
-    v13 = inttoptr i256 v12 to memoryarray
-    v14 = memory_object_len memoryarray, v13
-    v15 = lt 2, v14
-    v16 = eq v15, false
-    icall panic_if<0x32>, v16
-    memory_object_store_element memoryarray<1>, v13, 2, 11
-    v17 = abi_encode [tuple<word, memory_array<word>>], object, args v0
-    icall @store_storage_bytes, 0, v17
-    v18 = load_storage_bytes 0
-    v19 = abi_decode [tuple<u256, array<_, u256>>], v18
-    v20 = memory_object_load_field memorystruct<2>, v19, 0
-    v21 = memory_object_load_field memorystruct<2>, v19, 1
-    v22 = inttoptr i256 v21 to memoryarray
-    v23 = memory_object_len memoryarray, v22
-    v24 = memory_object_load_field memorystruct<2>, v19, 1
-    v25 = inttoptr i256 v24 to memoryarray
-    v26 = memory_object_len memoryarray, v25
-    v27 = lt 0, v26
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = memory_object_load_element memoryarray<1>, v25, 0
-    v30 = memory_object_load_field memorystruct<2>, v19, 1
-    v31 = inttoptr i256 v30 to memoryarray
-    v32 = memory_object_len memoryarray, v31
-    v33 = lt 2, v32
-    v34 = eq v33, false
-    icall panic_if<0x32>, v34
-    v35 = memory_object_load_element memoryarray<1>, v31, 2
-    v36 = insert_value struct0, undef struct0, 0, v20
-    v37 = insert_value struct0, v36, 1, v23
-    v38 = insert_value struct0, v37, 2, v29
-    v39 = insert_value struct0, v38, 3, v35
-    ret v39
+    memory_object_store_field memorystruct<2>, v0, 0, 8
+    v2 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    set_memory_object_len memoryarray, v2, 3
+    v3 = ptrtoint memoryarray v2 to i256
+    memory_object_store_field memorystruct<2>, v0, 1, v3
+    v4 = memory_object_load_field memorystruct<2>, v0, 1
+    v5 = inttoptr i256 v4 to memoryarray
+    v6 = memory_object_len memoryarray, v5
+    v7 = lt 0, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    memory_object_store_element memoryarray<1>, v5, 0, 9
+    v9 = memory_object_load_field memorystruct<2>, v0, 1
+    v10 = inttoptr i256 v9 to memoryarray
+    v11 = memory_object_len memoryarray, v10
+    v12 = lt 1, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    memory_object_store_element memoryarray<1>, v10, 1, 10
+    v14 = memory_object_load_field memorystruct<2>, v0, 1
+    v15 = inttoptr i256 v14 to memoryarray
+    v16 = memory_object_len memoryarray, v15
+    v17 = lt 2, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    memory_object_store_element memoryarray<1>, v15, 2, 11
+    v19 = abi_encode [tuple<word, memory_array<word>>], object, args v0
+    icall @store_storage_bytes, 0, v19
+    v20 = load_storage_bytes 0
+    v21 = abi_decode [tuple<u256, array<_, u256>>], v20
+    v22 = memory_object_load_field memorystruct<2>, v21, 0
+    v23 = memory_object_load_field memorystruct<2>, v21, 1
+    v24 = inttoptr i256 v23 to memoryarray
+    v25 = memory_object_len memoryarray, v24
+    v26 = memory_object_load_field memorystruct<2>, v21, 1
+    v27 = inttoptr i256 v26 to memoryarray
+    v28 = memory_object_len memoryarray, v27
+    v29 = lt 0, v28
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = memory_object_load_element memoryarray<1>, v27, 0
+    v32 = memory_object_load_field memorystruct<2>, v21, 1
+    v33 = inttoptr i256 v32 to memoryarray
+    v34 = memory_object_len memoryarray, v33
+    v35 = lt 2, v34
+    v36 = eq v35, false
+    icall panic_if<0x32>, v36
+    v37 = memory_object_load_element memoryarray<1>, v33, 2
+    v38 = insert_value struct0, undef struct0, 0, v22
+    v39 = insert_value struct0, v38, 1, v25
+    v40 = insert_value struct0, v39, 2, v31
+    v41 = insert_value struct0, v40, 3, v37
+    ret v41
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {

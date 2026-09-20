@@ -81,7 +81,8 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v15 = shr 224, v14
     jumpi true, bb4, bb5
   bb5:
-    revert v10, v11
+    v17 = ptrtoint memptr v10 to i256
+    revert v17, v11
   bb4:
     v16 = memory_object_len memorybytes, v9
     ret v16
@@ -114,7 +115,8 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v15 = shr 224, v14
     jumpi true, bb4, bb5
   bb5:
-    revert v10, v11
+    v17 = ptrtoint memptr v10 to i256
+    revert v17, v11
   bb4:
     v16 = memory_object_len memorybytes, v9
     ret v16

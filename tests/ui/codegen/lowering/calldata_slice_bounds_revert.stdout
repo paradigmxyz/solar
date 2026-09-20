@@ -14,33 +14,33 @@ fn @endPastLength() [selector=0x8063d43b, abi_wrapper, pure] {
     v4 = or v2, v3
     jumpi v4, bb1, bb2
   bb2:
-    v6 = sub arg1, 1
-    v7 = add v24, 33
-    v11 = gt v6, 0xffffffffffffffff
-    jumpi v11, bb1, bb3
+    v7 = sub arg1, 1
+    v8 = add v24, 33
+    v12 = gt v7, 0xffffffffffffffff
+    jumpi v12, bb1, bb3
   bb3:
-    v12 = calldatasize
-    v13 = sub v12, v6
-    v14 = sgt v7, v13
-    jumpi v14, bb1, bb4
+    v13 = calldatasize
+    v14 = sub v13, v7
+    v15 = sgt v8, v14
+    jumpi v15, bb1, bb4
   bb4:
-    v16 = add v6, 63
-    v19 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v17 = add v7, 63
+    v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v55 = mload 64 !metadata(memory=scratch)
-    v57 = add v55, v19
+    v57 = add v55, v20
     mstore 64, v57 !metadata(memory=scratch)
-    mstore v55, v6
+    mstore v55, v7
     v58 = mload 64 !metadata(memory=scratch)
     v33 = add v58, 32
     mstore v58, 32
-    v39 = add v6, 31
+    v39 = add v7, 31
     v40 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v41 = add v33, 32
     v42 = add v33, v40
     mstore v42, 0
-    mstore v33, v6
+    mstore v33, v7
     v44 = add v41, v40
-    calldatacopy v41, v7, v6
+    calldatacopy v41, v8, v7
     v46 = sub v44, v58
     v48 = add v46, 31
     v50 = and v48, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -66,33 +66,33 @@ fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
     v4 = or v2, v3
     jumpi v4, bb1, bb2
   bb2:
-    v6 = sub arg2, arg1
-    v7 = add v26, arg1
-    v11 = gt v6, 0xffffffffffffffff
-    jumpi v11, bb1, bb3
+    v7 = sub arg2, arg1
+    v8 = add v26, arg1
+    v12 = gt v7, 0xffffffffffffffff
+    jumpi v12, bb1, bb3
   bb3:
-    v12 = calldatasize
-    v13 = sub v12, v6
-    v14 = sgt v7, v13
-    jumpi v14, bb1, bb4
+    v13 = calldatasize
+    v14 = sub v13, v7
+    v15 = sgt v8, v14
+    jumpi v15, bb1, bb4
   bb4:
-    v16 = add v6, 63
-    v19 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v17 = add v7, 63
+    v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v55 = mload 64 !metadata(memory=scratch)
-    v57 = add v55, v19
+    v57 = add v55, v20
     mstore 64, v57 !metadata(memory=scratch)
-    mstore v55, v6
+    mstore v55, v7
     v58 = mload 64 !metadata(memory=scratch)
     v33 = add v58, 32
     mstore v58, 32
-    v39 = add v6, 31
+    v39 = add v7, 31
     v40 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v41 = add v33, 32
     v42 = add v33, v40
     mstore v42, 0
-    mstore v33, v6
+    mstore v33, v7
     v44 = add v41, v40
-    calldatacopy v41, v7, v6
+    calldatacopy v41, v8, v7
     v46 = sub v44, v58
     v48 = add v46, 31
     v50 = and v48, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0

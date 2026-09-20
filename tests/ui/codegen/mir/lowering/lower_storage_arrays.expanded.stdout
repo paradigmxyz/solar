@@ -213,7 +213,7 @@
 +     v13 = storage_array_data_slot arg1 !metadata(span=50..60, modifier_depth=5)
 +     jump bb7 !metadata(span=50..60, modifier_depth=5)
 +   bb7:
-+     v14 = phi [bb6: 0], [bb8: v18] !metadata(span=50..60, modifier_depth=5)
++     v14 = phi [bb6: 0], [bb8: v19] !metadata(span=50..60, modifier_depth=5)
 +     v15 = lt v14, v2 !metadata(span=50..60, modifier_depth=5)
 +     jumpi v15, bb8, bb9 !metadata(span=50..60, modifier_depth=5)
 +   bb9:
@@ -225,8 +225,9 @@
 +   bb8:
 +     v16 = add v13, v14 !metadata(span=50..60, modifier_depth=5)
 +     v17 = icall @load_storage_bytes, v16 !metadata(span=50..60, modifier_depth=5)
-+     memory_object_store_element memoryarray<1>, v12, v14, v17 !metadata(span=50..60, modifier_depth=5)
-+     v18 = add v14, 1 !metadata(span=50..60, modifier_depth=5)
++     v18 = ptrtoint memorybytes v17 to i256 !metadata(span=50..60, modifier_depth=5)
++     memory_object_store_element memoryarray<1>, v12, v14, v18 !metadata(span=50..60, modifier_depth=5)
++     v19 = add v14, 1 !metadata(span=50..60, modifier_depth=5)
 +     jump bb7 !metadata(span=50..60, modifier_depth=5)
 +   bb4:
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=50..60, modifier_depth=5)

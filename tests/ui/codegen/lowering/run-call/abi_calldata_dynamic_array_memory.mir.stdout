@@ -31,7 +31,7 @@ fn @f(arg0: calldataslice) -> memoryarray [selector=0xc26b6b9a, pure, abi_params
     set_memory_object_len memoryarray, v21, v0
     jump bb1
   bb1:
-    v22 = phi [bb0: 0], [bb2: v55]
+    v22 = phi [bb0: 0], [bb2: v56]
     v23 = lt v22, v0
     jumpi v23, bb2, bb3
   bb3:
@@ -76,8 +76,9 @@ fn @f(arg0: calldataslice) -> memoryarray [selector=0xc26b6b9a, pure, abi_params
     set_memory_object_len memoryarray, v53, v36
     v54 = make_calldata_slice v43, v44
     memory_object_copy_from_slice memoryarray, v53, v54
-    memory_object_store_element memoryarray<1>, v21, v22, v53
-    v55 = add v22, 1
+    v55 = ptrtoint memoryarray v53 to i256
+    memory_object_store_element memoryarray<1>, v21, v22, v55
+    v56 = add v22, 1
     jump bb1
 }
 

@@ -8,38 +8,39 @@ fn @word(arg0: calldataslice) -> memoryarray [selector=0x37948b05, pure, abi_par
     v3 = lt v1, 1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
-    icall revert_if<empty>, v5
-    v6 = sub v1, 1
-    v7 = add v0, 32
-    v8 = make_calldata_slice v7, v6
-    v9 = slice_len v8
-    v10 = slice_ptr v8
-    v11 = mul v9, 32
-    v12 = eq 32, 0
-    v13 = div v11, 32
-    v14 = eq v13, v9
-    v15 = or v12, v14
-    v16 = zext i1 v15 to i256
-    v17 = eq v16, 0
-    icall panic_if<0x41>, v17
-    v18 = calldatasize
-    v19 = sub v18, v10
-    v20 = slt v19, v11
-    icall revert_if<calldata_tail_too_short>, v20
-    v21 = mul v9, 32
-    v22 = eq 32, 0
-    v23 = div v21, 32
-    v24 = eq v23, v9
-    v25 = or v22, v24
-    v26 = zext i1 v25 to i256
-    v27 = eq v26, 0
-    icall panic_if<0x41>, v27
-    v28 = add 32, v21
-    v29 = lt v28, 32
-    icall panic_if<0x41>, v29
-    v30 = alloc memoryarray<1>, exact, uninitialized, infallible, v28
-    set_memory_object_len memoryarray, v30, v9
-    v31 = make_calldata_slice v10, v21
-    memory_object_copy_from_slice memoryarray, v30, v31
-    ret v30
+    v6 = ne v5, 0
+    icall revert_if<empty>, v6
+    v7 = sub v1, 1
+    v8 = add v0, 32
+    v9 = make_calldata_slice v8, v7
+    v10 = slice_len v9
+    v11 = slice_ptr v9
+    v12 = mul v10, 32
+    v13 = eq 32, 0
+    v14 = div v12, 32
+    v15 = eq v14, v10
+    v16 = or v13, v15
+    v17 = zext i1 v16 to i256
+    v18 = eq v17, 0
+    icall panic_if<0x41>, v18
+    v19 = calldatasize
+    v20 = sub v19, v11
+    v21 = slt v20, v12
+    icall revert_if<calldata_tail_too_short>, v21
+    v22 = mul v10, 32
+    v23 = eq 32, 0
+    v24 = div v22, 32
+    v25 = eq v24, v10
+    v26 = or v23, v25
+    v27 = zext i1 v26 to i256
+    v28 = eq v27, 0
+    icall panic_if<0x41>, v28
+    v29 = add 32, v22
+    v30 = lt v29, 32
+    icall panic_if<0x41>, v30
+    v31 = alloc memoryarray<1>, exact, uninitialized, infallible, v29
+    set_memory_object_len memoryarray, v31, v10
+    v32 = make_calldata_slice v11, v22
+    memory_object_copy_from_slice memoryarray, v31, v32
+    ret v31
 }

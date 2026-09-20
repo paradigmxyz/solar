@@ -16,32 +16,34 @@ fn @forward(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0x4b1
     v5 = lt arg2, arg1
     v6 = or v4, v5
     v7 = zext i1 v6 to i256
-    icall revert_if<empty>, v7
-    v8 = sub arg2, arg1
-    v9 = mul arg1, 32
-    v10 = eq 32, 0
-    v11 = div v9, 32
-    v12 = eq v11, arg1
-    v13 = or v10, v12
-    v14 = zext i1 v13 to i256
-    v15 = eq v14, 0
-    icall panic_if<0x41>, v15
-    v16 = add v2, v9
-    v17 = make_calldata_slice v16, v8
-    v18 = abi_encode [calldata_array<word>], selector 0xe55582b700000000000000000000000000000000000000000000000000000000, args v17
-    v19 = slice_ptr v18
-    v20 = slice_len v18
-    v21 = staticcall v1, v0, v19, v20, 0, 32
-    jumpi v21, bb2, bb1
+    v8 = ne v7, 0
+    icall revert_if<empty>, v8
+    v9 = sub arg2, arg1
+    v10 = mul arg1, 32
+    v11 = eq 32, 0
+    v12 = div v10, 32
+    v13 = eq v12, arg1
+    v14 = or v11, v13
+    v15 = zext i1 v14 to i256
+    v16 = eq v15, 0
+    icall panic_if<0x41>, v16
+    v17 = add v2, v10
+    v18 = make_calldata_slice v17, v9
+    v19 = abi_encode [calldata_array<word>], selector 0xe55582b700000000000000000000000000000000000000000000000000000000, args v18
+    v20 = slice_ptr v19
+    v21 = slice_len v19
+    v22 = zext i160 v0 to i256
+    v23 = staticcall v1, v22, v20, v21, 0, 32
+    jumpi v23, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v22 = returndatasize
-    v23 = lt v22, 32
-    icall revert_if<tuple_data_too_short>, v23
-    v24 = add 0, 0
-    v25 = mload v24
+    v24 = returndatasize
+    v25 = lt v24, 32
+    icall revert_if<tuple_data_too_short>, v25
     v26 = add 0, 0
     v27 = mload v26
-    ret v27
+    v28 = add 0, 0
+    v29 = mload v28
+    ret v29
 }

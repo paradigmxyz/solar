@@ -3,13 +3,13 @@
 //@[expanded] compile-flags: -Zmir-pipeline=lower-builtins
 @module PayableCalls
 
-fn @send_value(arg0: i256, arg1: i256) -> i256 {
+fn @send_value(arg0: i160, arg1: i256) -> i256 {
   bb0:
     v0 = icall send<>, arg0, arg1 !metadata(span=10..20, modifier_depth=2)
     ret v0
 }
 
-fn @transfer_value(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+fn @transfer_value(arg0: i1, arg1: i160, arg2: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:

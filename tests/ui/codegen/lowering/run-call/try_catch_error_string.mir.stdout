@@ -88,7 +88,8 @@ fn @reasonLength() -> i256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
   bb8:
     jumpi true, bb9, bb10
   bb10:
-    revert v10, v11
+    v34 = ptrtoint memptr v10 to i256
+    revert v34, v11
   bb9:
     ret 0
   bb7:

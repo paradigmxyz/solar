@@ -8,17 +8,19 @@
 fn @encode(arg0: i256) -> memoryslice {
   bb0:
     mstore arg0, 1
-    v0 = abi_encode [memory_bytes], args arg0
+    v1 = inttoptr i256 arg0 to memorybytes
+    v0 = abi_encode [memory_bytes], args v1
     ret v0
 }
 
 // CHECK-LABEL: fn @require_reads_message
 // CHECK: {{^[ +].*}}mstore arg1, 1
-// CHECK: {{^[ +].*}}icall require<error_string>, arg0, arg1
+// CHECK: {{^[ +].*}}icall require<error_string>, arg0, {{v[0-9]+}}
 fn @require_reads_message(arg0: i1, arg1: i256) {
   bb0:
     mstore arg1, 1
-    icall require<error_string>, arg0, arg1
+    v0 = inttoptr i256 arg1 to memorybytes
+    icall require<error_string>, arg0, v0
     ret
 }
 
@@ -34,7 +36,8 @@ fn @require_reads_children(arg0: i1) {
     v1 = ptrtoint memptr v4 to i256
     mstore v0, 7
     mstore v1, v0
-    icall require<custom_error [array<1, memory_bytes>]>, arg0, 0, v1
+    v5 = inttoptr i256 v1 to memoryfixedarray
+    icall require<custom_error [array<1, memory_bytes>]>, arg0, 0, v5
     ret
 }
 
@@ -50,6 +53,7 @@ fn @packed_reads_children() -> memorybytes {
     v1 = ptrtoint memptr v6 to i256
     mstore v0, 7
     mstore v1, v0
-    v2 = abi_encode_packed (array<array<1, word>> memoryfixedarray<1, 1> v1)
+    v7 = inttoptr i256 v1 to memoryfixedarray
+    v2 = abi_encode_packed (array<array<1, word>> memoryfixedarray<1, 1> v7)
     ret v2
 }

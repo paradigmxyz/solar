@@ -3,13 +3,14 @@
 fn @storage_sub(arg0: i256, arg1: i256) [selector=0x8af2db43, abi_params=[address, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = trunc i256 arg0 to i160
-    v1 = mapping_slot v0, 0
-    v2 = sload v1 !metadata(storage=symbolic(v1))
-    v4 = sub v2, arg1
-    v5 = lt v2, arg1
-    jumpi v5, bb1, bb2
+    v1 = zext i160 v0 to i256
+    v2 = mapping_slot v1, 0
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    v5 = sub v3, arg1
+    v6 = lt v3, arg1
+    jumpi v6, bb1, bb2
   bb2:
-    sstore v1, v4
+    sstore v2, v5
     ret
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -20,15 +21,17 @@ fn @storage_sub(arg0: i256, arg1: i256) [selector=0x8af2db43, abi_params=[addres
 fn @storage_binary_sub(arg0: i256, arg1: i256) [selector=0x816bb6a5, abi_params=[address, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = trunc i256 arg0 to i160
-    v1 = mapping_slot v0, 0
-    v2 = sload v1 !metadata(storage=symbolic(v1))
-    v6 = sub v2, arg1
-    v7 = lt v2, arg1
-    jumpi v7, bb1, bb2
+    v1 = zext i160 v0 to i256
+    v2 = mapping_slot v1, 0
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    v8 = sub v3, arg1
+    v9 = lt v3, arg1
+    jumpi v9, bb1, bb2
   bb2:
-    v4 = trunc i256 arg0 to i160
-    v5 = mapping_slot v4, 0
-    sstore v5, v6
+    v5 = trunc i256 arg0 to i160
+    v6 = zext i160 v5 to i256
+    v7 = mapping_slot v6, 0
+    sstore v7, v8
     ret
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -39,20 +42,21 @@ fn @storage_binary_sub(arg0: i256, arg1: i256) [selector=0x816bb6a5, abi_params=
 fn @storage_struct_add(arg0: i256, arg1: i256) [selector=0xb11dd1b8, abi_params=[address, u128], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = trunc i256 arg0 to i160
-    v1 = mapping_slot v0, 1
-    v2 = sload v1 !metadata(storage=symbolic(v1))
-    v3 = and v2, 0xffffffffffffffffffffffffffffffff
-    v4 = and arg1, 0xffffffffffffffffffffffffffffffff
-    v11 = add v3, v4
-    v12 = gt v11, 0xffffffffffffffffffffffffffffffff
-    jumpi v12, bb1, bb2
+    v1 = zext i160 v0 to i256
+    v2 = mapping_slot v1, 1
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    v4 = and v3, 0xffffffffffffffffffffffffffffffff
+    v5 = and arg1, 0xffffffffffffffffffffffffffffffff
+    v12 = add v4, v5
+    v13 = gt v12, 0xffffffffffffffffffffffffffffffff
+    jumpi v13, bb1, bb2
   bb2:
-    v6 = sload v1 !metadata(storage=symbolic(v1))
-    v7 = not 0xffffffffffffffffffffffffffffffff
-    v8 = and v6, v7
-    v9 = and v11, 0xffffffffffffffffffffffffffffffff
-    v10 = or v8, v9
-    sstore v1, v10 !metadata(storage=symbolic(v1))
+    v7 = sload v2 !metadata(storage=symbolic(v2))
+    v8 = not 0xffffffffffffffffffffffffffffffff
+    v9 = and v7, v8
+    v10 = and v12, 0xffffffffffffffffffffffffffffffff
+    v11 = or v9, v10
+    sstore v2, v11 !metadata(storage=symbolic(v2))
     ret
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -63,37 +67,38 @@ fn @storage_struct_add(arg0: i256, arg1: i256) [selector=0xb11dd1b8, abi_params=
 fn @storage_struct_signed_sub(arg0: i256, arg1: i256) [selector=0x14ebfa30, abi_params=[address, i8], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = trunc i256 arg0 to i160
-    v1 = mapping_slot v0, 1
-    v2 = sload v1 !metadata(storage=symbolic(v1))
-    v3 = shr 128, v2
-    v4 = and v3, 255
-    v5 = signextend 0, v4
-    v6 = signextend 0, arg1
-    v15 = sub v5, v6
-    v16 = slt v5, 0
+    v1 = zext i160 v0 to i256
+    v2 = mapping_slot v1, 1
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    v4 = shr 128, v3
+    v5 = and v4, 255
+    v6 = signextend 0, v5
+    v7 = signextend 0, arg1
+    v16 = sub v6, v7
     v17 = slt v6, 0
-    v18 = slt v15, 0
-    v19 = xor v16, v17
-    v20 = zext i1 v19 to i256
-    v21 = xor v18, v16
-    v22 = zext i1 v21 to i256
-    v23 = and v20, v22
-    v24 = slt v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    v25 = sgt v15, 127
-    v26 = or v24, v25
-    v27 = zext i1 v26 to i256
-    v28 = or v23, v27
-    v29 = ne v28, 0
-    jumpi v29, bb1, bb2
+    v18 = slt v7, 0
+    v19 = slt v16, 0
+    v20 = xor v17, v18
+    v21 = zext i1 v20 to i256
+    v22 = xor v19, v17
+    v23 = zext i1 v22 to i256
+    v24 = and v21, v23
+    v25 = slt v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    v26 = sgt v16, 127
+    v27 = or v25, v26
+    v28 = zext i1 v27 to i256
+    v29 = or v24, v28
+    v30 = ne v29, 0
+    jumpi v30, bb1, bb2
   bb2:
-    v8 = shl 128, 255
-    v9 = sload v1 !metadata(storage=symbolic(v1))
-    v10 = not v8
-    v11 = and v9, v10
-    v12 = and v15, 255
-    v13 = shl 128, v12
-    v14 = or v11, v13
-    sstore v1, v14 !metadata(storage=symbolic(v1))
+    v9 = shl 128, 255
+    v10 = sload v2 !metadata(storage=symbolic(v2))
+    v11 = not v9
+    v12 = and v10, v11
+    v13 = and v16, 255
+    v14 = shl 128, v13
+    v15 = or v12, v14
+    sstore v2, v15 !metadata(storage=symbolic(v2))
     ret
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

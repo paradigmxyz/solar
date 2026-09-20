@@ -86,38 +86,40 @@ fn @cleanup(arg0: i256) -> struct0 [selector=0x0aa40018, view, abi_params=[u256]
     v11 = abi_encode [function], selector 0xbd2d517e00000000000000000000000000000000000000000000000000000000, args v10
     v12 = slice_ptr v11
     v13 = slice_len v11
-    v14 = staticcall v8, v7, v12, v13, 0, 32
-    jumpi v14, bb2, bb1
+    v14 = zext i160 v7 to i256
+    v15 = staticcall v8, v14, v12, v13, 0, 32
+    jumpi v15, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v15 = returndatasize
-    v16 = lt v15, 32
-    icall revert_if<tuple_data_too_short>, v16
-    v17 = add 0, 0
-    v18 = mload v17
-    v19 = add 0, 0
-    v20 = mload v19
-    v21 = address
-    v22 = gas
-    v23 = abi_encode [tuple<function>], selector 0xadfc46c000000000000000000000000000000000000000000000000000000000, args v0
-    v24 = slice_ptr v23
-    v25 = slice_len v23
-    v26 = staticcall v22, v21, v24, v25, 0, 32
-    jumpi v26, bb4, bb3
+    v16 = returndatasize
+    v17 = lt v16, 32
+    icall revert_if<tuple_data_too_short>, v17
+    v18 = add 0, 0
+    v19 = mload v18
+    v20 = add 0, 0
+    v21 = mload v20
+    v22 = address
+    v23 = gas
+    v24 = abi_encode [tuple<function>], selector 0xadfc46c000000000000000000000000000000000000000000000000000000000, args v0
+    v25 = slice_ptr v24
+    v26 = slice_len v24
+    v27 = zext i160 v22 to i256
+    v28 = staticcall v23, v27, v25, v26, 0, 32
+    jumpi v28, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v27 = returndatasize
-    v28 = lt v27, 32
-    icall revert_if<tuple_data_too_short>, v28
-    v29 = add 0, 0
-    v30 = mload v29
+    v29 = returndatasize
+    v30 = lt v29, 32
+    icall revert_if<tuple_data_too_short>, v30
     v31 = add 0, 0
     v32 = mload v31
-    v33 = insert_value struct0, undef struct0, 0, v20
-    v34 = insert_value struct0, v33, 1, v32
-    ret v34
+    v33 = add 0, 0
+    v34 = mload v33
+    v35 = insert_value struct0, undef struct0, 0, v21
+    v36 = insert_value struct0, v35, 1, v34
+    ret v36
 }
 
 fn @dirtyReturn(arg0: i256) -> memorystruct [selector=0x2aae0ed6, view, abi_params=[u256], abi_returns=[tuple<function>], abi_return_params=[tuple<function>]] {
@@ -146,19 +148,20 @@ fn @cleanupArray(arg0: i256) -> i256 [selector=0x7e130ca5, view, abi_params=[u25
     v5 = abi_encode [memory_array<function>], selector 0xc124fd9700000000000000000000000000000000000000000000000000000000, args v0
     v6 = slice_ptr v5
     v7 = slice_len v5
-    v8 = staticcall v4, v3, v6, v7, 0, 32
-    jumpi v8, bb2, bb1
+    v8 = zext i160 v3 to i256
+    v9 = staticcall v4, v8, v6, v7, 0, 32
+    jumpi v9, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = returndatasize
-    v10 = lt v9, 32
-    icall revert_if<tuple_data_too_short>, v10
-    v11 = add 0, 0
-    v12 = mload v11
-    v13 = add 0, 0
-    v14 = mload v13
-    ret v14
+    v10 = returndatasize
+    v11 = lt v10, 32
+    icall revert_if<tuple_data_too_short>, v11
+    v12 = add 0, 0
+    v13 = mload v12
+    v14 = add 0, 0
+    v15 = mload v14
+    ret v15
 }
 
 fn @packedArray(arg0: i256) -> memorybytes [selector=0xc341d66f, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -198,19 +201,20 @@ fn @memoryStructToStorage(arg0: i256) -> i256 [selector=0xb4caea8f, abi_params=[
     v18 = abi_encode [function], selector 0xbd2d517e00000000000000000000000000000000000000000000000000000000, args v17
     v19 = slice_ptr v18
     v20 = slice_len v18
-    v21 = staticcall v15, v14, v19, v20, 0, 32
-    jumpi v21, bb2, bb1
+    v21 = zext i160 v14 to i256
+    v22 = staticcall v15, v21, v19, v20, 0, 32
+    jumpi v22, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v22 = returndatasize
-    v23 = lt v22, 32
-    icall revert_if<tuple_data_too_short>, v23
-    v24 = add 0, 0
-    v25 = mload v24
-    v26 = add 0, 0
-    v27 = mload v26
-    ret v27
+    v23 = returndatasize
+    v24 = lt v23, 32
+    icall revert_if<tuple_data_too_short>, v24
+    v25 = add 0, 0
+    v26 = mload v25
+    v27 = add 0, 0
+    v28 = mload v27
+    ret v28
 }
 
 fn @storageStructToMemory() -> i256 [selector=0x9a40632d, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -293,19 +297,20 @@ fn @memoryArrayToStorage(arg0: i256) -> i256 [selector=0xe3183809, abi_params=[u
     v54 = abi_encode [function], selector 0xbd2d517e00000000000000000000000000000000000000000000000000000000, args v53
     v55 = slice_ptr v54
     v56 = slice_len v54
-    v57 = staticcall v41, v40, v55, v56, 0, 32
-    jumpi v57, bb10, bb9
+    v57 = zext i160 v40 to i256
+    v58 = staticcall v41, v57, v55, v56, 0, 32
+    jumpi v58, bb10, bb9
   bb9:
     revert_returndata
   bb10:
-    v58 = returndatasize
-    v59 = lt v58, 32
-    icall revert_if<tuple_data_too_short>, v59
-    v60 = add 0, 0
-    v61 = mload v60
-    v62 = add 0, 0
-    v63 = mload v62
-    ret v63
+    v59 = returndatasize
+    v60 = lt v59, 32
+    icall revert_if<tuple_data_too_short>, v60
+    v61 = add 0, 0
+    v62 = mload v61
+    v63 = add 0, 0
+    v64 = mload v63
+    ret v64
   bb7:
     v24 = memory_object_load_element memoryarray<1>, v0, v22
     v25 = shr 64, v24

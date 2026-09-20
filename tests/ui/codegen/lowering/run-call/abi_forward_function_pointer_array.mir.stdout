@@ -40,25 +40,26 @@ fn @forward(arg0: calldataslice) -> i256 [selector=0xf848716a, view, abi_params=
     v35 = abi_encode [memory_array<function>], selector 0x5010464900000000000000000000000000000000000000000000000000000000, args v23
     v36 = slice_ptr v35
     v37 = slice_len v35
-    v38 = staticcall v1, v0, v36, v37, 0, 32
-    jumpi v38, bb5, bb4
+    v38 = zext i160 v0 to i256
+    v39 = staticcall v1, v38, v36, v37, 0, 32
+    jumpi v39, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v39 = returndatasize
-    v40 = lt v39, 32
-    icall revert_if<tuple_data_too_short>, v40
-    v41 = add 0, 0
-    v42 = mload v41
-    v43 = eq v42, 0
-    v44 = eq v43, false
-    v45 = zext i1 v44 to i256
-    v46 = eq v42, v45
-    v47 = eq v46, false
-    icall revert_if<empty>, v47
-    v48 = add 0, 0
-    v49 = mload v48
-    ret v49
+    v40 = returndatasize
+    v41 = lt v40, 32
+    icall revert_if<tuple_data_too_short>, v41
+    v42 = add 0, 0
+    v43 = mload v42
+    v44 = eq v43, 0
+    v45 = eq v44, false
+    v46 = zext i1 v45 to i256
+    v47 = eq v43, v46
+    v48 = eq v47, false
+    icall revert_if<empty>, v48
+    v49 = add 0, 0
+    v50 = mload v49
+    ret v50
   bb2:
     v26 = mul v24, 32
     v27 = add v3, v26

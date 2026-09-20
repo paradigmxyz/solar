@@ -15,12 +15,13 @@ fn @peel(arg0: calldataslice) -> calldataslice [pure] {
     v6 = lt v4, 1
     v7 = or v5, v6
     v8 = zext i1 v7 to i256
-    icall revert_if<empty>, v8
-    v9 = sub v4, 1
-    v10 = add v3, 1
-    v11 = make_calldata_slice v10, v9
-    v12 = icall @peel, v11
-    ret v12
+    v9 = ne v8, 0
+    icall revert_if<empty>, v9
+    v10 = sub v4, 1
+    v11 = add v3, 1
+    v12 = make_calldata_slice v11, v10
+    v13 = icall @peel, v12
+    ret v13
   bb1:
     ret arg0
 }

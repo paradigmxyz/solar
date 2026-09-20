@@ -256,57 +256,64 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memorybytes) [selector=0x
 fn @callExternal() -> i256 [selector=0x5f431992, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorystruct<5>, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
-    memory_zero v0, 160
-    memory_object_store_field memorystruct<5>, v0, 0, memoryarray 96
-    memory_object_store_field memorystruct<5>, v0, 2, memorybytes 96
-    memory_object_store_field memorystruct<5>, v0, 3, memorybytes 96
-    v1 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    set_memory_object_len memoryarray, v1, 3
-    memory_object_store_field memorystruct<5>, v0, 0, v1
-    v2 = memory_object_load_field memorystruct<5>, v0, 0
-    v3 = inttoptr i256 v2 to memoryarray
-    v4 = memory_object_len memoryarray, v3
-    v5 = lt 0, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    memory_object_store_element memoryarray<1>, v3, 0, 0
+    v1 = ptrtoint memorystruct v0 to i256
+    memory_zero v1, 160
+    v2 = ptrtoint memoryarray 96 to i256
+    memory_object_store_field memorystruct<5>, v0, 0, v2
+    v3 = ptrtoint memorybytes 96 to i256
+    memory_object_store_field memorystruct<5>, v0, 2, v3
+    v4 = ptrtoint memorybytes 96 to i256
+    memory_object_store_field memorystruct<5>, v0, 3, v4
+    v5 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    set_memory_object_len memoryarray, v5, 3
+    v6 = ptrtoint memoryarray v5 to i256
+    memory_object_store_field memorystruct<5>, v0, 0, v6
     v7 = memory_object_load_field memorystruct<5>, v0, 0
     v8 = inttoptr i256 v7 to memoryarray
     v9 = memory_object_len memoryarray, v8
-    v10 = lt 1, v9
+    v10 = lt 0, v9
     v11 = eq v10, false
     icall panic_if<0x32>, v11
-    memory_object_store_element memoryarray<1>, v8, 1, 1
+    memory_object_store_element memoryarray<1>, v8, 0, 0
     v12 = memory_object_load_field memorystruct<5>, v0, 0
     v13 = inttoptr i256 v12 to memoryarray
     v14 = memory_object_len memoryarray, v13
-    v15 = lt 2, v14
+    v15 = lt 1, v14
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    memory_object_store_element memoryarray<1>, v13, 2, 2
+    memory_object_store_element memoryarray<1>, v13, 1, 1
+    v17 = memory_object_load_field memorystruct<5>, v0, 0
+    v18 = inttoptr i256 v17 to memoryarray
+    v19 = memory_object_len memoryarray, v18
+    v20 = lt 2, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    memory_object_store_element memoryarray<1>, v18, 2, 2
     memory_object_store_field memorystruct<5>, v0, 1, 6
-    v17 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v17, 10
-    v18 = memory_object_data memorybytes, v17
-    v19 = ptrtoint memptr v18 to i256
-    mstore v19, 0x5374727563744e616d6500000000000000000000000000000000000000000000
-    memory_object_store_field memorystruct<5>, v0, 2, v17
-    v20 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v20, 4
-    v21 = memory_object_data memorybytes, v20
-    v22 = ptrtoint memptr v21 to i256
-    mstore v22, 0x3132333400000000000000000000000000000000000000000000000000000000
-    memory_object_store_field memorystruct<5>, v0, 3, v20
+    v22 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v22, 10
+    v23 = memory_object_data memorybytes, v22
+    v24 = ptrtoint memptr v23 to i256
+    mstore v24, 0x5374727563744e616d6500000000000000000000000000000000000000000000
+    v25 = ptrtoint memorybytes v22 to i256
+    memory_object_store_field memorystruct<5>, v0, 2, v25
+    v26 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v26, 4
+    v27 = memory_object_data memorybytes, v26
+    v28 = ptrtoint memptr v27 to i256
+    mstore v28, 0x3132333400000000000000000000000000000000000000000000000000000000
+    v29 = ptrtoint memorybytes v26 to i256
+    memory_object_store_field memorystruct<5>, v0, 3, v29
     memory_object_store_field memorystruct<5>, v0, 4, 1
-    v23 = address
-    v24 = gas
-    v25 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v25, 8
-    v26 = memory_object_data memorybytes, v25
-    v27 = ptrtoint memptr v26 to i256
-    mstore v27, 0x546573744e616d65000000000000000000000000000000000000000000000000
-    v28 = abi_encode [tuple<memory_array<word>, word, memory_bytes, memory_bytes, word<enum 3>>, word, memory_bytes], object, selector 0x291c5a6100000000000000000000000000000000000000000000000000000000, args v0, 5, v25
-    v29 = address_call v23, v28, gas v24
-    v30 = zext i1 v29 to i256
-    ret v30
+    v30 = address
+    v31 = gas
+    v32 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v32, 8
+    v33 = memory_object_data memorybytes, v32
+    v34 = ptrtoint memptr v33 to i256
+    mstore v34, 0x546573744e616d65000000000000000000000000000000000000000000000000
+    v35 = abi_encode [tuple<memory_array<word>, word, memory_bytes, memory_bytes, word<enum 3>>, word, memory_bytes], object, selector 0x291c5a6100000000000000000000000000000000000000000000000000000000, args v0, 5, v32
+    v36 = address_call v30, v35, gas v31
+    v37 = zext i1 v36 to i256
+    ret v37
 }

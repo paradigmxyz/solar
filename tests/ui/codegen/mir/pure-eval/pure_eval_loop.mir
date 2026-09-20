@@ -74,7 +74,8 @@ fn @bool_return() -> i1 {
 fn @unknown_case_precedes_match() -> i256 {
   bb0:
     v0 = address
-    switch 1, default bb3, [v0 => bb1, 1 => bb2]
+    v1 = zext i160 v0 to i256
+    switch 1, default bb3, [v1 => bb1, 1 => bb2]
   bb1:
     ret 1
   bb2:

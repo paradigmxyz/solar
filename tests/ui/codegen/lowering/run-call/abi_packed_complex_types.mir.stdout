@@ -88,11 +88,12 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v72 = abi_encode_packed (array<word<u120>> memoryarray<1> v0)
     v73 = keccak256_bytes v72
     v74 = trunc i256 0x1234 to i160
-    v75 = keccak256_packed (u160 v74)
-    v76 = insert_value struct0, undef struct0, 0, v71
-    v77 = insert_value struct0, v76, 1, v73
-    v78 = insert_value struct0, v77, 2, v75
-    ret v78
+    v75 = zext i160 v74 to i256
+    v76 = keccak256_packed (u160 v75)
+    v77 = insert_value struct0, undef struct0, 0, v71
+    v78 = insert_value struct0, v77, 1, v73
+    v79 = insert_value struct0, v78, 2, v76
+    ret v79
   bb2:
     v61 = div v59, 2
     v62 = add 0, v61
@@ -145,64 +146,70 @@ fn @hashNestedAbi() -> i256 [selector=0x821258ba, pure, abi_params=[], abi_retur
     set_memory_object_len memoryarray, v0, 1
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v5 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
-    v6 = and v5, 0xffffffffffffffffffffffffffffff
-    v7 = memory_object_len memoryarray, v0
-    v8 = lt 0, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = memory_object_load_element memoryarray<1>, v0, 0
-    v11 = inttoptr i256 v10 to memoryfixedarray
-    v12 = ptrtoint memoryfixedarray v11 to i256
-    v13 = eq v12, 0
-    jumpi v13, bb4, bb5
+    v7 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    v8 = and v7, 0xffffffffffffffffffffffffffffff
+    v9 = memory_object_len memoryarray, v0
+    v10 = lt 0, v9
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = memory_object_load_element memoryarray<1>, v0, 0
+    v13 = inttoptr i256 v12 to memoryfixedarray
+    v14 = ptrtoint memoryfixedarray v13 to i256
+    v15 = eq v14, 0
+    jumpi v15, bb4, bb5
   bb4:
-    v14 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    memory_zero v14, 64
-    memory_object_store_element memoryarray<1>, v0, 0, v14
+    v16 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v17 = ptrtoint memoryfixedarray v16 to i256
+    memory_zero v17, 64
+    v18 = ptrtoint memoryfixedarray v16 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v18
     jump bb5
   bb5:
-    v15 = phi [bb3: v11], [bb4: v14]
-    v16 = lt 0, 2
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    memory_object_store_element memoryfixedarray<2, 1>, v15, 0, v6
-    v18 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
-    v19 = and v18, 0xffffffffffffffffffffffffffffff
-    v20 = memory_object_len memoryarray, v0
-    v21 = lt 0, v20
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = memory_object_load_element memoryarray<1>, v0, 0
-    v24 = inttoptr i256 v23 to memoryfixedarray
-    v25 = ptrtoint memoryfixedarray v24 to i256
-    v26 = eq v25, 0
-    jumpi v26, bb6, bb7
+    v19 = phi [bb3: v13], [bb4: v16]
+    v20 = lt 0, 2
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    memory_object_store_element memoryfixedarray<2, 1>, v19, 0, v8
+    v22 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
+    v23 = and v22, 0xffffffffffffffffffffffffffffff
+    v24 = memory_object_len memoryarray, v0
+    v25 = lt 0, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = memory_object_load_element memoryarray<1>, v0, 0
+    v28 = inttoptr i256 v27 to memoryfixedarray
+    v29 = ptrtoint memoryfixedarray v28 to i256
+    v30 = eq v29, 0
+    jumpi v30, bb6, bb7
   bb6:
-    v27 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    memory_zero v27, 64
-    memory_object_store_element memoryarray<1>, v0, 0, v27
+    v31 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v32 = ptrtoint memoryfixedarray v31 to i256
+    memory_zero v32, 64
+    v33 = ptrtoint memoryfixedarray v31 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v33
     jump bb7
   bb7:
-    v28 = phi [bb5: v24], [bb6: v27]
-    v29 = lt 1, 2
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    memory_object_store_element memoryfixedarray<2, 1>, v28, 1, v19
-    v31 = abi_encode [memory_array<array<2, word<u120>>>], scratch, args v0
-    v32 = slice_ptr v31
-    v33 = slice_len v31
-    v34 = keccak256 v32, v33
-    ret v34
+    v34 = phi [bb5: v28], [bb6: v31]
+    v35 = lt 1, 2
+    v36 = eq v35, false
+    icall panic_if<0x32>, v36
+    memory_object_store_element memoryfixedarray<2, 1>, v34, 1, v23
+    v37 = abi_encode [memory_array<array<2, word<u120>>>], scratch, args v0
+    v38 = slice_ptr v37
+    v39 = slice_len v37
+    v40 = keccak256 v38, v39
+    ret v40
   bb2:
     v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    memory_zero v3, 64
-    memory_object_store_element memoryarray<1>, v0, v1, v3
-    v4 = add v1, 1
+    v4 = ptrtoint memoryfixedarray v3 to i256
+    memory_zero v4, 64
+    v5 = ptrtoint memoryfixedarray v3 to i256
+    memory_object_store_element memoryarray<1>, v0, v1, v5
+    v6 = add v1, 1
     jump bb1
 }
 
@@ -211,32 +218,34 @@ fn @hashStructAbi() -> i256 [selector=0x46dfc0fe, pure, abi_params=[], abi_retur
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
     v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    memory_zero v1, 64
-    memory_object_store_field memorystruct<2>, v0, 1, v1
-    v2 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
-    v3 = and v2, 0xffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<2>, v0, 0, v3
-    v4 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
+    v2 = ptrtoint memoryfixedarray v1 to i256
+    memory_zero v2, 64
+    v3 = ptrtoint memoryfixedarray v1 to i256
+    memory_object_store_field memorystruct<2>, v0, 1, v3
+    v4 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
     v5 = and v4, 0xffffffffffffffffffffffffffffff
-    v6 = memory_object_load_field memorystruct<2>, v0, 1
-    v7 = inttoptr i256 v6 to memoryfixedarray
-    v8 = lt 0, 2
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    memory_object_store_element memoryfixedarray<2, 1>, v7, 0, v5
-    v10 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3
-    v11 = and v10, 0xffffffffffffffffffffffffffffff
-    v12 = memory_object_load_field memorystruct<2>, v0, 1
-    v13 = inttoptr i256 v12 to memoryfixedarray
-    v14 = lt 1, 2
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    memory_object_store_element memoryfixedarray<2, 1>, v13, 1, v11
-    v16 = abi_encode [tuple<word<u120>, array<2, word<u120>>>], scratch, args v0
-    v17 = slice_ptr v16
-    v18 = slice_len v16
-    v19 = keccak256 v17, v18
-    ret v19
+    memory_object_store_field memorystruct<2>, v0, 0, v5
+    v6 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
+    v7 = and v6, 0xffffffffffffffffffffffffffffff
+    v8 = memory_object_load_field memorystruct<2>, v0, 1
+    v9 = inttoptr i256 v8 to memoryfixedarray
+    v10 = lt 0, 2
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    memory_object_store_element memoryfixedarray<2, 1>, v9, 0, v7
+    v12 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3
+    v13 = and v12, 0xffffffffffffffffffffffffffffff
+    v14 = memory_object_load_field memorystruct<2>, v0, 1
+    v15 = inttoptr i256 v14 to memoryfixedarray
+    v16 = lt 1, 2
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    memory_object_store_element memoryfixedarray<2, 1>, v15, 1, v13
+    v18 = abi_encode [tuple<word<u120>, array<2, word<u120>>>], scratch, args v0
+    v19 = slice_ptr v18
+    v20 = slice_len v18
+    v21 = keccak256 v19, v20
+    ret v21
 }
 
 fn @hashScalarAbi() -> i256 [selector=0x9a69e01a, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -257,19 +266,20 @@ fn @scalarCall() -> i256 [selector=0x6c091940, view, abi_params=[], abi_returns=
     v3 = abi_encode [word<u8>], selector 0x1f3c3a7b00000000000000000000000000000000000000000000000000000000, args v2
     v4 = slice_ptr v3
     v5 = slice_len v3
-    v6 = staticcall v1, v0, v4, v5, 0, 32
-    jumpi v6, bb2, bb1
+    v6 = zext i160 v0 to i256
+    v7 = staticcall v1, v6, v4, v5, 0, 32
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = returndatasize
-    v8 = lt v7, 32
-    icall revert_if<tuple_data_too_short>, v8
-    v9 = add 0, 0
-    v10 = mload v9
-    v11 = add 0, 0
-    v12 = mload v11
-    ret v12
+    v8 = returndatasize
+    v9 = lt v8, 32
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = add 0, 0
+    v11 = mload v10
+    v12 = add 0, 0
+    v13 = mload v12
+    ret v13
 }
 
 fn @echoScalar(arg0: i256) -> i256 [selector=0x1f3c3a7b, pure, abi_params=[u8], abi_returns=[word], abi_return_params=[u256]] {

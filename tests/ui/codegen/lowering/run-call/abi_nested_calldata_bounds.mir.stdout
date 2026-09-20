@@ -14,10 +14,11 @@ fn @nested(arg0: memoryarray) -> i256 [selector=0x798068af, pure, abi_params=[ar
   bb1:
     v7 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v7, 0
-    memory_object_store_element memoryarray<1>, arg0, 0, v7
+    v8 = ptrtoint memorybytes v7 to i256
+    memory_object_store_element memoryarray<1>, arg0, 0, v8
     jump bb2
   bb2:
-    v8 = phi [bb0: v4], [bb1: v7]
-    v9 = memory_object_len memorybytes, v8
-    ret v9
+    v9 = phi [bb0: v4], [bb1: v7]
+    v10 = memory_object_len memorybytes, v9
+    ret v10
 }

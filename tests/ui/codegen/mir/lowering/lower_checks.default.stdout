@@ -5,35 +5,35 @@
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
--     icall panic_if_zero<0x1>, arg1
-+     v5 = ne arg1, 0
-+     jumpi v5, bb8, bb4
+      v3 = ne arg1, 0
+-     icall panic_if_zero<0x1>, v3
++     jumpi v3, bb8, bb4
 +   bb8:
-      v1 = mul arg1, 2
+      v4 = mul arg1, 2
       jump bb3
     bb1:
       mstore 64, arg1
--     icall panic_if_zero<0x1>, arg1
-+     v3 = ne arg1, 0
-+     jumpi v3, bb5, bb4
+      v0 = ne arg1, 0
+-     icall panic_if_zero<0x1>, v0
++     jumpi v0, bb5, bb4
 +   bb4:
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 1 !metadata(memory=scratch)
 +     revert 28, 36
 +   bb5:
-      v0 = add arg1, 1
--     icall revert_if_zero<tuple_data_too_short>, v0
-+     v4 = ne v0, 0
-+     jumpi v4, bb7, bb6
+      v1 = add arg1, 1
+      v2 = ne v1, 0
+-     icall revert_if_zero<tuple_data_too_short>, v2
++     jumpi v2, bb7, bb6
 +   bb6:
 +     revert 0, 0
 +   bb7:
-      mstore 96, v0
+      mstore 96, v1
       jump bb3
     bb3:
--     v2 = phi [bb1: v0], [bb2: v1]
-+     v2 = phi [bb7: v0], [bb8: v1]
-      ret v2
+-     v5 = phi [bb1: v1], [bb2: v4]
++     v5 = phi [bb7: v1], [bb8: v4]
+      ret v5
   }
   
   fn @payloads(arg0: i1, arg1: memorybytes, arg2: i256) {
@@ -74,7 +74,7 @@
   fn @constant_failure_with_writes() -> i256 {
     bb0:
       memory_zero 128, 32
--     icall panic_if_zero<0x32>, 0
+-     icall panic_if_zero<0x32>, false
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 50 !metadata(memory=scratch)
 +     revert 28, 36
@@ -85,9 +85,8 @@
   
   fn @constant_failure_without_writes() {
     bb0:
--     icall panic_if<0x32>, 1
-+     v0 = ne 1, 0
-+     jumpi v0, bb1, bb2
+-     icall panic_if<0x32>, true
++     jumpi true, bb1, bb2
 +   bb2:
       ret
 +   bb1:

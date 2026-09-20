@@ -10,7 +10,8 @@ fn @data() -> memorybytes [selector=0x73d4a13a, pure, abi_params=[], abi_returns
     v0 = alloc memorybytes, exact, uninitialized, infallible, 320 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 257
     v1 = memory_object_data memorybytes, v0
-    data_copy literal_0, v1, 288
+    v2 = ptrtoint memptr v1 to i256
+    data_copy literal_0, v2, 288
     ret v0
 }
 
@@ -19,7 +20,8 @@ fn @subslice() -> memorybytes [selector=0xb9ad073e, pure, abi_params=[], abi_ret
     v0 = alloc memorybytes, exact, uninitialized, infallible, 224 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 161
     v1 = memory_object_data memorybytes, v0
-    data_copy literal_1, v1, 192
+    v2 = ptrtoint memptr v1 to i256
+    data_copy literal_1, v2, 192
     ret v0
 }
 
@@ -38,7 +40,8 @@ fn @zeroData() -> memorybytes [selector=0x6ec059cd, pure, abi_params=[], abi_ret
     v0 = alloc memorybytes, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 160
     v1 = memory_object_data memorybytes, v0
-    memory_zero v1, 160
+    v2 = ptrtoint memptr v1 to i256
+    memory_zero v2, 160
     ret v0
 }
 
@@ -57,7 +60,8 @@ fn @splatData() -> memorybytes [selector=0xe1910fda, pure, abi_params=[], abi_re
     v0 = alloc memorybytes, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 160
     v1 = memory_object_data memorybytes, v0
-    data_copy literal_2, v1, 160
+    v2 = ptrtoint memptr v1 to i256
+    data_copy literal_2, v2, 160
     ret v0
 }
 

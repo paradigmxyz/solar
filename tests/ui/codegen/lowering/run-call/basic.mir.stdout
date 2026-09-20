@@ -98,14 +98,18 @@ fn @fullyInitializedNamedStruct() -> memorystruct [selector=0x03e8d290, pure, ab
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<2>, v1, 0, memoryarray 96
-    memory_object_store_field memorystruct<2>, v1, 1, memorybytes 96
-    memory_object_store_field memorystruct<2>, v1, 0, v0
-    v2 = not 31
-    v3 = and 64, v2
-    v4 = alloc memorybytes, exact, zeroed, panic, v3
-    set_memory_object_len memorybytes, v4, 1
-    memory_object_store_field memorystruct<2>, v1, 1, v4
+    v2 = ptrtoint memoryarray 96 to i256
+    memory_object_store_field memorystruct<2>, v1, 0, v2
+    v3 = ptrtoint memorybytes 96 to i256
+    memory_object_store_field memorystruct<2>, v1, 1, v3
+    v4 = ptrtoint memoryarray v0 to i256
+    memory_object_store_field memorystruct<2>, v1, 0, v4
+    v5 = not 31
+    v6 = and 64, v5
+    v7 = alloc memorybytes, exact, zeroed, panic, v6
+    set_memory_object_len memorybytes, v7, 1
+    v8 = ptrtoint memorybytes v7 to i256
+    memory_object_store_field memorystruct<2>, v1, 1, v8
     ret v1
 }
 
@@ -152,28 +156,29 @@ fn @fill(arg0: i256) -> memoryfixedarray [selector=0x3fda5389, pure, abi_params=
     v2 = eq v1, false
     icall revert_if<empty>, v2
     v3 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
-    memory_zero v3, 128
+    v4 = ptrtoint memoryfixedarray v3 to i256
+    memory_zero v4, 128
     jump bb1
   bb1:
-    v4 = phi [bb0: arg0], [bb3: v4]
-    v5 = phi [bb0: 0], [bb3: v12]
-    v6 = phi [bb0: v3], [bb3: v6]
-    v7 = lt v5, v4
-    jumpi v7, bb4, bb5
+    v5 = phi [bb0: arg0], [bb3: v5]
+    v6 = phi [bb0: 0], [bb3: v13]
+    v7 = phi [bb0: v3], [bb3: v7]
+    v8 = lt v6, v5
+    jumpi v8, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v6
+    ret v7
   bb4:
-    v8 = add v5, 7
-    v9 = shl 5, v5
-    v10 = ptrtoint memoryfixedarray v6 to i256
-    v11 = add v10, v9
-    mstore v11, v8
+    v9 = add v6, 7
+    v10 = shl 5, v6
+    v11 = ptrtoint memoryfixedarray v7 to i256
+    v12 = add v11, v10
+    mstore v12, v9
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v12 = checked_add u256, v5, 1
+    v13 = checked_add u256, v6, 1
     jump bb1
 }

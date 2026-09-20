@@ -192,12 +192,12 @@
 +     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
   }
   
-  fn @constant_checks(arg0: i256) {
+  fn @constant_checks(arg0: i1) {
     bb0:
 -     icall panic_if<0x1>, false
 -     icall panic_if_zero<0x12>, true
--     icall revert_if<empty>, 0
--     icall revert_if_zero<tuple_data_too_short>, 7
+-     icall revert_if<empty>, false
+-     icall revert_if_zero<tuple_data_too_short>, true
       icall panic_if<0x11>, true
       icall revert_if_zero<empty>, arg0
       ret
@@ -384,5 +384,67 @@
       v0 = sext i1 arg0 to i160
       v1 = zext i160 v0 to i256
       ret v1
+  }
+  
+  fn @call_address_cast(arg0: i256) -> i1 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+      v1 = zext i160 v0 to i256
+-     v2 = call 100, v1, 0, 0, 0, 0, 0
++     v2 = call 100, arg0, 0, 0, 0, 0, 0
+      ret v2
+  }
+  
+  fn @callcode_address_cast(arg0: i256) -> i1 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+      v1 = zext i160 v0 to i256
+-     v2 = callcode 100, v1, 0, 0, 0, 0, 0
++     v2 = callcode 100, arg0, 0, 0, 0, 0, 0
+      ret v2
+  }
+  
+  fn @staticcall_address_cast(arg0: i256) -> i1 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+      v1 = zext i160 v0 to i256
+-     v2 = staticcall 100, v1, 0, 0, 0, 0
++     v2 = staticcall 100, arg0, 0, 0, 0, 0
+      ret v2
+  }
+  
+  fn @delegatecall_address_cast(arg0: i256) -> i1 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+      v1 = zext i160 v0 to i256
+-     v2 = delegatecall 100, v1, 0, 0, 0, 0
++     v2 = delegatecall 100, arg0, 0, 0, 0, 0
+      ret v2
+  }
+  
+  fn @shared_address_cast(arg0: i256) -> i160 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+      v1 = zext i160 v0 to i256
+      v2 = call 100, v1, 0, 0, 0, 0, 0
+      ret v0
+  }
+  
+  fn @cross_block_address_cast(arg0: i256) -> i1 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+      v1 = zext i160 v0 to i256
+      jump bb1
+    bb1:
+      v2 = call 100, v1, 0, 0, 0, 0, 0
+      ret v2
+  }
+  
+  fn @eof_address_cast(arg0: i256) -> i256 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+      v1 = zext i160 v0 to i256
+      v2 = extcall v1, 0, 0, 0
+      ret v2
   }
   

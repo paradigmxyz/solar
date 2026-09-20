@@ -111,27 +111,28 @@ fn @materialize(arg0: calldataslice) -> i256 [selector=0xaff36081, pure, abi_par
     v20 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     jump bb1
   bb1:
-    v21 = phi [bb0: 0], [bb2: v54]
+    v21 = phi [bb0: 0], [bb2: v55]
     v22 = lt v21, 1
     jumpi v22, bb2, bb3
   bb3:
-    v55 = lt 0, 1
-    v56 = eq v55, false
-    icall panic_if<0x32>, v56
-    v57 = memory_object_load_element memoryfixedarray<1, 1>, v20, 0
-    v58 = inttoptr i256 v57 to memoryarray
-    v59 = ptrtoint memoryarray v58 to i256
-    v60 = eq v59, 0
-    jumpi v60, bb4, bb5
+    v56 = lt 0, 1
+    v57 = eq v56, false
+    icall panic_if<0x32>, v57
+    v58 = memory_object_load_element memoryfixedarray<1, 1>, v20, 0
+    v59 = inttoptr i256 v58 to memoryarray
+    v60 = ptrtoint memoryarray v59 to i256
+    v61 = eq v60, 0
+    jumpi v61, bb4, bb5
   bb4:
-    v61 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v61, 0
-    memory_object_store_element memoryfixedarray<1, 1>, v20, 0, v61
+    v62 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v62, 0
+    v63 = ptrtoint memoryarray v62 to i256
+    memory_object_store_element memoryfixedarray<1, 1>, v20, 0, v63
     jump bb5
   bb5:
-    v62 = phi [bb3: v58], [bb4: v61]
-    v63 = memory_object_len memoryarray, v62
-    ret v63
+    v64 = phi [bb3: v59], [bb4: v62]
+    v65 = memory_object_len memoryarray, v64
+    ret v65
   bb2:
     v23 = mul v21, 32
     v24 = add v16, v23
@@ -172,8 +173,9 @@ fn @materialize(arg0: calldataslice) -> i256 [selector=0xaff36081, pure, abi_par
     set_memory_object_len memoryarray, v52, v35
     v53 = make_calldata_slice v42, v43
     memory_object_copy_from_slice memoryarray, v52, v53
-    memory_object_store_element memoryfixedarray<1, 1>, v20, v21, v52
-    v54 = add v21, 1
+    v54 = ptrtoint memoryarray v52 to i256
+    memory_object_store_element memoryfixedarray<1, 1>, v20, v21, v54
+    v55 = add v21, 1
     jump bb1
 }
 
@@ -206,12 +208,12 @@ fn @forward(arg0: calldataslice) -> i256 [selector=0x51efa653, pure, abi_params=
     v20 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     jump bb1
   bb1:
-    v21 = phi [bb0: 0], [bb2: v54]
+    v21 = phi [bb0: 0], [bb2: v55]
     v22 = lt v21, 1
     jumpi v22, bb2, bb3
   bb3:
-    v55 = icall @readFixed, v20
-    ret v55
+    v56 = icall @readFixed, v20
+    ret v56
   bb2:
     v23 = mul v21, 32
     v24 = add v16, v23
@@ -252,8 +254,9 @@ fn @forward(arg0: calldataslice) -> i256 [selector=0x51efa653, pure, abi_params=
     set_memory_object_len memoryarray, v52, v35
     v53 = make_calldata_slice v42, v43
     memory_object_copy_from_slice memoryarray, v52, v53
-    memory_object_store_element memoryfixedarray<1, 1>, v20, v21, v52
-    v54 = add v21, 1
+    v54 = ptrtoint memoryarray v52 to i256
+    memory_object_store_element memoryfixedarray<1, 1>, v20, v21, v54
+    v55 = add v21, 1
     jump bb1
 }
 
@@ -270,10 +273,11 @@ fn @readFixed(arg0: memoryfixedarray) -> i256 [pure] {
   bb1:
     v6 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v6, 0
-    memory_object_store_element memoryfixedarray<1, 1>, arg0, 0, v6
+    v7 = ptrtoint memoryarray v6 to i256
+    memory_object_store_element memoryfixedarray<1, 1>, arg0, 0, v7
     jump bb2
   bb2:
-    v7 = phi [bb0: v3], [bb1: v6]
-    v8 = memory_object_len memoryarray, v7
-    ret v8
+    v8 = phi [bb0: v3], [bb1: v6]
+    v9 = memory_object_len memoryarray, v8
+    ret v9
 }

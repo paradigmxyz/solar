@@ -6,9 +6,10 @@ fn @callCond(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x407a1bfe, a
     v1 = ne arg1, 0
     v2 = select v1, 0x2b8fbce800000000000000000000000000000000000000000000000000000000, 0xe74800c00000000000000000000000000000000000000000000000000000000
     v3 = abi_encode [word], object, selector v2, args arg2
-    v4 = address_call arg0, v3, gas v0
-    v5 = zext i1 v4 to i256
-    ret v5
+    v4 = trunc i256 arg0 to i160
+    v5 = address_call v4, v3, gas v0
+    v6 = zext i1 v5 to i256
+    ret v6
 }
 
 fn @encodeCond(arg0: i256, arg1: i256) -> memorybytes [selector=0x3e8cea54, pure, abi_params=[bool, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

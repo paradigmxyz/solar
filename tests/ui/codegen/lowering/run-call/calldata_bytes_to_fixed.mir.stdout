@@ -47,17 +47,18 @@ fn @sliced(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0x183e
     v3 = lt arg2, arg1
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
-    icall revert_if<empty>, v5
-    v6 = sub arg2, arg1
-    v7 = add v0, arg1
-    v8 = make_calldata_slice v7, v6
-    v9 = calldata_slice_load_word calldata, v8, 0
-    v10 = slice_len v8
-    v11 = lt v10, 16
-    v12 = sub 16, v10
-    v13 = mul 8, v12
-    v14 = shl v13, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
-    v15 = select v11, v14, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
-    v16 = and v9, v15
-    ret v16
+    v6 = ne v5, 0
+    icall revert_if<empty>, v6
+    v7 = sub arg2, arg1
+    v8 = add v0, arg1
+    v9 = make_calldata_slice v8, v7
+    v10 = calldata_slice_load_word calldata, v9, 0
+    v11 = slice_len v9
+    v12 = lt v11, 16
+    v13 = sub 16, v11
+    v14 = mul 8, v13
+    v15 = shl v14, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v16 = select v12, v15, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v17 = and v10, v16
+    ret v17
 }

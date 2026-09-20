@@ -876,6 +876,56 @@ class EnvironmentTests(unittest.TestCase):
             portable_query(solver)
 
 
+class CallEffectTests(unittest.TestCase):
+    def call_rules(self):
+        return [
+            Rule(form, line, "egraph.isle")
+            for form, line in forms((ISLE / "egraph.isle").read_text())
+            if form[0] == "rule"
+            and form[1][0] == "rewrite"
+            and form[1][1][0]
+            in ("Op.Call", "Op.CallCode", "Op.StaticCall", "Op.DelegateCall")
+        ]
+
+    def test_actual_rules_preserve_call_effects(self):
+        rules = self.call_rules()
+        self.assertEqual(len(rules), 4)
+        for rule in rules:
+            context = Context()
+            lhs, rhs = context.obligation(rule)
+            result, _ = check(lhs, rhs, context.assumptions, 5000, context.model)
+            self.assertEqual(result["status"], "proved")
+
+    def test_changed_call_operands_are_counterexamples(self):
+        for rule in self.call_rules():
+            for index in range(1, len(rule.form[-1])):
+                replacement = list(rule.form[-1])
+                replacement[index] = ("imm", ("u256", "1"))
+                changed = Rule(
+                    (*rule.form[:-1], tuple(replacement)), rule.line, rule.source
+                )
+                context = Context()
+                lhs, rhs = context.obligation(changed)
+                result, _ = check(lhs, rhs, context.assumptions, 5000, context.model)
+                self.assertEqual(result["status"], "counterexample")
+
+    def test_calls_cannot_be_removed_changed_or_nested(self):
+        rule = self.call_rules()[0]
+        for replacement in (
+            ("imm", ("u256", "0")),
+            ("Op.CallCode", *rule.form[-1][1:]),
+        ):
+            changed = Rule((*rule.form[:-1], replacement), rule.line, rule.source)
+            with self.assertRaisesRegex(Unsupported, "preserve its opcode and effect"):
+                Context().obligation(changed)
+        nested = ("Op.Add", rule.form[-1], ("zero",))
+        changed = Rule(
+            ("rule", ("rewrite", nested), ("imm", ("u256", "0"))), 1, "nested"
+        )
+        with self.assertRaisesRegex(Unsupported, "instruction roots"):
+            Context().obligation(changed)
+
+
 class MemoryAddressTests(unittest.TestCase):
     def test_actual_projection_rules_and_missing_guards(self):
         path = ISLE / "egraph.isle"

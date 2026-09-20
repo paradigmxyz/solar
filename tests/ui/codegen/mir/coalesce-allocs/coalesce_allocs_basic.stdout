@@ -30,13 +30,15 @@
     bb0:
 -     v0 = alloc raw, exact, zeroed, infallible, 64
 +     v0 = alloc raw, exact, uninitialized, infallible, 96
-+     memory_zero v0, 64
++     v5 = ptrtoint memptr v0 to i256
++     memory_zero v5, 64
       v1 = ptrtoint memptr v0 to i256
 -     v2 = alloc raw, exact, zeroed, infallible, 32
-+     v5 = ptrtoint memptr v0 to i256
-+     v6 = add v5, 64
-+     v2 = inttoptr i256 v6 to memptr
-+     memory_zero v2, 32
++     v7 = ptrtoint memptr v0 to i256
++     v8 = add v7, 64
++     v2 = inttoptr i256 v8 to memptr
++     v6 = ptrtoint memptr v2 to i256
++     memory_zero v6, 32
       v3 = ptrtoint memptr v2 to i256
       v4 = mload v3
       ret v4
@@ -46,14 +48,16 @@
     bb0:
 -     v0 = alloc raw, exact, zeroed, infallible, 32
 +     v0 = alloc raw, exact, uninitialized, infallible, 64
-+     memory_zero v0, 32
++     v5 = ptrtoint memptr v0 to i256
++     memory_zero v5, 32
       v1 = ptrtoint memptr v0 to i256
       mstore 160, 7
 -     v2 = alloc raw, exact, zeroed, infallible, 32
-+     v5 = ptrtoint memptr v0 to i256
-+     v6 = add v5, 32
-+     v2 = inttoptr i256 v6 to memptr
-+     memory_zero v2, 32
++     v7 = ptrtoint memptr v0 to i256
++     v8 = add v7, 32
++     v2 = inttoptr i256 v8 to memptr
++     v6 = ptrtoint memptr v2 to i256
++     memory_zero v6, 32
       v3 = ptrtoint memptr v2 to i256
       v4 = mload v3
       ret v4
@@ -99,11 +103,12 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = ptrtoint memptr v0 to i256
-      set_fmp 0x10000
-      v2 = alloc raw, exact, uninitialized, infallible, 32
-      v3 = ptrtoint memptr v2 to i256
-      mstore v3, 5
-      ret v3
+      v2 = inttoptr i256 0x10000 to memptr
+      set_fmp v2
+      v3 = alloc raw, exact, uninitialized, infallible, 32
+      v4 = ptrtoint memptr v3 to i256
+      mstore v4, 5
+      ret v4
   }
   
   fn @keep_checked_zeroed() -> i256 {

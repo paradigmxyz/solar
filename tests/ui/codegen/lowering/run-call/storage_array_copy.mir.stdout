@@ -123,34 +123,36 @@ fn @copyAggregate() -> struct0 [selector=0x515a112e, abi_params=[], abi_returns=
     v27 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v27, 0, 0
     memory_object_store_field memorystruct<2>, v27, 1, 0
-    memory_object_store_element memoryarray<1>, v19, 0, v27
+    v28 = ptrtoint memorystruct v27 to i256
+    memory_object_store_element memoryarray<1>, v19, 0, v28
     jump bb2
   bb2:
-    v28 = phi [bb0: v24], [bb1: v27]
-    v29 = memory_object_load_field memorystruct<2>, v28, 0
-    v30 = memory_object_len memoryarray, v19
-    v31 = lt 0, v30
-    v32 = eq v31, false
-    icall panic_if<0x32>, v32
-    v33 = memory_object_load_element memoryarray<1>, v19, 0
-    v34 = inttoptr i256 v33 to memorystruct
-    v35 = ptrtoint memorystruct v34 to i256
-    v36 = eq v35, 0
-    jumpi v36, bb3, bb4
+    v29 = phi [bb0: v24], [bb1: v27]
+    v30 = memory_object_load_field memorystruct<2>, v29, 0
+    v31 = memory_object_len memoryarray, v19
+    v32 = lt 0, v31
+    v33 = eq v32, false
+    icall panic_if<0x32>, v33
+    v34 = memory_object_load_element memoryarray<1>, v19, 0
+    v35 = inttoptr i256 v34 to memorystruct
+    v36 = ptrtoint memorystruct v35 to i256
+    v37 = eq v36, 0
+    jumpi v37, bb3, bb4
   bb3:
-    v37 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v37, 0, 0
-    memory_object_store_field memorystruct<2>, v37, 1, 0
-    memory_object_store_element memoryarray<1>, v19, 0, v37
+    v38 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v38, 0, 0
+    memory_object_store_field memorystruct<2>, v38, 1, 0
+    v39 = ptrtoint memorystruct v38 to i256
+    memory_object_store_element memoryarray<1>, v19, 0, v39
     jump bb4
   bb4:
-    v38 = phi [bb2: v34], [bb3: v37]
-    v39 = memory_object_load_field memorystruct<2>, v38, 1
-    v40 = memory_object_len memoryarray, v19
-    v41 = insert_value struct0, undef struct0, 0, v29
-    v42 = insert_value struct0, v41, 1, v39
-    v43 = insert_value struct0, v42, 2, v40
-    ret v43
+    v40 = phi [bb2: v35], [bb3: v38]
+    v41 = memory_object_load_field memorystruct<2>, v40, 1
+    v42 = memory_object_len memoryarray, v19
+    v43 = insert_value struct0, undef struct0, 0, v30
+    v44 = insert_value struct0, v43, 1, v41
+    v45 = insert_value struct0, v44, 2, v42
+    ret v45
 }
 
 fn @load_storage_struct_array_0(arg0: i256) -> memoryarray {
@@ -172,8 +174,8 @@ fn @load_storage_struct_array_0(arg0: i256) -> memoryarray {
     v11 = storage_array_data_slot arg0
     jump bb1
   bb1:
-    v12 = phi [bb0: 0], [bb2: v19]
-    v13 = phi [bb0: v11], [bb2: v20]
+    v12 = phi [bb0: 0], [bb2: v20]
+    v13 = phi [bb0: v11], [bb2: v21]
     v14 = lt v12, v0
     jumpi v14, bb2, bb3
   bb3:
@@ -185,9 +187,10 @@ fn @load_storage_struct_array_0(arg0: i256) -> memoryarray {
     v17 = add v13, 1
     v18 = sload v17 !metadata(storage=offset(v13, 1))
     memory_object_store_field memorystruct<2>, v15, 1, v18
-    memory_object_store_element memoryarray<1>, v10, v12, v15
-    v19 = add v12, 1
-    v20 = add v13, 2
+    v19 = ptrtoint memorystruct v15 to i256
+    memory_object_store_element memoryarray<1>, v10, v12, v19
+    v20 = add v12, 1
+    v21 = add v13, 2
     jump bb1
 }
 

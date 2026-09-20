@@ -41,9 +41,10 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x59862edc, abi_params=[tupl
     set_memory_object_len memoryarray, v29, v12
     v30 = make_calldata_slice v19, v20
     memory_object_copy_from_slice memoryarray, v29, v30
-    memory_object_store_field memorystruct<1>, v1, 0, v29
-    v31 = abi_encode [tuple<memory_array<word>>], object, args v1
-    ret v31
+    v31 = ptrtoint memoryarray v29 to i256
+    memory_object_store_field memorystruct<1>, v1, 0, v31
+    v32 = abi_encode [tuple<memory_array<word>>], object, args v1
+    ret v32
 }
 
 fn @g(arg0: calldataslice) -> memorybytes [selector=0x397cf2ca, abi_params=[tuple<array<_, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -89,16 +90,18 @@ fn @g(arg0: calldataslice) -> memorybytes [selector=0x397cf2ca, abi_params=[tupl
     set_memory_object_len memoryarray, v31, v14
     v32 = make_calldata_slice v21, v22
     memory_object_copy_from_slice memoryarray, v31, v32
-    memory_object_store_field memorystruct<1>, v3, 0, v31
-    v33 = abi_encode [tuple<memory_array<word>>], selector 0x59862edc00000000000000000000000000000000000000000000000000000000, args v3
-    v34 = slice_ptr v33
-    v35 = slice_len v33
-    v36 = call v1, v0, 0, v34, v35, 0, 0
-    jumpi v36, bb2, bb1
+    v33 = ptrtoint memoryarray v31 to i256
+    memory_object_store_field memorystruct<1>, v3, 0, v33
+    v34 = abi_encode [tuple<memory_array<word>>], selector 0x59862edc00000000000000000000000000000000000000000000000000000000, args v3
+    v35 = slice_ptr v34
+    v36 = slice_len v34
+    v37 = zext i160 v0 to i256
+    v38 = call v1, v37, 0, v35, v36, 0, 0
+    jumpi v38, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v37 = icall returndata_bytes<>
-    v38 = abi_decode [bytes], v37
-    ret v38
+    v39 = icall returndata_bytes<>
+    v40 = abi_decode [bytes], v39
+    ret v40
 }

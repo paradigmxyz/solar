@@ -22,7 +22,8 @@
 +     jumpi v14, bb2, bb1
 +   bb1:
 +     mstore 64, v6 !metadata(memory=scratch)
-+     memory_zero v0, v4
++     v15 = ptrtoint memorybytes v0 to i256
++     memory_zero v15, v4
       ret v0
 +   bb2:
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)

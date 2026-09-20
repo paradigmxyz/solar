@@ -133,28 +133,29 @@ fn @memorySnapshot() -> struct1 [selector=0xaa7868c1, abi_params=[], abi_returns
     v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v3, 0, 0
     v4 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    memory_zero v4, 32
-    v5 = lt 0, 3
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    v7 = add 0, 0
-    v8 = icall @mutateSource
-    v9 = lt v8, 1
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    memory_object_store_element memoryfixedarray<1, 1>, v4, v8, 1
-    v11 = alloc memorystruct<1>, exact, uninitialized, panic, 32
-    v12 = sload v7 !metadata(storage=slot(0))
-    memory_object_store_field memorystruct<1>, v11, 0, v12
-    v13 = memory_object_load_field memorystruct<1>, v11, 0
-    v14 = lt 0, 3
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = add 0, 0
-    v17 = sload v16 !metadata(storage=slot(0))
-    v18 = insert_value struct1, undef struct1, 0, v13
-    v19 = insert_value struct1, v18, 1, v17
-    ret v19
+    v5 = ptrtoint memoryfixedarray v4 to i256
+    memory_zero v5, 32
+    v6 = lt 0, 3
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = add 0, 0
+    v9 = icall @mutateSource
+    v10 = lt v9, 1
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    memory_object_store_element memoryfixedarray<1, 1>, v4, v9, 1
+    v12 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+    v13 = sload v8 !metadata(storage=slot(0))
+    memory_object_store_field memorystruct<1>, v12, 0, v13
+    v14 = memory_object_load_field memorystruct<1>, v12, 0
+    v15 = lt 0, 3
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = add 0, 0
+    v18 = sload v17 !metadata(storage=slot(0))
+    v19 = insert_value struct1, undef struct1, 0, v14
+    v20 = insert_value struct1, v19, 1, v18
+    ret v20
 }
 
 fn @returnedReferences() -> struct1 [selector=0x29826554, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {

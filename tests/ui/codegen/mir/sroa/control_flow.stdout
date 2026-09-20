@@ -23,23 +23,24 @@
   fn @loop(arg0: i256) -> i256 {
     bb0:
       v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
--     memory_zero v0, 32
--     v1 = memory_object_field_addr memorystruct<1>, v0, 0
--     v2 = ptrtoint memptr v1 to i256
+-     v1 = ptrtoint memorystruct v0 to i256
+-     memory_zero v1, 32
+-     v2 = memory_object_field_addr memorystruct<1>, v0, 0
+-     v3 = ptrtoint memptr v2 to i256
       jump bb1
     bb1:
--     v3 = mload v2
--     v4 = lt v3, arg0
-+     v6 = phi [bb0: 0], [bb2: v5]
-+     v4 = lt v6, arg0
-      jumpi v4, bb2, bb3
+-     v4 = mload v3
+-     v5 = lt v4, arg0
++     v7 = phi [bb0: 0], [bb2: v6]
++     v5 = lt v7, arg0
+      jumpi v5, bb2, bb3
     bb3:
--     ret v3
-+     ret v6
+-     ret v4
++     ret v7
     bb2:
--     v5 = add v3, 1
--     mstore v2, v5
-+     v5 = add v6, 1
+-     v6 = add v4, 1
+-     mstore v3, v6
++     v6 = add v7, 1
       jump bb1
   }
   
@@ -60,43 +61,46 @@
   fn @cross_field_phi(arg0: i1, arg1: i256) -> i256 {
     bb0:
       v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
--     memory_zero v0, 64
--     v1 = memory_object_field_addr memorystruct<2>, v0, 0
--     v2 = ptrtoint memptr v1 to i256
--     v3 = memory_object_field_addr memorystruct<2>, v0, 1
--     v4 = ptrtoint memptr v3 to i256
+-     v1 = ptrtoint memorystruct v0 to i256
+-     memory_zero v1, 64
+-     v2 = memory_object_field_addr memorystruct<2>, v0, 0
+-     v3 = ptrtoint memptr v2 to i256
+-     v4 = memory_object_field_addr memorystruct<2>, v0, 1
+-     v5 = ptrtoint memptr v4 to i256
       jumpi arg0, bb1, bb2
     bb1:
--     mstore v2, arg1
--     v5 = mload v2
--     mstore v4, v5
+-     mstore v3, arg1
+-     v6 = mload v3
+-     mstore v5, v6
       jump bb2
     bb2:
--     v6 = mload v4
--     ret v6
-+     v7 = phi [bb0: 0], [bb1: arg1]
-+     ret v7
+-     v7 = mload v5
+-     ret v7
++     v8 = phi [bb0: 0], [bb1: arg1]
++     ret v8
   }
   
   fn @observe_size() -> i256 {
     bb0:
       v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-      memory_zero v0, 32
-      v1 = memory_object_field_addr memorystruct<1>, v0, 0
-      v2 = ptrtoint memptr v1 to i256
-      mstore v2, 7
-      v3 = msize
-      ret v3
+      v1 = ptrtoint memorystruct v0 to i256
+      memory_zero v1, 32
+      v2 = memory_object_field_addr memorystruct<1>, v0, 0
+      v3 = ptrtoint memptr v2 to i256
+      mstore v3, 7
+      v4 = msize
+      ret v4
   }
   
   fn @outside_object() -> i256 {
     bb0:
       v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
-      memory_zero v0, 32
-      v1 = memory_object_element_addr memoryfixedarray<1, 1>, v0, 1
-      v2 = ptrtoint memptr v1 to i256
-      v3 = mload v2
-      ret v3
+      v1 = ptrtoint memoryfixedarray v0 to i256
+      memory_zero v1, 32
+      v2 = memory_object_element_addr memoryfixedarray<1, 1>, v0, 1
+      v3 = ptrtoint memptr v2 to i256
+      v4 = mload v3
+      ret v4
   }
   
 - // === ROOT/tests/ui/codegen/mir/sroa/control_flow.mir (before dce) ===
@@ -120,13 +124,13 @@
       v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
       jump bb1
     bb1:
-      v6 = phi [bb0: 0], [bb2: v5]
-      v4 = lt v6, arg0
-      jumpi v4, bb2, bb3
+      v7 = phi [bb0: 0], [bb2: v6]
+      v5 = lt v7, arg0
+      jumpi v5, bb2, bb3
     bb3:
-      ret v6
+      ret v7
     bb2:
-      v5 = add v6, 1
+      v6 = add v7, 1
       jump bb1
   }
   
@@ -151,28 +155,30 @@
     bb1:
       jump bb2
     bb2:
-      v7 = phi [bb0: 0], [bb1: arg1]
-      ret v7
+      v8 = phi [bb0: 0], [bb1: arg1]
+      ret v8
   }
   
   fn @observe_size() -> i256 {
     bb0:
       v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-      memory_zero v0, 32
-      v1 = memory_object_field_addr memorystruct<1>, v0, 0
-      v2 = ptrtoint memptr v1 to i256
-      mstore v2, 7
-      v3 = msize
-      ret v3
+      v1 = ptrtoint memorystruct v0 to i256
+      memory_zero v1, 32
+      v2 = memory_object_field_addr memorystruct<1>, v0, 0
+      v3 = ptrtoint memptr v2 to i256
+      mstore v3, 7
+      v4 = msize
+      ret v4
   }
   
   fn @outside_object() -> i256 {
     bb0:
       v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
-      memory_zero v0, 32
-      v1 = memory_object_element_addr memoryfixedarray<1, 1>, v0, 1
-      v2 = ptrtoint memptr v1 to i256
-      v3 = mload v2
-      ret v3
+      v1 = ptrtoint memoryfixedarray v0 to i256
+      memory_zero v1, 32
+      v2 = memory_object_element_addr memoryfixedarray<1, 1>, v0, 1
+      v3 = ptrtoint memptr v2 to i256
+      v4 = mload v3
+      ret v4
   }
   

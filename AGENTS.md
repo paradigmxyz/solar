@@ -121,8 +121,8 @@ for the architecture and remaining semantic-builtin migration.
 
 MIR operations are declared once in `crates/codegen/src/mir/op_schema.rs`.
 Each row carries the typed payload with named tuple operands, the mnemonic,
-result kind, phase set, effect, traits, and side-effect flag. The macro
-generates operand traversal, the `Op` rewrite view, the ISLE prelude, a
+result kind, operand type contract, phase set, effect, traits, and side-effect
+flag. The macro generates operand traversal, the `Op` rewrite view, the ISLE prelude, a
 constructor per operation that the textual parser uses for every operation
 built from value operands alone, and a `FunctionBuilder` method for every
 variant marked `#[builder(name)]` or `#[builder(name, void)]`. Give an

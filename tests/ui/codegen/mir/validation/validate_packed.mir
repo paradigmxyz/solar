@@ -1,7 +1,7 @@
 //@ compile-flags: -Zmir-pipeline=none
-//~? ERROR: [fn0] [bb0, inst0] packed encoding input has an incompatible shape
-//~? ERROR: [fn1] [bb0, inst0] packed encoding input has an incompatible shape
-//~? ERROR: [fn2] [bb0, inst0] packed encoding input has an incompatible shape
+//~? ERROR: [fn0] [bb0, inst0] instruction result or layout does not match its type contract
+//~? ERROR: [fn1] [bb0, inst0] instruction result or layout does not match its type contract
+//~? ERROR: [fn2] [bb0, inst0] `abi_encode_packed` has incompatible scalar types; use an explicit cast
 @module InvalidPacked
 
 fn @hash_array(arg0: memoryarray) -> i256 {

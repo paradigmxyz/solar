@@ -174,7 +174,8 @@ fn @recycled_header_clobber() -> i256 {
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 3
     v1 = ptrtoint memorybytes v0 to i256
-    set_fmp v1
+    v4 = inttoptr i256 v1 to memptr
+    set_fmp v4
     v2 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v2, 4
     v3 = memory_object_len memorybytes, v0

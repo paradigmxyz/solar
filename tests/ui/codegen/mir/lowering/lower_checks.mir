@@ -15,13 +15,16 @@ fn @branch_checks(arg0: i1, arg1: i256) -> i256 {
     jumpi arg0, bb1, bb2
   bb1:
     mstore 64, arg1
-    icall panic_if_zero<0x1>, arg1
+    v3 = ne arg1, 0
+    icall panic_if_zero<0x1>, v3
     v0 = add arg1, 1
-    icall revert_if_zero<tuple_data_too_short>, v0
+    v4 = ne v0, 0
+    icall revert_if_zero<tuple_data_too_short>, v4
     mstore 96, v0
     jump bb3
   bb2:
-    icall panic_if_zero<0x1>, arg1
+    v5 = ne arg1, 0
+    icall panic_if_zero<0x1>, v5
     v1 = mul arg1, 2
     jump bb3
   bb3:
@@ -46,16 +49,15 @@ fn @payloads(arg0: i1, arg1: memorybytes, arg2: i256) {
 fn @constant_failure_with_writes() -> i256 {
   bb0:
     memory_zero 128, 32
-    icall panic_if_zero<0x32>, 0
+    icall panic_if_zero<0x32>, false
     v0 = add 1, 2
     ret v0
 }
 
 // CHECK-LABEL: fn @constant_failure_without_writes(
-// CHECK: + [[COND:v[0-9]+]] = ne 1, 0
-// CHECK: + jumpi [[COND]],
+// CHECK: + jumpi true,
 fn @constant_failure_without_writes() {
   bb0:
-    icall panic_if<0x32>, 1
+    icall panic_if<0x32>, true
     ret
 }

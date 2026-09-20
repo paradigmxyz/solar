@@ -26,7 +26,7 @@ fn @fresh(arg0: i256, arg1: i256) -> i256 {
 // CHECK-LABEL: @reset
 // CHECK: {{^ +}}mstore [[ADDR:v[0-9]+]], arg0
 // CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
-// CHECK: {{^ +}}set_fmp [[ADDR]]
+// CHECK: {{^ +}}set_fmp {{v[0-9]+}}
 // CHECK: {{^ +}}[[SECOND:v[0-9]+]] = mload [[ADDR]]
 // CHECK: +     [[SUM:v[0-9]+]] = add arg0, [[SECOND]]
 // CHECK: {{^ +}}ret [[SUM]]
@@ -36,7 +36,7 @@ fn @reset(arg0: i256, arg1: i256) -> i256 {
     v2 = ptrtoint memptr v12 to i256
     mstore v2, arg0
     v4 = mload v2
-    set_fmp v2
+    set_fmp v12
     v13 = alloc raw, exact, uninitialized, infallible, 32
     v6 = ptrtoint memptr v13 to i256
     mstore v6, arg1
@@ -88,7 +88,8 @@ fn @loop_allocation_after_fmp_reset(arg0: i1) -> i256 {
   bb0:
     jump bb1
   bb1:
-    set_fmp 0
+    v18 = inttoptr i256 0 to memptr
+    set_fmp v18
     v17 = alloc raw, exact, uninitialized, infallible, 32
     v1 = ptrtoint memptr v17 to i256
     v2 = mload 96

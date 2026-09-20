@@ -31,54 +31,56 @@ fn @memoryRead(arg0: calldataslice) -> i256 [selector=0xba65adf9, pure, abi_para
     set_memory_object_len memoryarray, v21, v0
     jump bb1
   bb1:
-    v22 = phi [bb0: 0], [bb2: v55]
+    v22 = phi [bb0: 0], [bb2: v56]
     v23 = lt v22, v0
     jumpi v23, bb2, bb3
   bb3:
-    v56 = memory_object_len memoryarray, v21
-    v57 = lt 0, v56
-    v58 = eq v57, false
-    icall panic_if<0x32>, v58
-    v59 = memory_object_load_element memoryarray<1>, v21, 0
-    v60 = inttoptr i256 v59 to memoryarray
-    v61 = ptrtoint memoryarray v60 to i256
-    v62 = eq v61, 0
-    jumpi v62, bb4, bb5
+    v57 = memory_object_len memoryarray, v21
+    v58 = lt 0, v57
+    v59 = eq v58, false
+    icall panic_if<0x32>, v59
+    v60 = memory_object_load_element memoryarray<1>, v21, 0
+    v61 = inttoptr i256 v60 to memoryarray
+    v62 = ptrtoint memoryarray v61 to i256
+    v63 = eq v62, 0
+    jumpi v63, bb4, bb5
   bb4:
-    v63 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v63, 0
-    memory_object_store_element memoryarray<1>, v21, 0, v63
+    v64 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v64, 0
+    v65 = ptrtoint memoryarray v64 to i256
+    memory_object_store_element memoryarray<1>, v21, 0, v65
     jump bb5
   bb5:
-    v64 = phi [bb3: v60], [bb4: v63]
-    v65 = memory_object_len memoryarray, v64
-    v66 = lt 0, v65
-    v67 = eq v66, false
-    icall panic_if<0x32>, v67
-    v68 = memory_object_load_element memoryarray<1>, v64, 0
-    v69 = memory_object_len memoryarray, v21
-    v70 = lt 1, v69
-    v71 = eq v70, false
-    icall panic_if<0x32>, v71
-    v72 = memory_object_load_element memoryarray<1>, v21, 1
-    v73 = inttoptr i256 v72 to memoryarray
-    v74 = ptrtoint memoryarray v73 to i256
-    v75 = eq v74, 0
-    jumpi v75, bb6, bb7
+    v66 = phi [bb3: v61], [bb4: v64]
+    v67 = memory_object_len memoryarray, v66
+    v68 = lt 0, v67
+    v69 = eq v68, false
+    icall panic_if<0x32>, v69
+    v70 = memory_object_load_element memoryarray<1>, v66, 0
+    v71 = memory_object_len memoryarray, v21
+    v72 = lt 1, v71
+    v73 = eq v72, false
+    icall panic_if<0x32>, v73
+    v74 = memory_object_load_element memoryarray<1>, v21, 1
+    v75 = inttoptr i256 v74 to memoryarray
+    v76 = ptrtoint memoryarray v75 to i256
+    v77 = eq v76, 0
+    jumpi v77, bb6, bb7
   bb6:
-    v76 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v76, 0
-    memory_object_store_element memoryarray<1>, v21, 1, v76
+    v78 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v78, 0
+    v79 = ptrtoint memoryarray v78 to i256
+    memory_object_store_element memoryarray<1>, v21, 1, v79
     jump bb7
   bb7:
-    v77 = phi [bb5: v73], [bb6: v76]
-    v78 = memory_object_len memoryarray, v77
-    v79 = lt 1, v78
-    v80 = eq v79, false
-    icall panic_if<0x32>, v80
-    v81 = memory_object_load_element memoryarray<1>, v77, 1
-    v82 = checked_add u256, v68, v81
-    ret v82
+    v80 = phi [bb5: v75], [bb6: v78]
+    v81 = memory_object_len memoryarray, v80
+    v82 = lt 1, v81
+    v83 = eq v82, false
+    icall panic_if<0x32>, v83
+    v84 = memory_object_load_element memoryarray<1>, v80, 1
+    v85 = checked_add u256, v70, v84
+    ret v85
   bb2:
     v24 = mul v22, 32
     v25 = add v1, v24
@@ -119,8 +121,9 @@ fn @memoryRead(arg0: calldataslice) -> i256 [selector=0xba65adf9, pure, abi_para
     set_memory_object_len memoryarray, v53, v36
     v54 = make_calldata_slice v43, v44
     memory_object_copy_from_slice memoryarray, v53, v54
-    memory_object_store_element memoryarray<1>, v21, v22, v53
-    v55 = add v22, 1
+    v55 = ptrtoint memoryarray v53 to i256
+    memory_object_store_element memoryarray<1>, v21, v22, v55
+    v56 = add v22, 1
     jump bb1
 }
 
@@ -155,13 +158,13 @@ fn @encodeLength(arg0: calldataslice) -> i256 [selector=0xb50dc8e6, pure, abi_pa
     set_memory_object_len memoryarray, v21, v0
     jump bb1
   bb1:
-    v22 = phi [bb0: 0], [bb2: v55]
+    v22 = phi [bb0: 0], [bb2: v56]
     v23 = lt v22, v0
     jumpi v23, bb2, bb3
   bb3:
-    v56 = abi_encode [memory_array<memory_array<word>>], object, args v21
-    v57 = memory_object_len memorybytes, v56
-    ret v57
+    v57 = abi_encode [memory_array<memory_array<word>>], object, args v21
+    v58 = memory_object_len memorybytes, v57
+    ret v58
   bb2:
     v24 = mul v22, 32
     v25 = add v1, v24
@@ -202,7 +205,8 @@ fn @encodeLength(arg0: calldataslice) -> i256 [selector=0xb50dc8e6, pure, abi_pa
     set_memory_object_len memoryarray, v53, v36
     v54 = make_calldata_slice v43, v44
     memory_object_copy_from_slice memoryarray, v53, v54
-    memory_object_store_element memoryarray<1>, v21, v22, v53
-    v55 = add v22, 1
+    v55 = ptrtoint memoryarray v53 to i256
+    memory_object_store_element memoryarray<1>, v21, v22, v55
+    v56 = add v22, 1
     jump bb1
 }

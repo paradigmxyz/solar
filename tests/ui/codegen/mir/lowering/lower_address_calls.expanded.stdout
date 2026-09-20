@@ -1,64 +1,72 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_address_calls.mir (before lower-builtins) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_address_calls.mir (after lower-builtins) ===
   @module AddressCalls
-  fn @default_call(arg0: i256, arg1: memorybytes) -> i256 {
+  fn @default_call(arg0: i160, arg1: memorybytes) -> i256 {
     bb0:
 -     v0 = address_call arg0, arg1 !metadata(span=10..20, modifier_depth=2)
 -     v1 = zext i1 v0 to i256
 +     v2 = memory_object_data memorybytes, arg1 !metadata(span=10..20, modifier_depth=2)
 +     v3 = memory_object_len memorybytes, arg1 !metadata(span=10..20, modifier_depth=2)
 +     v4 = gas !metadata(span=10..20, modifier_depth=2)
-+     v5 = call v4, arg0, 0, v2, v3, 0, 0 !metadata(span=10..20, modifier_depth=2)
-+     v1 = zext i1 v5 to i256
++     v5 = zext i160 arg0 to i256 !metadata(span=10..20, modifier_depth=2)
++     v6 = ptrtoint memptr v2 to i256 !metadata(span=10..20, modifier_depth=2)
++     v7 = call v4, v5, 0, v6, v3, 0, 0 !metadata(span=10..20, modifier_depth=2)
++     v1 = zext i1 v7 to i256
       ret v1
   }
   
-  fn @explicit_zero(arg0: i256, arg1: memorybytes, arg2: i256) -> memorybytes {
+  fn @explicit_zero(arg0: i160, arg1: memorybytes, arg2: i256) -> memorybytes {
     bb0:
 -     v0 = address_call arg0, arg1, gas arg2, value 0
 -     v1 = icall returndata_bytes<> !metadata(span=30..40, modifier_depth=3)
 -     ret v1
 +     v2 = memory_object_data memorybytes, arg1
 +     v3 = memory_object_len memorybytes, arg1
-+     v4 = call arg2, arg0, 0, v2, v3, 0, 0
-+     v5 = returndatasize !metadata(span=30..40, modifier_depth=3)
-+     v6 = add v5, 63 !metadata(span=30..40, modifier_depth=3)
-+     v7 = lt v6, v5 !metadata(span=30..40, modifier_depth=3)
-+     jumpi v7, bb1, bb2 !metadata(span=30..40, modifier_depth=3)
++     v4 = zext i160 arg0 to i256
++     v5 = ptrtoint memptr v2 to i256
++     v6 = call arg2, v4, 0, v5, v3, 0, 0
++     v7 = returndatasize !metadata(span=30..40, modifier_depth=3)
++     v8 = add v7, 63 !metadata(span=30..40, modifier_depth=3)
++     v9 = lt v8, v7 !metadata(span=30..40, modifier_depth=3)
++     jumpi v9, bb1, bb2 !metadata(span=30..40, modifier_depth=3)
 +   bb2:
-+     v8 = not 31 !metadata(span=30..40, modifier_depth=3)
-+     v9 = and v6, v8 !metadata(span=30..40, modifier_depth=3)
-+     v10 = alloc memorybytes, exact, uninitialized, infallible, v9 !metadata(span=30..40, modifier_depth=3)
-+     set_memory_object_len memorybytes, v10, v5 !metadata(span=30..40, modifier_depth=3)
-+     v11 = make_returndata_slice 0, v5 !metadata(span=30..40, modifier_depth=3)
-+     memory_object_copy_from_slice memorybytes, v10, v11 !metadata(span=30..40, modifier_depth=3)
-+     ret v10
++     v10 = not 31 !metadata(span=30..40, modifier_depth=3)
++     v11 = and v8, v10 !metadata(span=30..40, modifier_depth=3)
++     v12 = alloc memorybytes, exact, uninitialized, infallible, v11 !metadata(span=30..40, modifier_depth=3)
++     set_memory_object_len memorybytes, v12, v7 !metadata(span=30..40, modifier_depth=3)
++     v13 = make_returndata_slice 0, v7 !metadata(span=30..40, modifier_depth=3)
++     memory_object_copy_from_slice memorybytes, v12, v13 !metadata(span=30..40, modifier_depth=3)
++     ret v12
 +   bb1:
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=30..40, modifier_depth=3)
 +     mstore 32, 65 !metadata(memory=scratch, span=30..40, modifier_depth=3)
 +     revert 28, 36 !metadata(span=30..40, modifier_depth=3)
   }
   
-  fn @delegate(arg0: i256, arg1: memorybytes) -> i256 {
+  fn @delegate(arg0: i160, arg1: memorybytes) -> i256 {
     bb0:
 -     v0 = address_delegatecall arg0, arg1, gas 0x186a0
 -     v1 = zext i1 v0 to i256
 +     v2 = memory_object_data memorybytes, arg1
 +     v3 = memory_object_len memorybytes, arg1
-+     v4 = delegatecall 0x186a0, arg0, v2, v3, 0, 0
-+     v1 = zext i1 v4 to i256
++     v4 = zext i160 arg0 to i256
++     v5 = ptrtoint memptr v2 to i256
++     v6 = delegatecall 0x186a0, v4, v5, v3, 0, 0
++     v1 = zext i1 v6 to i256
       ret v1
   }
   
-  fn @zero_value(arg0: i256, arg1: memorybytes) -> i256 {
+  fn @zero_value(arg0: i160, arg1: memorybytes) -> i256 {
     bb0:
 -     v0 = address_call arg0, arg1, value 0
 -     v1 = zext i1 v0 to i256
 +     v2 = memory_object_data memorybytes, arg1
 +     v3 = memory_object_len memorybytes, arg1
 +     v4 = gas
-+     v5 = call v4, arg0, 0, v2, v3, 0, 0
-+     v1 = zext i1 v5 to i256
++     v5 = zext i160 arg0 to i256
++     v6 = ptrtoint memptr v2 to i256
++     v7 = call v4, v5, 0, v6, v3, 0, 0
++     v1 = zext i1 v7 to i256
       ret v1
   }
   

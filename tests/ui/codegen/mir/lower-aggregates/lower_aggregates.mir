@@ -3,24 +3,26 @@
 @module LowerAggregates
 
 // CHECK-LABEL: {{^[ +].*}}fn @storage_to_memory{{[( ]}}
+// CHECK: {{^[ +].*}}[[OBJECT:v[0-9]+]] = inttoptr i256 arg1 to memorystruct
 // CHECK: - storage_to_memory
 // CHECK: + [[VALUE:v[0-9]+]] = sload arg0
-// CHECK: + [[OBJECT:v[0-9]+]] = inttoptr i256 arg1 to memorystruct
 // CHECK: + memory_object_store_field memorystruct<3>, [[OBJECT]], 0, [[VALUE]]
 fn @storage_to_memory(arg0: i256, arg1: i256) {
   bb0:
-    storage_to_memory struct<word, struct<word, word>, array<2, word>>, arg0, arg1
+    v0 = inttoptr i256 arg1 to memorystruct
+    storage_to_memory struct<word, struct<word, word>, array<2, word>>, arg0, v0
     stop
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @memory_to_storage{{[( ]}}
+// CHECK: {{^[ +].*}}[[OBJECT:v[0-9]+]] = inttoptr i256 arg0 to memorystruct
 // CHECK: - memory_to_storage
-// CHECK: + [[OBJECT:v[0-9]+]] = inttoptr i256 arg0 to memorystruct
 // CHECK: + [[VALUE:v[0-9]+]] = memory_object_load_field memorystruct<3>, [[OBJECT]], 0
 // CHECK: + sstore arg1, [[VALUE]]
 fn @memory_to_storage(arg0: i256, arg1: i256) {
   bb0:
-    memory_to_storage struct<word, struct<word, word>, array<2, word>>, arg0, arg1
+    v0 = inttoptr i256 arg0 to memorystruct
+    memory_to_storage struct<word, struct<word, word>, array<2, word>>, v0, arg1
     stop
 }
 

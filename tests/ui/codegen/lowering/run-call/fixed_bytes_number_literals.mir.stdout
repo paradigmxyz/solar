@@ -34,37 +34,39 @@ fn @viaExternal() -> i256 [selector=0x09338c08, abi_params=[], abi_returns=[word
     v1 = not 31
     v2 = and 169, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Probe_initcode_0, v3, 138
-    v4 = slice_ptr v0
-    v5 = ptrtoint memptr v3 to i256
-    v6 = add v5, 138
-    mcopy v6, v4, 0 !metadata(memory=heap)
-    v7 = ptrtoint memptr v3 to i256
-    v8 = create 0, v7, 138
-    v9 = zext i160 v8 to i256
-    v10 = ne v9, 0
-    jumpi v10, bb2, bb1
+    v4 = ptrtoint memptr v3 to i256
+    data_copy Probe_initcode_0, v4, 138
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, 138
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, 138
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = gas
-    v12 = and 0x102030400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v13 = abi_encode [word<bytes4>], selector 0x14beb1ca00000000000000000000000000000000000000000000000000000000, args v12
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = call v11, v8, 0, v14, v15, 0, 32
-    jumpi v16, bb4, bb3
+    v12 = gas
+    v13 = and 0x102030400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v14 = abi_encode [word<bytes4>], selector 0x14beb1ca00000000000000000000000000000000000000000000000000000000, args v13
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = zext i160 v9 to i256
+    v18 = call v12, v17, 0, v15, v16, 0, 32
+    jumpi v18, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v17 = returndatasize
-    v18 = lt v17, 32
-    icall revert_if<tuple_data_too_short>, v18
-    v19 = add 0, 0
-    v20 = mload v19
+    v19 = returndatasize
+    v20 = lt v19, 32
+    icall revert_if<tuple_data_too_short>, v20
     v21 = add 0, 0
     v22 = mload v21
-    ret v22
+    v23 = add 0, 0
+    v24 = mload v23
+    ret v24
 }
 
 fn @giveInternal(arg0: i256) -> i256 [pure] {
@@ -176,19 +178,20 @@ fn @takeSlice(arg0: calldataslice) -> i256 [selector=0x4f4c8d8b, pure, abi_param
     v3 = lt 5, 0
     v4 = or v2, v3
     v5 = zext i1 v4 to i256
-    icall revert_if<empty>, v5
-    v6 = sub 5, 0
-    v7 = add v0, 0
-    v8 = make_calldata_slice v7, v6
-    v9 = calldata_slice_load_word calldata, v8, 0
-    v10 = slice_len v8
-    v11 = lt v10, 32
-    v12 = sub 32, v10
-    v13 = mul 8, v12
-    v14 = shl v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v15 = select v11, v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v16 = and v9, v15
-    ret v16
+    v6 = ne v5, 0
+    icall revert_if<empty>, v6
+    v7 = sub 5, 0
+    v8 = add v0, 0
+    v9 = make_calldata_slice v8, v7
+    v10 = calldata_slice_load_word calldata, v9, 0
+    v11 = slice_len v9
+    v12 = lt v11, 32
+    v13 = sub 32, v11
+    v14 = mul 8, v13
+    v15 = shl v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v16 = select v12, v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v17 = and v10, v16
+    ret v17
 }
 
 fn @calldataSliceCast() -> i256 [selector=0x93f40587, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -203,19 +206,20 @@ fn @calldataSliceCast() -> i256 [selector=0x93f40587, view, abi_params=[], abi_r
     v5 = abi_encode [memory_bytes], selector 0x4f4c8d8b00000000000000000000000000000000000000000000000000000000, args v2
     v6 = slice_ptr v5
     v7 = slice_len v5
-    v8 = staticcall v1, v0, v6, v7, 0, 32
-    jumpi v8, bb2, bb1
+    v8 = zext i160 v0 to i256
+    v9 = staticcall v1, v8, v6, v7, 0, 32
+    jumpi v9, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = returndatasize
-    v10 = lt v9, 32
-    icall revert_if<tuple_data_too_short>, v10
-    v11 = add 0, 0
-    v12 = mload v11
-    v13 = add 0, 0
-    v14 = mload v13
-    ret v14
+    v10 = returndatasize
+    v11 = lt v10, 32
+    icall revert_if<tuple_data_too_short>, v11
+    v12 = add 0, 0
+    v13 = mload v12
+    v14 = add 0, 0
+    v15 = mload v14
+    ret v15
 }
 
 fn @stringAddressCast() -> i256 [selector=0x6e03912b, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {

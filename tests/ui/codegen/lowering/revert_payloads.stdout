@@ -9,7 +9,8 @@ fn @assert_panic(arg0: i256) [selector=0x727ee374, pure, abi_params=[bool], abi_
 
 fn @require_message(arg0: i256) [selector=0x79cfb63f, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
   bb0:
-    icall require<short_string>, arg0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
+    v0 = ne arg0, 0
+    icall require<short_string>, v0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
     ret
 }
 

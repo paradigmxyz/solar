@@ -27,7 +27,8 @@ fn @invoke(arg0: i256, arg1: memorystruct) {
     v16 = shr 224, v15
     jumpi true, bb4, bb5
   bb5:
-    revert v11, v12
+    v18 = ptrtoint memptr v11 to i256
+    revert v18, v12
   bb4:
     v17 = memory_object_len memorybytes, v10
     sstore 0, v17 !metadata(storage=slot(0))

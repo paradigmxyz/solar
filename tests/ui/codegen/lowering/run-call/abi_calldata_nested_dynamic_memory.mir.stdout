@@ -31,7 +31,7 @@ fn @g(arg0: calldataslice) -> memoryarray [selector=0xc12c508e, pure, abi_params
     set_memory_object_len memoryarray, v21, v0
     jump bb1
   bb1:
-    v22 = phi [bb0: 0], [bb6: v88]
+    v22 = phi [bb0: 0], [bb6: v90]
     v23 = lt v22, v0
     jumpi v23, bb2, bb3
   bb3:
@@ -76,12 +76,13 @@ fn @g(arg0: calldataslice) -> memoryarray [selector=0xc12c508e, pure, abi_params
     set_memory_object_len memoryarray, v53, v36
     jump bb4
   bb4:
-    v54 = phi [bb2: 0], [bb5: v87]
+    v54 = phi [bb2: 0], [bb5: v88]
     v55 = lt v54, v36
     jumpi v55, bb5, bb6
   bb6:
-    memory_object_store_element memoryarray<1>, v21, v22, v53
-    v88 = add v22, 1
+    v89 = ptrtoint memoryarray v53 to i256
+    memory_object_store_element memoryarray<1>, v21, v22, v89
+    v90 = add v22, 1
     jump bb1
   bb5:
     v56 = mul v54, 32
@@ -123,8 +124,9 @@ fn @g(arg0: calldataslice) -> memoryarray [selector=0xc12c508e, pure, abi_params
     set_memory_object_len memoryarray, v85, v68
     v86 = make_calldata_slice v75, v76
     memory_object_copy_from_slice memoryarray, v85, v86
-    memory_object_store_element memoryarray<1>, v53, v54, v85
-    v87 = add v54, 1
+    v87 = ptrtoint memoryarray v85 to i256
+    memory_object_store_element memoryarray<1>, v53, v54, v87
+    v88 = add v54, 1
     jump bb4
 }
 
@@ -159,7 +161,7 @@ fn @h(arg0: calldataslice) -> memoryarray [selector=0xba9ef85f, pure, abi_params
     set_memory_object_len memoryarray, v21, v0
     jump bb1
   bb1:
-    v22 = phi [bb0: 0], [bb6: v67]
+    v22 = phi [bb0: 0], [bb6: v69]
     v23 = lt v22, v0
     jumpi v23, bb2, bb3
   bb3:
@@ -204,12 +206,13 @@ fn @h(arg0: calldataslice) -> memoryarray [selector=0xba9ef85f, pure, abi_params
     set_memory_object_len memoryarray, v53, v36
     jump bb4
   bb4:
-    v54 = phi [bb2: 0], [bb5: v66]
+    v54 = phi [bb2: 0], [bb5: v67]
     v55 = lt v54, v36
     jumpi v55, bb5, bb6
   bb6:
-    memory_object_store_element memoryarray<1>, v21, v22, v53
-    v67 = add v22, 1
+    v68 = ptrtoint memoryarray v53 to i256
+    memory_object_store_element memoryarray<1>, v21, v22, v68
+    v69 = add v22, 1
     jump bb1
   bb5:
     v56 = mul v54, 64
@@ -224,7 +227,8 @@ fn @h(arg0: calldataslice) -> memoryarray [selector=0xba9ef85f, pure, abi_params
     v64 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v65 = make_calldata_slice v63, 64
     memory_object_copy_from_slice memoryfixedarray, v64, v65
-    memory_object_store_element memoryarray<1>, v53, v54, v64
-    v66 = add v54, 1
+    v66 = ptrtoint memoryfixedarray v64 to i256
+    memory_object_store_element memoryarray<1>, v53, v54, v66
+    v67 = add v54, 1
     jump bb4
 }

@@ -203,7 +203,8 @@ fn @gas_default_call(arg0: i256, arg1: memorybytes) -> i256 {
     jumpi true, bb2, bb3
   bb2:
     v1 = mul arg0, 3
-    v2 = address_call 0xbeef, arg1
+    v100 = trunc i256 0xbeef to i160
+    v2 = address_call v100, arg1
     jump bb1
   bb3:
     ret v3
@@ -220,7 +221,8 @@ fn @gas_explicit_call(arg0: i256, arg1: memorybytes) -> i256 {
     jumpi true, bb2, bb3
   bb2:
     v1 = mul arg0, 3
-    v2 = address_call 0xbeef, arg1, gas 1000
+    v100 = trunc i256 0xbeef to i160
+    v2 = address_call v100, arg1, gas 1000
     jump bb1
   bb3:
     ret v3

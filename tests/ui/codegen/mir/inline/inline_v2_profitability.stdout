@@ -82,7 +82,8 @@
 +     v9 = ptrtoint memptr v8 to i256
 +     mstore v9, v7
 +     v10 = internal_frame_addr 128
-+     frame_store multi_return, word, 0, v10 !metadata(memory=scratch)
++     v11 = ptrtoint memptr v10 to i256
++     frame_store multi_return, word, 0, v11 !metadata(memory=scratch)
       v1 = mload 32
 -     v2 = bitcast i256 v0 to i256
 +     v2 = bitcast i256 v6 to i256

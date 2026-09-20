@@ -40,8 +40,6 @@ fn @memory_field(arg0: memoryslice) -> i256 {
 // CHECK: ret [[CALLDATA]]
 fn @calldata_field(arg0: calldataslice) -> i256 {
   bb0:
-    v6 = memory_object_field_addr memorystruct<2>, arg0, 0
-    v1 = ptrtoint memptr v6 to i256
-    v2 = mload v1
+    v2 = calldata_slice_load_word calldata, arg0, 0
     ret v2
 }

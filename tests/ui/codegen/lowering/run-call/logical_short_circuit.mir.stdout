@@ -16,7 +16,7 @@ fn @andSkipsRhs() -> struct0 [selector=0x59db58e9, abi_params=[], abi_returns=[w
   bb0:
     jumpi false, bb1, bb2
   bb2:
-    v17 = zext i1 0 to i256
+    v18 = zext i1 0 to i256
     jump bb3
   bb1:
     v0 = address
@@ -24,31 +24,32 @@ fn @andSkipsRhs() -> struct0 [selector=0x59db58e9, abi_params=[], abi_returns=[w
     v2 = abi_encode [], selector 0x68110b2f00000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = call v1, v0, 0, v3, v4, 0, 32
-    jumpi v5, bb5, bb4
+    v5 = zext i160 v0 to i256
+    v6 = call v1, v5, 0, v3, v4, 0, 32
+    jumpi v6, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v6 = returndatasize
-    v7 = lt v6, 32
-    icall revert_if<tuple_data_too_short>, v7
-    v8 = add 0, 0
-    v9 = mload v8
-    v10 = eq v9, 0
-    v11 = eq v10, false
-    v12 = zext i1 v11 to i256
-    v13 = eq v9, v12
-    v14 = eq v13, false
-    icall revert_if<empty>, v14
-    v15 = add 0, 0
-    v16 = mload v15
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    v11 = eq v10, 0
+    v12 = eq v11, false
+    v13 = zext i1 v12 to i256
+    v14 = eq v10, v13
+    v15 = eq v14, false
+    icall revert_if<empty>, v15
+    v16 = add 0, 0
+    v17 = mload v16
     jump bb3
   bb3:
-    v18 = phi [bb5: v16], [bb2: v17]
-    v19 = sload 0 !metadata(storage=slot(0))
-    v20 = insert_value struct0, undef struct0, 0, v19
-    v21 = insert_value struct0, v20, 1, v18
-    ret v21
+    v19 = phi [bb5: v17], [bb2: v18]
+    v20 = sload 0 !metadata(storage=slot(0))
+    v21 = insert_value struct0, undef struct0, 0, v20
+    v22 = insert_value struct0, v21, 1, v19
+    ret v22
 }
 
 fn @orSkipsRhs() -> struct0 [selector=0x136ed8bf, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
@@ -60,41 +61,42 @@ fn @orSkipsRhs() -> struct0 [selector=0x136ed8bf, abi_params=[], abi_returns=[wo
     v2 = abi_encode [], selector 0x68110b2f00000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = call v1, v0, 0, v3, v4, 0, 32
-    jumpi v5, bb5, bb4
+    v5 = zext i160 v0 to i256
+    v6 = call v1, v5, 0, v3, v4, 0, 32
+    jumpi v6, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v6 = returndatasize
-    v7 = lt v6, 32
-    icall revert_if<tuple_data_too_short>, v7
-    v8 = add 0, 0
-    v9 = mload v8
-    v10 = eq v9, 0
-    v11 = eq v10, false
-    v12 = zext i1 v11 to i256
-    v13 = eq v9, v12
-    v14 = eq v13, false
-    icall revert_if<empty>, v14
-    v15 = add 0, 0
-    v16 = mload v15
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    v11 = eq v10, 0
+    v12 = eq v11, false
+    v13 = zext i1 v12 to i256
+    v14 = eq v10, v13
+    v15 = eq v14, false
+    icall revert_if<empty>, v15
+    v16 = add 0, 0
+    v17 = mload v16
     jump bb3
   bb2:
-    v17 = zext i1 1 to i256
+    v18 = zext i1 1 to i256
     jump bb3
   bb3:
-    v18 = phi [bb5: v16], [bb2: v17]
-    v19 = sload 0 !metadata(storage=slot(0))
-    v20 = insert_value struct0, undef struct0, 0, v19
-    v21 = insert_value struct0, v20, 1, v18
-    ret v21
+    v19 = phi [bb5: v17], [bb2: v18]
+    v20 = sload 0 !metadata(storage=slot(0))
+    v21 = insert_value struct0, undef struct0, 0, v20
+    v22 = insert_value struct0, v21, 1, v19
+    ret v22
 }
 
 fn @andRunsRhs() -> struct0 [selector=0x87ab0848, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
   bb0:
     jumpi true, bb1, bb2
   bb2:
-    v17 = zext i1 0 to i256
+    v18 = zext i1 0 to i256
     jump bb3
   bb1:
     v0 = address
@@ -102,31 +104,32 @@ fn @andRunsRhs() -> struct0 [selector=0x87ab0848, abi_params=[], abi_returns=[wo
     v2 = abi_encode [], selector 0x68110b2f00000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = call v1, v0, 0, v3, v4, 0, 32
-    jumpi v5, bb5, bb4
+    v5 = zext i160 v0 to i256
+    v6 = call v1, v5, 0, v3, v4, 0, 32
+    jumpi v6, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v6 = returndatasize
-    v7 = lt v6, 32
-    icall revert_if<tuple_data_too_short>, v7
-    v8 = add 0, 0
-    v9 = mload v8
-    v10 = eq v9, 0
-    v11 = eq v10, false
-    v12 = zext i1 v11 to i256
-    v13 = eq v9, v12
-    v14 = eq v13, false
-    icall revert_if<empty>, v14
-    v15 = add 0, 0
-    v16 = mload v15
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    v11 = eq v10, 0
+    v12 = eq v11, false
+    v13 = zext i1 v12 to i256
+    v14 = eq v10, v13
+    v15 = eq v14, false
+    icall revert_if<empty>, v15
+    v16 = add 0, 0
+    v17 = mload v16
     jump bb3
   bb3:
-    v18 = phi [bb5: v16], [bb2: v17]
-    v19 = sload 0 !metadata(storage=slot(0))
-    v20 = insert_value struct0, undef struct0, 0, v19
-    v21 = insert_value struct0, v20, 1, v18
-    ret v21
+    v19 = phi [bb5: v17], [bb2: v18]
+    v20 = sload 0 !metadata(storage=slot(0))
+    v21 = insert_value struct0, undef struct0, 0, v20
+    v22 = insert_value struct0, v21, 1, v19
+    ret v22
 }
 
 fn @orRunsRhs() -> struct0 [selector=0x6baa9b2a, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
@@ -138,32 +141,33 @@ fn @orRunsRhs() -> struct0 [selector=0x6baa9b2a, abi_params=[], abi_returns=[wor
     v2 = abi_encode [], selector 0x68110b2f00000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = call v1, v0, 0, v3, v4, 0, 32
-    jumpi v5, bb5, bb4
+    v5 = zext i160 v0 to i256
+    v6 = call v1, v5, 0, v3, v4, 0, 32
+    jumpi v6, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v6 = returndatasize
-    v7 = lt v6, 32
-    icall revert_if<tuple_data_too_short>, v7
-    v8 = add 0, 0
-    v9 = mload v8
-    v10 = eq v9, 0
-    v11 = eq v10, false
-    v12 = zext i1 v11 to i256
-    v13 = eq v9, v12
-    v14 = eq v13, false
-    icall revert_if<empty>, v14
-    v15 = add 0, 0
-    v16 = mload v15
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    v11 = eq v10, 0
+    v12 = eq v11, false
+    v13 = zext i1 v12 to i256
+    v14 = eq v10, v13
+    v15 = eq v14, false
+    icall revert_if<empty>, v15
+    v16 = add 0, 0
+    v17 = mload v16
     jump bb3
   bb2:
-    v17 = zext i1 1 to i256
+    v18 = zext i1 1 to i256
     jump bb3
   bb3:
-    v18 = phi [bb5: v16], [bb2: v17]
-    v19 = sload 0 !metadata(storage=slot(0))
-    v20 = insert_value struct0, undef struct0, 0, v19
-    v21 = insert_value struct0, v20, 1, v18
-    ret v21
+    v19 = phi [bb5: v17], [bb2: v18]
+    v20 = sload 0 !metadata(storage=slot(0))
+    v21 = insert_value struct0, undef struct0, 0, v20
+    v22 = insert_value struct0, v21, 1, v19
+    ret v22
 }

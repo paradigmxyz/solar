@@ -32,74 +32,78 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, bytes>]] {
   bb1:
     v7 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v7, 0
-    memory_object_store_element memoryarray<1>, arg0, 0, v7
+    v8 = ptrtoint memorybytes v7 to i256
+    memory_object_store_element memoryarray<1>, arg0, 0, v8
     jump bb2
   bb2:
-    v8 = phi [bb0: v4], [bb1: v7]
-    v9 = keccak256_bytes v8
-    sstore 0, v9 !metadata(storage=slot(0))
-    v10 = memory_object_len memoryarray, arg0
-    v11 = lt 1, v10
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = memory_object_load_element memoryarray<1>, arg0, 1
-    v14 = inttoptr i256 v13 to memorybytes
-    v15 = ptrtoint memorybytes v14 to i256
-    v16 = eq v15, 0
-    jumpi v16, bb3, bb4
+    v9 = phi [bb0: v4], [bb1: v7]
+    v10 = keccak256_bytes v9
+    sstore 0, v10 !metadata(storage=slot(0))
+    v11 = memory_object_len memoryarray, arg0
+    v12 = lt 1, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = memory_object_load_element memoryarray<1>, arg0, 1
+    v15 = inttoptr i256 v14 to memorybytes
+    v16 = ptrtoint memorybytes v15 to i256
+    v17 = eq v16, 0
+    jumpi v17, bb3, bb4
   bb3:
-    v17 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v17, 0
-    memory_object_store_element memoryarray<1>, arg0, 1, v17
+    v18 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v18, 0
+    v19 = ptrtoint memorybytes v18 to i256
+    memory_object_store_element memoryarray<1>, arg0, 1, v19
     jump bb4
   bb4:
-    v18 = phi [bb2: v14], [bb3: v17]
-    v19 = keccak256_bytes v18
-    sstore 1, v19 !metadata(storage=slot(1))
-    v20 = memory_object_len memoryarray, arg0
-    v21 = lt 0, v20
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = memory_object_load_element memoryarray<1>, arg0, 0
-    v24 = inttoptr i256 v23 to memorybytes
-    v25 = ptrtoint memorybytes v24 to i256
-    v26 = eq v25, 0
-    jumpi v26, bb5, bb6
+    v20 = phi [bb2: v15], [bb3: v18]
+    v21 = keccak256_bytes v20
+    sstore 1, v21 !metadata(storage=slot(1))
+    v22 = memory_object_len memoryarray, arg0
+    v23 = lt 0, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = memory_object_load_element memoryarray<1>, arg0, 0
+    v26 = inttoptr i256 v25 to memorybytes
+    v27 = ptrtoint memorybytes v26 to i256
+    v28 = eq v27, 0
+    jumpi v28, bb5, bb6
   bb5:
-    v27 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v27, 0
-    memory_object_store_element memoryarray<1>, arg0, 0, v27
+    v29 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v29, 0
+    v30 = ptrtoint memorybytes v29 to i256
+    memory_object_store_element memoryarray<1>, arg0, 0, v30
     jump bb6
   bb6:
-    v28 = phi [bb4: v24], [bb5: v27]
-    v29 = memory_object_len memorybytes, v28
-    v30 = shl 128, v29
-    v31 = memory_object_len memoryarray, arg0
-    v32 = lt 1, v31
-    v33 = eq v32, false
-    icall panic_if<0x32>, v33
-    v34 = memory_object_load_element memoryarray<1>, arg0, 1
-    v35 = inttoptr i256 v34 to memorybytes
-    v36 = ptrtoint memorybytes v35 to i256
-    v37 = eq v36, 0
-    jumpi v37, bb7, bb8
+    v31 = phi [bb4: v26], [bb5: v29]
+    v32 = memory_object_len memorybytes, v31
+    v33 = shl 128, v32
+    v34 = memory_object_len memoryarray, arg0
+    v35 = lt 1, v34
+    v36 = eq v35, false
+    icall panic_if<0x32>, v36
+    v37 = memory_object_load_element memoryarray<1>, arg0, 1
+    v38 = inttoptr i256 v37 to memorybytes
+    v39 = ptrtoint memorybytes v38 to i256
+    v40 = eq v39, 0
+    jumpi v40, bb7, bb8
   bb7:
-    v38 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v38, 0
-    memory_object_store_element memoryarray<1>, arg0, 1, v38
+    v41 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v41, 0
+    v42 = ptrtoint memorybytes v41 to i256
+    memory_object_store_element memoryarray<1>, arg0, 1, v42
     jump bb8
   bb8:
-    v39 = phi [bb6: v35], [bb7: v38]
-    v40 = memory_object_len memorybytes, v39
-    v41 = or v30, v40
-    sstore 2, v41 !metadata(storage=slot(2))
+    v43 = phi [bb6: v38], [bb7: v41]
+    v44 = memory_object_len memorybytes, v43
+    v45 = or v33, v44
+    sstore 2, v45 !metadata(storage=slot(2))
     ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_abi_bounds.sol:ConstructorNestedAbiBounds ===
 @module ConstructorNestedAbiBounds
 data:
-  NestedConstructor_initcode_0: hex"61067c38038061067c6105203961052001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0166040523415156105f9576105208061026052806102605261052061067c380301806102805280610280526020820181806102805290116105f5575f828061026052015180610500528201806102a0529150816102a0526020820167ffffffffffffffff61050051118261028052828061028052821191501715156105f15781806102a05251806102c052806102c05260208301806102e0529250826102e052600181018061030052806103005281806102c05281106105df57602081806103005202806103205280610320526020156020820483806103005290149250829017915081915081159150826102c052846102e052509050905090506105df57604051806105005280610500528061034052806103405280610340526103205180610320529001806104c052806104c052610340518061034052811067ffffffffffffffff82118117905015156105cd57806104c0526040526103405180610340526102c051806102c05281525060206102c051026020156020820491506102c051806102c0528214915017156105df576102e051806102e052610280510360051c6102c051116105f1576102c051610360526102e051610380525f6103a0525b5f610360511161042c57610340518061034052515f101561041a5761034051806103405260209001518060c0521560c051901561026a576040519050806105005280610500528060e0526020900160405260e0518060e0525f8152506103405180610340526020900160e0518060e052905260e0515b80610100525161010051806101005260209001205f55610340518061034052516001101561041a5761034051806103405260409001518061012052156101205190156102f5576040519050806105005280610500528061014052602090016040526101405180610140525f815250610340518061034052604090016101405180610140529052610140515b8061016052516101605180610160526020900120600155610340518061034052515f101561041a57610340518061034052602090015180610180521561018051901561038057604051905080610500528061050052806101a052602090016040526101a051806101a0525f815250610340518061034052602090016101a051806101a05290526101a0515b806101c0525160801b806101e052806101e052610340518061034052516001101561041a576103405180610340526040900151806102005215610200519015610408576040519050806105005280610500528061022052602090016040526102205180610220525f815250610340518061034052604090016102205180610220529052610220515b806102405251811790506002556105fd565b634e487b715f5260326020526024601cfd5b6103805180610380525180610500526102e05101806103c052806103c0526020810167ffffffffffffffff6105005111610280518061028052821191501715156105f157806103c05251806103e052806103e05260206103c0510180610400528061040052603f82018061042052806104205282806103e05281106105df57601f19811690506040518061050052806105005280610440528061044052806104405201806104e052806104e052610440518061044052811067ffffffffffffffff82118117905015151561050c57634e487b715f5260416020526024601cfd5b806104e052604052610440518061044052826103e05282806103e05281525080610400528061040052610280510381116105f1576104405180610440526020900181806103e052610400518061040052825e50506103405180610340526020900160206103a051028101905061044051806104405290526001610360510380610460528061046052602061038051018061048052806104805260016103a05101806104a052806104a05282610360528161038052806103a0525050506101f4565b634e487b715f5260416020526024601cfd5b634e487b715f5260416020526024601cfd5b5f5ffd5b5f5ffd5b5f5ffd5b6074806106085f395ff33415156038575f3560e01c8063a1c6d2f6146034578063dab1fa12146030578063f799654214602c576038565b604e565b6061565b603c565b5f5ffd5b5f546080526020608001608090036080f35b6001546080526020608001608090036080f35b6002546080526020608001608090036080f3"
+  NestedConstructor_initcode_0: hex"6106773803806106776105203961052001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0166040523415156105f45761052080610260528061026052610520610677380301806102805280610280526020820181806102805290116105f0575f828061026052015180610500528201806102a0529150816102a0526020820167ffffffffffffffff61050051118261028052828061028052821191501715156105ec5781806102a05251806102c052806102c05260208301806102e0529250826102e052600181018061030052806103005281806102c05281106105da57602081806103005202806103205280610320526020156020820483806103005290149250829017915081915081159150826102c052846102e052509050905090506105da57604051806105005280610500528061034052806103405280610340526103205180610320529001806104c052806104c052610340518061034052811067ffffffffffffffff82118117905015156105c857806104c0526040526103405180610340526102c051806102c05281525060206102c051026020156020820491506102c051806102c0528214915017156105da576102e051806102e052610280510360051c6102c051116105ec576102c051610360526102e051610380525f6103a0525b5f610360511161042857610340518061034052515f10156104165761034051806103405260209001518060c0521560c0519015610269576040519050806105005280610500528060e0526020900160405260e0518060e0525f81525060e0518060e052610340518061034052602090015260e0515b80610100525161010051806101005260209001205f5561034051806103405251600110156104165761034051806103405260409001518061012052156101205190156102f3576040519050806105005280610500528061014052602090016040526101405180610140525f8152506101405180610140526103405180610340526040900152610140515b8061016052516101605180610160526020900120600155610340518061034052515f101561041657610340518061034052602090015180610180521561018051901561037d57604051905080610500528061050052806101a052602090016040526101a051806101a0525f8152506101a051806101a05261034051806103405260209001526101a0515b806101c0525160801b806101e052806101e0526103405180610340525160011015610416576103405180610340526040900151806102005215610200519015610404576040519050806105005280610500528061022052602090016040526102205180610220525f8152506102205180610220526103405180610340526040900152610220515b806102405251811790506002556105f8565b634e487b715f5260326020526024601cfd5b6103805180610380525180610500526102e05101806103c052806103c0526020810167ffffffffffffffff6105005111610280518061028052821191501715156105ec57806103c05251806103e052806103e05260206103c0510180610400528061040052603f82018061042052806104205282806103e05281106105da57601f19811690506040518061050052806105005280610440528061044052806104405201806104e052806104e052610440518061044052811067ffffffffffffffff82118117905015151561050857634e487b715f5260416020526024601cfd5b806104e052604052610440518061044052826103e05282806103e05281525080610400528061040052610280510381116105ec576104405180610440526020900181806103e052610400518061040052825e50506104405180610440526103405180610340526020900160206103a0510281019050526001610360510380610460528061046052602061038051018061048052806104805260016103a05101806104a052806104a05282610360528161038052806103a0525050506101f4565b634e487b715f5260416020526024601cfd5b634e487b715f5260416020526024601cfd5b5f5ffd5b5f5ffd5b5f5ffd5b6074806106035f395ff33415156038575f3560e01c8063a1c6d2f6146034578063dab1fa12146030578063f799654214602c576038565b604e565b6061565b603c565b5f5ffd5b5f546080526020608001608090036080f35b6001546080526020608001608090036080f35b6002546080526020608001608090036080f3"
 
 fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -107,208 +111,216 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     set_memory_object_len memoryarray, v0, 2
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v3]
+    v1 = phi [bb0: 0], [bb2: v4]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb3:
-    v4 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v4, 62
-    v5 = memory_object_data memorybytes, v4
-    v6 = ptrtoint memptr v5 to i256
-    mstore v6, 0x9e5b51c01b06aa9662e69b102026ffa1757b2a877ea1721d7e523dd900000000
-    v7 = ptrtoint memptr v5 to i256
-    v8 = add v7, 32
-    mstore v8, 0x8a09ff40000
-    v9 = memory_object_len memoryarray, v0
-    v10 = lt 0, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    memory_object_store_element memoryarray<1>, v0, 0, v4
-    v12 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v12, 5
-    v13 = memory_object_data memorybytes, v12
-    v14 = ptrtoint memptr v13 to i256
-    mstore v14, 0x102030405000000000000000000000000000000000000000000000000000000
-    v15 = memory_object_len memoryarray, v0
-    v16 = lt 1, v15
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    memory_object_store_element memoryarray<1>, v0, 1, v12
-    v18 = abi_encode [memory_array<memory_bytes>], args v0
-    v19 = slice_len v18
-    v20 = add 0x67c, v19
-    v21 = lt v20, 0x67c
-    icall panic_if<0x41>, v21
-    v22 = add v20, 31
-    v23 = lt v22, v20
-    icall panic_if<0x41>, v23
-    v24 = not 31
-    v25 = and v22, v24
-    v26 = alloc raw, exact, uninitialized, infallible, v25
-    data_copy NestedConstructor_initcode_0, v26, 0x67c
-    v27 = slice_ptr v18
-    v28 = ptrtoint memptr v26 to i256
-    v29 = add v28, 0x67c
-    mcopy v29, v27, v19 !metadata(memory=heap)
-    v30 = ptrtoint memptr v26 to i256
-    v31 = create 0, v30, v20
-    v32 = zext i160 v31 to i256
-    v33 = ne v32, 0
-    jumpi v33, bb5, bb4
+    v5 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v5, 62
+    v6 = memory_object_data memorybytes, v5
+    v7 = ptrtoint memptr v6 to i256
+    mstore v7, 0x9e5b51c01b06aa9662e69b102026ffa1757b2a877ea1721d7e523dd900000000
+    v8 = ptrtoint memptr v6 to i256
+    v9 = add v8, 32
+    mstore v9, 0x8a09ff40000
+    v10 = memory_object_len memoryarray, v0
+    v11 = lt 0, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = ptrtoint memorybytes v5 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v13
+    v14 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v14, 5
+    v15 = memory_object_data memorybytes, v14
+    v16 = ptrtoint memptr v15 to i256
+    mstore v16, 0x102030405000000000000000000000000000000000000000000000000000000
+    v17 = memory_object_len memoryarray, v0
+    v18 = lt 1, v17
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = ptrtoint memorybytes v14 to i256
+    memory_object_store_element memoryarray<1>, v0, 1, v20
+    v21 = abi_encode [memory_array<memory_bytes>], args v0
+    v22 = slice_len v21
+    v23 = add 0x677, v22
+    v24 = lt v23, 0x677
+    icall panic_if<0x41>, v24
+    v25 = add v23, 31
+    v26 = lt v25, v23
+    icall panic_if<0x41>, v26
+    v27 = not 31
+    v28 = and v25, v27
+    v29 = alloc raw, exact, uninitialized, infallible, v28
+    v30 = ptrtoint memptr v29 to i256
+    data_copy NestedConstructor_initcode_0, v30, 0x677
+    v31 = slice_ptr v21
+    v32 = ptrtoint memptr v29 to i256
+    v33 = add v32, 0x677
+    mcopy v33, v31, v22 !metadata(memory=heap)
+    v34 = ptrtoint memptr v29 to i256
+    v35 = create 0, v34, v23
+    v36 = zext i160 v35 to i256
+    v37 = ne v36, 0
+    jumpi v37, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v34 = zext i160 v31 to i256
-    v35 = gas
-    v36 = abi_encode [], selector 0xa1c6d2f600000000000000000000000000000000000000000000000000000000
-    v37 = slice_ptr v36
-    v38 = slice_len v36
-    v39 = staticcall v35, v34, v37, v38, 0, 32
-    jumpi v39, bb7, bb6
+    v38 = zext i160 v35 to i256
+    v39 = gas
+    v40 = abi_encode [], selector 0xa1c6d2f600000000000000000000000000000000000000000000000000000000
+    v41 = slice_ptr v40
+    v42 = slice_len v40
+    v43 = staticcall v39, v38, v41, v42, 0, 32
+    jumpi v43, bb7, bb6
   bb6:
     revert_returndata
   bb7:
-    v40 = returndatasize
-    v41 = lt v40, 32
-    icall revert_if<tuple_data_too_short>, v41
-    v42 = add 0, 0
-    v43 = mload v42
-    v44 = add 0, 0
-    v45 = mload v44
-    v46 = memory_object_len memoryarray, v0
-    v47 = lt 0, v46
-    v48 = eq v47, false
-    icall panic_if<0x32>, v48
-    v49 = memory_object_load_element memoryarray<1>, v0, 0
-    v50 = inttoptr i256 v49 to memorybytes
-    v51 = ptrtoint memorybytes v50 to i256
-    v52 = eq v51, 0
-    jumpi v52, bb8, bb9
+    v44 = returndatasize
+    v45 = lt v44, 32
+    icall revert_if<tuple_data_too_short>, v45
+    v46 = add 0, 0
+    v47 = mload v46
+    v48 = add 0, 0
+    v49 = mload v48
+    v50 = memory_object_len memoryarray, v0
+    v51 = lt 0, v50
+    v52 = eq v51, false
+    icall panic_if<0x32>, v52
+    v53 = memory_object_load_element memoryarray<1>, v0, 0
+    v54 = inttoptr i256 v53 to memorybytes
+    v55 = ptrtoint memorybytes v54 to i256
+    v56 = eq v55, 0
+    jumpi v56, bb8, bb9
   bb8:
-    v53 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v53, 0
-    memory_object_store_element memoryarray<1>, v0, 0, v53
+    v57 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v57, 0
+    v58 = ptrtoint memorybytes v57 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v58
     jump bb9
   bb9:
-    v54 = phi [bb7: v50], [bb8: v53]
-    v55 = keccak256_bytes v54
-    v56 = eq v45, v55
-    jumpi v56, bb10, bb11
+    v59 = phi [bb7: v54], [bb8: v57]
+    v60 = keccak256_bytes v59
+    v61 = eq v49, v60
+    jumpi v61, bb10, bb11
   bb11:
     jump bb12
   bb10:
-    v57 = gas
-    v58 = abi_encode [], selector 0xf799654200000000000000000000000000000000000000000000000000000000
-    v59 = slice_ptr v58
-    v60 = slice_len v58
-    v61 = staticcall v57, v34, v59, v60, 0, 32
-    jumpi v61, bb14, bb13
+    v62 = gas
+    v63 = abi_encode [], selector 0xf799654200000000000000000000000000000000000000000000000000000000
+    v64 = slice_ptr v63
+    v65 = slice_len v63
+    v66 = staticcall v62, v38, v64, v65, 0, 32
+    jumpi v66, bb14, bb13
   bb13:
     revert_returndata
   bb14:
-    v62 = returndatasize
-    v63 = lt v62, 32
-    icall revert_if<tuple_data_too_short>, v63
-    v64 = add 0, 0
-    v65 = mload v64
-    v66 = add 0, 0
-    v67 = mload v66
-    v68 = memory_object_len memoryarray, v0
-    v69 = lt 1, v68
-    v70 = eq v69, false
-    icall panic_if<0x32>, v70
-    v71 = memory_object_load_element memoryarray<1>, v0, 1
-    v72 = inttoptr i256 v71 to memorybytes
-    v73 = ptrtoint memorybytes v72 to i256
-    v74 = eq v73, 0
-    jumpi v74, bb15, bb16
+    v67 = returndatasize
+    v68 = lt v67, 32
+    icall revert_if<tuple_data_too_short>, v68
+    v69 = add 0, 0
+    v70 = mload v69
+    v71 = add 0, 0
+    v72 = mload v71
+    v73 = memory_object_len memoryarray, v0
+    v74 = lt 1, v73
+    v75 = eq v74, false
+    icall panic_if<0x32>, v75
+    v76 = memory_object_load_element memoryarray<1>, v0, 1
+    v77 = inttoptr i256 v76 to memorybytes
+    v78 = ptrtoint memorybytes v77 to i256
+    v79 = eq v78, 0
+    jumpi v79, bb15, bb16
   bb15:
-    v75 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v75, 0
-    memory_object_store_element memoryarray<1>, v0, 1, v75
+    v80 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v80, 0
+    v81 = ptrtoint memorybytes v80 to i256
+    memory_object_store_element memoryarray<1>, v0, 1, v81
     jump bb16
   bb16:
-    v76 = phi [bb14: v72], [bb15: v75]
-    v77 = keccak256_bytes v76
-    v78 = eq v67, v77
+    v82 = phi [bb14: v77], [bb15: v80]
+    v83 = keccak256_bytes v82
+    v84 = eq v72, v83
     jump bb12
   bb12:
-    v79 = phi [bb16: v78], [bb11: false]
-    v80 = zext i1 v79 to i256
-    v81 = gas
-    v82 = abi_encode [], selector 0xdab1fa1200000000000000000000000000000000000000000000000000000000
-    v83 = slice_ptr v82
-    v84 = slice_len v82
-    v85 = staticcall v81, v34, v83, v84, 0, 32
-    jumpi v85, bb18, bb17
+    v85 = phi [bb16: v84], [bb11: false]
+    v86 = zext i1 v85 to i256
+    v87 = gas
+    v88 = abi_encode [], selector 0xdab1fa1200000000000000000000000000000000000000000000000000000000
+    v89 = slice_ptr v88
+    v90 = slice_len v88
+    v91 = staticcall v87, v38, v89, v90, 0, 32
+    jumpi v91, bb18, bb17
   bb17:
     revert_returndata
   bb18:
-    v86 = returndatasize
-    v87 = lt v86, 32
-    icall revert_if<tuple_data_too_short>, v87
-    v88 = add 0, 0
-    v89 = mload v88
-    v90 = add 0, 0
-    v91 = mload v90
-    v92 = memory_object_len memoryarray, v0
-    v93 = lt 0, v92
-    v94 = eq v93, false
-    icall panic_if<0x32>, v94
-    v95 = memory_object_load_element memoryarray<1>, v0, 0
-    v96 = inttoptr i256 v95 to memorybytes
-    v97 = ptrtoint memorybytes v96 to i256
-    v98 = eq v97, 0
-    jumpi v98, bb19, bb20
+    v92 = returndatasize
+    v93 = lt v92, 32
+    icall revert_if<tuple_data_too_short>, v93
+    v94 = add 0, 0
+    v95 = mload v94
+    v96 = add 0, 0
+    v97 = mload v96
+    v98 = memory_object_len memoryarray, v0
+    v99 = lt 0, v98
+    v100 = eq v99, false
+    icall panic_if<0x32>, v100
+    v101 = memory_object_load_element memoryarray<1>, v0, 0
+    v102 = inttoptr i256 v101 to memorybytes
+    v103 = ptrtoint memorybytes v102 to i256
+    v104 = eq v103, 0
+    jumpi v104, bb19, bb20
   bb19:
-    v99 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v99, 0
-    memory_object_store_element memoryarray<1>, v0, 0, v99
+    v105 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v105, 0
+    v106 = ptrtoint memorybytes v105 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v106
     jump bb20
   bb20:
-    v100 = phi [bb18: v96], [bb19: v99]
-    v101 = memory_object_len memorybytes, v100
-    v102 = shl 128, v101
-    v103 = memory_object_len memoryarray, v0
-    v104 = lt 1, v103
-    v105 = eq v104, false
-    icall panic_if<0x32>, v105
-    v106 = memory_object_load_element memoryarray<1>, v0, 1
-    v107 = inttoptr i256 v106 to memorybytes
-    v108 = ptrtoint memorybytes v107 to i256
-    v109 = eq v108, 0
-    jumpi v109, bb21, bb22
+    v107 = phi [bb18: v102], [bb19: v105]
+    v108 = memory_object_len memorybytes, v107
+    v109 = shl 128, v108
+    v110 = memory_object_len memoryarray, v0
+    v111 = lt 1, v110
+    v112 = eq v111, false
+    icall panic_if<0x32>, v112
+    v113 = memory_object_load_element memoryarray<1>, v0, 1
+    v114 = inttoptr i256 v113 to memorybytes
+    v115 = ptrtoint memorybytes v114 to i256
+    v116 = eq v115, 0
+    jumpi v116, bb21, bb22
   bb21:
-    v110 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v110, 0
-    memory_object_store_element memoryarray<1>, v0, 1, v110
+    v117 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v117, 0
+    v118 = ptrtoint memorybytes v117 to i256
+    memory_object_store_element memoryarray<1>, v0, 1, v118
     jump bb22
   bb22:
-    v111 = phi [bb20: v107], [bb21: v110]
-    v112 = memory_object_len memorybytes, v111
-    v113 = or v102, v112
-    v114 = eq v91, v113
-    v115 = zext i1 v114 to i256
-    v116 = ne v80, 0
-    jumpi v116, bb23, bb24
+    v119 = phi [bb20: v114], [bb21: v117]
+    v120 = memory_object_len memorybytes, v119
+    v121 = or v109, v120
+    v122 = eq v97, v121
+    v123 = zext i1 v122 to i256
+    v124 = ne v86, 0
+    jumpi v124, bb23, bb24
   bb24:
-    v117 = zext i1 0 to i256
+    v125 = zext i1 0 to i256
     jump bb25
   bb23:
     jump bb25
   bb25:
-    v118 = phi [bb23: v115], [bb24: v117]
-    v119 = ne v118, 0
-    jumpi v119, bb26, bb27
+    v126 = phi [bb23: v123], [bb24: v125]
+    v127 = ne v126, 0
+    jumpi v127, bb26, bb27
   bb27:
     jump bb28
   bb26:
     jump bb28
   bb28:
-    v120 = phi [bb26: 1], [bb27: 0]
-    ret v120
+    v128 = phi [bb26: 1], [bb27: 0]
+    ret v128
   bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, memorybytes 96
-    v3 = add v1, 1
+    v3 = ptrtoint memorybytes 96 to i256
+    memory_object_store_element memoryarray<1>, v0, v1, v3
+    v4 = add v1, 1
     jump bb1
 }

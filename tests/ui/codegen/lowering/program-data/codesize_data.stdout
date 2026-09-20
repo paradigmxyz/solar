@@ -7,54 +7,52 @@ data:
 
 fn @outer() [selector=0x87c3dbb6, abi_wrapper, pure] {
   bb0:
-    v31 = mload 64 !metadata(memory=scratch)
-    v33 = add v31, 288
-    mstore 64, v33
-    mstore v31, 241
-    v30 = add v31, 32
-    v1 = inttoptr i256 v30 to memptr
-    v3 = add v31, 256
+    v32 = mload 64 !metadata(memory=scratch)
+    v34 = add v32, 288
+    mstore 64, v34
+    mstore v32, 241
+    v31 = add v32, 32
+    v3 = add v32, 256
     mstore v3, 0
-    data_copy literal_0, v1, 241
-    v11 = ne v31, 0
-    v12 = zext i1 v11 to i256
-    v13 = mul v12, 241
-    v15 = add v13, 31
-    v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = add v30, v17
-    mstore v19, 0
-    v21 = add v31, 64
-    mcopy v21, v30, v13
-    mstore v31, 32
-    mstore v30, v13
-    v25 = add v17, 64
-    returndata v31, v25
+    data_copy literal_0, v31, 241
+    v12 = ne v32, 0
+    v13 = zext i1 v12 to i256
+    v14 = mul v13, 241
+    v16 = add v14, 31
+    v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v20 = add v31, v18
+    mstore v20, 0
+    v22 = add v32, 64
+    mcopy v22, v31, v14
+    mstore v32, 32
+    mstore v31, v14
+    v26 = add v18, 64
+    returndata v32, v26
 }
 
 fn @inner() [selector=0x4adb7729, abi_wrapper, pure] {
   bb0:
-    v31 = mload 64 !metadata(memory=scratch)
-    v33 = add v31, 224
-    mstore 64, v33
-    mstore v31, 161
-    v30 = add v31, 32
-    v1 = inttoptr i256 v30 to memptr
-    v3 = add v31, 192
+    v32 = mload 64 !metadata(memory=scratch)
+    v34 = add v32, 224
+    mstore 64, v34
+    mstore v32, 161
+    v31 = add v32, 32
+    v3 = add v32, 192
     mstore v3, 0
-    data_copy literal_1, v1, 161
-    v11 = ne v31, 0
-    v12 = zext i1 v11 to i256
-    v13 = mul v12, 161
-    v15 = add v13, 31
-    v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = add v30, v17
-    mstore v19, 0
-    v21 = add v31, 64
-    mcopy v21, v30, v13
-    mstore v31, 32
-    mstore v30, v13
-    v25 = add v17, 64
-    returndata v31, v25
+    data_copy literal_1, v31, 161
+    v12 = ne v32, 0
+    v13 = zext i1 v12 to i256
+    v14 = mul v13, 161
+    v16 = add v14, 31
+    v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v20 = add v31, v18
+    mstore v20, 0
+    v22 = add v32, 64
+    mcopy v22, v31, v14
+    mstore v32, 32
+    mstore v31, v14
+    v26 = add v18, 64
+    returndata v32, v26
 }
 
 fn @lastDataByte() [selector=0xa5f1fd8f, abi_wrapper, pure] {
@@ -132,9 +130,8 @@ bb6:
   push 32
   dup 2
   add
-  dup 1
   push 256
-  dup 4
+  dup 3
   add
   push 0
   swap 1
@@ -143,7 +140,6 @@ bb6:
   push_data literal_0
   dup 3
   codecopy
-  pop
   dup 2
   iszero
   iszero
@@ -196,9 +192,8 @@ bb7:
   push 32
   dup 2
   add
-  dup 1
   push 192
-  dup 4
+  dup 3
   add
   push 0
   swap 1
@@ -207,7 +202,6 @@ bb7:
   push_data literal_1
   dup 3
   codecopy
-  pop
   dup 2
   iszero
   iszero

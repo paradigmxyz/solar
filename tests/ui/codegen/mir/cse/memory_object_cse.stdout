@@ -146,10 +146,11 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 32
       set_memory_object_len memorybytes, v0, 3
       v1 = ptrtoint memorybytes v0 to i256
-      set_fmp v1
-      v2 = alloc memorybytes, exact, uninitialized, infallible, 32
-      set_memory_object_len memorybytes, v2, 4
-      v3 = memory_object_len memorybytes, v0
-      ret v3
+      v2 = inttoptr i256 v1 to memptr
+      set_fmp v2
+      v3 = alloc memorybytes, exact, uninitialized, infallible, 32
+      set_memory_object_len memorybytes, v3, 4
+      v4 = memory_object_len memorybytes, v0
+      ret v4
   }
   

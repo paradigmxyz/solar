@@ -170,12 +170,13 @@
   
   fn @recycled(arg0: i256) -> i256 {
     bb0:
-      set_fmp arg0
-      v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = ptrtoint memptr v0 to i256
-      mstore v1, 42
-      v2 = icall @read, v1
-      ret v2
+      v0 = inttoptr i256 arg0 to memptr
+      set_fmp v0
+      v1 = alloc raw, exact, uninitialized, infallible, 32
+      v2 = ptrtoint memptr v1 to i256
+      mstore v2, 42
+      v3 = icall @read, v2
+      ret v3
   }
   
   fn @loop_caller() -> i256 {

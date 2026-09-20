@@ -7,54 +7,52 @@ data:
 
 fn @data() [selector=0x73d4a13a, abi_wrapper, pure] {
   bb0:
-    v31 = mload 64 !metadata(memory=scratch)
-    v33 = add v31, 320
-    mstore 64, v33
-    mstore v31, 257
-    v30 = add v31, 32
-    v1 = inttoptr i256 v30 to memptr
-    v3 = add v31, 288
+    v32 = mload 64 !metadata(memory=scratch)
+    v34 = add v32, 320
+    mstore 64, v34
+    mstore v32, 257
+    v31 = add v32, 32
+    v3 = add v32, 288
     mstore v3, 0
-    data_copy literal_0, v1, 257
-    v11 = ne v31, 0
-    v12 = zext i1 v11 to i256
-    v13 = mul v12, 257
-    v15 = add v13, 31
-    v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = add v30, v17
-    mstore v19, 0
-    v21 = add v31, 64
-    mcopy v21, v30, v13
-    mstore v31, 32
-    mstore v30, v13
-    v25 = add v17, 64
-    returndata v31, v25
+    data_copy literal_0, v31, 257
+    v12 = ne v32, 0
+    v13 = zext i1 v12 to i256
+    v14 = mul v13, 257
+    v16 = add v14, 31
+    v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v20 = add v31, v18
+    mstore v20, 0
+    v22 = add v32, 64
+    mcopy v22, v31, v14
+    mstore v32, 32
+    mstore v31, v14
+    v26 = add v18, 64
+    returndata v32, v26
 }
 
 fn @subslice() [selector=0xb9ad073e, abi_wrapper, pure] {
   bb0:
-    v31 = mload 64 !metadata(memory=scratch)
-    v33 = add v31, 224
-    mstore 64, v33
-    mstore v31, 161
-    v30 = add v31, 32
-    v1 = inttoptr i256 v30 to memptr
-    v3 = add v31, 192
+    v32 = mload 64 !metadata(memory=scratch)
+    v34 = add v32, 224
+    mstore 64, v34
+    mstore v32, 161
+    v31 = add v32, 32
+    v3 = add v32, 192
     mstore v3, 0
-    data_copy literal_1, v1, 161
-    v11 = ne v31, 0
-    v12 = zext i1 v11 to i256
-    v13 = mul v12, 161
-    v15 = add v13, 31
-    v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = add v30, v17
-    mstore v19, 0
-    v21 = add v31, 64
-    mcopy v21, v30, v13
-    mstore v31, 32
-    mstore v30, v13
-    v25 = add v17, 64
-    returndata v31, v25
+    data_copy literal_1, v31, 161
+    v12 = ne v32, 0
+    v13 = zext i1 v12 to i256
+    v14 = mul v13, 161
+    v16 = add v14, 31
+    v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v20 = add v31, v18
+    mstore v20, 0
+    v22 = add v32, 64
+    mcopy v22, v31, v14
+    mstore v32, 32
+    mstore v31, v14
+    v26 = add v18, 64
+    returndata v32, v26
 }
 
 fn @dataHash() [selector=0x1b3012a3, abi_wrapper, pure] {
@@ -71,23 +69,23 @@ fn @subsliceHash() [selector=0xe5a3e763, abi_wrapper, pure] {
 
 fn @zeroData() [selector=0x6ec059cd, abi_wrapper, pure] {
   bb0:
-    v2 = icall @zeroData.body
-    v27 = ptrtoint memptr v2 to i256
-    v10 = ne v27, 0
-    v11 = zext i1 v10 to i256
-    v6 = mload v27
-    v12 = mul v6, v11
-    v29 = add v27, 32
-    v14 = add v12, 31
-    v16 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v18 = add v29, v16
-    mstore v18, 0
-    v20 = add v27, 64
-    mcopy v20, v29, v12
-    mstore v27, 32
-    mstore v29, v12
-    v24 = add v16, 64
-    returndata v27, v24
+    v3 = icall @zeroData.body
+    v28 = ptrtoint memptr v3 to i256
+    v11 = ne v28, 0
+    v12 = zext i1 v11 to i256
+    v7 = mload v28
+    v13 = mul v7, v12
+    v30 = add v28, 32
+    v15 = add v13, 31
+    v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v19 = add v30, v17
+    mstore v19, 0
+    v21 = add v28, 64
+    mcopy v21, v30, v13
+    mstore v28, 32
+    mstore v30, v13
+    v25 = add v17, 64
+    returndata v28, v25
 }
 
 fn @zeroWord() [selector=0x4c092794, abi_wrapper, pure] {
@@ -154,14 +152,14 @@ fn @splatHash() [selector=0x38f844b9, abi_wrapper, pure] {
 
 fn @zeroData.body() -> memptr [may_return_memory, pure] {
   bb0:
-    v5 = mload 64 !metadata(memory=scratch)
-    v0 = inttoptr i256 v5 to memptr !metadata(memory=scratch)
-    v7 = add v5, 192
-    mstore 64, v7
-    mstore v5, 160
+    v6 = mload 64 !metadata(memory=scratch)
+    v0 = inttoptr i256 v6 to memptr !metadata(memory=scratch)
+    v8 = add v6, 192
+    mstore 64, v8
+    mstore v6, 160
     v9 = calldatasize
-    v4 = add v5, 32
-    calldatacopy v4, v9, 160
+    v5 = add v6, 32
+    calldatacopy v5, v9, 160
     ret v0
 }
 
@@ -308,9 +306,8 @@ bb13:
   push 32
   dup 2
   add
-  dup 1
   push 288
-  dup 4
+  dup 3
   add
   push 0
   swap 1
@@ -319,7 +316,6 @@ bb13:
   push_data literal_0
   dup 3
   codecopy
-  pop
   dup 2
   iszero
   iszero
@@ -374,9 +370,8 @@ bb14:
   push 32
   dup 2
   add
-  dup 1
   push 192
-  dup 4
+  dup 3
   add
   push 0
   swap 1
@@ -385,7 +380,6 @@ bb14:
   push_data literal_0+64
   dup 3
   codecopy
-  pop
   dup 2
   iszero
   iszero

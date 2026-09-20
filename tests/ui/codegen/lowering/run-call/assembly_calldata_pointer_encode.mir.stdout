@@ -4,16 +4,17 @@ fn @arrayCopy() -> memoryfixedarray [selector=0xb192499e, pure, abi_params=[], a
   bb0:
     v0 = make_calldata_slice 4, 2
     v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    memory_zero v1, 64
-    v2 = slice_ptr v0
-    v3 = calldatasize
-    v4 = sub v3, v2
-    v5 = slt v4, 64
-    icall revert_if<calldata_tail_too_short>, v5
-    v6 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v7 = make_calldata_slice v2, 64
-    memory_object_copy_from_slice memoryfixedarray, v6, v7
-    ret v6
+    v2 = ptrtoint memoryfixedarray v1 to i256
+    memory_zero v2, 64
+    v3 = slice_ptr v0
+    v4 = calldatasize
+    v5 = sub v4, v3
+    v6 = slt v5, 64
+    icall revert_if<calldata_tail_too_short>, v6
+    v7 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v8 = make_calldata_slice v3, 64
+    memory_object_copy_from_slice memoryfixedarray, v7, v8
+    ret v7
 }
 
 fn @bytesCopy() -> memorybytes [selector=0x6310efb6, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

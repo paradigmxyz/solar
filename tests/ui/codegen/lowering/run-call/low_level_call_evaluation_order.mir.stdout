@@ -58,11 +58,12 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v2 = icall @gasOpt
     v3 = icall @valueOpt
     v4 = icall @data
-    v5 = address_call v0, v4, gas v2, value v3
-    v6 = eq v5, false
-    icall revert_if<empty>, v6
-    v7 = sload 0 !metadata(storage=slot(0))
-    ret v7
+    v5 = trunc i256 v0 to i160
+    v6 = address_call v5, v4, gas v2, value v3
+    v7 = eq v6, false
+    icall revert_if<empty>, v7
+    v8 = sload 0 !metadata(storage=slot(0))
+    ret v8
 }
 
 fn @echo(arg0: memorybytes) -> memorybytes [selector=0x624fbfdc, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

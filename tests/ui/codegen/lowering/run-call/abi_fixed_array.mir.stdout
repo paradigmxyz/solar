@@ -9,7 +9,8 @@ fn @makeFixedArray() -> memoryfixedarray {
     v1 = checked_add u256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    memory_zero v2, 64
+    v3 = ptrtoint memoryfixedarray v2 to i256
+    memory_zero v3, 64
     ret v2
 }
 
@@ -152,13 +153,14 @@ fn @readNestedList(arg0: memorystruct) -> i256 [selector=0x2fc71376, pure, abi_p
   bb1:
     v12 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v12, 0
-    memory_object_store_element memoryarray<1>, v4, 0, v12
+    v13 = ptrtoint memoryarray v12 to i256
+    memory_object_store_element memoryarray<1>, v4, 0, v13
     jump bb2
   bb2:
-    v13 = phi [bb0: v9], [bb1: v12]
-    v14 = memory_object_len memoryarray, v13
-    v15 = checked_add u256, v2, v14
-    ret v15
+    v14 = phi [bb0: v9], [bb1: v12]
+    v15 = memory_object_len memoryarray, v14
+    v16 = checked_add u256, v2, v15
+    ret v16
 }
 
 fn @readEnumPair(arg0: memorystruct) -> i256 [selector=0xaea50307, pure, abi_params=[tuple<enum<2, u8>, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -221,31 +223,33 @@ fn @readNestedBytes(arg0: memorystruct) -> i256 [selector=0x8516eaf9, pure, abi_
   bb1:
     v8 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v8, 0
-    memory_object_store_element memoryfixedarray<2, 1>, v1, 0, v8
+    v9 = ptrtoint memorybytes v8 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, v1, 0, v9
     jump bb2
   bb2:
-    v9 = phi [bb0: v5], [bb1: v8]
-    v10 = memory_object_len memorybytes, v9
-    v11 = memory_object_load_field memorystruct<1>, arg0, 0
-    v12 = inttoptr i256 v11 to memoryfixedarray
-    v13 = lt 1, 2
-    v14 = eq v13, false
-    icall panic_if<0x32>, v14
-    v15 = memory_object_load_element memoryfixedarray<2, 1>, v12, 1
-    v16 = inttoptr i256 v15 to memorybytes
-    v17 = ptrtoint memorybytes v16 to i256
-    v18 = eq v17, 0
-    jumpi v18, bb3, bb4
+    v10 = phi [bb0: v5], [bb1: v8]
+    v11 = memory_object_len memorybytes, v10
+    v12 = memory_object_load_field memorystruct<1>, arg0, 0
+    v13 = inttoptr i256 v12 to memoryfixedarray
+    v14 = lt 1, 2
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = memory_object_load_element memoryfixedarray<2, 1>, v13, 1
+    v17 = inttoptr i256 v16 to memorybytes
+    v18 = ptrtoint memorybytes v17 to i256
+    v19 = eq v18, 0
+    jumpi v19, bb3, bb4
   bb3:
-    v19 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v19, 0
-    memory_object_store_element memoryfixedarray<2, 1>, v12, 1, v19
+    v20 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v20, 0
+    v21 = ptrtoint memorybytes v20 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, v13, 1, v21
     jump bb4
   bb4:
-    v20 = phi [bb2: v16], [bb3: v19]
-    v21 = memory_object_len memorybytes, v20
-    v22 = checked_add u256, v10, v21
-    ret v22
+    v22 = phi [bb2: v17], [bb3: v20]
+    v23 = memory_object_len memorybytes, v22
+    v24 = checked_add u256, v11, v23
+    ret v24
 }
 
 fn @readMixed(arg0: i256, arg1: memorybytes) -> i256 [selector=0xa114c21b, pure, abi_params=[enum<2, u8>, bytes], abi_returns=[word], abi_return_params=[u256]] {
@@ -278,17 +282,19 @@ fn @constructor(arg0: memoryfixedarray, arg1: i256) [constructor, abi_params=[ar
     jumpi v5, bb1, bb2
   bb1:
     v6 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    memory_zero v6, 64
-    memory_object_store_element memoryfixedarray<2, 1>, arg0, 1, v6
+    v7 = ptrtoint memoryfixedarray v6 to i256
+    memory_zero v7, 64
+    v8 = ptrtoint memoryfixedarray v6 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, arg0, 1, v8
     jump bb2
   bb2:
-    v7 = phi [bb0: v3], [bb1: v6]
-    v8 = lt 0, 2
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = memory_object_load_element memoryfixedarray<2, 1>, v7, 0
-    v11 = checked_add u256, v10, arg1
-    sstore 0, v11 !metadata(storage=slot(0))
+    v9 = phi [bb0: v3], [bb1: v6]
+    v10 = lt 0, 2
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = memory_object_load_element memoryfixedarray<2, 1>, v9, 0
+    v13 = checked_add u256, v12, arg1
+    sstore 0, v13 !metadata(storage=slot(0))
     ret
 }
 

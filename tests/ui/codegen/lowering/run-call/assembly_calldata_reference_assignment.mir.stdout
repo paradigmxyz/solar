@@ -179,7 +179,7 @@ fn @dynamicFixed(arg0: calldataslice) -> memoryarray [selector=0x71cafd78, pure,
     set_memory_object_len memoryarray, v27, v6
     jump bb1
   bb1:
-    v28 = phi [bb0: 0], [bb2: v40]
+    v28 = phi [bb0: 0], [bb2: v41]
     v29 = lt v28, v6
     jumpi v29, bb2, bb3
   bb3:
@@ -197,8 +197,9 @@ fn @dynamicFixed(arg0: calldataslice) -> memoryarray [selector=0x71cafd78, pure,
     v38 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v39 = make_calldata_slice v37, 64
     memory_object_copy_from_slice memoryfixedarray, v38, v39
-    memory_object_store_element memoryarray<1>, v27, v28, v38
-    v40 = add v28, 1
+    v40 = ptrtoint memoryfixedarray v38 to i256
+    memory_object_store_element memoryarray<1>, v27, v28, v40
+    v41 = add v28, 1
     jump bb1
 }
 
@@ -294,7 +295,7 @@ fn @dynamicNested(arg0: calldataslice) -> memoryarray [selector=0x24abb2f5, pure
     set_memory_object_len memoryarray, v27, v6
     jump bb1
   bb1:
-    v28 = phi [bb0: 0], [bb2: v61]
+    v28 = phi [bb0: 0], [bb2: v62]
     v29 = lt v28, v6
     jumpi v29, bb2, bb3
   bb3:
@@ -339,8 +340,9 @@ fn @dynamicNested(arg0: calldataslice) -> memoryarray [selector=0x24abb2f5, pure
     set_memory_object_len memoryarray, v59, v42
     v60 = make_calldata_slice v49, v50
     memory_object_copy_from_slice memoryarray, v59, v60
-    memory_object_store_element memoryarray<1>, v27, v28, v59
-    v61 = add v28, 1
+    v61 = ptrtoint memoryarray v59 to i256
+    memory_object_store_element memoryarray<1>, v27, v28, v61
+    v62 = add v28, 1
     jump bb1
 }
 

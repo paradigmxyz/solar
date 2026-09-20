@@ -3,29 +3,32 @@
 fn @dirty() -> memorystruct [pure] {
   bb0:
     v0 = alloc memorystruct<6>, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
-    memory_zero v0, 192
+    v1 = ptrtoint memorystruct v0 to i256
+    memory_zero v1, 192
     memory_object_store_field memorystruct<6>, v0, 0, 1
-    memory_object_store_field memorystruct<6>, v0, 1, true
+    v2 = zext i1 1 to i256
+    memory_object_store_field memorystruct<6>, v0, 1, v2
     memory_object_store_field memorystruct<6>, v0, 2, 1
-    v1 = trunc i256 1 to i160
-    memory_object_store_field memorystruct<6>, v0, 3, v1
-    v2 = sub 0, 1
-    memory_object_store_field memorystruct<6>, v0, 4, v2
+    v3 = trunc i256 1 to i160
+    v4 = zext i160 v3 to i256
+    memory_object_store_field memorystruct<6>, v0, 3, v4
+    v5 = sub 0, 1
+    memory_object_store_field memorystruct<6>, v0, 4, v5
     memory_object_store_field memorystruct<6>, v0, 5, 0x1234000000000000000000000000000000000000000000000000000000000000
-    v3 = ptrtoint memorystruct v0 to i256
-    mstore v3, 511
-    v4 = ptrtoint memorystruct v0 to i256
-    v5 = add v4, 32
-    mstore v5, 258
     v6 = ptrtoint memorystruct v0 to i256
-    v7 = add v6, 96
-    mstore v7, 0x1000000000000000000000000000000000000000000000000000000000000002
-    v8 = ptrtoint memorystruct v0 to i256
-    v9 = add v8, 128
-    mstore v9, 254
-    v10 = ptrtoint memorystruct v0 to i256
-    v11 = add v10, 160
-    mstore v11, 0x1234567800000000000000000000000000000000000000000000000000000000
+    mstore v6, 511
+    v7 = ptrtoint memorystruct v0 to i256
+    v8 = add v7, 32
+    mstore v8, 258
+    v9 = ptrtoint memorystruct v0 to i256
+    v10 = add v9, 96
+    mstore v10, 0x1000000000000000000000000000000000000000000000000000000000000002
+    v11 = ptrtoint memorystruct v0 to i256
+    v12 = add v11, 128
+    mstore v12, 254
+    v13 = ptrtoint memorystruct v0 to i256
+    v14 = add v13, 160
+    mstore v14, 0x1234567800000000000000000000000000000000000000000000000000000000
     ret v0
 }
 

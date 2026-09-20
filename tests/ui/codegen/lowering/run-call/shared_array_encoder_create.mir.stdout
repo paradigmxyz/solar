@@ -118,39 +118,42 @@ fn @mk(arg0: i256, arg1: i256) -> i256 {
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = trunc i256 arg0 to i160
-    memory_object_store_element memoryarray<1>, v0, 0, v4
-    v5 = memory_object_len memoryarray, v0
-    v6 = lt 1, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = trunc i256 arg1 to i160
-    memory_object_store_element memoryarray<1>, v0, 1, v8
-    v9 = abi_encode [memory_array<word<u160>>], args v0
-    v10 = slice_len v9
-    v11 = add 0x50c, v10
-    v12 = lt v11, 0x50c
-    icall panic_if<0x41>, v12
-    v13 = add v11, 31
-    v14 = lt v13, v11
+    v5 = zext i160 v4 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v5
+    v6 = memory_object_len memoryarray, v0
+    v7 = lt 1, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = trunc i256 arg1 to i160
+    v10 = zext i160 v9 to i256
+    memory_object_store_element memoryarray<1>, v0, 1, v10
+    v11 = abi_encode [memory_array<word<u160>>], args v0
+    v12 = slice_len v11
+    v13 = add 0x50c, v12
+    v14 = lt v13, 0x50c
     icall panic_if<0x41>, v14
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = alloc raw, exact, uninitialized, infallible, v16
-    data_copy Child_initcode_0, v17, 0x50c
-    v18 = slice_ptr v9
-    v19 = ptrtoint memptr v17 to i256
-    v20 = add v19, 0x50c
-    mcopy v20, v18, v10 !metadata(memory=heap)
-    v21 = ptrtoint memptr v17 to i256
-    v22 = create 0, v21, v11
-    v23 = zext i160 v22 to i256
-    v24 = ne v23, 0
-    jumpi v24, bb2, bb1
+    v15 = add v13, 31
+    v16 = lt v15, v13
+    icall panic_if<0x41>, v16
+    v17 = not 31
+    v18 = and v15, v17
+    v19 = alloc raw, exact, uninitialized, infallible, v18
+    v20 = ptrtoint memptr v19 to i256
+    data_copy Child_initcode_0, v20, 0x50c
+    v21 = slice_ptr v11
+    v22 = ptrtoint memptr v19 to i256
+    v23 = add v22, 0x50c
+    mcopy v23, v21, v12 !metadata(memory=heap)
+    v24 = ptrtoint memptr v19 to i256
+    v25 = create 0, v24, v13
+    v26 = zext i160 v25 to i256
+    v27 = ne v26, 0
+    jumpi v27, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v25 = zext i160 v22 to i256
-    ret v25
+    v28 = zext i160 v25 to i256
+    ret v28
 }
 
 fn @mk3(arg0: i256, arg1: i256, arg2: i256) -> i256 {
@@ -162,45 +165,49 @@ fn @mk3(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = trunc i256 arg0 to i160
-    memory_object_store_element memoryarray<1>, v0, 0, v4
-    v5 = memory_object_len memoryarray, v0
-    v6 = lt 1, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = trunc i256 arg1 to i160
-    memory_object_store_element memoryarray<1>, v0, 1, v8
-    v9 = memory_object_len memoryarray, v0
-    v10 = lt 2, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = trunc i256 arg2 to i160
-    memory_object_store_element memoryarray<1>, v0, 2, v12
-    v13 = abi_encode [memory_array<word<u160>>], args v0
-    v14 = slice_len v13
-    v15 = add 0x50c, v14
-    v16 = lt v15, 0x50c
-    icall panic_if<0x41>, v16
-    v17 = add v15, 31
-    v18 = lt v17, v15
-    icall panic_if<0x41>, v18
-    v19 = not 31
-    v20 = and v17, v19
-    v21 = alloc raw, exact, uninitialized, infallible, v20
-    data_copy Child_initcode_0, v21, 0x50c
-    v22 = slice_ptr v13
-    v23 = ptrtoint memptr v21 to i256
-    v24 = add v23, 0x50c
-    mcopy v24, v22, v14 !metadata(memory=heap)
-    v25 = ptrtoint memptr v21 to i256
-    v26 = create 0, v25, v15
-    v27 = zext i160 v26 to i256
-    v28 = ne v27, 0
-    jumpi v28, bb2, bb1
+    v5 = zext i160 v4 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v5
+    v6 = memory_object_len memoryarray, v0
+    v7 = lt 1, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = trunc i256 arg1 to i160
+    v10 = zext i160 v9 to i256
+    memory_object_store_element memoryarray<1>, v0, 1, v10
+    v11 = memory_object_len memoryarray, v0
+    v12 = lt 2, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = trunc i256 arg2 to i160
+    v15 = zext i160 v14 to i256
+    memory_object_store_element memoryarray<1>, v0, 2, v15
+    v16 = abi_encode [memory_array<word<u160>>], args v0
+    v17 = slice_len v16
+    v18 = add 0x50c, v17
+    v19 = lt v18, 0x50c
+    icall panic_if<0x41>, v19
+    v20 = add v18, 31
+    v21 = lt v20, v18
+    icall panic_if<0x41>, v21
+    v22 = not 31
+    v23 = and v20, v22
+    v24 = alloc raw, exact, uninitialized, infallible, v23
+    v25 = ptrtoint memptr v24 to i256
+    data_copy Child_initcode_0, v25, 0x50c
+    v26 = slice_ptr v16
+    v27 = ptrtoint memptr v24 to i256
+    v28 = add v27, 0x50c
+    mcopy v28, v26, v17 !metadata(memory=heap)
+    v29 = ptrtoint memptr v24 to i256
+    v30 = create 0, v29, v18
+    v31 = zext i160 v30 to i256
+    v32 = ne v31, 0
+    jumpi v32, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v29 = zext i160 v26 to i256
-    ret v29
+    v33 = zext i160 v30 to i256
+    ret v33
 }
 
 fn @second() -> i256 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {

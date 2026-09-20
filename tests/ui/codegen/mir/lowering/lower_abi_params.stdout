@@ -72,10 +72,11 @@
 +   bb11:
 +     v41 = make_calldata_slice v27, v28
 +     memory_object_copy_from_slice memoryarray, v37, v41
-+     memory_object_store_field memorystruct<3>, v17, 0, v37
-+     v42 = add v12, 32
-+     v43 = calldataload v42
-+     memory_object_store_field memorystruct<3>, v17, 1, v43
++     v42 = ptrtoint memoryarray v37 to i256
++     memory_object_store_field memorystruct<3>, v17, 0, v42
++     v43 = add v12, 32
++     v44 = calldataload v43
++     memory_object_store_field memorystruct<3>, v17, 1, v44
 +     memory_object_store_field memorystruct<3>, v17, 2, v12
 +     jump bb1
 +   bb1:
@@ -91,9 +92,9 @@
       v8 = add v4, v7
 -     ret v8
 +     mstore 128, v8
-+     v44 = add 128, 32
-+     v45 = sub v44, 128
-+     returndata 128, v45
++     v45 = add 128, 32
++     v46 = sub v45, 128
++     returndata 128, v46
 +   bb8:
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 65 !metadata(memory=scratch)

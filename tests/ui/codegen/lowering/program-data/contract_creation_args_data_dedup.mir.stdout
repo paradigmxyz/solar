@@ -23,7 +23,8 @@ fn @payload() -> memorybytes [selector=0xa878f858, pure, abi_params=[], abi_retu
     v0 = alloc memorybytes, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 128
     v1 = memory_object_data memorybytes, v0
-    data_copy literal_0, v1, 128
+    v2 = ptrtoint memptr v1 to i256
+    data_copy literal_0, v2, 128
     ret v0
 }
 
@@ -38,52 +39,14 @@ fn @plain() -> i256 [selector=0x59748c98, abi_params=[], abi_returns=[word], abi
     v1 = not 31
     v2 = and 763, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ChildWithArg_initcode_0, v3, 700
-    v4 = slice_ptr v0
-    v5 = ptrtoint memptr v3 to i256
-    v6 = add v5, 700
-    mcopy v6, v4, 32 !metadata(memory=heap)
-    v7 = ptrtoint memptr v3 to i256
-    v8 = create 0, v7, 732
-    v9 = zext i160 v8 to i256
-    v10 = ne v9, 0
-    jumpi v10, bb2, bb1
-  bb1:
-    revert_returndata
-  bb2:
-    v11 = gas
-    v12 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v13 = slice_ptr v12
-    v14 = slice_len v12
-    v15 = staticcall v11, v8, v13, v14, 0, 32
-    jumpi v15, bb4, bb3
-  bb3:
-    revert_returndata
-  bb4:
-    v16 = returndatasize
-    v17 = lt v16, 32
-    icall revert_if<tuple_data_too_short>, v17
-    v18 = add 0, 0
-    v19 = mload v18
-    v20 = add 0, 0
-    v21 = mload v20
-    ret v21
-}
-
-fn @salted() -> i256 [selector=0x1f981516, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
-  bb0:
-    v0 = shl 0, 1
-    v1 = abi_encode [word], args 22
-    v2 = not 31
-    v3 = and 763, v2
-    v4 = alloc raw, exact, uninitialized, infallible, v3
+    v4 = ptrtoint memptr v3 to i256
     data_copy ChildWithArg_initcode_0, v4, 700
-    v5 = slice_ptr v1
-    v6 = ptrtoint memptr v4 to i256
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
     v7 = add v6, 700
     mcopy v7, v5, 32 !metadata(memory=heap)
-    v8 = ptrtoint memptr v4 to i256
-    v9 = create2 0, v8, 732, v0
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, 732
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -94,19 +57,60 @@ fn @salted() -> i256 [selector=0x1f981516, abi_params=[], abi_returns=[word], ab
     v13 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
     v14 = slice_ptr v13
     v15 = slice_len v13
-    v16 = staticcall v12, v10, v14, v15, 0, 32
-    jumpi v16, bb4, bb3
+    v16 = zext i160 v9 to i256
+    v17 = staticcall v12, v16, v14, v15, 0, 32
+    jumpi v17, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v17 = returndatasize
-    v18 = lt v17, 32
-    icall revert_if<tuple_data_too_short>, v18
-    v19 = add 0, 0
-    v20 = mload v19
-    v21 = add 0, 0
-    v22 = mload v21
-    ret v22
+    v18 = returndatasize
+    v19 = lt v18, 32
+    icall revert_if<tuple_data_too_short>, v19
+    v20 = add 0, 0
+    v21 = mload v20
+    v22 = add 0, 0
+    v23 = mload v22
+    ret v23
+}
+
+fn @salted() -> i256 [selector=0x1f981516, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = shl 0, 1
+    v1 = abi_encode [word], args 22
+    v2 = not 31
+    v3 = and 763, v2
+    v4 = alloc raw, exact, uninitialized, infallible, v3
+    v5 = ptrtoint memptr v4 to i256
+    data_copy ChildWithArg_initcode_0, v5, 700
+    v6 = slice_ptr v1
+    v7 = ptrtoint memptr v4 to i256
+    v8 = add v7, 700
+    mcopy v8, v6, 32 !metadata(memory=heap)
+    v9 = ptrtoint memptr v4 to i256
+    v10 = create2 0, v9, 732, v0
+    v11 = zext i160 v10 to i256
+    v12 = ne v11, 0
+    jumpi v12, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v13 = gas
+    v14 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = staticcall v13, v11, v15, v16, 0, 32
+    jumpi v17, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v18 = returndatasize
+    v19 = lt v18, 32
+    icall revert_if<tuple_data_too_short>, v19
+    v20 = add 0, 0
+    v21 = mload v20
+    v22 = add 0, 0
+    v23 = mload v22
+    ret v23
 }
 
 fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -115,70 +119,72 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
     v1 = not 31
     v2 = and 763, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ChildWithArg_initcode_0, v3, 700
-    v4 = slice_ptr v0
-    v5 = ptrtoint memptr v3 to i256
-    v6 = add v5, 700
-    mcopy v6, v4, 32 !metadata(memory=heap)
-    v7 = ptrtoint memptr v3 to i256
-    v8 = create 0, v7, 732
-    v9 = zext i160 v8 to i256
-    v10 = ne v9, 0
-    jumpi v10, bb2, bb1
+    v4 = ptrtoint memptr v3 to i256
+    data_copy ChildWithArg_initcode_0, v4, 700
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, 700
+    mcopy v7, v5, 32 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, 732
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = zext i160 v8 to i256
-    v12 = abi_encode [word], args 4
-    v13 = not 31
-    v14 = and 763, v13
-    v15 = alloc raw, exact, uninitialized, infallible, v14
-    data_copy ChildWithArg_initcode_0, v15, 700
-    v16 = slice_ptr v12
-    v17 = ptrtoint memptr v15 to i256
-    v18 = add v17, 700
-    mcopy v18, v16, 32 !metadata(memory=heap)
-    v19 = ptrtoint memptr v15 to i256
-    v20 = create 0, v19, 732
-    v21 = zext i160 v20 to i256
-    v22 = ne v21, 0
-    jumpi v22, bb4, bb3
+    v12 = zext i160 v9 to i256
+    v13 = abi_encode [word], args 4
+    v14 = not 31
+    v15 = and 763, v14
+    v16 = alloc raw, exact, uninitialized, infallible, v15
+    v17 = ptrtoint memptr v16 to i256
+    data_copy ChildWithArg_initcode_0, v17, 700
+    v18 = slice_ptr v13
+    v19 = ptrtoint memptr v16 to i256
+    v20 = add v19, 700
+    mcopy v20, v18, 32 !metadata(memory=heap)
+    v21 = ptrtoint memptr v16 to i256
+    v22 = create 0, v21, 732
+    v23 = zext i160 v22 to i256
+    v24 = ne v23, 0
+    jumpi v24, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v23 = zext i160 v20 to i256
-    v24 = gas
-    v25 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v26 = slice_ptr v25
-    v27 = slice_len v25
-    v28 = staticcall v24, v11, v26, v27, 0, 32
-    jumpi v28, bb6, bb5
+    v25 = zext i160 v22 to i256
+    v26 = gas
+    v27 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = staticcall v26, v12, v28, v29, 0, 32
+    jumpi v30, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v29 = returndatasize
-    v30 = lt v29, 32
-    icall revert_if<tuple_data_too_short>, v30
-    v31 = add 0, 0
-    v32 = mload v31
+    v31 = returndatasize
+    v32 = lt v31, 32
+    icall revert_if<tuple_data_too_short>, v32
     v33 = add 0, 0
     v34 = mload v33
-    v35 = gas
-    v36 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v37 = slice_ptr v36
-    v38 = slice_len v36
-    v39 = staticcall v35, v23, v37, v38, 0, 32
-    jumpi v39, bb8, bb7
+    v35 = add 0, 0
+    v36 = mload v35
+    v37 = gas
+    v38 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v39 = slice_ptr v38
+    v40 = slice_len v38
+    v41 = staticcall v37, v25, v39, v40, 0, 32
+    jumpi v41, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v40 = returndatasize
-    v41 = lt v40, 32
-    icall revert_if<tuple_data_too_short>, v41
-    v42 = add 0, 0
-    v43 = mload v42
+    v42 = returndatasize
+    v43 = lt v42, 32
+    icall revert_if<tuple_data_too_short>, v43
     v44 = add 0, 0
     v45 = mload v44
-    v46 = checked_add u256, v34, v45
-    ret v46
+    v46 = add 0, 0
+    v47 = mload v46
+    v48 = checked_add u256, v36, v47
+    ret v48
 }

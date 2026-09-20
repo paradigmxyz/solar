@@ -189,7 +189,8 @@ fn @default_gas_call_blocks_prefix(arg0: i1, arg1: memorybytes) -> i256 {
   bb2:
     jump bb3
   bb3:
-    v5 = address_call 0xbeef, arg1
+    v100 = trunc i256 0xbeef to i160
+    v5 = address_call v100, arg1
     v2 = mload 128
     v3 = mload 128
     v4 = add v2, v3
@@ -213,7 +214,8 @@ fn @default_gas_call_blocks_reload(arg0: i1, arg1: memorybytes) -> i256 {
     jump bb3
   bb3:
     v2 = mload 128
-    v5 = address_call 0xbeef, arg1
+    v100 = trunc i256 0xbeef to i160
+    v5 = address_call v100, arg1
     v3 = mload 128
     v4 = add v2, v3
     ret v4
@@ -235,7 +237,8 @@ fn @explicit_gas_call_blocks_pre(arg0: i1, arg1: memorybytes) -> i256 {
   bb2:
     jump bb3
   bb3:
-    v5 = address_call 0xbeef, arg1, gas 1000
+    v100 = trunc i256 0xbeef to i160
+    v5 = address_call v100, arg1, gas 1000
     v2 = mload 128
     v3 = mload 128
     v4 = add v2, v3

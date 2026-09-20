@@ -16,17 +16,18 @@ fn @structField() -> i256 [selector=0x3442156e, pure, abi_params=[], abi_returns
 fn @fixedArrayElement() -> i256 [selector=0x43876e90, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    memory_zero v0, 32
     v1 = ptrtoint memoryfixedarray v0 to i256
-    mstore v1, 2
-    v2 = lt 0, 1
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    v4 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
-    v5 = lt v4, 2
-    v6 = eq v5, false
-    icall panic_if<0x21>, v6
-    ret v4
+    memory_zero v1, 32
+    v2 = ptrtoint memoryfixedarray v0 to i256
+    mstore v2, 2
+    v3 = lt 0, 1
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
+    v6 = lt v5, 2
+    v7 = eq v6, false
+    icall panic_if<0x21>, v7
+    ret v5
 }
 
 fn @dynamicArrayElement() -> i256 [selector=0xff96177b, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {

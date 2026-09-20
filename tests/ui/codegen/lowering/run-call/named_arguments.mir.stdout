@@ -131,13 +131,14 @@ fn @externalNamed() -> i256 [selector=0x1747fe5f, abi_params=[], abi_returns=[wo
     v8 = extcodesize v7
     v9 = eq v8, 0
     icall revert_if<target_contract_has_no_code>, v9
-    v10 = staticcall v1, v0, v5, v6, 0, 0
-    jumpi v10, bb2, bb1
+    v10 = zext i160 v0 to i256
+    v11 = staticcall v1, v10, v5, v6, 0, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = sload 0 !metadata(storage=slot(0))
-    ret v11
+    v12 = sload 0 !metadata(storage=slot(0))
+    ret v12
 }
 
 fn @receivePair(arg0: i256, arg1: i256) [selector=0xba2f355f, pure, abi_params=[u256, u256], abi_returns=[], abi_return_params=[]] {

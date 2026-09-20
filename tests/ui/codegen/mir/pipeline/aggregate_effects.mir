@@ -25,14 +25,16 @@
 fn @reads_memory(arg0: i256) {
   bb0:
     mstore arg0, 7
-    memory_to_storage struct<word>, arg0, 0
+    v10 = inttoptr i256 arg0 to memorystruct
+    memory_to_storage struct<word>, v10, 0
     stop
 }
 
 fn @overwrites_memory(arg0: i256) -> i256 {
   bb0:
     mstore arg0, 7
-    storage_to_memory struct<word>, 0, arg0
+    v10 = inttoptr i256 arg0 to memorystruct
+    storage_to_memory struct<word>, 0, v10
     v0 = mload arg0
     ret v0
 }
@@ -40,7 +42,8 @@ fn @overwrites_memory(arg0: i256) -> i256 {
 fn @flat_memory_write_is_precise() -> i256 {
   bb0:
     v0 = mload 128
-    storage_to_memory struct<word>, 0, 256
+    v10 = inttoptr i256 256 to memorystruct
+    storage_to_memory struct<word>, 0, v10
     v1 = mload 128
     v2 = add v0, v1
     ret v2
@@ -49,7 +52,8 @@ fn @flat_memory_write_is_precise() -> i256 {
 fn @nested_memory_write_is_barrier() -> i256 {
   bb0:
     v0 = mload 128
-    storage_to_memory struct<struct<word>>, 0, 256
+    v10 = inttoptr i256 256 to memorystruct
+    storage_to_memory struct<struct<word>>, 0, v10
     v1 = mload 128
     v2 = add v0, v1
     ret v2
@@ -76,7 +80,8 @@ fn @overlapping_storage() -> i256 {
 fn @observes_storage(arg0: i256) {
   bb0:
     sstore 0, 1
-    storage_to_memory struct<word>, 0, arg0
+    v10 = inttoptr i256 arg0 to memorystruct
+    storage_to_memory struct<word>, 0, v10
     sstore 0, 2
     stop
 }

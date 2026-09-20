@@ -326,6 +326,42 @@
       (if-let true (u256_is_zero (u256_shl (u256 96) (u256_not mask))))
       (Op.Balance address))
 
+;; call(gas, zext(trunc(address, 160)), ...) => call(gas, address, ...).
+;; The EVM consumes only the low 160 address bits; both casts must die in this block.
+(rule (rewrite (Op.Call gas (and extended (zext (and narrowed (trunc (and address (integer_bits 256)) 160)))) value args_offset args_size ret_offset ret_size))
+      (if-let true (in_current_block extended))
+      (if-let true (single_use extended))
+      (if-let true (in_current_block narrowed))
+      (if-let true (single_use narrowed))
+      (Op.Call gas address value args_offset args_size ret_offset ret_size))
+
+;; callcode(gas, zext(trunc(address, 160)), ...) => callcode(gas, address, ...).
+;; The EVM consumes only the low 160 address bits; both casts must die in this block.
+(rule (rewrite (Op.CallCode gas (and extended (zext (and narrowed (trunc (and address (integer_bits 256)) 160)))) value args_offset args_size ret_offset ret_size))
+      (if-let true (in_current_block extended))
+      (if-let true (single_use extended))
+      (if-let true (in_current_block narrowed))
+      (if-let true (single_use narrowed))
+      (Op.CallCode gas address value args_offset args_size ret_offset ret_size))
+
+;; staticcall(gas, zext(trunc(address, 160)), ...) => staticcall(gas, address, ...).
+;; The EVM consumes only the low 160 address bits; both casts must die in this block.
+(rule (rewrite (Op.StaticCall gas (and extended (zext (and narrowed (trunc (and address (integer_bits 256)) 160)))) args_offset args_size ret_offset ret_size))
+      (if-let true (in_current_block extended))
+      (if-let true (single_use extended))
+      (if-let true (in_current_block narrowed))
+      (if-let true (single_use narrowed))
+      (Op.StaticCall gas address args_offset args_size ret_offset ret_size))
+
+;; delegatecall(gas, zext(trunc(address, 160)), ...) => delegatecall(gas, address, ...).
+;; The EVM consumes only the low 160 address bits; both casts must die in this block.
+(rule (rewrite (Op.DelegateCall gas (and extended (zext (and narrowed (trunc (and address (integer_bits 256)) 160)))) args_offset args_size ret_offset ret_size))
+      (if-let true (in_current_block extended))
+      (if-let true (single_use extended))
+      (if-let true (in_current_block narrowed))
+      (if-let true (single_use narrowed))
+      (Op.DelegateCall gas address args_offset args_size ret_offset ret_size))
+
 ;; balance(address()) => selfbalance(), when SELFBALANCE is available
 (rule (rewrite (Op.Balance (current_address))) (if-let true (has_self_balance)) (Op.SelfBalance))
 

@@ -122,7 +122,7 @@
 +     v49 = slice_ptr arg1
 +     jump bb14
 +   bb14:
-+     v50 = phi [bb13: 0], [bb15: v57]
++     v50 = phi [bb13: 0], [bb15: v58]
 +     v51 = lt v50, v11
 +     jumpi v51, bb15, bb16
 +   bb16:
@@ -133,8 +133,9 @@
 +     v54 = calldata_slice_load_word calldata, arg1, v52
 +     v55 = eq v54, 0
 +     v56 = eq v55, false
-+     memory_object_store_word memorybytes, v23, v53, v56
-+     v57 = add v50, 1
++     v57 = zext i1 v56 to i256
++     memory_object_store_word memorybytes, v23, v53, v57
++     v58 = add v50, 1
 +     jump bb14
 +   bb10:
 +     v35 = mul v33, 32

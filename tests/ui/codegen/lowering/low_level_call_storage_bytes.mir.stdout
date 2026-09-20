@@ -53,12 +53,13 @@ fn @fire() -> struct0 [selector=0x457094cc, abi_params=[], abi_returns=[word<boo
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = gas
     v3 = load_storage_bytes 0
-    v4 = address_call v1, v3, gas v2
-    v5 = icall returndata_bytes<>
-    v6 = zext i1 v4 to i256
-    v7 = insert_value struct0, undef struct0, 0, v6
-    v8 = insert_value struct0, v7, 1, v5
-    ret v8
+    v4 = trunc i256 v1 to i160
+    v5 = address_call v4, v3, gas v2
+    v6 = icall returndata_bytes<>
+    v7 = zext i1 v5 to i256
+    v8 = insert_value struct0, undef struct0, 0, v7
+    v9 = insert_value struct0, v8, 1, v6
+    ret v9
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {

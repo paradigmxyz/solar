@@ -87,8 +87,8 @@ fn @reject_revert_exit_with_call(arg0: i256) [selector=0x01020304] {
 // CHECK-LABEL: {{^[ +].*}}fn @reject_revert_exit_with_payable{{[( ]}}
 // CHECK: + sstore 0, 1
 // CHECK: + {{v[0-9]+}} = sload 0
-// CHECK: {{^[ +].*}}icall send<>, arg0, 0
-// CHECK: {{^[ +].*}}icall transfer<>, arg0, 0
+// CHECK: {{^[ +].*}}icall send<>, {{v[0-9]+}}, 0
+// CHECK: {{^[ +].*}}icall transfer<>, {{v[0-9]+}}, 0
 fn @reject_revert_exit_with_payable(arg0: i256) [selector=0x01020304] {
   bb0:
     sstore 0, 1
@@ -102,8 +102,9 @@ fn @reject_revert_exit_with_payable(arg0: i256) [selector=0x01020304] {
     v3 = lt v2, arg0
     jumpi v3, bb3, bb4
   bb4:
-    v4 = icall send<>, arg0, 0
-    icall transfer<>, arg0, 0
+    v5 = trunc i256 arg0 to i160
+    v4 = icall send<>, v5, 0
+    icall transfer<>, v5, 0
     revert_returndata
   bb3:
     jump bb1

@@ -19,6 +19,17 @@
 //~? ERROR: [fn4] non-word type `memoryslice` survives the `lowered` phase boundary
 //~? ERROR: [fn5] non-word type `calldataslice` survives the `lowered` phase boundary
 //~? ERROR: [fn6] non-word type `returndataslice` survives the `lowered` phase boundary
+//~? ERROR: [fn3] [bb0, inst3] `mapping_slot` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn3] [bb0, inst4] `mapping_slot_memory` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn3] [bb0, inst5] `mapping_slot_calldata` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn3] [bb0, inst6] `storage_array_data_slot` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn3] [bb0, inst7] `storage_array_element_slot` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn13] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn14] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn17] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn19] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn19] [bb0, inst1] `icall` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn20] [bb0, inst1] `address_call` has incompatible scalar types; use an explicit cast
 @module ValidateMemoryBoundary
 @phase lowered
 fn @slice(arg0: i256, arg1: i256) -> i256 {

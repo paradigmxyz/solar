@@ -3,32 +3,33 @@
   @module PayableCallEffects
   fn @observe(arg0: i256) -> i256 {
     bb0:
-      v0 = balance arg0
-      v1 = selfbalance
-      v2 = sload 0
-      v3 = tload 0
-      v4 = icall send<>, arg0, 1
-      v5 = balance arg0
-      v6 = selfbalance
-      v7 = sload 0
-      v8 = tload 0
-      icall transfer<>, arg0, 1
-      v9 = balance arg0
-      v10 = selfbalance
-      v11 = sload 0
-      v12 = tload 0
-      v13 = add v0, v1
-      v14 = add v2, v3
-      v15 = add v5, v6
-      v16 = add v7, v8
-      v17 = add v9, v10
-      v18 = add v11, v12
-      v19 = add v13, v14
-      v20 = add v15, v16
-      v21 = add v17, v18
-      v22 = add v19, v20
-      v23 = add v22, v21
-      ret v23
+      v0 = trunc i256 arg0 to i160
+      v1 = balance arg0
+      v2 = selfbalance
+      v3 = sload 0
+      v4 = tload 0
+      v5 = icall send<>, v0, 1
+      v6 = balance arg0
+      v7 = selfbalance
+      v8 = sload 0
+      v9 = tload 0
+      icall transfer<>, v0, 1
+      v10 = balance arg0
+      v11 = selfbalance
+      v12 = sload 0
+      v13 = tload 0
+      v14 = add v1, v2
+      v15 = add v3, v4
+      v16 = add v6, v7
+      v17 = add v8, v9
+      v18 = add v10, v11
+      v19 = add v12, v13
+      v20 = add v14, v15
+      v21 = add v16, v17
+      v22 = add v18, v19
+      v23 = add v20, v21
+      v24 = add v23, v22
+      ret v24
   }
   
 - // === ROOT/tests/ui/codegen/mir/cse/payable_calls.mir (before dce) ===
@@ -36,31 +37,32 @@
   @module PayableCallEffects
   fn @observe(arg0: i256) -> i256 {
     bb0:
-      v0 = balance arg0
-      v1 = selfbalance
-      v2 = sload 0
-      v3 = tload 0
-      v4 = icall send<>, arg0, 1
-      v5 = balance arg0
-      v6 = selfbalance
-      v7 = sload 0
-      v8 = tload 0
-      icall transfer<>, arg0, 1
-      v9 = balance arg0
-      v10 = selfbalance
-      v11 = sload 0
-      v12 = tload 0
-      v13 = add v0, v1
-      v14 = add v2, v3
-      v15 = add v5, v6
-      v16 = add v7, v8
-      v17 = add v9, v10
-      v18 = add v11, v12
-      v19 = add v13, v14
-      v20 = add v15, v16
-      v21 = add v17, v18
-      v22 = add v19, v20
-      v23 = add v22, v21
-      ret v23
+      v0 = trunc i256 arg0 to i160
+      v1 = balance arg0
+      v2 = selfbalance
+      v3 = sload 0
+      v4 = tload 0
+      v5 = icall send<>, v0, 1
+      v6 = balance arg0
+      v7 = selfbalance
+      v8 = sload 0
+      v9 = tload 0
+      icall transfer<>, v0, 1
+      v10 = balance arg0
+      v11 = selfbalance
+      v12 = sload 0
+      v13 = tload 0
+      v14 = add v1, v2
+      v15 = add v3, v4
+      v16 = add v6, v7
+      v17 = add v8, v9
+      v18 = add v10, v11
+      v19 = add v12, v13
+      v20 = add v14, v15
+      v21 = add v16, v17
+      v22 = add v18, v19
+      v23 = add v20, v21
+      v24 = add v23, v22
+      ret v24
   }
   

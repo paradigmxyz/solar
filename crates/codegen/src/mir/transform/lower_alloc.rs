@@ -9,7 +9,7 @@
 
 use crate::mir::{
     AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId,
-    Function, FunctionBuilder, InstId, InstKind, MemoryRegion, Module, PanicCode, ValueId,
+    Function, FunctionBuilder, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode, ValueId,
     memory::EvmMemoryLayout, pass::MirPass, transform::utils::redirect_successor_predecessors,
 };
 use alloy_primitives::U256;
@@ -227,9 +227,11 @@ fn rewrite_as_fmp_store(
     inst: crate::mir::InstId,
     ptr: crate::mir::ValueId,
 ) {
+    // word = ptrtoint ptr to i256
+    // set_fmp ptr -> mstore 64, word
+    let ptr = builder.cast(ptr, MirType::I256);
     let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
     let instruction = builder.func_mut().inst_mut(inst);
-    // set_fmp ptr -> mstore 64, ptr
     instruction.kind = InstKind::MStore(slot, ptr);
     instruction.metadata.set_effect(None);
     instruction.metadata.set_preserves_fmp(false);

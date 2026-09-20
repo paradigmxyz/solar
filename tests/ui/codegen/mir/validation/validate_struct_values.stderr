@@ -4,7 +4,7 @@ error: [fn1] [bb0, inst0] inserted value must have type `i1`
 
 error: [fn2] [bb0] return values do not match the signature
 
-error: [fn3] [bb0, inst0] value has type `struct0`, expected `i1`; use an explicit cast
+error: [fn3] [bb0, inst0] `select` has incompatible scalar types; use an explicit cast
 
 error: [fn4] [bb0] branch condition must have type `i1`; compare words with zero
 
@@ -14,9 +14,9 @@ error: [fn6] internal return ABI does not match the function's result type
 
 error: [fn7] [bb0, inst0] `inttoptr` has incompatible scalar types; use an explicit cast
 
-error: [fn8] [bb0, inst0] memory object has type `memorystruct`, expected `memorybytes`
+error: [fn8] [bb0, inst0] `memory_object_len` has incompatible scalar types; use an explicit cast
 
-error: [fn9] [bb0, inst0] memory object has type `memorybytes`, expected `memoryfixedarray`
+error: [fn9] [bb0, inst0] `memory_object_element_addr` has incompatible scalar types; use an explicit cast
 
 error: [fn10] [bb0, inst0] `zext` has incompatible scalar types; use an explicit cast
 
@@ -38,5 +38,25 @@ error: [fn19] [bb0, inst0] `ptrtoint` has incompatible scalar types; use an expl
 
 error: [fn20] [bb0, inst0] `bitcast` has incompatible scalar types; use an explicit cast
 
-error: aborting due to 20 previous errors
+error: [fn21] [bb0, inst0] `memory_object_load_element` has incompatible scalar types; use an explicit cast
+
+error: [fn22] [bb0, inst0] `memory_object_store_word` has incompatible scalar types; use an explicit cast
+
+error: [fn23] [bb0, inst0] `set_fmp` has incompatible scalar types; use an explicit cast
+
+error: [fn24] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
+
+error: [fn25] [bb0, inst0] `abi_encode` has incompatible scalar types; use an explicit cast
+
+error: [fn26] [bb0] raw return and revert operands must have type `i256`; use an explicit cast
+
+error: [fn27] [bb0, inst0] `memory_zero` has incompatible scalar types; use an explicit cast
+
+error: [fn28] [bb0, inst0] ABI input location does not support its layout
+
+error: [fn29] [bb0, inst0] ABI input location does not support its layout
+
+error: [fn30] [bb0, inst0] `memory_object_data` has incompatible scalar types; use an explicit cast
+
+error: aborting due to 30 previous errors
 

@@ -4,7 +4,8 @@
 // CHECK: +     [[POINTER:v[0-9]+]] = mload 64 !metadata(memory=scratch)
 // CHECK: +     [[OBJECT:v[0-9]+]] = inttoptr i256 [[POINTER]] to memorybytes !metadata(memory=scratch)
 // CHECK: +     jumpi {{v[0-9]+}}, bb2, bb1
-// CHECK: +     memory_zero [[OBJECT]], {{v[0-9]+}}
+// CHECK: +     [[ZERO_PTR:v[0-9]+]] = ptrtoint memorybytes [[OBJECT]] to i256
+// CHECK-NEXT: +     memory_zero [[ZERO_PTR]], {{v[0-9]+}}
 // CHECK: +     revert 28, 36
 // CHECK-LABEL:   fn @internal() -> i256 {
 // CHECK: +     [[WORD:v[0-9]+]] = mload 64 !metadata(memory=scratch)

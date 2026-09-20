@@ -49,7 +49,9 @@
 //! A balance read can bypass a mask that preserves all address bits. Since
 //! effectful roots do not participate in cost extraction, this rule requires
 //! one original use of the mask in the same block. The account read remains
-//! at its original position; only its redundant address computation changes.
+//! at its original position; only its redundant address computation changes. Classic EVM calls
+//! similarly bypass single-use truncation/extension pairs around their 160-bit address operand.
+//! Both casts must belong to the call block, and every other call operand stays unchanged.
 //!
 //! Memory-key mapping hashes also share dominating definitions in uncalled
 //! semantic ABI entries where fresh decoded keys stay below scratch and no path
@@ -746,6 +748,7 @@ impl<'a> Builder<'a> {
         if !kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
             return;
         }
+        let result_ty = self.func.inst(inst_id).result_ty;
         let mut current = op.map_values(|value| self.resolve(value));
         let mut rewritten = false;
         let mut alternatives = Vec::new();
@@ -755,8 +758,15 @@ impl<'a> Builder<'a> {
                 .with_block(block)
                 .with_uses(&self.uses)
                 .rewrite(&current, &mut alternatives);
-            let Some(&next) = alternatives.first() else { break };
-            current = next.map_values(|value| self.resolve(value));
+            let Some(next) = alternatives.iter().find_map(|next| {
+                let next = next.map_values(|value| self.resolve(value));
+                next.into_kind()
+                    .is_some_and(|kind| kind.scalar_types_match(self.func, result_ty))
+                    .then_some(next)
+            }) else {
+                break;
+            };
+            current = next;
             rewritten = true;
         }
         if !rewritten {

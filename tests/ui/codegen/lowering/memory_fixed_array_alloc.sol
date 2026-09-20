@@ -32,7 +32,10 @@ contract MemoryFixedArrayAlloc {
     // CHECK: memory_object_load_element memoryfixedarray<3, 1>, [[OUTER]], arg0
     // CHECK: memory_object_load_element memoryfixedarray<2, 1>, {{v[0-9]+}}, arg1
     // CHECK: [[INNER:v[0-9]+]] = alloc memoryfixedarray<2, 1>
-    // CHECK: memory_object_store_element memoryfixedarray<3, 1>, [[OUTER]], [[INDEX]], [[INNER]]
+    // CHECK: [[INNER_ZERO:v[0-9]+]] = ptrtoint memoryfixedarray [[INNER]] to i256
+    // CHECK-NEXT: memory_zero [[INNER_ZERO]], 64
+    // CHECK: [[INNER_WORD:v[0-9]+]] = ptrtoint memoryfixedarray [[INNER]] to i256
+    // CHECK: memory_object_store_element memoryfixedarray<3, 1>, [[OUTER]], [[INDEX]], [[INNER_WORD]]
     function nested(uint256 i, uint256 j) public pure returns (uint256) {
         uint256[2][3] memory x;
         x[0][0] = 1;
@@ -109,8 +112,10 @@ contract NamedReturnAndDelete {
     // Uninitialized dynamic references use Solidity's zero slot.
     // CHECK-LABEL: fn @emptyMemoryReferences{{[( ]}}
     // CHECK: [[STRUCT:v[0-9]+]] = alloc memorystruct<2>
-    // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 0, memoryarray 96
-    // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 1, memorybytes 96
+    // CHECK: [[EMPTY_ARRAY:v[0-9]+]] = ptrtoint memoryarray 96 to i256
+    // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 0, [[EMPTY_ARRAY]]
+    // CHECK: [[EMPTY_BYTES:v[0-9]+]] = ptrtoint memorybytes 96 to i256
+    // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 1, [[EMPTY_BYTES]]
     // CHECK: memory_object_len memoryarray, memoryarray 96
     // CHECK: memory_object_len memorybytes, memorybytes 96
     function emptyMemoryReferences() public pure returns (uint256) {
@@ -134,8 +139,10 @@ contract NamedReturnAndDelete {
     // Wide named struct defaults bulk-zero scalars and initialize references.
     // CHECK-LABEL: fn @emptyWideNamedStruct{{[( ]}}
     // CHECK: [[WIDE:v[0-9]+]] = alloc memorystruct<4>, exact, uninitialized, infallible, 128
-    // CHECK: memory_zero [[WIDE]], 128
-    // CHECK: memory_object_store_field memorystruct<4>, [[WIDE]], 1, memorybytes 96
+    // CHECK: [[WIDE_WORD:v[0-9]+]] = ptrtoint memorystruct [[WIDE]] to i256
+    // CHECK: memory_zero [[WIDE_WORD]], 128
+    // CHECK: [[EMPTY_BYTES:v[0-9]+]] = ptrtoint memorybytes 96 to i256
+    // CHECK: memory_object_store_field memorystruct<4>, [[WIDE]], 1, [[EMPTY_BYTES]]
     // CHECK: ret [[WIDE]]
     function emptyWideNamedStruct() public pure returns (WideHolder memory holder) {}
 
@@ -143,8 +150,10 @@ contract NamedReturnAndDelete {
     // passes remove stores overwritten before reads.
     // CHECK-LABEL: fn @fullyInitializedNamedStruct{{[( ]}}
     // CHECK: [[STRUCT:v[0-9]+]] = alloc memorystruct<2>
-    // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 0, memoryarray 96
-    // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 1, memorybytes 96
+    // CHECK: [[EMPTY_ARRAY:v[0-9]+]] = ptrtoint memoryarray 96 to i256
+    // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 0, [[EMPTY_ARRAY]]
+    // CHECK: [[EMPTY_BYTES:v[0-9]+]] = ptrtoint memorybytes 96 to i256
+    // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 1, [[EMPTY_BYTES]]
     // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 1
     function fullyInitializedNamedStruct()
         public

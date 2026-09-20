@@ -42,21 +42,23 @@
       v19 = eq v18, false
       icall panic_if<0x32>, v19
       v20 = memory_object_load_element memoryarray<1>, v16, 1
-      v21 = trunc i256 v20 to i160
+-     v21 = trunc i256 v20 to i160
       v22 = memory_object_len memoryarray, v16
       v23 = lt 0, v22
       v24 = eq v23, false
       icall panic_if<0x32>, v24
-      memory_object_store_element memoryarray<1>, v16, 0, v21
-      v25 = memory_object_len memoryarray, v16
-      v26 = lt 2, v25
-      v27 = eq v26, false
-      icall panic_if<0x32>, v27
-      v28 = memory_object_load_element memoryarray<1>, v16, 2
--     v29 = trunc i256 v28 to i160
--     v30 = zext i160 v29 to i256
--     ret v30
-+     ret v28
+-     v25 = zext i160 v21 to i256
+-     memory_object_store_element memoryarray<1>, v16, 0, v25
++     memory_object_store_element memoryarray<1>, v16, 0, v20
+      v26 = memory_object_len memoryarray, v16
+      v27 = lt 2, v26
+      v28 = eq v27, false
+      icall panic_if<0x32>, v28
+      v29 = memory_object_load_element memoryarray<1>, v16, 2
+-     v30 = trunc i256 v29 to i160
+-     v31 = zext i160 v30 to i256
+-     ret v31
++     ret v29
   }
   
   fn @last(arg0: memoryarray, arg1: i256) -> i256 [pure] {
@@ -111,7 +113,8 @@
       v2 = eq v1, false
       icall panic_if<0x32>, v2
       v3 = trunc i256 arg1 to i160
-      memory_object_store_element memoryarray<1>, arg0, 0, v3
+      v4 = zext i160 v3 to i256
+      memory_object_store_element memoryarray<1>, arg0, 0, v4
       ret
   }
   

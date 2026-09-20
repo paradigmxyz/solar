@@ -49,18 +49,18 @@ fn @forwardStructs(arg0: calldataslice, arg1: i256) [selector=0x87c604a5, abi_pa
     set_memory_object_len memoryarray, v22, v1
     jump bb1
   bb1:
-    v23 = phi [bb0: 0], [bb2: v68]
+    v23 = phi [bb0: 0], [bb2: v70]
     v24 = lt v23, v1
     jumpi v24, bb2, bb3
   bb3:
-    v69 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v22
-    v70 = slice_ptr v69
-    v71 = slice_len v69
-    v72 = extcodesize arg1
-    v73 = eq v72, 0
-    icall revert_if<target_contract_has_no_code>, v73
-    v74 = call v0, arg1, 0, v70, v71, 0, 0
-    jumpi v74, bb5, bb4
+    v71 = abi_encode [memory_array<tuple<word, memory_bytes>>], selector 0x8419297e00000000000000000000000000000000000000000000000000000000, args v22
+    v72 = slice_ptr v71
+    v73 = slice_len v71
+    v74 = extcodesize arg1
+    v75 = eq v74, 0
+    icall revert_if<target_contract_has_no_code>, v75
+    v76 = call v0, arg1, 0, v72, v73, 0, 0
+    jumpi v76, bb5, bb4
   bb4:
     revert_returndata
   bb5:
@@ -120,8 +120,10 @@ fn @forwardStructs(arg0: calldataslice, arg1: i256) [selector=0x87c604a5, abi_pa
     v67 = alloc memorybytes, exact, uninitialized, infallible, v66
     set_memory_object_len memorybytes, v67, v62
     memory_object_copy_from_slice memorybytes, v67, v61
-    memory_object_store_field memorystruct<2>, v37, 1, v67
-    memory_object_store_element memoryarray<1>, v22, v23, v37
-    v68 = add v23, 1
+    v68 = ptrtoint memorybytes v67 to i256
+    memory_object_store_field memorystruct<2>, v37, 1, v68
+    v69 = ptrtoint memorystruct v37 to i256
+    memory_object_store_element memoryarray<1>, v22, v23, v69
+    v70 = add v23, 1
     jump bb1
 }

@@ -109,8 +109,9 @@
       v2 = lt v1, arg0
       jumpi v2, bb4, bb3
     bb3:
-      v3 = icall send<>, arg0, 0
-      icall transfer<>, arg0, 0
+      v3 = trunc i256 arg0 to i160
+      v4 = icall send<>, v3, 0
+      icall transfer<>, v3, 0
       revert_returndata
     bb4:
       jump bb1

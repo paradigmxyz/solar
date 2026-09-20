@@ -28,14 +28,15 @@ fn @g(arg0: calldataslice, arg1: i256) -> memorybytes [selector=0x1fd55338, view
     v15 = abi_encode [array<3, word>], selector 0x5dc1289100000000000000000000000000000000000000000000000000000000, args v14
     v16 = slice_ptr v15
     v17 = slice_len v15
-    v18 = staticcall v1, v0, v16, v17, 0, 0
-    jumpi v18, bb2, bb1
+    v18 = zext i160 v0 to i256
+    v19 = staticcall v1, v18, v16, v17, 0, 0
+    jumpi v19, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v19 = icall returndata_bytes<>
-    v20 = abi_decode [bytes], v19
-    ret v20
+    v20 = icall returndata_bytes<>
+    v21 = abi_decode [bytes], v20
+    ret v21
 }
 
 fn @h(arg0: calldataslice) -> memorybytes [selector=0x94e17704, pure, abi_params=[array<3, u8>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -101,14 +102,15 @@ fn @i(arg0: calldataslice, arg1: i256) -> memorybytes [selector=0x18e849a4, view
     v28 = abi_encode [array<3, word<u8>>], selector 0x94e1770400000000000000000000000000000000000000000000000000000000, args v14
     v29 = slice_ptr v28
     v30 = slice_len v28
-    v31 = staticcall v1, v0, v29, v30, 0, 0
-    jumpi v31, bb5, bb4
+    v31 = zext i160 v0 to i256
+    v32 = staticcall v1, v31, v29, v30, 0, 0
+    jumpi v32, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v32 = icall returndata_bytes<>
-    v33 = abi_decode [bytes], v32
-    ret v33
+    v33 = icall returndata_bytes<>
+    v34 = abi_decode [bytes], v33
+    ret v34
   bb2:
     v21 = mul v19, 32
     v22 = add v15, v21

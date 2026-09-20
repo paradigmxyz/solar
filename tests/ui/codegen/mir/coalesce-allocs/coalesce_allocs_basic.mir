@@ -33,11 +33,13 @@ fn @fuse_consecutive() -> i256 {
 // its original program point. Checked allocations remain separate.
 // CHECK-LABEL: fn @fuse_zeroed
 // CHECK: + v0 = alloc raw, exact, uninitialized, infallible, 96
-// CHECK-NEXT: + memory_zero v0, 64
+// CHECK-NEXT: + [[ZERO64:v[0-9]+]] = ptrtoint memptr v0 to i256
+// CHECK-NEXT: + memory_zero [[ZERO64]], 64
 // CHECK: + [[BASE64:v[0-9]+]] = ptrtoint memptr v0 to i256
 // CHECK: + [[OFFSET64:v[0-9]+]] = add [[BASE64]], 64
 // CHECK: + [[POINTER64:v[0-9]+]] = inttoptr i256 [[OFFSET64]] to memptr
-// CHECK-NEXT: + memory_zero [[POINTER64]], 32
+// CHECK-NEXT: + [[ZERO_TAIL64:v[0-9]+]] = ptrtoint memptr [[POINTER64]] to i256
+// CHECK-NEXT: + memory_zero [[ZERO_TAIL64]], 32
 fn @fuse_zeroed() -> i256 {
   bb0:
     v7 = alloc raw, exact, zeroed, infallible, 64
@@ -52,12 +54,14 @@ fn @fuse_zeroed() -> i256 {
 // member's original allocation point, not survive an early whole-group zero.
 // CHECK-LABEL: fn @preserve_zero_timing
 // CHECK: + v0 = alloc raw, exact, uninitialized, infallible, 64
-// CHECK-NEXT: + memory_zero v0, 32
+// CHECK-NEXT: + [[ZERO32:v[0-9]+]] = ptrtoint memptr v0 to i256
+// CHECK-NEXT: + memory_zero [[ZERO32]], 32
 // CHECK: mstore 160, 7
 // CHECK: + [[BASE32:v[0-9]+]] = ptrtoint memptr v0 to i256
 // CHECK: + [[OFFSET32:v[0-9]+]] = add [[BASE32]], 32
 // CHECK: + [[POINTER32:v[0-9]+]] = inttoptr i256 [[OFFSET32]] to memptr
-// CHECK-NEXT: + memory_zero [[POINTER32]], 32
+// CHECK-NEXT: + [[ZERO_TAIL32:v[0-9]+]] = ptrtoint memptr [[POINTER32]] to i256
+// CHECK-NEXT: + memory_zero [[ZERO_TAIL32]], 32
 fn @preserve_zero_timing() -> i256 {
   bb0:
     v9 = alloc raw, exact, zeroed, infallible, 32
@@ -125,7 +129,8 @@ fn @keep_across_set_fmp() -> i256 {
   bb0:
     v18 = alloc raw, exact, uninitialized, infallible, 32
     v0 = ptrtoint memptr v18 to i256
-    set_fmp 65536
+    v100 = inttoptr i256 65536 to memptr
+    set_fmp v100
     v19 = alloc raw, exact, uninitialized, infallible, 32
     v1 = ptrtoint memptr v19 to i256
     mstore v1, 5

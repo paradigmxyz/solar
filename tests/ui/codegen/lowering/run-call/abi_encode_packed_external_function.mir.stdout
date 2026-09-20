@@ -14,8 +14,9 @@ fn @matches() -> i256 [selector=0x55590d58, view, abi_params=[], abi_returns=[wo
     v4 = keccak256_packed (u192 v3)
     v5 = address
     v6 = and 0xd4b8399200000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v7 = keccak256_packed (u160 v5, bytes4 v6)
-    v8 = eq v4, v7
-    v9 = zext i1 v8 to i256
-    ret v9
+    v7 = zext i160 v5 to i256
+    v8 = keccak256_packed (u160 v7, bytes4 v6)
+    v9 = eq v4, v8
+    v10 = zext i1 v9 to i256
+    ret v10
 }

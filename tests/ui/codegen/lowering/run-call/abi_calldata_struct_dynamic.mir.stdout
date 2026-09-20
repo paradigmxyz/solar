@@ -31,15 +31,15 @@ fn @hash(arg0: calldataslice) -> i256 [selector=0x43298469, pure, abi_params=[ar
     set_memory_object_len memoryarray, v21, v0
     jump bb1
   bb1:
-    v22 = phi [bb0: 0], [bb2: v66]
+    v22 = phi [bb0: 0], [bb2: v68]
     v23 = lt v22, v0
     jumpi v23, bb2, bb3
   bb3:
-    v67 = abi_encode [memory_array<tuple<memory_array<word>>>], scratch, args v21
-    v68 = slice_ptr v67
-    v69 = slice_len v67
-    v70 = keccak256 v68, v69
-    ret v70
+    v69 = abi_encode [memory_array<tuple<memory_array<word>>>], scratch, args v21
+    v70 = slice_ptr v69
+    v71 = slice_len v69
+    v72 = keccak256 v70, v71
+    ret v72
   bb2:
     v24 = mul v22, 32
     v25 = add v1, v24
@@ -93,9 +93,11 @@ fn @hash(arg0: calldataslice) -> i256 [selector=0x43298469, pure, abi_params=[ar
     set_memory_object_len memoryarray, v64, v47
     v65 = make_calldata_slice v54, v55
     memory_object_copy_from_slice memoryarray, v64, v65
-    memory_object_store_field memorystruct<1>, v36, 0, v64
-    memory_object_store_element memoryarray<1>, v21, v22, v36
-    v66 = add v22, 1
+    v66 = ptrtoint memoryarray v64 to i256
+    memory_object_store_field memorystruct<1>, v36, 0, v66
+    v67 = ptrtoint memorystruct v36 to i256
+    memory_object_store_element memoryarray<1>, v21, v22, v67
+    v68 = add v22, 1
     jump bb1
 }
 

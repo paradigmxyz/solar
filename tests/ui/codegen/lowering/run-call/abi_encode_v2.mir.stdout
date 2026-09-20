@@ -82,38 +82,39 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     memory_object_store_field memorystruct<2>, v13, 0, v14
     v15 = add 0, 1
     v16 = icall @load_storage_word_array, v15
-    memory_object_store_field memorystruct<2>, v13, 1, v16
-    v17 = abi_encode [word, memory_bytes, tuple<word, memory_array<word>>, word], object, args 1, v0, v13, 2
-    v18 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v18, 3
-    v19 = memory_object_data memorybytes, v18
-    v20 = ptrtoint memptr v19 to i256
-    mstore v20, 0x6465660000000000000000000000000000000000000000000000000000000000
-    v21 = memory_object_len memorybytes, v18
-    v22 = lt 0, v21
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = memory_object_load_byte memorybytes, v18, 0
-    v25 = shl 248, v24
-    v26 = eq v25, 0x6400000000000000000000000000000000000000000000000000000000000000
-    v27 = eq v26, false
-    icall revert_if<empty>, v27
-    v28 = memory_object_len memorybytes, v18
-    v29 = lt 0, v28
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = byte 0, 0x6500000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_byte memorybytes, v18, 0, v31
-    v32 = memory_object_len memorybytes, v18
-    v33 = lt 0, v32
-    v34 = eq v33, false
-    icall panic_if<0x32>, v34
-    v35 = memory_object_load_byte memorybytes, v18, 0
-    v36 = shl 248, v35
-    v37 = eq v36, 0x6500000000000000000000000000000000000000000000000000000000000000
-    v38 = eq v37, false
-    icall revert_if<empty>, v38
-    ret v17
+    v17 = ptrtoint memoryarray v16 to i256
+    memory_object_store_field memorystruct<2>, v13, 1, v17
+    v18 = abi_encode [word, memory_bytes, tuple<word, memory_array<word>>, word], object, args 1, v0, v13, 2
+    v19 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v19, 3
+    v20 = memory_object_data memorybytes, v19
+    v21 = ptrtoint memptr v20 to i256
+    mstore v21, 0x6465660000000000000000000000000000000000000000000000000000000000
+    v22 = memory_object_len memorybytes, v19
+    v23 = lt 0, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = memory_object_load_byte memorybytes, v19, 0
+    v26 = shl 248, v25
+    v27 = eq v26, 0x6400000000000000000000000000000000000000000000000000000000000000
+    v28 = eq v27, false
+    icall revert_if<empty>, v28
+    v29 = memory_object_len memorybytes, v19
+    v30 = lt 0, v29
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = byte 0, 0x6500000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_byte memorybytes, v19, 0, v32
+    v33 = memory_object_len memorybytes, v19
+    v34 = lt 0, v33
+    v35 = eq v34, false
+    icall panic_if<0x32>, v35
+    v36 = memory_object_load_byte memorybytes, v19, 0
+    v37 = shl 248, v36
+    v38 = eq v37, 0x6500000000000000000000000000000000000000000000000000000000000000
+    v39 = eq v38, false
+    icall revert_if<empty>, v39
+    ret v18
 }
 
 fn @literalRemainsLive() -> i256 [selector=0x8eddb2e8, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {

@@ -62,7 +62,8 @@ fn @typed(arg0: i256) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_re
   bb10:
     jumpi true, bb11, bb12
   bb12:
-    revert v8, v9
+    v42 = ptrtoint memptr v8 to i256
+    revert v42, v9
   bb11:
     jump bb3
   bb9:
@@ -95,8 +96,8 @@ fn @typed(arg0: i256) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_re
     v6 = abi_decode [u256], v5
     jump bb3
   bb3:
-    v42 = phi [bb1: v6], [bb7: 1], [bb9: 2], [bb11: 3]
-    ret v42
+    v43 = phi [bb1: v6], [bb7: 1], [bb9: 2], [bb11: 3]
+    ret v43
 }
 
 fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
