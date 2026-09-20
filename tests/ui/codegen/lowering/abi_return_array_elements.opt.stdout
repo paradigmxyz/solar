@@ -3,7 +3,7 @@
 @phase lowered
 fn @clean() [selector=0x945bb2ba, abi_wrapper, pure] {
   bb0:
-    v2 = icall @decode_calldata_type, 4
+    v2 = icall @decode_calldata_type.8, 4
     v23 = ptrtoint memptr v2 to i256
     v10 = ne v23, 0
     v11 = zext i1 v10 to i256
@@ -21,7 +21,7 @@ fn @clean() [selector=0x945bb2ba, abi_wrapper, pure] {
 
 fn @dirty() [selector=0x74016a59, abi_wrapper, pure] {
   bb0:
-    v5 = icall @decode_calldata_type, 4
+    v5 = icall @decode_calldata_type.8, 4
     v1 = ptrtoint memptr v5 to i256
     v2 = add v1, 32
     mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -41,7 +41,7 @@ fn @dirty() [selector=0x74016a59, abi_wrapper, pure] {
 
 fn @viaHelper() [selector=0x43a4968c, abi_wrapper, pure] {
   bb0:
-    v4 = icall @decode_calldata_type, 4
+    v4 = icall @decode_calldata_type.8, 4
     v0 = ptrtoint memptr v4 to i256
     v1 = add v0, 32
     mstore v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -59,7 +59,98 @@ fn @viaHelper() [selector=0x43a4968c, abi_wrapper, pure] {
     returndata v26, v17
 }
 
-fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
+fn @aliasedStruct() [selector=0x8c175a3d, abi_wrapper, pure] {
+  bb0:
+    v11 = icall @decode_calldata_type.9, 4
+    v19 = mload 64 !metadata(memory=scratch)
+    v21 = add v19, 32
+    mstore 64, v21 !metadata(memory=scratch)
+    mstore v19, 0
+    v1 = ptrtoint memptr v11 to i256
+    v2 = add v1, 32
+    mstore v2, 257
+    v4 = mload v1
+    v5 = lt 0, v4
+    jumpi v5, bb2, bb1
+  bb1:
+    tail_call @revert_stub
+  bb2:
+    mstore 128, 1
+    returndata 128, 32
+}
+
+fn @aliasedBytes() [selector=0x4a6c046c, abi_wrapper, pure] {
+  bb0:
+    v13 = icall @decode_calldata_type.9, 4
+    v21 = ptrtoint memptr v13 to i256
+    v1 = mload v21
+    v2 = lt 0, v1
+    jumpi v2, bb2, bb1
+  bb1:
+    tail_call @revert_stub
+  bb2:
+    v17 = add v21, 32
+    mstore8 v17, 1
+    v9 = mload v17
+    v10 = and v9, 255
+    mstore 128, v10
+    returndata 128, 32
+}
+
+fn @unalignedArray() [selector=0xd621b19f, abi_wrapper, pure] {
+  bb0:
+    v14 = icall @decode_calldata_type.9, 4
+    v21 = mload 64 !metadata(memory=scratch)
+    v23 = add v21, 32
+    mstore 64, v23 !metadata(memory=scratch)
+    mstore v21, 0
+    v2 = ptrtoint memptr v14 to i256
+    v3 = add v2, 33
+    mstore v3, 1
+    v7 = mload v2
+    v8 = lt 1, v7
+    jumpi v8, bb2, bb1
+  bb1:
+    tail_call @revert_stub
+  bb2:
+    v18 = add v2, 64
+    v10 = mload v18
+    v11 = and v10, 255
+    mstore 128, v11
+    returndata 128, 32
+}
+
+fn @unalignedHelper() [selector=0x29dcbdaa, abi_wrapper, pure] {
+  bb0:
+    v12 = icall @decode_calldata_type.9, 4
+    v19 = mload 64 !metadata(memory=scratch)
+    v21 = add v19, 32
+    mstore 64, v21 !metadata(memory=scratch)
+    mstore v19, 0
+    v2 = ptrtoint memptr v12 to i256
+    v3 = add v2, 33
+    mstore v3, 1
+    v5 = mload v2
+    v6 = lt 1, v5
+    jumpi v6, bb2, bb1
+  bb1:
+    tail_call @revert_stub
+  bb2:
+    v16 = add v2, 64
+    v8 = mload v16
+    v9 = and v8, 255
+    mstore 128, v9
+    returndata 128, 32
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @decode_calldata_type.8(arg0: i256) -> memptr [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0
@@ -109,6 +200,69 @@ fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
     v27 = add v3, v26
     v28 = calldataload v27
     v29 = shr 160, v28
+    v30 = eq v29, 0
+    jumpi v30, bb10, bb1
+  bb10:
+    v31 = add v24, 1
+    jump bb7
+  bb3:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @decode_calldata_type.9(arg0: i256) -> memptr [may_return_memory] {
+  bb0:
+    v0 = calldatasize
+    v1 = calldataload arg0
+    v2 = add v1, 4
+    v3 = add v2, 32
+    v4 = gt v1, 0xffffffffffffffff
+    v5 = gt v3, v0
+    v6 = or v4, v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v9 = calldataload v2
+    v11 = shl 5, v9
+    v13 = shr 5, v11
+    v17 = ne v13, v9
+    jumpi v17, bb3, bb4
+  bb4:
+    v18 = add v11, 32
+    v19 = lt v18, v11
+    jumpi v19, bb3, bb5
+  bb5:
+    v38 = mload 64 !metadata(memory=scratch)
+    v20 = inttoptr i256 v38 to memptr !metadata(memory=scratch)
+    v40 = add v38, v18
+    v42 = lt v40, v38
+    v43 = gt v40, 0xffffffffffffffff
+    v44 = or v42, v43
+    jumpi v44, bb3, bb11
+  bb11:
+    mstore 64, v40 !metadata(memory=scratch)
+    mstore v38, v9
+    v21 = sub v0, v3
+    v22 = shr 5, v21
+    v23 = gt v9, v22
+    jumpi v23, bb1, bb6
+  bb6:
+    jump bb7
+  bb7:
+    v24 = phi [bb6: 0], [bb10: v31]
+    v25 = lt v24, v9
+    jumpi v25, bb8, bb9
+  bb9:
+    v34 = add v38, 32
+    calldatacopy v34, v3, v11
+    ret v20
+  bb8:
+    v26 = shl 5, v24
+    v27 = add v3, v26
+    v28 = calldataload v27
+    v29 = shr 8, v28
     v30 = eq v29, 0
     jumpi v30, bb10, bb1
   bb10:
@@ -206,13 +360,21 @@ fn @entry() [entry] {
   bb2:
     v6 = calldataload 0
     v7 = shr 224, v6
-    switch v7, default bb1, [0x43a4968c => bb3, 0x74016a59 => bb4, 0x945bb2ba => bb5]
-  bb5:
+    switch v7, default bb1, [0x29dcbdaa => bb3, 0x43a4968c => bb4, 0x4a6c046c => bb5, 0x74016a59 => bb6, 0x8c175a3d => bb7, 0x945bb2ba => bb8, 0xd621b19f => bb9]
+  bb9:
+    tail_call @unalignedArray
+  bb8:
     tail_call @clean
-  bb4:
+  bb7:
+    tail_call @aliasedStruct
+  bb6:
     tail_call @dirty
-  bb3:
+  bb5:
+    tail_call @aliasedBytes
+  bb4:
     tail_call @viaHelper
+  bb3:
+    tail_call @unalignedHelper
   bb1:
     revert 0, 0
 }
