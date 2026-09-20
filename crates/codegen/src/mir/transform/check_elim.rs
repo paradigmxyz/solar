@@ -21,10 +21,11 @@
 //! recorded facts with checked 256-bit arithmetic; a condition that is
 //! provably constant folds the branch to an unconditional jump, and the dead
 //! panic block is cleaned up by the existing CFG passes. Anything that is
-//! not provable is left untouched. Semantic checks use the same facts in instruction order:
-//! a passing check refines all later execution, and a proven passing check can be removed before
-//! expansion. Facts roll back on leaving each dominator subtree, so a check on one conditional
-//! path cannot justify removing a check on another.
+//! not provable is left untouched. Explicit integer casts retain range facts only
+//! when their width and sign semantics preserve the bounded values. Semantic checks use the same
+//! facts in instruction order: a passing check refines all later execution, and a proven passing
+//! check can be removed before expansion. Facts roll back on leaving each dominator subtree, so a
+//! check on one conditional path cannot justify removing a check on another.
 //!
 //! Before the dominator walk, a bounded forward analysis carries the intersection
 //! of relational facts and the union of ranges across predecessor edges. Phi
@@ -1207,6 +1208,17 @@ impl<'a> CheckEliminator<'a> {
         let Some(depth) = depth.checked_sub(1) else { return range };
         let Some(kind) = inst_kind(func, value) else { return range };
         let derived = match *kind {
+            InstKind::Zext(source) => self.range_of(func, source, depth),
+            InstKind::Trunc(source, bits) if (1..=256).contains(&bits) => {
+                let source = self.range_of(func, source, depth);
+                let mask = U256::MAX >> (256 - bits);
+                if source.hi <= mask { source } else { Range::new(U256::ZERO, mask) }
+            }
+            InstKind::Sext(source, from_bits, _) if (1..=256).contains(&from_bits) => {
+                let source = self.range_of(func, source, depth);
+                // Sign extension preserves nonnegative values; other signs remain unknown.
+                if source.hi < (U256::ONE << (from_bits - 1)) { source } else { Range::FULL }
+            }
             InstKind::LoadImmutable(id) => self
                 .immutable_ranges
                 .and_then(|ranges| ranges.get(&id))

@@ -448,3 +448,108 @@
       ret v2
   }
   
+  fn @ne_sub(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = sub arg0, arg1
+-     v1 = ne v0, 0
++     v1 = ne arg0, arg1
+      ret v1
+  }
+  
+  fn @ne_xor(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = xor arg0, arg1
+-     v1 = ne v0, 0
++     v1 = ne arg0, arg1
+      ret v1
+  }
+  
+  fn @ne_not(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = not arg0
+      v1 = not arg1
+-     v2 = ne v0, v1
++     v2 = ne arg0, arg1
+      ret v2
+  }
+  
+  fn @ne_bool_true(arg0: i1) -> i1 {
+    bb0:
+-     v0 = ne arg0, true
++     v0 = eq arg0, false
+      ret v0
+  }
+  
+  fn @ne_bool_true_swapped(arg0: i1) -> i1 {
+    bb0:
+-     v0 = ne true, arg0
++     v0 = eq arg0, false
+      ret v0
+  }
+  
+  fn @ne_clz_one(arg0: i256) -> i1 {
+    bb0:
+      v0 = clz arg0
+-     v1 = ne v0, 255
++     v1 = ne arg0, 1
+      ret v1
+  }
+  
+  fn @ne_clz_zero(arg0: i256) -> i1 {
+    bb0:
+      v0 = clz arg0
+-     v1 = ne 256, v0
++     v1 = ne arg0, 0
+      ret v1
+  }
+  
+  fn @ne_byte_bound(arg0: i256) -> i1 {
+    bb0:
+      v0 = byte 31, arg0
+-     v1 = ne v0, 256
+-     ret v1
++     ret true
+  }
+  
+  fn @ne_byte_bound_swapped(arg0: i256) -> i1 {
+    bb0:
+      v0 = byte 31, arg0
+-     v1 = ne 256, v0
+-     ret v1
++     ret true
+  }
+  
+  fn @ne_clz_bound(arg0: i256) -> i1 {
+    bb0:
+      v0 = clz arg0
+-     v1 = ne v0, 257
+-     ret v1
++     ret true
+  }
+  
+  fn @ne_clz_bound_swapped(arg0: i256) -> i1 {
+    bb0:
+      v0 = clz arg0
+-     v1 = ne 257, v0
+-     ret v1
++     ret true
+  }
+  
+  fn @eq_sign_extensions(arg0: i160, arg1: i160) -> i1 {
+    bb0:
+      v0 = sext i160 arg0 to i256
+      v1 = sext i160 arg1 to i256
+-     v2 = eq v0, v1
++     v2 = eq arg0, arg1
+      ret v2
+  }
+  
+  fn @ne_sign_extensions(arg0: i160, arg1: i160) -> i1 {
+    bb0:
+      v0 = sext i160 arg0 to i256
+      v1 = sext i160 arg1 to i256
+-     v2 = ne v0, v1
++     v2 = ne arg0, arg1
+      ret v2
+  }
+  

@@ -25,6 +25,27 @@
       (if-let masked (make (Op.And difference m)))
       (if-let zero (imm (u256 0))) (sequence (Op.Eq masked zero)))
 
+;; (x & m) != (m & y) => ((x ^ y) & m) != 0
+(rule (sequence_rewrite (Op.Ne (band x m) (band m y)))
+      (if-let difference (make (Op.Xor x y)))
+      (if-let masked (make (Op.And difference m)))
+      (if-let zero (imm (u256 0))) (sequence (Op.Ne masked zero)))
+;; (x & m) != (y & m) => ((x ^ y) & m) != 0
+(rule (sequence_rewrite (Op.Ne (band x m) (band y m)))
+      (if-let difference (make (Op.Xor x y)))
+      (if-let masked (make (Op.And difference m)))
+      (if-let zero (imm (u256 0))) (sequence (Op.Ne masked zero)))
+;; (m & x) != (m & y) => ((x ^ y) & m) != 0
+(rule (sequence_rewrite (Op.Ne (band m x) (band m y)))
+      (if-let difference (make (Op.Xor x y)))
+      (if-let masked (make (Op.And difference m)))
+      (if-let zero (imm (u256 0))) (sequence (Op.Ne masked zero)))
+;; (m & x) != (y & m) => ((x ^ y) & m) != 0
+(rule (sequence_rewrite (Op.Ne (band m x) (band y m)))
+      (if-let difference (make (Op.Xor x y)))
+      (if-let masked (make (Op.And difference m)))
+      (if-let zero (imm (u256 0))) (sequence (Op.Ne masked zero)))
+
 ;; shl(1, x) | 1 => x - ~x
 (rule (sequence_rewrite (Op.Or (shl (one) x) (one)))
       (if-let complement (make (Op.Not x))) (sequence (Op.Sub x complement)))

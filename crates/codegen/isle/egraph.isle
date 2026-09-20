@@ -777,6 +777,33 @@
 (rule 9 (simplify (Op.Ne (and x (bool_value)) (zero))) x)
 (rule 8 (simplify (Op.Ne (zero) (and x (bool_value)))) x)
 
+;; ~a != ~b => a != b.
+(rule (rewrite (Op.Ne (bnot a) (bnot b))) (Op.Ne a b))
+;; (a - b) != 0 => a != b.
+(rule (rewrite (Op.Ne (sub a b) (zero))) (Op.Ne a b))
+;; (a ^ b) != 0 => a != b.
+(rule (rewrite (Op.Ne (bxor a b) (zero))) (Op.Ne a b))
+;; clz(x) != 255 => x != 1.
+(rule (rewrite (Op.Ne (clz x) (iconst c))) (if-let true (u256_eq c 255)) (Op.Ne x (imm (u256 1))))
+;; 255 != clz(x) => x != 1.
+(rule (rewrite (Op.Ne (iconst c) (clz x))) (if-let true (u256_eq c 255)) (Op.Ne x (imm (u256 1))))
+;; clz(x) != 256 => x != 0.
+(rule (rewrite (Op.Ne (clz x) (iconst c))) (if-let true (u256_eq c 256)) (Op.Ne x (imm (u256 0))))
+;; 256 != clz(x) => x != 0.
+(rule (rewrite (Op.Ne (iconst c) (clz x))) (if-let true (u256_eq c 256)) (Op.Ne x (imm (u256 0))))
+;; x != true => x == false, when x is boolean.
+(rule (rewrite (Op.Ne (and x (bool_value)) (one))) (Op.Eq x (imm_bool false)))
+;; true != x => x == false, when x is boolean.
+(rule (rewrite (Op.Ne (one) (and x (bool_value)))) (Op.Eq x (imm_bool false)))
+;; a != c => true, when a is known to be less than constant c.
+(rule 7 (simplify (Op.Ne a (iconst c))) (if-let true (below_const a c)) (imm_bool true))
+;; c != b => true, when b is known to be less than constant c.
+(rule 6 (simplify (Op.Ne (iconst c) b)) (if-let true (below_const b c)) (imm_bool true))
+;; clz(_) != c => true, when c > 256.
+(rule 5 (simplify (Op.Ne (clz _) (iconst c))) (if-let true (u256_gt c 256)) (imm_bool true))
+;; c != clz(_) => true, when c > 256.
+(rule 4 (simplify (Op.Ne (iconst c) (clz _))) (if-let true (u256_gt c 256)) (imm_bool true))
+
 (decl integer_bits (u32) Value)
 (extern extractor integer_bits integer_bits)
 (decl pure u32_lt (u32 u32) bool)
@@ -816,6 +843,11 @@
 ;; Equal zero extensions can be compared in their original integer type.
 (rule (rewrite (Op.Eq (zext a) (zext b))) (Op.Eq a b))
 (rule (rewrite (Op.Ne (zext a) (zext b))) (Op.Ne a b))
+
+;; sext(a) == sext(b) => a == b, for identical source and destination widths.
+(rule (rewrite (Op.Eq (sext a from to) (sext b from to))) (Op.Eq a b))
+;; sext(a) != sext(b) => a != b, for identical source and destination widths.
+(rule (rewrite (Op.Ne (sext a from to) (sext b from to))) (Op.Ne a b))
 
 ;; Pointer casts preserve bits across changes of nominal pointer type.
 (rule (rewrite (Op.PtrToInt (bitcast value) bits)) (Op.PtrToInt value bits))

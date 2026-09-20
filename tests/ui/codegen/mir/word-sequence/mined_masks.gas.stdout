@@ -63,6 +63,50 @@
       ret v2
   }
   
+  fn @masked_ne_0(arg0: i256, arg1: i256, arg2: i256) -> i1 {
+    bb0:
+-     v0 = and arg0, arg2
+-     v1 = and arg2, arg1
+-     v2 = ne v0, v1
++     v3 = xor arg0, arg1
++     v4 = and v3, arg2
++     v2 = ne v4, 0
+      ret v2
+  }
+  
+  fn @masked_ne_1(arg0: i256, arg1: i256, arg2: i256) -> i1 {
+    bb0:
+-     v0 = and arg0, arg2
+-     v1 = and arg1, arg2
+-     v2 = ne v0, v1
++     v3 = xor arg0, arg1
++     v4 = and v3, arg2
++     v2 = ne v4, 0
+      ret v2
+  }
+  
+  fn @masked_ne_2(arg0: i256, arg1: i256, arg2: i256) -> i1 {
+    bb0:
+-     v0 = and arg2, arg0
+-     v1 = and arg2, arg1
+-     v2 = ne v0, v1
++     v3 = xor arg0, arg1
++     v4 = and v3, arg2
++     v2 = ne v4, 0
+      ret v2
+  }
+  
+  fn @masked_ne_3(arg0: i256, arg1: i256, arg2: i256) -> i1 {
+    bb0:
+-     v0 = and arg2, arg0
+-     v1 = and arg1, arg2
+-     v2 = ne v0, v1
++     v3 = xor arg0, arg1
++     v4 = and v3, arg2
++     v2 = ne v4, 0
+      ret v2
+  }
+  
   fn @shared_masked_values(arg0: i256, arg1: i256, arg2: i256) -> struct1 [return_abi=[i256, i256, i1]] {
     bb0:
       v0 = and arg0, arg2
@@ -86,6 +130,52 @@
       v2 = gas
       v3 = eq v0, v1
       ret v3
+  }
+  
+  fn @shared_masked_ne_values(arg0: i256, arg1: i256, arg2: i256) -> struct1 [return_abi=[i256, i256, i1]] {
+    bb0:
+      v0 = and arg0, arg2
+      v1 = and arg1, arg2
+      v2 = ne v0, v1
+      ret v0, v1, v2
+  }
+  
+  fn @different_ne_masks(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i1 {
+    bb0:
+      v0 = and arg0, arg2
+      v1 = and arg1, arg3
+      v2 = ne v0, v1
+      ret v2
+  }
+  
+  fn @ne_effect_barrier(arg0: i256, arg1: i256, arg2: i256) -> i1 {
+    bb0:
+      v0 = and arg0, arg2
+      v1 = and arg1, arg2
+      v2 = gas
+      v3 = ne v0, v1
+      ret v3
+  }
+  
+  fn @masked_ne_across_cast(arg0: i256, arg1: i256, arg2: i256, arg3: i1) -> struct1 [return_abi=[i256, i256, i1]] {
+    bb0:
+-     v0 = and arg0, arg2
+-     v1 = and arg1, arg2
+      v2 = zext i1 arg3 to i256
+-     v3 = ne v0, v1
++     v4 = xor arg0, arg1
++     v5 = and v4, arg2
++     v3 = ne v5, 0
+      ret v2, v2, v3
+  }
+  
+  fn @ne_check_barrier(arg0: i256, arg1: i256, arg2: i256, arg3: i1) -> i1 {
+    bb0:
+      v0 = and arg0, arg2
+      v1 = and arg1, arg2
+      icall panic_if<0x1>, arg3
+      v2 = ne v0, v1
+      ret v2
   }
   
 - // === ROOT/tests/ui/codegen/mir/word-sequence/mined_masks.mir (before dce) ===
@@ -141,6 +231,38 @@
       ret v2
   }
   
+  fn @masked_ne_0(arg0: i256, arg1: i256, arg2: i256) -> i1 {
+    bb0:
+      v3 = xor arg0, arg1
+      v4 = and v3, arg2
+      v2 = ne v4, 0
+      ret v2
+  }
+  
+  fn @masked_ne_1(arg0: i256, arg1: i256, arg2: i256) -> i1 {
+    bb0:
+      v3 = xor arg0, arg1
+      v4 = and v3, arg2
+      v2 = ne v4, 0
+      ret v2
+  }
+  
+  fn @masked_ne_2(arg0: i256, arg1: i256, arg2: i256) -> i1 {
+    bb0:
+      v3 = xor arg0, arg1
+      v4 = and v3, arg2
+      v2 = ne v4, 0
+      ret v2
+  }
+  
+  fn @masked_ne_3(arg0: i256, arg1: i256, arg2: i256) -> i1 {
+    bb0:
+      v3 = xor arg0, arg1
+      v4 = and v3, arg2
+      v2 = ne v4, 0
+      ret v2
+  }
+  
   fn @shared_masked_values(arg0: i256, arg1: i256, arg2: i256) -> struct1 [return_abi=[i256, i256, i1]] {
     bb0:
       v0 = and arg0, arg2
@@ -164,5 +286,48 @@
 -     v2 = gas
       v3 = eq v0, v1
       ret v3
+  }
+  
+  fn @shared_masked_ne_values(arg0: i256, arg1: i256, arg2: i256) -> struct1 [return_abi=[i256, i256, i1]] {
+    bb0:
+      v0 = and arg0, arg2
+      v1 = and arg1, arg2
+      v2 = ne v0, v1
+      ret v0, v1, v2
+  }
+  
+  fn @different_ne_masks(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i1 {
+    bb0:
+      v0 = and arg0, arg2
+      v1 = and arg1, arg3
+      v2 = ne v0, v1
+      ret v2
+  }
+  
+  fn @ne_effect_barrier(arg0: i256, arg1: i256, arg2: i256) -> i1 {
+    bb0:
+      v0 = and arg0, arg2
+      v1 = and arg1, arg2
+-     v2 = gas
+      v3 = ne v0, v1
+      ret v3
+  }
+  
+  fn @masked_ne_across_cast(arg0: i256, arg1: i256, arg2: i256, arg3: i1) -> struct1 [return_abi=[i256, i256, i1]] {
+    bb0:
+      v2 = zext i1 arg3 to i256
+      v4 = xor arg0, arg1
+      v5 = and v4, arg2
+      v3 = ne v5, 0
+      ret v2, v2, v3
+  }
+  
+  fn @ne_check_barrier(arg0: i256, arg1: i256, arg2: i256, arg3: i1) -> i1 {
+    bb0:
+      v0 = and arg0, arg2
+      v1 = and arg1, arg2
+      icall panic_if<0x1>, arg3
+      v2 = ne v0, v1
+      ret v2
   }
   

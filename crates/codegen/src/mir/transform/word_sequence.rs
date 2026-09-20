@@ -16,6 +16,9 @@
 //! a proof of scheduled cost; gas and size corpus measurements remain required.
 //! Scalar selects can also be roots: their arithmetic recipes preserve zero/nonzero
 //! conditions, while pointer and aggregate selects retain their provenance.
+//! Inequality recipes use the backend's EQ/ISZERO expansion and its target cost.
+//! Pure, nontrapping operations without recipes stay in place without breaking
+//! the segment; they never earn deletion credit.
 
 use crate::{
     backend::evm::{op, select},
@@ -66,6 +69,11 @@ struct Recipe {
 }
 
 fn legal(op: &Op, target: Target) -> bool {
+    if matches!(op, Op::Ne { .. }) {
+        return [op::EQ, op::ISZERO].into_iter().all(|opcode| {
+            op::definition(opcode).is_some_and(|def| def.is_available(target.evm_version()))
+        });
+    }
     op.into_kind().is_some_and(|kind| kind.effect_kind() == EffectKind::Pure)
         && select::opcode_lowering(op).is_some_and(|lowering| {
             matches!(
@@ -246,7 +254,16 @@ fn run(func: &mut Function, target: Target) -> bool {
         let mut deleted = FxHashSet::default();
         for inst in original {
             if !removable(func, func.inst(inst), target) {
-                seen.clear();
+                let instruction = func.inst(inst);
+                if instruction.kind.effect_kind() != EffectKind::Pure
+                    || !instruction.kind.effects().can_speculate()
+                    || instruction
+                        .metadata
+                        .effect()
+                        .is_some_and(|effect| effect != EffectKind::Pure)
+                {
+                    seen.clear();
+                }
                 ordered.push(inst);
                 continue;
             }
