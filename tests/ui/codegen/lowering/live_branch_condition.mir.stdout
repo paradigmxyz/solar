@@ -50,3 +50,54 @@ fn @test(arg0: i256) [selector=0x29e99f07, view, abi_params=[u256], abi_returns=
   bb1:
     revert 0, 0
 }
+
+// === ROOT/tests/ui/codegen/lowering/live_branch_condition.sol:ReloadableBranch ===
+@module ReloadableBranch
+types:
+  struct0: {i256, i1}
+
+fn @aggregate(arg0: i1, arg1: i256) -> struct0 [selector=0xb22b6a9f, pure, abi_params=[bool, u256], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    memory_object_store_field memorystruct<2>, v0, 0, 0
+    memory_object_store_field memorystruct<2>, v0, 1, 0
+    jumpi arg0, bb1, bb2
+  bb2:
+    memory_object_store_field memorystruct<2>, v0, 0, 11
+    jump bb3
+  bb1:
+    memory_object_store_field memorystruct<2>, v0, 0, 7
+    jump bb3
+  bb3:
+    jump bb4
+  bb4:
+    v1 = phi [bb3: 0], [bb6: v13]
+    v2 = phi [bb3: arg0], [bb6: v2]
+    v3 = phi [bb3: v0], [bb6: v3]
+    v4 = phi [bb3: 0], [bb6: v4]
+    v5 = phi [bb3: arg1], [bb6: v5]
+    v6 = phi [bb3: 0], [bb6: v6]
+    v7 = lt v1, v5
+    jumpi v7, bb7, bb8
+  bb8:
+    jump bb5
+  bb5:
+    v14 = memory_object_load_field memorystruct<2>, v3, 1
+    v15 = insert_value struct0, undef struct0, 0, v14
+    v16 = insert_value struct0, v15, 1, v2
+    ret v16
+  bb7:
+    v8 = memory_object_load_field memorystruct<2>, v3, 0
+    v9 = checked_add u256, v8, v1
+    memory_object_store_field memorystruct<2>, v3, 0, v9
+    v10 = memory_object_load_field memorystruct<2>, v3, 0
+    v11 = memory_object_load_field memorystruct<2>, v3, 1
+    v12 = checked_add u256, v11, v10
+    memory_object_store_field memorystruct<2>, v3, 1, v12
+    jump bb9
+  bb9:
+    jump bb6
+  bb6:
+    v13 = checked_add u256, v1, 1
+    jump bb4
+}

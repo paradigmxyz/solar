@@ -66,9 +66,7 @@ fn @viaExternal() -> i256 [selector=0x09338c08, abi_params=[], abi_returns=[word
     icall revert_if<tuple_data_too_short>, v20
     v21 = add 0, 0
     v22 = mload v21
-    v23 = add 0, 0
-    v24 = mload v23
-    ret v24
+    ret v22
 }
 
 fn @giveInternal(arg0: i256) -> i256 [pure] {
@@ -218,9 +216,7 @@ fn @calldataSliceCast() -> i256 [selector=0x93f40587, view, abi_params=[], abi_r
     icall revert_if<tuple_data_too_short>, v11
     v12 = add 0, 0
     v13 = mload v12
-    v14 = add 0, 0
-    v15 = mload v14
-    ret v15
+    ret v13
 }
 
 fn @stringAddressCast() -> i160 [selector=0x6e03912b, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {

@@ -171,9 +171,7 @@ fn @invoke(arg0: i256, arg1: i256) -> i256 [selector=0xec460bea, abi_params=[fun
     icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
     v11 = mload v10
-    v12 = add 0, 0
-    v13 = mload v12
-    ret v13
+    ret v11
 }
 
 fn @pointerArgumentRoundtrip() -> i256 [selector=0x358b91d8, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -234,9 +232,7 @@ fn @pointerReturnRoundtrip() -> i256 [selector=0xd6aa3b50, abi_params=[], abi_re
     icall revert_if<tuple_data_too_short>, v18
     v19 = add 0, 0
     v20 = mload v19
-    v21 = add 0, 0
-    v22 = mload v21
-    ret v22
+    ret v20
 }
 
 fn @pointerStructRoundtrip() -> i256 [selector=0xbbd5d6bf, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -268,9 +264,7 @@ fn @pointerStructRoundtrip() -> i256 [selector=0xbbd5d6bf, abi_params=[], abi_re
     icall revert_if<tuple_data_too_short>, v17
     v18 = add 0, 0
     v19 = mload v18
-    v20 = add 0, 0
-    v21 = mload v20
-    ret v21
+    ret v19
 }
 
 fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -320,35 +314,31 @@ fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_ret
     icall revert_if<tuple_data_too_short>, v31
     v32 = add 0, 0
     v33 = mload v32
-    v34 = add 0, 0
-    v35 = mload v34
-    v36 = memory_object_len memoryarray, v0
-    v37 = lt 1, v36
-    v38 = eq v37, false
-    icall panic_if<0x32>, v38
-    v39 = memory_object_load_element memoryarray<1>, v0, 1
-    v40 = shr 64, v39
-    v41 = and v40, 0xffffffff
-    v42 = shl 224, v41
-    v43 = shr 32, v40
-    v44 = gas
-    v45 = abi_encode [word], selector v42, args 4
-    v46 = slice_ptr v45
-    v47 = slice_len v45
-    v48 = call v44, v43, 0, v46, v47, 0, 32
-    jumpi v48, bb4, bb3
+    v34 = memory_object_len memoryarray, v0
+    v35 = lt 1, v34
+    v36 = eq v35, false
+    icall panic_if<0x32>, v36
+    v37 = memory_object_load_element memoryarray<1>, v0, 1
+    v38 = shr 64, v37
+    v39 = and v38, 0xffffffff
+    v40 = shl 224, v39
+    v41 = shr 32, v38
+    v42 = gas
+    v43 = abi_encode [word], selector v40, args 4
+    v44 = slice_ptr v43
+    v45 = slice_len v43
+    v46 = call v42, v41, 0, v44, v45, 0, 32
+    jumpi v46, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v49 = returndatasize
-    v50 = lt v49, 32
-    icall revert_if<tuple_data_too_short>, v50
-    v51 = add 0, 0
-    v52 = mload v51
-    v53 = add 0, 0
-    v54 = mload v53
-    v55 = checked_add u256, v35, v54
-    ret v55
+    v47 = returndatasize
+    v48 = lt v47, 32
+    icall revert_if<tuple_data_too_short>, v48
+    v49 = add 0, 0
+    v50 = mload v49
+    v51 = checked_add u256, v33, v50
+    ret v51
 }
 
 fn @calldataTarget(arg0: calldataslice) -> i1 [selector=0x3b20e329, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -409,8 +399,6 @@ fn @calldataPointerRoundtrip() -> i1 [selector=0x1d9b1866, abi_params=[], abi_re
     v22 = eq v18, v21
     v23 = eq v22, false
     icall revert_if<empty>, v23
-    v24 = add 0, 0
-    v25 = mload v24
-    v26 = ne v25, 0
-    ret v26
+    v24 = ne v18, 0
+    ret v24
 }

@@ -14,7 +14,6 @@ use crate::mir::{
     SliceLocation, StorageAlias, Terminator, Value, ValueId,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
 };
-use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -1757,7 +1756,7 @@ impl AliasAnalysis {
                     MemoryAddress::symbolic(value, MemoryRegion::Heap)
                 }),
                 InstKind::Add(first, second)
-                    if (super::integers::integer_max(func, value) == U256::MAX
+                    if (super::integers::integer_bits(func, value) == 256
                         || super::integers::arithmetic_no_wrap(func, value)) =>
                 {
                     self.address_add(func, first, second, depth)
@@ -1770,7 +1769,7 @@ impl AliasAnalysis {
                         })
                 }
                 InstKind::Sub(base, offset)
-                    if (super::integers::integer_max(func, value) == U256::MAX
+                    if (super::integers::integer_bits(func, value) == 256
                         || super::integers::arithmetic_no_wrap(func, value)) =>
                 {
                     self.address_sub(func, base, offset, depth).or_else(|| {
@@ -1918,7 +1917,7 @@ impl AliasAnalysis {
                 MemoryRegion::Heap
             }
             InstKind::Add(first, second)
-                if (super::integers::integer_max(func, value) == U256::MAX
+                if (super::integers::integer_bits(func, value) == 256
                     || super::integers::arithmetic_no_wrap(func, value)) =>
             {
                 let first = self.pointer_region(func, first, depth + 1);
@@ -2089,7 +2088,7 @@ impl AliasAnalysis {
                     .checked_add(EvmMemoryLayout::object_data_offset(*kind))
             }
             InstKind::Add(first, second)
-                if (super::integers::integer_max(func, value) == U256::MAX
+                if (super::integers::integer_bits(func, value) == 256
                     || super::integers::arithmetic_no_wrap(func, value)) =>
             {
                 Self::pointer_lower_bound(func, *first, depth + 1)
@@ -2100,7 +2099,7 @@ impl AliasAnalysis {
                     })
             }
             InstKind::Sub(base, offset)
-                if (super::integers::integer_max(func, value) == U256::MAX
+                if (super::integers::integer_bits(func, value) == 256
                     || super::integers::arithmetic_no_wrap(func, value)) =>
             {
                 Self::pointer_lower_bound(func, *base, depth + 1)

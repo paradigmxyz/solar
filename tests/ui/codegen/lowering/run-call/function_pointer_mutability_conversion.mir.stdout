@@ -79,23 +79,21 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     icall revert_if<tuple_data_too_short>, v77
     v78 = add 0, 0
     v79 = mload v78
-    v80 = add 0, 0
-    v81 = mload v80
-    v82 = lt 0, 1
-    v83 = eq v82, false
-    icall panic_if<0x32>, v83
-    v84 = div 0, 4
-    v85 = add 3, v84
-    v86 = mod 0, 4
-    v87 = mul v86, 8
-    v88 = sload v85 !metadata(storage=offset(v84, 3))
-    v89 = mul v87, 8
-    v90 = shr v89, v88
-    v91 = and v90, 0xffffffffffffffff
-    v92 = icall @internal_dispatcher_p_none_r_u256, v91
-    v93 = insert_value struct0, undef struct0, 0, v81
-    v94 = insert_value struct0, v93, 1, v92
-    ret v94
+    v80 = lt 0, 1
+    v81 = eq v80, false
+    icall panic_if<0x32>, v81
+    v82 = div 0, 4
+    v83 = add 3, v82
+    v84 = mod 0, 4
+    v85 = mul v84, 8
+    v86 = sload v83 !metadata(storage=offset(v82, 3))
+    v87 = mul v85, 8
+    v88 = shr v87, v86
+    v89 = and v88, 0xffffffffffffffff
+    v90 = icall @internal_dispatcher_p_none_r_u256, v89
+    v91 = insert_value struct0, undef struct0, 0, v79
+    v92 = insert_value struct0, v91, 1, v90
+    ret v92
   bb8:
     v35 = div v33, 4
     v36 = add 3, v35
@@ -216,23 +214,21 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     icall revert_if<tuple_data_too_short>, v77
     v78 = add 0, 0
     v79 = mload v78
-    v80 = add 0, 0
-    v81 = mload v80
-    v82 = lt 0, 1
-    v83 = eq v82, false
-    icall panic_if<0x32>, v83
-    v84 = div 0, 4
-    v85 = add 3, v84
-    v86 = mod 0, 4
-    v87 = mul v86, 8
-    v88 = sload v85 !metadata(storage=offset(v84, 3))
-    v89 = mul v87, 8
-    v90 = shr v89, v88
-    v91 = and v90, 0xffffffffffffffff
-    v92 = icall @internal_dispatcher_p_none_r_u256, v91
-    v93 = insert_value struct0, undef struct0, 0, v81
-    v94 = insert_value struct0, v93, 1, v92
-    ret v94
+    v80 = lt 0, 1
+    v81 = eq v80, false
+    icall panic_if<0x32>, v81
+    v82 = div 0, 4
+    v83 = add 3, v82
+    v84 = mod 0, 4
+    v85 = mul v84, 8
+    v86 = sload v83 !metadata(storage=offset(v82, 3))
+    v87 = mul v85, 8
+    v88 = shr v87, v86
+    v89 = and v88, 0xffffffffffffffff
+    v90 = icall @internal_dispatcher_p_none_r_u256, v89
+    v91 = insert_value struct0, undef struct0, 0, v79
+    v92 = insert_value struct0, v91, 1, v90
+    ret v92
   bb8:
     v35 = div v33, 4
     v36 = add 3, v35
@@ -353,23 +349,21 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     icall revert_if<tuple_data_too_short>, v77
     v78 = add 0, 0
     v79 = mload v78
-    v80 = add 0, 0
-    v81 = mload v80
-    v82 = lt 0, 1
-    v83 = eq v82, false
-    icall panic_if<0x32>, v83
-    v84 = div 0, 4
-    v85 = add 4, v84
-    v86 = mod 0, 4
-    v87 = mul v86, 8
-    v88 = sload v85 !metadata(storage=offset(v84, 4))
-    v89 = mul v87, 8
-    v90 = shr v89, v88
-    v91 = and v90, 0xffffffffffffffff
-    v92 = icall @internal_dispatcher_p_none_r_u256, v91
-    v93 = insert_value struct0, undef struct0, 0, v81
-    v94 = insert_value struct0, v93, 1, v92
-    ret v94
+    v80 = lt 0, 1
+    v81 = eq v80, false
+    icall panic_if<0x32>, v81
+    v82 = div 0, 4
+    v83 = add 4, v82
+    v84 = mod 0, 4
+    v85 = mul v84, 8
+    v86 = sload v83 !metadata(storage=offset(v82, 4))
+    v87 = mul v85, 8
+    v88 = shr v87, v86
+    v89 = and v88, 0xffffffffffffffff
+    v90 = icall @internal_dispatcher_p_none_r_u256, v89
+    v91 = insert_value struct0, undef struct0, 0, v79
+    v92 = insert_value struct0, v91, 1, v90
+    ret v92
   bb8:
     v35 = div v33, 4
     v36 = add 4, v35

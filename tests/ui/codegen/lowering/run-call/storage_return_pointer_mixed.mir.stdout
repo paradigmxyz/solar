@@ -47,82 +47,78 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v15 = mload v14
     v16 = add v8, 32
     v17 = mload v16
-    v18 = add v8, 0
-    v19 = mload v18
-    v20 = add v8, 32
-    v21 = mload v20
-    v22 = insert_value struct1, undef struct1, 0, v19
-    v23 = insert_value struct1, v22, 1, v21
-    v24 = extract_value struct1, v23, 0
-    v25 = extract_value struct1, v23, 1
-    v26 = ne v24, 5
-    jumpi v26, bb4, bb3
+    v18 = insert_value struct1, undef struct1, 0, v15
+    v19 = insert_value struct1, v18, 1, v17
+    v20 = extract_value struct1, v19, 0
+    v21 = extract_value struct1, v19, 1
+    v22 = ne v20, 5
+    jumpi v22, bb4, bb3
   bb3:
-    v27 = ne v25, 6
+    v23 = ne v21, 6
     jump bb5
   bb4:
     jump bb5
   bb5:
-    v28 = phi [bb3: v27], [bb4: true]
-    jumpi v28, bb6, bb7
+    v24 = phi [bb3: v23], [bb4: true]
+    jumpi v24, bb6, bb7
   bb7:
     jump bb8
   bb8:
-    v29 = icall @g
-    v30 = extract_value struct0, v29, 0
-    v31 = extract_value struct0, v29, 1
-    v32 = extract_value struct0, v29, 2
-    v33 = ne v30, 1
-    jumpi v33, bb10, bb9
+    v25 = icall @g
+    v26 = extract_value struct0, v25, 0
+    v27 = extract_value struct0, v25, 1
+    v28 = extract_value struct0, v25, 2
+    v29 = ne v26, 1
+    jumpi v29, bb10, bb9
   bb9:
-    v34 = ne v31, 2
+    v30 = ne v27, 2
     jump bb11
   bb10:
     jump bb11
   bb11:
-    v35 = phi [bb9: v34], [bb10: true]
-    jumpi v35, bb13, bb12
+    v31 = phi [bb9: v30], [bb10: true]
+    jumpi v31, bb13, bb12
   bb12:
-    v36 = sload v32 !metadata(storage=symbolic(v32))
-    v37 = lt 0, v36
-    v38 = eq v37, false
-    icall panic_if<0x32>, v38
-    v39 = storage_array_data_slot v32
-    v40 = add v39, 0
-    v41 = sload v40 !metadata(storage=symbolic(v39))
-    v42 = ne v41, 3
+    v32 = sload v28 !metadata(storage=symbolic(v28))
+    v33 = lt 0, v32
+    v34 = eq v33, false
+    icall panic_if<0x32>, v34
+    v35 = storage_array_data_slot v28
+    v36 = add v35, 0
+    v37 = sload v36 !metadata(storage=symbolic(v35))
+    v38 = ne v37, 3
     jump bb14
   bb13:
     jump bb14
   bb14:
-    v43 = phi [bb12: v42], [bb13: true]
-    jumpi v43, bb15, bb16
+    v39 = phi [bb12: v38], [bb13: true]
+    jumpi v39, bb15, bb16
   bb16:
     jump bb17
   bb17:
-    v44 = ne v31, 2
-    jumpi v44, bb19, bb18
+    v40 = ne v27, 2
+    jumpi v40, bb19, bb18
   bb18:
-    v45 = ne v30, 1
+    v41 = ne v26, 1
     jump bb20
   bb19:
     jump bb20
   bb20:
-    v46 = phi [bb18: v45], [bb19: true]
-    jumpi v46, bb21, bb22
+    v42 = phi [bb18: v41], [bb19: true]
+    jumpi v42, bb21, bb22
   bb22:
     jump bb23
   bb23:
-    v47 = ne 8, 8
-    jumpi v47, bb25, bb24
+    v43 = ne 8, 8
+    jumpi v43, bb25, bb24
   bb24:
-    v48 = ne 10, 10
+    v44 = ne 10, 10
     jump bb26
   bb25:
     jump bb26
   bb26:
-    v49 = phi [bb24: v48], [bb25: true]
-    jumpi v49, bb27, bb28
+    v45 = phi [bb24: v44], [bb25: true]
+    jumpi v45, bb27, bb28
   bb28:
     jump bb29
   bb29:

@@ -91,32 +91,20 @@ fn @plainCall() -> i256 [selector=0x707bf9ed, abi_params=[], abi_returns=[word],
     v36 = mload v35
     v37 = add v18, 160
     v38 = mload v37
-    v39 = add v18, 0
-    v40 = mload v39
-    v41 = add v18, 32
-    v42 = mload v41
-    v43 = add v18, 64
-    v44 = mload v43
-    v45 = add v18, 96
-    v46 = mload v45
-    v47 = add v18, 128
-    v48 = mload v47
-    v49 = add v18, 160
-    v50 = mload v49
-    v51 = insert_value struct0, undef struct0, 0, v40
-    v52 = insert_value struct0, v51, 1, v42
-    v53 = insert_value struct0, v52, 2, v44
-    v54 = insert_value struct0, v53, 3, v46
-    v55 = insert_value struct0, v54, 4, v48
-    v56 = insert_value struct0, v55, 5, v50
-    v57 = extract_value struct0, v56, 0
-    v58 = extract_value struct0, v56, 1
-    v59 = extract_value struct0, v56, 2
-    v60 = extract_value struct0, v56, 3
-    v61 = extract_value struct0, v56, 4
-    v62 = extract_value struct0, v56, 5
-    v63 = checked_add u256, v57, v62
-    ret v63
+    v39 = insert_value struct0, undef struct0, 0, v28
+    v40 = insert_value struct0, v39, 1, v30
+    v41 = insert_value struct0, v40, 2, v32
+    v42 = insert_value struct0, v41, 3, v34
+    v43 = insert_value struct0, v42, 4, v36
+    v44 = insert_value struct0, v43, 5, v38
+    v45 = extract_value struct0, v44, 0
+    v46 = extract_value struct0, v44, 1
+    v47 = extract_value struct0, v44, 2
+    v48 = extract_value struct0, v44, 3
+    v49 = extract_value struct0, v44, 4
+    v50 = extract_value struct0, v44, 5
+    v51 = checked_add u256, v45, v50
+    ret v51
 }
 
 fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -178,23 +166,11 @@ fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], a
     v36 = mload v35
     v37 = add v18, 160
     v38 = mload v37
-    v39 = add v18, 0
-    v40 = mload v39
-    v41 = add v18, 32
-    v42 = mload v41
-    v43 = add v18, 64
-    v44 = mload v43
-    v45 = add v18, 96
-    v46 = mload v45
-    v47 = add v18, 128
-    v48 = mload v47
-    v49 = add v18, 160
-    v50 = mload v49
-    v51 = checked_add u256, v40, v50
+    v39 = checked_add u256, v28, v38
     jump bb5
   bb5:
-    v52 = phi [bb3: v51], [bb6: 7]
-    ret v52
+    v40 = phi [bb3: v39], [bb6: 7]
+    ret v40
 }
 
 fn @stringCall() -> i256 [selector=0xbdbbac6d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -251,30 +227,18 @@ fn @stringCall() -> i256 [selector=0xbdbbac6d, abi_params=[], abi_returns=[word]
     v36 = mload v35
     v37 = add v18, 160
     v38 = mload v37
-    v39 = add v18, 0
-    v40 = mload v39
-    v41 = add v18, 32
-    v42 = mload v41
-    v43 = add v18, 64
-    v44 = mload v43
-    v45 = add v18, 96
-    v46 = mload v45
-    v47 = add v18, 128
-    v48 = mload v47
-    v49 = add v18, 160
-    v50 = mload v49
-    v51 = insert_value struct0, undef struct0, 0, v40
-    v52 = insert_value struct0, v51, 1, v42
-    v53 = insert_value struct0, v52, 2, v44
-    v54 = insert_value struct0, v53, 3, v46
-    v55 = insert_value struct0, v54, 4, v48
-    v56 = insert_value struct0, v55, 5, v50
-    v57 = extract_value struct0, v56, 0
-    v58 = extract_value struct0, v56, 1
-    v59 = extract_value struct0, v56, 2
-    v60 = extract_value struct0, v56, 3
-    v61 = extract_value struct0, v56, 4
-    v62 = extract_value struct0, v56, 5
-    v63 = checked_add u256, v57, v62
-    ret v63
+    v39 = insert_value struct0, undef struct0, 0, v28
+    v40 = insert_value struct0, v39, 1, v30
+    v41 = insert_value struct0, v40, 2, v32
+    v42 = insert_value struct0, v41, 3, v34
+    v43 = insert_value struct0, v42, 4, v36
+    v44 = insert_value struct0, v43, 5, v38
+    v45 = extract_value struct0, v44, 0
+    v46 = extract_value struct0, v44, 1
+    v47 = extract_value struct0, v44, 2
+    v48 = extract_value struct0, v44, 3
+    v49 = extract_value struct0, v44, 4
+    v50 = extract_value struct0, v44, 5
+    v51 = checked_add u256, v45, v50
+    ret v51
 }

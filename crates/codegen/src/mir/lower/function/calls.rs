@@ -1497,12 +1497,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.lower_decoded_return_value(source, return_tys, span).map(|value| vec![value])
             };
         }
-        self.validate_static_returndata(offset, return_tys);
-        let values = (0..returns)
-            .map(|index| {
-                self.load_static_abi_return_value_as(offset, index, returns, return_tys[index])
-            })
-            .collect::<Vec<_>>();
+        let values = self.decode_static_returndata(offset, return_tys);
         if mode == ExternalReturnMode::All {
             Some(values)
         } else {
@@ -1580,7 +1575,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.revert_if(missing, RevertReason::TargetContractHasNoCode);
     }
 
-    fn validate_static_returndata(&mut self, offset: ValueId, returns: &[Ty<'gcx>]) {
+    fn decode_static_returndata(&mut self, offset: ValueId, returns: &[Ty<'gcx>]) -> Vec<ValueId> {
         // required = returns * 32
         // if returndatasize < required { revert(0, 0) }
         // for i {
@@ -1590,10 +1585,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let words = u64::try_from(returns.len()).unwrap_or(u64::MAX);
         let size = self.builder.imm(words.saturating_mul(32));
         self.revert_if_short_returndata(size);
-        for (index, &ty) in returns.iter().enumerate() {
-            let value = self.load_static_abi_return_value(offset, index, returns.len());
-            self.validate_external_return_value(ty, value);
-        }
+        returns
+            .iter()
+            .enumerate()
+            .map(|(index, &ty)| {
+                let value = self.load_static_abi_return_value(offset, index, returns.len());
+                self.validate_external_return_value(ty, value);
+                if matches!(types::TypeLowerer::mir_return_type(ty), MirType::MemoryObject(_)) {
+                    self.load_static_abi_return_value_as(offset, index, returns.len(), ty)
+                } else {
+                    value
+                }
+            })
+            .collect()
     }
 
     fn validate_external_return_value(&mut self, ty: Ty<'gcx>, value: ValueId) {

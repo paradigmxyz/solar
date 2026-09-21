@@ -161,9 +161,9 @@ fn @vWidened() [selector=0x3d71ddd7, abi_wrapper, pure] {
     v0 = zext i8 arg0 to i16
     v6 = zext i16 v0 to i256
     mstore 128, v6
-    v8 = add 128, 32
-    v9 = sub v8, 128
-    returndata 128, v9
+    v7 = add 128, 32
+    v8 = sub v7, 128
+    returndata 128, v8
   bb2:
     revert 0, 0
 }

@@ -109,9 +109,7 @@ fn @deployProxy() -> i256 [selector=0x44882b95, abi_params=[], abi_returns=[word
     icall revert_if<tuple_data_too_short>, v32
     v33 = add 0, 0
     v34 = mload v33
-    v35 = add 0, 0
-    v36 = mload v35
-    ret v36
+    ret v34
 }
 
 fn @callImplDirectly() -> i256 [selector=0x0bba4d4b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -163,7 +161,5 @@ fn @callImplDirectly() -> i256 [selector=0x0bba4d4b, abi_params=[], abi_returns=
     icall revert_if<tuple_data_too_short>, v28
     v29 = add 0, 0
     v30 = mload v29
-    v31 = add 0, 0
-    v32 = mload v31
-    ret v32
+    ret v30
 }

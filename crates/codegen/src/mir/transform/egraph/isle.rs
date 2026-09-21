@@ -110,25 +110,18 @@ impl<'a> RuleContext<'a> {
     }
 
     fn operation_type(&self, op: &Op) -> Option<MirType> {
-        let kind = op.into_kind()?;
-        if let InstKind::Select(_, value, _) = kind {
-            return self.func.value_ty(value).filter(|ty| ty.integer_bits().is_some());
-        }
-        if kind.op_def().result != crate::mir::ResultKind::Integer
-            && !matches!(
-                kind,
-                InstKind::Eq(..)
-                    | InstKind::Ne(..)
-                    | InstKind::Lt(..)
-                    | InstKind::Gt(..)
-                    | InstKind::SLt(..)
-                    | InstKind::SGt(..)
-            )
-        {
-            return None;
-        }
-        let ty = self.func.value_ty(*kind.operands().first()?)?;
-        ty.integer_bits().map(|_| ty)
+        let value = match *op {
+            Op::Select { true_val, .. } => true_val,
+            Op::Eq { a, .. }
+            | Op::Ne { a, .. }
+            | Op::Lt { a, .. }
+            | Op::Gt { a, .. }
+            | Op::SLt { a, .. }
+            | Op::SGt { a, .. } => a,
+            _ if op.result_kind() == crate::mir::ResultKind::Integer => op.first_operand()?,
+            _ => return None,
+        };
+        self.func.value_ty(value).filter(|ty| ty.integer_bits().is_some())
     }
 
     fn has_const(&self, value: ValueId, expected: U256) -> bool {
@@ -187,7 +180,7 @@ pub(in crate::mir::transform) fn max_bits_with_args(
     let bits = |value| max_bits_with_args(func, value, depth - 1, argument_bits);
     let shift = |shift| func.value_u256(shift).map(|shift| shift.min(U256::from(256)).to::<u32>());
     match *kind {
-        InstKind::Zext(value) => bits(value),
+        InstKind::Zext(value) | InstKind::Bitcast(value) => bits(value),
         InstKind::And(a, b) => {
             let a = bits(a);
             if a == 0 { 0 } else { a.min(bits(b)) }

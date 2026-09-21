@@ -755,6 +755,25 @@ macro_rules! define_mir_ops {
         }
 
         impl Op {
+            /// Returns the declared result kind without rebuilding an instruction.
+            pub(crate) const fn result_kind(self) -> ResultKind {
+                match self {
+                    $(
+                        Self::$variant $( { $( $operand: _ ),+ } )? $( { $( $field: _ ),+ } )? => ResultKind::$result,
+                    )+
+                }
+            }
+
+            /// Returns the first value operand retained by the rewrite view.
+            pub(crate) fn first_operand(self) -> Option<ValueId> {
+                let mut first = None;
+                let _ = self.map_values(|value| {
+                    first.get_or_insert(value);
+                    value
+                });
+                first
+            }
+
             /// Orders each declared commutative pair for value-numbering keys.
             /// Other operands, including a modular operation's modulus, stay in place.
             pub(crate) fn canonicalize_commutative(self) -> Self {

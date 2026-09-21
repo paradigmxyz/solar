@@ -290,9 +290,7 @@ fn @scalarCall() -> i256 [selector=0x6c091940, view, abi_params=[], abi_returns=
     icall revert_if<tuple_data_too_short>, v10
     v11 = add 0, 0
     v12 = mload v11
-    v13 = add 0, 0
-    v14 = mload v13
-    ret v14
+    ret v12
 }
 
 fn @echoScalar(arg0: i256) -> i256 [selector=0x1f3c3a7b, pure, abi_params=[u8], abi_returns=[word], abi_return_params=[u256]] {

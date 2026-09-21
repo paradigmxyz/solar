@@ -186,7 +186,7 @@ impl ScalarEvolution {
             }
             Value::Inst(inst_id) => {
                 if let Some(iv) = loop_data.induction_vars.iter().find(|iv| iv.value == value) {
-                    if super::integers::integer_max(func, value) != U256::MAX
+                    if super::integers::integer_bits(func, value) != 256
                         && !matches!(func.inst(iv.update_inst).kind, InstKind::CheckedBinary { .. })
                     {
                         let start = func.value_u256(iv.init)?;
@@ -216,7 +216,7 @@ impl ScalarEvolution {
                             Some((start, start.checked_add(travel)?))
                         }
                     };
-                    if super::integers::integer_max(func, value) != U256::MAX
+                    if super::integers::integer_bits(func, value) != 256
                         && matches!(
                             func.inst(*inst_id).kind,
                             InstKind::Add(..)

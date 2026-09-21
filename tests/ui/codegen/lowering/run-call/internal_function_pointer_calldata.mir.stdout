@@ -67,11 +67,9 @@ fn @run() -> i8 [selector=0xc0406226, abi_params=[], abi_returns=[word<u8>], abi
     v22 = eq v20, v21
     v23 = eq v22, false
     icall revert_if<empty>, v23
-    v24 = add 0, 0
-    v25 = mload v24
-    v26 = shr 248, v25
-    v27 = trunc i256 v26 to i8
-    ret v27
+    v24 = shr 248, v20
+    v25 = trunc i256 v24 to i8
+    ret v25
 }
 
 fn @internal_dispatcher_p_calldataslice_r_bytes1(arg0: i256, arg1: calldataslice) -> i256 [function_pointer_dispatcher] {

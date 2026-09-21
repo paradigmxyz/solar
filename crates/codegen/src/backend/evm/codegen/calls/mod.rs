@@ -691,6 +691,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     mask.contains(i)
                         && !plan.retained.contains(i)
                         && matches!(func.value(arg), crate::mir::Value::Inst(_))
+                        && !Self::is_always_rematerializable_value(func, arg)
                         && self.scheduler.reloadable_spill(arg).is_none()
                 })
             })

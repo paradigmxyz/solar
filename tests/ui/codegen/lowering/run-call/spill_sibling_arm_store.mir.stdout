@@ -103,9 +103,7 @@ fn @run(arg0: i128) -> i256 [selector=0x96c07422, abi_params=[i128], abi_returns
     icall revert_if<tuple_data_too_short>, v41
     v42 = add 0, 0
     v43 = mload v42
-    v44 = add 0, 0
-    v45 = mload v44
-    ret v45
+    ret v43
 }
 
 fn @_settleOrTake(arg0: i160, arg1: i128) {
@@ -208,20 +206,18 @@ fn @settle(arg0: i160, arg1: i160, arg2: i160, arg3: i256, arg4: i1) {
     v26 = eq v22, v25
     v27 = eq v26, false
     icall revert_if<empty>, v27
-    v28 = add 0, 0
-    v29 = mload v28
-    v30 = ne v29, 0
-    v31 = gas
-    v32 = abi_encode [], selector 0x11da60b400000000000000000000000000000000000000000000000000000000
-    v33 = slice_ptr v32
-    v34 = slice_len v32
-    v35 = zext i160 arg1 to i256
-    v36 = extcodesize v35
-    v37 = eq v36, 0
-    icall revert_if<target_contract_has_no_code>, v37
-    v38 = zext i160 arg1 to i256
-    v39 = call v31, v38, 0, v33, v34, 0, 0
-    jumpi v39, bb12, bb11
+    v28 = ne v22, 0
+    v29 = gas
+    v30 = abi_encode [], selector 0x11da60b400000000000000000000000000000000000000000000000000000000
+    v31 = slice_ptr v30
+    v32 = slice_len v30
+    v33 = zext i160 arg1 to i256
+    v34 = extcodesize v33
+    v35 = eq v34, 0
+    icall revert_if<target_contract_has_no_code>, v35
+    v36 = zext i160 arg1 to i256
+    v37 = call v29, v36, 0, v31, v32, 0, 0
+    jumpi v37, bb12, bb11
   bb11:
     revert_returndata
   bb12:

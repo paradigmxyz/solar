@@ -36,10 +36,8 @@ bb12:
   gt
   push bb11
   jumpi
-  push 255
   push 4
   calldataload
-  and
   iszero
   push 128
   mstore

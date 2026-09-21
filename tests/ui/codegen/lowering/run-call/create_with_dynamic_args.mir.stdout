@@ -107,10 +107,8 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
     v42 = eq v40, v41
     v43 = eq v42, false
     icall revert_if<empty>, v43
-    v44 = add 0, 0
-    v45 = mload v44
-    v46 = trunc i256 v45 to i8
-    v47 = insert_value struct0, undef struct0, 0, v30
-    v48 = insert_value struct0, v47, 1, v46
-    ret v48
+    v44 = trunc i256 v40 to i8
+    v45 = insert_value struct0, undef struct0, 0, v30
+    v46 = insert_value struct0, v45, 1, v44
+    ret v46
 }

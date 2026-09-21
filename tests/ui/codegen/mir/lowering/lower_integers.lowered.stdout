@@ -184,6 +184,259 @@
       ret v0
   }
   
+- fn @guarded_narrow(arg0: i256) -> i8 {
++ fn @guarded_narrow(arg0: i256) -> i256 {
+    bb0:
+      v0 = lt arg0, 3
+      jumpi v0, bb1, bb2
+    bb2:
+-     ret i8 0
++     ret 0
+    bb1:
+-     v1 = trunc i256 arg0 to i8
++     v2 = and arg0, 255
++     v1 = bitcast i256 v2 to i256
+      ret v1
+  }
+  
+- fn @unguarded_narrow(arg0: i256) -> i8 {
++ fn @unguarded_narrow(arg0: i256) -> i256 {
+    bb0:
+-     v0 = trunc i256 arg0 to i8
++     v1 = and arg0, 255
++     v0 = bitcast i256 v1 to i256
+      ret v0
+  }
+  
+  fn @guarded_pure_mask(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = eq arg0, v0
+      jumpi v1, bb1, bb2
+    bb2:
+      ret 0
+    bb1:
+      v2 = and arg0, 255
+      ret v2
+  }
+  
+  fn @guarded_effect_mask(arg0: i256) -> i256 {
+    bb0:
+      v0 = lt arg0, 256
+      jumpi v0, bb1, bb2
+    bb2:
+      ret 0
+    bb1:
+      v1 = and arg0, 255 !metadata(effect=memory_read)
+      ret v1
+  }
+  
+- fn @unused_param(arg0: i8) {
++ fn @unused_param(arg0: i256) {
+    bb0:
+      ret
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before integer-cleanup) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after integer-cleanup) ===
+  @module Integers
+  fn @arithmetic(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v7 = add arg0, arg1
+      v8 = and v7, 255
+      v0 = bitcast i256 v8 to i256
+      v9 = sub v0, arg1
+      v10 = and v9, 255
+      v1 = bitcast i256 v10 to i256
+      v11 = mul v1, arg0
+      v12 = and v11, 255
+      v2 = bitcast i256 v12 to i256
+      v13 = signextend 0, v2
+      v14 = signextend 0, arg1
+      v15 = sdiv v13, v14
+      v16 = and v15, 255
+      v3 = bitcast i256 v16 to i256
+      v17 = signextend 0, v3
+      v18 = signextend 0, arg0
+      v19 = smod v17, v18
+      v20 = and v19, 255
+      v4 = bitcast i256 v20 to i256
+      v21 = not v4
+      v22 = and v21, 255
+      v5 = bitcast i256 v22 to i256
+      v23 = signextend 0, v5
+      v24 = sar arg1, v23
+      v25 = and v24, 255
+      v6 = bitcast i256 v25 to i256
+      ret v6
+  }
+  
+  fn @byte_width(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v4 = shl arg1, arg0
+      v5 = and v4, 0xffffff
+      v0 = bitcast i256 v5 to i256
+      v6 = signextend 2, v0
+      v7 = sar arg1, v6
+      v8 = and v7, 0xffffff
+      v1 = bitcast i256 v8 to i256
+      v9 = signextend 2, v1
+      v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      v2 = bitcast i256 v10 to i256
+      v11 = and v2, 0xffffff
+      v3 = bitcast i256 v11 to i256
+      ret v3
+  }
+  
+  fn @sign_compare(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v1 = signextend 0, arg0
+      v2 = signextend 0, arg1
+      v3 = slt v1, v2
+      v0 = bitcast i1 v3 to i1
+      ret v0
+  }
+  
+  fn @power_of_two(arg0: i256) -> i256 {
+    bb0:
+      v4 = and 8, 0xffffff
+      v0 = bitcast i256 v4 to i256
+      v5 = div arg0, v0
+      v6 = and v5, 0xffffff
+      v1 = bitcast i256 v6 to i256
+      v7 = mod v1, v0
+      v8 = and v7, 0xffffff
+      v2 = bitcast i256 v8 to i256
+      v9 = mul v2, v0
+      v10 = and v9, 0xffffff
+      v3 = bitcast i256 v10 to i256
+      ret v3
+  }
+  
+  fn @wrap_constants() -> i256 {
+    bb0:
+      v5 = and 255, 255
+      v0 = bitcast i256 v5 to i256
+      v6 = and 1, 255
+      v1 = bitcast i256 v6 to i256
+      v7 = add v0, v1
+      v8 = and v7, 255
+      v2 = bitcast i256 v8 to i256
+      v9 = not v2
+      v10 = and v9, 255
+      v3 = bitcast i256 v10 to i256
+      v11 = signextend 0, v3
+      v12 = signextend 0, v1
+      v13 = sdiv v11, v12
+      v14 = and v13, 255
+      v4 = bitcast i256 v14 to i256
+      ret v4
+  }
+  
+  fn @clz(arg0: i256) -> i256 {
+    bb0:
+      v1 = clz arg0
+      v2 = sub v1, 240
+      v3 = and v2, 0xffff
+      v0 = bitcast i256 v3 to i256
+      ret v0
+  }
+  
+  fn @calls(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = icall @byte_width, arg0, arg1
+      ret v0
+  }
+  
+  fn @phi(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      v5 = sub arg1, arg2
+      v6 = and v5, 255
+      v1 = bitcast i256 v6 to i256
+      jump bb3
+    bb1:
+      v3 = add arg1, arg2
+      v4 = and v3, 255
+      v0 = bitcast i256 v4 to i256
+      jump bb3
+    bb3:
+      v2 = phi [bb1: v0], [bb2: v1]
+      ret v2
+  }
+  
+  fn @wrapping_loop(arg0: i256) -> i256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: arg0], [bb2: v1]
+      v3 = add v0, 1
+      v4 = and v3, 255
+      v1 = bitcast i256 v4 to i256
+      v2 = ne v1, 0
+      jumpi v2, bb2, bb3
+    bb3:
+      ret v1
+    bb2:
+      jump bb1
+  }
+  
+  fn @boolean_complement(arg0: i1) -> i1 {
+    bb0:
+      v0 = xor arg0, true
+      ret v0
+  }
+  
+  fn @guarded_narrow(arg0: i256) -> i256 {
+    bb0:
+      v0 = lt arg0, 3
+      jumpi v0, bb1, bb2
+    bb2:
+      ret 0
+    bb1:
+-     v2 = and arg0, 255
++     v2 = bitcast i256 arg0 to i256
+      v1 = bitcast i256 v2 to i256
+      ret v1
+  }
+  
+  fn @unguarded_narrow(arg0: i256) -> i256 {
+    bb0:
+      v1 = and arg0, 255
+      v0 = bitcast i256 v1 to i256
+      ret v0
+  }
+  
+  fn @guarded_pure_mask(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = eq arg0, v0
+      jumpi v1, bb1, bb2
+    bb2:
+      ret 0
+    bb1:
+-     v2 = and arg0, 255
++     v2 = bitcast i256 arg0 to i256
+      ret v2
+  }
+  
+  fn @guarded_effect_mask(arg0: i256) -> i256 {
+    bb0:
+      v0 = lt arg0, 256
+      jumpi v0, bb1, bb2
+    bb2:
+      ret 0
+    bb1:
+      v1 = and arg0, 255 !metadata(effect=memory_read)
+      ret v1
+  }
+  
+  fn @unused_param(arg0: i256) {
+    bb0:
+      ret
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after egraph) ===
   @module Integers
@@ -269,8 +522,7 @@
 -     v2 = bitcast i256 v8 to i256
 -     v9 = mul v2, v0
 +     v7 = and v5, 7
-+     v8 = and v5, 7
-+     v9 = shl 3, v8
++     v9 = shl 3, v7
       v10 = and v9, 0xffffff
 -     v3 = bitcast i256 v10 to i256
 -     ret v3
@@ -359,6 +611,56 @@
       ret v0
   }
   
+  fn @guarded_narrow(arg0: i256) -> i256 {
+    bb0:
+      v0 = lt arg0, 3
+      jumpi v0, bb1, bb2
+    bb2:
+      ret 0
+    bb1:
+-     v2 = bitcast i256 arg0 to i256
+-     v1 = bitcast i256 v2 to i256
+-     ret v1
++     ret arg0
+  }
+  
+  fn @unguarded_narrow(arg0: i256) -> i256 {
+    bb0:
+      v1 = and arg0, 255
+-     v0 = bitcast i256 v1 to i256
+-     ret v0
++     ret v1
+  }
+  
+  fn @guarded_pure_mask(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = eq arg0, v0
+      jumpi v1, bb1, bb2
+    bb2:
+      ret 0
+    bb1:
+-     v2 = bitcast i256 arg0 to i256
+-     ret v2
++     ret arg0
+  }
+  
+  fn @guarded_effect_mask(arg0: i256) -> i256 {
+    bb0:
+      v0 = lt arg0, 256
+      jumpi v0, bb1, bb2
+    bb2:
+      ret 0
+    bb1:
+      v1 = and arg0, 255 !metadata(effect=memory_read)
+      ret v1
+  }
+  
+  fn @unused_param(arg0: i256) {
+    bb0:
+      ret
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before lower-evm-shaped) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after lower-evm-shaped) ===
   @module Integers
@@ -413,8 +715,7 @@
       v5 = shr 3, arg0
       v6 = and v5, 0xffffff
       v7 = and v5, 7
-      v8 = and v5, 7
-      v9 = shl 3, v8
+      v9 = shl 3, v7
       v10 = and v9, 0xffffff
       ret v10
   }
@@ -473,5 +774,48 @@
     bb0:
       v0 = eq arg0, false
       ret v0
+  }
+  
+  fn @guarded_narrow(arg0: i256) -> i256 {
+    bb0:
+      v0 = lt arg0, 3
+      jumpi v0, bb1, bb2
+    bb2:
+      ret 0
+    bb1:
+      ret arg0
+  }
+  
+  fn @unguarded_narrow(arg0: i256) -> i256 {
+    bb0:
+      v1 = and arg0, 255
+      ret v1
+  }
+  
+  fn @guarded_pure_mask(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = eq arg0, v0
+      jumpi v1, bb1, bb2
+    bb2:
+      ret 0
+    bb1:
+      ret arg0
+  }
+  
+  fn @guarded_effect_mask(arg0: i256) -> i256 {
+    bb0:
+      v0 = lt arg0, 256
+      jumpi v0, bb1, bb2
+    bb2:
+      ret 0
+    bb1:
+      v1 = and arg0, 255 !metadata(effect=memory_read)
+      ret v1
+  }
+  
+  fn @unused_param(arg0: i256) {
+    bb0:
+      ret
   }
   

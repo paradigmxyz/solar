@@ -128,35 +128,31 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     icall revert_if<tuple_data_too_short>, v15
     v16 = add 0, 0
     v17 = mload v16
-    v18 = add 0, 0
-    v19 = mload v18
-    v20 = lt 1, 2
-    v21 = eq v20, false
-    icall panic_if<0x32>, v21
-    v22 = add 0, 1
-    v23 = sload v22 !metadata(storage=slot(1))
-    v24 = shr 16, v23
-    v25 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v26 = and v25, 0xffffffff
-    v27 = shl 224, v26
-    v28 = shr 32, v25
-    v29 = gas
-    v30 = abi_encode [], selector v27
-    v31 = slice_ptr v30
-    v32 = slice_len v30
-    v33 = call v29, v28, 0, v31, v32, 0, 32
-    jumpi v33, bb4, bb3
+    v18 = lt 1, 2
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = add 0, 1
+    v21 = sload v20 !metadata(storage=slot(1))
+    v22 = shr 16, v21
+    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v24 = and v23, 0xffffffff
+    v25 = shl 224, v24
+    v26 = shr 32, v23
+    v27 = gas
+    v28 = abi_encode [], selector v25
+    v29 = slice_ptr v28
+    v30 = slice_len v28
+    v31 = call v27, v26, 0, v29, v30, 0, 32
+    jumpi v31, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v34 = returndatasize
-    v35 = lt v34, 32
-    icall revert_if<tuple_data_too_short>, v35
-    v36 = add 0, 0
-    v37 = mload v36
-    v38 = add 0, 0
-    v39 = mload v38
-    v40 = insert_value struct0, undef struct0, 0, v19
-    v41 = insert_value struct0, v40, 1, v39
-    ret v41
+    v32 = returndatasize
+    v33 = lt v32, 32
+    icall revert_if<tuple_data_too_short>, v33
+    v34 = add 0, 0
+    v35 = mload v34
+    v36 = insert_value struct0, undef struct0, 0, v17
+    v37 = insert_value struct0, v36, 1, v35
+    ret v37
 }

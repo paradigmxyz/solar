@@ -38,74 +38,68 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0x2ed7fe6a, abi_params=[array<_,
     icall revert_if<tuple_data_too_short>, v22
     v23 = add 0, 0
     v24 = mload v23
-    v25 = add 0, 0
-    v26 = mload v25
-    v27 = slice_len arg0
-    v28 = lt 1, v27
-    v29 = eq v28, false
-    icall panic_if<0x32>, v29
-    v30 = slice_ptr arg0
-    v31 = add v30, 32
-    v32 = calldataload v31
-    v33 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v34 = eq v32, v33
-    v35 = eq v34, false
-    icall revert_if<empty>, v35
-    v36 = shr 64, v32
-    v37 = and v36, 0xffffffff
-    v38 = shl 224, v37
-    v39 = shr 32, v36
-    v40 = gas
-    v41 = abi_encode [], selector v38
-    v42 = slice_ptr v41
-    v43 = slice_len v41
-    v44 = call v40, v39, 0, v42, v43, 0, 32
-    jumpi v44, bb4, bb3
+    v25 = slice_len arg0
+    v26 = lt 1, v25
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = slice_ptr arg0
+    v29 = add v28, 32
+    v30 = calldataload v29
+    v31 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v32 = eq v30, v31
+    v33 = eq v32, false
+    icall revert_if<empty>, v33
+    v34 = shr 64, v30
+    v35 = and v34, 0xffffffff
+    v36 = shl 224, v35
+    v37 = shr 32, v34
+    v38 = gas
+    v39 = abi_encode [], selector v36
+    v40 = slice_ptr v39
+    v41 = slice_len v39
+    v42 = call v38, v37, 0, v40, v41, 0, 32
+    jumpi v42, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v45 = returndatasize
-    v46 = lt v45, 32
-    icall revert_if<tuple_data_too_short>, v46
-    v47 = add 0, 0
-    v48 = mload v47
-    v49 = add 0, 0
-    v50 = mload v49
-    v51 = slice_len arg0
-    v52 = lt 2, v51
-    v53 = eq v52, false
-    icall panic_if<0x32>, v53
-    v54 = slice_ptr arg0
-    v55 = add v54, 64
-    v56 = calldataload v55
-    v57 = and v56, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v58 = eq v56, v57
-    v59 = eq v58, false
-    icall revert_if<empty>, v59
-    v60 = shr 64, v56
-    v61 = and v60, 0xffffffff
-    v62 = shl 224, v61
-    v63 = shr 32, v60
-    v64 = gas
-    v65 = abi_encode [], selector v62
-    v66 = slice_ptr v65
-    v67 = slice_len v65
-    v68 = call v64, v63, 0, v66, v67, 0, 32
-    jumpi v68, bb6, bb5
+    v43 = returndatasize
+    v44 = lt v43, 32
+    icall revert_if<tuple_data_too_short>, v44
+    v45 = add 0, 0
+    v46 = mload v45
+    v47 = slice_len arg0
+    v48 = lt 2, v47
+    v49 = eq v48, false
+    icall panic_if<0x32>, v49
+    v50 = slice_ptr arg0
+    v51 = add v50, 64
+    v52 = calldataload v51
+    v53 = and v52, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v54 = eq v52, v53
+    v55 = eq v54, false
+    icall revert_if<empty>, v55
+    v56 = shr 64, v52
+    v57 = and v56, 0xffffffff
+    v58 = shl 224, v57
+    v59 = shr 32, v56
+    v60 = gas
+    v61 = abi_encode [], selector v58
+    v62 = slice_ptr v61
+    v63 = slice_len v61
+    v64 = call v60, v59, 0, v62, v63, 0, 32
+    jumpi v64, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v69 = returndatasize
-    v70 = lt v69, 32
-    icall revert_if<tuple_data_too_short>, v70
-    v71 = add 0, 0
-    v72 = mload v71
-    v73 = add 0, 0
-    v74 = mload v73
-    v75 = insert_value struct0, undef struct0, 0, v26
-    v76 = insert_value struct0, v75, 1, v50
-    v77 = insert_value struct0, v76, 2, v74
-    ret v77
+    v65 = returndatasize
+    v66 = lt v65, 32
+    icall revert_if<tuple_data_too_short>, v66
+    v67 = add 0, 0
+    v68 = mload v67
+    v69 = insert_value struct0, undef struct0, 0, v24
+    v70 = insert_value struct0, v69, 1, v46
+    v71 = insert_value struct0, v70, 2, v68
+    ret v71
 }
 
 fn @fReenc(arg0: calldataslice) -> struct0 [selector=0xfbeba237, abi_params=[array<_, function>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
@@ -163,22 +157,16 @@ fn @fReenc(arg0: calldataslice) -> struct0 [selector=0xfbeba237, abi_params=[arr
     v45 = mload v44
     v46 = add v36, 64
     v47 = mload v46
-    v48 = add v36, 0
-    v49 = mload v48
-    v50 = add v36, 32
-    v51 = mload v50
-    v52 = add v36, 64
-    v53 = mload v52
-    v54 = insert_value struct0, undef struct0, 0, v49
-    v55 = insert_value struct0, v54, 1, v51
+    v48 = insert_value struct0, undef struct0, 0, v43
+    v49 = insert_value struct0, v48, 1, v45
+    v50 = insert_value struct0, v49, 2, v47
+    v51 = extract_value struct0, v50, 0
+    v52 = extract_value struct0, v50, 1
+    v53 = extract_value struct0, v50, 2
+    v54 = insert_value struct0, undef struct0, 0, v51
+    v55 = insert_value struct0, v54, 1, v52
     v56 = insert_value struct0, v55, 2, v53
-    v57 = extract_value struct0, v56, 0
-    v58 = extract_value struct0, v56, 1
-    v59 = extract_value struct0, v56, 2
-    v60 = insert_value struct0, undef struct0, 0, v57
-    v61 = insert_value struct0, v60, 1, v58
-    v62 = insert_value struct0, v61, 2, v59
-    ret v62
+    ret v56
   bb2:
     v26 = mul v24, 32
     v27 = add v3, v26
@@ -245,38 +233,32 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     memory_object_store_element memoryarray<1>, v0, 2, v24
     jumpi arg0, bb1, bb2
   bb2:
-    v52 = address
-    v53 = gas
-    v54 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v0
-    v55 = slice_ptr v54
-    v56 = slice_len v54
-    v57 = zext i160 v52 to i256
-    v58 = call v53, v57, 0, v55, v56, v55, 96
-    jumpi v58, bb7, bb6
+    v46 = address
+    v47 = gas
+    v48 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v0
+    v49 = slice_ptr v48
+    v50 = slice_len v48
+    v51 = zext i160 v46 to i256
+    v52 = call v47, v51, 0, v49, v50, v49, 96
+    jumpi v52, bb7, bb6
   bb6:
     revert_returndata
   bb7:
-    v59 = returndatasize
-    v60 = lt v59, 96
-    icall revert_if<tuple_data_too_short>, v60
-    v61 = add v55, 0
-    v62 = mload v61
-    v63 = add v55, 32
-    v64 = mload v63
-    v65 = add v55, 64
-    v66 = mload v65
-    v67 = add v55, 0
-    v68 = mload v67
-    v69 = add v55, 32
-    v70 = mload v69
-    v71 = add v55, 64
-    v72 = mload v71
-    v73 = insert_value struct0, undef struct0, 0, v68
-    v74 = insert_value struct0, v73, 1, v70
-    v75 = insert_value struct0, v74, 2, v72
-    v76 = extract_value struct0, v75, 0
-    v77 = extract_value struct0, v75, 1
-    v78 = extract_value struct0, v75, 2
+    v53 = returndatasize
+    v54 = lt v53, 96
+    icall revert_if<tuple_data_too_short>, v54
+    v55 = add v49, 0
+    v56 = mload v55
+    v57 = add v49, 32
+    v58 = mload v57
+    v59 = add v49, 64
+    v60 = mload v59
+    v61 = insert_value struct0, undef struct0, 0, v56
+    v62 = insert_value struct0, v61, 1, v58
+    v63 = insert_value struct0, v62, 2, v60
+    v64 = extract_value struct0, v63, 0
+    v65 = extract_value struct0, v63, 1
+    v66 = extract_value struct0, v63, 2
     jump bb3
   bb1:
     v25 = address
@@ -299,25 +281,19 @@ fn @g(arg0: i1) -> struct0 [selector=0xd48092f7, abi_params=[bool], abi_returns=
     v37 = mload v36
     v38 = add v28, 64
     v39 = mload v38
-    v40 = add v28, 0
-    v41 = mload v40
-    v42 = add v28, 32
-    v43 = mload v42
-    v44 = add v28, 64
-    v45 = mload v44
-    v46 = insert_value struct0, undef struct0, 0, v41
-    v47 = insert_value struct0, v46, 1, v43
-    v48 = insert_value struct0, v47, 2, v45
-    v49 = extract_value struct0, v48, 0
-    v50 = extract_value struct0, v48, 1
-    v51 = extract_value struct0, v48, 2
+    v40 = insert_value struct0, undef struct0, 0, v35
+    v41 = insert_value struct0, v40, 1, v37
+    v42 = insert_value struct0, v41, 2, v39
+    v43 = extract_value struct0, v42, 0
+    v44 = extract_value struct0, v42, 1
+    v45 = extract_value struct0, v42, 2
     jump bb3
   bb3:
-    v79 = phi [bb5: v49], [bb7: v76]
-    v80 = phi [bb5: v50], [bb7: v77]
-    v81 = phi [bb5: v51], [bb7: v78]
-    v82 = insert_value struct0, undef struct0, 0, v79
-    v83 = insert_value struct0, v82, 1, v80
-    v84 = insert_value struct0, v83, 2, v81
-    ret v84
+    v67 = phi [bb5: v43], [bb7: v64]
+    v68 = phi [bb5: v44], [bb7: v65]
+    v69 = phi [bb5: v45], [bb7: v66]
+    v70 = insert_value struct0, undef struct0, 0, v67
+    v71 = insert_value struct0, v70, 1, v68
+    v72 = insert_value struct0, v71, 2, v69
+    ret v72
 }

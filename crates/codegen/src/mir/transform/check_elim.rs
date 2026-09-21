@@ -98,15 +98,21 @@
 //! dominator-scoped facts, sufficient for conditions unified by CSE, and leaves
 //! fixed-point range propagation to the earlier check passes. Size mode retains
 //! the full forward analysis. Both use the existing conservative proof logic.
-//! Run it after the post-memory CSE. Only functions with removed checks receive
+//! Integer cleanup reuses the dominator walk after integer legalization to remove masks
+//! whose inputs already fit, without running the forward fixed-point analysis.
+//! Run late check elimination after the post-memory CSE. Only functions with removed checks receive
 //! CFG cleanup, avoiding unrelated late block merges in other functions.
 
 use super::{call_cleanup, cfg_simplify::simplify_function, egraph::max_bits_with_args};
 use crate::{
     mir::{
-        BlockId, Builtin, Callee, Function, FunctionBuilder, FunctionId, ImmutableEncoding,
-        ImmutableId, InstId, InstKind, Module, Terminator, TypeSize, Value, ValueId, ValueLayout,
-        analysis::{CallGraphInfo, CfgInfo},
+        BlockId, Builtin, Callee, EffectKind, Function, FunctionBuilder, FunctionId,
+        ImmutableEncoding, ImmutableId, InstId, InstKind, Module, Terminator, TypeSize, Value,
+        ValueId, ValueLayout,
+        analysis::{
+            CallGraphInfo, CfgInfo,
+            integers::{integer_bits, integer_max},
+        },
         immutable::immutable_push_type_size,
         pass::{
             MirPass, run_function_pass, run_function_pass_with_cfg, run_selected_function_pass,
@@ -141,6 +147,47 @@ impl MirPass for CheckElim {
         run_function_pass(module, analyses, |func, _| {
             let mut eliminator = CheckEliminator::new(None);
             eliminator.run(func) != 0
+        })
+    }
+}
+
+/// Removes integer masks whose input range is proved by dominating branches.
+pub(crate) struct IntegerCleanup;
+
+impl MirPass for IntegerCleanup {
+    fn name(&self) -> &'static str {
+        "integer-cleanup"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
+            if !func
+                .blocks
+                .iter()
+                .any(|block| matches!(block.terminator, Some(Terminator::Branch { .. })))
+                || !func.instructions().any(|id| matches!(func.inst(id).kind, InstKind::And(..)))
+            {
+                return false;
+            }
+            let cfg = CfgInfo::new(func);
+            let mut eliminator = CheckEliminator { collect_masks: true, ..Default::default() };
+            let mut preds = index_vec![Vec::new(); func.blocks.len()];
+            for &block in cfg.rpo() {
+                for &succ in cfg.successors(block) {
+                    preds[succ].push(block);
+                }
+            }
+            let facts = index_vec![Facts::default(); func.blocks.len()];
+            let _ = eliminator.collect_folds(func, &cfg, &preds, &facts, &[], &mut Vec::new());
+            for &(id, value) in &eliminator.redundant_masks {
+                func.inst_mut(id).replace_kind(InstKind::Bitcast(value));
+            }
+            !eliminator.redundant_masks.is_empty()
         })
     }
 }
@@ -469,6 +516,8 @@ struct CheckEliminator<'a> {
     immutable_ranges: Option<&'a FxHashMap<ImmutableId, Range>>,
     /// Shared CFG snapshot taken at entry, matching the previous fresh build.
     cfg: Option<Rc<CfgInfo>>,
+    collect_masks: bool,
+    redundant_masks: Vec<(InstId, ValueId)>,
     /// Statistics from the last run.
     stats: CheckElimStats,
     ranges: FxHashMap<ValueId, Range>,
@@ -686,6 +735,11 @@ impl<'a> CheckEliminator<'a> {
                     }
 
                     for &id in &func.blocks[block].instructions {
+                        if self.collect_masks
+                            && let Some(value) = self.redundant_mask(func, id)
+                        {
+                            self.redundant_masks.push((id, value));
+                        }
                         let fact = match &func.inst(id).kind {
                             InstKind::ICall {
                                 function: Callee::Builtin(Builtin::Check { is_zero, .. }),
@@ -705,8 +759,9 @@ impl<'a> CheckEliminator<'a> {
                         }
                     }
 
-                    if let Some(Terminator::Branch { condition, then_block, else_block }) =
-                        func.blocks[block].terminator.as_ref()
+                    if !self.collect_masks
+                        && let Some(Terminator::Branch { condition, then_block, else_block }) =
+                            func.blocks[block].terminator.as_ref()
                         && then_block != else_block
                         && let Some(truth) = self.eval_truth(func, *condition, MAX_DEPTH)
                     {
@@ -888,6 +943,19 @@ impl<'a> CheckEliminator<'a> {
         self.relation_index = cx.relation_index;
         self.reverse_index = cx.reverse_index;
         entries
+    }
+
+    fn redundant_mask(&mut self, func: &Function, id: InstId) -> Option<ValueId> {
+        let inst = func.inst(id);
+        let InstKind::And(a, b) = inst.kind else { return None };
+        let (value, mask) = const_of(func, b)
+            .map(|mask| (a, mask))
+            .or_else(|| const_of(func, a).map(|mask| (b, mask)))?;
+        (mask.wrapping_add(U256::ONE) & mask == U256::ZERO
+            && self.range_of(func, value, MAX_DEPTH).hi <= mask
+            && inst.result_ty == func.value_ty(value)
+            && inst.metadata.effect().is_none_or(|effect| effect == EffectKind::Pure))
+        .then_some(value)
     }
 
     // === Fact recording ===
@@ -1271,12 +1339,9 @@ impl<'a> CheckEliminator<'a> {
         if let Some(constant) = const_of(func, value) {
             return Range::singleton(constant);
         }
-        let bits = func
-            .value_ty(value)
-            .and_then(crate::mir::MirType::integer_bits)
-            .unwrap_or(256)
-            .min(256);
-        let full = Range::new(U256::ZERO, U256::MAX >> (256 - bits));
+        let bits = integer_bits(func, value).min(256);
+        let full =
+            Range::new(U256::ZERO, if bits == 256 { U256::MAX } else { U256::MAX >> (256 - bits) });
         let mut range = self.ranges.get(&value).copied().unwrap_or(full);
         if let Some(bound) = self.trip_bounds.get(&value) {
             range = range.intersect(*bound).unwrap_or(range);
@@ -1287,7 +1352,9 @@ impl<'a> CheckEliminator<'a> {
         let Some(depth) = depth.checked_sub(1) else { return range };
         let Some(kind) = inst_kind(func, value) else { return range };
         let derived = match *kind {
-            InstKind::Zext(source) => self.range_of(func, source, depth),
+            InstKind::Zext(source) | InstKind::Bitcast(source) => {
+                self.range_of(func, source, depth)
+            }
             InstKind::Trunc(source, bits) if (1..=256).contains(&bits) => {
                 let source = self.range_of(func, source, depth);
                 let mask = U256::MAX >> (256 - bits);
@@ -2009,14 +2076,6 @@ fn trip_count_bound(func: &Function, phi: &MonotonePhi) -> Option<Range> {
             initial.checked_add(travel).filter(|&hi| hi <= integer_max(func, phi.value))?,
         ))
     }
-}
-
-fn integer_bits(func: &Function, value: ValueId) -> u32 {
-    func.value_ty(value).and_then(crate::mir::MirType::integer_bits).unwrap_or(256)
-}
-
-fn integer_max(func: &Function, value: ValueId) -> U256 {
-    U256::MAX >> (256 - integer_bits(func, value))
 }
 
 fn const_of(func: &Function, value: ValueId) -> Option<U256> {

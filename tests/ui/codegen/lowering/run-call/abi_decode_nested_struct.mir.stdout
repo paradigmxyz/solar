@@ -202,10 +202,8 @@ fn @outer() -> i256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word
     icall revert_if<tuple_data_too_short>, v28
     v29 = add 0, 0
     v30 = mload v29
-    v31 = add 0, 0
-    v32 = mload v31
-    v33 = eq v18, v32
-    icall require<short_string>, v33, 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
+    v31 = eq v18, v30
+    icall require<short_string>, v31, 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -297,32 +295,28 @@ fn @run() -> i256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word],
     icall revert_if<tuple_data_too_short>, v27
     v28 = add 0, 0
     v29 = mload v28
-    v30 = add 0, 0
-    v31 = mload v30
-    v32 = address
-    v33 = gas
-    v34 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v34, 0
-    v35 = memory_object_data memorybytes, v34
-    v36 = abi_encode [tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, tuple<word<i24>, word<i24>, word, word>, memory_bytes], selector 0xd0a3f74900000000000000000000000000000000000000000000000000000000, args v0, v9, v34
-    v37 = slice_ptr v36
-    v38 = slice_len v36
-    v39 = zext i160 v32 to i256
-    v40 = staticcall v33, v39, v37, v38, 0, 32
-    jumpi v40, bb4, bb3
+    v30 = address
+    v31 = gas
+    v32 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v32, 0
+    v33 = memory_object_data memorybytes, v32
+    v34 = abi_encode [tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, tuple<word<i24>, word<i24>, word, word>, memory_bytes], selector 0xd0a3f74900000000000000000000000000000000000000000000000000000000, args v0, v9, v32
+    v35 = slice_ptr v34
+    v36 = slice_len v34
+    v37 = zext i160 v30 to i256
+    v38 = staticcall v31, v37, v35, v36, 0, 32
+    jumpi v38, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v41 = returndatasize
-    v42 = lt v41, 32
-    icall revert_if<tuple_data_too_short>, v42
-    v43 = add 0, 0
-    v44 = mload v43
-    v45 = add 0, 0
-    v46 = mload v45
-    v47 = eq v31, v16
-    icall require<short_string>, v47, 10, 0x6b65794f6e6c7920696400000000000000000000000000000000000000000000
-    v48 = eq v46, v16
-    icall require<short_string>, v48, 8, 0x6d69786564206964000000000000000000000000000000000000000000000000
+    v39 = returndatasize
+    v40 = lt v39, 32
+    icall revert_if<tuple_data_too_short>, v40
+    v41 = add 0, 0
+    v42 = mload v41
+    v43 = eq v29, v16
+    icall require<short_string>, v43, 10, 0x6b65794f6e6c7920696400000000000000000000000000000000000000000000
+    v44 = eq v42, v16
+    icall require<short_string>, v44, 8, 0x6d69786564206964000000000000000000000000000000000000000000000000
     ret 1
 }

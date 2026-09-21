@@ -93,12 +93,10 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
   bb3:
     v25 = add v16, 0
     v26 = mload v25
-    v27 = add v16, 0
-    v28 = mload v27
     jump bb5
   bb5:
-    v29 = phi [bb3: v28], [bb6: 7]
-    ret v29
+    v27 = phi [bb3: v26], [bb6: 7]
+    ret v27
 }
 
 fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -149,15 +147,11 @@ fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], a
     v26 = mload v25
     v27 = add v16, 32
     v28 = mload v27
-    v29 = add v16, 0
-    v30 = mload v29
-    v31 = add v16, 32
-    v32 = mload v31
-    v33 = checked_add u256, v30, v32
+    v29 = checked_add u256, v26, v28
     jump bb5
   bb5:
-    v34 = phi [bb3: v33], [bb6: 7]
-    ret v34
+    v30 = phi [bb3: v29], [bb6: 7]
+    ret v30
 }
 
 fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -317,12 +311,10 @@ fn @liveCatch() -> i256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word],
   bb3:
     v25 = add v16, 0
     v26 = mload v25
-    v27 = add v16, 0
-    v28 = mload v27
     jump bb5
   bb5:
-    v29 = phi [bb3: v28], [bb6: 7]
-    ret v29
+    v27 = phi [bb3: v26], [bb6: 7]
+    ret v27
 }
 
 fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -375,12 +367,10 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
   bb3:
     v29 = add v22, 0
     v30 = mload v29
-    v31 = add v22, 0
-    v32 = mload v31
     jump bb5
   bb5:
-    v33 = phi [bb3: v32], [bb6: 7]
-    ret v33
+    v31 = phi [bb3: v30], [bb6: 7]
+    ret v31
 }
 
 fn @liveCreation() -> i256 [selector=0xb217934d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -444,12 +434,10 @@ fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], ab
   bb1:
     v14 = add v5, 0
     v15 = mload v14
-    v16 = add v5, 0
-    v17 = mload v16
     jump bb3
   bb3:
-    v18 = phi [bb1: v17], [bb4: 7]
-    ret v18
+    v16 = phi [bb1: v15], [bb4: 7]
+    ret v16
 }
 
 fn @noCodeNoReturn() -> i256 [selector=0xac1b26c4, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

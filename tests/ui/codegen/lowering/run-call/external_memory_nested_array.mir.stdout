@@ -95,77 +95,71 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v33 = mload v32
     v34 = add v26, 32
     v35 = mload v34
-    v36 = add v26, 0
-    v37 = mload v36
-    v38 = add v26, 32
-    v39 = mload v38
-    v40 = insert_value struct0, undef struct0, 0, v37
-    v41 = insert_value struct0, v40, 1, v39
-    v42 = extract_value struct0, v41, 0
-    v43 = extract_value struct0, v41, 1
-    v44 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v44, 1
+    v36 = insert_value struct0, undef struct0, 0, v33
+    v37 = insert_value struct0, v36, 1, v35
+    v38 = extract_value struct0, v37, 0
+    v39 = extract_value struct0, v37, 1
+    v40 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v40, 1
     jump bb6
   bb6:
-    v45 = phi [bb5: 0], [bb7: v50]
-    v46 = lt v45, 1
-    jumpi v46, bb7, bb8
+    v41 = phi [bb5: 0], [bb7: v46]
+    v42 = lt v41, 1
+    jumpi v42, bb7, bb8
   bb8:
-    v51 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
-    memory_object_store_field memorystruct<5>, v51, 0, 1
-    memory_object_store_field memorystruct<5>, v51, 1, 2
-    memory_object_store_field memorystruct<5>, v51, 2, 3
-    memory_object_store_field memorystruct<5>, v51, 3, 4
-    memory_object_store_field memorystruct<5>, v51, 4, 5
-    v52 = memory_object_len memoryarray, v44
-    v53 = lt 0, v52
-    v54 = eq v53, false
-    icall panic_if<0x32>, v54
-    v55 = ptrtoint memorystruct v51 to i256
-    memory_object_store_element memoryarray<1>, v44, 0, v55
-    v56 = eq v42, 2
-    jumpi v56, bb9, bb10
+    v47 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
+    memory_object_store_field memorystruct<5>, v47, 0, 1
+    memory_object_store_field memorystruct<5>, v47, 1, 2
+    memory_object_store_field memorystruct<5>, v47, 2, 3
+    memory_object_store_field memorystruct<5>, v47, 3, 4
+    memory_object_store_field memorystruct<5>, v47, 4, 5
+    v48 = memory_object_len memoryarray, v40
+    v49 = lt 0, v48
+    v50 = eq v49, false
+    icall panic_if<0x32>, v50
+    v51 = ptrtoint memorystruct v47 to i256
+    memory_object_store_element memoryarray<1>, v40, 0, v51
+    v52 = eq v38, 2
+    jumpi v52, bb9, bb10
   bb10:
     jump bb11
   bb9:
-    v57 = eq v43, v22
+    v53 = eq v39, v22
     jump bb11
   bb11:
-    v58 = phi [bb9: v57], [bb10: false]
-    jumpi v58, bb12, bb13
+    v54 = phi [bb9: v53], [bb10: false]
+    jumpi v54, bb12, bb13
   bb13:
     jump bb14
   bb12:
-    v59 = address
-    v60 = gas
-    v61 = abi_encode [memory_array<tuple<word, word, word, word, word>>], selector 0x68057f1e00000000000000000000000000000000000000000000000000000000, args v44
-    v62 = slice_ptr v61
-    v63 = slice_len v61
-    v64 = zext i160 v59 to i256
-    v65 = staticcall v60, v64, v62, v63, 0, 32
-    jumpi v65, bb16, bb15
+    v55 = address
+    v56 = gas
+    v57 = abi_encode [memory_array<tuple<word, word, word, word, word>>], selector 0x68057f1e00000000000000000000000000000000000000000000000000000000, args v40
+    v58 = slice_ptr v57
+    v59 = slice_len v57
+    v60 = zext i160 v55 to i256
+    v61 = staticcall v56, v60, v58, v59, 0, 32
+    jumpi v61, bb16, bb15
   bb15:
     revert_returndata
   bb16:
-    v66 = returndatasize
-    v67 = lt v66, 32
-    icall revert_if<tuple_data_too_short>, v67
-    v68 = add 0, 0
-    v69 = mload v68
-    v70 = add 0, 0
-    v71 = mload v70
-    v72 = eq v71, 6
+    v62 = returndatasize
+    v63 = lt v62, 32
+    icall revert_if<tuple_data_too_short>, v63
+    v64 = add 0, 0
+    v65 = mload v64
+    v66 = eq v65, 6
     jump bb14
   bb14:
-    v73 = phi [bb16: v72], [bb13: false]
-    ret v73
+    v67 = phi [bb16: v66], [bb13: false]
+    ret v67
   bb7:
-    v47 = alloc memorystruct<5>, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
-    v48 = ptrtoint memorystruct v47 to i256
-    memory_zero v48, 160
-    v49 = ptrtoint memorystruct v47 to i256
-    memory_object_store_element memoryarray<1>, v44, v45, v49
-    v50 = add v45, 1
+    v43 = alloc memorystruct<5>, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
+    v44 = ptrtoint memorystruct v43 to i256
+    memory_zero v44, 160
+    v45 = ptrtoint memorystruct v43 to i256
+    memory_object_store_element memoryarray<1>, v40, v41, v45
+    v46 = add v41, 1
     jump bb6
   bb2:
     v3 = ptrtoint memorybytes 96 to i256

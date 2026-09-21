@@ -53,9 +53,7 @@ fn @direct() -> i256 [selector=0x222b1407, abi_params=[], abi_returns=[word], ab
   bb2:
     v14 = add v5, 0
     v15 = mload v14
-    v16 = add v5, 0
-    v17 = mload v16
-    ret v17
+    ret v15
 }
 
 fn @viewCall() -> i256 [selector=0x33fd44fa, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -82,9 +80,7 @@ fn @viewCall() -> i256 [selector=0x33fd44fa, view, abi_params=[], abi_returns=[w
   bb2:
     v14 = add v5, 0
     v15 = mload v14
-    v16 = add v5, 0
-    v17 = mload v16
-    ret v17
+    ret v15
 }
 
 fn @pointer() -> i256 [selector=0x2f5f3b3c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -111,9 +107,7 @@ fn @pointer() -> i256 [selector=0x2f5f3b3c, abi_params=[], abi_returns=[word], a
   bb2:
     v14 = add v7, 0
     v15 = mload v14
-    v16 = add v7, 0
-    v17 = mload v16
-    ret v17
+    ret v15
 }
 
 fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -234,9 +228,7 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
   bb4:
     v25 = add v16, 0
     v26 = mload v25
-    v27 = add v16, 0
-    v28 = mload v27
-    ret v28
+    ret v26
 }
 
 fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {

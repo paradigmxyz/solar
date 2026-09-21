@@ -802,6 +802,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !preserve_branch_targets.is_empty()
                 && let Some(Terminator::Branch { condition, .. }) = block.terminator.as_ref()
                 && liveness.live_out(block_id).contains(*condition)
+                && self.scheduler.stack.top() == Some(*condition)
                 && !self.scheduler.stack.iter().skip(1).any(|value| value == Some(*condition))
             {
                 if self.scheduler.stack.depth() == 1 {
@@ -1080,9 +1081,13 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // A freshly computed condition is the top word and JUMPI consumes it. A condition
         // carried below the top is a loop invariant the successors still read; the terminator
-        // duplicates it for JUMPI, so the whole stack survives the branch.
+        // duplicates it for JUMPI, so the whole stack survives the branch. A reloadable
+        // argument can instead be pushed above the carried words immediately before JUMPI.
         let condition_on_top = self.scheduler.stack.top() == Some(*condition);
+        let reload_condition = Self::is_rematerializable_value(func, *condition)
+            && !self.scheduler.is_stack_only_value(*condition);
         if !condition_on_top
+            && !reload_condition
             && !(liveness.live_out(block_id).contains(*condition)
                 && self
                     .scheduler

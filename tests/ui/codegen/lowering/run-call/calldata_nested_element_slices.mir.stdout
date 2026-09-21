@@ -52,9 +52,7 @@ fn @nestedBytes() -> i256 [selector=0x126aa804, view, abi_params=[], abi_returns
     icall revert_if<tuple_data_too_short>, v27
     v28 = add 0, 0
     v29 = mload v28
-    v30 = add 0, 0
-    v31 = mload v30
-    ret v31
+    ret v29
   bb2:
     v3 = ptrtoint memorybytes 96 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v3
@@ -176,18 +174,14 @@ fn @structMember() -> struct0 [selector=0x9f2d7231, view, abi_params=[], abi_ret
     v34 = eq v30, v33
     v35 = eq v34, false
     icall revert_if<empty>, v35
-    v36 = add v21, 0
-    v37 = mload v36
-    v38 = add v21, 32
-    v39 = mload v38
-    v40 = ne v39, 0
-    v41 = insert_value struct0, undef struct0, 0, v37
+    v36 = ne v30, 0
+    v37 = insert_value struct0, undef struct0, 0, v28
+    v38 = insert_value struct0, v37, 1, v36
+    v39 = extract_value struct0, v38, 0
+    v40 = extract_value struct0, v38, 1
+    v41 = insert_value struct0, undef struct0, 0, v39
     v42 = insert_value struct0, v41, 1, v40
-    v43 = extract_value struct0, v42, 0
-    v44 = extract_value struct0, v42, 1
-    v45 = insert_value struct0, undef struct0, 0, v43
-    v46 = insert_value struct0, v45, 1, v44
-    ret v46
+    ret v42
   bb2:
     v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v3, 0, 0
@@ -287,9 +281,7 @@ fn @tupleTernary() -> i256 [selector=0x75466b3a, view, abi_params=[], abi_return
     icall revert_if<tuple_data_too_short>, v15
     v16 = add 0, 0
     v17 = mload v16
-    v18 = add 0, 0
-    v19 = mload v18
-    ret v19
+    ret v17
 }
 
 fn @useTuple(arg0: calldataslice, arg1: i1) -> i256 [selector=0xf8c72565, pure, abi_params=[bytes, bool], abi_returns=[word], abi_return_params=[u256]] {

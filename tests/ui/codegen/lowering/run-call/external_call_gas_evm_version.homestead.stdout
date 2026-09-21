@@ -148,9 +148,7 @@ fn @withReturn() -> i256 [selector=0x2149184b, abi_params=[], abi_returns=[word]
   bb4:
     v25 = add v16, 0
     v26 = mload v25
-    v27 = add v16, 0
-    v28 = mload v27
-    ret v28
+    ret v26
 }
 
 fn @withValue() -> i256 [selector=0xd6b69802, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -194,9 +192,7 @@ fn @withValue() -> i256 [selector=0xd6b69802, abi_params=[], abi_returns=[word],
   bb4:
     v25 = add v16, 0
     v26 = mload v25
-    v27 = add v16, 0
-    v28 = mload v27
-    ret v28
+    ret v26
 }
 
 fn @twoReturns() -> i256 [selector=0xf7f4979a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -242,16 +238,12 @@ fn @twoReturns() -> i256 [selector=0xf7f4979a, abi_params=[], abi_returns=[word]
     v26 = mload v25
     v27 = add v16, 32
     v28 = mload v27
-    v29 = add v16, 0
-    v30 = mload v29
-    v31 = add v16, 32
-    v32 = mload v31
-    v33 = insert_value struct0, undef struct0, 0, v30
-    v34 = insert_value struct0, v33, 1, v32
-    v35 = extract_value struct0, v34, 0
-    v36 = extract_value struct0, v34, 1
-    v37 = checked_add u256, v35, v36
-    ret v37
+    v29 = insert_value struct0, undef struct0, 0, v26
+    v30 = insert_value struct0, v29, 1, v28
+    v31 = extract_value struct0, v30, 0
+    v32 = extract_value struct0, v30, 1
+    v33 = checked_add u256, v31, v32
+    ret v33
 }
 
 fn @eightReturns() -> i256 [selector=0x67b0b213, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -309,46 +301,30 @@ fn @eightReturns() -> i256 [selector=0x67b0b213, abi_params=[], abi_returns=[wor
     v38 = mload v37
     v39 = add v16, 224
     v40 = mload v39
-    v41 = add v16, 0
-    v42 = mload v41
-    v43 = add v16, 32
-    v44 = mload v43
-    v45 = add v16, 64
-    v46 = mload v45
-    v47 = add v16, 96
-    v48 = mload v47
-    v49 = add v16, 128
-    v50 = mload v49
-    v51 = add v16, 160
-    v52 = mload v51
-    v53 = add v16, 192
-    v54 = mload v53
-    v55 = add v16, 224
-    v56 = mload v55
-    v57 = insert_value struct1, undef struct1, 0, v42
-    v58 = insert_value struct1, v57, 1, v44
-    v59 = insert_value struct1, v58, 2, v46
-    v60 = insert_value struct1, v59, 3, v48
-    v61 = insert_value struct1, v60, 4, v50
-    v62 = insert_value struct1, v61, 5, v52
-    v63 = insert_value struct1, v62, 6, v54
-    v64 = insert_value struct1, v63, 7, v56
-    v65 = extract_value struct1, v64, 0
-    v66 = extract_value struct1, v64, 1
-    v67 = extract_value struct1, v64, 2
-    v68 = extract_value struct1, v64, 3
-    v69 = extract_value struct1, v64, 4
-    v70 = extract_value struct1, v64, 5
-    v71 = extract_value struct1, v64, 6
-    v72 = extract_value struct1, v64, 7
-    v73 = checked_add u256, v65, v66
-    v74 = checked_add u256, v73, v67
-    v75 = checked_add u256, v74, v68
-    v76 = checked_add u256, v75, v69
-    v77 = checked_add u256, v76, v70
-    v78 = checked_add u256, v77, v71
-    v79 = checked_add u256, v78, v72
-    ret v79
+    v41 = insert_value struct1, undef struct1, 0, v26
+    v42 = insert_value struct1, v41, 1, v28
+    v43 = insert_value struct1, v42, 2, v30
+    v44 = insert_value struct1, v43, 3, v32
+    v45 = insert_value struct1, v44, 4, v34
+    v46 = insert_value struct1, v45, 5, v36
+    v47 = insert_value struct1, v46, 6, v38
+    v48 = insert_value struct1, v47, 7, v40
+    v49 = extract_value struct1, v48, 0
+    v50 = extract_value struct1, v48, 1
+    v51 = extract_value struct1, v48, 2
+    v52 = extract_value struct1, v48, 3
+    v53 = extract_value struct1, v48, 4
+    v54 = extract_value struct1, v48, 5
+    v55 = extract_value struct1, v48, 6
+    v56 = extract_value struct1, v48, 7
+    v57 = checked_add u256, v49, v50
+    v58 = checked_add u256, v57, v51
+    v59 = checked_add u256, v58, v52
+    v60 = checked_add u256, v59, v53
+    v61 = checked_add u256, v60, v54
+    v62 = checked_add u256, v61, v55
+    v63 = checked_add u256, v62, v56
+    ret v63
 }
 
 fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

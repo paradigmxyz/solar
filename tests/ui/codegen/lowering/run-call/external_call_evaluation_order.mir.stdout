@@ -180,9 +180,7 @@ fn @staticReceiverMutability() -> i256 [selector=0xde2015ae, abi_params=[], abi_
     icall revert_if<tuple_data_too_short>, v7
     v8 = add 0, 0
     v9 = mload v8
-    v10 = add 0, 0
-    v11 = mload v10
-    ret v11
+    ret v9
 }
 
 fn @constructor() [constructor] {

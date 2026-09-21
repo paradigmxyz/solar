@@ -181,60 +181,54 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     icall revert_if<tuple_data_too_short>, v66
     v67 = add 0, 0
     v68 = mload v67
-    v69 = add 0, 0
-    v70 = mload v69
-    v71 = lt 1, 3
-    v72 = eq v71, false
-    icall panic_if<0x32>, v72
-    v73 = memory_object_load_element memoryfixedarray<3, 1>, v52, 1
-    v74 = shr 64, v73
-    v75 = and v74, 0xffffffff
-    v76 = shl 224, v75
-    v77 = shr 32, v74
-    v78 = gas
-    v79 = abi_encode [], selector v76
-    v80 = slice_ptr v79
-    v81 = slice_len v79
-    v82 = call v78, v77, 0, v80, v81, 0, 32
-    jumpi v82, bb14, bb13
+    v69 = lt 1, 3
+    v70 = eq v69, false
+    icall panic_if<0x32>, v70
+    v71 = memory_object_load_element memoryfixedarray<3, 1>, v52, 1
+    v72 = shr 64, v71
+    v73 = and v72, 0xffffffff
+    v74 = shl 224, v73
+    v75 = shr 32, v72
+    v76 = gas
+    v77 = abi_encode [], selector v74
+    v78 = slice_ptr v77
+    v79 = slice_len v77
+    v80 = call v76, v75, 0, v78, v79, 0, 32
+    jumpi v80, bb14, bb13
   bb13:
     revert_returndata
   bb14:
-    v83 = returndatasize
-    v84 = lt v83, 32
-    icall revert_if<tuple_data_too_short>, v84
-    v85 = add 0, 0
-    v86 = mload v85
-    v87 = add 0, 0
-    v88 = mload v87
-    v89 = lt 2, 3
-    v90 = eq v89, false
-    icall panic_if<0x32>, v90
-    v91 = memory_object_load_element memoryfixedarray<3, 1>, v52, 2
-    v92 = shr 64, v91
-    v93 = and v92, 0xffffffff
-    v94 = shl 224, v93
-    v95 = shr 32, v92
-    v96 = gas
-    v97 = abi_encode [], selector v94
-    v98 = slice_ptr v97
-    v99 = slice_len v97
-    v100 = call v96, v95, 0, v98, v99, 0, 32
-    jumpi v100, bb16, bb15
+    v81 = returndatasize
+    v82 = lt v81, 32
+    icall revert_if<tuple_data_too_short>, v82
+    v83 = add 0, 0
+    v84 = mload v83
+    v85 = lt 2, 3
+    v86 = eq v85, false
+    icall panic_if<0x32>, v86
+    v87 = memory_object_load_element memoryfixedarray<3, 1>, v52, 2
+    v88 = shr 64, v87
+    v89 = and v88, 0xffffffff
+    v90 = shl 224, v89
+    v91 = shr 32, v88
+    v92 = gas
+    v93 = abi_encode [], selector v90
+    v94 = slice_ptr v93
+    v95 = slice_len v93
+    v96 = call v92, v91, 0, v94, v95, 0, 32
+    jumpi v96, bb16, bb15
   bb15:
     revert_returndata
   bb16:
-    v101 = returndatasize
-    v102 = lt v101, 32
-    icall revert_if<tuple_data_too_short>, v102
-    v103 = add 0, 0
-    v104 = mload v103
-    v105 = add 0, 0
-    v106 = mload v105
-    v107 = insert_value struct0, undef struct0, 0, v70
-    v108 = insert_value struct0, v107, 1, v88
-    v109 = insert_value struct0, v108, 2, v106
-    ret v109
+    v97 = returndatasize
+    v98 = lt v97, 32
+    icall revert_if<tuple_data_too_short>, v98
+    v99 = add 0, 0
+    v100 = mload v99
+    v101 = insert_value struct0, undef struct0, 0, v68
+    v102 = insert_value struct0, v101, 1, v84
+    v103 = insert_value struct0, v102, 2, v100
+    ret v103
   bb4:
     v8 = address
     v9 = zext i160 v8 to i256

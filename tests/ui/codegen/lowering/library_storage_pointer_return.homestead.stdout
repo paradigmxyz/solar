@@ -80,10 +80,8 @@ fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word],
   bb2:
     v13 = add v4, 0
     v14 = mload v13
-    v15 = add v4, 0
-    v16 = mload v15
-    v17 = sload v16 !metadata(storage=symbolic(v16))
-    ret v17
+    v15 = sload v14 !metadata(storage=symbolic(v14))
+    ret v15
 }
 
 fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -109,17 +107,15 @@ fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
   bb2:
     v13 = add v4, 0
     v14 = mload v13
-    v15 = add v4, 0
-    v16 = mload v15
-    v17 = sload v16 !metadata(storage=symbolic(v16))
-    validate_storage_bytes v17
-    v18 = and v17, 1
-    v19 = eq v18, 1
-    v20 = sub 0, v18
-    v21 = or 127, v20
-    v22 = shr 1, v17
-    v23 = and v22, v21
-    ret v23
+    v15 = sload v14 !metadata(storage=symbolic(v14))
+    validate_storage_bytes v15
+    v16 = and v15, 1
+    v17 = eq v16, 1
+    v18 = sub 0, v16
+    v19 = or 127, v18
+    v20 = shr 1, v15
+    v21 = and v20, v19
+    ret v21
 }
 
 fn @member() -> i256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -145,10 +141,8 @@ fn @member() -> i256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[wor
   bb2:
     v13 = add v4, 0
     v14 = mload v13
-    v15 = add v4, 0
-    v16 = mload v15
-    v17 = sload v16 !metadata(storage=symbolic(v16))
-    ret v17
+    v15 = sload v14 !metadata(storage=symbolic(v14))
+    ret v15
 }
 
 fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -176,18 +170,14 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
     v14 = mload v13
     v15 = add v4, 32
     v16 = mload v15
-    v17 = add v4, 0
-    v18 = mload v17
-    v19 = add v4, 32
-    v20 = mload v19
-    v21 = insert_value struct0, undef struct0, 0, v18
-    v22 = insert_value struct0, v21, 1, v20
-    v23 = extract_value struct0, v22, 0
-    v24 = extract_value struct0, v22, 1
-    v25 = sload v24 !metadata(storage=symbolic(v24))
-    v26 = insert_value struct0, undef struct0, 0, v23
-    v27 = insert_value struct0, v26, 1, v25
-    ret v27
+    v17 = insert_value struct0, undef struct0, 0, v14
+    v18 = insert_value struct0, v17, 1, v16
+    v19 = extract_value struct0, v18, 0
+    v20 = extract_value struct0, v18, 1
+    v21 = sload v20 !metadata(storage=symbolic(v20))
+    v22 = insert_value struct0, undef struct0, 0, v19
+    v23 = insert_value struct0, v22, 1, v21
+    ret v23
 }
 
 fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -213,14 +203,12 @@ fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
   bb2:
     v13 = add v4, 0
     v14 = mload v13
-    v15 = add v4, 0
-    v16 = mload v15
-    v17 = lt 2, 3
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = add v16, 2
-    v20 = sload v19 !metadata(storage=offset(v16, 2))
-    ret v20
+    v15 = lt 2, 3
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = add v14, 2
+    v18 = sload v17 !metadata(storage=offset(v14, 2))
+    ret v18
 }
 
 fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -246,11 +234,9 @@ fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[u256], 
   bb2:
     v13 = add v4, 0
     v14 = mload v13
-    v15 = add v4, 0
-    v16 = mload v15
-    v17 = mapping_slot arg0, v16
-    v18 = sload v17 !metadata(storage=symbolic(v17))
-    ret v18
+    v15 = mapping_slot arg0, v14
+    v16 = sload v15 !metadata(storage=symbolic(v15))
+    ret v16
 }
 
 fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -319,8 +305,6 @@ fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
   bb2:
     v13 = add v4, 0
     v14 = mload v13
-    v15 = add v4, 0
-    v16 = mload v15
-    v17 = sload v16 !metadata(storage=symbolic(v16))
-    ret v17
+    v15 = sload v14 !metadata(storage=symbolic(v14))
+    ret v15
 }

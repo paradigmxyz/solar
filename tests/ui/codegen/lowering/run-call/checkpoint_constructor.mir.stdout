@@ -252,10 +252,8 @@ fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>]
     v43 = eq v41, v42
     v44 = eq v43, false
     icall revert_if<empty>, v44
-    v45 = add 0, 0
-    v46 = mload v45
-    v47 = trunc i256 v46 to i96
-    ret v47
+    v45 = trunc i256 v41 to i96
+    ret v45
 }
 
 fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
@@ -297,10 +295,8 @@ fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u
     v23 = eq v21, v22
     v24 = eq v23, false
     icall revert_if<empty>, v24
-    v25 = add 0, 0
-    v26 = mload v25
-    v27 = trunc i256 v26 to i8
-    ret v27
+    v25 = trunc i256 v21 to i8
+    ret v25
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:ConstructorMultiReturn ===

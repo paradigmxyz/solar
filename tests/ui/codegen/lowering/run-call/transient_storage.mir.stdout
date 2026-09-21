@@ -115,9 +115,7 @@ fn @getter() -> i256 [selector=0x993a04b7, abi_params=[], abi_returns=[word], ab
     icall revert_if<tuple_data_too_short>, v8
     v9 = add 0, 0
     v10 = mload v9
-    v11 = add 0, 0
-    v12 = mload v11
-    ret v12
+    ret v10
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/transient_storage.sol:TransientModifier ===

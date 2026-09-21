@@ -381,3 +381,11 @@ fn @givesDirtyStorageAddresses() -> memoryarray [selector=0x0dead019, abi_return
     v0 = icall @dirtyStorageAddresses, 0
     ret v0
 }
+
+fn @nativeCleanTuple(arg0: i128) -> memorystruct [selector=0x0dead020, abi_params=[u128], abi_returns=[tuple<word>], abi_return_params=[tuple<u128>]] {
+  bb0:
+    v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+    v1 = zext i128 arg0 to i256
+    memory_object_store_field memorystruct<1>, v0, 0, v1
+    ret v0
+}

@@ -6,6 +6,7 @@
 //! are explicitly i256; ordinary integer values retain their native width.
 
 use super::*;
+use smallvec::SmallVec;
 use solar_data_structures::Never;
 use solar_sema::hir::Visit;
 use std::ops::ControlFlow;
@@ -15,6 +16,7 @@ struct Exposure<'gcx> {
     raw: FxHashSet<VariableId>,
     contract: hir::ContractId,
     functions: Vec<hir::FunctionId>,
+    indirect_callees: FxHashMap<Ty<'gcx>, SmallVec<[hir::FunctionId; 1]>>,
     visited: FxHashSet<hir::FunctionId>,
     copies: Vec<(VariableId, VariableId)>,
     returns: &'gcx [VariableId],
@@ -22,32 +24,41 @@ struct Exposure<'gcx> {
 }
 
 impl<'gcx> Exposure<'gcx> {
-    fn callees(&self, callee: &hir::Expr<'_>) -> Vec<hir::FunctionId> {
+    fn callees(&mut self, callee: &hir::Expr<'_>) -> SmallVec<[hir::FunctionId; 1]> {
         if let Some(id) = self.gcx.resolved_function(callee) {
-            return vec![super::resolve_call_target(self.gcx, self.contract, callee, id)];
+            return smallvec::smallvec![super::resolve_call_target(
+                self.gcx,
+                self.contract,
+                callee,
+                id
+            )];
         }
-        let Some(TyKind::Fn(function)) = self.gcx.type_of_expr(callee.id).map(|ty| ty.kind) else {
-            return Vec::new();
-        };
-        if function.is_external() {
-            return Vec::new();
+        let Some(ty) = self.gcx.type_of_expr(callee.id) else { return SmallVec::new() };
+        let TyKind::Fn(function) = ty.kind else { return SmallVec::new() };
+        if !function.is_internal() {
+            return SmallVec::new();
         }
-        let shape = InternalFunctionPointerShape::from_ty(function);
-        self.functions
-            .iter()
-            .copied()
-            .filter(|&id| {
-                let TyKind::Fn(function) = self.gcx.type_of_item(id.into()).kind else {
-                    return false;
-                };
-                shape.is_assembly_cast_compatible_with(&InternalFunctionPointerShape::from_ty(
-                    function,
-                ))
+        self.indirect_callees
+            .entry(ty)
+            .or_insert_with(|| {
+                let shape = InternalFunctionPointerShape::from_ty(function);
+                self.functions
+                    .iter()
+                    .copied()
+                    .filter(|&id| {
+                        let TyKind::Fn(function) = self.gcx.type_of_item(id.into()).kind else {
+                            return false;
+                        };
+                        shape.is_assembly_cast_compatible_with(
+                            &InternalFunctionPointerShape::from_ty(function),
+                        )
+                    })
+                    .collect()
             })
-            .collect()
+            .clone()
     }
 
-    fn sources(&self, expr: &hir::Expr<'_>, out: &mut Vec<VariableId>) {
+    fn sources(&mut self, expr: &hir::Expr<'_>, out: &mut SmallVec<[VariableId; 4]>) {
         if let Some(id) = self.gcx.user_operator(expr.id) {
             out.extend_from_slice(self.gcx.hir.function(id).returns);
             return;
@@ -79,7 +90,7 @@ impl<'gcx> Exposure<'gcx> {
     }
 
     fn connect(&mut self, destinations: &[VariableId], expr: &hir::Expr<'_>) {
-        let mut sources = Vec::new();
+        let mut sources = SmallVec::new();
         self.sources(expr, &mut sources);
         for &to in destinations {
             let ty = self.gcx.type_of_item(to.into());
@@ -136,7 +147,7 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
             StmtKind::AssemblyBlock(_) => self.assembly = true,
             StmtKind::Return(Some(expr)) => self.connect(self.returns, expr),
             StmtKind::DeclMulti(ids, expr) => {
-                self.connect(&ids.iter().flatten().copied().collect::<Vec<_>>(), expr);
+                self.connect(&ids.iter().flatten().copied().collect::<SmallVec<[_; 4]>>(), expr);
             }
             _ => {}
         }
@@ -147,9 +158,12 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
 
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Never> {
         if self.assembly {
-            let mut ids = Vec::new();
-            self.sources(expr, &mut ids);
-            self.raw.extend(ids);
+            if matches!(expr.kind, ExprKind::Ident(_))
+                && let Some(hir::Res::Item(hir::ItemId::Variable(id))) =
+                    self.gcx.resolved_expr(expr)
+            {
+                self.raw.insert(id);
+            }
         } else if let Some(id) = self.gcx.user_operator(expr.id) {
             let parameters = self.gcx.hir.function(id).parameters;
             match expr.kind {
@@ -163,18 +177,22 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
         } else {
             match expr.kind {
                 ExprKind::Assign(lhs, None, rhs) => {
-                    let mut ids = Vec::new();
+                    let mut ids = SmallVec::new();
                     self.sources(lhs, &mut ids);
                     self.connect(&ids, rhs);
                 }
                 ExprKind::Call(callee, args, _) => {
-                    let names = self
-                        .gcx
-                        .call_param_source(callee)
+                    let callees = self.callees(callee);
+                    if callees.is_empty() {
+                        return self.walk_expr(expr);
+                    }
+                    let names = matches!(args.kind, hir::CallArgsKind::Named(_))
+                        .then(|| self.gcx.call_param_source(callee))
+                        .flatten()
                         .map(|source| self.gcx.callable_param_names(source));
                     let attached =
                         self.gcx.resolved_callee(callee.id).is_some_and(|callee| callee.attached);
-                    for id in self.callees(callee) {
+                    for id in callees {
                         let function = self.gcx.hir.function(id);
                         for (index, &parameter) in function.parameters.iter().enumerate() {
                             if attached && index == 0 {
@@ -208,6 +226,7 @@ impl LoweringState {
             gcx,
             contract,
             functions: functions.iter().map(|&(id, _)| id).collect(),
+            indirect_callees: FxHashMap::default(),
             visited: FxHashSet::default(),
             raw: FxHashSet::default(),
             copies: Vec::new(),

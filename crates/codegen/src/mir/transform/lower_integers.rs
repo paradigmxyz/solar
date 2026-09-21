@@ -75,6 +75,31 @@ fn lower_type(ty: MirType) -> MirType {
 }
 
 fn lower_function(func: &mut Function) -> bool {
+    let narrow = |ty| lower_type(ty) != ty;
+    if !narrow(func.return_type())
+        && !func.arg_indices().any(|index| narrow(func.arg_ty(index)))
+        && !func.return_components().iter().copied().any(narrow)
+        && !(0..func.num_values())
+            .any(|index| func.value_ty(ValueId::from_usize(index)).is_some_and(narrow))
+        && !func.instructions().any(|id| {
+            let inst = func.inst(id);
+            matches!(inst.kind, InstKind::Trunc(..) | InstKind::Sext(..))
+                || matches!(inst.kind, InstKind::PtrToInt(_, bits) if bits < 256)
+                || ((inst.kind.op_def().result == ResultKind::Integer
+                    && !matches!(
+                        inst.kind,
+                        InstKind::And(..) | InstKind::Or(..) | InstKind::Xor(..)
+                    ))
+                    || matches!(inst.kind, InstKind::SLt(..) | InstKind::SGt(..)))
+                    && inst
+                        .kind
+                        .op()
+                        .first_operand()
+                        .is_some_and(|value| func.value_ty(value) == Some(MirType::I1))
+        })
+    {
+        return false;
+    }
     let types = (0..func.num_values())
         .map(|index| func.value_ty(ValueId::from_usize(index)))
         .collect::<Vec<_>>();

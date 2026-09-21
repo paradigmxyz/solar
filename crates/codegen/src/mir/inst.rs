@@ -945,7 +945,7 @@ impl InstKind {
         if let Self::CheckedBinary { arithmetic, .. } = self {
             Some(arithmetic.ty().mir_type())
         } else if self.op_def().result == super::ResultKind::Integer {
-            self.operand_types(func)?.first().copied()
+            self.op().first_operand().map(|value| super::typing::integer_type(func, value))
         } else {
             self.op_def().result.default_type()
         }

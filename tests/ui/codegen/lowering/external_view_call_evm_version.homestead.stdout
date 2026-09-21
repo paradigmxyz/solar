@@ -23,9 +23,7 @@ fn @read(arg0: i160) -> i256 [selector=0xa087a87e, view, abi_params=[address], a
   bb2:
     v13 = add v4, 0
     v14 = mload v13
-    v15 = add v4, 0
-    v16 = mload v15
-    ret v16
+    ret v14
 }
 
 fn @readPointer(arg0: i256) -> i256 [selector=0x92528617, view, abi_params=[function], abi_returns=[word], abi_return_params=[u256]] {
@@ -52,7 +50,5 @@ fn @readPointer(arg0: i256) -> i256 [selector=0x92528617, view, abi_params=[func
   bb2:
     v14 = add v7, 0
     v15 = mload v14
-    v16 = add v7, 0
-    v17 = mload v16
-    ret v17
+    ret v15
 }

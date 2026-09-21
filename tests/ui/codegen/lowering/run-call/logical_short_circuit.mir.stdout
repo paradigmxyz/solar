@@ -39,16 +39,14 @@ fn @andSkipsRhs() -> struct0 [selector=0x59db58e9, abi_params=[], abi_returns=[w
     v14 = eq v10, v13
     v15 = eq v14, false
     icall revert_if<empty>, v15
-    v16 = add 0, 0
-    v17 = mload v16
-    v18 = ne v17, 0
+    v16 = ne v10, 0
     jump bb3
   bb3:
-    v19 = phi [bb5: v18], [bb2: false]
-    v20 = sload 0 !metadata(storage=slot(0))
-    v21 = insert_value struct0, undef struct0, 0, v20
-    v22 = insert_value struct0, v21, 1, v19
-    ret v22
+    v17 = phi [bb5: v16], [bb2: false]
+    v18 = sload 0 !metadata(storage=slot(0))
+    v19 = insert_value struct0, undef struct0, 0, v18
+    v20 = insert_value struct0, v19, 1, v17
+    ret v20
 }
 
 fn @orSkipsRhs() -> struct0 [selector=0x136ed8bf, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
@@ -77,18 +75,16 @@ fn @orSkipsRhs() -> struct0 [selector=0x136ed8bf, abi_params=[], abi_returns=[wo
     v14 = eq v10, v13
     v15 = eq v14, false
     icall revert_if<empty>, v15
-    v16 = add 0, 0
-    v17 = mload v16
-    v18 = ne v17, 0
+    v16 = ne v10, 0
     jump bb3
   bb2:
     jump bb3
   bb3:
-    v19 = phi [bb5: v18], [bb2: true]
-    v20 = sload 0 !metadata(storage=slot(0))
-    v21 = insert_value struct0, undef struct0, 0, v20
-    v22 = insert_value struct0, v21, 1, v19
-    ret v22
+    v17 = phi [bb5: v16], [bb2: true]
+    v18 = sload 0 !metadata(storage=slot(0))
+    v19 = insert_value struct0, undef struct0, 0, v18
+    v20 = insert_value struct0, v19, 1, v17
+    ret v20
 }
 
 fn @andRunsRhs() -> struct0 [selector=0x87ab0848, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
@@ -119,16 +115,14 @@ fn @andRunsRhs() -> struct0 [selector=0x87ab0848, abi_params=[], abi_returns=[wo
     v14 = eq v10, v13
     v15 = eq v14, false
     icall revert_if<empty>, v15
-    v16 = add 0, 0
-    v17 = mload v16
-    v18 = ne v17, 0
+    v16 = ne v10, 0
     jump bb3
   bb3:
-    v19 = phi [bb5: v18], [bb2: false]
-    v20 = sload 0 !metadata(storage=slot(0))
-    v21 = insert_value struct0, undef struct0, 0, v20
-    v22 = insert_value struct0, v21, 1, v19
-    ret v22
+    v17 = phi [bb5: v16], [bb2: false]
+    v18 = sload 0 !metadata(storage=slot(0))
+    v19 = insert_value struct0, undef struct0, 0, v18
+    v20 = insert_value struct0, v19, 1, v17
+    ret v20
 }
 
 fn @orRunsRhs() -> struct0 [selector=0x6baa9b2a, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
@@ -157,16 +151,14 @@ fn @orRunsRhs() -> struct0 [selector=0x6baa9b2a, abi_params=[], abi_returns=[wor
     v14 = eq v10, v13
     v15 = eq v14, false
     icall revert_if<empty>, v15
-    v16 = add 0, 0
-    v17 = mload v16
-    v18 = ne v17, 0
+    v16 = ne v10, 0
     jump bb3
   bb2:
     jump bb3
   bb3:
-    v19 = phi [bb5: v18], [bb2: true]
-    v20 = sload 0 !metadata(storage=slot(0))
-    v21 = insert_value struct0, undef struct0, 0, v20
-    v22 = insert_value struct0, v21, 1, v19
-    ret v22
+    v17 = phi [bb5: v16], [bb2: true]
+    v18 = sload 0 !metadata(storage=slot(0))
+    v19 = insert_value struct0, undef struct0, 0, v18
+    v20 = insert_value struct0, v19, 1, v17
+    ret v20
 }

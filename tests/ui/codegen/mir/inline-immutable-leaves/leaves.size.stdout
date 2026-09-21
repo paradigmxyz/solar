@@ -8,11 +8,23 @@
   
   fn @entry() -> i256 [selector=0x00000001] {
     bb0:
-      v0 = icall @end
+-     v0 = icall @end
++     jump bb2
++   bb2:
++     v7 = loadimmutable start
++     v8 = zext i64 v7 to i256
++     v9 = loadimmutable duration
++     v10 = zext i64 v9 to i256
++     v11 = add v8, v10
++     jump bb1
++   bb1:
++     v12 = phi [bb2: v11]
       v1 = icall @memory
       v2 = icall @ordinary
-      v3 = icall @argument, v0
-      v4 = add v0, v1
+-     v3 = icall @argument, v0
+-     v4 = add v0, v1
++     v3 = icall @argument, v12
++     v4 = add v12, v1
       v5 = add v2, v3
       v6 = add v4, v5
       ret v6
@@ -24,8 +36,19 @@
       storeimmutable start, v0
       v1 = trunc i256 arg1 to i64
       storeimmutable duration, v1
-      v2 = icall @end
-      storeimmutable initial, v2
+-     v2 = icall @end
+-     storeimmutable initial, v2
++     jump bb2
++   bb2:
++     v3 = loadimmutable start
++     v4 = zext i64 v3 to i256
++     v5 = loadimmutable duration
++     v6 = zext i64 v5 to i256
++     v7 = add v4, v6
++     jump bb1
++   bb1:
++     v8 = phi [bb2: v7]
++     storeimmutable initial, v8
       stop
   }
   
@@ -72,11 +95,22 @@
   
   fn @entry() -> i256 [selector=0x00000001] {
     bb0:
-      v0 = icall @end
+-     jump bb2
+-   bb2:
+      v7 = loadimmutable start
+      v8 = zext i64 v7 to i256
+      v9 = loadimmutable duration
+      v10 = zext i64 v9 to i256
+      v11 = add v8, v10
+-     jump bb1
+-   bb1:
+-     v12 = phi [bb2: v11]
       v1 = icall @memory
       v2 = icall @ordinary
-      v3 = icall @argument, v0
-      v4 = add v0, v1
+-     v3 = icall @argument, v12
+-     v4 = add v12, v1
++     v3 = icall @argument, v11
++     v4 = add v11, v1
       v5 = add v2, v3
       v6 = add v4, v5
       ret v6
@@ -88,8 +122,18 @@
       storeimmutable start, v0
       v1 = trunc i256 arg1 to i64
       storeimmutable duration, v1
-      v2 = icall @end
-      storeimmutable initial, v2
+-     jump bb2
+-   bb2:
+      v3 = loadimmutable start
+      v4 = zext i64 v3 to i256
+      v5 = loadimmutable duration
+      v6 = zext i64 v5 to i256
+      v7 = add v4, v6
+-     jump bb1
+-   bb1:
+-     v8 = phi [bb2: v7]
+-     storeimmutable initial, v8
++     storeimmutable initial, v7
       stop
   }
   
@@ -136,11 +180,15 @@
   
   fn @entry() -> i256 [selector=0x00000001] {
     bb0:
-      v0 = icall @end
+      v7 = loadimmutable start
+      v8 = zext i64 v7 to i256
+      v9 = loadimmutable duration
+      v10 = zext i64 v9 to i256
+      v11 = add v8, v10
       v1 = icall @memory
       v2 = icall @ordinary
-      v3 = icall @argument, v0
-      v4 = add v0, v1
+      v3 = icall @argument, v11
+      v4 = add v11, v1
       v5 = add v2, v3
       v6 = add v4, v5
       ret v6
@@ -152,8 +200,12 @@
       storeimmutable start, v0
       v1 = trunc i256 arg1 to i64
       storeimmutable duration, v1
-      v2 = icall @end
-      storeimmutable initial, v2
+      v3 = loadimmutable start
+      v4 = zext i64 v3 to i256
+      v5 = loadimmutable duration
+      v6 = zext i64 v5 to i256
+      v7 = add v4, v6
+      storeimmutable initial, v7
       stop
   }
   

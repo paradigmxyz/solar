@@ -98,29 +98,25 @@ fn @cleanup(arg0: i256) -> struct0 [selector=0x0aa40018, view, abi_params=[u256]
     icall revert_if<tuple_data_too_short>, v17
     v18 = add 0, 0
     v19 = mload v18
-    v20 = add 0, 0
-    v21 = mload v20
-    v22 = address
-    v23 = gas
-    v24 = abi_encode [tuple<function>], selector 0xadfc46c000000000000000000000000000000000000000000000000000000000, args v0
-    v25 = slice_ptr v24
-    v26 = slice_len v24
-    v27 = zext i160 v22 to i256
-    v28 = staticcall v23, v27, v25, v26, 0, 32
-    jumpi v28, bb4, bb3
+    v20 = address
+    v21 = gas
+    v22 = abi_encode [tuple<function>], selector 0xadfc46c000000000000000000000000000000000000000000000000000000000, args v0
+    v23 = slice_ptr v22
+    v24 = slice_len v22
+    v25 = zext i160 v20 to i256
+    v26 = staticcall v21, v25, v23, v24, 0, 32
+    jumpi v26, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v29 = returndatasize
-    v30 = lt v29, 32
-    icall revert_if<tuple_data_too_short>, v30
-    v31 = add 0, 0
-    v32 = mload v31
-    v33 = add 0, 0
-    v34 = mload v33
-    v35 = insert_value struct0, undef struct0, 0, v21
-    v36 = insert_value struct0, v35, 1, v34
-    ret v36
+    v27 = returndatasize
+    v28 = lt v27, 32
+    icall revert_if<tuple_data_too_short>, v28
+    v29 = add 0, 0
+    v30 = mload v29
+    v31 = insert_value struct0, undef struct0, 0, v19
+    v32 = insert_value struct0, v31, 1, v30
+    ret v32
 }
 
 fn @dirtyReturn(arg0: i256) -> memorystruct [selector=0x2aae0ed6, view, abi_params=[u256], abi_returns=[tuple<function>], abi_return_params=[tuple<function>]] {
@@ -160,9 +156,7 @@ fn @cleanupArray(arg0: i256) -> i256 [selector=0x7e130ca5, view, abi_params=[u25
     icall revert_if<tuple_data_too_short>, v11
     v12 = add 0, 0
     v13 = mload v12
-    v14 = add 0, 0
-    v15 = mload v14
-    ret v15
+    ret v13
 }
 
 fn @packedArray(arg0: i256) -> memorybytes [selector=0xc341d66f, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -213,9 +207,7 @@ fn @memoryStructToStorage(arg0: i256) -> i256 [selector=0xb4caea8f, abi_params=[
     icall revert_if<tuple_data_too_short>, v24
     v25 = add 0, 0
     v26 = mload v25
-    v27 = add 0, 0
-    v28 = mload v27
-    ret v28
+    ret v26
 }
 
 fn @storageStructToMemory() -> i1 [selector=0x9a40632d, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -310,9 +302,7 @@ fn @memoryArrayToStorage(arg0: i256) -> i256 [selector=0xe3183809, abi_params=[u
     icall revert_if<tuple_data_too_short>, v60
     v61 = add 0, 0
     v62 = mload v61
-    v63 = add 0, 0
-    v64 = mload v63
-    ret v64
+    ret v62
   bb7:
     v24 = memory_object_load_element memoryarray<1>, v0, v22
     v25 = shr 64, v24

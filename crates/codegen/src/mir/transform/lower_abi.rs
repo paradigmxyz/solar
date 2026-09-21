@@ -3710,6 +3710,10 @@ fn is_canonical_return_scalar(
         }
         return matches!(ty, crate::mir::ValueLayout::Int(size) if size.bits() >= 256);
     };
+    let bits = super::egraph::max_bits_with_args(func, value, 8, &|_| 256);
+    if (U256::MAX >> (256 - bits)) & !expected == U256::ZERO {
+        return true;
+    }
     if ty == crate::mir::ValueLayout::Function
         && source == ReturnValueSource::Memory
         && let Value::Inst(inst) = func.value(value)

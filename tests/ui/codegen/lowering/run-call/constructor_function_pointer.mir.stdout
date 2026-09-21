@@ -25,9 +25,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[function]] {
     icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
     v11 = mload v10
-    v12 = add 0, 0
-    v13 = mload v12
-    sstore 0, v13 !metadata(storage=slot(0))
+    sstore 0, v11 !metadata(storage=slot(0))
     ret
 }
 
@@ -50,7 +48,7 @@ fn @constructor(arg0: memoryfixedarray) [constructor, abi_params=[array<1, funct
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:Caller ===
 @module Caller
 data:
-  Target_initcode_0: hex"6101403803806101406101803961018001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405234151560ff576101808060c0528060c052610180610140380301602082011160fb578060c0525160c01b151560fb576101805160401c8060e0528060e05263ffffffff811660e01b818060e05260201c9150604051806101005280610100526020610100510160405280610120525261012051806101205260049001506101205180610120528161014052806101605260205f600483855afa91505060df573d5f5f3e3d5ffd5b3d6020901060f7575f5f0151505f5f01515f55610103565b5f5ffd5b5f5ffd5b5f5ffd5b60328061010e5f395ff3341515601c575f3560e01c80633fa4f24514601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
+  Target_initcode_0: hex"61013a38038061013a6101803961018001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405234151560f9576101808060c0528060c05261018061013a380301602082011160f5578060c0525160c01b151560f5576101805160401c8060e0528060e05263ffffffff811660e01b818060e05260201c9150604051806101005280610100526020610100510160405280610120525261012051806101205260049001506101205180610120528161014052806101605260205f600483855afa91505060df573d5f5f3e3d5ffd5b3d6020901060f1575f5f01515f5560fd565b5f5ffd5b5f5ffd5b5f5ffd5b6032806101085f395ff3341515601c575f3560e01c80633fa4f24514601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
   ArrayTarget_initcode_1: hex"6101373803806101376101a0396101a001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405234151560f6576101a08060c0528060c0526101a0610137380301602082011160f2575f81018060e05290508060e0526040518061018052806101805280610100528061010052602061018051016040525f5b80610120526001811060a75781806101005292505050515f5560fa565b80610120526020810283015180610140528061014052806101405260c01b1560cd575f5ffd5b61014051806101405260401c60401b602082028380610100520152600181019050608a565b5f5ffd5b5f5ffd5b6032806101055f395ff3341515601c575f3560e01c8063c096a63214601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
 
 fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -61,16 +59,16 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v3 = or v2, 0x990227f1
     v4 = abi_encode [function], args v3
     v5 = not 31
-    v6 = and 383, v5
+    v6 = and 377, v5
     v7 = alloc raw, exact, uninitialized, infallible, v6
     v8 = ptrtoint memptr v7 to i256
-    data_copy Target_initcode_0, v8, 320
+    data_copy Target_initcode_0, v8, 314
     v9 = slice_ptr v4
     v10 = ptrtoint memptr v7 to i256
-    v11 = add v10, 320
+    v11 = add v10, 314
     mcopy v11, v9, 32 !metadata(memory=heap)
     v12 = ptrtoint memptr v7 to i256
-    v13 = create 0, v12, 352
+    v13 = create 0, v12, 346
     v14 = zext i160 v13 to i256
     v15 = ne v14, 0
     jumpi v15, bb2, bb1
@@ -92,9 +90,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     icall revert_if<tuple_data_too_short>, v23
     v24 = add 0, 0
     v25 = mload v24
-    v26 = add 0, 0
-    v27 = mload v26
-    ret v27
+    ret v25
 }
 
 fn @fArray() -> i1 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -152,10 +148,8 @@ fn @fArray() -> i1 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>]
     icall revert_if<tuple_data_too_short>, v36
     v37 = add 0, 0
     v38 = mload v37
-    v39 = add 0, 0
-    v40 = mload v39
-    v41 = eq v40, v28
-    ret v41
+    v39 = eq v38, v28
+    ret v39
 }
 
 fn @sixteen() -> i256 [selector=0x990227f1, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

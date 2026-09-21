@@ -151,9 +151,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     icall revert_if<tuple_data_too_short>, v44
     v45 = add 0, 0
     v46 = mload v45
-    v47 = add 0, 0
-    v48 = mload v47
-    v49 = eq v48, 76
-    icall require<short_string>, v49, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
+    v47 = eq v46, 76
+    icall require<short_string>, v47, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
     ret 1
 }

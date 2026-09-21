@@ -3,42 +3,31 @@
 @phase lowered
 fn @recover() [selector=0xce746024, abi_wrapper, pure] {
   bb0:
-    v37 = mload 64 !metadata(memory=scratch)
-    v38 = add v37, 192
-    v39 = lt v38, v37
-    v40 = gt v38, 0xffffffffffffffff
-    v41 = or v39, v40
-    jumpi v41, bb2, bb1
+    v31 = mload 64 !metadata(memory=scratch)
+    v32 = add v31, 192
+    v33 = lt v32, v31
+    v34 = gt v32, 0xffffffffffffffff
+    v35 = or v33, v34
+    jumpi v35, bb2, bb1
   bb1:
-    mstore 64, v38 !metadata(memory=scratch)
-    v49 = calldatasize
-    calldatacopy v37, v49, 192
-    mstore v37, 160
-    v33 = add v37, 32
-    mstore v33, 1
-    v23 = add v37, 64
-    mstore v23, 28
-    v26 = add v37, 96
-    mstore v26, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
-    v29 = add v37, 128
-    mstore v29, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
-    v43 = mload 64 !metadata(memory=scratch)
-    v44 = add v43, 64
-    v45 = lt v44, v43
-    v46 = gt v44, 0xffffffffffffffff
-    v47 = or v45, v46
-    jumpi v47, bb2, bb3
-  bb3:
-    mstore 64, v44 !metadata(memory=scratch)
-    v50 = calldatasize
-    calldatacopy v43, v50, 64
-    mstore v43, 32
-    v36 = add v43, 32
+    mstore 64, v32 !metadata(memory=scratch)
+    v37 = calldatasize
+    calldatacopy v31, v37, 192
+    mstore v31, 160
+    v30 = add v31, 32
+    mstore v30, 1
+    v20 = add v31, 64
+    mstore v20, 28
+    v23 = add v31, 96
+    mstore v23, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
+    v26 = add v31, 128
+    mstore v26, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
+    v6 = add v31, 160
     v7 = gas
-    v10 = staticcall v7, 1, v33, 128, v36, 32
-    v13 = mload v36
-    v51 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 128, v51
+    v9 = staticcall v7, 1, v30, 128, v6, 32
+    v11 = mload v6
+    v38 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 128, v38
     returndata 128, 32
   bb2:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -48,42 +37,31 @@ fn @recover() [selector=0xce746024, abi_wrapper, pure] {
 
 fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
   bb0:
-    v36 = mload 64 !metadata(memory=scratch)
-    v37 = add v36, 192
-    v38 = lt v37, v36
-    v39 = gt v37, 0xffffffffffffffff
-    v40 = or v38, v39
-    jumpi v40, bb2, bb1
+    v30 = mload 64 !metadata(memory=scratch)
+    v31 = add v30, 192
+    v32 = lt v31, v30
+    v33 = gt v31, 0xffffffffffffffff
+    v34 = or v32, v33
+    jumpi v34, bb2, bb1
   bb1:
-    mstore 64, v37 !metadata(memory=scratch)
-    v48 = calldatasize
-    calldatacopy v36, v48, 192
-    mstore v36, 160
-    v32 = add v36, 32
-    mstore v32, 0
-    v22 = add v36, 64
+    mstore 64, v31 !metadata(memory=scratch)
+    v36 = calldatasize
+    calldatacopy v30, v36, 192
+    mstore v30, 160
+    v29 = add v30, 32
+    mstore v29, 0
+    v19 = add v30, 64
+    mstore v19, 0
+    v22 = add v30, 96
     mstore v22, 0
-    v25 = add v36, 96
+    v25 = add v30, 128
     mstore v25, 0
-    v28 = add v36, 128
-    mstore v28, 0
-    v42 = mload 64 !metadata(memory=scratch)
-    v43 = add v42, 64
-    v44 = lt v43, v42
-    v45 = gt v43, 0xffffffffffffffff
-    v46 = or v44, v45
-    jumpi v46, bb2, bb3
-  bb3:
-    mstore 64, v43 !metadata(memory=scratch)
-    v49 = calldatasize
-    calldatacopy v42, v49, 64
-    mstore v42, 32
-    v35 = add v42, 32
+    v5 = add v30, 160
     v6 = gas
-    v9 = staticcall v6, 1, v32, 128, v35, 32
-    v12 = mload v35
-    v50 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 128, v50
+    v8 = staticcall v6, 1, v29, 128, v5, 32
+    v10 = mload v5
+    v37 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 128, v37
     returndata 128, 32
   bb2:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

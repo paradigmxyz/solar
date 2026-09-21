@@ -166,30 +166,26 @@ fn @f(arg0: i256, arg1: memorybytes) -> struct0 [selector=0xcdc9dc79, abi_params
     icall revert_if<tuple_data_too_short>, v24
     v25 = add 0, 0
     v26 = mload v25
-    v27 = add 0, 0
-    v28 = mload v27
-    v29 = gas
-    v30 = abi_encode [word], selector 0x710422c600000000000000000000000000000000000000000000000000000000, args arg0
-    v31 = slice_ptr v30
-    v32 = slice_len v30
-    v33 = zext i160 v14 to i256
-    v34 = staticcall v29, v33, v31, v32, 0, 32
-    jumpi v34, bb6, bb5
+    v27 = gas
+    v28 = abi_encode [word], selector 0x710422c600000000000000000000000000000000000000000000000000000000, args arg0
+    v29 = slice_ptr v28
+    v30 = slice_len v28
+    v31 = zext i160 v14 to i256
+    v32 = staticcall v27, v31, v29, v30, 0, 32
+    jumpi v32, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v35 = returndatasize
-    v36 = lt v35, 32
-    icall revert_if<tuple_data_too_short>, v36
-    v37 = add 0, 0
-    v38 = mload v37
-    v39 = and v38, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v40 = eq v38, v39
-    v41 = eq v40, false
-    icall revert_if<empty>, v41
-    v42 = add 0, 0
-    v43 = mload v42
-    v44 = insert_value struct0, undef struct0, 0, v28
-    v45 = insert_value struct0, v44, 1, v43
-    ret v45
+    v33 = returndatasize
+    v34 = lt v33, 32
+    icall revert_if<tuple_data_too_short>, v34
+    v35 = add 0, 0
+    v36 = mload v35
+    v37 = and v36, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v38 = eq v36, v37
+    v39 = eq v38, false
+    icall revert_if<empty>, v39
+    v40 = insert_value struct0, undef struct0, 0, v26
+    v41 = insert_value struct0, v40, 1, v36
+    ret v41
 }

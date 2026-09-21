@@ -22,12 +22,20 @@ pub(crate) fn eval_typed_inst<E>(
     kind: &InstKind,
     mut get: impl FnMut(ValueId) -> Result<U256, E>,
 ) -> Result<Option<U256>, E> {
-    let operands = kind.operands();
-    let bits = operands
-        .first()
-        .and_then(|&value| func.value_ty(value))
+    if kind.op_def().result != ResultKind::Integer
+        && !matches!(kind, InstKind::SLt(..) | InstKind::SGt(..) | InstKind::CheckedBinary { .. })
+    {
+        return eval_inst(kind, get);
+    }
+    let bits = kind
+        .op()
+        .first_operand()
+        .and_then(|value| func.value_ty(value))
         .and_then(MirType::integer_bits)
         .unwrap_or(256);
+    if bits == 256 {
+        return eval_inst(kind, get);
+    }
     if bits > 256 {
         return Ok(None);
     }

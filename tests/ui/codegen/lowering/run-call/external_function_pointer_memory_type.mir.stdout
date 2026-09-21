@@ -39,8 +39,6 @@ fn @main() -> i1 [selector=0xdffeadd0, abi_params=[], abi_returns=[word<bool>], 
     v22 = eq v18, v21
     v23 = eq v22, false
     icall revert_if<empty>, v23
-    v24 = add 0, 0
-    v25 = mload v24
-    v26 = ne v25, 0
-    ret v26
+    v24 = ne v18, 0
+    ret v24
 }

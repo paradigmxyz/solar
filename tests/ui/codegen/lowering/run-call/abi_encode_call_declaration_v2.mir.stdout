@@ -149,9 +149,7 @@ fn @b(arg0: i256) -> i256 [selector=0xcd580ff3, view, abi_params=[u256], abi_ret
     icall revert_if<tuple_data_too_short>, v8
     v9 = add 0, 0
     v10 = mload v9
-    v11 = add 0, 0
-    v12 = mload v11
-    ret v12
+    ret v10
 }
 
 fn @a(arg0: i256) -> i256 [selector=0xf0fdf834, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {

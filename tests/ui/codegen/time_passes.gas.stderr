@@ -94,6 +94,7 @@ time: <TIME>	MIR TimePasses lower-mcopy changed=false
 time: <TIME>	MIR TimePasses lower-integers changed=false
 time: <TIME>	MIR TimePasses call-cleanup changed=false
 time: <TIME>	MIR TimePasses inline-dispatch changed=false
+time: <TIME>	MIR TimePasses integer-cleanup changed=false
 time: <TIME>	MIR TimePasses egraph changed=true
 time: <TIME>	MIR TimePasses word-sequence changed=false
 time: <TIME>	MIR TimePasses byte-run-loads changed=false

@@ -1,7 +1,7 @@
 //@ revisions: semantic folded lowered
 //@[semantic] compile-flags: -Zmir-pipeline=none
 //@[folded] compile-flags: -Zmir-pipeline=sccp,egraph,check-elim
-//@[lowered] compile-flags: -Zmir-pipeline=lower-integers,egraph,lower-evm-shaped
+//@[lowered] compile-flags: -Zmir-pipeline=lower-integers,integer-cleanup,egraph,lower-evm-shaped
 
 @module Integers
 
@@ -95,4 +95,49 @@ fn @boolean_complement(arg0: i1) -> i1 {
   bb0:
     v0 = xor arg0, true
     ret v0
+}
+
+fn @guarded_narrow(arg0: i256) -> i8 {
+  bb0:
+    v0 = lt arg0, 3
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = trunc i256 arg0 to i8
+    ret v1
+  bb2:
+    ret i8 0
+}
+
+fn @unguarded_narrow(arg0: i256) -> i8 {
+  bb0:
+    v0 = trunc i256 arg0 to i8
+    ret v0
+}
+
+fn @guarded_pure_mask(arg0: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 255 !metadata(effect=pure)
+    v1 = eq arg0, v0
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = and arg0, 255 !metadata(effect=pure)
+    ret v2
+  bb2:
+    ret 0
+}
+
+fn @guarded_effect_mask(arg0: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, 256
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = and arg0, 255 !metadata(effect=memory_read)
+    ret v1
+  bb2:
+    ret 0
+}
+
+fn @unused_param(arg0: i8) {
+  bb0:
+    ret
 }

@@ -135,7 +135,5 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     icall revert_if<tuple_data_too_short>, v32
     v33 = add 0, 0
     v34 = mload v33
-    v35 = add 0, 0
-    v36 = mload v35
-    ret v36
+    ret v34
 }

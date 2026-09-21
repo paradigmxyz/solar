@@ -58,9 +58,7 @@ fn @first() -> i256 [selector=0x3df4ddf4, abi_params=[], abi_returns=[word], abi
     icall revert_if<tuple_data_too_short>, v19
     v20 = add 0, 0
     v21 = mload v20
-    v22 = add 0, 0
-    v23 = mload v22
-    ret v23
+    ret v21
 }
 
 fn @second() -> i256 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -98,9 +96,7 @@ fn @second() -> i256 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word], ab
     icall revert_if<tuple_data_too_short>, v19
     v20 = add 0, 0
     v21 = mload v20
-    v22 = add 0, 0
-    v23 = mload v22
-    ret v23
+    ret v21
 }
 
 fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -156,25 +152,21 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
     icall revert_if<tuple_data_too_short>, v31
     v32 = add 0, 0
     v33 = mload v32
-    v34 = add 0, 0
-    v35 = mload v34
-    v36 = gas
-    v37 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v38 = slice_ptr v37
-    v39 = slice_len v37
-    v40 = zext i160 v21 to i256
-    v41 = staticcall v36, v40, v38, v39, 0, 32
-    jumpi v41, bb8, bb7
+    v34 = gas
+    v35 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v36 = slice_ptr v35
+    v37 = slice_len v35
+    v38 = zext i160 v21 to i256
+    v39 = staticcall v34, v38, v36, v37, 0, 32
+    jumpi v39, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v42 = returndatasize
-    v43 = lt v42, 32
-    icall revert_if<tuple_data_too_short>, v43
-    v44 = add 0, 0
-    v45 = mload v44
-    v46 = add 0, 0
-    v47 = mload v46
-    v48 = checked_add u256, v35, v47
-    ret v48
+    v40 = returndatasize
+    v41 = lt v40, 32
+    icall revert_if<tuple_data_too_short>, v41
+    v42 = add 0, 0
+    v43 = mload v42
+    v44 = checked_add u256, v33, v43
+    ret v44
 }

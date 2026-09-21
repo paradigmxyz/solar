@@ -282,9 +282,7 @@ fn @deployAdd(arg0: i256) -> i256 [selector=0xec1495a8, abi_params=[u256], abi_r
     icall revert_if<tuple_data_too_short>, v19
     v20 = add 0, 0
     v21 = mload v20
-    v22 = add 0, 0
-    v23 = mload v22
-    ret v23
+    ret v21
 }
 
 fn @deployMul(arg0: i256) -> i256 [selector=0xcb7face2, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -322,9 +320,7 @@ fn @deployMul(arg0: i256) -> i256 [selector=0xcb7face2, abi_params=[u256], abi_r
     icall revert_if<tuple_data_too_short>, v19
     v20 = add 0, 0
     v21 = mload v20
-    v22 = add 0, 0
-    v23 = mload v22
-    ret v23
+    ret v21
 }
 
 fn @deployNegate(arg0: i256) -> i256 [selector=0x8ee51801, abi_params=[i256], abi_returns=[word], abi_return_params=[i256]] {
@@ -380,9 +376,7 @@ fn @deployNegate(arg0: i256) -> i256 [selector=0x8ee51801, abi_params=[i256], ab
     icall revert_if<tuple_data_too_short>, v31
     v32 = add 0, 0
     v33 = mload v32
-    v34 = add 0, 0
-    v35 = mload v34
-    ret v35
+    ret v33
 }
 
 fn @deployElement(arg0: i256) -> i256 [selector=0x178d3c81, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -420,9 +414,7 @@ fn @deployElement(arg0: i256) -> i256 [selector=0x178d3c81, abi_params=[u256], a
     icall revert_if<tuple_data_too_short>, v19
     v20 = add 0, 0
     v21 = mload v20
-    v22 = add 0, 0
-    v23 = mload v22
-    ret v23
+    ret v21
 }
 
 fn @deploySub(arg0: i256) -> i256 [selector=0xd5c4b324, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -460,9 +452,7 @@ fn @deploySub(arg0: i256) -> i256 [selector=0xd5c4b324, abi_params=[u256], abi_r
     icall revert_if<tuple_data_too_short>, v19
     v20 = add 0, 0
     v21 = mload v20
-    v22 = add 0, 0
-    v23 = mload v22
-    ret v23
+    ret v21
 }
 
 fn @deployExp(arg0: i256) -> i256 [selector=0x2744a5b3, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -500,9 +490,7 @@ fn @deployExp(arg0: i256) -> i256 [selector=0x2744a5b3, abi_params=[u256], abi_r
     icall revert_if<tuple_data_too_short>, v19
     v20 = add 0, 0
     v21 = mload v20
-    v22 = add 0, 0
-    v23 = mload v22
-    ret v23
+    ret v21
 }
 
 fn @deployShift(arg0: i256) -> i256 [selector=0xca2ccfdb, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -540,7 +528,5 @@ fn @deployShift(arg0: i256) -> i256 [selector=0xca2ccfdb, abi_params=[u256], abi
     icall revert_if<tuple_data_too_short>, v19
     v20 = add 0, 0
     v21 = mload v20
-    v22 = add 0, 0
-    v23 = mload v22
-    ret v23
+    ret v21
 }

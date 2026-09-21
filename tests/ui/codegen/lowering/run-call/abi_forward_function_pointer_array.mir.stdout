@@ -57,10 +57,8 @@ fn @forward(arg0: calldataslice) -> i1 [selector=0xf848716a, view, abi_params=[a
     v47 = eq v43, v46
     v48 = eq v47, false
     icall revert_if<empty>, v48
-    v49 = add 0, 0
-    v50 = mload v49
-    v51 = ne v50, 0
-    ret v51
+    v49 = ne v43, 0
+    ret v49
   bb2:
     v26 = mul v24, 32
     v27 = add v3, v26

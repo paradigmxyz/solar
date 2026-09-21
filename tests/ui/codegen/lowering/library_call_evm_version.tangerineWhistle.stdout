@@ -96,9 +96,7 @@ fn @one(arg0: i256) -> i256 [selector=0xef56f928, pure, abi_params=[u256], abi_r
   bb2:
     v9 = add v1, 0
     v10 = mload v9
-    v11 = add v1, 0
-    v12 = mload v11
-    ret v12
+    ret v10
 }
 
 fn @two(arg0: i256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -121,17 +119,13 @@ fn @two(arg0: i256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[u256], ab
     v10 = mload v9
     v11 = add v1, 32
     v12 = mload v11
-    v13 = add v1, 0
-    v14 = mload v13
-    v15 = add v1, 32
-    v16 = mload v15
-    v17 = insert_value struct0, undef struct0, 0, v14
+    v13 = insert_value struct0, undef struct0, 0, v10
+    v14 = insert_value struct0, v13, 1, v12
+    v15 = extract_value struct0, v14, 0
+    v16 = extract_value struct0, v14, 1
+    v17 = insert_value struct0, undef struct0, 0, v15
     v18 = insert_value struct0, v17, 1, v16
-    v19 = extract_value struct0, v18, 0
-    v20 = extract_value struct0, v18, 1
-    v21 = insert_value struct0, undef struct0, 0, v19
-    v22 = insert_value struct0, v21, 1, v20
-    ret v22
+    ret v18
 }
 
 fn @aggregate(arg0: i256) -> memoryfixedarray [selector=0x407b7269, pure, abi_params=[u256], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
@@ -186,10 +180,8 @@ fn @boolean(arg0: i256) -> i1 [selector=0xbc586ed6, pure, abi_params=[u256], abi
     v14 = eq v10, v13
     v15 = eq v14, false
     icall revert_if<empty>, v15
-    v16 = add v1, 0
-    v17 = mload v16
-    v18 = ne v17, 0
-    ret v18
+    v16 = ne v10, 0
+    ret v16
 }
 
 fn @structBool(arg0: i256) -> memorystruct [selector=0x199436a8, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
@@ -238,9 +230,7 @@ fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
   bb2:
     v9 = add v1, 0
     v10 = mload v9
-    v11 = add v1, 0
-    v12 = mload v11
-    ret v12
+    ret v10
 }
 
 fn @dynamicArgument(arg0: memorybytes) -> struct0 [selector=0x11b8efbf, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -271,33 +261,21 @@ fn @dynamicArgument(arg0: memorybytes) -> struct0 [selector=0x11b8efbf, pure, ab
     v18 = mload v17
     v19 = add v1, 160
     v20 = mload v19
-    v21 = add v1, 0
-    v22 = mload v21
-    v23 = add v1, 32
-    v24 = mload v23
-    v25 = add v1, 64
-    v26 = mload v25
-    v27 = add v1, 96
-    v28 = mload v27
-    v29 = add v1, 128
-    v30 = mload v29
-    v31 = add v1, 160
-    v32 = mload v31
-    v33 = insert_value struct1, undef struct1, 0, v22
-    v34 = insert_value struct1, v33, 1, v24
-    v35 = insert_value struct1, v34, 2, v26
-    v36 = insert_value struct1, v35, 3, v28
-    v37 = insert_value struct1, v36, 4, v30
-    v38 = insert_value struct1, v37, 5, v32
-    v39 = extract_value struct1, v38, 0
-    v40 = extract_value struct1, v38, 1
-    v41 = extract_value struct1, v38, 2
-    v42 = extract_value struct1, v38, 3
-    v43 = extract_value struct1, v38, 4
-    v44 = extract_value struct1, v38, 5
-    v45 = insert_value struct0, undef struct0, 0, v39
-    v46 = insert_value struct0, v45, 1, v44
-    ret v46
+    v21 = insert_value struct1, undef struct1, 0, v10
+    v22 = insert_value struct1, v21, 1, v12
+    v23 = insert_value struct1, v22, 2, v14
+    v24 = insert_value struct1, v23, 3, v16
+    v25 = insert_value struct1, v24, 4, v18
+    v26 = insert_value struct1, v25, 5, v20
+    v27 = extract_value struct1, v26, 0
+    v28 = extract_value struct1, v26, 1
+    v29 = extract_value struct1, v26, 2
+    v30 = extract_value struct1, v26, 3
+    v31 = extract_value struct1, v26, 4
+    v32 = extract_value struct1, v26, 5
+    v33 = insert_value struct0, undef struct0, 0, v27
+    v34 = insert_value struct0, v33, 1, v32
+    ret v34
 }
 
 fn @none(arg0: i256) [selector=0x2758da14, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {

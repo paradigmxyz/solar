@@ -24,7 +24,8 @@ width and panic behavior.
 
 `lower-integers` legalizes narrow arithmetic and conversions to `i256` before
 EVM-shaped MIR. It materializes masks and sign extension as MIR operations,
-then the scalar passes optimize them before stack scheduling. `i1` remains
+then `integer-cleanup` removes masks proved redundant by dominating range
+checks, and scalar passes simplify the remaining operations before stack scheduling. `i1` remains
 the branch condition type.
 
 Source bindings exposed to inline assembly use explicit `i256` carriers where

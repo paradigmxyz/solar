@@ -9,9 +9,15 @@
 use crate::mir::{Function, InstKind, MirType, Value, ValueId};
 use alloy_primitives::U256;
 
+#[inline]
+pub(crate) fn integer_bits(func: &Function, value: ValueId) -> u32 {
+    func.value_ty(value).and_then(MirType::integer_bits).unwrap_or(256)
+}
+
+#[inline]
 pub(crate) fn integer_max(func: &Function, value: ValueId) -> U256 {
-    let bits = func.value_ty(value).and_then(MirType::integer_bits).unwrap_or(256);
-    U256::MAX >> (256 - bits)
+    let bits = integer_bits(func, value);
+    if bits == 256 { U256::MAX } else { U256::MAX >> (256 - bits) }
 }
 
 pub(crate) fn unsigned_bounds(func: &Function, value: ValueId) -> (U256, U256) {

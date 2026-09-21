@@ -93,3 +93,48 @@
       ret v0
   }
   
+  fn @guarded_narrow(arg0: i256) -> i8 {
+    bb0:
+      v0 = lt arg0, 3
+      jumpi v0, bb1, bb2
+    bb2:
+      ret i8 0
+    bb1:
+      v1 = trunc i256 arg0 to i8
+      ret v1
+  }
+  
+  fn @unguarded_narrow(arg0: i256) -> i8 {
+    bb0:
+      v0 = trunc i256 arg0 to i8
+      ret v0
+  }
+  
+  fn @guarded_pure_mask(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = eq arg0, v0
+      jumpi v1, bb1, bb2
+    bb2:
+      ret 0
+    bb1:
+      v2 = and arg0, 255
+      ret v2
+  }
+  
+  fn @guarded_effect_mask(arg0: i256) -> i256 {
+    bb0:
+      v0 = lt arg0, 256
+      jumpi v0, bb1, bb2
+    bb2:
+      ret 0
+    bb1:
+      v1 = and arg0, 255 !metadata(effect=memory_read)
+      ret v1
+  }
+  
+  fn @unused_param(arg0: i8) {
+    bb0:
+      ret
+  }
+  
