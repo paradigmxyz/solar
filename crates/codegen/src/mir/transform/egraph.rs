@@ -6,7 +6,7 @@
 //! reversing comparison predicates when needed. Matching, node insertion, and
 //! final materialization share this ordering; equal-rank operands retain theirs.
 //! Nodes are hash-consed within dominator scopes, so an expression that already
-//! has a dominating definition reuses it. The rules in `isle/mir/egraph.isle` run
+//! has a dominating definition reuses it. The rules in `isle/mir/egraph` run
 //! on every new node: `simplify` merges the node's class into an existing
 //! value and `rewrite` adds an equivalent node to the class. New nodes only
 //! reference classes that already exist, so no rebuild or fixpoint is needed.

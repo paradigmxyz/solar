@@ -8,7 +8,7 @@ retain their PR 1514 pins and observations. They are historical evidence, not
 claims about this implementation's output.
 
 The initial expansion added 259 net rule clauses across the three MIR rule files: 78 in
-`egraph.isle`, 116 in `word.isle`, and 65 in `word_sequence.isle`. They cover
+`egraph/`, 116 in `word/`, and 65 in `word_sequence/`. They cover
 local scalar identities, bounded expression recipes, typed boolean
 cleanup, and unused memory-pointer normalization. The tables below account for
 every proposed family. “Implemented” means a rule is available under its guards;
@@ -19,11 +19,16 @@ support beyond local ISLE matching; those limits remain explicit.
 
 ## Placement and safety
 
-Single-node alternatives live in [word.isle](../crates/codegen/isle/mir/word.isle).
+Each rule set has [modules grouped by root operation](../crates/codegen/isle/mir/README.md).
+The split preserves rule forms, guards, priorities, and the order of alternatives
+for each operation. The build lists modules explicitly; proof CI checks every
+module in each rule-set directory.
+
+Single-node alternatives live in [word/](../crates/codegen/isle/mir/word/).
 Value substitutions, typed boolean rules, and effect-preserving operand cleanup
-live in [egraph.isle](../crates/codegen/isle/mir/egraph.isle).
+live in [egraph/](../crates/codegen/isle/mir/egraph/).
 Bounded multi-node alternatives live in
-[word_sequence.isle](../crates/codegen/isle/mir/word_sequence.isle), after e-graph
+[word_sequence/](../crates/codegen/isle/mir/word_sequence/), after e-graph
 extraction. The recipe cost includes only producers that can be deleted, and
 charges retained/shared inputs. Matching does not insert speculative MIR.
 

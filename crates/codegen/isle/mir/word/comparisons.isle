@@ -1,0 +1,229 @@
+;; Equality and ordered comparison identities.
+
+;; lt (add x, 1), x => eq (add x, 1), 0
+;; gt x, (add x, 1) => eq (add x, 1), 0
+;; Only wrapping from MAX to zero can make an increment smaller. Reuse the
+;; sum so a checked increment does not keep the previous counter live too.
+(rule (rewrite (Op.Lt (and sum (add x (one))) x)) (Op.Eq sum (imm (u256 0))))
+
+(rule (rewrite (Op.Gt x (and sum (add x (one))))) (Op.Eq sum (imm (u256 0))))
+
+;; gt (sub x, 1), x => eq x, 0
+;; lt x, (sub x, 1) => eq x, 0
+;; Only wrapping from zero to MAX can make a decrement larger.
+(rule (rewrite (Op.Gt (sub x (one)) x)) (Op.Eq x (imm (u256 0))))
+
+(rule (rewrite (Op.Lt x (sub x (one)))) (Op.Eq x (imm (u256 0))))
+
+(rule (rewrite (Op.Gt (add x (all_ones)) x)) (Op.Eq x (imm (u256 0))))
+
+(rule (rewrite (Op.Lt x (add x (all_ones)))) (Op.Eq x (imm (u256 0))))
+
+;; (x << s) == (y << s) => x == y, if neither shift loses bits.
+(rule (rewrite (Op.Eq (shl (iconst shift) x) (shl (iconst shift) y)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) y))
+      (Op.Eq x y))
+
+;; (x << s) == c => x == (c >> s), if x fits and c is aligned to 2^s.
+(rule (rewrite (Op.Eq (shl (iconst shift) x) (iconst c)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (Op.Eq x (imm (u256_shr shift c))))
+
+;; (x << s) < (y << s) => x < y, if neither shift loses bits.
+(rule (rewrite (Op.Lt (shl (iconst shift) x) (shl (iconst shift) y)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) y))
+      (Op.Lt x y))
+
+;; (x << s) < c => x < (c >> s), if x fits and c is aligned to 2^s.
+(rule (rewrite (Op.Lt (shl (iconst shift) x) (iconst c)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (Op.Lt x (imm (u256_shr shift c))))
+
+;; (x << s) > (y << s) => x > y, if neither shift loses bits.
+(rule (rewrite (Op.Gt (shl (iconst shift) x) (shl (iconst shift) y)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) y))
+      (Op.Gt x y))
+
+;; (x << s) > c => x > (c >> s), if x fits and c is aligned to 2^s.
+(rule (rewrite (Op.Gt (shl (iconst shift) x) (iconst c)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (Op.Gt x (imm (u256_shr shift c))))
+
+;; Eq (add x (iconst a)) (iconst b) => Eq x (imm (u256_sub b a))
+(rule (rewrite (Op.Eq (add x (iconst a)) (iconst b)))  (Op.Eq x (imm (u256_sub b a))))
+
+;; Eq (sub x (iconst a)) (iconst b) => Eq x (imm (u256_add b a))
+(rule (rewrite (Op.Eq (sub x (iconst a)) (iconst b)))  (Op.Eq x (imm (u256_add b a))))
+
+;; Eq (bxor x (iconst a)) (iconst b) => Eq x (imm (u256_xor b a))
+(rule (rewrite (Op.Eq (bxor x (iconst a)) (iconst b)))  (Op.Eq x (imm (u256_xor b a))))
+
+;; Eq (bnot x) (iconst c) => Eq x (imm (u256_not c))
+(rule (rewrite (Op.Eq (bnot x) (iconst c)))  (Op.Eq x (imm (u256_not c))))
+
+;; Eq (add x z) (add y z) => Eq x y
+(rule (rewrite (Op.Eq (add x z) (add y z)))  (Op.Eq x y))
+
+;; Eq (add z x) (add y z) => Eq x y
+(rule (rewrite (Op.Eq (add z x) (add y z)))  (Op.Eq x y))
+
+;; Eq (add x z) (add z y) => Eq x y
+(rule (rewrite (Op.Eq (add x z) (add z y)))  (Op.Eq x y))
+
+;; Eq (add z x) (add z y) => Eq x y
+(rule (rewrite (Op.Eq (add z x) (add z y)))  (Op.Eq x y))
+
+;; Eq (bxor x z) (bxor y z) => Eq x y
+(rule (rewrite (Op.Eq (bxor x z) (bxor y z)))  (Op.Eq x y))
+
+;; Eq (bxor z x) (bxor y z) => Eq x y
+(rule (rewrite (Op.Eq (bxor z x) (bxor y z)))  (Op.Eq x y))
+
+;; Eq (bxor x z) (bxor z y) => Eq x y
+(rule (rewrite (Op.Eq (bxor x z) (bxor z y)))  (Op.Eq x y))
+
+;; Eq (bxor z x) (bxor z y) => Eq x y
+(rule (rewrite (Op.Eq (bxor z x) (bxor z y)))  (Op.Eq x y))
+
+;; Eq (sub x z) (sub y z) => Eq x y
+(rule (rewrite (Op.Eq (sub x z) (sub y z)))  (Op.Eq x y))
+
+;; Eq (sub z x) (sub z y) => Eq x y
+(rule (rewrite (Op.Eq (sub z x) (sub z y)))  (Op.Eq x y))
+
+;; Eq (bnot x) (bnot y) => Eq x y
+(rule (rewrite (Op.Eq (bnot x) (bnot y)))  (Op.Eq x y))
+
+;; Eq (mul x (iconst c)) (mul y (iconst c)) => Eq x y
+(rule (rewrite (Op.Eq (mul x (iconst c)) (mul y (iconst c)))) (if-let true (u256_eq (u256_and c (u256 1)) 1)) (Op.Eq x y))
+
+;; Ne (add x (iconst a)) (iconst b) => Ne x (imm (u256_sub b a))
+(rule (rewrite (Op.Ne (add x (iconst a)) (iconst b)))  (Op.Ne x (imm (u256_sub b a))))
+
+;; Ne (sub x (iconst a)) (iconst b) => Ne x (imm (u256_add b a))
+(rule (rewrite (Op.Ne (sub x (iconst a)) (iconst b)))  (Op.Ne x (imm (u256_add b a))))
+
+;; Ne (bxor x (iconst a)) (iconst b) => Ne x (imm (u256_xor b a))
+(rule (rewrite (Op.Ne (bxor x (iconst a)) (iconst b)))  (Op.Ne x (imm (u256_xor b a))))
+
+;; Ne (bnot x) (iconst c) => Ne x (imm (u256_not c))
+(rule (rewrite (Op.Ne (bnot x) (iconst c)))  (Op.Ne x (imm (u256_not c))))
+
+;; Ne (add x z) (add y z) => Ne x y
+(rule (rewrite (Op.Ne (add x z) (add y z)))  (Op.Ne x y))
+
+;; Ne (add z x) (add y z) => Ne x y
+(rule (rewrite (Op.Ne (add z x) (add y z)))  (Op.Ne x y))
+
+;; Ne (add x z) (add z y) => Ne x y
+(rule (rewrite (Op.Ne (add x z) (add z y)))  (Op.Ne x y))
+
+;; Ne (add z x) (add z y) => Ne x y
+(rule (rewrite (Op.Ne (add z x) (add z y)))  (Op.Ne x y))
+
+;; Ne (bxor x z) (bxor y z) => Ne x y
+(rule (rewrite (Op.Ne (bxor x z) (bxor y z)))  (Op.Ne x y))
+
+;; Ne (bxor z x) (bxor y z) => Ne x y
+(rule (rewrite (Op.Ne (bxor z x) (bxor y z)))  (Op.Ne x y))
+
+;; Ne (bxor x z) (bxor z y) => Ne x y
+(rule (rewrite (Op.Ne (bxor x z) (bxor z y)))  (Op.Ne x y))
+
+;; Ne (bxor z x) (bxor z y) => Ne x y
+(rule (rewrite (Op.Ne (bxor z x) (bxor z y)))  (Op.Ne x y))
+
+;; Ne (sub x z) (sub y z) => Ne x y
+(rule (rewrite (Op.Ne (sub x z) (sub y z)))  (Op.Ne x y))
+
+;; Ne (sub z x) (sub z y) => Ne x y
+(rule (rewrite (Op.Ne (sub z x) (sub z y)))  (Op.Ne x y))
+
+;; Ne (bnot x) (bnot y) => Ne x y
+(rule (rewrite (Op.Ne (bnot x) (bnot y)))  (Op.Ne x y))
+
+;; Ne (mul x (iconst c)) (mul y (iconst c)) => Ne x y
+(rule (rewrite (Op.Ne (mul x (iconst c)) (mul y (iconst c)))) (if-let true (u256_eq (u256_and c (u256 1)) 1)) (Op.Ne x y))
+
+;; Eq (div x (nonzero_const c)) (zero) => Lt x (imm c)
+(rule (rewrite (Op.Eq (div x (nonzero_const c)) (zero)))  (Op.Lt x (imm c)))
+
+;; x / c != 0 => x > c - 1, for c != 0.
+(rule (rewrite (Op.Ne (div x (nonzero_const c)) (zero))) (Op.Gt x (imm (u256_sub c (u256 1)))))
+
+;; Slt (sar s x) (zero) => Slt x (imm (u256 0))
+(rule (rewrite (Op.SLt (sar s x) (zero)))  (Op.SLt x (imm (u256 0))))
+
+;; Ne (zext (and b (bool_value))) (one) => Eq b (imm_bool false)
+(rule (rewrite (Op.Ne (zext (and b (bool_value))) (one)))  (Op.Eq b (imm_bool false)))
+
+;; Eq (select (and c (bool_value)) (iconst a) (iconst b)) (iconst b) => Eq c (imm_bool false)
+(rule (rewrite (Op.Eq (select (and c (bool_value)) (iconst a) (iconst b)) (iconst b))) (if-let false (u256_same a b)) (Op.Eq c (imm_bool false)))
+
+;; Ne (select (and c (bool_value)) (iconst a) (iconst b)) (iconst a) => Eq c (imm_bool false)
+(rule (rewrite (Op.Ne (select (and c (bool_value)) (iconst a) (iconst b)) (iconst a))) (if-let false (u256_same a b)) (Op.Eq c (imm_bool false)))
+
+;; Lt (bnot x) (bnot y) => Gt x y
+(rule (rewrite (Op.Lt (bnot x) (bnot y)))  (Op.Gt x y))
+
+;; Gt (bnot x) (bnot y) => Lt x y
+(rule (rewrite (Op.Gt (bnot x) (bnot y)))  (Op.Lt x y))
+
+;; Slt (bnot x) (bnot y) => Sgt x y
+(rule (rewrite (Op.SLt (bnot x) (bnot y)))  (Op.SGt x y))
+
+;; Sgt (bnot x) (bnot y) => Slt x y
+(rule (rewrite (Op.SGt (bnot x) (bnot y)))  (Op.SLt x y))
+
+;; Invert a constant bound only when its push cost does not grow. This keeps
+;; compact shifted bounds available for lossless-shift cancellation.
+;; Eq (lt x (iconst c)) (zero) => Gt x (imm (u256_sub c (u256 1)))
+(rule (rewrite (Op.Eq (lt x (iconst c)) (zero))) (if-let false (u256_is_zero c)) (if-let true (push_not_larger (u256_sub c (u256 1)) c)) (Op.Gt x (imm (u256_sub c (u256 1)))))
+
+;; Eq (gt x (iconst c)) (zero) => Lt x (imm (u256_add c (u256 1)))
+(rule (rewrite (Op.Eq (gt x (iconst c)) (zero))) (if-let false (u256_is_all_ones c)) (if-let true (push_not_larger (u256_add c (u256 1)) c)) (Op.Lt x (imm (u256_add c (u256 1)))))
+
+;; Eq (slt x (iconst c)) (zero) => SGt x (imm (u256_sub c (u256 1)))
+(rule (rewrite (Op.Eq (slt x (iconst c)) (zero))) (if-let false (u256_same c (u256_shl (u256 255) (u256 1)))) (if-let true (push_not_larger (u256_sub c (u256 1)) c)) (Op.SGt x (imm (u256_sub c (u256 1)))))
+
+;; Eq (sgt x (iconst c)) (zero) => SLt x (imm (u256_add c (u256 1)))
+(rule (rewrite (Op.Eq (sgt x (iconst c)) (zero))) (if-let false (u256_same c (u256_shr (u256 1) (u256_max)))) (if-let true (push_not_larger (u256_add c (u256 1)) c)) (Op.SLt x (imm (u256_add c (u256 1)))))
+
+;; SLt x (iconst c) => Eq x (imm (u256_shl (u256 255) (u256 1)))
+(rule (rewrite (Op.SLt x (iconst c))) (if-let true (u256_same c (u256_add (u256_shl (u256 255) (u256 1)) (u256 1)))) (Op.Eq x (imm (u256_shl (u256 255) (u256 1)))))
+
+;; SGt x (iconst c) => Eq x (imm (u256_shr (u256 1) (u256_max)))
+(rule (rewrite (Op.SGt x (iconst c))) (if-let true (u256_same c (u256_sub (u256_shr (u256 1) (u256_max)) (u256 1)))) (Op.Eq x (imm (u256_shr (u256 1) (u256_max)))))
+
+;; Ne (band (zext (and a (bool_value))) (zext (and b (bool_value)))) (zero) => And a b
+(rule (rewrite (Op.Ne (band (zext (and a (bool_value))) (zext (and b (bool_value)))) (zero)))  (Op.And a b))
+
+;; Ne (bor (zext (and a (bool_value))) (zext (and b (bool_value)))) (zero) => Or a b
+(rule (rewrite (Op.Ne (bor (zext (and a (bool_value))) (zext (and b (bool_value)))) (zero)))  (Op.Or a b))
+
+;; Ne (bxor (zext (and a (bool_value))) (zext (and b (bool_value)))) (zero) => Xor a b
+(rule (rewrite (Op.Ne (bxor (zext (and a (bool_value))) (zext (and b (bool_value)))) (zero)))  (Op.Xor a b))
+
+;; Eq (sar (iconst s) x) (zero) => SGt x (imm (u256_max))
+(rule (rewrite (Op.Eq (sar (iconst s) x) (zero))) (if-let true (u256_ge s 255)) (Op.SGt x (imm (u256_max))))
+
+;; Ne (sar (iconst s) x) (zero) => SLt x (imm (u256 0))
+(rule (rewrite (Op.Ne (sar (iconst s) x) (zero))) (if-let true (u256_ge s 255)) (Op.SLt x (imm (u256 0))))
+
+;; (x | nonzero_constant) == 0 => false; the truth-only consumer is decisive.
+(rule (rewrite (Op.Eq (bor x (nonzero_const c)) (zero))) (Op.Eq (imm_bool false) (imm_bool true)))
+
+;; (x | nonzero_constant) != 0 => true; preserve arbitrary returned words.
+(rule (rewrite (Op.Ne (bor x (nonzero_const c)) (zero))) (Op.Eq (imm_bool true) (imm_bool true)))

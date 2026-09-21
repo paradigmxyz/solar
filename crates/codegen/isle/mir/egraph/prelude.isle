@@ -1,0 +1,236 @@
+;; Shared terms and Rust-backed helpers.
+
+;; MIR instruction simplification rules for the e-graph pass.
+;;
+;; `rewrite` returns every equivalent instruction its rules can build, which
+;; the e-graph adds to the class as alternative nodes, and `simplify` returns
+;; the value an instruction is equal to, which merges the class into that
+;; value. The pass in
+;; `transform/egraph.rs` resolves operand value identities before matching.
+;; Constants stay on the right of declared commutative pairs and comparisons,
+;; at roots, in defining instructions, and in emitted e-graph output.
+;; Rules only need the constant-right spelling; nonconstant permutations remain.
+;; Every rule must be exact for all 256-bit EVM words.
+;;
+;; The number after `rule` is an ISLE match priority: `(rule 9 ...)` is tried
+;; before `(rule 8 ...)` when both match. We use distinct priorities to resolve
+;; overlapping `simplify` rules; the first successful match determines the replacement.
+;; The default priority is zero. These numbers order matching; Target determines
+;; gas and size costs. The `multi` declaration on `rewrite` instead collects all
+;; matching alternatives for the e-graph to compare by cost.
+;;
+;; Pseudocode below uses 256-bit wrapping arithmetic, unsigned comparisons and
+;; logical `>>`; `signed(x)` selects a signed comparison or arithmetic shift.
+;; Booleans are words in {0, 1}, and MAX = 2 ** 256 - 1. Named constants in the
+;; patterns are compile-time immediates. `byte(i, x)` indexes from the high byte.
+;; Division and modulo by zero evaluate to zero, following EVM semantics.
+;; Combined shift counts saturate at 256 without wrapping. `constant(expr)` folds
+;; an expression at compile time, and `**` denotes exponentiation.
+;; ISLE's `(and a (iconst c))` binds both the value `a` and its immediate `c`;
+;; the bitwise-AND extractor is `band`.
+
+;; Predicates and projections implemented in `transform/egraph/isle.rs`.
+(decl iconst (U256) Value)
+(extern extractor iconst iconst)
+
+(decl zero () Value)
+(extern extractor zero zero)
+
+(decl one () Value)
+(extern extractor one one)
+
+(decl all_ones () Value)
+(extern extractor all_ones all_ones)
+
+;; A value whose definition bounds it to zero or one.
+(decl bool_value () Value)
+(extern extractor bool_value bool_value)
+
+;; The `address` opcode.
+(decl current_address () Value)
+(extern extractor current_address current_address)
+
+;; A non-zero immediate.
+(decl nonzero_const (U256) Value)
+(extern extractor nonzero_const nonzero_const)
+
+(decl pure is_zero_or_one (Value) bool)
+(extern constructor is_zero_or_one is_zero_or_one)
+
+;; `mask` clears the upper 96 bits of `value`, which are already clear.
+(decl pure masks_clean_address (U256 Value) bool)
+(extern constructor masks_clean_address masks_clean_address)
+
+;; `mask` keeps every bit the definition of `value` can set.
+(decl pure mask_covers (U256 Value) bool)
+(extern constructor mask_covers mask_covers)
+
+;; The definition of `value` bounds it below, or at most, the constant.
+(decl pure below_const (Value U256) bool)
+(extern constructor below_const below_const)
+
+(decl pure at_most_const (Value U256) bool)
+(extern constructor at_most_const at_most_const)
+
+;; The shift moves every bit `value` can have out of the word.
+(decl pure shifted_out (U256 Value) bool)
+(extern constructor shifted_out shifted_out)
+
+;; The sign bit `signextend` would copy is known to be clear.
+(decl pure sign_clear (U256 Value) bool)
+(extern constructor sign_clear sign_clear)
+
+(decl pure differ (Value Value) bool)
+(extern constructor differ differ)
+
+(decl pure has_bitwise_shifting () bool)
+(extern constructor has_bitwise_shifting has_bitwise_shifting)
+
+(decl pure has_self_balance () bool)
+(extern constructor has_self_balance has_self_balance)
+
+(decl pure imm (U256) Value)
+(extern constructor imm imm)
+
+(decl pure imm_bool (bool) Value)
+(extern constructor imm_bool imm_bool)
+
+(decl pure u256 (u64) U256)
+(extern constructor u256 u256)
+
+(decl pure u256_max () U256)
+(extern constructor u256_max u256_max)
+
+(decl pure u256_not (U256) U256)
+(extern constructor u256_not u256_not)
+
+(decl pure u256_is_zero (U256) bool)
+(extern constructor u256_is_zero u256_is_zero)
+
+(decl pure u256_gt (U256 u64) bool)
+(extern constructor u256_gt u256_gt)
+
+(decl pure u256_ge (U256 u64) bool)
+(extern constructor u256_ge u256_ge)
+
+(decl pure u256_lt (U256 u64) bool)
+(extern constructor u256_lt u256_lt)
+
+;; `(c & bits) == bits`
+(decl pure u256_has_bits (U256 u64) bool)
+(extern constructor u256_has_bits u256_has_bits)
+
+(decl pure u256_eq (U256 u64) bool)
+(extern constructor u256_eq u256_eq)
+
+(decl pure u256_is_one (U256) bool)
+(extern constructor u256_is_one u256_is_one)
+
+(decl pure u256_is_all_ones (U256) bool)
+(extern constructor u256_is_all_ones u256_is_all_ones)
+
+;; Wrapping arithmetic.
+(decl pure u256_add (U256 U256) U256)
+(extern constructor u256_add u256_add)
+
+(decl pure u256_sub (U256 U256) U256)
+(extern constructor u256_sub u256_sub)
+
+(decl pure u256_neg (U256) U256)
+(extern constructor u256_neg u256_neg)
+
+(decl pure u256_and (U256 U256) U256)
+(extern constructor u256_and u256_and)
+
+;; Constant operations use EVM pop order and never truncate full-width indexes.
+(decl pure u256_shl (U256 U256) U256)
+(extern constructor u256_shl u256_shl)
+
+(decl pure u256_shr (U256 U256) U256)
+(extern constructor u256_shr u256_shr)
+
+(decl pure u256_byte (U256 U256) U256)
+(extern constructor u256_byte u256_byte)
+
+(decl pure in_current_block (Value) bool)
+(extern constructor in_current_block in_current_block)
+
+;; The value had one use before this pass; a profitability condition only.
+(decl pure single_use (Value) bool)
+(extern constructor single_use single_use)
+
+(decl pure u256_same (U256 U256) bool)
+(extern constructor u256_same u256_same)
+
+(decl pure u256_from_limbs (u64 u64 u64 u64) U256)
+(extern constructor u256_from_limbs u256_from_limbs)
+
+;; Shift counts saturate at the word width; they must never wrap around.
+(decl pure shift_sum (U256 U256) U256)
+(extern constructor shift_sum shift_sum)
+
+;; A byte-aligned left/right arithmetic shift pair is a sign extension.
+(decl pure partial sign_byte (U256) U256)
+(extern constructor sign_byte sign_byte)
+
+(decl pure u256_min (U256 U256) U256)
+(extern constructor u256_min u256_min)
+
+(decl pure u256_le (U256 U256) bool)
+(extern constructor u256_le u256_le)
+
+;; The non-zero shift amount of a power of two.
+(decl pure partial power_of_two_shift (U256) U256)
+(extern constructor power_of_two_shift power_of_two_shift)
+
+;; Identical values, or equal immediates.
+(decl pure same_value (Value Value) bool)
+(extern constructor same_value same_value)
+
+(decl pure has_known_sign_bit (Value) bool)
+(extern constructor has_known_sign_bit has_known_sign_bit)
+
+(decl pure object_data_offset (MemoryObjectKind) u64)
+(extern constructor object_data_offset object_data_offset)
+
+(decl pure partial field_offset (MemoryObjectLayout u64) u64)
+(extern constructor field_offset field_offset)
+
+(decl pure layout_kind (MemoryObjectLayout) MemoryObjectKind)
+(extern constructor layout_kind layout_kind)
+
+;; Profitability only: do not grow a push when replacing a shift pair.
+(decl pure push_not_larger (U256 U256) bool)
+(extern constructor push_not_larger push_not_larger)
+
+;;;; In-place rewrites.
+
+(decl multi rewrite (Op) Op)
+
+;;;; Value replacements.
+
+(decl partial simplify (Op) Value)
+
+(decl integer_bits (u32) Value)
+(extern extractor integer_bits integer_bits)
+
+(decl pure u32_lt (u32 u32) bool)
+(extern constructor u32_lt u32_lt)
+
+(decl pure u32_le (u32 u32) bool)
+(extern constructor u32_le u32_le)
+
+(decl pure u256_mul (U256 U256) U256)
+(extern constructor u256_mul u256_mul)
+
+(decl pure u256_or (U256 U256) U256)
+(extern constructor u256_or u256_or)
+
+(decl pure u256_xor (U256 U256) U256)
+(extern constructor u256_xor u256_xor)
+
+(decl pure u256_div (U256 U256) U256)
+(extern constructor u256_div u256_div)
+
+(decl pure imm_i160_zero () Value)
+(extern constructor imm_i160_zero imm_i160_zero)

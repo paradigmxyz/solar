@@ -1,0 +1,35 @@
+;; Shifts, byte extraction, and sign extension.
+
+;; Shr s (band (shl s x) m) => And x shifted
+(rule (sequence_rewrite (Op.Shr s (band (shl s x) m)))
+      (if-let shifted (make (Op.Shr s m)))
+      (sequence (Op.And x shifted)))
+
+;; Shr s (band m (shl s x)) => And x shifted
+(rule (sequence_rewrite (Op.Shr s (band m (shl s x))))
+      (if-let shifted (make (Op.Shr s m)))
+      (sequence (Op.And x shifted)))
+
+;; Shr (iconst b) (shl (iconst a) x) => And shifted mask
+(rule (sequence_rewrite (Op.Shr (iconst b) (shl (iconst a) x)))
+      (if-let false (u256_same a b))
+      (if-let true (u256_ge a b)) (if-let count (imm (u256_sub a b))) (if-let shifted (make (Op.Shl count x))) (if-let mask (imm (u256_shr b (u256_shl a (u256_max)))))
+      (sequence (Op.And shifted mask)))
+
+;; Shr (iconst b) (shl (iconst a) x) => And shifted mask
+(rule (sequence_rewrite (Op.Shr (iconst b) (shl (iconst a) x)))
+      (if-let false (u256_same a b))
+      (if-let false (u256_ge a b)) (if-let count (imm (u256_sub b a))) (if-let shifted (make (Op.Shr count x))) (if-let mask (imm (u256_shr b (u256_shl a (u256_max)))))
+      (sequence (Op.And shifted mask)))
+
+;; Shl (iconst b) (shr (iconst a) x) => And shifted mask
+(rule (sequence_rewrite (Op.Shl (iconst b) (shr (iconst a) x)))
+      (if-let false (u256_same a b))
+      (if-let true (u256_ge a b)) (if-let count (imm (u256_sub a b))) (if-let shifted (make (Op.Shr count x))) (if-let mask (imm (u256_shl b (u256_shr a (u256_max)))))
+      (sequence (Op.And shifted mask)))
+
+;; Shl (iconst b) (shr (iconst a) x) => And shifted mask
+(rule (sequence_rewrite (Op.Shl (iconst b) (shr (iconst a) x)))
+      (if-let false (u256_same a b))
+      (if-let false (u256_ge a b)) (if-let count (imm (u256_sub b a))) (if-let shifted (make (Op.Shl count x))) (if-let mask (imm (u256_shl b (u256_shr a (u256_max)))))
+      (sequence (Op.And shifted mask)))

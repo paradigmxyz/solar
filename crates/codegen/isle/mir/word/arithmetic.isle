@@ -1,0 +1,150 @@
+;; Arithmetic identities and constant contraction.
+
+;; x * MAX => 0 - x
+;; sdiv(x, MAX) => 0 - x
+;; Includes the EVM minimum-signed-word / -1 wraparound case.
+(rule (rewrite (Op.Mul x (all_ones))) (Op.Sub (imm (u256 0)) x))
+
+(rule (rewrite (Op.SDiv x (all_ones))) (Op.Sub (imm (u256 0)) x))
+
+;; ~x - ~y => y - x
+;; x + ~x => MAX
+(rule (rewrite (Op.Sub (bnot x) (bnot y))) (Op.Sub y x))
+
+(rule (rewrite (Op.Add x (bnot x))) (Op.Add (imm (u256_max)) (imm (u256 0))))
+
+(rule (rewrite (Op.Add (bnot x) x)) (Op.Add (imm (u256_max)) (imm (u256 0))))
+
+;; Additional families from mixed arithmetic/bitwise enumeration.
+;; (add (and x y) (or x y)) => (add x y)
+(rule (rewrite (Op.Add (band v0 v1) (bor v0 v1))) (Op.Add v0 v1))
+
+(rule (rewrite (Op.Add (band v0 v1) (bor v1 v0))) (Op.Add v0 v1))
+
+(rule (rewrite (Op.Add (bor v0 v1) (band v0 v1))) (Op.Add v0 v1))
+
+(rule (rewrite (Op.Add (bor v0 v1) (band v1 v0))) (Op.Add v0 v1))
+
+;; (add (and x y) (xor x y)) => (or x y)
+(rule (rewrite (Op.Add (band v0 v1) (bxor v0 v1))) (Op.Or v0 v1))
+
+(rule (rewrite (Op.Add (band v0 v1) (bxor v1 v0))) (Op.Or v0 v1))
+
+(rule (rewrite (Op.Add (bxor v0 v1) (band v0 v1))) (Op.Or v0 v1))
+
+(rule (rewrite (Op.Add (bxor v0 v1) (band v1 v0))) (Op.Or v0 v1))
+
+;; (add (not (add x y)) x) => (not y)
+(rule (rewrite (Op.Add (bnot (add v0 v1)) v0)) (Op.Not v1))
+
+(rule (rewrite (Op.Add (bnot (add v0 v1)) v1)) (Op.Not v0))
+
+(rule (rewrite (Op.Add v0 (bnot (add v0 v1)))) (Op.Not v1))
+
+(rule (rewrite (Op.Add v0 (bnot (add v1 v0)))) (Op.Not v1))
+
+;; (add (not x) (sub x y)) => (not y)
+(rule (rewrite (Op.Add (bnot v0) (sub v0 v1))) (Op.Not v1))
+
+(rule (rewrite (Op.Add (sub v0 v1) (bnot v0))) (Op.Not v1))
+
+;; (add (sub x y) (sub y x)) => 0x0
+(rule (rewrite (Op.Add (sub v0 v1) (sub v1 v0))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+
+;; (add (add x y) (sub x y)) => (add x x)
+(rule (rewrite (Op.Add (add v0 v1) (sub v0 v1))) (Op.Add v0 v0))
+
+(rule (rewrite (Op.Add (add v0 v1) (sub v1 v0))) (Op.Add v1 v1))
+
+(rule (rewrite (Op.Add (sub v0 v1) (add v0 v1))) (Op.Add v0 v0))
+
+(rule (rewrite (Op.Add (sub v0 v1) (add v1 v0))) (Op.Add v0 v0))
+
+;; Seeded search: scripts/evm-rules/seeds.json.
+;; ((x + y) - (x & y)) => (x | y)
+(rule (rewrite (Op.Sub (add v0 v1) (band v0 v1))) (Op.Or v0 v1))
+
+;; ((x + y) - (y & x)) => (x | y)
+(rule (rewrite (Op.Sub (add v0 v1) (band v1 v0))) (Op.Or v0 v1))
+
+;; ((x + y) - (x | y)) => (x & y)
+(rule (rewrite (Op.Sub (add v0 v1) (bor v0 v1))) (Op.And v0 v1))
+
+;; ((x + y) - (y | x)) => (x & y)
+(rule (rewrite (Op.Sub (add v0 v1) (bor v1 v0))) (Op.And v0 v1))
+
+;; ((x | y) - (x & y)) => (x ^ y)
+(rule (rewrite (Op.Sub (bor v0 v1) (band v0 v1))) (Op.Xor v0 v1))
+
+;; ((x | y) - (y & x)) => (x ^ y)
+(rule (rewrite (Op.Sub (bor v0 v1) (band v1 v0))) (Op.Xor v0 v1))
+
+;; ((x | y) - (x ^ y)) => (x & y)
+(rule (rewrite (Op.Sub (bor v0 v1) (bxor v0 v1))) (Op.And v0 v1))
+
+;; ((x | y) - (y ^ x)) => (x & y)
+(rule (rewrite (Op.Sub (bor v0 v1) (bxor v1 v0))) (Op.And v0 v1))
+
+;; Cross-compiler scalar and canonicalization audit.
+
+;; Mul (mul x (iconst a)) (iconst b) => Mul x (imm (u256_mul a b))
+(rule (rewrite (Op.Mul (mul x (iconst a)) (iconst b)))  (Op.Mul x (imm (u256_mul a b))))
+
+;; Add x (sub (zero) y) => Sub x y
+(rule (rewrite (Op.Add x (sub (zero) y)))  (Op.Sub x y))
+
+;; Add (sub (zero) y) x => Sub x y
+(rule (rewrite (Op.Add (sub (zero) y) x))  (Op.Sub x y))
+
+;; Sub x (sub (zero) y) => Add x y
+(rule (rewrite (Op.Sub x (sub (zero) y)))  (Op.Add x y))
+
+;; Sub (all_ones) x => Not x
+(rule (rewrite (Op.Sub (all_ones) x))  (Op.Not x))
+
+;; Div x (shl n (one)) => Shr n x
+(rule (rewrite (Op.Div x (shl n (one)))) (if-let true (has_bitwise_shifting)) (Op.Shr n x))
+
+;; AddMod x (zero) m => Mod x m
+(rule (rewrite (Op.AddMod x (zero) m))  (Op.Mod x m))
+
+;; MulMod x (one) m => Mod x m
+(rule (rewrite (Op.MulMod x (one) m))  (Op.Mod x m))
+
+;; Div (div x (nonzero_const a)) (nonzero_const b) => Div x (imm (u256_mul a b))
+(rule (rewrite (Op.Div (div x (nonzero_const a)) (nonzero_const b))) (if-let true (u256_le a (u256_div (u256_max) b))) (Op.Div x (imm (u256_mul a b))))
+
+;; Sub (zero) (shr (iconst s) x) => Sar (imm s) x
+(rule (rewrite (Op.Sub (zero) (shr (iconst s) x))) (if-let true (u256_eq s 255)) (if-let true (has_bitwise_shifting)) (Op.Sar (imm s) x))
+
+;; Sub (bor x (iconst c)) (iconst c) => And x (imm (u256_not c))
+(rule (rewrite (Op.Sub (bor x (iconst c)) (iconst c)))  (Op.And x (imm (u256_not c))))
+
+;; Add x (iconst c) => Sub x (imm (u256_neg c))
+;; Keep ADD by MAX: pointer-decrement loops schedule its commutative operands
+;; more cheaply than SUB by one with an extra stack swap.
+(rule (rewrite (Op.Add x (iconst c)))
+      (if-let false (u256_is_all_ones c))
+      (if-let true (u256_le (u256_shl (u256 255) (u256 1)) c))
+      (Op.Sub x (imm (u256_neg c))))
+
+;; Add (select c (iconst a) (iconst b)) (iconst k) => Select c (imm (u256_add a k)) (imm (u256_add b k))
+(rule (rewrite (Op.Add (select c (iconst a) (iconst b)) (iconst k)))  (Op.Select c (imm (u256_add a k)) (imm (u256_add b k))))
+
+;; Mul (select c (iconst a) (iconst b)) (iconst k) => Select c (imm (u256_mul a k)) (imm (u256_mul b k))
+(rule (rewrite (Op.Mul (select c (iconst a) (iconst b)) (iconst k)))  (Op.Select c (imm (u256_mul a k)) (imm (u256_mul b k))))
+
+;; SDiv x (iconst c) => Shr (imm shift) x
+(rule (rewrite (Op.SDiv x (iconst c))) (if-let shift (power_of_two_shift c)) (if-let true (u256_lt shift 255)) (if-let true (below_const x (u256_shl (u256 255) (u256 1)))) (if-let true (has_bitwise_shifting)) (Op.Shr (imm shift) x))
+
+;; SDiv (and x (shl (iconst s) _)) (iconst c) => Sar (imm shift) x
+(rule (rewrite (Op.SDiv (and x (shl (iconst s) _)) (iconst c))) (if-let shift (power_of_two_shift c)) (if-let true (u256_lt shift 255)) (if-let true (u256_le shift s)) (if-let true (has_bitwise_shifting)) (Op.Sar (imm shift) x))
+
+;; Div (mul x (nonzero_const c)) (iconst c) => Add x (imm (u256 0))
+(rule (rewrite (Op.Div (mul x (nonzero_const c)) (iconst c))) (if-let true (at_most_const x (u256_div (u256_max) c))) (Op.Add x (imm (u256 0))))
+
+;; addmod(0, constant, m) => mod(constant, m). Two constants keep their order.
+(rule (rewrite (Op.AddMod (zero) (iconst x) m)) (Op.Mod (imm x) m))
+
+;; mulmod(1, constant, m) => mod(constant, m). Two constants keep their order.
+(rule (rewrite (Op.MulMod (one) (iconst x) m)) (Op.Mod (imm x) m))

@@ -1,0 +1,132 @@
+;; Arithmetic identities and constant contraction.
+
+;; (x << m) + (y << m) => (x + y) << m
+(rule (sequence_rewrite (Op.Add (shl v0 v1) (shl v0 v2))) (if-let r0 (make (Op.Add v1 v2))) (sequence (Op.Shl v0 r0)))
+
+;; Cross-compiler scalar and canonicalization audit.
+
+;; Exp (zero) n => Eq n zero
+(rule (sequence_rewrite (Op.Exp (zero) n))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq n zero)))
+
+;; SDiv x (iconst c) => Eq x limit
+(rule (sequence_rewrite (Op.SDiv x (iconst c)))
+      (if-let true (u256_same c (u256_shl (u256 255) (u256 1)))) (if-let limit (imm c))
+      (sequence (Op.Eq x limit)))
+
+;; AddMod x y (iconst m) => And value mask
+(rule (sequence_rewrite (Op.AddMod x y (iconst m)))
+      (if-let _ (power_of_two_shift m)) (if-let value (make (Op.Add x y))) (if-let mask (imm (u256_sub m (u256 1))))
+      (sequence (Op.And value mask)))
+
+;; MulMod x y (iconst m) => And value mask
+(rule (sequence_rewrite (Op.MulMod x y (iconst m)))
+      (if-let _ (power_of_two_shift m)) (if-let value (make (Op.Mul x y))) (if-let mask (imm (u256_sub m (u256 1))))
+      (sequence (Op.And value mask)))
+
+;; Sub (shl s x) (shl s y) => Shl s difference
+(rule (sequence_rewrite (Op.Sub (shl s x) (shl s y)))
+      (if-let difference (make (Op.Sub x y)))
+      (sequence (Op.Shl s difference)))
+
+;; Add (mul r x) (mul r y) => Mul r combined
+(rule (sequence_rewrite (Op.Add (mul r x) (mul r y)))
+      (if-let combined (make (Op.Add x y)))
+      (sequence (Op.Mul r combined)))
+
+;; Add (mul x r) (mul r y) => Mul r combined
+(rule (sequence_rewrite (Op.Add (mul x r) (mul r y)))
+      (if-let combined (make (Op.Add x y)))
+      (sequence (Op.Mul r combined)))
+
+;; Add (mul r x) (mul y r) => Mul r combined
+(rule (sequence_rewrite (Op.Add (mul r x) (mul y r)))
+      (if-let combined (make (Op.Add x y)))
+      (sequence (Op.Mul r combined)))
+
+;; Add (mul x r) (mul y r) => Mul r combined
+(rule (sequence_rewrite (Op.Add (mul x r) (mul y r)))
+      (if-let combined (make (Op.Add x y)))
+      (sequence (Op.Mul r combined)))
+
+;; Sub (mul r x) (mul r y) => Mul r combined
+(rule (sequence_rewrite (Op.Sub (mul r x) (mul r y)))
+      (if-let combined (make (Op.Sub x y)))
+      (sequence (Op.Mul r combined)))
+
+;; Sub (mul x r) (mul r y) => Mul r combined
+(rule (sequence_rewrite (Op.Sub (mul x r) (mul r y)))
+      (if-let combined (make (Op.Sub x y)))
+      (sequence (Op.Mul r combined)))
+
+;; Sub (mul r x) (mul y r) => Mul r combined
+(rule (sequence_rewrite (Op.Sub (mul r x) (mul y r)))
+      (if-let combined (make (Op.Sub x y)))
+      (sequence (Op.Mul r combined)))
+
+;; Sub (mul x r) (mul y r) => Mul r combined
+(rule (sequence_rewrite (Op.Sub (mul x r) (mul y r)))
+      (if-let combined (make (Op.Sub x y)))
+      (sequence (Op.Mul r combined)))
+
+;; Exp (all_ones) n => Sub one twice
+(rule (sequence_rewrite (Op.Exp (all_ones) n))
+      (if-let one (imm (u256 1))) (if-let bit (make (Op.And n one))) (if-let twice (make (Op.Add bit bit)))
+      (sequence (Op.Sub one twice)))
+
+;; Div x x => Ne x zero
+(rule (sequence_rewrite (Op.Div x x))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Ne x zero)))
+
+;; Mod (one) x => Gt x one
+(rule (sequence_rewrite (Op.Mod (one) x))
+      (if-let one (imm (u256 1)))
+      (sequence (Op.Gt x one)))
+
+;; Mul (mul x (iconst a)) (mul y (iconst b)) => Mul combined constant
+(rule (sequence_rewrite (Op.Mul (mul x (iconst a)) (mul y (iconst b))))
+      (if-let combined (make (Op.Mul x y))) (if-let constant (imm (u256_mul a b)))
+      (sequence (Op.Mul combined constant)))
+
+;; Add (add x (iconst a)) (add y (iconst b)) => Add combined constant
+(rule (sequence_rewrite (Op.Add (add x (iconst a)) (add y (iconst b))))
+      (if-let combined (make (Op.Add x y))) (if-let constant (imm (u256_add a b)))
+      (sequence (Op.Add combined constant)))
+
+;; (x - (y + a)) - b => (x - y) - (a + b).
+(rule (sequence_rewrite (Op.Sub (sub x (add y (iconst a))) (iconst b)))
+      (if-let difference (make (Op.Sub x y)))
+      (if-let constant (imm (u256_add a b)))
+      (sequence (Op.Sub difference constant)))
+
+;; (x - (a - y)) - b => (x + y) - (a + b).
+(rule (sequence_rewrite (Op.Sub (sub x (sub (iconst a) y)) (iconst b)))
+      (if-let sum (make (Op.Add x y)))
+      (if-let constant (imm (u256_add a b)))
+      (sequence (Op.Sub sum constant)))
+
+;; ((a - x) - y) + b => (a + b) - (x + y), for constants a and b.
+(rule (sequence_rewrite (Op.Add (sub (sub (iconst a) x) y) (iconst b)))
+      (if-let sum (make (Op.Add x y)))
+      (if-let constant (imm (u256_add a b)))
+      (sequence (Op.Sub constant sum)))
+
+;; ((a - x) - y) - b => (a - b) - (x + y), for constants a and b.
+(rule (sequence_rewrite (Op.Sub (sub (sub (iconst a) x) y) (iconst b)))
+      (if-let sum (make (Op.Add x y)))
+      (if-let constant (imm (u256_sub a b)))
+      (sequence (Op.Sub constant sum)))
+
+;; (x - (y + a)) + b => (x - y) + (b - a), for constants a and b.
+(rule (sequence_rewrite (Op.Add (sub x (add y (iconst a))) (iconst b)))
+      (if-let difference (make (Op.Sub x y)))
+      (if-let constant (imm (u256_sub b a)))
+      (sequence (Op.Add difference constant)))
+
+;; (x - (a - y)) + b => (x + y) + (b - a), for constants a and b.
+(rule (sequence_rewrite (Op.Add (sub x (sub (iconst a) y)) (iconst b)))
+      (if-let sum (make (Op.Add x y)))
+      (if-let constant (imm (u256_sub b a)))
+      (sequence (Op.Add sum constant)))

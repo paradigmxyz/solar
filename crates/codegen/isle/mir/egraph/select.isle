@@ -1,0 +1,57 @@
+;; Conditional selection identities.
+
+;; c ? a : (c ? b : d) => c ? a : d
+(rule (rewrite (Op.Select c a (select c _ d))) (Op.Select c a d))
+
+;; c ? (c ? a : b) : d => c ? a : d
+(rule (rewrite (Op.Select c (select c a _) d)) (Op.Select c a d))
+
+;; cond ? 0 : 1 => cond == 0, when cond is boolean
+(rule (rewrite (Op.Select (and cond (bool_value)) (zero) (one))) (Op.Eq cond (imm_bool false)))
+
+;; (x == y) ? x : y => y
+(rule 10 (simplify (Op.Select (eq x y) x y)) y)
+
+(rule 9 (simplify (Op.Select (eq y x) x y)) y)
+
+;; (x & mask) == 0 ? (x & ~mask) : x => x
+(rule 8 (simplify (Op.Select (eq (band x (iconst mask)) (zero)) (band x (iconst clear)) x))
+      (if-let clear (u256_not mask)) x)
+
+;; (x & mask) != 0 ? (x & ~mask) : x => x & ~mask
+(rule 7 (simplify (Op.Select (ne (band x (iconst mask)) (zero)) (and cleared (band x (iconst clear))) x))
+      (if-let clear (u256_not mask)) cleared)
+
+;; (x & mask) == 0 ? x : (x & ~mask) => x & ~mask
+(rule 6 (simplify (Op.Select (eq (band x (iconst mask)) (zero)) x (and cleared (band x (iconst clear)))))
+      (if-let clear (u256_not mask)) cleared)
+
+;; (x & mask) != 0 ? x : (x & ~mask) => x
+(rule 5 (simplify (Op.Select (ne (band x (iconst mask)) (zero)) x (band x (iconst clear))))
+      (if-let clear (u256_not mask)) x)
+
+;; 1 ? then_value : _ => then_value
+(rule 4 (simplify (Op.Select (one) then_value _)) then_value)
+
+;; 0 ? _ : else_value => else_value
+(rule 3 (simplify (Op.Select (zero) _ else_value)) else_value)
+
+;; cond ? value : value => value, including equal immediates with different value IDs
+(rule 2 (simplify (Op.Select _ then_value else_value))
+        (if-let true (same_value then_value else_value))
+        then_value)
+
+;; cond ? 1 : 0 => cond, when cond is boolean
+(rule 1 (simplify (Op.Select (and cond (bool_value)) (one) (zero))) cond)
+
+;; Select (ne x y) x y => x
+(rule 1044 (simplify (Op.Select (ne x y) x y))  x)
+
+;; Select (ne y x) x y => x
+(rule 1045 (simplify (Op.Select (ne y x) x y))  x)
+
+;; Select (eq x y) (zero) (and difference (sub x y)) => difference
+(rule 1046 (simplify (Op.Select (eq x y) (zero) (and difference (sub x y))))  difference)
+
+;; Select (eq y x) (zero) (and difference (sub x y)) => difference
+(rule 1047 (simplify (Op.Select (eq y x) (zero) (and difference (sub x y))))  difference)

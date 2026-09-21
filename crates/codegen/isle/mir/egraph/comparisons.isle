@@ -1,0 +1,233 @@
+;; Equality and ordered comparison identities.
+
+;; ~a == ~b => a == b
+(rule (rewrite (Op.Eq (bnot a) (bnot b))) (Op.Eq a b))
+
+;; (x ^ y) == x => y == 0
+(rule (rewrite (Op.Eq (bxor x y) x)) (Op.Eq y (imm (u256 0))))
+
+(rule (rewrite (Op.Eq (bxor y x) x)) (Op.Eq y (imm (u256 0))))
+
+(rule (rewrite (Op.Eq x (bxor x y))) (Op.Eq y (imm (u256 0))))
+
+(rule (rewrite (Op.Eq x (bxor y x))) (Op.Eq y (imm (u256 0))))
+
+;; x < (x - y) => x < y
+(rule (rewrite (Op.Lt x (sub x y))) (Op.Lt x y))
+
+(rule (rewrite (Op.Gt (sub x y) x)) (Op.Lt x y))
+
+;; clz(input) == 255 => input == 1
+(rule (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c 255)) (Op.Eq input (imm (u256 1))))
+
+;; clz(input) == 256 => input == 0
+(rule (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c 256)) (Op.Eq input (imm (u256 0))))
+
+;; clz(input) == 0 => signed(input) < 0
+(rule (rewrite (Op.Eq (clz input) (zero))) (Op.SLt input (imm (u256 0))))
+
+;; (a - b) == 0 => a == b
+(rule (rewrite (Op.Eq (sub a b) (zero))) (Op.Eq a b))
+
+;; (a ^ b) == 0 => a == b
+(rule (rewrite (Op.Eq (bxor a b) (zero))) (Op.Eq a b))
+
+;; clz(input) < 256 => input > 0
+(rule (rewrite (Op.Lt (clz input) (iconst c))) (if-let true (u256_eq c 256)) (Op.Ne input (imm (u256 0))))
+
+;; a < 1 => a == 0
+(rule (rewrite (Op.Lt a (one))) (Op.Eq a (imm (u256 0))))
+
+;; clz(input) > 255 => input == 0
+(rule (rewrite (Op.Gt (clz input) (iconst c))) (if-let true (u256_eq c 255)) (Op.Eq input (imm (u256 0))))
+
+;; (inner == 0) == 0 => inner, when inner is boolean
+(rule 20 (simplify (Op.Eq (eq (and inner (bool_value)) (zero)) (zero))) inner)
+
+;; a == c => 0, when a is known to be less than constant c
+(rule 7 (simplify (Op.Eq a (iconst c))) (if-let true (below_const a c)) (imm_bool false))
+
+;; a == a => 1
+(rule 5 (simplify (Op.Eq a a)) (imm_bool true))
+
+;; clz(_) == c => 0, when c > 256
+(rule 4 (simplify (Op.Eq (clz _) (iconst c))) (if-let true (u256_gt c 256)) (imm_bool false))
+
+;; a == 1 => a, when a is boolean
+(rule 2 (simplify (Op.Eq (and a (bool_value)) (one))) a)
+
+;; a < c => 1, when a is known to be less than constant c
+(rule 10 (simplify (Op.Lt a (iconst c))) (if-let true (below_const a c)) (imm_bool true))
+
+;; clz(_) < b => 1, when b > 256
+(rule 8 (simplify (Op.Lt (clz _) (iconst b))) (if-let true (u256_gt b 256)) (imm_bool true))
+
+;; a < a => 0
+(rule 6 (simplify (Op.Lt a a)) (imm_bool false))
+
+;; _ < 0 => 0
+(rule 5 (simplify (Op.Lt _ (zero))) (imm_bool false))
+
+;; b < c => 1, when b is boolean and constant c > 1
+(rule 3 (simplify (Op.Lt (bool_value) (iconst c))) (if-let true (u256_gt c 1)) (imm_bool true))
+
+;; a > c => 0, when a is known to be at most constant c
+(rule 10 (simplify (Op.Gt a (iconst c))) (if-let true (at_most_const a c)) (imm_bool false))
+
+;; clz(_) > b => 0, when constant b >= 256
+(rule 8 (simplify (Op.Gt (clz _) (iconst b))) (if-let true (u256_ge b 256)) (imm_bool false))
+
+;; a > a => 0
+(rule 6 (simplify (Op.Gt a a)) (imm_bool false))
+
+;; a > 0 => a, when a is boolean
+(rule 4 (simplify (Op.Gt (and a (bool_value)) (zero))) a)
+
+;; b > c => 0, when b is boolean and constant c >= 1
+(rule 2 (simplify (Op.Gt (bool_value) (iconst c))) (if-let true (u256_ge c 1)) (imm_bool false))
+
+;; signed(a) < signed(a) => 0
+(rule (simplify (Op.SLt a a)) (imm_bool false))
+
+;; signed(a) > signed(a) => 0
+(rule (simplify (Op.SGt a a)) (imm_bool false))
+
+;; Canonical zero tests preserve the operand's scalar type.
+(rule (rewrite (Op.Gt x (zero))) (Op.Ne x (imm (u256 0))))
+
+(rule (rewrite (Op.Eq (eq a b) (zero))) (Op.Ne a b))
+
+(rule (rewrite (Op.Eq (ne a b) (zero))) (Op.Eq a b))
+
+(rule (rewrite (Op.Ne (eq a b) (zero))) (Op.Eq a b))
+
+(rule (rewrite (Op.Ne (ne a b) (zero))) (Op.Ne a b))
+
+(rule (rewrite (Op.Eq (zext (and x (bool_value))) (zero))) (Op.Eq x (imm_bool false)))
+
+(rule (rewrite (Op.Ne (zext (and x (bool_value))) (zero))) (Op.Ne x (imm_bool false)))
+
+(rule 10 (simplify (Op.Ne a a)) (imm_bool false))
+
+(rule 9 (simplify (Op.Ne (and x (bool_value)) (zero))) x)
+
+;; ~a != ~b => a != b.
+(rule (rewrite (Op.Ne (bnot a) (bnot b))) (Op.Ne a b))
+
+;; (a - b) != 0 => a != b.
+(rule (rewrite (Op.Ne (sub a b) (zero))) (Op.Ne a b))
+
+;; (a ^ b) != 0 => a != b.
+(rule (rewrite (Op.Ne (bxor a b) (zero))) (Op.Ne a b))
+
+;; clz(x) != 255 => x != 1.
+(rule (rewrite (Op.Ne (clz x) (iconst c))) (if-let true (u256_eq c 255)) (Op.Ne x (imm (u256 1))))
+
+;; clz(x) != 256 => x != 0.
+(rule (rewrite (Op.Ne (clz x) (iconst c))) (if-let true (u256_eq c 256)) (Op.Ne x (imm (u256 0))))
+
+;; x != true => x == false, when x is boolean.
+(rule (rewrite (Op.Ne (and x (bool_value)) (one))) (Op.Eq x (imm_bool false)))
+
+;; a != c => true, when a is known to be less than constant c.
+(rule 7 (simplify (Op.Ne a (iconst c))) (if-let true (below_const a c)) (imm_bool true))
+
+;; clz(_) != c => true, when c > 256.
+(rule 5 (simplify (Op.Ne (clz _) (iconst c))) (if-let true (u256_gt c 256)) (imm_bool true))
+
+;; Cross-compiler scalar and canonicalization audit.
+
+;; Eq x (bnot x) => (imm_bool false)
+(rule 1001 (simplify (Op.Eq x (bnot x)))  (imm_bool false))
+
+;; Eq (bnot x) x => (imm_bool false)
+(rule 1002 (simplify (Op.Eq (bnot x) x))  (imm_bool false))
+
+;; Ne x (bnot x) => (imm_bool true)
+(rule 1003 (simplify (Op.Ne x (bnot x)))  (imm_bool true))
+
+;; Ne (bnot x) x => (imm_bool true)
+(rule 1004 (simplify (Op.Ne (bnot x) x))  (imm_bool true))
+
+;; Gt (band x y) x => (imm_bool false)
+(rule 1016 (simplify (Op.Gt (band x y) x))  (imm_bool false))
+
+;; Lt x (band x y) => (imm_bool false)
+(rule 1017 (simplify (Op.Lt x (band x y)))  (imm_bool false))
+
+;; Gt (band y x) x => (imm_bool false)
+(rule 1018 (simplify (Op.Gt (band y x) x))  (imm_bool false))
+
+;; Lt x (band y x) => (imm_bool false)
+(rule 1019 (simplify (Op.Lt x (band y x)))  (imm_bool false))
+
+;; Lt (bor x y) x => (imm_bool false)
+(rule 1020 (simplify (Op.Lt (bor x y) x))  (imm_bool false))
+
+;; Gt x (bor x y) => (imm_bool false)
+(rule 1021 (simplify (Op.Gt x (bor x y)))  (imm_bool false))
+
+;; Lt (bor y x) x => (imm_bool false)
+(rule 1022 (simplify (Op.Lt (bor y x) x))  (imm_bool false))
+
+;; Gt x (bor y x) => (imm_bool false)
+(rule 1023 (simplify (Op.Gt x (bor y x)))  (imm_bool false))
+
+;; Gt (shr s x) x => (imm_bool false)
+(rule 1024 (simplify (Op.Gt (shr s x) x))  (imm_bool false))
+
+;; Lt x (shr s x) => (imm_bool false)
+(rule 1025 (simplify (Op.Lt x (shr s x)))  (imm_bool false))
+
+;; Eq (zext (and b (bool_value))) (one) => b
+(rule 1043 (simplify (Op.Eq (zext (and b (bool_value))) (one)))  b)
+
+;; Eq (select (and c (bool_value)) (iconst a) (iconst b)) (iconst a) => c
+(rule 1048 (simplify (Op.Eq (select (and c (bool_value)) (iconst a) (iconst b)) (iconst a))) (if-let false (u256_same a b)) c)
+
+;; Ne (select (and c (bool_value)) (iconst a) (iconst b)) (iconst b) => c
+(rule 1049 (simplify (Op.Ne (select (and c (bool_value)) (iconst a) (iconst b)) (iconst b))) (if-let false (u256_same a b)) c)
+
+;; Eq (bor x (iconst c)) (band y (iconst m)) => (imm_bool false)
+(rule 1101 (simplify (Op.Eq (bor x (iconst c)) (band y (iconst m)))) (if-let false (u256_is_zero (u256_and c (u256_not m)))) (imm_bool false))
+
+;; Eq (band y (iconst m)) (bor x (iconst c)) => (imm_bool false)
+(rule 1102 (simplify (Op.Eq (band y (iconst m)) (bor x (iconst c)))) (if-let false (u256_is_zero (u256_and c (u256_not m)))) (imm_bool false))
+
+;; Ne (bor x (iconst c)) (band y (iconst m)) => (imm_bool true)
+(rule 1103 (simplify (Op.Ne (bor x (iconst c)) (band y (iconst m)))) (if-let false (u256_is_zero (u256_and c (u256_not m)))) (imm_bool true))
+
+;; Ne (band y (iconst m)) (bor x (iconst c)) => (imm_bool true)
+(rule 1104 (simplify (Op.Ne (band y (iconst m)) (bor x (iconst c)))) (if-let false (u256_is_zero (u256_and c (u256_not m)))) (imm_bool true))
+
+;; SLt x (iconst c) => (imm_bool false)
+(rule 1117 (simplify (Op.SLt x (iconst c))) (if-let true (u256_same c (u256_shl (u256 255) (u256 1)))) (imm_bool false))
+
+;; SGt x (iconst c) => (imm_bool false)
+(rule 1118 (simplify (Op.SGt x (iconst c))) (if-let true (u256_same c (u256_shr (u256 1) (u256_max)))) (imm_bool false))
+
+;; eq(zext(x:i160), 0) => eq(x, 0:i160).
+(rule (rewrite (Op.Eq (zext (and x (integer_bits 160))) (zero)))
+      (Op.Eq x (imm_i160_zero)))
+
+;; eq(sext(x:i160), 0) => eq(x, 0:i160).
+(rule (rewrite (Op.Eq (sext (and x (integer_bits 160)) 160 256) (zero)))
+      (Op.Eq x (imm_i160_zero)))
+
+;; eq(sext(x:i1), 0) => eq(x, false).
+(rule (rewrite (Op.Eq (sext (and x (bool_value)) 1 to) (zero)))
+      (if-let true (u32_lt 1 to))
+      (Op.Eq x (imm_bool false)))
+
+;; ne(zext(x:i160), 0) => ne(x, 0:i160).
+(rule (rewrite (Op.Ne (zext (and x (integer_bits 160))) (zero)))
+      (Op.Ne x (imm_i160_zero)))
+
+;; ne(sext(x:i160), 0) => ne(x, 0:i160).
+(rule (rewrite (Op.Ne (sext (and x (integer_bits 160)) 160 256) (zero)))
+      (Op.Ne x (imm_i160_zero)))
+
+;; ne(sext(x:i1), 0) => ne(x, false).
+(rule (rewrite (Op.Ne (sext (and x (bool_value)) 1 to) (zero)))
+      (if-let true (u32_lt 1 to))
+      (Op.Ne x (imm_bool false)))

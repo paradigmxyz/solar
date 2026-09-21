@@ -70,7 +70,7 @@ single EVM opcodes and scheduling shapes, without access to value definitions.
 The emitter and target cost model call that same selector.
 
 `build.rs` compiles the rule sets to Rust with `cranelift-isle`. Local identities
-in `isle/mir/egraph.isle` run inside the existing Rust e-graph algorithm; EVM IR window
+in `isle/mir/egraph` run inside the existing Rust e-graph algorithm; EVM IR window
 patterns live in `isle/evm-ir/peephole.isle`. Global analysis, profitability, stack
 scheduling, complex lowering, and assembly remain in Rust. The schema snapshot
 tests check the generated vocabularies, and the selector snapshot checks its

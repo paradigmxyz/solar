@@ -1,0 +1,233 @@
+;; Conditional selection identities.
+
+;; select(c, x, 0) => bool(c) * x
+(rule (sequence_rewrite (Op.Select c x (zero)))
+      (if-let z (make (Op.Eq c (imm (u256 0)))))
+      (if-let b (make (Op.Eq z (imm (u256 0)))))
+      (sequence (Op.Mul b x)))
+
+;; select(c, x, 0) => c * x, when c is canonical
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) x (zero)))
+      (sequence (Op.Mul c x)))
+
+;; select(c, 0, x) => (c == 0) * x
+(rule (sequence_rewrite (Op.Select c (zero) x))
+      (if-let b (make (Op.Eq c (imm (u256 0)))))
+      (sequence (Op.Mul b x)))
+
+;; select(c, MAX, x) => x | ((c == 0) - 1)
+(rule (sequence_rewrite (Op.Select c (all_ones) x))
+      (if-let b (make (Op.Eq c (imm (u256 0)))))
+      (if-let one (imm (u256 1)))
+      (if-let mask (make (Op.Sub b one)))
+      (sequence (Op.Or x mask)))
+
+;; select(c, x, MAX) => x | (0 - (c == 0))
+(rule (sequence_rewrite (Op.Select c x (all_ones)))
+      (if-let b (make (Op.Eq c (imm (u256 0)))))
+      (if-let zero (imm (u256 0)))
+      (if-let mask (make (Op.Sub zero b)))
+      (sequence (Op.Or x mask)))
+
+;; select(c, x, MAX) => x | (c - 1), when c is canonical
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) x (all_ones)))
+      (if-let one (imm (u256 1)))
+      (if-let mask (make (Op.Sub c one)))
+      (sequence (Op.Or x mask)))
+
+;; General constant recipes are gas-only: the size corpus loses constant reuse.
+;; select(c, T, F) => F + bool(c) * (T - F), when T >= F
+(rule (sequence_rewrite (Op.Select c (iconst t) (and base (iconst f))))
+      (if-let false (optimize_for_size))
+      (if-let true (u256_ge t f))
+      (if-let delta (imm (u256_sub t f)))
+      (if-let z (make (Op.Eq c (imm (u256 0)))))
+      (if-let b (make (Op.Eq z (imm (u256 0)))))
+      (if-let scaled (make (Op.Mul b delta)))
+      (sequence (Op.Add base scaled)))
+
+;; select(c, T, F) => F + c * (T - F), when T >= F and c is canonical
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (iconst t) (and base (iconst f))))
+      (if-let false (optimize_for_size))
+      (if-let true (u256_ge t f))
+      (if-let delta (imm (u256_sub t f)))
+      (if-let scaled (make (Op.Mul c delta)))
+      (sequence (Op.Add base scaled)))
+
+;; select(c, T, F) => T + (c == 0) * (F - T), when F >= T
+(rule (sequence_rewrite (Op.Select c (and base (iconst t)) (iconst f)))
+      (if-let false (optimize_for_size))
+      (if-let true (u256_ge f t))
+      (if-let delta (imm (u256_sub f t)))
+      (if-let b (make (Op.Eq c (imm (u256 0)))))
+      (if-let scaled (make (Op.Mul b delta)))
+      (sequence (Op.Add base scaled)))
+
+;; select(c, x, K) => K + bool(c) * (x - K)
+(rule (sequence_rewrite (Op.Select c x (and k (iconst _))))
+      (if-let false (optimize_for_size))
+      (if-let z (make (Op.Eq c (imm (u256 0)))))
+      (if-let b (make (Op.Eq z (imm (u256 0)))))
+      (if-let delta (make (Op.Sub x k)))
+      (if-let scaled (make (Op.Mul b delta)))
+      (sequence (Op.Add k scaled)))
+
+;; select(c, x, K) => K + c * (x - K), when c is canonical
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) x (and k (iconst _))))
+      (if-let false (optimize_for_size))
+      (if-let delta (make (Op.Sub x k)))
+      (if-let scaled (make (Op.Mul c delta)))
+      (sequence (Op.Add k scaled)))
+
+;; select(c, K, x) => K + (c == 0) * (x - K)
+(rule (sequence_rewrite (Op.Select c (and k (iconst _)) x))
+      (if-let false (optimize_for_size))
+      (if-let b (make (Op.Eq c (imm (u256 0)))))
+      (if-let delta (make (Op.Sub x k)))
+      (if-let scaled (make (Op.Mul b delta)))
+      (sequence (Op.Add k scaled)))
+
+;; select(c, y + x, y) => y + (c * x), when c is canonical
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (add y x) y))
+      (if-let gated (make (Op.Mul c x)))
+      (sequence (Op.Add y gated)))
+
+;; select(c, y, y + x) => y + ((c == 0) * x)
+(rule (sequence_rewrite (Op.Select c y (add y x)))
+      (if-let z (make (Op.Eq c (imm (u256 0)))))
+      (if-let gated (make (Op.Mul z x)))
+      (sequence (Op.Add y gated)))
+
+;; select(c, x + y, y) => y + (c * x), when c is canonical
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (add x y) y))
+      (if-let gated (make (Op.Mul c x)))
+      (sequence (Op.Add y gated)))
+
+;; select(c, y, x + y) => y + ((c == 0) * x)
+(rule (sequence_rewrite (Op.Select c y (add x y)))
+      (if-let z (make (Op.Eq c (imm (u256 0)))))
+      (if-let gated (make (Op.Mul z x)))
+      (sequence (Op.Add y gated)))
+
+;; select(c, y - x, y) => y - (c * x), when c is canonical
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (sub y x) y))
+      (if-let gated (make (Op.Mul c x)))
+      (sequence (Op.Sub y gated)))
+
+;; select(c, y, y - x) => y - ((c == 0) * x)
+(rule (sequence_rewrite (Op.Select c y (sub y x)))
+      (if-let z (make (Op.Eq c (imm (u256 0)))))
+      (if-let gated (make (Op.Mul z x)))
+      (sequence (Op.Sub y gated)))
+
+;; select(c, y | x, y) => y | (c * x), when c is canonical
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (bor y x) y))
+      (if-let gated (make (Op.Mul c x)))
+      (sequence (Op.Or y gated)))
+
+;; select(c, y, y | x) => y | ((c == 0) * x)
+(rule (sequence_rewrite (Op.Select c y (bor y x)))
+      (if-let z (make (Op.Eq c (imm (u256 0)))))
+      (if-let gated (make (Op.Mul z x)))
+      (sequence (Op.Or y gated)))
+
+;; select(c, x | y, y) => y | (c * x), when c is canonical
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (bor x y) y))
+      (if-let gated (make (Op.Mul c x)))
+      (sequence (Op.Or y gated)))
+
+;; select(c, y, x | y) => y | ((c == 0) * x)
+(rule (sequence_rewrite (Op.Select c y (bor x y)))
+      (if-let z (make (Op.Eq c (imm (u256 0)))))
+      (if-let gated (make (Op.Mul z x)))
+      (sequence (Op.Or y gated)))
+
+;; select(c, y ^ x, y) => y ^ (c * x), when c is canonical
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (bxor y x) y))
+      (if-let gated (make (Op.Mul c x)))
+      (sequence (Op.Xor y gated)))
+
+;; select(c, y, y ^ x) => y ^ ((c == 0) * x)
+(rule (sequence_rewrite (Op.Select c y (bxor y x)))
+      (if-let z (make (Op.Eq c (imm (u256 0)))))
+      (if-let gated (make (Op.Mul z x)))
+      (sequence (Op.Xor y gated)))
+
+;; select(c, x ^ y, y) => y ^ (c * x), when c is canonical
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (bxor x y) y))
+      (if-let gated (make (Op.Mul c x)))
+      (sequence (Op.Xor y gated)))
+
+;; select(c, y, x ^ y) => y ^ ((c == 0) * x)
+(rule (sequence_rewrite (Op.Select c y (bxor x y)))
+      (if-let z (make (Op.Eq c (imm (u256 0)))))
+      (if-let gated (make (Op.Mul z x)))
+      (sequence (Op.Xor y gated)))
+
+;; select(c, y & x, y) => y & ~(c * ~x), when c is canonical
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (band y x) y))
+      (if-let complement (make (Op.Not x)))
+      (if-let gated (make (Op.Mul c complement)))
+      (if-let mask (make (Op.Not gated)))
+      (sequence (Op.And y mask)))
+
+;; select(c, y, y & x) => y & ~((c == 0) * ~x)
+(rule (sequence_rewrite (Op.Select c y (band y x)))
+      (if-let z (make (Op.Eq c (imm (u256 0)))))
+      (if-let complement (make (Op.Not x)))
+      (if-let gated (make (Op.Mul z complement)))
+      (if-let mask (make (Op.Not gated)))
+      (sequence (Op.And y mask)))
+
+;; select(c, x & y, y) => y & ~(c * ~x), when c is canonical
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (band x y) y))
+      (if-let complement (make (Op.Not x)))
+      (if-let gated (make (Op.Mul c complement)))
+      (if-let mask (make (Op.Not gated)))
+      (sequence (Op.And y mask)))
+
+;; select(c, y, x & y) => y & ~((c == 0) * ~x)
+(rule (sequence_rewrite (Op.Select c y (band x y)))
+      (if-let z (make (Op.Eq c (imm (u256 0)))))
+      (if-let complement (make (Op.Not x)))
+      (if-let gated (make (Op.Mul z complement)))
+      (if-let mask (make (Op.Not gated)))
+      (sequence (Op.And y mask)))
+
+;; Select c (bnot x) (bnot y) => Not selected
+(rule (sequence_rewrite (Op.Select c (bnot x) (bnot y)))
+      (if-let selected (make (Op.Select c x y)))
+      (sequence (Op.Not selected)))
+
+;; Select c (sub (zero) x) (sub (zero) y) => Sub zero selected
+(rule (sequence_rewrite (Op.Select c (sub (zero) x) (sub (zero) y)))
+      (if-let zero (imm (u256 0))) (if-let selected (make (Op.Select c x y)))
+      (sequence (Op.Sub zero selected)))
+
+;; select(c, zext(a), zext(b)) => zext(select(c, a, b)).
+;; The temporary select retains the source integer type.
+(rule (sequence_rewrite (Op.Select c (zext (and a (integer_bits bits))) (zext (and b (integer_bits bits)))))
+      (if-let selected (make (Op.Select c a b)))
+      (sequence (Op.Zext selected)))
+
+;; select(c, sext(a, from, to), sext(b, from, to)) => sext(select(c, a, b), from, to).
+(rule (sequence_rewrite (Op.Select c (sext (and a (integer_bits from)) from to) (sext (and b (integer_bits from)) from to)))
+      (if-let selected (make (Op.Select c a b)))
+      (sequence (Op.Sext selected from to)))
+
+;; select(c, trunc(a, bits), trunc(b, bits)) => trunc(select(c, a, b), bits).
+(rule (sequence_rewrite (Op.Select c (trunc (and a (integer_bits from)) bits) (trunc (and b (integer_bits from)) bits)))
+      (if-let selected (make (Op.Select c a b)))
+      (sequence (Op.Trunc selected bits)))
+
+;; c ? false : b => !c & b, for canonical boolean operands.
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (zero) (and b (bool_value))))
+      (if-let zero (imm (u256 0)))
+      (if-let inverse (make (Op.Eq c zero)))
+      (sequence (Op.And inverse b)))
+
+;; c ? b : true => !c | b, for canonical boolean operands.
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (and b (bool_value)) (one)))
+      (if-let zero (imm (u256 0)))
+      (if-let inverse (make (Op.Eq c zero)))
+      (sequence (Op.Or inverse b)))

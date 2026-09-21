@@ -1,0 +1,10 @@
+;; Conditional selection identities.
+
+;; Select (eq (and c (bool_value)) (zero)) a b => Select c b a
+(rule (rewrite (Op.Select (eq (and c (bool_value)) (zero)) a b))  (Op.Select c b a))
+
+;; Select (and c (bool_value)) (and b (bool_value)) (zero) => And c b
+(rule (rewrite (Op.Select (and c (bool_value)) (and b (bool_value)) (zero)))  (Op.And c b))
+
+;; Select (and c (bool_value)) (one) (and b (bool_value)) => Or c b
+(rule (rewrite (Op.Select (and c (bool_value)) (one) (and b (bool_value))))  (Op.Or c b))

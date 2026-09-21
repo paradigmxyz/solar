@@ -27,7 +27,7 @@ from evm_rules.discovery import (
     enumerate_rules,
     read_seeds,
 )
-from evm_rules.isle import ISLE, Context, Rule, forms, verify_file
+from evm_rules.isle import ISLE, Context, Rule, forms, rule_sources, verify_file
 from evm_rules.late import execute as execute_late
 from evm_rules.late import verify_late_file
 from evm_rules.memory import MemoryAddresses
@@ -57,6 +57,10 @@ from verify import main
 
 def expression(op, *args):
     return Expr(op, tuple(Expr.const(a) if isinstance(a, int) else a for a in args))
+
+
+def read_egraph_source():
+    return "\n".join(text for _, text in rule_sources(ISLE / "mir/egraph"))
 
 
 class MiningTests(unittest.TestCase):
@@ -835,10 +839,10 @@ class OutputBitPartitionTests(unittest.TestCase):
 
 class EnvironmentTests(unittest.TestCase):
     def test_actual_balance_mask_rules_require_all_address_bits(self):
-        path = ISLE / "mir/egraph.isle"
+        path = ISLE / "mir/egraph"
         rules = [
             Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
+            for form, line in forms(read_egraph_source())
             if form[0] == "rule" and "Op.Balance" in repr(form) and "band" in repr(form)
         ]
         self.assertEqual(len(rules), 1)
@@ -865,10 +869,10 @@ class EnvironmentTests(unittest.TestCase):
                 self.assertTrue(result["replayed"])
 
     def test_actual_self_balance_rule_uses_a_shared_state_array(self):
-        path = ISLE / "mir/egraph.isle"
+        path = ISLE / "mir/egraph"
         rules = [
             Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
+            for form, line in forms(read_egraph_source())
             if form[0] == "rule" and "current_address" in repr(form)
         ]
         self.assertEqual(len(rules), 1)
@@ -973,8 +977,8 @@ class EnvironmentTests(unittest.TestCase):
 class CallEffectTests(unittest.TestCase):
     def call_rules(self):
         return [
-            Rule(form, line, "mir/egraph.isle")
-            for form, line in forms((ISLE / "mir/egraph.isle").read_text())
+            Rule(form, line, "mir/egraph")
+            for form, line in forms(read_egraph_source())
             if form[0] == "rule"
             and form[1][0] == "rewrite"
             and form[1][1][0]
@@ -1005,9 +1009,9 @@ class CallEffectTests(unittest.TestCase):
                 self.assertEqual(result["status"], "counterexample")
 
     def test_empty_memory_regions_preserve_effects(self):
-        source = (ISLE / "mir/egraph.isle").read_text()
+        source = read_egraph_source()
         rules = [
-            Rule(form, line, "mir/egraph.isle")
+            Rule(form, line, "mir/egraph")
             for form, line in forms(source)
             if form[0] == "rule"
             and "same_value" in repr(form)
@@ -1051,10 +1055,10 @@ class CallEffectTests(unittest.TestCase):
 
 class MemoryAddressTests(unittest.TestCase):
     def test_actual_projection_rules_and_missing_guards(self):
-        path = ISLE / "mir/egraph.isle"
+        path = ISLE / "mir/egraph"
         rules = [
             Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
+            for form, line in forms(read_egraph_source())
             if form[0] == "rule"
             and any(name in repr(form) for name in MemoryAddresses.SHAPES)
         ]
@@ -1218,6 +1222,41 @@ class RuleTests(unittest.TestCase):
                 ):
                     verify_file(path, 5000, shard_index=index, shard_count=count)
 
+    def test_rule_directory_preserves_sources_shards_and_artifacts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            rules = root / "rules"
+            rules.mkdir()
+            (rules / "prelude.isle").write_text("(decl multi rewrite (Op) Op)\n")
+            identity = "(rule (rewrite (Op.Add x (zero))) (Op.Add x (imm (u256 0))))\n"
+            for name in ("a", "b"):
+                (rules / f"{name}.isle").write_text(identity)
+            whole = verify_file(rules, 5000, artifacts=root / "smt")
+            self.assertEqual(
+                [r["status"] for r in whole["rules"]], ["proved", "proved"]
+            )
+            self.assertEqual(
+                [r["source"] for r in whole["rules"]],
+                [str(rules / "a.isle"), str(rules / "b.isle")],
+            )
+            self.assertEqual([r["line"] for r in whole["rules"]], [1, 1])
+            self.assertEqual(
+                len(query_paths({"files": [whole]}, require_proved=True)), 2
+            )
+            shards = [
+                verify_file(rules, 5000, shard_index=i, shard_count=2) for i in range(2)
+            ]
+            self.assertEqual(
+                [r["source"] for shard in shards for r in shard["rules"]],
+                [r["source"] for r in whole["rules"]],
+            )
+            (rules / "b.isle").write_text(
+                "(rule (rewrite (Op.Add x (zero))) (Op.Not x))\n"
+            )
+            edited = verify_file(rules, 5000)
+            self.assertEqual(edited["rules"][1]["status"], "counterexample")
+            self.assertNotEqual(whole["source_sha256"], edited["source_sha256"])
+
     def test_actual_source_is_checked_after_edit(self):
         before = self.verify("(rule (rewrite (Op.Sub (bnot x) (bnot y))) (Op.Sub y x))")
         after = self.verify("(rule (rewrite (Op.Sub (bnot x) (bnot y))) (Op.Sub x y))")
@@ -1284,10 +1323,10 @@ class RuleTests(unittest.TestCase):
                     )
 
     def test_actual_typed_extension_zero_rules(self):
-        path = ISLE / "mir/egraph.isle"
+        path = ISLE / "mir/egraph"
         rules = [
             Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
+            for form, line in forms(read_egraph_source())
             if form[0] == "rule"
             and (
                 "imm_i160_zero" in repr(form)
@@ -1304,8 +1343,8 @@ class RuleTests(unittest.TestCase):
                 self.assertEqual(result["status"], "proved", result)
 
     def test_actual_integer_and_pointer_cast_rules(self):
-        path = ISLE / "mir/egraph.isle"
-        source = path.read_text()
+        path = ISLE / "mir/egraph"
+        source = read_egraph_source()
         start = source.index(";; Identity casts")
         rules = [
             Rule(form, line, str(path))
@@ -1332,10 +1371,10 @@ class RuleTests(unittest.TestCase):
                 and any(uses_exp(child) for child in node)
             )
 
-        path = ISLE / "mir/egraph.isle"
+        path = ISLE / "mir/egraph"
         rules = [
             Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
+            for form, line in forms(read_egraph_source())
             if form[0] == "rule" and uses_exp(form)
         ]
         self.assertEqual(len(rules), 5)
@@ -1353,10 +1392,10 @@ class RuleTests(unittest.TestCase):
                 and any(contains(child, atom) for child in node)
             )
 
-        path = ISLE / "mir/egraph.isle"
+        path = ISLE / "mir/egraph"
         rules = [
             Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
+            for form, line in forms(read_egraph_source())
             if form[0] == "rule"
             and contains(form, "Op.Mod")
             and contains(form, "power_of_two_shift")
@@ -1375,7 +1414,7 @@ class RuleTests(unittest.TestCase):
         self.assertEqual((result["cases"], len(queries)), (257, 258))
 
     def test_actual_nested_signextend_rule(self):
-        path = ISLE / "mir/egraph.isle"
+        path = ISLE / "mir/egraph"
 
         def has_nested_signextend(node):
             return isinstance(node, tuple) and (
@@ -1388,7 +1427,7 @@ class RuleTests(unittest.TestCase):
 
         rules = [
             Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
+            for form, line in forms(read_egraph_source())
             if form[0] == "rule" and has_nested_signextend(form)
         ]
         self.assertEqual(len(rules), 1)
@@ -1969,10 +2008,10 @@ class SolverFallbackTests(unittest.TestCase):
                 and any(uses_clz(child) for child in node)
             )
 
-        path = ISLE / "mir/egraph.isle"
+        path = ISLE / "mir/egraph"
         rules = [
             Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
+            for form, line in forms(read_egraph_source())
             if form[0] == "rule" and uses_clz(form)
         ]
         self.assertGreaterEqual(len(rules), 10)
@@ -2000,10 +2039,10 @@ class SolverFallbackTests(unittest.TestCase):
                 or any(selected(child) for child in node)
             )
 
-        path = ISLE / "mir/egraph.isle"
+        path = ISLE / "mir/egraph"
         rules = [
             Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
+            for form, line in forms(read_egraph_source())
             if form[0] == "rule" and selected(form)
         ]
         self.assertEqual(len(rules), 7)

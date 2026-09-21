@@ -26,7 +26,11 @@ prove() {
   fi
   local inputs=()
   for file in "${files[@]}"; do
-    inputs+=("crates/codegen/isle/$file.isle")
+    if [[ -d "crates/codegen/isle/$file" ]]; then
+      inputs+=("crates/codegen/isle/$file")
+    else
+      inputs+=("crates/codegen/isle/$file.isle")
+    fi
   done
   uv run scripts/evm-rules/verify.py verify "${inputs[@]}" \
     --shard-index "$shard" --shard-count "$shards" "${options[@]}" \

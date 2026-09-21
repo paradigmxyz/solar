@@ -540,6 +540,14 @@ class Context:
         return lhs, rhs
 
 
+def rule_sources(path):
+    """Read a rule file or every ISLE module in a rule-set directory."""
+    paths = sorted(path.glob("*.isle")) if path.is_dir() else [path]
+    if not paths:
+        raise ValueError(f"no ISLE modules in {path}")
+    return [(module, module.read_text()) for module in paths]
+
+
 def verify_file(
     path,
     timeout_ms,
@@ -552,9 +560,13 @@ def verify_file(
     shard_index=0,
     shard_count=1,
 ):
-    source = path.read_text()
+    sources = rule_sources(path)
+    source = "".join(text for _, text in sources)
     rules = [
-        Rule(form, line, str(path)) for form, line in forms(source) if form[0] == "rule"
+        Rule(form, line, str(module))
+        for module, text in sources
+        for form, line in forms(text)
+        if form[0] == "rule"
     ]
     if not rules:
         raise ValueError(f"no rules in {path}")
@@ -660,7 +672,10 @@ def verify_file(
         except Unsupported as error:
             result = {"status": "unsupported", "reason": str(error)}
         result.update(
-            line=rule.line, rule_sha256=rule.digest, contracts=sorted(context.contracts)
+            source=rule.source,
+            line=rule.line,
+            rule_sha256=rule.digest,
+            contracts=sorted(context.contracts),
         )
         if query and artifacts is not None:
             artifacts.mkdir(parents=True, exist_ok=True)
@@ -668,7 +683,7 @@ def verify_file(
             for suffix, text in partitions or [("word", query)]:
                 query_path = (
                     artifacts
-                    / f"{path.stem}-{rule.line}-{rule.digest[:12]}-{suffix}.smt2"
+                    / f"{path.stem}-{Path(rule.source).stem}-{rule.line}-{rule.digest[:12]}-{suffix}.smt2"
                 )
                 query_path.write_text(text)
                 paths.append(str(query_path))

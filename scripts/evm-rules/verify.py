@@ -33,8 +33,8 @@ def main():
         nargs="*",
         type=Path,
         default=[
-            ISLE / "mir/word.isle",
-            ISLE / "mir/word_sequence.isle",
+            ISLE / "mir/word",
+            ISLE / "mir/word_sequence",
             ISLE / "mir-to-evm/stack_select.isle",
             ISLE / "evm-ir/stack_peephole.isle",
             ISLE / "evm-ir/late_word.isle",

@@ -1,0 +1,317 @@
+;; Bitwise identities and boolean combinations.
+
+;; ~((1 << n) - 1) => MAX << n
+;; ~(x - 1) => 0 - x
+;; Mined from storage-byte masks; shifts of 256 or more yield zero.
+(rule (rewrite (Op.Not (sub (shl n (one)) (one)))) (Op.Shl n (imm (u256_max))))
+
+(rule (rewrite (Op.Not (sub x (one)))) (Op.Sub (imm (u256 0)) x))
+
+;; (x & y) & (x ^ y) => 0
+;; (x & y) & (x | y) => x & y
+;; (x | y) & (x ^ y) => x ^ y
+;; (x & y) | (x | y) => x | y
+;; (x & y) | (x ^ y) => x | y
+;; (x | y) | (x ^ y) => x | y
+;; (x & y) ^ (x | y) => x ^ y
+;; (x & y) ^ (x ^ y) => x | y
+;; (x | y) ^ (x ^ y) => x & y
+(rule (rewrite (Op.And (band v0 v1) (bxor v0 v1))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+
+(rule (rewrite (Op.And (band v0 v1) (bxor v1 v0))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+
+(rule (rewrite (Op.And (bxor v0 v1) (band v0 v1))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+
+(rule (rewrite (Op.And (bxor v0 v1) (band v1 v0))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+
+(rule (rewrite (Op.And (band v0 v1) (bor v0 v1))) (Op.And v0 v1))
+
+(rule (rewrite (Op.And (band v0 v1) (bor v1 v0))) (Op.And v0 v1))
+
+(rule (rewrite (Op.And (bor v0 v1) (band v0 v1))) (Op.And v0 v1))
+
+(rule (rewrite (Op.And (bor v0 v1) (band v1 v0))) (Op.And v0 v1))
+
+(rule (rewrite (Op.And (bor v0 v1) (bxor v0 v1))) (Op.Xor v0 v1))
+
+(rule (rewrite (Op.And (bor v0 v1) (bxor v1 v0))) (Op.Xor v0 v1))
+
+(rule (rewrite (Op.And (bxor v0 v1) (bor v0 v1))) (Op.Xor v0 v1))
+
+(rule (rewrite (Op.And (bxor v0 v1) (bor v1 v0))) (Op.Xor v0 v1))
+
+(rule (rewrite (Op.Or (band v0 v1) (bor v0 v1))) (Op.Or v0 v1))
+
+(rule (rewrite (Op.Or (band v0 v1) (bor v1 v0))) (Op.Or v0 v1))
+
+(rule (rewrite (Op.Or (bor v0 v1) (band v0 v1))) (Op.Or v0 v1))
+
+(rule (rewrite (Op.Or (bor v0 v1) (band v1 v0))) (Op.Or v0 v1))
+
+(rule (rewrite (Op.Or (band v0 v1) (bxor v0 v1))) (Op.Or v0 v1))
+
+(rule (rewrite (Op.Or (band v0 v1) (bxor v1 v0))) (Op.Or v0 v1))
+
+(rule (rewrite (Op.Or (bxor v0 v1) (band v0 v1))) (Op.Or v0 v1))
+
+(rule (rewrite (Op.Or (bxor v0 v1) (band v1 v0))) (Op.Or v0 v1))
+
+(rule (rewrite (Op.Or (bor v0 v1) (bxor v0 v1))) (Op.Or v0 v1))
+
+(rule (rewrite (Op.Or (bor v0 v1) (bxor v1 v0))) (Op.Or v0 v1))
+
+(rule (rewrite (Op.Or (bxor v0 v1) (bor v0 v1))) (Op.Or v0 v1))
+
+(rule (rewrite (Op.Or (bxor v0 v1) (bor v1 v0))) (Op.Or v0 v1))
+
+(rule (rewrite (Op.Xor (band v0 v1) (bor v0 v1))) (Op.Xor v0 v1))
+
+(rule (rewrite (Op.Xor (band v0 v1) (bor v1 v0))) (Op.Xor v0 v1))
+
+(rule (rewrite (Op.Xor (bor v0 v1) (band v0 v1))) (Op.Xor v0 v1))
+
+(rule (rewrite (Op.Xor (bor v0 v1) (band v1 v0))) (Op.Xor v0 v1))
+
+(rule (rewrite (Op.Xor (band v0 v1) (bxor v0 v1))) (Op.Or v0 v1))
+
+(rule (rewrite (Op.Xor (band v0 v1) (bxor v1 v0))) (Op.Or v0 v1))
+
+(rule (rewrite (Op.Xor (bxor v0 v1) (band v0 v1))) (Op.Or v0 v1))
+
+(rule (rewrite (Op.Xor (bxor v0 v1) (band v1 v0))) (Op.Or v0 v1))
+
+(rule (rewrite (Op.Xor (bor v0 v1) (bxor v0 v1))) (Op.And v0 v1))
+
+(rule (rewrite (Op.Xor (bor v0 v1) (bxor v1 v0))) (Op.And v0 v1))
+
+(rule (rewrite (Op.Xor (bxor v0 v1) (bor v0 v1))) (Op.And v0 v1))
+
+(rule (rewrite (Op.Xor (bxor v0 v1) (bor v1 v0))) (Op.And v0 v1))
+
+;; (and (sub (or x y) x) x) => 0x0
+(rule (rewrite (Op.And (sub (bor v0 v1) v0) v0)) (Op.Add (imm (u256 0)) (imm (u256 0))))
+
+(rule (rewrite (Op.And (sub (bor v0 v1) v1) v1)) (Op.Add (imm (u256 0)) (imm (u256 0))))
+
+(rule (rewrite (Op.And v0 (sub (bor v0 v1) v0))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+
+(rule (rewrite (Op.And v0 (sub (bor v1 v0) v0))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+
+;; (or (sub x (and x y)) x) => x
+(rule (rewrite (Op.Or (sub v0 (band v0 v1)) v0)) (Op.Add v0 (imm (u256 0))))
+
+(rule (rewrite (Op.Or (sub v0 (band v1 v0)) v0)) (Op.Add v0 (imm (u256 0))))
+
+(rule (rewrite (Op.Or v0 (sub v0 (band v0 v1)))) (Op.Add v0 (imm (u256 0))))
+
+(rule (rewrite (Op.Or v0 (sub v0 (band v1 v0)))) (Op.Add v0 (imm (u256 0))))
+
+;; (and (not (or x y)) x) => 0x0
+(rule (rewrite (Op.And (bnot (bor v0 v1)) v0)) (Op.Add (imm (u256 0)) (imm (u256 0))))
+
+(rule (rewrite (Op.And (bnot (bor v0 v1)) v1)) (Op.Add (imm (u256 0)) (imm (u256 0))))
+
+(rule (rewrite (Op.And v0 (bnot (bor v0 v1)))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+
+(rule (rewrite (Op.And v0 (bnot (bor v1 v0)))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+
+;; (or (not (and x y)) x) => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+(rule (rewrite (Op.Or (bnot (band v0 v1)) v0)) (Op.Add (imm (u256_max)) (imm (u256 0))))
+
+(rule (rewrite (Op.Or (bnot (band v0 v1)) v1)) (Op.Add (imm (u256_max)) (imm (u256 0))))
+
+(rule (rewrite (Op.Or v0 (bnot (band v0 v1)))) (Op.Add (imm (u256_max)) (imm (u256 0))))
+
+(rule (rewrite (Op.Or v0 (bnot (band v1 v0)))) (Op.Add (imm (u256_max)) (imm (u256 0))))
+
+;; Extract one byte from a word.
+(rule (rewrite (Op.And (shr (iconst shift) x) (iconst mask)))
+  (if-let true (u256_eq mask 255))
+  (if-let index (sign_byte shift))
+  (Op.Byte (imm index) x))
+
+;; ~(~y + x) => (y - x)
+(rule (rewrite (Op.Not (add (bnot v0) v1))) (Op.Sub v0 v1))
+
+;; ~(x + ~y) => (y - x)
+(rule (rewrite (Op.Not (add v0 (bnot v1)))) (Op.Sub v1 v0))
+
+;; ~(~x - y) => (x + y)
+(rule (rewrite (Op.Not (sub (bnot v0) v1))) (Op.Add v0 v1))
+
+;; Or (bor x (iconst a)) (iconst b) => Or x (imm (u256_or a b))
+(rule (rewrite (Op.Or (bor x (iconst a)) (iconst b)))  (Op.Or x (imm (u256_or a b))))
+
+;; Xor (bxor x (iconst a)) (iconst b) => Xor x (imm (u256_xor a b))
+(rule (rewrite (Op.Xor (bxor x (iconst a)) (iconst b)))  (Op.Xor x (imm (u256_xor a b))))
+
+;; Not (sar s (bnot x)) => Sar s x
+(rule (rewrite (Op.Not (sar s (bnot x))))  (Op.Sar s x))
+
+;; And (signextend (iconst b) x) (iconst m) => And x (imm m)
+(rule (rewrite (Op.And (signextend (iconst b) x) (iconst m))) (if-let true (u256_lt b 31)) (if-let true (u256_is_zero (u256_shr (u256_mul (u256_add b (u256 1)) (u256 8)) m))) (Op.And x (imm m)))
+
+;; Xor (bxor t x) (bxor t y) => Xor x y
+(rule (rewrite (Op.Xor (bxor t x) (bxor t y)))  (Op.Xor x y))
+
+;; Xor (bxor x t) (bxor t y) => Xor x y
+(rule (rewrite (Op.Xor (bxor x t) (bxor t y)))  (Op.Xor x y))
+
+;; Xor (bxor t x) (bxor y t) => Xor x y
+(rule (rewrite (Op.Xor (bxor t x) (bxor y t)))  (Op.Xor x y))
+
+;; Xor (bxor x t) (bxor y t) => Xor x y
+(rule (rewrite (Op.Xor (bxor x t) (bxor y t)))  (Op.Xor x y))
+
+;; Or (band x m) (and n (bnot m)) => Or x n
+(rule (rewrite (Op.Or (band x m) (and n (bnot m))))  (Op.Or x n))
+
+;; Or (and n (bnot m)) (band x m) => Or x n
+(rule (rewrite (Op.Or (and n (bnot m)) (band x m)))  (Op.Or x n))
+
+;; Or (band m x) (and n (bnot m)) => Or x n
+(rule (rewrite (Op.Or (band m x) (and n (bnot m))))  (Op.Or x n))
+
+;; Or (and n (bnot m)) (band m x) => Or x n
+(rule (rewrite (Op.Or (and n (bnot m)) (band m x)))  (Op.Or x n))
+
+;; And (bor x m) (and n (bnot m)) => And x n
+(rule (rewrite (Op.And (bor x m) (and n (bnot m))))  (Op.And x n))
+
+;; And (and n (bnot m)) (bor x m) => And x n
+(rule (rewrite (Op.And (and n (bnot m)) (bor x m)))  (Op.And x n))
+
+;; And (bor m x) (and n (bnot m)) => And x n
+(rule (rewrite (Op.And (bor m x) (and n (bnot m))))  (Op.And x n))
+
+;; And (and n (bnot m)) (bor m x) => And x n
+(rule (rewrite (Op.And (and n (bnot m)) (bor m x)))  (Op.And x n))
+
+;; And (sub (zero) x) (one) => And x (imm (u256 1))
+(rule (rewrite (Op.And (sub (zero) x) (one)))  (Op.And x (imm (u256 1))))
+
+;; And (byte (iconst i) x) (iconst m) => And x (imm (u256_and m (u256 255)))
+(rule (rewrite (Op.And (byte (iconst i) x) (iconst m))) (if-let true (u256_eq i 31)) (Op.And x (imm (u256_and m (u256 255)))))
+
+;; Not (bxor (bnot x) y) => Xor x y
+(rule (rewrite (Op.Not (bxor (bnot x) y)))  (Op.Xor x y))
+
+;; Not (bxor y (bnot x)) => Xor x y
+(rule (rewrite (Op.Not (bxor y (bnot x))))  (Op.Xor x y))
+
+;; And x (bnot (bxor x y)) => And x y
+(rule (rewrite (Op.And x (bnot (bxor x y))))  (Op.And x y))
+
+;; And (bnot (bxor x y)) x => And x y
+(rule (rewrite (Op.And (bnot (bxor x y)) x))  (Op.And x y))
+
+;; And x (bnot (bxor y x)) => And x y
+(rule (rewrite (Op.And x (bnot (bxor y x))))  (Op.And x y))
+
+;; And (bnot (bxor y x)) x => And x y
+(rule (rewrite (Op.And (bnot (bxor y x)) x))  (Op.And x y))
+
+;; Or (select c (iconst a) (iconst b)) (iconst k) => Select c (imm (u256_or a k)) (imm (u256_or b k))
+(rule (rewrite (Op.Or (select c (iconst a) (iconst b)) (iconst k)))  (Op.Select c (imm (u256_or a k)) (imm (u256_or b k))))
+
+;; Xor (select c (iconst a) (iconst b)) (iconst k) => Select c (imm (u256_xor a k)) (imm (u256_xor b k))
+(rule (rewrite (Op.Xor (select c (iconst a) (iconst b)) (iconst k)))  (Op.Select c (imm (u256_xor a k)) (imm (u256_xor b k))))
+
+;; And (select c (iconst a) (iconst b)) (iconst k) => Select c (imm (u256_and a k)) (imm (u256_and b k))
+(rule (rewrite (Op.And (select c (iconst a) (iconst b)) (iconst k)))  (Op.Select c (imm (u256_and a k)) (imm (u256_and b k))))
+
+;; Or (band x (iconst a)) (iconst b) => Or x (imm b)
+(rule (rewrite (Op.Or (band x (iconst a)) (iconst b))) (if-let true (u256_is_zero (u256_and (u256_not a) (u256_not b)))) (Op.Or x (imm b)))
+
+;; And (bor x (iconst a)) (iconst b) => And x (imm b)
+(rule (rewrite (Op.And (bor x (iconst a)) (iconst b))) (if-let true (u256_is_zero (u256_and a b))) (Op.And x (imm b)))
+
+;; And (bor (band x (iconst a)) y) (iconst b) => And y (imm b)
+(rule (rewrite (Op.And (bor (band x (iconst a)) y) (iconst b))) (if-let true (u256_is_zero (u256_and a b))) (Op.And y (imm b)))
+
+;; And (bor y (band x (iconst a))) (iconst b) => And y (imm b)
+(rule (rewrite (Op.And (bor y (band x (iconst a))) (iconst b))) (if-let true (u256_is_zero (u256_and a b))) (Op.And y (imm b)))
+
+;; x & (~x ^ y) => x & y.
+(rule (rewrite (Op.And x (bxor (bnot x) y))) (Op.And x y))
+
+;; x & (~x ^ y) => x & y.
+(rule (rewrite (Op.And x (bxor y (bnot x)))) (Op.And x y))
+
+;; x & (~x ^ y) => x & y.
+(rule (rewrite (Op.And (bxor (bnot x) y) x)) (Op.And x y))
+
+;; x & (~x ^ y) => x & y.
+(rule (rewrite (Op.And (bxor y (bnot x)) x)) (Op.And x y))
+
+;; (lt(x, y) ^ ne(x, y)) => gt(x, y).
+(rule (rewrite (Op.Xor (lt x y) (ne x y))) (Op.Gt x y))
+
+;; (lt(x, y) ^ ne(x, y)) => gt(x, y).
+(rule (rewrite (Op.Xor (ne x y) (lt x y))) (Op.Gt x y))
+
+;; (lt(x, y) ^ ne(y, x)) => gt(x, y).
+(rule (rewrite (Op.Xor (lt x y) (ne y x))) (Op.Gt x y))
+
+;; (lt(x, y) ^ ne(y, x)) => gt(x, y).
+(rule (rewrite (Op.Xor (ne y x) (lt x y))) (Op.Gt x y))
+
+;; (gt(x, y) ^ ne(x, y)) => lt(x, y).
+(rule (rewrite (Op.Xor (gt x y) (ne x y))) (Op.Lt x y))
+
+;; (gt(x, y) ^ ne(x, y)) => lt(x, y).
+(rule (rewrite (Op.Xor (ne x y) (gt x y))) (Op.Lt x y))
+
+;; (gt(x, y) ^ ne(y, x)) => lt(x, y).
+(rule (rewrite (Op.Xor (gt x y) (ne y x))) (Op.Lt x y))
+
+;; (gt(x, y) ^ ne(y, x)) => lt(x, y).
+(rule (rewrite (Op.Xor (ne y x) (gt x y))) (Op.Lt x y))
+
+;; (lt(x, y) | lt(y, x)) => ne(x, y).
+(rule (rewrite (Op.Or (lt x y) (lt y x))) (Op.Ne x y))
+
+;; (lt(x, y) ^ lt(y, x)) => ne(x, y).
+(rule (rewrite (Op.Xor (lt x y) (lt y x))) (Op.Ne x y))
+
+;; (gt(x, y) | gt(y, x)) => ne(x, y).
+(rule (rewrite (Op.Or (gt x y) (gt y x))) (Op.Ne x y))
+
+;; (gt(x, y) ^ gt(y, x)) => ne(x, y).
+(rule (rewrite (Op.Xor (gt x y) (gt y x))) (Op.Ne x y))
+
+;; (slt(x, y) ^ ne(x, y)) => sgt(x, y).
+(rule (rewrite (Op.Xor (slt x y) (ne x y))) (Op.SGt x y))
+
+;; (slt(x, y) ^ ne(x, y)) => sgt(x, y).
+(rule (rewrite (Op.Xor (ne x y) (slt x y))) (Op.SGt x y))
+
+;; (slt(x, y) ^ ne(y, x)) => sgt(x, y).
+(rule (rewrite (Op.Xor (slt x y) (ne y x))) (Op.SGt x y))
+
+;; (slt(x, y) ^ ne(y, x)) => sgt(x, y).
+(rule (rewrite (Op.Xor (ne y x) (slt x y))) (Op.SGt x y))
+
+;; (sgt(x, y) ^ ne(x, y)) => slt(x, y).
+(rule (rewrite (Op.Xor (sgt x y) (ne x y))) (Op.SLt x y))
+
+;; (sgt(x, y) ^ ne(x, y)) => slt(x, y).
+(rule (rewrite (Op.Xor (ne x y) (sgt x y))) (Op.SLt x y))
+
+;; (sgt(x, y) ^ ne(y, x)) => slt(x, y).
+(rule (rewrite (Op.Xor (sgt x y) (ne y x))) (Op.SLt x y))
+
+;; (sgt(x, y) ^ ne(y, x)) => slt(x, y).
+(rule (rewrite (Op.Xor (ne y x) (sgt x y))) (Op.SLt x y))
+
+;; (slt(x, y) | slt(y, x)) => ne(x, y).
+(rule (rewrite (Op.Or (slt x y) (slt y x))) (Op.Ne x y))
+
+;; (slt(x, y) ^ slt(y, x)) => ne(x, y).
+(rule (rewrite (Op.Xor (slt x y) (slt y x))) (Op.Ne x y))
+
+;; (sgt(x, y) | sgt(y, x)) => ne(x, y).
+(rule (rewrite (Op.Or (sgt x y) (sgt y x))) (Op.Ne x y))
+
+;; (sgt(x, y) ^ sgt(y, x)) => ne(x, y).
+(rule (rewrite (Op.Xor (sgt x y) (sgt y x))) (Op.Ne x y))
