@@ -685,13 +685,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if source_size.is_some() && destination_size.is_none() && to_mir.integer_bits().is_some() {
             return self.builder.cast(value, to_mir);
         }
-        if let TyKind::Enum(id) = to.peel_refs().kind {
-            if !matches!(from.peel_refs().kind, TyKind::Enum(from_id) if from_id == id) {
-                // validate_enum(to, value)
-                self.validate_enum(to, value);
-            }
-            return value;
-        }
         let Some(size) = destination_size else {
             return value;
         };

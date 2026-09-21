@@ -18,7 +18,7 @@ struct Exposure<'gcx> {
     functions: Vec<hir::FunctionId>,
     indirect_callees: FxHashMap<Ty<'gcx>, SmallVec<[hir::FunctionId; 1]>>,
     visited: FxHashSet<hir::FunctionId>,
-    copies: Vec<(VariableId, VariableId)>,
+    edges: FxHashMap<VariableId, Vec<VariableId>>,
     returns: &'gcx [VariableId],
     assembly: bool,
 }
@@ -96,7 +96,8 @@ impl<'gcx> Exposure<'gcx> {
             let ty = self.gcx.type_of_item(to.into());
             for &from in &sources {
                 if ty == self.gcx.type_of_item(from.into()) {
-                    self.copies.push((from, to));
+                    self.edges.entry(from).or_default().push(to);
+                    self.edges.entry(to).or_default().push(from);
                 }
             }
         }
@@ -229,21 +230,16 @@ impl LoweringState {
             indirect_callees: FxHashMap::default(),
             visited: FxHashSet::default(),
             raw: FxHashSet::default(),
-            copies: Vec::new(),
+            edges: FxHashMap::default(),
             returns: &[],
             assembly: false,
         };
         for &(id, _) in functions {
             let _ = exposure.visit_nested_function(id);
         }
-        let mut edges = FxHashMap::<_, Vec<_>>::default();
-        for (from, to) in exposure.copies {
-            edges.entry(from).or_default().push(to);
-            edges.entry(to).or_default().push(from);
-        }
         let mut pending = exposure.raw.iter().copied().collect::<Vec<_>>();
         while let Some(id) = pending.pop() {
-            if let Some(neighbors) = edges.get(&id) {
+            if let Some(neighbors) = exposure.edges.get(&id) {
                 for &neighbor in neighbors {
                     if exposure.raw.insert(neighbor) {
                         pending.push(neighbor);

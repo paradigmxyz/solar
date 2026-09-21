@@ -140,29 +140,31 @@ impl<'gcx> EvmCodegen<'gcx> {
             matches!(func.value(value), Value::Arg(_)) && values.contains(&value)
                 || Self::can_own_spill_slot(func, value)
         };
+        let mut live = DenseBitSet::new_empty(func.num_values());
         for (block_id, block) in func.blocks.iter_enumerated() {
-            let mut live = DenseBitSet::new_empty(func.num_values());
+            live.clear();
+            let mut live_count = 0;
             for value in liveness
                 .live_out(block_id)
                 .iter()
                 .chain(block.terminator.iter().flat_map(Terminator::operands))
             {
                 if needs_stack(value) {
-                    live.insert(value);
+                    live_count += usize::from(live.insert(value));
                 }
             }
             for &id in block.instructions.iter().rev() {
                 if let Some(result) = func.inst_result_value(id) {
-                    live.remove(result);
+                    live_count -= usize::from(live.remove(result));
                 }
                 if !matches!(func.inst(id).kind, InstKind::Phi(_)) {
                     for value in func.inst(id).kind.operands() {
                         if needs_stack(value) {
-                            live.insert(value);
+                            live_count += usize::from(live.insert(value));
                         }
                     }
                 }
-                if live.count() >= MAX_STACK_ACCESS {
+                if live_count >= MAX_STACK_ACCESS {
                     for &value in values {
                         if live.contains(value) && matches!(func.value(value), Value::Arg(_)) {
                             frame_required.insert(value);

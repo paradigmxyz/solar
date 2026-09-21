@@ -106,11 +106,7 @@ impl<'a> RuleContext<'a> {
     }
 
     fn integer_mask(&self) -> U256 {
-        if self.integer_ty == MirType::I256 {
-            U256::MAX
-        } else {
-            U256::MAX >> (256 - self.integer_ty.integer_bits().unwrap())
-        }
+        crate::mir::analysis::integers::integer_mask(self.integer_ty.integer_bits().unwrap())
     }
 
     fn operation_type(&self, op: &Op) -> Option<MirType> {

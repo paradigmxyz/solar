@@ -526,20 +526,18 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     fn cast_operands(&mut self, kind: &mut InstKind) {
-        if (kind.op_def().result == super::ResultKind::Integer
-            || matches!(
-                kind,
-                InstKind::Eq(..)
-                    | InstKind::Ne(..)
-                    | InstKind::Lt(..)
-                    | InstKind::Gt(..)
-                    | InstKind::SLt(..)
-                    | InstKind::SGt(..)
-            ))
-            && kind
-                .operands()
-                .windows(2)
-                .any(|pair| self.func.value_ty(pair[0]) != self.func.value_ty(pair[1]))
+        if matches!(
+            kind,
+            InstKind::Eq(..)
+                | InstKind::Ne(..)
+                | InstKind::Lt(..)
+                | InstKind::Gt(..)
+                | InstKind::SLt(..)
+                | InstKind::SGt(..)
+        ) && kind
+            .operands()
+            .windows(2)
+            .any(|pair| self.func.value_ty(pair[0]) != self.func.value_ty(pair[1]))
         {
             let operands = kind.operands();
             let ty = if matches!(
