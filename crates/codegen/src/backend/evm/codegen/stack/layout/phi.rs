@@ -31,9 +31,9 @@
 
 use super::super::super::{
     BlockId, DenseBitSet, Function, FunctionId, FxHashMap, FxHashSet, GlobalStackPlan,
-    GrowableBitSet, IndexVec, InstId, InstKind, LEGACY_STACK_ACCESS_LIMIT, Liveness, Loop,
-    LoopAnalyzer, STACK_PHI_LAYOUT_LIMIT, SmallVec, StackModel, TargetSlot, Terminator, ValueId,
-    index_vec, lowered_stack_cost, rematerializable_nullary_value,
+    GrowableBitSet, IndexVec, InstId, InstKind, Liveness, Loop, LoopAnalyzer,
+    STACK_PHI_LAYOUT_LIMIT, SmallVec, StackModel, TargetSlot, Terminator, ValueId, index_vec,
+    lowered_stack_cost, rematerializable_nullary_value,
 };
 
 use crate::{
@@ -111,11 +111,12 @@ impl StackPhiPlan {
     pub(in crate::backend::evm::codegen) fn edge_fits(
         edge: &StackPhiEdge,
         values: &[ValueId],
+        stack_access_limit: usize,
     ) -> bool {
         let source_additions = values.iter().filter(|value| !edge.sources.contains(value)).count();
         let result_additions = values.iter().filter(|value| !edge.results.contains(value)).count();
-        edge.sources.len().saturating_add(source_additions) <= LEGACY_STACK_ACCESS_LIMIT
-            && edge.results.len().saturating_add(result_additions) <= LEGACY_STACK_ACCESS_LIMIT
+        edge.sources.len().saturating_add(source_additions) <= stack_access_limit
+            && edge.results.len().saturating_add(result_additions) <= stack_access_limit
     }
 
     pub(in crate::backend::evm::codegen) fn merge_edge(
@@ -152,11 +153,12 @@ impl StackPhiPlan {
         &mut self,
         func: &Function,
         resident: &GlobalStackPlan,
+        stack_access_limit: usize,
     ) -> bool {
         for (&block, entry) in &self.entries {
             if let Some(values) = resident.entry(block) {
                 let additions = values.iter().filter(|value| !entry.contains(value)).count();
-                if entry.len().saturating_add(additions) > LEGACY_STACK_ACCESS_LIMIT {
+                if entry.len().saturating_add(additions) > stack_access_limit {
                     return false;
                 }
             }
@@ -164,7 +166,7 @@ impl StackPhiPlan {
         for (&pred, edge) in &self.edges {
             let Some(term) = func.blocks[pred].terminator.as_ref() else { return false };
             if let Some(values) = resident.edge_layout(func, term)
-                && !Self::edge_fits(edge, values)
+                && !Self::edge_fits(edge, values, stack_access_limit)
             {
                 return false;
             }
@@ -182,7 +184,7 @@ impl StackPhiPlan {
             for (edge, values) in
                 [(&branch.then_edge, then_values), (&branch.else_edge, else_values)]
             {
-                if !Self::edge_fits(edge, values) {
+                if !Self::edge_fits(edge, values, stack_access_limit) {
                     return false;
                 }
             }
@@ -600,7 +602,9 @@ impl<'a> StackPhiPlanner<'a> {
                             } else {
                                 union_values(&then_edge.sources, &else_edge.sources)
                             };
-                            if union.is_empty() || union.len() > LEGACY_STACK_ACCESS_LIMIT {
+                            if union.is_empty()
+                                || union.len() > self.target.evm_version().reachable_stack_depth()
+                            {
                                 dropped.push(join);
                                 continue 'joins;
                             }
@@ -1319,8 +1323,8 @@ impl<'a> StackPhiPlanner<'a> {
             };
             let then_sources = self.phi_sources_for_block_pred(*pred_then, pred)?;
             let else_sources = self.phi_sources_for_block_pred(*pred_else, pred)?;
-            if then_sources.len() > LEGACY_STACK_ACCESS_LIMIT
-                || else_sources.len() > LEGACY_STACK_ACCESS_LIMIT
+            if then_sources.len() > self.target.evm_version().reachable_stack_depth()
+                || else_sources.len() > self.target.evm_version().reachable_stack_depth()
             {
                 return None;
             }
@@ -1550,8 +1554,8 @@ impl<'a> StackPhiPlanner<'a> {
         backedge_sources.extend(backedge_phi_sources);
         if initial_sources.len() != entry.len()
             || backedge_sources.len() != entry.len()
-            || initial_sources.len() > LEGACY_STACK_ACCESS_LIMIT
-            || backedge_sources.len() > LEGACY_STACK_ACCESS_LIMIT
+            || initial_sources.len() > self.target.evm_version().reachable_stack_depth()
+            || backedge_sources.len() > self.target.evm_version().reachable_stack_depth()
         {
             return false;
         }
@@ -1577,7 +1581,7 @@ impl<'a> StackPhiPlanner<'a> {
         let (then_edge, else_edge) =
             if self_is_then { (backedge, exit_edge) } else { (exit_edge, backedge) };
         let union = union_values(&then_edge.sources, &else_edge.sources);
-        if union.is_empty() || union.len() > LEGACY_STACK_ACCESS_LIMIT {
+        if union.is_empty() || union.len() > self.target.evm_version().reachable_stack_depth() {
             return false;
         }
 

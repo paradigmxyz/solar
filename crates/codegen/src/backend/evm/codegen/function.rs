@@ -209,7 +209,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             });
         let mut stack_phi_sources = stack_phi_plan.edge_sources();
         if required_stack_plan {
-            if !stack_phi_plan.merge_resident(func, &global_stack_plan) {
+            if !stack_phi_plan.merge_resident(func, &global_stack_plan, self.stack_access_limit()) {
                 // Selection preflights this exact composition. If a future transform invalidates
                 // that proof, regenerate the runtime with the ordinary frame-backed convention
                 // instead of emitting a partial stack ABI or panicking.
@@ -228,7 +228,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .or_else(|| self.compute_loop_bound_stack_layout(func, liveness, &stack_phi_plan))
             // Phi layouts own their incoming stack on planned joins. Adopt the layout only when
             // that composition is proven, mirroring the resident arm.
-            && stack_phi_plan.merge_resident(func, &plan)
+            && stack_phi_plan.merge_resident(func, &plan, self.stack_access_limit())
         {
             global_stack_plan = plan;
             // An early spill store can be omitted only when every physical successor layout

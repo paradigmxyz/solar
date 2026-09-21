@@ -2,11 +2,10 @@
 
 use super::super::{
     ArgIdx, BlockId, CanonicalArgValues, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function,
-    FunctionId, FxHashMap, GLOBAL_STACK_LAYOUT_LIMIT, GlobalStackPlan, InstKind,
-    LEGACY_STACK_ACCESS_LIMIT, LazyStackArgPlan, Liveness, Module, OptimizationMode, SpillSlot,
-    StackArgRetentionPlan, StackArgUseInfo, StackModel, StackOp, StackScheduler, StaticCallEntry,
-    StaticCallStackWord, TargetSlot, Terminator, U256, ValueId, WORD_BYTES, op,
-    rematerializable_nullary_value,
+    FunctionId, FxHashMap, GLOBAL_STACK_LAYOUT_LIMIT, GlobalStackPlan, InstKind, LazyStackArgPlan,
+    Liveness, Module, OptimizationMode, SpillSlot, StackArgRetentionPlan, StackArgUseInfo,
+    StackModel, StackOp, StackScheduler, StaticCallEntry, StaticCallStackWord, TargetSlot,
+    Terminator, U256, ValueId, WORD_BYTES, op, rematerializable_nullary_value,
 };
 use crate::mir::Callee;
 
@@ -377,7 +376,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if self.disabled_stack_only_functions.contains(func_id) {
                 continue;
             }
-            if mask.count() > LEGACY_STACK_ACCESS_LIMIT {
+            if mask.count() > self.stack_access_limit() {
                 continue;
             }
             let func = &module.functions[func_id];

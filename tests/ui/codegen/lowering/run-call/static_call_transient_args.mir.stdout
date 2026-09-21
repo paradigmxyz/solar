@@ -242,6 +242,79 @@ fn @_schedule(arg0: i256, arg1: i256) {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/static_call_transient_args.sol:DeepCallArguments ===
 @module DeepCallArguments
+fn @wide(arg0: i256) -> i256 [selector=0x598b5337, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = add arg0, 0
+    v1 = add arg0, 1
+    v2 = add arg0, 2
+    v3 = add arg0, 3
+    v4 = add arg0, 4
+    v5 = add arg0, 5
+    v6 = add arg0, 6
+    v7 = add arg0, 7
+    v8 = add arg0, 8
+    v9 = add arg0, 9
+    v10 = add arg0, 10
+    v11 = add arg0, 11
+    v12 = add arg0, 12
+    v13 = add arg0, 13
+    v14 = add arg0, 14
+    v15 = add arg0, 15
+    v16 = add arg0, 16
+    v17 = add arg0, 17
+    v18 = add arg0, 18
+    v19 = add arg0, 19
+    v20 = icall @combineWide, v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19
+    v21 = icall @combineWide, v19, v18, v17, v16, v15, v14, v13, v12, v11, v10, v9, v8, v7, v6, v5, v4, v3, v2, v1, v0
+    v22 = add v20, v21
+    v23 = add v22, arg0
+    ret v23
+}
+
+fn @combineWide(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256, arg13: i256, arg14: i256, arg15: i256, arg16: i256, arg17: i256, arg18: i256, arg19: i256) -> i256 [pure] {
+  bb0:
+    v0 = mul 1, arg0
+    v1 = mul 2, arg1
+    v2 = add v0, v1
+    v3 = mul 3, arg2
+    v4 = add v2, v3
+    v5 = mul 4, arg3
+    v6 = add v4, v5
+    v7 = mul 5, arg4
+    v8 = add v6, v7
+    v9 = mul 6, arg5
+    v10 = add v8, v9
+    v11 = mul 7, arg6
+    v12 = add v10, v11
+    v13 = mul 8, arg7
+    v14 = add v12, v13
+    v15 = mul 9, arg8
+    v16 = add v14, v15
+    v17 = mul 10, arg9
+    v18 = add v16, v17
+    v19 = mul 11, arg10
+    v20 = add v18, v19
+    v21 = mul 12, arg11
+    v22 = add v20, v21
+    v23 = mul 13, arg12
+    v24 = add v22, v23
+    v25 = mul 14, arg13
+    v26 = add v24, v25
+    v27 = mul 15, arg14
+    v28 = add v26, v27
+    v29 = mul 16, arg15
+    v30 = add v28, v29
+    v31 = mul 17, arg16
+    v32 = add v30, v31
+    v33 = mul 18, arg17
+    v34 = add v32, v33
+    v35 = mul 19, arg18
+    v36 = add v34, v35
+    v37 = mul 20, arg19
+    v38 = add v36, v37
+    ret v38
+}
+
 fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_add u256, arg0, 1

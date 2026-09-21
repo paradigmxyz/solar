@@ -671,7 +671,6 @@ impl<'a> StackShuffler<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::evm::codegen::stack::model::LEGACY_STACK_ACCESS_LIMIT;
 
     fn make_model(values: &[Option<ValueId>]) -> StackModel {
         let mut model = StackModel::new();
@@ -922,15 +921,15 @@ mod tests {
 
     #[test]
     fn test_shuffle_uses_swap16() {
-        let values: Vec<_> = (0..=LEGACY_STACK_ACCESS_LIMIT).map(ValueId::from_usize).collect();
+        let values: Vec<_> = (0..=16).map(ValueId::from_usize).collect();
         let source = make_model(&values.iter().copied().map(Some).collect::<Vec<_>>());
         let mut target_values = values;
-        target_values.swap(0, LEGACY_STACK_ACCESS_LIMIT);
+        target_values.swap(0, 16);
         let target: Vec<_> = target_values.into_iter().map(TargetSlot::Value).collect();
 
         let result = StackShuffler::new(&source, &target).shuffle().unwrap();
 
-        assert_eq!(result.ops, [StackOp::Swap(LEGACY_STACK_ACCESS_LIMIT as u8)]);
+        assert_eq!(result.ops, [StackOp::Swap(16)]);
         assert_reaches(&source, &target, &result);
     }
 
@@ -955,14 +954,9 @@ mod tests {
             counts
         });
 
-        let result = StackShuffler::search_exact(
-            source,
-            &target,
-            &multiplicities,
-            LEGACY_STACK_ACCESS_LIMIT,
-            EvmVersion::Osaka,
-        )
-        .unwrap();
+        let result =
+            StackShuffler::search_exact(source, &target, &multiplicities, 16, EvmVersion::Osaka)
+                .unwrap();
 
         assert_eq!(
             result.ops,
@@ -1013,7 +1007,7 @@ mod tests {
                     shuffler.source,
                     &target,
                     &shuffler.multiplicities,
-                    LEGACY_STACK_ACCESS_LIMIT,
+                    16,
                     shuffler.evm_version,
                 )
                 .unwrap();

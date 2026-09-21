@@ -221,7 +221,7 @@ pub(crate) mod shuffler;
 mod spill;
 
 pub(crate) use super::op::StackOp;
-pub(crate) use model::{LEGACY_STACK_ACCESS_LIMIT, MAX_STACK_DEPTH, StackModel};
+pub(crate) use model::{MAX_STACK_DEPTH, StackModel};
 pub(crate) use scheduler::{
     OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, StackScheduler, cross_block_values,
     is_cross_block_recomputable_kind, is_rematerializable_leaf, rematerializable_nullary_value,

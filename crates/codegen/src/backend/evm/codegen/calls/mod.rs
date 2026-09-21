@@ -2,9 +2,9 @@
 
 use super::{
     BlockId, DenseBitSet, EffectKind, EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap,
-    FxHashSet, ICallStackEdge, InstKind, LEGACY_STACK_ACCESS_LIMIT, Label, Liveness, ScheduleCost,
-    SmallVec, StackModel, StackOp, StackResultProjection, StackReturnPlan, StaticCallStackPlan,
-    TargetSlot, U256, Value, ValueId, WORD_BYTES, op,
+    FxHashSet, ICallStackEdge, InstKind, Label, Liveness, ScheduleCost, SmallVec, StackModel,
+    StackOp, StackResultProjection, StackReturnPlan, StaticCallStackPlan, TargetSlot, U256, Value,
+    ValueId, WORD_BYTES, op,
 };
 
 mod abi;
@@ -252,7 +252,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> Option<StaticCallStackPlan> {
         let depth = self.scheduler.stack.depth();
         if !self.preserve_caller_stack
-            || !(1..LEGACY_STACK_ACCESS_LIMIT).contains(&depth)
+            || !(1..self.stack_access_limit()).contains(&depth)
             || self.recursive_stack_functions.contains(func_id)
             || self.recursion_reaching_functions.contains(callee)
         {
