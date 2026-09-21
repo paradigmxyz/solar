@@ -57,27 +57,26 @@ fn @run(arg0: i256, arg1: i1) -> i256 [selector=0x0a3395f5, abi_params=[u256, bo
     v4 = add v3, 1
     v5 = sload v4 !metadata(storage=offset(v3, 1))
     v6 = trunc i256 v5 to i8
-    v7 = zext i8 v6 to i256
-    v8 = ne v7, 0
-    jumpi v8, bb1, bb2
+    v7 = ne v6, i8 0
+    jumpi v7, bb1, bb2
   bb2:
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v9 = phi [bb1: arg1], [bb2: false]
-    jumpi v9, bb4, bb5
+    v8 = phi [bb1: arg1], [bb2: false]
+    jumpi v8, bb4, bb5
   bb5:
-    v11 = checked_mul u256, v0, 2
-    v12 = checked_add u256, v11, v2
-    v13 = checked_add u256, v12, 5
+    v10 = checked_mul u256, v0, 2
+    v11 = checked_add u256, v10, v2
+    v12 = checked_add u256, v11, 5
     jump bb6
   bb4:
-    v10 = checked_add u256, v0, v2
+    v9 = checked_add u256, v0, v2
     jump bb6
   bb6:
-    v14 = phi [bb4: v10], [bb5: v13]
-    v15 = sload 1 !metadata(storage=slot(1))
-    v16 = checked_add u256, v14, v15
-    ret v16
+    v13 = phi [bb4: v9], [bb5: v12]
+    v14 = sload 1 !metadata(storage=slot(1))
+    v15 = checked_add u256, v13, v14
+    ret v15
 }

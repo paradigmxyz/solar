@@ -138,66 +138,64 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 299
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = abi_encode [word<u160>], args v12
-    v14 = not 31
-    v15 = and 324, v14
-    v16 = alloc raw, exact, uninitialized, infallible, v15
-    v17 = ptrtoint memptr v16 to i256
-    data_copy FixedRangeProxy_initcode_1, v17, 261
-    v18 = slice_ptr v13
-    v19 = ptrtoint memptr v16 to i256
-    v20 = add v19, 261
-    mcopy v20, v18, 32 !metadata(memory=heap)
-    v21 = ptrtoint memptr v16 to i256
-    v22 = create 0, v21, 293
-    v23 = zext i160 v22 to i256
-    v24 = ne v23, 0
-    jumpi v24, bb4, bb3
+    v11 = zext i160 v9 to i256
+    v12 = abi_encode [word<u160>], args v11
+    v13 = not 31
+    v14 = and 324, v13
+    v15 = alloc raw, exact, uninitialized, infallible, v14
+    v16 = ptrtoint memptr v15 to i256
+    data_copy FixedRangeProxy_initcode_1, v16, 261
+    v17 = slice_ptr v12
+    v18 = ptrtoint memptr v15 to i256
+    v19 = add v18, 261
+    mcopy v19, v17, 32 !metadata(memory=heap)
+    v20 = ptrtoint memptr v15 to i256
+    v21 = create 0, v20, 293
+    v22 = ne v21, i160 0
+    jumpi v22, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v25 = gas
-    v26 = not 31
-    v27 = and 223, v26
-    v28 = alloc memorybytes, exact, zeroed, panic, v27
-    set_memory_object_len memorybytes, v28, 160
-    v29 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 1, 2, 3, v28
-    v30 = slice_ptr v29
-    v31 = slice_len v29
-    v32 = zext i160 v22 to i256
-    v33 = extcodesize v32
-    v34 = eq v33, 0
-    icall revert_if<target_contract_has_no_code>, v34
-    v35 = zext i160 v22 to i256
-    v36 = call v25, v35, 0, v30, v31, 0, 0
-    jumpi v36, bb6, bb5
+    v23 = gas
+    v24 = not 31
+    v25 = and 223, v24
+    v26 = alloc memorybytes, exact, zeroed, panic, v25
+    set_memory_object_len memorybytes, v26, 160
+    v27 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 1, 2, 3, v26
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = zext i160 v21 to i256
+    v31 = extcodesize v30
+    v32 = eq v31, 0
+    icall revert_if<target_contract_has_no_code>, v32
+    v33 = zext i160 v21 to i256
+    v34 = call v23, v33, 0, v28, v29, 0, 0
+    jumpi v34, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v37 = gas
-    v38 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v39 = slice_ptr v38
-    v40 = slice_len v38
-    v41 = zext i160 v22 to i256
-    v42 = staticcall v37, v41, v39, v40, 0, 32
-    jumpi v42, bb8, bb7
+    v35 = gas
+    v36 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v37 = slice_ptr v36
+    v38 = slice_len v36
+    v39 = zext i160 v21 to i256
+    v40 = staticcall v35, v39, v37, v38, 0, 32
+    jumpi v40, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v43 = returndatasize
-    v44 = lt v43, 32
-    icall revert_if<tuple_data_too_short>, v44
-    v45 = add 0, 0
-    v46 = mload v45
-    v47 = eq v46, 166
-    icall require<short_string>, v47, 5, 0x6669786564000000000000000000000000000000000000000000000000000000
+    v41 = returndatasize
+    v42 = lt v41, 32
+    icall revert_if<tuple_data_too_short>, v42
+    v43 = add 0, 0
+    v44 = mload v43
+    v45 = eq v44, 166
+    icall require<short_string>, v45, 5, 0x6669786564000000000000000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -215,66 +213,64 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 299
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = abi_encode [word<u160>], args v12
-    v14 = not 31
-    v15 = and 337, v14
-    v16 = alloc raw, exact, uninitialized, infallible, v15
-    v17 = ptrtoint memptr v16 to i256
-    data_copy CrossBlockProxy_initcode_2, v17, 274
-    v18 = slice_ptr v13
-    v19 = ptrtoint memptr v16 to i256
-    v20 = add v19, 274
-    mcopy v20, v18, 32 !metadata(memory=heap)
-    v21 = ptrtoint memptr v16 to i256
-    v22 = create 0, v21, 306
-    v23 = zext i160 v22 to i256
-    v24 = ne v23, 0
-    jumpi v24, bb4, bb3
+    v11 = zext i160 v9 to i256
+    v12 = abi_encode [word<u160>], args v11
+    v13 = not 31
+    v14 = and 337, v13
+    v15 = alloc raw, exact, uninitialized, infallible, v14
+    v16 = ptrtoint memptr v15 to i256
+    data_copy CrossBlockProxy_initcode_2, v16, 274
+    v17 = slice_ptr v12
+    v18 = ptrtoint memptr v15 to i256
+    v19 = add v18, 274
+    mcopy v19, v17, 32 !metadata(memory=heap)
+    v20 = ptrtoint memptr v15 to i256
+    v21 = create 0, v20, 306
+    v22 = ne v21, i160 0
+    jumpi v22, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v25 = gas
-    v26 = not 31
-    v27 = and 223, v26
-    v28 = alloc memorybytes, exact, zeroed, panic, v27
-    set_memory_object_len memorybytes, v28, 160
-    v29 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 4, 5, 6, v28
-    v30 = slice_ptr v29
-    v31 = slice_len v29
-    v32 = zext i160 v22 to i256
-    v33 = extcodesize v32
-    v34 = eq v33, 0
-    icall revert_if<target_contract_has_no_code>, v34
-    v35 = zext i160 v22 to i256
-    v36 = call v25, v35, 0, v30, v31, 0, 0
-    jumpi v36, bb6, bb5
+    v23 = gas
+    v24 = not 31
+    v25 = and 223, v24
+    v26 = alloc memorybytes, exact, zeroed, panic, v25
+    set_memory_object_len memorybytes, v26, 160
+    v27 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 4, 5, 6, v26
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = zext i160 v21 to i256
+    v31 = extcodesize v30
+    v32 = eq v31, 0
+    icall revert_if<target_contract_has_no_code>, v32
+    v33 = zext i160 v21 to i256
+    v34 = call v23, v33, 0, v28, v29, 0, 0
+    jumpi v34, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v37 = gas
-    v38 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v39 = slice_ptr v38
-    v40 = slice_len v38
-    v41 = zext i160 v22 to i256
-    v42 = staticcall v37, v41, v39, v40, 0, 32
-    jumpi v42, bb8, bb7
+    v35 = gas
+    v36 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v37 = slice_ptr v36
+    v38 = slice_len v36
+    v39 = zext i160 v21 to i256
+    v40 = staticcall v35, v39, v37, v38, 0, 32
+    jumpi v40, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v43 = returndatasize
-    v44 = lt v43, 32
-    icall revert_if<tuple_data_too_short>, v44
-    v45 = add 0, 0
-    v46 = mload v45
-    v47 = eq v46, 175
-    icall require<short_string>, v47, 11, 0x63726f737320626c6f636b000000000000000000000000000000000000000000
+    v41 = returndatasize
+    v42 = lt v41, 32
+    icall revert_if<tuple_data_too_short>, v42
+    v43 = add 0, 0
+    v44 = mload v43
+    v45 = eq v44, 175
+    icall require<short_string>, v45, 11, 0x63726f737320626c6f636b000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -292,46 +288,44 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 65
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = abi_encode [word<u160>], args v12
-    v14 = not 31
-    v15 = and 0x442, v14
-    v16 = alloc raw, exact, uninitialized, infallible, v15
-    v17 = ptrtoint memptr v16 to i256
-    data_copy DynamicReturnWrapper_initcode_4, v17, 0x403
-    v18 = slice_ptr v13
-    v19 = ptrtoint memptr v16 to i256
-    v20 = add v19, 0x403
-    mcopy v20, v18, 32 !metadata(memory=heap)
-    v21 = ptrtoint memptr v16 to i256
-    v22 = create 0, v21, 0x423
-    v23 = zext i160 v22 to i256
-    v24 = ne v23, 0
-    jumpi v24, bb4, bb3
+    v11 = zext i160 v9 to i256
+    v12 = abi_encode [word<u160>], args v11
+    v13 = not 31
+    v14 = and 0x442, v13
+    v15 = alloc raw, exact, uninitialized, infallible, v14
+    v16 = ptrtoint memptr v15 to i256
+    data_copy DynamicReturnWrapper_initcode_4, v16, 0x403
+    v17 = slice_ptr v12
+    v18 = ptrtoint memptr v15 to i256
+    v19 = add v18, 0x403
+    mcopy v19, v17, 32 !metadata(memory=heap)
+    v20 = ptrtoint memptr v15 to i256
+    v21 = create 0, v20, 0x423
+    v22 = ne v21, i160 0
+    jumpi v22, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v25 = gas
-    v26 = abi_encode [], object, selector 0x4ce637d600000000000000000000000000000000000000000000000000000000
-    v27 = address_call v22, v26, gas v25
-    v28 = icall returndata_bytes<>
-    v29 = eq v27, false
-    icall require<short_string>, v29, 7, 0x7375636365737300000000000000000000000000000000000000000000000000
-    v30 = memory_object_len memorybytes, v28
-    v31 = eq v30, 228
-    icall require<short_string>, v31, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
-    v32 = ptrtoint memorybytes v28 to i256
-    v33 = add v32, 32
-    v34 = mload v33
-    v35 = shl 0, 0x1234
-    v36 = eq v34, v35
-    icall require<short_string>, v36, 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
+    v23 = gas
+    v24 = abi_encode [], object, selector 0x4ce637d600000000000000000000000000000000000000000000000000000000
+    v25 = address_call v21, v24, gas v23
+    v26 = icall returndata_bytes<>
+    v27 = eq v25, false
+    icall require<short_string>, v27, 7, 0x7375636365737300000000000000000000000000000000000000000000000000
+    v28 = memory_object_len memorybytes, v26
+    v29 = eq v28, 228
+    icall require<short_string>, v29, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
+    v30 = ptrtoint memorybytes v26 to i256
+    v31 = add v30, 32
+    v32 = mload v31
+    v33 = shl 0, 0x1234
+    v34 = eq v32, v33
+    icall require<short_string>, v34, 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
     ret 1
 }
 

@@ -68,37 +68,36 @@ fn @t() -> i256 [selector=0x92d0d153, abi_params=[], abi_returns=[word], abi_ret
     mcopy v14, v12, 0 !metadata(memory=heap)
     v15 = ptrtoint memptr v10 to i256
     v16 = create 0, v15, 120
-    v17 = zext i160 v16 to i256
-    v18 = ne v17, 0
-    jumpi v18, bb2, bb1
+    v17 = ne v16, i160 0
+    jumpi v17, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v19 = zext i160 v16 to i256
-    v20 = shl 32, v19
-    v21 = or v20, 0xcae57913
-    v22 = abi_encode [function], selector 0xf018a0a700000000000000000000000000000000000000000000000000000000, args v21
-    v23 = slice_ptr v22
-    v24 = slice_len v22
-    v25 = zext i160 v5 to i256
-    v26 = extcodesize v25
-    v27 = eq v26, 0
-    icall revert_if<target_contract_has_no_code>, v27
-    v28 = zext i160 v5 to i256
-    v29 = call v6, v28, 0, v23, v24, 0, 0
-    jumpi v29, bb4, bb3
+    v18 = zext i160 v16 to i256
+    v19 = shl 32, v18
+    v20 = or v19, 0xcae57913
+    v21 = abi_encode [function], selector 0xf018a0a700000000000000000000000000000000000000000000000000000000, args v20
+    v22 = slice_ptr v21
+    v23 = slice_len v21
+    v24 = zext i160 v5 to i256
+    v25 = extcodesize v24
+    v26 = eq v25, 0
+    icall revert_if<target_contract_has_no_code>, v26
+    v27 = zext i160 v5 to i256
+    v28 = call v6, v27, 0, v22, v23, 0, 0
+    jumpi v28, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v30 = sload 0 !metadata(storage=slot(0))
-    v31 = trunc i256 v30 to i64
-    v32 = zext i64 v31 to i256
-    v33 = sload 0 !metadata(storage=slot(0))
-    v34 = shr 64, v33
-    v35 = trunc i256 v34 to i192
-    v36 = zext i192 v35 to i256
-    v37 = icall @internal_dispatcher_p_function_r_u256, v32, v36
-    ret v37
+    v29 = sload 0 !metadata(storage=slot(0))
+    v30 = trunc i256 v29 to i64
+    v31 = zext i64 v30 to i256
+    v32 = sload 0 !metadata(storage=slot(0))
+    v33 = shr 64, v32
+    v34 = trunc i256 v33 to i192
+    v35 = zext i192 v34 to i256
+    v36 = icall @internal_dispatcher_p_function_r_u256, v31, v35
+    ret v36
 }
 
 fn @internal_dispatcher_p_function_r_u256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {

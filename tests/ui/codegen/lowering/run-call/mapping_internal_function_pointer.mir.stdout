@@ -66,9 +66,8 @@ fn @run() -> i1 [selector=0xc0406226, abi_params=[], abi_returns=[word<bool>], a
     icall @internal_dispatcher_p_none_r_none, v11
     v12 = sload 0 !metadata(storage=slot(0))
     v13 = trunc i256 v12 to i8
-    v14 = zext i8 v13 to i256
-    v15 = ne v14, 0
-    ret v15
+    v14 = ne v13, i8 0
+    ret v14
 }
 
 fn @internal_dispatcher_p_none_r_none(arg0: i256) [function_pointer_dispatcher] {

@@ -171,28 +171,27 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 256
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = gas
-    v13 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = zext i160 v9 to i256
-    v17 = call v12, v16, 0, v14, v15, 0, 32
-    jumpi v17, bb4, bb3
+    v11 = gas
+    v12 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = zext i160 v9 to i256
+    v16 = call v11, v15, 0, v13, v14, 0, 32
+    jumpi v16, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v18 = returndatasize
-    v19 = lt v18, 32
-    icall revert_if<tuple_data_too_short>, v19
-    v20 = add 0, 0
-    v21 = mload v20
-    ret v21
+    v17 = returndatasize
+    v18 = lt v17, 32
+    icall revert_if<tuple_data_too_short>, v18
+    v19 = add 0, 0
+    v20 = mload v19
+    ret v20
 }
 
 fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -209,44 +208,43 @@ fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 256
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = gas
-    v13 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = alloc raw, exact, uninitialized, infallible, 64
-    v17 = zext i160 v9 to i256
-    v18 = ptrtoint memptr v16 to i256
-    v19 = call v12, v17, 0, v14, v15, v18, 64
-    jumpi v19, bb4, bb3
+    v11 = gas
+    v12 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = alloc raw, exact, uninitialized, infallible, 64
+    v16 = zext i160 v9 to i256
+    v17 = ptrtoint memptr v15 to i256
+    v18 = call v11, v16, 0, v13, v14, v17, 64
+    jumpi v18, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v20 = returndatasize
-    v21 = lt v20, 64
-    icall revert_if<tuple_data_too_short>, v21
-    v22 = not 31
-    v23 = and 127, v22
-    v24 = alloc memorybytes, exact, uninitialized, infallible, v23
-    set_memory_object_len memorybytes, v24, 64
-    v25 = ptrtoint memptr v16 to i256
-    v26 = make_memory_slice v25, 64
-    memory_object_copy_from_slice memorybytes, v24, v26
-    v27 = abi_decode [array<2, u256>], v24
-    v28 = lt 0, 2
-    v29 = eq v28, false
-    icall panic_if<0x32>, v29
-    v30 = memory_object_load_element memoryfixedarray<2, 1>, v27, 0
-    v31 = lt 1, 2
-    v32 = eq v31, false
-    icall panic_if<0x32>, v32
-    v33 = memory_object_load_element memoryfixedarray<2, 1>, v27, 1
-    v34 = insert_value struct0, undef struct0, 0, v30
-    v35 = insert_value struct0, v34, 1, v33
-    ret v35
+    v19 = returndatasize
+    v20 = lt v19, 64
+    icall revert_if<tuple_data_too_short>, v20
+    v21 = not 31
+    v22 = and 127, v21
+    v23 = alloc memorybytes, exact, uninitialized, infallible, v22
+    set_memory_object_len memorybytes, v23, 64
+    v24 = ptrtoint memptr v15 to i256
+    v25 = make_memory_slice v24, 64
+    memory_object_copy_from_slice memorybytes, v23, v25
+    v26 = abi_decode [array<2, u256>], v23
+    v27 = lt 0, 2
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = memory_object_load_element memoryfixedarray<2, 1>, v26, 0
+    v30 = lt 1, 2
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = memory_object_load_element memoryfixedarray<2, 1>, v26, 1
+    v33 = insert_value struct0, undef struct0, 0, v29
+    v34 = insert_value struct0, v33, 1, v32
+    ret v34
 }

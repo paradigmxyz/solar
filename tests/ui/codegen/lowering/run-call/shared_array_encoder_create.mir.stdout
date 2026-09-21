@@ -144,9 +144,8 @@ fn @mk(arg0: i160, arg1: i160) -> i160 {
     mcopy v21, v19, v10 !metadata(memory=heap)
     v22 = ptrtoint memptr v17 to i256
     v23 = create 0, v22, v11
-    v24 = zext i160 v23 to i256
-    v25 = ne v24, 0
-    jumpi v25, bb2, bb1
+    v24 = ne v23, i160 0
+    jumpi v24, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -194,9 +193,8 @@ fn @mk3(arg0: i160, arg1: i160, arg2: i160) -> i160 {
     mcopy v25, v23, v14 !metadata(memory=heap)
     v26 = ptrtoint memptr v21 to i256
     v27 = create 0, v26, v15
-    v28 = zext i160 v27 to i256
-    v29 = ne v28, 0
-    jumpi v29, bb2, bb1
+    v28 = ne v27, i160 0
+    jumpi v28, bb2, bb1
   bb1:
     revert_returndata
   bb2:

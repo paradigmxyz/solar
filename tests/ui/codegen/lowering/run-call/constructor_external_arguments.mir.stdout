@@ -34,7 +34,6 @@ fn @getFlag() -> i1 [selector=0xf9633930, view, abi_params=[], abi_returns=[word
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 24, v0
     v2 = trunc i256 v1 to i8
-    v3 = zext i8 v2 to i256
-    v4 = ne v3, 0
-    ret v4
+    v3 = ne v2, i8 0
+    ret v3
 }

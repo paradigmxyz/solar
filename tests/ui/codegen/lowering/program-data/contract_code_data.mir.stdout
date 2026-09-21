@@ -72,23 +72,22 @@ fn @runtimeCodeMatches() -> i1 [selector=0x337e11d0, abi_params=[], abi_returns=
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 425
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = alloc memorybytes, exact, uninitialized, infallible, 448 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v12, 407
-    v13 = memory_object_data memorybytes, v12
-    v14 = ptrtoint memptr v13 to i256
-    v15 = add v14, 384
-    mstore v15, 0
-    v16 = ptrtoint memptr v13 to i256
-    data_copy CodeTarget_runtime_code_1, v16, 407
-    v17 = keccak256_bytes v12
-    v18 = zext i160 v9 to i256
-    v19 = extcodehash v18
-    v20 = eq v17, v19
-    ret v20
+    v11 = alloc memorybytes, exact, uninitialized, infallible, 448 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v11, 407
+    v12 = memory_object_data memorybytes, v11
+    v13 = ptrtoint memptr v12 to i256
+    v14 = add v13, 384
+    mstore v14, 0
+    v15 = ptrtoint memptr v12 to i256
+    data_copy CodeTarget_runtime_code_1, v15, 407
+    v16 = keccak256_bytes v11
+    v17 = zext i160 v9 to i256
+    v18 = extcodehash v17
+    v19 = eq v16, v18
+    ret v19
 }

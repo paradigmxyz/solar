@@ -35,43 +35,42 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 159
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = address
-    v13 = zext i160 v12 to i256
-    log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v13, 0xbeef, 7
-    v14 = gas
-    v15 = abi_encode [word<u160>, word], selector 0x95ea7b300000000000000000000000000000000000000000000000000000000, args 0xbeef, 7
-    v16 = slice_ptr v15
-    v17 = slice_len v15
-    v18 = zext i160 v9 to i256
-    v19 = extcodesize v18
-    v20 = eq v19, 0
-    icall revert_if<target_contract_has_no_code>, v20
-    v21 = zext i160 v9 to i256
-    v22 = call v14, v21, 0, v16, v17, 0, 0
-    jumpi v22, bb4, bb3
+    v11 = address
+    v12 = zext i160 v11 to i256
+    log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v12, 0xbeef, 7
+    v13 = gas
+    v14 = abi_encode [word<u160>, word], selector 0x95ea7b300000000000000000000000000000000000000000000000000000000, args 0xbeef, 7
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = zext i160 v9 to i256
+    v18 = extcodesize v17
+    v19 = eq v18, 0
+    icall revert_if<target_contract_has_no_code>, v19
+    v20 = zext i160 v9 to i256
+    v21 = call v13, v20, 0, v15, v16, 0, 0
+    jumpi v21, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v23 = gas
-    v24 = abi_encode [], selector 0xe582dd3100000000000000000000000000000000000000000000000000000000
-    v25 = slice_ptr v24
-    v26 = slice_len v24
-    v27 = zext i160 v9 to i256
-    v28 = staticcall v23, v27, v25, v26, 0, 32
-    jumpi v28, bb6, bb5
+    v22 = gas
+    v23 = abi_encode [], selector 0xe582dd3100000000000000000000000000000000000000000000000000000000
+    v24 = slice_ptr v23
+    v25 = slice_len v23
+    v26 = zext i160 v9 to i256
+    v27 = staticcall v22, v26, v24, v25, 0, 32
+    jumpi v27, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v29 = returndatasize
-    v30 = lt v29, 32
-    icall revert_if<tuple_data_too_short>, v30
-    v31 = add 0, 0
-    v32 = mload v31
-    ret v32
+    v28 = returndatasize
+    v29 = lt v28, 32
+    icall revert_if<tuple_data_too_short>, v29
+    v30 = add 0, 0
+    v31 = mload v30
+    ret v31
 }

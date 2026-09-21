@@ -189,34 +189,33 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 295
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = fmp
-    v13 = ptrtoint memptr v12 to i256
-    v14 = add v13, 32
-    mstore v14, 0
-    v15 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v16 = slice_ptr v15
-    v17 = slice_len v15
-    v18 = zext i160 v9 to i256
-    v19 = extcodesize v18
-    v20 = eq v19, 0
-    icall revert_if<target_contract_has_no_code>, v20
-    v21 = gas
-    v22 = sub v21, 50
-    v23 = zext i160 v9 to i256
-    v24 = call v22, v23, 0, v16, v17, v16, 32
-    jumpi v24, bb4, bb3
+    v11 = fmp
+    v12 = ptrtoint memptr v11 to i256
+    v13 = add v12, 32
+    mstore v13, 0
+    v14 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = zext i160 v9 to i256
+    v18 = extcodesize v17
+    v19 = eq v18, 0
+    icall revert_if<target_contract_has_no_code>, v19
+    v20 = gas
+    v21 = sub v20, 50
+    v22 = zext i160 v9 to i256
+    v23 = call v21, v22, 0, v15, v16, v15, 32
+    jumpi v23, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v25 = add v16, 0
-    v26 = mload v25
-    ret v26
+    v24 = add v15, 0
+    v25 = mload v24
+    ret v25
 }
 
 fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -233,46 +232,45 @@ fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 295
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = alloc memorybytes, exact, uninitialized, infallible, 96
-    set_memory_object_len memorybytes, v12, 64
-    v13 = memory_object_data memorybytes, v12
-    v14 = fmp
-    v15 = ptrtoint memptr v14 to i256
-    v16 = add v15, 64
-    mstore v16, 0
-    v17 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
-    v18 = slice_ptr v17
-    v19 = slice_len v17
-    v20 = zext i160 v9 to i256
-    v21 = extcodesize v20
-    v22 = eq v21, 0
-    icall revert_if<target_contract_has_no_code>, v22
-    v23 = gas
-    v24 = sub v23, 50
-    v25 = zext i160 v9 to i256
-    v26 = call v24, v25, 0, v18, v19, v18, 64
-    jumpi v26, bb4, bb3
+    v11 = alloc memorybytes, exact, uninitialized, infallible, 96
+    set_memory_object_len memorybytes, v11, 64
+    v12 = memory_object_data memorybytes, v11
+    v13 = fmp
+    v14 = ptrtoint memptr v13 to i256
+    v15 = add v14, 64
+    mstore v15, 0
+    v16 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
+    v17 = slice_ptr v16
+    v18 = slice_len v16
+    v19 = zext i160 v9 to i256
+    v20 = extcodesize v19
+    v21 = eq v20, 0
+    icall revert_if<target_contract_has_no_code>, v21
+    v22 = gas
+    v23 = sub v22, 50
+    v24 = zext i160 v9 to i256
+    v25 = call v23, v24, 0, v17, v18, v17, 64
+    jumpi v25, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v27 = ptrtoint memptr v13 to i256
-    mcopy v27, v18, 64
-    v28 = abi_decode [array<2, u256>], v12
-    v29 = lt 0, 2
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = memory_object_load_element memoryfixedarray<2, 1>, v28, 0
-    v32 = lt 1, 2
-    v33 = eq v32, false
-    icall panic_if<0x32>, v33
-    v34 = memory_object_load_element memoryfixedarray<2, 1>, v28, 1
-    v35 = insert_value struct0, undef struct0, 0, v31
-    v36 = insert_value struct0, v35, 1, v34
-    ret v36
+    v26 = ptrtoint memptr v12 to i256
+    mcopy v26, v17, 64
+    v27 = abi_decode [array<2, u256>], v11
+    v28 = lt 0, 2
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    v30 = memory_object_load_element memoryfixedarray<2, 1>, v27, 0
+    v31 = lt 1, 2
+    v32 = eq v31, false
+    icall panic_if<0x32>, v32
+    v33 = memory_object_load_element memoryfixedarray<2, 1>, v27, 1
+    v34 = insert_value struct0, undef struct0, 0, v30
+    v35 = insert_value struct0, v34, 1, v33
+    ret v35
 }

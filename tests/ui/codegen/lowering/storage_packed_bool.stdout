@@ -4,9 +4,8 @@ fn @a() -> i1 [selector=0x0dbe671f, view, abi_params=[], abi_returns=[word<bool>
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i8
-    v2 = zext i8 v1 to i256
-    v3 = ne v2, 0
-    ret v3
+    v2 = ne v1, i8 0
+    ret v2
 }
 
 fn @b() -> i1 [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -14,9 +13,8 @@ fn @b() -> i1 [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[word<bool>
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0
     v2 = trunc i256 v1 to i8
-    v3 = zext i8 v2 to i256
-    v4 = ne v3, 0
-    ret v4
+    v3 = ne v2, i8 0
+    ret v3
 }
 
 fn @set(arg0: i1, arg1: i1) [selector=0xf907191a, abi_params=[bool, bool], abi_returns=[], abi_return_params=[]] {
@@ -44,19 +42,17 @@ fn @both() -> i1 [selector=0x35f2e0a7, view, abi_params=[], abi_returns=[word<bo
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i8
-    v2 = zext i8 v1 to i256
-    v3 = ne v2, 0
-    jumpi v3, bb1, bb2
+    v2 = ne v1, i8 0
+    jumpi v2, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v4 = sload 0 !metadata(storage=slot(0))
-    v5 = shr 8, v4
-    v6 = trunc i256 v5 to i8
-    v7 = zext i8 v6 to i256
-    v8 = ne v7, 0
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = shr 8, v3
+    v5 = trunc i256 v4 to i8
+    v6 = ne v5, i8 0
     jump bb3
   bb3:
-    v9 = phi [bb1: v8], [bb2: false]
-    ret v9
+    v7 = phi [bb1: v6], [bb2: false]
+    ret v7
 }

@@ -625,7 +625,7 @@ impl<'a> FunctionBuilder<'a> {
             .append_instruction(inst)
             .1
             .expect("value-producing instruction must have a result");
-        self.cast(result, requested)
+        if produced == requested { result } else { self.cast(result, requested) }
     }
 
     /// Emits an explicit conversion between scalar carriers and memory references.
@@ -668,8 +668,15 @@ impl<'a> FunctionBuilder<'a> {
         let kind = match (from, ty) {
             // boolean = ne word, 0
             (_, MirType::I1) => {
-                let value = self.cast(value, MirType::I256);
-                let zero = self.imm(0);
+                let value = if from.integer_bits().is_some() {
+                    value
+                } else {
+                    self.cast(value, MirType::I256)
+                };
+                let zero = self.func.alloc_value(Value::Immediate(Immediate::for_type(
+                    self.func.value_ty(value),
+                    U256::ZERO,
+                )));
                 InstKind::Ne(value, zero)
             }
             // narrow = trunc integer to destination

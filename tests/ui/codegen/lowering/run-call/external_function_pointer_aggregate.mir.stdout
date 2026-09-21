@@ -55,19 +55,18 @@ fn @constructor() [constructor] {
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 0x553
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = sload 0 !metadata(storage=slot(0))
-    v13 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = and v12, v13
-    v15 = zext i160 v9 to i256
-    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
-    v17 = or v14, v16
-    sstore 0, v17 !metadata(storage=slot(0))
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v13 = and v11, v12
+    v14 = zext i160 v9 to i256
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = or v13, v15
+    sstore 0, v16 !metadata(storage=slot(0))
     ret
 }
 

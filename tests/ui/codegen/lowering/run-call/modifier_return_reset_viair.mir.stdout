@@ -4,39 +4,37 @@ fn @foo() -> i256 [selector=0xc2985578, abi_params=[], abi_returns=[word], abi_r
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i8
-    v2 = zext i8 v1 to i256
-    v3 = ne v2, 0
-    jumpi v3, bb3, bb4
+    v2 = ne v1, i8 0
+    jumpi v2, bb3, bb4
   bb4:
     jump bb5
   bb3:
     jump bb5
   bb5:
-    v4 = phi [bb3: 1], [bb4: 0]
+    v3 = phi [bb3: 1], [bb4: 0]
     jump bb2
   bb2:
-    v5 = sload 0 !metadata(storage=slot(0))
-    v6 = not 255
-    v7 = and v5, v6
-    v8 = and 0, 255
-    v9 = or v7, v8
-    sstore 0, v9 !metadata(storage=slot(0))
-    v10 = sload 0 !metadata(storage=slot(0))
-    v11 = trunc i256 v10 to i8
-    v12 = zext i8 v11 to i256
-    v13 = ne v12, 0
-    jumpi v13, bb7, bb8
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = not 255
+    v6 = and v4, v5
+    v7 = and 0, 255
+    v8 = or v6, v7
+    sstore 0, v8 !metadata(storage=slot(0))
+    v9 = sload 0 !metadata(storage=slot(0))
+    v10 = trunc i256 v9 to i8
+    v11 = ne v10, i8 0
+    jumpi v11, bb7, bb8
   bb8:
     jump bb9
   bb7:
     jump bb9
   bb9:
-    v14 = phi [bb7: 1], [bb8: 0]
+    v12 = phi [bb7: 1], [bb8: 0]
     jump bb6
   bb6:
     jump bb1
   bb1:
-    ret v14
+    ret v12
 }
 
 fn @constructor() [constructor] {

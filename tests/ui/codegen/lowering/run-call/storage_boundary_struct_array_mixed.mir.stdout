@@ -98,8 +98,8 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb22:
     v183 = phi [bb21: v3], [bb24: v238]
     v184 = phi [bb21: v4], [bb24: v184]
-    v185 = phi [bb21: 0], [bb24: v253]
-    v186 = phi [bb21: v182], [bb24: v252]
+    v185 = phi [bb21: 0], [bb24: v252]
+    v186 = phi [bb21: v182], [bb24: v251]
     v187 = phi [bb21: v57], [bb24: v187]
     v188 = phi [bb21: v6], [bb24: v188]
     v189 = phi [bb21: v5], [bb24: v189]
@@ -108,9 +108,9 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb26:
     jump bb23
   bb23:
-    v254 = insert_value struct0, undef struct0, 0, v183
-    v255 = insert_value struct0, v254, 1, v186
-    ret v255
+    v253 = insert_value struct0, undef struct0, 0, v183
+    v254 = insert_value struct0, v253, 1, v186
+    ret v254
   bb25:
     v191 = lt 0, 1
     v192 = eq v191, false
@@ -185,16 +185,15 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v247 = add v246, 3
     v248 = sload v247 !metadata(storage=offset(v246, 3))
     v249 = trunc i256 v248 to i8
-    v250 = zext i8 v249 to i256
-    v251 = ne v250, 0
+    v250 = ne v249, i8 0
     jump bb30
   bb30:
-    v252 = phi [bb28: v251], [bb29: false]
+    v251 = phi [bb28: v250], [bb29: false]
     jump bb27
   bb27:
     jump bb24
   bb24:
-    v253 = checked_add u256, v185, 1
+    v252 = checked_add u256, v185, 1
     jump bb22
   bb17:
     v162 = mul v160, 4

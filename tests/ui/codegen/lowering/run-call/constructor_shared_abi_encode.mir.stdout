@@ -91,45 +91,43 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 240
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = abi_encode [word<u160>], args v12
-    v14 = not 31
-    v15 = and 0x4f8, v14
-    v16 = alloc raw, exact, uninitialized, infallible, v15
-    v17 = ptrtoint memptr v16 to i256
-    data_copy DynamicCaller_initcode_1, v17, 0x4b9
-    v18 = slice_ptr v13
-    v19 = ptrtoint memptr v16 to i256
-    v20 = add v19, 0x4b9
-    mcopy v20, v18, 32 !metadata(memory=heap)
-    v21 = ptrtoint memptr v16 to i256
-    v22 = create 0, v21, 0x4d9
-    v23 = zext i160 v22 to i256
-    v24 = ne v23, 0
-    jumpi v24, bb4, bb3
+    v11 = zext i160 v9 to i256
+    v12 = abi_encode [word<u160>], args v11
+    v13 = not 31
+    v14 = and 0x4f8, v13
+    v15 = alloc raw, exact, uninitialized, infallible, v14
+    v16 = ptrtoint memptr v15 to i256
+    data_copy DynamicCaller_initcode_1, v16, 0x4b9
+    v17 = slice_ptr v12
+    v18 = ptrtoint memptr v15 to i256
+    v19 = add v18, 0x4b9
+    mcopy v19, v17, 32 !metadata(memory=heap)
+    v20 = ptrtoint memptr v15 to i256
+    v21 = create 0, v20, 0x4d9
+    v22 = ne v21, i160 0
+    jumpi v22, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v25 = gas
-    v26 = abi_encode [], selector 0x305f72b700000000000000000000000000000000000000000000000000000000
-    v27 = slice_ptr v26
-    v28 = slice_len v26
-    v29 = zext i160 v9 to i256
-    v30 = staticcall v25, v29, v27, v28, 0, 32
-    jumpi v30, bb6, bb5
+    v23 = gas
+    v24 = abi_encode [], selector 0x305f72b700000000000000000000000000000000000000000000000000000000
+    v25 = slice_ptr v24
+    v26 = slice_len v24
+    v27 = zext i160 v9 to i256
+    v28 = staticcall v23, v27, v25, v26, 0, 32
+    jumpi v28, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v31 = returndatasize
-    v32 = lt v31, 32
-    icall revert_if<tuple_data_too_short>, v32
-    v33 = add 0, 0
-    v34 = mload v33
-    ret v34
+    v29 = returndatasize
+    v30 = lt v29, 32
+    icall revert_if<tuple_data_too_short>, v30
+    v31 = add 0, 0
+    v32 = mload v31
+    ret v32
 }

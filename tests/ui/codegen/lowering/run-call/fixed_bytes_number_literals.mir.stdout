@@ -44,29 +44,28 @@ fn @viaExternal() -> i256 [selector=0x09338c08, abi_params=[], abi_returns=[word
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 146
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = gas
-    v13 = and 0x102030400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v14 = abi_encode [word<bytes4>], selector 0x14beb1ca00000000000000000000000000000000000000000000000000000000, args v13
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = zext i160 v9 to i256
-    v18 = call v12, v17, 0, v15, v16, 0, 32
-    jumpi v18, bb4, bb3
+    v11 = gas
+    v12 = and 0x102030400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v13 = abi_encode [word<bytes4>], selector 0x14beb1ca00000000000000000000000000000000000000000000000000000000, args v12
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = zext i160 v9 to i256
+    v17 = call v11, v16, 0, v14, v15, 0, 32
+    jumpi v17, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v19 = returndatasize
-    v20 = lt v19, 32
-    icall revert_if<tuple_data_too_short>, v20
-    v21 = add 0, 0
-    v22 = mload v21
-    ret v22
+    v18 = returndatasize
+    v19 = lt v18, 32
+    icall revert_if<tuple_data_too_short>, v19
+    v20 = add 0, 0
+    v21 = mload v20
+    ret v21
 }
 
 fn @giveInternal(arg0: i256) -> i256 [pure] {

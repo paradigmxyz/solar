@@ -66,46 +66,45 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
     mcopy v15, v13, v4 !metadata(memory=heap)
     v16 = ptrtoint memptr v11 to i256
     v17 = create 0, v16, v5
-    v18 = zext i160 v17 to i256
-    v19 = ne v18, 0
-    jumpi v19, bb2, bb1
+    v18 = ne v17, i160 0
+    jumpi v18, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v20 = gas
-    v21 = abi_encode [], selector 0x6fdde0300000000000000000000000000000000000000000000000000000000
-    v22 = slice_ptr v21
-    v23 = slice_len v21
-    v24 = zext i160 v17 to i256
-    v25 = staticcall v20, v24, v22, v23, 0, 0
-    jumpi v25, bb4, bb3
+    v19 = gas
+    v20 = abi_encode [], selector 0x6fdde0300000000000000000000000000000000000000000000000000000000
+    v21 = slice_ptr v20
+    v22 = slice_len v20
+    v23 = zext i160 v17 to i256
+    v24 = staticcall v19, v23, v21, v22, 0, 0
+    jumpi v24, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v26 = icall returndata_bytes<>
-    v27 = abi_decode [bytes], v26
-    v28 = memory_object_len memorybytes, v27
-    v29 = gas
-    v30 = abi_encode [], selector 0x313ce56700000000000000000000000000000000000000000000000000000000
-    v31 = slice_ptr v30
-    v32 = slice_len v30
-    v33 = zext i160 v17 to i256
-    v34 = staticcall v29, v33, v31, v32, 0, 32
-    jumpi v34, bb6, bb5
+    v25 = icall returndata_bytes<>
+    v26 = abi_decode [bytes], v25
+    v27 = memory_object_len memorybytes, v26
+    v28 = gas
+    v29 = abi_encode [], selector 0x313ce56700000000000000000000000000000000000000000000000000000000
+    v30 = slice_ptr v29
+    v31 = slice_len v29
+    v32 = zext i160 v17 to i256
+    v33 = staticcall v28, v32, v30, v31, 0, 32
+    jumpi v33, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v35 = returndatasize
-    v36 = lt v35, 32
-    icall revert_if<tuple_data_too_short>, v36
-    v37 = add 0, 0
-    v38 = mload v37
-    v39 = and v38, 255
-    v40 = eq v38, v39
-    v41 = eq v40, false
-    icall revert_if<empty>, v41
-    v42 = trunc i256 v38 to i8
-    v43 = insert_value struct0, undef struct0, 0, v28
-    v44 = insert_value struct0, v43, 1, v42
-    ret v44
+    v34 = returndatasize
+    v35 = lt v34, 32
+    icall revert_if<tuple_data_too_short>, v35
+    v36 = add 0, 0
+    v37 = mload v36
+    v38 = and v37, 255
+    v39 = eq v37, v38
+    v40 = eq v39, false
+    icall revert_if<empty>, v40
+    v41 = trunc i256 v37 to i8
+    v42 = insert_value struct0, undef struct0, 0, v27
+    v43 = insert_value struct0, v42, 1, v41
+    ret v43
 }

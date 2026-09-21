@@ -60,24 +60,23 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 687
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = gas
-    v13 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = zext i160 v9 to i256
-    v17 = call v12, v16, 0, v14, v15, 0, 0
-    jumpi v17, bb4, bb3
+    v11 = gas
+    v12 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = zext i160 v9 to i256
+    v16 = call v11, v15, 0, v13, v14, 0, 0
+    jumpi v16, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v18 = icall returndata_bytes<>
-    v19 = abi_decode [bytes], v18
+    v17 = icall returndata_bytes<>
+    v18 = abi_decode [bytes], v17
     ret 1
 }
 
@@ -95,24 +94,23 @@ fn @liveString() -> i256 [selector=0x86c92c52, abi_params=[], abi_returns=[word]
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 687
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = gas
-    v13 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = zext i160 v9 to i256
-    v17 = call v12, v16, 0, v14, v15, 0, 0
-    jumpi v17, bb4, bb3
+    v11 = gas
+    v12 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = zext i160 v9 to i256
+    v16 = call v11, v15, 0, v13, v14, 0, 0
+    jumpi v16, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v18 = icall returndata_bytes<>
-    v19 = abi_decode [bytes], v18
+    v17 = icall returndata_bytes<>
+    v18 = abi_decode [bytes], v17
     ret 1
 }
 
@@ -130,19 +128,18 @@ fn @liveTry() -> i256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word], a
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 687
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = gas
-    v13 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = zext i160 v9 to i256
-    v17 = call v12, v16, 0, v14, v15, 0, 0
-    jumpi v17, bb3, bb4
+    v11 = gas
+    v12 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = zext i160 v9 to i256
+    v16 = call v11, v15, 0, v13, v14, 0, 0
+    jumpi v16, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
@@ -151,12 +148,12 @@ fn @liveTry() -> i256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word], a
   bb6:
     jump bb5
   bb3:
-    v18 = icall returndata_bytes<>
-    v19 = abi_decode [bytes], v18
+    v17 = icall returndata_bytes<>
+    v18 = abi_decode [bytes], v17
     jump bb5
   bb5:
-    v20 = phi [bb3: 1], [bb6: 2]
-    ret v20
+    v19 = phi [bb3: 1], [bb6: 2]
+    ret v19
 }
 
 fn @liveMixed() -> i256 [selector=0xaf1b6bff, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -173,31 +170,30 @@ fn @liveMixed() -> i256 [selector=0xaf1b6bff, abi_params=[], abi_returns=[word],
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 687
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = gas
-    v13 = abi_encode [], selector 0x354df1f900000000000000000000000000000000000000000000000000000000
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = zext i160 v9 to i256
-    v17 = call v12, v16, 0, v14, v15, 0, 0
-    jumpi v17, bb4, bb3
+    v11 = gas
+    v12 = abi_encode [], selector 0x354df1f900000000000000000000000000000000000000000000000000000000
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = zext i160 v9 to i256
+    v16 = call v11, v15, 0, v13, v14, 0, 0
+    jumpi v16, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v18 = icall returndata_bytes<>
-    v19 = abi_decode [u256, bytes], v18
-    v20 = extract_value struct0, v19, 0
-    v21 = extract_value struct0, v19, 1
-    v22 = insert_value struct0, undef struct0, 0, v20
-    v23 = insert_value struct0, v22, 1, v21
-    v24 = extract_value struct0, v23, 0
-    v25 = extract_value struct0, v23, 1
-    ret v24
+    v17 = icall returndata_bytes<>
+    v18 = abi_decode [u256, bytes], v17
+    v19 = extract_value struct0, v18, 0
+    v20 = extract_value struct0, v18, 1
+    v21 = insert_value struct0, undef struct0, 0, v19
+    v22 = insert_value struct0, v21, 1, v20
+    v23 = extract_value struct0, v22, 0
+    v24 = extract_value struct0, v22, 1
+    ret v23
 }
 
 fn @liveTuple() -> i256 [selector=0x04e1eee0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -214,36 +210,35 @@ fn @liveTuple() -> i256 [selector=0x04e1eee0, abi_params=[], abi_returns=[word],
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 687
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = gas
-    v13 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = zext i160 v9 to i256
-    v17 = call v12, v16, 0, v14, v15, 0, 0
-    jumpi v17, bb4, bb3
+    v11 = gas
+    v12 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = zext i160 v9 to i256
+    v16 = call v11, v15, 0, v13, v14, 0, 0
+    jumpi v16, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v18 = icall returndata_bytes<>
-    v19 = abi_decode [bytes], v18
-    v20 = gas
-    v21 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
-    v22 = slice_ptr v21
-    v23 = slice_len v21
-    v24 = zext i160 v9 to i256
-    v25 = call v20, v24, 0, v22, v23, 0, 0
-    jumpi v25, bb6, bb5
+    v17 = icall returndata_bytes<>
+    v18 = abi_decode [bytes], v17
+    v19 = gas
+    v20 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
+    v21 = slice_ptr v20
+    v22 = slice_len v20
+    v23 = zext i160 v9 to i256
+    v24 = call v19, v23, 0, v21, v22, 0, 0
+    jumpi v24, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v26 = icall returndata_bytes<>
-    v27 = abi_decode [bytes], v26
+    v25 = icall returndata_bytes<>
+    v26 = abi_decode [bytes], v25
     ret 1
 }
 
@@ -261,29 +256,28 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 687
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = shl 32, v12
-    v14 = or v13, 0x7271bb2c
-    v15 = and v14, 0xffffffff
-    v16 = shl 224, v15
-    v17 = shr 32, v14
-    v18 = gas
-    v19 = abi_encode [], selector v16
-    v20 = slice_ptr v19
-    v21 = slice_len v19
-    v22 = call v18, v17, 0, v20, v21, 0, 0
-    jumpi v22, bb4, bb3
+    v11 = zext i160 v9 to i256
+    v12 = shl 32, v11
+    v13 = or v12, 0x7271bb2c
+    v14 = and v13, 0xffffffff
+    v15 = shl 224, v14
+    v16 = shr 32, v13
+    v17 = gas
+    v18 = abi_encode [], selector v15
+    v19 = slice_ptr v18
+    v20 = slice_len v18
+    v21 = call v17, v16, 0, v19, v20, 0, 0
+    jumpi v21, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v23 = icall returndata_bytes<>
-    v24 = abi_decode [bytes], v23
+    v22 = icall returndata_bytes<>
+    v23 = abi_decode [bytes], v22
     ret 1
 }
 
@@ -301,42 +295,41 @@ fn @liveLoop() -> i256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word], 
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 687
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
     jump bb3
   bb3:
-    v12 = phi [bb2: 0], [bb5: v24]
-    v13 = phi [bb2: v9], [bb5: v13]
-    v14 = phi [bb2: 0], [bb5: v25]
-    v15 = lt v14, 3
-    jumpi v15, bb6, bb7
+    v11 = phi [bb2: 0], [bb5: v23]
+    v12 = phi [bb2: v9], [bb5: v12]
+    v13 = phi [bb2: 0], [bb5: v24]
+    v14 = lt v13, 3
+    jumpi v14, bb6, bb7
   bb7:
     jump bb4
   bb4:
-    ret v12
+    ret v11
   bb6:
-    v16 = gas
-    v17 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v18 = slice_ptr v17
-    v19 = slice_len v17
-    v20 = zext i160 v13 to i256
-    v21 = call v16, v20, 0, v18, v19, 0, 0
-    jumpi v21, bb10, bb9
+    v15 = gas
+    v16 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v17 = slice_ptr v16
+    v18 = slice_len v16
+    v19 = zext i160 v12 to i256
+    v20 = call v15, v19, 0, v17, v18, 0, 0
+    jumpi v20, bb10, bb9
   bb9:
     revert_returndata
   bb10:
-    v22 = icall returndata_bytes<>
-    v23 = abi_decode [bytes], v22
-    v24 = checked_add u256, v12, 1
+    v21 = icall returndata_bytes<>
+    v22 = abi_decode [bytes], v21
+    v23 = checked_add u256, v11, 1
     jump bb8
   bb8:
     jump bb5
   bb5:
-    v25 = checked_add u256, v14, 1
+    v24 = checked_add u256, v13, 1
     jump bb3
 }
 

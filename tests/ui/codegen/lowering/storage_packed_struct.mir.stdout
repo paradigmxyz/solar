@@ -343,15 +343,14 @@ fn @mixedRead() -> struct1 [selector=0x3e58c576, view, abi_params=[], abi_return
     v2 = sload 3 !metadata(storage=slot(3))
     v3 = shr 160, v2
     v4 = trunc i256 v3 to i8
-    v5 = zext i8 v4 to i256
-    v6 = ne v5, 0
-    v7 = sload 3 !metadata(storage=slot(3))
-    v8 = shr 168, v7
-    v9 = trunc i256 v8 to i16
-    v10 = insert_value struct1, undef struct1, 0, v1
-    v11 = insert_value struct1, v10, 1, v6
-    v12 = insert_value struct1, v11, 2, v9
-    ret v12
+    v5 = ne v4, i8 0
+    v6 = sload 3 !metadata(storage=slot(3))
+    v7 = shr 168, v6
+    v8 = trunc i256 v7 to i16
+    v9 = insert_value struct1, undef struct1, 0, v1
+    v10 = insert_value struct1, v9, 1, v5
+    v11 = insert_value struct1, v10, 2, v8
+    ret v11
 }
 
 fn @encodedRead() -> struct2 [selector=0xb2b63fb7, view, abi_params=[], abi_returns=[word<bytes4>, word<i8>], abi_return_params=[bytes4, i8]] {

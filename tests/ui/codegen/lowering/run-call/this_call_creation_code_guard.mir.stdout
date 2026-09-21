@@ -405,9 +405,8 @@ fn @viaHelper() [selector=0x9c6f4ff5, abi_params=[], abi_returns=[], abi_return_
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 389
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -428,9 +427,8 @@ fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[], abi_return_par
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 293
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -451,9 +449,8 @@ fn @viaModifier() [selector=0xb93fa0d6, abi_params=[], abi_returns=[], abi_retur
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 293
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -474,9 +471,8 @@ fn @viaBase() [selector=0x0f982f84, abi_params=[], abi_returns=[], abi_return_pa
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 293
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -497,9 +493,8 @@ fn @viaInitializer() [selector=0x7c61d018, abi_params=[], abi_returns=[], abi_re
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 454
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -520,9 +515,8 @@ fn @viaTry() [selector=0x9369e272, abi_params=[], abi_returns=[], abi_return_par
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 302
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -546,9 +540,8 @@ fn @viaShared() [selector=0x86375232, abi_params=[], abi_returns=[], abi_return_
     mcopy v10, v8, 32 !metadata(memory=heap)
     v11 = ptrtoint memptr v6 to i256
     v12 = create 0, v11, 724
-    v13 = zext i160 v12 to i256
-    v14 = ne v13, 0
-    jumpi v14, bb2, bb1
+    v13 = ne v12, i160 0
+    jumpi v13, bb2, bb1
   bb1:
     revert_returndata
   bb2:

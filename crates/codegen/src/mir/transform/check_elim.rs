@@ -111,7 +111,7 @@ use crate::{
         ValueId, ValueLayout,
         analysis::{
             CallGraphInfo, CfgInfo,
-            integers::{integer_bits, integer_max},
+            integers::{integer_bits, integer_mask, integer_max},
         },
         immutable::immutable_push_type_size,
         pass::{
@@ -1377,8 +1377,7 @@ impl<'a> CheckEliminator<'a> {
             return Range::singleton(constant);
         }
         let bits = integer_bits(func, value).min(256);
-        let full =
-            Range::new(U256::ZERO, if bits == 256 { U256::MAX } else { U256::MAX >> (256 - bits) });
+        let full = Range::new(U256::ZERO, integer_mask(bits));
         let mut range = self.ranges.get(&value).copied().unwrap_or(full);
         if let Some(bound) = self.trip_bounds.get(&value) {
             range = range.intersect(*bound).unwrap_or(range);
@@ -1394,7 +1393,7 @@ impl<'a> CheckEliminator<'a> {
             }
             InstKind::Trunc(source, bits) if (1..=256).contains(&bits) => {
                 let source = self.range_of(func, source, depth);
-                let mask = U256::MAX >> (256 - bits);
+                let mask = integer_mask(bits);
                 if source.hi <= mask { source } else { Range::new(U256::ZERO, mask) }
             }
             InstKind::Sext(source, from_bits, _) if (1..=256).contains(&from_bits) => {
@@ -1408,11 +1407,16 @@ impl<'a> CheckEliminator<'a> {
                 .copied()
                 .unwrap_or(Range::FULL),
             InstKind::Add(a, b) => {
-                let ra = self.range_of(func, a, depth);
+                // An unconstrained operand leaves the wrapping sum's interval unconstrained.
                 let rb = self.range_of(func, b, depth);
-                match ra.hi.checked_add(rb.hi).filter(|&hi| hi <= full.hi) {
-                    Some(hi) => Range::new(ra.lo.wrapping_add(rb.lo), hi),
-                    None => Range::FULL,
+                if rb == full {
+                    full
+                } else {
+                    let ra = self.range_of(func, a, depth);
+                    match ra.hi.checked_add(rb.hi).filter(|&hi| hi <= full.hi) {
+                        Some(hi) => Range::new(ra.lo.wrapping_add(rb.lo), hi),
+                        None => Range::FULL,
+                    }
                 }
             }
             InstKind::Sub(a, b) => {

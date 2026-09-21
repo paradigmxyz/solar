@@ -76,16 +76,15 @@ fn @deploys() -> i1 [selector=0x225b4d71, abi_params=[], abi_returns=[word<bool>
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 0x88b
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = extcodesize v12
-    v14 = ne v13, 0
-    ret v14
+    v11 = zext i160 v9 to i256
+    v12 = extcodesize v11
+    v13 = ne v12, 0
+    ret v13
 }
 
 fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory_bytes, memory_bytes, word<u8>], abi_return_params=[bytes, bytes, u8]] {
@@ -102,58 +101,57 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 0x88b
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = gas
-    v13 = abi_encode [], selector 0x6fdde0300000000000000000000000000000000000000000000000000000000
-    v14 = slice_ptr v13
-    v15 = slice_len v13
-    v16 = zext i160 v9 to i256
-    v17 = staticcall v12, v16, v14, v15, 0, 0
-    jumpi v17, bb4, bb3
+    v11 = gas
+    v12 = abi_encode [], selector 0x6fdde0300000000000000000000000000000000000000000000000000000000
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = zext i160 v9 to i256
+    v16 = staticcall v11, v15, v13, v14, 0, 0
+    jumpi v16, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v18 = icall returndata_bytes<>
-    v19 = abi_decode [bytes], v18
-    v20 = gas
-    v21 = abi_encode [], selector 0x95d89b4100000000000000000000000000000000000000000000000000000000
-    v22 = slice_ptr v21
-    v23 = slice_len v21
-    v24 = zext i160 v9 to i256
-    v25 = staticcall v20, v24, v22, v23, 0, 0
-    jumpi v25, bb6, bb5
+    v17 = icall returndata_bytes<>
+    v18 = abi_decode [bytes], v17
+    v19 = gas
+    v20 = abi_encode [], selector 0x95d89b4100000000000000000000000000000000000000000000000000000000
+    v21 = slice_ptr v20
+    v22 = slice_len v20
+    v23 = zext i160 v9 to i256
+    v24 = staticcall v19, v23, v21, v22, 0, 0
+    jumpi v24, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v26 = icall returndata_bytes<>
-    v27 = abi_decode [bytes], v26
-    v28 = gas
-    v29 = abi_encode [], selector 0x313ce56700000000000000000000000000000000000000000000000000000000
-    v30 = slice_ptr v29
-    v31 = slice_len v29
-    v32 = zext i160 v9 to i256
-    v33 = staticcall v28, v32, v30, v31, 0, 32
-    jumpi v33, bb8, bb7
+    v25 = icall returndata_bytes<>
+    v26 = abi_decode [bytes], v25
+    v27 = gas
+    v28 = abi_encode [], selector 0x313ce56700000000000000000000000000000000000000000000000000000000
+    v29 = slice_ptr v28
+    v30 = slice_len v28
+    v31 = zext i160 v9 to i256
+    v32 = staticcall v27, v31, v29, v30, 0, 32
+    jumpi v32, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v34 = returndatasize
-    v35 = lt v34, 32
-    icall revert_if<tuple_data_too_short>, v35
-    v36 = add 0, 0
-    v37 = mload v36
-    v38 = and v37, 255
-    v39 = eq v37, v38
-    v40 = eq v39, false
-    icall revert_if<empty>, v40
-    v41 = trunc i256 v37 to i8
-    v42 = insert_value struct0, undef struct0, 0, v19
-    v43 = insert_value struct0, v42, 1, v27
-    v44 = insert_value struct0, v43, 2, v41
-    ret v44
+    v33 = returndatasize
+    v34 = lt v33, 32
+    icall revert_if<tuple_data_too_short>, v34
+    v35 = add 0, 0
+    v36 = mload v35
+    v37 = and v36, 255
+    v38 = eq v36, v37
+    v39 = eq v38, false
+    icall revert_if<empty>, v39
+    v40 = trunc i256 v36 to i8
+    v41 = insert_value struct0, undef struct0, 0, v18
+    v42 = insert_value struct0, v41, 1, v26
+    v43 = insert_value struct0, v42, 2, v40
+    ret v43
 }

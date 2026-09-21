@@ -8,9 +8,8 @@ fn @callVoid() -> i1 [selector=0xd04622c6, abi_params=[], abi_returns=[word<bool
     icall @internal_dispatcher_p_none_r_none, 2
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = trunc i256 v0 to i8
-    v2 = zext i8 v1 to i256
-    v3 = ne v2, 0
-    ret v3
+    v2 = ne v1, i8 0
+    ret v2
 }
 
 fn @setFlag() [selector=0x62548c7b, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -33,9 +32,8 @@ fn @callState() -> i1 [selector=0xb67d6f95, abi_params=[], abi_returns=[word<boo
     icall @internal_dispatcher_p_none_r_none, v3
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = trunc i256 v4 to i8
-    v6 = zext i8 v5 to i256
-    v7 = ne v6, 0
-    ret v7
+    v6 = ne v5, i8 0
+    ret v6
 }
 
 fn @callPair(arg0: i256) -> struct0 [selector=0x85ead1f5, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {

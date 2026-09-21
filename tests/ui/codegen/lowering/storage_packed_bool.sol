@@ -29,8 +29,7 @@ contract PackedBool {
     // CHECK-LABEL: fn @both{{[( ]}}
     // CHECK: [[WORD:v[0-9]+]] = sload 0
     // CHECK: [[A:v[0-9]+]] = trunc i256 [[WORD]] to i8
-    // CHECK: [[WIDE:v[0-9]+]] = zext i8 [[A]] to i256
-    // CHECK: [[COND:v[0-9]+]] = ne [[WIDE]], 0
+    // CHECK: [[COND:v[0-9]+]] = ne [[A]], i8 0
     // CHECK: jumpi [[COND]],
     // CHECK: {{v[0-9]+}} = sload 0
     // CHECK: {{v[0-9]+}} = shr 8,

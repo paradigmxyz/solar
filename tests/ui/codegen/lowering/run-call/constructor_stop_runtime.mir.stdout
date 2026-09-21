@@ -18,15 +18,14 @@ fn @unconditional() -> i256 [selector=0x7d06b8f6, abi_params=[], abi_returns=[wo
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 79
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = extcodesize v12
-    ret v13
+    v11 = zext i160 v9 to i256
+    v12 = extcodesize v11
+    ret v12
 }
 
 fn @conditional(arg0: i1) -> i256 [selector=0x9077f189, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
@@ -44,15 +43,14 @@ fn @conditional(arg0: i1) -> i256 [selector=0x9077f189, abi_params=[bool], abi_r
     mcopy v8, v6, 32 !metadata(memory=heap)
     v9 = ptrtoint memptr v4 to i256
     v10 = create 0, v9, 212
-    v11 = zext i160 v10 to i256
-    v12 = ne v11, 0
-    jumpi v12, bb2, bb1
+    v11 = ne v10, i160 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v13 = zext i160 v10 to i256
-    v14 = extcodesize v13
-    ret v14
+    v12 = zext i160 v10 to i256
+    v13 = extcodesize v12
+    ret v13
 }
 
 fn @conditionalContinues() -> i1 [selector=0x828f9845, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -72,16 +70,15 @@ fn @conditionalContinues() -> i1 [selector=0x828f9845, abi_params=[], abi_return
     mcopy v10, v8, 32 !metadata(memory=heap)
     v11 = ptrtoint memptr v6 to i256
     v12 = create 0, v11, 212
-    v13 = zext i160 v12 to i256
-    v14 = ne v13, 0
-    jumpi v14, bb2, bb1
+    v13 = ne v12, i160 0
+    jumpi v13, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v15 = zext i160 v12 to i256
-    v16 = extcodesize v15
-    v17 = ne v16, 0
-    ret v17
+    v14 = zext i160 v12 to i256
+    v15 = extcodesize v14
+    v16 = ne v15, 0
+    ret v16
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopAlways ===

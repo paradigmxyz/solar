@@ -93,17 +93,16 @@ fn @test() -> i8 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u8>], ab
     v49 = phi [bb7: v48], [bb8: v44]
     v50 = sload 0 !metadata(storage=slot(0))
     v51 = trunc i256 v50 to i8
-    v52 = zext i8 v51 to i256
-    v53 = ne v52, 0
-    jumpi v53, bb10, bb11
+    v52 = ne v51, i8 0
+    jumpi v52, bb10, bb11
   bb11:
     jump bb12
   bb10:
-    v54 = or v49, i8 8
+    v53 = or v49, i8 8
     jump bb12
   bb12:
-    v55 = phi [bb10: v54], [bb11: v49]
-    ret v55
+    v54 = phi [bb10: v53], [bb11: v49]
+    ret v54
 }
 
 fn @storageEncoded() -> memorybytes [selector=0x46ad9d89, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

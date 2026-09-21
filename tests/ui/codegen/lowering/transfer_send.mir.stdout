@@ -44,44 +44,42 @@ fn @constructor() [constructor] {
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, 52
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = sload 0 !metadata(storage=slot(0))
-    v13 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = and v12, v13
-    v15 = zext i160 v9 to i256
-    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
-    v17 = or v14, v16
-    sstore 0, v17 !metadata(storage=slot(0))
-    v18 = abi_encode []
-    v19 = not 31
-    v20 = and 76, v19
-    v21 = alloc raw, exact, uninitialized, infallible, v20
-    v22 = ptrtoint memptr v21 to i256
-    data_copy RevertReceiver_initcode_1, v22, 45
-    v23 = slice_ptr v18
-    v24 = ptrtoint memptr v21 to i256
-    v25 = add v24, 45
-    mcopy v25, v23, 0 !metadata(memory=heap)
-    v26 = ptrtoint memptr v21 to i256
-    v27 = create 0, v26, 45
-    v28 = zext i160 v27 to i256
-    v29 = ne v28, 0
-    jumpi v29, bb4, bb3
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v13 = and v11, v12
+    v14 = zext i160 v9 to i256
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = or v13, v15
+    sstore 0, v16 !metadata(storage=slot(0))
+    v17 = abi_encode []
+    v18 = not 31
+    v19 = and 76, v18
+    v20 = alloc raw, exact, uninitialized, infallible, v19
+    v21 = ptrtoint memptr v20 to i256
+    data_copy RevertReceiver_initcode_1, v21, 45
+    v22 = slice_ptr v17
+    v23 = ptrtoint memptr v20 to i256
+    v24 = add v23, 45
+    mcopy v24, v22, 0 !metadata(memory=heap)
+    v25 = ptrtoint memptr v20 to i256
+    v26 = create 0, v25, 45
+    v27 = ne v26, i160 0
+    jumpi v27, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v30 = sload 1 !metadata(storage=slot(1))
-    v31 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v32 = and v30, v31
-    v33 = zext i160 v27 to i256
-    v34 = and v33, 0xffffffffffffffffffffffffffffffffffffffff
-    v35 = or v32, v34
-    sstore 1, v35 !metadata(storage=slot(1))
+    v28 = sload 1 !metadata(storage=slot(1))
+    v29 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v30 = and v28, v29
+    v31 = zext i160 v26 to i256
+    v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffff
+    v33 = or v30, v32
+    sstore 1, v33 !metadata(storage=slot(1))
     ret
 }
 
