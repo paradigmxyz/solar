@@ -1,81 +1,122 @@
 ;; Integer and pointer cast identities.
 
 ;; Identity casts require the result type to match before their values merge.
+;; bitcast(value) => value.
 (rule (simplify (Op.Bitcast value)) value)
 
+;; trunc(zext(value), bits) => value.
+;; Requires: value has width bits.
 (rule (simplify (Op.Trunc (zext (and value (integer_bits bits))) bits)) value)
 
+;; trunc(sext(value, bits, middle), bits) => value.
+;; Requires: value has width bits, bits < middle.
 (rule (simplify (Op.Trunc (sext (and value (integer_bits bits)) bits middle) bits))
       (if-let true (u32_lt bits middle)) value)
 
 ;; Successive extensions and truncations retain only their outer boundary.
+;; zext(zext(value)) => zext(value).
 (rule (rewrite (Op.Zext (zext value))) (Op.Zext value))
 
+;; sext(sext(value, from, middle), middle, to) => sext(value, from, to).
+;; Requires: from < middle, middle < to.
 (rule (rewrite (Op.Sext (sext value from middle) middle to))
       (if-let true (u32_lt from middle))
       (if-let true (u32_lt middle to)) (Op.Sext value from to))
 
+;; trunc(trunc(value, middle), to) => trunc(value, to).
+;; Requires: to < middle.
 (rule (rewrite (Op.Trunc (trunc value middle) to))
       (if-let true (u32_lt to middle)) (Op.Trunc value to))
 
+;; sext(zext(value), from, to) => zext(value).
+;; Requires: value has width bits, bits < from, from < to.
 (rule (rewrite (Op.Sext (zext (and value (integer_bits bits))) from to))
       (if-let true (u32_lt bits from))
       (if-let true (u32_lt from to)) (Op.Zext value))
 
 ;; Truncating an extension either narrows the source or keeps a shorter extension.
+;; trunc(zext(value), to) => trunc(value, to).
+;; Requires: value has width from, to < from.
 (rule (rewrite (Op.Trunc (zext (and value (integer_bits from))) to))
       (if-let true (u32_lt to from)) (Op.Trunc value to))
 
+;; trunc(zext(value), to) => zext(value).
+;; Requires: value has width from, from < to.
 (rule (rewrite (Op.Trunc (zext (and value (integer_bits from))) to))
       (if-let true (u32_lt from to)) (Op.Zext value))
 
+;; trunc(sext(value, from, middle), to) => trunc(value, to).
+;; Requires: from < middle, to < from.
 (rule (rewrite (Op.Trunc (sext value from middle) to))
       (if-let true (u32_lt from middle))
       (if-let true (u32_lt to from)) (Op.Trunc value to))
 
+;; trunc(sext(value, from, middle), to) => sext(value, from, to).
+;; Requires: to < middle, from < to.
 (rule (rewrite (Op.Trunc (sext value from middle) to))
       (if-let true (u32_lt to middle))
       (if-let true (u32_lt from to)) (Op.Sext value from to))
 
 ;; Equal zero extensions can be compared in their original integer type.
+;; zext(a) == zext(b) => a == b.
 (rule (rewrite (Op.Eq (zext a) (zext b))) (Op.Eq a b))
 
+;; zext(a) != zext(b) => a != b.
 (rule (rewrite (Op.Ne (zext a) (zext b))) (Op.Ne a b))
 
-;; sext(a) == sext(b) => a == b, for identical source and destination widths.
+;; sext(a, from, to) == sext(b, from, to) => a == b.
+;; Requires: a has width from, b has width from, from < to.
 (rule (rewrite (Op.Eq (sext (and a (integer_bits from)) from to)
                        (sext (and b (integer_bits from)) from to)))
       (if-let true (u32_lt from to)) (Op.Eq a b))
 
-;; sext(a) != sext(b) => a != b, for identical source and destination widths.
+;; sext(a, from, to) != sext(b, from, to) => a != b.
+;; Requires: a has width from, b has width from, from < to.
 (rule (rewrite (Op.Ne (sext (and a (integer_bits from)) from to)
                        (sext (and b (integer_bits from)) from to)))
       (if-let true (u32_lt from to)) (Op.Ne a b))
 
 ;; Pointer casts preserve bits across changes of nominal pointer type.
+;; ptrtoint(bitcast(value), bits) => ptrtoint(value, bits).
 (rule (rewrite (Op.PtrToInt (bitcast value) bits)) (Op.PtrToInt value bits))
 
+;; bitcast(bitcast(value)) => bitcast(value).
 (rule (rewrite (Op.Bitcast (bitcast value))) (Op.Bitcast value))
 
+;; bitcast(inttoptr(value)) => inttoptr(value).
 (rule (rewrite (Op.Bitcast (inttoptr value))) (Op.IntToPtr value))
 
+;; inttoptr(zext(value)) => inttoptr(value).
 (rule (rewrite (Op.IntToPtr (zext value))) (Op.IntToPtr value))
 
+;; inttoptr(trunc(value, bits)) => inttoptr(value).
+;; Requires: 256 <= bits.
 (rule (rewrite (Op.IntToPtr (trunc value bits)))
       (if-let true (u32_le 256 bits)) (Op.IntToPtr value))
 
+;; inttoptr(ptrtoint(value, bits)) => bitcast(value).
+;; Requires: 256 <= bits.
 (rule (rewrite (Op.IntToPtr (ptrtoint value bits)))
       (if-let true (u32_le 256 bits)) (Op.Bitcast value))
 
+;; trunc(ptrtoint(value, middle), bits) => ptrtoint(value, bits).
+;; Requires: bits < middle.
 (rule (rewrite (Op.Trunc (ptrtoint value middle) bits))
       (if-let true (u32_lt bits middle)) (Op.PtrToInt value bits))
 
+;; inttoptr(ptrtoint(value, 256)) => value.
 (rule (simplify (Op.IntToPtr (ptrtoint value 256))) value)
 
+;; ptrtoint(inttoptr(value), bits) => value.
+;; Requires: value has width bits.
 (rule (simplify (Op.PtrToInt (inttoptr (and value (integer_bits bits))) bits)) value)
 
+;; ptrtoint(inttoptr(value), to) => zext(value).
+;; Requires: value has width from, from < to.
 (rule (rewrite (Op.PtrToInt (inttoptr (and value (integer_bits from))) to))
       (if-let true (u32_lt from to)) (Op.Zext value))
 
+;; ptrtoint(inttoptr(value), to) => trunc(value, to).
+;; Requires: value has width from, to < from.
 (rule (rewrite (Op.PtrToInt (inttoptr (and value (integer_bits from))) to))
       (if-let true (u32_lt to from)) (Op.Trunc value to))

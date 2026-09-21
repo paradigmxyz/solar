@@ -1,111 +1,131 @@
 ;; Shifts, byte extraction, and sign extension.
 
-;; (value << inner) << outer => value << min(inner + outer, 256)
+;; (value << inner) << outer => value << min(outer + inner, 256).
+;; Requires: outer, inner are constants.
 (rule (rewrite (Op.Shl (iconst outer) (shl (iconst inner) value)))
       (Op.Shl (imm (shift_sum outer inner)) value))
 
-;; (value >> inner) >> outer => value >> min(inner + outer, 256)
+;; (value >> inner) >> outer => value >> min(outer + inner, 256).
+;; Requires: outer, inner are constants.
 (rule (rewrite (Op.Shr (iconst outer) (shr (iconst inner) value)))
       (Op.Shr (imm (shift_sum outer inner)) value))
 
-;; (signed(value) >> inner) >> outer => signed(value) >> min(inner + outer, 256)
+;; sar(outer, sar(inner, value)) => sar(min(outer + inner, 256), value).
+;; Requires: outer, inner are constants.
 (rule (rewrite (Op.Sar (iconst outer) (sar (iconst inner) value)))
       (Op.Sar (imm (shift_sum outer inner)) value))
 
-;; signed(value << amount) >> amount => signextend(31 - amount / 8, value)
-;; when amount is byte-aligned and 0 <= amount <= 248
+;; sar(amount, (value << amount)) => signextend((31 - amount / 8), value).
+;; Requires: amount is constant, amount is a multiple of 8 below 256.
 (rule (rewrite (Op.Sar (iconst amount) (shl (iconst amount) value)))
       (if-let byte (sign_byte amount))
       (Op.SignExtend (imm byte) value))
 
-;; signextend(outer, signextend(inner, value)) => signextend(min(outer, inner), value)
+;; signextend(outer, signextend(inner, value)) => signextend(min(outer, inner), value).
+;; Requires: outer, inner are constants.
 (rule (rewrite (Op.SignExtend (iconst outer) (signextend (iconst inner) value)))
       (Op.SignExtend (imm (u256_min outer inner)) value))
 
-;; clz(input) >> 8 => input == 0
+;; clz(input) >> c => input == 0.
+;; Requires: c is constant, c == 8.
 (rule (rewrite (Op.Shr (iconst c) (clz input))) (if-let true (u256_eq c 8)) (Op.Eq input (imm (u256 0))))
 
-;; byte(30, clz(input)) => input == 0
+;; byte(c, clz(input)) => input == 0.
+;; Requires: c is constant, c == 30.
 (rule (rewrite (Op.Byte (iconst c) (clz input))) (if-let true (u256_eq c 30)) (Op.Eq input (imm (u256 0))))
 
-;; byte(0, value << 248) => value & 255
 ;; A single-use left-aligned byte followed by high-byte extraction keeps the low byte.
+;; byte(0, (value << amount)) => value & 255.
+;; Requires: amount is constant, (value << amount) has one use, amount == 248.
 (rule (rewrite (Op.Byte (zero) (and shifted (shl (iconst amount) value))))
       (if-let true (single_use shifted))
       (if-let true (u256_eq amount 248))
       (Op.And value (imm (u256 255))))
 
-;; signextend(byte, signextend(byte, x)) => signextend(byte, x)
+;; signextend(byte, signextend(byte, _)) => signextend(byte, _).
 (rule 6 (simplify (Op.SignExtend byte (and value (signextend byte _)))) value)
 
-;; signextend(outer, signextend(inner, x)) => signextend(inner, x), when inner <= outer
+;; signextend(outer, signextend(inner, _)) => signextend(inner, _).
+;; Requires: outer, inner are constants, inner <= outer.
 (rule 5 (simplify (Op.SignExtend (iconst outer) (and value (signextend (iconst inner) _))))
         (if-let true (u256_le inner outer))
         value)
 
-;; signextend(byte, value) => value, when byte < 31 and value is known to fit below its sign bit
+;; signextend(byte, value) => value.
+;; Requires: byte is constant, byte < 31 and value is known to fit in 8 * (byte + 1) - 1 bits.
 (rule 4 (simplify (Op.SignExtend (iconst byte) value)) (if-let true (sign_clear byte value)) value)
 
-;; signextend(_, 0) => 0
+;; signextend(_, 0) => 0.
 (rule 3 (simplify (Op.SignExtend _ (and value (zero)))) value)
 
-;; signextend(byte, value) => value, when byte >= 31
+;; signextend(byte, value) => value.
+;; Requires: byte is constant, byte >= 31.
 (rule 2 (simplify (Op.SignExtend (iconst byte) value)) (if-let true (u256_ge byte 31)) value)
 
-;; signextend(byte, clz(x)) => clz(x), when byte >= 1
+;; signextend(byte, clz(_)) => clz(_).
+;; Requires: byte is constant, byte >= 1.
 (rule 1 (simplify (Op.SignExtend (iconst byte) (and value (clz _))))
         (if-let true (u256_ge byte 1))
         value)
 
-;; clz(a) => 0, when bit 255 of a is known to be set
+;; clz(a) => 0.
+;; Requires: the sign bit of a is known set.
 (rule (simplify (Op.Clz a)) (if-let true (has_known_sign_bit a)) (imm (u256 0)))
 
-;; value << 0 => value
+;; value << 0 => value.
 (rule 3 (simplify (Op.Shl (zero) value)) value)
 
-;; 0 << _ => 0
+;; 0 << _ => 0.
 (rule 2 (simplify (Op.Shl _ (and value (zero)))) value)
 
-;; _ << shift => 0, when shift >= 256
+;; _ << shift => 0.
+;; Requires: shift is constant, shift >= 256.
 (rule 1 (simplify (Op.Shl (iconst shift) _)) (if-let true (u256_ge shift 256)) (imm (u256 0)))
 
-;; (address << shift | constant) >> shift => address
 ;; No address bits are lost, and constant fits below the shift.
+;; ((address << shift) | constant) >> shift => address.
+;; Requires: shift, constant are constants, shift < 97, (constant >> shift) == 0,
+;; (2 ** 160 - 1) == 2 ** 160 - 1 and address fits in 160 bits.
 (rule 30 (simplify (Op.Shr (iconst shift) (bor (shl (iconst shift) address) (iconst constant))))
       (if-let true (u256_lt shift 97))
       (if-let true (u256_is_zero (u256_shr shift constant)))
       (if-let true (masks_clean_address (u256_from_limbs 18446744073709551615 18446744073709551615 4294967295 0) address))
       address)
 
-;; value >> shift => 0, when shift removes every possible set bit of value
+;; value >> shift => 0.
+;; Requires: shift is constant, shift is at least the known bit width of value.
 (rule 5 (simplify (Op.Shr (iconst shift) value)) (if-let true (shifted_out shift value)) (imm (u256 0)))
 
-;; value >> 0 => value
+;; value >> 0 => value.
 (rule 4 (simplify (Op.Shr (zero) value)) value)
 
-;; 0 >> _ => 0
+;; 0 >> _ => 0.
 (rule 3 (simplify (Op.Shr _ (and value (zero)))) value)
 
-;; clz(_) >> shift => 0, when shift >= 9
+;; clz(_) >> shift => 0.
+;; Requires: shift is constant, shift >= 9.
 (rule 2 (simplify (Op.Shr (iconst shift) (clz _))) (if-let true (u256_ge shift 9)) (imm (u256 0)))
 
-;; _ >> shift => 0, when shift >= 256
+;; _ >> shift => 0.
+;; Requires: shift is constant, shift >= 256.
 (rule 1 (simplify (Op.Shr (iconst shift) _)) (if-let true (u256_ge shift 256)) (imm (u256 0)))
 
-;; signed(value) >> 0 => value
+;; sar(0, value) => value.
 (rule 2 (simplify (Op.Sar (zero) value)) value)
 
-;; signed(0) >> _ => 0
+;; sar(_, 0) => 0.
 (rule 1 (simplify (Op.Sar _ (and value (zero)))) value)
 
-;; byte(_, 0) => 0
+;; byte(_, 0) => 0.
 (rule 3 (simplify (Op.Byte _ (zero))) (imm (u256 0)))
 
-;; byte(index, _) => 0, when index >= 32
+;; byte(index, _) => 0.
+;; Requires: index is constant, index >= 32.
 (rule 2 (simplify (Op.Byte (iconst index) _)) (if-let true (u256_ge index 32)) (imm (u256 0)))
 
-;; byte(index, clz(_)) => 0, when index < 30
+;; byte(index, clz(_)) => 0.
+;; Requires: index is constant, index < 30.
 (rule 1 (simplify (Op.Byte (iconst index) (clz _))) (if-let true (u256_lt index 30)) (imm (u256 0)))
 
-;; Sar _ (and value (all_ones)) => value
+;; sar(_, MAX) => MAX.
 (rule 1026 (simplify (Op.Sar _ (and value (all_ones))))  value)

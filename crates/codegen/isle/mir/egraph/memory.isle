@@ -1,15 +1,18 @@
 ;; Memory operands and environment operations.
 
-;; balance(address & mask) => balance(address), when mask keeps all low 160 bits.
 ;; Require a single use in this block to avoid retaining a shared mask or extending its live range.
+;; balance((address & mask)) => balance(address).
+;; Requires: mask is constant, (~mask << 96) == 0, the matched producers each have one use in this
+;; block.
 (rule (rewrite (Op.Balance (and masked (band address (iconst mask)))))
       (if-let true (in_current_block masked))
       (if-let true (single_use masked))
       (if-let true (u256_is_zero (u256_shl (u256 96) (u256_not mask))))
       (Op.Balance address))
 
-;; call(gas, zext(trunc(address, 160)), ...) => call(gas, address, ...).
 ;; The EVM consumes only the low 160 address bits; both casts must die in this block.
+;; call(gas, zext(trunc(address, 160)), ...) => call(gas, address, ...).
+;; Requires: address:i256, the matched producers each have one use in this block.
 (rule (rewrite (Op.Call gas (and extended (zext (and narrowed (trunc (and address (integer_bits 256)) 160)))) value args_offset args_size ret_offset ret_size))
       (if-let true (in_current_block extended))
       (if-let true (single_use extended))
@@ -17,8 +20,9 @@
       (if-let true (single_use narrowed))
       (Op.Call gas address value args_offset args_size ret_offset ret_size))
 
-;; callcode(gas, zext(trunc(address, 160)), ...) => callcode(gas, address, ...).
 ;; The EVM consumes only the low 160 address bits; both casts must die in this block.
+;; callcode(gas, zext(trunc(address, 160)), ...) => callcode(gas, address, ...).
+;; Requires: address:i256, the matched producers each have one use in this block.
 (rule (rewrite (Op.CallCode gas (and extended (zext (and narrowed (trunc (and address (integer_bits 256)) 160)))) value args_offset args_size ret_offset ret_size))
       (if-let true (in_current_block extended))
       (if-let true (single_use extended))
@@ -26,8 +30,9 @@
       (if-let true (single_use narrowed))
       (Op.CallCode gas address value args_offset args_size ret_offset ret_size))
 
-;; staticcall(gas, zext(trunc(address, 160)), ...) => staticcall(gas, address, ...).
 ;; The EVM consumes only the low 160 address bits; both casts must die in this block.
+;; staticcall(gas, zext(trunc(address, 160)), ...) => staticcall(gas, address, ...).
+;; Requires: address:i256, the matched producers each have one use in this block.
 (rule (rewrite (Op.StaticCall gas (and extended (zext (and narrowed (trunc (and address (integer_bits 256)) 160)))) args_offset args_size ret_offset ret_size))
       (if-let true (in_current_block extended))
       (if-let true (single_use extended))
@@ -35,8 +40,9 @@
       (if-let true (single_use narrowed))
       (Op.StaticCall gas address args_offset args_size ret_offset ret_size))
 
-;; delegatecall(gas, zext(trunc(address, 160)), ...) => delegatecall(gas, address, ...).
 ;; The EVM consumes only the low 160 address bits; both casts must die in this block.
+;; delegatecall(gas, zext(trunc(address, 160)), ...) => delegatecall(gas, address, ...).
+;; Requires: address:i256, the matched producers each have one use in this block.
 (rule (rewrite (Op.DelegateCall gas (and extended (zext (and narrowed (trunc (and address (integer_bits 256)) 160)))) args_offset args_size ret_offset ret_size))
       (if-let true (in_current_block extended))
       (if-let true (single_use extended))
@@ -44,57 +50,74 @@
       (if-let true (single_use narrowed))
       (Op.DelegateCall gas address args_offset args_size ret_offset ret_size))
 
-;; balance(address()) => selfbalance(), when SELFBALANCE is available
+;; balance(address()) => selfbalance().
+;; Requires: the target supports SELFBALANCE.
 (rule (rewrite (Op.Balance (current_address))) (if-let true (has_self_balance)) (Op.SelfBalance))
 
-;; memory_object_data(object, kind) => object, when kind has zero data offset
+;; memoryobjectdata(object, kind) => bitcast(object).
+;; Requires: kind has zero data offset.
 (rule (rewrite (Op.MemoryObjectData object kind)) (if-let 0 (object_data_offset kind)) (Op.Bitcast object))
 
-;; memory_object_field_addr(object, layout, field) => object, when the field offset is zero
+;; memoryobjectfieldaddr(object, layout, field) => bitcast(object).
+;; Requires: field has zero offset in layout.
 (rule (rewrite (Op.MemoryObjectFieldAddr object layout field))
       (if-let 0 (field_offset layout field))
       (Op.Bitcast object))
 
-;; memory_object_element_addr(object, layout, 0) => object, when the layout has zero data offset
+;; memoryobjectelementaddr(object, layout, 0) => bitcast(object).
+;; Requires: layout has zero data offset.
 (rule (rewrite (Op.MemoryObjectElementAddr object layout (zero)))
       (if-let 0 (object_data_offset (layout_kind layout)))
       (Op.Bitcast object))
 
-;; Call gas addr value offset (zero) out size => Call gas addr value (imm (u256 0)) (imm (u256 0)) out size
+;; call(gas, addr, value, offset, 0, out, size) => call(gas, addr, value, 0, 0, out, size).
+;; Requires: offset != 0.
 (rule (rewrite (Op.Call gas addr value offset (zero) out size)) (if-let false (same_value offset (imm (u256 0)))) (Op.Call gas addr value (imm (u256 0)) (imm (u256 0)) out size))
 
-;; Call gas addr value offset size out (zero) => Call gas addr value offset size (imm (u256 0)) (imm (u256 0))
+;; call(gas, addr, value, offset, size, out, 0) => call(gas, addr, value, offset, size, 0, 0).
+;; Requires: out != 0.
 (rule (rewrite (Op.Call gas addr value offset size out (zero))) (if-let false (same_value out (imm (u256 0)))) (Op.Call gas addr value offset size (imm (u256 0)) (imm (u256 0))))
 
-;; CallCode gas addr value offset (zero) out size => CallCode gas addr value (imm (u256 0)) (imm (u256 0)) out size
+;; callcode(gas, addr, value, offset, 0, out, size) => callcode(gas, addr, value, 0, 0, out, size).
+;; Requires: offset != 0.
 (rule (rewrite (Op.CallCode gas addr value offset (zero) out size)) (if-let false (same_value offset (imm (u256 0)))) (Op.CallCode gas addr value (imm (u256 0)) (imm (u256 0)) out size))
 
-;; CallCode gas addr value offset size out (zero) => CallCode gas addr value offset size (imm (u256 0)) (imm (u256 0))
+;; callcode(gas, addr, value, offset, size, out, 0) => callcode(gas, addr, value, offset, size, 0, 0).
+;; Requires: out != 0.
 (rule (rewrite (Op.CallCode gas addr value offset size out (zero))) (if-let false (same_value out (imm (u256 0)))) (Op.CallCode gas addr value offset size (imm (u256 0)) (imm (u256 0))))
 
-;; StaticCall gas addr offset (zero) out size => StaticCall gas addr (imm (u256 0)) (imm (u256 0)) out size
+;; staticcall(gas, addr, offset, 0, out, size) => staticcall(gas, addr, 0, 0, out, size).
+;; Requires: offset != 0.
 (rule (rewrite (Op.StaticCall gas addr offset (zero) out size)) (if-let false (same_value offset (imm (u256 0)))) (Op.StaticCall gas addr (imm (u256 0)) (imm (u256 0)) out size))
 
-;; StaticCall gas addr offset size out (zero) => StaticCall gas addr offset size (imm (u256 0)) (imm (u256 0))
+;; staticcall(gas, addr, offset, size, out, 0) => staticcall(gas, addr, offset, size, 0, 0).
+;; Requires: out != 0.
 (rule (rewrite (Op.StaticCall gas addr offset size out (zero))) (if-let false (same_value out (imm (u256 0)))) (Op.StaticCall gas addr offset size (imm (u256 0)) (imm (u256 0))))
 
-;; DelegateCall gas addr offset (zero) out size => DelegateCall gas addr (imm (u256 0)) (imm (u256 0)) out size
+;; delegatecall(gas, addr, offset, 0, out, size) => delegatecall(gas, addr, 0, 0, out, size).
+;; Requires: offset != 0.
 (rule (rewrite (Op.DelegateCall gas addr offset (zero) out size)) (if-let false (same_value offset (imm (u256 0)))) (Op.DelegateCall gas addr (imm (u256 0)) (imm (u256 0)) out size))
 
-;; DelegateCall gas addr offset size out (zero) => DelegateCall gas addr offset size (imm (u256 0)) (imm (u256 0))
+;; delegatecall(gas, addr, offset, size, out, 0) => delegatecall(gas, addr, offset, size, 0, 0).
+;; Requires: out != 0.
 (rule (rewrite (Op.DelegateCall gas addr offset size out (zero))) (if-let false (same_value out (imm (u256 0)))) (Op.DelegateCall gas addr offset size (imm (u256 0)) (imm (u256 0))))
 
-;; Log0 offset (zero)  => Log0 (imm (u256 0)) (imm (u256 0))
+;; log0(offset, 0) => log0(0, 0).
+;; Requires: offset != 0.
 (rule (rewrite (Op.Log0 offset (zero) )) (if-let false (same_value offset (imm (u256 0)))) (Op.Log0 (imm (u256 0)) (imm (u256 0)) ))
 
-;; Log1 offset (zero) t0 => Log1 (imm (u256 0)) (imm (u256 0)) t0
+;; log1(offset, 0, t0) => log1(0, 0, t0).
+;; Requires: offset != 0.
 (rule (rewrite (Op.Log1 offset (zero) t0)) (if-let false (same_value offset (imm (u256 0)))) (Op.Log1 (imm (u256 0)) (imm (u256 0)) t0))
 
-;; Log2 offset (zero) t0 t1 => Log2 (imm (u256 0)) (imm (u256 0)) t0 t1
+;; log2(offset, 0, t0, t1) => log2(0, 0, t0, t1).
+;; Requires: offset != 0.
 (rule (rewrite (Op.Log2 offset (zero) t0 t1)) (if-let false (same_value offset (imm (u256 0)))) (Op.Log2 (imm (u256 0)) (imm (u256 0)) t0 t1))
 
-;; Log3 offset (zero) t0 t1 t2 => Log3 (imm (u256 0)) (imm (u256 0)) t0 t1 t2
+;; log3(offset, 0, t0, t1, t2) => log3(0, 0, t0, t1, t2).
+;; Requires: offset != 0.
 (rule (rewrite (Op.Log3 offset (zero) t0 t1 t2)) (if-let false (same_value offset (imm (u256 0)))) (Op.Log3 (imm (u256 0)) (imm (u256 0)) t0 t1 t2))
 
-;; Log4 offset (zero) t0 t1 t2 t3 => Log4 (imm (u256 0)) (imm (u256 0)) t0 t1 t2 t3
+;; log4(offset, 0, t0, t1, t2, t3) => log4(0, 0, t0, t1, t2, t3).
+;; Requires: offset != 0.
 (rule (rewrite (Op.Log4 offset (zero) t0 t1 t2 t3)) (if-let false (same_value offset (imm (u256 0)))) (Op.Log4 (imm (u256 0)) (imm (u256 0)) t0 t1 t2 t3))

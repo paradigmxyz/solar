@@ -1,35 +1,6 @@
-;; Shared terms and Rust-backed helpers.
+;; Shared terms and Rust-backed helpers for e-graph and word rules.
+;; See ../README.md for matching, costs, and rule-comment notation.
 
-;; MIR instruction simplification rules for the e-graph pass.
-;;
-;; `rewrite` returns every equivalent instruction its rules can build, which
-;; the e-graph adds to the class as alternative nodes, and `simplify` returns
-;; the value an instruction is equal to, which merges the class into that
-;; value. The pass in
-;; `transform/egraph.rs` resolves operand value identities before matching.
-;; Constants stay on the right of declared commutative pairs and comparisons,
-;; at roots, in defining instructions, and in emitted e-graph output.
-;; Rules only need the constant-right spelling; nonconstant permutations remain.
-;; Every rule must be exact for all 256-bit EVM words.
-;;
-;; The number after `rule` is an ISLE match priority: `(rule 9 ...)` is tried
-;; before `(rule 8 ...)` when both match. We use distinct priorities to resolve
-;; overlapping `simplify` rules; the first successful match determines the replacement.
-;; The default priority is zero. These numbers order matching; Target determines
-;; gas and size costs. The `multi` declaration on `rewrite` instead collects all
-;; matching alternatives for the e-graph to compare by cost.
-;;
-;; Pseudocode below uses 256-bit wrapping arithmetic, unsigned comparisons and
-;; logical `>>`; `signed(x)` selects a signed comparison or arithmetic shift.
-;; Booleans are words in {0, 1}, and MAX = 2 ** 256 - 1. Named constants in the
-;; patterns are compile-time immediates. `byte(i, x)` indexes from the high byte.
-;; Division and modulo by zero evaluate to zero, following EVM semantics.
-;; Combined shift counts saturate at 256 without wrapping. `constant(expr)` folds
-;; an expression at compile time, and `**` denotes exponentiation.
-;; ISLE's `(and a (iconst c))` binds both the value `a` and its immediate `c`;
-;; the bitwise-AND extractor is `band`.
-
-;; Predicates and projections implemented in `transform/egraph/isle.rs`.
 (decl iconst (U256) Value)
 (extern extractor iconst iconst)
 
@@ -76,7 +47,7 @@
 (decl pure shifted_out (U256 Value) bool)
 (extern constructor shifted_out shifted_out)
 
-;; The sign bit `signextend` would copy is known to be clear.
+;; The sign bit `signextend` would copy and all higher bits are known clear.
 (decl pure sign_clear (U256 Value) bool)
 (extern constructor sign_clear sign_clear)
 
@@ -116,7 +87,7 @@
 (decl pure u256_lt (U256 u64) bool)
 (extern constructor u256_lt u256_lt)
 
-;; `(c & bits) == bits`
+;; `(c & bits) == bits`.
 (decl pure u256_has_bits (U256 u64) bool)
 (extern constructor u256_has_bits u256_has_bits)
 
@@ -199,15 +170,15 @@
 (decl pure layout_kind (MemoryObjectLayout) MemoryObjectKind)
 (extern constructor layout_kind layout_kind)
 
-;; Profitability only: do not grow a push when replacing a shift pair.
+;; The replacement push must cost no more gas or bytes than the original.
 (decl pure push_not_larger (U256 U256) bool)
 (extern constructor push_not_larger push_not_larger)
 
-;;;; In-place rewrites.
+;; Equivalent instruction alternatives.
 
 (decl multi rewrite (Op) Op)
 
-;;;; Value replacements.
+;; Equivalent values for class merging.
 
 (decl partial simplify (Op) Value)
 

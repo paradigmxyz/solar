@@ -1,23 +1,14 @@
 ;; Shifts, byte extraction, and sign extension.
 
-;; Pure 256-bit word reductions, checked by scripts/evm-rules/verify.py.
-;;
-;; Mixed bitwise families were discovered by bounded enumeration; arithmetic
-;; candidates were supplied explicitly. See scripts/evm-rules/README.md for the
-;; search recipe, proof boundary and counterexample replay. These alternatives
-;; stay at the original instruction and compete under Target plus stack traffic.
-;; Add(value, 0) lets a leaf replacement use the multi-result rewrite interface;
-;; ordinary simplification removes it without allocating an instruction.
-;; Matching puts constants on the right of commutative pairs and comparisons,
-;; including nested definitions, so constant-left mirrors are unnecessary.
-
-;; shl(1, x) => x + x
 ;; Keep the producer in place; rebuilding it at a later consumer extends live ranges.
+;; x << 1 => x + x.
 (rule (rewrite (Op.Shl (one) x)) (Op.Add x x))
 
-;; (x << s) >> s => x, if x fits in the retained 256 - s bits.
 ;; Keep the intermediate in this block to avoid extending a cross-block live range.
 ;; Require one use so removing a shared overflow check does not disrupt outlining.
+;; (x << shift) >> shift => x.
+;; Requires: shift is constant, shift < 256, (MAX >> shift) is a low-bit mask covering all possible
+;; set bits of x, the matched producers each have one use in this block.
 (rule (rewrite (Op.Shr (iconst shift) (and shifted (shl (iconst shift) x))))
       (if-let true (in_current_block shifted))
       (if-let true (single_use shifted))
@@ -25,35 +16,42 @@
       (if-let true (mask_covers (u256_shr shift (u256_max)) x))
       (Op.Add x (imm (u256 0))))
 
-;; shl n, (and x, mask) => shl n, x
-;; shr n, (and x, mask) => shr n, x
 ;; A mask may be omitted when every cleared bit is shifted out of the word.
+;; (x & mask) << shift => x << shift.
+;; Requires: shift, mask are constants, (mask << shift) == (MAX << shift).
 (rule (rewrite (Op.Shl (iconst shift) (band x (iconst mask))))
   (if-let true (u256_same (u256_shl shift mask) (u256_shl shift (u256_max))))
   (Op.Shl (imm shift) x))
 
+;; (x & mask) >> shift => x >> shift.
+;; Requires: shift, mask are constants, (mask >> shift) == (MAX >> shift).
 (rule (rewrite (Op.Shr (iconst shift) (band x (iconst mask))))
   (if-let true (u256_same (u256_shr shift mask) (u256_shr shift (u256_max))))
   (Op.Shr (imm shift) x))
 
-;; byte i, (and x, mask) => byte i, x
 ;; BYTE ignores every mask bit outside the selected byte.
+;; byte(index, (x & mask)) => byte(index, x).
+;; Requires: index, mask are constants, byte(index, mask) == 255.
 (rule (rewrite (Op.Byte (iconst index) (band x (iconst mask))))
   (if-let true (u256_eq (u256_byte index mask) 255))
   (Op.Byte (imm index) x))
 
-;; byte i, (shl n, x) => byte (i + n / 8), x
-;; byte i, (shr n, x) => byte (i - n / 8), x ; or zero if i < n / 8
 ;; Adjust byte indexes across byte-aligned shifts. Check the original index
 ;; before arithmetic so an out-of-range index cannot wrap back into the word.
 ;; Keep the producer in the root block: crossing a branch can replace a cheap
 ;; temporary with a loop-carried dependency that the stack scheduler must spill.
+;; byte(index, (x << shift)) => byte((index + (shift / 8)), x).
+;; Requires: index, shift are constants, (x << shift) is defined in this block, index < 32, shift is
+;; a multiple of 8 below 256.
 (rule (rewrite (Op.Byte (iconst index) (and shifted (shl (iconst shift) x))))
   (if-let true (in_current_block shifted))
   (if-let true (u256_lt index 32))
   (if-let byte (sign_byte shift))
   (Op.Byte (imm (u256_add index (u256_sub (u256 31) byte))) x))
 
+;; byte(index, (x >> shift)) => byte((index - (shift / 8)), x).
+;; Requires: index, shift are constants, (x >> shift) is defined in this block, index < 32, shift is
+;; a multiple of 8 below 256, (shift / 8) <= index.
 (rule (rewrite (Op.Byte (iconst index) (and shifted (shr (iconst shift) x))))
   (if-let true (in_current_block shifted))
   (if-let true (u256_lt index 32))
@@ -61,6 +59,9 @@
   (if-let true (u256_le (u256_sub (u256 31) byte) index))
   (Op.Byte (imm (u256_sub index (u256_sub (u256 31) byte))) x))
 
+;; byte(index, (x >> shift)) => 0.
+;; Requires: index, shift are constants, (x >> shift) is defined in this block, index < 32, shift is
+;; a multiple of 8 below 256, index < shift / 8.
 (rule (rewrite (Op.Byte (iconst index) (and shifted (shr (iconst shift) x))))
   (if-let true (in_current_block shifted))
   (if-let true (u256_lt index 32))
@@ -68,25 +69,33 @@
   (if-let false (u256_le (u256_sub (u256 31) byte) index))
   (Op.Add (imm (u256 0)) (imm (u256 0))))
 
-;; Sar (iconst s) x => Sar (imm (u256 255)) x
+;; sar(s, x) => sar(255, x).
+;; Requires: s is constant, s >= 256.
 (rule (rewrite (Op.Sar (iconst s) x)) (if-let true (u256_ge s 256)) (Op.Sar (imm (u256 255)) x))
 
-;; SignExtend (iconst b) (shr (iconst s) x) => Sar (imm s) x
+;; signextend(b, (x >> s)) => sar(s, x).
+;; Requires: b, s are constants, s is a multiple of 8 below 256, b == (31 - s / 8), the target
+;; supports shifts.
 (rule (rewrite (Op.SignExtend (iconst b) (shr (iconst s) x))) (if-let byte (sign_byte s)) (if-let true (u256_same b byte)) (if-let true (has_bitwise_shifting)) (Op.Sar (imm s) x))
 
-;; Shr (iconst s) (shl (iconst s) x) => And x (imm (u256_shr s (u256_max)))
+;; (x << s) >> s => x & (MAX >> s).
+;; Requires: s is constant, pushing (MAX >> s) costs no more gas or bytes than pushing s, the
+;; matched producers each have one use in this block.
 (rule (rewrite (Op.Shr (iconst s) (and shifted (shl (iconst s) x))))
       (if-let true (in_current_block shifted))
       (if-let true (single_use shifted))
       (if-let true (push_not_larger (u256_shr s (u256_max)) s))
       (Op.And x (imm (u256_shr s (u256_max)))))
 
-;; Shl (iconst s) (shr (iconst s) x) => And x (imm (u256_shl s (u256_max)))
+;; (x >> s) << s => x & (MAX << s).
+;; Requires: s is constant, pushing (MAX << s) costs no more gas or bytes than pushing s, the
+;; matched producers each have one use in this block.
 (rule (rewrite (Op.Shl (iconst s) (and shifted (shr (iconst s) x))))
       (if-let true (in_current_block shifted))
       (if-let true (single_use shifted))
       (if-let true (push_not_larger (u256_shl s (u256_max)) s))
       (Op.And x (imm (u256_shl s (u256_max)))))
 
-;; Shl (iconst s) (signextend (iconst b) x) => Shl (imm s) x
+;; signextend(b, x) << s => x << s.
+;; Requires: s, b are constants, b < 31, (256 - ((b + 1) * 8)) <= s.
 (rule (rewrite (Op.Shl (iconst s) (signextend (iconst b) x))) (if-let true (u256_lt b 31)) (if-let true (u256_le (u256_sub (u256 256) (u256_mul (u256_add b (u256 1)) (u256 8))) s)) (Op.Shl (imm s) x))
