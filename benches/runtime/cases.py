@@ -352,6 +352,23 @@ TEST_CASES: Sequence[TestCase] = (
         runtime_checks=(RuntimeCheck("number", "number()(uint256)"),),
     ),
     TestCase(
+        test_id="counter-loop",
+        description="Checked arithmetic helpers in a counter loop up to 1,000 iterations",
+        source_code=source("runtime/CounterLoop.sol"),
+        source_path="testdata/runtime/CounterLoop.sol",
+        source_name="CounterLoop.sol",
+        contract_name="Counter",
+        gas_calls=(
+            GasCall("add-first-write", "increment(uint256)", ("5",)),
+            GasCall("add-existing-write", "increment(uint256)", ("7",)),
+            GasCall("subtract", "subtract(uint256)", ("2",)),
+            GasCall("loop-10", "accumulate(uint256)", ("10",)),
+            GasCall("loop-100", "accumulate(uint256)", ("100",)),
+            GasCall("loop-1000", "accumulate(uint256)", ("1000",)),
+        ),
+        runtime_checks=(RuntimeCheck("get", "get()(uint256)"),),
+    ),
+    TestCase(
         test_id="minimal-proxy",
         description="Minimal proxy with a high-level fallback and immutable target",
         source_code=source("MinimalProxy.sol"),
