@@ -50,8 +50,10 @@ impl MirPass for LoopUnswitch {
             }
             let mut analyzer = LoopAnalyzer::new();
             let loops = analyzer.analyze(func);
-            let candidate =
-                loops.all_loops().find_map(|loop_info| plan(func, &analyzer, &loops, loop_info));
+            let owners = func.inst_blocks();
+            let candidate = loops
+                .all_loops()
+                .find_map(|loop_info| plan(func, &analyzer, &loops, loop_info, &owners));
             let Some(candidate) = candidate else { return false };
             apply(func, candidate);
             true
@@ -73,6 +75,7 @@ fn plan(
     analyzer: &LoopAnalyzer,
     loops: &LoopInfo,
     loop_info: &Loop,
+    owners: &FxHashMap<InstId, BlockId>,
 ) -> Option<Candidate> {
     let preheader = loop_info.preheader?;
     let header = loop_info.header;
@@ -122,6 +125,13 @@ fn plan(
             return None;
         }
     }
+    let mut count = 0;
+    for block in &loop_info.blocks {
+        count += func.blocks[block].instructions.len();
+        if count > 32 {
+            return None;
+        }
+    }
     let mut instructions = DenseBitSet::<InstId>::new_empty(func.num_insts());
     for block in &loop_info.blocks {
         for &inst in &func.blocks[block].instructions {
@@ -135,9 +145,6 @@ fn plan(
             }
             instructions.insert(inst);
         }
-    }
-    if instructions.count() > 32 {
-        return None;
     }
     let mut guard = None;
     for inst in &instructions {
@@ -155,19 +162,12 @@ fn plan(
                     {
                         continue;
                     }
-                    let owner = func
-                        .blocks
-                        .iter_enumerated()
-                        .find(|(_, block)| block.instructions.contains(def))?
-                        .0;
+                    let owner = *owners.get(def)?;
                     let available = match func.value(zero_value) {
                         Value::Arg(_) => true,
-                        Value::Inst(value_def) if !instructions.contains(*value_def) => {
-                            func.blocks.iter_enumerated().any(|(block, body)| {
-                                body.instructions.contains(value_def)
-                                    && analyzer.dominates(block, preheader)
-                            })
-                        }
+                        Value::Inst(value_def) if !instructions.contains(*value_def) => owners
+                            .get(value_def)
+                            .is_some_and(|&block| analyzer.dominates(block, preheader)),
                         _ => false,
                     };
                     if available

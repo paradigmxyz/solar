@@ -93,6 +93,7 @@ fn run(func: &mut Function) -> bool {
             continue;
         }
         let original = func.blocks[block].instructions.clone();
+        let mut sunk = [Vec::new(), Vec::new()];
         for inst in original.into_iter().rev() {
             let instruction = func.inst(inst);
             if matches!(instruction.kind, InstKind::Phi(_) | InstKind::Gas | InstKind::MSize)
@@ -102,18 +103,7 @@ fn run(func: &mut Function) -> bool {
             {
                 break;
             }
-            let operands = instruction.kind.operands();
-            let mut carried = None;
-            if operands.iter().any(|&operand| {
-                if matches!(func.value(operand), Value::Immediate(_)) {
-                    return false;
-                }
-                if carried.is_some_and(|value| value != operand) {
-                    return true;
-                }
-                carried = Some(operand);
-                false
-            }) {
+            if !at_most_one_nonconstant_operand(func, &instruction.kind) {
                 continue;
             }
             let Some(value) = func.inst_result_value(inst) else { continue };
@@ -130,22 +120,32 @@ fn run(func: &mut Function) -> bool {
             {
                 continue;
             }
+            sunk[usize::from(target != then_block)].push(inst);
+            owners[inst] = target;
+            changed = true;
+        }
+        func.blocks[block].instructions.retain(|&inst| owners[inst] == block);
+        for (target, mut moved) in [then_block, else_block].into_iter().zip(sunk) {
+            if moved.is_empty() {
+                continue;
+            }
+            moved.reverse();
             let insert = func.blocks[target]
                 .instructions
                 .iter()
                 .take_while(|&&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)))
                 .count();
-            func.blocks[target].instructions.insert(insert, inst);
-            owners[inst] = target;
-            changed = true;
+            func.blocks[target].instructions.splice(insert..insert, moved);
         }
-        func.blocks[block].instructions.retain(|&inst| owners[inst] == block);
     }
     for block in func.blocks.indices() {
-        let original = func.blocks[block].instructions.clone();
-        if original.len() > 128 || !original.iter().any(|&inst| movable_store(func.inst(inst))) {
+        let instructions = &func.blocks[block].instructions;
+        if instructions.len() > 128
+            || !instructions.iter().any(|&inst| movable_store(func.inst(inst)))
+        {
             continue;
         }
+        let original = instructions.clone();
         for inst in original.into_iter().rev() {
             let instruction = func.inst(inst);
             if !instruction.kind.effects().can_speculate()
@@ -155,15 +155,7 @@ fn run(func: &mut Function) -> bool {
             {
                 continue;
             }
-            let mut operand = None;
-            if instruction.kind.operands().into_iter().any(|value| {
-                if matches!(func.value(value), Value::Immediate(_)) {
-                    return false;
-                }
-                let different = operand.is_some_and(|old| old != value);
-                operand = Some(value);
-                different
-            }) {
+            if !at_most_one_nonconstant_operand(func, &instruction.kind) {
                 continue;
             }
             let Some(result) = func.inst_result_value(inst) else { continue };
@@ -206,4 +198,13 @@ fn movable_store(instruction: &crate::mir::Instruction) -> bool {
         instruction.kind,
         InstKind::MStore(..) | InstKind::MStore8(..) | InstKind::SStore(..) | InstKind::TStore(..)
     ) && instruction.metadata.effect().is_none_or(|effect| effect == instruction.kind.effect_kind())
+}
+
+fn at_most_one_nonconstant_operand(func: &Function, kind: &InstKind) -> bool {
+    let mut operands = kind
+        .operands()
+        .into_iter()
+        .filter(|&value| !matches!(func.value(value), Value::Immediate(_)));
+    let Some(first) = operands.next() else { return true };
+    operands.all(|value| value == first)
 }

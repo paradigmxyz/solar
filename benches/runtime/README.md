@@ -8,6 +8,12 @@ omits the heavy full-project cases. The `compile-time` mode measures those cases
 archived Standard JSON inputs to each compiler without deployment or runtime workloads. CI runs
 both modes with `--mode runtime compile-time`.
 
+The `counter-loop` microbenchmark exercises shared checked-arithmetic helpers
+inside a storage-backed accumulator loop. It measures 10, 100, and 1,000
+iterations as separate calls, after the same increment/subtract setup as the
+Solidity/Solcore comparison. It runs automatically in CI's `--suite all`,
+including the `hot` gas profile, alongside the existing `counter` workload.
+
 For one entry point shared with Sourcify, ABI/JSON, and symbolic comparisons,
 use the [compiler-diff CLI](../../tools/compiler-diff/README.md#execution-engines):
 

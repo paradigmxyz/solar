@@ -10,6 +10,7 @@ use crate::{
         run_command_with_bounded_output,
     },
 };
+use alloy_primitives::hex;
 use anyhow::{Context, Result, bail};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -1162,7 +1163,7 @@ pub(crate) fn sha256_path(path: &Path) -> Result<String> {
     } else {
         bail!("artifact `{}` is not a file or directory", path.display())
     }
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(hex::encode(hasher.finalize()))
 }
 
 enum InstalledClosureEntry {
@@ -1204,7 +1205,7 @@ fn sha256_installed_closure(root: &Path) -> Result<String> {
             }
         }
     }
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(hex::encode(hasher.finalize()))
 }
 
 fn hash_encoded_bytes(bytes: &[u8], hasher: &mut Sha256) {
