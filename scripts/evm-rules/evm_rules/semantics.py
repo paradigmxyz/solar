@@ -1,4 +1,4 @@
-"""Total 256-bit EVM word semantics, independent of optimizer implementation.
+"""Total 256-bit EVM word and MIR cast semantics, independent of the optimizer.
 
 Operand order is MIR / EVM pop order, including (amount, value) for shifts.
 Memory, storage, calls, exceptions, gas and CFG motion are outside this model.
@@ -237,6 +237,16 @@ class Model:
                 return boolean(a != b)
             case "iszero", (a,):
                 return boolean(a == 0)
+            case "zext" | "bitcast" | "inttoptr", (value,):
+                return value
+            case "trunc" | "ptrtoint", (value, bits):
+                return value & ((word(1) << bits) - 1)
+            case "sext", (value, source, target):
+                shift = word(WIDTH) - z3.If(
+                    z3.ULT(source, word(WIDTH)), source, word(WIDTH)
+                )
+                extended = (value << shift) >> shift
+                return extended & ((word(1) << target) - 1)
             case "select", (condition, a, b):
                 return z3.If(condition != 0, a, b)
             case "byte", (index, value):
@@ -349,6 +359,15 @@ def concrete(expr, values, environment=None):
             result = int(a != b)
         case "iszero", (a,):
             result = int(a == 0)
+        case "zext" | "bitcast" | "inttoptr", (value,):
+            result = value
+        case "trunc" | "ptrtoint", (value, bits):
+            result = value & ((1 << min(bits, WIDTH)) - 1)
+        case "sext", (value, source, target):
+            bits = min(source, WIDTH)
+            low = value & ((1 << bits) - 1)
+            extended = low - (1 << bits) if bits and low & (1 << (bits - 1)) else low
+            result = extended & ((1 << min(target, WIDTH)) - 1)
         case "select", (c, a, b):
             result = a if c else b
         case "byte", (i, a):
@@ -699,6 +718,10 @@ def partition_shift(lhs, rhs, assumptions, timeout_ms, model):
             boundary = WIDTH // 8 - 1 if expr.op == "signextend" else WIDTH
             index = expr.args[0]
             indices[index] = max(indices.get(index, 0), boundary)
+        if expr.op in ("trunc", "ptrtoint", "sext"):
+            for bits in expr.args[1:]:
+                if bits.op == "var":
+                    indices[bits] = WIDTH
         for child in expr.args:
             visit(child)
 

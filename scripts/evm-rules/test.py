@@ -321,6 +321,54 @@ class SemanticsTests(unittest.TestCase):
             with self.subTest(op=op, args=args):
                 self.assert_evaluation(op, args, expected)
 
+    def test_mir_cast_boundaries(self):
+        cases = [
+            ("trunc", (MASK, 1), 1),
+            ("trunc", (0x1234, 8), 0x34),
+            ("ptrtoint", (MASK, 160), (1 << 160) - 1),
+            ("trunc", (MASK, 256), MASK),
+            ("trunc", (MASK, 257), MASK),
+            ("trunc", (MASK, 0), 0),
+            ("sext", (1, 1, 256), MASK),
+            ("sext", (0x7F, 8, 256), 0x7F),
+            ("sext", (0x80, 8, 256), MODULUS - 128),
+            ("sext", (0x80, 8, 160), (1 << 160) - 128),
+            ("sext", (0xFF80, 8, 256), MODULUS - 128),
+            ("sext", (SIGN, 256, 256), SIGN),
+            ("sext", (MASK, 0, 256), 0),
+        ]
+        for op, args, expected in cases:
+            with self.subTest(op=op, args=args):
+                self.assert_evaluation(op, args, expected)
+        for op in ("zext", "bitcast", "inttoptr"):
+            self.assert_evaluation(op, (MASK,), MASK)
+
+    def test_mir_casts_match_bitvector_extensions(self):
+        value = Expr.var("value")
+        model = Model()
+        for source, target in ((1, 8), (8, 160), (160, 256), (255, 256), (256, 256)):
+            low = z3.Extract(source - 1, 0, model.eval(value))
+            expected = z3.ZeroExt(256 - target, z3.SignExt(target - source, low))
+            solver = z3.SolverFor("QF_BV")
+            solver.set(timeout=5000)
+            solver.add(
+                model.eval(expression("sext", value, source, target)) != expected
+            )
+            self.assertEqual(solver.check(), z3.unsat, (source, target))
+
+    def test_cast_width_partition_covers_saturating_tail(self):
+        value, bits = Expr.var("value"), Expr.var("bits")
+        lhs = expression("trunc", value, bits)
+        result, queries = partition_shift(
+            lhs,
+            value,
+            [z3.UGE(Model().eval(bits), z3.BitVecVal(256, 256))],
+            10000,
+            Model(),
+        )
+        self.assertEqual(result["status"], "proved", result)
+        self.assertEqual(len(queries), 258)
+
     def test_symbolic_zero_division(self):
         x = Expr.var("x")
         for op in ("div", "sdiv", "mod", "smod"):
@@ -1033,31 +1081,17 @@ class MemoryAddressTests(unittest.TestCase):
     def test_generated_schema_drift_and_wrong_arity_fail_closed(self):
         cx = Context()
         object, kind = map(Expr.var, ("object", "kind"))
-        with (
-            patch(
-                "evm_rules.isle.forms",
-                return_value=[
-                    (
-                        (
-                            "type",
-                            "Op",
-                            "extern",
-                            (
-                                "enum",
-                                (
-                                    "MemoryObjectData",
-                                    ("kind", "MemoryObjectKind"),
-                                    ("object", "Value"),
-                                ),
-                            ),
-                        ),
-                        1,
-                    )
-                ],
-            ),
-            self.assertRaisesRegex(Unsupported, "changed memory address schema"),
-        ):
-            cx.operation("Op.MemoryObjectData", [object, kind])
+        schema = (
+            (ISLE / "prelude.isle")
+            .read_text()
+            .replace(
+                "(MemoryObjectData (object Value) (kind MemoryObjectKind))",
+                "(MemoryObjectData (kind MemoryObjectKind) (object Value))",
+            )
+        )
+        changed = Context(schema_source=schema)
+        with self.assertRaisesRegex(Unsupported, "changed memory address schema"):
+            changed.operation("Op.MemoryObjectData", [object, kind])
         with self.assertRaises(Unsupported):
             cx.operation("Op.MemoryObjectData", [object])
         cx.memory.kind(kind)
@@ -1167,6 +1201,40 @@ class RuleTests(unittest.TestCase):
                     self.assertEqual(
                         result["status"], "proved", (bits, bit, lowered, result)
                     )
+
+    def test_scalar_schema_drift_fails_closed(self):
+        schema = (ISLE / "prelude.isle").read_text()
+        for original, changed, operation in (
+            ("(bits u32)", "(bits u64)", ("Op.Trunc", "x", "8")),
+            (
+                "(from_bits u32) (to_bits u32)",
+                "(to_bits u32) (from_bits u32)",
+                ("Op.Sext", "x", "8", "256"),
+            ),
+            ("(Zext (operand0 Value))", "(Zext (operand0 u32))", ("Op.Zext", "x")),
+            ("(Ne (a Value) (b Value))", "(Ne (a Value))", ("Op.Ne", "x", "y")),
+            (
+                "(Select (cond Value)",
+                "(Select (condition Value)",
+                ("Op.Select", "c", "x", "y"),
+            ),
+        ):
+            with self.subTest(operation=operation):
+                context = Context(schema_source=schema.replace(original, changed))
+                with self.assertRaises(Unsupported):
+                    context.pattern(operation)
+
+    def test_cast_nodes_and_invalid_cast_replay(self):
+        context = Context()
+        expr = context.pattern(("Op.Sext", "x", "8", "256"))
+        self.assertEqual(expr.text(), "(sext x 0x8 0x100)")
+        for source in (
+            "(rule (rewrite (Op.Sext (and x (integer_bits 8)) 8 256)) (Op.Zext x))",
+            "(rule (rewrite (Op.Trunc x 8)) (Op.Trunc x 16))",
+        ):
+            rule = self.verify(source)["rules"][0]
+            self.assertEqual(rule["status"], "counterexample", rule)
+            self.assertTrue(rule["replayed"])
 
     def test_actual_integer_and_pointer_cast_rules(self):
         path = ISLE / "egraph.isle"

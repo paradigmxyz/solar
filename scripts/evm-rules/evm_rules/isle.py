@@ -135,8 +135,23 @@ CALL_OPERANDS = {
 }
 
 
+SCALAR_SHAPES = {
+    **{
+        f"Op.{name}": (("operand0", "Value"),)
+        for name in ("Zext", "Bitcast", "IntToPtr")
+    },
+    **{
+        f"Op.{name}": (("operand0", "Value"), ("bits", "u32"))
+        for name in ("Trunc", "PtrToInt")
+    },
+    "Op.Sext": (("operand0", "Value"), ("from_bits", "u32"), ("to_bits", "u32")),
+    "Op.Ne": (("a", "Value"), ("b", "Value")),
+    "Op.Select": (("cond", "Value"), ("true_val", "Value"), ("false_val", "Value")),
+}
+
+
 class Context:
-    def __init__(self, selection_source=None):
+    def __init__(self, selection_source=None, schema_source=None):
         self.values = {}
         self.assumptions = []
         self.contracts = set()
@@ -147,76 +162,43 @@ class Context:
             if selection_source is not None
             else (ISLE / "select.isle").read_text()
         )
+        schema = forms(
+            schema_source
+            if schema_source is not None
+            else (ISLE / "prelude.isle").read_text()
+        )
+        self.shapes = {
+            "Op." + variant[0]: variant[1:]
+            for form, _ in schema
+            if form[:3] == ("type", "Op", "extern")
+            for variant in form[3][1:]
+        }
         self.fresh_id = 0
         self.memory = MemoryAddresses(self)
 
     def operation(self, name, args):
         if name.startswith("Op.") and name[3:].lower() in CALL_OPERANDS:
             opcode = name[3:].lower()
-            declarations = [
-                form[3][1:]
-                for form, _ in forms((ISLE / "prelude.isle").read_text())
-                if form[:3] == ("type", "Op", "extern")
-            ]
-            shapes = {
-                "Op." + variant[0]: variant[1:]
-                for variants in declarations
-                for variant in variants
-            }
             expected = tuple((field, "Value") for field in CALL_OPERANDS[opcode])
-            if shapes.get(name) != expected or len(args) != len(expected):
+            if self.shapes.get(name) != expected or len(args) != len(expected):
                 raise Unsupported(f"unmodeled or changed call operand schema: {name}")
             return Expr(opcode, tuple(args))
         if name in MemoryAddresses.SHAPES:
             # Semantic projections have no single-opcode selector. Check their
             # schema-generated field names/types before applying the model.
-            declarations = [
-                form[3][1:]
-                for form, _ in forms((ISLE / "prelude.isle").read_text())
-                if form[:3] == ("type", "Op", "extern")
-            ]
-            shapes = {
-                "Op." + variant[0]: variant[1:]
-                for variants in declarations
-                for variant in variants
-            }
-            if shapes.get(name) != MemoryAddresses.SHAPES[name]:
+            if self.shapes.get(name) != MemoryAddresses.SHAPES[name]:
                 raise Unsupported(f"unmodeled or changed memory address schema: {name}")
             return self.memory.operation(name, tuple(args))
-        if name in ("Op.Ne", "Op.Zext", "Op.Bitcast", "Op.IntToPtr"):
+        if name in SCALAR_SHAPES:
+            expected = SCALAR_SHAPES[name]
+            if self.shapes.get(name) != expected or len(args) != len(expected):
+                raise Unsupported(
+                    f"unmodeled or changed scalar operation schema: {name}"
+                )
             self.contracts.add(
-                f"{name}: trusted MIR word inequality or bit-preserving scalar cast"
+                f"{name}: MIR scalar word semantics; typing and pointer provenance remain trusted"
             )
-            if name == "Op.Ne" and len(args) == 2:
-                return Expr("ne", tuple(args))
-            if name in ("Op.Zext", "Op.Bitcast", "Op.IntToPtr") and len(args) == 1:
-                return args[0]
-            raise Unsupported(f"invalid scalar operation arity: {name}")
-        if name in ("Op.PtrToInt", "Op.Trunc"):
-            if len(args) != 2:
-                raise Unsupported("invalid narrowing cast arity")
-            value, bits = args
-            mask = Expr("sub", (Expr("shl", (bits, Expr.const(1))), Expr.const(1)))
-            self.contracts.add(f"{name}: truncate or zero-extend a 256-bit value")
-            return Expr("and", (value, mask))
-        if name == "Op.Sext":
-            if len(args) != 3:
-                raise Unsupported("invalid sign extension arity")
-            value, source, target = args
-            width = Expr.const(256)
-            capped = Expr("select", (Expr("lt", (source, width)), source, width))
-            shift = Expr("sub", (width, capped))
-            extended = Expr("sar", (shift, Expr("shl", (shift, value))))
-            mask = Expr("sub", (Expr("shl", (target, Expr.const(1))), Expr.const(1)))
-            self.contracts.add(
-                "Sext: sign-extend the source bit width and retain target bits"
-            )
-            return Expr("and", (extended, mask))
-        if name == "Op.Select":
-            self.contracts.add(
-                "Select: trusted MIR semantics select the true arm for any nonzero word"
-            )
-            return Expr("select", tuple(args))
+            return Expr(name[3:].lower(), tuple(args))
         binding = self.bindings.get(name)
         shape = {
             0: "OpcodeLowering.Nullary",

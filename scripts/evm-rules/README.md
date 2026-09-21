@@ -62,6 +62,20 @@ replayed in the concrete model. This checks the exported formulas with another
 solver, not the semantics that generated them or an independent proof
 certificate.
 
+## MIR cast representation
+
+The expression model keeps MIR casts as explicit `trunc`, `sext`, `zext`,
+`ptrtoint`, `inttoptr`, and `bitcast` nodes. The symbolic evaluator translates
+these nodes to bitvector formulas; a separate integer evaluator replays
+counterexamples. Width partitions cover both individual bit counts and the
+full saturating tail. The reader checks cast operand names, order, and kinds
+against the generated MIR schema before applying their semantics.
+
+This remains a 256-bit word model. It does not prove MIR type correctness,
+pointer provenance, or Rust analysis implementations. Bit-preserving casts
+rely on those compiler contracts; `integer_bits` constrains narrow values
+when rules request it. Proof reports record the trusted contracts used.
+
 ## CI and local cache
 
 CI runs one proof job on a larger Depot runner. On pull requests it runs the
