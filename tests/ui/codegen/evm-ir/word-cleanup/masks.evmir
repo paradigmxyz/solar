@@ -345,3 +345,18 @@ bb23:
   push 0
   mstore
   stop
+
+// An unconditional physical jump carries the mask to its target.
+bb24:
+  push 4
+  calldataload
+  push 255
+  and
+  push bb25
+  rjump
+  pop
+  stop
+bb25:
+  push 0
+  mstore
+  stop

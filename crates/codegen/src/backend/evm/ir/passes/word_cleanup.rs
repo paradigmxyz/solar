@@ -127,7 +127,10 @@ impl Graph {
                 || inst.has_raw_branch_target()
                 || inst.keeps_with_next()
                 || index > 0 && instructions[index - 1].keeps_with_next()
-                || matches!(inst.as_evm_opcode(), Some(op::GAS | op::PC | op::JUMPDEST))
+                || matches!(
+                    inst.as_evm_opcode(),
+                    Some(op::GAS | op::PC | op::JUMPDEST | op::JUMP | op::RJUMP)
+                )
             {
                 self.barrier();
                 continue;

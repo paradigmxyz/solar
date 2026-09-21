@@ -84,9 +84,8 @@
   
   fn @across_store(arg0: i256) -> i256 {
     bb0:
--     v0 = mul arg0, 9
+      v0 = mul arg0, 9
       sstore 0, arg0
-+     v0 = mul arg0, 9
       v1 = add v0, 7
       ret v1
   }

@@ -20,7 +20,8 @@
 //!
 //! In blocks of at most 128 instructions, single-use pure expressions may also
 //! sink across stores to their next use. Reads stay in their original order;
-//! only ordinary memory and storage writes may be crossed. Gas, memory-size,
+//! only ordinary memory and transient storage writes may be crossed. SSTORE
+//! stays ordered because its gas sentry can reject a low-gas call. Gas, memory-size,
 //! calls, control effects, logs, and overridden effects remain barriers. The
 //! same one-input pressure bound applies, and no instruction is duplicated.
 
@@ -194,10 +195,11 @@ fn run(func: &mut Function) -> bool {
 }
 
 fn movable_store(instruction: &crate::mir::Instruction) -> bool {
-    matches!(
-        instruction.kind,
-        InstKind::MStore(..) | InstKind::MStore8(..) | InstKind::SStore(..) | InstKind::TStore(..)
-    ) && instruction.metadata.effect().is_none_or(|effect| effect == instruction.kind.effect_kind())
+    matches!(instruction.kind, InstKind::MStore(..) | InstKind::MStore8(..) | InstKind::TStore(..))
+        && instruction
+            .metadata
+            .effect()
+            .is_none_or(|effect| effect == instruction.kind.effect_kind())
 }
 
 fn at_most_one_nonconstant_operand(func: &Function, kind: &InstKind) -> bool {

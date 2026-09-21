@@ -300,4 +300,17 @@
     push 0
     mstore
     stop
+  bb24:
+    push 4
+    calldataload
+    push 255
+    and
+    push bb25
+    rjump
+    pop
+    stop
+  bb25:
+    push 0
+    mstore
+    stop
   
