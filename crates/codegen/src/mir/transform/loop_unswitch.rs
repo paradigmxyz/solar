@@ -21,8 +21,8 @@
 //! an argument that duplicating arbitrary loops is profitable.
 
 use crate::mir::{
-    BlockId, EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType, Module,
-    Terminator, Value, ValueId,
+    BlockId, EffectKind, Function, Immediate, InstId, InstKind, MirType, Module, Terminator, Value,
+    ValueId,
     analysis::{Loop, LoopAnalyzer, LoopInfo},
     pass::{MirPass, ModuleAnalyses, run_function_pass},
 };
@@ -216,9 +216,7 @@ fn apply(func: &mut Function, candidate: Candidate) {
     for block in &candidate.blocks {
         let mut cloned = Vec::new();
         for inst in func.blocks[block].instructions.clone() {
-            let original = func.inst(inst);
-            let mut instruction = Instruction::new(original.kind.clone(), original.result_ty);
-            instruction.metadata.copy_debug_context(&original.metadata);
+            let instruction = func.inst(inst).clone_unallocated();
             let cloned_inst = if let Some(result) = func.inst_result_value(inst) {
                 let (cloned_inst, value) = func.alloc_value_inst(instruction);
                 values.insert(result, value);

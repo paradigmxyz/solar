@@ -250,9 +250,7 @@ fn apply(func: &mut Function, split: &Split) {
         let originals = func.blocks[block].instructions.clone();
         let mut instructions = Vec::with_capacity(originals.len());
         for inst in originals {
-            let original = func.inst(inst);
-            let mut instruction = Instruction::new(original.kind.clone(), original.result_ty);
-            instruction.metadata.copy_debug_context(&original.metadata);
+            let instruction = func.inst(inst).clone_unallocated();
             let cloned = if let Some(result) = func.inst_result_value(inst) {
                 let (cloned, cloned_result) = func.alloc_value_inst(instruction);
                 value_map.insert(result, cloned_result);

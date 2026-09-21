@@ -9,8 +9,17 @@
 //@ run-call: compute 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1 => 1
 //@ run-call-fail: compute 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call-fail: compute 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call: memoryResult 7, 0, 0 => [7]
+//@ run-call: memoryResult 7, 0, 20 => [4]
+//@ run-call: memoryResult 7, 2, 2 => [15]
 contract Unswitch {
-    function compute(uint256 a, uint256 b, uint256 iterations) external pure returns (uint256 value) {
+    function memoryResult(uint256 a, uint256 b, uint256 iterations)
+        external pure returns (uint256[1] memory)
+    {
+        return [compute(a, b, iterations)];
+    }
+
+    function compute(uint256 a, uint256 b, uint256 iterations) public pure returns (uint256 value) {
         value = a;
         for (uint256 i; i < iterations; ++i) {
             value = (value * b + a) / 2;
