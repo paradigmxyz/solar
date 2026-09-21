@@ -685,3 +685,43 @@
 +     ret v0
   }
   
+  fn @narrow_clz_upper_bound(arg0: i8) -> i1 {
+    bb0:
+      v0 = clz arg0
+-     v1 = lt v0, i8 9
+-     ret v1
++     ret true
+  }
+  
+  fn @narrow_clz_zero(arg0: i8) -> i1 {
+    bb0:
+      v0 = clz arg0
+-     v1 = gt v0, i8 7
++     v1 = eq arg0, i8 0
+      ret v1
+  }
+  
+  fn @narrow_clz_above_width(arg0: i8) -> i1 {
+    bb0:
+      v0 = clz arg0
+-     v1 = gt v0, i8 8
+-     ret v1
++     ret false
+  }
+  
+  fn @narrow_clz_divisor_above_width(arg0: i8) -> i8 {
+    bb0:
+      v0 = clz arg0
+-     v1 = div v0, i8 9
+-     ret v1
++     ret i8 0
+  }
+  
+  fn @narrow_clz_modulus_above_width(arg0: i8) -> i8 {
+    bb0:
+      v0 = clz arg0
+-     v1 = mod v0, i8 9
+-     ret v1
++     ret v0
+  }
+  
