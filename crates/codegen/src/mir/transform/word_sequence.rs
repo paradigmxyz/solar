@@ -91,7 +91,16 @@ fn removable(func: &Function, inst: &Instruction, target: Target) -> bool {
         .operands()
         .iter()
         .any(|&value| matches!(func.value_ty(value), Some(MirType::Int(bits)) if bits.get() != 256))
-        && !matches!(inst.kind, InstKind::Select(..))
+        && !matches!(
+            inst.kind,
+            InstKind::Select(..)
+                | InstKind::Eq(..)
+                | InstKind::Ne(..)
+                | InstKind::Lt(..)
+                | InstKind::Gt(..)
+        )
+        && !(inst.result_ty == Some(MirType::I1)
+            && matches!(inst.kind, InstKind::And(..) | InstKind::Or(..) | InstKind::Xor(..)))
     {
         return false;
     }
@@ -245,7 +254,10 @@ fn emit_recipe(
     // operands = zext i1 boolean_operands to i256
     // result = op operands
     // typed_result = cast result
-    let result = crate::mir::FunctionBuilder::new(func).emit_inst(kind, Some(ty));
+    let operation_ty = kind.op_def().result.default_type().unwrap_or(ty);
+    let mut builder = crate::mir::FunctionBuilder::new(func);
+    let result = builder.emit_inst(kind, Some(operation_ty));
+    let result = builder.cast(result, ty);
     let generated = func.blocks[block].instructions.split_off(start);
     for &inst in &generated {
         func.inst_mut(inst).metadata = metadata.clone();

@@ -25,10 +25,9 @@ fn @unconditional() -> i256 [selector=0x7d06b8f6, abi_params=[], abi_returns=[wo
     revert_returndata
   bb2:
     v12 = zext i160 v9 to i256
-    v13 = trunc i256 v12 to i160
-    v14 = zext i160 v13 to i256
-    v15 = extcodesize v14
-    ret v15
+    v13 = zext i160 v9 to i256
+    v14 = extcodesize v13
+    ret v14
 }
 
 fn @conditional(arg0: i256) -> i256 [selector=0x9077f189, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
@@ -55,10 +54,9 @@ fn @conditional(arg0: i256) -> i256 [selector=0x9077f189, abi_params=[bool], abi
     revert_returndata
   bb2:
     v15 = zext i160 v12 to i256
-    v16 = trunc i256 v15 to i160
-    v17 = zext i160 v16 to i256
-    v18 = extcodesize v17
-    ret v18
+    v16 = zext i160 v12 to i256
+    v17 = extcodesize v16
+    ret v17
 }
 
 fn @conditionalContinues() -> i256 [selector=0x828f9845, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -86,12 +84,11 @@ fn @conditionalContinues() -> i256 [selector=0x828f9845, abi_params=[], abi_retu
     revert_returndata
   bb2:
     v16 = zext i160 v13 to i256
-    v17 = trunc i256 v16 to i160
-    v18 = zext i160 v17 to i256
-    v19 = extcodesize v18
-    v20 = ne v19, 0
-    v21 = zext i1 v20 to i256
-    ret v21
+    v17 = zext i160 v13 to i256
+    v18 = extcodesize v17
+    v19 = ne v18, 0
+    v20 = zext i1 v19 to i256
+    ret v20
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopAlways ===

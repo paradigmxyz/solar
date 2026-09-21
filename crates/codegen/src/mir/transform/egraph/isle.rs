@@ -183,23 +183,15 @@ pub(in crate::mir::transform) fn max_bits_with_args(
         return 256;
     }
     let Some(kind) = defining_kind(func, value) else { return 256 };
+    if let Some(definition) = kind.evm_opcode().and_then(op::definition)
+        && definition.result_bits < 256
+    {
+        return u32::from(definition.result_bits);
+    }
     let bits = |value| max_bits_with_args(func, value, depth - 1, argument_bits);
     let shift = |shift| func.value_u256(shift).map(|shift| shift.min(U256::from(256)).to::<u32>());
     match *kind {
         InstKind::Zext(value) => bits(value),
-        InstKind::Ne(..)
-        | InstKind::Lt(..)
-        | InstKind::Gt(..)
-        | InstKind::SLt(..)
-        | InstKind::SGt(..)
-        | InstKind::Eq(..) => 1,
-        InstKind::Byte(..) => 8,
-        InstKind::Address
-        | InstKind::Caller
-        | InstKind::Origin
-        | InstKind::Coinbase
-        | InstKind::Create(..)
-        | InstKind::Create2(..) => 160,
         InstKind::And(a, b) => {
             let a = bits(a);
             if a == 0 { 0 } else { a.min(bits(b)) }
@@ -272,13 +264,6 @@ fn at_most(func: &Function, value: ValueId, bound: U256) -> bool {
 /// Returns whether the value carries the canonical boolean invariant.
 pub(in crate::mir::transform) fn is_bool_value(func: &Function, value: ValueId) -> bool {
     func.value_ty(value) == Some(crate::mir::MirType::I1)
-}
-
-/// Returns whether `value` fits in an address, including a widened i160.
-fn is_clean_address(func: &Function, value: ValueId) -> bool {
-    func.value_ty(value) == Some(crate::mir::MirType::I160)
-        || matches!(defining_kind(func, value), Some(InstKind::Zext(inner))
-            if func.value_ty(*inner) == Some(crate::mir::MirType::I160))
 }
 
 fn has_known_sign_bit(func: &Function, value: ValueId) -> bool {
@@ -363,7 +348,7 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn masks_clean_address(&mut self, mask: U256, value: Value) -> bool {
-        mask == UINT160_MASK && is_clean_address(self.func, value)
+        mask == UINT160_MASK && max_bits(self.func, value, MAX_BITS_DEPTH) <= 160
     }
 
     fn below_const(&mut self, value: Value, bound: U256) -> bool {

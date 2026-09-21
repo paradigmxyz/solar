@@ -73,18 +73,17 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v18 = eq v17, false
     v19 = and v16, v18
     v20 = zext i1 v19 to i256
-    v21 = ne v20, 0
-    jumpi v21, bb4, bb5
+    jumpi v19, bb4, bb5
   bb5:
-    v27 = ptrtoint memptr v10 to i256
-    revert v27, v11
+    v26 = ptrtoint memptr v10 to i256
+    revert v26, v11
   bb4:
-    v22 = memory_object_data memorybytes, v9
-    v23 = ptrtoint memptr v22 to i256
-    v24 = add v23, 4
-    v25 = make_memory_slice v24, 32
-    v26 = memory_slice_load_word memory, v25, 0
-    ret v26
+    v21 = memory_object_data memorybytes, v9
+    v22 = ptrtoint memptr v21 to i256
+    v23 = add v22, 4
+    v24 = make_memory_slice v23, 32
+    v25 = memory_slice_load_word memory, v24, 0
+    ret v25
   bb1:
     jump bb3
   bb3:
@@ -117,18 +116,17 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v18 = eq v17, false
     v19 = and v16, v18
     v20 = zext i1 v19 to i256
-    v21 = ne v20, 0
-    jumpi v21, bb4, bb5
+    jumpi v19, bb4, bb5
   bb5:
-    v27 = ptrtoint memptr v10 to i256
-    revert v27, v11
+    v26 = ptrtoint memptr v10 to i256
+    revert v26, v11
   bb4:
-    v22 = memory_object_data memorybytes, v9
-    v23 = ptrtoint memptr v22 to i256
-    v24 = add v23, 4
-    v25 = make_memory_slice v24, 32
-    v26 = memory_slice_load_word memory, v25, 0
-    ret v26
+    v21 = memory_object_data memorybytes, v9
+    v22 = ptrtoint memptr v21 to i256
+    v23 = add v22, 4
+    v24 = make_memory_slice v23, 32
+    v25 = memory_slice_load_word memory, v24, 0
+    ret v25
   bb1:
     jump bb3
   bb3:

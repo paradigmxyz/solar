@@ -616,7 +616,9 @@ fn append(func: &mut Function, block: BlockId, kind: InstKind, ty: Option<MirTyp
     let start = func.blocks[block].instructions.len();
     let mut builder = crate::mir::FunctionBuilder::new(func);
     builder.switch_to_block(block);
-    let value = builder.emit_inst(kind, ty);
+    let operation_ty = kind.op_def().result.default_type().or(ty);
+    let value = builder.emit_inst(kind, operation_ty);
+    let value = ty.map_or(value, |ty| builder.cast(value, ty));
     let insts = builder.func().blocks[block].instructions[start..].to_vec();
     for inst in insts {
         builder.func_mut().inst_mut(inst).metadata.mark_debug_info_dropped();

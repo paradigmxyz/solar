@@ -6,8 +6,7 @@
 -     v0 = inttoptr i256 arg0 to memorybytes
 -     v1 = memory_object_len memorybytes, v0
 +     v0 = inttoptr i256 arg0 to memptr
-+     v5 = ptrtoint memptr v0 to i256
-+     v1 = mload v5
++     v1 = mload arg0
       v2 = lt arg1, v1
       jumpi v2, bb1, bb2
     bb1:
@@ -25,8 +24,7 @@
 -     v0 = inttoptr i256 arg0 to memorybytes
 -     v1 = memory_object_len memorybytes, v0
 +     v0 = inttoptr i256 arg0 to memptr
-+     v5 = ptrtoint memptr v0 to i256
-+     v1 = mload v5
++     v1 = mload arg0
       v2 = lt arg1, v1
       jumpi v2, bb1, bb2
     bb1:
@@ -48,8 +46,7 @@
 -     v1 = inttoptr i256 arg0 to memorybytes
 -     v2 = memory_object_len memorybytes, v1
 +     v1 = inttoptr i256 arg0 to memptr
-+     v7 = ptrtoint memptr v1 to i256
-+     v2 = mload v7
++     v2 = mload arg0
       v3 = lt v0, v2
       jumpi v3, bb2, bb4
     bb4:
@@ -73,8 +70,7 @@
 -     v1 = inttoptr i256 arg0 to memorybytes
 -     v2 = memory_object_len memorybytes, v1
 +     v1 = inttoptr i256 arg0 to memptr
-+     v7 = ptrtoint memptr v1 to i256
-+     v2 = mload v7
++     v2 = mload arg0
       v3 = lt v0, v2
       jumpi v3, bb2, bb4
     bb4:
@@ -98,8 +94,7 @@
 -     v1 = inttoptr i256 arg0 to memorybytes
 -     v2 = memory_object_len memorybytes, v1
 +     v1 = inttoptr i256 arg0 to memptr
-+     v7 = ptrtoint memptr v1 to i256
-+     v2 = mload v7
++     v2 = mload arg0
       v3 = lt v0, v2
       jumpi v3, bb2, bb4
     bb4:
@@ -126,8 +121,7 @@
   fn @same_length(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = inttoptr i256 arg0 to memptr
-      v5 = ptrtoint memptr v0 to i256
-      v1 = mload v5
+      v1 = mload arg0
       v2 = lt arg1, v1
       jumpi v2, bb1, bb2
     bb1:
@@ -144,8 +138,7 @@
   fn @changed_length(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
       v0 = inttoptr i256 arg0 to memptr
-      v5 = ptrtoint memptr v0 to i256
-      v1 = mload v5
+      v1 = mload arg0
       v2 = lt arg1, v1
       jumpi v2, bb1, bb2
     bb1:
@@ -166,8 +159,7 @@
     bb1:
       v0 = phi [bb0: 0], [bb3: v6]
       v1 = inttoptr i256 arg0 to memptr
-      v7 = ptrtoint memptr v1 to i256
-      v2 = mload v7
+      v2 = mload arg0
       v3 = lt v0, v2
       jumpi v3, bb2, bb4
     bb4:
@@ -190,8 +182,7 @@
     bb1:
       v0 = phi [bb0: 0], [bb3: v6]
       v1 = inttoptr i256 arg0 to memptr
-      v7 = ptrtoint memptr v1 to i256
-      v2 = mload v7
+      v2 = mload arg0
       v3 = lt v0, v2
       jumpi v3, bb2, bb4
     bb4:
@@ -214,8 +205,7 @@
     bb1:
       v0 = phi [bb0: 0], [bb3: v6]
       v1 = inttoptr i256 arg0 to memptr
-      v7 = ptrtoint memptr v1 to i256
-      v2 = mload v7
+      v2 = mload arg0
       v3 = lt v0, v2
       jumpi v3, bb2, bb4
     bb4:
