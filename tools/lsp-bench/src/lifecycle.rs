@@ -10,6 +10,7 @@ use crate::{
         run_command_with_bounded_output,
     },
 };
+use alloy_primitives::hex;
 use anyhow::{Context, Result, bail};
 use serde::Serialize;
 use sha2::{Digest, Sha256};

@@ -17,10 +17,10 @@ categories.workspace = true
 workspace = true
 
 [dependencies]
+alloy-primitives.workspace = true
 anyhow = "1.0"
 clap = { workspace = true, features = ["derive"] }
 glob = "0.3"
-hex = "0.4"
 lsp-types.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde-saphyr = "1.2"
@@ -30,10 +30,12 @@ tempfile.workspace = true
 thiserror = "2.0"
 
 [build-dependencies]
-hex = "0.4"
+alloy-primitives.workspace = true
+digest-io = "0.1"
 sha2 = "0.11"
 
 [dev-dependencies]
+digest-io = "0.1"
 snapbox.workspace = true
 
 [target.'cfg(unix)'.dependencies]

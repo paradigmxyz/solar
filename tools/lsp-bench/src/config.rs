@@ -1,5 +1,6 @@
 //! Reproducible benchmark configuration.
 
+use alloy_primitives::hex;
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

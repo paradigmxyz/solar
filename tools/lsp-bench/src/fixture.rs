@@ -4,6 +4,7 @@ use crate::{
     config::{CompilerSpec, FixtureSpec, SourceSpec},
     lifecycle::{VERSION_PROBE_TIMEOUT, git_output, inspect_compiler_version},
 };
+use alloy_primitives::hex;
 use anyhow::{Context, Result, bail};
 use lsp_types::{Position, Url};
 use serde::{Deserialize, Serialize};

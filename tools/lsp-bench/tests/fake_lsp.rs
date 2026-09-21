@@ -1,5 +1,7 @@
 #![allow(unused_crate_dependencies)]
 
+use alloy_primitives::hex;
+use digest_io::IoWrapper;
 use serde::Serialize;
 use serde_json::Value;
 use serde_saphyr::SerializerOptions;
@@ -7,7 +9,7 @@ use sha2::{Digest, Sha256};
 use snapbox::{assert_data_eq, str};
 use std::{
     fs,
-    io::Read,
+    io::{self, Read},
     path::Path,
     process::{Command, ExitStatus},
 };
@@ -591,16 +593,9 @@ scenarios:
 
 fn sha256_path(path: &Path) -> String {
     let mut file = fs::File::open(path).unwrap();
-    let mut hasher = Sha256::new();
-    let mut buffer = [0; 64 * 1024];
-    loop {
-        let read = file.read(&mut buffer).unwrap();
-        if read == 0 {
-            break;
-        }
-        hasher.update(&buffer[..read]);
-    }
-    hex::encode(hasher.finalize())
+    let mut hasher = IoWrapper(Sha256::new());
+    io::copy(&mut file, &mut hasher).unwrap();
+    hex::encode(hasher.0.finalize())
 }
 
 #[test]
