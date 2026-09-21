@@ -4,6 +4,7 @@ use crate::{
     config::{CompilerSpec, FixtureSpec, SourceSpec},
     lifecycle::{VERSION_PROBE_TIMEOUT, git_output, inspect_compiler_version},
 };
+use alloy_primitives::hex;
 use anyhow::{Context, Result, bail};
 use lsp_types::{Position, Url};
 use serde::{Deserialize, Serialize};
@@ -437,7 +438,7 @@ fn fixture_content_sha256(root: &Path) -> Result<String> {
         hasher.update(contents.len().to_le_bytes());
         hasher.update(contents);
     }
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(hex::encode(hasher.finalize()))
 }
 
 fn visit_fixture_files(
@@ -469,7 +470,7 @@ fn compiler_file_sha256(path: Option<&Path>) -> Option<String> {
     let contents = fs::read(path).ok()?;
     let mut hasher = Sha256::new();
     hasher.update(contents);
-    Some(format!("{:x}", hasher.finalize()))
+    Some(hex::encode(hasher.finalize()))
 }
 
 fn verify_compiler_file_digest(

@@ -38,6 +38,7 @@ fn main() {
             prefix: manifest_dir.display().to_string(),
             name: "solar-codegen".into(),
         }],
+        ..Default::default()
     };
     for (name, files) in RULE_SETS {
         let inputs: Vec<PathBuf> = files.iter().map(|file| isle_dir.join(file)).collect();

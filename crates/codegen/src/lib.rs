@@ -7,6 +7,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(test, allow(unused_crate_dependencies))]
 
+extern crate alloc;
 extern crate derive_more as _;
 extern crate tracing as _;
 

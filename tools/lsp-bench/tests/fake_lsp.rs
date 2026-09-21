@@ -1,5 +1,7 @@
 #![allow(unused_crate_dependencies)]
 
+use alloy_primitives::hex;
+use digest_io::IoWrapper;
 use serde::Serialize;
 use serde_json::Value;
 use serde_saphyr::SerializerOptions;
@@ -591,9 +593,9 @@ scenarios:
 
 fn sha256_path(path: &Path) -> String {
     let mut file = fs::File::open(path).unwrap();
-    let mut hasher = Sha256::new();
+    let mut hasher = IoWrapper(Sha256::new());
     io::copy(&mut file, &mut hasher).unwrap();
-    format!("{:x}", hasher.finalize())
+    hex::encode(hasher.0.finalize())
 }
 
 #[test]
