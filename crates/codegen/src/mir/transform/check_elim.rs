@@ -72,6 +72,11 @@
 //! contains a strict edge. Exhausting this bound leaves the check in place; disequality is never
 //! treated as transitive.
 //!
+//! Signed comparisons rotate intervals by the sign bit to use the same ordered
+//! bounds. An interval crossing the rotation boundary widens to unknown; signed
+//! facts only become unsigned relations when both operands have the same known
+//! sign. These bounds use the existing join and dominance scopes.
+//!
 //! Runtime-only functions also use bounds from zero-extended immutable encodings.
 //! These bounds follow the target's actual immediate width, not the result's
 //! nominal type. Constructor-reachable functions, including helpers shared with
@@ -351,6 +356,16 @@ impl Range {
         let lo = self.lo.max(other.lo);
         let hi = self.hi.min(other.hi);
         (lo <= hi).then_some(Self { lo, hi })
+    }
+
+    /// Rotates unsigned order into signed order, or back, widening a split interval.
+    fn flip_sign(self) -> Self {
+        if self.lo.bit(255) == self.hi.bit(255) {
+            let sign = U256::from(1) << 255;
+            Self::new(self.lo ^ sign, self.hi ^ sign)
+        } else {
+            Self::FULL
+        }
     }
 
     fn union(self, other: Self) -> Self {
@@ -868,6 +883,8 @@ impl<'a> CheckEliminator<'a> {
             InstKind::Ne(a, b) => self.assume_eq(func, a, b, !truth, depth),
             InstKind::Lt(a, b) => self.assume_lt(func, a, b, truth, depth),
             InstKind::Gt(a, b) => self.assume_lt(func, b, a, truth, depth),
+            InstKind::SLt(a, b) => self.assume_slt(func, a, b, truth, depth),
+            InstKind::SGt(a, b) => self.assume_slt(func, b, a, truth, depth),
             InstKind::Eq(a, b) => self.assume_eq(func, a, b, truth, depth),
             // `sub a, b` is nonzero iff `a != b`.
             InstKind::Sub(a, b) | InstKind::Xor(a, b) => self.assume_eq(func, a, b, !truth, depth),
@@ -906,6 +923,35 @@ impl<'a> CheckEliminator<'a> {
             self.narrow(a, Range::new(lo_b, U256::MAX));
             let hi_a = self.range_of(func, a, depth).hi;
             self.narrow(b, Range::new(U256::ZERO, hi_a));
+        }
+    }
+
+    /// Refines signed bounds without treating a cross-sign comparison as unsigned.
+    fn assume_slt(&mut self, func: &Function, a: ValueId, b: ValueId, truth: bool, depth: usize) {
+        let ra = self.range_of(func, a, depth);
+        let rb = self.range_of(func, b, depth);
+        if ra.lo.bit(255) == ra.hi.bit(255)
+            && rb.lo.bit(255) == rb.hi.bit(255)
+            && ra.lo.bit(255) == rb.lo.bit(255)
+        {
+            self.assume_lt(func, a, b, truth, depth);
+            return;
+        }
+        let ra = ra.flip_sign();
+        let rb = rb.flip_sign();
+        let (a_limit, b_limit) = if truth {
+            (
+                Range::new(U256::ZERO, rb.hi.saturating_sub(U256::from(1))),
+                Range::new(ra.lo.saturating_add(U256::from(1)), U256::MAX),
+            )
+        } else {
+            (Range::new(rb.lo, U256::MAX), Range::new(U256::ZERO, ra.hi))
+        };
+        if let Some(range) = ra.intersect(a_limit) {
+            self.narrow(a, range.flip_sign());
+        }
+        if let Some(range) = rb.intersect(b_limit) {
+            self.narrow(b, range.flip_sign());
         }
     }
 
@@ -1341,6 +1387,8 @@ impl<'a> CheckEliminator<'a> {
         match *kind {
             InstKind::Lt(a, b) => self.eval_lt(func, a, b, depth),
             InstKind::Gt(a, b) => self.eval_lt(func, b, a, depth),
+            InstKind::SLt(a, b) => self.eval_slt(func, a, b, depth),
+            InstKind::SGt(a, b) => self.eval_slt(func, b, a, depth),
             InstKind::Eq(a, b) => self.eval_eq(func, a, b, depth),
             InstKind::Ne(a, b) => self.eval_eq(func, a, b, depth).map(|truth| !truth),
             InstKind::Sub(a, b) | InstKind::Xor(a, b) => {
@@ -1385,6 +1433,30 @@ impl<'a> CheckEliminator<'a> {
                 }
                 None
             }
+        }
+    }
+
+    /// Evaluates signed order using bounds rotated by the sign bit.
+    fn eval_slt(&mut self, func: &Function, a: ValueId, b: ValueId, depth: usize) -> Option<bool> {
+        if a == b {
+            return Some(false);
+        }
+        let ra = self.range_of(func, a, depth);
+        let rb = self.range_of(func, b, depth);
+        if ra.lo.bit(255) == ra.hi.bit(255)
+            && rb.lo.bit(255) == rb.hi.bit(255)
+            && ra.lo.bit(255) == rb.lo.bit(255)
+        {
+            return self.eval_lt(func, a, b, depth);
+        }
+        let ra = ra.flip_sign();
+        let rb = rb.flip_sign();
+        if ra.hi < rb.lo {
+            Some(true)
+        } else if ra.lo >= rb.hi {
+            Some(false)
+        } else {
+            None
         }
     }
 

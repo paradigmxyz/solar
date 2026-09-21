@@ -80,23 +80,22 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     icall panic_if<0x32>, v53
     v54 = memory_object_load_element memoryarray<1>, v23, v25
     v55 = inttoptr i256 v54 to memoryarray
-    v56 = ptrtoint memoryarray v55 to i256
-    v57 = eq v56, 0
-    jumpi v57, bb10, bb11
+    v56 = eq v54, 0
+    jumpi v56, bb10, bb11
   bb10:
-    v58 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v58, 0
-    v59 = ptrtoint memoryarray v58 to i256
-    memory_object_store_element memoryarray<1>, v23, v25, v59
+    v57 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v57, 0
+    v58 = ptrtoint memoryarray v57 to i256
+    memory_object_store_element memoryarray<1>, v23, v25, v58
     jump bb11
   bb11:
-    v60 = phi [bb5: v55], [bb10: v58]
-    v61 = memory_object_len memoryarray, v60
-    v62 = lt v22, v61
-    v63 = eq v62, false
-    icall panic_if<0x32>, v63
-    v64 = memory_object_load_element memoryarray<1>, v60, v22
-    ret v64
+    v59 = phi [bb5: v55], [bb10: v57]
+    v60 = memory_object_len memoryarray, v59
+    v61 = lt v22, v60
+    v62 = eq v61, false
+    icall panic_if<0x32>, v62
+    v63 = memory_object_load_element memoryarray<1>, v59, v22
+    ret v63
   bb7:
     v29 = mul v21, 1
     v30 = eq 1, 0
@@ -185,23 +184,22 @@ fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_p
     icall panic_if<0x32>, v25
     v26 = memory_object_load_element memoryarray<1>, v16, arg1
     v27 = inttoptr i256 v26 to memoryfixedarray
-    v28 = ptrtoint memoryfixedarray v27 to i256
-    v29 = eq v28, 0
-    jumpi v29, bb4, bb5
+    v28 = eq v26, 0
+    jumpi v28, bb4, bb5
   bb4:
-    v30 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
-    v31 = ptrtoint memoryfixedarray v30 to i256
-    memory_zero v31, 128
-    v32 = ptrtoint memoryfixedarray v30 to i256
-    memory_object_store_element memoryarray<1>, v16, arg1, v32
+    v29 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
+    v30 = ptrtoint memoryfixedarray v29 to i256
+    memory_zero v30, 128
+    v31 = ptrtoint memoryfixedarray v29 to i256
+    memory_object_store_element memoryarray<1>, v16, arg1, v31
     jump bb5
   bb5:
-    v33 = phi [bb3: v27], [bb4: v30]
-    v34 = lt 0, 4
-    v35 = eq v34, false
-    icall panic_if<0x32>, v35
-    v36 = memory_object_load_element memoryfixedarray<4, 1>, v33, 0
-    ret v36
+    v32 = phi [bb3: v27], [bb4: v29]
+    v33 = lt 0, 4
+    v34 = eq v33, false
+    icall panic_if<0x32>, v34
+    v35 = memory_object_load_element memoryfixedarray<4, 1>, v32, 0
+    ret v35
   bb2:
     v19 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
     v20 = ptrtoint memoryfixedarray v19 to i256

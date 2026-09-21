@@ -268,18 +268,17 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     v6 = gt v5, arg1
     v7 = or v4, v6
     v8 = zext i1 v7 to i256
-    v9 = ne v8, 0
-    jumpi v9, bb3, bb2
+    jumpi v7, bb3, bb2
   bb2:
-    v10 = add v2, v3
-    v11 = mload v10
-    v12 = gt v11, 0xffffffffffffffff
-    v13 = sub arg1, v5
-    v14 = gt v11, v13
-    v15 = or v12, v14
-    v16 = zext i1 v15 to i256
-    v17 = eq v16, 0
-    ret v17
+    v9 = add v2, v3
+    v10 = mload v9
+    v11 = gt v10, 0xffffffffffffffff
+    v12 = sub arg1, v5
+    v13 = gt v10, v12
+    v14 = or v11, v13
+    v15 = zext i1 v14 to i256
+    v16 = eq v15, 0
+    ret v16
   bb3:
     ret false
 }

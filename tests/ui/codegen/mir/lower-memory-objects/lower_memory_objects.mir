@@ -63,8 +63,8 @@ fn @raw_pointer(arg0: i256) -> memorybytes {
 // CHECK-LABEL: {{^[ +].*}}fn @word_carrier{{[( ]}}
 // CHECK: {{^[ +].*}}[[POINTER:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} arg0
 // CHECK: + [[OBJECT_POINTER:v[0-9]+]] = inttoptr i256 [[POINTER]] to memptr
-// CHECK: + [[LOAD_POINTER:v[0-9]+]] = ptrtoint memptr [[OBJECT_POINTER]] to i256
-// CHECK: + {{v[0-9]+}} = mload [[LOAD_POINTER]]
+// CHECK-NOT: + {{.*}}ptrtoint
+// CHECK: + {{v[0-9]+}} = mload [[POINTER]]
 fn @word_carrier(arg0: memorystruct) -> i256 {
   bb0:
     v0 = ptrtoint memorystruct arg0 to i256
