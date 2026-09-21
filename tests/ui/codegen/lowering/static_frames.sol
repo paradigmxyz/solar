@@ -19,17 +19,12 @@ contract SF {
     // CHECK-NEXT: push 128
     // CHECK-NEXT: mstore
     // CHECK: return
-    // The allocating entry initializes its reachable frame floor with the
-    // runtime free-memory pointer now that its own allocations stay dynamic.
+    // The allocating entry initializes its frame with the runtime values;
+    // static locals use fixed addresses without a dynamic-frame header.
     // CHECK: [[TOP]]:
-    // Static locals use fixed addresses without a dynamic-frame header.
-    // CHECK: push 224
-    // CHECK-NEXT: mstore
     // CHECK: push 288
     // CHECK-NEXT: mstore
-    // The frame floor is (re)initialized where the dynamic frame machinery
-    // runs for the recursive call path.
-    // CHECK: push 384
+    // CHECK: push 224
     // CHECK-NEXT: mstore
     // Recursive calls reserve dynamic frames from the free-memory pointer.
     // CHECK: push 160

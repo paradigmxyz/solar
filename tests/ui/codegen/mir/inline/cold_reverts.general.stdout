@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/inline/cold_reverts.mir (before inline) ===
 + // === ROOT/tests/ui/codegen/mir/inline/cold_reverts.mir (after inline) ===
   @module FailureEdges
-  fn @first(arg0: u256) -> u256 [selector=0x01020304] {
+  fn @first(arg0: i256) -> i256 [selector=0x01020304] {
     bb0:
 -     v0 = icall @checked, arg0
 -     v1 = add v0, 1
@@ -20,7 +20,7 @@
       ret v1
   }
   
-  fn @second(arg0: u256) -> u256 [selector=0x01020305] {
+  fn @second(arg0: i256) -> i256 [selector=0x01020305] {
     bb0:
 -     v0 = icall @checked, arg0
 -     v1 = xor v0, 1
@@ -39,7 +39,7 @@
       ret v1
   }
   
-  fn @checked(arg0: u256) -> u256 {
+  fn @checked(arg0: i256) -> i256 {
     bb0:
       v0 = lt arg0, 32
       jumpi v0, bb1, bb2
@@ -56,14 +56,14 @@
       revert 0, 32
   }
   
-  fn @returning_caller(arg0: u256) -> u256 [selector=0x01020306] {
+  fn @returning_caller(arg0: i256) -> i256 [selector=0x01020306] {
     bb0:
       v0 = icall @returning_guard, arg0
       v1 = add v0, 1
       ret v1
   }
   
-  fn @returning_guard(arg0: u256) -> u256 {
+  fn @returning_guard(arg0: i256) -> i256 {
     bb0:
       v0 = lt arg0, 32
       jumpi v0, bb1, bb2
@@ -73,18 +73,18 @@
       ret arg0
   }
   
-  fn @returns() -> u256 {
+  fn @returns() -> i256 {
     bb0:
       ret 99
   }
   
-  fn @argument_caller(arg0: u256) -> u256 [selector=0x01020307] {
+  fn @argument_caller(arg0: i256) -> i256 [selector=0x01020307] {
     bb0:
       v0 = icall @argument_guard, arg0
       ret v0
   }
   
-  fn @argument_guard(arg0: u256) -> u256 {
+  fn @argument_guard(arg0: i256) -> i256 {
     bb0:
       v0 = lt arg0, 32
       jumpi v0, bb1, bb2
@@ -94,13 +94,13 @@
       ret arg0
   }
   
-  fn @argument_failure(arg0: u256) {
+  fn @argument_failure(arg0: i256) {
     bb0:
       mstore 0, arg0
       revert 0, 32
   }
   
-  fn @loop_caller(arg0: u256) -> u256 [selector=0x01020308] {
+  fn @loop_caller(arg0: i256) -> i256 [selector=0x01020308] {
     bb0:
       jump bb1
     bb1:

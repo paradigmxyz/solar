@@ -7,9 +7,9 @@
 // CHECK: + [[INLINED:v[0-9]+]] = add arg0, 1
 // CHECK: + {{v[0-9]+}} = phi [bb13: [[INLINED]]]
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
-fn @single_large_caller(arg0: u256) -> u256 {
+fn @single_large_caller(arg0: i256) -> i256 {
   bb0:
     v1 = icall fn1, arg0
     ret v1
@@ -17,7 +17,7 @@ fn @single_large_caller(arg0: u256) -> u256 {
 
 // More than the normal 10-block cap, but it has exactly one call site and the
 // original callee body disappears after function-dce.
-fn @single_large_callee(arg0: u256) -> u256 {
+fn @single_large_callee(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -49,15 +49,16 @@ fn @single_large_callee(arg0: u256) -> u256 {
 // CHECK: - {{.*}}icall @multi_return_callee
 // CHECK: + {{v[0-9]+}} = phi [bb2: {{v[0-9]+}}]
 // CHECK: + {{v[0-9]+}} = phi [bb2: {{v[0-9]+}}]
-fn @multi_return_caller(arg0: u256) -> u256 {
+fn @multi_return_caller(arg0: i256) -> i256 {
   bb0:
     v1 = icall fn3, arg0
     v2 = mload 32
-    v3 = add v1, v2
+    v4 = bitcast i256 v1 to i256
+    v3 = add v4, v2
     ret v3
 }
 
-fn @multi_return_callee(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
+fn @multi_return_callee(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
   bb0:
     v1 = add arg0, 1
     v2 = add arg0, 2
@@ -69,24 +70,24 @@ fn @multi_return_callee(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
 // still cloned; the storage writes repeat in order at each call site.
 // CHECK: + sstore 0, arg0
 // CHECK: + sstore 0, arg1
-fn @tiny_stateful_caller(arg0: u256, arg1: u256) {
+fn @tiny_stateful_caller(arg0: i256, arg1: i256) {
   bb0:
     icall fn5, arg0
     icall fn5, arg1
     stop
 }
 
-fn @tiny_stateful_callee(arg0: u256) {
+fn @tiny_stateful_callee(arg0: i256) {
   bb0:
     sstore 0, arg0
     ret
 }
 
-// Duplicating the long chain of branches does not repay its deposit cost
-// under the conservative scalar call protocol, even at a tail-like site.
+// A shared callee above the ordinary 10-block cap inlines at only its most
+// tail-like call site, even when the less profitable site appears first.
 // CHECK-LABEL: {{^[ +].*}}fn @large_shared_nontail{{[( ]}}
 // CHECK: {{^[ +].*}}icall @large_shared_callee
-fn @large_shared_nontail(arg0: u256) -> u256 {
+fn @large_shared_nontail(arg0: i256) -> i256 {
   bb0:
     v1 = icall fn8, arg0
     v2 = add v1, 1
@@ -96,13 +97,13 @@ fn @large_shared_nontail(arg0: u256) -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @large_shared_tail{{[( ]}}
 // CHECK: {{^ +}}{{v[0-9]+}} = icall @large_shared_callee
-fn @large_shared_tail(arg0: u256) -> u256 {
+fn @large_shared_tail(arg0: i256) -> i256 {
   bb0:
     v1 = icall fn8, arg0
     ret v1
 }
 
-fn @large_shared_callee(arg0: u256) -> u256 {
+fn @large_shared_callee(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:

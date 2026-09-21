@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/inline/shared_revert.sol:GuardedCalls ===
 @module GuardedCalls
-fn @first(arg0: u256) -> u256 [selector=0x0b3f62f5, pure, abi_params=[u256], abi_returns=[word]] {
+fn @first(arg0: i256) -> i256 [selector=0x0b3f62f5, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @left, arg0
     v1 = icall @right, arg0
@@ -8,7 +8,7 @@ fn @first(arg0: u256) -> u256 [selector=0x0b3f62f5, pure, abi_params=[u256], abi
     ret v2
 }
 
-fn @second(arg0: u256) -> u256 [selector=0x7896dfe3, pure, abi_params=[u256], abi_returns=[word]] {
+fn @second(arg0: i256) -> i256 [selector=0x7896dfe3, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @right, arg0
     v1 = icall @left, arg0
@@ -16,7 +16,7 @@ fn @second(arg0: u256) -> u256 [selector=0x7896dfe3, pure, abi_params=[u256], ab
     ret v2
 }
 
-fn @sum(arg0: u256) -> u256 [selector=0x188b85b4, pure, abi_params=[u256], abi_returns=[word]] {
+fn @sum(arg0: i256) -> i256 [selector=0x188b85b4, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -44,19 +44,19 @@ fn @sum(arg0: u256) -> u256 [selector=0x188b85b4, pure, abi_params=[u256], abi_r
     jump bb1
 }
 
-fn @left(arg0: u256) -> u256 [pure] {
+fn @left(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = lt arg0, 32
-    v1 = iszero v0
+    v1 = eq v0, false
     icall panic_if<0x1>, v1
     v2 = add arg0, 1
     ret v2
 }
 
-fn @right(arg0: u256) -> u256 [pure] {
+fn @right(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = lt arg0, 64
-    v1 = iszero v0
+    v1 = eq v0, false
     icall panic_if<0x1>, v1
     v2 = mul arg0, 2
     ret v2

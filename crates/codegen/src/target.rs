@@ -856,7 +856,7 @@ mod tests {
             args: SmallVec::new(),
         });
         assert_eq!(target.code_estimate(&function), Cost::new(11, 4));
-        let arg = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(42))));
+        let arg = function.alloc_value(Value::Immediate(Immediate::I256(U256::from(42))));
         // tail_call @payload, 42 => push 42; push label(payload); jump
         function.blocks[BlockId::ENTRY].set_generated_terminator(Terminator::TailCall {
             function: FunctionId::from_usize(1),

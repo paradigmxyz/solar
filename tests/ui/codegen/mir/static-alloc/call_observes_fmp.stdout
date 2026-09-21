@@ -1,52 +1,59 @@
 - // === ROOT/tests/ui/codegen/mir/static-alloc/call_observes_fmp.mir (before storage-promotion) ===
 + // === ROOT/tests/ui/codegen/mir/static-alloc/call_observes_fmp.mir (after storage-promotion) ===
   @module StaticAllocCallObservesFmp
-  fn @observing_caller() -> bool [selector=0x01020304] {
+  fn @observing_caller() -> i1 [selector=0x01020304] {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 7
-      v1 = icall @observes, v0
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 7
+      v2 = icall @observes, v1
+      v3 = ne v2, false
+      ret v3
   }
   
-  fn @forwarding_caller() -> bool [selector=0x01020305] {
+  fn @forwarding_caller() -> i1 [selector=0x01020305] {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 7
-      v1 = icall @forwards, v0
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 7
+      v2 = icall @forwards, v1
+      v3 = ne v2, false
+      ret v3
   }
   
-  fn @dereferencing_caller() -> u256 [selector=0x01020306] {
+  fn @dereferencing_caller() -> i256 [selector=0x01020306] {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 7
-      v1 = icall @dereferences, v0
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 7
+      v2 = icall @dereferences, v1
+      ret v2
   }
   
-  fn @msize_caller() -> u256 [selector=0x01020307] {
+  fn @msize_caller() -> i256 [selector=0x01020307] {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 7
-      v1 = icall @measures, v0
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 7
+      v2 = icall @measures, v1
+      ret v2
   }
   
-  fn @observes(arg0: memptr) -> bool {
+  fn @observes(arg0: i256) -> i1 {
     bb0:
       v0 = mload 64
       v1 = lt arg0, v0
       ret v1
   }
   
-  fn @forwards(arg0: memptr) -> bool {
+  fn @forwards(arg0: i256) -> i1 {
     bb0:
       v0 = icall @observes, arg0
-      ret v0
+      v1 = ne v0, false
+      ret v1
   }
   
-  fn @dereferences(arg0: memptr) -> u256 {
+  fn @dereferences(arg0: i256) -> i256 {
     bb0:
       v0 = mload 64
       v1 = mload arg0
@@ -54,7 +61,7 @@
       ret v2
   }
   
-  fn @measures(arg0: memptr) -> u256 {
+  fn @measures(arg0: i256) -> i256 {
     bb0:
       v0 = msize
       v1 = mload arg0
@@ -84,74 +91,83 @@
       jump bb1
   }
   
-  fn @iterating_caller() -> u256 [selector=0x01020309] {
+  fn @iterating_caller() -> i256 [selector=0x01020309] {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 7
-      v1 = icall @iterates, v0
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 7
+      v2 = icall @iterates, v1
+      ret v2
   }
   
-  fn @iterates(arg0: memptr) -> u256 {
+  fn @iterates(arg0: i256) -> i256 {
     bb0:
       v0 = mload 64
       mstore v0, 1
       v1 = add arg0, 32
       v2 = lt arg0, v1
       v3 = mload arg0
-      v4 = add v2, v3
-      ret v4
+      v4 = zext i1 v2 to i256
+      v5 = add v4, v3
+      ret v5
   }
   
 - // === ROOT/tests/ui/codegen/mir/static-alloc/call_observes_fmp.mir (before static-alloc) ===
 + // === ROOT/tests/ui/codegen/mir/static-alloc/call_observes_fmp.mir (after static-alloc) ===
   @module StaticAllocCallObservesFmp
-  fn @observing_caller() -> bool [selector=0x01020304] {
+  fn @observing_caller() -> i1 [selector=0x01020304] {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 7
-      v1 = icall @observes, v0
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 7
+      v2 = icall @observes, v1
+      v3 = ne v2, false
+      ret v3
   }
   
-  fn @forwarding_caller() -> bool [selector=0x01020305] {
+  fn @forwarding_caller() -> i1 [selector=0x01020305] {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 7
-      v1 = icall @forwards, v0
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 7
+      v2 = icall @forwards, v1
+      v3 = ne v2, false
+      ret v3
   }
   
-  fn @dereferencing_caller() -> u256 [selector=0x01020306] {
+  fn @dereferencing_caller() -> i256 [selector=0x01020306] {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 7
-      v1 = icall @dereferences, v0
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 7
+      v2 = icall @dereferences, v1
+      ret v2
   }
   
-  fn @msize_caller() -> u256 [selector=0x01020307] {
+  fn @msize_caller() -> i256 [selector=0x01020307] {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 7
-      v1 = icall @measures, v0
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 7
+      v2 = icall @measures, v1
+      ret v2
   }
   
-  fn @observes(arg0: memptr) -> bool {
+  fn @observes(arg0: i256) -> i1 {
     bb0:
       v0 = mload 64
       v1 = lt arg0, v0
       ret v1
   }
   
-  fn @forwards(arg0: memptr) -> bool {
+  fn @forwards(arg0: i256) -> i1 {
     bb0:
       v0 = icall @observes, arg0
-      ret v0
+      v1 = ne v0, false
+      ret v1
   }
   
-  fn @dereferences(arg0: memptr) -> u256 {
+  fn @dereferences(arg0: i256) -> i256 {
     bb0:
       v0 = mload 64
       v1 = mload arg0
@@ -159,7 +175,7 @@
       ret v2
   }
   
-  fn @measures(arg0: memptr) -> u256 {
+  fn @measures(arg0: i256) -> i256 {
     bb0:
       v0 = msize
       v1 = mload arg0
@@ -186,22 +202,24 @@
       jump bb1
   }
   
-  fn @iterating_caller() -> u256 [selector=0x01020309] {
+  fn @iterating_caller() -> i256 [selector=0x01020309] {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 7
-      v1 = icall @iterates, v0
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 7
+      v2 = icall @iterates, v1
+      ret v2
   }
   
-  fn @iterates(arg0: memptr) -> u256 {
+  fn @iterates(arg0: i256) -> i256 {
     bb0:
       v0 = mload 64
       mstore v0, 1
       v1 = add arg0, 32
       v2 = lt arg0, v1
       v3 = mload arg0
-      v4 = add v2, v3
-      ret v4
+      v4 = zext i1 v2 to i256
+      v5 = add v4, v3
+      ret v5
   }
   

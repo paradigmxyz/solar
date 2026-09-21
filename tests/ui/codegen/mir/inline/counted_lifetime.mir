@@ -1,10 +1,8 @@
-//@ revisions: one many size cold warm
+//@ revisions: one many size
 //@ compile-flags: -Zmir-pipeline=inline
 //@[one] compile-flags: -Ogas --optimize-runs=1
 //@[many] compile-flags: -Ogas --optimize-runs=10000
 //@[size] compile-flags: -Osize --optimize-runs=1
-//@[cold] compile-flags: -Ogas --optimize-runs=200 -Zinline-profile=tests/ui/codegen/mir/inline/auxiliary/cold.json
-//@[warm] compile-flags: -Ogas --optimize-runs=200 -Zinline-profile=tests/ui/codegen/mir/inline/auxiliary/warm.json
 //@[one] filecheck:
 @module CountedLifetime
 

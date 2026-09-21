@@ -7,21 +7,22 @@
 // CHECK-LABEL: (after inline)
 // CHECK: fn @first
 // CHECK: {{^ +}}{{v[0-9]+}} = icall @helper, arg0
-fn @first(arg0: u256) -> u256 [selector=0x00000001] {
+fn @first(arg0: i256) -> i256 [selector=0x00000001] {
   bb0:
     v0 = icall @helper, 0, arg0
     ret v0
 }
 // CHECK: fn @second
 // CHECK: {{^ +}}{{v[0-9]+}} = icall @helper, arg0
-fn @second(arg0: u256) -> u256 [selector=0x00000002] {
+fn @second(arg0: i256) -> i256 [selector=0x00000002] {
   bb0:
     v0 = icall @helper, 0, arg0
     ret v0
 }
-fn @helper(arg0: u256, arg1: u256) -> u256 {
+fn @helper(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    jumpi arg0, bb1, bb2
+    v2 = ne arg0, 0
+    jumpi v2, bb1, bb2
   bb1:
     v0 = mul arg1, arg1
     ret v0

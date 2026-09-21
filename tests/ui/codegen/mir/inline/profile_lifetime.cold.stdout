@@ -1,19 +1,19 @@
 - // === ROOT/tests/ui/codegen/mir/inline/profile_lifetime.mir (before inline) ===
 + // === ROOT/tests/ui/codegen/mir/inline/profile_lifetime.mir (after inline) ===
   @module ProfileLifetime
-  fn @cold(arg0: u256) -> u256 [selector=0x01020304] {
+  fn @cold(arg0: i256) -> i256 [selector=0x01020304] {
     bb0:
       v0 = icall @helper, arg0
       ret v0
   }
   
-  fn @conditional(arg0: u256) -> u256 [selector=0x01020305] {
+  fn @conditional(arg0: i256) -> i256 [selector=0x01020305] {
     bb0:
       v0 = icall @helper, arg0
       ret v0
   }
   
-  fn @helper(arg0: u256) -> u256 {
+  fn @helper(arg0: i256) -> i256 {
     bb0:
       v0 = add arg0, 1
       v1 = xor v0, 2

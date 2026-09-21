@@ -1,4 +1,4 @@
-//@ compile-flags: -Zmir-pipeline=inline -Ogas -Zinline-profile=tests/ui/codegen/mir/inline/auxiliary/invalid.json
+//@ compile-flags: -Zmir-pipeline=inline -Ogas -Zinline-profile=auxiliary/invalid.json
 //~? ERROR: invalid inline profile
 @module InvalidProfile
 fn @entry() [selector=0x01020304] {

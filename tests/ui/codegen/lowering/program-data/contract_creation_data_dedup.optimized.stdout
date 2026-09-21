@@ -67,8 +67,8 @@ bb6:
   push 0
   swap 1
   mstore
-  push 32
-  dup 4
+  push 64
+  dup 5
   add
   dup 3
   dup 5
@@ -125,7 +125,7 @@ bb26 [cold]:
   push 0
   revert
 bb6:
-  push 192
+  push 160
   dup 1
   push 64
   mstore
@@ -148,8 +148,6 @@ bb6:
   push 0
   create
   dup 1
-  push 160
-  mstore
   iszero
   push bb26
   jumpi
@@ -169,11 +167,11 @@ bb6:
   push 0
   push 4
   dup 4
-  push 160
-  mload
+  dup 6
   gas
   staticcall
-  swap 1
+  swap 2
+  pop
   pop
   iszero
   push bb26
@@ -185,13 +183,13 @@ bb6:
   jumpi
   push 0
   mload
-  push 0
+  push 128
   mstore
   push 32
-  push 0
+  push 128
   return
 bb18:
-  push 224
+  push 192
   dup 1
   push 64
   mstore
@@ -214,8 +212,6 @@ bb18:
   push 0
   create
   dup 1
-  push 160
-  mstore
   iszero
   push bb26
   jumpi
@@ -240,8 +236,6 @@ bb18:
   push 0
   create
   dup 1
-  push 192
-  mstore
   iszero
   push bb26
   jumpi
@@ -261,12 +255,14 @@ bb18:
   push 0
   push 4
   dup 4
-  push 160
-  mload
+  dup 7
   gas
   staticcall
-  swap 1
+  swap 3
   pop
+  pop
+  push 160
+  mstore
   iszero
   push bb26
   jumpi
@@ -293,7 +289,7 @@ bb18:
   push 0
   push 4
   dup 4
-  push 192
+  push 160
   mload
   gas
   staticcall
@@ -332,4 +328,4 @@ bb27 [cold]:
   push 28
   revert
 
-@data Child_initcode_0 hex"34600d5760ee8060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b60808060405260a081016040528081526020810181606e823981151560071b601f8101601f19168083015f9052602083018284825e5060208452915260400181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+@data Child_initcode_0 hex"34600d5760ee8060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b60808060405260a081016040528081526020810181606e823981151560071b601f8101601f19168083015f9052604084018284825e5060208452915260400181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"

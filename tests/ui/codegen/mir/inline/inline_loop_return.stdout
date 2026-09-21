@@ -1,33 +1,38 @@
 - // === ROOT/tests/ui/codegen/mir/inline/inline_loop_return.mir (before inline) ===
 + // === ROOT/tests/ui/codegen/mir/inline/inline_loop_return.mir (after inline) ===
   @module InlineLoopReturn
-  fn @caller() -> u256 [selector=0x01020304] {
+  fn @caller() -> i256 [selector=0x01020304] {
     bb0:
       v0 = icall @callee, 4
       v1 = add v0, 1
       ret v1
   }
   
-  fn @callee(arg0: u256) -> u256 {
+  fn @callee(arg0: i256) -> i256 {
     bb0:
       v0 = internal_frame_addr 128
-      mstore v0, 0
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 0
       jump bb1
     bb1:
-      v1 = internal_frame_addr 128
-      v2 = mload v1
-      v3 = lt v2, arg0
-      jumpi v3, bb2, bb3
+      v2 = internal_frame_addr 128
+      v3 = ptrtoint memptr v2 to i256
+      v4 = mload v3
+      v5 = lt v4, arg0
+      jumpi v5, bb2, bb3
     bb3:
-      v8 = internal_frame_addr 128
-      v9 = mload v8
-      ret v9
+      v12 = internal_frame_addr 128
+      v13 = ptrtoint memptr v12 to i256
+      v14 = mload v13
+      ret v14
     bb2:
-      v4 = internal_frame_addr 128
-      v5 = mload v4
-      v6 = add v5, 1
-      v7 = internal_frame_addr 128
-      mstore v7, v6
+      v6 = internal_frame_addr 128
+      v7 = ptrtoint memptr v6 to i256
+      v8 = mload v7
+      v9 = add v8, 1
+      v10 = internal_frame_addr 128
+      v11 = ptrtoint memptr v10 to i256
+      mstore v11, v9
       jump bb1
   }
   

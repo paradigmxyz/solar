@@ -104,6 +104,7 @@ use solar_data_structures::{
     map::FxHashMap,
 };
 use solar_sema::Gcx;
+use std::path::Path;
 
 /// Module pass for metadata-backed MIR inlining.
 pub(crate) struct Inline;
@@ -1403,12 +1404,24 @@ fn summarize_function(
 /// Loads per-deployment caller counts. Reject malformed entries instead of
 /// silently compiling with a partial or ignored profile. Zero is a cold caller.
 fn load_inline_profile(gcx: Gcx<'_>, path: &str) -> Result<FxHashMap<String, u64>, String> {
-    let text = gcx
-        .sess
-        .source_map()
-        .file_loader()
-        .load_file(path.as_ref())
-        .map_err(|error| error.to_string())?;
+    let loader = gcx.sess.source_map().file_loader();
+    // Resolve like a source path: a relative profile path is taken from the
+    // primary file's directory (the UI harness runs the compiler from a
+    // different working directory), falling back to the working directory.
+    let text = match loader.load_file(path.as_ref()) {
+        Ok(text) => text,
+        Err(_) => {
+            let primary = gcx
+                .sess
+                .source_map()
+                .files()
+                .first()
+                .and_then(|file| file.name.as_real().map(Path::new).map(Path::to_path_buf))
+                .ok_or_else(|| format!("cannot resolve `{path}`"))?;
+            let primary_dir = primary.parent().unwrap_or(Path::new("."));
+            loader.load_file(&primary_dir.join(path)).map_err(|error| error.to_string())?
+        }
+    };
     serde_json::from_str(&text).map_err(|error| error.to_string())
 }
 
