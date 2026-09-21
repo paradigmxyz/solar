@@ -126,7 +126,8 @@ the first screen.
 The measured combination adds SCCP/CFG cleanup after memory-copy lowering, one
 terminal-deduplication/CFG/tail-merging/CFG sweep before constant packing, final
 block CSE and peepholes, and size-only block/terminal layout after the last local
-rewrites. All transforms already exist.
+rewrites. All transforms already exist. The size-only adapter shares the underlying
+pass's unchanged-result cache entry; adapters that add rewrites stay distinct.
 
 | Runtime corpus metric | Gas objective | Size objective |
 | --- | ---: | ---: |

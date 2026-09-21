@@ -4,8 +4,9 @@
 //! transforms live in their own modules so their implementation and invariants
 //! remain local, matching the organization of the MIR transforms.
 //! Within a pipeline run, a pass that reported no change need not repeat until
-//! another pass changes the module. The cache uses the pass type, name, and an
-//! explicit configuration key so differently configured adapters stay distinct.
+//! another pass changes the module. The cache uses the transform identity, name, and an
+//! explicit configuration key. Gating-only adapters share the underlying identity;
+//! adapters that add rewrites stay distinct.
 //! A changing pass clears the cache; no pass is assumed to reach a fixed point.
 
 mod block_cse;
@@ -61,6 +62,11 @@ pub trait EvmPass: Any + Sync {
         false
     }
 
+    /// Pass identity for caching unchanged runs. Gating-only adapters may forward this.
+    fn cache_type_id(&self) -> TypeId {
+        self.type_id()
+    }
+
     /// Stable discriminator for configured instances of the same pass type and name.
     fn cache_config(&self) -> u64 {
         0
@@ -80,7 +86,7 @@ struct PassCacheKey {
 
 impl PassCacheKey {
     fn new(pass: &dyn EvmPass) -> Self {
-        Self { type_id: pass.type_id(), name: pass.name(), config: pass.cache_config() }
+        Self { type_id: pass.cache_type_id(), name: pass.name(), config: pass.cache_config() }
     }
 }
 
@@ -124,6 +130,10 @@ impl<P: EvmPass> EvmPass for SizeOnly<P> {
 
     fn is_required(&self) -> bool {
         self.0.is_required()
+    }
+
+    fn cache_type_id(&self) -> TypeId {
+        self.0.cache_type_id()
     }
 
     fn cache_config(&self) -> u64 {
@@ -391,6 +401,11 @@ mod tests {
         assert_ne!(final_pushes, expressions);
         assert_ne!(ordinary, expressions);
         assert_eq!(ordinary, PassCacheKey::new(&reorder_pushes::REORDER_PUSHES));
+
+        assert_eq!(
+            PassCacheKey::new(&block_layout::BlockLayout),
+            PassCacheKey::new(&SizeOnly(block_layout::BlockLayout)),
+        );
 
         let dce_with_cleanup = peephole::Cleanup(dce::Dce);
         assert_ne!(PassCacheKey::new(&dce::Dce), PassCacheKey::new(&dce_with_cleanup));
