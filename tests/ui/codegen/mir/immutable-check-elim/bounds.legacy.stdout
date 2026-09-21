@@ -30,18 +30,20 @@
   fn @bounded() -> i256 {
     bb0:
       v0 = loadimmutable small
-      v1 = add v0, 1
-      v2 = lt v1, v0
-      jumpi v2, bb1, bb2
+      v1 = zext i64 v0 to i256
+      v2 = add v1, 1
+      v3 = lt v2, v1
+      jumpi v3, bb1, bb2
     bb2:
-      ret v1
+      ret v2
     bb1:
       revert 0, 0
   }
   
   fn @constructor(arg0: i256) [constructor] {
     bb0:
-      storeimmutable small, arg0
+      v0 = trunc i256 arg0 to i64
+      storeimmutable small, v0
       icall @bridge
       stop
   }
@@ -54,9 +56,10 @@
   fn @shared() {
     bb0:
       v0 = loadimmutable small
-      v1 = add v0, 1
-      v2 = lt v1, v0
-      jumpi v2, bb1, bb2
+      v1 = zext i64 v0 to i256
+      v2 = add v1, 1
+      v3 = lt v2, v1
+      jumpi v3, bb1, bb2
     bb2:
       stop
     bb1:
@@ -66,11 +69,12 @@
   fn @signed_value() -> i256 {
     bb0:
       v0 = loadimmutable signed
-      v1 = add v0, 1
-      v2 = lt v1, v0
-      jumpi v2, bb1, bb2
+      v1 = sext i64 v0 to i256
+      v2 = add v1, 1
+      v3 = lt v2, v1
+      jumpi v3, bb1, bb2
     bb2:
-      ret v1
+      ret v2
     bb1:
       revert 0, 0
   }
@@ -90,11 +94,12 @@
   fn @unrooted() -> i256 {
     bb0:
       v0 = loadimmutable small
-      v1 = add v0, 1
-      v2 = lt v1, v0
-      jumpi v2, bb1, bb2
+      v1 = zext i64 v0 to i256
+      v2 = add v1, 1
+      v3 = lt v2, v1
+      jumpi v3, bb1, bb2
     bb2:
-      ret v1
+      ret v2
     bb1:
       revert 0, 0
   }
@@ -103,10 +108,17 @@
     bb0:
       v0 = address
       v1 = zext i160 v0 to i256
-      storeimmutable clean_address, v1
-      storeimmutable dirty_address, 0x10000000000000000000000000000000000000007
-      storeimmutable repeated, 1
-      storeimmutable repeated, 0x10000
+-     storeimmutable clean_address, v1
+-     storeimmutable dirty_address, 0x10000000000000000000000000000000000000007
+-     storeimmutable repeated, 1
+-     storeimmutable repeated, 0x10000
++     storeimmutable clean_address, v0
++     v2 = trunc i256 0x10000000000000000000000000000000000000007 to i168
++     storeimmutable dirty_address, v2
++     v3 = trunc i256 1 to i24
++     storeimmutable repeated, v3
++     v4 = trunc i256 0x10000 to i24
++     storeimmutable repeated, v4
       storeimmutable unknown, arg0
       icall @assign_called, 7
       icall @assign_called, 0xffff
@@ -115,7 +127,9 @@
   
   fn @assign_called(arg0: i256) {
     bb0:
-      storeimmutable called, arg0
+-     storeimmutable called, arg0
++     v0 = trunc i256 arg0 to i16
++     storeimmutable called, v0
       ret
   }
   

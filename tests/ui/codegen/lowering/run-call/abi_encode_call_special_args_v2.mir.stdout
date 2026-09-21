@@ -20,7 +20,7 @@ fn @fUint(arg0: i256, arg1: i256) -> struct0 [selector=0x432672b2, abi_params=[u
     ret v1
 }
 
-fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode [], object, selector 0x1af9358100000000000000000000000000000000000000000000000000000000
     v1 = keccak256_bytes v0
@@ -51,6 +51,5 @@ fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<
     jump bb6
   bb6:
     v16 = phi [bb4: v15], [bb5: false]
-    v17 = zext i1 v16 to i256
-    ret v17
+    ret v16
 }

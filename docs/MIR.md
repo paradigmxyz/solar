@@ -15,26 +15,22 @@ An `i256` carries 256 bits; source widths, signedness, and ABI encoding rules
 belong to operation and layout metadata. An `i256` argument does not imply
 heap provenance or non-wrapping address arithmetic. `void` denotes no function result.
 
-Integer type names follow `iN`, where `N` ranges from 1 to 4294967295. All
-widths can appear in MIR text; typed literals currently hold at most 256 bits.
-Widths `i1` through `i256` support arithmetic and explicit conversions. Values
-always fit their declared width; arithmetic wraps at that width and signed
-operations interpret its top bit as the sign bit. Shifts saturate and division
-by zero returns zero, as in EVM word arithmetic. Operands must have the same
-type, including shift counts. Wider types remain syntax-only.
+Integer types are `i1` and byte widths `i8`, `i16`, …, `i256`. Solidity
+`uintN` and `intN` both become `iN`; signedness belongs to the operation.
+Every integer is a clean bit pattern with no set bits above its width.
+Arithmetic wraps at that width, shifts saturate, and division follows EVM's
+zero-divisor semantics. Checked Solidity arithmetic retains its explicit
+width and panic behavior.
 
-`lower-integers` legalizes `i2` through `i255` to `i256` within MIR, after ABI
-and memory lowering. It expands truncation, sign extension, and narrow arithmetic
-into masks, word operations, and comparisons; subsequent scalar optimization
-removes redundant conversions before EVM IR. Byte-aligned sign extension uses
-`signextend`; other widths use shifts. `i1` remains the branch condition type.
-MIR input also accepts `--emit=bin,bin-runtime`; `run-call` fixtures execute
-these artifacts through the usual runtime harness. MIR supplies no Solidity ABI,
-so these fixtures use raw calldata.
+`lower-integers` legalizes narrow arithmetic and conversions to `i256` before
+EVM-shaped MIR. It materializes masks and sign extension as MIR operations,
+then the scalar passes optimize them before stack scheduling. `i1` remains
+the branch condition type.
 
-Source lowering still uses word carriers where Solidity assembly can observe
-dirty bits; ABI widths and signedness remain explicit layout metadata.
-Signedness belongs to operations, not integer types.
+Source bindings exposed to inline assembly use explicit `i256` carriers where
+raw upper bits must survive copies and internal calls. Typed Solidity uses
+convert these carriers to their native types. ABI and memory layout metadata
+retain signedness and storage widths independently of SSA types.
 
 Every `i1` is zero or one. Branches and select conditions require `i1`;
 compare a word with zero using `eq value, 0` or `ne value, 0` before branching.

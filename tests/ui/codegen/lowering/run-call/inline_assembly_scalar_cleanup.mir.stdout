@@ -1,104 +1,122 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/inline_assembly_scalar_cleanup.sol:InlineAssemblyScalarCleanup ===
 @module InlineAssemblyScalarCleanup
 types:
-  struct0: {i256, i256, i256, i256, i256, i256}
-  struct1: {i256, i256}
+  struct0: {i8, i8, i8, i8, i8, i8}
+  struct1: {i1, i1, i1, i1, i1, i1}
+  struct2: {i256, i256}
+  struct3: {i16, i256}
 
 fn @arithmetic() -> struct0 [selector=0x980a67fd, pure, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>, word<u8>, word<u8>], abi_return_params=[u8, u8, u8, u8, u8, u8]] {
   bb0:
-    v0 = and 257, 255
-    v1 = checked_add u8, v0, 0
-    v2 = and 257, 255
-    v3 = checked_mul u8, v2, 1
-    v4 = and 257, 255
-    v5 = checked_div u8, v4, 1
-    v6 = and 257, 255
-    v7 = checked_rem u8, v6, 2
-    v8 = and 257, 255
-    v9 = shl 0, v8
-    v10 = and v9, 255
-    v11 = and 257, 255
-    v12 = shr 1, v11
-    v13 = insert_value struct0, undef struct0, 0, v1
-    v14 = insert_value struct0, v13, 1, v3
-    v15 = insert_value struct0, v14, 2, v5
-    v16 = insert_value struct0, v15, 3, v7
-    v17 = insert_value struct0, v16, 4, v10
-    v18 = insert_value struct0, v17, 5, v12
-    ret v18
+    v0 = trunc i256 257 to i8
+    v1 = trunc i256 0 to i8
+    v2 = checked_add u8, v0, v1
+    v3 = trunc i256 257 to i8
+    v4 = trunc i256 1 to i8
+    v5 = checked_mul u8, v3, v4
+    v6 = trunc i256 257 to i8
+    v7 = trunc i256 1 to i8
+    v8 = checked_div u8, v6, v7
+    v9 = trunc i256 257 to i8
+    v10 = trunc i256 2 to i8
+    v11 = checked_rem u8, v9, v10
+    v12 = trunc i256 257 to i8
+    v13 = trunc i256 0 to i8
+    v14 = shl v13, v12
+    v15 = trunc i256 257 to i8
+    v16 = trunc i256 1 to i8
+    v17 = shr v16, v15
+    v18 = insert_value struct0, undef struct0, 0, v2
+    v19 = insert_value struct0, v18, 1, v5
+    v20 = insert_value struct0, v19, 2, v8
+    v21 = insert_value struct0, v20, 3, v11
+    v22 = insert_value struct0, v21, 4, v14
+    v23 = insert_value struct0, v22, 5, v17
+    ret v23
 }
 
-fn @comparisons() -> struct0 [selector=0x6cf2b655, pure, abi_params=[], abi_returns=[word<bool>, word<bool>, word<bool>, word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool, bool, bool, bool]] {
+fn @comparisons() -> struct1 [selector=0x6cf2b655, pure, abi_params=[], abi_returns=[word<bool>, word<bool>, word<bool>, word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool, bool, bool, bool]] {
   bb0:
-    v0 = and 257, 255
-    v1 = eq v0, 1
-    v2 = and 257, 255
-    v3 = ne v2, 1
-    v4 = and 257, 255
-    v5 = lt v4, 1
-    v6 = eq v5, false
-    v7 = and 257, 255
-    v8 = gt v7, 0
+    v0 = trunc i256 257 to i8
+    v1 = trunc i256 1 to i8
+    v2 = eq v0, v1
+    v3 = trunc i256 257 to i8
+    v4 = trunc i256 1 to i8
+    v5 = ne v3, v4
+    v6 = trunc i256 257 to i8
+    v7 = trunc i256 1 to i8
+    v8 = lt v6, v7
     v9 = eq v8, false
-    v10 = and 257, 255
-    v11 = gt v10, 0
-    v12 = and 257, 255
-    v13 = lt v12, 1
-    v14 = zext i1 v1 to i256
-    v15 = zext i1 v3 to i256
-    v16 = zext i1 v6 to i256
-    v17 = zext i1 v9 to i256
-    v18 = zext i1 v11 to i256
-    v19 = zext i1 v13 to i256
-    v20 = insert_value struct0, undef struct0, 0, v14
-    v21 = insert_value struct0, v20, 1, v15
-    v22 = insert_value struct0, v21, 2, v16
-    v23 = insert_value struct0, v22, 3, v17
-    v24 = insert_value struct0, v23, 4, v18
-    v25 = insert_value struct0, v24, 5, v19
+    v10 = trunc i256 257 to i8
+    v11 = trunc i256 0 to i8
+    v12 = gt v10, v11
+    v13 = eq v12, false
+    v14 = trunc i256 257 to i8
+    v15 = trunc i256 0 to i8
+    v16 = gt v14, v15
+    v17 = trunc i256 257 to i8
+    v18 = trunc i256 1 to i8
+    v19 = lt v17, v18
+    v20 = insert_value struct1, undef struct1, 0, v2
+    v21 = insert_value struct1, v20, 1, v5
+    v22 = insert_value struct1, v21, 2, v9
+    v23 = insert_value struct1, v22, 3, v13
+    v24 = insert_value struct1, v23, 4, v16
+    v25 = insert_value struct1, v24, 5, v19
     ret v25
 }
 
-fn @increments() -> struct1 [selector=0x56aa2dc5, pure, abi_params=[], abi_returns=[word<u8>, word<u8>], abi_return_params=[u8, u8]] {
+fn @increments() -> struct2 [selector=0x56aa2dc5, pure, abi_params=[], abi_returns=[word<u8>, word<u8>], abi_return_params=[u8, u8]] {
   bb0:
-    v0 = and 256, 255
-    v1 = checked_add u8, v0, 1
-    v2 = and 256, 255
-    v3 = checked_add u8, v2, 1
-    v4 = insert_value struct1, undef struct1, 0, v1
-    v5 = insert_value struct1, v4, 1, v2
-    ret v5
+    v0 = trunc i256 256 to i8
+    v1 = trunc i256 1 to i8
+    v2 = checked_add u8, v0, v1
+    v3 = trunc i256 256 to i8
+    v4 = trunc i256 1 to i8
+    v5 = checked_add u8, v3, v4
+    v6 = zext i8 v2 to i256
+    v7 = zext i8 v3 to i256
+    v8 = insert_value struct2, undef struct2, 0, v6
+    v9 = insert_value struct2, v8, 1, v7
+    ret v9
 }
 
 fn @decrements() -> i256 [selector=0xa1d28959, pure, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = not 255
-    v1 = and v0, 255
-    v2 = checked_sub u8, v1, 1
-    ret v2
+    v1 = trunc i256 v0 to i8
+    v2 = trunc i256 1 to i8
+    v3 = checked_sub u8, v1, v2
+    v4 = zext i8 v3 to i256
+    ret v4
 }
 
 fn @negation() -> i256 [selector=0x336c96f8, pure, abi_params=[], abi_returns=[word<i8>], abi_return_params=[i8]] {
   bb0:
-    v0 = signextend 0, 128
-    v1 = checked_sub i8, 0, v0
-    ret v1
+    v0 = trunc i256 128 to i8
+    v1 = trunc i256 0 to i8
+    v2 = checked_sub i8, v1, v0
+    v3 = sext i8 v2 to i256
+    ret v3
 }
 
-fn @wideningConversions() -> struct1 [selector=0x06a404a3, pure, abi_params=[], abi_returns=[word<u16>, word], abi_return_params=[u16, u256]] {
+fn @wideningConversions() -> struct3 [selector=0x06a404a3, pure, abi_params=[], abi_returns=[word<u16>, word], abi_return_params=[u16, u256]] {
   bb0:
-    v0 = and 0x12345678, 255
-    v1 = and 0x12345678, 255
-    v2 = icall @widen, v1
-    v3 = insert_value struct1, undef struct1, 0, v0
-    v4 = insert_value struct1, v3, 1, v2
-    ret v4
+    v0 = trunc i256 0x12345678 to i8
+    v1 = zext i8 v0 to i16
+    v2 = trunc i256 0x12345678 to i8
+    v3 = zext i8 v2 to i256
+    v4 = icall @widen, v3
+    v5 = insert_value struct3, undef struct3, 0, v1
+    v6 = insert_value struct3, v5, 1, v4
+    ret v6
 }
 
 fn @explicitWideningReturn() -> i256 [selector=0xbd2ce75e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = and 0x12345678, 255
-    ret v0
+    v0 = trunc i256 0x12345678 to i8
+    v1 = zext i8 v0 to i256
+    ret v1
 }
 
 fn @implicitReturn() -> i256 [selector=0xf8438e3d, pure, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
@@ -111,7 +129,9 @@ fn @invalidEnum() -> i256 [selector=0xb65e9efe, pure, abi_params=[], abi_returns
     v0 = lt 2, 2
     v1 = eq v0, false
     icall panic_if<0x21>, v1
-    v2 = eq 2, 0
+    v2 = trunc i256 0 to i8
+    v3 = zext i8 v2 to i256
+    v4 = eq 2, v3
     ret 2
 }
 
@@ -120,12 +140,12 @@ fn @assemblyRead() -> i256 [selector=0x4f21d5c0, pure, abi_params=[], abi_return
     ret 257
 }
 
-fn @internalArguments() -> struct1 [selector=0xd0754141, pure, abi_params=[], abi_returns=[word<u8>, word<u8>], abi_return_params=[u8, u8]] {
+fn @internalArguments() -> struct2 [selector=0xd0754141, pure, abi_params=[], abi_returns=[word<u8>, word<u8>], abi_return_params=[u8, u8]] {
   bb0:
     v0 = icall @dirtyNot, 0x4200
     v1 = icall @dirtyNot, 0x4200
-    v2 = insert_value struct1, undef struct1, 0, v0
-    v3 = insert_value struct1, v2, 1, v1
+    v2 = insert_value struct2, undef struct2, 0, v0
+    v3 = insert_value struct2, v2, 1, v1
     ret v3
 }
 

@@ -24,7 +24,7 @@ fn @testFlags() -> i256 [selector=0x74da97f7, pure, abi_params=[], abi_returns=[
     ret v7
 }
 
-fn @testTypedConstant() -> i256 [selector=0x62655512, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @testTypedConstant() -> i1 [selector=0x62655512, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @auth
     v1 = memory_object_load_field memorystruct<6>, v0, 0
@@ -38,8 +38,7 @@ fn @testTypedConstant() -> i256 [selector=0x62655512, pure, abi_params=[], abi_r
     v8 = and v7, 0x100000000000000000000000000000000000000000000000000000000000000
     v9 = and v8, 0xff00000000000000000000000000000000000000000000000000000000000000
     v10 = eq v9, 0x100000000000000000000000000000000000000000000000000000000000000
-    v11 = zext i1 v10 to i256
-    ret v11
+    ret v10
 }
 
 fn @auth() -> memorystruct [pure] {

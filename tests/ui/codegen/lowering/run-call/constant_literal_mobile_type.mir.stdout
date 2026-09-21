@@ -25,7 +25,8 @@ fn @mixedAdd() -> i256 [selector=0xc34d9d84, pure, abi_params=[], abi_returns=[w
     ret 264
 }
 
-fn @mixedU16() -> i256 [selector=0xef4076d3, pure, abi_params=[], abi_returns=[word<u16>], abi_return_params=[u16]] {
+fn @mixedU16() -> i16 [selector=0xef4076d3, pure, abi_params=[], abi_returns=[word<u16>], abi_return_params=[u16]] {
   bb0:
-    ret 0xffff
+    v0 = trunc i256 0xffff to i16
+    ret v0
 }

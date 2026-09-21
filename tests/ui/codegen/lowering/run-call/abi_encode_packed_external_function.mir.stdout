@@ -5,18 +5,17 @@ fn @target() [selector=0xd4b83992, abi_params=[], abi_returns=[], abi_return_par
     ret
 }
 
-fn @matches() -> i256 [selector=0x55590d58, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @matches() -> i1 [selector=0x55590d58, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
     v2 = shl 32, v1
     v3 = or v2, 0xd4b83992
-    v4 = keccak256_packed (u192 v3)
-    v5 = address
-    v6 = and 0xd4b8399200000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v7 = zext i160 v5 to i256
-    v8 = keccak256_packed (u160 v7, bytes4 v6)
-    v9 = eq v4, v8
-    v10 = zext i1 v9 to i256
-    ret v10
+    v4 = trunc i256 v3 to i192
+    v5 = keccak256_packed (u192 v4)
+    v6 = address
+    v7 = and 0xd4b8399200000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v8 = keccak256_packed (u160 v6, bytes4 v7)
+    v9 = eq v5, v8
+    ret v9
 }

@@ -7,22 +7,23 @@
 fn @viaMethod(arg0: i256, arg1: i256) -> i256 [selector=0x36245213, pure, abi_params=[bytes32, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
+    v1 = trunc i256 0 to i32
+    v2 = zext i32 v1 to i256
     memory_object_store_field memorystruct<4>, v0, 0, arg0
-    memory_object_store_field memorystruct<4>, v0, 1, 0
+    memory_object_store_field memorystruct<4>, v0, 1, v2
     memory_object_store_field memorystruct<4>, v0, 2, 0
     memory_object_store_field memorystruct<4>, v0, 3, arg1
-    v1 = icall @hashLib, v0
-    ret v1
+    v3 = icall @hashLib, v0
+    ret v3
 }
 
 fn @hashLib(arg0: memorystruct) -> i256 [pure] {
   bb0:
     v0 = memory_object_load_field memorystruct<4>, arg0, 0
     v1 = memory_object_load_field memorystruct<4>, arg0, 1
-    v2 = and v1, 0xffffffff
-    v3 = and v2, 0xffffffff
-    v4 = memory_object_load_field memorystruct<4>, arg0, 2
-    v5 = memory_object_load_field memorystruct<4>, arg0, 3
-    v6 = keccak256_packed (data hex"78", bytes32 v0, u32 v3, u256 v4, bytes32 v5)
-    ret v6
+    v2 = trunc i256 v1 to i32
+    v3 = memory_object_load_field memorystruct<4>, arg0, 2
+    v4 = memory_object_load_field memorystruct<4>, arg0, 3
+    v5 = keccak256_packed (data hex"78", bytes32 v0, u32 v2, u256 v3, bytes32 v4)
+    ret v5
 }

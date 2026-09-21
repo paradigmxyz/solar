@@ -26,9 +26,10 @@ fn @selectorCompare() -> i256 [selector=0x3c3fb316, pure, abi_params=[], abi_ret
 
 fn @narrowMask() -> i256 [selector=0x14c62240, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = and 0x1ffffffff, 0xffffffff
-    v1 = eq v0, 0xffffffff
-    icall require<short_string>, v1, 4, 0x6d61736b00000000000000000000000000000000000000000000000000000000
+    v0 = trunc i256 0x1ffffffff to i32
+    v1 = trunc i256 0xffffffff to i32
+    v2 = eq v0, v1
+    icall require<short_string>, v2, 4, 0x6d61736b00000000000000000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -45,13 +46,15 @@ fn @boolNorm() -> i256 [selector=0x3d176e51, pure, abi_params=[], abi_returns=[w
 
 fn @signedExtend() -> i256 [selector=0xae58e3e0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = signextend 2, 0x800000
+    v0 = trunc i256 0x800000 to i24
     v1 = sub 0, 0x800000
-    v2 = eq v0, v1
-    icall require<short_string>, v2, 7, 0x7369676e65787400000000000000000000000000000000000000000000000000
-    v3 = signextend 2, 0x800000
-    v4 = slt v3, 0
-    icall require<short_string>, v4, 3, 0x6e65670000000000000000000000000000000000000000000000000000000000
+    v2 = trunc i256 v1 to i24
+    v3 = eq v0, v2
+    icall require<short_string>, v3, 7, 0x7369676e65787400000000000000000000000000000000000000000000000000
+    v4 = trunc i256 0x800000 to i24
+    v5 = trunc i256 0 to i24
+    v6 = slt v4, v5
+    icall require<short_string>, v6, 3, 0x6e65670000000000000000000000000000000000000000000000000000000000
     ret 1
 }
 

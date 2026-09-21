@@ -250,24 +250,21 @@ impl LoopAnalyzer {
         }
     }
 
-    /// Recognizes full-word recurrences on paths where the update succeeds. Checked updates
+    /// Recognizes integer recurrences on paths where the update succeeds. Checked updates
     /// keep their failure effects; this does not prove that an update can move or disappear.
-    /// Narrow and signed arithmetic require separate cleanup and range reasoning.
     fn induction_step(
         &self,
         func: &Function,
         phi_val: ValueId,
         step_val: ValueId,
     ) -> Option<(InstId, ValueId, bool)> {
-        if func.value_ty(step_val) != Some(crate::mir::MirType::I256) {
-            return None;
-        }
+        let bits = func.value_ty(step_val)?.integer_bits()?;
         let Value::Inst(inst_id) = *func.value(step_val) else { return None };
         match func.inst(inst_id).kind {
             InstKind::Add(a, b)
             | InstKind::CheckedBinary {
                 op: CheckedOp::Add,
-                arithmetic: ArithmeticKind::Unsigned(256),
+                arithmetic: ArithmeticKind::Unsigned(_),
                 lhs: a,
                 rhs: b,
             } if a == phi_val || b == phi_val => {
@@ -277,14 +274,14 @@ impl LoopAnalyzer {
                 // descending so trip-count and range reasoning bail out.
                 let descending = matches!(
                     func.value(step),
-                    Value::Immediate(imm) if imm.as_u256().is_some_and(|v| v.bit(255))
+                    Value::Immediate(imm) if imm.as_u256().is_some_and(|v| v.bit((bits - 1) as usize))
                 );
                 Some((inst_id, step, descending))
             }
             InstKind::Sub(a, b)
             | InstKind::CheckedBinary {
                 op: CheckedOp::Sub,
-                arithmetic: ArithmeticKind::Unsigned(256),
+                arithmetic: ArithmeticKind::Unsigned(_),
                 lhs: a,
                 rhs: b,
             } if a == phi_val => Some((inst_id, b, true)),
@@ -383,6 +380,16 @@ impl LoopAnalyzer {
             } else {
                 ((diff - alloy_primitives::U256::from(1)) / step) + alloy_primitives::U256::from(1)
             };
+            let bits =
+                func.value_ty(iv.value).and_then(crate::mir::MirType::integer_bits).unwrap_or(256);
+            let max = alloy_primitives::U256::MAX >> (256 - bits);
+            if trip
+                .checked_mul(step)
+                .and_then(|travel| init.checked_add(travel))
+                .is_none_or(|end| end > max)
+            {
+                return;
+            }
             loop_info.trip_count = trip.try_into().ok();
             loop_info.trip_guard_is_header =
                 loop_info.trip_count.is_some() && guard_block == loop_info.header;

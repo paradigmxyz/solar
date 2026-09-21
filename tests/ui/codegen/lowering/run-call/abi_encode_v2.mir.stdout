@@ -117,7 +117,7 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     ret v18
 }
 
-fn @literalRemainsLive() -> i256 [selector=0x8eddb2e8, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @literalRemainsLive() -> i1 [selector=0x8eddb2e8, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = abi_encode [memory_bytes], object, args v0
@@ -132,8 +132,7 @@ fn @literalRemainsLive() -> i256 [selector=0x8eddb2e8, pure, abi_params=[], abi_
     jump bb3
   bb3:
     v6 = phi [bb1: v5], [bb2: false]
-    v7 = zext i1 v6 to i256
-    ret v7
+    ret v6
 }
 
 fn @literal_bytes_word(arg0: i256, arg1: i256) -> memorybytes {

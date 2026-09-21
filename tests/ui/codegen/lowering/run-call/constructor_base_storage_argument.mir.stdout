@@ -242,7 +242,7 @@ fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word],
     ret v6
 }
 
-fn @at(arg0: i256) -> i256 [selector=0xe0886f90, view, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @at(arg0: i256) -> i8 [selector=0xe0886f90, view, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v0
@@ -273,7 +273,8 @@ fn @at(arg0: i256) -> i256 [selector=0xe0886f90, view, abi_params=[u256], abi_re
     v18 = and v17, 255
     v19 = shl 248, v18
     v20 = shr 248, v19
-    ret v20
+    v21 = trunc i256 v20 to i8
+    ret v21
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_storage_argument.sol:ForwardingParam ===
@@ -306,20 +307,19 @@ fn @getM(arg0: i256, arg1: i256) -> i256 [selector=0x1136c6ce, view, abi_params=
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_storage_argument.sol:TernaryParam ===
 @module TernaryParam
-fn @constructor(arg0: i256) [constructor, abi_params=[bool]] {
+fn @constructor(arg0: i1) [constructor, abi_params=[bool]] {
   bb0:
-    v0 = ne arg0, 0
-    jumpi v0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb2:
-    v2 = mapping_slot 2, 0
+    v1 = mapping_slot 2, 0
     jump bb3
   bb1:
-    v1 = mapping_slot 1, 0
+    v0 = mapping_slot 1, 0
     jump bb3
   bb3:
-    v3 = phi [bb1: v1], [bb2: v2]
-    v4 = mapping_slot 5, v3
-    sstore v4, 16 !metadata(storage=symbolic(v4))
+    v2 = phi [bb1: v0], [bb2: v1]
+    v3 = mapping_slot 5, v2
+    sstore v3, 16 !metadata(storage=symbolic(v3))
     jump bb4
   bb4:
     jump bb5

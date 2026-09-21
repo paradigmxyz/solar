@@ -2,47 +2,47 @@
 @module AbiDecodeStructs
 @phase lowered
 types:
-  struct0: {i256, i256, i256}
+  struct0: {i256, i256, i1}
   struct1: {i256, memptr, i256}
 
 fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
   bb0:
-    v35 = icall @decode_calldata_type, 4
-    v52 = ptrtoint memptr v35 to i256
-    v53 = add v52, 32
-    v13 = mload v52
-    v15 = add v53, v13
-    v17 = lt v15, v53
-    v18 = lt v13, 96
-    v19 = or v17, v18
-    jumpi v19, bb1, bb2
+    v33 = icall @decode_calldata_type, 4
+    v51 = ptrtoint memptr v33 to i256
+    v52 = add v51, 32
+    v11 = mload v51
+    v13 = add v52, v11
+    v15 = lt v13, v52
+    v16 = lt v11, 96
+    v17 = or v15, v16
+    jumpi v17, bb1, bb2
   bb2:
-    v21 = alloc raw, exact, uninitialized, infallible, 96 !metadata(deferred_alloc)
-    v23 = mload v53
-    v55 = ptrtoint memptr v21 to i256
-    mstore v55, v23
-    v25 = add v52, 64
-    v26 = mload v25
-    v27 = shr 160, v26
-    v28 = eq v27, 0
-    jumpi v28, bb3, bb1
+    v19 = alloc raw, exact, uninitialized, infallible, 96 !metadata(deferred_alloc)
+    v21 = mload v52
+    v54 = ptrtoint memptr v19 to i256
+    mstore v54, v21
+    v23 = add v51, 64
+    v24 = mload v23
+    v25 = shr 160, v24
+    v26 = eq v25, 0
+    jumpi v26, bb3, bb1
   bb3:
-    v45 = add v55, 32
-    mstore v45, v26
-    v30 = add v52, 96
-    v31 = mload v30
-    v32 = lt v31, 2
-    jumpi v32, bb4, bb1
+    v44 = add v54, 32
+    mstore v44, v24
+    v28 = add v51, 96
+    v29 = mload v28
+    v30 = lt v29, 2
+    jumpi v30, bb4, bb1
   bb4:
-    v47 = add v55, 64
-    mstore v47, v31
-    v57 = and v26, 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = ne v31, 0
-    v8 = zext i1 v6 to i256
-    v1 = mload v55
+    v46 = add v54, 64
+    mstore v46, v29
+    v56 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = ne v29, 0
+    v1 = mload v54
     mstore 128, v1
-    mstore 160, v57
-    mstore 192, v8
+    mstore 160, v56
+    v40 = zext i1 v6 to i256
+    mstore 192, v40
     returndata 128, 96
   bb1:
     revert 0, 0

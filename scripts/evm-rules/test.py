@@ -1070,44 +1070,33 @@ class MemoryAddressTests(unittest.TestCase):
 
 
 class RuleTests(unittest.TestCase):
+    def test_stack_selection_rules(self):
+        report = verify_file(ISLE / "mir-to-evm/stack_select.isle", 5000)
+        self.assertEqual(len(report["rules"]), 15)
+        for result in report["rules"]:
+            with self.subTest(line=result["line"]):
+                self.assertEqual(result["status"], "proved", result)
+
     def test_narrow_integer_rules(self):
-        path = ISLE / "mir/egraph.isle"
+        path = ISLE / "mir/word.isle"
+        source = path.read_text().split(";; Extract one byte")[0]
         rules = [
             Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
+            for form, line in forms(source)
             if form[0] == "rule"
-            and any(
-                isinstance(part, tuple)
-                and part[0] in ("integer_simplify", "integer_rewrite")
-                for part in form[1:]
-            )
         ]
-        self.assertGreater(len(rules), 20)
-        for rule in rules:
-            with self.subTest(line=rule.line):
-                cx = Context()
-                lhs, rhs = cx.obligation(rule)
-                result, _ = check(lhs, rhs, cx.assumptions, 5000, cx.model)
-                if result["status"] == "unknown":
-                    result, _ = partition_shift(
-                        lhs, rhs, cx.assumptions, 60000, cx.model
-                    )
+        self.assertGreater(len(rules), 40)
+        for bits in (1, *range(8, 257, 8)):
+            for rule in rules:
+                with self.subTest(bits=bits, line=rule.line):
+                    cx = Context(integer_bits=bits)
+                    lhs, rhs = cx.obligation(rule)
+                    result, _ = check(lhs, rhs, cx.assumptions, 5000, cx.model)
                     self.assertEqual(result["status"], "proved", result)
-                else:
-                    self.assertEqual(result["status"], "proved", result)
-
-    def test_narrow_nested_comparison_requires_its_own_width(self):
-        form, line = forms(
-            "(rule (integer_simplify (Op.And (slt (one) (zero)) (one)) bits) (if-let true (u32_le bits (u256 1))) (imm_bool true))"
-        )[0]
-        with self.assertRaisesRegex(Unsupported, "independent widths"):
-            Context().obligation(Rule(form, line, "narrow.isle"))
 
     def test_narrow_integer_wrap_is_not_word_wrap(self):
-        form, line = forms(
-            "(rule (integer_simplify (Op.Add x (one)) bits) (u256_add x (u256 1)))"
-        )[0]
-        cx = Context()
+        form, line = forms("(rule (simplify (Op.Add x (one))) x)")[0]
+        cx = Context(integer_bits=8)
         lhs, rhs = cx.obligation(Rule(form, line, "narrow.isle"))
         result, _ = check(lhs, rhs, cx.assumptions, 5000, cx.model)
         self.assertEqual(result["status"], "counterexample")

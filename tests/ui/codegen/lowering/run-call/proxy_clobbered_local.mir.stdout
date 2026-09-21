@@ -54,23 +54,22 @@ fn @forwards() -> i256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word], 
     revert_returndata
   bb2:
     v12 = zext i160 v9 to i256
-    v13 = zext i160 v9 to i256
-    v14 = abi_encode [word], object, selector 0x6279e43c00000000000000000000000000000000000000000000000000000000, args 7
-    v15 = mload 64 !metadata(memory=scratch)
-    v16 = calldatasize
-    calldatacopy 0, 0, v16 !metadata(memory=scratch)
-    v17 = ptrtoint memorybytes v14 to i256
-    v18 = mload v17
-    v19 = ptrtoint memorybytes v14 to i256
-    v20 = add v19, 32
-    v21 = gas
-    v22 = delegatecall v21, v13, v20, v18, 0, 32
-    v23 = zext i1 v22 to i256
-    v24 = mload 0 !metadata(memory=scratch)
-    v25 = eq v24, 7
-    v26 = zext i1 v25 to i256
-    v27 = and v23, v26
-    v28 = eq v27, 1
-    icall require<short_string>, v28, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
+    v13 = abi_encode [word], object, selector 0x6279e43c00000000000000000000000000000000000000000000000000000000, args 7
+    v14 = mload 64 !metadata(memory=scratch)
+    v15 = calldatasize
+    calldatacopy 0, 0, v15 !metadata(memory=scratch)
+    v16 = ptrtoint memorybytes v13 to i256
+    v17 = mload v16
+    v18 = ptrtoint memorybytes v13 to i256
+    v19 = add v18, 32
+    v20 = gas
+    v21 = delegatecall v20, v12, v19, v17, 0, 32
+    v22 = zext i1 v21 to i256
+    v23 = mload 0 !metadata(memory=scratch)
+    v24 = eq v23, 7
+    v25 = zext i1 v24 to i256
+    v26 = and v22, v25
+    v27 = eq v26, 1
+    icall require<short_string>, v27, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
     ret 1
 }

@@ -1,14 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mapping_key_cleanup.sol:C ===
 @module C
-fn @test_cleanup() -> i256 [selector=0x2b63198c, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @test_cleanup() -> i1 [selector=0x2b63198c, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = and 0xffff0001, 0xffff
-    v1 = mapping_slot v0, 0
-    sstore v1, 3 !metadata(storage=symbolic(v1))
-    v2 = and 1, 0xffff
-    v3 = mapping_slot v2, 0
-    v4 = sload v3 !metadata(storage=symbolic(v3))
-    v5 = eq v4, 3
-    v6 = zext i1 v5 to i256
-    ret v6
+    v0 = trunc i256 0xffff0001 to i16
+    v1 = zext i16 v0 to i256
+    v2 = mapping_slot v1, 0
+    sstore v2, 3 !metadata(storage=symbolic(v2))
+    v3 = trunc i256 1 to i16
+    v4 = zext i16 v3 to i256
+    v5 = mapping_slot v4, 0
+    v6 = sload v5 !metadata(storage=symbolic(v5))
+    v7 = eq v6, 3
+    ret v7
 }

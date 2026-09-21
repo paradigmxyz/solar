@@ -28,24 +28,30 @@ fn @assign() -> struct0 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[
     v12 = memory_object_load_byte memorybytes, v0, 0
     v13 = shl 248, v12
     v14 = shr 248, v13
-    v15 = memory_object_len memorybytes, v3
-    v16 = lt 0, v15
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    v18 = memory_object_load_byte memorybytes, v3, 0
-    v19 = shl 248, v18
-    v20 = shr 248, v19
-    v21 = memory_object_len memorybytes, v6
-    v22 = lt 0, v21
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = memory_object_load_byte memorybytes, v6, 0
-    v25 = shl 248, v24
-    v26 = shr 248, v25
-    v27 = insert_value struct0, undef struct0, 0, v14
-    v28 = insert_value struct0, v27, 1, v20
-    v29 = insert_value struct0, v28, 2, v26
-    ret v29
+    v15 = trunc i256 v14 to i8
+    v16 = zext i8 v15 to i256
+    v17 = memory_object_len memorybytes, v3
+    v18 = lt 0, v17
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = memory_object_load_byte memorybytes, v3, 0
+    v21 = shl 248, v20
+    v22 = shr 248, v21
+    v23 = trunc i256 v22 to i8
+    v24 = zext i8 v23 to i256
+    v25 = memory_object_len memorybytes, v6
+    v26 = lt 0, v25
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = memory_object_load_byte memorybytes, v6, 0
+    v29 = shl 248, v28
+    v30 = shr 248, v29
+    v31 = trunc i256 v30 to i8
+    v32 = zext i8 v31 to i256
+    v33 = insert_value struct0, undef struct0, 0, v16
+    v34 = insert_value struct0, v33, 1, v24
+    v35 = insert_value struct0, v34, 2, v32
+    ret v35
 }
 
 fn @swap() -> struct1 [selector=0x8119c065, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {

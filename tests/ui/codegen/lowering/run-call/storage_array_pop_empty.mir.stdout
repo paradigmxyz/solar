@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_pop_empty.sol:StorageArrayPopEmpty ===
 @module StorageArrayPopEmpty
-fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @test() -> i1 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = eq v0, 0
@@ -10,6 +10,5 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v3 = storage_array_data_slot 0
     v4 = add v3, v2
     sstore v4, 0 !metadata(storage=symbolic(v4))
-    v5 = zext i1 1 to i256
-    ret v5
+    ret true
 }

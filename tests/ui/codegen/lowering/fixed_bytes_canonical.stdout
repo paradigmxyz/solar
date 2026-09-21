@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/fixed_bytes_canonical.sol:FixedBytesCanonical ===
 @module FixedBytesCanonical
-fn @fromUint(arg0: i256) -> i256 [selector=0x0b5b6892, pure, abi_params=[u8], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+fn @fromUint(arg0: i8) -> i256 [selector=0x0b5b6892, pure, abi_params=[u8], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
-    v0 = and arg0, 255
+    v0 = zext i8 arg0 to i256
     v1 = shl 248, v0
     ret v1
 }
@@ -12,7 +12,7 @@ fn @fromHex() -> i256 [selector=0x7b05e034, pure, abi_params=[], abi_returns=[wo
     ret 0x100000000000000000000000000000000000000000000000000000000000000
 }
 
-fn @compareElement(arg0: memorybytes) -> i256 [selector=0x6c07068b, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @compareElement(arg0: memorybytes) -> i1 [selector=0x6c07068b, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = lt 0, v0
@@ -20,10 +20,11 @@ fn @compareElement(arg0: memorybytes) -> i256 [selector=0x6c07068b, pure, abi_pa
     icall panic_if<0x32>, v2
     v3 = memory_object_load_byte memorybytes, arg0, 0
     v4 = shl 248, v3
-    v5 = shl 248, 1
-    v6 = eq v4, v5
-    v7 = zext i1 v6 to i256
-    ret v7
+    v5 = trunc i256 1 to i8
+    v6 = zext i8 v5 to i256
+    v7 = shl 248, v6
+    v8 = eq v4, v7
+    ret v8
 }
 
 fn @narrow(arg0: i256) -> i256 [selector=0xb6234141, pure, abi_params=[bytes4], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {

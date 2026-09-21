@@ -745,6 +745,7 @@ impl<'a> Validator<'a> {
         self.prepare_return_abi_validation(module);
         for (id, ty) in module.struct_types.iter_enumerated() {
             for field in &ty.fields {
+                self.validate_integer_type(*field);
                 if *field == MirType::Void
                     || matches!(field, MirType::Struct(nested) if *nested >= id)
                 {
@@ -794,10 +795,32 @@ impl<'a> Validator<'a> {
         }
     }
 
+    fn validate_integer_type(&mut self, ty: MirType) {
+        if let Some(bits) = ty.integer_bits()
+            && !MirType::valid_integer_width(bits)
+        {
+            self.emit(format_args!(
+                "unsupported integer type `{ty}`; expected i1 or a byte width from i8 through i256"
+            ));
+        }
+    }
+
     /// Checks constant widths and aggregate operands against their declared types.
     fn validate_value_types(&mut self, module: &Module, func: &Function) {
         self.validate_return_abi(module, func);
+        for ty in func
+            .params
+            .iter()
+            .copied()
+            .chain([func.return_type()])
+            .chain(func.return_components().iter().copied())
+        {
+            self.validate_integer_type(ty);
+        }
         for value in func.live_values() {
+            if let Some(ty) = func.value_ty(value) {
+                self.validate_integer_type(ty);
+            }
             if func.value_ty(value).is_none_or(|ty| ty == MirType::Void) {
                 self.emit(format_args!("live value v{} has no value type", value.index()));
             }
@@ -1631,7 +1654,7 @@ error: [fn3] [bb0] switch cases must have the selector type
     fn integer_constants_must_fit_their_types() {
         with_session(|sess| {
             let mut module = Module::new(Ident::DUMMY);
-            for bits in [1, 7, 160] {
+            for bits in [1, 8, 160] {
                 let mut function = make_func();
                 let width = NonZeroU32::new(bits).unwrap();
                 let value = function
@@ -1648,7 +1671,7 @@ error: [fn3] [bb0] switch cases must have the selector type
                 str![[r#"
 error: [fn0] constant v0 does not fit its type `i1`
 
-error: [fn1] constant v0 does not fit its type `i7`
+error: [fn1] constant v0 does not fit its type `i8`
 
 error: [fn2] constant v0 does not fit its type `i160`
 

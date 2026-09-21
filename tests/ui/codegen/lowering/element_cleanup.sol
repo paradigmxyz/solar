@@ -1,12 +1,12 @@
 //@ compile-flags: -Zmir-pipeline=element-cleanup -Zpass-diff
 //@ filecheck:
 
-// Element reads of address arrays are masked to the type; the masks go
-// where every word the array can hold is canonical.
+// Native address reads retain their type conversion. Copying a canonical
+// element directly back to memory removes the truncation and extension.
 contract ElementCleanup {
     // ABI decoding validates every element of an external array.
     // CHECK-LABEL: {{^[ +-].*}}fn @first
-    // CHECK: - {{v[0-9]+}} = trunc i256 {{v[0-9]+}} to i160
+    // CHECK: {{^ +}}[[NARROW:v[0-9]+]] = trunc i256 {{v[0-9]+}} to i160
     function first(address[] memory a) external pure returns (address) {
         return a[0];
     }
@@ -15,7 +15,7 @@ contract ElementCleanup {
     // CHECK-LABEL: {{^[ +-].*}}fn @fresh
     // CHECK: - {{v[0-9]+}} = trunc i256 {{v[0-9]+}} to i160
     // CHECK: + memory_object_store_element memoryarray<1>, {{v[0-9]+}}, 0, {{v[0-9]+}}
-    // CHECK: - {{v[0-9]+}} = trunc i256 {{v[0-9]+}} to i160
+    // CHECK: {{^ +}}[[NARROW:v[0-9]+]] = trunc i256 {{v[0-9]+}} to i160
     function fresh(uint256 n) external pure returns (address) {
         address[] memory a = new address[](n);
         a[0] = a[1];
@@ -25,7 +25,7 @@ contract ElementCleanup {
     // A helper whose every call site, including its own, passes a canonical
     // array reads without masks.
     // CHECK-LABEL: {{^[ +-].*}}fn @last
-    // CHECK: - {{v[0-9]+}} = trunc i256 {{v[0-9]+}} to i160
+    // CHECK: {{^ +}}[[NARROW:v[0-9]+]] = trunc i256 {{v[0-9]+}} to i160
     function last(address[] memory a, uint256 i) internal pure returns (address) {
         if (i + 1 == a.length) return a[i];
         return last(a, i + 1);
@@ -55,7 +55,7 @@ contract ElementCleanup {
     }
 
     // CHECK-LABEL: {{^[ +-].*}}fn @filled
-    // CHECK: - {{v[0-9]+}} = trunc i256 {{v[0-9]+}} to i160
+    // CHECK: {{^ +}}[[NARROW:v[0-9]+]] = trunc i256 {{v[0-9]+}} to i160
     function filled(address[] memory a, address x) external pure returns (address) {
         fill(a, x);
         return a[0];

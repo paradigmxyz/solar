@@ -19,7 +19,7 @@ pub use backend::{Backend, evm::EvmCodegen};
 mod contract;
 pub use contract::{
     ContractArtifact, ContractSelection, ImmutableReference, LibraryReference, RuntimeDataFn,
-    collect_library_references, generate_contract_bytecodes,
+    generate_contract_bytecodes,
 };
 
 mod link;

@@ -717,7 +717,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         {
             let bits = bits
                 .parse::<std::num::NonZeroU32>()
-                .map_err(|_| self.parser.error("integer width must be between 1 and 4294967295"))?;
+                .ok()
+                .filter(|bits| MirType::valid_integer_width(bits.get()))
+                .ok_or_else(|| {
+                    self.parser
+                        .error("integer width must be 1 or a multiple of 8 from 8 through 256")
+                })?;
             return Ok(MirType::Int(bits));
         }
         let layout = self.parse_value_layout_from_ident(id)?;
@@ -2119,7 +2124,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let lhs = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
                 let rhs = self.parse_value(builder)?;
-                (InstKind::CheckedBinary { op, arithmetic, lhs, rhs }, Some(MirType::I256))
+                (
+                    InstKind::CheckedBinary { op, arithmetic, lhs, rhs },
+                    Some(arithmetic.ty().mir_type()),
+                )
             }
             sym::abi_encode_packed | sym::keccak256_packed => {
                 self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;

@@ -6,8 +6,8 @@ types:
   struct2: {i256, i256, memorybytes}
   struct3: {i256, i256, calldataslice}
   struct4: {i256, i256}
-  struct5: {i256, i256, i256}
-  struct6: {i256, i256, memorybytes, memorybytes}
+  struct5: {i1, i256, i256}
+  struct6: {i1, i256, memorybytes, memorybytes}
 
 fn @singleSliceLength(arg0: calldataslice) -> i256 [selector=0xee1d4083, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -156,7 +156,7 @@ fn @_parseSlices(arg0: calldataslice) -> struct4 [pure] {
     v1 = extract_value struct5, v0, 0
     v2 = extract_value struct5, v0, 1
     v3 = extract_value struct5, v0, 2
-    v4 = eq v1, 0
+    v4 = eq v1, false
     icall revert_if<empty>, v4
     v5 = insert_value struct4, undef struct4, 0, v2
     v6 = insert_value struct4, v5, 1, v3
@@ -177,14 +177,16 @@ fn @_tryParseSlices(arg0: calldataslice) -> struct5 [pure] {
     v8 = memory_object_load_byte memorybytes, v3, 0
     v9 = shl 248, v8
     v10 = shr 248, v9
-    v11 = ptrtoint memorybytes v4 to i256
-    v12 = add v11, 32
-    v13 = mload v12
-    v14 = shr 96, v13
-    v15 = insert_value struct5, undef struct5, 0, v1
-    v16 = insert_value struct5, v15, 1, v10
-    v17 = insert_value struct5, v16, 2, v14
-    ret v17
+    v11 = trunc i256 v10 to i8
+    v12 = zext i8 v11 to i256
+    v13 = ptrtoint memorybytes v4 to i256
+    v14 = add v13, 32
+    v15 = mload v14
+    v16 = shr 96, v15
+    v17 = insert_value struct5, undef struct5, 0, v1
+    v18 = insert_value struct5, v17, 1, v12
+    v19 = insert_value struct5, v18, 2, v16
+    ret v19
 }
 
 fn @_splitSlices(arg0: calldataslice) -> struct6 [pure] {
@@ -243,12 +245,11 @@ fn @_splitSlices(arg0: calldataslice) -> struct6 [pure] {
     v41 = alloc memorybytes, exact, uninitialized, infallible, v40
     set_memory_object_len memorybytes, v41, v36
     memory_object_copy_from_slice memorybytes, v41, v29
-    v42 = zext i1 1 to i256
-    v43 = insert_value struct6, undef struct6, 0, v42
-    v44 = insert_value struct6, v43, 1, 0
-    v45 = insert_value struct6, v44, 2, v20
-    v46 = insert_value struct6, v45, 3, v41
-    ret v46
+    v42 = insert_value struct6, undef struct6, 0, true
+    v43 = insert_value struct6, v42, 1, 0
+    v44 = insert_value struct6, v43, 2, v20
+    v45 = insert_value struct6, v44, 3, v41
+    ret v45
 }
 
 fn @_delegate(arg0: calldataslice) -> struct1 [pure] {

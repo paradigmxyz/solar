@@ -942,7 +942,9 @@ pub(crate) enum AddressCallKind {
 impl InstKind {
     /// Infers integer results from the operation's declared operand signature.
     pub(crate) fn inferred_result_type(&self, func: &Function) -> Option<MirType> {
-        if self.op_def().result == super::ResultKind::Integer {
+        if let Self::CheckedBinary { arithmetic, .. } = self {
+            Some(arithmetic.ty().mir_type())
+        } else if self.op_def().result == super::ResultKind::Integer {
             self.operand_types(func)?.first().copied()
         } else {
             self.op_def().result.default_type()
@@ -999,6 +1001,7 @@ impl InstKind {
                     && result.is_some_and(MirType::is_pointer))
                     || (matches!(ty(value), Some(MirType::Int(_))) && ty(value) == result)
             }
+            Self::CheckedBinary { arithmetic, .. } => result == Some(arithmetic.ty().mir_type()),
             Self::Alloc { kind, .. } => result == Some(kind.result_type()),
             Self::MakeSlice { location, .. } => result == Some(MirType::Slice(location)),
             Self::FrameLoad { kind, .. } => result == Some(kind.result_type()),

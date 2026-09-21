@@ -6,45 +6,56 @@ types:
 fn @checkedDirtyOperands() -> struct0 [selector=0xfef4b418, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[i256, i256]] {
   bb0:
     v0 = sub 0, 3
-    v1 = and 258, 255
-    v2 = checked_pow i32, v0, v1
-    v3 = and 259, 255
-    v4 = checked_pow i32, v0, v3
-    v5 = insert_value struct0, undef struct0, 0, v2
-    v6 = insert_value struct0, v5, 1, v4
-    ret v6
+    v1 = trunc i256 v0 to i32
+    v2 = trunc i256 258 to i8
+    v3 = zext i8 v2 to i256
+    v4 = checked_pow i32, v1, v3
+    v5 = sext i32 v4 to i256
+    v6 = trunc i256 259 to i8
+    v7 = zext i8 v6 to i256
+    v8 = checked_pow i32, v1, v7
+    v9 = sext i32 v8 to i256
+    v10 = insert_value struct0, undef struct0, 0, v5
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
 }
 
 fn @uncheckedDirtyOperands() -> i256 [selector=0x84faa534, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = and 0xfffffffffe, 0xffffffff
-    v1 = and 258, 255
-    v2 = exp v0, v1
-    v3 = and v2, 0xffffffff
-    ret v3
+    v0 = trunc i256 0xfffffffffe to i32
+    v1 = trunc i256 258 to i8
+    v2 = zext i32 v0 to i256
+    v3 = zext i8 v1 to i256
+    v4 = exp v2, v3
+    v5 = trunc i256 v4 to i32
+    v6 = zext i32 v5 to i256
+    ret v6
 }
 
 fn @copiedDirtyOperand() -> i256 [selector=0x2f5133b3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = and 258, 255
-    v1 = checked_pow u256, 3, v0
-    ret v1
+    v0 = trunc i256 258 to i8
+    v1 = zext i8 v0 to i256
+    v2 = checked_pow u256, 3, v1
+    ret v2
 }
 
-fn @branchedDirtyOperand(arg0: i256) -> i256 [selector=0x3d6d96b7, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[i256]] {
+fn @branchedDirtyOperand(arg0: i1) -> i256 [selector=0x3d6d96b7, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
-    v0 = ne arg0, 0
-    jumpi v0, bb1, bb2
+    v0 = trunc i256 2 to i8
+    v1 = zext i8 v0 to i256
+    jumpi arg0, bb1, bb2
   bb2:
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v1 = phi [bb1: 259], [bb2: 2]
-    v2 = sub 0, 3
-    v3 = and v1, 255
-    v4 = checked_pow i256, v2, v3
-    ret v4
+    v2 = phi [bb1: 259], [bb2: v1]
+    v3 = sub 0, 3
+    v4 = trunc i256 v2 to i8
+    v5 = zext i8 v4 to i256
+    v6 = checked_pow i256, v3, v5
+    ret v6
 }
 
 fn @fullWidthOperands() -> i256 [selector=0xd0e127e5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -65,10 +76,9 @@ fn @signedPower(arg0: i256, arg1: i256) -> i256 [selector=0xf418e101, pure, abi_
     ret v0
 }
 
-fn @narrowSignedPower(arg0: i256, arg1: i256) -> i256 [selector=0x6e1f2e38, pure, abi_params=[i8, u8], abi_returns=[word<i8>], abi_return_params=[i8]] {
+fn @narrowSignedPower(arg0: i8, arg1: i8) -> i8 [selector=0x6e1f2e38, pure, abi_params=[i8, u8], abi_returns=[word<i8>], abi_return_params=[i8]] {
   bb0:
-    v0 = signextend 0, arg0
-    v1 = and arg1, 255
-    v2 = checked_pow i8, v0, v1
-    ret v2
+    v0 = zext i8 arg1 to i256
+    v1 = checked_pow i8, arg0, v0
+    ret v1
 }

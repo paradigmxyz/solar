@@ -198,9 +198,9 @@ mod round_trip {
             ("i8", true),
             ("i128", true),
             ("i160", true),
-            ("i7", true),
-            ("i512", true),
-            ("i4294967295", true),
+            ("i7", false),
+            ("i512", false),
+            ("i4294967295", false),
             ("i0", false),
             ("i4294967296", false),
             ("i", false),
@@ -222,13 +222,13 @@ mod round_trip {
     #[test]
     fn integer_literals_fit_their_width() {
         for (ty, literal, valid) in [
-            ("i7", "127", true),
+            ("i7", "127", false),
             ("i7", "128", false),
             ("i8", "255", true),
             ("i8", "256", false),
             ("i160", "0xffffffffffffffffffffffffffffffffffffffff", true),
             ("i160", "0x10000000000000000000000000000000000000000", false),
-            ("i512", "42", true),
+            ("i512", "42", false),
         ] {
             let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
             sess.enter(|| {

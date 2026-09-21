@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/storage_struct_copy.sol:StorageStructCopy ===
 @module StorageStructCopy
 types:
-  struct0: {i256, i256}
+  struct0: {i160, i256}
 
 fn @constructor() [constructor] {
   bb0:
@@ -57,10 +57,9 @@ fn @readCopy() -> struct0 [selector=0x3af23521, view, abi_params=[], abi_returns
     icall panic_if<0x32>, v12
     v13 = memory_object_load_element memoryarray<1>, v9, 0
     v14 = and v13, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v15 = zext i160 v7 to i256
-    v16 = insert_value struct0, undef struct0, 0, v15
-    v17 = insert_value struct0, v16, 1, v14
-    ret v17
+    v15 = insert_value struct0, undef struct0, 0, v7
+    v16 = insert_value struct0, v15, 1, v14
+    ret v16
 }
 
 fn @readDirect() -> struct0 [selector=0x28da8d5d, view, abi_params=[], abi_returns=[word<u160>, word<bytes4>], abi_return_params=[address, bytes4]] {
@@ -83,10 +82,9 @@ fn @readDirect() -> struct0 [selector=0x28da8d5d, view, abi_params=[], abi_retur
     icall panic_if<0x32>, v12
     v13 = memory_object_load_element memoryarray<1>, v9, 0
     v14 = and v13, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v15 = zext i160 v7 to i256
-    v16 = insert_value struct0, undef struct0, 0, v15
-    v17 = insert_value struct0, v16, 1, v14
-    ret v17
+    v15 = insert_value struct0, undef struct0, 0, v7
+    v16 = insert_value struct0, v15, 1, v14
+    ret v16
 }
 
 fn @load_storage_packed_array_4_2(arg0: i256) -> memoryarray {

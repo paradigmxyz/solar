@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_rebind.sol:CalldataSliceRebind ===
 @module CalldataSliceRebind
-fn @forward(arg0: calldataslice, arg1: i256, arg2: i256) [selector=0xb8467e08, abi_params=[bytes, u256, address], abi_returns=[], abi_return_params=[]] {
+fn @forward(arg0: calldataslice, arg1: i256, arg2: i160) [selector=0xb8467e08, abi_params=[bytes, u256, address], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -24,11 +24,13 @@ fn @forward(arg0: calldataslice, arg1: i256, arg2: i256) [selector=0xb8467e08, a
     v16 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v8
     v17 = slice_ptr v16
     v18 = slice_len v16
-    v19 = extcodesize arg2
-    v20 = eq v19, 0
-    icall revert_if<target_contract_has_no_code>, v20
-    v21 = call v9, arg2, 0, v17, v18, 0, 0
-    jumpi v21, bb2, bb1
+    v19 = zext i160 arg2 to i256
+    v20 = extcodesize v19
+    v21 = eq v20, 0
+    icall revert_if<target_contract_has_no_code>, v21
+    v22 = zext i160 arg2 to i256
+    v23 = call v9, v22, 0, v17, v18, 0, 0
+    jumpi v23, bb2, bb1
   bb1:
     revert_returndata
   bb2:

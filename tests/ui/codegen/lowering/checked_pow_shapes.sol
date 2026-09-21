@@ -74,10 +74,10 @@ contract CheckedPowShapes {
 
     // CHECK-LABEL: fn @unchecked_pow8{{[( ]}}
     // CHECK-NOT: mstore 32, 17
-    // CHECK: [[BASE:v[0-9]+]] = and arg0, 255
-    // CHECK: [[EXPONENT:v[0-9]+]] = and arg1, 255
+    // CHECK: [[BASE:v[0-9]+]] = zext i8 arg0 to i256
+    // CHECK: [[EXPONENT:v[0-9]+]] = zext i8 arg1 to i256
     // CHECK: [[POWER:v[0-9]+]] = exp [[BASE]], [[EXPONENT]]
-    // CHECK: and [[POWER]], 255
+    // CHECK: trunc i256 [[POWER]] to i8
     // CHECK-NOT: mstore 32, 17
     function unchecked_pow8(uint8 a, uint8 b) public pure returns (uint8) {
         unchecked {

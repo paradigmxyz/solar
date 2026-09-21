@@ -1,9 +1,10 @@
 // === ROOT/tests/ui/codegen/mir/egraph/bit_slices_runtime.sol:BitSlices ===
 @module BitSlices
 types:
-  struct0: {i256, i256, i256, i256}
+  struct0: {i1, i1, i1, i1}
   struct1: {i256, i256}
   struct2: {i256, i256, i256}
+  struct3: {i256, i256, i256, i256}
 
 fn @comparisons(arg0: i256) -> struct0 [selector=0xe32e96a3, pure, abi_params=[u256], abi_returns=[word<bool>, word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool, bool]] {
   bb0:
@@ -11,15 +12,11 @@ fn @comparisons(arg0: i256) -> struct0 [selector=0xe32e96a3, pure, abi_params=[u
     v1 = gt 13, arg0
     v2 = slt 13, arg0
     v3 = sgt 13, arg0
-    v4 = zext i1 v0 to i256
-    v5 = zext i1 v1 to i256
-    v6 = zext i1 v2 to i256
-    v7 = zext i1 v3 to i256
-    v8 = insert_value struct0, undef struct0, 0, v4
-    v9 = insert_value struct0, v8, 1, v5
-    v10 = insert_value struct0, v9, 2, v6
-    v11 = insert_value struct0, v10, 3, v7
-    ret v11
+    v4 = insert_value struct0, undef struct0, 0, v0
+    v5 = insert_value struct0, v4, 1, v1
+    v6 = insert_value struct0, v5, 2, v2
+    v7 = insert_value struct0, v6, 3, v3
+    ret v7
 }
 
 fn @masked(arg0: i256) -> struct1 [selector=0x38caca52, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -96,7 +93,7 @@ fn @overflow(arg0: i256) -> struct2 [selector=0x517550bf, pure, abi_params=[u256
     ret v10
 }
 
-fn @slices(arg0: i256) -> struct0 [selector=0xe84df24a, pure, abi_params=[u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @slices(arg0: i256) -> struct3 [selector=0xe84df24a, pure, abi_params=[u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = shl 248, arg0
     v1 = shr 248, v0
@@ -106,9 +103,9 @@ fn @slices(arg0: i256) -> struct0 [selector=0xe84df24a, pure, abi_params=[u256],
     v5 = sar 248, v4
     v6 = signextend 2, arg0
     v7 = signextend 0, v6
-    v8 = insert_value struct0, undef struct0, 0, v1
-    v9 = insert_value struct0, v8, 1, v3
-    v10 = insert_value struct0, v9, 2, v5
-    v11 = insert_value struct0, v10, 3, v7
+    v8 = insert_value struct3, undef struct3, 0, v1
+    v9 = insert_value struct3, v8, 1, v3
+    v10 = insert_value struct3, v9, 2, v5
+    v11 = insert_value struct3, v10, 3, v7
     ret v11
 }

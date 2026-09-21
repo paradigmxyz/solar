@@ -5,17 +5,18 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return_call.sol:C ===
 @module C
 types:
-  struct0: {i256, i256}
+  struct0: {i1, i256}
 
 fn @sat(arg0: i256, arg1: i256) -> i256 [selector=0xf4c11983, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @tryAdd, arg0, arg1
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
-    v3 = eq v1, 0
-    v4 = eq v3, false
+    v3 = zext i1 v1 to i256
+    v4 = eq v3, 0
     v5 = eq v4, false
-    jumpi v5, bb1, bb2
+    v6 = eq v5, false
+    jumpi v6, bb1, bb2
   bb2:
     jump bb3
   bb3:
@@ -39,8 +40,7 @@ fn @tryAdd(arg0: i256, arg1: i256) -> struct0 [pure] {
     v0 = add arg0, arg1
     v1 = lt v0, arg0
     v2 = eq v1, false
-    v3 = zext i1 v2 to i256
-    v4 = insert_value struct0, undef struct0, 0, v3
-    v5 = insert_value struct0, v4, 1, v0
-    ret v5
+    v3 = insert_value struct0, undef struct0, 0, v2
+    v4 = insert_value struct0, v3, 1, v0
+    ret v4
 }

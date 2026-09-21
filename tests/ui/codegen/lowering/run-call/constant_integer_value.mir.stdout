@@ -18,11 +18,12 @@ fn @avgEdge() -> i256 [selector=0xbb94a0c5, pure, abi_params=[], abi_returns=[wo
     ret v0
 }
 
-fn @negativeConstant() -> i256 [selector=0xce4ac84e, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @negativeConstant() -> i1 [selector=0xce4ac84e, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sub 0, 0xd89e8
-    v1 = icall @isMinTick, v0
-    ret v1
+    v1 = trunc i256 v0 to i24
+    v2 = icall @isMinTick, v1
+    ret v2
 }
 
 fn @average(arg0: i256, arg1: i256) -> i256 [pure] {
@@ -63,10 +64,9 @@ fn @mulDivDown(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
     revert 0, 0
 }
 
-fn @isMinTick(arg0: i256) -> i256 [pure] {
+fn @isMinTick(arg0: i24) -> i1 [pure] {
   bb0:
-    v0 = signextend 2, arg0
-    v1 = eq v0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffff27618
-    v2 = zext i1 v1 to i256
-    ret v2
+    v0 = trunc i256 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffff27618 to i24
+    v1 = eq arg0, v0
+    ret v1
 }

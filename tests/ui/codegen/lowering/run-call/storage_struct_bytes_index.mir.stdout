@@ -90,17 +90,19 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v51 = and v50, 255
     v52 = shl 248, v51
     v53 = shr 248, v52
-    v54 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v54
-    v55 = and v54, 1
-    v56 = eq v55, 1
-    v57 = sub 0, v55
-    v58 = or 127, v57
-    v59 = shr 1, v54
-    v60 = and v59, v58
-    v61 = insert_value struct0, undef struct0, 0, v53
-    v62 = insert_value struct0, v61, 1, v60
-    ret v62
+    v54 = trunc i256 v53 to i8
+    v55 = zext i8 v54 to i256
+    v56 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v56
+    v57 = and v56, 1
+    v58 = eq v57, 1
+    v59 = sub 0, v57
+    v60 = or 127, v59
+    v61 = shr 1, v56
+    v62 = and v61, v60
+    v63 = insert_value struct0, undef struct0, 0, v55
+    v64 = insert_value struct0, v63, 1, v62
+    ret v64
 }
 
 fn @g() -> i256 [selector=0xe2179b8e, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -134,5 +136,7 @@ fn @g() -> i256 [selector=0xe2179b8e, view, abi_params=[], abi_returns=[word], a
     v18 = and v17, 255
     v19 = shl 248, v18
     v20 = shr 248, v19
-    ret v20
+    v21 = trunc i256 v20 to i8
+    v22 = zext i8 v21 to i256
+    ret v22
 }

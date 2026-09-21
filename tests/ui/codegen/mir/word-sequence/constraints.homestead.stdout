@@ -57,3 +57,23 @@
       ret v2
   }
   
+  fn @boolean_demorgan(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+-     v0 = not arg0
+-     v1 = not arg1
+-     v2 = and v0, v1
++     v3 = or arg0, arg1
++     v2 = not v3
+      ret v2
+  }
+  
+  fn @byte_demorgan(arg0: i8, arg1: i8) -> i8 {
+    bb0:
+-     v0 = not arg0
+-     v1 = not arg1
+-     v2 = and v0, v1
++     v3 = or arg0, arg1
++     v2 = not v3
+      ret v2
+  }
+  

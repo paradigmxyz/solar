@@ -70,15 +70,15 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = gas
-    v14 = shl 0, 0x2200000000000000000000000000000000000000000000000000000000000033
-    v15 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v16 = zext i160 0x4444444444444444444444444444444444444444 to i256
-    v17 = abi_encode [word<u160>, word, word, word<u160>, word], selector 0x8a54c52f00000000000000000000000000000000000000000000000000000000, args v15, v14, 0x7a69, v16, 0x5555
-    v18 = slice_ptr v17
-    v19 = slice_len v17
-    v20 = call v13, v12, 0, v18, v19, 0, 32
+    v12 = gas
+    v13 = shl 0, 0x2200000000000000000000000000000000000000000000000000000000000033
+    v14 = zext i160 0x1111111111111111111111111111111111111111 to i256
+    v15 = zext i160 0x4444444444444444444444444444444444444444 to i256
+    v16 = abi_encode [word<u160>, word, word, word<u160>, word], selector 0x8a54c52f00000000000000000000000000000000000000000000000000000000, args v14, v13, 0x7a69, v15, 0x5555
+    v17 = slice_ptr v16
+    v18 = slice_len v16
+    v19 = zext i160 v9 to i256
+    v20 = call v12, v19, 0, v17, v18, 0, 32
     jumpi v20, bb4, bb3
   bb3:
     revert_returndata
@@ -94,35 +94,38 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     icall revert_if<empty>, v27
     v28 = add 0, 0
     v29 = mload v28
-    v30 = extcodesize v29
-    v31 = add v30, 63
-    v32 = lt v31, v30
-    icall panic_if<0x41>, v32
-    v33 = not 31
-    v34 = and v31, v33
-    v35 = alloc memorybytes, exact, zeroed, panic, v34
-    set_memory_object_len memorybytes, v35, v30
-    v36 = memory_object_data memorybytes, v35
-    v37 = ptrtoint memptr v36 to i256
-    extcodecopy v29, v37, 0, v30 !metadata(memory=heap)
-    v38 = memory_object_len memorybytes, v35
-    v39 = eq v38, 173
-    icall require<short_string>, v39, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
-    v40 = ptrtoint memorybytes v35 to i256
-    v41 = add v40, 109
-    v42 = mload v41
-    v43 = ptrtoint memorybytes v35 to i256
-    v44 = add v43, 141
+    v30 = trunc i256 v29 to i160
+    v31 = zext i160 v30 to i256
+    v32 = extcodesize v31
+    v33 = add v32, 63
+    v34 = lt v33, v32
+    icall panic_if<0x41>, v34
+    v35 = not 31
+    v36 = and v33, v35
+    v37 = alloc memorybytes, exact, zeroed, panic, v36
+    set_memory_object_len memorybytes, v37, v32
+    v38 = memory_object_data memorybytes, v37
+    v39 = zext i160 v30 to i256
+    v40 = ptrtoint memptr v38 to i256
+    extcodecopy v39, v40, 0, v32 !metadata(memory=heap)
+    v41 = memory_object_len memorybytes, v37
+    v42 = eq v41, 173
+    icall require<short_string>, v42, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
+    v43 = ptrtoint memorybytes v37 to i256
+    v44 = add v43, 109
     v45 = mload v44
-    v46 = ptrtoint memorybytes v35 to i256
-    v47 = add v46, 173
+    v46 = ptrtoint memorybytes v37 to i256
+    v47 = add v46, 141
     v48 = mload v47
-    v49 = eq v42, 0x7a69
-    icall require<short_string>, v49, 8, 0x636861696e206964000000000000000000000000000000000000000000000000
-    v50 = zext i160 0x4444444444444444444444444444444444444444 to i256
-    v51 = eq v45, v50
-    icall require<short_string>, v51, 14, 0x746f6b656e20636f6e7472616374000000000000000000000000000000000000
-    v52 = eq v48, 0x5555
-    icall require<short_string>, v52, 8, 0x746f6b656e206964000000000000000000000000000000000000000000000000
+    v49 = ptrtoint memorybytes v37 to i256
+    v50 = add v49, 173
+    v51 = mload v50
+    v52 = eq v45, 0x7a69
+    icall require<short_string>, v52, 8, 0x636861696e206964000000000000000000000000000000000000000000000000
+    v53 = zext i160 0x4444444444444444444444444444444444444444 to i256
+    v54 = eq v48, v53
+    icall require<short_string>, v54, 14, 0x746f6b656e20636f6e7472616374000000000000000000000000000000000000
+    v55 = eq v51, 0x5555
+    icall require<short_string>, v55, 8, 0x746f6b656e206964000000000000000000000000000000000000000000000000
     ret 1
 }

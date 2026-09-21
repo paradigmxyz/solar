@@ -75,71 +75,75 @@ fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[wo
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = shl 32, v1
-    v3 = or v2, 0xa8aa1b31
-    v4 = and v3, 0xffffffff
-    v5 = shl 224, v4
-    v6 = shr 32, v3
-    v7 = gas
-    v8 = abi_encode [], selector v5
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = staticcall v7, v6, v9, v10, 0, 0
-    jumpi v11, bb2, bb1
+    v2 = trunc i256 v1 to i160
+    v3 = zext i160 v2 to i256
+    v4 = shl 32, v3
+    v5 = or v4, 0xa8aa1b31
+    v6 = and v5, 0xffffffff
+    v7 = shl 224, v6
+    v8 = shr 32, v5
+    v9 = gas
+    v10 = abi_encode [], selector v7
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = staticcall v9, v8, v11, v12, 0, 0
+    jumpi v13, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = icall returndata_bytes<>
-    v13 = abi_decode [u256, bytes], v12
-    v14 = extract_value struct0, v13, 0
-    v15 = extract_value struct0, v13, 1
-    v16 = insert_value struct0, undef struct0, 0, v14
-    v17 = insert_value struct0, v16, 1, v15
-    ret v17
+    v14 = icall returndata_bytes<>
+    v15 = abi_decode [u256, bytes], v14
+    v16 = extract_value struct0, v15, 0
+    v17 = extract_value struct0, v15, 1
+    v18 = insert_value struct0, undef struct0, 0, v16
+    v19 = insert_value struct0, v18, 1, v17
+    ret v19
 }
 
 fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = shl 32, v1
-    v3 = or v2, 0x3488ea15
-    v4 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    set_memory_object_len memoryarray, v4, 2
-    v5 = memory_object_len memoryarray, v4
-    v6 = lt 0, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    memory_object_store_element memoryarray<1>, v4, 0, 4
-    v8 = memory_object_len memoryarray, v4
-    v9 = lt 1, v8
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    memory_object_store_element memoryarray<1>, v4, 1, 3
-    v11 = and v3, 0xffffffff
-    v12 = shl 224, v11
-    v13 = shr 32, v3
-    v14 = gas
-    v15 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v15, 2
-    v16 = memory_object_data memorybytes, v15
-    v17 = ptrtoint memptr v16 to i256
-    mstore v17, 0x6f6b000000000000000000000000000000000000000000000000000000000000
-    v18 = abi_encode [memory_array<word>, memory_bytes], selector v12, args v4, v15
-    v19 = slice_ptr v18
-    v20 = slice_len v18
-    v21 = staticcall v14, v13, v19, v20, 0, 0
-    jumpi v21, bb2, bb1
+    v2 = trunc i256 v1 to i160
+    v3 = zext i160 v2 to i256
+    v4 = shl 32, v3
+    v5 = or v4, 0x3488ea15
+    v6 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    set_memory_object_len memoryarray, v6, 2
+    v7 = memory_object_len memoryarray, v6
+    v8 = lt 0, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    memory_object_store_element memoryarray<1>, v6, 0, 4
+    v10 = memory_object_len memoryarray, v6
+    v11 = lt 1, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    memory_object_store_element memoryarray<1>, v6, 1, 3
+    v13 = and v5, 0xffffffff
+    v14 = shl 224, v13
+    v15 = shr 32, v5
+    v16 = gas
+    v17 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v17, 2
+    v18 = memory_object_data memorybytes, v17
+    v19 = ptrtoint memptr v18 to i256
+    mstore v19, 0x6f6b000000000000000000000000000000000000000000000000000000000000
+    v20 = abi_encode [memory_array<word>, memory_bytes], selector v14, args v6, v17
+    v21 = slice_ptr v20
+    v22 = slice_len v20
+    v23 = staticcall v16, v15, v21, v22, 0, 0
+    jumpi v23, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v22 = icall returndata_bytes<>
-    v23 = abi_decode [u256, bytes], v22
-    v24 = extract_value struct0, v23, 0
-    v25 = extract_value struct0, v23, 1
-    v26 = insert_value struct0, undef struct0, 0, v24
-    v27 = insert_value struct0, v26, 1, v25
-    ret v27
+    v24 = icall returndata_bytes<>
+    v25 = abi_decode [u256, bytes], v24
+    v26 = extract_value struct0, v25, 0
+    v27 = extract_value struct0, v25, 1
+    v28 = insert_value struct0, undef struct0, 0, v26
+    v29 = insert_value struct0, v28, 1, v27
+    ret v29
 }
 
 fn @increment(arg0: i256) -> i256 [selector=0x7cf5dab0, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -347,7 +351,7 @@ fn @pointerArrayRoundtrip() -> i256 [selector=0x38c40b23, abi_params=[], abi_ret
     ret v55
 }
 
-fn @calldataTarget(arg0: calldataslice) -> i256 [selector=0x3b20e329, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @calldataTarget(arg0: calldataslice) -> i1 [selector=0x3b20e329, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -368,11 +372,10 @@ fn @calldataTarget(arg0: calldataslice) -> i256 [selector=0x3b20e329, pure, abi_
     memory_object_copy_from_slice memorybytes, v11, arg0
     v12 = keccak256_bytes v11
     v13 = eq v12, 0x46e5f6b6987ca0bd7c8884e2d9fbfc072e24bb9d2a2ebb858bc217d66a45ab99
-    v14 = zext i1 v13 to i256
-    ret v14
+    ret v13
 }
 
-fn @calldataPointerRoundtrip() -> i256 [selector=0x1d9b1866, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @calldataPointerRoundtrip() -> i1 [selector=0x1d9b1866, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
@@ -408,5 +411,6 @@ fn @calldataPointerRoundtrip() -> i256 [selector=0x1d9b1866, abi_params=[], abi_
     icall revert_if<empty>, v23
     v24 = add 0, 0
     v25 = mload v24
-    ret v25
+    v26 = ne v25, 0
+    ret v26
 }

@@ -5,7 +5,7 @@ types:
   struct1: {i256, i256, i256, i256}
   struct2: {i256, i256}
 
-fn @init(arg0: calldataslice, arg1: i256) -> i256 [selector=0x5c58abd8, pure, abi_params=[tuple<address, u8, bytes, bytes>, address], abi_returns=[word], abi_return_params=[u256]] {
+fn @init(arg0: calldataslice, arg1: i160) -> i256 [selector=0x5c58abd8, pure, abi_params=[tuple<address, u8, bytes, bytes>, address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 32
@@ -14,10 +14,11 @@ fn @init(arg0: calldataslice, arg1: i256) -> i256 [selector=0x5c58abd8, pure, ab
     v4 = eq v2, v3
     v5 = eq v4, false
     icall revert_if<empty>, v5
-    v6 = trunc i256 arg1 to i160
-    v7 = zext i160 v6 to i256
-    v8 = checked_add u160, v2, v7
-    ret v8
+    v6 = trunc i256 v2 to i8
+    v7 = zext i8 v6 to i160
+    v8 = checked_add u160, v7, arg1
+    v9 = zext i160 v8 to i256
+    ret v9
 }
 
 fn @tail(arg0: calldataslice) -> memorybytes [selector=0x39663a7e, pure, abi_params=[tuple<address, u8, bytes, bytes>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

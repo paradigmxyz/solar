@@ -14,6 +14,7 @@ use crate::mir::{
     SliceLocation, StorageAlias, Terminator, Value, ValueId,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
 };
+use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -1756,7 +1757,8 @@ impl AliasAnalysis {
                     MemoryAddress::symbolic(value, MemoryRegion::Heap)
                 }),
                 InstKind::Add(first, second)
-                    if func.value_ty(value) == Some(crate::mir::MirType::I256) =>
+                    if (super::integers::integer_max(func, value) == U256::MAX
+                        || super::integers::arithmetic_no_wrap(func, value)) =>
                 {
                     self.address_add(func, first, second, depth)
                         .or_else(|| self.address_add(func, second, first, depth))
@@ -1768,7 +1770,8 @@ impl AliasAnalysis {
                         })
                 }
                 InstKind::Sub(base, offset)
-                    if func.value_ty(value) == Some(crate::mir::MirType::I256) =>
+                    if (super::integers::integer_max(func, value) == U256::MAX
+                        || super::integers::arithmetic_no_wrap(func, value)) =>
                 {
                     self.address_sub(func, base, offset, depth).or_else(|| {
                         Some(MemoryAddress::symbolic(value, self.pointer_region(func, value, 0)))
@@ -1915,7 +1918,8 @@ impl AliasAnalysis {
                 MemoryRegion::Heap
             }
             InstKind::Add(first, second)
-                if func.value_ty(value) == Some(crate::mir::MirType::I256) =>
+                if (super::integers::integer_max(func, value) == U256::MAX
+                    || super::integers::arithmetic_no_wrap(func, value)) =>
             {
                 let first = self.pointer_region(func, first, depth + 1);
                 if first != MemoryRegion::Unknown {
@@ -2085,7 +2089,8 @@ impl AliasAnalysis {
                     .checked_add(EvmMemoryLayout::object_data_offset(*kind))
             }
             InstKind::Add(first, second)
-                if func.value_ty(value) == Some(crate::mir::MirType::I256) =>
+                if (super::integers::integer_max(func, value) == U256::MAX
+                    || super::integers::arithmetic_no_wrap(func, value)) =>
             {
                 Self::pointer_lower_bound(func, *first, depth + 1)
                     .and_then(|base| base.checked_add(func.value_u64(*second)?))
@@ -2095,7 +2100,8 @@ impl AliasAnalysis {
                     })
             }
             InstKind::Sub(base, offset)
-                if func.value_ty(value) == Some(crate::mir::MirType::I256) =>
+                if (super::integers::integer_max(func, value) == U256::MAX
+                    || super::integers::arithmetic_no_wrap(func, value)) =>
             {
                 Self::pointer_lower_bound(func, *base, depth + 1)
                     .and_then(|base| base.checked_sub(func.value_u64(*offset)?))

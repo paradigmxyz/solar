@@ -173,9 +173,6 @@ impl ScalarEvolution {
         loop_data: &Loop,
         value: ValueId,
     ) -> Option<AffineExpr> {
-        if func.value_ty(value) != Some(crate::mir::MirType::I256) {
-            return None;
-        }
         if let Some(expr) = self.expressions.get(&value) {
             return Some(expr.clone());
         }
@@ -188,14 +185,55 @@ impl ScalarEvolution {
                 AffineExpr::base(value)
             }
             Value::Inst(inst_id) => {
-                if loop_data.induction_vars.iter().any(|iv| iv.value == value) {
+                if let Some(iv) = loop_data.induction_vars.iter().find(|iv| iv.value == value) {
+                    if super::integers::integer_max(func, value) != U256::MAX
+                        && !matches!(func.inst(iv.update_inst).kind, InstKind::CheckedBinary { .. })
+                    {
+                        let start = func.value_u256(iv.init)?;
+                        let travel = func
+                            .value_u256(iv.step)?
+                            .checked_mul(U256::from(loop_data.trip_count?))?;
+                        let end = if iv.descending {
+                            start.checked_sub(travel)?
+                        } else {
+                            start.checked_add(travel)?
+                        };
+                        if end > super::integers::integer_max(func, value) {
+                            return None;
+                        }
+                    }
                     AffineExpr::induction(value)
                 } else {
+                    let known = |value| {
+                        let iv = loop_data.induction_vars.iter().find(|iv| iv.value == value)?;
+                        let start = func.value_u256(iv.init)?;
+                        let travel = func
+                            .value_u256(iv.step)?
+                            .checked_mul(U256::from(loop_data.trip_count?))?;
+                        if iv.descending {
+                            Some((start.checked_sub(travel)?, start))
+                        } else {
+                            Some((start, start.checked_add(travel)?))
+                        }
+                    };
+                    if super::integers::integer_max(func, value) != U256::MAX
+                        && matches!(
+                            func.inst(*inst_id).kind,
+                            InstKind::Add(..)
+                                | InstKind::Sub(..)
+                                | InstKind::Mul(..)
+                                | InstKind::Shl(..)
+                        )
+                        && !super::integers::no_wrap_with(func, value, &known)
+                    {
+                        return None;
+                    }
                     match func.inst(*inst_id).kind {
+                        InstKind::Zext(source) => self.affine_expr(func, loop_data, source)?,
                         InstKind::Add(a, b)
                         | InstKind::CheckedBinary {
                             op: CheckedOp::Add,
-                            arithmetic: ArithmeticKind::Unsigned(256),
+                            arithmetic: ArithmeticKind::Unsigned(_),
                             lhs: a,
                             rhs: b,
                         } => {
@@ -206,7 +244,7 @@ impl ScalarEvolution {
                         InstKind::Sub(a, b)
                         | InstKind::CheckedBinary {
                             op: CheckedOp::Sub,
-                            arithmetic: ArithmeticKind::Unsigned(256),
+                            arithmetic: ArithmeticKind::Unsigned(_),
                             lhs: a,
                             rhs: b,
                         } => {
@@ -217,7 +255,7 @@ impl ScalarEvolution {
                         InstKind::Mul(a, b)
                         | InstKind::CheckedBinary {
                             op: CheckedOp::Mul,
-                            arithmetic: ArithmeticKind::Unsigned(256),
+                            arithmetic: ArithmeticKind::Unsigned(_),
                             lhs: a,
                             rhs: b,
                         } => {

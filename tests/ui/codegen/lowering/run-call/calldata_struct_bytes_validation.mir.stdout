@@ -96,7 +96,9 @@ fn @encodeField(arg0: calldataslice) -> i256 [selector=0xbd1dd83b, pure, abi_par
     v31 = memory_object_load_byte memorybytes, v27, 64
     v32 = shl 248, v31
     v33 = shr 248, v32
-    ret v33
+    v34 = trunc i256 v33 to i8
+    v35 = zext i8 v34 to i256
+    ret v35
 }
 
 fn @encodePackedField(arg0: calldataslice) -> i256 [selector=0xed098724, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -142,7 +144,9 @@ fn @encodePackedField(arg0: calldataslice) -> i256 [selector=0xed098724, pure, a
     v31 = memory_object_load_byte memorybytes, v27, 0
     v32 = shl 248, v31
     v33 = shr 248, v32
-    ret v33
+    v34 = trunc i256 v33 to i8
+    v35 = zext i8 v34 to i256
+    ret v35
 }
 
 fn @hashField(arg0: calldataslice) -> i256 [selector=0xdd0f255f, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -229,7 +233,9 @@ fn @indexField(arg0: calldataslice) -> i256 [selector=0xec2824a8, pure, abi_para
     v26 = byte 0, v25
     v27 = shl 248, v26
     v28 = shr 248, v27
-    ret v28
+    v29 = trunc i256 v28 to i8
+    v30 = zext i8 v29 to i256
+    ret v30
 }
 
 fn @fixedField(arg0: calldataslice) -> i256 [selector=0x4d20e66c, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -268,7 +274,9 @@ fn @fixedField(arg0: calldataslice) -> i256 [selector=0x4d20e66c, pure, abi_para
     v27 = select v23, v26, 0xff00000000000000000000000000000000000000000000000000000000000000
     v28 = and v21, v27
     v29 = shr 248, v28
-    ret v29
+    v30 = trunc i256 v29 to i8
+    v31 = zext i8 v30 to i256
+    ret v31
 }
 
 fn @copyField(arg0: calldataslice) -> i256 [selector=0xda205eee, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word], abi_return_params=[u256]] {

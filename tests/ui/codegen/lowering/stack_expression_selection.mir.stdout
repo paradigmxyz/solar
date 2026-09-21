@@ -1,19 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/stack_expression_selection.sol:StackExpressionSelection ===
 @module StackExpressionSelection
 types:
-  struct0: {i256, i256, i256}
-  struct1: {i256, i256}
+  struct0: {i256, i256, i1}
+  struct1: {i256, i1}
 
 fn @sharedXor(arg0: i256, arg1: i256) -> struct0 [selector=0x1a49b55c, pure, abi_params=[u256, u256], abi_returns=[word, word, word<bool>], abi_return_params=[u256, u256, bool]] {
   bb0:
     v0 = xor arg0, arg1
     v1 = add v0, 1
     v2 = eq arg0, arg1
-    v3 = zext i1 v2 to i256
-    v4 = insert_value struct0, undef struct0, 0, v0
-    v5 = insert_value struct0, v4, 1, v1
-    v6 = insert_value struct0, v5, 2, v3
-    ret v6
+    v3 = insert_value struct0, undef struct0, 0, v0
+    v4 = insert_value struct0, v3, 1, v1
+    v5 = insert_value struct0, v4, 2, v2
+    ret v5
 }
 
 fn @sharedReverse(arg0: i256, arg1: i256) -> struct0 [selector=0x8552b9c1, pure, abi_params=[u256, u256], abi_returns=[word, word, word<bool>], abi_return_params=[u256, u256, bool]] {
@@ -21,11 +20,10 @@ fn @sharedReverse(arg0: i256, arg1: i256) -> struct0 [selector=0x8552b9c1, pure,
     v0 = sub arg1, arg0
     v1 = add v0, 1
     v2 = eq arg0, arg1
-    v3 = zext i1 v2 to i256
-    v4 = insert_value struct0, undef struct0, 0, v0
-    v5 = insert_value struct0, v4, 1, v1
-    v6 = insert_value struct0, v5, 2, v3
-    ret v6
+    v3 = insert_value struct0, undef struct0, 0, v0
+    v4 = insert_value struct0, v3, 1, v1
+    v5 = insert_value struct0, v4, 2, v2
+    ret v5
 }
 
 fn @sharedDifference(arg0: i256, arg1: i256) -> struct0 [selector=0x10fe2b84, pure, abi_params=[u256, u256], abi_returns=[word, word, word<bool>], abi_return_params=[u256, u256, bool]] {
@@ -33,41 +31,37 @@ fn @sharedDifference(arg0: i256, arg1: i256) -> struct0 [selector=0x10fe2b84, pu
     v0 = sub arg0, arg1
     v1 = add v0, 1
     v2 = eq arg0, arg1
-    v3 = zext i1 v2 to i256
-    v4 = insert_value struct0, undef struct0, 0, v0
-    v5 = insert_value struct0, v4, 1, v1
-    v6 = insert_value struct0, v5, 2, v3
-    ret v6
+    v3 = insert_value struct0, undef struct0, 0, v0
+    v4 = insert_value struct0, v3, 1, v1
+    v5 = insert_value struct0, v4, 2, v2
+    ret v5
 }
 
 fn @difference(arg0: i256, arg1: i256) -> struct1 [selector=0xa95cb7f7, pure, abi_params=[u256, u256], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
   bb0:
     v0 = sub arg0, arg1
     v1 = eq arg0, arg1
-    v2 = zext i1 v1 to i256
-    v3 = insert_value struct1, undef struct1, 0, v0
-    v4 = insert_value struct1, v3, 1, v2
-    ret v4
+    v2 = insert_value struct1, undef struct1, 0, v0
+    v3 = insert_value struct1, v2, 1, v1
+    ret v3
 }
 
 fn @reverseDifference(arg0: i256, arg1: i256) -> struct1 [selector=0x132a45fc, pure, abi_params=[u256, u256], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
   bb0:
     v0 = sub arg1, arg0
     v1 = eq arg0, arg1
-    v2 = zext i1 v1 to i256
-    v3 = insert_value struct1, undef struct1, 0, v0
-    v4 = insert_value struct1, v3, 1, v2
-    ret v4
+    v2 = insert_value struct1, undef struct1, 0, v0
+    v3 = insert_value struct1, v2, 1, v1
+    ret v3
 }
 
 fn @xorDifference(arg0: i256, arg1: i256) -> struct1 [selector=0x30ca6808, pure, abi_params=[u256, u256], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
   bb0:
     v0 = xor arg0, arg1
     v1 = eq arg0, arg1
-    v2 = zext i1 v1 to i256
-    v3 = insert_value struct1, undef struct1, 0, v0
-    v4 = insert_value struct1, v3, 1, v2
-    ret v4
+    v2 = insert_value struct1, undef struct1, 0, v0
+    v3 = insert_value struct1, v2, 1, v1
+    ret v3
 }
 
 fn @loop(arg0: i256) -> i256 [selector=0x0b7d796e, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {

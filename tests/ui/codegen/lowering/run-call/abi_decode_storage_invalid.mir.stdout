@@ -15,11 +15,12 @@ fn @decodeNarrow(arg0: memorybytes) -> i256 [selector=0x3964f0f9, abi_params=[by
     v0 = load_storage_bytes 0
     v1 = abi_decode [tuple<u8, u8, address, address, bytes4, bytes4>], v0
     v2 = memory_object_load_field memorystruct<6>, v1, 0
-    v3 = and v2, 255
+    v3 = trunc i256 v2 to i8
     v4 = memory_object_load_field memorystruct<6>, v1, 1
-    v5 = and v4, 255
+    v5 = trunc i256 v4 to i8
     v6 = checked_add u8, v3, v5
-    ret v6
+    v7 = zext i8 v6 to i256
+    ret v7
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {

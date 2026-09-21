@@ -651,7 +651,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let ExprKind::Lit(lit) = expr.peel_parens().kind {
             return self.lower_word_literal(lit);
         }
-        self.lower_expr(expr)
+        let value = self.lower_expr(expr)?;
+        if let Some(ty) = self.cx.gcx.type_of_expr(expr.id)
+            && ty.is_signed()
+            && let Some(bits) = self.builder.func().value_ty(value).and_then(MirType::integer_bits)
+            && bits < 256
+        {
+            Some(self.builder.emit_inst(InstKind::Sext(value, bits, 256), Some(MirType::I256)))
+        } else {
+            Some(self.builder.cast_word(value))
+        }
     }
 
     pub(super) fn merge_storage_refs(
@@ -833,6 +842,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut header_values = before_values.clone();
         let mut header_phis = FxHashMap::default();
         for (&id, &value) in &before_values {
+            let value = if self.cx.state.raw_scalars.contains(&id)
+                && self.builder.func().value_ty(value).is_some_and(|ty| ty.integer_bits().is_some())
+            {
+                self.builder.switch_to_block(preheader);
+                let value = self.builder.cast_word(value);
+                self.builder.switch_to_block(header);
+                value
+            } else {
+                value
+            };
             let phi = self.merge_value_phi(vec![(preheader, value)]);
             header_values.insert(id, phi);
             header_phis.insert(id, phi);
@@ -1093,12 +1112,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn merge_value_phi(&mut self, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
         let dirty = !self.dirty_values.is_empty()
             && incoming.iter().any(|(_, value)| self.dirty_values.contains(value));
-        // Source bindings may acquire raw bits through assembly on a backedge.
-        // Preserve those bits even when the initial incoming value is i1 or i160.
+        // Preserve raw assembly bits when either arm carries them.
         let ty = incoming
             .first()
             .and_then(|(_, value)| self.builder.func().value_ty(*value))
-            .map(|ty| if matches!(ty, MirType::I1 | MirType::I160) { MirType::I256 } else { ty })
+            .map(|ty| if dirty && ty.integer_bits().is_some() { MirType::I256 } else { ty })
             .unwrap_or(MirType::I256);
         // value = phi [predecessor: cast incoming to the source carrier type, ...]
         let value = self.builder.emit_inst(InstKind::Phi(incoming), Some(ty));

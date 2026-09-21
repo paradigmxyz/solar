@@ -1261,15 +1261,24 @@ impl LowerAbiCx {
                 );
                 head_offset += ty.checked_head_size().expect("ABI head size exceeds u64 range");
             }
-            let preserve_word_types = layout.types.len() == arg_types.len()
-                && layout.types.iter().zip(&arg_types).all(|(ty, &param)| {
-                    ty.is_scalar_word()
-                        && ty.mir_type() == param
-                        && !matches!(ty, AbiParamType::Scalar(crate::mir::ValueLayout::Function))
-                });
-            let mut params = IndexVec::with_capacity((head_offset / 32) as usize);
-            for (index, _) in (0..head_offset / 32).enumerate() {
-                params.push(if preserve_word_types { arg_types[index] } else { MirType::I256 });
+            // ABI words can contain sign bits above the native integer width.
+            let mut params =
+                (0..head_offset / 32).map(|_| MirType::I256).collect::<IndexVec<_, _>>();
+            for (logical, physical) in logical_physical.iter().enumerate() {
+                if let Some(physical) = *physical
+                    && let Some(&ty) = arg_types.get(logical)
+                    && layout.types[logical].mir_type() == ty
+                    && matches!(
+                        layout.types[logical],
+                        AbiParamType::Scalar(
+                            crate::mir::ValueLayout::Bool
+                                | crate::mir::ValueLayout::UInt(_)
+                                | crate::mir::ValueLayout::Address
+                        )
+                    )
+                {
+                    params[physical] = ty;
+                }
             }
             func.set_params(params);
             logical_values = logical_physical

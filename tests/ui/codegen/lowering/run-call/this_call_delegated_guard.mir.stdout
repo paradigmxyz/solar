@@ -40,13 +40,12 @@ fn @initialized() -> i256 [selector=0x158ef93e, view, abi_params=[], abi_returns
     ret v0
 }
 
-fn @constructor(arg0: i256) [constructor, abi_params=[address]] {
+fn @constructor(arg0: i160) [constructor, abi_params=[address]] {
   bb0:
     v0 = gas
     v1 = abi_encode [], object, selector 0xe1c7392a00000000000000000000000000000000000000000000000000000000
-    v2 = trunc i256 arg0 to i160
-    v3 = address_delegatecall v2, v1, gas v0
-    icall require<short_string>, v3, 11, 0x696e6974206661696c6564000000000000000000000000000000000000000000
+    v2 = address_delegatecall arg0, v1, gas v0
+    icall require<short_string>, v2, 11, 0x696e6974206661696c6564000000000000000000000000000000000000000000
     ret
 }
 
@@ -54,7 +53,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[address]] {
 @module Deployer
 data:
   Impl_initcode_0: hex"34600d5760e48060115f395ff35b5f5ffd3415156038575f3560e01c8063158ef93e1460345780635c36b186146030578063e1c7392a14602c576038565b604e565b60e3565b603c565b5f5ffd5b5f546080526020608001608090036080f35b6101206040525a8060c0528060c0526040518060a0528060a052602060a05101604052806080527f5c36b18600000000000000000000000000000000000000000000000000000000815250608051806080526004900150608051806080528060e0528060e052303b1560df578160c0528060e0525f5f6004835f3087f191505060d9573d5f5f3e3d5ffd5b60015f55005b5f5ffd5b"
-  Proxy_initcode_1: hex"61020b38038061020b6101a0396101a001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016604052607d565b7f08c379a0000000000000000000000000000000000000000000000000000000005f52602060045260a0516040015160245260a0516060015160445260645ffd5b3415156101ca576101a08060c0528060c0526101a061020b38030160208201116101c6578060c0525160a01c15156101c6576040518060e0528060e052604060e05101604052806101005260048152506101005180610100526020900180610120527fe1c7392a00000000000000000000000000000000000000000000000000000000815250610120518061012052600490015073ffffffffffffffffffffffffffffffffffffffff6101a0511661010051806101005260209001610100518061010052518292508191508261014052816101605280610180525f5f8284865af4925050506101c15760405160a0518160200152600b81604001527f696e6974206661696c656400000000000000000000000000000000000000000081606001528060a0526080016040526101af603c565b60a05160405260a0516020015160a052fe5b6101ce565b5f5ffd5b5f5ffd5b6032806101d95f395ff3341515601c575f3560e01c8063158ef93e14601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
+  Proxy_initcode_1: hex"6101f23803806101f26101a0396101a001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016604052607d565b7f08c379a0000000000000000000000000000000000000000000000000000000005f52602060045260a0516040015160245260a0516060015160445260645ffd5b3415156101b1576101a08060c0528060c0526101a06101f238030160208201116101ad578060c0525160a01c15156101ad576040518060e0528060e052604060e05101604052806101005260048152506101005180610100526020900180610120527fe1c7392a00000000000000000000000000000000000000000000000000000000815250610120518061012052600490015061010051806101005260209001610100518061010052516101a0518292508061014052826101605281610180525f5f8385845af4925050506101a85760405160a0518160200152600b81604001527f696e6974206661696c656400000000000000000000000000000000000000000081606001528060a052608001604052610196603c565b60a05160405260a0516020015160a052fe5b6101b5565b5f5ffd5b5f5ffd5b6032806101c05f395ff3341515601c575f3560e01c8063158ef93e14601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
 
 fn @deployProxy() -> i256 [selector=0x44882b95, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -77,43 +76,42 @@ fn @deployProxy() -> i256 [selector=0x44882b95, abi_params=[], abi_returns=[word
     revert_returndata
   bb2:
     v12 = zext i160 v9 to i256
-    v13 = zext i160 v9 to i256
-    v14 = abi_encode [word<u160>], args v13
-    v15 = not 31
-    v16 = and 586, v15
-    v17 = alloc raw, exact, uninitialized, infallible, v16
-    v18 = ptrtoint memptr v17 to i256
-    data_copy Proxy_initcode_1, v18, 523
-    v19 = slice_ptr v14
-    v20 = ptrtoint memptr v17 to i256
-    v21 = add v20, 523
-    mcopy v21, v19, 32 !metadata(memory=heap)
-    v22 = ptrtoint memptr v17 to i256
-    v23 = create 0, v22, 555
-    v24 = zext i160 v23 to i256
-    v25 = ne v24, 0
-    jumpi v25, bb4, bb3
+    v13 = abi_encode [word<u160>], args v12
+    v14 = not 31
+    v15 = and 561, v14
+    v16 = alloc raw, exact, uninitialized, infallible, v15
+    v17 = ptrtoint memptr v16 to i256
+    data_copy Proxy_initcode_1, v17, 498
+    v18 = slice_ptr v13
+    v19 = ptrtoint memptr v16 to i256
+    v20 = add v19, 498
+    mcopy v20, v18, 32 !metadata(memory=heap)
+    v21 = ptrtoint memptr v16 to i256
+    v22 = create 0, v21, 530
+    v23 = zext i160 v22 to i256
+    v24 = ne v23, 0
+    jumpi v24, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v26 = zext i160 v23 to i256
-    v27 = gas
-    v28 = abi_encode [], selector 0x158ef93e00000000000000000000000000000000000000000000000000000000
-    v29 = slice_ptr v28
-    v30 = slice_len v28
-    v31 = staticcall v27, v26, v29, v30, 0, 32
-    jumpi v31, bb6, bb5
+    v25 = gas
+    v26 = abi_encode [], selector 0x158ef93e00000000000000000000000000000000000000000000000000000000
+    v27 = slice_ptr v26
+    v28 = slice_len v26
+    v29 = zext i160 v22 to i256
+    v30 = staticcall v25, v29, v27, v28, 0, 32
+    jumpi v30, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v32 = returndatasize
-    v33 = lt v32, 32
-    icall revert_if<tuple_data_too_short>, v33
-    v34 = add 0, 0
-    v35 = mload v34
-    v36 = add 0, 0
-    v37 = mload v36
-    ret v37
+    v31 = returndatasize
+    v32 = lt v31, 32
+    icall revert_if<tuple_data_too_short>, v32
+    v33 = add 0, 0
+    v34 = mload v33
+    v35 = add 0, 0
+    v36 = mload v35
+    ret v36
 }
 
 fn @callImplDirectly() -> i256 [selector=0x0bba4d4b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -136,34 +134,36 @@ fn @callImplDirectly() -> i256 [selector=0x0bba4d4b, abi_params=[], abi_returns=
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = gas
-    v14 = abi_encode [], selector 0xe1c7392a00000000000000000000000000000000000000000000000000000000
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = extcodesize v12
+    v12 = gas
+    v13 = abi_encode [], selector 0xe1c7392a00000000000000000000000000000000000000000000000000000000
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = zext i160 v9 to i256
+    v17 = extcodesize v16
     v18 = eq v17, 0
     icall revert_if<target_contract_has_no_code>, v18
-    v19 = call v13, v12, 0, v15, v16, 0, 0
-    jumpi v19, bb4, bb3
+    v19 = zext i160 v9 to i256
+    v20 = call v12, v19, 0, v14, v15, 0, 0
+    jumpi v20, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v20 = gas
-    v21 = abi_encode [], selector 0x158ef93e00000000000000000000000000000000000000000000000000000000
-    v22 = slice_ptr v21
-    v23 = slice_len v21
-    v24 = staticcall v20, v12, v22, v23, 0, 32
-    jumpi v24, bb6, bb5
+    v21 = gas
+    v22 = abi_encode [], selector 0x158ef93e00000000000000000000000000000000000000000000000000000000
+    v23 = slice_ptr v22
+    v24 = slice_len v22
+    v25 = zext i160 v9 to i256
+    v26 = staticcall v21, v25, v23, v24, 0, 32
+    jumpi v26, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v25 = returndatasize
-    v26 = lt v25, 32
-    icall revert_if<tuple_data_too_short>, v26
-    v27 = add 0, 0
-    v28 = mload v27
+    v27 = returndatasize
+    v28 = lt v27, 32
+    icall revert_if<tuple_data_too_short>, v28
     v29 = add 0, 0
     v30 = mload v29
-    ret v30
+    v31 = add 0, 0
+    v32 = mload v31
+    ret v32
 }

@@ -364,12 +364,12 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
   bb12:
     revert_returndata
   bb13:
-    v76 = zext i160 v73 to i256
-    v77 = gas
-    v78 = abi_encode [], selector 0x57de26a400000000000000000000000000000000000000000000000000000000
-    v79 = slice_ptr v78
-    v80 = slice_len v78
-    v81 = staticcall v77, v76, v79, v80, 0, 32
+    v76 = gas
+    v77 = abi_encode [], selector 0x57de26a400000000000000000000000000000000000000000000000000000000
+    v78 = slice_ptr v77
+    v79 = slice_len v77
+    v80 = zext i160 v73 to i256
+    v81 = staticcall v76, v80, v78, v79, 0, 32
     jumpi v81, bb15, bb14
   bb14:
     revert_returndata

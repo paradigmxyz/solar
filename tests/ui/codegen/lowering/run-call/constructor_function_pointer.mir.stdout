@@ -77,12 +77,12 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
   bb1:
     revert_returndata
   bb2:
-    v16 = zext i160 v13 to i256
-    v17 = gas
-    v18 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v19 = slice_ptr v18
-    v20 = slice_len v18
-    v21 = staticcall v17, v16, v19, v20, 0, 32
+    v16 = gas
+    v17 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v18 = slice_ptr v17
+    v19 = slice_len v17
+    v20 = zext i160 v13 to i256
+    v21 = staticcall v16, v20, v18, v19, 0, 32
     jumpi v21, bb4, bb3
   bb3:
     revert_returndata
@@ -97,7 +97,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     ret v27
 }
 
-fn @fArray() -> i256 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @fArray() -> i1 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     v1 = ptrtoint memoryfixedarray v0 to i256
@@ -129,32 +129,33 @@ fn @fArray() -> i256 [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool
   bb1:
     revert_returndata
   bb2:
-    v21 = zext i160 v18 to i256
-    v22 = address
-    v23 = zext i160 v22 to i256
-    v24 = shl 96, v23
-    v25 = shr 224, 0x990227f100000000000000000000000000000000000000000000000000000000
-    v26 = shl 64, v25
-    v27 = or v24, v26
-    v28 = gas
-    v29 = abi_encode [], selector 0xc096a63200000000000000000000000000000000000000000000000000000000
-    v30 = slice_ptr v29
-    v31 = slice_len v29
-    v32 = staticcall v28, v21, v30, v31, 0, 32
-    jumpi v32, bb4, bb3
+    v21 = address
+    v22 = zext i160 v21 to i256
+    v23 = shl 96, v22
+    v24 = shr 224, 0x990227f100000000000000000000000000000000000000000000000000000000
+    v25 = trunc i256 v24 to i32
+    v26 = zext i32 v25 to i256
+    v27 = shl 64, v26
+    v28 = or v23, v27
+    v29 = gas
+    v30 = abi_encode [], selector 0xc096a63200000000000000000000000000000000000000000000000000000000
+    v31 = slice_ptr v30
+    v32 = slice_len v30
+    v33 = zext i160 v18 to i256
+    v34 = staticcall v29, v33, v31, v32, 0, 32
+    jumpi v34, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v33 = returndatasize
-    v34 = lt v33, 32
-    icall revert_if<tuple_data_too_short>, v34
-    v35 = add 0, 0
-    v36 = mload v35
+    v35 = returndatasize
+    v36 = lt v35, 32
+    icall revert_if<tuple_data_too_short>, v36
     v37 = add 0, 0
     v38 = mload v37
-    v39 = eq v38, v27
-    v40 = zext i1 v39 to i256
-    ret v40
+    v39 = add 0, 0
+    v40 = mload v39
+    v41 = eq v40, v28
+    ret v41
 }
 
 fn @sixteen() -> i256 [selector=0x990227f1, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

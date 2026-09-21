@@ -13,12 +13,12 @@
       ret v6
   }
   
-  fn @odd_width(arg0: i17, arg1: i17) -> i17 {
+  fn @byte_width(arg0: i24, arg1: i24) -> i24 {
     bb0:
       v0 = shl arg1, arg0
       v1 = sar arg1, v0
-      v2 = sext i17 v1 to i255
-      v3 = trunc i255 v2 to i17
+      v2 = sext i24 v1 to i248
+      v3 = trunc i248 v2 to i24
       ret v3
   }
   
@@ -51,15 +51,15 @@
 +     ret i8 255
   }
   
-  fn @clz(arg0: i9) -> i9 {
+  fn @clz(arg0: i16) -> i16 {
     bb0:
       v0 = clz arg0
       ret v0
   }
   
-  fn @calls(arg0: i17, arg1: i17) -> i17 {
+  fn @calls(arg0: i24, arg1: i24) -> i24 {
     bb0:
-      v0 = icall @odd_width, arg0, arg1
+      v0 = icall @byte_width, arg0, arg1
       ret v0
   }
   
@@ -91,14 +91,21 @@
       jump bb1
   }
   
+  fn @boolean_complement(arg0: i1) -> i1 {
+    bb0:
+      v0 = xor arg0, true
+      ret v0
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after egraph) ===
   @module Integers
   fn @arithmetic(arg0: i8, arg1: i8) -> i8 {
     bb0:
       v0 = add arg0, arg1
-      v1 = sub v0, arg1
-      v2 = mul v1, arg0
+-     v1 = sub v0, arg1
+-     v2 = mul v1, arg0
++     v2 = mul arg0, arg0
       v3 = sdiv v2, arg1
       v4 = smod v3, arg0
       v5 = not v4
@@ -106,12 +113,12 @@
       ret v6
   }
   
-  fn @odd_width(arg0: i17, arg1: i17) -> i17 {
+  fn @byte_width(arg0: i24, arg1: i24) -> i24 {
     bb0:
       v0 = shl arg1, arg0
       v1 = sar arg1, v0
-      v2 = sext i17 v1 to i255
--     v3 = trunc i255 v2 to i17
+      v2 = sext i24 v1 to i248
+-     v3 = trunc i248 v2 to i24
 -     ret v3
 +     ret v1
   }
@@ -138,15 +145,15 @@
       ret i8 255
   }
   
-  fn @clz(arg0: i9) -> i9 {
+  fn @clz(arg0: i16) -> i16 {
     bb0:
       v0 = clz arg0
       ret v0
   }
   
-  fn @calls(arg0: i17, arg1: i17) -> i17 {
+  fn @calls(arg0: i24, arg1: i24) -> i24 {
     bb0:
-      v0 = icall @odd_width, arg0, arg1
+      v0 = icall @byte_width, arg0, arg1
       ret v0
   }
   
@@ -178,14 +185,20 @@
       jump bb1
   }
   
+  fn @boolean_complement(arg0: i1) -> i1 {
+    bb0:
+-     v0 = xor arg0, true
++     v0 = eq arg0, false
+      ret v0
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after check-elim) ===
   @module Integers
   fn @arithmetic(arg0: i8, arg1: i8) -> i8 {
     bb0:
       v0 = add arg0, arg1
-      v1 = sub v0, arg1
-      v2 = mul v1, arg0
+      v2 = mul arg0, arg0
       v3 = sdiv v2, arg1
       v4 = smod v3, arg0
       v5 = not v4
@@ -193,11 +206,11 @@
       ret v6
   }
   
-  fn @odd_width(arg0: i17, arg1: i17) -> i17 {
+  fn @byte_width(arg0: i24, arg1: i24) -> i24 {
     bb0:
       v0 = shl arg1, arg0
       v1 = sar arg1, v0
-      v2 = sext i17 v1 to i255
+      v2 = sext i24 v1 to i248
       ret v1
   }
   
@@ -220,15 +233,15 @@
       ret i8 255
   }
   
-  fn @clz(arg0: i9) -> i9 {
+  fn @clz(arg0: i16) -> i16 {
     bb0:
       v0 = clz arg0
       ret v0
   }
   
-  fn @calls(arg0: i17, arg1: i17) -> i17 {
+  fn @calls(arg0: i24, arg1: i24) -> i24 {
     bb0:
-      v0 = icall @odd_width, arg0, arg1
+      v0 = icall @byte_width, arg0, arg1
       ret v0
   }
   
@@ -258,5 +271,11 @@
       ret v1
     bb2:
       jump bb1
+  }
+  
+  fn @boolean_complement(arg0: i1) -> i1 {
+    bb0:
+      v0 = eq arg0, false
+      ret v0
   }
   

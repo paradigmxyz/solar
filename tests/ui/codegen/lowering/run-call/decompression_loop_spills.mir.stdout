@@ -146,23 +146,22 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = gas
-    v14 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v14, 4
-    v15 = memory_object_data memorybytes, v14
-    v16 = ptrtoint memptr v15 to i256
-    mstore v16, 0xff80ff8000000000000000000000000000000000000000000000000000000000
-    v17 = address_call v9, v14, gas v13
-    v18 = icall returndata_bytes<>
-    icall require<short_string>, v17, 4, 0x63616c6c00000000000000000000000000000000000000000000000000000000
-    v19 = abi_decode [bytes32], v18
-    v20 = not 31
-    v21 = and 319, v20
-    v22 = alloc memorybytes, exact, zeroed, panic, v21
-    set_memory_object_len memorybytes, v22, 256
-    v23 = keccak256_bytes v22
-    v24 = eq v19, v23
-    icall require<short_string>, v24, 6, 0x6f75747075740000000000000000000000000000000000000000000000000000
+    v12 = gas
+    v13 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v13, 4
+    v14 = memory_object_data memorybytes, v13
+    v15 = ptrtoint memptr v14 to i256
+    mstore v15, 0xff80ff8000000000000000000000000000000000000000000000000000000000
+    v16 = address_call v9, v13, gas v12
+    v17 = icall returndata_bytes<>
+    icall require<short_string>, v16, 4, 0x63616c6c00000000000000000000000000000000000000000000000000000000
+    v18 = abi_decode [bytes32], v17
+    v19 = not 31
+    v20 = and 319, v19
+    v21 = alloc memorybytes, exact, zeroed, panic, v20
+    set_memory_object_len memorybytes, v21, 256
+    v22 = keccak256_bytes v21
+    v23 = eq v18, v22
+    icall require<short_string>, v23, 6, 0x6f75747075740000000000000000000000000000000000000000000000000000
     ret 1
 }

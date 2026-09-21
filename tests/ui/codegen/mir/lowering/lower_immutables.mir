@@ -6,42 +6,47 @@ immutables:
   second: bool
 
 // CHECK-LABEL: @constructor
-// CHECK: -     storeimmutable first, arg0
-// CHECK-NEXT: -     storeimmutable second, arg1
-// CHECK-NEXT: +     mstore 192, arg0
-// CHECK-NEXT: +     [[WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} arg1
-// CHECK-NEXT: +     mstore 224, [[WORD]]
-// CHECK-NEXT:       [[LOAD:v[0-9]+]] = loadimmutable first
-// CHECK-NEXT:       ret [[LOAD]]
+// CHECK: - storeimmutable first, [[FIRST:v[0-9]+]]
+// CHECK-NEXT: - storeimmutable second, arg1
+// CHECK-NEXT: + [[WORD:v[0-9]+]] = zext i8 [[FIRST]] to i256
+// CHECK-NEXT: + mstore 192, [[WORD]]
+// CHECK-NEXT: + [[BOOL:v[0-9]+]] = zext i1 arg1 to i256
+// CHECK-NEXT: + mstore 224, [[BOOL]]
+// CHECK: loadimmutable first
 fn @constructor(arg0: i256, arg1: i1) -> i256 {
   bb0:
-    storeimmutable first, arg0
+    v10000 = trunc i256 arg0 to i8
+    storeimmutable first, v10000
     storeimmutable second, arg1
-    v0 = loadimmutable first
+    v10001 = loadimmutable first
+    v0 = zext i8 v10001 to i256
     ret v0
 }
 
 // CHECK-LABEL: fn @runtime
-// CHECK: storeimmutable first, 1
+// CHECK: storeimmutable first, {{v[0-9]+}}
 fn @runtime() [selector=1] {
   bb0:
-    storeimmutable first, 1
+    v10002 = trunc i256 1 to i8
+    storeimmutable first, v10002
     stop
 }
 
 // CHECK-LABEL: fn @entry
-// CHECK: -     storeimmutable first, 2
-// CHECK: +     mstore 192, 2
+// CHECK: -     storeimmutable first, {{v[0-9]+}}
+// CHECK: +     mstore 192, {{v[0-9]+}}
 fn @entry() {
   bb0:
-    storeimmutable first, 2
+    v10003 = trunc i256 2 to i8
+    storeimmutable first, v10003
     stop
 }
 
 // CHECK-LABEL: fn @router
-// CHECK: storeimmutable first, 3
+// CHECK: storeimmutable first, {{v[0-9]+}}
 fn @router() [entry] {
   bb0:
-    storeimmutable first, 3
+    v10004 = trunc i256 3 to i8
+    storeimmutable first, v10004
     stop
 }

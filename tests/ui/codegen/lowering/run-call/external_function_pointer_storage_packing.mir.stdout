@@ -12,14 +12,16 @@ fn @constructor() [constructor] {
     v7 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffff
     v8 = or v6, v7
     sstore 0, v8 !metadata(storage=slot(0))
-    v9 = shl 192, 0xffffffffffffffff
-    v10 = sload 0 !metadata(storage=slot(0))
-    v11 = not v9
-    v12 = and v10, v11
-    v13 = and 0x1122334455667788, 0xffffffffffffffff
-    v14 = shl 192, v13
-    v15 = or v12, v14
-    sstore 0, v15 !metadata(storage=slot(0))
+    v9 = trunc i256 0x1122334455667788 to i64
+    v10 = shl 192, 0xffffffffffffffff
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = not v10
+    v13 = and v11, v12
+    v14 = zext i64 v9 to i256
+    v15 = and v14, 0xffffffffffffffff
+    v16 = shl 192, v15
+    v17 = or v13, v16
+    sstore 0, v17 !metadata(storage=slot(0))
     ret
 }
 

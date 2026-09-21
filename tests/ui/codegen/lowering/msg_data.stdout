@@ -54,15 +54,17 @@ fn @environment() -> i256 [selector=0x74e2b63c, view, abi_params=[], abi_returns
     v17 = calldataload 0
     v18 = and v17, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v19 = shr 224, v18
-    v20 = xor v16, v19
-    v21 = origin
-    v22 = zext i160 v21 to i256
-    v23 = xor v20, v22
-    v24 = gasprice
-    v25 = xor v23, v24
-    v26 = gas
+    v20 = trunc i256 v19 to i32
+    v21 = zext i32 v20 to i256
+    v22 = xor v16, v21
+    v23 = origin
+    v24 = zext i160 v23 to i256
+    v25 = xor v22, v24
+    v26 = gasprice
     v27 = xor v25, v26
-    ret v27
+    v28 = gas
+    v29 = xor v27, v28
+    ret v29
 }
 
 fn @tail(arg0: i256, arg1: i256) -> memorybytes [selector=0xb62868c3, pure, abi_params=[u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

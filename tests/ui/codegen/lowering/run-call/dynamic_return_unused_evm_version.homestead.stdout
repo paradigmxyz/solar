@@ -266,49 +266,52 @@ fn @liveTuple() -> i256 [selector=0x04e1eee0, abi_params=[], abi_returns=[word],
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = fmp
-    v14 = ptrtoint memptr v13 to i256
-    v15 = add v14, 32
-    mstore v15, 0
-    v16 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v17 = slice_ptr v16
-    v18 = slice_len v16
-    v19 = extcodesize v12
+    v12 = fmp
+    v13 = ptrtoint memptr v12 to i256
+    v14 = add v13, 32
+    mstore v14, 0
+    v15 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = zext i160 v9 to i256
+    v19 = extcodesize v18
     v20 = eq v19, 0
     icall revert_if<target_contract_has_no_code>, v20
     v21 = gas
     v22 = sub v21, 50
-    v23 = call v22, v12, 0, v17, v18, v17, 32
-    jumpi v23, bb4, bb3
+    v23 = zext i160 v9 to i256
+    v24 = call v22, v23, 0, v16, v17, v16, 32
+    jumpi v24, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v24 = add v17, 0
-    v25 = mload v24
-    v26 = add v17, 0
-    v27 = mload v26
-    v28 = fmp
-    v29 = ptrtoint memptr v28 to i256
-    v30 = add v29, 32
-    mstore v30, 0
-    v31 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
-    v32 = slice_ptr v31
-    v33 = slice_len v31
-    v34 = extcodesize v12
-    v35 = eq v34, 0
-    icall revert_if<target_contract_has_no_code>, v35
-    v36 = gas
-    v37 = sub v36, 50
-    v38 = call v37, v12, 0, v32, v33, v32, 32
-    jumpi v38, bb6, bb5
+    v25 = add v16, 0
+    v26 = mload v25
+    v27 = add v16, 0
+    v28 = mload v27
+    v29 = fmp
+    v30 = ptrtoint memptr v29 to i256
+    v31 = add v30, 32
+    mstore v31, 0
+    v32 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
+    v33 = slice_ptr v32
+    v34 = slice_len v32
+    v35 = zext i160 v9 to i256
+    v36 = extcodesize v35
+    v37 = eq v36, 0
+    icall revert_if<target_contract_has_no_code>, v37
+    v38 = gas
+    v39 = sub v38, 50
+    v40 = zext i160 v9 to i256
+    v41 = call v39, v40, 0, v33, v34, v33, 32
+    jumpi v41, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v39 = add v32, 0
-    v40 = mload v39
-    v41 = add v32, 0
-    v42 = mload v41
+    v42 = add v33, 0
+    v43 = mload v42
+    v44 = add v33, 0
+    v45 = mload v44
     ret 1
 }
 
@@ -382,46 +385,47 @@ fn @liveLoop() -> i256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word], 
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
     jump bb3
   bb3:
-    v13 = phi [bb2: 0], [bb5: v32]
-    v14 = phi [bb2: v12], [bb5: v14]
-    v15 = phi [bb2: 0], [bb5: v33]
-    v16 = lt v15, 3
-    jumpi v16, bb6, bb7
+    v12 = phi [bb2: 0], [bb5: v33]
+    v13 = phi [bb2: v9], [bb5: v13]
+    v14 = phi [bb2: 0], [bb5: v34]
+    v15 = lt v14, 3
+    jumpi v15, bb6, bb7
   bb7:
     jump bb4
   bb4:
-    ret v13
+    ret v12
   bb6:
-    v17 = fmp
-    v18 = ptrtoint memptr v17 to i256
-    v19 = add v18, 32
-    mstore v19, 0
-    v20 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v21 = slice_ptr v20
-    v22 = slice_len v20
-    v23 = extcodesize v14
+    v16 = fmp
+    v17 = ptrtoint memptr v16 to i256
+    v18 = add v17, 32
+    mstore v18, 0
+    v19 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v20 = slice_ptr v19
+    v21 = slice_len v19
+    v22 = zext i160 v13 to i256
+    v23 = extcodesize v22
     v24 = eq v23, 0
     icall revert_if<target_contract_has_no_code>, v24
     v25 = gas
     v26 = sub v25, 50
-    v27 = call v26, v14, 0, v21, v22, v21, 32
-    jumpi v27, bb10, bb9
+    v27 = zext i160 v13 to i256
+    v28 = call v26, v27, 0, v20, v21, v20, 32
+    jumpi v28, bb10, bb9
   bb9:
     revert_returndata
   bb10:
-    v28 = add v21, 0
-    v29 = mload v28
-    v30 = add v21, 0
-    v31 = mload v30
-    v32 = checked_add u256, v13, 1
+    v29 = add v20, 0
+    v30 = mload v29
+    v31 = add v20, 0
+    v32 = mload v31
+    v33 = checked_add u256, v12, 1
     jump bb8
   bb8:
     jump bb5
   bb5:
-    v33 = checked_add u256, v15, 1
+    v34 = checked_add u256, v14, 1
     jump bb3
 }
 

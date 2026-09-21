@@ -2,7 +2,7 @@
 @module C
 types:
   struct0: {i256, i256}
-  struct1: {i256, i256, i256, i256}
+  struct1: {i8, i8, i8, i8}
 
 fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
@@ -93,41 +93,56 @@ fn @test_h() -> i256 [selector=0xeafd81e0, abi_params=[], abi_returns=[word], ab
 
 fn @mapping_reference() -> struct1 [selector=0xc5744cb1, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>], abi_return_params=[u8, u8, u8, u8]] {
   bb0:
-    v0 = and 1, 255
-    v1 = mapping_slot v0, 2
-    v2 = sload v1 !metadata(storage=symbolic(v1))
-    v3 = not 255
-    v4 = and v2, v3
-    v5 = and 42, 255
-    v6 = or v4, v5
-    sstore v1, v6 !metadata(storage=symbolic(v1))
-    v7 = and 2, 255
-    v8 = mapping_slot v7, 3
-    v9 = sload v8 !metadata(storage=symbolic(v8))
-    v10 = not 255
-    v11 = and v9, v10
-    v12 = and 21, 255
-    v13 = or v11, v12
-    sstore v8, v13 !metadata(storage=symbolic(v8))
-    v14 = and 1, 255
-    v15 = mapping_slot v14, 2
-    v16 = sload v15 !metadata(storage=symbolic(v15))
-    v17 = and v16, 255
-    v18 = and 2, 255
-    v19 = mapping_slot v18, 2
-    v20 = sload v19 !metadata(storage=symbolic(v19))
-    v21 = and v20, 255
-    v22 = and 1, 255
-    v23 = mapping_slot v22, 3
+    v0 = trunc i256 42 to i8
+    v1 = trunc i256 1 to i8
+    v2 = zext i8 v1 to i256
+    v3 = mapping_slot v2, 2
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    v5 = not 255
+    v6 = and v4, v5
+    v7 = zext i8 v0 to i256
+    v8 = and v7, 255
+    v9 = or v6, v8
+    sstore v3, v9 !metadata(storage=symbolic(v3))
+    v10 = trunc i256 0 to i8
+    v11 = trunc i256 21 to i8
+    v12 = trunc i256 2 to i8
+    v13 = zext i8 v12 to i256
+    v14 = mapping_slot v13, 3
+    v15 = sload v14 !metadata(storage=symbolic(v14))
+    v16 = not 255
+    v17 = and v15, v16
+    v18 = zext i8 v11 to i256
+    v19 = and v18, 255
+    v20 = or v17, v19
+    sstore v14, v20 !metadata(storage=symbolic(v14))
+    v21 = trunc i256 1 to i8
+    v22 = zext i8 v21 to i256
+    v23 = mapping_slot v22, 2
     v24 = sload v23 !metadata(storage=symbolic(v23))
     v25 = and v24, 255
-    v26 = and 2, 255
-    v27 = mapping_slot v26, 3
-    v28 = sload v27 !metadata(storage=symbolic(v27))
-    v29 = and v28, 255
-    v30 = insert_value struct1, undef struct1, 0, v17
-    v31 = insert_value struct1, v30, 1, v21
-    v32 = insert_value struct1, v31, 2, v25
-    v33 = insert_value struct1, v32, 3, v29
-    ret v33
+    v26 = trunc i256 v25 to i8
+    v27 = trunc i256 2 to i8
+    v28 = zext i8 v27 to i256
+    v29 = mapping_slot v28, 2
+    v30 = sload v29 !metadata(storage=symbolic(v29))
+    v31 = and v30, 255
+    v32 = trunc i256 v31 to i8
+    v33 = trunc i256 1 to i8
+    v34 = zext i8 v33 to i256
+    v35 = mapping_slot v34, 3
+    v36 = sload v35 !metadata(storage=symbolic(v35))
+    v37 = and v36, 255
+    v38 = trunc i256 v37 to i8
+    v39 = trunc i256 2 to i8
+    v40 = zext i8 v39 to i256
+    v41 = mapping_slot v40, 3
+    v42 = sload v41 !metadata(storage=symbolic(v41))
+    v43 = and v42, 255
+    v44 = trunc i256 v43 to i8
+    v45 = insert_value struct1, undef struct1, 0, v26
+    v46 = insert_value struct1, v45, 1, v32
+    v47 = insert_value struct1, v46, 2, v38
+    v48 = insert_value struct1, v47, 3, v44
+    ret v48
 }

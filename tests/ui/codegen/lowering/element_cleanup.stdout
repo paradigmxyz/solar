@@ -1,20 +1,18 @@
 - // === ROOT/tests/ui/codegen/lowering/element_cleanup.sol:ElementCleanup (before element-cleanup) ===
 + // === ROOT/tests/ui/codegen/lowering/element_cleanup.sol:ElementCleanup (after element-cleanup) ===
   @module ElementCleanup
-  fn @first(arg0: memoryarray) -> i256 [selector=0x61c4cbc4, pure, abi_params=[array<_, address>], abi_returns=[word<u160>], abi_return_params=[address]] {
+  fn @first(arg0: memoryarray) -> i160 [selector=0x61c4cbc4, pure, abi_params=[array<_, address>], abi_returns=[word<u160>], abi_return_params=[address]] {
     bb0:
       v0 = memory_object_len memoryarray, arg0
       v1 = lt 0, v0
       v2 = eq v1, false
       icall panic_if<0x32>, v2
       v3 = memory_object_load_element memoryarray<1>, arg0, 0
--     v4 = trunc i256 v3 to i160
--     v5 = zext i160 v4 to i256
--     ret v5
-+     ret v3
+      v4 = trunc i256 v3 to i160
+      ret v4
   }
   
-  fn @fresh(arg0: i256) -> i256 [selector=0x0538087c, pure, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
+  fn @fresh(arg0: i256) -> i160 [selector=0x0538087c, pure, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
     bb0:
       v0 = mul arg0, 1
       v1 = eq 1, 0
@@ -55,13 +53,11 @@
       v28 = eq v27, false
       icall panic_if<0x32>, v28
       v29 = memory_object_load_element memoryarray<1>, v16, 2
--     v30 = trunc i256 v29 to i160
--     v31 = zext i160 v30 to i256
--     ret v31
-+     ret v29
+      v30 = trunc i256 v29 to i160
+      ret v30
   }
   
-  fn @last(arg0: memoryarray, arg1: i256) -> i256 [pure] {
+  fn @last(arg0: memoryarray, arg1: i256) -> i160 [pure] {
     bb0:
       v0 = checked_add u256, arg1, 1
       v1 = memory_object_len memoryarray, arg0
@@ -70,28 +66,26 @@
     bb2:
       jump bb3
     bb3:
-      v9 = checked_add u256, arg1, 1
-      v10 = icall @last, arg0, v9
-      ret v10
+      v8 = checked_add u256, arg1, 1
+      v9 = icall @last, arg0, v8
+      ret v9
     bb1:
       v3 = memory_object_len memoryarray, arg0
       v4 = lt arg1, v3
       v5 = eq v4, false
       icall panic_if<0x32>, v5
       v6 = memory_object_load_element memoryarray<1>, arg0, arg1
--     v7 = trunc i256 v6 to i160
--     v8 = zext i160 v7 to i256
--     ret v8
-+     ret v6
+      v7 = trunc i256 v6 to i160
+      ret v7
   }
   
-  fn @tail(arg0: memoryarray) -> i256 [selector=0x4c8ba82e, pure, abi_params=[array<_, address>], abi_returns=[word<u160>], abi_return_params=[address]] {
+  fn @tail(arg0: memoryarray) -> i160 [selector=0x4c8ba82e, pure, abi_params=[array<_, address>], abi_returns=[word<u160>], abi_return_params=[address]] {
     bb0:
       v0 = icall @last, arg0, 0
       ret v0
   }
   
-  fn @dirty(arg0: memoryarray) -> i256 [selector=0x74016a59, pure, abi_params=[array<_, address>], abi_returns=[word<u160>], abi_return_params=[address]] {
+  fn @dirty(arg0: memoryarray) -> i160 [selector=0x74016a59, pure, abi_params=[array<_, address>], abi_returns=[word<u160>], abi_return_params=[address]] {
     bb0:
       v0 = ptrtoint memoryarray arg0 to i256
       v1 = add v0, 32
@@ -102,23 +96,21 @@
       icall panic_if<0x32>, v4
       v5 = memory_object_load_element memoryarray<1>, arg0, 0
       v6 = trunc i256 v5 to i160
-      v7 = zext i160 v6 to i256
-      ret v7
+      ret v6
   }
   
-  fn @fill(arg0: memoryarray, arg1: i256) [pure] {
+  fn @fill(arg0: memoryarray, arg1: i160) [pure] {
     bb0:
       v0 = memory_object_len memoryarray, arg0
       v1 = lt 0, v0
       v2 = eq v1, false
       icall panic_if<0x32>, v2
-      v3 = trunc i256 arg1 to i160
-      v4 = zext i160 v3 to i256
-      memory_object_store_element memoryarray<1>, arg0, 0, v4
+      v3 = zext i160 arg1 to i256
+      memory_object_store_element memoryarray<1>, arg0, 0, v3
       ret
   }
   
-  fn @filled(arg0: memoryarray, arg1: i256) -> i256 [selector=0xc5c700de, pure, abi_params=[array<_, address>, address], abi_returns=[word<u160>], abi_return_params=[address]] {
+  fn @filled(arg0: memoryarray, arg1: i160) -> i160 [selector=0xc5c700de, pure, abi_params=[array<_, address>, address], abi_returns=[word<u160>], abi_return_params=[address]] {
     bb0:
       icall @fill, arg0, arg1
       v0 = memory_object_len memoryarray, arg0
@@ -126,10 +118,8 @@
       v2 = eq v1, false
       icall panic_if<0x32>, v2
       v3 = memory_object_load_element memoryarray<1>, arg0, 0
--     v4 = trunc i256 v3 to i160
--     v5 = zext i160 v4 to i256
--     ret v5
-+     ret v3
+      v4 = trunc i256 v3 to i160
+      ret v4
   }
   
   fn @narrowed(arg0: memoryarray, arg1: i256) -> i256 [selector=0xb5215a28, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -144,7 +134,9 @@
       v5 = eq v4, false
       icall panic_if<0x32>, v5
       v6 = memory_object_load_element memoryarray<1>, arg0, 1
-      v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-      ret v7
+      v7 = trunc i256 0xffffffffffffffffffffffffffffffffffffffff to i160
+      v8 = zext i160 v7 to i256
+      v9 = and v6, v8
+      ret v9
   }
   

@@ -98,14 +98,14 @@ fn @staticAggregate() -> i256 [selector=0x9982aedb, abi_params=[], abi_returns=[
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = gas
-    v14 = abi_encode [], selector 0xaf36778b00000000000000000000000000000000000000000000000000000000
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = alloc raw, exact, uninitialized, infallible, 96
-    v18 = ptrtoint memptr v17 to i256
-    v19 = staticcall v13, v12, v15, v16, v18, 96
+    v12 = gas
+    v13 = abi_encode [], selector 0xaf36778b00000000000000000000000000000000000000000000000000000000
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = alloc raw, exact, uninitialized, infallible, 96
+    v17 = zext i160 v9 to i256
+    v18 = ptrtoint memptr v16 to i256
+    v19 = staticcall v12, v17, v14, v15, v18, 96
     jumpi v19, bb4, bb3
   bb3:
     revert_returndata
@@ -117,7 +117,7 @@ fn @staticAggregate() -> i256 [selector=0x9982aedb, abi_params=[], abi_returns=[
     v23 = and 159, v22
     v24 = alloc memorybytes, exact, uninitialized, infallible, v23
     set_memory_object_len memorybytes, v24, 96
-    v25 = ptrtoint memptr v17 to i256
+    v25 = ptrtoint memptr v16 to i256
     v26 = make_memory_slice v25, 96
     memory_object_copy_from_slice memorybytes, v24, v26
     v27 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v24
@@ -145,14 +145,14 @@ fn @projectedAggregate() -> i256 [selector=0xec2041b8, abi_params=[], abi_return
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = gas
-    v14 = abi_encode [], selector 0xaf36778b00000000000000000000000000000000000000000000000000000000
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = alloc raw, exact, uninitialized, infallible, 96
-    v18 = ptrtoint memptr v17 to i256
-    v19 = staticcall v13, v12, v15, v16, v18, 96
+    v12 = gas
+    v13 = abi_encode [], selector 0xaf36778b00000000000000000000000000000000000000000000000000000000
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = alloc raw, exact, uninitialized, infallible, 96
+    v17 = zext i160 v9 to i256
+    v18 = ptrtoint memptr v16 to i256
+    v19 = staticcall v12, v17, v14, v15, v18, 96
     jumpi v19, bb4, bb3
   bb3:
     revert_returndata
@@ -164,7 +164,7 @@ fn @projectedAggregate() -> i256 [selector=0xec2041b8, abi_params=[], abi_return
     v23 = and 159, v22
     v24 = alloc memorybytes, exact, uninitialized, infallible, v23
     set_memory_object_len memorybytes, v24, 96
-    v25 = ptrtoint memptr v17 to i256
+    v25 = ptrtoint memptr v16 to i256
     v26 = make_memory_slice v25, 96
     memory_object_copy_from_slice memorybytes, v24, v26
     v27 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v24
@@ -251,12 +251,12 @@ fn @dirtyAddressBoundary() -> i256 [selector=0x2986c9cc, abi_params=[], abi_retu
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = gas
-    v14 = abi_encode [], selector 0x986597e500000000000000000000000000000000000000000000000000000000
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = staticcall v13, v12, v15, v16, 0, 32
+    v12 = gas
+    v13 = abi_encode [], selector 0x986597e500000000000000000000000000000000000000000000000000000000
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = zext i160 v9 to i256
+    v17 = staticcall v12, v16, v14, v15, 0, 32
     jumpi v17, bb4, bb3
   bb3:
     revert_returndata
@@ -272,9 +272,9 @@ fn @dirtyAddressBoundary() -> i256 [selector=0x2986c9cc, abi_params=[], abi_retu
     icall revert_if<empty>, v24
     v25 = add 0, 0
     v26 = mload v25
-    v27 = trunc i256 0xffffffffffffffffffffffffffffffffffffffff to i160
-    v28 = zext i160 v27 to i256
-    v29 = eq v26, v28
+    v27 = trunc i256 v26 to i160
+    v28 = trunc i256 0xffffffffffffffffffffffffffffffffffffffff to i160
+    v29 = eq v27, v28
     icall require<short_string>, v29, 7, 0x6164647265737300000000000000000000000000000000000000000000000000
     ret 1
 }
@@ -299,12 +299,12 @@ fn @truncated() -> i256 [selector=0xfc1dad0b, abi_params=[], abi_returns=[word],
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = gas
-    v14 = abi_encode [], selector 0xa39e7bc00000000000000000000000000000000000000000000000000000000
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = staticcall v13, v12, v15, v16, 0, 0
+    v12 = gas
+    v13 = abi_encode [], selector 0xa39e7bc00000000000000000000000000000000000000000000000000000000
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = zext i160 v9 to i256
+    v17 = staticcall v12, v16, v14, v15, 0, 0
     jumpi v17, bb4, bb3
   bb3:
     revert_returndata

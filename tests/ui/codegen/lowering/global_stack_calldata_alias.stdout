@@ -43,11 +43,6 @@ bb4:
   shr
   push bb3
   jumpi
-  push 0
-  not
-  push 96
-  shr
-  and
   push 1
   dup 2
   eq

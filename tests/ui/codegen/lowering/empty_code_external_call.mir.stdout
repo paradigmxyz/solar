@@ -173,7 +173,7 @@ fn @tryStatic() [selector=0x54f223e3, view, abi_params=[], abi_returns=[], abi_r
     ret
 }
 
-fn @trySelf() -> i256 [selector=0xf948cf5e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @trySelf() -> i1 [selector=0xf948cf5e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
     v1 = gas
@@ -193,16 +193,15 @@ fn @trySelf() -> i256 [selector=0xf948cf5e, abi_params=[], abi_returns=[word<boo
     icall revert_if<empty>, true
     invalid
   bb4:
-    v11 = zext i1 0 to i256
-    ret v11
+    ret false
   bb1:
-    v10 = zext i1 1 to i256
-    ret v10
+    ret true
   bb3:
-    ret 0
+    v10 = ne 0, 0
+    ret v10
 }
 
-fn @lowLevel() -> i256 [selector=0x5e4fa723, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @lowLevel() -> i1 [selector=0x5e4fa723, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = trunc i256 0 to i160
     v1 = gas
@@ -210,11 +209,10 @@ fn @lowLevel() -> i256 [selector=0x5e4fa723, abi_params=[], abi_returns=[word<bo
     set_memory_object_len memorybytes, v2, 0
     v3 = memory_object_data memorybytes, v2
     v4 = address_call v0, v2, gas v1
-    v5 = zext i1 v4 to i256
-    ret v5
+    ret v4
 }
 
-fn @selfCall() -> i256 [selector=0x8dae0159, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @selfCall() -> i1 [selector=0x8dae0159, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
     v1 = gas
@@ -231,8 +229,7 @@ fn @selfCall() -> i256 [selector=0x8dae0159, abi_params=[], abi_returns=[word<bo
   bb1:
     revert_returndata
   bb2:
-    v10 = zext i1 1 to i256
-    ret v10
+    ret true
 }
 
 fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_params=[]] {

@@ -3,20 +3,24 @@
 
 contract AddressCode {
     // CHECK-LABEL: fn @codeLength{{[( ]}}
-    // CHECK: extcodesize arg0
+    // CHECK: [[ADDR:v[0-9]+]] = zext i160 arg0 to i256
+    // CHECK: extcodesize [[ADDR]]
     function codeLength(address account) external view returns (uint256) {
         return account.code.length;
     }
 
     // CHECK-LABEL: fn @codeHash{{[( ]}}
-    // CHECK: extcodehash arg0
+    // CHECK: [[HASH_ADDR:v[0-9]+]] = zext i160 arg0 to i256
+    // CHECK: extcodehash [[HASH_ADDR]]
     function codeHash(address account) external view returns (bytes32) {
         return account.codehash;
     }
 
     // CHECK-LABEL: fn @code{{[( ]}}
-    // CHECK: extcodesize arg0
-    // CHECK: extcodecopy arg0
+    // CHECK: [[ADDR:v[0-9]+]] = zext i160 arg0 to i256
+    // CHECK: extcodesize [[ADDR]]
+    // CHECK: [[COPY_ADDR:v[0-9]+]] = zext i160 arg0 to i256
+    // CHECK: extcodecopy [[COPY_ADDR]]
     function code(address account) external view returns (bytes memory) {
         return account.code;
     }

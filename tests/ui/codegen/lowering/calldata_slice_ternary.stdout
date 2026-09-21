@@ -1,50 +1,48 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_ternary.sol:CalldataSliceTernary ===
 @module CalldataSliceTernary
-fn @pick(arg0: i256, arg1: calldataslice, arg2: calldataslice) -> i256 [selector=0x159bd6de, pure, abi_params=[bool, bytes, bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @pick(arg0: i1, arg1: calldataslice, arg2: calldataslice) -> i256 [selector=0x159bd6de, pure, abi_params=[bool, bytes, bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = ne arg0, 0
-    jumpi v0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb2:
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v1 = phi [bb1: arg1], [bb2: arg2]
-    v2 = slice_len v1
-    ret v2
+    v0 = phi [bb1: arg1], [bb2: arg2]
+    v1 = slice_len v0
+    ret v1
 }
 
-fn @adopt(arg0: i256, arg1: calldataslice) -> memorybytes [selector=0x7b54f632, pure, abi_params=[bool, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @adopt(arg0: i1, arg1: calldataslice) -> memorybytes [selector=0x7b54f632, pure, abi_params=[bool, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 2
     v1 = memory_object_data memorybytes, v0
     v2 = ptrtoint memptr v1 to i256
     mstore v2, 0xaabb000000000000000000000000000000000000000000000000000000000000
-    v3 = ne arg0, 0
-    jumpi v3, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v4 = slice_ptr arg1
-    v5 = slice_len arg1
-    v6 = gt v5, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v6
-    v7 = calldatasize
-    v8 = sub v7, v5
-    v9 = sgt v4, v8
-    icall revert_if<calldata_tail_too_short>, v9
-    v10 = slice_len arg1
-    v11 = add v10, 63
-    v12 = lt v11, v10
-    icall panic_if<0x41>, v12
-    v13 = not 31
-    v14 = and v11, v13
-    v15 = alloc memorybytes, exact, uninitialized, infallible, v14
-    set_memory_object_len memorybytes, v15, v10
-    memory_object_copy_from_slice memorybytes, v15, arg1
+    v3 = slice_ptr arg1
+    v4 = slice_len arg1
+    v5 = gt v4, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v5
+    v6 = calldatasize
+    v7 = sub v6, v4
+    v8 = sgt v3, v7
+    icall revert_if<calldata_tail_too_short>, v8
+    v9 = slice_len arg1
+    v10 = add v9, 63
+    v11 = lt v10, v9
+    icall panic_if<0x41>, v11
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
+    set_memory_object_len memorybytes, v14, v9
+    memory_object_copy_from_slice memorybytes, v14, arg1
     jump bb3
   bb3:
-    v16 = phi [bb1: v15], [bb2: v0]
-    ret v16
+    v15 = phi [bb1: v14], [bb2: v0]
+    ret v15
 }

@@ -44,10 +44,10 @@ fn @dynField() -> i256 [selector=0x3938b4c8, abi_params=[], abi_returns=[word], 
     sstore 0, v19 !metadata(storage=slot(0))
     v34 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v35 = address
-    v36 = icall @load_storage_packed_array_4_2, 0
-    v37 = zext i160 v35 to i256
-    memory_object_store_field memorystruct<2>, v34, 0, v37
-    v38 = ptrtoint memoryarray v36 to i256
+    v36 = zext i160 v35 to i256
+    v37 = icall @load_storage_packed_array_4_2, 0
+    v38 = ptrtoint memoryarray v37 to i256
+    memory_object_store_field memorystruct<2>, v34, 0, v36
     memory_object_store_field memorystruct<2>, v34, 1, v38
     v39 = memory_object_load_field memorystruct<2>, v34, 1
     v40 = inttoptr i256 v39 to memoryarray
@@ -79,62 +79,71 @@ fn @dynField() -> i256 [selector=0x3938b4c8, abi_params=[], abi_returns=[word], 
 
 fn @structField() -> i256 [selector=0x3442156e, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = sload 4 !metadata(storage=slot(4))
-    v1 = not 0xffffffffffffffff
-    v2 = and v0, v1
-    v3 = and 7, 0xffffffffffffffff
-    v4 = or v2, v3
-    sstore 4, v4 !metadata(storage=slot(4))
-    v5 = shl 64, 0xffffffffffffffff
-    v6 = sload 4 !metadata(storage=slot(4))
-    v7 = not v5
-    v8 = and v6, v7
-    v9 = and 9, 0xffffffffffffffff
-    v10 = shl 64, v9
-    v11 = or v8, v10
-    sstore 4, v11 !metadata(storage=slot(4))
-    v12 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v13 = alloc memorystruct<2>, exact, uninitialized, panic, 64
-    v14 = sload 4 !metadata(storage=slot(4))
-    v15 = and v14, 0xffffffffffffffff
-    memory_object_store_field memorystruct<2>, v13, 0, v15
-    v16 = sload 4 !metadata(storage=slot(4))
-    v17 = shr 64, v16
-    v18 = and v17, 0xffffffffffffffff
-    memory_object_store_field memorystruct<2>, v13, 1, v18
-    memory_object_store_field memorystruct<2>, v12, 0, 1
-    v19 = ptrtoint memorystruct v13 to i256
-    memory_object_store_field memorystruct<2>, v12, 1, v19
-    v20 = memory_object_load_field memorystruct<2>, v12, 1
-    v21 = inttoptr i256 v20 to memorystruct
-    v22 = memory_object_load_field memorystruct<2>, v21, 0
-    v23 = and v22, 0xffffffffffffffff
-    v24 = eq v23, 7
-    jumpi v24, bb1, bb2
+    v0 = trunc i256 7 to i64
+    v1 = sload 4 !metadata(storage=slot(4))
+    v2 = not 0xffffffffffffffff
+    v3 = and v1, v2
+    v4 = zext i64 v0 to i256
+    v5 = and v4, 0xffffffffffffffff
+    v6 = or v3, v5
+    sstore 4, v6 !metadata(storage=slot(4))
+    v7 = trunc i256 9 to i64
+    v8 = shl 64, 0xffffffffffffffff
+    v9 = sload 4 !metadata(storage=slot(4))
+    v10 = not v8
+    v11 = and v9, v10
+    v12 = zext i64 v7 to i256
+    v13 = and v12, 0xffffffffffffffff
+    v14 = shl 64, v13
+    v15 = or v11, v14
+    sstore 4, v15 !metadata(storage=slot(4))
+    v16 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v17 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+    v18 = sload 4 !metadata(storage=slot(4))
+    v19 = and v18, 0xffffffffffffffff
+    memory_object_store_field memorystruct<2>, v17, 0, v19
+    v20 = sload 4 !metadata(storage=slot(4))
+    v21 = shr 64, v20
+    v22 = and v21, 0xffffffffffffffff
+    memory_object_store_field memorystruct<2>, v17, 1, v22
+    v23 = ptrtoint memorystruct v17 to i256
+    memory_object_store_field memorystruct<2>, v16, 0, 1
+    memory_object_store_field memorystruct<2>, v16, 1, v23
+    v24 = memory_object_load_field memorystruct<2>, v16, 1
+    v25 = inttoptr i256 v24 to memorystruct
+    v26 = memory_object_load_field memorystruct<2>, v25, 0
+    v27 = trunc i256 v26 to i64
+    v28 = trunc i256 7 to i64
+    v29 = eq v27, v28
+    jumpi v29, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v25 = memory_object_load_field memorystruct<2>, v12, 1
-    v26 = inttoptr i256 v25 to memorystruct
-    v27 = memory_object_load_field memorystruct<2>, v26, 1
-    v28 = and v27, 0xffffffffffffffff
-    v29 = eq v28, 9
+    v30 = memory_object_load_field memorystruct<2>, v16, 1
+    v31 = inttoptr i256 v30 to memorystruct
+    v32 = memory_object_load_field memorystruct<2>, v31, 1
+    v33 = trunc i256 v32 to i64
+    v34 = trunc i256 9 to i64
+    v35 = eq v33, v34
     jump bb3
   bb3:
-    v30 = phi [bb1: v29], [bb2: false]
-    icall require<short_string>, v30, 5, 0x696e6e6572000000000000000000000000000000000000000000000000000000
-    v31 = sload 4 !metadata(storage=slot(4))
-    v32 = not 0xffffffffffffffff
-    v33 = and v31, v32
-    v34 = and 100, 0xffffffffffffffff
-    v35 = or v33, v34
-    sstore 4, v35 !metadata(storage=slot(4))
-    v36 = memory_object_load_field memorystruct<2>, v12, 1
-    v37 = inttoptr i256 v36 to memorystruct
-    v38 = memory_object_load_field memorystruct<2>, v37, 0
-    v39 = and v38, 0xffffffffffffffff
-    v40 = eq v39, 7
-    icall require<short_string>, v40, 4, 0x636f707900000000000000000000000000000000000000000000000000000000
+    v36 = phi [bb1: v35], [bb2: false]
+    icall require<short_string>, v36, 5, 0x696e6e6572000000000000000000000000000000000000000000000000000000
+    v37 = trunc i256 100 to i64
+    v38 = sload 4 !metadata(storage=slot(4))
+    v39 = not 0xffffffffffffffff
+    v40 = and v38, v39
+    v41 = zext i64 v37 to i256
+    v42 = and v41, 0xffffffffffffffff
+    v43 = or v40, v42
+    sstore 4, v43 !metadata(storage=slot(4))
+    v44 = memory_object_load_field memorystruct<2>, v16, 1
+    v45 = inttoptr i256 v44 to memorystruct
+    v46 = memory_object_load_field memorystruct<2>, v45, 0
+    v47 = trunc i256 v46 to i64
+    v48 = trunc i256 7 to i64
+    v49 = eq v47, v48
+    icall require<short_string>, v49, 4, 0x636f707900000000000000000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -163,8 +172,8 @@ fn @fixedField() -> i256 [selector=0x0dfda72b, abi_params=[], abi_returns=[word]
     v12 = lt v11, 3
     jumpi v12, bb2, bb3
   bb3:
-    memory_object_store_field memorystruct<2>, v9, 0, 2
     v16 = ptrtoint memoryfixedarray v10 to i256
+    memory_object_store_field memorystruct<2>, v9, 0, 2
     memory_object_store_field memorystruct<2>, v9, 1, v16
     v17 = memory_object_load_field memorystruct<2>, v9, 1
     v18 = inttoptr i256 v17 to memoryfixedarray

@@ -68,30 +68,33 @@ fn @sumElement1(arg0: memoryfixedarray) -> i256 [pure] {
     v11 = memory_object_load_byte memorybytes, v7, 0
     v12 = shl 248, v11
     v13 = shr 248, v12
-    v14 = lt 1, 2
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 1
-    v17 = inttoptr i256 v16 to memorybytes
-    v18 = eq v16, 0
-    jumpi v18, bb3, bb4
+    v14 = trunc i256 v13 to i8
+    v15 = lt 1, 2
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 1
+    v18 = inttoptr i256 v17 to memorybytes
+    v19 = eq v17, 0
+    jumpi v19, bb3, bb4
   bb3:
-    v19 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v19, 0
-    v20 = ptrtoint memorybytes v19 to i256
-    memory_object_store_element memoryfixedarray<2, 1>, arg0, 1, v20
+    v20 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v20, 0
+    v21 = ptrtoint memorybytes v20 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, arg0, 1, v21
     jump bb4
   bb4:
-    v21 = phi [bb2: v17], [bb3: v19]
-    v22 = memory_object_len memorybytes, v21
-    v23 = lt 1, v22
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = memory_object_load_byte memorybytes, v21, 1
-    v26 = shl 248, v25
-    v27 = shr 248, v26
-    v28 = checked_add u8, v13, v27
-    ret v28
+    v22 = phi [bb2: v18], [bb3: v20]
+    v23 = memory_object_len memorybytes, v22
+    v24 = lt 1, v23
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = memory_object_load_byte memorybytes, v22, 1
+    v27 = shl 248, v26
+    v28 = shr 248, v27
+    v29 = trunc i256 v28 to i8
+    v30 = checked_add u8, v14, v29
+    v31 = zext i8 v30 to i256
+    ret v31
 }
 
 fn @twoAsserts() -> i256 [selector=0xb2d66aee, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

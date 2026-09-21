@@ -100,8 +100,9 @@ fn @readBytesCalldata(arg0: calldataslice) -> i256 [selector=0x4bc2c5d5, pure, a
 fn @readPair(arg0: memorystruct) -> i256 [selector=0x5d4d7bfe, pure, abi_params=[tuple<u8, u8>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_load_field memorystruct<2>, arg0, 0
-    v1 = and v0, 255
-    ret v1
+    v1 = trunc i256 v0 to i8
+    v2 = zext i8 v1 to i256
+    ret v2
 }
 
 fn @readDynamicPair(arg0: memorystruct) -> i256 [selector=0x96a23d6f, pure, abi_params=[tuple<u256, bytes>], abi_returns=[word], abi_return_params=[u256]] {
@@ -168,9 +169,11 @@ fn @readEnumPair(arg0: memorystruct) -> i256 [selector=0xaea50307, pure, abi_par
     v1 = lt v0, 2
     v2 = eq v1, false
     icall panic_if<0x21>, v2
-    v3 = memory_object_load_field memorystruct<2>, arg0, 1
-    v4 = checked_add u256, v0, v3
-    ret v4
+    v3 = trunc i256 v0 to i8
+    v4 = zext i8 v3 to i256
+    v5 = memory_object_load_field memorystruct<2>, arg0, 1
+    v6 = checked_add u256, v4, v5
+    ret v6
 }
 
 fn @readEnumArray(arg0: memoryfixedarray) -> i256 [selector=0xf8507bf5, pure, abi_params=[array<2, enum<2, u8>>], abi_returns=[word], abi_return_params=[u256]] {
@@ -182,15 +185,15 @@ fn @readEnumArray(arg0: memoryfixedarray) -> i256 [selector=0xf8507bf5, pure, ab
     v3 = lt v2, 2
     v4 = eq v3, false
     icall panic_if<0x21>, v4
-    ret v2
+    v5 = trunc i256 v2 to i8
+    v6 = zext i8 v5 to i256
+    ret v6
 }
 
-fn @readMode(arg0: i256) -> i256 [selector=0x1bcfbcf9, pure, abi_params=[enum<2, u8>], abi_returns=[word], abi_return_params=[u256]] {
+fn @readMode(arg0: i8) -> i256 [selector=0x1bcfbcf9, pure, abi_params=[enum<2, u8>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = lt arg0, 2
-    v1 = eq v0, false
-    icall panic_if<0x21>, v1
-    ret arg0
+    v0 = zext i8 arg0 to i256
+    ret v0
 }
 
 fn @readNestedArray(arg0: memorystruct) -> i256 [selector=0x8a855eb4, pure, abi_params=[tuple<array<2, u256>, u8>], abi_returns=[word], abi_return_params=[u256]] {
@@ -202,9 +205,10 @@ fn @readNestedArray(arg0: memorystruct) -> i256 [selector=0x8a855eb4, pure, abi_
     icall panic_if<0x32>, v3
     v4 = memory_object_load_element memoryfixedarray<2, 1>, v1, 1
     v5 = memory_object_load_field memorystruct<2>, arg0, 1
-    v6 = and v5, 255
-    v7 = checked_add u256, v4, v6
-    ret v7
+    v6 = trunc i256 v5 to i8
+    v7 = zext i8 v6 to i256
+    v8 = checked_add u256, v4, v7
+    ret v8
 }
 
 fn @readNestedBytes(arg0: memorystruct) -> i256 [selector=0x8516eaf9, pure, abi_params=[tuple<array<2, bytes>>], abi_returns=[word], abi_return_params=[u256]] {
@@ -249,14 +253,12 @@ fn @readNestedBytes(arg0: memorystruct) -> i256 [selector=0x8516eaf9, pure, abi_
     ret v22
 }
 
-fn @readMixed(arg0: i256, arg1: memorybytes) -> i256 [selector=0xa114c21b, pure, abi_params=[enum<2, u8>, bytes], abi_returns=[word], abi_return_params=[u256]] {
+fn @readMixed(arg0: i8, arg1: memorybytes) -> i256 [selector=0xa114c21b, pure, abi_params=[enum<2, u8>, bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = lt arg0, 2
-    v1 = eq v0, false
-    icall panic_if<0x21>, v1
-    v2 = memory_object_len memorybytes, arg1
-    v3 = checked_add u256, arg0, v2
-    ret v3
+    v0 = zext i8 arg0 to i256
+    v1 = memory_object_len memorybytes, arg1
+    v2 = checked_add u256, v0, v1
+    ret v2
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiFixedArray ===

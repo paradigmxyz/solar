@@ -1,73 +1,78 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/delete_storage_dynamic_array.sol:DeleteStorageDynamicArray ===
 @module DeleteStorageDynamicArray
 types:
-  struct0: {i256, i256}
+  struct0: {i256, i24}
 
 fn @clearAndPush() -> struct0 [selector=0x1698ee0c, abi_params=[], abi_returns=[word, word<u24>], abi_return_params=[u256, u24]] {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = gt v0, 0xffffffffffffffff
-    icall panic_if<0x41>, v1
-    v2 = add v0, 1
-    v3 = storage_array_data_slot 0
-    v4 = div v0, 10
-    v5 = add v3, v4
-    v6 = mod v0, 10
-    v7 = mul v6, 3
-    v8 = mul v7, 8
-    v9 = shl v8, 0xffffff
-    v10 = sload v5 !metadata(storage=symbolic(v5))
-    v11 = not v9
-    v12 = and v10, v11
-    v13 = and 7, 0xffffff
-    v14 = shl v8, v13
-    v15 = or v12, v14
-    sstore v5, v15 !metadata(storage=symbolic(v5))
-    sstore 0, v2 !metadata(storage=slot(0))
+    v0 = trunc i256 7 to i24
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = gt v1, 0xffffffffffffffff
+    icall panic_if<0x41>, v2
+    v3 = add v1, 1
+    v4 = storage_array_data_slot 0
+    v5 = div v1, 10
+    v6 = add v4, v5
+    v7 = mod v1, 10
+    v8 = mul v7, 3
+    v9 = mul v8, 8
+    v10 = shl v9, 0xffffff
+    v11 = sload v6 !metadata(storage=symbolic(v6))
+    v12 = not v10
+    v13 = and v11, v12
+    v14 = zext i24 v0 to i256
+    v15 = and v14, 0xffffff
+    v16 = shl v9, v15
+    v17 = or v13, v16
+    sstore v6, v17 !metadata(storage=symbolic(v6))
+    sstore 0, v3 !metadata(storage=slot(0))
     mstore 0, 32 !metadata(memory=scratch)
-    v16 = sload 0 !metadata(storage=slot(0))
+    v18 = sload 0 !metadata(storage=slot(0))
     sstore 0, 0 !metadata(storage=slot(0))
-    v17 = div v16, 10
-    v18 = mod v16, 10
-    v19 = eq v18, 0
-    v20 = eq v19, false
-    v21 = zext i1 v20 to i256
-    v22 = add v17, v21
-    clear_storage_words 0, 0, v22
-    v23 = sload 0 !metadata(storage=slot(0))
-    v24 = gt v23, 0xffffffffffffffff
-    icall panic_if<0x41>, v24
-    v25 = add v23, 1
-    v26 = storage_array_data_slot 0
-    v27 = div v23, 10
-    v28 = add v26, v27
-    v29 = mod v23, 10
-    v30 = mul v29, 3
-    v31 = mul v30, 8
-    v32 = shl v31, 0xffffff
-    v33 = sload v28 !metadata(storage=symbolic(v28))
-    v34 = not v32
-    v35 = and v33, v34
-    v36 = and 9, 0xffffff
-    v37 = shl v31, v36
-    v38 = or v35, v37
-    sstore v28, v38 !metadata(storage=symbolic(v28))
-    sstore 0, v25 !metadata(storage=slot(0))
-    v39 = sload 0 !metadata(storage=slot(0))
-    v40 = sload 0 !metadata(storage=slot(0))
-    v41 = lt 0, v40
-    v42 = eq v41, false
-    icall panic_if<0x32>, v42
-    v43 = storage_array_data_slot 0
-    v44 = div 0, 10
-    v45 = add v43, v44
-    v46 = mod 0, 10
-    v47 = mul v46, 3
-    v48 = sload v45 !metadata(storage=symbolic(v45))
-    v49 = mul v47, 8
-    v50 = shr v49, v48
-    v51 = and v50, 0xffffff
-    v52 = insert_value struct0, undef struct0, 0, v39
-    v53 = insert_value struct0, v52, 1, v51
-    ret v53
+    v19 = div v18, 10
+    v20 = mod v18, 10
+    v21 = eq v20, 0
+    v22 = eq v21, false
+    v23 = zext i1 v22 to i256
+    v24 = add v19, v23
+    clear_storage_words 0, 0, v24
+    v25 = trunc i256 9 to i24
+    v26 = sload 0 !metadata(storage=slot(0))
+    v27 = gt v26, 0xffffffffffffffff
+    icall panic_if<0x41>, v27
+    v28 = add v26, 1
+    v29 = storage_array_data_slot 0
+    v30 = div v26, 10
+    v31 = add v29, v30
+    v32 = mod v26, 10
+    v33 = mul v32, 3
+    v34 = mul v33, 8
+    v35 = shl v34, 0xffffff
+    v36 = sload v31 !metadata(storage=symbolic(v31))
+    v37 = not v35
+    v38 = and v36, v37
+    v39 = zext i24 v25 to i256
+    v40 = and v39, 0xffffff
+    v41 = shl v34, v40
+    v42 = or v38, v41
+    sstore v31, v42 !metadata(storage=symbolic(v31))
+    sstore 0, v28 !metadata(storage=slot(0))
+    v43 = sload 0 !metadata(storage=slot(0))
+    v44 = sload 0 !metadata(storage=slot(0))
+    v45 = lt 0, v44
+    v46 = eq v45, false
+    icall panic_if<0x32>, v46
+    v47 = storage_array_data_slot 0
+    v48 = div 0, 10
+    v49 = add v47, v48
+    v50 = mod 0, 10
+    v51 = mul v50, 3
+    v52 = sload v49 !metadata(storage=symbolic(v49))
+    v53 = mul v51, 8
+    v54 = shr v53, v52
+    v55 = and v54, 0xffffff
+    v56 = trunc i256 v55 to i24
+    v57 = insert_value struct0, undef struct0, 0, v43
+    v58 = insert_value struct0, v57, 1, v56
+    ret v58
 }

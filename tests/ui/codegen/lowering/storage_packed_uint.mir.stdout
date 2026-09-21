@@ -1,18 +1,20 @@
 // === ROOT/tests/ui/codegen/lowering/storage_packed_uint.sol:PackedUint ===
 @module PackedUint
-fn @a() -> i256 [selector=0x0dbe671f, view, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @a() -> i8 [selector=0x0dbe671f, view, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
-    ret v1
+    v2 = trunc i256 v1 to i8
+    ret v2
 }
 
-fn @b() -> i256 [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[word<u16>], abi_return_params=[u16]] {
+fn @b() -> i16 [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[word<u16>], abi_return_params=[u16]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0
     v2 = and v1, 0xffff
-    ret v2
+    v3 = trunc i256 v2 to i16
+    ret v3
 }
 
 fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -21,23 +23,23 @@ fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word],
     ret v0
 }
 
-fn @packed(arg0: i256, arg1: i256) -> i256 [selector=0x80c8f910, abi_params=[u8, u16], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @packed(arg0: i8, arg1: i16) -> i256 [selector=0x80c8f910, abi_params=[u8, u16], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = and arg0, 255
-    v1 = sload 0 !metadata(storage=slot(0))
-    v2 = not 255
-    v3 = and v1, v2
-    v4 = and v0, 255
-    v5 = or v3, v4
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 255
+    v2 = and v0, v1
+    v3 = zext i8 arg0 to i256
+    v4 = and v3, 255
+    v5 = or v2, v4
     sstore 0, v5 !metadata(storage=slot(0))
-    v6 = and arg1, 0xffff
-    v7 = shl 8, 0xffff
-    v8 = sload 0 !metadata(storage=slot(0))
-    v9 = not v7
-    v10 = and v8, v9
-    v11 = and v6, 0xffff
+    v6 = shl 8, 0xffff
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = not v6
+    v9 = and v7, v8
+    v10 = zext i16 arg1 to i256
+    v11 = and v10, 0xffff
     v12 = shl 8, v11
-    v13 = or v10, v12
+    v13 = or v9, v12
     sstore 0, v13 !metadata(storage=slot(0))
     v14 = sload 0 !metadata(storage=slot(0))
     ret v14
@@ -45,19 +47,23 @@ fn @packed(arg0: i256, arg1: i256) -> i256 [selector=0x80c8f910, abi_params=[u8,
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 255
-    v2 = and v0, v1
-    v3 = and 18, 255
-    v4 = or v2, v3
-    sstore 0, v4 !metadata(storage=slot(0))
-    v5 = shl 8, 0xffff
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = not v5
-    v8 = and v6, v7
-    v9 = and 52, 0xffff
-    v10 = shl 8, v9
-    v11 = or v8, v10
-    sstore 0, v11 !metadata(storage=slot(0))
+    v0 = trunc i256 18 to i8
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = not 255
+    v3 = and v1, v2
+    v4 = zext i8 v0 to i256
+    v5 = and v4, 255
+    v6 = or v3, v5
+    sstore 0, v6 !metadata(storage=slot(0))
+    v7 = trunc i256 52 to i16
+    v8 = shl 8, 0xffff
+    v9 = sload 0 !metadata(storage=slot(0))
+    v10 = not v8
+    v11 = and v9, v10
+    v12 = zext i16 v7 to i256
+    v13 = and v12, 0xffff
+    v14 = shl 8, v13
+    v15 = or v11, v14
+    sstore 0, v15 !metadata(storage=slot(0))
     ret
 }

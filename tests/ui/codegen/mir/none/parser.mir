@@ -105,7 +105,8 @@ fn @spaced_span() {
 // CHECK: {{^ +}}{{v[0-9]+}} = loadimmutable fn
 fn @immutable() -> i256 {
   bb0:
-    v0 = loadimmutable fn
+    v10000 = loadimmutable fn
+    v0 = zext i8 v10000 to i256
     ret v0
 }
 
@@ -184,16 +185,16 @@ fn @address_phi(arg0: i1, arg1: i160) -> i160 {
     ret v0
 }
 
-// CHECK-LABEL: fn @integer_widths(arg0: i8, arg1: i24, arg2: i512, arg3: i4294967295) -> i512
+// CHECK-LABEL: fn @integer_widths(arg0: i8, arg1: i24, arg2: i256, arg3: i248) -> i256
 // CHECK: ret arg2
-fn @integer_widths(arg0: i8, arg1: i24, arg2: i512, arg3: i4294967295) -> i512 {
+fn @integer_widths(arg0: i8, arg1: i24, arg2: i256, arg3: i248) -> i256 {
   bb0:
     ret arg2
 }
 
 // CHECK-LABEL: fn @integer_phi
-// CHECK: phi [bb1: arg1], [bb2: i7 127]
-fn @integer_phi(arg0: i1, arg1: i7) -> i7 {
+// CHECK: phi [bb1: arg1], [bb2: i8 127]
+fn @integer_phi(arg0: i1, arg1: i8) -> i8 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -201,15 +202,15 @@ fn @integer_phi(arg0: i1, arg1: i7) -> i7 {
   bb2:
     jump bb3
   bb3:
-    v0 = phi [bb1: arg1], [bb2: i7 127]
+    v0 = phi [bb1: arg1], [bb2: i8 127]
     ret v0
 }
 
 // CHECK-LABEL: fn @wide_integer_literal
-// CHECK: ret i512 42
-fn @wide_integer_literal() -> i512 {
+// CHECK: ret 42
+fn @wide_integer_literal() -> i256 {
   bb0:
-    ret i512 42
+    ret i256 42
 }
 
 // CHECK-LABEL: fn @integer_undef
@@ -245,32 +246,32 @@ fn @cast_undef() -> memorybytes {
     ret v0
 }
 
-// CHECK-LABEL: fn @syntax_only_casts
+// CHECK-LABEL: fn @integer_casts
 // CHECK: trunc i128 arg0 to i24
-// CHECK: zext i24 {{v[0-9]+}} to i512
-// CHECK: sext i24 {{v[0-9]+}} to i512
-fn @syntax_only_casts(arg0: i128) -> i512 {
+// CHECK: zext i24 {{v[0-9]+}} to i256
+// CHECK: sext i24 {{v[0-9]+}} to i256
+fn @integer_casts(arg0: i128) -> i256 {
   bb0:
     v0 = trunc i128 arg0 to i24
-    v1 = zext i24 v0 to i512
-    v2 = sext i24 v0 to i512
+    v1 = zext i24 v0 to i256
+    v2 = sext i24 v0 to i256
     ret v2
 }
 
 // CHECK-LABEL: fn @forward_integer_phi
-// CHECK: zext i7 {{v[0-9]+}} to i24
+// CHECK: zext i8 {{v[0-9]+}} to i24
 fn @forward_integer_phi(arg0: i1, arg1: i256) -> i24 {
   bb0:
     jumpi arg0, bb1, bb2
   bb3:
     v2 = phi [bb1: v0], [bb2: v1]
-    v3 = zext i7 v2 to i24
+    v3 = zext i8 v2 to i24
     ret v3
   bb1:
-    v0 = trunc i256 arg1 to i7
+    v0 = trunc i256 arg1 to i8
     jump bb3
   bb2:
-    v1 = trunc i256 31 to i7
+    v1 = trunc i256 31 to i8
     jump bb3
 }
 

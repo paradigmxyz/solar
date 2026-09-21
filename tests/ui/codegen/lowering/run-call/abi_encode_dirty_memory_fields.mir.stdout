@@ -2,34 +2,44 @@
 @module AbiEncodeDirtyMemoryFields
 fn @dirty() -> memorystruct [pure] {
   bb0:
-    v0 = alloc memorystruct<6>, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
-    v1 = ptrtoint memorystruct v0 to i256
-    memory_zero v1, 192
-    memory_object_store_field memorystruct<6>, v0, 0, 1
-    v2 = zext i1 1 to i256
-    memory_object_store_field memorystruct<6>, v0, 1, v2
-    memory_object_store_field memorystruct<6>, v0, 2, 1
-    v3 = trunc i256 1 to i160
-    v4 = zext i160 v3 to i256
-    memory_object_store_field memorystruct<6>, v0, 3, v4
-    v5 = sub 0, 1
-    memory_object_store_field memorystruct<6>, v0, 4, v5
-    memory_object_store_field memorystruct<6>, v0, 5, 0x1234000000000000000000000000000000000000000000000000000000000000
-    v6 = ptrtoint memorystruct v0 to i256
-    mstore v6, 511
-    v7 = ptrtoint memorystruct v0 to i256
-    v8 = add v7, 32
-    mstore v8, 258
-    v9 = ptrtoint memorystruct v0 to i256
-    v10 = add v9, 96
-    mstore v10, 0x1000000000000000000000000000000000000000000000000000000000000002
-    v11 = ptrtoint memorystruct v0 to i256
-    v12 = add v11, 128
-    mstore v12, 254
-    v13 = ptrtoint memorystruct v0 to i256
-    v14 = add v13, 160
-    mstore v14, 0x1234567800000000000000000000000000000000000000000000000000000000
-    ret v0
+    v0 = trunc i256 1 to i8
+    v1 = alloc memorystruct<6>, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
+    v2 = ptrtoint memorystruct v1 to i256
+    memory_zero v2, 192
+    v3 = zext i8 v0 to i256
+    memory_object_store_field memorystruct<6>, v1, 0, v3
+    v4 = zext i1 1 to i256
+    memory_object_store_field memorystruct<6>, v1, 1, v4
+    v5 = trunc i256 1 to i8
+    v6 = zext i8 v5 to i256
+    v7 = lt v6, 2
+    v8 = eq v7, false
+    icall panic_if<0x21>, v8
+    v9 = zext i8 v5 to i256
+    memory_object_store_field memorystruct<6>, v1, 2, v9
+    v10 = trunc i256 1 to i160
+    v11 = zext i160 v10 to i256
+    memory_object_store_field memorystruct<6>, v1, 3, v11
+    v12 = sub 0, 1
+    v13 = trunc i256 v12 to i8
+    v14 = sext i8 v13 to i256
+    memory_object_store_field memorystruct<6>, v1, 4, v14
+    memory_object_store_field memorystruct<6>, v1, 5, 0x1234000000000000000000000000000000000000000000000000000000000000
+    v15 = ptrtoint memorystruct v1 to i256
+    mstore v15, 511
+    v16 = ptrtoint memorystruct v1 to i256
+    v17 = add v16, 32
+    mstore v17, 258
+    v18 = ptrtoint memorystruct v1 to i256
+    v19 = add v18, 96
+    mstore v19, 0x1000000000000000000000000000000000000000000000000000000000000002
+    v20 = ptrtoint memorystruct v1 to i256
+    v21 = add v20, 128
+    mstore v21, 254
+    v22 = ptrtoint memorystruct v1 to i256
+    v23 = add v22, 160
+    mstore v23, 0x1234567800000000000000000000000000000000000000000000000000000000
+    ret v1
 }
 
 fn @encodeStruct() -> i256 [selector=0x01e941a3, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -46,27 +56,31 @@ fn @encodeArray() -> i256 [selector=0x7a13e494, pure, abi_params=[], abi_returns
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
-    v1 = memory_object_len memoryarray, v0
-    v2 = lt 0, v1
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    memory_object_store_element memoryarray<1>, v0, 0, 3
-    v4 = memory_object_len memoryarray, v0
-    v5 = lt 1, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    memory_object_store_element memoryarray<1>, v0, 1, 4
-    v7 = ptrtoint memoryarray v0 to i256
-    v8 = add v7, 32
-    mstore v8, 0xff03
-    v9 = ptrtoint memoryarray v0 to i256
-    v10 = add v9, 64
-    mstore v10, 260
-    v11 = abi_encode [memory_array<word<u8>>], scratch, args v0
-    v12 = slice_ptr v11
-    v13 = slice_len v11
-    v14 = keccak256 v12, v13
-    ret v14
+    v1 = trunc i256 3 to i8
+    v2 = memory_object_len memoryarray, v0
+    v3 = lt 0, v2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = zext i8 v1 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v5
+    v6 = trunc i256 4 to i8
+    v7 = memory_object_len memoryarray, v0
+    v8 = lt 1, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = zext i8 v6 to i256
+    memory_object_store_element memoryarray<1>, v0, 1, v10
+    v11 = ptrtoint memoryarray v0 to i256
+    v12 = add v11, 32
+    mstore v12, 0xff03
+    v13 = ptrtoint memoryarray v0 to i256
+    v14 = add v13, 64
+    mstore v14, 260
+    v15 = abi_encode [memory_array<word<u8>>], scratch, args v0
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = keccak256 v16, v17
+    ret v18
 }
 
 fn @encodeBadEnum() -> memorybytes [selector=0xc72bddb9, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

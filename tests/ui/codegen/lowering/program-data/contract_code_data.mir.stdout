@@ -60,7 +60,7 @@ fn @deployCreationCode() -> i256 [selector=0x5986dddb, abi_params=[], abi_return
     ret v22
 }
 
-fn @runtimeCodeMatches() -> i256 [selector=0x337e11d0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @runtimeCodeMatches() -> i1 [selector=0x337e11d0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -80,19 +80,17 @@ fn @runtimeCodeMatches() -> i256 [selector=0x337e11d0, abi_params=[], abi_return
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = alloc memorybytes, exact, uninitialized, infallible, 448 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v13, 411
-    v14 = memory_object_data memorybytes, v13
-    v15 = ptrtoint memptr v14 to i256
-    v16 = add v15, 384
-    mstore v16, 0
-    v17 = ptrtoint memptr v14 to i256
-    data_copy CodeTarget_runtime_code_1, v17, 411
-    v18 = keccak256_bytes v13
-    v19 = zext i160 v9 to i256
-    v20 = extcodehash v19
-    v21 = eq v18, v20
-    v22 = zext i1 v21 to i256
-    ret v22
+    v12 = alloc memorybytes, exact, uninitialized, infallible, 448 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v12, 411
+    v13 = memory_object_data memorybytes, v12
+    v14 = ptrtoint memptr v13 to i256
+    v15 = add v14, 384
+    mstore v15, 0
+    v16 = ptrtoint memptr v13 to i256
+    data_copy CodeTarget_runtime_code_1, v16, 411
+    v17 = keccak256_bytes v12
+    v18 = zext i160 v9 to i256
+    v19 = extcodehash v18
+    v20 = eq v17, v19
+    ret v20
 }

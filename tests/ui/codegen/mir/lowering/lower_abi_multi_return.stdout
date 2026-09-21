@@ -81,14 +81,13 @@
 +     v6 = lt v5, 2
 +     jumpi v6, bb5, bb2
 +   bb5:
-+     v7 = trunc i256 arg0 to i160
 +     jump bb1
 +   bb1:
-+     v8 = zext i160 v7 to i256
-+     mstore 128, v8
-+     v10 = add 128, 32
-+     v11 = sub v10, 128
-+     returndata 128, v11
++     v7 = zext i160 arg0 to i256
++     mstore 128, v7
++     v8 = add 128, 32
++     v9 = sub v8, 128
++     returndata 128, v9
 +   bb2:
 +     revert 0, 0
   }

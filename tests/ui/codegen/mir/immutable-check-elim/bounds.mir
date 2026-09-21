@@ -29,7 +29,8 @@ fn @runtime() -> i256 [selector=1] {
 // The legacy target uses a full word and cannot use this bound.
 fn @bounded() -> i256 {
   bb0:
-    v0 = loadimmutable small
+    v10000 = loadimmutable small
+    v0 = zext i64 v10000 to i256
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
@@ -43,7 +44,8 @@ fn @bounded() -> i256 {
 // must retain their checks because constructor loads read full staging words.
 fn @constructor(arg0: i256) [constructor] {
   bb0:
-    storeimmutable small, arg0
+    v10001 = trunc i256 arg0 to i64
+    storeimmutable small, v10001
     icall @bridge
     stop
 }
@@ -55,7 +57,8 @@ fn @bridge() {
 
 fn @shared() {
   bb0:
-    v0 = loadimmutable small
+    v10002 = loadimmutable small
+    v0 = zext i64 v10002 to i256
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
@@ -68,7 +71,8 @@ fn @shared() {
 // Signed values can have every high bit set even with a short immediate.
 fn @signed_value() -> i256 {
   bb0:
-    v0 = loadimmutable signed
+    v10003 = loadimmutable signed
+    v0 = sext i64 v10003 to i256
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
@@ -93,7 +97,8 @@ fn @wide_value() -> i256 {
 // A helper with no established runtime entry cannot acquire runtime facts.
 fn @unrooted() -> i256 {
   bb0:
-    v0 = loadimmutable small
+    v10004 = loadimmutable small
+    v0 = zext i64 v10004 to i256
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2

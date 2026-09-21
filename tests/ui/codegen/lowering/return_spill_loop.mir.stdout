@@ -9,52 +9,59 @@ fn @probe(arg0: i256) -> struct0 [selector=0xdb082440, pure, abi_params=[u256], 
     v1 = and 66, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 3
-    v3 = and arg0, 255
-    v4 = shl 248, v3
-    v5 = memory_object_len memorybytes, v2
-    v6 = lt 0, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = byte 0, v4
-    memory_object_store_byte memorybytes, v2, 0, v8
-    v9 = memory_object_len memorybytes, v2
-    v10 = lt 1, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = byte 0, 0x2200000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_byte memorybytes, v2, 1, v12
-    v13 = memory_object_len memorybytes, v2
-    v14 = lt 2, v13
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = byte 0, 0x3300000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_byte memorybytes, v2, 2, v16
-    v17 = icall @copy, v2, 34
-    v18 = memory_object_len memorybytes, v17
-    v19 = lt 0, v18
-    v20 = eq v19, false
-    icall panic_if<0x32>, v20
-    v21 = memory_object_load_byte memorybytes, v17, 0
-    v22 = shl 248, v21
-    v23 = shr 248, v22
-    v24 = memory_object_len memorybytes, v17
-    v25 = lt 1, v24
-    v26 = eq v25, false
-    icall panic_if<0x32>, v26
-    v27 = memory_object_load_byte memorybytes, v17, 1
-    v28 = shl 248, v27
-    v29 = shr 248, v28
-    v30 = memory_object_len memorybytes, v17
-    v31 = lt 2, v30
-    v32 = eq v31, false
-    icall panic_if<0x32>, v32
-    v33 = memory_object_load_byte memorybytes, v17, 2
-    v34 = shl 248, v33
-    v35 = shr 248, v34
-    v36 = insert_value struct0, undef struct0, 0, v23
-    v37 = insert_value struct0, v36, 1, v29
-    v38 = insert_value struct0, v37, 2, v35
-    ret v38
+    v3 = trunc i256 arg0 to i8
+    v4 = zext i8 v3 to i256
+    v5 = shl 248, v4
+    v6 = memory_object_len memorybytes, v2
+    v7 = lt 0, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = byte 0, v5
+    memory_object_store_byte memorybytes, v2, 0, v9
+    v10 = memory_object_len memorybytes, v2
+    v11 = lt 1, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = byte 0, 0x2200000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_byte memorybytes, v2, 1, v13
+    v14 = memory_object_len memorybytes, v2
+    v15 = lt 2, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = byte 0, 0x3300000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_byte memorybytes, v2, 2, v17
+    v18 = icall @copy, v2, 34
+    v19 = memory_object_len memorybytes, v18
+    v20 = lt 0, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = memory_object_load_byte memorybytes, v18, 0
+    v23 = shl 248, v22
+    v24 = shr 248, v23
+    v25 = trunc i256 v24 to i8
+    v26 = zext i8 v25 to i256
+    v27 = memory_object_len memorybytes, v18
+    v28 = lt 1, v27
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    v30 = memory_object_load_byte memorybytes, v18, 1
+    v31 = shl 248, v30
+    v32 = shr 248, v31
+    v33 = trunc i256 v32 to i8
+    v34 = zext i8 v33 to i256
+    v35 = memory_object_len memorybytes, v18
+    v36 = lt 2, v35
+    v37 = eq v36, false
+    icall panic_if<0x32>, v37
+    v38 = memory_object_load_byte memorybytes, v18, 2
+    v39 = shl 248, v38
+    v40 = shr 248, v39
+    v41 = trunc i256 v40 to i8
+    v42 = zext i8 v41 to i256
+    v43 = insert_value struct0, undef struct0, 0, v26
+    v44 = insert_value struct0, v43, 1, v34
+    v45 = insert_value struct0, v44, 2, v42
+    ret v45
 }
 
 fn @doubleProbe() -> i256 [selector=0xf770a1a3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -73,7 +80,9 @@ fn @doubleProbe() -> i256 [selector=0xf770a1a3, pure, abi_params=[], abi_returns
     v8 = memory_object_load_byte memorybytes, v4, 1
     v9 = shl 248, v8
     v10 = shr 248, v9
-    ret v10
+    v11 = trunc i256 v10 to i8
+    v12 = zext i8 v11 to i256
+    ret v12
 }
 
 fn @run(arg0: memorybytes, arg1: i256) -> memorybytes [selector=0x194e10ce, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

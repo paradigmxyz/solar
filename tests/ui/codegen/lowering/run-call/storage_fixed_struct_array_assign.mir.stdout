@@ -81,9 +81,9 @@ fn @testConstantIndex() -> struct0 [selector=0xb6aa0fa8, abi_params=[], abi_retu
 fn @testFromMemory() -> struct0 [selector=0xfebd1e0e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v1 = zext i1 1 to i256
     memory_object_store_field memorystruct<3>, v0, 0, 1
     memory_object_store_field memorystruct<3>, v0, 1, 2
-    v1 = zext i1 1 to i256
     memory_object_store_field memorystruct<3>, v0, 2, v1
     v2 = sload 24 !metadata(storage=slot(24))
     v3 = checked_add u256, v2, 1

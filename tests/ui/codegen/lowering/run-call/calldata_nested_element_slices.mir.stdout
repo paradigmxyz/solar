@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_nested_element_slices.sol:CalldataNestedElementSlices ===
 @module CalldataNestedElementSlices
 types:
-  struct0: {i256, i256}
-  struct1: {i256, i256, calldataslice}
+  struct0: {i256, i1}
+  struct1: {i48, i48, calldataslice}
 
 fn @nestedBytes() -> i256 [selector=0x126aa804, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -136,15 +136,15 @@ fn @structMember() -> struct0 [selector=0x9f2d7231, view, abi_params=[], abi_ret
   bb3:
     v7 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v8 = trunc i256 1 to i160
-    v9 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v9, 3
-    v10 = memory_object_data memorybytes, v9
-    v11 = ptrtoint memptr v10 to i256
-    mstore v11, 0xabcdef0000000000000000000000000000000000000000000000000000000000
-    v12 = zext i160 v8 to i256
-    memory_object_store_field memorystruct<3>, v7, 0, v12
+    v9 = zext i160 v8 to i256
+    v10 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v10, 3
+    v11 = memory_object_data memorybytes, v10
+    v12 = ptrtoint memptr v11 to i256
+    mstore v12, 0xabcdef0000000000000000000000000000000000000000000000000000000000
+    v13 = ptrtoint memorybytes v10 to i256
+    memory_object_store_field memorystruct<3>, v7, 0, v9
     memory_object_store_field memorystruct<3>, v7, 1, 2
-    v13 = ptrtoint memorybytes v9 to i256
     memory_object_store_field memorystruct<3>, v7, 2, v13
     v14 = memory_object_len memoryarray, v0
     v15 = lt 0, v14
@@ -180,13 +180,14 @@ fn @structMember() -> struct0 [selector=0x9f2d7231, view, abi_params=[], abi_ret
     v37 = mload v36
     v38 = add v21, 32
     v39 = mload v38
-    v40 = insert_value struct0, undef struct0, 0, v37
-    v41 = insert_value struct0, v40, 1, v39
-    v42 = extract_value struct0, v41, 0
-    v43 = extract_value struct0, v41, 1
-    v44 = insert_value struct0, undef struct0, 0, v42
-    v45 = insert_value struct0, v44, 1, v43
-    ret v45
+    v40 = ne v39, 0
+    v41 = insert_value struct0, undef struct0, 0, v37
+    v42 = insert_value struct0, v41, 1, v40
+    v43 = extract_value struct0, v42, 0
+    v44 = extract_value struct0, v42, 1
+    v45 = insert_value struct0, undef struct0, 0, v43
+    v46 = insert_value struct0, v45, 1, v44
+    ret v46
   bb2:
     v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v3, 0, 0
@@ -254,10 +255,9 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x903f85b3, pure, abi_para
     v43 = slice_len v42
     v44 = gt v39, v43
     v45 = eq v44, false
-    v46 = zext i1 v45 to i256
-    v47 = insert_value struct0, undef struct0, 0, v40
-    v48 = insert_value struct0, v47, 1, v46
-    ret v48
+    v46 = insert_value struct0, undef struct0, 0, v40
+    v47 = insert_value struct0, v46, 1, v45
+    ret v47
 }
 
 fn @tupleTernary() -> i256 [selector=0x75466b3a, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -292,7 +292,7 @@ fn @tupleTernary() -> i256 [selector=0x75466b3a, view, abi_params=[], abi_return
     ret v19
 }
 
-fn @useTuple(arg0: calldataslice, arg1: i256) -> i256 [selector=0xf8c72565, pure, abi_params=[bytes, bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @useTuple(arg0: calldataslice, arg1: i1) -> i256 [selector=0xf8c72565, pure, abi_params=[bytes, bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @_decode, arg0, arg1
     v1 = extract_value struct1, v0, 0
@@ -308,42 +308,45 @@ fn @_length(arg0: calldataslice) -> i256 [pure] {
     ret v0
 }
 
-fn @_decode(arg0: calldataslice, arg1: i256) -> struct1 [pure] {
+fn @_decode(arg0: calldataslice, arg1: i1) -> struct1 [pure] {
   bb0:
     v0 = make_calldata_slice 0, 0
-    v1 = ne arg1, 0
-    jumpi v1, bb1, bb2
+    jumpi arg1, bb1, bb2
   bb2:
-    v12 = slice_ptr arg0
-    v13 = slice_len arg0
-    v14 = gt v13, v13
-    v15 = lt v13, 2
-    v16 = or v14, v15
-    v17 = zext i1 v16 to i256
-    icall revert_if<empty>, v16
-    v18 = sub v13, 2
-    v19 = add v12, 2
-    v20 = make_calldata_slice v19, v18
+    v13 = trunc i256 1 to i48
+    v14 = trunc i256 2 to i48
+    v15 = slice_ptr arg0
+    v16 = slice_len arg0
+    v17 = gt v16, v16
+    v18 = lt v16, 2
+    v19 = or v17, v18
+    v20 = zext i1 v19 to i256
+    icall revert_if<empty>, v19
+    v21 = sub v16, 2
+    v22 = add v15, 2
+    v23 = make_calldata_slice v22, v21
     jump bb3
   bb1:
-    v2 = slice_ptr arg0
-    v3 = slice_len arg0
+    v1 = trunc i256 0 to i48
+    v2 = trunc i256 0 to i48
+    v3 = slice_ptr arg0
     v4 = slice_len arg0
-    v5 = gt v3, v3
-    v6 = lt v3, v4
-    v7 = or v5, v6
-    v8 = zext i1 v7 to i256
-    icall revert_if<empty>, v7
-    v9 = sub v3, v4
-    v10 = add v2, v4
-    v11 = make_calldata_slice v10, v9
+    v5 = slice_len arg0
+    v6 = gt v4, v4
+    v7 = lt v4, v5
+    v8 = or v6, v7
+    v9 = zext i1 v8 to i256
+    icall revert_if<empty>, v8
+    v10 = sub v4, v5
+    v11 = add v3, v5
+    v12 = make_calldata_slice v11, v10
     jump bb3
   bb3:
-    v21 = phi [bb1: 0], [bb2: 1]
-    v22 = phi [bb1: 0], [bb2: 2]
-    v23 = phi [bb1: v11], [bb2: v20]
-    v24 = insert_value struct1, undef struct1, 0, v21
-    v25 = insert_value struct1, v24, 1, v22
-    v26 = insert_value struct1, v25, 2, v23
-    ret v26
+    v24 = phi [bb1: v1], [bb2: v13]
+    v25 = phi [bb1: v2], [bb2: v14]
+    v26 = phi [bb1: v12], [bb2: v23]
+    v27 = insert_value struct1, undef struct1, 0, v24
+    v28 = insert_value struct1, v27, 1, v25
+    v29 = insert_value struct1, v28, 2, v26
+    ret v29
 }

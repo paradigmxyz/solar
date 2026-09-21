@@ -16,28 +16,28 @@ bb0:
   push_immutable 0, 1
   push_immutable 1, 32
   push_immutable 2, 32
-  push_immutable 3, 32
+  push_immutable 3, 20
   push_immutable 4, 32
   push_immutable 5, 2
-  swap 4
-  push 1
-  signextend
   swap 2
   push 0
   not
   push 96
   shr
   and
+  swap 4
+  push 1
+  signextend
   swap 5
   push 128
   mstore
-  swap 1
+  swap 4
   push 160
   mstore
   swap 1
   push 192
   mstore
-  swap 2
+  swap 1
   push 224
   mstore
   swap 1

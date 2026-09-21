@@ -1,8 +1,0 @@
-- // === ROOT/tests/ui/codegen/mir/lowering/integer_width_limit.mir (before none) ===
-+ // === ROOT/tests/ui/codegen/mir/lowering/integer_width_limit.mir (after none) ===
-  @module IntegerWidthLimit
-  fn @wide(arg0: i512) -> i512 {
-    bb0:
-      ret arg0
-  }
-  

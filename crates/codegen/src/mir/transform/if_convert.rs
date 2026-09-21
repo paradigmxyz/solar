@@ -227,8 +227,8 @@ fn join_selects(func: &Function, site: &Site) -> Option<Vec<Select>> {
         let incoming_from =
             |pred| incoming.iter().find(|&&(from, _)| from == pred).map(|&(_, v)| v);
         let (then_value, else_value) = (incoming_from(then_pred)?, incoming_from(else_pred)?);
-        if !matches!(func.value_ty(then_value), Some(MirType::I1 | MirType::I256))
-            || !matches!(func.value_ty(else_value), Some(MirType::I1 | MirType::I256))
+        if !matches!(func.value_ty(then_value), Some(MirType::Int(_)))
+            || func.value_ty(then_value) != func.value_ty(else_value)
         {
             return None;
         }

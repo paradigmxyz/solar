@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_roundtrip.sol:AbiEncodeRoundtrip ===
 @module AbiEncodeRoundtrip
 types:
-  struct0: {i256, i256, i256}
-  struct1: {memoryfixedarray, memorybytes, i256}
+  struct0: {i256, i256, i8}
+  struct1: {memoryfixedarray, memorybytes, i8}
   struct2: {i256, i256, i256, i256}
   struct3: {memoryarray, memorybytes}
 
@@ -90,21 +90,22 @@ fn @mixedRoundtrip() -> struct0 [selector=0xb3f929db, pure, abi_params=[], abi_r
     v7 = memory_object_data memorybytes, v6
     v8 = ptrtoint memptr v7 to i256
     mstore v8, 0x102030000000000000000000000000000000000000000000000000000000000
-    v9 = and 3, 255
-    v10 = abi_encode [array<2, word>, memory_bytes, word<u8>], object, args v0, v6, v9
-    v11 = abi_decode [array<2, u256>, bytes, u8], v10
-    v12 = extract_value struct1, v11, 0
-    v13 = extract_value struct1, v11, 1
-    v14 = extract_value struct1, v11, 2
-    v15 = lt 1, 2
-    v16 = eq v15, false
-    icall panic_if<0x32>, v16
-    v17 = memory_object_load_element memoryfixedarray<2, 1>, v12, 1
-    v18 = memory_object_len memorybytes, v13
-    v19 = insert_value struct0, undef struct0, 0, v17
-    v20 = insert_value struct0, v19, 1, v18
-    v21 = insert_value struct0, v20, 2, v14
-    ret v21
+    v9 = trunc i256 3 to i8
+    v10 = zext i8 v9 to i256
+    v11 = abi_encode [array<2, word>, memory_bytes, word<u8>], object, args v0, v6, v10
+    v12 = abi_decode [array<2, u256>, bytes, u8], v11
+    v13 = extract_value struct1, v12, 0
+    v14 = extract_value struct1, v12, 1
+    v15 = extract_value struct1, v12, 2
+    v16 = lt 1, 2
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = memory_object_load_element memoryfixedarray<2, 1>, v13, 1
+    v19 = memory_object_len memorybytes, v14
+    v20 = insert_value struct0, undef struct0, 0, v18
+    v21 = insert_value struct0, v20, 1, v19
+    v22 = insert_value struct0, v21, 2, v15
+    ret v22
 }
 
 fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {

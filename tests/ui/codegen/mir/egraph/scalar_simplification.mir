@@ -33,8 +33,7 @@ fn @strength_reduce_arithmetic(arg0: i256) -> i256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @simplify_booleans{{[( ]}}
 // CHECK: {{^[ +].*}}[[IS_FALSE:v[0-9]+]] = eq arg0, false
-// CHECK: {{^[ +].*}}[[SELECT_FALSE:v[0-9]+]] = select arg0, false, true
-// CHECK: {{^[ +].*}}ret arg0, [[IS_FALSE]], arg1, arg0, [[SELECT_FALSE]]
+// CHECK: {{^[ +].*}}ret arg0, [[IS_FALSE]], arg1, arg0, [[IS_FALSE]]
 fn @simplify_booleans(arg0: i1, arg1: i256, arg2: i256) -> struct5 [return_abi=[i1, i1, i256, i1, i1]] {
   bb0:
     v3 = eq arg0, true
@@ -201,24 +200,24 @@ fn @fold_clz_constants() -> struct0 [return_abi=[i256, i256, i256, i256, i256]] 
 }
 
 // CHECK-LABEL: fn @checked_constants
-// CHECK: {{^[ +].*}}checked_add u8, 255, 1
-// CHECK: {{^[ +].*}}checked_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// CHECK: {{^[ +].*}}checked_add u8, i8 255, i8 1
+// CHECK: {{^[ +].*}}checked_div i8, i8 128, i8 255
 // CHECK: {{^[ +].*}}checked_div u256, 1, 0
-// CHECK: {{^[ +].*}}ret 243
-fn @checked_constants() -> i256 {
+// CHECK: {{^[ +].*}}ret i8 243
+fn @checked_constants() -> i8 {
   bb0:
-    v0 = checked_add u8, 255, 1
-    v1 = checked_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v0 = checked_add u8, i8 255, i8 1
+    v1 = checked_div i8, i8 128, i8 255
     v2 = checked_div u256, 1, 0
-    v3 = checked_pow u8, 3, 5
+    v3 = checked_pow u8, i8 3, 5
     ret v3
 }
 
 // CHECK-LABEL: fn @wrapping_signed_division
-// CHECK: {{^[ +].*}}ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-fn @wrapping_signed_division() -> i256 {
+// CHECK: {{^[ +].*}}ret i8 128
+fn @wrapping_signed_division() -> i8 {
   bb0:
-    v0 = wrapping_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v0 = wrapping_div i8, i8 128, i8 255
     ret v0
 }
 
@@ -429,15 +428,6 @@ fn @ptr_narrow_preserved(arg0: memptr) -> memptr {
   bb0:
     v0 = ptrtoint memptr arg0 to i160
     v1 = inttoptr i160 v0 to memptr
-    ret v1
-}
-
-// CHECK-LABEL: fn @wide_ptr_roundtrip_preserved
-// CHECK: {{^[ +].*}}inttoptr i512 arg0 to memptr
-fn @wide_ptr_roundtrip_preserved(arg0: i512) -> i512 {
-  bb0:
-    v0 = inttoptr i512 arg0 to memptr
-    v1 = ptrtoint memptr v0 to i512
     ret v1
 }
 
@@ -725,4 +715,13 @@ fn @ne_sign_extensions(arg0: i160, arg1: i160) -> i1 {
     v1 = sext i160 arg1 to i256
     v2 = ne v0, v1
     ret v2
+}
+
+// CHECK-LABEL: fn @bool_mask
+// CHECK-NOT: {{^[ +].*}}= and
+// CHECK: {{^[ +].*}}ret arg0
+fn @bool_mask(arg0: i1) -> i1 {
+  bb0:
+    v0 = and arg0, true
+    ret v0
 }

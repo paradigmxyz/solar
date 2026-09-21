@@ -5,27 +5,31 @@ fn @g(arg0: i256, arg1: i256, arg2: i256) [selector=0x6dddb956, pure, abi_params
     ret
 }
 
-fn @h(arg0: i256, arg1: i256) [selector=0x2a62baf5, pure, abi_params=[u16, u16], abi_returns=[], abi_return_params=[]] {
+fn @h(arg0: i16, arg1: i16) [selector=0x2a62baf5, pure, abi_params=[u16, u16], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
 fn @f() -> memorybytes [selector=0x26121ff0, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = and 0x1234000000000000000000000000000000000000000000000000000000000000, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v1 = and 0x6162000000000000000000000000000000000000000000000000000000000000, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v2 = shl 240, 0x1234
-    v3 = and v2, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v4 = abi_encode [word<bytes2>, word<bytes2>, word<bytes2>], object, selector 0x6dddb95600000000000000000000000000000000000000000000000000000000, args v0, v1, v3
-    ret v4
+    v0 = trunc i256 0x1234 to i16
+    v1 = and 0x1234000000000000000000000000000000000000000000000000000000000000, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v2 = and 0x6162000000000000000000000000000000000000000000000000000000000000, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v3 = zext i16 v0 to i256
+    v4 = shl 240, v3
+    v5 = and v4, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v6 = abi_encode [word<bytes2>, word<bytes2>, word<bytes2>], object, selector 0x6dddb95600000000000000000000000000000000000000000000000000000000, args v1, v2, v5
+    ret v6
 }
 
 fn @f2() -> memorybytes [selector=0x9942ec6f, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = shl 240, 0x1234
-    v1 = and 0x1234, 0xffff
+    v1 = trunc i256 0x1234 to i16
     v2 = shr 240, v0
-    v3 = and v2, 0xffff
-    v4 = abi_encode [word<u16>, word<u16>], object, selector 0x2a62baf500000000000000000000000000000000000000000000000000000000, args v1, v3
-    ret v4
+    v3 = trunc i256 v2 to i16
+    v4 = zext i16 v1 to i256
+    v5 = zext i16 v3 to i256
+    v6 = abi_encode [word<u16>, word<u16>], object, selector 0x2a62baf500000000000000000000000000000000000000000000000000000000, args v4, v5
+    ret v6
 }

@@ -1,16 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/revert_payloads.sol:RevertPayloads ===
 @module RevertPayloads
-fn @assert_panic(arg0: i256) [selector=0x727ee374, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
+fn @assert_panic(arg0: i1) [selector=0x727ee374, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = eq arg0, 0
+    v0 = eq arg0, false
     icall panic_if<0x1>, v0
     ret
 }
 
-fn @require_message(arg0: i256) [selector=0x79cfb63f, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
+fn @require_message(arg0: i1) [selector=0x79cfb63f, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = ne arg0, 0
-    icall require<short_string>, v0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
+    icall require<short_string>, arg0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
     ret
 }
 

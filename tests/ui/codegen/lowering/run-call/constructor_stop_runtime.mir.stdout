@@ -2,7 +2,7 @@
 @module ConstructorStopRuntime
 data:
   ConstructorStopAlways_initcode_0: hex"60c060405234151560105760015f55005b5f5ffd603280601d5f395ff3341515601c575f3560e01c80633fa4f24514601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
-  ConstructorStopConditional_initcode_1: hex"60b638038060b660e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405234151560765760e08060c0528060c05260e060b638030160208201116072578060c05251600290101560725760015f5560e0511515607057607a565b005b5f5ffd5b5f5ffd5b60328060845f395ff3341515601c575f3560e01c80633fa4f24514601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
+  ConstructorStopConditional_initcode_1: hex"60b438038060b460e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405234151560745760e08060c0528060c05260e060b438030160208201116070578060c05251600290101560705760015f5560e051606e576078565b005b5f5ffd5b5f5ffd5b60328060825f395ff3341515601c575f3560e01c80633fa4f24514601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
 
 fn @unconditional() -> i256 [selector=0x7d06b8f6, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -25,41 +25,37 @@ fn @unconditional() -> i256 [selector=0x7d06b8f6, abi_params=[], abi_returns=[wo
     revert_returndata
   bb2:
     v12 = zext i160 v9 to i256
-    v13 = zext i160 v9 to i256
+    v13 = extcodesize v12
+    ret v13
+}
+
+fn @conditional(arg0: i1) -> i256 [selector=0x9077f189, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = zext i1 arg0 to i256
+    v1 = abi_encode [word<bool>], args v0
+    v2 = not 31
+    v3 = and 243, v2
+    v4 = alloc raw, exact, uninitialized, infallible, v3
+    v5 = ptrtoint memptr v4 to i256
+    data_copy ConstructorStopConditional_initcode_1, v5, 180
+    v6 = slice_ptr v1
+    v7 = ptrtoint memptr v4 to i256
+    v8 = add v7, 180
+    mcopy v8, v6, 32 !metadata(memory=heap)
+    v9 = ptrtoint memptr v4 to i256
+    v10 = create 0, v9, 212
+    v11 = zext i160 v10 to i256
+    v12 = ne v11, 0
+    jumpi v12, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v13 = zext i160 v10 to i256
     v14 = extcodesize v13
     ret v14
 }
 
-fn @conditional(arg0: i256) -> i256 [selector=0x9077f189, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
-  bb0:
-    v0 = eq arg0, 0
-    v1 = eq v0, false
-    v2 = zext i1 v1 to i256
-    v3 = abi_encode [word<bool>], args v2
-    v4 = not 31
-    v5 = and 245, v4
-    v6 = alloc raw, exact, uninitialized, infallible, v5
-    v7 = ptrtoint memptr v6 to i256
-    data_copy ConstructorStopConditional_initcode_1, v7, 182
-    v8 = slice_ptr v3
-    v9 = ptrtoint memptr v6 to i256
-    v10 = add v9, 182
-    mcopy v10, v8, 32 !metadata(memory=heap)
-    v11 = ptrtoint memptr v6 to i256
-    v12 = create 0, v11, 214
-    v13 = zext i160 v12 to i256
-    v14 = ne v13, 0
-    jumpi v14, bb2, bb1
-  bb1:
-    revert_returndata
-  bb2:
-    v15 = zext i160 v12 to i256
-    v16 = zext i160 v12 to i256
-    v17 = extcodesize v16
-    ret v17
-}
-
-fn @conditionalContinues() -> i256 [selector=0x828f9845, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @conditionalContinues() -> i1 [selector=0x828f9845, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = zext i1 0 to i256
     v1 = eq v0, 0
@@ -67,16 +63,16 @@ fn @conditionalContinues() -> i256 [selector=0x828f9845, abi_params=[], abi_retu
     v3 = zext i1 v2 to i256
     v4 = abi_encode [word<bool>], args v3
     v5 = not 31
-    v6 = and 245, v5
+    v6 = and 243, v5
     v7 = alloc raw, exact, uninitialized, infallible, v6
     v8 = ptrtoint memptr v7 to i256
-    data_copy ConstructorStopConditional_initcode_1, v8, 182
+    data_copy ConstructorStopConditional_initcode_1, v8, 180
     v9 = slice_ptr v4
     v10 = ptrtoint memptr v7 to i256
-    v11 = add v10, 182
+    v11 = add v10, 180
     mcopy v11, v9, 32 !metadata(memory=heap)
     v12 = ptrtoint memptr v7 to i256
-    v13 = create 0, v12, 214
+    v13 = create 0, v12, 212
     v14 = zext i160 v13 to i256
     v15 = ne v14, 0
     jumpi v15, bb2, bb1
@@ -84,11 +80,9 @@ fn @conditionalContinues() -> i256 [selector=0x828f9845, abi_params=[], abi_retu
     revert_returndata
   bb2:
     v16 = zext i160 v13 to i256
-    v17 = zext i160 v13 to i256
-    v18 = extcodesize v17
-    v19 = ne v18, 0
-    v20 = zext i1 v19 to i256
-    ret v20
+    v17 = extcodesize v16
+    v18 = ne v17, 0
+    ret v18
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopAlways ===
@@ -113,11 +107,10 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-fn @constructor(arg0: i256) [constructor, abi_params=[bool]] {
+fn @constructor(arg0: i1) [constructor, abi_params=[bool]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
-    v0 = ne arg0, 0
-    jumpi v0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb2:
     jump bb3
   bb3:

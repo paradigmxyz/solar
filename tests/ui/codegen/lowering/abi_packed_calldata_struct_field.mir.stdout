@@ -43,9 +43,8 @@ fn @pack(arg0: calldataslice) -> memorybytes [selector=0xc917a597, pure, abi_par
     v32 = eq v31, false
     icall revert_if<empty>, v32
     v33 = trunc i256 v29 to i160
-    v34 = zext i160 v33 to i256
-    v35 = abi_encode_packed (bytes v20, u160 v34)
-    ret v35
+    v34 = abi_encode_packed (bytes v20, u160 v33)
+    ret v34
 }
 
 fn @packHash(arg0: calldataslice) -> i256 [selector=0x26915e91, pure, abi_params=[tuple<address, address, u256, u256, u48, bytes, bytes>], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -91,7 +90,6 @@ fn @packHash(arg0: calldataslice) -> i256 [selector=0x26915e91, pure, abi_params
     v32 = eq v31, false
     icall revert_if<empty>, v32
     v33 = trunc i256 v29 to i160
-    v34 = zext i160 v33 to i256
-    v35 = keccak256_packed (bytes v20, u160 v34)
-    ret v35
+    v34 = keccak256_packed (bytes v20, u160 v33)
+    ret v34
 }

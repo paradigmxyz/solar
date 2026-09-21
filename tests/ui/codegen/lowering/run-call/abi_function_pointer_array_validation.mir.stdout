@@ -32,25 +32,25 @@ fn @m(arg0: memoryarray) -> i256 [selector=0x4d6e4a29, pure, abi_params=[array<_
     ret 4
 }
 
-fn @checkG(arg0: i256) -> i256 [selector=0xb89497e4, view, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @checkG(arg0: i1) -> i256 [selector=0xb89497e4, view, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @invoke, 0xc16ea9d400000000000000000000000000000000000000000000000000000000, arg0, 2
     ret v0
 }
 
-fn @checkH(arg0: i256) -> i256 [selector=0x5137faa5, view, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @checkH(arg0: i1) -> i256 [selector=0x5137faa5, view, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @invoke, 0xdae6c3bf00000000000000000000000000000000000000000000000000000000, arg0, 3
     ret v0
 }
 
-fn @checkM(arg0: i256) -> i256 [selector=0xfad9a4f1, view, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @checkM(arg0: i1) -> i256 [selector=0xfad9a4f1, view, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @invoke, 0x4d6e4a2900000000000000000000000000000000000000000000000000000000, arg0, 4
     ret v0
 }
 
-fn @invoke(arg0: i256, arg1: i256, arg2: i256) -> i256 [view] {
+fn @invoke(arg0: i256, arg1: i1, arg2: i256) -> i256 [view] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -65,26 +65,25 @@ fn @invoke(arg0: i256, arg1: i256, arg2: i256) -> i256 [view] {
     v8 = shl 64, v4
     memory_object_store_element memoryarray<1>, v0, 0, v8
     v9 = abi_encode [memory_array<function>], object, selector arg0, args v0
-    v10 = ne arg1, 0
-    jumpi v10, bb1, bb2
+    jumpi arg1, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v11 = ptrtoint memorybytes v9 to i256
-    v12 = add v11, 32
-    v13 = add v12, 92
-    mstore8 v13, 88
+    v10 = ptrtoint memorybytes v9 to i256
+    v11 = add v10, 32
+    v12 = add v11, 92
+    mstore8 v12, 88
     jump bb3
   bb3:
-    v14 = address
-    v15 = gas
-    v16 = address_staticcall v14, v9, gas v15
-    v17 = icall returndata_bytes<>
-    v18 = eq v16, false
-    icall revert_if<empty>, v18
-    v19 = abi_decode [u256], v17
-    v20 = eq v19, arg2
-    v21 = eq v20, false
-    icall revert_if<empty>, v21
-    ret v19
+    v13 = address
+    v14 = gas
+    v15 = address_staticcall v13, v9, gas v14
+    v16 = icall returndata_bytes<>
+    v17 = eq v15, false
+    icall revert_if<empty>, v17
+    v18 = abi_decode [u256], v16
+    v19 = eq v18, arg2
+    v20 = eq v19, false
+    icall revert_if<empty>, v20
+    ret v18
 }

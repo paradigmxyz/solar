@@ -61,56 +61,58 @@ fn @g() -> memorybytes [selector=0xe2179b8e, view, abi_params=[], abi_returns=[m
   bb3:
     v8 = ptrtoint memoryarray v1 to i256
     memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v8
-    v9 = lt 0, 1
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
-    v12 = inttoptr i256 v11 to memoryarray
-    v13 = eq v11, 0
-    jumpi v13, bb4, bb5
+    v9 = trunc i256 42 to i8
+    v10 = lt 0, 1
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
+    v13 = inttoptr i256 v12 to memoryarray
+    v14 = eq v12, 0
+    jumpi v14, bb4, bb5
   bb4:
-    v14 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v14, 0
-    v15 = ptrtoint memoryarray v14 to i256
-    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v15
+    v15 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v15, 0
+    v16 = ptrtoint memoryarray v15 to i256
+    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v16
     jump bb5
   bb5:
-    v16 = phi [bb3: v12], [bb4: v14]
-    v17 = memory_object_len memoryarray, v16
-    v18 = lt 0, v17
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = memory_object_load_element memoryarray<1>, v16, 0
-    v21 = inttoptr i256 v20 to memoryfixedarray
-    v22 = eq v20, 0
-    jumpi v22, bb6, bb7
+    v17 = phi [bb3: v13], [bb4: v15]
+    v18 = memory_object_len memoryarray, v17
+    v19 = lt 0, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = memory_object_load_element memoryarray<1>, v17, 0
+    v22 = inttoptr i256 v21 to memoryfixedarray
+    v23 = eq v21, 0
+    jumpi v23, bb6, bb7
   bb6:
-    v23 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
-    v24 = ptrtoint memoryfixedarray v23 to i256
-    memory_zero v24, 32
-    v25 = ptrtoint memoryfixedarray v23 to i256
-    memory_object_store_element memoryarray<1>, v16, 0, v25
+    v24 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v25 = ptrtoint memoryfixedarray v24 to i256
+    memory_zero v25, 32
+    v26 = ptrtoint memoryfixedarray v24 to i256
+    memory_object_store_element memoryarray<1>, v17, 0, v26
     jump bb7
   bb7:
-    v26 = phi [bb5: v21], [bb6: v23]
-    v27 = lt 0, 1
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    memory_object_store_element memoryfixedarray<1, 1>, v26, 0, 42
-    v29 = address
-    v30 = gas
-    v31 = abi_encode [array<1, memory_array<array<1, word<u8>>>>], selector 0x15cfcc0100000000000000000000000000000000000000000000000000000000, args v0
-    v32 = slice_ptr v31
-    v33 = slice_len v31
-    v34 = zext i160 v29 to i256
-    v35 = staticcall v30, v34, v32, v33, 0, 0
-    jumpi v35, bb9, bb8
+    v27 = phi [bb5: v22], [bb6: v24]
+    v28 = lt 0, 1
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    v30 = zext i8 v9 to i256
+    memory_object_store_element memoryfixedarray<1, 1>, v27, 0, v30
+    v31 = address
+    v32 = gas
+    v33 = abi_encode [array<1, memory_array<array<1, word<u8>>>>], selector 0x15cfcc0100000000000000000000000000000000000000000000000000000000, args v0
+    v34 = slice_ptr v33
+    v35 = slice_len v33
+    v36 = zext i160 v31 to i256
+    v37 = staticcall v32, v36, v34, v35, 0, 0
+    jumpi v37, bb9, bb8
   bb8:
     revert_returndata
   bb9:
-    v36 = icall returndata_bytes<>
-    v37 = abi_decode [bytes], v36
-    ret v37
+    v38 = icall returndata_bytes<>
+    v39 = abi_decode [bytes], v38
+    ret v39
   bb2:
     v4 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     v5 = ptrtoint memoryfixedarray v4 to i256

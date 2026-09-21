@@ -2,17 +2,16 @@
 @module LowLevelCallEvaluationOrder
 types:
   struct0: {memorybytes, memorybytes}
-  struct1: {i256, memorybytes}
+  struct1: {i1, memorybytes}
 
-fn @receiver() -> i256 {
+fn @receiver() -> i160 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
     v2 = checked_add u256, v1, 1
     sstore 0, v2 !metadata(storage=slot(0))
     v3 = address
-    v4 = zext i160 v3 to i256
-    ret v4
+    ret v3
 }
 
 fn @gasOpt() -> i256 {
@@ -58,12 +57,11 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v2 = icall @gasOpt
     v3 = icall @valueOpt
     v4 = icall @data
-    v5 = trunc i256 v0 to i160
-    v6 = address_call v5, v4, gas v2, value v3
-    v7 = eq v6, false
-    icall revert_if<empty>, v7
-    v8 = sload 0 !metadata(storage=slot(0))
-    ret v8
+    v5 = address_call v0, v4, gas v2, value v3
+    v6 = eq v5, false
+    icall revert_if<empty>, v6
+    v7 = sload 0 !metadata(storage=slot(0))
+    ret v7
 }
 
 fn @echo(arg0: memorybytes) -> memorybytes [selector=0x624fbfdc, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -134,10 +132,9 @@ fn @staticRead() -> struct1 [selector=0xf511364b, view, abi_params=[], abi_retur
     v2 = abi_encode [], object, selector 0x8381f58a00000000000000000000000000000000000000000000000000000000
     v3 = address_staticcall v0, v2, gas v1
     v4 = icall returndata_bytes<>
-    v5 = zext i1 v3 to i256
-    v6 = insert_value struct1, undef struct1, 0, v5
-    v7 = insert_value struct1, v6, 1, v4
-    ret v7
+    v5 = insert_value struct1, undef struct1, 0, v3
+    v6 = insert_value struct1, v5, 1, v4
+    ret v6
 }
 
 fn @delegateWrite() -> i256 [selector=0xeedb6db6, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -186,8 +183,7 @@ fn @failedCapture() -> struct1 [selector=0x5ee5463d, abi_params=[], abi_returns=
     v2 = abi_encode [], object, selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
     v3 = address_call v0, v2, gas v1
     v4 = icall returndata_bytes<>
-    v5 = zext i1 v3 to i256
-    v6 = insert_value struct1, undef struct1, 0, v5
-    v7 = insert_value struct1, v6, 1, v4
-    ret v7
+    v5 = insert_value struct1, undef struct1, 0, v3
+    v6 = insert_value struct1, v5, 1, v4
+    ret v6
 }

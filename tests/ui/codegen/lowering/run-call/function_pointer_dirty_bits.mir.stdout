@@ -5,7 +5,7 @@ fn @g() [selector=0xe2179b8e, abi_params=[], abi_returns=[], abi_return_params=[
     ret
 }
 
-fn @comparison() -> i256 [selector=0xaae103ad, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @comparison() -> i1 [selector=0xaae103ad, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
@@ -33,11 +33,10 @@ fn @comparison() -> i256 [selector=0xaae103ad, view, abi_params=[], abi_returns=
     v23 = shl 32, v22
     v24 = or v23, 0xe2179b8e
     v25 = eq v24, v20
-    v26 = zext i1 v25 to i256
-    ret v26
+    ret v25
 }
 
-fn @abiEncoding() -> i256 [selector=0xe9e87e69, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @abiEncoding() -> i1 [selector=0xe9e87e69, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
@@ -73,6 +72,5 @@ fn @abiEncoding() -> i256 [selector=0xe9e87e69, view, abi_params=[], abi_returns
     v31 = slice_len v29
     v32 = keccak256 v30, v31
     v33 = eq v24, v32
-    v34 = zext i1 v33 to i256
-    ret v34
+    ret v33
 }

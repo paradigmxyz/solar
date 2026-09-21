@@ -230,7 +230,7 @@ fn @mixed_width_add(arg0: i8, arg1: i16) -> i8 {
 }
 
 //~? ERROR: [fn32] [bb0, inst0] `eq` has incompatible scalar types; use an explicit cast
-fn @mixed_width_compare(arg0: i13, arg1: i24) -> i1 {
+fn @mixed_width_compare(arg0: i16, arg1: i24) -> i1 {
   bb0:
     v0 = eq arg0, arg1
     ret v0

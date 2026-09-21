@@ -135,7 +135,7 @@ impl ResultKind {
         if self == Self::I160 && ty == MirType::I256 {
             true
         } else if self == Self::Integer {
-            matches!(ty, MirType::Int(bits) if bits.get() <= 256)
+            matches!(ty, MirType::Int(bits) if MirType::valid_integer_width(bits.get()))
         } else {
             self.default_type().is_none_or(|expected| expected == ty)
         }
@@ -928,9 +928,9 @@ define_mir_ops! {
         effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
     #[operand_types(func => None)]
     Bitcast(operand0: ValueId),
-    #[mir_op(mnemonic = "checked_binary", result = I256, phases = PhaseSet::SEMANTIC,
+    #[mir_op(mnemonic = "checked_binary", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![arithmetic.ty().mir_type(), if *op == CheckedOp::Pow { MirType::I256 } else { arithmetic.ty().mir_type() }]))]
     CheckedBinary {
         op: CheckedOp,
         arithmetic: ArithmeticKind,

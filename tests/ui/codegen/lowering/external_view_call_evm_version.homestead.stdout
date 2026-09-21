@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/external_view_call_evm_version.sol:Caller ===
 @module Caller
-fn @read(arg0: i256) -> i256 [selector=0xa087a87e, view, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
+fn @read(arg0: i160) -> i256 [selector=0xa087a87e, view, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = fmp
     v1 = ptrtoint memptr v0 to i256
@@ -9,21 +9,23 @@ fn @read(arg0: i256) -> i256 [selector=0xa087a87e, view, abi_params=[address], a
     v3 = abi_encode [], selector 0x57de26a400000000000000000000000000000000000000000000000000000000
     v4 = slice_ptr v3
     v5 = slice_len v3
-    v6 = extcodesize arg0
-    v7 = eq v6, 0
-    icall revert_if<target_contract_has_no_code>, v7
-    v8 = gas
-    v9 = sub v8, 50
-    v10 = call v9, arg0, 0, v4, v5, v4, 32
-    jumpi v10, bb2, bb1
+    v6 = zext i160 arg0 to i256
+    v7 = extcodesize v6
+    v8 = eq v7, 0
+    icall revert_if<target_contract_has_no_code>, v8
+    v9 = gas
+    v10 = sub v9, 50
+    v11 = zext i160 arg0 to i256
+    v12 = call v10, v11, 0, v4, v5, v4, 32
+    jumpi v12, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = add v4, 0
-    v12 = mload v11
     v13 = add v4, 0
     v14 = mload v13
-    ret v14
+    v15 = add v4, 0
+    v16 = mload v15
+    ret v16
 }
 
 fn @readPointer(arg0: i256) -> i256 [selector=0x92528617, view, abi_params=[function], abi_returns=[word], abi_return_params=[u256]] {

@@ -179,3 +179,51 @@
       jump bb1
   }
   
+  fn @native_counter(arg0: i256) -> i256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: i8 0], [bb2: v9]
++     v10 = phi [bb0: arg0], [bb2: v11]
+      v1 = lt v0, i8 4
+      jumpi v1, bb2, bb3
+    bb3:
+      ret 0
+    bb2:
+-     v2 = zext i8 v0 to i256
+-     v3 = shl 5, v2
+-     v4 = add arg0, v3
+-     v5 = mload v4
+-     v6 = shl 5, v2
+-     v7 = add arg0, v6
++     v5 = mload v10
+      v8 = add v5, 1
+-     mstore v7, v8
++     mstore v10, v8
+      v9 = add v0, i8 1
++     v11 = add v10, 32
+      jump bb1
+  }
+  
+  fn @wrapping_counter(arg0: i256, arg1: i8) -> i256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: i8 250], [bb2: v9]
+      v1 = lt v0, arg1
+      jumpi v1, bb2, bb3
+    bb3:
+      ret 0
+    bb2:
+      v2 = zext i8 v0 to i256
+      v3 = shl 5, v2
+      v4 = add arg0, v3
+      v5 = mload v4
+      v6 = shl 5, v2
+      v7 = add arg0, v6
+      v8 = add v5, 1
+      mstore v7, v8
+      v9 = add v0, i8 2
+      jump bb1
+  }
+  

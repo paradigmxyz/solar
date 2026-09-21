@@ -2,6 +2,7 @@
 @module FixedBytesConversions
 types:
   struct0: {i256, i256, i256}
+  struct1: {i16, i32, i48}
 
 fn @narrow() -> struct0 [selector=0xe3b21a7a, pure, abi_params=[], abi_returns=[word<bytes2>, word<bytes4>, word<bytes6>], abi_return_params=[bytes2, bytes4, bytes6]] {
   bb0:
@@ -13,15 +14,18 @@ fn @narrow() -> struct0 [selector=0xe3b21a7a, pure, abi_params=[], abi_returns=[
     ret v4
 }
 
-fn @numeric() -> struct0 [selector=0x9d8f2cea, pure, abi_params=[], abi_returns=[word<u16>, word<u32>, word<u48>], abi_return_params=[u16, u32, u48]] {
+fn @numeric() -> struct1 [selector=0x9d8f2cea, pure, abi_params=[], abi_returns=[word<u16>, word<u32>, word<u48>], abi_return_params=[u16, u32, u48]] {
   bb0:
     v0 = shl 224, 0x12345678
     v1 = and v0, 0xffff000000000000000000000000000000000000000000000000000000000000
     v2 = shr 240, v1
-    v3 = shr 224, v0
-    v4 = shr 208, v0
-    v5 = insert_value struct0, undef struct0, 0, v2
-    v6 = insert_value struct0, v5, 1, v3
-    v7 = insert_value struct0, v6, 2, v4
-    ret v7
+    v3 = trunc i256 v2 to i16
+    v4 = shr 224, v0
+    v5 = trunc i256 v4 to i32
+    v6 = shr 208, v0
+    v7 = trunc i256 v6 to i48
+    v8 = insert_value struct1, undef struct1, 0, v3
+    v9 = insert_value struct1, v8, 1, v5
+    v10 = insert_value struct1, v9, 2, v7
+    ret v10
 }

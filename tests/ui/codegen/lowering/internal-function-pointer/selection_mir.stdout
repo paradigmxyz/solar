@@ -1,17 +1,16 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/selection_mir.sol:FunctionPointerSelection ===
 @module FunctionPointerSelection
-fn @choose(arg0: i256, arg1: i256) -> i256 [selector=0xced8609d, abi_params=[bool, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @choose(arg0: i1, arg1: i256) -> i256 [selector=0xced8609d, abi_params=[bool, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = ne arg0, 0
-    jumpi v0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb2:
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v1 = phi [bb1: 2], [bb2: 3]
-    v2 = icall @internal_dispatcher_p_u256_r_u256, v1, arg1
-    ret v2
+    v0 = phi [bb1: 2], [bb2: 3]
+    v1 = icall @internal_dispatcher_p_u256_r_u256, v0, arg1
+    ret v1
 }
 
 fn @increment(arg0: i256) -> i256 [pure] {

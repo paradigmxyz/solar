@@ -85,7 +85,7 @@ fn @test1(arg0: calldataslice) -> i256 [selector=0x82dda4b9, pure, abi_params=[a
     v100 = eq v99, false
     icall panic_if<0x32>, v100
     v101 = memory_object_load_element memoryarray<1>, v97, 0
-    v102 = and v101, 255
+    v102 = trunc i256 v101 to i8
     v103 = memory_object_len memoryarray, v45
     v104 = lt 0, v103
     v105 = eq v104, false
@@ -107,7 +107,7 @@ fn @test1(arg0: calldataslice) -> i256 [selector=0x82dda4b9, pure, abi_params=[a
     v114 = eq v113, false
     icall panic_if<0x32>, v114
     v115 = memory_object_load_element memoryarray<1>, v111, 1
-    v116 = and v115, 255
+    v116 = trunc i256 v115 to i8
     v117 = checked_add u8, v102, v116
     v118 = memory_object_len memoryarray, v45
     v119 = lt 1, v118
@@ -130,9 +130,10 @@ fn @test1(arg0: calldataslice) -> i256 [selector=0x82dda4b9, pure, abi_params=[a
     v129 = eq v128, false
     icall panic_if<0x32>, v129
     v130 = memory_object_load_element memoryarray<1>, v126, 0
-    v131 = and v130, 255
+    v131 = trunc i256 v130 to i8
     v132 = checked_add u8, v117, v131
-    ret v132
+    v133 = zext i8 v132 to i256
+    ret v133
   bb2:
     v48 = mul v46, 32
     v49 = add v25, v48
@@ -247,7 +248,7 @@ fn @test2(arg0: calldataslice) -> i256 [selector=0x710442c6, pure, abi_params=[a
     v74 = eq v73, false
     icall panic_if<0x32>, v74
     v75 = memory_object_load_element memoryarray<1>, v71, 0
-    v76 = and v75, 255
+    v76 = trunc i256 v75 to i8
     v77 = lt 0, 2
     v78 = eq v77, false
     icall panic_if<0x32>, v78
@@ -268,7 +269,7 @@ fn @test2(arg0: calldataslice) -> i256 [selector=0x710442c6, pure, abi_params=[a
     v87 = eq v86, false
     icall panic_if<0x32>, v87
     v88 = memory_object_load_element memoryarray<1>, v84, 1
-    v89 = and v88, 255
+    v89 = trunc i256 v88 to i8
     v90 = checked_add u8, v76, v89
     v91 = lt 1, 2
     v92 = eq v91, false
@@ -290,9 +291,10 @@ fn @test2(arg0: calldataslice) -> i256 [selector=0x710442c6, pure, abi_params=[a
     v101 = eq v100, false
     icall panic_if<0x32>, v101
     v102 = memory_object_load_element memoryarray<1>, v98, 0
-    v103 = and v102, 255
+    v103 = trunc i256 v102 to i8
     v104 = checked_add u8, v90, v103
-    ret v104
+    v105 = zext i8 v104 to i256
+    ret v105
   bb2:
     v23 = mul v21, 32
     v24 = add v16, v23
@@ -439,7 +441,7 @@ fn @test3(arg0: calldataslice) -> i256 [selector=0x6e607577, pure, abi_params=[a
     v80 = eq v79, false
     icall panic_if<0x32>, v80
     v81 = memory_object_load_element memoryfixedarray<2, 1>, v78, 0
-    v82 = and v81, 255
+    v82 = trunc i256 v81 to i8
     v83 = memory_object_len memoryarray, v45
     v84 = lt 0, v83
     v85 = eq v84, false
@@ -461,7 +463,7 @@ fn @test3(arg0: calldataslice) -> i256 [selector=0x6e607577, pure, abi_params=[a
     v94 = eq v93, false
     icall panic_if<0x32>, v94
     v95 = memory_object_load_element memoryfixedarray<2, 1>, v92, 1
-    v96 = and v95, 255
+    v96 = trunc i256 v95 to i8
     v97 = checked_add u8, v82, v96
     v98 = memory_object_len memoryarray, v45
     v99 = lt 1, v98
@@ -484,7 +486,7 @@ fn @test3(arg0: calldataslice) -> i256 [selector=0x6e607577, pure, abi_params=[a
     v109 = eq v108, false
     icall panic_if<0x32>, v109
     v110 = memory_object_load_element memoryfixedarray<2, 1>, v107, 0
-    v111 = and v110, 255
+    v111 = trunc i256 v110 to i8
     v112 = checked_add u8, v97, v111
     v113 = memory_object_len memoryarray, v45
     v114 = lt 1, v113
@@ -507,9 +509,10 @@ fn @test3(arg0: calldataslice) -> i256 [selector=0x6e607577, pure, abi_params=[a
     v124 = eq v123, false
     icall panic_if<0x32>, v124
     v125 = memory_object_load_element memoryfixedarray<2, 1>, v122, 1
-    v126 = and v125, 255
+    v126 = trunc i256 v125 to i8
     v127 = checked_add u8, v112, v126
-    ret v127
+    v128 = zext i8 v127 to i256
+    ret v128
   bb2:
     v48 = mul v46, 64
     v49 = eq 64, 0

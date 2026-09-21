@@ -7,10 +7,9 @@
 //! stack scheduling. Booleans retain i1 so branches still require a condition;
 //! pointers retain their distinct types and explicit pointer conversions.
 //!
-//! Sign extension uses SIGNEXTEND for byte widths and a left/arithmetic-right
-//! shift pair for other widths. All signatures and value types change together,
-//! preserving SSA identities across calls and cyclic phis. No ABI layout changes:
-//! narrow argument bit patterns are already clean at this internal boundary.
+//! Sign extension uses SIGNEXTEND for byte widths and negation for i1. All signatures and value
+//! types change together, preserving SSA identities across calls and cyclic phis. No ABI layout
+//! changes: narrow argument bit patterns are already clean at this internal boundary.
 
 use crate::mir::{
     Function, FunctionBuilder, Immediate, InstKind, MirType, Module, ResultKind, Value, ValueId,
@@ -35,7 +34,8 @@ impl MirPass for LowerIntegers {
         module: &mut Module,
         analyses: &mut ModuleAnalyses,
     ) -> bool {
-        let unsupported = |ty: MirType| ty.integer_bits().is_some_and(|bits| bits > 256);
+        let unsupported =
+            |ty: MirType| ty.integer_bits().is_some_and(|bits| !MirType::valid_integer_width(bits));
         if module.struct_types.iter().any(|ty| ty.fields.iter().copied().any(unsupported))
             || module.functions.iter().any(|func| {
                 unsupported(func.return_type())
@@ -46,7 +46,9 @@ impl MirPass for LowerIntegers {
             })
         {
             analyses.fail(
-                gcx.dcx().err("integer lowering supports widths from i1 through i256").emit(),
+                gcx.dcx()
+                    .err("integer lowering supports i1 and byte widths from i8 through i256")
+                    .emit(),
             );
             return false;
         }
@@ -225,12 +227,8 @@ fn signed(builder: &mut FunctionBuilder<'_>, value: ValueId, bits: u32) -> Value
     } else if bits == 1 {
         let zero = builder.imm(0);
         builder.sub(zero, value)
-    } else if bits.is_multiple_of(8) {
+    } else {
         let byte = builder.imm(bits / 8 - 1);
         builder.signextend(byte, value)
-    } else {
-        let shift = builder.imm(256 - bits);
-        let value = builder.shl(shift, value);
-        builder.sar(shift, value)
     }
 }

@@ -151,12 +151,12 @@ fn @f(arg0: i256, arg1: memorybytes) -> struct0 [selector=0xcdc9dc79, abi_params
   bb1:
     revert_returndata
   bb2:
-    v17 = zext i160 v14 to i256
-    v18 = gas
-    v19 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v20 = slice_ptr v19
-    v21 = slice_len v19
-    v22 = staticcall v18, v17, v20, v21, 0, 32
+    v17 = gas
+    v18 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v19 = slice_ptr v18
+    v20 = slice_len v18
+    v21 = zext i160 v14 to i256
+    v22 = staticcall v17, v21, v19, v20, 0, 32
     jumpi v22, bb4, bb3
   bb3:
     revert_returndata
@@ -172,23 +172,24 @@ fn @f(arg0: i256, arg1: memorybytes) -> struct0 [selector=0xcdc9dc79, abi_params
     v30 = abi_encode [word], selector 0x710422c600000000000000000000000000000000000000000000000000000000, args arg0
     v31 = slice_ptr v30
     v32 = slice_len v30
-    v33 = staticcall v29, v17, v31, v32, 0, 32
-    jumpi v33, bb6, bb5
+    v33 = zext i160 v14 to i256
+    v34 = staticcall v29, v33, v31, v32, 0, 32
+    jumpi v34, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v34 = returndatasize
-    v35 = lt v34, 32
-    icall revert_if<tuple_data_too_short>, v35
-    v36 = add 0, 0
-    v37 = mload v36
-    v38 = and v37, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v39 = eq v37, v38
-    v40 = eq v39, false
-    icall revert_if<empty>, v40
-    v41 = add 0, 0
-    v42 = mload v41
-    v43 = insert_value struct0, undef struct0, 0, v28
-    v44 = insert_value struct0, v43, 1, v42
-    ret v44
+    v35 = returndatasize
+    v36 = lt v35, 32
+    icall revert_if<tuple_data_too_short>, v36
+    v37 = add 0, 0
+    v38 = mload v37
+    v39 = and v38, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v40 = eq v38, v39
+    v41 = eq v40, false
+    icall revert_if<empty>, v41
+    v42 = add 0, 0
+    v43 = mload v42
+    v44 = insert_value struct0, undef struct0, 0, v28
+    v45 = insert_value struct0, v44, 1, v43
+    ret v45
 }

@@ -1,53 +1,72 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_creation.sol:TryCreationChild ===
 @module TryCreationChild
-fn @constructor(arg0: i256) [constructor, abi_params=[bool]] {
+fn @constructor(arg0: i1) [constructor, abi_params=[bool]] {
   bb0:
-    v0 = eq arg0, 0
-    v1 = eq v0, false
-    v2 = eq v1, false
-    icall require<short_string>, v2, 1, 0x7800000000000000000000000000000000000000000000000000000000000000
+    v0 = eq arg0, false
+    icall require<short_string>, v0, 1, 0x7800000000000000000000000000000000000000000000000000000000000000
     ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_creation.sol:TryCreation ===
 @module TryCreation
-data:
-  TryCreationChild_initcode_0: hex"6101373803806101376101003961010001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016604052607d565b7f08c379a0000000000000000000000000000000000000000000000000000000005f52602060045260a0516040015160245260a0516060015160445260645ffd5b341515610125576101008060c0528060c0526101006101373803016020820111610121578060c0525160029010156101215761010051158060e052155060e05161011c5760405160a0518160200152600181604001527f780000000000000000000000000000000000000000000000000000000000000081606001528060a05260800160405261010a603c565b60a05160405260a0516020015160a052fe5b610129565b5f5ffd5b5f5ffd5b6003806101345f395ff35f5ffd"
-
-fn @f(arg0: i256) -> i256 [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @f(arg0: i1) -> i1 [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = eq arg0, 0
-    v1 = eq v0, false
-    v2 = zext i1 v1 to i256
-    v3 = abi_encode [word<bool>], args v2
-    v4 = not 31
-    v5 = and 374, v4
-    v6 = alloc raw, exact, uninitialized, infallible, v5
-    v7 = ptrtoint memptr v6 to i256
-    data_copy TryCreationChild_initcode_0, v7, 311
-    v8 = slice_ptr v3
-    v9 = ptrtoint memptr v6 to i256
-    v10 = add v9, 311
-    mcopy v10, v8, 32 !metadata(memory=heap)
-    v11 = ptrtoint memptr v6 to i256
-    v12 = create 0, v11, 343
-    v13 = zext i160 v12 to i256
-    v14 = eq v13, 0
-    v15 = eq v14, false
-    jumpi v15, bb1, bb2
+    v0 = zext i1 arg0 to i256
+    v1 = abi_encode [word<bool>], args v0
+    v2 = not 31
+    v3 = and 359, v2
+    v4 = alloc raw, exact, uninitialized, infallible, v3
+    v5 = ptrtoint memptr v4 to i256
+    mstore v5, 0x61012838038061012860e03960e001601f017fffffffffffffffffffffffffff
+    v6 = ptrtoint memptr v4 to i256
+    v7 = add v6, 32
+    mstore v7, 0xffffffffffffffffffffffffffffffffffffe016604052607b565b7f08c379a0
+    v8 = ptrtoint memptr v4 to i256
+    v9 = add v8, 64
+    mstore v9, 0x5f526020
+    v10 = ptrtoint memptr v4 to i256
+    v11 = add v10, 96
+    mstore v11, 0x60045260a0516040015160245260a0516060015160445260645ffd5b34151561
+    v12 = ptrtoint memptr v4 to i256
+    v13 = add v12, 128
+    mstore v13, 0x1165760e08060c0528060c05260e06101283803016020820111610112578060
+    v14 = ptrtoint memptr v4 to i256
+    v15 = add v14, 160
+    mstore v15, 0xc0525160029010156101125760e0511561010d5760405160a051816020015260
+    v16 = ptrtoint memptr v4 to i256
+    v17 = add v16, 192
+    mstore v17, 0x181604001527f78000000000000000000000000000000000000000000000000
+    v18 = ptrtoint memptr v4 to i256
+    v19 = add v18, 224
+    mstore v19, 0x81606001528060a05260800160405260fb603a565b60a05160
+    v20 = ptrtoint memptr v4 to i256
+    v21 = add v20, 256
+    mstore v21, 0x405260a0516020015160a052fe5b61011a565b5f5ffd5b5f5ffd5b6003806101
+    v22 = ptrtoint memptr v4 to i256
+    v23 = add v22, 288
+    mstore v23, 0x255f395ff35f5ffd000000000000000000000000000000000000000000000000
+    v24 = slice_ptr v1
+    v25 = ptrtoint memptr v4 to i256
+    v26 = add v25, 296
+    mcopy v26, v24, 32 !metadata(memory=heap)
+    v27 = ptrtoint memptr v4 to i256
+    v28 = create 0, v27, 328
+    v29 = zext i160 v28 to i256
+    v30 = eq v29, 0
+    v31 = eq v30, false
+    jumpi v31, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
     icall revert_if<empty>, true
     invalid
   bb4:
-    v19 = zext i1 0 to i256
-    ret v19
+    ret false
   bb1:
-    v16 = trunc i256 0 to i160
-    v17 = ne v12, v16
-    v18 = zext i1 v17 to i256
-    ret v18
+    v32 = trunc i256 0 to i160
+    v33 = ne v28, v32
+    ret v33
   bb3:
-    ret 0
+    v34 = ne 0, 0
+    ret v34
 }

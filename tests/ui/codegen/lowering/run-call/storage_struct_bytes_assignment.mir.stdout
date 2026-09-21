@@ -57,10 +57,9 @@ fn @cleanupShort() -> struct1 [selector=0x14d48529, abi_params=[], abi_returns=[
     ret v13
 }
 
-fn @choose(arg0: i256) -> memorybytes [selector=0xf6e00e0f, abi_params=[bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @choose(arg0: i1) -> memorybytes [selector=0xf6e00e0f, abi_params=[bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = ne arg0, 0
-    jumpi v0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb2:
     store_storage_bytes_literal 0, hex"62"
     jump bb3
@@ -68,8 +67,8 @@ fn @choose(arg0: i256) -> memorybytes [selector=0xf6e00e0f, abi_params=[bool], a
     store_storage_bytes_literal 0, hex"61"
     jump bb3
   bb3:
-    v1 = load_storage_bytes 0
-    ret v1
+    v0 = load_storage_bytes 0
+    ret v0
 }
 
 fn @malformed(arg0: i256) [selector=0xaf240adf, abi_params=[u256], abi_returns=[], abi_return_params=[]] {

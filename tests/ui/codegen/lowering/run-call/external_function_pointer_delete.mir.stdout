@@ -5,7 +5,7 @@ fn @value() [selector=0x3fa4f245, abi_params=[], abi_returns=[], abi_return_para
     ret
 }
 
-fn @clear() -> i256 [selector=0x52efea6e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @clear() -> i1 [selector=0x52efea6e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
@@ -26,6 +26,5 @@ fn @clear() -> i256 [selector=0x52efea6e, abi_params=[], abi_returns=[word<bool>
     v14 = sload 0 !metadata(storage=slot(0))
     v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffff
     v16 = eq v15, 0
-    v17 = zext i1 v16 to i256
-    ret v17
+    ret v16
 }

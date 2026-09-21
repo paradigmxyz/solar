@@ -1212,6 +1212,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         },
                         span,
                     )?;
+                    let object =
+                        self.builder.cast(object, MirType::MemoryObject(MemoryObjectKind::Struct));
                     self.builder.icall_void(helper, vec![slot, object]);
                     return Some(());
                 }

@@ -377,9 +377,6 @@ fn count_phis(
     let index_phi = phis.into_iter().find(|&inst| func.inst_result_value(inst) == Some(index))?;
     let count_phi = phis.into_iter().find(|&inst| inst != index_phi)?;
     let count = func.inst_result_value(count_phi)?;
-    if func.value_ty(count) != Some(crate::mir::MirType::I256) {
-        return None;
-    }
     let exit = count_exit(func, exit, count)?;
     Some((count_phi, index_phi, count, exit))
 }
@@ -414,6 +411,11 @@ fn match_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLo
         return None;
     }
     let (count_phi, index_phi, count, count_exit) = count_phis(func, phis, *exit, index)?;
+    if crate::mir::analysis::integers::unsigned_bounds(func, length).1
+        > crate::mir::analysis::integers::integer_max(func, count)
+    {
+        return None;
+    }
 
     // body: [base = object + 32]; ptr = base + index; word = mload ptr; byte = byte 0, word
     //       aligned = shl 248, byte; nonzero = ne aligned, 0; jumpi nonzero, latch, increment
@@ -535,6 +537,11 @@ fn match_calldata_zero_count_loop(func: &Function, header: BlockId) -> Option<Ze
         return None;
     }
     let (count_phi, index_phi, count, count_exit) = count_phis(func, phis, *exit, index)?;
+    if crate::mir::analysis::integers::unsigned_bounds(func, length).1
+        > crate::mir::analysis::integers::integer_max(func, count)
+    {
+        return None;
+    }
 
     let [ptr_inst, load_inst, byte_inst, nonzero_inst] = func.blocks[*body].instructions.as_slice()
     else {

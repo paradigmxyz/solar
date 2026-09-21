@@ -40,32 +40,34 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @highLevelGas() -> i256 [selector=0x480be654, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @highLevelGas() -> i1 [selector=0x480be654, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = gas
-    v3 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    v6 = extcodesize v1
-    v7 = eq v6, 0
-    icall revert_if<target_contract_has_no_code>, v7
-    v8 = call 0, v1, 0, v4, v5, 0, 0
-    jumpi v8, bb1, bb2
+    v2 = trunc i256 v1 to i160
+    v3 = gas
+    v4 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = zext i160 v2 to i256
+    v8 = extcodesize v7
+    v9 = eq v8, 0
+    icall revert_if<target_contract_has_no_code>, v9
+    v10 = zext i160 v2 to i256
+    v11 = call 0, v10, 0, v5, v6, 0, 0
+    jumpi v11, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
     icall revert_if<empty>, true
     invalid
   bb4:
-    v10 = zext i1 1 to i256
-    ret v10
+    ret true
   bb1:
-    v9 = zext i1 0 to i256
-    ret v9
+    ret false
   bb3:
-    ret 0
+    v12 = ne 0, 0
+    ret v12
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_call_options.sol:BareCatchReturndata ===

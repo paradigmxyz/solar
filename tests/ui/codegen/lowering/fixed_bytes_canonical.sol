@@ -3,7 +3,7 @@
 
 contract FixedBytesCanonical {
     // CHECK-LABEL: fn @fromUint{{[( ]}}
-    // CHECK: [[VALUE:v[0-9]+]] = and arg0, 255
+    // CHECK: [[VALUE:v[0-9]+]] = zext i8 arg0 to i256
     // CHECK: [[SHIFTED:v[0-9]+]] = shl 248, [[VALUE]]
     function fromUint(uint8 value) external pure returns (bytes1) {
         return bytes1(value);

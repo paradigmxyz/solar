@@ -240,20 +240,22 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memorybytes) [selector=0x
     v191 = lt v190, 3
     v192 = eq v191, false
     icall revert_if<empty>, v192
-    v193 = eq v190, 1
-    v194 = eq v193, false
-    icall panic_if<0x1>, v194
-    v195 = eq arg1, 5
+    v193 = trunc i256 v190 to i8
+    v194 = trunc i256 1 to i8
+    v195 = eq v193, v194
     v196 = eq v195, false
     icall panic_if<0x1>, v196
-    v197 = keccak256_bytes arg2
-    v198 = eq v197, 0x746c32bd76400aea458889122fc934ee4dbd66d1fce294f5a05a66cf3d2a6d53
-    v199 = eq v198, false
-    icall panic_if<0x1>, v199
+    v197 = eq arg1, 5
+    v198 = eq v197, false
+    icall panic_if<0x1>, v198
+    v199 = keccak256_bytes arg2
+    v200 = eq v199, 0x746c32bd76400aea458889122fc934ee4dbd66d1fce294f5a05a66cf3d2a6d53
+    v201 = eq v200, false
+    icall panic_if<0x1>, v201
     ret
 }
 
-fn @callExternal() -> i256 [selector=0x5f431992, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @callExternal() -> i1 [selector=0x5f431992, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorystruct<5>, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
     v1 = ptrtoint memorystruct v0 to i256
@@ -304,16 +306,21 @@ fn @callExternal() -> i256 [selector=0x5f431992, abi_params=[], abi_returns=[wor
     mstore v28, 0x3132333400000000000000000000000000000000000000000000000000000000
     v29 = ptrtoint memorybytes v26 to i256
     memory_object_store_field memorystruct<5>, v0, 3, v29
-    memory_object_store_field memorystruct<5>, v0, 4, 1
-    v30 = address
-    v31 = gas
-    v32 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v32, 8
-    v33 = memory_object_data memorybytes, v32
-    v34 = ptrtoint memptr v33 to i256
-    mstore v34, 0x546573744e616d65000000000000000000000000000000000000000000000000
-    v35 = abi_encode [tuple<memory_array<word>, word, memory_bytes, memory_bytes, word<enum 3>>, word, memory_bytes], object, selector 0x291c5a6100000000000000000000000000000000000000000000000000000000, args v0, 5, v32
-    v36 = address_call v30, v35, gas v31
-    v37 = zext i1 v36 to i256
-    ret v37
+    v30 = trunc i256 1 to i8
+    v31 = zext i8 v30 to i256
+    v32 = lt v31, 3
+    v33 = eq v32, false
+    icall panic_if<0x21>, v33
+    v34 = zext i8 v30 to i256
+    memory_object_store_field memorystruct<5>, v0, 4, v34
+    v35 = address
+    v36 = gas
+    v37 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v37, 8
+    v38 = memory_object_data memorybytes, v37
+    v39 = ptrtoint memptr v38 to i256
+    mstore v39, 0x546573744e616d65000000000000000000000000000000000000000000000000
+    v40 = abi_encode [tuple<memory_array<word>, word, memory_bytes, memory_bytes, word<enum 3>>, word, memory_bytes], object, selector 0x291c5a6100000000000000000000000000000000000000000000000000000000, args v0, 5, v37
+    v41 = address_call v35, v40, gas v36
+    ret v41
 }

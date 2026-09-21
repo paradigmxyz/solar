@@ -40,7 +40,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @receiver() -> i256 {
+fn @receiver() -> i160 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -48,7 +48,8 @@ fn @receiver() -> i256 {
     sstore 0, v2 !metadata(storage=slot(0))
     v3 = sload 1 !metadata(storage=slot(1))
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    ret v4
+    v5 = trunc i256 v4 to i160
+    ret v5
 }
 
 fn @gasOpt() -> i256 {
@@ -89,21 +90,22 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v5 = abi_encode [word], selector 0x773acdef00000000000000000000000000000000000000000000000000000000, args v4
     v6 = slice_ptr v5
     v7 = slice_len v5
-    v8 = call v2, v0, v3, v6, v7, 0, 0
-    jumpi v8, bb1, bb2
+    v8 = zext i160 v0 to i256
+    v9 = call v2, v8, v3, v6, v7, 0, 0
+    jumpi v9, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
     icall revert_if<empty>, true
     invalid
   bb4:
+    v13 = sload 0 !metadata(storage=slot(0))
+    ret v13
+  bb1:
+    v10 = icall returndata_bytes<>
+    v11 = abi_decode [u256], v10
     v12 = sload 0 !metadata(storage=slot(0))
     ret v12
-  bb1:
-    v9 = icall returndata_bytes<>
-    v10 = abi_decode [u256], v9
-    v11 = sload 0 !metadata(storage=slot(0))
-    ret v11
   bb3:
     ret 0
 }

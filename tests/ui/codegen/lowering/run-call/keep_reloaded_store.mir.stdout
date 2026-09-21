@@ -56,9 +56,9 @@ fn @depth(arg0: i256) -> i256 [pure] {
     ret 0
 }
 
-fn @check(arg0: i256) [pure] {
+fn @check(arg0: i1) [pure] {
   bb0:
-    v0 = eq arg0, 0
+    v0 = eq arg0, false
     icall revert_if<empty>, v0
     v1 = icall @depth, 2
     v2 = eq v1, 2
@@ -76,8 +76,7 @@ fn @probe(arg0: i256) -> i256 [selector=0xdb082440, view, abi_params=[u256], abi
     v4 = abi_encode [word], object, selector 0x84b8ba0800000000000000000000000000000000000000000000000000000000, args arg0
     v5 = address_staticcall v2, v4, gas v3
     v6 = icall returndata_bytes<>
-    v7 = zext i1 v5 to i256
-    icall @check, v7
-    v8 = abi_decode [u256], v6
-    ret v8
+    icall @check, v5
+    v7 = abi_decode [u256], v6
+    ret v7
 }

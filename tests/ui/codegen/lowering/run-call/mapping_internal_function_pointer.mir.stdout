@@ -54,7 +54,7 @@ fn @stage2() {
     ret
 }
 
-fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @run() -> i1 [selector=0xc0406226, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = trunc i256 0x1234 to i160
     v1 = zext i160 v0 to i256
@@ -76,7 +76,8 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word<bool>],
     icall @internal_dispatcher_p_none_r_none, v14
     v15 = sload 0 !metadata(storage=slot(0))
     v16 = and v15, 255
-    ret v16
+    v17 = ne v16, 0
+    ret v17
 }
 
 fn @internal_dispatcher_p_none_r_none(arg0: i256) [function_pointer_dispatcher] {

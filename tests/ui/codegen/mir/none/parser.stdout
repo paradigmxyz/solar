@@ -71,7 +71,8 @@
   fn @immutable() -> i256 {
     bb0:
       v0 = loadimmutable fn
-      ret v0
+      v1 = zext i8 v0 to i256
+      ret v1
   }
   
   fn @constructor() -> i256 [constructor] {
@@ -129,12 +130,12 @@
       ret v0
   }
   
-  fn @integer_widths(arg0: i8, arg1: i24, arg2: i512, arg3: i4294967295) -> i512 {
+  fn @integer_widths(arg0: i8, arg1: i24, arg2: i256, arg3: i248) -> i256 {
     bb0:
       ret arg2
   }
   
-  fn @integer_phi(arg0: i1, arg1: i7) -> i7 {
+  fn @integer_phi(arg0: i1, arg1: i8) -> i8 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -142,13 +143,13 @@
     bb1:
       jump bb3
     bb3:
-      v0 = phi [bb1: arg1], [bb2: i7 127]
+      v0 = phi [bb1: arg1], [bb2: i8 127]
       ret v0
   }
   
-  fn @wide_integer_literal() -> i512 {
+  fn @wide_integer_literal() -> i256 {
     bb0:
-      ret i512 42
+      ret 42
   }
   
   fn @integer_undef() -> i24 {
@@ -173,11 +174,11 @@
       ret v0
   }
   
-  fn @syntax_only_casts(arg0: i128) -> i512 {
+  fn @integer_casts(arg0: i128) -> i256 {
     bb0:
       v0 = trunc i128 arg0 to i24
-      v1 = zext i24 v0 to i512
-      v2 = sext i24 v0 to i512
+      v1 = zext i24 v0 to i256
+      v2 = sext i24 v0 to i256
       ret v2
   }
   
@@ -185,14 +186,14 @@
     bb0:
       jumpi arg0, bb2, bb3
     bb3:
-      v3 = trunc i256 31 to i7
+      v3 = trunc i256 31 to i8
       jump bb1
     bb2:
-      v2 = trunc i256 arg1 to i7
+      v2 = trunc i256 arg1 to i8
       jump bb1
     bb1:
       v0 = phi [bb2: v2], [bb3: v3]
-      v1 = zext i7 v0 to i24
+      v1 = zext i8 v0 to i24
       ret v1
   }
   

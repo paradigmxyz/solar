@@ -3,7 +3,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/creation_options.sol:CreationOptions ===
 @module CreationOptions
-fn @sameShortLiteralSalt() -> i256 [selector=0xae55518d, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @sameShortLiteralSalt() -> i1 [selector=0xae55518d, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -45,16 +45,15 @@ fn @sameShortLiteralSalt() -> i256 [selector=0xae55518d, abi_params=[], abi_retu
     icall revert_if<empty>, true
     invalid
   bb6:
-    v26 = zext i1 1 to i256
-    ret v26
+    ret true
   bb3:
-    v25 = zext i1 0 to i256
-    ret v25
+    ret false
   bb5:
-    ret 0
+    v25 = ne 0, 0
+    ret v25
 }
 
-fn @sameEmptyLiteralSalt() -> i256 [selector=0x01dd6ed9, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @sameEmptyLiteralSalt() -> i1 [selector=0x01dd6ed9, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -96,16 +95,15 @@ fn @sameEmptyLiteralSalt() -> i256 [selector=0x01dd6ed9, abi_params=[], abi_retu
     icall revert_if<empty>, true
     invalid
   bb6:
-    v26 = zext i1 1 to i256
-    ret v26
+    ret true
   bb3:
-    v25 = zext i1 0 to i256
-    ret v25
+    ret false
   bb5:
-    ret 0
+    v25 = ne 0, 0
+    ret v25
 }
 
-fn @sameFullLiteralSalt() -> i256 [selector=0xaf96a2f0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @sameFullLiteralSalt() -> i1 [selector=0xaf96a2f0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -147,16 +145,15 @@ fn @sameFullLiteralSalt() -> i256 [selector=0xaf96a2f0, abi_params=[], abi_retur
     icall revert_if<empty>, true
     invalid
   bb6:
-    v26 = zext i1 1 to i256
-    ret v26
+    ret true
   bb3:
-    v25 = zext i1 0 to i256
-    ret v25
+    ret false
   bb5:
-    ret 0
+    v25 = ne 0, 0
+    ret v25
 }
 
-fn @differentLiteralSalts() -> i256 [selector=0x3109d26e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @differentLiteralSalts() -> i1 [selector=0x3109d26e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -194,7 +191,6 @@ fn @differentLiteralSalts() -> i256 [selector=0x3109d26e, abi_params=[], abi_ret
   bb3:
     revert_returndata
   bb4:
-    v24 = ne v10, v22
-    v25 = zext i1 v24 to i256
-    ret v25
+    v24 = ne v9, v21
+    ret v24
 }

@@ -1,38 +1,40 @@
 // === ROOT/tests/ui/codegen/lowering/stack_phi_loop.sol:StackPhiLoop ===
 @module StackPhiLoop
-fn @loopCarried(arg0: i256, arg1: i256) -> i256 [selector=0x71b76bb2, pure, abi_params=[u256, bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @loopCarried(arg0: i256, arg1: i1) -> i256 [selector=0x71b76bb2, pure, abi_params=[u256, bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = ne arg1, 0
-    jumpi v0, bb1, bb2
+    jumpi arg1, bb1, bb2
   bb2:
+    v1 = trunc i256 11 to i8
     jump bb3
   bb1:
+    v0 = trunc i256 7 to i8
     jump bb3
   bb3:
-    v1 = phi [bb1: 7], [bb2: 11]
+    v2 = phi [bb1: v0], [bb2: v1]
+    v3 = zext i8 v2 to i256
     jump bb4
   bb4:
-    v2 = phi [bb3: 0], [bb6: v2]
-    v3 = phi [bb3: 0], [bb6: v11]
-    v4 = phi [bb3: arg1], [bb6: v4]
-    v5 = phi [bb3: v1], [bb6: v5]
-    v6 = phi [bb3: 0], [bb6: v12]
-    v7 = phi [bb3: arg0], [bb6: v7]
-    v8 = lt v6, v7
-    jumpi v8, bb7, bb8
+    v4 = phi [bb3: 0], [bb6: v4]
+    v5 = phi [bb3: 0], [bb6: v13]
+    v6 = phi [bb3: arg1], [bb6: v6]
+    v7 = phi [bb3: v3], [bb6: v7]
+    v8 = phi [bb3: 0], [bb6: v14]
+    v9 = phi [bb3: arg0], [bb6: v9]
+    v10 = lt v8, v9
+    jumpi v10, bb7, bb8
   bb8:
     jump bb5
   bb5:
-    ret v3
+    ret v5
   bb7:
-    v9 = checked_mul u256, v6, 3
-    v10 = checked_add u256, v9, v5
-    v11 = checked_add u256, v3, v10
+    v11 = checked_mul u256, v8, 3
+    v12 = checked_add u256, v11, v7
+    v13 = checked_add u256, v5, v12
     jump bb9
   bb9:
     jump bb6
   bb6:
-    v12 = checked_add u256, v6, 1
+    v14 = checked_add u256, v8, 1
     jump bb4
 }
 

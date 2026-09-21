@@ -71,18 +71,18 @@ fn @memoryDisjoint() -> i256 [selector=0xc1ce920c, pure, abi_params=[], abi_retu
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 10
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 20
-    v1 = lt 0, 2
-    v2 = eq v1, false
-    icall panic_if<0x32>, v2
-    v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v4 = ptrtoint memoryfixedarray v0 to i256
-    v5 = checked_add u256, v4, 32
+    v1 = ptrtoint memoryfixedarray v0 to i256
+    v2 = lt 0, 2
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
+    v5 = checked_add u256, v1, 32
     icall @writeMemory, v5
     v6 = lt 0, 2
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v9 = checked_add u256, v3, v8
+    v9 = checked_add u256, v4, v8
     ret v9
 }
 
@@ -91,17 +91,17 @@ fn @memoryOverlap() -> i256 [selector=0xb7b7ef77, pure, abi_params=[], abi_retur
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 10
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 20
-    v1 = lt 0, 2
-    v2 = eq v1, false
-    icall panic_if<0x32>, v2
-    v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v4 = ptrtoint memoryfixedarray v0 to i256
-    icall @writeMemory, v4
+    v1 = ptrtoint memoryfixedarray v0 to i256
+    v2 = lt 0, 2
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
+    icall @writeMemory, v1
     v5 = lt 0, 2
     v6 = eq v5, false
     icall panic_if<0x32>, v6
     v7 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v8 = checked_add u256, v3, v7
+    v8 = checked_add u256, v4, v7
     ret v8
 }
 
@@ -110,18 +110,18 @@ fn @memoryPartialOverlap() -> i256 [selector=0x3f1d4740, pure, abi_params=[], ab
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 10
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 20
-    v1 = lt 0, 2
-    v2 = eq v1, false
-    icall panic_if<0x32>, v2
-    v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v4 = ptrtoint memoryfixedarray v0 to i256
-    v5 = checked_add u256, v4, 1
+    v1 = ptrtoint memoryfixedarray v0 to i256
+    v2 = lt 0, 2
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
+    v5 = checked_add u256, v1, 1
     icall @writeMemory, v5
     v6 = lt 0, 2
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v9 = checked_add u256, v3, v8
+    v9 = checked_add u256, v4, v8
     ret v9
 }
 
@@ -131,17 +131,17 @@ fn @memoryRecursive() -> i256 [selector=0xff857f19, pure, abi_params=[], abi_ret
     memory_object_store_element memoryfixedarray<3, 1>, v0, 0, 10
     memory_object_store_element memoryfixedarray<3, 1>, v0, 1, 20
     memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 30
-    v1 = lt 0, 3
-    v2 = eq v1, false
-    icall panic_if<0x32>, v2
-    v3 = memory_object_load_element memoryfixedarray<3, 1>, v0, 0
-    v4 = ptrtoint memoryfixedarray v0 to i256
-    icall @writeMemoryRecursive, v4, 2
+    v1 = ptrtoint memoryfixedarray v0 to i256
+    v2 = lt 0, 3
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = memory_object_load_element memoryfixedarray<3, 1>, v0, 0
+    icall @writeMemoryRecursive, v1, 2
     v5 = lt 0, 3
     v6 = eq v5, false
     icall panic_if<0x32>, v6
     v7 = memory_object_load_element memoryfixedarray<3, 1>, v0, 0
-    v8 = checked_add u256, v3, v7
+    v8 = checked_add u256, v4, v7
     ret v8
 }
 

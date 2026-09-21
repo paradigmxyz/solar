@@ -41,7 +41,7 @@ fn @inspectItems(arg0: calldataslice) -> i256 [selector=0x68057f1e, pure, abi_pa
     ret v18
 }
 
-fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -158,8 +158,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<
     jump bb14
   bb14:
     v73 = phi [bb16: v72], [bb13: false]
-    v74 = zext i1 v73 to i256
-    ret v74
+    ret v73
   bb7:
     v47 = alloc memorystruct<5>, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
     v48 = ptrtoint memorystruct v47 to i256

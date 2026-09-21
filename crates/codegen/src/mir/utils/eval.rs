@@ -38,16 +38,21 @@ pub(crate) fn eval_typed_inst<E>(
             | InstKind::SLt(..)
             | InstKind::SGt(..)
             | InstKind::Sar(..)
+            | InstKind::CheckedBinary { arithmetic: ArithmeticKind::Signed(_), .. }
     );
     let mut index = 0;
     let value = eval_inst(kind, |value| {
         let word = get(value)?;
-        let extend = signed && !(matches!(kind, InstKind::Sar(..)) && index == 0);
+        let extend = signed
+            && !(matches!(kind, InstKind::Sar(..)) && index == 0)
+            && !(matches!(kind, InstKind::CheckedBinary { op: CheckedOp::Pow, .. }) && index == 1);
         index += 1;
         Ok(if extend { sign_extend(word, bits) } else { word })
     })?;
     Ok(value.map(|mut value| {
-        if kind.op_def().result == ResultKind::Integer {
+        if kind.op_def().result == ResultKind::Integer
+            || matches!(kind, InstKind::CheckedBinary { .. })
+        {
             if matches!(kind, InstKind::Clz(..)) {
                 value -= U256::from(256 - bits);
             }
@@ -382,7 +387,7 @@ mod tests {
 
     #[test]
     fn integer_arithmetic_at_every_width() {
-        for bits in 1..=256 {
+        for bits in std::iter::once(1).chain((8..=256).step_by(8)) {
             let ty = MirType::Int(std::num::NonZeroU32::new(bits).unwrap());
             let mut function = Function::new(Ident::DUMMY);
             let mut builder = FunctionBuilder::new(&mut function);
