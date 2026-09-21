@@ -110,6 +110,31 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &terminal_layout::TerminalLayout,
 ];
 
+/// Schedule an existing pass only for the code-size objective.
+struct SizeOnly<P>(P);
+
+impl<P: EvmPass> EvmPass for SizeOnly<P> {
+    fn name(&self) -> &'static str {
+        self.0.name()
+    }
+
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
+        gcx.sess.opts.optimization.is_size() && self.0.is_enabled(gcx, module)
+    }
+
+    fn is_required(&self) -> bool {
+        self.0.is_required()
+    }
+
+    fn cache_config(&self) -> u64 {
+        self.0.cache_config()
+    }
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        self.0.run_pass(gcx, module)
+    }
+}
+
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
 static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Normalize and establish the first physical layout.
@@ -166,6 +191,11 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &share_reverts::ShareReverts,
     &cfg_simplify::CfgSimplify::FINAL,
     &block_layout::BlockLayout,
+    // Share tails exposed by outlining and revert cleanup before packing constants.
+    &terminal_dedup::TerminalDedup,
+    &cfg_simplify::CfgSimplify::EARLY,
+    &tail_merge::TailMerge,
+    &cfg_simplify::CfgSimplify::EARLY,
     // Materialize constants and pack the referenced data pool before final sharing and cleanup.
     &constant_data::ConstantData,
     &data::PackData,
@@ -182,6 +212,12 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &terminal_layout::TerminalLayout,
     &reorder_pushes::REORDER_EXPRESSIONS,
     &peephole::LateWord,
+    // Reuse values exposed by late CFG rewrites, then fold their consumers.
+    &peephole::Cleanup(block_cse::BlockCse),
+    &peephole::Peephole::FINAL,
+    // Refresh size layout without undoing gas-mode loop fallthrough choices.
+    &SizeOnly(block_layout::BlockLayout),
+    &SizeOnly(terminal_layout::TerminalLayout),
 ];
 
 /// Finds an EVM IR pass by command-line name.

@@ -1,8 +1,10 @@
-//@ revisions: homestead paris
+//@ revisions: homestead paris pipeline
 //@[homestead] compile-flags: --evm-version homestead -Zmir-pipeline=lower-mcopy
 //@[homestead] filecheck: --check-prefix=PRE
 //@[paris] compile-flags: --evm-version paris -Zmir-pipeline=lower-mcopy
 //@[paris] filecheck: --check-prefix=PRE
+//@[pipeline] compile-flags: --evm-version paris -Zmir-pipeline=default
+//@[pipeline] filecheck: --check-prefix=PIPELINE
 @module PreCancunMCopy
 
 // `mcopy` lowers to overlap-safe word-copy loops plus a conditional byte-masked
@@ -34,5 +36,15 @@
 fn @copy(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     mcopy arg0, arg1, arg2
+    ret arg0
+}
+
+// PIPELINE-LABEL: fn @copy_one(
+// PIPELINE-NOT: phi
+// PIPELINE-NOT: sub
+// PIPELINE: ret arg0
+fn @copy_one(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    mcopy arg0, arg1, 1
     ret arg0
 }
