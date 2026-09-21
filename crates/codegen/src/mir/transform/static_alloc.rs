@@ -161,7 +161,9 @@ fn fmp_write_has_future_observer(func: &Function, cfg: &CfgInfo, inst_id: InstId
 /// allocates after `inst_id`. Calls are not counted: the static-allocation
 /// analysis already proves interprocedurally whether a callee observes the
 /// pointer or its placement, and a callee that merely reads the pointer for
-/// scratch does not see the elided bump.
+/// scratch does not see the elided bump. Free-memory-pointer reads whose
+/// result is dead do not observe the elided bump either; their values are
+/// never consumed.
 fn alloc_bump_has_future_observer(func: &Function, cfg: &CfgInfo, inst_id: InstId) -> bool {
     let Some((block, position)) = func.blocks.iter_enumerated().find_map(|(block, block_data)| {
         block_data
@@ -173,10 +175,29 @@ fn alloc_bump_has_future_observer(func: &Function, cfg: &CfgInfo, inst_id: InstI
         return true;
     };
 
+    let mut used = FxHashMap::with_capacity_and_hasher(func.num_values(), Default::default());
+    for inst in func.instructions() {
+        for operand in func.inst(inst).operands() {
+            used.insert(operand, ());
+        }
+    }
+    for block in &func.blocks {
+        if let Some(term) = &block.terminator {
+            for operand in term.operands() {
+                used.insert(operand, ());
+            }
+        }
+    }
+    let is_live_fmp_read = |inst: InstId| -> bool {
+        matches!(func.inst(inst).kind, InstKind::MLoad(address)
+            if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT))
+            && func.inst_result_value(inst).is_some_and(|value| used.contains_key(&value))
+    };
+
     if func.blocks[block].instructions[position + 1..].iter().any(|&inst| {
         match func.inst(inst).kind {
             InstKind::Alloc { .. } | InstKind::Fmp | InstKind::SetFmp(_) => true,
-            InstKind::MLoad(address) => func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT),
+            InstKind::MLoad(..) => is_live_fmp_read(inst),
             _ => false,
         }
     }) {
@@ -186,9 +207,7 @@ fn alloc_bump_has_future_observer(func: &Function, cfg: &CfgInfo, inst_id: InstI
         |block| {
             func.blocks[block].instructions.iter().copied().any(|inst| match func.inst(inst).kind {
                 InstKind::Alloc { .. } | InstKind::Fmp | InstKind::SetFmp(_) => true,
-                InstKind::MLoad(address) => {
-                    func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
-                }
+                InstKind::MLoad(..) => is_live_fmp_read(inst),
                 _ => false,
             })
         },

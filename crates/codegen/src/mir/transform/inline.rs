@@ -330,6 +330,10 @@ struct MirInliner {
     expected_executions_per_deployment: u64,
     /// The cost model pricing call protocol against deposited bytes.
     target: Target,
+    /// Optional per-function expected executions loaded from `-Zinline-profile`;
+    /// call sites outside loops in weighted functions use the recorded count
+    /// instead of the default single execution when clones are priced.
+    profile: Option<FxHashMap<String, u64>>,
     /// Optional hard ceiling for the module size estimator. Normal gas-mode
     /// profitability is governed by lifetime cost instead of this ceiling;
     /// zero remains the explicit off switch used by size mode.
@@ -375,6 +379,7 @@ impl Default for MirInliner {
             inline_single_call: true,
             max_caller_inlined_instructions: 64,
             expected_executions_per_deployment: Target::DEFAULT_EXPECTED_EXECUTIONS,
+            profile: None,
             target: Target::with(
                 solar_config::EvmVersion::default(),
                 solar_config::OptimizationMode::Gas,
@@ -494,6 +499,10 @@ struct MirInlineSummary {
     has_storage_write: bool,
     has_memory_write: bool,
     has_immutable_write: bool,
+    /// Number of check-shaped instructions (explicit checks, requires, and
+    /// checked arithmetic) whose conditions later check elimination can fold
+    /// once inlining exposes the actual arguments at the call site.
+    check_opportunities: usize,
     has_log: bool,
     has_control_flow: bool,
     /// Whether the body contains a back edge; a loop cloned into a loop nests
@@ -521,6 +530,11 @@ impl MirInliner {
         let mut stats = MirInlineStats::default();
         self.target = Target::new(gcx);
         self.expected_executions_per_deployment = self.target.expected_executions();
+        if let Some(path) = gcx.sess.opts.unstable.inline_profile.as_deref()
+            && self.profile.is_none()
+        {
+            self.profile = load_inline_profile(path);
+        }
 
         // A zero budget is an explicit off switch (used by `-O size`). Avoid
         // summarizing the module or building its call graph when no call site
@@ -810,12 +824,15 @@ impl MirInliner {
         start: (usize, usize),
         loop_costs: &FxHashMap<BlockId, LoopCost>,
     ) -> Option<CallSite> {
+        let caller_weight =
+            self.profile.as_ref().and_then(|profile| profile.get(&func.name.to_string())).copied();
         for (block, bb) in func.blocks.iter_enumerated().skip(start.0) {
             let start_inst = if block.index() == start.0 { start.1 } else { 0 };
             for (inst_index, &inst_id) in bb.instructions.iter().enumerate().skip(start_inst) {
                 if let InstKind::ICall { function: Callee::Function(function), ref args } =
                     func.inst(inst_id).kind
                 {
+                    let loop_executions = loop_costs.get(&block).map_or(1, |cost| cost.executions);
                     return Some(CallSite {
                         block,
                         inst_index,
@@ -824,7 +841,13 @@ impl MirInliner {
                         args_len: args.len(),
                         returns: module.function(function).return_components().len(),
                         loop_depth: loop_costs.get(&block).map_or(0, |cost| cost.depth),
-                        loop_executions: loop_costs.get(&block).map_or(1, |cost| cost.executions),
+                        // Profile-weighted callers repeat their one-shot sites;
+                        // loop sites keep their own counted or estimated trips.
+                        loop_executions: if loop_costs.contains_key(&block) {
+                            loop_executions
+                        } else {
+                            loop_executions.max(caller_weight.unwrap_or(1))
+                        },
                         loop_counted: loop_costs.get(&block).is_none_or(|cost| cost.counted),
                         has_constant_function_selector: args
                             .first()
@@ -896,6 +919,10 @@ impl MirInliner {
         // A hot leaf is a bounded scalar helper called from inside a loop. Its
         // other call sites keep the shared body; the lifetime check below
         // weighs each clone against the call protocol it removes per iteration.
+        // Memory-writing helpers at uncounted loop sites are excluded: the
+        // guessed ten-iteration multiplier over-admits clones whose bodies
+        // expand after lowering (measured +60 instructions in a loop for no
+        // comparable gas), while counted trip counts are real evidence.
         if self.mode == InlineMode::HotLeaves
             && (site.loop_depth == 0
                 || summary.phi_stack_peak.is_none()
@@ -1021,6 +1048,7 @@ impl MirInliner {
                 !single_call,
                 site.loop_executions,
                 summary.nested_calls,
+                u32::try_from(summary.check_opportunities).unwrap_or(u32::MAX) * 8,
             );
         }
         const CODE_DEPOSIT_GAS_PER_BYTE: u128 = Target::CODE_DEPOSIT_GAS_PER_BYTE as u128;
@@ -1267,6 +1295,7 @@ fn summarize_function(
                     ..
                 } => {
                     summary.has_control_flow = true;
+                    summary.check_opportunities += 1;
                 }
                 InstKind::AbiEncodePacked { parts, hash: false }
                     if parts.iter().any(|part| {
@@ -1384,6 +1413,22 @@ fn summarize_function(
         }
     }
     summary
+}
+
+/// Loads a `-Zinline-profile` JSON file mapping function names to expected
+/// executions per deployment. A missing or malformed file disables the profile
+/// rather than failing the build.
+fn load_inline_profile(path: &str) -> Option<FxHashMap<String, u64>> {
+    let text = std::fs::read_to_string(path).ok()?;
+    let parsed: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let object = parsed.as_object()?;
+    let mut profile = FxHashMap::with_capacity_and_hasher(object.len(), Default::default());
+    for (name, count) in object {
+        if let Some(count) = count.as_u64().filter(|&count| count > 0) {
+            profile.insert(name.clone(), count);
+        }
+    }
+    (!profile.is_empty()).then_some(profile)
 }
 
 /// A frameless, argument-free failure payload cannot return past the inlined

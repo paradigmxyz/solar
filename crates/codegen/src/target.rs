@@ -570,22 +570,34 @@ impl Target {
     /// scaling with the runs count. Measured solady inputs at 1000 runs
     /// otherwise over-admit one-shot shared clones whose bodies expand after
     /// lowering.
+    ///
+    /// `check_credit` is a byte allowance for later check elimination: inlining
+    /// exposes the actual arguments, and measured wins exceeded the protocol
+    /// ceiling by ~3.6x because of the checks the clone's fold removes. The
+    /// credit is bounded by the deposit it could possibly remove and applies
+    /// only when the site provably repeats (executions > 1), so a loop's
+    /// bounds often make the checks redundant.
     pub(crate) fn scalar_inline_profitable(
         self,
         body_bytes: u32,
         shared: bool,
         executions: u64,
         nested_calls: usize,
+        check_credit: u32,
     ) -> bool {
         let protocol = self.scalar_call_protocol();
         let inner_transfers = self.icall(1, 1, 0).bytes;
-        let added_bytes = if shared {
+        let mut added_bytes = if shared {
             body_bytes
                 .saturating_add(u32::try_from(nested_calls).unwrap_or(u32::MAX) * inner_transfers)
                 .saturating_sub(protocol.bytes)
         } else {
             0
         };
+        if executions > 1 {
+            let credit = check_credit.min(added_bytes / 2);
+            added_bytes -= credit;
+        }
         let lifetime = self.expected_executions.min(Self::DEFAULT_EXPECTED_EXECUTIONS);
         let saved_gas = u128::from(protocol.gas)
             .saturating_mul(u128::from(executions))
@@ -814,19 +826,25 @@ mod tests {
             let once = Target::with(version, OptimizationMode::Gas, 1);
             let often = Target::with(version, OptimizationMode::Gas, 200);
             assert_eq!(once.scalar_call_protocol(), Cost::new(24, 6));
-            assert!(!once.scalar_inline_profitable(20, true, 1, 0));
-            assert!(often.scalar_inline_profitable(20, true, 1, 0));
-            assert!(once.scalar_inline_profitable(20, true, 1000, 0));
-            assert!(once.scalar_inline_profitable(20, false, 1, 0));
-            assert!(!often.scalar_inline_profitable(20, true, 0, 0));
+            assert!(!once.scalar_inline_profitable(20, true, 1, 0, 0));
+            assert!(often.scalar_inline_profitable(20, true, 1, 0, 0));
+            assert!(once.scalar_inline_profitable(20, true, 1000, 0, 0));
+            assert!(once.scalar_inline_profitable(20, false, 1, 0, 0));
+            assert!(!often.scalar_inline_profitable(20, true, 0, 0, 0));
             let maximum = Target::with(version, OptimizationMode::Gas, u64::MAX);
-            assert!(maximum.scalar_inline_profitable(u32::MAX, true, u64::MAX, 0));
+            assert!(maximum.scalar_inline_profitable(u32::MAX, true, u64::MAX, 0, 0));
             // A shared clone also deposits its nested call sites: a body with
             // two inner transfers stops being profitable where the plain body
             // was.
-            assert!(often.scalar_inline_profitable(20, true, 1, 0));
-            assert!(!often.scalar_inline_profitable(20, true, 1, 2));
-            assert!(often.scalar_inline_profitable(20, true, 1000, 2));
+            assert!(often.scalar_inline_profitable(20, true, 1, 0, 0));
+            assert!(!often.scalar_inline_profitable(20, true, 1, 2, 0));
+            assert!(often.scalar_inline_profitable(20, true, 1000, 2, 0));
+            // A repeating site can afford the deposit when check elimination
+            // will fold the clone: the credit is bounded by half the added
+            // bytes and only applies to executions > 1.
+            assert!(!often.scalar_inline_profitable(300, true, 10, 0, 0));
+            assert!(often.scalar_inline_profitable(300, true, 10, 0, 64));
+            assert!(!often.scalar_inline_profitable(300, true, 1, 0, 64));
         }
     }
 

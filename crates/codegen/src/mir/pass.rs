@@ -381,6 +381,10 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // the pass drops the consumed callee itself.
     &GasOnly::new(inline::InlineSingleUse::Physical),
     &cfg_simplify::CfgSimplify,
+    // Consumed bodies can expose redundant checks; the last check
+    // elimination ran before this late consumption, so fold the newly
+    // visible conditions once more before the physical shape is fixed.
+    &GasOnly::new(check_elim::LateCheckElim),
     &lower_evm_shaped::LowerEvmShaped,
 ];
 
