@@ -36,7 +36,8 @@
   fn @truncating_roundtrip(arg0: i256) -> i256 {
     bb0:
       v0 = shl 248, arg0
-      v1 = shr 248, v0
+-     v1 = shr 248, v0
++     v1 = and arg0, 255
       ret v1
   }
   
@@ -286,8 +287,8 @@
   
   fn @truncating_roundtrip(arg0: i256) -> i256 {
     bb0:
-      v0 = shl 248, arg0
-      v1 = shr 248, v0
+-     v0 = shl 248, arg0
+      v1 = and arg0, 255
       ret v1
   }
   

@@ -6,7 +6,7 @@
 
 use super::{Recipe, Temporary};
 use crate::{
-    mir::{Function, InstId, Op, Value as MirValue, ValueId},
+    mir::{Function, InstId, MirType, Op, Value as MirValue, ValueId},
     target::Target,
 };
 use alloy_primitives::U256;
@@ -26,6 +26,7 @@ const MAX_TEMPORARIES: usize = 64;
     rust_2018_idioms,
     unnameable_types,
     unreachable_code,
+    unreachable_patterns,
     unreachable_pub,
     unused_imports,
     unused_mut,
@@ -69,6 +70,37 @@ impl Context<'_> {
 }
 
 impl generated::Context for Context<'_> {
+    fn u256_mul(&mut self, a: U256, b: U256) -> U256 {
+        a.wrapping_mul(b)
+    }
+    fn u256_or(&mut self, a: U256, b: U256) -> U256 {
+        a | b
+    }
+    fn u256_xor(&mut self, a: U256, b: U256) -> U256 {
+        a ^ b
+    }
+    fn u256_and(&mut self, a: U256, b: U256) -> U256 {
+        a & b
+    }
+    fn u256_add(&mut self, a: U256, b: U256) -> U256 {
+        a.wrapping_add(b)
+    }
+    fn u256_shl(&mut self, a: U256, b: U256) -> U256 {
+        if a >= U256::from(256) { U256::ZERO } else { b << a.to::<usize>() }
+    }
+    fn power_of_two_shift(&mut self, value: U256) -> Option<U256> {
+        (value > U256::ONE && value.is_power_of_two()).then(|| U256::from(value.trailing_zeros()))
+    }
+
+    fn u256_shr(&mut self, a: U256, b: U256) -> U256 {
+        if a >= U256::from(256) { U256::ZERO } else { b >> a.to::<usize>() }
+    }
+
+    fn integer_bits(&mut self, value: Value) -> Option<u32> {
+        let MirType::Int(bits) = self.func.value_ty(value)? else { return None };
+        (bits.get() <= 256).then_some(bits.get())
+    }
+
     fn inst_data(&mut self, value: Value) -> Option<Op> {
         let MirValue::Inst(inst) = self.func.value(value) else { return None };
         self.seen.contains(inst).then(|| self.func.inst(*inst).kind.op())

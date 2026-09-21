@@ -2736,7 +2736,7 @@ define_mir_ops! {
         result = None,
         phases = PhaseSet::ALL,
         effect = Log,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = true,
         category = None
     )]
@@ -2748,7 +2748,7 @@ define_mir_ops! {
         result = None,
         phases = PhaseSet::ALL,
         effect = Log,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = true,
         category = None
     )]
@@ -2760,7 +2760,7 @@ define_mir_ops! {
         result = None,
         phases = PhaseSet::ALL,
         effect = Log,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = true,
         category = None
     )]
@@ -2772,7 +2772,7 @@ define_mir_ops! {
         result = None,
         phases = PhaseSet::ALL,
         effect = Log,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = true,
         category = None
     )]
@@ -2784,7 +2784,7 @@ define_mir_ops! {
         result = None,
         phases = PhaseSet::ALL,
         effect = Log,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = true,
         category = None
     )]

@@ -42,8 +42,8 @@
       v0 = and arg0, arg1
       v1 = or arg0, arg1
 -     v2 = and v0, v1
-+     v2 = and arg0, arg1
-      ret v2
+-     ret v2
++     ret v0
   }
   
   fn @rule_5(arg0: i256, arg1: i256) -> i256 {
@@ -51,8 +51,8 @@
       v0 = and arg0, arg1
       v1 = or arg1, arg0
 -     v2 = and v0, v1
-+     v2 = and arg0, arg1
-      ret v2
+-     ret v2
++     ret v0
   }
   
   fn @rule_6(arg0: i256, arg1: i256) -> i256 {
@@ -60,8 +60,8 @@
       v0 = or arg0, arg1
       v1 = and arg0, arg1
 -     v2 = and v0, v1
-+     v2 = and arg0, arg1
-      ret v2
+-     ret v2
++     ret v1
   }
   
   fn @rule_7(arg0: i256, arg1: i256) -> i256 {
@@ -69,8 +69,8 @@
       v0 = or arg0, arg1
       v1 = and arg1, arg0
 -     v2 = and v0, v1
-+     v2 = and arg0, arg1
-      ret v2
+-     ret v2
++     ret v1
   }
   
   fn @rule_8(arg0: i256, arg1: i256) -> i256 {
@@ -114,8 +114,8 @@
       v0 = and arg0, arg1
       v1 = or arg0, arg1
 -     v2 = or v0, v1
-+     v2 = or arg0, arg1
-      ret v2
+-     ret v2
++     ret v1
   }
   
   fn @rule_13(arg0: i256, arg1: i256) -> i256 {
@@ -123,8 +123,8 @@
       v0 = and arg0, arg1
       v1 = or arg1, arg0
 -     v2 = or v0, v1
-+     v2 = or arg0, arg1
-      ret v2
+-     ret v2
++     ret v1
   }
   
   fn @rule_14(arg0: i256, arg1: i256) -> i256 {
@@ -132,8 +132,8 @@
       v0 = or arg0, arg1
       v1 = and arg0, arg1
 -     v2 = or v0, v1
-+     v2 = or arg0, arg1
-      ret v2
+-     ret v2
++     ret v0
   }
   
   fn @rule_15(arg0: i256, arg1: i256) -> i256 {
@@ -141,8 +141,8 @@
       v0 = or arg0, arg1
       v1 = and arg1, arg0
 -     v2 = or v0, v1
-+     v2 = or arg0, arg1
-      ret v2
+-     ret v2
++     ret v0
   }
   
   fn @rule_16(arg0: i256, arg1: i256) -> i256 {

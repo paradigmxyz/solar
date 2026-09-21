@@ -39,8 +39,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     jumpi v22, bb4, bb5
   bb5:
     v39 = eq v19, 0x4e487b71
-    v40 = lt v64, 36
-    v41 = eq v40, false
+    v41 = gt v64, 35
     v42 = and v39, v41
     jumpi v42, bb6, bb7
   bb7:
@@ -268,8 +267,8 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
 
 fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
   bb0:
-    v0 = lt arg1, 68
-    jumpi v0, bb3, bb1
+    v1 = gt arg1, 67
+    jumpi v1, bb1, bb3
   bb1:
     v2 = add arg0, 4
     v3 = mload v2

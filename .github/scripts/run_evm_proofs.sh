@@ -14,7 +14,8 @@ uv run scripts/evm-rules/verify.py --help >/dev/null
 prove() {
   local suite="$1" shard="$2" shards="$3" directory="$4"
   local files=("mir/$suite")
-  local options=(--index-partition-timeout-ms 30000)
+  local options=(--index-partition-timeout-ms 30000 --fallback-solver cvc5
+    --bit-partition-timeout-ms 120000 --bit-partition-jobs 2)
   if [[ "$audit" == true ]]; then
     options+=(--partition-shifts)
   else
@@ -22,9 +23,6 @@ prove() {
   fi
   if [[ "$suite" == other ]]; then
     files=(mir/word_sequence mir-to-evm/stack_select evm-ir/stack_peephole evm-ir/late_word)
-  elif [[ "$suite" == egraph ]]; then
-    options+=(--fallback-solver cvc5
-      --bit-partition-timeout-ms 120000 --bit-partition-jobs 2)
   fi
   local inputs=()
   for file in "${files[@]}"; do

@@ -490,7 +490,10 @@ impl<'a> Builder<'a> {
             return;
         }
         self.rewrite_check(inst_id);
-        let Some(result) = self.func.inst_result_value(inst_id) else { return };
+        let Some(result) = self.func.inst_result_value(inst_id) else {
+            self.rewrite_in_place(inst_id, block);
+            return;
+        };
         if let Some(value) = self.aggregate_field(inst_id) {
             // extract_value(insert_value aggregate, index, value), index => value
             self.merge(result, value, inst_id);
@@ -553,6 +556,7 @@ impl<'a> Builder<'a> {
                         isle::RuleContext::new(self.func, self.target.evm_version())
                             .with_block(block)
                             .with_uses(&self.uses)
+                            .with_target(self.target)
                             .with_views(view)
                             .rewrite(&current, &mut alternatives);
                     }
@@ -765,6 +769,7 @@ impl<'a> Builder<'a> {
             isle::RuleContext::new(self.func, self.target.evm_version())
                 .with_block(block)
                 .with_uses(&self.uses)
+                .with_target(self.target)
                 .rewrite(&current, &mut alternatives);
             let Some(next) = alternatives.iter().find_map(|next| {
                 let next = next.map_values(|value| self.resolve(value));
@@ -983,6 +988,16 @@ impl<'a> Builder<'a> {
                     swap,
                     "mir_egraph"
                 );
+            }
+
+            if let Some(Terminator::Revert { offset, size }) = func.blocks[block_id].terminator
+                && is_zero(func, resolve_replacement(size, &self.merged))
+                && !is_zero(func, resolve_replacement(offset, &self.merged))
+            {
+                // revert offset, 0 => revert 0, 0
+                let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
+                func.blocks[block_id].terminator = Some(Terminator::Revert { offset: zero, size });
+                self.changed += 1;
             }
 
             if externally_terminating

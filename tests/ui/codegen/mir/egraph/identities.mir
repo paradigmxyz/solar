@@ -394,7 +394,7 @@ fn @nested_shifts(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
 }
 
 // CHECK-LABEL: @nested_shift_limits
-// CHECK: + [[SIGN:v[0-9]+]] = sar 256, arg0
+// CHECK: + [[SIGN:v[0-9]+]] = sar 255, arg0
 // CHECK: + ret 0, 0, [[SIGN]]
 fn @nested_shift_limits(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
   bb0:

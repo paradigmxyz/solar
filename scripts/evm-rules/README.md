@@ -35,6 +35,21 @@ partitioning more source shapes does not make the legacy audit complete.
 The report lists every saved query; replay one with `z3 path/to/rule.smt2` or
 `cvc5 --lang smt2 path/to/rule.smt2`.
 
+
+Select obligations can split on the full zero/nonzero condition. Both cases
+retain the original guards; a nonzero condition is never narrowed to one.
+For odd-factor comparison cancellation, a separate partition parameterizes
+`x=y+delta` modulo the word width and exhausts all 256 least-set-bit positions
+of nonzero `delta`. It proves reconstruction, the zero case, the required
+zero product, coverage, each bit parameterization, and its contradictory
+product bit: 772 saved obligations in total. No modular-inverse axiom is
+assumed. This partition rejects constant-specialized input models. Incomplete
+partitions remain unknown, and artifact validation rejects missing cases.
+
+If the guard-satisfiability check times out, a concrete assignment may establish
+that the guards are satisfiable. This only establishes applicability; the
+subsequent equivalence obligation retains all symbolic inputs and guards.
+
 For complete replay with cvc5, export exhaustive index partitions even when Z3
 can prove the original query directly:
 
@@ -74,7 +89,7 @@ Python checks without solving the full rule set.
 
 The [proof runner](../../.github/scripts/run_evm_proofs.sh) launches independent
 workers within that machine. Normal runs verify every selected rule using Z3,
-with cvc5 as an explicit fallback for incomplete e-graph proofs. They split
+with cvc5 as an explicit fallback for incomplete word proofs. They split
 queries only when needed and do not replay successful proofs with another solver.
 Reports, logs, and SMT artifacts live under
 `target/evm-rules/<suite>-<shard>/`. Every worker must succeed.

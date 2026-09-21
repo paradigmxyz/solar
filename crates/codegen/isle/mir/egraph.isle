@@ -148,6 +148,10 @@
 (decl pure layout_kind (MemoryObjectLayout) MemoryObjectKind)
 (extern constructor layout_kind layout_kind)
 
+;; Profitability only: do not grow a push when replacing a shift pair.
+(decl pure push_not_larger (U256 U256) bool)
+(extern constructor push_not_larger push_not_larger)
+
 ;;;; In-place rewrites.
 
 (decl multi rewrite (Op) Op)
@@ -335,7 +339,7 @@
 (rule (rewrite (Op.Select c (select c a _) d)) (Op.Select c a d))
 
 ;; cond ? 0 : 1 => cond == 0, when cond is boolean
-(rule (rewrite (Op.Select (and cond (bool_value)) (zero) (one))) (Op.Eq cond (imm (u256 0))))
+(rule (rewrite (Op.Select (and cond (bool_value)) (zero) (one))) (Op.Eq cond (imm_bool false)))
 
 ;; balance(address & mask) => balance(address), when mask keeps all low 160 bits.
 ;; Require a single use in this block to avoid retaining a shared mask or extending its live range.
@@ -702,7 +706,6 @@
 
 ;; Canonical zero tests preserve the operand's scalar type.
 (rule (rewrite (Op.Gt x (zero))) (Op.Ne x (imm (u256 0))))
-(rule (rewrite (Op.Lt (zero) x)) (Op.Ne x (imm (u256 0))))
 (rule (rewrite (Op.Eq (eq a b) (zero))) (Op.Ne a b))
 (rule (rewrite (Op.Eq (ne a b) (zero))) (Op.Eq a b))
 (rule (rewrite (Op.Ne (eq a b) (zero))) (Op.Eq a b))
@@ -711,7 +714,6 @@
 (rule (rewrite (Op.Ne (zext (and x (bool_value))) (zero))) (Op.Ne x (imm_bool false)))
 (rule 10 (simplify (Op.Ne a a)) (imm_bool false))
 (rule 9 (simplify (Op.Ne (and x (bool_value)) (zero))) x)
-(rule 8 (simplify (Op.Ne (zero) (and x (bool_value)))) x)
 
 ;; ~a != ~b => a != b.
 (rule (rewrite (Op.Ne (bnot a) (bnot b))) (Op.Ne a b))
@@ -736,6 +738,458 @@
 (extern constructor u32_lt u32_lt)
 (decl pure u32_le (u32 u32) bool)
 (extern constructor u32_le u32_le)
+
+;; Cross-compiler scalar and canonicalization audit.
+
+;; Eq x (bnot x) => (imm_bool false)
+(rule 1001 (simplify (Op.Eq x (bnot x)))  (imm_bool false))
+
+;; Eq (bnot x) x => (imm_bool false)
+(rule 1002 (simplify (Op.Eq (bnot x) x))  (imm_bool false))
+
+;; Ne x (bnot x) => (imm_bool true)
+(rule 1003 (simplify (Op.Ne x (bnot x)))  (imm_bool true))
+
+;; Ne (bnot x) x => (imm_bool true)
+(rule 1004 (simplify (Op.Ne (bnot x) x))  (imm_bool true))
+
+;; Sub x (sub x y) => y
+(rule 1005 (simplify (Op.Sub x (sub x y)))  y)
+
+;; Sub (zero) (sub (zero) x) => x
+(rule 1006 (simplify (Op.Sub (zero) (sub (zero) x)))  x)
+
+;; And (and value (band x y)) x => value
+(rule 1007 (simplify (Op.And (and value (band x y)) x))  value)
+
+;; And x (and value (band x y)) => value
+(rule 1008 (simplify (Op.And x (and value (band x y))))  value)
+
+;; And (and value (band y x)) x => value
+(rule 1009 (simplify (Op.And (and value (band y x)) x))  value)
+
+;; And x (and value (band y x)) => value
+(rule 1010 (simplify (Op.And x (and value (band y x))))  value)
+
+;; Or (and value (bor x y)) x => value
+(rule 1011 (simplify (Op.Or (and value (bor x y)) x))  value)
+
+;; Or x (and value (bor x y)) => value
+(rule 1012 (simplify (Op.Or x (and value (bor x y))))  value)
+
+;; Or (and value (bor y x)) x => value
+(rule 1013 (simplify (Op.Or (and value (bor y x)) x))  value)
+
+;; Or x (and value (bor y x)) => value
+(rule 1014 (simplify (Op.Or x (and value (bor y x))))  value)
+
+;; Div (div x (nonzero_const a)) (nonzero_const b) => (imm (u256 0))
+(rule 1015 (simplify (Op.Div (div x (nonzero_const a)) (nonzero_const b))) (if-let false (u256_le a (u256_div (u256_max) b))) (imm (u256 0)))
+
+;; Gt (band x y) x => (imm_bool false)
+(rule 1016 (simplify (Op.Gt (band x y) x))  (imm_bool false))
+
+;; Lt x (band x y) => (imm_bool false)
+(rule 1017 (simplify (Op.Lt x (band x y)))  (imm_bool false))
+
+;; Gt (band y x) x => (imm_bool false)
+(rule 1018 (simplify (Op.Gt (band y x) x))  (imm_bool false))
+
+;; Lt x (band y x) => (imm_bool false)
+(rule 1019 (simplify (Op.Lt x (band y x)))  (imm_bool false))
+
+;; Lt (bor x y) x => (imm_bool false)
+(rule 1020 (simplify (Op.Lt (bor x y) x))  (imm_bool false))
+
+;; Gt x (bor x y) => (imm_bool false)
+(rule 1021 (simplify (Op.Gt x (bor x y)))  (imm_bool false))
+
+;; Lt (bor y x) x => (imm_bool false)
+(rule 1022 (simplify (Op.Lt (bor y x) x))  (imm_bool false))
+
+;; Gt x (bor y x) => (imm_bool false)
+(rule 1023 (simplify (Op.Gt x (bor y x)))  (imm_bool false))
+
+;; Gt (shr s x) x => (imm_bool false)
+(rule 1024 (simplify (Op.Gt (shr s x) x))  (imm_bool false))
+
+;; Lt x (shr s x) => (imm_bool false)
+(rule 1025 (simplify (Op.Lt x (shr s x)))  (imm_bool false))
+
+;; Sar _ (and value (all_ones)) => value
+(rule 1026 (simplify (Op.Sar _ (and value (all_ones))))  value)
+
+;; And (and value (band x y)) (bor x z) => value
+(rule 1027 (simplify (Op.And (and value (band x y)) (bor x z)))  value)
+
+;; And (bor x z) (and value (band x y)) => value
+(rule 1028 (simplify (Op.And (bor x z) (and value (band x y))))  value)
+
+;; And (and value (band x y)) (bor z x) => value
+(rule 1029 (simplify (Op.And (and value (band x y)) (bor z x)))  value)
+
+;; And (bor z x) (and value (band x y)) => value
+(rule 1030 (simplify (Op.And (bor z x) (and value (band x y))))  value)
+
+;; And (and value (band y x)) (bor x z) => value
+(rule 1031 (simplify (Op.And (and value (band y x)) (bor x z)))  value)
+
+;; And (bor x z) (and value (band y x)) => value
+(rule 1032 (simplify (Op.And (bor x z) (and value (band y x))))  value)
+
+;; And (and value (band y x)) (bor z x) => value
+(rule 1033 (simplify (Op.And (and value (band y x)) (bor z x)))  value)
+
+;; And (bor z x) (and value (band y x)) => value
+(rule 1034 (simplify (Op.And (bor z x) (and value (band y x))))  value)
+
+;; Or (and value (bor x y)) (band x z) => value
+(rule 1035 (simplify (Op.Or (and value (bor x y)) (band x z)))  value)
+
+;; Or (band x z) (and value (bor x y)) => value
+(rule 1036 (simplify (Op.Or (band x z) (and value (bor x y))))  value)
+
+;; Or (and value (bor x y)) (band z x) => value
+(rule 1037 (simplify (Op.Or (and value (bor x y)) (band z x)))  value)
+
+;; Or (band z x) (and value (bor x y)) => value
+(rule 1038 (simplify (Op.Or (band z x) (and value (bor x y))))  value)
+
+;; Or (and value (bor y x)) (band x z) => value
+(rule 1039 (simplify (Op.Or (and value (bor y x)) (band x z)))  value)
+
+;; Or (band x z) (and value (bor y x)) => value
+(rule 1040 (simplify (Op.Or (band x z) (and value (bor y x))))  value)
+
+;; Or (and value (bor y x)) (band z x) => value
+(rule 1041 (simplify (Op.Or (and value (bor y x)) (band z x)))  value)
+
+;; Or (band z x) (and value (bor y x)) => value
+(rule 1042 (simplify (Op.Or (band z x) (and value (bor y x))))  value)
+
+;; Eq (zext (and b (bool_value))) (one) => b
+(rule 1043 (simplify (Op.Eq (zext (and b (bool_value))) (one)))  b)
+
+;; Select (ne x y) x y => x
+(rule 1044 (simplify (Op.Select (ne x y) x y))  x)
+
+;; Select (ne y x) x y => x
+(rule 1045 (simplify (Op.Select (ne y x) x y))  x)
+
+;; Select (eq x y) (zero) (and difference (sub x y)) => difference
+(rule 1046 (simplify (Op.Select (eq x y) (zero) (and difference (sub x y))))  difference)
+
+;; Select (eq y x) (zero) (and difference (sub x y)) => difference
+(rule 1047 (simplify (Op.Select (eq y x) (zero) (and difference (sub x y))))  difference)
+
+;; Eq (select (and c (bool_value)) (iconst a) (iconst b)) (iconst a) => c
+(rule 1048 (simplify (Op.Eq (select (and c (bool_value)) (iconst a) (iconst b)) (iconst a))) (if-let false (u256_same a b)) c)
+
+;; Ne (select (and c (bool_value)) (iconst a) (iconst b)) (iconst b) => c
+(rule 1049 (simplify (Op.Ne (select (and c (bool_value)) (iconst a) (iconst b)) (iconst b))) (if-let false (u256_same a b)) c)
+
+(decl pure u256_mul (U256 U256) U256)
+(extern constructor u256_mul u256_mul)
+
+(decl pure u256_or (U256 U256) U256)
+(extern constructor u256_or u256_or)
+
+(decl pure u256_xor (U256 U256) U256)
+(extern constructor u256_xor u256_xor)
+
+(decl pure u256_div (U256 U256) U256)
+(extern constructor u256_div u256_div)
+
+;; Eq (bor x (iconst c)) (band y (iconst m)) => (imm_bool false)
+(rule 1101 (simplify (Op.Eq (bor x (iconst c)) (band y (iconst m)))) (if-let false (u256_is_zero (u256_and c (u256_not m)))) (imm_bool false))
+
+;; Eq (band y (iconst m)) (bor x (iconst c)) => (imm_bool false)
+(rule 1102 (simplify (Op.Eq (band y (iconst m)) (bor x (iconst c)))) (if-let false (u256_is_zero (u256_and c (u256_not m)))) (imm_bool false))
+
+;; Ne (bor x (iconst c)) (band y (iconst m)) => (imm_bool true)
+(rule 1103 (simplify (Op.Ne (bor x (iconst c)) (band y (iconst m)))) (if-let false (u256_is_zero (u256_and c (u256_not m)))) (imm_bool true))
+
+;; Ne (band y (iconst m)) (bor x (iconst c)) => (imm_bool true)
+(rule 1104 (simplify (Op.Ne (band y (iconst m)) (bor x (iconst c)))) (if-let false (u256_is_zero (u256_and c (u256_not m)))) (imm_bool true))
+
+;; And (lt a b) (eq a b) => (imm_bool false)
+(rule 1105 (simplify (Op.And (lt a b) (eq a b)))  (imm_bool false))
+
+;; And (eq a b) (lt a b) => (imm_bool false)
+(rule 1106 (simplify (Op.And (eq a b) (lt a b)))  (imm_bool false))
+
+;; And (lt a b) (gt a b) => (imm_bool false)
+(rule 1107 (simplify (Op.And (lt a b) (gt a b)))  (imm_bool false))
+
+;; And (gt a b) (lt a b) => (imm_bool false)
+(rule 1108 (simplify (Op.And (gt a b) (lt a b)))  (imm_bool false))
+
+;; And (eq a b) (gt a b) => (imm_bool false)
+(rule 1109 (simplify (Op.And (eq a b) (gt a b)))  (imm_bool false))
+
+;; And (gt a b) (eq a b) => (imm_bool false)
+(rule 1110 (simplify (Op.And (gt a b) (eq a b)))  (imm_bool false))
+
+;; And (slt a b) (eq a b) => (imm_bool false)
+(rule 1111 (simplify (Op.And (slt a b) (eq a b)))  (imm_bool false))
+
+;; And (eq a b) (slt a b) => (imm_bool false)
+(rule 1112 (simplify (Op.And (eq a b) (slt a b)))  (imm_bool false))
+
+;; And (slt a b) (sgt a b) => (imm_bool false)
+(rule 1113 (simplify (Op.And (slt a b) (sgt a b)))  (imm_bool false))
+
+;; And (sgt a b) (slt a b) => (imm_bool false)
+(rule 1114 (simplify (Op.And (sgt a b) (slt a b)))  (imm_bool false))
+
+;; And (eq a b) (sgt a b) => (imm_bool false)
+(rule 1115 (simplify (Op.And (eq a b) (sgt a b)))  (imm_bool false))
+
+;; And (sgt a b) (eq a b) => (imm_bool false)
+(rule 1116 (simplify (Op.And (sgt a b) (eq a b)))  (imm_bool false))
+
+;; SLt x (iconst c) => (imm_bool false)
+(rule 1117 (simplify (Op.SLt x (iconst c))) (if-let true (u256_same c (u256_shl (u256 255) (u256 1)))) (imm_bool false))
+
+;; SGt x (iconst c) => (imm_bool false)
+(rule 1118 (simplify (Op.SGt x (iconst c))) (if-let true (u256_same c (u256_shr (u256 1) (u256_max)))) (imm_bool false))
+
+;; Call gas addr value offset (zero) out size => Call gas addr value (imm (u256 0)) (imm (u256 0)) out size
+(rule (rewrite (Op.Call gas addr value offset (zero) out size)) (if-let false (same_value offset (imm (u256 0)))) (Op.Call gas addr value (imm (u256 0)) (imm (u256 0)) out size))
+
+;; Call gas addr value offset size out (zero) => Call gas addr value offset size (imm (u256 0)) (imm (u256 0))
+(rule (rewrite (Op.Call gas addr value offset size out (zero))) (if-let false (same_value out (imm (u256 0)))) (Op.Call gas addr value offset size (imm (u256 0)) (imm (u256 0))))
+
+;; CallCode gas addr value offset (zero) out size => CallCode gas addr value (imm (u256 0)) (imm (u256 0)) out size
+(rule (rewrite (Op.CallCode gas addr value offset (zero) out size)) (if-let false (same_value offset (imm (u256 0)))) (Op.CallCode gas addr value (imm (u256 0)) (imm (u256 0)) out size))
+
+;; CallCode gas addr value offset size out (zero) => CallCode gas addr value offset size (imm (u256 0)) (imm (u256 0))
+(rule (rewrite (Op.CallCode gas addr value offset size out (zero))) (if-let false (same_value out (imm (u256 0)))) (Op.CallCode gas addr value offset size (imm (u256 0)) (imm (u256 0))))
+
+;; StaticCall gas addr offset (zero) out size => StaticCall gas addr (imm (u256 0)) (imm (u256 0)) out size
+(rule (rewrite (Op.StaticCall gas addr offset (zero) out size)) (if-let false (same_value offset (imm (u256 0)))) (Op.StaticCall gas addr (imm (u256 0)) (imm (u256 0)) out size))
+
+;; StaticCall gas addr offset size out (zero) => StaticCall gas addr offset size (imm (u256 0)) (imm (u256 0))
+(rule (rewrite (Op.StaticCall gas addr offset size out (zero))) (if-let false (same_value out (imm (u256 0)))) (Op.StaticCall gas addr offset size (imm (u256 0)) (imm (u256 0))))
+
+;; DelegateCall gas addr offset (zero) out size => DelegateCall gas addr (imm (u256 0)) (imm (u256 0)) out size
+(rule (rewrite (Op.DelegateCall gas addr offset (zero) out size)) (if-let false (same_value offset (imm (u256 0)))) (Op.DelegateCall gas addr (imm (u256 0)) (imm (u256 0)) out size))
+
+;; DelegateCall gas addr offset size out (zero) => DelegateCall gas addr offset size (imm (u256 0)) (imm (u256 0))
+(rule (rewrite (Op.DelegateCall gas addr offset size out (zero))) (if-let false (same_value out (imm (u256 0)))) (Op.DelegateCall gas addr offset size (imm (u256 0)) (imm (u256 0))))
+
+;; Log0 offset (zero)  => Log0 (imm (u256 0)) (imm (u256 0))
+(rule (rewrite (Op.Log0 offset (zero) )) (if-let false (same_value offset (imm (u256 0)))) (Op.Log0 (imm (u256 0)) (imm (u256 0)) ))
+
+;; Log1 offset (zero) t0 => Log1 (imm (u256 0)) (imm (u256 0)) t0
+(rule (rewrite (Op.Log1 offset (zero) t0)) (if-let false (same_value offset (imm (u256 0)))) (Op.Log1 (imm (u256 0)) (imm (u256 0)) t0))
+
+;; Log2 offset (zero) t0 t1 => Log2 (imm (u256 0)) (imm (u256 0)) t0 t1
+(rule (rewrite (Op.Log2 offset (zero) t0 t1)) (if-let false (same_value offset (imm (u256 0)))) (Op.Log2 (imm (u256 0)) (imm (u256 0)) t0 t1))
+
+;; Log3 offset (zero) t0 t1 t2 => Log3 (imm (u256 0)) (imm (u256 0)) t0 t1 t2
+(rule (rewrite (Op.Log3 offset (zero) t0 t1 t2)) (if-let false (same_value offset (imm (u256 0)))) (Op.Log3 (imm (u256 0)) (imm (u256 0)) t0 t1 t2))
+
+;; Log4 offset (zero) t0 t1 t2 t3 => Log4 (imm (u256 0)) (imm (u256 0)) t0 t1 t2 t3
+(rule (rewrite (Op.Log4 offset (zero) t0 t1 t2 t3)) (if-let false (same_value offset (imm (u256 0)))) (Op.Log4 (imm (u256 0)) (imm (u256 0)) t0 t1 t2 t3))
+
+
+(decl pure imm_i160_zero () Value)
+(extern constructor imm_i160_zero imm_i160_zero)
+
+;; (lt(x, y) & eq(y, x)) => false.
+(rule 1200 (simplify (Op.And (lt x y) (eq y x))) (imm_bool false))
+
+;; (lt(x, y) & eq(y, x)) => false.
+(rule 1201 (simplify (Op.And (eq y x) (lt x y))) (imm_bool false))
+
+;; (lt(x, y) & ne(x, y)) => lt(x, y).
+(rule 1202 (simplify (Op.And (and value (lt x y)) (ne x y))) value)
+
+;; (lt(x, y) | ne(x, y)) => ne(x, y).
+(rule 1203 (simplify (Op.Or (lt x y) (and value (ne x y)))) value)
+
+;; (lt(x, y) & ne(x, y)) => lt(x, y).
+(rule 1204 (simplify (Op.And (ne x y) (and value (lt x y)))) value)
+
+;; (lt(x, y) | ne(x, y)) => ne(x, y).
+(rule 1205 (simplify (Op.Or (and value (ne x y)) (lt x y))) value)
+
+;; (lt(x, y) & ne(y, x)) => lt(x, y).
+(rule 1206 (simplify (Op.And (and value (lt x y)) (ne y x))) value)
+
+;; (lt(x, y) | ne(y, x)) => ne(x, y).
+(rule 1207 (simplify (Op.Or (lt x y) (and value (ne y x)))) value)
+
+;; (lt(x, y) & ne(y, x)) => lt(x, y).
+(rule 1208 (simplify (Op.And (ne y x) (and value (lt x y)))) value)
+
+;; (lt(x, y) | ne(y, x)) => ne(x, y).
+(rule 1209 (simplify (Op.Or (and value (ne y x)) (lt x y))) value)
+
+;; (gt(x, y) & eq(y, x)) => false.
+(rule 1210 (simplify (Op.And (gt x y) (eq y x))) (imm_bool false))
+
+;; (gt(x, y) & eq(y, x)) => false.
+(rule 1211 (simplify (Op.And (eq y x) (gt x y))) (imm_bool false))
+
+;; (gt(x, y) & ne(x, y)) => gt(x, y).
+(rule 1212 (simplify (Op.And (and value (gt x y)) (ne x y))) value)
+
+;; (gt(x, y) | ne(x, y)) => ne(x, y).
+(rule 1213 (simplify (Op.Or (gt x y) (and value (ne x y)))) value)
+
+;; (gt(x, y) & ne(x, y)) => gt(x, y).
+(rule 1214 (simplify (Op.And (ne x y) (and value (gt x y)))) value)
+
+;; (gt(x, y) | ne(x, y)) => ne(x, y).
+(rule 1215 (simplify (Op.Or (and value (ne x y)) (gt x y))) value)
+
+;; (gt(x, y) & ne(y, x)) => gt(x, y).
+(rule 1216 (simplify (Op.And (and value (gt x y)) (ne y x))) value)
+
+;; (gt(x, y) | ne(y, x)) => ne(x, y).
+(rule 1217 (simplify (Op.Or (gt x y) (and value (ne y x)))) value)
+
+;; (gt(x, y) & ne(y, x)) => gt(x, y).
+(rule 1218 (simplify (Op.And (ne y x) (and value (gt x y)))) value)
+
+;; (gt(x, y) | ne(y, x)) => ne(x, y).
+(rule 1219 (simplify (Op.Or (and value (ne y x)) (gt x y))) value)
+
+;; (lt(x, y) & lt(y, x)) => false.
+(rule 1220 (simplify (Op.And (lt x y) (lt y x))) (imm_bool false))
+
+;; (gt(x, y) & gt(y, x)) => false.
+(rule 1221 (simplify (Op.And (gt x y) (gt y x))) (imm_bool false))
+
+;; (slt(x, y) & eq(y, x)) => false.
+(rule 1222 (simplify (Op.And (slt x y) (eq y x))) (imm_bool false))
+
+;; (slt(x, y) & eq(y, x)) => false.
+(rule 1223 (simplify (Op.And (eq y x) (slt x y))) (imm_bool false))
+
+;; (slt(x, y) & ne(x, y)) => slt(x, y).
+(rule 1224 (simplify (Op.And (and value (slt x y)) (ne x y))) value)
+
+;; (slt(x, y) | ne(x, y)) => ne(x, y).
+(rule 1225 (simplify (Op.Or (slt x y) (and value (ne x y)))) value)
+
+;; (slt(x, y) & ne(x, y)) => slt(x, y).
+(rule 1226 (simplify (Op.And (ne x y) (and value (slt x y)))) value)
+
+;; (slt(x, y) | ne(x, y)) => ne(x, y).
+(rule 1227 (simplify (Op.Or (and value (ne x y)) (slt x y))) value)
+
+;; (slt(x, y) & ne(y, x)) => slt(x, y).
+(rule 1228 (simplify (Op.And (and value (slt x y)) (ne y x))) value)
+
+;; (slt(x, y) | ne(y, x)) => ne(x, y).
+(rule 1229 (simplify (Op.Or (slt x y) (and value (ne y x)))) value)
+
+;; (slt(x, y) & ne(y, x)) => slt(x, y).
+(rule 1230 (simplify (Op.And (ne y x) (and value (slt x y)))) value)
+
+;; (slt(x, y) | ne(y, x)) => ne(x, y).
+(rule 1231 (simplify (Op.Or (and value (ne y x)) (slt x y))) value)
+
+;; (sgt(x, y) & eq(y, x)) => false.
+(rule 1232 (simplify (Op.And (sgt x y) (eq y x))) (imm_bool false))
+
+;; (sgt(x, y) & eq(y, x)) => false.
+(rule 1233 (simplify (Op.And (eq y x) (sgt x y))) (imm_bool false))
+
+;; (sgt(x, y) & ne(x, y)) => sgt(x, y).
+(rule 1234 (simplify (Op.And (and value (sgt x y)) (ne x y))) value)
+
+;; (sgt(x, y) | ne(x, y)) => ne(x, y).
+(rule 1235 (simplify (Op.Or (sgt x y) (and value (ne x y)))) value)
+
+;; (sgt(x, y) & ne(x, y)) => sgt(x, y).
+(rule 1236 (simplify (Op.And (ne x y) (and value (sgt x y)))) value)
+
+;; (sgt(x, y) | ne(x, y)) => ne(x, y).
+(rule 1237 (simplify (Op.Or (and value (ne x y)) (sgt x y))) value)
+
+;; (sgt(x, y) & ne(y, x)) => sgt(x, y).
+(rule 1238 (simplify (Op.And (and value (sgt x y)) (ne y x))) value)
+
+;; (sgt(x, y) | ne(y, x)) => ne(x, y).
+(rule 1239 (simplify (Op.Or (sgt x y) (and value (ne y x)))) value)
+
+;; (sgt(x, y) & ne(y, x)) => sgt(x, y).
+(rule 1240 (simplify (Op.And (ne y x) (and value (sgt x y)))) value)
+
+;; (sgt(x, y) | ne(y, x)) => ne(x, y).
+(rule 1241 (simplify (Op.Or (and value (ne y x)) (sgt x y))) value)
+
+;; (slt(x, y) & slt(y, x)) => false.
+(rule 1242 (simplify (Op.And (slt x y) (slt y x))) (imm_bool false))
+
+;; (sgt(x, y) & sgt(y, x)) => false.
+(rule 1243 (simplify (Op.And (sgt x y) (sgt y x))) (imm_bool false))
+
+;; eq(zext(x:i160), 0) => eq(x, 0:i160).
+(rule (rewrite (Op.Eq (zext (and x (integer_bits 160))) (zero)))
+      (Op.Eq x (imm_i160_zero)))
+
+;; eq(sext(x:i160), 0) => eq(x, 0:i160).
+(rule (rewrite (Op.Eq (sext (and x (integer_bits 160)) 160 256) (zero)))
+      (Op.Eq x (imm_i160_zero)))
+
+;; eq(sext(x:i1), 0) => eq(x, false).
+(rule (rewrite (Op.Eq (sext (and x (bool_value)) 1 to) (zero)))
+      (if-let true (u32_lt 1 to))
+      (Op.Eq x (imm_bool false)))
+
+;; ne(zext(x:i160), 0) => ne(x, 0:i160).
+(rule (rewrite (Op.Ne (zext (and x (integer_bits 160))) (zero)))
+      (Op.Ne x (imm_i160_zero)))
+
+;; ne(sext(x:i160), 0) => ne(x, 0:i160).
+(rule (rewrite (Op.Ne (sext (and x (integer_bits 160)) 160 256) (zero)))
+      (Op.Ne x (imm_i160_zero)))
+
+;; ne(sext(x:i1), 0) => ne(x, false).
+(rule (rewrite (Op.Ne (sext (and x (bool_value)) 1 to) (zero)))
+      (if-let true (u32_lt 1 to))
+      (Op.Ne x (imm_bool false)))
+
+;; eq(x, y) & ne(x, y) => false.
+(rule 1300 (simplify (Op.And (eq x y) (ne x y))) (imm_bool false))
+
+;; eq(x, y) & ne(x, y) => false.
+(rule 1301 (simplify (Op.And (ne x y) (eq x y))) (imm_bool false))
+
+;; eq(x, y) & ne(x, y) => false.
+(rule 1302 (simplify (Op.And (eq x y) (ne y x))) (imm_bool false))
+
+;; eq(x, y) & ne(x, y) => false.
+(rule 1303 (simplify (Op.And (ne y x) (eq x y))) (imm_bool false))
+
+;; eq(x, y) | ne(x, y) => true.
+(rule 1304 (simplify (Op.Or (eq x y) (ne x y))) (imm_bool true))
+
+;; eq(x, y) | ne(x, y) => true.
+(rule 1305 (simplify (Op.Or (ne x y) (eq x y))) (imm_bool true))
+
+;; eq(x, y) | ne(x, y) => true.
+(rule 1306 (simplify (Op.Or (eq x y) (ne y x))) (imm_bool true))
+
+;; eq(x, y) | ne(x, y) => true.
+(rule 1307 (simplify (Op.Or (ne y x) (eq x y))) (imm_bool true))
+
+;; eq(x, y) ^ ne(x, y) => true.
+(rule 1308 (simplify (Op.Xor (eq x y) (ne x y))) (imm_bool true))
+
+;; eq(x, y) ^ ne(x, y) => true.
+(rule 1309 (simplify (Op.Xor (ne x y) (eq x y))) (imm_bool true))
+
+;; eq(x, y) ^ ne(x, y) => true.
+(rule 1310 (simplify (Op.Xor (eq x y) (ne y x))) (imm_bool true))
+
+;; eq(x, y) ^ ne(x, y) => true.
+(rule 1311 (simplify (Op.Xor (ne y x) (eq x y))) (imm_bool true))
 
 ;; Identity casts require the result type to match before their values merge.
 (rule (simplify (Op.Bitcast value)) value)

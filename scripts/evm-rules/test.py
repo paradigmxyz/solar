@@ -43,6 +43,8 @@ from evm_rules.semantics import (
     check_z3,
     concrete,
     partition_bits,
+    partition_odd_factor,
+    partition_select,
     partition_shift,
     portable_query,
 )
@@ -564,6 +566,86 @@ class SemanticsTests(unittest.TestCase):
         self.assertTrue(result["replayed"])
 
 
+class AlgebraicPartitionTests(unittest.TestCase):
+    def test_applicability_witness_never_specializes_equivalence(self):
+        x = Expr.var("x")
+        model = Model()
+        token = z3.Bool("extractor_contract")
+        guards = [token, model.eval(x) != 0]
+        original_check = z3.Solver.check
+        calls = 0
+
+        def first_unknown(solver, *args):
+            nonlocal calls
+            calls += 1
+            return z3.unknown if calls == 1 else original_check(solver, *args)
+
+        with patch.object(z3.Solver, "check", first_unknown):
+            result, query = check(expression("add", x, 1), x, guards, model=model)
+        self.assertEqual(result["status"], "counterexample")
+        self.assertTrue(result["replayed"])
+        self.assertTrue(query)
+        calls = 0
+        with patch.object(z3.Solver, "check", first_unknown):
+            result, query = check(x, x, [token, z3.Not(token)], model=model)
+        self.assertEqual(result["status"], "unknown")
+        self.assertFalse(query)
+
+    def test_select_partition_keeps_noncanonical_conditions_and_guards(self):
+        c, x, y = map(Expr.var, ("c", "x", "y"))
+        lhs = expression("select", c, x, y)
+        rhs = expression("select", expression("iszero", c), y, x)
+        result, queries = partition_select(lhs, rhs, [], 5000, Model())
+        self.assertEqual(result["status"], "proved")
+        self.assertEqual(len(queries), 3)
+        for _, query in queries:
+            replay = z3.SolverFor("QF_BV")
+            replay.add(*z3.parse_smt2_string(query))
+            self.assertEqual(replay.check(), z3.unsat)
+        model = Model()
+        wrong = expression("select", expression("eq", c, 1), x, y)
+        result, _ = partition_select(lhs, wrong, [], 5000, model)
+        self.assertNotEqual(result["status"], "proved")
+        result, _ = partition_select(lhs, x, [model.eval(c) != 0], 5000, model)
+        self.assertEqual(result["status"], "proved")
+        result, _ = partition_select(lhs, x, [], 5000, model)
+        self.assertNotEqual(result["status"], "proved")
+        result, _ = partition_select(lhs, x, [], 5000, Model({"c": 1}))
+        self.assertNotEqual(result["status"], "proved")
+
+    def test_odd_factor_partition_covers_all_differences(self):
+        x, y, c = map(Expr.var, ("x", "y", "c"))
+        model = Model()
+        for op in ("eq", "ne"):
+            with self.subTest(op=op):
+                lhs = expression(op, expression("mul", x, c), expression("mul", y, c))
+                rhs = expression(op, x, y)
+                result, queries = partition_odd_factor(
+                    lhs, rhs, [model.eval(c) & 1 == 1], 30000, model
+                )
+                self.assertEqual(result["status"], "proved", result)
+                self.assertEqual(result["cases"], 256)
+                self.assertEqual(len(queries), 4 + 3 * 256)
+                result, _ = partition_odd_factor(lhs, rhs, [], 5000, model)
+                self.assertNotEqual(result["status"], "proved")
+                result, _ = partition_odd_factor(lhs, rhs, [], 5000, Model({"x": 1}))
+                self.assertEqual(result["status"], "unsupported")
+        dependent = expression("eq", expression("mul", x, x), expression("mul", y, x))
+        result, _ = partition_odd_factor(
+            dependent, expression("eq", x, y), [], 5000, model
+        )
+        self.assertNotEqual(result["status"], "proved")
+
+    def test_partition_timeouts_never_prove(self):
+        x, y, c = map(Expr.var, ("x", "y", "c"))
+        select = expression("select", c, x, y)
+        result, _ = partition_select(select, select, [], 0, Model())
+        self.assertEqual(result["status"], "unknown")
+        product = expression("eq", expression("mul", x, c), expression("mul", y, c))
+        result, _ = partition_odd_factor(product, product, [], 0, Model())
+        self.assertEqual(result["status"], "unknown")
+
+
 class OutputBitPartitionTests(unittest.TestCase):
     def test_parallel_partition_proves_every_bit(self):
         x = Expr.var("x")
@@ -897,6 +979,7 @@ class CallEffectTests(unittest.TestCase):
             and form[1][0] == "rewrite"
             and form[1][1][0]
             in ("Op.Call", "Op.CallCode", "Op.StaticCall", "Op.DelegateCall")
+            and "trunc" in repr(form)
         ]
 
     def test_actual_rules_preserve_call_effects(self):
@@ -920,6 +1003,34 @@ class CallEffectTests(unittest.TestCase):
                 lhs, rhs = context.obligation(changed)
                 result, _ = check(lhs, rhs, context.assumptions, 5000, context.model)
                 self.assertEqual(result["status"], "counterexample")
+
+    def test_empty_memory_regions_preserve_effects(self):
+        source = (ISLE / "mir/egraph.isle").read_text()
+        rules = [
+            Rule(form, line, "mir/egraph.isle")
+            for form, line in forms(source)
+            if form[0] == "rule"
+            and "same_value" in repr(form)
+            and any(
+                name in repr(form)
+                for name in ("Op.Call", "Op.StaticCall", "Op.DelegateCall", "Op.Log")
+            )
+        ]
+        self.assertEqual(len(rules), 13)
+        for rule in rules:
+            cx = Context()
+            lhs, rhs = cx.obligation(rule)
+            result, _ = check(lhs, rhs, cx.assumptions, 5000, cx.model)
+            self.assertEqual(result["status"], "proved", rule.line)
+        for source in (
+            "(rule (rewrite (Op.Log0 offset size)) (Op.Log0 (imm (u256 0)) size))",
+            "(rule (rewrite (Op.StaticCall gas addr offset size out count)) (Op.StaticCall gas addr (imm (u256 0)) size out count))",
+        ):
+            form, line = forms(source)[0]
+            cx = Context()
+            lhs, rhs = cx.obligation(Rule(form, line, "missing-size-guard"))
+            result, _ = check(lhs, rhs, cx.assumptions, 5000, cx.model)
+            self.assertEqual(result["status"], "counterexample")
 
     def test_calls_cannot_be_removed_changed_or_nested(self):
         rule = self.call_rules()[0]
@@ -1171,6 +1282,26 @@ class RuleTests(unittest.TestCase):
                     self.assertEqual(
                         result["status"], "proved", (bits, bit, lowered, result)
                     )
+
+    def test_actual_typed_extension_zero_rules(self):
+        path = ISLE / "mir/egraph.isle"
+        rules = [
+            Rule(form, line, str(path))
+            for form, line in forms(path.read_text())
+            if form[0] == "rule"
+            and (
+                "imm_i160_zero" in repr(form)
+                or "'sext'" in repr(form)
+                and "'bool_value'" in repr(form)
+            )
+        ]
+        self.assertEqual(len(rules), 6)
+        for rule in rules:
+            with self.subTest(rule=rule.form):
+                cx = Context()
+                lhs, rhs = cx.obligation(rule)
+                result, _ = check(lhs, rhs, cx.assumptions, 10000, cx.model)
+                self.assertEqual(result["status"], "proved", result)
 
     def test_actual_integer_and_pointer_cast_rules(self):
         path = ISLE / "mir/egraph.isle"
@@ -1447,7 +1578,12 @@ class ProofArtifactTests(unittest.TestCase):
             ["word.smt2", "coverage.smt2", "case.smt2", "stack.smt2"],
         )
         report["files"][0]["rules"][1]["smt2"].pop()
-        for method in ("exhaustive-shift-partition", "exhaustive-word-index-partition"):
+        for method in (
+            "exhaustive-shift-partition",
+            "exhaustive-word-index-partition",
+            "exhaustive-select-partition",
+            "exhaustive-factor-partition",
+        ):
             report["files"][0]["rules"][1]["proof_method"] = method
             with self.assertRaisesRegex(ValueError, "partition"):
                 query_paths(report, require_proved=True)
