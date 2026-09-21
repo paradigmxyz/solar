@@ -1,0 +1,54 @@
+- // === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/check_wrapper.mir (before inline-tiny-leaves) ===
++ // === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/check_wrapper.mir (after inline-tiny-leaves) ===
+  @module CheckWrapper
+  fn @caller(arg0: bool, arg1: bool) {
+    bb0:
+-     icall @ensure, arg0
+-     icall @ensure, arg1
++     jump bb2
++   bb2:
++     v0 = iszero arg0
++     icall revert_if<empty>, v0
++     jump bb1
++   bb1:
++     jump bb4
++   bb4:
++     v1 = iszero arg1
++     icall revert_if<empty>, v1
++     jump bb3
++   bb3:
+      ret
+  }
+  
+  fn @ensure(arg0: bool) [pure] {
+    bb0:
+      v0 = iszero arg0
+      icall revert_if<empty>, v0
+      ret
+  }
+  
+  fn @effect_caller(arg0: bool) {
+    bb0:
+      icall @effect, arg0
+      ret
+  }
+  
+  fn @effect(arg0: bool) {
+    bb0:
+      mstore 0, 42
+      icall revert_if<empty>, arg0
+      ret
+  }
+  
+  fn @stop_caller(arg0: bool) {
+    bb0:
+      icall @halt, arg0
+      ret
+  }
+  
+  fn @halt(arg0: bool) {
+    bb0:
+      icall revert_if<empty>, arg0
+      stop
+  }
+  
