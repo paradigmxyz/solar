@@ -441,16 +441,10 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
 
     let mut changed = false;
     if module.phase() == MirPhase::Semantic {
-        for _ in 0..3 {
-            let (pass_changed, error) =
-                run_passes_inner(gcx, module, SEMANTIC_PIPELINE, true, None);
-            changed |= pass_changed;
-            if error.is_some() {
-                return changed;
-            }
-            if !pass_changed {
-                break;
-            }
+        let (pass_changed, error) = run_passes_inner(gcx, module, SEMANTIC_PIPELINE, true, None);
+        changed |= pass_changed;
+        if error.is_some() {
+            return changed;
         }
         let (pass_changed, error) = run_passes_inner(gcx, module, LOWERING_PIPELINE, true, None);
         changed |= pass_changed;
