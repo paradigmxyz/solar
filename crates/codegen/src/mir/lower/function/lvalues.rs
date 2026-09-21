@@ -313,7 +313,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(location) = self.cx.storage.get(id) else {
             return self.cx.report_unsupported(span, "state initializer target");
         };
-        if self.types.memory_layout(ty).is_some() {
+        if types::TypeLowerer::mir_type(ty.peel_refs()).is_memory_reference() {
             let slot = self.builder.imm(location.slot);
             self.store_storage_object_with_source(ty, source_ty, slot, value, span)
         } else {

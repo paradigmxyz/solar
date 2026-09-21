@@ -887,7 +887,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         access: StorageAccess,
         span: Span,
     ) -> Option<ValueId> {
-        if self.types.memory_layout(ty).is_some() {
+        if types::TypeLowerer::mir_type(ty.peel_refs()).is_memory_reference() {
             return self.load_storage_object(ty, access.slot, span);
         }
         let value = if let Some(offset) = access.offset {
@@ -917,7 +917,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
         span: Span,
     ) -> Option<()> {
-        if self.types.memory_layout(ty).is_some() {
+        if types::TypeLowerer::mir_type(ty.peel_refs()).is_memory_reference() {
             return self.store_storage_object_with_source(ty, source_ty, access.slot, value, span);
         }
         let dirty = !self.in_inline_assembly && self.dirty_values.contains(&value);
@@ -974,7 +974,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Array(element, len) => {
                 // object = alloc_fixed_array(len)
                 // for i in 0..len { object[i] = load_storage(element_slot(i)) }
-                let len = u64::try_from(len).ok()?;
+                let Ok(len) = u64::try_from(len) else {
+                    return self
+                        .cx
+                        .report_unsupported(span, "oversized fixed-array materialization");
+                };
                 let element_words = self.types.element_words(element);
                 let layout = MemoryObjectLayout::FixedArray { len, element_words };
                 let size =
@@ -1230,7 +1234,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let TyKind::Array(source_element, source_len) = source_ty.peel_refs().kind else {
                     return self.cx.report_unsupported(span, "storage array conversion");
                 };
-                let len = u64::try_from(len).ok()?;
+                let Ok(len) = u64::try_from(len) else {
+                    return self
+                        .cx
+                        .report_unsupported(span, "oversized fixed-array materialization");
+                };
                 let source_len = u64::try_from(source_len).ok()?;
                 let layout = self.types.memory_layout(source_ty)?;
                 let len = self.builder.imm(len);
