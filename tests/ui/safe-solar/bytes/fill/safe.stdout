@@ -12,85 +12,86 @@ fn @entry() [entry] {
 @phase lowered
 fn @blank() [selector=0xc89c9e3d, abi_wrapper, pure] {
   bb0:
-    v29 = calldatasize
-    v30 = lt v29, 100
-    jumpi v30, bb8, bb9
+    v32 = calldatasize
+    v33 = lt v32, 100
+    jumpi v33, bb8, bb9
   bb9:
-    v31 = calldataload 4
-    v32 = add v31, 4
-    v33 = add v32, 32
-    v34 = gt v31, 0xffffffffffffffff
-    v35 = gt v33, v29
-    v36 = or v34, v35
-    jumpi v36, bb8, bb10
+    v34 = calldataload 4
+    v35 = add v34, 4
+    v36 = add v35, 32
+    v37 = gt v34, 0xffffffffffffffff
+    v38 = gt v36, v32
+    v39 = or v37, v38
+    jumpi v39, bb8, bb10
   bb10:
-    v37 = calldataload v32
-    v39 = add v37, 63
-    v40 = lt v39, v37
-    jumpi v40, bb11, bb12
+    v41 = calldataload v35
+    v43 = add v41, 63
+    v44 = lt v43, v41
+    jumpi v44, bb11, bb12
   bb12:
-    v42 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v43 = mload 64 !metadata(memory=scratch)
-    v65 = add v43, v42
-    v66 = lt v65, v43
-    v67 = gt v65, 0xffffffffffffffff
-    v68 = or v66, v67
-    jumpi v68, bb11, bb14
+    v46 = and v43, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v83 = mload 64 !metadata(memory=scratch)
+    v84 = add v83, v46
+    v85 = lt v84, v83
+    v86 = gt v84, 0xffffffffffffffff
+    v87 = or v85, v86
+    jumpi v87, bb11, bb14
   bb14:
-    mstore 64, v65 !metadata(memory=scratch)
-    mstore v43, v37
-    v44 = sub v29, v33
-    v45 = gt v37, v44
-    jumpi v45, bb8, bb13
+    mstore 64, v84 !metadata(memory=scratch)
+    mstore v83, v41
+    v48 = sub v32, v36
+    v49 = gt v41, v48
+    jumpi v49, bb8, bb13
   bb13:
-    v62 = add v43, 32
-    calldatacopy v62, v33, v37
+    v76 = add v83, 32
+    calldatacopy v76, v36, v41
     v1 = add arg1, arg2
     v2 = lt v1, arg1
-    v3 = gt v1, v37
+    v3 = gt v1, v41
     v4 = or v2, v3
     jumpi v4, bb6, bb7
   bb7:
-    v6 = add v62, arg1
-    v9 = shr 5, arg2
-    v27 = shl 5, v9
-    v28 = add v6, v27
+    v8 = add v76, arg1
+    v11 = shr 5, arg2
+    v30 = shl 5, v11
+    v31 = add v8, v30
     jump bb1
   bb1:
-    v25 = phi [bb7: v6], [bb2: v26]
-    v11 = lt v25, v28
-    jumpi v11, bb2, bb3
+    v28 = phi [bb7: v8], [bb2: v29]
+    v13 = lt v28, v31
+    jumpi v13, bb2, bb3
   bb3:
-    v15 = and arg2, 31
-    jumpi v15, bb4, bb5
+    v17 = and arg2, 31
+    v18 = ne v17, 0
+    jumpi v18, bb4, bb5
   bb4:
-    v16 = shl 3, v15
-    v17 = shr v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v20 = mload v28
-    v21 = and v20, v17
-    v22 = not v17
-    v23 = and v22, 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a
-    v24 = or v21, v23
-    mstore v28, v24
+    v19 = shl 3, v17
+    v20 = shr v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v23 = mload v31
+    v24 = and v23, v20
+    v25 = not v20
+    v26 = and v25, 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a
+    v27 = or v24, v26
+    mstore v31, v27
     jump bb5
   bb5:
-    v51 = iszero v43
-    v52 = iszero v51
-    v50 = mload v43
-    v53 = mul v50, v52
-    v55 = add v53, 31
-    v57 = and v55, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v58 = add v62, v57
-    mstore v58, 0
-    v59 = add v62, 32
-    mcopy v59, v62, v53
-    mstore v43, 32
-    mstore v62, v53
-    v60 = add v57, 64
-    returndata v43, v60
+    v58 = ne v83, 0
+    v59 = zext i1 v58 to i256
+    v54 = mload v83
+    v60 = mul v54, v59
+    v62 = add v60, 31
+    v64 = and v62, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v66 = add v76, v64
+    mstore v66, 0
+    v68 = add v83, 64
+    mcopy v68, v76, v60
+    mstore v83, 32
+    mstore v76, v60
+    v72 = add v64, 64
+    returndata v83, v72
   bb2:
-    mstore v25, 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a
-    v26 = add v25, 32
+    mstore v28, 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a
+    v29 = add v28, 32
     jump bb1
   bb6:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -107,11 +108,12 @@ fn @blank() [selector=0xc89c9e3d, abi_wrapper, pure] {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb3, bb1
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
   bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb3, [0xc89c9e3d => bb2]
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xc89c9e3d => bb2]
   bb2:
     tail_call @blank
   bb3:

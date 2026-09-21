@@ -755,15 +755,23 @@ impl CommonSubexprEliminator {
         // The cached word decided the branch into this block and the reload decides the
         // branch out of it, as when a loop tests `seen[slot] != 0` and its body computes
         // `seen[slot] - 1`. Reuse makes the second test a repeat of the first, which branch
-        // folding removes along with the load, so it pays whatever else is live here.
+        // folding removes along with the load, so it pays whatever else is live here. A
+        // branch tests an `i1`, so each word reaches its branch through a zero test.
+        let tests = |condition: &ValueId, word: ValueId| {
+            *condition == word
+                || matches!(func.value(*condition), Value::Inst(inst)
+                    if matches!(func.inst(*inst).kind,
+                        InstKind::Ne(lhs, rhs) | InstKind::Eq(lhs, rhs)
+                            if lhs == word && func.value_u64(rhs) == Some(0)))
+        };
         if let Some(&home) = facts.definitions.get(cached_inst)
             && ctx.predecessors[block].as_slice() == [home]
             && let Some(Terminator::Branch { condition: tested, then_block, else_block }) =
                 &func.blocks[home].terminator
-            && *tested == cached
+            && tests(tested, cached)
             && then_block != else_block
             && let Some(Terminator::Branch { condition, .. }) = &func.blocks[block].terminator
-            && *condition == reload
+            && tests(condition, reload)
         {
             return true;
         }

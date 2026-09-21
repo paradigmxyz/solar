@@ -1069,6 +1069,16 @@ impl<'a> FunctionBuilder<'a> {
         self.eq(value, zero)
     }
 
+    /// Tests a value against zero.
+    pub(crate) fn ne_zero(&mut self, value: ValueId) -> ValueId {
+        let zero = self.func.alloc_value(Value::Immediate(Immediate::for_type(
+            self.func.value_ty(value),
+            U256::ZERO,
+        )));
+        // result = ne value, 0
+        self.ne(value, zero)
+    }
+
     /// Preserves all bits while forgetting a value's nominal one-word type.
     pub(crate) fn cast_word(&mut self, value: ValueId) -> ValueId {
         // word = zext integer or ptrtoint pointer to i256

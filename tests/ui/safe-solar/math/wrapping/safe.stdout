@@ -24,25 +24,27 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = calldatasize
     v2 = lt v1, 68
-    v3 = or v0, v2
-    jumpi v3, bb1, bb2
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
   bb2:
-    v4 = calldataload 0
-    v5 = shr 224, v4
-    v6 = calldataload 4
-    v7 = calldataload 36
-    switch v5, default bb1, [0x1d3b9edf => bb3, 0xa95cb7f7 => bb4, 0xcad0899b => bb5]
+    v6 = calldataload 0
+    v7 = shr 224, v6
+    v8 = calldataload 4
+    v9 = calldataload 36
+    switch v7, default bb1, [0x1d3b9edf => bb3, 0xa95cb7f7 => bb4, 0xcad0899b => bb5]
   bb5:
-    v10 = add v6, v7
-    mstore 128, v10
+    v12 = add v8, v9
+    mstore 128, v12
     returndata 128, 32
   bb4:
-    v9 = sub v6, v7
-    mstore 128, v9
+    v11 = sub v8, v9
+    mstore 128, v11
     returndata 128, 32
   bb3:
-    v8 = mul v6, v7
-    mstore 128, v8
+    v10 = mul v8, v9
+    mstore 128, v10
     returndata 128, 32
   bb1:
     revert 0, 0

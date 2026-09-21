@@ -1330,7 +1330,7 @@ impl IndVarSimplifier {
                 .iter()
                 .find(|&block| func.blocks[block].instructions.contains(&merge))?;
             let (mirror_inst, mirror) = func.alloc_value_inst(
-                Instruction::new(InstKind::Phi(Vec::new()), Some(MirType::uint256()))
+                Instruction::new(InstKind::Phi(Vec::new()), Some(MirType::I256))
                     .with_debug_info_dropped(),
             );
             self.insert_header_phi(func, block, mirror_inst);
@@ -1360,9 +1360,12 @@ impl IndVarSimplifier {
                     let delta = constant.checked_mul(key.scale)?;
                     self.insert_signed_offset(func, block, at, phi_value, delta)?
                 }
-                // ptr + (value << log2 scale), or ptr - it for a subtracting update
+                // ptr + (zext(value) << log2 scale), or ptr - it for a
+                // subtracting update. The step is narrower than a word, so it
+                // is widened before it is scaled onto the pointer.
                 Step::Value { value, negative } => {
                     let scale = if negative { key.scale.checked_neg()? } else { key.scale };
+                    let (value, at) = self.widen(func, block, at, value);
                     let (scaled, at) = self.insert_scaled(func, block, at, value, scale)?;
                     self.insert_inst_value(func, block, at, InstKind::Add(phi_value, scaled))
                 }
@@ -1431,6 +1434,23 @@ impl IndVarSimplifier {
         Some(self.insert_inst_value(func, block, at, kind))
     }
 
+    /// Widens a narrow step to a word at `at` in `block`, returning the word
+    /// and the position after it. A value that is already a word is returned
+    /// as it is.
+    fn widen(
+        &self,
+        func: &mut Function,
+        block: BlockId,
+        at: usize,
+        value: ValueId,
+    ) -> (ValueId, usize) {
+        if func.value_ty(value) == Some(MirType::I256) {
+            return (value, at);
+        }
+        // word = zext value to i256
+        (self.insert_inst_value(func, block, at, InstKind::Zext(value)), at + 1)
+    }
+
     /// Inserts `value * scale` at `at` in `block` the way [`Self::scale_value`]
     /// appends it, returning the scaled value and the position after it.
     fn insert_scaled(
@@ -1472,7 +1492,7 @@ impl IndVarSimplifier {
         kind: InstKind,
     ) -> ValueId {
         let (inst, value) = func.alloc_value_inst(
-            Instruction::new(kind, Some(MirType::uint256())).with_debug_info_dropped(),
+            Instruction::new(kind, Some(MirType::I256)).with_debug_info_dropped(),
         );
         func.blocks[block].instructions.insert(at, inst);
         value

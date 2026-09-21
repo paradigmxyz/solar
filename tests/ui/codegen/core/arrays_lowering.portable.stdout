@@ -11,7 +11,7 @@ fn @entry() [entry] {
 @module Test
 @phase lowered
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
 fn @shorten() [selector=0xf0187838, abi_wrapper, pure] {
   bb0:
@@ -27,60 +27,58 @@ fn @shorten() [selector=0xf0187838, abi_wrapper, pure] {
     v11 = or v9, v10
     jumpi v11, bb1, bb3
   bb3:
-    v12 = calldataload v7
-    v14 = shl 5, v12
-    v16 = shr 5, v14
-    v17 = eq v16, v12
-    jumpi v17, bb5, bb4
+    v13 = calldataload v7
+    v15 = shl 5, v13
+    v17 = shr 5, v15
+    v21 = ne v17, v13
+    jumpi v21, bb4, bb5
   bb5:
-    v20 = add v14, 32
-    v21 = lt v20, v14
-    jumpi v21, bb4, bb6
+    v22 = add v15, 32
+    v23 = lt v22, v15
+    jumpi v23, bb4, bb6
   bb6:
-    v22 = mload 64 !metadata(memory=scratch)
-    v33 = add v22, v20
-    v34 = lt v33, v22
-    v35 = gt v33, 0xffffffffffffffff
-    v36 = or v34, v35
-    jumpi v36, bb4, bb8
-  bb8:
-    mstore 64, v33 !metadata(memory=scratch)
-    mstore v22, v12
-    v23 = sub v4, v8
-    v24 = shr 5, v23
-    v25 = gt v12, v24
-    jumpi v25, bb1, bb7
-  bb7:
-    v30 = add v22, 32
-    calldatacopy v30, v8, v14
-    jump bb10
-  bb10:
-    v37 = mload v22
-    v38 = gt arg1, v37
-    jumpi v38, bb12, bb11
-  bb11:
-    mstore v22, arg1
-    jump bb9
-  bb9:
-    v1 = mload v22
-    mstore 128, v12
-    mstore 160, v1
-    returndata 128, 64
-  bb12:
-    v39 = mload 64
-    v40 = add v39, 32
+    v39 = mload 64 !metadata(memory=scratch)
+    v24 = inttoptr i256 v39 to memptr !metadata(memory=scratch)
+    v40 = add v39, v22
     v41 = lt v40, v39
     v42 = gt v40, 0xffffffffffffffff
     v43 = or v41, v42
-    jumpi v43, bb14, bb13
-  bb13:
-    mstore 64, v40
-    mstore v39, 0
-    mstore v39, 0
+    jumpi v43, bb4, bb8
+  bb8:
+    mstore 64, v40 !metadata(memory=scratch)
+    mstore v39, v13
+    v25 = sub v4, v8
+    v26 = shr 5, v25
+    v27 = gt v13, v26
+    jumpi v27, bb1, bb7
+  bb7:
+    v33 = add v39, 32
+    calldatacopy v33, v8, v15
+    v45 = ptrtoint memptr v24 to i256
+    v46 = mload v45
+    v47 = gt arg1, v46
+    jumpi v47, bb10, bb9
+  bb9:
+    mstore v45, arg1
+    v1 = mload v39
+    mstore 128, v13
+    mstore 160, v1
+    returndata 128, 64
+  bb10:
+    v48 = mload 64
+    v49 = add v48, 32
+    v50 = lt v49, v48
+    v51 = gt v49, 0xffffffffffffffff
+    v52 = or v50, v51
+    jumpi v52, bb12, bb11
+  bb11:
+    mstore 64, v49
+    mstore v48, 0
+    mstore v48, 0
     mstore 0, 0x4e487b71
     mstore 32, 50
     revert 28, 36
-  bb14:
+  bb12:
     mstore 0, 0x4e487b71
     mstore 32, 65
     revert 28, 36
@@ -95,11 +93,12 @@ fn @shorten() [selector=0xf0187838, abi_wrapper, pure] {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb3, bb1
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
   bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb3, [0xf0187838 => bb2]
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xf0187838 => bb2]
   bb2:
     tail_call @shorten
   bb3:

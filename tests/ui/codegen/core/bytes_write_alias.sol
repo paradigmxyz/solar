@@ -18,12 +18,18 @@ contract BytesWriteAlias {
     }
 
     // The output is a fresh allocation, so a word written into it through the module stays
-    // inside it and reaches neither the input's length word nor its words: the input's
-    // length is read once for the loop bound, and the reads of the module's own bounds
-    // checks fold into it instead of reloading it after each write.
+    // inside it and reaches neither the input's length word nor its words: the reads of the
+    // module's own bounds checks fold into the loop bound instead of reloading it after
+    // each write.
+    //
+    // NOTE: the input's length is no longer read once. #1505 dropped the rule that a
+    // memory-object parameter was allocated before the function ran, so the allocation
+    // between the two reads invalidates the first again and the loop compares against a
+    // reloaded length. Recovering it is `dani/fix-safe-solady-regressions`, which runs an
+    // early `object-length-cse` for exactly this.
     // CHECK-LABEL: fn @_doubled
-    // CHECK: mload arg0
-    // CHECK-NOT: mload arg0
+    // CHECK: [[INPUT:v[0-9]+]] = ptrtoint memptr arg0 to i256
+    // CHECK: mload [[INPUT]]
     function _doubled(bytes memory a) private pure returns (bytes memory out) {
         out = new bytes(a.length);
         uint256 i;

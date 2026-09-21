@@ -297,12 +297,12 @@ fn @cleanup_return(arg0: memptr) -> memptr [may_return_memory] {
     v17 = add v24, 32
     v21 = add v26, 32
     v32 = shl 5, v0
-    v33 = add v21, v32
+    v33 = add v17, v32
     jump bb4
   bb4:
     v28 = phi [bb3: v17], [bb5: v29]
     v30 = phi [bb3: v21], [bb5: v31]
-    v12 = lt v30, v33
+    v12 = lt v28, v33
     jumpi v12, bb5, bb6
   bb6:
     ret v10

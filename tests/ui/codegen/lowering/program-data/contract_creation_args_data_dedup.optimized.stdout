@@ -246,7 +246,7 @@ bb12:
   create2
   jump bb28
 bb18:
-  push 320
+  push 288
   push 64
   mstore
   push 160
@@ -287,7 +287,7 @@ bb18:
   iszero
   push bb26
   jumpi
-  push 256
+  push 224
   push 32
   dup 2
   mstore
@@ -347,8 +347,7 @@ bb18:
   swap 3
   pop
   pop
-  push 224
-  mstore
+  swap 1
   iszero
   push bb26
   jumpi
@@ -375,12 +374,13 @@ bb18:
   push 0
   push 4
   dup 4
-  push 224
-  mload
+  dup 7
   gas
   staticcall
-  swap 1
+  swap 3
   pop
+  pop
+  swap 1
   iszero
   push bb26
   jumpi
@@ -398,10 +398,10 @@ bb18:
   lt
   push bb27
   jumpi
-  push 0
+  push 128
   mstore
   push 32
-  push 0
+  push 128
   return
 bb27 [cold]:
   push 0x4e487b71

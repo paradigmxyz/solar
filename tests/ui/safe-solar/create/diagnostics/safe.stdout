@@ -11,68 +11,66 @@ fn @entry() [entry] {
 @module Safe
 @phase lowered
 types:
-  struct0: {u256, u256, u256}
-  struct1: {u256, u256, u256, u256}
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256, i256, i256}
 
 fn @attempt() [selector=0xa95d7aa6, abi_wrapper] {
   bb0:
-    v26 = calldatasize
-    v27 = lt v26, 36
-    jumpi v27, bb1, bb2
+    v27 = calldatasize
+    v28 = lt v27, 36
+    jumpi v28, bb1, bb2
   bb2:
-    v28 = calldataload 4
-    v29 = add v28, 4
-    v30 = add v29, 32
-    v31 = gt v28, 0xffffffffffffffff
-    v32 = gt v30, v26
-    v33 = or v31, v32
-    jumpi v33, bb1, bb3
+    v29 = calldataload 4
+    v30 = add v29, 4
+    v31 = add v30, 32
+    v32 = gt v29, 0xffffffffffffffff
+    v33 = gt v31, v27
+    v34 = or v32, v33
+    jumpi v34, bb1, bb3
   bb3:
-    v34 = calldataload v29
-    v36 = add v34, 63
-    v37 = lt v36, v34
-    jumpi v37, bb4, bb5
+    v36 = calldataload v30
+    v38 = add v36, 63
+    v39 = lt v38, v36
+    jumpi v39, bb4, bb5
   bb5:
-    v39 = and v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v40 = mload 64 !metadata(memory=scratch)
-    v53 = add v40, v39
-    v54 = lt v53, v40
-    v55 = gt v53, 0xffffffffffffffff
-    v56 = or v54, v55
-    jumpi v56, bb4, bb7
+    v41 = and v38, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v63 = mload 64 !metadata(memory=scratch)
+    v64 = add v63, v41
+    v65 = lt v64, v63
+    v66 = gt v64, 0xffffffffffffffff
+    v67 = or v65, v66
+    jumpi v67, bb4, bb7
   bb7:
-    mstore 64, v53 !metadata(memory=scratch)
-    mstore v40, v34
-    v41 = sub v26, v30
-    v42 = gt v34, v41
-    jumpi v42, bb1, bb6
+    mstore 64, v64 !metadata(memory=scratch)
+    mstore v63, v36
+    v43 = sub v27, v31
+    v44 = gt v36, v43
+    jumpi v44, bb1, bb6
   bb6:
-    v50 = add v40, 32
-    calldatacopy v50, v30, v34
-    v2 = mload 64 !metadata(memory=scratch)
-    v57 = add v2, 64
-    v58 = lt v57, v2
-    v59 = gt v57, 0xffffffffffffffff
-    v60 = or v58, v59
-    jumpi v60, bb4, bb8
+    v54 = add v63, 32
+    calldatacopy v54, v31, v36
+    v69 = mload 64 !metadata(memory=scratch)
+    v70 = add v69, 64
+    v71 = lt v70, v69
+    v72 = gt v70, 0xffffffffffffffff
+    v73 = or v71, v72
+    jumpi v73, bb4, bb8
   bb8:
-    mstore 64, v57 !metadata(memory=scratch)
-    v61 = calldatasize
-    calldatacopy v2, v61, 64
-    mstore v2, 4
-    v4 = add v2, 32
-    v7 = create 0, v50, v34
-    v8 = returndatasize
-    v9 = lt v8, 4
-    v24 = sub v8, 4
-    v25 = mul v9, v24
-    v10 = add v25, 4
-    returndatacopy v4, 0, v10 !metadata(memory=heap)
-    v11 = iszero v7
-    v12 = iszero v11
-    mstore 128, v12
-    mstore 160, v10
-    mstore 192, v8
+    mstore 64, v70 !metadata(memory=scratch)
+    v75 = calldatasize
+    calldatacopy v69, v75, 64
+    mstore v69, 4
+    v60 = add v69, 32
+    v8 = create 0, v54, v36
+    v9 = returndatasize
+    v10 = lt v9, 4
+    v11 = select v10, v9, 4
+    returndatacopy v60, 0, v11
+    v13 = ne v8, i160 0
+    v14 = zext i1 v13 to i256
+    mstore 128, v14
+    mstore 160, v11
+    mstore 192, v9
     returndata 128, 96
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -85,11 +83,12 @@ fn @attempt() [selector=0xa95d7aa6, abi_wrapper] {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb3, bb1
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
   bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb3, [0xa95d7aa6 => bb2]
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xa95d7aa6 => bb2]
   bb2:
     tail_call @attempt
   bb3:

@@ -191,133 +191,143 @@
 +     ret v26
   }
   
-  fn @count_zero_then_use(arg0: memptr, arg1: u256) -> u256 {
+  fn @count_zero_then_use(arg0: memptr, arg1: i256) -> i256 {
     bb0:
-      v0 = mload arg0
+      v0 = ptrtoint memptr arg0 to i256
+      v1 = mload v0
 -     jump bb1
 -   bb1:
--     v1 = phi [bb0: 0], [bb5: v10]
--     v2 = phi [bb0: 0], [bb5: v11]
--     v3 = lt v2, v0
--     jumpi v3, bb2, bb6
-+     v16 = add arg0, 32
-+     v17 = lt v0, 33
-+     jumpi v17, bb2, bb5
+-     v2 = phi [bb0: 0], [bb5: v13]
+-     v3 = phi [bb0: 0], [bb5: v14]
+-     v4 = lt v3, v1
+-     jumpi v4, bb2, bb6
++     v19 = add v0, 32
++     v20 = lt v1, 33
++     jumpi v20, bb2, bb5
 +   bb5:
-+     v18 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-+     v19 = add v16, v18
++     v21 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v22 = add v19, v21
 +     jump bb6
     bb6:
--     v12 = add v1, v1
--     v13 = add v12, v2
--     v14 = add v13, arg1
--     ret v14
-+     v32 = phi [bb5: v16], [bb8: v45]
-+     v33 = phi [bb5: 0], [bb8: v44]
-+     v34 = xor v32, v19
-+     jumpi v34, bb8, bb7
+-     v15 = add v2, v2
+-     v16 = add v15, v3
+-     v17 = add v16, arg1
+-     ret v17
++     v36 = phi [bb5: v19], [bb8: v50]
++     v37 = phi [bb5: 0], [bb8: v49]
++     v38 = xor v36, v22
++     v39 = ne v38, 0
++     jumpi v39, bb8, bb7
 +   bb7:
-+     v46 = and v0, 31
-+     jumpi v46, bb9, bb10
++     v51 = and v1, 31
++     v52 = ne v51, 0
++     jumpi v52, bb9, bb10
 +   bb10:
 +     jump bb11
 +   bb9:
-+     v47 = and v0, 31
-+     v48 = mul v47, 8
-+     v49 = shr v48, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-+     v50 = mload v32
-+     v51 = or v50, v49
-+     v52 = and v51, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
-+     v53 = add v52, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
-+     v54 = or v53, v51
-+     v55 = or v54, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
-+     v56 = not v55
-+     v57 = shr 7, v56
-+     v58 = mul v57, 0x101010101010101010101010101010101010101010101010101010101010101
-+     v59 = byte 0, v58
-+     v60 = add v33, v59
++     v53 = and v1, 31
++     v54 = mul v53, 8
++     v55 = shr v54, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     v56 = mload v36
++     v57 = or v56, v55
++     v58 = and v57, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
++     v59 = add v58, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
++     v60 = or v59, v57
++     v61 = or v60, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
++     v62 = not v61
++     v63 = shr 7, v62
++     v64 = mul v63, 0x101010101010101010101010101010101010101010101010101010101010101
++     v65 = byte 0, v64
++     v66 = add v37, v65
 +     jump bb11
 +   bb8:
-+     v35 = mload v32
-+     v36 = and v35, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
-+     v37 = add v36, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
-+     v38 = or v37, v35
-+     v39 = or v38, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
-+     v40 = not v39
-+     v41 = shr 7, v40
-+     v42 = mul v41, 0x101010101010101010101010101010101010101010101010101010101010101
-+     v43 = byte 0, v42
-+     v44 = add v33, v43
-+     v45 = add v32, 32
++     v40 = mload v36
++     v41 = and v40, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
++     v42 = add v41, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
++     v43 = or v42, v40
++     v44 = or v43, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
++     v45 = not v44
++     v46 = shr 7, v45
++     v47 = mul v46, 0x101010101010101010101010101010101010101010101010101010101010101
++     v48 = byte 0, v47
++     v49 = add v37, v48
++     v50 = add v36, 32
 +     jump bb6
     bb2:
--     v4 = add arg0, 32
--     v5 = add v4, v2
--     v6 = mload v5
--     v7 = byte 0, v6
--     v8 = shl 248, v7
--     jumpi v8, bb5, bb3
+-     v5 = add v0, 32
+-     v6 = add v5, v3
+-     v7 = mload v6
+-     v8 = byte 0, v7
+-     v9 = shl 248, v8
+-     v10 = ne v9, 0
+-     jumpi v10, bb5, bb3
 -   bb3:
--     v9 = add v1, 1
--     jumpi v9, bb5, bb4
-+     jumpi v0, bb3, bb4
+-     v11 = add v2, 1
+-     v12 = ne v11, 0
+-     jumpi v12, bb5, bb4
++     v23 = ne v1, 0
++     jumpi v23, bb3, bb4
     bb4:
 -     revert 0, 0
 -   bb5:
--     v10 = phi [bb3: v9], [bb2: v1]
--     v11 = add v2, 1
+-     v13 = phi [bb3: v11], [bb2: v2]
+-     v14 = add v3, 1
 +     jump bb11
 +   bb3:
-+     v20 = mul v0, 8
-+     v21 = shr v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-+     v22 = mload v16
-+     v23 = or v22, v21
-+     v24 = and v23, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
-+     v25 = add v24, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
-+     v26 = or v25, v23
-+     v27 = or v26, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
-+     v28 = not v27
-+     v29 = shr 7, v28
-+     v30 = mul v29, 0x101010101010101010101010101010101010101010101010101010101010101
-+     v31 = byte 0, v30
++     v24 = mul v1, 8
++     v25 = shr v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     v26 = mload v19
++     v27 = or v26, v25
++     v28 = and v27, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
++     v29 = add v28, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
++     v30 = or v29, v27
++     v31 = or v30, 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f
++     v32 = not v31
++     v33 = shr 7, v32
++     v34 = mul v33, 0x101010101010101010101010101010101010101010101010101010101010101
++     v35 = byte 0, v34
 +     jump bb11
 +   bb11:
-+     v15 = phi [bb4: 0], [bb3: v31], [bb9: v60], [bb10: v33]
++     v18 = phi [bb4: 0], [bb3: v35], [bb9: v66], [bb10: v37]
       jump bb1
 +   bb1:
-+     v12 = add v15, v15
-+     v13 = add v12, v0
-+     v14 = add v13, arg1
-+     ret v14
++     v15 = add v18, v18
++     v16 = add v15, v1
++     v17 = add v16, arg1
++     ret v17
   }
   
-  fn @count_zero_condition_escapes(arg0: memptr) -> u256 {
+  fn @count_zero_condition_escapes(arg0: memptr) -> i256 {
     bb0:
-      v0 = mload arg0
+      v0 = ptrtoint memptr arg0 to i256
+      v1 = mload v0
       jump bb1
     bb1:
-      v1 = phi [bb0: 0], [bb5: v10]
-      v2 = phi [bb0: 0], [bb5: v11]
-      v3 = lt v2, v0
-      jumpi v3, bb2, bb6
+      v2 = phi [bb0: 0], [bb5: v13]
+      v3 = phi [bb0: 0], [bb5: v14]
+      v4 = lt v3, v1
+      jumpi v4, bb2, bb6
     bb6:
-      v12 = add v1, v3
-      ret v12
+      v15 = zext i1 v4 to i256
+      v16 = add v2, v15
+      ret v16
     bb2:
-      v4 = add arg0, 32
-      v5 = add v4, v2
-      v6 = mload v5
-      v7 = byte 0, v6
-      v8 = shl 248, v7
-      jumpi v8, bb5, bb3
+      v5 = add v0, 32
+      v6 = add v5, v3
+      v7 = mload v6
+      v8 = byte 0, v7
+      v9 = shl 248, v8
+      v10 = ne v9, 0
+      jumpi v10, bb5, bb3
     bb3:
-      v9 = add v1, 1
-      jumpi v9, bb5, bb4
+      v11 = add v2, 1
+      v12 = ne v11, 0
+      jumpi v12, bb5, bb4
     bb4:
       revert 0, 0
     bb5:
-      v10 = phi [bb3: v9], [bb2: v1]
-      v11 = add v2, 1
+      v13 = phi [bb3: v11], [bb2: v2]
+      v14 = add v3, 1
       jump bb1
   }
   

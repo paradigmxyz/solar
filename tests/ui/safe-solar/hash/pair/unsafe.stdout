@@ -29,7 +29,8 @@ fn @mixed() [selector=0x662ae64e, abi_wrapper, pure] {
   bb3:
     v7 = calldataload 36
     v8 = shl 32, v7
-    jumpi v8, bb1, bb4
+    v9 = eq v8, 0
+    jumpi v9, bb4, bb1
   bb4:
     v0 = signextend 0, arg0
     mstore 0, v0 !metadata(memory=scratch)
@@ -62,11 +63,12 @@ fn @single() [selector=0x6bd47c49, abi_wrapper, pure] {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb5, bb1
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
   bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb5, [0x662ae64e => bb2, 0x6bd47c49 => bb3, 0x9280bddf => bb4]
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb5, [0x662ae64e => bb2, 0x6bd47c49 => bb3, 0x9280bddf => bb4]
   bb4:
     tail_call @pair
   bb3:

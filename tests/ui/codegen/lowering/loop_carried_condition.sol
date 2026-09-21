@@ -25,7 +25,6 @@ contract LoopCarriedCondition {
     // CHECK-LABEL: @module LoopCarriedCondition_runtime
     // CHECK: [[HEADER:bb[0-9]+]] [loop]:
     // CHECK-NEXT: dup 2
-    // CHECK-NEXT: iszero
     // CHECK-NEXT: push [[PANIC:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: dup 3

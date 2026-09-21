@@ -480,12 +480,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for (expr, &ty) in exprs.iter().zip(&tys) {
             let value = self.lower_typed_expr(expr, ty)?;
             let value = self.normalize_abi_scalar(value, ty);
-            parts.push(PackedPart::Scalar { value, ty: MirType::uint256() });
+            parts.push(PackedPart::Scalar { value, ty: crate::mir::ValueLayout::uint256() });
         }
         // hash = keccak256_packed(words)
         Some(self.builder.emit_inst(
             InstKind::AbiEncodePacked { parts: parts.into_boxed_slice(), hash: true },
-            Some(MirType::bytes32()),
+            Some(MirType::I256),
         ))
     }
 

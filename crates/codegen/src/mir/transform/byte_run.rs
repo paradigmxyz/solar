@@ -67,7 +67,7 @@
 //! backward scan a block gives.
 
 use crate::mir::{
-    EffectKind, Function, Immediate, InstId, InstKind, Module, Terminator, Value, ValueId,
+    EffectKind, Function, Immediate, InstId, InstKind, MirType, Module, Terminator, Value, ValueId,
     pass::{MirPass, ModuleAnalyses, run_function_pass},
 };
 use alloy_primitives::U256;
@@ -383,7 +383,10 @@ fn unmask_bytes(func: &mut Function) -> bool {
         }
         // %byte = byte(i, %word)
         for (user, index) in extractions {
-            let index = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(index))));
+            let index = func.alloc_value(Value::Immediate(Immediate::for_type(
+                Some(MirType::I256),
+                U256::from(index),
+            )));
             func.inst_mut(user).replace_kind(InstKind::Byte(index, word));
         }
         changed = true;

@@ -13,16 +13,19 @@ fn @selector() [selector=0x9e36cc91, abi_wrapper, pure] {
     v8 = gt v5, 0xffffffffffffffff
     v9 = gt v7, v3
     v10 = or v8, v9
-    v11 = calldataload v6
-    v13 = sub v3, v7
-    v14 = gt v11, v13
-    v15 = or v10, v14
-    jumpi v15, bb1, bb3
+    v11 = zext i1 v10 to i256
+    v12 = calldataload v6
+    v14 = sub v3, v7
+    v15 = gt v12, v14
+    v16 = zext i1 v15 to i256
+    v17 = or v11, v16
+    v18 = ne v17, 0
+    jumpi v18, bb1, bb3
   bb3:
     v1 = add v7, arg1
     v2 = calldataload v1
-    v17 = and v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, v17
+    v20 = and v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 128, v20
     returndata 128, 32
   bb1:
     revert 0, 0
@@ -31,11 +34,12 @@ fn @selector() [selector=0x9e36cc91, abi_wrapper, pure] {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb3, bb1
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
   bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb3, [0x9e36cc91 => bb2]
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0x9e36cc91 => bb2]
   bb2:
     tail_call @selector
   bb3:

@@ -11,26 +11,27 @@ fn @entry() [entry] {
 @module Test
 @phase lowered
 types:
-  struct0: {u256, u256, u256, u256}
-  struct1: {u256, u256}
+  struct0: {i256, i256, i256, i256}
+  struct1: {i256, i256}
 
 fn @quad() [selector=0x31dccb6d, abi_wrapper, pure] {
   bb0:
-    v35 = icall @decode_calldata_type, 4
-    v0 = mload v35
-    v3 = gt 4, v0
+    v37 = icall @decode_calldata_type, 4
+    v47 = ptrtoint memptr v37 to i256
+    v0 = mload v47
+    v3 = lt v0, 4
     jumpi v3, bb1, bb2
   bb2:
-    v5 = add v35, 32
-    v7 = mload v5
-    v16 = byte 1, v7
-    v21 = byte 2, v7
-    v26 = byte 3, v7
-    v11 = byte 0, v7
-    mstore 128, v11
-    mstore 160, v16
-    mstore 192, v21
-    mstore 224, v26
+    v49 = add v47, 32
+    v9 = mload v49
+    v18 = byte 1, v9
+    v23 = byte 2, v9
+    v28 = byte 3, v9
+    v13 = byte 0, v9
+    mstore 128, v13
+    mstore 160, v18
+    mstore 192, v23
+    mstore 224, v28
     returndata 128, 128
   bb1:
     tail_call @revert_stub
@@ -38,17 +39,18 @@ fn @quad() [selector=0x31dccb6d, abi_wrapper, pure] {
 
 fn @kept() [selector=0xc57c8563, abi_wrapper, pure] {
   bb0:
-    v18 = icall @decode_calldata_type, 4
-    v0 = mload v18
-    v3 = gt 4, v0
+    v20 = icall @decode_calldata_type, 4
+    v25 = ptrtoint memptr v20 to i256
+    v0 = mload v25
+    v3 = lt v0, 4
     jumpi v3, bb1, bb2
   bb2:
-    v5 = add v18, 32
-    v7 = mload v5
-    v8 = and v7, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v11 = byte 1, v8
-    mstore 128, v8
-    mstore 160, v11
+    v27 = add v25, 32
+    v9 = mload v27
+    v10 = and v9, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v13 = byte 1, v10
+    mstore 128, v10
+    mstore 160, v13
     returndata 128, 64
   bb1:
     tail_call @revert_stub
@@ -61,7 +63,7 @@ fn @revert_stub() {
     revert 28, 36
 }
 
-fn @decode_calldata_type(arg0: u256) -> memptr {
+fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0
@@ -72,28 +74,29 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     v6 = or v4, v5
     jumpi v6, bb1, bb2
   bb2:
-    v7 = calldataload v2
-    v9 = add v7, 63
-    v10 = lt v9, v7
-    jumpi v10, bb3, bb4
+    v8 = calldataload v2
+    v10 = add v8, 63
+    v11 = lt v10, v8
+    jumpi v11, bb3, bb4
   bb4:
-    v12 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v13 = mload 64 !metadata(memory=scratch)
-    v20 = add v13, v12
-    v21 = lt v20, v13
-    v22 = gt v20, 0xffffffffffffffff
-    v23 = or v21, v22
-    jumpi v23, bb3, bb6
+    v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v23 = mload 64 !metadata(memory=scratch)
+    v14 = inttoptr i256 v23 to memptr !metadata(memory=scratch)
+    v24 = add v23, v13
+    v25 = lt v24, v23
+    v26 = gt v24, 0xffffffffffffffff
+    v27 = or v25, v26
+    jumpi v27, bb3, bb6
   bb6:
-    mstore 64, v20 !metadata(memory=scratch)
-    mstore v13, v7
-    v14 = sub v0, v3
-    v15 = gt v7, v14
-    jumpi v15, bb1, bb5
+    mstore 64, v24 !metadata(memory=scratch)
+    mstore v23, v8
+    v15 = sub v0, v3
+    v16 = gt v8, v15
+    jumpi v16, bb1, bb5
   bb5:
-    v17 = add v13, 32
-    calldatacopy v17, v3, v7
-    ret v13
+    v19 = add v23, 32
+    calldatacopy v19, v3, v8
+    ret v14
   bb3:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
@@ -107,12 +110,14 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = calldatasize
     v2 = lt v1, 36
-    v3 = or v0, v2
-    jumpi v3, bb1, bb2
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
   bb2:
-    v4 = calldataload 0
-    v5 = shr 224, v4
-    switch v5, default bb1, [0x31dccb6d => bb3, 0xc57c8563 => bb4]
+    v6 = calldataload 0
+    v7 = shr 224, v6
+    switch v7, default bb1, [0x31dccb6d => bb3, 0xc57c8563 => bb4]
   bb4:
     tail_call @kept
   bb3:

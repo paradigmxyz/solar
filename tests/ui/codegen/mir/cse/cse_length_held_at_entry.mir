@@ -15,7 +15,7 @@
 // CHECK: -     {{v[0-9]+}} = memory_object_len memoryarray,
 // CHECK-NEXT: -     ret
 // CHECK-NEXT: +     ret [[LEN]]
-fn @reuse_length_after_the_filling_loop(arg0: u256, arg1: u256) -> u256 {
+fn @reuse_length_after_the_filling_loop(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = add arg0, arg1
     v1 = alloc memoryarray<1>, exact, zeroed, panic, 64
@@ -54,12 +54,13 @@ fn @reuse_length_after_the_filling_loop(arg0: u256, arg1: u256) -> u256 {
 // CHECK: bb3:
 // CHECK-NEXT: {{^ +}}[[LEN:v[0-9]+]] = memory_object_len memoryarray,
 // CHECK-NEXT: {{^ +}}ret [[LEN]]
-fn @reload_length_past_an_arm_without_it(arg0: u256, arg1: u256) -> u256 {
+fn @reload_length_past_an_arm_without_it(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = add arg0, arg1
     v1 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v1, v0
-    jumpi arg0, bb1, bb2
+    v11 = ne arg0, 0
+    jumpi v11, bb1, bb2
   bb1:
     v2 = lt arg1, v0
     jumpi v2, bb3, bb4

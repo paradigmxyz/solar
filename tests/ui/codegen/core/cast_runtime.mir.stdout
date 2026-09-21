@@ -4,49 +4,49 @@
 
 // === ROOT/tests/ui/codegen/core/cast_runtime.sol:Test ===
 @module Test
-fn @u8(arg0: u256) -> u8 [selector=0x9cac9f98, pure, abi_params=[u256], abi_returns=[word<u8>]] {
+fn @u8(arg0: i256) -> i256 [selector=0x9cac9f98, pure, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = icall @toUint8, arg0
     ret v0
 }
 
-fn @u40(arg0: u256) -> u40 [selector=0x3a605894, pure, abi_params=[u256], abi_returns=[word<u40>]] {
+fn @u40(arg0: i256) -> i256 [selector=0x3a605894, pure, abi_params=[u256], abi_returns=[word<u40>], abi_return_params=[u40]] {
   bb0:
     v0 = icall @toUint40, arg0
     ret v0
 }
 
-fn @u248(arg0: u256) -> u248 [selector=0x6f8e19bc, pure, abi_params=[u256], abi_returns=[word<u248>]] {
+fn @u248(arg0: i256) -> i256 [selector=0x6f8e19bc, pure, abi_params=[u256], abi_returns=[word<u248>], abi_return_params=[u248]] {
   bb0:
     v0 = icall @toUint248, arg0
     ret v0
 }
 
-fn @i8(arg0: i256) -> i8 [selector=0x600de753, pure, abi_params=[i256], abi_returns=[word<i8>]] {
+fn @i8(arg0: i256) -> i256 [selector=0x600de753, pure, abi_params=[i256], abi_returns=[word<i8>], abi_return_params=[i8]] {
   bb0:
     v0 = icall @toInt8, arg0
     ret v0
 }
 
-fn @i128(arg0: i256) -> i128 [selector=0x5c565493, pure, abi_params=[i256], abi_returns=[word<i128>]] {
+fn @i128(arg0: i256) -> i256 [selector=0x5c565493, pure, abi_params=[i256], abi_returns=[word<i128>], abi_return_params=[i128]] {
   bb0:
     v0 = icall @toInt128, arg0
     ret v0
 }
 
-fn @signed(arg0: u256) -> i256 [selector=0x735957f8, pure, abi_params=[u256], abi_returns=[word]] {
+fn @signed(arg0: i256) -> i256 [selector=0x735957f8, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = icall @toInt256, arg0
     ret v0
 }
 
-fn @unsigned(arg0: i256) -> u256 [selector=0xf6786747, pure, abi_params=[i256], abi_returns=[word]] {
+fn @unsigned(arg0: i256) -> i256 [selector=0xf6786747, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @toUint256, arg0
     ret v0
 }
 
-fn @toUint8(arg0: u256) -> u8 [pure] {
+fn @toUint8(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = gt arg0, 255
     jumpi v0, bb1, bb2
@@ -60,7 +60,7 @@ fn @toUint8(arg0: u256) -> u8 [pure] {
     ret v1
 }
 
-fn @toUint40(arg0: u256) -> u40 [pure] {
+fn @toUint40(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = gt arg0, 0xffffffffff
     jumpi v0, bb1, bb2
@@ -74,7 +74,7 @@ fn @toUint40(arg0: u256) -> u40 [pure] {
     ret v1
 }
 
-fn @toUint248(arg0: u256) -> u248 [pure] {
+fn @toUint248(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = gt arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jumpi v0, bb1, bb2
@@ -88,7 +88,7 @@ fn @toUint248(arg0: u256) -> u248 [pure] {
     ret v1
 }
 
-fn @toInt8(arg0: i256) -> i8 [pure] {
+fn @toInt8(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = slt arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
     jumpi v0, bb2, bb1
@@ -110,7 +110,7 @@ fn @toInt8(arg0: i256) -> i8 [pure] {
     ret v3
 }
 
-fn @toInt128(arg0: i256) -> i128 [pure] {
+fn @toInt128(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = slt arg0, 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
     jumpi v0, bb2, bb1
@@ -132,7 +132,7 @@ fn @toInt128(arg0: i256) -> i128 [pure] {
     ret v3
 }
 
-fn @toInt256(arg0: u256) -> i256 [pure] {
+fn @toInt256(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = gt arg0, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jumpi v0, bb1, bb2
@@ -145,7 +145,7 @@ fn @toInt256(arg0: u256) -> i256 [pure] {
     ret arg0
 }
 
-fn @toUint256(arg0: i256) -> u256 [pure] {
+fn @toUint256(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = slt arg0, 0
     jumpi v0, bb1, bb2
