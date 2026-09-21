@@ -30,25 +30,23 @@ contract Test {
     // CHECK-NEXT: push 5{{$}}
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[FIVE:bb[0-9]+]]
-    // CHECK-NEXT: jump [[RETURN:bb[0-9]+]]
-    // CHECK-NEXT: [[RETURN]]:
     // CHECK-NEXT: jumpi
-    // CHECK: [[FIVE]] [continuation]:
+    // CHECK: [[FIVE]]:
     // CHECK-NEXT: push 5
     // CHECK-NEXT: dup 2
     // CHECK-NEXT: add
     // CHECK: [[FOUR]]:
     // CHECK-NEXT: push 4
-    // CHECK-NEXT: jump [[ADD:bb[0-9]+]]
-    // CHECK-NEXT: [[ADD]]:
     // CHECK-NEXT: dup 3
     // CHECK-NEXT: add
     // CHECK: [[THREE]]:
     // CHECK-NEXT: push 3
-    // CHECK-NEXT: jump [[ADD]]
+    // CHECK-NEXT: dup 3
+    // CHECK-NEXT: add
     // CHECK: [[TWO]]:
     // CHECK-NEXT: push 2
-    // CHECK-NEXT: jump [[ADD]]
+    // CHECK-NEXT: dup 3
+    // CHECK-NEXT: add
     // CHECK: [[ONE]]:
     // CHECK: push 1
     // CHECK-NEXT: add

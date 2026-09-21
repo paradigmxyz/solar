@@ -388,12 +388,9 @@ impl<'a> StackPhiPlanner<'a> {
             // is live in carries it. This is the shape of an inner index initialized from an
             // enclosing counter, `j = i`, whose exit still reads `i`.
             //
-            // In gas mode, an outermost loop keeps the dedicated loop planner when a computed
-            // source remains live after the loop: duplicating its identity also carries unrelated
-            // exit values around short scans. Nested loops still carry enclosing counters.
-            // A resident argument has one physical word with no frame fallback, so it cannot
-            // be both the phi input and the invariant prefix the argument layout merges below
-            // the phis. A literal that is
+            // Two kinds of source keep the join out of the plan. A resident argument has one
+            // physical word with no frame fallback, so it cannot be both the phi input and the
+            // invariant prefix the argument layout merges below the phis. A literal that is
             // also live past the join is admitted only in gas mode, where the branch emitter
             // materializes an edge-exclusive immediate on its own edge; the other modes keep
             // the established exclusion outside self-loops, since two loops seeded from one
@@ -408,14 +405,7 @@ impl<'a> StackPhiPlanner<'a> {
                                     !self.target.optimization().is_gas()
                                         && !block.predecessors.contains(&block_id)
                                 }
-                                _ => {
-                                    self.target.optimization().is_gas()
-                                        && loop_headers.contains(block_id)
-                                        && !self.loops.iter().any(|outer| {
-                                            outer.header != block_id
-                                                && outer.blocks.contains(block_id)
-                                        })
-                                }
+                                _ => false,
                             }
                     })
                 })

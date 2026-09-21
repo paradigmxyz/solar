@@ -42,7 +42,7 @@ bb15 [cold]:
   push 36
   push 28
   revert
-bb19:
+bb19 [continuation]:
   dup 2
   add
   swap 1
@@ -111,6 +111,12 @@ bb31 [loop]:
   pop
   swap 1
   jump
+bb7 [continuation]:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb8:
   push 4
   calldataload
@@ -151,8 +157,6 @@ bb9 [continuation]:
   push 4
   calldataload
   add
-  jump bb7
-bb7:
   push 128
   mstore
   push 32
@@ -185,4 +189,8 @@ bb12 [continuation]:
   lt
   push bb15
   jumpi
-  jump bb7
+  push 128
+  mstore
+  push 32
+  push 128
+  return

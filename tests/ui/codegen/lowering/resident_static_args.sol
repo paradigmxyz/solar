@@ -28,12 +28,12 @@ contract ResidentStaticArgs {
     // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push [[RET:bb[0-9]+]]
-    // CHECK-NEXT: jump [[CHOOSE:bb[0-9]+]]
-    // CHECK-NEXT: [[CHOOSE]]:
     // CHECK-NEXT: push 4
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: push 36
     // CHECK-NEXT: calldataload
+    // CHECK-NEXT: jump [[CHOOSE:bb[0-9]+]]
+    // CHECK-NEXT: [[CHOOSE]]:
     // CHECK-NEXT: push [[OTHER:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push 2

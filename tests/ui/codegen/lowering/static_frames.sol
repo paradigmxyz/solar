@@ -16,8 +16,6 @@ contract SF {
     // CHECK: [[GETTER]]:
     // CHECK-NEXT: push 0
     // CHECK-NEXT: sload
-    // CHECK-NEXT: jump [[RETURN:bb[0-9]+]]
-    // CHECK-NEXT: [[RETURN]]:
     // CHECK-NEXT: push 128
     // CHECK-NEXT: mstore
     // CHECK: return
@@ -31,21 +29,20 @@ contract SF {
     // CHECK-NEXT: mstore
     // CHECK: push 224
     // CHECK-NEXT: mstore
-    // Calls share the dynamic-frame header setup and cleanup.
-    // CHECK: push [[ALLOC_CONT:bb[0-9]+]]
-    // CHECK-NEXT: jump [[ALLOC:bb[0-9]+]]
-    // CHECK-NEXT: [[ALLOC]]:
-    // CHECK-NEXT: push 64
+    // Recursive calls reserve dynamic frames from the free-memory pointer.
+    // CHECK: push 160
     // CHECK-NEXT: mload
+    // CHECK: push 288
+    // CHECK-NEXT: add
+    // CHECK-NEXT: push 64
+    // CHECK-NEXT: mstore
+    // CHECK: push [[REC_RET:bb[0-9]+]]
+    // CHECK-NEXT: jump [[REC_ENTRY:bb[0-9]+]]
+    // CHECK: [[REC_ENTRY]]:
     // CHECK-NEXT: push 160
     // CHECK-NEXT: mload
-    // CHECK: push 32
-    // CHECK-NEXT: add
-    // CHECK-NEXT: mstore
-    // CHECK: [[REC_RET:bb[0-9]+]] [continuation]:
-    // CHECK-NEXT: push {{bb[0-9]+}}
-    // CHECK-NEXT: jump [[CLEANUP:bb[0-9]+]]
-    // CHECK-NEXT: [[CLEANUP]]:
+    // The continuation restores the caller's FMP and frame pointer from the frame.
+    // CHECK: [[REC_RET]] [continuation]:
     // CHECK: push 64
     // CHECK-NEXT: mstore
     // CHECK-NEXT: push 160

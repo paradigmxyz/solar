@@ -61,7 +61,11 @@ bb2:
   iszero
   push bb6
   jumpi
-  jump bb11
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb8:
   pop
   push 9

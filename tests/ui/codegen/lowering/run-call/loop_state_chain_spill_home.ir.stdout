@@ -24,8 +24,6 @@ bb0:
   push bb5
   jumpi
   push 1
-  jump bb33
-bb33 [loop]:
   push 128
   mstore
   push 32
@@ -51,7 +49,11 @@ bb9 [loop]:
   lt
   push bb11
   jumpi
-  jump bb33
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb11 [loop]:
   dup 1
   iszero
@@ -113,7 +115,11 @@ bb21 [loop]:
   lt
   push bb23
   jumpi
-  jump bb33
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb23 [loop]:
   dup 1
   iszero

@@ -123,12 +123,8 @@ bb20:
   push 36
   calldataload
   push 4
-  jump bb36
-bb36:
   calldataload
   sub
-  jump bb35
-bb35:
   push 128
   mstore
   push 160
@@ -150,7 +146,15 @@ bb23:
   push 4
   calldataload
   push 36
-  jump bb36
+  calldataload
+  sub
+  push 128
+  mstore
+  push 160
+  mstore
+  push 64
+  push 128
+  return
 bb26:
   push 68
   calldatasize
@@ -167,7 +171,13 @@ bb26:
   push 4
   calldataload
   xor
-  jump bb35
+  push 128
+  mstore
+  push 160
+  mstore
+  push 64
+  push 128
+  return
 bb29:
   push 36
   calldatasize

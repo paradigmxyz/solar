@@ -68,9 +68,7 @@
 //! costs the scheduler more stack traffic than the load it removes. Acyclic
 //! reuse is unchanged. Loop and liveness facts are built only when a candidate reuse needs them.
 //!
-//! `object-length-cse` runs this transform only on functions with semantic length reads.
-//! This early adapter unifies bounds before loop optimization without repeating CSE on every
-//! scalar helper. Unchanged functions without internal calls can skip later runs until their
+//! Unchanged functions without internal calls can skip later runs until their
 //! body changes; callers must still observe any improved callee summaries.
 
 use crate::mir::{
@@ -97,17 +95,11 @@ use solar_data_structures::{
 use std::{cell::OnceCell, cmp::Ordering, rc::Rc, sync::Arc};
 
 /// Function pass for local common subexpression elimination.
-pub(crate) enum Cse {
-    All,
-    ObjectLengths,
-}
+pub(crate) struct Cse;
 
 impl MirPass for Cse {
     fn name(&self) -> &'static str {
-        match self {
-            Self::All => "cse",
-            Self::ObjectLengths => "object-length-cse",
-        }
+        "cse"
     }
 
     fn run_pass(
@@ -119,13 +111,6 @@ impl MirPass for Cse {
         let mut leaves = DenseBitSet::new_empty(module.functions.len());
         let mut callers = DenseBitSet::new_empty(module.functions.len());
         for (id, func) in module.functions.iter_enumerated() {
-            if matches!(self, Self::ObjectLengths)
-                && !func
-                    .instructions()
-                    .any(|inst| matches!(func.inst(inst).kind, InstKind::MemoryObjectLen(..)))
-            {
-                continue;
-            }
             if func
                 .instructions()
                 .any(|inst| matches!(func.inst(inst).kind, InstKind::ICall { .. }))

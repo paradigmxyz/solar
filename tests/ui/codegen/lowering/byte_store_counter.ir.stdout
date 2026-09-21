@@ -43,39 +43,13 @@ bb8 [cold]:
   push 0
   push 0
   revert
-bb34 [continuation]:
-  dup 1
-  mload
-  swap 1
-  push 32
-  add
-  push 0
-  jump bb35
-bb39 [loop]:
-  push 1
-  add
-  jump bb35
-bb35 [loop]:
-  dup 3
-  dup 2
-  lt
-  push bb37
-  jumpi
-  swap 2
-  jump bb23
-bb23 [loop]:
-  push 128
-  mstore
-  push 32
-  push 128
-  return
 bb63 [cold]:
   push 0x4e487b71
   push 0
   mstore
   push 50
   jump bb88
-bb88 [loop]:
+bb88 [cold]:
   push 32
   mstore
   push 36
@@ -439,6 +413,12 @@ bb89:
   iszero
   swap 1
   jump
+bb23 [continuation]:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb25:
   push 192
   push 64
@@ -488,6 +468,30 @@ bb32:
   push bb34
   push 4
   jump bb82
+bb34 [continuation]:
+  dup 1
+  mload
+  swap 1
+  push 32
+  add
+  push 0
+  jump bb35
+bb39 [loop]:
+  push 1
+  add
+  jump bb35
+bb35 [loop]:
+  dup 3
+  dup 2
+  lt
+  push bb37
+  jumpi
+  swap 2
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb37 [loop]:
   dup 1
   dup 3
@@ -499,7 +503,11 @@ bb37 [loop]:
   gt
   push bb39
   jumpi
-  jump bb23
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb41:
   push 160
   push 64
@@ -563,7 +571,11 @@ bb45 [loop]:
   push bb47
   jumpi
   push 1
-  jump bb23
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb47 [loop]:
   dup 1
   dup 3
@@ -576,7 +588,11 @@ bb47 [loop]:
   push bb49
   jumpi
   push 0
-  jump bb23
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb49 [loop]:
   push 1
   add
@@ -585,13 +601,15 @@ bb49 [loop]:
   lt
   push bb45
   jumpi
-  jump bb92
-bb92 [loop]:
   push 0x4e487b71
   push 0
   mstore
   push 17
-  jump bb88
+  push 32
+  mstore
+  push 36
+  push 28
+  revert
 bb65 [cold]:
   pop
   pop
@@ -685,4 +703,8 @@ bb64 [cold]:
 bb66 [cold]:
   pop
   pop
-  jump bb92
+  push 0x4e487b71
+  push 0
+  mstore
+  push 17
+  jump bb88

@@ -170,8 +170,6 @@ bb0:
   push bb3
   jumpi
   mload
-  jump bb13
-bb13:
   push 128
   mstore
   push 32
@@ -183,7 +181,11 @@ bb3 [cold]:
   revert
 bb12:
   push 0
-  jump bb13
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb10 [cold]:
   returndatasize
   push 0

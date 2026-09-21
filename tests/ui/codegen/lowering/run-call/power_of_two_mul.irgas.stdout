@@ -16,7 +16,7 @@ bb0:
   dup 1
   push 0xa75826ae
   eq
-  push bb41
+  push bb9
   jumpi
   dup 1
   push 0xb10b60bd
@@ -36,20 +36,35 @@ bb0:
   dup 1
   push 0xe4bb44bc
   eq
-  push bb41
+  push bb9
   jumpi
   jump bb8
 bb8 [cold]:
   push 0
   dup 1
   revert
+bb9:
+  push 36
+  calldatasize
+  lt
+  push bb8
+  jumpi
+  push 1
+  push 4
+  calldataload
+  shl
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb38 [cold]:
   push 0x4e487b71
   push 0
   mstore
   push 65
-  jump bb42
-bb42 [cold]:
+  jump bb40
+bb40 [cold]:
   push 32
   mstore
   push 36
@@ -71,8 +86,6 @@ bb17 [loop]:
   dup 3
   push bb19
   jumpi
-  jump bb39
-bb39 [loop]:
   push 128
   mstore
   push 32
@@ -139,7 +152,7 @@ bb21 [cold]:
   push 0
   mstore
   push 17
-  jump bb42
+  jump bb40
 bb23:
   push 36
   calldatasize
@@ -149,10 +162,12 @@ bb23:
   push 4
   calldataload
   push 5
-  jump bb40
-bb40:
   shl
-  jump bb39
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb26:
   push 36
   calldatasize
@@ -162,7 +177,12 @@ bb26:
   push 4
   calldataload
   push 255
-  jump bb40
+  shl
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb29:
   push 160
   push 64
@@ -263,20 +283,14 @@ bb29:
   shl
   add
   mload
-  jump bb39
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb37 [cold]:
   push 0x4e487b71
   push 0
   mstore
   push 50
-  jump bb42
-bb41:
-  push 36
-  calldatasize
-  lt
-  push bb8
-  jumpi
-  push 1
-  push 4
-  calldataload
   jump bb40

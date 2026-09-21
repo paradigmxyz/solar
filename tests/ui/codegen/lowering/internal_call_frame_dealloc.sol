@@ -27,46 +27,46 @@ contract ICallFrameDealloc {
     // CHECK-NEXT: pop
     // CHECK-NEXT: push [[RECURSE_RET:bb[0-9]+]]
     // CHECK-NEXT: jump [[SUM]]
-    // Both callers share cleanup that restores the free-memory and frame pointers.
+    // Each continuation reads the result, then releases the callee frame by resetting the
+    // free memory pointer to the frame base before restoring the caller frame.
     // CHECK: [[FIRST_RET]] [continuation]:
-    // CHECK-NEXT: push [[FIRST_CLEAN:bb[0-9]+]]
-    // CHECK-NEXT: jump [[CLEANUP:bb[0-9]+]]
-    // CHECK-NEXT: [[CLEANUP]]:
     // CHECK-NEXT: push 160
     // CHECK-NEXT: mload
     // CHECK: push 64
     // CHECK-NEXT: mstore
-    // CHECK-NEXT: push 160
-    // CHECK-NEXT: mload
-    // CHECK-NEXT: push 32
-    // CHECK-NEXT: add
-    // CHECK-NEXT: mload
-    // CHECK-NEXT: push 160
+    // CHECK: push 1{{$}}
+    // CHECK: push 224
     // CHECK-NEXT: mstore
-    // CHECK: [[SECOND_RET:bb[0-9]+]] [continuation]:
-    // CHECK-NEXT: push [[SECOND_CLEAN:bb[0-9]+]]
-    // CHECK-NEXT: jump [[CLEANUP]]
+    // CHECK: push 192
+    // CHECK-NEXT: add
+    // CHECK-NEXT: push 64
+    // CHECK-NEXT: mstore
+    // CHECK: push [[SECOND_RET:bb[0-9]+]]
+    // CHECK-NEXT: jump [[SUM]]
+    // CHECK: [[SECOND_RET]] [continuation]:
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK: push 64
+    // CHECK-NEXT: mstore
+    // CHECK: return
     // CHECK: [[RECURSE_RET]] [continuation]:
     // CHECK-NEXT: push 160
     // CHECK-NEXT: mload
     // CHECK: push 64
     // CHECK-NEXT: mstore
-    // CHECK: [[STORE_RESULT:bb[0-9]+]]:
+    // CHECK: push 96
+    // CHECK-NEXT: add
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: jump{{$}}
+    // The base case stores its result into the frame and returns through the stacked address.
+    // CHECK: [[BASE]]:
+    // CHECK-NEXT: push 0{{$}}
     // CHECK-NEXT: push 160
     // CHECK-NEXT: mload
     // CHECK-NEXT: push 96
     // CHECK-NEXT: add
     // CHECK-NEXT: mstore
     // CHECK-NEXT: jump{{$}}
-    // The base case shares the result store and stacked return.
-    // CHECK: [[BASE]]:
-    // CHECK-NEXT: push 0{{$}}
-    // CHECK-NEXT: jump [[STORE_RESULT]]
-    // CHECK: [[FIRST_CLEAN]] [continuation]:
-    // CHECK: push [[SECOND_RET]]
-    // CHECK-NEXT: jump [[SUM]]
-    // CHECK: [[SECOND_CLEAN]] [continuation]:
-    // CHECK: return
     function f(uint256 x) public pure returns (uint256) {
         return sum(x) + sum(x + 1);
     }

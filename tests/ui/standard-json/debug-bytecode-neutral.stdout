@@ -21,19 +21,19 @@
       "A": {
         "evm": {
           "bytecode": {
-            "object": "34600d5760b58060115f395ff35b5f5ffd602436103417604f575f3560e01c60043560c0528060e0528063cb97492a116088578063cb97492a036065575060c051600381018181106053576004820191821060535760805260a05260406080f35b5f5ffd5b634e487b715f5260116020526024601cfd5b8063e420264a03604f575060c051600281019081105b6053575b60805260206080f35b806310c888cd03609e57505f1960c0511b19607f565b8063b3de648b03604f5750600160c051018015607b56",
+            "object": "34600d5760c08060115f395ff35b5f5ffd602436103417604f575f3560e01c60043560c0528060e0528063cb97492a116086578063cb97492a036065575060c051600381018181106053576004820191821060535760805260a05260406080f35b5f5ffd5b634e487b715f5260116020526024601cfd5b8063e420264a03604f575060c0516002810190811060535760805260206080f35b806310c888cd0360a157505f1960c0511b1960805260206080f35b8063b3de648b03604f5750600160c05101801560535760805260206080f3",
             "sourceMap": ":::-:0;;;;;;;;;;;;;"
           },
           "deployedBytecode": {
-            "object": "602436103417604f575f3560e01c60043560c0528060e0528063cb97492a116088578063cb97492a036065575060c051600381018181106053576004820191821060535760805260a05260406080f35b5f5ffd5b634e487b715f5260116020526024601cfd5b8063e420264a03604f575060c051600281019081105b6053575b60805260206080f35b806310c888cd03609e57505f1960c0511b19607f565b8063b3de648b03604f5750600160c051018015607b56",
-            "sourceMap": ":::-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;414:5:0;;;;;;;;;;421;;;;;;;;-1:-1:-1;;;;;;;;;;;;;;;;;;;;;;;;;;;;148:5:0;;;;;;;;-1:-1:-1;;;;;;;;;;;;;;;;;;237:9:0;;;-1:-1:-1;157:97:0;;-1:-1:-1;;;;;;;76:5:0;;;;;;;"
+            "object": "602436103417604f575f3560e01c60043560c0528060e0528063cb97492a116086578063cb97492a036065575060c051600381018181106053576004820191821060535760805260a05260406080f35b5f5ffd5b634e487b715f5260116020526024601cfd5b8063e420264a03604f575060c0516002810190811060535760805260206080f35b806310c888cd0360a157505f1960c0511b1960805260206080f35b8063b3de648b03604f5750600160c05101801560535760805260206080f3",
+            "sourceMap": ":::-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;414:5:0;;;;;;;;;;421;;;;;;;;-1:-1:-1;;;;;;;;;;;;;;;;;;;;;;;;;;;;148:5:0;;;;;;;;;;141:13;;;;;-1:-1:-1;;;;;;;;;237:9:0;;;-1:-1:-1;157:97:0;;;;;-1:-1:-1;;;;;;;76:5:0;;;;;;;;69:13;;;;"
           }
         }
       },
       "B": {
         "evm": {
           "bytecode": {
-            "object": "34600d5760b58060115f395ff35b5f5ffd602436103417604f575f3560e01c60043560c0528060e0528063cb97492a116088578063cb97492a036065575060c051600381018181106053576004820191821060535760805260a05260406080f35b5f5ffd5b634e487b715f5260116020526024601cfd5b8063e420264a03604f575060c051600281019081105b6053575b60805260206080f35b806310c888cd03609e57505f1960c0511b19607f565b8063b3de648b03604f5750600160c051018015607b56",
+            "object": "34600d5760c08060115f395ff35b5f5ffd602436103417604f575f3560e01c60043560c0528060e0528063cb97492a116086578063cb97492a036065575060c051600381018181106053576004820191821060535760805260a05260406080f35b5f5ffd5b634e487b715f5260116020526024601cfd5b8063e420264a03604f575060c0516002810190811060535760805260206080f35b806310c888cd0360a157505f1960c0511b1960805260206080f35b8063b3de648b03604f5750600160c05101801560535760805260206080f3",
             "ethdebug": {
               "compilation": {
                 "id": "solar-COMPILATION_ID"
@@ -78,7 +78,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0xb5"
+                      "0xc0"
                     ]
                   }
                 },
@@ -149,7 +149,7 @@
             }
           },
           "deployedBytecode": {
-            "object": "602436103417604f575f3560e01c60043560c0528060e0528063cb97492a116088578063cb97492a036065575060c051600381018181106053576004820191821060535760805260a05260406080f35b5f5ffd5b634e487b715f5260116020526024601cfd5b8063e420264a03604f575060c051600281019081105b6053575b60805260206080f35b806310c888cd03609e57505f1960c0511b19607f565b8063b3de648b03604f5750600160c051018015607b56",
+            "object": "602436103417604f575f3560e01c60043560c0528060e0528063cb97492a116086578063cb97492a036065575060c051600381018181106053576004820191821060535760805260a05260406080f35b5f5ffd5b634e487b715f5260116020526024601cfd5b8063e420264a03604f575060c0516002810190811060535760805260206080f35b806310c888cd0360a157505f1960c0511b1960805260206080f35b8063b3de648b03604f5750600160c05101801560535760805260206080f3",
             "ethdebug": {
               "compilation": {
                 "id": "solar-COMPILATION_ID"
@@ -320,7 +320,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x88"
+                      "0x86"
                     ]
                   }
                 },
@@ -1471,84 +1471,42 @@
                 {
                   "offset": 123,
                   "operation": {
-                    "mnemonic": "JUMPDEST"
-                  }
-                },
-                {
-                  "offset": 124,
-                  "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
                       "0x53"
                     ]
                   },
                   "context": {
-                    "pick": [
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 581,
-                            "length": 5
-                          }
-                        }
+                    "code": {
+                      "source": {
+                        "id": 0
                       },
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 509,
-                            "length": 5
-                          }
-                        }
+                      "range": {
+                        "offset": 581,
+                        "length": 5
                       }
-                    ]
+                    }
                   }
                 },
                 {
-                  "offset": 126,
+                  "offset": 125,
                   "operation": {
                     "mnemonic": "JUMPI"
                   },
                   "context": {
-                    "pick": [
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 581,
-                            "length": 5
-                          }
-                        }
+                    "code": {
+                      "source": {
+                        "id": 0
                       },
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 509,
-                            "length": 5
-                          }
-                        }
+                      "range": {
+                        "offset": 581,
+                        "length": 5
                       }
-                    ]
+                    }
                   }
                 },
                 {
-                  "offset": 127,
-                  "operation": {
-                    "mnemonic": "JUMPDEST"
-                  }
-                },
-                {
-                  "offset": 128,
+                  "offset": 126,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -1556,88 +1514,36 @@
                     ]
                   },
                   "context": {
-                    "pick": [
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 574,
-                            "length": 13
-                          }
-                        }
+                    "code": {
+                      "source": {
+                        "id": 0
                       },
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 590,
-                            "length": 97
-                          }
-                        }
-                      },
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 502,
-                            "length": 13
-                          }
-                        }
+                      "range": {
+                        "offset": 574,
+                        "length": 13
                       }
-                    ]
+                    }
                   }
                 },
                 {
-                  "offset": 130,
+                  "offset": 128,
                   "operation": {
                     "mnemonic": "MSTORE"
                   },
                   "context": {
-                    "pick": [
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 574,
-                            "length": 13
-                          }
-                        }
+                    "code": {
+                      "source": {
+                        "id": 0
                       },
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 590,
-                            "length": 97
-                          }
-                        }
-                      },
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 502,
-                            "length": 13
-                          }
-                        }
+                      "range": {
+                        "offset": 574,
+                        "length": 13
                       }
-                    ]
+                    }
                   }
                 },
                 {
-                  "offset": 131,
+                  "offset": 129,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -1645,45 +1551,19 @@
                     ]
                   },
                   "context": {
-                    "pick": [
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 574,
-                            "length": 13
-                          }
-                        }
+                    "code": {
+                      "source": {
+                        "id": 0
                       },
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 590,
-                            "length": 97
-                          }
-                        }
-                      },
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 502,
-                            "length": 13
-                          }
-                        }
+                      "range": {
+                        "offset": 574,
+                        "length": 13
                       }
-                    ]
+                    }
                   }
                 },
                 {
-                  "offset": 133,
+                  "offset": 131,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -1691,100 +1571,48 @@
                     ]
                   },
                   "context": {
-                    "pick": [
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 574,
-                            "length": 13
-                          }
-                        }
+                    "code": {
+                      "source": {
+                        "id": 0
                       },
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 590,
-                            "length": 97
-                          }
-                        }
-                      },
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 502,
-                            "length": 13
-                          }
-                        }
+                      "range": {
+                        "offset": 574,
+                        "length": 13
                       }
-                    ]
+                    }
                   }
                 },
                 {
-                  "offset": 135,
+                  "offset": 133,
                   "operation": {
                     "mnemonic": "RETURN"
                   },
                   "context": {
-                    "pick": [
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 574,
-                            "length": 13
-                          }
-                        }
+                    "code": {
+                      "source": {
+                        "id": 0
                       },
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 590,
-                            "length": 97
-                          }
-                        }
-                      },
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 502,
-                            "length": 13
-                          }
-                        }
+                      "range": {
+                        "offset": 574,
+                        "length": 13
                       }
-                    ]
+                    }
                   }
                 },
                 {
-                  "offset": 136,
+                  "offset": 134,
                   "operation": {
                     "mnemonic": "JUMPDEST"
                   }
                 },
                 {
-                  "offset": 137,
+                  "offset": 135,
                   "operation": {
                     "mnemonic": "DUP1"
                   }
                 },
                 {
-                  "offset": 138,
+                  "offset": 136,
                   "operation": {
                     "mnemonic": "PUSH4",
                     "arguments": [
@@ -1793,46 +1621,46 @@
                   }
                 },
                 {
-                  "offset": 143,
+                  "offset": 141,
                   "operation": {
                     "mnemonic": "SUB"
                   }
                 },
                 {
-                  "offset": 144,
+                  "offset": 142,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x9e"
+                      "0xa1"
                     ]
                   }
                 },
                 {
-                  "offset": 146,
+                  "offset": 144,
                   "operation": {
                     "mnemonic": "JUMPI"
                   }
                 },
                 {
-                  "offset": 147,
+                  "offset": 145,
                   "operation": {
                     "mnemonic": "POP"
                   }
                 },
                 {
-                  "offset": 148,
+                  "offset": 146,
                   "operation": {
                     "mnemonic": "PUSH0"
                   }
                 },
                 {
-                  "offset": 149,
+                  "offset": 147,
                   "operation": {
                     "mnemonic": "NOT"
                   }
                 },
                 {
-                  "offset": 150,
+                  "offset": 148,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -1852,7 +1680,7 @@
                   }
                 },
                 {
-                  "offset": 152,
+                  "offset": 150,
                   "operation": {
                     "mnemonic": "MLOAD"
                   },
@@ -1869,7 +1697,7 @@
                   }
                 },
                 {
-                  "offset": 153,
+                  "offset": 151,
                   "operation": {
                     "mnemonic": "SHL"
                   },
@@ -1886,17 +1714,17 @@
                   }
                 },
                 {
-                  "offset": 154,
+                  "offset": 152,
                   "operation": {
                     "mnemonic": "NOT"
                   }
                 },
                 {
-                  "offset": 155,
+                  "offset": 153,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x7f"
+                      "0x80"
                     ]
                   },
                   "context": {
@@ -1912,9 +1740,29 @@
                   }
                 },
                 {
-                  "offset": 157,
+                  "offset": 155,
                   "operation": {
-                    "mnemonic": "JUMP"
+                    "mnemonic": "MSTORE"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 590,
+                        "length": 97
+                      }
+                    }
+                  }
+                },
+                {
+                  "offset": 156,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x20"
+                    ]
                   },
                   "context": {
                     "code": {
@@ -1931,17 +1779,54 @@
                 {
                   "offset": 158,
                   "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x80"
+                    ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 590,
+                        "length": 97
+                      }
+                    }
+                  }
+                },
+                {
+                  "offset": 160,
+                  "operation": {
+                    "mnemonic": "RETURN"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 590,
+                        "length": 97
+                      }
+                    }
+                  }
+                },
+                {
+                  "offset": 161,
+                  "operation": {
                     "mnemonic": "JUMPDEST"
                   }
                 },
                 {
-                  "offset": 159,
+                  "offset": 162,
                   "operation": {
                     "mnemonic": "DUP1"
                   }
                 },
                 {
-                  "offset": 160,
+                  "offset": 163,
                   "operation": {
                     "mnemonic": "PUSH4",
                     "arguments": [
@@ -1950,13 +1835,13 @@
                   }
                 },
                 {
-                  "offset": 165,
+                  "offset": 168,
                   "operation": {
                     "mnemonic": "SUB"
                   }
                 },
                 {
-                  "offset": 166,
+                  "offset": 169,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -1965,19 +1850,19 @@
                   }
                 },
                 {
-                  "offset": 168,
+                  "offset": 171,
                   "operation": {
                     "mnemonic": "JUMPI"
                   }
                 },
                 {
-                  "offset": 169,
+                  "offset": 172,
                   "operation": {
                     "mnemonic": "POP"
                   }
                 },
                 {
-                  "offset": 170,
+                  "offset": 173,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -1997,7 +1882,7 @@
                   }
                 },
                 {
-                  "offset": 172,
+                  "offset": 175,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -2017,7 +1902,7 @@
                   }
                 },
                 {
-                  "offset": 174,
+                  "offset": 177,
                   "operation": {
                     "mnemonic": "MLOAD"
                   },
@@ -2034,7 +1919,7 @@
                   }
                 },
                 {
-                  "offset": 175,
+                  "offset": 178,
                   "operation": {
                     "mnemonic": "ADD"
                   },
@@ -2051,7 +1936,7 @@
                   }
                 },
                 {
-                  "offset": 176,
+                  "offset": 179,
                   "operation": {
                     "mnemonic": "DUP1"
                   },
@@ -2068,7 +1953,7 @@
                   }
                 },
                 {
-                  "offset": 177,
+                  "offset": 180,
                   "operation": {
                     "mnemonic": "ISZERO"
                   },
@@ -2085,11 +1970,11 @@
                   }
                 },
                 {
-                  "offset": 178,
+                  "offset": 181,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x7b"
+                      "0x53"
                     ]
                   },
                   "context": {
@@ -2105,9 +1990,9 @@
                   }
                 },
                 {
-                  "offset": 180,
+                  "offset": 183,
                   "operation": {
-                    "mnemonic": "JUMP"
+                    "mnemonic": "JUMPI"
                   },
                   "context": {
                     "code": {
@@ -2120,6 +2005,100 @@
                       }
                     }
                   }
+                },
+                {
+                  "offset": 184,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x80"
+                    ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 502,
+                        "length": 13
+                      }
+                    }
+                  }
+                },
+                {
+                  "offset": 186,
+                  "operation": {
+                    "mnemonic": "MSTORE"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 502,
+                        "length": 13
+                      }
+                    }
+                  }
+                },
+                {
+                  "offset": 187,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x20"
+                    ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 502,
+                        "length": 13
+                      }
+                    }
+                  }
+                },
+                {
+                  "offset": 189,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x80"
+                    ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 502,
+                        "length": 13
+                      }
+                    }
+                  }
+                },
+                {
+                  "offset": 191,
+                  "operation": {
+                    "mnemonic": "RETURN"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 502,
+                        "length": 13
+                      }
+                    }
+                  }
                 }
               ]
             }
@@ -2129,10 +2108,10 @@
       "C": {
         "evm": {
           "bytecode": {
-            "object": "34600d5760b58060115f395ff35b5f5ffd602436103417604f575f3560e01c60043560c0528060e0528063cb97492a116088578063cb97492a036065575060c051600381018181106053576004820191821060535760805260a05260406080f35b5f5ffd5b634e487b715f5260116020526024601cfd5b8063e420264a03604f575060c051600281019081105b6053575b60805260206080f35b806310c888cd03609e57505f1960c0511b19607f565b8063b3de648b03604f5750600160c051018015607b56"
+            "object": "34600d5760c08060115f395ff35b5f5ffd602436103417604f575f3560e01c60043560c0528060e0528063cb97492a116086578063cb97492a036065575060c051600381018181106053576004820191821060535760805260a05260406080f35b5f5ffd5b634e487b715f5260116020526024601cfd5b8063e420264a03604f575060c0516002810190811060535760805260206080f35b806310c888cd0360a157505f1960c0511b1960805260206080f35b8063b3de648b03604f5750600160c05101801560535760805260206080f3"
           },
           "deployedBytecode": {
-            "object": "602436103417604f575f3560e01c60043560c0528060e0528063cb97492a116088578063cb97492a036065575060c051600381018181106053576004820191821060535760805260a05260406080f35b5f5ffd5b634e487b715f5260116020526024601cfd5b8063e420264a03604f575060c051600281019081105b6053575b60805260206080f35b806310c888cd03609e57505f1960c0511b19607f565b8063b3de648b03604f5750600160c051018015607b56"
+            "object": "602436103417604f575f3560e01c60043560c0528060e0528063cb97492a116086578063cb97492a036065575060c051600381018181106053576004820191821060535760805260a05260406080f35b5f5ffd5b634e487b715f5260116020526024601cfd5b8063e420264a03604f575060c0516002810190811060535760805260206080f35b806310c888cd0360a157505f1960c0511b1960805260206080f35b8063b3de648b03604f5750600160c05101801560535760805260206080f3"
           }
         }
       }

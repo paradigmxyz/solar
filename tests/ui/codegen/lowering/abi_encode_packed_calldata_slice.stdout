@@ -105,8 +105,6 @@ bb7 [continuation]:
   calldatacopy
   swap 1
   pop
-  jump bb18
-bb18:
   keccak256
   push 128
   mstore
@@ -173,4 +171,9 @@ bb12 [continuation]:
   swap 1
   sub
   swap 1
-  jump bb18
+  keccak256
+  push 128
+  mstore
+  push 32
+  push 128
+  return

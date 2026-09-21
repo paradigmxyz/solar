@@ -24,8 +24,7 @@
 //! recomputation saved.
 //!
 //! The pass runs once on the semantic MIR and once more in gas mode after memory lowering,
-//! restricted to loops with physical memory or storage accesses by `memory-licm`. Lowering
-//! materializes each element access as `add base, 32` plus an index term inside the
+//! which materializes each element access as `add base, 32` plus an index term inside the
 //! loop that reads it; the late run hoists that base so a hot loop carries one word instead
 //! of reloading its argument and re-adding the header on every iteration.
 //!
@@ -62,17 +61,11 @@ use std::rc::Rc;
 const LOOP_CARRY_BUDGET: usize = 5;
 
 /// Function pass for loop-invariant code motion.
-pub(crate) enum Licm {
-    All,
-    MemoryLoops,
-}
+pub(crate) struct Licm;
 
 impl MirPass for Licm {
     fn name(&self) -> &'static str {
-        match self {
-            Self::All => "licm",
-            Self::MemoryLoops => "memory-licm",
-        }
+        "licm"
     }
 
     fn run_pass(
@@ -87,24 +80,7 @@ impl MirPass for Licm {
             if func.blocks.is_empty() {
                 continue;
             }
-            let cfg = analyses.cfg(id, func);
-            let cycles = cfg.cyclic_blocks();
-            if !cycles.is_empty()
-                && (matches!(self, Self::All)
-                    || cycles.iter().any(|block| {
-                        func.blocks[block].instructions.iter().any(|&inst| {
-                            matches!(
-                                func.inst(inst).kind,
-                                InstKind::MLoad(_)
-                                    | InstKind::MStore(..)
-                                    | InstKind::SLoad(..)
-                                    | InstKind::SStore(..)
-                                    | InstKind::TLoad(..)
-                                    | InstKind::TStore(..)
-                            )
-                        })
-                    }))
-            {
+            if !analyses.cfg(id, func).cyclic_blocks().is_empty() {
                 selected.insert(id);
             }
         }
@@ -218,7 +194,7 @@ impl LoopOptimizer {
     }
 
     /// The words the backend carries through a loop: the header's phis and the values defined
-    /// outside the loop that its non-phi instructions read. Immediates and nullary
+    /// outside the loop that its non-phi instructions read. Immediates, arguments, and nullary
     /// rematerializable reads are rebuilt where used and cost no word.
     fn carried_words(
         func: &Function,
@@ -251,17 +227,14 @@ impl LoopOptimizer {
         count
     }
 
-    /// Whether a value read inside `loop_data` occupies a carried word: an argument or an
-    /// instruction result outside the loop that is not a nullary rematerializable read.
+    /// Whether a value read inside `loop_data` occupies a carried word: an instruction result
+    /// outside the loop that is not a nullary rematerializable read.
     fn is_carried_operand(
         func: &Function,
         loop_data: &Loop,
         inst_blocks: &FxHashMap<InstId, BlockId>,
         value: ValueId,
     ) -> bool {
-        if matches!(func.value(value), Value::Arg(_)) {
-            return true;
-        }
         let Value::Inst(inst_id) = func.value(value) else { return false };
         let kind = &func.inst(*inst_id).kind;
         inst_blocks.get(inst_id).is_none_or(|block| !loop_data.blocks.contains(*block))

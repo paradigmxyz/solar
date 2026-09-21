@@ -18,69 +18,33 @@
     push 2
     stop
   bb3:
--   push 0x23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01
--   push 0x3456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef012
--   dup 1
--   push 3
--   stop
-+   push bb10
-+   jump bb8
-  bb4:
-+   push bb11
-+   jump bb8
-+ bb5 [cold]:
-+   push bb12
-+   jump bb9
-+ bb6 [cold]:
-+   push bb13
-+   jump bb9
-+ bb7 [cold]:
-+   push bb16
-+   jump bb14
-+ bb8:
     push 0x23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01
     push 0x3456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef012
     dup 1
--   push 4
--   stop
-- bb5 [cold]:
-+   swap 1
-+   swap 2
-+   swap 3
-+   jump
-+ bb9:
+    push 3
+    stop
+  bb4:
+    push 0x23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01
+    push 0x3456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef012
+    dup 1
+    push 4
+    stop
+  bb5 [cold]:
     push 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     push 192
     mstore
-+   jump
-+ bb10 [continuation]:
-+   push 3
-+   stop
-+ bb11 [continuation]:
-+   push 4
-+   stop
-+ bb12 [cold] [continuation]:
     push 5
     stop
-- bb6 [cold]:
--   push 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
--   push 192
--   mstore
-+ bb13 [cold] [continuation]:
+  bb6 [cold]:
+    push 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    push 192
+    mstore
     push 6
     stop
-- bb7 [cold]:
-+ bb14:
+  bb7 [cold]:
     push 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-+   swap 1
-+   jump
-+ bb15 [cold] [continuation]:
     pop
--   push 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
--   pop
+    push 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    pop
     stop
-+ bb16 [cold] [continuation]:
-+   pop
-+   push bb15
-+   jump bb14
   

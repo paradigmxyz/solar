@@ -59,8 +59,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &pure_eval::PureEval,
     &const_fold::ConstFold,
     &readonly_eval::ReadonlyEval,
-    &cse::Cse::All,
-    &cse::Cse::ObjectLengths,
+    &cse::Cse,
     &cse::FmpCse,
     &pre::Pre,
     &element_cleanup::ElementCleanup,
@@ -76,8 +75,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &loop_split::LoopSplit,
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
-    &loop_opt::Licm::All,
-    &loop_opt::Licm::MemoryLoops,
+    &loop_opt::Licm,
     &check_elim::CheckElim,
     &check_elim::LateCheckElim,
     &check_elim::ImmutableCheckElim,
@@ -210,9 +208,7 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // check. Unify the dominated reads while object identity is explicit, so
     // load PRE and LICM see one loop-invariant load and the later check passes
     // compare against one bound.
-    &GasOnly::new(cse::Cse::ObjectLengths),
-    // Size mode also shares scalar expressions before later lowering expands them.
-    &SizeOnly::new(cse::Cse::All),
+    &cse::Cse,
     &load_pre::LoadPre::All,
     // Element reads of arrays that only ever hold canonical words drop their
     // type masks while the accesses are still semantic and calls explicit.
@@ -221,7 +217,7 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &loop_canonicalize::LoopCanonicalize,
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
-    &loop_opt::Licm::All,
+    &loop_opt::Licm,
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
@@ -305,7 +301,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &inline::InlineImmutableLeaves,
     // Late CSE reduces runtime gas after aggregate lowering, but can grow
     // bytecode through longer live ranges, so keep it out of `-Osize`.
-    &GasOnly::new(cse::Cse::All),
+    &GasOnly::new(cse::Cse),
     // Common dominated loads before PRE replaces join loads with phis, then
     // fold checks exposed by forwarding the stored values.
     &GasOnly::new(load_pre::LoadPre::Storage),
@@ -324,8 +320,8 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // boundary.
     &lower_mapping_slots::LowerMappingSlots,
     &lower_memory_objects::LowerMemoryObjects,
-    &GasOnly::new(cse::Cse::All),
-    &SizeOnly::new(cse::Cse::All),
+    &GasOnly::new(cse::Cse),
+    &SizeOnly::new(cse::Cse),
     // Physical memory accesses let CSE unify semantic lengths with raw loads.
     // Repeated bounds checks then use the same condition as a dominating guard:
     // branch condition, body, exit; body: ...; branch condition, checked, panic
@@ -367,7 +363,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // base once the physical form is final, so a hot loop carries one word
     // instead of reloading its argument and re-adding the header every
     // iteration.
-    &GasOnly::new(loop_opt::Licm::MemoryLoops),
+    &GasOnly::new(loop_opt::Licm),
     // With the base hoisted, each element address is `base + scale * index`
     // plus invariants; carry it as a pointer stepped on the latch instead of
     // rebuilding it from the index every iteration.

@@ -22,17 +22,16 @@ contract AssemblerBlockDedup {
 
     // CHECK: push 0xfeb97429
     // CHECK: push [[TWO]]
-    // Both deduplicated bodies share the return encoding.
+    // Each deduplicated body encodes its own return; the short tail is cheaper
+    // duplicated than shared through a jump.
     // CHECK: [[ONE]]:
     // CHECK-NEXT: push 1
-    // CHECK-NEXT: jump [[TAIL:bb[0-9]+]]
-    // CHECK-NEXT: [[TAIL]]:
     // CHECK: return
     // CHECK: [[TWO]]:
     // CHECK: push {{bb[0-9]+}}
     // CHECK: jumpi
     // CHECK: push 2
-    // CHECK-NEXT: jump [[TAIL]]
+    // CHECK: return
     function d(bool fail) public pure returns (uint256) {
         if (fail) revert();
         return 2;

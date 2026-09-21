@@ -31,8 +31,6 @@ contract C {
     // CHECK-NEXT: calldataload
     // CHECK: push 4
     // CHECK-NEXT: calldataload
-    // CHECK-NEXT: jump [[RETURN:bb[0-9]+]]
-    // CHECK-NEXT: [[RETURN]]:
     // CHECK-NEXT: push 160
     // CHECK-NEXT: mstore
     // CHECK: return
@@ -52,7 +50,9 @@ contract C {
     // CHECK-NEXT: push 128
     // CHECK-NEXT: mstore
     // CHECK: push 9
-    // CHECK-NEXT: jump [[RETURN]]
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mstore
+    // CHECK: return
     function multi() external pure returns (uint256 x, uint256 y) {
         x = 100;
         y = 200;

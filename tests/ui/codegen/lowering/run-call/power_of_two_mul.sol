@@ -8,10 +8,6 @@
 // MODERN-LABEL: @module PowerOfTwoMul_runtime
 // MODERN: {{^ *}}shl{{$}}
 // LEGACY-LABEL: @module PowerOfTwoMul_runtime
-// LEGACY: push 0xa75826ae
-// LEGACY-NEXT: eq
-// LEGACY-NEXT: push [[EXP:bb[0-9]+]]
-// LEGACY: [[EXP]]:
 // LEGACY: {{^ *}}push 4{{$}}
 // LEGACY-NEXT: calldataload
 // LEGACY-NEXT: push 2

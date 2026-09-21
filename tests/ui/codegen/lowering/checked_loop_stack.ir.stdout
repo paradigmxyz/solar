@@ -145,8 +145,6 @@ bb8 [loop]:
   iszero
   push bb10
   jumpi
-  jump bb17
-bb17 [loop]:
   push 128
   mstore
   push 32
@@ -184,8 +182,6 @@ bb16 [loop]:
   iszero
   push bb16
   jumpi
-  jump bb12
-bb12 [loop]:
   push 0x4e487b71
   push 0
   mstore
@@ -195,6 +191,12 @@ bb12 [loop]:
   push 36
   push 28
   revert
+bb17:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb21:
   push 256
   push 64
@@ -232,7 +234,21 @@ bb23 [loop]:
   push bb25
   jumpi
   swap 1
-  jump bb17
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb12 [cold]:
+  push 0x4e487b71
+  push 0
+  mstore
+  push 17
+  push 32
+  mstore
+  push 36
+  push 28
+  revert
 bb27 [cold]:
   push 160
   push 0x760769fe

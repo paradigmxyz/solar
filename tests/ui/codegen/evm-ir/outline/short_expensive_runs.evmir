@@ -34,7 +34,7 @@ bb4:
   push 4
   stop
 
-// Cold computations retain size-based sharing at the default gas run count.
+// Cold computations retain the transfer-cost check at the default gas run count.
 bb5 [cold]:
   push 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
   push 192
@@ -48,7 +48,7 @@ bb6 [cold]:
   push 6
   stop
 
-// Cold literal sharing has the same policy even without a computation run.
+// Cold literals retain the same transfer-cost check without a computation run.
 bb7 [cold]:
   push 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
   pop

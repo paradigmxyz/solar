@@ -1359,12 +1359,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut placed = DenseBitSet::new_empty(func.blocks.len());
 
         self.append_layout_chain(func, BlockId::ENTRY, reachable, &mut placed, &mut order);
-        if self.gcx.sess.opts.optimization.is_size() {
-            for &block in cfg.rpo() {
-                self.append_layout_chain(func, block, reachable, &mut placed, &mut order);
-            }
-            return order;
-        }
         // Reverse postorder emits every block after its forward predecessors. A block with one
         // predecessor is then always emitted after it, so the predecessor's exit stack can be
         // recorded as the block's entry layout instead of spilled; block-index order emitted

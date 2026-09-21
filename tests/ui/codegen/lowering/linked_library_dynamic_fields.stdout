@@ -436,8 +436,6 @@ bb5:
   push 0
   keccak256
   sload
-  jump bb27
-bb27:
   push 128
   mstore
   push 32
@@ -834,7 +832,11 @@ bb9:
   push bb4
   jumpi
   mload
-  jump bb27
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb23 [cold]:
   returndatasize
   push 0

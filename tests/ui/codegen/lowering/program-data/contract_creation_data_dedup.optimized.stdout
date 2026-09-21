@@ -99,12 +99,12 @@ bb0:
   dup 1
   push 0x3df4ddf4
   eq
-  push bb29
+  push bb6
   jumpi
   dup 1
   push 0x5a8ac02d
   eq
-  push bb29
+  push bb6
   jumpi
   dup 1
   push 0xa8aa1b31
@@ -124,16 +124,13 @@ bb26 [cold]:
   returndatasize
   push 0
   revert
-bb18:
-  push 256
+bb6:
+  push 192
   push 64
   mstore
   push 0
   push 160
   mstore
-  push bb35
-  jump bb31
-bb31:
   push 64
   mload
   push 256
@@ -144,21 +141,150 @@ bb31:
   push 255
   push_data Child_initcode_0
   dup 3
+  codecopy
+  push 255
   swap 1
+  push 0
+  create
+  dup 1
+  iszero
+  push bb26
+  jumpi
+  push 64
+  mload
+  push 32
+  dup 2
+  add
+  push 64
+  mstore
+  push 0x3fa4f245
+  push 224
+  shl
+  dup 2
+  mstore
+  push 32
+  push 0
+  push 4
+  dup 4
+  dup 6
+  gas
+  staticcall
   swap 2
-  swap 3
-  swap 4
-  jump
-bb29:
-  push 192
+  pop
+  pop
+  iszero
+  push bb26
+  jumpi
+  returndatasize
+  push 32
+  gt
+  push bb5
+  jumpi
+  push 0
+  mload
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb18:
+  push 256
   push 64
   mstore
   push 0
   push 160
   mstore
-  push bb37
-  jump bb31
-bb32 [continuation]:
+  push 64
+  mload
+  dup 1
+  dup 2
+  add
+  push 64
+  mstore
+  push 255
+  push_data Child_initcode_0
+  dup 3
+  codecopy
+  push 255
+  swap 1
+  push 0
+  create
+  dup 1
+  iszero
+  push bb26
+  jumpi
+  push 0
+  push 192
+  mstore
+  push 64
+  mload
+  push 256
+  dup 2
+  add
+  push 64
+  mstore
+  push 255
+  push_data Child_initcode_0
+  dup 3
+  codecopy
+  push 255
+  swap 1
+  push 0
+  create
+  dup 1
+  iszero
+  push bb26
+  jumpi
+  push 64
+  mload
+  push 32
+  dup 2
+  add
+  push 64
+  mstore
+  push 0x3fa4f245
+  push 224
+  shl
+  dup 2
+  mstore
+  push 32
+  push 0
+  push 4
+  dup 4
+  dup 7
+  gas
+  staticcall
+  swap 3
+  pop
+  pop
+  push 224
+  mstore
+  iszero
+  push bb26
+  jumpi
+  returndatasize
+  push 32
+  gt
+  push bb5
+  jumpi
+  push 0
+  mload
+  push 64
+  mload
+  push 32
+  dup 2
+  add
+  push 64
+  mstore
+  push 0x3fa4f245
+  push 224
+  shl
+  dup 2
+  mstore
+  push 32
+  push 0
+  push 4
+  dup 4
   push 224
   mload
   gas
@@ -182,114 +308,11 @@ bb32 [continuation]:
   lt
   push bb27
   jumpi
-  jump bb28
-bb28:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
-bb33 [continuation]:
-  dup 7
-  gas
-  staticcall
-  swap 3
-  pop
-  pop
-  push 224
-  mstore
-  iszero
-  push bb26
-  jumpi
-  returndatasize
-  push 32
-  gt
-  push bb5
-  jumpi
-  push 0
-  mload
-  push bb32
-  jump bb30
-bb30:
-  push 64
-  mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
-  push 0x3fa4f245
-  push 224
-  shl
-  dup 2
-  mstore
-  push 32
-  push 0
-  push 4
-  dup 4
-  swap 1
-  swap 2
-  swap 3
-  swap 4
-  swap 5
-  jump
-bb34 [continuation]:
-  codecopy
-  push 255
-  swap 1
-  push 0
-  create
-  dup 1
-  iszero
-  push bb26
-  jumpi
-  push bb33
-  jump bb30
-bb35 [continuation]:
-  codecopy
-  push 255
-  swap 1
-  push 0
-  create
-  dup 1
-  iszero
-  push bb26
-  jumpi
-  push 0
-  push 192
-  mstore
-  push bb34
-  jump bb31
-bb36 [continuation]:
-  dup 6
-  gas
-  staticcall
-  swap 2
-  pop
-  pop
-  iszero
-  push bb26
-  jumpi
-  returndatasize
-  push 32
-  gt
-  push bb5
-  jumpi
-  push 0
-  mload
-  jump bb28
-bb37 [continuation]:
-  codecopy
-  push 255
-  swap 1
-  push 0
-  create
-  dup 1
-  iszero
-  push bb26
-  jumpi
-  push bb36
-  jump bb30
 bb27 [cold]:
   push 0x4e487b71
   push 0
