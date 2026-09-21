@@ -4,8 +4,10 @@ types:
   struct0: {i16, i256}
   struct1: {i16, i1}
   struct2: {i256, i16}
-  struct3: {i256, i256, i256}
-  struct4: {i256, i256, i256, i256}
+  struct3: {i16, i16}
+  struct4: {i8, i8}
+  struct5: {i256, i256, i256}
+  struct6: {i256, i256, i256, i256}
 
 fn @signedChoice(arg0: i1) -> struct0 [selector=0x5f671a76, pure, abi_params=[bool], abi_returns=[word<i16>, word], abi_return_params=[i16, u256]] {
   bb0:
@@ -151,7 +153,47 @@ fn @slicePair(arg0: i1, arg1: calldataslice, arg2: calldataslice) -> struct2 [se
     ret v16
 }
 
-fn @assign() -> struct3 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @smallSigned() -> i8 [pure] {
+  bb0:
+    v0 = sub 0, 2
+    v1 = trunc i256 v0 to i8
+    ret v1
+}
+
+fn @singleDeclaration() -> struct3 [selector=0x1808a550, pure, abi_params=[], abi_returns=[word<i16>, word<i16>], abi_return_params=[i16, i16]] {
+  bb0:
+    v0 = sub 0, 1
+    v1 = trunc i256 v0 to i8
+    v2 = sext i8 v1 to i16
+    v3 = icall @smallSigned
+    v4 = sext i8 v3 to i16
+    v5 = insert_value struct3, undef struct3, 0, v2
+    v6 = insert_value struct3, v5, 1, v4
+    ret v6
+}
+
+fn @smallPair() -> struct4 [pure] {
+  bb0:
+    v0 = sub 0, 1
+    v1 = trunc i256 v0 to i8
+    v2 = insert_value struct4, undef struct4, 0, v1
+    v3 = insert_value struct4, v2, 1, i8 255
+    ret v3
+}
+
+fn @widenedCallTuple() -> struct3 [selector=0x354ae214, pure, abi_params=[], abi_returns=[word<i16>, word<u16>], abi_return_params=[i16, u16]] {
+  bb0:
+    v0 = icall @smallPair
+    v1 = extract_value struct4, v0, 0
+    v2 = extract_value struct4, v0, 1
+    v3 = sext i8 v1 to i16
+    v4 = zext i8 v2 to i16
+    v5 = insert_value struct3, undef struct3, 0, v3
+    v6 = insert_value struct3, v5, 1, v4
+    ret v6
+}
+
+fn @assign() -> struct5 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1
@@ -195,17 +237,17 @@ fn @assign() -> struct3 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[
     v30 = shr 248, v29
     v31 = trunc i256 v30 to i8
     v32 = zext i8 v31 to i256
-    v33 = insert_value struct3, undef struct3, 0, v16
-    v34 = insert_value struct3, v33, 1, v24
-    v35 = insert_value struct3, v34, 2, v32
+    v33 = insert_value struct5, undef struct5, 0, v16
+    v34 = insert_value struct5, v33, 1, v24
+    v35 = insert_value struct5, v34, 2, v32
     ret v35
 }
 
-fn @swap() -> struct4 [selector=0x8119c065, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @swap() -> struct6 [selector=0x8119c065, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
-    v0 = insert_value struct4, undef struct4, 0, 2
-    v1 = insert_value struct4, v0, 1, 1
-    v2 = insert_value struct4, v1, 2, 4
-    v3 = insert_value struct4, v2, 3, 3
+    v0 = insert_value struct6, undef struct6, 0, 2
+    v1 = insert_value struct6, v0, 1, 1
+    v2 = insert_value struct6, v1, 2, 4
+    v3 = insert_value struct6, v2, 3, 3
     ret v3
 }

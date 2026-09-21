@@ -72,7 +72,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     if values.len() != ids.len() {
                         return self.cx.report_unsupported(expr.span, "storage reference tuple");
                     }
-                    for (id, (value, _, access)) in ids.iter().zip(values) {
+                    for (id, (value, source_ty, access)) in ids.iter().zip(values) {
                         let Some(id) = id else { continue };
                         let ty = self.cx.gcx.type_of_item((*id).into());
                         if let Some(access) = access {
@@ -93,6 +93,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 "mixed storage tuple",
                             );
                         } else {
+                            let value =
+                                self.convert_tuple_component(value, source_ty, ty, expr.span)?;
+                            let value = self.materialize_raw_scalar(*id, value);
                             self.values.insert(*id, value);
                         }
                     }
@@ -138,6 +141,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         ids.first().is_some_and(Option::is_none),
                     )?;
                     for (id, value) in ids.iter().flatten().zip(values) {
+                        let value = self.materialize_raw_scalar(*id, value);
                         self.values.insert(*id, value);
                     }
                     return Some(());
@@ -146,8 +150,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if values.len() != ids.len() {
                     return self.cx.report_unsupported(expr.span, "tuple declaration arity");
                 }
-                for (id, value) in ids.iter().zip(values) {
+                let source_ty = self.cx.gcx.type_of_expr(expr.id)?;
+                let sources = match source_ty.kind {
+                    TyKind::Tuple(sources) => sources,
+                    _ => std::slice::from_ref(&source_ty),
+                };
+                for ((id, value), &source) in ids.iter().zip(values).zip(sources) {
                     if let Some(id) = id {
+                        let target = self.cx.gcx.type_of_item((*id).into());
+                        let value =
+                            self.convert_tuple_component(value, source, target, expr.span)?;
+                        let value = self.materialize_raw_scalar(*id, value);
                         self.values.insert(*id, value);
                     }
                 }

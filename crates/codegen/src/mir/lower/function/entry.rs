@@ -181,6 +181,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             } else {
                 self.storage_refs.remove(&parameter);
+                let value = self.materialize_raw_scalar(parameter, value);
                 self.values.insert(parameter, value);
             }
         }
@@ -303,6 +304,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for id in ids {
             let ty = self.cx.gcx.type_of_item(id.into());
             let value = self.default_binding_value(ty);
+            let value = self.materialize_raw_scalar(id, value);
             self.values.insert(id, value);
         }
     }

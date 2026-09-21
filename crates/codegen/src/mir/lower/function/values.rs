@@ -153,8 +153,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(types.to_vec())
     }
 
-    /// Converts an already-lowered tuple component to its target type at a return or
-    /// ternary boundary.
+    /// Converts an already-lowered tuple component to its target type.
     pub(super) fn convert_tuple_component(
         &mut self,
         value: ValueId,

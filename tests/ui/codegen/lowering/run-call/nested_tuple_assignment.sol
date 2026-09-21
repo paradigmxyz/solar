@@ -13,6 +13,8 @@
 //@ run-call: arrayChoice false => 9, 256
 //@ run-call: sliceChoice true => 7, -1
 //@ run-call: sliceChoice false => 9, 256
+//@ run-call: widenedCallTuple => -1, 255
+//@ run-call: singleDeclaration => -1, -2
 
 contract NestedTupleAssignment {
     function signedChoice(bool choose) external pure returns (int16, uint256) {
@@ -43,6 +45,25 @@ contract NestedTupleAssignment {
         (bytes calldata values, int16 number) =
             choose ? (first, int8(-1)) : (second, int16(256));
         return (uint8(values[0]), number);
+    }
+
+    function smallSigned() internal pure returns (int8) {
+        return -2;
+    }
+
+    function singleDeclaration() external pure returns (int16, int16) {
+        (int16 literalValue) = int8(-1);
+        (int16 callValue) = smallSigned();
+        return (literalValue, callValue);
+    }
+
+    function smallPair() internal pure returns (int8, uint8) {
+        return (-1, 255);
+    }
+
+    function widenedCallTuple() external pure returns (int16, uint16) {
+        (int16 signedValue, uint16 unsignedValue) = smallPair();
+        return (signedValue, unsignedValue);
     }
 
     function assign() external pure returns (uint256, uint256, uint256) {

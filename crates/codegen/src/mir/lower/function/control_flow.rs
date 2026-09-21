@@ -487,6 +487,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(value) = creation_value else {
                 return self.cx.report_unsupported(returns_clause.span, "try return binding list");
             };
+            let value = self.materialize_raw_scalar(binding, value);
             self.values.insert(binding, value);
         } else if !return_types.is_empty() {
             let values = if let Some(plan) = ret_plan {
@@ -504,6 +505,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.lower_abi_decode_values(data, &return_types, returns_clause.span)?
             };
             for (&binding, value) in returns_clause.args.iter().zip(values) {
+                let value = self.materialize_raw_scalar(binding, value);
                 self.values.insert(binding, value);
             }
         }
@@ -652,15 +654,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_word_literal(lit);
         }
         let value = self.lower_expr(expr)?;
-        if let Some(ty) = self.cx.gcx.type_of_expr(expr.id)
-            && ty.is_signed()
-            && let Some(bits) = self.builder.func().value_ty(value).and_then(MirType::integer_bits)
-            && bits < 256
-        {
-            Some(self.builder.emit_inst(InstKind::Sext(value, bits, 256), Some(MirType::I256)))
+        let ty = self
+            .cx
+            .gcx
+            .resolved_variable(expr)
+            .map(|id| self.cx.gcx.type_of_item(id.into()))
+            .or_else(|| self.cx.gcx.type_of_expr(expr.id));
+        Some(if let Some(ty) = ty {
+            raw_scalars::cast_carrier(
+                &mut self.builder,
+                value,
+                types::TypeLowerer::value_layout(ty),
+                MirType::I256,
+            )
         } else {
-            Some(self.builder.cast_word(value))
-        }
+            self.builder.cast_word(value)
+        })
     }
 
     pub(super) fn merge_storage_refs(
@@ -869,7 +878,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 && self.builder.func().value_ty(value).is_some_and(|ty| ty.integer_bits().is_some())
             {
                 self.builder.switch_to_block(preheader);
-                let value = self.builder.cast_word(value);
+                let value = self.materialize_raw_scalar(id, value);
                 self.builder.switch_to_block(header);
                 value
             } else {

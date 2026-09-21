@@ -271,6 +271,18 @@ impl LoweringState {
 }
 
 impl FunctionLowerer<'_, '_> {
+    pub(super) fn materialize_raw_scalar(&mut self, id: VariableId, value: ValueId) -> ValueId {
+        if !self.cx.state.raw_scalars.contains(&id) {
+            return value;
+        }
+        let layout = types::TypeLowerer::value_layout(self.cx.gcx.type_of_item(id.into()));
+        if layout.mir_type().integer_bits().is_some() {
+            cast_carrier(&mut self.builder, value, layout, MirType::I256)
+        } else {
+            value
+        }
+    }
+
     pub(super) fn materialize_scalar_carrier(
         &mut self,
         id: VariableId,
