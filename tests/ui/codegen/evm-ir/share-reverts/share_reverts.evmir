@@ -153,3 +153,47 @@ bb19 [cold]:
   revert
 bb20:
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb21:
+// CHECK: - sub
+// CHECK: - push bb23
+// CHECK: + eq
+// CHECK: + push bb22
+bb21:
+  calldatasize
+  push 7
+  sub
+  push bb23
+  jumpi
+  jump bb22
+bb22 [cold]:
+  push 17
+  push 0
+  mstore
+  push 32
+  push 0
+  revert
+bb23:
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb24:
+// CHECK: - eq
+// CHECK: - push bb26
+// CHECK: + sub
+// CHECK: + push bb25
+bb24:
+  calldatasize
+  push 7
+  eq
+  push bb26
+  jumpi
+  jump bb25
+bb25 [cold]:
+  push 17
+  push 0
+  mstore
+  push 32
+  push 0
+  revert
+bb26:
+  stop

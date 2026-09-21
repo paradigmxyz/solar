@@ -100,6 +100,38 @@
     revert
   bb20:
     stop
+  bb21:
+    calldatasize
+    push 7
+    sub
+    push bb23
+    jumpi
+    jump bb22
+  bb22 [cold]:
+    push 17
+    push 0
+    mstore
+    push 32
+    push 0
+    revert
+  bb23:
+    stop
+  bb24:
+    calldatasize
+    push 7
+    eq
+    push bb26
+    jumpi
+    jump bb25
+  bb25 [cold]:
+    push 17
+    push 0
+    mstore
+    push 32
+    push 0
+    revert
+  bb26:
+    stop
   
 - // === ROOT/tests/ui/codegen/evm-ir/share-reverts/share_reverts.evmir (before share-reverts) ===
 + // === ROOT/tests/ui/codegen/evm-ir/share-reverts/share_reverts.evmir (after share-reverts) ===
@@ -201,5 +233,43 @@
     push 0
     revert
   bb20:
+    stop
+  bb21:
+    calldatasize
+    push 7
+-   sub
+-   push bb23
++   eq
++   push bb22
+    jumpi
+-   jump bb22
++   jump bb23
+  bb22 [cold]:
+    push 17
+    push 0
+    mstore
+    push 32
+    push 0
+    revert
+  bb23:
+    stop
+  bb24:
+    calldatasize
+    push 7
+-   eq
+-   push bb26
++   sub
++   push bb25
+    jumpi
+-   jump bb25
++   jump bb26
+  bb25 [cold]:
+    push 17
+    push 0
+    mstore
+    push 32
+    push 0
+    revert
+  bb26:
     stop
   

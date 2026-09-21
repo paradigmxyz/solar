@@ -7,7 +7,8 @@
 //! revert could widen its target push and lose more bytes than the removed jump saves.
 //!
 //! An adjacent cold revert with a payload can use the same rewrite when inversion removes an
-//! existing `ISZERO` or adjusts a constant comparison without increasing its cost.
+//! existing `ISZERO`, exchanges `EQ` and `SUB`, or adjusts a constant comparison without
+//! increasing its cost.
 //! Keep its own target and payload; successful execution then falls through
 //! without the inversion or a continuation label after block layout.
 //!
@@ -90,13 +91,26 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
         }
         let branch_metadata = jumpi.metadata.clone();
         let target_metadata = target.metadata.clone();
-        // Inverting the branch drops an `ISZERO`, retargets an `EQ`, or inserts an `ISZERO`
+        // Inverting the branch drops an `ISZERO`, exchanges `EQ` and `SUB`, or inserts an `ISZERO`
         // before the branch target. Dropping and inserting change what runs at that boundary, so
         // both need a boundary `keep_with_next` allows to be disturbed.
         let condition_end = block.instructions.len() - 2;
         let condition =
             block.instructions.get(condition_end.wrapping_sub(1)).map(|inst| inst.opcode);
-        let inverted = if !empty_reverts.contains(revert) && condition != Some(op::ISZERO) {
+        let inverse = block.instructions.get(condition_end.wrapping_sub(1)).and_then(|inst| {
+            if !inst.has_canonical_stack_effect() || inst.keeps_with_next() {
+                return None;
+            }
+            match inst.as_evm_opcode()? {
+                op::EQ => Some(op::SUB),
+                op::SUB => Some(op::EQ),
+                _ => None,
+            }
+        });
+        let inverted = if !empty_reverts.contains(revert)
+            && condition != Some(op::ISZERO)
+            && inverse.is_none()
+        {
             let Some((start, bound, opposite)) =
                 invert_comparison(&block.instructions[..condition_end], evm_version)
             else {
@@ -114,7 +128,7 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
         };
         let boundary =
             if condition == Some(op::ISZERO) { condition_end - 1 } else { condition_end };
-        if condition != Some(op::EQ) && !is_split_point(&block.instructions, boundary) {
+        if inverse.is_none() && !is_split_point(&block.instructions, boundary) {
             continue;
         }
         // <condition>
@@ -135,7 +149,10 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 Some(op::ISZERO) => {
                     block.instructions.remove(condition_end - 1);
                 }
-                Some(op::EQ) => block.instructions[condition_end - 1].opcode = op::SUB,
+                _ if let Some(opcode) = inverse => {
+                    block.instructions[condition_end - 1]
+                        .replace_preserving_metadata(Instruction::opcode(opcode));
+                }
                 _ => {
                     let mut iszero = Instruction::opcode(op::ISZERO);
                     iszero.metadata.copy_source_debug_from(&branch_metadata);

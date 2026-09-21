@@ -1187,16 +1187,26 @@ RETURN
 
     #[test]
     fn label_push_extends_the_scheduler_peak() {
-        with_codegen(CompileOpts::default(), |mut codegen| {
-            for _ in 0..MAX_STACK_DEPTH {
-                codegen.scheduler.stack.push_unknown();
-            }
+        for conditional in [None, Some(false), Some(true)] {
+            with_codegen(CompileOpts::default(), |mut codegen| {
+                for _ in 0..MAX_STACK_DEPTH {
+                    codegen.scheduler.stack.push_unknown();
+                }
 
-            let label = codegen.asm.new_label();
-            codegen.emit_push_label(label);
+                let label = codegen.asm.new_label();
+                if let Some(invert) = conditional {
+                    codegen.emit_conditional_jump(label, invert);
+                } else {
+                    codegen.emit_push_label(label);
+                }
 
-            assert_eq!(codegen.scheduler.stack.max_depth(), MAX_STACK_DEPTH + 1);
-        });
+                assert_eq!(codegen.scheduler.stack.max_depth(), MAX_STACK_DEPTH + 1);
+                assert_eq!(
+                    codegen.scheduler.stack.depth(),
+                    MAX_STACK_DEPTH - usize::from(conditional.is_some())
+                );
+            });
+        }
     }
 
     #[test]
