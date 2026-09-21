@@ -4,114 +4,153 @@
   immutables:
     stored: u256
   
-  fn @fuse_consecutive() -> u256 {
+  fn @fuse_consecutive() -> i256 {
     bb0:
 -     v0 = alloc raw, exact, uninitialized, infallible, 64
 +     v0 = alloc raw, exact, uninitialized, infallible, 160
-      mstore v0, 1
--     v1 = alloc raw, exact, uninitialized, infallible, 32
--     v2 = alloc raw, exact, uninitialized, infallible, 64
-+     v1 = add v0, 64
-+     v2 = add v0, 96
-      mstore v1, 2
-      mstore v2, 3
-      v3 = mload v1
-      ret v3
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 1
+-     v2 = alloc raw, exact, uninitialized, infallible, 32
++     v7 = ptrtoint memptr v0 to i256
++     v8 = add v7, 64
++     v2 = inttoptr i256 v8 to memptr
+      v3 = ptrtoint memptr v2 to i256
+-     v4 = alloc raw, exact, uninitialized, infallible, 64
++     v9 = ptrtoint memptr v0 to i256
++     v10 = add v9, 96
++     v4 = inttoptr i256 v10 to memptr
+      v5 = ptrtoint memptr v4 to i256
+      mstore v3, 2
+      mstore v5, 3
+      v6 = mload v3
+      ret v6
   }
   
-  fn @fuse_zeroed() -> u256 {
+  fn @fuse_zeroed() -> i256 {
     bb0:
 -     v0 = alloc raw, exact, zeroed, infallible, 64
--     v1 = alloc raw, exact, zeroed, infallible, 32
 +     v0 = alloc raw, exact, uninitialized, infallible, 96
-+     memory_zero v0, 64
-+     v1 = add v0, 64
-+     memory_zero v1, 32
-      v2 = mload v1
-      ret v2
++     v5 = ptrtoint memptr v0 to i256
++     memory_zero v5, 64
+      v1 = ptrtoint memptr v0 to i256
+-     v2 = alloc raw, exact, zeroed, infallible, 32
++     v7 = ptrtoint memptr v0 to i256
++     v8 = add v7, 64
++     v2 = inttoptr i256 v8 to memptr
++     v6 = ptrtoint memptr v2 to i256
++     memory_zero v6, 32
+      v3 = ptrtoint memptr v2 to i256
+      v4 = mload v3
+      ret v4
   }
   
-  fn @preserve_zero_timing() -> u256 {
+  fn @preserve_zero_timing() -> i256 {
     bb0:
 -     v0 = alloc raw, exact, zeroed, infallible, 32
 +     v0 = alloc raw, exact, uninitialized, infallible, 64
-+     memory_zero v0, 32
++     v5 = ptrtoint memptr v0 to i256
++     memory_zero v5, 32
+      v1 = ptrtoint memptr v0 to i256
       mstore 160, 7
--     v1 = alloc raw, exact, zeroed, infallible, 32
-+     v1 = add v0, 32
-+     memory_zero v1, 32
-      v2 = mload v1
-      ret v2
+-     v2 = alloc raw, exact, zeroed, infallible, 32
++     v7 = ptrtoint memptr v0 to i256
++     v8 = add v7, 32
++     v2 = inttoptr i256 v8 to memptr
++     v6 = ptrtoint memptr v2 to i256
++     memory_zero v6, 32
+      v3 = ptrtoint memptr v2 to i256
+      v4 = mload v3
+      ret v4
   }
   
-  fn @keep_across_wrapped_fmp() -> memptr {
+  fn @keep_across_wrapped_fmp() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = sub 64, v0
-      v2 = add v0, v1
-      mstore v2, 0x10000
-      v3 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = ptrtoint memptr v0 to i256
+      v2 = sub 64, v1
+      v3 = add v1, v2
+      mstore v3, 0x10000
+      v4 = alloc raw, exact, uninitialized, infallible, 32
+      v5 = ptrtoint memptr v4 to i256
+      ret v5
+  }
+  
+  fn @keep_across_fmp() -> i256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = ptrtoint memptr v0 to i256
+      v2 = fmp
+      v3 = ptrtoint memptr v2 to i256
+      v4 = alloc raw, exact, uninitialized, infallible, 32
+      v5 = ptrtoint memptr v4 to i256
+      mstore v1, 1
+      mstore v5, 2
       ret v3
   }
   
-  fn @keep_across_fmp() -> memptr {
+  fn @keep_across_constant_fmp_store() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = fmp
-      v2 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 1
-      mstore v2, 2
-      ret v1
-  }
-  
-  fn @keep_across_constant_fmp_store() -> memptr {
-    bb0:
-      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = ptrtoint memptr v0 to i256
       mstore 64, 0x10000
-      v1 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v1, 4
-      ret v1
+      v2 = alloc raw, exact, uninitialized, infallible, 32
+      v3 = ptrtoint memptr v2 to i256
+      mstore v3, 4
+      ret v3
   }
   
-  fn @keep_across_set_fmp() -> memptr {
+  fn @keep_across_set_fmp() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      set_fmp 0x10000
-      v1 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v1, 5
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      v2 = inttoptr i256 0x10000 to memptr
+      set_fmp v2
+      v3 = alloc raw, exact, uninitialized, infallible, 32
+      v4 = ptrtoint memptr v3 to i256
+      mstore v4, 5
+      ret v4
   }
   
-  fn @keep_checked_zeroed() -> memptr {
+  fn @keep_checked_zeroed() -> i256 {
     bb0:
       v0 = alloc raw, exact, zeroed, panic, 64
-      v1 = alloc raw, exact, zeroed, panic, 32
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      v2 = alloc raw, exact, zeroed, panic, 32
+      v3 = ptrtoint memptr v2 to i256
+      ret v3
   }
   
-  fn @keep_mixed_failures() -> memptr {
+  fn @keep_mixed_failures() -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64
-      v1 = alloc raw, exact, uninitialized, panic, 32
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      v2 = alloc raw, exact, uninitialized, panic, 32
+      v3 = ptrtoint memptr v2 to i256
+      ret v3
   }
   
-  fn @keep_across_check(arg0: u256) -> u256 {
+  fn @keep_across_check(arg0: i256) -> i256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 64
-      v1 = checked_add u256, arg0, 1
-      v2 = alloc raw, exact, uninitialized, infallible, 32
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      v2 = checked_add u256, arg0, 1
+      v3 = alloc raw, exact, uninitialized, infallible, 32
+      v4 = ptrtoint memptr v3 to i256
+      ret v2
   }
   
-  fn @across_immutable() -> memptr {
+  fn @across_immutable() -> i256 {
     bb0:
 -     v0 = alloc raw, exact, uninitialized, infallible, 32
 +     v0 = alloc raw, exact, uninitialized, infallible, 64
-      mstore v0, 42
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 42
       storeimmutable stored, 7
--     v1 = alloc raw, exact, uninitialized, infallible, 32
-+     v1 = add v0, 32
-      ret v1
+-     v2 = alloc raw, exact, uninitialized, infallible, 32
++     v4 = ptrtoint memptr v0 to i256
++     v5 = add v4, 32
++     v2 = inttoptr i256 v5 to memptr
+      v3 = ptrtoint memptr v2 to i256
+      ret v3
   }
   

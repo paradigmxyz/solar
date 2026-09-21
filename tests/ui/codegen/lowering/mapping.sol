@@ -8,9 +8,11 @@ contract Mapping {
     mapping(uint256 => uint256) public balances;
 
     // CHECK-LABEL: fn @allowances{{[( ]}}
-    // CHECK: [[OWNER_KEY:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[OWNER_KEY_I160:v[0-9]+]] = trunc i256 arg0 to i160
+    // CHECK: [[OWNER_KEY:v[0-9]+]] = zext i160 [[OWNER_KEY_I160]] to i256
     // CHECK: [[OWNER:v[0-9]+]] = mapping_slot [[OWNER_KEY]], 1
-    // CHECK: [[SPENDER_KEY:v[0-9]+]] = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[SPENDER_KEY_I160:v[0-9]+]] = trunc i256 arg1 to i160
+    // CHECK: [[SPENDER_KEY:v[0-9]+]] = zext i160 [[SPENDER_KEY_I160]] to i256
     // CHECK: [[SPENDER:v[0-9]+]] = mapping_slot [[SPENDER_KEY]], [[OWNER]]
     // CHECK: sload [[SPENDER]]
     mapping(address => mapping(address => uint256)) public allowances;
@@ -33,9 +35,11 @@ contract Mapping {
     }
 
     // CHECK-LABEL: fn @approve{{[( ]}}
-    // CHECK: [[OWNER_KEY:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[OWNER_KEY_I160:v[0-9]+]] = trunc i256 arg0 to i160
+    // CHECK: [[OWNER_KEY:v[0-9]+]] = zext i160 [[OWNER_KEY_I160]] to i256
     // CHECK: [[OWNER:v[0-9]+]] = mapping_slot [[OWNER_KEY]], 1
-    // CHECK: [[SPENDER_KEY:v[0-9]+]] = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[SPENDER_KEY_I160:v[0-9]+]] = trunc i256 arg1 to i160
+    // CHECK: [[SPENDER_KEY:v[0-9]+]] = zext i160 [[SPENDER_KEY_I160]] to i256
     // CHECK: [[SPENDER:v[0-9]+]] = mapping_slot [[SPENDER_KEY]], [[OWNER]]
     // CHECK: sstore [[SPENDER]], arg2
     function approve(address owner, address spender, uint256 amount) public {
@@ -43,9 +47,11 @@ contract Mapping {
     }
 
     // CHECK-LABEL: fn @get_allowance{{[( ]}}
-    // CHECK: [[OWNER_KEY:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[OWNER_KEY_I160:v[0-9]+]] = trunc i256 arg0 to i160
+    // CHECK: [[OWNER_KEY:v[0-9]+]] = zext i160 [[OWNER_KEY_I160]] to i256
     // CHECK: [[OWNER:v[0-9]+]] = mapping_slot [[OWNER_KEY]], 1
-    // CHECK: [[SPENDER_KEY:v[0-9]+]] = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[SPENDER_KEY_I160:v[0-9]+]] = trunc i256 arg1 to i160
+    // CHECK: [[SPENDER_KEY:v[0-9]+]] = zext i160 [[SPENDER_KEY_I160]] to i256
     // CHECK: [[SPENDER:v[0-9]+]] = mapping_slot [[SPENDER_KEY]], [[OWNER]]
     // CHECK: sload [[SPENDER]]
     function get_allowance(address owner, address spender) public view returns (uint256) {

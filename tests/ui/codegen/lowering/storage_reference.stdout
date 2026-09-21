@@ -1,20 +1,20 @@
 // === ROOT/tests/ui/codegen/lowering/storage_reference.sol:C ===
 @module C
-fn @setDirect(arg0: u256, arg1: u256) [selector=0xa8972d9c, abi_params=[u256, u256], abi_returns=[]] {
+fn @setDirect(arg0: i256, arg1: i256) [selector=0xa8972d9c, abi_params=[u256, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = mapping_slot arg0, 0
     sstore v0, arg1 !metadata(storage=symbolic(v0))
     ret
 }
 
-fn @getViaRef(arg0: u256) -> u256 [selector=0x292eaae6, view, abi_params=[u256], abi_returns=[word]] {
+fn @getViaRef(arg0: i256) -> i256 [selector=0x292eaae6, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
     ret v1
 }
 
-fn @bump(arg0: u256) [selector=0xb20eb4c4, abi_params=[u256], abi_returns=[]] {
+fn @bump(arg0: i256) [selector=0xb20eb4c4, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = add v0, 1

@@ -1,63 +1,63 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/enum_memory_store_validation.sol:EnumMemoryStoreValidation ===
 @module EnumMemoryStoreValidation
-fn @dirty() -> u8 [pure] {
+fn @dirty() -> i256 [pure] {
   bb0:
     ret 4
 }
 
-fn @structConstructor() -> u8 [selector=0x9b40f93f, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
+fn @structConstructor() -> i256 [selector=0x9b40f93f, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = icall @dirty
     v2 = lt v1, 3
-    v3 = iszero v2
+    v3 = eq v2, false
     icall panic_if<0x21>, v3
     memory_object_store_field memorystruct<1>, v0, 0, v1
     v4 = memory_object_load_field memorystruct<1>, v0, 0
     v5 = lt v4, 3
-    v6 = iszero v5
+    v6 = eq v5, false
     icall panic_if<0x21>, v6
     ret v4
 }
 
-fn @arrayLiteral() -> u8 [selector=0x7e94f0e2, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
+fn @arrayLiteral() -> i256 [selector=0x7e94f0e2, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     v1 = icall @dirty
     v2 = lt v1, 3
-    v3 = iszero v2
+    v3 = eq v2, false
     icall panic_if<0x21>, v3
     memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v1
     v4 = lt 0, 1
-    v5 = iszero v4
+    v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
     v7 = lt v6, 3
-    v8 = iszero v7
+    v8 = eq v7, false
     icall panic_if<0x21>, v8
     ret v6
 }
 
-fn @arrayElement() -> u8 [selector=0x050651a8, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
+fn @arrayElement() -> i256 [selector=0x050651a8, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
     v1 = icall @dirty
     v2 = memory_object_len memoryarray, v0
     v3 = lt 0, v2
-    v4 = iszero v3
+    v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = lt v1, 3
-    v6 = iszero v5
+    v6 = eq v5, false
     icall panic_if<0x21>, v6
     memory_object_store_element memoryarray<1>, v0, 0, v1
     v7 = memory_object_len memoryarray, v0
     v8 = lt 0, v7
-    v9 = iszero v8
+    v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = memory_object_load_element memoryarray<1>, v0, 0
     v11 = lt v10, 3
-    v12 = iszero v11
+    v12 = eq v11, false
     icall panic_if<0x21>, v12
     ret v10
 }

@@ -30,7 +30,7 @@ def instruction(pattern, bindings):
         return "pop", ()
     if name == "opcode" and len(args) == 1:
         opcode = args[0].removeprefix("$").lower()
-        if opcode in ("not", "iszero", "pop"):
+        if opcode in ("not", "iszero", "pop", "eq"):
             return opcode, ()
         for kind in ("dup", "swap"):
             if opcode.startswith(kind) and opcode[len(kind) :].isdecimal():
@@ -43,7 +43,7 @@ def instruction(pattern, bindings):
 def requirements(sequence):
     minimum = height = peak = 0
     for name, args in sequence:
-        required = {"pop": 1, "not": 1, "iszero": 1}.get(name)
+        required = {"pop": 1, "not": 1, "iszero": 1, "eq": 2}.get(name)
         if name == "dup":
             required = args[0]
         elif name in ("swap", "exchange"):
@@ -51,7 +51,7 @@ def requirements(sequence):
         if required is None:
             raise Unsupported(f"unmodeled stack operation: {name}")
         minimum = max(minimum, required - height)
-        height += (name == "dup") - (name == "pop")
+        height += (name == "dup") - (name in ("pop", "eq"))
         peak = max(peak, height)
     return minimum, peak, height
 
@@ -69,6 +69,9 @@ def execute(sequence, inputs):
             stack[a], stack[b] = stack[b], stack[a]
         elif name == "pop":
             stack.pop()
+        elif name == "eq":
+            a, b = stack.pop(), stack.pop()
+            stack.append(Expr("eq", (a, b)))
         else:
             stack[-1] = Expr(name, (stack[-1],))
     return stack
@@ -107,7 +110,8 @@ def verify_stack_file(path, timeout_ms=5000, artifacts=None):
             ]
             if (
                 root != "peep_nonpush"
-                or name != f"last{len(patterns)}"
+                or name not in (f"last{len(patterns)}", "unprotected_last5")
+                or (name == "unprotected_last5" and len(patterns) != 5)
                 or rewrite != "rewrite"
                 or int(skip) != len(patterns)
             ):
@@ -141,6 +145,8 @@ def verify_stack_file(path, timeout_ms=5000, artifacts=None):
                             "edit retains instructions outside the window"
                         )
                     after = before[:keep]
+                elif edit == ("Edit.RemoveFirstKeepTwo",) and len(before) >= 3:
+                    after = before[1:3]
                 elif edit[0] == "Edit.OverwriteOne" and len(edit) == 2:
                     after = [instruction(("opcode", edit[1]), bindings)]
                 else:
@@ -183,7 +189,9 @@ def verify_stack_file(path, timeout_ms=5000, artifacts=None):
         "rules": rules,
         "contracts": [
             "canonical physical stack facets and legal depth encodings",
+            "unprotected_last5 rejects noncanonical effects and protected boundaries",
             "Edit.Keep truncates; Edit.OverwriteOne replaces the matched window",
+            "Edit.RemoveFirstKeepTwo retains window instructions one and two",
             "sufficient input stack and gas; untouched deeper stack prefix",
             "target lowering preserves physical stack operation semantics",
         ],

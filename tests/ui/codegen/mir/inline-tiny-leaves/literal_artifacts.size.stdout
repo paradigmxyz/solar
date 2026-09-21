@@ -3,13 +3,8 @@
   @module LiteralArtifacts
   fn @constructor() [constructor] {
     bb0:
--     v0 = icall @literal
--     v1 = memory_object_len memorybytes, v0
-+     v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-+     set_memory_object_len memorybytes, v4, 1
-+     v5 = memory_object_data memorybytes, v4
-+     memory_object_store_word memorybytes, v4, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
-+     v1 = memory_object_len memorybytes, v4
+      v0 = icall @literal
+      v1 = memory_object_len memorybytes, v0
       sstore 0, v1
       v2 = icall @indirect
       v3 = memory_object_len memorybytes, v2
@@ -19,13 +14,8 @@
   
   fn @entry() -> memorybytes [selector=0x01020304] {
     bb0:
--     v0 = icall @literal
--     ret v0
-+     v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-+     set_memory_object_len memorybytes, v1, 1
-+     v2 = memory_object_data memorybytes, v1
-+     memory_object_store_word memorybytes, v1, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
-+     ret v1
+      v0 = icall @literal
+      ret v0
   }
   
   fn @literal() -> memorybytes {
@@ -33,7 +23,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 1
       v1 = memory_object_data memorybytes, v0
-      mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
+      v2 = ptrtoint memptr v1 to i256
+      mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -133,11 +124,8 @@
   @module LiteralArtifacts
   fn @constructor() [constructor] {
     bb0:
-      v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-      set_memory_object_len memorybytes, v4, 1
-      v5 = memory_object_data memorybytes, v4
-      memory_object_store_word memorybytes, v4, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
-      v1 = memory_object_len memorybytes, v4
+      v0 = icall @literal
+      v1 = memory_object_len memorybytes, v0
       sstore 0, v1
       v2 = icall @indirect
       v3 = memory_object_len memorybytes, v2
@@ -147,11 +135,8 @@
   
   fn @entry() -> memorybytes [selector=0x01020304] {
     bb0:
-      v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-      set_memory_object_len memorybytes, v1, 1
-      v2 = memory_object_data memorybytes, v1
-      memory_object_store_word memorybytes, v1, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
-      ret v1
+      v0 = icall @literal
+      ret v0
   }
   
   fn @literal() -> memorybytes {
@@ -159,7 +144,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 1
       v1 = memory_object_data memorybytes, v0
-      mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
+      v2 = ptrtoint memptr v1 to i256
+      mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   
@@ -259,11 +245,8 @@
   @module LiteralArtifacts
   fn @constructor() [constructor] {
     bb0:
-      v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-      set_memory_object_len memorybytes, v4, 1
--     v5 = memory_object_data memorybytes, v4
-      memory_object_store_word memorybytes, v4, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
-      v1 = memory_object_len memorybytes, v4
+      v0 = icall @literal
+      v1 = memory_object_len memorybytes, v0
       sstore 0, v1
       v2 = icall @indirect
       v3 = memory_object_len memorybytes, v2
@@ -273,11 +256,8 @@
   
   fn @entry() -> memorybytes [selector=0x01020304] {
     bb0:
-      v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-      set_memory_object_len memorybytes, v1, 1
--     v2 = memory_object_data memorybytes, v1
-      memory_object_store_word memorybytes, v1, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
-      ret v1
+      v0 = icall @literal
+      ret v0
   }
   
   fn @literal() -> memorybytes {
@@ -285,7 +265,8 @@
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 1
       v1 = memory_object_data memorybytes, v0
-      mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
+      v2 = ptrtoint memptr v1 to i256
+      mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   

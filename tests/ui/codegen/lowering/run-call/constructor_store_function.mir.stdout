@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_store_function.sol:ConstructorStoreFunction ===
 @module ConstructorStoreFunction
-fn @result() -> u256 [selector=0x65372147, view, abi_params=[], abi_returns=[word]] {
+fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
@@ -19,13 +19,13 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @double(arg0: u256) -> u256 [selector=0xeee97206, pure, abi_params=[u256], abi_returns=[word]] {
+fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_mul u256, arg0, 2
     ret v0
 }
 
-fn @use(arg0: u256) -> u256 [selector=0xab5b4456, abi_params=[u256], abi_returns=[word]] {
+fn @use(arg0: i256) -> i256 [selector=0xab5b4456, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 0xffffffffffffffff
@@ -33,7 +33,7 @@ fn @use(arg0: u256) -> u256 [selector=0xab5b4456, abi_params=[u256], abi_returns
     ret v2
 }
 
-fn @internal_dispatcher_p_u256_r_u256(arg0: function, arg1: u256) -> u256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_u256_r_u256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 3
     jumpi v0, bb1, bb2

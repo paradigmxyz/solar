@@ -1,17 +1,17 @@
 // === ROOT/tests/ui/codegen/mir/inline-dispatch/signatures.sol:Signatures ===
 @module Signatures
-fn @ping() [selector=0x5c36b186, pure, abi_params=[], abi_returns=[]] {
+fn @ping() [selector=0x5c36b186, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @sum(arg0: u256, arg1: u256) -> u256 [selector=0xcad0899b, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @sum(arg0: i256, arg1: i256) -> i256 [selector=0xcad0899b, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_add u256, arg0, arg1
     ret v0
 }
 
-fn @headLength(arg0: calldataslice) -> u256 [selector=0xfd0d50d7, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
+fn @headLength(arg0: calldataslice) -> i256 [selector=0xfd0d50d7, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     ret v0

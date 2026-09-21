@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mcopy_shared_helper.sol:MCopySharedHelper ===
 @module MCopySharedHelper
-fn @join(arg0: memorybytes, arg1: memorybytes) -> memorybytes [selector=0x1bc2d0a1, pure, abi_params=[bytes, bytes], abi_returns=[memory_bytes]] {
+fn @join(arg0: memorybytes, arg1: memorybytes) -> memorybytes [selector=0x1bc2d0a1, pure, abi_params=[bytes, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_encode_packed (bytes arg0, bytes arg1)
     ret v0
 }
 
-fn @twice(arg0: memorybytes) -> memorybytes [selector=0xff491092, pure, abi_params=[bytes], abi_returns=[memory_bytes]] {
+fn @twice(arg0: memorybytes) -> memorybytes [selector=0xff491092, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall concat<memorybytes, memorybytes>, arg0, arg0
     ret v0

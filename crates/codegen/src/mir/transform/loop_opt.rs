@@ -38,11 +38,11 @@
 //! therefore constrain the guarantee even when a constant loop bound is known.
 
 use crate::mir::{
-    BlockId, Callee, EffectKind, Function, ImmutableId, InstId, InstKind, MemoryRegion, Module,
-    OpTraits, StorageAlias, Terminator, Value, ValueId,
+    BlockId, Callee, EffectKind, Function, ImmutableId, InstId, InstKind, Module, OpTraits,
+    StorageAlias, Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AffineExpr, AliasAnalysis, AliasResult, Location, LocationSize, Loop,
-        LoopAnalyzer, MemoryBase, ScalarEvolution,
+        LoopAnalyzer, ScalarEvolution,
     },
     pass::{MirPass, run_function_pass_with_alias},
     utils as mir_utils,
@@ -425,13 +425,11 @@ impl LoopOptimizer {
             // header. Element, byte, and word stores address the payload that
             // follows the header, so alias analysis can prove the loop leaves
             // the length alone while the object identity is still explicit.
-            // The header of an existing heap object is allocated memory, so
-            // reading it early cannot expand memory or trap on a zero-trip loop;
-            // only the guaranteed-execution rule for other reads is relaxed.
-            InstKind::MemoryObjectLen(object, _) => {
+            // Nominal object types do not prove that the header is allocated.
+            // As with raw loads, require execution on every path through the loop.
+            InstKind::MemoryObjectLen(..) => {
                 return !self.function_observes_msize(func)
-                    && (self.hoist_execution_guaranteed(func, inst_id, ctx)
-                        || self.is_existing_heap_object(func, object))
+                    && self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_write_read_locations(func, ctx, inst_id);
             }
             // These semantic memory reads lower to `mload` after LICM. Keep them in
@@ -587,7 +585,7 @@ impl LoopOptimizer {
     }
 
     fn function_observes_msize(&self, func: &Function) -> bool {
-        func.instructions().any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::MSize))
+        self.alias().may_observe_msize(func)
     }
 
     fn loop_contains_call_or_create(&self, func: &Function, loop_data: &Loop) -> bool {
@@ -722,21 +720,6 @@ impl LoopOptimizer {
             }
         }
         false
-    }
-
-    /// Whether `object` is a memory object that already exists at the loop: a
-    /// fresh allocation or an object argument, both with an allocated header.
-    fn is_existing_heap_object(&self, func: &Function, object: ValueId) -> bool {
-        self.alias().memory_address(func, object).is_some_and(|address| {
-            address.region == MemoryRegion::Heap
-                && match address.base {
-                    MemoryBase::Allocation(_)
-                    | MemoryBase::DynamicAllocation(_)
-                    | MemoryBase::Param(_) => true,
-                    MemoryBase::Value(value) => matches!(func.value(value), Value::Arg(_)),
-                    MemoryBase::Absolute | MemoryBase::InternalFrame => false,
-                }
-        })
     }
 
     /// Returns true if any loop instruction or terminator may write a location

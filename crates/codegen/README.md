@@ -25,7 +25,7 @@ Metadata sits directly above the operation inside `define_mir_ops!`:
 ```rust,ignore
 #[mir_op(
     mnemonic = "add",
-    result = Word,
+    result = I256,
     phases = PhaseSet::ALL,
     effect = Pure,
     traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE),
@@ -54,16 +54,24 @@ semantic obligations while invalidating memory regions, storage aliases, and
 effect overrides. The caller still proves equivalence; the helpers do not prove
 an optimization correct or permit changing the result representation.
 
-`isle/prelude.isle` declares the generated operation view, and
-`isle/extractors.isle` adds value-definition extractors for MIR simplification.
+ISLE sources are grouped by compiler layer:
+
+| Directory | Purpose |
+| --- | --- |
+| `isle/mir/` | MIR optimization: e-graph identities and word-sequence rewrites. |
+| `isle/mir-to-evm/` | MIR-to-EVM opcode selection and selection using the physical stack. |
+| `isle/evm-ir/` | Scheduled EVM IR peepholes, stack rewrites, and late word rewrites. |
+
+`isle/mir/prelude.isle` declares the generated operation view, and
+`isle/mir/extractors.isle` adds value-definition extractors for MIR simplification.
 The opcode table in `src/backend/evm/op.rs` generates the constants in
-`isle/evm_prelude.isle`. `isle/select.isle` uses the two vocabularies to select
+`isle/evm-ir/prelude.isle`. `isle/mir-to-evm/select.isle` uses the two vocabularies to select
 single EVM opcodes and scheduling shapes, without access to value definitions.
 The emitter and target cost model call that same selector.
 
 `build.rs` compiles the rule sets to Rust with `cranelift-isle`. Local identities
-in `isle/egraph.isle` run inside the existing Rust e-graph algorithm; EVM IR window
-patterns live in `isle/peephole.isle`. Global analysis, profitability, stack
+in `isle/mir/egraph.isle` run inside the existing Rust e-graph algorithm; EVM IR window
+patterns live in `isle/evm-ir/peephole.isle`. Global analysis, profitability, stack
 scheduling, complex lowering, and assembly remain in Rust. The schema snapshot
 tests check the generated vocabularies, and the selector snapshot checks its
 opcode mappings and stack contracts against both operation tables.
@@ -71,7 +79,10 @@ opcode mappings and stack contracts against both operation tables.
 The e-graph owns scalar identities, checked constant evaluation, passing-check
 removal, and fixed aggregate projection folding. Late `const-fold` shares its
 rules but accepts only immediate results, so it cannot extend nonconstant live
-ranges before stack scheduling.
+ranges before stack scheduling. Constants stay on the right of commutative
+operations and comparisons, with comparison predicates reversed when needed.
+Matching, node insertion, and final materialization share this ordering, so
+rules need not repeat constant-left variants.
 
 The e-graph overlaps pure-expression CSE, but it does not replace the `cse`
 pass's alias-sensitive memory, storage, and call reuse. SCCP still propagates
@@ -85,11 +96,12 @@ every Rust rewrite belongs in the DSL. See the repository's
 ### Library addresses and relocations
 
 Unresolved library addresses use `LibraryId` indices into a module-owned table of
-source-qualified names. MIR (`library_address`), EVM IR (`push_library`), and the
-compact assembler carry the same IDs. The primitive assembler emits a
-fixed-width `PUSH20` slot and records its library directly; placeholder bytes carry
-no identity. Embedded creation and runtime bytecode carry their library tables and
-relocations; lowering remaps their IDs into the parent module's table.
+source-qualified names. MIR `library_address` produces `i160`. MIR, EVM IR
+(`push_library`), and the compact assembler carry the same IDs. The primitive
+assembler emits a fixed-width `PUSH20` slot and records its library directly;
+placeholder bytes carry no identity. Embedded creation and runtime bytecode carry
+their library tables and relocations; lowering remaps their IDs into the parent
+module's table.
 Data pooling shares bytes only when the library identities and offsets also match.
 The textual IR prints library identities as `"source.sol":"Library"` and data
 relocations as `library_relocations [offset: "source.sol":"Library"]`.

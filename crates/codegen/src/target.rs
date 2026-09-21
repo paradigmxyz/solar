@@ -441,6 +441,50 @@ impl Target {
         immediate: impl Fn(ValueId) -> Option<U256>,
         warmth: Warmth,
     ) -> Cost {
+        if let Op::Trunc { bits, .. } | Op::PtrToInt { bits, .. } = *op {
+            return if bits < 256 {
+                self.push(U256::MAX >> (256 - bits)) + self.opcode(op::AND)
+            } else {
+                Cost::ZERO
+            };
+        }
+        if let Op::Sext { from_bits, to_bits, .. } = *op {
+            if from_bits == 1 {
+                return if to_bits == 256 {
+                    self.push(U256::ZERO) + self.opcode(op::SUB)
+                } else if to_bits == 160 && self.evm_version.has_bitwise_shifting() {
+                    self.push(U256::ZERO)
+                        + self.opcode(op::SUB)
+                        + self.push(U256::from(96))
+                        + self.opcode(op::SHR)
+                } else if to_bits < 256 {
+                    self.push(U256::MAX >> (256 - to_bits)) + self.opcode(op::MUL)
+                } else {
+                    self.push(U256::MAX) + self.opcode(op::MUL)
+                };
+            }
+            let extension = if from_bits != 0 && from_bits.is_multiple_of(8) && from_bits <= 256 {
+                self.push(U256::from(from_bits / 8 - 1)) + self.opcode(op::SIGNEXTEND)
+            } else {
+                let shift = self.push(U256::from(256_u32.saturating_sub(from_bits)));
+                shift + shift + self.opcode(op::SHL) + self.opcode(op::SAR)
+            };
+            return extension
+                + if to_bits < 256 {
+                    self.push(U256::MAX >> (256 - to_bits)) + self.opcode(op::AND)
+                } else {
+                    Cost::ZERO
+                };
+        }
+        if matches!(op, Op::Zext { .. } | Op::IntToPtr { .. } | Op::Bitcast { .. }) {
+            return Cost::ZERO;
+        }
+        if matches!(op, Op::Eq { .. } | Op::Ne { .. }) {
+            let comparison =
+                if Self::zero_test_input(op, &immediate).is_some() { op::ISZERO } else { op::EQ };
+            return self.opcode(comparison)
+                + if matches!(op, Op::Ne { .. }) { self.opcode(op::ISZERO) } else { Cost::ZERO };
+        }
         let Some(lowering) = select::opcode_lowering(op) else {
             return Cost::new(GasTier::VeryLow.gas(self.evm_version), 1);
         };
@@ -458,6 +502,21 @@ impl Target {
         });
         let dynamic = dynamic_gas.saturating_mul(tier.dynamic_units(&arguments));
         Cost::new(static_gas.saturating_add(dynamic), 1)
+    }
+
+    /// Returns the sole materialized operand of an equality or inequality with zero.
+    pub(crate) fn zero_test_input(
+        op: &Op,
+        immediate: impl Fn(ValueId) -> Option<U256>,
+    ) -> Option<ValueId> {
+        let (Op::Eq { a, b } | Op::Ne { a, b }) = *op else { return None };
+        if immediate(a) == Some(U256::ZERO) {
+            Some(b)
+        } else if immediate(b) == Some(U256::ZERO) {
+            Some(a)
+        } else {
+            None
+        }
     }
 
     /// Cost of the generic Select emitter, excluding initial operand placement.
@@ -673,7 +732,7 @@ mod tests {
         assert_eq!(target.opcode_gas_at(op::SLOAD, Warmth::Warm), 100);
         assert_eq!(target.opcode_gas_at(op::SLOAD, Warmth::Cold), 2100);
         let mut function = Function::new(Ident::DUMMY);
-        let slot = function.alloc_value(Value::Immediate(Immediate::uint256(U256::ZERO)));
+        let slot = function.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
         let load = InstKind::SLoad(slot).op();
         assert_eq!(target.op_at(&load, |_| None, Warmth::Warm), Cost::new(100, 1));
         assert_eq!(target.op(&load, |_| None), Cost::new(2100, 1));

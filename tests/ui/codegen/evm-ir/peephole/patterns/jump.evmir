@@ -28,3 +28,75 @@ bb1:
   stop
 bb2:
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: - swap 1
+// CHECK: - eq
+// CHECK: - iszero
+// CHECK: + sub
+// CHECK: {{^[ +].*}}jumpi
+bb3:
+  calldatasize
+  returndatasize
+  swap 1
+  eq
+  iszero
+  push bb2
+  jumpi
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK: {{^[ +].*}}eq
+// CHECK-NEXT: {{^[ +].*}}iszero
+// CHECK-NEXT: {{^[ +].*}}dup 1
+// CHECK: {{^[ +].*}}jumpi
+bb4:
+  calldatasize
+  returndatasize
+  eq
+  iszero
+  dup 1
+  push bb2
+  jumpi
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb5:
+// CHECK: {{^[ +].*}}returndatasize
+// CHECK-NEXT: - push 0
+// CHECK-NEXT: - lt
+// CHECK-NEXT: {{^[ +].*}}push bb2
+// CHECK-NEXT: {{^[ +].*}}jumpi
+bb5:
+  returndatasize
+  push 0
+  lt
+  push bb2
+  jumpi
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb6:
+// CHECK: {{^[ +].*}}lt
+// CHECK-NEXT: {{^[ +].*}}dup 1
+// CHECK: {{^[ +].*}}jumpi
+bb6:
+  returndatasize
+  push 0
+  lt
+  dup 1
+  push bb2
+  jumpi
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb7:
+// CHECK: {{^[ +].*}}push 1
+// CHECK-NEXT: {{^[ +].*}}lt
+// CHECK: {{^[ +].*}}jumpi
+bb7:
+  returndatasize
+  push 1
+  lt
+  push bb2
+  jumpi
+  stop

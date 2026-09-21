@@ -10,22 +10,27 @@
 //!
 //! The bound is a least fixed point over the call graph. A function's store
 //! bound is the widest word it stores into any array element, by the proved
-//! width of the stored value; a raw memory write outside the compiler's
-//! scratch region, an external call, or an explicit frame address makes it
-//! the full word, since the address written is not tracked. A function's
+//! width of the stored value, provided the array has a known word-aligned origin.
+//! Other object stores, unknown array pointers, raw writes outside scratch memory,
+//! external calls, and explicit frame addresses widen the bound to the full word,
+//! since the address written is not tracked. A function's
 //! transitive bound also covers the functions it calls. An array's origin
 //! bound is zero for a zeroed allocation, the element width of an
 //! externally callable function's array parameter whose ABI decoding
 //! validates every element, the widest argument any call site passes for an
 //! internal parameter (each argument bounded by its own origin and the
-//! caller's transitive bound), the widest incoming array for a phi, and the
-//! full word for anything else. A mask on an element load is dropped when
-//! its width covers both the array's origin bound and the transitive bound
+//! caller's transitive bound), the widest incoming array for a phi, the width
+//! of a storage-array load's validated unsigned elements, and the full word
+//! for anything else. Storage-array loads initialize fresh private arrays.
+//! A mask on an element load is dropped when its width covers both the array's
+//! origin bound and the transitive bound
 //! of the function reading it. Widths are tracked per function rather than
 //! per array, so a store into any array of a function widens every array
-//! that function reads; aliasing between arrays needs no separate proof.
+//! that function reads. Provisional width summaries establish array origins first;
+//! a second summary includes stores through unknown origins before any masks are removed.
 //!
-//! Only word-element arrays and contiguous low-bit masks are rewritten.
+//! Only word-element arrays, contiguous low-bit masks, and `zext i160 (trunc i256 x to i160) to
+//! i256` round trips are rewritten. A narrowing result with other typed uses stays in place.
 //! Runs early in the optimized phase, while element accesses are still
 //! semantic and the call graph is explicit; removed masks lose their debug
 //! checkpoints rather than lending them to the loads.
@@ -67,13 +72,19 @@ impl MirPass for ElementCleanup {
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
-        let transitive = transitive_bounds(module);
-        let params = param_bounds(module, &transitive);
+        let initial = transitive_bounds(module, None);
+        let mut params = param_bounds(module, &initial);
+        // Narrow origins also prove that array stores use ordinary word boundaries.
+        // Cast-derived objects can instead write across another array's elements.
+        let transitive = transitive_bounds(module, Some(&params));
+        if transitive != initial {
+            params = param_bounds(module, &transitive);
+        }
         if tracing::enabled!(tracing::Level::TRACE) {
             for (id, func) in module.functions.iter_enumerated() {
                 tracing::trace!(
                     function = %func.name,
-                    store = store_bound(func),
+                    store = store_bound(func, Some(&object_bounds(func, id, &params))),
                     transitive = transitive[id],
                     params = ?func
                         .params
@@ -124,6 +135,7 @@ impl MirPass for ElementCleanup {
                     func.attributes.array_return_element_bits = Some(bound);
                 }
             }
+            let uses = super::egraph::use_counts(func);
             let mut replacements = FxHashMap::default();
             let mut dead = DenseBitSet::new_empty(func.num_insts());
             for inst in func.instructions() {
@@ -135,6 +147,14 @@ impl MirPass for ElementCleanup {
                     && objects.get(&object).is_some_and(|&origin| origin.max(reading) <= bits)
                     && let Some(result) = func.inst_result_value(inst)
                 {
+                    // zext i160 (trunc i256 element to i160) to i256 -> element
+                    if let InstKind::Zext(narrow) = func.inst(inst).kind
+                        && uses[narrow] == 1
+                        && let Value::Inst(trunc) = func.value(narrow)
+                    {
+                        dead.insert(*trunc);
+                    }
+                    // and element, mask -> element
                     replacements.insert(result, element);
                     dead.insert(inst);
                 }
@@ -179,6 +199,12 @@ fn is_array(ty: MirType) -> bool {
 
 /// The value a contiguous low-bit mask keeps, and the mask's width in bits.
 fn masked_element(func: &Function, inst: InstId) -> Option<(ValueId, u32)> {
+    if let InstKind::Zext(narrow) = func.inst(inst).kind
+        && let Value::Inst(trunc) = func.value(narrow)
+        && let InstKind::Trunc(element, 160) = func.inst(*trunc).kind
+    {
+        return Some((element, 160));
+    }
     let InstKind::And(a, b) = func.inst(inst).kind else { return None };
     let (element, mask) = match (func.value_u256(a), func.value_u256(b)) {
         (None, Some(mask)) => (a, mask),
@@ -189,24 +215,30 @@ fn masked_element(func: &Function, inst: InstId) -> Option<(ValueId, u32)> {
 }
 
 /// The widest word the function's own instructions may store into an array.
-fn store_bound(func: &Function) -> u32 {
+fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u32 {
     let mut bound = 0;
     for inst in func.instructions() {
         let instruction = func.inst(inst);
         let width = match &instruction.kind {
-            InstKind::MemoryObjectStoreElement { value, .. } => {
+            InstKind::MemoryObjectStoreElement { object, value, .. }
+                if objects.is_none_or(|objects| {
+                    objects.get(object).is_some_and(|&bound| bound < FULL_WIDTH)
+                }) =>
+            {
                 max_bits_with_args(func, *value, MAX_VALUE_DEPTH, &|_| FULL_WIDTH)
             }
-            // Other object kinds and compiler-owned words never overlap an
-            // array element; zeroing keeps elements narrow.
-            InstKind::MemoryObjectStoreField { .. }
-            | InstKind::MemoryObjectStoreByte { .. }
-            | InstKind::MemoryObjectStoreWord { .. }
-            | InstKind::Alloc { .. }
-            | InstKind::SetMemoryObjectLen(..)
-            | InstKind::SetFmp(_)
+            // A direct allocation's header is separate from existing array elements.
+            InstKind::SetMemoryObjectLen(object, ..)
+                if matches!(func.value(*object), Value::Inst(alloc)
+                    if matches!(func.inst(*alloc).kind, InstKind::Alloc { .. })) =>
+            {
+                0
+            }
+            // Only compiler-owned words and zeroing are harmless without an alias proof.
+            InstKind::Alloc { .. }
             | InstKind::FrameStore { .. }
-            | InstKind::MemoryZero(..) => 0,
+            | InstKind::MemoryZero(..)
+            | InstKind::StorageArrayLoad { .. } => 0,
             InstKind::MStore(..) | InstKind::MStore8(..) => {
                 if instruction.metadata.memory_region() == Some(MemoryRegion::Scratch) {
                     0
@@ -243,8 +275,18 @@ fn callees(func: &Function) -> impl Iterator<Item = FunctionId> + '_ {
 }
 
 /// Each function's store bound including the functions it calls.
-fn transitive_bounds(module: &Module) -> IndexVec<FunctionId, u32> {
-    let mut bounds: IndexVec<FunctionId, u32> = module.functions.iter().map(store_bound).collect();
+fn transitive_bounds(
+    module: &Module,
+    params: Option<&FxHashMap<(FunctionId, ArgIdx), u32>>,
+) -> IndexVec<FunctionId, u32> {
+    let mut bounds: IndexVec<FunctionId, u32> = module
+        .functions
+        .iter_enumerated()
+        .map(|(id, func)| {
+            let objects = params.map(|params| object_bounds(func, id, params));
+            store_bound(func, objects.as_ref())
+        })
+        .collect();
     for _ in 0..MAX_ROUNDS {
         let mut changed = false;
         for (id, func) in module.functions.iter_enumerated() {
@@ -271,7 +313,7 @@ fn validated_width(func: &Function, index: ArgIdx) -> u32 {
         _ => return FULL_WIDTH,
     };
     match **element {
-        AbiParamType::Scalar(ty) => match AbiWordValidator::from_mir_type(ty) {
+        AbiParamType::Scalar(ty) => match AbiWordValidator::from_layout(ty) {
             Some(AbiWordValidator::Unsigned(bits)) => u32::from(bits),
             // A full-width element has no mask to remove.
             None => FULL_WIDTH,
@@ -376,6 +418,13 @@ fn object_bounds(
                     && semantics.initialization == AllocationInitialization::Zeroed =>
             {
                 bounds.insert(result, 0);
+            }
+            InstKind::StorageArrayLoad { element, .. } => {
+                if let Some(AbiWordValidator::Unsigned(bits)) =
+                    AbiWordValidator::from_layout(*element)
+                {
+                    bounds.insert(result, u32::from(bits));
+                }
             }
             // Every phi joins, not only the array-typed ones: lowering types a returned
             // array as the raw pointer it is, and an object reaches its uses through

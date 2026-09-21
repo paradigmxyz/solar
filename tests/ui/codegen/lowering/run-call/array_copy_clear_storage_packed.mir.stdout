@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/array_copy_clear_storage_packed.sol:ArrayCopyClearStoragePacked ===
 @module ArrayCopyClearStoragePacked
-fn @f() -> u128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>], abi_return_params=[u128]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -82,7 +82,7 @@ fn @f() -> u128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>]] {
     set_memory_object_len memoryarray, v64, 1
     v65 = memory_object_len memoryarray, v64
     v66 = lt 0, v65
-    v67 = iszero v66
+    v67 = eq v66, false
     icall panic_if<0x32>, v67
     memory_object_store_element memoryarray<1>, v64, 0, 23
     v68 = memory_object_len memoryarray, v64
@@ -107,7 +107,7 @@ fn @f() -> u128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>]] {
   bb8:
     v104 = shr 1, v68
     v105 = and v68, 1
-    v106 = iszero v105
+    v106 = eq v105, 0
     jumpi v106, bb10, bb9
   bb9:
     v107 = mul v105, 128
@@ -123,7 +123,7 @@ fn @f() -> u128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>]] {
     sstore 0, 4 !metadata(storage=slot(0))
     v114 = sload 0 !metadata(storage=slot(0))
     v115 = lt 0, v114
-    v116 = iszero v115
+    v116 = eq v115, false
     icall panic_if<0x32>, v116
     v117 = storage_array_data_slot 0
     v118 = div 0, 2
@@ -135,11 +135,11 @@ fn @f() -> u128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>]] {
     v124 = shr v123, v122
     v125 = and v124, 0xffffffffffffffffffffffffffffffff
     v126 = eq v125, 23
-    v127 = iszero v126
+    v127 = eq v126, false
     icall panic_if<0x1>, v127
     v128 = sload 0 !metadata(storage=slot(0))
     v129 = lt 2, v128
-    v130 = iszero v129
+    v130 = eq v129, false
     icall panic_if<0x32>, v130
     v131 = storage_array_data_slot 0
     v132 = div 2, 2
@@ -151,11 +151,11 @@ fn @f() -> u128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>]] {
     v138 = shr v137, v136
     v139 = and v138, 0xffffffffffffffffffffffffffffffff
     v140 = eq v139, 0
-    v141 = iszero v140
+    v141 = eq v140, false
     icall panic_if<0x1>, v141
     v142 = sload 0 !metadata(storage=slot(0))
     v143 = lt 3, v142
-    v144 = iszero v143
+    v144 = eq v143, false
     icall panic_if<0x32>, v144
     v145 = storage_array_data_slot 0
     v146 = div 3, 2
@@ -167,11 +167,11 @@ fn @f() -> u128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>]] {
     v152 = shr v151, v150
     v153 = and v152, 0xffffffffffffffffffffffffffffffff
     v154 = eq v153, 0
-    v155 = iszero v154
+    v155 = eq v154, false
     icall panic_if<0x1>, v155
     v156 = sload 0 !metadata(storage=slot(0))
     v157 = lt 1, v156
-    v158 = iszero v157
+    v158 = eq v157, false
     icall panic_if<0x32>, v158
     v159 = storage_array_data_slot 0
     v160 = div 1, 2
@@ -220,7 +220,7 @@ fn @f() -> u128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>]] {
     jump bb3
 }
 
-fn @g() -> u64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>]] {
+fn @g() -> i256 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>], abi_return_params=[u64]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
@@ -302,7 +302,7 @@ fn @g() -> u64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>]] {
     set_memory_object_len memoryarray, v64, 1
     v65 = memory_object_len memoryarray, v64
     v66 = lt 0, v65
-    v67 = iszero v66
+    v67 = eq v66, false
     icall panic_if<0x32>, v67
     memory_object_store_element memoryarray<1>, v64, 0, 23
     v68 = memory_object_len memoryarray, v64
@@ -327,7 +327,7 @@ fn @g() -> u64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>]] {
   bb8:
     v104 = shr 2, v68
     v105 = and v68, 3
-    v106 = iszero v105
+    v106 = eq v105, 0
     jumpi v106, bb10, bb9
   bb9:
     v107 = mul v105, 64
@@ -343,7 +343,7 @@ fn @g() -> u64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>]] {
     sstore 1, 4 !metadata(storage=slot(1))
     v114 = sload 1 !metadata(storage=slot(1))
     v115 = lt 0, v114
-    v116 = iszero v115
+    v116 = eq v115, false
     icall panic_if<0x32>, v116
     v117 = storage_array_data_slot 1
     v118 = div 0, 4
@@ -355,11 +355,11 @@ fn @g() -> u64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>]] {
     v124 = shr v123, v122
     v125 = and v124, 0xffffffffffffffff
     v126 = eq v125, 23
-    v127 = iszero v126
+    v127 = eq v126, false
     icall panic_if<0x1>, v127
     v128 = sload 1 !metadata(storage=slot(1))
     v129 = lt 2, v128
-    v130 = iszero v129
+    v130 = eq v129, false
     icall panic_if<0x32>, v130
     v131 = storage_array_data_slot 1
     v132 = div 2, 4
@@ -371,11 +371,11 @@ fn @g() -> u64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>]] {
     v138 = shr v137, v136
     v139 = and v138, 0xffffffffffffffff
     v140 = eq v139, 0
-    v141 = iszero v140
+    v141 = eq v140, false
     icall panic_if<0x1>, v141
     v142 = sload 1 !metadata(storage=slot(1))
     v143 = lt 3, v142
-    v144 = iszero v143
+    v144 = eq v143, false
     icall panic_if<0x32>, v144
     v145 = storage_array_data_slot 1
     v146 = div 3, 4
@@ -387,11 +387,11 @@ fn @g() -> u64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>]] {
     v152 = shr v151, v150
     v153 = and v152, 0xffffffffffffffff
     v154 = eq v153, 0
-    v155 = iszero v154
+    v155 = eq v154, false
     icall panic_if<0x1>, v155
     v156 = sload 1 !metadata(storage=slot(1))
     v157 = lt 1, v156
-    v158 = iszero v157
+    v158 = eq v157, false
     icall panic_if<0x32>, v158
     v159 = storage_array_data_slot 1
     v160 = div 1, 4
@@ -440,7 +440,7 @@ fn @g() -> u64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>]] {
     jump bb3
 }
 
-fn @h() -> u120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u120>]] {
+fn @h() -> i256 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u120>], abi_return_params=[u120]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     v1 = gt v0, 0xffffffffffffffff
@@ -522,7 +522,7 @@ fn @h() -> u120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u120>]] {
     set_memory_object_len memoryarray, v64, 1
     v65 = memory_object_len memoryarray, v64
     v66 = lt 0, v65
-    v67 = iszero v66
+    v67 = eq v66, false
     icall panic_if<0x32>, v67
     memory_object_store_element memoryarray<1>, v64, 0, 23
     v68 = memory_object_len memoryarray, v64
@@ -547,7 +547,7 @@ fn @h() -> u120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u120>]] {
   bb8:
     v104 = shr 1, v68
     v105 = and v68, 1
-    v106 = iszero v105
+    v106 = eq v105, 0
     jumpi v106, bb10, bb9
   bb9:
     v107 = mul v105, 120
@@ -563,7 +563,7 @@ fn @h() -> u120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u120>]] {
     sstore 2, 4 !metadata(storage=slot(2))
     v114 = sload 2 !metadata(storage=slot(2))
     v115 = lt 0, v114
-    v116 = iszero v115
+    v116 = eq v115, false
     icall panic_if<0x32>, v116
     v117 = storage_array_data_slot 2
     v118 = div 0, 2
@@ -575,11 +575,11 @@ fn @h() -> u120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u120>]] {
     v124 = shr v123, v122
     v125 = and v124, 0xffffffffffffffffffffffffffffff
     v126 = eq v125, 23
-    v127 = iszero v126
+    v127 = eq v126, false
     icall panic_if<0x1>, v127
     v128 = sload 2 !metadata(storage=slot(2))
     v129 = lt 2, v128
-    v130 = iszero v129
+    v130 = eq v129, false
     icall panic_if<0x32>, v130
     v131 = storage_array_data_slot 2
     v132 = div 2, 2
@@ -591,11 +591,11 @@ fn @h() -> u120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u120>]] {
     v138 = shr v137, v136
     v139 = and v138, 0xffffffffffffffffffffffffffffff
     v140 = eq v139, 0
-    v141 = iszero v140
+    v141 = eq v140, false
     icall panic_if<0x1>, v141
     v142 = sload 2 !metadata(storage=slot(2))
     v143 = lt 3, v142
-    v144 = iszero v143
+    v144 = eq v143, false
     icall panic_if<0x32>, v144
     v145 = storage_array_data_slot 2
     v146 = div 3, 2
@@ -607,11 +607,11 @@ fn @h() -> u120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u120>]] {
     v152 = shr v151, v150
     v153 = and v152, 0xffffffffffffffffffffffffffffff
     v154 = eq v153, 0
-    v155 = iszero v154
+    v155 = eq v154, false
     icall panic_if<0x1>, v155
     v156 = sload 2 !metadata(storage=slot(2))
     v157 = lt 1, v156
-    v158 = iszero v157
+    v158 = eq v157, false
     icall panic_if<0x32>, v158
     v159 = storage_array_data_slot 2
     v160 = div 1, 2

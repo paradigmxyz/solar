@@ -1,26 +1,42 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/memory_object_identity_projections.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/memory_object_identity_projections.mir (after egraph) ===
   @module MemoryObjectIdentityProjections
-  fn @fold_identity_projections(arg0: memorystruct, arg1: memoryfixedarray) -> u256 {
+  fn @fold_identity_projections(arg0: memorystruct, arg1: memoryfixedarray) -> i256 {
     bb0:
 -     v0 = memory_object_data memorystruct, arg0
--     v1 = memory_object_field_addr memorystruct<2>, arg0, 0
--     v2 = memory_object_element_addr memoryfixedarray<4, 1>, arg1, 0
--     v3 = eq v0, v1
--     v4 = eq v1, v2
--     v5 = add v3, v4
-+     v4 = eq arg0, arg1
-+     v5 = add v4, true
-      ret v5
+-     v1 = ptrtoint memptr v0 to i256
+-     v2 = memory_object_field_addr memorystruct<2>, arg0, 0
+-     v3 = ptrtoint memptr v2 to i256
+-     v4 = memory_object_element_addr memoryfixedarray<4, 1>, arg1, 0
+-     v5 = ptrtoint memptr v4 to i256
+-     v6 = eq v1, v3
+-     v7 = eq v3, v5
+-     v8 = zext i1 v6 to i256
++     v0 = bitcast memorystruct arg0 to memptr
++     v1 = ptrtoint memorystruct arg0 to i256
++     v2 = bitcast memorystruct arg0 to memptr
++     v4 = bitcast memoryfixedarray arg1 to memptr
++     v5 = ptrtoint memoryfixedarray arg1 to i256
++     v7 = eq v1, v5
+      v9 = zext i1 v7 to i256
+-     v10 = add v8, v9
++     v10 = add v9, 1
+      ret v10
   }
   
 - // === ROOT/tests/ui/codegen/mir/egraph/memory_object_identity_projections.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/memory_object_identity_projections.mir (after dce) ===
   @module MemoryObjectIdentityProjections
-  fn @fold_identity_projections(arg0: memorystruct, arg1: memoryfixedarray) -> u256 {
+  fn @fold_identity_projections(arg0: memorystruct, arg1: memoryfixedarray) -> i256 {
     bb0:
-      v4 = eq arg0, arg1
-      v5 = add v4, true
-      ret v5
+-     v0 = bitcast memorystruct arg0 to memptr
+      v1 = ptrtoint memorystruct arg0 to i256
+-     v2 = bitcast memorystruct arg0 to memptr
+-     v4 = bitcast memoryfixedarray arg1 to memptr
+      v5 = ptrtoint memoryfixedarray arg1 to i256
+      v7 = eq v1, v5
+      v9 = zext i1 v7 to i256
+      v10 = add v9, 1
+      ret v10
   }
   

@@ -19,4 +19,47 @@
     stop
   bb2:
     stop
+  bb3:
+    calldatasize
+    returndatasize
+-   swap 1
+-   eq
+-   iszero
++   sub
+    push bb2
+    jumpi
+    stop
+  bb4:
+    calldatasize
+    returndatasize
+    eq
+    iszero
+    dup 1
+    push bb2
+    jumpi
+    pop
+    stop
+  bb5:
+    returndatasize
+-   push 0
+-   lt
+    push bb2
+    jumpi
+    stop
+  bb6:
+    returndatasize
+    push 0
+    lt
+    dup 1
+    push bb2
+    jumpi
+    pop
+    stop
+  bb7:
+    returndatasize
+    push 1
+    lt
+    push bb2
+    jumpi
+    stop
   

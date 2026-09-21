@@ -1,7 +1,7 @@
 //@compile-flags: -Zmir-pipeline=check-elim
 @module JoinRanges
 
-fn @bounded_phi(arg0: bool, arg1: u256, arg2: u256) -> u256 {
+fn @bounded_phi(arg0: i1, arg1: i256, arg2: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -24,7 +24,7 @@ fn @bounded_phi(arg0: bool, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @bounded_induction(arg0: bool) -> u256 {
+fn @bounded_induction(arg0: i1) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -43,7 +43,7 @@ fn @bounded_induction(arg0: bool) -> u256 {
     ret v0
 }
 
-fn @unbounded_loop(arg0: bool) -> u256 {
+fn @unbounded_loop(arg0: i1) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -61,7 +61,7 @@ fn @unbounded_loop(arg0: bool) -> u256 {
     ret v0
 }
 
-fn @transitive_order(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @transitive_order(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = lt arg0, arg1
     jumpi v0, bb1, bb4

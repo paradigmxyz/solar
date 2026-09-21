@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_struct_bytes_index.sol:StorageStructBytesIndex ===
 @module StorageStructBytesIndex
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
 fn @constructor() [constructor] {
   bb0:
@@ -37,7 +37,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v14 = shr 1, v9
     v15 = and v14, v13
     v16 = lt 0, v15
-    v17 = iszero v16
+    v17 = eq v16, false
     icall panic_if<0x32>, v17
     jumpi v11, bb3, bb4
   bb4:
@@ -70,7 +70,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v38 = shr 1, v33
     v39 = and v38, v37
     v40 = lt 0, v39
-    v41 = iszero v40
+    v41 = eq v40, false
     icall panic_if<0x32>, v41
     jumpi v35, bb6, bb7
   bb7:
@@ -103,7 +103,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     ret v62
 }
 
-fn @g() -> u256 [selector=0xe2179b8e, view, abi_params=[], abi_returns=[word]] {
+fn @g() -> i256 [selector=0xe2179b8e, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v0
@@ -114,7 +114,7 @@ fn @g() -> u256 [selector=0xe2179b8e, view, abi_params=[], abi_returns=[word]] {
     v5 = shr 1, v0
     v6 = and v5, v4
     v7 = lt 1, v6
-    v8 = iszero v7
+    v8 = eq v7, false
     icall panic_if<0x32>, v8
     jumpi v2, bb1, bb2
   bb2:

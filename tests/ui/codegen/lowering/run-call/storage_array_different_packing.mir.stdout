@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_different_packing.sol:StorageArrayDifferentPacking ===
 @module StorageArrayDifferentPacking
 types:
-  struct0: {u256, u256, u256, u256, u256}
+  struct0: {i256, i256, i256, i256, i256}
 
 fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes10>, word<bytes10>, word<bytes10>, word<bytes10>, word<bytes10>], abi_return_params=[bytes10, bytes10, bytes10, bytes10, bytes10]] {
   bb0:
@@ -29,7 +29,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
   bb8:
     v39 = shr 2, v1
     v40 = and v1, 3
-    v41 = iszero v40
+    v41 = eq v40, 0
     jumpi v41, bb10, bb9
   bb9:
     v42 = mul v40, 64
@@ -79,7 +79,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
   bb24:
     v116 = div v78, 3
     v117 = mod v78, 3
-    v118 = iszero v117
+    v118 = eq v117, 0
     jumpi v118, bb26, bb25
   bb25:
     v119 = mul v117, 80
@@ -94,7 +94,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
   bb26:
     v126 = sload 1 !metadata(storage=slot(1))
     v127 = lt 1, v126
-    v128 = iszero v127
+    v128 = eq v127, false
     icall panic_if<0x32>, v128
     v129 = storage_array_data_slot 1
     v130 = div 1, 3
@@ -108,7 +108,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v138 = shl 176, v137
     v139 = sload 1 !metadata(storage=slot(1))
     v140 = lt 2, v139
-    v141 = iszero v140
+    v141 = eq v140, false
     icall panic_if<0x32>, v141
     v142 = storage_array_data_slot 1
     v143 = div 2, 3
@@ -122,7 +122,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v151 = shl 176, v150
     v152 = sload 1 !metadata(storage=slot(1))
     v153 = lt 3, v152
-    v154 = iszero v153
+    v154 = eq v153, false
     icall panic_if<0x32>, v154
     v155 = storage_array_data_slot 1
     v156 = div 3, 3
@@ -136,7 +136,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v164 = shl 176, v163
     v165 = sload 1 !metadata(storage=slot(1))
     v166 = lt 4, v165
-    v167 = iszero v166
+    v167 = eq v166, false
     icall panic_if<0x32>, v167
     v168 = storage_array_data_slot 1
     v169 = div 4, 3
@@ -150,7 +150,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v177 = shl 176, v176
     v178 = sload 1 !metadata(storage=slot(1))
     v179 = lt 5, v178
-    v180 = iszero v179
+    v180 = eq v179, false
     icall panic_if<0x32>, v180
     v181 = storage_array_data_slot 1
     v182 = div 5, 3
@@ -210,7 +210,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v58 = shl 192, v57
     v59 = sload 0 !metadata(storage=slot(0))
     v60 = lt v50, v59
-    v61 = iszero v60
+    v61 = eq v60, false
     icall panic_if<0x32>, v61
     v62 = storage_array_data_slot 0
     v63 = div v50, 4
@@ -272,7 +272,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     jump bb3
 }
 
-fn @load_storage_packed_array_8_2(arg0: u256) -> memoryarray {
+fn @load_storage_packed_array_8_2(arg0: i256) -> memoryarray {
   bb0:
     v0 = load_storage_array bytes8, arg0
     ret v0

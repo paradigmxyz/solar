@@ -1,8 +1,8 @@
 - // === ROOT/tests/ui/codegen/mir/lower-slices/debug_info.mir (before lower-slices) ===
 + // === ROOT/tests/ui/codegen/mir/lower-slices/debug_info.mir (after lower-slices) ===
   @module DebugInfo
-- fn @select_slice(arg0: calldataslice, arg1: calldataslice, arg2: bool) -> u256 {
-+ fn @select_slice(arg0: calldataptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: bool) -> u256 {
+- fn @select_slice(arg0: calldataslice, arg1: calldataslice, arg2: i1) -> i256 {
++ fn @select_slice(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i1) -> i256 {
     bb0:
 -     v0 = select arg2, arg0, arg1 !metadata(span=10..20)
 -     v1 = slice_len v0 !metadata(span=20..30)

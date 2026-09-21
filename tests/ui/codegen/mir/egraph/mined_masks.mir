@@ -4,9 +4,9 @@
 @module MinedMasks
 
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
-fn @high_mask(arg0: u256) -> u256 {
+fn @high_mask(arg0: i256) -> i256 {
   bb0:
     v0 = shl arg0, 1
     v1 = sub v0, 1
@@ -14,14 +14,14 @@ fn @high_mask(arg0: u256) -> u256 {
     ret v2
 }
 
-fn @negation(arg0: u256) -> u256 {
+fn @negation(arg0: i256) -> i256 {
   bb0:
     v0 = sub arg0, 1
     v1 = not v0
     ret v1
 }
 
-fn @shared_mask(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
+fn @shared_mask(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
   bb0:
     v0 = shl arg0, 1
     v1 = sub v0, 1
@@ -29,7 +29,7 @@ fn @shared_mask(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
     ret v1, v2
 }
 
-fn @nonunit(arg0: u256) -> u256 {
+fn @nonunit(arg0: i256) -> i256 {
   bb0:
     v0 = shl arg0, 2
     v1 = sub v0, 2

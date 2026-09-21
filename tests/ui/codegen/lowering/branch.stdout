@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/branch.sol:Branch ===
 @module Branch
-fn @max(arg0: u256, arg1: u256) -> u256 [selector=0x6d5433e6, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @max(arg0: i256, arg1: i256) -> i256 [selector=0x6d5433e6, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gt arg0, arg1
     jumpi v0, bb1, bb2
@@ -12,10 +12,10 @@ fn @max(arg0: u256, arg1: u256) -> u256 [selector=0x6d5433e6, pure, abi_params=[
     ret arg0
 }
 
-fn @abs_diff(arg0: u256, arg1: u256) -> u256 [selector=0xef0baf7e, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @abs_diff(arg0: i256, arg1: i256) -> i256 [selector=0xef0baf7e, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = lt arg0, arg1
-    v1 = iszero v0
+    v1 = eq v0, false
     jumpi v1, bb1, bb2
   bb2:
     v3 = checked_sub u256, arg1, arg0

@@ -18,7 +18,7 @@ fn @overwritten_store() {
 // CHECK:       mstore [[ADDR]], 42
 // CHECK: -     ret [[LOAD]]
 // CHECK:       ret 0
-fn @store_observed_only_by_load() -> u256 {
+fn @store_observed_only_by_load() -> i256 {
   bb0:
     mstore 128, 0
     v0 = mload 128
@@ -52,14 +52,15 @@ fn @overlapping_keccak() {
 
 // CHECK-LABEL: @cross_block_dead_store
 // CHECK: -     mstore [[ADDR:[0-9]+]], 0
-// CHECK:       jumpi arg0, [[READ:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK:       jumpi {{(arg[0-9]+|v[0-9]+)}}, [[READ:bb[0-9]+]], {{bb[0-9]+}}
 // CHECK:       [[READ]]:
 // CHECK:       mstore [[ADDR]], 1
 // CHECK:       returndata [[ADDR]]
-fn @cross_block_dead_store(arg0: u256) {
+fn @cross_block_dead_store(arg0: i256) {
   bb0:
     mstore 128, 0
-    jumpi arg0, bb1, bb2
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
   bb1:
     mstore 128, 1
     returndata 128, 32
@@ -69,15 +70,16 @@ fn @cross_block_dead_store(arg0: u256) {
 
 // CHECK-LABEL: @cross_block_read_path
 // CHECK: {{^ +}}mstore [[ADDR:[0-9]+]], 7
-// CHECK: {{^ +}}jumpi arg0, [[READ:bb[0-9]+]], [[OVERWRITE:bb[0-9]+]]
+// CHECK: {{^ +}}jumpi {{(arg[0-9]+|v[0-9]+)}}, [[READ:bb[0-9]+]], [[OVERWRITE:bb[0-9]+]]
 // CHECK: {{^ +}}[[OVERWRITE]]:
 // CHECK: {{^ +}}mstore [[ADDR]], 9
 // CHECK: {{^ +}}[[READ]]:
 // CHECK: {{^ +}}returndata [[ADDR]]
-fn @cross_block_read_path(arg0: u256) {
+fn @cross_block_read_path(arg0: i256) {
   bb0:
     mstore 128, 7
-    jumpi arg0, bb1, bb2
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
   bb1:
     returndata 128, 32
   bb2:
@@ -88,7 +90,7 @@ fn @cross_block_read_path(arg0: u256) {
 // CHECK-LABEL: @return_pointer
 // CHECK: {{^ +}}mstore [[ADDR:[0-9]+]], 42
 // CHECK: {{^ +}}ret [[ADDR]]
-fn @return_pointer() -> u256 {
+fn @return_pointer() -> i256 {
   bb0:
     mstore 160, 42
     ret 160
@@ -123,7 +125,7 @@ fn @distinct_immediate_addresses() {
 // CHECK: -     [[LOAD:v[0-9]+]] = mload [[SECOND]]
 // CHECK: -     ret [[LOAD]]
 // CHECK:       ret 42
-fn @equivalent_base_load(arg0: u256) -> u256 {
+fn @equivalent_base_load(arg0: i256) -> i256 {
   bb0:
     v1 = add arg0, 32
     mstore v1, 42
@@ -137,7 +139,7 @@ fn @equivalent_base_load(arg0: u256) -> u256 {
 // CHECK: -     mstore [[FIRST]], 0
 // CHECK:       [[SECOND:v[0-9]+]] = add arg0, [[OFFSET]]
 // CHECK:       mstore [[SECOND]], 42
-fn @equivalent_base_overwrite(arg0: u256) {
+fn @equivalent_base_overwrite(arg0: i256) {
   bb0:
     v1 = add arg0, 32
     mstore v1, 0
@@ -147,12 +149,14 @@ fn @equivalent_base_overwrite(arg0: u256) {
 }
 
 // CHECK-LABEL: @unused_frame_store
-// CHECK:       [[FRAME:v[0-9]+]] = internal_frame_addr
+// CHECK:       [[FRAME_PTR:v[0-9]+]] = internal_frame_addr
+// CHECK: [[FRAME:v[0-9]+]] = ptrtoint memptr [[FRAME_PTR]] to i256
 // CHECK: -     mstore [[FRAME]], 0
 // CHECK:       ret 0
-fn @unused_frame_store() -> u256 {
+fn @unused_frame_store() -> i256 {
   bb0:
-    v0 = internal_frame_addr 192
+    v7 = internal_frame_addr 192
+    v0 = ptrtoint memptr v7 to i256
     mstore v0, 0
     ret 0
 }
@@ -164,7 +168,7 @@ fn @unused_frame_store() -> u256 {
 // CHECK:       mstore [[ADDR]], [[FIRST]]
 // CHECK:       [[SUM:v[0-9]+]] = add [[FIRST]], [[FIRST]]
 // CHECK:       ret [[SUM]]
-fn @immutable_copy_reuse() -> u256 {
+fn @immutable_copy_reuse() -> i256 {
   bb0:
     v0 = codesize
     v1 = sub v0, 64
@@ -197,7 +201,7 @@ fn @overlapping_load() {
 // CHECK: -     [[LOAD:v[0-9]+]] = mload [[ADDR]]
 // CHECK: -     ret [[LOAD]]
 // CHECK:       ret 42
-fn @forward_load() -> u256 {
+fn @forward_load() -> i256 {
   bb0:
     mstore 128, 42
     v0 = mload 128
@@ -210,7 +214,7 @@ fn @forward_load() -> u256 {
 // CHECK: -     [[LOAD:v[0-9]+]] = mload [[ADDR]]
 // CHECK: -     ret [[LOAD]]
 // CHECK:       ret 42
-fn @forward_through_pure_op() -> u256 {
+fn @forward_through_pure_op() -> i256 {
   bb0:
     mstore 128, 42
     v0 = add 1, 1
@@ -223,7 +227,7 @@ fn @forward_through_pure_op() -> u256 {
 // CHECK: {{^ +}}mcopy {{[0-9]+}}, [[SOURCE]], {{[0-9]+}}
 // CHECK: {{^ +}}[[LOAD:v[0-9]+]] = mload [[SOURCE]]
 // CHECK: {{^ +}}ret [[LOAD]]
-fn @memory_write_barrier() -> u256 {
+fn @memory_write_barrier() -> i256 {
   bb0:
     mstore 128, 42
     mcopy 160, 128, 32
@@ -236,7 +240,7 @@ fn @memory_write_barrier() -> u256 {
 // CHECK: {{^ +}}icall @writer
 // CHECK: {{^ +}}[[LOAD:v[0-9]+]] = mload [[ADDR]]
 // CHECK: {{^ +}}ret [[LOAD]]
-fn @icall_barrier() -> u256 {
+fn @icall_barrier() -> i256 {
   bb0:
     mstore 128, 42
     icall @writer
@@ -257,7 +261,7 @@ fn @writer() {
 // CHECK: {{^ +}}icall @callee
 // CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
 // CHECK: +     ret 42
-fn @icall_clean_callee() -> u256 {
+fn @icall_clean_callee() -> i256 {
   bb0:
     mstore 128, 42
     icall @callee
@@ -274,7 +278,7 @@ fn @callee() {
 // CHECK: {{^ +}}mstore 0x1000, 42
 // CHECK: {{^ +}}{{v[0-9]+}} = icall @observe_msize
 // CHECK: {{^ +}}mstore 0x1000, 0
-fn @icall_msize_barrier() -> u256 {
+fn @icall_msize_barrier() -> i256 {
   bb0:
     mstore 4096, 42
     v0 = icall @observe_msize
@@ -282,7 +286,7 @@ fn @icall_msize_barrier() -> u256 {
     ret v0
 }
 
-fn @observe_msize() -> u256 {
+fn @observe_msize() -> i256 {
   bb0:
     v0 = msize
     ret v0
@@ -296,7 +300,7 @@ fn @observe_msize() -> u256 {
 // CHECK: -     ret [[SECOND]]
 // CHECK:       mstore [[SECOND_ADDR]], 42
 // CHECK:       ret 42
-fn @chained_forwarding() -> u256 {
+fn @chained_forwarding() -> i256 {
   bb0:
     mstore 128, 42
     v0 = mload 128

@@ -352,6 +352,17 @@
                   "offset": 32,
                   "operation": {
                     "mnemonic": "DUP1"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 79,
+                        "length": 5
+                      }
+                    }
                   }
                 },
                 {

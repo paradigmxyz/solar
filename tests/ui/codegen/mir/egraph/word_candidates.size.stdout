@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/word_candidates.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/word_candidates.mir (after egraph) ===
   @module WordCandidates
-  fn @rule_42(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_42(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = and arg0, arg1
       v1 = or arg0, arg1
@@ -10,7 +10,7 @@
       ret v2
   }
   
-  fn @rule_43(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_43(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = and arg0, arg1
       v1 = or arg1, arg0
@@ -19,7 +19,7 @@
       ret v2
   }
   
-  fn @rule_44(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_44(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = or arg0, arg1
       v1 = and arg0, arg1
@@ -28,7 +28,7 @@
       ret v2
   }
   
-  fn @rule_45(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_45(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = or arg0, arg1
       v1 = and arg1, arg0
@@ -37,7 +37,7 @@
       ret v2
   }
   
-  fn @rule_46(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_46(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = and arg0, arg1
       v1 = xor arg0, arg1
@@ -46,7 +46,7 @@
       ret v2
   }
   
-  fn @rule_47(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_47(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = and arg0, arg1
       v1 = xor arg1, arg0
@@ -55,7 +55,7 @@
       ret v2
   }
   
-  fn @rule_48(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_48(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = xor arg0, arg1
       v1 = and arg0, arg1
@@ -64,7 +64,7 @@
       ret v2
   }
   
-  fn @rule_49(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_49(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = xor arg0, arg1
       v1 = and arg1, arg0
@@ -73,7 +73,7 @@
       ret v2
   }
   
-  fn @rule_50(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_50(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = add arg0, arg1
       v1 = not v0
@@ -82,7 +82,7 @@
       ret v2
   }
   
-  fn @rule_51(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_51(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = add arg0, arg1
       v1 = not v0
@@ -91,7 +91,7 @@
       ret v2
   }
   
-  fn @rule_52(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_52(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = add arg0, arg1
       v1 = not v0
@@ -100,7 +100,7 @@
       ret v2
   }
   
-  fn @rule_53(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_53(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = add arg1, arg0
       v1 = not v0
@@ -109,7 +109,7 @@
       ret v2
   }
   
-  fn @rule_54(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_54(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = not arg0
       v1 = sub arg0, arg1
@@ -118,7 +118,7 @@
       ret v2
   }
   
-  fn @rule_55(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_55(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = sub arg0, arg1
       v1 = not arg0
@@ -127,7 +127,7 @@
       ret v2
   }
   
-  fn @rule_56(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_56(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = sub arg0, arg1
       v1 = sub arg1, arg0
@@ -136,7 +136,7 @@
 +     ret 0
   }
   
-  fn @rule_57(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_57(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = add arg0, arg1
       v1 = sub arg0, arg1
@@ -145,7 +145,7 @@
       ret v2
   }
   
-  fn @rule_58(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_58(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = add arg0, arg1
       v1 = sub arg1, arg0
@@ -154,7 +154,7 @@
       ret v2
   }
   
-  fn @rule_59(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_59(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = sub arg0, arg1
       v1 = add arg0, arg1
@@ -163,7 +163,7 @@
       ret v2
   }
   
-  fn @rule_60(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_60(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = sub arg0, arg1
       v1 = add arg1, arg0
@@ -172,7 +172,7 @@
       ret v2
   }
   
-  fn @rule_61(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_61(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = or arg0, arg1
       v1 = sub v0, arg0
@@ -181,7 +181,7 @@
 +     ret 0
   }
   
-  fn @rule_62(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_62(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = or arg0, arg1
       v1 = sub v0, arg1
@@ -190,7 +190,7 @@
 +     ret 0
   }
   
-  fn @rule_63(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_63(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = or arg0, arg1
       v1 = sub v0, arg0
@@ -199,7 +199,7 @@
 +     ret 0
   }
   
-  fn @rule_64(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_64(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = or arg1, arg0
       v1 = sub v0, arg0
@@ -208,7 +208,7 @@
 +     ret 0
   }
   
-  fn @rule_65(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_65(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = and arg0, arg1
       v1 = sub arg0, v0
@@ -217,7 +217,7 @@
 +     ret arg0
   }
   
-  fn @rule_66(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_66(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = and arg1, arg0
       v1 = sub arg0, v0
@@ -226,7 +226,7 @@
 +     ret arg0
   }
   
-  fn @rule_67(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_67(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = and arg0, arg1
       v1 = sub arg0, v0
@@ -235,7 +235,7 @@
 +     ret arg0
   }
   
-  fn @rule_68(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_68(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = and arg1, arg0
       v1 = sub arg0, v0
@@ -244,7 +244,7 @@
 +     ret arg0
   }
   
-  fn @rule_69(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_69(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = or arg0, arg1
       v1 = not v0
@@ -253,7 +253,7 @@
 +     ret 0
   }
   
-  fn @rule_70(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_70(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = or arg0, arg1
       v1 = not v0
@@ -262,7 +262,7 @@
 +     ret 0
   }
   
-  fn @rule_71(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_71(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = or arg0, arg1
       v1 = not v0
@@ -271,7 +271,7 @@
 +     ret 0
   }
   
-  fn @rule_72(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_72(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = or arg1, arg0
       v1 = not v0
@@ -280,7 +280,7 @@
 +     ret 0
   }
   
-  fn @rule_73(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_73(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = and arg0, arg1
       v1 = not v0
@@ -289,7 +289,7 @@
 +     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
   }
   
-  fn @rule_74(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_74(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = and arg0, arg1
       v1 = not v0
@@ -298,7 +298,7 @@
 +     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
   }
   
-  fn @rule_75(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_75(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = and arg0, arg1
       v1 = not v0
@@ -307,7 +307,7 @@
 +     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
   }
   
-  fn @rule_76(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_76(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = and arg1, arg0
       v1 = not v0
@@ -316,7 +316,7 @@
 +     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
   }
   
-  fn @rule_79(arg0: u256, arg1: u256) -> u256 {
+  fn @rule_79(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = signextend arg0, arg1
 -     v1 = signextend arg0, v0

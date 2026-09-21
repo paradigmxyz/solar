@@ -10,13 +10,15 @@
 // CHECK: mstore [[ADDRESS]], [[INDEX]]
 // CHECK: [[NEXT_INDEX]] = add [[INDEX]], 1
 // CHECK: [[NEXT_ADDRESS]] = add [[ADDRESS]], 32
-fn @frame_counter_feeds_affine_address(arg0: u256, arg1: u256) -> u256 {
+fn @frame_counter_feeds_affine_address(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v1 = internal_frame_addr 128
+    v10 = internal_frame_addr 128
+    v1 = ptrtoint memptr v10 to i256
     mstore v1, 0
     jump bb1
   bb1:
-    v2 = internal_frame_addr 128
+    v11 = internal_frame_addr 128
+    v2 = ptrtoint memptr v11 to i256
     v3 = mload v2
     v4 = lt v3, arg0
     jumpi v4, bb2, bb3
@@ -26,7 +28,8 @@ fn @frame_counter_feeds_affine_address(arg0: u256, arg1: u256) -> u256 {
     v6 = add v9, 32
     mstore v6, v3
     v7 = add v3, 1
-    v8 = internal_frame_addr 128
+    v12 = internal_frame_addr 128
+    v8 = ptrtoint memptr v12 to i256
     mstore v8, v7
     jump bb1
   bb3:

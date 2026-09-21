@@ -1,37 +1,45 @@
 - // === ROOT/tests/ui/codegen/mir/memory-dse/abi_encode_memory_effects.mir (before memory-dse) ===
 + // === ROOT/tests/ui/codegen/mir/memory-dse/abi_encode_memory_effects.mir (after memory-dse) ===
   @module AbiEncodeMemoryEffects
-  fn @encode(arg0: memptr) -> memoryslice {
+  fn @encode(arg0: i256) -> memoryslice {
     bb0:
       mstore arg0, 1
-      v0 = abi_encode [memory_bytes], args arg0
-      ret v0
+      v0 = inttoptr i256 arg0 to memorybytes
+      v1 = abi_encode [memory_bytes], args v0
+      ret v1
   }
   
-  fn @require_reads_message(arg0: bool, arg1: memptr) {
+  fn @require_reads_message(arg0: i1, arg1: i256) {
     bb0:
       mstore arg1, 1
-      icall require<error_string>, arg0, arg1
+      v0 = inttoptr i256 arg1 to memorybytes
+      icall require<error_string>, arg0, v0
       ret
   }
   
-  fn @require_reads_children(arg0: bool) {
+  fn @require_reads_children(arg0: i1) {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 7
-      mstore v1, v0
-      icall require<custom_error [array<1, memory_bytes>]>, arg0, 0, v1
+      v1 = ptrtoint memptr v0 to i256
+      v2 = alloc raw, exact, uninitialized, infallible, 32
+      v3 = ptrtoint memptr v2 to i256
+      mstore v1, 7
+      mstore v3, v1
+      v4 = inttoptr i256 v3 to memoryfixedarray
+      icall require<custom_error [array<1, memory_bytes>]>, arg0, 0, v4
       ret
   }
   
   fn @packed_reads_children() -> memorybytes {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
-      v1 = alloc raw, exact, uninitialized, infallible, 32
-      mstore v0, 7
-      mstore v1, v0
-      v2 = abi_encode_packed (array<array<1, word>> memoryfixedarray<1, 1> v1)
-      ret v2
+      v1 = ptrtoint memptr v0 to i256
+      v2 = alloc raw, exact, uninitialized, infallible, 32
+      v3 = ptrtoint memptr v2 to i256
+      mstore v1, 7
+      mstore v3, v1
+      v4 = inttoptr i256 v3 to memoryfixedarray
+      v5 = abi_encode_packed (array<array<1, word>> memoryfixedarray<1, 1> v4)
+      ret v5
   }
   

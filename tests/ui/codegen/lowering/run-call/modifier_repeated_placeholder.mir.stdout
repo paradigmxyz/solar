@@ -1,23 +1,25 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_repeated_placeholder.sol:ModifierRepeatedPlaceholder ===
 @module ModifierRepeatedPlaceholder
-fn @f(arg0: bool) -> u256 [selector=0x98c3a6c1, pure, abi_params=[bool], abi_returns=[word]] {
+fn @f(arg0: i256) -> i256 [selector=0x98c3a6c1, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq arg0, 0
-    v1 = iszero v0
-    jumpi v1, bb2, bb3
+    v1 = eq v0, false
+    v2 = zext i1 v1 to i256
+    v3 = ne v2, 0
+    jumpi v3, bb2, bb3
   bb3:
     jump bb4
   bb2:
-    v2 = checked_add u256, 0, 1
+    v4 = checked_add u256, 0, 1
     jump bb5
   bb5:
     jump bb4
   bb4:
-    v3 = phi [bb5: v2], [bb3: 0]
-    v4 = checked_add u256, 0, 1
+    v5 = phi [bb5: v4], [bb3: 0]
+    v6 = checked_add u256, 0, 1
     jump bb6
   bb6:
     jump bb1
   bb1:
-    ret v4
+    ret v6
 }

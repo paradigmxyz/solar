@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/acyclic_stack_phi_runtime.sol:AcyclicStackPhi ===
 @module AcyclicStackPhi
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
-fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @trimLen(arg0: calldataslice) -> i256 [selector=0x341fda35, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @trim, arg0
     v1 = slice_len v0
@@ -26,28 +26,31 @@ fn @trim(arg0: calldataslice) -> calldataslice [pure] {
     v5 = gt v4, v4
     v6 = lt v4, 4
     v7 = or v5, v6
-    icall revert_if<empty>, v7
-    v8 = sub v4, 4
-    v9 = add v3, 4
-    v10 = make_calldata_slice v9, v8
-    ret v10
+    v8 = zext i1 v7 to i256
+    v9 = ne v8, 0
+    icall revert_if<empty>, v9
+    v10 = sub v4, 4
+    v11 = add v3, 4
+    v12 = make_calldata_slice v11, v10
+    ret v12
 }
 
-fn @repeatedSourceJoin(arg0: bool, arg1: u256, arg2: u256) -> struct0 [selector=0x406b1ab7, pure, abi_params=[bool, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @repeatedSourceJoin(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0x406b1ab7, pure, abi_params=[bool, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    jumpi arg0, bb1, bb2
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v0 = phi [bb1: arg1], [bb2: arg2]
-    v1 = insert_value struct0, undef struct0, 0, v0
-    v2 = insert_value struct0, v1, 1, arg1
-    ret v2
+    v1 = phi [bb1: arg1], [bb2: arg2]
+    v2 = insert_value struct0, undef struct0, 0, v1
+    v3 = insert_value struct0, v2, 1, arg1
+    ret v3
 }
 
-fn @loopJoin(arg0: u256) -> u256 [selector=0x136d329b, pure, abi_params=[u256], abi_returns=[word]] {
+fn @loopJoin(arg0: i256) -> i256 [selector=0x136d329b, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -81,7 +84,7 @@ fn @loopJoin(arg0: u256) -> u256 [selector=0x136d329b, pure, abi_params=[u256], 
     jump bb1
 }
 
-fn @nestedLoops(arg0: u256, arg1: u256) -> u256 [selector=0xc538770a, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @nestedLoops(arg0: i256, arg1: i256) -> i256 [selector=0xc538770a, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -126,7 +129,7 @@ fn @nestedLoops(arg0: u256, arg1: u256) -> u256 [selector=0xc538770a, pure, abi_
     jump bb7
 }
 
-fn @conditionalSelfLoop(arg0: u256, arg1: u256) -> u256 [selector=0x5ade831a, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @conditionalSelfLoop(arg0: i256, arg1: i256) -> i256 [selector=0x5ade831a, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -182,7 +185,7 @@ fn @conditionalSelfLoop(arg0: u256, arg1: u256) -> u256 [selector=0x5ade831a, pu
     invalid
 }
 
-fn @emptyExitSelfLoop(arg0: u256) -> u256 [selector=0xe817f803, pure, abi_params=[u256], abi_returns=[word]] {
+fn @emptyExitSelfLoop(arg0: i256) -> i256 [selector=0xe817f803, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -204,7 +207,7 @@ fn @emptyExitSelfLoop(arg0: u256) -> u256 [selector=0xe817f803, pure, abi_params
     invalid
 }
 
-fn @repeatedLoopExit(arg0: u256, arg1: u256) -> struct0 [selector=0x6c126bdd, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @repeatedLoopExit(arg0: i256, arg1: i256) -> struct0 [selector=0x6c126bdd, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = shl 128, arg0
     sstore 0, v0 !metadata(storage=slot(0))
@@ -213,34 +216,33 @@ fn @repeatedLoopExit(arg0: u256, arg1: u256) -> struct0 [selector=0x6c126bdd, ab
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
     v3 = phi [bb0: arg0], [bb3: v3]
-    v4 = phi [bb0: arg0], [bb3: v11]
+    v4 = phi [bb0: arg0], [bb3: v10]
     v5 = phi [bb0: 0], [bb3: v5]
-    v6 = eq v4, 0
-    v7 = iszero v6
-    jumpi v7, bb4, bb5
+    v6 = ne v4, 0
+    jumpi v6, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v12 = icall @findLoopExit, v1
-    v13 = extract_value struct0, v12, 0
-    v14 = extract_value struct0, v12, 1
-    v15 = insert_value struct0, undef struct0, 0, v13
-    v16 = insert_value struct0, v15, 1, v14
-    ret v16
+    v11 = icall @findLoopExit, v1
+    v12 = extract_value struct0, v11, 0
+    v13 = extract_value struct0, v11, 1
+    v14 = insert_value struct0, undef struct0, 0, v12
+    v15 = insert_value struct0, v14, 1, v13
+    ret v15
   bb4:
-    v8 = sub v4, 1
-    v9 = shl 160, v4
-    v10 = or v9, v8
-    sstore v4, v10 !metadata(storage=symbolic(v4))
+    v7 = sub v4, 1
+    v8 = shl 160, v4
+    v9 = or v8, v7
+    sstore v4, v9 !metadata(storage=symbolic(v4))
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v11 = sub v4, 1
+    v10 = sub v4, 1
     jump bb1
 }
 
-fn @findLoopExit(arg0: u256) -> struct0 [view] {
+fn @findLoopExit(arg0: i256) -> struct0 [view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 128, v0
@@ -249,45 +251,44 @@ fn @findLoopExit(arg0: u256) -> struct0 [view] {
     v2 = phi [bb0: arg0], [bb5: v2]
     v3 = phi [bb0: 0], [bb5: v3]
     v4 = phi [bb0: 0], [bb5: v5]
-    v5 = phi [bb0: v1], [bb5: v20]
-    v6 = eq v5, 0
-    v7 = iszero v6
-    jumpi v7, bb3, bb4
+    v5 = phi [bb0: v1], [bb5: v19]
+    v6 = ne v5, 0
+    jumpi v6, bb3, bb4
   bb4:
     jump bb2
   bb3:
-    v8 = sload v5 !metadata(storage=symbolic(v5))
-    v9 = shr 160, v8
-    v10 = iszero v9
-    v11 = eq v10, 0
-    v12 = iszero v11
-    jumpi v12, bb6, bb7
+    v7 = sload v5 !metadata(storage=symbolic(v5))
+    v8 = shr 160, v7
+    v9 = eq v8, 0
+    v10 = zext i1 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb6, bb7
   bb7:
     jump bb8
   bb6:
-    v13 = shl 255, 1
-    v14 = or v5, v13
-    v15 = sload v14 !metadata(storage=symbolic(v14))
+    v12 = shl 255, 1
+    v13 = or v5, v12
+    v14 = sload v13 !metadata(storage=symbolic(v13))
     jump bb8
   bb8:
-    v16 = phi [bb6: v15], [bb7: v9]
-    v17 = eq v16, v2
-    v18 = eq v17, 0
-    v19 = iszero v18
-    jumpi v19, bb9, bb10
+    v15 = phi [bb6: v14], [bb7: v8]
+    v16 = eq v15, v2
+    v17 = zext i1 v16 to i256
+    v18 = ne v17, 0
+    jumpi v18, bb9, bb10
   bb10:
     jump bb11
   bb11:
-    v20 = and v8, 0xffffffff
+    v19 = and v7, 0xffffffff
     jump bb5
   bb5:
     jump bb1
   bb9:
     jump bb2
   bb2:
-    v21 = phi [bb9: v5], [bb4: v3]
-    v22 = phi [bb9: v5], [bb4: v4]
-    v23 = insert_value struct0, undef struct0, 0, v22
-    v24 = insert_value struct0, v23, 1, v21
-    ret v24
+    v20 = phi [bb9: v5], [bb4: v3]
+    v21 = phi [bb9: v5], [bb4: v4]
+    v22 = insert_value struct0, undef struct0, 0, v21
+    v23 = insert_value struct0, v22, 1, v20
+    ret v23
 }

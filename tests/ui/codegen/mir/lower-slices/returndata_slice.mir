@@ -10,7 +10,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @copy_returndata{{[( ]}}
 // CHECK: {{^[ +].*}}[[LENGTH:v[0-9]+]] = returndatasize
 // CHECK: + returndatacopy {{v[0-9]+}}, 0, [[LENGTH]]
-fn @copy_returndata() -> memptr {
+fn @copy_returndata() -> i256 {
   bb0:
     v0 = returndatasize
     v1 = make_returndata_slice 0, v0
@@ -19,17 +19,19 @@ fn @copy_returndata() -> memptr {
     v4 = add v3, 32
     v5 = alloc memorybytes, exact, uninitialized, infallible, v4
     set_memory_object_len memorybytes, v5, v3
-    v6 = memory_object_data memorybytes, v5
+    v8 = memory_object_data memorybytes, v5
+    v6 = ptrtoint memptr v8 to i256
     returndatacopy v6, v2, v3
-    ret v5
+    v7 = ptrtoint memorybytes v5 to i256
+    ret v7
 }
 
 // Parsed MIR may pass a volatile returndata slice to an internal helper. Its
 // offset and length lower to two ordinary words without a compiler panic.
-// CHECK-LABEL: {{^[ +].*}}fn @consume_returndata(arg0: u256, arg1: u256)
+// CHECK-LABEL: {{^[ +].*}}fn @consume_returndata(arg0: i256, arg1: i256)
 // CHECK: {{^[ +].*}}[[SUM:v[0-9]+]] = add arg0, arg1
 // CHECK: {{^[ +].*}}ret [[SUM]]
-fn @consume_returndata(arg0: returndataslice) -> u256 {
+fn @consume_returndata(arg0: returndataslice) -> i256 {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0

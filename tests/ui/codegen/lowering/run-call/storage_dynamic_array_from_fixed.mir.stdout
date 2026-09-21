@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_dynamic_array_from_fixed.sol:StorageDynamicArrayFromFixed ===
 @module StorageDynamicArrayFromFixed
 types:
-  struct0: {u256, u256, u256}
+  struct0: {i256, i256, i256}
 
 fn @assign() -> struct0 [selector=0x12ae6397, abi_params=[], abi_returns=[word, word<enum 6>, word<enum 6>], abi_return_params=[u256, enum<6, u8>, enum<6, u8>]] {
   bb0:
@@ -35,7 +35,7 @@ fn @assign() -> struct0 [selector=0x12ae6397, abi_params=[], abi_returns=[word, 
     v42 = sload 0 !metadata(storage=slot(0))
     v43 = sload 0 !metadata(storage=slot(0))
     v44 = lt 0, v43
-    v45 = iszero v44
+    v45 = eq v44, false
     icall panic_if<0x32>, v45
     v46 = storage_array_data_slot 0
     v47 = div 0, 32
@@ -47,11 +47,11 @@ fn @assign() -> struct0 [selector=0x12ae6397, abi_params=[], abi_returns=[word, 
     v53 = shr v52, v51
     v54 = and v53, 255
     v55 = lt v54, 6
-    v56 = iszero v55
+    v56 = eq v55, false
     icall panic_if<0x21>, v56
     v57 = sload 0 !metadata(storage=slot(0))
     v58 = lt 1, v57
-    v59 = iszero v58
+    v59 = eq v58, false
     icall panic_if<0x32>, v59
     v60 = storage_array_data_slot 0
     v61 = div 1, 32
@@ -63,7 +63,7 @@ fn @assign() -> struct0 [selector=0x12ae6397, abi_params=[], abi_returns=[word, 
     v67 = shr v66, v65
     v68 = and v67, 255
     v69 = lt v68, 6
-    v70 = iszero v69
+    v70 = eq v69, false
     icall panic_if<0x21>, v70
     v71 = insert_value struct0, undef struct0, 0, v42
     v72 = insert_value struct0, v71, 1, v54
@@ -77,7 +77,7 @@ fn @assign() -> struct0 [selector=0x12ae6397, abi_params=[], abi_returns=[word, 
     v25 = mod v19, 32
     v26 = mul v25, 1
     v27 = lt v21, 6
-    v28 = iszero v27
+    v28 = eq v27, false
     icall panic_if<0x21>, v28
     v29 = mul v26, 8
     v30 = shl v29, 255

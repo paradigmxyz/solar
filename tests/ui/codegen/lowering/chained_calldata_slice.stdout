@@ -1,71 +1,79 @@
 // === ROOT/tests/ui/codegen/lowering/chained_calldata_slice.sol:ChainedCalldataSlice ===
 @module ChainedCalldataSlice
-fn @bytesChain(arg0: calldataslice) -> memorybytes [selector=0x2007c472, pure, abi_params=[bytes], abi_returns=[memory_bytes]] {
+fn @bytesChain(arg0: calldataslice) -> memorybytes [selector=0x2007c472, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt v1, v1
     v3 = lt v1, 1
     v4 = or v2, v3
-    icall revert_if<empty>, v4
-    v5 = sub v1, 1
-    v6 = add v0, 1
-    v7 = make_calldata_slice v6, v5
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = gt v9, v9
-    v11 = lt v9, 1
-    v12 = or v10, v11
-    icall revert_if<empty>, v12
-    v13 = sub v9, 1
-    v14 = add v8, 1
-    v15 = make_calldata_slice v14, v13
-    v16 = slice_ptr v15
-    v17 = slice_len v15
-    v18 = gt v17, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v18
-    v19 = calldatasize
-    v20 = sub v19, v17
-    v21 = sgt v16, v20
-    icall revert_if<calldata_tail_too_short>, v21
-    v22 = slice_len v15
-    v23 = add v22, 63
-    v24 = lt v23, v22
-    icall panic_if<0x41>, v24
-    v25 = not 31
-    v26 = and v23, v25
-    v27 = alloc memorybytes, exact, uninitialized, infallible, v26
-    set_memory_object_len memorybytes, v27, v22
-    memory_object_copy_from_slice memorybytes, v27, v15
-    ret v27
+    v5 = zext i1 v4 to i256
+    v6 = ne v5, 0
+    icall revert_if<empty>, v6
+    v7 = sub v1, 1
+    v8 = add v0, 1
+    v9 = make_calldata_slice v8, v7
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = gt v11, v11
+    v13 = lt v11, 1
+    v14 = or v12, v13
+    v15 = zext i1 v14 to i256
+    v16 = ne v15, 0
+    icall revert_if<empty>, v16
+    v17 = sub v11, 1
+    v18 = add v10, 1
+    v19 = make_calldata_slice v18, v17
+    v20 = slice_ptr v19
+    v21 = slice_len v19
+    v22 = gt v21, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v22
+    v23 = calldatasize
+    v24 = sub v23, v21
+    v25 = sgt v20, v24
+    icall revert_if<calldata_tail_too_short>, v25
+    v26 = slice_len v19
+    v27 = add v26, 63
+    v28 = lt v27, v26
+    icall panic_if<0x41>, v28
+    v29 = not 31
+    v30 = and v27, v29
+    v31 = alloc memorybytes, exact, uninitialized, infallible, v30
+    set_memory_object_len memorybytes, v31, v26
+    memory_object_copy_from_slice memorybytes, v31, v19
+    ret v31
 }
 
-fn @arrChain(arg0: calldataslice) -> u256 [selector=0x65df4193, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
+fn @arrChain(arg0: calldataslice) -> i256 [selector=0x65df4193, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt v1, v1
     v3 = lt v1, 1
     v4 = or v2, v3
-    icall revert_if<empty>, v4
-    v5 = sub v1, 1
-    v6 = add v0, 32
-    v7 = make_calldata_slice v6, v5
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = gt v9, v9
-    v11 = lt v9, 1
-    v12 = or v10, v11
-    icall revert_if<empty>, v12
-    v13 = sub v9, 1
-    v14 = add v8, 32
-    v15 = make_calldata_slice v14, v13
-    v16 = slice_len v15
-    v17 = lt 0, v16
-    v18 = iszero v17
-    icall panic_if<0x32>, v18
-    v19 = slice_ptr v15
-    v20 = add v19, 0
-    v21 = calldataload v20
-    ret v21
+    v5 = zext i1 v4 to i256
+    v6 = ne v5, 0
+    icall revert_if<empty>, v6
+    v7 = sub v1, 1
+    v8 = add v0, 32
+    v9 = make_calldata_slice v8, v7
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = gt v11, v11
+    v13 = lt v11, 1
+    v14 = or v12, v13
+    v15 = zext i1 v14 to i256
+    v16 = ne v15, 0
+    icall revert_if<empty>, v16
+    v17 = sub v11, 1
+    v18 = add v10, 32
+    v19 = make_calldata_slice v18, v17
+    v20 = slice_len v19
+    v21 = lt 0, v20
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = slice_ptr v19
+    v24 = add v23, 0
+    v25 = calldataload v24
+    ret v25
 }

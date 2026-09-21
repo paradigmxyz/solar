@@ -5,16 +5,19 @@
 // CHECK-LABEL: {{^[ +].*}}fn @hoist_projection{{[( ]}}
 // CHECK: + [[INSERTED:v[0-9]+]] = memory_object_field_addr
 // CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: {{v[0-9]+}}], [bb2: [[INSERTED]]]
-// CHECK: + ret [[MERGE]]
-fn @hoist_projection(arg0: memorystruct, arg1: bool) -> memptr {
+// CHECK: [[WORD:v[0-9]+]] = ptrtoint memptr [[MERGE]] to i256
+// CHECK: ret [[WORD]]
+fn @hoist_projection(arg0: memorystruct, arg1: i1) -> i256 {
   bb0:
     jumpi arg1, bb1, bb2
   bb1:
-    v2 = memory_object_field_addr memorystruct<3>, arg0, 2
+    v4 = memory_object_field_addr memorystruct<3>, arg0, 2
+    v2 = ptrtoint memptr v4 to i256
     jump bb3
   bb2:
     jump bb3
   bb3:
-    v3 = memory_object_field_addr memorystruct<3>, arg0, 2
+    v5 = memory_object_field_addr memorystruct<3>, arg0, 2
+    v3 = ptrtoint memptr v5 to i256
     ret v3
 }

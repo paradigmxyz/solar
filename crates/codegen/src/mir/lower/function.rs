@@ -164,17 +164,8 @@ pub(super) fn lower(
             mir.abi_returns = Some(
                 context.module.intern_abi_layout(AbiLayout::new(output_shapes.into_boxed_slice())),
             );
-            let has_calldata_aggregate_return = hir_function.returns.iter().any(|&ret| {
-                types::TypeLowerer::mir_return_type(gcx.type_of_item(ret.into()))
-                    == MirType::Slice(SliceLocation::Calldata)
-            });
-            if hir_function.returns.len() > 1
-                || has_calldata_aggregate_return
-                || output_param_shapes.iter().any(AbiParamType::needs_nested_return_cleanup)
-            {
-                mir.abi_return_params =
-                    Some(AbiParamLayout::new(output_param_shapes.into_boxed_slice()));
-            }
+            mir.abi_return_params =
+                Some(AbiParamLayout::new(output_param_shapes.into_boxed_slice()));
         }
     }
 
@@ -363,8 +354,8 @@ impl BuiltinArgCount {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub(super) struct InternalFunctionPointerShape {
-    params: Vec<MirType>,
-    returns: Vec<MirType>,
+    params: Vec<crate::mir::ValueLayout>,
+    returns: Vec<crate::mir::ValueLayout>,
 }
 
 impl InternalFunctionPointerShape {
@@ -373,12 +364,12 @@ impl InternalFunctionPointerShape {
             params: function
                 .parameters
                 .iter()
-                .map(|&ty| types::TypeLowerer::mir_type(ty))
+                .map(|&ty| types::TypeLowerer::value_layout(ty))
                 .collect(),
             returns: function
                 .returns
                 .iter()
-                .map(|&ty| types::TypeLowerer::mir_return_type(ty))
+                .map(|&ty| types::TypeLowerer::value_layout(ty))
                 .collect(),
         }
     }
@@ -386,8 +377,12 @@ impl InternalFunctionPointerShape {
     fn is_assembly_cast_compatible_with(&self, target: &Self) -> bool {
         // Assembly casts preserve these full-word argument representations. Keep return shapes
         // exact because internal calls can expose dirty return words.
-        let canonicalize = |ty: MirType| {
-            if ty == MirType::Address || ty.is_full_abi_word() { MirType::uint256() } else { ty }
+        let canonicalize = |ty: crate::mir::ValueLayout| {
+            if ty == crate::mir::ValueLayout::Address || ty.is_full_abi_word() {
+                crate::mir::ValueLayout::uint256()
+            } else {
+                ty
+            }
         };
         self.params.iter().copied().map(canonicalize).eq(target
             .params
@@ -970,10 +965,40 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
         function.attributes.is_function_pointer_dispatcher = true;
         {
             let mut builder = FunctionBuilder::new_semantic(&mut function);
-            let function_value = builder.add_param(MirType::Function);
-            let arguments =
-                shape.params.iter().copied().map(|ty| builder.add_param(ty)).collect::<Vec<_>>();
-            if let Some(ty) = module.intern_return_type(shape.returns.clone()) {
+            let function_value = builder.add_param(MirType::I256);
+            let arguments = shape
+                .params
+                .iter()
+                .copied()
+                .map(|ty| {
+                    builder.add_param(
+                        if matches!(
+                            ty,
+                            crate::mir::ValueLayout::Bool | crate::mir::ValueLayout::Address
+                        ) {
+                            MirType::I256
+                        } else {
+                            ty.mir_type()
+                        },
+                    )
+                })
+                .collect::<Vec<_>>();
+            if let Some(ty) = module.intern_return_type(
+                shape
+                    .returns
+                    .iter()
+                    .map(|ty| {
+                        if matches!(
+                            ty,
+                            crate::mir::ValueLayout::Bool | crate::mir::ValueLayout::Address
+                        ) {
+                            MirType::I256
+                        } else {
+                            ty.mir_type()
+                        }
+                    })
+                    .collect(),
+            ) {
                 builder.set_return_type(ty);
             }
 
@@ -1001,7 +1026,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                         if source == target {
                             argument
                         } else {
-                            AbiWordValidator::from_mir_type(target).map_or(argument, |validator| {
+                            AbiWordValidator::from_layout(target).map_or(argument, |validator| {
                                 validator.cleanup(&mut builder, argument)
                             })
                         }

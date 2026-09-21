@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_array_push_literal.sol:C ===
 @module C
-fn @pushLiteral() -> u256 [selector=0x90dead0b, abi_params=[], abi_returns=[word]] {
+fn @pushLiteral() -> i256 [selector=0x90dead0b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -47,7 +47,7 @@ fn @pushLiteral() -> u256 [selector=0x90dead0b, abi_params=[], abi_returns=[word
     icall require<short_string>, v35, 3, 0x6c656e0000000000000000000000000000000000000000000000000000000000
     v36 = sload 0 !metadata(storage=slot(0))
     v37 = lt 0, v36
-    v38 = iszero v37
+    v38 = eq v37, false
     icall panic_if<0x32>, v38
     v39 = storage_array_data_slot 0
     v40 = div 0, 8
@@ -63,7 +63,7 @@ fn @pushLiteral() -> u256 [selector=0x90dead0b, abi_params=[], abi_returns=[word
     icall require<short_string>, v49, 2, 0x6530000000000000000000000000000000000000000000000000000000000000
     v50 = sload 0 !metadata(storage=slot(0))
     v51 = lt 1, v50
-    v52 = iszero v51
+    v52 = eq v51, false
     icall panic_if<0x32>, v52
     v53 = storage_array_data_slot 0
     v54 = div 1, 8
@@ -99,7 +99,7 @@ fn @pushLiteral() -> u256 [selector=0x90dead0b, abi_params=[], abi_returns=[word
     sstore 1, v66 !metadata(storage=slot(1))
     v81 = sload 1 !metadata(storage=slot(1))
     v82 = lt 0, v81
-    v83 = iszero v82
+    v83 = eq v82, false
     icall panic_if<0x32>, v83
     v84 = storage_array_data_slot 1
     v85 = div 0, 16
@@ -141,7 +141,7 @@ fn @pushLiteral() -> u256 [selector=0x90dead0b, abi_params=[], abi_returns=[word
   bb1:
     v114 = sload 0 !metadata(storage=slot(0))
     v115 = lt 0, v114
-    v116 = iszero v115
+    v116 = eq v115, false
     icall panic_if<0x32>, v116
     v117 = storage_array_data_slot 0
     v118 = div 0, 8

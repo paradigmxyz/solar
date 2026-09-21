@@ -325,3 +325,39 @@ bb21:
   swap 1
   pop
   stop
+
+// A normalized equality can discard the same duplicated operand.
+// CHECK-LABEL: {{^[ +].*}}bb22:
+// CHECK: - dup 2
+// CHECK: {{^[ +].*}}eq
+// CHECK-NEXT: {{^[ +].*}}iszero
+// CHECK: - swap 1
+// CHECK: - pop
+bb22:
+  calldatasize
+  returndatasize
+  dup 2
+  eq
+  iszero
+  swap 1
+  pop
+  stop
+
+// The cleanup exposes the existing branch double-inversion rule.
+// CHECK-LABEL: {{^[ +].*}}bb23:
+// CHECK: - dup 2
+// CHECK: {{^[ +].*}}eq
+// CHECK-COUNT-2: - iszero
+// CHECK: {{^[ +].*}}jumpi
+bb23:
+  calldatasize
+  returndatasize
+  dup 2
+  eq
+  iszero
+  swap 1
+  pop
+  iszero
+  push bb22
+  jumpi
+  stop

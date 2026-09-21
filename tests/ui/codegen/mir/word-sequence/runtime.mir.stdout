@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/mir/word-sequence/runtime.sol:WordRecipes ===
 @module WordRecipes
 types:
-  struct0: {u256, u256, u256, u256}
-  struct1: {u256, u256, u256}
-  struct2: {u256, u256}
+  struct0: {i256, i256, i256, i256}
+  struct1: {i256, i256, i256}
+  struct2: {i256, i256}
 
-fn @arithmetic(arg0: u256, arg1: u256) -> struct0 [selector=0x6cbb5ae3, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @arithmetic(arg0: i256, arg1: i256) -> struct0 [selector=0x6cbb5ae3, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = or arg0, arg1
     v1 = and arg0, arg1
@@ -26,7 +26,7 @@ fn @arithmetic(arg0: u256, arg1: u256) -> struct0 [selector=0x6cbb5ae3, pure, ab
     ret v15
 }
 
-fn @factored(arg0: u256, arg1: u256, arg2: u256) -> struct1 [selector=0x0d5dfa8f, pure, abi_params=[u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @factored(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0x0d5dfa8f, pure, abi_params=[u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = and arg1, arg2
     v1 = and arg0, arg2
@@ -43,7 +43,7 @@ fn @factored(arg0: u256, arg1: u256, arg2: u256) -> struct1 [selector=0x0d5dfa8f
     ret v11
 }
 
-fn @packed(arg0: u256) -> struct1 [selector=0x977eca9c, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @packed(arg0: i256) -> struct1 [selector=0x977eca9c, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = shr 160, arg0
     v1 = and v0, 255
@@ -57,7 +57,7 @@ fn @packed(arg0: u256) -> struct1 [selector=0x977eca9c, pure, abi_params=[u256],
     ret v8
 }
 
-fn @shifts(arg0: u256, arg1: u256, arg2: u256) -> struct2 [selector=0x21fb8819, pure, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @shifts(arg0: i256, arg1: i256, arg2: i256) -> struct2 [selector=0x21fb8819, pure, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = shl arg2, arg1
     v1 = shl arg2, arg0
@@ -70,14 +70,15 @@ fn @shifts(arg0: u256, arg1: u256, arg2: u256) -> struct2 [selector=0x21fb8819, 
     ret v7
 }
 
-fn @boundary(arg0: u256) -> bool [selector=0xa2c54a38, pure, abi_params=[u256], abi_returns=[word<bool>]] {
+fn @boundary(arg0: i256) -> i256 [selector=0xa2c54a38, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = shl 160, 1
     v1 = lt arg0, v0
-    ret v1
+    v2 = zext i1 v1 to i256
+    ret v2
 }
 
-fn @shared(arg0: u256, arg1: u256) -> struct1 [selector=0xa03ce1ed, pure, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @shared(arg0: i256, arg1: i256) -> struct1 [selector=0xa03ce1ed, pure, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = not arg0
     v1 = not arg1
@@ -88,7 +89,7 @@ fn @shared(arg0: u256, arg1: u256) -> struct1 [selector=0xa03ce1ed, pure, abi_pa
     ret v5
 }
 
-fn @checkedSum(arg0: u256, arg1: u256) -> u256 [selector=0x8c44f114, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @checkedSum(arg0: i256, arg1: i256) -> i256 [selector=0x8c44f114, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and arg0, arg1
     v1 = or arg0, arg1

@@ -9,12 +9,14 @@
 // CHECK:   fn @observing_caller{{.*}}
 // CHECK-NEXT:     bb0:
 // CHECK-NEXT:       v0 = alloc raw, exact, uninitialized, infallible, 32
-fn @observing_caller() -> bool [selector=0x01020304] {
+fn @observing_caller() -> i1 [selector=0x01020304] {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v6 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v6 to i256
     mstore v0, 7
     v1 = icall fn4, v0
-    ret v1
+    v2 = ne v1, false
+    ret v2
 }
 
 // The observation is interprocedural: a callee that only forwards the pointer
@@ -22,12 +24,14 @@ fn @observing_caller() -> bool [selector=0x01020304] {
 // CHECK:   fn @forwarding_caller{{.*}}
 // CHECK-NEXT:     bb0:
 // CHECK-NEXT:       v0 = alloc raw, exact, uninitialized, infallible, 32
-fn @forwarding_caller() -> bool [selector=0x01020305] {
+fn @forwarding_caller() -> i1 [selector=0x01020305] {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v7 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v7 to i256
     mstore v0, 7
     v1 = icall fn5, v0
-    ret v1
+    v2 = ne v1, false
+    ret v2
 }
 
 // Reading the free-memory pointer alone is placement-agnostic when the pointer
@@ -35,13 +39,14 @@ fn @forwarding_caller() -> bool [selector=0x01020305] {
 // CHECK:   fn @dereferencing_caller{{.*}}
 // CHECK-NEXT:     bb0:
 // CHECK-NEXT: -     v0 = alloc raw, exact, uninitialized, infallible, 32
-// CHECK-NEXT: -     mstore v0, 7
-// CHECK-NEXT: -     v1 = icall @dereferences, v0
-// CHECK-NEXT: +     mstore 128, 7
-// CHECK-NEXT: +     v1 = icall @dereferences, 128
-fn @dereferencing_caller() -> u256 [selector=0x01020306] {
+// CHECK-NEXT: -     v1 = ptrtoint memptr v0 to i256
+// CHECK-NEXT: +     v1 = ptrtoint memptr 128 to i256
+// CHECK-NEXT:       mstore v1, 7
+// CHECK-NEXT:       v2 = icall @dereferences, v1
+fn @dereferencing_caller() -> i256 [selector=0x01020306] {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v8 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v8 to i256
     mstore v0, 7
     v1 = icall fn6, v0
     ret v1
@@ -51,28 +56,30 @@ fn @dereferencing_caller() -> u256 [selector=0x01020306] {
 // CHECK:   fn @msize_caller{{.*}}
 // CHECK-NEXT:     bb0:
 // CHECK-NEXT:       v0 = alloc raw, exact, uninitialized, infallible, 32
-fn @msize_caller() -> u256 [selector=0x01020307] {
+fn @msize_caller() -> i256 [selector=0x01020307] {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v9 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v9 to i256
     mstore v0, 7
     v1 = icall fn7, v0
     ret v1
 }
 
-fn @observes(arg0: memptr) -> bool {
+fn @observes(arg0: i256) -> i1 {
   bb0:
     v0 = mload 64
     v1 = lt arg0, v0
     ret v1
 }
 
-fn @forwards(arg0: memptr) -> bool {
+fn @forwards(arg0: i256) -> i1 {
   bb0:
     v0 = icall fn4, arg0
-    ret v0
+    v1 = ne v0, false
+    ret v1
 }
 
-fn @dereferences(arg0: memptr) -> u256 {
+fn @dereferences(arg0: i256) -> i256 {
   bb0:
     v0 = mload 64
     v1 = mload arg0
@@ -80,7 +87,7 @@ fn @dereferences(arg0: memptr) -> u256 {
     ret v2
 }
 
-fn @measures(arg0: memptr) -> u256 {
+fn @measures(arg0: i256) -> i256 {
   bb0:
     v0 = msize
     v1 = mload arg0
@@ -113,25 +120,27 @@ fn @reserve_frame() [selector=0x01020308] {
 // CHECK:   fn @iterating_caller{{.*}}
 // CHECK-NEXT:     bb0:
 // CHECK-NEXT: -     v0 = alloc raw, exact, uninitialized, infallible, 32
-// CHECK-NEXT: -     mstore v0, 7
-// CHECK-NEXT: -     v1 = icall @iterates, v0
-// CHECK-NEXT: +     mstore 128, 7
-// CHECK-NEXT: +     v1 = icall @iterates, 128
-fn @iterating_caller() -> u256 [selector=0x01020309] {
+// CHECK-NEXT: -     v1 = ptrtoint memptr v0 to i256
+// CHECK-NEXT: +     v1 = ptrtoint memptr 128 to i256
+// CHECK-NEXT:       mstore v1, 7
+// CHECK-NEXT:       v2 = icall @iterates, v1
+fn @iterating_caller() -> i256 [selector=0x01020309] {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v10 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v10 to i256
     mstore v0, 7
     v1 = icall fn10, v0
     ret v1
 }
 
-fn @iterates(arg0: memptr) -> u256 {
+fn @iterates(arg0: i256) -> i256 {
   bb0:
     v0 = mload 64
     mstore v0, 1
     v1 = add arg0, 32
     v2 = lt arg0, v1
     v3 = mload arg0
-    v4 = add v2, v3
+    v5 = zext i1 v2 to i256
+    v4 = add v5, v3
     ret v4
 }

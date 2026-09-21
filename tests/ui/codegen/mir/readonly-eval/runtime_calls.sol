@@ -1,5 +1,7 @@
 //@ codegen-matrix: standard
 //@ run-call: constantWord => 42
+//@ run-call: emptyBytes => true
+//@ run-call: nonemptyBytes => false
 //@ run-call: dynamicWord 511 => 511
 //@ run-call: afterOverwrite 511 => 511
 //@ run-call: constantShort => 0x3100000000000000000000000000000000000000000000000000000000000001
@@ -9,6 +11,18 @@
 
 // A constructor-free target also supports bounded symbolic runtime comparisons.
 contract RuntimeCalls {
+    function emptyBytes() external pure returns (bool) {
+        return isEmpty(bytes(""));
+    }
+
+    function nonemptyBytes() external pure returns (bool) {
+        return isEmpty(bytes("1"));
+    }
+
+    function isEmpty(bytes memory data) internal pure returns (bool result) {
+        assembly { result := iszero(mload(data)) }
+    }
+
     function constantWord() external pure returns (uint256) {
         bytes memory data = new bytes(32);
         assembly { mstore(add(data, 32), 42) }

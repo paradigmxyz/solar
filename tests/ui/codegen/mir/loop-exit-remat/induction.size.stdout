@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/loop-exit-remat/induction.mir (before loop-exit-remat) ===
 + // === ROOT/tests/ui/codegen/mir/loop-exit-remat/induction.mir (after loop-exit-remat) ===
   @module Induction
-  fn @exit_old(arg0: memptr, arg1: u256) -> u256 {
+  fn @exit_old(arg0: i256, arg1: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -17,39 +17,42 @@
       jump bb1
   }
   
-  fn @subtract(arg0: u256) -> u256 {
+  fn @subtract(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
       v0 = phi [bb0: arg0], [bb1: v1]
       v1 = sub v0, 1
-      jumpi v1, bb1, bb2
+      v2 = ne v1, 0
+      jumpi v2, bb1, bb2
     bb2:
       ret v0
   }
   
-  fn @variable_step(arg0: u256, arg1: u256) -> u256 {
+  fn @variable_step(arg0: i256, arg1: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
       v0 = phi [bb0: arg0], [bb1: v1]
       v1 = add v0, arg1
-      jumpi v1, bb1, bb2
+      v2 = ne v1, 0
+      jumpi v2, bb1, bb2
     bb2:
       ret v0
   }
   
-  fn @nested(arg0: u256, arg1: bool) -> u256 {
+  fn @nested(arg0: i256, arg1: i1) -> i256 {
     bb0:
       jump bb1
     bb1:
       v0 = phi [bb0: arg0], [bb1: v1], [bb2: v1]
       v1 = add v0, 32
-      jumpi v1, bb1, bb2
+      v2 = ne v1, 0
+      jumpi v2, bb1, bb2
     bb2:
-      v2 = add v0, 1
+      v3 = add v0, 1
       jumpi arg1, bb1, bb3
     bb3:
-      ret v2
+      ret v3
   }
   

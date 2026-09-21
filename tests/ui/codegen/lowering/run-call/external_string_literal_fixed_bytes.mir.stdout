@@ -1,28 +1,29 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_string_literal_fixed_bytes.sol:ExternalStringLiteralFixedBytes ===
 @module ExternalStringLiteralFixedBytes
-fn @take(arg0: bytes32) -> bytes32 [selector=0xcc9ae693, pure, abi_params=[bytes32], abi_returns=[word]] {
+fn @take(arg0: i256) -> i256 [selector=0xcc9ae693, pure, abi_params=[bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     ret arg0
 }
 
-fn @callLiteral() -> bytes32 [selector=0x74903211, view, abi_params=[], abi_returns=[word]] {
+fn @callLiteral() -> i256 [selector=0x74903211, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = address
     v1 = gas
     v2 = abi_encode [word], selector 0xcc9ae69300000000000000000000000000000000000000000000000000000000, args 0x312e302e31000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = staticcall v1, v0, v3, v4, 0, 32
-    jumpi v5, bb2, bb1
+    v5 = zext i160 v0 to i256
+    v6 = staticcall v1, v5, v3, v4, 0, 32
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v6 = returndatasize
-    v7 = lt v6, 32
-    icall revert_if<tuple_data_too_short>, v7
-    v8 = add 0, 0
-    v9 = mload v8
-    v10 = add 0, 0
-    v11 = mload v10
-    ret v11
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    v11 = add 0, 0
+    v12 = mload v11
+    ret v12
 }

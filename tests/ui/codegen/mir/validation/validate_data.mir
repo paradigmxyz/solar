@@ -3,7 +3,7 @@
 data:
   0: hex"aabb"
 
-fn @dynamic(arg0: u256) {
+fn @dynamic(arg0: i256) {
   bb0:
     data_copy 0, 0, arg0
     //~? ERROR: [fn0] [bb0, inst0] data_copy size must be an immediate

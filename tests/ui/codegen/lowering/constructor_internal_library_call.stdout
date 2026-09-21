@@ -4,13 +4,13 @@
 
 // === ROOT/tests/ui/codegen/lowering/constructor_internal_library_call.sol:ConstructorInternalLibraryCall ===
 @module ConstructorInternalLibraryCall
-fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     v0 = and arg0, 7
     v1 = icall @helper, v0
@@ -18,7 +18,7 @@ fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
     ret
 }
 
-fn @helper(arg0: u256) -> u256 [pure] {
+fn @helper(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2

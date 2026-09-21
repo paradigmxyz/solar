@@ -6,7 +6,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>]] {
+fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>], abi_return_params=[bytes3]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffff
@@ -14,7 +14,7 @@ fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[
     ret v2
 }
 
-fn @setName(arg0: bytes3) {
+fn @setName(arg0: i256) {
   bb0:
     v0 = and arg0, 0xffffff0000000000000000000000000000000000000000000000000000000000
     v1 = sload 0 !metadata(storage=slot(0))

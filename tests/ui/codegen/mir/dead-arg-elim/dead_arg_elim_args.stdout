@@ -1,24 +1,24 @@
 - // === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_args.mir (before dead-arg-elim) ===
 + // === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_args.mir (after dead-arg-elim) ===
   @module DeadArgElimArgs
-- fn @leaf(arg0: u256, arg1: u256, arg2: u256) -> u256 {
-+ fn @leaf(arg0: u256, arg1: u256) -> u256 {
+- fn @leaf(arg0: i256, arg1: i256, arg2: i256) -> i256 {
++ fn @leaf(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = add arg0, arg2
 +     v0 = add arg0, arg1
       ret v0
   }
   
-- fn @forward(arg0: u256, arg1: u256, arg2: u256) -> u256 {
-+ fn @forward(arg0: u256, arg1: u256) -> u256 {
+- fn @forward(arg0: i256, arg1: i256, arg2: i256) -> i256 {
++ fn @forward(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = icall @leaf, arg0, arg1, arg2
 +     v0 = icall @leaf, arg0, arg1
       ret v0
   }
   
-- fn @recursive(arg0: bool, arg1: u256, arg2: u256) -> u256 {
-+ fn @recursive(arg0: bool, arg1: u256) -> u256 {
+- fn @recursive(arg0: i1, arg1: i256, arg2: i256) -> i256 {
++ fn @recursive(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -29,12 +29,12 @@
       ret v0
   }
   
-  fn @external_keeps_abi(arg0: u256, arg1: u256) -> u256 [selector=0x01020304] {
+  fn @external_keeps_abi(arg0: i256, arg1: i256) -> i256 [selector=0x01020304] {
     bb0:
       ret arg0
   }
   
-  fn @entry() -> u256 [selector=0x01020305] {
+  fn @entry() -> i256 [selector=0x01020305] {
     bb0:
 -     v0 = icall @forward, 1, 2, 3
 -     v1 = icall @recursive, false, 7, 9
@@ -44,15 +44,15 @@
       ret v2
   }
   
-- fn @tail_sink(arg0: u256, arg1: u256) {
-+ fn @tail_sink(arg0: u256) {
+- fn @tail_sink(arg0: i256, arg1: i256) {
++ fn @tail_sink(arg0: i256) {
     bb0:
       sstore 0, arg0
       stop
   }
   
-- fn @tail_forward(arg0: u256, arg1: u256) {
-+ fn @tail_forward(arg0: u256) {
+- fn @tail_forward(arg0: i256, arg1: i256) {
++ fn @tail_forward(arg0: i256) {
     bb0:
 -     tail_call @tail_sink, arg0, arg1
 +     tail_call @tail_sink, arg0
@@ -64,7 +64,7 @@
 +     tail_call @tail_forward, 4
   }
   
-  fn @same_argument(arg0: bool, arg1: u256) -> u256 {
+  fn @same_argument(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -75,7 +75,7 @@
       ret arg1
   }
   
-  fn @different_arguments(arg0: bool, arg1: u256, arg2: u256) -> u256 {
+  fn @different_arguments(arg0: i1, arg1: i256, arg2: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -84,7 +84,7 @@
       ret arg1
   }
   
-  fn @tail_result(arg0: bool, arg1: u256) -> u256 {
+  fn @tail_result(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -93,7 +93,7 @@
       ret arg1
   }
   
-  fn @forwarded_calls(arg0: bool, arg1: u256) -> u256 [selector=0x01020307] {
+  fn @forwarded_calls(arg0: i1, arg1: i256) -> i256 [selector=0x01020307] {
     bb0:
       v0 = icall @same_argument, arg0, arg1
 -     v1 = icall @same_argument, arg0, v0
@@ -107,7 +107,7 @@
       ret v5
   }
   
-  fn @constant(arg0: bool, arg1: bool, arg2: u256) -> u256 {
+  fn @constant(arg0: i1, arg1: i1, arg2: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -122,7 +122,7 @@
       ret 9
   }
   
-  fn @different_constants(arg0: bool) -> u256 {
+  fn @different_constants(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -131,7 +131,7 @@
       ret 9
   }
   
-  fn @constant_entry(arg0: bool, arg1: bool, arg2: u256) -> u256 [selector=0x01020308] {
+  fn @constant_entry(arg0: i1, arg1: i1, arg2: i256) -> i256 [selector=0x01020308] {
     bb0:
       v0 = icall @constant, arg0, arg1, arg2
       v1 = icall @different_constants, arg0
@@ -140,14 +140,14 @@
       ret v2
   }
   
-  fn @constant_store(arg0: bool, arg1: bool, arg2: u256) [selector=0x01020309] {
+  fn @constant_store(arg0: i1, arg1: i1, arg2: i256) [selector=0x01020309] {
     bb0:
       v0 = icall @constant, arg0, arg1, arg2
       mstore 128, v0
       ret
   }
   
-  fn @constant_return(arg0: bool, arg1: bool, arg2: u256) -> u256 [selector=0x0102030a] {
+  fn @constant_return(arg0: i1, arg1: i1, arg2: i256) -> i256 [selector=0x0102030a] {
     bb0:
       v0 = icall @constant, arg0, arg1, arg2
       ret v0

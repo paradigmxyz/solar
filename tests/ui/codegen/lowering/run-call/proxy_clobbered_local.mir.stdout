@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_clobbered_local.sol:Impl ===
 @module Impl
-fn @echo(arg0: u256) -> u256 [selector=0x6279e43c, pure, abi_params=[u256], abi_returns=[word]] {
+fn @echo(arg0: i256) -> i256 [selector=0x6279e43c, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret arg0
 }
@@ -8,9 +8,9 @@ fn @echo(arg0: u256) -> u256 [selector=0x6279e43c, pure, abi_params=[u256], abi_
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_clobbered_local.sol:C ===
 @module C
 data:
-  Impl_initcode_0: hex"34600d57603c8060115f395ff35b5f5ffd34601a575f3560e01c80636279e43c14601657601a565b601e565b5f5ffd5b602436106038576004356080526020608001608090036080f35b5f5ffd"
+  Impl_initcode_0: hex"34600d57603e8060115f395ff35b5f5ffd341515601c575f3560e01c80636279e43c14601857601c565b6020565b5f5ffd5b60243610603a576004356080526020608001608090036080f35b5f5ffd"
 
-fn @keepsLocal(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) -> u256 [selector=0x0ea6bb92, pure, abi_params=[u256, u256, u256, u256, u256], abi_returns=[word]] {
+fn @keepsLocal(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i256 [selector=0x0ea6bb92, pure, abi_params=[u256, u256, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gt arg0, 0
     jumpi v0, bb1, bb2
@@ -33,33 +33,45 @@ fn @keepsLocal(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) -> u2
     ret v10
 }
 
-fn @forwards() -> u256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word]] {
+fn @forwards() -> i256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 108, v1
+    v2 = and 110, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Impl_initcode_0, v3, 77
-    v4 = slice_ptr v0
-    v5 = add v3, 77
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 77
-    jumpi v6, bb2, bb1
+    v4 = ptrtoint memptr v3 to i256
+    data_copy Impl_initcode_0, v4, 79
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, 79
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, 79
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = abi_encode [word], object, selector 0x6279e43c00000000000000000000000000000000000000000000000000000000, args 7
-    v8 = mload 64 !metadata(memory=scratch)
-    v9 = calldatasize
-    calldatacopy 0, 0, v9 !metadata(memory=scratch)
-    v10 = mload v7
-    v11 = add v7, 32
-    v12 = gas
-    v13 = delegatecall v12, v6, v11, v10, 0, 32
-    v14 = mload 0 !metadata(memory=scratch)
-    v15 = eq v14, 7
-    v16 = and v13, v15
-    v17 = eq v16, 1
-    icall require<short_string>, v17, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
+    v12 = zext i160 v9 to i256
+    v13 = trunc i256 v12 to i160
+    v14 = zext i160 v13 to i256
+    v15 = abi_encode [word], object, selector 0x6279e43c00000000000000000000000000000000000000000000000000000000, args 7
+    v16 = mload 64 !metadata(memory=scratch)
+    v17 = calldatasize
+    calldatacopy 0, 0, v17 !metadata(memory=scratch)
+    v18 = ptrtoint memorybytes v15 to i256
+    v19 = mload v18
+    v20 = ptrtoint memorybytes v15 to i256
+    v21 = add v20, 32
+    v22 = gas
+    v23 = delegatecall v22, v14, v21, v19, 0, 32
+    v24 = zext i1 v23 to i256
+    v25 = mload 0 !metadata(memory=scratch)
+    v26 = eq v25, 7
+    v27 = zext i1 v26 to i256
+    v28 = and v24, v27
+    v29 = eq v28, 1
+    icall require<short_string>, v29, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
     ret 1
 }

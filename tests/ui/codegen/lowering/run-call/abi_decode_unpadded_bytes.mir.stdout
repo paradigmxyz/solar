@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_unpadded_bytes.sol:AbiDecodeUnpaddedBytes ===
 @module AbiDecodeUnpaddedBytes
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
 fn @decode() -> struct0 [selector=0xc0f8940c, pure, abi_params=[], abi_returns=[word, word<bytes1>], abi_return_params=[u256, bytes1]] {
   bb0:
@@ -9,21 +9,24 @@ fn @decode() -> struct0 [selector=0xc0f8940c, pure, abi_params=[], abi_returns=[
     v1 = and 128, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 65
-    v3 = add v2, 32
-    mstore v3, 32
-    v4 = add v2, 64
-    mstore v4, 1
-    v5 = add v2, 96
-    mstore8 v5, 122
-    v6 = abi_decode [bytes], v2
-    v7 = memory_object_len memorybytes, v6
-    v8 = memory_object_len memorybytes, v6
-    v9 = lt 0, v8
-    v10 = iszero v9
-    icall panic_if<0x32>, v10
-    v11 = memory_object_load_byte memorybytes, v6, 0
-    v12 = shl 248, v11
-    v13 = insert_value struct0, undef struct0, 0, v7
-    v14 = insert_value struct0, v13, 1, v12
-    ret v14
+    v3 = ptrtoint memorybytes v2 to i256
+    v4 = add v3, 32
+    mstore v4, 32
+    v5 = ptrtoint memorybytes v2 to i256
+    v6 = add v5, 64
+    mstore v6, 1
+    v7 = ptrtoint memorybytes v2 to i256
+    v8 = add v7, 96
+    mstore8 v8, 122
+    v9 = abi_decode [bytes], v2
+    v10 = memory_object_len memorybytes, v9
+    v11 = memory_object_len memorybytes, v9
+    v12 = lt 0, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = memory_object_load_byte memorybytes, v9, 0
+    v15 = shl 248, v14
+    v16 = insert_value struct0, undef struct0, 0, v10
+    v17 = insert_value struct0, v16, 1, v15
+    ret v17
 }

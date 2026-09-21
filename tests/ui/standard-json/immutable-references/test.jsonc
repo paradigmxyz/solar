@@ -3,7 +3,7 @@
 // CHECK: "deployedBytecode": {
 // CHECK-NEXT: "immutableReferences": {
 // CHECK: "length": 1
-// CHECK: "length": 20
+// CHECK: "length": 32
 // CHECK-NOT: "object":
 // CHECK-LABEL: "A": {
 // CHECK: "deployedBytecode": {

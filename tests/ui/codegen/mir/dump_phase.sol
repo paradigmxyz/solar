@@ -12,7 +12,7 @@
 
 // NONE: @module DumpPhase
 // NONE-NOT: @phase
-// NONE-LABEL: fn @f(arg0: u256)
+// NONE-LABEL: fn @f(arg0: i256)
 // NONE: checked_add {{[ui][0-9]+}}, arg0, 0
 // GAS: @phase lowered
 // GAS-NOT: add arg0, 0

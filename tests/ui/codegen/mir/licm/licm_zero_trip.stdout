@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/licm/licm_zero_trip.mir (before licm) ===
 + // === ROOT/tests/ui/codegen/mir/licm/licm_zero_trip.mir (after licm) ===
   @module LicmZeroTrip
-  fn @keep_sload_zero_trip() -> u256 {
+  fn @keep_sload_zero_trip() -> i256 {
     bb0:
       v0 = calldatasize
       jump bb1
@@ -19,7 +19,7 @@
       jump bb1
   }
   
-  fn @keep_mload_zero_trip() -> u256 {
+  fn @keep_mload_zero_trip() -> i256 {
     bb0:
       v0 = calldatasize
       jump bb1
@@ -36,7 +36,7 @@
       jump bb1
   }
   
-  fn @hoist_sload_known_trip() -> u256 {
+  fn @hoist_sload_known_trip() -> i256 {
     bb0:
 +     v3 = sload 5 !metadata(storage=slot(5))
       jump bb1
@@ -53,7 +53,7 @@
       jump bb1
   }
   
-  fn @hoist_mload_dominates_exits() -> u256 {
+  fn @hoist_mload_dominates_exits() -> i256 {
     bb0:
 -     jump bb1
 -   bb1:
@@ -67,7 +67,7 @@
       ret v0
   }
   
-  fn @keep_mload_msize_in_function() -> u256 {
+  fn @keep_mload_msize_in_function() -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -85,7 +85,7 @@
       jump bb1
   }
   
-  fn @hoist_sload_checked_trip() -> u256 {
+  fn @hoist_sload_checked_trip() -> i256 {
     bb0:
 +     v3 = sload 5 !metadata(storage=slot(5))
       jump bb1
@@ -102,7 +102,7 @@
       jump bb1
   }
   
-  fn @keep_sload_after_semantic_check(arg0: u256) -> u256 {
+  fn @keep_sload_after_semantic_check(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -120,7 +120,7 @@
       jump bb1
   }
   
-  fn @keep_sload_after_header_check(arg0: u256) -> u256 {
+  fn @keep_sload_after_header_check(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:

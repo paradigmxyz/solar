@@ -1,49 +1,51 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_memory_argument.sol:ModifierMemoryArgument ===
 @module ModifierMemoryArgument
-fn @f(arg0: calldataslice) -> u256 [selector=0x7bc5bbbf, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
+fn @f(arg0: calldataslice) -> i256 [selector=0x7bc5bbbf, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
     v2 = mul v0, 32
-    v3 = iszero 32
+    v3 = eq 32, 0
     v4 = div v2, 32
     v5 = eq v4, v0
     v6 = or v3, v5
-    v7 = iszero v6
-    icall panic_if<0x41>, v7
-    v8 = calldatasize
-    v9 = sub v8, v1
-    v10 = slt v9, v2
-    icall revert_if<calldata_tail_too_short>, v10
-    v11 = mul v0, 32
-    v12 = iszero 32
-    v13 = div v11, 32
-    v14 = eq v13, v0
-    v15 = or v12, v14
-    v16 = iszero v15
-    icall panic_if<0x41>, v16
-    v17 = add 32, v11
-    v18 = lt v17, 32
+    v7 = zext i1 v6 to i256
+    v8 = eq v7, 0
+    icall panic_if<0x41>, v8
+    v9 = calldatasize
+    v10 = sub v9, v1
+    v11 = slt v10, v2
+    icall revert_if<calldata_tail_too_short>, v11
+    v12 = mul v0, 32
+    v13 = eq 32, 0
+    v14 = div v12, 32
+    v15 = eq v14, v0
+    v16 = or v13, v15
+    v17 = zext i1 v16 to i256
+    v18 = eq v17, 0
     icall panic_if<0x41>, v18
-    v19 = alloc memoryarray<1>, exact, uninitialized, infallible, v17
-    set_memory_object_len memoryarray, v19, v0
-    v20 = make_calldata_slice v1, v11
-    memory_object_copy_from_slice memoryarray, v19, v20
-    v21 = memory_object_len memoryarray, v19
-    v22 = lt 0, v21
-    v23 = iszero v22
-    icall panic_if<0x32>, v23
-    memory_object_store_element memoryarray<1>, v19, 0, 9
-    v24 = slice_len arg0
-    v25 = lt 0, v24
-    v26 = iszero v25
-    icall panic_if<0x32>, v26
-    v27 = slice_ptr arg0
-    v28 = add v27, 0
-    v29 = calldataload v28
+    v19 = add 32, v12
+    v20 = lt v19, 32
+    icall panic_if<0x41>, v20
+    v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
+    set_memory_object_len memoryarray, v21, v0
+    v22 = make_calldata_slice v1, v12
+    memory_object_copy_from_slice memoryarray, v21, v22
+    v23 = memory_object_len memoryarray, v21
+    v24 = lt 0, v23
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    memory_object_store_element memoryarray<1>, v21, 0, 9
+    v26 = slice_len arg0
+    v27 = lt 0, v26
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = slice_ptr arg0
+    v30 = add v29, 0
+    v31 = calldataload v30
     jump bb2
   bb2:
     jump bb1
   bb1:
-    ret v29
+    ret v31
 }

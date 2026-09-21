@@ -11,12 +11,12 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @onlyStored() -> u256 [pure] {
+fn @onlyStored() -> i256 [pure] {
   bb0:
     ret 7
 }
 
-fn @callStoredOnly() -> u256 [selector=0x11cfff8f, abi_params=[], abi_returns=[word]] {
+fn @callStoredOnly() -> i256 [selector=0x11cfff8f, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffff
@@ -24,7 +24,7 @@ fn @callStoredOnly() -> u256 [selector=0x11cfff8f, abi_params=[], abi_returns=[w
     ret v2
 }
 
-fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_none_r_u256(arg0: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2

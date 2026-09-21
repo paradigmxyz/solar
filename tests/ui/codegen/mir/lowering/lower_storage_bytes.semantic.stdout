@@ -1,20 +1,20 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_storage_bytes.mir (before none) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_storage_bytes.mir (after none) ===
   @module StorageBytes
-  fn @header(arg0: u256) -> u256 {
+  fn @header(arg0: i256) -> i256 {
     bb0:
       v0 = sload arg0
       validate_storage_bytes v0 !metadata(span=10..20, modifier_depth=1)
       ret v0
   }
   
-  fn @load(arg0: u256) -> memorybytes {
+  fn @load(arg0: i256) -> memorybytes {
     bb0:
       v0 = load_storage_bytes arg0 !metadata(span=20..30, modifier_depth=2)
       ret v0
   }
   
-  fn @edge(arg0: bool, arg1: u256, arg2: memorybytes) -> memorybytes {
+  fn @edge(arg0: i1, arg1: i256, arg2: memorybytes) -> memorybytes {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -27,7 +27,7 @@
       ret v1
   }
   
-  fn @clear(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+  fn @clear(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -40,7 +40,7 @@
       ret v0
   }
   
-  fn @store(arg0: bool, arg1: u256, arg2: memorybytes) -> u256 {
+  fn @store(arg0: i1, arg1: i256, arg2: memorybytes) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -53,7 +53,7 @@
       ret v0
   }
   
-  fn @store_literal(arg0: bool, arg1: u256) -> u256 {
+  fn @store_literal(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -68,13 +68,13 @@
       ret v0
   }
   
-  fn @shared_literal_first(arg0: u256) {
+  fn @shared_literal_first(arg0: i256) {
     bb0:
       store_storage_bytes_literal arg0, hex"78" !metadata(span=60..70)
       ret
   }
   
-  fn @shared_literal_second(arg0: u256) {
+  fn @shared_literal_second(arg0: i256) {
     bb0:
       store_storage_bytes_literal arg0, hex"78" !metadata(span=70..80)
       ret

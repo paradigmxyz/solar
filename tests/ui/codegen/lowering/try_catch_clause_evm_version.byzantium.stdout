@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/try_catch_clause_evm_version.sol:TryCatchClauses ===
 @module TryCatchClauses
-fn @bare(arg0: address) -> u256 [selector=0x590eaf9b, abi_params=[address], abi_returns=[word]] {
+fn @bare(arg0: i256) -> i256 [selector=0x590eaf9b, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
@@ -24,7 +24,7 @@ fn @bare(arg0: address) -> u256 [selector=0x590eaf9b, abi_params=[address], abi_
     ret v7
 }
 
-fn @typed(arg0: address) -> u256 [selector=0x18d9eb38, abi_params=[address], abi_returns=[word]] {
+fn @typed(arg0: i256) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
@@ -36,67 +36,74 @@ fn @typed(arg0: address) -> u256 [selector=0x18d9eb38, abi_params=[address], abi
     v7 = icall returndata_bytes<>
     v8 = memory_object_data memorybytes, v7
     v9 = memory_object_len memorybytes, v7
-    v10 = make_memory_slice v8, v9
-    v11 = memory_slice_load_word memory, v10, 0
-    v12 = shr 224, v11
-    v13 = eq v12, 0x8c379a0
-    jumpi v13, bb4, bb5
+    v10 = ptrtoint memptr v8 to i256
+    v11 = make_memory_slice v10, v9
+    v12 = memory_slice_load_word memory, v11, 0
+    v13 = shr 224, v12
+    v14 = eq v13, 0x8c379a0
+    jumpi v14, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v14 = icall @try_decode_error_message, v8, v9
+    v15 = ptrtoint memptr v8 to i256
+    v16 = icall @try_decode_error_message, v15, v9
     jump bb6
   bb6:
-    v15 = phi [bb4: v14], [bb5: false]
-    jumpi v15, bb7, bb8
+    v17 = phi [bb4: v16], [bb5: false]
+    jumpi v17, bb7, bb8
   bb8:
-    v28 = eq v12, 0x4e487b71
-    v29 = lt v9, 36
-    v30 = iszero v29
-    v31 = and v28, v30
-    jumpi v31, bb9, bb10
+    v31 = eq v13, 0x4e487b71
+    v32 = lt v9, 36
+    v33 = eq v32, false
+    v34 = and v31, v33
+    v35 = zext i1 v34 to i256
+    v36 = ne v35, 0
+    jumpi v36, bb9, bb10
   bb10:
     jumpi true, bb11, bb12
   bb12:
-    revert v8, v9
+    v42 = ptrtoint memptr v8 to i256
+    revert v42, v9
   bb11:
     jump bb3
   bb9:
-    v32 = memory_object_data memorybytes, v7
-    v33 = add v32, 4
-    v34 = make_memory_slice v33, 32
-    v35 = memory_slice_load_word memory, v34, 0
+    v37 = memory_object_data memorybytes, v7
+    v38 = ptrtoint memptr v37 to i256
+    v39 = add v38, 4
+    v40 = make_memory_slice v39, 32
+    v41 = memory_slice_load_word memory, v40, 0
     jump bb3
   bb7:
-    v16 = memory_object_data memorybytes, v7
-    v17 = memory_object_len memorybytes, v7
-    v18 = add v16, 4
-    v19 = sub v17, 4
-    v20 = make_memory_slice v18, v19
-    v21 = slice_len v20
-    v22 = add v21, 63
-    v23 = lt v22, v21
-    icall panic_if<0x41>, v23
-    v24 = not 31
-    v25 = and v22, v24
-    v26 = alloc memorybytes, exact, uninitialized, infallible, v25
-    set_memory_object_len memorybytes, v26, v21
-    memory_object_copy_from_slice memorybytes, v26, v20
-    v27 = abi_decode [bytes], v26
+    v18 = memory_object_data memorybytes, v7
+    v19 = memory_object_len memorybytes, v7
+    v20 = ptrtoint memptr v18 to i256
+    v21 = add v20, 4
+    v22 = sub v19, 4
+    v23 = make_memory_slice v21, v22
+    v24 = slice_len v23
+    v25 = add v24, 63
+    v26 = lt v25, v24
+    icall panic_if<0x41>, v26
+    v27 = not 31
+    v28 = and v25, v27
+    v29 = alloc memorybytes, exact, uninitialized, infallible, v28
+    set_memory_object_len memorybytes, v29, v24
+    memory_object_copy_from_slice memorybytes, v29, v23
+    v30 = abi_decode [bytes], v29
     jump bb3
   bb1:
     v5 = icall returndata_bytes<>
     v6 = abi_decode [u256], v5
     jump bb3
   bb3:
-    v36 = phi [bb1: v6], [bb7: 1], [bb9: 2], [bb11: 3]
-    ret v36
+    v43 = phi [bb1: v6], [bb7: 1], [bb9: 2], [bb11: 3]
+    ret v43
 }
 
-fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
+fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
   bb0:
     v0 = lt arg1, 68
-    v1 = iszero v0
+    v1 = eq v0, false
     jumpi v1, bb1, bb3
   bb1:
     v2 = add arg0, 4
@@ -105,16 +112,19 @@ fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
     v5 = add v3, 36
     v6 = gt v5, arg1
     v7 = or v4, v6
-    jumpi v7, bb3, bb2
+    v8 = zext i1 v7 to i256
+    v9 = ne v8, 0
+    jumpi v9, bb3, bb2
   bb2:
-    v8 = add v2, v3
-    v9 = mload v8
-    v10 = gt v9, 0xffffffffffffffff
-    v11 = sub arg1, v5
-    v12 = gt v9, v11
-    v13 = or v10, v12
-    v14 = iszero v13
-    ret v14
+    v10 = add v2, v3
+    v11 = mload v10
+    v12 = gt v11, 0xffffffffffffffff
+    v13 = sub arg1, v5
+    v14 = gt v11, v13
+    v15 = or v12, v14
+    v16 = zext i1 v15 to i256
+    v17 = eq v16, 0
+    ret v17
   bb3:
     ret false
 }

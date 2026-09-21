@@ -6,7 +6,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @remove_store_overwritten_by_codecopy{{[( ]}}
 // CHECK: - mstore 0, 1
 // CHECK: {{^[ +].*}}codecopy 0, 0, 64
-fn @remove_store_overwritten_by_codecopy() -> u256 {
+fn @remove_store_overwritten_by_codecopy() -> i256 {
   bb0:
     mstore 0, 1
     codecopy 0, 0, 64
@@ -18,7 +18,7 @@ fn @remove_store_overwritten_by_codecopy() -> u256 {
 // CHECK: {{^[ +].*}}mstore 32, 1
 // CHECK: {{^[ +].*}}codecopy 0, 0, 32
 // CHECK: + ret 1
-fn @keep_store_after_partial_copy() -> u256 {
+fn @keep_store_after_partial_copy() -> i256 {
   bb0:
     mstore 32, 1
     codecopy 0, 0, 32
@@ -32,7 +32,7 @@ fn @keep_store_after_partial_copy() -> u256 {
 // CHECK: {{^[ +].*}}calldatacopy
 // CHECK: {{^[ +].*}}[[LENGTH:v[0-9]+]] = mload {{v[0-9]+}}
 // CHECK-NEXT: {{^[ +].*}}ret [[LENGTH]]
-fn @keep_unproven_array_length() -> u256 {
+fn @keep_unproven_array_length() -> i256 {
   bb0:
     v0 = mload 64
     mstore v0, 3
@@ -49,7 +49,7 @@ fn @keep_unproven_array_length() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_store_before_partial_call_output{{[( ]}}
 // CHECK: {{^[ +].*}}mstore 32, arg0
 // CHECK: {{^[ +].*}}staticcall 0x3e8, 0xbeef, 0, 0, 32, 32
-fn @keep_store_before_partial_call_output(arg0: u256) -> u256 {
+fn @keep_store_before_partial_call_output(arg0: i256) -> i256 {
   bb0:
     mstore 32, arg0
     v1 = staticcall 1000, 0xbeef, 0, 0, 32, 32

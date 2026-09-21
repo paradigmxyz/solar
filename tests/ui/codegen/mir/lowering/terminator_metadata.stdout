@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/terminator_metadata.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/terminator_metadata.mir (after lower-abi) ===
   @module TerminatorMetadata
-- fn @identity(arg0: u256) -> u256 [selector=0xac37eebb, abi_params=[u256], abi_returns=[word]] {
+- fn @identity(arg0: i256) -> i256 [selector=0xac37eebb, abi_params=[u256], abi_returns=[word]] {
 + fn @identity() [selector=0xac37eebb, abi_wrapper] {
     bb0:
 -     ret arg0 !metadata(span=30..40)

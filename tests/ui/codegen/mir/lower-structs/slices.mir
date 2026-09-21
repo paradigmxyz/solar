@@ -6,7 +6,7 @@
 
 types:
   struct0: {}
-  struct1: {calldataslice, u256}
+  struct1: {calldataslice, i256}
   struct2: {memoryslice, struct0, struct1, returndataslice}
   struct3: {memorybytes}
 
@@ -21,7 +21,7 @@ fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struc
     ret v5
 }
 
-fn @consume(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> u256 {
+fn @consume(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> i256 {
   bb0:
     v0 = icall @pack, arg0, arg1, arg2
     v1 = extract_value struct2, v0, 0
@@ -38,7 +38,7 @@ fn @consume(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> u2
     ret v11
 }
 
-fn @loop(arg0: struct2, arg1: bool) -> struct2 {
+fn @loop(arg0: struct2, arg1: i1) -> struct2 {
   bb0:
     jump bb1
   bb1:
@@ -71,7 +71,7 @@ fn @from_undef() -> struct1 {
     ret v1
 }
 
-fn @phi_undef(arg0: calldataslice, arg1: bool) -> struct1 {
+fn @phi_undef(arg0: calldataslice, arg1: i1) -> struct1 {
   bb0:
     jumpi arg1, bb1, bb2
   bb1:
@@ -85,7 +85,7 @@ fn @phi_undef(arg0: calldataslice, arg1: bool) -> struct1 {
     ret v2
 }
 
-fn @select_undef(arg0: calldataslice, arg1: bool) -> struct1 {
+fn @select_undef(arg0: calldataslice, arg1: i1) -> struct1 {
   bb0:
     v0 = select arg1, arg0, undef calldataslice
     v1 = insert_value struct1, undef struct1, 0, v0
@@ -93,7 +93,7 @@ fn @select_undef(arg0: calldataslice, arg1: bool) -> struct1 {
     ret v2
 }
 
-fn @checked_slice(arg0: calldataslice, arg1: bool) -> calldataslice {
+fn @checked_slice(arg0: calldataslice, arg1: i1) -> calldataslice {
   bb0:
     jumpi arg1, bb1, bb2
   bb1:
@@ -107,7 +107,7 @@ fn @revert_stub() {
     revert 0, 0
 }
 
-fn @phi_call_results(arg0: bool, arg1: calldataslice) -> struct1 {
+fn @phi_call_results(arg0: i1, arg1: calldataslice) -> struct1 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -129,7 +129,7 @@ fn @slice_identity(arg0: calldataslice) -> calldataslice {
     ret arg0
 }
 
-fn @memory_call_results(arg0: bool, arg1: memorybytes) -> struct3 {
+fn @memory_call_results(arg0: i1, arg1: memorybytes) -> struct3 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:

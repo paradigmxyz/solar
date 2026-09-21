@@ -9,19 +9,21 @@ fn @constructor() [constructor] {
     v0 = alloc memorybytes, exact, uninitialized, infallible, 256 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 224
     v1 = memory_object_data memorybytes, v0
-    data_copy literal_0, v1, 224
-    v2 = abi_encode [memory_bytes], args v0
-    v3 = slice_ptr v2
-    v4 = slice_len v2
-    log1 v3, v4, 0xacc2ed49161ac5ef0f14f68f834478c81d087a53b25b23d751b2bfac5fc859df
+    v2 = ptrtoint memptr v1 to i256
+    data_copy literal_0, v2, 224
+    v3 = abi_encode [memory_bytes], args v0
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    log1 v4, v5, 0xacc2ed49161ac5ef0f14f68f834478c81d087a53b25b23d751b2bfac5fc859df
     ret
 }
 
-fn @runtimeData() -> memorybytes [selector=0x69ad4ffa, pure, abi_params=[], abi_returns=[memory_bytes]] {
+fn @runtimeData() -> memorybytes [selector=0x69ad4ffa, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 160
     v1 = memory_object_data memorybytes, v0
-    data_copy literal_1, v1, 160
+    v2 = ptrtoint memptr v1 to i256
+    data_copy literal_1, v2, 160
     ret v0
 }

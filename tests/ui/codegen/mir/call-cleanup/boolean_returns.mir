@@ -1,7 +1,7 @@
 //@ compile-flags: -Zmir-pipeline=call-cleanup,dce
 @module BooleanReturns
 
-fn @clean(arg0: u256) -> bool {
+fn @clean(arg0: i256) -> i1 {
   bb0:
     v0 = lt arg0, 128
     jumpi v0, bb1, bb2
@@ -11,61 +11,219 @@ fn @clean(arg0: u256) -> bool {
     jump bb3
   bb3:
     v1 = phi [bb1: 1], [bb2: 0]
-    ret v1
+    v2 = ne v1, 0
+    ret v2
 }
 
-// A bool signature is insufficient: assembly may return a dirty word.
-fn @dirty(arg0: u256) -> bool {
+// Assembly words must be normalized before returning a boolean.
+fn @dirty(arg0: i256) -> i1 {
   bb0:
-    ret arg0
+    v0 = ne arg0, 0
+    ret v0
 }
 
-// Recursive return facts cannot bootstrap their own proof.
-fn @recursive(arg0: u256) -> bool {
+// Recursive calls preserve the declared boolean contract.
+fn @recursive(arg0: i256) -> i1 {
   bb0:
     v0 = icall @recursive, arg0
     ret v0
 }
 
-fn @compare(arg0: u256) -> bool {
+fn @compare(arg0: i256) -> i1 {
   bb0:
     v0 = icall @clean, arg0
-    v1 = iszero v0
-    v2 = iszero v1
+    v1 = eq v0, false
+    v2 = eq v1, false
     ret v2
 }
 
-fn @keep_dirty(arg0: u256) -> bool {
+fn @keep_dirty(arg0: i256) -> i1 {
   bb0:
     v0 = icall @dirty, arg0
-    v1 = iszero v0
-    v2 = iszero v1
+    v1 = eq v0, false
+    v2 = eq v1, false
     ret v2
 }
 
-fn @keep_recursive(arg0: u256) -> bool {
+fn @keep_recursive(arg0: i256) -> i1 {
   bb0:
     v0 = icall @recursive, arg0
-    v1 = iszero v0
-    v2 = iszero v1
+    v1 = eq v0, false
+    v2 = eq v1, false
     ret v2
 }
 
-// A dirty return on one arm prevents proving the complete helper clean.
-fn @mixed(arg0: u256) -> bool {
+// Every return arm normalizes raw words to booleans.
+fn @mixed(arg0: i256) -> i1 {
   bb0:
     v0 = lt arg0, 5
     jumpi v0, bb1, bb2
   bb1:
-    ret 1
+    ret true
   bb2:
+    v1 = ne 2, 0
+    ret v1
+}
+
+fn @keep_mixed(arg0: i256) -> i1 {
+  bb0:
+    v0 = icall @mixed, arg0
+    v1 = eq v0, false
+    v2 = eq v1, false
+    ret v2
+}
+
+fn @raw_clean(arg0: i256) -> i256 {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: 0], [bb2: 1]
+    ret v1
+}
+
+fn @raw_dirty() -> i256 {
+  bb0:
     ret 2
 }
 
-fn @keep_mixed(arg0: u256) -> bool {
+fn @raw_recursive(arg0: i256) -> i256 {
   bb0:
-    v0 = icall @mixed, arg0
-    v1 = iszero v0
-    v2 = iszero v1
+    v0 = icall @raw_recursive, arg0
+    ret v0
+}
+
+fn @raw_tail(arg0: i256) -> i256 {
+  bb0:
+    tail_call @raw_clean, arg0
+}
+
+fn @raw_clean_roundtrip(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @raw_clean, arg0
+    v1 = ne v0, 0
+    v2 = zext i1 v1 to i256
     ret v2
+}
+
+fn @raw_dirty_roundtrip() -> i256 {
+  bb0:
+    v0 = icall @raw_dirty
+    v1 = ne v0, 0
+    v2 = zext i1 v1 to i256
+    ret v2
+}
+
+fn @raw_recursive_roundtrip(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @raw_recursive, arg0
+    v1 = ne v0, 0
+    v2 = zext i1 v1 to i256
+    ret v2
+}
+
+fn @raw_tail_roundtrip(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @raw_tail, arg0
+    v1 = ne v0, 0
+    v2 = zext i1 v1 to i256
+    ret v2
+}
+
+fn @compare_clean_words(arg0: i256) -> i1 {
+  bb0:
+    v0 = icall @raw_clean, arg0
+    v1 = icall @raw_clean, arg0
+    v2 = ne v0, 0
+    v3 = ne 0, v1
+    v4 = eq v2, v3
+    ret v4
+}
+
+fn @compare_clean_bool(arg0: i256, arg1: i1) -> i1 {
+  bb0:
+    v0 = icall @raw_clean, arg0
+    v1 = ne v0, 0
+    v2 = ne v1, arg1
+    ret v2
+}
+
+fn @compare_dirty_words(arg0: i256) -> i1 {
+  bb0:
+    v0 = icall @raw_clean, arg0
+    v1 = icall @raw_dirty
+    v2 = ne v0, 0
+    v3 = ne v1, 0
+    v4 = eq v2, v3
+    ret v4
+}
+
+fn @keep_normalized_across_call(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @raw_clean, arg0
+    v1 = ne v0, 0
+    v2 = icall @raw_dirty
+    v3 = zext i1 v1 to i256
+    ret v3
+}
+
+fn @keep_comparison_across_call(arg0: i256) -> i1 {
+  bb0:
+    v0 = icall @raw_clean, arg0
+    v1 = ne v0, 0
+    v2 = icall @raw_clean, arg0
+    v3 = ne v2, 0
+    v4 = eq v1, v3
+    ret v4
+}
+
+fn @keep_normalization_effect(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @raw_clean, arg0
+    v1 = ne v0, 0 !metadata(effect=memory_read)
+    v2 = zext i1 v1 to i256
+    ret v2
+}
+
+fn @keep_extension_effect(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @raw_clean, arg0
+    v1 = ne v0, 0
+    v2 = zext i1 v1 to i256 !metadata(effect=memory_read)
+    ret v2
+}
+
+fn @keep_comparison_effect(arg0: i256, arg1: i1) -> i1 {
+  bb0:
+    v0 = icall @raw_clean, arg0
+    v1 = ne v0, 0
+    v2 = eq v1, arg1 !metadata(effect=memory_read)
+    ret v2
+}
+
+// An inserted extension must survive deletion of an original redundant mask.
+fn @compare_clean_bool_and_remove_mask(arg0: i256, arg1: i1) -> i256 {
+  bb0:
+    v0 = icall @raw_clean, arg0
+    v1 = ne v0, 0
+    v2 = ne v1, arg1
+    v3 = zext i1 v2 to i256
+    v4 = and v3, 1
+    ret v4
+}
+
+// CHECK-LABEL: fn @keep_proved_cleanup_effects
+// CHECK: and {{v[0-9]+}}, 1 !metadata(effect=memory_read)
+// CHECK: zext i1 {{v[0-9]+}} to i256 !metadata(effect=memory_read)
+fn @keep_proved_cleanup_effects(arg0: i1) -> i256 {
+  bb0:
+    v0 = zext i1 arg0 to i256
+    v1 = and v0, 1 !metadata(effect=memory_read)
+    v2 = trunc i256 v1 to i1
+    v3 = zext i1 v2 to i256 !metadata(effect=memory_read)
+    ret v3
 }

@@ -1,15 +1,15 @@
 //@ compile-flags: -Zmir-pipeline=none
 @module InvalidAddressCalls
 
-//~? ERROR: [fn0] [bb0, inst0] only address_call accepts a value option
-fn @static_value(arg0: address, arg1: memorybytes) -> u256 {
+//~? ERROR: [fn0] [bb0, inst0] instruction result or layout does not match its type contract
+fn @static_value(arg0: i160, arg1: memorybytes) -> i1 {
   bb0:
     v0 = address_staticcall arg0, arg1, value 0
     ret v0
 }
 
-//~? ERROR: [fn1] [bb0, inst0] address call options require word operands
-fn @object_gas(arg0: address, arg1: memorybytes) -> u256 {
+//~? ERROR: [fn1] [bb0, inst0] `address_call` has incompatible scalar types; use an explicit cast
+fn @object_gas(arg0: i160, arg1: memorybytes) -> i1 {
   bb0:
     v0 = address_call arg0, arg1, gas arg1
     ret v0

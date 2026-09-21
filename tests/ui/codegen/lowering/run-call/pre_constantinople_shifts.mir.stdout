@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/pre_constantinople_shifts.sol:PreConstantinopleShifts ===
 @module PreConstantinopleShifts
 types:
-  struct0: {u256, u256}
-  struct1: {u256, u256, u256}
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256}
 
-fn @shift(arg0: u256, arg1: u256) -> struct0 [selector=0xe50322a2, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @shift(arg0: i256, arg1: i256) -> struct0 [selector=0xe50322a2, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = shl arg1, arg0
     v1 = shr arg1, arg0
@@ -13,13 +13,13 @@ fn @shift(arg0: u256, arg1: u256) -> struct0 [selector=0xe50322a2, pure, abi_par
     ret v3
 }
 
-fn @signedShift(arg0: i256, arg1: u256) -> i256 [selector=0xa579f6d8, pure, abi_params=[i256, u256], abi_returns=[word]] {
+fn @signedShift(arg0: i256, arg1: i256) -> i256 [selector=0xa579f6d8, pure, abi_params=[i256, u256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = sar arg1, arg0
     ret v0
 }
 
-fn @packedStorage() -> u256 [selector=0x6e5f4079, abi_params=[], abi_returns=[word]] {
+fn @packedStorage() -> i256 [selector=0x6e5f4079, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffffff
@@ -32,17 +32,19 @@ fn @packedStorage() -> u256 [selector=0x6e5f4079, abi_params=[], abi_returns=[wo
     ret v6
 }
 
-fn @partialCopy() -> bytes32 [selector=0xb787ef80, pure, abi_params=[], abi_returns=[word]] {
+fn @partialCopy() -> i256 [selector=0xb787ef80, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 7
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0xab01020304050600000000000000000000000000000000000000000000000000
-    v2 = abi_encode [memory_bytes], object, args v0
-    v3 = abi_decode [bytes], v2
-    v4 = add v3, 32
-    v5 = mload v4
-    ret v5
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0xab01020304050600000000000000000000000000000000000000000000000000
+    v3 = abi_encode [memory_bytes], object, args v0
+    v4 = abi_decode [bytes], v3
+    v5 = ptrtoint memorybytes v4 to i256
+    v6 = add v5, 32
+    v7 = mload v6
+    ret v7
 }
 
 fn @nested(arg0: i256) -> struct1 [selector=0x847c0acd, pure, abi_params=[i256], abi_returns=[word, word, word], abi_return_params=[u256, u256, i256]] {

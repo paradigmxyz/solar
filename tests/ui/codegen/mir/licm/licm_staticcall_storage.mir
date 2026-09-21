@@ -8,7 +8,7 @@
 // CHECK: + [[LOAD:v[0-9]+]] = sload 5
 // CHECK: - [[LOAD]] = sload 5
 // CHECK: {{^[ +].*}}staticcall
-fn @hoist_sload_with_staticcall() -> u256 {
+fn @hoist_sload_with_staticcall() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -30,7 +30,7 @@ fn @hoist_sload_with_staticcall() -> u256 {
 // CHECK: + [[LOAD:v[0-9]+]] = tload 5
 // CHECK: - [[LOAD]] = tload 5
 // CHECK: {{^[ +].*}}staticcall
-fn @hoist_tload_with_staticcall() -> u256 {
+fn @hoist_tload_with_staticcall() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -51,7 +51,7 @@ fn @hoist_tload_with_staticcall() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_sload_with_call{{[( ]}}
 // CHECK: + [[LOAD:v[0-9]+]] = sload 5
 // CHECK: {{^[ +].*[ =]call[[:space:]]}}
-fn @keep_sload_with_call() -> u256 {
+fn @keep_sload_with_call() -> i256 {
   bb0:
     jump bb1
   bb1:

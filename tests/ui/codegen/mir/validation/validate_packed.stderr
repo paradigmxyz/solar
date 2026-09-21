@@ -1,8 +1,8 @@
-error: [fn0] [bb0, inst0] packed encoding input has an incompatible shape
+error: [fn0] [bb0, inst0] instruction result or layout does not match its type contract
 
-error: [fn1] [bb0, inst0] packed encoding input has an incompatible shape
+error: [fn1] [bb0, inst0] instruction result or layout does not match its type contract
 
-error: [fn2] [bb0, inst0] packed encoding input has an incompatible shape
+error: [fn2] [bb0, inst0] `abi_encode_packed` has incompatible scalar types; use an explicit cast
 
 error: aborting due to 3 previous errors
 

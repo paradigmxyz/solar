@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/check-elim/offset_bound.mir (before check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/check-elim/offset_bound.mir (after check-elim) ===
   @module OffsetBound
-  fn @lookahead(arg0: u256) -> u256 {
+  fn @lookahead(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:

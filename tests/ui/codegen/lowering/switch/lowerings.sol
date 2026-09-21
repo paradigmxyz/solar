@@ -1,5 +1,7 @@
-//@ revisions: linear_gas linear_size binary_gas binary_size buckets_gas buckets_size dense_gas dense_size perfect_gas perfect_size
+//@ revisions: linear_gas linear_size linear_raw binary_gas binary_size buckets_gas buckets_size dense_gas dense_size perfect_gas perfect_size
 
+//@[linear_raw] compile-flags: -O gas -Zswitch-lowering=linear -Zevm-ir-pipeline=none -Zdump=evm-ir-runtime
+//@[linear_raw] filecheck: --check-prefix=LINEAR
 //@[linear_gas] compile-flags: -O gas -Zswitch-lowering=linear -Zdump=evm-ir-runtime,disasm-runtime
 //@[linear_gas] filecheck: --check-prefix=LINEAR
 //@[linear_size] compile-flags: -O size -Zswitch-lowering=linear -Zdump=evm-ir-runtime,disasm-runtime

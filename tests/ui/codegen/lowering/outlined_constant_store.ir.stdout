@@ -6,6 +6,8 @@ bb0:
   lt
   callvalue
   or
+  iszero
+  iszero
   push bb4
   jumpi
   jump bb1

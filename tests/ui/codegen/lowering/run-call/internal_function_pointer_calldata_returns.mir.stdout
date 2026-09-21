@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_calldata_returns.sol:InternalFunctionPointerCalldataReturns ===
 @module InternalFunctionPointerCalldataReturns
 types:
-  struct0: {u256, u256, u256}
-  struct1: {calldataslice, u256, calldataslice}
+  struct0: {i256, i256, i256}
+  struct1: {calldataslice, i256, calldataslice}
 
 fn @constructor() [constructor] {
   bb0:
@@ -55,7 +55,7 @@ fn @identity(arg0: calldataslice) -> struct1 [pure] {
     ret v4
 }
 
-fn @internal_dispatcher_p_calldataslice_r_calldataslice_u256_calldataslice(arg0: function, arg1: calldataslice) -> struct1 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_calldataslice_r_calldataslice_u256_calldataslice(arg0: i256, arg1: calldataslice) -> struct1 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 4
     jumpi v0, bb1, bb2

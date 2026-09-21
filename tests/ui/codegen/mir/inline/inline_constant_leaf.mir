@@ -5,7 +5,7 @@
 // CHECK-LABEL: fn @constant_caller
 // CHECK: - {{.*}}icall @shared_leaf
 // CHECK: + {{.*}} = add arg0, 7
-fn @constant_caller(arg0: u256) -> u256 {
+fn @constant_caller(arg0: i256) -> i256 {
   bb0:
     v0 = icall @shared_leaf, arg0, 7
     ret v0
@@ -13,13 +13,13 @@ fn @constant_caller(arg0: u256) -> u256 {
 
 // CHECK-LABEL: fn @dynamic_caller
 // CHECK: icall @shared_leaf
-fn @dynamic_caller(arg0: u256, arg1: u256) -> u256 {
+fn @dynamic_caller(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = icall @shared_leaf, arg0, arg1
     ret v0
 }
 
-fn @shared_leaf(arg0: u256, arg1: u256) -> u256 [pure] {
+fn @shared_leaf(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = add arg0, arg1
     v1 = xor v0, arg1
@@ -31,7 +31,7 @@ fn @shared_leaf(arg0: u256, arg1: u256) -> u256 [pure] {
 
 // CHECK-LABEL: fn @constant_decode_caller
 // CHECK: icall @decode_leaf
-fn @constant_decode_caller(arg0: memorybytes) -> u256 {
+fn @constant_decode_caller(arg0: memorybytes) -> i256 {
   bb0:
     v0 = icall @decode_leaf, arg0, 1
     ret v0
@@ -39,13 +39,13 @@ fn @constant_decode_caller(arg0: memorybytes) -> u256 {
 
 // CHECK-LABEL: fn @dynamic_decode_caller
 // CHECK: icall @decode_leaf
-fn @dynamic_decode_caller(arg0: memorybytes, arg1: u256) -> u256 {
+fn @dynamic_decode_caller(arg0: memorybytes, arg1: i256) -> i256 {
   bb0:
     v0 = icall @decode_leaf, arg0, arg1
     ret v0
 }
 
-fn @decode_leaf(arg0: memorybytes, arg1: u256) -> u256 [pure] {
+fn @decode_leaf(arg0: memorybytes, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = abi_decode [u256], arg0
     v1 = add v0, arg1

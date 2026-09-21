@@ -32,6 +32,53 @@ def result(test_id="test", suite="repository", **compiler):
     return {"test_id": test_id, "suite": suite, "compilers": {"solar": compiler}}
 
 
+class BenchmarkBaseTests(unittest.TestCase):
+    def test_stack_parent_requires_identical_source_tree(self):
+        spec = importlib.util.spec_from_file_location(
+            "benchmark_base",
+            Path(__file__).resolve().parents[2] / ".github/scripts/benchmark_base.py",
+        )
+        assert spec is not None and spec.loader is not None
+        base = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(base)
+        synthetic = "a" * 40
+        parent = "b" * 40
+        main = "c" * 40
+        for same_tree in (True, False):
+            for moved in (True, False):
+                with (
+                    self.subTest(same_tree=same_tree, moved=moved),
+                    patch.object(
+                        base,
+                        "command",
+                        side_effect=[
+                            json.dumps(
+                                {
+                                    "base": {
+                                        "sha": "d" * 40 if moved else parent,
+                                        "ref": "dani/parent",
+                                    }
+                                }
+                            ),
+                            f"Merge {parent} into {main}",
+                            f"{main} {parent}",
+                            "source-tree",
+                            "source-tree" if same_tree else "new-tree",
+                        ],
+                    ),
+                ):
+                    expected = parent if same_tree else synthetic
+                    self.assertEqual(
+                        base.resolve_base(synthetic, "paradigmxyz/solar", "1514"),
+                        {
+                            "sha": expected,
+                            "ref": "dani/parent"
+                            if same_tree and not moved
+                            else expected[:8],
+                        },
+                    )
+
+
 class ReportFormattingTests(unittest.TestCase):
     def test_perf_link_uses_default_site(self):
         with patch.dict(

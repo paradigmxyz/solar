@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/cse/cse_keccak_dynamic_size.mir (before cse) ===
 + // === ROOT/tests/ui/codegen/mir/cse/cse_keccak_dynamic_size.mir (after cse) ===
   @module CseKeccakDynamicSize
-  fn @keep_different_dynamic_sizes(arg0: u256, arg1: u256) -> u256 {
+  fn @keep_different_dynamic_sizes(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = keccak256 0, arg0
       v1 = keccak256 0, arg1
@@ -9,7 +9,7 @@
       ret v2
   }
   
-  fn @reuse_same_dynamic_size(arg0: u256) -> u256 {
+  fn @reuse_same_dynamic_size(arg0: i256) -> i256 {
     bb0:
       v0 = keccak256 0, arg0
 -     v1 = keccak256 0, arg0
@@ -18,7 +18,7 @@
       ret v2
   }
   
-  fn @invalidate_after_dynamic_size_write(arg0: u256, arg1: u256) -> u256 {
+  fn @invalidate_after_dynamic_size_write(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = keccak256 0, arg0
       calldatacopy 0, 0, arg1

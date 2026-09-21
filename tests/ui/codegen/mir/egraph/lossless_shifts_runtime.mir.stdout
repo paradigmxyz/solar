@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/mir/egraph/lossless_shifts_runtime.sol:LosslessShifts ===
 @module LosslessShifts
 types:
-  struct0: {u256, u256, u256, u256}
-  struct1: {u256, u256, u256, u256, u256, u256}
-  struct2: {u256, u256, u256}
-  struct3: {u256, u256}
+  struct0: {i256, i256, i256, i256}
+  struct1: {i256, i256, i256, i256, i256, i256}
+  struct2: {i256, i256, i256}
+  struct3: {i256, i256}
 
-fn @narrow(arg0: u256, arg1: u256) -> struct0 [selector=0x6945dd4d, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @narrow(arg0: i256, arg1: i256) -> struct0 [selector=0x6945dd4d, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = byte 31, arg0
     v1 = shl 248, v0
@@ -14,123 +14,143 @@ fn @narrow(arg0: u256, arg1: u256) -> struct0 [selector=0x6945dd4d, pure, abi_pa
     v3 = shl 248, v2
     v4 = shr 248, v1
     v5 = eq v1, v3
-    v6 = lt v1, v3
-    v7 = gt v1, v3
-    v8 = insert_value struct0, undef struct0, 0, v4
-    v9 = insert_value struct0, v8, 1, v5
-    v10 = insert_value struct0, v9, 2, v6
-    v11 = insert_value struct0, v10, 3, v7
-    ret v11
+    v6 = zext i1 v5 to i256
+    v7 = lt v1, v3
+    v8 = zext i1 v7 to i256
+    v9 = gt v1, v3
+    v10 = zext i1 v9 to i256
+    v11 = insert_value struct0, undef struct0, 0, v4
+    v12 = insert_value struct0, v11, 1, v6
+    v13 = insert_value struct0, v12, 2, v8
+    v14 = insert_value struct0, v13, 3, v10
+    ret v14
 }
 
-fn @aligned(arg0: u256) -> struct1 [selector=0x86ae3e38, pure, abi_params=[u256], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
+fn @aligned(arg0: i256) -> struct1 [selector=0x86ae3e38, pure, abi_params=[u256], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
     v0 = byte 31, arg0
     v1 = shl 248, v0
     v2 = shl 248, 7
     v3 = eq v1, v2
-    v4 = lt v1, v2
-    v5 = gt v1, v2
-    v6 = eq v2, v1
-    v7 = lt v2, v1
-    v8 = gt v2, v1
-    v9 = insert_value struct1, undef struct1, 0, v3
-    v10 = insert_value struct1, v9, 1, v4
-    v11 = insert_value struct1, v10, 2, v5
-    v12 = insert_value struct1, v11, 3, v6
-    v13 = insert_value struct1, v12, 4, v7
-    v14 = insert_value struct1, v13, 5, v8
-    ret v14
+    v4 = zext i1 v3 to i256
+    v5 = lt v1, v2
+    v6 = zext i1 v5 to i256
+    v7 = gt v1, v2
+    v8 = zext i1 v7 to i256
+    v9 = eq v2, v1
+    v10 = zext i1 v9 to i256
+    v11 = lt v2, v1
+    v12 = zext i1 v11 to i256
+    v13 = gt v2, v1
+    v14 = zext i1 v13 to i256
+    v15 = insert_value struct1, undef struct1, 0, v4
+    v16 = insert_value struct1, v15, 1, v6
+    v17 = insert_value struct1, v16, 2, v8
+    v18 = insert_value struct1, v17, 3, v10
+    v19 = insert_value struct1, v18, 4, v12
+    v20 = insert_value struct1, v19, 5, v14
+    ret v20
 }
 
-fn @unaligned(arg0: u256) -> struct2 [selector=0x6035a068, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @unaligned(arg0: i256) -> struct2 [selector=0x6035a068, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = byte 31, arg0
     v1 = shl 248, v0
     v2 = shl 248, 7
     v3 = add v2, 1
     v4 = eq v1, v3
-    v5 = lt v1, v3
-    v6 = gt v1, v3
-    v7 = insert_value struct2, undef struct2, 0, v4
-    v8 = insert_value struct2, v7, 1, v5
-    v9 = insert_value struct2, v8, 2, v6
-    ret v9
+    v5 = zext i1 v4 to i256
+    v6 = lt v1, v3
+    v7 = zext i1 v6 to i256
+    v8 = gt v1, v3
+    v9 = zext i1 v8 to i256
+    v10 = insert_value struct2, undef struct2, 0, v5
+    v11 = insert_value struct2, v10, 1, v7
+    v12 = insert_value struct2, v11, 2, v9
+    ret v12
 }
 
-fn @truncating(arg0: u256) -> u256 [selector=0xdbd8726b, pure, abi_params=[u256], abi_returns=[word]] {
+fn @truncating(arg0: i256) -> i256 [selector=0xdbd8726b, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = shl 248, arg0
     v1 = shr 248, v0
     ret v1
 }
 
-fn @signedCompare(arg0: u256, arg1: u256) -> struct3 [selector=0xd094ad81, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @signedCompare(arg0: i256, arg1: i256) -> struct3 [selector=0xd094ad81, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = byte 31, arg0
     v1 = shl 248, v0
     v2 = byte 31, arg1
     v3 = shl 248, v2
     v4 = slt v1, v3
-    v5 = sgt v1, v3
-    v6 = insert_value struct3, undef struct3, 0, v4
-    v7 = insert_value struct3, v6, 1, v5
-    ret v7
+    v5 = zext i1 v4 to i256
+    v6 = sgt v1, v3
+    v7 = zext i1 v6 to i256
+    v8 = insert_value struct3, undef struct3, 0, v5
+    v9 = insert_value struct3, v8, 1, v7
+    ret v9
 }
 
-fn @equal(arg0: u256, arg1: u256) -> bool [selector=0x30191626, pure, abi_params=[u256, u256], abi_returns=[word<bool>]] {
+fn @equal(arg0: i256, arg1: i256) -> i256 [selector=0x30191626, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = byte 31, arg1
     v1 = shl 248, v0
     v2 = byte 31, arg0
     v3 = shl 248, v2
     v4 = eq v3, v1
-    ret v4
+    v5 = zext i1 v4 to i256
+    ret v5
 }
 
-fn @isSeven(arg0: u256) -> bool [selector=0xf14f88c5, pure, abi_params=[u256], abi_returns=[word<bool>]] {
+fn @isSeven(arg0: i256) -> i256 [selector=0xf14f88c5, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = shl 248, 7
     v1 = byte 31, arg0
     v2 = shl 248, v1
     v3 = eq v2, v0
-    ret v3
+    v4 = zext i1 v3 to i256
+    ret v4
 }
 
-fn @less(arg0: u256, arg1: u256) -> bool [selector=0x2d738965, pure, abi_params=[u256, u256], abi_returns=[word<bool>]] {
+fn @less(arg0: i256, arg1: i256) -> i256 [selector=0x2d738965, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = byte 31, arg1
     v1 = shl 248, v0
     v2 = byte 31, arg0
     v3 = shl 248, v2
     v4 = lt v3, v1
-    ret v4
+    v5 = zext i1 v4 to i256
+    ret v5
 }
 
-fn @belowSeven(arg0: u256) -> bool [selector=0x5c9802fa, pure, abi_params=[u256], abi_returns=[word<bool>]] {
+fn @belowSeven(arg0: i256) -> i256 [selector=0x5c9802fa, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = shl 248, 7
     v1 = byte 31, arg0
     v2 = shl 248, v1
     v3 = lt v2, v0
-    ret v3
+    v4 = zext i1 v3 to i256
+    ret v4
 }
 
-fn @greater(arg0: u256, arg1: u256) -> bool [selector=0x71343515, pure, abi_params=[u256, u256], abi_returns=[word<bool>]] {
+fn @greater(arg0: i256, arg1: i256) -> i256 [selector=0x71343515, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = byte 31, arg1
     v1 = shl 248, v0
     v2 = byte 31, arg0
     v3 = shl 248, v2
     v4 = gt v3, v1
-    ret v4
+    v5 = zext i1 v4 to i256
+    ret v5
 }
 
-fn @aboveSeven(arg0: u256) -> bool [selector=0x0a8d6615, pure, abi_params=[u256], abi_returns=[word<bool>]] {
+fn @aboveSeven(arg0: i256) -> i256 [selector=0x0a8d6615, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = shl 248, 7
     v1 = byte 31, arg0
     v2 = shl 248, v1
     v3 = gt v2, v0
-    ret v3
+    v4 = zext i1 v3 to i256
+    ret v4
 }

@@ -233,6 +233,8 @@ class Model:
                 return boolean(a > b)
             case "eq", (a, b):
                 return boolean(a == b)
+            case "ne", (a, b):
+                return boolean(a != b)
             case "iszero", (a,):
                 return boolean(a == 0)
             case "select", (condition, a, b):
@@ -343,6 +345,8 @@ def concrete(expr, values, environment=None):
             result = int(signed(a) > signed(b))
         case "eq", (a, b):
             result = int(a == b)
+        case "ne", (a, b):
+            result = int(a != b)
         case "iszero", (a,):
             result = int(a == 0)
         case "select", (c, a, b):

@@ -1,10 +1,11 @@
 //@compile-flags: -Zmir-pipeline=sroa,dce
 @module SroaControlFlow
 
-fn @diamond(arg0: bool, arg1: u256, arg2: u256) -> u256 {
+fn @diamond(arg0: i1, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v1 = memory_object_field_addr memorystruct<1>, v0, 0
+    v5 = memory_object_field_addr memorystruct<1>, v0, 0
+    v1 = ptrtoint memptr v5 to i256
     jumpi arg0, bb1, bb2
   bb1:
     mstore v1, arg1
@@ -17,11 +18,13 @@ fn @diamond(arg0: bool, arg1: u256, arg2: u256) -> u256 {
     ret v2
 }
 
-fn @loop(arg0: u256) -> u256 {
+fn @loop(arg0: i256) -> i256 {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    memory_zero v0, 32
-    v1 = memory_object_field_addr memorystruct<1>, v0, 0
+    v12 = ptrtoint memorystruct v0 to i256
+    memory_zero v12, 32
+    v6 = memory_object_field_addr memorystruct<1>, v0, 0
+    v1 = ptrtoint memptr v6 to i256
     jump bb1
   bb1:
     v2 = mload v1
@@ -35,10 +38,11 @@ fn @loop(arg0: u256) -> u256 {
     ret v2
 }
 
-fn @missing_definition(arg0: bool) -> u256 {
+fn @missing_definition(arg0: i1) -> i256 {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v1 = memory_object_field_addr memorystruct<1>, v0, 0
+    v7 = memory_object_field_addr memorystruct<1>, v0, 0
+    v1 = ptrtoint memptr v7 to i256
     jumpi arg0, bb1, bb2
   bb1:
     mstore v1, 7
@@ -48,12 +52,15 @@ fn @missing_definition(arg0: bool) -> u256 {
     ret v2
 }
 
-fn @cross_field_phi(arg0: bool, arg1: u256) -> u256 {
+fn @cross_field_phi(arg0: i1, arg1: i256) -> i256 {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_zero v0, 64
-    v1 = memory_object_field_addr memorystruct<2>, v0, 0
-    v2 = memory_object_field_addr memorystruct<2>, v0, 1
+    v12 = ptrtoint memorystruct v0 to i256
+    memory_zero v12, 64
+    v8 = memory_object_field_addr memorystruct<2>, v0, 0
+    v1 = ptrtoint memptr v8 to i256
+    v9 = memory_object_field_addr memorystruct<2>, v0, 1
+    v2 = ptrtoint memptr v9 to i256
     jumpi arg0, bb1, bb2
   bb1:
     mstore v1, arg1
@@ -65,21 +72,25 @@ fn @cross_field_phi(arg0: bool, arg1: u256) -> u256 {
     ret v4
 }
 
-fn @observe_size() -> u256 {
+fn @observe_size() -> i256 {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    memory_zero v0, 32
-    v1 = memory_object_field_addr memorystruct<1>, v0, 0
+    v12 = ptrtoint memorystruct v0 to i256
+    memory_zero v12, 32
+    v10 = memory_object_field_addr memorystruct<1>, v0, 0
+    v1 = ptrtoint memptr v10 to i256
     mstore v1, 7
     v2 = msize
     ret v2
 }
 
-fn @outside_object() -> u256 {
+fn @outside_object() -> i256 {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
-    memory_zero v0, 32
-    v1 = memory_object_element_addr memoryfixedarray<1, 1>, v0, 1
+    v12 = ptrtoint memoryfixedarray v0 to i256
+    memory_zero v12, 32
+    v11 = memory_object_element_addr memoryfixedarray<1, 1>, v0, 1
+    v1 = ptrtoint memptr v11 to i256
     v2 = mload v1
     ret v2
 }

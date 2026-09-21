@@ -6,150 +6,177 @@ types:
 fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
-    memory_zero v0, 128
-    memory_object_store_field memorystruct<4>, v0, 1, memorybytes 96
-    memory_object_store_field memorystruct<4>, v0, 3, memorybytes 96
+    v1 = ptrtoint memorystruct v0 to i256
+    memory_zero v1, 128
+    v2 = ptrtoint memorybytes 96 to i256
+    memory_object_store_field memorystruct<4>, v0, 1, v2
+    v3 = ptrtoint memorybytes 96 to i256
+    memory_object_store_field memorystruct<4>, v0, 3, v3
     memory_object_store_field memorystruct<4>, v0, 0, 7
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v1, 73
-    v2 = memory_object_data memorybytes, v1
-    mstore v2, 0x3132333435363738393031323334353637383930313233343536373839303120
-    v3 = add v2, 32
-    mstore v3, 0x3132333435363738393031323334353637383930313233343536373839303120
-    v4 = add v2, 64
-    mstore v4, 0x3132333435363738390000000000000000000000000000000000000000000000
-    memory_object_store_field memorystruct<4>, v0, 3, v1
-    v5 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v5, 6
-    v6 = memory_object_data memorybytes, v5
-    mstore v6, 0x6162636465660000000000000000000000000000000000000000000000000000
-    memory_object_store_field memorystruct<4>, v0, 1, v5
+    v4 = alloc memorybytes, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v4, 73
+    v5 = memory_object_data memorybytes, v4
+    v6 = ptrtoint memptr v5 to i256
+    mstore v6, 0x3132333435363738393031323334353637383930313233343536373839303120
+    v7 = ptrtoint memptr v5 to i256
+    v8 = add v7, 32
+    mstore v8, 0x3132333435363738393031323334353637383930313233343536373839303120
+    v9 = ptrtoint memptr v5 to i256
+    v10 = add v9, 64
+    mstore v10, 0x3132333435363738390000000000000000000000000000000000000000000000
+    v11 = ptrtoint memorybytes v4 to i256
+    memory_object_store_field memorystruct<4>, v0, 3, v11
+    v12 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v12, 6
+    v13 = memory_object_data memorybytes, v12
+    v14 = ptrtoint memptr v13 to i256
+    mstore v14, 0x6162636465660000000000000000000000000000000000000000000000000000
+    v15 = ptrtoint memorybytes v12 to i256
+    memory_object_store_field memorystruct<4>, v0, 1, v15
     memory_object_store_field memorystruct<4>, v0, 2, 9
-    v7 = memory_object_load_field memorystruct<4>, v0, 0
-    v8 = sload 1 !metadata(storage=slot(1))
-    v9 = not 0xffff
-    v10 = and v8, v9
-    v11 = and v7, 0xffff
-    v12 = or v10, v11
-    sstore 1, v12 !metadata(storage=slot(1))
-    v13 = add 1, 1
-    v14 = memory_object_load_field memorystruct<4>, v0, 1
-    icall @store_storage_bytes, v13, v14
-    v15 = add 1, 2
-    v16 = memory_object_load_field memorystruct<4>, v0, 2
-    v17 = sload v15 !metadata(storage=slot(3))
+    v16 = memory_object_load_field memorystruct<4>, v0, 0
+    v17 = sload 1 !metadata(storage=slot(1))
     v18 = not 0xffff
     v19 = and v17, v18
     v20 = and v16, 0xffff
     v21 = or v19, v20
-    sstore v15, v21 !metadata(storage=slot(3))
-    v22 = add 1, 3
-    v23 = memory_object_load_field memorystruct<4>, v0, 3
-    icall @store_storage_bytes, v22, v23
-    v24 = add 1, 1
-    v25 = icall @load_storage_bytes, v24
-    v26 = add 1, 3
-    v27 = icall @load_storage_bytes, v26
-    v28 = insert_value struct0, undef struct0, 0, v25
-    v29 = insert_value struct0, v28, 1, v27
-    ret v29
+    sstore 1, v21 !metadata(storage=slot(1))
+    v22 = add 1, 1
+    v23 = memory_object_load_field memorystruct<4>, v0, 1
+    v24 = inttoptr i256 v23 to memorybytes
+    icall @store_storage_bytes, v22, v24
+    v25 = add 1, 2
+    v26 = memory_object_load_field memorystruct<4>, v0, 2
+    v27 = sload v25 !metadata(storage=slot(3))
+    v28 = not 0xffff
+    v29 = and v27, v28
+    v30 = and v26, 0xffff
+    v31 = or v29, v30
+    sstore v25, v31 !metadata(storage=slot(3))
+    v32 = add 1, 3
+    v33 = memory_object_load_field memorystruct<4>, v0, 3
+    v34 = inttoptr i256 v33 to memorybytes
+    icall @store_storage_bytes, v32, v34
+    v35 = add 1, 1
+    v36 = icall @load_storage_bytes, v35
+    v37 = add 1, 3
+    v38 = icall @load_storage_bytes, v37
+    v39 = insert_value struct0, undef struct0, 0, v36
+    v40 = insert_value struct0, v39, 1, v38
+    ret v40
 }
 
 fn @g() -> struct0 [selector=0xe2179b8e, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
-    memory_zero v0, 128
-    memory_object_store_field memorystruct<4>, v0, 1, memorybytes 96
-    memory_object_store_field memorystruct<4>, v0, 3, memorybytes 96
+    v1 = ptrtoint memorystruct v0 to i256
+    memory_zero v1, 128
+    v2 = ptrtoint memorybytes 96 to i256
+    memory_object_store_field memorystruct<4>, v0, 1, v2
+    v3 = ptrtoint memorybytes 96 to i256
+    memory_object_store_field memorystruct<4>, v0, 3, v3
     memory_object_store_field memorystruct<4>, v0, 0, 7
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v1, 17
-    v2 = memory_object_data memorybytes, v1
-    mstore v2, 0x3132333435363738393233343536373839000000000000000000000000000000
-    memory_object_store_field memorystruct<4>, v0, 3, v1
-    v3 = alloc memorybytes, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v3, 73
-    v4 = memory_object_data memorybytes, v3
-    mstore v4, 0x3132333435363738393031323334353637383930313233343536373839303120
-    v5 = add v4, 32
-    mstore v5, 0x3132333435363738393031323334353637383930313233343536373839303120
-    v6 = add v4, 64
-    mstore v6, 0x3132333435363738390000000000000000000000000000000000000000000000
-    memory_object_store_field memorystruct<4>, v0, 1, v3
+    v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v4, 17
+    v5 = memory_object_data memorybytes, v4
+    v6 = ptrtoint memptr v5 to i256
+    mstore v6, 0x3132333435363738393233343536373839000000000000000000000000000000
+    v7 = ptrtoint memorybytes v4 to i256
+    memory_object_store_field memorystruct<4>, v0, 3, v7
+    v8 = alloc memorybytes, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v8, 73
+    v9 = memory_object_data memorybytes, v8
+    v10 = ptrtoint memptr v9 to i256
+    mstore v10, 0x3132333435363738393031323334353637383930313233343536373839303120
+    v11 = ptrtoint memptr v9 to i256
+    v12 = add v11, 32
+    mstore v12, 0x3132333435363738393031323334353637383930313233343536373839303120
+    v13 = ptrtoint memptr v9 to i256
+    v14 = add v13, 64
+    mstore v14, 0x3132333435363738390000000000000000000000000000000000000000000000
+    v15 = ptrtoint memorybytes v8 to i256
+    memory_object_store_field memorystruct<4>, v0, 1, v15
     memory_object_store_field memorystruct<4>, v0, 2, 9
-    v7 = memory_object_load_field memorystruct<4>, v0, 0
-    v8 = sload 1 !metadata(storage=slot(1))
-    v9 = not 0xffff
-    v10 = and v8, v9
-    v11 = and v7, 0xffff
-    v12 = or v10, v11
-    sstore 1, v12 !metadata(storage=slot(1))
-    v13 = add 1, 1
-    v14 = memory_object_load_field memorystruct<4>, v0, 1
-    icall @store_storage_bytes, v13, v14
-    v15 = add 1, 2
-    v16 = memory_object_load_field memorystruct<4>, v0, 2
-    v17 = sload v15 !metadata(storage=slot(3))
+    v16 = memory_object_load_field memorystruct<4>, v0, 0
+    v17 = sload 1 !metadata(storage=slot(1))
     v18 = not 0xffff
     v19 = and v17, v18
     v20 = and v16, 0xffff
     v21 = or v19, v20
-    sstore v15, v21 !metadata(storage=slot(3))
-    v22 = add 1, 3
-    v23 = memory_object_load_field memorystruct<4>, v0, 3
-    icall @store_storage_bytes, v22, v23
-    v24 = add 1, 1
-    v25 = icall @load_storage_bytes, v24
-    v26 = add 1, 3
-    v27 = icall @load_storage_bytes, v26
-    v28 = insert_value struct0, undef struct0, 0, v25
-    v29 = insert_value struct0, v28, 1, v27
-    ret v29
+    sstore 1, v21 !metadata(storage=slot(1))
+    v22 = add 1, 1
+    v23 = memory_object_load_field memorystruct<4>, v0, 1
+    v24 = inttoptr i256 v23 to memorybytes
+    icall @store_storage_bytes, v22, v24
+    v25 = add 1, 2
+    v26 = memory_object_load_field memorystruct<4>, v0, 2
+    v27 = sload v25 !metadata(storage=slot(3))
+    v28 = not 0xffff
+    v29 = and v27, v28
+    v30 = and v26, 0xffff
+    v31 = or v29, v30
+    sstore v25, v31 !metadata(storage=slot(3))
+    v32 = add 1, 3
+    v33 = memory_object_load_field memorystruct<4>, v0, 3
+    v34 = inttoptr i256 v33 to memorybytes
+    icall @store_storage_bytes, v32, v34
+    v35 = add 1, 1
+    v36 = icall @load_storage_bytes, v35
+    v37 = add 1, 3
+    v38 = icall @load_storage_bytes, v37
+    v39 = insert_value struct0, undef struct0, 0, v36
+    v40 = insert_value struct0, v39, 1, v38
+    ret v40
 }
 
 fn @h() -> struct0 [selector=0xb8c9d365, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
-    memory_zero v0, 128
-    memory_object_store_field memorystruct<4>, v0, 1, memorybytes 96
-    memory_object_store_field memorystruct<4>, v0, 3, memorybytes 96
-    v1 = memory_object_load_field memorystruct<4>, v0, 0
-    v2 = sload 1 !metadata(storage=slot(1))
-    v3 = not 0xffff
-    v4 = and v2, v3
-    v5 = and v1, 0xffff
-    v6 = or v4, v5
-    sstore 1, v6 !metadata(storage=slot(1))
-    v7 = add 1, 1
-    v8 = memory_object_load_field memorystruct<4>, v0, 1
-    icall @store_storage_bytes, v7, v8
-    v9 = add 1, 2
-    v10 = memory_object_load_field memorystruct<4>, v0, 2
-    v11 = sload v9 !metadata(storage=slot(3))
-    v12 = not 0xffff
-    v13 = and v11, v12
-    v14 = and v10, 0xffff
-    v15 = or v13, v14
-    sstore v9, v15 !metadata(storage=slot(3))
-    v16 = add 1, 3
-    v17 = memory_object_load_field memorystruct<4>, v0, 3
-    icall @store_storage_bytes, v16, v17
-    v18 = add 1, 1
-    v19 = icall @load_storage_bytes, v18
+    v1 = ptrtoint memorystruct v0 to i256
+    memory_zero v1, 128
+    v2 = ptrtoint memorybytes 96 to i256
+    memory_object_store_field memorystruct<4>, v0, 1, v2
+    v3 = ptrtoint memorybytes 96 to i256
+    memory_object_store_field memorystruct<4>, v0, 3, v3
+    v4 = memory_object_load_field memorystruct<4>, v0, 0
+    v5 = sload 1 !metadata(storage=slot(1))
+    v6 = not 0xffff
+    v7 = and v5, v6
+    v8 = and v4, 0xffff
+    v9 = or v7, v8
+    sstore 1, v9 !metadata(storage=slot(1))
+    v10 = add 1, 1
+    v11 = memory_object_load_field memorystruct<4>, v0, 1
+    v12 = inttoptr i256 v11 to memorybytes
+    icall @store_storage_bytes, v10, v12
+    v13 = add 1, 2
+    v14 = memory_object_load_field memorystruct<4>, v0, 2
+    v15 = sload v13 !metadata(storage=slot(3))
+    v16 = not 0xffff
+    v17 = and v15, v16
+    v18 = and v14, 0xffff
+    v19 = or v17, v18
+    sstore v13, v19 !metadata(storage=slot(3))
     v20 = add 1, 3
-    v21 = icall @load_storage_bytes, v20
-    v22 = insert_value struct0, undef struct0, 0, v19
-    v23 = insert_value struct0, v22, 1, v21
-    ret v23
+    v21 = memory_object_load_field memorystruct<4>, v0, 3
+    v22 = inttoptr i256 v21 to memorybytes
+    icall @store_storage_bytes, v20, v22
+    v23 = add 1, 1
+    v24 = icall @load_storage_bytes, v23
+    v25 = add 1, 3
+    v26 = icall @load_storage_bytes, v25
+    v27 = insert_value struct0, undef struct0, 0, v24
+    v28 = insert_value struct0, v27, 1, v26
+    ret v28
 }
 
-fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
 }
 
-fn @load_storage_bytes(arg0: u256) -> memorybytes {
+fn @load_storage_bytes(arg0: i256) -> memorybytes {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0

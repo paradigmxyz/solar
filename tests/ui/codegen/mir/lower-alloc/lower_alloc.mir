@@ -6,11 +6,13 @@
 // CHECK: + {{v[0-9]+}} = mload 64
 // CHECK: + [[NEXT:v[0-9]+]] = add {{v[0-9]+}}, 64
 // CHECK: + mstore 64, [[NEXT]]
-fn @operations(arg0: u256) -> memptr {
+fn @operations(arg0: i256) -> i256 {
   bb0:
-    v1 = fmp
-    set_fmp v1 !metadata(preserves_fmp, effect=memory_write)
-    v2 = alloc raw, word, uninitialized, infallible, 64
+    v4 = fmp
+    v1 = ptrtoint memptr v4 to i256
+    set_fmp v4 !metadata(preserves_fmp, effect=memory_write)
+    v5 = alloc raw, word, uninitialized, infallible, 64
+    v2 = ptrtoint memptr v5 to i256
     mstore v2, arg0
     ret v2
 }
@@ -19,7 +21,8 @@ fn @operations(arg0: u256) -> memptr {
 // CHECK: {{^[ +].*}}alloc raw{{.*}}!metadata(deferred_alloc)
 fn @deferred() {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 32 !metadata(deferred_alloc)
+    v6 = alloc raw, exact, uninitialized, infallible, 32 !metadata(deferred_alloc)
+    v0 = ptrtoint memptr v6 to i256
     mstore v0, 1
     stop
 }
@@ -30,7 +33,7 @@ fn @deferred() {
 // CHECK: + [[SUM:v[0-9]+]] = add [[PTR:v[0-9]+]], [[PTR]]
 // CHECK: - {{v[0-9]+}} = mload 64
 // CHECK: + ret [[SUM]]
-fn @forward_load_store() -> u256 {
+fn @forward_load_store() -> i256 {
   bb0:
     v0 = mload 64
     v1 = mload 64
@@ -44,7 +47,7 @@ fn @forward_load_store() -> u256 {
 // CHECK: {{^ +}}mstore8 65, arg0
 // CHECK-NEXT: {{^ +}}[[BYTE:v[0-9]+]] = mload 64
 // CHECK-NEXT: {{^ +}}ret [[BYTE]]
-fn @byte_clobber(arg0: u256) -> u256 {
+fn @byte_clobber(arg0: i256) -> i256 {
   bb0:
     mstore 64, 128
     mstore8 65, arg0
@@ -56,7 +59,7 @@ fn @byte_clobber(arg0: u256) -> u256 {
 // CHECK: {{^ +}}mstore arg0, 256
 // CHECK-NEXT: {{^ +}}[[UNKNOWN:v[0-9]+]] = mload 64
 // CHECK-NEXT: {{^ +}}ret [[UNKNOWN]]
-fn @unknown_clobber(arg0: u256) -> u256 {
+fn @unknown_clobber(arg0: i256) -> i256 {
   bb0:
     mstore 64, 128
     mstore arg0, 256
@@ -68,7 +71,7 @@ fn @unknown_clobber(arg0: u256) -> u256 {
 // CHECK: {{^ +}}icall @write_fmp
 // CHECK-NEXT: {{^ +}}[[CALL:v[0-9]+]] = mload 64
 // CHECK-NEXT: {{^ +}}ret [[CALL]]
-fn @call_clobber() -> u256 {
+fn @call_clobber() -> i256 {
   bb0:
     mstore 64, 128
     icall @write_fmp
@@ -86,7 +89,7 @@ fn @write_fmp() {
 // CHECK: {{^ +}}bb1:
 // CHECK-NEXT: {{^ +}}[[EDGE:v[0-9]+]] = mload 64
 // CHECK-NEXT: {{^ +}}ret [[EDGE]]
-fn @across_edge() -> u256 {
+fn @across_edge() -> i256 {
   bb0:
     mstore 64, 128
     jump bb1
@@ -99,7 +102,7 @@ fn @across_edge() -> u256 {
 // CHECK: - {{v[0-9]+}} = mload 64
 // CHECK: - {{v[0-9]+}} = mload {{v[0-9]+}}
 // CHECK: + ret 64
-fn @forwarded_address() -> u256 {
+fn @forwarded_address() -> i256 {
   bb0:
     mstore 64, 64
     v0 = mload 64

@@ -42,7 +42,6 @@
 (rule (select_opcode (Op.SLt _ _)) (OpcodeLowering.Binary $SLT))
 (rule (select_opcode (Op.SGt _ _)) (OpcodeLowering.Binary $SGT))
 (rule (select_opcode (Op.Eq _ _)) (OpcodeLowering.Binary $EQ))
-(rule (select_opcode (Op.IsZero _)) (OpcodeLowering.Unary $ISZERO))
 (rule (select_opcode (Op.MLoad _)) (OpcodeLowering.Unary $MLOAD))
 (rule (select_opcode (Op.MStore _ _)) (OpcodeLowering.Store $MSTORE))
 (rule (select_opcode (Op.MStore8 _ _)) (OpcodeLowering.Store $MSTORE8))

@@ -22,14 +22,16 @@ contract CustomErrorPayloads {
     }
 
     // CHECK-LABEL: fn @require_empty{{[( ]}}
-    // CHECK: icall require<custom_error []>, arg0, 0x{{[0-9a-f]+}}
+    // CHECK: [[COND:v[0-9]+]] = ne arg0, 0
+    // CHECK: icall require<custom_error []>, [[COND]], 0x{{[0-9a-f]+}}
     function require_empty(bool ok) public pure {
         require(ok, EmptyError());
     }
 
     // CHECK-LABEL: fn @require_named{{[( ]}}
     // CHECK: [[MESSAGE:v[0-9]+]] = alloc memorybytes
-    // CHECK: icall require<custom_error [word, memory_bytes]>, arg0, 0x{{[0-9a-f]+}}, 7, [[MESSAGE]]
+    // CHECK: [[COND:v[0-9]+]] = ne arg0, 0
+    // CHECK: icall require<custom_error [word, memory_bytes]>, [[COND]], 0x{{[0-9a-f]+}}, 7, [[MESSAGE]]
     function require_named(bool ok) public pure {
         require(ok, MyError({message: "failed", code: 7}));
     }

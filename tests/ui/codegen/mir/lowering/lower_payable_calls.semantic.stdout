@@ -1,13 +1,13 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_payable_calls.mir (before none) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_payable_calls.mir (after none) ===
   @module PayableCalls
-  fn @send_value(arg0: address, arg1: u256) -> u256 {
+  fn @send_value(arg0: i160, arg1: i256) -> i256 {
     bb0:
       v0 = icall send<>, arg0, arg1 !metadata(span=10..20, modifier_depth=2)
       ret v0
   }
   
-  fn @transfer_value(arg0: bool, arg1: address, arg2: u256) -> u256 {
+  fn @transfer_value(arg0: i1, arg1: i160, arg2: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:

@@ -1,22 +1,21 @@
 // === ROOT/tests/ui/codegen/lowering/internal_void_call.sol:InternalVoidCall ===
 @module InternalVoidCall
-fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word]] {
+fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @set(arg0: u256) [selector=0x60fe47b1, abi_params=[u256], abi_returns=[]] {
+fn @set(arg0: i256) [selector=0x60fe47b1, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall @writeIfNonZero, arg0
     ret
 }
 
-fn @writeIfNonZero(arg0: u256) {
+fn @writeIfNonZero(arg0: i256) {
   bb0:
-    v0 = eq arg0, 0
-    v1 = iszero v0
-    jumpi v1, bb1, bb2
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb1:
@@ -26,7 +25,7 @@ fn @writeIfNonZero(arg0: u256) {
     ret
 }
 
-fn @setUnlessZero(arg0: u256) [selector=0x305f34c8, abi_params=[u256], abi_returns=[]] {
+fn @setUnlessZero(arg0: i256) [selector=0x305f34c8, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -39,21 +38,22 @@ fn @setUnlessZero(arg0: u256) [selector=0x305f34c8, abi_params=[u256], abi_retur
     ret
 }
 
-fn @returnVoidCall(arg0: u256) [selector=0x6659499b, abi_params=[u256], abi_returns=[]] {
+fn @returnVoidCall(arg0: i256) [selector=0x6659499b, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall @writeIfNonZero, arg0
     ret
 }
 
-fn @returnRevert() [selector=0xdcdb78bc, pure, abi_params=[], abi_returns=[]] {
+fn @returnRevert() [selector=0xdcdb78bc, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall revert_if<empty>, true
     invalid
 }
 
-fn @unitTernary(arg0: bool, arg1: u256) [selector=0xeb6f9827, abi_params=[bool, u256], abi_returns=[]] {
+fn @unitTernary(arg0: i256, arg1: i256) [selector=0xeb6f9827, abi_params=[bool, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
-    jumpi arg0, bb1, bb2
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
   bb2:
     icall @clear
     jump bb3

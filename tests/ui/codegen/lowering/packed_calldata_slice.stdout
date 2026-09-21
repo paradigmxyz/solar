@@ -1,21 +1,23 @@
 // === ROOT/tests/ui/codegen/lowering/packed_calldata_slice.sol:PackedCalldataSlice ===
 @module PackedCalldataSlice
-fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0xe0041396, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes]] {
+fn @slice(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [selector=0xe0041396, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
     v4 = or v2, v3
-    icall revert_if<empty>, v4
-    v5 = sub arg2, arg1
-    v6 = add v0, arg1
-    v7 = make_calldata_slice v6, v5
-    v8 = abi_encode_packed (bytes v7, data hex"21")
-    ret v8
+    v5 = zext i1 v4 to i256
+    v6 = ne v5, 0
+    icall revert_if<empty>, v6
+    v7 = sub arg2, arg1
+    v8 = add v0, arg1
+    v9 = make_calldata_slice v8, v7
+    v10 = abi_encode_packed (bytes v9, data hex"21")
+    ret v10
 }
 
-fn @all() -> memorybytes [selector=0x10c4e8b0, pure, abi_params=[], abi_returns=[memory_bytes]] {
+fn @all() -> memorybytes [selector=0x10c4e8b0, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
