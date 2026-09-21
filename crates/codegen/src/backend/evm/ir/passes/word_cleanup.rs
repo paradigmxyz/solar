@@ -12,7 +12,8 @@
 //! fits the mask or all uses ignore the cleared bits. No instruction is moved,
 //! no effect is removed, and the physical stack layout stays identical. Unknown
 //! effects, protected bundles, and gas/PC observations end the tracked region.
-//! Block outputs are fully observed, so this does not assume inter-block layouts.
+//! Block outputs and raw branch edges are fully observed, so this does not assume
+//! inter-block layouts.
 //! Run before constant materialization obscures literal masks. Unchanged blocks
 //! without a candidate require no graph allocation.
 
@@ -123,6 +124,7 @@ impl Graph {
         self.masks.clear();
         for (index, inst) in instructions.iter().enumerate() {
             if !inst.has_canonical_stack_effect()
+                || inst.has_raw_branch_target()
                 || inst.keeps_with_next()
                 || index > 0 && instructions[index - 1].keeps_with_next()
                 || matches!(inst.as_evm_opcode(), Some(op::GAS | op::PC | op::JUMPDEST))

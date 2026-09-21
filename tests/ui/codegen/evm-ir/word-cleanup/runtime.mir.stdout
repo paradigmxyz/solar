@@ -1,5 +1,19 @@
 // === ROOT/tests/ui/codegen/evm-ir/word-cleanup/runtime.sol:Cleanup ===
 @module Cleanup
+fn @branchUse(arg0: i256, arg1: i256) -> i256 [selector=0xf2588584, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = and arg0, 255
+    v1 = ne arg1, 0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret 0
+  bb1:
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
 fn @dependentMasks(arg0: i256, arg1: i256) -> i256 [selector=0x681bf236, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and arg1, 255

@@ -76,7 +76,7 @@ Calls observe the full gas operand and only 160 bits of the address operand.
 It propagates demand backwards through bitwise and modular arithmetic, removes
 only redundant literal PUSH/AND pairs, and keeps masks needed by any full-width
 observer. Unknown effects and protected bundles break tracking. Values that
-leave a block are fully observed. Shifts, comparisons, and other unsupported
+leave a block, including through a mid-block physical branch, are fully observed. Shifts, comparisons, and other unsupported
 transfer functions conservatively demand all input bits. There is no alias
 inference, inter-block bit analysis, or instruction motion in this pass.
 

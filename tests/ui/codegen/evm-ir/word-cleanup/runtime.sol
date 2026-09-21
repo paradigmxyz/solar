@@ -9,7 +9,20 @@
 //@ run-call: callConsumer 0xffffffffffffffffffffffff0000000000000000000000000000000000000004 => 42
 //@ run-call: dependentMasks 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe => 254
 //@ run-call: nestedMasks 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 255
+//@ run-call: branchUse 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1 => 255
+//@ run-call: branchUse 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0 => 0
 contract Cleanup {
+    function branchUse(uint256 raw, uint256 takeBranch) external pure returns (uint256) {
+        assembly {
+            let cleaned := and(raw, 255)
+            if takeBranch {
+                mstore(0, cleaned)
+                return(0, 32)
+            }
+        }
+        return 0;
+    }
+
     function dependentMasks(uint256 x, uint256 y) external pure returns (uint256 result) {
         assembly { result := and(and(x, 255), and(y, 255)) }
     }

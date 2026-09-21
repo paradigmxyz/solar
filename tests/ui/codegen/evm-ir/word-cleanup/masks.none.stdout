@@ -285,4 +285,19 @@
     push 0
     mstore
     stop
+  bb22:
+    push 4
+    calldataload
+    push 255
+    and
+    push 36
+    calldataload
+    push bb23
+    jumpi
+    pop
+    stop
+  bb23:
+    push 0
+    mstore
+    stop
   
