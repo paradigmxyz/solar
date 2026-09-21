@@ -64,21 +64,20 @@ fn @lowLevelFirst(arg0: i256) -> i256 [selector=0x7bb76e97, view, abi_params=[u2
     v35 = eq v34, false
     v36 = and v33, v35
     v37 = zext i1 v36 to i256
-    v38 = ne v37, 0
-    jumpi v38, bb9, bb10
+    jumpi v36, bb9, bb10
   bb10:
     jumpi true, bb11, bb12
   bb12:
-    v44 = ptrtoint memptr v10 to i256
-    revert v44, v11
+    v43 = ptrtoint memptr v10 to i256
+    revert v43, v11
   bb11:
     ret 100
   bb9:
-    v39 = memory_object_data memorybytes, v9
-    v40 = ptrtoint memptr v39 to i256
-    v41 = add v40, 4
-    v42 = make_memory_slice v41, 32
-    v43 = memory_slice_load_word memory, v42, 0
+    v38 = memory_object_data memorybytes, v9
+    v39 = ptrtoint memptr v38 to i256
+    v40 = add v39, 4
+    v41 = make_memory_slice v40, 32
+    v42 = memory_slice_load_word memory, v41, 0
     ret 300
   bb7:
     v20 = memory_object_data memorybytes, v9
@@ -141,21 +140,20 @@ fn @typedFirst(arg0: i256) -> i256 [selector=0x90ba0c06, view, abi_params=[u256]
     v35 = eq v34, false
     v36 = and v33, v35
     v37 = zext i1 v36 to i256
-    v38 = ne v37, 0
-    jumpi v38, bb9, bb10
+    jumpi v36, bb9, bb10
   bb10:
     jumpi true, bb11, bb12
   bb12:
-    v44 = ptrtoint memptr v10 to i256
-    revert v44, v11
+    v43 = ptrtoint memptr v10 to i256
+    revert v43, v11
   bb11:
     ret 100
   bb9:
-    v39 = memory_object_data memorybytes, v9
-    v40 = ptrtoint memptr v39 to i256
-    v41 = add v40, 4
-    v42 = make_memory_slice v41, 32
-    v43 = memory_slice_load_word memory, v42, 0
+    v38 = memory_object_data memorybytes, v9
+    v39 = ptrtoint memptr v38 to i256
+    v40 = add v39, 4
+    v41 = make_memory_slice v40, 32
+    v42 = memory_slice_load_word memory, v41, 0
     ret 300
   bb7:
     v20 = memory_object_data memorybytes, v9
@@ -206,21 +204,20 @@ fn @bareFirst(arg0: i256) -> i256 [selector=0x2f2a2d09, view, abi_params=[u256],
     v18 = eq v17, false
     v19 = and v16, v18
     v20 = zext i1 v19 to i256
-    v21 = ne v20, 0
-    jumpi v21, bb4, bb5
+    jumpi v19, bb4, bb5
   bb5:
     jumpi true, bb6, bb7
   bb7:
-    v27 = ptrtoint memptr v10 to i256
-    revert v27, v11
+    v26 = ptrtoint memptr v10 to i256
+    revert v26, v11
   bb6:
     ret 100
   bb4:
-    v22 = memory_object_data memorybytes, v9
-    v23 = ptrtoint memptr v22 to i256
-    v24 = add v23, 4
-    v25 = make_memory_slice v24, 32
-    v26 = memory_slice_load_word memory, v25, 0
+    v21 = memory_object_data memorybytes, v9
+    v22 = ptrtoint memptr v21 to i256
+    v23 = add v22, 4
+    v24 = make_memory_slice v23, 32
+    v25 = memory_slice_load_word memory, v24, 0
     ret 300
   bb1:
     v7 = icall returndata_bytes<>
@@ -243,18 +240,17 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     v6 = gt v5, arg1
     v7 = or v4, v6
     v8 = zext i1 v7 to i256
-    v9 = ne v8, 0
-    jumpi v9, bb3, bb2
+    jumpi v7, bb3, bb2
   bb2:
-    v10 = add v2, v3
-    v11 = mload v10
-    v12 = gt v11, 0xffffffffffffffff
-    v13 = sub arg1, v5
-    v14 = gt v11, v13
-    v15 = or v12, v14
-    v16 = zext i1 v15 to i256
-    v17 = eq v16, 0
-    ret v17
+    v9 = add v2, v3
+    v10 = mload v9
+    v11 = gt v10, 0xffffffffffffffff
+    v12 = sub arg1, v5
+    v13 = gt v10, v12
+    v14 = or v11, v13
+    v15 = zext i1 v14 to i256
+    v16 = eq v15, 0
+    ret v16
   bb3:
     ret false
 }

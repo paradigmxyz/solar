@@ -84,3 +84,76 @@
       ret 0
   }
   
+  fn @signed_join(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      v1 = sgt 0, arg2
+      jumpi v1, bb4, bb6
+    bb4:
+      jump bb5
+    bb1:
+      v0 = slt arg1, 0
+      jumpi v0, bb3, bb6
++   bb6:
++     revert 0, 0
+    bb3:
+      jump bb5
+    bb5:
+      v2 = phi [bb3: arg1], [bb4: arg2]
+      v3 = slt v2, 1
+-     jumpi v3, bb7, bb6
+-   bb6:
+-     revert 0, 0
++     jump bb7
+    bb7:
+      ret v2
+  }
+  
+  fn @signed_positive(arg0: i256) -> i256 {
+    bb0:
+      v0 = slt arg0, 0
+      jumpi v0, bb4, bb1
+    bb1:
+      v1 = sgt arg0, 99
+      jumpi v1, bb4, bb2
+    bb2:
+      v2 = lt arg0, 100
+-     jumpi v2, bb3, bb4
++     jump bb3
+    bb3:
+      ret arg0
+    bb4:
+      revert 0, 0
+  }
+  
+  fn @keep_cross_sign(arg0: i256) -> i256 {
+    bb0:
+      v0 = slt arg0, 100
+      jumpi v0, bb1, bb3
+    bb1:
+      v1 = lt arg0, 100
+      jumpi v1, bb2, bb3
+    bb3:
+      revert 0, 0
+    bb2:
+      ret arg0
+  }
+  
+  fn @signed_negative(arg0: i256) -> i256 {
+    bb0:
+      v0 = slt arg0, 0
+      jumpi v0, bb1, bb4
+    bb1:
+      v1 = slt arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9c
+      jumpi v1, bb4, bb2
+    bb2:
+      v2 = lt arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9c
+-     jumpi v2, bb4, bb3
++     jump bb3
+    bb3:
+      ret arg0
+    bb4:
+      revert 0, 0
+  }
+  

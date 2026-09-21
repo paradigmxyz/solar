@@ -460,3 +460,12 @@ fn @constant_comparison_order(arg0: i256, arg1: i256, arg2: i256, arg3: i256) ->
     v7 = sgt 13, arg3
     ret v4, v5, v6, v7
 }
+
+// CHECK-LABEL: @boolean_or_one
+// CHECK: ret true
+fn @boolean_or_one(arg0: i1) -> i1 {
+  bb0:
+    v0 = or arg0, true
+    v1 = or true, v0
+    ret v1
+}

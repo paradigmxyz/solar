@@ -100,66 +100,63 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     revert_returndata
   bb2:
     v12 = zext i160 v9 to i256
-    v13 = trunc i256 v12 to i160
-    v14 = zext i160 v13 to i256
-    v15 = abi_encode [word<u160>], args v14
-    v16 = not 31
-    v17 = and 367, v16
-    v18 = alloc raw, exact, uninitialized, infallible, v17
-    v19 = ptrtoint memptr v18 to i256
-    data_copy Proxy_initcode_1, v19, 304
-    v20 = slice_ptr v15
-    v21 = ptrtoint memptr v18 to i256
-    v22 = add v21, 304
-    mcopy v22, v20, 32 !metadata(memory=heap)
-    v23 = ptrtoint memptr v18 to i256
-    v24 = create 0, v23, 336
-    v25 = zext i160 v24 to i256
-    v26 = ne v25, 0
-    jumpi v26, bb4, bb3
+    v13 = zext i160 v9 to i256
+    v14 = abi_encode [word<u160>], args v13
+    v15 = not 31
+    v16 = and 367, v15
+    v17 = alloc raw, exact, uninitialized, infallible, v16
+    v18 = ptrtoint memptr v17 to i256
+    data_copy Proxy_initcode_1, v18, 304
+    v19 = slice_ptr v14
+    v20 = ptrtoint memptr v17 to i256
+    v21 = add v20, 304
+    mcopy v21, v19, 32 !metadata(memory=heap)
+    v22 = ptrtoint memptr v17 to i256
+    v23 = create 0, v22, 336
+    v24 = zext i160 v23 to i256
+    v25 = ne v24, 0
+    jumpi v25, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v27 = zext i160 v24 to i256
-    v28 = trunc i256 v27 to i160
-    v29 = gas
-    v30 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v30, 16
-    v31 = memory_object_data memorybytes, v30
-    v32 = ptrtoint memptr v31 to i256
-    mstore v32, 0xdeadbeefdeadbeefdeadbeefdeadbeef00000000000000000000000000000000
-    v33 = abi_encode [word, word, word, memory_bytes], selector 0xe6a9b50500000000000000000000000000000000000000000000000000000000, args 10, 20, 30, v30
-    v34 = slice_ptr v33
-    v35 = slice_len v33
-    v36 = zext i160 v28 to i256
-    v37 = extcodesize v36
-    v38 = eq v37, 0
-    icall revert_if<target_contract_has_no_code>, v38
-    v39 = zext i160 v28 to i256
-    v40 = call v29, v39, 0, v34, v35, 0, 0
-    jumpi v40, bb6, bb5
+    v26 = zext i160 v23 to i256
+    v27 = gas
+    v28 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v28, 16
+    v29 = memory_object_data memorybytes, v28
+    v30 = ptrtoint memptr v29 to i256
+    mstore v30, 0xdeadbeefdeadbeefdeadbeefdeadbeef00000000000000000000000000000000
+    v31 = abi_encode [word, word, word, memory_bytes], selector 0xe6a9b50500000000000000000000000000000000000000000000000000000000, args 10, 20, 30, v28
+    v32 = slice_ptr v31
+    v33 = slice_len v31
+    v34 = zext i160 v23 to i256
+    v35 = extcodesize v34
+    v36 = eq v35, 0
+    icall revert_if<target_contract_has_no_code>, v36
+    v37 = zext i160 v23 to i256
+    v38 = call v27, v37, 0, v32, v33, 0, 0
+    jumpi v38, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v41 = trunc i256 v27 to i160
-    v42 = gas
-    v43 = abi_encode [], selector 0x7c2efcba00000000000000000000000000000000000000000000000000000000
-    v44 = slice_ptr v43
-    v45 = slice_len v43
-    v46 = zext i160 v41 to i256
-    v47 = staticcall v42, v46, v44, v45, 0, 32
-    jumpi v47, bb8, bb7
+    v39 = gas
+    v40 = abi_encode [], selector 0x7c2efcba00000000000000000000000000000000000000000000000000000000
+    v41 = slice_ptr v40
+    v42 = slice_len v40
+    v43 = zext i160 v23 to i256
+    v44 = staticcall v39, v43, v41, v42, 0, 32
+    jumpi v44, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v48 = returndatasize
-    v49 = lt v48, 32
-    icall revert_if<tuple_data_too_short>, v49
-    v50 = add 0, 0
-    v51 = mload v50
-    v52 = add 0, 0
-    v53 = mload v52
-    v54 = eq v53, 76
-    icall require<short_string>, v54, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
+    v45 = returndatasize
+    v46 = lt v45, 32
+    icall revert_if<tuple_data_too_short>, v46
+    v47 = add 0, 0
+    v48 = mload v47
+    v49 = add 0, 0
+    v50 = mload v49
+    v51 = eq v50, 76
+    icall require<short_string>, v51, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
     ret 1
 }

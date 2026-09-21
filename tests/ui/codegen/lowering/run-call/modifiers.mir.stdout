@@ -125,8 +125,7 @@ fn @maybe(arg0: i256) -> i256 [selector=0xe13e4d4f, pure, abi_params=[bool], abi
     v0 = eq arg0, 0
     v1 = eq v0, false
     v2 = zext i1 v1 to i256
-    v3 = ne v2, 0
-    jumpi v3, bb2, bb3
+    jumpi v1, bb2, bb3
   bb3:
     jump bb4
   bb4:
@@ -136,8 +135,8 @@ fn @maybe(arg0: i256) -> i256 [selector=0xe13e4d4f, pure, abi_params=[bool], abi
   bb2:
     jump bb1
   bb1:
-    v4 = phi [bb2: 0], [bb5: 7]
-    ret v4
+    v3 = phi [bb2: 0], [bb5: 7]
+    ret v3
 }
 
 fn @retMid() -> i256 [selector=0x436126b8, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -163,29 +162,28 @@ fn @lazy(arg0: i256) -> i256 [selector=0x90bca39b, abi_params=[bool], abi_return
     v0 = eq arg0, 0
     v1 = eq v0, false
     v2 = zext i1 v1 to i256
-    v3 = ne v2, 0
-    jumpi v3, bb3, bb4
+    jumpi v1, bb3, bb4
   bb4:
     jump bb5
   bb5:
-    v4 = icall @rec, 7
-    v5 = icall @rec, 11
+    v3 = icall @rec, 7
+    v4 = icall @rec, 11
     jump bb7
   bb7:
-    v6 = icall @rec, 19
+    v5 = icall @rec, 19
     jump bb6
   bb6:
     jump bb2
   bb3:
     jump bb2
   bb2:
-    v7 = phi [bb3: 0], [bb6: 5]
-    v8 = sload 0 !metadata(storage=slot(0))
-    v9 = eq v8, 0
-    icall require<short_string>, v9, 4, 0x6c617a7900000000000000000000000000000000000000000000000000000000
+    v6 = phi [bb3: 0], [bb6: 5]
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = eq v7, 0
+    icall require<short_string>, v8, 4, 0x6c617a7900000000000000000000000000000000000000000000000000000000
     jump bb1
   bb1:
-    ret v7
+    ret v6
 }
 
 fn @clamped(arg0: i256) -> i256 [selector=0x50df8187, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {

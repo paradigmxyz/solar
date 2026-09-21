@@ -457,7 +457,7 @@ fn @store_recursive_storage_0_0(arg0: i256, arg1: memorystruct) {
     sstore v9, v12 !metadata(storage=offset(arg0, 2))
     jump bb6
   bb6:
-    v21 = phi [bb2: 0], [bb10: v39]
+    v21 = phi [bb2: 0], [bb10: v38]
     v22 = lt v21, v12
     jumpi v22, bb7, bb8
   bb8:
@@ -466,31 +466,30 @@ fn @store_recursive_storage_0_0(arg0: i256, arg1: memorystruct) {
     v23 = inttoptr i256 v10 to memoryarray
     v24 = memory_object_load_element memoryarray<1>, v23, v21
     v25 = inttoptr i256 v24 to memorystruct
-    v26 = ptrtoint memorystruct v25 to i256
-    v27 = eq v26, 0
-    jumpi v27, bb9, bb10
+    v26 = eq v24, 0
+    jumpi v26, bb9, bb10
   bb9:
-    v28 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v28, 0, 0
-    v29 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v29, 0
-    v30 = ptrtoint memorybytes v29 to i256
-    memory_object_store_field memorystruct<3>, v28, 1, v30
-    v31 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v31, 0
-    v32 = ptrtoint memoryarray v31 to i256
-    memory_object_store_field memorystruct<3>, v28, 2, v32
-    v33 = inttoptr i256 v10 to memoryarray
-    v34 = ptrtoint memorystruct v28 to i256
-    memory_object_store_element memoryarray<1>, v33, v21, v34
+    v27 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    memory_object_store_field memorystruct<3>, v27, 0, 0
+    v28 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v28, 0
+    v29 = ptrtoint memorybytes v28 to i256
+    memory_object_store_field memorystruct<3>, v27, 1, v29
+    v30 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v30, 0
+    v31 = ptrtoint memoryarray v30 to i256
+    memory_object_store_field memorystruct<3>, v27, 2, v31
+    v32 = inttoptr i256 v10 to memoryarray
+    v33 = ptrtoint memorystruct v27 to i256
+    memory_object_store_element memoryarray<1>, v32, v21, v33
     jump bb10
   bb10:
-    v35 = phi [bb7: v25], [bb9: v28]
-    v36 = storage_array_data_slot v9
-    v37 = mul v21, 3
-    v38 = add v36, v37
-    icall @store_recursive_storage_0_0, v38, v35
-    v39 = add v21, 1
+    v34 = phi [bb7: v25], [bb9: v27]
+    v35 = storage_array_data_slot v9
+    v36 = mul v21, 3
+    v37 = add v35, v36
+    icall @store_recursive_storage_0_0, v37, v34
+    v38 = add v21, 1
     jump bb6
   bb4:
     v17 = storage_array_data_slot v9

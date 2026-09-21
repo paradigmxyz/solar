@@ -27,12 +27,11 @@ fn @trim(arg0: calldataslice) -> calldataslice [pure] {
     v6 = lt v4, 4
     v7 = or v5, v6
     v8 = zext i1 v7 to i256
-    v9 = ne v8, 0
-    icall revert_if<empty>, v9
-    v10 = sub v4, 4
-    v11 = add v3, 4
-    v12 = make_calldata_slice v11, v10
-    ret v12
+    icall revert_if<empty>, v7
+    v9 = sub v4, 4
+    v10 = add v3, 4
+    v11 = make_calldata_slice v10, v9
+    ret v11
 }
 
 fn @repeatedSourceJoin(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0x406b1ab7, pure, abi_params=[bool, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {

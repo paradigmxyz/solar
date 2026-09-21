@@ -36,3 +36,11 @@ fn @addressFromBytes20(arg0: i256) -> i256 [selector=0x247e14fa, pure, abi_param
     v3 = zext i160 v2 to i256
     ret v3
 }
+
+fn @callerCodeLength() -> i256 [selector=0xfb7e2a0a, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = caller
+    v1 = zext i160 v0 to i256
+    v2 = extcodesize v1
+    ret v2
+}

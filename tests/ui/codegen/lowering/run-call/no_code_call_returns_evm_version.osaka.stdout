@@ -27,7 +27,7 @@ types:
   struct0: {i256, i256}
 
 data:
-  NoCodeCallee_initcode_0: hex"34600d5760f48060115f395ff35b5f5ffd341515602a575f3560e01c80633fa4f245146026578063a8aa1b3114602257602a565b6040565b602e565b5f5ffd5b602a6080526020608001608090036080f35b6101406040526040518060e0528060e0528060c0528060c0528060c0526040900160405260c0518060c05260403682375060025f101560e25760c0518060c052600181525060026001101560e25760c0518060c0526020900160028152505f60c051905b80610100526002811060c0576040608001915050608090036080f35b602081806101005202828060c0520151602082026080015260018101905060a4565b634e487b715f5260326020526024601cfd"
+  NoCodeCallee_initcode_0: hex"34600d5760ef8060115f395ff35b5f5ffd341515602a575f3560e01c80633fa4f245146026578063a8aa1b3114602257602a565b6040565b602e565b5f5ffd5b602a6080526020608001608090036080f35b6101406040526040518060e0528060e0528060c0528060c052604060e051016040528060c05260403682375060025f101560dd5760c0518060c052600181525060026001101560dd5760c0518060c0526020900160028152505f60c051905b80610100526002811060bb576040608001915050608090036080f35b602081806101005202828060c05201516020820260800152600181019050609f565b634e487b715f5260326020526024601cfd"
 
 fn @direct() -> i256 [selector=0x222b1407, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -176,16 +176,16 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 292, v1
+    v2 = and 287, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy NoCodeCallee_initcode_0, v4, 261
+    data_copy NoCodeCallee_initcode_0, v4, 256
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 261
+    v7 = add v6, 256
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 261
+    v9 = create 0, v8, 256
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -216,16 +216,16 @@ fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 292, v1
+    v2 = and 287, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy NoCodeCallee_initcode_0, v4, 261
+    data_copy NoCodeCallee_initcode_0, v4, 256
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 261
+    v7 = add v6, 256
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 261
+    v9 = create 0, v8, 256
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
