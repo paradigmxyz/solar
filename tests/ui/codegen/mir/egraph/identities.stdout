@@ -1,12 +1,13 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/identities.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/identities.mir (after egraph) ===
-  @module InstSimplifyIdentities
+  @module Identities
   types:
     struct0: {i256, i256}
     struct1: {struct0, i256}
     struct2: {i256, i256, i256}
     struct3: {i256, i256, i256, i256}
     struct4: {i256, i256, i256, i256, i256}
+    struct5: {i1, i1, i1, i1}
   
   fn @add_zero(arg0: i256) -> i256 {
     bb0:
@@ -86,8 +87,9 @@
   
   fn @canonical_zero_branch(arg0: i256) {
     bb0:
-      v0 = lt 0, arg0
+-     v0 = lt 0, arg0
 -     v1 = eq v0, false
++     v0 = gt arg0, 0
 +     v1 = eq arg0, 0
       jumpi v1, bb1, bb2
     bb2:
@@ -257,9 +259,10 @@
       v3 = or v2, 0x12345678
 -     v4 = shr 32, v3
       v5 = shl 96, v1
-      v6 = or 7, v5
+-     v6 = or 7, v5
 -     v7 = shr 96, v6
 -     ret v4, v7
++     v6 = or v5, 7
 +     ret v1, v1
   }
   
@@ -341,5 +344,39 @@
       v4 = shl 5, arg0
       v5 = shl arg1, v4
       ret v1, v3, v5
+  }
+  
+  fn @constant_multiplicands(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
+    bb0:
+-     v0 = mulmod 0, 5, arg0
+-     v1 = mulmod 5, 0, arg0
+-     ret v0, v1
++     ret 0, 0
+  }
+  
+  fn @constant_operand_order(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct3 [return_abi=[i256, i256, i256, i256]] {
+    bb0:
+-     v0 = add 7, arg0
+-     v1 = mul 11, arg1
+-     v2 = or 13, arg2
+-     v3 = xor 17, arg3
++     v0 = add arg0, 7
++     v1 = mul arg1, 11
++     v2 = or arg2, 13
++     v3 = xor arg3, 17
+      ret v0, v1, v2, v3
+  }
+  
+  fn @constant_comparison_order(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct5 [return_abi=[i1, i1, i1, i1]] {
+    bb0:
+-     v0 = lt 13, arg0
+-     v1 = gt 13, arg1
+-     v2 = slt 13, arg2
+-     v3 = sgt 13, arg3
++     v0 = gt arg0, 13
++     v1 = lt arg1, 13
++     v2 = sgt arg2, 13
++     v3 = slt arg3, 13
+      ret v0, v1, v2, v3
   }
   

@@ -1021,7 +1021,10 @@ mod tests {
 
     #[test]
     fn evm_isle_prelude_matches_table() {
-        snapbox::assert_data_eq!(isle_prelude(), snapbox::file!["../../../isle/evm_prelude.isle"]);
+        snapbox::assert_data_eq!(
+            isle_prelude(),
+            snapbox::file!["../../../isle/evm-ir/prelude.isle"]
+        );
     }
 
     #[test]

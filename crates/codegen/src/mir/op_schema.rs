@@ -750,12 +750,20 @@ macro_rules! define_mir_ops {
             /// Orders each declared commutative pair for value-numbering keys.
             /// Other operands, including a modular operation's modulus, stay in place.
             pub(crate) fn canonicalize_commutative(self) -> Self {
+                self.canonicalize_commutative_by_key(|value| value.index())
+            }
+
+            /// Orders only the declared commutative pair by the caller's key.
+            pub(crate) fn canonicalize_commutative_by_key<K: Ord>(
+                self,
+                mut key: impl FnMut(ValueId) -> K,
+            ) -> Self {
                 match self {
                     $(
                         Self::$variant $( { $( $operand ),+ } )? $( { $( $field ),+ } )? => {
                             $(
-                                // op(lhs, rhs, rest) -> op(min(lhs, rhs), max(lhs, rhs), rest)
-                                let ($lhs, $rhs) = if $rhs.index() < $lhs.index() {
+                                // op(lhs, rhs, rest) -> op(lhs, rhs, rest), ordered by key
+                                let ($lhs, $rhs) = if key($rhs) < key($lhs) {
                                     ($rhs, $lhs)
                                 } else {
                                     ($lhs, $rhs)
@@ -2905,18 +2913,25 @@ mod tests {
         assert!(addmod.op_def().traits.contains(OpTraits::COMMUTATIVE));
         assert_eq!(addmod.op().canonicalize_commutative(), Op::AddMod { a: b, b: a, n: a });
 
+        assert_eq!(
+            addmod.op().canonicalize_commutative_by_key(|value| value == a),
+            Op::AddMod { a: b, b: a, n: a }
+        );
+        assert_eq!(addmod.op().canonicalize_commutative_by_key(|_| false), addmod.op());
+
         let gt = InstKind::Gt(a, b);
         assert!(gt.op_def().traits.contains(OpTraits::REORDERABLE));
         assert!(!gt.op_def().traits.contains(OpTraits::COMMUTATIVE));
         assert_eq!(gt.op().canonicalize_commutative(), gt.op());
+        assert_eq!(gt.op().canonicalize_commutative_by_key(|value| value == a), gt.op());
     }
 
     #[test]
     fn isle_prelude_matches_schema() {
-        snapbox::assert_data_eq!(Op::isle_prelude(), snapbox::file!["../../isle/prelude.isle"]);
+        snapbox::assert_data_eq!(Op::isle_prelude(), snapbox::file!["../../isle/mir/prelude.isle"]);
         snapbox::assert_data_eq!(
             Op::isle_extractors(),
-            snapbox::file!["../../isle/extractors.isle"]
+            snapbox::file!["../../isle/mir/extractors.isle"]
         );
     }
 

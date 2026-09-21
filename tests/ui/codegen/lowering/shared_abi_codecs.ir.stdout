@@ -177,7 +177,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     jumpi v116, bb10, bb27
   bb27:
     v117 = sub v103, v113
-    v118 = gt 64, v117
+    v118 = lt v117, 64
     jumpi v118, bb10, bb28
   bb28:
     v292 = mload 64
@@ -235,7 +235,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     mstore v235, v262
     v61 = mload v292
     v64 = mload v262
-    v65 = lt 0, v64
+    v65 = gt v64, 0
     jumpi v65, bb19, bb18
   bb19:
     v225 = add v262, 32
@@ -255,7 +255,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v73 = phi [bb19: v68], [bb4: v71]
     v251 = ptrtoint memptr v73 to i256
     v74 = mload v251
-    v75 = lt 0, v74
+    v75 = gt v74, 0
     jumpi v75, bb20, bb18
   bb20:
     v227 = add v251, 32
@@ -266,7 +266,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
   bb24:
     v79 = mload v235
     v81 = mload v79
-    v82 = lt 1, v81
+    v82 = gt v81, 1
     jumpi v82, bb21, bb18
   bb21:
     v229 = add v79, 64
@@ -286,7 +286,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v90 = phi [bb21: v85], [bb6: v88]
     v253 = ptrtoint memptr v90 to i256
     v91 = mload v253
-    v92 = lt 0, v91
+    v92 = gt v91, 0
     jumpi v92, bb22, bb18
   bb18:
     mstore 0, 0x4e487b71
@@ -420,7 +420,7 @@ fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
     jumpi v4, bb1, bb2
   bb2:
     v5 = sub v0, v2
-    v6 = gt 64, v5
+    v6 = lt v5, 64
     jumpi v6, bb1, bb3
   bb3:
     v99 = mload 64

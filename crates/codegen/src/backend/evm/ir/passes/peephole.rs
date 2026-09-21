@@ -1,6 +1,6 @@
 //! Local peephole optimization over scheduled EVM IR.
 //!
-//! The rewrite rules are written in ISLE in `isle/peephole.isle`; this module
+//! The rewrite rules are written in ISLE in `isle/evm-ir/peephole.isle`; this module
 //! drives them over each block and applies the edits they return. Matching uses
 //! the same ordered rules on each successive prefix, retrying its tail after
 //! every edit so newly adjacent operations can simplify immediately.
@@ -11,6 +11,11 @@
 //! passes expose few new opportunities. Rules never cross a block boundary;
 //! target legality, push removability, and symbolic stack bounds stay in the
 //! extractors, and edits preserve their existing metadata policy.
+//! Comparison inversion tracks a constant through up to 24 instructions that cannot observe
+//! or copy it. Adjusting that bound and flipping LT/GT or SLT/SGT removes ISZERO after branch
+//! layout chooses the taken edge. Operand computations stay in place; wrapping bounds,
+//! protected boundaries, custom stack effects, and materializations that grow in size or stack
+//! peak are rejected.
 //! Literal unary expressions use the same evaluator as MIR and require a Pareto
 //! improvement under the target's immediate materialization costs. A known-false
 //! inline conditional jump then disappears with its two pushes. These rules
@@ -42,6 +47,8 @@ use std::fmt;
 use tracing::trace;
 
 mod isle;
+
+pub(super) use isle::invert_comparison;
 
 pub(super) struct Peephole {
     final_cleanup: bool,
@@ -370,7 +377,8 @@ impl Edit {
                 instructions.truncate(start + 3);
             }
             Self::InvertComparison { value, opcode } => {
-                // PUSH c; [DUPn]; compare; ISZERO => PUSH adjusted; [DUPn]; opposite compare
+                // PUSH c; independent operands; compare; ISZERO
+                // => PUSH adjusted; independent operands; opposite compare
                 instructions[start].replace_preserving_metadata(Instruction::push_value(value));
                 let iszero = instructions.pop().expect("matched ISZERO");
                 let comparison = instructions.last_mut().expect("matched comparison");
