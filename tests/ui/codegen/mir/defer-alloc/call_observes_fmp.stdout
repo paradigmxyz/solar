@@ -1,0 +1,54 @@
+- // === ROOT/tests/ui/codegen/mir/defer-alloc/call_observes_fmp.mir (before defer-alloc) ===
++ // === ROOT/tests/ui/codegen/mir/defer-alloc/call_observes_fmp.mir (after defer-alloc) ===
+  @module Observer
+  fn @entry() -> u256 [selector=0x01020304] {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      mstore v0, 42
+      v1 = mload v0
+      v2 = icall @observe
+      v3 = add v1, v2
+      ret v3
+  }
+  
+  fn @observe() -> u256 {
+    bb0:
+      v0 = mload 64
+      ret v0
+  }
+  
+  fn @forwarded() -> u256 [selector=0x01020305] {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      mstore v0, 42
+      v1 = icall @forward
+      ret v1
+  }
+  
+  fn @forward() -> u256 {
+    bb0:
+      tail_call @observe
+  }
+  
+  fn @tail() [selector=0x01020306] {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      mstore v0, 42
+      tail_call @observe
+  }
+  
+  fn @scalar() -> u256 [selector=0x01020307] {
+    bb0:
+-     v0 = alloc raw, exact, uninitialized, infallible, 32
++     v0 = alloc raw, exact, uninitialized, infallible, 32 !metadata(deferred_alloc)
+      mstore v0, 42
+      v1 = mload v0
+      v2 = icall @identity, v1
+      ret v2
+  }
+  
+  fn @identity(arg0: u256) -> u256 {
+    bb0:
+      ret arg0
+  }
+  

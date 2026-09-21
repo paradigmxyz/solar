@@ -331,8 +331,8 @@ struct MirInliner {
     /// The cost model pricing call protocol against deposited bytes.
     target: Target,
     /// Optional per-function expected executions loaded from `-Zinline-profile`;
-    /// call sites outside loops in weighted functions use the recorded count
-    /// instead of the default single execution when clones are priced.
+    /// these replace the optimizer-runs lifetime estimate, and loop trips
+    /// multiply that count when clones are priced.
     profile: Option<FxHashMap<String, u64>>,
     /// Optional hard ceiling for the module size estimator. Normal gas-mode
     /// profitability is governed by lifetime cost instead of this ceiling;
@@ -499,10 +499,6 @@ struct MirInlineSummary {
     has_storage_write: bool,
     has_memory_write: bool,
     has_immutable_write: bool,
-    /// Number of check-shaped instructions (explicit checks, requires, and
-    /// checked arithmetic) whose conditions later check elimination can fold
-    /// once inlining exposes the actual arguments at the call site.
-    check_opportunities: usize,
     has_log: bool,
     has_control_flow: bool,
     /// Whether the body contains a back edge; a loop cloned into a loop nests
@@ -533,7 +529,13 @@ impl MirInliner {
         if let Some(path) = gcx.sess.opts.unstable.inline_profile.as_deref()
             && self.profile.is_none()
         {
-            self.profile = load_inline_profile(path);
+            match load_inline_profile(gcx, path) {
+                Ok(profile) => self.profile = Some(profile),
+                Err(error) => {
+                    gcx.dcx().err(format!("invalid inline profile `{path}`: {error}")).emit();
+                    return stats;
+                }
+            }
         }
 
         // A zero budget is an explicit off switch (used by `-O size`). Avoid
@@ -577,22 +579,14 @@ impl MirInliner {
         .then(|| ArtifactCallCounts::new(module, &call_graph));
         let preferred_large_call_sites = self.preferred_large_call_sites(module, &summaries);
 
-        // Specialize dispatcher calls before helper-local inlining introduces phis.
-        // Process the remaining callers bottom-up (callees first), like the
-        // LLVM and GCC inliners: a shared wrapper's single-use inner helper is
-        // consumed before the wrapper's body is cloned, so clones do not each
-        // deposit their own copy of the inner call.
-        let mut caller_ids = module.functions.indices().collect::<Vec<_>>();
-        let mut order_index =
-            FxHashMap::with_capacity_and_hasher(module.functions.len(), Default::default());
-        for (index, &caller) in call_graph.bottom_up_order(module).iter().enumerate() {
-            order_index.insert(caller, index);
-        }
+        // Process callees before callers so a wrapper's single-use inner
+        // helper is consumed before the wrapper is cloned. Stable sorting keeps
+        // the existing dispatcher priority without losing this order among peers.
+        let mut caller_ids = call_graph.bottom_up_order(module);
         caller_ids.sort_by_key(|caller| {
-            let dispatcher = summaries.get(caller).is_some_and(|summary| {
+            summaries.get(caller).is_some_and(|summary| {
                 summary.is_function_pointer_dispatcher && summary.has_function_selector
-            });
-            (dispatcher, order_index.get(caller).copied().unwrap_or(usize::MAX))
+            })
         });
         for caller_id in caller_ids {
             // Leaf bodies cannot contain an inline candidate. Keep their summary for
@@ -841,13 +835,8 @@ impl MirInliner {
                         args_len: args.len(),
                         returns: module.function(function).return_components().len(),
                         loop_depth: loop_costs.get(&block).map_or(0, |cost| cost.depth),
-                        // Profile-weighted callers repeat their one-shot sites;
-                        // loop sites keep their own counted or estimated trips.
-                        loop_executions: if loop_costs.contains_key(&block) {
-                            loop_executions
-                        } else {
-                            loop_executions.max(caller_weight.unwrap_or(1))
-                        },
+                        loop_executions,
+                        profile_executions: caller_weight,
                         loop_counted: loop_costs.get(&block).is_none_or(|cost| cost.counted),
                         has_constant_function_selector: args
                             .first()
@@ -919,10 +908,6 @@ impl MirInliner {
         // A hot leaf is a bounded scalar helper called from inside a loop. Its
         // other call sites keep the shared body; the lifetime check below
         // weighs each clone against the call protocol it removes per iteration.
-        // Memory-writing helpers at uncounted loop sites are excluded: the
-        // guessed ten-iteration multiplier over-admits clones whose bodies
-        // expand after lowering (measured +60 instructions in a loop for no
-        // comparable gas), while counted trip counts are real evidence.
         if self.mode == InlineMode::HotLeaves
             && (site.loop_depth == 0
                 || summary.phi_stack_peak.is_none()
@@ -1048,7 +1033,7 @@ impl MirInliner {
                 !single_call,
                 site.loop_executions,
                 summary.nested_calls,
-                u32::try_from(summary.check_opportunities).unwrap_or(u32::MAX) * 8,
+                site.profile_executions,
             );
         }
         const CODE_DEPOSIT_GAS_PER_BYTE: u128 = Target::CODE_DEPOSIT_GAS_PER_BYTE as u128;
@@ -1075,9 +1060,9 @@ impl MirInliner {
             site.loop_executions
         };
         let execution_savings = u128::from(estimated_icall_savings(self.target, site, summary))
-            .saturating_mul(u128::from(
+            .saturating_mul(u128::from(site.profile_executions.unwrap_or(
                 self.expected_executions_per_deployment.min(Target::DEFAULT_EXPECTED_EXECUTIONS),
-            ))
+            )))
             .saturating_mul(u128::from(loop_executions));
         execution_savings > added_deposit_cost
     }
@@ -1093,6 +1078,7 @@ struct CallSite {
     returns: usize,
     loop_depth: usize,
     loop_executions: u64,
+    profile_executions: Option<u64>,
     /// Whether every enclosing loop has a computed trip count.
     loop_counted: bool,
     has_constant_function_selector: bool,
@@ -1295,7 +1281,6 @@ fn summarize_function(
                     ..
                 } => {
                     summary.has_control_flow = true;
-                    summary.check_opportunities += 1;
                 }
                 InstKind::AbiEncodePacked { parts, hash: false }
                     if parts.iter().any(|part| {
@@ -1415,20 +1400,16 @@ fn summarize_function(
     summary
 }
 
-/// Loads a `-Zinline-profile` JSON file mapping function names to expected
-/// executions per deployment. A missing or malformed file disables the profile
-/// rather than failing the build.
-fn load_inline_profile(path: &str) -> Option<FxHashMap<String, u64>> {
-    let text = std::fs::read_to_string(path).ok()?;
-    let parsed: serde_json::Value = serde_json::from_str(&text).ok()?;
-    let object = parsed.as_object()?;
-    let mut profile = FxHashMap::with_capacity_and_hasher(object.len(), Default::default());
-    for (name, count) in object {
-        if let Some(count) = count.as_u64().filter(|&count| count > 0) {
-            profile.insert(name.clone(), count);
-        }
-    }
-    (!profile.is_empty()).then_some(profile)
+/// Loads per-deployment caller counts. Reject malformed entries instead of
+/// silently compiling with a partial or ignored profile. Zero is a cold caller.
+fn load_inline_profile(gcx: Gcx<'_>, path: &str) -> Result<FxHashMap<String, u64>, String> {
+    let text = gcx
+        .sess
+        .source_map()
+        .file_loader()
+        .load_file(path.as_ref())
+        .map_err(|error| error.to_string())?;
+    serde_json::from_str(&text).map_err(|error| error.to_string())
 }
 
 /// A frameless, argument-free failure payload cannot return past the inlined

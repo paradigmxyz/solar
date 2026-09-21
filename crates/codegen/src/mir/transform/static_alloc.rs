@@ -157,14 +157,16 @@ fn fmp_write_has_future_observer(func: &Function, cfg: &CfgInfo, inst_id: InstId
     false
 }
 
-/// Whether a later instruction directly reads the free-memory pointer or
-/// allocates after `inst_id`. Calls are not counted: the static-allocation
-/// analysis already proves interprocedurally whether a callee observes the
-/// pointer or its placement, and a callee that merely reads the pointer for
-/// scratch does not see the elided bump. Free-memory-pointer reads whose
-/// result is dead do not observe the elided bump either; their values are
-/// never consumed.
-fn alloc_bump_has_future_observer(func: &Function, cfg: &CfgInfo, inst_id: InstId) -> bool {
+/// Whether a later operation can observe the elided free-memory-pointer bump.
+/// Calls need summary checks even when they do not receive the allocation:
+/// observing the global FMP or MSIZE does not require a pointer argument.
+/// Dead direct FMP loads have no observer and can be ignored.
+fn alloc_bump_has_future_observer(
+    func: &Function,
+    cfg: &CfgInfo,
+    inst_id: InstId,
+    summaries: &MemoryCallSummaries,
+) -> bool {
     let Some((block, position)) = func.blocks.iter_enumerated().find_map(|(block, block_data)| {
         block_data
             .instructions
@@ -194,24 +196,34 @@ fn alloc_bump_has_future_observer(func: &Function, cfg: &CfgInfo, inst_id: InstI
             && func.inst_result_value(inst).is_some_and(|value| used.contains_key(&value))
     };
 
-    if func.blocks[block].instructions[position + 1..].iter().any(|&inst| {
-        match func.inst(inst).kind {
-            InstKind::Alloc { .. } | InstKind::Fmp | InstKind::SetFmp(_) => true,
-            InstKind::MLoad(..) => is_live_fmp_read(inst),
-            _ => false,
-        }
-    }) {
-        return true;
-    }
-    cfg.transitive_reachability().get(&block).into_iter().flat_map(|blocks| blocks.iter()).any(
-        |block| {
-            func.blocks[block].instructions.iter().copied().any(|inst| match func.inst(inst).kind {
-                InstKind::Alloc { .. } | InstKind::Fmp | InstKind::SetFmp(_) => true,
-                InstKind::MLoad(..) => is_live_fmp_read(inst),
-                _ => false,
+    let call_observes = |callee| {
+        summaries.get(callee).is_none_or(|summary| {
+            summary.may_observe_fmp() || summary.may_reset_fmp() || summary.may_observe_msize()
+        })
+    };
+    let observes = |inst| match func.inst(inst).kind {
+        InstKind::Alloc { .. } | InstKind::Fmp | InstKind::SetFmp(_) => true,
+        InstKind::MLoad(..) => is_live_fmp_read(inst),
+        InstKind::ICall { function: Callee::Function(callee), .. } => call_observes(callee),
+        _ => false,
+    };
+    let tail_observes = |block: BlockId| {
+        matches!(
+            func.blocks[block].terminator,
+            Some(Terminator::TailCall { function, .. }) if call_observes(function)
+        )
+    };
+    func.blocks[block].instructions[position + 1..].iter().copied().any(observes)
+        || tail_observes(block)
+        || cfg
+            .transitive_reachability()
+            .get(&block)
+            .into_iter()
+            .flat_map(|blocks| blocks.iter())
+            .any(|block| {
+                func.blocks[block].instructions.iter().copied().any(observes)
+                    || tail_observes(block)
             })
-        },
-    )
 }
 
 fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
@@ -312,7 +324,7 @@ fn eligible_static_allocations(
                 // allocation, or an explicit pointer write) makes the deferral
                 // unsound; inlining can otherwise bring such allocations into
                 // an entry from a consumed reference-returning helper.
-                || alloc_bump_has_future_observer(func, &cfg, alloc)
+                || alloc_bump_has_future_observer(func, &cfg, alloc, summaries)
             {
                 continue;
             }

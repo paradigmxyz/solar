@@ -1,0 +1,8 @@
+- // === ROOT/tests/ui/codegen/mir/inline/invalid_profile.mir (before inline) ===
++ // === ROOT/tests/ui/codegen/mir/inline/invalid_profile.mir (after inline) ===
+  @module InvalidProfile
+  fn @entry() [selector=0x01020304] {
+    bb0:
+      ret
+  }
+  
