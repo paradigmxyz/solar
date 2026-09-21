@@ -3,6 +3,25 @@
 types:
   struct0: {i256, i256}
 
+fn @allocationOverrun() -> i256 [selector=0xf939733e, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v1 = ptrtoint memoryfixedarray v0 to i256
+    memory_zero v1, 32
+    v2 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v3 = ptrtoint memoryfixedarray v2 to i256
+    memory_zero v3, 32
+    v4 = ptrtoint memoryfixedarray v0 to i256
+    v5 = add v4, 32
+    mstore v5, 1
+    v6 = ptrtoint memoryfixedarray v2 to i256
+    mstore v6, 2
+    v7 = ptrtoint memoryfixedarray v0 to i256
+    v8 = add v7, 32
+    v9 = keccak256 v8, 32
+    ret v9
+}
+
 fn @words() -> struct0 [selector=0xf2c31bd9, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, u256]] {
   bb0:
     mstore 128, 1

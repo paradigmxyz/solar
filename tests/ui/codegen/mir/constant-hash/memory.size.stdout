@@ -61,3 +61,28 @@
       ret v0
   }
   
+  fn @allocation_overrun() -> i256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = alloc raw, exact, uninitialized, infallible, 32
+      v2 = ptrtoint memptr v0 to i256
+      v3 = ptrtoint memptr v1 to i256
+      v4 = add v2, 32
+      mstore v4, 1
+      mstore v3, 2
+      v5 = keccak256 v4, 32
+      ret v5
+  }
+  
+  fn @allocation_disjoint() -> i256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = alloc raw, exact, uninitialized, infallible, 32
+      v2 = ptrtoint memptr v0 to i256
+      v3 = ptrtoint memptr v1 to i256
+      mstore v2, 1
+      mstore v3, 2
+      v4 = keccak256 v2, 32
+      ret v4
+  }
+  

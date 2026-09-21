@@ -2,7 +2,8 @@
 //!
 //! Track a bounded byte map using the shared alias analysis. Constant MSTORE
 //! and MSTORE8 writes supply big-endian bytes; ModRef removes every byte an
-//! intervening instruction may overwrite. Unknown bytes, oversized ranges,
+//! intervening instruction may overwrite. Allocation disjointness applies only
+//! within the allocation bounds. Unknown bytes, oversized ranges,
 //! joins, and unsupported addresses keep the runtime hash. No zero-initialized
 //! memory is assumed, and facts never cross a block boundary.
 //!
@@ -86,11 +87,15 @@ fn fold_block(
             let bytes = if size == 0 {
                 Some(Vec::new())
             } else {
-                alias.memory_address(func, address).and_then(|address| {
-                    (0..size)
-                        .map(|offset| memory.get(&address.checked_add(offset)?).copied())
-                        .collect::<Option<Vec<_>>>()
-                })
+                alias.bare_memory_location(func, address, LocationSize::Const(size)).and_then(
+                    |location| {
+                        (0..size)
+                            .map(|offset| {
+                                memory.get(&location.address.checked_add(offset)?).copied()
+                            })
+                            .collect::<Option<Vec<_>>>()
+                    },
+                )
             };
             if let Some(bytes) = bytes {
                 let hash = U256::from_be_bytes(keccak256(bytes).0);
@@ -126,9 +131,10 @@ fn fold_block(
             .metadata
             .effect()
             .is_none_or(|effect| effect == instruction.kind.effect_kind())
-            && let Some(address) = alias.memory_address(func, address)
+            && let Some(location) =
+                alias.bare_memory_location(func, address, LocationSize::Const(width))
             && let Some(value) = func.value_u256(value)
-            && address.checked_add(width - 1).is_some()
+            && location.address.checked_add(width - 1).is_some()
         {
             if memory.len() + width as usize > MAX_BYTES {
                 memory.clear();
@@ -136,7 +142,7 @@ fn fold_block(
             let bytes = value.to_be_bytes::<32>();
             for offset in 0..width {
                 memory.insert(
-                    address.checked_add(offset).unwrap(),
+                    location.address.checked_add(offset).unwrap(),
                     bytes[(32 - width + offset) as usize],
                 );
             }

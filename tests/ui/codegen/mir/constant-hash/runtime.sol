@@ -9,7 +9,18 @@
 //@ run-call: aliasing 159 => 0x6e1540171b6c0c960b71a7020d9f60077f6af931a8bbf590da0223dacf75c7af
 //@ run-call: aliasing 128 => 0x907b01d808c33f02296a53218680f6472b6c87f90e34f51f187a3d66b01e8dff
 //@ run-call: aliasing 160 => 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6
+//@ run-call: allocationOverrun => 0x405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace
 contract Hashes {
+    function allocationOverrun() external pure returns (bytes32 hash) {
+        uint256[1] memory a;
+        uint256[1] memory b;
+        assembly {
+            mstore(add(a, 32), 1)
+            mstore(b, 2)
+            hash := keccak256(add(a, 32), 32)
+        }
+    }
+
     function words() external pure returns (bytes32 hash, uint256 size) {
         assembly {
             mstore(128, 1)
