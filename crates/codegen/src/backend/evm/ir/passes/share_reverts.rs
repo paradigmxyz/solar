@@ -128,7 +128,7 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
         };
         let boundary =
             if condition == Some(op::ISZERO) { condition_end - 1 } else { condition_end };
-        if inverse.is_none() && !is_split_point(&block.instructions, boundary) {
+        if !is_split_point(&block.instructions, boundary) {
             continue;
         }
         // <condition>
