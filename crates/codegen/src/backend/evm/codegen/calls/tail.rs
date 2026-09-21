@@ -69,7 +69,7 @@ impl EvmCodegen<'_> {
         );
         // [inherited_return, caller_words], frame(args...)
         // => [inherited_return], frame(new_args...)
-        self.pop_stack_values_not_needed_by(args);
+        self.pop_stack_values_not_needed_by(func, args);
         for value in Self::missing_stack_phi_sources(&self.scheduler.stack, args) {
             self.emit_operand(func, value);
         }
@@ -145,7 +145,7 @@ impl EvmCodegen<'_> {
         args: &[ValueId],
     ) {
         // [inherited_return, caller_words] -> [inherited_return, args...]
-        self.pop_stack_values_not_needed_by(args);
+        self.pop_stack_values_not_needed_by(func, args);
         for value in Self::missing_stack_phi_sources(&self.scheduler.stack, args) {
             self.emit_operand(func, value);
         }

@@ -112,3 +112,26 @@ fn @variable_step(arg0: i256, arg1: i256) -> i256 {
   bb3:
     ret v0
 }
+
+// A loop value used by a downstream phi cannot bypass its original definition.
+// CHECK-LABEL: {{^[ +].*}}fn @downstream_phi{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @downstream_phi(arg0: i256, arg1: i1) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v1]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb4
+  bb2:
+    v1 = add v0, 1
+    v3 = lt v1, arg0
+    jumpi arg1, bb4, bb3
+  bb3:
+    jump bb1
+  bb4:
+    jump bb5
+  bb5:
+    v4 = phi [bb4: v0]
+    ret v4
+}

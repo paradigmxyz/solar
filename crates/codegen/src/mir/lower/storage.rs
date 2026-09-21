@@ -150,7 +150,7 @@ impl<'gcx> StorageLayout<'gcx> {
         self.builder.locate_field(struct_id, field)
     }
 
-    pub(super) fn element_slots(&self, ty: Ty<'gcx>, span: Span) -> u64 {
+    pub(super) fn element_slots(&self, ty: Ty<'gcx>, span: Span) -> U256 {
         self.builder.storage_slots(ty, span)
     }
 
@@ -287,7 +287,7 @@ impl StorageCursor {
     fn take(
         &mut self,
         encoding: Option<(TypeSize, StorageEncoding)>,
-        slots: u64,
+        slots: U256,
     ) -> Option<StorageLocation> {
         if let Some((size, encoding)) = encoding
             && size < StorageLocation::WORD
@@ -318,7 +318,7 @@ impl StorageCursor {
             encoding: StorageEncoding::Unsigned,
             transient: self.transient,
         };
-        self.slot = self.slot.checked_add(U256::from(slots))?;
+        self.slot = self.slot.checked_add(slots)?;
         Some(location)
     }
 
@@ -330,9 +330,9 @@ impl StorageCursor {
         Some(())
     }
 
-    fn slots(&mut self) -> Option<u64> {
+    fn slots(&mut self) -> Option<U256> {
         self.finish_word()?;
-        self.slot.try_into().ok()
+        Some(self.slot)
     }
 }
 
@@ -433,39 +433,35 @@ impl<'gcx> StorageBuilder<'gcx> {
         })
     }
 
-    fn storage_slots(&self, ty: Ty<'gcx>, span: Span) -> u64 {
-        self.storage_slots_inner(ty, span).unwrap_or(1)
+    fn storage_slots(&self, ty: Ty<'gcx>, span: Span) -> U256 {
+        self.storage_slots_inner(ty, span).unwrap_or(U256::ONE)
     }
 
-    fn storage_slots_inner(&self, ty: Ty<'gcx>, span: Span) -> Option<u64> {
+    fn storage_slots_inner(&self, ty: Ty<'gcx>, span: Span) -> Option<U256> {
         match ty.peel_refs().kind {
             TyKind::Struct(id) => {
                 self.sequence_slots(self.struct_field_types(id).iter().copied(), span)
             }
             TyKind::Array(element, len) => {
-                let Ok(len) = u64::try_from(len) else {
-                    self.unsupported_size(span, "fixed-size storage array");
-                    return None;
-                };
                 if let Some((size, _)) = self.packed_encoding(element)
                     && size < StorageLocation::WORD
                 {
                     let bytes = u64::from(size.bytes());
                     let elements_per_slot = u64::from(StorageLocation::word_bytes()) / bytes;
-                    return Some(len.div_ceil(elements_per_slot).max(1));
+                    return Some(len.div_ceil(U256::from(elements_per_slot)).max(U256::ONE));
                 }
                 let slots = self.storage_slots_inner(element, span)?;
                 let Some(slots) = len.checked_mul(slots) else {
                     self.unsupported_size(span, "fixed-size storage array");
                     return None;
                 };
-                Some(slots.max(1))
+                Some(slots.max(U256::ONE))
             }
-            _ => Some(1),
+            _ => Some(U256::ONE),
         }
     }
 
-    fn sequence_slots(&self, tys: impl Iterator<Item = Ty<'gcx>>, span: Span) -> Option<u64> {
+    fn sequence_slots(&self, tys: impl Iterator<Item = Ty<'gcx>>, span: Span) -> Option<U256> {
         let mut cursor = StorageCursor::new(U256::ZERO, false);
         for ty in tys {
             let encoding = self.packed_encoding(ty);
@@ -479,7 +475,7 @@ impl<'gcx> StorageBuilder<'gcx> {
             self.unsupported_size(span, "storage struct");
             return None;
         };
-        Some(slots.max(1))
+        Some(slots.max(U256::ONE))
     }
 
     fn unsupported_size(&self, span: Span, kind: &str) {

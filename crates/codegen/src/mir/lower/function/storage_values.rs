@@ -849,9 +849,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         base_slot: ValueId,
         index: ValueId,
-        element_slots: u64,
+        element_slots: U256,
     ) -> ValueId {
-        if element_slots == 1 {
+        if element_slots == U256::ONE {
             self.builder.add(base_slot, index)
         } else {
             let stride = self.builder.imm(element_slots);
@@ -1127,7 +1127,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.memory_object_store_element(object, layout, index, value);
         let next_index = self.builder.add_u64_offset(index, 1);
         let element_slots = self.cx.storage.element_slots(element, Span::DUMMY);
-        let next_slot = self.builder.add_u64_offset(element_slot, element_slots);
+        let next_slot = self.add_storage_offset(element_slot, element_slots);
         let backedge = self.builder.current_block();
         self.builder.jump(header);
         self.builder.add_phi_incoming(index, backedge, next_index);
@@ -1596,7 +1596,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some(());
                 }
 
-                let len = u64::try_from(len).ok()?;
                 let len = self.builder.imm(len);
                 self.counted_loop(len, |this, index| {
                     let element_access = this.storage_array_element_access(

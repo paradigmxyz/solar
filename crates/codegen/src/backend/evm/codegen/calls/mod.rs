@@ -132,7 +132,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let caller_stack = if resident_call_values.is_empty() {
             None
         } else {
-            self.pop_stack_values_not_needed_by(&resident_call_values);
+            self.pop_stack_values_not_needed_by(func, &resident_call_values);
             let target =
                 resident_call_values.iter().copied().map(TargetSlot::Value).collect::<Vec<_>>();
             let shuffle = self.scheduler.shuffle_to_layout(&target).unwrap_or_else(|| {
@@ -732,7 +732,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let caller_stack = if carries_resident_stack {
-            self.pop_stack_values_not_needed_by(&resident_call_values);
+            self.pop_stack_values_not_needed_by(func, &resident_call_values);
             let target =
                 resident_call_values.iter().copied().map(TargetSlot::Value).collect::<Vec<_>>();
             let shuffle = self.scheduler.shuffle_to_layout(&target).unwrap_or_else(|| {

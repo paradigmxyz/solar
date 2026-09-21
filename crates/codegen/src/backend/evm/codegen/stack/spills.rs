@@ -521,17 +521,18 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     pub(in crate::backend::evm::codegen) fn pop_stack_values_not_needed_by(
         &mut self,
+        func: &Function,
         needed: &[ValueId],
     ) {
         while let Some(depth) = self.first_stack_value_not_needed_by(needed) {
+            let saved =
+                self.save_stack_prefix(func, depth.saturating_sub(self.stack_access_limit()));
+            let depth = depth.min(self.stack_access_limit());
             if depth > 0 {
-                assert!(
-                    depth <= self.stack_access_limit(),
-                    "resident stack discard exceeded SWAP reach"
-                );
                 self.emit_stack_op(StackOp::Swap(depth as u8));
             }
             self.emit_stack_op(StackOp::Pop);
+            self.restore_stack_prefix(func, saved);
         }
     }
 
@@ -1043,10 +1044,21 @@ impl<'gcx> EvmCodegen<'gcx> {
         let stack_access_limit = self.stack_access_limit();
         debug_assert!(depth >= stack_access_limit);
 
-        let mut saved_above = Vec::with_capacity(depth + 1 - stack_access_limit);
-        for _ in 0..(depth + 1 - stack_access_limit) {
+        let saved_above = self.save_stack_prefix(func, depth + 1 - stack_access_limit);
+
+        let Some(accessible_depth) = self.scheduler.stack.find(val) else {
+            panic!("cannot spill deep stack value {val:?}: value disappeared while exposing it");
+        };
+        self.spill_accessible_stack_value(func, val, slot, accessible_depth);
+
+        self.restore_stack_prefix(func, saved_above);
+    }
+
+    fn save_stack_prefix(&mut self, func: &Function, count: usize) -> Vec<(ValueId, ScheduledOp)> {
+        let mut saved_above = Vec::with_capacity(count);
+        for _ in 0..count {
             let Some(top) = self.scheduler.stack.top() else {
-                panic!("cannot spill deep stack value {val:?}: untracked stack entry above it");
+                panic!("cannot save untracked stack entry");
             };
             let restore = if let Some(op) = Self::always_rematerializable_op(func, top) {
                 self.emit_stack_op(StackOp::Pop);
@@ -1063,11 +1075,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             saved_above.push((top, restore));
         }
 
-        let Some(accessible_depth) = self.scheduler.stack.find(val) else {
-            panic!("cannot spill deep stack value {val:?}: value disappeared while exposing it");
-        };
-        self.spill_accessible_stack_value(func, val, slot, accessible_depth);
+        saved_above
+    }
 
+    fn restore_stack_prefix(&mut self, func: &Function, saved_above: Vec<(ValueId, ScheduledOp)>) {
         for (saved, restore) in saved_above.into_iter().rev() {
             let stack_depth = self.scheduler.depth();
             self.record_scheduled_ops_peak(stack_depth, std::slice::from_ref(&restore));

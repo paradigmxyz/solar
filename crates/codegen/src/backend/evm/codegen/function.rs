@@ -489,7 +489,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .flatten()
                     .filter(|value| live_in.contains(*value))
                     .collect();
-                self.pop_stack_values_not_needed_by(&needed);
+                self.pop_stack_values_not_needed_by(func, &needed);
             }
 
             // Generate instructions
@@ -724,7 +724,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     return false;
                 }
                 self.spill_live_out_values_except(func, liveness, block_id, &edge.results);
-                self.pop_stack_values_not_needed_by(&edge.sources);
+                self.pop_stack_values_not_needed_by(func, &edge.sources);
                 self.try_emit_stack_phi_edge(func, edge)
             });
             let stack_phi_branch_preserved = block
@@ -786,7 +786,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // before imposing a global argument layout that would spill them. A cold terminal
             // sibling can receive the same stack when it does not need the carried values.
             // Leave a condition that must survive its branch to the global planner.
-            let preserve_branch_targets = if (!has_edge_specific_global
+            let mut preserve_branch_targets = if (!has_edge_specific_global
                 || block.terminator.as_ref().is_some_and(|term| {
                     matches!(term, Terminator::Branch { condition, .. }
                         if !liveness.live_out(block_id).contains(*condition))
@@ -799,6 +799,20 @@ impl<'gcx> EvmCodegen<'gcx> {
             } else {
                 Vec::new()
             };
+            // A shared terminal may ignore extra words, but it must receive every word
+            // in its planned layout because its scheduler can emit cleanup pops for them.
+            if block.terminator.as_ref().is_some_and(|term| {
+                term.successors().iter().any(|target| {
+                    !preserve_branch_targets.contains(target)
+                        && (global_stack_plan.entry(*target).is_some_and(|entry| !entry.is_empty())
+                            || stack_phi_plan
+                                .entries
+                                .get(target)
+                                .is_some_and(|entry| !entry.is_empty()))
+                })
+            }) {
+                preserve_branch_targets.clear();
+            }
             if !preserve_branch_targets.is_empty()
                 && let Some(Terminator::Branch { condition, .. }) = block.terminator.as_ref()
                 && liveness.live_out(block_id).contains(*condition)
@@ -819,18 +833,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
             if !preserve_branch_targets.is_empty() {
-                // Junk-terminal siblings may have argument padding in their global plan,
-                // but every planned value must be dead here; no phi layout may be bypassed.
-                debug_assert!(block.terminator.as_ref().is_none_or(|term| {
-                    term.successors().iter().all(|target| {
-                        preserve_branch_targets.contains(target)
-                            || (global_stack_plan.entry(*target).is_none_or(|entry| {
-                                entry
-                                    .iter()
-                                    .all(|value| !liveness.live_in(*target).contains(*value))
-                            }) && stack_phi_plan.entries.get(target).is_none_or(Vec::is_empty))
-                    })
-                }));
                 self.remove_dead_carried_spill_stores(
                     func,
                     liveness,

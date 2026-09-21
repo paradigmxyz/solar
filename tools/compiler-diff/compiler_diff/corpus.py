@@ -1,6 +1,6 @@
 """Maintain a local Sourcify corpus and resumable standard-JSON compiler runs.
 
-Usage (data stays under --dir/--version, default /tmp/solar-sourcify/0.8.36):
+Usage (data stays under --dir/--version, default /tmp/solar-sourcify/0.8.37):
     uv run scripts/sourcify.py sync
     uv run scripts/sourcify.py --version 0.8.34 sync
     uv run scripts/sourcify.py run
@@ -9,7 +9,7 @@ Usage (data stays under --dir/--version, default /tmp/solar-sourcify/0.8.36):
     uv run scripts/sourcify.py --dir /data/sourcify status
     uv run scripts/sourcify.py self-test
 
-`sync` selects every compilation for --version (default 0.8.36) in the daily
+`sync` selects every compilation for --version (default 0.8.37) in the daily
 public v2 export, across all chains, deduplicated by Sourcify compilation ID
 rather than deployment.
 It reads remote Parquet columns with DuckDB, retaining only matching records and
@@ -90,7 +90,7 @@ from .artifacts import contract_outputs
 from .display import show_attempt
 
 EXPORT = "https://export.sourcify.dev"
-DEFAULT_VERSION = "0.8.36"
+DEFAULT_VERSION = "0.8.37"
 # Bump when stricter output checks invalidate cached results.
 VALIDATION_VERSION = 1
 OUTPUTS = {
@@ -908,7 +908,7 @@ class Tests(unittest.TestCase):
             self.assertEqual(
                 main(["--dir", str(base), "--version", "0.8.34", "status"]), 0
             )
-        self.assertTrue((base / "0.8.36" / "corpus.duckdb").is_file())
+        self.assertTrue((base / DEFAULT_VERSION / "corpus.duckdb").is_file())
         self.assertTrue((base / "0.8.34" / "corpus.duckdb").is_file())
         self.assertFalse((base / "corpus.duckdb").exists())
         with patch("sys.stderr", new=io.StringIO()):

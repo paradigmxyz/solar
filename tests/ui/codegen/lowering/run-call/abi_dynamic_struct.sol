@@ -1,4 +1,5 @@
 //@ filecheck:
+//@ run-call: WideCalldataEncoding::check; constructor=[32] => 1
 // CHECK: @module
 //@ codegen-matrix: standard amsterdam
 //@[amsterdam] compile-flags: -O gas --evm-version amsterdam
@@ -160,5 +161,76 @@ contract AbiDynamicStruct {
             mstore(0, 99)
         }
         return values[0].data.length;
+    }
+}
+
+contract WideCalldataEncoding {
+    struct Config {
+        string name;
+        string symbol;
+        bytes32 seasonId;
+        string seasonName;
+        string collectionColor;
+        string textColor;
+        uint256 roundId;
+        uint256 maxSupply;
+        uint256 mintPrice;
+        uint256 mintDeadline;
+        address initialOwner;
+        address vrfCoordinator;
+        bytes32 keyHash;
+        uint16 requestConfirmations;
+        uint32 callbackGasLimit;
+        uint256 maxAffiliateSlots;
+        address enrollmentSigner;
+        uint256 prizeBps;
+        uint256 affiliatePoolBps;
+        address affiliateEligibility;
+        uint256 winnerCount;
+        uint256 minAffiliateReferrals;
+        uint256 affiliatePayoutCapBps;
+        uint256 saleStartAt;
+    }
+    address public immutable factory;
+    address public immutable codePart1;
+    address public immutable codePart2;
+    uint256 private immutable firstLength;
+    uint256 private immutable secondLength;
+    constructor(uint256 size) {
+        factory = address(this);
+        codePart1 = msg.sender;
+        codePart2 = msg.sender;
+        firstLength = size;
+        secondLength = size;
+    }
+    error OnlyFactory();
+    error DeploymentFailed();
+    function deploy(Config calldata config, address renderer) external returns (address round) {
+        if (msg.sender != factory) revert OnlyFactory();
+        bytes memory code = new bytes(firstLength + secondLength);
+        address part1 = codePart1;
+        address part2 = codePart2;
+        uint256 firstSize = firstLength;
+        uint256 secondSize = secondLength;
+        assembly ("memory-safe") {
+            extcodecopy(part1, add(code, 32), 1, firstSize)
+            extcodecopy(part2, add(add(code, 32), firstSize), 1, secondSize)
+        }
+        bytes memory init = abi.encodePacked(code, abi.encode(config, renderer));
+        assembly ("memory-safe") { round := create(0, add(init, 32), mload(init)) }
+        if (round == address(0)) revert DeploymentFailed();
+    }
+
+    function check() external returns (uint256) {
+        Config memory config;
+        config.name = "cat";
+        config.symbol = "CAT";
+        config.seasonName = "one";
+        config.collectionColor = "red";
+        config.textColor = "blue";
+        config.roundId = 7;
+        config.prizeBps = 11;
+        config.saleStartAt = 13;
+        return this.deploy(config, address(17)) == address(0) ? 0 : 1;
     }
 }

@@ -170,7 +170,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 Some(TyKind::Type(_))
                             )
                     );
-                if is_item_reference {
+                if is_item_reference
+                    || (matches!(expr.kind, ExprKind::Ident(_))
+                        && self.cx.gcx.resolved_builtin(expr).is_some()
+                        && matches!(
+                            self.cx.gcx.type_of_expr(expr.id).map(|ty| ty.kind),
+                            Some(TyKind::Fn(_))
+                        ))
+                {
                     return Some(());
                 }
                 if let ExprKind::Assign(lhs, None, rhs) = &expr.kind

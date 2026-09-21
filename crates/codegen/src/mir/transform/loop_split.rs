@@ -24,9 +24,9 @@
 //! original loop the exact loop-carried state where it stops. Every loop
 //! block is cloned with its instructions and effects unchanged. Edges that
 //! leave the loop from its body reach the same blocks from both copies;
-//! their phis gain the cloned edge, and such a loop qualifies only when no
-//! loop-defined value is used outside the loop except by a phi, so every
-//! definition still dominates its uses.
+//! their phis gain the cloned edge. Loop-defined values may escape only on
+//! those direct exit edges; downstream uses would lose their dominating
+//! definition when the cloned loop bypasses the original loop.
 //!
 //! Profitability: gas mode only, since the loop's code is duplicated; the
 //! loop is bounded in instructions and must hold a guard to fold. Runs
@@ -212,8 +212,12 @@ fn plan(func: &Function, loops: &LoopInfo, l: &Loop) -> Option<Split> {
             }
             let in_instructions = body.instructions.iter().any(|&inst| {
                 let kind = &func.inst(inst).kind;
-                !matches!(kind, InstKind::Phi(_))
-                    && kind.operands().into_iter().any(defined_in_loop)
+                match kind {
+                    InstKind::Phi(incoming) => incoming
+                        .iter()
+                        .any(|&(from, value)| !l.blocks.contains(from) && defined_in_loop(value)),
+                    _ => kind.operands().into_iter().any(defined_in_loop),
+                }
             });
             let in_terminator = body
                 .terminator

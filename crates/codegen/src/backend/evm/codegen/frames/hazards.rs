@@ -183,7 +183,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Finds helpers returning heap pointers, including chains of already-proven helpers.
-    /// Unknown calls and writes to the free-memory pointer exclude a function.
+    /// Unknown calls and non-heap writes to the free-memory pointer exclude a function.
     /// Iteration only adds proven functions, so recursive call cycles remain unknown.
     pub(in crate::backend::evm::codegen) fn collect_heap_pointer_return_functions(
         module: &Module,
@@ -192,26 +192,39 @@ impl<'gcx> EvmCodegen<'gcx> {
         loop {
             let mut changed = false;
             for (func_id, func) in module.functions.iter_enumerated() {
-                if functions.contains(func_id)
-                    || func.instructions().any(|inst_id| match func.inst(inst_id).kind {
-                        InstKind::ICall { function: Callee::Function(callee), .. } => {
-                            !functions.contains(callee)
-                        }
-                        InstKind::ICall { .. } | InstKind::SetFmp(_) => true,
-                        InstKind::MStore(address, _) => {
-                            func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
-                        }
-                        _ => false,
-                    })
-                    || func
-                        .blocks
-                        .iter()
-                        .any(|block| matches!(block.terminator, Some(Terminator::TailCall { .. })))
+                if functions.contains(func_id) {
+                    continue;
+                }
+                let aa = AliasAnalysis::new(func);
+                let is_heap_pointer = |value| {
+                    Self::heap_pointer_provenance_with_helpers(
+                        func,
+                        &aa,
+                        value,
+                        &functions,
+                        &mut DenseBitSet::new_empty(func.num_values()),
+                        &mut FxHashMap::default(),
+                    ) == Some(true)
+                };
+                if func.instructions().any(|inst_id| match func.inst(inst_id).kind {
+                    InstKind::ICall { function: Callee::Function(callee), .. } => {
+                        !functions.contains(callee)
+                    }
+                    InstKind::ICall { .. } => true,
+                    InstKind::SetFmp(value) => !is_heap_pointer(value),
+                    InstKind::MStore(address, value) => {
+                        func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+                            && !is_heap_pointer(value)
+                    }
+                    _ => false,
+                }) || func
+                    .blocks
+                    .iter()
+                    .any(|block| matches!(block.terminator, Some(Terminator::TailCall { .. })))
                 {
                     continue;
                 }
 
-                let aa = AliasAnalysis::new(func);
                 let mut saw_return = false;
                 let mut valid = true;
                 for block in &func.blocks {
@@ -221,17 +234,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         valid = false;
                         break;
                     }
-                    let mut visiting = DenseBitSet::new_empty(func.num_values());
-                    let mut memo = FxHashMap::default();
-                    if Self::heap_pointer_provenance_with_helpers(
-                        func,
-                        &aa,
-                        values[0],
-                        &functions,
-                        &mut visiting,
-                        &mut memo,
-                    ) != Some(true)
-                    {
+                    if !is_heap_pointer(values[0]) {
                         valid = false;
                         break;
                     }

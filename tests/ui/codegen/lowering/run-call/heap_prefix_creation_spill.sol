@@ -1,4 +1,5 @@
 //@ codegen-matrix: standard
+//@ run-call: AllocatingCopy::check 0x112233, 7 => 25
 //@ run-call: Harness::run => 1
 //@ run-call: HeapPrefixTuple::check 1 => 9
 //@ run-call: HeapPrefixTuple::checkSecond 1 => 9
@@ -146,5 +147,34 @@ contract HeapPrefixRecursive {
             mstore(sub(data, 288), 0xdeadbeef)
         }
         return seed;
+    }
+}
+
+contract AllocatingCopy {
+    function check(bytes calldata data, uint256 seed) external pure returns (uint256) {
+        uint256 live = increment(seed);
+        uint256 ptr = allocate(data.length);
+        assembly ("memory-safe") {
+            calldatacopy(ptr, data.offset, data.length)
+        }
+        if (data.length == 0) return live;
+        uint256 first;
+        assembly ("memory-safe") {
+            first := byte(0, mload(ptr))
+        }
+        return live + first;
+    }
+
+    function increment(uint256 value) internal pure returns (uint256) {
+        return value + 1;
+    }
+
+    function allocate(uint256 size) internal pure returns (uint256 ptr) {
+        assembly ("memory-safe") {
+            ptr := mload(0x40)
+            let end := add(ptr, and(add(size, 31), not(31)))
+            if or(gt(end, 0xffffffffffffffff), lt(end, ptr)) { revert(0, 0) }
+            mstore(0x40, end)
+        }
     }
 }

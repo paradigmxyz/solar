@@ -15,16 +15,16 @@ uv run --project tools/compiler-diff compiler-diff self-test
 ```
 
 All commands accept `--dir` and `--version` **before** the subcommand. Data goes
-under `<dir>/<version>`; defaults are `/tmp/solar-sourcify` and `0.8.36`.
+under `<dir>/<version>`; defaults are `/tmp/solar-sourcify` and `0.8.37`.
 Use the environment variables above to keep uv's cache and environment there too.
 
 ## Inputs and compilation
 
 ```sh
-uv run --project tools/compiler-diff compiler-diff --version 0.8.36 sync
+uv run --project tools/compiler-diff compiler-diff --version 0.8.37 sync
 uv run --project tools/compiler-diff compiler-diff run \
   --compiler 'solc=/path/to/solc --standard-json' \
-  --compiler 'solar=/path/to/solar --standard-json' --limit 20
+  --compiler 'solar=/path/to/solar --standard-json -Zvalidate-ir=true' --limit 20
 
 # Use a separate directory for local repros.
 uv run --project tools/compiler-diff compiler-diff \
