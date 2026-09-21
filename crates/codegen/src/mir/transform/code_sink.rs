@@ -12,7 +12,10 @@
 //! and control effects stop the source scan. Neither endpoint may belong to a
 //! cycle: sinking must not introduce repeated work. This bounded late pass
 //! avoids work on the unused branch and shortens live ranges without changing
-//! CFG edges or adding instructions. At most one distinct nonconstant operand
+//! CFG edges or adding instructions. Branch sinking is disabled in functions
+//! that may write persistent storage, including through calls or creation:
+//! skipped work must not leave extra gas at an SSTORE sentry on another path.
+//! At most one distinct nonconstant operand
 //! may replace the result across the branch, limiting added stack pressure.
 //! It does not attempt shared-code placement,
 //! cross-join sinking, cloning, or memory-read motion. The default pipeline
@@ -60,6 +63,23 @@ fn run(func: &mut Function) -> bool {
     }) {
         return false;
     }
+    let may_write_storage = |effect| {
+        matches!(
+            effect,
+            EffectKind::StorageWrite
+                | EffectKind::ICall
+                | EffectKind::ExternalCall
+                | EffectKind::Create
+        )
+    };
+    let can_sink_branches = !func.instructions().any(|inst| {
+        let instruction = func.inst(inst);
+        may_write_storage(instruction.kind.effect_kind())
+            || instruction.metadata.effect().is_some_and(may_write_storage)
+    }) && !func
+        .blocks
+        .iter()
+        .any(|block| matches!(block.terminator, Some(Terminator::TailCall { .. })));
     let cfg = CfgInfo::new(func);
     let mut owners = index_vec![BlockId::ENTRY; func.num_insts()];
     let mut users =
@@ -90,7 +110,7 @@ fn run(func: &mut Function) -> bool {
         else {
             continue;
         };
-        if cfg.cyclic_blocks().contains(block) {
+        if !can_sink_branches || cfg.cyclic_blocks().contains(block) {
             continue;
         }
         let original = func.blocks[block].instructions.clone();

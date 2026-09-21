@@ -62,10 +62,11 @@ bb7:
   jumpi
   push 64
   mload
+  dup 1
   push 64
-  dup 2
+  dup 3
   add
-  dup 2
+  dup 3
   dup 2
   lt
   push 0
@@ -77,8 +78,6 @@ bb7:
   or
   push bb46
   jumpi
-  dup 2
-  swap 1
   push 64
   mstore
   push 64
@@ -204,22 +203,20 @@ bb10 [continuation]:
   dup 4
   add
   mload
+  push 0
+  byte
   swap 2
   push 3
   gt
   push bb40
   jumpi
-  swap 1
-  push 0
-  byte
   swap 2
   push 34
   add
   mload
-  swap 1
+  swap 2
   push 128
   mstore
-  swap 1
   push 160
   mstore
   push 0

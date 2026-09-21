@@ -73,6 +73,10 @@ bb15:
 bb7 [continuation]:
   dup 1
   calldataload
+  swap 1
+  push 32
+  add
+  swap 1
   push 68
   calldataload
   gt
@@ -84,8 +88,6 @@ bb7 [continuation]:
   or
   push bb4
   jumpi
-  push 32
-  add
   push 36
   calldataload
   push 68
@@ -124,15 +126,15 @@ bb10:
 bb12 [continuation]:
   dup 1
   calldataload
-  push 36
-  calldataload
-  dup 2
-  lt
-  push bb4
-  jumpi
   swap 1
   push 32
   add
+  push 36
+  calldataload
+  dup 3
+  lt
+  push bb4
+  jumpi
   push 36
   calldataload
   swap 1

@@ -609,10 +609,10 @@ fn @decode.8(arg0: memptr) -> memptr [may_return_memory, pure] {
     jumpi v133, bb30, bb6
   bb6:
     v19 = phi [bb5: v132], [bb3: v117]
+    v134 = sub v0, 2
     v135 = lt v0, 2
     jumpi v135, bb30, bb31
   bb31:
-    v134 = sub v0, 2
     v388 = add v353, v134
     v389 = mload v388
     v390 = byte 0, v389
@@ -1017,13 +1017,13 @@ fn @decode.8(arg0: memptr) -> memptr [may_return_memory, pure] {
     jump bb40
   bb1:
     v431 = mload 64 !metadata(memory=scratch)
+    v4 = inttoptr i256 v431 to memptr !metadata(memory=scratch)
     v432 = add v431, 32
     v433 = lt v432, v431
     v434 = gt v432, 0xffffffffffffffff
     v435 = or v433, v434
     jumpi v435, bb80, bb79
   bb79:
-    v4 = inttoptr i256 v431 to memptr !metadata(memory=scratch)
     mstore 64, v432 !metadata(memory=scratch)
     mstore v431, 0
     ret v4
