@@ -883,11 +883,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && rhs_ty.is_ref_at(DataLocation::Storage)
                 {
                     self.lower_typed_expr(rhs, memory_rhs_ty)?
-                } else if fixed_bytes.is_some()
-                    && compound_op.is_some_and(|op| {
-                        !matches!(op, BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar)
-                    })
-                {
+                } else if compound_op.is_some_and(|op| {
+                    !matches!(op, BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar)
+                }) {
                     self.lower_typed_expr(rhs, lhs_ty)?
                 } else {
                     self.lower_expr(rhs)?

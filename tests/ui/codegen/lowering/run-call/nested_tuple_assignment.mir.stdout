@@ -1,10 +1,157 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/nested_tuple_assignment.sol:NestedTupleAssignment ===
 @module NestedTupleAssignment
 types:
-  struct0: {i256, i256, i256}
-  struct1: {i256, i256, i256, i256}
+  struct0: {i16, i256}
+  struct1: {i16, i1}
+  struct2: {i256, i16}
+  struct3: {i256, i256, i256}
+  struct4: {i256, i256, i256, i256}
 
-fn @assign() -> struct0 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @signedChoice(arg0: i1) -> struct0 [selector=0x5f671a76, pure, abi_params=[bool], abi_returns=[word<i16>, word], abi_return_params=[i16, u256]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v0 = sub 0, 1
+    v1 = trunc i256 v0 to i8
+    v2 = sext i8 v1 to i16
+    jump bb3
+  bb3:
+    v3 = phi [bb1: v2], [bb2: i16 256]
+    v4 = phi [bb1: 7], [bb2: 9]
+    v5 = insert_value struct0, undef struct0, 0, v3
+    v6 = insert_value struct0, v5, 1, v4
+    ret v6
+}
+
+fn @unsignedChoice(arg0: i1) -> struct1 [selector=0x77048b54, pure, abi_params=[bool], abi_returns=[word<u16>, word<bool>], abi_return_params=[u16, bool]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: i16 255], [bb2: i16 256]
+    v1 = phi [bb1: true], [bb2: false]
+    v2 = insert_value struct1, undef struct1, 0, v0
+    v3 = insert_value struct1, v2, 1, v1
+    ret v3
+}
+
+fn @arrayChoice(arg0: i1) -> struct2 [selector=0xce7c4148, pure, abi_params=[bool], abi_returns=[word, word<i16>], abi_return_params=[u256, i16]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v0, 1
+    v1 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v1, 1
+    v2 = memory_object_len memoryarray, v0
+    v3 = lt 0, v2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    memory_object_store_element memoryarray<1>, v0, 0, 7
+    v5 = memory_object_len memoryarray, v1
+    v6 = lt 0, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    memory_object_store_element memoryarray<1>, v1, 0, 9
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v8 = sub 0, 1
+    v9 = trunc i256 v8 to i8
+    v10 = sext i8 v9 to i16
+    jump bb3
+  bb3:
+    v11 = phi [bb1: v0], [bb2: v1]
+    v12 = phi [bb1: v10], [bb2: i16 256]
+    v13 = memory_object_len memoryarray, v11
+    v14 = lt 0, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = memory_object_load_element memoryarray<1>, v11, 0
+    v17 = insert_value struct2, undef struct2, 0, v16
+    v18 = insert_value struct2, v17, 1, v12
+    ret v18
+}
+
+fn @sliceChoice(arg0: i1) -> struct2 [selector=0xdc4067fd, view, abi_params=[bool], abi_returns=[word, word<i16>], abi_return_params=[u256, i16]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v2, 2
+    v3 = memory_object_data memorybytes, v2
+    v4 = ptrtoint memptr v3 to i256
+    mstore v4, 0x708000000000000000000000000000000000000000000000000000000000000
+    v5 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v5, 2
+    v6 = memory_object_data memorybytes, v5
+    v7 = ptrtoint memptr v6 to i256
+    mstore v7, 0x90a000000000000000000000000000000000000000000000000000000000000
+    v8 = zext i1 arg0 to i256
+    v9 = abi_encode [word<bool>, memory_bytes, memory_bytes], selector 0xe745f2b200000000000000000000000000000000000000000000000000000000, args v8, v2, v5
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = zext i160 v0 to i256
+    v13 = staticcall v1, v12, v10, v11, v10, 64
+    jumpi v13, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v14 = returndatasize
+    v15 = lt v14, 64
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = add v10, 0
+    v17 = mload v16
+    v18 = add v10, 32
+    v19 = mload v18
+    v20 = signextend 1, v19
+    v21 = eq v19, v20
+    v22 = eq v21, false
+    icall revert_if<empty>, v22
+    v23 = trunc i256 v19 to i16
+    v24 = insert_value struct2, undef struct2, 0, v17
+    v25 = insert_value struct2, v24, 1, v23
+    v26 = extract_value struct2, v25, 0
+    v27 = extract_value struct2, v25, 1
+    v28 = insert_value struct2, undef struct2, 0, v26
+    v29 = insert_value struct2, v28, 1, v27
+    ret v29
+}
+
+fn @slicePair(arg0: i1, arg1: calldataslice, arg2: calldataslice) -> struct2 [selector=0xe745f2b2, pure, abi_params=[bool, bytes, bytes], abi_returns=[word, word<i16>], abi_return_params=[u256, i16]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v0 = sub 0, 1
+    v1 = trunc i256 v0 to i8
+    v2 = sext i8 v1 to i16
+    jump bb3
+  bb3:
+    v3 = phi [bb1: arg1], [bb2: arg2]
+    v4 = phi [bb1: v2], [bb2: i16 256]
+    v5 = slice_len v3
+    v6 = lt 0, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = slice_ptr v3
+    v9 = calldata_slice_load_word calldata, v3, 0
+    v10 = byte 0, v9
+    v11 = shl 248, v10
+    v12 = shr 248, v11
+    v13 = trunc i256 v12 to i8
+    v14 = zext i8 v13 to i256
+    v15 = insert_value struct2, undef struct2, 0, v14
+    v16 = insert_value struct2, v15, 1, v4
+    ret v16
+}
+
+fn @assign() -> struct3 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1
@@ -48,17 +195,17 @@ fn @assign() -> struct0 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[
     v30 = shr 248, v29
     v31 = trunc i256 v30 to i8
     v32 = zext i8 v31 to i256
-    v33 = insert_value struct0, undef struct0, 0, v16
-    v34 = insert_value struct0, v33, 1, v24
-    v35 = insert_value struct0, v34, 2, v32
+    v33 = insert_value struct3, undef struct3, 0, v16
+    v34 = insert_value struct3, v33, 1, v24
+    v35 = insert_value struct3, v34, 2, v32
     ret v35
 }
 
-fn @swap() -> struct1 [selector=0x8119c065, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @swap() -> struct4 [selector=0x8119c065, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
-    v0 = insert_value struct1, undef struct1, 0, 2
-    v1 = insert_value struct1, v0, 1, 1
-    v2 = insert_value struct1, v1, 2, 4
-    v3 = insert_value struct1, v2, 3, 3
+    v0 = insert_value struct4, undef struct4, 0, 2
+    v1 = insert_value struct4, v0, 1, 1
+    v2 = insert_value struct4, v1, 2, 4
+    v3 = insert_value struct4, v2, 3, 3
     ret v3
 }

@@ -136,7 +136,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .zip(returns)
                 .map(|((value, source_ty), id)| {
                     let target_ty = self.cx.gcx.type_of_item(id.into());
-                    self.convert_return_component(value, source_ty, target_ty, expr.span)
+                    self.convert_tuple_component(value, source_ty, target_ty, expr.span)
                 })
                 .collect();
         }
@@ -153,9 +153,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(types.to_vec())
     }
 
-    /// Converts one already-lowered component of a multi-value return source to the type the
-    /// enclosing function declares for it.
-    fn convert_return_component(
+    /// Converts an already-lowered tuple component to its target type at a return or
+    /// ternary boundary.
+    pub(super) fn convert_tuple_component(
         &mut self,
         value: ValueId,
         source_ty: Ty<'gcx>,

@@ -1,4 +1,12 @@
 //@ codegen-matrix: standard
+//@ run-call: compoundUnchecked256 100, -3 => true
+//@ run-call: compoundUnchecked256 -100, 3 => true
+//@ run-call: compoundChecked256 100, -3 => true
+//@ run-call: compoundChecked256 -100, 3 => true
+//@ run-call: compoundUnchecked16 100, -3 => true
+//@ run-call: compoundUnchecked16 -100, 3 => true
+//@ run-call: compoundChecked16 100, -3 => true
+//@ run-call: compoundChecked16 -100, 3 => true
 //@ run-call: checkedUnsigned8 254, 1 => 255
 //@ run-call-fail: checkedUnsigned8 255, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call: checkedSigned8 -1, 1 => 0
@@ -547,6 +555,68 @@ contract NativeInteger8 {
 }
 
 contract NativeInteger16 {
+    function compoundUnchecked16(int16 x, int8 y) external pure returns (bool) {
+        unchecked {
+            int16 result;
+            result = x;
+            result += y;
+            if (result != x + int16(y)) return false;
+            result = x;
+            result -= y;
+            if (result != x - int16(y)) return false;
+            result = x;
+            result *= y;
+            if (result != x * int16(y)) return false;
+            result = x;
+            result /= y;
+            if (result != x / int16(y)) return false;
+            result = x;
+            result %= y;
+            if (result != x % int16(y)) return false;
+            result = x;
+            result &= y;
+            if (result != x & int16(y)) return false;
+            result = x;
+            result |= y;
+            if (result != x | int16(y)) return false;
+            result = x;
+            result ^= y;
+            if (result != x ^ int16(y)) return false;
+            return true;
+        }
+    }
+
+
+    function compoundChecked16(int16 x, int8 y) external pure returns (bool) {
+        int16 result;
+        result = x;
+        result += y;
+        if (result != x + int16(y)) return false;
+        result = x;
+        result -= y;
+        if (result != x - int16(y)) return false;
+        result = x;
+        result *= y;
+        if (result != x * int16(y)) return false;
+        result = x;
+        result /= y;
+        if (result != x / int16(y)) return false;
+        result = x;
+        result %= y;
+        if (result != x % int16(y)) return false;
+        result = x;
+        result &= y;
+        if (result != x & int16(y)) return false;
+        result = x;
+        result |= y;
+        if (result != x | int16(y)) return false;
+        result = x;
+        result ^= y;
+        if (result != x ^ int16(y)) return false;
+        return true;
+    }
+
+
     uint16 private saved;
 
     function checkedUnsigned16(uint16 a, uint16 b) external pure returns (uint16) {
@@ -2527,6 +2597,68 @@ contract NativeInteger248 {
 }
 
 contract NativeInteger256 {
+    function compoundUnchecked256(int256 x, int8 y) external pure returns (bool) {
+        unchecked {
+            int256 result;
+            result = x;
+            result += y;
+            if (result != x + int256(y)) return false;
+            result = x;
+            result -= y;
+            if (result != x - int256(y)) return false;
+            result = x;
+            result *= y;
+            if (result != x * int256(y)) return false;
+            result = x;
+            result /= y;
+            if (result != x / int256(y)) return false;
+            result = x;
+            result %= y;
+            if (result != x % int256(y)) return false;
+            result = x;
+            result &= y;
+            if (result != x & int256(y)) return false;
+            result = x;
+            result |= y;
+            if (result != x | int256(y)) return false;
+            result = x;
+            result ^= y;
+            if (result != x ^ int256(y)) return false;
+            return true;
+        }
+    }
+
+
+    function compoundChecked256(int256 x, int8 y) external pure returns (bool) {
+        int256 result;
+        result = x;
+        result += y;
+        if (result != x + int256(y)) return false;
+        result = x;
+        result -= y;
+        if (result != x - int256(y)) return false;
+        result = x;
+        result *= y;
+        if (result != x * int256(y)) return false;
+        result = x;
+        result /= y;
+        if (result != x / int256(y)) return false;
+        result = x;
+        result %= y;
+        if (result != x % int256(y)) return false;
+        result = x;
+        result &= y;
+        if (result != x & int256(y)) return false;
+        result = x;
+        result |= y;
+        if (result != x | int256(y)) return false;
+        result = x;
+        result ^= y;
+        if (result != x ^ int256(y)) return false;
+        return true;
+    }
+
+
     uint256 private saved;
 
     function checkedUnsigned256(uint256 a, uint256 b) external pure returns (uint256) {
