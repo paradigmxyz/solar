@@ -21,8 +21,9 @@ contract Test {
     // INTRINSIC: mstore {{v[0-9]+}}, arg1
     // INTRINSIC-NOT: icall @truncate
     // PORTABLE-LABEL: fn @shorten
-    // PORTABLE: mstore [[OBJ:v[0-9]+]], arg1
-    // PORTABLE: mload [[OBJ]]
+    // PORTABLE: [[OBJ:v[0-9]+]] = ptrtoint memptr {{v[0-9]+}} to i256
+    // PORTABLE: mstore [[OBJ]], arg1
+    // PORTABLE: mload
     function shorten(uint256[] memory a, uint256 n) public pure returns (uint256, uint256) {
         uint256 before = a.length;
         a.truncate(n);

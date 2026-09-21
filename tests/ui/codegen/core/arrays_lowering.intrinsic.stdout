@@ -11,7 +11,7 @@ fn @entry() [entry] {
 @module Test
 @phase lowered
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
 fn @shorten() [selector=0xf0187838, abi_wrapper, pure] {
   bb0:
@@ -27,37 +27,37 @@ fn @shorten() [selector=0xf0187838, abi_wrapper, pure] {
     v13 = or v11, v12
     jumpi v13, bb3, bb5
   bb5:
-    v14 = calldataload v9
-    v16 = shl 5, v14
-    v18 = shr 5, v16
-    v19 = eq v18, v14
-    jumpi v19, bb7, bb6
+    v15 = calldataload v9
+    v17 = shl 5, v15
+    v19 = shr 5, v17
+    v23 = ne v19, v15
+    jumpi v23, bb6, bb7
   bb7:
-    v22 = add v16, 32
-    v23 = lt v22, v16
-    jumpi v23, bb6, bb8
+    v24 = add v17, 32
+    v25 = lt v24, v17
+    jumpi v25, bb6, bb8
   bb8:
-    v24 = mload 64 !metadata(memory=scratch)
-    v35 = add v24, v22
-    v36 = lt v35, v24
-    v37 = gt v35, 0xffffffffffffffff
-    v38 = or v36, v37
-    jumpi v38, bb6, bb10
+    v41 = mload 64 !metadata(memory=scratch)
+    v42 = add v41, v24
+    v43 = lt v42, v41
+    v44 = gt v42, 0xffffffffffffffff
+    v45 = or v43, v44
+    jumpi v45, bb6, bb10
   bb10:
-    mstore 64, v35 !metadata(memory=scratch)
-    mstore v24, v14
-    v25 = sub v6, v10
-    v26 = shr 5, v25
-    v27 = gt v14, v26
-    jumpi v27, bb3, bb9
+    mstore 64, v42 !metadata(memory=scratch)
+    mstore v41, v15
+    v27 = sub v6, v10
+    v28 = shr 5, v27
+    v29 = gt v15, v28
+    jumpi v29, bb3, bb9
   bb9:
-    v32 = add v24, 32
-    calldatacopy v32, v10, v16
-    v2 = gt arg1, v14
+    v35 = add v41, 32
+    calldatacopy v35, v10, v17
+    v2 = gt arg1, v15
     jumpi v2, bb1, bb2
   bb2:
-    mstore v24, arg1
-    mstore 128, v14
+    mstore v41, arg1
+    mstore 128, v15
     mstore 160, arg1
     returndata 128, 64
   bb1:
@@ -75,11 +75,12 @@ fn @shorten() [selector=0xf0187838, abi_wrapper, pure] {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb3, bb1
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
   bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb3, [0xf0187838 => bb2]
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xf0187838 => bb2]
   bb2:
     tail_call @shorten
   bb3:

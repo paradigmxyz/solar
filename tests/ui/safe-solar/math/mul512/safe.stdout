@@ -20,20 +20,21 @@ fn @entry() [entry] {
 @module Safe
 @phase lowered
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
 fn @product() [selector=0xba88c3b7, abi_wrapper, pure] {
   bb0:
-    v11 = calldatasize
-    v12 = lt v11, 68
-    jumpi v12, bb1, bb2
+    v12 = calldatasize
+    v13 = lt v12, 68
+    jumpi v13, bb1, bb2
   bb2:
     v0 = mul arg0, arg1
     v1 = mulmod arg0, arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v3 = lt v1, v0
+    v4 = zext i1 v3 to i256
     v2 = sub v1, v0
-    v4 = sub v2, v3
-    mstore 128, v4
+    v5 = sub v2, v4
+    mstore 128, v5
     mstore 160, v0
     returndata 128, 64
   bb1:
@@ -43,11 +44,12 @@ fn @product() [selector=0xba88c3b7, abi_wrapper, pure] {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb3, bb1
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
   bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb3, [0xba88c3b7 => bb2]
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xba88c3b7 => bb2]
   bb2:
     tail_call @product
   bb3:

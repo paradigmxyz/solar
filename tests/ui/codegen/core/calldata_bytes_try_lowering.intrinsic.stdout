@@ -11,29 +11,30 @@ fn @entry() [entry] {
 @module Test
 @phase lowered
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
 fn @try1() [selector=0x7c4fe00c, abi_wrapper, pure] {
   bb0:
-    v18 = calldatasize
-    v19 = lt v18, 68
-    jumpi v19, bb1, bb2
+    v24 = calldatasize
+    v25 = lt v24, 68
+    jumpi v25, bb1, bb2
   bb2:
-    v20 = icall @decode_calldata_slice, 4
-    v21 = calldataload v20
-    v22 = add v20, 32
+    v26 = icall @decode_calldata_slice, 4
+    v27 = calldataload v26
+    v28 = add v26, 32
     v1 = add arg1, 1
-    v2 = iszero v1
-    v3 = gt v1, v21
+    v2 = eq v1, 0
+    v3 = gt v1, v27
     v4 = or v2, v3
-    v5 = iszero v4
-    v6 = mul v5, arg1
-    v8 = add v22, v6
-    v9 = calldataload v8
-    v10 = mul v5, v9
-    v11 = and v10, 0xff00000000000000000000000000000000000000000000000000000000000000
-    mstore 128, v5
-    mstore 160, v11
+    v6 = eq v4, false
+    v20 = zext i1 v6 to i256
+    v7 = mul v20, arg1
+    v9 = add v28, v7
+    v10 = calldataload v9
+    v11 = mul v20, v10
+    v12 = and v11, 0xff00000000000000000000000000000000000000000000000000000000000000
+    mstore 128, v20
+    mstore 160, v12
     returndata 128, 64
   bb1:
     revert 0, 0
@@ -41,25 +42,26 @@ fn @try1() [selector=0x7c4fe00c, abi_wrapper, pure] {
 
 fn @try4() [selector=0x7f498037, abi_wrapper, pure] {
   bb0:
-    v18 = calldatasize
-    v19 = lt v18, 68
-    jumpi v19, bb1, bb2
+    v24 = calldatasize
+    v25 = lt v24, 68
+    jumpi v25, bb1, bb2
   bb2:
-    v20 = icall @decode_calldata_slice, 4
-    v21 = calldataload v20
-    v22 = add v20, 32
+    v26 = icall @decode_calldata_slice, 4
+    v27 = calldataload v26
+    v28 = add v26, 32
     v1 = add arg1, 4
     v2 = lt v1, arg1
-    v3 = gt v1, v21
+    v3 = gt v1, v27
     v4 = or v2, v3
-    v5 = iszero v4
-    v6 = mul v5, arg1
-    v8 = add v22, v6
-    v9 = calldataload v8
-    v10 = mul v5, v9
-    v11 = and v10, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, v5
-    mstore 160, v11
+    v6 = eq v4, false
+    v20 = zext i1 v6 to i256
+    v7 = mul v20, arg1
+    v9 = add v28, v7
+    v10 = calldataload v9
+    v11 = mul v20, v10
+    v12 = and v11, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 128, v20
+    mstore 160, v12
     returndata 128, 64
   bb1:
     revert 0, 0
@@ -67,24 +69,25 @@ fn @try4() [selector=0x7f498037, abi_wrapper, pure] {
 
 fn @try32() [selector=0xf00ebb05, abi_wrapper, pure] {
   bb0:
-    v17 = calldatasize
-    v18 = lt v17, 68
-    jumpi v18, bb1, bb2
+    v23 = calldatasize
+    v24 = lt v23, 68
+    jumpi v24, bb1, bb2
   bb2:
-    v19 = icall @decode_calldata_slice, 4
-    v20 = calldataload v19
-    v21 = add v19, 32
+    v25 = icall @decode_calldata_slice, 4
+    v26 = calldataload v25
+    v27 = add v25, 32
     v1 = add arg1, 32
     v2 = lt v1, arg1
-    v3 = gt v1, v20
+    v3 = gt v1, v26
     v4 = or v2, v3
-    v5 = iszero v4
-    v6 = mul v5, arg1
-    v8 = add v21, v6
-    v9 = calldataload v8
-    v10 = mul v5, v9
-    mstore 128, v5
-    mstore 160, v10
+    v6 = eq v4, false
+    v19 = zext i1 v6 to i256
+    v7 = mul v19, arg1
+    v9 = add v27, v7
+    v10 = calldataload v9
+    v11 = mul v19, v10
+    mstore 128, v19
+    mstore 160, v11
     returndata 128, 64
   bb1:
     revert 0, 0
@@ -92,24 +95,25 @@ fn @try32() [selector=0xf00ebb05, abi_wrapper, pure] {
 
 fn @tryWord() [selector=0xdc133dec, abi_wrapper, pure] {
   bb0:
-    v17 = calldatasize
-    v18 = lt v17, 68
-    jumpi v18, bb1, bb2
+    v23 = calldatasize
+    v24 = lt v23, 68
+    jumpi v24, bb1, bb2
   bb2:
-    v19 = icall @decode_calldata_slice, 4
-    v20 = calldataload v19
-    v21 = add v19, 32
+    v25 = icall @decode_calldata_slice, 4
+    v26 = calldataload v25
+    v27 = add v25, 32
     v1 = add arg1, 32
     v2 = lt v1, arg1
-    v3 = gt v1, v20
+    v3 = gt v1, v26
     v4 = or v2, v3
-    v5 = iszero v4
-    v6 = mul v5, arg1
-    v8 = add v21, v6
-    v9 = calldataload v8
-    v10 = mul v5, v9
-    mstore 128, v5
-    mstore 160, v10
+    v6 = eq v4, false
+    v19 = zext i1 v6 to i256
+    v7 = mul v19, arg1
+    v9 = add v27, v7
+    v10 = calldataload v9
+    v11 = mul v19, v10
+    mstore 128, v19
+    mstore 160, v11
     returndata 128, 64
   bb1:
     revert 0, 0
@@ -117,44 +121,45 @@ fn @tryWord() [selector=0xdc133dec, abi_wrapper, pure] {
 
 fn @tryTwo() [selector=0x2031ea5c, abi_wrapper, pure] {
   bb0:
-    v18 = calldatasize
-    v19 = lt v18, 100
-    jumpi v19, bb1, bb2
+    v24 = calldatasize
+    v25 = lt v24, 100
+    jumpi v25, bb1, bb2
   bb2:
-    v20 = icall @decode_calldata_slice, 4
-    v21 = calldataload v20
-    v22 = add v20, 32
-    v24 = calldataload 36
-    v25 = add v24, 4
-    v26 = add v25, 32
-    v27 = gt v24, 0xffffffffffffffff
-    v28 = gt v26, v18
-    v29 = or v27, v28
-    jumpi v29, bb1, bb3
+    v26 = icall @decode_calldata_slice, 4
+    v27 = calldataload v26
+    v28 = add v26, 32
+    v30 = calldataload 36
+    v31 = add v30, 4
+    v32 = add v31, 32
+    v33 = gt v30, 0xffffffffffffffff
+    v34 = gt v32, v24
+    v35 = or v33, v34
+    jumpi v35, bb1, bb3
   bb3:
-    v30 = calldataload v25
-    v32 = sub v18, v26
-    v33 = gt v30, v32
-    jumpi v33, bb1, bb4
+    v37 = calldataload v31
+    v39 = sub v24, v32
+    v40 = gt v37, v39
+    jumpi v40, bb1, bb4
   bb4:
     v1 = add arg2, 4
     v2 = lt v1, arg2
-    v3 = gt v1, v21
+    v3 = gt v1, v27
     v4 = or v2, v3
-    v5 = iszero v4
-    v6 = mul v5, arg2
-    v8 = add v22, v6
-    v9 = calldataload v8
-    v10 = mul v5, v9
-    v11 = and v10, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, v5
-    mstore 160, v11
+    v6 = eq v4, false
+    v20 = zext i1 v6 to i256
+    v7 = mul v20, arg2
+    v9 = add v28, v7
+    v10 = calldataload v9
+    v11 = mul v20, v10
+    v12 = and v11, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 128, v20
+    mstore 160, v12
     returndata 128, 64
   bb1:
     revert 0, 0
 }
 
-fn @decode_calldata_slice(arg0: u256) -> u256 {
+fn @decode_calldata_slice(arg0: i256) -> i256 {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0
@@ -163,11 +168,14 @@ fn @decode_calldata_slice(arg0: u256) -> u256 {
     v4 = gt v1, 0xffffffffffffffff
     v5 = gt v3, v0
     v6 = or v4, v5
-    v7 = calldataload v2
-    v9 = sub v0, v3
-    v10 = gt v7, v9
-    v11 = or v6, v10
-    jumpi v11, bb1, bb2
+    v7 = zext i1 v6 to i256
+    v8 = calldataload v2
+    v10 = sub v0, v3
+    v11 = gt v8, v10
+    v12 = zext i1 v11 to i256
+    v13 = or v7, v12
+    v14 = ne v13, 0
+    jumpi v14, bb1, bb2
   bb2:
     ret v2
   bb1:
@@ -177,11 +185,12 @@ fn @decode_calldata_slice(arg0: u256) -> u256 {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb7, bb1
+    v1 = ne v0, 0
+    jumpi v1, bb7, bb1
   bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb7, [0x2031ea5c => bb2, 0x7c4fe00c => bb3, 0x7f498037 => bb4, 0xdc133dec => bb5, 0xf00ebb05 => bb6]
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb7, [0x2031ea5c => bb2, 0x7c4fe00c => bb3, 0x7f498037 => bb4, 0xdc133dec => bb5, 0xf00ebb05 => bb6]
   bb6:
     tail_call @try32
   bb5:

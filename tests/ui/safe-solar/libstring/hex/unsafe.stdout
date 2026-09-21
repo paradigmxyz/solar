@@ -3,9 +3,9 @@
 @phase lowered
 fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
   bb0:
-    v38 = calldatasize
-    v39 = lt v38, 68
-    jumpi v39, bb5, bb6
+    v36 = calldatasize
+    v37 = lt v36, 68
+    jumpi v37, bb5, bb6
   bb6:
     v1 = add arg1, arg1
     v2 = add v1, 66
@@ -19,48 +19,49 @@ fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
     v8 = sub v5, v1
     jump bb1
   bb1:
-    v13 = phi [bb6: v5], [bb1: v19]
-    v15 = phi [bb6: arg0], [bb1: v26]
-    v19 = add v13, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
-    v20 = and v15, 15
-    v21 = mload v20
-    v22 = add v19, 1
-    mstore8 v22, v21
-    v23 = shr 4, v15
-    v24 = and v23, 15
-    v25 = mload v24
-    mstore8 v19, v25
-    v26 = shr 8, v15
-    v28 = eq v19, v8
-    jumpi v28, bb2, bb1
+    v13 = phi [bb6: v5], [bb1: v18]
+    v15 = phi [bb6: arg0], [bb1: v25]
+    v18 = add v13, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+    v19 = and v15, 15
+    v20 = mload v19
+    v21 = add v18, 1
+    mstore8 v21, v20
+    v22 = shr 4, v15
+    v23 = and v22, 15
+    v24 = mload v23
+    mstore8 v18, v24
+    v25 = shr 8, v15
+    v27 = eq v18, v8
+    jumpi v27, bb2, bb1
   bb2:
-    jumpi v26, bb3, bb4
+    v32 = ne v25, 0
+    jumpi v32, bb3, bb4
   bb4:
-    v35 = sub v5, v19
-    v36 = sub v19, 32
-    mstore v36, v35
-    v43 = mload 64 !metadata(memory=scratch)
-    v44 = add v43, 32
-    mstore v43, 32
-    v47 = iszero v36
-    v48 = iszero v47
-    v46 = mload v36
-    v49 = mul v46, v48
-    v51 = add v49, 31
-    v52 = and v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v53 = add v44, 32
-    v54 = add v44, v52
-    mstore v54, 0
-    mstore v44, v49
-    v56 = add v53, v52
-    mcopy v53, v19, v49
-    v57 = sub v56, v43
-    v59 = add v57, 31
-    v61 = and v59, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v62 = mload 64 !metadata(memory=scratch)
-    v64 = add v62, v61
-    mstore 64, v64 !metadata(memory=scratch)
-    returndata v62, v57
+    v33 = sub v5, v18
+    v34 = sub v18, 32
+    mstore v34, v33
+    v71 = mload 64 !metadata(memory=scratch)
+    v43 = add v71, 32
+    mstore v71, 32
+    v50 = ne v34, 0
+    v51 = zext i1 v50 to i256
+    v47 = mload v34
+    v52 = mul v47, v51
+    v54 = add v52, 31
+    v55 = and v54, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v56 = add v43, 32
+    v57 = add v43, v55
+    mstore v57, 0
+    mstore v43, v52
+    v59 = add v56, v55
+    mcopy v56, v18, v52
+    v62 = sub v59, v71
+    v64 = add v62, 31
+    v66 = and v64, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v72 = mload 64 !metadata(memory=scratch)
+    v73 = add v72, v66
+    mstore 64, v73 !metadata(memory=scratch)
+    returndata v72, v62
   bb3:
     mstore 0, 0x2194895a !metadata(memory=scratch)
     revert 28, 4
@@ -71,11 +72,12 @@ fn @toHex() [selector=0xe1425395, abi_wrapper, pure] {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb3, bb1
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
   bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb3, [0xe1425395 => bb2]
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xe1425395 => bb2]
   bb2:
     tail_call @toHex
   bb3:

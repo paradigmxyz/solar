@@ -8,34 +8,35 @@ fn @decimal() [selector=0xf371efa4, abi_wrapper, pure] {
     jumpi v2, bb1, bb2
   bb2:
     v0 = icall @_toString, arg0
-    v6 = mload 64 !metadata(memory=scratch)
-    v7 = add v6, 32
-    mstore v6, 32
-    v10 = iszero v0
-    v11 = iszero v10
-    v9 = mload v0
-    v12 = mul v9, v11
-    v14 = add v12, 31
-    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v16 = add v7, 32
-    v17 = add v7, v15
-    mstore v17, 0
-    mstore v7, v12
-    v19 = add v16, v15
-    v18 = add v0, 32
-    mcopy v16, v18, v12 !metadata(memory=heap)
-    v20 = sub v19, v6
-    v22 = add v20, 31
-    v24 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v25 = mload 64 !metadata(memory=scratch)
-    v27 = add v25, v24
-    mstore 64, v27 !metadata(memory=scratch)
-    returndata v25, v20
+    v39 = mload 64 !metadata(memory=scratch)
+    v8 = add v39, 32
+    mstore v39, 32
+    v36 = ptrtoint memptr v0 to i256
+    v16 = ne v36, 0
+    v17 = zext i1 v16 to i256
+    v12 = mload v36
+    v18 = mul v12, v17
+    v20 = add v18, 31
+    v21 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v22 = add v8, 32
+    v23 = add v8, v21
+    mstore v23, 0
+    mstore v8, v18
+    v25 = add v22, v21
+    v38 = add v36, 32
+    mcopy v22, v38, v18
+    v28 = sub v25, v39
+    v30 = add v28, 31
+    v32 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v40 = mload 64 !metadata(memory=scratch)
+    v41 = add v40, v32
+    mstore 64, v41 !metadata(memory=scratch)
+    returndata v40, v28
   bb1:
     revert 0, 0
 }
 
-fn @_toString(arg0: u256) -> memptr [pure] {
+fn @_toString(arg0: i256) -> memptr [may_return_memory, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 128
@@ -44,29 +45,32 @@ fn @_toString(arg0: u256) -> memptr [pure] {
     mstore v1, 0
     jump bb1
   bb1:
-    v4 = phi [bb0: v1], [bb1: v11]
-    v8 = phi [bb0: arg0], [bb1: v14]
-    v11 = add v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v12 = mod v8, 10
-    v13 = add v12, 48
-    mstore8 v11, v13
-    v14 = div v8, 10
-    jumpi v14, bb1, bb2
+    v4 = phi [bb0: v1], [bb1: v10]
+    v8 = phi [bb0: arg0], [bb1: v13]
+    v10 = add v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v11 = mod v8, 10
+    v12 = add v11, 48
+    mstore8 v10, v12
+    v13 = div v8, 10
+    v14 = eq v13, 0
+    jumpi v14, bb2, bb1
   bb2:
-    v20 = sub v1, v11
-    v21 = sub v11, 32
-    mstore v21, v20
+    v19 = sub v1, v10
+    v20 = sub v10, 32
+    mstore v20, v19
+    v21 = inttoptr i256 v20 to memptr
     ret v21
 }
 
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb3, bb1
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
   bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb3, [0xf371efa4 => bb2]
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xf371efa4 => bb2]
   bb2:
     tail_call @decimal
   bb3:
