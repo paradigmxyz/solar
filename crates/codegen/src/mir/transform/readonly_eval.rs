@@ -27,8 +27,8 @@
 //! allocations lose their provenance. Facts do not cross caller block boundaries.
 
 use crate::mir::{
-    ArgIdx, BlockId, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
-    Terminator, Value, ValueId,
+    ArgIdx, BlockId, Function, FunctionId, Immediate, InstId, InstKind, Module, Terminator, Value,
+    ValueId,
     analysis::{
         AddressSpace, AliasAnalysis, Location, LocationSize, MemoryAddress, MemoryBase,
         MemoryLocation,
@@ -254,10 +254,7 @@ fn evaluate(
     if depth >= MAX_DEPTH
         || args.len() != func.params.len()
         || func.return_components().len() > 1
-        || func
-            .return_components()
-            .first()
-            .is_some_and(|ty| !matches!(*ty, MirType::I256 | MirType::I160 | MirType::I1))
+        || func.return_components().first().is_some_and(|ty| ty.integer_bits().is_none())
     {
         return None;
     }

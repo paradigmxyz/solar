@@ -1,3 +1,4 @@
+//@ run-call: toIntegers 0xffffffffffffffffffffffffffffffff, 0xffffffffffffffffffffffffffffffffffffffff => 340282366920938463463374607431768211455, -1, 1461501637330902918203684832716283019655932542975, 0xffffffffffffffffffffffffffffffffffffffff
 //@compile-flags: -O none -Zdump=mir
 //@filecheck:
 
@@ -29,5 +30,8 @@ contract FixedBytesCanonical {
     // CHECK: ret [[MASKED]]
     function narrow(bytes4 value) external pure returns (bytes2) {
         return bytes2(value);
+    }
+    function toIntegers(bytes16 a, bytes20 b) external pure returns (uint128, int128, uint160, address) {
+        return (uint128(a), int128(uint128(a)), uint160(b), address(b));
     }
 }

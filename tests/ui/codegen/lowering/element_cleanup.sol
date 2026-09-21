@@ -68,4 +68,31 @@ contract ElementCleanup {
         a[0] = x;
         return a[1] & type(uint160).max;
     }
+
+    // CHECK-LABEL: {{^[ +-].*}}fn @fresh8
+    // CHECK: - {{v[0-9]+}} = trunc i256 {{v[0-9]+}} to i8
+    // CHECK: + memory_object_store_element
+    function fresh8(uint256 n) external pure returns (uint8) {
+        uint8[] memory a = new uint8[](n);
+        a[0] = a[1];
+        return a[2];
+    }
+
+    // CHECK-LABEL: {{^[ +-].*}}fn @fresh128
+    // CHECK: - {{v[0-9]+}} = trunc i256 {{v[0-9]+}} to i128
+    // CHECK: + memory_object_store_element
+    function fresh128(uint256 n) external pure returns (uint128) {
+        uint128[] memory a = new uint128[](n);
+        a[0] = a[1];
+        return a[2];
+    }
+
+    // CHECK-LABEL: {{^[ +-].*}}fn @fresh248
+    // CHECK: - {{v[0-9]+}} = trunc i256 {{v[0-9]+}} to i248
+    // CHECK: + memory_object_store_element
+    function fresh248(uint256 n) external pure returns (uint248) {
+        uint248[] memory a = new uint248[](n);
+        a[0] = a[1];
+        return a[2];
+    }
 }

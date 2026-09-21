@@ -705,9 +705,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if id == sym::i256 {
             return Ok(MirType::I256);
         }
-        if id == sym::i160 {
-            return Ok(MirType::I160);
-        }
         if id == sym::i1 {
             return Ok(MirType::I1);
         }

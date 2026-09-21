@@ -104,3 +104,55 @@
       ret memorybytes 5
   }
   
+  fn @closed_i8() -> i8 {
+    bb0:
+-     v0 = icall @wrapping_i8, i8 255
+-     ret v0
++     ret i8 0
+  }
+  
+  fn @wrapping_i8(arg0: i8) -> i8 {
+    bb0:
+      v0 = add arg0, i8 1
+      ret v0
+  }
+  
+  fn @closed_i128() -> i128 {
+    bb0:
+-     v0 = icall @wrapping_i128, i128 0xffffffffffffffffffffffffffffffff
+-     ret v0
++     ret i128 0
+  }
+  
+  fn @wrapping_i128(arg0: i128) -> i128 {
+    bb0:
+      v0 = add arg0, i128 1
+      ret v0
+  }
+  
+  fn @closed_i160() -> i160 {
+    bb0:
+-     v0 = icall @wrapping_i160, i160 0xffffffffffffffffffffffffffffffffffffffff
+-     ret v0
++     ret i160 0
+  }
+  
+  fn @wrapping_i160(arg0: i160) -> i160 {
+    bb0:
+      v0 = add arg0, i160 1
+      ret v0
+  }
+  
+  fn @closed_i248() -> i248 {
+    bb0:
+-     v0 = icall @wrapping_i248, i248 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     ret v0
++     ret i248 0
+  }
+  
+  fn @wrapping_i248(arg0: i248) -> i248 {
+    bb0:
+      v0 = add arg0, i248 1
+      ret v0
+  }
+  

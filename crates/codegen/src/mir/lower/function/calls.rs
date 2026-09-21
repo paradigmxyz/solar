@@ -681,32 +681,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             value
         };
-        if from.peel_refs() != to.peel_refs() && types::TypeLowerer::mir_type(to) == MirType::I160 {
-            // address = trunc i160, value
-            return self.builder.cast(value, MirType::I160);
-        }
-        let integer_conversion_needs_cleanup = match (from.peel_refs().kind, to.peel_refs().kind) {
-            (
-                TyKind::Elementary(ElementaryType::UInt(from_size)),
-                TyKind::Elementary(ElementaryType::UInt(to_size)),
-            )
-            | (
-                TyKind::Elementary(ElementaryType::Int(from_size)),
-                TyKind::Elementary(ElementaryType::Int(to_size)),
-            ) => to_size.bits() < from_size.bits(),
-            (
-                TyKind::Elementary(ElementaryType::UInt(from_size)),
-                TyKind::Elementary(ElementaryType::Int(to_size)),
-            )
-            | (
-                TyKind::Elementary(ElementaryType::Int(from_size)),
-                TyKind::Elementary(ElementaryType::UInt(to_size)),
-            ) => to_size.bits() <= from_size.bits(),
-            _ => false,
-        };
-        if integer_conversion_needs_cleanup {
-            // value = normalize_integer(value, to)
-            return self.normalize_abi_scalar(value, to);
+        let to_mir = types::TypeLowerer::mir_type(to);
+        if source_size.is_some() && destination_size.is_none() && to_mir.integer_bits().is_some() {
+            return self.builder.cast(value, to_mir);
         }
         if let TyKind::Enum(id) = to.peel_refs().kind {
             if !matches!(from.peel_refs().kind, TyKind::Enum(from_id) if from_id == id) {

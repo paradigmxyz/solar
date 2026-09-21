@@ -244,7 +244,6 @@ impl MirType {
     pub(crate) const fn value_layout(self) -> ValueLayout {
         match self {
             Self::I1 => ValueLayout::Bool,
-            Self::I160 => ValueLayout::Address,
             Self::Int(bits) => ValueLayout::UInt(TypeSize::new_int_bits(bits.get() as u16)),
             Self::MemPtr => ValueLayout::MemPtr,
             Self::MemoryObject(kind) => ValueLayout::MemoryObject(kind),

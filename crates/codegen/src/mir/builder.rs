@@ -1601,7 +1601,7 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         let cond = self.cast(cond, MirType::I1);
         let mut ty = self.func.value_ty(then_val).unwrap();
-        if matches!(ty, MirType::I1 | MirType::I160) && self.func.value_ty(else_val) != Some(ty) {
+        if matches!(ty, MirType::Int(_)) && self.func.value_ty(else_val) != Some(ty) {
             ty = MirType::I256;
         }
         // then_val = cast then_val to the select type
@@ -1620,7 +1620,7 @@ impl<'a> FunctionBuilder<'a> {
             .first()
             .and_then(|(_, value)| self.func.value_ty(*value))
             .unwrap_or(MirType::I256);
-        if matches!(ty, MirType::I1 | MirType::I160)
+        if matches!(ty, MirType::Int(_))
             && incoming.iter().any(|(_, value)| self.func.value_ty(*value) != Some(ty))
         {
             ty = MirType::I256;
