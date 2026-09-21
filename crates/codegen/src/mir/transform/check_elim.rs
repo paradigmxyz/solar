@@ -87,7 +87,8 @@
 //! selecting only runtime functions that load bounded immutables. Before using those
 //! bounds, it narrows unsigned immutable encodings when every assignment fits, using
 //! the shared value-width and caller-argument proofs. Missing assignments and unknown
-//! words keep their declared width; unsigned layouts retain their i256 SSA carrier.
+//! words keep their declared width. Narrow SSA loads extend back to their original
+//! types; existing word-carrier loads already satisfy the integer layout contract.
 //! This exposes facts hidden behind getter calls during the ordinary earlier check passes.
 
 //! The `late-check-elim` adapter revisits conditions unified by CSE after memory
@@ -107,8 +108,8 @@ use super::{call_cleanup, cfg_simplify::simplify_function, egraph::max_bits_with
 use crate::{
     mir::{
         BlockId, Builtin, Callee, EffectKind, Function, FunctionBuilder, FunctionId,
-        ImmutableEncoding, ImmutableId, InstId, InstKind, Module, Terminator, TypeSize, Value,
-        ValueId, ValueLayout,
+        ImmutableEncoding, ImmutableId, InstId, InstKind, MirType, Module, Terminator, TypeSize,
+        Value, ValueId, ValueLayout,
         analysis::{
             CallGraphInfo, CfgInfo,
             integers::{integer_bits, integer_mask, integer_max},
@@ -303,6 +304,7 @@ impl MirPass for ImmutableCheckElim {
 }
 
 /// Shrinks unsigned encodings only when every assignment preserves all stored bits.
+/// Narrow loads extend back to their original result types so existing uses remain well-typed.
 fn narrow_immutable_layouts(module: &mut Module) -> bool {
     let can_narrow = |ty| matches!(ty, ValueLayout::UInt(size) if size.bits() > 8);
     if !module.iter_immutables().any(|(_, immutable)| can_narrow(immutable.ty)) {
@@ -325,41 +327,48 @@ fn narrow_immutable_layouts(module: &mut Module) -> bool {
             }
         }
     }
-    let mut changed = false;
+    let mut types = FxHashMap::default();
     for (id, bits) in widths {
         let bits = bits.max(1).div_ceil(8) * 8;
         if let ValueLayout::UInt(size) = module.immutable(id).ty
             && bits < u32::from(size.bits())
         {
             module.immutable_mut(id).ty = ValueLayout::UInt(TypeSize::new_int_bits(bits as u16));
-            changed = true;
+            types.insert(id, module.immutable(id).ty.mir_type());
         }
     }
-    if changed {
-        let types = module
-            .iter_immutables()
-            .map(|(id, item)| (id, item.ty.mir_type()))
-            .collect::<FxHashMap<_, _>>();
+    if !types.is_empty() {
         for func in &mut module.functions {
             for block in func.blocks.indices() {
                 let instructions = std::mem::take(&mut func.blocks[block].instructions);
                 let mut builder = FunctionBuilder::new(func);
                 builder.switch_to_block(block);
                 for inst in instructions {
-                    if let InstKind::StoreImmutable(id, value) = builder.func().inst(inst).kind {
-                        builder.set_debug_context(&builder.func().inst(inst).metadata.clone());
-                        let value = builder.cast(value, types[&id]);
-                        builder
-                            .func_mut()
-                            .inst_mut(inst)
-                            .replace_kind(InstKind::StoreImmutable(id, value));
+                    match builder.func().inst(inst).kind {
+                        InstKind::StoreImmutable(id, value) if types.contains_key(&id) => {
+                            builder.set_debug_context(&builder.func().inst(inst).metadata.clone());
+                            let value = builder.cast(value, types[&id]);
+                            builder
+                                .func_mut()
+                                .inst_mut(inst)
+                                .replace_kind(InstKind::StoreImmutable(id, value));
+                        }
+                        InstKind::LoadImmutable(id)
+                            if types.contains_key(&id)
+                                && builder.func().inst(inst).result_ty != Some(MirType::I256) =>
+                        {
+                            builder.set_debug_context(&builder.func().inst(inst).metadata.clone());
+                            let value = builder.load_immutable(id, types[&id]);
+                            builder.func_mut().inst_mut(inst).replace_kind(InstKind::Zext(value));
+                        }
+                        _ => {}
                     }
                     builder.func_mut().blocks[block].instructions.push(inst);
                 }
             }
         }
     }
-    changed
+    !types.is_empty()
 }
 
 /// Excludes every constructor-reachable helper, including recursive and tail-call edges.

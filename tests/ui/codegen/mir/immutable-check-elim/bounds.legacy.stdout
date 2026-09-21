@@ -14,7 +14,13 @@
     unknown: u256
     unwritten: u256
 -   called: u256
+-   narrow_scalar: u64
+-   narrow_address_width: u160
+-   narrow_three_bytes: u24
 +   called: u16
++   narrow_scalar: u8
++   narrow_address_width: u16
++   narrow_three_bytes: u8
   
   fn @runtime() -> i256 [selector=0x00000001] {
     bb0:
@@ -128,5 +134,57 @@
 +     v0 = trunc i256 arg0 to i16
 +     storeimmutable called, v0
       ret
+  }
+  
+  fn @assign_narrow_scalars() [constructor] {
+    bb0:
+-     storeimmutable narrow_three_bytes, i24 255
+-     storeimmutable narrow_scalar, i64 255
+-     storeimmutable narrow_address_width, i160 0xffff
+-     v0 = loadimmutable narrow_scalar
++     storeimmutable narrow_three_bytes, i8 255
++     storeimmutable narrow_scalar, i8 255
++     storeimmutable narrow_address_width, i16 0xffff
++     v3 = loadimmutable narrow_scalar
++     v0 = zext i8 v3 to i64
+      v1 = add v0, i64 1
+      v2 = zext i64 v1 to i256
+      mstore 0, v2
+      ret
+  }
+  
+  fn @load_narrow_scalar() -> i64 [selector=0x00000002] {
+    bb0:
+-     v0 = loadimmutable narrow_scalar
++     v2 = loadimmutable narrow_scalar
++     v0 = zext i8 v2 to i64
+      v1 = add v0, i64 1
+      ret v1
+  }
+  
+  fn @load_narrow_address_width() -> i160 [selector=0x00000003] {
+    bb0:
+-     v0 = loadimmutable narrow_address_width
++     v2 = loadimmutable narrow_address_width
++     v0 = zext i16 v2 to i160
+      v1 = add v0, i160 1
+      ret v1
+  }
+  
+  fn @load_narrow_three_bytes() -> i24 [selector=0x00000004] {
+    bb0:
+-     v0 = loadimmutable narrow_three_bytes
++     v2 = loadimmutable narrow_three_bytes
++     v0 = zext i8 v2 to i24
+      v1 = add v0, i24 1
+      ret v1
+  }
+  
+  fn @load_narrow_word() -> i256 [selector=0x00000005] {
+    bb0:
+-     v0 = loadimmutable called
++     v0: i256 = loadimmutable called
+      v1 = add v0, 1
+      ret v1
   }
   

@@ -5,6 +5,10 @@ immutables:
   b: u64
   signedValue: i64
   initial: u256
+  narrow: u64
+  threeBytes: u24
+  narrowAddressWidth: u160
+  narrowInitial: u64
 
 fn @initial() -> i256 [selector=0xbb806dc9, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -12,14 +16,53 @@ fn @initial() -> i256 [selector=0xbb806dc9, view, abi_params=[], abi_returns=[wo
     ret v0
 }
 
+fn @narrowInitial() -> i64 [selector=0xfe957d40, view, abi_params=[], abi_returns=[word<u64>], abi_return_params=[u64]] {
+  bb0:
+    v0 = loadimmutable narrowInitial
+    ret v0
+}
+
 fn @constructor(arg0: i64, arg1: i64, arg2: i64) [constructor, abi_params=[u64, u64, i64]] {
   bb0:
+    v0 = trunc i64 arg0 to i8
+    v1 = zext i8 v0 to i64
+    storeimmutable narrow, v1
+    v2 = trunc i64 arg0 to i8
+    v3 = zext i8 v2 to i24
+    storeimmutable threeBytes, v3
+    v4 = trunc i64 arg1 to i16
+    v5 = zext i16 v4 to i160
+    storeimmutable narrowAddressWidth, v5
+    v6 = loadimmutable narrow
+    v7 = checked_add u64, v6, i64 1
+    storeimmutable narrowInitial, v7
     storeimmutable a, arg0
     storeimmutable b, arg1
     storeimmutable signedValue, arg2
-    v0 = icall @total
-    storeimmutable initial, v0
+    v8 = icall @total
+    storeimmutable initial, v8
     ret
+}
+
+fn @narrowThreeBytes() -> i24 [selector=0x88301e03, view, abi_params=[], abi_returns=[word<u24>], abi_return_params=[u24]] {
+  bb0:
+    v0 = loadimmutable threeBytes
+    v1 = checked_add u24, v0, i24 1
+    ret v1
+}
+
+fn @narrowed() -> i64 [selector=0xb689f827, view, abi_params=[], abi_returns=[word<u64>], abi_return_params=[u64]] {
+  bb0:
+    v0 = loadimmutable narrow
+    v1 = checked_add u64, v0, i64 1
+    ret v1
+}
+
+fn @narrowWide() -> i160 [selector=0x534abec3, view, abi_params=[], abi_returns=[word<u160>], abi_return_params=[u160]] {
+  bb0:
+    v0 = loadimmutable narrowAddressWidth
+    v1 = checked_add u160, v0, i160 1
+    ret v1
 }
 
 fn @total() -> i256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
