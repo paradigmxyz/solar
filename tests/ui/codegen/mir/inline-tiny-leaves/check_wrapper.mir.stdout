@@ -1,36 +1,37 @@
 // === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/check_wrapper.sol:CheckWrapper ===
 @module CheckWrapper
-fn @guarded(arg0: u256) -> u256 [selector=0x5e284975, abi_params=[u256], abi_returns=[word]] {
+fn @guarded(arg0: i256) -> i256 [selector=0x5e284975, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = eq arg0, 0
-    v1 = iszero v0
+    v0 = ne arg0, 0
+    v1 = zext i1 v0 to i256
     icall @ensure, v1
     sstore 0, arg0 !metadata(storage=slot(0))
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = lt v2, 10
-    icall @ensure, v3
-    v4 = sload 0 !metadata(storage=slot(0))
-    ret v4
+    v4 = zext i1 v3 to i256
+    icall @ensure, v4
+    v5 = sload 0 !metadata(storage=slot(0))
+    ret v5
 }
 
-fn @asserted(arg0: u256) -> u256 [selector=0x4441421f, pure, abi_params=[u256], abi_returns=[word]] {
+fn @asserted(arg0: i256) -> i256 [selector=0x4441421f, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = eq arg0, 0
-    v1 = iszero v0
+    v0 = ne arg0, 0
+    v1 = zext i1 v0 to i256
     icall @invariant, v1
     ret arg0
 }
 
-fn @ensure(arg0: bool) [pure] {
+fn @ensure(arg0: i256) [pure] {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     icall revert_if<empty>, v0
     ret
 }
 
-fn @invariant(arg0: bool) [pure] {
+fn @invariant(arg0: i256) [pure] {
   bb0:
-    v0 = iszero arg0
+    v0 = eq arg0, 0
     icall panic_if<0x1>, v0
     ret
 }

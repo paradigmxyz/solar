@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/loop_checked_helper.sol:LoopCheckedHelper ===
 @module LoopCheckedHelper
-fn @checkedAdd(arg0: u256, arg1: u256) -> u256 [pure] {
+fn @checkedAdd(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = add arg0, arg1
     v1 = lt v0, arg0
@@ -22,11 +22,11 @@ fn @panicArithmetic() [pure] {
     revert 0, 36
 }
 
-fn @accumulate(arg0: u256, arg1: u256) -> u256 [selector=0x4256913b, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @accumulate(arg0: i256, arg1: i256) -> i256 [selector=0x4256913b, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gt arg0, 0x3e8
-    v1 = iszero v0
-    v2 = iszero v1
+    v1 = eq v0, false
+    v2 = eq v1, false
     icall revert_if<empty>, v2
     jump bb1
   bb1:
@@ -50,7 +50,7 @@ fn @accumulate(arg0: u256, arg1: u256) -> u256 [selector=0x4256913b, pure, abi_p
     jump bb1
 }
 
-fn @add(arg0: u256, arg1: u256) -> u256 [selector=0x771602f7, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @add(arg0: i256, arg1: i256) -> i256 [selector=0x771602f7, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @checkedAdd, arg0, arg1
     ret v0

@@ -166,7 +166,7 @@ toml_edit = "0.25"
 flate2 = "1.1"
 
 # codegen
-cranelift-isle = "=0.122.0"
+cranelift-isle = "=0.135.2"
 
 # macros
 proc-macro2 = "1.0"
