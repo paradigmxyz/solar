@@ -106,9 +106,10 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v119 = sload v116 !metadata(storage=symbolic(v116))
     v120 = mul v118, 8
     v121 = shr v120, v119
-    v122 = and v121, 0xffffffffffffffff
-    v123 = icall @internal_dispatcher_p_none_r_u256, v122
-    ret v123
+    v122 = trunc i256 v121 to i64
+    v123 = zext i64 v122 to i256
+    v124 = icall @internal_dispatcher_p_none_r_u256, v123
+    ret v124
   bb17:
     v86 = memory_object_load_element memoryarray<1>, v63, v84
     v87 = storage_array_data_slot 1

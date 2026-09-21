@@ -4,9 +4,8 @@ fn @lookup(arg0: calldataslice) -> i160 [selector=0xf67187ac, view, abi_params=[
   bb0:
     v0 = mapping_slot_calldata arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
-    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = trunc i256 v2 to i160
-    ret v3
+    v2 = trunc i256 v1 to i160
+    ret v2
 }
 
 fn @set(arg0: memorybytes, arg1: i160) [selector=0xa815ff15, abi_params=[bytes, address], abi_returns=[], abi_return_params=[]] {
@@ -26,9 +25,8 @@ fn @get(arg0: memorybytes) -> i160 [selector=0x693ec85e, view, abi_params=[bytes
   bb0:
     v0 = mapping_slot_memory arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
-    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = trunc i256 v2 to i160
-    ret v3
+    v2 = trunc i256 v1 to i160
+    ret v2
 }
 
 // === ROOT/tests/ui/codegen/lowering/mapping_dynamic_key.sol:MappingDynamicKeyPaths ===

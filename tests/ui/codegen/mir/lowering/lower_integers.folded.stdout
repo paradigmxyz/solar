@@ -142,6 +142,18 @@
       ret
   }
   
+  fn @guarded_difference(arg0: i8, arg1: i8) -> i8 {
+    bb0:
+      v0 = gt arg1, arg0
+      jumpi v0, bb2, bb1
+    bb1:
+      v1 = sub arg0, arg1
+      ret v1
+    bb2:
+      v2 = sub arg0, arg1
+      ret v2
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after egraph) ===
   @module Integers
@@ -283,6 +295,18 @@
       ret
   }
   
+  fn @guarded_difference(arg0: i8, arg1: i8) -> i8 {
+    bb0:
+      v0 = gt arg1, arg0
+      jumpi v0, bb2, bb1
+    bb1:
+      v1 = sub arg0, arg1
+      ret v1
+    bb2:
+      v2 = sub arg0, arg1
+      ret v2
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after check-elim) ===
   @module Integers
@@ -412,5 +436,17 @@
   fn @unused_param(arg0: i8) {
     bb0:
       ret
+  }
+  
+  fn @guarded_difference(arg0: i8, arg1: i8) -> i8 {
+    bb0:
+      v0 = gt arg1, arg0
+      jumpi v0, bb2, bb1
+    bb1:
+      v1 = sub arg0, arg1
+      ret v1
+    bb2:
+      v2 = sub arg0, arg1
+      ret v2
   }
   

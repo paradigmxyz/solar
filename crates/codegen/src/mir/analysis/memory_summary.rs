@@ -802,6 +802,9 @@ fn observe_sources(
     sources: &IndexVec<ValueId, DenseBitSet<ArgIdx>>,
     value: ValueId,
 ) {
+    if summary.observes.domain_size() == 0 {
+        return;
+    }
     if let Value::Arg(index) = func.value(value)
         && index.index() < summary.observes.domain_size()
     {
@@ -949,6 +952,9 @@ fn capture_sources(
     sources: &IndexVec<ValueId, DenseBitSet<ArgIdx>>,
     value: ValueId,
 ) {
+    if summary.captures.domain_size() == 0 {
+        return;
+    }
     if let Value::Arg(index) = func.value(value)
         && index.index() < summary.captures.domain_size()
     {
@@ -964,10 +970,10 @@ fn capture_sources(
 /// argument sources are handled lazily while propagating or capturing.
 fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> {
     let params = func.params.len();
-    let mut sources = IndexVec::from_vec(vec![DenseBitSet::new_empty(params); func.num_values()]);
     if params == 0 {
-        return sources;
+        return IndexVec::new();
     }
+    let mut sources = IndexVec::from_vec(vec![DenseBitSet::new_empty(params); func.num_values()]);
 
     let mut users = IndexVec::from_vec(vec![Vec::new(); func.num_values()]);
     let mut queued = DenseBitSet::new_empty(func.num_values());

@@ -65,3 +65,28 @@
       ret 0
   }
   
+  fn @strict_lower_bound_scopes(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> i256 {
+    bb0:
+      v0 = gt arg3, 100
+      jumpi v0, bb7, bb1
+    bb1:
+      jumpi arg0, bb2, bb5
+    bb5:
+      v4 = eq arg3, 0
+      jumpi v4, bb7, bb6
+    bb2:
+      v1 = eq arg2, arg3
+      jumpi v1, bb3, bb7
+    bb3:
+      v2 = lt arg1, arg2
+      jumpi v2, bb4, bb7
+    bb4:
+      v3 = eq arg3, 0
+-     jumpi v3, bb7, bb6
++     jump bb6
+    bb6:
+      ret 1
+    bb7:
+      ret 0
+  }
+  

@@ -38,7 +38,6 @@ fn @store() -> i256 [selector=0x975057e7, abi_params=[], abi_returns=[word<bytes
     v5 = or v2, v4
     sstore 0, v5 !metadata(storage=slot(0))
     v6 = sload 0 !metadata(storage=slot(0))
-    v7 = and v6, 255
-    v8 = shl 248, v7
-    ret v8
+    v7 = shl 248, v6
+    ret v7
 }

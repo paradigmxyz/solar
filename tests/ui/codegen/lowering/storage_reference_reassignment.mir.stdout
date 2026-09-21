@@ -94,17 +94,15 @@ fn @packedRebind(arg0: i1, arg1: i256, arg2: i256, arg3: i8) -> struct1 [selecto
     v13 = add v12, 1
     v14 = sload v13 !metadata(storage=offset(v12, 1))
     v15 = shr 8, v14
-    v16 = and v15, 255
-    v17 = trunc i256 v16 to i8
-    v18 = mapping_slot arg2, 1
-    v19 = add v18, 1
-    v20 = sload v19 !metadata(storage=offset(v18, 1))
-    v21 = shr 8, v20
-    v22 = and v21, 255
-    v23 = trunc i256 v22 to i8
-    v24 = insert_value struct1, undef struct1, 0, v17
-    v25 = insert_value struct1, v24, 1, v23
-    ret v25
+    v16 = trunc i256 v15 to i8
+    v17 = mapping_slot arg2, 1
+    v18 = add v17, 1
+    v19 = sload v18 !metadata(storage=offset(v17, 1))
+    v20 = shr 8, v19
+    v21 = trunc i256 v20 to i8
+    v22 = insert_value struct1, undef struct1, 0, v16
+    v23 = insert_value struct1, v22, 1, v21
+    ret v23
 }
 
 fn @packedYulRebind(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> struct2 [selector=0x3c827d72, abi_params=[bool, u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
@@ -172,58 +170,52 @@ fn @chainedAssignmentExpression(arg0: i256, arg1: i256, arg2: i256) -> struct0 [
 
 fn @mappingAssignmentExpression(arg0: i256, arg1: i256, arg2: i8) -> struct3 [selector=0xe5a9572e, abi_params=[u256, u256, u8], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>], abi_return_params=[u8, u8, u8, u8]] {
   bb0:
-    v0 = trunc i256 1 to i8
-    v1 = mapping_slot arg0, 1
-    v2 = add v1, 1
-    v3 = shl 8, 255
-    v4 = sload v2 !metadata(storage=offset(v1, 1))
-    v5 = not v3
-    v6 = and v4, v5
-    v7 = zext i8 v0 to i256
-    v8 = and v7, 255
-    v9 = shl 8, v8
-    v10 = or v6, v9
-    sstore v2, v10 !metadata(storage=offset(v1, 1))
-    v11 = mapping_slot arg1, 2
-    v12 = add v11, 1
-    v13 = shl 8, 255
-    v14 = sload v12 !metadata(storage=offset(v11, 1))
-    v15 = not v13
-    v16 = and v14, v15
-    v17 = zext i8 arg2 to i256
-    v18 = and v17, 255
-    v19 = shl 8, v18
-    v20 = or v16, v19
-    sstore v12, v20 !metadata(storage=offset(v11, 1))
-    v21 = mapping_slot arg0, 1
-    v22 = add v21, 1
-    v23 = sload v22 !metadata(storage=offset(v21, 1))
-    v24 = shr 8, v23
-    v25 = and v24, 255
-    v26 = trunc i256 v25 to i8
-    v27 = mapping_slot arg1, 1
-    v28 = add v27, 1
-    v29 = sload v28 !metadata(storage=offset(v27, 1))
-    v30 = shr 8, v29
-    v31 = and v30, 255
-    v32 = trunc i256 v31 to i8
-    v33 = mapping_slot arg0, 2
-    v34 = add v33, 1
-    v35 = sload v34 !metadata(storage=offset(v33, 1))
-    v36 = shr 8, v35
-    v37 = and v36, 255
+    v0 = mapping_slot arg0, 1
+    v1 = add v0, 1
+    v2 = shl 8, 255
+    v3 = sload v1 !metadata(storage=offset(v0, 1))
+    v4 = not v2
+    v5 = and v3, v4
+    v6 = and 1, 255
+    v7 = shl 8, v6
+    v8 = or v5, v7
+    sstore v1, v8 !metadata(storage=offset(v0, 1))
+    v9 = mapping_slot arg1, 2
+    v10 = add v9, 1
+    v11 = shl 8, 255
+    v12 = sload v10 !metadata(storage=offset(v9, 1))
+    v13 = not v11
+    v14 = and v12, v13
+    v15 = zext i8 arg2 to i256
+    v16 = and v15, 255
+    v17 = shl 8, v16
+    v18 = or v14, v17
+    sstore v10, v18 !metadata(storage=offset(v9, 1))
+    v19 = mapping_slot arg0, 1
+    v20 = add v19, 1
+    v21 = sload v20 !metadata(storage=offset(v19, 1))
+    v22 = shr 8, v21
+    v23 = trunc i256 v22 to i8
+    v24 = mapping_slot arg1, 1
+    v25 = add v24, 1
+    v26 = sload v25 !metadata(storage=offset(v24, 1))
+    v27 = shr 8, v26
+    v28 = trunc i256 v27 to i8
+    v29 = mapping_slot arg0, 2
+    v30 = add v29, 1
+    v31 = sload v30 !metadata(storage=offset(v29, 1))
+    v32 = shr 8, v31
+    v33 = trunc i256 v32 to i8
+    v34 = mapping_slot arg1, 2
+    v35 = add v34, 1
+    v36 = sload v35 !metadata(storage=offset(v34, 1))
+    v37 = shr 8, v36
     v38 = trunc i256 v37 to i8
-    v39 = mapping_slot arg1, 2
-    v40 = add v39, 1
-    v41 = sload v40 !metadata(storage=offset(v39, 1))
-    v42 = shr 8, v41
-    v43 = and v42, 255
-    v44 = trunc i256 v43 to i8
-    v45 = insert_value struct3, undef struct3, 0, v26
-    v46 = insert_value struct3, v45, 1, v32
-    v47 = insert_value struct3, v46, 2, v38
-    v48 = insert_value struct3, v47, 3, v44
-    ret v48
+    v39 = insert_value struct3, undef struct3, 0, v23
+    v40 = insert_value struct3, v39, 1, v28
+    v41 = insert_value struct3, v40, 2, v33
+    v42 = insert_value struct3, v41, 3, v38
+    ret v42
 }
 
 fn @readB(arg0: i256) -> i256 [view] {

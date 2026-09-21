@@ -192,22 +192,23 @@ fn @memoryStructToStorage(arg0: i256) -> i256 [selector=0xb4caea8f, abi_params=[
     v14 = address
     v15 = gas
     v16 = sload 0 !metadata(storage=slot(0))
-    v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v18 = abi_encode [function], selector 0xbd2d517e00000000000000000000000000000000000000000000000000000000, args v17
-    v19 = slice_ptr v18
-    v20 = slice_len v18
-    v21 = zext i160 v14 to i256
-    v22 = staticcall v15, v21, v19, v20, 0, 32
-    jumpi v22, bb2, bb1
+    v17 = trunc i256 v16 to i192
+    v18 = zext i192 v17 to i256
+    v19 = abi_encode [function], selector 0xbd2d517e00000000000000000000000000000000000000000000000000000000, args v18
+    v20 = slice_ptr v19
+    v21 = slice_len v19
+    v22 = zext i160 v14 to i256
+    v23 = staticcall v15, v22, v20, v21, 0, 32
+    jumpi v23, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v23 = returndatasize
-    v24 = lt v23, 32
-    icall revert_if<tuple_data_too_short>, v24
-    v25 = add 0, 0
-    v26 = mload v25
-    ret v26
+    v24 = returndatasize
+    v25 = lt v24, 32
+    icall revert_if<tuple_data_too_short>, v25
+    v26 = add 0, 0
+    v27 = mload v26
+    ret v27
 }
 
 fn @storageStructToMemory() -> i1 [selector=0x9a40632d, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -229,21 +230,22 @@ fn @storageStructToMemory() -> i1 [selector=0x9a40632d, abi_params=[], abi_retur
     sstore 0, v12 !metadata(storage=slot(0))
     v13 = alloc memorystruct<1>, exact, uninitialized, panic, 32
     v14 = sload 0 !metadata(storage=slot(0))
-    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v16 = shl 64, v15
-    memory_object_store_field memorystruct<1>, v13, 0, v16
-    v17 = ptrtoint memorystruct v13 to i256
-    v18 = mload v17
-    v19 = address
-    v20 = zext i160 v19 to i256
-    v21 = shl 96, v20
-    v22 = shr 224, 0x32e43a1100000000000000000000000000000000000000000000000000000000
-    v23 = trunc i256 v22 to i32
-    v24 = zext i32 v23 to i256
-    v25 = shl 64, v24
-    v26 = or v21, v25
-    v27 = eq v18, v26
-    ret v27
+    v15 = trunc i256 v14 to i192
+    v16 = zext i192 v15 to i256
+    v17 = shl 64, v16
+    memory_object_store_field memorystruct<1>, v13, 0, v17
+    v18 = ptrtoint memorystruct v13 to i256
+    v19 = mload v18
+    v20 = address
+    v21 = zext i160 v20 to i256
+    v22 = shl 96, v21
+    v23 = shr 224, 0x32e43a1100000000000000000000000000000000000000000000000000000000
+    v24 = trunc i256 v23 to i32
+    v25 = zext i32 v24 to i256
+    v26 = shl 64, v25
+    v27 = or v22, v26
+    v28 = eq v19, v27
+    ret v28
 }
 
 fn @memoryArrayToStorage(arg0: i256) -> i256 [selector=0xe3183809, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -287,22 +289,23 @@ fn @memoryArrayToStorage(arg0: i256) -> i256 [selector=0xe3183809, abi_params=[u
     v50 = sload v47 !metadata(storage=symbolic(v47))
     v51 = mul v49, 8
     v52 = shr v51, v50
-    v53 = and v52, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v54 = abi_encode [function], selector 0xbd2d517e00000000000000000000000000000000000000000000000000000000, args v53
-    v55 = slice_ptr v54
-    v56 = slice_len v54
-    v57 = zext i160 v40 to i256
-    v58 = staticcall v41, v57, v55, v56, 0, 32
-    jumpi v58, bb10, bb9
+    v53 = trunc i256 v52 to i192
+    v54 = zext i192 v53 to i256
+    v55 = abi_encode [function], selector 0xbd2d517e00000000000000000000000000000000000000000000000000000000, args v54
+    v56 = slice_ptr v55
+    v57 = slice_len v55
+    v58 = zext i160 v40 to i256
+    v59 = staticcall v41, v58, v56, v57, 0, 32
+    jumpi v59, bb10, bb9
   bb9:
     revert_returndata
   bb10:
-    v59 = returndatasize
-    v60 = lt v59, 32
-    icall revert_if<tuple_data_too_short>, v60
-    v61 = add 0, 0
-    v62 = mload v61
-    ret v62
+    v60 = returndatasize
+    v61 = lt v60, 32
+    icall revert_if<tuple_data_too_short>, v61
+    v62 = add 0, 0
+    v63 = mload v62
+    ret v63
   bb7:
     v24 = memory_object_load_element memoryarray<1>, v0, v22
     v25 = shr 64, v24
@@ -390,23 +393,23 @@ fn @storageArrayToMemory() -> i1 [selector=0xc4550e60, abi_params=[], abi_return
     set_memory_object_len memoryarray, v37, v20
     jump bb1
   bb1:
-    v38 = phi [bb0: 0], [bb2: v50]
+    v38 = phi [bb0: 0], [bb2: v51]
     v39 = lt v38, v20
     jumpi v39, bb2, bb3
   bb3:
-    v51 = ptrtoint memoryarray v37 to i256
-    v52 = add v51, 32
-    v53 = mload v52
-    v54 = address
-    v55 = zext i160 v54 to i256
-    v56 = shl 96, v55
-    v57 = shr 224, 0x32e43a1100000000000000000000000000000000000000000000000000000000
-    v58 = trunc i256 v57 to i32
-    v59 = zext i32 v58 to i256
-    v60 = shl 64, v59
-    v61 = or v56, v60
-    v62 = eq v53, v61
-    ret v62
+    v52 = ptrtoint memoryarray v37 to i256
+    v53 = add v52, 32
+    v54 = mload v53
+    v55 = address
+    v56 = zext i160 v55 to i256
+    v57 = shl 96, v56
+    v58 = shr 224, 0x32e43a1100000000000000000000000000000000000000000000000000000000
+    v59 = trunc i256 v58 to i32
+    v60 = zext i32 v59 to i256
+    v61 = shl 64, v60
+    v62 = or v57, v61
+    v63 = eq v54, v62
+    ret v63
   bb2:
     v40 = storage_array_data_slot 1
     v41 = div v38, 1
@@ -416,9 +419,10 @@ fn @storageArrayToMemory() -> i1 [selector=0xc4550e60, abi_params=[], abi_return
     v45 = sload v42 !metadata(storage=symbolic(v42))
     v46 = mul v44, 8
     v47 = shr v46, v45
-    v48 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v49 = shl 64, v48
-    memory_object_store_element memoryarray<1>, v37, v38, v49
-    v50 = add v38, 1
+    v48 = trunc i256 v47 to i192
+    v49 = zext i192 v48 to i256
+    v50 = shl 64, v49
+    memory_object_store_element memoryarray<1>, v37, v38, v50
+    v51 = add v38, 1
     jump bb1
 }

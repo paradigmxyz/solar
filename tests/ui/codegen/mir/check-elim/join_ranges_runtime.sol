@@ -33,7 +33,21 @@
 //@ run-call-fail: signedNegative -101
 //@ run-call-fail: signedNegative -10
 //@ run-call-fail: signedNegative 0
+//@ run-call: guardedDifference 255, 1 => 254
+//@ run-call: guardedDifference 1, 255 => 2
+//@ run-call: guardedDifference 0, 0 => 0
+//@ run-call: truncatedNonzero 257 => 256
+//@ run-call-fail: truncatedNonzero 256
 contract JoinedRanges {
+    function guardedDifference(uint8 a, uint8 b) external pure returns (uint8) {
+        if (a >= b) return a - b;
+        unchecked { return a - b; }
+    }
+    function truncatedNonzero(uint256 a) external pure returns (uint256) {
+        require(uint8(a) > 0);
+        return a - 1;
+    }
+
     function castBound(uint256 x) external pure returns (uint256) {
         require(x < 128);
         uint256 y = uint256(uint160(x));

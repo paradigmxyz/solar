@@ -7,52 +7,52 @@ data:
 
 fn @data() [selector=0x73d4a13a, abi_wrapper, pure] {
   bb0:
-    v32 = mload 64 !metadata(memory=scratch)
-    v33 = add v32, 320
-    mstore 64, v33
-    mstore v32, 257
-    v31 = add v32, 32
-    v3 = add v32, 288
+    v31 = mload 64 !metadata(memory=scratch)
+    v32 = add v31, 320
+    mstore 64, v32
+    mstore v31, 257
+    v30 = add v31, 32
+    v3 = add v31, 288
     mstore v3, 0
-    data_copy literal_0, v31, 257
-    v12 = ne v32, 0
-    v13 = zext i1 v12 to i256
-    v14 = mul v13, 257
-    v16 = add v14, 31
-    v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v20 = add v31, v18
-    mstore v20, 0
-    v22 = add v32, 64
-    mcopy v22, v31, v14
-    mstore v32, 32
-    mstore v31, v14
-    v26 = add v18, 64
-    returndata v32, v26
+    data_copy literal_0, v30, 257
+    v11 = ne v31, 0
+    v12 = zext i1 v11 to i256
+    v13 = mul v12, 257
+    v15 = add v13, 31
+    v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v19 = add v30, v17
+    mstore v19, 0
+    v21 = add v31, 64
+    mcopy v21, v30, v13
+    mstore v31, 32
+    mstore v30, v13
+    v25 = add v17, 64
+    returndata v31, v25
 }
 
 fn @subslice() [selector=0xb9ad073e, abi_wrapper, pure] {
   bb0:
-    v32 = mload 64 !metadata(memory=scratch)
-    v33 = add v32, 224
-    mstore 64, v33
-    mstore v32, 161
-    v31 = add v32, 32
-    v3 = add v32, 192
+    v31 = mload 64 !metadata(memory=scratch)
+    v32 = add v31, 224
+    mstore 64, v32
+    mstore v31, 161
+    v30 = add v31, 32
+    v3 = add v31, 192
     mstore v3, 0
-    data_copy literal_1, v31, 161
-    v12 = ne v32, 0
-    v13 = zext i1 v12 to i256
-    v14 = mul v13, 161
-    v16 = add v14, 31
-    v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v20 = add v31, v18
-    mstore v20, 0
-    v22 = add v32, 64
-    mcopy v22, v31, v14
-    mstore v32, 32
-    mstore v31, v14
-    v26 = add v18, 64
-    returndata v32, v26
+    data_copy literal_1, v30, 161
+    v11 = ne v31, 0
+    v12 = zext i1 v11 to i256
+    v13 = mul v12, 161
+    v15 = add v13, 31
+    v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v19 = add v30, v17
+    mstore v19, 0
+    v21 = add v31, 64
+    mcopy v21, v30, v13
+    mstore v31, 32
+    mstore v30, v13
+    v25 = add v17, 64
+    returndata v31, v25
 }
 
 fn @dataHash() [selector=0x1b3012a3, abi_wrapper, pure] {
@@ -70,22 +70,22 @@ fn @subsliceHash() [selector=0xe5a3e763, abi_wrapper, pure] {
 fn @zeroData() [selector=0x6ec059cd, abi_wrapper, pure] {
   bb0:
     v3 = icall @zeroData.body
-    v28 = ptrtoint memptr v3 to i256
-    v11 = ne v28, 0
-    v12 = zext i1 v11 to i256
-    v7 = mload v28
-    v13 = mul v7, v12
-    v30 = add v28, 32
-    v15 = add v13, 31
-    v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = add v30, v17
-    mstore v19, 0
-    v21 = add v28, 64
-    mcopy v21, v30, v13
-    mstore v28, 32
-    mstore v30, v13
-    v25 = add v17, 64
-    returndata v28, v25
+    v27 = ptrtoint memptr v3 to i256
+    v10 = ne v27, 0
+    v11 = zext i1 v10 to i256
+    v7 = mload v27
+    v12 = mul v7, v11
+    v29 = add v27, 32
+    v14 = add v12, 31
+    v16 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v18 = add v29, v16
+    mstore v18, 0
+    v20 = add v27, 64
+    mcopy v20, v29, v12
+    mstore v27, 32
+    mstore v29, v12
+    v24 = add v16, 64
+    returndata v27, v24
 }
 
 fn @zeroWord() [selector=0x4c092794, abi_wrapper, pure] {
@@ -99,22 +99,22 @@ fn @zeroWord() [selector=0x4c092794, abi_wrapper, pure] {
 fn @splatData() [selector=0xe1910fda, abi_wrapper, pure] {
   bb0:
     v11 = icall @splatData.body
-    v36 = ptrtoint memptr v11 to i256
-    v19 = ne v36, 0
-    v20 = zext i1 v19 to i256
-    v15 = mload v36
-    v21 = mul v15, v20
-    v38 = add v36, 32
-    v23 = add v21, 31
-    v25 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v27 = add v38, v25
-    mstore v27, 0
-    v29 = add v36, 64
-    mcopy v29, v38, v21
-    mstore v36, 32
-    mstore v38, v21
-    v33 = add v25, 64
-    returndata v36, v33
+    v35 = ptrtoint memptr v11 to i256
+    v18 = ne v35, 0
+    v19 = zext i1 v18 to i256
+    v15 = mload v35
+    v20 = mul v15, v19
+    v37 = add v35, 32
+    v22 = add v20, 31
+    v24 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v26 = add v37, v24
+    mstore v26, 0
+    v28 = add v35, 64
+    mcopy v28, v37, v20
+    mstore v35, 32
+    mstore v37, v20
+    v32 = add v24, 64
+    returndata v35, v32
 }
 
 fn @zeroHash() [selector=0x672c8259, abi_wrapper, pure] {

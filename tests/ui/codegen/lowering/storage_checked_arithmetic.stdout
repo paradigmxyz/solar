@@ -41,22 +41,21 @@ fn @storage_struct_add(arg0: i160, arg1: i128) [selector=0xb11dd1b8, abi_params=
     v0 = zext i160 arg0 to i256
     v1 = mapping_slot v0, 1
     v2 = sload v1 !metadata(storage=symbolic(v1))
-    v3 = and v2, 0xffffffffffffffffffffffffffffffff
-    v4 = trunc i256 v3 to i128
-    v12 = zext i128 v4 to i256
-    v13 = zext i128 arg1 to i256
-    v14 = add v12, v13
-    v15 = gt v14, 0xffffffffffffffffffffffffffffffff
-    jumpi v15, bb1, bb2
+    v3 = trunc i256 v2 to i128
+    v11 = zext i128 v3 to i256
+    v12 = zext i128 arg1 to i256
+    v13 = add v11, v12
+    v14 = gt v13, 0xffffffffffffffffffffffffffffffff
+    jumpi v14, bb1, bb2
   bb2:
-    v16 = trunc i256 v14 to i128
-    v6 = sload v1 !metadata(storage=symbolic(v1))
-    v7 = not 0xffffffffffffffffffffffffffffffff
-    v8 = and v6, v7
-    v9 = zext i128 v16 to i256
-    v10 = and v9, 0xffffffffffffffffffffffffffffffff
-    v11 = or v8, v10
-    sstore v1, v11 !metadata(storage=symbolic(v1))
+    v15 = trunc i256 v13 to i128
+    v5 = sload v1 !metadata(storage=symbolic(v1))
+    v6 = not 0xffffffffffffffffffffffffffffffff
+    v7 = and v5, v6
+    v8 = zext i128 v15 to i256
+    v9 = and v8, 0xffffffffffffffffffffffffffffffff
+    v10 = or v7, v9
+    sstore v1, v10 !metadata(storage=symbolic(v1))
     ret
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -70,38 +69,37 @@ fn @storage_struct_signed_sub(arg0: i160, arg1: i8) [selector=0x14ebfa30, abi_pa
     v1 = mapping_slot v0, 1
     v2 = sload v1 !metadata(storage=symbolic(v1))
     v3 = shr 128, v2
-    v4 = and v3, 255
-    v5 = signextend 0, v4
-    v6 = trunc i256 v5 to i8
-    v16 = sext i8 v6 to i256
-    v17 = sext i8 arg1 to i256
-    v18 = sub v16, v17
+    v4 = signextend 0, v3
+    v5 = trunc i256 v4 to i8
+    v15 = sext i8 v5 to i256
+    v16 = sext i8 arg1 to i256
+    v17 = sub v15, v16
+    v18 = slt v15, 0
     v19 = slt v16, 0
     v20 = slt v17, 0
-    v21 = slt v18, 0
-    v22 = xor v19, v20
-    v23 = zext i1 v22 to i256
-    v24 = xor v21, v19
-    v25 = zext i1 v24 to i256
-    v26 = and v23, v25
-    v27 = slt v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    v28 = sgt v18, 127
-    v29 = or v27, v28
-    v30 = zext i1 v29 to i256
-    v31 = or v26, v30
-    v32 = ne v31, 0
-    jumpi v32, bb1, bb2
+    v21 = xor v18, v19
+    v22 = zext i1 v21 to i256
+    v23 = xor v20, v18
+    v24 = zext i1 v23 to i256
+    v25 = and v22, v24
+    v26 = slt v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    v27 = sgt v17, 127
+    v28 = or v26, v27
+    v29 = zext i1 v28 to i256
+    v30 = or v25, v29
+    v31 = ne v30, 0
+    jumpi v31, bb1, bb2
   bb2:
-    v33 = trunc i256 v18 to i8
-    v8 = shl 128, 255
-    v9 = sload v1 !metadata(storage=symbolic(v1))
-    v10 = not v8
-    v11 = and v9, v10
-    v12 = zext i8 v33 to i256
-    v13 = and v12, 255
-    v14 = shl 128, v13
-    v15 = or v11, v14
-    sstore v1, v15 !metadata(storage=symbolic(v1))
+    v32 = trunc i256 v17 to i8
+    v7 = shl 128, 255
+    v8 = sload v1 !metadata(storage=symbolic(v1))
+    v9 = not v7
+    v10 = and v8, v9
+    v11 = zext i8 v32 to i256
+    v12 = and v11, 255
+    v13 = shl 128, v12
+    v14 = or v10, v13
+    sstore v1, v14 !metadata(storage=symbolic(v1))
     ret
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

@@ -194,22 +194,20 @@ fn @namedReturn() -> struct0 [selector=0xf76de570, pure, abi_params=[], abi_retu
 fn @emptyMemoryReferences() -> i256 [selector=0xc82d0745, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v1 = ptrtoint memoryarray 96 to i256
-    memory_object_store_field memorystruct<2>, v0, 0, v1
-    v2 = ptrtoint memorybytes 96 to i256
-    memory_object_store_field memorystruct<2>, v0, 1, v2
-    v3 = memory_object_len memoryarray, memoryarray 96
-    v4 = memory_object_len memorybytes, memorybytes 96
-    v5 = checked_add u256, v3, v4
-    v6 = memory_object_load_field memorystruct<2>, v0, 0
-    v7 = inttoptr i256 v6 to memoryarray
-    v8 = memory_object_len memoryarray, v7
-    v9 = checked_add u256, v5, v8
-    v10 = memory_object_load_field memorystruct<2>, v0, 1
-    v11 = inttoptr i256 v10 to memorybytes
-    v12 = memory_object_len memorybytes, v11
-    v13 = checked_add u256, v9, v12
-    ret v13
+    memory_object_store_field memorystruct<2>, v0, 0, 96
+    memory_object_store_field memorystruct<2>, v0, 1, 96
+    v1 = memory_object_len memoryarray, memoryarray 96
+    v2 = memory_object_len memorybytes, memorybytes 96
+    v3 = checked_add u256, v1, v2
+    v4 = memory_object_load_field memorystruct<2>, v0, 0
+    v5 = inttoptr i256 v4 to memoryarray
+    v6 = memory_object_len memoryarray, v5
+    v7 = checked_add u256, v3, v6
+    v8 = memory_object_load_field memorystruct<2>, v0, 1
+    v9 = inttoptr i256 v8 to memorybytes
+    v10 = memory_object_len memorybytes, v9
+    v11 = checked_add u256, v7, v10
+    ret v11
 }
 
 fn @emptyNamedReturns() -> struct1 [selector=0xf4994cb3, pure, abi_params=[], abi_returns=[memory_array<word>, memory_bytes], abi_return_params=[array<_, u256>, bytes]] {
@@ -224,8 +222,7 @@ fn @emptyWideNamedStruct() -> memorystruct [selector=0x27d08cee, pure, abi_param
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
     v1 = ptrtoint memorystruct v0 to i256
     memory_zero v1, 128
-    v2 = ptrtoint memorybytes 96 to i256
-    memory_object_store_field memorystruct<4>, v0, 1, v2
+    memory_object_store_field memorystruct<4>, v0, 1, 96
     ret v0
 }
 
@@ -234,18 +231,16 @@ fn @fullyInitializedNamedStruct() -> memorystruct [selector=0x03e8d290, pure, ab
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v2 = ptrtoint memoryarray 96 to i256
+    memory_object_store_field memorystruct<2>, v1, 0, 96
+    memory_object_store_field memorystruct<2>, v1, 1, 96
+    v2 = ptrtoint memoryarray v0 to i256
     memory_object_store_field memorystruct<2>, v1, 0, v2
-    v3 = ptrtoint memorybytes 96 to i256
-    memory_object_store_field memorystruct<2>, v1, 1, v3
-    v4 = ptrtoint memoryarray v0 to i256
-    memory_object_store_field memorystruct<2>, v1, 0, v4
-    v5 = not 31
-    v6 = and 64, v5
-    v7 = alloc memorybytes, exact, zeroed, panic, v6
-    set_memory_object_len memorybytes, v7, 1
-    v8 = ptrtoint memorybytes v7 to i256
-    memory_object_store_field memorystruct<2>, v1, 1, v8
+    v3 = not 31
+    v4 = and 64, v3
+    v5 = alloc memorybytes, exact, zeroed, panic, v4
+    set_memory_object_len memorybytes, v5, 1
+    v6 = ptrtoint memorybytes v5 to i256
+    memory_object_store_field memorystruct<2>, v1, 1, v6
     ret v1
 }
 

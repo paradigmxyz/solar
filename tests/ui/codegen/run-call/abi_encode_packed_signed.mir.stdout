@@ -38,17 +38,16 @@ fn @firstByteInt32(arg0: i8, arg1: i32) -> i256 [selector=0x538ea5fe, pure, abi_
 
 fn @firstByteSigned16() -> i256 [selector=0x951569ca, pure, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
-    v0 = trunc i256 0 to i8
-    v1 = sub 0, 1
-    v2 = trunc i256 v1 to i16
-    v3 = abi_encode_packed (u8 v0, i16 v2)
-    v4 = memory_object_len memorybytes, v3
-    v5 = lt 0, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    v7 = memory_object_load_byte memorybytes, v3, 0
-    v8 = shl 248, v7
-    ret v8
+    v0 = sub 0, 1
+    v1 = trunc i256 v0 to i16
+    v2 = abi_encode_packed (u8 i8 0, i16 v1)
+    v3 = memory_object_len memorybytes, v2
+    v4 = lt 0, v3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = memory_object_load_byte memorybytes, v2, 0
+    v7 = shl 248, v6
+    ret v7
 }
 
 fn @packedHash(arg0: i8, arg1: i16, arg2: i256) -> i256 [selector=0x4ef47d0a, pure, abi_params=[u8, i16, bytes3], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -102,6 +101,5 @@ fn @shorten(arg0: memorybytes) -> i8 [pure] {
   bb0:
     v0 = ptrtoint memorybytes arg0 to i256
     mstore v0, 1
-    v1 = trunc i256 9 to i8
-    ret v1
+    ret i8 9
 }

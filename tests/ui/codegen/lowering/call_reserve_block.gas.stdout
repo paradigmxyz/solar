@@ -103,6 +103,7 @@ bb9:
   push 0
   sload
   push 0xffffffffffffffffffffffffffffffffffffffff
+  dup 2
   and
   push 0
   push 64
@@ -120,7 +121,7 @@ bb9:
   push 0x3fa4f24500000000000000000000000000000000000000000000000000000000
   dup 2
   mstore
-  dup 2
+  swap 1
   extcodesize
   iszero
   push bb4

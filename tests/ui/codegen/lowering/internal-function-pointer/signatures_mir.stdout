@@ -7,9 +7,10 @@ fn @callVoid() -> i1 [selector=0xd04622c6, abi_params=[], abi_returns=[word<bool
   bb0:
     icall @internal_dispatcher_p_none_r_none, 2
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 255
-    v2 = ne v1, 0
-    ret v2
+    v1 = trunc i256 v0 to i8
+    v2 = zext i8 v1 to i256
+    v3 = ne v2, 0
+    ret v3
 }
 
 fn @setFlag() [selector=0x62548c7b, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -17,10 +18,9 @@ fn @setFlag() [selector=0x62548c7b, abi_params=[], abi_returns=[], abi_return_pa
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 255
     v2 = and v0, v1
-    v3 = zext i1 1 to i256
-    v4 = and v3, 255
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
+    v3 = and 1, 255
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
     ret
 }
 
@@ -28,12 +28,14 @@ fn @callState() -> i1 [selector=0xb67d6f95, abi_params=[], abi_returns=[word<boo
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0
-    v2 = and v1, 0xffffffffffffffff
-    icall @internal_dispatcher_p_none_r_none, v2
-    v3 = sload 0 !metadata(storage=slot(0))
-    v4 = and v3, 255
-    v5 = ne v4, 0
-    ret v5
+    v2 = trunc i256 v1 to i64
+    v3 = zext i64 v2 to i256
+    icall @internal_dispatcher_p_none_r_none, v3
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = trunc i256 v4 to i8
+    v6 = zext i8 v5 to i256
+    v7 = ne v6, 0
+    ret v7
 }
 
 fn @callPair(arg0: i256) -> struct0 [selector=0x85ead1f5, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {

@@ -106,7 +106,11 @@ impl<'a> RuleContext<'a> {
     }
 
     fn integer_mask(&self) -> U256 {
-        U256::MAX >> (256 - self.integer_ty.integer_bits().unwrap())
+        if self.integer_ty == MirType::I256 {
+            U256::MAX
+        } else {
+            U256::MAX >> (256 - self.integer_ty.integer_bits().unwrap())
+        }
     }
 
     fn operation_type(&self, op: &Op) -> Option<MirType> {
@@ -282,18 +286,27 @@ impl generated::Context for RuleContext<'_> {
             .map(|&(_, op)| op)
             .or_else(|| defining_kind(self.func, value).map(InstKind::op))
             .filter(|op| {
-                self.operation_type(op).unwrap_or(MirType::I256) == self.integer_ty
-                    || matches!(
-                        op,
-                        Op::Eq { .. }
-                            | Op::Ne { .. }
-                            | Op::Zext { .. }
-                            | Op::Trunc { .. }
-                            | Op::Sext { .. }
-                            | Op::PtrToInt { .. }
-                            | Op::IntToPtr { .. }
-                            | Op::Bitcast { .. }
-                    )
+                matches!(
+                    op,
+                    Op::Eq { .. }
+                        | Op::Ne { .. }
+                        | Op::Zext { .. }
+                        | Op::Trunc { .. }
+                        | Op::Sext { .. }
+                        | Op::PtrToInt { .. }
+                        | Op::IntToPtr { .. }
+                        | Op::Bitcast { .. }
+                ) || if op.result_kind() == crate::mir::ResultKind::Integer
+                    || matches!(op, Op::Select { .. })
+                {
+                    self.func
+                        .value_ty(value)
+                        .filter(|ty| ty.integer_bits().is_some())
+                        .unwrap_or(MirType::I256)
+                        == self.integer_ty
+                } else {
+                    self.operation_type(op).unwrap_or(MirType::I256) == self.integer_ty
+                }
             })
             .map(|op| canonical_operands(self.func, op))
     }
@@ -315,7 +328,8 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn all_ones(&mut self, value: Value) -> Option<()> {
-        self.has_const(value, self.integer_mask()).then_some(())
+        let value = self.func.value_u256(value)?;
+        (value == self.integer_mask()).then_some(())
     }
 
     fn bool_value(&mut self, value: Value) -> Option<()> {

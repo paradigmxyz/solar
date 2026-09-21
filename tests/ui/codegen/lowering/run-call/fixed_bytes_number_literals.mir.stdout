@@ -116,11 +116,9 @@ fn @mapKeyCross() -> i256 [selector=0xef866c75, abi_params=[], abi_returns=[word
 
 fn @compareControl() -> i1 [selector=0x86f1fef0, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = trunc i256 0x41424344 to i32
-    v1 = zext i32 v0 to i256
-    v2 = shl 224, v1
-    v3 = eq v2, 0x4142434400000000000000000000000000000000000000000000000000000000
-    ret v3
+    v0 = shl 224, 0x41424344
+    v1 = eq v0, 0x4142434400000000000000000000000000000000000000000000000000000000
+    ret v1
 }
 
 fn @bytesObjectCast() -> i256 [selector=0x3edbb59d, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
@@ -235,17 +233,15 @@ fn @emptyStringCompare() -> i1 [selector=0x97e464f0, pure, abi_params=[], abi_re
 fn @stateLiterals() -> struct1 [selector=0x803da9a2, view, abi_params=[], abi_returns=[word<bytes4>, word<bytes2>, word<bytes4>], abi_return_params=[bytes4, bytes2, bytes4]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = and v0, 0xffffffff
-    v2 = shl 224, v1
-    v3 = sload 1 !metadata(storage=slot(1))
-    v4 = shr 32, v3
-    v5 = and v4, 0xffff
-    v6 = shl 240, v5
-    v7 = loadimmutable immutableLiteral
-    v8 = insert_value struct1, undef struct1, 0, v2
-    v9 = insert_value struct1, v8, 1, v6
-    v10 = insert_value struct1, v9, 2, v7
-    ret v10
+    v1 = shl 224, v0
+    v2 = sload 1 !metadata(storage=slot(1))
+    v3 = shr 32, v2
+    v4 = shl 240, v3
+    v5 = loadimmutable immutableLiteral
+    v6 = insert_value struct1, undef struct1, 0, v1
+    v7 = insert_value struct1, v6, 1, v4
+    v8 = insert_value struct1, v7, 2, v5
+    ret v8
 }
 
 fn @give(arg0: i256) -> i256 [pure] {

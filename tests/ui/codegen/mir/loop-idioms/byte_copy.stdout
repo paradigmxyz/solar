@@ -9,22 +9,22 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
   bb2:
     v3 = icall @decode_calldata_type, 4
     v0 = icall @_slice, v3, arg1, arg2
-    v28 = ptrtoint memptr v0 to i256
-    v11 = ne v28, 0
-    v12 = zext i1 v11 to i256
-    v7 = mload v28
-    v13 = mul v7, v12
-    v30 = add v28, 32
-    v15 = add v13, 31
-    v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = add v30, v17
-    mstore v19, 0
-    v21 = add v28, 64
-    mcopy v21, v30, v13
-    mstore v28, 32
-    mstore v30, v13
-    v25 = add v17, 64
-    returndata v28, v25
+    v27 = ptrtoint memptr v0 to i256
+    v10 = ne v27, 0
+    v11 = zext i1 v10 to i256
+    v7 = mload v27
+    v12 = mul v7, v11
+    v29 = add v27, 32
+    v14 = add v12, 31
+    v16 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v18 = add v29, v16
+    mstore v18, 0
+    v20 = add v27, 64
+    mcopy v20, v29, v12
+    mstore v27, 32
+    mstore v29, v12
+    v24 = add v16, 64
+    returndata v27, v24
   bb1:
     revert 0, 0
 }
@@ -35,30 +35,30 @@ fn @rawOverlap() [selector=0x3facacff, abi_wrapper, pure] {
     v1 = add v0, 31
     mstore8 v1, 65
     v2 = icall @copyRaw, v1, 4
+    v38 = mload 64 !metadata(memory=scratch)
+    v8 = add v38, 32
+    mstore v38, 32
+    v35 = ptrtoint memptr v2 to i256
+    v15 = ne v35, 0
+    v16 = zext i1 v15 to i256
+    v12 = mload v35
+    v17 = mul v12, v16
+    v19 = add v17, 31
+    v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v21 = add v8, 32
+    v22 = add v8, v20
+    mstore v22, 0
+    mstore v8, v17
+    v24 = add v21, v20
+    v37 = add v35, 32
+    mcopy v21, v37, v17
+    v27 = sub v24, v38
+    v29 = add v27, 31
+    v31 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v39 = mload 64 !metadata(memory=scratch)
-    v8 = add v39, 32
-    mstore v39, 32
-    v36 = ptrtoint memptr v2 to i256
-    v16 = ne v36, 0
-    v17 = zext i1 v16 to i256
-    v12 = mload v36
-    v18 = mul v12, v17
-    v20 = add v18, 31
-    v21 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v22 = add v8, 32
-    v23 = add v8, v21
-    mstore v23, 0
-    mstore v8, v18
-    v25 = add v22, v21
-    v38 = add v36, 32
-    mcopy v22, v38, v18
-    v28 = sub v25, v39
-    v30 = add v28, 31
-    v32 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v40 = mload 64 !metadata(memory=scratch)
-    v41 = add v40, v32
-    mstore 64, v41 !metadata(memory=scratch)
-    returndata v40, v28
+    v40 = add v39, v31
+    mstore 64, v40 !metadata(memory=scratch)
+    returndata v39, v27
 }
 
 fn @objectOverlap() [selector=0xb7a73332, abi_wrapper, pure] {
@@ -69,30 +69,30 @@ fn @objectOverlap() [selector=0xb7a73332, abi_wrapper, pure] {
     mstore8 v2, 65
     v3 = inttoptr i256 v1 to memptr
     v4 = icall @copyObject, v3, 4
+    v40 = mload 64 !metadata(memory=scratch)
+    v10 = add v40, 32
+    mstore v40, 32
+    v37 = ptrtoint memptr v4 to i256
+    v17 = ne v37, 0
+    v18 = zext i1 v17 to i256
+    v14 = mload v37
+    v19 = mul v14, v18
+    v21 = add v19, 31
+    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v23 = add v10, 32
+    v24 = add v10, v22
+    mstore v24, 0
+    mstore v10, v19
+    v26 = add v23, v22
+    v39 = add v37, 32
+    mcopy v23, v39, v19
+    v29 = sub v26, v40
+    v31 = add v29, 31
+    v33 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v41 = mload 64 !metadata(memory=scratch)
-    v10 = add v41, 32
-    mstore v41, 32
-    v38 = ptrtoint memptr v4 to i256
-    v18 = ne v38, 0
-    v19 = zext i1 v18 to i256
-    v14 = mload v38
-    v20 = mul v14, v19
-    v22 = add v20, 31
-    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v24 = add v10, 32
-    v25 = add v10, v23
-    mstore v25, 0
-    mstore v10, v20
-    v27 = add v24, v23
-    v40 = add v38, 32
-    mcopy v24, v40, v20
-    v30 = sub v27, v41
-    v32 = add v30, 31
-    v34 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v42 = mload 64 !metadata(memory=scratch)
-    v43 = add v42, v34
-    mstore 64, v43 !metadata(memory=scratch)
-    returndata v42, v30
+    v42 = add v41, v33
+    mstore 64, v42 !metadata(memory=scratch)
+    returndata v41, v29
 }
 
 fn @allocationOverlap() [selector=0x46aad008, abi_wrapper, pure] {
@@ -256,36 +256,36 @@ fn @inPlace() [selector=0xda1b3040, abi_wrapper, pure] {
     jumpi v24, bb4, bb5
   bb5:
     v25 = icall @decode_calldata_type, 4
-    v58 = ptrtoint memptr v25 to i256
-    v51 = add v58, 32
+    v57 = ptrtoint memptr v25 to i256
+    v50 = add v57, 32
     jump bb1
   bb1:
     v0 = phi [bb5: 0], [bb3: v17]
     v17 = add v0, 1
-    v4 = mload v58
+    v4 = mload v57
     v5 = lt v17, v4
     jumpi v5, bb3, bb2
   bb2:
-    v33 = ne v58, 0
-    v34 = zext i1 v33 to i256
-    v35 = mul v4, v34
-    v60 = add v58, 32
-    v37 = add v35, 31
-    v39 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v41 = add v60, v39
-    mstore v41, 0
-    v43 = add v58, 64
-    mcopy v43, v60, v35
-    mstore v58, 32
-    mstore v60, v35
-    v47 = add v39, 64
-    returndata v58, v47
+    v32 = ne v57, 0
+    v33 = zext i1 v32 to i256
+    v34 = mul v4, v33
+    v59 = add v57, 32
+    v36 = add v34, 31
+    v38 = and v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v40 = add v59, v38
+    mstore v40, 0
+    v42 = add v57, 64
+    mcopy v42, v59, v34
+    mstore v57, 32
+    mstore v59, v34
+    v46 = add v38, 64
+    returndata v57, v46
   bb3:
-    v52 = add v51, v17
-    v53 = mload v52
-    v54 = byte 0, v53
-    v57 = add v51, v0
-    mstore8 v57, v54
+    v51 = add v50, v17
+    v52 = mload v51
+    v53 = byte 0, v52
+    v56 = add v50, v0
+    mstore8 v56, v53
     jump bb1
   bb4:
     revert 0, 0

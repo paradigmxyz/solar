@@ -161,7 +161,7 @@ fn lower_function(func: &mut Function) -> bool {
             }
             let inst = inst.clone();
             builder.set_debug_context(&inst.metadata.debug_context());
-            let value = match inst.kind {
+            let kind = match inst.kind {
                 InstKind::Trunc(value, width) => Some(clean(&mut builder, value, width)),
                 InstKind::Sext(value, from, to) => {
                     let value = signed(&mut builder, value, from);
@@ -170,7 +170,7 @@ fn lower_function(func: &mut Function) -> bool {
                 InstKind::Zext(value)
                     if builder.func().value_ty(value) == builder.func().inst(id).result_ty =>
                 {
-                    Some(value)
+                    Some(InstKind::Bitcast(value))
                 }
                 InstKind::PtrToInt(value, width) if width < 256 => {
                     let value = builder.cast_word(value);
@@ -212,16 +212,16 @@ fn lower_function(func: &mut Function) -> bool {
                     let a = signed(&mut builder, a, bits(a));
                     let b = signed(&mut builder, b, bits(b));
                     Some(if matches!(inst.kind, InstKind::SLt(..)) {
-                        builder.slt(a, b)
+                        InstKind::SLt(a, b)
                     } else {
-                        builder.sgt(a, b)
+                        InstKind::SGt(a, b)
                     })
                 }
                 _ => None,
             };
-            if let Some(value) = value {
+            if let Some(kind) = kind {
                 // Preserve the result identity, including uses in backedge phis.
-                builder.func_mut().inst_mut(id).replace_kind(InstKind::Bitcast(value));
+                builder.func_mut().inst_mut(id).replace_kind(kind);
                 changed = true;
             }
             builder.func_mut().blocks[block].instructions.push(id);
@@ -230,18 +230,18 @@ fn lower_function(func: &mut Function) -> bool {
     changed
 }
 
-fn clean(builder: &mut FunctionBuilder<'_>, value: ValueId, bits: u32) -> ValueId {
+fn clean(builder: &mut FunctionBuilder<'_>, value: ValueId, bits: u32) -> InstKind {
     let value = builder.cast_word(value);
     if bits == 256 {
-        return value;
+        return InstKind::Bitcast(value);
     }
     let mask = builder.imm(U256::MAX >> (256 - bits));
-    let value = builder.and(value, mask);
     if bits == 1 {
+        let value = builder.and(value, mask);
         let zero = builder.imm(0);
-        builder.ne(value, zero)
+        InstKind::Ne(value, zero)
     } else {
-        value
+        InstKind::And(value, mask)
     }
 }
 

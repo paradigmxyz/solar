@@ -134,9 +134,7 @@
       v5 = eq v4, false
       icall panic_if<0x32>, v5
       v6 = memory_object_load_element memoryarray<1>, arg0, 1
-      v7 = trunc i256 0xffffffffffffffffffffffffffffffffffffffff to i160
-      v8 = zext i160 v7 to i256
-      v9 = and v6, v8
-      ret v9
+      v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+      ret v7
   }
   

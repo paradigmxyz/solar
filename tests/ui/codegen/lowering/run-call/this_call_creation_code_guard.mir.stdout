@@ -531,25 +531,24 @@ fn @viaTry() [selector=0x9369e272, abi_params=[], abi_returns=[], abi_return_par
 
 fn @viaShared() [selector=0x86375232, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = zext i1 1 to i256
-    v1 = eq v0, 0
-    v2 = eq v1, false
-    v3 = zext i1 v2 to i256
-    v4 = abi_encode [word<bool>], args v3
-    v5 = not 31
-    v6 = and 755, v5
-    v7 = alloc raw, exact, uninitialized, infallible, v6
-    v8 = ptrtoint memptr v7 to i256
-    data_copy SharedHelper_initcode_4, v8, 692
-    v9 = slice_ptr v4
-    v10 = ptrtoint memptr v7 to i256
-    v11 = add v10, 692
-    mcopy v11, v9, 32 !metadata(memory=heap)
-    v12 = ptrtoint memptr v7 to i256
-    v13 = create 0, v12, 724
-    v14 = zext i160 v13 to i256
-    v15 = ne v14, 0
-    jumpi v15, bb2, bb1
+    v0 = eq true, false
+    v1 = eq v0, false
+    v2 = zext i1 v1 to i256
+    v3 = abi_encode [word<bool>], args v2
+    v4 = not 31
+    v5 = and 755, v4
+    v6 = alloc raw, exact, uninitialized, infallible, v5
+    v7 = ptrtoint memptr v6 to i256
+    data_copy SharedHelper_initcode_4, v7, 692
+    v8 = slice_ptr v3
+    v9 = ptrtoint memptr v6 to i256
+    v10 = add v9, 692
+    mcopy v10, v8, 32 !metadata(memory=heap)
+    v11 = ptrtoint memptr v6 to i256
+    v12 = create 0, v11, 724
+    v13 = zext i160 v12 to i256
+    v14 = ne v13, 0
+    jumpi v14, bb2, bb1
   bb1:
     revert_returndata
   bb2:

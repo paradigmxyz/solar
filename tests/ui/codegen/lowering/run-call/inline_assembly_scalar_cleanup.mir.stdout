@@ -8,115 +8,77 @@ types:
 
 fn @arithmetic() -> struct0 [selector=0x980a67fd, pure, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>, word<u8>, word<u8>], abi_return_params=[u8, u8, u8, u8, u8, u8]] {
   bb0:
-    v0 = trunc i256 257 to i8
-    v1 = trunc i256 0 to i8
-    v2 = checked_add u8, v0, v1
-    v3 = trunc i256 257 to i8
-    v4 = trunc i256 1 to i8
-    v5 = checked_mul u8, v3, v4
-    v6 = trunc i256 257 to i8
-    v7 = trunc i256 1 to i8
-    v8 = checked_div u8, v6, v7
-    v9 = trunc i256 257 to i8
-    v10 = trunc i256 2 to i8
-    v11 = checked_rem u8, v9, v10
-    v12 = trunc i256 257 to i8
-    v13 = trunc i256 0 to i8
-    v14 = shl v13, v12
-    v15 = trunc i256 257 to i8
-    v16 = trunc i256 1 to i8
-    v17 = shr v16, v15
-    v18 = insert_value struct0, undef struct0, 0, v2
-    v19 = insert_value struct0, v18, 1, v5
-    v20 = insert_value struct0, v19, 2, v8
-    v21 = insert_value struct0, v20, 3, v11
-    v22 = insert_value struct0, v21, 4, v14
-    v23 = insert_value struct0, v22, 5, v17
-    ret v23
+    v0 = checked_add u8, i8 1, i8 0
+    v1 = checked_mul u8, i8 1, i8 1
+    v2 = checked_div u8, i8 1, i8 1
+    v3 = checked_rem u8, i8 1, i8 2
+    v4 = shl i8 0, i8 1
+    v5 = shr i8 1, i8 1
+    v6 = insert_value struct0, undef struct0, 0, v0
+    v7 = insert_value struct0, v6, 1, v1
+    v8 = insert_value struct0, v7, 2, v2
+    v9 = insert_value struct0, v8, 3, v3
+    v10 = insert_value struct0, v9, 4, v4
+    v11 = insert_value struct0, v10, 5, v5
+    ret v11
 }
 
 fn @comparisons() -> struct1 [selector=0x6cf2b655, pure, abi_params=[], abi_returns=[word<bool>, word<bool>, word<bool>, word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool, bool, bool, bool]] {
   bb0:
-    v0 = trunc i256 257 to i8
-    v1 = trunc i256 1 to i8
-    v2 = eq v0, v1
-    v3 = trunc i256 257 to i8
-    v4 = trunc i256 1 to i8
-    v5 = ne v3, v4
-    v6 = trunc i256 257 to i8
-    v7 = trunc i256 1 to i8
-    v8 = lt v6, v7
-    v9 = eq v8, false
-    v10 = trunc i256 257 to i8
-    v11 = trunc i256 0 to i8
-    v12 = gt v10, v11
-    v13 = eq v12, false
-    v14 = trunc i256 257 to i8
-    v15 = trunc i256 0 to i8
-    v16 = gt v14, v15
-    v17 = trunc i256 257 to i8
-    v18 = trunc i256 1 to i8
-    v19 = lt v17, v18
-    v20 = insert_value struct1, undef struct1, 0, v2
-    v21 = insert_value struct1, v20, 1, v5
-    v22 = insert_value struct1, v21, 2, v9
-    v23 = insert_value struct1, v22, 3, v13
-    v24 = insert_value struct1, v23, 4, v16
-    v25 = insert_value struct1, v24, 5, v19
-    ret v25
+    v0 = eq i8 1, i8 1
+    v1 = ne i8 1, i8 1
+    v2 = lt i8 1, i8 1
+    v3 = eq v2, false
+    v4 = gt i8 1, i8 0
+    v5 = eq v4, false
+    v6 = gt i8 1, i8 0
+    v7 = lt i8 1, i8 1
+    v8 = insert_value struct1, undef struct1, 0, v0
+    v9 = insert_value struct1, v8, 1, v1
+    v10 = insert_value struct1, v9, 2, v3
+    v11 = insert_value struct1, v10, 3, v5
+    v12 = insert_value struct1, v11, 4, v6
+    v13 = insert_value struct1, v12, 5, v7
+    ret v13
 }
 
 fn @increments() -> struct2 [selector=0x56aa2dc5, pure, abi_params=[], abi_returns=[word<u8>, word<u8>], abi_return_params=[u8, u8]] {
   bb0:
-    v0 = trunc i256 256 to i8
-    v1 = trunc i256 1 to i8
-    v2 = checked_add u8, v0, v1
-    v3 = trunc i256 256 to i8
-    v4 = trunc i256 1 to i8
-    v5 = checked_add u8, v3, v4
-    v6 = zext i8 v2 to i256
-    v7 = zext i8 v3 to i256
-    v8 = insert_value struct2, undef struct2, 0, v6
-    v9 = insert_value struct2, v8, 1, v7
-    ret v9
+    v0 = checked_add u8, i8 0, i8 1
+    v1 = checked_add u8, i8 0, i8 1
+    v2 = zext i8 v0 to i256
+    v3 = insert_value struct2, undef struct2, 0, v2
+    v4 = insert_value struct2, v3, 1, 0
+    ret v4
 }
 
 fn @decrements() -> i256 [selector=0xa1d28959, pure, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = not 255
     v1 = trunc i256 v0 to i8
-    v2 = trunc i256 1 to i8
-    v3 = checked_sub u8, v1, v2
-    v4 = zext i8 v3 to i256
-    ret v4
+    v2 = checked_sub u8, v1, i8 1
+    v3 = zext i8 v2 to i256
+    ret v3
 }
 
 fn @negation() -> i256 [selector=0x336c96f8, pure, abi_params=[], abi_returns=[word<i8>], abi_return_params=[i8]] {
   bb0:
-    v0 = trunc i256 128 to i8
-    v1 = trunc i256 0 to i8
-    v2 = checked_sub i8, v1, v0
-    v3 = sext i8 v2 to i256
-    ret v3
+    v0 = checked_sub i8, i8 0, i8 128
+    v1 = sext i8 v0 to i256
+    ret v1
 }
 
 fn @wideningConversions() -> struct3 [selector=0x06a404a3, pure, abi_params=[], abi_returns=[word<u16>, word], abi_return_params=[u16, u256]] {
   bb0:
-    v0 = trunc i256 0x12345678 to i8
-    v1 = zext i8 v0 to i16
-    v2 = trunc i256 0x12345678 to i8
-    v3 = zext i8 v2 to i256
-    v4 = icall @widen, v3
-    v5 = insert_value struct3, undef struct3, 0, v1
-    v6 = insert_value struct3, v5, 1, v4
-    ret v6
+    v0 = icall @widen, 120
+    v1 = insert_value struct3, undef struct3, 0, i16 120
+    v2 = insert_value struct3, v1, 1, v0
+    ret v2
 }
 
 fn @explicitWideningReturn() -> i256 [selector=0xbd2ce75e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = trunc i256 0x12345678 to i8
-    v1 = zext i8 v0 to i256
-    ret v1
+    ret 120
 }
 
 fn @implicitReturn() -> i256 [selector=0xf8438e3d, pure, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
@@ -129,9 +91,7 @@ fn @invalidEnum() -> i256 [selector=0xb65e9efe, pure, abi_params=[], abi_returns
     v0 = lt 2, 2
     v1 = eq v0, false
     icall panic_if<0x21>, v1
-    v2 = trunc i256 0 to i8
-    v3 = zext i8 v2 to i256
-    v4 = eq 2, v3
+    v2 = eq i8 2, i8 0
     ret 2
 }
 

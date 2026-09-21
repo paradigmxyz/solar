@@ -199,6 +199,8 @@ struct ResidentSearchContext {
     cfg: CfgInfo,
     /// Operand occurrences per candidate value across the whole function.
     value_uses: FxHashMap<ValueId, usize>,
+    /// Arguments live where computed values exhaust direct stack access.
+    frame_required: DenseBitSet<ValueId>,
 }
 
 /// Complete stack calling convention selected for one non-recursive static callee.
@@ -859,8 +861,6 @@ trunc_i256_i1
 PUSH1 0x01
 CALLVALUE
 AND
-ISZERO
-ISZERO
 PUSH1 0x00
 MSTORE
 PUSH1 0x20
@@ -888,8 +888,6 @@ ptrtoint_i1
 PUSH1 0x01
 CALLVALUE
 AND
-ISZERO
-ISZERO
 PUSH1 0x00
 MSTORE
 PUSH1 0x20
@@ -971,8 +969,6 @@ trunc_i256_i1
 PUSH1 0x01
 CALLVALUE
 AND
-ISZERO
-ISZERO
 PUSH0
 MSTORE
 PUSH1 0x20
@@ -1006,8 +1002,6 @@ ptrtoint_i1
 PUSH1 0x01
 CALLVALUE
 AND
-ISZERO
-ISZERO
 PUSH0
 MSTORE
 PUSH1 0x20
@@ -1238,12 +1232,24 @@ RETURN
             let (block, start) = codegen.asm.next_instruction_position();
             codegen.asm.emit_op(op::ADD);
             codegen.emit_push_label(label);
-            codegen.asm.remove_instructions(&mut [(block, start..start + 1)]);
+            codegen.asm.emit_op(op::MUL);
+            codegen.emit_push_label(label);
+            codegen.asm.emit_op(op::SUB);
+            codegen.asm.remove_instructions(&mut [
+                (block, start + 4..start + 5),
+                (block, start..start + 1),
+                (block, start + 2..start + 3),
+            ]);
             codegen.asm.define_label(label);
 
             let (module, _) = codegen.asm.finish_evm_ir().unwrap();
             assert_eq!(
                 module.blocks[ir::BlockId::ENTRY].instructions[0].pushed_block(),
+                Some(ir::BlockId::from_usize(1))
+            );
+            assert_eq!(module.blocks[ir::BlockId::ENTRY].instructions.len(), 2);
+            assert_eq!(
+                module.blocks[ir::BlockId::ENTRY].instructions[1].pushed_block(),
                 Some(ir::BlockId::from_usize(1))
             );
         });

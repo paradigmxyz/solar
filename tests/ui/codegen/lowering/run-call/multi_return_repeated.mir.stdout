@@ -42,15 +42,13 @@ fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word]
     v12 = phi [bb7: v11], [bb8: false]
     jumpi v12, bb10, bb11
   bb11:
-    v14 = trunc i256 0 to i8
     jump bb12
   bb10:
-    v13 = trunc i256 1 to i8
     jump bb12
   bb12:
-    v15 = phi [bb10: v13], [bb11: v14]
-    v16 = zext i8 v15 to i256
-    ret v16
+    v13 = phi [bb10: i8 1], [bb11: i8 0]
+    v14 = zext i8 v13 to i256
+    ret v14
 }
 
 fn @sort(arg0: i256, arg1: i256) -> struct0 [pure] {

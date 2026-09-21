@@ -181,31 +181,30 @@ fn @checkedScan(arg0: i256) -> i1 [selector=0xf2609747, pure, abi_params=[u256],
     v3 = and v0, v2
     v4 = alloc memorybytes, exact, zeroed, panic, v3
     set_memory_object_len memorybytes, v4, arg0
-    v5 = trunc i256 0 to i8
     jump bb1
   bb1:
-    v6 = phi [bb0: 0], [bb3: v6]
-    v7 = phi [bb0: v5], [bb3: v21]
-    v8 = phi [bb0: arg0], [bb3: v8]
-    v9 = phi [bb0: v4], [bb3: v9]
-    v10 = memory_object_len memorybytes, v9
-    v11 = zext i8 v7 to i256
-    v12 = lt v11, v10
-    jumpi v12, bb4, bb5
+    v5 = phi [bb0: 0], [bb3: v5]
+    v6 = phi [bb0: i8 0], [bb3: v19]
+    v7 = phi [bb0: arg0], [bb3: v7]
+    v8 = phi [bb0: v4], [bb3: v8]
+    v9 = memory_object_len memorybytes, v8
+    v10 = zext i8 v6 to i256
+    v11 = lt v10, v9
+    jumpi v11, bb4, bb5
   bb5:
     jump bb2
   bb2:
     ret true
   bb4:
-    v13 = zext i8 v7 to i256
-    v14 = memory_object_len memorybytes, v9
-    v15 = lt v13, v14
-    v16 = eq v15, false
-    icall panic_if<0x32>, v16
-    v17 = memory_object_load_byte memorybytes, v9, v13
-    v18 = shl 248, v17
-    v19 = gt v18, 0x7f00000000000000000000000000000000000000000000000000000000000000
-    jumpi v19, bb7, bb8
+    v12 = zext i8 v6 to i256
+    v13 = memory_object_len memorybytes, v8
+    v14 = lt v12, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = memory_object_load_byte memorybytes, v8, v12
+    v17 = shl 248, v16
+    v18 = gt v17, 0x7f00000000000000000000000000000000000000000000000000000000000000
+    jumpi v18, bb7, bb8
   bb8:
     jump bb9
   bb9:
@@ -213,8 +212,7 @@ fn @checkedScan(arg0: i256) -> i1 [selector=0xf2609747, pure, abi_params=[u256],
   bb6:
     jump bb3
   bb3:
-    v20 = trunc i256 1 to i8
-    v21 = checked_add u8, v7, v20
+    v19 = checked_add u8, v6, i8 1
     jump bb1
   bb7:
     ret false

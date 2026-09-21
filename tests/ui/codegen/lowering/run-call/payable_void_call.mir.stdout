@@ -42,40 +42,36 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     revert_returndata
   bb2:
     v12 = address
-    v13 = trunc i256 0xbeef to i160
-    v14 = zext i160 v12 to i256
-    v15 = zext i160 v13 to i256
-    log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v14, v15, 7
-    v16 = gas
-    v17 = trunc i256 0xbeef to i160
-    v18 = zext i160 v17 to i256
-    v19 = abi_encode [word<u160>, word], selector 0x95ea7b300000000000000000000000000000000000000000000000000000000, args v18, 7
-    v20 = slice_ptr v19
-    v21 = slice_len v19
-    v22 = zext i160 v9 to i256
-    v23 = extcodesize v22
-    v24 = eq v23, 0
-    icall revert_if<target_contract_has_no_code>, v24
-    v25 = zext i160 v9 to i256
-    v26 = call v16, v25, 0, v20, v21, 0, 0
-    jumpi v26, bb4, bb3
+    v13 = zext i160 v12 to i256
+    log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v13, 0xbeef, 7
+    v14 = gas
+    v15 = abi_encode [word<u160>, word], selector 0x95ea7b300000000000000000000000000000000000000000000000000000000, args 0xbeef, 7
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = zext i160 v9 to i256
+    v19 = extcodesize v18
+    v20 = eq v19, 0
+    icall revert_if<target_contract_has_no_code>, v20
+    v21 = zext i160 v9 to i256
+    v22 = call v14, v21, 0, v16, v17, 0, 0
+    jumpi v22, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v27 = gas
-    v28 = abi_encode [], selector 0xe582dd3100000000000000000000000000000000000000000000000000000000
-    v29 = slice_ptr v28
-    v30 = slice_len v28
-    v31 = zext i160 v9 to i256
-    v32 = staticcall v27, v31, v29, v30, 0, 32
-    jumpi v32, bb6, bb5
+    v23 = gas
+    v24 = abi_encode [], selector 0xe582dd3100000000000000000000000000000000000000000000000000000000
+    v25 = slice_ptr v24
+    v26 = slice_len v24
+    v27 = zext i160 v9 to i256
+    v28 = staticcall v23, v27, v25, v26, 0, 32
+    jumpi v28, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v33 = returndatasize
-    v34 = lt v33, 32
-    icall revert_if<tuple_data_too_short>, v34
-    v35 = add 0, 0
-    v36 = mload v35
-    ret v36
+    v29 = returndatasize
+    v30 = lt v29, 32
+    icall revert_if<tuple_data_too_short>, v30
+    v31 = add 0, 0
+    v32 = mload v31
+    ret v32
 }

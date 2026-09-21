@@ -26,8 +26,8 @@ fn @recover() [selector=0xce746024, abi_wrapper, pure] {
     v7 = gas
     v9 = staticcall v7, 1, v30, 128, v6, 32
     v11 = mload v6
-    v38 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 128, v38
+    v2 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 128, v2
     returndata 128, 32
   bb2:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -60,8 +60,8 @@ fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
     v6 = gas
     v8 = staticcall v6, 1, v29, 128, v5, 32
     v10 = mload v5
-    v37 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 128, v37
+    v1 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 128, v1
     returndata 128, 32
   bb2:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

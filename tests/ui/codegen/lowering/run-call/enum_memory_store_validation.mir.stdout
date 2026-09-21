@@ -18,10 +18,9 @@ fn @structConstructor() -> i8 [selector=0x9b40f93f, pure, abi_params=[], abi_ret
     v6 = eq v5, false
     icall panic_if<0x21>, v6
     v7 = trunc i256 v4 to i8
-    v8 = zext i8 v7 to i256
-    v9 = lt v8, 3
-    v10 = eq v9, false
-    icall panic_if<0x21>, v10
+    v8 = lt v7, i8 3
+    v9 = eq v8, false
+    icall panic_if<0x21>, v9
     ret v7
 }
 
@@ -41,10 +40,9 @@ fn @arrayLiteral() -> i8 [selector=0x7e94f0e2, pure, abi_params=[], abi_returns=
     v8 = eq v7, false
     icall panic_if<0x21>, v8
     v9 = trunc i256 v6 to i8
-    v10 = zext i8 v9 to i256
-    v11 = lt v10, 3
-    v12 = eq v11, false
-    icall panic_if<0x21>, v12
+    v10 = lt v9, i8 3
+    v11 = eq v10, false
+    icall panic_if<0x21>, v11
     ret v9
 }
 
@@ -70,9 +68,8 @@ fn @arrayElement() -> i8 [selector=0x050651a8, pure, abi_params=[], abi_returns=
     v12 = eq v11, false
     icall panic_if<0x21>, v12
     v13 = trunc i256 v10 to i8
-    v14 = zext i8 v13 to i256
-    v15 = lt v14, 3
-    v16 = eq v15, false
-    icall panic_if<0x21>, v16
+    v14 = lt v13, i8 3
+    v15 = eq v14, false
+    icall panic_if<0x21>, v15
     ret v13
 }

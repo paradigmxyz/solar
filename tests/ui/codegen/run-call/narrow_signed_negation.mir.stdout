@@ -2,23 +2,20 @@
 @module NarrowSignedNegation
 fn @uncheckedI8(arg0: i8) -> i8 [selector=0x044c8cd4, pure, abi_params=[i8], abi_returns=[word<i8>], abi_return_params=[i8]] {
   bb0:
-    v0 = trunc i256 0 to i8
-    v1 = sub v0, arg0
-    ret v1
+    v0 = sub i8 0, arg0
+    ret v0
 }
 
 fn @uncheckedI24(arg0: i24) -> i24 [selector=0x4882557d, pure, abi_params=[i24], abi_returns=[word<i24>], abi_return_params=[i24]] {
   bb0:
-    v0 = trunc i256 0 to i24
-    v1 = sub v0, arg0
-    ret v1
+    v0 = sub i24 0, arg0
+    ret v0
 }
 
 fn @uncheckedI128(arg0: i128) -> i128 [selector=0x26acb17c, pure, abi_params=[i128], abi_returns=[word<i128>], abi_return_params=[i128]] {
   bb0:
-    v0 = trunc i256 0 to i128
-    v1 = sub v0, arg0
-    ret v1
+    v0 = sub i128 0, arg0
+    ret v0
 }
 
 fn @uncheckedI256(arg0: i256) -> i256 [selector=0xed955fd9, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[i256]] {
@@ -29,18 +26,15 @@ fn @uncheckedI256(arg0: i256) -> i256 [selector=0xed955fd9, pure, abi_params=[i2
 
 fn @checkedI8(arg0: i8) -> i8 [selector=0x0a504be5, pure, abi_params=[i8], abi_returns=[word<i8>], abi_return_params=[i8]] {
   bb0:
-    v0 = trunc i256 0 to i8
-    v1 = checked_sub i8, v0, arg0
-    ret v1
+    v0 = checked_sub i8, i8 0, arg0
+    ret v0
 }
 
 fn @upcastI8(arg0: i8) -> i256 [selector=0xaf286510, pure, abi_params=[i8], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
-    v0 = trunc i256 0 to i8
-    v1 = trunc i256 0 to i8
-    v2 = sub v1, arg0
-    v3 = sext i8 v2 to i256
-    ret v3
+    v0 = sub i8 0, arg0
+    v1 = sext i8 v0 to i256
+    ret v1
 }
 
 fn @internalI8(arg0: i8) -> i8 [selector=0x836b8250, pure, abi_params=[i8], abi_returns=[word<i8>], abi_return_params=[i8]] {
@@ -51,7 +45,6 @@ fn @internalI8(arg0: i8) -> i8 [selector=0x836b8250, pure, abi_params=[i8], abi_
 
 fn @negateI8(arg0: i8) -> i8 [pure] {
   bb0:
-    v0 = trunc i256 0 to i8
-    v1 = sub v0, arg0
-    ret v1
+    v0 = sub i8 0, arg0
+    ret v0
 }

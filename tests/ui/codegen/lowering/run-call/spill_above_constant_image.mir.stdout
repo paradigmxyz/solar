@@ -72,58 +72,55 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
   bb2:
     v12 = gas
     v13 = shl 0, 0x2200000000000000000000000000000000000000000000000000000000000033
-    v14 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v15 = zext i160 0x4444444444444444444444444444444444444444 to i256
-    v16 = abi_encode [word<u160>, word, word, word<u160>, word], selector 0x8a54c52f00000000000000000000000000000000000000000000000000000000, args v14, v13, 0x7a69, v15, 0x5555
-    v17 = slice_ptr v16
-    v18 = slice_len v16
-    v19 = zext i160 v9 to i256
-    v20 = call v12, v19, 0, v17, v18, 0, 32
-    jumpi v20, bb4, bb3
+    v14 = abi_encode [word<u160>, word, word, word<u160>, word], selector 0x8a54c52f00000000000000000000000000000000000000000000000000000000, args 0x1111111111111111111111111111111111111111, v13, 0x7a69, 0x4444444444444444444444444444444444444444, 0x5555
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = zext i160 v9 to i256
+    v18 = call v12, v17, 0, v15, v16, 0, 32
+    jumpi v18, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v21 = returndatasize
-    v22 = lt v21, 32
-    icall revert_if<tuple_data_too_short>, v22
-    v23 = add 0, 0
-    v24 = mload v23
-    v25 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
-    v26 = eq v24, v25
-    v27 = eq v26, false
-    icall revert_if<empty>, v27
-    v28 = trunc i256 v24 to i160
-    v29 = zext i160 v28 to i256
-    v30 = extcodesize v29
-    v31 = add v30, 63
-    v32 = lt v31, v30
-    icall panic_if<0x41>, v32
-    v33 = not 31
-    v34 = and v31, v33
-    v35 = alloc memorybytes, exact, zeroed, panic, v34
-    set_memory_object_len memorybytes, v35, v30
-    v36 = memory_object_data memorybytes, v35
-    v37 = zext i160 v28 to i256
-    v38 = ptrtoint memptr v36 to i256
-    extcodecopy v37, v38, 0, v30 !metadata(memory=heap)
-    v39 = memory_object_len memorybytes, v35
-    v40 = eq v39, 173
-    icall require<short_string>, v40, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
-    v41 = ptrtoint memorybytes v35 to i256
-    v42 = add v41, 109
-    v43 = mload v42
-    v44 = ptrtoint memorybytes v35 to i256
-    v45 = add v44, 141
-    v46 = mload v45
-    v47 = ptrtoint memorybytes v35 to i256
-    v48 = add v47, 173
-    v49 = mload v48
-    v50 = eq v43, 0x7a69
-    icall require<short_string>, v50, 8, 0x636861696e206964000000000000000000000000000000000000000000000000
-    v51 = zext i160 0x4444444444444444444444444444444444444444 to i256
-    v52 = eq v46, v51
-    icall require<short_string>, v52, 14, 0x746f6b656e20636f6e7472616374000000000000000000000000000000000000
-    v53 = eq v49, 0x5555
-    icall require<short_string>, v53, 8, 0x746f6b656e206964000000000000000000000000000000000000000000000000
+    v19 = returndatasize
+    v20 = lt v19, 32
+    icall revert_if<tuple_data_too_short>, v20
+    v21 = add 0, 0
+    v22 = mload v21
+    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffff
+    v24 = eq v22, v23
+    v25 = eq v24, false
+    icall revert_if<empty>, v25
+    v26 = trunc i256 v22 to i160
+    v27 = zext i160 v26 to i256
+    v28 = extcodesize v27
+    v29 = add v28, 63
+    v30 = lt v29, v28
+    icall panic_if<0x41>, v30
+    v31 = not 31
+    v32 = and v29, v31
+    v33 = alloc memorybytes, exact, zeroed, panic, v32
+    set_memory_object_len memorybytes, v33, v28
+    v34 = memory_object_data memorybytes, v33
+    v35 = zext i160 v26 to i256
+    v36 = ptrtoint memptr v34 to i256
+    extcodecopy v35, v36, 0, v28 !metadata(memory=heap)
+    v37 = memory_object_len memorybytes, v33
+    v38 = eq v37, 173
+    icall require<short_string>, v38, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
+    v39 = ptrtoint memorybytes v33 to i256
+    v40 = add v39, 109
+    v41 = mload v40
+    v42 = ptrtoint memorybytes v33 to i256
+    v43 = add v42, 141
+    v44 = mload v43
+    v45 = ptrtoint memorybytes v33 to i256
+    v46 = add v45, 173
+    v47 = mload v46
+    v48 = eq v41, 0x7a69
+    icall require<short_string>, v48, 8, 0x636861696e206964000000000000000000000000000000000000000000000000
+    v49 = eq v44, 0x4444444444444444444444444444444444444444
+    icall require<short_string>, v49, 14, 0x746f6b656e20636f6e7472616374000000000000000000000000000000000000
+    v50 = eq v47, 0x5555
+    icall require<short_string>, v50, 8, 0x746f6b656e206964000000000000000000000000000000000000000000000000
     ret 1
 }

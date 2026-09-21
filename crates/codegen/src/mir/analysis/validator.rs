@@ -817,12 +817,16 @@ impl<'a> Validator<'a> {
         {
             self.validate_integer_type(ty);
         }
+        let mut checked = DenseBitSet::new_empty(func.num_values());
         for value in func.live_values() {
-            if let Some(ty) = func.value_ty(value) {
-                self.validate_integer_type(ty);
+            if !checked.insert(value) {
+                continue;
             }
-            if func.value_ty(value).is_none_or(|ty| ty == MirType::Void) {
-                self.emit(format_args!("live value v{} has no value type", value.index()));
+            match func.value_ty(value) {
+                None | Some(MirType::Void) => {
+                    self.emit(format_args!("live value v{} has no value type", value.index()));
+                }
+                Some(ty) => self.validate_integer_type(ty),
             }
             if let Value::Immediate(crate::mir::Immediate::Pointer(_, ty)) = func.value(value)
                 && !ty.is_pointer()
@@ -831,6 +835,7 @@ impl<'a> Validator<'a> {
             }
             if let Value::Immediate(immediate) = func.value(value)
                 && let MirType::Int(bits) = immediate.ty()
+                && bits.get() < 256
                 && immediate.as_u256().is_some_and(|word| word.bit_len() > bits.get() as usize)
             {
                 self.emit(format_args!(

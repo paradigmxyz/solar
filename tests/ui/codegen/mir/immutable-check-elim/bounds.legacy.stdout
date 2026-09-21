@@ -113,12 +113,9 @@
 -     storeimmutable repeated, 1
 -     storeimmutable repeated, 0x10000
 +     storeimmutable clean_address, v0
-+     v2 = trunc i256 0x10000000000000000000000000000000000000007 to i168
-+     storeimmutable dirty_address, v2
-+     v3 = trunc i256 1 to i24
-+     storeimmutable repeated, v3
-+     v4 = trunc i256 0x10000 to i24
-+     storeimmutable repeated, v4
++     storeimmutable dirty_address, i168 0x10000000000000000000000000000000000000007
++     storeimmutable repeated, i24 1
++     storeimmutable repeated, i24 0x10000
       storeimmutable unknown, arg0
       icall @assign_called, 7
       icall @assign_called, 0xffff

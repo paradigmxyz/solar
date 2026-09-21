@@ -124,13 +124,12 @@ fn @dirtyGasOption() -> i1 [selector=0x494be41f, abi_params=[], abi_returns=[wor
 
 fn @dirtySend() -> i1 [selector=0x82ec93de, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = trunc i256 0xbeef to i160
-    v1 = icall @dirtyUint8, 256
-    v2 = trunc i256 v1 to i8
-    v3 = zext i8 v2 to i256
-    v4 = icall send<>, v0, v3
-    v5 = ne v4, 0
-    ret v5
+    v0 = icall @dirtyUint8, 256
+    v1 = trunc i256 v0 to i8
+    v2 = zext i8 v1 to i256
+    v3 = icall send<>, i160 0xbeef, v2
+    v4 = ne v3, 0
+    ret v4
 }
 
 fn @dirtyIndex() -> i256 [selector=0xe98f4d7c, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

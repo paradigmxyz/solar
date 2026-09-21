@@ -3,27 +3,27 @@
 fn @fallback() [fallback, payable] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 255
-    v2 = ne v1, 0
-    jumpi v2, bb1, bb2
+    v1 = trunc i256 v0 to i8
+    v2 = zext i8 v1 to i256
+    v3 = ne v2, 0
+    jumpi v3, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = not 255
-    v8 = and v6, v7
-    v9 = zext i1 1 to i256
-    v10 = and v9, 255
-    v11 = or v8, v10
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = not 255
+    v9 = and v7, v8
+    v10 = and 1, 255
+    v11 = or v9, v10
     sstore 0, v11 !metadata(storage=slot(0))
     icall @_decompress
     ret
   bb1:
-    v3 = calldatasize
-    calldatacopy 0, 0, v3 !metadata(memory=scratch)
     v4 = calldatasize
-    v5 = keccak256 0, v4 !metadata(memory=scratch)
-    mstore 0, v5 !metadata(memory=scratch)
+    calldatacopy 0, 0, v4 !metadata(memory=scratch)
+    v5 = calldatasize
+    v6 = keccak256 0, v5 !metadata(memory=scratch)
+    mstore 0, v6 !metadata(memory=scratch)
     returndata 0, 32
 }
 
@@ -124,22 +124,22 @@ fn @_decompress() {
 // === ROOT/tests/ui/codegen/lowering/run-call/decompression_loop_spills.sol:Harness ===
 @module Harness
 data:
-  Decompressor_initcode_0: hex"34600d5760fd8060115f395ff35b5f5ffd60c06040525f5460ff901615156028575f5460ff1981169050600160ff9016811790505f556036565b365f5f37365f205f5260205ff35b3615151560f9576003195f5f915b813681101515606b575f38855f305af493505050503d5f5f3e1515156067573d5ff35b3d5ffd5b35828281018290189150815f1a9150600181019050925080151515609b5783818153905060018101905092506044565b82359050828281018290189150815f1a915060018101905092505f1984818152905081607f811115151560d25791509350909160e0565b600181013683379150935090915b607f821691506001820191508184019150925091906044565b3636f3"
+  Decompressor_initcode_0: hex"34600d5760fc8060115f395ff35b5f5ffd60c06040525f5460ff901615156027575f5460ff198116905060ff600116811790505f556035565b365f5f37365f205f5260205ff35b3615151560f8576003195f5f915b813681101515606a575f38855f305af493505050503d5f5f3e1515156066573d5ff35b3d5ffd5b35828281018290189150815f1a9150600181019050925080151515609a5783818153905060018101905092506043565b82359050828281018290189150815f1a915060018101905092505f1984818152905081607f811115151560d15791509350909160df565b600181013683379150935090915b607f821691506001820191508184019150925091906043565b3636f3"
 
 fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 301, v1
+    v2 = and 300, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy Decompressor_initcode_0, v4, 270
+    data_copy Decompressor_initcode_0, v4, 269
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 270
+    v7 = add v6, 269
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 270
+    v9 = create 0, v8, 269
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1

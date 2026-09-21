@@ -41,9 +41,8 @@ fn @directXor(arg0: i8, arg1: i24) -> i256 [selector=0x7fa5e04f, pure, abi_param
 
 fn @isUint8Max(arg0: i8) -> i1 [selector=0x9244ef1d, pure, abi_params=[i8], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = trunc i256 255 to i8
-    v1 = eq arg0, v0
-    ret v1
+    v0 = eq arg0, i8 255
+    ret v0
 }
 
 fn @fullWidth(arg0: i256) -> i256 [selector=0x6f5032e7, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[u256]] {

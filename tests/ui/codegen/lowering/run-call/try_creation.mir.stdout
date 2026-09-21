@@ -51,10 +51,9 @@ fn @f(arg0: i1) -> i1 [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[word
     mcopy v26, v24, 32 !metadata(memory=heap)
     v27 = ptrtoint memptr v4 to i256
     v28 = create 0, v27, 328
-    v29 = zext i160 v28 to i256
-    v30 = eq v29, 0
-    v31 = eq v30, false
-    jumpi v31, bb1, bb2
+    v29 = eq v28, i160 0
+    v30 = eq v29, false
+    jumpi v30, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -63,10 +62,8 @@ fn @f(arg0: i1) -> i1 [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[word
   bb4:
     ret false
   bb1:
-    v32 = trunc i256 0 to i160
-    v33 = ne v28, v32
-    ret v33
+    v31 = ne v28, i160 0
+    ret v31
   bb3:
-    v34 = ne 0, 0
-    ret v34
+    ret false
 }

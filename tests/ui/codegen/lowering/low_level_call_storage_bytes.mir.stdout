@@ -12,9 +12,8 @@ fn @callData() -> memorybytes [selector=0x4e417a98, view, abi_params=[], abi_ret
 fn @target() -> i160 [selector=0xd4b83992, view, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = trunc i256 v1 to i160
-    ret v2
+    v1 = trunc i256 v0 to i160
+    ret v1
 }
 
 fn @prepare(arg0: i160, arg1: calldataslice) [selector=0xaacd9878, abi_params=[address, bytes], abi_returns=[], abi_return_params=[]] {
@@ -50,15 +49,14 @@ fn @prepare(arg0: i160, arg1: calldataslice) [selector=0xaacd9878, abi_params=[a
 fn @fire() -> struct0 [selector=0x457094cc, abi_params=[], abi_returns=[word<bool>, memory_bytes], abi_return_params=[bool, bytes]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = trunc i256 v1 to i160
-    v3 = gas
-    v4 = load_storage_bytes 0
-    v5 = address_call v2, v4, gas v3
-    v6 = icall returndata_bytes<>
-    v7 = insert_value struct0, undef struct0, 0, v5
-    v8 = insert_value struct0, v7, 1, v6
-    ret v8
+    v1 = trunc i256 v0 to i160
+    v2 = gas
+    v3 = load_storage_bytes 0
+    v4 = address_call v1, v3, gas v2
+    v5 = icall returndata_bytes<>
+    v6 = insert_value struct0, undef struct0, 0, v4
+    v7 = insert_value struct0, v6, 1, v5
+    ret v7
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {

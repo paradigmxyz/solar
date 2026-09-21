@@ -21,22 +21,22 @@ fn @payload() -> memorybytes [selector=0xa878f858, pure, abi_params=[], abi_retu
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_data_dedup.sol:Factory ===
 @module Factory
 data:
-  Child_initcode_0: hex"34600e5761019b8060125f395ff35b5f5ffd341515602a575f3560e01c80633fa4f245146026578063a878f85814602257602a565b6040565b602e565b5f5ffd5b60076080526020608001608090036080f35b6101206040526040518060c0528060c05260a060c05101604052806080526080815250608051806080526020900160808161011b903950604051806101005280610100528060a0526020900160a0518060a052810360a0518060a052526080518060805251608051806080525f811490501581029050601f19601f820116602083018184015f8152508284529250608051806080526020900181840191508281855e5091505060a0518060a052810390505f9001601f8101601f19811690506040518060e0528060e0528160e0510191508160405290508181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+  Child_initcode_0: hex"34600e576101978060125f395ff35b5f5ffd341515602a575f3560e01c80633fa4f245146026578063a878f85814602257602a565b6040565b602e565b5f5ffd5b60076080526020608001608090036080f35b6101206040526040518060c0528060c05260a060c051016040528060805260808152506080518060805260209001608081610117903950604051806101005280610100528060a0526020900160a0518060a052810360a0518060a05252608051806080525160805180608052151581029050601f19601f820116602083018184015f8152508284529250608051806080526020900181840191508281855e5091505060a0518060a052810390505f9001601f8101601f19811690506040518060e0528060e0528160e0510191508160405290508181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 
 fn @first() -> i256 [selector=0x3df4ddf4, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 460, v1
+    v2 = and 456, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy Child_initcode_0, v4, 429
+    data_copy Child_initcode_0, v4, 425
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 429
+    v7 = add v6, 425
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 429
+    v9 = create 0, v8, 425
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -65,16 +65,16 @@ fn @second() -> i256 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word], ab
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 460, v1
+    v2 = and 456, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy Child_initcode_0, v4, 429
+    data_copy Child_initcode_0, v4, 425
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 429
+    v7 = add v6, 425
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 429
+    v9 = create 0, v8, 425
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -103,16 +103,16 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 460, v1
+    v2 = and 456, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy Child_initcode_0, v4, 429
+    data_copy Child_initcode_0, v4, 425
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 429
+    v7 = add v6, 425
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 429
+    v9 = create 0, v8, 425
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -121,16 +121,16 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
   bb2:
     v12 = abi_encode []
     v13 = not 31
-    v14 = and 460, v13
+    v14 = and 456, v13
     v15 = alloc raw, exact, uninitialized, infallible, v14
     v16 = ptrtoint memptr v15 to i256
-    data_copy Child_initcode_0, v16, 429
+    data_copy Child_initcode_0, v16, 425
     v17 = slice_ptr v12
     v18 = ptrtoint memptr v15 to i256
-    v19 = add v18, 429
+    v19 = add v18, 425
     mcopy v19, v17, 0 !metadata(memory=heap)
     v20 = ptrtoint memptr v15 to i256
-    v21 = create 0, v20, 429
+    v21 = create 0, v20, 425
     v22 = zext i160 v21 to i256
     v23 = ne v22, 0
     jumpi v23, bb4, bb3

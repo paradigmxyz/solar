@@ -27,10 +27,9 @@ fn @vBytes4(arg0: i256) -> i256 [selector=0x2c920949, pure, abi_params=[bytes4],
 
 fn @vEnum(arg0: i8) -> i8 [selector=0x5aa5e60a, pure, abi_params=[enum<3, u8>], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
   bb0:
-    v0 = zext i8 arg0 to i256
-    v1 = lt v0, 3
-    v2 = eq v1, false
-    icall panic_if<0x21>, v2
+    v0 = lt arg0, i8 3
+    v1 = eq v0, false
+    icall panic_if<0x21>, v1
     ret arg0
 }
 

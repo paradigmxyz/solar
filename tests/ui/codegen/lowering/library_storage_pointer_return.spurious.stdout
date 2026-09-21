@@ -63,20 +63,18 @@ fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word],
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v5 = extcodesize v4
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v8 = delegatecall v3, v7, v1, v2, v1, 32
-    jumpi v8, bb2, bb1
+    v4 = extcodesize 0x1111111111111111111111111111111111111111
+    v5 = eq v4, 0
+    icall revert_if<target_contract_has_no_code>, v5
+    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = add v1, 0
-    v10 = mload v9
-    v11 = sload v10 !metadata(storage=symbolic(v10))
-    ret v11
+    v7 = add v1, 0
+    v8 = mload v7
+    v9 = sload v8 !metadata(storage=symbolic(v8))
+    ret v9
 }
 
 fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -85,27 +83,25 @@ fn @bytesLen() -> i256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v5 = extcodesize v4
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v8 = delegatecall v3, v7, v1, v2, v1, 32
-    jumpi v8, bb2, bb1
+    v4 = extcodesize 0x1111111111111111111111111111111111111111
+    v5 = eq v4, 0
+    icall revert_if<target_contract_has_no_code>, v5
+    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = add v1, 0
-    v10 = mload v9
-    v11 = sload v10 !metadata(storage=symbolic(v10))
-    validate_storage_bytes v11
-    v12 = and v11, 1
-    v13 = eq v12, 1
-    v14 = sub 0, v12
-    v15 = or 127, v14
-    v16 = shr 1, v11
-    v17 = and v16, v15
-    ret v17
+    v7 = add v1, 0
+    v8 = mload v7
+    v9 = sload v8 !metadata(storage=symbolic(v8))
+    validate_storage_bytes v9
+    v10 = and v9, 1
+    v11 = eq v10, 1
+    v12 = sub 0, v10
+    v13 = or 127, v12
+    v14 = shr 1, v9
+    v15 = and v14, v13
+    ret v15
 }
 
 fn @member() -> i256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -114,20 +110,18 @@ fn @member() -> i256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[wor
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v5 = extcodesize v4
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v8 = delegatecall v3, v7, v1, v2, v1, 32
-    jumpi v8, bb2, bb1
+    v4 = extcodesize 0x1111111111111111111111111111111111111111
+    v5 = eq v4, 0
+    icall revert_if<target_contract_has_no_code>, v5
+    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = add v1, 0
-    v10 = mload v9
-    v11 = sload v10 !metadata(storage=symbolic(v10))
-    ret v11
+    v7 = add v1, 0
+    v8 = mload v7
+    v9 = sload v8 !metadata(storage=symbolic(v8))
+    ret v9
 }
 
 fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -136,28 +130,26 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v5 = extcodesize v4
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v8 = delegatecall v3, v7, v1, v2, v1, 64
-    jumpi v8, bb2, bb1
+    v4 = extcodesize 0x1111111111111111111111111111111111111111
+    v5 = eq v4, 0
+    icall revert_if<target_contract_has_no_code>, v5
+    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 64
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = add v1, 0
+    v7 = add v1, 0
+    v8 = mload v7
+    v9 = add v1, 32
     v10 = mload v9
-    v11 = add v1, 32
-    v12 = mload v11
-    v13 = insert_value struct0, undef struct0, 0, v10
-    v14 = insert_value struct0, v13, 1, v12
-    v15 = extract_value struct0, v14, 0
-    v16 = extract_value struct0, v14, 1
-    v17 = sload v16 !metadata(storage=symbolic(v16))
-    v18 = insert_value struct0, undef struct0, 0, v15
-    v19 = insert_value struct0, v18, 1, v17
-    ret v19
+    v11 = insert_value struct0, undef struct0, 0, v8
+    v12 = insert_value struct0, v11, 1, v10
+    v13 = extract_value struct0, v12, 0
+    v14 = extract_value struct0, v12, 1
+    v15 = sload v14 !metadata(storage=symbolic(v14))
+    v16 = insert_value struct0, undef struct0, 0, v13
+    v17 = insert_value struct0, v16, 1, v15
+    ret v17
 }
 
 fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -166,24 +158,22 @@ fn @fixedLast() -> i256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v5 = extcodesize v4
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v8 = delegatecall v3, v7, v1, v2, v1, 32
-    jumpi v8, bb2, bb1
+    v4 = extcodesize 0x1111111111111111111111111111111111111111
+    v5 = eq v4, 0
+    icall revert_if<target_contract_has_no_code>, v5
+    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = add v1, 0
-    v10 = mload v9
-    v11 = lt 2, 3
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = add v10, 2
-    v14 = sload v13 !metadata(storage=offset(v10, 2))
-    ret v14
+    v7 = add v1, 0
+    v8 = mload v7
+    v9 = lt 2, 3
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = add v8, 2
+    v12 = sload v11 !metadata(storage=offset(v8, 2))
+    ret v12
 }
 
 fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -192,21 +182,19 @@ fn @mapValue(arg0: i256) -> i256 [selector=0x152381f4, view, abi_params=[u256], 
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v5 = extcodesize v4
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v8 = delegatecall v3, v7, v1, v2, v1, 32
-    jumpi v8, bb2, bb1
+    v4 = extcodesize 0x1111111111111111111111111111111111111111
+    v5 = eq v4, 0
+    icall revert_if<target_contract_has_no_code>, v5
+    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = add v1, 0
-    v10 = mload v9
-    v11 = mapping_slot arg0, v10
-    v12 = sload v11 !metadata(storage=symbolic(v11))
-    ret v12
+    v7 = add v1, 0
+    v8 = mload v7
+    v9 = mapping_slot arg0, v8
+    v10 = sload v9 !metadata(storage=symbolic(v9))
+    ret v10
 }
 
 fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -218,33 +206,31 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     v3 = slice_ptr v2
     v4 = slice_len v2
     v5 = gas
-    v6 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v7 = extcodesize v6
-    v8 = eq v7, 0
-    icall revert_if<target_contract_has_no_code>, v8
-    v9 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v10 = delegatecall v5, v9, v3, v4, v3, 96
-    jumpi v10, bb2, bb1
+    v6 = extcodesize 0x1111111111111111111111111111111111111111
+    v7 = eq v6, 0
+    icall revert_if<target_contract_has_no_code>, v7
+    v8 = delegatecall v5, 0x1111111111111111111111111111111111111111, v3, v4, v3, 96
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = ptrtoint memptr v1 to i256
-    mcopy v11, v3, 96
-    v12 = abi_decode [storageptr, array<2, u256>], v0
-    v13 = extract_value struct1, v12, 0
-    v14 = extract_value struct1, v12, 1
-    v15 = insert_value struct1, undef struct1, 0, v13
-    v16 = insert_value struct1, v15, 1, v14
-    v17 = extract_value struct1, v16, 0
-    v18 = extract_value struct1, v16, 1
-    v19 = sload v17 !metadata(storage=symbolic(v17))
-    v20 = lt 1, 2
-    v21 = eq v20, false
-    icall panic_if<0x32>, v21
-    v22 = memory_object_load_element memoryfixedarray<2, 1>, v18, 1
-    v23 = insert_value struct0, undef struct0, 0, v19
-    v24 = insert_value struct0, v23, 1, v22
-    ret v24
+    v9 = ptrtoint memptr v1 to i256
+    mcopy v9, v3, 96
+    v10 = abi_decode [storageptr, array<2, u256>], v0
+    v11 = extract_value struct1, v10, 0
+    v12 = extract_value struct1, v10, 1
+    v13 = insert_value struct1, undef struct1, 0, v11
+    v14 = insert_value struct1, v13, 1, v12
+    v15 = extract_value struct1, v14, 0
+    v16 = extract_value struct1, v14, 1
+    v17 = sload v15 !metadata(storage=symbolic(v15))
+    v18 = lt 1, 2
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = memory_object_load_element memoryfixedarray<2, 1>, v16, 1
+    v21 = insert_value struct0, undef struct0, 0, v17
+    v22 = insert_value struct0, v21, 1, v20
+    ret v22
 }
 
 fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -253,18 +239,16 @@ fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v5 = extcodesize v4
-    v6 = eq v5, 0
-    icall revert_if<target_contract_has_no_code>, v6
-    v7 = zext i160 0x1111111111111111111111111111111111111111 to i256
-    v8 = delegatecall v3, v7, v1, v2, v1, 32
-    jumpi v8, bb2, bb1
+    v4 = extcodesize 0x1111111111111111111111111111111111111111
+    v5 = eq v4, 0
+    icall revert_if<target_contract_has_no_code>, v5
+    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = add v1, 0
-    v10 = mload v9
-    v11 = sload v10 !metadata(storage=symbolic(v10))
-    ret v11
+    v7 = add v1, 0
+    v8 = mload v7
+    v9 = sload v8 !metadata(storage=symbolic(v8))
+    ret v9
 }

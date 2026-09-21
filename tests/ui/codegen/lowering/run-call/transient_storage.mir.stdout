@@ -30,38 +30,32 @@ fn @separateSpaces(arg0: i256, arg1: i256) -> struct0 [selector=0x9ef32708, abi_
 
 fn @packed() -> struct1 [selector=0x8f23d5f6, abi_params=[], abi_returns=[word<u16>, word<u16>, word], abi_return_params=[u16, u16, u256]] {
   bb0:
-    v0 = trunc i256 0x1122 to i16
-    v1 = tload 1
-    v2 = not 0xffff
-    v3 = and v1, v2
-    v4 = zext i16 v0 to i256
-    v5 = and v4, 0xffff
-    v6 = or v3, v5
-    tstore 1, v6
-    v7 = trunc i256 0x3344 to i16
-    v8 = shl 16, 0xffff
-    v9 = tload 1
-    v10 = not v8
-    v11 = and v9, v10
-    v12 = zext i16 v7 to i256
-    v13 = and v12, 0xffff
-    v14 = shl 16, v13
-    v15 = or v11, v14
-    tstore 1, v15
-    v16 = tload 1
-    v17 = tload 1
-    v18 = and v17, 0xffff
-    v19 = trunc i256 v18 to i16
-    v20 = tload 1
-    v21 = shr 16, v20
-    v22 = and v21, 0xffff
-    v23 = trunc i256 v22 to i16
-    v24 = zext i16 v19 to i256
-    v25 = zext i16 v23 to i256
-    v26 = insert_value struct1, undef struct1, 0, v24
-    v27 = insert_value struct1, v26, 1, v25
-    v28 = insert_value struct1, v27, 2, v16
-    ret v28
+    v0 = tload 1
+    v1 = not 0xffff
+    v2 = and v0, v1
+    v3 = and 0x1122, 0xffff
+    v4 = or v2, v3
+    tstore 1, v4
+    v5 = shl 16, 0xffff
+    v6 = tload 1
+    v7 = not v5
+    v8 = and v6, v7
+    v9 = and 0x3344, 0xffff
+    v10 = shl 16, v9
+    v11 = or v8, v10
+    tstore 1, v11
+    v12 = tload 1
+    v13 = tload 1
+    v14 = trunc i256 v13 to i16
+    v15 = tload 1
+    v16 = shr 16, v15
+    v17 = trunc i256 v16 to i16
+    v18 = zext i16 v14 to i256
+    v19 = zext i16 v17 to i256
+    v20 = insert_value struct1, undef struct1, 0, v18
+    v21 = insert_value struct1, v20, 1, v19
+    v22 = insert_value struct1, v21, 2, v12
+    ret v22
 }
 
 fn @signed() -> i16 [selector=0x232a6b9d, abi_params=[], abi_returns=[word<i16>], abi_return_params=[i16]] {
@@ -79,10 +73,9 @@ fn @signed() -> i16 [selector=0x232a6b9d, abi_params=[], abi_returns=[word<i16>]
     tstore 1, v9
     v10 = tload 1
     v11 = shr 32, v10
-    v12 = and v11, 0xffff
-    v13 = signextend 1, v12
-    v14 = trunc i256 v13 to i16
-    ret v14
+    v12 = signextend 1, v11
+    v13 = trunc i256 v12 to i16
+    ret v13
 }
 
 fn @clear() -> struct2 [selector=0x52efea6e, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -123,38 +116,32 @@ fn @getter() -> i256 [selector=0x993a04b7, abi_params=[], abi_returns=[word], ab
 fn @run() -> i16 [selector=0xc0406226, abi_params=[], abi_returns=[word<u16>], abi_return_params=[u16]] {
   bb0:
     v0 = tload 0
-    v1 = and v0, 0xffff
-    v2 = trunc i256 v1 to i16
-    v3 = tload 0
-    v4 = and v3, 0xffff
-    v5 = trunc i256 v4 to i16
-    v6 = trunc i256 10 to i16
-    v7 = checked_add u16, v5, v6
-    v8 = tload 0
-    v9 = not 0xffff
-    v10 = and v8, v9
-    v11 = zext i16 v7 to i256
-    v12 = and v11, 0xffff
-    v13 = or v10, v12
-    tstore 0, v13
+    v1 = trunc i256 v0 to i16
+    v2 = tload 0
+    v3 = trunc i256 v2 to i16
+    v4 = checked_add u16, v3, i16 10
+    v5 = tload 0
+    v6 = not 0xffff
+    v7 = and v5, v6
+    v8 = zext i16 v4 to i256
+    v9 = and v8, 0xffff
+    v10 = or v7, v9
+    tstore 0, v10
+    v11 = tload 0
+    v12 = trunc i256 v11 to i16
+    v13 = checked_mul u16, v12, i16 10
     v14 = tload 0
-    v15 = and v14, 0xffff
-    v16 = trunc i256 v15 to i16
-    v17 = trunc i256 10 to i16
-    v18 = checked_mul u16, v16, v17
-    v19 = tload 0
-    v20 = not 0xffff
-    v21 = and v19, v20
-    v22 = zext i16 v18 to i256
-    v23 = and v22, 0xffff
-    v24 = or v21, v23
-    tstore 0, v24
-    v25 = tload 0
-    v26 = and v25, 0xffff
-    v27 = trunc i256 v26 to i16
+    v15 = not 0xffff
+    v16 = and v14, v15
+    v17 = zext i16 v13 to i256
+    v18 = and v17, 0xffff
+    v19 = or v16, v18
+    tstore 0, v19
+    v20 = tload 0
+    v21 = trunc i256 v20 to i16
     jump bb2
   bb2:
     jump bb1
   bb1:
-    ret v27
+    ret v21
 }

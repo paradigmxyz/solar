@@ -12,21 +12,15 @@ fn @round255() -> i256 [selector=0xc640ed0c, pure, abi_params=[], abi_returns=[w
 
 fn @shl256() -> i256 [selector=0x6f0a6f55, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = trunc i256 256 to i16
-    v1 = zext i16 v0 to i256
-    v2 = shl v1, 1
-    ret v2
+    v0 = shl 256, 1
+    ret v0
 }
 
 fn @round256() -> i256 [selector=0x18bce979, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = trunc i256 256 to i16
-    v1 = zext i16 v0 to i256
-    v2 = shl v1, 1
-    v3 = trunc i256 256 to i16
-    v4 = zext i16 v3 to i256
-    v5 = shr v4, v2
-    ret v5
+    v0 = shl 256, 1
+    v1 = shr 256, v0
+    ret v1
 }
 
 fn @shr256() -> i256 [selector=0xe3729ce8, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -51,8 +45,6 @@ fn @pow() -> i256 [selector=0xef7e1e89, pure, abi_params=[], abi_returns=[word],
 
 fn @pow256() -> i256 [selector=0x7ae45de1, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = trunc i256 256 to i16
-    v1 = zext i16 v0 to i256
-    v2 = checked_pow u256, 2, v1
-    ret v2
+    v0 = checked_pow u256, 2, 256
+    ret v0
 }

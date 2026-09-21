@@ -66,8 +66,9 @@ fn @two() -> i256 [selector=0x5fdf05d7, abi_params=[], abi_returns=[word], abi_r
     v8 = sload v5 !metadata(storage=symbolic(v4))
     v9 = mul v7, 8
     v10 = shr v9, v8
-    v11 = and v10, 0xffffffffffffffff
-    v12 = icall @internal_dispatcher_p_none_r_u256, v11
+    v11 = trunc i256 v10 to i64
+    v12 = zext i64 v11 to i256
+    v13 = icall @internal_dispatcher_p_none_r_u256, v12
     ret 2
   bb1:
     ret 7

@@ -91,12 +91,14 @@ fn @t() -> i256 [selector=0x92d0d153, abi_params=[], abi_returns=[word], abi_ret
     revert_returndata
   bb4:
     v30 = sload 0 !metadata(storage=slot(0))
-    v31 = and v30, 0xffffffffffffffff
-    v32 = sload 0 !metadata(storage=slot(0))
-    v33 = shr 64, v32
-    v34 = and v33, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v35 = icall @internal_dispatcher_p_function_r_u256, v31, v34
-    ret v35
+    v31 = trunc i256 v30 to i64
+    v32 = zext i64 v31 to i256
+    v33 = sload 0 !metadata(storage=slot(0))
+    v34 = shr 64, v33
+    v35 = trunc i256 v34 to i192
+    v36 = zext i192 v35 to i256
+    v37 = icall @internal_dispatcher_p_function_r_u256, v32, v36
+    ret v37
 }
 
 fn @internal_dispatcher_p_function_r_u256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {

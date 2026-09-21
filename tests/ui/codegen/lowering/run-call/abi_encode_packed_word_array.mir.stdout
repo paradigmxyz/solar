@@ -121,21 +121,19 @@ fn @rejectDirtyCalldata() -> i256 [selector=0xe0d4a2a5, abi_params=[], abi_retur
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
-    v1 = trunc i256 1 to i8
-    v2 = memory_object_len memoryarray, v0
-    v3 = lt 0, v2
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    v5 = zext i8 v1 to i256
-    memory_object_store_element memoryarray<1>, v0, 0, v5
-    v6 = abi_encode [memory_array<word<u8>>], object, selector 0x38651f6700000000000000000000000000000000000000000000000000000000, args v0
-    v7 = ptrtoint memorybytes v6 to i256
-    v8 = add v7, 100
-    mstore v8, 257
-    v9 = address
-    v10 = gas
-    v11 = address_call v9, v6, gas v10
-    v12 = eq v11, false
-    icall require<short_string>, v12, 14, 0x64697274792063616c6c64617461000000000000000000000000000000000000
+    v1 = memory_object_len memoryarray, v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    memory_object_store_element memoryarray<1>, v0, 0, 1
+    v4 = abi_encode [memory_array<word<u8>>], object, selector 0x38651f6700000000000000000000000000000000000000000000000000000000, args v0
+    v5 = ptrtoint memorybytes v4 to i256
+    v6 = add v5, 100
+    mstore v6, 257
+    v7 = address
+    v8 = gas
+    v9 = address_call v7, v4, gas v8
+    v10 = eq v9, false
+    icall require<short_string>, v10, 14, 0x64697274792063616c6c64617461000000000000000000000000000000000000
     ret 1
 }

@@ -2,14 +2,10 @@
 @module C
 fn @test_cleanup() -> i1 [selector=0x2b63198c, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = trunc i256 0xffff0001 to i16
-    v1 = zext i16 v0 to i256
-    v2 = mapping_slot v1, 0
-    sstore v2, 3 !metadata(storage=symbolic(v2))
-    v3 = trunc i256 1 to i16
-    v4 = zext i16 v3 to i256
-    v5 = mapping_slot v4, 0
-    v6 = sload v5 !metadata(storage=symbolic(v5))
-    v7 = eq v6, 3
-    ret v7
+    v0 = mapping_slot 1, 0
+    sstore v0, 3 !metadata(storage=symbolic(v0))
+    v1 = mapping_slot 1, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = eq v2, 3
+    ret v3
 }

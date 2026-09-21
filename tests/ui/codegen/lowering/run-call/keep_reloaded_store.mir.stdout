@@ -70,13 +70,12 @@ fn @check(arg0: i1) [pure] {
 fn @probe(arg0: i256) -> i256 [selector=0xdb082440, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = trunc i256 v1 to i160
-    v3 = gas
-    v4 = abi_encode [word], object, selector 0x84b8ba0800000000000000000000000000000000000000000000000000000000, args arg0
-    v5 = address_staticcall v2, v4, gas v3
-    v6 = icall returndata_bytes<>
-    icall @check, v5
-    v7 = abi_decode [u256], v6
-    ret v7
+    v1 = trunc i256 v0 to i160
+    v2 = gas
+    v3 = abi_encode [word], object, selector 0x84b8ba0800000000000000000000000000000000000000000000000000000000, args arg0
+    v4 = address_staticcall v1, v3, gas v2
+    v5 = icall returndata_bytes<>
+    icall @check, v4
+    v6 = abi_decode [u256], v5
+    ret v6
 }

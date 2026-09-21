@@ -114,38 +114,34 @@ fn @pack(arg0: i8, arg1: i8) -> i256 [selector=0x5a5ffdde, abi_params=[u8, u8], 
     v13 = or v9, v12
     sstore 1, v13 !metadata(storage=slot(1))
     v14 = sload 1 !metadata(storage=slot(1))
-    v15 = and v14, 255
-    v16 = trunc i256 v15 to i8
-    v17 = zext i8 v16 to i256
-    v18 = sload 1 !metadata(storage=slot(1))
-    v19 = shr 8, v18
-    v20 = and v19, 255
-    v21 = trunc i256 v20 to i8
-    v22 = zext i8 v21 to i256
-    v23 = shl 8, v22
-    v24 = or v17, v23
-    ret v24
+    v15 = trunc i256 v14 to i8
+    v16 = zext i8 v15 to i256
+    v17 = sload 1 !metadata(storage=slot(1))
+    v18 = shr 8, v17
+    v19 = trunc i256 v18 to i8
+    v20 = zext i8 v19 to i256
+    v21 = shl 8, v20
+    v22 = or v16, v21
+    ret v22
 }
 
 fn @preserve(arg0: i8, arg1: i8) -> i256 [selector=0xced1063a, abi_params=[u8, u8], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = trunc i256 0xffffffffffffffff to i64
-    v1 = zext i64 v0 to i256
-    sstore 0, v1 !metadata(storage=slot(0))
-    v2 = sload 0 !metadata(storage=slot(0))
-    v3 = not 255
-    v4 = and v2, v3
-    v5 = zext i8 arg0 to i256
-    v6 = or v4, v5
-    sstore 0, v6 !metadata(storage=slot(0))
-    v7 = sload 0 !metadata(storage=slot(0))
-    v8 = shl 8, 255
-    v9 = not v8
-    v10 = and v7, v9
-    v11 = zext i8 arg1 to i256
-    v12 = shl 8, v11
-    v13 = or v10, v12
-    sstore 0, v13 !metadata(storage=slot(0))
-    v14 = sload 0 !metadata(storage=slot(0))
-    ret v14
+    sstore 0, 0xffffffffffffffff !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 255
+    v2 = and v0, v1
+    v3 = zext i8 arg0 to i256
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = shl 8, 255
+    v7 = not v6
+    v8 = and v5, v7
+    v9 = zext i8 arg1 to i256
+    v10 = shl 8, v9
+    v11 = or v8, v10
+    sstore 0, v11 !metadata(storage=slot(0))
+    v12 = sload 0 !metadata(storage=slot(0))
+    ret v12
 }

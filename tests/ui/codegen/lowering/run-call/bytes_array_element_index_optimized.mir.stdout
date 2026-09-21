@@ -10,30 +10,29 @@ fn @build() -> memoryfixedarray [pure] {
     v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     jump bb1
   bb1:
-    v4 = phi [bb0: 0], [bb2: v7]
+    v4 = phi [bb0: 0], [bb2: v6]
     v5 = lt v4, 2
     jumpi v5, bb2, bb3
   bb3:
-    v8 = lt 0, 2
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = ptrtoint memorybytes v0 to i256
-    memory_object_store_element memoryfixedarray<2, 1>, v3, 0, v10
-    v11 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v11, 2
-    v12 = memory_object_data memorybytes, v11
-    v13 = ptrtoint memptr v12 to i256
-    mstore v13, 0x6162000000000000000000000000000000000000000000000000000000000000
-    v14 = lt 1, 2
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = ptrtoint memorybytes v11 to i256
-    memory_object_store_element memoryfixedarray<2, 1>, v3, 1, v16
+    v7 = lt 0, 2
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = ptrtoint memorybytes v0 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, v3, 0, v9
+    v10 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v10, 2
+    v11 = memory_object_data memorybytes, v10
+    v12 = ptrtoint memptr v11 to i256
+    mstore v12, 0x6162000000000000000000000000000000000000000000000000000000000000
+    v13 = lt 1, 2
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = ptrtoint memorybytes v10 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, v3, 1, v15
     ret v3
   bb2:
-    v6 = ptrtoint memorybytes 96 to i256
-    memory_object_store_element memoryfixedarray<2, 1>, v3, v4, v6
-    v7 = add v4, 1
+    memory_object_store_element memoryfixedarray<2, 1>, v3, v4, 96
+    v6 = add v4, 1
     jump bb1
 }
 

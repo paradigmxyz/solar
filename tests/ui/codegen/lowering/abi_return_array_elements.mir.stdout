@@ -66,21 +66,19 @@ fn @unalignedArray(arg0: memoryarray) -> i256 [selector=0xd621b19f, pure, abi_pa
     memory_zero v1, 32
     v2 = ptrtoint memoryarray arg0 to i256
     v3 = add v2, 33
-    v4 = trunc i256 1 to i8
-    v5 = lt 0, 1
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    v7 = zext i8 v4 to i256
-    v8 = inttoptr i256 v3 to memoryfixedarray
-    memory_object_store_element memoryfixedarray<1, 1>, v8, 0, v7
-    v9 = memory_object_len memoryarray, arg0
-    v10 = lt 1, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = memory_object_load_element memoryarray<1>, arg0, 1
-    v13 = trunc i256 v12 to i8
-    v14 = zext i8 v13 to i256
-    ret v14
+    v4 = lt 0, 1
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = inttoptr i256 v3 to memoryfixedarray
+    memory_object_store_element memoryfixedarray<1, 1>, v6, 0, 1
+    v7 = memory_object_len memoryarray, arg0
+    v8 = lt 1, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = memory_object_load_element memoryarray<1>, arg0, 1
+    v11 = trunc i256 v10 to i8
+    v12 = zext i8 v11 to i256
+    ret v12
 }
 
 fn @unalignedHelper(arg0: memoryarray) -> i256 [selector=0x29dcbdaa, pure, abi_params=[array<_, u8>], abi_returns=[word], abi_return_params=[u256]] {
@@ -113,11 +111,9 @@ fn @_scribble(arg0: memoryarray) [pure] {
 
 fn @_writeElement(arg0: memoryfixedarray) [pure] {
   bb0:
-    v0 = trunc i256 1 to i8
-    v1 = lt 0, 1
-    v2 = eq v1, false
-    icall panic_if<0x32>, v2
-    v3 = zext i8 v0 to i256
-    memory_object_store_element memoryfixedarray<1, 1>, arg0, 0, v3
+    v0 = lt 0, 1
+    v1 = eq v0, false
+    icall panic_if<0x32>, v1
+    memory_object_store_element memoryfixedarray<1, 1>, arg0, 0, 1
     ret
 }

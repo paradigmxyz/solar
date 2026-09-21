@@ -14,9 +14,10 @@ fn @callAfterSet() -> i256 [selector=0xa9885fda, abi_params=[], abi_returns=[wor
     v4 = or v2, v3
     sstore 0, v4 !metadata(storage=slot(0))
     v5 = sload 0 !metadata(storage=slot(0))
-    v6 = and v5, 0xffffffffffffffff
-    v7 = icall @internal_dispatcher_p_none_r_u256, v6
-    ret v7
+    v6 = trunc i256 v5 to i64
+    v7 = zext i64 v6 to i256
+    v8 = icall @internal_dispatcher_p_none_r_u256, v7
+    ret v8
 }
 
 fn @callAfterDelete() -> i256 [selector=0x58819bde, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -34,9 +35,10 @@ fn @callAfterDelete() -> i256 [selector=0x58819bde, abi_params=[], abi_returns=[
     v9 = or v7, v8
     sstore 0, v9 !metadata(storage=slot(0))
     v10 = sload 0 !metadata(storage=slot(0))
-    v11 = and v10, 0xffffffffffffffff
-    v12 = icall @internal_dispatcher_p_none_r_u256, v11
-    ret v12
+    v11 = trunc i256 v10 to i64
+    v12 = zext i64 v11 to i256
+    v13 = icall @internal_dispatcher_p_none_r_u256, v12
+    ret v13
 }
 
 fn @internal_dispatcher_p_none_r_u256(arg0: i256) -> i256 [function_pointer_dispatcher] {

@@ -587,9 +587,16 @@ impl<'gcx> Assembler<'gcx> {
         shift(&mut self.alloc_relocations, &per_block);
         for (block, ranges) in per_block {
             let instructions = &mut self.program.blocks[block].instructions;
-            for (range, _) in ranges.into_iter().rev() {
-                instructions.drain(range);
-            }
+            let mut ranges = ranges.into_iter().peekable();
+            let mut index = 0;
+            instructions.retain(|_| {
+                while ranges.peek().is_some_and(|(range, _)| range.end <= index) {
+                    ranges.next();
+                }
+                let keep = ranges.peek().is_none_or(|(range, _)| !range.contains(&index));
+                index += 1;
+                keep
+            });
         }
         self.debug_assert_dataflow_relocations_sorted();
     }

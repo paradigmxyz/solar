@@ -24,7 +24,8 @@ fn @clear() -> i1 [selector=0x52efea6e, abi_params=[], abi_returns=[word<bool>],
     v13 = or v11, v12
     sstore 0, v13 !metadata(storage=slot(0))
     v14 = sload 0 !metadata(storage=slot(0))
-    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v16 = eq v15, 0
-    ret v16
+    v15 = trunc i256 v14 to i192
+    v16 = zext i192 v15 to i256
+    v17 = eq v16, 0
+    ret v17
 }

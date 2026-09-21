@@ -88,36 +88,32 @@ fn @constructor() [constructor] {
 fn @sendValue() -> i1 [selector=0x27c845dc, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = trunc i256 v1 to i160
-    v3 = icall send<>, v2, 1
-    v4 = ne v3, 0
-    ret v4
+    v1 = trunc i256 v0 to i160
+    v2 = icall send<>, v1, 1
+    v3 = ne v2, 0
+    ret v3
 }
 
 fn @transferValue() [selector=0x2d9ed8d5, payable, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = trunc i256 v1 to i160
-    icall transfer<>, v2, 1
+    v1 = trunc i256 v0 to i160
+    icall transfer<>, v1, 1
     ret
 }
 
 fn @sendZero() -> i1 [selector=0xe857d88b, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = trunc i256 0xbeef to i160
-    v1 = icall send<>, v0, 0
-    v2 = ne v1, 0
-    ret v2
+    v0 = icall send<>, i160 0xbeef, 0
+    v1 = ne v0, 0
+    ret v1
 }
 
 fn @sendInsufficient() -> i1 [selector=0x244c33f1, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = trunc i256 0xbeef to i160
-    v1 = icall send<>, v0, 1
-    v2 = ne v1, 0
-    ret v2
+    v0 = icall send<>, i160 0xbeef, 1
+    v1 = ne v0, 0
+    ret v1
 }
 
 fn @balances() -> struct0 [selector=0x7bb98a68, payable, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
@@ -125,49 +121,44 @@ fn @balances() -> struct0 [selector=0x7bb98a68, payable, abi_params=[], abi_retu
     v0 = address
     v1 = zext i160 v0 to i256
     v2 = balance v1
-    v3 = trunc i256 0xbeef to i160
-    v4 = icall send<>, v3, 1
-    v5 = ne v4, 0
-    v6 = eq v5, false
-    icall revert_if<empty>, v6
-    v7 = address
-    v8 = zext i160 v7 to i256
-    v9 = balance v8
-    v10 = trunc i256 0xbeef to i160
-    icall transfer<>, v10, 1
-    v11 = address
-    v12 = zext i160 v11 to i256
-    v13 = balance v12
-    v14 = insert_value struct0, undef struct0, 0, v2
-    v15 = insert_value struct0, v14, 1, v9
-    v16 = insert_value struct0, v15, 2, v13
-    ret v16
+    v3 = icall send<>, i160 0xbeef, 1
+    v4 = ne v3, 0
+    v5 = eq v4, false
+    icall revert_if<empty>, v5
+    v6 = address
+    v7 = zext i160 v6 to i256
+    v8 = balance v7
+    icall transfer<>, i160 0xbeef, 1
+    v9 = address
+    v10 = zext i160 v9 to i256
+    v11 = balance v10
+    v12 = insert_value struct0, undef struct0, 0, v2
+    v13 = insert_value struct0, v12, 1, v8
+    v14 = insert_value struct0, v13, 2, v11
+    ret v14
 }
 
 fn @sendRevertData() -> i256 [selector=0x2acce81c, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = trunc i256 v1 to i160
-    v3 = icall send<>, v2, 0
-    v4 = ne v3, 0
+    v1 = trunc i256 v0 to i160
+    v2 = icall send<>, v1, 0
+    v3 = ne v2, 0
     returndatacopy 0, 0, 4 !metadata(memory=scratch)
-    v5 = mload 0 !metadata(memory=scratch)
-    ret v5
+    v4 = mload 0 !metadata(memory=scratch)
+    ret v4
 }
 
 fn @transferOutOfGas() [selector=0xb3a4387c, payable, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = trunc i256 v1 to i160
-    icall transfer<>, v2, 1
+    v1 = trunc i256 v0 to i160
+    icall transfer<>, v1, 1
     ret
 }
 
 fn @transferInsufficient() [selector=0x44d19381, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = trunc i256 0xbeef to i160
-    icall transfer<>, v0, 1
+    icall transfer<>, i160 0xbeef, 1
     ret
 }

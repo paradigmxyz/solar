@@ -85,18 +85,17 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v64 = alloc memoryfixedarray<3, 1>, exact, uninitialized, panic, 96
     jump bb1
   bb1:
-    v65 = phi [bb0: 0], [bb2: v75]
+    v65 = phi [bb0: 0], [bb2: v76]
     v66 = lt v65, 3
     jumpi v66, bb2, bb3
   bb3:
-    v76 = abi_encode_packed (array<word<u120>> memoryfixedarray<3, 1> v64)
-    v77 = keccak256_bytes v76
-    v78 = abi_encode_packed (array<word<u120>> memoryarray<1> v0)
-    v79 = keccak256_bytes v78
-    v80 = trunc i256 0x1234 to i160
-    v81 = keccak256_packed (u160 v80)
-    v82 = insert_value struct0, undef struct0, 0, v77
-    v83 = insert_value struct0, v82, 1, v79
+    v77 = abi_encode_packed (array<word<u120>> memoryfixedarray<3, 1> v64)
+    v78 = keccak256_bytes v77
+    v79 = abi_encode_packed (array<word<u120>> memoryarray<1> v0)
+    v80 = keccak256_bytes v79
+    v81 = keccak256_packed (u160 i160 0x1234)
+    v82 = insert_value struct0, undef struct0, 0, v78
+    v83 = insert_value struct0, v82, 1, v80
     v84 = insert_value struct0, v83, 2, v81
     ret v84
   bb2:
@@ -107,9 +106,10 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v71 = sload v68 !metadata(storage=symbolic(v67))
     v72 = mul v70, 8
     v73 = shr v72, v71
-    v74 = and v73, 0xffffffffffffffffffffffffffffff
-    memory_object_store_element memoryfixedarray<3, 1>, v64, v65, v74
-    v75 = add v65, 1
+    v74 = trunc i256 v73 to i120
+    v75 = zext i120 v74 to i256
+    memory_object_store_element memoryfixedarray<3, 1>, v64, v65, v75
+    v76 = add v65, 1
     jump bb1
 }
 
@@ -261,36 +261,32 @@ fn @hashStructAbi() -> i256 [selector=0x46dfc0fe, pure, abi_params=[], abi_retur
 
 fn @hashScalarAbi() -> i256 [selector=0x9a69e01a, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = trunc i256 258 to i8
-    v1 = zext i8 v0 to i256
-    v2 = abi_encode [word<u8>], scratch, args v1
-    v3 = slice_ptr v2
-    v4 = slice_len v2
-    v5 = keccak256 v3, v4
-    ret v5
+    v0 = abi_encode [word<u8>], scratch, args 2
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = keccak256 v1, v2
+    ret v3
 }
 
 fn @scalarCall() -> i256 [selector=0x6c091940, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas
-    v2 = trunc i256 258 to i8
-    v3 = zext i8 v2 to i256
-    v4 = abi_encode [word<u8>], selector 0x1f3c3a7b00000000000000000000000000000000000000000000000000000000, args v3
-    v5 = slice_ptr v4
-    v6 = slice_len v4
-    v7 = zext i160 v0 to i256
-    v8 = staticcall v1, v7, v5, v6, 0, 32
-    jumpi v8, bb2, bb1
+    v2 = abi_encode [word<u8>], selector 0x1f3c3a7b00000000000000000000000000000000000000000000000000000000, args 2
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = zext i160 v0 to i256
+    v6 = staticcall v1, v5, v3, v4, 0, 32
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = returndatasize
-    v10 = lt v9, 32
-    icall revert_if<tuple_data_too_short>, v10
-    v11 = add 0, 0
-    v12 = mload v11
-    ret v12
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    ret v10
 }
 
 fn @echoScalar(arg0: i256) -> i256 [selector=0x1f3c3a7b, pure, abi_params=[u8], abi_returns=[word], abi_return_params=[u256]] {

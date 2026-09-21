@@ -25,17 +25,13 @@ fn @joinAddress(arg0: i1) -> i256 [selector=0xbfc95d7a, pure, abi_params=[bool],
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
-    v1 = trunc i256 2 to i160
-    v2 = zext i160 v1 to i256
-    v3 = icall @dirtyAddress, v2
+    v0 = icall @dirtyAddress, 2
     jump bb3
   bb1:
-    v0 = trunc i256 2 to i160
-    v4 = zext i160 v0 to i256
     jump bb3
   bb3:
-    v5 = phi [bb1: v4], [bb2: v3]
-    ret v5
+    v1 = phi [bb1: 2], [bb2: v0]
+    ret v1
 }
 
 fn @dirtyAddress(arg0: i256) -> i256 [pure] {
@@ -66,15 +62,13 @@ fn @dirtyBool(arg0: i256) -> i256 [pure] {
 
 fn @addressBits() -> i256 [selector=0xf41cb93b, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = trunc i256 2 to i160
-    v1 = zext i160 v0 to i256
-    v2 = icall @dirtyAddress, v1
-    v3 = shr 160, v2
-    v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v4, 2
-    v6 = zext i1 v5 to i256
-    v7 = and v6, v3
-    ret v7
+    v0 = icall @dirtyAddress, 2
+    v1 = shr 160, v0
+    v2 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = eq v2, 2
+    v4 = zext i1 v3 to i256
+    v5 = and v4, v1
+    ret v5
 }
 
 fn @bytesBits() -> i256 [selector=0x92ad518d, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -116,118 +110,101 @@ fn @sameBytes32(arg0: i256, arg1: i256) -> i1 [pure] {
 
 fn @typedCallCleans() -> i1 [selector=0x27e15135, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = trunc i256 2 to i160
-    v1 = zext i160 v0 to i256
-    v2 = icall @dirtyAddress, v1
-    v3 = icall @dirtyBytes, 0x4200000000000000000000000000000000000000000000000000000000000000
-    v4 = trunc i256 3 to i8
-    v5 = zext i8 v4 to i256
-    v6 = icall @dirtyUint8, v5
-    v7 = trunc i256 2 to i160
-    v8 = icall @same.10, v2, v7
-    jumpi v8, bb1, bb2
+    v0 = icall @dirtyAddress, 2
+    v1 = icall @dirtyBytes, 0x4200000000000000000000000000000000000000000000000000000000000000
+    v2 = icall @dirtyUint8, 3
+    v3 = icall @same.10, v0, i160 2
+    jumpi v3, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v9 = icall @same.11, v3, 0x4200000000000000000000000000000000000000000000000000000000000000
+    v4 = icall @same.11, v1, 0x4200000000000000000000000000000000000000000000000000000000000000
     jump bb3
   bb3:
-    v10 = phi [bb1: v9], [bb2: false]
-    jumpi v10, bb4, bb5
+    v5 = phi [bb1: v4], [bb2: false]
+    jumpi v5, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v11 = trunc i256 v6 to i8
-    v12 = zext i8 v11 to i256
-    v13 = icall @sameWord, v12, 3
+    v6 = trunc i256 v2 to i8
+    v7 = zext i8 v6 to i256
+    v8 = icall @sameWord, v7, 3
     jump bb6
   bb6:
-    v14 = phi [bb4: v13], [bb5: false]
-    jumpi v14, bb7, bb8
+    v9 = phi [bb4: v8], [bb5: false]
+    jumpi v9, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v15 = and v3, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v16 = icall @sameBytes32, v15, 0x4200000000000000000000000000000000000000000000000000000000000000
+    v10 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v11 = icall @sameBytes32, v10, 0x4200000000000000000000000000000000000000000000000000000000000000
     jump bb9
   bb9:
-    v17 = phi [bb7: v16], [bb8: false]
-    ret v17
+    v12 = phi [bb7: v11], [bb8: false]
+    ret v12
 }
 
 fn @directTypedCallCleans() -> i1 [selector=0x39703d9f, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = trunc i256 2 to i160
-    v1 = zext i160 v0 to i256
-    v2 = icall @dirtyAddress, v1
-    v3 = trunc i256 2 to i160
-    v4 = icall @same.10, v2, v3
-    jumpi v4, bb1, bb2
+    v0 = icall @dirtyAddress, 2
+    v1 = icall @same.10, v0, i160 2
+    jumpi v1, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v5 = icall @dirtyBytes, 0x4200000000000000000000000000000000000000000000000000000000000000
-    v6 = icall @same.11, v5, 0x4200000000000000000000000000000000000000000000000000000000000000
+    v2 = icall @dirtyBytes, 0x4200000000000000000000000000000000000000000000000000000000000000
+    v3 = icall @same.11, v2, 0x4200000000000000000000000000000000000000000000000000000000000000
     jump bb3
   bb3:
-    v7 = phi [bb1: v6], [bb2: false]
-    jumpi v7, bb4, bb5
+    v4 = phi [bb1: v3], [bb2: false]
+    jumpi v4, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v8 = trunc i256 3 to i8
-    v9 = zext i8 v8 to i256
-    v10 = icall @dirtyUint8, v9
-    v11 = trunc i256 v10 to i8
-    v12 = zext i8 v11 to i256
-    v13 = icall @sameWord, v12, 3
+    v5 = icall @dirtyUint8, 3
+    v6 = trunc i256 v5 to i8
+    v7 = zext i8 v6 to i256
+    v8 = icall @sameWord, v7, 3
     jump bb6
   bb6:
-    v14 = phi [bb4: v13], [bb5: false]
-    ret v14
+    v9 = phi [bb4: v8], [bb5: false]
+    ret v9
 }
 
 fn @directComparisonCleans() -> i1 [selector=0x38576c60, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = trunc i256 2 to i160
-    v1 = zext i160 v0 to i256
-    v2 = icall @dirtyAddress, v1
-    v3 = trunc i256 v2 to i160
-    v4 = trunc i256 2 to i160
-    v5 = eq v3, v4
-    jumpi v5, bb1, bb2
+    v0 = icall @dirtyAddress, 2
+    v1 = trunc i256 v0 to i160
+    v2 = eq v1, i160 2
+    jumpi v2, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v6 = icall @dirtyBytes, 0x4200000000000000000000000000000000000000000000000000000000000000
-    v7 = and v6, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v8 = eq v7, 0x4200000000000000000000000000000000000000000000000000000000000000
+    v3 = icall @dirtyBytes, 0x4200000000000000000000000000000000000000000000000000000000000000
+    v4 = and v3, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v5 = eq v4, 0x4200000000000000000000000000000000000000000000000000000000000000
     jump bb3
   bb3:
-    v9 = phi [bb1: v8], [bb2: false]
-    jumpi v9, bb4, bb5
+    v6 = phi [bb1: v5], [bb2: false]
+    jumpi v6, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v10 = trunc i256 3 to i8
-    v11 = zext i8 v10 to i256
-    v12 = icall @dirtyUint8, v11
-    v13 = trunc i256 v12 to i8
-    v14 = trunc i256 3 to i8
-    v15 = eq v13, v14
+    v7 = icall @dirtyUint8, 3
+    v8 = trunc i256 v7 to i8
+    v9 = eq v8, i8 3
     jump bb6
   bb6:
-    v16 = phi [bb4: v15], [bb5: false]
-    ret v16
+    v10 = phi [bb4: v9], [bb5: false]
+    ret v10
 }
 
 fn @boolBits() -> i256 [selector=0xc674afd7, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = zext i1 1 to i256
-    v1 = icall @dirtyBool, v0
-    v2 = eq v1, 2
-    v3 = zext i1 v2 to i256
-    ret v3
+    v0 = icall @dirtyBool, 1
+    v1 = eq v0, 2
+    v2 = zext i1 v1 to i256
+    ret v2
 }
 
 fn @internal_dispatcher_p_address_r_address(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
@@ -285,11 +262,9 @@ fn @throughPointer() -> i256 [selector=0xb80d6cd3, pure, abi_params=[], abi_retu
 
 fn @cleanPair() -> struct0 [pure] {
   bb0:
-    v0 = trunc i256 1 to i8
-    v1 = trunc i256 2 to i16
-    v2 = insert_value struct0, undef struct0, 0, v0
-    v3 = insert_value struct0, v2, 1, v1
-    ret v3
+    v0 = insert_value struct0, undef struct0, 0, i8 1
+    v1 = insert_value struct0, v0, 1, i16 2
+    ret v1
 }
 
 fn @cleanPairDispatch() -> struct0 [selector=0xc5500c7d, pure, abi_params=[], abi_returns=[word<u8>, word<u16>], abi_return_params=[u8, u16]] {
@@ -305,23 +280,21 @@ fn @cleanPairDispatch() -> struct0 [selector=0xc5500c7d, pure, abi_params=[], ab
 
 fn @modifierLoop() [selector=0x2a9574e8, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = trunc i256 1 to i8
-    v1 = zext i8 v0 to i256
     jump bb2
   bb2:
-    v2 = phi [bb0: v1], [bb4: v5]
-    v3 = phi [bb0: 0], [bb4: v6]
-    v4 = lt v3, 2
-    jumpi v4, bb5, bb6
+    v0 = phi [bb0: 1], [bb4: v3]
+    v1 = phi [bb0: 0], [bb4: v4]
+    v2 = lt v1, 2
+    jumpi v2, bb5, bb6
   bb6:
     jump bb3
   bb3:
-    v7 = eq v2, 257
+    v5 = eq v0, 257
+    v6 = zext i1 v5 to i256
+    v7 = eq v6, 0
     v8 = zext i1 v7 to i256
-    v9 = eq v8, 0
-    v10 = zext i1 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb8, bb9
+    v9 = ne v8, 0
+    jumpi v9, bb8, bb9
   bb9:
     jump bb10
   bb10:
@@ -333,12 +306,12 @@ fn @modifierLoop() [selector=0x2a9574e8, pure, abi_params=[], abi_returns=[], ab
   bb8:
     revert 0, 0
   bb5:
-    v5 = add v2, 128
+    v3 = add v0, 128
     jump bb7
   bb7:
     jump bb4
   bb4:
-    v6 = checked_add u256, v3, 1
+    v4 = checked_add u256, v1, 1
     jump bb2
 }
 

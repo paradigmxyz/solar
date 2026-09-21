@@ -487,8 +487,7 @@
       v0 = add arg1, arg2
 -     v1 = trunc i256 arg0 to i1
 +     v3 = and arg0, 1
-+     v4 = ne v3, 0
-+     v1 = bitcast i1 v4 to i1
++     v1 = ne v3, 0
       v2 = select v1, v0, arg2
       ret v2
   }
@@ -735,8 +734,7 @@
     bb0:
       v0 = add arg1, arg2
       v3 = and arg0, 1
-      v4 = ne v3, 0
-      v1 = bitcast i1 v4 to i1
+      v1 = ne v3, 0
       v2 = select v1, v0, arg2
       ret v2
   }

@@ -23,15 +23,13 @@ fn @rawReturn(arg0: i256) -> i256 [pure] {
 fn @compareReturns(arg0: i256, arg1: i256) -> i1 [selector=0xf3b43d04, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @canonicalReturn, arg0
-    v1 = zext i1 v0 to i256
-    v2 = eq v1, 0
-    v3 = eq v2, false
-    v4 = icall @canonicalReturn, arg1
-    v5 = zext i1 v4 to i256
-    v6 = eq v5, 0
-    v7 = eq v6, false
-    v8 = eq v3, v7
-    ret v8
+    v1 = eq v0, false
+    v2 = eq v1, false
+    v3 = icall @canonicalReturn, arg1
+    v4 = eq v3, false
+    v5 = eq v4, false
+    v6 = eq v2, v5
+    ret v6
 }
 
 fn @canonicalReturn(arg0: i256) -> i1 [pure] {
@@ -63,30 +61,26 @@ fn @selected(arg0: i256) -> i256 [pure] {
     v0 = ne arg0, 0
     jumpi v0, bb1, bb2
   bb2:
-    v2 = trunc i256 7 to i8
     jump bb3
   bb1:
-    v1 = trunc i256 19 to i8
     jump bb3
   bb3:
-    v3 = phi [bb1: v1], [bb2: v2]
-    v4 = zext i8 v3 to i256
-    ret v4
+    v1 = phi [bb1: i8 19], [bb2: i8 7]
+    v2 = zext i8 v1 to i256
+    ret v2
 }
 
 fn @cleanIsZero(arg0: i160) -> i1 [selector=0xcb37dd49, pure, abi_params=[address], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = trunc i256 0 to i160
-    v1 = eq arg0, v0
-    ret v1
+    v0 = eq arg0, i160 0
+    ret v0
 }
 
 fn @dirtyIsZero(arg0: i256) -> i1 [selector=0x9f3c1122, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = trunc i256 arg0 to i160
-    v1 = trunc i256 0 to i160
-    v2 = eq v0, v1
-    ret v2
+    v1 = eq v0, i160 0
+    ret v1
 }
 
 fn @cleanCast(arg0: i160) -> i256 [selector=0x12a6bf89, pure, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {

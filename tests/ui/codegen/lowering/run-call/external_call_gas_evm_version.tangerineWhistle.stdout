@@ -383,15 +383,13 @@ fn @bare() -> i256 [selector=0x8095dd0b, abi_params=[], abi_returns=[word], abi_
     v14 = address_call v9, v13, gas v12
     jumpi v14, bb3, bb4
   bb4:
-    v16 = trunc i256 0 to i8
     jump bb5
   bb3:
-    v15 = trunc i256 1 to i8
     jump bb5
   bb5:
-    v17 = phi [bb3: v15], [bb4: v16]
-    v18 = zext i8 v17 to i256
-    ret v18
+    v15 = phi [bb3: i8 1], [bb4: i8 0]
+    v16 = zext i8 v15 to i256
+    ret v16
 }
 
 fn @sendZero() -> i256 [selector=0xe857d88b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -418,13 +416,11 @@ fn @sendZero() -> i256 [selector=0xe857d88b, abi_params=[], abi_returns=[word], 
     v13 = ne v12, 0
     jumpi v13, bb3, bb4
   bb4:
-    v15 = trunc i256 0 to i8
     jump bb5
   bb3:
-    v14 = trunc i256 1 to i8
     jump bb5
   bb5:
-    v16 = phi [bb3: v14], [bb4: v15]
-    v17 = zext i8 v16 to i256
-    ret v17
+    v14 = phi [bb3: i8 1], [bb4: i8 0]
+    v15 = zext i8 v14 to i256
+    ret v15
 }

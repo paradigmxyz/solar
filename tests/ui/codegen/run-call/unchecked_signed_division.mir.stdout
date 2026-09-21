@@ -32,10 +32,9 @@ fn @checkedI8(arg0: i8, arg1: i8) -> i8 [selector=0x8287dbba, pure, abi_params=[
 
 fn @upcastI8(arg0: i8, arg1: i8) -> i256 [selector=0xc8f1d00b, pure, abi_params=[i8, i8], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
-    v0 = trunc i256 0 to i8
-    v1 = wrapping_div i8, arg0, arg1
-    v2 = sext i8 v1 to i256
-    ret v2
+    v0 = wrapping_div i8, arg0, arg1
+    v1 = sext i8 v0 to i256
+    ret v1
 }
 
 fn @internalI8(arg0: i8, arg1: i8) -> i8 [selector=0xeca4fc1e, pure, abi_params=[i8, i8], abi_returns=[word<i8>], abi_return_params=[i8]] {
@@ -46,11 +45,9 @@ fn @internalI8(arg0: i8, arg1: i8) -> i8 [selector=0xeca4fc1e, pure, abi_params=
 
 fn @isNegativeI8(arg0: i8, arg1: i8) -> i1 [selector=0x9ff9f4e2, pure, abi_params=[i8, i8], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = trunc i256 0 to i8
-    v1 = wrapping_div i8, arg0, arg1
-    v2 = trunc i256 0 to i8
-    v3 = slt v1, v2
-    ret v3
+    v0 = wrapping_div i8, arg0, arg1
+    v1 = slt v0, i8 0
+    ret v1
 }
 
 fn @divideI8(arg0: i8, arg1: i8) -> i8 [pure] {

@@ -194,9 +194,7 @@ fn @dirtyStructBranch(arg0: i1) -> memorystruct [selector=0x6dd0f9bf, pure, abi_
   bb2:
     jump bb3
   bb1:
-    v4 = trunc i256 1 to i8
-    v5 = zext i8 v4 to i256
-    memory_object_store_field memorystruct<1>, v1, 0, v5
+    memory_object_store_field memorystruct<1>, v1, 0, 1
     jump bb3
   bb3:
     ret v1
@@ -312,17 +310,16 @@ fn @dirtyMemoryFixedArray() -> i1 [selector=0x627cd2cc, pure, abi_params=[], abi
     v5 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
     v6 = trunc i256 v5 to i8
     v7 = zext i8 v6 to i256
-    v8 = trunc i256 1 to i8
-    v9 = eq v6, v8
-    jumpi v9, bb1, bb2
+    v8 = eq v6, i8 1
+    jumpi v8, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v10 = eq v7, 1
+    v9 = eq v7, 1
     jump bb3
   bb3:
-    v11 = phi [bb1: v10], [bb2: false]
-    ret v11
+    v10 = phi [bb1: v9], [bb2: false]
+    ret v10
 }
 
 fn @dirtyMemoryDynamicArray() -> i1 [selector=0x85ecd2fd, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -339,17 +336,16 @@ fn @dirtyMemoryDynamicArray() -> i1 [selector=0x85ecd2fd, pure, abi_params=[], a
     v6 = memory_object_load_element memoryarray<1>, v0, 0
     v7 = trunc i256 v6 to i8
     v8 = zext i8 v7 to i256
-    v9 = trunc i256 2 to i8
-    v10 = eq v7, v9
-    jumpi v10, bb1, bb2
+    v9 = eq v7, i8 2
+    jumpi v9, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v11 = eq v8, 2
+    v10 = eq v8, 2
     jump bb3
   bb3:
-    v12 = phi [bb1: v11], [bb2: false]
-    ret v12
+    v11 = phi [bb1: v10], [bb2: false]
+    ret v11
 }
 
 fn @dirtyMemoryStruct() -> i1 [selector=0x5c3a703b, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -361,17 +357,16 @@ fn @dirtyMemoryStruct() -> i1 [selector=0x5c3a703b, pure, abi_params=[], abi_ret
     v2 = memory_object_load_field memorystruct<1>, v0, 0
     v3 = trunc i256 v2 to i8
     v4 = zext i8 v3 to i256
-    v5 = trunc i256 1 to i8
-    v6 = eq v3, v5
-    jumpi v6, bb1, bb2
+    v5 = eq v3, i8 1
+    jumpi v5, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v7 = eq v4, 1
+    v6 = eq v4, 1
     jump bb3
   bb3:
-    v8 = phi [bb1: v7], [bb2: false]
-    ret v8
+    v7 = phi [bb1: v6], [bb2: false]
+    ret v7
 }
 
 fn @dirtyMemoryLvalue() -> i1 [selector=0x91f3b994, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -386,18 +381,16 @@ fn @dirtyMemoryLvalue() -> i1 [selector=0x91f3b994, pure, abi_params=[], abi_ret
     icall panic_if<0x32>, v4
     v5 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
     v6 = trunc i256 v5 to i8
-    v7 = trunc i256 1 to i8
-    v8 = checked_add u8, v6, v7
-    v9 = zext i8 v8 to i256
-    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v9
-    v10 = lt 0, 1
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
-    v13 = trunc i256 v12 to i8
-    v14 = trunc i256 2 to i8
-    v15 = eq v13, v14
-    ret v15
+    v7 = checked_add u8, v6, i8 1
+    v8 = zext i8 v7 to i256
+    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v8
+    v9 = lt 0, 1
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
+    v12 = trunc i256 v11 to i8
+    v13 = eq v12, i8 2
+    ret v13
 }
 
 fn @dirtyEnum() -> i256 [selector=0x676092a0, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {
@@ -423,13 +416,12 @@ fn @dirtyEnumStorageRead() -> i256 [selector=0xb2fb782c, abi_params=[], abi_retu
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 255
-    v2 = lt v1, 2
+    v1 = trunc i256 v0 to i8
+    v2 = lt v1, i8 2
     v3 = eq v2, false
     icall panic_if<0x21>, v3
-    v4 = trunc i256 v1 to i8
-    v5 = zext i8 v4 to i256
-    ret v5
+    v4 = zext i8 v1 to i256
+    ret v4
 }
 
 fn @dirtyEnumExternalArg() -> i256 [selector=0x0ca35a15, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -527,9 +519,8 @@ fn @dirtyEnumPacked() -> memorybytes [selector=0x1193687a, pure, abi_params=[], 
     v0 = lt 2, 2
     v1 = eq v0, false
     icall panic_if<0x21>, v1
-    v2 = trunc i256 2 to i8
-    v3 = abi_encode_packed (u8 v2)
-    ret v3
+    v2 = abi_encode_packed (u8 i8 2)
+    ret v2
 }
 
 fn @dirtyEnumPackedArray() -> memorybytes [selector=0x4cd1ded8, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

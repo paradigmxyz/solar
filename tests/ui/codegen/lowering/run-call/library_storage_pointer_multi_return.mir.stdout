@@ -72,21 +72,20 @@ fn @forwardStructPair() -> struct3 [selector=0x89663e35, view, abi_params=[], ab
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
-    v1 = ptrtoint memoryarray 96 to i256
-    memory_object_store_field memorystruct<2>, v0, 1, v1
-    v2 = icall @structPair, 2
-    v3 = extract_value struct1, v2, 0
-    v4 = extract_value struct1, v2, 1
-    v5 = alloc memorystruct<2>, exact, uninitialized, panic, 64
-    v6 = sload v4 !metadata(storage=symbolic(v4))
-    memory_object_store_field memorystruct<2>, v5, 0, v6
-    v7 = add v4, 1
-    v8 = icall @load_storage_word_array, v7
-    v9 = ptrtoint memoryarray v8 to i256
-    memory_object_store_field memorystruct<2>, v5, 1, v9
-    v10 = insert_value struct3, undef struct3, 0, v3
-    v11 = insert_value struct3, v10, 1, v5
-    ret v11
+    memory_object_store_field memorystruct<2>, v0, 1, 96
+    v1 = icall @structPair, 2
+    v2 = extract_value struct1, v1, 0
+    v3 = extract_value struct1, v1, 1
+    v4 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+    v5 = sload v3 !metadata(storage=symbolic(v3))
+    memory_object_store_field memorystruct<2>, v4, 0, v5
+    v6 = add v3, 1
+    v7 = icall @load_storage_word_array, v6
+    v8 = ptrtoint memoryarray v7 to i256
+    memory_object_store_field memorystruct<2>, v4, 1, v8
+    v9 = insert_value struct3, undef struct3, 0, v2
+    v10 = insert_value struct3, v9, 1, v4
+    ret v10
 }
 
 fn @forwardNarrowPair() -> struct0 [selector=0x1c173dc4, view, abi_params=[], abi_returns=[word, memory_array<word>], abi_return_params=[u256, array<_, u256>]] {

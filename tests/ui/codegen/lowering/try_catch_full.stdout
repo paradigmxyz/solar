@@ -7,185 +7,184 @@ types:
 fn @full() [selector=0xd17b272f, abi_wrapper, view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = gas
-    v261 = mload 64 !metadata(memory=scratch)
-    v262 = add v261, 64
-    mstore 64, v262 !metadata(memory=scratch)
-    mstore v261, 0xb3de648b00000000000000000000000000000000000000000000000000000000
-    v92 = add v261, 4
-    mstore v92, arg0
-    v8 = staticcall v3, v1, v261, 36, 0, 0
-    jumpi v8, bb1, bb2
+    v2 = gas
+    v256 = mload 64 !metadata(memory=scratch)
+    v257 = add v256, 64
+    mstore 64, v257 !metadata(memory=scratch)
+    mstore v256, 0xb3de648b00000000000000000000000000000000000000000000000000000000
+    v91 = add v256, 4
+    mstore v91, arg0
+    v7 = staticcall v2, v0, v256, 36, 0, 0
+    jumpi v7, bb1, bb2
   bb2:
-    v66 = returndatasize
-    v67 = add v66, 63
-    v68 = lt v67, v66
-    jumpi v68, bb8, bb11
+    v65 = returndatasize
+    v66 = add v65, 63
+    v67 = lt v66, v65
+    jumpi v67, bb8, bb11
   bb11:
-    v70 = and v67, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v281 = mload 64 !metadata(memory=scratch)
-    v282 = add v281, v70
-    mstore 64, v282 !metadata(memory=scratch)
-    mstore v281, v66
-    v242 = add v281, 32
-    returndatacopy v242, 0, v66
-    v20 = mload v242
-    v21 = shr 224, v20
-    v22 = eq v21, 0x8c379a0
-    jumpi v22, bb3, bb5
-  bb3:
-    v24 = icall @try_decode_error_message, v242, v66
-    jumpi v24, bb4, bb5
-  bb5:
-    v41 = eq v21, 0x4e487b71
-    v42 = lt v66, 36
-    v43 = eq v42, false
-    v44 = and v41, v43
-    jumpi v44, bb6, bb7
-  bb7:
-    v268 = mload 64 !metadata(memory=scratch)
-    v132 = add v268, 64
-    mstore v268, 3
-    v135 = add v268, 32
-    mstore v135, 64
-    v142 = ne v281, 0
-    v143 = zext i1 v142 to i256
-    v138 = mload v281
-    v144 = mul v138, v143
-    v146 = add v144, 31
-    v147 = and v146, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v148 = add v132, 32
-    v149 = add v132, v147
-    mstore v149, 0
-    mstore v132, v144
-    v151 = add v148, v147
-    mcopy v148, v242, v144
-    v154 = sub v151, v268
-    v156 = add v154, 31
-    v158 = and v156, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v269 = mload 64 !metadata(memory=scratch)
-    v270 = add v269, v158
-    mstore 64, v270 !metadata(memory=scratch)
-    returndata v269, v154
-  bb6:
-    v48 = add v281, 36
-    v50 = mload v48
-    v263 = mload 64 !metadata(memory=scratch)
-    v264 = add v263, 64
-    mstore 64, v264 !metadata(memory=scratch)
-    mstore v263, 32
-    v248 = add v263, 32
-    mstore v248, v50
-    v265 = mload 64 !metadata(memory=scratch)
-    v100 = add v265, 64
-    mstore v265, 2
-    v103 = add v265, 32
-    mstore v103, 64
-    v110 = ne v263, 0
-    v111 = zext i1 v110 to i256
-    v106 = mload v263
-    v112 = mul v106, v111
-    v114 = add v112, 31
-    v115 = and v114, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v116 = add v100, 32
-    v117 = add v100, v115
-    mstore v117, 0
-    mstore v100, v112
-    v119 = add v116, v115
-    mcopy v116, v248, v112
-    v122 = sub v119, v265
-    v124 = add v122, 31
-    v126 = and v124, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v266 = mload 64 !metadata(memory=scratch)
-    v267 = add v266, v126
-    mstore 64, v267 !metadata(memory=scratch)
-    returndata v266, v122
-  bb4:
-    v29 = add v281, 36
-    v30 = sub v66, 4
-    v33 = add v30, 63
-    v34 = lt v33, v30
-    jumpi v34, bb8, bb9
-  bb9:
-    v36 = and v33, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v271 = mload 64 !metadata(memory=scratch)
-    v37 = inttoptr i256 v271 to memptr !metadata(memory=scratch)
-    v272 = add v271, v36
-    mstore 64, v272 !metadata(memory=scratch)
-    mstore v271, v30
-    v234 = add v271, 32
-    mcopy v234, v29, v30
-    v73 = icall @decode_aggregate.4, v37
-    v273 = mload 64 !metadata(memory=scratch)
-    v164 = add v273, 64
-    mstore v273, 1
-    v167 = add v273, 32
-    mstore v167, 64
-    v252 = ptrtoint memptr v73 to i256
-    v174 = ne v252, 0
-    v175 = zext i1 v174 to i256
-    v170 = mload v252
-    v176 = mul v170, v175
-    v178 = add v176, 31
-    v179 = and v178, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v180 = add v164, 32
-    v181 = add v164, v179
-    mstore v181, 0
-    mstore v164, v176
-    v183 = add v180, v179
-    v254 = add v252, 32
-    mcopy v180, v254, v176
-    v186 = sub v183, v273
-    v188 = add v186, 31
-    v190 = and v188, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v274 = mload 64 !metadata(memory=scratch)
-    v275 = add v274, v190
-    mstore 64, v275 !metadata(memory=scratch)
-    returndata v274, v186
-  bb1:
-    v59 = returndatasize
-    v60 = add v59, 63
-    v61 = lt v60, v59
-    jumpi v61, bb8, bb10
-  bb10:
-    v63 = and v60, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v69 = and v66, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v276 = mload 64 !metadata(memory=scratch)
-    v64 = inttoptr i256 v276 to memptr !metadata(memory=scratch)
-    v277 = add v276, v63
+    v277 = add v276, v69
     mstore 64, v277 !metadata(memory=scratch)
-    mstore v276, v59
-    v238 = add v276, 32
-    returndatacopy v238, 0, v59
-    v226 = icall @decode_aggregate.5, v64
-    v231 = mload 32 !metadata(memory=scratch)
-    v228 = add v231, 32
-    v229 = mload v228
-    v278 = mload 64 !metadata(memory=scratch)
-    v196 = add v278, 64
-    mstore v278, v226
-    v199 = add v278, 32
-    mstore v199, 64
-    v206 = ne v229, 0
-    v207 = zext i1 v206 to i256
-    v202 = mload v229
-    v208 = mul v202, v207
-    v210 = add v208, 31
-    v211 = and v210, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v212 = add v196, 32
-    v213 = add v196, v211
-    mstore v213, 0
-    mstore v196, v208
-    v215 = add v212, v211
-    v256 = add v229, 32
-    mcopy v212, v256, v208
-    v218 = sub v215, v278
-    v220 = add v218, 31
-    v222 = and v220, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v279 = mload 64 !metadata(memory=scratch)
-    v280 = add v279, v222
-    mstore 64, v280 !metadata(memory=scratch)
-    returndata v279, v218
+    mstore v276, v65
+    v237 = add v276, 32
+    returndatacopy v237, 0, v65
+    v19 = mload v237
+    v20 = shr 224, v19
+    v21 = eq v20, 0x8c379a0
+    jumpi v21, bb3, bb5
+  bb3:
+    v23 = icall @try_decode_error_message, v237, v65
+    jumpi v23, bb4, bb5
+  bb5:
+    v40 = eq v20, 0x4e487b71
+    v41 = lt v65, 36
+    v42 = eq v41, false
+    v43 = and v40, v42
+    jumpi v43, bb6, bb7
+  bb7:
+    v263 = mload 64 !metadata(memory=scratch)
+    v130 = add v263, 64
+    mstore v263, 3
+    v133 = add v263, 32
+    mstore v133, 64
+    v139 = ne v276, 0
+    v140 = zext i1 v139 to i256
+    v136 = mload v276
+    v141 = mul v136, v140
+    v143 = add v141, 31
+    v144 = and v143, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v145 = add v130, 32
+    v146 = add v130, v144
+    mstore v146, 0
+    mstore v130, v141
+    v148 = add v145, v144
+    mcopy v145, v237, v141
+    v151 = sub v148, v263
+    v153 = add v151, 31
+    v155 = and v153, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v264 = mload 64 !metadata(memory=scratch)
+    v265 = add v264, v155
+    mstore 64, v265 !metadata(memory=scratch)
+    returndata v264, v151
+  bb6:
+    v47 = add v276, 36
+    v49 = mload v47
+    v258 = mload 64 !metadata(memory=scratch)
+    v259 = add v258, 64
+    mstore 64, v259 !metadata(memory=scratch)
+    mstore v258, 32
+    v243 = add v258, 32
+    mstore v243, v49
+    v260 = mload 64 !metadata(memory=scratch)
+    v99 = add v260, 64
+    mstore v260, 2
+    v102 = add v260, 32
+    mstore v102, 64
+    v108 = ne v258, 0
+    v109 = zext i1 v108 to i256
+    v105 = mload v258
+    v110 = mul v105, v109
+    v112 = add v110, 31
+    v113 = and v112, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v114 = add v99, 32
+    v115 = add v99, v113
+    mstore v115, 0
+    mstore v99, v110
+    v117 = add v114, v113
+    mcopy v114, v243, v110
+    v120 = sub v117, v260
+    v122 = add v120, 31
+    v124 = and v122, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v261 = mload 64 !metadata(memory=scratch)
+    v262 = add v261, v124
+    mstore 64, v262 !metadata(memory=scratch)
+    returndata v261, v120
+  bb4:
+    v28 = add v276, 36
+    v29 = sub v65, 4
+    v32 = add v29, 63
+    v33 = lt v32, v29
+    jumpi v33, bb8, bb9
+  bb9:
+    v35 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v266 = mload 64 !metadata(memory=scratch)
+    v36 = inttoptr i256 v266 to memptr !metadata(memory=scratch)
+    v267 = add v266, v35
+    mstore 64, v267 !metadata(memory=scratch)
+    mstore v266, v29
+    v229 = add v266, 32
+    mcopy v229, v28, v29
+    v72 = icall @decode_aggregate.4, v36
+    v268 = mload 64 !metadata(memory=scratch)
+    v161 = add v268, 64
+    mstore v268, 1
+    v164 = add v268, 32
+    mstore v164, 64
+    v247 = ptrtoint memptr v72 to i256
+    v170 = ne v247, 0
+    v171 = zext i1 v170 to i256
+    v167 = mload v247
+    v172 = mul v167, v171
+    v174 = add v172, 31
+    v175 = and v174, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v176 = add v161, 32
+    v177 = add v161, v175
+    mstore v177, 0
+    mstore v161, v172
+    v179 = add v176, v175
+    v249 = add v247, 32
+    mcopy v176, v249, v172
+    v182 = sub v179, v268
+    v184 = add v182, 31
+    v186 = and v184, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v269 = mload 64 !metadata(memory=scratch)
+    v270 = add v269, v186
+    mstore 64, v270 !metadata(memory=scratch)
+    returndata v269, v182
+  bb1:
+    v58 = returndatasize
+    v59 = add v58, 63
+    v60 = lt v59, v58
+    jumpi v60, bb8, bb10
+  bb10:
+    v62 = and v59, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v271 = mload 64 !metadata(memory=scratch)
+    v63 = inttoptr i256 v271 to memptr !metadata(memory=scratch)
+    v272 = add v271, v62
+    mstore 64, v272 !metadata(memory=scratch)
+    mstore v271, v58
+    v233 = add v271, 32
+    returndatacopy v233, 0, v58
+    v221 = icall @decode_aggregate.5, v63
+    v226 = mload 32 !metadata(memory=scratch)
+    v223 = add v226, 32
+    v224 = mload v223
+    v273 = mload 64 !metadata(memory=scratch)
+    v192 = add v273, 64
+    mstore v273, v221
+    v195 = add v273, 32
+    mstore v195, 64
+    v201 = ne v224, 0
+    v202 = zext i1 v201 to i256
+    v198 = mload v224
+    v203 = mul v198, v202
+    v205 = add v203, 31
+    v206 = and v205, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v207 = add v192, 32
+    v208 = add v192, v206
+    mstore v208, 0
+    mstore v192, v203
+    v210 = add v207, v206
+    v251 = add v224, 32
+    mcopy v207, v251, v203
+    v213 = sub v210, v273
+    v215 = add v213, 31
+    v217 = and v215, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v274 = mload 64 !metadata(memory=scratch)
+    v275 = add v274, v217
+    mstore 64, v275 !metadata(memory=scratch)
+    returndata v274, v213
   bb8:
     tail_call @revert_stub
 }
@@ -193,74 +192,73 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
 fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = gas
-    v89 = mload 64 !metadata(memory=scratch)
-    v90 = add v89, 64
-    mstore 64, v90 !metadata(memory=scratch)
-    mstore v89, 0xb3de648b00000000000000000000000000000000000000000000000000000000
-    v62 = add v89, 4
-    mstore v62, arg0
-    v8 = staticcall v3, v1, v89, 36, 0, 0
-    jumpi v8, bb1, bb2
+    v2 = gas
+    v88 = mload 64 !metadata(memory=scratch)
+    v89 = add v88, 64
+    mstore 64, v89 !metadata(memory=scratch)
+    mstore v88, 0xb3de648b00000000000000000000000000000000000000000000000000000000
+    v61 = add v88, 4
+    mstore v61, arg0
+    v7 = staticcall v2, v0, v88, 36, 0, 0
+    jumpi v7, bb1, bb2
   bb2:
-    v46 = returndatasize
-    v47 = add v46, 63
-    v48 = lt v47, v46
-    jumpi v48, bb7, bb10
+    v45 = returndatasize
+    v46 = add v45, 63
+    v47 = lt v46, v45
+    jumpi v47, bb7, bb10
   bb10:
-    v50 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v95 = mload 64 !metadata(memory=scratch)
-    v96 = add v95, v50
-    mstore 64, v96 !metadata(memory=scratch)
-    mstore v95, v46
-    v79 = add v95, 32
-    returndatacopy v79, 0, v46
-    v18 = mload v79
-    v19 = shr 224, v18
-    v20 = eq v19, 0x8c379a0
-    jumpi v20, bb4, bb6
+    v49 = and v46, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v94 = mload 64 !metadata(memory=scratch)
+    v95 = add v94, v49
+    mstore 64, v95 !metadata(memory=scratch)
+    mstore v94, v45
+    v78 = add v94, 32
+    returndatacopy v78, 0, v45
+    v17 = mload v78
+    v18 = shr 224, v17
+    v19 = eq v18, 0x8c379a0
+    jumpi v19, bb4, bb6
   bb4:
-    v22 = icall @try_decode_error_message, v79, v46
-    jumpi v22, bb5, bb6
+    v21 = icall @try_decode_error_message, v78, v45
+    jumpi v21, bb5, bb6
   bb6:
-    revert v79, v46
+    revert v78, v45
   bb5:
-    v27 = add v95, 36
-    v28 = sub v46, 4
-    v31 = add v28, 63
-    v32 = lt v31, v28
-    jumpi v32, bb7, bb8
+    v26 = add v94, 36
+    v27 = sub v45, 4
+    v30 = add v27, 63
+    v31 = lt v30, v27
+    jumpi v31, bb7, bb8
   bb8:
-    v34 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v91 = mload 64 !metadata(memory=scratch)
-    v35 = inttoptr i256 v91 to memptr !metadata(memory=scratch)
-    v92 = add v91, v34
-    mstore 64, v92 !metadata(memory=scratch)
-    mstore v91, v28
-    v71 = add v91, 32
-    mcopy v71, v27, v28
-    v53 = icall @decode_aggregate.4, v35
+    v33 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v90 = mload 64 !metadata(memory=scratch)
+    v34 = inttoptr i256 v90 to memptr !metadata(memory=scratch)
+    v91 = add v90, v33
+    mstore 64, v91 !metadata(memory=scratch)
+    mstore v90, v27
+    v70 = add v90, 32
+    mcopy v70, v26, v27
+    v52 = icall @decode_aggregate.4, v34
     jump bb3
   bb1:
-    v39 = returndatasize
-    v40 = add v39, 63
-    v41 = lt v40, v39
-    jumpi v41, bb7, bb9
+    v38 = returndatasize
+    v39 = add v38, 63
+    v40 = lt v39, v38
+    jumpi v40, bb7, bb9
   bb9:
-    v43 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v93 = mload 64 !metadata(memory=scratch)
-    v44 = inttoptr i256 v93 to memptr !metadata(memory=scratch)
-    v94 = add v93, v43
-    mstore 64, v94 !metadata(memory=scratch)
-    mstore v93, v39
-    v75 = add v93, 32
-    returndatacopy v75, 0, v39
-    v65 = icall @decode_aggregate.5, v44
+    v42 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v92 = mload 64 !metadata(memory=scratch)
+    v43 = inttoptr i256 v92 to memptr !metadata(memory=scratch)
+    v93 = add v92, v42
+    mstore 64, v93 !metadata(memory=scratch)
+    mstore v92, v38
+    v74 = add v92, 32
+    returndatacopy v74, 0, v38
+    v64 = icall @decode_aggregate.5, v43
     jump bb3
   bb3:
-    v38 = phi [bb9: v65], [bb8: 1]
-    mstore 128, v38
+    v37 = phi [bb9: v64], [bb8: 1]
+    mstore 128, v37
     returndata 128, 32
   bb7:
     tail_call @revert_stub

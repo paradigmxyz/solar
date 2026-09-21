@@ -8,30 +8,27 @@ fn @constructor() [constructor] {
     v2 = sload v1 !metadata(storage=offset(v0, 1))
     v3 = not 255
     v4 = and v2, v3
-    v5 = zext i1 1 to i256
-    v6 = and v5, 255
-    v7 = or v4, v6
-    sstore v1, v7 !metadata(storage=offset(v0, 1))
-    v8 = mapping_slot 2, 0
-    sstore v8, 20 !metadata(storage=symbolic(v8))
-    v9 = add v8, 1
-    v10 = sload v9 !metadata(storage=offset(v8, 1))
-    v11 = not 255
-    v12 = and v10, v11
-    v13 = zext i1 0 to i256
-    v14 = and v13, 255
-    v15 = or v12, v14
-    sstore v9, v15 !metadata(storage=offset(v8, 1))
-    v16 = mapping_slot 3, 0
-    sstore v16, 30 !metadata(storage=symbolic(v16))
-    v17 = add v16, 1
-    v18 = sload v17 !metadata(storage=offset(v16, 1))
-    v19 = not 255
-    v20 = and v18, v19
-    v21 = zext i1 1 to i256
-    v22 = and v21, 255
-    v23 = or v20, v22
-    sstore v17, v23 !metadata(storage=offset(v16, 1))
+    v5 = and 1, 255
+    v6 = or v4, v5
+    sstore v1, v6 !metadata(storage=offset(v0, 1))
+    v7 = mapping_slot 2, 0
+    sstore v7, 20 !metadata(storage=symbolic(v7))
+    v8 = add v7, 1
+    v9 = sload v8 !metadata(storage=offset(v7, 1))
+    v10 = not 255
+    v11 = and v9, v10
+    v12 = and 0, 255
+    v13 = or v11, v12
+    sstore v8, v13 !metadata(storage=offset(v7, 1))
+    v14 = mapping_slot 3, 0
+    sstore v14, 30 !metadata(storage=symbolic(v14))
+    v15 = add v14, 1
+    v16 = sload v15 !metadata(storage=offset(v14, 1))
+    v17 = not 255
+    v18 = and v16, v17
+    v19 = and 1, 255
+    v20 = or v18, v19
+    sstore v15, v20 !metadata(storage=offset(v14, 1))
     ret
 }
 
@@ -59,27 +56,28 @@ fn @run(arg0: i256, arg1: i1) -> i256 [selector=0x0a3395f5, abi_params=[u256, bo
     v3 = mapping_slot arg0, 0
     v4 = add v3, 1
     v5 = sload v4 !metadata(storage=offset(v3, 1))
-    v6 = and v5, 255
-    v7 = ne v6, 0
-    jumpi v7, bb1, bb2
+    v6 = trunc i256 v5 to i8
+    v7 = zext i8 v6 to i256
+    v8 = ne v7, 0
+    jumpi v8, bb1, bb2
   bb2:
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v8 = phi [bb1: arg1], [bb2: false]
-    jumpi v8, bb4, bb5
+    v9 = phi [bb1: arg1], [bb2: false]
+    jumpi v9, bb4, bb5
   bb5:
-    v10 = checked_mul u256, v0, 2
-    v11 = checked_add u256, v10, v2
-    v12 = checked_add u256, v11, 5
+    v11 = checked_mul u256, v0, 2
+    v12 = checked_add u256, v11, v2
+    v13 = checked_add u256, v12, 5
     jump bb6
   bb4:
-    v9 = checked_add u256, v0, v2
+    v10 = checked_add u256, v0, v2
     jump bb6
   bb6:
-    v13 = phi [bb4: v9], [bb5: v12]
-    v14 = sload 1 !metadata(storage=slot(1))
-    v15 = checked_add u256, v13, v14
-    ret v15
+    v14 = phi [bb4: v10], [bb5: v13]
+    v15 = sload 1 !metadata(storage=slot(1))
+    v16 = checked_add u256, v14, v15
+    ret v16
 }

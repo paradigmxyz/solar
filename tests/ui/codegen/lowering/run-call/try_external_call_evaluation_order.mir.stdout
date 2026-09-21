@@ -47,9 +47,8 @@ fn @receiver() -> i160 {
     v2 = checked_add u256, v1, 1
     sstore 0, v2 !metadata(storage=slot(0))
     v3 = sload 1 !metadata(storage=slot(1))
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = trunc i256 v4 to i160
-    ret v5
+    v4 = trunc i256 v3 to i160
+    ret v4
 }
 
 fn @gasOpt() -> i256 {

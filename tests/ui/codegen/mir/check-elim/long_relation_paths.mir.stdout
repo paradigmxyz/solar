@@ -1164,13 +1164,11 @@ fn @sibling(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x94
     v11 = lt arg1, arg2
     jumpi v11, bb10, bb11
   bb11:
-    v13 = trunc i256 0 to i8
     jump bb12
   bb10:
-    v12 = trunc i256 1 to i8
     jump bb12
   bb12:
-    v14 = phi [bb10: v12], [bb11: v13]
-    v15 = zext i8 v14 to i256
-    ret v15
+    v12 = phi [bb10: i8 1], [bb11: i8 0]
+    v13 = zext i8 v12 to i256
+    ret v13
 }

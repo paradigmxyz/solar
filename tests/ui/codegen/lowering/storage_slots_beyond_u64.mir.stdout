@@ -32,11 +32,10 @@ fn @roundTrip(arg0: i256, arg1: i8, arg2: i256) -> i256 [selector=0xfaa172f5, ab
     v22 = sload v19 !metadata(storage=offset(v18, 1))
     v23 = mul v21, 8
     v24 = shr v23, v22
-    v25 = and v24, 255
-    v26 = trunc i256 v25 to i8
-    v27 = zext i8 v26 to i256
-    v28 = checked_add u256, v15, v27
-    v29 = sload 0x10800000000000000 !metadata(storage=slot(0x10800000000000000))
-    v30 = checked_add u256, v28, v29
-    ret v30
+    v25 = trunc i256 v24 to i8
+    v26 = zext i8 v25 to i256
+    v27 = checked_add u256, v15, v26
+    v28 = sload 0x10800000000000000 !metadata(storage=slot(0x10800000000000000))
+    v29 = checked_add u256, v27, v28
+    ret v29
 }

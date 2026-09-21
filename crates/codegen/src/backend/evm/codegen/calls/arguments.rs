@@ -148,7 +148,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .iter()
                     .any(|block| block.predecessors.len() >= 2)
                     .then(|| self.stack_phi_plan(func_id, func, liveness));
-                let context = self.resident_search_context(func, &values, phi_plan.clone());
+                let context =
+                    self.resident_search_context(func, &values, liveness, phi_plan.clone());
                 if let Some((plan, _)) = self.analyze_resident_subset(
                     func,
                     liveness,

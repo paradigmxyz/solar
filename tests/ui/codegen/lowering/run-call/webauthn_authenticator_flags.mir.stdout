@@ -5,10 +5,9 @@ data:
 
 fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = zext i1 1 to i256
-    v1 = icall @auth
-    v2 = icall @check, v0, v1
-    ret v2
+    v0 = icall @auth
+    v1 = icall @check, 1, v0
+    ret v1
 }
 
 fn @testFlags() -> i256 [selector=0x74da97f7, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -51,15 +50,13 @@ fn @auth() -> memorystruct [pure] {
     v3 = alloc memorystruct<6>, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
     v4 = ptrtoint memorystruct v3 to i256
     memory_zero v4, 192
-    v5 = ptrtoint memorybytes 96 to i256
+    memory_object_store_field memorystruct<6>, v3, 0, 96
+    memory_object_store_field memorystruct<6>, v3, 1, 96
+    v5 = ptrtoint memorybytes v0 to i256
     memory_object_store_field memorystruct<6>, v3, 0, v5
-    v6 = ptrtoint memorybytes 96 to i256
-    memory_object_store_field memorystruct<6>, v3, 1, v6
-    v7 = ptrtoint memorybytes v0 to i256
-    memory_object_store_field memorystruct<6>, v3, 0, v7
-    v8 = abi_encode_packed (data hex"7b252274797065223a22776562617574686e2e676574220ff9062c226368616c6c656e6765223a22466722d2df7d")
-    v9 = ptrtoint memorybytes v8 to i256
-    memory_object_store_field memorystruct<6>, v3, 1, v9
+    v6 = abi_encode_packed (data hex"7b252274797065223a22776562617574686e2e676574220ff9062c226368616c6c656e6765223a22466722d2df7d")
+    v7 = ptrtoint memorybytes v6 to i256
+    memory_object_store_field memorystruct<6>, v3, 1, v7
     memory_object_store_field memorystruct<6>, v3, 2, 27
     memory_object_store_field memorystruct<6>, v3, 3, 2
     ret v3

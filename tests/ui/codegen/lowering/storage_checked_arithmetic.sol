@@ -36,8 +36,7 @@ contract StorageCheckedArithmetic {
     // CHECK: [[KEY:v[0-9]+]] = zext i160 arg0 to i256
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot [[KEY]], 1
     // CHECK: [[WORD:v[0-9]+]] = sload [[SLOT]]
-    // CHECK: [[OLD:v[0-9]+]] = and [[WORD]], 0xffffffffffffffffffffffffffffffff
-    // CHECK: [[NARROW:v[0-9]+]] = trunc i256 [[OLD]] to i128
+    // CHECK: [[NARROW:v[0-9]+]] = trunc i256 [[WORD]] to i128
     // CHECK: [[LHS:v[0-9]+]] = zext i128 [[NARROW]] to i256
     // CHECK: [[AMOUNT:v[0-9]+]] = zext i128 arg1 to i256
     // CHECK: [[NEW:v[0-9]+]] = add [[LHS]], [[AMOUNT]]
@@ -57,8 +56,7 @@ contract StorageCheckedArithmetic {
     // CHECK: [[BASE:v[0-9]+]] = mapping_slot [[KEY]], 1
     // CHECK: [[WORD:v[0-9]+]] = sload [[BASE]]
     // CHECK: [[SHIFTED:v[0-9]+]] = shr 128, [[WORD]]
-    // CHECK: [[RAW:v[0-9]+]] = and [[SHIFTED]], 255
-    // CHECK: [[OLD:v[0-9]+]] = signextend 0, [[RAW]]
+    // CHECK: [[OLD:v[0-9]+]] = signextend 0, [[SHIFTED]]
     // CHECK: [[NARROW:v[0-9]+]] = trunc i256 [[OLD]] to i8
     // CHECK: [[LHS:v[0-9]+]] = sext i8 [[NARROW]] to i256
     // CHECK: [[AMOUNT:v[0-9]+]] = sext i8 arg1 to i256

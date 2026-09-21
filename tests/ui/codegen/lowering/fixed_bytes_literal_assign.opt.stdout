@@ -37,8 +37,8 @@ fn @store() [selector=0x975057e7, abi_wrapper] {
     v2 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v5 = or v2, 45
     sstore 0, v5 !metadata(storage=slot(0))
-    v8 = shl 248, v5
-    mstore 128, v8
+    v7 = shl 248, v5
+    mstore 128, v7
     returndata 128, 32
 }
 

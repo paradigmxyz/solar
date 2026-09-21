@@ -2,32 +2,24 @@
 @module DirtyAddmodModulus
 fn @addmodDirtyModulus(arg0: i256, arg1: i256) -> i256 [selector=0x6725e18c, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = trunc i256 256 to i8
-    v1 = zext i8 v0 to i256
-    v2 = icall checked_addmod<>, arg0, arg1, v1
-    ret v2
+    v0 = icall checked_addmod<>, arg0, arg1, 0
+    ret v0
 }
 
 fn @mulmodDirtyModulus(arg0: i256, arg1: i256) -> i256 [selector=0xff62232f, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = trunc i256 256 to i8
-    v1 = zext i8 v0 to i256
-    v2 = icall checked_mulmod<>, arg0, arg1, v1
-    ret v2
+    v0 = icall checked_mulmod<>, arg0, arg1, 0
+    ret v0
 }
 
 fn @addmodCleanedModulus(arg0: i256) -> i256 [selector=0xa0b95242, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = trunc i256 263 to i8
-    v1 = zext i8 v0 to i256
-    v2 = icall checked_addmod<>, arg0, 1, v1
-    ret v2
+    v0 = icall checked_addmod<>, arg0, 1, 7
+    ret v0
 }
 
 fn @mulmodCleanedOperand(arg0: i256) -> i256 [selector=0xfbea5371, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = trunc i256 261 to i8
-    v1 = zext i8 v0 to i256
-    v2 = icall checked_mulmod<>, v1, 3, arg0
-    ret v2
+    v0 = icall checked_mulmod<>, 5, 3, arg0
+    ret v0
 }

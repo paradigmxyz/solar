@@ -38,8 +38,7 @@ contract C {
     // LINKED-LABEL: @module C
     // LINKED-LABEL: fn @direct
     // LINKED: abi_encode [word, word<bool>], selector 0x52db6885{{.*}}, args 8,
-    // LINKED: [[LIBRARY:v[0-9]+]] = zext i160 0x1111111111111111111111111111111111111111 to i256
-    // LINKED: delegatecall {{.*}}, [[LIBRARY]],
+    // LINKED: delegatecall {{.*}}, 0x1111111111111111111111111111111111111111,
     function direct(bool fail) external pure returns (uint256) {
         try Lib.direct({fail: fail, value: 8}) returns (uint256 value) {
             return value;
@@ -50,8 +49,7 @@ contract C {
 
     // LINKED-LABEL: fn @attached
     // LINKED: abi_encode [word, word, word<bool>], selector 0x280ac7e9{{.*}}, args 0, 9,
-    // LINKED: [[LIBRARY:v[0-9]+]] = zext i160 0x1111111111111111111111111111111111111111 to i256
-    // LINKED: delegatecall {{.*}}, [[LIBRARY]],
+    // LINKED: delegatecall {{.*}}, 0x1111111111111111111111111111111111111111,
     function attached(bool fail) external returns (uint256) {
         try state.attached({fail: fail, value: 9}) returns (uint256 value) {
             return value;
@@ -62,8 +60,7 @@ contract C {
 
     // LINKED-LABEL: fn @attachedValue
     // LINKED: abi_encode [word, word, word<bool>], selector 0x7f6a6c2{{.*}}, args arg0, 10,
-    // LINKED: [[LIBRARY:v[0-9]+]] = zext i160 0x1111111111111111111111111111111111111111 to i256
-    // LINKED: delegatecall {{.*}}, [[LIBRARY]],
+    // LINKED: delegatecall {{.*}}, 0x1111111111111111111111111111111111111111,
     function attachedValue(uint256 self, bool fail) external pure returns (uint256) {
         try self.add({fail: fail, value: 10}) returns (uint256 value) {
             return value;
@@ -74,10 +71,8 @@ contract C {
 
     // LINKED-LABEL: fn @emptyCode
     // LINKED: abi_encode [], selector 0xf2a75fe4{{.*}}
-    // LINKED: [[ADDRESS:v[0-9]+]] = zext i160 0x1111111111111111111111111111111111111111 to i256
-    // LINKED: extcodesize [[ADDRESS]]
-    // LINKED: [[LIBRARY:v[0-9]+]] = zext i160 0x1111111111111111111111111111111111111111 to i256
-    // LINKED: delegatecall {{.*}}, [[LIBRARY]],
+    // LINKED: extcodesize 0x1111111111111111111111111111111111111111
+    // LINKED: delegatecall {{.*}}, 0x1111111111111111111111111111111111111111,
     function emptyCode() external pure {
         try Lib.empty() {} catch {
             revert("caught");

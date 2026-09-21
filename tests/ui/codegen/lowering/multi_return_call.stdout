@@ -12,11 +12,10 @@ fn @sat(arg0: i256, arg1: i256) -> i256 [selector=0xf4c11983, pure, abi_params=[
     v0 = icall @tryAdd, arg0, arg1
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
-    v3 = zext i1 v1 to i256
-    v4 = eq v3, 0
+    v3 = eq v1, false
+    v4 = eq v3, false
     v5 = eq v4, false
-    v6 = eq v5, false
-    jumpi v6, bb1, bb2
+    jumpi v5, bb1, bb2
   bb2:
     jump bb3
   bb3:

@@ -66,7 +66,6 @@ fn @mulDivDown(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
 
 fn @isMinTick(arg0: i24) -> i1 [pure] {
   bb0:
-    v0 = trunc i256 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffff27618 to i24
-    v1 = eq arg0, v0
-    ret v1
+    v0 = eq arg0, i24 0xf27618
+    ret v0
 }

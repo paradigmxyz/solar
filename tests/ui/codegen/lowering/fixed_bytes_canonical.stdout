@@ -20,11 +20,9 @@ fn @compareElement(arg0: memorybytes) -> i1 [selector=0x6c07068b, pure, abi_para
     icall panic_if<0x32>, v2
     v3 = memory_object_load_byte memorybytes, arg0, 0
     v4 = shl 248, v3
-    v5 = trunc i256 1 to i8
-    v6 = zext i8 v5 to i256
-    v7 = shl 248, v6
-    v8 = eq v4, v7
-    ret v8
+    v5 = shl 248, 1
+    v6 = eq v4, v5
+    ret v6
 }
 
 fn @narrow(arg0: i256) -> i256 [selector=0xb6234141, pure, abi_params=[bytes4], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {

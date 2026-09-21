@@ -49,8 +49,7 @@ fn @sameShortLiteralSalt() -> i1 [selector=0xae55518d, abi_params=[], abi_return
   bb3:
     ret false
   bb5:
-    v25 = ne 0, 0
-    ret v25
+    ret false
 }
 
 fn @sameEmptyLiteralSalt() -> i1 [selector=0x01dd6ed9, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -99,8 +98,7 @@ fn @sameEmptyLiteralSalt() -> i1 [selector=0x01dd6ed9, abi_params=[], abi_return
   bb3:
     ret false
   bb5:
-    v25 = ne 0, 0
-    ret v25
+    ret false
 }
 
 fn @sameFullLiteralSalt() -> i1 [selector=0xaf96a2f0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -149,8 +147,7 @@ fn @sameFullLiteralSalt() -> i1 [selector=0xaf96a2f0, abi_params=[], abi_returns
   bb3:
     ret false
   bb5:
-    v25 = ne 0, 0
-    ret v25
+    ret false
 }
 
 fn @differentLiteralSalts() -> i1 [selector=0x3109d26e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {

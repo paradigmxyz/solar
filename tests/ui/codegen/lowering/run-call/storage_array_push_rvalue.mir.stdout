@@ -47,28 +47,26 @@ fn @packedRvalue(arg0: i256) -> struct1 [selector=0xc89c0702, abi_params=[u256],
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
     v11 = shr v10, v9
-    v12 = and v11, 255
-    v13 = trunc i256 v12 to i8
-    v14 = sload 1 !metadata(storage=slot(1))
-    v15 = gt v14, 0xffffffffffffffff
-    icall panic_if<0x41>, v15
-    v16 = add v14, 1
-    v17 = storage_array_data_slot 1
-    v18 = div v14, 32
-    v19 = add v17, v18
-    v20 = mod v14, 32
-    v21 = mul v20, 1
-    sstore 1, v16 !metadata(storage=slot(1))
-    v22 = sload v19 !metadata(storage=symbolic(v19))
-    v23 = mul v21, 8
-    v24 = shr v23, v22
-    v25 = and v24, 255
-    v26 = trunc i256 v25 to i8
-    v27 = sload 1 !metadata(storage=slot(1))
-    v28 = insert_value struct1, undef struct1, 0, v13
-    v29 = insert_value struct1, v28, 1, v26
-    v30 = insert_value struct1, v29, 2, v27
-    ret v30
+    v12 = trunc i256 v11 to i8
+    v13 = sload 1 !metadata(storage=slot(1))
+    v14 = gt v13, 0xffffffffffffffff
+    icall panic_if<0x41>, v14
+    v15 = add v13, 1
+    v16 = storage_array_data_slot 1
+    v17 = div v13, 32
+    v18 = add v16, v17
+    v19 = mod v13, 32
+    v20 = mul v19, 1
+    sstore 1, v15 !metadata(storage=slot(1))
+    v21 = sload v18 !metadata(storage=symbolic(v18))
+    v22 = mul v20, 8
+    v23 = shr v22, v21
+    v24 = trunc i256 v23 to i8
+    v25 = sload 1 !metadata(storage=slot(1))
+    v26 = insert_value struct1, undef struct1, 0, v12
+    v27 = insert_value struct1, v26, 1, v24
+    v28 = insert_value struct1, v27, 2, v25
+    ret v28
 }
 
 fn @boolRvalue(arg0: i256) -> struct2 [selector=0xfa200185, abi_params=[u256], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, u256]] {
@@ -89,28 +87,30 @@ fn @boolRvalue(arg0: i256) -> struct2 [selector=0xfa200185, abi_params=[u256], a
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
     v11 = shr v10, v9
-    v12 = and v11, 255
-    v13 = ne v12, 0
-    v14 = sload 2 !metadata(storage=slot(2))
-    v15 = gt v14, 0xffffffffffffffff
-    icall panic_if<0x41>, v15
-    v16 = add v14, 1
-    v17 = storage_array_data_slot 2
-    v18 = div v14, 32
-    v19 = add v17, v18
-    v20 = mod v14, 32
-    v21 = mul v20, 1
-    sstore 2, v16 !metadata(storage=slot(2))
-    v22 = sload v19 !metadata(storage=symbolic(v19))
-    v23 = mul v21, 8
-    v24 = shr v23, v22
-    v25 = and v24, 255
-    v26 = ne v25, 0
-    v27 = sload 2 !metadata(storage=slot(2))
-    v28 = insert_value struct2, undef struct2, 0, v13
-    v29 = insert_value struct2, v28, 1, v26
-    v30 = insert_value struct2, v29, 2, v27
-    ret v30
+    v12 = trunc i256 v11 to i8
+    v13 = zext i8 v12 to i256
+    v14 = ne v13, 0
+    v15 = sload 2 !metadata(storage=slot(2))
+    v16 = gt v15, 0xffffffffffffffff
+    icall panic_if<0x41>, v16
+    v17 = add v15, 1
+    v18 = storage_array_data_slot 2
+    v19 = div v15, 32
+    v20 = add v18, v19
+    v21 = mod v15, 32
+    v22 = mul v21, 1
+    sstore 2, v17 !metadata(storage=slot(2))
+    v23 = sload v20 !metadata(storage=symbolic(v20))
+    v24 = mul v22, 8
+    v25 = shr v24, v23
+    v26 = trunc i256 v25 to i8
+    v27 = zext i8 v26 to i256
+    v28 = ne v27, 0
+    v29 = sload 2 !metadata(storage=slot(2))
+    v30 = insert_value struct2, undef struct2, 0, v14
+    v31 = insert_value struct2, v30, 1, v28
+    v32 = insert_value struct2, v31, 2, v29
+    ret v32
 }
 
 fn @tagRvalue(arg0: i256) -> struct3 [selector=0xb8842558, abi_params=[u256], abi_returns=[word<bytes4>, word<bytes4>, word], abi_return_params=[bytes4, bytes4, u256]] {
@@ -131,28 +131,26 @@ fn @tagRvalue(arg0: i256) -> struct3 [selector=0xb8842558, abi_params=[u256], ab
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
     v11 = shr v10, v9
-    v12 = and v11, 0xffffffff
-    v13 = shl 224, v12
-    v14 = sload 3 !metadata(storage=slot(3))
-    v15 = gt v14, 0xffffffffffffffff
-    icall panic_if<0x41>, v15
-    v16 = add v14, 1
-    v17 = storage_array_data_slot 3
-    v18 = div v14, 8
-    v19 = add v17, v18
-    v20 = mod v14, 8
-    v21 = mul v20, 4
-    sstore 3, v16 !metadata(storage=slot(3))
-    v22 = sload v19 !metadata(storage=symbolic(v19))
-    v23 = mul v21, 8
-    v24 = shr v23, v22
-    v25 = and v24, 0xffffffff
-    v26 = shl 224, v25
-    v27 = sload 3 !metadata(storage=slot(3))
-    v28 = insert_value struct3, undef struct3, 0, v13
-    v29 = insert_value struct3, v28, 1, v26
-    v30 = insert_value struct3, v29, 2, v27
-    ret v30
+    v12 = shl 224, v11
+    v13 = sload 3 !metadata(storage=slot(3))
+    v14 = gt v13, 0xffffffffffffffff
+    icall panic_if<0x41>, v14
+    v15 = add v13, 1
+    v16 = storage_array_data_slot 3
+    v17 = div v13, 8
+    v18 = add v16, v17
+    v19 = mod v13, 8
+    v20 = mul v19, 4
+    sstore 3, v15 !metadata(storage=slot(3))
+    v21 = sload v18 !metadata(storage=symbolic(v18))
+    v22 = mul v20, 8
+    v23 = shr v22, v21
+    v24 = shl 224, v23
+    v25 = sload 3 !metadata(storage=slot(3))
+    v26 = insert_value struct3, undef struct3, 0, v12
+    v27 = insert_value struct3, v26, 1, v24
+    v28 = insert_value struct3, v27, 2, v25
+    ret v28
 }
 
 fn @enumRvalue(arg0: i256) -> struct1 [selector=0x8b2cec53, abi_params=[u256], abi_returns=[word<enum 4>, word<enum 4>, word], abi_return_params=[enum<4, u8>, enum<4, u8>, u256]] {
@@ -173,50 +171,44 @@ fn @enumRvalue(arg0: i256) -> struct1 [selector=0x8b2cec53, abi_params=[u256], a
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
     v11 = shr v10, v9
-    v12 = and v11, 255
-    v13 = lt v12, 4
+    v12 = trunc i256 v11 to i8
+    v13 = lt v12, i8 4
     v14 = eq v13, false
     icall panic_if<0x21>, v14
-    v15 = trunc i256 v12 to i8
-    v16 = zext i8 v15 to i256
-    v17 = lt v16, 4
-    v18 = eq v17, false
-    icall panic_if<0x21>, v18
-    v19 = sload 4 !metadata(storage=slot(4))
-    v20 = gt v19, 0xffffffffffffffff
-    icall panic_if<0x41>, v20
-    v21 = add v19, 1
-    v22 = storage_array_data_slot 4
-    v23 = div v19, 32
-    v24 = add v22, v23
-    v25 = mod v19, 32
-    v26 = mul v25, 1
-    sstore 4, v21 !metadata(storage=slot(4))
-    v27 = sload v24 !metadata(storage=symbolic(v24))
-    v28 = mul v26, 8
-    v29 = shr v28, v27
-    v30 = and v29, 255
-    v31 = lt v30, 4
+    v15 = lt v12, i8 4
+    v16 = eq v15, false
+    icall panic_if<0x21>, v16
+    v17 = sload 4 !metadata(storage=slot(4))
+    v18 = gt v17, 0xffffffffffffffff
+    icall panic_if<0x41>, v18
+    v19 = add v17, 1
+    v20 = storage_array_data_slot 4
+    v21 = div v17, 32
+    v22 = add v20, v21
+    v23 = mod v17, 32
+    v24 = mul v23, 1
+    sstore 4, v19 !metadata(storage=slot(4))
+    v25 = sload v22 !metadata(storage=symbolic(v22))
+    v26 = mul v24, 8
+    v27 = shr v26, v25
+    v28 = trunc i256 v27 to i8
+    v29 = lt v28, i8 4
+    v30 = eq v29, false
+    icall panic_if<0x21>, v30
+    v31 = lt v28, i8 4
     v32 = eq v31, false
     icall panic_if<0x21>, v32
-    v33 = trunc i256 v30 to i8
-    v34 = zext i8 v33 to i256
-    v35 = lt v34, 4
+    v33 = lt v12, i8 4
+    v34 = eq v33, false
+    icall panic_if<0x21>, v34
+    v35 = lt v28, i8 4
     v36 = eq v35, false
     icall panic_if<0x21>, v36
-    v37 = zext i8 v15 to i256
-    v38 = lt v37, 4
-    v39 = eq v38, false
-    icall panic_if<0x21>, v39
-    v40 = zext i8 v33 to i256
-    v41 = lt v40, 4
-    v42 = eq v41, false
-    icall panic_if<0x21>, v42
-    v43 = sload 4 !metadata(storage=slot(4))
-    v44 = insert_value struct1, undef struct1, 0, v15
-    v45 = insert_value struct1, v44, 1, v33
-    v46 = insert_value struct1, v45, 2, v43
-    ret v46
+    v37 = sload 4 !metadata(storage=slot(4))
+    v38 = insert_value struct1, undef struct1, 0, v12
+    v39 = insert_value struct1, v38, 1, v28
+    v40 = insert_value struct1, v39, 2, v37
+    ret v40
 }
 
 fn @signedRvalue(arg0: i256) -> struct4 [selector=0xb5c04c0f, abi_params=[u256], abi_returns=[word<i128>, word<i128>, word], abi_return_params=[i128, i128, u256]] {
@@ -237,30 +229,28 @@ fn @signedRvalue(arg0: i256) -> struct4 [selector=0xb5c04c0f, abi_params=[u256],
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
     v11 = shr v10, v9
-    v12 = and v11, 0xffffffffffffffffffffffffffffffff
-    v13 = signextend 15, v12
-    v14 = trunc i256 v13 to i128
-    v15 = sload 5 !metadata(storage=slot(5))
-    v16 = gt v15, 0xffffffffffffffff
-    icall panic_if<0x41>, v16
-    v17 = add v15, 1
-    v18 = storage_array_data_slot 5
-    v19 = div v15, 2
-    v20 = add v18, v19
-    v21 = mod v15, 2
-    v22 = mul v21, 16
-    sstore 5, v17 !metadata(storage=slot(5))
-    v23 = sload v20 !metadata(storage=symbolic(v20))
-    v24 = mul v22, 8
-    v25 = shr v24, v23
-    v26 = and v25, 0xffffffffffffffffffffffffffffffff
-    v27 = signextend 15, v26
-    v28 = trunc i256 v27 to i128
-    v29 = sload 5 !metadata(storage=slot(5))
-    v30 = insert_value struct4, undef struct4, 0, v14
-    v31 = insert_value struct4, v30, 1, v28
-    v32 = insert_value struct4, v31, 2, v29
-    ret v32
+    v12 = signextend 15, v11
+    v13 = trunc i256 v12 to i128
+    v14 = sload 5 !metadata(storage=slot(5))
+    v15 = gt v14, 0xffffffffffffffff
+    icall panic_if<0x41>, v15
+    v16 = add v14, 1
+    v17 = storage_array_data_slot 5
+    v18 = div v14, 2
+    v19 = add v17, v18
+    v20 = mod v14, 2
+    v21 = mul v20, 16
+    sstore 5, v16 !metadata(storage=slot(5))
+    v22 = sload v19 !metadata(storage=symbolic(v19))
+    v23 = mul v21, 8
+    v24 = shr v23, v22
+    v25 = signextend 15, v24
+    v26 = trunc i256 v25 to i128
+    v27 = sload 5 !metadata(storage=slot(5))
+    v28 = insert_value struct4, undef struct4, 0, v13
+    v29 = insert_value struct4, v28, 1, v26
+    v30 = insert_value struct4, v29, 2, v27
+    ret v30
 }
 
 fn @addressRvalue() -> struct5 [selector=0x2ef1cd4b, abi_params=[], abi_returns=[word<u160>, word], abi_return_params=[address, u256]] {
@@ -282,12 +272,11 @@ fn @addressRvalue() -> struct5 [selector=0x2ef1cd4b, abi_params=[], abi_returns=
     v10 = sload v7 !metadata(storage=symbolic(v7))
     v11 = mul v9, 8
     v12 = shr v11, v10
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = trunc i256 v13 to i160
-    v15 = sload 6 !metadata(storage=slot(6))
-    v16 = insert_value struct5, undef struct5, 0, v14
-    v17 = insert_value struct5, v16, 1, v15
-    ret v17
+    v13 = trunc i256 v12 to i160
+    v14 = sload 6 !metadata(storage=slot(6))
+    v15 = insert_value struct5, undef struct5, 0, v13
+    v16 = insert_value struct5, v15, 1, v14
+    ret v16
 }
 
 fn @unwrapRvalue(arg0: i256) -> struct6 [selector=0x39669bbc, abi_params=[u256], abi_returns=[word<u64>, word<u64>, word], abi_return_params=[u64, u64, u256]] {
@@ -308,28 +297,26 @@ fn @unwrapRvalue(arg0: i256) -> struct6 [selector=0x39669bbc, abi_params=[u256],
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
     v11 = shr v10, v9
-    v12 = and v11, 0xffffffffffffffff
-    v13 = trunc i256 v12 to i64
-    v14 = sload 7 !metadata(storage=slot(7))
-    v15 = gt v14, 0xffffffffffffffff
-    icall panic_if<0x41>, v15
-    v16 = add v14, 1
-    v17 = storage_array_data_slot 7
-    v18 = div v14, 4
-    v19 = add v17, v18
-    v20 = mod v14, 4
-    v21 = mul v20, 8
-    sstore 7, v16 !metadata(storage=slot(7))
-    v22 = sload v19 !metadata(storage=symbolic(v19))
-    v23 = mul v21, 8
-    v24 = shr v23, v22
-    v25 = and v24, 0xffffffffffffffff
-    v26 = trunc i256 v25 to i64
-    v27 = sload 7 !metadata(storage=slot(7))
-    v28 = insert_value struct6, undef struct6, 0, v13
-    v29 = insert_value struct6, v28, 1, v26
-    v30 = insert_value struct6, v29, 2, v27
-    ret v30
+    v12 = trunc i256 v11 to i64
+    v13 = sload 7 !metadata(storage=slot(7))
+    v14 = gt v13, 0xffffffffffffffff
+    icall panic_if<0x41>, v14
+    v15 = add v13, 1
+    v16 = storage_array_data_slot 7
+    v17 = div v13, 4
+    v18 = add v16, v17
+    v19 = mod v13, 4
+    v20 = mul v19, 8
+    sstore 7, v15 !metadata(storage=slot(7))
+    v21 = sload v18 !metadata(storage=symbolic(v18))
+    v22 = mul v20, 8
+    v23 = shr v22, v21
+    v24 = trunc i256 v23 to i64
+    v25 = sload 7 !metadata(storage=slot(7))
+    v26 = insert_value struct6, undef struct6, 0, v12
+    v27 = insert_value struct6, v26, 1, v24
+    v28 = insert_value struct6, v27, 2, v25
+    ret v28
 }
 
 fn @cleanRvalue() -> struct3 [selector=0xa51842a5, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
@@ -402,19 +389,17 @@ fn @enumInvalidRvalue(arg0: i256) -> struct7 [selector=0x12551884, abi_params=[u
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
     v11 = shr v10, v9
-    v12 = and v11, 255
-    v13 = lt v12, 4
+    v12 = trunc i256 v11 to i8
+    v13 = lt v12, i8 4
     v14 = eq v13, false
     icall panic_if<0x21>, v14
-    v15 = trunc i256 v12 to i8
-    v16 = zext i8 v15 to i256
-    v17 = lt v16, 4
-    v18 = eq v17, false
-    icall panic_if<0x21>, v18
-    v19 = sload 4 !metadata(storage=slot(4))
-    v20 = insert_value struct7, undef struct7, 0, v15
-    v21 = insert_value struct7, v20, 1, v19
-    ret v21
+    v15 = lt v12, i8 4
+    v16 = eq v15, false
+    icall panic_if<0x21>, v16
+    v17 = sload 4 !metadata(storage=slot(4))
+    v18 = insert_value struct7, undef struct7, 0, v12
+    v19 = insert_value struct7, v18, 1, v17
+    ret v19
 }
 
 fn @enumBareRvalue(arg0: i256) -> struct0 [selector=0x7b8d408b, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -432,15 +417,14 @@ fn @enumBareRvalue(arg0: i256) -> struct0 [selector=0x7b8d408b, abi_params=[u256
     v7 = mod v1, 32
     v8 = mul v7, 1
     sstore 4, v3 !metadata(storage=slot(4))
-    v9 = trunc i256 0 to i8
     mstore 0, 4 !metadata(memory=scratch)
-    v10 = keccak256 0, 32 !metadata(memory=scratch)
-    v11 = sload v10 !metadata(storage=symbolic(v10))
-    v12 = and v11, 255
-    v13 = sload 4 !metadata(storage=slot(4))
-    v14 = insert_value struct0, undef struct0, 0, v12
-    v15 = insert_value struct0, v14, 1, v13
-    ret v15
+    v9 = keccak256 0, 32 !metadata(memory=scratch)
+    v10 = sload v9 !metadata(storage=symbolic(v9))
+    v11 = and v10, 255
+    v12 = sload 4 !metadata(storage=slot(4))
+    v13 = insert_value struct0, undef struct0, 0, v11
+    v14 = insert_value struct0, v13, 1, v12
+    ret v14
 }
 
 fn @enumTupleBare(arg0: i256) -> struct0 [selector=0xc9f089ea, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -458,26 +442,24 @@ fn @enumTupleBare(arg0: i256) -> struct0 [selector=0xc9f089ea, abi_params=[u256]
     v7 = mod v1, 32
     v8 = mul v7, 1
     sstore 4, v3 !metadata(storage=slot(4))
-    v9 = trunc i256 0 to i8
-    v10 = sload 4 !metadata(storage=slot(4))
-    v11 = gt v10, 0xffffffffffffffff
-    icall panic_if<0x41>, v11
-    v12 = add v10, 1
-    v13 = storage_array_data_slot 4
-    v14 = div v10, 32
-    v15 = add v13, v14
-    v16 = mod v10, 32
-    v17 = mul v16, 1
-    sstore 4, v12 !metadata(storage=slot(4))
-    v18 = trunc i256 0 to i8
+    v9 = sload 4 !metadata(storage=slot(4))
+    v10 = gt v9, 0xffffffffffffffff
+    icall panic_if<0x41>, v10
+    v11 = add v9, 1
+    v12 = storage_array_data_slot 4
+    v13 = div v9, 32
+    v14 = add v12, v13
+    v15 = mod v9, 32
+    v16 = mul v15, 1
+    sstore 4, v11 !metadata(storage=slot(4))
     mstore 0, 4 !metadata(memory=scratch)
-    v19 = keccak256 0, 32 !metadata(memory=scratch)
-    v20 = sload v19 !metadata(storage=symbolic(v19))
-    v21 = and v20, 255
-    v22 = sload 4 !metadata(storage=slot(4))
-    v23 = insert_value struct0, undef struct0, 0, v21
-    v24 = insert_value struct0, v23, 1, v22
-    ret v24
+    v17 = keccak256 0, 32 !metadata(memory=scratch)
+    v18 = sload v17 !metadata(storage=symbolic(v17))
+    v19 = and v18, 255
+    v20 = sload 4 !metadata(storage=slot(4))
+    v21 = insert_value struct0, undef struct0, 0, v19
+    v22 = insert_value struct0, v21, 1, v20
+    ret v22
 }
 
 fn @enumTernaryBare(arg0: i256, arg1: i1) -> struct0 [selector=0x2209d499, abi_params=[u256, bool], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -487,21 +469,19 @@ fn @enumTernaryBare(arg0: i256, arg1: i1) -> struct0 [selector=0x2209d499, abi_p
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     jumpi arg1, bb1, bb2
   bb2:
-    v13 = sload 4 !metadata(storage=slot(4))
-    v14 = gt v13, 0xffffffffffffffff
-    icall panic_if<0x41>, v14
-    v15 = add v13, 1
-    v16 = storage_array_data_slot 4
-    v17 = div v13, 32
-    v18 = add v16, v17
-    v19 = mod v13, 32
-    v20 = mul v19, 1
-    sstore 4, v15 !metadata(storage=slot(4))
-    v21 = trunc i256 0 to i8
-    v22 = zext i8 v21 to i256
-    v23 = lt v22, 4
-    v24 = eq v23, false
-    icall panic_if<0x21>, v24
+    v11 = sload 4 !metadata(storage=slot(4))
+    v12 = gt v11, 0xffffffffffffffff
+    icall panic_if<0x41>, v12
+    v13 = add v11, 1
+    v14 = storage_array_data_slot 4
+    v15 = div v11, 32
+    v16 = add v14, v15
+    v17 = mod v11, 32
+    v18 = mul v17, 1
+    sstore 4, v13 !metadata(storage=slot(4))
+    v19 = lt i8 0, i8 4
+    v20 = eq v19, false
+    icall panic_if<0x21>, v20
     jump bb3
   bb1:
     v1 = sload 4 !metadata(storage=slot(4))
@@ -514,22 +494,20 @@ fn @enumTernaryBare(arg0: i256, arg1: i1) -> struct0 [selector=0x2209d499, abi_p
     v7 = mod v1, 32
     v8 = mul v7, 1
     sstore 4, v3 !metadata(storage=slot(4))
-    v9 = trunc i256 0 to i8
-    v10 = zext i8 v9 to i256
-    v11 = lt v10, 4
-    v12 = eq v11, false
-    icall panic_if<0x21>, v12
+    v9 = lt i8 0, i8 4
+    v10 = eq v9, false
+    icall panic_if<0x21>, v10
     jump bb3
   bb3:
-    v25 = phi [bb1: v9], [bb2: v21]
+    v21 = phi [bb1: i8 0], [bb2: i8 0]
     mstore 0, 4 !metadata(memory=scratch)
-    v26 = keccak256 0, 32 !metadata(memory=scratch)
-    v27 = sload v26 !metadata(storage=symbolic(v26))
-    v28 = and v27, 255
-    v29 = sload 4 !metadata(storage=slot(4))
-    v30 = insert_value struct0, undef struct0, 0, v28
-    v31 = insert_value struct0, v30, 1, v29
-    ret v31
+    v22 = keccak256 0, 32 !metadata(memory=scratch)
+    v23 = sload v22 !metadata(storage=symbolic(v22))
+    v24 = and v23, 255
+    v25 = sload 4 !metadata(storage=slot(4))
+    v26 = insert_value struct0, undef struct0, 0, v24
+    v27 = insert_value struct0, v26, 1, v25
+    ret v27
 }
 
 fn @enumDeclHole(arg0: i256) -> struct3 [selector=0xfcfa4d59, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
@@ -547,39 +525,36 @@ fn @enumDeclHole(arg0: i256) -> struct3 [selector=0xfcfa4d59, abi_params=[u256],
     v7 = mod v1, 32
     v8 = mul v7, 1
     sstore 4, v3 !metadata(storage=slot(4))
-    v9 = trunc i256 0 to i8
-    v10 = sload 4 !metadata(storage=slot(4))
-    v11 = gt v10, 0xffffffffffffffff
-    icall panic_if<0x41>, v11
-    v12 = add v10, 1
-    v13 = storage_array_data_slot 4
-    v14 = div v10, 32
-    v15 = add v13, v14
-    v16 = mod v10, 32
-    v17 = mul v16, 1
-    sstore 4, v12 !metadata(storage=slot(4))
-    v18 = sload v15 !metadata(storage=symbolic(v15))
-    v19 = mul v17, 8
-    v20 = shr v19, v18
-    v21 = and v20, 255
-    v22 = lt v21, 4
-    v23 = eq v22, false
-    icall panic_if<0x21>, v23
-    v24 = trunc i256 v21 to i8
-    v25 = zext i8 v24 to i256
-    v26 = lt v25, 4
-    v27 = eq v26, false
-    icall panic_if<0x21>, v27
+    v9 = sload 4 !metadata(storage=slot(4))
+    v10 = gt v9, 0xffffffffffffffff
+    icall panic_if<0x41>, v10
+    v11 = add v9, 1
+    v12 = storage_array_data_slot 4
+    v13 = div v9, 32
+    v14 = add v12, v13
+    v15 = mod v9, 32
+    v16 = mul v15, 1
+    sstore 4, v11 !metadata(storage=slot(4))
+    v17 = sload v14 !metadata(storage=symbolic(v14))
+    v18 = mul v16, 8
+    v19 = shr v18, v17
+    v20 = trunc i256 v19 to i8
+    v21 = lt v20, i8 4
+    v22 = eq v21, false
+    icall panic_if<0x21>, v22
+    v23 = lt v20, i8 4
+    v24 = eq v23, false
+    icall panic_if<0x21>, v24
     mstore 0, 4 !metadata(memory=scratch)
-    v28 = keccak256 0, 32 !metadata(memory=scratch)
-    v29 = sload v28 !metadata(storage=symbolic(v28))
-    v30 = and v29, 255
-    v31 = zext i8 v24 to i256
-    v32 = sload 4 !metadata(storage=slot(4))
-    v33 = insert_value struct3, undef struct3, 0, v31
-    v34 = insert_value struct3, v33, 1, v30
-    v35 = insert_value struct3, v34, 2, v32
-    ret v35
+    v25 = keccak256 0, 32 !metadata(memory=scratch)
+    v26 = sload v25 !metadata(storage=symbolic(v25))
+    v27 = and v26, 255
+    v28 = zext i8 v20 to i256
+    v29 = sload 4 !metadata(storage=slot(4))
+    v30 = insert_value struct3, undef struct3, 0, v28
+    v31 = insert_value struct3, v30, 1, v27
+    v32 = insert_value struct3, v31, 2, v29
+    ret v32
 }
 
 fn @enumAssignHole(arg0: i256) -> struct3 [selector=0xb891707d, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
@@ -597,16 +572,15 @@ fn @enumAssignHole(arg0: i256) -> struct3 [selector=0xb891707d, abi_params=[u256
     v7 = mod v1, 32
     v8 = mul v7, 1
     sstore 4, v3 !metadata(storage=slot(4))
-    v9 = trunc i256 0 to i8
     mstore 0, 4 !metadata(memory=scratch)
-    v10 = keccak256 0, 32 !metadata(memory=scratch)
-    v11 = sload v10 !metadata(storage=symbolic(v10))
-    v12 = and v11, 255
-    v13 = sload 4 !metadata(storage=slot(4))
-    v14 = insert_value struct3, undef struct3, 0, 123
-    v15 = insert_value struct3, v14, 1, v12
-    v16 = insert_value struct3, v15, 2, v13
-    ret v16
+    v9 = keccak256 0, 32 !metadata(memory=scratch)
+    v10 = sload v9 !metadata(storage=symbolic(v9))
+    v11 = and v10, 255
+    v12 = sload 4 !metadata(storage=slot(4))
+    v13 = insert_value struct3, undef struct3, 0, 123
+    v14 = insert_value struct3, v13, 1, v11
+    v15 = insert_value struct3, v14, 2, v12
+    ret v15
 }
 
 fn @enumNestedHole(arg0: i256) -> struct3 [selector=0xdf286fc3, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
@@ -624,16 +598,15 @@ fn @enumNestedHole(arg0: i256) -> struct3 [selector=0xdf286fc3, abi_params=[u256
     v7 = mod v1, 32
     v8 = mul v7, 1
     sstore 4, v3 !metadata(storage=slot(4))
-    v9 = trunc i256 0 to i8
     mstore 0, 4 !metadata(memory=scratch)
-    v10 = keccak256 0, 32 !metadata(memory=scratch)
-    v11 = sload v10 !metadata(storage=symbolic(v10))
-    v12 = and v11, 255
-    v13 = sload 4 !metadata(storage=slot(4))
-    v14 = insert_value struct3, undef struct3, 0, 1
-    v15 = insert_value struct3, v14, 1, v12
-    v16 = insert_value struct3, v15, 2, v13
-    ret v16
+    v9 = keccak256 0, 32 !metadata(memory=scratch)
+    v10 = sload v9 !metadata(storage=symbolic(v9))
+    v11 = and v10, 255
+    v12 = sload 4 !metadata(storage=slot(4))
+    v13 = insert_value struct3, undef struct3, 0, 1
+    v14 = insert_value struct3, v13, 1, v11
+    v15 = insert_value struct3, v14, 2, v12
+    ret v15
 }
 
 fn @enumNestedInnerHole(arg0: i256) -> struct3 [selector=0x1f0f0670, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
@@ -651,17 +624,16 @@ fn @enumNestedInnerHole(arg0: i256) -> struct3 [selector=0x1f0f0670, abi_params=
     v7 = mod v1, 32
     v8 = mul v7, 1
     sstore 4, v3 !metadata(storage=slot(4))
-    v9 = trunc i256 0 to i8
     mstore 0, 4 !metadata(memory=scratch)
-    v10 = keccak256 0, 32 !metadata(memory=scratch)
-    v11 = sload v10 !metadata(storage=symbolic(v10))
-    v12 = and v11, 255
-    v13 = checked_add u256, 1, 2
-    v14 = sload 4 !metadata(storage=slot(4))
-    v15 = insert_value struct3, undef struct3, 0, v13
-    v16 = insert_value struct3, v15, 1, v12
-    v17 = insert_value struct3, v16, 2, v14
-    ret v17
+    v9 = keccak256 0, 32 !metadata(memory=scratch)
+    v10 = sload v9 !metadata(storage=symbolic(v9))
+    v11 = and v10, 255
+    v12 = checked_add u256, 1, 2
+    v13 = sload 4 !metadata(storage=slot(4))
+    v14 = insert_value struct3, undef struct3, 0, v12
+    v15 = insert_value struct3, v14, 1, v11
+    v16 = insert_value struct3, v15, 2, v13
+    ret v16
 }
 
 fn @enumUsedComponent(arg0: i256) -> struct0 [selector=0x3af411b8, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -682,19 +654,17 @@ fn @enumUsedComponent(arg0: i256) -> struct0 [selector=0x3af411b8, abi_params=[u
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
     v11 = shr v10, v9
-    v12 = and v11, 255
-    v13 = lt v12, 4
+    v12 = trunc i256 v11 to i8
+    v13 = lt v12, i8 4
     v14 = eq v13, false
     icall panic_if<0x21>, v14
-    v15 = trunc i256 v12 to i8
-    v16 = zext i8 v15 to i256
-    v17 = lt v16, 4
-    v18 = eq v17, false
-    icall panic_if<0x21>, v18
-    v19 = zext i8 v15 to i256
-    v20 = insert_value struct0, undef struct0, 0, v19
-    v21 = insert_value struct0, v20, 1, 123
-    ret v21
+    v15 = lt v12, i8 4
+    v16 = eq v15, false
+    icall panic_if<0x21>, v16
+    v17 = zext i8 v12 to i256
+    v18 = insert_value struct0, undef struct0, 0, v17
+    v19 = insert_value struct0, v18, 1, 123
+    ret v19
 }
 
 fn @nestedInStmtRvalue(arg0: i256) -> struct0 [selector=0xa803cfdb, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {

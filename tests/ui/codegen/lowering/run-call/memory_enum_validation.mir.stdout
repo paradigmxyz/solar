@@ -3,25 +3,21 @@
 fn @structField() -> i8 [selector=0x3442156e, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v1 = trunc i256 0 to i8
-    v2 = zext i8 v1 to i256
-    v3 = lt v2, 2
-    v4 = eq v3, false
-    icall panic_if<0x21>, v4
-    v5 = zext i8 v1 to i256
-    memory_object_store_field memorystruct<1>, v0, 0, v5
-    v6 = ptrtoint memorystruct v0 to i256
-    mstore v6, 2
-    v7 = memory_object_load_field memorystruct<1>, v0, 0
-    v8 = lt v7, 2
+    v1 = lt i8 0, i8 2
+    v2 = eq v1, false
+    icall panic_if<0x21>, v2
+    memory_object_store_field memorystruct<1>, v0, 0, 0
+    v3 = ptrtoint memorystruct v0 to i256
+    mstore v3, 2
+    v4 = memory_object_load_field memorystruct<1>, v0, 0
+    v5 = lt v4, 2
+    v6 = eq v5, false
+    icall panic_if<0x21>, v6
+    v7 = trunc i256 v4 to i8
+    v8 = lt v7, i8 2
     v9 = eq v8, false
     icall panic_if<0x21>, v9
-    v10 = trunc i256 v7 to i8
-    v11 = zext i8 v10 to i256
-    v12 = lt v11, 2
-    v13 = eq v12, false
-    icall panic_if<0x21>, v13
-    ret v10
+    ret v7
 }
 
 fn @fixedArrayElement() -> i8 [selector=0x43876e90, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {
@@ -39,10 +35,9 @@ fn @fixedArrayElement() -> i8 [selector=0x43876e90, pure, abi_params=[], abi_ret
     v7 = eq v6, false
     icall panic_if<0x21>, v7
     v8 = trunc i256 v5 to i8
-    v9 = zext i8 v8 to i256
-    v10 = lt v9, 2
-    v11 = eq v10, false
-    icall panic_if<0x21>, v11
+    v9 = lt v8, i8 2
+    v10 = eq v9, false
+    icall panic_if<0x21>, v10
     ret v8
 }
 
@@ -62,9 +57,8 @@ fn @dynamicArrayElement() -> i8 [selector=0xff96177b, pure, abi_params=[], abi_r
     v8 = eq v7, false
     icall panic_if<0x21>, v8
     v9 = trunc i256 v6 to i8
-    v10 = zext i8 v9 to i256
-    v11 = lt v10, 2
-    v12 = eq v11, false
-    icall panic_if<0x21>, v12
+    v10 = lt v9, i8 2
+    v11 = eq v10, false
+    icall panic_if<0x21>, v11
     ret v9
 }

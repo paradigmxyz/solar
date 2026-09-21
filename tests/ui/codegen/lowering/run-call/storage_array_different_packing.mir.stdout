@@ -105,70 +105,65 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v136 = sload v133 !metadata(storage=symbolic(v133))
     v137 = mul v135, 8
     v138 = shr v137, v136
-    v139 = and v138, 0xffffffffffffffffffff
-    v140 = shl 176, v139
-    v141 = sload 1 !metadata(storage=slot(1))
-    v142 = lt 2, v141
-    v143 = eq v142, false
-    icall panic_if<0x32>, v143
-    v144 = storage_array_data_slot 1
-    v145 = div 2, 3
-    v146 = add v144, v145
-    v147 = mod 2, 3
-    v148 = mul v147, 10
-    v149 = sload v146 !metadata(storage=symbolic(v146))
-    v150 = mul v148, 8
-    v151 = shr v150, v149
-    v152 = and v151, 0xffffffffffffffffffff
-    v153 = shl 176, v152
-    v154 = sload 1 !metadata(storage=slot(1))
-    v155 = lt 3, v154
-    v156 = eq v155, false
-    icall panic_if<0x32>, v156
-    v157 = storage_array_data_slot 1
-    v158 = div 3, 3
-    v159 = add v157, v158
-    v160 = mod 3, 3
-    v161 = mul v160, 10
-    v162 = sload v159 !metadata(storage=symbolic(v159))
-    v163 = mul v161, 8
-    v164 = shr v163, v162
-    v165 = and v164, 0xffffffffffffffffffff
-    v166 = shl 176, v165
-    v167 = sload 1 !metadata(storage=slot(1))
-    v168 = lt 4, v167
-    v169 = eq v168, false
-    icall panic_if<0x32>, v169
-    v170 = storage_array_data_slot 1
-    v171 = div 4, 3
-    v172 = add v170, v171
-    v173 = mod 4, 3
-    v174 = mul v173, 10
-    v175 = sload v172 !metadata(storage=symbolic(v172))
-    v176 = mul v174, 8
-    v177 = shr v176, v175
-    v178 = and v177, 0xffffffffffffffffffff
-    v179 = shl 176, v178
-    v180 = sload 1 !metadata(storage=slot(1))
-    v181 = lt 5, v180
-    v182 = eq v181, false
-    icall panic_if<0x32>, v182
-    v183 = storage_array_data_slot 1
-    v184 = div 5, 3
-    v185 = add v183, v184
-    v186 = mod 5, 3
-    v187 = mul v186, 10
-    v188 = sload v185 !metadata(storage=symbolic(v185))
-    v189 = mul v187, 8
-    v190 = shr v189, v188
-    v191 = and v190, 0xffffffffffffffffffff
-    v192 = shl 176, v191
-    v193 = insert_value struct0, undef struct0, 0, v140
-    v194 = insert_value struct0, v193, 1, v153
-    v195 = insert_value struct0, v194, 2, v166
-    v196 = insert_value struct0, v195, 3, v179
-    v197 = insert_value struct0, v196, 4, v192
-    ret v197
+    v139 = shl 176, v138
+    v140 = sload 1 !metadata(storage=slot(1))
+    v141 = lt 2, v140
+    v142 = eq v141, false
+    icall panic_if<0x32>, v142
+    v143 = storage_array_data_slot 1
+    v144 = div 2, 3
+    v145 = add v143, v144
+    v146 = mod 2, 3
+    v147 = mul v146, 10
+    v148 = sload v145 !metadata(storage=symbolic(v145))
+    v149 = mul v147, 8
+    v150 = shr v149, v148
+    v151 = shl 176, v150
+    v152 = sload 1 !metadata(storage=slot(1))
+    v153 = lt 3, v152
+    v154 = eq v153, false
+    icall panic_if<0x32>, v154
+    v155 = storage_array_data_slot 1
+    v156 = div 3, 3
+    v157 = add v155, v156
+    v158 = mod 3, 3
+    v159 = mul v158, 10
+    v160 = sload v157 !metadata(storage=symbolic(v157))
+    v161 = mul v159, 8
+    v162 = shr v161, v160
+    v163 = shl 176, v162
+    v164 = sload 1 !metadata(storage=slot(1))
+    v165 = lt 4, v164
+    v166 = eq v165, false
+    icall panic_if<0x32>, v166
+    v167 = storage_array_data_slot 1
+    v168 = div 4, 3
+    v169 = add v167, v168
+    v170 = mod 4, 3
+    v171 = mul v170, 10
+    v172 = sload v169 !metadata(storage=symbolic(v169))
+    v173 = mul v171, 8
+    v174 = shr v173, v172
+    v175 = shl 176, v174
+    v176 = sload 1 !metadata(storage=slot(1))
+    v177 = lt 5, v176
+    v178 = eq v177, false
+    icall panic_if<0x32>, v178
+    v179 = storage_array_data_slot 1
+    v180 = div 5, 3
+    v181 = add v179, v180
+    v182 = mod 5, 3
+    v183 = mul v182, 10
+    v184 = sload v181 !metadata(storage=symbolic(v181))
+    v185 = mul v183, 8
+    v186 = shr v185, v184
+    v187 = shl 176, v186
+    v188 = insert_value struct0, undef struct0, 0, v139
+    v189 = insert_value struct0, v188, 1, v151
+    v190 = insert_value struct0, v189, 2, v163
+    v191 = insert_value struct0, v190, 3, v175
+    v192 = insert_value struct0, v191, 4, v187
+    ret v192
   bb23:
     v102 = memory_object_load_element memoryarray<1>, v78, v100
     v103 = storage_array_data_slot 1

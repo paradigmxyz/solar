@@ -173,3 +173,22 @@ fn @narrow_double_comparison(arg0: i8, arg1: i8) -> i256 {
   bb3:
     ret 1
 }
+
+// A nonzero truncated value proves that its source is nonzero.
+// CHECK-LABEL: fn @truncated_lower_bound
+// CHECK: - jumpi v3, bb2, bb3
+// CHECK: + jump bb3
+fn @truncated_lower_bound(arg0: i256) -> i256 {
+  bb0:
+    v0 = trunc i256 arg0 to i32
+    v1 = zext i32 v0 to i256
+    v2 = gt v1, 1
+    jumpi v2, bb1, bb3
+  bb1:
+    v3 = eq arg0, 0
+    jumpi v3, bb2, bb3
+  bb2:
+    ret 1
+  bb3:
+    ret 0
+}

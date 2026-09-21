@@ -2,7 +2,7 @@
 
 use std::{cell::RefCell, sync::OnceLock};
 
-use crate::mir::{FunctionBuilder, TypeSize, ValueId};
+use crate::mir::{FunctionBuilder, TypeSize, ValueId, ValueLayout};
 use alloy_primitives::U256;
 use solar_ast::DataLocation;
 use solar_data_structures::{index::IndexVec, map::FxHashMap};
@@ -87,24 +87,21 @@ impl StorageLocation {
             // value = word
             return word;
         }
-        // field = (shift ? word >> shift : word) & field_mask
         let shifted = shift.map_or(word, |shift| builder.shr(shift, word));
-        let field_mask = builder.imm(self.mask());
-        let masked = builder.and(shifted, field_mask);
         match self.encoding {
             StorageEncoding::Unsigned => {
-                // value = field
-                masked
+                // value = trunc field to its storage width
+                builder.cast(shifted, ValueLayout::UInt(self.size).mir_type())
             }
             StorageEncoding::Signed => {
                 // value = sign_extend(field)
                 let index = builder.imm(u64::from(self.size.bytes() - 1));
-                builder.signextend(index, masked)
+                builder.signextend(index, shifted)
             }
             StorageEncoding::FixedBytes => {
                 // value = field << align_shift
                 let shift = builder.imm(u64::from(Self::word_bytes() - self.size.bytes()) * 8);
-                builder.shl(shift, masked)
+                builder.shl(shift, shifted)
             }
         }
     }

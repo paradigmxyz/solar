@@ -47,98 +47,86 @@ fn @run(arg0: i128) -> i256 [selector=0x96c07422, abi_params=[i128], abi_returns
     v5 = or v2, v4
     sstore 0, v5 !metadata(storage=slot(0))
     v6 = sload 2 !metadata(storage=slot(2))
-    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v8 = trunc i256 v7 to i160
-    v9 = sload 0 !metadata(storage=slot(0))
-    v10 = and v9, 0xffffffffffffffffffffffffffffffff
-    v11 = signextend 15, v10
-    v12 = trunc i256 v11 to i128
-    v13 = trunc i256 0 to i128
-    v14 = ne v12, v13
-    jumpi v14, bb1, bb2
+    v7 = trunc i256 v6 to i160
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = signextend 15, v8
+    v10 = trunc i256 v9 to i128
+    v11 = ne v10, i128 0
+    jumpi v11, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v15 = sload 0 !metadata(storage=slot(0))
-    v16 = and v15, 0xffffffffffffffffffffffffffffffff
-    v17 = signextend 15, v16
-    v18 = trunc i256 v17 to i128
-    icall @_settleOrTake, v8, v18
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = signextend 15, v12
+    v14 = trunc i256 v13 to i128
+    icall @_settleOrTake, v7, v14
     jump bb3
   bb3:
-    v19 = sload 0 !metadata(storage=slot(0))
-    v20 = shr 128, v19
-    v21 = and v20, 0xffffffffffffffffffffffffffffffff
-    v22 = signextend 15, v21
-    v23 = trunc i256 v22 to i128
-    v24 = trunc i256 0 to i128
-    v25 = ne v23, v24
-    jumpi v25, bb4, bb5
+    v15 = sload 0 !metadata(storage=slot(0))
+    v16 = shr 128, v15
+    v17 = signextend 15, v16
+    v18 = trunc i256 v17 to i128
+    v19 = ne v18, i128 0
+    jumpi v19, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v26 = sload 0 !metadata(storage=slot(0))
-    v27 = shr 128, v26
-    v28 = and v27, 0xffffffffffffffffffffffffffffffff
-    v29 = signextend 15, v28
-    v30 = trunc i256 v29 to i128
-    icall @_settleOrTake, v8, v30
+    v20 = sload 0 !metadata(storage=slot(0))
+    v21 = shr 128, v20
+    v22 = signextend 15, v21
+    v23 = trunc i256 v22 to i128
+    icall @_settleOrTake, v7, v23
     jump bb6
   bb6:
-    v31 = sload 2 !metadata(storage=slot(2))
-    v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffff
-    v33 = trunc i256 v32 to i160
-    v34 = gas
-    v35 = abi_encode [], selector 0x47799da800000000000000000000000000000000000000000000000000000000
-    v36 = slice_ptr v35
-    v37 = slice_len v35
-    v38 = zext i160 v33 to i256
-    v39 = staticcall v34, v38, v36, v37, 0, 32
-    jumpi v39, bb8, bb7
+    v24 = sload 2 !metadata(storage=slot(2))
+    v25 = trunc i256 v24 to i160
+    v26 = gas
+    v27 = abi_encode [], selector 0x47799da800000000000000000000000000000000000000000000000000000000
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = zext i160 v25 to i256
+    v31 = staticcall v26, v30, v28, v29, 0, 32
+    jumpi v31, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v40 = returndatasize
-    v41 = lt v40, 32
-    icall revert_if<tuple_data_too_short>, v41
-    v42 = add 0, 0
-    v43 = mload v42
-    ret v43
+    v32 = returndatasize
+    v33 = lt v32, 32
+    icall revert_if<tuple_data_too_short>, v33
+    v34 = add 0, 0
+    v35 = mload v34
+    ret v35
 }
 
 fn @_settleOrTake(arg0: i160, arg1: i128) {
   bb0:
-    v0 = trunc i256 0 to i128
-    v1 = sgt arg1, v0
-    jumpi v1, bb1, bb2
+    v0 = sgt arg1, i128 0
+    jumpi v0, bb1, bb2
   bb2:
-    v7 = sext i128 arg1 to i256
-    v8 = checked_sub i256, 0, v7
-    v9 = trunc i256 0 to i160
-    v10 = eq arg0, v9
-    jumpi v10, bb4, bb5
+    v5 = sext i128 arg1 to i256
+    v6 = checked_sub i256, 0, v5
+    v7 = eq arg0, i160 0
+    jumpi v7, bb4, bb5
   bb5:
-    v23 = sload 2 !metadata(storage=slot(2))
-    v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffff
-    v25 = trunc i256 v24 to i160
-    v26 = address
-    icall @settle, arg0, v25, v26, v8, false
+    v19 = sload 2 !metadata(storage=slot(2))
+    v20 = trunc i256 v19 to i160
+    v21 = address
+    icall @settle, arg0, v20, v21, v6, false
     jump bb6
   bb4:
-    v11 = sload 2 !metadata(storage=slot(2))
-    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
-    v13 = trunc i256 v12 to i160
-    v14 = gas
-    v15 = abi_encode [], selector 0x11da60b400000000000000000000000000000000000000000000000000000000
-    v16 = slice_ptr v15
-    v17 = slice_len v15
-    v18 = zext i160 v13 to i256
-    v19 = extcodesize v18
-    v20 = eq v19, 0
-    icall revert_if<target_contract_has_no_code>, v20
-    v21 = zext i160 v13 to i256
-    v22 = call v14, v21, v8, v16, v17, 0, 0
-    jumpi v22, bb8, bb7
+    v8 = sload 2 !metadata(storage=slot(2))
+    v9 = trunc i256 v8 to i160
+    v10 = gas
+    v11 = abi_encode [], selector 0x11da60b400000000000000000000000000000000000000000000000000000000
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    v14 = zext i160 v9 to i256
+    v15 = extcodesize v14
+    v16 = eq v15, 0
+    icall revert_if<target_contract_has_no_code>, v16
+    v17 = zext i160 v9 to i256
+    v18 = call v10, v17, v6, v12, v13, 0, 0
+    jumpi v18, bb8, bb7
   bb7:
     revert_returndata
   bb8:
@@ -146,12 +134,11 @@ fn @_settleOrTake(arg0: i160, arg1: i128) {
   bb6:
     jump bb3
   bb1:
-    v2 = sload 2 !metadata(storage=slot(2))
-    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    v4 = trunc i256 v3 to i160
-    v5 = address
-    v6 = zext i128 arg1 to i256
-    icall @take, arg0, v4, v5, v6, false
+    v1 = sload 2 !metadata(storage=slot(2))
+    v2 = trunc i256 v1 to i160
+    v3 = address
+    v4 = zext i128 arg1 to i256
+    icall @take, arg0, v2, v3, v4, false
     jump bb3
   bb3:
     ret

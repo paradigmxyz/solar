@@ -270,11 +270,10 @@ fn @at(arg0: i256) -> i8 [selector=0xe0886f90, view, abi_params=[u256], abi_retu
     v15 = sload v12 !metadata(storage=symbolic(v12))
     v16 = mul v14, 8
     v17 = shr v16, v15
-    v18 = and v17, 255
-    v19 = shl 248, v18
-    v20 = shr 248, v19
-    v21 = trunc i256 v20 to i8
-    ret v21
+    v18 = shl 248, v17
+    v19 = shr 248, v18
+    v20 = trunc i256 v19 to i8
+    ret v20
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_storage_argument.sol:ForwardingParam ===

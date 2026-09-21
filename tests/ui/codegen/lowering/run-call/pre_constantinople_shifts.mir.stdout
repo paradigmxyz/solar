@@ -21,19 +21,16 @@ fn @signedShift(arg0: i256, arg1: i256) -> i256 [selector=0xa579f6d8, pure, abi_
 
 fn @packedStorage() -> i256 [selector=0x6e5f4079, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = trunc i256 0x123456 to i24
-    v1 = sload 0 !metadata(storage=slot(0))
-    v2 = not 0xffffff
-    v3 = and v1, v2
-    v4 = zext i24 v0 to i256
-    v5 = and v4, 0xffffff
-    v6 = or v3, v5
-    sstore 0, v6 !metadata(storage=slot(0))
-    v7 = sload 0 !metadata(storage=slot(0))
-    v8 = and v7, 0xffffff
-    v9 = trunc i256 v8 to i24
-    v10 = zext i24 v9 to i256
-    ret v10
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 0xffffff
+    v2 = and v0, v1
+    v3 = and 0x123456, 0xffffff
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = trunc i256 v5 to i24
+    v7 = zext i24 v6 to i256
+    ret v7
 }
 
 fn @partialCopy() -> i256 [selector=0xb787ef80, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {

@@ -170,7 +170,9 @@ impl MirPass for IntegerCleanup {
                 .blocks
                 .iter()
                 .any(|block| matches!(block.terminator, Some(Terminator::Branch { .. })))
-                || !func.instructions().any(|id| matches!(func.inst(id).kind, InstKind::And(..)))
+                || !func
+                    .instructions()
+                    .any(|id| low_mask_input(func, &func.inst(id).kind).is_some())
             {
                 return false;
             }
@@ -522,6 +524,8 @@ struct CheckEliminator<'a> {
     stats: CheckElimStats,
     ranges: FxHashMap<ValueId, Range>,
     relations: FxHashSet<Relation>,
+    /// Lower-bound searches depend only on the current relation scope.
+    strict_lower_bounds: FxHashMap<ValueId, bool>,
     /// Possible outgoing facts; each candidate still requires a scoped membership check.
     relation_index: Option<FxHashMap<ValueId, SmallVec<[Relation; 2]>>>,
     /// Proven header phi invariants, indexed alongside the branch-derived candidates.
@@ -563,6 +567,7 @@ impl<'a> CheckEliminator<'a> {
     ) -> usize {
         self.stats = CheckElimStats::default();
         self.relation_index = None;
+        self.strict_lower_bounds.clear();
         self.reverse_index = None;
         self.monotone_relations.clear();
         self.universal_relations.clear();
@@ -701,6 +706,9 @@ impl<'a> CheckEliminator<'a> {
         while let Some(item) = stack.pop() {
             match item {
                 Walk::Exit { range_mark, relation_mark } => {
+                    if self.relation_undo.len() > relation_mark {
+                        self.strict_lower_bounds.clear();
+                    }
                     while self.range_undo.len() > range_mark {
                         let (value, old) = self.range_undo.pop().expect("checked len");
                         match old {
@@ -845,6 +853,7 @@ impl<'a> CheckEliminator<'a> {
                     for &pred in &preds[block] {
                         cx.ranges.clone_from(&exits[pred].ranges);
                         cx.relations.clone_from(&exits[pred].relations);
+                        cx.strict_lower_bounds.clear();
                         cx.range_undo.clear();
                         cx.relation_undo.clear();
                         if let Some(Terminator::Branch { condition, then_block, else_block }) =
@@ -911,6 +920,7 @@ impl<'a> CheckEliminator<'a> {
                 let entry = merged.unwrap_or_default();
                 cx.ranges.clone_from(&entry.ranges);
                 cx.relations.clone_from(&entry.relations);
+                cx.strict_lower_bounds.clear();
                 cx.range_undo.clear();
                 cx.relation_undo.clear();
                 for &inst in &func.blocks[block].instructions {
@@ -947,12 +957,8 @@ impl<'a> CheckEliminator<'a> {
 
     fn redundant_mask(&mut self, func: &Function, id: InstId) -> Option<ValueId> {
         let inst = func.inst(id);
-        let InstKind::And(a, b) = inst.kind else { return None };
-        let (value, mask) = const_of(func, b)
-            .map(|mask| (a, mask))
-            .or_else(|| const_of(func, a).map(|mask| (b, mask)))?;
-        (mask.wrapping_add(U256::ONE) & mask == U256::ZERO
-            && self.range_of(func, value, MAX_DEPTH).hi <= mask
+        let (value, mask) = low_mask_input(func, &inst.kind)?;
+        (self.range_of(func, value, MAX_DEPTH).hi <= mask
             && inst.result_ty == func.value_ty(value)
             && inst.metadata.effect().is_none_or(|effect| effect == EffectKind::Pure))
         .then_some(value)
@@ -1105,6 +1111,7 @@ impl<'a> CheckEliminator<'a> {
 
     fn add_relation(&mut self, relation: Relation) {
         if self.relations.insert(relation) {
+            self.strict_lower_bounds.clear();
             self.relation_undo.push(relation);
         }
     }
@@ -1114,6 +1121,7 @@ impl<'a> CheckEliminator<'a> {
         if self.relation_index.is_some() {
             return;
         }
+        self.strict_lower_bounds.clear();
         let mut index = relation_candidates(func);
         for &relation in &self.monotone_relations {
             index_relation(&mut index, relation);
@@ -1226,6 +1234,15 @@ impl<'a> CheckEliminator<'a> {
     /// which puts `value` at one or more: every word is at least zero.
     fn has_strict_lower_bound(&mut self, func: &Function, value: ValueId) -> bool {
         self.ensure_relation_index(func);
+        if let Some(&result) = self.strict_lower_bounds.get(&value) {
+            return result;
+        }
+        let result = self.find_strict_lower_bound(value);
+        self.strict_lower_bounds.insert(value, result);
+        result
+    }
+
+    fn find_strict_lower_bound(&self, value: ValueId) -> bool {
         let reverse = self.reverse_index.as_ref().expect("relation index was just built");
         if !reverse.contains_key(&value) {
             return false;
@@ -1381,7 +1398,13 @@ impl<'a> CheckEliminator<'a> {
             InstKind::Sub(a, b) => {
                 let ra = self.range_of(func, a, depth);
                 let rb = self.range_of(func, b, depth);
-                if ra.lo >= rb.hi { Range::new(ra.lo - rb.hi, ra.hi - rb.lo) } else { Range::FULL }
+                if ra.lo >= rb.hi {
+                    Range::new(ra.lo - rb.hi, ra.hi - rb.lo)
+                } else if self.has_relation(func, Relation::Le(b, a)) {
+                    Range::new(U256::ZERO, ra.hi.saturating_sub(rb.lo))
+                } else {
+                    Range::FULL
+                }
             }
             InstKind::Mul(a, b) => {
                 let ra = self.range_of(func, a, depth);
@@ -1833,8 +1856,12 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
             continue;
         }
         match func.inst(inst_id).kind {
-            InstKind::Shr(_, x) | InstKind::Mod(x, _) => {
+            InstKind::Shr(_, x) | InstKind::Mod(x, _) | InstKind::Trunc(x, _) => {
                 relations.insert(Relation::Le(value, x));
+            }
+            InstKind::Zext(x) | InstKind::Bitcast(x) => {
+                let (a, b) = ordered(value, x);
+                relations.insert(Relation::Eq(a, b));
             }
             InstKind::Div(x, divisor) if const_of(func, divisor).is_some_and(|c| !c.is_zero()) => {
                 relations.insert(Relation::Le(value, x));
@@ -2076,6 +2103,14 @@ fn trip_count_bound(func: &Function, phi: &MonotonePhi) -> Option<Range> {
             initial.checked_add(travel).filter(|&hi| hi <= integer_max(func, phi.value))?,
         ))
     }
+}
+
+fn low_mask_input(func: &Function, kind: &InstKind) -> Option<(ValueId, U256)> {
+    let InstKind::And(a, b) = *kind else { return None };
+    let (value, mask) = const_of(func, b)
+        .map(|mask| (a, mask))
+        .or_else(|| const_of(func, a).map(|mask| (b, mask)))?;
+    (mask.wrapping_add(U256::ONE) & mask == U256::ZERO).then_some((value, mask))
 }
 
 fn const_of(func: &Function, value: ValueId) -> Option<U256> {

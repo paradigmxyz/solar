@@ -15,12 +15,11 @@ fn @dynamicArg(arg0: i256, arg1: memorybytes) -> i256 [selector=0xde52036d, pure
 
 fn @materialized(arg0: i16, arg1: memorybytes, arg2: i1) -> memorybytes [selector=0x16cbcf25, pure, abi_params=[u16, bytes, bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = zext i1 arg2 to i256
-    v1 = eq v0, 0
-    v2 = eq v1, false
-    v3 = zext i1 v2 to i8
-    v4 = abi_encode_packed (u16 arg0, bytes arg1, u8 v3)
-    ret v4
+    v0 = eq arg2, false
+    v1 = eq v0, false
+    v2 = zext i1 v1 to i8
+    v3 = abi_encode_packed (u16 arg0, bytes arg1, u8 v2)
+    ret v3
 }
 
 fn @hashArray(arg0: memoryarray) -> i256 [selector=0x42233547, pure, abi_params=[array<_, bytes32>], abi_returns=[word], abi_return_params=[bytes32]] {
