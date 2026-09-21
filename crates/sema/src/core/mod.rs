@@ -53,6 +53,7 @@ pub const MODULES: &[CoreModule] = &[
         source: include_str!("v1/CalldataBytes.sol"),
     },
     CoreModule { path: "solar:core/v1/Strings.sol", source: include_str!("v1/Strings.sol") },
+    CoreModule { path: "solar:core/v1/Abi.sol", source: include_str!("v1/Abi.sol") },
     CoreModule {
         path: "solar:core/v1/codecs/Base64.sol",
         source: include_str!("v1/codecs/Base64.sol"),
