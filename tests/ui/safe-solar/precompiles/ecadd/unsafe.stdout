@@ -2,13 +2,13 @@
 @module Unsafe
 @phase lowered
 types:
-  struct0: {u256, u256, u256}
+  struct0: {i256, i256, i256}
 
 fn @add() [selector=0xe022d77c, abi_wrapper, view] {
   bb0:
-    v12 = calldatasize
-    v13 = lt v12, 132
-    jumpi v13, bb1, bb2
+    v13 = calldatasize
+    v14 = lt v13, 132
+    jumpi v14, bb1, bb2
   bb2:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, arg0
@@ -20,13 +20,12 @@ fn @add() [selector=0xe022d77c, abi_wrapper, view] {
     mstore v3, arg3
     v4 = gas
     v5 = staticcall v4, 6, v0, 128, v0, 64
-    v6 = mload v0
-    v8 = mload v1
-    v14 = iszero v5
-    v15 = iszero v14
-    mstore 128, v15
-    mstore 160, v6
-    mstore 192, v8
+    v7 = mload v0
+    v9 = mload v1
+    v6 = zext i1 v5 to i256
+    mstore 128, v6
+    mstore 160, v7
+    mstore 192, v9
     returndata 128, 96
   bb1:
     revert 0, 0
@@ -35,11 +34,12 @@ fn @add() [selector=0xe022d77c, abi_wrapper, view] {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb3, bb1
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
   bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb3, [0xe022d77c => bb2]
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xe022d77c => bb2]
   bb2:
     tail_call @add
   bb3:

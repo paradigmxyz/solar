@@ -2,70 +2,71 @@
 @module Unsafe
 @phase lowered
 types:
-  struct0: {u256, u256, u256, u256}
+  struct0: {i256, i256, i256, i256}
 
 fn @probe() [selector=0xbed1a1cc, abi_wrapper] {
   bb0:
-    v23 = calldatasize
-    v24 = lt v23, 36
-    jumpi v24, bb1, bb2
+    v30 = calldatasize
+    v31 = lt v30, 36
+    jumpi v31, bb1, bb2
   bb2:
-    v25 = calldataload 4
-    v26 = add v25, 4
-    v27 = add v26, 32
-    v28 = gt v25, 0xffffffffffffffff
-    v29 = gt v27, v23
-    v30 = or v28, v29
-    jumpi v30, bb1, bb3
+    v32 = calldataload 4
+    v33 = add v32, 4
+    v34 = add v33, 32
+    v35 = gt v32, 0xffffffffffffffff
+    v36 = gt v34, v30
+    v37 = or v35, v36
+    jumpi v37, bb1, bb3
   bb3:
-    v31 = calldataload v26
-    v33 = add v31, 63
-    v34 = lt v33, v31
-    jumpi v34, bb4, bb5
+    v39 = calldataload v33
+    v41 = add v39, 63
+    v42 = lt v41, v39
+    jumpi v42, bb4, bb5
   bb5:
-    v36 = and v33, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v37 = mload 64 !metadata(memory=scratch)
-    v51 = add v37, v36
-    v52 = lt v51, v37
-    v53 = gt v51, 0xffffffffffffffff
-    v54 = or v52, v53
-    jumpi v54, bb4, bb7
+    v44 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v63 = mload 64 !metadata(memory=scratch)
+    v64 = add v63, v44
+    v65 = lt v64, v63
+    v66 = gt v64, 0xffffffffffffffff
+    v67 = or v65, v66
+    jumpi v67, bb4, bb7
   bb7:
-    mstore 64, v51 !metadata(memory=scratch)
-    mstore v37, v31
-    v38 = sub v23, v27
-    v39 = gt v31, v38
-    jumpi v39, bb1, bb6
+    mstore 64, v64 !metadata(memory=scratch)
+    mstore v63, v39
+    v46 = sub v30, v34
+    v47 = gt v39, v46
+    jumpi v47, bb1, bb6
   bb6:
-    v48 = add v37, 32
-    calldatacopy v48, v27, v31
-    v2 = create 0, v48, v31
-    v5 = mload 64 !metadata(memory=scratch)
-    v55 = add v5, 64
-    v56 = lt v55, v5
-    v57 = gt v55, 0xffffffffffffffff
-    v58 = or v56, v57
-    jumpi v58, bb4, bb8
+    v58 = add v63, 32
+    calldatacopy v58, v34, v39
+    v4 = create 0, v58, v39
+    v5 = zext i160 v4 to i256
+    v69 = mload 64 !metadata(memory=scratch)
+    v70 = add v69, 64
+    v71 = lt v70, v69
+    v72 = gt v70, 0xffffffffffffffff
+    v73 = or v71, v72
+    jumpi v73, bb4, bb8
   bb8:
-    mstore 64, v55 !metadata(memory=scratch)
-    v59 = calldatasize
-    calldatacopy v5, v59, 64
-    mstore v5, 32
-    v6 = add v5, 32
-    v7 = gas
-    v8 = call v7, v2, 0, 0, 0, v6, 32
-    v9 = returndatasize
-    v10 = gt v9, 32
-    v20 = sub 32, v9
-    v21 = mul v10, v20
-    v22 = add v9, v21
-    v15 = mload v6
-    v41 = iszero v8
-    v42 = iszero v41
-    mstore 128, v42
-    mstore 160, v22
-    mstore 192, v9
-    mstore 224, v15
+    mstore 64, v70 !metadata(memory=scratch)
+    v75 = calldatasize
+    calldatacopy v69, v75, 64
+    mstore v69, 32
+    v10 = add v69, 32
+    v11 = gas
+    v12 = call v11, v5, 0, 0, 0, v10, 32
+    v13 = zext i1 v12 to i256
+    v14 = returndatasize
+    v26 = sub 32, v14
+    v15 = gt v14, 32
+    v27 = zext i1 v15 to i256
+    v28 = mul v27, v26
+    v29 = add v14, v28
+    v21 = mload v10
+    mstore 128, v13
+    mstore 160, v29
+    mstore 192, v14
+    mstore 224, v21
     returndata 128, 128
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -78,11 +79,12 @@ fn @probe() [selector=0xbed1a1cc, abi_wrapper] {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb3, bb1
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
   bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb3, [0xbed1a1cc => bb2]
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xbed1a1cc => bb2]
   bb2:
     tail_call @probe
   bb3:

@@ -3,54 +3,57 @@
 @phase lowered
 fn @part() [selector=0x107cd163, abi_wrapper, pure] {
   bb0:
-    v8 = calldatasize
-    v9 = lt v8, 100
-    jumpi v9, bb3, bb4
+    v9 = calldatasize
+    v10 = lt v9, 100
+    jumpi v10, bb3, bb4
   bb4:
-    v10 = calldataload 4
-    v11 = add v10, 4
-    v12 = add v11, 32
-    v13 = gt v10, 0xffffffffffffffff
-    v14 = gt v12, v8
-    v15 = or v13, v14
-    v16 = calldataload v11
-    v18 = sub v8, v12
-    v19 = gt v16, v18
-    v20 = or v15, v19
-    jumpi v20, bb3, bb5
+    v11 = calldataload 4
+    v12 = add v11, 4
+    v13 = add v12, 32
+    v14 = gt v11, 0xffffffffffffffff
+    v15 = gt v13, v9
+    v16 = or v14, v15
+    v17 = zext i1 v16 to i256
+    v18 = calldataload v12
+    v20 = sub v9, v13
+    v21 = gt v18, v20
+    v22 = zext i1 v21 to i256
+    v23 = or v17, v22
+    v24 = ne v23, 0
+    jumpi v24, bb3, bb5
   bb5:
     v0 = add arg2, 63
     v1 = lt v0, arg2
     jumpi v1, bb1, bb2
   bb2:
     v3 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v4 = mload 64 !metadata(memory=scratch)
-    v37 = add v4, v3
-    v38 = lt v37, v4
-    v39 = gt v37, 0xffffffffffffffff
-    v40 = or v38, v39
-    jumpi v40, bb1, bb6
+    v54 = mload 64 !metadata(memory=scratch)
+    v55 = add v54, v3
+    v56 = lt v55, v54
+    v57 = gt v55, 0xffffffffffffffff
+    v58 = or v56, v57
+    jumpi v58, bb1, bb6
   bb6:
-    mstore 64, v37 !metadata(memory=scratch)
-    v41 = calldatasize
-    calldatacopy v4, v41, v3
-    mstore v4, arg2
-    v6 = add v12, arg1
-    v7 = add v4, 32
-    calldatacopy v7, v6, arg2
-    v26 = iszero v4
-    v27 = iszero v26
-    v28 = mul arg2, v27
-    v30 = add v28, 31
-    v32 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v33 = add v7, v32
-    mstore v33, 0
-    v34 = add v7, 32
-    mcopy v34, v7, v28
-    mstore v4, 32
-    mstore v7, v28
-    v35 = add v32, 64
-    returndata v4, v35
+    mstore 64, v55 !metadata(memory=scratch)
+    v60 = calldatasize
+    calldatacopy v54, v60, v3
+    mstore v54, arg2
+    v6 = add v13, arg1
+    v8 = add v54, 32
+    calldatacopy v8, v6, arg2
+    v33 = ne v54, 0
+    v34 = zext i1 v33 to i256
+    v35 = mul arg2, v34
+    v37 = add v35, 31
+    v39 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v41 = add v8, v39
+    mstore v41, 0
+    v43 = add v54, 64
+    mcopy v43, v8, v35
+    mstore v54, 32
+    mstore v8, v35
+    v47 = add v39, 64
+    returndata v54, v47
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
@@ -62,11 +65,12 @@ fn @part() [selector=0x107cd163, abi_wrapper, pure] {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb3, bb1
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
   bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb3, [0x107cd163 => bb2]
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0x107cd163 => bb2]
   bb2:
     tail_call @part
   bb3:

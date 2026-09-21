@@ -141,11 +141,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// with 255 subtracts it; zero counts 256, which that turns into 511, and
     /// the second term brings back to 256.
     fn core_highest_set_bit(&mut self, value: ValueId) -> ValueId {
-        // index = (255 ^ clz(value)) ^ (255 * iszero(value))
+        // index = (255 ^ clz(value)) ^ (255 * zext(value == 0))
         let count = self.builder.clz(value);
         let top = self.builder.imm(U256::from(255));
         let index = self.builder.xor(top, count);
-        let is_zero = self.builder.iszero(value);
+        let is_zero = self.builder.eq_zero(value);
+        let is_zero = self.builder.cast_word(is_zero);
         let fix = self.builder.mul(top, is_zero);
         self.builder.xor(index, fix)
     }
@@ -269,8 +270,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let deployed = self.core_create(initcode, salt, value);
         // success = deployed != 0
-        let failed = self.builder.iszero(deployed);
-        let success = self.builder.iszero(failed);
+        let success = self.builder.ne_zero(deployed);
         Some(self.core_results(function_id, vec![success, deployed]))
     }
 
@@ -295,8 +295,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let zero = self.builder.imm(U256::ZERO);
         self.builder.returndatacopy_heap(destination, zero, copied);
         // success = deployed != 0
-        let failed = self.builder.iszero(deployed);
-        let success = self.builder.iszero(failed);
+        let success = self.builder.ne_zero(deployed);
         Some(self.core_results(function_id, vec![success, deployed, copied, total]))
     }
 
@@ -313,7 +312,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let deployed = self.core_create(initcode, salt, value);
         // if deployed == 0 { mstore(0, DeploymentFailed.selector); revert(0, 4) }
-        let failed = self.builder.iszero(deployed);
+        let failed = self.builder.eq_zero(deployed);
         let failure = self.builder.create_block();
         let success = self.builder.create_block();
         self.builder.branch(failed, failure, success);
@@ -362,7 +361,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // ok = !misses
         // word = mload(data(object) + (ok ? offset : 0))
         // value = (ok ? word : 0) & leading(width)
-        let ok = self.builder.iszero(misses);
+        let ok = self.builder.eq_zero(misses);
         let zero = self.builder.imm(U256::ZERO);
         let aimed = self.builder.select(ok, offset, zero);
         let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
@@ -413,7 +412,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // ok = !misses
         // word = calldataload(ptr(slice) + (ok ? offset : 0))
         // value = (ok ? word : 0) & leading(width)
-        let ok = self.builder.iszero(misses);
+        let ok = self.builder.eq_zero(misses);
         let zero = self.builder.imm(U256::ZERO);
         let aimed = self.builder.select(ok, offset, zero);
         let base = self.builder.slice_ptr(slice);
