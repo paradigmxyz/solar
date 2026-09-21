@@ -418,19 +418,18 @@ fn @copyArray(arg0: calldataslice) -> i256 [selector=0x58bdfbf3, pure, abi_param
     icall panic_if<0x32>, v55
     v56 = memory_object_load_element memoryarray<1>, v21, 0
     v57 = inttoptr i256 v56 to memorybytes
-    v58 = ptrtoint memorybytes v57 to i256
-    v59 = eq v58, 0
-    jumpi v59, bb4, bb5
+    v58 = eq v56, 0
+    jumpi v58, bb4, bb5
   bb4:
-    v60 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v60, 0
-    v61 = ptrtoint memorybytes v60 to i256
-    memory_object_store_element memoryarray<1>, v21, 0, v61
+    v59 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v59, 0
+    v60 = ptrtoint memorybytes v59 to i256
+    memory_object_store_element memoryarray<1>, v21, 0, v60
     jump bb5
   bb5:
-    v62 = phi [bb3: v57], [bb4: v60]
-    v63 = memory_object_len memorybytes, v62
-    ret v63
+    v61 = phi [bb3: v57], [bb4: v59]
+    v62 = memory_object_len memorybytes, v61
+    ret v62
   bb2:
     v24 = mul v22, 32
     v25 = add v1, v24

@@ -56,6 +56,10 @@ canonical booleans. This keeps the MIR invariant without changing the bits
 that source assembly can observe. Immutable encodings may shrink only when
 every assignment proves that all stored bits fit the shorter encoding.
 
+See [EVM rewrite placement and scalar cleanup](EVM_REWRITES.md) for the split
+between typed MIR simplification and physical-stack dependency analysis,
+including comparisons with other compilers.
+
 ## Phase model
 
 The two representation phases and checked backend boundary are implemented.

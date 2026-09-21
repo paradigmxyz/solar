@@ -599,6 +599,19 @@ impl<'a> FunctionBuilder<'a> {
             assert!(matches!(self.func.value(value), Value::Error(_)), "cast operand has no type");
             return value;
         };
+        if let Value::Inst(id) = self.func.value(value) {
+            let original = match self.func.inst(*id).kind {
+                InstKind::Zext(inner) | InstKind::Bitcast(inner) => Some(inner),
+                InstKind::PtrToInt(inner, 256) if ty.is_pointer() => Some(inner),
+                InstKind::IntToPtr(inner) if ty == MirType::I256 => Some(inner),
+                _ => None,
+            };
+            if let Some(original) = original
+                && self.func.value_ty(original) == Some(ty)
+            {
+                return original;
+            }
+        }
         let kind = match (from, ty) {
             // boolean = ne word, 0
             (_, MirType::I1) => {

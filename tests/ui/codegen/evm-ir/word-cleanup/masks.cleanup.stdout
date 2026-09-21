@@ -1,0 +1,288 @@
+- // === ROOT/tests/ui/codegen/evm-ir/word-cleanup/masks.evmir (before word-cleanup) ===
++ // === ROOT/tests/ui/codegen/evm-ir/word-cleanup/masks.evmir (after word-cleanup) ===
+  @module Masks
+  bb0:
+    caller
+-   push 0xffffffffffffffffffffffffffffffffffffffff
+-   and
+    push 0
+    mstore
+    stop
+  bb1:
+    push 4
+    calldataload
+-   push 0xffffffffffffffffffffffffffffffffffffffff
+-   and
+    push 32
+    swap 1
+    balance
+    swap 1
+    mstore
+    stop
+  bb2:
+    push 4
+    calldataload
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    and
+    dup 1
+    balance
+    push 32
+    mstore
+    push 0
+    mstore
+    stop
+  bb3:
+    push 4
+    calldataload
+    push 255
+    and
+    balance
+    push 0
+    mstore
+    stop
+  bb4:
+    push 4
+    calldataload
+-   push 0xffffffffffffffffffffffffffffffffffffffff
+-   and
+    dup 1
+    balance
+    push 32
+    mstore
+    push 0
+    mstore8
+    stop
+  bb5:
+    push 4
+    calldataload
+-   push 0xffff
+-   and
+    push 7
+    add
+    push 0
+    mstore8
+    stop
+  bb6:
+    push 4
+    calldataload
+    push 255
+    and
+-   push 0xffff
+-   and
+    push 0
+    mstore
+    stop
+  bb7:
+    push 4
+    calldataload
+    push 255
+    and
+    jump bb8
+  bb8:
+    push 0
+    mstore
+    stop
+  bb9:
+    caller
+    push bb8
+    and
+    push 0
+    mstore
+    stop
+  bb10:
+    push 4
+    calldataload
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    and
+    gas
+    pop
+    balance
+    push 0
+    mstore
+    stop
+  bb11:
+    caller
+    iszero
+-   push 1
+-   and
+    push 0
+    mstore
+    stop
+  bb12:
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 4
+    calldataload
+-   push 0xffffffffffffffffffffffffffffffffffffffff
+-   and
+    push 0x186a0
+    staticcall
+    push 0
+    mstore
+    stop
+  bb13:
+    push 4
+    calldataload
+-   push 0xffffffffffffffffffffffffffffffffffffffff
+-   and
+    push 7
+    push 32
+    exchange 1, 2
+    swap 1
+    balance
+    push 0
+    mstore
+    pop
+    pop
+    stop
+  bb14:
+    callf !metadata(stack=0->1)
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    and
+    push 0
+    mstore
+    stop
+  bb15:
+    push 4
+    calldataload
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    and
+    selfdestruct
+  bb16:
+    push 4
+    calldataload
+    push 255
+    and
+    push 4
+    calldataload
+    eq
+    push 0
+    mstore
+    stop
+  bb17:
+    push 4
+    calldataload
+-   push 0xffffffffffffffffffffffffffffffffffffffff
+-   and
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    push 3
+    pop
+    extcodehash
+    push 0
+    mstore
+    stop
+  bb18:
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 4
+    calldataload
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    and
+    push 71
+    gas !metadata(keep_with_next)
+    sub !metadata(keep_with_next)
+    call
+    push 0
+    mstore
+    stop
+  bb19:
+    push 4
+    calldataload
+    push 255
+    and
+    push 36
+    calldataload
+    push 255
+    and
+    and
+    push 0
+    mstore
+    stop
+  bb20:
+    push 4
+    calldataload
+    push 255
+    and
+    dup 1
+    and
+    push 0
+    mstore
+    stop
+  bb21:
+    push 4
+    calldataload
+-   push 255
+-   and
+    push 255
+    and
+    push 0
+    mstore
+    stop
+  

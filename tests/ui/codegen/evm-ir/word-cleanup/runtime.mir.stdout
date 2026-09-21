@@ -1,0 +1,93 @@
+// === ROOT/tests/ui/codegen/evm-ir/word-cleanup/runtime.sol:Cleanup ===
+@module Cleanup
+fn @dependentMasks(arg0: i256, arg1: i256) -> i256 [selector=0x681bf236, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = and arg1, 255
+    v1 = and arg0, 255
+    v2 = and v1, v0
+    ret v2
+}
+
+fn @nestedMasks(arg0: i256) -> i256 [selector=0xa52b64bd, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = and arg0, 255
+    v1 = and v0, 255
+    ret v1
+}
+
+fn @callerRoundTrip() -> i256 [selector=0x0564add0, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = caller
+    v1 = zext i160 v0 to i256
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = trunc i256 v2 to i160
+    v4 = caller
+    v5 = eq v3, v4
+    v6 = zext i1 v5 to i256
+    ret v6
+}
+
+fn @producer() -> i256 [selector=0x37612672, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = caller
+    v1 = zext i160 v0 to i256
+    v2 = caller
+    v3 = zext i160 v2 to i256
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v4, v1
+    v6 = zext i1 v5 to i256
+    ret v6
+}
+
+fn @addressConsumer(arg0: i256) -> i256 [selector=0x88d70e34, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = trunc i256 v0 to i160
+    v2 = zext i160 v1 to i256
+    v3 = extcodesize v2
+    ret v3
+}
+
+fn @shared(arg0: i256) -> i256 [selector=0x727ee1fa, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = extcodesize v0
+    mstore 0, v1 !metadata(memory=scratch)
+    mstore 32, v0 !metadata(memory=scratch)
+    v2 = mload 32 !metadata(memory=scratch)
+    ret v2
+}
+
+fn @byteConsumer(arg0: i256) -> i256 [selector=0xc65f865f, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    mstore 0, 0 !metadata(memory=scratch)
+    v0 = and arg0, 0xffff
+    v1 = add v0, 7
+    mstore8 31, v1 !metadata(memory=scratch)
+    v2 = mload 0 !metadata(memory=scratch)
+    ret v2
+}
+
+fn @dirtyRead() -> i256 [selector=0x1d611170, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 0x10000000000000000000000000000000000000002
+}
+
+fn @dirtyReturn() -> i256 [selector=0x29248ae1, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
+  bb0:
+    ret 0x10000000000000000000000000000000000000002
+}
+
+fn @callConsumer(arg0: i256) -> i256 [selector=0x2a326245, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = trunc i256 v0 to i160
+    v2 = gas
+    v3 = abi_encode [word], object, args 42
+    v4 = address_staticcall v1, v3, gas v2
+    v5 = icall returndata_bytes<>
+    v6 = eq v4, false
+    icall revert_if<empty>, v6
+    v7 = abi_decode [u256], v5
+    ret v7
+}

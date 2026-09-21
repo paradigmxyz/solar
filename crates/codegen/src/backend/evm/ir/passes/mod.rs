@@ -29,6 +29,7 @@ mod tail_merge;
 mod terminal_dedup;
 mod terminal_layout;
 pub(super) mod utils;
+mod word_cleanup;
 
 pub(in crate::backend) use legalize_shifts::legalize_shifts;
 
@@ -86,6 +87,7 @@ impl PassCacheKey {
 
 /// All EVM IR passes exposed by `-Zevm-ir-pipeline`.
 pub static ALL_PASSES: &[&dyn EvmPass] = &[
+    &word_cleanup::WordCleanup,
     &block_cse::BlockCse,
     &peephole::Peephole::FINAL,
     &peephole::LateWord,
@@ -113,6 +115,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
 static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Normalize and establish the first physical layout.
+    &word_cleanup::WordCleanup,
     &peephole::Peephole::EARLY,
     &coalesce_copies::CoalesceCopies,
     &cfg_simplify::CfgSimplify::EARLY,
