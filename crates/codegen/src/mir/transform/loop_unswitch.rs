@@ -237,9 +237,9 @@ fn apply(func: &mut Function, candidate: Candidate) {
     for block in &candidate.blocks {
         let clone = blocks[&block];
         for inst in func.blocks[clone].instructions.clone() {
-            let kind = &mut func.inst_mut(inst).kind;
-            kind.visit_operands_mut(|value| *value = mapped(*value));
-            if let InstKind::Phi(incoming) = kind {
+            let instruction = func.inst_mut(inst);
+            instruction.rewrite_operands(|value| *value = mapped(*value));
+            if let InstKind::Phi(incoming) = &mut instruction.kind {
                 for (from, _) in incoming {
                     *from = blocks.get(from).copied().unwrap_or(*from);
                 }
@@ -253,7 +253,7 @@ fn apply(func: &mut Function, candidate: Candidate) {
         let metadata = func.blocks[block].terminator_metadata.clone();
         func.blocks[clone].set_terminator(term, metadata);
         for inst in func.blocks[block].instructions.clone() {
-            func.inst_mut(inst).kind.visit_operands_mut(|value| {
+            func.inst_mut(inst).rewrite_operands(|value| {
                 if *value == candidate.predicate {
                     *value = no;
                 }

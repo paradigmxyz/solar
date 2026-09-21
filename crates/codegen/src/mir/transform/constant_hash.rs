@@ -46,15 +46,19 @@ impl MirPass for ConstantHash {
             {
                 return false;
             }
-            run(func, &AliasAnalysis::new(func), target)
+            run(func, target)
         })
     }
 }
 
-fn run(func: &mut Function, alias: &AliasAnalysis, target: Target) -> bool {
+fn run(func: &mut Function, target: Target) -> bool {
+    let mut alias = AliasAnalysis::new(func);
     let mut changed = false;
     for block in func.blocks.indices() {
-        changed |= fold_block(func, block, alias, target) != 0;
+        if fold_block(func, block, &alias, target) != 0 {
+            alias = AliasAnalysis::new(func);
+            changed = true;
+        }
     }
     changed
 }
