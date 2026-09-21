@@ -1,101 +1,184 @@
 // === ROOT/tests/ui/codegen/mir/call-cleanup/dirty_arguments.sol:DirtyArguments ===
 @module DirtyArguments
-fn @selectedClean(arg0: bool) -> u256 [selector=0x4d264e8d, pure, abi_params=[bool], abi_returns=[word]] {
+fn @normalizedReturn(arg0: i256) -> i256 [selector=0xaca23352, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @rawReturn, arg0
+    ret v0
+}
+
+fn @compareRawReturn(arg0: i256, arg1: i256) -> i256 [selector=0x6585d271, pure, abi_params=[u256, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @rawReturn, arg0
+    v1 = eq v0, 0
+    v2 = eq v1, false
+    v3 = eq arg1, 0
+    v4 = eq v3, false
+    v5 = eq v2, v4
+    v6 = zext i1 v5 to i256
+    ret v6
+}
+
+fn @rawReturn(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @compareReturns(arg0: i256, arg1: i256) -> i256 [selector=0xf3b43d04, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @canonicalReturn, arg0
+    v1 = eq v0, 0
+    v2 = eq v1, false
+    v3 = icall @canonicalReturn, arg1
+    v4 = eq v3, 0
+    v5 = eq v4, false
+    v6 = eq v2, v5
+    v7 = zext i1 v6 to i256
+    ret v7
+}
+
+fn @canonicalReturn(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v2 = zext i1 0 to i256
+    ret v2
+  bb1:
+    v1 = zext i1 1 to i256
+    ret v1
+}
+
+fn @selectedClean(arg0: i256) -> i256 [selector=0x4d264e8d, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @selected, arg0
     ret v0
 }
 
-fn @selectedDirty(arg0: u256) -> u256 [selector=0x046d9187, pure, abi_params=[u256], abi_returns=[word]] {
+fn @selectedDirty(arg0: i256) -> i256 [selector=0x046d9187, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @selected, arg0
     ret v0
 }
 
-fn @selected(arg0: bool) -> u256 [pure] {
+fn @selected(arg0: i256) -> i256 [pure] {
   bb0:
-    jumpi arg0, bb1, bb2
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v0 = phi [bb1: 19], [bb2: 7]
-    ret v0
+    v1 = phi [bb1: 19], [bb2: 7]
+    ret v1
 }
 
-fn @clean(arg0: address) -> u256 [selector=0x169b2623, pure, abi_params=[address], abi_returns=[word]] {
+fn @cleanIsZero(arg0: i256) -> i256 [selector=0xcb37dd49, pure, abi_params=[address], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = trunc i256 0 to i160
+    v2 = eq v0, v1
+    v3 = zext i1 v2 to i256
+    ret v3
+}
+
+fn @dirtyIsZero(arg0: i256) -> i256 [selector=0x9f3c1122, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = trunc i256 0 to i160
+    v2 = eq v0, v1
+    v3 = zext i1 v2 to i256
+    ret v3
+}
+
+fn @cleanCast(arg0: i256) -> i256 [selector=0x12a6bf89, pure, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    ret v1
+}
+
+fn @dirtyCast(arg0: i256) -> i256 [selector=0x9a5c5594, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    ret v1
+}
+
+fn @clean(arg0: i256) -> i256 [selector=0x169b2623, pure, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @addressBits, arg0
     ret v0
 }
 
-fn @dirty(arg0: u256) -> u256 [selector=0x55136761, pure, abi_params=[u256], abi_returns=[word]] {
+fn @dirty(arg0: i256) -> i256 [selector=0x55136761, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @addressBits, arg0
     ret v0
 }
 
-fn @addressBits(arg0: address) -> u256 [pure] {
+fn @addressBits(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     ret v0
 }
 
-fn @observeDirty(arg0: u256) -> u256 [selector=0xd14495e8, pure, abi_params=[u256], abi_returns=[word]] {
+fn @observeDirty(arg0: i256) -> i256 [selector=0xd14495e8, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @rawBits, arg0
     ret v0
 }
 
-fn @rawBits(arg0: address) -> u256 [pure] {
+fn @rawBits(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
 }
 
-fn @cleanBool(arg0: bool) -> u256 [selector=0x6a54e09a, pure, abi_params=[bool], abi_returns=[word]] {
+fn @cleanBool(arg0: i256) -> i256 [selector=0x6a54e09a, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @boolBit, arg0
     ret v0
 }
 
-fn @dirtyBool(arg0: u256) -> u256 [selector=0x121fbc13, pure, abi_params=[u256], abi_returns=[word]] {
+fn @dirtyBool(arg0: i256) -> i256 [selector=0x121fbc13, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @boolBit, arg0
     ret v0
 }
 
-fn @boolBit(arg0: bool) -> u256 [pure] {
+fn @boolBit(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = and arg0, 1
     ret v0
 }
 
-fn @narrow(arg0: u256) -> u256 [selector=0x0ebb6188, pure, abi_params=[u256], abi_returns=[word]] {
+fn @narrow(arg0: i256) -> i256 [selector=0x0ebb6188, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = and arg0, 255
     v1 = icall @forward, v0
     ret v1
 }
 
-fn @forward(arg0: u8) -> u256 [pure] {
+fn @forward(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = and arg0, 255
     ret v0
 }
 
-fn @recurse(arg0: u256, arg1: u256) -> u256 [selector=0x0dac78c4, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @recurse(arg0: i256, arg1: i256) -> i256 [selector=0x0dac78c4, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gt arg1, 4
-    v1 = iszero v0
-    v2 = iszero v1
+    v1 = eq v0, false
+    v2 = eq v1, false
     icall revert_if<empty>, v2
     v3 = and arg0, 255
     v4 = icall @recursive, v3, arg1
     ret v4
 }
 
-fn @recursive(arg0: u8, arg1: u256) -> u256 [pure] {
+fn @recursive(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = eq arg1, 0
     jumpi v0, bb1, bb2

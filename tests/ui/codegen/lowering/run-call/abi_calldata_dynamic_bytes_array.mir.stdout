@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_dynamic_bytes_array.sol:AbiCalldataDynamicBytesArray ===
 @module AbiCalldataDynamicBytesArray
 types:
-  struct0: {u256, u256, u256, u256, u256, u256, u256, u256}
+  struct0: {i256, i256, i256, i256, i256, i256, i256, i256}
 
-fn @encode(arg0: calldataslice) -> bytes32 [selector=0x04f02d88, pure, abi_params=[array<_, bytes>], abi_returns=[word]] {
+fn @encode(arg0: calldataslice) -> i256 [selector=0x04f02d88, pure, abi_params=[array<_, bytes>], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = abi_encode [calldata_array<calldata_bytes>], scratch, args arg0
     v1 = slice_ptr v0
@@ -17,7 +17,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v0 = slice_len arg0
     v1 = slice_len arg0
     v2 = lt 0, v1
-    v3 = iszero v2
+    v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = slice_ptr arg0
     v5 = add v4, 0
@@ -31,7 +31,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v12 = sub v11, v4
     v13 = sub v12, 31
     v14 = slt v9, v13
-    v15 = iszero v14
+    v15 = eq v14, false
     icall revert_if<invalid_calldata_tail_offset>, v15
     v16 = calldataload v10
     v17 = gt v16, 0xffffffffffffffff
@@ -47,7 +47,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v25 = slice_len v24
     v26 = slice_len arg0
     v27 = lt 0, v26
-    v28 = iszero v27
+    v28 = eq v27, false
     icall panic_if<0x32>, v28
     v29 = slice_ptr arg0
     v30 = add v29, 0
@@ -61,7 +61,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v37 = sub v36, v29
     v38 = sub v37, 31
     v39 = slt v34, v38
-    v40 = iszero v39
+    v40 = eq v39, false
     icall revert_if<invalid_calldata_tail_offset>, v40
     v41 = calldataload v35
     v42 = gt v41, 0xffffffffffffffff
@@ -76,7 +76,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v49 = make_calldata_slice v48, v41
     v50 = slice_len v49
     v51 = lt 0, v50
-    v52 = iszero v51
+    v52 = eq v51, false
     icall panic_if<0x32>, v52
     v53 = slice_ptr v49
     v54 = calldata_slice_load_word calldata, v49, 0
@@ -85,7 +85,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v57 = shr 248, v56
     v58 = slice_len arg0
     v59 = lt 0, v58
-    v60 = iszero v59
+    v60 = eq v59, false
     icall panic_if<0x32>, v60
     v61 = slice_ptr arg0
     v62 = add v61, 0
@@ -99,7 +99,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v69 = sub v68, v61
     v70 = sub v69, 31
     v71 = slt v66, v70
-    v72 = iszero v71
+    v72 = eq v71, false
     icall revert_if<invalid_calldata_tail_offset>, v72
     v73 = calldataload v67
     v74 = gt v73, 0xffffffffffffffff
@@ -114,7 +114,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v81 = make_calldata_slice v80, v73
     v82 = slice_len v81
     v83 = lt 1, v82
-    v84 = iszero v83
+    v84 = eq v83, false
     icall panic_if<0x32>, v84
     v85 = slice_ptr v81
     v86 = calldata_slice_load_word calldata, v81, 1
@@ -123,7 +123,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v89 = shr 248, v88
     v90 = slice_len arg0
     v91 = lt 1, v90
-    v92 = iszero v91
+    v92 = eq v91, false
     icall panic_if<0x32>, v92
     v93 = slice_ptr arg0
     v94 = add v93, 32
@@ -137,7 +137,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v101 = sub v100, v93
     v102 = sub v101, 31
     v103 = slt v98, v102
-    v104 = iszero v103
+    v104 = eq v103, false
     icall revert_if<invalid_calldata_tail_offset>, v104
     v105 = calldataload v99
     v106 = gt v105, 0xffffffffffffffff
@@ -153,7 +153,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v114 = slice_len v113
     v115 = slice_len arg0
     v116 = lt 1, v115
-    v117 = iszero v116
+    v117 = eq v116, false
     icall panic_if<0x32>, v117
     v118 = slice_ptr arg0
     v119 = add v118, 32
@@ -167,7 +167,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v126 = sub v125, v118
     v127 = sub v126, 31
     v128 = slt v123, v127
-    v129 = iszero v128
+    v129 = eq v128, false
     icall revert_if<invalid_calldata_tail_offset>, v129
     v130 = calldataload v124
     v131 = gt v130, 0xffffffffffffffff
@@ -182,7 +182,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v138 = make_calldata_slice v137, v130
     v139 = slice_len v138
     v140 = lt 0, v139
-    v141 = iszero v140
+    v141 = eq v140, false
     icall panic_if<0x32>, v141
     v142 = slice_ptr v138
     v143 = calldata_slice_load_word calldata, v138, 0
@@ -191,7 +191,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v146 = shr 248, v145
     v147 = slice_len arg0
     v148 = lt 1, v147
-    v149 = iszero v148
+    v149 = eq v148, false
     icall panic_if<0x32>, v149
     v150 = slice_ptr arg0
     v151 = add v150, 32
@@ -205,7 +205,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v158 = sub v157, v150
     v159 = sub v158, 31
     v160 = slt v155, v159
-    v161 = iszero v160
+    v161 = eq v160, false
     icall revert_if<invalid_calldata_tail_offset>, v161
     v162 = calldataload v156
     v163 = gt v162, 0xffffffffffffffff
@@ -220,7 +220,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v170 = make_calldata_slice v169, v162
     v171 = slice_len v170
     v172 = lt 1, v171
-    v173 = iszero v172
+    v173 = eq v172, false
     icall panic_if<0x32>, v173
     v174 = slice_ptr v170
     v175 = calldata_slice_load_word calldata, v170, 1
@@ -229,7 +229,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v178 = shr 248, v177
     v179 = slice_len arg0
     v180 = lt 1, v179
-    v181 = iszero v180
+    v181 = eq v180, false
     icall panic_if<0x32>, v181
     v182 = slice_ptr arg0
     v183 = add v182, 32
@@ -243,7 +243,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v190 = sub v189, v182
     v191 = sub v190, 31
     v192 = slt v187, v191
-    v193 = iszero v192
+    v193 = eq v192, false
     icall revert_if<invalid_calldata_tail_offset>, v193
     v194 = calldataload v188
     v195 = gt v194, 0xffffffffffffffff
@@ -258,7 +258,7 @@ fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_para
     v202 = make_calldata_slice v201, v194
     v203 = slice_len v202
     v204 = lt 2, v203
-    v205 = iszero v204
+    v205 = eq v204, false
     icall panic_if<0x32>, v205
     v206 = slice_ptr v202
     v207 = calldata_slice_load_word calldata, v202, 2

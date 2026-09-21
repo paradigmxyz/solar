@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/decl_initializer_mutation.sol:DeclInitializerMutation ===
 @module DeclInitializerMutation
-fn @countLoop() -> u256 [selector=0xcf886ab8, pure, abi_params=[], abi_returns=[word]] {
+fn @countLoop() -> i256 [selector=0xcf886ab8, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -20,7 +20,7 @@ fn @countLoop() -> u256 [selector=0xcf886ab8, pure, abi_params=[], abi_returns=[
     jump bb1
 }
 
-fn @sumIndexed() -> u256 [selector=0x4130978a, pure, abi_params=[], abi_returns=[word]] {
+fn @sumIndexed() -> i256 [selector=0x4130978a, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     memory_object_store_element memoryfixedarray<3, 1>, v0, 0, 7
@@ -40,7 +40,7 @@ fn @sumIndexed() -> u256 [selector=0x4130978a, pure, abi_params=[], abi_returns=
   bb3:
     v5 = checked_add u256, v2, 1
     v6 = lt v2, 3
-    v7 = iszero v6
+    v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = memory_object_load_element memoryfixedarray<3, 1>, v1, v2
     v9 = checked_add u256, v3, v8
@@ -49,14 +49,14 @@ fn @sumIndexed() -> u256 [selector=0x4130978a, pure, abi_params=[], abi_returns=
     jump bb1
 }
 
-fn @multiDecl() -> u256 [selector=0x71fe0bed, pure, abi_params=[], abi_returns=[word]] {
+fn @multiDecl() -> i256 [selector=0x71fe0bed, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_add u256, 3, 1
     v1 = checked_add u256, 3, v0
     ret v1
 }
 
-fn @asmUse() -> u256 [selector=0x36f77e40, pure, abi_params=[], abi_returns=[word]] {
+fn @asmUse() -> i256 [selector=0x36f77e40, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -77,7 +77,7 @@ fn @asmUse() -> u256 [selector=0x36f77e40, pure, abi_params=[], abi_returns=[wor
     jump bb1
 }
 
-fn @lhsIndexMutation() -> u256 [selector=0x8d320a6e, pure, abi_params=[], abi_returns=[word]] {
+fn @lhsIndexMutation() -> i256 [selector=0x8d320a6e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 160
     set_memory_object_len memoryarray, v0, 4
@@ -95,25 +95,25 @@ fn @lhsIndexMutation() -> u256 [selector=0x8d320a6e, pure, abi_params=[], abi_re
     v11 = checked_mul u256, v2, 100
     v12 = memory_object_len memoryarray, v1
     v13 = lt 0, v12
-    v14 = iszero v13
+    v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = memory_object_load_element memoryarray<1>, v1, 0
     v16 = checked_add u256, v11, v15
     v17 = memory_object_len memoryarray, v1
     v18 = lt 1, v17
-    v19 = iszero v18
+    v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = memory_object_load_element memoryarray<1>, v1, 1
     v21 = checked_add u256, v16, v20
     v22 = memory_object_len memoryarray, v1
     v23 = lt 2, v22
-    v24 = iszero v23
+    v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = memory_object_load_element memoryarray<1>, v1, 2
     v26 = checked_add u256, v21, v25
     v27 = memory_object_len memoryarray, v1
     v28 = lt 3, v27
-    v29 = iszero v28
+    v29 = eq v28, false
     icall panic_if<0x32>, v29
     v30 = memory_object_load_element memoryarray<1>, v1, 3
     v31 = checked_add u256, v26, v30
@@ -123,7 +123,7 @@ fn @lhsIndexMutation() -> u256 [selector=0x8d320a6e, pure, abi_params=[], abi_re
     v7 = checked_add u256, v2, 1
     v8 = memory_object_len memoryarray, v1
     v9 = lt v2, v8
-    v10 = iszero v9
+    v10 = eq v9, false
     icall panic_if<0x32>, v10
     memory_object_store_element memoryarray<1>, v1, v2, v6
     jump bb5
@@ -131,33 +131,34 @@ fn @lhsIndexMutation() -> u256 [selector=0x8d320a6e, pure, abi_params=[], abi_re
     jump bb1
 }
 
-fn @branchScopeLoop(arg0: bool, arg1: u256) -> u256 [selector=0x4a889218, pure, abi_params=[bool, u256], abi_returns=[word]] {
+fn @branchScopeLoop(arg0: i256, arg1: i256) -> i256 [selector=0x4a889218, pure, abi_params=[bool, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    jumpi arg0, bb1, bb2
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v0 = phi [bb1: 1], [bb2: 2]
+    v1 = phi [bb1: 1], [bb2: 2]
     jump bb4
   bb4:
-    v1 = phi [bb3: arg0], [bb6: v1]
-    v2 = phi [bb3: v0], [bb6: v6]
-    v3 = phi [bb3: arg1], [bb6: v3]
-    v4 = phi [bb3: 0], [bb6: v7]
-    v5 = lt v4, v3
-    jumpi v5, bb7, bb8
+    v2 = phi [bb3: arg0], [bb6: v2]
+    v3 = phi [bb3: v1], [bb6: v7]
+    v4 = phi [bb3: arg1], [bb6: v4]
+    v5 = phi [bb3: 0], [bb6: v8]
+    v6 = lt v5, v4
+    jumpi v6, bb7, bb8
   bb8:
     jump bb5
   bb5:
-    ret v2
+    ret v3
   bb7:
-    v6 = checked_add u256, v2, v4
+    v7 = checked_add u256, v3, v5
     jump bb9
   bb9:
     jump bb6
   bb6:
-    v7 = checked_add u256, v4, 1
+    v8 = checked_add u256, v5, 1
     jump bb4
 }

@@ -1,10 +1,10 @@
 //@compile-flags: -Zmir-pipeline=dce
 @module TailCallValidate
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
 
-fn @callee(arg0: u256) {
+fn @callee(arg0: i256) {
   bb0:
     stop
 }
@@ -29,14 +29,14 @@ fn @unknownInternalTarget() {
 }
 
 //~? ERROR: [fn4] icall to `callee` produces a value but the callee returns no values
-fn @voidResult() -> u256 {
+fn @voidResult() -> i256 {
   bb0:
     v0 = icall @callee, 42
     ret v0
 }
 
-//~? ERROR: [fn5] [bb0] tail-call results do not match the struct signature
-fn @wrongForwardedReturn() -> u256 {
+//~? ERROR: [fn5] [bb0] tail-call results do not match the signature
+fn @wrongForwardedReturn() -> i256 {
   bb0:
     tail_call @forward
 }
@@ -49,21 +49,21 @@ fn @pair() -> struct0 {
     ret undef struct0
 }
 //~? ERROR: [fn8] tail_call to `twoWords` returns 2 value(s), caller signature expects 1
-fn @wrongForwardedArity() -> u256 {
+fn @wrongForwardedArity() -> i256 {
   bb0:
     tail_call @twoWords
 }
-fn @twoWords() -> struct0 [return_abi=[u256, u256]] {
+fn @twoWords() -> struct0 [return_abi=[i256, i256]] {
   bb0:
     tail_call @twoWordReturn
 }
-fn @twoWordReturn() -> struct0 [return_abi=[u256, u256]] {
+fn @twoWordReturn() -> struct0 [return_abi=[i256, i256]] {
   bb0:
     ret 1, 2
 }
 
 //~? ERROR: [fn11] [bb0] return has 0 value(s), signature expects 1
-fn @missingReturn() -> u256 {
+fn @missingReturn() -> i256 {
   bb0:
     ret
 }

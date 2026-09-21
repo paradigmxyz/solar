@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/pure-eval/pure_eval_loop.mir (before pure-eval) ===
 + // === ROOT/tests/ui/codegen/mir/pure-eval/pure_eval_loop.mir (after pure-eval) ===
   @module PureEvalLoop
-  fn @bounded_loop() -> u256 {
+  fn @bounded_loop() -> i256 {
     bb0:
 -     jump bb1
 +     ret 3
@@ -19,14 +19,14 @@
 +     invalid
   }
   
-  fn @parallel_phis() -> u256 {
+  fn @parallel_phis() -> i256 {
     bb0:
 -     jump bb1
 +     ret 0
     bb1:
 -     v0 = phi [bb0: 0], [bb2: v1]
 -     v1 = phi [bb0: 1], [bb2: v0]
--     v2 = iszero v0
+-     v2 = eq v0, 0
 -     jumpi v2, bb2, bb3
 -   bb3:
 -     ret v1
@@ -38,13 +38,13 @@
 +     invalid
   }
   
-  fn @with_arg(arg0: u256) -> u256 {
+  fn @with_arg(arg0: i256) -> i256 {
     bb0:
       v0 = add arg0, 1
       ret v0
   }
   
-  fn @extended_evm_ops() -> u256 {
+  fn @extended_evm_ops() -> i256 {
     bb0:
 -     v0 = sdiv 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 2
 -     v1 = smod 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 3
@@ -61,20 +61,21 @@
     bb0:
 -     v0 = sdiv 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 2
 -     ret v0
-+     ret i256 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
++     ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
   }
   
-  fn @bool_return() -> bool {
+  fn @bool_return() -> i1 {
     bb0:
 -     v0 = slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0
 -     ret v0
 +     ret true
   }
   
-  fn @unknown_case_precedes_match() -> u256 {
+  fn @unknown_case_precedes_match() -> i256 {
     bb0:
       v0 = address
-      switch 1, default bb3, [v0 => bb1, 1 => bb2]
+      v1 = zext i160 v0 to i256
+      switch 1, default bb3, [v1 => bb1, 1 => bb2]
     bb2:
       ret 2
     bb1:

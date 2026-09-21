@@ -1,32 +1,40 @@
 - // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_same_block.mir (before frame-slot-promotion) ===
 + // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_same_block.mir (after frame-slot-promotion) ===
   @module FramePromotionSameBlock
-  fn @same_block() -> u256 {
+  fn @same_block() -> i256 {
     bb0:
       v0 = internal_frame_addr 128
--     mstore v0, 7
-      v1 = internal_frame_addr 128
--     v2 = mload v1
--     v3 = add v2, 1
-+     v3 = add 7, 1
-      v4 = internal_frame_addr 128
--     mstore v4, v3
-      v5 = internal_frame_addr 128
--     v6 = mload v5
--     ret v6
-+     ret v3
+      v1 = ptrtoint memptr v0 to i256
+-     mstore v1, 7
+      v2 = internal_frame_addr 128
+      v3 = ptrtoint memptr v2 to i256
+-     v4 = mload v3
+-     v5 = add v4, 1
++     v5 = add 7, 1
+      v6 = internal_frame_addr 128
+      v7 = ptrtoint memptr v6 to i256
+-     mstore v7, v5
+      v8 = internal_frame_addr 128
+      v9 = ptrtoint memptr v8 to i256
+-     v10 = mload v9
+-     ret v10
++     ret v5
   }
   
 - // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_same_block.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/frame_promotion_same_block.mir (after dce) ===
   @module FramePromotionSameBlock
-  fn @same_block() -> u256 {
+  fn @same_block() -> i256 {
     bb0:
 -     v0 = internal_frame_addr 128
--     v1 = internal_frame_addr 128
-      v3 = add 7, 1
--     v4 = internal_frame_addr 128
--     v5 = internal_frame_addr 128
-      ret v3
+-     v1 = ptrtoint memptr v0 to i256
+-     v2 = internal_frame_addr 128
+-     v3 = ptrtoint memptr v2 to i256
+      v5 = add 7, 1
+-     v6 = internal_frame_addr 128
+-     v7 = ptrtoint memptr v6 to i256
+-     v8 = internal_frame_addr 128
+-     v9 = ptrtoint memptr v8 to i256
+      ret v5
   }
   

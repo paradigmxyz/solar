@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/loop-canonicalize/loop_canonicalize.mir (before loop-canonicalize) ===
 + // === ROOT/tests/ui/codegen/mir/loop-canonicalize/loop_canonicalize.mir (after loop-canonicalize) ===
   @module LoopCanonicalize
-  fn @insert_preheader(arg0: bool) -> u256 {
+  fn @insert_preheader(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -22,7 +22,7 @@
       jump bb3
   }
   
-  fn @split_conditional_predecessor(arg0: bool) -> u256 {
+  fn @split_conditional_predecessor(arg0: i1) -> i256 {
     bb0:
 -     jumpi arg0, bb1, bb3
 +     jumpi arg0, bb4, bb3

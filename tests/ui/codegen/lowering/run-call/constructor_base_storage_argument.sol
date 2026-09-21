@@ -122,7 +122,7 @@ contract ForwardingParam is ForwardingMiddle {
 
 // A runtime-selected reference merges both slots before the base body runs.
 // CHECK-LABEL: @module TernaryParam
-// CHECK: fn @constructor(arg0: bool)
+// CHECK: fn @constructor(arg0: i256)
 // CHECK: [[ELSE:v[0-9]+]] = mapping_slot 2, 0
 // CHECK: [[THEN:v[0-9]+]] = mapping_slot 1, 0
 // CHECK: [[ENTRY:v[0-9]+]] = phi [bb{{[0-9]+}}: [[THEN]]], [bb{{[0-9]+}}: [[ELSE]]]

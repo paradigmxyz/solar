@@ -44,7 +44,7 @@
   (MergeSwapPop (depth u8))
   (InvertComparison (value U256) (opcode u8))
   (ReloadStoredValue)
-  (DropDoubleIszero)
+  (DropNonzeroTest)
   (EqIszeroJumpi)
   (StackOp (op StackOp))
   (StackOps (first StackOp) (second StackOp))
@@ -60,10 +60,16 @@
 (extern extractor last3 last3)
 (decl last4 (Inst Inst Inst Inst) Window)
 (extern extractor last4 last4)
+;; A four-instruction window with canonical effects and no protected boundaries.
+(decl unprotected_last4 (Inst Inst Inst Inst) Window)
+(extern extractor unprotected_last4 unprotected_last4)
 (decl pure canonical_stack_effects4 (Inst Inst Inst Inst) bool)
 (extern constructor canonical_stack_effects4 canonical_stack_effects4)
 (decl last5 (Inst Inst Inst Inst Inst) Window)
 (extern extractor last5 last5)
+;; A five-instruction window with canonical effects and no protected boundaries.
+(decl unprotected_last5 (Inst Inst Inst Inst Inst) Window)
+(extern extractor unprotected_last5 unprotected_last5)
 (decl last6 (Inst Inst Inst Inst Inst Inst) Window)
 (extern extractor last6 last6)
 ;; `SWAPn POP*n SWAP1 POP`, giving `n`.
@@ -244,7 +250,12 @@
 
 ;; `ISZERO ISZERO PUSH_REF JUMPI -> PUSH_REF JUMPI`.
 (rule 110 (peep_nonpush (last4 (opcode $ISZERO) (opcode $ISZERO) (push_block) (opcode $JUMPI)))
-        (rewrite 4 (Edit.DropDoubleIszero)))
+        (rewrite 4 (Edit.DropNonzeroTest)))
+
+;; `PUSH 0 LT PUSH_REF JUMPI -> PUSH_REF JUMPI`: unsigned `0 < x` tests nonzero.
+(rule 109 (peep_nonpush (unprotected_last4 (push zero) (opcode $LT) (push_block) (opcode $JUMPI)))
+        (if-let true (u256_is_zero zero))
+        (rewrite 4 (Edit.DropNonzeroTest)))
 
 ;; `EQ ISZERO PUSH_REF JUMPI -> SUB PUSH_REF JUMPI`.
 (rule 100 (peep_nonpush (last4 (opcode $EQ) (opcode $ISZERO) (push_block) (opcode $JUMPI)))
@@ -286,7 +297,7 @@
 (decl pure protected_mask_profitable () bool)
 (extern constructor protected_mask_profitable protected_mask_profitable)
 
-;; PUSH c; [DUPn]; GT/LT; ISZERO => PUSH c±1; [DUPn]; LT/GT.
+;; PUSH c; independent operands; compare; ISZERO => PUSH c±1; operands; opposite compare.
 ;; Reject wrapping bounds, protected windows, and larger materializations.
 (decl invert_comparison (u8 U256 u8) Window)
 (extern extractor invert_comparison invert_comparison)

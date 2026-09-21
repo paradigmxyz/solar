@@ -11,6 +11,7 @@ use crate::{
     backend::evm::{
         DebugFunction, DebugFunctionExit, DebugInstruction, DebugSpans, ir, op, op::WORD_BYTES,
     },
+    link::LibraryRelocation,
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::U256;
@@ -58,6 +59,8 @@ pub(crate) struct AssembledCode {
     pub bytecode: Vec<u8>,
     /// All immutable placeholders, in emission order.
     pub immutable_refs: Vec<ImmutableRef>,
+    /// Byte offsets of library addresses, including embedded program data.
+    pub library_relocations: Vec<LibraryRelocation>,
     /// Final EVM IR captured immediately before byte emission.
     pub evm_ir: Option<ir::Module>,
     /// Final instruction offsets and source spans.
@@ -436,6 +439,7 @@ impl<'gcx> Assembler<'gcx> {
                         .get(&id)
                         .map_or(33, |&value| out.encoded_push_len(value));
                 }
+                AsmInstKind::PushLibrary(_) => offset += 21,
                 AsmInstKind::PushImmutable(id) => {
                     offset += 1 + usize::from(self.immutable_push(id).type_size.bytes());
                 }
@@ -498,6 +502,11 @@ impl<'gcx> Assembler<'gcx> {
                 AsmInstKind::Push(index) => {
                     out.emit_push_value(self.push_value(index), source_spans);
                 }
+                AsmInstKind::PushLibrary(id) => {
+                    out.library_relocations
+                        .push(LibraryRelocation { offset: out.bytecode.len() + 1, library: id });
+                    out.emit_push_fixed_width(U256::ZERO, 20, source_spans);
+                }
                 AsmInstKind::PushLabel(label) => {
                     let target_offset = label_offsets
                         .get(&label)
@@ -556,6 +565,15 @@ impl<'gcx> Assembler<'gcx> {
                     out.emit_op(op::JUMPDEST, source_spans);
                 }
                 AsmInstKind::Data(data) => {
+                    let base = out.bytecode.len();
+                    out.library_relocations.extend(
+                        program.data[data].library_relocations.iter().map(|reloc| {
+                            LibraryRelocation {
+                                offset: base + reloc.offset,
+                                library: reloc.library,
+                            }
+                        }),
+                    );
                     out.bytecode.extend_from_slice(&program.data[data].bytes);
                 }
             }
@@ -595,6 +613,7 @@ struct BytecodeAssembler<'gcx> {
     gcx: Gcx<'gcx>,
     bytecode: Vec<u8>,
     immutable_refs: Vec<ImmutableRef>,
+    library_relocations: Vec<LibraryRelocation>,
     debug_info: Option<Vec<DebugInstruction>>,
     function_invoke: Option<DebugFunction>,
     function_exit: Option<DebugFunctionExit>,
@@ -607,6 +626,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
             gcx,
             bytecode: Vec::new(),
             immutable_refs: Vec::new(),
+            library_relocations: Vec::new(),
             debug_info: capture_debug_info.then(Vec::new),
             function_invoke: None,
             function_exit: None,
@@ -707,6 +727,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
         AssembledCode {
             bytecode: self.bytecode,
             immutable_refs: self.immutable_refs,
+            library_relocations: self.library_relocations,
             evm_ir: None,
             debug_info: self.debug_info,
         }

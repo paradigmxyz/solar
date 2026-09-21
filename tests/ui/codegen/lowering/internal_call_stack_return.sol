@@ -56,11 +56,11 @@ contract ICallStackReturn {
     // GAS: [[MULTI_ENTRY]]:
     // GAS: or
     // GAS-NOT: mload
-    // GAS: addmod
     // GAS: [[NESTED_RET]] [continuation]:
     // GAS-NEXT: push 3
     // GAS-NEXT: add
     // GAS-NEXT: jump [[COMMON_RET]]
+    // GAS: addmod
 
     // Size mode keeps a one-word helper result on the physical stack and removes its
     // frame slot. Gas mode consumes the small helpers through single-use inlining.

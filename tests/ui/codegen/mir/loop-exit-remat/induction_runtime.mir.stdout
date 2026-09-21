@@ -1,25 +1,24 @@
 // === ROOT/tests/ui/codegen/mir/loop-exit-remat/induction_runtime.sol:Test ===
 @module Test
 types:
-  struct0: {u256, u256, u256, u256}
+  struct0: {i256, i256, i256, i256}
 
-fn @previous(arg0: u256) -> u256 [selector=0x3c311f3c, pure, abi_params=[u256], abi_returns=[word]] {
+fn @previous(arg0: i256) -> i256 [selector=0x3c311f3c, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb5: v1]
-    v1 = phi [bb0: arg0], [bb5: v4]
-    v2 = eq 1, 0
-    v3 = iszero v2
-    jumpi v3, bb3, bb4
+    v1 = phi [bb0: arg0], [bb5: v3]
+    v2 = ne 1, 0
+    jumpi v2, bb3, bb4
   bb4:
     jump bb2
   bb3:
-    v4 = sub v1, 1
-    v5 = iszero v4
-    v6 = eq v5, 0
-    v7 = iszero v6
-    jumpi v7, bb6, bb7
+    v3 = sub v1, 1
+    v4 = eq v3, 0
+    v5 = zext i1 v4 to i256
+    v6 = ne v5, 0
+    jumpi v6, bb6, bb7
   bb7:
     jump bb8
   bb8:
@@ -29,28 +28,27 @@ fn @previous(arg0: u256) -> u256 [selector=0x3c311f3c, pure, abi_params=[u256], 
   bb6:
     jump bb2
   bb2:
-    v8 = phi [bb6: v1], [bb4: v0]
-    v9 = phi [bb6: v4], [bb4: v1]
-    ret v8
+    v7 = phi [bb6: v1], [bb4: v0]
+    v8 = phi [bb6: v3], [bb4: v1]
+    ret v7
 }
 
-fn @wrapping(arg0: u256) -> u256 [selector=0x45d1ad99, pure, abi_params=[u256], abi_returns=[word]] {
+fn @wrapping(arg0: i256) -> i256 [selector=0x45d1ad99, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb5: v4]
+    v0 = phi [bb0: arg0], [bb5: v3]
     v1 = phi [bb0: 0], [bb5: v0]
-    v2 = eq 1, 0
-    v3 = iszero v2
-    jumpi v3, bb3, bb4
+    v2 = ne 1, 0
+    jumpi v2, bb3, bb4
   bb4:
     jump bb2
   bb3:
-    v4 = add v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v4, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
-    v6 = eq v5, 0
-    v7 = iszero v6
-    jumpi v7, bb6, bb7
+    v3 = add v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v4 = eq v3, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+    v5 = zext i1 v4 to i256
+    v6 = ne v5, 0
+    jumpi v6, bb6, bb7
   bb7:
     jump bb8
   bb8:
@@ -60,9 +58,9 @@ fn @wrapping(arg0: u256) -> u256 [selector=0x45d1ad99, pure, abi_params=[u256], 
   bb6:
     jump bb2
   bb2:
-    v8 = phi [bb6: v4], [bb4: v0]
-    v9 = phi [bb6: v0], [bb4: v1]
-    ret v9
+    v7 = phi [bb6: v3], [bb4: v0]
+    v8 = phi [bb6: v0], [bb4: v1]
+    ret v8
 }
 
 fn @descending() -> struct0 [selector=0x94c06a58, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
@@ -72,88 +70,93 @@ fn @descending() -> struct0 [selector=0x94c06a58, pure, abi_params=[], abi_retur
     memory_object_store_element memoryfixedarray<4, 1>, v0, 1, 3
     memory_object_store_element memoryfixedarray<4, 1>, v0, 2, 2
     memory_object_store_element memoryfixedarray<4, 1>, v0, 3, 1
-    v1 = add v0, 96
-    v2 = add v0, 32
+    v1 = ptrtoint memoryfixedarray v0 to i256
+    v2 = add v1, 96
+    v3 = ptrtoint memoryfixedarray v0 to i256
+    v4 = add v3, 32
     jump bb1
   bb1:
-    v3 = phi [bb0: 0], [bb3: v15]
-    v4 = phi [bb0: v1], [bb3: v16]
-    v5 = phi [bb0: 0], [bb3: v19]
-    v6 = phi [bb0: 0], [bb3: v21]
-    v7 = phi [bb0: 0], [bb3: v17]
-    v8 = phi [bb0: v2], [bb3: v33]
-    v9 = phi [bb0: v0], [bb3: v22]
-    v10 = gt v8, v4
-    v11 = iszero v10
-    v12 = eq v11, 0
-    v13 = iszero v12
-    jumpi v13, bb4, bb5
+    v5 = phi [bb0: 0], [bb3: v18]
+    v6 = phi [bb0: v2], [bb3: v19]
+    v7 = phi [bb0: 0], [bb3: v22]
+    v8 = phi [bb0: 0], [bb3: v24]
+    v9 = phi [bb0: 0], [bb3: v20]
+    v10 = phi [bb0: v4], [bb3: v38]
+    v11 = phi [bb0: v0], [bb3: v25]
+    v12 = gt v10, v6
+    v13 = zext i1 v12 to i256
+    v14 = eq v13, 0
+    v15 = zext i1 v14 to i256
+    v16 = ne v15, 0
+    jumpi v16, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v34 = lt 0, 4
-    v35 = iszero v34
-    icall panic_if<0x32>, v35
-    v36 = memory_object_load_element memoryfixedarray<4, 1>, v9, 0
-    v37 = lt 1, 4
-    v38 = iszero v37
-    icall panic_if<0x32>, v38
-    v39 = memory_object_load_element memoryfixedarray<4, 1>, v9, 1
-    v40 = lt 2, 4
-    v41 = iszero v40
-    icall panic_if<0x32>, v41
-    v42 = memory_object_load_element memoryfixedarray<4, 1>, v9, 2
-    v43 = lt 3, 4
-    v44 = iszero v43
-    icall panic_if<0x32>, v44
-    v45 = memory_object_load_element memoryfixedarray<4, 1>, v9, 3
-    v46 = insert_value struct0, undef struct0, 0, v36
-    v47 = insert_value struct0, v46, 1, v39
-    v48 = insert_value struct0, v47, 2, v42
-    v49 = insert_value struct0, v48, 3, v45
-    ret v49
+    v39 = lt 0, 4
+    v40 = eq v39, false
+    icall panic_if<0x32>, v40
+    v41 = memory_object_load_element memoryfixedarray<4, 1>, v11, 0
+    v42 = lt 1, 4
+    v43 = eq v42, false
+    icall panic_if<0x32>, v43
+    v44 = memory_object_load_element memoryfixedarray<4, 1>, v11, 1
+    v45 = lt 2, 4
+    v46 = eq v45, false
+    icall panic_if<0x32>, v46
+    v47 = memory_object_load_element memoryfixedarray<4, 1>, v11, 2
+    v48 = lt 3, 4
+    v49 = eq v48, false
+    icall panic_if<0x32>, v49
+    v50 = memory_object_load_element memoryfixedarray<4, 1>, v11, 3
+    v51 = insert_value struct0, undef struct0, 0, v41
+    v52 = insert_value struct0, v51, 1, v44
+    v53 = insert_value struct0, v52, 2, v47
+    v54 = insert_value struct0, v53, 3, v50
+    ret v54
   bb4:
-    v14 = mload v8
+    v17 = mload v10
     jump bb7
   bb7:
-    v15 = phi [bb4: v3], [bb11: v15]
-    v16 = phi [bb4: v4], [bb11: v16]
-    v17 = phi [bb4: v7], [bb11: v17]
-    v18 = phi [bb4: v8], [bb11: v18]
-    v19 = phi [bb4: v5], [bb11: v19]
-    v20 = phi [bb4: v14], [bb11: v20]
-    v21 = phi [bb4: v6], [bb11: v21]
-    v22 = phi [bb4: v9], [bb11: v22]
-    v23 = phi [bb4: v8], [bb11: v27]
-    v24 = gt v23, v22
-    v25 = eq v24, 0
-    v26 = iszero v25
-    jumpi v26, bb9, bb10
+    v18 = phi [bb4: v5], [bb11: v18]
+    v19 = phi [bb4: v6], [bb11: v19]
+    v20 = phi [bb4: v9], [bb11: v20]
+    v21 = phi [bb4: v10], [bb11: v21]
+    v22 = phi [bb4: v7], [bb11: v22]
+    v23 = phi [bb4: v17], [bb11: v23]
+    v24 = phi [bb4: v8], [bb11: v24]
+    v25 = phi [bb4: v11], [bb11: v25]
+    v26 = phi [bb4: v10], [bb11: v31]
+    v27 = ptrtoint memoryfixedarray v25 to i256
+    v28 = gt v26, v27
+    v29 = zext i1 v28 to i256
+    v30 = ne v29, 0
+    jumpi v30, bb9, bb10
   bb10:
     jump bb8
   bb9:
-    v27 = sub v23, 32
-    v28 = mload v27
-    v29 = gt v28, v20
-    v30 = iszero v29
-    v31 = eq v30, 0
-    v32 = iszero v31
-    jumpi v32, bb12, bb13
+    v31 = sub v26, 32
+    v32 = mload v31
+    v33 = gt v32, v23
+    v34 = zext i1 v33 to i256
+    v35 = eq v34, 0
+    v36 = zext i1 v35 to i256
+    v37 = ne v36, 0
+    jumpi v37, bb12, bb13
   bb13:
     jump bb14
   bb14:
-    mstore v23, v28
+    mstore v26, v32
     jump bb11
   bb11:
     jump bb7
   bb12:
     jump bb8
   bb8:
-    mstore v23, v20
+    mstore v26, v23
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v33 = add v18, 32
+    v38 = add v21, 32
     jump bb1
 }

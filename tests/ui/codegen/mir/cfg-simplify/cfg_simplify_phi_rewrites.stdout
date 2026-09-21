@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_phi_rewrites.mir (before cfg-simplify) ===
 + // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_phi_rewrites.mir (after cfg-simplify) ===
   @module CfgSimplifyPhiRewrites
-  fn @empty_forwarder(arg0: bool) -> u256 {
+  fn @empty_forwarder(arg0: i1) -> i256 {
     bb0:
 -     jumpi arg0, bb1, bb2
 -   bb2:
@@ -19,7 +19,7 @@
       ret v1
   }
   
-  fn @block_merge(arg0: bool) -> u256 {
+  fn @block_merge(arg0: i1) -> i256 {
     bb0:
 -     jumpi arg0, bb1, bb3
 -   bb3:

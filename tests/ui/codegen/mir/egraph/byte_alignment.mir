@@ -1,7 +1,7 @@
 //@ compile-flags: -Zmir-pipeline=egraph
 @module ByteAlignment
 
-fn @aligned_byte(arg0: u256) -> u256 {
+fn @aligned_byte(arg0: i256) -> i256 {
   bb0:
     v0 = shr 240, arg0
     v1 = and v0, 255
@@ -10,7 +10,7 @@ fn @aligned_byte(arg0: u256) -> u256 {
     ret v3
 }
 
-fn @mask_on_left(arg0: u256) -> u256 {
+fn @mask_on_left(arg0: i256) -> i256 {
   bb0:
     v0 = shr 160, arg0
     v1 = and 255, v0
@@ -19,28 +19,28 @@ fn @mask_on_left(arg0: u256) -> u256 {
     ret v3
 }
 
-fn @sign_extension(arg0: u256, arg1: u256) -> u256 {
+fn @sign_extension(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = signextend arg1, arg0
     v1 = signextend arg1, v0
     ret v1
 }
 
-fn @unaligned_shift(arg0: u256) -> u256 {
+fn @unaligned_shift(arg0: i256) -> i256 {
   bb0:
     v0 = shr 161, arg0
     v1 = and v0, 255
     ret v1
 }
 
-fn @mask_clears_a_significant_bit(arg0: u256) -> u256 {
+fn @mask_clears_a_significant_bit(arg0: i256) -> i256 {
   bb0:
     v0 = shl 248, arg0
     v1 = and v0, 0x7f00000000000000000000000000000000000000000000000000000000000000
     ret v1
 }
 
-fn @saturating_shift(arg0: u256) -> u256 {
+fn @saturating_shift(arg0: i256) -> i256 {
   bb0:
     v0 = shl 256, arg0
     v1 = and v0, 0

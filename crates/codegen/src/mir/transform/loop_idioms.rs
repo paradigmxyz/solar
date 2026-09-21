@@ -21,9 +21,8 @@
 //! grows code.
 
 use crate::mir::{
-    BlockId, Function, FunctionBuilder, InstId, InstKind, MirType, Module, Terminator, Value,
-    ValueId,
-    analysis::{AliasAnalysis, LocationSize, MemoryAddress, MemoryBase, MemoryLocation},
+    BlockId, Function, FunctionBuilder, InstId, InstKind, Module, Terminator, Value, ValueId,
+    analysis::{AliasAnalysis, LocationSize},
     pass::{MirPass, ModuleAnalyses, run_function_pass_with_alias},
     utils::{fold_terminator_to_jump, invalidate_unreachable_block},
 };
@@ -382,6 +381,12 @@ fn count_phis(
     Some((count_phi, index_phi, count, exit))
 }
 
+fn is_nonzero_test(func: &Function, inst: InstId, result: ValueId, value: ValueId) -> bool {
+    func.inst_result_value(inst) == Some(result)
+        && matches!(func.inst(inst).kind, InstKind::Ne(lhs, rhs)
+            if lhs == value && func.value_u64(rhs) == Some(0))
+}
+
 fn match_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLoop> {
     // header: count = phi; index = phi; [length = mload object]; jumpi lt(index, length), body,
     // exit
@@ -408,13 +413,13 @@ fn match_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLo
     let (count_phi, index_phi, count, count_exit) = count_phis(func, phis, *exit, index)?;
 
     // body: [base = object + 32]; ptr = base + index; word = mload ptr; byte = byte 0, word
-    //       aligned = shl 248, byte; jumpi aligned, latch, increment
+    //       aligned = shl 248, byte; nonzero = ne aligned, 0; jumpi nonzero, latch, increment
     let InstKind::Phi(index_incoming) = &func.inst(index_phi).kind else { unreachable!() };
     let [(preheader, _), _] = index_incoming.as_slice() else { return None };
     let object = length_object(func, *preheader, len_inst, length)?;
     let hoisted_length = len_inst.is_none().then_some(length);
     let (pointer, rest) = payload_pointer(func, &func.blocks[*body].instructions, object, index)?;
-    let [load_inst, byte_inst, align_inst] = rest else { return None };
+    let [load_inst, byte_inst, align_inst, nonzero_inst] = rest else { return None };
     let InstKind::MLoad(load_pointer) = func.inst(*load_inst).kind else { return None };
     if load_pointer != pointer {
         return None;
@@ -435,11 +440,13 @@ fn match_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLo
     else {
         return None;
     };
-    if *nonzero != aligned {
+    if !is_nonzero_test(func, *nonzero_inst, *nonzero, aligned) {
         return None;
     }
 
-    let [increment_inst] = func.blocks[*increment].instructions.as_slice() else { return None };
+    let [increment_inst, nonzero_inst] = func.blocks[*increment].instructions.as_slice() else {
+        return None;
+    };
     let InstKind::Add(increment_count, one) = func.inst(*increment_inst).kind else { return None };
     if increment_count != count || func.value_u64(one) != Some(1) {
         return None;
@@ -453,7 +460,9 @@ fn match_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLo
     else {
         return None;
     };
-    if *overflow_result != incremented || *increment_latch != *latch {
+    if !is_nonzero_test(func, *nonzero_inst, *overflow_result, incremented)
+        || *increment_latch != *latch
+    {
         return None;
     }
 
@@ -524,7 +533,8 @@ fn match_calldata_zero_count_loop(func: &Function, header: BlockId) -> Option<Ze
     }
     let (count_phi, index_phi, count, count_exit) = count_phis(func, phis, *exit, index)?;
 
-    let [ptr_inst, load_inst, byte_inst] = func.blocks[*body].instructions.as_slice() else {
+    let [ptr_inst, load_inst, byte_inst, nonzero_inst] = func.blocks[*body].instructions.as_slice()
+    else {
         return None;
     };
     let InstKind::Add(data, ptr_index) = func.inst(*ptr_inst).kind else { return None };
@@ -547,11 +557,13 @@ fn match_calldata_zero_count_loop(func: &Function, header: BlockId) -> Option<Ze
     else {
         return None;
     };
-    if *nonzero != byte {
+    if !is_nonzero_test(func, *nonzero_inst, *nonzero, byte) {
         return None;
     }
 
-    let [increment_inst] = func.blocks[*increment].instructions.as_slice() else { return None };
+    let [increment_inst, nonzero_inst] = func.blocks[*increment].instructions.as_slice() else {
+        return None;
+    };
     let InstKind::Add(increment_count, one) = func.inst(*increment_inst).kind else { return None };
     if increment_count != count || func.value_u64(one) != Some(1) {
         return None;
@@ -565,7 +577,9 @@ fn match_calldata_zero_count_loop(func: &Function, header: BlockId) -> Option<Ze
     else {
         return None;
     };
-    if *overflow_result != incremented || *increment_latch != *latch {
+    if !is_nonzero_test(func, *nonzero_inst, *overflow_result, incremented)
+        || *increment_latch != *latch
+    {
         return None;
     }
 
@@ -797,7 +811,7 @@ fn rewrite_ascii_loop(func: &mut Function, candidate: AsciiLoop) {
 
         // shift = (32 - length) * 8
         // word = mload(object + 32) >> shift
-        // jump finish(iszero(word & 0x8080..80))
+        // jump finish((word & 0x8080..80) == 0)
         builder.switch_to_block(one_word);
         let data = builder.add_u64_offset(candidate.object, 32);
         let word = builder.mload(data);
@@ -811,7 +825,7 @@ fn rewrite_ascii_loop(func: &mut Function, candidate: AsciiLoop) {
 
         // shift = (64 - length) * 8
         // words = mload(object + 32) | (mload(object + 64) >> shift)
-        // jump finish(iszero(words & 0x8080..80))
+        // jump finish((words & 0x8080..80) == 0)
         builder.switch_to_block(two_words);
         let data = builder.add_u64_offset(candidate.object, 32);
         let first = builder.mload(data);
@@ -871,7 +885,7 @@ fn rewrite_ascii_loop(func: &mut Function, candidate: AsciiLoop) {
         // tail_aggregate = phi(pair_exit: 0, single_body: mload(pointer))
         // padding_bits = (32 - (length & 31)) * 8
         // word = mload(tail_pointer) >> padding_bits
-        // return iszero((tail_aggregate | word) & 0x8080..80)
+        // return ((tail_aggregate | word) & 0x8080..80) == 0
         builder.switch_to_block(tail);
         let tail_pointer = builder.phi(vec![(pair_exit, pointer)]);
         let zero = builder.imm(0);
@@ -916,10 +930,10 @@ fn rewrite_ascii_loop(func: &mut Function, candidate: AsciiLoop) {
 }
 
 fn emit_ascii_result(builder: &mut FunctionBuilder<'_>, aggregate: ValueId) -> ValueId {
-    // return iszero(aggregate & 0x8080..80)
+    // return (aggregate & 0x8080..80) == 0
     let high_bits = builder.imm(U256::from_be_bytes([0x80; 32]));
     let non_ascii = builder.and(aggregate, high_bits);
-    builder.iszero(non_ascii)
+    builder.eq_zero(non_ascii)
 }
 
 /// A loop that moves one byte per iteration from one memory range to another.
@@ -973,55 +987,6 @@ fn defined_outside(func: &Function, header: BlockId, body: BlockId, value: Value
         && !func.blocks[body].instructions.contains(&inst)
 }
 
-/// Whether a value is a memory pointer the caller passed in.
-///
-/// Such an object was allocated before this function ran, so it lies below the
-/// free-memory pointer the function reads. This is the same ordering the alias
-/// analysis records for a memory-object parameter, which memory lowering has
-/// already turned into a plain pointer by the time this pass runs.
-fn is_caller_memory(func: &Function, value: ValueId) -> bool {
-    let Value::Arg(index) = *func.value(value) else { return false };
-    matches!(func.arg_ty(index), MirType::MemPtr | MirType::MemoryObject(_))
-}
-
-/// Whether a value is the free-memory pointer this function read, which every
-/// allocation it makes starts from.
-///
-/// Allocation lowering runs before this pass, so a freshly allocated buffer is
-/// no longer an `alloc` the alias analysis can place: it is a read of the
-/// pointer plus an offset.
-fn reads_allocation_frontier(func: &Function, value: ValueId) -> bool {
-    let Value::Inst(inst) = *func.value(value) else { return false };
-    match func.inst(inst).kind {
-        InstKind::MLoad(address) => func.value_u64(address) == Some(64),
-        InstKind::Fmp => true,
-        _ => false,
-    }
-}
-
-/// The abstract address of the one addend that carries memory provenance.
-///
-/// A copied range is `object + constant + index`; the object is the addend the
-/// alias analysis can place, while the index and any invariant scalar cannot be.
-fn provenance(
-    func: &Function,
-    alias: &AliasAnalysis,
-    addends: &[ValueId],
-) -> Option<MemoryAddress> {
-    let mut found = None;
-    for &addend in addends {
-        let Some(address) = alias.memory_address(func, addend) else { continue };
-        if matches!(address.base, MemoryBase::Value(_)) {
-            continue;
-        }
-        if found.is_some() {
-            return None;
-        }
-        found = Some(address);
-    }
-    found
-}
-
 /// Whether any value other than the loop itself reads the counter.
 fn counter_escapes(func: &Function, header: BlockId, body: BlockId, index: ValueId) -> bool {
     for (block, contents) in func.blocks.iter_enumerated() {
@@ -1056,7 +1021,7 @@ fn counter_escapes(func: &Function, header: BlockId, body: BlockId, index: Value
 fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> Option<CopyLoop> {
     // A discarded read raises the memory high-water mark, and the copy this
     // builds touches less of it than the reads it replaces.
-    if func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize)) {
+    if alias.may_observe_msize(func) {
         return None;
     }
     // header: index = phi [preheader: 0], [body: next]; jumpi lt(index, bound), body, exit
@@ -1145,34 +1110,20 @@ fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> O
 
     // `mcopy` moves as if through a buffer while the loop copies upwards, so
     // the two differ exactly when the ranges overlap. Require them disjoint.
-    let disjoint = match (provenance(func, alias, &source), provenance(func, alias, &dest)) {
-        (Some(source_place), Some(dest_place)) => !AliasAnalysis::memory_alias_locations(
-            MemoryLocation::new(source_place, LocationSize::Unknown),
-            MemoryLocation::new(dest_place, LocationSize::Unknown),
-        )
-        .may_alias(),
-        // An object the caller passed in was allocated before this function
-        // ran, so it lies below the frontier every allocation here starts
-        // from. That is the same reasoning the alias analysis applies to an
-        // allocation it can still see.
-        (Some(place), None) => {
-            matches!(place.base, MemoryBase::Param(_))
-                && dest.iter().any(|&value| reads_allocation_frontier(func, value))
-        }
-        (None, Some(place)) => {
-            matches!(place.base, MemoryBase::Param(_))
-                && source.iter().any(|&value| reads_allocation_frontier(func, value))
-        }
-        // Memory lowering leaves a caller's object as a plain pointer argument
-        // and a fresh buffer as an offset from the frontier, and the first is
-        // always below the second.
-        (None, None) => {
-            (source.iter().any(|&value| is_caller_memory(func, value))
-                && dest.iter().any(|&value| reads_allocation_frontier(func, value)))
-                || (dest.iter().any(|&value| is_caller_memory(func, value))
-                    && source.iter().any(|&value| reads_allocation_frontier(func, value)))
-        }
-    };
+    let [source_base] = source.as_slice() else { return None };
+    let [dest_base] = dest.as_slice() else { return None };
+    let length = func.value_u64(bound)?;
+    let source_place = alias.bare_memory_location(
+        func,
+        *source_base,
+        LocationSize::Const(source_offset.checked_add(length)?),
+    )?;
+    let dest_place = alias.bare_memory_location(
+        func,
+        *dest_base,
+        LocationSize::Const(dest_offset.checked_add(length)?),
+    )?;
+    let disjoint = !AliasAnalysis::memory_alias_locations(source_place, dest_place).may_alias();
     if !disjoint {
         return None;
     }

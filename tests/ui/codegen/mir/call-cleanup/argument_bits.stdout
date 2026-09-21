@@ -1,132 +1,137 @@
 - // === ROOT/tests/ui/codegen/mir/call-cleanup/argument_bits.mir (before call-cleanup) ===
 + // === ROOT/tests/ui/codegen/mir/call-cleanup/argument_bits.mir (after call-cleanup) ===
   @module ArgumentBits
-  fn @root(arg0: u256) -> u256 {
+  fn @root(arg0: i256) -> i256 {
     bb0:
       v0 = and arg0, 255
       v1 = icall @forward, v0
       ret v1
   }
   
-  fn @forward(arg0: u256) -> u256 {
+  fn @forward(arg0: i256) -> i256 {
     bb0:
 -     v0 = and arg0, 255
 -     tail_call @leaf, v0
 +     tail_call @leaf, arg0
   }
   
-  fn @leaf(arg0: u256) -> u256 {
+  fn @leaf(arg0: i256) -> i256 {
     bb0:
 -     v0 = and arg0, 255
 -     ret v0
 +     ret arg0
   }
   
-  fn @clean_caller() -> u256 {
+  fn @clean_caller() -> i256 {
     bb0:
       v0 = caller
-      v1 = icall @mixed, v0
-      ret v1
+      v1 = zext i160 v0 to i256
+      v2 = icall @mixed, v1
+      ret v2
   }
   
-  fn @dirty_caller(arg0: address) -> u256 {
+  fn @dirty_caller(arg0: i256) -> i256 {
     bb0:
       v0 = icall @mixed, arg0
       ret v0
   }
   
-  fn @mixed(arg0: address) -> u256 {
+  fn @mixed(arg0: i256) -> i256 {
     bb0:
       v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
       ret v0
   }
   
-  fn @recursive_root(arg0: u256) -> u256 {
+  fn @recursive_root(arg0: i256) -> i256 {
     bb0:
       v0 = and arg0, 255
       v1 = icall @recursive, v0
       ret v1
   }
   
-  fn @recursive(arg0: u256) -> u256 {
+  fn @recursive(arg0: i256) -> i256 {
     bb0:
-      jumpi arg0, bb1, bb2
+      v0 = ne arg0, 0
+      jumpi v0, bb1, bb2
     bb2:
-      v1 = and arg0, 255
-      ret v1
+      v2 = and arg0, 255
+      ret v2
     bb1:
-      v0 = icall @recursive, arg0
-      ret v0
+      v1 = icall @recursive, arg0
+      ret v1
   }
   
-  fn @sanitized_root(arg0: u256) -> u256 {
+  fn @sanitized_root(arg0: i256) -> i256 {
     bb0:
       v0 = and arg0, 255
       v1 = icall @sanitized_recursive, v0
       ret v1
   }
   
-  fn @sanitized_recursive(arg0: u256) -> u256 {
+  fn @sanitized_recursive(arg0: i256) -> i256 {
     bb0:
 -     v0 = and arg0, 255
--     jumpi v0, bb1, bb2
-+     jumpi arg0, bb1, bb2
+-     v1 = ne v0, 0
++     v1 = ne arg0, 0
+      jumpi v1, bb1, bb2
     bb2:
 -     ret v0
 +     ret arg0
     bb1:
--     v1 = icall @sanitized_recursive, v0
-+     v1 = icall @sanitized_recursive, arg0
-      ret v1
+-     v2 = icall @sanitized_recursive, v0
++     v2 = icall @sanitized_recursive, arg0
+      ret v2
   }
   
-  fn @bool_root(arg0: u256) -> u256 {
+  fn @bool_root(arg0: i256) -> i256 {
     bb0:
-      v0 = iszero arg0
+      v0 = eq arg0, 0
       v1 = icall @bool_leaf, v0
       ret v1
   }
   
-  fn @bool_leaf(arg0: bool) -> u256 {
+  fn @bool_leaf(arg0: i1) -> i256 {
     bb0:
--     v0 = and arg0, 1
--     ret v0
-+     ret arg0
+      v0 = zext i1 arg0 to i256
+-     v1 = and v0, 1
+-     ret v1
++     ret v0
   }
   
-  fn @public_caller() -> u256 {
+  fn @public_caller() -> i256 {
     bb0:
       v0 = icall @public_input, 1
       ret v0
   }
   
-  fn @public_input(arg0: u256) -> u256 [selector=0x01020304] {
+  fn @public_input(arg0: i256) -> i256 [selector=0x01020304] {
     bb0:
       v0 = and arg0, 255
       ret v0
   }
   
-  fn @frame_caller() -> u256 {
+  fn @frame_caller() -> i256 {
     bb0:
       v0 = icall @frame_input, 1
       ret v0
   }
   
-  fn @frame_input(arg0: u256) -> u256 {
+  fn @frame_input(arg0: i256) -> i256 {
     bb0:
       v0 = internal_frame_addr 64
-      mstore v0, 511
-      v1 = and arg0, 255
-      ret v1
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 511
+      v2 = and arg0, 255
+      ret v2
   }
   
-  fn @across_caller() -> u256 {
+  fn @across_caller() -> i256 {
     bb0:
       v0 = icall @across_call, 1
       ret v0
   }
   
-  fn @across_call(arg0: u256) -> u256 {
+  fn @across_call(arg0: i256) -> i256 {
     bb0:
       v0 = and arg0, 255
       icall @clobber
@@ -137,5 +142,98 @@
     bb0:
       sstore 0, 1
       stop
+  }
+  
+  fn @cast_caller() -> i1 {
+    bb0:
+      v0 = caller
+      v1 = zext i160 v0 to i256
+      v2 = icall @clean_cast, v1
+      ret v2
+  }
+  
+  fn @clean_cast(arg0: i256) -> i1 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+-     v1 = zext i160 v0 to i256
+-     v2 = eq v0, i160 0
+-     mstore 0, v1
++     v2 = eq arg0, 0
++     mstore 0, arg0
+      ret v2
+  }
+  
+  fn @dirty_cast(arg0: i256) -> i256 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+      v1 = zext i160 v0 to i256
+      ret v1
+  }
+  
+  fn @wider_caller() -> i256 {
+    bb0:
+      v0 = icall @wider_cast, i160 1
+      ret v0
+  }
+  
+  fn @wider_cast(arg0: i160) -> i256 {
+    bb0:
+      v0 = trunc i160 arg0 to i1
+      v1 = zext i1 v0 to i256
+      ret v1
+  }
+  
+  fn @cast_across_caller() -> i256 {
+    bb0:
+      v0 = icall @cast_across_call, 1
+      ret v0
+  }
+  
+  fn @cast_across_call(arg0: i256) -> i256 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+      v1 = zext i160 v0 to i256
+      icall @clobber
+      ret v1
+  }
+  
+  fn @zero_caller() -> i1 {
+    bb0:
+      v0 = icall @clean_zero_tests, 7
+      ret v0
+  }
+  
+  fn @clean_zero_tests(arg0: i256) -> i1 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+-     v1 = eq v0, i160 0
+-     v2 = ne i160 0, v0
++     v1 = eq arg0, 0
++     v2 = ne arg0, 0
+      v3 = select v1, v1, v2
+      ret v3
+  }
+  
+  fn @dirty_zero_tests(arg0: i256) -> i1 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+      v1 = eq v0, i160 0
+      v2 = ne i160 0, v0
+      v3 = select v1, v1, v2
+      ret v3
+  }
+  
+  fn @zero_across_caller() -> i1 {
+    bb0:
+      v0 = icall @zero_across_call, 1
+      ret v0
+  }
+  
+  fn @zero_across_call(arg0: i256) -> i1 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+      icall @clobber
+      v1 = ne v0, i160 0
+      ret v1
   }
   

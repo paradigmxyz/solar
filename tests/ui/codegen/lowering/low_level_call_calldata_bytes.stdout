@@ -136,8 +136,6 @@ bb20:
   pop
   pop
   pop
-  iszero
-  iszero
   push 128
   mstore
   push 32

@@ -7,7 +7,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @wrap_add_descending{{[( ]}}
 // CHECK: {{^[ +].*}}mstore
 // CHECK: {{^[ +].*}}mload 0
-fn @wrap_add_descending() -> u256 {
+fn @wrap_add_descending() -> i256 {
   bb0:
     jump bb1
   bb1:

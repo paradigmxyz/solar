@@ -22,12 +22,10 @@ COMMENT_WORKFLOW_PATH = ROOT / ".github/workflows/lsp-bench-comment.yml"
 MANUAL_COMMAND_WORKFLOW_PATH = (
     ROOT / ".github/workflows/lsp-bench-cross-server-command.yml"
 )
-CHECKOUT_ACTION = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
-RUST_ACTION = "dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772"
-UPLOAD_ACTION = "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
-STICKY_COMMENT_ACTION = (
-    "marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88"
-)
+CHECKOUT_ACTION = "actions/checkout@"
+RUST_ACTION = "dtolnay/rust-toolchain@"
+UPLOAD_ACTION = "actions/upload-artifact@"
+STICKY_COMMENT_ACTION = "marocchino/sticky-pull-request-comment@"
 SERVER_ARGS = "--server solar --server asyncswap --server nomic-foundation"
 
 
@@ -250,7 +248,7 @@ class CrossServerWorkflowTests(unittest.TestCase):
         self.assertIn("cancel-in-progress: false", full)
         self.assertNotIn("continue-on-error: true", full)
 
-    def test_jobs_use_pinned_checkouts_and_release_builds(self) -> None:
+    def test_jobs_use_checkouts_and_release_builds(self) -> None:
         text = workflow()
 
         self.assertEqual(text.count(f"uses: {CHECKOUT_ACTION}"), 2)

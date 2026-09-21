@@ -8,7 +8,7 @@ immutables:
 // CHECK: - {{v[0-9]+}} = mload 0
 // CHECK: + ret 22
 // CHECK: + ret 11
-fn @dominating_mload(arg0: bool) -> u256 {
+fn @dominating_mload(arg0: i1) -> i256 {
   bb0:
     mstore 0, 11
     v1 = mload 0
@@ -25,7 +25,7 @@ fn @dominating_mload(arg0: bool) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @dominating_sload{{[( ]}}
 // CHECK: - {{v[0-9]+}} = sload 0
 // CHECK: + ret {{v[0-9]+}}
-fn @dominating_sload(arg0: bool) -> u256 {
+fn @dominating_sload(arg0: i1) -> i256 {
   bb0:
     v1 = sload 0
     jumpi arg0, bb1, bb2
@@ -44,7 +44,7 @@ fn @dominating_sload(arg0: bool) -> u256 {
 // CHECK-NEXT: {{^[ +].*}}{{v[0-9]+}} = loadimmutable value
 // CHECK: - {{v[0-9]+}} = loadimmutable value
 // CHECK: + ret [[LOAD]]
-fn @dominating_loadimmutable(arg0: bool) -> u256 {
+fn @dominating_loadimmutable(arg0: i1) -> i256 {
   bb0:
     v1 = loadimmutable value
     jumpi arg0, bb1, bb2
@@ -63,7 +63,7 @@ fn @dominating_loadimmutable(arg0: bool) -> u256 {
 // CHECK: {{^[ +].*}}[[LEFT:v[0-9]+]] = loadimmutable value
 // CHECK-NEXT: {{^[ +].*}}storeimmutable value, 1
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = phi [bb1: [[LEFT]]], [bb2: [[RIGHT]]]
-fn @keep_phi_immutable_loads_before_branch_stores(arg0: bool) -> u256 {
+fn @keep_phi_immutable_loads_before_branch_stores(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:

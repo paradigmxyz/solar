@@ -1,61 +1,53 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_creation.sol:TryCreationChild ===
 @module TryCreationChild
-fn @constructor(arg0: bool) [constructor, abi_params=[bool]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[bool]] {
   bb0:
     v0 = eq arg0, 0
-    v1 = iszero v0
-    v2 = iszero v1
+    v1 = eq v0, false
+    v2 = eq v1, false
     icall require<short_string>, v2, 1, 0x7800000000000000000000000000000000000000000000000000000000000000
     ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_creation.sol:TryCreation ===
 @module TryCreation
-fn @f(arg0: bool) -> bool [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[word<bool>]] {
+data:
+  TryCreationChild_initcode_0: hex"6101373803806101376101003961010001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016604052607d565b7f08c379a0000000000000000000000000000000000000000000000000000000005f52602060045260a0516040015160245260a0516060015160445260645ffd5b341515610125576101008060c0528060c0526101006101373803016020820111610121578060c0525160029010156101215761010051158060e052155060e05161011c5760405160a0518160200152600181604001527f780000000000000000000000000000000000000000000000000000000000000081606001528060a05260800160405261010a603c565b60a05160405260a0516020015160a052fe5b610129565b5f5ffd5b5f5ffd5b6003806101345f395ff35f5ffd"
+
+fn @f(arg0: i256) -> i256 [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = eq arg0, 0
-    v1 = iszero v0
-    v2 = abi_encode [word<bool>], args v1
-    v3 = not 31
-    v4 = and 360, v3
-    v5 = alloc raw, exact, uninitialized, infallible, v4
-    mstore v5, 0x61012938038061012960e03960e001601f017fffffffffffffffffffffffffff
-    v6 = add v5, 32
-    mstore v6, 0xffffffffffffffffffffffffffffffffffffe016604052607b565b7f08c379a0
-    v7 = add v5, 64
-    mstore v7, 0x5f526020
-    v8 = add v5, 96
-    mstore v8, 0x60045260a0516040015160245260a0516060015160445260645ffd5b34610117
-    v9 = add v5, 128
-    mstore v9, 0x5760e08060c0528060c05260e06101293803016020820111610113578060c052
-    v10 = add v5, 160
-    mstore v10, 0x516002901015610113575f60e05114151561010e5760405160a0518160200152
-    v11 = add v5, 192
-    mstore v11, 0x600181604001527f780000000000000000000000000000000000000000000000
-    v12 = add v5, 224
-    mstore v12, 0x81606001528060a05260800160405260fc603a565b60a051
-    v13 = add v5, 256
-    mstore v13, 0x60405260a0516020015160a052fe5b61011b565b5f5ffd5b5f5ffd5b60038061
-    v14 = add v5, 288
-    mstore v14, 0x1265f395ff35f5ffd0000000000000000000000000000000000000000000000
-    v15 = slice_ptr v2
-    v16 = add v5, 297
-    mcopy v16, v15, 32 !metadata(memory=heap)
-    v17 = create 0, v5, 329
-    v18 = eq v17, 0
-    v19 = iszero v18
-    jumpi v19, bb1, bb2
+    v1 = eq v0, false
+    v2 = zext i1 v1 to i256
+    v3 = abi_encode [word<bool>], args v2
+    v4 = not 31
+    v5 = and 374, v4
+    v6 = alloc raw, exact, uninitialized, infallible, v5
+    v7 = ptrtoint memptr v6 to i256
+    data_copy TryCreationChild_initcode_0, v7, 311
+    v8 = slice_ptr v3
+    v9 = ptrtoint memptr v6 to i256
+    v10 = add v9, 311
+    mcopy v10, v8, 32 !metadata(memory=heap)
+    v11 = ptrtoint memptr v6 to i256
+    v12 = create 0, v11, 343
+    v13 = zext i160 v12 to i256
+    v14 = eq v13, 0
+    v15 = eq v14, false
+    jumpi v15, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
     icall revert_if<empty>, true
     invalid
   bb4:
-    ret false
+    v19 = zext i1 0 to i256
+    ret v19
   bb1:
-    v20 = eq v17, 0
-    v21 = iszero v20
-    ret v21
+    v16 = trunc i256 0 to i160
+    v17 = ne v12, v16
+    v18 = zext i1 v17 to i256
+    ret v18
   bb3:
     ret 0
 }

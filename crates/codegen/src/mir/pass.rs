@@ -380,6 +380,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // This removes the internal frame protocol without duplicating the body;
     // the pass drops the consumed callee itself.
     &GasOnly::new(inline::InlineSingleUse::Physical),
+    &cfg_simplify::CfgSimplify,
     &lower_evm_shaped::LowerEvmShaped,
 ];
 

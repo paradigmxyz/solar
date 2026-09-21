@@ -1,15 +1,15 @@
 - // === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_returns.mir (before dead-arg-elim) ===
 + // === ROOT/tests/ui/codegen/mir/dead-arg-elim/dead_arg_elim_returns.mir (after dead-arg-elim) ===
   @module DeadArgElimReturns
-- fn @discarded(arg0: u256) -> u256 {
-+ fn @discarded(arg0: u256) {
+- fn @discarded(arg0: i256) -> i256 {
++ fn @discarded(arg0: i256) {
     bb0:
       sstore 0, arg0
 -     ret arg0
 +     ret
   }
   
-  fn @recursive(arg0: bool, arg1: u256) -> u256 {
+  fn @recursive(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -20,14 +20,14 @@
       ret v0
   }
   
-- fn @kept(arg0: u256) -> u256 {
+- fn @kept(arg0: i256) -> i256 {
 + fn @kept() {
     bb0:
 -     ret arg0
 +     ret
   }
   
-  fn @entry() -> u256 [selector=0x01020304] {
+  fn @entry() -> i256 [selector=0x01020304] {
     bb0:
 -     v0 = icall @discarded, 7
 -     v1 = icall @recursive, true, 8
@@ -39,7 +39,7 @@
 +     ret 9
   }
   
-  fn @external_keeps_abi(arg0: u256) -> u256 [selector=0x01020305] {
+  fn @external_keeps_abi(arg0: i256) -> i256 [selector=0x01020305] {
     bb0:
       ret arg0
   }

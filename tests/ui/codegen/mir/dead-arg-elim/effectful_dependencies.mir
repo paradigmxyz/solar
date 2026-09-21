@@ -4,10 +4,10 @@
 
 // A discarded result must retain a read in its dependency slice. A later DCE pass could otherwise
 // remove the `mload`, changing memory expansion as observed by a caller's `msize`.
-// CHECK-LABEL: fn @read() -> u256
+// CHECK-LABEL: fn @read() -> i256
 // CHECK: v0 = mload 0x10000
 // CHECK-NEXT: ret v0
-fn @read() -> u256 {
+fn @read() -> i256 {
   bb0:
     v0 = mload 65536 !metadata(effect=pure)
     ret v0
@@ -22,8 +22,8 @@ fn @read_entry() [selector=0x01020304] {
 }
 
 // Removing an unused argument must not expose an effectful actual operand to DCE either.
-// CHECK-LABEL: fn @unused(arg0: u256)
-fn @unused(arg0: u256) {
+// CHECK-LABEL: fn @unused(arg0: i256)
+fn @unused(arg0: i256) {
   bb0:
     ret
 }
@@ -40,10 +40,10 @@ fn @argument_entry() [selector=0x05060708] {
 
 // Mapping slots expand to scratch-memory writes and a hash after dead-argument elimination. Keep
 // that dependency slice when its returned value is discarded so a later `msize` remains stable.
-// CHECK-LABEL: fn @mapping_slot() -> bytes32
+// CHECK-LABEL: fn @mapping_slot() -> i256
 // CHECK: v0 = mapping_slot 1, 2
 // CHECK-NEXT: ret v0
-fn @mapping_slot() -> bytes32 {
+fn @mapping_slot() -> i256 {
   bb0:
     v0 = mapping_slot 1, 2
     ret v0

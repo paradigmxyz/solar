@@ -6,7 +6,7 @@ use super::{
     Module, OptimizationMode, StackOp, U256, WORD_BYTES, immutable_push_type_size,
     immutable_staging_addr, immutable_staging_base, immutable_staging_end, op,
 };
-use crate::backend::assembler::PreparedAssembly;
+use crate::{backend::assembler::PreparedAssembly, link::LibraryRelocation};
 
 struct PreparedDeploymentPrefix {
     assembly: PreparedAssembly,
@@ -15,16 +15,6 @@ struct PreparedDeploymentPrefix {
 }
 
 impl<'gcx> EvmCodegen<'gcx> {
-    /// Generates deployment bytecode for a module.
-    /// Returns (deployment_bytecode, runtime_bytecode).
-    /// Returns empty bytecodes for interfaces (they have no implementation).
-    ///
-    /// This runs optimization passes (including DCE) on the module before codegen unless disabled.
-    pub fn generate_deployment_bytecode(&mut self, module: &mut Module) -> (Vec<u8>, Vec<u8>) {
-        let artifact = self.generate_deployment_artifact(module);
-        (artifact.deployment, artifact.runtime)
-    }
-
     #[tracing::instrument(
         name = "evm_codegen",
         level = "debug",
@@ -144,14 +134,24 @@ impl<'gcx> EvmCodegen<'gcx> {
         // [immutable patches]   ; patch staged words into the PUSH<N> placeholders
         // PUSH<n> copy_base     ; memory offset
         // RETURN                ; return the runtime code
+        let mut deployment_library_relocations = deploy_code.library_relocations;
+        deployment_library_relocations.extend(runtime_code.library_relocations.iter().map(
+            |reloc| LibraryRelocation {
+                offset: deploy_code.bytecode.len() + reloc.offset,
+                library: reloc.library,
+            },
+        ));
         let mut deploy_bytecode = deploy_code.bytecode;
         deploy_bytecode.extend_from_slice(&runtime_code.bytecode);
 
         // The returned runtime artifact keeps the zero placeholders, like
         // solc's `deployedBytecode` for contracts with immutables.
         EvmArtifact {
+            libraries: module.libraries.clone(),
             deployment: deploy_bytecode,
             runtime: runtime_code.bytecode,
+            deployment_library_relocations,
+            runtime_library_relocations: runtime_code.library_relocations,
             immutable_references: immutable_refs,
             deployment_evm_ir: deploy_code.evm_ir,
             runtime_evm_ir: runtime_code.evm_ir,
@@ -521,6 +521,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let result = self.asm.assemble_prepared(&prepared.assembly, &deferred_values);
         GeneratedCode {
             bytecode: result.bytecode,
+            library_relocations: result.library_relocations,
             evm_ir: result.evm_ir,
             debug_info: result.debug_info,
         }

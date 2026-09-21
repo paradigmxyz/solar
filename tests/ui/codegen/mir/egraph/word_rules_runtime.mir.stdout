@@ -1,10 +1,41 @@
 // === ROOT/tests/ui/codegen/mir/egraph/word_rules_runtime.sol:WordRules ===
 @module WordRules
 types:
-  struct0: {u256, u256, u256, u256, u256, u256, u256, u256, u256}
-  struct1: {u256, u256, u256, u256, u256}
+  struct0: {i256, i256, i256, i256, i256, i256}
+  struct1: {i256, i256, i256, i256, i256, i256, i256, i256, i256}
+  struct2: {i256, i256, i256, i256, i256}
 
-fn @mixed(arg0: u256, arg1: u256) -> struct0 [selector=0xce4cbe4b, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256, u256, u256, u256]] {
+fn @inequalities(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xca51df96, pure, abi_params=[u256, u256, bool], abi_returns=[word<bool>, word<bool>, word<bool>, word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool, bool, bool, bool]] {
+  bb0:
+    v0 = ne arg0, arg1
+    v1 = sub arg0, arg1
+    v2 = ne v1, 0
+    v3 = xor arg0, arg1
+    v4 = ne v3, 0
+    v5 = not arg0
+    v6 = not arg1
+    v7 = ne v5, v6
+    v8 = eq arg2, 0
+    v9 = eq v8, false
+    v10 = ne v9, true
+    v11 = and arg0, 255
+    v12 = ne v11, 256
+    v13 = zext i1 v0 to i256
+    v14 = zext i1 v2 to i256
+    v15 = zext i1 v4 to i256
+    v16 = zext i1 v7 to i256
+    v17 = zext i1 v10 to i256
+    v18 = zext i1 v12 to i256
+    v19 = insert_value struct0, undef struct0, 0, v13
+    v20 = insert_value struct0, v19, 1, v14
+    v21 = insert_value struct0, v20, 2, v15
+    v22 = insert_value struct0, v21, 3, v16
+    v23 = insert_value struct0, v22, 4, v17
+    v24 = insert_value struct0, v23, 5, v18
+    ret v24
+}
+
+fn @mixed(arg0: i256, arg1: i256) -> struct1 [selector=0xce4cbe4b, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256, u256, u256, u256]] {
   bb0:
     v0 = xor arg0, arg1
     v1 = and arg0, arg1
@@ -33,19 +64,19 @@ fn @mixed(arg0: u256, arg1: u256) -> struct0 [selector=0xce4cbe4b, pure, abi_par
     v24 = xor arg0, arg1
     v25 = or arg0, arg1
     v26 = xor v25, v24
-    v27 = insert_value struct0, undef struct0, 0, v2
-    v28 = insert_value struct0, v27, 1, v5
-    v29 = insert_value struct0, v28, 2, v8
-    v30 = insert_value struct0, v29, 3, v11
-    v31 = insert_value struct0, v30, 4, v14
-    v32 = insert_value struct0, v31, 5, v17
-    v33 = insert_value struct0, v32, 6, v20
-    v34 = insert_value struct0, v33, 7, v23
-    v35 = insert_value struct0, v34, 8, v26
+    v27 = insert_value struct1, undef struct1, 0, v2
+    v28 = insert_value struct1, v27, 1, v5
+    v29 = insert_value struct1, v28, 2, v8
+    v30 = insert_value struct1, v29, 3, v11
+    v31 = insert_value struct1, v30, 4, v14
+    v32 = insert_value struct1, v31, 5, v17
+    v33 = insert_value struct1, v32, 6, v20
+    v34 = insert_value struct1, v33, 7, v23
+    v35 = insert_value struct1, v34, 8, v26
     ret v35
 }
 
-fn @arithmetic(arg0: u256, arg1: u256) -> struct1 [selector=0x6cbb5ae3, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
+fn @arithmetic(arg0: i256, arg1: i256) -> struct2 [selector=0x6cbb5ae3, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
   bb0:
     v0 = not 0
     v1 = mul arg0, v0
@@ -59,15 +90,15 @@ fn @arithmetic(arg0: u256, arg1: u256) -> struct1 [selector=0x6cbb5ae3, pure, ab
     v9 = not 0
     v10 = mul arg0, v9
     v11 = add v10, arg0
-    v12 = insert_value struct1, undef struct1, 0, v1
-    v13 = insert_value struct1, v12, 1, v3
-    v14 = insert_value struct1, v13, 2, v6
-    v15 = insert_value struct1, v14, 3, v8
-    v16 = insert_value struct1, v15, 4, v11
+    v12 = insert_value struct2, undef struct2, 0, v1
+    v13 = insert_value struct2, v12, 1, v3
+    v14 = insert_value struct2, v13, 2, v6
+    v15 = insert_value struct2, v14, 3, v8
+    v16 = insert_value struct2, v15, 4, v11
     ret v16
 }
 
-fn @guards(arg0: u256, arg1: u256) -> struct1 [selector=0x98aa2c32, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
+fn @guards(arg0: i256, arg1: i256) -> struct2 [selector=0x98aa2c32, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
   bb0:
     v0 = mul arg0, 2
     v1 = div v0, 2
@@ -75,10 +106,10 @@ fn @guards(arg0: u256, arg1: u256) -> struct1 [selector=0x98aa2c32, pure, abi_pa
     v3 = sdiv arg0, arg1
     v4 = mod arg0, arg1
     v5 = smod arg0, arg1
-    v6 = insert_value struct1, undef struct1, 0, v1
-    v7 = insert_value struct1, v6, 1, v2
-    v8 = insert_value struct1, v7, 2, v3
-    v9 = insert_value struct1, v8, 3, v4
-    v10 = insert_value struct1, v9, 4, v5
+    v6 = insert_value struct2, undef struct2, 0, v1
+    v7 = insert_value struct2, v6, 1, v2
+    v8 = insert_value struct2, v7, 2, v3
+    v9 = insert_value struct2, v8, 3, v4
+    v10 = insert_value struct2, v9, 4, v5
     ret v10
 }

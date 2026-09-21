@@ -727,9 +727,7 @@ impl Instruction {
             | InstKind::StorageArrayElementSlot { .. } => Some("storage slot"),
             InstKind::StoreImmutable(..) => Some("immutable assignment"),
             InstKind::FrameLoad { .. } | InstKind::FrameStore { .. } => Some("frame slot"),
-            InstKind::MemoryObjectFromPtr { .. }
-            | InstKind::WordCast(..)
-            | InstKind::MemoryObjectLen(..)
+            InstKind::MemoryObjectLen(..)
             | InstKind::SetMemoryObjectLen(..)
             | InstKind::MemoryObjectData(..)
             | InstKind::MemoryObjectFieldAddr { .. }
@@ -751,7 +749,13 @@ impl Instruction {
                 || !matches!(kind, AllocationKind::Raw)
                 || *semantics != AllocationSemantics::INTERNAL)
                 .then_some("abstract allocation"),
-            InstKind::Add(..)
+            InstKind::Zext(..)
+            | InstKind::Trunc(..)
+            | InstKind::Sext(..)
+            | InstKind::PtrToInt(..)
+            | InstKind::IntToPtr(..)
+            | InstKind::Bitcast(..)
+            | InstKind::Add(..)
             | InstKind::Sub(..)
             | InstKind::Mul(..)
             | InstKind::Div(..)
@@ -775,7 +779,7 @@ impl Instruction {
             | InstKind::SLt(..)
             | InstKind::SGt(..)
             | InstKind::Eq(..)
-            | InstKind::IsZero(..)
+            | InstKind::Ne(..)
             | InstKind::MLoad(..)
             | InstKind::MStore(..)
             | InstKind::MStore8(..)
@@ -797,6 +801,7 @@ impl Instruction {
             | InstKind::ExtCodeSize(..)
             | InstKind::ExtCodeCopy(..)
             | InstKind::ExtCodeHash(..)
+            | InstKind::LibraryAddress(..)
             | InstKind::LoadImmutable(..)
             | InstKind::ReturnDataSize
             | InstKind::ReturnDataCopy(..)
@@ -883,7 +888,7 @@ impl Instruction {
         debug_assert!(
             (result == super::ResultKind::Custom
                 || result.produces_value() == self.result_ty.is_some())
-                && self.result_ty.is_none_or(|ty| result.admits_type(ty)),
+                && self.result_ty.is_none_or(|ty| kind.admits_result_type(ty)),
             "replacement must preserve the result representation"
         );
         // %result = old(operands) -> %result = equivalent(new_operands)
@@ -927,6 +932,96 @@ pub(crate) enum AddressCallKind {
 }
 
 impl InstKind {
+    /// Checks the operation's result type, including boolean bitwise operations.
+    pub(crate) fn admits_result_type(&self, ty: MirType) -> bool {
+        self.op_def().result.admits_type(ty)
+            || (ty == MirType::I1 && matches!(self, Self::And(..) | Self::Or(..) | Self::Xor(..)))
+    }
+
+    /// Checks scalar operation contracts without applying implicit conversions.
+    pub(crate) fn scalar_types_match(&self, func: &Function, result: Option<MirType>) -> bool {
+        let ty = |value| func.value_ty(value);
+        let expected = self.operand_types(func);
+        if let Some(expected) = expected
+            && (expected.len() != self.operands().len()
+                || self
+                    .operands()
+                    .iter()
+                    .zip(expected)
+                    .any(|(&value, expected)| ty(value) != Some(expected)))
+        {
+            return false;
+        }
+        match *self {
+            Self::Eq(a, b) | Self::Ne(a, b) => {
+                result == Some(MirType::I1)
+                    && ty(a) == ty(b)
+                    && matches!(ty(a), Some(MirType::I256 | MirType::I160 | MirType::I1))
+            }
+            Self::And(a, b) | Self::Or(a, b) | Self::Xor(a, b) => {
+                ty(a) == result
+                    && ty(b) == result
+                    && matches!(result, Some(MirType::I256 | MirType::I1))
+            }
+            Self::Trunc(value, bits) => matches!((ty(value), result),
+                (Some(MirType::Int(from)), Some(MirType::Int(to))) if from > to && to.get() == bits),
+            Self::Zext(value) => matches!((ty(value), result),
+                (Some(MirType::Int(from)), Some(MirType::Int(to))) if from < to),
+            Self::Sext(value, from_bits, to_bits) => matches!((ty(value), result),
+                (Some(MirType::Int(from)), Some(MirType::Int(to)))
+                    if from < to && from.get() == from_bits && to.get() == to_bits),
+            Self::PtrToInt(value, bits) => {
+                ty(value).is_some_and(MirType::is_pointer)
+                    && matches!(result, Some(MirType::Int(to)) if to.get() == bits)
+            }
+            Self::IntToPtr(value) => {
+                matches!(ty(value), Some(MirType::Int(_)))
+                    && result.is_some_and(MirType::is_pointer)
+            }
+            Self::Bitcast(value) => {
+                (ty(value).is_some_and(MirType::is_pointer)
+                    && result.is_some_and(MirType::is_pointer))
+                    || (matches!(ty(value), Some(MirType::Int(_))) && ty(value) == result)
+            }
+            Self::Alloc { kind, .. } => result == Some(kind.result_type()),
+            Self::MakeSlice { location, .. } => result == Some(MirType::Slice(location)),
+            Self::FrameLoad { kind, .. } => result == Some(kind.result_type()),
+            Self::AbiEncode { mode, .. } => result == Some(mode.result_type()),
+            Self::Phi(_) => {
+                result.is_some_and(|ty| ty != MirType::Void)
+                    && self.operands().iter().all(|&value| ty(value) == result)
+            }
+            Self::Select(condition, a, b) => {
+                result.is_some_and(|ty| ty != MirType::Void)
+                    && ty(condition) == Some(MirType::I1)
+                    && ty(a) == result
+                    && ty(b) == result
+            }
+            Self::InsertValue { .. }
+            | Self::ExtractValue { .. }
+            | Self::AbiDecode { .. }
+            | Self::StorageBytesLoad(..)
+            | Self::StorageArrayLoad { .. }
+            | Self::AbiEncodePacked { .. }
+            | Self::LoadImmutable(..) => result.is_some(),
+            // Module and builtin signatures are checked by the validator.
+            Self::ICall { .. } => true,
+            _ => {
+                self.op_def().result != super::ResultKind::Custom
+                    && self.op_def().result.default_type() == result
+            }
+        }
+    }
+
+    /// Returns the tested operand of a canonical equality with zero.
+    pub(crate) fn zero_test_operand(&self, func: &super::Function) -> Option<ValueId> {
+        match *self {
+            Self::Eq(a, b) if func.value_u256(b).is_some_and(|v| v.is_zero()) => Some(a),
+            Self::Eq(a, b) if func.value_u256(a).is_some_and(|v| v.is_zero()) => Some(b),
+            _ => None,
+        }
+    }
+
     /// Clones the instruction with zeroed value operands to compare its remaining fields.
     pub(crate) fn clone_without_operands(&self) -> Self {
         let mut kind = self.clone();
@@ -999,8 +1094,6 @@ impl InstKind {
         matches!(
             self,
             Self::Alloc { kind: AllocationKind::Object(_), .. }
-                | Self::MemoryObjectFromPtr { .. }
-                | Self::WordCast(_)
                 | Self::MemoryObjectLen(_, _)
                 | Self::SetMemoryObjectLen(_, _, _)
                 | Self::MemoryObjectData(_, _)
@@ -1062,7 +1155,7 @@ mod tests {
     fn rewrites_preserve_provenance_and_invalidate_facts() {
         let a = ValueId::new(0);
         let b = ValueId::new(1);
-        let mut inst = Instruction::new(InstKind::MLoad(a), Some(MirType::uint256()));
+        let mut inst = Instruction::new(InstKind::MLoad(a), Some(MirType::I256));
         inst.metadata.set_storage_alias(Some(StorageAlias::Slot(U256::from(7))));
         inst.metadata.set_memory_region(Some(MemoryRegion::Scratch));
         inst.metadata.set_effect(Some(EffectKind::MemoryRead));
@@ -1098,7 +1191,7 @@ mod tests {
             kind: AllocationKind::Raw,
             semantics: AllocationSemantics::INTERNAL,
         };
-        let mut inst = Instruction::new(kind.clone(), Some(MirType::MemPtr));
+        let mut inst = Instruction::new(kind.clone(), Some(MirType::I256));
         inst.metadata.set_deferred_alloc();
         inst.metadata.set_preserves_fmp(true);
         inst.replace_kind(kind);
@@ -1116,8 +1209,8 @@ mod tests {
         let mut func = Function::new(Ident::DUMMY);
         let pred_a = BlockId::ENTRY;
         let pred_b = func.alloc_block();
-        let a = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
-        let b = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(2))));
+        let a = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
+        let b = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(2))));
 
         let phi = InstKind::Phi(vec![(pred_a, a), (pred_b, b)]);
 

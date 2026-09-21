@@ -7,8 +7,14 @@ immutables:
   small: u64
   signed: i64
   wide: u256
+  clean_address: u256
+  dirty_address: u256
+  repeated: u256
+  unknown: u256
+  unwritten: u256
+  called: u256
 
-fn @runtime() -> u256 [selector=1] {
+fn @runtime() -> i256 [selector=1] {
   bb0:
     v0 = icall @bounded
     icall @shared
@@ -21,7 +27,7 @@ fn @runtime() -> u256 [selector=1] {
 
 // Modern targets encode unsigned runtime loads in eight-byte immediates.
 // The legacy target uses a full word and cannot use this bound.
-fn @bounded() -> u256 {
+fn @bounded() -> i256 {
   bb0:
     v0 = loadimmutable small
     v1 = add v0, 1
@@ -35,7 +41,7 @@ fn @bounded() -> u256 {
 
 // Constructor reachability crosses both calls and tail calls. Shared helpers
 // must retain their checks because constructor loads read full staging words.
-fn @constructor(arg0: u64) [constructor] {
+fn @constructor(arg0: i256) [constructor] {
   bb0:
     storeimmutable small, arg0
     icall @bridge
@@ -60,7 +66,7 @@ fn @shared() {
 }
 
 // Signed values can have every high bit set even with a short immediate.
-fn @signed_value() -> u256 {
+fn @signed_value() -> i256 {
   bb0:
     v0 = loadimmutable signed
     v1 = add v0, 1
@@ -72,7 +78,7 @@ fn @signed_value() -> u256 {
     ret v1
 }
 
-fn @wide_value() -> u256 {
+fn @wide_value() -> i256 {
   bb0:
     v0 = loadimmutable wide
     v1 = add v0, 1
@@ -85,7 +91,7 @@ fn @wide_value() -> u256 {
 }
 
 // A helper with no established runtime entry cannot acquire runtime facts.
-fn @unrooted() -> u256 {
+fn @unrooted() -> i256 {
   bb0:
     v0 = loadimmutable small
     v1 = add v0, 1
@@ -95,4 +101,25 @@ fn @unrooted() -> u256 {
     revert 0, 0
   bb2:
     ret v1
+}
+
+// Every assignment contributes to the encoding width, including helper calls.
+fn @assign_widths(arg0: i256) [constructor] {
+  bb0:
+    v0 = address
+    v1 = zext i160 v0 to i256
+    storeimmutable clean_address, v1
+    storeimmutable dirty_address, 0x10000000000000000000000000000000000000007
+    storeimmutable repeated, 1
+    storeimmutable repeated, 65536
+    storeimmutable unknown, arg0
+    icall @assign_called, 7
+    icall @assign_called, 65535
+    ret
+}
+
+fn @assign_called(arg0: i256) {
+  bb0:
+    storeimmutable called, arg0
+    ret
 }

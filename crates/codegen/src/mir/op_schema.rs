@@ -23,16 +23,17 @@
 //! `#[commutative(lhs, rhs)]` generates the trait and canonicalizes exactly that
 //! operand pair, leaving attributes and any remaining operands untouched.
 
+use crate::link::LibraryId;
 use alloy_primitives::Bytes;
 
 use super::{
     AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AddressCallKind, AllocationKind,
     AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, EffectKind,
-    FrameMode, FrameSlotKind, FunctionId, ImmutableId, InstructionMetadata, MemoryObjectKind,
-    MemoryObjectLayout, MirPhase, MirType, PackedPart, RevertKind, SliceLocation, StorageLayoutRef,
-    StructId, ValueId,
+    FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstructionMetadata,
+    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, PackedPart, RevertKind, SliceLocation,
+    StorageLayoutRef, StructId, ValueId, ValueLayout, typing,
 };
-use smallvec::{Array, SmallVec};
+use smallvec::{Array, SmallVec, smallvec};
 #[cfg(test)]
 use std::fmt::Write as _;
 
@@ -96,18 +97,14 @@ impl OpTraits {
 pub(crate) enum ResultKind {
     /// The operation produces no value.
     None,
-    /// An unsigned 256-bit word.
-    Word,
-    /// A signed 256-bit word.
-    SignedWord,
-    /// A boolean.
-    Bool,
-    /// An address.
-    Address,
-    /// A 32-byte hash or slot.
-    Bytes32,
-    /// A memory pointer.
+    /// A 256-bit integer.
+    I256,
+    /// A raw memory pointer.
     MemPtr,
+    /// A 160-bit integer.
+    I160,
+    /// A one-bit integer.
+    I1,
     /// A value whose type depends on the operation's attributes.
     Custom,
 }
@@ -118,12 +115,10 @@ impl ResultKind {
     pub(crate) const fn default_type(self) -> Option<MirType> {
         match self {
             Self::None | Self::Custom => None,
-            Self::Word => Some(MirType::uint256()),
-            Self::SignedWord => Some(MirType::int256()),
-            Self::Bool => Some(MirType::Bool),
-            Self::Address => Some(MirType::Address),
-            Self::Bytes32 => Some(MirType::bytes32()),
+            Self::I256 => Some(MirType::I256),
             Self::MemPtr => Some(MirType::MemPtr),
+            Self::I160 => Some(MirType::I160),
+            Self::I1 => Some(MirType::I1),
         }
     }
 
@@ -133,21 +128,9 @@ impl ResultKind {
         !matches!(self, Self::None)
     }
 
-    /// Returns whether a result type is consistent with the operation's result kind.
-    ///
-    /// Word-producing operations carry the precise Solidity type of the value they
-    /// compute, so any word type is admitted there. Boolean operations produce
-    /// `bool`, or the 256-bit word when lowered from inline assembly, where every
-    /// value is a word.
+    /// Checks the exact result type; scalar conversions require explicit instructions.
     pub(crate) fn admits_type(self, ty: MirType) -> bool {
-        match self {
-            Self::None | Self::Custom => true,
-            Self::Word | Self::SignedWord => !matches!(ty, MirType::Void | MirType::Function),
-            Self::Bool => matches!(ty, MirType::Bool) || ty == MirType::uint256(),
-            Self::Address => matches!(ty, MirType::Address),
-            Self::Bytes32 => matches!(ty, MirType::FixedBytes(_)),
-            Self::MemPtr => matches!(ty, MirType::MemPtr),
-        }
+        self.default_type().is_none_or(|expected| expected == ty)
     }
 }
 
@@ -476,9 +459,10 @@ fn isle_op_name(variant: &str) -> String {
 type OptionU64 = Option<u64>;
 
 attributes! {
-    bool, StructId, MirType, AddressCallKind, CheckedOp, ArithmeticKind, OptionU64,
+    bool, StructId, MirType, ValueLayout, AddressCallKind, CheckedOp, ArithmeticKind, OptionU64,
     u32,
     u64,
+    LibraryId,
     AbiEncodeMode,
     AllocationKind,
     AllocationSemantics,
@@ -533,6 +517,7 @@ macro_rules! define_mir_ops {
                 $(#[mnemonic($mnemonic_pattern:pat => $alternate_mnemonic:literal)])*
                 $(#[commutative($lhs:ident, $rhs:ident)])?
                 $(#[builder($builder:ident $(, $void:ident)?)])?
+                #[operand_types($func:ident => $operand_types:expr)]
                 $variant:ident
                 $( ( $( $operand:ident : $operand_ty:ty ),+ $(,)? ) )?
                 $( { $( $(#[$field_meta:meta])* $field:ident : $field_ty:ty ),+ $(,)? } )?
@@ -570,6 +555,22 @@ macro_rules! define_mir_ops {
         }
 
         impl $inst_name {
+            /// Returns the schema's exact operand signature, or `None` when result or module
+            /// information is required by the dedicated type checker.
+            #[allow(unused_variables)]
+            pub(crate) fn operand_types(&self, function: &Function) -> Option<SmallVec<[MirType; 8]>> {
+                match self {
+                    $(
+                        Self::$variant
+                        $( ( $( $operand ),+ ) )?
+                        $( { $( $field ),+ } )? => {
+                            let $func = function;
+                            $operand_types
+                        },
+                    )+
+                }
+            }
+
             /// All declared textual names, including attribute-dependent spellings.
             #[cfg(test)]
             pub(crate) const MNEMONICS: &[&str] = &[
@@ -749,12 +750,20 @@ macro_rules! define_mir_ops {
             /// Orders each declared commutative pair for value-numbering keys.
             /// Other operands, including a modular operation's modulus, stay in place.
             pub(crate) fn canonicalize_commutative(self) -> Self {
+                self.canonicalize_commutative_by_key(|value| value.index())
+            }
+
+            /// Orders only the declared commutative pair by the caller's key.
+            pub(crate) fn canonicalize_commutative_by_key<K: Ord>(
+                self,
+                mut key: impl FnMut(ValueId) -> K,
+            ) -> Self {
                 match self {
                     $(
                         Self::$variant $( { $( $operand ),+ } )? $( { $( $field ),+ } )? => {
                             $(
-                                // op(lhs, rhs, rest) -> op(min(lhs, rhs), max(lhs, rhs), rest)
-                                let ($lhs, $rhs) = if $rhs.index() < $lhs.index() {
+                                // op(lhs, rhs, rest) -> op(lhs, rhs, rest), ordered by key
+                                let ($lhs, $rhs) = if key($rhs) < key($lhs) {
                                     ($rhs, $lhs)
                                 } else {
                                     ($lhs, $rhs)
@@ -881,18 +890,39 @@ define_mir_ops! {
     enum InstKind {
     #[mir_op(mnemonic = "insert_value", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some("semantic operation"))]
+    #[operand_types(func => None)]
     InsertValue { ty: StructId, aggregate: ValueId, index: u32, value: ValueId },
     #[mir_op(mnemonic = "extract_value", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some("semantic operation"))]
+    #[operand_types(func => None)]
     ExtractValue { ty: StructId, aggregate: ValueId, index: u32 },
-    #[mir_op(mnemonic = "memory_object_from_ptr", result = Custom, phases = PhaseSet::SEMANTIC,
-        effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some("semantic operation"))]
-    MemoryObjectFromPtr { ptr: ValueId, kind: MemoryObjectKind },
-    #[mir_op(mnemonic = "word_cast", result = Word, phases = PhaseSet::SEMANTIC,
-        effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some("semantic operation"))]
-    WordCast(operand0: ValueId),
-    #[mir_op(mnemonic = "checked_binary", result = Word, phases = PhaseSet::SEMANTIC,
+    #[mir_op(mnemonic = "zext", result = Custom, phases = PhaseSet::ALL,
+        effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
+    #[operand_types(func => None)]
+    Zext(operand0: ValueId),
+    #[mir_op(mnemonic = "trunc", result = Custom, phases = PhaseSet::ALL,
+        effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
+    #[operand_types(func => None)]
+    Trunc(operand0: ValueId, bits: u32),
+    #[mir_op(mnemonic = "sext", result = Custom, phases = PhaseSet::ALL,
+        effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
+    #[operand_types(func => None)]
+    Sext(operand0: ValueId, from_bits: u32, to_bits: u32),
+    #[mir_op(mnemonic = "ptrtoint", result = Custom, phases = PhaseSet::ALL,
+        effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
+    #[operand_types(func => None)]
+    PtrToInt(operand0: ValueId, bits: u32),
+    #[mir_op(mnemonic = "inttoptr", result = Custom, phases = PhaseSet::ALL,
+        effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
+    #[operand_types(func => None)]
+    IntToPtr(operand0: ValueId),
+    #[mir_op(mnemonic = "bitcast", result = Custom, phases = PhaseSet::ALL,
+        effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
+    #[operand_types(func => None)]
+    Bitcast(operand0: ValueId),
+    #[mir_op(mnemonic = "checked_binary", result = I256, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     CheckedBinary {
         op: CheckedOp,
         arithmetic: ArithmeticKind,
@@ -901,30 +931,39 @@ define_mir_ops! {
     },
     #[mir_op(mnemonic = "validate_storage_bytes", result = None, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
+    #[operand_types(func => Some(smallvec![MirType::I256]))]
     ValidateStorageBytes(operand0: ValueId),
     #[mir_op(mnemonic = "load_storage_bytes", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
+    #[operand_types(func => Some(smallvec![MirType::I256]))]
     StorageBytesLoad(operand0: ValueId),
     #[mir_op(mnemonic = "load_storage_array", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
-    StorageArrayLoad { slot: ValueId, element: MirType, enum_variants: Option<u64> },
+    #[operand_types(func => Some(smallvec![MirType::I256]))]
+    StorageArrayLoad { slot: ValueId, element: ValueLayout, enum_variants: Option<u64> },
     #[mir_op(mnemonic = "store_storage_bytes", result = None, phases = PhaseSet::SEMANTIC,
         effect = StorageWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::MemoryObject(MemoryObjectKind::Bytes)]))]
     StorageBytesStore(operand0: ValueId, operand1: ValueId),
     #[mir_op(mnemonic = "store_storage_bytes_literal", result = None, phases = PhaseSet::SEMANTIC,
         effect = StorageWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
+    #[operand_types(func => Some(smallvec![MirType::I256]))]
     StorageBytesStoreLiteral { slot: ValueId, bytes: Bytes },
     #[mir_op(mnemonic = "clear_storage_words", result = None, phases = PhaseSet::SEMANTIC,
         effect = StorageWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     StorageClearWords(operand0: ValueId, operand1: ValueId, operand2: ValueId),
     #[mir_op(mnemonic = "validate_abi", result = None, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
+    #[operand_types(func => Some(smallvec![MirType::I256]))]
     ValidateAbi(operand0: ValueId),
     #[mir_op(mnemonic = "abi_encode_packed", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
+    #[operand_types(func => Some(typing::packed_types(func, parts)))]
     AbiEncodePacked { parts: Box<[PackedPart]>, hash: bool },
-    #[mir_op(mnemonic = "address_call", result = Word, phases = PhaseSet::SEMANTIC,
+    #[mir_op(mnemonic = "address_call", result = I1, phases = PhaseSet::SEMANTIC,
         effect = ExternalCall, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
+    #[operand_types(func => Some(typing::address_call_types(gas.is_some(), value.is_some())))]
     AddressCall {
         kind: AddressCallKind,
         address: ValueId,
@@ -937,7 +976,7 @@ define_mir_ops! {
     /// Addition: `a + b`
     #[mir_op(
         mnemonic = "add",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
@@ -946,11 +985,12 @@ define_mir_ops! {
     )]
     #[commutative(a, b)]
     #[builder(add)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     Add(a: ValueId, b: ValueId),
     /// Subtraction: `a - b`
     #[mir_op(
         mnemonic = "sub",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
@@ -958,11 +998,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(sub)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     Sub(a: ValueId, b: ValueId),
     /// Multiplication: `a * b`
     #[mir_op(
         mnemonic = "mul",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
@@ -971,11 +1012,12 @@ define_mir_ops! {
     )]
     #[commutative(a, b)]
     #[builder(mul)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     Mul(a: ValueId, b: ValueId),
     /// Unsigned division: `a / b`
     #[mir_op(
         mnemonic = "div",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -983,11 +1025,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(div)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     Div(a: ValueId, b: ValueId),
     /// Signed division: `a / b`
     #[mir_op(
         mnemonic = "sdiv",
-        result = SignedWord,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -995,11 +1038,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(sdiv)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     SDiv(a: ValueId, b: ValueId),
     /// Unsigned modulo: `a % b`
     #[mir_op(
         mnemonic = "mod",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -1007,11 +1051,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(mod_)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     Mod(a: ValueId, b: ValueId),
     /// Signed modulo: `a % b`
     #[mir_op(
         mnemonic = "smod",
-        result = SignedWord,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -1019,11 +1064,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(smod)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     SMod(a: ValueId, b: ValueId),
     /// Exponentiation: `a ** b`
     #[mir_op(
         mnemonic = "exp",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -1031,11 +1077,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(exp)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     Exp(a: ValueId, b: ValueId),
     /// Add modulo: `(a + b) % n`
     #[mir_op(
         mnemonic = "addmod",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -1044,11 +1091,12 @@ define_mir_ops! {
     )]
     #[commutative(a, b)]
     #[builder(addmod)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     AddMod(a: ValueId, b: ValueId, n: ValueId),
     /// Multiply modulo: `(a * b) % n`
     #[mir_op(
         mnemonic = "mulmod",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -1057,13 +1105,14 @@ define_mir_ops! {
     )]
     #[commutative(a, b)]
     #[builder(mulmod)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     MulMod(a: ValueId, b: ValueId, n: ValueId),
 
     // Bitwise operations
     /// Bitwise AND: `a & b`
     #[mir_op(
         mnemonic = "and",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
@@ -1072,11 +1121,12 @@ define_mir_ops! {
     )]
     #[commutative(a, b)]
     #[builder(and)]
+    #[operand_types(func => None)]
     And(a: ValueId, b: ValueId),
     /// Bitwise OR: `a | b`
     #[mir_op(
         mnemonic = "or",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
@@ -1085,11 +1135,12 @@ define_mir_ops! {
     )]
     #[commutative(a, b)]
     #[builder(or)]
+    #[operand_types(func => None)]
     Or(a: ValueId, b: ValueId),
     /// Bitwise XOR: `a ^ b`
     #[mir_op(
         mnemonic = "xor",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
@@ -1098,11 +1149,12 @@ define_mir_ops! {
     )]
     #[commutative(a, b)]
     #[builder(xor)]
+    #[operand_types(func => None)]
     Xor(a: ValueId, b: ValueId),
     /// Bitwise NOT: `~a`
     #[mir_op(
         mnemonic = "not",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -1110,11 +1162,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(not)]
+    #[operand_types(func => Some(smallvec![MirType::I256]))]
     Not(a: ValueId),
     /// Count leading zero bits.
     #[mir_op(
         mnemonic = "clz",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -1122,11 +1175,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(clz)]
+    #[operand_types(func => Some(smallvec![MirType::I256]))]
     Clz(a: ValueId),
     /// Left shift: `a << b`
     #[mir_op(
         mnemonic = "shl",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
@@ -1134,11 +1188,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(shl)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     Shl(shift: ValueId, value: ValueId),
     /// Logical right shift: `a >> b`
     #[mir_op(
         mnemonic = "shr",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
@@ -1146,11 +1201,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(shr)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     Shr(shift: ValueId, value: ValueId),
     /// Arithmetic right shift: `a >> b` (signed)
     #[mir_op(
         mnemonic = "sar",
-        result = SignedWord,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
@@ -1158,11 +1214,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(sar)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     Sar(shift: ValueId, value: ValueId),
     /// Extract a byte: `byte(i, x)`
     #[mir_op(
         mnemonic = "byte",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -1170,13 +1227,14 @@ define_mir_ops! {
         category = None
     )]
     #[builder(byte)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     Byte(index: ValueId, value: ValueId),
 
     // Comparison operations
     /// Less than (unsigned): `a < b`
     #[mir_op(
         mnemonic = "lt",
-        result = Bool,
+        result = I1,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
@@ -1184,11 +1242,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(lt)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     Lt(a: ValueId, b: ValueId),
     /// Greater than (unsigned): `a > b`
     #[mir_op(
         mnemonic = "gt",
-        result = Bool,
+        result = I1,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
@@ -1196,11 +1255,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(gt)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     Gt(a: ValueId, b: ValueId),
     /// Less than (signed): `a < b`
     #[mir_op(
         mnemonic = "slt",
-        result = Bool,
+        result = I1,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
@@ -1208,11 +1268,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(slt)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     SLt(a: ValueId, b: ValueId),
     /// Greater than (signed): `a > b`
     #[mir_op(
         mnemonic = "sgt",
-        result = Bool,
+        result = I1,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
@@ -1220,11 +1281,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(sgt)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     SGt(a: ValueId, b: ValueId),
     /// Equality: `a == b`
     #[mir_op(
         mnemonic = "eq",
-        result = Bool,
+        result = I1,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
@@ -1233,25 +1295,28 @@ define_mir_ops! {
     )]
     #[commutative(a, b)]
     #[builder(eq)]
+    #[operand_types(func => None)]
     Eq(a: ValueId, b: ValueId),
-    /// Check if zero: `a == 0`
+    /// Inequality: `a != b`.
     #[mir_op(
-        mnemonic = "iszero",
-        result = Bool,
+        mnemonic = "ne",
+        result = I1,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::EGRAPH_REWRITE,
+        traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
-    #[builder(iszero)]
-    IsZero(a: ValueId),
+    #[commutative(a, b)]
+    #[builder(ne)]
+    #[operand_types(func => None)]
+    Ne(a: ValueId, b: ValueId),
 
     // Memory operations
     /// Load from memory: `mload(offset)`
     #[mir_op(
         mnemonic = "mload",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = MemoryRead,
         traits = OpTraits::NONE,
@@ -1259,6 +1324,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(mload)]
+    #[operand_types(func => Some(smallvec![MirType::I256]))]
     MLoad(offset: ValueId),
     /// Store to memory: `mstore(offset, value)`
     #[mir_op(
@@ -1271,6 +1337,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(mstore, void)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     MStore(offset: ValueId, value: ValueId),
     /// Store a single byte: `mstore8(offset, value)`
     #[mir_op(
@@ -1283,6 +1350,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(mstore8, void)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     MStore8(offset: ValueId, value: ValueId),
     /// Set a contiguous memory range to zero: `memory_zero(offset, size)`
     #[mir_op(
@@ -1295,11 +1363,12 @@ define_mir_ops! {
         category = Some("memory zero")
     )]
     #[builder(memory_zero, void)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     MemoryZero(offset: ValueId, size: ValueId),
     /// Get memory size: `msize()`
     #[mir_op(
         mnemonic = "msize",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = MemoryRead,
         traits = OpTraits::NONE,
@@ -1307,6 +1376,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(msize)]
+    #[operand_types(func => Some(smallvec![]))]
     MSize,
     /// Read the free-memory pointer.
     #[mir_op(
@@ -1319,6 +1389,7 @@ define_mir_ops! {
         category = Some("abstract allocation")
     )]
     #[builder(fmp)]
+    #[operand_types(func => Some(smallvec![]))]
     Fmp,
     /// Set the free-memory pointer.
     #[mir_op(
@@ -1330,6 +1401,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("abstract allocation")
     )]
+    #[operand_types(func => Some(smallvec![MirType::MemPtr]))]
     SetFmp(value: ValueId),
     /// Reserve memory and return the previous free-memory pointer.
     #[mir_op(
@@ -1341,6 +1413,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("abstract allocation")
     )]
+    #[operand_types(func => Some(smallvec![MirType::I256]))]
     Alloc {
         /// Requested byte count.
         size: ValueId,
@@ -1352,13 +1425,14 @@ define_mir_ops! {
     /// Read the logical length of a dynamic memory object.
     #[mir_op(
         mnemonic = "memory_object_len",
-        result = Word,
+        result = I256,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = false,
         category = Some("memory-object")
     )]
+    #[operand_types(func => Some(smallvec![typing::read_object(func, *object, *kind)]))]
     MemoryObjectLen(object: ValueId, kind: MemoryObjectKind),
     /// Set the logical length of a dynamic memory object.
     #[mir_op(
@@ -1370,6 +1444,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
+    #[operand_types(func => Some(smallvec![MirType::MemoryObject(*kind), MirType::I256]))]
     SetMemoryObjectLen(object: ValueId, len: ValueId, kind: MemoryObjectKind),
     /// Project the address of the first payload byte from an object.
     #[mir_op(
@@ -1381,6 +1456,7 @@ define_mir_ops! {
         side_effects = false,
         category = Some("memory-object")
     )]
+    #[operand_types(func => Some(smallvec![typing::memory_object(func, *object, *kind)]))]
     MemoryObjectData(object: ValueId, kind: MemoryObjectKind),
     /// Address a direct field of a struct object.
     #[mir_op(
@@ -1392,6 +1468,7 @@ define_mir_ops! {
         side_effects = false,
         category = Some("memory-object")
     )]
+    #[operand_types(func => Some(smallvec![typing::memory_object(func, *object, layout.kind())]))]
     MemoryObjectFieldAddr {
         /// Struct object reference.
         object: ValueId,
@@ -1410,6 +1487,7 @@ define_mir_ops! {
         side_effects = false,
         category = Some("memory-object")
     )]
+    #[operand_types(func => Some(smallvec![typing::memory_object(func, *object, layout.kind()), MirType::I256]))]
     MemoryObjectElementAddr {
         /// Array object reference.
         object: ValueId,
@@ -1421,13 +1499,14 @@ define_mir_ops! {
     /// Load one direct struct field without exposing its physical address.
     #[mir_op(
         mnemonic = "memory_object_load_field",
-        result = Word,
+        result = I256,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = false,
         category = Some("memory-object")
     )]
+    #[operand_types(func => Some(smallvec![typing::read_object(func, *object, layout.kind())]))]
     MemoryObjectLoadField {
         /// Struct object reference.
         object: ValueId,
@@ -1446,6 +1525,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
+    #[operand_types(func => Some(smallvec![MirType::MemoryObject(layout.kind()), MirType::I256]))]
     MemoryObjectStoreField {
         /// Struct object reference.
         object: ValueId,
@@ -1459,13 +1539,14 @@ define_mir_ops! {
     /// Load one array element without exposing its physical address.
     #[mir_op(
         mnemonic = "memory_object_load_element",
-        result = Word,
+        result = I256,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = false,
         category = Some("memory-object")
     )]
+    #[operand_types(func => Some(smallvec![typing::read_object(func, *object, layout.kind()), MirType::I256]))]
     MemoryObjectLoadElement {
         /// Array object reference.
         object: ValueId,
@@ -1477,13 +1558,14 @@ define_mir_ops! {
     /// Load one byte from a bytes object without exposing its physical address.
     #[mir_op(
         mnemonic = "memory_object_load_byte",
-        result = Word,
+        result = I256,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = false,
         category = Some("memory-object")
     )]
+    #[operand_types(func => Some(smallvec![typing::read_object(func, *object, MemoryObjectKind::Bytes), MirType::I256]))]
     MemoryObjectLoadByte {
         /// Bytes object reference.
         object: ValueId,
@@ -1500,6 +1582,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
+    #[operand_types(func => Some(smallvec![MirType::MemoryObject(layout.kind()), MirType::I256, MirType::I256]))]
     MemoryObjectStoreElement {
         /// Array object reference.
         object: ValueId,
@@ -1520,6 +1603,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
+    #[operand_types(func => Some(smallvec![MirType::MemoryObject(MemoryObjectKind::Bytes), MirType::I256, MirType::I256]))]
     MemoryObjectStoreByte {
         /// Bytes object reference.
         object: ValueId,
@@ -1539,6 +1623,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
+    #[operand_types(func => Some(smallvec![MirType::MemoryObject(MemoryObjectKind::Bytes), MirType::I256, MirType::I256]))]
     MemoryObjectStoreWord {
         /// Bytes object reference.
         object: ValueId,
@@ -1551,13 +1636,14 @@ define_mir_ops! {
     /// physical address.
     #[mir_op(
         mnemonic = "memory_slice_load_word",
-        result = Word,
+        result = I256,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = false,
         category = Some("memory-object")
     )]
+    #[operand_types(func => Some(smallvec![MirType::Slice(SliceLocation::Memory), MirType::I256]))]
     MemorySliceLoadWord {
         /// Memory slice reference.
         slice: ValueId,
@@ -1568,13 +1654,14 @@ define_mir_ops! {
     /// the physical calldata address.
     #[mir_op(
         mnemonic = "calldata_slice_load_word",
-        result = Word,
+        result = I256,
         phases = PhaseSet::SEMANTIC,
         effect = EnvironmentRead,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = false,
         category = Some("memory-object")
     )]
+    #[operand_types(func => Some(smallvec![MirType::Slice(SliceLocation::Calldata), MirType::I256]))]
     CalldataSliceLoadWord {
         /// Calldata slice reference.
         slice: ValueId,
@@ -1591,6 +1678,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
+    #[operand_types(func => Some(smallvec![MirType::MemoryObject(*kind), typing::slice_type(func, *source)]))]
     MemoryObjectCopyFromSlice {
         /// Destination memory object reference.
         object: ValueId,
@@ -1609,6 +1697,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
+    #[operand_types(func => Some(smallvec![MirType::MemoryObject(*kind), MirType::I256, typing::slice_type(func, *source)]))]
     MemoryObjectCopyFromSliceAt {
         /// Destination memory object reference.
         object: ValueId,
@@ -1629,6 +1718,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
+    #[operand_types(func => Some(smallvec![MirType::MemoryObject(*destination_kind), MirType::MemoryObject(*source_kind), MirType::I256]))]
     MemoryObjectCopy {
         /// Destination memory object reference.
         destination: ValueId,
@@ -1651,6 +1741,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("ABI encoding")
     )]
+    #[operand_types(func => Some(typing::abi_encode_types(func, selector.is_some(), args, layout)))]
     AbiEncode {
         /// Storage policy for the encoded result.
         mode: AbiEncodeMode,
@@ -1674,6 +1765,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("ABI decoding")
     )]
+    #[operand_types(func => Some(smallvec![MirType::MemoryObject(MemoryObjectKind::Bytes)]))]
     AbiDecode {
         /// ABI-encoded bytes object.
         data: ValueId,
@@ -1690,6 +1782,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("aggregate")
     )]
+    #[operand_types(func => Some(smallvec![MirType::I256, typing::storage_object_type(layout)]))]
     StorageToMemory {
         /// Base storage slot.
         storage: ValueId,
@@ -1708,6 +1801,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("aggregate")
     )]
+    #[operand_types(func => Some(smallvec![typing::storage_object_type(layout), MirType::I256]))]
     MemoryToStorage {
         /// Source memory pointer.
         memory: ValueId,
@@ -1726,6 +1820,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("aggregate")
     )]
+    #[operand_types(func => Some(smallvec![MirType::I256]))]
     ClearStorage {
         /// Base storage slot.
         storage: ValueId,
@@ -1743,13 +1838,14 @@ define_mir_ops! {
         category = None
     )]
     #[builder(mcopy, void)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     MCopy(dest: ValueId, src: ValueId, len: ValueId),
 
     // Storage operations
     /// Load from storage: `sload(slot)`
     #[mir_op(
         mnemonic = "sload",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = StorageRead,
         traits = OpTraits::NONE,
@@ -1757,6 +1853,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(sload)]
+    #[operand_types(func => Some(smallvec![MirType::I256]))]
     SLoad(slot: ValueId),
     /// Store to storage: `sstore(slot, value)`
     #[mir_op(
@@ -1769,11 +1866,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(sstore, void)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     SStore(slot: ValueId, value: ValueId),
     /// Transient load: `tload(slot)`
     #[mir_op(
         mnemonic = "tload",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = TransientRead,
         traits = OpTraits::NONE,
@@ -1781,6 +1879,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(tload)]
+    #[operand_types(func => Some(smallvec![MirType::I256]))]
     TLoad(slot: ValueId),
     /// Transient store: `tstore(slot, value)`
     #[mir_op(
@@ -1793,13 +1892,14 @@ define_mir_ops! {
         category = None
     )]
     #[builder(tstore, void)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     TStore(slot: ValueId, value: ValueId),
 
     // Calldata operations
     /// Load from calldata: `calldataload(offset)`
     #[mir_op(
         mnemonic = "calldataload",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::NONE,
@@ -1807,6 +1907,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(calldataload)]
+    #[operand_types(func => Some(smallvec![MirType::I256]))]
     CalldataLoad(offset: ValueId),
     /// Copy calldata to memory: `calldatacopy(destOffset, offset, size)`
     #[mir_op(
@@ -1819,11 +1920,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(calldatacopy, void)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     CalldataCopy(dest: ValueId, offset: ValueId, size: ValueId),
     /// Get calldata size: `calldatasize()`
     #[mir_op(
         mnemonic = "calldatasize",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -1831,6 +1933,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(calldatasize)]
+    #[operand_types(func => Some(smallvec![]))]
     CalldataSize,
     /// Construct a logical `(pointer, length, location)` slice.
     #[mir_op(
@@ -1844,6 +1947,7 @@ define_mir_ops! {
     )]
     #[mnemonic(InstKind::MakeSlice { location: SliceLocation::Calldata, .. } => "make_calldata_slice")]
     #[mnemonic(InstKind::MakeSlice { location: SliceLocation::Returndata, .. } => "make_returndata_slice")]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     MakeSlice {
         /// Address of the first element or byte.
         ptr: ValueId,
@@ -1855,7 +1959,7 @@ define_mir_ops! {
     /// Project the data pointer from a slice.
     #[mir_op(
         mnemonic = "slice_ptr",
-        result = Word,
+        result = I256,
         phases = PhaseSet::SEMANTIC,
         effect = Pure,
         traits = OpTraits::NONE,
@@ -1863,11 +1967,12 @@ define_mir_ops! {
         category = Some("slice")
     )]
     #[builder(slice_ptr)]
+    #[operand_types(func => Some(smallvec![typing::slice_type(func, *slice)]))]
     SlicePtr(slice: ValueId),
     /// Project the logical length from a slice.
     #[mir_op(
         mnemonic = "slice_len",
-        result = Word,
+        result = I256,
         phases = PhaseSet::SEMANTIC,
         effect = Pure,
         traits = OpTraits::NONE,
@@ -1875,6 +1980,7 @@ define_mir_ops! {
         category = Some("slice")
     )]
     #[builder(slice_len)]
+    #[operand_types(func => Some(smallvec![typing::slice_type(func, *slice)]))]
     SliceLen(slice: ValueId),
     /// Address inside the current internal-call frame.
     #[mir_op(
@@ -1886,6 +1992,7 @@ define_mir_ops! {
         side_effects = false,
         category = None
     )]
+    #[operand_types(func => Some(smallvec![]))]
     InternalFrameAddr(offset: u64),
     /// Load a mutable local through its logical frame slot.
     ///
@@ -1901,6 +2008,7 @@ define_mir_ops! {
         side_effects = false,
         category = Some("frame slot")
     )]
+    #[operand_types(func => Some(smallvec![]))]
     FrameLoad {
         /// Byte offset within the function's local region.
         offset: u64,
@@ -1919,6 +2027,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("frame slot")
     )]
+    #[operand_types(func => Some(smallvec![kind.result_type()]))]
     FrameStore {
         /// Byte offset within the function's local region.
         offset: u64,
@@ -1932,7 +2041,7 @@ define_mir_ops! {
     /// Base address of the constructor's copied ABI argument blob.
     #[mir_op(
         mnemonic = "constructor_args_base",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -1940,11 +2049,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(constructor_args_base)]
+    #[operand_types(func => Some(smallvec![]))]
     ConstructorArgsBase,
     /// End address of the constructor's copied ABI argument blob.
     #[mir_op(
         mnemonic = "constructor_args_end",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::NONE,
@@ -1952,6 +2062,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(constructor_args_end)]
+    #[operand_types(func => Some(smallvec![]))]
     ConstructorArgsEnd,
 
     // Code operations
@@ -1965,11 +2076,12 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     DataCopy(data: DataRef, dest: ValueId, size: ValueId),
     /// Get code size: `codesize()`
     #[mir_op(
         mnemonic = "codesize",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -1977,6 +2089,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(codesize)]
+    #[operand_types(func => Some(smallvec![]))]
     CodeSize,
     /// Copy code to memory: `codecopy(destOffset, offset, size)`
     #[mir_op(
@@ -1989,11 +2102,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(codecopy, void)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     CodeCopy(dest: ValueId, offset: ValueId, size: ValueId),
     /// Get external code size: `extcodesize(addr)`
     #[mir_op(
         mnemonic = "extcodesize",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::NONE,
@@ -2001,6 +2115,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(extcodesize)]
+    #[operand_types(func => Some(smallvec![MirType::I256]))]
     ExtCodeSize(addr: ValueId),
     /// Copy external code to memory: `extcodecopy(addr, destOffset, offset, size)`
     #[mir_op(
@@ -2012,11 +2127,12 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     ExtCodeCopy(addr: ValueId, dest: ValueId, offset: ValueId, size: ValueId),
     /// Get external code hash: `extcodehash(addr)`
     #[mir_op(
         mnemonic = "extcodehash",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::NONE,
@@ -2024,6 +2140,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(extcodehash)]
+    #[operand_types(func => Some(smallvec![MirType::I256]))]
     ExtCodeHash(addr: ValueId),
     /// Assign an immutable during construction: `storeimmutable <name>, value`.
     /// Lowered to constructor staging memory after MIR optimization.
@@ -2036,6 +2153,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("immutable assignment")
     )]
+    #[operand_types(func => None)]
     StoreImmutable(id: ImmutableId, value: ValueId),
     /// Read an immutable declared by the module: `loadimmutable <name>`.
     ///
@@ -2051,7 +2169,21 @@ define_mir_ops! {
         side_effects = false,
         category = None
     )]
+    #[operand_types(func => None)]
     LoadImmutable(id: ImmutableId),
+
+    /// A library address whose value is supplied by the linker.
+    #[mir_op(
+        mnemonic = "library_address",
+        result = I160,
+        phases = PhaseSet::ALL,
+        effect = Pure,
+        traits = OpTraits::NONE,
+        side_effects = false,
+        category = None
+    )]
+    #[operand_types(func => Some(smallvec![]))]
+    LibraryAddress(library: LibraryId),
 
     // Return data operations
     /// Get the current call's return data size: `returndatasize()`.
@@ -2059,7 +2191,7 @@ define_mir_ops! {
     /// Raw volatile query used by Yul and high-level call lowering.
     #[mir_op(
         mnemonic = "returndatasize",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::NONE,
@@ -2067,6 +2199,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(returndatasize)]
+    #[operand_types(func => Some(smallvec![]))]
     ReturnDataSize,
     /// Copy return data to memory: `returndatacopy(destOffset, offset, size)`
     #[mir_op(
@@ -2079,13 +2212,14 @@ define_mir_ops! {
         category = None
     )]
     #[builder(returndatacopy, void)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     ReturnDataCopy(dest: ValueId, offset: ValueId, size: ValueId),
 
     // Environment operations
     /// Get caller address: `caller()`
     #[mir_op(
         mnemonic = "caller",
-        result = Address,
+        result = I160,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2093,11 +2227,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(caller)]
+    #[operand_types(func => Some(smallvec![]))]
     Caller,
     /// Get call value: `callvalue()`
     #[mir_op(
         mnemonic = "callvalue",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2105,11 +2240,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(callvalue)]
+    #[operand_types(func => Some(smallvec![]))]
     CallValue,
     /// Get origin address: `origin()`
     #[mir_op(
         mnemonic = "origin",
-        result = Address,
+        result = I160,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2117,11 +2253,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(origin)]
+    #[operand_types(func => Some(smallvec![]))]
     Origin,
     /// Get gas price: `gasprice()`
     #[mir_op(
         mnemonic = "gasprice",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2129,11 +2266,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(gasprice)]
+    #[operand_types(func => Some(smallvec![]))]
     GasPrice,
     /// Get block hash: `blockhash(blockNum)`
     #[mir_op(
         mnemonic = "blockhash",
-        result = Bytes32,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::NONE,
@@ -2141,11 +2279,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(blockhash)]
+    #[operand_types(func => Some(smallvec![MirType::I256]))]
     BlockHash(number: ValueId),
     /// Get coinbase address: `coinbase()`
     #[mir_op(
         mnemonic = "coinbase",
-        result = Address,
+        result = I160,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2153,11 +2292,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(coinbase)]
+    #[operand_types(func => Some(smallvec![]))]
     Coinbase,
     /// Get block timestamp: `timestamp()`
     #[mir_op(
         mnemonic = "timestamp",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2165,11 +2305,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(timestamp)]
+    #[operand_types(func => Some(smallvec![]))]
     Timestamp,
     /// Get block number: `number()`
     #[mir_op(
         mnemonic = "number",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2177,11 +2318,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(number)]
+    #[operand_types(func => Some(smallvec![]))]
     BlockNumber,
     /// Get previous randao: `prevrandao()`
     #[mir_op(
         mnemonic = "prevrandao",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2189,11 +2331,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(prevrandao)]
+    #[operand_types(func => Some(smallvec![]))]
     PrevRandao,
     /// Get gas limit: `gaslimit()`
     #[mir_op(
         mnemonic = "gaslimit",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2201,22 +2344,24 @@ define_mir_ops! {
         category = None
     )]
     #[builder(gaslimit)]
+    #[operand_types(func => Some(smallvec![]))]
     GasLimit,
     /// Get beacon chain slot number: `slotnum()`
     #[mir_op(
         mnemonic = "slotnum",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
         side_effects = false,
         category = None
     )]
+    #[operand_types(func => Some(smallvec![]))]
     SlotNum,
     /// Get chain ID: `chainid()`
     #[mir_op(
         mnemonic = "chainid",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2224,11 +2369,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(chainid)]
+    #[operand_types(func => Some(smallvec![]))]
     ChainId,
     /// Get this contract's address: `address()`
     #[mir_op(
         mnemonic = "address",
-        result = Address,
+        result = I160,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2236,11 +2382,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(address)]
+    #[operand_types(func => Some(smallvec![]))]
     Address,
     /// Get balance: `balance(addr)`
     #[mir_op(
         mnemonic = "balance",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -2248,11 +2395,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(balance)]
+    #[operand_types(func => Some(smallvec![MirType::I256]))]
     Balance(addr: ValueId),
     /// Get self balance: `selfbalance()`
     #[mir_op(
         mnemonic = "selfbalance",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::NONE,
@@ -2260,11 +2408,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(selfbalance)]
+    #[operand_types(func => Some(smallvec![]))]
     SelfBalance,
     /// Get remaining gas: `gas()`
     #[mir_op(
         mnemonic = "gas",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::NONE,
@@ -2272,11 +2421,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(gas)]
+    #[operand_types(func => Some(smallvec![]))]
     Gas,
     /// Get base fee: `basefee()`
     #[mir_op(
         mnemonic = "basefee",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2284,11 +2434,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(basefee)]
+    #[operand_types(func => Some(smallvec![]))]
     BaseFee,
     /// Get blob base fee: `blobbasefee()`
     #[mir_op(
         mnemonic = "blobbasefee",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::REMATERIALIZABLE,
@@ -2296,11 +2447,12 @@ define_mir_ops! {
         category = None
     )]
     #[builder(blobbasefee)]
+    #[operand_types(func => Some(smallvec![]))]
     BlobBaseFee,
     /// Get blob hash: `blobhash(index)`
     #[mir_op(
         mnemonic = "blobhash",
-        result = Bytes32,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
         traits = OpTraits::NONE,
@@ -2308,13 +2460,14 @@ define_mir_ops! {
         category = None
     )]
     #[builder(blobhash)]
+    #[operand_types(func => Some(smallvec![MirType::I256]))]
     BlobHash(index: ValueId),
 
     // Hashing
     /// Keccak256 hash: `keccak256(offset, size)`
     #[mir_op(
         mnemonic = "keccak256",
-        result = Bytes32,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = MemoryRead,
         traits = OpTraits::NONE,
@@ -2322,6 +2475,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(keccak256)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     Keccak256(offset: ValueId, size: ValueId),
     /// Keccak256 hash of a `memorybytes` object's contents:
     /// `keccak256_bytes(object)`.
@@ -2332,7 +2486,7 @@ define_mir_ops! {
     /// and a physical `keccak256`.
     #[mir_op(
         mnemonic = "keccak256_bytes",
-        result = Bytes32,
+        result = I256,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::MEMORY_OBJECT,
@@ -2340,13 +2494,14 @@ define_mir_ops! {
         category = Some("memory-object")
     )]
     #[builder(keccak256_bytes)]
+    #[operand_types(func => Some(smallvec![MirType::MemoryObject(MemoryObjectKind::Bytes)]))]
     Keccak256Bytes(object: ValueId),
     /// Hash a fixed-width mapping key and its parent slot.
     ///
     /// Late lowering writes scratch memory; effect analysis tracks that footprint.
     #[mir_op(
         mnemonic = "mapping_slot",
-        result = Bytes32,
+        result = I256,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::NONE,
@@ -2354,11 +2509,12 @@ define_mir_ops! {
         category = Some("storage slot")
     )]
     #[builder(mapping_slot)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     MappingSlot(key: ValueId, slot: ValueId),
     /// Hash a `[length][data...]` memory value and its parent mapping slot.
     #[mir_op(
         mnemonic = "mapping_slot_memory",
-        result = Bytes32,
+        result = I256,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::NONE,
@@ -2366,13 +2522,14 @@ define_mir_ops! {
         category = Some("storage slot")
     )]
     #[builder(mapping_slot_memory)]
+    #[operand_types(func => Some(smallvec![MirType::MemoryObject(MemoryObjectKind::Bytes), MirType::I256]))]
     MappingSlotMemory(key: ValueId, slot: ValueId),
     /// Hash a dynamically-sized calldata value and its parent mapping slot.
     ///
     /// Late lowering writes scratch memory; effect analysis tracks that footprint.
     #[mir_op(
         mnemonic = "mapping_slot_calldata",
-        result = Bytes32,
+        result = I256,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::NONE,
@@ -2380,13 +2537,14 @@ define_mir_ops! {
         category = Some("storage slot")
     )]
     #[builder(mapping_slot_calldata)]
+    #[operand_types(func => Some(smallvec![MirType::Slice(SliceLocation::Calldata), MirType::I256]))]
     MappingSlotCalldata(key: ValueId, slot: ValueId),
     /// Hash the slot of a dynamically-sized storage array to find its data.
     ///
     /// Late lowering writes scratch memory; effect analysis tracks that footprint.
     #[mir_op(
         mnemonic = "storage_array_data_slot",
-        result = Bytes32,
+        result = I256,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::NONE,
@@ -2394,6 +2552,7 @@ define_mir_ops! {
         category = Some("storage slot")
     )]
     #[builder(storage_array_data_slot)]
+    #[operand_types(func => Some(smallvec![MirType::I256]))]
     StorageArrayDataSlot(slot: ValueId),
     /// Resolve one element slot in a dynamic storage array.
     ///
@@ -2402,13 +2561,14 @@ define_mir_ops! {
     /// offset calculation.
     #[mir_op(
         mnemonic = "storage_array_element_slot",
-        result = Bytes32,
+        result = I256,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite,
         traits = OpTraits::NONE,
         side_effects = false,
         category = Some("storage slot")
     )]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     StorageArrayElementSlot { slot: ValueId, index: ValueId, element_slots: u64 },
 
     // Call operations
@@ -2417,13 +2577,14 @@ define_mir_ops! {
     /// External call: `call(gas, addr, value, argsOffset, argsSize, retOffset, retSize)`
     #[mir_op(
         mnemonic = "call",
-        result = Word,
+        result = I1,
         phases = PhaseSet::ALL,
         effect = ExternalCall,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = true,
         category = None
     )]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     Call {
         gas: ValueId,
         addr: ValueId,
@@ -2436,13 +2597,14 @@ define_mir_ops! {
     /// Call code: `callcode(gas, addr, value, argsOffset, argsSize, retOffset, retSize)`
     #[mir_op(
         mnemonic = "callcode",
-        result = Word,
+        result = I1,
         phases = PhaseSet::ALL,
         effect = ExternalCall,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = true,
         category = None
     )]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     CallCode {
         gas: ValueId,
         addr: ValueId,
@@ -2455,13 +2617,14 @@ define_mir_ops! {
     /// Static call: `staticcall(gas, addr, argsOffset, argsSize, retOffset, retSize)`
     #[mir_op(
         mnemonic = "staticcall",
-        result = Word,
+        result = I1,
         phases = PhaseSet::ALL,
         effect = ExternalCall,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = true,
         category = None
     )]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     StaticCall {
         gas: ValueId,
         addr: ValueId,
@@ -2473,13 +2636,14 @@ define_mir_ops! {
     /// Delegate call: `delegatecall(gas, addr, argsOffset, argsSize, retOffset, retSize)`
     #[mir_op(
         mnemonic = "delegatecall",
-        result = Word,
+        result = I1,
         phases = PhaseSet::ALL,
         effect = ExternalCall,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = true,
         category = None
     )]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     DelegateCall {
         gas: ValueId,
         addr: ValueId,
@@ -2491,35 +2655,38 @@ define_mir_ops! {
     /// EOF external call: `extcall(addr, argsOffset, argsSize, value)`.
     #[mir_op(
         mnemonic = "extcall",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = ExternalCall,
         traits = OpTraits::NONE,
         side_effects = true,
         category = None
     )]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     ExtCall { addr: ValueId, args_offset: ValueId, args_size: ValueId, value: ValueId },
     /// EOF external delegate call: `extdelegatecall(addr, argsOffset, argsSize)`.
     #[mir_op(
         mnemonic = "extdelegatecall",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = ExternalCall,
         traits = OpTraits::NONE,
         side_effects = true,
         category = None
     )]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     ExtDelegateCall { addr: ValueId, args_offset: ValueId, args_size: ValueId },
     /// EOF external static call: `extstaticcall(addr, argsOffset, argsSize)`.
     #[mir_op(
         mnemonic = "extstaticcall",
-        result = Word,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = ExternalCall,
         traits = OpTraits::NONE,
         side_effects = true,
         category = None
     )]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     ExtStaticCall { addr: ValueId, args_offset: ValueId, args_size: ValueId },
     /// Internal function call lowered to a direct jump.
     #[mir_op(
@@ -2531,13 +2698,14 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[operand_types(func => typing::callee_types(func, function, args))]
     ICall { function: Callee, args: Box<[ValueId]> },
 
     // Contract creation
     /// Create contract: `create(value, offset, size)`
     #[mir_op(
         mnemonic = "create",
-        result = Address,
+        result = I160,
         phases = PhaseSet::ALL,
         effect = Create,
         traits = OpTraits::NONE,
@@ -2545,17 +2713,19 @@ define_mir_ops! {
         category = None
     )]
     #[builder(create)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     Create(value: ValueId, offset: ValueId, size: ValueId),
     /// Create2 contract: `create2(value, offset, size, salt)`
     #[mir_op(
         mnemonic = "create2",
-        result = Address,
+        result = I160,
         phases = PhaseSet::ALL,
         effect = Create,
         traits = OpTraits::NONE,
         side_effects = true,
         category = None
     )]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     Create2(value: ValueId, offset: ValueId, size: ValueId, salt: ValueId),
 
     // Log operations
@@ -2570,6 +2740,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     Log0(offset: ValueId, size: ValueId),
     /// Log with 1 topic: `log1(offset, size, topic1)`
     #[mir_op(
@@ -2581,6 +2752,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
     Log1(offset: ValueId, size: ValueId, topic1: ValueId),
     /// Log with 2 topics: `log2(offset, size, topic1, topic2)`
     #[mir_op(
@@ -2592,6 +2764,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     Log2(offset: ValueId, size: ValueId, topic1: ValueId, topic2: ValueId),
     /// Log with 3 topics: `log3(offset, size, topic1, topic2, topic3)`
     #[mir_op(
@@ -2603,6 +2776,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     Log3(offset: ValueId, size: ValueId, topic1: ValueId, topic2: ValueId, topic3: ValueId),
     /// Log with 4 topics: `log4(offset, size, topic1, topic2, topic3, topic4)`
     #[mir_op(
@@ -2614,6 +2788,7 @@ define_mir_ops! {
         side_effects = true,
         category = None
     )]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
     Log4(offset: ValueId, size: ValueId, topic1: ValueId, topic2: ValueId, topic3: ValueId, topic4: ValueId),
 
     // SSA operations
@@ -2627,24 +2802,26 @@ define_mir_ops! {
         side_effects = false,
         category = None
     )]
+    #[operand_types(func => None)]
     Phi(incoming: Vec<(BlockId, ValueId)>),
     /// Select: `select(cond, true_val, false_val)`
     #[mir_op(
         mnemonic = "select",
-        result = Word,
+        result = Custom,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
+    #[operand_types(func => None)]
     Select(cond: ValueId, true_val: ValueId, false_val: ValueId),
 
     // Sign extension
     /// Sign extend: `signextend(b, x)` - extends the sign bit from byte position b
     #[mir_op(
         mnemonic = "signextend",
-        result = SignedWord,
+        result = I256,
         phases = PhaseSet::ALL,
         effect = Pure,
         traits = OpTraits::EGRAPH_REWRITE,
@@ -2652,6 +2829,7 @@ define_mir_ops! {
         category = None
     )]
     #[builder(signextend)]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     SignExtend(byte: ValueId, value: ValueId),
 }
 }
@@ -2659,7 +2837,37 @@ define_mir_ops! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{AllocationKind, AllocationSemantics, ValueId};
+    use crate::mir::{AbiLayout, AllocationKind, AllocationSemantics, Builtin, Value, ValueId};
+    use solar_interface::Ident;
+
+    #[test]
+    fn empty_signatures_reject_extra_operands() {
+        let mut func = Function::new(Ident::DUMMY);
+        let value = func.alloc_value(Value::Undef(MirType::I256));
+        let bytes = MirType::MemoryObject(MemoryObjectKind::Bytes);
+        let extra = [value].into();
+        let calls = [
+            InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), args: extra },
+            InstKind::ICall {
+                function: Callee::Builtin(Builtin::Concat(Vec::new().into())),
+                args: [value].into(),
+            },
+            InstKind::AbiEncode {
+                mode: AbiEncodeMode::Bytes,
+                selector: None,
+                args: [value].into(),
+                layout: AbiLayout::new([]).into(),
+            },
+        ];
+        for kind in calls {
+            assert!(!kind.scalar_types_match(&func, Some(bytes)));
+        }
+        let empty = InstKind::ICall {
+            function: Callee::Builtin(Builtin::ReturndataBytes),
+            args: [].into(),
+        };
+        assert!(empty.scalar_types_match(&func, Some(bytes)));
+    }
 
     #[test]
     fn descriptors_drive_operation_properties() {
@@ -2673,7 +2881,7 @@ mod tests {
         assert!(calldata_size.op_def().traits.contains(OpTraits::REMATERIALIZABLE));
         assert!(calldata_size.op_def().phases.contains(MirPhase::Lowered));
 
-        assert_eq!(add.op_def().result.default_type(), Some(MirType::uint256()));
+        assert_eq!(add.op_def().result.default_type(), Some(MirType::I256));
         assert!(
             !InstKind::MStore(ValueId::new(0), ValueId::new(1)).op_def().result.produces_value()
         );
@@ -2705,18 +2913,25 @@ mod tests {
         assert!(addmod.op_def().traits.contains(OpTraits::COMMUTATIVE));
         assert_eq!(addmod.op().canonicalize_commutative(), Op::AddMod { a: b, b: a, n: a });
 
+        assert_eq!(
+            addmod.op().canonicalize_commutative_by_key(|value| value == a),
+            Op::AddMod { a: b, b: a, n: a }
+        );
+        assert_eq!(addmod.op().canonicalize_commutative_by_key(|_| false), addmod.op());
+
         let gt = InstKind::Gt(a, b);
         assert!(gt.op_def().traits.contains(OpTraits::REORDERABLE));
         assert!(!gt.op_def().traits.contains(OpTraits::COMMUTATIVE));
         assert_eq!(gt.op().canonicalize_commutative(), gt.op());
+        assert_eq!(gt.op().canonicalize_commutative_by_key(|value| value == a), gt.op());
     }
 
     #[test]
     fn isle_prelude_matches_schema() {
-        snapbox::assert_data_eq!(Op::isle_prelude(), snapbox::file!["../../isle/prelude.isle"]);
+        snapbox::assert_data_eq!(Op::isle_prelude(), snapbox::file!["../../isle/mir/prelude.isle"]);
         snapbox::assert_data_eq!(
             Op::isle_extractors(),
-            snapbox::file!["../../isle/extractors.isle"]
+            snapbox::file!["../../isle/mir/extractors.isle"]
         );
     }
 

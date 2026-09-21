@@ -15,7 +15,16 @@
 //@ run-call: offsets 0 => 40
 //@ run-call: offsets 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 40
 //@ run-call: addressRoundtrip => true
+//@ run-call: comparisons 0 => false, true, false, true
+//@ run-call: comparisons 13 => false, false, false, false
+//@ run-call: comparisons 14 => true, false, true, false
+//@ run-call: comparisons 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => true, false, false, true
+//@ run-call: comparisons 0x8000000000000000000000000000000000000000000000000000000000000000 => true, false, false, true
 contract BitSlices {
+    function comparisons(uint256 x) external pure returns (bool, bool, bool, bool) {
+        return (13 < x, 13 > x, int256(13) < int256(x), int256(13) > int256(x));
+    }
+
     function masked(uint256 x) external pure returns (uint256 low, uint256 high) {
         assembly {
             low := and(or(shl(32, x), 0x12345678), 0xffffffff)

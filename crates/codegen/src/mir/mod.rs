@@ -13,9 +13,10 @@ pub(crate) mod pass_manager;
 mod transform;
 
 mod types;
+mod typing;
 pub(crate) use types::{
     FrameMode, FrameSlotKind, ImmutableEncoding, MemoryObjectKind, MemoryObjectLayout, MirType,
-    SliceLocation, StructType, TypeSize,
+    SliceLocation, StructType, TypeSize, ValueLayout,
 };
 
 mod abi;
@@ -61,7 +62,7 @@ mod function;
 pub(crate) use function::{Function, FunctionAttributes};
 
 mod module;
-pub(crate) use module::{LibraryLink, LoweredModule};
+pub(crate) use module::LoweredModule;
 pub use module::{MirPhase, Module};
 
 mod builtin;
@@ -153,6 +154,90 @@ mod round_trip {
 
     fn parse_module(sess: &Session, input: &str) -> solar_interface::Result<Module> {
         super::parser::parse_module(sess, input)
+    }
+
+    #[test]
+    fn i1_literals_are_canonical() {
+        for (literal, valid) in [("0", true), ("1", true), ("2", false), ("0xff", false)] {
+            let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+            sess.enter(|| {
+                let input = format!(
+                    "@module BoolLiterals\nfn @f() -> i1 {{\n  bb0:\n    ret i1 {literal}\n}}\n"
+                );
+                assert_eq!(parse_module(&sess, &input).is_ok(), valid, "{literal}");
+            });
+        }
+    }
+
+    #[test]
+    fn cast_source_types() {
+        for (cast, valid) in [
+            ("zext i1 0 to i256", true),
+            ("zext i1 1 to i256", true),
+            ("zext i1 2 to i256", false),
+            ("zext i1 arg0 to i256", true),
+            ("zext i160 arg0 to i256", false),
+            ("zext i1 undef to i256", true),
+            ("ptrtoint memptr arg0 to i256", false),
+        ] {
+            let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+            sess.enter(|| {
+                let input = format!(
+                    "@module Casts\nfn @f(arg0: i1) -> i256 {{\n  bb0:\n    v0 = {cast}\n    ret v0\n}}\n"
+                );
+                assert_eq!(parse_module(&sess, &input).is_ok(), valid, "{cast}");
+            });
+        }
+    }
+
+    #[test]
+    fn scalar_integer_types() {
+        for (ty, valid) in [
+            ("i1", true),
+            ("i256", true),
+            ("i8", true),
+            ("i128", true),
+            ("i160", true),
+            ("i7", true),
+            ("i512", true),
+            ("i4294967295", true),
+            ("i0", false),
+            ("i4294967296", false),
+            ("i", false),
+            ("iabc", false),
+            ("bool", false),
+            ("word", false),
+            ("u256", false),
+        ] {
+            let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+            sess.enter(|| {
+                let input = format!(
+                    "@module IntegerTypes\nfn @f(arg0: {ty}) -> {ty} {{\n  bb0:\n    ret arg0\n}}\n"
+                );
+                assert_eq!(parse_module(&sess, &input).is_ok(), valid, "{ty}");
+            });
+        }
+    }
+
+    #[test]
+    fn integer_literals_fit_their_width() {
+        for (ty, literal, valid) in [
+            ("i7", "127", true),
+            ("i7", "128", false),
+            ("i8", "255", true),
+            ("i8", "256", false),
+            ("i160", "0xffffffffffffffffffffffffffffffffffffffff", true),
+            ("i160", "0x10000000000000000000000000000000000000000", false),
+            ("i512", "42", true),
+        ] {
+            let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+            sess.enter(|| {
+                let input = format!(
+                    "@module IntegerLiterals\nfn @f() -> {ty} {{\n  bb0:\n    ret {ty} {literal}\n}}\n"
+                );
+                assert_eq!(parse_module(&sess, &input).is_ok(), valid, "{ty} {literal}");
+            });
+        }
     }
 
     /// Path to `tests/ui/codegen/` (the workspace's UI test directory).

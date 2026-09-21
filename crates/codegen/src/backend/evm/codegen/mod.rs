@@ -20,7 +20,7 @@ use self::{
         layout::{
             GlobalStackPlan, StackPhiBranch, StackPhiEdge, StackPhiPlan, planned_entry_carries,
         },
-        rematerializable_nullary_opcode, rematerializable_nullary_value,
+        rematerializable_nullary_value,
     },
     switch::MAX_GAS_CODE_GROWTH,
 };
@@ -33,6 +33,7 @@ use crate::{
     backend::assembler::{
         ArtifactKind, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
     },
+    link::LibraryRelocation,
     mir::{
         ArgIdx, BlockId, EffectKind, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
         InstKind, MemoryRegion, MirPhase, MirType, Module, Terminator, Value, ValueId,
@@ -83,6 +84,7 @@ const GLOBAL_STACK_LAYOUT_LIMIT: usize = 8;
 #[derive(Default)]
 struct GeneratedCode {
     bytecode: Vec<u8>,
+    library_relocations: Vec<LibraryRelocation>,
     evm_ir: Option<ir::Module>,
     debug_info: Option<Vec<DebugInstruction>>,
 }
@@ -610,10 +612,16 @@ impl<'gcx> EvmCodegen<'gcx> {
 /// The artifact produced by the EVM backend.
 #[derive(Clone, Debug, Default)]
 pub struct EvmArtifact {
+    /// Library identities referenced by this artifact.
+    pub libraries: crate::link::LibraryTable,
     /// Deployment (init) bytecode that, when run, returns the runtime code.
     pub deployment: Vec<u8>,
     /// Runtime bytecode, i.e. the code stored on-chain.
     pub runtime: Vec<u8>,
+    /// Library address offsets in the deployment bytecode.
+    pub deployment_library_relocations: Vec<LibraryRelocation>,
+    /// Library address offsets in the runtime bytecode.
+    pub runtime_library_relocations: Vec<LibraryRelocation>,
     /// Immutable placeholders in the runtime bytecode.
     pub(crate) immutable_references: Vec<ImmutableRef>,
     /// Final deployment-prefix EVM IR immediately before byte emission.
@@ -640,9 +648,12 @@ mod tests {
         stack::spills::{SpillColor, SpillLiveRange},
         *,
     };
-    use crate::mir::{
-        Callee, DataRef, FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value,
-        utils as mir_utils,
+    use crate::{
+        backend::{Backend, evm::disasm::disassemble},
+        mir::{
+            Callee, DataRef, FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value,
+            utils as mir_utils,
+        },
     };
     use solar_config::{CompileOpts, EvmVersion};
     use solar_interface::{Ident, Session, sym};
@@ -657,7 +668,7 @@ mod tests {
         module.add_function(constructor);
         let id = module.add_immutable(
             Ident::with_dummy_span(sym::x),
-            MirType::UInt(TypeSize::new_int_bits(8)),
+            crate::mir::ValueLayout::UInt(TypeSize::new_int_bits(8)),
             None,
         );
         let staging_base = immutable_staging_base(&module);
@@ -706,6 +717,319 @@ mod tests {
     }
 
     #[test]
+    fn llvm_cast_opcodes() {
+        let mut output = String::new();
+        for evm_version in [EvmVersion::Byzantium, EvmVersion::Osaka] {
+            output.push_str(&format!("{evm_version:?}\n"));
+            for (name, source, destination, cast) in [
+                (
+                    "sext_i1_i256",
+                    MirType::I1,
+                    MirType::I256,
+                    InstKind::Sext(ValueId::from_usize(0), 1, 256),
+                ),
+                (
+                    "sext_i1_i160",
+                    MirType::I1,
+                    MirType::I160,
+                    InstKind::Sext(ValueId::from_usize(0), 1, 160),
+                ),
+                (
+                    "sext_i160_i256",
+                    MirType::I160,
+                    MirType::I256,
+                    InstKind::Sext(ValueId::from_usize(0), 160, 256),
+                ),
+                (
+                    "trunc_i256_i1",
+                    MirType::I256,
+                    MirType::I1,
+                    InstKind::Trunc(ValueId::from_usize(0), 1),
+                ),
+                (
+                    "trunc_i256_i160",
+                    MirType::I256,
+                    MirType::I160,
+                    InstKind::Trunc(ValueId::from_usize(0), 160),
+                ),
+                (
+                    "zext_i160_i256",
+                    MirType::I160,
+                    MirType::I256,
+                    InstKind::Zext(ValueId::from_usize(0)),
+                ),
+                (
+                    "ptrtoint_i1",
+                    MirType::MemPtr,
+                    MirType::I1,
+                    InstKind::PtrToInt(ValueId::from_usize(0), 1),
+                ),
+                (
+                    "ptrtoint_i160",
+                    MirType::MemPtr,
+                    MirType::I160,
+                    InstKind::PtrToInt(ValueId::from_usize(0), 160),
+                ),
+                (
+                    "ptrtoint_i256",
+                    MirType::MemPtr,
+                    MirType::I256,
+                    InstKind::PtrToInt(ValueId::from_usize(0), 256),
+                ),
+                (
+                    "inttoptr",
+                    MirType::I256,
+                    MirType::MemPtr,
+                    InstKind::IntToPtr(ValueId::from_usize(0)),
+                ),
+                (
+                    "bitcast",
+                    MirType::MemPtr,
+                    MirType::MemPtr,
+                    InstKind::Bitcast(ValueId::from_usize(0)),
+                ),
+            ] {
+                output.push_str(name);
+                output.push('\n');
+                output.push_str(&with_codegen(
+                    CompileOpts { evm_version, ..Default::default() },
+                    |mut codegen| {
+                        let mut function = Function::new(Ident::DUMMY);
+                        let mut builder = FunctionBuilder::new(&mut function);
+                        let argument = builder.add_param(source);
+                        let result = builder.emit_inst(cast.clone(), Some(destination));
+                        builder.set_return_type(destination);
+                        builder.ret([result]);
+                        let index = function.blocks[BlockId::ENTRY].instructions.len() - 1;
+                        let instruction = function.blocks[BlockId::ENTRY].instructions[index];
+                        let liveness = Liveness::compute(&function);
+                        // CALLVALUE; cast argument
+                        codegen.asm.emit_op(op::CALLVALUE);
+                        codegen.scheduler.stack.push(argument);
+                        codegen.generate_inst(
+                            FunctionId::from_usize(0),
+                            instruction,
+                            &function,
+                            &cast,
+                            &liveness,
+                            BlockId::ENTRY,
+                            index,
+                            Some(result),
+                        );
+                        // MSTORE 0, result; RETURN 0, 32
+                        codegen.asm.emit_push(U256::ZERO);
+                        codegen.asm.emit_op(op::MSTORE);
+                        codegen.asm.emit_push(U256::from(32));
+                        codegen.asm.emit_push(U256::ZERO);
+                        codegen.asm.emit_op(op::RETURN);
+                        let bytecode = codegen.asm.assemble().bytecode;
+                        assert_eq!(codegen.gcx.dcx().err_count(), 0);
+                        disassemble(&bytecode, evm_version)
+                    },
+                ));
+            }
+        }
+        snapbox::assert_data_eq!(
+            output,
+            snapbox::str![[r#"
+Byzantium
+sext_i1_i256
+CALLVALUE
+PUSH1 0x00
+SUB
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+sext_i1_i160
+CALLVALUE
+PUSH20 0xffffffffffffffffffffffffffffffffffffffff
+MUL
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+sext_i160_i256
+CALLVALUE
+PUSH1 0x13
+SIGNEXTEND
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+trunc_i256_i1
+CALLVALUE
+PUSH1 0x01
+AND
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+trunc_i256_i160
+CALLVALUE
+PUSH20 0xffffffffffffffffffffffffffffffffffffffff
+AND
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+zext_i160_i256
+CALLVALUE
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+ptrtoint_i1
+CALLVALUE
+PUSH1 0x01
+AND
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+ptrtoint_i160
+CALLVALUE
+PUSH20 0xffffffffffffffffffffffffffffffffffffffff
+AND
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+ptrtoint_i256
+CALLVALUE
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+inttoptr
+CALLVALUE
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+bitcast
+CALLVALUE
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+Osaka
+sext_i1_i256
+CALLVALUE
+PUSH0
+SUB
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+sext_i1_i160
+CALLVALUE
+PUSH0
+SUB
+PUSH1 0x60
+SHR
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+sext_i160_i256
+CALLVALUE
+PUSH1 0x13
+SIGNEXTEND
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+trunc_i256_i1
+CALLVALUE
+PUSH1 0x01
+AND
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+trunc_i256_i160
+CALLVALUE
+PUSH0
+NOT
+PUSH1 0x60
+SHR
+AND
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+zext_i160_i256
+CALLVALUE
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+ptrtoint_i1
+CALLVALUE
+PUSH1 0x01
+AND
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+ptrtoint_i160
+CALLVALUE
+PUSH0
+NOT
+PUSH1 0x60
+SHR
+AND
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+ptrtoint_i256
+CALLVALUE
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+inttoptr
+CALLVALUE
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+bitcast
+CALLVALUE
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+
+"#]]
+        );
+    }
+
+    #[test]
     fn codegen_reuses_module_state() {
         with_codegen(CompileOpts::default(), |mut codegen| {
             let mut module = Module::new(Ident::DUMMY);
@@ -716,11 +1040,15 @@ mod tests {
             module.advance_phase(codegen.gcx.dcx(), MirPhase::Lowered).unwrap();
 
             let mut first_module = module.clone();
-            let first = codegen.generate_deployment_bytecode(&mut first_module);
+            let first = codegen.lower_module(&mut first_module);
             let mut second_module = module.clone();
-            let second = codegen.generate_deployment_bytecode(&mut second_module);
+            let second = codegen.lower_module(&mut second_module);
 
-            assert_eq!(second, first);
+            assert_eq!(second.deployment, first.deployment);
+            assert_eq!(second.runtime, first.runtime);
+            assert_eq!(second.libraries, first.libraries);
+            assert_eq!(second.deployment_library_relocations, first.deployment_library_relocations);
+            assert_eq!(second.runtime_library_relocations, first.runtime_library_relocations);
         });
     }
 
@@ -728,11 +1056,11 @@ mod tests {
     fn static_frames_reject_explicit_signature_addresses() {
         let make_function = |offset| {
             let mut function = Function::new(Ident::DUMMY);
-            function.alloc_param(MirType::uint256());
+            function.alloc_param(MirType::I256);
             function.internal_frame_size = EvmMemoryLayout::WORD_SIZE;
             let (inst, _) = function.alloc_value_inst(Instruction::new(
                 InstKind::InternalFrameAddr(offset),
-                Some(MirType::MemPtr),
+                Some(MirType::I256),
             ));
             function.blocks[BlockId::ENTRY].instructions.push(inst);
             function
@@ -792,8 +1120,8 @@ mod tests {
         let data = DataRef::new(crate::mir::DataId::from_usize(0), 0);
 
         let mut constant = Function::new(Ident::DUMMY);
-        let dest = constant.alloc_value(Value::Immediate(Immediate::uint256(U256::from(0x40))));
-        let size = constant.alloc_value(Value::Immediate(Immediate::uint256(U256::from(0x20))));
+        let dest = constant.alloc_value(Value::Immediate(Immediate::I256(U256::from(0x40))));
+        let size = constant.alloc_value(Value::Immediate(Immediate::I256(U256::from(0x20))));
         let inst =
             constant.alloc_inst(Instruction::new(InstKind::DataCopy(data, dest, size), None));
         constant.blocks[BlockId::ENTRY].instructions.push(inst);
@@ -802,8 +1130,8 @@ mod tests {
         assert!(mir_utils::is_memory_inst(&constant.inst(inst).kind));
 
         let mut dynamic = Function::new(Ident::DUMMY);
-        let dest = dynamic.alloc_param(MirType::MemPtr);
-        let size = dynamic.alloc_param(MirType::uint256());
+        let dest = dynamic.alloc_param(MirType::I256);
+        let size = dynamic.alloc_param(MirType::I256);
         let inst = dynamic.alloc_inst(Instruction::new(InstKind::DataCopy(data, dest, size), None));
         dynamic.blocks[BlockId::ENTRY].instructions.push(inst);
         assert_eq!(EvmCodegen::dynamic_spill_write_dest(&dynamic, inst), Some(dest));
@@ -859,16 +1187,26 @@ mod tests {
 
     #[test]
     fn label_push_extends_the_scheduler_peak() {
-        with_codegen(CompileOpts::default(), |mut codegen| {
-            for _ in 0..MAX_STACK_DEPTH {
-                codegen.scheduler.stack.push_unknown();
-            }
+        for conditional in [None, Some(false), Some(true)] {
+            with_codegen(CompileOpts::default(), |mut codegen| {
+                for _ in 0..MAX_STACK_DEPTH {
+                    codegen.scheduler.stack.push_unknown();
+                }
 
-            let label = codegen.asm.new_label();
-            codegen.emit_push_label(label);
+                let label = codegen.asm.new_label();
+                if let Some(invert) = conditional {
+                    codegen.emit_conditional_jump(label, invert);
+                } else {
+                    codegen.emit_push_label(label);
+                }
 
-            assert_eq!(codegen.scheduler.stack.max_depth(), MAX_STACK_DEPTH + 1);
-        });
+                assert_eq!(codegen.scheduler.stack.max_depth(), MAX_STACK_DEPTH + 1);
+                assert_eq!(
+                    codegen.scheduler.stack.depth(),
+                    MAX_STACK_DEPTH - usize::from(conditional.is_some())
+                );
+            });
+        }
     }
 
     #[test]
@@ -920,14 +1258,14 @@ mod tests {
     #[test]
     fn dynamic_frame_stack_args_allow_raw_values() {
         let mut function = Function::new(Ident::DUMMY);
-        let argument = function.alloc_param(MirType::uint256());
-        let immediate = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
+        let argument = function.alloc_param(MirType::I256);
+        let immediate = function.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
         let (_, computed) = function.alloc_value_inst(Instruction::new(
             InstKind::Add(argument, immediate),
-            Some(MirType::uint256()),
+            Some(MirType::I256),
         ));
         let (_, calldata_size) = function
-            .alloc_value_inst(Instruction::new(InstKind::CalldataSize, Some(MirType::uint256())));
+            .alloc_value_inst(Instruction::new(InstKind::CalldataSize, Some(MirType::I256)));
 
         assert!(EvmCodegen::stack_arg_site_eligible(&function, false, immediate));
         assert!(!EvmCodegen::stack_arg_site_eligible(&function, false, argument));
@@ -945,9 +1283,9 @@ mod tests {
     #[test]
     fn spill_elision_requires_uniform_successor_residency() {
         let mut function = Function::new(Ident::DUMMY);
-        let condition = function.alloc_value(Value::Immediate(Immediate::bool(true)));
-        let first = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
-        let second = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(2))));
+        let condition = function.alloc_value(Value::Immediate(Immediate::I1(true)));
+        let first = function.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
+        let second = function.alloc_value(Value::Immediate(Immediate::I256(U256::from(2))));
         let then_block = function.alloc_block();
         let else_block = function.alloc_block();
         let term = Terminator::Branch { condition, then_block, else_block };
@@ -1030,7 +1368,7 @@ mod tests {
         with_codegen(opts, |mut codegen| {
             let mut module = Module::new(Ident::DUMMY);
             let mut function = Function::new(Ident::DUMMY);
-            let argument = function.alloc_param(MirType::uint256());
+            let argument = function.alloc_param(MirType::I256);
             let function = module.add_function(function);
 
             codegen.static_call_abi_mut(function, 1).stack_args.insert(0);
@@ -1069,8 +1407,8 @@ mod tests {
             let mut function = Function::new(Ident::with_dummy_span(sym::Test));
             function.internal_frame_size = EvmMemoryLayout::WORD_SIZE;
             let mut builder = FunctionBuilder::new(&mut function);
-            let argument = builder.add_param(MirType::uint256());
-            builder.set_return_type(MirType::uint256());
+            let argument = builder.add_param(MirType::I256);
+            builder.set_return_type(MirType::I256);
             builder.ret([argument]);
             let function = module.add_function(function);
 
@@ -1100,7 +1438,7 @@ mod tests {
             let mut module = Module::new(Ident::DUMMY);
             let mut function = Function::new(Ident::with_dummy_span(sym::Test));
             let mut builder = FunctionBuilder::new(&mut function);
-            let argument = builder.add_param(MirType::uint256());
+            let argument = builder.add_param(MirType::I256);
             let one = builder.imm(1);
             let _unrelated = builder.add(one, one);
             let _use = builder.add(argument, one);
@@ -1139,7 +1477,7 @@ mod tests {
             };
             with_codegen(opts, |codegen| {
                 let mut function = Function::new(Ident::DUMMY);
-                let argument = function.alloc_param(MirType::uint256());
+                let argument = function.alloc_param(MirType::I256);
                 let mut builder = FunctionBuilder::new(&mut function);
                 let one = builder.imm(1);
                 let blocks: Vec<_> = (0..5).map(|_| builder.create_block()).collect();
@@ -1216,8 +1554,7 @@ mod tests {
             (InstKind::BaseFee, op::BASEFEE),
             (InstKind::BlobBaseFee, op::BLOBBASEFEE),
         ] {
-            let (_, value) =
-                function.alloc_value_inst(Instruction::new(kind, Some(MirType::uint256())));
+            let (_, value) = function.alloc_value_inst(Instruction::new(kind, Some(MirType::I256)));
             assert_eq!(EvmCodegen::always_rematerializable_op(&function, value), Some(expected_op));
             assert!(!EvmCodegen::can_own_spill_slot(&function, value));
         }
@@ -1225,8 +1562,7 @@ mod tests {
         for kind in
             [InstKind::MSize, InstKind::ReturnDataSize, InstKind::SelfBalance, InstKind::Gas]
         {
-            let (_, value) =
-                function.alloc_value_inst(Instruction::new(kind, Some(MirType::uint256())));
+            let (_, value) = function.alloc_value_inst(Instruction::new(kind, Some(MirType::I256)));
             assert_eq!(EvmCodegen::always_rematerializable_op(&function, value), None);
             assert!(EvmCodegen::can_own_spill_slot(&function, value));
         }
@@ -1238,17 +1574,17 @@ mod tests {
             let opts = CompileOpts { evm_version, ..Default::default() };
             with_codegen(opts, |mut codegen| {
                 let mut function = Function::new(Ident::with_dummy_span(sym::Test));
-                let lhs = function.alloc_value(Value::Immediate(Immediate::uint256(U256::ZERO)));
-                let rhs = function.alloc_value(Value::Immediate(Immediate::uint256(U256::ONE)));
+                let lhs = function.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
+                let rhs = function.alloc_value(Value::Immediate(Immediate::I256(U256::ONE)));
                 let (_, target) = function.alloc_value_inst(Instruction::new(
                     InstKind::Add(lhs, rhs),
-                    Some(MirType::uint256()),
+                    Some(MirType::I256),
                 ));
                 codegen.scheduler.stack.push(target);
                 for _ in 0..evm_version.reachable_stack_depth() {
                     let (_, filler) = function.alloc_value_inst(Instruction::new(
                         InstKind::Add(lhs, rhs),
-                        Some(MirType::uint256()),
+                        Some(MirType::I256),
                     ));
                     codegen.scheduler.stack.push(filler);
                 }
@@ -1292,28 +1628,28 @@ mod tests {
     #[test]
     fn cross_block_reload_excludes_phi_edge_uses() {
         let mut function = Function::new(Ident::DUMMY);
-        let immediate = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
+        let immediate = function.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
         let (edge_inst, edge_value) = function.alloc_value_inst(Instruction::new(
             InstKind::Add(immediate, immediate),
-            Some(MirType::uint256()),
+            Some(MirType::I256),
         ));
         let (direct_inst, direct_value) = function.alloc_value_inst(Instruction::new(
             InstKind::Mul(immediate, immediate),
-            Some(MirType::uint256()),
+            Some(MirType::I256),
         ));
         function.blocks[BlockId::ENTRY].instructions.extend([edge_inst, direct_inst]);
 
         let phi_block = function.alloc_block();
         let (phi_inst, _) = function.alloc_value_inst(Instruction::new(
             InstKind::Phi(vec![(BlockId::ENTRY, edge_value)]),
-            Some(MirType::uint256()),
+            Some(MirType::I256),
         ));
         function.blocks[phi_block].instructions.push(phi_inst);
 
         let direct_block = function.alloc_block();
         let (use_inst, _) = function.alloc_value_inst(Instruction::new(
             InstKind::Add(direct_value, immediate),
-            Some(MirType::uint256()),
+            Some(MirType::I256),
         ));
         function.blocks[direct_block].instructions.push(use_inst);
 
@@ -1364,12 +1700,12 @@ mod tests {
                 ParallelCopy {
                     src: CopySource::Value(source0),
                     dst: CopyDest::Value(destination0),
-                    ty: MirType::uint256(),
+                    ty: MirType::I256,
                 },
                 ParallelCopy {
                     src: CopySource::Value(source1),
                     dst: CopyDest::Value(destination1),
-                    ty: MirType::uint256(),
+                    ty: MirType::I256,
                 },
             ],
         )]);

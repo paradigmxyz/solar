@@ -2,7 +2,7 @@
 @module RelationScopes
 
 // Facts learned in one arm must not leak into its sibling or the join.
-fn @siblings(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+fn @siblings(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb4
   bb1:
@@ -30,7 +30,7 @@ fn @siblings(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> u256 {
 }
 
 // Equality edges work both ways, but a non-strict path cannot imply strictness.
-fn @mixed_edges(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @mixed_edges(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = eq arg1, arg0
     jumpi v0, bb1, bb5
@@ -50,7 +50,7 @@ fn @mixed_edges(arg0: u256, arg1: u256, arg2: u256) -> u256 {
 }
 
 // Disequality supplies no transitive path: a != b and b != c allow a == c.
-fn @disequality(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @disequality(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v0 = eq arg0, arg1
     jumpi v0, bb4, bb1
@@ -67,35 +67,39 @@ fn @disequality(arg0: u256, arg1: u256, arg2: u256) -> u256 {
 }
 
 // A strict lower-bound proof must be forgotten at sibling and merged scopes.
-fn @lower_bound_scopes(arg0: bool, arg1: u256, arg2: u256) -> u256 {
+fn @lower_bound_scopes(arg0: i1, arg1: i256, arg2: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb4
   bb1:
     v0 = lt arg1, arg2
     jumpi v0, bb2, bb5
   bb2:
-    jumpi arg2, bb3, bb5
+    v1 = ne arg2, 0
+    jumpi v1, bb3, bb5
   bb3:
     jump bb6
   bb4:
-    jumpi arg2, bb6, bb8
+    v2 = ne arg2, 0
+    jumpi v2, bb6, bb8
   bb8:
     jump bb6
   bb5:
     ret 0
   bb6:
-    jumpi arg2, bb7, bb5
+    v3 = ne arg2, 0
+    jumpi v3, bb7, bb5
   bb7:
     ret 1
 }
 
 // A failed lower-bound query must be reconsidered after learning a strict edge.
-fn @lower_bound_added(arg0: u256, arg1: u256) -> u256 {
+fn @lower_bound_added(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = lt arg0, arg1
     jumpi v0, bb1, bb3
   bb1:
-    jumpi arg1, bb2, bb3
+    v1 = ne arg1, 0
+    jumpi v1, bb2, bb3
   bb2:
     ret 1
   bb3:

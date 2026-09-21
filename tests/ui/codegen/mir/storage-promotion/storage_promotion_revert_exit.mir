@@ -7,7 +7,7 @@
 // CHECK: + [[FLUSH:v[0-9]+]] = mload 128
 // CHECK: + sstore 0, [[FLUSH]]
 // CHECK: + {{v[0-9]+}} = mload 128
-fn @promote_checked_sum_loop(arg0: u256) [selector=0x01020304] {
+fn @promote_checked_sum_loop(arg0: i256) [selector=0x01020304] {
   bb0:
     jump bb1
   bb1:
@@ -37,7 +37,7 @@ fn @promote_checked_sum_loop(arg0: u256) [selector=0x01020304] {
 // CHECK: + sstore 0, [[FLUSH]]
 // CHECK: + {{v[0-9]+}} = mload 128
 // CHECK: + {{v[0-9]+}} = mload 128
-fn @promote_revert_exit_reads_slot(arg0: u256) [selector=0x01020304] {
+fn @promote_revert_exit_reads_slot(arg0: i256) [selector=0x01020304] {
   bb0:
     sstore 0, 1
     jump bb1
@@ -63,7 +63,7 @@ fn @promote_revert_exit_reads_slot(arg0: u256) [selector=0x01020304] {
 // CHECK: + sstore 0, 1
 // CHECK: + {{v[0-9]+}} = sload 0
 // CHECK: {{^[ +].*[ =]call[[:space:]]}}
-fn @reject_revert_exit_with_call(arg0: u256) [selector=0x01020304] {
+fn @reject_revert_exit_with_call(arg0: i256) [selector=0x01020304] {
   bb0:
     sstore 0, 1
     jump bb1
@@ -87,9 +87,9 @@ fn @reject_revert_exit_with_call(arg0: u256) [selector=0x01020304] {
 // CHECK-LABEL: {{^[ +].*}}fn @reject_revert_exit_with_payable{{[( ]}}
 // CHECK: + sstore 0, 1
 // CHECK: + {{v[0-9]+}} = sload 0
-// CHECK: {{^[ +].*}}icall send<>, arg0, 0
-// CHECK: {{^[ +].*}}icall transfer<>, arg0, 0
-fn @reject_revert_exit_with_payable(arg0: u256) [selector=0x01020304] {
+// CHECK: {{^[ +].*}}icall send<>, {{v[0-9]+}}, 0
+// CHECK: {{^[ +].*}}icall transfer<>, {{v[0-9]+}}, 0
+fn @reject_revert_exit_with_payable(arg0: i256) [selector=0x01020304] {
   bb0:
     sstore 0, 1
     jump bb1
@@ -102,8 +102,9 @@ fn @reject_revert_exit_with_payable(arg0: u256) [selector=0x01020304] {
     v3 = lt v2, arg0
     jumpi v3, bb3, bb4
   bb4:
-    v4 = icall send<>, arg0, 0
-    icall transfer<>, arg0, 0
+    v5 = trunc i256 arg0 to i160
+    v4 = icall send<>, v5, 0
+    icall transfer<>, v5, 0
     revert_returndata
   bb3:
     jump bb1
@@ -117,7 +118,7 @@ fn @reject_revert_exit_with_payable(arg0: u256) [selector=0x01020304] {
 // CHECK: {{^[ +].*}}sload 0
 // CHECK: {{^[ +].*}}sstore 0,
 // CHECK: {{^[ +].*}}load_storage_bytes 0
-fn @reject_revert_exit_with_storage_bytes(arg0: u256) [selector=0x01020305] {
+fn @reject_revert_exit_with_storage_bytes(arg0: i256) [selector=0x01020305] {
   bb0:
     sstore 0, 2
     jump bb1
@@ -131,7 +132,8 @@ fn @reject_revert_exit_with_storage_bytes(arg0: u256) [selector=0x01020305] {
     jumpi v3, bb3, bb4
   bb4:
     v4 = load_storage_bytes 0
-    v5 = memory_object_data memorybytes, v4
+    v7 = memory_object_data memorybytes, v4
+    v5 = ptrtoint memptr v7 to i256
     v6 = memory_object_len memorybytes, v4
     revert v5, v6
   bb3:

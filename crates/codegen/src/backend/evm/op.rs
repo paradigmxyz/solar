@@ -183,13 +183,24 @@ macro_rules! opcode_gas {
     };
 }
 
+macro_rules! opcode_result_bits {
+    () => {
+        256
+    };
+    ($bits:literal) => {
+        $bits
+    };
+}
+
 macro_rules! opcodes {
     ($(
         $opcode:literal => $constant:ident => $mnemonic:ident
             => stack_io($inputs:tt, $outputs:tt)
             => traits($($trait:ident)|*)
             => gas($gas:tt)
-            => available($($availability:tt)+);
+            => available($($availability:tt)+)
+            $(=> result_bits($result_bits:literal))?
+            $(=> input_bits($($input_bits:literal),*))?;
     )*) => {
         $(
             #[doc = concat!("Opcode byte for `", stringify!($constant), "`.")]
@@ -208,6 +219,10 @@ macro_rules! opcodes {
             pub(crate) stack_io: Option<(u8, u8)>,
             /// Declarative operation properties.
             pub(crate) traits: OpcodeTraits,
+            /// Maximum significant result bits; unknown results use the full word.
+            pub(crate) result_bits: u16,
+            /// Observed low bits per operand, in pop order; omitted operands use the full word.
+            pub(crate) input_bits: &'static [u16],
             /// Gas class in the fork schedule.
             pub(crate) gas: GasTier,
             /// Legacy-bytecode availability.
@@ -227,6 +242,8 @@ macro_rules! opcodes {
                     mnemonic: opcode_mnemonic!($mnemonic),
                     stack_io: opcode_stack_io!($inputs, $outputs),
                     traits: opcode_traits!($($trait)|*),
+                    result_bits: opcode_result_bits!($($result_bits)?),
+                    input_bits: &[$($($input_bits),*)?],
                     gas: opcode_gas!($gas),
                     availability: opcode_availability!($($availability)+),
                 });
@@ -310,26 +327,26 @@ opcodes! {
     0x09 => MULMOD => mulmod => stack_io(3, 1) => traits(PURE) => gas(mid) => available(legacy);
     0x0a => EXP => exp => stack_io(2, 1) => traits(PURE) => gas(exp) => available(legacy);
     0x0b => SIGNEXTEND => signextend => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
-    0x10 => LT => lt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy);
-    0x11 => GT => gt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy);
-    0x12 => SLT => slt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy);
-    0x13 => SGT => sgt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy);
-    0x14 => EQ => eq => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy);
-    0x15 => ISZERO => iszero => stack_io(1, 1) => traits(PURE) => gas(verylow) => available(legacy);
+    0x10 => LT => lt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1);
+    0x11 => GT => gt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1);
+    0x12 => SLT => slt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1);
+    0x13 => SGT => sgt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1);
+    0x14 => EQ => eq => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy) => result_bits(1);
+    0x15 => ISZERO => iszero => stack_io(1, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1);
     0x16 => AND => and => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy);
     0x17 => OR => or => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy);
     0x18 => XOR => xor => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy);
     0x19 => NOT => not => stack_io(1, 1) => traits(PURE) => gas(verylow) => available(legacy);
-    0x1a => BYTE => byte => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy);
+    0x1a => BYTE => byte => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(8);
     0x1b => SHL => shl => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(since Constantinople);
     0x1c => SHR => shr => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(since Constantinople);
     0x1d => SAR => sar => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(since Constantinople);
-    0x1e => CLZ => clz => stack_io(1, 1) => traits(PURE) => gas(low) => available(since Osaka);
+    0x1e => CLZ => clz => stack_io(1, 1) => traits(PURE) => gas(low) => available(since Osaka) => result_bits(9);
     0x20 => KECCAK256 => keccak256 => stack_io(2, 1) => traits() => gas(keccak) => available(legacy);
-    0x30 => ADDRESS => address => stack_io(0, 1) => traits() => gas(base) => available(legacy);
-    0x31 => BALANCE => balance => stack_io(1, 1) => traits() => gas(balance) => available(legacy);
-    0x32 => ORIGIN => origin => stack_io(0, 1) => traits() => gas(base) => available(legacy);
-    0x33 => CALLER => caller => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x30 => ADDRESS => address => stack_io(0, 1) => traits() => gas(base) => available(legacy) => result_bits(160);
+    0x31 => BALANCE => balance => stack_io(1, 1) => traits() => gas(balance) => available(legacy) => input_bits(160);
+    0x32 => ORIGIN => origin => stack_io(0, 1) => traits() => gas(base) => available(legacy) => result_bits(160);
+    0x33 => CALLER => caller => stack_io(0, 1) => traits() => gas(base) => available(legacy) => result_bits(160);
     0x34 => CALLVALUE => callvalue => stack_io(0, 1) => traits() => gas(base) => available(legacy);
     0x35 => CALLDATALOAD => calldataload => stack_io(1, 1) => traits() => gas(verylow) => available(legacy);
     0x36 => CALLDATASIZE => calldatasize => stack_io(0, 1) => traits() => gas(base) => available(legacy);
@@ -337,13 +354,13 @@ opcodes! {
     0x38 => CODESIZE => codesize => stack_io(0, 1) => traits() => gas(base) => available(legacy);
     0x39 => CODECOPY => codecopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(legacy);
     0x3a => GASPRICE => gasprice => stack_io(0, 1) => traits() => gas(base) => available(legacy);
-    0x3b => EXTCODESIZE => extcodesize => stack_io(1, 1) => traits() => gas(extcode) => available(legacy);
-    0x3c => EXTCODECOPY => extcodecopy => stack_io(4, 0) => traits(WRITES_MEMORY) => gas(extcode) => available(legacy);
+    0x3b => EXTCODESIZE => extcodesize => stack_io(1, 1) => traits() => gas(extcode) => available(legacy) => input_bits(160);
+    0x3c => EXTCODECOPY => extcodecopy => stack_io(4, 0) => traits(WRITES_MEMORY) => gas(extcode) => available(legacy) => input_bits(160);
     0x3d => RETURNDATASIZE => returndatasize => stack_io(0, 1) => traits() => gas(base) => available(since Byzantium);
     0x3e => RETURNDATACOPY => returndatacopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(since Byzantium);
-    0x3f => EXTCODEHASH => extcodehash => stack_io(1, 1) => traits() => gas(extcodehash) => available(since Constantinople);
+    0x3f => EXTCODEHASH => extcodehash => stack_io(1, 1) => traits() => gas(extcodehash) => available(since Constantinople) => input_bits(160);
     0x40 => BLOCKHASH => blockhash => stack_io(1, 1) => traits() => gas(blockhash) => available(legacy);
-    0x41 => COINBASE => coinbase => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x41 => COINBASE => coinbase => stack_io(0, 1) => traits() => gas(base) => available(legacy) => result_bits(160);
     0x42 => TIMESTAMP => timestamp => stack_io(0, 1) => traits() => gas(base) => available(legacy);
     0x43 => NUMBER => number => stack_io(0, 1) => traits() => gas(base) => available(legacy);
     0x44 => PREVRANDAO => prevrandao => stack_io(0, 1) => traits() => gas(base) => available(legacy);
@@ -354,10 +371,10 @@ opcodes! {
     0x49 => BLOBHASH => blobhash => stack_io(1, 1) => traits() => gas(verylow) => available(since Cancun);
     0x4a => BLOBBASEFEE => blobbasefee => stack_io(0, 1) => traits() => gas(base) => available(since Cancun);
     0x4b => SLOTNUM => slotnum => stack_io(0, 1) => traits() => gas(base) => available(slot_num);
-    0x50 => POP => pop => stack_io(1, 0) => traits() => gas(base) => available(legacy);
+    0x50 => POP => pop => stack_io(1, 0) => traits() => gas(base) => available(legacy) => input_bits(0);
     0x51 => MLOAD => mload => stack_io(1, 1) => traits() => gas(verylow) => available(legacy);
     0x52 => MSTORE => mstore => stack_io(2, 0) => traits(WRITES_MEMORY) => gas(verylow) => available(legacy);
-    0x53 => MSTORE8 => mstore8 => stack_io(2, 0) => traits(WRITES_MEMORY) => gas(verylow) => available(legacy);
+    0x53 => MSTORE8 => mstore8 => stack_io(2, 0) => traits(WRITES_MEMORY) => gas(verylow) => available(legacy) => input_bits(256, 8);
     0x54 => SLOAD => sload => stack_io(1, 1) => traits() => gas(sload) => available(legacy);
     0x55 => SSTORE => sstore => stack_io(2, 0) => traits(WRITES_STORAGE) => gas(sstore) => available(legacy);
     0x56 => JUMP => jump => stack_io(1, 0) => traits(TERMINAL) => gas(mid) => available(legacy);
@@ -454,20 +471,20 @@ opcodes! {
     0xe8 => EXCHANGE => exchange => stack_io(0, 0) => traits() => gas(verylow) => available(extended_stack_ops);
     0xec => EOFCREATE => eofcreate => stack_io(4, 1) => traits(WRITES_STORAGE) => gas(create) => available(eof);
     0xee => RETURNCONTRACT => returncontract => stack_io(2, 0) => traits() => gas(zero) => available(eof);
-    0xf0 => CREATE => create => stack_io(3, 1) => traits(WRITES_STORAGE) => gas(create) => available(legacy);
-    0xf1 => CALL => call => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy);
-    0xf2 => CALLCODE => callcode => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy);
+    0xf0 => CREATE => create => stack_io(3, 1) => traits(WRITES_STORAGE) => gas(create) => available(legacy) => result_bits(160);
+    0xf1 => CALL => call => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
+    0xf2 => CALLCODE => callcode => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
     0xf3 => RETURN => r#return => stack_io(2, 0) => traits(TERMINAL) => gas(zero) => available(legacy);
-    0xf4 => DELEGATECALL => delegatecall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy);
-    0xf5 => CREATE2 => create2 => stack_io(4, 1) => traits(WRITES_STORAGE) => gas(create) => available(since Constantinople);
+    0xf4 => DELEGATECALL => delegatecall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
+    0xf5 => CREATE2 => create2 => stack_io(4, 1) => traits(WRITES_STORAGE) => gas(create) => available(since Constantinople) => result_bits(160);
     0xf7 => RETURNDATALOAD => returndataload => stack_io(1, 1) => traits() => gas(verylow) => available(eof);
     0xf8 => EXTCALL => extcall => stack_io(4, 1) => traits(WRITES_STORAGE) => gas(call) => available(eof);
     0xf9 => EXTDELEGATECALL => extdelegatecall => stack_io(3, 1) => traits(WRITES_STORAGE) => gas(call) => available(eof);
-    0xfa => STATICCALL => staticcall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(since Byzantium);
+    0xfa => STATICCALL => staticcall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(since Byzantium) => result_bits(1) => input_bits(256, 160);
     0xfb => EXTSTATICCALL => extstaticcall => stack_io(3, 1) => traits() => gas(call) => available(eof);
     0xfd => REVERT => revert => stack_io(2, 0) => traits(TERMINAL) => gas(zero) => available(since Byzantium);
     0xfe => INVALID => invalid => stack_io(0, 0) => traits(TERMINAL) => gas(zero) => available(legacy);
-    0xff => SELFDESTRUCT => selfdestruct => stack_io(1, 0) => traits(TERMINAL) => gas(selfdestruct) => available(legacy);
+    0xff => SELFDESTRUCT => selfdestruct => stack_io(1, 0) => traits(TERMINAL) => gas(selfdestruct) => available(legacy) => input_bits(160);
 }
 
 /// Returns the encoded length of a minimally sized PUSH for an EVM version.
@@ -972,6 +989,12 @@ mod tests {
                 Some((inputs, outputs)) => write!(table, " io={inputs}/{outputs}").unwrap(),
                 None => table.push_str(" io=?"),
             }
+            assert!(def.result_bits <= 256);
+            assert!(def.input_bits.iter().all(|&bits| bits <= 256));
+            assert!(def.input_bits.len() <= usize::from(def.stack_io.unwrap_or_default().0));
+            if def.result_bits != 256 || !def.input_bits.is_empty() {
+                write!(table, " bits={:?}/{}", def.input_bits, def.result_bits).unwrap();
+            }
             let mut available = VERSIONS.into_iter().filter(|&version| def.is_available(version));
             match available.next() {
                 Some(first) => {
@@ -1021,7 +1044,10 @@ mod tests {
 
     #[test]
     fn evm_isle_prelude_matches_table() {
-        snapbox::assert_data_eq!(isle_prelude(), snapbox::file!["../../../isle/evm_prelude.isle"]);
+        snapbox::assert_data_eq!(
+            isle_prelude(),
+            snapbox::file!["../../../isle/evm-ir/prelude.isle"]
+        );
     }
 
     #[test]

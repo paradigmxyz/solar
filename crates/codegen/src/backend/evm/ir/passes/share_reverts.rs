@@ -7,14 +7,20 @@
 //! revert could widen its target push and lose more bytes than the removed jump saves.
 //!
 //! An adjacent cold revert with a payload can use the same rewrite when inversion removes an
-//! existing `ISZERO`. Keep its own target and payload; successful execution then falls through
+//! existing `ISZERO`, exchanges `EQ` and `SUB`, or adjusts a constant comparison without
+//! increasing its cost.
+//! Keep its own target and payload; successful execution then falls through
 //! without the inversion or a continuation label after block layout.
 //!
 //! Inverting the branch can need an extra `ISZERO` before the branch target, which runs between
 //! the condition and the jump. That boundary must be one `keep_with_next` allows to be disturbed,
 //! so a sequence whose intervening gas is observable is left alone.
 
-use super::{EvmPass, utils::is_split_point};
+use super::{
+    EvmPass,
+    peephole::{invert_comparison, materialization_cost},
+    utils::is_split_point,
+};
 use crate::backend::evm::{
     ir::{BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
     op,
@@ -35,7 +41,8 @@ impl EvmPass for ShareReverts {
     }
 }
 
-fn share_reverts(_gcx: Gcx<'_>, module: &mut Module) -> bool {
+fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
+    let evm_version = gcx.sess.opts.evm_version;
     let mut empty_reverts = DenseBitSet::new_empty(module.blocks.len());
     for block in module.blocks.indices().filter(|&block| is_empty_revert(module, block)) {
         empty_reverts.insert(block);
@@ -84,18 +91,44 @@ fn share_reverts(_gcx: Gcx<'_>, module: &mut Module) -> bool {
         }
         let branch_metadata = jumpi.metadata.clone();
         let target_metadata = target.metadata.clone();
-        // Inverting the branch drops an `ISZERO`, retargets an `EQ`, or inserts an `ISZERO`
+        // Inverting the branch drops an `ISZERO`, exchanges `EQ` and `SUB`, or inserts an `ISZERO`
         // before the branch target. Dropping and inserting change what runs at that boundary, so
         // both need a boundary `keep_with_next` allows to be disturbed.
         let condition_end = block.instructions.len() - 2;
         let condition =
             block.instructions.get(condition_end.wrapping_sub(1)).map(|inst| inst.opcode);
-        if !empty_reverts.contains(revert) && condition != Some(op::ISZERO) {
-            continue;
-        }
+        let inverse = block.instructions.get(condition_end.wrapping_sub(1)).and_then(|inst| {
+            if !inst.has_canonical_stack_effect() || inst.keeps_with_next() {
+                return None;
+            }
+            match inst.as_evm_opcode()? {
+                op::EQ => Some(op::SUB),
+                op::SUB => Some(op::EQ),
+                _ => None,
+            }
+        });
+        let inverted = if !empty_reverts.contains(revert)
+            && condition != Some(op::ISZERO)
+            && inverse.is_none()
+        {
+            let Some((start, bound, opposite)) =
+                invert_comparison(&block.instructions[..condition_end], evm_version)
+            else {
+                continue;
+            };
+            let previous = block.instructions[start].concrete_immediate().unwrap();
+            let before = materialization_cost(evm_version, previous);
+            let after = materialization_cost(evm_version, bound);
+            if after.0 > before.0 || after.1 > before.1 {
+                continue;
+            }
+            Some((start, bound, opposite))
+        } else {
+            None
+        };
         let boundary =
             if condition == Some(op::ISZERO) { condition_end - 1 } else { condition_end };
-        if condition != Some(op::EQ) && !is_split_point(&block.instructions, boundary) {
+        if !is_split_point(&block.instructions, boundary) {
             continue;
         }
         // <condition>
@@ -107,15 +140,24 @@ fn share_reverts(_gcx: Gcx<'_>, module: &mut Module) -> bool {
         let mut terminator = Terminator::new(TerminatorKind::Jump(continuation));
         terminator.metadata.copy_source_debug_from(&terminator_metadata);
         block.terminator = Some(terminator);
-        match condition {
-            Some(op::ISZERO) => {
-                block.instructions.remove(condition_end - 1);
-            }
-            Some(op::EQ) => block.instructions[condition_end - 1].opcode = op::SUB,
-            _ => {
-                let mut iszero = Instruction::opcode(op::ISZERO);
-                iszero.metadata.copy_source_debug_from(&branch_metadata);
-                block.instructions.insert(condition_end, iszero);
+        if let Some((start, bound, opposite)) = inverted {
+            block.instructions[start].replace_preserving_metadata(Instruction::push_value(bound));
+            block.instructions[condition_end - 1]
+                .replace_preserving_metadata(Instruction::opcode(opposite));
+        } else {
+            match condition {
+                Some(op::ISZERO) => {
+                    block.instructions.remove(condition_end - 1);
+                }
+                _ if let Some(opcode) = inverse => {
+                    block.instructions[condition_end - 1]
+                        .replace_preserving_metadata(Instruction::opcode(opcode));
+                }
+                _ => {
+                    let mut iszero = Instruction::opcode(op::ISZERO);
+                    iszero.metadata.copy_source_debug_from(&branch_metadata);
+                    block.instructions.insert(condition_end, iszero);
+                }
             }
         }
         changed = true;

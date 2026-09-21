@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_shorter.sol:StorageArrayPushShorter ===
 @module StorageArrayPushShorter
 types:
-  struct0: {u256, u256, u256}
+  struct0: {i256, i256, i256}
 
 fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
@@ -27,37 +27,37 @@ fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_retu
     sstore 0, v4 !metadata(storage=slot(0))
     v14 = sload 0 !metadata(storage=slot(0))
     v15 = lt 0, v14
-    v16 = iszero v15
+    v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = storage_array_data_slot 0
     v18 = mul 0, 3
     v19 = add v17, v18
     v20 = lt 0, 3
-    v21 = iszero v20
+    v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = add v19, 0
     v23 = sload v22 !metadata(storage=symbolic(v19))
     v24 = sload 0 !metadata(storage=slot(0))
     v25 = lt 0, v24
-    v26 = iszero v25
+    v26 = eq v25, false
     icall panic_if<0x32>, v26
     v27 = storage_array_data_slot 0
     v28 = mul 0, 3
     v29 = add v27, v28
     v30 = lt 1, 3
-    v31 = iszero v30
+    v31 = eq v30, false
     icall panic_if<0x32>, v31
     v32 = add v29, 1
     v33 = sload v32 !metadata(storage=offset(v29, 1))
     v34 = sload 0 !metadata(storage=slot(0))
     v35 = lt 0, v34
-    v36 = iszero v35
+    v36 = eq v35, false
     icall panic_if<0x32>, v36
     v37 = storage_array_data_slot 0
     v38 = mul 0, 3
     v39 = add v37, v38
     v40 = lt 2, 3
-    v41 = iszero v40
+    v41 = eq v40, false
     icall panic_if<0x32>, v41
     v42 = add v39, 2
     v43 = sload v42 !metadata(storage=offset(v39, 2))
@@ -102,37 +102,37 @@ fn @pushShorterLiteral() -> struct0 [selector=0x6f3a582e, abi_params=[], abi_ret
     sstore 0, v3 !metadata(storage=slot(0))
     v13 = sload 0 !metadata(storage=slot(0))
     v14 = lt 0, v13
-    v15 = iszero v14
+    v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = storage_array_data_slot 0
     v17 = mul 0, 3
     v18 = add v16, v17
     v19 = lt 0, 3
-    v20 = iszero v19
+    v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = add v18, 0
     v22 = sload v21 !metadata(storage=symbolic(v18))
     v23 = sload 0 !metadata(storage=slot(0))
     v24 = lt 0, v23
-    v25 = iszero v24
+    v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = storage_array_data_slot 0
     v27 = mul 0, 3
     v28 = add v26, v27
     v29 = lt 1, 3
-    v30 = iszero v29
+    v30 = eq v29, false
     icall panic_if<0x32>, v30
     v31 = add v28, 1
     v32 = sload v31 !metadata(storage=offset(v28, 1))
     v33 = sload 0 !metadata(storage=slot(0))
     v34 = lt 0, v33
-    v35 = iszero v34
+    v35 = eq v34, false
     icall panic_if<0x32>, v35
     v36 = storage_array_data_slot 0
     v37 = mul 0, 3
     v38 = add v36, v37
     v39 = lt 2, 3
-    v40 = iszero v39
+    v40 = eq v39, false
     icall panic_if<0x32>, v40
     v41 = add v38, 2
     v42 = sload v41 !metadata(storage=offset(v38, 2))
@@ -177,37 +177,37 @@ fn @pushNarrowMemory() -> struct0 [selector=0xedb7ea7a, abi_params=[], abi_retur
     sstore 0, v3 !metadata(storage=slot(0))
     v13 = sload 0 !metadata(storage=slot(0))
     v14 = lt 0, v13
-    v15 = iszero v14
+    v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = storage_array_data_slot 0
     v17 = mul 0, 3
     v18 = add v16, v17
     v19 = lt 0, 3
-    v20 = iszero v19
+    v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = add v18, 0
     v22 = sload v21 !metadata(storage=symbolic(v18))
     v23 = sload 0 !metadata(storage=slot(0))
     v24 = lt 0, v23
-    v25 = iszero v24
+    v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = storage_array_data_slot 0
     v27 = mul 0, 3
     v28 = add v26, v27
     v29 = lt 1, 3
-    v30 = iszero v29
+    v30 = eq v29, false
     icall panic_if<0x32>, v30
     v31 = add v28, 1
     v32 = sload v31 !metadata(storage=offset(v28, 1))
     v33 = sload 0 !metadata(storage=slot(0))
     v34 = lt 0, v33
-    v35 = iszero v34
+    v35 = eq v34, false
     icall panic_if<0x32>, v35
     v36 = storage_array_data_slot 0
     v37 = mul 0, 3
     v38 = add v36, v37
     v39 = lt 2, 3
-    v40 = iszero v39
+    v40 = eq v39, false
     icall panic_if<0x32>, v40
     v41 = add v38, 2
     v42 = sload v41 !metadata(storage=offset(v38, 2))

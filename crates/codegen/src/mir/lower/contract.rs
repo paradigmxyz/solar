@@ -13,7 +13,7 @@ use solar_sema::{
 };
 use std::ops::ControlFlow;
 
-use crate::mir::{Function, FunctionAttributes, FunctionBuilder, MirType, Module};
+use crate::mir::{Function, FunctionAttributes, FunctionBuilder, Module};
 
 /// Builds a typed MIR module from one HIR contract.
 ///
@@ -39,7 +39,7 @@ pub(super) fn lower(
             let Some(name) = variable.name else { continue };
             let mir_id = module.add_immutable(
                 name,
-                TypeLowerer::mir_type(gcx.type_of_item(id.into())),
+                TypeLowerer::immutable_layout(gcx.type_of_item(id.into())),
                 Some(id),
             );
             immutable_ids.insert(id, mir_id);
@@ -161,7 +161,7 @@ pub(super) fn lower(
     .then(|| {
         module.add_immutable(
             Ident::with_dummy_span(sym::library_deploy_address),
-            MirType::Address,
+            crate::mir::ValueLayout::Address,
             None,
         )
     });
@@ -241,7 +241,8 @@ pub(super) fn lower(
                 let mut builder =
                     FunctionBuilder::new_semantic(context.module.function_mut(mir_id));
                 for &param in function.parameters {
-                    builder.add_param(TypeLowerer::mir_type(gcx.type_of_item(param.into())));
+                    builder
+                        .add_param(TypeLowerer::mir_signature_type(gcx.type_of_item(param.into())));
                 }
                 if let Some(ty) = return_type {
                     builder.set_return_type(ty);

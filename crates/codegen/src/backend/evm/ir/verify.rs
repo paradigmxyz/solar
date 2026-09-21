@@ -285,7 +285,16 @@ impl<'a> Verifier<'a> {
                 self.error_in_block(block_id, "encoded push must use the `PUSH32` opcode");
             }
             match inst.encoding {
-                Instruction::ENCODED_PUSH => {}
+                Instruction::ENCODED_PUSH => {
+                    if let PushValue::Library(id) = value
+                        && module.libraries.get(*id).is_none()
+                    {
+                        self.error_in_block(
+                            block_id,
+                            format_args!("library `{}` is out of range", id.index()),
+                        );
+                    }
+                }
                 encoding if encoding == Instruction::ENCODED_PUSH | Instruction::DEFERRED => {
                     self.verify_assembly_id(block_id, inst, value, "deferred constant");
                 }

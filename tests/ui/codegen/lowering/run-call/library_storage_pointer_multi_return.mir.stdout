@@ -5,13 +5,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/library_storage_pointer_multi_return.sol:LibraryStoragePointerMultiReturn ===
 @module LibraryStoragePointerMultiReturn
 types:
-  struct0: {u256, memoryarray}
-  struct1: {u256, u256}
-  struct2: {u256, memorybytes}
-  struct3: {u256, memorystruct}
-  struct4: {memoryarray, u256}
-  struct5: {memoryarray, u256, memorybytes}
-  struct6: {u256, u256, u256}
+  struct0: {i256, memoryarray}
+  struct1: {i256, i256}
+  struct2: {i256, memorybytes}
+  struct3: {i256, memorystruct}
+  struct4: {memoryarray, i256}
+  struct5: {memoryarray, i256, memorybytes}
+  struct6: {i256, i256, i256}
 
 fn @constructor() [constructor] {
   bb0:
@@ -71,19 +71,21 @@ fn @forwardStructPair() -> struct3 [selector=0x89663e35, view, abi_params=[], ab
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
-    memory_object_store_field memorystruct<2>, v0, 1, memoryarray 96
-    v1 = icall @structPair, 2
-    v2 = extract_value struct1, v1, 0
-    v3 = extract_value struct1, v1, 1
-    v4 = alloc memorystruct<2>, exact, uninitialized, panic, 64
-    v5 = sload v3 !metadata(storage=symbolic(v3))
-    memory_object_store_field memorystruct<2>, v4, 0, v5
-    v6 = add v3, 1
-    v7 = icall @load_storage_word_array, v6
-    memory_object_store_field memorystruct<2>, v4, 1, v7
-    v8 = insert_value struct3, undef struct3, 0, v2
-    v9 = insert_value struct3, v8, 1, v4
-    ret v9
+    v1 = ptrtoint memoryarray 96 to i256
+    memory_object_store_field memorystruct<2>, v0, 1, v1
+    v2 = icall @structPair, 2
+    v3 = extract_value struct1, v2, 0
+    v4 = extract_value struct1, v2, 1
+    v5 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+    v6 = sload v4 !metadata(storage=symbolic(v4))
+    memory_object_store_field memorystruct<2>, v5, 0, v6
+    v7 = add v4, 1
+    v8 = icall @load_storage_word_array, v7
+    v9 = ptrtoint memoryarray v8 to i256
+    memory_object_store_field memorystruct<2>, v5, 1, v9
+    v10 = insert_value struct3, undef struct3, 0, v3
+    v11 = insert_value struct3, v10, 1, v5
+    ret v11
 }
 
 fn @forwardNarrowPair() -> struct0 [selector=0x1c173dc4, view, abi_params=[], abi_returns=[word, memory_array<word>], abi_return_params=[u256, array<_, u256>]] {
@@ -166,7 +168,7 @@ fn @forwardKeepingStorage() -> struct1 [selector=0xe85db471, view, abi_params=[]
     ret v5
 }
 
-fn @pair(arg0: storageptr) -> struct1 [view] {
+fn @pair(arg0: i256) -> struct1 [view] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = insert_value struct1, undef struct1, 0, v0
@@ -174,7 +176,7 @@ fn @pair(arg0: storageptr) -> struct1 [view] {
     ret v2
 }
 
-fn @bytesPair(arg0: storageptr) -> struct1 [view] {
+fn @bytesPair(arg0: i256) -> struct1 [view] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     validate_storage_bytes v0
@@ -189,7 +191,7 @@ fn @bytesPair(arg0: storageptr) -> struct1 [view] {
     ret v8
 }
 
-fn @structPair(arg0: storageptr) -> struct1 [view] {
+fn @structPair(arg0: i256) -> struct1 [view] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = insert_value struct1, undef struct1, 0, v0
@@ -197,7 +199,7 @@ fn @structPair(arg0: storageptr) -> struct1 [view] {
     ret v2
 }
 
-fn @narrowPair(arg0: storageptr) -> struct1 [view] {
+fn @narrowPair(arg0: i256) -> struct1 [view] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 255
@@ -206,7 +208,7 @@ fn @narrowPair(arg0: storageptr) -> struct1 [view] {
     ret v3
 }
 
-fn @leadingPair(arg0: storageptr) -> struct1 [view] {
+fn @leadingPair(arg0: i256) -> struct1 [view] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = insert_value struct1, undef struct1, 0, arg0
@@ -214,7 +216,7 @@ fn @leadingPair(arg0: storageptr) -> struct1 [view] {
     ret v2
 }
 
-fn @triple(arg0: storageptr, arg1: storageptr) -> struct6 [view] {
+fn @triple(arg0: i256, arg1: i256) -> struct6 [view] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = insert_value struct6, undef struct6, 0, arg0
@@ -223,7 +225,7 @@ fn @triple(arg0: storageptr, arg1: storageptr) -> struct6 [view] {
     ret v3
 }
 
-fn @load_storage_word_array(arg0: u256) -> memoryarray {
+fn @load_storage_word_array(arg0: i256) -> memoryarray {
   bb0:
     v0 = load_storage_array u256, arg0
     ret v0

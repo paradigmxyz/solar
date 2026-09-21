@@ -1,13 +1,26 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constant_select.sol:ConstantSelect ===
 @module ConstantSelect
-fn @store(arg0: memorybytes) -> memorybytes [selector=0xb374012b, abi_params=[bytes], abi_returns=[memory_bytes]] {
+fn @choose(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x739ca28b, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: arg1], [bb2: arg2]
+    ret v1
+}
+
+fn @store(arg0: memorybytes) -> memorybytes [selector=0xb374012b, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     icall @store_storage_bytes, 0, arg0
     v0 = load_storage_bytes 0
     ret v0
 }
 
-fn @word(arg0: calldataslice) -> bytes32 [selector=0xc22ee0b0, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @word(arg0: calldataslice) -> i256 [selector=0xc22ee0b0, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = calldata_slice_load_word calldata, arg0, 0
     v1 = slice_len arg0
@@ -20,7 +33,7 @@ fn @word(arg0: calldataslice) -> bytes32 [selector=0xc22ee0b0, pure, abi_params=
     ret v7
 }
 
-fn @prefix(arg0: calldataslice) -> bytes4 [selector=0x01cd9057, pure, abi_params=[bytes], abi_returns=[word<bytes4>]] {
+fn @prefix(arg0: calldataslice) -> i256 [selector=0x01cd9057, pure, abi_params=[bytes], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = calldata_slice_load_word calldata, arg0, 0
     v1 = slice_len arg0
@@ -33,54 +46,57 @@ fn @prefix(arg0: calldataslice) -> bytes4 [selector=0x01cd9057, pure, abi_params
     ret v7
 }
 
-fn @signature(arg0: bool) -> memorybytes [selector=0x59834352, pure, abi_params=[bool], abi_returns=[memory_bytes]] {
+fn @signature(arg0: i256) -> memorybytes [selector=0x59834352, pure, abi_params=[bool], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = select arg0, 0x26121ff000000000000000000000000000000000000000000000000000000000, 0xe2179b8e00000000000000000000000000000000000000000000000000000000
-    v1 = abi_encode [], object, selector v0
-    ret v1
-}
-
-fn @dirtySignature(arg0: u256) -> memorybytes [selector=0xca22fbdf, pure, abi_params=[u256], abi_returns=[memory_bytes]] {
-  bb0:
-    v0 = select arg0, 0x26121ff000000000000000000000000000000000000000000000000000000000, 0xe2179b8e00000000000000000000000000000000000000000000000000000000
-    v1 = abi_encode [], object, selector v0
-    ret v1
-}
-
-fn @reverseSignature(arg0: u256) -> memorybytes [selector=0x97ffd282, pure, abi_params=[u256], abi_returns=[memory_bytes]] {
-  bb0:
-    v0 = select arg0, 0xe2179b8e00000000000000000000000000000000000000000000000000000000, 0x26121ff000000000000000000000000000000000000000000000000000000000
-    v1 = abi_encode [], object, selector v0
-    ret v1
-}
-
-fn @dirtyTernary(arg0: u256, arg1: u256) -> u256 [selector=0xcd9c288e, pure, abi_params=[u256, u256], abi_returns=[word]] {
-  bb0:
-    jumpi arg0, bb1, bb2
-  bb2:
-    jump bb3
-  bb1:
-    jump bb3
-  bb3:
-    v0 = phi [bb1: arg1], [bb2: 7]
-    ret v0
-}
-
-fn @yulBranch(arg0: u256, arg1: u256) -> u256 [selector=0x3701b99b, pure, abi_params=[u256, u256], abi_returns=[word]] {
-  bb0:
-    v0 = eq arg0, 0
-    v1 = iszero v0
-    jumpi v1, bb1, bb2
-  bb2:
-    jump bb3
-  bb1:
-    jump bb3
-  bb3:
-    v2 = phi [bb1: arg1], [bb2: 7]
+    v0 = ne arg0, 0
+    v1 = select v0, 0x26121ff000000000000000000000000000000000000000000000000000000000, 0xe2179b8e00000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [], object, selector v1
     ret v2
 }
 
-fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
+fn @dirtySignature(arg0: i256) -> memorybytes [selector=0xca22fbdf, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = ne arg0, 0
+    v1 = select v0, 0x26121ff000000000000000000000000000000000000000000000000000000000, 0xe2179b8e00000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [], object, selector v1
+    ret v2
+}
+
+fn @reverseSignature(arg0: i256) -> memorybytes [selector=0x97ffd282, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = ne arg0, 0
+    v1 = select v0, 0xe2179b8e00000000000000000000000000000000000000000000000000000000, 0x26121ff000000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [], object, selector v1
+    ret v2
+}
+
+fn @dirtyTernary(arg0: i256, arg1: i256) -> i256 [selector=0xcd9c288e, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: arg1], [bb2: 7]
+    ret v1
+}
+
+fn @yulBranch(arg0: i256, arg1: i256) -> i256 [selector=0x3701b99b, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: arg1], [bb2: 7]
+    ret v1
+}
+
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

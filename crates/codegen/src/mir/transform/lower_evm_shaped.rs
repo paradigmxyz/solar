@@ -23,16 +23,12 @@
 //! The backend also eliminates phis by copying each incoming value at the end of its predecessor.
 //! When a phi's previous value remains live on a sibling edge, that copy must run after the branch
 //! selects the phi successor. This pass isolates only those copies in a single-successor block.
-//!
-//! The arithmetic Select emitter requires a zero-or-one condition. Normalize any
-//! condition whose definition does not prove that bound, including dirty bool words.
-//! Invert unknown conditions and exchange the arms so one `iszero` suffices.
 
 use crate::mir::{
-    Callee, Function, InstKind, Instruction, MirPhase, MirType, Module, Terminator,
+    Callee, Function, InstKind, MirPhase, Module, Terminator,
     analysis::{CallGraphInfo, Liveness},
     pass::MirPass,
-    transform::{cfg_simplify::remove_unreachable_blocks, egraph::is_bool_value},
+    transform::cfg_simplify::remove_unreachable_blocks,
     utils::{replace_terminator, split_edge},
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::index_vec};
@@ -64,29 +60,6 @@ impl MirPass for LowerEvmShaped {
             analyses.fail(error);
         }
         changed
-    }
-}
-
-fn normalize_select_conditions(func: &mut Function) {
-    for block in func.blocks.indices().collect::<Vec<_>>() {
-        let original = std::mem::take(&mut func.blocks[block].instructions);
-        let mut ordered = Vec::with_capacity(original.len());
-        for inst in original {
-            if let InstKind::Select(condition, if_true, if_false) = func.inst(inst).kind
-                && !is_bool_value(func, condition)
-            {
-                // inverted = iszero condition
-                // result = select inverted, if_false, if_true
-                let mut inverted =
-                    Instruction::new(InstKind::IsZero(condition), Some(MirType::Bool));
-                inverted.metadata = func.inst(inst).metadata.debug_context();
-                let (new_inst, condition) = func.alloc_value_inst(inverted);
-                ordered.push(new_inst);
-                func.inst_mut(inst).replace_kind(InstKind::Select(condition, if_false, if_true));
-            }
-            ordered.push(inst);
-        }
-        func.blocks[block].instructions = ordered;
     }
 }
 
@@ -227,7 +200,6 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
         }
     }
     for func in &mut module.functions {
-        normalize_select_conditions(func);
         split_clobbering_phi_edges(func);
     }
 

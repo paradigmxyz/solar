@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_external_call_evaluation_order.sol:TryExternalCallEvaluationOrderTarget ===
 @module TryExternalCallEvaluationOrderTarget
-fn @ping(arg0: u256) -> u256 [selector=0x773acdef, payable, abi_params=[u256], abi_returns=[word]] {
+fn @ping(arg0: i256) -> i256 [selector=0x773acdef, payable, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 1
 }
@@ -16,25 +16,31 @@ fn @constructor() [constructor] {
     v1 = not 31
     v2 = and 103, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy TryExternalCallEvaluationOrderTarget_initcode_0, v3, 72
-    v4 = slice_ptr v0
-    v5 = add v3, 72
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 72
-    jumpi v6, bb2, bb1
+    v4 = ptrtoint memptr v3 to i256
+    data_copy TryExternalCallEvaluationOrderTarget_initcode_0, v4, 72
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, 72
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, 72
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = sload 1 !metadata(storage=slot(1))
-    v8 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = and v7, v8
-    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = or v9, v10
-    sstore 1, v11 !metadata(storage=slot(1))
+    v12 = sload 1 !metadata(storage=slot(1))
+    v13 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = and v12, v13
+    v15 = zext i160 v9 to i256
+    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
+    v17 = or v14, v16
+    sstore 1, v17 !metadata(storage=slot(1))
     ret
 }
 
-fn @receiver() -> address {
+fn @receiver() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -45,7 +51,7 @@ fn @receiver() -> address {
     ret v4
 }
 
-fn @gasOpt() -> u256 {
+fn @gasOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -55,7 +61,7 @@ fn @gasOpt() -> u256 {
     ret v3
 }
 
-fn @valueOpt() -> u256 {
+fn @valueOpt() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -64,7 +70,7 @@ fn @valueOpt() -> u256 {
     ret 0
 }
 
-fn @arg() -> u256 {
+fn @arg() -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 10
@@ -73,7 +79,7 @@ fn @arg() -> u256 {
     ret 7
 }
 
-fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @receiver
     v1 = gas

@@ -1,19 +1,19 @@
 // === ROOT/tests/ui/codegen/lowering/nested_copy_stack.sol:NestedCopyStack ===
 @module NestedCopyStack
-fn @copyGroups(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [selector=0x03aba4f0, pure, abi_params=[u256, u256, u256], abi_returns=[memory_bytes]] {
+fn @copyGroups(arg0: i256, arg1: i256, arg2: i256) -> memorybytes [selector=0x03aba4f0, pure, abi_params=[u256, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = gt arg0, 4
-    v1 = iszero v0
+    v1 = eq v0, false
     jumpi v1, bb1, bb2
   bb2:
     jump bb3
   bb1:
     v2 = gt arg1, 4
-    v3 = iszero v2
+    v3 = eq v2, false
     jump bb3
   bb3:
     v4 = phi [bb1: v3], [bb2: false]
-    v5 = iszero v4
+    v5 = eq v4, false
     icall revert_if<empty>, v5
     v6 = mload 64 !metadata(memory=scratch)
     v7 = mul arg0, arg1
@@ -22,64 +22,63 @@ fn @copyGroups(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [selector=0x03
     mstore v6, v8
     jump bb4
   bb4:
-    v10 = phi [bb3: v6], [bb6: v48]
-    v11 = phi [bb3: v9], [bb6: v45]
-    v12 = phi [bb3: arg0], [bb6: v49]
-    v13 = phi [bb3: arg2], [bb6: v46]
-    v14 = phi [bb3: v8], [bb6: v50]
-    v15 = phi [bb3: 0], [bb6: v52]
-    v16 = phi [bb3: arg1], [bb6: v51]
+    v10 = phi [bb3: v6], [bb6: v47]
+    v11 = phi [bb3: v9], [bb6: v44]
+    v12 = phi [bb3: arg0], [bb6: v48]
+    v13 = phi [bb3: arg2], [bb6: v45]
+    v14 = phi [bb3: v8], [bb6: v49]
+    v15 = phi [bb3: 0], [bb6: v51]
+    v16 = phi [bb3: arg1], [bb6: v50]
     v17 = lt v15, v12
-    v18 = eq v17, 0
-    v19 = iszero v18
+    v18 = zext i1 v17 to i256
+    v19 = ne v18, 0
     jumpi v19, bb7, bb8
   bb8:
     jump bb5
   bb5:
+    v52 = add v11, v14
+    mstore v52, 0
     v53 = add v11, v14
-    mstore v53, 0
-    v54 = add v11, v14
-    v55 = add v54, 32
-    mstore 64, v55 !metadata(memory=scratch)
-    v56 = memory_object_from_ptr memorybytes, v10
-    ret v56
+    v54 = add v53, 32
+    mstore 64, v54 !metadata(memory=scratch)
+    v55 = inttoptr i256 v10 to memorybytes
+    ret v55
   bb7:
-    v20 = eq v16, 0
-    v21 = iszero v20
-    jumpi v21, bb10, bb11
+    v20 = ne v16, 0
+    jumpi v20, bb10, bb11
   bb11:
     jump bb12
   bb10:
-    v22 = mul v15, v16
-    v23 = shl 5, v22
+    v21 = mul v15, v16
+    v22 = shl 5, v21
     jump bb13
   bb13:
-    v24 = phi [bb10: v11], [bb17: v24]
-    v25 = phi [bb10: v13], [bb17: v25]
-    v26 = phi [bb10: v15], [bb17: v26]
-    v27 = phi [bb10: v10], [bb17: v27]
-    v28 = phi [bb10: v23], [bb17: v28]
-    v29 = phi [bb10: v12], [bb17: v29]
-    v30 = phi [bb10: v14], [bb17: v30]
-    v31 = phi [bb10: 0], [bb17: v39]
-    v32 = phi [bb10: v16], [bb17: v32]
-    v33 = eq 1, 0
-    v34 = iszero v33
-    jumpi v34, bb15, bb16
+    v23 = phi [bb10: v11], [bb17: v23]
+    v24 = phi [bb10: v13], [bb17: v24]
+    v25 = phi [bb10: v15], [bb17: v25]
+    v26 = phi [bb10: v10], [bb17: v26]
+    v27 = phi [bb10: v22], [bb17: v27]
+    v28 = phi [bb10: v12], [bb17: v28]
+    v29 = phi [bb10: v14], [bb17: v29]
+    v30 = phi [bb10: 0], [bb17: v37]
+    v31 = phi [bb10: v16], [bb17: v31]
+    v32 = ne 1, 0
+    jumpi v32, bb15, bb16
   bb16:
     jump bb14
   bb15:
-    v35 = shl 5, v31
-    v36 = add v28, v35
-    v37 = xor v25, v36
-    v38 = add v24, v36
-    mstore v38, v37
-    v39 = add v31, 1
-    v40 = lt v39, v32
-    v41 = iszero v40
-    v42 = eq v41, 0
-    v43 = iszero v42
-    jumpi v43, bb18, bb19
+    v33 = shl 5, v30
+    v34 = add v27, v33
+    v35 = xor v24, v34
+    v36 = add v23, v34
+    mstore v36, v35
+    v37 = add v30, 1
+    v38 = lt v37, v31
+    v39 = zext i1 v38 to i256
+    v40 = eq v39, 0
+    v41 = zext i1 v40 to i256
+    v42 = ne v41, 0
+    jumpi v42, bb18, bb19
   bb19:
     jump bb20
   bb20:
@@ -89,25 +88,25 @@ fn @copyGroups(arg0: u256, arg1: u256, arg2: u256) -> memorybytes [selector=0x03
   bb18:
     jump bb14
   bb14:
-    v44 = phi [bb18: v39], [bb16: v31]
+    v43 = phi [bb18: v37], [bb16: v30]
     jump bb12
   bb12:
-    v45 = phi [bb14: v24], [bb11: v11]
-    v46 = phi [bb14: v25], [bb11: v13]
-    v47 = phi [bb14: v26], [bb11: v15]
-    v48 = phi [bb14: v27], [bb11: v10]
-    v49 = phi [bb14: v29], [bb11: v12]
-    v50 = phi [bb14: v30], [bb11: v14]
-    v51 = phi [bb14: v32], [bb11: v16]
+    v44 = phi [bb14: v23], [bb11: v11]
+    v45 = phi [bb14: v24], [bb11: v13]
+    v46 = phi [bb14: v25], [bb11: v15]
+    v47 = phi [bb14: v26], [bb11: v10]
+    v48 = phi [bb14: v28], [bb11: v12]
+    v49 = phi [bb14: v29], [bb11: v14]
+    v50 = phi [bb14: v31], [bb11: v16]
     jump bb9
   bb9:
     jump bb6
   bb6:
-    v52 = add v47, 1
+    v51 = add v46, 1
     jump bb4
 }
 
-fn @probe(arg0: u256) -> memorybytes [selector=0xdb082440, pure, abi_params=[u256], abi_returns=[memory_bytes]] {
+fn @probe(arg0: i256) -> memorybytes [selector=0xdb082440, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @copyGroups, 2, 2, arg0
     ret v0

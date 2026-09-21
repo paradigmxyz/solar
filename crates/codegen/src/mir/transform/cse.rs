@@ -270,7 +270,7 @@ enum ExprKey {
     /// Also keys `SGt(a, b)`, normalized as `SLt(b, a)`.
     SLt(OperandKey, OperandKey),
     Eq(OperandKey, OperandKey),
-    IsZero(OperandKey),
+    Ne(OperandKey, OperandKey),
     Not(OperandKey),
     Clz(OperandKey),
     SignExtend(OperandKey, OperandKey),
@@ -688,6 +688,7 @@ impl CommonSubexprEliminator {
                     .zip(func.inst_result_value(inst_id));
                 if let Some((key, result)) = &candidate
                     && let Some(cached) = cache.get(key)
+                    && func.value_ty(*result) == func.value_ty(*cached)
                 {
                     if matches!(key, ExprKey::MLoad(_))
                         && !Self::memory_reuse_pays_off(func, ctx, block_id, *cached, kind)
@@ -932,6 +933,7 @@ impl CommonSubexprEliminator {
                 .zip(func.inst_result_value(inst_id));
             if let Some((key, result)) = &candidate
                 && let Some(&cached_value) = expr_cache.get(key)
+                && func.value_ty(*result) == func.value_ty(cached_value)
             {
                 // repeated expression with unchanged read/write dependencies -> cached value
                 replacements.insert(*result, cached_value);
@@ -1043,6 +1045,10 @@ impl CommonSubexprEliminator {
                 let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
                 Some(ExprKey::Eq(a, b))
             }
+            InstKind::Ne(a, b) => {
+                let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
+                Some(ExprKey::Ne(a, b))
+            }
 
             // Non-commutative operations - preserve order
             InstKind::Sub(a, b) => {
@@ -1078,7 +1084,6 @@ impl CommonSubexprEliminator {
             InstKind::SignExtend(a, b) => Some(ExprKey::SignExtend(operand(*a), operand(*b))),
 
             // Unary operations
-            InstKind::IsZero(a) => Some(ExprKey::IsZero(operand(*a))),
             InstKind::Not(a) => Some(ExprKey::Not(operand(*a))),
             InstKind::Clz(a) => Some(ExprKey::Clz(operand(*a))),
             InstKind::CalldataLoad(a) => Some(ExprKey::CalldataLoad(operand(*a))),

@@ -12,8 +12,11 @@ contract ICallFrameDealloc {
     // CHECK-NEXT: mstore
     // CHECK-NEXT: push [[FIRST_RET:bb[0-9]+]]
     // CHECK-NEXT: jump [[SUM:bb[0-9]+]]
-    // The recursive call body precedes its test, giving the call edge a fallthrough.
-    // CHECK: [[RECURSE:bb[0-9]+]]:
+    // The recursive call path falls through from the zero test.
+    // CHECK: [[SUM]]:
+    // CHECK: iszero
+    // CHECK-NEXT: push [[BASE:bb[0-9]+]]
+    // CHECK-NEXT: jumpi
     // CHECK-NEXT: push 1{{$}}
     // CHECK-NEXT: push 160
     // CHECK-NEXT: mload
@@ -24,19 +27,6 @@ contract ICallFrameDealloc {
     // CHECK-NEXT: pop
     // CHECK-NEXT: push [[RECURSE_RET:bb[0-9]+]]
     // CHECK-NEXT: jump [[SUM]]
-    // CHECK: [[SUM]]:
-    // CHECK: push [[RECURSE]]
-    // CHECK-NEXT: jumpi
-    // The base case stores its result into the frame and returns through the stacked address.
-    // CHECK-NEXT: push 0{{$}}
-    // CHECK-NEXT: jump [[STORE_RESULT:bb[0-9]+]]
-    // CHECK-NEXT: [[STORE_RESULT]]:
-    // CHECK-NEXT: push 160
-    // CHECK-NEXT: mload
-    // CHECK-NEXT: push 96
-    // CHECK-NEXT: add
-    // CHECK-NEXT: mstore
-    // CHECK-NEXT: jump{{$}}
     // Both callers share cleanup that restores the free-memory and frame pointers.
     // CHECK: [[FIRST_RET]] [continuation]:
     // CHECK-NEXT: push [[FIRST_CLEAN:bb[0-9]+]]
@@ -46,7 +36,9 @@ contract ICallFrameDealloc {
     // CHECK-NEXT: mload
     // CHECK: push 64
     // CHECK-NEXT: mstore
-    // CHECK: push 32
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 32
     // CHECK-NEXT: add
     // CHECK-NEXT: mload
     // CHECK-NEXT: push 160
@@ -59,16 +51,19 @@ contract ICallFrameDealloc {
     // CHECK-NEXT: mload
     // CHECK: push 64
     // CHECK-NEXT: mstore
-    // CHECK: jump [[STORE_RESULT]]
-    // CHECK: [[FIRST_CLEAN]] [continuation]:
-    // CHECK-NEXT: push 1{{$}}
-    // CHECK: push 224
-    // CHECK-NEXT: mstore
-    // CHECK: push 192
+    // CHECK: [[STORE_RESULT:bb[0-9]+]]:
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 96
     // CHECK-NEXT: add
-    // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
-    // CHECK-NEXT: push [[SECOND_RET]]
+    // CHECK-NEXT: jump{{$}}
+    // The base case shares the result store and stacked return.
+    // CHECK: [[BASE]]:
+    // CHECK-NEXT: push 0{{$}}
+    // CHECK-NEXT: jump [[STORE_RESULT]]
+    // CHECK: [[FIRST_CLEAN]] [continuation]:
+    // CHECK: push [[SECOND_RET]]
     // CHECK-NEXT: jump [[SUM]]
     // CHECK: [[SECOND_CLEAN]] [continuation]:
     // CHECK: return

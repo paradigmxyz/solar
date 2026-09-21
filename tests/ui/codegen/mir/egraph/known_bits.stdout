@@ -2,26 +2,28 @@
 + // === ROOT/tests/ui/codegen/mir/egraph/known_bits.mir (after egraph) ===
   @module KnownBits
   types:
-    struct0: {u256, u256, u256, u256}
-    struct1: {u256, u256}
-    struct2: {bool, bool}
-    struct3: {bool, bool, bool, u256, u256, u256, u256}
+    struct0: {i256, i256, i256, i256}
+    struct1: {i256, i256}
+    struct2: {i1, i1}
+    struct3: {i1, i1, i1, i256, i256, i256, i256}
   
-  fn @masks_covering_known_bits(arg0: u256, arg1: u256) -> struct0 [return_abi=[u256, u256, u256, u256]] {
+  fn @masks_covering_known_bits(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256, i256, i256]] {
     bb0:
       v0 = lt arg0, arg1
--     v1 = and v0, 1
-      v2 = byte 31, arg0
--     v3 = and v2, 255
-      v4 = shr 248, arg1
--     v5 = and 255, v4
-      v6 = caller
--     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
--     ret v1, v3, v5, v7
-+     ret v0, v2, v4, v6
+      v1 = zext i1 v0 to i256
+-     v2 = and v1, 1
+      v3 = byte 31, arg0
+-     v4 = and v3, 255
+      v5 = shr 248, arg1
+-     v6 = and 255, v5
+      v7 = caller
+      v8 = zext i160 v7 to i256
+-     v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
+-     ret v2, v4, v6, v9
++     ret v1, v3, v5, v8
   }
   
-  fn @masks_narrowing_words(arg0: u256) -> struct1 [return_abi=[u256, u256]] {
+  fn @masks_narrowing_words(arg0: i256) -> struct1 [return_abi=[i256, i256]] {
     bb0:
       v0 = byte 31, arg0
       v1 = and v0, 127
@@ -29,17 +31,17 @@
       ret v1, v2
   }
   
-  fn @bounded_bools(arg0: u256) -> struct2 [return_abi=[bool, bool]] {
+  fn @bounded_bools(arg0: i256) -> struct2 [return_abi=[i1, i1]] {
     bb0:
       v0 = and arg0, 1
-      v1 = iszero v0
--     v2 = iszero v1
--     v3 = eq v0, 1
--     ret v2, v3
-+     ret v0, v0
+      v1 = eq v0, 0
+-     v2 = eq v1, false
++     v2 = ne v0, 0
+      v3 = eq v0, 1
+      ret v2, v3
   }
   
-  fn @bounded_operands(arg0: u256) -> struct3 [return_abi=[bool, bool, bool, u256, u256, u256, u256]] {
+  fn @bounded_operands(arg0: i256) -> struct3 [return_abi=[i1, i1, i1, i256, i256, i256, i256]] {
     bb0:
       v0 = byte 31, arg0
 -     v1 = eq v0, 300
@@ -53,7 +55,7 @@
 +     ret false, true, false, v0, 0, 0, v0
   }
   
-  fn @phi_bound(arg0: u256, arg1: bool) -> u256 {
+  fn @phi_bound(arg0: i256, arg1: i1) -> i256 {
     bb0:
       v0 = byte 31, arg0
       jumpi arg1, bb1, bb2

@@ -7,7 +7,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @keep_sload_zero_trip{{[( ]}}
 // CHECK: {{^[ +].*}}jumpi
 // CHECK: + [[LOAD:v[0-9]+]] = sload 5
-fn @keep_sload_zero_trip() -> u256 {
+fn @keep_sload_zero_trip() -> i256 {
   bb0:
     v0 = calldatasize
     jump bb1
@@ -29,7 +29,7 @@ fn @keep_sload_zero_trip() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_mload_zero_trip{{[( ]}}
 // CHECK: {{^[ +].*}}jumpi
 // CHECK: {{^[ +].*}}mload 0x1000000
-fn @keep_mload_zero_trip() -> u256 {
+fn @keep_mload_zero_trip() -> i256 {
   bb0:
     v0 = calldatasize
     jump bb1
@@ -51,7 +51,7 @@ fn @keep_mload_zero_trip() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @hoist_sload_known_trip{{[( ]}}
 // CHECK: + [[LOAD:v[0-9]+]] = sload 5
 // CHECK: - [[LOAD]] = sload 5
-fn @hoist_sload_known_trip() -> u256 {
+fn @hoist_sload_known_trip() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -72,7 +72,7 @@ fn @hoist_sload_known_trip() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @hoist_mload_dominates_exits{{[( ]}}
 // CHECK: {{^[ +].*}}[[LOAD:v[0-9]+]] = mload 64
 // CHECK: + jump bb1
-fn @hoist_mload_dominates_exits() -> u256 {
+fn @hoist_mload_dominates_exits() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -89,7 +89,7 @@ fn @hoist_mload_dominates_exits() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_mload_msize_in_function{{[( ]}}
 // CHECK: {{^[ +].*}}msize
 // CHECK: {{^[ +].*}}mload 64
-fn @keep_mload_msize_in_function() -> u256 {
+fn @keep_mload_msize_in_function() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -113,7 +113,7 @@ fn @keep_mload_msize_in_function() -> u256 {
 // CHECK: + [[LOAD:v[0-9]+]] = sload 5
 // CHECK: - [[LOAD]] = sload 5
 // CHECK: {{^[ +].*}}checked_add u256,
-fn @hoist_sload_checked_trip() -> u256 {
+fn @hoist_sload_checked_trip() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -134,7 +134,7 @@ fn @hoist_sload_checked_trip() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_sload_after_semantic_check{{[( ]}}
 // CHECK: {{^[ +].*}}checked_add u256, arg0, 1
 // CHECK: {{^[ +].*}}sload 5
-fn @keep_sload_after_semantic_check(arg0: u256) -> u256 {
+fn @keep_sload_after_semantic_check(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -155,7 +155,7 @@ fn @keep_sload_after_semantic_check(arg0: u256) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_sload_after_header_check{{[( ]}}
 // CHECK: {{^[ +].*}}checked_add u256, arg0, 1
 // CHECK: {{^[ +].*}}sload 5
-fn @keep_sload_after_header_check(arg0: u256) -> u256 {
+fn @keep_sload_after_header_check(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:

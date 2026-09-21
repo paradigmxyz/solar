@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/error_named_parameters_shadowing_types.sol:ErrorNamedParametersShadowingTypes ===
 @module ErrorNamedParametersShadowingTypes
-fn @f() [selector=0x26121ff0, pure, abi_params=[], abi_returns=[]] {
+fn @f() [selector=0x26121ff0, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 42
@@ -8,12 +8,12 @@ fn @f() [selector=0x26121ff0, pure, abi_params=[], abi_returns=[]] {
     invalid
 }
 
-fn @g() [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[]] {
+fn @g() [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 42
     v1 = lt 1, 3
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x21>, v2
     icall require<custom_error [word<enum 3>, tuple<word>]>, false, 0x374b938700000000000000000000000000000000000000000000000000000000, 1, v0
     invalid

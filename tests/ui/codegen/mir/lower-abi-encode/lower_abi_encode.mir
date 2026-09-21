@@ -3,11 +3,13 @@
 @module LowerAbiEncode
 
 // CHECK-LABEL: {{^[ +].*}}fn @static{{[( ]}}
-// CHECK: + [[STATIC_MEMORY:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 64
+// CHECK: + [[STATIC_MEMORY_PTR:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 64
+// CHECK: [[STATIC_MEMORY:v[0-9]+]] = ptrtoint memptr [[STATIC_MEMORY_PTR]] to i256
 // CHECK: + mstore [[STATIC_MEMORY]], 0x1234567800000000000000000000000000000000000000000000000000000000
 // CHECK: + mstore {{v[0-9]+}}, arg0
-// CHECK: + {{v[0-9]+}} = make_memory_slice [[STATIC_MEMORY]], 36
-fn @static(arg0: u256) -> memoryslice {
+// CHECK: + [[STATIC_SLICE:v[0-9]+]] = ptrtoint memptr [[STATIC_MEMORY_PTR]] to i256
+// CHECK: + {{v[0-9]+}} = make_memory_slice [[STATIC_SLICE]], 36
+fn @static(arg0: i256) -> memoryslice {
   bb0:
     v0 = abi_encode [word], selector 0x1234567800000000000000000000000000000000000000000000000000000000, args arg0
     ret v0
@@ -16,7 +18,7 @@ fn @static(arg0: u256) -> memoryslice {
 // CHECK-LABEL: {{^[ +].*}}fn @static_bytes{{[( ]}}
 // CHECK: + [[OBJECT:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
 // CHECK: + set_memory_object_len memorybytes, [[OBJECT]], 64
-fn @static_bytes(arg0: u256, arg1: u256) -> memorybytes {
+fn @static_bytes(arg0: i256, arg1: i256) -> memorybytes {
   bb0:
     v0 = abi_encode [word, word], object, args arg0, arg1
     ret v0
@@ -25,29 +27,35 @@ fn @static_bytes(arg0: u256, arg1: u256) -> memorybytes {
 // CHECK-LABEL: {{^[ +].*}}fn @selector_bytes{{[( ]}}
 // CHECK: + [[SELECTOR_OBJECT:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
 // CHECK: + set_memory_object_len memorybytes, [[SELECTOR_OBJECT]], 36
-fn @selector_bytes(arg0: u256) -> memorybytes {
+fn @selector_bytes(arg0: i256) -> memorybytes {
   bb0:
     v0 = abi_encode [word], selector 0x1234567800000000000000000000000000000000000000000000000000000000, object, args arg0
     ret v0
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @scratch{{[( ]}}
-// CHECK: + [[SCRATCH_MEMORY:v[0-9]+]] = fmp
+// CHECK: + [[SCRATCH_MEMORY_PTR:v[0-9]+]] = fmp
+// CHECK: [[SCRATCH_MEMORY:v[0-9]+]] = ptrtoint memptr [[SCRATCH_MEMORY_PTR]] to i256
 // CHECK: + mstore [[SCRATCH_MEMORY]], arg0
 // CHECK-NOT: alloc
-// CHECK: + {{v[0-9]+}} = make_memory_slice [[SCRATCH_MEMORY]], 32
-fn @scratch(arg0: u256) -> memoryslice {
+// CHECK: + [[SCRATCH_SLICE:v[0-9]+]] = ptrtoint memptr [[SCRATCH_MEMORY_PTR]] to i256
+// CHECK: + {{v[0-9]+}} = make_memory_slice [[SCRATCH_SLICE]], 32
+fn @scratch(arg0: i256) -> memoryslice {
   bb0:
     v0 = abi_encode [word], scratch, args arg0
     ret v0
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @dynamic{{[( ]}}
-// CHECK: + [[DYNAMIC_MEMORY:v[0-9]+]] = fmp
-// CHECK: + mstore [[DYNAMIC_MEMORY]], {{v[0-9]+}}
+// CHECK: + [[DYNAMIC_MEMORY_PTR:v[0-9]+]] = fmp
+// CHECK: [[DYNAMIC_MEMORY:v[0-9]+]] = ptrtoint memptr [[DYNAMIC_MEMORY_PTR]] to i256
+// CHECK: + {{v[0-9]+}} = sub
+// CHECK: + [[DYNAMIC_STORE:v[0-9]+]] = ptrtoint memptr [[DYNAMIC_MEMORY_PTR]] to i256
+// CHECK: + mstore [[DYNAMIC_STORE]], {{v[0-9]+}}
 // CHECK: + [[LENGTH:v[0-9]+]] = slice_len arg0
 // CHECK: + calldatacopy
-// CHECK: + [[ALLOCATED_MEMORY:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, {{v[0-9]+}}
+// CHECK: + [[ALLOCATED_MEMORY_PTR:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, {{v[0-9]+}}
+// CHECK: [[ALLOCATED_MEMORY:v[0-9]+]] = ptrtoint memptr [[ALLOCATED_MEMORY_PTR]] to i256
 // CHECK: + {{v[0-9]+}} = make_memory_slice [[ALLOCATED_MEMORY]], {{v[0-9]+}}
 fn @dynamic(arg0: calldataslice) -> memoryslice {
   bb0:
@@ -81,7 +89,7 @@ fn @returndata_bytes() -> memoryslice {
     ret v2
 }
 
-fn @returndata_words(arg0: u256) -> memoryslice {
+fn @returndata_words(arg0: i256) -> memoryslice {
   bb0:
     v0 = make_returndata_slice 0, arg0
     v1 = abi_encode [returndata_array<word>], args v0

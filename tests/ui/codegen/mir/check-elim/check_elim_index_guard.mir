@@ -6,9 +6,9 @@
 // (the shape emitted for `if (i < 3) { x[i] }` on a fixed-size array), so
 // the check folds to the continue edge and the Panic(0x32) block dies.
 // CHECK-LABEL: {{^[ +].*}}fn @fold_const_len_check{{[( ]}}
-// CHECK: - jumpi {{v[0-9]+}}, bb3, bb2
+// CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb2
 // CHECK: + jump bb3
-fn @fold_const_len_check(arg0: u256) -> u256 {
+fn @fold_const_len_check(arg0: i256) -> i256 {
   bb0:
     v1 = lt arg0, 3
     jumpi v1, bb1, bb4
@@ -31,9 +31,9 @@ fn @fold_const_len_check(arg0: u256) -> u256 {
 // bounds check for a dynamic array (`if (i < x.length) { x[i] }` once load
 // CSE merges the two length loads), so the check folds.
 // CHECK-LABEL: {{^[ +].*}}fn @fold_dyn_len_check{{[( ]}}
-// CHECK: - jumpi {{v[0-9]+}}, bb3, bb2
+// CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb2
 // CHECK: + jump bb3
-fn @fold_dyn_len_check(arg0: u256) -> u256 {
+fn @fold_dyn_len_check(arg0: i256) -> i256 {
   bb0:
     v1 = sload 0
     v2 = lt arg0, v1
@@ -56,8 +56,8 @@ fn @fold_dyn_len_check(arg0: u256) -> u256 {
 // The guard checks a different bound (`i < 2` does prove `i < 3`, but
 // `i < 5` does not), so the bounds check must stay.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_weaker_guard{{[( ]}}
-// CHECK: {{^[ +].*}}jumpi {{v[0-9]+}}, bb3, bb2
-fn @keep_weaker_guard(arg0: u256) -> u256 {
+// CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb2
+fn @keep_weaker_guard(arg0: i256) -> i256 {
   bb0:
     v1 = lt arg0, 5
     jumpi v1, bb1, bb4
@@ -80,7 +80,7 @@ fn @keep_weaker_guard(arg0: u256) -> u256 {
 // CHECK: icall revert_if_zero<empty>, arg0
 // CHECK: - icall panic_if_zero<0x1>, arg0
 // CHECK: - icall panic_if_zero<0x32>, v0
-fn @semantic_guards(arg0: bool, arg1: u256) {
+fn @semantic_guards(arg0: i1, arg1: i256) {
   bb0:
     icall revert_if_zero<empty>, arg0
     icall panic_if_zero<0x1>, arg0
@@ -94,7 +94,7 @@ fn @semantic_guards(arg0: bool, arg1: u256) {
 // CHECK-DAG: icall panic_if_zero<0x1>, arg1{{$}}
 // CHECK-DAG: - icall panic_if_zero<0x32>, arg1
 // CHECK-DAG: icall panic_if_zero<0x12>, arg1
-fn @conditional_guard(arg0: bool, arg1: bool) {
+fn @conditional_guard(arg0: i1, arg1: i1) {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:

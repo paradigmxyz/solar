@@ -1,30 +1,30 @@
-error: [fn0] [bb0, inst0] payable call requires word operands
+error: [fn0] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 
-error: [fn1] [bb0, inst0] payable call requires word operands
+error: [fn1] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 
-error: [fn2] [bb0, inst0] conditional check requires one word condition and no result
+error: [fn2] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 
-error: [fn3] [bb0, inst0] conditional check requires one word condition and no result
+error: [fn3] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 
-error: [fn4] [bb0, inst0] conditional check requires one word condition and no result
+error: [fn4] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 
-error: [fn5] [bb0, inst0] builtin call has an invalid argument count
+error: [fn5] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 
-error: [fn6] [bb0, inst0] builtin call has an invalid argument count
+error: [fn6] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 
-error: [fn7] [bb0, inst0] builtin call has an invalid argument count
+error: [fn7] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 
-error: [fn8] [bb0, inst0] builtin call has an invalid argument count
+error: [fn8] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 
-error: [fn9] [bb0, inst0] builtin call has an invalid argument count
+error: [fn9] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 
-error: [fn10] [bb0, inst0] builtin call has an invalid argument count
+error: [fn10] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 
-error: [fn11] [bb0, inst0] builtin call has an invalid argument count
+error: [fn11] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 
-error: [fn12] [bb0, inst0] builtin call has an invalid argument count
+error: [fn12] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 
-error: [fn13] [bb0, inst0] builtin call has an invalid argument count
+error: [fn13] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 
 error: aborting due to 14 previous errors
 

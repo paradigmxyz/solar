@@ -1,23 +1,27 @@
 // === ROOT/tests/ui/codegen/lowering/creation_code.sol:CreationCodeChild ===
 @module CreationCodeChild
-fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
   bb0:
     ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/creation_code.sol:CreationCodeFactory ===
 @module CreationCodeFactory
-fn @creationCode() -> memorybytes [selector=0x7213edad, pure, abi_params=[], abi_returns=[memory_bytes]] {
+fn @creationCode() -> memorybytes [selector=0x7213edad, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 103
+    set_memory_object_len memorybytes, v0, 105
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x6067380380606760c03960c001601f017fffffffffffffffffffffffffffffff
-    v2 = add v1, 32
-    mstore v2, 0xffffffffffffffffffffffffffffffffe0166040523460565760c060c0606738
-    v3 = add v1, 64
-    mstore v3, 0x30160208201915081119050605257605a565b5f5ffd5b5f5ffd5b6003806064
-    v4 = add v1, 96
-    mstore v4, 0x5f395ff35f5ffd00000000000000000000000000000000000000000000000000
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x6069380380606960c03960c001601f017fffffffffffffffffffffffffffffff
+    v3 = ptrtoint memptr v1 to i256
+    v4 = add v3, 32
+    mstore v4, 0xffffffffffffffffffffffffffffffffe01660405234151560585760c060c060
+    v5 = ptrtoint memptr v1 to i256
+    v6 = add v5, 64
+    mstore v6, 0x6938030160208201915081119050605457605c565b5f5ffd5b5f5ffd5b600380
+    v7 = ptrtoint memptr v1 to i256
+    v8 = add v7, 96
+    mstore v8, 0x60665f395ff35f5ffd0000000000000000000000000000000000000000000000
     ret v0
 }

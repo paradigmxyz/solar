@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_bytes_array_wrapped_offset.sol:AbiCalldataBytesArrayWrappedOffset ===
 @module AbiCalldataBytesArrayWrappedOffset
-fn @first(arg0: calldataslice) -> memorybytes [selector=0xcf452bd8, pure, abi_params=[array<_, bytes>], abi_returns=[memory_bytes]] {
+fn @first(arg0: calldataslice) -> memorybytes [selector=0xcf452bd8, pure, abi_params=[array<_, bytes>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 0
@@ -18,7 +18,7 @@ fn @first(arg0: calldataslice) -> memorybytes [selector=0xcf452bd8, pure, abi_pa
     v11 = sub v10, v3
     v12 = sub v11, 31
     v13 = slt v8, v12
-    v14 = iszero v13
+    v14 = eq v13, false
     icall revert_if<invalid_calldata_tail_offset>, v14
     v15 = calldataload v9
     v16 = gt v15, 0xffffffffffffffff
@@ -51,7 +51,7 @@ fn @first(arg0: calldataslice) -> memorybytes [selector=0xcf452bd8, pure, abi_pa
     ret v35
 }
 
-fn @encode(arg0: calldataslice) -> bytes32 [selector=0x04f02d88, pure, abi_params=[array<_, bytes>], abi_returns=[word]] {
+fn @encode(arg0: calldataslice) -> i256 [selector=0x04f02d88, pure, abi_params=[array<_, bytes>], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = abi_encode [calldata_array<calldata_bytes>], scratch, args arg0
     v1 = slice_ptr v0

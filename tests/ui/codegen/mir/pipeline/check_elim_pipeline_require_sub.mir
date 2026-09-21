@@ -11,12 +11,12 @@
 // CHECK-NOT: {{mstore 4, 17|revert 0, 36}}
 // CHECK: mstore 128, [[SUB]]
 // CHECK-NOT: {{mstore 4, 17|revert 0, 36}}
-fn @guarded(arg0: u256, arg1: u256) {
+fn @guarded(arg0: i256, arg1: i256) {
   bb0:
     mstore 128, 0
     v5 = gt arg1, arg0
-    v6 = iszero v5
-    v7 = iszero v6
+    v6 = eq v5, false
+    v7 = eq v6, false
     jumpi v7, bb1, bb2
   bb1:
     revert 0, 0
@@ -41,7 +41,7 @@ fn @guarded(arg0: u256, arg1: u256) {
 // CHECK: jumpi [[UNDERFLOW]], bb1, bb2
 // CHECK: mstore 4, 17 !metadata(memory=scratch)
 // CHECK: revert 0, 36
-fn @unguarded(arg0: u256, arg1: u256) {
+fn @unguarded(arg0: i256, arg1: i256) {
   bb0:
     mstore 128, 0
     v5 = sub arg0, arg1

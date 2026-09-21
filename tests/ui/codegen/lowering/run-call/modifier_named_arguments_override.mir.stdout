@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_named_arguments_override.sol:Base ===
 @module Base
-fn @r() -> u256 [selector=0x6c8ae38c, view, abi_params=[], abi_returns=[word]] {
+fn @r() -> i256 [selector=0x6c8ae38c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @named() -> u256 [selector=0x45f907a8, abi_params=[], abi_returns=[word]] {
+fn @named() -> i256 [selector=0x45f907a8, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_mul u256, 1, 100
     v1 = checked_add u256, v0, 2
@@ -19,7 +19,7 @@ fn @named() -> u256 [selector=0x45f907a8, abi_params=[], abi_returns=[word]] {
     ret v2
 }
 
-fn @positional() -> u256 [selector=0x8a0495cd, abi_params=[], abi_returns=[word]] {
+fn @positional() -> i256 [selector=0x8a0495cd, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_mul u256, 1, 100
     v1 = checked_add u256, v0, 2
@@ -34,13 +34,13 @@ fn @positional() -> u256 [selector=0x8a0495cd, abi_params=[], abi_returns=[word]
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_named_arguments_override.sol:Derived ===
 @module Derived
-fn @r() -> u256 [selector=0x6c8ae38c, view, abi_params=[], abi_returns=[word]] {
+fn @r() -> i256 [selector=0x6c8ae38c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @named() -> u256 [selector=0x45f907a8, abi_params=[], abi_returns=[word]] {
+fn @named() -> i256 [selector=0x45f907a8, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_mul u256, 2, 100
     v1 = checked_add u256, v0, 1
@@ -53,7 +53,7 @@ fn @named() -> u256 [selector=0x45f907a8, abi_params=[], abi_returns=[word]] {
     ret v2
 }
 
-fn @positional() -> u256 [selector=0x8a0495cd, abi_params=[], abi_returns=[word]] {
+fn @positional() -> i256 [selector=0x8a0495cd, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_mul u256, 2, 100
     v1 = checked_add u256, v0, 1

@@ -79,3 +79,57 @@ bb6 [cold]:
   push 36
   push 28
   revert
+// === ROOT/tests/ui/codegen/lowering/live_branch_condition.sol:ReturndataBranch (runtime) ===
+@module ReturndataBranch_runtime
+bb0:
+  callvalue
+  push bb3
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x29e99f07
+  sub
+  push bb3
+  jumpi
+  push 160
+  push 64
+  mstore
+  push 36
+  calldatasize
+  lt
+  push bb3
+  jumpi
+  push 0
+  push 0
+  push 4
+  calldataload
+  push 0
+  push 4
+  gas
+  staticcall
+  iszero
+  push bb3
+  jumpi
+  returndatasize
+  push bb8
+  jumpi
+  push 9
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb8:
+  push 7
+  push 0
+  mstore
+  push 32
+  push 0
+  return

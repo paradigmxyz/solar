@@ -2,12 +2,12 @@
 //@[structs] compile-flags: -Zmir-pipeline=lower-structs
 //@[boundary] compile-flags: -Zmir-pipeline=lower-structs,lower-frame-slots,lower-memory-objects,lower-slices,lower-evm-shaped
 //@[checkpoint] compile-flags: -Zmir-pipeline=lower-structs,none,lower-slices
-//~? ERROR: `lower-structs` cannot lower this module: slice producers or returns do not provide pointer/length pairs
+//~? ERROR: [fn0] [bb0] return values do not match the signature
 @module LegacySlice
 @phase semantic
 
 types:
-  struct0: {memoryslice, u256}
+  struct0: {memoryslice, i256}
   struct1: {memorybytes}
 
 fn @legacy(arg0: memorybytes) -> memoryslice {

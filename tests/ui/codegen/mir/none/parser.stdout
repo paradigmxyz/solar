@@ -7,25 +7,27 @@
   immutables:
     fn: u8
   
-  fn @call(arg0: address, arg1: u256) -> u256 {
+  fn @call(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = call 100, arg0, arg1, 0, 0, 0, 0
-      ret v0
+      v1 = zext i1 v0 to i256
+      ret v1
   }
   
-  fn @clz(arg0: u256) -> u256 {
+  fn @clz(arg0: i256) -> i256 {
     bb0:
       v0 = clz arg0
       ret v0
   }
   
-  fn @callcode(arg0: address, arg1: u256) -> u256 {
+  fn @callcode(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = callcode 100, arg0, arg1, 0, 0, 0, 0
-      ret v0
+      v1 = zext i1 v0 to i256
+      ret v1
   }
   
-  fn @hash() -> u256 {
+  fn @hash() -> i256 {
     bb0:
       mstore 0, 1
       mstore 32, 2
@@ -39,7 +41,7 @@
       stop
   }
   
-  fn @environment() -> u256 {
+  fn @environment() -> i256 {
     bb0:
       v0 = caller
       v1 = callvalue
@@ -48,7 +50,7 @@
       ret v3
   }
   
-  fn @select_and_log(arg0: bool, arg1: u256, arg2: u256) -> u256 {
+  fn @select_and_log(arg0: i1, arg1: i256, arg2: i256) -> i256 {
     bb0:
       v0 = select arg0, arg1, arg2
       log1 0, 32, v0
@@ -66,19 +68,19 @@
       stop
   }
   
-  fn @immutable() -> u8 {
+  fn @immutable() -> i256 {
     bb0:
       v0 = loadimmutable fn
       ret v0
   }
   
-  fn @constructor() -> u256 [constructor] {
+  fn @constructor() -> i256 [constructor] {
     bb0:
       v0 = constructor_args_base
       ret v0
   }
   
-  fn @returndatasize() -> u256 {
+  fn @returndatasize() -> i256 {
     bb0:
       v0 = returndatasize
       ret v0
@@ -94,7 +96,7 @@
       stop
   }
   
-  fn @precompiles(arg0: memorybytes) -> u256 {
+  fn @precompiles(arg0: memorybytes) -> i256 {
     bb0:
       v0 = icall sha256<>, arg0
       v1 = icall ripemd160<>, arg0
@@ -106,5 +108,100 @@
     bb0:
       v0 = icall concat<memorybytes, bytes2>, arg0, 0x1234000000000000000000000000000000000000000000000000000000000000
       ret v0
+  }
+  
+  fn @address_width(arg0: i256) -> i256 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+      v1 = zext i160 v0 to i256
+      ret v1
+  }
+  
+  fn @address_phi(arg0: i1, arg1: i160) -> i160 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      jump bb3
+    bb3:
+      v0 = phi [bb1: arg1], [bb2: i160 0xffffffffffffffffffffffffffffffffffffffff]
+      ret v0
+  }
+  
+  fn @integer_widths(arg0: i8, arg1: i24, arg2: i512, arg3: i4294967295) -> i512 {
+    bb0:
+      ret arg2
+  }
+  
+  fn @integer_phi(arg0: i1, arg1: i7) -> i7 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      jump bb3
+    bb3:
+      v0 = phi [bb1: arg1], [bb2: i7 127]
+      ret v0
+  }
+  
+  fn @wide_integer_literal() -> i512 {
+    bb0:
+      ret i512 42
+  }
+  
+  fn @integer_undef() -> i24 {
+    bb0:
+      ret undef i24
+  }
+  
+  fn @llvm_casts(arg0: i256, arg1: i1, arg2: memptr) -> memptr {
+    bb0:
+      v0 = trunc i256 arg0 to i1
+      v1 = zext i1 arg1 to i256
+      v2 = sext i1 arg1 to i256
+      v3 = ptrtoint memptr arg2 to i160
+      v4 = inttoptr i256 arg0 to memptr
+      v5 = bitcast memptr arg2 to memorybytes
+      ret v4
+  }
+  
+  fn @cast_undef() -> memorybytes {
+    bb0:
+      v0 = bitcast memptr undef to memorybytes
+      ret v0
+  }
+  
+  fn @syntax_only_casts(arg0: i128) -> i512 {
+    bb0:
+      v0 = trunc i128 arg0 to i24
+      v1 = zext i24 v0 to i512
+      v2 = sext i24 v0 to i512
+      ret v2
+  }
+  
+  fn @forward_integer_phi(arg0: i1, arg1: i256) -> i24 {
+    bb0:
+      jumpi arg0, bb2, bb3
+    bb3:
+      v3 = trunc i256 31 to i7
+      jump bb1
+    bb2:
+      v2 = trunc i256 arg1 to i7
+      jump bb1
+    bb1:
+      v0 = phi [bb2: v2], [bb3: v3]
+      v1 = zext i7 v0 to i24
+      ret v1
+  }
+  
+  fn @bool_bitwise(arg0: i1, arg1: i1) -> i256 {
+    bb0:
+      v0 = and arg0, arg1
+      v1 = or v0, false
+      v2 = xor v1, true
+      v3 = zext i1 v2 to i256
+      ret v3
   }
   

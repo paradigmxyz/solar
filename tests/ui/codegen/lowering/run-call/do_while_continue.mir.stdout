@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/do_while_continue.sol:DoWhileContinue ===
 @module DoWhileContinue
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
-fn @falseCondition() -> u256 [selector=0x0c55a706, pure, abi_params=[], abi_returns=[word]] {
+fn @falseCondition() -> i256 [selector=0x0c55a706, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -30,7 +30,7 @@ fn @falseCondition() -> u256 [selector=0x0c55a706, pure, abi_params=[], abi_retu
     invalid
 }
 
-fn @countToThree() -> u256 [selector=0x1da4c6ce, pure, abi_params=[], abi_returns=[word]] {
+fn @countToThree() -> i256 [selector=0x1da4c6ce, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -74,7 +74,7 @@ fn @conditionSideEffect() -> struct0 [selector=0x9f218831, pure, abi_params=[], 
     invalid
 }
 
-fn @skipRemainder() -> u256 [selector=0x3c43b081, pure, abi_params=[], abi_returns=[word]] {
+fn @skipRemainder() -> i256 [selector=0x3c43b081, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -104,7 +104,7 @@ fn @skipRemainder() -> u256 [selector=0x3c43b081, pure, abi_params=[], abi_retur
     invalid
 }
 
-fn @nested() -> u256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[word]] {
+fn @nested() -> i256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -143,7 +143,7 @@ fn @nested() -> u256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[wor
     invalid
 }
 
-fn @whileControl() -> u256 [selector=0x4eb5547e, pure, abi_params=[], abi_returns=[word]] {
+fn @whileControl() -> i256 [selector=0x4eb5547e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -161,7 +161,7 @@ fn @whileControl() -> u256 [selector=0x4eb5547e, pure, abi_params=[], abi_return
     invalid
 }
 
-fn @whileConditionalContinue() -> u256 [selector=0xd1e42237, pure, abi_params=[], abi_returns=[word]] {
+fn @whileConditionalContinue() -> i256 [selector=0xd1e42237, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -189,7 +189,7 @@ fn @whileConditionalContinue() -> u256 [selector=0xd1e42237, pure, abi_params=[]
     jump bb1
 }
 
-fn @exitUsesPreviousLoopValue() -> u256 [selector=0x27efcb8a, pure, abi_params=[], abi_returns=[word]] {
+fn @exitUsesPreviousLoopValue() -> i256 [selector=0x27efcb8a, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -211,7 +211,7 @@ fn @exitUsesPreviousLoopValue() -> u256 [selector=0x27efcb8a, pure, abi_params=[
     invalid
 }
 
-fn @once() -> u256 [selector=0x292a3f7e, pure, abi_params=[], abi_returns=[word]] {
+fn @once() -> i256 [selector=0x292a3f7e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -230,7 +230,7 @@ fn @once() -> u256 [selector=0x292a3f7e, pure, abi_params=[], abi_returns=[word]
     invalid
 }
 
-fn @conditionSideEffects() -> u256 [selector=0xb44652e6, pure, abi_params=[], abi_returns=[word]] {
+fn @conditionSideEffects() -> i256 [selector=0xb44652e6, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -255,7 +255,7 @@ fn @conditionSideEffects() -> u256 [selector=0xb44652e6, pure, abi_params=[], ab
     invalid
 }
 
-fn @nestedSideEffects() -> u256 [selector=0x31faa90c, pure, abi_params=[], abi_returns=[word]] {
+fn @nestedSideEffects() -> i256 [selector=0x31faa90c, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -298,25 +298,24 @@ fn @nestedSideEffects() -> u256 [selector=0x31faa90c, pure, abi_params=[], abi_r
     invalid
 }
 
-fn @checkedDecrementLatch() -> u256 [selector=0x9d033d28, pure, abi_params=[], abi_returns=[word]] {
+fn @checkedDecrementLatch() -> i256 [selector=0x9d033d28, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v4]
-    v1 = phi [bb0: 4], [bb3: v5]
-    v2 = eq v1, 0
-    v3 = iszero v2
-    jumpi v3, bb4, bb5
+    v0 = phi [bb0: 0], [bb3: v3]
+    v1 = phi [bb0: 4], [bb3: v4]
+    v2 = ne v1, 0
+    jumpi v2, bb4, bb5
   bb5:
     jump bb2
   bb2:
     ret v0
   bb4:
-    v4 = checked_add u256, v0, v1
+    v3 = checked_add u256, v0, v1
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v5 = checked_sub u256, v1, 1
+    v4 = checked_sub u256, v1, 1
     jump bb1
 }

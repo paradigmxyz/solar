@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/yul_arg_eval_order.sol:C ===
 @module C
-fn @builtinOrder() -> u256 [selector=0x0eb481d9, pure, abi_params=[], abi_returns=[word]] {
+fn @builtinOrder() -> i256 [selector=0x0eb481d9, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     mstore 0, 3 !metadata(memory=scratch)
     v0 = icall @eff
@@ -9,7 +9,7 @@ fn @builtinOrder() -> u256 [selector=0x0eb481d9, pure, abi_params=[], abi_return
     ret v2
 }
 
-fn @userFnOrder() -> u256 [selector=0x6b0e5af2, pure, abi_params=[], abi_returns=[word]] {
+fn @userFnOrder() -> i256 [selector=0x6b0e5af2, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     mstore 0, 1 !metadata(memory=scratch)
     v0 = icall @w, 7
@@ -19,39 +19,44 @@ fn @userFnOrder() -> u256 [selector=0x6b0e5af2, pure, abi_params=[], abi_returns
     ret v3
 }
 
-fn @deployIdiom() -> u256 [selector=0x298d6964, abi_params=[], abi_returns=[word]] {
+fn @deployIdiom() -> i256 [selector=0x298d6964, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 20
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x600a600a5f39600a5ff3600760005260206000f3000000000000000000000000
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x600a600a5f39600a5ff3600760005260206000f3000000000000000000000000
     mstore 32, 0 !metadata(memory=scratch)
-    v2 = icall @doCreate, v0
-    v3 = mload 32 !metadata(memory=scratch)
-    v4 = extcodesize v3
-    v5 = mul v4, v2
-    v6 = iszero v5
-    v7 = iszero v6
-    ret v7
+    v3 = ptrtoint memorybytes v0 to i256
+    v4 = icall @doCreate, v3
+    v5 = mload 32 !metadata(memory=scratch)
+    v6 = extcodesize v5
+    v7 = mul v6, v4
+    v8 = eq v7, 0
+    v9 = zext i1 v8 to i256
+    v10 = eq v9, 0
+    v11 = zext i1 v10 to i256
+    ret v11
 }
 
-fn @eff() -> u256 {
+fn @eff() -> i256 {
   bb0:
     mstore 0, 5 !metadata(memory=scratch)
     ret 10
 }
 
-fn @w(arg0: u256) -> u256 {
+fn @w(arg0: i256) -> i256 {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
     ret arg0
 }
 
-fn @doCreate(arg0: u256) -> u256 {
+fn @doCreate(arg0: i256) -> i256 {
   bb0:
     v0 = mload arg0
     v1 = add arg0, 32
     v2 = create 0, v1, v0
-    mstore 32, v2 !metadata(memory=scratch)
-    ret v2
+    v3 = zext i160 v2 to i256
+    mstore 32, v3 !metadata(memory=scratch)
+    ret v3
 }

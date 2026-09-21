@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_stride_validation.sol:AbiCalldataStrideValidation ===
 @module AbiCalldataStrideValidation
-fn @read(arg0: calldataslice) -> u256 [selector=0x9a15a5b8, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
+fn @read(arg0: calldataslice) -> i256 [selector=0x9a15a5b8, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0
-    v2 = iszero v1
+    v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = slice_ptr arg0
     v4 = add v3, 0
@@ -12,14 +12,14 @@ fn @read(arg0: calldataslice) -> u256 [selector=0x9a15a5b8, pure, abi_params=[ar
     ret v5
 }
 
-fn @encode(arg0: calldataslice) -> u256 [selector=0xb003dd86, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
+fn @encode(arg0: calldataslice) -> i256 [selector=0xb003dd86, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [calldata_array<word>], object, args arg0
     v1 = memory_object_len memorybytes, v0
     ret v1
 }
 
-fn @unused(arg0: calldataslice) -> u256 [selector=0x4d959ba5, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
+fn @unused(arg0: calldataslice) -> i256 [selector=0x4d959ba5, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 1
 }

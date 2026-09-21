@@ -1,0 +1,75 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/loop_checked_helper.sol:LoopCheckedHelper ===
+@module LoopCheckedHelper
+@phase lowered
+fn @checkedAdd(arg0: i256, arg1: i256) -> i256 [pure] {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    ret v0
+  bb1:
+    tail_call @panicArithmetic
+}
+
+fn @panicArithmetic() [pure] {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @accumulate() [selector=0x4256913b, abi_wrapper, pure] {
+  bb0:
+    v0 = gt arg0, 0x3e8
+    jumpi v0, bb4, bb5
+  bb5:
+    jump bb1
+  bb1:
+    v4 = phi [bb5: arg1], [bb7: v10]
+    v6 = phi [bb5: 0], [bb7: v13]
+    v7 = lt v6, arg0
+    jumpi v7, bb3, bb2
+  bb2:
+    mstore 128, v4
+    returndata 128, 32
+  bb3:
+    v10 = add v4, v6
+    v11 = lt v10, v4
+    jumpi v11, bb6, bb7
+  bb7:
+    v13 = add v6, 1
+    jump bb1
+  bb6:
+    tail_call @panicArithmetic
+  bb4:
+    revert 0, 0
+}
+
+fn @add() [selector=0x771602f7, abi_wrapper, pure] {
+  bb0:
+    v0 = icall @checkedAdd, arg0, arg1
+    mstore 128, v0
+    returndata 128, 32
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 68
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr 224, v6
+    switch v7, default bb1, [0x4256913b => bb3, 0x771602f7 => bb4]
+  bb4:
+    tail_call @add
+  bb3:
+    tail_call @accumulate
+  bb1:
+    revert 0, 0
+}

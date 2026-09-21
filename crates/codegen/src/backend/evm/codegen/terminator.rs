@@ -1,4 +1,11 @@
 //! Parallel copies, returns, and MIR terminator emission.
+//!
+//! Conditional jumps consume a word and a requested zero/nonzero sense. They do not require
+//! a normalized boolean. All branch layouts, including stack-carrying edges, use the same
+//! emitter. EVM IR cleanup selects the final condition after layout: double zero tests can
+//! disappear, inequality can use SUB, and constant comparisons can absorb an inversion by
+//! adjusting their bound. Keeping those selections after layout also covers polarity changes
+//! from revert sharing, without changing boolean values still used as data.
 
 use super::{
     BlockId, CopyDest, CopySource, DebugFunctionExit, EvmCodegen, EvmMemoryLayout, Function,
@@ -198,6 +205,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_push_label(label);
     }
 
+    /// Consumes the top word as a zero/nonzero condition, preserving the stack below it.
+    pub(super) fn emit_conditional_jump(&mut self, target: Label, jump_if_zero: bool) {
+        // [condition]; [iszero]; push target; jumpi
+        if jump_if_zero {
+            self.asm.emit_op(op::ISZERO);
+        }
+        self.emit_push_label(target);
+        self.asm.emit_op(op::JUMPI);
+        self.scheduler.stack.pop();
+    }
+
     pub(super) fn generate_terminator(
         &mut self,
         func: &Function,
@@ -315,46 +333,22 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.emit_value(func, *condition);
                 }
 
-                match fallthrough {
-                    Some(next) if *else_block == next => {
-                        // JUMPI consumes the condition; false falls through to `else_block`.
-                        self.emit_push_label(self.block_labels[then_block]);
-                        self.asm.emit_op(op::JUMPI);
-                        self.scheduler.stack.pop(); // condition consumed by JUMPI
-                    }
-                    Some(next) if *then_block == next => {
-                        // Invert the condition so true falls through to `then_block`.
-                        self.asm.emit_op(op::ISZERO);
-                        self.scheduler.instruction_executed_untracked(1);
-                        self.emit_push_label(self.block_labels[else_block]);
-                        self.asm.emit_op(op::JUMPI);
-                        self.scheduler.stack.pop(); // inverted condition consumed by JUMPI
-                    }
-                    _ => {
-                        // Neither target falls through. Route the likely-hot
-                        // edge through JUMPI (16 gas) and leave the cold
-                        // revert path on the trailing unconditional jump,
-                        // instead of paying JUMPI + JUMP (24 gas) on the hot
-                        // path.
-                        if self.block_is_cold(*then_block) && !self.block_is_cold(*else_block) {
-                            self.asm.emit_op(op::ISZERO);
-                            self.scheduler.instruction_executed_untracked(1);
-                            self.emit_push_label(self.block_labels[else_block]);
-                            self.asm.emit_op(op::JUMPI);
-                            self.scheduler.stack.pop(); // inverted condition consumed by JUMPI
-
-                            self.emit_push_label(self.block_labels[then_block]);
-                            self.asm.emit_op(op::JUMP);
-                        } else {
-                            // JUMPI consumes the condition
-                            self.emit_push_label(self.block_labels[then_block]);
-                            self.asm.emit_op(op::JUMPI);
-                            self.scheduler.stack.pop(); // condition consumed by JUMPI
-
-                            self.emit_push_label(self.block_labels[else_block]);
-                            self.asm.emit_op(op::JUMP);
-                        }
-                    }
+                // jumpi [iszero] condition, taken; [jump other]
+                let jump_if_zero = match fallthrough {
+                    Some(next) if *else_block == next => false,
+                    Some(next) if *then_block == next => true,
+                    // Neither arm falls through: let the hot edge avoid a second jump.
+                    _ => self.block_is_cold(*then_block) && !self.block_is_cold(*else_block),
+                };
+                let (taken, other) = if jump_if_zero {
+                    (*else_block, *then_block)
+                } else {
+                    (*then_block, *else_block)
+                };
+                self.emit_conditional_jump(self.block_labels[&taken], jump_if_zero);
+                if fallthrough != Some(other) {
+                    self.emit_push_label(self.block_labels[&other]);
+                    self.asm.emit_op(op::JUMP);
                 }
             }
 

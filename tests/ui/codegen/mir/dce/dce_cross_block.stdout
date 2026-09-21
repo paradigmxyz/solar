@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/dce/dce_cross_block.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/dce/dce_cross_block.mir (after dce) ===
   @module DceCrossBlock
-  fn @cross(arg0: u256, arg1: bool) -> u256 {
+  fn @cross(arg0: i256, arg1: i1) -> i256 {
     bb0:
       v0 = add arg0, 1
       jumpi arg1, bb1, bb2
@@ -12,7 +12,7 @@
       ret v0
   }
   
-  fn @dead_cycle_to_live_phi(arg0: u256, arg1: bool) -> u256 {
+  fn @dead_cycle_to_live_phi(arg0: i256, arg1: i1) -> i256 {
     bb0:
       jump bb3
     bb3:

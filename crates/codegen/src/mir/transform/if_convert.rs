@@ -22,8 +22,8 @@
 //!   one value collapses one level at a time; and
 //! - any other pair becomes `f + c * (t - f)`.
 //!
-//! A non-boolean condition is normalized with two `iszero`s first. Later
-//! simplification turns a power-of-two multiplier into a shift.
+//! Conditions are canonical booleans and cast to words before arithmetic.
+//! Later simplification turns a power-of-two multiplier into a shift.
 //!
 //! Safety: an arm qualifies only when the branching block is its sole
 //! predecessor, its terminator is a jump to the join, and every instruction
@@ -43,8 +43,8 @@ use super::{cfg_simplify::simplify_function, egraph::is_bool_value};
 use crate::{
     backend::evm::op,
     mir::{
-        BlockId, EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType, Module,
-        Terminator, Value, ValueId,
+        BlockId, EffectKind, Function, Immediate, InstId, InstKind, MirType, Module, Terminator,
+        Value, ValueId,
         pass::{MirPass, run_function_pass},
     },
     target::{Cost, Target},
@@ -110,7 +110,7 @@ enum SelectForm {
     Same,
     /// `then = else op k`: `else op c * k`, or `c * then` from a zero else.
     Scaled(Derivation),
-    /// `else = then op k`: `then op (iszero c) * k`, or `(iszero c) * else`.
+    /// `else = then op k`: `then op (c == 0) * k`, or `(c == 0) * else`.
     ScaledNegated(Derivation),
     /// A literal `then` over an `else` that already selects literals on a
     /// condition implied by this one: `else + c * delta`.
@@ -214,7 +214,15 @@ fn arm_join(
     }
     let body = &func.blocks[arm];
     let Some(Terminator::Jump(join)) = body.terminator else { return None };
-    if join == arm || join == block || body.instructions.len() > MAX_ARM_INSTRUCTIONS {
+    if join == arm
+        || join == block
+        || body
+            .instructions
+            .iter()
+            .filter(|&&inst| !matches!(func.inst(inst).kind, InstKind::Zext(_)))
+            .count()
+            > MAX_ARM_INSTRUCTIONS
+    {
         return None;
     }
     let speculatable = body.instructions.iter().all(|&inst| {
@@ -253,16 +261,7 @@ fn join_selects(func: &Function, site: &Site) -> Option<Vec<Select>> {
 /// Whether a value carries memory, storage, or calldata provenance that the
 /// arithmetic forms would erase.
 fn is_pointer(func: &Function, value: ValueId) -> bool {
-    matches!(
-        func.value_ty(value),
-        Some(
-            MirType::MemPtr
-                | MirType::MemoryObject(_)
-                | MirType::StoragePtr
-                | MirType::CalldataPtr
-                | MirType::Slice(_)
-        )
-    )
+    matches!(func.value_ty(value), Some(MirType::MemoryObject(_) | MirType::Slice(_)))
 }
 
 fn select_form(
@@ -323,7 +322,12 @@ fn binary_operands(
 /// Whether a nonzero `first` implies a nonzero `second`: the same value, or
 /// bounds of one value by ordered literals (`x < a` implies `x < b` when
 /// `a <= b`, and `x > a` implies `x > b` when `a >= b`).
-fn implies(func: &Function, first: ValueId, second: ValueId) -> bool {
+fn implies(func: &Function, first: ValueId, mut second: ValueId) -> bool {
+    if let Value::Inst(inst) = func.value(second)
+        && let InstKind::Zext(value) = func.inst(*inst).kind
+    {
+        second = value;
+    }
     if first == second {
         return true;
     }
@@ -519,9 +523,9 @@ fn boolean_condition(func: &mut Function, block: BlockId, condition: ValueId) ->
     if is_bool_value(func, condition) {
         return condition;
     }
-    // cond01 = iszero(iszero(cond))
-    let zero = append(func, block, InstKind::IsZero(condition), Some(MirType::Bool));
-    append(func, block, InstKind::IsZero(zero), Some(MirType::Bool))
+    // cond01 = ne cond, 0
+    let zero = literal(func, U256::ZERO);
+    append(func, block, InstKind::Ne(condition, zero), Some(MirType::I1))
 }
 
 /// Builds `cond ? then_value : else_value` at the end of `block` in the
@@ -539,31 +543,27 @@ fn select_value(
         SelectForm::Scaled(derived) => {
             scaled_select(func, block, condition, then_value, else_value, derived, ty)
         }
-        // c ? t : t op k => t op (iszero c) * k
+        // c ? t : t op k => t op (c == 0) * k
         SelectForm::ScaledNegated(derived) => {
-            let negated = append(func, block, InstKind::IsZero(condition), Some(MirType::Bool));
+            let zero = literal(func, U256::ZERO);
+            let negated = append(func, block, InstKind::Eq(condition, zero), Some(MirType::I1));
             scaled_select(func, block, negated, else_value, then_value, derived, ty)
         }
         // c ? A : e => e + c * (A - base - k), for e = base + c2 * k
         SelectForm::Ladder(delta) => {
             let delta = literal(func, delta);
-            let scaled =
-                append(func, block, InstKind::Mul(condition, delta), Some(MirType::uint256()));
+            let scaled = append(func, block, InstKind::Mul(condition, delta), Some(MirType::I256));
             append(func, block, InstKind::Add(else_value, scaled), ty)
         }
         // c ? t : f => f + c * (t - f)
         SelectForm::General(delta) => {
             let delta = match delta {
                 Some(delta) => literal(func, delta),
-                None => append(
-                    func,
-                    block,
-                    InstKind::Sub(then_value, else_value),
-                    Some(MirType::uint256()),
-                ),
+                None => {
+                    append(func, block, InstKind::Sub(then_value, else_value), Some(MirType::I256))
+                }
             };
-            let scaled =
-                append(func, block, InstKind::Mul(condition, delta), Some(MirType::uint256()));
+            let scaled = append(func, block, InstKind::Mul(condition, delta), Some(MirType::I256));
             append(func, block, InstKind::Add(else_value, scaled), ty)
         }
     }
@@ -605,7 +605,7 @@ fn scaled_select(
     ty: Option<MirType>,
 ) -> ValueId {
     let scale = |func: &mut Function, amount| {
-        append(func, block, InstKind::Mul(condition, amount), Some(MirType::uint256()))
+        append(func, block, InstKind::Mul(condition, amount), Some(MirType::I256))
     };
     match derived {
         // c ? t : 0 => c * t
@@ -629,11 +629,20 @@ fn scaled_select(
 }
 
 fn literal(func: &mut Function, value: U256) -> ValueId {
-    func.alloc_value(Value::Immediate(Immediate::uint256(value)))
+    func.alloc_value(Value::Immediate(Immediate::I256(value)))
 }
 
 fn append(func: &mut Function, block: BlockId, kind: InstKind, ty: Option<MirType>) -> ValueId {
-    let (inst, value) = func.alloc_value_inst(Instruction::new(kind, ty).with_debug_info_dropped());
-    func.blocks[block].instructions.push(inst);
+    // operands = zext i1 boolean_operands to i256
+    // result = op operands
+    // typed_result = cast result
+    let start = func.blocks[block].instructions.len();
+    let mut builder = crate::mir::FunctionBuilder::new(func);
+    builder.switch_to_block(block);
+    let value = builder.emit_inst(kind, ty);
+    let insts = builder.func().blocks[block].instructions[start..].to_vec();
+    for inst in insts {
+        builder.func_mut().inst_mut(inst).metadata.mark_debug_info_dropped();
+    }
     value
 }

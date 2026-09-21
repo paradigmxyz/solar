@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/pure-eval/debug_origins.mir (before pure-eval) ===
 + // === ROOT/tests/ui/codegen/mir/pure-eval/debug_origins.mir (after pure-eval) ===
   @module FoldedOrigins
-  fn @same_origin() -> u256 {
+  fn @same_origin() -> i256 {
     bb0:
 -     jumpi true, bb1, bb2
 -   bb2:
@@ -14,7 +14,7 @@
 +     invalid
   }
   
-  fn @distinct_origins() -> u256 {
+  fn @distinct_origins() -> i256 {
     bb0:
 -     jumpi true, bb1, bb2
 -   bb2:

@@ -10,13 +10,12 @@
 //! shared with frame promotion inserts phis only where a field is live-in and
 //! rejects loads lacking a reaching store on any path. All fields are planned
 //! together before mutation, including full-object zero fills. The allocation
-//! stays in place; escapes, dynamic indices and partial/unknown accesses reject
-//! promotion. Run before memory-object lowering, while field identities remain
-//! explicit.
+//! stays in place. Full-width pointer casts retain the same object or field identity;
+//! escapes, narrowing casts, dynamic indices and partial/unknown accesses reject promotion.
+//! Run before memory-object lowering, while field identities remain explicit.
 
 use crate::mir::{
-    AllocationKind, Function, Immediate, InstId, InstKind, MemoryObjectLayout, Module, Value,
-    ValueId,
+    AllocationKind, Function, Immediate, InstKind, MemoryObjectLayout, Module, Value, ValueId,
     analysis::{AliasAnalysis, Location, LocationSize},
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     pass::{MirPass, run_function_pass_with_alias},
@@ -114,15 +113,37 @@ impl SroaCx {
         let words = fixed_aggregate_words(layout)?;
         let zero_size = words.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
 
-        // Map each field address value to its constant slot, and record the
-        // address instructions. Every use of the object must be such an
-        // address or a full-object zeroing operation.
+        let mut object_aliases = FxHashSet::from_iter([object]);
+        let mut address_insts = FxHashSet::default();
+        loop {
+            let mut changed = false;
+            for id in func.instructions() {
+                if let InstKind::PtrToInt(base, 256)
+                | InstKind::IntToPtr(base)
+                | InstKind::Bitcast(base) = func.inst(id).kind
+                    && object_aliases.contains(&base)
+                    && let Some(result) = func.inst_result_value(id)
+                    && object_aliases.insert(result)
+                {
+                    address_insts.insert(id);
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+
+        // Map each field address to its constant slot. Object aliases may only feed field
+        // addresses, preserving casts, and full-object zero fills.
         let mut slot_of: FxHashMap<ValueId, u64> = FxHashMap::default();
-        let mut address_insts: FxHashSet<InstId> = FxHashSet::default();
         for inst_id in func.instructions() {
+            if address_insts.contains(&inst_id) {
+                continue;
+            }
             let kind = &func.inst(inst_id).kind;
             if let InstKind::MemoryZero(base, size) = *kind
-                && base == object
+                && object_aliases.contains(&base)
             {
                 if func.value_u64(size) != Some(zero_size) {
                     return None;
@@ -131,7 +152,7 @@ impl SroaCx {
             }
             let slot = match *kind {
                 InstKind::MemoryObjectFieldAddr { object: base, field, layout: access }
-                    if base == object =>
+                    if object_aliases.contains(&base) =>
                 {
                     if access != layout {
                         return None;
@@ -140,7 +161,7 @@ impl SroaCx {
                         .map(|offset| offset / EvmMemoryLayout::WORD_SIZE)
                 }
                 InstKind::MemoryObjectElementAddr { object: base, index, layout: access }
-                    if base == object =>
+                    if object_aliases.contains(&base) =>
                 {
                     if access != layout {
                         return None;
@@ -154,7 +175,7 @@ impl SroaCx {
                     // Any other use of the object (data pointer, length,
                     // dynamic-index address, a store of the pointer) blocks
                     // scalarization.
-                    if kind.operands().contains(&object) {
+                    if kind.operands().iter().any(|value| object_aliases.contains(value)) {
                         return None;
                     }
                     continue;
@@ -169,16 +190,26 @@ impl SroaCx {
             address_insts.insert(inst_id);
         }
 
-        // Non-capturing terminators can still read the object's memory.
-        if func.blocks.iter().any(|block| {
-            block.terminator.as_ref().is_some_and(|terminator| {
-                terminator
-                    .operands()
-                    .iter()
-                    .any(|value| *value == object || slot_of.contains_key(value))
-            })
-        }) {
-            return None;
+        // field_word = ptrtoint field_pointer to i256
+        // field_pointer = inttoptr field_word, or bitcast field_pointer
+        loop {
+            let mut changed = false;
+            for id in func.instructions() {
+                if let InstKind::PtrToInt(base, 256)
+                | InstKind::IntToPtr(base)
+                | InstKind::Bitcast(base) = func.inst(id).kind
+                    && let Some(&slot) = slot_of.get(&base)
+                    && let Some(result) = func.inst_result_value(id)
+                    && !slot_of.contains_key(&result)
+                {
+                    slot_of.insert(result, slot);
+                    address_insts.insert(id);
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
         }
 
         // Non-capturing terminators can still read the object's memory.
@@ -187,7 +218,7 @@ impl SroaCx {
                 terminator
                     .operands()
                     .iter()
-                    .any(|value| *value == object || slot_of.contains_key(value))
+                    .any(|value| object_aliases.contains(value) || slot_of.contains_key(value))
             })
         }) {
             return None;
@@ -198,6 +229,9 @@ impl SroaCx {
         for inst_id in func.instructions() {
             let inst = func.inst(inst_id);
             let kind = &inst.kind;
+            if address_insts.contains(&inst_id) {
+                continue;
+            }
             let addr = match *kind {
                 InstKind::MStore(addr, value) => {
                     // The address may be a field address; the stored value must
@@ -232,7 +266,7 @@ impl SroaCx {
             if func.inst_result_value(inst) == Some(object)
                 || address_insts.contains(&inst)
                 || matches!(*kind, InstKind::MStore(addr, _) | InstKind::MLoad(addr) if slot_of.contains_key(&addr))
-                || matches!(*kind, InstKind::MemoryZero(base, _) if base == object)
+                || matches!(*kind, InstKind::MemoryZero(base, _) if object_aliases.contains(&base))
             {
                 continue;
             }
@@ -256,7 +290,7 @@ impl SroaCx {
         if fields.is_empty() {
             return Some(false);
         }
-        let zero = func.alloc_value(Value::Immediate(Immediate::uint256(U256::ZERO)));
+        let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
         let mut slots: Vec<_> = fields
             .iter()
             .map(|&slot| SlotAccessInfo::object(object, slot, func.blocks.len()))
@@ -278,7 +312,7 @@ impl SroaCx {
                         let index = fields.binary_search(&slot_of[&addr]).ok()?;
                         slots[index].note_load(block, inst);
                     }
-                    InstKind::MemoryZero(base, _) if base == object => {
+                    InstKind::MemoryZero(base, _) if object_aliases.contains(&base) => {
                         zeros.insert(inst);
                         for slot in &mut slots {
                             slot.note_store(block, inst, zero);
@@ -291,7 +325,8 @@ impl SroaCx {
         if !promote_object_slots(func, &slots) {
             return Some(false);
         }
-        // field_addr object, index; memory_zero object, size => SSA field values
+        // preserving_cast object; field_addr object, index; memory_zero object, size
+        // => SSA field values
         for block in &mut func.blocks {
             block
                 .instructions

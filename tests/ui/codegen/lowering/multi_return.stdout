@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return.sol:MultiReturn ===
 @module MultiReturn
 types:
-  struct0: {u256, u256}
-  struct1: {u256, u256, u256}
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256}
 
-fn @div_mod(arg0: u256, arg1: u256) -> struct0 [selector=0xebf2447f, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @div_mod(arg0: i256, arg1: i256) -> struct0 [selector=0xebf2447f, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = checked_div u256, arg0, arg1
     v1 = checked_rem u256, arg0, arg1
@@ -13,7 +13,7 @@ fn @div_mod(arg0: u256, arg1: u256) -> struct0 [selector=0xebf2447f, pure, abi_p
     ret v3
 }
 
-fn @min_max(arg0: u256, arg1: u256) -> struct0 [selector=0xaef50db3, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @min_max(arg0: i256, arg1: i256) -> struct0 [selector=0xaef50db3, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = lt arg0, arg1
     jumpi v0, bb1, bb2
@@ -29,7 +29,7 @@ fn @min_max(arg0: u256, arg1: u256) -> struct0 [selector=0xaef50db3, pure, abi_p
     ret v2
 }
 
-fn @triple(arg0: u256) -> struct1 [selector=0xf40a049d, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @triple(arg0: i256) -> struct1 [selector=0xf40a049d, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = checked_add u256, arg0, arg0
     v1 = checked_add u256, arg0, arg0

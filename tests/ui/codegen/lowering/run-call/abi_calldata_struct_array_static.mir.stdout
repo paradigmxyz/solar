@@ -1,14 +1,14 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_struct_array_static.sol:AbiCalldataStructArrayStatic ===
 @module AbiCalldataStructArrayStatic
 types:
-  struct0: {u256, u256, u256, u256, u256}
+  struct0: {i256, i256, i256, i256, i256}
 
 fn @f(arg0: calldataslice) -> struct0 [selector=0xa7d2e4a7, pure, abi_params=[array<_, tuple<u256, u256>>], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_len arg0
     v2 = lt 0, v1
-    v3 = iszero v2
+    v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = slice_ptr arg0
     v5 = add v4, 0
@@ -18,7 +18,7 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xa7d2e4a7, pure, abi_params=[ar
     v9 = calldataload v8
     v10 = slice_len arg0
     v11 = lt 0, v10
-    v12 = iszero v11
+    v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = slice_ptr arg0
     v14 = add v13, 0
@@ -28,7 +28,7 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xa7d2e4a7, pure, abi_params=[ar
     v18 = calldataload v17
     v19 = slice_len arg0
     v20 = lt 1, v19
-    v21 = iszero v20
+    v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = slice_ptr arg0
     v23 = add v22, 64
@@ -38,7 +38,7 @@ fn @f(arg0: calldataslice) -> struct0 [selector=0xa7d2e4a7, pure, abi_params=[ar
     v27 = calldataload v26
     v28 = slice_len arg0
     v29 = lt 1, v28
-    v30 = iszero v29
+    v30 = eq v29, false
     icall panic_if<0x32>, v30
     v31 = slice_ptr arg0
     v32 = add v31, 64

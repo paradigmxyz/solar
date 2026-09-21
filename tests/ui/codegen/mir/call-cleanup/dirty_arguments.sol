@@ -1,5 +1,18 @@
 //@ codegen-matrix: standard
+//@ run-call: normalizedReturn 0 => false
+//@ run-call: normalizedReturn 2 => true
+//@ run-call: compareRawReturn 2, true => true
+//@ run-call: compareRawReturn 2, false => false
+//@ run-call: compareReturns 0, 0 => true
+//@ run-call: compareReturns 0, 1 => false
+//@ run-call: compareReturns 2, 3 => true
 //@ run-call: clean 0x0000000000000000000000000000000000000123 => 291
+//@ run-call: cleanIsZero 0x0000000000000000000000000000000000000000 => true
+//@ run-call: cleanIsZero 0x0000000000000000000000000000000000000001 => false
+//@ run-call: dirtyIsZero 0x10000000000000000000000000000000000000000 => true
+//@ run-call: dirtyIsZero 0x10000000000000000000000000000000000000001 => false
+//@ run-call: cleanCast 0x0000000000000000000000000000000000000123 => 291
+//@ run-call: dirtyCast 0x10000000000000000000000000000000000000001 => 1
 //@ run-call-fail: 0x169b26230000000000000000000000010000000000000000000000000000000000000000
 //@ run-call: dirty 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0xffffffffffffffffffffffffffffffffffffffff
 //@ run-call: dirty 0x10000000000000000000000000000000000000001 => 1
@@ -18,6 +31,27 @@
 //@ run-call: selectedDirty 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 19
 
 contract DirtyArguments {
+    function normalizedReturn(uint256 word) external pure returns (bool) {
+        return rawReturn(word);
+    }
+
+    function compareRawReturn(uint256 word, bool flag) external pure returns (bool) {
+        return rawReturn(word) == flag;
+    }
+
+    function rawReturn(uint256 word) internal pure returns (bool result) {
+        assembly { result := word }
+    }
+
+    function compareReturns(uint256 a, uint256 b) external pure returns (bool) {
+        return canonicalReturn(a) == canonicalReturn(b);
+    }
+
+    function canonicalReturn(uint256 word) internal pure returns (bool) {
+        if (word == 0) return true;
+        return false;
+    }
+
     function selectedClean(bool condition) external pure returns (uint256) {
         return selected(condition);
     }
@@ -30,6 +64,26 @@ contract DirtyArguments {
 
     function selected(bool condition) internal pure returns (uint256) {
         return condition ? 19 : 7;
+    }
+
+    function cleanIsZero(address value) external pure returns (bool) {
+        return value == address(0);
+    }
+
+    function dirtyIsZero(uint256 word) external pure returns (bool) {
+        address value;
+        assembly { value := word }
+        return value == address(0);
+    }
+
+    function cleanCast(address value) external pure returns (uint256) {
+        return uint256(uint160(value));
+    }
+
+    function dirtyCast(uint256 word) external pure returns (uint256) {
+        address value;
+        assembly { value := word }
+        return uint256(uint160(value));
     }
 
     function clean(address value) external pure returns (uint256) {

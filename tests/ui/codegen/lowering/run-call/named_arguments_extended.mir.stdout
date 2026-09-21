@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/named_arguments_extended.sol:Base ===
 @module Base
-fn @v() -> u256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word]] {
+fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @constructor(arg0: u8, arg1: u256) [constructor, abi_params=[u8, u256]] {
+fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[u8, u256]] {
   bb0:
     v0 = and arg0, 255
     v1 = checked_mul u256, v0, 0x3e8
@@ -17,7 +17,7 @@ fn @constructor(arg0: u8, arg1: u256) [constructor, abi_params=[u8, u256]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/named_arguments_extended.sol:Derived ===
 @module Derived
-fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
+fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_mul u256, 4, 10
     v1 = checked_add u256, v0, 3
@@ -30,7 +30,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     ret v2
 }
 
-fn @g() -> u256 [selector=0xe2179b8e, abi_params=[], abi_returns=[word]] {
+fn @g() -> i256 [selector=0xe2179b8e, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = checked_mul u256, 5, 10
     v1 = checked_add u256, v0, 6
@@ -43,7 +43,7 @@ fn @g() -> u256 [selector=0xe2179b8e, abi_params=[], abi_returns=[word]] {
     ret v2
 }
 
-fn @v() -> u256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word]] {
+fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0

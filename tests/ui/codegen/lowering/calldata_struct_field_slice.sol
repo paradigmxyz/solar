@@ -52,7 +52,7 @@ contract CalldataStructFieldSlice {
 
     // The `bytes32` conversion loads the word at the slice start once bounds are checked.
     // CDSFS-LABEL: fn @midWord{{[.][0-9]+}}
-    // CDSFS: gt 32, {{v[0-9]+}}
+    // CDSFS: = lt {{v[0-9]+}}, 32
     // CDSFS: [[WORD:v[0-9]+]] = calldataload
     // CDSFS-NEXT: mstore 128, [[WORD]]
     // The accessor checks the length before loading and masking its leading word.

@@ -8,8 +8,10 @@
 // CHECK: [[VALUE:v[0-9]+]] = callvalue
 // CHECK: [[SIZE:v[0-9]+]] = calldatasize
 // CHECK: [[SHORT:v[0-9]+]] = lt [[SIZE]], 36
-// CHECK: [[REJECTED:v[0-9]+]] = or [[VALUE]], [[SHORT]]
-// CHECK: jumpi [[REJECTED]], [[REJECT:bb[0-9]+]],
+// CHECK: [[SHORT_WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[SHORT]]
+// CHECK: [[REJECTED:v[0-9]+]] = or [[VALUE]], [[SHORT_WORD]]
+// CHECK: [[COND:v[0-9]+]] = ne [[REJECTED]], 0
+// CHECK: jumpi [[COND]], [[REJECT:bb[0-9]+]],
 // CHECK: [[REJECT]]:
 // CHECK-NEXT: revert 0, 0
 fn @a() [selector=0x00000001, abi_wrapper] {

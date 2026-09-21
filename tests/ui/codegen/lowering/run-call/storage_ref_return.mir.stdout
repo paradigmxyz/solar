@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_ref_return.sol:Pools ===
 @module Pools
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
-fn @_getPool(arg0: bytes32) -> storageptr [view] {
+fn @_getPool(arg0: i256) -> i256 [view] {
   bb0:
     v0 = mapping_slot arg0, 0
     ret v0

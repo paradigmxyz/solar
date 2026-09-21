@@ -10,7 +10,7 @@
 // CHECK: + mstore 32, 7
 // CHECK: + [[LOWERED_HASH:v[0-9]+]] = keccak256 0, 64
 // CHECK: + {{v[0-9]+}} = add [[LOWERED_HASH]], [[LOWERED_HASH]]
-fn @word(arg0: u256) -> u256 {
+fn @word(arg0: i256) -> i256 {
   bb0:
     v1 = mapping_slot arg0, 7
     v2 = mapping_slot arg0, 7
@@ -21,7 +21,7 @@ fn @word(arg0: u256) -> u256 {
 // CHECK: {{^[ +].*}}fn @word_across_reverting_branch{{[( ]}}
 // CHECK: + [[HASH:v[0-9]+]] = keccak256
 // CHECK: + {{v[0-9]+}} = add [[HASH]], [[HASH]]
-fn @word_across_reverting_branch(arg0: u256, arg1: bool) -> u256 {
+fn @word_across_reverting_branch(arg0: i256, arg1: i1) -> i256 {
   bb0:
     v2 = mapping_slot arg0, 7
     jumpi arg1, bb1, bb2
@@ -39,11 +39,12 @@ fn @word_across_reverting_branch(arg0: u256, arg1: bool) -> u256 {
 // CHECK: {{^[ +].*}}mstore arg0, 1
 // CHECK: + [[SECOND:v[0-9]+]] = keccak256
 // CHECK: + {{v[0-9]+}} = add [[FIRST]], [[SECOND]]
-fn @memory(arg0: memptr) -> u256 {
+fn @memory(arg0: i256) -> i256 {
   bb0:
-    v1 = mapping_slot_memory arg0, 9
+    v4 = inttoptr i256 arg0 to memorybytes
+    v1 = mapping_slot_memory v4, 9
     mstore arg0, 1
-    v2 = mapping_slot_memory arg0, 9
+    v2 = mapping_slot_memory v4, 9
     v3 = add v1, v2
     ret v3
 }
@@ -52,7 +53,7 @@ fn @memory(arg0: memptr) -> u256 {
 // CHECK: + [[FIRST:v[0-9]+]] = keccak256
 // CHECK: + [[SECOND:v[0-9]+]] = keccak256
 // CHECK: + {{v[0-9]+}} = add [[FIRST]], [[SECOND]]
-fn @calldata(arg0: calldataslice) -> u256 {
+fn @calldata(arg0: calldataslice) -> i256 {
   bb0:
     v1 = mapping_slot_calldata arg0, 11
     v2 = mapping_slot_calldata arg0, 11
@@ -65,7 +66,7 @@ fn @calldata(arg0: calldataslice) -> u256 {
 // CHECK: {{^[ +].*}}mstore 0, arg1
 // CHECK: + [[AFTER:v[0-9]+]] = keccak256 0, 64
 // CHECK: {{^[ +].*}}add [[BEFORE]], [[AFTER]]
-fn @word_after_scratch_write(arg0: u256, arg1: u256) -> u256 {
+fn @word_after_scratch_write(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = mapping_slot arg0, 7
     mstore 0, arg1
@@ -78,7 +79,7 @@ fn @word_after_scratch_write(arg0: u256, arg1: u256) -> u256 {
 // CHECK: + [[ARRAY:v[0-9]+]] = keccak256 0, 32
 // CHECK: {{^[ +].*}}mstore 32, arg1
 // CHECK: {{^[ +].*}}add [[ARRAY]], [[ARRAY]]
-fn @array_after_disjoint_write(arg0: u256, arg1: u256) -> u256 {
+fn @array_after_disjoint_write(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = storage_array_data_slot arg0
     mstore 32, arg1

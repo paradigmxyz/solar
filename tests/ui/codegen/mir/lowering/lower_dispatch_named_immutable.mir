@@ -11,7 +11,8 @@ immutables:
 // CHECK-LABEL: {{^[ +].*}}after lower-dispatch
 // CHECK: + fn @entry{{[( ]}}
 // CHECK: + [[VALUE:v[0-9]+]] = callvalue
-// CHECK: + jumpi [[VALUE]]
+// CHECK: + [[CONDITION:v[0-9]+]] = ne [[VALUE]], 0
+// CHECK: + jumpi [[CONDITION]]
 // CHECK-NOT: loadimmutable
 // CHECK-NOT: address
 // CHECK: + tail_call @write

@@ -53,8 +53,7 @@ use crate::mir::{
     ArithmeticKind, BlockId, CheckedOp, Function, Immediate, InstId, InstKind, Instruction,
     MemoryRegion, MirType, Module, Terminator, Value, ValueId,
     analysis::{
-        AffineTerm, AliasAnalysis, CfgInfo, InductionVariable, Loop, LoopAnalyzer, MemoryBase,
-        ScalarEvolution,
+        AffineTerm, AliasAnalysis, CfgInfo, InductionVariable, Loop, LoopAnalyzer, ScalarEvolution,
     },
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
@@ -570,16 +569,11 @@ impl IndVarSimplifier {
         }
     }
 
-    /// Whether `value` addresses memory, so scaling a bounded index onto it
-    /// cannot wrap: a heap address, or an offset from a memory-pointer argument,
-    /// which the lowered MIR no longer classifies by region.
+    /// Whether `value` has proven heap provenance, so scaling a bounded index cannot wrap.
     fn is_heap_address(&self, func: &Function, value: ValueId) -> bool {
-        self.alias.memory_address(func, value).is_some_and(|address| {
-            address.region == MemoryRegion::Heap
-                || matches!(address.base, MemoryBase::Value(base)
-                    if matches!(*func.value(base), Value::Arg(index)
-                        if func.arg_ty(index) == MirType::MemPtr))
-        })
+        self.alias
+            .memory_address(func, value)
+            .is_some_and(|address| address.region == MemoryRegion::Heap)
     }
 
     /// Appends to `block` the pointer's value at `index`:
@@ -610,12 +604,9 @@ impl IndVarSimplifier {
         value: ValueId,
     ) -> ValueId {
         match acc {
-            Some(acc) => self.append_inst_value(
-                func,
-                block,
-                InstKind::Add(acc, value),
-                Some(MirType::uint256()),
-            ),
+            Some(acc) => {
+                self.append_inst_value(func, block, InstKind::Add(acc, value), Some(MirType::I256))
+            }
             None => value,
         }
     }
@@ -823,7 +814,7 @@ impl IndVarSimplifier {
             self.pointer_at(func, preheader, key, iv.init)?
         };
         let (phi_inst, phi_value) = func.alloc_value_inst(
-            Instruction::new(InstKind::Phi(vec![(preheader, initial)]), Some(MirType::uint256()))
+            Instruction::new(InstKind::Phi(vec![(preheader, initial)]), Some(MirType::I256))
                 .with_debug_info_dropped(),
         );
         self.insert_header_phi(func, loop_data.header, phi_inst);
@@ -855,7 +846,7 @@ impl IndVarSimplifier {
         } else {
             InstKind::Sub(value, magnitude)
         };
-        Some(self.append_inst_value(func, block, kind, Some(MirType::uint256())))
+        Some(self.append_inst_value(func, block, kind, Some(MirType::I256)))
     }
 
     /// Appends `value * scale` to `block`: a shift for a power of two, a
@@ -872,38 +863,23 @@ impl IndVarSimplifier {
             value
         } else if magnitude.is_power_of_two() {
             let shift = self.offset_value(func, i128::from(magnitude.trailing_zeros()))?;
-            self.append_inst_value(
-                func,
-                block,
-                InstKind::Shl(shift, value),
-                Some(MirType::uint256()),
-            )
+            self.append_inst_value(func, block, InstKind::Shl(shift, value), Some(MirType::I256))
         } else {
             let factor = self.offset_value(func, i128::try_from(magnitude).ok()?)?;
-            self.append_inst_value(
-                func,
-                block,
-                InstKind::Mul(value, factor),
-                Some(MirType::uint256()),
-            )
+            self.append_inst_value(func, block, InstKind::Mul(value, factor), Some(MirType::I256))
         };
         if scale > 0 {
             return Some(scaled);
         }
         let zero = self.offset_value(func, 0)?;
-        Some(self.append_inst_value(
-            func,
-            block,
-            InstKind::Sub(zero, scaled),
-            Some(MirType::uint256()),
-        ))
+        Some(self.append_inst_value(func, block, InstKind::Sub(zero, scaled), Some(MirType::I256)))
     }
 
     fn offset_value(&self, func: &mut Function, offset: i128) -> Option<ValueId> {
         if offset < 0 {
             return None;
         }
-        Some(func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(offset as u128)))))
+        Some(func.alloc_value(Value::Immediate(Immediate::I256(U256::from(offset as u128)))))
     }
 
     fn append_inst_value(
@@ -929,7 +905,7 @@ impl IndVarSimplifier {
     }
 
     fn is_reducible_result(&self, func: &Function, inst_id: InstId) -> bool {
-        if func.inst(inst_id).result_ty != Some(MirType::uint256()) {
+        if func.inst(inst_id).result_ty != Some(MirType::I256) {
             return false;
         }
         matches!(

@@ -6,7 +6,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @sload_cse{{[( ]}}
 // CHECK: - {{v[0-9]+}} = sload arg0
 // CHECK: + {{v[0-9]+}} = add [[LOAD:v[0-9]+]], [[LOAD]]
-fn @sload_cse(arg0: u256) -> u256 {
+fn @sload_cse(arg0: i256) -> i256 {
   bb0:
     v1 = sload arg0
     v2 = sload arg0
@@ -17,7 +17,7 @@ fn @sload_cse(arg0: u256) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @sload_after_sstore{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = sload arg0
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = sload arg0
-fn @sload_after_sstore(arg0: u256, arg1: u256) -> u256 {
+fn @sload_after_sstore(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = sload arg0
     sstore arg0, arg1
@@ -28,7 +28,7 @@ fn @sload_after_sstore(arg0: u256, arg1: u256) -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @sload_inside_gas_interval{{[( ]}}
 // CHECK-NOT: {{^-}}
-fn @sload_inside_gas_interval(arg0: u256) -> u256 {
+fn @sload_inside_gas_interval(arg0: i256) -> i256 {
   bb0:
     v1 = gas
     v2 = sload arg0

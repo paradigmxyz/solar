@@ -1,6 +1,96 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/new_reference_array_defaults.sol:NewReferenceArrayDefaults ===
 @module NewReferenceArrayDefaults
-fn @writeStructs() -> u256 [selector=0xa4c02825, pure, abi_params=[], abi_returns=[word]] {
+fn @writeStructs() -> i256 [selector=0xa4c02825, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    set_memory_object_len memoryarray, v0, 2
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v5]
+    v2 = lt v1, 2
+    jumpi v2, bb2, bb3
+  bb3:
+    v6 = memory_object_len memoryarray, v0
+    v7 = lt 0, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = memory_object_load_element memoryarray<1>, v0, 0
+    v10 = inttoptr i256 v9 to memorystruct
+    v11 = eq v9, 0
+    jumpi v11, bb4, bb5
+  bb4:
+    v12 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v12, 0, 0
+    v13 = ptrtoint memorystruct v12 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v13
+    jump bb5
+  bb5:
+    v14 = phi [bb3: v10], [bb4: v12]
+    memory_object_store_field memorystruct<1>, v14, 0, 7
+    v15 = memory_object_len memoryarray, v0
+    v16 = lt 1, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = memory_object_load_element memoryarray<1>, v0, 1
+    v19 = inttoptr i256 v18 to memorystruct
+    v20 = eq v18, 0
+    jumpi v20, bb6, bb7
+  bb6:
+    v21 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v21, 0, 0
+    v22 = ptrtoint memorystruct v21 to i256
+    memory_object_store_element memoryarray<1>, v0, 1, v22
+    jump bb7
+  bb7:
+    v23 = phi [bb5: v19], [bb6: v21]
+    memory_object_store_field memorystruct<1>, v23, 0, 11
+    v24 = memory_object_len memoryarray, v0
+    v25 = lt 0, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = memory_object_load_element memoryarray<1>, v0, 0
+    v28 = inttoptr i256 v27 to memorystruct
+    v29 = eq v27, 0
+    jumpi v29, bb8, bb9
+  bb8:
+    v30 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v30, 0, 0
+    v31 = ptrtoint memorystruct v30 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v31
+    jump bb9
+  bb9:
+    v32 = phi [bb7: v28], [bb8: v30]
+    v33 = memory_object_load_field memorystruct<1>, v32, 0
+    v34 = checked_mul u256, v33, 100
+    v35 = memory_object_len memoryarray, v0
+    v36 = lt 1, v35
+    v37 = eq v36, false
+    icall panic_if<0x32>, v37
+    v38 = memory_object_load_element memoryarray<1>, v0, 1
+    v39 = inttoptr i256 v38 to memorystruct
+    v40 = eq v38, 0
+    jumpi v40, bb10, bb11
+  bb10:
+    v41 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v41, 0, 0
+    v42 = ptrtoint memorystruct v41 to i256
+    memory_object_store_element memoryarray<1>, v0, 1, v42
+    jump bb11
+  bb11:
+    v43 = phi [bb9: v39], [bb10: v41]
+    v44 = memory_object_load_field memorystruct<1>, v43, 0
+    v45 = checked_add u256, v34, v44
+    ret v45
+  bb2:
+    v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    memory_object_store_field memorystruct<1>, v3, 0, 0
+    v4 = ptrtoint memorystruct v3 to i256
+    memory_object_store_element memoryarray<1>, v0, v1, v4
+    v5 = add v1, 1
+    jump bb1
+}
+
+fn @sharedBytesDefault() -> i256 [selector=0x8e773052, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -10,99 +100,18 @@ fn @writeStructs() -> u256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb3:
-    v5 = memory_object_len memoryarray, v0
-    v6 = lt 0, v5
-    v7 = iszero v6
-    icall panic_if<0x32>, v7
-    v8 = memory_object_load_element memoryarray<1>, v0, 0
-    v9 = memory_object_from_ptr memorystruct, v8
-    v10 = eq v9, 0
-    jumpi v10, bb4, bb5
-  bb4:
-    v11 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    memory_object_store_field memorystruct<1>, v11, 0, 0
-    memory_object_store_element memoryarray<1>, v0, 0, v11
-    jump bb5
-  bb5:
-    v12 = phi [bb3: v9], [bb4: v11]
-    memory_object_store_field memorystruct<1>, v12, 0, 7
-    v13 = memory_object_len memoryarray, v0
-    v14 = lt 1, v13
-    v15 = iszero v14
-    icall panic_if<0x32>, v15
-    v16 = memory_object_load_element memoryarray<1>, v0, 1
-    v17 = memory_object_from_ptr memorystruct, v16
-    v18 = eq v17, 0
-    jumpi v18, bb6, bb7
-  bb6:
-    v19 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    memory_object_store_field memorystruct<1>, v19, 0, 0
-    memory_object_store_element memoryarray<1>, v0, 1, v19
-    jump bb7
-  bb7:
-    v20 = phi [bb5: v17], [bb6: v19]
-    memory_object_store_field memorystruct<1>, v20, 0, 11
-    v21 = memory_object_len memoryarray, v0
-    v22 = lt 0, v21
-    v23 = iszero v22
-    icall panic_if<0x32>, v23
-    v24 = memory_object_load_element memoryarray<1>, v0, 0
-    v25 = memory_object_from_ptr memorystruct, v24
-    v26 = eq v25, 0
-    jumpi v26, bb8, bb9
-  bb8:
-    v27 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    memory_object_store_field memorystruct<1>, v27, 0, 0
-    memory_object_store_element memoryarray<1>, v0, 0, v27
-    jump bb9
-  bb9:
-    v28 = phi [bb7: v25], [bb8: v27]
-    v29 = memory_object_load_field memorystruct<1>, v28, 0
-    v30 = checked_mul u256, v29, 100
-    v31 = memory_object_len memoryarray, v0
-    v32 = lt 1, v31
-    v33 = iszero v32
-    icall panic_if<0x32>, v33
-    v34 = memory_object_load_element memoryarray<1>, v0, 1
-    v35 = memory_object_from_ptr memorystruct, v34
-    v36 = eq v35, 0
-    jumpi v36, bb10, bb11
-  bb10:
-    v37 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    memory_object_store_field memorystruct<1>, v37, 0, 0
-    memory_object_store_element memoryarray<1>, v0, 1, v37
-    jump bb11
-  bb11:
-    v38 = phi [bb9: v35], [bb10: v37]
-    v39 = memory_object_load_field memorystruct<1>, v38, 0
-    v40 = checked_add u256, v30, v39
-    ret v40
+    v5 = ptrtoint memoryarray v0 to i256
+    v6 = add v5, 64
+    v7 = mload v6
+    v8 = ptrtoint memoryarray v0 to i256
+    v9 = add v8, 32
+    v10 = mload v9
+    v11 = eq v10, v7
+    v12 = zext i1 v11 to i256
+    ret v12
   bb2:
-    v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<1>, v3, 0, 0
+    v3 = ptrtoint memorybytes 96 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v3
     v4 = add v1, 1
-    jump bb1
-}
-
-fn @sharedBytesDefault() -> bool [selector=0x8e773052, pure, abi_params=[], abi_returns=[word<bool>]] {
-  bb0:
-    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    set_memory_object_len memoryarray, v0, 2
-    jump bb1
-  bb1:
-    v1 = phi [bb0: 0], [bb2: v3]
-    v2 = lt v1, 2
-    jumpi v2, bb2, bb3
-  bb3:
-    v4 = add v0, 64
-    v5 = mload v4
-    v6 = add v0, 32
-    v7 = mload v6
-    v8 = eq v7, v5
-    ret v8
-  bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, memorybytes 96
-    v3 = add v1, 1
     jump bb1
 }

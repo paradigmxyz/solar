@@ -9,7 +9,7 @@
 // CHECK: - {{v[0-9]+}} = phi [bb0: 0], [bb2: {{v[0-9]+}}]
 // CHECK: + {{v[0-9]+}} = add [[PHI:v[0-9]+]], [[PHI]]
 // CHECK: - {{v[0-9]+}} = add {{v[0-9]+}}, 1
-fn @loop_carried_phis(arg0: u256) -> u256 {
+fn @loop_carried_phis(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -31,7 +31,7 @@ fn @loop_carried_phis(arg0: u256) -> u256 {
 // CHECK: {{^[ +].*}}phi [bb0: 0], [bb2: {{v[0-9]+}}]
 // CHECK: {{^[ +].*}}phi [bb0: 1], [bb2: {{v[0-9]+}}]
 // CHECK-NOT: {{^-.*}}= phi
-fn @distinct_starts(arg0: u256) -> u256 {
+fn @distinct_starts(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -53,7 +53,7 @@ fn @distinct_starts(arg0: u256) -> u256 {
 // CHECK: {{^[ +].*}}= add {{v[0-9]+}}, 1
 // CHECK: {{^[ +].*}}= add {{v[0-9]+}}, 2
 // CHECK-NOT: {{^-.*}}= phi
-fn @distinct_steps(arg0: u256) -> u256 {
+fn @distinct_steps(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -74,9 +74,9 @@ fn @distinct_steps(arg0: u256) -> u256 {
 // is that value: the phi and the recomputation both go.
 // CHECK-LABEL: {{^[ +].*}}fn @phi_of_recomputed_dominating_value{{[( ]}}
 // CHECK: - {{v[0-9]+}} = phi [bb0: [[X:v[0-9]+]]], [bb2: {{v[0-9]+}}]
-// CHECK: - {{v[0-9]+}} = add arg0, 1
-// CHECK: + ret [[X]]
-fn @phi_of_recomputed_dominating_value(arg0: u256) -> u256 {
+// CHECK-DAG: - {{v[0-9]+}} = add arg0, 1
+// CHECK-DAG: + ret [[X]]
+fn @phi_of_recomputed_dominating_value(arg0: i256) -> i256 {
   bb0:
     v0 = add arg0, 1
     jump bb1

@@ -4,7 +4,7 @@
   immutables:
     value: u256
   
-  fn @hoist_non_aliasing_mload() -> u256 {
+  fn @hoist_non_aliasing_mload() -> i256 {
     bb0:
 +     v1 = mload 0
       jump bb1
@@ -19,7 +19,7 @@
       jump bb1
   }
   
-  fn @keep_aliasing_mload() -> u256 {
+  fn @keep_aliasing_mload() -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -33,7 +33,7 @@
       jump bb1
   }
   
-  fn @hoist_non_aliasing_keccak() -> bytes32 {
+  fn @hoist_non_aliasing_keccak() -> i256 {
     bb0:
 +     v1 = keccak256 0, 32
       jump bb1
@@ -48,7 +48,7 @@
       jump bb1
   }
   
-  fn @keep_aliasing_keccak() -> bytes32 {
+  fn @keep_aliasing_keccak() -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -62,7 +62,7 @@
       jump bb1
   }
   
-  fn @hoist_unassigned_immutable() -> u256 {
+  fn @hoist_unassigned_immutable() -> i256 {
     bb0:
 +     v1 = loadimmutable value
 +     v2 = mul v1, 2
@@ -78,7 +78,7 @@
       jump bb1
   }
   
-  fn @keep_assigned_immutable() -> u256 {
+  fn @keep_assigned_immutable() -> i256 {
     bb0:
       jump bb1
     bb1:

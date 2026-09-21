@@ -3,19 +3,21 @@
 //@[petersburg] filecheck: --check-prefix=PETERSBURG
 //@[istanbul] compile-flags: --evm-version istanbul -Zmir-pipeline=egraph
 //@[istanbul] filecheck: --check-prefix=ISTANBUL
-@module InstSimplifySelfBalance
+@module SelfBalanceEvmVersion
 
 // PETERSBURG-LABEL: {{^[ +].*}}fn @own_balance{{[( ]}}
 // PETERSBURG: v0 = address
-// PETERSBURG: v1 = balance v0
-// PETERSBURG: ret v1
+// PETERSBURG: v1 = {{(zext|ptrtoint)}} {{[^ ]+}} v0
+// PETERSBURG: v2 = balance v1
+// PETERSBURG: ret v2
 // ISTANBUL-LABEL: {{^[ +].*}}fn @own_balance{{[( ]}}
-// ISTANBUL: - v1 = balance v0
-// ISTANBUL: + v1 = selfbalance
-// ISTANBUL: ret v1
-fn @own_balance() -> u256 {
+// ISTANBUL: - v2 = balance v1
+// ISTANBUL: + v2 = selfbalance
+// ISTANBUL: ret v2
+fn @own_balance() -> i256 {
   bb0:
-    v0 = address
+    v2 = address
+    v0 = zext i160 v2 to i256
     v1 = balance v0
     ret v1
 }

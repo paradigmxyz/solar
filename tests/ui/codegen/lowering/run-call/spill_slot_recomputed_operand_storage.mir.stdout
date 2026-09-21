@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_slot_recomputed_operand_storage.sol:SpillSlotRecomputedOperandStorage ===
 @module SpillSlotRecomputedOperandStorage
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
-fn @acc() -> u256 [selector=0x7da1365e, view, abi_params=[], abi_returns=[word]] {
+fn @acc() -> i256 [selector=0x7da1365e, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @s(arg0: u256) -> u256 [selector=0x52efd685, view, abi_params=[u256], abi_returns=[word]] {
+fn @s(arg0: i256) -> i256 [selector=0x52efd685, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = lt arg0, 8
     icall revert_if_zero<empty>, v0
@@ -18,14 +18,14 @@ fn @s(arg0: u256) -> u256 [selector=0x52efd685, view, abi_params=[u256], abi_ret
     ret v2
 }
 
-fn @mix(arg0: u256) -> u256 [pure] {
+fn @mix(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = mul arg0, 0x9e3779b97f4a7c15
     v1 = add v0, 1
     ret v1
 }
 
-fn @step(arg0: u256, arg1: u256) -> struct0 [pure] {
+fn @step(arg0: i256, arg1: i256) -> struct0 [pure] {
   bb0:
     v0 = mul arg0, 3
     v1 = add v0, arg1
@@ -36,7 +36,7 @@ fn @step(arg0: u256, arg1: u256) -> struct0 [pure] {
     ret v5
 }
 
-fn @g(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x191157d1, abi_params=[u256, u256, u256], abi_returns=[word]] {
+fn @g(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x191157d1, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = mul arg0, 1
     v1 = mul arg1, 2
@@ -116,7 +116,7 @@ fn @g(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x191157d1, abi_para
     v59 = extract_value struct0, v57, 1
     v60 = and v41, 7
     v61 = lt v60, 8
-    v62 = iszero v61
+    v62 = eq v61, false
     icall panic_if<0x32>, v62
     v63 = add 1, v60
     v64 = sload v63 !metadata(storage=offset(v60, 1))
@@ -136,7 +136,7 @@ fn @g(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x191157d1, abi_para
     sstore 0, v71 !metadata(storage=slot(0))
     v72 = and v41, 7
     v73 = lt v72, 8
-    v74 = iszero v73
+    v74 = eq v73, false
     icall panic_if<0x32>, v74
     v75 = add 1, v72
     sstore v75, v56 !metadata(storage=offset(v72, 1))

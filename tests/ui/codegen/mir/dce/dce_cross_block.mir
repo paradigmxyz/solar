@@ -7,7 +7,7 @@
 // CHECK: {{^[ +].*}}[[LIVE:v[0-9]+]] = add arg0, 1
 // CHECK: - {{v[0-9]+}} = mul arg0, arg0
 // CHECK: {{^[ +].*}}ret [[LIVE]]
-fn @cross(arg0: u256, arg1: bool) -> u256 {
+fn @cross(arg0: i256, arg1: i1) -> i256 {
   bb0:
     v2 = add arg0, 1
     jumpi arg1, bb1, bb2
@@ -21,7 +21,7 @@ fn @cross(arg0: u256, arg1: bool) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @dead_cycle_to_live_phi{{[( ]}}
 // CHECK: - {{v[0-9]+}} = phi [bb0: arg0], [bb2: {{v[0-9]+}}]
 // CHECK: + {{v[0-9]+}} = phi [bb0: arg0]
-fn @dead_cycle_to_live_phi(arg0: u256, arg1: bool) -> u256 {
+fn @dead_cycle_to_live_phi(arg0: i256, arg1: i1) -> i256 {
   bb0:
     jump bb3
   bb1:

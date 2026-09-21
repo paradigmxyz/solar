@@ -721,40 +721,14 @@ fn can_change(func: &Function) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{MirType, TypeSize};
+    use crate::mir::MirType;
 
     #[test]
     fn immediate_for_type_preserves_result_types() {
-        let one = U256::from(1);
-        let i256 = TypeSize::new_int_bits(256);
-        let i64 = TypeSize::new_int_bits(64);
-        let i8 = TypeSize::new_int_bits(8);
-        assert_eq!(Immediate::for_type(Some(MirType::Bool), one), Immediate::Bool(true));
-        assert_eq!(Immediate::for_type(Some(MirType::Bool), U256::ZERO), Immediate::Bool(false));
-        assert_eq!(Immediate::for_type(Some(MirType::Int(i256)), one), Immediate::Int(one, i256));
-        assert_eq!(Immediate::for_type(Some(MirType::UInt(i64)), one), Immediate::UInt(one, i64));
-        // Non-integer payloads and missing types fall back to uint256.
-        assert_eq!(Immediate::for_type(Some(MirType::Address), one), Immediate::uint256(one));
-        assert_eq!(Immediate::for_type(None, one), Immediate::uint256(one));
-        // A bool-typed result that is not 0/1 keeps its numeric value.
-        let two = U256::from(2);
-        assert_eq!(Immediate::for_type(Some(MirType::Bool), two), Immediate::uint256(two));
-        // Out-of-range values fall back to uint256 instead of lying about the width.
-        let wide = U256::from(0x1ff);
-        assert_eq!(Immediate::for_type(Some(MirType::UInt(i8)), wide), Immediate::uint256(wide));
-        assert_eq!(Immediate::for_type(Some(MirType::Int(i8)), wide), Immediate::uint256(wide));
-        // Negative values are representable when the upper bits match the sign bit.
-        let minus_one = U256::MAX;
-        assert_eq!(
-            Immediate::for_type(Some(MirType::Int(i8)), minus_one),
-            Immediate::Int(minus_one, i8)
-        );
-        let i8_min = U256::MAX - U256::from(0x7f);
-        assert_eq!(Immediate::for_type(Some(MirType::Int(i8)), i8_min), Immediate::Int(i8_min, i8));
-        let i8_under = i8_min - U256::from(1);
-        assert_eq!(
-            Immediate::for_type(Some(MirType::Int(i8)), i8_under),
-            Immediate::uint256(i8_under)
-        );
+        let one = U256::ONE;
+        assert_eq!(Immediate::for_type(Some(MirType::I1), one), Immediate::I1(true));
+        assert_eq!(Immediate::for_type(Some(MirType::I1), U256::ZERO), Immediate::I1(false));
+        assert_eq!(Immediate::for_type(Some(MirType::I256), one), Immediate::I256(one));
+        assert_eq!(Immediate::for_type(None, U256::MAX), Immediate::I256(U256::MAX));
     }
 }

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_pop_copy_long.sol:StorageBytesPopCopyLong ===
 @module StorageBytesPopCopyLong
-fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memory_bytes]] {
+fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jump bb1
   bb1:
@@ -101,7 +101,7 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     v8 = shr 1, v3
     v9 = and v8, v7
     v10 = lt v9, 0x10000000000000000
-    v11 = iszero v10
+    v11 = eq v10, false
     icall panic_if<0x41>, v11
     v12 = gt v9, 31
     jumpi v12, bb8, bb7
@@ -157,7 +157,7 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     jump bb1
 }
 
-fn @testNoPop() -> memorybytes [selector=0xa43e8948, abi_params=[], abi_returns=[memory_bytes]] {
+fn @testNoPop() -> memorybytes [selector=0xa43e8948, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jump bb1
   bb1:
@@ -180,7 +180,7 @@ fn @testNoPop() -> memorybytes [selector=0xa43e8948, abi_params=[], abi_returns=
     v8 = shr 1, v3
     v9 = and v8, v7
     v10 = lt v9, 0x10000000000000000
-    v11 = iszero v10
+    v11 = eq v10, false
     icall panic_if<0x41>, v11
     v12 = gt v9, 31
     jumpi v12, bb8, bb7
@@ -236,7 +236,7 @@ fn @testNoPop() -> memorybytes [selector=0xa43e8948, abi_params=[], abi_returns=
     jump bb1
 }
 
-fn @testOnePop() -> u8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8>]] {
+fn @testOnePop() -> i256 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     jump bb1
   bb1:
@@ -317,7 +317,7 @@ fn @testOnePop() -> u8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
     v93 = shr 1, v88
     v94 = and v93, v92
     v95 = lt 0, v94
-    v96 = iszero v95
+    v96 = eq v95, false
     icall panic_if<0x32>, v96
     jumpi v90, bb17, bb18
   bb18:
@@ -348,7 +348,7 @@ fn @testOnePop() -> u8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
     v8 = shr 1, v3
     v9 = and v8, v7
     v10 = lt v9, 0x10000000000000000
-    v11 = iszero v10
+    v11 = eq v10, false
     icall panic_if<0x41>, v11
     v12 = gt v9, 31
     jumpi v12, bb8, bb7

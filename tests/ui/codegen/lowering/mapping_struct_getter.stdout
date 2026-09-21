@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/mapping_struct_getter.sol:C ===
 @module C
 types:
-  struct0: {u256, u256, u256}
+  struct0: {i256, i256, i256}
 
-fn @items(arg0: u256) -> struct0 [selector=0xbfb231d2, view, abi_params=[u256], abi_returns=[word<u160>, word, word<u160>], abi_return_params=[address, u256, address]] {
+fn @items(arg0: i256) -> struct0 [selector=0xbfb231d2, view, abi_params=[u256], abi_returns=[word<u160>, word, word<u160>], abi_return_params=[address, u256, address]] {
   bb0:
     v0 = mapping_slot arg0, 1
     v1 = sload v0 !metadata(storage=symbolic(v0))

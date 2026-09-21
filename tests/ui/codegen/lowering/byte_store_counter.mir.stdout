@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/byte_store_counter.sol:ByteStoreCounter ===
 @module ByteStoreCounter
 types:
-  struct0: {u256, u256}
+  struct0: {i256, i256}
 
-fn @encode(arg0: memorybytes) -> memorybytes [selector=0x12496a1b, pure, abi_params=[bytes], abi_returns=[memory_bytes]] {
+fn @encode(arg0: memorybytes) -> memorybytes [selector=0x12496a1b, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @encodeImpl, arg0
     ret v0
 }
 
-fn @encodeTwice(arg0: memorybytes) -> memorybytes [selector=0xf58df096, pure, abi_params=[bytes], abi_returns=[memory_bytes]] {
+fn @encodeTwice(arg0: memorybytes) -> memorybytes [selector=0xf58df096, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @encodeImpl, arg0
     v1 = icall @encodeImpl, v0
@@ -42,27 +42,27 @@ fn @encodeImpl(arg0: memorybytes) -> memorybytes [pure] {
   bb4:
     v12 = memory_object_len memorybytes, v7
     v13 = lt v9, v12
-    v14 = iszero v13
+    v14 = eq v13, false
     icall panic_if<0x32>, v14
     v15 = memory_object_load_byte memorybytes, v7, v9
     v16 = shl 248, v15
     v17 = shr 248, v16
     v18 = shr 4, v17
     v19 = lt v18, 16
-    v20 = iszero v19
+    v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = byte v18, 0x3031323334353637383961626364656600000000000000000000000000000000
     v22 = shl 248, v21
     v23 = checked_mul u256, 2, v9
     v24 = memory_object_len memorybytes, v8
     v25 = lt v23, v24
-    v26 = iszero v25
+    v26 = eq v25, false
     icall panic_if<0x32>, v26
     v27 = byte 0, v22
     memory_object_store_byte memorybytes, v8, v23, v27
     v28 = and v17, 15
     v29 = lt v28, 16
-    v30 = iszero v29
+    v30 = eq v29, false
     icall panic_if<0x32>, v30
     v31 = byte v28, 0x3031323334353637383961626364656600000000000000000000000000000000
     v32 = shl 248, v31
@@ -70,7 +70,7 @@ fn @encodeImpl(arg0: memorybytes) -> memorybytes [pure] {
     v34 = checked_add u256, v33, 1
     v35 = memory_object_len memorybytes, v8
     v36 = lt v34, v35
-    v37 = iszero v36
+    v37 = eq v36, false
     icall panic_if<0x32>, v37
     v38 = byte 0, v32
     memory_object_store_byte memorybytes, v8, v34, v38
@@ -82,7 +82,7 @@ fn @encodeImpl(arg0: memorybytes) -> memorybytes [pure] {
     jump bb1
 }
 
-fn @scan(arg0: memorybytes) -> bool [selector=0x43f8e26b, pure, abi_params=[bytes], abi_returns=[word<bool>]] {
+fn @scan(arg0: memorybytes) -> i256 [selector=0x43f8e26b, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @scanImpl, arg0
     ret v0
@@ -97,12 +97,12 @@ fn @twice(arg0: memorybytes, arg1: memorybytes) -> struct0 [selector=0xbca4d4a4,
     ret v3
 }
 
-fn @scanImpl(arg0: memorybytes) -> bool [pure] {
+fn @scanImpl(arg0: memorybytes) -> i256 [pure] {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v11]
+    v1 = phi [bb0: 0], [bb3: v12]
     v2 = phi [bb0: 0], [bb3: v2]
     v3 = memory_object_len memorybytes, v0
     v4 = lt v1, v3
@@ -110,11 +110,12 @@ fn @scanImpl(arg0: memorybytes) -> bool [pure] {
   bb5:
     jump bb2
   bb2:
-    ret true
+    v13 = zext i1 1 to i256
+    ret v13
   bb4:
     v5 = memory_object_len memorybytes, v0
     v6 = lt v1, v5
-    v7 = iszero v6
+    v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = memory_object_load_byte memorybytes, v0, v1
     v9 = shl 248, v8
@@ -127,13 +128,14 @@ fn @scanImpl(arg0: memorybytes) -> bool [pure] {
   bb6:
     jump bb3
   bb3:
-    v11 = checked_add u256, v1, 1
+    v12 = checked_add u256, v1, 1
     jump bb1
   bb7:
-    ret false
+    v11 = zext i1 0 to i256
+    ret v11
 }
 
-fn @firstHigh(arg0: memorybytes) -> u256 [selector=0xec31a730, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @firstHigh(arg0: memorybytes) -> i256 [selector=0xec31a730, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -151,7 +153,7 @@ fn @firstHigh(arg0: memorybytes) -> u256 [selector=0xec31a730, pure, abi_params=
   bb4:
     v5 = memory_object_len memorybytes, v0
     v6 = lt v1, v5
-    v7 = iszero v6
+    v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = memory_object_load_byte memorybytes, v0, v1
     v9 = shl 248, v8
@@ -170,7 +172,7 @@ fn @firstHigh(arg0: memorybytes) -> u256 [selector=0xec31a730, pure, abi_params=
     ret v1
 }
 
-fn @checkedScan(arg0: u256) -> bool [selector=0xf2609747, pure, abi_params=[u256], abi_returns=[word<bool>]] {
+fn @checkedScan(arg0: i256) -> i256 [selector=0xf2609747, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = add arg0, 63
     v1 = lt v0, arg0
@@ -182,7 +184,7 @@ fn @checkedScan(arg0: u256) -> bool [selector=0xf2609747, pure, abi_params=[u256
     jump bb1
   bb1:
     v5 = phi [bb0: 0], [bb3: v5]
-    v6 = phi [bb0: 0], [bb3: v17]
+    v6 = phi [bb0: 0], [bb3: v18]
     v7 = phi [bb0: arg0], [bb3: v7]
     v8 = phi [bb0: v4], [bb3: v8]
     v9 = memory_object_len memorybytes, v8
@@ -191,11 +193,12 @@ fn @checkedScan(arg0: u256) -> bool [selector=0xf2609747, pure, abi_params=[u256
   bb5:
     jump bb2
   bb2:
-    ret true
+    v19 = zext i1 1 to i256
+    ret v19
   bb4:
     v11 = memory_object_len memorybytes, v8
     v12 = lt v6, v11
-    v13 = iszero v12
+    v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = memory_object_load_byte memorybytes, v8, v6
     v15 = shl 248, v14
@@ -208,8 +211,9 @@ fn @checkedScan(arg0: u256) -> bool [selector=0xf2609747, pure, abi_params=[u256
   bb6:
     jump bb3
   bb3:
-    v17 = checked_add u8, v6, 1
+    v18 = checked_add u8, v6, 1
     jump bb1
   bb7:
-    ret false
+    v17 = zext i1 0 to i256
+    ret v17
 }

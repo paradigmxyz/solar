@@ -1,31 +1,34 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/function_selector_ternary.sol:FunctionSelectorTernary ===
 @module FunctionSelectorTernary
-fn @f() [selector=0x26121ff0, abi_params=[], abi_returns=[]] {
+fn @f() [selector=0x26121ff0, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @g() [selector=0xe2179b8e, abi_params=[], abi_returns=[]] {
+fn @g() [selector=0xe2179b8e, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
 
-fn @h(arg0: bool) -> bytes4 [selector=0x05a0581e, view, abi_params=[bool], abi_returns=[word<bytes4>]] {
+fn @h(arg0: i256) -> i256 [selector=0x05a0581e, view, abi_params=[bool], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
-    jumpi arg0, bb1, bb2
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
   bb2:
-    v3 = address
-    v4 = shl 32, v3
-    v5 = or v4, 0xe2179b8e
+    v5 = address
+    v6 = zext i160 v5 to i256
+    v7 = shl 32, v6
+    v8 = or v7, 0xe2179b8e
     jump bb3
   bb1:
-    v0 = address
-    v1 = shl 32, v0
-    v2 = or v1, 0x26121ff0
+    v1 = address
+    v2 = zext i160 v1 to i256
+    v3 = shl 32, v2
+    v4 = or v3, 0x26121ff0
     jump bb3
   bb3:
-    v6 = phi [bb1: v2], [bb2: v5]
-    v7 = and v6, 0xffffffff
-    v8 = shl 224, v7
-    ret v8
+    v9 = phi [bb1: v4], [bb2: v8]
+    v10 = and v9, 0xffffffff
+    v11 = shl 224, v10
+    ret v11
 }

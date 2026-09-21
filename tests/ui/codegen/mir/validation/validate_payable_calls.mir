@@ -1,98 +1,98 @@
 //@ compile-flags: -Zmir-pipeline=none
 @module InvalidPayableCalls
 
-//~? ERROR: [fn0] [bb0, inst0] payable call requires word operands
-fn @send_object(arg0: memorybytes) -> u256 {
+//~? ERROR: [fn0] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
+fn @send_object(arg0: memorybytes) -> i256 {
   bb0:
     v0 = icall send<>, arg0, 1
     ret v0
 }
 
-//~? ERROR: [fn1] [bb0, inst0] payable call requires word operands
+//~? ERROR: [fn1] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 fn @transfer_object(arg0: memorybytes) {
   bb0:
     icall transfer<>, 0, arg0
     ret
 }
 
-//~? ERROR: [fn2] [bb0, inst0] conditional check requires one word condition and no result
+//~? ERROR: [fn2] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 fn @check_missing_condition() {
   bb0:
     icall panic_if<0x1>
     ret
 }
 
-//~? ERROR: [fn3] [bb0, inst0] conditional check requires one word condition and no result
-fn @check_extra_condition(arg0: u256) {
+//~? ERROR: [fn3] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
+fn @check_extra_condition(arg0: i256) {
   bb0:
     icall revert_if<empty>, arg0, arg0
     ret
 }
 
-//~? ERROR: [fn4] [bb0, inst0] conditional check requires one word condition and no result
+//~? ERROR: [fn4] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 fn @check_object_condition(arg0: memorybytes) {
   bb0:
     icall panic_if_zero<0x1>, arg0
     ret
 }
 
-//~? ERROR: [fn5] [bb0, inst0] builtin call has an invalid argument count
+//~? ERROR: [fn5] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 fn @sha256_missing_arg() {
   bb0:
     v0 = icall sha256<>
     ret
 }
 
-//~? ERROR: [fn6] [bb0, inst0] builtin call has an invalid argument count
+//~? ERROR: [fn6] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 fn @ripemd160_extra_arg() {
   bb0:
     v0 = icall ripemd160<>, 0, 1
     ret
 }
 
-//~? ERROR: [fn7] [bb0, inst0] builtin call has an invalid argument count
+//~? ERROR: [fn7] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 fn @ecrecover_missing_arg() {
   bb0:
     v0 = icall ecrecover<>, 0, 0, 0
     ret
 }
 
-//~? ERROR: [fn8] [bb0, inst0] builtin call has an invalid argument count
+//~? ERROR: [fn8] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 fn @erc7201_missing_arg() {
   bb0:
     v0 = icall erc7201<>
     ret
 }
 
-//~? ERROR: [fn9] [bb0, inst0] builtin call has an invalid argument count
+//~? ERROR: [fn9] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 fn @checked_addmod_missing_arg() {
   bb0:
     v0 = icall checked_addmod<>, 1, 2
     ret
 }
 
-//~? ERROR: [fn10] [bb0, inst0] builtin call has an invalid argument count
+//~? ERROR: [fn10] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 fn @checked_mulmod_extra_arg() {
   bb0:
     v0 = icall checked_mulmod<>, 1, 2, 3, 4
     ret
 }
 
-//~? ERROR: [fn11] [bb0, inst0] builtin call has an invalid argument count
+//~? ERROR: [fn11] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 fn @send_missing_arg() {
   bb0:
     v0 = icall send<>, 0
     ret
 }
 
-//~? ERROR: [fn12] [bb0, inst0] builtin call has an invalid argument count
+//~? ERROR: [fn12] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 fn @transfer_extra_arg() {
   bb0:
     icall transfer<>, 0, 1, 2
     ret
 }
 
-//~? ERROR: [fn13] [bb0, inst0] builtin call has an invalid argument count
+//~? ERROR: [fn13] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 fn @returndata_extra_arg() {
   bb0:
     v0 = icall returndata_bytes<>, 0

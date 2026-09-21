@@ -219,8 +219,8 @@ fn create_short_string_helper(module: &mut Module, context: &InstructionMetadata
     builder.set_debug_context(context);
     // mstore(0, Error.selector); mstore(4, 32)
     // mstore(36, length); mstore(68, data); revert(0, 100)
-    let length = builder.add_param(MirType::uint256());
-    let value = builder.add_param(MirType::uint256());
+    let length = builder.add_param(MirType::I256);
+    let value = builder.add_param(MirType::I256);
     let selector = builder.imm(ERROR_SELECTOR);
     let zero = builder.imm(0);
     builder.mstore(zero, selector);

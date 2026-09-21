@@ -1,6 +1,6 @@
 //! Semantic ABI layout descriptors used by MIR encoding operations.
 
-use super::{FunctionBuilder, MirType, SliceLocation, ValueId};
+use super::{FunctionBuilder, SliceLocation, ValueId, ValueLayout};
 use alloy_primitives::U256;
 use std::{fmt, sync::Arc};
 
@@ -81,11 +81,11 @@ impl fmt::Display for AbiParamLayout {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum AbiParamType {
     /// A scalar encoded as one word.
-    Scalar(MirType),
+    Scalar(ValueLayout),
     /// An enum encoded as a bounded unsigned word.
     Enum {
         /// MIR representation of the enum value.
-        ty: MirType,
+        ty: ValueLayout,
         /// Number of declared variants.
         variants: u64,
     },
@@ -132,9 +132,9 @@ impl AbiParamType {
     pub(crate) fn needs_return_cleanup(&self) -> bool {
         match self {
             Self::Scalar(ty) | Self::Enum { ty, .. } => match ty {
-                MirType::UInt(size) | MirType::Int(size) => size.bits() < 256,
-                MirType::Address | MirType::Bool | MirType::Function => true,
-                MirType::FixedBytes(size) => size.bytes() < 32,
+                ValueLayout::UInt(size) | ValueLayout::Int(size) => size.bits() < 256,
+                ValueLayout::Address | ValueLayout::Bool | ValueLayout::Function => true,
+                ValueLayout::FixedBytes(size) => size.bytes() < 32,
                 _ => false,
             },
             Self::Bytes => false,
@@ -145,29 +145,20 @@ impl AbiParamType {
         }
     }
 
-    /// Returns whether a nested ABI value needs return-word canonicalization.
-    #[must_use]
-    pub(crate) fn needs_nested_return_cleanup(&self) -> bool {
-        match self {
-            Self::Scalar(..) | Self::Bytes => false,
-            // Return encoding needs the variant count to validate the raw word.
-            Self::Enum { .. } => true,
-            Self::FixedArray { .. } | Self::DynamicArray(..) | Self::Tuple(..) => {
-                self.needs_return_cleanup()
-            }
-        }
-    }
-
     /// Returns the memory representation used for an aggregate child.
     #[must_use]
-    pub(crate) fn mir_type(&self) -> MirType {
+    pub(crate) fn mir_type(&self) -> super::MirType {
         match self {
-            Self::Scalar(ty) => *ty,
-            Self::Enum { ty, .. } => *ty,
-            Self::Bytes => MirType::MemoryObject(super::MemoryObjectKind::Bytes),
-            Self::DynamicArray(_) => MirType::MemoryObject(super::MemoryObjectKind::DynamicArray),
-            Self::FixedArray { .. } => MirType::MemoryObject(super::MemoryObjectKind::FixedArray),
-            Self::Tuple(_) => MirType::MemoryObject(super::MemoryObjectKind::Struct),
+            Self::Scalar(ty) => ty.mir_type(),
+            Self::Enum { ty, .. } => ty.mir_type(),
+            Self::Bytes => super::MirType::MemoryObject(super::MemoryObjectKind::Bytes),
+            Self::DynamicArray(_) => {
+                super::MirType::MemoryObject(super::MemoryObjectKind::DynamicArray)
+            }
+            Self::FixedArray { .. } => {
+                super::MirType::MemoryObject(super::MemoryObjectKind::FixedArray)
+            }
+            Self::Tuple(_) => super::MirType::MemoryObject(super::MemoryObjectKind::Struct),
         }
     }
 
@@ -181,7 +172,7 @@ impl AbiParamType {
     #[must_use]
     pub(crate) fn word_validator(&self) -> Option<AbiWordValidator> {
         match self {
-            Self::Scalar(ty) => AbiWordValidator::from_mir_type(*ty),
+            Self::Scalar(ty) => AbiWordValidator::from_layout(*ty),
             Self::Enum { variants, .. } => Some(AbiWordValidator::EnumRange(*variants)),
             _ => None,
         }
@@ -378,43 +369,43 @@ impl AbiWordValidator {
     /// Returns the validator for a scalar MIR type, or `None` when a full word
     /// carries no canonicality requirement.
     #[must_use]
-    pub(crate) fn from_mir_type(ty: MirType) -> Option<Self> {
+    pub(crate) fn from_layout(ty: ValueLayout) -> Option<Self> {
         Some(match ty {
-            MirType::UInt(size) => {
+            ValueLayout::UInt(size) => {
                 let bits = size.bits();
                 if bits >= 256 {
                     return None;
                 }
                 Self::Unsigned(bits)
             }
-            MirType::Int(size) => {
+            ValueLayout::Int(size) => {
                 let bits = size.bits();
                 if bits >= 256 {
                     return None;
                 }
                 Self::SignExtend(u64::from(bits / 8) - 1)
             }
-            MirType::Address => Self::Unsigned(160),
-            MirType::FixedBytes(size) => {
+            ValueLayout::Address => Self::Unsigned(160),
+            ValueLayout::FixedBytes(size) => {
                 let bytes = size.bytes();
                 if bytes >= 32 {
                     return None;
                 }
                 Self::LeftAligned(u16::from(bytes) * 8)
             }
-            MirType::Function => Self::LeftAligned(192),
-            MirType::Bool => Self::Bool,
+            ValueLayout::Function => Self::LeftAligned(192),
+            ValueLayout::Bool => Self::Bool,
             _ => return None,
         })
     }
 
     /// Returns the validator for a scalar return type.
     #[must_use]
-    pub(crate) fn from_return_mir_type(ty: MirType) -> Option<Self> {
-        if ty == MirType::Function {
+    pub(crate) fn from_return_layout(ty: ValueLayout) -> Option<Self> {
+        if ty == ValueLayout::Function {
             return Some(Self::Unsigned(192));
         }
-        Self::from_mir_type(ty)
+        Self::from_layout(ty)
     }
 
     /// Returns the bit mask for validators that accept a masked word.
@@ -443,7 +434,7 @@ impl AbiWordValidator {
                     } else {
                         builder.shl(shift, word)
                     };
-                    builder.iszero(shifted)
+                    builder.eq_zero(shifted)
                 } else {
                     let mask = self.canonical_mask().expect("masked validator has a mask");
                     let mask = builder.imm(mask);
@@ -461,8 +452,8 @@ impl AbiWordValidator {
                     let two = builder.imm(2);
                     builder.lt(word, two)
                 } else {
-                    let zero = builder.iszero(word);
-                    let canonical = builder.iszero(zero);
+                    let zero = builder.eq_zero(word);
+                    let canonical = builder.eq_zero(zero);
                     builder.eq(word, canonical)
                 }
             }
@@ -486,8 +477,8 @@ impl AbiWordValidator {
                 builder.signextend(byte_index, word)
             }
             Self::Bool => {
-                let zero = builder.iszero(word);
-                builder.iszero(zero)
+                let zero = builder.eq_zero(word);
+                builder.eq_zero(zero)
             }
             Self::EnumRange(_) => word,
         }

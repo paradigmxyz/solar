@@ -1,11 +1,28 @@
 // === ROOT/tests/ui/codegen/mir/egraph/bit_slices_runtime.sol:BitSlices ===
 @module BitSlices
 types:
-  struct0: {u256, u256}
-  struct1: {u256, u256, u256}
-  struct2: {u256, u256, u256, u256}
+  struct0: {i256, i256, i256, i256}
+  struct1: {i256, i256}
+  struct2: {i256, i256, i256}
 
-fn @masked(arg0: u256) -> struct0 [selector=0x38caca52, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @comparisons(arg0: i256) -> struct0 [selector=0xe32e96a3, pure, abi_params=[u256], abi_returns=[word<bool>, word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool, bool]] {
+  bb0:
+    v0 = lt 13, arg0
+    v1 = gt 13, arg0
+    v2 = slt 13, arg0
+    v3 = sgt 13, arg0
+    v4 = zext i1 v0 to i256
+    v5 = zext i1 v1 to i256
+    v6 = zext i1 v2 to i256
+    v7 = zext i1 v3 to i256
+    v8 = insert_value struct0, undef struct0, 0, v4
+    v9 = insert_value struct0, v8, 1, v5
+    v10 = insert_value struct0, v9, 2, v6
+    v11 = insert_value struct0, v10, 3, v7
+    ret v11
+}
+
+fn @masked(arg0: i256) -> struct1 [selector=0x38caca52, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = shl 32, arg0
     v1 = or v0, 0x12345678
@@ -15,12 +32,12 @@ fn @masked(arg0: u256) -> struct0 [selector=0x38caca52, pure, abi_params=[u256],
     v5 = shr 8, arg0
     v6 = or v5, v4
     v7 = and v6, v3
-    v8 = insert_value struct0, undef struct0, 0, v2
-    v9 = insert_value struct0, v8, 1, v7
+    v8 = insert_value struct1, undef struct1, 0, v2
+    v9 = insert_value struct1, v8, 1, v7
     ret v9
 }
 
-fn @offsets(arg0: u256) -> u256 [selector=0x81914619, pure, abi_params=[u256], abi_returns=[word]] {
+fn @offsets(arg0: i256) -> i256 [selector=0x81914619, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sub arg0, 8
     v1 = add arg0, 32
@@ -28,25 +45,28 @@ fn @offsets(arg0: u256) -> u256 [selector=0x81914619, pure, abi_params=[u256], a
     ret v2
 }
 
-fn @addressRoundtrip() -> bool [selector=0xe6132fae, view, abi_params=[], abi_returns=[word<bool>]] {
+fn @addressRoundtrip() -> i256 [selector=0xe6132fae, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
-    v1 = address
-    v2 = shl 96, v1
-    v3 = or v2, 7
-    v4 = shr 96, v3
-    v5 = eq v4, v0
-    ret v5
+    v1 = zext i160 v0 to i256
+    v2 = address
+    v3 = zext i160 v2 to i256
+    v4 = shl 96, v3
+    v5 = or v4, 7
+    v6 = shr 96, v5
+    v7 = eq v6, v1
+    v8 = zext i1 v7 to i256
+    ret v8
 }
 
-fn @repeated(arg0: u256, arg1: u256) -> u256 [selector=0x6196485c, pure, abi_params=[u256, u256], abi_returns=[word]] {
+fn @repeated(arg0: i256, arg1: i256) -> i256 [selector=0x6196485c, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = signextend arg1, arg0
     v1 = signextend arg1, v0
     ret v1
 }
 
-fn @chains(arg0: u256) -> struct1 [selector=0x550325b5, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @chains(arg0: i256) -> struct2 [selector=0x550325b5, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = shl 8, arg0
     v1 = shl 16, v0
@@ -54,13 +74,13 @@ fn @chains(arg0: u256) -> struct1 [selector=0x550325b5, pure, abi_params=[u256],
     v3 = shr 16, v2
     v4 = sar 8, arg0
     v5 = sar 16, v4
-    v6 = insert_value struct1, undef struct1, 0, v1
-    v7 = insert_value struct1, v6, 1, v3
-    v8 = insert_value struct1, v7, 2, v5
+    v6 = insert_value struct2, undef struct2, 0, v1
+    v7 = insert_value struct2, v6, 1, v3
+    v8 = insert_value struct2, v7, 2, v5
     ret v8
 }
 
-fn @overflow(arg0: u256) -> struct1 [selector=0x517550bf, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @overflow(arg0: i256) -> struct2 [selector=0x517550bf, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = shl 1, arg0
     v1 = not 0
@@ -70,13 +90,13 @@ fn @overflow(arg0: u256) -> struct1 [selector=0x517550bf, pure, abi_params=[u256
     v5 = sar 1, arg0
     v6 = not 0
     v7 = sar v6, v5
-    v8 = insert_value struct1, undef struct1, 0, v2
-    v9 = insert_value struct1, v8, 1, v4
-    v10 = insert_value struct1, v9, 2, v7
+    v8 = insert_value struct2, undef struct2, 0, v2
+    v9 = insert_value struct2, v8, 1, v4
+    v10 = insert_value struct2, v9, 2, v7
     ret v10
 }
 
-fn @slices(arg0: u256) -> struct2 [selector=0xe84df24a, pure, abi_params=[u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @slices(arg0: i256) -> struct0 [selector=0xe84df24a, pure, abi_params=[u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = shl 248, arg0
     v1 = shr 248, v0
@@ -86,9 +106,9 @@ fn @slices(arg0: u256) -> struct2 [selector=0xe84df24a, pure, abi_params=[u256],
     v5 = sar 248, v4
     v6 = signextend 2, arg0
     v7 = signextend 0, v6
-    v8 = insert_value struct2, undef struct2, 0, v1
-    v9 = insert_value struct2, v8, 1, v3
-    v10 = insert_value struct2, v9, 2, v5
-    v11 = insert_value struct2, v10, 3, v7
+    v8 = insert_value struct0, undef struct0, 0, v1
+    v9 = insert_value struct0, v8, 1, v3
+    v10 = insert_value struct0, v9, 2, v5
+    v11 = insert_value struct0, v10, 3, v7
     ret v11
 }

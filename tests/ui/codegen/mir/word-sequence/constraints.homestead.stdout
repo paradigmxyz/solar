@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/word-sequence/constraints.mir (before word-sequence) ===
 + // === ROOT/tests/ui/codegen/mir/word-sequence/constraints.mir (after word-sequence) ===
   @module RecipeConstraints
-  fn @shared_producers(arg0: u256, arg1: u256) -> u256 {
+  fn @shared_producers(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = not arg0
       v1 = not arg1
@@ -11,7 +11,7 @@
       ret v4
   }
   
-  fn @effect_barrier(arg0: u256, arg1: u256) -> u256 {
+  fn @effect_barrier(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = not arg0
       v1 = not arg1
@@ -20,7 +20,7 @@
       ret v2
   }
   
-  fn @gas_barrier(arg0: u256, arg1: u256) -> u256 {
+  fn @gas_barrier(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = not arg0
       v1 = not arg1
@@ -30,13 +30,14 @@
       ret v4
   }
   
-  fn @fork_availability(arg0: u256) -> u256 {
+  fn @fork_availability(arg0: i256) -> i256 {
     bb0:
       v0 = lt arg0, 0x10000000000000000000000000000000000000000
-      ret v0
+      v1 = zext i1 v0 to i256
+      ret v1
   }
   
-  fn @cross_block(arg0: u256, arg1: u256) -> u256 {
+  fn @cross_block(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = not arg0
       v1 = not arg1
@@ -46,7 +47,7 @@
       ret v2
   }
   
-  fn @recipe_metadata(arg0: u256, arg1: u256) -> u256 {
+  fn @recipe_metadata(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     v0 = not arg0
 -     v1 = not arg1

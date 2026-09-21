@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/licm/builder_cases.mir (before licm) ===
 + // === ROOT/tests/ui/codegen/mir/licm/builder_cases.mir (after licm) ===
   @module LicmBuilderCases
-  fn @hoist_mul(arg0: u256) {
+  fn @hoist_mul(arg0: i256) {
     bb0:
 +     v0 = mul arg0, 7
       jump bb1
@@ -14,7 +14,7 @@
       jump bb1
   }
   
-  fn @hoist_clz(arg0: u256) {
+  fn @hoist_clz(arg0: i256) {
     bb0:
 +     v0 = clz arg0
       jump bb1
@@ -27,7 +27,7 @@
       jump bb1
   }
   
-  fn @hoist_non_aliasing_sload() -> u256 {
+  fn @hoist_non_aliasing_sload() -> i256 {
     bb0:
 +     v1 = sload 0 !metadata(storage=slot(0))
       jump bb1
@@ -43,7 +43,7 @@
       jump bb1
   }
   
-  fn @keep_aliasing_sload() -> u256 {
+  fn @keep_aliasing_sload() -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -59,7 +59,7 @@
       jump bb1
   }
   
-  fn @keep_work_after_gas(arg0: u256) -> u256 {
+  fn @keep_work_after_gas(arg0: i256) -> i256 {
     bb0:
       jump bb1
     bb1:

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/scalar_dispatch.sol:ScalarDispatch ===
 @module ScalarDispatch
-fn @difference(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x214636e1, pure, abi_params=[u256, u256, u256], abi_returns=[word]] {
+fn @difference(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x214636e1, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -10,8 +10,8 @@ fn @difference(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x214636e1,
     v3 = phi [bb0: 0], [bb3: v12]
     v4 = phi [bb0: arg1], [bb3: v11]
     v5 = lt v3, v2
-    v6 = eq v5, 0
-    v7 = iszero v6
+    v6 = zext i1 v5 to i256
+    v7 = ne v6, 0
     jumpi v7, bb4, bb5
   bb5:
     jump bb2
@@ -30,7 +30,7 @@ fn @difference(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x214636e1,
     jump bb1
 }
 
-fn @sumDifference(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xe6dd5714, pure, abi_params=[u256, u256, u256], abi_returns=[word]] {
+fn @sumDifference(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xe6dd5714, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -40,8 +40,8 @@ fn @sumDifference(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xe6dd57
     v3 = phi [bb0: arg1], [bb3: v11]
     v4 = phi [bb0: 0], [bb3: v4]
     v5 = lt v2, v1
-    v6 = eq v5, 0
-    v7 = iszero v6
+    v6 = zext i1 v5 to i256
+    v7 = ne v6, 0
     jumpi v7, bb4, bb5
   bb5:
     jump bb2
@@ -60,7 +60,7 @@ fn @sumDifference(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xe6dd57
     jump bb1
 }
 
-fn @complement(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x82829e9f, pure, abi_params=[u256, u256, u256], abi_returns=[word]] {
+fn @complement(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x82829e9f, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -70,8 +70,8 @@ fn @complement(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x82829e9f,
     v3 = phi [bb0: arg0], [bb3: v10]
     v4 = phi [bb0: arg2], [bb3: v4]
     v5 = lt v0, v4
-    v6 = eq v5, 0
-    v7 = iszero v6
+    v6 = zext i1 v5 to i256
+    v7 = ne v6, 0
     jumpi v7, bb4, bb5
   bb5:
     jump bb2
@@ -90,7 +90,7 @@ fn @complement(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x82829e9f,
     jump bb1
 }
 
-fn @absorb(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x0f92ced6, pure, abi_params=[u256, u256, u256], abi_returns=[word]] {
+fn @absorb(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x0f92ced6, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -100,8 +100,8 @@ fn @absorb(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x0f92ced6, pur
     v3 = phi [bb0: arg2], [bb3: v3]
     v4 = phi [bb0: 0], [bb3: v12]
     v5 = lt v4, v3
-    v6 = eq v5, 0
-    v7 = iszero v6
+    v6 = zext i1 v5 to i256
+    v7 = ne v6, 0
     jumpi v7, bb4, bb5
   bb5:
     jump bb2

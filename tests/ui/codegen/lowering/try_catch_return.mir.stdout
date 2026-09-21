@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/try_catch_return.sol:TryCatchReturnTarget ===
 @module TryCatchReturnTarget
-fn @value(arg0: bool) -> u256 [selector=0xc4d47ed1, pure, abi_params=[bool], abi_returns=[word]] {
+fn @value(arg0: i256) -> i256 [selector=0xc4d47ed1, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq arg0, 0
-    v1 = iszero v0
-    v2 = iszero v1
+    v1 = eq v0, false
+    v2 = eq v1, false
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
@@ -18,44 +18,52 @@ fn @value(arg0: bool) -> u256 [selector=0xc4d47ed1, pure, abi_params=[bool], abi
 // === ROOT/tests/ui/codegen/lowering/try_catch_return.sol:TryCatchReturn ===
 @module TryCatchReturn
 data:
-  TryCatchReturnTarget_initcode_0: hex"34600d57605b8060115f395ff35b5f5ffd34601a575f3560e01c8063c4d47ed114601657601a565b601e565b5f5ffd5b6024361060575760043560029010156057575f600435141515604c57600d6080526020608001608090036080f35b6001605357fe5b5f5ffd5b5f5ffd"
+  TryCatchReturnTarget_initcode_0: hex"34600d5760638060115f395ff35b5f5ffd341515601c575f3560e01c8063c4d47ed114601857601c565b6020565b5f5ffd5b60243610605f576004356002901015605f57600435158060a052155060a051605457600d6080526020608001608090036080f35b6001605b57fe5b5f5ffd5b5f5ffd"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 139, v1
+    v2 = and 147, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy TryCatchReturnTarget_initcode_0, v3, 108
-    v4 = slice_ptr v0
-    v5 = add v3, 108
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 108
-    jumpi v6, bb2, bb1
+    v4 = ptrtoint memptr v3 to i256
+    data_copy TryCatchReturnTarget_initcode_0, v4, 116
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, 116
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, 116
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = sload 0 !metadata(storage=slot(0))
-    v8 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = and v7, v8
-    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = or v9, v10
-    sstore 0, v11 !metadata(storage=slot(0))
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = and v12, v13
+    v15 = zext i160 v9 to i256
+    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
+    v17 = or v14, v16
+    sstore 0, v17 !metadata(storage=slot(0))
     ret
 }
 
-fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word]] {
+fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = gas
-    v3 = eq true, 0
-    v4 = iszero v3
-    v5 = abi_encode [word<bool>], selector 0xc4d47ed100000000000000000000000000000000000000000000000000000000, args v4
-    v6 = slice_ptr v5
-    v7 = slice_len v5
-    v8 = staticcall v2, v1, v6, v7, 0, 0
-    jumpi v8, bb1, bb2
+    v3 = zext i1 1 to i256
+    v4 = eq v3, 0
+    v5 = eq v4, false
+    v6 = zext i1 v5 to i256
+    v7 = abi_encode [word<bool>], selector 0xc4d47ed100000000000000000000000000000000000000000000000000000000, args v6
+    v8 = slice_ptr v7
+    v9 = slice_len v7
+    v10 = staticcall v2, v1, v8, v9, 0, 0
+    jumpi v10, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -64,26 +72,28 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
   bb4:
     jump bb3
   bb1:
-    v9 = icall returndata_bytes<>
-    v10 = abi_decode [u256], v9
+    v11 = icall returndata_bytes<>
+    v12 = abi_decode [u256], v11
     jump bb3
   bb3:
-    v11 = phi [bb1: v10], [bb4: 9]
-    ret v11
+    v13 = phi [bb1: v12], [bb4: 9]
+    ret v13
 }
 
-fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word]] {
+fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = gas
-    v3 = eq false, 0
-    v4 = iszero v3
-    v5 = abi_encode [word<bool>], selector 0xc4d47ed100000000000000000000000000000000000000000000000000000000, args v4
-    v6 = slice_ptr v5
-    v7 = slice_len v5
-    v8 = staticcall v2, v1, v6, v7, 0, 0
-    jumpi v8, bb1, bb2
+    v3 = zext i1 0 to i256
+    v4 = eq v3, 0
+    v5 = eq v4, false
+    v6 = zext i1 v5 to i256
+    v7 = abi_encode [word<bool>], selector 0xc4d47ed100000000000000000000000000000000000000000000000000000000, args v6
+    v8 = slice_ptr v7
+    v9 = slice_len v7
+    v10 = staticcall v2, v1, v8, v9, 0, 0
+    jumpi v10, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -92,26 +102,28 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
   bb4:
     jump bb3
   bb1:
-    v9 = icall returndata_bytes<>
-    v10 = abi_decode [u256], v9
+    v11 = icall returndata_bytes<>
+    v12 = abi_decode [u256], v11
     jump bb3
   bb3:
-    v11 = phi [bb1: v10], [bb4: 9]
-    ret v11
+    v13 = phi [bb1: v12], [bb4: 9]
+    ret v13
 }
 
-fn @ignored() -> u256 [selector=0x0c77db80, view, abi_params=[], abi_returns=[word]] {
+fn @ignored() -> i256 [selector=0x0c77db80, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = gas
-    v3 = eq true, 0
-    v4 = iszero v3
-    v5 = abi_encode [word<bool>], selector 0xc4d47ed100000000000000000000000000000000000000000000000000000000, args v4
-    v6 = slice_ptr v5
-    v7 = slice_len v5
-    v8 = staticcall v2, v1, v6, v7, 0, 0
-    jumpi v8, bb1, bb2
+    v3 = zext i1 1 to i256
+    v4 = eq v3, 0
+    v5 = eq v4, false
+    v6 = zext i1 v5 to i256
+    v7 = abi_encode [word<bool>], selector 0xc4d47ed100000000000000000000000000000000000000000000000000000000, args v6
+    v8 = slice_ptr v7
+    v9 = slice_len v7
+    v10 = staticcall v2, v1, v8, v9, 0, 0
+    jumpi v10, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -120,8 +132,8 @@ fn @ignored() -> u256 [selector=0x0c77db80, view, abi_params=[], abi_returns=[wo
   bb4:
     ret 9
   bb1:
-    v9 = icall returndata_bytes<>
-    v10 = abi_decode [u256], v9
+    v11 = icall returndata_bytes<>
+    v12 = abi_decode [u256], v11
     ret 13
   bb3:
     ret 0

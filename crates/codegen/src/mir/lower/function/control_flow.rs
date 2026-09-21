@@ -5,10 +5,23 @@ use super::{calls::ExternalReturnMode, *};
 /// A `try` statement target resolved to the callee shape needed for lowering.
 #[derive(Clone, Copy)]
 enum TryCallee<'a> {
-    Creation { ty: &'a hir::Type<'a>, contract_id: hir::ContractId },
-    Member { receiver: &'a hir::Expr<'a>, selector: [u8; 4] },
-    LinkedLibrary { address: U256, function: hir::FunctionId, receiver: Option<&'a hir::Expr<'a>> },
-    FunctionPointer { address: ValueId, selector: ValueId },
+    Creation {
+        ty: &'a hir::Type<'a>,
+        contract_id: hir::ContractId,
+    },
+    Member {
+        receiver: &'a hir::Expr<'a>,
+        selector: [u8; 4],
+    },
+    LinkedLibrary {
+        address: ValueId,
+        function: hir::FunctionId,
+        receiver: Option<&'a hir::Expr<'a>>,
+    },
+    FunctionPointer {
+        address: ValueId,
+        selector: ValueId,
+    },
 }
 
 /// The failed call's return data, which the catch clauses match on and bind.
@@ -365,11 +378,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let created = self.lower_create_contract(ty, contract_id, *args, *call_opts)?;
             let zero = self.builder.imm(U256::ZERO);
             let failed = self.builder.eq(created, zero);
-            (self.builder.iszero(failed), Some(created), None)
+            (self.builder.eq_zero(failed), Some(created), None)
         } else {
             let address = match target.callee {
                 TryCallee::Member { receiver, .. } => self.lower_expr(receiver)?,
-                TryCallee::LinkedLibrary { address, .. } => self.builder.imm(address),
+                TryCallee::LinkedLibrary { address, .. } => address,
                 TryCallee::FunctionPointer { address, .. } => address,
                 TryCallee::Creation { .. } => unreachable!(),
             };
@@ -563,7 +576,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let matches = self.builder.eq(data.selector, expected);
                 let size = self.builder.imm(36);
                 let short = self.builder.lt(data.len, size);
-                let has_payload = self.builder.iszero(short);
+                let has_payload = self.builder.eq_zero(short);
                 self.builder.and(matches, has_payload)
             } else {
                 self.builder.imm_bool(true)
@@ -1080,7 +1093,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn merge_value_phi(&mut self, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
         let dirty = !self.dirty_values.is_empty()
             && incoming.iter().any(|(_, value)| self.dirty_values.contains(value));
-        let value = self.builder.phi(incoming);
+        // Source bindings may acquire raw bits through assembly on a backedge.
+        // Preserve those bits even when the initial incoming value is i1 or i160.
+        let ty = incoming
+            .first()
+            .and_then(|(_, value)| self.builder.func().value_ty(*value))
+            .map(|ty| if matches!(ty, MirType::I1 | MirType::I160) { MirType::I256 } else { ty })
+            .unwrap_or(MirType::I256);
+        // value = phi [predecessor: cast incoming to the source carrier type, ...]
+        let value = self.builder.emit_inst(InstKind::Phi(incoming), Some(ty));
         if dirty {
             self.dirty_values.insert(value);
         }

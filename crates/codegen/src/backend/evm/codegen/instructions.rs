@@ -5,7 +5,8 @@ use super::{
     StackOp, StackPush, Terminator, ValueId, op,
     select::{self, OpcodeLowering},
 };
-use crate::mir::Callee;
+use crate::{mir::Callee, target::Target};
+use alloy_primitives::U256;
 
 impl<'gcx> EvmCodegen<'gcx> {
     // ==================== Stack-Aware Emitter API ====================
@@ -112,6 +113,87 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         if self.emit_stack_expression(func, liveness, block, inst_idx) {
             // The selected expression already produced the original result.
+        } else if let InstKind::Zext(value)
+        | InstKind::Trunc(value, _)
+        | InstKind::Sext(value, _, _)
+        | InstKind::PtrToInt(value, _)
+        | InstKind::IntToPtr(value)
+        | InstKind::Bitcast(value) = *kind
+        {
+            // cast value -> schedule the operand under the result identity
+            if let Some(plan) = self.plan_operands(func, &[value], liveness, block, inst_idx) {
+                self.emit_operand_plan(func, plan);
+            } else {
+                self.preserve_stack_only_operands(&[value], liveness, block, inst_idx);
+                self.emit_value(func, value);
+                if !self.block_local_copy_survives(liveness, block, value, 1) {
+                    self.spill_top_value_if_live(func, liveness, block, inst_idx, value);
+                }
+            }
+            match *kind {
+                InstKind::Sext(_, 1, 256) => {
+                    // sext i1 value to i256 -> SUB 0, value
+                    self.asm.emit_push(U256::ZERO);
+                    self.asm.emit_op(op::SUB);
+                }
+                InstKind::Sext(_, 1, 160)
+                    if self.gcx.sess.opts.evm_version.has_bitwise_shifting() =>
+                {
+                    // sext i1 value to i160 -> SUB 0, value; SHR 96
+                    self.asm.emit_push(U256::ZERO);
+                    self.asm.emit_op(op::SUB);
+                    self.asm.emit_push(U256::from(96));
+                    self.asm.emit_op(op::SHR);
+                }
+                InstKind::Sext(_, 1, bits) => {
+                    // sext i1 value to iN -> MUL value, (1 << N) - 1
+                    self.asm.emit_push(U256::MAX >> (256 - bits));
+                    self.asm.emit_op(op::MUL);
+                }
+                InstKind::Sext(_, 160, 256) => {
+                    // sext i160 value to i256 -> SIGNEXTEND 19, value
+                    self.asm.emit_push(U256::from(19));
+                    self.asm.emit_op(op::SIGNEXTEND);
+                }
+                InstKind::Trunc(_, bits) | InstKind::PtrToInt(_, bits) if bits < 256 => {
+                    // result = AND value, (1 << bits) - 1
+                    self.asm.emit_push(U256::MAX >> (256 - bits));
+                    self.asm.emit_op(op::AND);
+                }
+                InstKind::Sext(..) => unreachable!("unsupported integer width reached codegen"),
+                _ => {}
+            }
+            self.scheduler.instruction_executed(1, result_value);
+        } else if let InstKind::Eq(a, b) | InstKind::Ne(a, b) = *kind {
+            // eq x, 0 -> ISZERO x
+            // ne x, 0 -> ISZERO x; ISZERO
+            // ne x, y -> EQ x, y; ISZERO
+            if let Some(value) = Target::zero_test_input(&kind.op(), |value| func.value_u256(value))
+            {
+                self.emit_unary_op_with_result(
+                    func,
+                    value,
+                    op::ISZERO,
+                    result_value,
+                    liveness,
+                    block,
+                    inst_idx,
+                );
+            } else {
+                self.emit_binary_op_with_result(
+                    func,
+                    a,
+                    b,
+                    op::EQ,
+                    result_value,
+                    liveness,
+                    block,
+                    inst_idx,
+                );
+            }
+            if matches!(kind, InstKind::Ne(..)) {
+                self.asm.emit_op(op::ISZERO);
+            }
         } else if let Some(lowering) = select::opcode_lowering(&kind.op()) {
             self.emit_opcode_lowering(
                 func,
@@ -197,63 +279,40 @@ impl<'gcx> EvmCodegen<'gcx> {
             InstKind::StoreImmutable(..) => {
                 unreachable!("immutable stores must be lowered before EVM codegen")
             }
+            InstKind::LibraryAddress(value) => {
+                // push_library library
+                self.asm.emit_push_library(*value);
+                self.scheduler.instruction_executed(0, result_value);
+            }
             InstKind::LoadImmutable(id) => {
                 self.emit_load_immutable(*id);
                 self.scheduler.instruction_executed(0, result_value);
             }
 
-            // Select is like a ternary conditional
             InstKind::Select(cond, true_val, false_val) => {
-                // select(cond, t, f) = f + cond * (t - f)
-                //
-                // We emit all three values to the stack, then do inline computation.
-                // Stack notation: rightmost = top (depth 0).
-                // Stack after emit_value calls: [f, t, cond] with cond on top.
-
-                if let Some(plan) = self.plan_operands(
-                    func,
-                    &[*false_val, *true_val, *cond],
-                    liveness,
-                    block,
-                    inst_idx,
-                ) {
+                let operands = [*false_val, *cond, *true_val];
+                if let Some(plan) = self.plan_operands(func, &operands, liveness, block, inst_idx) {
                     self.emit_operand_plan(func, plan);
                 } else {
-                    self.preserve_stack_only_operands(
-                        &[*false_val, *true_val, *cond],
-                        liveness,
-                        block,
-                        inst_idx,
-                    );
-                    self.emit_value(func, *false_val); // Stack: [f]
-                    self.emit_operand(func, *true_val); // Stack: [f, t]
-                    self.emit_operand(func, *cond); // Stack: [f, t, cond]
+                    self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
+                    self.emit_value(func, *false_val);
+                    self.emit_operand(func, *cond);
+                    self.emit_operand(func, *true_val);
                 }
 
-                // Now compute: f + cond * (t - f)
-                // Stack is [f, t, cond] with cond on top (depth 0), t at depth 1, f at depth 2
-                //
-                // Step 1: get f -> [f, t, cond, f]
-                self.emit_operand(func, *false_val);
-                // Step 2: get t -> [f, t, cond, f, t]
-                self.emit_operand(func, *true_val);
-                // Step 3: SUB (top - second = t - f) -> [f, t, cond, t-f]
+                // [f, c, t] -> [f, c, f, t] -> [f, c, t-f] -> [f, c*(t-f)].
+                self.emit_stack_op(StackOp::Dup(3));
+                self.emit_stack_op(StackOp::Swap(1));
                 self.emit_op_with_effect(
                     op::SUB,
                     StackEffect { pops: 2, pushes: 1 },
                     StackPush::Unknown,
                 );
-                // Step 4: MUL (cond * (t-f)) -> [f, t, cond*(t-f)]
                 self.emit_op_with_effect(
                     op::MUL,
                     StackEffect { pops: 2, pushes: 1 },
                     StackPush::Unknown,
                 );
-                // Step 5: SWAP1 -> [f, cond*(t-f), t]
-                self.emit_stack_op(StackOp::Swap(1));
-                // Step 6: POP (remove t) -> [f, cond*(t-f)]
-                self.emit_stack_op(StackOp::Pop);
-                // Step 7: ADD (cond*(t-f) + f = f + cond*(t-f)) -> [result]
                 let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
                 self.emit_op_with_effect(op::ADD, StackEffect { pops: 2, pushes: 1 }, push);
             }

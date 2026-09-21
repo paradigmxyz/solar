@@ -17,6 +17,7 @@ fn @literal() -> memorybytes [pure] {
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
     ret v0
 }

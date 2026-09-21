@@ -1,11 +1,11 @@
 - // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_revert_exit.mir (before storage-promotion) ===
 + // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_revert_exit.mir (after storage-promotion) ===
   @module StoragePromotionRevertExit
-  fn @promote_checked_sum_loop(arg0: u256) [selector=0x01020304] {
+  fn @promote_checked_sum_loop(arg0: i256) [selector=0x01020304] {
     bb0:
 +     v6 = sload 0
 +     mstore 128, v6
-+     mstore 160, false
++     mstore 160, 0
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb5: v5]
@@ -13,10 +13,11 @@
       jumpi v1, bb2, bb6
     bb6:
 +     v7 = mload 160
-+     jumpi v7, bb8, bb7
++     v8 = ne v7, 0
++     jumpi v8, bb8, bb7
 +   bb8:
-+     v8 = mload 128
-+     sstore 0, v8
++     v9 = mload 128
++     sstore 0, v9
 +     jump bb7
 +   bb7:
       stop
@@ -29,7 +30,7 @@
     bb4:
 -     sstore 0, v3
 +     mstore 128, v3
-+     mstore 160, true
++     mstore 160, 1
       jump bb5
     bb5:
       v5 = add v0, 1
@@ -38,7 +39,7 @@
       revert 0, 0
   }
   
-  fn @promote_revert_exit_reads_slot(arg0: u256) [selector=0x01020304] {
+  fn @promote_revert_exit_reads_slot(arg0: i256) [selector=0x01020304] {
     bb0:
 -     sstore 0, 1
 +     mstore 128, 1
@@ -66,7 +67,7 @@
       jump bb1
   }
   
-  fn @reject_revert_exit_with_call(arg0: u256) [selector=0x01020304] {
+  fn @reject_revert_exit_with_call(arg0: i256) [selector=0x01020304] {
     bb0:
 -     sstore 0, 1
 +     sstore 0, 1 !metadata(storage=slot(0))
@@ -90,7 +91,7 @@
       jump bb1
   }
   
-  fn @reject_revert_exit_with_payable(arg0: u256) [selector=0x01020304] {
+  fn @reject_revert_exit_with_payable(arg0: i256) [selector=0x01020304] {
     bb0:
 -     sstore 0, 1
 +     sstore 0, 1 !metadata(storage=slot(0))
@@ -108,14 +109,15 @@
       v2 = lt v1, arg0
       jumpi v2, bb4, bb3
     bb3:
-      v3 = icall send<>, arg0, 0
-      icall transfer<>, arg0, 0
+      v3 = trunc i256 arg0 to i160
+      v4 = icall send<>, v3, 0
+      icall transfer<>, v3, 0
       revert_returndata
     bb4:
       jump bb1
   }
   
-  fn @reject_revert_exit_with_storage_bytes(arg0: u256) [selector=0x01020305] {
+  fn @reject_revert_exit_with_storage_bytes(arg0: i256) [selector=0x01020305] {
     bb0:
 -     sstore 0, 2
 +     sstore 0, 2 !metadata(storage=slot(0))
@@ -135,8 +137,9 @@
     bb3:
       v3 = load_storage_bytes 0
       v4 = memory_object_data memorybytes, v3
-      v5 = memory_object_len memorybytes, v3
-      revert v4, v5
+      v5 = ptrtoint memptr v4 to i256
+      v6 = memory_object_len memorybytes, v3
+      revert v5, v6
     bb4:
       jump bb1
   }

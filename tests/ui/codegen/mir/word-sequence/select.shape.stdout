@@ -1,200 +1,493 @@
-- // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (before lower-evm-shaped) ===
-+ // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (after lower-evm-shaped) ===
+- // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (before lower-memory-objects) ===
++ // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (after lower-memory-objects) ===
   @module ConstantSelectRecipes
-+ @phase lowered
-  fn @zero_right_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  fn @zero_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
--     v0 = select arg0, arg1, 0
-+     v1 = iszero arg0
-+     v0 = select v1, 0, arg1
-      ret v0
-  }
-  
-  fn @zero_left_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
-    bb0:
--     v0 = select arg0, 0, arg1
-+     v1 = iszero arg0
-+     v0 = select v1, arg1, 0
-      ret v0
-  }
-  
-  fn @max_right_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
-    bb0:
--     v0 = select arg0, arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-+     v1 = iszero arg0
-+     v0 = select v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1
-      ret v0
-  }
-  
-  fn @max_left_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
-    bb0:
--     v0 = select arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1
-+     v1 = iszero arg0
-+     v0 = select v1, arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-      ret v0
-  }
-  
-  fn @one_right_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
-    bb0:
--     v0 = select arg0, arg1, 1
-+     v1 = iszero arg0
-+     v0 = select v1, 1, arg1
-      ret v0
-  }
-  
-  fn @one_left_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
-    bb0:
--     v0 = select arg0, 1, arg1
-+     v1 = iszero arg0
-+     v0 = select v1, arg1, 1
-      ret v0
-  }
-  
-  fn @constant_right_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
-    bb0:
--     v0 = select arg0, arg1, 42
-+     v1 = iszero arg0
-+     v0 = select v1, 42, arg1
-      ret v0
-  }
-  
-  fn @constant_left_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
-    bb0:
--     v0 = select arg0, 42, arg1
-+     v1 = iszero arg0
-+     v0 = select v1, arg1, 42
-      ret v0
-  }
-  
-  fn @ascending_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
-    bb0:
--     v0 = select arg0, 42, 7
-+     v1 = iszero arg0
-+     v0 = select v1, 7, 42
-      ret v0
-  }
-  
-  fn @descending_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
-    bb0:
--     v0 = select arg0, 7, 42
-+     v1 = iszero arg0
-+     v0 = select v1, 42, 7
-      ret v0
-  }
-  
-  fn @wide_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
-    bb0:
--     v0 = select arg0, 0x8000000000000000000000000000000000000000000000000000000000000000, 7
-+     v1 = iszero arg0
-+     v0 = select v1, 7, 0x8000000000000000000000000000000000000000000000000000000000000000
-      ret v0
-  }
-  
-  fn @variable_dirty(arg0: u256, arg1: u256, arg2: u256) -> u256 {
-    bb0:
--     v0 = select arg0, arg1, arg2
-+     v1 = iszero arg0
-+     v0 = select v1, arg2, arg1
-      ret v0
-  }
-  
-  fn @zero_right_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
-    bb0:
-      v0 = iszero arg0
+      v0 = ne arg0, 0
       v1 = select v0, arg1, 0
       ret v1
   }
   
-  fn @zero_left_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  fn @zero_left_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
-      v0 = iszero arg0
+      v0 = ne arg0, 0
       v1 = select v0, 0, arg1
       ret v1
   }
   
-  fn @max_right_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  fn @max_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
-      v0 = iszero arg0
+      v0 = ne arg0, 0
       v1 = select v0, arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       ret v1
   }
   
-  fn @max_left_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  fn @max_left_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
-      v0 = iszero arg0
+      v0 = ne arg0, 0
       v1 = select v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1
       ret v1
   }
   
-  fn @one_right_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  fn @one_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
-      v0 = iszero arg0
+      v0 = ne arg0, 0
       v1 = select v0, arg1, 1
       ret v1
   }
   
-  fn @one_left_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  fn @one_left_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
-      v0 = iszero arg0
+      v0 = ne arg0, 0
       v1 = select v0, 1, arg1
       ret v1
   }
   
-  fn @constant_right_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  fn @constant_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
-      v0 = iszero arg0
+      v0 = ne arg0, 0
       v1 = select v0, arg1, 42
       ret v1
   }
   
-  fn @constant_left_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  fn @constant_left_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
-      v0 = iszero arg0
+      v0 = ne arg0, 0
       v1 = select v0, 42, arg1
       ret v1
   }
   
-  fn @ascending_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  fn @ascending_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
-      v0 = iszero arg0
+      v0 = ne arg0, 0
       v1 = select v0, 42, 7
       ret v1
   }
   
-  fn @descending_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  fn @descending_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
-      v0 = iszero arg0
+      v0 = ne arg0, 0
       v1 = select v0, 7, 42
       ret v1
   }
   
-  fn @wide_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  fn @wide_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
-      v0 = iszero arg0
+      v0 = ne arg0, 0
       v1 = select v0, 0x8000000000000000000000000000000000000000000000000000000000000000, 7
       ret v1
   }
   
-  fn @variable_canonical(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  fn @variable_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
-      v0 = iszero arg0
+      v0 = ne arg0, 0
       v1 = select v0, arg1, arg2
       ret v1
   }
   
-  fn @dirty_bool(arg0: bool, arg1: u256) -> u256 {
+  fn @zero_right_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
--     v0 = select arg0, arg1, 0
-+     v1 = iszero arg0
-+     v0 = select v1, 0, arg1
+      v0 = eq arg0, 0
+      v1 = select v0, arg1, 0
+      ret v1
+  }
+  
+  fn @zero_left_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, 0, arg1
+      ret v1
+  }
+  
+  fn @max_right_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret v1
+  }
+  
+  fn @max_left_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1
+      ret v1
+  }
+  
+  fn @one_right_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, arg1, 1
+      ret v1
+  }
+  
+  fn @one_left_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, 1, arg1
+      ret v1
+  }
+  
+  fn @constant_right_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, arg1, 42
+      ret v1
+  }
+  
+  fn @constant_left_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, 42, arg1
+      ret v1
+  }
+  
+  fn @ascending_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, 42, 7
+      ret v1
+  }
+  
+  fn @descending_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, 7, 42
+      ret v1
+  }
+  
+  fn @wide_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, 0x8000000000000000000000000000000000000000000000000000000000000000, 7
+      ret v1
+  }
+  
+  fn @variable_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, arg1, arg2
+      ret v1
+  }
+  
+  fn @canonical_bool(arg0: i1, arg1: i256) -> i256 {
+    bb0:
+      v0 = select arg0, arg1, 0
       ret v0
   }
   
-  fn @pointer_arm(arg0: bool, arg1: memptr) -> u256 {
+- fn @pointer_arm(arg0: i1, arg1: memorybytes) -> memorybytes {
++ fn @pointer_arm(arg0: i1, arg1: memptr) -> memptr [may_return_memory] {
     bb0:
--     v0 = select arg0, arg1, 0
-+     v1 = iszero arg0
-+     v0 = select v1, 0, arg1
+-     v0 = select arg0, arg1, memorybytes 0
++     v0 = select arg0, arg1, memptr 0
       ret v0
+  }
+  
+  fn @factor_add(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = add arg1, arg2
+      v1 = select arg0, v0, arg2
+      ret v1
+  }
+  
+  fn @factor_add_reverse(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = add arg2, arg1
+      v2 = select v0, arg2, v1
+      ret v2
+  }
+  
+  fn @factor_sub(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = sub arg2, arg1
+      v2 = select v0, v1, arg2
+      ret v2
+  }
+  
+  fn @factor_or(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = or arg1, arg2
+      v2 = select v0, v1, arg2
+      ret v2
+  }
+  
+  fn @factor_xor(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = xor arg2, arg1
+      v1 = select arg0, v0, arg2
+      ret v1
+  }
+  
+  fn @factor_and(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = and arg1, arg2
+      v2 = select v0, v1, arg2
+      ret v2
+  }
+  
+  fn @factor_add_after_ne(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = add arg1, arg2
+      v1 = ne arg0, 0
+      v2 = select v1, v0, arg2
+      ret v2
+  }
+  
+  fn @factor_add_after_cast(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = add arg1, arg2
+      v1 = trunc i256 arg0 to i1
+      v2 = select v1, v0, arg2
+      ret v2
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (before lower-evm-shaped) ===
++ // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (after lower-evm-shaped) ===
+  @module ConstantSelectRecipes
++ @phase lowered
+  fn @zero_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, arg1, 0
+      ret v1
+  }
+  
+  fn @zero_left_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, 0, arg1
+      ret v1
+  }
+  
+  fn @max_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret v1
+  }
+  
+  fn @max_left_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1
+      ret v1
+  }
+  
+  fn @one_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, arg1, 1
+      ret v1
+  }
+  
+  fn @one_left_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, 1, arg1
+      ret v1
+  }
+  
+  fn @constant_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, arg1, 42
+      ret v1
+  }
+  
+  fn @constant_left_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, 42, arg1
+      ret v1
+  }
+  
+  fn @ascending_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, 42, 7
+      ret v1
+  }
+  
+  fn @descending_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, 7, 42
+      ret v1
+  }
+  
+  fn @wide_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, 0x8000000000000000000000000000000000000000000000000000000000000000, 7
+      ret v1
+  }
+  
+  fn @variable_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, arg1, arg2
+      ret v1
+  }
+  
+  fn @zero_right_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, arg1, 0
+      ret v1
+  }
+  
+  fn @zero_left_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, 0, arg1
+      ret v1
+  }
+  
+  fn @max_right_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret v1
+  }
+  
+  fn @max_left_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1
+      ret v1
+  }
+  
+  fn @one_right_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, arg1, 1
+      ret v1
+  }
+  
+  fn @one_left_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, 1, arg1
+      ret v1
+  }
+  
+  fn @constant_right_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, arg1, 42
+      ret v1
+  }
+  
+  fn @constant_left_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, 42, arg1
+      ret v1
+  }
+  
+  fn @ascending_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, 42, 7
+      ret v1
+  }
+  
+  fn @descending_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, 7, 42
+      ret v1
+  }
+  
+  fn @wide_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, 0x8000000000000000000000000000000000000000000000000000000000000000, 7
+      ret v1
+  }
+  
+  fn @variable_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, arg1, arg2
+      ret v1
+  }
+  
+  fn @canonical_bool(arg0: i1, arg1: i256) -> i256 {
+    bb0:
+      v0 = select arg0, arg1, 0
+      ret v0
+  }
+  
+  fn @pointer_arm(arg0: i1, arg1: memptr) -> memptr [may_return_memory] {
+    bb0:
+      v0 = select arg0, arg1, memptr 0
+      ret v0
+  }
+  
+  fn @factor_add(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = add arg1, arg2
+      v1 = select arg0, v0, arg2
+      ret v1
+  }
+  
+  fn @factor_add_reverse(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = add arg2, arg1
+      v2 = select v0, arg2, v1
+      ret v2
+  }
+  
+  fn @factor_sub(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = sub arg2, arg1
+      v2 = select v0, v1, arg2
+      ret v2
+  }
+  
+  fn @factor_or(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = or arg1, arg2
+      v2 = select v0, v1, arg2
+      ret v2
+  }
+  
+  fn @factor_xor(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = xor arg2, arg1
+      v1 = select arg0, v0, arg2
+      ret v1
+  }
+  
+  fn @factor_and(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = and arg1, arg2
+      v2 = select v0, v1, arg2
+      ret v2
+  }
+  
+  fn @factor_add_after_ne(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = add arg1, arg2
+      v1 = ne arg0, 0
+      v2 = select v1, v0, arg2
+      ret v2
+  }
+  
+  fn @factor_add_after_cast(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = add arg1, arg2
+      v1 = trunc i256 arg0 to i1
+      v2 = select v1, v0, arg2
+      ret v2
   }
   

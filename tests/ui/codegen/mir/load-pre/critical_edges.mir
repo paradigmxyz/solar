@@ -6,7 +6,7 @@
 // CHECK: + [[EDGE:bb[0-9]+]]:
 // CHECK: + [[LOAD:v[0-9]+]] = sload 5
 // CHECK: + {{v[0-9]+}} = phi [bb1: arg2], [[[EDGE]]: [[LOAD]]]
-fn @branch(arg0: bool, arg1: bool, arg2: u256) -> u256 {
+fn @branch(arg0: i1, arg1: i1, arg2: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -26,7 +26,7 @@ fn @branch(arg0: bool, arg1: bool, arg2: u256) -> u256 {
 // CHECK-LABEL: fn @switch_edges
 // CHECK: + [[LOAD:v[0-9]+]] = tload 5
 // CHECK: + {{v[0-9]+}} = phi [bb1: arg2], [{{bb[0-9]+}}: [[LOAD]]]
-fn @switch_edges(arg0: bool, arg1: u256, arg2: u256) -> u256 {
+fn @switch_edges(arg0: i1, arg1: i256, arg2: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -43,7 +43,7 @@ fn @switch_edges(arg0: bool, arg1: u256, arg2: u256) -> u256 {
 
 // CHECK-LABEL: fn @gas_barrier
 // CHECK-NOT: {{^[+-]}}
-fn @gas_barrier(arg0: bool, arg1: bool) -> u256 {
+fn @gas_barrier(arg0: i1, arg1: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -62,7 +62,7 @@ fn @gas_barrier(arg0: bool, arg1: bool) -> u256 {
 
 // CHECK-LABEL: fn @cheap_memory
 // CHECK-NOT: {{^[+-]}}
-fn @cheap_memory(arg0: bool, arg1: bool) -> u256 {
+fn @cheap_memory(arg0: i1, arg1: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:

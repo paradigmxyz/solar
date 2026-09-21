@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/inline-guards/returning_guard.sol:ReturningGuard ===
 @module ReturningGuard
-fn @check(arg0: u256, arg1: u256) {
+fn @check(arg0: i256, arg1: i256) {
   bb0:
     v0 = eq arg0, arg1
     jumpi v0, bb1, bb2
@@ -19,7 +19,7 @@ fn @check(arg0: u256, arg1: u256) {
     ret
 }
 
-fn @run(arg0: u256) -> u256 [selector=0xa444f5e9, abi_params=[u256], abi_returns=[word]] {
+fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jump bb1
   bb1:
@@ -44,7 +44,7 @@ fn @run(arg0: u256) -> u256 [selector=0xa444f5e9, abi_params=[u256], abi_returns
     jump bb1
 }
 
-fn @requireEqual(arg0: u256, arg1: u256) [pure] {
+fn @requireEqual(arg0: i256, arg1: i256) [pure] {
   bb0:
     v0 = eq arg0, arg1
     jumpi v0, bb1, bb2
@@ -57,7 +57,7 @@ fn @requireEqual(arg0: u256, arg1: u256) [pure] {
     ret
 }
 
-fn @failing() [selector=0x1118b879, pure, abi_params=[], abi_returns=[]] {
+fn @failing() [selector=0x1118b879, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     jump bb1
   bb1:

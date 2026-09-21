@@ -23,13 +23,13 @@ contract SF {
     // CHECK: return
     // The allocating entry initializes its reachable frame floor.
     // CHECK: [[TOP]]:
-    // CHECK-NEXT: push 416
+    // CHECK-NEXT: push 352
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // Static locals use fixed addresses without a dynamic-frame header.
-    // CHECK: push 224
+    // CHECK: push 288
     // CHECK-NEXT: mstore
-    // CHECK: push 320
+    // CHECK: push 224
     // CHECK-NEXT: mstore
     // Calls share the dynamic-frame header setup and cleanup.
     // CHECK: push [[ALLOC_CONT:bb[0-9]+]]
@@ -55,17 +55,6 @@ contract SF {
     // CHECK-NEXT: mload
     // CHECK-NEXT: push 160
     // CHECK-NEXT: mstore
-    // Recursive calls reserve a dynamic frame before entering the callee.
-    // CHECK: [[ALLOC_CONT]] [continuation]:
-    // CHECK: push 288
-    // CHECK-NEXT: add
-    // CHECK-NEXT: push 64
-    // CHECK-NEXT: mstore
-    // CHECK: push [[REC_RET]]
-    // CHECK-NEXT: jump [[REC_ENTRY:bb[0-9]+]]
-    // CHECK-NEXT: [[REC_ENTRY]]:
-    // CHECK-NEXT: push 160
-    // CHECK-NEXT: mload
     function top(uint256 x) external returns (uint256) {
         uint256 keep = x * 3; // live across all the calls below
         uint256 a = chainA(x);

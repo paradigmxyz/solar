@@ -13,3 +13,8 @@
 ;; `ISZERO ISZERO ISZERO -> ISZERO`.
 (rule 230 (peep_nonpush (last3 (opcode $ISZERO) (opcode $ISZERO) (opcode $ISZERO)))
          (rewrite 3 (Edit.OverwriteOne $ISZERO)))
+
+;; `DUP2 EQ ISZERO SWAP1 POP -> EQ ISZERO` for unprotected, canonical stack effects.
+(rule 205 (peep_nonpush (unprotected_last5 (opcode $DUP2) (opcode $EQ) (opcode $ISZERO)
+                                        (opcode $SWAP1) (opcode $POP)))
+          (rewrite 5 (Edit.RemoveFirstKeepTwo)))

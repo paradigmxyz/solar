@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/load-pre/load_pre_memory.mir (before load-pre) ===
 + // === ROOT/tests/ui/codegen/mir/load-pre/load_pre_memory.mir (after load-pre) ===
   @module LoadPreMemory
-  fn @mload_full_diamond(arg0: bool) -> u256 {
+  fn @mload_full_diamond(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -15,7 +15,7 @@
       ret v2
   }
   
-  fn @mstore_forwarding(arg0: bool, arg1: u256) -> u256 {
+  fn @mstore_forwarding(arg0: i1, arg1: i256) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -29,7 +29,7 @@
       ret v1
   }
   
-  fn @mstore8_overlap_kills(arg0: bool) -> u256 {
+  fn @mstore8_overlap_kills(arg0: i1) -> i256 {
     bb0:
       v0 = mload 128
       jumpi arg0, bb1, bb2
@@ -45,7 +45,7 @@
       ret v1
   }
   
-  fn @mload_partial_rejected(arg0: bool) -> u256 {
+  fn @mload_partial_rejected(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -58,7 +58,7 @@
       ret v1
   }
   
-  fn @mload_partial_repeated_profitable(arg0: bool) -> u256 {
+  fn @mload_partial_repeated_profitable(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -76,7 +76,7 @@
       ret v3
   }
   
-  fn @mload_partial_two_available(arg0: u256) -> u256 {
+  fn @mload_partial_two_available(arg0: i256) -> i256 {
     bb0:
       switch arg0, default bb3, [1 => bb1, 2 => bb2]
     bb2:
@@ -92,7 +92,7 @@
       ret v2
   }
   
-  fn @mload_loop_header(arg0: u256) -> u256 {
+  fn @mload_loop_header(arg0: i256) -> i256 {
     bb0:
       v0 = mload 128
       jump bb1
@@ -109,7 +109,7 @@
       jump bb1
   }
   
-  fn @staticcall_zero_return_preserves_memory(arg0: bool, arg1: address) -> u256 {
+  fn @staticcall_zero_return_preserves_memory(arg0: i1, arg1: i256) -> i256 {
     bb0:
       v0 = mload 128
       jumpi arg0, bb1, bb2
@@ -126,7 +126,7 @@
 +     ret v0
   }
   
-  fn @msize_blocks_memory(arg0: bool) -> u256 {
+  fn @msize_blocks_memory(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -142,7 +142,7 @@
       ret v4
   }
   
-  fn @default_gas_call_blocks_prefix(arg0: bool, arg1: memorybytes) -> u256 {
+  fn @default_gas_call_blocks_prefix(arg0: i1, arg1: memorybytes) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -151,14 +151,15 @@
       v0 = mload 128
       jump bb3
     bb3:
-      v1 = address_call 0xbeef, arg1
-      v2 = mload 128
+      v1 = trunc i256 0xbeef to i160
+      v2 = address_call v1, arg1
       v3 = mload 128
-      v4 = add v2, v3
-      ret v4
+      v4 = mload 128
+      v5 = add v3, v4
+      ret v5
   }
   
-  fn @default_gas_call_blocks_reload(arg0: bool, arg1: memorybytes) -> u256 {
+  fn @default_gas_call_blocks_reload(arg0: i1, arg1: memorybytes) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -168,13 +169,14 @@
       jump bb3
     bb3:
       v1 = mload 128
-      v2 = address_call 0xbeef, arg1
-      v3 = mload 128
-      v4 = add v1, v3
-      ret v4
+      v2 = trunc i256 0xbeef to i160
+      v3 = address_call v2, arg1
+      v4 = mload 128
+      v5 = add v1, v4
+      ret v5
   }
   
-  fn @explicit_gas_call_blocks_pre(arg0: bool, arg1: memorybytes) -> u256 {
+  fn @explicit_gas_call_blocks_pre(arg0: i1, arg1: memorybytes) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -183,10 +185,11 @@
       v0 = mload 128
       jump bb3
     bb3:
-      v1 = address_call 0xbeef, arg1, gas 0x3e8
-      v2 = mload 128
+      v1 = trunc i256 0xbeef to i160
+      v2 = address_call v1, arg1, gas 0x3e8
       v3 = mload 128
-      v4 = add v2, v3
-      ret v4
+      v4 = mload 128
+      v5 = add v3, v4
+      ret v5
   }
   

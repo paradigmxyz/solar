@@ -67,8 +67,8 @@ bb6:
   push 0
   swap 1
   mstore
-  push 32
-  dup 4
+  push 64
+  dup 5
   add
   dup 3
   dup 5
@@ -125,13 +125,13 @@ bb26 [cold]:
   push 0
   revert
 bb18:
-  push 288
+  push 256
   push 64
   mstore
   push 0
   push 160
   mstore
-  push bb34
+  push bb35
   jump bb31
 bb31:
   push 64
@@ -150,125 +150,15 @@ bb31:
   swap 4
   jump
 bb29:
-  push 224
+  push 192
   push 64
   mstore
   push 0
   push 160
   mstore
-  push bb36
+  push bb37
   jump bb31
 bb32 [continuation]:
-  gas
-  staticcall
-  swap 1
-  pop
-  iszero
-  push bb26
-  jumpi
-  returndatasize
-  push 32
-  gt
-  push bb5
-  jumpi
-  push 0
-  mload
-  push bb38
-  jump bb37
-bb37:
-  push 64
-  mload
-  push 32
-  dup 2
-  add
-  push 64
-  mstore
-  push 0x3fa4f245
-  push 224
-  shl
-  dup 2
-  mstore
-  push 32
-  push 0
-  push 4
-  dup 4
-  swap 1
-  swap 2
-  swap 3
-  swap 4
-  swap 5
-  jump
-bb33 [continuation]:
-  codecopy
-  push 255
-  swap 1
-  push 0
-  create
-  dup 1
-  push 224
-  mstore
-  iszero
-  push bb26
-  jumpi
-  push bb32
-  jump bb30
-bb30:
-  push bb39
-  jump bb37
-bb34 [continuation]:
-  codecopy
-  push 255
-  swap 1
-  push 0
-  create
-  dup 1
-  push 192
-  mstore
-  iszero
-  push bb26
-  jumpi
-  push 0
-  push 256
-  mstore
-  push bb33
-  jump bb31
-bb35 [continuation]:
-  gas
-  staticcall
-  swap 1
-  pop
-  iszero
-  push bb26
-  jumpi
-  returndatasize
-  push 32
-  gt
-  push bb5
-  jumpi
-  push 0
-  mload
-  jump bb28
-bb28:
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb36 [continuation]:
-  codecopy
-  push 255
-  swap 1
-  push 0
-  create
-  dup 1
-  push 192
-  mstore
-  iszero
-  push bb26
-  jumpi
-  push bb35
-  jump bb30
-bb38 [continuation]:
   push 224
   mload
   gas
@@ -293,16 +183,113 @@ bb38 [continuation]:
   push bb27
   jumpi
   jump bb28
-bb39 [continuation]:
-  push 192
+bb28:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb33 [continuation]:
+  dup 7
+  gas
+  staticcall
+  swap 3
+  pop
+  pop
+  push 224
+  mstore
+  iszero
+  push bb26
+  jumpi
+  returndatasize
+  push 32
+  gt
+  push bb5
+  jumpi
+  push 0
   mload
+  push bb32
+  jump bb30
+bb30:
+  push 64
+  mload
+  push 32
+  dup 2
+  add
+  push 64
+  mstore
+  push 0x3fa4f245
+  push 224
+  shl
+  dup 2
+  mstore
+  push 32
+  push 0
+  push 4
+  dup 4
   swap 1
   swap 2
   swap 3
   swap 4
   swap 5
-  swap 6
   jump
+bb34 [continuation]:
+  codecopy
+  push 255
+  swap 1
+  push 0
+  create
+  dup 1
+  iszero
+  push bb26
+  jumpi
+  push bb33
+  jump bb30
+bb35 [continuation]:
+  codecopy
+  push 255
+  swap 1
+  push 0
+  create
+  dup 1
+  iszero
+  push bb26
+  jumpi
+  push 0
+  push 192
+  mstore
+  push bb34
+  jump bb31
+bb36 [continuation]:
+  dup 6
+  gas
+  staticcall
+  swap 2
+  pop
+  pop
+  iszero
+  push bb26
+  jumpi
+  returndatasize
+  push 32
+  gt
+  push bb5
+  jumpi
+  push 0
+  mload
+  jump bb28
+bb37 [continuation]:
+  codecopy
+  push 255
+  swap 1
+  push 0
+  create
+  dup 1
+  iszero
+  push bb26
+  jumpi
+  push bb36
+  jump bb30
 bb27 [cold]:
   push 0x4e487b71
   push 0
@@ -314,4 +301,4 @@ bb27 [cold]:
   push 28
   revert
 
-@data Child_initcode_0 hex"34600d5760ee8060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b60808060405260a081016040528081526020810181606e823981151560071b601f8101601f19168083015f9052602083018284825e5060208452915260400181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+@data Child_initcode_0 hex"34600d5760ee8060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b60808060405260a081016040528081526020810181606e823981151560071b601f8101601f19168083015f9052604084018284825e5060208452915260400181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"

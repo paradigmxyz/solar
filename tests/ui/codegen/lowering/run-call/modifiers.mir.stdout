@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifiers.sol:Modifiers ===
 @module Modifiers
-fn @rec(arg0: u256) -> u256 {
+fn @rec(arg0: i256) -> i256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_mul u256, v0, 100
@@ -9,7 +9,7 @@ fn @rec(arg0: u256) -> u256 {
     ret arg0
 }
 
-fn @guarded(arg0: u256) -> u256 [selector=0x5e284975, pure, abi_params=[u256], abi_returns=[word]] {
+fn @guarded(arg0: i256) -> i256 [selector=0x5e284975, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = lt arg0, 10
     icall require<short_string>, v0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
@@ -21,14 +21,15 @@ fn @guarded(arg0: u256) -> u256 [selector=0x5e284975, pure, abi_params=[u256], a
     ret v1
 }
 
-fn @literalString() -> memorybytes [selector=0x660cf51a, pure, abi_params=[], abi_returns=[memory_bytes]] {
+fn @literalString() -> memorybytes [selector=0x660cf51a, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = lt 0, 10
     icall require<short_string>, v0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v1, 3
     v2 = memory_object_data memorybytes, v1
-    mstore v2, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v3 = ptrtoint memptr v2 to i256
+    mstore v3, 0x6162630000000000000000000000000000000000000000000000000000000000
     jump bb2
   bb2:
     jump bb1
@@ -36,7 +37,7 @@ fn @literalString() -> memorybytes [selector=0x660cf51a, pure, abi_params=[], ab
     ret v1
 }
 
-fn @literalBytes() -> bytes4 [selector=0x95549276, pure, abi_params=[], abi_returns=[word<bytes4>]] {
+fn @literalBytes() -> i256 [selector=0x95549276, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = lt 0, 10
     icall require<short_string>, v0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
@@ -47,7 +48,7 @@ fn @literalBytes() -> bytes4 [selector=0x95549276, pure, abi_params=[], abi_retu
     ret 0x1122334400000000000000000000000000000000000000000000000000000000
 }
 
-fn @calldataBytes(arg0: calldataslice) -> memorybytes [selector=0x7965815f, pure, abi_params=[bytes], abi_returns=[memory_bytes]] {
+fn @calldataBytes(arg0: calldataslice) -> memorybytes [selector=0x7965815f, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = lt 0, 10
     icall require<short_string>, v0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
@@ -75,7 +76,7 @@ fn @calldataBytes(arg0: calldataslice) -> memorybytes [selector=0x7965815f, pure
     ret v12
 }
 
-fn @inner(arg0: u256) {
+fn @inner(arg0: i256) {
   bb0:
     v0 = icall @rec, 1
     v1 = icall @rec, 11
@@ -93,14 +94,14 @@ fn @inner(arg0: u256) {
     ret
 }
 
-fn @orderFull(arg0: u256) -> u256 [selector=0xcd96f9ce, abi_params=[u256], abi_returns=[word]] {
+fn @orderFull(arg0: i256) -> i256 [selector=0xcd96f9ce, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall @inner, arg0
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
 
-fn @double(arg0: u256) -> u256 [selector=0xeee97206, abi_params=[u256], abi_returns=[word]] {
+fn @double(arg0: i256) -> i256 [selector=0xeee97206, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, arg0
@@ -119,10 +120,11 @@ fn @double(arg0: u256) -> u256 [selector=0xeee97206, abi_params=[u256], abi_retu
     ret v5
 }
 
-fn @maybe(arg0: bool) -> u256 [selector=0xe13e4d4f, pure, abi_params=[bool], abi_returns=[word]] {
+fn @maybe(arg0: i256) -> i256 [selector=0xe13e4d4f, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq arg0, 0
-    v1 = iszero v0
+    v1 = eq v0, false
+    v2 = zext i1 v1 to i256
     jumpi v1, bb2, bb3
   bb3:
     jump bb4
@@ -133,11 +135,11 @@ fn @maybe(arg0: bool) -> u256 [selector=0xe13e4d4f, pure, abi_params=[bool], abi
   bb2:
     jump bb1
   bb1:
-    v2 = phi [bb2: 0], [bb5: 7]
-    ret v2
+    v3 = phi [bb2: 0], [bb5: 7]
+    ret v3
 }
 
-fn @retMid() -> u256 [selector=0x436126b8, abi_params=[], abi_returns=[word]] {
+fn @retMid() -> i256 [selector=0x436126b8, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     jump bb3
@@ -155,35 +157,36 @@ fn @retMid() -> u256 [selector=0x436126b8, abi_params=[], abi_returns=[word]] {
     ret 9
 }
 
-fn @lazy(arg0: bool) -> u256 [selector=0x90bca39b, abi_params=[bool], abi_returns=[word]] {
+fn @lazy(arg0: i256) -> i256 [selector=0x90bca39b, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq arg0, 0
-    v1 = iszero v0
+    v1 = eq v0, false
+    v2 = zext i1 v1 to i256
     jumpi v1, bb3, bb4
   bb4:
     jump bb5
   bb5:
-    v2 = icall @rec, 7
-    v3 = icall @rec, 11
+    v3 = icall @rec, 7
+    v4 = icall @rec, 11
     jump bb7
   bb7:
-    v4 = icall @rec, 19
+    v5 = icall @rec, 19
     jump bb6
   bb6:
     jump bb2
   bb3:
     jump bb2
   bb2:
-    v5 = phi [bb3: 0], [bb6: 5]
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = eq v6, 0
-    icall require<short_string>, v7, 4, 0x6c617a7900000000000000000000000000000000000000000000000000000000
+    v6 = phi [bb3: 0], [bb6: 5]
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = eq v7, 0
+    icall require<short_string>, v8, 4, 0x6c617a7900000000000000000000000000000000000000000000000000000000
     jump bb1
   bb1:
-    ret v5
+    ret v6
 }
 
-fn @clamped(arg0: u256) -> u256 [selector=0x50df8187, abi_params=[u256], abi_returns=[word]] {
+fn @clamped(arg0: i256) -> i256 [selector=0x50df8187, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gt arg0, 5
     jumpi v0, bb2, bb3
@@ -228,7 +231,7 @@ fn @repeatedInner() {
     ret
 }
 
-fn @repeated() -> u256 [selector=0xc7642fc4, abi_params=[], abi_returns=[word]] {
+fn @repeated() -> i256 [selector=0xc7642fc4, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall @repeatedInner
     v0 = sload 0 !metadata(storage=slot(0))
@@ -237,7 +240,7 @@ fn @repeated() -> u256 [selector=0xc7642fc4, abi_params=[], abi_returns=[word]] 
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifiers.sol:ModBase ===
 @module ModBase
-fn @guardedV() -> u256 [selector=0x099f200a, abi_params=[], abi_returns=[word]] {
+fn @guardedV() -> i256 [selector=0x099f200a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
@@ -252,7 +255,7 @@ fn @guardedV() -> u256 [selector=0x099f200a, abi_params=[], abi_returns=[word]] 
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifiers.sol:ModDerived ===
 @module ModDerived
-fn @guardedV() -> u256 [selector=0x099f200a, abi_params=[], abi_returns=[word]] {
+fn @guardedV() -> i256 [selector=0x099f200a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 100
@@ -272,7 +275,7 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/modifiers.sol:CtorMod ===
 @module CtorMod
-fn @v() -> u256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word]] {
+fn @v() -> i256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0

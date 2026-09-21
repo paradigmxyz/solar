@@ -12,6 +12,7 @@
 //@ run-call: callFunctionPointer; constructor=[171, -1234, 0x000000000000000000000000000000000000beef, 48879, true] => 7
 //@ run-call: OneByteImmutables::read; constructor=[171, -5, 0xab] => 171, -5, 0xab
 //@ run-call: SyntheticImmutableFrame::marker => 77
+//@ run-call: DirtyImmutables::read => true, 3, 0x0000000000000000000000000000000000000007, 1461501637330902918203684832716283019655932542983
 
 type Tiny is uint16;
 
@@ -79,4 +80,35 @@ contract SyntheticFrameBase {
 
 contract SyntheticImmutableFrame is SyntheticFrameBase {
     uint256 public immutable marker = 77;
+}
+
+contract DirtyImmutables {
+    bool immutable flag;
+    address immutable account;
+
+    constructor() {
+        bool dirtyFlag;
+        address dirtyAccount;
+        assembly {
+            dirtyFlag := 3
+            dirtyAccount := 0x010000000000000000000000000000000000000007
+        }
+        flag = dirtyFlag;
+        account = dirtyAccount;
+    }
+
+    function read()
+        external
+        view
+        returns (bool cleanFlag, uint256 rawFlag, address cleanAccount, uint256 rawAccount)
+    {
+        bool loadedFlag = flag;
+        address loadedAccount = account;
+        cleanFlag = loadedFlag == true;
+        cleanAccount = loadedAccount;
+        assembly {
+            rawFlag := loadedFlag
+            rawAccount := loadedAccount
+        }
+    }
 }

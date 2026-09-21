@@ -474,7 +474,7 @@ mod tests {
         func.blocks[entry].terminator = Some(Terminator::Jump(header));
         func.blocks[header].predecessors.push(entry);
 
-        let cond = func.alloc_value(Value::Immediate(Immediate::bool(true)));
+        let cond = func.alloc_value(Value::Immediate(Immediate::I1(true)));
         func.blocks[header].terminator =
             Some(Terminator::Branch { condition: cond, then_block: body, else_block: exit });
         func.blocks[body].predecessors.push(header);
@@ -506,8 +506,8 @@ mod tests {
         let second_body = func.alloc_block();
         let exit = func.alloc_block();
 
-        let first_condition = func.alloc_value(Value::Immediate(Immediate::bool(true)));
-        let second_condition = func.alloc_value(Value::Immediate(Immediate::bool(true)));
+        let first_condition = func.alloc_value(Value::Immediate(Immediate::I1(true)));
+        let second_condition = func.alloc_value(Value::Immediate(Immediate::I1(true)));
 
         func.blocks[entry].terminator = Some(Terminator::Jump(first_header));
         func.blocks[first_header].predecessors.push(entry);
