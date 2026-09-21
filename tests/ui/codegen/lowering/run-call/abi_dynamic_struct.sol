@@ -1,6 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
+//@ run-call: SharedArrayEncoding::sharedArrayEncoding => 1, 2, 9, 2, 2
 //@ run-call: init (0x000000000000000000000000000000000000beef, 7, "name", 0x0102), 0x0000000000000000000000000000000000000003 => 10
 //@ run-call: tail (0x000000000000000000000000000000000000beef, 7, "name", 0x0102) => 0x02
 //@ run-call: allocatedAggregates => 2, 18, 5, 2, 8
@@ -21,6 +22,41 @@ struct Allocated {
     uint256 id;
     bytes data;
     uint256[] values;
+}
+
+contract SharedArrayEncoding {
+    enum Mode { A, B, C }
+
+    struct Wide {
+        uint256 a;
+        uint256 b;
+        address c;
+        address d;
+        bytes e;
+        bytes f;
+        bytes g;
+        Allocated[] nested;
+        Mode h;
+        uint256 i;
+    }
+
+    function encodeArrays(Wide[] memory values) external pure returns (Wide[] memory, Wide[] memory, bytes memory) {
+        return (values, values, hex"1234");
+    }
+
+    function sharedArrayEncoding() external view returns (uint256, uint256, uint256, uint256, uint256) {
+        Wide[] memory values = new Wide[](2);
+        Allocated[] memory nested = new Allocated[](1);
+        nested[0].id = 9;
+        nested[0].data = hex"aabb";
+        nested[0].values = new uint256[](1);
+        nested[0].values[0] = 42;
+        values[0] = Wide(1, 2, address(3), address(4), hex"0506", hex"07", hex"08", nested, Mode.B, 9);
+        values[1] = Wide(10, 11, address(12), address(13), hex"1415", hex"16", hex"17", new Allocated[](0), Mode.C, 18);
+        (Wide[] memory first, Wide[] memory second, bytes memory tail) = this.encodeArrays(values);
+        return (uint256(first[0].h), uint256(second[1].h), second[0].nested[0].id, first[0].e.length, tail.length);
+    }
+
 }
 
 contract AbiDynamicStruct {

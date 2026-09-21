@@ -1,30 +1,76 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_storage_tuple.sol:MixedMemoryTuple ===
 @module MixedMemoryTuple
 types:
-  struct0: {i256, i256}
+  struct0: {memorybytes, memorybytes}
+  struct1: {i256, i256}
 
-fn @f() -> struct0 [view] {
+fn @calldataTuple(arg0: calldataslice, arg1: calldataslice) -> struct0 [selector=0xcc2ff9fc, abi_params=[bytes, bytes], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
-    v0 = insert_value struct0, undef struct0, 0, 7
-    v1 = insert_value struct0, v0, 1, 0
+    v0 = slice_ptr arg1
+    v1 = slice_len arg1
+    v2 = gt v1, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v2
+    v3 = calldatasize
+    v4 = sub v3, v1
+    v5 = sgt v0, v4
+    icall revert_if<calldata_tail_too_short>, v5
+    v6 = slice_len arg1
+    v7 = add v6, 63
+    v8 = lt v7, v6
+    icall panic_if<0x41>, v8
+    v9 = not 31
+    v10 = and v7, v9
+    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
+    set_memory_object_len memorybytes, v11, v6
+    memory_object_copy_from_slice memorybytes, v11, arg1
+    icall @store_storage_bytes, 1, v11
+    v12 = slice_ptr arg0
+    v13 = slice_len arg0
+    v14 = gt v13, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v14
+    v15 = calldatasize
+    v16 = sub v15, v13
+    v17 = sgt v12, v16
+    icall revert_if<calldata_tail_too_short>, v17
+    v18 = slice_len arg0
+    v19 = add v18, 63
+    v20 = lt v19, v18
+    icall panic_if<0x41>, v20
+    v21 = not 31
+    v22 = and v19, v21
+    v23 = alloc memorybytes, exact, uninitialized, infallible, v22
+    set_memory_object_len memorybytes, v23, v18
+    memory_object_copy_from_slice memorybytes, v23, arg0
+    icall @store_storage_bytes, 0, v23
+    v24 = icall @load_storage_bytes, 0
+    v25 = icall @load_storage_bytes, 1
+    v26 = insert_value struct0, undef struct0, 0, v24
+    v27 = insert_value struct0, v26, 1, v25
+    ret v27
+}
+
+fn @f() -> struct1 [view] {
+  bb0:
+    v0 = insert_value struct1, undef struct1, 0, 7
+    v1 = insert_value struct1, v0, 1, 2
     ret v1
 }
 
 fn @declared() -> i256 [selector=0xfd2ed72a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    sstore 0, 11 !metadata(storage=slot(0))
-    v0 = add 0, 1
-    sstore v0, 22 !metadata(storage=slot(1))
+    sstore 2, 11 !metadata(storage=slot(2))
+    v0 = add 2, 1
+    sstore v0, 22 !metadata(storage=slot(3))
     v1 = icall @f
-    v2 = extract_value struct0, v1, 0
-    v3 = extract_value struct0, v1, 1
+    v2 = extract_value struct1, v1, 0
+    v3 = extract_value struct1, v1, 1
     v4 = alloc memorystruct<2>, exact, uninitialized, panic, 64
     v5 = sload v3 !metadata(storage=symbolic(v3))
     memory_object_store_field memorystruct<2>, v4, 0, v5
     v6 = add v3, 1
     v7 = sload v6 !metadata(storage=offset(v3, 1))
     memory_object_store_field memorystruct<2>, v4, 1, v7
-    sstore 0, 99 !metadata(storage=slot(0))
+    sstore 2, 99 !metadata(storage=slot(2))
     v8 = checked_mul u256, v2, 0x3e8
     v9 = memory_object_load_field memorystruct<2>, v4, 0
     v10 = checked_mul u256, v9, 10
@@ -36,25 +82,25 @@ fn @declared() -> i256 [selector=0xfd2ed72a, abi_params=[], abi_returns=[word], 
 
 fn @assigned() -> i256 [selector=0xadb4d990, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    sstore 0, 11 !metadata(storage=slot(0))
-    v0 = add 0, 1
-    sstore v0, 22 !metadata(storage=slot(1))
+    sstore 2, 11 !metadata(storage=slot(2))
+    v0 = add 2, 1
+    sstore v0, 22 !metadata(storage=slot(3))
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v1, 0, 1
     memory_object_store_field memorystruct<2>, v1, 1, 2
     v2 = icall @f
-    v3 = extract_value struct0, v2, 0
-    v4 = extract_value struct0, v2, 1
+    v3 = extract_value struct1, v2, 0
+    v4 = extract_value struct1, v2, 1
     v5 = alloc memorystruct<2>, exact, uninitialized, panic, 64
     v6 = sload v4 !metadata(storage=symbolic(v4))
     memory_object_store_field memorystruct<2>, v5, 0, v6
     v7 = add v4, 1
     v8 = sload v7 !metadata(storage=offset(v4, 1))
     memory_object_store_field memorystruct<2>, v5, 1, v8
-    sstore 2, v3 !metadata(storage=slot(2))
-    v9 = add 0, 1
-    sstore v9, 77 !metadata(storage=slot(1))
-    v10 = sload 2 !metadata(storage=slot(2))
+    sstore 4, v3 !metadata(storage=slot(4))
+    v9 = add 2, 1
+    sstore v9, 77 !metadata(storage=slot(3))
+    v10 = sload 4 !metadata(storage=slot(4))
     v11 = checked_mul u256, v10, 0x2710
     v12 = memory_object_load_field memorystruct<2>, v5, 0
     v13 = checked_mul u256, v12, 100
@@ -62,4 +108,16 @@ fn @assigned() -> i256 [selector=0xadb4d990, abi_params=[], abi_returns=[word], 
     v15 = memory_object_load_field memorystruct<2>, v5, 1
     v16 = checked_add u256, v14, v15
     ret v16
+}
+
+fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+  bb0:
+    store_storage_bytes arg0, arg1
+    ret
+}
+
+fn @load_storage_bytes(arg0: i256) -> memorybytes {
+  bb0:
+    v0 = load_storage_bytes arg0
+    ret v0
 }

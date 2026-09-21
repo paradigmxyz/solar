@@ -1,10 +1,27 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/nested_tuple_assignment.sol:NestedTupleAssignment ===
 @module NestedTupleAssignment
 types:
-  struct0: {i256, i256, i256}
-  struct1: {i256, i256, i256, i256}
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256}
+  struct2: {i256, i256, i256, i256}
 
-fn @assign() -> struct0 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @choose(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0x28eac35d, pure, abi_params=[bool, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: arg1], [bb2: arg2]
+    v2 = phi [bb1: arg2], [bb2: arg1]
+    v3 = insert_value struct0, undef struct0, 0, v1
+    v4 = insert_value struct0, v3, 1, v2
+    ret v4
+}
+
+fn @assign() -> struct1 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1
@@ -42,17 +59,17 @@ fn @assign() -> struct0 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[
     v24 = memory_object_load_byte memorybytes, v6, 0
     v25 = shl 248, v24
     v26 = shr 248, v25
-    v27 = insert_value struct0, undef struct0, 0, v14
-    v28 = insert_value struct0, v27, 1, v20
-    v29 = insert_value struct0, v28, 2, v26
+    v27 = insert_value struct1, undef struct1, 0, v14
+    v28 = insert_value struct1, v27, 1, v20
+    v29 = insert_value struct1, v28, 2, v26
     ret v29
 }
 
-fn @swap() -> struct1 [selector=0x8119c065, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @swap() -> struct2 [selector=0x8119c065, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
-    v0 = insert_value struct1, undef struct1, 0, 2
-    v1 = insert_value struct1, v0, 1, 1
-    v2 = insert_value struct1, v1, 2, 4
-    v3 = insert_value struct1, v2, 3, 3
+    v0 = insert_value struct2, undef struct2, 0, 2
+    v1 = insert_value struct2, v0, 1, 1
+    v2 = insert_value struct2, v1, 2, 4
+    v3 = insert_value struct2, v2, 3, 3
     ret v3
 }

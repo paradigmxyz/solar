@@ -2,6 +2,8 @@
 //@ run-call: scheduleBatch [0x0000000000000000000000000000000000000001], [7], [0x0102], 0x0000000000000000000000000000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000000000000000000000000001, 1 => 0x5df7ebed276b3d04ec09631ea1817e7377ea9c5769291856d02865644472f7f1
 //@ run-call-fail: scheduleBatch [0x0000000000000000000000000000000000000001], [7], [0x0102], 0x0000000000000000000000000000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000000000000000000000000001, 0 => 0x48b6d3db00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001
 
+//@ run-call: DeepCallArguments::check 3 => 600
+
 // A static internal call whose computed calldata-slice arguments are not
 // resident when the call is planned: the backend materializes such arguments
 // only to give them a spill slot and must drop the transient stack copy again,
@@ -79,5 +81,27 @@ contract StaticCallTransientArgs {
             revert InsufficientDelay(delay, delayFloor);
         }
         timestamps[id] = block.timestamp + delay;
+    }
+}
+
+contract DeepCallArguments {
+    function check(uint256 x) external pure returns (uint256) {
+        uint256 a = x + 1;
+        uint256 b = x + 2;
+        uint256 c = x + 3;
+        uint256 d = x + 4;
+        uint256 e = x + 5;
+        uint256 f = x + 6;
+        uint256 g = x + 7;
+        uint256 h = x + 8;
+        uint256 first = combine(a, b, c, d, e, f, g, h);
+        uint256 second = combine(h, g, f, e, d, c, b, a);
+        return first + second + a + b + c + d + e + f + g + h;
+    }
+
+    function combine(uint256 a, uint256 b, uint256 c, uint256 d, uint256 e, uint256 f, uint256 g, uint256 h)
+        internal pure returns (uint256)
+    {
+        return a + 2 * b + 3 * c + 4 * d + 5 * e + 6 * f + 7 * g + 8 * h;
     }
 }

@@ -29,7 +29,7 @@
 //! predecessor, its terminator is a jump to the join, and every instruction
 //! is a pure computation (no memory or state reads, calls, or effects), so
 //! speculating it cannot trap, expand memory, or change observable state.
-//! Pointer-typed phis keep their branch so allocation provenance survives.
+//! Aggregate and pointer-typed phis keep their branch so their representation survives.
 //! Profitability is priced through the target: at most three instructions
 //! per arm and two phis per join are considered, and a site converts only
 //! when running both arms plus the selects on every execution costs no more
@@ -227,7 +227,7 @@ fn join_selects(func: &Function, site: &Site) -> Option<Vec<Select>> {
         let incoming_from =
             |pred| incoming.iter().find(|&&(from, _)| from == pred).map(|&(_, v)| v);
         let (then_value, else_value) = (incoming_from(then_pred)?, incoming_from(else_pred)?);
-        if is_pointer(func, then_value) || is_pointer(func, else_value) {
+        if !is_integer(func, then_value) || !is_integer(func, else_value) {
             return None;
         }
         let form = select_form(func, site.condition, then_value, else_value);
@@ -239,10 +239,9 @@ fn join_selects(func: &Function, site: &Site) -> Option<Vec<Select>> {
     Some(selects)
 }
 
-/// Whether a value carries memory, storage, or calldata provenance that the
-/// arithmetic forms would erase.
-fn is_pointer(func: &Function, value: ValueId) -> bool {
-    matches!(func.value_ty(value), Some(MirType::MemoryObject(_) | MirType::Slice(_)))
+/// Whether a value supports the arithmetic forms without erasing pointer provenance.
+fn is_integer(func: &Function, value: ValueId) -> bool {
+    matches!(func.value_ty(value), Some(MirType::Int(_)))
 }
 
 fn select_form(

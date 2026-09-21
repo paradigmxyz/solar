@@ -19,6 +19,63 @@ fn @bindAfterDeclaration(arg0: i256, arg1: i256) -> struct0 [selector=0x605b6474
     ret v6
 }
 
+fn @yulBind(arg0: i256) -> struct0 [selector=0xd5bd9082, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    sstore 42, arg0 !metadata(storage=slot(42))
+    v0 = checked_add u256, arg0, 1
+    v1 = add 42, 1
+    sstore v1, v0 !metadata(storage=slot(43))
+    v2 = sload 42 !metadata(storage=slot(42))
+    v3 = icall @readB, 42
+    v4 = insert_value struct0, undef struct0, 0, v2
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
+}
+
+fn @branchBind(arg0: i256, arg1: i256) -> struct1 [selector=0x3ccc3db5, abi_params=[bool, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+  bb0:
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    v2 = mapping_slot 2, 0
+    jump bb3
+  bb1:
+    v1 = mapping_slot 1, 0
+    jump bb3
+  bb3:
+    v3 = phi [bb1: v1], [bb2: v2]
+    sstore v3, arg1 !metadata(storage=symbolic(v3))
+    v4 = checked_add u256, arg1, 1
+    v5 = add v3, 1
+    sstore v5, v4 !metadata(storage=offset(v3, 1))
+    v6 = mapping_slot 1, 0
+    v7 = sload v6 !metadata(storage=symbolic(v6))
+    v8 = icall @readB, v3
+    v9 = mapping_slot 2, 0
+    v10 = sload v9 !metadata(storage=symbolic(v9))
+    v11 = insert_value struct1, undef struct1, 0, v7
+    v12 = insert_value struct1, v11, 1, v8
+    v13 = insert_value struct1, v12, 2, v10
+    ret v13
+}
+
+fn @branchBindReturn(arg0: i256, arg1: i256) -> i256 [selector=0x69456020, abi_params=[bool, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    v1 = mapping_slot 2, 0
+    jump bb3
+  bb3:
+    v2 = checked_add u256, arg1, 1
+    v3 = add v1, 1
+    sstore v3, v2 !metadata(storage=offset(v1, 1))
+    v4 = icall @readB, v1
+    ret v4
+  bb1:
+    ret 0
+}
+
 fn @rebind(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0xda61745d, abi_params=[bool, u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = mapping_slot arg1, 0

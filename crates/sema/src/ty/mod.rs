@@ -1657,8 +1657,7 @@ fn all_contract_reachable_functions(
 ///
 /// [ERC-165]: https://eips.ethereum.org/EIPS/eip-165
 pub fn interface_id(gcx: _, id: hir::ContractId) -> Selector {
-    let kind = gcx.hir.contract(id).kind;
-    assert!(kind.is_interface(), "{kind} {id:?} is not an interface");
+    assert!(!gcx.hir.contract(id).can_be_deployed(), "{id:?} is deployable");
     let selectors = gcx.interface_functions(id).own().iter().map(|f| f.selector);
     selectors.fold(Selector::ZERO, std::ops::BitXor::bitxor)
 }

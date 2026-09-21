@@ -1,6 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
+//@ run-call: calldataTuple 0x010203, 0xaabb => 0x010203, 0xaabb
+//@ run-call: calldataTuple 0x, 0x => 0x, 0x
 //@ run-call: declared => 7132
 //@ run-call: assigned => 71122
 
@@ -8,6 +10,14 @@ contract MixedMemoryTuple {
     struct S {
         uint256 a;
         uint256 b;
+    }
+
+    bytes internal first;
+    bytes internal second;
+
+    function calldataTuple(bytes calldata a, bytes calldata b) external returns (bytes memory, bytes memory) {
+        (first, second) = (a, b);
+        return (first, second);
     }
 
     S internal s1;

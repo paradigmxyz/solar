@@ -661,10 +661,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         else_branch: MergeBranch<StorageAccess>,
     ) -> FxHashMap<VariableId, StorageAccess> {
         let mut merged = before;
-        let ids = merged.keys().copied().collect::<Vec<_>>();
+        let mut ids = merged
+            .keys()
+            .chain(then_branch.values.keys())
+            .chain(else_branch.values.keys())
+            .copied()
+            .collect::<Vec<_>>();
+        ids.sort_unstable();
+        ids.dedup();
         for id in ids {
             let then = then_branch.values.get(&id).copied().or_else(|| merged.get(&id).copied());
             let else_ = else_branch.values.get(&id).copied().or_else(|| merged.get(&id).copied());
+            if (!then_branch.terminated && then.is_none())
+                || (!else_branch.terminated && else_.is_none())
+            {
+                continue;
+            }
             let mut incoming = Vec::with_capacity(2);
             if !then_branch.terminated
                 && let Some(access) = then

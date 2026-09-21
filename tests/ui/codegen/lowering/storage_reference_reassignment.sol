@@ -15,6 +15,12 @@
 //@ run-call: chainedAssignmentExpression 3, 5, 17 => 0, 17
 //@ run-call: mappingAssignmentExpression 3, 5, 17 => 1, 0, 0, 17
 
+//@ run-call: yulBind 17 => 17, 18
+//@ run-call: branchBind true, 17 => 17, 18, 0
+//@ run-call: branchBind false, 17 => 0, 18, 17
+//@ run-call: branchBindReturn true, 17 => 0
+//@ run-call: branchBindReturn false, 17 => 18
+
 contract StorageReferenceReassignment {
     struct Item {
         uint256 a;
@@ -43,6 +49,37 @@ contract StorageReferenceReassignment {
         item.a = value;
         item.b = value + 1;
         return (item.a, readB(item));
+    }
+
+    function yulBind(uint256 value) external returns (uint256, uint256) {
+        Item storage item;
+        assembly { item.slot := 42 }
+        item.a = value;
+        item.b = value + 1;
+        return (item.a, readB(item));
+    }
+
+    function branchBind(bool first, uint256 value) external returns (uint256, uint256, uint256) {
+        Item storage item;
+        if (first) {
+            item = items[1];
+        } else {
+            item = items[2];
+        }
+        item.a = value;
+        item.b = value + 1;
+        return (items[1].a, readB(item), items[2].a);
+    }
+
+    function branchBindReturn(bool stop, uint256 value) external returns (uint256) {
+        Item storage item;
+        if (stop) {
+            return 0;
+        } else {
+            item = items[2];
+        }
+        item.b = value + 1;
+        return readB(item);
     }
 
     function rebind(bool useSecond, uint256 first, uint256 second, uint256 value)

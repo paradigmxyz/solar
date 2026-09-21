@@ -182,53 +182,67 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Finds leaf helpers that return a pointer rooted at the free-memory pointer.
-    /// Calls through these helpers lose alias provenance in MIR, so remember the
-    /// narrow interprocedural fact needed by forwarding-buffer hazard analysis.
+    /// Finds helpers returning heap pointers, including chains of already-proven helpers.
+    /// Unknown calls and writes to the free-memory pointer exclude a function.
+    /// Iteration only adds proven functions, so recursive call cycles remain unknown.
     pub(in crate::backend::evm::codegen) fn collect_heap_pointer_return_functions(
         module: &Module,
     ) -> DenseBitSet<FunctionId> {
         let mut functions = DenseBitSet::new_empty(module.functions.len());
-        let no_helpers = DenseBitSet::new_empty(module.functions.len());
-        for (func_id, func) in module.functions.iter_enumerated() {
-            if func.instructions().any(|inst_id| {
-                matches!(func.inst(inst_id).kind, InstKind::ICall { .. } | InstKind::SetFmp(_))
-                    || matches!(
-                        func.inst(inst_id).kind,
-                        InstKind::MStore(address, _)
-                            if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
-                    )
-            }) {
-                continue;
-            }
-
-            let aa = AliasAnalysis::new(func);
-            let mut saw_return = false;
-            let mut valid = true;
-            for block in &func.blocks {
-                let Some(Terminator::Return { values }) = &block.terminator else { continue };
-                saw_return = true;
-                if values.len() != 1 {
-                    valid = false;
-                    break;
-                }
-                let mut visiting = DenseBitSet::new_empty(func.num_values());
-                let mut memo = FxHashMap::default();
-                if Self::heap_pointer_provenance_with_helpers(
-                    func,
-                    &aa,
-                    values[0],
-                    &no_helpers,
-                    &mut visiting,
-                    &mut memo,
-                ) != Some(true)
+        loop {
+            let mut changed = false;
+            for (func_id, func) in module.functions.iter_enumerated() {
+                if functions.contains(func_id)
+                    || func.instructions().any(|inst_id| match func.inst(inst_id).kind {
+                        InstKind::ICall { function: Callee::Function(callee), .. } => {
+                            !functions.contains(callee)
+                        }
+                        InstKind::ICall { .. } | InstKind::SetFmp(_) => true,
+                        InstKind::MStore(address, _) => {
+                            func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+                        }
+                        _ => false,
+                    })
+                    || func
+                        .blocks
+                        .iter()
+                        .any(|block| matches!(block.terminator, Some(Terminator::TailCall { .. })))
                 {
-                    valid = false;
-                    break;
+                    continue;
+                }
+
+                let aa = AliasAnalysis::new(func);
+                let mut saw_return = false;
+                let mut valid = true;
+                for block in &func.blocks {
+                    let Some(Terminator::Return { values }) = &block.terminator else { continue };
+                    saw_return = true;
+                    if values.len() != 1 {
+                        valid = false;
+                        break;
+                    }
+                    let mut visiting = DenseBitSet::new_empty(func.num_values());
+                    let mut memo = FxHashMap::default();
+                    if Self::heap_pointer_provenance_with_helpers(
+                        func,
+                        &aa,
+                        values[0],
+                        &functions,
+                        &mut visiting,
+                        &mut memo,
+                    ) != Some(true)
+                    {
+                        valid = false;
+                        break;
+                    }
+                }
+                if saw_return && valid {
+                    functions.insert(func_id);
+                    changed = true;
                 }
             }
-            if saw_return && valid {
-                functions.insert(func_id);
+            if !changed {
+                break;
             }
         }
         functions
@@ -312,7 +326,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     InstKind::Add(first, second) => {
                         derive(*first, visiting, memo).or_else(|| derive(*second, visiting, memo))
                     }
-                    InstKind::Sub(base, _) => derive(*base, visiting, memo),
+                    InstKind::Sub(base, _)
+                    | InstKind::PtrToInt(base, 256)
+                    | InstKind::IntToPtr(base)
+                    | InstKind::Bitcast(base) => derive(*base, visiting, memo),
                     InstKind::And(first, second) if aligned_mask(*second) => {
                         derive(*first, visiting, memo)
                     }
@@ -428,5 +445,45 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         let Some(size) = size else { return true };
         offset.checked_add(size).is_none_or(|range_end| range_end > start)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::FunctionBuilder;
+    use solar_interface::Ident;
+
+    #[test]
+    fn heap_pointer_return_helper_chains() {
+        let mut module = Module::new(Ident::DUMMY);
+        for index in 0..6 {
+            let mut function = Function::new(Ident::DUMMY);
+            let mut builder = FunctionBuilder::new(&mut function);
+            let ty = if index == 3 { MirType::I256 } else { MirType::MemPtr };
+            let pointer = builder.add_param(ty);
+            let result = match index {
+                0 | 1 => {
+                    builder.icall(FunctionId::from_usize(index + 1), vec![pointer], MirType::I256)
+                }
+                2 => {
+                    let pointer = builder.cast(pointer, MirType::I256);
+                    builder.add_u64_offset(pointer, 32)
+                }
+                3 => pointer,
+                4 => {
+                    let raw = builder.cast(pointer, MirType::I256);
+                    builder.icall(FunctionId::from_usize(3), vec![raw], MirType::I256);
+                    raw
+                }
+                5 => builder.icall(FunctionId::from_usize(5), vec![pointer], MirType::I256),
+                _ => unreachable!(),
+            };
+            builder.set_return_type(MirType::I256);
+            builder.ret([result]);
+            module.add_function(function);
+        }
+        let proven = EvmCodegen::collect_heap_pointer_return_functions(&module);
+        assert_eq!(proven.iter().map(|id| id.index()).collect::<Vec<_>>(), [0, 1, 2]);
     }
 }

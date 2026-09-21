@@ -475,13 +475,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
-        if let Some(depth) = caller_stack.and_then(|stack| stack.find(val)) {
-            let dup = depth + words_above + 1;
-            assert!(
-                dup <= MAX_STACK_ACCESS,
-                "resident caller argument exceeded DUP16 reach at an internal call"
-            );
-            self.asm.emit_stack_op(StackOp::Dup(dup as u8));
+        if let Some(depth) = caller_stack.and_then(|stack| stack.find(val))
+            && depth + words_above < MAX_STACK_ACCESS
+        {
+            self.asm.emit_stack_op(StackOp::Dup((depth + words_above + 1) as u8));
             return;
         }
 

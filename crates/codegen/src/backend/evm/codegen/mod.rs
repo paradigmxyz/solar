@@ -366,7 +366,7 @@ pub struct EvmCodegen<'gcx> {
     /// across one are kept stack-resident instead of reloaded from the
     /// overwritten slot. Empty for every function without such a forward.
     spill_hazard_insts: FxHashSet<InstId>,
-    /// Leaf helpers whose sole returned word is derived from the free-memory pointer.
+    /// Helpers whose sole returned word is proven to be a heap pointer.
     /// Their callers may safely use the result as a dynamic forwarding-buffer base.
     heap_pointer_return_functions: DenseBitSet<FunctionId>,
     /// Whether the current function has canonical cross-block argument layouts.

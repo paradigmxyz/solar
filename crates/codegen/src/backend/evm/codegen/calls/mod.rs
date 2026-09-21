@@ -717,17 +717,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                         slot
                     } else {
                         self.emit_value(func, arg);
-                        self.spill_value_if_needed(func, arg);
-                        if self.scheduler.stack.top() == Some(arg) {
-                            self.emit_stack_op(StackOp::Pop);
-                        }
-                        self.scheduler.reloadable_spill(arg).unwrap_or_else(|| {
-                            panic!(
-                                "computed stack argument {arg:?} is neither resident nor \
-                                 runtime-reloadable in `{}`",
-                                func.name
-                            )
-                        })
+                        let slot = self.scheduler.spills.allocate(arg);
+                        self.spill_accessible_stack_value(func, arg, slot, 0);
+                        self.scheduler.materialize_stack_only_value(arg);
+                        self.emit_stack_op(StackOp::Pop);
+                        slot
                     };
                     raw_spill_slots[i] = Some(slot);
                 }
@@ -759,6 +753,25 @@ impl<'gcx> EvmCodegen<'gcx> {
                 plan.caller_stack
             })
         };
+        // Preserve a memory home before the return label and earlier arguments bury a value.
+        if let (Some(caller_stack), Some(mask)) = (&caller_stack, &stack_mask) {
+            for (pushed, index) in mask.iter().enumerate() {
+                let arg = args[index];
+                if let Some(depth) = caller_stack.find(arg)
+                    && depth + pushed + 2 > MAX_STACK_ACCESS
+                {
+                    self.materialize_stack_only_home(func_id, func, arg);
+                    if Self::can_own_spill_slot(func, arg) {
+                        let slot = self.scheduler.reloadable_spill(arg).unwrap_or_else(|| {
+                            let slot = self.scheduler.spills.allocate(arg);
+                            self.spill_accessible_stack_value(func, arg, slot, depth);
+                            slot
+                        });
+                        raw_spill_slots[index] = Some(slot);
+                    }
+                }
+            }
+        }
         let preserved_words = caller_stack.as_ref().map_or(0, StackModel::depth);
         if let Some(plan) = &retention_plan {
             for &op in &plan.drain_ops {
