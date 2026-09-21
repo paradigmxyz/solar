@@ -22,7 +22,7 @@ will improve generated code.
 | solc Yul | An explicit abbreviation sequence with bracketed repeat groups and a separate final cleanup sequence. | Bracket groups repeat until the AST code-size metric stays equal, capped at 12 rounds. This is not structural equality. SSA construction/reversal, inlining, expression simplification, and unused-code pruning recur across stages. |
 | solc SSACFG | Per-function unreachable-block cleanup, trivial-phi elimination, then identity/no-op removal. | No outer repetition in the inspected driver. The outliner call is disabled. |
 | solc core Solidity | Source-level special cases run during code generation: literal operand ordering and unchecked increments for proved simple counter loops. | No general AST optimization fixed-point pipeline in the inspected path. |
-| solc legacy Solidity backend | Recursively optimize subassemblies, then iterate inlining, jump-destination removal, peepholes, block deduplication, and CSE while counted changes remain. Constant optimization follows the loop. | Peepholes have an inner loop. Deduplication deliberately triggers another outer round so rewritten label references can expose removable code. |
+| solc legacy Solidity backend | Recursively optimize subassemblies, then iterate inlining, jump-destination removal, peepholes, block deduplication, and CSE while counted changes remain. Constant optimization follows the loop. | Peepholes have an inner loop with a 64,000-change failure guard. Deduplication deliberately triggers another outer round so rewritten label references can expose removable code. |
 
 Sources:
 
@@ -157,6 +157,30 @@ both pass comparison with solc, including return data, logs, and normalized stat
 Forty debug-output pairs across Paris/Osaka and gas/size modes produce identical
 creation and runtime bytecode with and without ethdebug.
 
+
+## Compiler-time tradeoff
+
+Matching debug builds take 3.00% longer by geometric mean across the nine
+whole-project inputs. Each result is the median of three single-compile samples,
+collected in alternating baseline/candidate order after this investigation's
+other builds and benchmarks finished. The host is shared; these samples do not
+establish a release-build cost or a statistical confidence interval.
+
+| Project | Baseline median | Candidate median | Change |
+| --- | ---: | ---: | ---: |
+| seaport-1.6-project | 89.364 s | 94.224 s | +5.44% |
+| v4-core-project | 11.308 s | 12.095 s | +6.97% |
+| morpho-blue-project | 9.792 s | 10.087 s | +3.01% |
+| openzeppelin-5.6.1-project | 11.577 s | 11.858 s | +2.43% |
+| solady-0.1.26-project | 20.545 s | 21.112 s | +2.76% |
+| forge-std-1.16.1-project | 6.432 s | 6.510 s | +1.21% |
+| prb-math-4.1.1-project | 3.802 s | 3.883 s | +2.11% |
+| solmate-6-project | 8.793 s | 9.084 s | +3.31% |
+| solarray-a547630-project | 0.544 s | 0.544 s | -0.04% |
+
+The schedule trades compiler work for smaller generated code and the measured
+size-mode gas reduction. Raw samples and eligibility checks are in
+`final-compile-time/`; no compiler-speed improvement is claimed.
 
 ## Reproducing the retained schedule
 
