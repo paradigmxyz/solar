@@ -380,3 +380,11 @@
       ret v0, v1, v2, v3
   }
   
+  fn @boolean_or_one(arg0: i1) -> i1 {
+    bb0:
+-     v0 = or arg0, true
+-     v1 = or true, v0
+-     ret v1
++     ret true
+  }
+  

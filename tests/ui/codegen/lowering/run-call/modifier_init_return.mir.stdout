@@ -8,14 +8,13 @@ fn @f(arg0: i256) -> memoryfixedarray [selector=0xb3de648b, pure, abi_params=[u2
     v2 = lt arg0, 10
     v3 = eq v2, false
     v4 = zext i1 v3 to i256
-    v5 = ne v4, 0
-    jumpi v5, bb2, bb3
+    jumpi v3, bb2, bb3
   bb3:
     jump bb4
   bb2:
-    v6 = lt 2, 5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
+    v5 = lt 2, 5
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
     memory_object_store_element memoryfixedarray<5, 1>, v0, 2, 3
     jump bb5
   bb5:

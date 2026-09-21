@@ -36,30 +36,29 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v14 = memory_object_data memorybytes, v13
     v15 = ptrtoint memptr v14 to i256
     mstore v15, 0x112233445566778899aabbccddeeff0000000000000000000000000000000000
-    v16 = trunc i256 v12 to i160
-    v17 = zext i160 v16 to i256
-    v18 = shl 0, 1
-    v19 = icall @_cloneDeterministic, v17, v13, v18
-    v20 = trunc i256 v19 to i160
-    v21 = gas
-    v22 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
-    v23 = slice_ptr v22
-    v24 = slice_len v22
-    v25 = zext i160 v20 to i256
-    v26 = staticcall v21, v25, v23, v24, 0, 32
-    jumpi v26, bb4, bb3
+    v16 = zext i160 v9 to i256
+    v17 = shl 0, 1
+    v18 = icall @_cloneDeterministic, v16, v13, v17
+    v19 = trunc i256 v18 to i160
+    v20 = gas
+    v21 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
+    v22 = slice_ptr v21
+    v23 = slice_len v21
+    v24 = zext i160 v19 to i256
+    v25 = staticcall v20, v24, v22, v23, 0, 32
+    jumpi v25, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v27 = returndatasize
-    v28 = lt v27, 32
-    icall revert_if<tuple_data_too_short>, v28
-    v29 = add 0, 0
-    v30 = mload v29
-    v31 = add 0, 0
-    v32 = mload v31
-    v33 = eq v32, 7
-    icall require<short_string>, v33, 5, 0x70726f7879000000000000000000000000000000000000000000000000000000
+    v26 = returndatasize
+    v27 = lt v26, 32
+    icall revert_if<tuple_data_too_short>, v27
+    v28 = add 0, 0
+    v29 = mload v28
+    v30 = add 0, 0
+    v31 = mload v30
+    v32 = eq v31, 7
+    icall require<short_string>, v32, 5, 0x70726f7879000000000000000000000000000000000000000000000000000000
     ret 1
 }
 

@@ -42,11 +42,13 @@ fn @max_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     ret v1
 }
 
-// RECIPE-LABEL: fn @max_left_dirty(
-// RECIPE: + {{ *}}[[BOOL:v[0-9]+]] = eq {{v[0-9]+}}, {{(0|false)}}
-// RECIPE-NEXT: + {{ *}}[[Z:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[BOOL]]
-// RECIPE-NEXT: + {{ *}}[[MASK:v[0-9]+]] = sub [[Z]], 1
-// RECIPE-NEXT: + {{ *}}[[R:v[0-9]+]] = or arg1, [[MASK]]
+// GAS-LABEL: fn @max_left_dirty(
+// GAS: + {{ *}}[[BOOL:v[0-9]+]] = eq {{v[0-9]+}}, {{(0|false)}}
+// GAS-NEXT: + {{ *}}[[Z:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[BOOL]]
+// GAS-NEXT: + {{ *}}[[MASK:v[0-9]+]] = sub [[Z]], 1
+// GAS-NEXT: + {{ *}}[[R:v[0-9]+]] = or arg1, [[MASK]]
+// SIZE-LABEL: fn @max_left_dirty(
+// SIZE: select {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1
 fn @max_left_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v2 = ne arg0, 0
@@ -224,4 +226,74 @@ fn @pointer_arm(arg0: i1, arg1: memorybytes) -> memorybytes {
   bb0:
     v0 = select arg0, arg1, memorybytes 0
     ret v0
+}
+
+fn @factor_add(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = add arg1, arg2
+    v1 = select arg0, v0, arg2
+    ret v1
+}
+
+fn @factor_add_reverse(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v2 = ne arg0, 0
+    v0 = add arg2, arg1
+    v1 = select v2, arg2, v0
+    ret v1
+}
+
+fn @factor_sub(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v2 = ne arg0, 0
+    v0 = sub arg2, arg1
+    v1 = select v2, v0, arg2
+    ret v1
+}
+
+fn @factor_or(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v2 = ne arg0, 0
+    v0 = or arg1, arg2
+    v1 = select v2, v0, arg2
+    ret v1
+}
+
+fn @factor_xor(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = xor arg2, arg1
+    v1 = select arg0, v0, arg2
+    ret v1
+}
+
+fn @factor_and(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v2 = ne arg0, 0
+    v0 = and arg1, arg2
+    v1 = select v2, v0, arg2
+    ret v1
+}
+
+// RECIPE-LABEL: fn @factor_add_after_ne(
+// RECIPE: + {{ *}}[[PRODUCT:v[0-9]+]] = mul
+// RECIPE: + {{ *}}[[RESULT:v[0-9]+]] = add arg2, [[PRODUCT]]
+// RECIPE: {{ *}}ret [[RESULT]]
+fn @factor_add_after_ne(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = add arg1, arg2
+    v1 = ne arg0, 0
+    v2 = select v1, v0, arg2
+    ret v2
+}
+
+// RECIPE-LABEL: fn @factor_add_after_cast(
+// RECIPE: + {{ *}}[[PRODUCT:v[0-9]+]] = mul
+// RECIPE: + {{ *}}[[RESULT:v[0-9]+]] = add arg2, [[PRODUCT]]
+// RECIPE: {{ *}}ret [[RESULT]]
+fn @factor_add_after_cast(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = add arg1, arg2
+    v1 = trunc i256 arg0 to i1
+    v2 = select v1, v0, arg2
+    ret v2
 }

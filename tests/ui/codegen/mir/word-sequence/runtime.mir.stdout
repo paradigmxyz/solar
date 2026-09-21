@@ -1,11 +1,67 @@
 // === ROOT/tests/ui/codegen/mir/word-sequence/runtime.sol:WordRecipes ===
 @module WordRecipes
 types:
-  struct0: {i256, i256, i256, i256}
-  struct1: {i256, i256, i256}
-  struct2: {i256, i256}
+  struct0: {i256, i256, i256, i256, i256}
+  struct1: {i256, i256, i256, i256}
+  struct2: {i256, i256, i256}
+  struct3: {i256, i256}
 
-fn @arithmetic(arg0: i256, arg1: i256) -> struct0 [selector=0x6cbb5ae3, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
+fn @selectFactored(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xdc62154a, pure, abi_params=[u256, u256, u256], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
+  bb0:
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v1 = add arg2, arg1
+    jump bb3
+  bb3:
+    v2 = phi [bb1: v1], [bb2: arg2]
+    v3 = ne arg0, 0
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v4 = sub arg2, arg1
+    jump bb6
+  bb6:
+    v5 = phi [bb4: v4], [bb5: arg2]
+    v6 = ne arg0, 0
+    jumpi v6, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v7 = or arg2, arg1
+    jump bb9
+  bb9:
+    v8 = phi [bb7: v7], [bb8: arg2]
+    v9 = ne arg0, 0
+    jumpi v9, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    v10 = xor arg2, arg1
+    jump bb12
+  bb12:
+    v11 = phi [bb10: v10], [bb11: arg2]
+    v12 = ne arg0, 0
+    jumpi v12, bb13, bb14
+  bb14:
+    jump bb15
+  bb13:
+    v13 = and arg2, arg1
+    jump bb15
+  bb15:
+    v14 = phi [bb13: v13], [bb14: arg2]
+    v15 = insert_value struct0, undef struct0, 0, v2
+    v16 = insert_value struct0, v15, 1, v5
+    v17 = insert_value struct0, v16, 2, v8
+    v18 = insert_value struct0, v17, 3, v11
+    v19 = insert_value struct0, v18, 4, v14
+    ret v19
+}
+
+fn @arithmetic(arg0: i256, arg1: i256) -> struct1 [selector=0x6cbb5ae3, pure, abi_params=[u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = or arg0, arg1
     v1 = and arg0, arg1
@@ -19,14 +75,14 @@ fn @arithmetic(arg0: i256, arg1: i256) -> struct0 [selector=0x6cbb5ae3, pure, ab
     v9 = sub arg1, arg0
     v10 = sub arg0, arg1
     v11 = add v10, v9
-    v12 = insert_value struct0, undef struct0, 0, v2
-    v13 = insert_value struct0, v12, 1, v5
-    v14 = insert_value struct0, v13, 2, v8
-    v15 = insert_value struct0, v14, 3, v11
+    v12 = insert_value struct1, undef struct1, 0, v2
+    v13 = insert_value struct1, v12, 1, v5
+    v14 = insert_value struct1, v13, 2, v8
+    v15 = insert_value struct1, v14, 3, v11
     ret v15
 }
 
-fn @factored(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0x0d5dfa8f, pure, abi_params=[u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @factored(arg0: i256, arg1: i256, arg2: i256) -> struct2 [selector=0x0d5dfa8f, pure, abi_params=[u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = and arg1, arg2
     v1 = and arg0, arg2
@@ -37,13 +93,13 @@ fn @factored(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0x0d5dfa8f
     v6 = not arg1
     v7 = not arg0
     v8 = and v7, v6
-    v9 = insert_value struct1, undef struct1, 0, v2
-    v10 = insert_value struct1, v9, 1, v5
-    v11 = insert_value struct1, v10, 2, v8
+    v9 = insert_value struct2, undef struct2, 0, v2
+    v10 = insert_value struct2, v9, 1, v5
+    v11 = insert_value struct2, v10, 2, v8
     ret v11
 }
 
-fn @packed(arg0: i256) -> struct1 [selector=0x977eca9c, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @packed(arg0: i256) -> struct2 [selector=0x977eca9c, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = shr 160, arg0
     v1 = and v0, 255
@@ -51,13 +107,13 @@ fn @packed(arg0: i256) -> struct1 [selector=0x977eca9c, pure, abi_params=[u256],
     v3 = and v2, 255
     v4 = shr 256, arg0
     v5 = and v4, 255
-    v6 = insert_value struct1, undef struct1, 0, v1
-    v7 = insert_value struct1, v6, 1, v3
-    v8 = insert_value struct1, v7, 2, v5
+    v6 = insert_value struct2, undef struct2, 0, v1
+    v7 = insert_value struct2, v6, 1, v3
+    v8 = insert_value struct2, v7, 2, v5
     ret v8
 }
 
-fn @shifts(arg0: i256, arg1: i256, arg2: i256) -> struct2 [selector=0x21fb8819, pure, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @shifts(arg0: i256, arg1: i256, arg2: i256) -> struct3 [selector=0x21fb8819, pure, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = shl arg2, arg1
     v1 = shl arg2, arg0
@@ -65,8 +121,8 @@ fn @shifts(arg0: i256, arg1: i256, arg2: i256) -> struct2 [selector=0x21fb8819, 
     v3 = sar arg2, arg1
     v4 = sar arg2, arg0
     v5 = xor v4, v3
-    v6 = insert_value struct2, undef struct2, 0, v2
-    v7 = insert_value struct2, v6, 1, v5
+    v6 = insert_value struct3, undef struct3, 0, v2
+    v7 = insert_value struct3, v6, 1, v5
     ret v7
 }
 
@@ -78,14 +134,14 @@ fn @boundary(arg0: i256) -> i256 [selector=0xa2c54a38, pure, abi_params=[u256], 
     ret v2
 }
 
-fn @shared(arg0: i256, arg1: i256) -> struct1 [selector=0xa03ce1ed, pure, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @shared(arg0: i256, arg1: i256) -> struct2 [selector=0xa03ce1ed, pure, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = not arg0
     v1 = not arg1
     v2 = and v0, v1
-    v3 = insert_value struct1, undef struct1, 0, v0
-    v4 = insert_value struct1, v3, 1, v1
-    v5 = insert_value struct1, v4, 2, v2
+    v3 = insert_value struct2, undef struct2, 0, v0
+    v4 = insert_value struct2, v3, 1, v1
+    v5 = insert_value struct2, v4, 2, v2
     ret v5
 }
 
