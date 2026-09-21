@@ -751,6 +751,9 @@ impl ModuleAnalyses {
     ) -> FunctionAnalyses {
         FunctionAnalyses {
             alias: requirements.alias().then(|| {
+                if let Some(alias) = self.alias.get(&func_id) {
+                    return Rc::clone(alias);
+                }
                 let summaries = self.call_summaries(module);
                 self.alias_with_summaries(func_id, summaries)
             }),

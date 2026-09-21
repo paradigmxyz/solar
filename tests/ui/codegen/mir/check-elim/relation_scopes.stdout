@@ -90,3 +90,45 @@
       ret 0
   }
   
+  fn @lower_bound_scopes(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      jumpi arg0, bb1, bb4
+    bb4:
+      v2 = ne arg2, 0
+      jumpi v2, bb7, bb5
+    bb5:
+      jump bb7
+    bb1:
+      v0 = lt arg1, arg2
+      jumpi v0, bb2, bb6
+    bb2:
+      v1 = ne arg2, 0
+-     jumpi v1, bb3, bb6
++     jump bb3
+    bb3:
+      jump bb7
+    bb7:
+      v3 = ne arg2, 0
+      jumpi v3, bb8, bb6
+    bb6:
+      ret 0
+    bb8:
+      ret 1
+  }
+  
+  fn @lower_bound_added(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = lt arg0, arg1
+      jumpi v0, bb1, bb3
+-   bb1:
+-     v1 = ne arg1, 0
+-     jumpi v1, bb2, bb3
+    bb3:
+      ret 0
++   bb1:
++     v1 = ne arg1, 0
++     jump bb2
+    bb2:
+      ret 1
+  }
+  

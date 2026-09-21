@@ -90,3 +90,44 @@ fn @strict_lower_bound_scopes(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> i
   bb7:
     ret 0
 }
+
+
+// A strict lower-bound proof must be forgotten at sibling and merged scopes.
+fn @lower_bound_scopes(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb4
+  bb1:
+    v0 = lt arg1, arg2
+    jumpi v0, bb2, bb5
+  bb2:
+    v1 = ne arg2, 0
+    jumpi v1, bb3, bb5
+  bb3:
+    jump bb6
+  bb4:
+    v2 = ne arg2, 0
+    jumpi v2, bb6, bb8
+  bb8:
+    jump bb6
+  bb5:
+    ret 0
+  bb6:
+    v3 = ne arg2, 0
+    jumpi v3, bb7, bb5
+  bb7:
+    ret 1
+}
+
+// A failed lower-bound query must be reconsidered after learning a strict edge.
+fn @lower_bound_added(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, arg1
+    jumpi v0, bb1, bb3
+  bb1:
+    v1 = ne arg1, 0
+    jumpi v1, bb2, bb3
+  bb2:
+    ret 1
+  bb3:
+    ret 0
+}

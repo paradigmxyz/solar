@@ -145,6 +145,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 Target::new(self.gcx),
             )))
         };
+        let loops_analyzed = phi_plan.is_some();
         let mut stack_phi_plan =
             phi_plan.as_deref().map_or_else(StackPhiPlan::default, StackPhiPlan::clone);
         let resident_stack_plan = self.resident_stack_plan(func_id).cloned();
@@ -334,11 +335,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.preallocate_cross_block_spills(func, liveness, &cross_block_live);
 
         self.cold_blocks = self.collect_cold_blocks(func);
-        let mut loop_analyzer = LoopAnalyzer::new();
-        let loop_info = loop_analyzer.analyze(func);
-        let mut loop_blocks = DenseBitSet::new_empty(func.blocks.len());
-        for loop_data in loop_info.all_loops() {
-            loop_blocks.union(&loop_data.blocks);
+        if !loops_analyzed {
+            let mut loop_analyzer = LoopAnalyzer::new();
+            let loop_info = loop_analyzer.analyze_structure(func);
+            for loop_data in loop_info.all_loops() {
+                for block in loop_data.blocks.iter() {
+                    stack_phi_plan.loop_blocks.insert(block);
+                }
+            }
         }
 
         // Create labels for each block
@@ -348,7 +352,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if self.block_is_cold(block_id) {
                 self.asm.mark_label_cold(label);
             }
-            if loop_blocks.contains(block_id) {
+            if stack_phi_plan.loop_blocks.contains(block_id) {
                 self.asm.mark_label_loop(label);
             }
             self.block_labels.insert(block_id, label);
@@ -1373,12 +1377,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         // order is chosen later by the EVM IR layout passes, so this order only decides which
         // edges may carry a stack and which arm each branch is shaped toward.
         let mut loop_analyzer = LoopAnalyzer::new();
-        let loop_info = loop_analyzer.analyze(func);
+        let loop_info = if cfg.cyclic_blocks().is_empty() {
+            None
+        } else {
+            Some(loop_analyzer.analyze_structure(func))
+        };
         let stays_in_loop = |block: BlockId, successor: BlockId| {
             loop_info
-                .block_to_loop
-                .get(&block)
-                .and_then(|header| loop_info.loops.get(header))
+                .as_ref()
+                .and_then(|info| {
+                    info.block_to_loop.get(&block).and_then(|header| info.loops.get(header))
+                })
                 .is_some_and(|loop_data| loop_data.blocks.contains(successor))
         };
         // Successors are popped from the end, so a loop's own blocks go last.

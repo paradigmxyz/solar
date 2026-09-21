@@ -302,7 +302,7 @@ impl<'a> StackPhiPlanner<'a> {
         target: Target,
     ) -> Self {
         let mut loop_analyzer = LoopAnalyzer::new();
-        let loop_info = loop_analyzer.analyze(func);
+        let loop_info = loop_analyzer.analyze_structure(func);
         let loops = loop_info.all_loops().cloned().collect();
 
         let mut definitions = index_vec![None; func.num_values()];
