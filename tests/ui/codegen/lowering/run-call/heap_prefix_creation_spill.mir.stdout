@@ -361,3 +361,52 @@ fn @offset(arg0: i256, arg1: i256) -> i256 [pure] {
     v4 = phi [bb2: v1], [bb3: v3]
     ret v4
 }
+
+// === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:MemoryHelperCopy ===
+@module MemoryHelperCopy
+fn @check(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x56673c12, pure, abi_params=[u256, u256, bool], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = sub v0, 128
+    v2 = ne arg2, 0
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v3 = sub 0, v1
+    jump bb3
+  bb3:
+    v4 = phi [bb1: v3], [bb2: v1]
+    v5 = icall @offset, v4, arg2
+    v6 = checked_add u256, arg0, 1
+    v7 = calldatasize
+    v8 = ptrtoint memorybytes v5 to i256
+    calldatacopy v8, v7, arg1
+    v9 = gt arg1, 0
+    jumpi v9, bb4, bb5
+  bb5:
+    jump bb6
+  bb6:
+    v11 = checked_add u256, v6, 2
+    ret v11
+  bb4:
+    v10 = checked_add u256, v6, 1
+    ret v10
+}
+
+fn @offset(arg0: i256, arg1: i256) -> memorybytes [pure] {
+  bb0:
+    switch arg1, default bb3, [0 => bb2]
+  bb2:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = sub v0, arg0
+    jump bb1
+  bb3:
+    v2 = mload 64 !metadata(memory=scratch)
+    v3 = add v2, arg0
+    jump bb1
+  bb1:
+    v4 = phi [bb2: v1], [bb3: v3]
+    v5 = inttoptr i256 v4 to memorybytes
+    ret v5
+}

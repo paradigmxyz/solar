@@ -1,4 +1,6 @@
 //@ codegen-matrix: standard
+//@ run-call: MemoryHelperCopy::check 7, 4096, false => 9
+//@ run-call: MemoryHelperCopy::check 7, 4096, true => 9
 //@ run-call: OffsetCopy::check 7, 4096, false => 9
 //@ run-call: OffsetCopy::check 7, 4096, true => 9
 //@ run-call: AllocatingCopy::check 0x112233, 7 => 25
@@ -195,6 +197,28 @@ contract OffsetCopy {
         return live + 2;
     }
     function offset(uint256 delta, bool wrap) internal pure returns (uint256 ptr) {
+        assembly {
+            switch wrap
+            case 0 { ptr := sub(mload(0x40), delta) }
+            default { ptr := add(mload(0x40), delta) }
+        }
+    }
+}
+
+contract MemoryHelperCopy {
+    function check(uint256 seed, uint256 length, bool wrap) external pure returns (uint256) {
+        uint256 delta;
+        assembly {
+            delta := sub(mload(0x40), 0x80)
+            if wrap { delta := sub(0, delta) }
+        }
+        bytes memory ptr = offset(delta, wrap);
+        uint256 live = seed + 1;
+        assembly { calldatacopy(ptr, calldatasize(), length) }
+        if (length > 0) return live + 1;
+        return live + 2;
+    }
+    function offset(uint256 delta, bool wrap) internal pure returns (bytes memory ptr) {
         assembly {
             switch wrap
             case 0 { ptr := sub(mload(0x40), delta) }

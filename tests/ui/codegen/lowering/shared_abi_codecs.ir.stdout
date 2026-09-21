@@ -55,16 +55,16 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
     v10 = add v9, 32
     mstore v9, 32
     v63 = ptrtoint memptr v3 to i256
+    v12 = mload v63
     v62 = add v63, 32
     v13 = mload v62
     v14 = add v10, 64
-    v12 = mload v63
     mstore v10, v12
     v15 = add v10, 32
     mstore v15, 64
     v17 = inttoptr i256 v14 to memptr
     v18 = icall @encode_abi_array, v13, v17
-    v19 = ptrtoint memptr v18 to i256
+    v19 = add v14, v18
     v22 = sub v19, v9
     v24 = add v22, 63
     v25 = lt v24, v22
@@ -535,16 +535,16 @@ fn @encodeFirst.body(arg0: memptr) -> memptr [may_return_memory, pure] {
     v4 = add v3, 32
     mstore v3, 32
     v25 = ptrtoint memptr arg0 to i256
+    v6 = mload v25
     v24 = add v25, 32
     v7 = mload v24
     v8 = add v4, 64
-    v6 = mload v25
     mstore v4, v6
     v9 = add v4, 32
     mstore v9, 64
     v11 = inttoptr i256 v8 to memptr
     v12 = icall @encode_abi_array, v7, v11
-    v13 = ptrtoint memptr v12 to i256
+    v13 = add v8, v12
     v16 = sub v13, v3
     v18 = add v16, 63
     v19 = lt v18, v16
@@ -563,7 +563,7 @@ fn @encodeFirst.body(arg0: memptr) -> memptr [may_return_memory, pure] {
     revert 28, 36
 }
 
-fn @encode_abi_array(arg0: i256, arg1: memptr) -> memptr [may_return_memory] {
+fn @encode_abi_array(arg0: i256, arg1: memptr) -> i256 [may_return_memory] {
   bb0:
     v0 = ptrtoint memptr arg1 to i256
     v4 = ne arg0, 0
@@ -585,7 +585,7 @@ fn @encode_abi_array(arg0: i256, arg1: memptr) -> memptr [may_return_memory] {
     v16 = gt v12, 0
     jumpi v16, bb2, bb3
   bb3:
-    v37 = inttoptr i256 v13 to memptr
+    v37 = sub v13, v0
     ret v37
   bb2:
     v17 = ptrtoint memptr v15 to i256

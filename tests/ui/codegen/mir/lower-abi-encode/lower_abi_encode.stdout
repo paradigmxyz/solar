@@ -201,7 +201,7 @@
 +     mstore v12, v17
 +     v18 = inttoptr i256 v11 to memptr
 +     v19 = icall @encode_abi_array, v16, v18
-+     v20 = ptrtoint memptr v19 to i256
++     v20 = add v11, v19
 +     v21 = sub v10, 1
 +     v22 = ptrtoint memptr v13 to i256
 +     v23 = add v22, 32
@@ -277,7 +277,7 @@
 +     ret v21
 + }
 + 
-+ fn @encode_abi_array(arg0: i256, arg1: memptr) -> memptr {
++ fn @encode_abi_array(arg0: i256, arg1: memptr) -> i256 {
 +   bb0:
 +     v0 = ptrtoint memptr arg1 to i256
 +     v1 = inttoptr i256 arg0 to memoryarray
@@ -309,7 +309,7 @@
 +     jumpi v22, bb1, bb2
 +   bb2:
 +     v23 = phi [bb0: v8], [bb1: v21]
-+     v24 = inttoptr i256 v23 to memptr
++     v24 = sub v23, v0
 +     ret v24
   }
   

@@ -31,7 +31,7 @@ fn @dirty() [selector=0x74016a59, abi_wrapper, pure] {
     mstore v28, 32
     v16 = inttoptr i256 v12 to memptr
     v17 = icall @encode_abi_array, v6, v16
-    v18 = ptrtoint memptr v17 to i256
+    v18 = add v12, v17
     v20 = sub v18, v28
     v22 = add v20, 31
     v24 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -53,7 +53,7 @@ fn @viaHelper() [selector=0x43a4968c, abi_wrapper, pure] {
     mstore v27, 32
     v15 = inttoptr i256 v11 to memptr
     v16 = icall @encode_abi_array, v5, v15
-    v17 = ptrtoint memptr v16 to i256
+    v17 = add v11, v16
     v19 = sub v17, v27
     v21 = add v19, 31
     v23 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -323,7 +323,7 @@ fn @cleanup_return(arg0: memptr) -> memptr [may_return_memory] {
     revert 28, 36
 }
 
-fn @encode_abi_array(arg0: memptr, arg1: memptr) -> memptr [may_return_memory] {
+fn @encode_abi_array(arg0: memptr, arg1: memptr) -> i256 [may_return_memory] {
   bb0:
     v0 = ptrtoint memptr arg1 to i256
     v25 = ptrtoint memptr arg0 to i256
@@ -350,7 +350,7 @@ fn @encode_abi_array(arg0: memptr, arg1: memptr) -> memptr [may_return_memory] {
     jumpi v22, bb1, bb2
   bb2:
     v23 = phi [bb0: v9], [bb1: v21]
-    v24 = inttoptr i256 v23 to memptr
+    v24 = sub v23, v0
     ret v24
 }
 

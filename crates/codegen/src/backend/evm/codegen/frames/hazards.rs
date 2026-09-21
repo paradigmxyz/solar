@@ -358,7 +358,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Context-free return summaries require bounded offsets. Local write analysis also
-    /// accepts the memory-reference contracts supplied by typed arguments and calls.
+    /// accepts the memory-reference contracts supplied by typed arguments.
     fn heap_pointer_provenance_with_helpers(
         func: &Function,
         aa: &AliasAnalysis,
@@ -410,12 +410,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                     InstKind::Fmp | InstKind::Alloc { .. } => Some(true),
                     InstKind::MLoad(address)
                         if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
-                    {
-                        Some(true)
-                    }
-                    InstKind::ICall { .. }
-                        if !bounded
-                            && func.value_ty(value).is_some_and(MirType::is_memory_reference) =>
                     {
                         Some(true)
                     }
