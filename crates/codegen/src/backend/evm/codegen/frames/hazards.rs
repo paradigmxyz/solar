@@ -2,13 +2,14 @@
 
 use super::{
     super::{
-        AliasAnalysis, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap,
-        FxHashSet, InstId, InstKind, MemoryBase, MemoryRegion, MirType, Module, Terminator, U256,
-        Value, ValueId,
+        AliasAnalysis, BlockId, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId,
+        FxHashMap, FxHashSet, InstId, InstKind, MemoryBase, MemoryRegion, MirType, Module,
+        Terminator, U256, Value, ValueId,
     },
     SPILL_HAZARD_BOUND,
 };
-use crate::mir::Callee;
+use crate::mir::{Callee, analysis::CfgInfo};
+use std::cell::OnceCell;
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Returns the destination of a symbolic memory write that can cover a
@@ -202,21 +203,37 @@ impl<'gcx> EvmCodegen<'gcx> {
                         &aa,
                         value,
                         &functions,
+                        true,
                         &mut DenseBitSet::new_empty(func.num_values()),
                         &mut FxHashMap::default(),
                     ) == Some(true)
+                };
+                let guard_facts = OnceCell::new();
+                let is_safe_update = |inst, value| {
+                    is_heap_pointer(value) || {
+                        let (cfg, inst_blocks) =
+                            guard_facts.get_or_init(|| (CfgInfo::new(func), func.inst_blocks()));
+                        Self::guarded_heap_pointer(
+                            func,
+                            cfg,
+                            inst_blocks[&inst],
+                            value,
+                            &is_heap_pointer,
+                        )
+                    }
                 };
                 if func.instructions().any(|inst_id| match func.inst(inst_id).kind {
                     InstKind::ICall { function: Callee::Function(callee), .. } => {
                         !functions.contains(callee)
                     }
                     InstKind::ICall { .. } => true,
-                    InstKind::SetFmp(value) => !is_heap_pointer(value),
-                    InstKind::MStore(address, value) => {
-                        func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
-                            && !is_heap_pointer(value)
+                    InstKind::SetFmp(value) => !is_safe_update(inst_id, value),
+                    InstKind::MStore(address, value)
+                        if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT) =>
+                    {
+                        !is_safe_update(inst_id, value)
                     }
-                    _ => false,
+                    _ => aa.instruction_may_reset_fmp(func, inst_id),
                 }) || func
                     .blocks
                     .iter()
@@ -251,6 +268,73 @@ impl<'gcx> EvmCodegen<'gcx> {
         functions
     }
 
+    /// Recognizes allocator updates guarded against wraparound and addresses above 64 bits.
+    fn guarded_heap_pointer(
+        func: &Function,
+        cfg: &CfgInfo,
+        write_block: BlockId,
+        value: ValueId,
+        is_heap_pointer: &impl Fn(ValueId) -> bool,
+    ) -> bool {
+        let mut lower = false;
+        let mut upper = false;
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            let Some(Terminator::Branch { condition, then_block, else_block }) = block.terminator
+            else {
+                continue;
+            };
+            for (successor, truth) in [(then_block, true), (else_block, false)] {
+                if func.blocks[successor].predecessors.as_slice() != [block_id]
+                    || !cfg.dominators().dominates(successor, write_block)
+                {
+                    continue;
+                }
+                let mut conditions = vec![(condition, truth)];
+                let mut seen = FxHashSet::default();
+                while let Some((condition, truth)) = conditions.pop() {
+                    if !seen.insert((condition, truth)) {
+                        continue;
+                    }
+                    let Value::Inst(inst) = func.value(condition) else { continue };
+                    match func.inst(*inst).kind {
+                        InstKind::Zext(inner) => conditions.push((inner, truth)),
+                        InstKind::Ne(inner, zero) if func.value_u64(zero) == Some(0) => {
+                            conditions.push((inner, truth));
+                        }
+                        InstKind::Ne(zero, inner) if func.value_u64(zero) == Some(0) => {
+                            conditions.push((inner, truth));
+                        }
+                        InstKind::Eq(inner, zero) if func.value_u64(zero) == Some(0) => {
+                            conditions.push((inner, !truth));
+                        }
+                        InstKind::Eq(zero, inner) if func.value_u64(zero) == Some(0) => {
+                            conditions.push((inner, !truth));
+                        }
+                        InstKind::Or(a, b) if !truth => {
+                            conditions.extend([(a, false), (b, false)]);
+                        }
+                        InstKind::And(a, b) if truth => {
+                            conditions.extend([(a, true), (b, true)]);
+                        }
+                        InstKind::Lt(a, b) if !truth => {
+                            lower |= a == value && is_heap_pointer(b);
+                            upper |= b == value && func.value_u64(a).is_some();
+                        }
+                        InstKind::Gt(a, b) if !truth => {
+                            lower |= b == value && is_heap_pointer(a);
+                            upper |= a == value && func.value_u64(b).is_some();
+                        }
+                        InstKind::Shr(bits, a) if !truth && a == value => {
+                            upper |= func.value_u64(bits).is_some_and(|bits| bits <= 64);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        lower && upper
+    }
+
     /// Returns `Some(grounded)` for a heap-pointer derivation. Recursive phi
     /// edges are provisionally valid but ungrounded; every accepted cycle must
     /// also contain a concrete FMP, allocation, or qualified-helper origin.
@@ -267,16 +351,20 @@ impl<'gcx> EvmCodegen<'gcx> {
             aa,
             value,
             &self.heap_pointer_return_functions,
+            false,
             visiting,
             memo,
         )
     }
 
+    /// Context-free return summaries require bounded offsets. Local write analysis also
+    /// accepts the memory-reference contracts supplied by typed arguments and calls.
     fn heap_pointer_provenance_with_helpers(
         func: &Function,
         aa: &AliasAnalysis,
         value: ValueId,
         helper_returns: &DenseBitSet<FunctionId>,
+        bounded: bool,
         visiting: &mut DenseBitSet<ValueId>,
         memo: &mut FxHashMap<ValueId, bool>,
     ) -> Option<bool> {
@@ -290,7 +378,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let aligned_mask = |value: ValueId| {
             func.value_u256(value).is_some_and(|mask| {
                 mask == U256::MAX - U256::from(31)
-                    || mask == U256::from(u64::MAX.saturating_sub(31))
+                    || (!bounded && mask == U256::from(u64::MAX.saturating_sub(31)))
             })
         };
         let derive = |value, visiting: &mut DenseBitSet<ValueId>, memo: &mut FxHashMap<_, _>| {
@@ -299,6 +387,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 aa,
                 value,
                 helper_returns,
+                bounded,
                 visiting,
                 memo,
             )
@@ -306,9 +395,12 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let provenance = aa
             .memory_address(func, value)
-            .and_then(|address| matches!(address.region, MemoryRegion::Heap).then_some(true))
+            .filter(|address| matches!(address.region, MemoryRegion::Heap))
+            .filter(|_| !bounded || !AliasAnalysis::range_may_overlap_fmp(func, value, None))
+            .map(|_| true)
             .or_else(|| {
-                if matches!(func.value(value), Value::Arg(_))
+                if !bounded
+                    && matches!(func.value(value), Value::Arg(_))
                     && func.value_ty(value).is_some_and(MirType::is_memory_reference)
                 {
                     return Some(true);
@@ -321,16 +413,28 @@ impl<'gcx> EvmCodegen<'gcx> {
                     {
                         Some(true)
                     }
+                    InstKind::ICall { .. }
+                        if !bounded
+                            && func.value_ty(value).is_some_and(MirType::is_memory_reference) =>
+                    {
+                        Some(true)
+                    }
                     InstKind::ICall { function: Callee::Function(function), .. }
                         if helper_returns.contains(*function) =>
                     {
                         Some(true)
                     }
-                    InstKind::Add(first, second) => {
+                    InstKind::Add(first, second) if !bounded => {
                         derive(*first, visiting, memo).or_else(|| derive(*second, visiting, memo))
                     }
-                    InstKind::Sub(base, _)
-                    | InstKind::PtrToInt(base, 256)
+                    InstKind::Sub(base, _) if !bounded => derive(*base, visiting, memo),
+                    InstKind::Add(first, second) if func.value_u64(*second).is_some() => {
+                        derive(*first, visiting, memo)
+                    }
+                    InstKind::Add(first, second) if func.value_u64(*first).is_some() => {
+                        derive(*second, visiting, memo)
+                    }
+                    InstKind::PtrToInt(base, 256)
                     | InstKind::IntToPtr(base)
                     | InstKind::Bitcast(base) => derive(*base, visiting, memo),
                     InstKind::And(first, second) if aligned_mask(*second) => {

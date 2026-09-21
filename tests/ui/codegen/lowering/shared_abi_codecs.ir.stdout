@@ -50,59 +50,60 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
     jumpi v2, bb1, bb2
   bb2:
     v3 = icall @decode_calldata_type, 4
-    v67 = mload 64 !metadata(memory=scratch)
-    v9 = add v67, 32
+    v68 = mload 64 !metadata(memory=scratch)
+    v9 = add v68, 32
     v10 = add v9, 32
     mstore v9, 32
-    v62 = ptrtoint memptr v3 to i256
-    v61 = add v62, 32
-    v13 = mload v61
+    v63 = ptrtoint memptr v3 to i256
+    v62 = add v63, 32
+    v13 = mload v62
     v14 = add v10, 64
-    v12 = mload v62
+    v12 = mload v63
     mstore v10, v12
     v15 = add v10, 32
     mstore v15, 64
     v17 = inttoptr i256 v14 to memptr
     v18 = icall @encode_abi_array, v13, v17
-    v21 = sub v18, v9
-    v23 = add v21, 63
-    v24 = lt v23, v21
-    jumpi v24, bb3, bb4
+    v19 = ptrtoint memptr v18 to i256
+    v22 = sub v19, v9
+    v24 = add v22, 63
+    v25 = lt v24, v22
+    jumpi v25, bb3, bb4
   bb4:
-    v26 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v68 = mload 64
-    v69 = add v68, v26
-    mstore 64, v69
-    mstore v68, v21
-    v70 = mload 64
-    v30 = add v70, 32
-    mstore v70, 32
-    v38 = ne v68, 0
-    v39 = zext i1 v38 to i256
-    v34 = mload v68
-    v40 = mul v34, v39
-    mstore v30, v40
-    v42 = add v40, 31
-    v43 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v44 = add v30, 32
-    v45 = eq v43, 0
-    jumpi v45, bb6, bb5
+    v27 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v69 = mload 64
+    v70 = add v69, v27
+    mstore 64, v70
+    mstore v69, v22
+    v71 = mload 64
+    v31 = add v71, 32
+    mstore v71, 32
+    v39 = ne v69, 0
+    v40 = zext i1 v39 to i256
+    v35 = mload v69
+    v41 = mul v35, v40
+    mstore v31, v41
+    v43 = add v41, 31
+    v44 = and v43, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v45 = add v31, 32
+    v46 = eq v44, 0
+    jumpi v46, bb6, bb5
   bb5:
-    v46 = sub v43, 32
-    v47 = add v44, v46
-    mstore v47, 0
+    v47 = sub v44, 32
+    v48 = add v45, v47
+    mstore v48, 0
     jump bb6
   bb6:
-    v49 = add v44, v43
-    v66 = add v68, 32
-    mcopy v44, v66, v40
-    v52 = sub v49, v70
-    v54 = add v52, 31
-    v56 = and v54, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v71 = mload 64
-    v72 = add v71, v56
-    mstore 64, v72
-    returndata v71, v52
+    v50 = add v45, v44
+    v67 = add v69, 32
+    mcopy v45, v67, v41
+    v53 = sub v50, v71
+    v55 = add v53, 31
+    v57 = and v55, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v72 = mload 64
+    v73 = add v72, v57
+    mstore 64, v73
+    returndata v72, v53
   bb3:
     mstore 0, 0x4e487b71
     mstore 32, 65
@@ -529,39 +530,40 @@ fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
 
 fn @encodeFirst.body(arg0: memptr) -> memptr [may_return_memory, pure] {
   bb0:
-    v26 = mload 64 !metadata(memory=scratch)
-    v3 = add v26, 32
+    v27 = mload 64 !metadata(memory=scratch)
+    v3 = add v27, 32
     v4 = add v3, 32
     mstore v3, 32
-    v24 = ptrtoint memptr arg0 to i256
-    v23 = add v24, 32
-    v7 = mload v23
+    v25 = ptrtoint memptr arg0 to i256
+    v24 = add v25, 32
+    v7 = mload v24
     v8 = add v4, 64
-    v6 = mload v24
+    v6 = mload v25
     mstore v4, v6
     v9 = add v4, 32
     mstore v9, 64
     v11 = inttoptr i256 v8 to memptr
     v12 = icall @encode_abi_array, v7, v11
-    v15 = sub v12, v3
-    v17 = add v15, 63
-    v18 = lt v17, v15
-    jumpi v18, bb1, bb2
+    v13 = ptrtoint memptr v12 to i256
+    v16 = sub v13, v3
+    v18 = add v16, 63
+    v19 = lt v18, v16
+    jumpi v19, bb1, bb2
   bb2:
-    v20 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v27 = mload 64
-    v21 = inttoptr i256 v27 to memptr !metadata(memory=scratch)
-    v28 = add v27, v20
-    mstore 64, v28
-    mstore v27, v15
-    ret v21
+    v21 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v28 = mload 64
+    v22 = inttoptr i256 v28 to memptr !metadata(memory=scratch)
+    v29 = add v28, v21
+    mstore 64, v29
+    mstore v28, v16
+    ret v22
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65
     revert 28, 36
 }
 
-fn @encode_abi_array(arg0: i256, arg1: memptr) -> i256 [may_return_memory] {
+fn @encode_abi_array(arg0: i256, arg1: memptr) -> memptr [may_return_memory] {
   bb0:
     v0 = ptrtoint memptr arg1 to i256
     v4 = ne arg0, 0
@@ -572,8 +574,8 @@ fn @encode_abi_array(arg0: i256, arg1: memptr) -> i256 [may_return_memory] {
     v7 = add v0, 32
     v8 = shl 5, v6
     v9 = add v7, v8
-    v37 = add arg0, 32
-    v11 = inttoptr i256 v37 to memptr
+    v38 = add arg0, 32
+    v11 = inttoptr i256 v38 to memptr
     jump bb1
   bb1:
     v12 = phi [bb0: v6], [bb2: v32]
@@ -583,7 +585,8 @@ fn @encode_abi_array(arg0: i256, arg1: memptr) -> i256 [may_return_memory] {
     v16 = gt v12, 0
     jumpi v16, bb2, bb3
   bb3:
-    ret v13
+    v37 = inttoptr i256 v13 to memptr
+    ret v37
   bb2:
     v17 = ptrtoint memptr v15 to i256
     v18 = mload v17
@@ -597,8 +600,8 @@ fn @encode_abi_array(arg0: i256, arg1: memptr) -> i256 [may_return_memory] {
     v26 = shl 5, v25
     v27 = add v13, 32
     v30 = add v27, v26
-    v38 = add v18, 32
-    mcopy v27, v38, v26
+    v39 = add v18, 32
+    mcopy v27, v39, v26
     v32 = sub v12, 1
     v35 = add v14, 32
     v34 = add v17, 32

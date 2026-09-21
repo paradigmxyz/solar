@@ -441,14 +441,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             // A store emitted by a sibling branch arm also marked its value
             // reloadable, so a copy carried in on the stack could be dropped
             // in favor of a slot this path never wrote. Forget stores that are
-            // not available on every emitted forward predecessor.
+            // not available on every emitted forward predecessor. After a forwarding clobber,
+            // recomputable values also need this reset when only a sibling restored their slot.
             if let Some(available) = &self.spill_available {
                 let stale: Vec<ValueId> = self
                     .scheduler
                     .spills
                     .reloadable_values()
                     .filter(|&value| {
-                        !available.contains(&value) && self.scheduler.stack.contains(value)
+                        !available.contains(&value)
+                            && (self.scheduler.stack.contains(value)
+                                || (!self.spill_hazard_insts.is_empty()
+                                    && self.scheduler.spills.is_recomputable(value)))
                     })
                     .collect();
                 for value in stale {

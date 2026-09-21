@@ -1,4 +1,6 @@
 //@ codegen-matrix: standard
+//@ run-call: OffsetCopy::check 7, 4096, false => 9
+//@ run-call: OffsetCopy::check 7, 4096, true => 9
 //@ run-call: AllocatingCopy::check 0x112233, 7 => 25
 //@ run-call: Harness::run => 1
 //@ run-call: HeapPrefixTuple::check 1 => 9
@@ -175,6 +177,28 @@ contract AllocatingCopy {
             let end := add(ptr, and(add(size, 31), not(31)))
             if or(gt(end, 0xffffffffffffffff), lt(end, ptr)) { revert(0, 0) }
             mstore(0x40, end)
+        }
+    }
+}
+
+contract OffsetCopy {
+    function check(uint256 seed, uint256 length, bool wrap) external pure returns (uint256) {
+        uint256 delta;
+        assembly {
+            delta := sub(mload(0x40), 0x80)
+            if wrap { delta := sub(0, delta) }
+        }
+        uint256 ptr = offset(delta, wrap);
+        uint256 live = seed + 1;
+        assembly { calldatacopy(ptr, calldatasize(), length) }
+        if (length > 0) return live + 1;
+        return live + 2;
+    }
+    function offset(uint256 delta, bool wrap) internal pure returns (uint256 ptr) {
+        assembly {
+            switch wrap
+            case 0 { ptr := sub(mload(0x40), delta) }
+            default { ptr := add(mload(0x40), delta) }
         }
     }
 }

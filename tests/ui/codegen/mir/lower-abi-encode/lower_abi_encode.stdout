@@ -177,23 +177,23 @@
 +     v9 = memory_object_data memoryfixedarray, arg0
 +     jump bb1
 +   bb1:
-+     v10 = phi [bb0: 2], [bb2: v20]
-+     v11 = phi [bb0: v8], [bb2: v19]
-+     v12 = phi [bb0: v3], [bb2: v23]
-+     v13 = phi [bb0: v9], [bb2: v24]
++     v10 = phi [bb0: 2], [bb2: v21]
++     v11 = phi [bb0: v8], [bb2: v20]
++     v12 = phi [bb0: v3], [bb2: v24]
++     v13 = phi [bb0: v9], [bb2: v25]
 +     v14 = gt v10, 0
 +     jumpi v14, bb2, bb3
 +   bb3:
-+     v25 = ptrtoint memptr v1 to i256
-+     v26 = sub v11, v25
-+     v27 = add v26, 0
-+     v28 = add v27, 31
-+     v29 = not 31
-+     v30 = and v28, v29
-+     v31 = alloc raw, exact, uninitialized, infallible, v30 !metadata(preserves_fmp)
-+     v32 = ptrtoint memptr v31 to i256
-+     v33 = make_memory_slice v32, v27
-+     ret v33
++     v26 = ptrtoint memptr v1 to i256
++     v27 = sub v11, v26
++     v28 = add v27, 0
++     v29 = add v28, 31
++     v30 = not 31
++     v31 = and v29, v30
++     v32 = alloc raw, exact, uninitialized, infallible, v31 !metadata(preserves_fmp)
++     v33 = ptrtoint memptr v32 to i256
++     v34 = make_memory_slice v33, v28
++     ret v34
 +   bb2:
 +     v15 = ptrtoint memptr v13 to i256
 +     v16 = mload v15
@@ -201,11 +201,12 @@
 +     mstore v12, v17
 +     v18 = inttoptr i256 v11 to memptr
 +     v19 = icall @encode_abi_array, v16, v18
-+     v20 = sub v10, 1
-+     v21 = ptrtoint memptr v13 to i256
-+     v22 = add v21, 32
-+     v23 = add v12, 32
-+     v24 = inttoptr i256 v22 to memptr
++     v20 = ptrtoint memptr v19 to i256
++     v21 = sub v10, 1
++     v22 = ptrtoint memptr v13 to i256
++     v23 = add v22, 32
++     v24 = add v12, 32
++     v25 = inttoptr i256 v23 to memptr
 +     jump bb1
   }
   
@@ -276,7 +277,7 @@
 +     ret v21
 + }
 + 
-+ fn @encode_abi_array(arg0: i256, arg1: memptr) -> i256 {
++ fn @encode_abi_array(arg0: i256, arg1: memptr) -> memptr {
 +   bb0:
 +     v0 = ptrtoint memptr arg1 to i256
 +     v1 = inttoptr i256 arg0 to memoryarray
@@ -308,6 +309,7 @@
 +     jumpi v22, bb1, bb2
 +   bb2:
 +     v23 = phi [bb0: v8], [bb1: v21]
-+     ret v23
++     v24 = inttoptr i256 v23 to memptr
++     ret v24
   }
   

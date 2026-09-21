@@ -325,7 +325,8 @@ fn synthesize_array_helpers(
             let dest = builder.add_param(MirType::MemPtr);
             let dest = builder.cast(dest, MirType::I256);
             let tail = encode_memory_array(&mut builder, &key.element, value, dest, &helpers);
-            builder.set_return_type(MirType::I256);
+            let tail = builder.cast(tail, MirType::MemPtr);
+            builder.set_return_type(MirType::MemPtr);
             builder.ret([tail]);
         }
         let helper = module.add_function(function);
@@ -1223,7 +1224,8 @@ fn encode_dynamic_body(
             if location == SliceLocation::Memory {
                 if let Some(helper) = array_helper(builder.func(), helpers, element, value) {
                     let dest = builder.cast(dest, MirType::MemPtr);
-                    return builder.icall(helper, vec![value, dest], MirType::I256);
+                    let tail = builder.icall(helper, vec![value, dest], MirType::MemPtr);
+                    return builder.cast(tail, MirType::I256);
                 }
                 return encode_memory_array(builder, element, value, dest, helpers);
             }
