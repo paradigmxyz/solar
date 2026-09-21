@@ -143,7 +143,9 @@ pub(crate) fn rematerializable_nullary_opcode(kind: &InstKind) -> Option<u8> {
 pub(crate) fn rematerializable_nullary_value(func: &Function, value: ValueId) -> Option<u8> {
     let Value::Inst(inst_id) = func.value(value) else { return None };
     match func.inst(*inst_id).kind {
-        InstKind::Zext(inner) => rematerializable_nullary_value(func, inner),
+        InstKind::Zext(inner) | InstKind::Bitcast(inner) => {
+            rematerializable_nullary_value(func, inner)
+        }
         _ => rematerializable_nullary_opcode(&func.inst(*inst_id).kind),
     }
 }

@@ -8,9 +8,9 @@ use crate::{
 use alloy_json_abi::AbiItem;
 use anstyle::{AnsiColor, Color, Style};
 use solar_codegen::{
-    ContractArtifact, ContractSelection, RuntimeDataFn,
+    Backend, ContractArtifact, ContractSelection, EvmCodegen, RuntimeDataFn,
     backend::evm::{self, ir},
-    generate_contract_bytecodes,
+    collect_library_references, generate_contract_bytecodes,
     mir::{Module, pass, validate},
 };
 use solar_config::{CompilerOutput, Dump, DumpKind};
@@ -140,6 +140,37 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
         validate(&gcx.sess.dcx, &module);
         if gcx.dcx().has_errors().is_ok() {
             let name = source.name.display().to_string();
+            if gcx.sess.opts.emit.contains(&CompilerOutput::Bin)
+                || gcx.sess.opts.emit.contains(&CompilerOutput::BinRuntime)
+            {
+                let artifact = EvmCodegen::new(gcx).lower_module(&mut module);
+                gcx.dcx().has_errors()?;
+                let deployment_links = collect_library_references(
+                    &artifact.deployment_library_relocations,
+                    &artifact.libraries,
+                );
+                let runtime_links = collect_library_references(
+                    &artifact.runtime_library_relocations,
+                    &artifact.libraries,
+                );
+                let contract =
+                    CombinedJsonContract {
+                        abi: gcx.sess.opts.emit.contains(&CompilerOutput::Abi).then_some(&[]),
+                        bin: gcx.sess.opts.emit.contains(&CompilerOutput::Bin).then(|| {
+                            MaybeHexBytecode::new(artifact.deployment.into(), &deployment_links)
+                        }),
+                        bin_runtime: gcx.sess.opts.emit.contains(&CompilerOutput::BinRuntime).then(
+                            || MaybeHexBytecode::new(artifact.runtime.into(), &runtime_links),
+                        ),
+                        ..Default::default()
+                    };
+                let output = CombinedJson {
+                    contracts: [(format!("{name}:{}", module.name()), contract)].into(),
+                    version: solar_config::version::SEMVER_VERSION,
+                    ..Default::default()
+                };
+                return write_output_json(gcx, &output, true);
+            }
             let _changed = pass::run_pipeline(gcx, &mut module, Some(&name));
             gcx.dcx().has_errors()?;
             validate(&gcx.sess.dcx, &module);

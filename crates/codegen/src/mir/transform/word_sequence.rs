@@ -85,6 +85,16 @@ fn legal(op: &Op, target: Target) -> bool {
 }
 
 fn removable(func: &Function, inst: &Instruction, target: Target) -> bool {
+    // Recipes model EVM words, including the sign bit and overflow width.
+    if inst
+        .kind
+        .operands()
+        .iter()
+        .any(|&value| matches!(func.value_ty(value), Some(MirType::Int(bits)) if bits.get() != 256))
+        && !matches!(inst.kind, InstKind::Select(..))
+    {
+        return false;
+    }
     let scalar_select = match inst.kind.op() {
         Op::Select { true_val, false_val, .. } => {
             [inst.result_ty, func.value_ty(true_val), func.value_ty(false_val)]

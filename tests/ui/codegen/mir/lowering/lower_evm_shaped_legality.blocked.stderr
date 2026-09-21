@@ -1,4 +1,8 @@
 error: [fn0] [bb0, inst0] storage slot instruction `storage_array_data_slot` survives the `lowered` phase boundary
 
-error: aborting due to 1 previous error
+error: [fn1] [bb0, inst0] narrow integer arithmetic instruction `add` survives the `lowered` phase boundary
+
+error: [fn1] [bb0, inst1] narrow integer arithmetic instruction `slt` survives the `lowered` phase boundary
+
+error: aborting due to 3 previous errors
 

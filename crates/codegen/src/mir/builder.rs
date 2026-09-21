@@ -526,6 +526,23 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     fn cast_operands(&mut self, kind: &mut InstKind) {
+        let operands = kind.operands();
+        if (kind.op_def().result == super::ResultKind::Integer
+            || matches!(
+                kind,
+                InstKind::Eq(..)
+                    | InstKind::Ne(..)
+                    | InstKind::Lt(..)
+                    | InstKind::Gt(..)
+                    | InstKind::SLt(..)
+                    | InstKind::SGt(..)
+            ))
+            && operands
+                .windows(2)
+                .any(|pair| self.func.value_ty(pair[0]) != self.func.value_ty(pair[1]))
+        {
+            kind.visit_operands_mut(|value| *value = self.cast(*value, MirType::I256));
+        }
         let Some(types) = kind.operand_types(self.func) else { return };
         let mut types = types.into_iter();
         // operand = cast operand to its declared parameter type
@@ -539,8 +556,31 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits a typed value-producing instruction with the current source and effect metadata.
     pub(crate) fn emit_inst(&mut self, mut kind: InstKind, result_ty: Option<MirType>) -> ValueId {
         debug_assert!(result_ty.is_some(), "value-producing instructions must have a result type");
-        self.cast_operands(&mut kind);
         let requested = result_ty.unwrap();
+        if kind.op_def().result == super::ResultKind::Integer {
+            let boolean_bitwise =
+                matches!(kind, InstKind::And(..) | InstKind::Or(..) | InstKind::Xor(..))
+                    && kind
+                        .operands()
+                        .iter()
+                        .all(|&value| self.func.value_ty(value) == Some(MirType::I1));
+            let ty = if boolean_bitwise {
+                MirType::I1
+            } else if requested.integer_bits().is_some() {
+                requested
+            } else {
+                MirType::I256
+            };
+            kind.visit_operands_mut(|value| {
+                *value = if ty == MirType::I1 && self.func.value_ty(*value) != Some(MirType::I1) {
+                    let word = self.cast_word(*value);
+                    self.emit_inst(InstKind::Trunc(word, 1), Some(MirType::I1))
+                } else {
+                    self.cast(*value, ty)
+                };
+            });
+        }
+        self.cast_operands(&mut kind);
         if let InstKind::Phi(incoming) = &mut kind {
             let current = self.current_block;
             for (predecessor, value) in incoming {
@@ -551,35 +591,7 @@ impl<'a> FunctionBuilder<'a> {
             self.switch_to_block(current);
         }
 
-        let boolean_bitwise =
-            matches!(kind, InstKind::And(..) | InstKind::Or(..) | InstKind::Xor(..))
-                && kind
-                    .operands()
-                    .iter()
-                    .all(|&value| self.func.value_ty(value) == Some(MirType::I1));
-        let typed_equality = matches!(kind, InstKind::Eq(..) | InstKind::Ne(..))
-            && kind.operands().iter().all(|&value| {
-                self.func.value_ty(value) == self.func.value_ty(kind.operands()[0])
-                    && matches!(self.func.value_ty(value), Some(MirType::I1 | MirType::I160))
-            });
-        if matches!(
-            kind,
-            InstKind::Eq(..)
-                | InstKind::Ne(..)
-                | InstKind::And(..)
-                | InstKind::Or(..)
-                | InstKind::Xor(..)
-        ) && !boolean_bitwise
-            && !typed_equality
-        {
-            // operand = zext integer or ptrtoint pointer to i256
-            kind.visit_operands_mut(|value| *value = self.cast(*value, MirType::I256));
-        }
-        let produced = if boolean_bitwise {
-            MirType::I1
-        } else {
-            kind.op_def().result.default_type().unwrap_or(requested)
-        };
+        let produced = kind.inferred_result_type(self.func).unwrap_or(requested);
         // result = op operands
         // requested = cast result
         let inst = self.make_inst(kind, Some(produced));

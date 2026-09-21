@@ -206,6 +206,12 @@ cvc5's SAT or process-error result. Failed cvc5 timeout attempts remain recorded
 when bit proofs subsequently succeed. The runner verifies e-graph rules
 alongside the other selected files in the same CI job.
 
+Narrow `integer_simplify` and `integer_rewrite` rules quantify over every width
+from i1 through i255, constrain operands to clean bit patterns, and model
+wrapping and signed interpretation at that width. Nested producer patterns are
+rejected because their widths need not match the root. These checks do not prove
+the `lower-integers` pass itself; MIR snapshots and runtime tests cover legalization.
+
 Only UNSAT establishes equivalence. SAT must replay as different outputs in a
 separate Python integer evaluator. Timeouts, unsupported terms and unsatisfiable
 preconditions are distinct failures, never proofs. Verification exits nonzero

@@ -1,0 +1,92 @@
+//@ revisions: semantic folded lowered
+//@[semantic] compile-flags: -Zmir-pipeline=none
+//@[folded] compile-flags: -Zmir-pipeline=sccp,egraph,check-elim
+//@[lowered] compile-flags: -Zmir-pipeline=lower-integers,egraph,lower-evm-shaped
+
+@module Integers
+
+fn @arithmetic(arg0: i8, arg1: i8) -> i8 {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = sub v0, arg1
+    v2 = mul v1, arg0
+    v3 = sdiv v2, arg1
+    v4 = smod v3, arg0
+    v5 = not v4
+    v6 = sar arg1, v5
+    ret v6
+}
+
+fn @odd_width(arg0: i17, arg1: i17) -> i17 {
+  bb0:
+    v0 = shl arg1, arg0
+    v1 = sar arg1, v0
+    v2 = sext i17 v1 to i255
+    v3 = trunc i255 v2 to i17
+    ret v3
+}
+
+fn @sign_compare(arg0: i8, arg1: i8) -> i1 {
+  bb0:
+    v0 = slt arg0, arg1
+    ret v0
+}
+
+fn @power_of_two(arg0: i24) -> i24 {
+  bb0:
+    v0 = trunc i256 8 to i24
+    v1 = div arg0, v0
+    v2 = mod v1, v0
+    v3 = mul v2, v0
+    ret v3
+}
+
+fn @wrap_constants() -> i8 {
+  bb0:
+    v0 = trunc i256 255 to i8
+    v1 = trunc i256 1 to i8
+    v2 = add v0, v1
+    v3 = not v2
+    v4 = sdiv v3, v1
+    ret v4
+}
+
+fn @clz(arg0: i9) -> i9 {
+  bb0:
+    v0 = clz arg0
+    ret v0
+}
+
+fn @calls(arg0: i17, arg1: i17) -> i17 {
+  bb0:
+    v0 = icall @odd_width, arg0, arg1
+    ret v0
+}
+
+fn @phi(arg0: i1, arg1: i8, arg2: i8) -> i8 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = add arg1, arg2
+    jump bb3
+  bb2:
+    v1 = sub arg1, arg2
+    jump bb3
+  bb3:
+    v2 = phi [bb1: v0], [bb2: v1]
+    ret v2
+}
+
+fn @wrapping_loop(arg0: i8) -> i8 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v1]
+    v1 = add v0, i8 1
+    v2 = ne v1, i8 0
+    jumpi v2, bb2, bb3
+  bb2:
+    jump bb1
+  bb3:
+    ret v1
+}

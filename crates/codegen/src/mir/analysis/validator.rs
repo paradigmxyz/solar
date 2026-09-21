@@ -668,7 +668,11 @@ impl<'a> Validator<'a> {
                 }
                 InstKind::LoadImmutable(id) => {
                     match (module.get_immutable_type(id), inst.result_ty) {
-                        (Some(expected), Some(actual)) if actual != expected.mir_type() => {
+                        (Some(expected), Some(actual))
+                            if actual != expected.mir_type()
+                                && !(actual == MirType::I256
+                                    && expected.mir_type().integer_bits().is_some()) =>
+                        {
                             self.emit(format_args!(
                                 "inst{} loads immutable {} as `{actual}`, expected `{expected}`",
                                 inst_id.index(),
@@ -1369,8 +1373,9 @@ impl<'a> Validator<'a> {
                 .chain(func.return_components().iter().copied())
                 .chain(func.live_values().filter_map(|value| func.value_ty(value)))
                 .chain(func.instructions().filter_map(|id| func.inst(id).result_ty));
-            if let Some(ty) =
-                types.into_iter().find(|ty| !ty.is_word() || matches!(ty, MirType::MemoryObject(_)))
+            if let Some(ty) = types
+                .into_iter()
+                .find(|ty| !matches!(*ty, MirType::I1 | MirType::I256 | MirType::MemPtr))
             {
                 self.emit(format_args!(
                     "non-word type `{ty}` survives the `lowered` phase boundary"
@@ -1397,7 +1402,7 @@ impl<'a> Validator<'a> {
                     }
                     let semantic_op = func
                         .inst(inst_id)
-                        .unlowered_reason()
+                        .unlowered_reason(func)
                         .or_else(|| kind.phase_violation(phase, &func.inst(inst_id).metadata));
                     if let Some(semantic_op) = semantic_op {
                         self.emit_at_inst(

@@ -227,6 +227,14 @@ impl MirType {
     /// A 256-bit integer.
     pub(crate) const I256: Self = Self::Int(NonZeroU32::new(256).unwrap());
 
+    /// Returns the integer bit width, excluding pointers and aggregates.
+    pub(crate) const fn integer_bits(self) -> Option<u32> {
+        match self {
+            Self::Int(bits) => Some(bits.get()),
+            _ => None,
+        }
+    }
+
     /// Returns the full-width layout when no narrower source contract was supplied.
     pub(crate) const fn value_layout(self) -> ValueLayout {
         match self {
@@ -246,7 +254,11 @@ impl MirType {
     }
 
     pub(crate) const fn is_word(self) -> bool {
-        matches!(self, Self::I256 | Self::I160 | Self::I1 | Self::MemPtr | Self::MemoryObject(_))
+        match self {
+            Self::Int(bits) => bits.get() <= 256,
+            Self::MemPtr | Self::MemoryObject(_) => true,
+            _ => false,
+        }
     }
 
     pub(crate) const fn is_memory_reference(self) -> bool {

@@ -354,7 +354,10 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
         let line = line.trim_start();
         line.starts_with("//@") && line.contains("-Zdump=mir")
     }) || has_codegen_matrix;
-    if matches!(cfg.mode, Mode::Ui) && src.lines().any(run_call::is_directive) {
+    if matches!(cfg.mode, Mode::Ui | Mode::Mir) && src.lines().any(run_call::is_directive) {
+        if matches!(cfg.mode, Mode::Mir) {
+            config.program.args.retain(|arg| arg != "-Zpass-diff");
+        }
         if has_mir_dump {
             configure_run_call_stdout(config, src);
         } else {

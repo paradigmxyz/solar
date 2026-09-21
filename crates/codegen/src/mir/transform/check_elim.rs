@@ -1198,7 +1198,13 @@ impl<'a> CheckEliminator<'a> {
         if let Some(constant) = const_of(func, value) {
             return Range::singleton(constant);
         }
-        let mut range = self.ranges.get(&value).copied().unwrap_or(Range::FULL);
+        let bits = func
+            .value_ty(value)
+            .and_then(crate::mir::MirType::integer_bits)
+            .unwrap_or(256)
+            .min(256);
+        let full = Range::new(U256::ZERO, U256::MAX >> (256 - bits));
+        let mut range = self.ranges.get(&value).copied().unwrap_or(full);
         if let Some(bound) = self.trip_bounds.get(&value) {
             range = range.intersect(*bound).unwrap_or(range);
         }
@@ -1789,7 +1795,8 @@ fn monotone_phi_candidates(
         for &inst in &func.blocks[header].instructions {
             let InstKind::Phi(incoming) = &func.inst(inst).kind else { continue };
             let Some(value) = func.inst_result_value(inst) else { continue };
-            if !relevant.contains(value) {
+            if !relevant.contains(value) || func.value_ty(value) != Some(crate::mir::MirType::I256)
+            {
                 continue;
             }
             let [(first_block, first), (second_block, second)] = incoming.as_slice() else {
@@ -1910,6 +1917,24 @@ fn const_of(func: &Function, value: ValueId) -> Option<U256> {
 }
 
 fn inst_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
+    // These algebraic proofs use word overflow; narrow wrap must remain opaque.
+    if let Value::Inst(id) = func.value(value)
+        && func.value_ty(value).is_some_and(|ty| ty.integer_bits().is_some_and(|bits| bits < 256))
+        && matches!(
+            func.inst(*id).kind,
+            InstKind::Add(..)
+                | InstKind::Mul(..)
+                | InstKind::Shl(..)
+                | InstKind::Not(..)
+                | InstKind::SDiv(..)
+                | InstKind::SMod(..)
+                | InstKind::Sar(..)
+                | InstKind::Clz(..)
+                | InstKind::Exp(..)
+        )
+    {
+        return None;
+    }
     match func.value(value) {
         Value::Inst(inst_id) => Some(&func.inst(*inst_id).kind),
         _ => None,

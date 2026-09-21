@@ -259,6 +259,9 @@ impl LoopAnalyzer {
         phi_val: ValueId,
         step_val: ValueId,
     ) -> Option<(InstId, ValueId, bool)> {
+        if func.value_ty(step_val) != Some(crate::mir::MirType::I256) {
+            return None;
+        }
         let Value::Inst(inst_id) = *func.value(step_val) else { return None };
         match func.inst(inst_id).kind {
             InstKind::Add(a, b)

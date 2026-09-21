@@ -6,12 +6,61 @@
 
 use crate::{
     backend::evm::op,
-    mir::{ArithmeticKind, Builtin, Callee, CheckedOp, InstKind, ValueId},
+    mir::{
+        ArithmeticKind, Builtin, Callee, CheckedOp, Function, InstKind, MirType, ResultKind,
+        ValueId,
+    },
 };
 use alloy_primitives::{I256, U256};
 use std::cmp::Ordering;
 
 type Word = U256;
+
+/// Evaluates integer operations in their declared width, with EVM's total semantics.
+pub(crate) fn eval_typed_inst<E>(
+    func: &Function,
+    kind: &InstKind,
+    mut get: impl FnMut(ValueId) -> Result<U256, E>,
+) -> Result<Option<U256>, E> {
+    let operands = kind.operands();
+    let bits = operands
+        .first()
+        .and_then(|&value| func.value_ty(value))
+        .and_then(MirType::integer_bits)
+        .unwrap_or(256);
+    if bits > 256 {
+        return Ok(None);
+    }
+    let signed = matches!(
+        kind,
+        InstKind::SDiv(..)
+            | InstKind::SMod(..)
+            | InstKind::SLt(..)
+            | InstKind::SGt(..)
+            | InstKind::Sar(..)
+    );
+    let mut index = 0;
+    let value = eval_inst(kind, |value| {
+        let word = get(value)?;
+        let extend = signed && !(matches!(kind, InstKind::Sar(..)) && index == 0);
+        index += 1;
+        Ok(if extend { sign_extend(word, bits) } else { word })
+    })?;
+    Ok(value.map(|mut value| {
+        if kind.op_def().result == ResultKind::Integer {
+            if matches!(kind, InstKind::Clz(..)) {
+                value -= U256::from(256 - bits);
+            }
+            value &= U256::MAX >> (256 - bits);
+        }
+        value
+    }))
+}
+
+/// Sign-extends a zero-clean integer bit pattern to an EVM word.
+pub(crate) fn sign_extend(value: U256, bits: u32) -> U256 {
+    if bits < 256 && value.bit((bits - 1) as usize) { value | (U256::MAX << bits) } else { value }
+}
 
 /// Evaluates a pure EVM word instruction.
 ///
@@ -328,6 +377,50 @@ fn i256_mod(mut first: Word, mut second: Word) -> Word {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mir::{FunctionBuilder, Immediate, Value};
+    use solar_interface::Ident;
+
+    #[test]
+    fn integer_arithmetic_at_every_width() {
+        for bits in 1..=256 {
+            let ty = MirType::Int(std::num::NonZeroU32::new(bits).unwrap());
+            let mut function = Function::new(Ident::DUMMY);
+            let mut builder = FunctionBuilder::new(&mut function);
+            let a = builder.add_param(ty);
+            let b = builder.add_param(ty);
+            let mask = U256::MAX >> (256 - bits);
+            let sign = U256::ONE << (bits - 1);
+            for (kind, lhs, rhs, expected) in [
+                (InstKind::Add(a, b), mask, U256::ONE, U256::ZERO),
+                (InstKind::Sub(a, b), U256::ZERO, U256::ONE, mask),
+                (InstKind::Mul(a, b), mask, mask, U256::ONE),
+                (InstKind::Not(a), U256::ZERO, U256::ZERO, mask),
+                (InstKind::SDiv(a, b), sign, mask, sign),
+                (InstKind::SDiv(a, b), mask, U256::ZERO, U256::ZERO),
+                (InstKind::SMod(a, b), mask, mask, U256::ZERO),
+                (InstKind::SLt(a, b), sign, U256::ZERO, U256::ONE),
+                (InstKind::SGt(a, b), U256::ZERO, sign, U256::ONE),
+                (InstKind::Shl(a, b), U256::from(bits), mask, U256::ZERO),
+                (InstKind::Shr(a, b), U256::from(bits), mask, U256::ZERO),
+                (InstKind::Sar(a, b), U256::from(bits), sign, mask),
+                (InstKind::Clz(a), U256::ZERO, U256::ZERO, U256::from(bits)),
+                (InstKind::Clz(a), U256::ONE, U256::ZERO, U256::from(bits - 1)),
+            ] {
+                assert_eq!(
+                    eval_typed_inst(&function, &kind, |value| Ok::<_, ()>(if value == a {
+                        lhs
+                    } else {
+                        rhs
+                    })),
+                    Ok(Some(expected)),
+                    "i{bits} {kind:?}"
+                );
+            }
+            let constant =
+                function.alloc_value(Value::Immediate(Immediate::for_type(Some(ty), mask)));
+            assert_eq!(function.value_ty(constant), Some(ty));
+        }
+    }
 
     #[test]
     fn llvm_integer_and_pointer_casts() {

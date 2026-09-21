@@ -1070,6 +1070,49 @@ class MemoryAddressTests(unittest.TestCase):
 
 
 class RuleTests(unittest.TestCase):
+    def test_narrow_integer_rules(self):
+        path = ISLE / "mir/egraph.isle"
+        rules = [
+            Rule(form, line, str(path))
+            for form, line in forms(path.read_text())
+            if form[0] == "rule"
+            and any(
+                isinstance(part, tuple)
+                and part[0] in ("integer_simplify", "integer_rewrite")
+                for part in form[1:]
+            )
+        ]
+        self.assertGreater(len(rules), 20)
+        for rule in rules:
+            with self.subTest(line=rule.line):
+                cx = Context()
+                lhs, rhs = cx.obligation(rule)
+                result, _ = check(lhs, rhs, cx.assumptions, 5000, cx.model)
+                if result["status"] == "unknown":
+                    result, _ = partition_shift(
+                        lhs, rhs, cx.assumptions, 60000, cx.model
+                    )
+                    self.assertEqual(result["status"], "proved", result)
+                else:
+                    self.assertEqual(result["status"], "proved", result)
+
+    def test_narrow_nested_comparison_requires_its_own_width(self):
+        form, line = forms(
+            "(rule (integer_simplify (Op.And (slt (one) (zero)) (one)) bits) (if-let true (u32_le bits (u256 1))) (imm_bool true))"
+        )[0]
+        with self.assertRaisesRegex(Unsupported, "independent widths"):
+            Context().obligation(Rule(form, line, "narrow.isle"))
+
+    def test_narrow_integer_wrap_is_not_word_wrap(self):
+        form, line = forms(
+            "(rule (integer_simplify (Op.Add x (one)) bits) (u256_add x (u256 1)))"
+        )[0]
+        cx = Context()
+        lhs, rhs = cx.obligation(Rule(form, line, "narrow.isle"))
+        result, _ = check(lhs, rhs, cx.assumptions, 5000, cx.model)
+        self.assertEqual(result["status"], "counterexample")
+        self.assertTrue(result["replayed"])
+
     def verify(self, source):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "rules.isle"
@@ -1180,6 +1223,11 @@ class RuleTests(unittest.TestCase):
             Rule(form, line, str(path))
             for form, line in forms(source[start:])
             if form[0] == "rule"
+            and not any(
+                isinstance(part, tuple)
+                and part[0] in ("integer_simplify", "integer_rewrite")
+                for part in form[1:]
+            )
         ]
         self.assertEqual(len(rules), 26)
         for rule in rules:
@@ -1229,6 +1277,7 @@ class RuleTests(unittest.TestCase):
             if form[0] == "rule"
             and contains(form, "Op.Mod")
             and contains(form, "power_of_two_shift")
+            and not contains(form, "integer_rewrite")
         ]
         self.assertEqual(len(rules), 1)
         context = Context()

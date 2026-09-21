@@ -155,3 +155,11 @@ pub(super) fn callee_types(
         Builtin::Concat(types) => types.iter().map(|ty| ty.mir_type()).collect(),
     })
 }
+
+/// Infers a scalar integer signature; invalid operands still fail validation.
+pub(super) fn integer_type(func: &Function, value: ValueId) -> MirType {
+    match func.value_ty(value) {
+        Some(ty @ MirType::Int(_)) => ty,
+        _ => MirType::I256,
+    }
+}

@@ -153,7 +153,7 @@ fn plan(func: &Function, loops: &LoopInfo, l: &Loop) -> Option<Split> {
     // header: counter = phi [preheader: start], [latch: counter + step]
     //         jumpi (lt counter, bound), body, exit
     let &InstKind::Lt(counter, bound) = inst_kind(func, condition)? else { return None };
-    if defined_in_loop(bound) {
+    if defined_in_loop(bound) || func.value_ty(counter) != Some(MirType::I256) {
         return None;
     }
     let Value::Inst(phi) = func.value(counter) else { return None };

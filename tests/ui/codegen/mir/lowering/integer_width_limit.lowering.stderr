@@ -1,0 +1,4 @@
+error: integer lowering supports widths from i1 through i256
+
+error: aborting due to 1 previous error
+

@@ -221,9 +221,9 @@ fn @zeroTripHeader() [selector=0xe0b1133b, abi_wrapper, pure] {
 
 fn @headerExpansion() [selector=0xfb7c0847, abi_wrapper, pure] {
   bb0:
-    v24 = calldatasize
-    v25 = lt v24, 36
-    jumpi v25, bb4, bb5
+    v21 = calldatasize
+    v22 = lt v21, 36
+    jumpi v22, bb4, bb5
   bb5:
     jump bb1
   bb1:
@@ -240,12 +240,12 @@ fn @headerExpansion() [selector=0xfb7c0847, abi_wrapper, pure] {
     v16 = msize
     v9 = gt v16, v14
     v10 = eq v7, 0
-    v20 = zext i1 v9 to i256
-    v21 = zext i1 v10 to i256
-    v22 = mul v20, v21
-    v23 = ne v22, 0
+    v29 = zext i1 v9 to i256
+    v30 = zext i1 v10 to i256
+    v31 = mul v29, v30
+    v33 = ne v31, 0
     v18 = add v1, 1
-    v13 = zext i1 v23 to i256
+    v13 = zext i1 v33 to i256
     jump bb1
   bb4:
     revert 0, 0

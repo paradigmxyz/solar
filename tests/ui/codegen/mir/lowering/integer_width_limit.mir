@@ -1,0 +1,11 @@
+//@ revisions: syntax lowering
+//@[syntax] compile-flags: -Zmir-pipeline=none
+//@[lowering] compile-flags: -Zmir-pipeline=lower-integers
+//~[lowering]? ERROR: integer lowering supports widths from i1 through i256
+
+@module IntegerWidthLimit
+
+fn @wide(arg0: i512) -> i512 {
+  bb0:
+    ret arg0
+}

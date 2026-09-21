@@ -43,7 +43,7 @@ pub(crate) enum Immediate {
     I1(bool),
     /// A 160-bit integer constant.
     I160(U160),
-    /// An integer constant with a syntax-only width.
+    /// An integer constant with an explicit bit width.
     Int(U256, NonZeroU32),
     /// A 256-bit integer constant.
     I256(U256),

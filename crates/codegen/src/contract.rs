@@ -501,7 +501,7 @@ fn library_relocations(
 }
 
 /// Resolves the assembler's library relocations to source-qualified names.
-fn collect_library_references(
+pub fn collect_library_references(
     relocations: &[LibraryRelocation],
     libraries: &LibraryTable,
 ) -> Vec<LibraryReference> {

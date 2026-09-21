@@ -1474,7 +1474,7 @@ impl LowerAbiCx {
             for (logical, value) in logical_values.iter_mut().enumerate() {
                 if let Some(raw) = *value
                     && let Some(&ty) = arg_types.get(logical)
-                    && matches!(ty, MirType::I1 | MirType::I160)
+                    && matches!(ty, MirType::Int(bits) if bits.get() < 256)
                 {
                     // value = cast raw to the declared scalar type
                     let normalized = builder.cast(raw, ty);

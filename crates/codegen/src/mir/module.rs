@@ -124,6 +124,11 @@ pub struct Module {
 }
 
 impl Module {
+    /// Returns the module's declared name.
+    pub fn name(&self) -> Ident {
+        self.name
+    }
+
     /// Interns a structural value type within this module.
     pub(crate) fn intern_struct(&mut self, fields: impl Into<Box<[MirType]>>) -> MirType {
         let fields = fields.into();

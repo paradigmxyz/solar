@@ -86,13 +86,53 @@ impl<'a> RuleContext<'a> {
     /// Appends every equivalent instruction the rules can build for `op`.
     pub(super) fn rewrite(&mut self, op: &Op, alternatives: &mut Vec<Op>) {
         let op = canonical_operands(self.func, *op);
-        generated::constructor_rewrite(self, &op, alternatives);
+        if let Some(bits) = self.narrow_integer_bits(&op) {
+            generated::constructor_integer_rewrite(self, &op, bits, alternatives);
+        } else {
+            generated::constructor_rewrite(self, &op, alternatives);
+        }
     }
 
     /// Returns the value `op` is equal to, when a rule applies.
     pub(super) fn simplify(&mut self, op: &Op) -> Option<ValueId> {
         let op = canonical_operands(self.func, *op);
-        generated::constructor_simplify(self, &op)
+        if let Some(bits) = self.narrow_integer_bits(&op) {
+            generated::constructor_integer_simplify(self, &op, bits)
+        } else {
+            generated::constructor_simplify(self, &op)
+        }
+    }
+
+    /// Word rules use 256-bit wrap and sign bits; narrow scalar rules are separate.
+    fn narrow_integer_bits(&self, op: &Op) -> Option<u32> {
+        let kind = op.into_kind()?;
+        if kind.op_def().result != crate::mir::ResultKind::Integer
+            && !matches!(
+                kind,
+                InstKind::Eq(..)
+                    | InstKind::Ne(..)
+                    | InstKind::Lt(..)
+                    | InstKind::Gt(..)
+                    | InstKind::SLt(..)
+                    | InstKind::SGt(..)
+            )
+        {
+            return None;
+        }
+        let bits = self.func.value_ty(*kind.operands().first()?)?.integer_bits()?;
+        if bits == 1
+            && matches!(
+                kind,
+                InstKind::Eq(..)
+                    | InstKind::Ne(..)
+                    | InstKind::And(..)
+                    | InstKind::Or(..)
+                    | InstKind::Xor(..)
+            )
+        {
+            return None;
+        }
+        (bits < 256).then_some(bits)
     }
 
     fn has_const(&self, value: ValueId, expected: U256) -> bool {
@@ -128,11 +168,10 @@ pub(in crate::mir::transform) fn max_bits_with_args(
     depth: u32,
     argument_bits: &impl Fn(ArgIdx) -> u32,
 ) -> u32 {
-    if func.value_ty(value) == Some(crate::mir::MirType::I1) {
-        return 1;
-    }
-    if func.value_ty(value) == Some(crate::mir::MirType::I160) {
-        return 160;
+    if let Some(bits) = func.value_ty(value).and_then(MirType::integer_bits)
+        && bits < 256
+    {
+        return func.value_u256(value).map_or(bits, |constant| constant.bit_len() as u32);
     }
     if let Some(constant) = func.value_u256(value) {
         return constant.bit_len() as u32;
@@ -175,7 +214,13 @@ pub(in crate::mir::transform) fn max_bits_with_args(
         }
         InstKind::Mul(a, b) => {
             let a = bits(a);
-            if a == 256 { 256 } else { (a + bits(b)).min(256) }
+            let b = bits(b);
+            match (a, b) {
+                (0, _) | (_, 0) => 0,
+                (1, _) => b,
+                (_, 1) => a,
+                _ => (a + b).min(256),
+            }
         }
         InstKind::Shl(amount, value) => match shift(amount) {
             Some(256) => 0,
@@ -261,6 +306,10 @@ impl generated::Context for RuleContext<'_> {
             .find(|&&(operand, _)| operand == value)
             .map(|&(_, op)| op)
             .or_else(|| defining_kind(self.func, value).map(InstKind::op))
+            .filter(|op| {
+                self.narrow_integer_bits(op).is_none()
+                    || matches!(op, Op::Eq { .. } | Op::Ne { .. })
+            })
             .map(|op| canonical_operands(self.func, op))
     }
 
@@ -351,6 +400,11 @@ impl generated::Context for RuleContext<'_> {
 
     fn has_self_balance(&mut self) -> bool {
         self.evm_version.has_self_balance()
+    }
+
+    fn integer_imm(&mut self, bits: u32, value: U256) -> Value {
+        let ty = MirType::Int(std::num::NonZeroU32::new(bits).unwrap());
+        self.func.alloc_value(MirValue::Immediate(Immediate::for_type(Some(ty), value)))
     }
 
     fn imm(&mut self, value: U256) -> Value {

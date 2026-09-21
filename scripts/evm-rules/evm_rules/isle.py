@@ -149,8 +149,53 @@ class Context:
         )
         self.fresh_id = 0
         self.memory = MemoryAddresses(self)
+        self.integer_width = None
+        self.matching_integer = False
 
     def operation(self, name, args):
+        if self.integer_width is not None:
+            comparisons = {"Eq", "Ne", "Lt", "Gt", "SLt", "SGt"}
+            arithmetic = {
+                "Add",
+                "Sub",
+                "Mul",
+                "Div",
+                "Mod",
+                "And",
+                "Or",
+                "Xor",
+                "Shl",
+                "Shr",
+                "Sar",
+            }
+            opcode = name.removeprefix("Op.")
+            if not name.startswith("Op.") or opcode not in comparisons | arithmetic:
+                raise Unsupported(f"unmodeled narrow integer operation: {name}")
+            width = self.integer_width
+            shift = Expr("sub", (Expr.const(256), width))
+            mask = Expr("shr", (shift, Expr.const(MASK)))
+            if self.matching_integer:
+                self.assumptions.extend(
+                    z3.ULE(self.model.eval(arg), self.model.eval(mask)) for arg in args
+                )
+            if opcode in {"SLt", "SGt", "Sar"}:
+                args = [
+                    arg
+                    if opcode == "Sar" and index == 0
+                    else Expr("sar", (shift, Expr("shl", (shift, arg))))
+                    for index, arg in enumerate(args)
+                ]
+            self.integer_width = None
+            try:
+                result = self.operation(name, args)
+            finally:
+                self.integer_width = width
+            return (
+                result
+                if opcode in comparisons | {"Div", "Mod", "And", "Or", "Xor", "Shr"}
+                else Expr("and", (result, mask))
+            )
+
         if name.startswith("Op.") and name[3:].lower() in CALL_OPERANDS:
             opcode = name[3:].lower()
             declarations = [
@@ -319,6 +364,13 @@ class Context:
         values = [self.constructor(a) for a in args]
         if name in ("object_data_offset", "field_offset", "layout_kind"):
             return self.memory.constructor(name, tuple(values))
+        if name == "integer_imm" and len(values) == 2:
+            if self.integer_width is None or values[0] != self.integer_width:
+                raise Unsupported(
+                    "integer immediate must use the matched integer width"
+                )
+            shift = Expr("sub", (Expr.const(256), self.integer_width))
+            return Expr("and", (values[1], Expr("shr", (shift, Expr.const(MASK)))))
         if name in ("imm", "u256", "resident", "make", "sequence") and len(values) == 1:
             if name == "resident":
                 self.contracts.add(
@@ -447,12 +499,53 @@ class Context:
         if len(parts) < 2:
             raise Unsupported("rule lacks a left or right side")
         root, *inputs = parts[0]
+        if root in ("integer_rewrite", "integer_simplify") and len(inputs) == 2:
+            width_name = inputs.pop()
+            if not isinstance(width_name, str):
+                raise Unsupported("integer width must be a variable")
+
+            def reject_nested_operations(node, depth=0):
+                if isinstance(node, str):
+                    return
+                name, *args = node
+                if name in self.extractors:
+                    params, body = self.extractors[name]
+                    if len(params) != len(args):
+                        raise Unsupported(f"extractor arity: {name}")
+                    reject_nested_operations(
+                        substitute(body, dict(zip(params, args))), depth
+                    )
+                    return
+                if name.startswith("Op."):
+                    if depth:
+                        raise Unsupported(
+                            "nested integer operations need independent widths"
+                        )
+                    depth += 1
+                for arg in args:
+                    reject_nested_operations(arg, depth)
+
+            reject_nested_operations(inputs[0])
+            reject_nested_operations(parts[-1])
+            for clause in parts[1:-1]:
+                reject_nested_operations(clause, 1)
+            self.integer_width = self.fresh()
+            if width_name != "_":
+                self.values[width_name] = self.integer_width
+            width = self.model.eval(self.integer_width)
+            self.assumptions.extend([z3.UGE(width, word(1)), z3.ULE(width, word(255))])
+            self.contracts.add(
+                "integer rules: clean i1..i255 operands and wrapping arithmetic"
+            )
+            root = root.removeprefix("integer_")
         if (
             root not in ("rewrite", "simplify", "stack_rewrite", "sequence_rewrite")
             or len(inputs) != 1
         ):
             raise Unsupported(f"unmodeled root: {root}")
+        self.matching_integer = self.integer_width is not None
         lhs = self.pattern(inputs[0])
+        self.matching_integer = False
         for clause in parts[1:-1]:
             if len(clause) != 3 or clause[0] != "if-let":
                 raise Unsupported("only explicit if-let clauses are supported")

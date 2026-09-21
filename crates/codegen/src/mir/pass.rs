@@ -102,6 +102,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_frame_slots::LowerFrameSlots,
     &lower_evm_shaped::LowerEvmShaped,
     &lower_immutables::LowerImmutables,
+    &lower_integers::LowerIntegers,
     &lower_mcopy::LowerMCopy,
     &lower_abi_encode::LowerAbiEncode,
     &lower_aggregates::LowerAggregates,
@@ -344,6 +345,8 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
     &lower_mcopy::LowerMCopy,
+    // Materialize integer cleanup before word-level extraction and scheduling.
+    &lower_integers::LowerIntegers,
     // Carry proved argument widths across calls before simplifying word masks.
     &call_cleanup::CallCleanup,
     // Shared scalar ABI words and wrapper bodies become one CFG before extraction.

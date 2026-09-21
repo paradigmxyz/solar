@@ -1,6 +1,6 @@
 //@revisions: blocked lowered
 //@[blocked] compile-flags: -Zmir-pipeline=lower-evm-shaped
-//@[lowered] compile-flags: -Zmir-pipeline=lower-mapping-slots,lower-evm-shaped
+//@[lowered] compile-flags: -Zmir-pipeline=lower-mapping-slots,lower-integers,lower-evm-shaped
 //~[blocked]? ERROR: storage slot instruction `storage_array_data_slot` survives the `lowered` phase boundary
 //@[lowered] filecheck: --check-prefix=LOWERED
 @module LowerEvmShapedLegality
@@ -14,4 +14,13 @@ fn @entry() [entry] {
     v1 = sload v0
     mstore 128, v1
     returndata 128, 32
+}
+
+//~[blocked]? ERROR: narrow integer arithmetic instruction `add` survives the `lowered` phase boundary
+//~[blocked]? ERROR: narrow integer arithmetic instruction `slt` survives the `lowered` phase boundary
+fn @boolean_arithmetic(arg0: i1, arg1: i1) -> i1 {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = slt v0, arg1
+    ret v1
 }

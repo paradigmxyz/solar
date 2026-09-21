@@ -12,6 +12,44 @@
       returndata 128, 32
   }
   
+  fn @boolean_arithmetic(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+      v0 = add arg0, arg1
+      v1 = slt v0, arg1
+      ret v1
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (before lower-integers) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (after lower-integers) ===
+  @module LowerEvmShapedLegality
+  fn @entry() [entry] {
+    bb0:
+      mstore 0, 7 !metadata(memory=scratch)
+      v2 = keccak256 0, 32 !metadata(memory=scratch)
+      v1 = sload v2
+      mstore 128, v1
+      returndata 128, 32
+  }
+  
+  fn @boolean_arithmetic(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+-     v0 = add arg0, arg1
+-     v1 = slt v0, arg1
++     v2 = zext i1 arg0 to i256
++     v3 = zext i1 arg1 to i256
++     v4 = add v2, v3
++     v5 = and v4, 1
++     v6 = ne v5, 0
++     v0 = bitcast i1 v6 to i1
++     v7 = zext i1 v0 to i256
++     v8 = sub 0, v7
++     v9 = zext i1 arg1 to i256
++     v10 = sub 0, v9
++     v11 = slt v8, v10
++     v1 = bitcast i1 v11 to i1
+      ret v1
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (before lower-evm-shaped) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_legality.mir (after lower-evm-shaped) ===
   @module LowerEvmShapedLegality
@@ -23,5 +61,22 @@
       v1 = sload v2
       mstore 128, v1
       returndata 128, 32
+  }
+  
+  fn @boolean_arithmetic(arg0: i1, arg1: i1) -> i1 {
+    bb0:
+      v2 = zext i1 arg0 to i256
+      v3 = zext i1 arg1 to i256
+      v4 = add v2, v3
+      v5 = and v4, 1
+      v6 = ne v5, 0
+      v0 = bitcast i1 v6 to i1
+      v7 = zext i1 v0 to i256
+      v8 = sub 0, v7
+      v9 = zext i1 arg1 to i256
+      v10 = sub 0, v9
+      v11 = slt v8, v10
+      v1 = bitcast i1 v11 to i1
+      ret v1
   }
   

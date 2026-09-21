@@ -51,7 +51,7 @@ use solar_ast::{
 };
 use solar_data_structures::{
     index::IndexVec,
-    map::{FxHashMap, StdEntry},
+    map::{FxHashMap, FxHashSet, StdEntry},
 };
 use solar_interface::{
     BytePos, Ident, Result, Session, Span, Symbol, kw, source_map::SourceFile, sym,
@@ -89,6 +89,7 @@ struct Parser<'sess, 'ast> {
     parsed_dispatch_entry: bool,
     function_refs: Vec<PendingFunctionRef>,
     cast_sources: Vec<(ValueId, MirType, Span)>,
+    explicit_results: Vec<InstId>,
     arg_values: Vec<ValueId>,
     block_labels: FxHashMap<u32, BlockLabel>,
     block_order: Vec<BlockId>,
@@ -136,6 +137,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             parsed_dispatch_entry: false,
             function_refs: Vec::new(),
             cast_sources: Vec::new(),
+            explicit_results: Vec::new(),
             arg_values: Vec::new(),
             block_labels: FxHashMap::default(),
             block_order: Vec::new(),
@@ -258,10 +260,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
 
         let mut cast_sources = Vec::new();
+        let mut explicit_results = FxHashSet::default();
         while !self.parser.is_eof() {
             let func = self.parse_function()?;
             let is_dispatch_entry = self.parsed_dispatch_entry;
             let function = module.add_function(func);
+            explicit_results.extend(self.explicit_results.drain(..).map(|inst| (function, inst)));
             cast_sources.extend(self.cast_sources.drain(..).map(|source| (function, source)));
             if is_dispatch_entry {
                 if module.dispatch_entry().is_some() {
@@ -272,7 +276,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             function_refs
                 .extend(self.function_refs.drain(..).map(|reference| (function, reference)));
         }
-        self.resolve_function_refs(&mut module, function_refs)?;
+        self.resolve_function_refs(&mut module, function_refs, &explicit_results)?;
         for (function, (value, ty, span)) in cast_sources {
             if module.functions[function].value_ty(value) != Some(ty) {
                 return Err(self
@@ -363,6 +367,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &self,
         module: &mut Module,
         function_refs: Vec<(FunctionId, PendingFunctionRef)>,
+        explicit_results: &FxHashSet<(FunctionId, InstId)>,
     ) -> PResult<'sess, ()> {
         let mut declarations = FxHashMap::<MangledSymbol, Vec<FunctionId>>::default();
         for (id, function) in module.functions.iter_enumerated() {
@@ -407,10 +412,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             .iter()
             .map(|function| function.return_components().first().copied())
             .collect::<IndexVec<_, _>>();
-        for function in &mut module.functions {
+        for (function_id, function) in module.functions.iter_mut_enumerated() {
             let instructions = function.instructions().collect::<Vec<_>>();
             for &id in &instructions {
                 let instruction = function.inst_mut(id);
+                if explicit_results.contains(&(function_id, id)) {
+                    continue;
+                }
                 if let InstKind::ICall { function: Callee::Function(function), .. } =
                     instruction.kind
                     && instruction.result_ty.is_some()
@@ -436,15 +444,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                                 | MirType::MemPtr
                         ) || matches!(ty, MirType::Int(bits) if bits.get() != 256)
                     };
-                    if instruction.result_ty.is_some_and(non_default) {
+                    if explicit_results.contains(&(function_id, id))
+                        || instruction.result_ty.is_some_and(non_default)
+                    {
                         continue;
                     }
                     let ty = match &instruction.kind {
-                        InstKind::And(a, b) | InstKind::Or(a, b) | InstKind::Xor(a, b)
-                            if function.value_ty(*a) == Some(MirType::I1)
-                                && function.value_ty(*b) == Some(MirType::I1) =>
-                        {
-                            Some(MirType::I1)
+                        kind if kind.op_def().result == super::ResultKind::Integer => {
+                            kind.inferred_result_type(function).filter(|&ty| non_default(ty))
                         }
                         InstKind::Select(_, a, b) => [*a, *b]
                             .into_iter()
@@ -1248,13 +1255,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         builder: &mut FunctionBuilder<'_>,
     ) -> PResult<'sess, ()> {
         let block = builder.current_block();
-        // Optional result: `vN = ...`
+        // Optional result: `vN = ...` or `vN: type = ...`.
+        let mut declared_result = None;
         let result_label = if let TokenKind::Ident(label) = self.parser.token().kind
             && let Some(index) = label.as_str().strip_prefix('v').and_then(|s| s.parse().ok())
-            && self.parser.look_ahead(1).kind == TokenKind::Eq
+            && matches!(self.parser.look_ahead(1).kind, TokenKind::Eq | TokenKind::Colon)
         {
             self.parser.bump();
-            self.parser.bump();
+            if self.parser.eat(TokenKind::Colon) {
+                declared_result = Some(self.parse_type()?);
+            }
+            self.parser.expect(TokenKind::Eq)?;
             Some(index)
         } else {
             None
@@ -1368,6 +1379,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             result_ty = None;
         }
 
+        if declared_result.is_some() && result_ty.is_some() {
+            result_ty = declared_result;
+        }
         let metadata = self.parse_metadata(builder)?;
         let mut inst = Instruction::new(kind, result_ty);
         inst.metadata = metadata;
@@ -1385,6 +1399,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else {
             builder.append_instruction(inst)
         };
+        if declared_result.is_some() {
+            self.explicit_results.push(inst_id);
+        }
         self.finish_function_ref(FunctionRefTarget::Instruction(inst_id));
         if let Some(label) = result_label
             && existing_result.is_none()

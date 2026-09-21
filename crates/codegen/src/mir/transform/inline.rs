@@ -1476,7 +1476,7 @@ fn is_check_wrapper(func: &Function) -> bool {
     }
     let call = match block.instructions.as_slice() {
         [call] => *call,
-        [negation, call] if matches!(func.inst(*negation).kind, InstKind::IsZero(_)) => *call,
+        [negation, call] if func.inst(*negation).kind.zero_test_operand(func).is_some() => *call,
         _ => return false,
     };
     matches!(

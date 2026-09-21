@@ -793,3 +793,64 @@
       (if-let true (u32_lt from to)) (Op.Zext value))
 (rule (rewrite (Op.PtrToInt (inttoptr (and value (integer_bits from))) to))
       (if-let true (u32_lt to from)) (Op.Trunc value to))
+
+;; Width-polymorphic identities. Every constant carries the operand width.
+(decl pure integer_imm (u32 U256) Value)
+(extern constructor integer_imm integer_imm)
+(decl partial integer_simplify (Op u32) Value)
+(decl multi integer_rewrite (Op u32) Op)
+
+;; x + 0 => x, in every integer width.
+(rule (integer_simplify (Op.Add x (zero)) _) x)
+;; x - 0 => x.
+(rule 2 (integer_simplify (Op.Sub x (zero)) _) x)
+;; x - x => 0.
+(rule 1 (integer_simplify (Op.Sub x x) bits) (integer_imm bits (u256 0)))
+;; x * 0 => 0.
+(rule 2 (integer_simplify (Op.Mul _ (zero)) bits) (integer_imm bits (u256 0)))
+;; x * 1 => x.
+(rule 1 (integer_simplify (Op.Mul x (one)) _) x)
+;; x / 1 => x, for unsigned division.
+(rule (integer_simplify (Op.Div x (one)) _) x)
+;; x & x => x.
+(rule 2 (integer_simplify (Op.And x x) _) x)
+;; x & 0 => 0.
+(rule 1 (integer_simplify (Op.And _ (zero)) bits) (integer_imm bits (u256 0)))
+;; x | 0 => x.
+(rule 2 (integer_simplify (Op.Or x (zero)) _) x)
+;; x | x => x.
+(rule 1 (integer_simplify (Op.Or x x) _) x)
+;; x ^ 0 => x.
+(rule 2 (integer_simplify (Op.Xor x (zero)) _) x)
+;; x ^ x => 0.
+(rule 1 (integer_simplify (Op.Xor x x) bits) (integer_imm bits (u256 0)))
+;; x << 0 => x.
+(rule (integer_simplify (Op.Shl (zero) x) _) x)
+;; x >> 0 => x.
+(rule (integer_simplify (Op.Shr (zero) x) _) x)
+;; signed(x) >> 0 => x.
+(rule (integer_simplify (Op.Sar (zero) x) _) x)
+;; x == x => true.
+(rule (integer_simplify (Op.Eq x x) _) (imm_bool true))
+;; x != x => false.
+(rule (integer_simplify (Op.Ne x x) _) (imm_bool false))
+;; x < x => false.
+(rule (integer_simplify (Op.Lt x x) _) (imm_bool false))
+;; x > x => false.
+(rule (integer_simplify (Op.Gt x x) _) (imm_bool false))
+;; signed(x) < signed(x) => false.
+(rule (integer_simplify (Op.SLt x x) _) (imm_bool false))
+;; signed(x) > signed(x) => false.
+(rule (integer_simplify (Op.SGt x x) _) (imm_bool false))
+;; x / 2**k => x >> k; the divisor must fit the integer width.
+(rule (integer_rewrite (Op.Div x (iconst c)) bits)
+    (if-let shift (power_of_two_shift c))
+    (Op.Shr (integer_imm bits shift) x))
+;; x % 2**k => x & (2**k - 1).
+(rule (integer_rewrite (Op.Mod x (iconst c)) bits)
+    (if-let _ (power_of_two_shift c))
+    (Op.And x (integer_imm bits (u256_sub c (u256 1)))))
+;; x * 2**k => x << k, wrapping at the declared width.
+(rule (integer_rewrite (Op.Mul x (iconst c)) bits)
+    (if-let shift (power_of_two_shift c))
+    (Op.Shl (integer_imm bits shift) x))

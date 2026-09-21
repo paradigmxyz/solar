@@ -173,6 +173,9 @@ impl ScalarEvolution {
         loop_data: &Loop,
         value: ValueId,
     ) -> Option<AffineExpr> {
+        if func.value_ty(value) != Some(crate::mir::MirType::I256) {
+            return None;
+        }
         if let Some(expr) = self.expressions.get(&value) {
             return Some(expr.clone());
         }

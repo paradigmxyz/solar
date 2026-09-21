@@ -377,6 +377,9 @@ fn count_phis(
     let index_phi = phis.into_iter().find(|&inst| func.inst_result_value(inst) == Some(index))?;
     let count_phi = phis.into_iter().find(|&inst| inst != index_phi)?;
     let count = func.inst_result_value(count_phi)?;
+    if func.value_ty(count) != Some(crate::mir::MirType::I256) {
+        return None;
+    }
     let exit = count_exit(func, exit, count)?;
     Some((count_phi, index_phi, count, exit))
 }
