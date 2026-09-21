@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use snapbox::{assert_data_eq, str};
 use std::{
     fs,
-    io::{self, Read},
+    io::Read,
     path::Path,
     process::{Command, ExitStatus},
 };
@@ -592,8 +592,15 @@ scenarios:
 fn sha256_path(path: &Path) -> String {
     let mut file = fs::File::open(path).unwrap();
     let mut hasher = Sha256::new();
-    io::copy(&mut file, &mut hasher).unwrap();
-    format!("{:x}", hasher.finalize())
+    let mut buffer = [0; 64 * 1024];
+    loop {
+        let read = file.read(&mut buffer).unwrap();
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    hex::encode(hasher.finalize())
 }
 
 #[test]

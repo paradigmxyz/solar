@@ -4693,6 +4693,7 @@ dependencies = [
  "anyhow",
  "clap",
  "glob",
+ "hex",
  "libc",
  "lsp-types",
  "serde",

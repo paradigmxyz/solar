@@ -1,6 +1,7 @@
 use sha2::{Digest, Sha256};
 use std::{
-    env, fs, io,
+    env, fs,
+    io::Read,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -49,9 +50,19 @@ fn contract_sha256(workspace: &Path, manifest_dir: &Path) -> String {
         hasher.update(relative.to_string_lossy().as_bytes());
         hasher.update([0]);
         hasher.update(length.to_le_bytes());
-        assert_eq!(io::copy(&mut file, &mut hasher).unwrap(), length);
+        let mut buffer = [0; 64 * 1024];
+        let mut total = 0;
+        loop {
+            let read = file.read(&mut buffer).unwrap();
+            if read == 0 {
+                break;
+            }
+            hasher.update(&buffer[..read]);
+            total += read as u64;
+        }
+        assert_eq!(total, length);
     }
-    format!("{:x}", hasher.finalize())
+    hex::encode(hasher.finalize())
 }
 
 fn collect_rust_files(directory: &Path, files: &mut Vec<PathBuf>) {

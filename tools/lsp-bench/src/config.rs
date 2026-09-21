@@ -725,7 +725,7 @@ fn load_yaml<T: for<'de> Deserialize<'de>>(path: &Path, kind: &str) -> Result<(T
 }
 
 fn sha256_bytes(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    hex::encode(Sha256::digest(bytes))
 }
 
 fn validate_schema(version: u32, kind: &str) -> Result<()> {
