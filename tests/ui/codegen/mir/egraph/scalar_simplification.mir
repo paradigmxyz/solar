@@ -725,3 +725,63 @@ fn @bool_mask(arg0: i1) -> i1 {
     v0 = and arg0, true
     ret v0
 }
+
+// CHECK-LABEL: fn @narrow_shift_roundtrip
+// CHECK: {{^[ +].*}}[[LEFT:v[0-9]+]] = add arg0, arg0
+// CHECK: {{^[ +].*}}[[TAGGED:v[0-9]+]] = or [[LEFT]], i{{[0-9]+}} 1
+// CHECK: {{^[ +].*}}[[RIGHT:v[0-9]+]] = shr i8 1, [[TAGGED]]
+// CHECK: {{^[ +].*}}ret [[RIGHT]]
+fn @narrow_shift_roundtrip(arg0: i8) -> i8 {
+  bb0:
+    v0 = shl i8 1, arg0
+    v1 = or v0, i8 1
+    v2 = shr i8 1, v1
+    ret v2
+}
+
+// CHECK-LABEL: fn @address_shift_roundtrip
+// CHECK: {{^[ +].*}}[[LEFT:v[0-9]+]] = add arg0, arg0
+// CHECK: {{^[ +].*}}[[TAGGED:v[0-9]+]] = or [[LEFT]], i{{[0-9]+}} 1
+// CHECK: {{^[ +].*}}[[RIGHT:v[0-9]+]] = shr i160 1, [[TAGGED]]
+// CHECK: {{^[ +].*}}ret [[RIGHT]]
+fn @address_shift_roundtrip(arg0: i160) -> i160 {
+  bb0:
+    v0 = shl i160 1, arg0
+    v1 = or v0, i160 1
+    v2 = shr i160 1, v1
+    ret v2
+}
+
+// CHECK-LABEL: fn @saturated_narrow_shift_roundtrip
+// CHECK: {{^[ +].*}}ret i8 0
+fn @saturated_narrow_shift_roundtrip(arg0: i8) -> i8 {
+  bb0:
+    v0 = shl i8 8, arg0
+    v1 = or v0, i8 1
+    v2 = shr i8 8, v1
+    ret v2
+}
+
+// CHECK-LABEL: fn @safe_shift_roundtrip
+// CHECK: {{^[ +].*}}[[BOUNDED:v[0-9]+]] = and arg0, 255
+// CHECK: {{^[ +].*}}ret [[BOUNDED]]
+fn @safe_shift_roundtrip(arg0: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 255
+    v1 = shl 248, v0
+    v2 = or v1, 1
+    v3 = shr 248, v2
+    ret v3
+}
+
+// CHECK-LABEL: fn @safe_narrow_shift_roundtrip
+// CHECK: {{^[ +].*}}[[BOUNDED:v[0-9]+]] = and arg0, i8 127
+// CHECK: {{^[ +].*}}ret [[BOUNDED]]
+fn @safe_narrow_shift_roundtrip(arg0: i8) -> i8 {
+  bb0:
+    v0 = and arg0, i8 127
+    v1 = shl i8 1, v0
+    v2 = or v1, i8 1
+    v3 = shr i8 1, v2
+    ret v3
+}

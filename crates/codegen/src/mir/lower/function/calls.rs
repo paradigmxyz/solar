@@ -788,14 +788,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.builder.shl(shift, value);
         }
         let value = self.normalize_dirty_scalar(value, ty);
-        if ty.is_signed()
-            && let Some(bits) = self.builder.func().value_ty(value).and_then(MirType::integer_bits)
-            && bits < 256
-        {
-            self.builder.emit_inst(InstKind::Sext(value, bits, 256), Some(MirType::I256))
-        } else {
-            self.builder.cast_word(value)
-        }
+        raw_scalars::cast_carrier(
+            &mut self.builder,
+            value,
+            types::TypeLowerer::value_layout(ty),
+            MirType::I256,
+        )
     }
 
     pub(super) fn lower_function_call(

@@ -689,7 +689,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.builder.shl(shift, value);
         }
         if !matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::FixedBytes(_))) {
-            return value;
+            let layout = types::TypeLowerer::value_layout(ty);
+            return if matches!(layout, crate::mir::ValueLayout::Int(_)) {
+                raw_scalars::cast_carrier(&mut self.builder, value, layout, MirType::I256)
+            } else {
+                value
+            };
         }
         if let Some(value) = self.lower_fixed_bytes_literal(ty, expr) {
             return value;

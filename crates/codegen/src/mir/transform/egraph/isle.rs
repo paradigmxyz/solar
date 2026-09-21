@@ -157,41 +157,37 @@ pub(in crate::mir::transform) fn max_bits_with_args(
     depth: u32,
     argument_bits: &impl Fn(ArgIdx) -> u32,
 ) -> u32 {
-    if let Some(bits) = func.value_ty(value).and_then(MirType::integer_bits)
-        && bits < 256
-    {
-        return func.value_u256(value).map_or(bits, |constant| constant.bit_len() as u32);
-    }
+    let width = func.value_ty(value).and_then(MirType::integer_bits).unwrap_or(256).min(256);
     if let Some(constant) = func.value_u256(value) {
         return constant.bit_len() as u32;
     }
     if let MirValue::Arg(index) = func.value(value) {
-        return argument_bits(*index);
+        return argument_bits(*index).min(width);
     }
     if depth == 0 {
-        return 256;
+        return width;
     }
-    let Some(kind) = defining_kind(func, value) else { return 256 };
+    let Some(kind) = defining_kind(func, value) else { return width };
     if let Some(definition) = kind.evm_opcode().and_then(op::definition)
         && definition.result_bits < 256
     {
-        return u32::from(definition.result_bits);
+        return u32::from(definition.result_bits).min(width);
     }
     let bits = |value| max_bits_with_args(func, value, depth - 1, argument_bits);
     let shift = |shift| func.value_u256(shift).map(|shift| shift.min(U256::from(256)).to::<u32>());
     match *kind {
-        InstKind::Zext(value) | InstKind::Bitcast(value) => bits(value),
+        InstKind::Zext(value) | InstKind::Bitcast(value) | InstKind::Trunc(value, _) => bits(value),
         InstKind::And(a, b) => {
             let a = bits(a);
             if a == 0 { 0 } else { a.min(bits(b)) }
         }
         InstKind::Or(a, b) | InstKind::Xor(a, b) | InstKind::Select(_, a, b) => {
             let a = bits(a);
-            if a == 256 { 256 } else { a.max(bits(b)) }
+            if a == width { width } else { a.max(bits(b)) }
         }
         InstKind::Add(a, b) => {
             let a = bits(a);
-            if a >= 255 { 256 } else { (a.max(bits(b)) + 1).min(256) }
+            if a >= width - 1 { width } else { (a.max(bits(b)) + 1).min(width) }
         }
         InstKind::Mul(a, b) => {
             let a = bits(a);
@@ -200,17 +196,17 @@ pub(in crate::mir::transform) fn max_bits_with_args(
                 (0, _) | (_, 0) => 0,
                 (1, _) => b,
                 (_, 1) => a,
-                _ => (a + b).min(256),
+                _ => (a + b).min(width),
             }
         }
         InstKind::Shl(amount, value) => match shift(amount) {
-            Some(256) => 0,
-            Some(amount) => (bits(value) + amount).min(256),
-            None => 256,
+            Some(amount) if amount >= width => 0,
+            Some(amount) => (bits(value) + amount).min(width),
+            None => width,
         },
         InstKind::Shr(amount, value) => match shift(amount) {
             Some(amount) => bits(value).saturating_sub(amount),
-            None => 256,
+            None => width,
         },
         InstKind::Div(value, divisor) => match func.value_u256(divisor) {
             Some(divisor) if divisor.is_zero() => 0,
@@ -223,19 +219,20 @@ pub(in crate::mir::transform) fn max_bits_with_args(
         },
         InstKind::Phi(ref incoming) => {
             if incoming.is_empty() {
-                return 256;
+                return width;
             }
             let mut widest = 0;
             for &(_, value) in incoming {
                 widest = widest.max(bits(value));
-                if widest == 256 {
+                if widest == width {
                     break;
                 }
             }
             widest
         }
-        _ => 256,
+        _ => width,
     }
+    .min(width)
 }
 
 /// Returns whether `value` is always below `bound`.

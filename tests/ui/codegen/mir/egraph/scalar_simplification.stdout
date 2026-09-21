@@ -636,3 +636,52 @@
 +     ret arg0
   }
   
+  fn @narrow_shift_roundtrip(arg0: i8) -> i8 {
+    bb0:
+-     v0 = shl i8 1, arg0
++     v0 = add arg0, arg0
+      v1 = or v0, i8 1
+      v2 = shr i8 1, v1
+      ret v2
+  }
+  
+  fn @address_shift_roundtrip(arg0: i160) -> i160 {
+    bb0:
+-     v0 = shl i160 1, arg0
++     v0 = add arg0, arg0
+      v1 = or v0, i160 1
+      v2 = shr i160 1, v1
+      ret v2
+  }
+  
+  fn @saturated_narrow_shift_roundtrip(arg0: i8) -> i8 {
+    bb0:
+-     v0 = shl i8 8, arg0
+-     v1 = or v0, i8 1
+-     v2 = shr i8 8, v1
+-     ret v2
++     ret i8 0
+  }
+  
+  fn @safe_shift_roundtrip(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 255
+-     v1 = shl 248, v0
++     v1 = shl 248, arg0
+      v2 = or v1, 1
+-     v3 = shr 248, v2
+-     ret v3
++     ret v0
+  }
+  
+  fn @safe_narrow_shift_roundtrip(arg0: i8) -> i8 {
+    bb0:
+      v0 = and arg0, i8 127
+-     v1 = shl i8 1, v0
++     v1 = add arg0, arg0
+      v2 = or v1, i8 1
+-     v3 = shr i8 1, v2
+-     ret v3
++     ret v0
+  }
+  

@@ -603,13 +603,12 @@
 ;; _ << shift => 0, when shift >= 256
 (rule 1 (simplify (Op.Shl (iconst shift) _)) (if-let true (u256_ge shift (word_bits))) (imm (u256 0)))
 
-;; (address << shift | constant) >> shift => address
-;; No address bits are lost, and constant fits below the shift.
-(rule 30 (simplify (Op.Shr (iconst shift) (bor (shl (iconst shift) address) (iconst constant))))
-      (if-let true (u256_lt shift 97))
+;; (value << shift | constant) >> shift => value
+;; No value bits are lost at the operation's width, and constant fits below the shift.
+(rule 30 (simplify (Op.Shr (iconst shift) (bor (shl (iconst shift) value) (iconst constant))))
       (if-let true (u256_is_zero (u256_shr shift constant)))
-      (if-let true (masks_clean_address (u256_from_limbs 18446744073709551615 18446744073709551615 4294967295 0) address))
-      address)
+      (if-let true (mask_covers (u256_shr shift (u256_max)) value))
+      value)
 
 ;; value >> shift => 0, when shift removes every possible set bit of value
 (rule 5 (simplify (Op.Shr (iconst shift) value)) (if-let true (shifted_out shift value)) (imm (u256 0)))

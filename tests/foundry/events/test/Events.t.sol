@@ -31,6 +31,27 @@ contract EventsTest {
         events = new Events();
     }
 
+    function test_EmitSignedDynamic() public {
+        vm.recordLogs();
+        events.emitSignedDynamic();
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        require(logs[0].topics.length == 2);
+        require(logs[0].topics[1] == keccak256(abi.encode(type(uint256).max)));
+    }
+
+    function test_EmitSignedScalar() public {
+        vm.recordLogs();
+        events.emitSignedScalar();
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        require(logs[0].topics.length == 3);
+        require(logs[0].topics[1] == bytes32(type(uint256).max));
+        require(logs[0].topics[2] == bytes32(type(uint256).max));
+        require(logs[0].data.length == 32);
+        require(abi.decode(logs[0].data, (int256)) == -1);
+    }
+
     function test_EmitSimple() public {
         vm.expectEmit(false, false, false, true);
         emit SimpleEvent(42);
