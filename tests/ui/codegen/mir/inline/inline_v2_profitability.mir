@@ -66,10 +66,11 @@ fn @multi_return_callee(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @tiny_stateful_caller{{[( ]}}
-// A stateful helper as small as the internal-call protocol it replaces is
-// still cloned; the storage writes repeat in order at each call site.
-// CHECK: + sstore 0, arg0
-// CHECK: + sstore 0, arg1
+// A shared stateful helper stays a call: the clone replaces only the scalar
+// call transfers, and measured clones of memory- and storage-writing helpers
+// at one-shot sites grew code without a gas benefit.
+// CHECK: {{^ +}}icall @tiny_stateful_callee, arg0
+// CHECK: {{^ +}}icall @tiny_stateful_callee, arg1
 fn @tiny_stateful_caller(arg0: i256, arg1: i256) {
   bb0:
     icall fn5, arg0

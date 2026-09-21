@@ -662,6 +662,35 @@ impl MirInliner {
                     }
                 }
 
+                if std::env::var_os("SOLAR_INLINE_LOG").is_some() {
+                    let caller_name = module.function(caller_id).name;
+                    let callee_name = module.function(site.callee).name;
+                    eprintln!(
+                        "INLINE-DECISION mode={} caller={:?} callee={:?} sites={} loop_depth={} counted={} loop_execs={} inst={} blocks={} bytes={} peak={:?} nested={} memwrite={} storwrite={} refret={} single={}",
+                        match self.mode {
+                            InlineMode::Normal => "normal",
+                            InlineMode::TinyLeaves => "tiny-leaves",
+                            InlineMode::ConstantLeaves => "constant-leaves",
+                            InlineMode::SingleUse => "single-use",
+                            InlineMode::HotLeaves => "hot-leaves",
+                        },
+                        caller_name,
+                        callee_name,
+                        call_count,
+                        site.loop_depth,
+                        site.loop_counted,
+                        site.loop_executions,
+                        summary.instruction_count,
+                        summary.block_count,
+                        summary.scalar_code_size,
+                        summary.phi_stack_peak,
+                        summary.nested_calls,
+                        summary.has_memory_write,
+                        summary.has_storage_write,
+                        summary.has_reference_return,
+                        call_count == 1,
+                    );
+                }
                 let callee = module.function(site.callee).clone();
                 let old_size =
                     summaries.get(&caller_id).map(|s| s.estimated_code_size).unwrap_or_default();
@@ -1000,7 +1029,9 @@ impl MirInliner {
         // bytecode after inlining, so they are allowed through the normal
         // code-growth check below. The memory-write clause applies to the
         // general pass only: the dedicated tiny-leaf and memory-wrapper
-        // adapters admit their own small shapes.
+        // adapters admit their own small shapes. A frameless scalar clone
+        // replaces only the minimal transfers, so its size must compare
+        // against the scalar protocol bytes, not the full staged-call model.
         if !single_call
             && site.loop_depth == 0
             && (summary.has_storage_write
@@ -1009,8 +1040,12 @@ impl MirInliner {
                 || summary.has_log
                 || (self.mode == InlineMode::Normal && summary.has_memory_write))
             && summary.estimated_code_size
-                > estimated_icall_code_size(self.target, site)
-                    + estimated_internal_return_code_size(self.target, summary, site)
+                > if summary.internal_frame_size == 0 {
+                    self.target.scalar_call_protocol().bytes as usize
+                } else {
+                    estimated_icall_code_size(self.target, site)
+                        + estimated_internal_return_code_size(self.target, summary, site)
+                }
         {
             return false;
         }
@@ -1028,6 +1063,23 @@ impl MirInliner {
         site: CallSite,
         single_call: bool,
     ) -> bool {
+        if std::env::var_os("SOLAR_INLINE_LOG").is_some() {
+            eprintln!(
+                "INLINE-COST mode={} est={} scalar={} removed_est={} loop_execs={} saved_protocol={}",
+                match self.mode {
+                    InlineMode::Normal => "normal",
+                    InlineMode::TinyLeaves => "tiny-leaves",
+                    InlineMode::ConstantLeaves => "constant-leaves",
+                    InlineMode::SingleUse => "single-use",
+                    InlineMode::HotLeaves => "hot-leaves",
+                },
+                summary.estimated_code_size,
+                summary.scalar_code_size,
+                estimated_icall_code_size(self.target, site),
+                site.loop_executions,
+                estimated_icall_savings(self.target, site, summary),
+            );
+        }
         if self.mode == InlineMode::Normal {
             return self.target.scalar_inline_profitable(
                 summary.scalar_code_size,
@@ -1056,11 +1108,28 @@ impl MirInliner {
         let loop_executions = if !self.target.optimization().is_gas() {
             1
         } else if self.mode == InlineMode::HotLeaves && site.loop_depth > 0 && !site.loop_counted {
-            Self::UNCOUNTED_LOOP_EXECUTIONS
+            // An uncounted loop's trip count is a guess, so stateful clones
+            // must pay for their deposit without assuming repetition:
+            // measured clones of memory- or storage-writing helpers at
+            // uncounted sites grew code without a gas benefit.
+            if summary.has_memory_write || summary.has_storage_write {
+                1
+            } else {
+                Self::UNCOUNTED_LOOP_EXECUTIONS
+            }
         } else {
             site.loop_executions
         };
-        let execution_savings = u128::from(estimated_icall_savings(self.target, site, summary))
+        // A frameless scalar clone saves only the minimal call and return
+        // transfers: the full icall model over-credits argument and frame
+        // staging the backend never emits for these bodies, and its loop
+        // multiplier would double-count the executions below.
+        let per_invocation_savings = if summary.internal_frame_size == 0 {
+            u128::from(self.target.scalar_call_protocol().gas)
+        } else {
+            u128::from(estimated_icall_savings(self.target, site, summary))
+        };
+        let execution_savings = per_invocation_savings
             .saturating_mul(u128::from(site.profile_executions.unwrap_or(
                 self.expected_executions_per_deployment.min(Target::DEFAULT_EXPECTED_EXECUTIONS),
             )))
