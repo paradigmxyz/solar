@@ -10,5 +10,11 @@ error: codegen rewrite does not support this oversized fixed-array materializati
 LL │         (target, target) = (source, source);
    ╰╴                                    ━━━━━━
 
-error: aborting due to 2 previous errors
+error: codegen rewrite does not support this oversized fixed-array materialization yet
+   ╭▸ ROOT/tests/ui/codegen/lowering/storage_oversized_copy.sol:LL:CC
+   │
+LL │         target = source;
+   ╰╴                 ━━━━━━
+
+error: aborting due to 3 previous errors
 
