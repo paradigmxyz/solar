@@ -1,0 +1,113 @@
+// === ROOT/tests/ui/safe-solar/abi/encodeinto/unsafe.sol:Unsafe ===
+@module Unsafe
+@phase lowered
+fn @payload() [selector=0x63fd6252, abi_wrapper, pure] {
+  bb0:
+    v13 = calldataload 4
+    v14 = shr 160, v13
+    v15 = eq v14, 0
+    jumpi v15, bb2, bb1
+  bb1:
+    revert 0, 0
+  bb2:
+    v43 = mload 64 !metadata(memory=scratch)
+    v44 = add v43, 128
+    v45 = lt v44, v43
+    v46 = gt v44, 0xffffffffffffffff
+    v47 = or v45, v46
+    jumpi v47, bb4, bb3
+  bb3:
+    mstore 64, v44 !metadata(memory=scratch)
+    v49 = calldatasize
+    calldatacopy v43, v49, 128
+    mstore v43, 68
+    v7 = add v43, 32
+    mstore v7, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v9 = add v7, 4
+    mstore v9, arg0
+    v10 = add v7, 36
+    mstore v10, arg1
+    v23 = ne v43, 0
+    v24 = zext i1 v23 to i256
+    v25 = mul v24, 68
+    v27 = add v25, 31
+    v29 = and v27, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v31 = add v7, v29
+    mstore v31, 0
+    v33 = add v7, 32
+    mcopy v33, v7, v25
+    mstore v43, 32
+    mstore v7, v25
+    v37 = add v29, 64
+    returndata v43, v37
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @short() [selector=0xb2d29f33, abi_wrapper, pure] {
+  bb0:
+    v13 = calldataload 4
+    v14 = shr 160, v13
+    v15 = eq v14, 0
+    jumpi v15, bb2, bb1
+  bb1:
+    revert 0, 0
+  bb2:
+    v43 = mload 64 !metadata(memory=scratch)
+    v44 = add v43, 96
+    v45 = lt v44, v43
+    v46 = gt v44, 0xffffffffffffffff
+    v47 = or v45, v46
+    jumpi v47, bb4, bb3
+  bb3:
+    mstore 64, v44 !metadata(memory=scratch)
+    v49 = calldatasize
+    calldatacopy v43, v49, 96
+    mstore v43, 36
+    v7 = add v43, 32
+    mstore v7, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v9 = add v7, 4
+    mstore v9, arg0
+    v10 = add v7, 36
+    mstore v10, arg1
+    v23 = ne v43, 0
+    v24 = zext i1 v23 to i256
+    v25 = mul v24, 36
+    v27 = add v25, 31
+    v29 = and v27, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v31 = add v7, v29
+    mstore v31, 0
+    v33 = add v7, 32
+    mcopy v33, v7, v25
+    mstore v43, 32
+    mstore v7, v25
+    v37 = add v29, 64
+    returndata v43, v37
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 68
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr 224, v6
+    switch v7, default bb1, [0x63fd6252 => bb3, 0xb2d29f33 => bb4]
+  bb4:
+    tail_call @short
+  bb3:
+    tail_call @payload
+  bb1:
+    revert 0, 0
+}
