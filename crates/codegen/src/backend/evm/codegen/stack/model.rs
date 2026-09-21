@@ -8,7 +8,7 @@ use smallvec::SmallVec;
 
 /// Legacy DUP/SWAP reach used by bounded planning and calling conventions.
 #[allow(dead_code)]
-pub(crate) const MAX_STACK_ACCESS: usize = 16;
+pub(crate) const LEGACY_STACK_ACCESS_LIMIT: usize = 16;
 
 /// Maximum total stack depth for EVM.
 #[allow(dead_code)]

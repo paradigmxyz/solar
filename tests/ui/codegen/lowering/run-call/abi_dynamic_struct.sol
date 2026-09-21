@@ -1,6 +1,7 @@
 //@ filecheck:
 // CHECK: @module
-//@ codegen-matrix: standard
+//@ codegen-matrix: standard amsterdam
+//@[amsterdam] compile-flags: -O gas --evm-version amsterdam
 //@ run-call: SharedArrayEncoding::sharedArrayEncoding => 1, 2, 9, 2, 2
 //@ run-call: init (0x000000000000000000000000000000000000beef, 7, "name", 0x0102), 0x0000000000000000000000000000000000000003 => 10
 //@ run-call: tail (0x000000000000000000000000000000000000beef, 7, "name", 0x0102) => 0x02

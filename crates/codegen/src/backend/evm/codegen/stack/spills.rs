@@ -2,10 +2,10 @@
 
 use super::super::{
     BlockId, CfgInfo, CopyDest, CopySource, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function,
-    FunctionId, FxHashMap, FxHashSet, IndexVec, InstKind, Liveness, MAX_STACK_ACCESS, OnceCell,
-    OptimizationMode, ParallelCopy, ScheduledOp, SmallVec, SpillSlot, SpillStore, StackOp,
-    StdEntry, Terminator, U256, Value, ValueId, cross_block_values, index_vec, ir,
-    is_cross_block_recomputable_kind, is_rematerializable_leaf, op, rematerializable_nullary_value,
+    FunctionId, FxHashMap, FxHashSet, IndexVec, InstKind, Liveness, OnceCell, OptimizationMode,
+    ParallelCopy, ScheduledOp, SmallVec, SpillSlot, SpillStore, StackOp, StdEntry, Terminator,
+    U256, Value, ValueId, cross_block_values, index_vec, ir, is_cross_block_recomputable_kind,
+    is_rematerializable_leaf, op, rematerializable_nullary_value,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1267,7 +1267,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     }
                     panic!("resident stack argument {operand:?} was lost before its final use")
                 });
-                assert!(depth < MAX_STACK_ACCESS, "resident stack argument exceeded DUP16 reach");
+                assert!(
+                    depth < self.stack_access_limit(),
+                    "resident stack argument exceeded DUP reach"
+                );
                 self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
             }
         }

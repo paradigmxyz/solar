@@ -2,7 +2,7 @@
 
 use super::super::{
     ArgIdx, DenseBitSet, EvmCodegen, EvmMemoryLayout, FunctionId, FxHashMap, GlobalStackPlan,
-    IndexVec, InstKind, LazyStackArgPlan, MAX_STACK_ACCESS, Module, OptimizationMode,
+    IndexVec, InstKind, LEGACY_STACK_ACCESS_LIMIT, LazyStackArgPlan, Module, OptimizationMode,
     StackReturnPlan, StaticCallAbi, StaticCallEntry, Terminator, ValueId, index_vec,
 };
 use crate::mir::Callee;
@@ -133,7 +133,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 && !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
                 && !self.disabled_stack_only_functions.contains(func_id)
                 && !self.recursive_frame_functions.contains(func_id)
-                && (1..=MAX_STACK_ACCESS).contains(&arity)
+                && (1..=LEGACY_STACK_ACCESS_LIMIT).contains(&arity)
                 && has_return
                 && has_consistent_returns
             {
@@ -330,7 +330,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // The tail-call emitter shuffles the selected tuple into an exact
             // entry layout, so a mask beyond DUP16/SWAP16 reach could never be
             // constructed.
-            if !mask.is_empty() && mask.count() <= MAX_STACK_ACCESS {
+            if !mask.is_empty() && mask.count() <= LEGACY_STACK_ACCESS_LIMIT {
                 masks.insert(func_id, mask);
             }
         }

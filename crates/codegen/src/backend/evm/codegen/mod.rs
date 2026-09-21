@@ -14,9 +14,9 @@
 
 use self::{
     stack::{
-        MAX_STACK_ACCESS, OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, SpillSlot,
-        StackScheduler, TargetSlot, cross_block_values, is_cross_block_recomputable_kind,
-        is_rematerializable_leaf,
+        LEGACY_STACK_ACCESS_LIMIT, OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp,
+        SpillSlot, StackScheduler, TargetSlot, cross_block_values,
+        is_cross_block_recomputable_kind, is_rematerializable_leaf,
         layout::{
             GlobalStackPlan, StackPhiBranch, StackPhiEdge, StackPhiPlan, planned_entry_carries,
         },
@@ -1096,10 +1096,10 @@ RETURN
             let function = &module.functions[function];
             let liveness = Liveness::compute(function);
             codegen.scheduler.stack.push(dest);
-            for _ in 0..MAX_STACK_ACCESS - 2 {
+            for _ in 0..LEGACY_STACK_ACCESS_LIMIT - 2 {
                 codegen.scheduler.stack.push_unknown();
             }
-            assert_eq!(codegen.scheduler.stack.find(dest), Some(MAX_STACK_ACCESS - 2));
+            assert_eq!(codegen.scheduler.stack.find(dest), Some(LEGACY_STACK_ACCESS_LIMIT - 2));
 
             codegen.emit_data_copy(
                 function,
@@ -1111,7 +1111,7 @@ RETURN
                 1,
             );
 
-            assert_eq!(codegen.scheduler.stack.find(dest), Some(MAX_STACK_ACCESS - 2));
+            assert_eq!(codegen.scheduler.stack.find(dest), Some(LEGACY_STACK_ACCESS_LIMIT - 2));
         });
     }
 
@@ -1320,11 +1320,11 @@ RETURN
         let value = ValueId::from_usize(0);
         let call = InstKind::ICall {
             function: Callee::Function(FunctionId::from_usize(0)),
-            args: vec![value; MAX_STACK_ACCESS].into(),
+            args: vec![value; LEGACY_STACK_ACCESS_LIMIT].into(),
         };
         assert_eq!(
-            EvmCodegen::instruction_transient_growth(&call, MAX_STACK_ACCESS),
-            MAX_STACK_ACCESS
+            EvmCodegen::instruction_transient_growth(&call, LEGACY_STACK_ACCESS_LIMIT),
+            LEGACY_STACK_ACCESS_LIMIT
         );
 
         let add = InstKind::Add(value, value);
@@ -1351,15 +1351,18 @@ RETURN
         let mut function = Function::new(Ident::DUMMY);
         let join = function.alloc_block();
         let mut phi = StackPhiPlan::default();
-        phi.entries.insert(join, (0..MAX_STACK_ACCESS).map(ValueId::from_usize).collect());
+        phi.entries.insert(join, (0..LEGACY_STACK_ACCESS_LIMIT).map(ValueId::from_usize).collect());
         let resident = GlobalStackPlan {
-            entries: FxHashMap::from_iter([(join, vec![ValueId::from_usize(MAX_STACK_ACCESS)])]),
+            entries: FxHashMap::from_iter([(
+                join,
+                vec![ValueId::from_usize(LEGACY_STACK_ACCESS_LIMIT)],
+            )]),
             aliases: FxHashMap::default(),
             terminal_sensitive: true,
         };
 
         assert!(!phi.merge_resident(&function, &resident));
-        assert_eq!(phi.entries[&join].len(), MAX_STACK_ACCESS);
+        assert_eq!(phi.entries[&join].len(), LEGACY_STACK_ACCESS_LIMIT);
     }
 
     #[test]
