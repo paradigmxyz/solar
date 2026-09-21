@@ -77,6 +77,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &storage_promotion::StorageScalarPromotion,
     &loop_opt::Licm,
     &check_elim::CheckElim,
+    &checked_aggregate::CheckedAggregate,
     &check_elim::LateCheckElim,
     &check_elim::ImmutableCheckElim,
     &jump_threading::JumpThreading,
@@ -386,6 +387,8 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
 static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     &GasOnly::new(cse::FmpCse),
     &const_fold::ConstFold,
+    // Combine only the checks left after immutable and physical-memory range proofs.
+    &GasOnly::new(checked_aggregate::CheckedAggregate),
     &cfg_simplify::BranchSimplify,
     // Reconstruct old induction values on exits before selecting physical stack order.
     &loop_exit_remat::LoopExitRemat,

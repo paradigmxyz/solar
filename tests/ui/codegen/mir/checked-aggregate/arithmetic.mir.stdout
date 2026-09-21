@@ -1,0 +1,229 @@
+// === ROOT/tests/ui/codegen/mir/checked-aggregate/arithmetic.sol:CheckedAggregation ===
+@module CheckedAggregation
+types:
+  struct0: {i256, i256}
+
+fn @stored() -> i256 [selector=0xe582dd31, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @direct(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xbd860ce1, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_add u256, v0, arg2
+    ret v1
+}
+
+fn @temporary(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x4ed1c950, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_add u256, v0, arg2
+    ret v1
+}
+
+fn @mixed(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x505a3b6b, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_mul u256, v0, arg2
+    v2 = checked_sub u256, v1, arg3
+    ret v2
+}
+
+fn @narrow(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x95bc1f78, pure, abi_params=[u8, u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
+  bb0:
+    v0 = and arg0, 255
+    v1 = and arg1, 255
+    v2 = checked_add u8, v0, v1
+    v3 = and arg2, 255
+    v4 = checked_mul u8, v2, v3
+    ret v4
+}
+
+fn @signed(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xba8027f2, pure, abi_params=[i8, i8, i8], abi_returns=[word<i8>], abi_return_params=[i8]] {
+  bb0:
+    v0 = signextend 0, arg0
+    v1 = signextend 0, arg1
+    v2 = checked_add i8, v0, v1
+    v3 = signextend 0, arg2
+    v4 = checked_mul i8, v2, v3
+    ret v4
+}
+
+fn @negated(arg0: i256, arg1: i256) -> i256 [selector=0x36c06a51, pure, abi_params=[i8, i8], abi_returns=[word<i8>], abi_return_params=[i8]] {
+  bb0:
+    v0 = signextend 0, arg0
+    v1 = checked_sub i8, 0, v0
+    v2 = signextend 0, arg1
+    v3 = checked_add i8, v1, v2
+    ret v3
+}
+
+fn @longChain(arg0: i256) -> i256 [selector=0x3d97f1de, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_add u256, arg0, arg0
+    v1 = checked_add u256, v0, arg0
+    v2 = checked_add u256, v1, arg0
+    v3 = checked_add u256, v2, arg0
+    v4 = checked_add u256, v3, arg0
+    v5 = checked_add u256, v4, arg0
+    v6 = checked_add u256, v5, arg0
+    v7 = checked_add u256, v6, arg0
+    ret v7
+}
+
+fn @independent(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0x706c1ae5, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_add u256, arg2, arg3
+    v2 = insert_value struct0, undef struct0, 0, v0
+    v3 = insert_value struct0, v2, 1, v1
+    ret v3
+}
+
+fn @divisionBoundary(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x5482a87c, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_div u256, v0, arg2
+    v2 = checked_add u256, v1, arg1
+    ret v2
+}
+
+fn @effectBoundary(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x8d4854f1, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    sstore 0, v0 !metadata(storage=slot(0))
+    v1 = ne arg2, 0
+    icall require<short_string>, v1, 8, 0x626f756e64617279000000000000000000000000000000000000000000000000
+    v2 = checked_add u256, v0, arg2
+    ret v2
+}
+
+fn @tree(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x7a79cea7, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_add u256, arg2, arg3
+    v2 = checked_add u256, v0, v1
+    ret v2
+}
+
+fn @reused(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x3c347757, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_add u256, arg2, v0
+    v2 = checked_add u256, v1, v0
+    ret v2
+}
+
+fn @subtract(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x7f9b8dd4, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_sub u256, arg0, arg1
+    v1 = checked_sub u256, v0, arg2
+    ret v1
+}
+
+fn @narrowRecovered(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x82f9c71c, pure, abi_params=[u8, u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
+  bb0:
+    v0 = and arg0, 255
+    v1 = and arg1, 255
+    v2 = checked_add u8, v0, v1
+    v3 = and arg2, 255
+    v4 = checked_sub u8, v2, v3
+    ret v4
+}
+
+fn @signedRecovered(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdbf85fc8, pure, abi_params=[i8, i8, i8], abi_returns=[word<i8>], abi_return_params=[i8]] {
+  bb0:
+    v0 = signextend 0, arg0
+    v1 = signextend 0, arg1
+    v2 = checked_add i8, v0, v1
+    v3 = signextend 0, arg2
+    v4 = checked_sub i8, v2, v3
+    ret v4
+}
+
+fn @multiply(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb3a9b5f6, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_mul u256, arg0, arg1
+    v1 = checked_mul u256, v0, arg2
+    ret v1
+}
+
+fn @remainderBoundary(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa83dff84, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_rem u256, v0, arg2
+    v2 = checked_add u256, v1, arg1
+    ret v2
+}
+
+fn @reverseDivisionBoundary(arg0: i256, arg1: i256) -> i256 [selector=0x923523f9, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_div u256, arg0, arg1
+    v1 = checked_add u256, v0, arg0
+    v2 = checked_add u256, v1, arg0
+    ret v2
+}
+
+fn @powerBoundary(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x7a3ccf6a, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_pow u256, v0, arg2
+    v2 = checked_add u256, v1, arg1
+    ret v2
+}
+
+fn @uint128Chain(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd313d8b0, pure, abi_params=[u128, u128, u128], abi_returns=[word<u128>], abi_return_params=[u128]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffff
+    v1 = and arg1, 0xffffffffffffffffffffffffffffffff
+    v2 = checked_add u128, v0, v1
+    v3 = and arg2, 0xffffffffffffffffffffffffffffffff
+    v4 = checked_sub u128, v2, v3
+    ret v4
+}
+
+fn @int128Chain(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xda30a46e, pure, abi_params=[i128, i128, i128], abi_returns=[word<i128>], abi_return_params=[i128]] {
+  bb0:
+    v0 = signextend 15, arg0
+    v1 = signextend 15, arg1
+    v2 = checked_add i128, v0, v1
+    v3 = signextend 15, arg2
+    v4 = checked_sub i128, v2, v3
+    ret v4
+}
+
+fn @uint248Chain(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x13edc818, pure, abi_params=[u248, u248, u248], abi_returns=[word<u248>], abi_return_params=[u248]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v2 = checked_add u248, v0, v1
+    v3 = and arg2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v4 = checked_sub u248, v2, v3
+    ret v4
+}
+
+fn @int248Chain(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x89dda843, pure, abi_params=[i248, i248, i248], abi_returns=[word<i248>], abi_return_params=[i248]] {
+  bb0:
+    v0 = signextend 30, arg0
+    v1 = signextend 30, arg1
+    v2 = checked_add i248, v0, v1
+    v3 = signextend 30, arg2
+    v4 = checked_sub i248, v2, v3
+    ret v4
+}
+
+fn @uint256Chain(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb75d2130, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_sub u256, v0, arg2
+    ret v1
+}
+
+fn @int256Chain(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x2b34092b, pure, abi_params=[i256, i256, i256], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    v0 = checked_add i256, arg0, arg1
+    v1 = checked_sub i256, v0, arg2
+    ret v1
+}

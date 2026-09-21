@@ -41,6 +41,7 @@ contract TupleAssignBranchLeak {
     // CHECK: push 2
     // CHECK: add
     // CHECK: lt
+    // CHECK-NEXT: or
     // CHECK-NEXT: push [[OVERFLOW]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: swap 2

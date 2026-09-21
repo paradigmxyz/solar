@@ -552,6 +552,9 @@ TEST_CASES: Sequence[TestCase] = (
             GasCall("shared-first", "first(uint256)", ("17",)),
             GasCall("shared-second", "second(uint256)", ("23",)),
             GasCall("shared-third", "third(uint256)", ("31",)),
+            GasCall(
+                "checked-multiply", "generic(bool,uint256)", ("true", "3"), repeat=2
+            ),
         ),
         runtime_checks=(
             RuntimeCheck(

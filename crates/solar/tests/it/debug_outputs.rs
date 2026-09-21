@@ -421,3 +421,22 @@ fn ethdebug_omits_unresolved_library_operands() {
     }
     assert!(unresolved > 0);
 }
+
+#[test]
+fn checked_aggregation_debug_outputs_are_bytecode_neutral() {
+    let source = "../../codegen/mir/checked-aggregate/arithmetic.sol";
+    for mode in ["gas", "size"] {
+        let baseline = compile_json(&[source, "-O", mode, "--emit=bin,bin-runtime"]);
+        let debug = compile_json(&[
+            source,
+            "-O",
+            mode,
+            "--emit=bin,bin-runtime,ethdebug,ethdebug-runtime,srcmap,srcmap-runtime",
+        ]);
+        for (name, contract) in baseline["contracts"].as_object().unwrap() {
+            for field in ["bin", "bin-runtime"] {
+                assert_eq!(contract[field], debug["contracts"][name][field], "{mode}: {field}");
+            }
+        }
+    }
+}

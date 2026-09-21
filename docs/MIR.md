@@ -132,7 +132,15 @@ Return signatures come from the callee. Expansion adds no runtime call overhead.
 ABI encoding/decoding, aggregate copies, memory-object accesses, abstract
 allocations, checked arithmetic, packed encoding, concatenation, and precompiles follow this
 approach. `lower-arithmetic` expands checked word operations and exponentiation
-loops. Loop analysis recognizes checked unsigned word recurrences and affine
+loops. After all lowering and check elimination, `checked-aggregate`
+combines bounded chains of branches to one failure target in gas mode. It keeps
+every predicate and crosses only pure scalar work in single-predecessor blocks
+with at most four live nonconstant values at each removed check.
+Effects, joins, loops, failure phis, and different failure targets stop aggregation.
+The pass does not match arithmetic formulas or panic codes; shared checks
+deliberately drop their debug location.
+
+Loop analysis recognizes checked unsigned word recurrences and affine
 expressions without removing their checks. When a checked update must stay live,
 strength reduction adds at most one scaled address counter; extra plain-add or
 per-field counters can cost more than the arithmetic they replace. LICM also checks

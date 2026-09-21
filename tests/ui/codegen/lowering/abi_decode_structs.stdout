@@ -266,44 +266,43 @@ fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
     v20 = mload v14
     v22 = add v20, 1
     v23 = eq v22, 0
-    jumpi v23, bb4, bb5
-  bb5:
     v24 = shl 5, v22
     v26 = shr 5, v24
     v30 = ne v26, v22
-    jumpi v30, bb4, bb6
-  bb6:
+    v71 = or v23, v30
+    jumpi v71, bb4, bb5
+  bb5:
     v65 = mload 64 !metadata(memory=scratch)
     v66 = add v65, v24
     v67 = lt v66, v65
     v68 = gt v66, 0xffffffffffffffff
     v69 = or v67, v68
-    jumpi v69, bb4, bb12
-  bb12:
+    jumpi v69, bb4, bb11
+  bb11:
     mstore 64, v66 !metadata(memory=scratch)
     mstore v65, v20
     v32 = shl 5, v20
     v34 = shr 5, v32
     v38 = ne v34, v20
-    jumpi v38, bb4, bb7
-  bb7:
+    jumpi v38, bb4, bb6
+  bb6:
     v39 = sub v5, v15
     v40 = shr 5, v39
     v41 = gt v20, v40
-    jumpi v41, bb1, bb8
+    jumpi v41, bb1, bb7
+  bb7:
+    jump bb8
   bb8:
-    jump bb9
-  bb9:
-    v42 = phi [bb8: v20], [bb10: v48]
-    v43 = phi [bb8: v15], [bb10: v49]
-    v44 = phi [bb8: 0], [bb10: v50]
+    v42 = phi [bb7: v20], [bb9: v48]
+    v43 = phi [bb7: v15], [bb9: v49]
+    v44 = phi [bb7: 0], [bb9: v50]
     v45 = gt v42, 0
-    jumpi v45, bb10, bb11
-  bb11:
+    jumpi v45, bb9, bb10
+  bb10:
     v1 = mload v65
     mstore 128, v1
     returndata 128, 32
-  bb10:
+  bb9:
     v46 = icall @decode_memory_type, v43, v15, v5
     v47 = ptrtoint memptr v46 to i256
     v57 = add v65, 32
@@ -313,7 +312,7 @@ fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
     v48 = sub v42, 1
     v49 = add v43, 32
     v50 = add v44, 1
-    jump bb9
+    jump bb8
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

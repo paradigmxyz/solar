@@ -18,7 +18,7 @@ bb3 [cold]:
   push 0
   push 0
   revert
-bb25 [cold]:
+bb22 [cold]:
   push 0x4e487b71
   push 0
   mstore
@@ -43,7 +43,7 @@ bb4:
   calldataload
   dup 2
   lt
-  push bb25
+  push bb22
   jumpi
   push 68
   calldataload
@@ -52,7 +52,7 @@ bb4:
   swap 1
   dup 2
   lt
-  push bb25
+  push bb22
   jumpi
   push 100
   calldataload
@@ -61,7 +61,7 @@ bb4:
   swap 1
   dup 2
   lt
-  push bb25
+  push bb22
   jumpi
   push 132
   calldataload
@@ -70,7 +70,7 @@ bb4:
   swap 1
   dup 2
   lt
-  push bb25
+  push bb22
   jumpi
   push 164
   calldataload
@@ -79,7 +79,7 @@ bb4:
   swap 1
   dup 2
   lt
-  push bb25
+  push bb22
   jumpi
   push 196
   calldataload
@@ -88,7 +88,7 @@ bb4:
   swap 1
   dup 2
   lt
-  push bb25
+  push bb22
   jumpi
   push 228
   calldataload
@@ -97,7 +97,7 @@ bb4:
   swap 1
   dup 2
   lt
-  push bb25
+  push bb22
   jumpi
   push 260
   calldataload
@@ -106,7 +106,7 @@ bb4:
   swap 1
   dup 2
   lt
-  push bb25
+  push bb22
   jumpi
   push 292
   calldataload
@@ -115,7 +115,7 @@ bb4:
   swap 1
   dup 2
   lt
-  push bb25
+  push bb22
   jumpi
   push 324
   calldataload
@@ -124,7 +124,7 @@ bb4:
   swap 1
   dup 2
   lt
-  push bb25
+  push bb22
   jumpi
   push 356
   calldataload
@@ -133,7 +133,7 @@ bb4:
   swap 1
   dup 2
   lt
-  push bb25
+  push bb22
   jumpi
   push 388
   calldataload
@@ -142,7 +142,7 @@ bb4:
   swap 1
   dup 2
   lt
-  push bb25
+  push bb22
   jumpi
   push 420
   calldataload
@@ -151,7 +151,7 @@ bb4:
   swap 1
   dup 2
   lt
-  push bb25
+  push bb22
   jumpi
   push 452
   calldataload
@@ -160,7 +160,7 @@ bb4:
   swap 1
   dup 2
   lt
-  push bb25
+  push bb22
   jumpi
   push 484
   calldataload
@@ -169,7 +169,7 @@ bb4:
   swap 1
   dup 2
   lt
-  push bb25
+  push bb22
   jumpi
   push 516
   calldataload
@@ -178,34 +178,31 @@ bb4:
   swap 1
   dup 2
   lt
-  push bb25
-  jumpi
   push 548
   calldataload
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb25
-  jumpi
+  or
   push 580
   calldataload
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb25
-  jumpi
+  or
   push 612
   calldataload
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
-  push bb25
+  or
+  push bb22
   jumpi
   push 128
   mstore
