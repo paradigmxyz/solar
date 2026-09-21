@@ -1,5 +1,8 @@
 //! Merge profitable suffixes of machine-level terminal blocks.
 //!
+//! Do not schedule sharing in modules containing `PC`: a shared suffix would collapse distinct
+//! instruction-position observations into one site.
+//!
 //! The pass groups blocks by their machine terminator and indexes representative
 //! tails in reverse. This finds each block's longest shared suffix without
 //! comparing it with every earlier block. A single edge map indexes `(node, instruction)` pairs,
@@ -42,7 +45,7 @@ use super::{
     cfg_simplify::is_direct_jump_label,
     utils::{
         FreshLabels, MachineInstKey, instruction_size_lower_bound, is_split_point,
-        is_terminal_boundary,
+        is_terminal_boundary, observes_instruction_position,
     },
 };
 use crate::{
@@ -63,7 +66,7 @@ impl EvmPass for TailMerge {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        merge_tails(gcx, module)
+        !observes_instruction_position(module) && merge_tails(gcx, module)
     }
 }
 

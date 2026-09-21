@@ -53,6 +53,12 @@ The e-graph explores bounded alternatives and uses a bounded optimistic phi
 analysis. Repeating a pass is therefore most useful after another pass exposes
 new work. An outer repetition also resets PRE's per-invocation safeguards.
 
+Instruction-position observations also constrain sharing. Terminal deduplication
+and tail merging skip modules containing `PC`, so otherwise identical bodies keep
+distinct observation sites. The position fixture branches between two sites and
+returns their values; both survive the default pipeline. Absolute offsets remain
+subject to code layout.
+
 The baseline EVM IR pipeline contains two structural sweeps. Early and final
 peephole/CFG modes differ, and constant packing and expression reordering run late
 to preserve sharing opportunities. An outer loop can put finalized code back
@@ -158,30 +164,31 @@ both pass comparison with solc, including return data, logs, and normalized stat
 Forty debug-output pairs across Paris/Osaka and gas/size modes produce identical
 creation and runtime bytecode with and without ethdebug.
 
-
 ## Compiler-time tradeoff
 
-Matching debug builds take 3.00% longer by geometric mean across the nine
+Matching debug builds take 1.17% longer by geometric mean across the nine
 whole-project inputs. Each result is the median of three single-compile samples,
 collected in alternating baseline/candidate order after this investigation's
-other builds and benchmarks finished. The host is shared; these samples do not
-establish a release-build cost or a statistical confidence interval.
+other builds and benchmarks finished. Both revisions were rebuilt with
+`cargo build -p solar-compiler --bin solar` in the same isolated worktree and
+shared target directory. The host is shared; these samples do not establish a
+release-build cost or a statistical confidence interval.
 
 | Project | Baseline median | Candidate median | Change |
 | --- | ---: | ---: | ---: |
-| seaport-1.6-project | 89.364 s | 94.224 s | +5.44% |
-| v4-core-project | 11.308 s | 12.095 s | +6.97% |
-| morpho-blue-project | 9.792 s | 10.087 s | +3.01% |
-| openzeppelin-5.6.1-project | 11.577 s | 11.858 s | +2.43% |
-| solady-0.1.26-project | 20.545 s | 21.112 s | +2.76% |
-| forge-std-1.16.1-project | 6.432 s | 6.510 s | +1.21% |
-| prb-math-4.1.1-project | 3.802 s | 3.883 s | +2.11% |
-| solmate-6-project | 8.793 s | 9.084 s | +3.31% |
-| solarray-a547630-project | 0.544 s | 0.544 s | -0.04% |
+| seaport-1.6-project | 82.561 s | 80.705 s | -2.25% |
+| v4-core-project | 10.456 s | 10.756 s | +2.86% |
+| morpho-blue-project | 8.860 s | 9.051 s | +2.15% |
+| openzeppelin-5.6.1-project | 10.437 s | 10.571 s | +1.28% |
+| solady-0.1.26-project | 18.654 s | 18.922 s | +1.44% |
+| forge-std-1.16.1-project | 5.846 s | 5.892 s | +0.79% |
+| prb-math-4.1.1-project | 3.453 s | 3.530 s | +2.23% |
+| solmate-6-project | 7.815 s | 8.043 s | +2.93% |
+| solarray-a547630-project | 0.490 s | 0.486 s | -0.77% |
 
 The schedule trades compiler work for smaller generated code and the measured
 size-mode gas reduction. Raw samples and eligibility checks are in
-`final-compile-time/`; no compiler-speed improvement is claimed.
+`matched-compile-time/`; no compiler-speed improvement is claimed.
 
 ## Reproducing the retained schedule
 
@@ -212,4 +219,7 @@ Local evidence is retained under `target/codegen-bench/pass-scheduling/`:
 diffs; `combined-size-final-terminal-tail-project-sizes/` holds the per-contract
 project comparison; `convergence/` records bounded outer-loop behavior;
 `final-debug-neutrality/` and `fuzz-combined-corpus/` hold correctness checks.
-The screen summaries retain rejected schedules and their measurements.
+`pc-guard-full/` and `pc-guard-equivalence.json` confirm that the position guard
+preserves the measured corpus outputs. `pc-runtime.json` checks the two distinct
+position observations in the EVM IR fixture. The screen summaries retain rejected
+schedules and their measurements.
