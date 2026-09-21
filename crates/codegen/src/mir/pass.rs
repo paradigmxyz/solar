@@ -210,7 +210,9 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // check. Unify the dominated reads while object identity is explicit, so
     // load PRE and LICM see one loop-invariant load and the later check passes
     // compare against one bound.
-    &cse::Cse::ObjectLengths,
+    &GasOnly::new(cse::Cse::ObjectLengths),
+    // Size mode also shares scalar expressions before later lowering expands them.
+    &SizeOnly::new(cse::Cse::All),
     &load_pre::LoadPre::All,
     // Element reads of arrays that only ever hold canonical words drop their
     // type masks while the accesses are still semantic and calls explicit.

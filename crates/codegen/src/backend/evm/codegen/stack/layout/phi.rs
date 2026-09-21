@@ -388,8 +388,8 @@ impl<'a> StackPhiPlanner<'a> {
             // is live in carries it. This is the shape of an inner index initialized from an
             // enclosing counter, `j = i`, whose exit still reads `i`.
             //
-            // An outermost loop keeps the dedicated loop planner when a computed source
-            // remains live after the loop: duplicating its identity also carries unrelated
+            // In gas mode, an outermost loop keeps the dedicated loop planner when a computed
+            // source remains live after the loop: duplicating its identity also carries unrelated
             // exit values around short scans. Nested loops still carry enclosing counters.
             // A resident argument has one physical word with no frame fallback, so it cannot
             // be both the phi input and the invariant prefix the argument layout merges below
@@ -409,7 +409,8 @@ impl<'a> StackPhiPlanner<'a> {
                                         && !block.predecessors.contains(&block_id)
                                 }
                                 _ => {
-                                    loop_headers.contains(block_id)
+                                    self.target.optimization().is_gas()
+                                        && loop_headers.contains(block_id)
                                         && !self.loops.iter().any(|outer| {
                                             outer.header != block_id
                                                 && outer.blocks.contains(block_id)
