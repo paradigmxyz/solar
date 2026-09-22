@@ -544,9 +544,16 @@ class PermissionAndCheckoutTests(unittest.TestCase):
             job_permissions("queue-comment"),
             {"issues": "write", "pull-requests": "write"},
         )
-        self.assertEqual(job_permissions("build_base"), {"contents": "read"})
-        self.assertEqual(job_permissions("build_candidate"), {"contents": "read"})
-        self.assertEqual(job_permissions("compute"), {"contents": "read"})
+        self.assertEqual(
+            job_permissions("build_base"), {"contents": "read", "id-token": "write"}
+        )
+        self.assertEqual(
+            job_permissions("build_candidate"),
+            {"contents": "read", "id-token": "write"},
+        )
+        self.assertEqual(
+            job_permissions("compute"), {"contents": "read", "id-token": "write"}
+        )
         self.assertEqual(
             job_permissions("render"),
             {
