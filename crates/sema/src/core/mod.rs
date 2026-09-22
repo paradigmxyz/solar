@@ -107,6 +107,8 @@ pub enum CoreIntrinsic {
     ArrayHasDuplicate,
     /// `WordArrays.sort(a)` for one-word dynamic arrays.
     ArraySort,
+    /// `WordArrays.uniquifySorted(a)` for one-word dynamic arrays.
+    ArrayUniquifySorted,
     /// `Strings.replace(subject, needle, replacement)`.
     StringReplace,
     /// `Strings.indicesOf(subject, needle)`.
@@ -244,6 +246,7 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
             FxHashMap::from_iter([
                 (Symbol::intern("hasDuplicate"), CoreIntrinsic::ArrayHasDuplicate),
                 (Symbol::intern("sort"), CoreIntrinsic::ArraySort),
+                (Symbol::intern("uniquifySorted"), CoreIntrinsic::ArrayUniquifySorted),
             ])
         })),
         "solar:core/v1/Strings.sol" => Some(STRINGS.get_or_init(|| {
