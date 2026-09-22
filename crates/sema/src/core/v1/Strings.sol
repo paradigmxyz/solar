@@ -100,4 +100,65 @@ library Strings {
         }
         return string(out.finish());
     }
+    /// @dev Returns `subject` with each non-overlapping occurrence of `needle`
+    /// replaced by `replacement`.
+    function replace(string memory subject, string memory needle, string memory replacement)
+        internal
+        pure
+        returns (string memory)
+    {
+        bytes memory s = bytes(subject);
+        bytes memory n = bytes(needle);
+        bytes memory r = bytes(replacement);
+        if (n.length > s.length) return subject;
+        if (n.length == 0) {
+            bytes memory expanded = new bytes(s.length + (s.length + 1) * r.length);
+            uint256 o;
+            for (uint256 i; i <= s.length; ++i) {
+                Bytes.copyInto(expanded, o, r, 0, r.length);
+                o += r.length;
+                if (i < s.length) expanded[o++] = s[i];
+            }
+            return string(expanded);
+        }
+        uint256 count;
+        for (uint256 i; i + n.length <= s.length;) {
+            if (_matchAt(s, n, i)) {
+                ++count;
+                i += n.length;
+            } else {
+                ++i;
+            }
+        }
+        bytes memory out = new bytes(s.length + count * r.length - count * n.length);
+        uint256 at;
+        uint256 copied;
+        uint256 o;
+        while (at + n.length <= s.length) {
+            if (_matchAt(s, n, at)) {
+                Bytes.copyInto(out, o, s, copied, at - copied);
+                o += at - copied;
+                Bytes.copyInto(out, o, r, 0, r.length);
+                o += r.length;
+                at += n.length;
+                copied = at;
+            } else {
+                ++at;
+            }
+        }
+        Bytes.copyInto(out, o, s, copied, s.length - copied);
+        return string(out);
+    }
+
+    function _matchAt(bytes memory subject, bytes memory needle, uint256 at)
+        private
+        pure
+        returns (bool)
+    {
+        for (uint256 i; i < needle.length; ++i) {
+            if (subject[at + i] != needle[i]) return false;
+        }
+        return true;
+    }
+
 }

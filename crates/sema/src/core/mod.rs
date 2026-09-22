@@ -107,6 +107,8 @@ pub enum CoreIntrinsic {
     ArrayHasDuplicate,
     /// `WordArrays.sort(a)` for one-word dynamic arrays.
     ArraySort,
+    /// `Strings.replace(subject, needle, replacement)`.
+    StringReplace,
     /// `Revert.raw(data)`: revert with exactly `data`.
     RevertRaw,
     /// `Hash.keccak256Range(b, offset, count)`: hash a range where it lies.
@@ -192,6 +194,7 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
     static CALLDATA_BYTES: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static MATH: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     static BASE64: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static STRINGS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
     match path {
         "solar:core/v1/codecs/Base64.sol" => Some(BASE64.get_or_init(|| {
             FxHashMap::from_iter([
@@ -234,6 +237,9 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (Symbol::intern("hasDuplicate"), CoreIntrinsic::ArrayHasDuplicate),
                 (Symbol::intern("sort"), CoreIntrinsic::ArraySort),
             ])
+        })),
+        "solar:core/v1/Strings.sol" => Some(STRINGS.get_or_init(|| {
+            FxHashMap::from_iter([(Symbol::intern("replace"), CoreIntrinsic::StringReplace)])
         })),
         "solar:core/v1/Revert.sol" => Some(
             REVERT.get_or_init(|| FxHashMap::from_iter([(sym::raw, CoreIntrinsic::RevertRaw)])),
@@ -296,7 +302,7 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 (sym::wrappingMul, CoreIntrinsic::WrappingMul),
             ])
         })),
-        // `Cast`, `Precompiles`, `Buffers`, `Strings` and the codecs are library
+        // `Cast`, `Precompiles`, `Buffers` and the remaining codecs are library
         // code throughout.
         _ => None,
     }
