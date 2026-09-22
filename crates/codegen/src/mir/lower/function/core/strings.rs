@@ -38,6 +38,87 @@ impl FunctionLowerer<'_, '_> {
         ))
     }
 
+    /// Lower both minimal-hex spellings directly into the caller, avoiding an
+    /// internal-call round trip on every conversion.
+    pub(super) fn lower_core_string_minimal_hex_call(
+        &mut self,
+        operands: &[ValueId],
+        prefixed: bool,
+    ) -> Option<ValueId> {
+        let [value] = *operands else { return None };
+        let prefix_length = self.builder.imm(if prefixed { 2 } else { 0 });
+        Some(self.lower_core_string_minimal_hex(value, prefix_length))
+    }
+
+    fn lower_core_string_minimal_hex(&mut self, value: ValueId, prefix_length: ValueId) -> ValueId {
+        // Reserve one fixed region and fill it backwards two digits at a time.
+        // The returned bytes header may start inside the region; the allocation
+        // still owns every possible header, payload, and trailing padding word.
+        let allocation_size = self.builder.imm(160);
+        let allocation = self.builder.alloc_raw(allocation_size, AllocationSemantics::INTERNAL);
+        let end_offset = self.builder.imm(128);
+        let end = self.builder.add(allocation, end_offset);
+        let zero = self.builder.imm(0);
+        self.builder.mstore(end, zero);
+
+        // With the table in the low scratch region, `mload(nibble)` has the
+        // selected ASCII digit as its low byte.
+        let table_address = self.builder.imm(15);
+        let table = self.builder.imm(U256::from_be_slice(b"0123456789abcdef"));
+        self.builder.mstore(table_address, table);
+
+        let entry = self.builder.current_block();
+        let header = self.builder.create_block();
+        let body = self.builder.create_block();
+        let done = self.builder.create_block();
+        self.builder.jump(header);
+
+        self.builder.switch_to_block(header);
+        let x = self.builder.phi(vec![(entry, value)]);
+        let output = self.builder.phi(vec![(entry, end)]);
+        self.builder.jump(body);
+
+        self.builder.switch_to_block(body);
+        let two = self.builder.imm(2);
+        let next_output = self.builder.sub(output, two);
+        let fifteen = self.builder.imm(15);
+        let low_nibble = self.builder.and(x, fifteen);
+        let low_digit = self.builder.mload(low_nibble);
+        let one = self.builder.imm(1);
+        let low_output = self.builder.add(next_output, one);
+        self.builder.mstore8(low_output, low_digit);
+        let four = self.builder.imm(4);
+        let high_nibble = self.builder.shr(four, x);
+        let high_nibble = self.builder.and(high_nibble, fifteen);
+        let high_digit = self.builder.mload(high_nibble);
+        self.builder.mstore8(next_output, high_digit);
+        let eight = self.builder.imm(8);
+        let next_x = self.builder.shr(eight, x);
+        let finished = self.builder.eq_zero(next_x);
+        self.builder.branch(finished, done, header);
+        self.builder.add_phi_incoming(x, body, next_x);
+        self.builder.add_phi_incoming(output, body, next_output);
+
+        self.builder.switch_to_block(done);
+        let cursor = self.builder.phi(vec![(body, next_output)]);
+        let first_word = self.builder.mload(cursor);
+        let first = self.builder.byte(zero, first_word);
+        let ascii_zero = self.builder.imm(48);
+        let leading_zero = self.builder.eq(first, ascii_zero);
+        let leading_zero = self.builder.cast_word(leading_zero);
+        let header_size = self.builder.imm(32);
+        let result = self.builder.sub(cursor, header_size);
+        let common_header = self.builder.add(result, leading_zero);
+        let prefix_word = self.builder.imm(0x3078);
+        self.builder.mstore(common_header, prefix_word);
+        let result = self.builder.sub(common_header, prefix_length);
+        let pair_digits = self.builder.sub(end, cursor);
+        let digits = self.builder.sub(pair_digits, leading_zero);
+        let length = self.builder.add(digits, prefix_length);
+        self.builder.mstore(result, length);
+        self.builder.memory_object_from_ptr(result, MemoryObjectKind::Bytes)
+    }
+
     /// Keep the non-overlapping search and exact result allocation shared.
     pub(super) fn lower_core_string_indices_of_call(
         &mut self,
@@ -94,11 +175,8 @@ impl FunctionLowerer<'_, '_> {
         out
     }
 
-    /// Allocate bytes whose length is bounded by an existing bytes object.
-    ///
-    /// The source object's successful allocation proves that adding the bytes
-    /// header and rounding this smaller length cannot overflow.
-    fn alloc_core_bounded_bytes(&mut self, length: ValueId) -> ValueId {
+    /// Allocate bytes after the caller proves that padding cannot overflow.
+    fn alloc_core_proven_bytes(&mut self, length: ValueId) -> ValueId {
         let padding = self.builder.imm(63);
         let mask = self.builder.imm(U256::MAX << 5);
         let size = self.builder.add(length, padding);
@@ -353,7 +431,7 @@ impl FunctionLowerer<'_, '_> {
         self.builder.jump(store_piece);
 
         self.builder.switch_to_block(copied_piece);
-        let piece = self.alloc_core_bounded_bytes(piece_length);
+        let piece = self.alloc_core_proven_bytes(piece_length);
         let destination = self.builder.memory_object_data(piece, bytes);
         let source_address = self.builder.add(source, previous);
         self.builder.mcopy_heap(destination, source_address, piece_length);
