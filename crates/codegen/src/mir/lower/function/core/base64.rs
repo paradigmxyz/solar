@@ -12,10 +12,10 @@
 //! `mstore8` gathers the characters in scratch and they load back as one
 //! word. Up to 24 bytes, the word kernel runs once without a loop: it spreads
 //! eight groups into 32 sextet lanes and maps them all to ASCII in parallel.
-//! Longer inputs call the shared wide encoder, which loops the kernel over
-//! loads that end at the next 24 input bytes and clears the bytes past the
-//! input. In every shape the characters past the input's groups become '='
-//! padding, unless it is omitted, and then zero.
+//! Longer inputs loop the kernel in the same body over loads that end at the
+//! next 24 input bytes, clearing the bytes past the input. In every shape the
+//! characters past the input's groups become '=' padding, unless it is
+//! omitted, and then zero.
 //!
 //! Decoding strips padding only when the raw length is a multiple of four,
 //! with one load ending at the last character; a length of one modulo four is
@@ -99,19 +99,6 @@ impl FunctionLowerer<'_, '_> {
         file_safe: ValueId,
         no_padding: ValueId,
     ) -> Option<()> {
-        let ty = MirType::MemoryObject(MemoryObjectKind::Bytes);
-        let wide_helper =
-            self.lazy_helper(Symbol::intern("core_base64_encode_wide"), |this, function| {
-                function.attributes.no_inline = true;
-                let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
-                let input = lowerer.builder.add_param(ty);
-                let file_safe = lowerer.builder.add_param(MirType::I1);
-                let no_padding = lowerer.builder.add_param(MirType::I1);
-                lowerer.builder.set_return_type(ty);
-                let out = lowerer.lower_core_base64_encode_wide(input, file_safe, no_padding);
-                lowerer.builder.ret([out]);
-                Some(())
-            })?;
         let n = self.builder.memory_object_len(input, MemoryObjectKind::Bytes);
         let empty = self.builder.create_block();
         let nonempty = self.builder.create_block();
@@ -145,9 +132,8 @@ impl FunctionLowerer<'_, '_> {
         let out = encode_single_word(&mut self.builder, input, n, file_safe, no_padding);
         self.builder.ret([out]);
 
-        // ret icall core_base64_encode_wide(input, file_safe, no_padding)
         self.builder.switch_to_block(wide);
-        let out = self.builder.icall(wide_helper, vec![input, file_safe, no_padding], ty);
+        let out = self.lower_core_base64_encode_wide(input, file_safe, no_padding);
         self.builder.ret([out]);
         Some(())
     }
