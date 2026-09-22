@@ -1,4 +1,6 @@
 //@ codegen-matrix: standard
+//@ filecheck:
+//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: Derived::check 0x0000000000000000000000000000000000000000 => false
 //@ run-call: Derived::check 0x00000000000000000000000000000000deadbeef => true
 //@ run-call: Derived::freeExternal => 3
@@ -21,11 +23,28 @@ contract Base {
     function ownPrivate() public pure returns (bool) { return authorized(address(0)); }
 }
 
+// CHECK-LABEL: @module Derived
 contract Derived is Base {
+    // CHECK-LABEL: fn @check(
+    // CHECK: icall @[[FREE_AUTH:authorized\.[0-9]+]], arg0
     function check(address caller) public pure returns (bool) { return authorized(caller); }
+    // CHECK-LABEL: fn @freeExternal(
+    // CHECK: icall @[[FREE_EXTERNAL:externalHelper\.[0-9]+]]
     function freeExternal() public pure returns (uint256) { return externalHelper(); }
+    // CHECK-LABEL: fn @inherited(
+    // CHECK: icall @internalHelper
+    // CHECK: icall @publicHelper
     function inherited() public pure returns (uint256) { return internalHelper() + publicHelper(); }
+    // CHECK-LABEL: fn @callExternal(
+    // CHECK: staticcall
     function callExternal() public view returns (uint256) { return this.externalHelper(); }
 }
 
+// CHECK: fn @[[FREE_AUTH]](
+// CHECK-DAG: 0xdeadbeef
+// CHECK-DAG: = eq
+// CHECK: fn @[[FREE_EXTERNAL]]()
+// CHECK: ret 3
+
+// CHECK-LABEL: @module Indirect
 contract Indirect is Derived {}
