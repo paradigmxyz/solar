@@ -80,6 +80,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::Fill => self.lower_core_fill(&operands),
             CoreIntrinsic::Truncate => self.lower_core_truncate(expr, &operands, &parameter_tys),
             CoreIntrinsic::ArrayHasDuplicate => self.lower_core_array_has_duplicate_call(&operands),
+            CoreIntrinsic::ArraySort => self.lower_core_array_sort_call(&operands, &parameter_tys),
             CoreIntrinsic::RevertRaw => self.lower_core_revert_raw(&operands),
             CoreIntrinsic::Keccak256Range => self.lower_core_keccak256_range(&operands),
             CoreIntrinsic::Deploy | CoreIntrinsic::Deploy2 => {
@@ -266,6 +267,327 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(found);
         let true_ = self.builder.imm_bool(true);
         self.builder.ret([true_]);
+    }
+
+    /// Lowers every supported sort overload to one signed or unsigned helper.
+    fn lower_core_array_sort_call(
+        &mut self,
+        operands: &[ValueId],
+        parameter_tys: &[Ty<'gcx>],
+    ) -> Option<ValueId> {
+        let ([input], [array_ty]) = (operands, parameter_tys) else { return None };
+        let TyKind::DynArray(element) = array_ty.peel_refs().kind else { return None };
+        let signed = element.is_signed();
+        let inner_name = Symbol::intern(if signed {
+            "core_array_sort_inner_signed"
+        } else {
+            "core_array_sort_inner"
+        });
+        let inner = self.lazy_helper(inner_name, |this, function| {
+            let helper = *this.cx.state.helpers.get(&inner_name)?;
+            function.attributes.no_inline = true;
+            function.attributes.preserves_array_elements = true;
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            let low = lowerer.builder.add_param(MirType::I256);
+            let high = lowerer.builder.add_param(MirType::I256);
+            lowerer.lower_core_array_sort(helper, signed, low, high);
+            Some(())
+        })?;
+        let entry_name =
+            Symbol::intern(if signed { "core_array_sort_signed" } else { "core_array_sort" });
+        let helper = self.lazy_helper(entry_name, |this, function| {
+            function.attributes.no_inline = true;
+            function.attributes.preserves_array_elements = true;
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            let low = lowerer.builder.add_param(MirType::I256);
+            let high = lowerer.builder.add_param(MirType::I256);
+            lowerer.lower_core_array_sort_entry(inner, signed, low, high);
+            Some(())
+        })?;
+
+        let kind = MemoryObjectKind::DynamicArray;
+        let length = self.builder.memory_object_len(*input, kind);
+        let two = self.builder.imm(2);
+        let small = self.builder.lt(length, two);
+        let sort = self.builder.create_block();
+        let done = self.builder.create_block();
+        self.builder.branch(small, done, sort);
+
+        self.builder.switch_to_block(sort);
+        let low = self.builder.memory_object_data(*input, kind);
+        let low = self.builder.cast(low, MirType::I256);
+        let five = self.builder.imm(5);
+        let bytes = self.builder.shl(five, length);
+        let high = self.builder.add(low, bytes);
+        self.builder.icall_void(helper, vec![low, high]);
+        self.builder.jump(done);
+
+        self.builder.switch_to_block(done);
+        Some(self.builder.imm(U256::ZERO))
+    }
+
+    /// Returns for sorted input, reverses descending input, and sends only a
+    /// genuinely mixed range through quicksort.
+    fn lower_core_array_sort_entry(
+        &mut self,
+        inner: FunctionId,
+        signed: bool,
+        low: ValueId,
+        high: ValueId,
+    ) {
+        let word = self.builder.imm(32);
+        let last = self.builder.sub(high, word);
+        let entry = self.builder.current_block();
+        let ascending_header = self.builder.create_block();
+        let ascending_body = self.builder.create_block();
+        let ascending_next = self.builder.create_block();
+        let descending_start = self.builder.create_block();
+        let descending_header = self.builder.create_block();
+        let descending_body = self.builder.create_block();
+        let descending_next = self.builder.create_block();
+        let mixed = self.builder.create_block();
+        let reverse_header = self.builder.create_block();
+        let reverse_body = self.builder.create_block();
+        let done = self.builder.create_block();
+        self.builder.jump(ascending_header);
+
+        self.builder.switch_to_block(ascending_header);
+        let ascending = self.builder.phi(vec![(entry, last)]);
+        let has_pair = self.builder.gt(ascending, low);
+        self.builder.branch(has_pair, ascending_body, done);
+
+        self.builder.switch_to_block(ascending_body);
+        let previous = self.builder.sub(ascending, word);
+        let previous_value = self.builder.mload(previous);
+        let value = self.builder.mload(ascending);
+        let out_of_order = self.core_sort_lt(value, previous_value, signed);
+        self.builder.branch(out_of_order, descending_start, ascending_next);
+
+        self.builder.switch_to_block(ascending_next);
+        self.builder.jump(ascending_header);
+        self.builder.add_phi_incoming(ascending, ascending_next, previous);
+
+        self.builder.switch_to_block(descending_start);
+        self.builder.jump(descending_header);
+
+        self.builder.switch_to_block(descending_header);
+        let descending = self.builder.phi(vec![(descending_start, last)]);
+        let has_pair = self.builder.gt(descending, low);
+        self.builder.branch(has_pair, descending_body, reverse_header);
+
+        self.builder.switch_to_block(descending_body);
+        let previous = self.builder.sub(descending, word);
+        let previous_value = self.builder.mload(previous);
+        let value = self.builder.mload(descending);
+        let rises = self.core_sort_lt(previous_value, value, signed);
+        self.builder.branch(rises, mixed, descending_next);
+
+        self.builder.switch_to_block(descending_next);
+        self.builder.jump(descending_header);
+        self.builder.add_phi_incoming(descending, descending_next, previous);
+
+        self.builder.switch_to_block(mixed);
+        let header = self.builder.sub(low, word);
+        let length = self.builder.mload(header);
+        let sentinel = self.builder.imm(if signed { U256::ONE << 255 } else { U256::ZERO });
+        self.builder.mstore(header, sentinel);
+        self.builder.icall_void(inner, vec![low, high]);
+        self.builder.mstore(header, length);
+        self.builder.jump(done);
+
+        self.builder.switch_to_block(reverse_header);
+        let left = self.builder.phi(vec![(descending_header, low)]);
+        let right = self.builder.phi(vec![(descending_header, last)]);
+        let more = self.builder.lt(left, right);
+        self.builder.branch(more, reverse_body, done);
+
+        self.builder.switch_to_block(reverse_body);
+        let left_value = self.builder.mload(left);
+        let right_value = self.builder.mload(right);
+        self.builder.mstore(left, right_value);
+        self.builder.mstore(right, left_value);
+        let next_left = self.builder.add(left, word);
+        let next_right = self.builder.sub(right, word);
+        self.builder.jump(reverse_header);
+        self.builder.add_phi_incoming(left, reverse_body, next_left);
+        self.builder.add_phi_incoming(right, reverse_body, next_right);
+
+        self.builder.switch_to_block(done);
+        self.builder.ret([]);
+    }
+
+    /// Emits median-of-three Hoare quicksort with insertion-sort leaves.
+    /// One partition is called recursively and the other is processed by the
+    /// outer loop, bounding helper-frame depth to logarithmic on balanced data.
+    fn lower_core_array_sort(
+        &mut self,
+        helper: FunctionId,
+        signed: bool,
+        initial_low: ValueId,
+        initial_high: ValueId,
+    ) {
+        let entry = self.builder.current_block();
+        let partition_header = self.builder.create_block();
+        let partition = self.builder.create_block();
+        let insertion = self.builder.create_block();
+        self.builder.jump(partition_header);
+
+        self.builder.switch_to_block(partition_header);
+        let low = self.builder.phi(vec![(entry, initial_low)]);
+        let high = self.builder.phi(vec![(entry, initial_high)]);
+        let extent = self.builder.sub(high, low);
+        let threshold = self.builder.imm(13 * 32);
+        let large = self.builder.gt(extent, threshold);
+        self.builder.branch(large, partition, insertion);
+
+        self.builder.switch_to_block(partition);
+        let word = self.builder.imm(32);
+        let six = self.builder.imm(6);
+        let middle_words = self.builder.shr(six, extent);
+        let five = self.builder.imm(5);
+        let middle_offset = self.builder.shl(five, middle_words);
+        let middle = self.builder.add(low, middle_offset);
+        let last = self.builder.sub(high, word);
+        let mut first_value = self.builder.mload(low);
+        let mut middle_value = self.builder.mload(middle);
+        let swap = self.core_sort_lt(middle_value, first_value, signed);
+        let new_first = self.builder.select(swap, middle_value, first_value);
+        let new_middle = self.builder.select(swap, first_value, middle_value);
+        first_value = new_first;
+        middle_value = new_middle;
+        let mut last_value = self.builder.mload(last);
+        let swap = self.core_sort_lt(last_value, middle_value, signed);
+        let new_middle = self.builder.select(swap, last_value, middle_value);
+        let new_last = self.builder.select(swap, middle_value, last_value);
+        middle_value = new_middle;
+        last_value = new_last;
+        let swap = self.core_sort_lt(middle_value, first_value, signed);
+        let new_first = self.builder.select(swap, middle_value, first_value);
+        let new_middle = self.builder.select(swap, first_value, middle_value);
+        first_value = new_first;
+        middle_value = new_middle;
+        self.builder.mstore(low, first_value);
+        self.builder.mstore(middle, middle_value);
+        self.builder.mstore(last, last_value);
+        let initial_left = self.builder.add(low, word);
+        let initial_right = self.builder.sub(last, word);
+        let scan_left = self.builder.create_block();
+        let advance_left = self.builder.create_block();
+        let scan_right = self.builder.create_block();
+        let advance_right = self.builder.create_block();
+        let compare = self.builder.create_block();
+        let exchange = self.builder.create_block();
+        let partition_done = self.builder.create_block();
+        self.builder.jump(scan_left);
+
+        self.builder.switch_to_block(scan_left);
+        let left = self.builder.phi(vec![(partition, initial_left)]);
+        let right_start = self.builder.phi(vec![(partition, initial_right)]);
+        let left_value = self.builder.mload(left);
+        let before_pivot = self.core_sort_lt(left_value, middle_value, signed);
+        self.builder.branch(before_pivot, advance_left, scan_right);
+
+        self.builder.switch_to_block(advance_left);
+        let next_left = self.builder.add(left, word);
+        self.builder.jump(scan_left);
+        self.builder.add_phi_incoming(left, advance_left, next_left);
+        self.builder.add_phi_incoming(right_start, advance_left, right_start);
+
+        self.builder.switch_to_block(scan_right);
+        let right = self.builder.phi(vec![(scan_left, right_start)]);
+        let right_value = self.builder.mload(right);
+        let after_pivot = self.core_sort_lt(middle_value, right_value, signed);
+        self.builder.branch(after_pivot, advance_right, compare);
+
+        self.builder.switch_to_block(advance_right);
+        let next_right = self.builder.sub(right, word);
+        self.builder.jump(scan_right);
+        self.builder.add_phi_incoming(right, advance_right, next_right);
+
+        self.builder.switch_to_block(compare);
+        let ordered = self.builder.lt(left, right);
+        self.builder.branch(ordered, exchange, partition_done);
+
+        self.builder.switch_to_block(exchange);
+        self.builder.mstore(left, right_value);
+        self.builder.mstore(right, left_value);
+        let next_left = self.builder.add(left, word);
+        let next_right = self.builder.sub(right, word);
+        self.builder.jump(scan_left);
+        self.builder.add_phi_incoming(left, exchange, next_left);
+        self.builder.add_phi_incoming(right_start, exchange, next_right);
+
+        self.builder.switch_to_block(partition_done);
+        let split = self.builder.add(right, word);
+        let left_size = self.builder.sub(split, low);
+        let right_size = self.builder.sub(high, split);
+        let left_smaller = self.builder.lt(left_size, right_size);
+        let recurse_left = self.builder.create_block();
+        let recurse_right = self.builder.create_block();
+        self.builder.branch(left_smaller, recurse_left, recurse_right);
+
+        self.builder.switch_to_block(recurse_left);
+        self.builder.icall_void(helper, vec![low, split]);
+        self.builder.jump(partition_header);
+        self.builder.add_phi_incoming(low, recurse_left, split);
+        self.builder.add_phi_incoming(high, recurse_left, high);
+
+        self.builder.switch_to_block(recurse_right);
+        self.builder.icall_void(helper, vec![split, high]);
+        self.builder.jump(partition_header);
+        self.builder.add_phi_incoming(low, recurse_right, low);
+        self.builder.add_phi_incoming(high, recurse_right, split);
+
+        self.builder.switch_to_block(insertion);
+        self.lower_core_array_insertion_sort(signed, low, high);
+    }
+
+    /// Emits insertion sort for the current quicksort leaf.
+    fn lower_core_array_insertion_sort(&mut self, signed: bool, low: ValueId, high: ValueId) {
+        let word = self.builder.imm(32);
+        let initial = self.builder.add(low, word);
+        let preheader = self.builder.current_block();
+        let outer_header = self.builder.create_block();
+        let outer_body = self.builder.create_block();
+        let shift_header = self.builder.create_block();
+        let shift = self.builder.create_block();
+        let place = self.builder.create_block();
+        let done = self.builder.create_block();
+        self.builder.jump(outer_header);
+
+        self.builder.switch_to_block(outer_header);
+        let cursor = self.builder.phi(vec![(preheader, initial)]);
+        let more = self.builder.lt(cursor, high);
+        self.builder.branch(more, outer_body, done);
+
+        self.builder.switch_to_block(outer_body);
+        let key = self.builder.mload(cursor);
+        self.builder.jump(shift_header);
+
+        self.builder.switch_to_block(shift_header);
+        let slot = self.builder.phi(vec![(outer_body, cursor)]);
+        let previous = self.builder.sub(slot, word);
+        let previous_value = self.builder.mload(previous);
+        let out_of_order = self.core_sort_lt(key, previous_value, signed);
+        self.builder.branch(out_of_order, shift, place);
+
+        self.builder.switch_to_block(shift);
+        self.builder.mstore(slot, previous_value);
+        self.builder.jump(shift_header);
+        self.builder.add_phi_incoming(slot, shift, previous);
+
+        self.builder.switch_to_block(place);
+        self.builder.mstore(slot, key);
+        let next = self.builder.add(cursor, word);
+        self.builder.jump(outer_header);
+        self.builder.add_phi_incoming(cursor, place, next);
+
+        self.builder.switch_to_block(done);
+        self.builder.ret([]);
+    }
+
+    fn core_sort_lt(&mut self, lhs: ValueId, rhs: ValueId, signed: bool) -> ValueId {
+        if signed { self.builder.slt(lhs, rhs) } else { self.builder.lt(lhs, rhs) }
     }
 
     /// Packs an intrinsic's results the way a call to `function_id` returns

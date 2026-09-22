@@ -7,6 +7,19 @@ pragma solidity ^0.8.20;
 /// The bodies are portable checked Solidity and define the behavior; Solar
 /// lowers every overload to one shared implementation by module identity.
 library WordArrays {
+    /// @dev Sorts `a` in ascending order.
+    function sort(uint256[] memory a) internal pure {
+        for (uint256 i = 1; i < a.length; ++i) {
+            uint256 value = a[i];
+            uint256 j = i;
+            while (j != 0 && a[j - 1] > value) {
+                a[j] = a[j - 1];
+                --j;
+            }
+            a[j] = value;
+        }
+    }
+
     /// @dev Whether `a` contains the same value at two indices.
     function hasDuplicate(uint256[] memory a) internal pure returns (bool) {
         if (a.length < 2) return false;
@@ -25,6 +38,19 @@ library WordArrays {
             seen[slot] = i + 1;
         }
         return false;
+    }
+
+    /// @dev Sorts `a` in ascending order.
+    function sort(int256[] memory a) internal pure {
+        for (uint256 i = 1; i < a.length; ++i) {
+            int256 value = a[i];
+            uint256 j = i;
+            while (j != 0 && a[j - 1] > value) {
+                a[j] = a[j - 1];
+                --j;
+            }
+            a[j] = value;
+        }
     }
 
     /// @dev Whether `a` contains the same value at two indices.
@@ -47,6 +73,19 @@ library WordArrays {
         return false;
     }
 
+    /// @dev Sorts `a` in ascending order.
+    function sort(address[] memory a) internal pure {
+        for (uint256 i = 1; i < a.length; ++i) {
+            address value = a[i];
+            uint256 j = i;
+            while (j != 0 && a[j - 1] > value) {
+                a[j] = a[j - 1];
+                --j;
+            }
+            a[j] = value;
+        }
+    }
+
     /// @dev Whether `a` contains the same value at two indices.
     function hasDuplicate(address[] memory a) internal pure returns (bool) {
         if (a.length < 2) return false;
@@ -65,6 +104,19 @@ library WordArrays {
             seen[slot] = i + 1;
         }
         return false;
+    }
+
+    /// @dev Sorts `a` in ascending order.
+    function sort(bytes32[] memory a) internal pure {
+        for (uint256 i = 1; i < a.length; ++i) {
+            bytes32 value = a[i];
+            uint256 j = i;
+            while (j != 0 && a[j - 1] > value) {
+                a[j] = a[j - 1];
+                --j;
+            }
+            a[j] = value;
+        }
     }
 
     /// @dev Whether `a` contains the same value at two indices.
