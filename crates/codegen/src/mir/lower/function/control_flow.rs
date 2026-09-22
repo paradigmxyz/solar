@@ -724,11 +724,38 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (true, false) => Some(else_branch.value),
             (false, true) => Some(then_branch.value),
             _ if then_branch.value == else_branch.value => Some(then_branch.value),
-            _ => Some(self.merge_value_phi(vec![
-                (then_branch.block, then_branch.value),
-                (else_branch.block, else_branch.value),
-            ])),
+            _ => Some(self.merge_ternary_phi(
+                vec![
+                    (then_branch.block, then_branch.value),
+                    (else_branch.block, else_branch.value),
+                ],
+                ty,
+            )),
         }
+    }
+
+    fn merge_ternary_phi(
+        &mut self,
+        mut incoming: Vec<(BlockId, ValueId)>,
+        ty: Ty<'gcx>,
+    ) -> ValueId {
+        let layout = types::TypeLowerer::value_layout(ty);
+        if matches!(layout, crate::mir::ValueLayout::Int(_))
+            && incoming.iter().any(|(_, value)| self.dirty_values.contains(value))
+        {
+            let current = self.builder.current_block();
+            for (block, value) in &mut incoming {
+                self.builder.switch_to_block(*block);
+                let dirty = self.dirty_values.contains(value);
+                *value =
+                    raw_scalars::cast_carrier(&mut self.builder, *value, layout, MirType::I256);
+                if dirty {
+                    self.dirty_values.insert(*value);
+                }
+            }
+            self.builder.switch_to_block(current);
+        }
+        self.merge_value_phi(incoming)
     }
 
     fn lower_ternary_value(&mut self, expr: &hir::Expr<'_>, ty: Ty<'gcx>) -> Option<ValueId> {
@@ -806,14 +833,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .value
                 .into_iter()
                 .zip(else_branch.value)
-                .map(|(then, else_)| {
+                .zip(types)
+                .map(|((then, else_), &ty)| {
                     if then == else_ {
                         then
                     } else {
-                        self.merge_value_phi(vec![
-                            (then_branch.block, then),
-                            (else_branch.block, else_),
-                        ])
+                        self.merge_ternary_phi(
+                            vec![(then_branch.block, then), (else_branch.block, else_)],
+                            ty,
+                        )
                     }
                 })
                 .collect(),

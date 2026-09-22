@@ -26,6 +26,12 @@
 //@ run-call: signedCallTuple true => -2
 //@ run-call: signedCallTuple false => -1
 //@ run-call: signedAssemblyComparison => 1
+//@ run-call: signedTernary true => -1, true
+//@ run-call: signedTernary false => 0x1234, false
+//@ run-call: signedTupleTernary true => -2, 1
+//@ run-call: signedTupleTernary false => 0x1234, 2
+//@ run-call: signedUserTernary true => -1
+//@ run-call: signedUserTernary false => 0x1234
 // ported-from: test/libsolidity/semanticTests/viaYul/cleanup/checked_arithmetic.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/cleanup/comparison.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/conversion/implicit_cast_assignment.sol
@@ -109,6 +115,32 @@ contract InlineAssemblyScalarCleanup {
             value := eq(1, 1)
             raw := value
         }
+    }
+
+    function signedTernary(bool choose) external pure returns (int256 raw, bool negative) {
+        int8 dirty;
+        assembly { dirty := 0x1234 }
+        int8 selected = choose ? int8(-1) : dirty;
+        assembly {
+            raw := selected
+            negative := slt(selected, 0)
+        }
+    }
+
+    function signedTupleTernary(bool choose) external pure returns (int256 raw, uint256 other) {
+        int8 dirty;
+        assembly { dirty := 0x1234 }
+        (int8 selected, uint256 companion) =
+            choose ? (int8(-2), uint256(1)) : (dirty, uint256(2));
+        assembly { raw := selected }
+        other = companion;
+    }
+
+    function signedUserTernary(bool choose) external pure returns (int256 raw) {
+        DirtyI8 dirty;
+        assembly { dirty := 0x1234 }
+        DirtyI8 selected = choose ? DirtyI8.wrap(-1) : dirty;
+        assembly { raw := selected }
     }
 
     function dirtySigned() external pure returns (uint256 raw) {
