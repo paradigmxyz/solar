@@ -82,6 +82,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::Truncate => self.lower_core_truncate(expr, &operands, &parameter_tys),
             CoreIntrinsic::ArrayHasDuplicate => self.lower_core_array_has_duplicate_call(&operands),
             CoreIntrinsic::ArraySort => self.lower_core_array_sort_call(&operands, &parameter_tys),
+            CoreIntrinsic::ArrayUniquifySorted => {
+                self.lower_core_array_uniquify_sorted_call(&operands)
+            }
             CoreIntrinsic::StringReplace => self.lower_core_string_replace_call(&operands),
             CoreIntrinsic::StringIndicesOf => self.lower_core_string_indices_of_call(&operands),
             CoreIntrinsic::StringSplit => self.lower_core_string_split_call(&operands),
@@ -277,6 +280,83 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(found);
         let true_ = self.builder.imm_bool(true);
         self.builder.ret([true_]);
+    }
+
+    /// Lowers every supported one-word array overload to one compaction loop.
+    fn lower_core_array_uniquify_sorted_call(&mut self, operands: &[ValueId]) -> Option<ValueId> {
+        let [input] = *operands else { return None };
+        let helper =
+            self.lazy_helper(Symbol::intern("core_array_uniquify_sorted"), |this, function| {
+                function.attributes.no_inline = true;
+                function.attributes.preserves_array_elements = true;
+                let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+                let input = lowerer
+                    .builder
+                    .add_param(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
+                lowerer.lower_core_array_uniquify_sorted(input);
+                Some(())
+            })?;
+        self.builder.icall_void(helper, vec![input]);
+        Some(self.builder.imm(U256::ZERO))
+    }
+
+    /// Compacts adjacent equal words and shortens the array in place.
+    ///
+    /// The store is unconditional: before the first duplicate it stores a word
+    /// back to its own address, and after a duplicate the next distinct word
+    /// overwrites that uncommitted slot. This removes the inner branch without
+    /// changing which elements survive.
+    fn lower_core_array_uniquify_sorted(&mut self, input: ValueId) {
+        let kind = MemoryObjectKind::DynamicArray;
+        let length = self.builder.memory_object_len(input, kind);
+        let two = self.builder.imm(2);
+        let small = self.builder.lt(length, two);
+        let done = self.builder.create_block();
+        let setup = self.builder.create_block();
+        self.builder.branch(small, done, setup);
+
+        self.builder.switch_to_block(done);
+        self.builder.ret([]);
+
+        self.builder.switch_to_block(setup);
+        let data = self.builder.memory_object_data(input, kind);
+        let data = self.builder.cast(data, MirType::I256);
+        let word = self.builder.imm(32);
+        let first = self.builder.add(data, word);
+        let previous = self.builder.mload(data);
+        let five = self.builder.imm(5);
+        let byte_length = self.builder.shl(five, length);
+        let end = self.builder.add(data, byte_length);
+        let header = self.builder.create_block();
+        let body = self.builder.create_block();
+        let finish = self.builder.create_block();
+        self.builder.jump(header);
+
+        self.builder.switch_to_block(header);
+        let read = self.builder.phi(vec![(setup, first)]);
+        let write = self.builder.phi(vec![(setup, first)]);
+        let previous = self.builder.phi(vec![(setup, previous)]);
+        let more = self.builder.lt(read, end);
+        self.builder.branch(more, body, finish);
+
+        self.builder.switch_to_block(body);
+        let value = self.builder.mload(read);
+        let distinct = self.builder.ne(value, previous);
+        let distinct = self.builder.cast_word(distinct);
+        self.builder.mstore(write, value);
+        let advance = self.builder.shl(five, distinct);
+        let next_write = self.builder.add(write, advance);
+        let next_read = self.builder.add(read, word);
+        self.builder.jump(header);
+        self.builder.add_phi_incoming(read, body, next_read);
+        self.builder.add_phi_incoming(write, body, next_write);
+        self.builder.add_phi_incoming(previous, body, value);
+
+        self.builder.switch_to_block(finish);
+        let compacted_bytes = self.builder.sub(write, data);
+        let compacted_length = self.builder.shr(five, compacted_bytes);
+        self.builder.set_memory_object_len(input, compacted_length, kind);
+        self.builder.ret([]);
     }
 
     /// Lowers every supported sort overload to one signed or unsigned helper.
