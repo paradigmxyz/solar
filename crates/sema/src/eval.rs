@@ -1,15 +1,19 @@
 use crate::{builtins::Builtin, hir, ty::Gcx};
 use alloy_primitives::{B256, U256, keccak256};
 use num_bigint::{BigInt, BigUint, Sign};
+use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 use solar_ast::{ElementaryType, LitKind, StrKind, TypeSize};
 use solar_interface::{ByteSymbol, Span, diagnostics::ErrorGuaranteed};
 use std::fmt;
 
+// Use the workspace BigInt version with the generic ratio implementation.
+type BigRational = Ratio<BigInt>;
+
 const RECURSION_LIMIT: usize = 64;
-// Literal arithmetic can temporarily need one bit beyond the EVM word even
-// when its final value fits, most notably `2**256 - 1`.
-const MAX_INTERMEDIATE_BITS: u64 = solar_ast::TypeSize::MAX as u64 + 1;
+// Bound literal arithmetic independently of EVM words to avoid unbounded allocations.
+// Both the numerator and denominator may use this many bits.
+const MAX_INTERMEDIATE_BITS: u64 = 4096;
 
 // TODO: `convertType` for truncating and extending correctly: https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/ConstantEvaluator.cpp#L234
 
@@ -49,7 +53,8 @@ impl<'gcx> Gcx<'gcx> {
     /// Evaluates the given expression as an integer constant without emitting diagnostics.
     pub fn try_eval_const(self, expr: &hir::Expr<'_>) -> Result<&'gcx IntScalar, EvalError> {
         match self.try_eval_const_value(expr)? {
-            ConstValue::Integer(value) => Ok(value),
+            ConstValue::Integer(value) if value.is_integer() => Ok(value),
+            ConstValue::Integer(_) => Err(EE::NonIntegral.into()),
             ConstValue::Bool(_) => Err(EE::UnsupportedExpr.into()),
             ConstValue::String(_) => Err(EE::UnsupportedLiteral.into()),
         }
@@ -209,13 +214,17 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             LitKind::Str(StrKind::Str | StrKind::Unicode, s, _) => Ok(ConstValue::String(s)),
             LitKind::Str(StrKind::Hex, _, _) => Err(EE::UnsupportedLiteral.into()),
             LitKind::Number(n) => Ok(ConstValue::Integer(IntScalar::new(n))),
-            // LitKind::Rational(ratio) => todo!(),
+            LitKind::Rational(ratio) => {
+                Ok(ConstValue::Integer(IntScalar::checked(BigRational::new(
+                    IntScalar::bigint_from_u256(*ratio.numer()),
+                    IntScalar::bigint_from_u256(*ratio.denom()),
+                ))?))
+            }
             LitKind::Address(address) => {
                 Ok(ConstValue::Integer(IntScalar::from_be_bytes(address.as_slice())))
             }
             LitKind::Bool(bool) => Ok(ConstValue::Bool(bool)),
             LitKind::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),
-            _ => Err(EE::UnsupportedLiteral.into()),
         }
     }
 }
@@ -223,7 +232,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
 /// A typed Solidity constant value.
 #[derive(Debug)]
 pub enum ConstValue {
-    /// Integer-like constant value.
+    /// Numeric constant value, which may be fractional until converted to an integer.
     Integer(IntScalar),
     /// Boolean constant value.
     Bool(bool),
@@ -382,22 +391,22 @@ impl IntTy {
     }
 }
 
-/// Represents an integer value for constant evaluation.
+/// An exact rational literal or a typed integer constant.
 #[derive(Debug)]
 pub struct IntScalar {
-    data: BigInt,
+    data: BigRational,
     /// The declared type the value was computed in, if it came from a typed constant.
     ///
-    /// Values built only from literals are unbounded, like solc's rational numbers, and carry no
-    /// type; as soon as a typed constant takes part in the expression, arithmetic is checked
-    /// against the declared type instead of yielding the mathematical result.
+    /// Values built only from literals use exact rational arithmetic (subject to the resource
+    /// limit) and carry no type. As soon as a typed constant takes part in the expression,
+    /// arithmetic is checked against the declared type instead of yielding the mathematical result.
     ty: Option<IntTy>,
 }
 
 impl IntScalar {
     /// Creates a new non-negative integer value.
     pub fn new(data: U256) -> Self {
-        Self { data: Self::bigint_from_u256(data), ty: None }
+        Self { data: BigRational::from_integer(Self::bigint_from_u256(data)), ty: None }
     }
 
     /// Creates a new integer value from a boolean.
@@ -414,11 +423,16 @@ impl IntScalar {
         Self::new(U256::from_be_slice(bytes))
     }
 
-    /// Returns the bit length of the integer value.
+    /// Returns the bit length of the numerator.
     ///
-    /// This is the number of bits needed for the literal type.
+    /// For integral values, this is the number of bits needed for the literal type.
     pub fn bit_len(&self) -> u64 {
-        Self::bits(&self.data)
+        Self::bits(self.data.numer())
+    }
+
+    /// Returns whether the exact value is integral.
+    pub fn is_integer(&self) -> bool {
+        self.data.is_integer()
     }
 
     /// Returns whether the value is negative.
@@ -438,7 +452,10 @@ impl IntScalar {
 
     /// Returns the non-negative integer value as unsigned data.
     pub fn as_u256(&self) -> Option<U256> {
-        let data = self.data.to_biguint()?;
+        if !self.is_integer() {
+            return None;
+        }
+        let data = self.data.numer().to_biguint()?;
         U256::try_from_le_slice(&data.to_bytes_le())
     }
 
@@ -447,8 +464,9 @@ impl IntScalar {
         if let Some(value) = self.as_u256() {
             return value;
         }
-        let magnitude = U256::try_from_le_slice(&self.data.magnitude().to_bytes_le())
-            .expect("constant evaluator keeps integers within 256 bits");
+        assert!(self.is_integer());
+        let magnitude = U256::try_from_le_slice(&self.data.numer().magnitude().to_bytes_le())
+            .expect("integer must fit an EVM word before lowering");
         U256::ZERO.wrapping_sub(magnitude)
     }
 
@@ -461,8 +479,11 @@ impl IntScalar {
         BigInt::from_bytes_be(Sign::Plus, &data.to_be_bytes::<32>())
     }
 
-    fn checked(data: BigInt) -> Result<Self, EE> {
-        if Self::bits(&data) > MAX_INTERMEDIATE_BITS {
+    fn checked(data: impl Into<BigRational>) -> Result<Self, EE> {
+        let data = data.into();
+        if data.numer().bits() > MAX_INTERMEDIATE_BITS
+            || data.denom().bits() > MAX_INTERMEDIATE_BITS
+        {
             return Err(EE::ArithmeticOverflow);
         }
         Ok(Self { data, ty: None })
@@ -473,14 +494,14 @@ impl IntScalar {
     /// An initializer that does not fit its declared type is already a type error at the
     /// declaration, so the value stays untyped instead of reporting a second error here.
     fn typed(mut self, ty: Option<IntTy>) -> Self {
-        self.ty = ty.filter(|ty| ty.contains(&self.data));
+        self.ty = ty.filter(|ty| self.is_integer() && ty.contains(self.data.numer()));
         self
     }
 
     /// Sets the type the value was computed in, rejecting values outside of its range.
     fn retype(mut self, ty: Option<IntTy>) -> Result<Self, EE> {
         if let Some(ty) = ty
-            && !ty.contains(&self.data)
+            && !(self.is_integer() && ty.contains(self.data.numer()))
         {
             return Err(EE::ArithmeticOverflow);
         }
@@ -514,7 +535,10 @@ impl IntScalar {
     }
 
     fn bitop(self, r: Self, f: impl FnOnce(BigInt, BigInt) -> BigInt) -> Result<Self, EE> {
-        Self::checked(f(self.data, r.data))
+        if !self.is_integer() || !r.is_integer() {
+            return Err(EE::UnsupportedBinaryOp);
+        }
+        Self::checked(f(self.data.to_integer(), r.data.to_integer()))
     }
 
     /// Applies the given unary operation to this value.
@@ -528,7 +552,12 @@ impl IntScalar {
             | hir::UnOpKind::PreDec
             | hir::UnOpKind::PostInc
             | hir::UnOpKind::PostDec => return Err(EE::UnsupportedUnaryOp),
-            hir::UnOpKind::Not | hir::UnOpKind::BitNot => Self::checked(!self.data)?,
+            hir::UnOpKind::Not | hir::UnOpKind::BitNot => {
+                if !self.is_integer() {
+                    return Err(EE::UnsupportedUnaryOp);
+                }
+                Self::checked(!self.data.to_integer())?
+            }
             // Negating an unsigned value is not arithmetic that overflows but an operator the
             // operand's type does not have, which is what solc reports for it.
             hir::UnOpKind::Neg if ty.is_some_and(|ty| !ty.signed) => {
@@ -546,7 +575,11 @@ impl IntScalar {
     /// too large for a word has no mobile type at all, and the operator does not apply to it,
     /// which is what solc reports as "Literal too large".
     fn mobile_ty(&self) -> Result<IntTy, EE> {
-        IntTy::narrowest(Self::bits(&self.data), self.is_negative()).ok_or(EE::LiteralTooLarge)
+        if !self.is_integer() {
+            return Err(EE::NonIntegral);
+        }
+        IntTy::narrowest(Self::bits(self.data.numer()), self.is_negative())
+            .ok_or(EE::LiteralTooLarge)
     }
 
     /// Returns the type a literal operand and a typed operand are computed in, if any.
@@ -561,7 +594,7 @@ impl IntScalar {
         Ok(if typed.converts_to(mobile) {
             Some(mobile)
         } else {
-            typed.contains(&literal.data).then_some(typed)
+            typed.contains(literal.data.numer()).then_some(typed)
         })
     }
 
@@ -569,8 +602,8 @@ impl IntScalar {
     ///
     /// Shifts and exponentiation are performed in the left operand's type, every other operation
     /// in the common type of both operands. Two literals stay untyped and keep their exact value up
-    /// to `MAX_INTERMEDIATE_BITS`, a narrower bound than solc's rational arithmetic, and operands
-    /// without a common type stay untyped because the type checker already rejects them.
+    /// to `MAX_INTERMEDIATE_BITS`. Operands without a common type stay untyped because the type
+    /// checker already rejects them.
     ///
     /// A literal paired with a typed operand must first have a mobile type, and the operation is
     /// rejected when it does not. This check comes before the operation because folding retypes
@@ -613,6 +646,13 @@ impl IntScalar {
     /// checked: a result outside of the operation's type is an error, like it is at runtime.
     pub fn binop(self, r: Self, op: hir::BinOpKind) -> Result<Self, EE> {
         let ty = Self::binop_ty(&self, &r, op)?;
+        // Typed integer division truncates toward zero; literal division stays exact.
+        if ty.is_some() && op == hir::BinOpKind::Div {
+            if r.is_zero() {
+                return Err(EE::DivisionByZero);
+            }
+            return Self::checked(self.data.numer() / r.data.numer())?.retype(ty);
+        }
         self.binop_value(r, op)?.retype(ty)
     }
 
@@ -634,18 +674,16 @@ impl IntScalar {
                 }
                 Self::checked(self.data % r.data)?
             }
-            Pow => {
-                if r.is_negative() {
-                    return Err(EE::ArithmeticOverflow);
-                }
-                self.checked_pow(r)?
-            }
+            Pow => self.checked_pow(r)?,
             BitOr => self.bitop(r, |a, b| a | b)?,
             BitAnd => self.bitop(r, |a, b| a & b)?,
             BitXor => self.bitop(r, |a, b| a ^ b)?,
             Shr => {
                 let r = Self::shift_amount(r).ok_or(EE::ArithmeticOverflow)?;
-                Self::checked(self.data >> r)?
+                if !self.is_integer() {
+                    return Err(EE::UnsupportedBinaryOp);
+                }
+                Self::checked(self.data.to_integer() >> r)?
             }
             Shl => self.checked_shl(r)?,
             Sar => return Err(EE::UnsupportedBinaryOp),
@@ -654,6 +692,9 @@ impl IntScalar {
     }
 
     fn checked_shl(self, r: Self) -> Result<Self, EE> {
+        if !self.is_integer() || !r.is_integer() || r.is_negative() {
+            return Err(EE::UnsupportedBinaryOp);
+        }
         if self.data.is_zero() {
             return Ok(self);
         }
@@ -662,30 +703,41 @@ impl IntScalar {
             .ok_or(EE::ArithmeticOverflow)?
             .try_into()
             .map_err(|_| EE::ArithmeticOverflow)?;
-        let bits = Self::bits(&self.data);
+        let bits = Self::bits(self.data.numer());
         if shift > MAX_INTERMEDIATE_BITS.saturating_sub(bits) {
             return Err(EE::ArithmeticOverflow);
         }
-        Self::checked(self.data << usize::try_from(shift).map_err(|_| EE::ArithmeticOverflow)?)
+        Self::checked(
+            self.data.to_integer() << usize::try_from(shift).map_err(|_| EE::ArithmeticOverflow)?,
+        )
     }
 
     fn checked_pow(self, r: Self) -> Result<Self, EE> {
-        if self.data.is_zero() {
-            return Ok(self);
+        if !r.is_integer() {
+            return Err(EE::UnsupportedBinaryOp);
+        }
+        // Exponent zero takes precedence over the zero-base shortcut.
+        if r.is_zero() {
+            return Self::checked(BigInt::one());
+        }
+        if self.is_zero() {
+            return if r.is_negative() { Err(EE::DivisionByZero) } else { Ok(self) };
         }
         if self.data.is_one() {
             return Ok(self);
         }
-        if self.data == BigInt::from(-1) {
-            let exp = r.as_u256().ok_or(EE::ArithmeticOverflow)?;
-            let is_odd = exp.bit(0);
-            return Self::checked(if is_odd { self.data } else { BigInt::one() });
+        if self.data == BigRational::from_integer(BigInt::from(-1)) {
+            return Self::checked(if r.data.numer().bit(0) {
+                BigInt::from(-1)
+            } else {
+                BigInt::one()
+            });
         }
-        let exp = r.as_u256().ok_or(EE::ArithmeticOverflow)?;
-        if exp > U256::from(MAX_INTERMEDIATE_BITS) {
+        let exp: i32 = r.data.to_integer().try_into().map_err(|_| EE::ArithmeticOverflow)?;
+        let bits = self.data.numer().bits().max(self.data.denom().bits());
+        if u64::from(exp.unsigned_abs()) > MAX_INTERMEDIATE_BITS / (bits - 1) {
             return Err(EE::ArithmeticOverflow);
         }
-        let exp = exp.try_into().map_err(|_| EE::ArithmeticOverflow)?;
         Self::checked(self.data.pow(exp))
     }
 }
@@ -695,6 +747,7 @@ pub enum EvalErrorKind {
     RecursionLimitReached,
     ArithmeticOverflow,
     LiteralTooLarge,
+    NonIntegral,
     NegateUnsigned,
     DivisionByZero,
     UnsupportedLiteral,
@@ -715,6 +768,7 @@ impl EvalErrorKind {
         match self {
             Self::RecursionLimitReached => "recursion limit reached",
             Self::ArithmeticOverflow => "arithmetic overflow",
+            Self::NonIntegral => "rational constant is not an integer",
             Self::LiteralTooLarge => "literal is too large for the type of the other operand",
             Self::NegateUnsigned => "cannot apply unary operator `-` to an unsigned type",
             Self::DivisionByZero => "attempted to divide by zero",

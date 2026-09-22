@@ -58,5 +58,77 @@ LL │     uint256 constant ADD = (1 << 256) + S8;
 LL │         uint256[ADD] memory add;
    ╰╴                ━━━
 
-error: aborting due to 9 previous errors
+error: cannot apply builtin operator `>>` to `rational_literal` and `uint256`
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
+   │
+LL │     uint256 constant SHR = (1 << 256) >> ONE;
+   │                            ┬───────── ━━ ─── uint256
+   │                            │
+   ╰╴                           rational_literal
+
+error: cannot apply builtin operator `+` to `rational_literal` and `uint8`
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
+   │
+LL │     uint256 constant ADD = (1 << 256) + S8;
+   │                            ┬───────── ━ ── uint8
+   │                            │
+   ╰╴                           rational_literal
+
+error: cannot apply builtin operator `>>` to `rational_literal` and `uint256`
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
+   │
+LL │ …     uint256[(1 << 256) >> ONE] memory shr;
+   │               ┬───────── ━━ ─── uint256
+   │               │
+   ╰╴              rational_literal
+
+error: cannot apply builtin operator `**` to `rational_literal` and `uint256`
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
+   │
+LL │ …     uint256[(1 << 256) ** ONE] memory pow;
+   │               ┬───────── ━━ ─── uint256
+   │               │
+   ╰╴              rational_literal
+
+error: cannot apply builtin operator `>>` to `rational_literal` and `uint256`
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
+   │
+LL │ …     uint256[(0 - (1 << 256)) >> ONE] memory negativeShr;
+   │               ┬─────────────── ━━ ─── uint256
+   │               │
+   ╰╴              rational_literal
+
+error: cannot apply builtin operator `<<` to `uint256` and `rational_literal`
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
+   │
+LL │ …     uint256[ONE << (1 << 256)] memory shlAmount;
+   │               ┬── ━━ ────────── rational_literal
+   │               │
+   ╰╴              uint256
+
+error: cannot apply builtin operator `+` to `rational_literal` and `uint8`
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
+   │
+LL │ …     uint256[(1 << 256) + S8] memory add;
+   │               ┬───────── ━ ── uint8
+   │               │
+   ╰╴              rational_literal
+
+error: cannot apply builtin operator `-` to `rational_literal` and `uint8`
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
+   │
+LL │ …     uint256[(1 << 256) - S8] memory sub;
+   │               ┬───────── ━ ── uint8
+   │               │
+   ╰╴              rational_literal
+
+error: cannot apply builtin operator `/` to `rational_literal` and `uint8`
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
+   │
+LL │ …     uint256[(1 << 256) / S8] memory div;
+   │               ┬───────── ━ ── uint8
+   │               │
+   ╰╴              rational_literal
+
+error: aborting due to 18 previous errors
 

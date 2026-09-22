@@ -137,6 +137,7 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
             TyKind::Slice(..)
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
+            | TyKind::RationalLiteral
             | TyKind::Tuple(_)
             | TyKind::Mapping(..)
             | TyKind::Super(_)
@@ -262,6 +263,7 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
                 let kind = if utf8 { "utf8" } else { "bytes" };
                 write!(self.buf, "{kind}_string_literal[{}]", size.bytes())
             }
+            TyKind::RationalLiteral => self.buf.write_str("rational_literal"),
             TyKind::IntLiteral(_, size, _) => {
                 write!(self.buf, "int_literal[{}]", size.bits())
             }

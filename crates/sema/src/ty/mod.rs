@@ -1148,9 +1148,7 @@ impl<'gcx> Gcx<'gcx> {
                 {
                     self.mk_ty_misc_err()
                 } else {
-                    self.mk_ty_err(
-                        self.dcx().emit_err(lit.span, "rational literals are not supported"),
-                    )
+                    self.mk_ty(TyKind::RationalLiteral)
                 }
             }
             solar_ast::LitKind::Address(_) => self.types.address,

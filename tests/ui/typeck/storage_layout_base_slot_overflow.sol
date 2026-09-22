@@ -3,7 +3,7 @@
 // ported-from: test/libsolidity/syntaxTests/storageLayoutSpecifier/layout_bitwise_negation_literal.sol
 // ported-from: test/libsolidity/syntaxTests/storageLayoutSpecifier/contract_extends_past_storage_end.sol
 
-contract IntermediateOperationOutOfRange layout at (2**256 + 1) * 2 - 2**256 - 3 {} //~ ERROR: failed to evaluate constant: arithmetic overflow
+contract IntermediateOperationOutOfRange layout at (2**256 + 1) * 2 - 2**256 - 3 {}
 contract OverflowAdd layout at 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF + 1 {} //~ ERROR: base slot of storage layout evaluates to a value outside the range of type `uint256`
 contract OverflowPow layout at 2**256 {} //~ ERROR: base slot of storage layout evaluates to a value outside the range of type `uint256`
 contract BitwiseNegationLiteral layout at ~0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE {} //~ ERROR: base slot of storage layout evaluates to a value outside the range of type `uint256`

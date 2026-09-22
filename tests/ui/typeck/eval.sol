@@ -5,7 +5,7 @@ uint constant rec2 = rec1;
 
 uint constant bigLiteral = 115792089237316195423570985008687907853269984665640564039457584007913129639935;
 
-uint constant fails = 0 / 0;
+uint constant fails = 0 / 0; //~ ERROR: failed to evaluate constant: attempted to divide by zero
 
 contract C {
     uint constant zero = x - x;
@@ -16,8 +16,10 @@ contract C {
     uint[bigLiteral] public big;
     uint[bigLiteral + 1] public tooBig1; //~ ERROR: failed to evaluate constant: arithmetic overflow
 
-    int constant signedTwo = 7 / 3;
-    int constant signedNegTwo = (-7) / 3;
+    int constant signedSeven = 7;
+    int constant signedThree = 3;
+    int constant signedTwo = signedSeven / signedThree;
+    int constant signedNegTwo = (-signedSeven) / signedThree;
 
     int8 constant maxInt8 = 127;
     int8 constant minInt8 = -128;
@@ -35,7 +37,9 @@ contract C {
     function d(uint[0 - 1] memory) public {} //~ ERROR: array length cannot be negative
     function d2(uint[zeroPublic - 1] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
     function d3(uint[2 ** 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
+    //~^ ERROR: failed to evaluate constant: arithmetic overflow
     function d4(uint[1 << 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
+    //~^ ERROR: failed to evaluate constant: arithmetic overflow
     function d5(uint[signedTwo] memory) public {}
     function d6(uint[-signedNegTwo] memory) public {}
     function d7(uint[signedNegTwo] memory) public {} //~ ERROR: array length cannot be negative

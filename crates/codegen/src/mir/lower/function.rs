@@ -618,7 +618,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn lower_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
         // value = const_eval(expr)
-        if int_literal_expr_contains_wide(self.cx.gcx, expr).is_some_and(|wide| wide)
+        if literal_expr_requires_folding(self.cx.gcx, expr) == Some(true)
             && let Ok(value) = self.cx.gcx.try_eval_const(expr)
             && value.bit_len() <= 256
         {
@@ -909,23 +909,30 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 }
 
-fn int_literal_expr_contains_wide(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> Option<bool> {
-    let is_wide = |expr| gcx.try_eval_const(expr).is_ok_and(|value| value.bit_len() > 256);
+fn literal_expr_requires_folding(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> Option<bool> {
+    // Word arithmetic cannot represent fractional or oversized intermediates.
+    let is_nonword = |expr| {
+        gcx.try_eval_const_value(expr).is_ok_and(|value| {
+            matches!(value, solar_sema::eval::ConstValue::Integer(value)
+                if !value.is_integer() || value.bit_len() > 256)
+        })
+    };
     match &expr.kind {
         ExprKind::Lit(lit) if matches!(lit.kind, LitKind::Number(_)) => Some(false),
+        ExprKind::Lit(lit) if matches!(lit.kind, LitKind::Rational(_)) => Some(true),
         ExprKind::Unary(op, inner) if matches!(op.kind, UnOpKind::Neg | UnOpKind::BitNot) => {
-            Some(is_wide(expr) || int_literal_expr_contains_wide(gcx, inner)?)
+            Some(is_nonword(expr) || literal_expr_requires_folding(gcx, inner)?)
         }
         ExprKind::Binary(lhs, op, rhs)
             if !op.kind.is_cmp() && !matches!(op.kind, BinOpKind::Or | BinOpKind::And) =>
         {
             Some(
-                is_wide(expr)
-                    || int_literal_expr_contains_wide(gcx, lhs)?
-                    || int_literal_expr_contains_wide(gcx, rhs)?,
+                is_nonword(expr)
+                    || literal_expr_requires_folding(gcx, lhs)?
+                    || literal_expr_requires_folding(gcx, rhs)?,
             )
         }
-        ExprKind::Tuple([Some(inner)]) => int_literal_expr_contains_wide(gcx, inner),
+        ExprKind::Tuple([Some(inner)]) => literal_expr_requires_folding(gcx, inner),
         _ => None,
     }
 }

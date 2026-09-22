@@ -1,0 +1,102 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/rational_literals.sol:LL:CC
+   │
+LL │     uint constant HALF = 3 / 2;
+   ╰╴                         ━━━━━ expected `uint256`, found `rational_literal`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/rational_literals.sol:LL:CC
+   │
+LL │     uint small = 1 / 100;
+   ╰╴                 ━━━━━━━ expected `uint256`, found `rational_literal`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/rational_literals.sol:LL:CC
+   │
+LL │     uint decimal = 0.5;
+   ╰╴                   ━━━ expected `uint256`, found `rational_literal`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/rational_literals.sol:LL:CC
+   │
+LL │     uint halfMax = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff / 2;
+   ╰╴                   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ expected `uint256`, found `rational_literal`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/rational_literals.sol:LL:CC
+   │
+LL │     uint tooBig = 2 ** 256;
+   ╰╴                  ━━━━━━━━ expected `uint256`, found `rational_literal`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/rational_literals.sol:LL:CC
+   │
+LL │         uint a = 3 / 2;
+   ╰╴                 ━━━━━ expected `uint256`, found `rational_literal`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/rational_literals.sol:LL:CC
+   │
+LL │         uint b = uint(3 / 2);
+   ╰╴                 ━━━━━━━━━━━ cannot convert `rational_literal` to `uint256`
+
+error: cannot apply builtin operator `+` to `rational_literal` and `uint256`
+   ╭▸ ROOT/tests/ui/typeck/rational_literals.sol:LL:CC
+   │
+LL │         uint c = (3 / 2) + x;
+   │                  ┬────── ━ ─ uint256
+   │                  │
+   ╰╴                 rational_literal
+
+error: failed to evaluate constant: unsupported binary operation
+   ╭▸ ROOT/tests/ui/typeck/rational_literals.sol:LL:CC
+   │
+LL │         uint d = (3 / 2) & 1;
+   ╰╴                 ━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: unsupported binary operation
+   ╭▸ ROOT/tests/ui/typeck/rational_literals.sol:LL:CC
+   │
+LL │         uint e = 2 ** (1 / 2);
+   ╰╴                 ━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: attempted to divide by zero
+   ╭▸ ROOT/tests/ui/typeck/rational_literals.sol:LL:CC
+   │
+LL │         uint f = 1 / 0;
+   ╰╴                 ━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: unsupported binary operation
+   ╭▸ ROOT/tests/ui/typeck/rational_literals.sol:LL:CC
+   │
+LL │         uint shift = (3 / 2) << 1;
+   ╰╴                     ━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: unsupported unary operation
+   ╭▸ ROOT/tests/ui/typeck/rational_literals.sol:LL:CC
+   │
+LL │         int invert = ~(3 / 2);
+   ╰╴                     ━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/rational_literals.sol:LL:CC
+   │
+LL │         uint exhausted = (2 ** 4096) / (2 ** 4095);
+   ╰╴                          ━━━━━━━━━ evaluation of constant value failed here
+
+error: cannot apply builtin operator `>` to `rational_literal` and `int_literal[2]`
+   ╭▸ ROOT/tests/ui/typeck/rational_literals.sol:LL:CC
+   │
+LL │         bool comparison = (7 / 2) > 3;
+   │                           ┬────── ━ ─ int_literal[2]
+   │                           │
+   ╰╴                          rational_literal
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/rational_literals.sol:LL:CC
+   │
+LL │         return 1 / 100;
+   ╰╴               ━━━━━━━ expected `uint256`, found `rational_literal`
+
+error: aborting due to 16 previous errors
+

@@ -396,13 +396,13 @@ impl<'gcx> TypeChecker<'gcx> {
                 let lhs = self.check_expr(lhs_e);
                 let rhs = self.check_expr(rhs_e);
 
-                // When both operands are IntLiteral, evaluate the expression to preserve
-                // literal type through binary operations (needed for -(1 + 2) to work).
-                if let (TyKind::IntLiteral(..), TyKind::IntLiteral(..)) = (lhs.kind, rhs.kind)
+                // Literal expressions must stay exact, even if an intermediate is fractional
+                // or wider than an EVM word. Evaluation errors must not become runtime arithmetic.
+                if matches!(lhs.kind, TyKind::IntLiteral(..) | TyKind::RationalLiteral)
+                    && matches!(rhs.kind, TyKind::IntLiteral(..) | TyKind::RationalLiteral)
                     && !op.kind.is_cmp()
-                    && let Some(lit_ty) = self.try_eval_int_literal_expr(expr)
                 {
-                    return lit_ty;
+                    return self.eval_literal_expr(expr);
                 }
 
                 self.check_binop(Some(expr.id), lhs_e, lhs, rhs_e, rhs, op, false)
@@ -856,11 +856,12 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty)))
             }
             hir::ExprKind::Unary(op, inner) => {
-                // For integer literal negation, don't propagate the expected type to the inner
-                // expression because we'll modify its type by flipping the sign.
-                let propagate_expected = op.kind != hir::UnOpKind::Neg
-                    || (!is_int_literal_expr(inner)
-                        && !matches!(expected, Some(ty) if ty.is_signed()));
+                // Literal unary operations determine their own exact value and type.
+                // Do not constrain their operands with the destination type.
+                let propagate_expected =
+                    !matches!(op.kind, hir::UnOpKind::Neg | hir::UnOpKind::BitNot)
+                        || (!is_int_literal_expr(inner)
+                            && !matches!(expected, Some(ty) if ty.is_signed()));
                 let ty = if op.kind.has_side_effects() {
                     self.require_lvalue(inner)
                 } else if propagate_expected {
@@ -868,20 +869,12 @@ impl<'gcx> TypeChecker<'gcx> {
                 } else {
                     self.check_expr(inner)
                 };
+                if matches!(ty.kind, TyKind::IntLiteral(..) | TyKind::RationalLiteral)
+                    && matches!(op.kind, hir::UnOpKind::Neg | hir::UnOpKind::BitNot)
+                {
+                    return self.eval_literal_expr(expr);
+                }
                 if valid_unop(ty, op.kind) {
-                    if op.kind == hir::UnOpKind::Neg
-                        && let TyKind::IntLiteral(..) = ty.kind
-                        && let Some(lit_ty) = self.try_eval_int_literal_expr(expr)
-                    {
-                        return lit_ty;
-                    }
-                    if op.kind == hir::UnOpKind::Neg
-                        && let TyKind::IntLiteral(neg, size, fixed_bytes_size) = ty.kind
-                    {
-                        let fixed_bytes_size =
-                            fixed_bytes_size.filter(|&size| size == TypeSize::ZERO);
-                        return self.gcx.mk_ty(TyKind::IntLiteral(!neg, size, fixed_bytes_size));
-                    }
                     ty
                 } else if let Some((ty, function)) = self.check_user_unop(expr.span, ty, op.kind) {
                     if let Some(function) = function {
@@ -1054,18 +1047,26 @@ impl<'gcx> TypeChecker<'gcx> {
         from.can_copy_to_storage_value(to, self.gcx)
     }
 
-    /// Tries to evaluate an expression made up of int literals.
-    ///
-    /// Returns the resulting IntLiteral type if successful, or None if evaluation fails.
-    /// This is used to preserve literal type through literal expressions.
-    fn try_eval_int_literal_expr(&self, expr: &'gcx hir::Expr<'gcx>) -> Option<Ty<'gcx>> {
-        let result = self.gcx.try_eval_const(expr).ok()?;
-        let compatible_fixed_bytes = result.is_zero().then_some(TypeSize::ZERO);
-        self.gcx.mk_ty_int_literal_with_fixed_bytes(
-            result.is_negative(),
-            result.bit_len(),
-            compatible_fixed_bytes,
-        )
+    /// Evaluates literal arithmetic without losing fractional or oversized intermediates.
+    fn eval_literal_expr(&self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
+        match self.gcx.eval_const_value(expr) {
+            Ok(crate::eval::ConstValue::Bool(_)) => self.gcx.types.bool,
+            Ok(crate::eval::ConstValue::Integer(result)) => {
+                if result.is_integer() {
+                    let compatible_fixed_bytes = result.is_zero().then_some(TypeSize::ZERO);
+                    if let Some(ty) = self.gcx.mk_ty_int_literal_with_fixed_bytes(
+                        result.is_negative(),
+                        result.bit_len(),
+                        compatible_fixed_bytes,
+                    ) {
+                        return ty;
+                    }
+                }
+                self.gcx.mk_ty(TyKind::RationalLiteral)
+            }
+            Ok(crate::eval::ConstValue::String(_)) => unreachable!(),
+            Err(guar) => self.gcx.mk_ty_err(guar),
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -3589,7 +3590,7 @@ fn invalid_storage_pointer_return(actual: Ty<'_>, expected: Ty<'_>) -> bool {
 
 fn is_int_literal_expr(expr: &hir::Expr<'_>) -> bool {
     match &expr.kind {
-        hir::ExprKind::Lit(lit) => matches!(lit.kind, LitKind::Number(_)),
+        hir::ExprKind::Lit(lit) => matches!(lit.kind, LitKind::Number(_) | LitKind::Rational(_)),
         hir::ExprKind::Unary(op, inner)
             if matches!(op.kind, hir::UnOpKind::Neg | hir::UnOpKind::BitNot) =>
         {
@@ -3929,6 +3930,7 @@ fn binop_common_type<'gcx>(
         | TyKind::Elementary(hir::ElementaryType::Fixed(..))
         | TyKind::Elementary(hir::ElementaryType::UFixed(..))
         | TyKind::StringLiteral(..)
+        | TyKind::RationalLiteral
         | TyKind::DynArray(_)
         | TyKind::Array(..)
         | TyKind::Slice(_)
