@@ -79,6 +79,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CoreIntrinsic::CopyInto => self.lower_core_copy(&operands),
             CoreIntrinsic::Fill => self.lower_core_fill(&operands),
             CoreIntrinsic::Truncate => self.lower_core_truncate(expr, &operands, &parameter_tys),
+            CoreIntrinsic::ArrayHasDuplicate => self.lower_core_array_has_duplicate_call(&operands),
             CoreIntrinsic::RevertRaw => self.lower_core_revert_raw(&operands),
             CoreIntrinsic::Keccak256Range => self.lower_core_keccak256_range(&operands),
             CoreIntrinsic::Deploy | CoreIntrinsic::Deploy2 => {
@@ -153,6 +154,118 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let is_zero = self.builder.cast_word(is_zero);
         let fix = self.builder.mul(top, is_zero);
         self.builder.xor(index, fix)
+    }
+
+    /// Lowers every supported one-word array overload to one shared helper.
+    /// ABI decoding has already validated and canonicalized each element, so
+    /// equality can compare the words without retaining the nominal type.
+    fn lower_core_array_has_duplicate_call(&mut self, operands: &[ValueId]) -> Option<ValueId> {
+        let [input] = *operands else { return None };
+        let helper =
+            self.lazy_helper(Symbol::intern("core_array_has_duplicate"), |this, function| {
+                function.attributes.no_inline = true;
+                let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+                let ty = MirType::MemoryObject(MemoryObjectKind::DynamicArray);
+                let input = lowerer.builder.add_param(ty);
+                lowerer.builder.set_return_type(MirType::I1);
+                lowerer.lower_core_array_has_duplicate(input);
+                Some(())
+            })?;
+        Some(self.builder.icall(helper, vec![input], MirType::I1))
+    }
+
+    /// Implements an open-addressed set over the array's canonical words.
+    /// Slots hold non-zero input addresses so zero remains the empty marker.
+    /// The temporary table is compiler-owned and does not escape.
+    fn lower_core_array_has_duplicate(&mut self, input: ValueId) {
+        let two = self.builder.imm(2);
+        let length = self.builder.memory_object_len(input, MemoryObjectKind::DynamicArray);
+        let small = self.builder.lt(length, two);
+        let no_duplicate = self.builder.create_block();
+        let allocate = self.builder.create_block();
+        self.builder.branch(small, no_duplicate, allocate);
+
+        self.builder.switch_to_block(no_duplicate);
+        let false_ = self.builder.imm_bool(false);
+        self.builder.ret([false_]);
+
+        self.builder.switch_to_block(allocate);
+        // Round 48 * length up to a power-of-two byte extent, then clear the
+        // low five bits. `mask` selects one of its 32-byte table slots.
+        let forty_eight = self.builder.imm(48);
+        let mut mask = self.builder.checked_mul(length, forty_eight);
+        for shift in [1, 2, 4, 8, 16, 32, 64, 128] {
+            let shift = self.builder.imm(shift);
+            let high = self.builder.shr(shift, mask);
+            mask = self.builder.or(mask, high);
+        }
+        let word_mask = self.builder.imm(U256::MAX << 5);
+        mask = self.builder.and(mask, word_mask);
+        let word_size = self.builder.imm(32);
+        let table_size = self.builder.checked_add(mask, word_size);
+        let table = self.builder.alloc_raw(table_size, AllocationSemantics::SOLIDITY_ZEROED);
+        let table = self.builder.cast(table, MirType::I256);
+        let data = self.builder.memory_object_data(input, MemoryObjectKind::DynamicArray);
+        let data = self.builder.cast(data, MirType::I256);
+        let five = self.builder.imm(5);
+        let byte_length = self.builder.shl(five, length);
+        let end = self.builder.add(data, byte_length);
+        let outer_header = self.builder.create_block();
+        let outer_body = self.builder.create_block();
+        let outer_done = self.builder.create_block();
+        self.builder.jump(outer_header);
+
+        self.builder.switch_to_block(outer_header);
+        let cursor = self.builder.phi(vec![(allocate, end)]);
+        let more = self.builder.gt(cursor, data);
+        self.builder.branch(more, outer_body, outer_done);
+
+        self.builder.switch_to_block(outer_done);
+        let false_ = self.builder.imm_bool(false);
+        self.builder.ret([false_]);
+
+        self.builder.switch_to_block(outer_body);
+        let element_address = self.builder.sub(cursor, word_size);
+        let value = self.builder.mload(element_address);
+        let hash_multiplier = self
+            .builder
+            .imm(U256::from_str_radix("100000000000000000000000000000051", 16).unwrap());
+        let hash_modulus = self.builder.imm(!U256::from(0xbcu64));
+        let hash = self.builder.mulmod(value, hash_multiplier, hash_modulus);
+        let initial_slot = self.builder.and(hash, mask);
+        let probe_header = self.builder.create_block();
+        let insert = self.builder.create_block();
+        let compare = self.builder.create_block();
+        let collision = self.builder.create_block();
+        let found = self.builder.create_block();
+        self.builder.jump(probe_header);
+
+        self.builder.switch_to_block(probe_header);
+        let slot = self.builder.phi(vec![(outer_body, initial_slot)]);
+        let table_address = self.builder.add(table, slot);
+        let previous_address = self.builder.mload(table_address);
+        let empty = self.builder.eq_zero(previous_address);
+        self.builder.branch(empty, insert, compare);
+
+        self.builder.switch_to_block(insert);
+        self.builder.mstore(table_address, element_address);
+        self.builder.jump(outer_header);
+        self.builder.add_phi_incoming(cursor, insert, element_address);
+
+        self.builder.switch_to_block(compare);
+        let previous_value = self.builder.mload(previous_address);
+        let equal = self.builder.eq(previous_value, value);
+        self.builder.branch(equal, found, collision);
+
+        self.builder.switch_to_block(collision);
+        let next_slot = self.builder.add(slot, word_size);
+        let next_slot = self.builder.and(next_slot, mask);
+        self.builder.jump(probe_header);
+        self.builder.add_phi_incoming(slot, collision, next_slot);
+
+        self.builder.switch_to_block(found);
+        let true_ = self.builder.imm_bool(true);
+        self.builder.ret([true_]);
     }
 
     /// Packs an intrinsic's results the way a call to `function_id` returns
