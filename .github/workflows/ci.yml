@@ -212,6 +212,7 @@ jobs:
       id-token: write
       contents: read
     env:
+      UV_HTTP_TIMEOUT: "120"
       FANDANGO_ABI_SEED_COUNT: ${{ github.event_name == 'schedule' && '8' || '3' }}
       FANDANGO_ABI_VALUES_PER_SEED: ${{ github.event_name == 'schedule' && '64' || '32' }}
       FANDANGO_MAX_ABI_VECTORS: ${{ github.event_name == 'schedule' && '768' || '160' }}
@@ -425,6 +426,8 @@ jobs:
     name: cargo deny check
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      RUSTC_WRAPPER: ""
     permissions:
       contents: read
       id-token: write
