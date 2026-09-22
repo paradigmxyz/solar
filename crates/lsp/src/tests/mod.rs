@@ -51,6 +51,7 @@ mod import_definition;
 mod indexing;
 mod inlay_hint;
 mod interactive_analysis;
+mod point_queries;
 #[path = "protocol_trace.rs"]
 mod protocol_trace_tests;
 mod references;
