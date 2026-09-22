@@ -7,7 +7,9 @@
 //! hit and miss paths, including the default cleanup sequence and the later
 //! block-layout effects that change label widths.
 //!
-//! Gas mode limits extra code and ranks candidates by the modeled runtime cost.
+//! Gas mode ranks the external selector switch by its lifetime cost: modeled
+//! runtime over the expected calls plus the deposit of its code. Other switches
+//! rank by modeled runtime cost within an artifact-wide code-growth budget.
 //! Size mode uses conservative label widths while selecting a plan and lets the
 //! EVM IR layout pass recover safe local-width and fallthrough wins. The emitter
 //! keeps the original case order for linear scans and uses sorted values only
@@ -60,7 +62,9 @@ const MAX_BUCKET_CANDIDATES: usize = 33;
 // their individual gas-mode growth at a round conservative plateau under unknown
 // case frequencies.
 pub(super) const MAX_BIT_SLICE_GAS_CODE_GROWTH: usize = 80;
-/// Bounds cumulative bytecode growth per artifact under the runtime-gas objective.
+/// Bounds cumulative bytecode growth per artifact under the runtime-gas objective
+/// for switches without an execution estimate. The external selector switch
+/// weighs its deposit against its expected calls instead.
 ///
 /// Keep this a round policy limit rather than fitting it to a corpus transition.
 pub(super) const MAX_GAS_CODE_GROWTH: usize = 192;
@@ -1969,6 +1973,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         preserve_stack: bool,
     ) {
         let constant_entries = self.constant_switch_entries(func, cases);
+        // The selector switch prices its deposit over the expected calls, so
+        // only switches without an execution estimate draw on the budget.
+        let lifetime_priced = self.emitting_entry;
         let plan = constant_entries.as_ref().map_or(
             SwitchSelection { plan: SwitchPlan::Linear, gas_code_growth: 0 },
             |(linear_values, entries)| {
@@ -1986,12 +1993,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                     SwitchPlanOptions {
                         optimization: self.gcx.sess.opts.optimization,
                         evm_version: self.gcx.sess.opts.evm_version,
-                        expected_executions: self
-                            .emitting_entry
+                        expected_executions: lifetime_priced
                             .then(|| Target::new(self.gcx).expected_executions()),
                         default,
                         table_target_width: self.asm.indexed_jump_target_width_bound(),
-                        max_gas_code_growth: self.switch_gas_code_growth_remaining,
+                        max_gas_code_growth: if lifetime_priced {
+                            usize::MAX
+                        } else {
+                            self.switch_gas_code_growth_remaining
+                        },
                         max_bit_slice_gas_code_growth: self
                             .gcx
                             .sess
@@ -2005,8 +2015,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 )
             },
         );
-        self.switch_gas_code_growth_remaining =
-            self.switch_gas_code_growth_remaining.saturating_sub(plan.gas_code_growth);
+        if !lifetime_priced {
+            self.switch_gas_code_growth_remaining =
+                self.switch_gas_code_growth_remaining.saturating_sub(plan.gas_code_growth);
+        }
         let plan = plan.plan;
         let constant_entries = constant_entries.map(|(_, entries)| entries);
 
