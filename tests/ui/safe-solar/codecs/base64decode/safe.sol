@@ -1,4 +1,5 @@
 //@ compile-flags: -Ogas -Zdump=mir
+//@ normalize-stdout-test: "(?s).+" -> ""
 //@ filecheck:
 //@ run-call: decode "Zm9vYmFy" => 0x666f6f626172
 //@ run-call: decode "Zm9vYg==" => 0x666f6f62

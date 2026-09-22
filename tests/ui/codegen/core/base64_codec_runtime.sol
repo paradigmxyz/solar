@@ -1,4 +1,7 @@
-//@ codegen-matrix: standard
+//@ codegen-matrix: standard portable
+//@[portable] compile-flags: -Ogas -Zno-core-intrinsics
+//@[mir] normalize-stdout-test: "(?s).+" -> ""
+//@[mir] filecheck:
 //@ run-call: encode 0x => ""
 //@ run-call: encode 0x66 => "Zg=="
 //@ run-call: encode 0x666f => "Zm8="
@@ -45,7 +48,13 @@
 //@ run-call-fail: decode "Z===" => 0xa164f8fe
 //@ run-call-fail: decode "Zm9vZ" => 0xa164f8fe
 
-// The Base64 codec is source code over `Bytes`. `encode` is checked against
+//@ run-call: decodeImap ",,,," => 0xffffff
+//@ run-call-fail: decode ",,,," => 0xa164f8fe
+//@ run-call-fail: decode "AA!A" => 0xa164f8fe
+//@ run-call-fail: decode "AA!" => 0xa164f8fe
+//@ run-call-fail: decode "A!" => 0xa164f8fe
+
+// Both intrinsic lowering and the checked portable body are checked against
 // the reference encoder at every length class, including the word-at-a-time
 // path from 96 bytes. `decode` is strict: either alphabet, with or without
 // padding, and `InvalidBase64()` for a character outside both, padding
@@ -53,6 +62,10 @@
 import {Base64} from "solar:core/v1/codecs/Base64.sol";
 
 contract Test {
+    // CHECK-LABEL: fn @encode.
+    // CHECK: memory_object_len memorybytes
+    // CHECK: div {{.*}}, 24
+    // CHECK: memory_object_store_word memorybytes
     function encode(bytes memory data) public pure returns (string memory) {
         return Base64.encode(data);
     }
@@ -61,6 +74,14 @@ contract Test {
         return Base64.encode(data, true, true);
     }
 
+    function decodeImap(string memory data) public pure returns (bytes memory) {
+        return Base64.decode(data, true);
+    }
+
+    // CHECK-LABEL: fn @decode.
+    // CHECK: memory_object_len memorybytes
+    // CHECK: div {{.*}}, 32
+    // CHECK: mstore
     function decode(string memory data) public pure returns (bytes memory) {
         return Base64.decode(data);
     }
