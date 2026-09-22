@@ -305,6 +305,175 @@ impl FunctionLowerer<'_, '_> {
         ))
     }
 
+    /// Keep each search direction as one callable body per module; a scalar
+    /// result lets a single call site inline it.
+    pub(super) fn lower_core_string_index_of_call(
+        &mut self,
+        operands: &[ValueId],
+        reverse: bool,
+    ) -> Option<ValueId> {
+        let [subject, needle, from] = *operands else { return None };
+        let name = if reverse { sym::core_string_last_index_of } else { sym::core_string_index_of };
+        let helper = self.lazy_helper(name, |this, function| {
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            let bytes = MirType::MemoryObject(MemoryObjectKind::Bytes);
+            let subject = lowerer.builder.add_param(bytes);
+            let needle = lowerer.builder.add_param(bytes);
+            let from = lowerer.builder.add_param(MirType::I256);
+            lowerer.builder.set_return_type(MirType::I256);
+            let result = lowerer.lower_core_string_index_of(subject, needle, from, reverse);
+            lowerer.builder.ret([result]);
+            Some(())
+        })?;
+        Some(self.builder.icall(helper, vec![subject, needle, from], MirType::I256))
+    }
+
+    /// Returns the first offset at or after `from`, or with `reverse` the last
+    /// offset at or before it, where `needle` occurs in `subject`, and `MAX`
+    /// when there is none. An empty needle is found at `min(from, length)`.
+    /// Each candidate compares the needle's first word under a mask of its
+    /// leading bytes, which decides needles of at most a word. A longer needle
+    /// then compares its last word, aligned to its end, and any words between;
+    /// the first and last words cover a needle of at most two. A load may read
+    /// past the subject, but only the needle's bytes are compared.
+    fn lower_core_string_index_of(
+        &mut self,
+        subject: ValueId,
+        needle: ValueId,
+        from: ValueId,
+        reverse: bool,
+    ) -> ValueId {
+        let bytes = MemoryObjectKind::Bytes;
+        let length = self.builder.memory_object_len(subject, bytes);
+        let needle_length = self.builder.memory_object_len(needle, bytes);
+        let not_found = self.builder.imm(U256::MAX);
+        let done = self.builder.create_block();
+        let missing = self.builder.create_block();
+
+        // if needle_length == 0: result = min(from, length)
+        let empty = self.builder.create_block();
+        let nonempty = self.builder.create_block();
+        let needle_empty = self.builder.eq_zero(needle_length);
+        self.builder.branch(needle_empty, empty, nonempty);
+        self.builder.switch_to_block(empty);
+        let beyond = self.builder.gt(from, length);
+        let at_end = self.builder.select(beyond, length, from);
+        self.builder.jump(done);
+
+        // last = length - needle_length, or missing when the needle is longer
+        // start = from, or missing past `last`; reversed, min(from, last)
+        self.builder.switch_to_block(nonempty);
+        let fits = self.builder.create_block();
+        let too_long = self.builder.gt(needle_length, length);
+        self.builder.branch(too_long, missing, fits);
+        self.builder.switch_to_block(fits);
+        let last = self.builder.sub(length, needle_length);
+        let past_last = self.builder.gt(from, last);
+        let start = if reverse {
+            self.builder.select(past_last, last, from)
+        } else {
+            let in_range = self.builder.create_block();
+            self.builder.branch(past_last, missing, in_range);
+            self.builder.switch_to_block(in_range);
+            from
+        };
+
+        // A shift of a word or more clears every bit, so a needle of at least a
+        // word compares its whole first word.
+        // mask = ~(MAX >> 8 * needle_length)
+        let source = self.builder.memory_object_data(subject, bytes);
+        let needle_data = self.builder.memory_object_data(needle, bytes);
+        let needle_word = self.builder.mload(needle_data);
+        let word = self.builder.imm(32);
+        let three = self.builder.imm(3);
+        let needle_bits = self.builder.shl(three, needle_length);
+        let all = self.builder.imm(U256::MAX);
+        let beyond_needle = self.builder.shr(needle_bits, all);
+        let mask = self.builder.not(beyond_needle);
+        let long = self.builder.gt(needle_length, word);
+        let first = self.builder.add(source, start);
+        let end = self.builder.add(source, last);
+        let entry = self.builder.current_block();
+        let header = self.builder.create_block();
+        let verify = self.builder.create_block();
+        let verify_tail = self.builder.create_block();
+        let verify_middle = self.builder.create_block();
+        let middle = self.builder.create_block();
+        let middle_step = self.builder.create_block();
+        let found = self.builder.create_block();
+        let advance = self.builder.create_block();
+        self.builder.jump(header);
+
+        // candidate: (mload(cursor) ^ needle_word) & mask == 0
+        self.builder.switch_to_block(header);
+        let cursor = self.builder.phi(vec![(entry, first)]);
+        let candidate = self.builder.mload(cursor);
+        let different = self.builder.xor(candidate, needle_word);
+        let different = self.builder.and(different, mask);
+        let prefix_equal = self.builder.eq_zero(different);
+        self.builder.branch(prefix_equal, verify, advance);
+
+        self.builder.switch_to_block(verify);
+        self.builder.branch(long, verify_tail, found);
+
+        // mload(cursor + tail) == mload(needle + tail), then the words between
+        self.builder.switch_to_block(verify_tail);
+        let tail = self.builder.sub(needle_length, word);
+        let candidate_tail = self.builder.add(cursor, tail);
+        let candidate_tail = self.builder.mload(candidate_tail);
+        let needle_tail = self.builder.add(needle_data, tail);
+        let needle_tail = self.builder.mload(needle_tail);
+        let tail_equal = self.builder.eq(candidate_tail, needle_tail);
+        self.builder.branch(tail_equal, verify_middle, advance);
+
+        // for (k = 32; k < tail; k += 32) mload(cursor + k) == mload(needle + k)
+        self.builder.switch_to_block(verify_middle);
+        let beyond_first = self.builder.gt(tail, word);
+        self.builder.branch(beyond_first, middle, found);
+        self.builder.switch_to_block(middle);
+        let offset = self.builder.phi(vec![(verify_middle, word)]);
+        let candidate_word = self.builder.add(cursor, offset);
+        let candidate_word = self.builder.mload(candidate_word);
+        let needle_middle = self.builder.add(needle_data, offset);
+        let needle_middle = self.builder.mload(needle_middle);
+        let word_equal = self.builder.eq(candidate_word, needle_middle);
+        self.builder.branch(word_equal, middle_step, advance);
+        self.builder.switch_to_block(middle_step);
+        let next_offset = self.builder.add(offset, word);
+        let more_words = self.builder.lt(next_offset, tail);
+        self.builder.branch(more_words, middle, found);
+        self.builder.add_phi_incoming(offset, middle_step, next_offset);
+
+        self.builder.switch_to_block(found);
+        let at = self.builder.sub(cursor, source);
+        self.builder.jump(done);
+
+        // forward: cursor += 1 while cursor <= end
+        // reverse: cursor -= 1 while cursor > source
+        self.builder.switch_to_block(advance);
+        let one = self.builder.imm(1);
+        if reverse {
+            let step = self.builder.create_block();
+            let at_first = self.builder.eq(cursor, source);
+            self.builder.branch(at_first, missing, step);
+            self.builder.switch_to_block(step);
+            let next = self.builder.sub(cursor, one);
+            self.builder.jump(header);
+            self.builder.add_phi_incoming(cursor, step, next);
+        } else {
+            let next = self.builder.add(cursor, one);
+            let past_end = self.builder.gt(next, end);
+            self.builder.branch(past_end, missing, header);
+            self.builder.add_phi_incoming(cursor, advance, next);
+        }
+
+        self.builder.switch_to_block(missing);
+        self.builder.jump(done);
+
+        self.builder.switch_to_block(done);
+        self.builder.phi(vec![(empty, at_end), (missing, not_found), (found, at)])
+    }
+
     fn ensure_core_string_indices_helper(&mut self) -> Option<FunctionId> {
         self.lazy_helper(Symbol::intern("core_string_search"), |this, function| {
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
