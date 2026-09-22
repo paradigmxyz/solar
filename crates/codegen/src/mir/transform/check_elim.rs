@@ -118,7 +118,7 @@ use crate::{
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{
-    bit_set::DenseBitSet,
+    bit_set::{DenseBitSet, GrowableBitSet},
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
@@ -462,6 +462,8 @@ struct CheckEliminator<'a> {
     difference_index: Option<DifferenceIndex>,
     /// Depth of the sum-bound lemma, which asks relational questions of its own.
     sum_depth: usize,
+    /// Values above a strict edge, shared by queries in the same fact scope.
+    strict_lower_bounds: Option<GrowableBitSet<ValueId>>,
     /// Counting header phis with constant start and step, bounded by the
     /// distance any affordable number of iterations can travel.
     trip_bounds: FxHashMap<ValueId, Range>,
@@ -489,8 +491,10 @@ impl<'a> CheckEliminator<'a> {
         selected: Option<(&DenseBitSet<BlockId>, &FxHashSet<FunctionId>)>,
     ) -> usize {
         self.stats = CheckElimStats::default();
+        self.strict_lower_bounds = None;
         self.relation_index = None;
         self.reverse_index = None;
+        self.difference_index = None;
         self.monotone_relations.clear();
         self.universal_relations.clear();
         self.trip_bounds.clear();
@@ -565,6 +569,8 @@ impl<'a> CheckEliminator<'a> {
                 self.monotone_relations.push(phi.relation());
             }
             self.relation_index = None;
+            self.reverse_index = None;
+            self.strict_lower_bounds = None;
             (folds, checks) = self.collect_folds(func, &cfg, &preds, &facts, &[], &mut Vec::new());
         }
         if let Some((selected, reverting)) = selected {
@@ -634,6 +640,9 @@ impl<'a> CheckEliminator<'a> {
                             Some(range) => self.ranges.insert(value, range),
                             None => self.ranges.remove(&value),
                         };
+                    }
+                    if self.relation_undo.len() > relation_mark {
+                        self.strict_lower_bounds = None;
                     }
                     while self.relation_undo.len() > relation_mark {
                         let relation = self.relation_undo.pop().expect("checked len");
@@ -766,6 +775,7 @@ impl<'a> CheckEliminator<'a> {
                     for &pred in &preds[block] {
                         cx.ranges.clone_from(&exits[pred].ranges);
                         cx.relations.clone_from(&exits[pred].relations);
+                        cx.strict_lower_bounds = None;
                         cx.range_undo.clear();
                         cx.relation_undo.clear();
                         if let Some(Terminator::Branch { condition, then_block, else_block }) =
@@ -832,6 +842,7 @@ impl<'a> CheckEliminator<'a> {
                 let entry = merged.unwrap_or_default();
                 cx.ranges.clone_from(&entry.ranges);
                 cx.relations.clone_from(&entry.relations);
+                cx.strict_lower_bounds = None;
                 cx.range_undo.clear();
                 cx.relation_undo.clear();
                 for &inst in &func.blocks[block].instructions {
@@ -863,6 +874,7 @@ impl<'a> CheckEliminator<'a> {
         }
         self.relation_index = cx.relation_index;
         self.reverse_index = cx.reverse_index;
+        self.difference_index = cx.difference_index;
         entries
     }
 
@@ -1012,11 +1024,12 @@ impl<'a> CheckEliminator<'a> {
 
     fn add_relation(&mut self, relation: Relation) {
         if self.relations.insert(relation) {
+            self.strict_lower_bounds = None;
             self.relation_undo.push(relation);
         }
     }
 
-    /// Builds the forward and reverse relation indexes on first use.
+    /// Builds the forward relation index on first use.
     fn ensure_relation_index(&mut self, func: &Function) {
         if self.relation_index.is_some() {
             return;
@@ -1028,8 +1041,16 @@ impl<'a> CheckEliminator<'a> {
         for &relation in &self.universal_relations {
             index_relation(&mut index, relation);
         }
+        self.relation_index = Some(index);
+    }
+
+    fn ensure_reverse_index(&mut self, func: &Function) {
+        if self.reverse_index.is_some() {
+            return;
+        }
+        self.ensure_relation_index(func);
         let mut reverse = FxHashMap::<_, SmallVec<[Relation; 2]>>::default();
-        for relation in index.values().flatten() {
+        for relation in self.relation_index.as_ref().unwrap().values().flatten() {
             let (a, b) = relation.operands();
             for key in if matches!(relation, Relation::Eq(..)) { [a, b] } else { [b, b] } {
                 let entry = reverse.entry(key).or_default();
@@ -1037,6 +1058,13 @@ impl<'a> CheckEliminator<'a> {
                     entry.push(*relation);
                 }
             }
+        }
+        self.reverse_index = Some(reverse);
+    }
+
+    fn ensure_difference_index(&mut self, func: &Function) {
+        if self.difference_index.is_some() {
+            return;
         }
         let mut differences = FxHashMap::<_, SmallVec<[(ValueId, ValueId); 2]>>::default();
         for inst_id in func.instructions() {
@@ -1048,8 +1076,6 @@ impl<'a> CheckEliminator<'a> {
                 }
             }
         }
-        self.relation_index = Some(index);
-        self.reverse_index = Some(reverse);
         self.difference_index = Some(differences);
     }
 
@@ -1067,7 +1093,7 @@ impl<'a> CheckEliminator<'a> {
             return false;
         }
         let Some(&InstKind::Add(first, second)) = inst_kind(func, sum) else { return false };
-        self.ensure_relation_index(func);
+        self.ensure_difference_index(func);
         self.sum_depth += 1;
         let found = [(first, second), (second, first)].into_iter().any(|(base, offset)| {
             let candidates = self
@@ -1099,7 +1125,7 @@ impl<'a> CheckEliminator<'a> {
         bound: ValueId,
         depth: usize,
     ) -> bool {
-        self.ensure_relation_index(func);
+        self.ensure_reverse_index(func);
         let reverse = self.reverse_index.as_ref().expect("relation index was just built");
         let mut amounts = SmallVec::<[U256; 4]>::new();
         for &fact in reverse.get(&bound).into_iter().flatten() {
@@ -1130,36 +1156,49 @@ impl<'a> CheckEliminator<'a> {
     /// Whether some value is provably below `value` in the current scope,
     /// which puts `value` at one or more: every word is at least zero.
     fn has_strict_lower_bound(&mut self, func: &Function, value: ValueId) -> bool {
-        self.ensure_relation_index(func);
-        let reverse = self.reverse_index.as_ref().expect("relation index was just built");
-        if !reverse.contains_key(&value) {
-            return false;
-        }
-        const MAX_RELATION_STATES: usize = 128;
-        let mut pending = SmallVec::<[_; 8]>::new();
-        pending.push(value);
-        let mut seen = FxHashSet::default();
-        while let Some(current) = pending.pop() {
-            if !seen.insert(current) {
-                continue;
+        if self.strict_lower_bounds.is_none() {
+            let mut nonzero = GrowableBitSet::with_capacity(func.num_values());
+            let mut pending = Vec::new();
+            for &fact in &self.relations {
+                if let Relation::Lt(_, bound) = fact
+                    && nonzero.insert(bound)
+                {
+                    pending.push(bound);
+                }
             }
-            if seen.len() >= MAX_RELATION_STATES {
+            if pending.is_empty() {
+                self.strict_lower_bounds = Some(nonzero);
                 return false;
             }
-            for &fact in reverse.get(&current).into_iter().flatten() {
-                if !self.relations.contains(&fact) && !self.universal_relations.contains(&fact) {
-                    continue;
-                }
-                match fact {
-                    Relation::Lt(_, b) if b == current => return true,
-                    Relation::Le(a, b) if b == current => pending.push(a),
-                    Relation::Eq(a, b) if a == current => pending.push(b),
-                    Relation::Eq(a, b) if b == current => pending.push(a),
-                    _ => {}
+            self.ensure_relation_index(func);
+            let index = self.relation_index.as_ref().expect("relation index was just built");
+            // A strict edge makes its upper endpoint nonzero. Propagate that fact through
+            // active orderings once per scope instead of searching backward for every value.
+            while let Some(current) = pending.pop() {
+                for &fact in index.get(&current).into_iter().flatten() {
+                    if !self.relations.contains(&fact) && !self.universal_relations.contains(&fact)
+                    {
+                        continue;
+                    }
+                    let next = match fact {
+                        Relation::Lt(a, b) | Relation::Le(a, b) if a == current => b,
+                        Relation::Eq(a, b) => {
+                            if a == current {
+                                b
+                            } else {
+                                a
+                            }
+                        }
+                        _ => continue,
+                    };
+                    if nonzero.insert(next) {
+                        pending.push(next);
+                    }
                 }
             }
+            self.strict_lower_bounds = Some(nonzero);
         }
-        false
+        self.strict_lower_bounds.as_ref().unwrap().contains(value)
     }
 
     fn has_relation(&mut self, func: &Function, relation: Relation) -> bool {
