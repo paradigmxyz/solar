@@ -178,6 +178,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             Some(TyKind::Fn(_))
                         ))
                 {
+                    if let ExprKind::Member(receiver, _) = expr.kind
+                        && !matches!(
+                            self.cx.gcx.type_of_expr(receiver.id).map(|ty| ty.kind),
+                            Some(TyKind::Type(_))
+                        )
+                    {
+                        self.with_discarded(receiver, |this| this.lower_expr(receiver).map(drop))?;
+                    }
                     return Some(());
                 }
                 if let ExprKind::Assign(lhs, None, rhs) = &expr.kind
