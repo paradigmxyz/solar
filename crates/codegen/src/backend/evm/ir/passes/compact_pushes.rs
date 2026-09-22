@@ -3,12 +3,24 @@
 //! A literal `PUSHn` is not always the shortest way to construct a 256-bit constant. For each
 //! concrete immediate, this pass compares the literal encoding with a fixed set of equivalent
 //! recipes: `PUSH0; NOT` for an all-ones word, `NOT` of a shorter inverse, and shift-based forms
-//! for masks or values with trailing zero bytes. It then emits the recipe with the fewest encoded
-//! bytes, keeping the literal on ties so the pass never increases code size.
+//! for masks or values with trailing zero bytes. Size and unoptimized builds emit the recipe with
+//! the fewest encoded bytes, keeping the literal on ties so the pass never increases code size. Gas
+//! builds rank recipes by the target's lifetime cost: static gas over the expected executions plus
+//! the deposit of every encoded byte, again keeping the literal on ties.
+//!
+//! Like solc's constant optimizer, the lifetime cost charges the expected executions once per
+//! distinct value while every copy pays its own deposit. A value repeated across many sites, such
+//! as a string literal in a family of functions, therefore keeps its compact recipe, while a
+//! unique constant becomes a literal once its runtime gas outweighs the extra bytes: a mid-width
+//! mask such as `2**64 - 1` at the default 200 runs, and every recipe once runtime gas dominates
+//! the deposit. Only copies in hot blocks are counted. Cold blocks end in a revert, so their
+//! constants keep the fewest bytes.
 //!
 //! Selection accounts for the active EVM version: `PUSH0` and shift opcodes are used only when the
-//! target supports them. The exported cost helper uses the same selector, so other EVM IR passes
-//! can compare a prospective rewrite with the bytes and static gas that this pass will emit.
+//! target supports them. The exported cost helpers take the same [`ImmediatePolicy`], so other EVM
+//! IR passes compare a prospective rewrite with the bytes and static gas that this pass emits for a
+//! single hot copy. The MIR target model and jump-table lowering in the assembler keep the byte
+//! policy.
 //!
 //! Recipe emission recursively selects materializations for child pushes, so one pass reaches a
 //! fixed point. The default pipeline expands recipes once before structural cleanup because tail
@@ -21,10 +33,11 @@ use crate::{
         ir::{Instruction, Metadata, Module},
         op::{self, WORD_BYTES},
     },
-    target::GasTier,
+    target::{Cost, GasTier, Target},
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
+use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
 
 pub(super) struct CompactPushes;
@@ -44,13 +57,24 @@ const BASE_GAS: usize = GasTier::Base.fixed_gas() as usize;
 const VERY_LOW_GAS: usize = GasTier::VeryLow.fixed_gas() as usize;
 
 fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
-    let evm_version = gcx.sess.opts.evm_version;
+    let policy = ImmediatePolicy::of(Target::new(gcx));
+    let cold_policy = ImmediatePolicy::Bytes(policy.evm_version());
+    let copies = hot_copies(module, policy);
     let mut changed = false;
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
+        let cold = block.metadata.hotness.is_cold();
+        let policy_of = |value: U256| {
+            if cold {
+                cold_policy
+            } else {
+                policy.with_copies(copies.get(&value).copied().unwrap_or(1))
+            }
+        };
         if !block.instructions.iter().any(|inst| {
-            inst.concrete_immediate()
-                .is_some_and(|value| !matches!(select(evm_version, value), CompactPush::Literal))
+            inst.concrete_immediate().is_some_and(|value| {
+                !matches!(select(policy_of(value), value).1, CompactPush::Literal)
+            })
         }) {
             continue;
         }
@@ -62,7 +86,7 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 block.instructions.push(inst);
                 continue;
             };
-            let materialization = ImmediateMaterialization::new(evm_version, value);
+            let materialization = ImmediateMaterialization::with_policy(policy_of(value), value);
             if matches!(materialization.recipe, CompactPush::Literal) {
                 block.instructions.push(inst);
             } else {
@@ -72,6 +96,24 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
         }
     }
     changed
+}
+
+/// Counts the copies of each immediate that a recipe could replace in hot blocks, when `policy`
+/// weighs gas against deposit.
+fn hot_copies(module: &Module, policy: ImmediatePolicy) -> FxHashMap<U256, u32> {
+    let mut copies = FxHashMap::<U256, u32>::default();
+    if let ImmediatePolicy::Bytes(_) = policy {
+        return copies;
+    }
+    let evm_version = policy.evm_version();
+    for block in module.blocks.iter().filter(|block| !block.metadata.hotness.is_cold()) {
+        for value in block.instructions.iter().filter_map(Instruction::concrete_immediate) {
+            if push_width(evm_version, value) >= MIN_COMPACT_MASK_WIDTH {
+                *copies.entry(value).or_default() += 1;
+            }
+        }
+    }
+    copies
 }
 
 fn push(value: U256) -> Instruction {
@@ -85,18 +127,73 @@ pub(in crate::backend) enum ImmediateMaterializationOp {
     Opcode(u8),
 }
 
-/// The shortest selected materialization for one concrete immediate.
+/// How a constant's materialization is chosen.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum ImmediatePolicy {
+    /// Fewest encoded bytes, keeping the literal on ties.
+    Bytes(EvmVersion),
+    /// Least lifetime cost under the target: static gas over the value's expected executions
+    /// plus the deposit of every encoded byte in each of its `copies`.
+    Lifetime { target: Target, copies: u32 },
+}
+
+impl ImmediatePolicy {
+    /// The policy of `target`'s objective for a single copy: lifetime cost when optimizing for
+    /// gas, fewest bytes otherwise.
+    pub(crate) fn of(target: Target) -> Self {
+        if target.optimization().is_gas() {
+            Self::Lifetime { target, copies: 1 }
+        } else {
+            Self::Bytes(target.evm_version())
+        }
+    }
+
+    /// This policy for a value materialized at `copies` sites.
+    #[must_use]
+    pub(crate) fn with_copies(self, copies: u32) -> Self {
+        match self {
+            Self::Bytes(_) => self,
+            Self::Lifetime { target, .. } => Self::Lifetime { target, copies: copies.max(1) },
+        }
+    }
+
+    /// The EVM version whose opcodes the recipes may use.
+    pub(crate) fn evm_version(self) -> EvmVersion {
+        match self {
+            Self::Bytes(evm_version) => evm_version,
+            Self::Lifetime { target, .. } => target.evm_version(),
+        }
+    }
+
+    /// The rank a recipe of `len` bytes and `gas` static gas takes; lower is better.
+    fn rank(self, len: usize, gas: usize) -> u128 {
+        match self {
+            Self::Bytes(_) => len as u128,
+            Self::Lifetime { target, copies } => {
+                let bytes = (len as u32).saturating_mul(copies);
+                target.lifetime_gas(Cost::new(gas as u32, bytes))
+            }
+        }
+    }
+}
+
+/// The selected materialization for one concrete immediate.
 #[derive(Clone, Copy)]
 pub(in crate::backend) struct ImmediateMaterialization {
-    evm_version: EvmVersion,
+    policy: ImmediatePolicy,
     value: U256,
     recipe: CompactPush,
 }
 
 impl ImmediateMaterialization {
-    /// Returns the materialization selected for `value` on `evm_version`.
+    /// Returns the shortest materialization for `value` on `evm_version`.
     pub(in crate::backend) fn new(evm_version: EvmVersion, value: U256) -> Self {
-        Self { evm_version, value, recipe: select(evm_version, value) }
+        Self::with_policy(ImmediatePolicy::Bytes(evm_version), value)
+    }
+
+    /// Returns the materialization `policy` selects for `value`.
+    pub(in crate::backend) fn with_policy(policy: ImmediatePolicy, value: U256) -> Self {
+        Self { policy, value, recipe: select(policy, value).1 }
     }
 
     /// Returns the materialization's maximum relative stack height.
@@ -112,25 +209,26 @@ impl ImmediateMaterialization {
     fn for_each_inner(self, f: &mut impl FnMut(ImmediateMaterializationOp)) {
         let push = ImmediateMaterializationOp::Push;
         let opcode = ImmediateMaterializationOp::Opcode;
+        let child = |value| Self::with_policy(self.policy, value);
         match self.recipe {
             CompactPush::Literal => f(push(self.value)),
             CompactPush::FullWord => {
-                Self::new(self.evm_version, U256::ZERO).for_each_inner(f);
+                child(U256::ZERO).for_each_inner(f);
                 f(opcode(op::NOT));
             }
             CompactPush::LowerAllOnesMask { shift } => {
-                Self::new(self.evm_version, U256::ZERO).for_each_inner(f);
+                child(U256::ZERO).for_each_inner(f);
                 f(opcode(op::NOT));
-                Self::new(self.evm_version, U256::from(shift)).for_each_inner(f);
+                child(U256::from(shift)).for_each_inner(f);
                 f(opcode(op::SHR));
             }
             CompactPush::Not => {
-                Self::new(self.evm_version, !self.value).for_each_inner(f);
+                child(!self.value).for_each_inner(f);
                 f(opcode(op::NOT));
             }
             CompactPush::Shl { shift } => {
-                Self::new(self.evm_version, self.value >> usize::from(shift)).for_each_inner(f);
-                Self::new(self.evm_version, U256::from(shift)).for_each_inner(f);
+                child(self.value >> usize::from(shift)).for_each_inner(f);
+                child(U256::from(shift)).for_each_inner(f);
                 f(opcode(op::SHL));
             }
         }
@@ -139,9 +237,10 @@ impl ImmediateMaterialization {
     fn metrics(self) -> ImmediateMaterializationMetrics {
         let mut metrics = ImmediateMaterializationMetrics::default();
         let mut depth = 0usize;
+        let evm_version = self.policy.evm_version();
         self.for_each(|materialized| match materialized {
             ImmediateMaterializationOp::Push(value) => {
-                let (len, gas) = literal_cost(self.evm_version, value);
+                let (len, gas) = literal_cost(evm_version, value);
                 metrics.encoded_len += len;
                 metrics.static_gas += gas;
                 depth += 1;
@@ -172,12 +271,12 @@ struct ImmediateMaterializationMetrics {
 
 pub(super) fn materialize_immediate(
     instructions: &mut Vec<Instruction>,
-    evm_version: EvmVersion,
+    policy: ImmediatePolicy,
     value: U256,
 ) {
     materialize_selected(
         instructions,
-        ImmediateMaterialization::new(evm_version, value),
+        ImmediateMaterialization::with_policy(policy, value),
         &Metadata::default(),
     );
 }
@@ -198,48 +297,38 @@ fn materialize_selected(
     });
 }
 
-fn select(evm_version: EvmVersion, value: U256) -> CompactPush {
-    select_with_len(evm_version, value).1
-}
-
-pub(super) fn selected_len(gcx: Gcx<'_>, value: U256) -> usize {
-    immediate_materialization_len(gcx.sess.opts.evm_version, value)
-}
-
-pub(in crate::backend) fn immediate_materialization_len(
-    evm_version: EvmVersion,
-    value: U256,
-) -> usize {
-    select_with_len(evm_version, value).0
-}
-
-fn select_with_len(evm_version: EvmVersion, value: U256) -> (usize, CompactPush) {
+/// Returns the byte length, static gas, and recipe `policy` selects for `value`.
+fn select(policy: ImmediatePolicy, value: U256) -> ((usize, usize), CompactPush) {
+    let evm_version = policy.evm_version();
     let width = push_width(evm_version, value);
-    let normal_len = fixed_push_len(evm_version, width);
+    let literal = literal_cost(evm_version, value);
     // NOT recipes require a full-width input. A shifted nonzero literal needs
-    // at least two PUSH1s and SHL (five bytes), so PUSH4 and shorter already win
-    // or tie every recipe. Keep the literal on ties, as the full search does.
+    // at least two PUSH1s and SHL (five bytes, nine gas), so PUSH4 and shorter
+    // already win or tie every recipe under either policy. Keep the literal on
+    // ties, as the full search does.
     if width < MIN_COMPACT_MASK_WIDTH {
-        return (normal_len, CompactPush::Literal);
+        return (literal, CompactPush::Literal);
     }
-    let mut best = (normal_len, CompactPush::Literal);
-    let mut consider = |len, compact| {
-        if len < best.0 {
-            best = (len, compact);
+    let mut best = (literal, CompactPush::Literal);
+    let mut consider = |(len, gas): (usize, usize), compact| {
+        if policy.rank(len, gas) < policy.rank(best.0.0, best.0.1) {
+            best = ((len, gas), compact);
         }
     };
+    let zero = literal_cost(evm_version, U256::ZERO);
 
     if value == U256::MAX {
-        consider(zero_push_len(evm_version) + 1, CompactPush::FullWord);
+        consider((zero.0 + 1, zero.1 + VERY_LOW_GAS), CompactPush::FullWord);
     }
 
-    if evm_version.has_bitwise_shifting() && width >= MIN_COMPACT_MASK_WIDTH {
+    if evm_version.has_bitwise_shifting() {
         let bytes = value.to_be_bytes::<WORD_BYTES>();
         let start = WORD_BYTES - width as usize;
         if bytes[start..].iter().all(|&byte| byte == 0xff) {
             let shift = EVM_WORD_BITS - usize::from(width) * 8;
+            let shift_cost = literal_cost(evm_version, U256::from(shift));
             consider(
-                zero_push_len(evm_version) + 4,
+                (zero.0 + 1 + shift_cost.0 + 1, zero.1 + VERY_LOW_GAS * 2 + shift_cost.1),
                 CompactPush::LowerAllOnesMask { shift: shift as u8 },
             );
         }
@@ -248,7 +337,8 @@ fn select_with_len(evm_version: EvmVersion, value: U256) -> (usize, CompactPush)
     if width as usize == WORD_BYTES {
         let inverted = !value;
         if push_width(evm_version, inverted) < width {
-            consider(select_with_len(evm_version, inverted).0 + 1, CompactPush::Not);
+            let (inverse, _) = select(policy, inverted);
+            consider((inverse.0 + 1, inverse.1 + VERY_LOW_GAS), CompactPush::Not);
         }
     }
 
@@ -258,11 +348,10 @@ fn select_with_len(evm_version: EvmVersion, value: U256) -> (usize, CompactPush)
         && trailing_zero_bytes < WORD_BYTES
     {
         let shift = trailing_zero_bytes * 8;
-        let shifted = value >> shift;
+        let (shifted, _) = select(policy, value >> shift);
+        let (amount, _) = select(policy, U256::from(shift));
         consider(
-            select_with_len(evm_version, shifted).0
-                + select_with_len(evm_version, U256::from(shift)).0
-                + 1,
+            (shifted.0 + amount.0 + 1, shifted.1 + amount.1 + VERY_LOW_GAS),
             CompactPush::Shl { shift: shift as u8 },
         );
     }
@@ -270,12 +359,28 @@ fn select_with_len(evm_version: EvmVersion, value: U256) -> (usize, CompactPush)
     best
 }
 
-/// Returns the byte length and gas cost of the selected immediate materialization.
+pub(super) fn selected_len(gcx: Gcx<'_>, value: U256) -> usize {
+    select(ImmediatePolicy::of(Target::new(gcx)), value).0.0
+}
+
+pub(in crate::backend) fn immediate_materialization_len(
+    evm_version: EvmVersion,
+    value: U256,
+) -> usize {
+    select(ImmediatePolicy::Bytes(evm_version), value).0.0
+}
+
+/// Returns the byte length and gas cost of the shortest immediate materialization.
 pub(crate) fn immediate_materialization_cost(
     evm_version: EvmVersion,
     value: U256,
 ) -> (usize, usize) {
-    let metrics = ImmediateMaterialization::new(evm_version, value).metrics();
+    policy_materialization_cost(ImmediatePolicy::Bytes(evm_version), value)
+}
+
+/// Returns the byte length and gas cost of the materialization `policy` selects.
+pub(crate) fn policy_materialization_cost(policy: ImmediatePolicy, value: U256) -> (usize, usize) {
+    let metrics = ImmediateMaterialization::with_policy(policy, value).metrics();
     (metrics.encoded_len, metrics.static_gas)
 }
 
@@ -339,6 +444,40 @@ mod tests {
                 ImmediateMaterializationOp::Opcode(op::SHL),
                 ImmediateMaterializationOp::Opcode(op::NOT),
             ]
+        );
+    }
+
+    #[test]
+    fn lifetime_policy_weighs_gas_against_deposit() {
+        use solar_config::OptimizationMode;
+
+        let lifetime = |runs| {
+            ImmediatePolicy::of(Target::with(EvmVersion::Cancun, OptimizationMode::Gas, runs))
+        };
+        let size = ImmediatePolicy::of(Target::with(EvmVersion::Cancun, OptimizationMode::Size, 1));
+        let u64_max = U256::from(u64::MAX);
+        let u128_max = U256::from(u128::MAX);
+        // At 200 runs a PUSH8 costs 12 lifetime units per run against 16 for
+        // `PUSH0 NOT PUSH1 SHR`, while PUSH16 costs 20 against the same 16.
+        assert_eq!(policy_materialization_cost(lifetime(200), u64_max), (9, 3));
+        assert_eq!(policy_materialization_cost(lifetime(200), u128_max), (5, 11));
+        assert_eq!(policy_materialization_cost(lifetime(200), U256::MAX), (2, 5));
+        // Each copy pays its deposit while the executions are counted once: a third
+        // copy of the mask pays for the recipe.
+        assert_eq!(policy_materialization_cost(lifetime(200).with_copies(2), u64_max), (9, 3));
+        assert_eq!(policy_materialization_cost(lifetime(200).with_copies(3), u64_max), (5, 11));
+        // A unique left-aligned string word is a literal at 1,000 runs, a shared one is not.
+        let abc = U256::from(0x61_62_63) << 232;
+        assert_eq!(policy_materialization_cost(lifetime(1_000), abc), (33, 3));
+        assert_eq!(policy_materialization_cost(lifetime(1_000).with_copies(2), abc), (7, 9));
+        // Once runtime gas dominates the deposit every recipe yields to its literal.
+        assert_eq!(policy_materialization_cost(lifetime(1_000_000), u128_max), (17, 3));
+        assert_eq!(policy_materialization_cost(lifetime(1_000_000), U256::MAX), (33, 3));
+        // Size and unoptimized builds keep the fewest bytes.
+        assert_eq!(policy_materialization_cost(size, u64_max), (5, 11));
+        assert_eq!(
+            policy_materialization_cost(size, u64_max),
+            immediate_materialization_cost(EvmVersion::Cancun, u64_max)
         );
     }
 }

@@ -31,7 +31,9 @@ mod passes;
 pub(crate) use passes::compact_pushes;
 pub(in crate::backend) mod verify;
 
-pub(crate) use passes::compact_pushes::immediate_materialization_cost;
+pub(crate) use passes::compact_pushes::{
+    ImmediatePolicy, immediate_materialization_cost, policy_materialization_cost,
+};
 pub use passes::{
     ALL_PASSES, EvmPass, lookup_pass, pipeline_label, run_passes, run_passes_no_validate,
     run_pipeline,
