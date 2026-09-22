@@ -74,7 +74,9 @@
 //! when its fact is present in the current scope; the index itself proves
 //! nothing. Derived values that never exceed their source (right shifts, masks,
 //! remainders, divisions by a nonzero constant) contribute universal `<=` edges
-//! that hold in every scope, so `i < length / 2` reaches `i < length`. A value
+//! that hold in every scope, so `i < length / 2` reaches `i < length`. So does
+//! an if-converted minimum `b + (a < b) * (a - b)`, below both `a` and `b`,
+//! which lets `i < min(x.length, y.length)` reach both lengths. A value
 //! with a strict path below it in the current scope is at least one, which
 //! folds `length == 0` guards and the `length - 1` underflow check that follow
 //! `i < length / 2`; differences inherit the strict bound of their minuend. Search follows at most
@@ -2015,13 +2017,15 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
                 relations.insert(Relation::Le(value, x));
                 relations.insert(Relation::Le(value, y));
             }
-            // If conversion rewrites `if (x > limit) x = limit` to
-            // `x + (x > limit) * (limit - x)`, which is `limit` when the test
-            // holds and `x` otherwise, so it never exceeds `limit`.
+            // If conversion rewrites `if (x > limit) x = limit`, and so the
+            // minimum of two values, to `x + (x > limit) * (limit - x)`, which
+            // is `limit` when the test holds and `x` otherwise, so it never
+            // exceeds either.
             InstKind::Add(x, adjustment) => {
                 for (x, adjustment) in [(x, adjustment), (adjustment, x)] {
                     if let Some(limit) = clamp_limit(func, x, adjustment) {
                         relations.insert(Relation::Le(value, limit));
+                        relations.insert(Relation::Le(value, x));
                     }
                 }
             }
@@ -2034,12 +2038,17 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
 /// The upper limit of a clamp written as `x + (x > limit) * (limit - x)`.
 ///
 /// The product is zero when the test fails, leaving `x`, and `limit - x` when
-/// it holds, leaving exactly `limit` under wrapping addition. Either way the
-/// sum is at most `limit`.
+/// it holds, leaving exactly `limit` under wrapping addition, which is then
+/// below `x`. Either way the sum is at most both `x` and `limit`. The test is
+/// an `i1` widened to a word, and may be spelled `limit < x`.
 fn clamp_limit(func: &Function, x: ValueId, adjustment: ValueId) -> Option<ValueId> {
     let &InstKind::Mul(first, second) = inst_kind(func, adjustment)? else { return None };
     for (condition, difference) in [(first, second), (second, first)] {
-        let Some(&InstKind::Gt(tested, limit)) = inst_kind(func, condition) else { continue };
+        let Some(&InstKind::Zext(condition)) = inst_kind(func, condition) else { continue };
+        let (tested, limit) = match inst_kind(func, condition) {
+            Some(&InstKind::Gt(tested, limit) | &InstKind::Lt(limit, tested)) => (tested, limit),
+            _ => continue,
+        };
         if tested != x {
             continue;
         }
