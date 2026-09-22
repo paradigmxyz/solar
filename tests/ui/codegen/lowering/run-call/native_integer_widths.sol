@@ -1,4 +1,6 @@
 //@ codegen-matrix: standard
+//@ run-call: compareComputedLiteral 0 => true
+//@ run-call: compareComputedLiteral 4294967295 => true
 //@ run-call: compareUnsignedLiterals 0 => true
 //@ run-call: compareUnsignedLiterals 44 => true
 //@ run-call: compareUnsignedLiterals 255 => true
@@ -822,6 +824,12 @@ contract NativeInteger24 {
 }
 
 contract NativeInteger32 {
+    function compareComputedLiteral(uint32 t) external pure returns (bool) {
+        require(t < 2**32);
+        require(2**32 > t);
+        return true;
+    }
+
     uint32 private saved;
 
     function checkedUnsigned32(uint32 a, uint32 b) external pure returns (uint32) {
