@@ -161,4 +161,40 @@ library Strings {
         return true;
     }
 
+    /// @dev The byte offsets of each non-overlapping occurrence of `needle`.
+    function indicesOf(string memory subject, string memory needle)
+        internal
+        pure
+        returns (uint256[] memory)
+    {
+        bytes memory s = bytes(subject);
+        bytes memory n = bytes(needle);
+        if (n.length > s.length) return new uint256[](0);
+        if (n.length == 0) {
+            uint256[] memory every = new uint256[](s.length + 1);
+            for (uint256 i; i <= s.length; ++i) every[i] = i;
+            return every;
+        }
+        uint256 count;
+        for (uint256 i; i + n.length <= s.length;) {
+            if (_matchAt(s, n, i)) {
+                ++count;
+                i += n.length;
+            } else {
+                ++i;
+            }
+        }
+        uint256[] memory found = new uint256[](count);
+        count = 0;
+        for (uint256 i; i + n.length <= s.length;) {
+            if (_matchAt(s, n, i)) {
+                found[count++] = i;
+                i += n.length;
+            } else {
+                ++i;
+            }
+        }
+        return found;
+    }
+
 }
