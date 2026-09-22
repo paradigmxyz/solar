@@ -63,9 +63,7 @@ import {Base64} from "solar:core/v1/codecs/Base64.sol";
 
 contract Test {
     // CHECK-LABEL: fn @encode.
-    // CHECK: memory_object_len memorybytes
-    // CHECK: div {{.*}}, 24
-    // CHECK: memory_object_store_word memorybytes
+    // CHECK: icall @core_base64_encode
     function encode(bytes memory data) public pure returns (string memory) {
         return Base64.encode(data);
     }

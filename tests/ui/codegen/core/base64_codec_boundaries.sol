@@ -1,5 +1,6 @@
-//@ codegen-matrix: standard portable
+//@ codegen-matrix: standard portable paris
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
+//@[paris] compile-flags: -Ogas --evm-version=paris
 //@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@[mir] filecheck:
 //@ run-call: roundtrip 0; gas=16000000 => true
@@ -82,6 +83,9 @@
 //@ run-call: classify 224; gas=16000000 => true
 //@ run-call: classify 240; gas=16000000 => true
 
+//@ run-call: discard "AAAA" => true
+//@ run-call-fail: discard "AA!A" => 0xa164f8fe
+
 import {Base64} from "solar:core/v1/codecs/Base64.sol";
 import {Arrays} from "solar:core/v1/Arrays.sol";
 
@@ -89,7 +93,7 @@ contract Test {
     // Dirty bytes after the logical end must not affect either tail. Repeated
     // allocations also check the output length word and surrounding objects.
     // CHECK-LABEL: fn @roundtrip(
-    // CHECK: div {{.*}}, 24
+    // CHECK: icall @core_base64_encode
     // CHECK: div {{.*}}, 32
     function roundtrip(uint256 n) public pure returns (bool) {
         bytes memory input = new bytes(n + 32);
@@ -143,6 +147,12 @@ contract Test {
 
     function checkedDecode(string memory data) external pure returns (bytes memory) {
         return Base64.decode(data);
+    }
+
+    // Validation must remain observable even when the result is unused.
+    function discard(string memory data) public pure returns (bool) {
+        Base64.decode(data);
+        return true;
     }
 
 }
